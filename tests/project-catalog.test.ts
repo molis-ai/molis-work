@@ -1,6 +1,6 @@
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, realpath, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -847,7 +847,8 @@ test("project deletion needs separate confirmation and records an idempotent rec
       const deleted = await catalog.deleteProject(deletionInput);
       assert.equal(deleted.replayed, false);
       assert.equal(deleted.deletion.project_id, project.project_id);
-      assert.equal(deleted.deletion.deleted_binding_count, 1);
+      // The Session binding and the project's own default output membership (every project has one, SSC-20).
+      assert.equal(deleted.deletion.deleted_binding_count, 2);
       assert.equal(deleted.deletion.cleanup_state, "complete");
       assert.equal(catalog.resolveRuntimeContext(context).status, "unbound");
       assert.deepEqual(catalog.listProjects(), []);
@@ -1016,5 +1017,32 @@ test("RAC-2835 S-103 a legal same session rebinds B after A and preserves the pa
       assert.equal(reopened.terminalPanels.get("legal-panel-b")?.updated_at, savedAt);
       for (const suffix of ["a", "b"]) assert.equal(reopened.resolveRuntimeContext(stableContext("codex", "legal-panel-" + suffix)).status, "bound");
     } finally { reopened.close(); }
+  });
+});
+
+test("SSC-23 the demo's default output directory keeps its files through a reset and a removal that asks to delete them, and the next demo has them again", async () => {
+  await withTemporaryDirectory(async (directory) => {
+    const home = join(directory, "home");
+    const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+    try {
+      const created = await catalog.ensureDemoProject({ actor_id: "user", user_confirmed: true });
+      const made = join(await realpath(home), "outputs", created.project.project_id, "made-in-the-demo.md");
+      await mkdir(join(made, ".."), { recursive: true });
+      await writeFile(made, "the person's file\n");
+      await catalog.resetDemoProject({ actor_id: "user", user_confirmed: true });
+      assert.equal(await readFile(made, "utf8"), "the person's file\n", "a reset rebuilds the demo, not the person's files");
+      const removed = await catalog.removeDemoProject({
+        project_id: created.project.project_id, actor_id: "user", delete_confirmed: true, idempotency_key: "remove-demo-asking-to-delete-output", output_files: "delete",
+      });
+      assert.equal(await readFile(made, "utf8"), "the person's file\n", "removing the demo never deletes them, even when the request asks to");
+      assert.equal(removed.kept_output_directory, join(made, ".."));
+      assert.equal(removed.deletion.owner_steps.some(step => step.owner_id === "project-output"), false);
+      const again = await catalog.ensureDemoProject({ actor_id: "user", user_confirmed: true });
+      assert.equal(again.status, "created");
+      assert.equal(catalog.projectDeletion.outputContents(again.project.project_id), "has_files", "the demo has the same id, so the same folder");
+      assert.equal(await readFile(made, "utf8"), "the person's file\n");
+    } finally {
+      catalog.close();
+    }
   });
 });

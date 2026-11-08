@@ -51,6 +51,9 @@ test("IMETA-04 safe uninstall preview is read-only and confirmation preserves ev
     const discussionDatabase = join(item.home, "server", "server.sqlite");
     await mkdir(dirname(discussionDatabase), { recursive: true });
     await writeFile(discussionDatabase, "discussion-store\n");
+    // SSC-23: the files in each project's default output directory are the person's, the demo's included: the uninstall removes the demo, not them.
+    const outputFiles = [item.userProject.project_id, item.demo.project_id].map(projectId => join(item.home, "outputs", projectId, "report.md"));
+    for (const file of outputFiles) { await mkdir(dirname(file), { recursive: true }); await writeFile(file, "the person's file\n"); }
     // CLEAN-1: ordinary app uninstall preserves the publisher that two projects can share.
     const publishing = readyPublication(item.home, item.userProject.project_id);
     await publishing.publish(); await publishing.workflow.close();
@@ -71,6 +74,7 @@ test("IMETA-04 safe uninstall preview is read-only and confirmation preserves ev
     await assert.rejects(stat(installManifest));
     assert.equal((await stat(item.userProject.database_path)).isFile(), true);
     assert.equal((await stat(discussionDatabase)).isFile(), true);
+    for (const file of outputFiles) assert.equal(await readFile(file, "utf8"), "the person's file\n");
     await assert.rejects(stat(item.demo.database_path));
     assert.ok(result.receipt_path);
     assert.equal((await stat(result.receipt_path!)).isFile(), true);
@@ -177,7 +181,9 @@ test("purge needs a second exact home and user-project-count confirmation", asyn
       "agent-runtime/storage.key", "agent-runtime/records/run/one.json", "feed/secrets.json", "feed/evidence/blobs/one", "browser/sites.json",
       "browser/profile/Cookies", "plugin-builder/project/design/one.json", "cache/research-library/one/HEAD", "directory-access/bookmarks.json",
       "git-operation-details.json", "runtime-integration-attempts/plan-one.json", "config/onboarding.json", "config/plugin-publisher.json", "config/project-arrival.json",
-      "config/mcp-tools.json", "config/external-mcp-tools.json", "config/connector-mcp-tools.json"];
+      "config/mcp-tools.json", "config/external-mcp-tools.json", "config/connector-mcp-tools.json",
+      // SSC-23: the files the person left in the default output directories when projects were deleted.
+      "outputs/a-deleted-project/report.md"];
     for (const file of registered) {
       await mkdir(dirname(join(item.home, file)), { recursive: true });
       await writeFile(join(item.home, file), "user data\n");

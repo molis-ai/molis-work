@@ -655,3 +655,31 @@ test('PTR-01 personal permanent deletion refuses before effects and preserves pr
   assert.deepEqual(await readFile(project.database_path),before);assert.equal(await readFile(attachment,'utf8'),'完整的离线附件');
   assert.equal(catalog.listProjectDeletions().length,0);assert.ok(catalog.listProjects().some(item=>item.project_id===project.project_id));
 });
+
+test("SSC-23 deleting the default output directory's files with the project waits for its tasks: a busy project, or one whose tasks cannot be asked about, is refused before anything changes", async t => {
+  const { home } = await scratchHome(t);
+  const withCatalog = withMolisWorkProjectCatalog;
+  const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "还有任务的项目", actor_id: "test-user" }));
+  const draft = join(await realpath(home), "outputs", project.project_id, "draft.md");
+  await mkdir(dirname(draft), { recursive: true });
+  await writeFile(draft, "still being written\n");
+  const request = { ...deletion(project.project_id), output_files: "delete" as const };
+  const unanswered = recordingPorts();
+  await assert.rejects(new ProjectDeletionService(withCatalog, unanswered).deleteProject(home, request), { code: "catalog.project_storage_invalid", message: /运行状态尚未接入/ });
+  let busy = true;
+  const asked: string[] = [];
+  const ports = { ...recordingPorts(), isProjectBusy(databasePath: string) { asked.push(databasePath); return busy; } };
+  const service = new ProjectDeletionService(withCatalog, ports);
+  await assert.rejects(service.deleteProject(home, request), { code: "catalog.project_task_live" });
+  assert.deepEqual(asked, [project.database_path]);
+  assert.deepEqual([...unanswered.released, ...ports.released], [], "the runtime is not let go of for a deletion that does not happen");
+  assert.equal(existsSync(project.database_path), true);
+  assert.equal(await readFile(draft, "utf8"), "still being written\n");
+  assert.equal((await withCatalog({ homeDirectory: home }, catalog => catalog.listProjectDeletions())).length, 0, "no receipt is written");
+
+  // Once nothing runs, the same request goes through.
+  busy = false;
+  const deleted = await service.deleteProject(home, request);
+  assert.equal(deleted.deletion.cleanup_state, "complete");
+  assert.equal(existsSync(dirname(draft)), false);
+});

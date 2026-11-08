@@ -261,6 +261,7 @@
     "type": "application/json",
     "keys": [
       "directories",
+      "page",
       "project_id",
       "revision",
       "source_links"

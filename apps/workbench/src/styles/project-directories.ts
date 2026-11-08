@@ -33,7 +33,7 @@ export const PROJECT_DIRECTORIES_STYLES = `
   .project-directories__status { min-height: 20px; margin: 0 0 12px; color: var(--muted); font-size: 13px; }
   .project-directories__status[data-tone=error] { color: var(--red); }
   .project-directory-chooser { position: fixed; inset: auto; margin: 0; width: min(340px, calc(100vw - 16px)); padding: 0; overflow: auto; overscroll-behavior: contain; }
-  .project-directory-chooser:popover-open { display: grid; animation: craft-drop 200ms var(--ease-quint); }
+  .project-directory-chooser:popover-open { display: grid; animation: craft-drop var(--dur-move) var(--ease-quint); }
   /* The menu is the popover's body, not a second card in it (the pages' and dark theme's menu rules are more specific). */
   html body:is(.immersive-workbench, .settings-page, .project-preferences-page) .mw-popover.project-directory-chooser > .mw-menu { min-width: 0; box-shadow: none; border-radius: 0; background: transparent; }
   .project-directory-chooser__head { display: grid; gap: 2px; padding: 12px 14px 4px; min-width: 0; }

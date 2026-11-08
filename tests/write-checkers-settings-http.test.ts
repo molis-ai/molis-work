@@ -126,7 +126,10 @@ test("PA-43 the page's markup holds every sentence; its program holds none, asks
     const global = await f.get("/settings/models");
     assert.equal(global.status, 200);
     assert.ok(!global.text.includes("molisWorkWriteCheckers = ") && !global.text.includes("data-write-checkers>") && !global.text.includes("data-wc=\"list\""), "the global settings page has no such section and gets no such program");
-    assert.ok(global.text.includes("typeof molisWorkWriteCheckers==='function'"), "the workspaces script it shares binds only when the program is there");
+    // The settings script it shares hands the section to the directories program, which binds the checkers only when their program is there.
+    assert.ok(/molisWorkBindProjectDirectories\?\.\(/.test(global.text), "the shared settings script binds the directories only when their program is there");
+    assert.ok(!/molisWorkBindProjectDirectories\s*=[^=]/.test(global.text) || /typeof molisWorkWriteCheckers\s*===?\s*["']function["']/.test(global.text),
+      "and the directories program binds the checkers only when their program is there");
     const workbench = await f.get("/assets/molis-work-workbench.js");
     assert.equal(workbench.status, 200);
     // The host tightens the whitespace and syntax of every script it serves, so the bundle is not there byte for byte.

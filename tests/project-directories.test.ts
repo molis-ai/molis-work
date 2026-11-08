@@ -93,7 +93,7 @@ test("SSC-20 a new project has its default output directory: no path in the cata
     assert.equal(output!.display_name, "默认输出目录");
     assert.equal(output!.state, "ok", "a default output directory that is not made yet is not missing");
     assert.equal(existsSync(env.outputs), false, "registering a project makes no folder");
-    const firstEvent = (env.db.prepare("SELECT event_id FROM project_events WHERE project_id = ? ORDER BY created_at, event_id LIMIT 1").get(id) as { event_id: string }).event_id;
+    const firstEvent = (env.db.prepare("SELECT event_id FROM project_events WHERE project_id = ? ORDER BY created_at, rowid LIMIT 1").get(id) as { event_id: string }).event_id;
     assert.equal(output!.workspace_id, projectOutputWorkspaceId(projectOutputHash(id, firstEvent)));
     assert.ok(isProjectOutputWorkspaceId(output!.workspace_id));
     assert.deepEqual(storedRows(env.db), [{ workspace_id: output!.workspace_id, canonical_path: `project-output:${id}`, realpath_verified: 0 }]);

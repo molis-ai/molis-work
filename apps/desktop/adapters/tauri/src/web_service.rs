@@ -517,7 +517,10 @@ mod upgrade_wait_tests {
         let (wait, after) = handed_over(|elapsed| (elapsed >= at).then_some(Answer::Upgrading));
         assert_eq!(wait, Wait::Upgrading);
         assert_eq!(after, at);
-        assert_eq!(handed_over(|_| Some(Answer::Upgrading)), (Wait::Upgrading, Duration::ZERO));
+        assert_eq!(
+            handed_over(|_| Some(Answer::Upgrading)),
+            (Wait::Upgrading, Duration::ZERO)
+        );
         assert_eq!(handed_over(|_| ready()), (Wait::Ready, Duration::ZERO));
         assert_eq!(handed_over(|_| None), (Wait::TimedOut, START_WAIT));
     }

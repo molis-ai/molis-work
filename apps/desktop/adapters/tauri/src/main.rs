@@ -990,6 +990,7 @@ fn main() {
               );
               let _ = window.eval(&script);
             }
+          }
         }
       };
       // An upgrade is waited out on a thread of its own and shown on the main thread, as setup

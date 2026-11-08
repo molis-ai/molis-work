@@ -246,6 +246,7 @@ test("D0033-01 S-47 the real side plugin cannot read either trusted ancestor, it
     assert.equal(await child.evaluate(`fetch(${JSON.stringify(path)}).then(response=>response.status)`), 403, path);
   }
   assert.equal(await child.evaluate(`fetch(${JSON.stringify(`/projects/${browser.projectId}/api/plugins/io.molis.work.shelf/`)}).then(response=>response.status)`), 200, "the same isolated bridge still serves the side plugin's own content");
-  await browser.evaluate("document.dispatchEvent(new CustomEvent('molis:side-close'))");
+  // The page collapses the side from the layout menu (收起右侧); the side has no close event of its own (07-1 S4b).
+  await browser.evaluate("document.body.dataset.sideOpen === 'true' && (document.querySelector('[data-layout-open]').click(), document.querySelector('[data-layout-action=side]').click())");
   await browser.waitFor("document.body.dataset.sideOpen==='false'");
 });

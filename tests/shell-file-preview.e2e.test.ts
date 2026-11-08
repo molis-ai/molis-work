@@ -17,7 +17,8 @@ test("a Shelf file and a project reference open inside the workbench, not in a n
 
   // Shelf is the side panel's first tab; its rows live in the tab's frame.
   const shelf = "document";
-  await click("[data-side-toggle]");
+  // 07-1 S4b: the bar's side button is gone; the side opens from its current glyph in the titlebar.
+  await click("[data-side-tabs] [data-side-tab][aria-selected=true]");
   await child.waitFor(`[...(${shelf}?.querySelectorAll('[data-shelf-list=materials] [data-shelf-item]') ?? [])].some(row => row.dataset.shelfName === '试用示例.pdf')`, 10_000);
   const address = await evaluate<string>("location.href");
   // A double click on the row (the first click opens the row's preview and moves the layout, so dispatch it on the row).
@@ -67,7 +68,7 @@ test("RAC-84 PG-060 side-panel open selects the exact Files object on cold and a
 
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + prefix + "/" }, sessionId));
-  await click("[data-side-toggle]");
+  await click("[data-side-tabs] [data-side-tab][aria-selected=true]");
   await click("[data-side-tab=files]");
   // Only the selected browsing workspace is legal. Equal basenames at distinct paths must retain their full IDs.
   // Files has never been opened in this page; the second iteration uses the Files view the first one opened.

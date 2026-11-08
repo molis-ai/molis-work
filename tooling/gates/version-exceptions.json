@@ -132,6 +132,12 @@
     "reason": "沙箱包在宿主侧派生动作时的构建修订号，属于第三方包自身的编号，不是平台版本。"
   },
   {
+    "file": "packages/plugin-sdk/src/skill-frontmatter.ts",
+    "name": "version",
+    "values": { "1": 1 },
+    "reason": "SKILL.md 没写版本、调用方也没给时 Skill 自己的起始版本，属于作者包自身的编号，不是平台版本。"
+  },
+  {
     "file": "apps/mcp/src/launcher-validation.ts",
     "name": "protocolVersion",
     "values": { "2024-11-05": 1 },

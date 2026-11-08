@@ -216,7 +216,8 @@ test("PRR-21 QA-017 opens the side panel; W3-A3b PICK-02 on the real result card
   assert.equal(await inHand(), null, "and nothing is in hand");
   assert.equal(await child.evaluate<string>("document.querySelector('[data-pages-title]').value"), "发布计划", "the document on the left was not replaced by the title's request");
   // QA-017: the title really opened the panel; close it again so the card and the Assistant stay in view for the rest.
-  await evaluate("document.dispatchEvent(new CustomEvent('molis:side-close'))");
+  // The page collapses the side from the layout menu (收起右侧); the side has no close event of its own (07-1 S4b).
+  await evaluate("document.body.dataset.sideOpen === 'true' && (document.querySelector('[data-layout-open]').click(), document.querySelector('[data-layout-action=side]').click())");
   await waitFor("document.body.dataset.sideOpen === 'false'", 10_000);
 
   // A real drag over the card's own line of text selects it; the click that ends the drag is reading, not picking.

@@ -1,8 +1,8 @@
 /**
  * What waits on the person, read once for the whole page (W4-10): `/api/attention` answers the background tasks, the
- * Assistant's notices for the plugin in front and the plugin deliveries waiting in the market in one request. It is read
- * every 15 seconds while the page is visible, at once when the person comes back or moves to another plugin, and when a
- * reader asks (`molis-work:attention-refresh`, after the person acted on something). The Assistant's bell, with the plugin
+ * Assistant's notices for the plugin in front and the plugin deliveries waiting in the market in one request. It is read on a
+ * beat while the page is visible (15 seconds after the last read ends, longer after a failure: see below), at once when the person
+ * comes back or moves to another plugin, and when a reader asks (`molis-work:attention-refresh`, after the person acted on something). The Assistant's bell, with the plugin
  * notification count, paints from `molis-work:attention`; this module paints the right side's background-tasks tab: its
  * badge counts the tasks not finished (running plus waiting on the person), and its view lists them, in this project and every
  * other open one, with the background commands they left running (each can be stopped here). It knows no plugin: each row names the surface and item it opens, the words under its title, whether
@@ -11,7 +11,10 @@
  *
  * The notices asked for are those of the plugin in front (the person's rules hold some while it matches). Each read
  * carries when it started: a count the market reports later than that is newer than its answer (assistant-island.ts).
- * A failed read leaves what the page last showed: each part is a convenience. A 404 (the project or Home is gone) stops the reads.
+ * A failed read leaves what the page last showed: each part is a convenience. A 404 (the project or Home is gone) stops the reads
+ * of that address; the beat goes on, and reads the address again once it names another project (the chooser's).
+ * One beat is waiting at a time, 15 seconds after the last read ends; a read that failed waits twice as long as the last before the
+ * next (up to two minutes), so a host that is not answering is not asked every 15 seconds; a hidden page waits for nothing (N54).
  */
 export const ATTENTION_FACTORY_SCRIPT = `(host) => {
   const { translate: L, projectId, openItem, route } = host;
@@ -69,9 +72,15 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
   // A 404 means the project (or Home) this address reads is gone: an old tab stops asking it instead of reading a 404 every
   // 15 seconds (N54). It is kept by address: the project chooser's route follows the project chosen, and another one is asked.
   const gone = new Set();
+  const BEAT = 15000, LONGEST = 120000;
+  let beat = 0, wait = BEAT;
+  // The beat keeps going past a gone address: the chooser's route may follow another project by the next beat (N54).
+  const schedule = () => { clearTimeout(beat); if (!document.hidden) beat = setTimeout(read, wait); };
   const read = async () => {
-    if (document.hidden || gone.has(route("/api/attention"))) return;
+    if (document.hidden) { clearTimeout(beat); return; }
+    if (gone.has(route("/api/attention"))) { schedule(); return; }
     if (reading) { again = true; return; }
+    clearTimeout(beat);
     reading = true; again = false;
     const started = performance.now();
     try {
@@ -79,15 +88,16 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
       const rows = data.background_tasks, next = JSON.stringify(rows);
       if (Array.isArray(rows) && next !== key) { key = next; tasks = rows; render(); }
       document.dispatchEvent(new CustomEvent("molis-work:attention", { detail: Object.assign(data, { started }) }));
+      wait = BEAT;
     } catch (error) {
-      // Any other failure keeps what it showed and is asked again on the next beat.
+      // Any other failure keeps what it showed and is asked again on a later beat.
       if (error && error.status === 404) gone.add(route("/api/attention"));
+      else wait = Math.min(wait * 2, LONGEST);
     }
-    finally { reading = false; if (again) void read(); }
+    finally { reading = false; if (again) void read(); else schedule(); }
   };
   document.addEventListener("molis-work:attention-refresh", read);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) void read(); });
   document.querySelector(".plugin-rail-items")?.addEventListener("click", () => setTimeout(read, 300));
   void read();
-  setInterval(read, 15000);
 }`;

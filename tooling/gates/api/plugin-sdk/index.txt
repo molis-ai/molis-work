@@ -116,6 +116,17 @@ export interface CardStore<Card extends ActionCard = ActionCard> {
     update(card: Card, expected: number, patch: Partial<ActionCard>): Card;
 }
 
+export interface ContentPackage {
+    manifest: PluginManifest;
+    skills: ContentPackageSkill[];
+}
+
+export interface ContentPackageSkill {
+    skill_id: string;
+    version: number;
+    body: string;
+}
+
 export declare const DIFF_STEP_BUDGET = 200000;
 
 export interface DeclaredPageRouteMatch extends PageRouteMatch {
@@ -400,6 +411,12 @@ export type { SearchEntriesPage } from "@molis-ai/molis-work-contracts/platform/
 export type { SearchEntry } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SearchOpenTarget } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SearchSourceKind } from "@molis-ai/molis-work-contracts/platform/actions";
+
+export interface SkillFrontmatterOptions {
+    version?: number;
+    resources?: SkillResourceDeclaration[];
+}
+
 export type { SubjectActionOffer } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SubjectOfferChoice } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SubjectOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -632,6 +649,8 @@ export declare function inspectActionCrossReferences(definitions: unknown): stri
 
 export declare function inspectActionDeclarations(definitions: unknown, scenes: unknown): string[];
 
+export declare function inspectContentPlugin(manifest: Readonly<Record<string, unknown>>): PluginDeclarationProblem[];
+
 export declare function instantIn(day: string, time: string, zone: string | undefined): string | null;
 
 export { instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
@@ -678,6 +697,8 @@ export declare function objectSchema<const P extends Readonly<Record<string, unk
 };
 
 export declare function pageRouteProblems(manifest: PluginManifest): string[];
+
+export declare function parseContentPackage(payload: unknown): ContentPackage;
 
 export declare function parsePluginManifest(input: unknown): PluginManifest;
 
@@ -780,6 +801,8 @@ export { sceneConfigurationActions } from "@molis-ai/molis-work-contracts/platfo
 export { searchEntriesPage } from "@molis-ai/molis-work-contracts/platform/actions";
 export { searchRevisionOf } from "@molis-ai/molis-work-contracts/platform/actions";
 export { searchText } from "@molis-ai/molis-work-contracts/platform/actions";
+
+export declare function skillDeclarationFromFrontmatter(markdown: string, options?: SkillFrontmatterOptions): AgentSkillDeclaration;
 
 export declare function splitLines(text: string): DiffLine[];
 

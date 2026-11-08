@@ -15,13 +15,15 @@ test("AC-S01 QA-013 a fresh browser's first side panel is Shelf through Home and
   const b = await openGoalBrowser(t, "user", undefined, null); if (!b) return;
   const { evaluate, waitFor, click, command, navigate, origin, sessionId } = b;
   const go = (path: string) => navigate(() => command("Page.navigate", { url: `${origin}${path}` }, sessionId));
-  const toggle = "[data-side-toggle]";
+  // 07-1 S4b: the bar's side button is gone. The side opens from its current glyph in the titlebar (the tab it remembers) and
+  // closes from the layout menu at the titlebar's end (收起右侧).
+  const current = "[data-side-tabs] [data-side-tab][aria-selected=true]";
   const openPanel = async () => {
-    await waitFor(`document.querySelector('${toggle}') && document.body.dataset.sideOpen === 'false'`);
-    await click(toggle);
+    await waitFor(`document.querySelector('${current}') && document.body.dataset.sideOpen === 'false'`);
+    await click(current);
     await waitFor("document.body.dataset.sideOpen === 'true'");
   };
-  const closePanel = async () => { await click(toggle); await waitFor("document.body.dataset.sideOpen === 'false'"); };
+  const closePanel = async () => { await click("[data-layout-open]"); await click("[data-layout-action=side]"); await waitFor("document.body.dataset.sideOpen === 'false'"); };
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
 
   // Through Home: Shelf belongs to Home too, and its tab is the first one there; Home writes nothing into the project's state.

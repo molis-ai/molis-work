@@ -1,39 +1,14 @@
 import {
-  AGENT_PROMPT_LAYERS, BUSINESS_HOST_TOOLS, SKILL_TOOLS,
-  type AgentManifest, type AgentRoleDeclaration, type AgentSkillDeclaration, type AgentSubagentRoleDeclaration, type AgentSubagentsDeclaration,
+  AGENT_PROMPT_LAYERS, BUSINESS_HOST_TOOLS,
+  type AgentManifest, type AgentRoleDeclaration, type AgentSubagentRoleDeclaration, type AgentSubagentsDeclaration,
 } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
+import type { PluginDeclarationProblem } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { validToken, validVersion } from "./declaration-problems.js";
+import { skillFieldProblems } from "./skill-declarations.js";
 
-// The checks a Manifest's `agent` and `methods` blocks get. `parsePluginManifest` is the one caller; they return every problem, in
+// The checks a Manifest's `agent` block gets (the `methods` block's are in `skill-declarations.ts`). `parsePluginManifest` is the one caller; they return every problem, in
 // the order the checks run, so an author sees the whole contract at once. Moved here from the contracts package (W3-03): they run
 // code, so they live with the other Manifest rules in the SDK, and they are not part of the SDK's public exports.
-
-const AGENT_TOKEN = /^[a-z0-9][a-z0-9-]*$/u;
-
-function validToken(value: unknown): value is string {
-  return typeof value === "string" && AGENT_TOKEN.test(value);
-}
-
-function validVersion(value: unknown): value is number {
-  return typeof value === "number" && Number.isSafeInteger(value) && value >= 1;
-}
-
-/** A Plugin's methods for other Agents (Manifest `methods`): each a declared, versioned method for business work. */
-export function inspectSkillDeclarations(methods: unknown): string[] {
-  if (methods === undefined) return [];
-  if (!Array.isArray(methods)) return ["方法声明必须是列表"];
-  const problems: string[] = [], seen = new Set<string>();
-  for (const method of methods as AgentSkillDeclaration[]) {
-    if (!method || !validToken(method.skill_id) || !validVersion(method.version)) { problems.push("方法声明不合法"); continue; }
-    if (seen.has(method.skill_id)) problems.push(`方法重复：${method.skill_id}`);
-    seen.add(method.skill_id);
-    if (typeof method.name !== "string" || !method.name.trim() || method.name.length > 80) problems.push(`方法 ${method.skill_id} 需要名称（80 字以内）`);
-    if (typeof method.summary !== "string" || !method.summary.trim() || method.summary.length > 300) problems.push(`方法 ${method.skill_id} 需要适用说明（300 字以内）`);
-    if (!Array.isArray(method.tools) || method.tools.some(tool => !(SKILL_TOOLS as readonly string[]).includes(tool))) {
-      problems.push(`方法 ${method.skill_id} 只能使用业务工具：${SKILL_TOOLS.join("、")}`);
-    }
-  }
-  return problems;
-}
 
 /** What one pass over a list of declarations found: the problems, and the ids that passed the identity check. */
 interface Reviewed {
@@ -53,7 +28,7 @@ interface ReviewedRoles extends Reviewed {
 export function inspectAgentDeclaration(
   agent: AgentManifest | undefined,
   declaredInputPorts: readonly string[],
-): string[] {
+): Array<string | PluginDeclarationProblem> {
   if (!agent) return [];
   const prompts = reviewPrompts(agent);
   const roles = reviewRoles(agent, prompts.ids);
@@ -206,19 +181,20 @@ function agentCompactionProblems(agent: AgentManifest, promptIds: ReadonlySet<st
   return problems;
 }
 
-function agentSkillProblems(agent: AgentManifest): string[] {
-  const problems: string[] = [];
+function agentSkillProblems(agent: AgentManifest): Array<string | PluginDeclarationProblem> {
+  const problems: Array<string | PluginDeclarationProblem> = [];
   const skills = new Set<string>();
   for (const skill of agent.skills ?? []) {
     if (!validToken(skill.skill_id) || !validVersion(skill.version)) {
       problems.push("Agent 方法声明不合法");
       continue;
     }
-    if (skills.has(skill.skill_id)) problems.push(`Agent 方法重复：${skill.skill_id}`);
+    if (skills.has(skill.skill_id)) problems.push({ skill_id: skill.skill_id, reason: `Agent 方法重复：${skill.skill_id}` });
     skills.add(skill.skill_id);
     if (!Array.isArray(skill.tools) || skill.tools.length === 0) {
-      problems.push(`Agent 方法 ${skill.skill_id} 必须声明可用工具`);
+      problems.push({ skill_id: skill.skill_id, reason: `Agent 方法 ${skill.skill_id} 必须声明可用工具` });
     }
+    problems.push(...skillFieldProblems(skill, "agent"));
   }
   return problems;
 }

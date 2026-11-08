@@ -4,7 +4,8 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { FIXTURE_TITLE, issueModel } from "./fixtures/issue-model.js";
 import { issueView } from "./fixtures/issue-browser.js";
 
-const button = "document.querySelector('[data-side-plugin-open]')";
+// Issue's glyph on the right side of the titlebar carries its state ring (its titlebar button left in 07-1 S4b).
+const button = "document.querySelector('[data-side-tab=\"plugin:issues/capture\"]')";
 
 test("ISSUE-35 ISSUE-36 ISSUE-39 ISSUE-40 ISSUE-50 a chord, a sentence and ⌘↵ record an Issue that Issue names in the background", { timeout: 120_000 }, async t => {
   let release!: () => void; const firstReply = new Promise<void>(resolve => { release = resolve; });
@@ -148,7 +149,7 @@ test("ISSUE-37 an unfinished capture survives leaving the page and saves once fr
   await v.chord(); await v.composerFocused();
   await v.until("$('[data-state=attention]')?.textContent.includes('模型暂时不可用，点开手动保存，或检查模型设置（截图要重新添加）')");
   // The dot comes from the view's status message to the shell, a moment after the row is drawn.
-  await b.waitFor(`document.querySelector('[data-side-plugin-open]').dataset.sideBusy === 'attention'`, 5_000);
+  await b.waitFor(`${button}.dataset.sideBusy === 'attention'`, 5_000);
   await v.press("[data-state=attention]");
   assert.equal(await v.ask("$('[data-issue-editor] [name=description]').value"), "离开页面前没整理完的一条");
   await v.type("离开页面后补记"); await v.press("[data-issue-editor] [data-type=bug]"); await v.press("[data-issue-save]");

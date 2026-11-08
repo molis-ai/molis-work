@@ -11,12 +11,14 @@ import { issueView } from "./fixtures/issue-browser.js";
 const composer = "[data-issue-composer] [name=description]";
 const editor = "[data-issue-editor]";
 const sideOpen = "document.body.dataset.sideOpen === 'true'";
+// Issue opens from its glyph on the right side of the titlebar (its titlebar button left in 07-1 S4b).
+const issueGlyph = '[data-side-tab="plugin:issues/capture"]';
 
 test("W2-18-HOME-LOCALE-01: Home and project Issue controls follow locale while Chinese drafts and records stay verbatim", { timeout: 90_000 }, async t => {
   const b = await openGoalBrowser(t, "user", undefined, null); if (!b) return;
   const v = await issueView(t, b, "issue-home-locale");
   await v.viewport(1440); await v.go("/locale?lang=en&next=%2F");
-  await b.click("[data-side-plugin-open]"); await b.waitFor(sideOpen); await v.composerFocused();
+  await b.click(issueGlyph); await b.waitFor(sideOpen); await v.composerFocused();
   const controls = () => v.ask(`({ lang: d.documentElement.lang, heading: $('.issues-head').textContent,
     label: $('${composer}').getAttribute('aria-label'), placeholder: $('${composer}').placeholder,
     screenshot: $('[data-issue-pick]').title, list: $('[data-issue-list]').getAttribute('aria-label') })`);
@@ -26,7 +28,7 @@ test("W2-18-HOME-LOCALE-01: Home and project Issue controls follow locale while 
   // These are also UI dictionary keys: a broad text-node translation would corrupt them.
   await v.type("问题描述");
   const record = await v.api<Issue>("/api/plugins/io.molis.work.issues/create", { title: "删除", description: "我的 Issue", type: "experience" });
-  await v.go(`/projects/${b.projectId}/?desktop=1`); await b.click("[data-side-plugin-open]"); await b.waitFor(sideOpen); await v.composerFocused();
+  await v.go(`/projects/${b.projectId}/?desktop=1`); await b.click(issueGlyph); await b.waitFor(sideOpen); await v.composerFocused();
   assert.deepEqual(await controls(), english);
   assert.equal(await v.ask(`$('${composer}').value`), "问题描述");
   await v.press(`[data-issue-id="${record.id}"]`);
@@ -39,7 +41,7 @@ test("W2-18-HOME-LOCALE-01: Home and project Issue controls follow locale while 
     placeholder: $('${editor} [name=title]').placeholder, type: $('[data-issue-types]').getAttribute('aria-label'), save: $('[data-issue-save]').textContent })`),
     { title: "删除", text: "我的 Issue", placeholder: "Title", type: "Type", save: "Save" });
   await v.press("[data-issue-cancel]"); await v.press("[data-issue-back]");
-  await v.go("/locale?lang=zh&next=%2F"); await b.click("[data-side-plugin-open]"); await b.waitFor(sideOpen); await v.composerFocused();
+  await v.go("/locale?lang=zh&next=%2F"); await b.click(issueGlyph); await b.waitFor(sideOpen); await v.composerFocused();
   assert.deepEqual(await controls(), { lang: "zh-CN", heading: "我的 Issue", label: "问题描述",
     placeholder: "遇到什么问题？写下来，截图可以直接粘贴", screenshot: "添加截图", list: "我的 Issue" });
   assert.equal(await v.ask(`$('${composer}').value`), "问题描述");

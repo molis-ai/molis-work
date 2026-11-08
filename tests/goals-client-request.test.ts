@@ -83,8 +83,11 @@ test("PG094-09: archiving a Goal is one write with the control token, and its fa
 });
 
 test("PG094-09: a Goal document read keeps its one refusal copy, and an unreachable Host says so", async () => {
+  // 07-1 S3: a read the Host answers 404 also tells the workbench the record is gone (molis-work:record-gone), so its tab is struck through.
+  const gone: unknown[] = [];
   const fakeDocument = {
     createElement: () => ({ dataset: {}, className: "", textContent: "", setAttribute() {}, remove() {} }),
+    dispatchEvent: (event: CustomEvent) => { gone.push({ type: event.type, detail: event.detail }); return true; },
   };
   const run = async (answer: Answer, goals: string[]) => {
     const { request, sent } = helper(answer);
@@ -108,6 +111,7 @@ test("PG094-09: a Goal document read keeps its one refusal copy, and an unreacha
   assert.deepEqual(missing.results, [false]);
   assert.deepEqual(missing.errors, ["无法读取这条 Goal 正文"]);
   assert.deepEqual(missing.busy, [true, false]);
+  assert.deepEqual(gone.splice(0), [{ type: "molis-work:record-gone", detail: { plugin: "goals", itemId: "GONE" } }], "07-1 S3: the missing Goal's tab is told it is gone");
   const [read] = missing.sent;
   assert.equal(read!.url, ORIGIN + "/api/goals/GONE/document?view=current");
   assert.equal(read!.method, "GET");
@@ -118,6 +122,11 @@ test("PG094-09: a Goal document read keeps its one refusal copy, and an unreacha
   const lost = await run(unreachable, ["CORE"]);
   assert.deepEqual(lost.results, [false]);
   assert.deepEqual(lost.errors, ["连不上 Molis Work 服务，请稍后重试"]);
+  assert.deepEqual(gone.splice(0), [], "an unreachable Host does not say the Goal is gone");
+  // A 404 that is not Goals' own "no such Goal" (a route the Host does not know, say) does not say the Goal is gone.
+  const route = await run(json(404, { error: "Goal 内容不存在" }), ["CORE"]);
+  assert.deepEqual(route.errors, ["无法读取这条 Goal 正文"]);
+  assert.deepEqual(gone.splice(0), [], "a 404 without Goals' not-found code does not say the Goal is gone");
 
   // A newer read cancels the older one, which ends quietly.
   const held: Answer = (sent) => sent.url.includes("/OLD/")

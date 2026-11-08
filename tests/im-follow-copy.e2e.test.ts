@@ -11,8 +11,9 @@ test("RAC-129-IM / VUX-26 VUX-19: the discussion preserves DOM and focus, follow
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Browser.grantPermissions", { origin, permissions: ["clipboardReadWrite", "clipboardSanitizedWrite"] });
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await waitFor("document.querySelector('[data-side-toggle]')");
-  await click("[data-side-toggle]");
+  await waitFor("document.querySelector('[data-side-tabs] [data-side-tab][aria-selected=true]')");
+  // 07-1 S4b: the bar's side button is gone; the side opens from its current glyph in the titlebar.
+  await click("[data-side-tabs] [data-side-tab][aria-selected=true]");
   await waitFor("document.querySelector('[data-side-tab=\"discussion\"]')?.checkVisibility()");
   await click("[data-side-tab=\"discussion\"]");
   const im = "document.querySelector('[data-side-body=\"discussion\"] iframe')?.contentDocument";

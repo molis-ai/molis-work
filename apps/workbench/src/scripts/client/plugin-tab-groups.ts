@@ -41,6 +41,8 @@ export const PLUGIN_TAB_GROUPS_FACTORY = String.raw`({ getState, ops, apply, per
     const pages = document.createElement("div"); pages.className = "tab-group-pages";
     members.forEach((tab) => appendTab(pages, pane, tab));
     const items = members.length - (head ? 1 : 0);
+    // Two tiers (07-1 S3): the head names the plugin in its colour, its tabs follow a weight lighter after a hairline.
+    if (items) { const sep = document.createElement("span"); sep.className = "tab-group-sep"; sep.setAttribute("aria-hidden", "true"); pages.querySelector('[data-tab-kind="plugin"]')?.after(sep); }
     const trigger = pages.querySelector('[data-tab-kind="plugin"] .tab-item-trigger');
     // A plugin tab with tabs behind it says whether they are shown, and how many, as a person's group label does.
     if (trigger && items) {
@@ -52,7 +54,7 @@ export const PLUGIN_TAB_GROUPS_FACTORY = String.raw`({ getState, ops, apply, per
       count.title = L("组里还有 {n} 个标签", { n: items }); count.setAttribute("aria-hidden", "true");
       pages.querySelector('[data-tab-kind="plugin"]')?.append(count);
     }
-    // A plugin taken out of the project keeps its group where it was, marked removed (07-S1; the look is S3's).
+    // A plugin taken out of the project keeps its group where it was, greyed and marked removed (07-S1 keeps it, S3 draws it).
     if (removed(plugin)) {
       wrap.dataset.groupState = "removed";
       const tag = document.createElement("span"); tag.className = "tab-group-tag"; tag.textContent = L("已移除");

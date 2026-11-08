@@ -1,5 +1,4 @@
 import { renderPluginFrameSurface } from "./plugin-frame.js";
-import type { HomePluginNavigationEntry } from "./home-plugin-navigation.js";
 import { renderUnavailablePluginStage, type UnavailablePluginStage } from "./unavailable-plugin-stage.js";
 import { pluginSurfaceClients, deferredSurfaceClients } from "./plugin-workbench.js";
 import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
@@ -78,8 +77,6 @@ export interface WorkbenchShellPageView {
    * and installed at run time alike (W5-06 余项 2). Absent means a page drawn with no Runtime, which reads the built-in catalog's.
    */
   plugin_directory?: PluginDirectory;
-  /** The signed packages installed in the Home, for the tool bar beside its built-in tools. */
-  home_plugin_nav?: readonly HomePluginNavigationEntry[];
   /** The Host runs in developer mode: the plugin list also offers what is otherwise kept out of it (Text Stats). */
   developer_mode?: boolean;
   project: ShellProject | null;
@@ -195,7 +192,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
   ${renderPluginDirectoryData(directory, offered.map(entry => entry.id))}
   <div class="app">
     <main class="immersive-workspace${parts?.workspace_classes?.length ? ` ${escapeHtml(parts.workspace_classes.join(" "))}` : ""}${directoryEmpty ? " is-plugin-directory-empty" : ""}" data-workspace data-mobile-view="document" data-workspace-mode="graph">
-      ${renderImmersiveHeader(primitives, desktopShell, view.home_plugin_nav, sideTabs)}
+      ${renderImmersiveHeader(primitives, desktopShell, sideTabs)}
       ${renderWorkbenchBar(primitives, {
         enabled: enabledPlugins,
         rail: renderPluginRail(primitives, enabledPlugins, directory, { developerMode: view.developer_mode, marksFromHost: Boolean(view.plugin_directory) }),

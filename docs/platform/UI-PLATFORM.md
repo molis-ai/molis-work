@@ -64,7 +64,7 @@ Workbench 不直接访问 SQLite、Module implementation、Node-only API 或 Tau
 
 工作台客户端的片段文件共用一个函数作用域，片段之间可以直接读变量、直接调函数，绕过事件。把登记和代码对照后，已知没有守住「别的模块不碰主人的状态」的有两处（文件都在 `apps/workbench/src/scripts/client/`）。它们不是批准的例外，是待清的差距，清的时候把状态收进主人的文件、改成发 request 或听 announcement：
 
-- `navigation-feed`：选中的 Feed 任务 `selectedFeedTask` 声明在 `bootstrap.ts`，读它的有 `documents-state.ts`；`setFeedTask` 定义在 `navigation-feed.ts`，却被 `events-primary.ts`、`events-secondary.ts` 直接调用，`events-primary.ts` 还直接给 `selectedFeedTask` 赋值，`tab-workspace.ts` 拿到的也是这个函数。
+- `navigation-surfaces`（原 `navigation-feed`，07-1 改名）：选中的 Feed 任务 `selectedFeedTask` 声明在 `bootstrap.ts`，读它的有 `documents-state.ts`；`setFeedTask` 定义在 `navigation-surfaces.ts`，却被 `events-primary.ts`、`events-secondary.ts` 直接调用，`events-primary.ts` 还直接给 `selectedFeedTask` 赋值，`tab-workspace.ts` 拿到的也是这个函数。
 - `goal-selection`：选中的 Goal `selected` 声明在 `bootstrap.ts`（不在主人的文件里），`documents-state.ts`、`editing-graph.ts` 直接读它，`immersive-navigation.ts` 经 `getSelected` 回调读它。
 
 其余的主人没有逐一核对过：登记写的是谁应该持有，不是已经证明只有它碰。

@@ -88,11 +88,13 @@ test("the bar toggles back, covers close four ways, and history walks covers and
       const box = selector => document.querySelector(selector).getBoundingClientRect();
       const shown = [...document.querySelectorAll('.bar-start :is([data-dock-pin]:not([hidden]), [data-dock-more])')].map(node => node.getBoundingClientRect().right);
       resolve({ fold: Math.max(...shown), start: box('.workbench-bar .bar-start').right, centre: box('.workbench-bar .bar-center').left,
-        centreEnd: box('.workbench-bar .bar-center').right, side: box('.workbench-bar .bar-side').left, end: box('.workbench-bar .bar-end').right });
+        // 07-1 S4b: the right group is the person's own tray (hidden while it holds nothing) and the project; its first shown part.
+        centreEnd: box('.workbench-bar .bar-center').right, side: Math.min(...[...document.querySelectorAll('.workbench-bar .bar-end > *')].filter(node => node.getClientRects().length).map(node => node.getBoundingClientRect().left)),
+        end: box('.workbench-bar .bar-end').right });
     }, 250))`);
     assert.ok(geometry.fold <= geometry.start + 0.5, `${width}: the Dock's last shown entry stays inside its tray`);
     assert.ok(geometry.start <= geometry.centre, `${width}: the left tray ends before the composer`);
-    assert.ok(geometry.centreEnd <= geometry.side, `${width}: the composer ends before the right tray`);
+    assert.ok(geometry.centreEnd <= geometry.side, `${width}: the composer ends before the right group (${JSON.stringify(geometry)})`);
     assert.ok(geometry.end <= width, `${width}: the bar stays inside the window`);
   }
 });

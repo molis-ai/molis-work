@@ -211,22 +211,31 @@ test("RAC-605-KEY-03 only a sanitized Runtime entry overrides its matching marke
   assert.equal(railEntries([], directory).some(entry => entry.id === "pages"), false);
 });
 
-test("RAC-619 the Host's marks (personal, always_on, companions) are kept only as exact values on a chosen entry", () => {
+test("RAC-619 the Host's marks (personal, home, always_on, companions) are kept only as exact values on a chosen entry; an entry the project does not choose keeps only the two Home marks", () => {
   const marked = (id: string, chosen: boolean, marks: Record<string, unknown>): PluginDirectoryEntry => ({ ...installed(id), chosen, ...marks } as PluginDirectoryEntry);
-  const [kept, notChosen, loose, many] = sanitizePluginDirectory([
-    marked("kept", true, { personal: true, always_on: true, companions: ["inbox", "feed", "inbox", 'bad"key', 7] }),
-    marked("not-chosen", false, { personal: true, always_on: true, companions: ["inbox"] }),
-    marked("loose", true, { personal: "yes", always_on: 1, companions: "inbox" }),
+  const [kept, notChosen, loose, many, looseHome] = sanitizePluginDirectory([
+    marked("kept", true, { personal: true, home: true, always_on: true, companions: ["inbox", "feed", "inbox", 'bad"key', 7] }),
+    marked("not-chosen", false, { personal: true, home: true, always_on: true, companions: ["inbox"] }),
+    marked("loose", true, { personal: "yes", home: 1, always_on: 1, companions: "inbox" }),
     marked("many", true, { companions: Array.from({ length: 50 }, (_, index) => `p${index}`) }),
+    marked("loose-home", false, { personal: "yes", home: 1 }),
   ]) as PluginDirectoryEntry[];
   assert.deepEqual([kept!.personal, kept!.always_on, kept!.companions], [true, true, ["inbox", "feed"]], "a plain key is kept once; a repeated one, a key outside the pattern and a non-string are dropped");
-  assert.deepEqual(Object.keys(notChosen!).sort(), ["chosen", "id", "name", "plugin_id", "ui"], "an entry the project does not choose carries no mark");
-  assert.deepEqual(Object.keys(loose!).filter(name => ["personal", "always_on", "companions"].includes(name)), [], "only true counts as a flag, only an array as companions");
+  // 07-1 S4b (口径 9): an entry the project does not choose is a Home one, and a package installed in the Home is the person's own as a
+  // built-in Home plugin is, so it keeps the Host's two Home marks (`personal`, `home`; `isPersonalPlugin` reads both). It still carries
+  // none of the project's marks. Before S4b such an entry carried no mark at all; that expectation changed with the rule, not loosened.
+  assert.deepEqual(Object.keys(notChosen!).sort(), ["chosen", "home", "id", "name", "personal", "plugin_id", "ui"], "an entry the project does not choose carries the two Home marks and no other");
+  assert.deepEqual(Object.keys(looseHome!).sort(), ["chosen", "id", "name", "plugin_id", "ui"], "on it too only true counts as a Home mark");
+  assert.deepEqual(Object.keys(loose!).filter(name => ["personal", "home", "always_on", "companions"].includes(name)), [], "only true counts as a flag, only an array as companions");
   assert.equal(many!.companions!.length, 32);
   assert.doesNotMatch(renderPluginDirectoryData([kept!]), /always_on|companions/u, "the page's scripts get neither of the other marks");
-  // RAC-619-CLIENT-03: the marked server entry exposes only the routing fields and `personal`, the one Host mark ＋ reads to list it
-  // under 个人 (07-S2, 口径 8); no display field and no other Host field.
+  // RAC-619-CLIENT-03: the marked server entry exposes only the routing fields and `personal`, the one mark ＋ reads to list it
+  // under 个人 (07-S2, 口径 8); no display field and no other Host field. Since 07-1 S4b that `personal` is `isPersonalPlugin` (the
+  // Host's personal and home marks both), so `kept` carries `home` here, and a chosen entry marked personal alone (data of the person's
+  // across projects, but run per project, as Pages) is not listed under 个人.
   assert.deepEqual(JSON.parse(directoryData(renderPluginDirectoryData([kept!]))), [{ id: "artifacts", accepts_objects: true, hue: "pink" }, { id: "kept", accepts_objects: false, hue: null, personal: true }]);
+  const perProject = sanitizePluginDirectory([marked("per-project", true, { personal: true })]);
+  assert.deepEqual(JSON.parse(directoryData(renderPluginDirectoryData(perProject))).find((entry: { id: string }) => entry.id === "per-project"), { id: "per-project", accepts_objects: false, hue: null });
 });
 
 test("RAC-605 the Host reads the directory from the Manifests the project's Runtime runs, built-in and installed alike", async () => {
@@ -340,12 +349,22 @@ test("RAC-606 the page carries the directory for its scripts: a plugin that decl
 test("RAC-607 the rail lists an installed plugin under the group its view names, the one that names none under 更多", () => {
   const html = renderMolisWorkWeb(view([installed("makes", { group: "make" }, "Makes"), installed("plain", {}, "Plain")]));
   const sections = railSections(html);
-  assert.deepEqual(sections.map(section => section.heading), [...["推进", "写与做", "个人", "研究", "编码"].slice(0, UI_VIEW_GROUPS.length), "更多"]);
+  // 07-1 S4b (口径 9): 个人 is no longer a group a view names; it holds the person's own plugins (`isPersonalPlugin`: the Host's personal
+  // and home marks). This directory marks none (the built-ins it does not list come from the shell's own catalog, which carries no Host
+  // mark), so there is no 个人 heading here; before S4b the built-ins whose view named 个人 drew it. The marks bring it back below.
+  const headings = ["推进", "写与做", "个人", "研究", "编码"].slice(0, UI_VIEW_GROUPS.length);
+  assert.deepEqual(sections.map(section => section.heading), [...headings.filter(heading => heading !== "个人"), "更多"]);
   assert.equal(headingOf(html, "makes"), "写与做");
   assert.equal(headingOf(html, "plain"), "更多");
+  const own = { ...installed("own", { group: "make" }, "Own"), personal: true, home: true } as PluginDirectoryEntry;
+  const marked = renderMolisWorkWeb(view([own, installed("named", { group: "personal" }, "Named")]));
+  assert.deepEqual(railSections(marked).map(section => section.heading), [...headings, "更多"]);
+  assert.equal(headingOf(marked, "own"), "个人", "the person's own plugin is under 个人 whatever group its view names");
+  assert.equal(headingOf(marked, "named"), "更多", "a view that names 个人 without the Host's marks does not put itself there");
   assert.match(html, /data-plugin-tile="makes"[^>]*>[^]*?data-plugin-id="makes"/u, "it opens its own surface");
   assert.doesNotMatch(html, /data-plugin-toggle="makes"/u, "taking it out is not this list's");
-  assert.deepEqual(railSections(renderMolisWorkWeb(view([installed("order-a", { order: 5 }), installed("order-b", { order: 1 })]))).find(s => s.heading === "更多")!.tiles.slice(0, 2),
+  assert.deepEqual(railSections(renderMolisWorkWeb(view([installed("order-a", { order: 5 }), installed("order-b", { order: 1 })]))).find(s => s.heading === "更多")!.tiles.filter(id => id.startsWith("order-")),
+    // 07-1 S4b: 灵光 is not the person's own (it runs per project), so it now leads 更多 as an island leads its group; read only these two.
     ["order-b", "order-a"], "order is the declared order");
 });
 

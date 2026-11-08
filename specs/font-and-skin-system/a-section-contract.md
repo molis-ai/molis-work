@@ -1002,6 +1002,8 @@ A 段的页面资源影响：基线内容不变；SDK 新工具不进现有包�
 
 C1 独占合同文件和 `tooling/gates/api/`；D 独占 `packages/design-system`、`packages/plugin-sdk/src/ui.ts`、`ui.ts`。合同先单独开小 PR。开写之前读 #1743 最新评论，开 PR 前再查一遍同快照的在途 PR。
 
+**分组（用户 2026-11-08 要求，原话「一批开发，一次性验收」「不要一小段一小段开发和推送」）：** T1～T3 已各自单独合入（#1940、#1948、#1949）。**T4～T10 合成一个 PR，一次验收**，冲突最后统一处理一次；这超出决定 28 写的分组条件，记在批次文件的偏离 4。T10 原来的 #1945 关闭，并入这个 PR。下面的排队表和「先后」按片写，仍说明各片动了哪些共享文件，但不再是各片各开一个 PR 的次序：快照冲突、与 #1872、#1867、#1913 的合并，都在这一个 PR 里统一处理。文件超过约 50 个只是参考，评审按区域分人，一次看完。
+
 **排队（用户 2026-11-07 同意本批插队）：** 快照是生成物，冲突是机械的，后合入的重新生成。
 
 | 占用 | 怎么办 |
@@ -1011,7 +1013,7 @@ C1 独占合同文件和 `tooling/gates/api/`；D 独占 `packages/design-system
 | `api/plugin-sdk/ui.txt`：T4、T5 与 #1872 | T4、T5 先于 #1872，不等它；#1872 合入前重新生成 |
 | 同一份：T4 与 #1913（第 05 批，开着） | T4 开工时看它合了没有；没合就按同样办法处理，并在 #1743 说一声 |
 | `api/contracts/platform/plugin.txt`：T3 与 #1879（第 18 批）、02 批 N39 | #1879 已合入 main（`8bd734188`），T3 在它之上做。N39 是生成文件，谁后合谁重新生成（#1743 11-07，先例 N22-01） |
-| 同一份：T3 与 08 C-1 | **不互等，谁先准备好谁先（主会话裁定）。** 08 先合时，内容包白名单收 `ui.locales` 这一行随 T3 补（第 6.2 节） |
+| 同一份：T3 与 08 C-1 | **不互等，谁先准备好谁先（主会话裁定）。** 08 先合时，内容包白名单收 `ui.locales`（去掉 `ui.messages`、`ui.translations`）和 `payload.files`「不多不少」的文件清单带上语言文件，这两处**一起改**，随 T3 补（第 6.2 节）；只改一处，带语言文件的内容包要么 `ui.locales` 进不了白名单，要么语言文件被「不多不少」当多余文件拒掉。第 15.3 节其余几行（正文路径、版本、读正文、轮次、元数据、键的形状、资源）由第 08 批做，片待 08 定（#1936 还没回应这几行） |
 | `packages/design-system/src/styles/craft-finish-bar.ts`：T6 与 #1867 | 不是生成物，T6 开工时看它合了没有，没合就按它的改动合并 |
 | `packages/design-system/src/primitives/catalog.ts`、`browser/catalog.ts`：T8b 与 #1913、#1872 | 不是生成物。#1913 两个都改，#1872 改前一个（核过文件清单）。T8b 开工时看它们合了没有，没合就按它们的改动合并 |
 
@@ -1029,7 +1031,7 @@ C1 独占合同文件和 `tooling/gates/api/`；D 独占 `packages/design-system
 | T8 消费者 | 第 8.2、8.3、8.4 节，第 5.2 节第 1 层（语言随范围结束作废），第 5.4 节的合并代码 | `apps/local-host/src/{ui-text-provider,web-locale,web-server,plugin-executor,plugin-host-services,home-plugin-executor,plugin-development,local-plugin-development}.ts`；`tooling/plugin-cli/src/{cli,create}.ts`；`apps/workbench/{src/plugin-text.ts,src/browser/locale-switch.ts,src/browser/board/environment-section.ts,src/primitive-catalog.ts,resources,package.json}`（`files`，`dist/board-environment-section.js` 的构建脚本）；`packages/design-system/resources/registry.json` 工作台那行（D 文件，D 评）；`examples/plugin-sample`；`tests/plugin-sample.e2e.test.ts`。现有插件、`render` 和画页的地方不动；若 `tsc` 或测试显示要动，**停下交回主会话**（第 12 节第 4 条） | T6、T7 | FSS-58、59（工作台那行）、60、61、62、63、64，69 的副本和定时器那两条 | Opus 5.5 medium；占 browser 槽位 |
 | T8b 组件板三样 | 外观卡、样张卡、换外观的淡入，依据 `docs/design/appearance-selection/README.md`「组件板新增」：定样记录写明要先有标本才写产品代码。样式只进组件板，算不上页面资源增长（照 #1913）；部件的渲染函数不进 SDK，第 16 批做设置页时再提升，所以不占 `api/plugin-sdk/ui.txt`。样张卡用真实基线解析出来的令牌画，不写假值。#1795 共审留给第 16 批的三条小修（样张主按钮的键位提示、390 宽代码行截断、原型角标）不进这片 | `packages/design-system/src/primitives/catalog.ts`、`packages/design-system/src/browser/catalog.ts` 与组件板样式。和 T8 的文件不重合（T8 在 `apps/workbench`），可以各写各的；只是 browser 槽位要错开 | T6；排队表 | FSS-66、67、68 | Sonnet 5.5 xhigh；占 browser 槽位；D 轨合审，没回音由没碰过这片的子代理代看 |
 | T9a 账本与术语 | 报告；`docs/platform/UI-PLATFORM.md`；SDK README「开发要求」；`docs/system/GLOSSARY.md`、`EXTENSION-POINTS.md`（第 16.2 节） | 文档；`scripts/first-screen-report.mjs` | T8；`resource-budget.md` 合入 | FSS-65 | Sonnet 5.5 high |
-| T9b 手册与开发流程 | 第 16.2 节其余各行。**手册不写超前**（第 16.1 节）。`skills/` 不排在全量回归期间。`AGENTS.md` 和开发流程的文字经用户确认（主会话拿草稿问） | `skills/molis-plugin-dev/{text-and-appearance.md,SKILL.md,ui.md}`；`skills/molis-prologue-ai/SKILL.md`；`docs/platform/{PLUGIN-DEVELOPMENT,PROLOGUE-AI}.md`；`specs/post-anticorruption-roadmap/reference/development-workflow.md`；`docs/prompts/repository-systematic-review.md`；`AGENTS.md`；`docs/README.md`；`apps/workbench/README.md`；`docs/cli-and-development.md` | T8、T10 | FSS-72、73 | Opus 5.5 high；实走用没读过设计稿的独立代理 |
+| T9b 手册与开发流程 | 第 16.2 节其余各行。**手册不写超前**（第 16.1 节）。`skills/` 不排在全量回归期间。`AGENTS.md` 和开发流程的文字经用户确认（主会话拿草稿问） | `skills/molis-plugin-dev/{text-and-appearance.md,SKILL.md,ui.md,elements.md}`；`skills/molis-prologue-ai/SKILL.md`；`docs/platform/{PLUGIN-DEVELOPMENT,PROLOGUE-AI}.md`；`specs/post-anticorruption-roadmap/reference/development-workflow.md`；`docs/prompts/repository-systematic-review.md`；`AGENTS.md`；`docs/README.md`；`apps/workbench/README.md`；`docs/cli-and-development.md` | T8、T10 | FSS-72、73 | Opus 5.5 high；实走用没读过设计稿的独立代理 |
 | T10 回复语言 | 第 15.1、15.2 节。**不动公开合同，所以合同和实现不拆**：`AgentStartAuthority` 在 `horizontal/agent-host`，不在 `tooling/gates/api/`；`pnpm api:update`、`pnpm actions:update` 都应无变化 | `horizontal/agent-host/src/{index,run-start}.ts`；`apps/local-host/src/assistant/*`；`apps/local-host/src/{ui-locale-memory,home-stores,web-server,web-locale}.ts`；`tooling/versions.json`；`docs/system/SECURITY-INVARIANTS.md` 一行 | 不依赖别的片 | FSS-71 | Opus 5.5 high；提示词改动占 agent 锁，隔离 Home，真实模型验证由统筹安排 |
 
 **先后：** T1 → T2 → T4 → T5 → T6；T1 → T3 → T7（T4 也要）；T6、T7 → T8 → T9a、T9b；T6 → T8b，和 T8 只错开 browser 槽位；T10 随时可开，T9b 里提到它的两句等它。同一时间最多 3 个写手，T1 与 T3 同归 C1 但快照不同：T3 要 `LOCALE_TAG`，所以 T1 先合；T4、T5 同一快照串行。T4 前置 T2，是因为 `t`、`say` 的类型在 T2。
@@ -1040,16 +1042,16 @@ C1 独占合同文件和 `tooling/gates/api/`；D 独占 `packages/design-system
 
 - **T3、T8：** `cli.ts:44` 按位置查 `args[4]`，`--locale` 排在它后面解析；`local-plugin-development.ts:49` 逐字段重组输入，要加 `locale`。
 - **T8：** FSS-61 把三段相邻同字（客户端、服务端用户内容、界面字，含客户端删掉用户内容）和连续几条客户端行跑一遍，结果写进第 5.4 节的限制。
-- **T9b：** `skills/molis-plugin-dev/elements.md:9` 的「反向域名」写明前缀是 `io.molis.work.`。
+- **T9b：** `skills/molis-plugin-dev/elements.md:9` 的「反向域名」写明：前缀是 `io.molis.work.`，最长 200 字符（T3 起 `parsePluginManifest` 拒绝更长的），用 `ui.locales` 时最后一段要以字母开头（不是 `common`），否则写不出一个键。
 - **T10：** 文件清单加 `docs/system/HOME-DATA.md` 一行，不变量正文在 `docs/system/security-invariants/`，`SECURITY-INVARIANTS.md:56` 提到 `/locale` 现在写 Home，看不到的部分写本机非浏览器进程能自带这个头。拒绝测试覆盖 `cross-site`、`same-site`、`none`、没有头。只在 `lang` 合法时写（`web-server.ts:136-138` 的推算不算切语言）。同步写，临时文件改名，权限 0600（同 `project-arrival.ts`）；写成功才改内存，失败下次还能重试。比程序新的文件：`readUiLocale` 返回 `null`，`rememberUiLocale` 不盖。
 - **T10 的提醒给统筹：** `prompt.assistant-base` 升到 2 后 `scripts/gates/initial-versions.mjs` 会报它不是 1。这个脚本不在 CI 里，发布检查单点名（`CHECKLIST.md:129,158`），统一起点已登记，属于预期。
 
-**给别批的。** 合同都只等 T1 或 T3 的类型；校验等 T4；**实现里要调 `say` 的片等 T8**（`ui-text-provider.ts`、`plugin-text.ts`），没装时抛 `ui.text_no_context`（第 5.2 节）。
+**给别批的。** 合同都只等 T1 或 T3 的类型；校验等 T4；**T4 随第 14 批大 PR 合入，不单合（05 请求过单合，11-08 两边统筹商定：05 先合合同，SDK 校验跟在后面）**；**实现里要调 `say` 的片等 T8**（`ui-text-provider.ts`、`plugin-text.ts`），没装时抛 `ui.text_no_context`（第 5.2 节）。
 
 | 片 | 合同等 | SDK 校验等 | 用来 |
 | --- | --- | --- | --- |
-| 05② C-2 | T1 | T4（`validatePresentationDeclaration`、`presentationText`、`tryOwnedTextRef`） | `label`、`note`、`overview` 的 `summary`，`OwnedPresentationObject` |
-| 05② C-3、15 S-1 | T1 | T4（`assertSurfaceDescription`） | `SurfaceGroup.title`、`reason` |
+| 05② C-2 | T1 | T4（`validatePresentationDeclaration`、`presentationText`、`tryOwnedTextRef`）：随第 14 批大 PR 合入；05 先合合同，SDK 校验跟在后面（11-08 两边统筹商定） | `label`、`note`、`overview` 的 `summary`，`OwnedPresentationObject` |
+| 05② C-3、15 S-1 | T1 | T4（`assertSurfaceDescription`）：随第 14 批大 PR 合入；05 先合合同，SDK 校验跟在后面（11-08 两边统筹商定） | `SurfaceGroup.title`、`reason` |
 | 20 P-1 | T1 | T4（`validateSettingsDeclaration`） | `SettingEntryDeclaration.title` |
 | 20 P-2 | T1 | T4 | `RoleTemplate`，`say.text`（实现等 T8） |
 | 20 P-3b | T1 | T4（`inspectBlueprint`） | `Blueprint.title`；第 15.4 节 |
@@ -1218,9 +1220,9 @@ T10 不依赖其余各片，也不碰文字工具。
 | 版本 | §4.3 | **所有语言共用一个 `version`**，摘要算全部语言。修一个英文错字也要升版本。理由：`SkillRef` 要精确，一份规则。代价：升级差异会多，加字段 `changed_locales` 写明改了哪种语言（`change` 是枚举，不动） |
 | 读正文 | §8 `skills.body.read@1` | 语言不进输入。user、plugin 用调用上下文的 `locale`；agent 用这一轮的语言（见下面「轮次」一行），第 16 批之前到不了 `ActionCallContext.locale` 时读默认语言。输出加 `locale`（实际用的，单文件包是 `null`）和 `fell_back: boolean`，默认语言未知时 `fell_back` 是 `false`。回退不算「悄悄换版本」，版本没变，结果也写明了 |
 | 轮次 | §5、§7 | 开轮时 `SkillRef` 名单照旧冻结。回复语言今天只是一段提示词，记在 `frozen.prompts`（`prompt_id`、`version`），冻结记录里没有语言字段。交给外部执行方时当场算语言；要读冻结值，由第 09 批合同 PR 照 `call_id` 的路加 `frozen.reply_locale`（`frozenOutput` 不许多字段，属动作合同） |
-| 元数据 | §4.1、§4.2、§8 | **宿主只读词表，不读 frontmatter**（08 §4.1）。`pack-content` 把译文文件 frontmatter 的 `name`、`description`、`when_to_use`、`summary`、`when_not_to_use`、`argument_hint` 转进语言文件，键是 `<主人>.skill-<skill_id>.<字段>`。所以这要求有 `ui.locales`；没有它却有 `SKILL.en.md` 的包，元数据只有默认语言。给模型选 Skill 的 `description` 也跟语言，不进 MCP。这些词可能有 `don't`、`<file>`，内容包的语言文件不查这五个字符，页面上只经 `say`、`createTextReader` 读（第 5.3 节）。`excerpt` 从所用语言的正文取。译文文件写 `tools`、`applies_to` 就拒绝。**花括号（T7 定）：** 内容包只放宽这五个字符，占位符规则不放宽，`{foo bar}`、`{pr-number}`、`{n\|a\|b}` 仍报 `ui.locale_placeholder`、`ui.locale_old_plural`。`{file}` 这种像参数名的不算错，`say` 不给这个参数时原样显示（`fillMessage`「A name with no value stays as written」），但各语言要写同样的名字。所以 `pack-content` 转词时遇到不合规的花括号**直接拒绝这个包**，问题写明 Skill、字段和替换写法（`‹foo bar›` 或 `[foo bar]`），不替作者改字。理由：作者手上有文件，改一行；规则只有一份；只有写了 `ui.locales`、由 `pack-content` 转词的包才碰到，外部导入的单文件包不转词，不受影响；以后要放宽容易，放宽了再收紧就拒掉已发的包 |
+| 元数据 | §4.1、§4.2、§8 | **宿主只读词表，不读 frontmatter**（08 §4.1）。`pack-content` 把译文文件 frontmatter 的 `name`、`description`、`when_to_use`、`summary`、`when_not_to_use`、`argument_hint` 转进语言文件，键是 `<主人>.skill-<skill_id>.<字段>`。所以**有 `SKILL.<语言>.md` 的包必须有 `ui.locales`**，没有就按「不多不少」拒绝，不是悄悄只用默认语言。给模型选 Skill 的 `description` 也跟语言，不进 MCP。这些词可能有 `don't`、`<file>`，内容包的语言文件不查这五个字符，页面上只经 `say`、`createTextReader` 读（第 5.3 节）。`excerpt` 从所用语言的正文取。译文文件写 `tools`、`applies_to` 就拒绝。**花括号（T7 定）：** 内容包只放宽这五个字符，占位符规则不放宽，`{foo bar}`、`{pr-number}`、`{n\|a\|b}` 仍报 `ui.locale_placeholder`、`ui.locale_old_plural`。`{file}` 这种像参数名的不算错，`say` 不给这个参数时原样显示（`fillMessage`「A name with no value stays as written」），但各语言要写同样的名字。所以 `pack-content` 转词时遇到不合规的花括号**直接拒绝这个包**，问题写明 Skill、字段和替换写法（`‹foo bar›` 或 `[foo bar]`），不替作者改字。理由：作者手上有文件，改一行；规则只有一份；只有写了 `ui.locales`、由 `pack-content` 转词的包才碰到，外部导入的单文件包不转词，不受影响；以后要放宽容易，放宽了再收紧就拒掉已发的包 |
 | 键的形状 | §4.2 | `skill_id`（`AGENT_TOKEN`）可以数字开头，`STABLE_KEY` 第二段起要字母开头，所以写成一段 `skill-<skill_id>`。导入包算 `plugin_id` 时最后一段以字母开头，否则主人名过不了；前缀也必须是 `io.molis.work.`，否则 `parsePluginManifest` 拒绝 |
-| 外部导入 | §6 | 不要语言标记，单文件当默认语言。`ui.locales` 对内容包可选 |
+| 外部导入 | §6 | 不要语言标记，单文件当默认语言。只有 `SKILL.md` 的包，`ui.locales` 可选；有 `SKILL.<语言>.md` 的必须有（见「元数据」一行） |
 | 资源 | §4.2 | `SkillResourceDeclaration` 加可选 `locale`。`scripts/`、`assets/` 不分语言。上限不变（按全部语言计） |
 | 白名单 | §3 | 收 `ui.locales`，去掉 `ui.messages`、`ui.translations`（第 6.2 节） |
 | `name_en` | §3 | 写死两种语言，由词表替代，第 16 批删 |
@@ -1232,7 +1234,7 @@ T10 不依赖其余各片，也不碰文字工具。
 
 | 卡点 | 位置 | 规则 |
 | --- | --- | --- |
-| 正文写在声明里 | §3 `content.body`、§5 `RoleTemplate.instructions` | **整份场景包一个文件。** 内容包里是 `blueprint.json`（默认语言）和 `blueprint.<语言>.json`，形状都是 `Blueprint`。Manifest 的 `blueprint` 键写 `{ locales: string[] }`，是 `ui.locales.available` 的子集，「不多不少」和「至少一项」由它判；有场景包时 `ui.locales` 必填（标题要键）。`locales` 只列译文，写了默认语言就拒绝；没有 `ui.locales` 却写 `locales` 也拒绝，否则清单会算出 `blueprint.zh.json`。草稿仍是一行 JSON、一种语言 |
+| 正文写在声明里 | §3 `content.body`、§5 `RoleTemplate.instructions` | **整份场景包一个文件。** 内容包里是 `blueprint.json`（默认语言）和 `blueprint.<语言>.json`，形状都是 `Blueprint`。Manifest 的 `blueprint` 键写 `{ locales: string[] }`，是 `ui.locales.available` 的子集，「不多不少」由它判；有场景包时 `ui.locales` 必填（标题要键）。**单语言包写 `locales: []`**（键在，就表示包里有 `blueprint.json`）。08 §3 的「至少一项」是说内容包的 `methods` 和场景包两者至少要有一个，**不是指语言**，`locales` 为空不违反它。`locales` 只列译文，写了默认语言就拒绝；没有 `ui.locales` 却写 `locales` 也拒绝，否则清单会算出 `blueprint.zh.json`。草稿仍是一行 JSON、一种语言 |
 | 静态检查 | §3 `inspectBlueprint(blueprint)` | 加 `{ source: "package" \| "draft" }`：包拒 `literal`，草稿拒 `key`。新函数 `inspectBlueprintLocales(default, others)`：除 `body`、`instructions` 和 `TextRef` 外全等。`schema` 按每种语言核放到 `adoption.preview` 的主人检查里，静态检查不看目录 |
 | 采用 | §5、§7 | `instructions`、`body`、`title`、`materials`、`outputs` 都按采用当时的语言取。`adoptions` 加 `locale`。撤销和升级差异按这个语言比 |
 | 另存 | §7 `packs.save@1` | 草稿记 `locale`。存包时 `literal` 转成键，加单语言 `locales/<语言>.json`，`blueprint.json` 就是草稿的语言。转过去的词可能有 `R&D`，所以这条路也按内容包不查标记字符。**花括号同样不放宽（第 15.3 节）：** 这里是用户自己写的字，`{项目名} 周报` 这样的标题会被拒，第 20 批要在保存时把问题说给用户并给下一步，不能让用户看到 `ui.locale_placeholder` |
@@ -1278,6 +1280,7 @@ A 段新写法只有开发路径走得通，带 `ui.locales` 的沙箱包装不�
 | --- | --- | --- |
 | `skills/molis-plugin-dev/text-and-appearance.md`（新） | 一章：文字四类、语言文件、外观变量、内容语言，加第 16.1 节的表 | T9b |
 | `skills/molis-plugin-dev/SKILL.md` | 「读哪份」加一行入口 | T9b |
+| `skills/molis-plugin-dev/elements.md`「身份」的 `plugin_id` 一行 | 写明前缀 `io.molis.work.`、最长 200 字符、用 `ui.locales` 时最后一段以字母开头（见第 10 节 T9b 注意事项） | T9b |
 | `skills/molis-plugin-dev/ui.md`「文案与 i18n」 | 不抄第二份，加一句指向新章，写明这一节是内置插件第 16 批之前的写法。`CHAPTERS` 只挂 `ui.md` 的「质量线」一节（`plugin-builder/skill.ts:17-20`），这里不在挂载范围 | T9b |
 | `docs/platform/PLUGIN-DEVELOPMENT.md` | 加一节：怎样声明 `ui.locales`、`validate` 的错误怎么读、现在哪条路走得通 | T9b |
 | `development-workflow.md` 第 4 节 | **并入第 12 项，改名「页面、外壳与文字」（主会话裁定），不为文字加项。** 加的内容：新文字归谁、新代码不依赖译文、不存译文、颜色字体只用语义变量、给模型的内容跟语言；按第 16.1 节标「今天」和「第 16 批起」 | T9b |

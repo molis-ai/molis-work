@@ -59,7 +59,7 @@ test("VG-17 createRequire and a program handed to something that runs it are cal
   assert.equal(usesProjectSqliteDriver("plugins/native/alchemist/src/a.ts", 'createRequire(root)("better-sqlite3");'), false, "its approved private driver");
 });
 
-test("VG-17 the scan reaches every place code lives, sync-worker included, and only its owners may use the driver", () => {
+test("VG-17 SQLD-10 the scan reaches every place code lives, sync-worker included, and only Alchemist may use the driver", () => {
   const root = mkdtempSync(path.join(tmpdir(), "sqlite-driver-scan-"));
   const use = 'import DB from "better-sqlite3";\n';
   const put = (file, text = use) => { mkdirSync(path.dirname(path.join(root, file)), { recursive: true }); writeFileSync(path.join(root, file), text); };
@@ -68,9 +68,11 @@ test("VG-17 the scan reaches every place code lives, sync-worker included, and o
     const reached = ["apps/sync-worker/test.mjs", "apps/sync-worker/worker/attachments.test.mjs", "apps/a/src/a.ts", "apps/a/tests/a.test.ts", "packages/a/tooling/a.mjs", "plugins/native/a/tests/a.test.tsx",
       "plugins/official-integrations/a/src/a.cjs", "modules/a/src/a.mts", "horizontal/a/bin/a.js", "server/src/a.cts", "tooling/plugin-cli/src/a.ts", "tooling/gates/a.mjs", "tests/a.test.ts", "scripts/a.mjs", "examples/a/src/a.jsx",
       // Rust and Swift output directories are walked, as the boundary check walked them before it shared this walk.
-      "apps/a/target/a.js", "apps/a/.build/a.js"];
+      "apps/a/target/a.js", "apps/a/.build/a.js",
+      // SQLD-e: storage is on node:sqlite and no longer owns the old driver.
+      "packages/storage/src/a.ts"];
     for (const file of reached) put(file);
-    for (const file of ["packages/storage/src/a.ts", "plugins/native/alchemist/src/a.ts", "apps/a/dist/a.js", "apps/a/node_modules/b/a.js", "docs/a.ts", "apps/a/README.md"]) put(file);
+    for (const file of ["plugins/native/alchemist/src/a.ts", "apps/a/dist/a.js", "apps/a/node_modules/b/a.js", "docs/a.ts", "apps/a/README.md"]) put(file);
     assert.deepEqual(sqliteDriverFindings(root).map(finding => finding.file).sort(), [...reached].sort());
     const [product, testing] = ["apps/a/src/a.ts", "tests/a.test.ts"].map(file => sqliteDriverFindings(root).find(finding => finding.file === file));
     assert.equal(product.text, "[project-sqlite-driver] open project connections through storage");

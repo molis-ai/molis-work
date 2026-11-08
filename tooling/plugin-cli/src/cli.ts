@@ -4,9 +4,31 @@ import { createPluginProject } from "./create.js";
 import { packPluginProject } from "./package-files.js";
 import { packSandboxProject, sandboxPackOptions } from "./pack-sandbox.js";
 import { readPublisherIdentity, signPluginPackageFile, verifyPluginPackageFile } from "./package-signing.js";
+import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDevelopmentResult } from "@molis-ai/molis-work-contracts/platform/tooling";
 
-const usage = "Usage:\n  molis-work plugin dev <source-directory> <isolated-state-directory> <comma-separated-grants> --allow-unsigned-development [--locale <language>]\n  molis-work-plugin validate <manifest.json>\n  molis-work-plugin create <directory> <plugin-id> <publisher-id> <binding-signature>\n  molis-work-plugin pack <directory> <output.json>\n  molis-work-plugin pack-sandbox <directory> <output.json> --name <name> --version <version> --publisher-id <id> --publisher-key-id <fingerprint> [--scope project|home] [--icon <icon>] [--compatible-from <versions>] [--agent <JSON>] [--methods <JSON>]\n  molis-work-plugin identity <public-key.pem>\n  molis-work-plugin sign <input.json> <private-key.pem> <output.json>\n  molis-work-plugin verify <input.json> <trusted-public-key.pem>\n  molis-work plugin install <signed-package.json> <project-id> [--pin-as <publisher-name>] [--confirm]\n";
+/** Each command after the program name; the ones marked `host` run only through the Molis Work app's `molis-work plugin`, which brings its Host. */
+const COMMANDS: readonly { line: string; host?: true }[] = [
+  { line: "validate <manifest.json>" },
+  { line: "create <directory> <plugin-id> <publisher-id> <binding-signature>" },
+  { line: "pack <directory> <output.json>" },
+  { line: "pack-sandbox <directory> <output.json> --name <name> --version <version> --publisher-id <id> --publisher-key-id <fingerprint> [--scope project|home] [--icon <icon>] [--compatible-from <versions>] [--agent <JSON>] [--methods <JSON>]" },
+  { line: "identity <public-key.pem>" },
+  { line: "sign <input.json> <private-key.pem> <output.json>" },
+  { line: "verify <input.json> <trusted-public-key.pem>" },
+  { line: "dev <source-directory> <isolated-state-directory> <comma-separated-grants> --allow-unsigned-development [--locale <language>]", host: true },
+  { line: "install <signed-package.json> <project-id> [--pin-as <publisher-name>] [--confirm]", host: true },
+];
+
+/** Through the app every command reads `molis-work plugin …`; the standalone tool lists its own and names the app's command for the two it cannot run. */
+function usage(host: PluginCliHost | undefined): string {
+  const lines = (prefix: string, hosted: boolean | undefined) => COMMANDS.filter(command => hosted === undefined || !command.host === !hosted).map(command => `  ${prefix} ${command.line}\n`).join("");
+  if (host) return `Usage:\n${lines("molis-work plugin", undefined)}`;
+  return `Usage:\n${lines("molis-work-plugin", false)}\nThese two need the Molis Work app's Host; run them with molis-work, not molis-work-plugin:\n${lines("molis-work plugin", true)}`;
+}
+
+/** `dev` and `install` asked of the standalone `molis-work-plugin`, which has no Host to run them in. */
+const cliErrors = defineErrorCodes("plugin", { host_required: "unavailable" });
 
 export interface PluginCliOutput {
   stdout(value: string): void;
@@ -22,7 +44,7 @@ export interface PluginCliHost {
 
 export async function runPluginCli(args: readonly string[], output: PluginCliOutput, host?: PluginCliHost): Promise<number> {
   if (args.length === 0 || (args.length === 1 && (args[0] === "--help" || args[0] === "help"))) {
-    output.stdout(usage);
+    output.stdout(usage(host));
     return 0;
   }
   const arities: Record<string, number> = { validate: 2, create: 5, pack: 3, identity: 2, sign: 4, verify: 3 };
@@ -39,13 +61,13 @@ export async function runPluginCli(args: readonly string[], output: PluginCliOut
   // `dev` may end with `--locale <language>`, after the arguments it reads by position.
   const devLocale = args[0] === "dev" && args.length === 7 && args[5] === "--locale" ? args[6] : undefined;
   if (arities[args[0]!] !== args.length && devLocale === undefined) {
-    output.stderr(usage);
+    output.stderr(usage(host));
     return 2;
   }
   try {
     if (args[0] === "dev") {
+      if (!host) throw cliErrors.host_required("dev 要在 Molis Work 本体的命令里跑：molis-work plugin dev …（仓库里是 node dist/cli/main.js plugin dev …）；molis-work-plugin 是不带 Host 的独立工具，不另建一套数据库");
       if (args[4] !== "--allow-unsigned-development") throw new Error("开发源码执行需要 --allow-unsigned-development；grant 不是 OS sandbox");
-      if (!host) throw new Error("请通过 molis-work plugin dev 使用应用 Host；独立工具不会创建另一套数据库实现");
       const result = await host.runDevelopment({ directory: args[1]!, state_directory: args[2]!,
         grants: args[3]!.split(",").map(value => value.trim()).filter(Boolean), allow_unsigned_development: true, ...(devLocale === undefined ? {} : { locale: devLocale }) });
       output.stdout(`${JSON.stringify(result)}\n`);
@@ -97,9 +119,9 @@ async function runInstall(rest: readonly string[], output: PluginCliOutput, host
   const confirm = flags.includes("--confirm"), pin = flags.indexOf("--pin-as");
   const pinLabel = pin === -1 ? undefined : flags[pin + 1];
   const rest2 = flags.filter((flag, index) => flag !== "--confirm" && flag !== "--pin-as" && index !== pin + 1);
-  if (!bundle || !project || rest2.length || (pin !== -1 && !pinLabel)) { output.stderr(usage); return 2; }
+  if (!bundle || !project || rest2.length || (pin !== -1 && !pinLabel)) { output.stderr(usage(host)); return 2; }
   try {
-    if (!host) throw new Error("请通过 molis-work plugin install 使用应用 Host；独立工具不会创建另一套安装实现");
+    if (!host) throw cliErrors.host_required("install 要在 Molis Work 本体的命令里跑：molis-work plugin install …；molis-work-plugin 是不带 Host 的独立工具，不另建一套安装");
     const result = await host.install({ bundle_path: bundle, project_id: project, confirm, ...(pinLabel ? { pin_label: pinLabel } : {}) });
     output.stdout(`${JSON.stringify(confirm ? result : { ...result, installed: false, next: "未安装；看过发布者和要的权限后，加 --confirm 重新运行（发布者还没固定时再加 --pin-as <名称>）" })}\n`);
     return 0;

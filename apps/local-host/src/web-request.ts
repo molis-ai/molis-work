@@ -186,7 +186,6 @@ function projectWebView({ options, webViewCache, store, homeActions, localHost, 
       model: id => composition.workbenchRenderer.declaredStageModel(id, view) });
     return { ...view, plugin_stages: homeStages.html, plugin_panels: homeStages.panels, plugin_overlays: homeStages.overlays,
       plugin_stage_surfaces: homeStages.surfaces, ...(homeStages.page ? { page_stage: homeStages.page } : {}), unavailable_plugin_stages: homeStages.unavailable,
-      home_plugin_nav: await localHost.homePlugins?.navigation() ?? [],
       plugin_directory: mergePluginDirectories(await homePluginDirectory(localHost.homePlugins, serverOptions.homeDirectory), builtinMarketDirectory(serverOptions.homeDirectory)) };
   };
 }

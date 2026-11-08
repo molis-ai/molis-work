@@ -1093,6 +1093,7 @@
     "format.ui.skin": 1,
     "format.ui.spec": 1,
     "format.web.service.receipt": 1,
+    "format.workbench.return-trip": 1,
     "format.workflows.portable": 1,
     "format.workspace.git-worktree": 1,
     "host.api": 1,

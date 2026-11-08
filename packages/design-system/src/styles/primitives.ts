@@ -337,6 +337,13 @@ export const PRIMITIVE_STYLES = `
   .mw-alert--danger { background: var(--red-soft); border-color: color-mix(in srgb, var(--red) 16%, transparent); }
   .mw-alert--success { background: color-mix(in srgb, var(--green) 12%, var(--paper)); }
   .mw-alert--warning { background: color-mix(in srgb, var(--amber) 14%, var(--paper)); }
+  /* The settings' return bar and a page's resume prompt (specs/draft-and-return §9): an alert with its answers under it, at any width. */
+  .mw-return-bar > strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mw-return-bar__actions, .mw-resume-prompt__actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  .mw-return-bar__actions { padding-top: 4px; }
+  .mw-return-bar[data-return-bar-state=gone] svg { display: none; }
+  .mw-resume-prompt { display: grid; gap: 8px; animation: craft-rise var(--dur-arrive) var(--ease-quint) both; }
+  @media (prefers-reduced-motion: reduce) { .mw-resume-prompt { animation: none; } }
 
   .mw-empty {
     display: grid; justify-items: start; align-content: start; gap: 8px; padding: 16px 12px; color: var(--ink-soft);

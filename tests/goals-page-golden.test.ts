@@ -93,6 +93,10 @@ const pages: Record<string, Draw> = {
 // link (120 / 135 characters with its line) in the 12 records of the 6 settings and planning pages. Each of those 28 records (14 pages
 // in two languages), drawn with only that row or link taken out, had its old hash and length exactly; they were then recorded with
 // MOLIS_WORK_GOLDEN_RECORD=1. The other 38 records (19 pages in two languages) did not change.
+// PR #1952 (batch 12 item 3, draft and return, specs/draft-and-return §9 U4): the shell's two settings surfaces each carry the return
+// bar's template (`<template data-settings-return-bar-template>`, the SDK's renderReturnBar; 546 / 568 characters in zh / en), so the
+// 16 records of the 8 project pages grew by 1092 / 1136. Each of those 16, drawn with only the two templates taken out, had its old hash
+// and length exactly; they were then recorded with MOLIS_WORK_GOLDEN_RECORD=1. The other 50 records did not change.
 const RECORDED = new URL("golden.json", GOLDEN);
 interface Recorded { sha256: string; length: number }
 const recorded: Record<string, Recorded> = record ? {} : JSON.parse(readFileSync(RECORDED, "utf8"));

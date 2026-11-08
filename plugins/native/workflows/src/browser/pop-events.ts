@@ -2,6 +2,7 @@ import { ruleKey } from "./chain.js";
 import { messageOf, required, settle, targetOf } from "./dom.js";
 import { linkView, checkReady, switchKind } from "./link.js";
 import { openRun, } from "./nav.js";
+import { goForModel } from "./returns.js";
 import type { WorkflowsPage } from "./page.js";
 import { markOpen, movePop } from "./popover.js";
 import { chainOf, debounce, insertAt, saveFlow } from "./save.js";
@@ -32,6 +33,7 @@ export function wirePopover(page: WorkflowsPage) {
     if (act === "insert") { pop.hidePopover(); insertAt(page, Number(tgt.dataset.gap), tgt.dataset.plugin!, { focus: event.detail === 0 }); return; }
     if (act === "step-save") { saveStep(page); return; }
     if (act === "kind") { switchKind(page, Number(tgt.dataset.link), tgt.dataset.kind as WorkflowLinkKind, { pointer: event.detail > 0 }); return; }
+    if (act === "model-settings") { goForModel(page); return; }
     if (act === "return-to-run") {
       const back = ui.returnTo; if (!back) return;
       pop.hidePopover();

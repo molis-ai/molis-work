@@ -12,7 +12,7 @@ export const ARRIVAL_STYLES = String.raw`
   body.arrival-page { margin: 0; caret-color: var(--ink); color: var(--ink); }
   body.arrival-page ::selection { background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--ink); }
   .icon-sprite { position: absolute; width: 0; height: 0; overflow: hidden; pointer-events: none; }
-  .arrival { position: relative; height: 100dvh; display: grid; grid-template-rows: var(--arrival-titlebar-h) minmax(0, 1fr) var(--dock-h, 76px); background: var(--desk); color: var(--ink); }
+  .arrival { position: relative; height: 100dvh; display: grid; grid-template-rows: var(--arrival-titlebar-h) minmax(0, 1fr) minmax(var(--dock-min, 76px), auto); background: var(--desk); color: var(--ink); }
   :where(.arrival) :is(h1, h2, p) { margin: 0; }
   :where(.arrival) :is(ol, ul) { margin: 0; padding: 0; list-style: none; }
   .arrival :focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, 1px); }

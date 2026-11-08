@@ -149,7 +149,7 @@ body.is-side-resizing{cursor:col-resize;user-select:none}
    titlebar row, which names the directory states) and the work and the side sheet start below it. The sheet's 28px is the
    strip row's 8px gap and 4px block padding above the strip, the 8px the sheet keeps over the Dock and 8px of air under the strip. */
 @media(min-width:601px) and (max-width:760px){
- html body.immersive-workbench:not([data-pane-embedded]) .immersive-workspace:is(*,.is-plugin-directory-empty){grid-template-rows:auto minmax(0,1fr) var(--dock-h)}
+ html body.immersive-workbench:not([data-pane-embedded]) .immersive-workspace:is(*,.is-plugin-directory-empty){grid-template-rows:auto minmax(0,1fr) minmax(var(--dock-min),auto)}
  html body.immersive-workbench .immersive-titlebar{height:auto;flex-wrap:wrap}
  html body.immersive-workbench .side-panel{max-height:calc(100dvh - var(--desktop-titlebar-height) - var(--tab-strip-h) - var(--dock-h,48px) - 28px)}
 }

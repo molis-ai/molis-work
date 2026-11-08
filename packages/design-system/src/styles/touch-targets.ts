@@ -4,14 +4,12 @@
  * 44px targets in the bar. A fine-pointer window wider than 600px keeps the sizes the exception in DESIGN.md names. The phone's
  * two-row layout stays in craft-finish.ts, which is by width.
  *
- * A line still over its edge once every quiet part has narrowed is crowded, and the island (data-crowded) takes parts off in
- * steps, none squeezed under 44px: the choosers go (the side pane has who does it, the Character and the mode), then the work
- * chip's mark (the panel's tab bar starts a new work too), then the notice, which the "+" lists in a row of its own and
- * which a dot on it points to. What the next Send carries is the strip above the line, 44px chips with 44px buttons.
+ * The Assistant's input is the platform composer (unified-input K3), whose own sheet sizes its bottom row to 44px on touch and folds
+ * its scene controls behind 更多 when narrow; the bell on its receiver row reaches 44px past the row. What the next Send carries is
+ * the strip above the composer, 44px chips with 44px buttons.
  *
  * What the bar opens is a 44px target too: a button, a summary or a link in the Assistant's lists and offer, the plugin
- * switcher (its pin and add buttons, and the room its rows leave them), the Dock's "+N" list and the project menu. Wider than
- * a phone, a narrow Assistant column keeps an input that is a 44px target too.
+ * switcher (its pin and add buttons, and the room its rows leave them), the Dock's "+N" list and the project menu.
  *
  * The phone's second row is an exact sum of 44px targets that touch: seven need 308px and the eighth (a directory button) 352px,
  * 356px with the tray's own 4px, and the bar's 2 × 8px padding and 4px column gap on top of that (375px for eight). Narrower than
@@ -39,22 +37,10 @@ const ASSIST = "body.immersive-workbench:not([data-pane-embedded])";
 export const TOUCH_TARGET_STYLES = `
   @media (max-width: 600px), (pointer: coarse) {
     ${SHELL} { --dock-btn: 44px; --menu-row: 44px; }
-    ${SHELL} .bar-composer .assistant-composer-input { min-height: 44px; max-height: 44px; padding-block: 12px; font-size: 16px; line-height: 20px; }
-    ${SHELL} .bar-composer [data-assistant-send] { width: 44px; height: 44px; min-height: 44px; }
-    ${SHELL} .bar-composer .bar-composer-attach { position: relative; justify-content: center; min-width: 44px; height: 44px; padding: 0; }
     ${SHELL} .plugin-picker-trigger { justify-content: center; min-width: 44px; }
     html ${SHELL} .workbench-bar .bar-end .navigator-project-selector { grid-template-columns: 44px; width: 44px; height: 44px; min-height: 44px; }
-    ${SHELL} .bar-composer :is(.assistant-target, .assistant-target-main, .assistant-target-clear, .assistant-executor, .assistant-attention) { height: 44px; }
-    ${SHELL} .bar-composer :is(.assistant-executor, .assistant-attention, .assistant-target-clear) { min-width: 44px; }
-    ${SHELL} .bar-composer[data-fit="narrow"] .assistant-executor:not([data-chosen]) { min-width: 44px; }
-    ${SHELL} .bar-composer .assistant-target[data-mode="work"] { min-width: 88px; }
-    ${SHELL} .bar-composer[data-crowded] :is([data-assistant-character], [data-assistant-executor], [data-assistant-mode]) { display: none; }
-    ${SHELL} .bar-composer:is([data-crowded="mark"], [data-crowded="chips"]) .assistant-target-clear { display: none; }
-    ${SHELL} .bar-composer:is([data-crowded="mark"], [data-crowded="chips"]) .assistant-target[data-mode="work"] { min-width: 44px; }
-    ${SHELL} .bar-composer[data-crowded="chips"] .assistant-attention { display: none; }
-    ${SHELL} .bar-composer[data-crowded="chips"]:has(.assistant-attention:not([hidden])) .bar-composer-attach::after {
-      content: ""; position: absolute; top: 9px; right: 9px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); pointer-events: none;
-    }
+    /* The bell on the composer's receiver row: the row stays one line, the target reaches past it. */
+    ${ASSIST} .assistant-attention { min-width: 44px; } ${ASSIST} .assistant-attention::after { content: ""; position: absolute; inset: -12px 0; }
     ${ASSIST} .assistant-strip-chip { height: 44px; }
     ${ASSIST} .bar-center:has(>.assistant-context-strip:not([hidden])) { --context-row: 50px; }
     ${SHELL} :is(.assistant-popover, .assistant-next-row, .assistant-context-strip, .plugin-picker-popover, .dock-overflow, .navigator-project-menu-popover, .assistant-panel) :is(button:not(.assistant-inline-object), summary, a[href]:not(.assistant-link), input:not([type=checkbox], [type=radio]), select, textarea) { min-width: 44px; min-height: 44px; }
@@ -69,6 +55,5 @@ export const TOUCH_TARGET_STYLES = `
     [data-molis-call-id] {--reach:16px;padding-block:var(--reach);margin-block:calc(-1*var(--reach));}
   }
   @media (max-width: 374px) { ${SHELL} .workbench-bar { column-gap: 0; padding-inline: 0; } ${SHELL} .bar-center { margin-inline: 8px; } }
-  @media (pointer: coarse) and (min-width: 601px) { @container assistant-bar (max-width: 460px) { ${SHELL} .bar-composer .assistant-composer-input { flex: 1 1 44px; min-width: 44px; } } }
-  @media (pointer: coarse) and (max-height: 560px) and (min-width: 601px) { ${SHELL} { --dock-h: 60px; --composer-h: 50px; } }
+  @media (pointer: coarse) and (max-height: 560px) and (min-width: 601px) { ${SHELL} { --dock-min: 60px; } }
 `;

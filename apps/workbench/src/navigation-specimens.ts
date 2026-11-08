@@ -188,7 +188,7 @@ function bar(L: Say, state: "ok" | "wrong"): string {
     + `${renderButton({ label: L("发送"), icon: "send", variant: "primary", size: "sm", iconOnly: true, disabled: true, type: "submit" })}</form></div>`;
   const own = `<div class="bar-side bar-own" role="toolbar" aria-label="${escapeHtml(L("你自己的"))}">${wrong ? dockPin(L, "receipts", { warn: true }) : ""}${dockPin(L, "jelly", { fold: wrong })}${dockPin(L, "todo", { fold: true })}${dockPin(L, "cognia", { fold: true })}${fold(wrong ? 3 : 2, L("你自己的"))}</div>`;
   const project = `<section class="workspace-chrome project-island titlebar-chrome navigator-project" aria-label="${escapeHtml(L("当前项目"))}"><div class="navigator-project-primary"><button type="button" class="navigator-project-selector" aria-label="${escapeHtml(L("切换项目"))} · ${escapeHtml(L("网站改版"))}">${renderProjectMonogram(L("网站改版"), "project-sample", escapeHtml)}</button></div></section>`;
-  return `<div class="workbench-bar" data-nav-bar="${state}" aria-label="${escapeHtml(L("底栏"))}"><div class="bar-start">${switcher}${dock}</div>${composer}<div class="bar-end">${own}${project}</div></div>`;
+  return `<div class="workbench-bar" data-nav-bar="${state}" data-own-kept aria-label="${escapeHtml(L("底栏"))}"><div class="bar-start">${switcher}${dock}</div>${composer}<div class="bar-end">${own}${project}</div></div>`;
 }
 
 function partSpecimens(L: Say): string {

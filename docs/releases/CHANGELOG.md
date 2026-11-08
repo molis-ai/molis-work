@@ -6,6 +6,10 @@
 
 ### 升级须知（需要动手）
 
+- **并行写手的独立工作树不再算项目的目录（路线书 05 ②，`specs/shared-sources-and-surfaces/spec.md` §3 方案 A）。** 升级前还没做完的写手轮次（Coding 的「并行写手」），升级后不能续跑，也不能把子任务的成果整合回来：续跑会被拒，整合时提示「这一轮是旧版本开的，写手的目录接不上，请重开一轮」，请重开一轮。旧轮次照常显示，独立目录只显示路径。存下的下一轮分工也要重新选工作树（旧分工发出时被拒）。目录库升级到第 2 版时，旧版本为写手工作树加进项目的那些目录被去掉（只认宿主自己建工作树的位置，别的目录不动），所以只关联过一个文件夹、开过写手轮次的项目，那个文件夹照样成为输出目录。Coding 写手对话框里的「用于下一轮」按钮去掉：工作树不再能当会话的工作目录。调用方：开轮输入 `subagent_workspaces[]` 每项的 `workspace_id` 改名 `worktree_id`（值是宿主建的工作树 id，不是目录 id），冻结的轮次信息多了 `directories`（开轮时的输出、输入和执行位置）；`projects.workspace.writers.list` 与 `.prepare` 输出的目录不再有 `workspace_id`，`projects.workspace.writers.integration.read` 输出的 `writer_workspace_id` 改为 `worktree_id`；都在原版本 @1 上改，不留兼容。
+
+- **只作输入的目录谁都只能读（SSC-15）。** Agent 的轮次和会话、原生 Character、终端、Git 的写和 MCP 的本机进程只在项目的输出目录里开；在只作输入的目录里开会被拒（`projects.directory_input_only`），设为输出目录后再开。找方法（Skill）照样能读输入目录。
+
 - **项目库换到 Node 自带的 SQLite（路线书 05 ③，`specs/sqlite-driver-switch/spec.md`）。** 库文件格式没变，已有的库照常打开。要做的是**服务必须用官方 Node 24.15.0 运行**（`.nvmrc`）：SQLite 现在跟着 Node 走，版本不是 3.51.3 时项目库里的插件语句全部被拒，启动时会提示，数据不受影响；Homebrew 的 Node 带的是系统另一版 SQLite，不能用来跑服务。改了 Node 之后，常驻服务要重装或重启才换得过来。插件作者：官方构建没有 `DELETE … LIMIT`、`UPDATE … LIMIT`（改成先 `SELECT` 出主键），`LIKE` 现在也会匹配 BLOB；写了这些的插件语句行为会变。
 
 - **第 02 批 Feed 证据和搜索回到统一起点。** 证据只读写 `feed/evidence/` 与一把现行密钥，搜索意图只用 `feed-intent-v1`；不再读取恢复副本或尝试旧环境口令盐。已有正文缺钥、错钥或损坏时拒绝，原文件不变。此变更须随约定维护窗口先验证完整备份可恢复，再干净重建真实 Home；不要把此构建直接用于旧 Home 的就地升级。实际现场完成另记。

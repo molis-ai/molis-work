@@ -163,7 +163,7 @@ revision 由插件自己推动：服务端在改了页面显示的内容以后�
 | 文字上下文 | `apps/local-host/src/ui-text-provider.ts` 的 `installHostUiText` | 每个进程装一次：应用宿主启动时，开发入口运行插件之前。查不到词、没有语言都记一条问题（宿主日志 `ui-text` 一行，`fields` 带 `owner`、`key`、`locale`，键名只进日志、不上页面；`hostTextProblems` 留最近 200 条） |
 | 语言范围 | `apps/local-host/src/web-locale.ts` | 页面请求在 `runWithLocale` 里；没有页面的平台工作用 `runBackgroundWork(locale, fn)`，语言由入口每次开始时读最后用的语言；开发路径用 `runDevelopmentText`。范围结束，语言就作废：请求里起的定时器在请求结束后读不到那次的语言。没有语言时开发路径和测试抛 `ui.text_no_context`，正式运行用主人的默认语言、不抛 |
 | 各主人的词 | `apps/workbench/src/plugin-text.ts` | 每个主人一张表，不合成一张。插件的会话打开时登记自己的语言读取器、释放时撤回（按次计数，升级不留旧词）。`t` 按键的第一段找主人，两个主人最后一段相同就拒绝（`ui.text_owner_conflict`）；`say` 按完整 `plugin_id` 找 |
-| 平台自己的词 | 资源登记表 `packages/design-system/resources/registry.json` 的 `locale` 行，现在只有工作台（`apps/workbench/resources/locales/`） | 加一个平台主人是一行，加一种语言是目录里一个文件；默认语言是 `WEB_LOCALES` 的第一个（`zh`）。A 段里面只有组件板的词 |
+| 平台自己的词 | 资源登记表 `packages/design-system/resources/registry.json` 的 `locale` 行，现在只有工作台（`apps/workbench/resources/locales/`） | 加一个平台主人、给平台主人加一种语言今天各要动几处（登记表、语言目录、`WEB_LOCALES`、`package.json` 的 `files`、`tests/ui-resources.test.ts` 钉住的名单），见 [A 段设计稿](../../specs/font-and-skin-system/a-section-contract.md#14-日常改动各动几处)第 1.4 节；默认语言是 `WEB_LOCALES` 的第一个（`zh`）。A 段里面只有组件板的词 |
 | 外观的值 | `packages/design-system/resources/` 的基线文件，`src/baseline.ts` 经 SDK 的解析器读一次 | `palette.ts`、`typeface.ts` 和样式里的令牌块只把它们写成 CSS，不另存数值 |
 
 **切语言时原地换字（组件板上的标本，第 16 批在真实首屏验收）：** 服务端把同一块内容按旧、新两种语言各画一遍，两份不同的就是要改的字；`apps/workbench/src/browser/locale-switch.ts` 只写 `Text.data` 和 `setAttribute`，不删节点、不用 `innerHTML`，所以事件监听、焦点、输入框里的字和选区、滚动、展开的部分都留着。`textarea`、可编辑内容、输入框的 `value` 和 `translate="no"` 里的字不碰（它们是用户的），按钮类 `input` 的 `value` 算界面字；两份形状不同的一块整块不动并记一条问题。浏览器自己画的字按 `t`、`say` 的产出记录重算。业务代码什么都不用做。

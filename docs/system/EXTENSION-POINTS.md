@@ -219,7 +219,7 @@ Text Stats 原来的 12 个文件是：上表的 `scripts/workspace-packages.mjs
 
 **目标：1 + 每个词典所有者各交一份。** 语言清单声明一处，词典按所有者注册、键是稳定键（W5-03 把插件词典从 `en.ts` 的 import 里拆出，W1-08 加缺失检查）。翻译内容是内容工作，不计改动处。加语言的清单项（字面量联合和开关）W5-03 不一定覆盖，要在那一片里明确。
 
-**第 14 批（字体皮肤语言 A 段）之后：** 每个主人一张词表的新路已有（[文字与外观](../../skills/molis-plugin-dev/text-and-appearance.md)），但还没接到页面的语言选择上，今天只在 `molis-work plugin dev` 跑的插件和组件板上用。走新路的插件加一种语言是 2 处：一个 `locales/<语言>.json`，Manifest 的 `ui.locales.available` 加一个词；平台主人（今天只有工作台，`apps/workbench/resources/locales/`）是语言目录里 1 个文件，有哪些语言按目录里的文件算。页面能选哪种语言仍由 `WEB_LOCALES` 和上面「现在」点名的位置决定，工作台、宿主和内置插件也还在旧词典上，所以上面的数字不变；第 16 批换完，才到「目标」那一行。
+**第 14 批（字体皮肤语言 A 段）之后：** 每个主人一张词表的新路已有（[文字与外观](../../skills/molis-plugin-dev/text-and-appearance.md)），但还没接到页面的语言选择上，今天只在 `molis-work plugin dev` 跑的插件和组件板上用。走新路的插件加一种语言是 2 处：一个 `locales/<语言>.json`，Manifest 的 `ui.locales.available` 加一个词；平台主人（今天只有工作台，`apps/workbench/resources/locales/`）今天至少 3 处：语言目录里一个文件、`apps/workbench/src/i18n.ts` 的 `WEB_LOCALES`、`tests/ui-resources.test.ts` 钉住的语言名单；加一个平台主人另有几处，都见 [A 段设计稿](../../specs/font-and-skin-system/a-section-contract.md#14-日常改动各动几处)第 1.4 节。页面能选哪种语言仍由 `WEB_LOCALES` 和上面「现在」点名的位置决定，工作台、宿主和内置插件也还在旧词典上，所以上面的数字不变；第 16 批换完，才到「目标」那一行。
 
 ### 3.15 操作系统平台
 

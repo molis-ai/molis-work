@@ -98,7 +98,7 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
     if (!files.some((file) => file.kind === material.kind && same(file))) files.push({ material_id: material.kind + "-" + crypto.randomUUID(), explicit: true, ...material });
     paintMats(); input.focus();
   };
-  // Every method and capability is listed (the menu scrolls): the composer's "/" does not narrow by the words after it yet.
+  // Every method and capability is listed (the menu scrolls); the composer's "/" narrows them by the words typed after it.
   const commands = () => [
     ...startersFor().map((starter) => ({ slash: L("开始"), label: starter.label + (starter.kind ? " · " + starter.kind : ""), ...(starter.hint ? { hint: starter.hint } : {}),
       run: () => { if (useStarter(starter)) input.focus(); } })),

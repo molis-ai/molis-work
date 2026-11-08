@@ -31,19 +31,30 @@ export function renderComposerDeliveryMenu(id: string, labels: MwComposerAiLabel
 
 /** One group of the ＋ menu: a registered source (its plugin's name and its own), this page's commands, or the files. */
 export interface ComposerMenuSource { readonly provider: string; readonly title: string }
-export interface ComposerMenuCommand { readonly slash: string; readonly label: string; readonly hint?: string }
+/** A `/` command; `at` is its place in the page's own list when the menu shows only some of them. */
+export interface ComposerMenuCommand { readonly slash: string; readonly label: string; readonly hint?: string; readonly at?: number }
 
 /**
  * The ＋ menu's first view: files (when the page takes them), the registered sources grouped by the plugin that offers them, and
  * this page's `/` commands. `sources` undefined: still being read; a group then says so instead of the menu jumping later.
+ * `narrowed`: only the commands that match the words after a typed `/` (none says so).
  */
-export function renderComposerAddMenu(labels: MwComposerLabels, parts: { files: boolean; sources?: readonly ComposerMenuSource[] | "unavailable"; commands: readonly ComposerMenuCommand[] }): string {
-  const files = parts.files ? renderMenuGroup({ items: renderMenuItem({ label: labels.files, iconName: "paperclip", description: labels.filesHint, attrs: { "data-composer-files": "" } }) }) : "";
-  const sources = parts.sources === undefined ? line(labels.searching) : parts.sources === "unavailable" ? "" : renderMenuGroup({ items: parts.sources.map((source, index) =>
+export function renderComposerAddMenu(labels: MwComposerLabels, parts: { files: boolean; sources?: readonly ComposerMenuSource[] | "unavailable"; commands: readonly ComposerMenuCommand[]; narrowed?: boolean }): string {
+  const files = parts.files && !parts.narrowed ? renderMenuGroup({ items: renderMenuItem({ label: labels.files, iconName: "paperclip", description: labels.filesHint, attrs: { "data-composer-files": "" } }) }) : "";
+  const sources = parts.narrowed ? "" : parts.sources === undefined ? line(labels.searching) : parts.sources === "unavailable" ? "" : renderMenuGroup({ items: parts.sources.map((source, index) =>
     renderMenuItem({ label: `${source.provider} · ${source.title}`, iconName: "package", attrs: { "data-composer-source": String(index) } })).join("") });
-  const commands = parts.commands.length ? renderMenuGroup({ label: labels.commands, items: parts.commands.map((command, index) =>
-    renderMenuItem({ label: `/${command.slash} ${command.label}`, ...(command.hint ? { description: command.hint, id: `mw-composer-command-${index}` } : {}), attrs: { "data-composer-command": String(index) } })).join("") }) : "";
+  const commands = parts.commands.length ? renderMenuGroup({ label: labels.commands, items: parts.commands.map((command, index) => {
+    const at = command.at ?? index;
+    return renderMenuItem({ label: `/${command.slash} ${command.label}`, ...(command.hint ? { description: command.hint, id: `mw-composer-command-${at}` } : {}), attrs: { "data-composer-command": String(at) } });
+  }).join("") }) : parts.narrowed ? line(labels.nothing) : "";
   return renderMenu({ items: files + sources + commands });
+}
+
+/** The commands a typed `/words` names: each whose name, words or hint holds them, in the page's order (an empty `/` lists all). */
+export function narrowComposerCommands<Command extends ComposerMenuCommand>(commands: readonly Command[], typed: string): (Command & { at: number })[] {
+  const words = typed.replace(/^\//u, "").trim().toLocaleLowerCase();
+  return commands.map((command, at) => ({ ...command, at }))
+    .filter((command) => !words || `${command.slash} ${command.label} ${command.hint ?? ""}`.toLocaleLowerCase().includes(words));
 }
 
 /** A source opened in the ＋ menu: its query field and what it found (`items` undefined while it looks, a string when it failed). */

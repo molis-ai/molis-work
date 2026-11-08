@@ -159,7 +159,9 @@ function wire(c: Composer, { drafts, menus, sender }: Parts, files: HTMLInputEle
     // `@` after a space starts a system search for the words that follow it (§3.3), in every page that mounts a composer.
     else if (data === "@" && /(^|\s)@$/.test(before) && c.offersSources) menus.mention(before.length - 1);
     else if (c.mention) menus.mention();
-    else if (c.typed) c.close();
+    // The words after a `/` that opened the menu narrow its commands, until the line is left or the menu closed.
+    else if (c.typed && c.open && /^\/[^\n]{0,80}$/u.test(before)) { c.typed = before; menus.narrow(); }
+    else if (c.typed) { c.close(); c.typed = ""; }
     c.paint();
   }, { signal });
   document.addEventListener("pointerdown", (event) => { if (c.open && !shell.contains(event.target as Node)) c.close(); }, { capture: true, signal });

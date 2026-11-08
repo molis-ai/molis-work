@@ -117,3 +117,47 @@ test("UIV-12 UIV-17 UIC-06 UIC-09 RC-03: the Assistant's composer names its rece
   assert.equal((await sent())[4].delivery, undefined, "with nothing running ⌘⇧↵ simply sends");
   assert.equal((await readWork(browser, id)).work.work_id, id);
 });
+
+// specs/unified-input-voice §3.3 (K3): `/` lists this page's commands and the Assistant's methods and capabilities; the words typed
+// after it narrow the list in the composer itself (a command's name, words or hint holding them), in one scrolling list; words that
+// name none say so; taking them back lists all again; and a chosen command takes the `/words` out of the text.
+test("UIV-12: the words after `/` narrow the Assistant's commands, methods and capabilities in the composer's own menu", { timeout: 120_000 }, async (t) => {
+  const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
+  const { evaluate, waitFor, navigate, command, sessionId, origin, projectId } = browser;
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
+  await waitFor("document.querySelector('[data-assistant-composer] .mw-composer__input')", 20_000);
+  const field = "document.querySelector('[data-assistant-composer] .mw-composer__input')";
+  const ITEMS = "[data-assistant-composer] [data-composer-command]";
+  const listed = () => evaluate<string[]>(`[...document.querySelectorAll(${JSON.stringify(ITEMS)})].map((item) => item.textContent.replace(/\\s+/g, ' ').trim())`);
+  const holding = (list: string[], words: string) => list.filter((one) => one.toLocaleLowerCase().includes(words.toLocaleLowerCase()));
+  const backspace = async () => {
+    await command("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "Backspace", code: "Backspace", windowsVirtualKeyCode: 8 }, sessionId);
+    await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Backspace", code: "Backspace", windowsVirtualKeyCode: 8 }, sessionId);
+  };
+  await evaluate(`${field}.focus()`);
+  await command("Input.insertText", { text: "/" }, sessionId);
+  await waitFor(`document.querySelectorAll(${JSON.stringify(ITEMS)}).length > 1`, 15_000);
+  const all = await listed();
+  // A word from the last one's own name: it names that one, and only those that hold it too.
+  const word = all.at(-1)!.replace(/^\/\S+\s+/u, "").slice(0, 2);
+  await command("Input.insertText", { text: word }, sessionId);
+  await waitFor(`document.querySelectorAll(${JSON.stringify(ITEMS)}).length === ${holding(all, word).length}`);
+  const narrowed = await listed();
+  assert.deepEqual(narrowed, holding(all, word), "only the commands the words name, in the page's order");
+  assert.ok(narrowed.length >= 1 && narrowed.length < all.length, "the list is narrower, and holds the one named");
+  assert.equal(await evaluate("Boolean(document.querySelector('[data-assistant-composer] [data-composer-files]'))"), false, "while narrowing, the menu is the commands alone");
+  // Words that name none say so.
+  await command("Input.insertText", { text: "zzqx" }, sessionId);
+  await waitFor("document.querySelector('[data-assistant-composer] .mw-compose__menu:not([hidden]) .mw-composer__line')?.textContent === '没有找到'");
+  // Taking the words back lists all again.
+  for (let i = 0; i < word.length + 4; i += 1) await backspace();
+  await waitFor(`document.querySelectorAll(${JSON.stringify(ITEMS)}).length === ${all.length}`);
+  assert.deepEqual(await listed(), all);
+  // A chosen command takes the `/words` out of the text.
+  await command("Input.insertText", { text: word }, sessionId);
+  await waitFor(`document.querySelectorAll(${JSON.stringify(ITEMS)}).length === ${narrowed.length}`);
+  await evaluate(`[...document.querySelectorAll(${JSON.stringify(ITEMS)})].at(-1).click()`);
+  assert.ok(!(await evaluate<string>(`${field}.value`)).includes("/" + word), "the `/words` left the text (a starting point may put its own words in)");
+  assert.equal(await evaluate("document.querySelector('[data-assistant-composer] .mw-compose__menu:not([hidden])')"), null, "the menu closed");
+});

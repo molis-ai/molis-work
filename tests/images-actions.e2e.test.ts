@@ -54,8 +54,12 @@ for (const [width, locale] of [[1440, "zh"], [390, "zh"], [1440, "en"], [390, "e
   await waitFor("!document.querySelector('[data-images-generate]').disabled");
   withConnectorConnections(homeDirectory, store => store.disconnect(auth.connection_id));
   await click("[data-images-workspace] [data-images-refresh]");
-  await waitFor("document.querySelector('[data-images-generate]').disabled && !document.querySelector('[data-images-service-unavailable]').hidden");
+  // The revoked key stays explicit; 生成 stays pressable, since pressing it is where the key is asked for in place (ASC-70, covered in
+  // tests/images-service-pick.e2e.test.ts). Nothing reaches the provider.
+  await waitFor("!document.querySelector('[data-images-service-unavailable]').hidden");
+  assert.equal(await evaluate("document.querySelector('[data-images-generate]').disabled"), false, "生成 leads to the key card (ASC-70)");
   assert.match(await evaluate<string>("document.querySelector('[data-images-service-label]').textContent"), /当前生图服务/);
+  assert.equal(calls, 0);
   await screenshot("revoked");
   await click("[data-images-connections]");
   await waitFor("document.querySelector('[data-images-dialog]').open");

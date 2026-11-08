@@ -1,4 +1,4 @@
-import { installActions } from "./actions.js";
+import { installActions, installAskReturns } from "./actions.js";
 import { closeDialog } from "./dialog.js";
 import { messageOf } from "./dom.js";
 import { reload } from "./list.js";
@@ -34,4 +34,5 @@ export function cogniaClient(host: CogniaClientHost): void {
     void closeDialog(page).catch((error: unknown) => fail(page, messageOf(error)));
   });
   void reload(page);
+  installAskReturns(page);
 }

@@ -47,6 +47,7 @@ export const IMAGES_MESSAGES = {
   "images.service.saved-connect": { zh: "服务已保存，请先完成账号连接。", en: "Service saved. Connect an account to start generating." },
   "images.service.saved": { zh: "服务已保存。可以开始生成图片。", en: "Service saved. You can now generate an image." },
   "images.error.save": { zh: "保存服务失败", en: "Could not save service" },
+  "images.compose.key-cancelled": { zh: "没有连上图像服务，提示词还在；准备好了再点生成。", en: "The image service is not connected; your prompt is still here. Generate again when you are ready." },
   "images.compose.unconfirmed": { zh: "提交结果未确认。再次点击生成会复用同一请求，避免重复创建任务。", en: "Submission was not confirmed. Generating again reuses the same request to avoid creating a duplicate job." },
   "images.service.delete-confirm": { zh: "删除这个生图服务？已有生成记录会保留。", en: "Delete this image service? Existing generation records are kept." },
   "images.service.deleted": { zh: "服务已删除。", en: "Service deleted." },

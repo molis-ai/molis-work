@@ -11,6 +11,26 @@ const digestImages = `(items => Promise.all(items.map(async image => {
 })))`;
 const thumbnails = digestImages + "([...d.querySelectorAll('[data-issue-thumbs] img')].map(i => ({ name: i.alt, data_url: i.src })))";
 
+test("T01-LAYOUT-01 arrival side controls stay above the bar across responsive layouts", { timeout: 90_000 }, async t => {
+  const b = await openGoalBrowser(t, "user", undefined, null); if (!b) return;
+  const v = await issueView(t, b, "issue-draft-preview");
+  for (const scheme of ["light", "dark"]) {
+    await b.command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }, { name: "prefers-color-scheme", value: scheme }] }, b.sessionId);
+    await v.go("/"); await v.chord(); await v.composerFocused();
+    for (const [width, height] of [[390, 844], [740, 390], [780, 493], [900, 600], [1024, 900], [1440, 900]] as const) {
+      await v.viewport(width, height);
+      const box = await b.evaluate<{ top: number; bottom: number; stage: number; bar: number }>(`new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => {
+        const panel = document.querySelector('[data-side-panel]').getBoundingClientRect();
+        resolve({ top: panel.top, bottom: panel.bottom, stage: document.querySelector('.arrival-stage').getBoundingClientRect().top, bar: document.querySelector('.arrival-bar').getBoundingClientRect().top });
+      })))`);
+      assert.ok(box.top >= box.stage - 1 && box.bottom <= box.bar + 1, `${scheme} ${width}×${height}: ${JSON.stringify(box)}`);
+      await v.press('[data-issue-composer] [name=description]');
+      await v.composerFocused();
+      if ([390, 780, 1440].includes(width)) await v.shot(`stage-${scheme}-${width}`);
+    }
+  }
+});
+
 test("ISSUE-45 image drafts survive full navigation, removal, sending and undo beyond localStorage quota", { timeout: 120_000 }, async t => {
   const b = await openGoalBrowser(t, "user", undefined, undefined, undefined, undefined, {
     prepareHome: async homeDirectory => { await issueModel(t, homeDirectory); },

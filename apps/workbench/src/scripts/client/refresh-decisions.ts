@@ -125,9 +125,11 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
       }
       syncing = true;
       try {
-        const cursorState=await molisWorkRequest(route("/api/board/cursor"),{scope:boardLifetime,signal,fallback:"无法读取 Molis Work 游标"});
+        const {observed_event_cursor:cursor}=await molisWorkRequest(route("/api/board/cursor"),{scope:boardLifetime,signal,fallback:"无法读取 Molis Work 游标"});
         boardLifetime.assertCurrent(signal);
-        if (Number(cursorState.observed_event_cursor) === Number(state.snapshot.cursor)) {
+        // The platform journal and the Goals plugin journal have independent sequence numbers.
+        // Acknowledge the platform cursor only after its refresh was actually applied.
+        if (cursor === goalData.boardCursor) {
           return;
         }
         if (!force && searchInteractionActive()) {
@@ -192,14 +194,16 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
         document.querySelector("#molis-work-data").textContent = JSON.stringify(state).replaceAll("<", "\\u003c");
         selected = goalRefresh.nextSelected;
         if (selected) applySelection(selected, false);
-        applyUiState(ui);
-        updateAllRelationFormPreviews();
-        bindGoalEventDocument();
+        // Invalidate before restoring visible workspace state, so its graph consumer can reload.
         const refreshedGraph = graphElement();
         if (refreshedGraph?.dataset.loaded === "true") {
           if (workspace.dataset.workspaceMode === "graph") void loadGoalGraph(true);
           else refreshedGraph.dataset.loaded = "false";
         }
+        applyUiState(ui);
+        updateAllRelationFormPreviews();
+        bindGoalEventDocument();
+        goalData.boardCursor = cursor;
         requestAnimationFrame(() => documentPane.classList.remove("is-syncing"));
       } catch (error) {
         // A background refresh stays quiet for the person, but not for whoever has to find out why it stopped.

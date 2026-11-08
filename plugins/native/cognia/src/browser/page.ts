@@ -27,6 +27,8 @@ export interface CogniaPage {
   /** Counts the materials opened; only the one opened last takes the reader. */
   opened: number;
   timer: number | undefined;
+  /** Runs after each read of the list paints the model: the resume prompt waiting for the model the settings just set up. */
+  modelRead?: () => void;
   returnFocus: HTMLElement | null;
   listScroll: number;
   listFocus: HTMLElement | null;

@@ -11,6 +11,7 @@ import { ASSISTANT_CHOOSERS_PART } from "./assistant-choosers.js";
 import { ASSISTANT_BROWSER_HANDBACK_PART } from "./assistant-browser-handback.js";
 import { ASSISTANT_LAYOUT_PART } from "./assistant-layout.js";
 import { ASSISTANT_CONVERSATION_PART } from "./assistant-conversation.js";
+import { ASSISTANT_CONNECTION_PART } from "./assistant-connection.js";
 import { ASSISTANT_SIDE_KIT_PART } from "./assistant-side-kit.js";
 import { ASSISTANT_SIDE_PATH_PART } from "./assistant-side-path.js";
 import { ASSISTANT_STRIP_PART } from "./assistant-strip.js";
@@ -226,6 +227,7 @@ ${ASSISTANT_LAYOUT_PART}
 
   const { bindMore, growCode, paint: paintCode } = (${createAssistantCodeGrow.toString()})(L);
   const placer = ${ASSISTANT_PLACER_SCRIPT};
+${ASSISTANT_CONNECTION_PART}
 ${ASSISTANT_CONVERSATION_PART}
   /* ─── The side pane: what this work is, how it got here, what it used and what it made ─ */
   const usageBox = island.querySelector("[data-assistant-usage]");

@@ -498,3 +498,6 @@ tests/view-placement-declarations.test.ts
 tests/workbench-entry-exports.test.ts
 # SQLD-06 (SQLD-b): .nvmrc, the workflows and engines name one Node patch; on that Node the SQLite is the one the plugin statement check was read against.
 tests/sqlite-version-notice.test.ts
+
+# Account session and Host refusal tests already run in the blocking security-invariants job (pnpm test:security).
+tests/account-client.test.ts

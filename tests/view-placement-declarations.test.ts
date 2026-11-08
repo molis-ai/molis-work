@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { UI_VIEW_GROUPS, UI_VIEW_HUES, type UiContributionDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
 import {
-  BUILTIN_PLUGIN_CATALOG, creatableKinds, findPluginSettingsNavItem, homeStarts, listPluginSettingsNavItems, pluginSettingsNavItemsFrom,
+  BUILTIN_PLUGIN_CATALOG, creatableKinds, pluginDirectoryFor, findPluginSettingsNavItem, homeStarts, listPluginSettingsNavItems, pluginSettingsNavItemsFrom,
 } from "@molis-ai/molis-work-app-workbench";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { defineWorkflowContentActions, parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
@@ -250,25 +250,45 @@ const declaredGroups = new Map(BUILTIN_PLUGIN_CATALOG.flatMap(entry => (entry.ma
   .map(view => [entry.project_plugin_id, view.group ?? null] as const)));
 
 test("RAC-76 W5-06-PLACE-02 the rail lists each plugin under the group its view names, the rest under 更多", () => {
-  const sections = railSections(renderMolisWorkWeb(projectView([...PROJECT_SCOPED_PLUGIN_IDS, ...PERSONAL_PLUGIN_IDS])));
-  assert.deepEqual(sections.map(section => section.heading), [...UI_VIEW_GROUPS.map(group => HEADINGS[group]), "更多"], "the Host keeps the names and their order");
-  for (const { heading, tiles } of sections) {
+  // 07-1 S4b (口径 9): 个人 is the person's own plugins by the one rule (isPersonalPlugin: the Host's personal and home marks), not
+  // a view naming it. Drawn without the Host's directory, nothing carries those marks: there is no 个人, and a view that names it
+  // is under 更多 with the plugins that name no group. Every other group is the one its view names, in the Host's order.
+  const bare = railSections(renderMolisWorkWeb(projectView([...PROJECT_SCOPED_PLUGIN_IDS, ...PERSONAL_PLUGIN_IDS])));
+  assert.deepEqual(bare.map(section => section.heading), [...UI_VIEW_GROUPS.filter(group => group !== "personal").map(group => HEADINGS[group]), "更多"], "the Host keeps the names and their order");
+  for (const { heading, tiles } of bare) {
     for (const tile of tiles.filter(id => !BACKBONE.has(id))) {
       if (tile === "artifacts") { assert.equal(heading, "写与做", "RAC-2342 the platform Artifact entry retains its existing group"); continue; }
       const group = declaredGroups.get(tile);
-      assert.equal(heading, group ? HEADINGS[group] : "更多", `${tile} sits under the group its view names`);
+      assert.equal(heading, group && group !== "personal" ? HEADINGS[group] : "更多", `${tile} sits under the group its view names`);
     }
   }
-  // The declarations keep the groups the shell used to list by name. Within a group an island comes first (灵光 leads 个人),
-  // then the views by their `order`, then by plugin id (UiViewRegistry): Workflows (25) before Schedule (35), and Artifacts
-  // before Images at 60 — as main drew them, since the old table's ids only chose the members.
-  const members = (heading: string) => sections.find(section => section.heading === heading)!.tiles.filter(id => !BACKBONE.has(id));
-  assert.deepEqual(members("推进"), ["workflows", "schedule"]);
-  assert.deepEqual(members("写与做"), ["pages", "form", "dataset", "ppt", "artifacts", "images"]);
-  assert.deepEqual(members("个人"), ["lingguang", "todo", "jelly", "cognia"]);
-  assert.deepEqual(members("研究"), ["alchemist"]);
-  assert.deepEqual(members("编码"), ["coding"]);
-  assert.ok(members("更多").includes("files"), "a plugin whose view names no group is under 更多");
+  // The declarations keep the groups the shell used to list by name. Within a group the views go by their `order`, then by plugin
+  // id (UiViewRegistry): Workflows (25) before Schedule (35), and Artifacts before Images at 60 — as main drew them, since the old
+  // table's ids only chose the members.
+  const members = (sections: typeof bare, heading: string) => sections.find(section => section.heading === heading)!.tiles.filter(id => !BACKBONE.has(id));
+  assert.deepEqual(members(bare, "推进"), ["workflows", "schedule"]);
+  assert.deepEqual(members(bare, "写与做"), ["pages", "form", "dataset", "ppt", "artifacts", "images"]);
+  assert.deepEqual(members(bare, "研究"), ["alchemist"]);
+  assert.deepEqual(members(bare, "编码"), ["coding"]);
+  for (const id of ["lingguang", "todo", "jelly", "cognia"]) assert.ok(members(bare, "更多").includes(id), `${id} names 个人 and is not marked the person's own: under 更多`);
+  assert.ok(members(bare, "更多").includes("files"), "a plugin whose view names no group is under 更多");
+
+  // With the Host's directory, the plugins it marks personal and home (registered personal, Manifest runtime scope home) are 个人,
+  // in its declared place, whatever group their view names; one that names 个人 without the marks stays under 更多.
+  const own = new Set(BUILTIN_PLUGIN_CATALOG.filter(entry => entry.personal && entry.manifest.runtime?.scope === "home").map(entry => entry.project_plugin_id));
+  const marked = pluginDirectoryFor().map(entry => own.has(entry.id) ? { ...entry, personal: true as const, home: true as const } : entry);
+  const hosted = railSections(renderMolisWorkWeb({ ...projectView([...PROJECT_SCOPED_PLUGIN_IDS, ...PERSONAL_PLUGIN_IDS]), plugin_directory: marked } as MolisWorkWebView));
+  assert.deepEqual(hosted.map(section => section.heading), [...UI_VIEW_GROUPS.map(group => HEADINGS[group]), "更多"], "the Host keeps the names and their order");
+  for (const { heading, tiles } of hosted) {
+    for (const tile of tiles.filter(id => !BACKBONE.has(id))) {
+      if (tile === "artifacts") { assert.equal(heading, "写与做", "RAC-2342 the platform Artifact entry retains its existing group"); continue; }
+      const group = declaredGroups.get(tile);
+      assert.equal(heading, own.has(tile) ? "个人" : group && group !== "personal" ? HEADINGS[group] : "更多", `${tile} sits under 个人 when it is the person's own, else the group its view names`);
+    }
+  }
+  assert.deepEqual(members(hosted, "个人"), ["todo", "jelly", "cognia", "issues", "images"]);
+  assert.deepEqual(members(hosted, "写与做"), ["pages", "form", "dataset", "ppt", "artifacts"]);
+  assert.ok(members(hosted, "更多").includes("lingguang"), "灵光 names 个人 without the Host's marks: under 更多");
 });
 
 // ---- settings icons -----------------------------------------------------------------------------------------------------

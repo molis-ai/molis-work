@@ -35,7 +35,8 @@ test("SHELF-LINK-01 SHELF-LINK-02 SHELF-LINK-03 a stored link, search hit and no
     assert.equal(await evaluate("document.querySelector('[data-work-surface=shelf], [data-tab-workspace] [data-tab-plugin=shelf]')"), null, `${why}: nothing of Shelf opens in the work area`);
   };
   const closePanel = async () => {
-    await evaluate("document.dispatchEvent(new CustomEvent('molis:side-close'))");
+    // The page collapses the side from the layout menu (收起右侧); the side has no close event of its own (07-1 S4b).
+    await evaluate("document.body.dataset.sideOpen === 'true' && (document.querySelector('[data-layout-open]').click(), document.querySelector('[data-layout-action=side]').click())");
     await waitFor("document.body.dataset.sideOpen === 'false'");
   };
 

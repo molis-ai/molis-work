@@ -105,8 +105,14 @@ ${SWITCH}{display:inline-flex}
    ones too, are reached from 全部标签. A second row for the tab would push the page down once the strip is drawn (VUX-31).
    The 52px holds the switch's track (its 44px halves and the track's 4px around them) without clipping it; the 44px tabs centre in it. */
 ${BAR}{gap:4px;height:52px;min-height:52px;padding-block:0}
-${BAR}>.tab-scroll{flex:1 1 0;width:auto;min-width:98px}
+/* Only the current tab shows in it, so no gap: the gap before the scroll's end pad would take 6px of the tab's 98. */
+${BAR}>.tab-scroll{flex:1 1 0;width:auto;min-width:98px;gap:0}
 ${BAR}>.tab-strip-spacer{display:none}
+/* The row's 4px gap spaces its parts; the switch's and the undo chip's own margins would double it and push 全部标签 out. */
+${BAR}>:is(.tab-pane-switch,.tab-undo-chip){margin-inline:0}
+/* A row that cannot hold it all (the undo chip as well, on a 360 or 320 phone) scrolls rather than clips, as scheme A narrows
+   the tabs to 96px and then scrolls: ＋ is reached by scrolling, and the strip keeps the current tab in view (tab-workspace-strip.ts). */
+${W} .immersive-titlebar [data-titlebar-tabs]:has(>.tab-pane-switch){overflow:auto hidden}
 /* Settings or the market in front is the current one: its chip takes the tab's place, and the tabs behind it are in 全部标签. */
 ${BAR}:has(>.tab-view-chip:not([hidden]))>:is(.tab-scroll,.tab-view-divider){display:none}
 ${BAR}>.tab-view-chip{flex:1 1 0;min-width:0}

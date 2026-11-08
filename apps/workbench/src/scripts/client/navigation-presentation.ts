@@ -217,7 +217,12 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
     if (!pins) return;
     const kept = readPins().filter((id) => id !== 'home');
     paintTray(pins, ['home', ...kept.filter((id) => !personal.has(id))]);
-    if (own) paintTray(own, kept.filter((id) => personal.has(id)));
+    if (own) {
+      const mine = kept.filter((id) => personal.has(id) && railItem(id));
+      paintTray(own, mine);
+      // The bar's columns read this mark (navigation-flow.ts), not a :has() over the whole bar (VUX-36).
+      dock.toggleAttribute('data-own-kept', mine.length > 0);
+    }
     dockPainted = true;
     fit();
   };

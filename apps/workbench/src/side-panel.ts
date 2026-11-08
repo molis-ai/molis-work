@@ -176,8 +176,8 @@ body.is-side-resizing{cursor:col-resize;user-select:none}
  * inside, it closes. ⌘\ / Ctrl+\ (also handed up as `Mod+Backslash`) collapses or opens the side. Tools with a chord load
  * while the page is idle, so the first press shows a ready tool. A tab's own document may report
  * `{ type: "molis:side-status", status: "busy" | "attention" | "" }`: its tab carries a shared state ring.
- * `molis:side-open` { tab, view?, target?, focus? } · `molis:side-close` · `molis:side-toggle`. Same-origin frames post the same
- * `{ type: "molis:side-open", ... }`. Tab owners hear `molis:side-shown` { tab, target } when their tab shows; a plugin tab's
+ * `molis:side-open` { tab, view?, target?, focus? } · `molis:side-toggle`. Same-origin frames post the same
+ * `{ type: "molis:side-open", ... }`, and `{ type: "molis:side-close" }` to collapse it (the page collapses it from the layout menu). Tab owners hear `molis:side-shown` { tab, target } when their tab shows; a plugin tab's
  * document gets the target as it is (`{ type: "molis:side-target", target }`, to that frame and this origin only), and its
  * page events in `SIDE_FORWARD_SCRIPT` reach this page (`molis:side-forward`), both through the S-30 checks.
  * Answers `{ open(key, target), restore(), toggle(), isOpen() }`: open (or recall) a view, draw the side again from a state the
@@ -336,7 +336,6 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
   },true);
   if(!MAC)strip.querySelectorAll('[data-side-keys]').forEach(tab=>{const item=tab.parentElement;item.title=item.title.replace('⌘⇧','Ctrl+Shift+');});
   document.addEventListener('molis:side-open',event=>{if(request(event.detail||{}))event.preventDefault();});
-  document.addEventListener('molis:side-close',()=>{setOpen(false);save();});
   document.addEventListener('molis:side-toggle',event=>{if(open&&!(event.detail?.tab&&event.detail.tab!==current())){setOpen(false);save();}else request(event.detail||{});});
   strip.addEventListener('click',event=>{
     const button=event.target?.nodeType===1?event.target.closest('[data-side-tab]'):null;if(!button)return;

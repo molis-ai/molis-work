@@ -142,6 +142,8 @@ my-skill-plugin/
 | `resources` | `SkillResourceDeclaration[]`，见下 | 可选 | 可选 |
 | `connector_categories` | 正文里用到的连接器类别占位符，如 `project-tracker`，取值见[助理统一接入服务](../assistant-service-connections/spec.md) | 可选 | 可选 |
 
+<a id="connector-categories-mapping"></a>**`connector_categories` 与正文占位符的对应**：现在代码和文档里只有格式规则——取值是不重复的小写类别词（`validToken`，如 `project-tracker`），见 `packages/plugin-sdk/src/skill-declarations.ts` 的 `connectorCategoryProblems`。正文里的 `~~project tracker` 怎样对应到这个取值（比如小写、空格换连字符）、类别表有哪些，都还没定，由助理统一接入服务的主人给出；给出之前，作者按取值的写法在 `connector_categories` 里列类别，不要自己推演映射。
+
 `applies_to` 和 `description` 在 `methods` 里最终必填，分两步改，中间不让任何现有插件装不上（合同台评审 2026-11-04 查出）：
 
 1. **C-1 把两个字段加进 `AgentSkillDeclaration`，先是可选。** 没有这两个字段之前，插件写进去过不了类型检查，所以合同必须先落。

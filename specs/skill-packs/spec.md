@@ -24,7 +24,7 @@
 - 个人助理与 Coding 的装配：助理把插件声明的技能列为 `methods`；Coding 把同一份技能按 `applies_to` 注册为可安装方法或起跑时注入 `agent.skills`；两边读同一份平台方法目录和版本。
 - 渐进披露：metadata → 正文 → `references/`/`scripts/`/`assets/` 按需读取。
 - 作者与评测：从一次对话生成插件（内容型）、校验、回放、评测。
-- 连接器类别占位符（`~~project tracker` 等），让内容不绑定具体厂商；映射与授权见 [助理统一接入服务](../assistant-service-connections/spec.md)。占位符写在正文里，不另设宿主侧的映射表。
+- 连接器类别占位符（`~~project tracker` 等），让内容不绑定具体厂商；映射与授权见 [助理统一接入服务](../assistant-service-connections/spec.md)。占位符写在正文里，不另设宿主侧的映射表。占位符与声明里 `connector_categories` 取值的对应写法见[设计稿](contract-design.md#connector-categories-mapping)。
 
 **不做**：
 
@@ -201,6 +201,13 @@ argument_hint: "<周期，可选>"
 | 08-8 外部 Skills 导入 | `skills.import.*`、CLI `pack-content`、用本机发布身份签名 | 08-4、08-6（不动表）。和 08-7 改同一份 `system.skills` 登记或 `host-actions.tsv` 时，同一时间一个写手，先准备好的先落 | SKC-10 |
 | 08-9 界面 | 照 §9 定样：安装预览一节、启用步骤、「技能」目录、从本机导入；技能名称与说明的英文走提供它的插件的 `ui.translations`，在这一片读取时补齐（含 Todo、Issues、Pages 的四个方法） | 08-2、08-6、08-7、08-8；D 轨文件按 §10 第 14 项 | SKP-01、SKP-08、SKP-10 的界面部分；本人验收 |
 | 08-10 设计与无障碍内容包（BL-165） | 写成只有声明的插件；随安装包带上，加 `plugins.bundled.list@1` | 08-6；官方签名等 26-1 | 能装上、过校验、进 Skill 目录；本人验收 |
+
+**08-8、08-9 的补充（第 08 批主会话，2026-11-08，来源 #1936 合同台与评审小修、#1935 D 轨小修）：**
+
+- 08-8：外部 Skill 的 frontmatter 里出现多行值（`description: >`）或带连字符的键（`argument-hint`），只把那一个 Skill 标为「不能导入」并写明原因，不让一个坏 Skill 拖垮整次导入。带连字符的键与下划线写法是否等同，由 08-8 按「只认现行取值」定。来源超过 128 个 Skill 时，要么拆成几个包，要么明确拒绝（`SKILL_LIMITS.skillsPerPackage`）。
+- 08-9：`renderAlert` 的 `actions` 参数已随 #1913（05-N14）进了 SDK（`packages/plugin-sdk/src/ui/feedback.ts`，输出 `mw-alert__actions`）；08-9 把各原型里本地写的动作槽类换成它：`.rk-alert-actions`（第 17 批 risk-plugin）、`.gr-alert-actions`（第 18 批 schedule-task-grants）、`.sk-alert-actions`（第 19 批 skill-packs）、`.cand-alert-actions`（05-N14 rule-stale-reload），另有 `.wb-alert-actions`（work-brief-core）。查法：`rg -e '-alert-actions' docs/design`。
+- 08-9 的 `role`：动作之后才出现的失败用 `alert`；页面上原本就有的文字用 `status`。
+- 08-9 的状态词用主人的稳定键，如 `<主人>.status.retracted`；浏览器用例断言英文 `Retracted`。
 
 **不在本批的验收编号：**
 

@@ -9,8 +9,10 @@
 // unified-origin check lets a format above 1 through only when the goldens hold each older version. One with `absent` cannot be in a golden,
 // so raising it fails; one whose file a golden does not have yet (computer/settings.json, BL-golden-computer-settings) fails the same way.
 //
-// The gates only read the manifest, so the replay reads every one of these versions again from the restored Home (`assertRecordedVersions`):
-// a manifest edited by hand fails there instead of making a golden hold a version it does not.
+// The gates only read the manifest, so the replay reads each version a manifest records again from the restored Home (`assertRecordedVersions`):
+// a manifest edited by hand fails there instead of making a golden hold a version it does not. It reads what was recorded and nothing more:
+// this table is the current build's and the goldens are older releases', so an entry added later is not in them and must not fail them.
+// An entry that moves or is renamed must keep a reading for where older goldens recorded it, or their replay fails, on purpose.
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -40,7 +42,7 @@ export const PERSISTENT_FORMAT_LOCATIONS = Object.freeze({
 /** A Home path without the account Home's `spaces/<id>/`. */
 const inHome = relative => relative.replace(/^spaces\/[^/]+\//u, "");
 const pattern = location => new RegExp(`^${location.split("/").map(part => part === "*" ? "[^/]+" : part.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")).join("/")}$`, "u");
-const located = (kind, relative) => Object.entries(PERSISTENT_FORMAT_LOCATIONS).filter(([, location]) => location[kind] && pattern(location[kind]).test(inHome(relative)));
+const located = (kind, relative, locations = PERSISTENT_FORMAT_LOCATIONS) => Object.entries(locations).filter(([, location]) => location[kind] && pattern(location[kind]).test(inHome(relative)));
 
 /** The version a format holds, or the failure that says the golden would record something that is not one. */
 function version(value, where) {
@@ -74,26 +76,46 @@ export function fileFormats(bytes, relative) {
 }
 
 /**
- * After a restore, every version the manifest records is read again from the Home, with the readers the generator used: each library's
- * `schema_version` and `plugin_tables`, and the whole `formats` list. A difference fails at the library, or at `<path>#<entry>` for a format,
- * and never says which values differed. Run before the Host opens the Home, which would upgrade what it finds.
+ * What `entry` holds at `relative` in a restored Home, read the way `locations` says, as the generator read it (the first row, for a reading by
+ * rows). Undefined when the table has no reading for that entry at that place, or the golden has no library or file there.
  */
-export function assertRecordedVersions(storage, manifest, home) {
-  const found = [];
+function readRecordedFormat(home, { entry, path: relative }, schemaVersions, files, locations) {
+  const location = typeof entry === "string" && Object.hasOwn(locations, entry) ? locations[entry] : null;
+  if (!location || typeof relative !== "string") return undefined;
+  const at = kind => typeof location[kind] === "string" && pattern(location[kind]).test(inHome(relative));
+  if (at("store") && schemaVersions.has(relative)) {
+    if (!location.rows) return schemaVersions.get(relative);
+    const db = new DatabaseSync(path.join(home, relative), { readOnly: true });
+    try { return Number(db.prepare(location.rows).get()?.version); } finally { db.close(); }
+  }
+  if (at("file") && files.has(relative)) return JSON.parse(readFileSync(path.join(home, relative), "utf8"))?.[location.field];
+  return undefined;
+}
+
+/**
+ * After a restore, each version the manifest records is read again from the Home: each library's `schema_version` and `plugin_tables`, and
+ * each item of `formats`, by its entry's reading in `locations` (this build's table, unless a test gives another). Only what is recorded:
+ * the gates count held versions from the manifest alone, so a format it leaves out claims nothing, and a later table's new entry is not in
+ * an older golden. A recorded item with no reading, at a place the golden does not have, that cannot be read, or that reads differently, fails
+ * at `<path>#<entry>` (a library at its path), and never says which values differed. Run before the Host opens the Home, which would upgrade it.
+ */
+export function assertRecordedVersions(storage, manifest, home, locations = PERSISTENT_FORMAT_LOCATIONS) {
+  const schemaVersions = new Map();
   for (const entry of manifest.stores) {
     const db = new DatabaseSync(path.join(home, entry.path), { readOnly: true });
     let versions;
-    try {
-      versions = libraryVersions(storage, db, entry.path, Number(db.prepare("PRAGMA user_version").get().user_version));
-      found.push(...storeFormats(db, entry.path, versions.schema_version));
-    } finally { db.close(); }
+    try { versions = libraryVersions(storage, db, entry.path, Number(db.prepare("PRAGMA user_version").get().user_version)); } finally { db.close(); }
     if (versions.schema_version !== entry.schema_version) throw goldenFailure("golden.recorded_version_mismatch", entry.path);
     if (!isDeepStrictEqual(versions.plugin_tables ?? null, entry.plugin_tables ?? null)) throw goldenFailure("golden.recorded_version_mismatch", `${entry.path}#plugin_tables`);
+    schemaVersions.set(entry.path, versions.schema_version);
   }
-  for (const entry of manifest.files) found.push(...fileFormats(readFileSync(path.join(home, entry.path)), entry.path));
-  const byPlace = list => new Map(list.map(item => [`${item.path}#${item.entry}`, item.version]));
-  const recorded = byPlace(Array.isArray(manifest.formats) ? manifest.formats : []), read = byPlace(found);
-  for (const place of [...new Set([...recorded.keys(), ...read.keys()])].sort()) if (recorded.get(place) !== read.get(place)) throw goldenFailure("golden.recorded_version_mismatch", place);
+  const files = new Set(manifest.files.map(entry => entry.path));
+  for (const item of Array.isArray(manifest.formats) ? manifest.formats : []) {
+    let found;
+    // A recorded version that cannot be read back is not held, whatever stopped the reading.
+    try { found = readRecordedFormat(home, item ?? {}, schemaVersions, files, locations); } catch { found = undefined; }
+    if (found !== item?.version) throw goldenFailure("golden.recorded_version_mismatch", `${item?.path}#${item?.entry}`);
+  }
 }
 
 /** Each golden under tests/fixtures/golden-homes/ and its manifest, or null for one that cannot be read; a gate treats that as holding nothing. */

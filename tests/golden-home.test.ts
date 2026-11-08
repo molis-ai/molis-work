@@ -13,10 +13,10 @@ import { DatabaseSync } from "node:sqlite";
 import test, { after, before, describe } from "node:test";
 import { fileURLToPath } from "node:url";
 import { brotliCompressSync, constants } from "node:zlib";
-import { countSqliteRows, dumpSqliteText } from "@molis-ai/molis-work-storage";
+import { CATALOG_VERSION_ACCESS, countSqliteRows, dumpSqliteText } from "@molis-ai/molis-work-storage";
 import { assertTemporaryHome, compareGoldens, filePayload, restoreGolden, withFixedSandboxEntries } from "../scripts/golden/layout.mjs";
 import { MODULE_SOURCES_DIRECTORY, RELEASE_MANIFESTS_DIRECTORY, releasePayloadReader, withoutReleasePayloads, withReleasePayloads, writeReleasePayloads } from "../scripts/golden/release-payloads.mjs";
-import { PERSISTENT_FORMAT_LOCATIONS } from "../scripts/golden/formats.mjs";
+import { assertRecordedVersions, PERSISTENT_FORMAT_LOCATIONS } from "../scripts/golden/formats.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const GOLDEN_SCRIPT = path.join(root, "scripts/golden-home.mjs"), REPLAY_SCRIPT = path.join(root, "scripts/replay-golden-homes.mjs");
@@ -464,7 +464,8 @@ describe("a generated golden Home", { concurrency: false }, () => {
   });
 
   // The gates believe the manifest (UPG-01, the unified-origin check), so the replay reads each recorded version again from what it restored,
-  // before the Host opens and upgrades anything. Each of these changes only the manifest, which no checksum covers.
+  // before the Host opens and upgrades anything. Each of these changes only the manifest, which no checksum covers, and each makes the
+  // manifest claim a version the Home does not hold.
   type Manifest = { homes: { projects: { primary: { project_id: string } } }[]; stores: (StoreEntry & { plugin_tables?: Record<string, number> })[]; formats: { entry: string; path: string; version: number }[] };
   const edits: [string, (recorded: Manifest) => string][] = [
     ["a library's version raised", recorded => {
@@ -489,12 +490,6 @@ describe("a generated golden Home", { concurrency: false }, () => {
       recorded.formats.push({ entry: "format.computer.settings", path: "computer/settings.json", version: 1 });
       return "computer/settings.json#format.computer.settings";
     }],
-    ["a format left out", recorded => {
-      const at = recorded.formats.findIndex(format => format.entry === "database.home.catalog" && format.path === "projects/catalog.db");
-      assert.ok(at >= 0);
-      recorded.formats.splice(at, 1);
-      return "projects/catalog.db#database.home.catalog";
-    }],
   ];
   for (const [what, edit] of edits) {
     test(`UPG-01: a manifest with ${what} fails the replay at the recorded versions, before anything opens it`, () => {
@@ -507,6 +502,40 @@ describe("a generated golden Home", { concurrency: false }, () => {
       assert.match(result.output, new RegExp(`^FAIL 9\\.9\\.9-dev\\.1 recorded-versions ${where.replaceAll(".", "\\.")} golden\\.recorded_version_mismatch$`, "mu"));
     }, { timeout: 600_000 });
   }
+
+  // Only what the manifest records is checked. The gates count held versions from `formats` alone, so a format left out makes them stricter,
+  // never looser; a generator that leaves one out is caught where it generates (the UPG-01 test above, and `check`).
+  test("UPG-01: a manifest that leaves a format out still replays, since leaving one out claims nothing the gates could count", () => {
+    const parent = path.join(directory, "recorded-format-left-out"), copy = path.join(parent, VERSION);
+    cpSync(golden, copy, { recursive: true });
+    const recorded = manifest(copy) as Manifest, at = recorded.formats.findIndex(format => format.entry === "database.home.catalog" && format.path === "projects/catalog.db");
+    assert.ok(at >= 0);
+    recorded.formats.splice(at, 1);
+    writeFileSync(path.join(copy, "manifest.json"), `${JSON.stringify(recorded, null, 2)}\n`);
+    const result = run(REPLAY_SCRIPT, "--dir", parent);
+    assert.equal(result.status, 0, result.output);
+    assert.match(result.output, /^ok {3}9\.9\.9-dev\.1 /mu);
+  }, { timeout: 600_000 });
+
+  // The table of formats is this build's, and it reads goldens of earlier releases. An entry added later, in a library or file an older golden
+  // already has, is not in that golden's manifest, and the golden still replays: `golden-replay` gates every merge and an old golden cannot be
+  // made again. An entry that moves or is renamed is the opposite case on purpose: what an old golden recorded has to stay readable.
+  test("UPG-01: a format added to the table after a golden was made does not fail it, and one the golden records but the table lost does", t => {
+    const recorded = manifest() as Manifest, restored = path.join(scratch(t), "home");
+    mkdirSync(restored, { mode: 0o700 });
+    restoreGolden(golden, recorded, restored);
+    const storage = { CATALOG_VERSION_ACCESS };
+    const later = {
+      ...PERSISTENT_FORMAT_LOCATIONS,
+      "format.later.rows": { store: "jelly/jelly.db", rows: "SELECT version FROM a_table_this_golden_does_not_have" },
+      "format.later.file": { file: "config/onboarding.json", field: "a_field_this_golden_does_not_have" },
+    };
+    assert.doesNotThrow(() => assertRecordedVersions(storage, recorded, restored, later));
+    const { "format.shelf.catalog": renamed, ...lost } = PERSISTENT_FORMAT_LOCATIONS;
+    assert.ok(renamed);
+    assert.throws(() => assertRecordedVersions(storage, recorded, restored, lost),
+      (error: { code?: string; where?: string }) => error.code === "golden.recorded_version_mismatch" && error.where === "shelf/catalog.json#format.shelf.catalog");
+  });
 
   test("the generation's directory holds a dump for every recorded store and nothing it does not record", () => {
     const recorded = manifest();

@@ -6,7 +6,12 @@
 
 ### 升级须知（需要动手）
 
-- MCP 客户端和已保存的调用：判断规则的 `functions.authoring.update`、`preview`、`publish`、`delete`、`sample.add`、`sample.remove` 改为必须带读取时的版本 `expected_updated_at`（必填的非空字符串，取读到的记录的 `updated_at`），原来的 `updated_at` 字段不再接受。Agent 和 MCP 缺版本时得到 `actions.version_required`，字段名写旧或值非法得到 `actions.input_invalid`，版本过期得到 `functions.draft_stale`：先用 `functions.authoring.get` 读最新内容，再决定怎样提交。
+- MCP 客户端和已保存的调用：判断规则的 `functions.authoring.update`、`preview`、`publish`、`delete`、`sample.add`、`sample.remove` 改为必须带读取时的版本 `expected_updated_at`（必填的非空字符串，取读到的记录的 `updated_at`），原来的 `updated_at` 字段不再接受。Agent 和 MCP 缺版本时得到 `actions.version_required`，字段名写旧或值非法得到 `actions.input_invalid`，版本过期得到 `functions.draft_stale`：先用 `functions.authoring.get` 读最新内容，再决定怎样提交。另有三处结果变了，按原来的结果判断的客户端要改：
+  - 版本过期的错误码从 `functions.conflict` 改成 `functions.draft_stale`。`functions.conflict` 只剩「草稿用途变了」这一种。
+  - `functions.authoring.sample.remove` 找不到样例，从 `functions.not_found` 改成 `functions.sample_not_found`。
+  - `functions.authoring.publish` 遇到已发布的记录不再一律成功：读到的正是发布的那一版才幂等成功，读到更早的版本得到 `functions.published_immutable`。
+
+  `updated_at` 现在只随定义变化：试跑、样例、发布和规整后无变化的保存都不推它，规则列表按 `COALESCE(published_at, updated_at)` 排序。拿它当「最后改动时间」的客户端会看到不同。
 - **第 02 批 Feed 证据和搜索回到统一起点。** 证据只读写 `feed/evidence/` 与一把现行密钥，搜索意图只用 `feed-intent-v1`；不再读取恢复副本或尝试旧环境口令盐。已有正文缺钥、错钥或损坏时拒绝，原文件不变。此变更须随约定维护窗口先验证完整备份可恢复，再干净重建真实 Home；不要把此构建直接用于旧 Home 的就地升级。实际现场完成另记。
 - **个人版合入主线存储调整**：保留合并后的完整结构和同步日志，重建前各库与本机持久化文件归一为 1；同步日志随 owner 的完整结构验证。各库版本见[发布清单](CHECKLIST.md)。旧 Work／Sessions 功能随主线移除，其他个人同步保留；旧库不就地升级。安装前按第 02 批已定维护窗口先验证完整备份可恢复，再搬开旧 Home 并干净重建。这次只合代码，不维护正在使用的数据。
 - **第 02 批统一插件与动作版本。** 插件清单的 `schema_version` 和 `host_api_version` 都填 1，使用当前完整声明；填 2 的清单会被拒绝。内置清单和宿主快照中，101 个原为 @2～@8 的动作回到 @1；之后合入的 `shelf.items.edit@2` 也回到 @1，MCP 工具名从 `shelf.items.edit__v2` 变成 `shelf.items.edit__v1`。工作流步骤、绑定、外部脚本应按现行目录逐项核对输入输出：名字保留的动作若曾固定在旧 @1，现在会直接对上现行形状，版本号本身不会拒绝这条旧引用。真实 Home 在约定维护窗口重建。

@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { compareCodeUnits } from "@molis-ai/molis-work-plugin-sdk";
 import {
   FUNCTIONS_DEFAULT_MODEL,
   type ChoiceCriterion,
@@ -39,7 +40,7 @@ function canonicalizeCriteria(primitive: JudgmentRulePrimitive, criteria: Judgme
   if (primitive === "choice") {
     const items = criteria as readonly ChoiceCriterion[];
     return [...items]
-      .sort((left, right) => left.key.localeCompare(right.key))
+      .sort((left, right) => compareCodeUnits(left.key, right.key))
       .map((item) => ({ key: item.key, description: item.description }));
   }
   if (primitive === "noul") {

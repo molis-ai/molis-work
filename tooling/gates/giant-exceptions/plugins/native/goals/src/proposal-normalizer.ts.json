@@ -1,0 +1,12 @@
+{
+  "exceptions": {
+    "class plugins/native/goals/src/proposal-normalizer.ts#GoalTreeProposalNormalizer": {
+      "kind": "cohesive-unit",
+      "reason": "Goal 树提案的解析与规范化：把模型给的条目按白名单键读成确定的写入条目（goalCreatePayload、relation 载荷、叙述与解释），是一个解析器；拆开会把同一份格式知识散到几处。",
+      "size": {
+        "lines": 417,
+        "methods": 13
+      }
+    }
+  }
+}

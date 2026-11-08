@@ -21,6 +21,7 @@ import { createPluginModelGeneration } from './plugin-builder/model.js';
 import { exposedOperationPolicies, type InstalledPluginActions } from './plugin-builder/exposed-actions.js';
 import { hostNetwork } from './plugin-builder/network.js';
 import { pluginAgentRegistration, updatePluginAgentDefinitions, forgetPluginAgentDefinitions } from './plugin-instructions.js';
+import { forgetTaskGrantSubjects } from './task-grant-subjects.js';
 import { pluginHomeFor } from './home-side.js';
 import { pluginSecrets } from './plugin-builder/secrets.js';
 import { studioStorage } from './plugin-builder/storage.js';
@@ -195,7 +196,7 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
   const stops = publisherStops({ standing, platform, recoveryErrors, withdraw, records });
   const lifecycle = installedLifecycle({ platform, storage, privateStorage: options.privateStorage, secrets, recoveryErrors, closed: isClosed, trusted: standing.trusted, recordFor, releaseFor, approvedFor,
     definition, expose, withdraw, registerPrompts,
-    forget(pluginId, installId) { forgetPluginAgentDefinitions(pluginHomeFor(home), installId); forgetDefinitions(pluginId); } });
+    async forget(pluginId, installId) { forgetPluginAgentDefinitions(pluginHomeFor(home), installId); forgetDefinitions(pluginId); await forgetTaskGrantSubjects(home, subject => subject.plugin_install_id === installId); } });
   const close = () => { closed = true; for (const id of [...exposed.keys(), ...attached.keys()]) withdraw(id); disposePlatform(); };
 
   try {

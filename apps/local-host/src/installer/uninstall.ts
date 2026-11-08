@@ -165,7 +165,7 @@ export class MolisWorkUninstallService {
 
     const catalogInspection = await this.options.projects.inspect();
     const receipt: UninstallReceipt = {
-      schema_version: 1,
+      schema_version: /* @version format.home.uninstall.receipt */ 1,
       owner: UNINSTALL_OWNER,
       plan_id: plan.plan_id,
       home_directory: this.homeDirectory,

@@ -215,6 +215,7 @@ export { assertMcpStartInput } from "./mcp-start-preflight.js";
 export { assertMcpToolAllowed, requireMcpRuntimeContextHost } from "./mcp-authority.js";
 export { runtimeConnectionIdentity } from "./mcp-event-identity.js";
 export { readMcpToolPreference } from "./mcp-settings-store.js";
+export { taskGrantActionProvider, type TaskGrantPorts } from "./task-grant-actions.js";
 export * from "./web-project-settings.js";
 export * from "./web-project-presentation.js";
 export * from "./project-host.js";
@@ -331,6 +332,7 @@ export { handleAttentionHttp, type AttentionSources } from "./attention-http.js"
 export { handleBrowserHttp } from "./browser/browser-http.js";
 export { homeBackgroundTasks, type HomeBackgroundTaskRow } from "./home-background-tasks.js";
 export { startWebProjectSchedulers } from "./web-project-schedulers.js";
+export { reportSqliteVersion, sqliteVersionNotice } from "./sqlite-version-notice.js";
 export { hostLog, captureHostLog, eachListener, logPreviewFailure, logSearchIndexFailure, repeatingFailure, type HostLogEntry, type HostLogField, type HostLogLevel } from "./host-log.js";
 
 

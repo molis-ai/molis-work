@@ -544,7 +544,7 @@ export function normalizeProposal(raw: unknown, index: number, pluginId: string,
   for (const operation of operations) for (const [key, values] of Object.entries(operation.effects)) (effects as Record<string, string[]>)[key] = [...new Set([...((effects as Record<string, string[]>)[key] ?? []), ...values])].sort();
   return { id, title: title.slice(0, 120), description: text(raw.description).slice(0, 1000), rationale: (text(pick(raw, 'rationale', 'reason', 'why')) || text(raw.description)).slice(0, 1000),
     journey: journey.map(step => step.slice(0, 300)).slice(0, 20), effects,
-    preview: { contract: { version: 1, pluginId, revision: 'proposal-' + id, entities: [], pages, operations, acceptance: [] }, parts } };
+    preview: { contract: { version: /* @version format.sandbox.contract */ 1, pluginId, revision: 'proposal-' + id, entities: [], pages, operations, acceptance: [] }, parts } };
 }
 /** Stage two (and revisions): the one chosen plugin in full, expanded into the strict design. */
 /**
@@ -816,5 +816,5 @@ export function expandDesign(raw: unknown, base: { id: string; title: string; de
   const journey = steps(pick(design, 'journey', 'journal'));
   return { id: base.id, title: text(design.title) || base.title, description: text(design.description) || base.description, rationale: text(design.rationale) || base.rationale,
     journey: journey.length ? journey.slice(0, 20) : base.journey,
-    contract: { version: 1, pluginId, revision, entities: [], pages, operations, acceptance: acceptance.contract }, parts, acceptance: acceptance.browser, ...(design.presentation !== undefined ? { presentation: design.presentation as AgentDesign['presentation'] } : {}) };
+    contract: { version: /* @version format.sandbox.contract */ 1, pluginId, revision, entities: [], pages, operations, acceptance: acceptance.contract }, parts, acceptance: acceptance.browser, ...(design.presentation !== undefined ? { presentation: design.presentation as AgentDesign['presentation'] } : {}) };
 }

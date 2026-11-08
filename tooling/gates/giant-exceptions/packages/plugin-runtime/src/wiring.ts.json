@@ -1,0 +1,12 @@
+{
+  "exceptions": {
+    "class packages/plugin-runtime/src/wiring.ts#PluginInputGraph": {
+      "kind": "cohesive-unit",
+      "reason": "插件输入图：绑定、求值、入队、发布和失效，同一份依赖图及其缓存；求值和失效要在同一份图上做，拆开会让图有两个读写者。",
+      "size": {
+        "lines": 455,
+        "methods": 26
+      }
+    }
+  }
+}

@@ -8,7 +8,7 @@ import { homeSqlitePath, openBaselineHomeSqlite, type HomeStoreDeclaration, type
  * is not the one granted. Every read is recorded against its grant: who started the call and how it ended, never a file name or
  * content. An uninstall and a project's deletion take their grants and records with them.
  */
-const DIRECTORY_GRANTS_BASELINE: SqliteBaseline = { version: 1, schema: `
+const DIRECTORY_GRANTS_BASELINE: SqliteBaseline = { version: /* @version database.directory_grants_baseline */ 1, schema: `
   CREATE TABLE plugin_directory_grants (
     grant_id TEXT PRIMARY KEY, plugin_id TEXT NOT NULL, plugin_name TEXT NOT NULL, install_id TEXT NOT NULL, project_id TEXT NOT NULL,
     actor_id TEXT NOT NULL, root TEXT NOT NULL, device TEXT NOT NULL, inode TEXT NOT NULL, granted_at TEXT NOT NULL,

@@ -19,6 +19,18 @@ const run = (...args: string[]) => {
   return { code: result.status, out: `${result.stdout}${result.stderr}` };
 };
 const put = (file: string, text: string) => { mkdirSync(path.dirname(path.join(root, file)), { recursive: true }); writeFileSync(path.join(root, file), text); };
+// Explicit fixture authorities keep the real read-only --root contract, including rejection of missing sources.
+const ownVersion = (file: string, key: string, value: string | number, pattern?: string) => {
+  const source = JSON.parse(readFileSync(path.join(root, "tooling/versions.json"), "utf8"));
+  source.versions[key] = value;
+  if (pattern && !source.carriers.some((carrier: { file: string; pattern: string }) => carrier.file === file && carrier.pattern === pattern)) source.carriers.push({ file, key, pattern });
+  put("tooling/versions.json", JSON.stringify(source));
+};
+// A scratch file whose literals these release rules break one at a time; the declaration rules have their own file (tests/version-source.test.ts).
+const scratchLiterals = (...files: string[]) => {
+  const list = JSON.parse(readFileSync(path.join(root, "tooling/gates/version-exceptions.json"), "utf8"));
+  put("tooling/gates/version-exceptions.json", JSON.stringify([...list, ...files.map(file => ({ file, reason: "scratch fixture for the release rules, not a declaration" }))]));
+};
 const edit = (file: string, from: string, to: string) => {
   const text = readFileSync(path.join(root, file), "utf8");
   assert.ok(text.includes(from), `${file} does not contain ${from}`);
@@ -43,7 +55,19 @@ const TABLE = [
 
 // A scratch repository that satisfies every rule; the tests break one thing at a time.
 const buildFixture = () => {
+  put("tooling/versions.json", JSON.stringify({ versions: {}, carriers: [] }));
   put("package.json", JSON.stringify({ name: "root", version: VERSION }));
+  ownVersion("package.json", "product.release", VERSION, '("version":")[^"]+(")');
+  ownVersion("apps/alpha/src/store.ts", "database.alpha", 3, '(version: )\\d+()');
+  ownVersion("apps/alpha/src/store.ts", "database.catalog", 21, '(CATALOG_VERSION = )\\d+()');
+  ownVersion("server/src/db.ts", "database.server", 1, '(version: )\\d+()');
+  ownVersion("apps/local-host/src/product-version.ts", "product.release", VERSION, '(PRODUCT_VERSION = ")[^"]+(")');
+  ownVersion("apps/desktop/src-tauri/tauri.conf.json", "product.release", VERSION, '("version":")[^"]+(")');
+  ownVersion("apps/desktop/src-tauri/Cargo.toml", "product.release", VERSION, '(\\[package\\]\\nname = "molis-work-desktop"\\nversion = ")[^"]+(")');
+  ownVersion("apps/desktop/src-tauri/Cargo.lock", "product.release", VERSION, '(name = "molis-work-desktop"\\nversion = ")[^"]+(")');
+  // These fixtures keep their versions in carriers so the rules below can break one literal at a time.
+  put("tooling/gates/version-exceptions.json", JSON.stringify(["apps/alpha/src/store.ts", "server/src/db.ts", "apps/local-host/src/product-version.ts"]
+    .map(file => ({ file, reason: "scratch fixture for the release table, its versions are carriers" }))));
   put("pnpm-workspace.yaml", "# comment\npackages:\n  - 'apps/*'\n  - 'server'\n\noverrides:\n  x: 1\n");
   put("apps/alpha/package.json", JSON.stringify({ name: "alpha", version: "0.0.0", private: true }));
   put("apps/alpha/src/store.ts", [
@@ -103,7 +127,7 @@ test("every place that carries the product version must equal it", () => {
   for (const [file, from, to] of carriers) {
     buildFixture();
     edit(file, from, to);
-    failsWith(run(), file, `9.9.9, but package.json is ${VERSION}`);
+    failsWith(run(), `${file}: differs from tooling/versions.json`);
   }
 });
 
@@ -124,10 +148,10 @@ test("this repository: the Host's code spells the product version only in produc
 
 test("a carrier that cannot be read counts as a mismatch, not as a pass", () => {
   rmSyncFile("apps/desktop/src-tauri/Cargo.toml");
-  failsWith(run(), "apps/desktop/src-tauri/Cargo.toml: the file is missing");
+  failsWith(run(), "apps/desktop/src-tauri/Cargo.toml: carrier file is missing");
   buildFixture();
   put("apps/desktop/src-tauri/tauri.conf.json", "{ not json");
-  failsWith(run(), "apps/desktop/src-tauri/tauri.conf.json: no version found");
+  failsWith(run(), "apps/desktop/src-tauri/tauri.conf.json: carrier for product.release matches nothing");
   buildFixture();
   put("package.json", JSON.stringify({ name: "root", version: "one" }));
   failsWith(run(), "package.json: version \"one\" is not MAJOR.MINOR.PATCH");
@@ -203,6 +227,8 @@ test("a SqliteBaseline the table does not list fails", () => {
 test("a plugin-owned database declaration has a listed literal baseline with the same version", () => {
   const table = readFileSync(path.join(root, "docs/releases/CHECKLIST.md"), "utf8");
   const listed = table.replace(TABLE, TABLE + "\n| Plugin | `plugin/plugin.db` | 1 | `user_version` | `apps/alpha/src/plugin.ts#PLUGIN_DB` | 拒绝 |");
+  ownVersion("apps/alpha/src/plugin.ts", "database.plugin", 1, '(version: )\\d+()');
+  scratchLiterals("apps/alpha/src/plugin.ts");
   for (const source of [
     "const PLUGIN_DB: PluginDatabaseDeclaration = { version: 1, schema: `` };",
     "const PLUGIN_DB = { version: 1, schema: `` } satisfies PluginDatabaseDeclaration;",
@@ -263,8 +289,60 @@ test("a baseline declared with satisfies or as, or handed over inline, cannot hi
   assert.equal(run().code, 0, run().out);
 });
 
+// specs/upgrade-continuity/upgrade-chain-design.md §1, §11.3: the steps sit inside the literal and do not disturb the version reader.
+test("UPG1-i-verify-01: a baseline's upgrades do not change the version read from its literal", () => {
+  const table = readFileSync(path.join(root, "docs/releases/CHECKLIST.md"), "utf8");
+  ownVersion("apps/alpha/src/plugin.ts", "database.plugin", 3, '(version: )\\d+()');
+  scratchLiterals("apps/alpha/src/plugin.ts");
+  put("docs/releases/CHECKLIST.md", table.replace(TABLE, TABLE + "\n| Plugin | `plugin/plugin.db` | 3 | `user_version` | `apps/alpha/src/plugin.ts#PLUGIN_DB` | 低版本升级，高版本拒绝 |"));
+  const steps = '[{ from: 1, version:9, sql: "ALTER TABLE t ADD COLUMN version TEXT" }, { from: 2, run: (db) => { db.exec(`UPDATE t SET version = \'9\'`); } }]';
+  put("apps/alpha/src/plugin.ts", `const PLUGIN_DB: SqliteBaseline = { upgrades: ${steps}, version: 3, schema: \`\` };`);
+  assert.equal(run().code, 0, run().out);
+  put("apps/alpha/src/plugin.ts", `const PLUGIN_DB: SqliteBaseline = { version: 4, schema: \`\`, upgrades: ${steps} };`);
+  failsWith(run(), "the table says 3", "says 4");
+  put("apps/alpha/src/plugin.ts", `const PLUGIN_DB: SqliteBaseline = { schema: \`\`, upgrades: ${steps} };`);
+  failsWith(run(), "has no PLUGIN_DB with a version");
+});
+
+test("UPG1-i-verify-02: the upgrade entry takes what a descriptor carries, not a baseline written at the call", () => {
+  put("apps/alpha/src/upgrade.ts", "runSqliteUpgrade(db, path, store.baseline);\nrunSqliteUpgrade(db, path, store.library.baseline, home);\n");
+  assert.equal(run().code, 0, run().out);
+  put("apps/alpha/src/upgrade.ts", "runSqliteUpgrade(db, path, nobody);\n");
+  failsWith(run(), "apps/alpha/src/upgrade.ts: runSqliteUpgrade is called with nobody, which no package declares as a SqliteBaseline");
+  put("apps/alpha/src/upgrade.ts", "runSqliteUpgrade(db, path, { version: 2, schema: `CREATE TABLE t (a TEXT);`, upgrades: [] });\n");
+  failsWith(run(), "apps/alpha/src/upgrade.ts: runSqliteUpgrade is called with an inline baseline");
+  put("apps/alpha/src/upgrade.ts", "runSqliteUpgrade(db, path, { ...BASE, version: 2 } as SqliteBaseline);\n");
+  failsWith(run(), "apps/alpha/src/upgrade.ts: runSqliteUpgrade is called with an inline baseline");
+  put("apps/alpha/src/upgrade.ts", "runSqliteUpgrade(db, path);\n");
+  failsWith(run(), "apps/alpha/src/upgrade.ts: runSqliteUpgrade is called without a baseline");
+});
+
+test("UPG1-i-verify-03: the two aggregate copy openers take a declared baseline like the other entries, their own file aside", () => {
+  for (const opener of ["openOwnerCopyStore", "openAggregateCopyOwner"]) {
+    put("apps/alpha/src/copy.ts", `${opener}(home, "alpha", nobody, context);\n`);
+    failsWith(run(), `apps/alpha/src/copy.ts: ${opener} is called with nobody, which no package declares as a SqliteBaseline`);
+    put("apps/alpha/src/copy.ts", `${opener}(home, "alpha", { version: 1, schema: "" }, context);\n`);
+    failsWith(run(), `apps/alpha/src/copy.ts: ${opener} is called with an inline baseline`);
+    put("apps/alpha/src/copy.ts", `${opener}(home, "alpha", store.baseline, context);\n`);
+    failsWith(run(), `apps/alpha/src/copy.ts: ${opener} is called with an inline baseline`);
+  }
+  rmSync(path.join(root, "apps/alpha/src/copy.ts"));
+  put("packages/storage/src/aggregate-copy-store.ts", "export function openAggregateCopyOwner(home: string, name: string, baseline: SqliteBaseline) { return openOwnerCopyStore(home, name, baseline); }\n");
+  assert.equal(run().code, 0, run().out);
+  rmSync(path.join(root, "packages/storage/src/aggregate-copy-store.ts"));
+});
+
+test("UPG1-i-verify-04: a typed baseline inside a function is still a baseline the table has to list", () => {
+  put("apps/alpha/src/local.ts", "export function open() { const LOCAL_DB: SqliteBaseline = { version: 1, schema: ``, upgrades: [{ from: 1, sql: `ALTER TABLE t ADD COLUMN c TEXT` }] }; return LOCAL_DB; }\n");
+  failsWith(run(), "LOCAL_DB");
+  rmSync(path.join(root, "apps/alpha/src/local.ts"));
+});
+
 // The detection and the version reader agree on every spelling: a baseline that has to be listed can be listed and checked.
 test("a baseline written with satisfies or as is listed and read like an annotated one", () => {
+  ownVersion("apps/alpha/src/more.ts", "database.more", 4, '(MORE_BASELINE[\\s\\S]*?\\}, version: )\\d+()');
+  ownVersion("apps/alpha/src/more.ts", "database.last", 2, '(LAST_BASELINE[\\s\\S]*?version: )\\d+()');
+  scratchLiterals("apps/alpha/src/more.ts");
   put("apps/alpha/src/more.ts", [
     "// the store that's second",
     "export const MORE_BASELINE = { meta: { version: 9 }, version: 4, schema: `CREATE TABLE m (id TEXT); -- don't` } satisfies SqliteBaseline;",
@@ -318,7 +396,7 @@ test("every finding is listed in one run, not only the first", () => {
   put("apps/alpha/package.json", JSON.stringify({ name: "alpha", version: "2.0.0", private: true }));
   rmSyncFile(`docs/releases/v${VERSION}.md`);
   edit("apps/alpha/src/store.ts", "version: 3", "version: 5");
-  failsWith(run(), "Cargo.toml: 9.9.9", "workspace packages stay 0.0.0", "release notes", "Alpha: the table says 3");
+  failsWith(run(), "Cargo.toml: differs from tooling/versions.json", "workspace packages stay 0.0.0", "release notes", "Alpha: the table says 3");
 });
 
 test("an unusable command line exits 2, not 0 or 1", () => {
@@ -332,6 +410,8 @@ test("an unusable command line exits 2, not 0 or 1", () => {
 // REL-03: native Manifest versions are checked before any build or tag publication.
 test("a bundled plugin with a different or nonliteral version refuses release; integrations remain independent", () => {
   edit("pnpm-workspace.yaml", "  - 'server'", "  - 'server'\n  - 'plugins/native/*'\n  - 'plugins/official-integrations/*'");
+  ownVersion("plugins/native/alpha/src/manifest.ts", "manifest.schema", 2, '(schema_version: )\\d+()');
+  scratchLiterals("plugins/native/alpha/src/manifest.ts", "plugins/official-integrations/alpha/src/manifest.ts");
   put("plugins/native/alpha/package.json", JSON.stringify({ name: "native-alpha", version: "0.0.0", private: true }));
   put("plugins/native/alpha/src/manifest.ts", `export const manifest = { schema_version: 2, version: '${VERSION}' };`);
   put("plugins/official-integrations/alpha/package.json", JSON.stringify({ name: "integration-alpha", version: "0.0.0", private: true }));
@@ -343,4 +423,76 @@ test("a bundled plugin with a different or nonliteral version refuses release; i
   failsWith(run(), "bundled Manifest version not found");
   rmSyncFile("plugins/native/alpha/src/manifest.ts");
   failsWith(run(), "plugins/native/alpha/src/manifest.ts", "missing");
+});
+
+// N34-VS-03: removing the only authority or introducing an unmanaged current declaration cannot pass.
+test("the central version source is mandatory and unmanaged current declarations fail", () => {
+  rmSyncFile("tooling/versions.json");
+  failsWith(run(), "tooling/versions.json");
+  buildFixture();
+  put("apps/alpha/src/unmanaged.ts", "export const NEW_SCHEMA_VERSION = 1;\n");
+  failsWith(run(), "unmanaged current version");
+});
+
+// N34-VS-01/02/04: independent fields in one carrier accumulate, and marked code keeps one current data flow.
+const generator = fileURLToPath(new URL("../scripts/generate-versions.mjs", import.meta.url));
+const generate = (mode: "--write" | "--check") => spawnSync(process.execPath, [generator, "--root", root, mode], { encoding: "utf8" });
+test("N34-VS-01/04: several carrier fields preserve legal JSON and unrelated bytes", () => {
+  put("apps/alpha/src/carrier.json", '{"outer":1,"inner":2,"revision":7}\n');
+  ownVersion("apps/alpha/src/carrier.json", "format.outer", 3, '("outer":)\\d+()');
+  ownVersion("apps/alpha/src/carrier.json", "format.inner", 4, '("inner":)\\d+()');
+  const result = generate("--write");
+  assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
+  assert.equal(JSON.parse(readFileSync(path.join(root, "package.json"), "utf8")).version, VERSION);
+  assert.deepEqual(JSON.parse(readFileSync(path.join(root, "apps/alpha/src/carrier.json"), "utf8")), { outer: 3, inner: 4, revision: 7 });
+  assert.equal(generate("--check").status, 0);
+});
+
+test("N34-VS-02/04: one format entry reaches type, writer and refusal comparison and generation is idempotent", () => {
+  put("apps/alpha/src/flow.mjs", [
+    "export const FORMAT_VERSION = /* @version format.fixture */ 1;",
+    "export const write = () => ({ version: /* @version format.fixture */ 1, revision: 1 });",
+    'export function read(input) { if (input.version !== /* @version format.fixture */ 1) throw Error("refused"); return input; }',
+  ].join("\n"));
+  put("apps/alpha/src/flow.ts", "export interface Format { version: /* @version format.fixture */ 1; revision: number }\n");
+  ownVersion("apps/alpha/src/flow.mjs", "format.fixture", 2);
+  const stale = generate("--check");
+  assert.equal(stale.status, 1);
+  const result = generate("--write");
+  assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
+  const file = path.join(root, "apps/alpha/src/flow.mjs"), before = readFileSync(file);
+  assert.match(readFileSync(path.join(root, "apps/alpha/src/flow.ts"), "utf8"), /version: \/\* @version format.fixture \*\/ 2/);
+  const execution = spawnSync(process.execPath, ["--input-type=module", "-e", `
+    import assert from "node:assert/strict";
+    import { pathToFileURL } from "node:url";
+    const { write, read, FORMAT_VERSION } = await import(pathToFileURL(${JSON.stringify(file)}).href);
+    assert.equal(FORMAT_VERSION, 2);
+    assert.deepEqual(read(write()), {version: 2, revision: 1});
+    const old = {version: 1, revision: 7};
+    assert.throws(() => read(old), /refused/);
+    assert.deepEqual(old, {version: 1, revision: 7});
+  `], { encoding: "utf8" });
+  assert.equal(execution.status, 0, `${execution.stdout}${execution.stderr}`);
+  assert.equal(generate("--write").status, 0);
+  assert.deepEqual(readFileSync(file), before);
+  assert.equal(generate("--check").status, 0);
+});
+
+test("N34-VS-03: an unresolved version key is a failure", () => {
+  put("apps/alpha/src/key.ts", "export const FORMAT_VERSION = /* @version missing.owner */ 1;\n");
+  const result = generate("--check");
+  assert.equal(result.status, 1);
+  assert.match(`${result.stdout}${result.stderr}`, /apps\/alpha\/src\/key\.ts: unknown version key missing\.owner/);
+});
+
+// N34-VS-03: a new integration JSON carrier cannot bypass the source checks while reusing already managed keys.
+test("N34-VS-03 an unmanaged integration Manifest JSON is refused", () => {
+  put("plugins/official-integrations/new/manifest.json", JSON.stringify({ schema_version: 1, host_api_version: 1, version: "1.0.0", capabilities: ["connector.host.v1"] }));
+  failsWith(run(), "plugins/official-integrations/new/manifest.json:1: unmanaged Manifest field schema_version");
+});
+
+// N34-VS-03: value equality cannot turn a handwritten Manifest release into a managed declaration.
+test("N34-VS-03 a handwritten Manifest SemVer is refused even when it equals the central product version", () => {
+  put("plugins/native/new/src/manifest.ts", `export const manifest = { plugin_id: "io.molis.work.new", version: "${VERSION}" };\n`);
+  failsWith(run(), "plugins/native/new/src/manifest.ts:1: unmanaged current version version = \"1.2.3\"");
 });

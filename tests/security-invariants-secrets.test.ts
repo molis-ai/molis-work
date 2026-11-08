@@ -87,6 +87,10 @@ test("S-12 a secret handed to the host once never comes back: not in an answer, 
   process.env.MOLIS_WORK_SECRET_BACKEND = "file";
   resetSecretStoreCache();
   const output = captureOutput(t);
+  // The key is checked with GitHub before it is saved (§13.6 ④d): a stand-in GitHub accepts it, and nothing leaves the machine.
+  const realFetch = globalThis.fetch;
+  t.mock.method(globalThis, "fetch", async (input: string | URL | Request, init?: RequestInit) => String(input) === "https://api.github.com/user"
+    ? Response.json({ login: "fixture-octocat", id: 7 }) : realFetch(input, init));
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   t.after(() => host.close());
   const server = createMolisWorkWebServer({ homeDirectory: home, controlToken: CONTROL, localHost: host });

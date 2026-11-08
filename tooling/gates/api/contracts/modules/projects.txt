@@ -34,6 +34,18 @@ export interface DeleteProjectInput {
     idempotency_key: string;
 }
 
+export type DirectoryRole = "input" | "output";
+
+export type DirectoryTarget = {
+    workspace_id: string;
+} | {
+    workspace_path: string;
+} | {
+    default_output: true;
+};
+
+export declare const PROJECT_WORKSPACE_PROVIDER_ID = "system.project-workspaces";
+
 export interface ProjectDataDeclaration {
     readonly label: string;
     readonly order?: number;
@@ -66,6 +78,21 @@ export interface ProjectDeletionStep {
     state: "pending" | "complete";
     error: string | null;
     updated_at: string;
+}
+
+export interface ProjectDirectories {
+    project_id: string;
+    directories: ProjectDirectory[];
+    source_links: {
+        source_workspace_id: string;
+        workspace_id: string;
+    }[];
+    revision: string;
+}
+
+export interface ProjectDirectory extends ProjectWorkspaceRef {
+    roles: DirectoryRole[];
+    state: "ok" | "missing";
 }
 
 export type ProjectPluginId = string;
@@ -165,6 +192,27 @@ export interface RepairWorkspaceProjectInput extends AddWorkspaceProjectInput {
     workspace_id: string;
 }
 
+export interface RunDirectories {
+    directories_revision: string;
+    output: string;
+    inputs: string[];
+    execution: {
+        kind: "output";
+    } | {
+        kind: "worktree";
+        worktree_id: string;
+    };
+}
+
+export declare const materialRecentActions: {
+    read: ActionDefinition<Record<string, never>, {
+        items: RecentMaterial[];
+    }>;
+    record: ActionDefinition<{
+        refs: MaterialRef[];
+    }, Record<string, never>>;
+};
+
 export declare const modulesProjectsContract: {
     readonly contractId: "io.molis.work.module.projects.v1";
     readonly kind: "module";
@@ -185,6 +233,45 @@ export declare const projectCatalogErrors: {
     project_storage_invalid: (message: string, details?: Readonly<Record<string, unknown>>) => import("platform/action-errors").ActionError;
     project_name_conflict: (message: string, details?: Readonly<Record<string, unknown>>) => import("platform/action-errors").ActionError;
 };
+
+export declare const projectDirectoryActions: {
+    get: ActionDefinition<Record<string, never>, ProjectDirectories>;
+    addInput: ActionDefinition<{
+        workspace_path: string;
+    } & {
+        expected_revision: string;
+    }, ProjectDirectories>;
+    removeInput: ActionDefinition<{
+        workspace_id: string;
+    } & {
+        expected_revision: string;
+    }, ProjectDirectories>;
+    setOutput: ActionDefinition<DirectoryTarget & {
+        expected_revision: string;
+    }, ProjectDirectories>;
+    repair: ActionDefinition<{
+        workspace_id: string;
+        workspace_path: string;
+    } & {
+        expected_revision: string;
+    }, ProjectDirectories>;
+    mapSource: ActionDefinition<({
+        source_workspace_id: string;
+    } & DirectoryTarget) & {
+        expected_revision: string;
+    }, ProjectDirectories>;
+    unmapSource: ActionDefinition<{
+        source_workspace_id: string;
+    } & {
+        expected_revision: string;
+    }, ProjectDirectories>;
+};
+
+export declare const projectDirectoryErrors: import("platform/action-errors").ErrorCodeRaisers<{
+    readonly directory_missing: "not_found";
+    readonly directory_revoked: "forbidden";
+    readonly directory_duplicate: "conflict";
+}>;
 
 export declare const projectSettingsCapabilities: {
     readonly workspaces: ActionDefinition<[], readonly ProjectWorkspaceRef[]>;

@@ -471,6 +471,7 @@ test("IMETA-03 repair replaces a broken current release without changing its cur
   });
 });
 
+// N33: both installation.json and release.json reject other schema versions without changing owned or user files.
 test("IMETA-02 rejects same-number linked metadata, wrong schemas and incomplete metadata before any Home mutation", async () => {
   await withTemporaryDirectory(async (directory) => {
     const source = await fixtureSource(directory, "1.0.0");
@@ -711,7 +712,7 @@ test("IMETA-01 all installed launchers keep running after the installation sourc
   });
 });
 
-test("IMETA-04 real generated Node launchers reject unsupported metadata before executing their existing payload", async () => {
+test("N33 IMETA-04 real generated Node launchers reject unsupported metadata before executing their existing payload", async () => {
   await withTemporaryDirectory(async directory => {
     const source = await fixtureSource(directory, "test"), home = join(directory, "home");
     const installed = await installMolisWorkHome({ homeDirectory: home, sourceDirectory: source });
@@ -720,6 +721,7 @@ test("IMETA-04 real generated Node launchers reject unsupported metadata before 
     const release = { ...JSON.parse(await readFile(releasePath, "utf8")), schema_version: 1 };
     const cases = [
       [{ ...installation, schema_version: 4 }, release],
+      [installation, { ...release, schema_version: 4 }],
       [installation, { schema_version: 1, installer: "molis-work-home-install-v1", version: "test", source_directory: source, created_at: release.created_at }],
       [installation, { ...release, version: "different" }],
       [installation, { ...release, content_digest: "f".repeat(64) }],

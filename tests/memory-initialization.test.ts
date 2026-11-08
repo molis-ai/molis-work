@@ -199,7 +199,7 @@ for (const shape of ["missing-ledger", "wrong-version", "missing-prefs", "partia
     }
     const before = files(home);
     const directories = readdirSync(home).sort();
-    const refused = { code: shape === "wrong-version" ? "storage.schema_version_mismatch" : "memory.unavailable" };
+    const refused = { code: shape === "wrong-version" ? "storage.store_too_new" : "memory.unavailable" };
     assert.throws(() => new MolisWorkLocalHost({ homeDirectory: home, completeText: null }), refused);
     assert.throws(() => createDesktopWebHost({ ptyClientFilePath: () => "unused.js" })({ homeDirectory: home }), refused);
     assert.throws(() => new MolisWorkServer("runtime", null, { homeDirectory: home, runtimeContext: { runtime_id: "codex", stable_work_context_id: "test", host_declares_stable: true } }), refused);

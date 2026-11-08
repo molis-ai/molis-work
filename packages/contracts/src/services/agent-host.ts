@@ -153,9 +153,9 @@ export type { AgentMemoryExecutionControl, AgentMemoryEntry, AgentMemoryMeta, Ag
   AgentMemoryCaller, AgentMemoryMutation, AgentMemoryChange, AgentMemoryPreviewMutation, AgentMemorySourceRef, AgentMemorySourceIdentity, AgentMemorySourceSnapshot, AgentMemorySourceRequest, AgentMemoryPromotionIdentity, AgentMemoryPromotionRequest, AgentMemoryPromotionPreparation, AgentMemoryPromotionApplied, AgentMemoryPromotionReceipt, AgentMemoryPromotion, AgentMemoryPromotionPendingError, AgentMemoryDecisionReceipt, AgentMemoryScopePreview, AgentMemoryClearResult } from "./agent-host-memory.js";
 
 export const servicesAgentHostContract = {
-  contractId: "io.molis.work.service.agent-host.v1",
+  contractId: /* @version contract.io.molis.work.service.agent-host "io.molis.work.service.agent-host.v{version}" */ "io.molis.work.service.agent-host.v1",
   kind: "service",
-  schemaVersion: 1,
+  schemaVersion: /* @version contract.io.molis.work.service.agent-host */ 1,
   maturity: "contract-only",
   ssot: "docs/horizontal/agent-host.md",
 } as const satisfies ContractDescriptor;
@@ -416,19 +416,19 @@ const pluginOnly = { scope: "project", audiences: ["plugin"], permissions: [], s
 export const agentHostCapabilities = {
   /** What the calling plugin's own grants let a round on this Runtime call (R8 rule 3); empty where the Runtime has no action tools. */
   listActions: {
-    capability_id: "agent.actions.list", version: 1, operation: "query",
+    capability_id: "agent.actions.list", version: /* @version action.agent.actions.list */ 1, operation: "query",
     action: { title: "列出一轮能调的动作", description: "按调用插件自己的授权，列出这个运行时上一轮能调的动作；运行时不支持动作工具时为空。", kind: "query", ...pluginOnly,
       input_schema: { type: "array", minItems: 1, maxItems: 1, items: [runtimeId], additionalItems: false }, output_schema: { type: "array", items: actionViewOutput } },
   } as ActionDefinition<[runtimeId: string], readonly ActionView[]>,
   /** Which Runtimes exist and what each one really supports: this machine's configuration, the same for every plugin. */
   listRuntimes: {
-    capability_id: "agent.runtimes", version: 1, operation: "query",
+    capability_id: "agent.runtimes", version: /* @version action.agent.runtimes */ 1, operation: "query",
     action: { title: "列出运行时", description: "本机有哪些 Agent 运行时，各自真正支持什么。", kind: "query", ...pluginOnly,
       input_schema: { type: "array", maxItems: 0 }, output_schema: { type: "array", items: runtimeOutput } },
   } as ActionDefinition<[], AgentRuntimeDescriptor[]>,
   /** Roles this Runtime can carry for the calling plugin's own declarations, with a reason for each it cannot. */
   availableRoles: {
-    capability_id: "agent.roles", version: 1, operation: "query",
+    capability_id: "agent.roles", version: /* @version action.agent.roles */ 1, operation: "query",
     action: { title: "列出能用的角色", description: "调用插件自己声明的角色里，这个运行时能承载哪些，不能的写明原因。", kind: "query", ...pluginOnly,
       input_schema: { type: "array", minItems: 1, maxItems: 1, items: [runtimeId], additionalItems: false },
       output_schema: { type: "array", items: { type: "object", required: ["role_id", "available"], additionalProperties: false, properties: {
@@ -436,23 +436,23 @@ export const agentHostCapabilities = {
   } as ActionDefinition<[runtimeId: string], Array<{ role_id: string; available: boolean; reason?: string }>>,
   /** A session for the calling plugin and person, both from the call (R8 rule 1). */
   createSession: {
-    capability_id: "agent.session.create", version: 1, operation: "command",
+    capability_id: "agent.session.create", version: /* @version action.agent.session.create */ 1, operation: "command",
     action: { title: "新建 Agent 会话", description: "为调用的插件和本人新建一条 Agent 会话。", kind: "operation", ...pluginOnly,
       input_schema: { type: "array", minItems: 2, maxItems: 2, items: [runtimeId, createSessionInput], additionalItems: false }, output_schema: sessionRefOutput },
   } as ActionDefinition<[runtimeId: string, input: AgentCreateSessionInput], AgentSessionRef>,
   listSubagents: {
-    capability_id: "agent.subagents.list", version: 1, operation: "query",
+    capability_id: "agent.subagents.list", version: /* @version action.agent.subagents.list */ 1, operation: "query",
     action: { title: "列出一轮的子任务", description: "自己会话里一轮派出的子任务。", kind: "query", ...pluginOnly,
       input_schema: { type: "array", minItems: 2, maxItems: 2, items: [sessionRef, runRef], additionalItems: false }, output_schema: { type: "array", items: subagentOutput } },
   } as ActionDefinition<[session: AgentSessionRef, run: AgentRunRef], AgentSubagentView[]>,
   /** Stop a subtask of the calling plugin's own round; who stopped it is the caller (R8 rule 4). */
   cancelSubagent: {
-    capability_id: "agent.subagents.cancel", version: 1, operation: "command",
+    capability_id: "agent.subagents.cancel", version: /* @version action.agent.subagents.cancel */ 1, operation: "command",
     action: { title: "停下一个子任务", description: "本人停下自己会话里一轮派出的一个子任务。", kind: "operation", ...pluginOnly,
       input_schema: { type: "array", minItems: 3, maxItems: 3, items: [sessionRef, runRef, entryId], additionalItems: false } },
   } as ActionDefinition<[session: AgentSessionRef, run: AgentRunRef, subagentId: string], void>,
   readSession: {
-    capability_id: "agent.session.read", version: 1, operation: "query",
+    capability_id: "agent.session.read", version: /* @version action.agent.session.read */ 1, operation: "query",
     action: { title: "读 Agent 会话", description: "自己的一条会话：标题、各轮的引用和最近一轮。", kind: "query", ...pluginOnly,
       input_schema: { type: "array", minItems: 1, maxItems: 1, items: [sessionRef], additionalItems: false }, output_schema: sessionViewOutput },
   } as ActionDefinition<[session: AgentSessionRef], AgentSessionView>,
@@ -461,14 +461,14 @@ export const agentHostCapabilities = {
    * this project cannot read comes back with an error of its own rather than failing the others.
    */
   readSessionStatuses: {
-    capability_id: "agent.sessions.status", version: 1, operation: "query",
+    capability_id: "agent.sessions.status", version: /* @version action.agent.sessions.status */ 1, operation: "query",
     action: { title: "读会话的状态", description: "这个项目里几条会话各自最近一轮的阶段、要不要人来接、步骤由谁拿着；读不了的那条单独带原因。", kind: "query", ...pluginOnly,
       output_schema: { type: "array", items: sessionStatusOutput },
       input_schema: { type: "array", minItems: 2, maxItems: 2, items: [runtimeId, { type: "array", maxItems: 1000, items: entryId }], additionalItems: false } },
   } as ActionDefinition<[runtimeId: string, sessionIds: string[]], Array<AgentSessionStatus | { session_id: string; error: string }>>,
   /** The project's work under way; with a probe, what overlaps a round about to start. */
   readProjectWork: {
-    capability_id: "agent.project-work.read", version: 1, operation: "query",
+    capability_id: "agent.project-work.read", version: /* @version action.agent.project-work.read */ 1, operation: "query",
     action: { title: "读项目里在做的事", description: "这个项目里各会话在做和在等的工作；带上将要开始的一轮时，另给出和它的文件重叠的。", kind: "query", ...pluginOnly,
       output_schema: { type: "object", required: ["items", "overlaps"], additionalProperties: false, properties: { items: { type: "array", items: projectWorkOutput },
         overlaps: { type: "array", items: { type: "object", required: ["work", "paths"], additionalProperties: false, properties: { work: projectWorkOutput, paths: { type: "array", items: { type: "string" } } } } } } },
@@ -477,14 +477,14 @@ export const agentHostCapabilities = {
   } as ActionDefinition<[runtimeId: string, probe?: { session_id?: string; directory: string; text: string }], { items: AgentProjectWork[]; overlaps: AgentProjectWorkOverlap[] }>,
   /** Messages between the project's sessions; one session's sent and received when a session is named. */
   readMessages: {
-    capability_id: "agent.messages.read", version: 1, operation: "query",
+    capability_id: "agent.messages.read", version: /* @version action.agent.messages.read */ 1, operation: "query",
     action: { title: "读会话间的信", description: "这个项目里各会话之间的信；点名会话时只读它发出和收到的。", kind: "query", ...pluginOnly,
       output_schema: { type: "array", items: messageOutput },
       input_schema: { type: "array", minItems: 1, maxItems: 2, items: [runtimeId, entryId], additionalItems: false } },
   } as ActionDefinition<[runtimeId: string, sessionId?: string], AgentSessionMessage[]>,
   /** The person made a session the priority: overlapping sessions are asked to make way. */
   prioritizeSession: {
-    capability_id: "agent.messages.prioritize", version: 1, operation: "command",
+    capability_id: "agent.messages.prioritize", version: /* @version action.agent.messages.prioritize */ 1, operation: "command",
     action: { title: "让这个会话优先", description: "本人让一个会话优先：与它手上的文件重叠的会话（至多五个）收到让路的信，谁停下仍由人定。", kind: "operation", ...pluginOnly,
       input_schema: { type: "array", minItems: 2, maxItems: 2, items: [runtimeId, entryId], additionalItems: false },
       output_schema: { type: "object", required: ["notified", "paths"], additionalProperties: false,
@@ -492,7 +492,7 @@ export const agentHostCapabilities = {
   } as ActionDefinition<[runtimeId: string, sessionId: string], { notified: string[]; paths: string[] }>,
   /** Send a message for people (a delegation, a delivery), on the person's behalf. */
   sendPeopleMessage: {
-    capability_id: "agent.messages.send", version: 1, operation: "command",
+    capability_id: "agent.messages.send", version: /* @version action.agent.messages.send */ 1, operation: "command",
     action: { title: "替人发一封会话间的信", description: "本人经插件发一封给人看的信（一次委派、一份交付），从一个会话到另一个会话。", kind: "operation", ...pluginOnly,
       output_schema: messageOutput,
       input_schema: { type: "array", minItems: 2, maxItems: 2, additionalItems: false, items: [runtimeId, { type: "object", required: ["from_session", "to_session", "kind", "body"], additionalProperties: false,
@@ -501,7 +501,7 @@ export const agentHostCapabilities = {
   } as ActionDefinition<[runtimeId: string, input: AgentPeopleMessageInput], AgentSessionMessage>,
   /** Move a message for people on, recording who and why. */
   actOnPeopleMessage: {
-    capability_id: "agent.messages.act", version: 1, operation: "command",
+    capability_id: "agent.messages.act", version: /* @version action.agent.messages.act */ 1, operation: "command",
     action: { title: "处理一封会话间的信", description: "把一封给人看的信往下走：送达、接受、拒绝（带原因）、完成、撤回，或记一笔。", kind: "operation", ...pluginOnly,
       output_schema: messageOutput,
       input_schema: { type: "array", minItems: 3, maxItems: 4, additionalItems: false, items: [runtimeId, entryId,
@@ -510,13 +510,13 @@ export const agentHostCapabilities = {
   } as ActionDefinition<[runtimeId: string, messageId: string, action: AgentPeopleMessageAction, detail?: { event?: string; note?: string; attachments?: AgentMessageAttachment[] }], AgentSessionMessage>,
   /** The person withdraws an open message. */
   cancelMessage: {
-    capability_id: "agent.messages.cancel", version: 1, operation: "command",
+    capability_id: "agent.messages.cancel", version: /* @version action.agent.messages.cancel */ 1, operation: "command",
     action: { title: "撤回一封会话间的信", description: "本人撤回一封还没处理完的信。", kind: "operation", ...pluginOnly,
       input_schema: { type: "array", minItems: 2, maxItems: 2, items: [runtimeId, entryId], additionalItems: false } },
   } as ActionDefinition<[runtimeId: string, messageId: string], void>,
   /** Hold a round until another piece of work in the project finishes. */
   queueProjectRound: {
-    capability_id: "agent.project-work.queue", version: 1, operation: "command",
+    capability_id: "agent.project-work.queue", version: /* @version action.agent.project-work.queue */ 1, operation: "command",
     action: { title: "让一轮等别的工作做完", description: "本人决定让这条会话的一轮等项目里另一项工作结束后再开始。", kind: "operation", ...pluginOnly,
       output_schema: projectWorkOutput,
       input_schema: { type: "array", minItems: 2, maxItems: 2, additionalItems: false, items: [runtimeId, { type: "object", required: ["session", "directory", "task", "after"], additionalProperties: false,
@@ -529,7 +529,7 @@ export const agentHostCapabilities = {
    * Reading and controlling them are the actions in agent-collaboration.
    */
   awaitContinuations: {
-    capability_id: "agent.collaboration.await", version: 1, operation: "query",
+    capability_id: "agent.collaboration.await", version: /* @version action.agent.collaboration.await */ 1, operation: "query",
     action: { title: "等会话接续", description: "等调用插件自己的会话里有一个能接着走或等人处理的接续；到时没有就回空表。", kind: "query", ...pluginOnly,
       scheduling: "concurrent", execution: { timeout_ms: 30_000 },
       input_schema: { type: "array", minItems: 2, maxItems: 3, additionalItems: false,
@@ -539,44 +539,44 @@ export const agentHostCapabilities = {
   } as ActionDefinition<[runtimeId: string, timeoutMs: number, exclude?: string[]], AgentCollaborationSessionView[]>,
   /** The project's background commands; one session's when named. */
   readBackground: {
-    capability_id: "agent.background.read", version: 1, operation: "query",
+    capability_id: "agent.background.read", version: /* @version action.agent.background.read */ 1, operation: "query",
     action: { title: "读后台命令", description: "这个项目里在后台跑的命令；点名会话时只读它的。", kind: "query", ...pluginOnly,
       output_schema: { type: "array", items: backgroundOutput },
       input_schema: { type: "array", minItems: 1, maxItems: 2, items: [runtimeId, entryId], additionalItems: false } },
   } as ActionDefinition<[runtimeId: string, sessionId?: string], AgentBackgroundTask[]>,
   /** The person stops a running background command. */
   stopBackground: {
-    capability_id: "agent.background.stop", version: 1, operation: "command",
+    capability_id: "agent.background.stop", version: /* @version action.agent.background.stop */ 1, operation: "command",
     action: { title: "停下一条后台命令", description: "本人停下一条正在后台跑的命令。", kind: "operation", ...pluginOnly,
       input_schema: { type: "array", minItems: 2, maxItems: 2, items: [runtimeId, entryId], additionalItems: false }, output_schema: { type: "boolean" } },
   } as ActionDefinition<[runtimeId: string, taskId: string], boolean>,
   /** Give up a waiting round's item. */
   releaseProjectRound: {
-    capability_id: "agent.project-work.release", version: 1, operation: "command",
+    capability_id: "agent.project-work.release", version: /* @version action.agent.project-work.release */ 1, operation: "command",
     action: { title: "不再等", description: "放下一项还在等的工作，并写明为什么。", kind: "operation", ...pluginOnly,
       input_schema: { type: "array", minItems: 3, maxItems: 3, items: [runtimeId, entryId, { type: "string", maxLength: 2000 }], additionalItems: false } },
   } as ActionDefinition<[runtimeId: string, workId: string, note: string], void>,
   /** The calling plugin's method library on this Runtime (R8 rule 1: the library's owner is the caller). */
   listSkills: {
-    capability_id: "agent.skills.list", version: 1, operation: "query",
+    capability_id: "agent.skills.list", version: /* @version action.agent.skills.list */ 1, operation: "query",
     action: { title: "列出方法", description: "调用插件在这个运行时上的方法库：内置的与装进来的。", kind: "query", ...pluginOnly,
       input_schema: { type: "array", minItems: 1, maxItems: 1, items: [runtimeId], additionalItems: false }, output_schema: { type: "array", items: skillEntryOutput } },
   } as ActionDefinition<[runtimeId: string], AgentSkillCatalogEntry[]>,
   readSkill: {
-    capability_id: "agent.skills.read", version: 1, operation: "query",
+    capability_id: "agent.skills.read", version: /* @version action.agent.skills.read */ 1, operation: "query",
     action: { title: "读一个方法", description: "读调用插件方法库里的一个方法的正文。", kind: "query", ...pluginOnly,
       input_schema: { type: "array", minItems: 2, maxItems: 2, items: [runtimeId, skillRef], additionalItems: false },
       output_schema: { type: "object", required: ["skill_id", "version", "name", "summary", "tools", "body"], additionalProperties: false, properties: { ...skillProperties, body: { type: "string" } } } },
   } as ActionDefinition<[runtimeId: string, ref: AgentSkillRef], AgentSkillDefinition>,
   discoverSkills: {
-    capability_id: "agent.skills.discover", version: 1, operation: "query",
+    capability_id: "agent.skills.discover", version: /* @version action.agent.skills.discover */ 1, operation: "query",
     action: { title: "在工作区里找方法", description: "在调用插件授权的工作区里找能装的方法。", kind: "query", ...pluginOnly,
       input_schema: { type: "array", minItems: 3, maxItems: 3, items: [runtimeId, directoryInput, text(4096)], additionalItems: false },
       output_schema: { type: "array", items: { type: "object", required: ["candidate_id", "name", "summary", "source_label", "files", "body"], additionalProperties: false, properties: {
         candidate_id: { type: "string" }, name: { type: "string" }, summary: { type: "string" }, source_label: { type: "string" }, files: strings, body: { type: "string" } } } } },
   } as ActionDefinition<[runtimeId: string, directory: AgentWorkingDirectory, path: string], AgentSkillCandidate[]>,
   installSkill: {
-    capability_id: "agent.skills.install", version: 1, operation: "command",
+    capability_id: "agent.skills.install", version: /* @version action.agent.skills.install */ 1, operation: "command",
     action: { title: "装一个方法", description: "把找到的一个方法装进调用插件自己的方法库。", kind: "operation", ...pluginOnly,
       input_schema: { type: "array", minItems: 2, maxItems: 2, items: [runtimeId, entryId], additionalItems: false }, output_schema: skillEntryOutput },
   } as ActionDefinition<[runtimeId: string, candidateId: string], AgentSkillCatalogEntry>,
@@ -585,29 +585,29 @@ export const agentHostCapabilities = {
    * (the Host's own bookkeeping, not a business record), after the call's last check.
    */
   listMcp: {
-    capability_id: "agent.mcp.list", version: 1, operation: "query",
+    capability_id: "agent.mcp.list", version: /* @version action.agent.mcp.list */ 1, operation: "query",
     action: { title: "列出 MCP 服务器", description: "调用插件在这个运行时上的 MCP 服务器与各自现在提供的工具；列的同时，宿主把这个插件自己的 MCP 工具按现在的样子在项目动作目录里重新登记（幂等，不写业务数据）。", kind: "query", ...pluginOnly,
       input_schema: { type: "array", minItems: 1, maxItems: 1, items: [runtimeId], additionalItems: false }, output_schema: { type: "array", items: mcpServerOutput } },
   } as ActionDefinition<[runtimeId: string], AgentMcpServerView[]>,
   saveMcp: {
-    capability_id: "agent.mcp.save", version: 1, operation: "command",
+    capability_id: "agent.mcp.save", version: /* @version action.agent.mcp.save */ 1, operation: "command",
     action: { title: "保存 MCP 服务器", description: "新建或改调用插件的一个 MCP 服务器；本机进程只能在授权工作区里。", kind: "operation", ...pluginOnly,
       input_schema: { type: "array", minItems: 2, maxItems: 2, items: [runtimeId, mcpServerInput], additionalItems: false }, output_schema: mcpServerOutput },
   } as ActionDefinition<[runtimeId: string, input: AgentMcpServerInput], AgentMcpServerView>,
   controlMcp: {
-    capability_id: "agent.mcp.control", version: 1, operation: "command",
+    capability_id: "agent.mcp.control", version: /* @version action.agent.mcp.control */ 1, operation: "command",
     action: { title: "连上、断开或删掉 MCP 服务器", description: "对调用插件自己的一个 MCP 服务器连上、断开、取消正在做的或删掉。", kind: "operation", ...pluginOnly,
       input_schema: { type: "array", minItems: 3, maxItems: 3, items: [runtimeId, entryId, { enum: ["connect", "disconnect", "cancel", "remove"] }], additionalItems: false } },
   } as ActionDefinition<[runtimeId: string, id: string, action: "connect" | "disconnect" | "cancel" | "remove"], void>,
   /** Start a Run. The Host checks role, capability and directory before the Runtime is asked. */
   startRun: {
-    capability_id: "agent.run.start", version: 1, operation: "command",
+    capability_id: "agent.run.start", version: /* @version action.agent.run.start */ 1, operation: "command",
     action: { title: "开始一轮 Agent 执行", description: "在自己的会话里按插件声明的角色开始一轮；宿主先核角色、能力与目录。", kind: "operation", ...pluginOnly,
       input_schema: { type: "array", minItems: 2, maxItems: 2, items: [runtimeId, startInput], additionalItems: false },
       output_schema: { type: "object", required: ["ref", "frozen"], additionalProperties: false, properties: { ref: runRefOutput, frozen: frozenOutput } } },
   } as ActionDefinition<[runtimeId: string, input: AgentStartInput], AgentRunHandle>,
   readRun: {
-    capability_id: "agent.run.read", version: 1, operation: "query",
+    capability_id: "agent.run.read", version: /* @version action.agent.run.read */ 1, operation: "query",
     action: { title: "读一轮执行", description: "自己会话里一轮的过程、状态和用量。", kind: "query", ...pluginOnly,
       input_schema: { type: "array", minItems: 2, maxItems: 2, items: [sessionRef, runRef], additionalItems: false }, output_schema: runViewOutput },
   } as ActionDefinition<[session: AgentSessionRef, run: AgentRunRef], AgentRunView>,
@@ -619,7 +619,7 @@ export const agentHostCapabilities = {
    * runs beside the project's other operations instead of ahead of them.
    */
   draftText: {
-    capability_id: "agent.draft-text", version: 1, operation: "command",
+    capability_id: "agent.draft-text", version: /* @version action.agent.draft-text */ 1, operation: "command",
     action: { title: "起草一段文字", description: "用调用插件自己登记的指令，让模型就给定材料写一段短文字（如提交说明、对话摘要）：不带工具、不留对话、不记成一轮。会花一次模型调用，返回用量。只给持有 model:invoke 的插件调用。", kind: "operation", scope: "project", scheduling: "concurrent",
       execution: { cost: "metered" }, audiences: ["plugin"], permissions: ["model:invoke"], subject_kinds: [],
       input_schema: { type: "object", required: ["purpose", "prompt", "material"], additionalProperties: false, properties: {
@@ -636,7 +636,7 @@ export const agentHostCapabilities = {
    * a timer; nothing is replayed. Concurrent, beside the project's queue; the Host stops it at 30 s whatever it does.
    */
   waitRun: {
-    capability_id: "agent.run.wait", version: 1, operation: "query",
+    capability_id: "agent.run.wait", version: /* @version action.agent.run.wait */ 1, operation: "query",
     action: { title: "等一轮执行变化", description: "自己会话里的一轮有了变化就回答，最多等 25 秒；到时还没变就回答它现在的样子。", kind: "query", ...pluginOnly,
       scheduling: "concurrent", execution: { timeout_ms: 30_000 },
       input_schema: { type: "array", minItems: 4, maxItems: 4, additionalItems: false,
@@ -644,7 +644,7 @@ export const agentHostCapabilities = {
       output_schema: { type: "object", required: ["version", "view"], additionalProperties: false, properties: { version: { type: "string" }, view: runViewOutput } } },
   } as ActionDefinition<[session: AgentSessionRef, run: AgentRunRef, since: string | null, timeoutMs: number], { version: string; view: AgentRunView }>,
   controlRun: {
-    capability_id: "agent.run.control", version: 1, operation: "command",
+    capability_id: "agent.run.control", version: /* @version action.agent.run.control */ 1, operation: "command",
     action: { title: "控制一轮执行", description: "暂停、继续、停下或取消自己会话的一轮，换它之后用的模型，或回答它停下来问的问题。", kind: "operation", ...pluginOnly,
       input_schema: { type: "array", minItems: 3, maxItems: 3, items: [sessionRef, runRef, runControl], additionalItems: false } },
   } as ActionDefinition<[session: AgentSessionRef, run: AgentRunRef, control: AgentRunControl], void>,
@@ -658,7 +658,7 @@ export const agentHostCapabilities = {
    * rather than returning an empty result.
    */
   readCommandOutput: {
-    capability_id: "agent.command-output", version: 1, operation: "query",
+    capability_id: "agent.command-output", version: /* @version action.agent.command-output */ 1, operation: "query",
     action: { title: "读命令的输出", description: "自己会话里一轮已经跑过的一条命令的输出回执，不会再跑它。", kind: "query", ...pluginOnly,
       output_schema: { type: "object", required: ["ref", "command", "exit_code", "stdout", "stderr", "truncated"], additionalProperties: false, properties: {
         ref: { type: "object", required: ["call_id", "run_id"], additionalProperties: false, properties: { call_id: { type: "string" }, run_id: { type: "string" } } },
@@ -671,17 +671,17 @@ export const agentHostCapabilities = {
     AgentCommandOutput
   >,
   inspectRecovery: {
-    capability_id: "agent.session.recovery", version: 1, operation: "query",
+    capability_id: "agent.session.recovery", version: /* @version action.agent.session.recovery */ 1, operation: "query",
     action: { title: "看会话中断后的情况", description: "自己会话里被中断的轮次：还在等什么、做过哪些操作、能不能收尾或回答。", kind: "query", ...pluginOnly,
       input_schema: { type: "array", minItems: 1, maxItems: 1, items: [sessionRef], additionalItems: false }, output_schema: recoveryOutput },
   } as ActionDefinition<[session: AgentSessionRef], AgentRecoveryReport>,
   recoverRun: {
-    capability_id: "agent.session.recover", version: 1, operation: "command",
+    capability_id: "agent.session.recover", version: /* @version action.agent.session.recover */ 1, operation: "command",
     action: { title: "收尾一轮中断的执行", description: "把自己会话里一轮被中断的执行记为中断并收尾，不重做它做过的事。", kind: "operation", ...pluginOnly,
       input_schema: { type: "array", minItems: 3, maxItems: 3, items: [sessionRef, runRef, { type: "integer", minimum: 0 }], additionalItems: false }, output_schema: recoveryOutput },
   } as ActionDefinition<[session: AgentSessionRef, run: AgentRunRef, expectedVersion: number], AgentRecoveryReport>,
   listCheckpoints: {
-    capability_id: "agent.checkpoints.list", version: 1, operation: "query",
+    capability_id: "agent.checkpoints.list", version: /* @version action.agent.checkpoints.list */ 1, operation: "query",
     action: { title: "列出会话的检查点", description: "自己会话里各轮留下的文件检查点。", kind: "query", ...pluginOnly,
       input_schema: { type: "array", minItems: 1, maxItems: 1, items: [sessionRef], additionalItems: false },
       output_schema: { type: "array", items: { type: "object", required: ["checkpoint_id", "session_id", "label", "created_at"], additionalProperties: false, properties: {
@@ -690,13 +690,13 @@ export const agentHostCapabilities = {
   } as ActionDefinition<[session: AgentSessionRef], AgentCheckpoint[]>,
   /** Ask the person to approve rewinding files to a checkpoint; nothing changes until they do. */
   prepareRewind: {
-    capability_id: "agent.checkpoints.prepare-rewind", version: 1, operation: "command",
+    capability_id: "agent.checkpoints.prepare-rewind", version: /* @version action.agent.checkpoints.prepare-rewind */ 1, operation: "command",
     action: { title: "请求回退到检查点", description: "为自己会话的一个检查点准备文件回退，交本人审批。", kind: "operation", ...pluginOnly,
       input_schema: { type: "array", minItems: 3, maxItems: 3, items: [sessionRef, entryId, entryId], additionalItems: false }, output_schema: reviewRequestOutput },
   } as ActionDefinition<[session: AgentSessionRef, checkpointId: string, roleId: string], AgentReviewRequest>,
   /** Read the approval queue. Deciding is a user action and is not exposed to Plugins. */
   readRunReviews: {
-    capability_id: "agent.run.reviews", version: 1, operation: "query",
+    capability_id: "agent.run.reviews", version: /* @version action.agent.run.reviews */ 1, operation: "query",
     action: { title: "读一轮的审批", description: "自己会话里一轮提交的审批与结果。", kind: "query", ...pluginOnly,
       input_schema: { type: "array", minItems: 2, maxItems: 2, items: [sessionRef, runRef], additionalItems: false },
       output_schema: { type: "array", items: { type: "object", required: ["request", "receipt"], additionalProperties: false, properties: {

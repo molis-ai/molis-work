@@ -1,7 +1,7 @@
 import type { UiContribution, UiContributionDeclaration, UiRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import { icon, renderDatePicker, renderPluginStageShell } from "@molis-ai/molis-work-plugin-sdk/ui";
 
-export const JELLY_UI_CONTRIBUTION_ID = "io.molis.work.jelly.ui.v1";
+export const JELLY_UI_CONTRIBUTION_ID = /* @version contract.io.molis.work.jelly.ui "io.molis.work.jelly.ui.v{version}" */ "io.molis.work.jelly.ui.v1";
 export interface JellyUiPrimitives {
   escape(value: unknown): string;
   text(value: string, values?: Record<string, string | number>): string;

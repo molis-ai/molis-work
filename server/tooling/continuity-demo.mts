@@ -6,7 +6,7 @@ import { parseArgs } from "node:util";
 import { openServerDatabase, Identity, ServerEvents, ContinuityService, startServer, memberClientId, CONTINUITY_ACTIONS, createImDomain, type ActionFactory } from "@molis-ai/molis-work-server";
 import { renderImPage, IM_STYLES, IM_CLIENT_SCRIPT } from "@molis-ai/molis-work-im-ui";
 // The QA project's one document is saved as Pages itself would save it: the ids Pages declares in its Manifest (`artifacts.produces`).
-const PAGES_PLUGIN_ID = "io.molis.work.pages", PAGES_ARTIFACT_TYPE_ID = "io.molis.work.pages.document", PAGES_ARTIFACT_SCHEMA_VERSION = 1;
+const PAGES_PLUGIN_ID = "io.molis.work.pages", PAGES_ARTIFACT_TYPE_ID = "io.molis.work.pages.document", PAGES_ARTIFACT_SCHEMA_VERSION = /* @version artifact.io.molis.work.pages.document */ 1;
 
 const { values, positionals } = parseArgs({ options: { port: { type: "string", default: "4189" } }, allowPositionals: true });
 if (positionals.length !== 1) throw Error("Pass one explicit isolated QA directory and optionally --port 0");
@@ -53,7 +53,7 @@ try {
 } finally { db.close(); }
 const ref = molisWorkHostProjectReference({ projectId, databasePath });
 await host.actionClient(ref).invoke({ actor_id: "desktop", actor_kind: "user", audience: "user", project_id: projectId, permissions: ["goals:read", "goals:write"] },
-  { capability_id: "goals.create", version: 1 },
+  { capability_id: "goals.create", version: /* @version action.goals.create */ 1 },
   { goal_id: goalId, title: "让工作在手机上继续", outcome: "查看桌面成果，记录下一步，再回桌面接续。", idempotency_key: "goal" });
 const factory: ActionFactory = ({ memberId, projectId, validate, signal }) => {
   const client = host.actionClient(ref);

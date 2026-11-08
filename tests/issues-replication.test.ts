@@ -19,7 +19,7 @@ test("Issue declares its owner projection and Runtime collection instead of a pr
  const entry=BUILTIN_PLUGIN_CATALOG.find(row=>row.manifest.plugin_id===issuesManifest.plugin_id);
  assert.ok(entry);assert.equal(entry.sync,undefined);
  const collection=entry.manifest.sync!.collections.find(row=>row.id==='issues')!;
- assert.equal(collection.schema_version,2);assert.deepEqual(collection.tracking?.[0]?.where,[{column:'submitter_id',op:'eq',value:{actorId:true}}]);
+ assert.equal(collection.schema_version,1);assert.deepEqual(collection.tracking?.[0]?.where,[{column:'submitter_id',op:'eq',value:{actorId:true}}]);
 });
 
 function fixture(t: TestContext) {

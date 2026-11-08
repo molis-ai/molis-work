@@ -9,7 +9,7 @@ export interface PlatformSyncCollection {
   readonly store: "library" | "process" | "characters";
 }
 export const PLATFORM_SYNC_COLLECTIONS: readonly PlatformSyncCollection[] = [
-  { owner: "artifacts", store: "library", title: "成果及固定版本", selection: { plugin_id: "io.molis.work.artifacts", publisher_id: "molis", publisher_signature: "official-artifacts-binding", collection_id: "versions", schema_version: 1 } },
-  { owner: "artifacts", store: "process", title: "过程材料与固定版本", selection: { plugin_id: "io.molis.work.artifacts", publisher_id: "molis", publisher_signature: "official-artifacts-binding", collection_id: "process_items", schema_version: 1 } },
-  { owner: "characters", store: "characters", title: "角色草稿", selection: { plugin_id: CHARACTER_PLUGIN_ID, publisher_id: "molis", publisher_signature: CHARACTER_PUBLISHER_SIGNATURE, collection_id: "drafts", schema_version: 1 } },
+  { owner: "artifacts", store: "library", title: "成果及固定版本", selection: { plugin_id: "io.molis.work.artifacts", publisher_id: "molis", publisher_signature: "official-artifacts-binding", collection_id: "versions", schema_version: /* @version sync.collection.platform.versions */ 1 } },
+  { owner: "artifacts", store: "process", title: "过程材料与固定版本", selection: { plugin_id: "io.molis.work.artifacts", publisher_id: "molis", publisher_signature: "official-artifacts-binding", collection_id: "process_items", schema_version: /* @version sync.collection.platform.process_items */ 1 } },
+  { owner: "characters", store: "characters", title: "角色草稿", selection: { plugin_id: CHARACTER_PLUGIN_ID, publisher_id: "molis", publisher_signature: CHARACTER_PUBLISHER_SIGNATURE, collection_id: "drafts", schema_version: /* @version sync.collection.platform.drafts */ 1 } },
 ];

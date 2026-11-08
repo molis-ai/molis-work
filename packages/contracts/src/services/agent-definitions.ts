@@ -8,9 +8,9 @@ import type { AgentPromptLayer, AgentRoleExecution } from "../platform/plugin-ag
  * to widen what a role may do: directories, tools, actions and reviews are enforced by the Host in code.
  */
 export const servicesAgentDefinitionsContract = {
-  contractId: "io.molis.work.service.agent-definitions.v1",
+  contractId: /* @version contract.io.molis.work.service.agent-definitions "io.molis.work.service.agent-definitions.v{version}" */ "io.molis.work.service.agent-definitions.v1",
   kind: "service",
-  schemaVersion: 1,
+  schemaVersion: /* @version contract.io.molis.work.service.agent-definitions */ 1,
   maturity: "partial",
   ssot: "specs/archive/system-assistant/spec.md",
 } as const satisfies ContractDescriptor;

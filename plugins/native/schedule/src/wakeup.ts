@@ -15,6 +15,8 @@ import {
 
 export interface ScheduledTaskRunner {
   run(input: {
+    /** Also the key of the task's grant subject, when the person let it read data. */
+    task_id: string;
     title: string;
     instructions: string;
     history: readonly { kind: string; text: string }[];
@@ -61,6 +63,7 @@ export async function handleScheduleTaskWakeup(
   try {
     assertCurrent();
     const raw = await runner.run({
+      task_id: task.task_id,
       title: task.title,
       instructions: task.instructions,
       history,

@@ -67,17 +67,17 @@ export function catalogIntegrationManifest(connectorId: string): PluginManifest 
   const spec = getCatalogSpec(connectorId);
   const integrations = catalogIntegrations(connectorId);
   return {
-    schema_version: 1,
+    schema_version: /* @version manifest.schema */ 1,
     plugin_id: `io.molis.work.integration.${connectorId}`,
     // 1.1.0: the account check moved to the connector action `connectors.account.read`.
     // 1.2.0: declares its connection service and what it does with it (`connection_services`, `integrations`, and for a document
     // import the ways of connecting it reads with).
     // 1.3.0: a service that connects by OAuth declares its flow as data (W5-11).
-    version: "1.4.0",
+    version: /* @version plugin.integration-catalog.connectors */ "1.4.0",
     name: spec.title,
     kind: "integration",
     publisher: { publisher_id: "io.adeptify", signature: "adeptify-official-signature-v1" },
-    host_api_version: 1,
+    host_api_version: /* @version host.api */ 1,
     entrypoints: [{ deployment: "local", entrypoint: "./dist/index.js" }],
     permissions: [
       ...[spec.permission_host, ...(spec.additional_permission_hosts ?? [])].map(host => ({ permission: `network:${host}`, required: true, reason: `读取 ${spec.title} 身份与入站更新` })),
@@ -85,7 +85,7 @@ export function catalogIntegrationManifest(connectorId: string): PluginManifest 
     ],
     capabilities: {
       provides: [`connector.driver.${connectorId}.v1`, `signal.adapter.${connectorId}.v1`],
-      consumes: ["connector.host.v1", "listener.host.v1", "signals.command.v1"],
+      consumes: [/* @version type.connector.host "connector.host.v{version}" */ "connector.host.v1", /* @version type.listener.host "listener.host.v{version}" */ "listener.host.v1", /* @version type.signals.command "signals.command.v{version}" */ "signals.command.v1"],
     },
     artifacts: { produces: [], consumes: [] },
     ui: { contributions: [`settings.integration.${connectorId}`] },

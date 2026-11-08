@@ -1,3 +1,4 @@
+import { memoryActions } from "@molis-ai/molis-work-contracts/services/memory";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import path from "node:path";
@@ -65,7 +66,7 @@ const directory = (caller: Caller): Promise<readonly ActionView[]> => {
 
 /** The platform memory's capability when this directory has it; absent means no memory here, and nothing changes. */
 const memoryAction = (views: readonly ActionView[], capabilityId: "memory.recall" | "memory.signals.report") =>
-  views.find(view => view.capability_id === capabilityId && view.version === 1 && view.availability.available);
+  views.find(view => view.capability_id === capabilityId && view.version === (capabilityId === "memory.recall" ? memoryActions.recall.version : memoryActions.signal.version) && view.availability.available);
 
 /**
  * Preferences and conventions for this situation, through `memory.recall` (P3): a few short items, matched by plugin,

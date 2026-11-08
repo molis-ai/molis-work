@@ -150,7 +150,7 @@
 | 原需求／来源 | 类型 | 对应批次 | 决策 |
 | --- | --- | --- | --- |
 | 签名与公证（BL-021；产品建议 A1） | 发布、系统能力 | [26](batches/26.md)、[56](batches/56.md) | 要决策：凭据接入（你办）；现有个人 Apple 账号已定 |
-| [升级持续可用 U0～U7](../../upgrade-continuity/spec.md)；BL-413、BL-487 随真实 Home 重建核回；原 BL-581／583 的旧目录维护已并入 BL-928；BL-157 已移出 Backlog | 底层与架构、升级 | [02](batches/02.md)、[05](batches/05.md)、[25](batches/25.md)、[26](batches/26.md)、[56](batches/56.md)、[72](batches/72.md)、[SRV-8](batches/srv-8.md) | 升级链起点已定；要决策：真实 Home 重建由你说「开始」，更新／回退界面定样；具体门禁改动按开发流程处理 |
+| [升级持续可用 U0～U7](../../upgrade-continuity/spec.md)；BL-413、BL-487 随真实 Home 重建核回；原 BL-581／583 的旧目录维护已随 2026-11-07 的整体备份与搬开完成；BL-157 已移出 Backlog | 底层与架构、升级 | [02](batches/02.md)、[05](batches/05.md)、[25](batches/25.md)、[26](batches/26.md)、[56](batches/56.md)、[72](batches/72.md)、[SRV-8](batches/srv-8.md) | 升级链起点已于 2026-11-07 登记；要决策：更新／回退界面定样；具体门禁改动按开发流程处理 |
 | 运行条件：常驻、休眠后补跑、错过的怎样显示（产品建议 A5；BL-030、BL-645、BL-352） | 发布、系统能力 | [25](batches/25.md) | 直接做 |
 | 对外许可口径（产品建议 A4，在官网仓库） | 发布、系统能力 | [02](batches/02.md) | [A4](decisions.md#policy-a4) 文案已合入官网 main。用户 11-04 决定，官网正式发布与线上验收留到产品完整开发后安排 |
 | 原生组件随包预置与首次自检（产品建议 H14） | 发布、系统能力 | [26](batches/26.md)、[53](batches/53.md)、[56](batches/56.md) | 直接做 |
@@ -205,7 +205,7 @@
 | [术语表](../../../docs/system/GLOSSARY.md) §5～6 的 R-A／R-B／R-C 与文档旧称 | [02](batches/02.md)、[27](batches/27.md)；R-A 按所在包改；R-B1～8 不做，R-B9 存量随真实 Home 重建、不迁移 | 直接做 |
 | 助理对外用词（H4）：工作、工作简报、任务、受托工作、子工作 | [10](batches/10.md)；实施前定并写术语表 | 要决策：用词在 10 开工前定，写进术语表 |
 | 工程流程：W2-16 与新成员从零上手（[并行开发 §12](../../../docs/system/PARALLEL-DEVELOPMENT.md)） | [02](batches/02.md)；统筹负责，不占产品轨道 | 直接做：统筹做 |
-| [对抗式审查台账 R1～R8／N1～N56](../../../docs/reviews/adversarial-review-2026-11-01.md)、版本归一与重复调用整治 | [01](batches/01.md)、[02](batches/02.md)、[05](batches/05.md)、[06](batches/06.md)、[07](batches/07.md)、[27](batches/27.md)、[46](batches/46.md)；N12／N14 先定主人／合同，N3／N16 范围已定，分别在 27／06 实施；#1727 实际采用先核回，N56 与宿主首片同 PR；[PR 对照](requirement-prs.md#recent-requirement-prs) | 要决策：N12 文档记录协议归谁、N14 版本字段的合同、N47 由 Runtime 主人定、BL-880 的门禁改动；N34 复位 0.1.0 前你先删 GitHub 旧 release 与 tag；其余按台账已定的做 |
+| [对抗式审查台账 R1～R8／N1～N56](../../../docs/reviews/adversarial-review-2026-11-01.md)、版本归一与重复调用整治 | [01](batches/01.md)、[02](batches/02.md)、[05](batches/05.md)、[06](batches/06.md)、[07](batches/07.md)、[27](batches/27.md)、[46](batches/46.md)、[55](batches/55.md)（N22 余片）；N12／N14 先定主人／合同，N3／N16 范围已定，分别在 27／06 实施；#1727 实际采用先核回，N56 与宿主首片同 PR；[PR 对照](requirement-prs.md#recent-requirement-prs) | 要决策：N12 文档记录协议归谁、N14 版本字段的合同、N47 由 Runtime 主人定、BL-880 的门禁改动；N34 复位 0.1.0 前你先删 GitHub 旧 release 与 tag；其余按台账已定的做 |
 
 <a id="section-3-8"></a>
 

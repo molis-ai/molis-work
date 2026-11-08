@@ -61,10 +61,10 @@ async function fixture(t: TestContext, defaultOpen = false) {
   closeHome = home.close;
   const project = await home.createProject("Original search authority");
   const permissions = defaultOpen ? [] : ["form:read"];
-  const entries = defineSearchEntriesAction("fixture.search.entries", [{ kind: "authority_note", title: "Note", surface: "fixture" },
+  const entries = defineSearchEntriesAction("fixture.search.entries", 1, [{ kind: "authority_note", title: "Note", surface: "fixture" },
     { kind: "unrelated_note", title: "Other kind", surface: "fixture" }], "HTTP notes", permissions);
-  const reader = defineSubjectContextAction("fixture.search.reader", "authority_note", "Read note", permissions);
-  const unrelatedReader = defineSubjectContextAction("fixture.search.other-reader", "unrelated_note", "Read another kind", permissions);
+  const reader = defineSubjectContextAction("fixture.search.reader", 1, "authority_note", "Read note", permissions);
+  const unrelatedReader = defineSubjectContextAction("fixture.search.other-reader", 1, "unrelated_note", "Read another kind", permissions);
   const peer: ActionDefinition = { capability_id: "fixture.search.peer", version: 1, operation: "command", action: {
     title: "Independent grant", description: "Shares permissions without authority over this note", kind: "operation", scope: "project",
     audiences: ["user", "mcp"], permissions: ["form:read"], subject_kinds: [],
@@ -141,7 +141,7 @@ async function fixture(t: TestContext, defaultOpen = false) {
   assert.equal(hits(positive).length, 1, "ACA005-01: the same real MCP path is authorized before revocation");
   assert.ok(JSON.stringify(positive).includes(marker));
   const addReader = async () => {
-    const next = defineSubjectContextAction("fixture.search.new-reader", "authority_note", "Another original reader", permissions);
+    const next = defineSubjectContextAction("fixture.search.new-reader", 1, "authority_note", "Another original reader", permissions);
     disposers.push(home.host.actionRegistry(project.reference).registerProvider({ provider: {
       provider_id: providerId, plugin_id: providerId, title: "HTTP owner", kind: defaultOpen ? "system" : "plugin",
     }, definitions: [next], handlers: [{ ...next, handle: (_caller, value) => subjectContext({

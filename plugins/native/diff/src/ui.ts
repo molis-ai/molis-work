@@ -8,7 +8,7 @@ import { renderDiff, type DiffViewLabels, type DiffViewModel, type DiffViewPrimi
 import { renderCompanionListStage, type CompanionStageModel } from "./companion-stage.js";
 import type { DiffInputGroup } from "./comparison.js";
 
-export const DIFF_UI_CONTRIBUTION_ID = "io.molis.work.native.diff.ui.v1";
+export const DIFF_UI_CONTRIBUTION_ID = /* @version contract.io.molis.work.native.diff.ui "io.molis.work.native.diff.ui.v{version}" */ "io.molis.work.native.diff.ui.v1";
 
 /** Which of Diff's keys (`DIFF_MESSAGES`) each label of the comparison is. */
 export const DIFF_LABELS: DiffViewLabels = {

@@ -189,7 +189,7 @@ export function createCatalogProvider(opts: {
           mode: "live",
           items,
           cursor: {
-            v: 1,
+            v: /* @version format.cursor.catalog.notifications */ 1,
             provider: spec.id,
             mode: "live",
             account_login: login,
@@ -207,7 +207,7 @@ export function createCatalogProvider(opts: {
 }
 
 interface CatalogCursor {
-  v: 1;
+  v: /* @version format.cursor.catalog.notifications */ 1;
   provider: string;
   mode: "live";
   account_login?: string;
@@ -220,14 +220,14 @@ function catalogCursor(value: unknown, provider: string): CatalogCursor | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const cursor = value as Partial<CatalogCursor>;
   if (
-    cursor.v !== 1
+    cursor.v !== /* @version format.cursor.catalog.notifications */ 1
     || cursor.provider !== provider
     || cursor.mode !== "live"
     || typeof cursor.next_poll_at !== "string"
     || !Number.isFinite(Date.parse(cursor.next_poll_at))
   ) return null;
   return {
-    v: 1,
+    v: /* @version format.cursor.catalog.notifications */ 1,
     provider,
     mode: "live",
     ...(typeof cursor.account_login === "string" ? { account_login: cursor.account_login } : {}),

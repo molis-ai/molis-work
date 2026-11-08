@@ -6,6 +6,8 @@
 
 ## 在做的
 
+- [daily-quality-d0002](daily-quality-d0002/spec.md)：工作资产恢复使用宿主身份，不从资产包继承团队共享授权；2026-11-08 获批，实施中。
+
 - [unified-account](unified-account/spec.md)：WORK-01 至 WORK-09 已完成本地隔离实现与验证；接续中央执行指引做集成收尾，真实存量与外部服务仍待补验。
 
 - [ci-acceleration](ci-acceleration/spec.md)：CI P0/P1 提速，普通文档从 PR 到合并队列走轻量路径，增加单个 PR 分片并按耗时和浏览器容量平衡；2026-11-06 已获实施授权，负责人 Codex；本地实现与验证完成，待云端实测。

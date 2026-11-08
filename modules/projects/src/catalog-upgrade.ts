@@ -8,14 +8,14 @@ import type { Row } from "./sqlite.js";
  * program older than version 2 opens it anyway.
  *
  * - `is_default` gives way to the two role columns. The table is rebuilt so the table-level check fits; no other table refers to it.
+ *   The old rows are copied aside and the table made anew (no rename, so no table is patched in place: upgrade-chain-design §11.4).
  *   A project with exactly one folder makes it its output (and still an input), so a project that worked in its own folder keeps writing
  *   there; with several, every folder is an input (user 2026-11-08).
  * - `workspace_source_links` starts empty.
  */
 export const PROJECTS_CATALOG_UPGRADE_1_SQL = `
-DROP INDEX workspace_project_memberships_one_default_idx;
-DROP INDEX workspace_project_memberships_project_idx;
-ALTER TABLE workspace_project_memberships RENAME TO workspace_project_memberships_v1;
+CREATE TABLE workspace_project_memberships_v1 AS SELECT * FROM workspace_project_memberships;
+DROP TABLE workspace_project_memberships;
 ${WORKSPACE_MEMBERSHIPS_SQL}
 INSERT INTO workspace_project_memberships (membership_id, workspace_id, project_id, role_input, role_output, bound_by, created_at, updated_at)
   SELECT old.membership_id, old.workspace_id, old.project_id, 1,

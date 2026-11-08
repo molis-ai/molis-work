@@ -41,7 +41,7 @@ test("parallel assignment routes retain drafts, freeze trusted roots and task bo
       if (definition.capability_id === agent.availableRoles.capability_id) return ["reader", "writers"].map(role_id => ({ role_id, available: true })) as Output;
       if (definition.capability_id === agent.listActions.capability_id) return [] as Output;
       if (definition.capability_id === agent.createSession.capability_id) { created++; return { runtime_id: "prologue", session_id: "sdk" } as Output; }
-      if (definition.capability_id === agent.startRun.capability_id) { starts.push(structuredClone((args as any[])[1])); return { ref: { session_id: "sdk", run_id: `run-${starts.length}` } } as Output; }
+      if (definition.capability_id === agent.startRun.capability_id) { starts.push(structuredClone((args as unknown[])[1]) as AgentStartRequest); return { ref: { session_id: "sdk", run_id: `run-${starts.length}` } } as Output; }
       if (definition.capability_id === agent.readSession.capability_id) return { runs: [] } as Output;
       throw new Error(`Unexpected capability ${definition.capability_id}`);
     } },
@@ -123,9 +123,9 @@ test("CODING-WORKTREE-01..05 CODING-WORKTREE-07 CODING-WORKTREE-08 a session poi
       if (definition.capability_id === projectDirectoryActions.get.capability_id) return folders([output, notes]) as Output;
       if (definition.capability_id === agent.availableRoles.capability_id) return ["reader", "writers"].map(role_id => ({ role_id, available: true })) as Output;
       if (definition.capability_id === agent.listActions.capability_id) return [] as Output;
-      if (definition.capability_id === agent.createSession.capability_id) { sessions.push(structuredClone((args as any[])[1].directory)); return { runtime_id: "prologue", session_id: "sdk" } as Output; }
+      if (definition.capability_id === agent.createSession.capability_id) { sessions.push(structuredClone(((args as unknown[])[1] as { directory: unknown }).directory)); return { runtime_id: "prologue", session_id: "sdk" } as Output; }
       if (definition.capability_id === agent.startRun.capability_id) {
-        const started = structuredClone((args as any[])[1]) as AgentStartRequest, ref = { session_id: "sdk", run_id: `run-${starts.length + 1}` };
+        const started = structuredClone((args as unknown[])[1]) as AgentStartRequest, ref = { session_id: "sdk", run_id: `run-${starts.length + 1}` };
         starts.push(started);
         ran.push({ ref, execution: started.directory?.canonical_path === tree.canonical_path ? { kind: "worktree", worktree_id: tree.worktree_id } : { kind: "output" } });
         return { ref } as Output;

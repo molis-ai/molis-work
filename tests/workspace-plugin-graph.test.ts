@@ -106,18 +106,22 @@ test("SSC-05 SSC-17 Files reads the folder the page names, or the output, withou
   try {
     const report = await platform.start([{ definition: createFilesPlugin(), trust: { level: "host" } }]);
     assert.deepEqual(report.failed, []);
-    const read = (query: Record<string, string> = {}) => platform.router().dispatch({ method: "GET", pathname: "/api/plugins/io.molis.work.files/state", actor_id: "tester", query });
+    type FilesState = { workspace: { workspace_id: string }; resolved: string | null };
+    const read = async (query: Record<string, string> = {}) => {
+      const response = await platform.router().dispatch({ method: "GET", pathname: "/api/plugins/io.molis.work.files/state", actor_id: "tester", query });
+      return { status: response?.status, body: response?.body as FilesState };
+    };
     const first = await read();
-    assert.equal(first?.status, 200);
-    assert.equal((first!.body as any).workspace.workspace_id, "one", "with none named, Files reads the output");
+    assert.equal(first.status, 200);
+    assert.equal(first.body.workspace.workspace_id, "one", "with none named, Files reads the output");
     const named = await read({ workspace_id: "two" });
-    assert.equal((named!.body as any).workspace.workspace_id, "two", "the folder the page names");
-    assert.equal((named!.body as any).resolved, "two");
+    assert.equal(named.body.workspace.workspace_id, "two", "the folder the page names");
+    assert.equal(named.body.resolved, "two");
     const foreign = await read({ workspace_id: "not-this-project" });
-    assert.equal((foreign!.body as any).workspace.workspace_id, "one", "a folder that is not the project's is never read; the output is");
-    assert.equal((foreign!.body as any).resolved, null);
+    assert.equal(foreign.body.workspace.workspace_id, "one", "a folder that is not the project's is never read; the output is");
+    assert.equal(foreign.body.resolved, null);
     output = { ...output, workspace_id: "three", canonical_path: "/three" };
-    assert.equal(((await read())!.body as any).workspace.workspace_id, "three", "a new output is read at once");
+    assert.equal((await read()).body.workspace.workspace_id, "three", "a new output is read at once");
     assert.throws(() => platform.wiring.bind({ project_id: DEMO_PROJECT_ID, actor_id: "tester", target_plugin_id: FILES_PLUGIN_ID,
       target_port: "workspace", source_plugin_id: "io.molis.work.workspace", source_port: "workspace", origin: "user" }));
   } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }

@@ -144,11 +144,12 @@ body.is-side-resizing{cursor:col-resize;user-select:none}
 /* On a phone the strip shares the title bar's first row with the history buttons and the Home tools, and takes the room left
    between them: the glyphs keep their 44px targets and scroll sideways, and reveal() keeps the current one in view (measured:
    three glyphs at 360, four at 390). The bar keeps its two rows, so the work below loses no height. The strip's 2px block padding
-   (room for a count badge and the focus ring inside its scroller) is taken back by its margin, so the row stays 44px. */
+   (room for a count badge and the focus ring inside its scroller) is taken back by its margin, so the row stays 44px. The drag
+   line is zero wide beside the tabs (immersive-navigation.ts), so here it would only cost the row a gap: it is left out. */
 @media(max-width:600px){
  html body.immersive-workbench:not(.arrival-page) .immersive-titlebar>.side-strip{order:1;flex:1 1 0;margin-block:-2px}
  html body.immersive-workbench:not(.arrival-page) .immersive-titlebar:has(>.titlebar-layout)>[data-titlebar-tabs]{flex-basis:0;min-width:calc(100% - 80px)}
- html body.immersive-workbench:not(.arrival-page) .immersive-titlebar:has(>.titlebar-layout)>.desktop-titlebar-drag{order:8}
+ html body.immersive-workbench:not(.arrival-page) .immersive-titlebar:has(>.titlebar-layout)>.desktop-titlebar-drag{display:none}
 }
 /* Between 601 and 760 the strip is the title bar's second row, so the bar's grid row grows with it (over craft-finish's fixed
    titlebar row, which names the directory states) and the work and the side sheet start below it. The sheet's 28px is the

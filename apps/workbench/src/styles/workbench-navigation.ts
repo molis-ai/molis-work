@@ -102,8 +102,9 @@ ${SWITCH}{display:inline-flex}
 .mw-menu.tab-menu{width:calc(100vw - 32px)}
 /* The titlebar's strip on a phone is one row, as tall as it paints first (the 定样's 52px): the switch, then the current tab taking
    the rest of the width so its title reads as far as it can, then 全部标签 (a phone always shows it) and ＋. The other tabs, pinned
-   ones too, are reached from 全部标签. A second row for the tab would push the page down once the strip is drawn (VUX-31). */
-${BAR}{gap:4px}
+   ones too, are reached from 全部标签. A second row for the tab would push the page down once the strip is drawn (VUX-31).
+   The 52px holds the switch's track (its 44px halves and the track's 4px around them) without clipping it; the 44px tabs centre in it. */
+${BAR}{gap:4px;height:52px;min-height:52px;padding-block:0}
 ${BAR}>.tab-scroll{flex:1 1 0;width:auto;min-width:98px}
 ${BAR}>.tab-strip-spacer{display:none}
 /* Settings or the market in front is the current one: its chip takes the tab's place, and the tabs behind it are in 全部标签. */
@@ -119,7 +120,9 @@ ${SWITCH}>.mw-toggle{min-height:44px;min-width:44px}
 ${SWITCH}>.mw-toggle.is-current{box-shadow:var(--shadow-soft),inset 0 0 0 1px var(--line-strong)}
 .tab-all-button>span:not(.tab-all-count){display:none}
 }
-/* Where the right side's glyphs share the first row (side-panel.ts), the layout button ends that row instead of taking a row of its own under the strip. */
+/* Where the right side's glyphs share the first row (side-panel.ts), the layout button ends that row, after them, as it ends the
+   titlebar after the right side's glyphs on a wide window. The first row has the room since the Home tools left it (07-1 S4b), and
+   the second keeps the whole width for the strip above: the switch, a 98px tab, 全部标签 and ＋ down to 320px. */
 @media (max-width:600px){
 ${W}:not(.arrival-page) .immersive-titlebar>.titlebar-layout{order:1}
 }

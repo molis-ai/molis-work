@@ -381,8 +381,6 @@ export const CODING_MESSAGES = {
   "coding.rework.saved-not-added": { zh: "返工原因已保存；会话还在读取，任务暂未加入输入框。", en: "The rework reason is saved; the session is still loading, so the task has not been added to the input box yet." },
   "coding.error.split-changed": { zh: "会话或主工作区已改变，请重新打开分工", en: "The session or main workspace has changed; open the split again" },
   "coding.worktrees.split-saved": { zh: "分工已保存；选择并行写入并发送任务后才开始。", en: "The split is saved; it starts once you choose Parallel writing and send the task." },
-  "coding.error.worktree-changed": { zh: "会话已改变，请重新打开独立工作树", en: "The session has changed; open the separate worktrees again" },
-  "coding.worktrees.used-next": { zh: "下一轮将使用所选独立目录；原任务与主工作区保持原状态。", en: "The next turn uses the chosen separate directory; the original task and the main workspace stay as they are." },
   "coding.error.busy": { zh: "请先完成当前操作或核对中断结果", en: "Finish the current operation or check the interrupted results first" },
   "coding.goal.none-next": { zh: "下一轮不关联目标。", en: "The next turn has no goal." },
   "coding.goal.why": { zh: "为什么", en: "Why" },

@@ -147,14 +147,14 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
   const subagent_workspaces: AgentSubagentWorkspace[] = [];
   if (role === "writers") {
     const assignments = codingWriterAssignments(body.writer_assignments, true);
-    // A listed directory with a problem (its branch was switched by hand) is shown to the person, never assigned.
+    // A listed directory with a problem (its branch was switched by hand) is shown to the person, never assigned. Each writer works in a
+    // worktree the Host made of this folder, named by its `worktree_id`; agent-host checks it is still one when the round starts.
     const owned = (await context.services!.actions!.invoke(writerDirectoryCapabilities.list, { workspace_id: workspace.workspace_id }, codingActionControl(beforeWrite))).filter(child => !child.problem);
     const tasks = assignments.map(assignment => {
-      const child = owned.find(child => child.workspace_id === assignment.workspace_id);
-      const grant = child && workspaces.find(grant => grant.workspace_id === child.workspace_id && grant.realpath_verified && grant.canonical_path === child.canonical_path);
-      if (!child || !grant) throw codingFailure("coding.server.worktree-unauthorized");
-      subagent_workspaces.push({ workspace_id: grant.workspace_id, directory: { canonical_path: grant.canonical_path, realpath_verified: true as const } });
-      return { ...assignment, directory: grant.canonical_path, branch: child.branch, base_commit: child.base_commit };
+      const child = owned.find(child => child.worktree_id === assignment.worktree_id);
+      if (!child) throw codingFailure("coding.server.worktree-unauthorized");
+      subagent_workspaces.push({ worktree_id: child.worktree_id, directory: { canonical_path: child.canonical_path, realpath_verified: true as const } });
+      return { ...assignment, directory: child.canonical_path, branch: child.branch, base_commit: child.base_commit };
     });
     task += WRITER_SPLIT_HEAD + JSON.stringify(tasks, null, 2);
     if (task.length > 100_000) throw codingFailure("coding.server.task-too-long");

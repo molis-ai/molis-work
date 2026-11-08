@@ -2,9 +2,9 @@ import { WRITER_SPLIT_HEAD } from "../writer-split.js";
 import { el, errorMessage } from "./dom.js";
 import type { PagePorts } from "./types.js";
 
-/** One directory a parallel-writers round may split work across, as `GET /workspaces/<id>/writers` lists it. */
+/** One worktree the Host made, which a parallel-writers round may split work across, as `GET /workspaces/<id>/writers` lists it. */
 interface WriterDirectory {
-  readonly workspace_id?: string;
+  readonly worktree_id: string;
   readonly canonical_path: string;
   readonly branch?: string;
   readonly base_commit: string;
@@ -14,8 +14,8 @@ interface WriterDirectory {
 /** What the person typed for a directory, kept while the dialog is open. */
 interface Draft { task: string; selected: boolean }
 
-/** A split the session keeps for its next round. */
-export interface WriterAssignment { readonly workspace_id: string; readonly task: string }
+/** A split the session keeps for its next round: each writer named by the Host's worktree it works in. */
+export interface WriterAssignment { readonly worktree_id: string; readonly task: string }
 
 export interface WriterPorts extends Pick<PagePorts, "lifetime" | "translate" | "q" | "api" | "current" | "status"> {
   /** The Git directory the session works in, and what to call it. */
@@ -23,19 +23,17 @@ export interface WriterPorts extends Pick<PagePorts, "lifetime" | "translate" | 
   readonly workspaceLabel: () => string;
   readonly assignments: () => readonly WriterAssignment[];
   readonly saveAssignments: (owner: string, parent: string, assignments: readonly WriterAssignment[]) => Promise<void>;
-  /** Makes a directory the session's working directory for the next round. */
-  readonly select: (owner: string, workspaceId: string) => Promise<void>;
   /** Draws the review cards of the directory's runs (the Host's). */
   readonly reviews: (container: Element, workspaceId: string) => unknown;
 }
 
-/** A user turn of a parallel-writers round, and the frozen grants its run was given. */
+/** A user turn of a parallel-writers round, and the frozen directories its run was given (read by path alone: a round of any version has it). */
 export interface WriterTurnRun {
-  readonly frozen: { readonly role_id: string; readonly subagent_workspaces?: readonly { readonly workspace_id: string; readonly directory: { readonly canonical_path: string } }[] };
+  readonly frozen: { readonly role_id: string; readonly subagent_workspaces?: readonly { readonly directory: { readonly canonical_path: string } }[] };
 }
 export interface WriterTurn { readonly kind: string; readonly steer?: unknown; readonly text: string }
 
-interface SplitRow { readonly workspace_id: string; readonly directory: string; readonly task: string; readonly branch: string; readonly base_commit: string }
+interface SplitRow { readonly directory: string; readonly task: string; readonly branch: string; readonly base_commit: string }
 
 export interface WriterDirectories {
   refresh(): Promise<void>;
@@ -102,9 +100,9 @@ function assignmentFields(state: Dialog, row: HTMLElement, directory: WriterDire
   });
 }
 
-/** The directory a round may work in, with its split fields and the button that makes it the working directory. */
+/** A worktree a writer may work in, with its split fields. */
 function directoryRow(state: Dialog, directory: WriterDirectory) {
-  const { translate: L, lifetime } = state.ports;
+  const L = state.ports.translate;
   const row = el("section", "", "coding-material");
   row.append(el("p", directory.canonical_path), el("p", L("coding.writers.branch", { branch: directory.branch || L("coding.writers.no-branch") })));
   // A directory whose branch or origin no longer matches is listed so it is not a mystery, but it takes no work.
@@ -113,31 +111,10 @@ function directoryRow(state: Dialog, directory: WriterDirectory) {
     return row;
   }
   row.append(el("p", L("coding.writers.base", { commit: directory.base_commit })));
-  const id = directory.workspace_id;
-  if (!id) {
-    row.append(el("p", L("coding.writers.unauthorized")));
-    return row;
-  }
+  const id = directory.worktree_id;
   const draft = state.assignments.get(id) || { task: "", selected: false };
   state.assignments.set(id, draft);
   assignmentFields(state, row, directory, draft);
-  const use = button(L("coding.writers.use"));
-  lifetime.listen(use, "click", async () => {
-    if (state.busy) return;
-    state.busy = true;
-    use.disabled = true;
-    try {
-      await state.ports.select(state.owner, id);
-      state.dialog.close();
-    } catch (error) {
-      if (!lifetime.alive) return;
-      state.message.textContent = errorMessage(error);
-    } finally {
-      state.busy = false;
-      use.disabled = false;
-    }
-  });
-  row.append(use);
   return row;
 }
 
@@ -171,7 +148,7 @@ async function refresh(state: Dialog) {
       if (!data.directories.length) list.append(el("p", L("coding.writers.none")));
       for (const directory of data.directories) list.append(directoryRow(state, directory));
       for (const [id, draft] of state.assignments) {
-        if (draft.selected && !data.directories.some(item => item.workspace_id === id && !item.problem)) list.append(missingRow(state, id, draft, () => void refresh(state)));
+        if (draft.selected && !data.directories.some(item => item.worktree_id === id && !item.problem)) list.append(missingRow(state, id, draft, () => void refresh(state)));
       }
     }
     await ports.reviews(q("[data-coding-writer-directory-reviews]"), state.parent);
@@ -194,7 +171,7 @@ function open(state: Dialog) {
   if (state.parent !== next) state.operation = "";
   state.parent = next;
   state.owner = ports.current();
-  state.assignments = new Map(ports.assignments().map(row => [row.workspace_id, { task: row.task, selected: true }]));
+  state.assignments = new Map(ports.assignments().map(row => [row.worktree_id, { task: row.task, selected: true }]));
   try {
     const saved: unknown = JSON.parse(sessionStorage.getItem(draftKey(state)) || "null");
     if (Array.isArray(saved)) state.assignments = new Map(saved);
@@ -220,7 +197,7 @@ async function saveSplit(state: Dialog, save: HTMLButtonElement) {
   save.disabled = true;
   const key = draftKey(state), snapshot = JSON.stringify([...state.assignments]);
   try {
-    await ports.saveAssignments(state.owner, state.parent, [...state.assignments].filter(([, row]) => row.selected).map(([workspace_id, row]) => ({ workspace_id, task: row.task })));
+    await ports.saveAssignments(state.owner, state.parent, [...state.assignments].filter(([, row]) => row.selected).map(([worktree_id, row]) => ({ worktree_id, task: row.task })));
     if (snapshot === JSON.stringify([...state.assignments])) {
       try { sessionStorage.removeItem(key); } catch { /* storage closed: nothing was kept */ }
     }
@@ -257,7 +234,7 @@ async function createDirectory(state: Dialog, create: HTMLButtonElement) {
   }
 }
 
-/** The split the round's task ends with, when it is a well-formed one that matches the directories the run was granted. */
+/** The split the round's task ends with, when it is a well-formed one that matches the directories the run was granted, by path. */
 function splitOf(run: WriterTurnRun, turn: WriterTurn): { rows: SplitRow[]; at: number } | null {
   const at = turn.text.lastIndexOf(WRITER_SPLIT_HEAD);
   if (at < 0) return null;
@@ -266,7 +243,7 @@ function splitOf(run: WriterTurnRun, turn: WriterTurn): { rows: SplitRow[]; at: 
   const grants = run.frozen.subagent_workspaces || [];
   if (!Array.isArray(rows) || rows.length !== grants.length) return null;
   const whole = rows.every((row: Partial<SplitRow> | null, index) => row && typeof row.task === "string" && typeof row.branch === "string" && typeof row.base_commit === "string"
-    && row.workspace_id === grants[index]?.workspace_id && row.directory === grants[index]?.directory.canonical_path);
+    && row.directory === grants[index]?.directory.canonical_path);
   return whole ? { rows, at } : null;
 }
 

@@ -196,7 +196,7 @@ export const CODING_SERVER_MESSAGES = {
   "coding.server.check-before-plan": { zh: "请先核对中断或回退结果，再执行计划", en: "Check the interruption or rollback before running the plan" },
   "coding.server.pick-intent": { zh: "请选择讨论、规划、修改文件、执行或评审", en: "Choose Discuss, Plan, Edit files, Execute or Review" },
   "coding.server.plan-workspace": { zh: "计划属于原工作区，请选择原工作区或重新规划，不能在另一目录执行", en: "The plan belongs to its original workspace; choose it or plan again rather than running in another folder" },
-  "coding.server.worktree-unauthorized": { zh: "分工目录不属于当前主仓库，或已取消授权；请重新选择独立工作树", en: "That folder isn't in the current main repository or is no longer authorized; choose a separate worktree again" },
+  "coding.server.worktree-unauthorized": { zh: "分工的独立工作树已不在当前目录的仓库里；请重新选择独立工作树", en: "That separate worktree is no longer in this folder's repository; choose a separate worktree again" },
   "coding.server.task-too-long": { zh: "总任务与分工合计超过 100000 字符，请缩短后发送", en: "The task and its parts add up to more than 100,000 characters; shorten them before sending" },
   "coding.server.parallel-only": { zh: "独立写入分工只用于并行写入方式", en: "Separate writing parts are only for Parallel mode" },
   "coding.server.character-unassembled": { zh: "Character 消费尚未装配，请明确移除角色后执行", en: "Characters aren't set up yet; remove the character to run" },

@@ -109,7 +109,7 @@ export interface FrozenSetup {
   readonly role_id: string;
   readonly role_version: number;
   readonly directory?: { readonly canonical_path: string };
-  readonly subagent_workspaces?: readonly { readonly workspace_id: string; readonly directory: { readonly canonical_path: string } }[];
+  readonly subagent_workspaces?: readonly { readonly directory: { readonly canonical_path: string } }[];
   readonly skills: readonly { readonly name: string; readonly version: number }[];
   readonly action_tools?: readonly { readonly capability_id: string; readonly version: number; readonly provider_id: string }[];
   readonly mcp_tools?: readonly { readonly server: string; readonly server_label?: string; readonly tool: string; readonly version: string; readonly configuration_version: number }[];
@@ -184,7 +184,7 @@ export interface SessionConfiguration {
   readonly model_id: string;
   readonly workspace_id: string;
   readonly reasoning_effort?: string;
-  readonly writer_assignments?: readonly { readonly workspace_id: string; readonly task: string }[];
+  readonly writer_assignments?: readonly { readonly worktree_id: string; readonly task: string }[];
   readonly [field: string]: unknown;
 }
 
@@ -285,7 +285,7 @@ export interface RoundSelection {
   readonly mcp_sources: readonly McpSourceRef[];
   readonly materials: readonly unknown[];
   readonly character: CharacterRef | null;
-  writer_assignments: readonly { readonly workspace_id: string; readonly task: string }[];
+  writer_assignments: readonly { readonly worktree_id: string; readonly task: string }[];
 }
 
 /** Other work under way that names the same files as the round about to start. */

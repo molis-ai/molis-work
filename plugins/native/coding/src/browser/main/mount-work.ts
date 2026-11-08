@@ -13,7 +13,6 @@ import { paintDiffs } from "./code.js";
 import { closeReport } from "./report.js";
 import { readCurrent } from "./read.js";
 import { api, sessionPath, status } from "./request.js";
-import { followWorkspace } from "./workspace.js";
 import type { Page } from "./page.js";
 
 /** The split of a directory into worktrees: who works where, and which directory the next round uses. */
@@ -36,15 +35,6 @@ function mountWriterDirectories(page: Page) {
         s.configurations.set(owner, previous);
         throw error;
       }
-    },
-    select: async (owner, id) => {
-      if (owner !== s.current) throw new Error(L("coding.error.worktree-changed"));
-      s.workspaceId = id;
-      rememberConfiguration(page);
-      await refs.draft.flush();
-      await refreshState(page);
-      await followWorkspace(page);
-      status(page, L("coding.worktrees.used-next"));
     },
   });
 }

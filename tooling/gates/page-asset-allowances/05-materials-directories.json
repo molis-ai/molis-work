@@ -1,0 +1,15 @@
+{
+  "reason": "第 05 批升级基础与公共合同：项目目录改为输入/输出两种角色（设置页目录区、Files/Git/Coding 改读 projects.directories.get）、删除项目时问默认输出目录里的文件（A3 选项卡、忙时改成留下、留下后给出路径）。复用组件板的选项卡与提示控件，选项卡样式抽成共享常量只进设置页一份；无新增资源，每项只覆盖本批真实净增。",
+  "review": "PR #1979「页面资源增长」一节（评审台审本批集成头时一并审）",
+  "assets": {
+    "/assets/molis-work-arrival.css": 53,
+    "/assets/molis-work-plugin-frame.js": 1261,
+    "/assets/molis-work-settings.css": 3593,
+    "/assets/molis-work-workbench.css": 1374,
+    "/assets/molis-work-workbench.js": 2907,
+    "/assets/molis-work-plugins/coding.js": 793,
+    "/assets/molis-work-plugins/files.js": 506,
+    "/assets/molis-work-plugins/git.js": 921,
+    "/assets/molis-work-plugins/git.css": 64
+  }
+}

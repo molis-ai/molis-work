@@ -8,14 +8,15 @@ import { prepareGitIndexCapability, prepareGitOperationCapability, workspaceRead
 import type { CharacterContent } from "@molis-ai/molis-work-contracts/modules/characters";
 import type { ProjectDirectories } from "@molis-ai/molis-work-contracts/modules/projects";
 import { agentHostCapabilities, type AgentRuntimeAdapter, type AgentSessionOwner, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { LocalProjectDatabase, MolisWorkLocalHost, characterNativeExecution, composeAgentHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, MolisWorkLocalHost, characterNativeExecution, composeAgentHost, createGitWorktreePort, hostWriterId, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { emptyCapabilityMatrix } from "@molis-ai/molis-work-service-agent-host";
 import { callerPlugin, registerProbe, startPlugin, withReaderRole } from "./fixtures/plugin-callers.js";
 
 // S-directory-output-only (specs/shared-sources-and-surfaces §3, SSC-15, user 2026-11-08): a folder that is only an input of its project is
 // read and never written, by anyone. Git stages, commits, branches and pushes only in the project's output: a review is not even prepared
 // in an input-only folder, and one prepared in the output is refused when it runs if that folder stopped being the output in between.
-// A native Character, an Agent round and an Agent session start only in the output too, refused before anything is recorded or run.
+// A native Character, an Agent round and an Agent session start only in the output too, refused before anything is recorded or run;
+// an Agent round may also run in a worktree the Host made of the output, and its record names that worktree.
 
 const INDEX = "review:git-index", OPERATION = "review:git-operation";
 const INPUT_ONLY = { code: "projects.directory_input_only" };
@@ -184,4 +185,26 @@ test("S-directory-output-only SSC-15 an Agent round does not run in a folder tha
   // The same start in the output reaches the Runtime, with the folders it was read under frozen into the round (says where, not whether).
   await assert.rejects(h.actions.invoke(agentHostCapabilities.startRun, ["fixture", { session, task: "改代码", role_id: "reader", directory: h.at(h.output) }]), /runs nothing/u);
   assert.deepEqual(h.starts.map(request => request.role?.directories), [{ directories_revision: "directories-1", output: "output", inputs: ["input"], execution: { kind: "output" } }]);
+});
+
+test("S-directory-output-only SSC-15 CODING-WORKTREE-01 CODING-WORKTREE-03 an Agent round runs in a worktree the Host made of the output and freezes that worktree as where it works; once it is gone the round is refused", { timeout: 60_000 }, async t => {
+  const h = await openAgentHost(t);
+  await writeFile(join(h.output.canonical_path, "README.md"), "fixture\n");
+  execFileSync("git", ["init", "-q", h.output.canonical_path]);
+  gitIn(h.output.canonical_path, "add", "README.md");
+  gitIn(h.output.canonical_path, "commit", "-q", "-m", "fixture");
+  const made = await createGitWorktreePort(h.output.canonical_path).create(hostWriterId("worktree-use"));
+  const tree = { canonical_path: join(h.output.canonical_path, made.directory), realpath_verified: true as const };
+  const session = await h.actions.invoke(agentHostCapabilities.createSession, ["fixture", { title: "在输出目录里", directory: h.at(h.output) }]);
+  // The round runs in the worktree: the Runtime is given it, and the round's record says it ran there, by the worktree's id.
+  await assert.rejects(h.actions.invoke(agentHostCapabilities.startRun, ["fixture", { session, task: "改代码", role_id: "reader", directory: tree }]), /runs nothing/u);
+  assert.deepEqual(h.starts.map(request => [request.directory?.canonical_path, request.role?.directories?.execution]),
+    [[tree.canonical_path, { kind: "worktree", worktree_id: made.worktree_id }]]);
+  assert.equal(h.starts[0]!.role?.directories?.output, "output", "the project's output is still the output");
+  // An input stays only an input, worktree or not.
+  await assert.rejects(h.actions.invoke(agentHostCapabilities.startRun, ["fixture", { session, task: "改代码", role_id: "reader", directory: h.at(h.input) }]), INPUT_ONLY);
+  // Integrated and removed, the worktree is no place to run: refused, never swapped for the output.
+  gitIn(h.output.canonical_path, "worktree", "remove", "--force", tree.canonical_path);
+  await assert.rejects(h.actions.invoke(agentHostCapabilities.startRun, ["fixture", { session, task: "改代码", role_id: "reader", directory: tree }]), { code: "agent.directory_unauthorized" });
+  assert.equal(h.starts.length, 1, "the Runtime was asked once, for the worktree that was there");
 });

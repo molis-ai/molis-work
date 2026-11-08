@@ -130,6 +130,10 @@ export interface SkillImportPreview {
     candidates: SkillImportCandidate[];
 }
 
+export interface SkillImportPreviewRequest {
+    source: SkillImportSource;
+}
+
 export type SkillImportSource = {
     kind: "runtime";
     runtime_id: CharacterImportRuntimeId;
@@ -229,8 +233,6 @@ export declare const skillErrors: import("platform/action-errors").ErrorCodeRais
 }>;
 
 export declare const skillImportActions: {
-    preview: ActionDefinition<{
-        source: SkillImportSource;
-    }, SkillImportPreview>;
+    preview: ActionDefinition<SkillImportPreviewRequest, SkillImportPreview>;
     confirm: ActionDefinition<SkillImportConfirmRequest, SkillImportConfirmResult>;
 };

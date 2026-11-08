@@ -14,7 +14,7 @@ export const ASSISTANT_LAYOUT_PART = String.raw`  // A narrow panel shows the si
     panel.dataset.side = sideOpen() ? "open" : "closed";
     sideToggle?.setAttribute("aria-expanded", String(sideOpen()));
     island.toggleAttribute("data-side-shown", !panel.hidden && sideOpen());
-    paintStrip();
+    paintStrip(); syncComposer();
     const anchor = !panel.hidden && sideWidth() ? panel.offsetParent : null;
     if (anchor) panel.style.setProperty("--assistant-room", Math.round(window.innerWidth - sideWidth() - sideInset() - 4 - anchor.getBoundingClientRect().right) + "px");
     else panel.style.removeProperty("--assistant-room");

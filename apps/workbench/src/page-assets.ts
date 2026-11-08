@@ -103,7 +103,7 @@ export function renderMolisWorkWorkbenchStylesheet(): string {
  * titlebar, a stage, the resident bar) and one sheet, so the browser keeps it across the pages of the way in.
  */
 export function renderMolisWorkArrivalStylesheet(): string {
-  return `${STYLES}${VISUAL_FOUNDATION_PAGE_STYLES}${IMMERSIVE_NAVIGATION_STYLES}${PAGE_CHROME_OVERLAY}${PAGE_PRIMITIVE_TAIL}${TYPEFACE_STYLES}${CRAFT_FINISH_STYLES}${ASSISTANT_INTERACTION_STYLES}${NAVIGATION_FLOW_STYLES}${ARRIVAL_STYLES}${GLYPH_TAB_STYLES}${SKIN_STYLES}`;
+  return `${STYLES}${VISUAL_FOUNDATION_PAGE_STYLES}${IMMERSIVE_NAVIGATION_STYLES}${PAGE_CHROME_OVERLAY}${PAGE_PRIMITIVE_TAIL}${TYPEFACE_STYLES}${CRAFT_FINISH_STYLES}${ASSISTANT_INTERACTION_STYLES}${NAVIGATION_FLOW_STYLES}${ARRIVAL_STYLES}${COMPOSER_STYLES}${GLYPH_TAB_STYLES}${SKIN_STYLES}`;
 }
 
 /** Shared settings presentation, reused across project and global settings routes. */

@@ -83,13 +83,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       route, headers: () => molisWorkControlHeaders(), projectId: state.project?.project_id || document.body.dataset.projectId || "",
       openPluginRecord: (plugin, id) => tabWorkspace?.openPluginRecord(plugin, id),
       openPlugin: (plugin) => tabWorkspace?.openPlugin(plugin),
-      askAssistant: (words) => {
-        const input = document.querySelector("[data-assistant-input]");
-        const composer = document.querySelector("[data-assistant-composer]");
-        if (!input || !composer) return;
-        input.value = words; input.dispatchEvent(new Event("input", { bubbles: true }));
-        composer.requestSubmit();
-      },
+      askAssistant: (words) => assistantIsland?.ask(words),
       setDirectory: (...args) => setDesktopDirectory(...args),
       setWorkSurface: (...args) => setDesktopWorkSurface(...args),
       selectGoal: (...args) => selectGoal(...args),
@@ -127,7 +121,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       openPlugin: (...args) => tabWorkspace?.openPlugin(...args), hideDirectory: () => immersiveNavigation?.hideDirectory(), showToast,
     });
     ${pluginWorkbenchClientBootstrap(undefined, true)}
-    (${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ translate: L, showToast, route, headers: () => molisWorkControlHeaders(), interaction, receipts,
+    assistantIsland = (${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ translate: L, showToast, route, headers: () => molisWorkControlHeaders(), interaction, receipts,
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title), pluginTitle: (plugin) => tabWorkspace?.pluginTitle(plugin),
       project: { id: state.project?.project_id || state.snapshot.board.project_id, title: state.project?.display_name || "" },
     });

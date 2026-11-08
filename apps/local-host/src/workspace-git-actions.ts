@@ -45,6 +45,14 @@ export function registerWorkspaceGitActions(ports: WorkspaceGitActionPorts): () 
     if (!workspace) throw workspaceGitErrors.workspace_unavailable(refusal);
     return workspace;
   };
+  // The two reads list review records and touch no disk: the project's default output directory not made yet has none, and reads as empty
+  // rather than as a folder whose permission was taken back (§3 「碰磁盘的调用方」). Any other unverified folder is still refused.
+  const readableWorkspace = async (projectId: string, workspaceId: string, refusal: string) => {
+    const workspace = (await ports.workspaces(projectId)).find(item => item.workspace_id === workspaceId);
+    if (workspace && !workspace.realpath_verified && ports.made && (await ports.output(projectId))?.workspace_id === workspaceId
+      && !await ports.made(projectId, workspaceId)) return;
+    await verifiedWorkspace(projectId, workspaceId, refusal);
+  };
   // Git writes only in the output: an input-only folder is read, never staged, committed, branched or pushed in (SSC-15). It is checked
   // when the review is prepared and again right before an approved one runs, so a folder made input-only in between is refused then.
   const writable = async (projectId: string, workspaceId: string) => {
@@ -106,7 +114,7 @@ export function registerWorkspaceGitActions(ports: WorkspaceGitActionPorts): () 
 
   const unregisterOperations = ports.localHost.registerAction(readGitOperationsCapability, async (project, input) => {
     const queue = await ports.reviews();
-    await verifiedWorkspace(project.project_id, input.workspace_id, "工作区已取消授权，不能读取操作结果");
+    await readableWorkspace(project.project_id, input.workspace_id, "工作区已取消授权，不能读取操作结果");
     await queue.refresh(project.project_id);
     const details = await readDetails(), records: GitOperationRecord[] = [];
     for (const request of queue.list(project.project_id)) {
@@ -125,7 +133,7 @@ export function registerWorkspaceGitActions(ports: WorkspaceGitActionPorts): () 
 
   const unregisterResults = ports.localHost.registerAction(readGitResultsCapability, async (project, input) => {
     const queue = await ports.reviews();
-    await verifiedWorkspace(project.project_id, input.workspace_id, "工作区已取消授权，不能读取操作结果");
+    await readableWorkspace(project.project_id, input.workspace_id, "工作区已取消授权，不能读取操作结果");
     await queue.refresh(project.project_id);
     const results: GitReviewedResult[] = [];
     for (const request of queue.list(project.project_id)) {

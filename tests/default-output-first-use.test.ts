@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalProjectDatabase, MolisWorkLocalHost, characterNativeExecution, composeAgentHost, molisWorkHostProjectReference, workspaceRefFor } from "@molis-ai/molis-work-app-local-host";
 import { ARTIFACTS_PROVIDER_ID, artifactsActions } from "@molis-ai/molis-work-module-artifacts";
-import { prepareGitIndexCapability, prepareGitOperationCapability, writerDirectoryCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { prepareGitIndexCapability, prepareGitOperationCapability, readGitOperationsCapability, readGitResultsCapability, writerDirectoryCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import type { CharacterContent } from "@molis-ai/molis-work-contracts/modules/characters";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { agentHostCapabilities, type AgentRuntimeAdapter, type AgentSessionOwner } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -96,7 +96,7 @@ test("SSC-24 an Agent round in the default output directory makes it if it is no
   assert.deepEqual(h.starts, [{ there: true }], "the folder was there when the Runtime was asked");
 });
 
-test("SSC-24 Git in a default output directory not made yet: staging and committing answer that it is not a repository, it has no worktree, and nothing makes it", { timeout: 60_000 }, async t => {
+test("SSC-24 Git in a default output directory not made yet: staging and committing answer that it is not a repository, its reviews read as none, it has no worktree, and nothing makes it", { timeout: 60_000 }, async t => {
   const f = await newProject(t);
   t.mock.method(globalThis, "fetch", async () => { throw new Error("this test sends nothing"); });
   const host = new MolisWorkLocalHost({ completeText: null, ...f.ports });
@@ -107,13 +107,16 @@ test("SSC-24 Git in a default output directory not made yet: staging and committ
   t.after(async () => { await composition.dispose(); await host.close(); store.close(); });
   const grants = ["review:git-index", "review:git-operation", "review:git-worktree", "workspace:read"];
   const plugin = callerPlugin("first-use-git", "project", Object.fromEntries(grants.map(grant => [grant, false])),
-    [prepareGitIndexCapability.capability_id, prepareGitOperationCapability.capability_id, writerDirectoryCapabilities.list.capability_id, writerDirectoryCapabilities.prepare.capability_id]);
+    [prepareGitIndexCapability.capability_id, prepareGitOperationCapability.capability_id, readGitOperationsCapability.capability_id, readGitResultsCapability.capability_id, writerDirectoryCapabilities.list.capability_id, writerDirectoryCapabilities.prepare.capability_id]);
   await startPlugin(host, f.reference, store, plugin, { grants, dependencies: host.client(f.reference) });
   const actions = plugin.actions(f.projectId), output = f.output.workspace_id;
   const NOT_A_REPOSITORY = { code: "workspace_git.not_a_repository", message: /不是 Git 仓库/u };
   await assert.rejects(actions.invoke(prepareGitIndexCapability, { workspace_id: output, path: ["README.md"], action: "stage", revision: "fixture", operation_id: "stage-before-made" }), NOT_A_REPOSITORY);
   await assert.rejects(actions.invoke(prepareGitOperationCapability, { workspace_id: output, operation_id: "commit-before-made", revision: "fixture",
     operation: { action: "commit", message: "第一次提交" } }), NOT_A_REPOSITORY);
+  // The two reads list review records only: a folder not made yet has none, rather than reading as one whose permission was taken back.
+  assert.deepEqual(await actions.invoke(readGitOperationsCapability, { workspace_id: output }), [], "no operation was asked for in a folder not made yet");
+  assert.deepEqual(await actions.invoke(readGitResultsCapability, { workspace_id: output }), [], "no staging was asked for in a folder not made yet");
   assert.deepEqual(await actions.invoke(writerDirectoryCapabilities.list, { workspace_id: output }), [], "a folder not made yet has no worktree");
   await assert.rejects(actions.invoke(writerDirectoryCapabilities.prepare, { workspace_id: output, operation_id: "writer-before-made" }),
     { code: "workspace_git.writer.workspace_unavailable", message: /还没有建立/u });

@@ -42,15 +42,21 @@ export interface MaterialOrigin {
   note?: string;
 }
 
-/** One line of "recently used": the stored reference and its origin as read just now (§2.1). */
-export interface RecentMaterial { ref: MaterialRef; origin: MaterialOrigin }
+/**
+ * One line of "recently used": the stored reference and its origin as read just now (§2.1). `origin` is null only to the person, when
+ * no one owner can be found for it now (its plugin was uninstalled, or more than one declares its kind); a plugin is not given the line.
+ */
+export interface RecentMaterial { ref: MaterialRef; origin: MaterialOrigin | null }
 
 /**
  * One item `materials.origins@1` reads: a full reference, or only its subject when no revision was kept (an old Goal input with no
  * fingerprint). A subject alone is only looked for, never compared, and always says `unchecked`.
  */
 export type MaterialOriginQuery = { ref: MaterialRef } | { subject: ActionSubject };
-/** The origin of one item, in the order asked. Null only to a plugin, for what it cannot read or what is gone: it is not told which. */
+/**
+ * The origin of one item, in the order asked. Null to a plugin for what it cannot read, what is gone, or what has no one owner now: it
+ * is not told which. Null to the person only for what has no one owner now (its plugin was uninstalled, or more than one declares its kind).
+ */
 export interface MaterialOriginAnswer { origin: MaterialOrigin | null }
 /** How many items one `materials.origins@1` call reads. */
 export const MATERIAL_ORIGINS_MAX = 20;

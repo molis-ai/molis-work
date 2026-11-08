@@ -276,6 +276,11 @@ export interface ProjectsQueryApi {
   projectDirectories(projectId: string): ProjectDirectories;
   /** Where a read, a write or a run that names no folder goes: the project's one output directory (§3). */
   outputDirectory(projectId: string): ProjectWorkspaceRef;
+  /**
+   * The id this project's default output directory has, whether or not it is the output now: a reference to it after the output moved
+   * reads as this project's former default output (`MATERIAL_ORIGIN_NOTES.former_default_output`).
+   */
+  defaultOutputDirectoryId(projectId: string): string;
   workspaceProjectSelections(workspaceId: string): ProjectSelection[];
   listProjectDeletions(): ProjectDeletionRecord[];
 }
@@ -394,7 +399,7 @@ export const materialRecentActions = {
     action: { title: "最近用过的资料", description: "按调用方和当前项目读取最近用过的资料，新的在前，出处是现读的", kind: "query", scope: "project", audiences: ["user", "plugin"], scheduling: "concurrent",
       permissions: [], subject_kinds: ["project"], input_schema: { type: "object", properties: {}, additionalProperties: false },
       output_schema: { type: "object", properties: { items: { type: "array", maxItems: MATERIAL_RECENT_KEEP, items: { type: "object",
-        properties: { ref: MATERIAL_REF_SCHEMA, origin: MATERIAL_ORIGIN_SCHEMA }, required: ["ref", "origin"], additionalProperties: false } } }, required: ["items"], additionalProperties: false },
+        properties: { ref: MATERIAL_REF_SCHEMA, origin: { anyOf: [MATERIAL_ORIGIN_SCHEMA, { type: "null" }] } }, required: ["ref", "origin"], additionalProperties: false } } }, required: ["items"], additionalProperties: false },
       output_type: "materials.recent" },
   } as ActionDefinition<Record<string, never>, { items: RecentMaterial[] }>,
   /** Answers nothing about what it kept: a reference the caller cannot read is dropped silently, so a call here cannot probe for one. */

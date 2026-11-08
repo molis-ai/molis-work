@@ -4,7 +4,8 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { issueModel } from "./fixtures/issue-model.js";
 import { ISSUE_FRAME, issueView, type IssueBrowser } from "./fixtures/issue-browser.js";
 
-const entry = "[data-side-plugin-open]";
+// Issue's way in is its glyph on the right side of the titlebar: its titlebar button left with the personal-tool slot (07-1 S4b).
+const entry = '[data-side-tab="plugin:issues/capture"]';
 const open = "document.body.dataset.sideOpen === 'true'", closed = "document.body.dataset.sideOpen === 'false'";
 
 /** T405-FULL-03: one observation on refusal, without changing focus or the wait's bound. */
@@ -54,7 +55,7 @@ test("ISSUE-35 in a project the chord and the button summon Issue from the page 
   const v = await issueView(t, b, "issue-global-navigation");
   await v.viewport(1440); await v.go(`/projects/${b.projectId}/?desktop=1`);
   assert.equal(await b.evaluate(`document.querySelector(${JSON.stringify(entry)}).getAttribute('aria-keyshortcuts')`), "Meta+Shift+I");
-  assert.match(await b.evaluate<string>(`document.querySelector(${JSON.stringify(entry)}).title`), /Issue (⌘⇧I|Ctrl\+Shift\+I)/);
+  assert.match(await b.evaluate<string>(`document.querySelector(${JSON.stringify(entry)}).parentElement.title`), /Issue (⌘⇧I|Ctrl\+Shift\+I)/);
   await b.waitFor(`'loaded' in (document.querySelector(${JSON.stringify(ISSUE_FRAME)})?.dataset ?? {})`, 10_000);
   const url = await b.evaluate<string>("location.href");
   await v.chord(); await b.waitFor(open); await composerFocused(t, b, v);
@@ -63,11 +64,12 @@ test("ISSUE-35 in a project the chord and the button summon Issue from the page 
   // From inside the tool the chord puts it away and the keyboard goes back to the page.
   await v.chord(); await b.waitFor(closed);
   assert.equal(await b.evaluate("document.querySelector('[data-side-panel]').contains(document.activeElement)"), false);
-  // The button is a switch, and it brings the keyboard along.
+  // The glyph opens it and brings the keyboard along; the chord from inside puts it away. (Its titlebar button was a switch; the
+  // side's glyphs open, and the side closes from its chord, ⌘\ or the layout menu — 07-1 S4b.)
   await b.click(entry); await b.waitFor(open);
   await composerFocused(t, b, v);
   await v.type("项目页里写了一半");
-  await b.click(entry); await b.waitFor(closed);
+  await v.chord(); await b.waitFor(closed);
   // Pressed while the keyboard is inside another side view's frame, the chord still reaches the shell.
   const other = await b.evaluate<string | null>("document.querySelector('[data-side-tab^=\"plugin:\"]:not([data-side-keys])')?.dataset.sideTab ?? null");
   assert.ok(other, "a project offers another plugin side view to type in");
@@ -161,7 +163,7 @@ test("RAC-2801 RAC-2802: native search from the nested Issue composer keeps its 
   await b.evaluate("window.issueSearchFrame.closest('[data-side-body]').inert=false");
   await probe("window.issueSearchFrame.closest('[data-side-body]').dataset.sideBody='plugin:inactive/probe'");
   await b.evaluate("window.issueSearchFrame.closest('[data-side-body]').dataset.sideBody='plugin:issues/capture'");
-  await b.click(entry); await b.waitFor(closed);
+  await v.chord(); await b.waitFor(closed);
   await probe(''); // mounted but panel closed
   await b.click(entry); await b.waitFor(open);
   await probe("window.removedSearchSource=window.issueSearchFrame.contentWindow;window.issueSearchFrame.remove()", 'Mod+K', 'location.origin', 'window.removedSearchSource');

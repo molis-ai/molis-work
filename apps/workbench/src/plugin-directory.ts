@@ -18,12 +18,15 @@ export interface PluginDirectoryEntry {
   /** Whether the project's plugin list chooses it (a built-in). Otherwise it is in the project because it runs there. */
   readonly chosen: boolean;
   /**
-   * Trusted marks the Host sets from its own registry of built-ins (W5-02 B1), never from a Manifest: the plugin holds the
-   * person's data across projects (`personal`), is on in every project and cannot be turned off (`always_on`), and the
-   * project keys it is shown and chosen together with (`companions`). Absent means not marked. Only a `chosen` entry carries
-   * them; the page uses them to draw and to pre-tick, and the Host's own registry decides what a submitted list means.
+   * Trusted marks the Host sets from its own registry of built-ins (W5-02 B1), never from a Manifest a package brings: the plugin
+   * holds the person's data across projects (`personal`), runs in the Home's Runtime (`home`, from the registration's own Manifest),
+   * is on in every project and cannot be turned off (`always_on`), and the project keys it is shown and chosen together with
+   * (`companions`). Absent means not marked. Only a `chosen` entry carries them, except `personal` and `home`, which the Host also
+   * sets on a package installed in the Home (07-1 S4b, 口径 9); the page uses them to draw and to pre-tick, and the Host's own
+   * registry decides what a submitted list means.
    */
   readonly personal?: true;
+  readonly home?: true;
   readonly always_on?: true;
   readonly companions?: readonly string[];
   readonly ui: { readonly views: readonly UiViewDeclaration[] };
@@ -85,19 +88,36 @@ export function sanitizePluginDirectory(directory: PluginDirectory): PluginDirec
     seen.add(id);
     const chosen = entry.chosen === true;
     const views = (entry.ui.views ?? []).slice(0, MAX_VIEWS).flatMap(view => { const clean = sanitizeView(view, icons, chosen); return clean ? [clean] : []; });
-    entries.push({ id, plugin_id: pluginId, name, ...(nameEn ? { name_en: nameEn } : {}), chosen, ...(chosen ? trustedMarks(entry) : {}), ui: { views } });
+    entries.push({ id, plugin_id: pluginId, name, ...(nameEn ? { name_en: nameEn } : {}), chosen,
+      ...(chosen ? trustedMarks(entry) : homeMarks(entry)), ui: { views } });
   }
   return entries;
 }
 
+/** The two marks a package installed in the Home carries as a built-in Home plugin does: each only when exactly `true`. */
+function homeMarks(entry: PluginDirectoryEntry): Pick<PluginDirectoryEntry, "personal" | "home"> {
+  return { ...(entry.personal === true ? { personal: true as const } : {}), ...(entry.home === true ? { home: true as const } : {}) };
+}
+
 /** The Host's marks on a chosen entry: a flag only when exactly `true`, companions as distinct keys (at most {@link MAX_COMPANIONS}). */
-function trustedMarks(entry: PluginDirectoryEntry): Pick<PluginDirectoryEntry, "personal" | "always_on" | "companions"> {
+function trustedMarks(entry: PluginDirectoryEntry): Pick<PluginDirectoryEntry, "personal" | "home" | "always_on" | "companions"> {
   const companions = [...new Set((Array.isArray(entry.companions) ? entry.companions : []).flatMap(value => { const clean = key(value); return clean ? [clean] : []; }))].slice(0, MAX_COMPANIONS);
   return {
-    ...(entry.personal === true ? { personal: true as const } : {}),
+    ...homeMarks(entry),
     ...(entry.always_on === true ? { always_on: true as const } : {}),
     ...(companions.length ? { companions } : {}),
   };
+}
+
+/**
+ * Whether a plugin is the person's own, as the switcher's 个人 group, the bar's right tray and ＋'s 「个人 · 所有项目共用」 all list it
+ * (docs/design/workbench-navigation ②; 07-1 S4b): one the Host marks as holding the person's data across projects *and* running in
+ * the Home's Runtime — the built-in Home plugins and every package installed in the Home. A personal plugin that runs per project
+ * (Pages, 灵光) and a Home plugin that is not the person's (Goals, Feed: one instance each side) are not. The one rule; nothing
+ * else decides it.
+ */
+export function isPersonalPlugin(entry: Pick<PluginDirectoryEntry, "personal" | "home">): boolean {
+  return entry.personal === true && entry.home === true;
 }
 
 /**

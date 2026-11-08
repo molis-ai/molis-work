@@ -164,6 +164,8 @@ export const TAB_WORKSPACE_MENUS_PART = `  const svg = (name) => '<svg aria-hidd
       const item = menuRow(name, tabIcon(id), go(() => openPlugin(id)), { key: "open-" + id, data: { plusOpen: id } });
       item.style.setProperty("--group-color", "var(--hue-" + pluginGroups.hueOf(id) + ")");
       item.setAttribute("aria-keyshortcuts", "Alt+Enter");
+      // A plugin that did not start keeps its row, with the amber point it carries wherever it is named (07-1 S4b).
+      if (failedPlugin(id)) { const dot = document.createElement("span"); dot.className = "nav-warn-dot"; dot.setAttribute("role", "img"); dot.setAttribute("aria-label", L("没能启动")); item.querySelector("[data-slot]").after(dot); }
       if (place) { const mark = document.createElement("span"); mark.className = "tab-menu-where"; mark.textContent = place; item.append(mark); }
       // The pointer's way to "beside"; the keyboard's is ⌥↵ on the row, so this button is out of the tab order and the tree.
       beside.type = "button"; beside.className = "mw-btn mw-btn--ghost mw-btn--icon-only mw-btn--sm tab-menu-beside"; beside.tabIndex = -1;

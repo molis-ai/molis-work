@@ -32,16 +32,14 @@ const KINDS: Record<string, string> = {
   "[data-assistant-send]": "assistant send",
   "[data-plugin-picker-toggle]": "plugin switcher",
   ".dock-pin": "dock",
-  ".bar-chat": "side panel",
+  // 07-1 S4b: the bar's side button and the titlebar's Home tools are gone; the side's glyphs (Issue's among them) are tabs.
   ".navigator-project-selector": "project",
-  "[data-home-plugin-open]": "home plugin", // ISSUE-30: the declared Home tools remain visible in the titlebar.
   ".immersive-show-directory, .navigator-directory-toggle": "directory toggle",
   ".workspace-history-button": "history",
   ".tab-item-trigger": "tab",
   ".tab-item-close": "tab close",
   ".tab-add-button": "open plugin",
   "[data-layout-open]": "layout", // 07-S2: the titlebar's one layout button replaces each strip's
-  "[data-home-plugin-open]": "home tool",
   ".tab-view-chip-close": "cover close",
   ".assistant-target-main": "work chip",
   ".assistant-target-clear": "work chip clear",
@@ -400,10 +398,13 @@ const IN_SHELL = /bar-composer|assistant-composer|dock-pin|bar-side|bar-chat|plu
 
 type Browser = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;
 
-/** ISSUE-30: declared Home tools stay inside the viewport, and the visible target can actually be reached. */
+/**
+ * ISSUE-30: declared Home tools stay inside the viewport, and the visible target can actually be reached. Since 07-1 S4b a Home
+ * tool with a chord (Issue) is reached by its glyph on the right side of the titlebar, no longer a titlebar button of its own.
+ */
 async function assertHomeToolsReachable(browser: Browser): Promise<void> {
   const report = await browser.evaluate<{ count: number; blocked: string[] }>(`(() => {
-    const nodes = [...document.querySelectorAll('[data-home-plugin-open]')];
+    const nodes = [...document.querySelectorAll('[data-side-tabs] [data-side-keys]')];
     const blocked = nodes.filter(el => {
       const r = el.getBoundingClientRect(), x = r.left + r.width / 2;
       const inside = r.width > 0 && r.height > 0 && r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight;
@@ -895,7 +896,7 @@ for (const scheme of ["light", "dark"] as const) {
       ["the project's settings", "settings", "!!document.querySelector('.tab-view-chip-close')"],
     ] as const) {
       const controls = await w.open(1280, 800, path, ready);
-      assert.deepEqual(controls.filter(control => w.short(control) < (control.kind === "home plugin" ? 32 : floors[control.area])).map(control => `${control.kind} ${control.w}×${control.h}`), [],
+      assert.deepEqual(controls.filter(control => w.short(control) < floors[control.area]).map(control => `${control.kind} ${control.w}×${control.h}`), [],
         `${name} · 1280: nothing in the strip is under ${floors.strip}px or in the bar under ${floors.bar}px`);
       assert.deepEqual(controls.filter(control => control.kind.startsWith("unlisted")).map(control => control.kind), [], `${name} · 1280: every control is a known one`);
       const input = controls.find(control => control.kind === "assistant input");
@@ -954,7 +955,7 @@ for (const scheme of ["light", "dark"] as const) {
 
     // A short window: DESIGN.md writes the Dock, resident and switcher buttons as 34px there, and the floors still hold.
     const shortWindow = await w.open(1280, 500, "", "true");
-    assert.deepEqual(shortWindow.filter(control => w.short(control) < (control.kind === "home plugin" ? 32 : floors[control.area])).map(control => `${control.kind} ${control.w}×${control.h}`), [],
+    assert.deepEqual(shortWindow.filter(control => w.short(control) < floors[control.area]).map(control => `${control.kind} ${control.w}×${control.h}`), [],
       "a short window · 1280×500: nothing in the strip is under 20px or in the bar under 28px");
     assert.deepEqual(shortWindow.filter(control => ["dock", "resident", "plugin switcher"].includes(control.kind) && control.area === "bar").map(control => control.h).filter(h => h !== 34), [],
       "a short window · 1280×500: the Dock, resident and switcher buttons are the 34px DESIGN.md writes");

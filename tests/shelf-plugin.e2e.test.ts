@@ -24,9 +24,10 @@ test("Shelf opens as the side panel's first tab, extracts the sample PDF, and ke
   await browser.waitFor("document.documentElement.dataset.resolvedTheme === 'light'");
   // 常开插件 (specs/side-shelf §3.2): Shelf is not in the plugin switcher and never opens in the work area. It is the side
   // panel's first tab, where the panel opens when this browser remembers no tab.
-  await browser.waitFor("document.querySelector('[data-side-toggle]')");
+  await browser.waitFor("document.querySelector('[data-side-tabs] [data-side-tab][aria-selected=true]')");
   assert.equal(await browser.evaluate("document.querySelector('[data-plugin-strip] [data-plugin-id=shelf], [data-plugin-section=shelf], [data-directory-panel=shelf], [data-work-surface=shelf]')?.outerHTML ?? null"), null);
-  await browser.click("[data-side-toggle]");
+  // 07-1 S4b: the bar's side button is gone; the side opens from its current glyph in the titlebar.
+  await browser.click("[data-side-tabs] [data-side-tab][aria-selected=true]");
   await browser.waitFor("document.querySelector('[data-side-tabs] [role=tab][aria-selected=true]')?.dataset.sideTab === 'plugin:shelf/side'");
   assert.equal(await browser.evaluate("document.querySelector('[data-side-tabs] [role=tab]')?.dataset.sideTab"), "plugin:shelf/side");
   await browser.waitFor(`document.querySelector('[data-side-body="plugin:shelf/side"] iframe')?.getAttribute('src') === ${JSON.stringify(`/projects/${projectId}/side/shelf/side`)}`);

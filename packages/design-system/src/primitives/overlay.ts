@@ -119,9 +119,8 @@ function describedItemIdent(label: string, description: string): string {
  * (`aria-describedby` → `<id>-desc`), so a screen reader says the name, then the consequence, instead of one run-on sentence.
  * `id` names the two; without one it is derived from the label and the description, so an item drawn twice on one page (the
  * same menu in two places) needs one from its caller. K2's composer client gives `<composer id>-delivery-<mode>`.
- * The description line's rules are the board's own until K2 (`COMPOSER_BOARD_STYLES` in catalog-composer.ts); K2 moves
- * `.mw-menu__item--described` and `.mw-menu__desc` into the page sheets. Until then a page that passes `description` gets
- * the unstyled line (squeezed into the item's one nowrap row), so no product page passes it before K2.
+ * The description line's rules are in the served primitive styles: it aims for one or two lines and wraps, never cut, and
+ * stays `--muted` on an item that cannot be chosen, since it is then the reason.
  */
 export function renderMenuItem(options: {
   label: string;

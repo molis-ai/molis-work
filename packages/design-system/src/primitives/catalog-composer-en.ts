@@ -52,7 +52,6 @@ export const COMPOSER_BOARD_EN: Readonly<Record<string, string>> = {
   "处理中 · 运行中 · 送达菜单": "Working · running · delivery menu",
   "顺便把失败截图也附上": "Attach the failure screenshots too",
   "正在做这一轮 · 再发会作为补充": "Working on this turn · a new message is added to it",
-  "补充（默认）": "Add (default)",
   "当前回复或这批工具结束后读到，不打断": "Read once the current reply or tool batch ends; nothing is cut off",
   "打断并改向": "Interrupt and redirect",
   "长说明没有标点 · 在框内折行": "Long description without punctuation · wraps inside",

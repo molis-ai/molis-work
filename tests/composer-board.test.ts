@@ -15,7 +15,21 @@ const sectionOf = (html: string, id: string) => {
 
 test("UIC-04: the board has a composer section with every state on one attribute", () => {
   const composer = sectionOf(renderPrimitiveCatalog(), "composer");
-  assert.equal(composer.match(/class="mw-composer" data-slot="composer"/g)?.length, 9, "nine specimens");
+  assert.equal(composer.match(/class="mw-composer" data-slot="composer"/g)?.length, 10, "ten specimens");
+  // The plain kind (the editor layer only, review desk): no receiver row, no ＋ when the page gives nothing behind it, no delivery.
+  const plain = composer.slice(composer.indexOf("普通 · 只有编辑器层"));
+  const plainShell = plain.slice(plain.indexOf('<div class="mw-composer"'), plain.indexOf("</figure>"));
+  assert.match(plainShell, /aria-label="评论"/);
+  assert.doesNotMatch(plainShell, /mw-composer__to|data-composer-add|data-compose-menu-toggle|data-composer-stop/);
+  // The running specimen's ▾ menu is the client's own (renderComposerDeliveryMenu): three modes, each with its consequence; the
+  // two with keys show them and interrupting has none.
+  const running = composer.slice(composer.indexOf('data-state="running"'));
+  for (const [mode, label, shortcut] of [["next-boundary", "补充", "⌘↵"], ["interrupt", "打断并改向", ""], ["after-run", "下一轮再做", "⌘⇧↵"]] as const) {
+    const item = new RegExp(`<button type="button" class="mw-menu__item mw-menu__item--described" role="menuitem" aria-labelledby="catalog-composer-running-delivery-${mode}-label" aria-describedby="catalog-composer-running-delivery-${mode}-desc" data-composer-delivery="${mode}">.*?</button>`, "s").exec(running)?.[0];
+    assert.ok(item, mode);
+    assert.match(item, new RegExp(`<span id="catalog-composer-running-delivery-${mode}-label">${label}</span><small class="mw-menu__desc"`));
+    if (shortcut) assert.match(item, new RegExp(`<span class="mw-menu__shortcut">${shortcut}</span>`)); else assert.doesNotMatch(item, /mw-menu__shortcut/);
+  }
   for (const state of ["sending", "running", "failed", "unknown", "disabled"]) assert.match(composer, new RegExp(`class="mw-composer" data-slot="composer" data-state="${state}"`), state);
   for (const part of ["mw-composer__to", "mw-composer__box", "mw-uploads mw-composer__files", "mw-composer__restore", "mw-composer__text", "mw-composer__status", "mw-composer__foot", "mw-composer__start", "mw-composer__end"]) {
     assert.match(composer, new RegExp(`class="[^"]*${part}`), part);

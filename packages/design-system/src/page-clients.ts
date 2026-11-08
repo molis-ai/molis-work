@@ -32,3 +32,5 @@ export const OVERFLOW_FADE_CLIENT_SCRIPT = readFileSync(new URL("../dist/overflo
 export const COPY_FEEDBACK_CLIENT_SCRIPT = readFileSync(new URL("../dist/copy-feedback-client.js", import.meta.url), "utf8").trim();
 /** The component board's demo behaviour (`browser/catalog.ts`): overlay specimens, motion and craft demos, composition menus. */
 export const CATALOG_CLIENT_SCRIPT = readFileSync(new URL("../dist/catalog-client.js", import.meta.url), "utf8").trim();
+/** `window.molisComposer`, the unified input (`browser/composer.ts`, specs/unified-input-voice §3.1, K2). */
+export const COMPOSER_CLIENT_SCRIPT = readFileSync(new URL("../dist/composer-client.js", import.meta.url), "utf8").trim();

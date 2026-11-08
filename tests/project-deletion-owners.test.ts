@@ -247,7 +247,8 @@ test("RAC-2457 deleting a project through the catalog removes the directory reco
     };
     // Each project also has its own default output directory, a row that stores no path (SSC-20).
     const named = () => directories().map(directory => directory.startsWith("project-output:") ? directory : basename(directory));
-    assert.deepEqual(named(), ["alone", "shared", `project-output:${gone}`, `project-output:${kept}`]);
+    // Rows come back by path; the two project ids are random, so their output rows are compared as a set.
+    assert.deepEqual(named().sort(), ["alone", "shared", `project-output:${gone}`, `project-output:${kept}`].sort());
 
     await catalog.deleteProject(deletion(gone));
 

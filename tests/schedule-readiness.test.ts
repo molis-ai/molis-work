@@ -20,6 +20,7 @@ import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { directScheduleActions } from "./schedule-direct-actions.js";
 import { scheduleHost, zh } from "./fixtures/schedule-host.js";
 import { initializeBoard } from "./fixtures/goals-board.js";
+import { directoriesOf } from "./fixtures/catalog-host.ts";
 
 // W2-18 decision 3: creating a scheduled task without a model or a bound workspace shows a hint in the form and still
 // allows creation. The workspace is what the runner checks when it wakes up; the model is read from the model catalog as a
@@ -53,7 +54,8 @@ async function configureModel(home: string, withCatalog: ReturnType<MolisWorkLoc
 
 test("the readiness action is a project query that reports what the Host reports, and the route maps to it", { timeout: 60_000 }, async () => withHome(async home => {
   let workspace: ProjectWorkspaceRef | null = null;
-  const host = new MolisWorkLocalHost({ homeDirectory: home, workspaceFor: () => workspace });
+  // The Host is bound to no catalog, so it is handed the folders it reads: the output is `workspace` when there is one.
+  const host = new MolisWorkLocalHost({ homeDirectory: home, workspaceFor: () => workspace, directoriesFor: id => directoriesOf(workspace ? [workspace] : [])(id) });
   const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "a" });
   const caller: ActionCallContext = { actor_id: "owner", project_id: "a", audience: "user", permissions: SCHEDULE_ACTION_PERMISSIONS };
   try {

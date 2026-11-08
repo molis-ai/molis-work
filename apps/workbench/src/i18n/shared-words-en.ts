@@ -92,6 +92,8 @@ export const SHARED_WORDS_EN: Record<string, string> = {
   "否": "No",
   "文件在读取时变化，请刷新": "The file changed while it was read. Refresh.",
   "这个目录不是 Git 仓库": "This folder isn't a Git repository",
+  "这个文件夹还没有建立，不是 Git 仓库": "This folder hasn't been made yet, so it isn't a Git repository",
+  "这个文件夹还没有建立，不是 Git 仓库，没有独立工作树": "This folder hasn't been made yet, so it isn't a Git repository and has no separate worktrees",
   "这个仓库还没有远端": "This repository has no remote yet",
   "这台电脑没有安装 GitHub CLI（gh）": "GitHub CLI (gh) isn't installed on this computer",
   "这台电脑找不到 Git": "Git can't be found on this computer",

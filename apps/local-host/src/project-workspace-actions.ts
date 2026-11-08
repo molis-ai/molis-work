@@ -49,7 +49,10 @@ function touched(before: ProjectDirectories, after: ProjectDirectories): string[
  * is committed from the revision the person read, after the call's authority is checked again (`beforeEffect`, inside the catalog commit).
  */
 export function projectWorkspaceActionProvider(projectId: string, catalogOwner: ProjectCatalogOwner, announce: WorkspaceSettingsAnnouncer,
-  materials: ProjectMaterialPorts): ActionProviderRegistration {
+  materials: ProjectMaterialPorts, readOnly?: (projectId: string) => ProjectDirectories | Promise<ProjectDirectories>): ActionProviderRegistration {
+  // A Host bound to no catalog (no Home, or one composed for a single project) may be handed the folders to read; it changes none of them.
+  const unbound = { available: false, code: "actions.service_unavailable", reason: "项目目录服务尚未装配" } as const;
+  const needsCatalog = () => catalogOwner() ? { available: true } as const : unbound;
   const owner = (caller: ActionCallContext) => {
     if (caller.project_id !== projectId) throw new ActionError("actions.scope_mismatch", "调用不属于当前项目");
     const catalog = catalogOwner();
@@ -62,7 +65,7 @@ export function projectWorkspaceActionProvider(projectId: string, catalogOwner: 
   };
   /** One change: offered to the local user alone, the audience that stands for the person's confirmation. */
   const change = (definition: ActionDefinition<unknown, ProjectDirectories>, read: (input: Record<string, unknown>) => DirectoryChange): ActionHandlerBinding => ({
-    capability_id: definition.capability_id, version: definition.version,
+    capability_id: definition.capability_id, version: definition.version, availability: needsCatalog,
     handle: async (caller, value) => {
       const { expected_revision: expectedRevision, ...rest } = value as Record<string, unknown> & { expected_revision: string };
       await caller.beforeEffect();
@@ -77,7 +80,8 @@ export function projectWorkspaceActionProvider(projectId: string, catalogOwner: 
   const target = (input: Record<string, unknown>) => "workspace_id" in input ? { workspace_id: String(input.workspace_id) }
     : "workspace_path" in input ? { workspace_path: String(input.workspace_path) } : { default_output: true as const };
   const handlers: ActionHandlerBinding[] = [
-    { ...a.get, handle: caller => withCatalog(caller, catalog => catalog.projectDirectories(projectId)) },
+    { ...a.get, handle: caller => !catalogOwner() && readOnly && caller.project_id === projectId ? readOnly(projectId)
+      : withCatalog(caller, catalog => catalog.projectDirectories(projectId)) },
     change(a.addInput as ActionDefinition<unknown, ProjectDirectories>, input => ({ kind: "add_input", workspace_path: String(input.workspace_path) })),
     change(a.removeInput as ActionDefinition<unknown, ProjectDirectories>, input => ({ kind: "remove_input", workspace_id: String(input.workspace_id) })),
     change(a.setOutput as ActionDefinition<unknown, ProjectDirectories>, input => ({ kind: "set_output", target: target(input) })),
@@ -87,11 +91,11 @@ export function projectWorkspaceActionProvider(projectId: string, catalogOwner: 
       return { kind: "map_source", source_workspace_id: String(source), target: target(rest) };
     }),
     change(a.unmapSource as ActionDefinition<unknown, ProjectDirectories>, input => ({ kind: "unmap_source", source_workspace_id: String(input.source_workspace_id) })),
-    ...materialHandlers(projectId, materials, withCatalog),
+    ...materialHandlers(projectId, materials, withCatalog).map(handler => ({ ...handler, availability: needsCatalog })),
   ];
   return { provider: { provider_id: PROJECT_WORKSPACE_PROVIDER_ID, title: "项目工作目录", kind: "system", project_id: projectId },
     definitions: [...Object.values(a), ...Object.values(materialRecentActions), ...Object.values(materialOriginActions)], handlers,
-    availability: () => catalogOwner() ? { available: true } : { available: false, code: "actions.service_unavailable", reason: "项目目录服务尚未装配" } };
+    availability: () => catalogOwner() || readOnly ? { available: true } : unbound };
 }
 
 /** Who a 「最近用过」 list belongs to: the person, or the plugin that made the call, both from the call context and never from input. */

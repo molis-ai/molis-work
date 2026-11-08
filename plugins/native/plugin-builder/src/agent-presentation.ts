@@ -16,7 +16,7 @@ export function presentationTask(build: Pick<AgentBuild, 'brief' | 'design'>, re
       ...(independentReader(design.parts, part.id) ? { detailUnavailableBecause: '已有独立正文 ' + independentReader(design.parts, part.id)!.id + ' 读取本集合的选中记录，保留它并关闭集合 detail' } : {}) })),
     vocabulary: PLUGIN_PRESENTATION_GUIDE,
     propKeys: PLUGIN_COMPONENT_PROP_KEYS,
-    syntaxExample: { summary: '这是完整 JSON 形状示例；请按任务自行设计布局', presentation: { version: 1,
+    syntaxExample: { summary: '这是完整 JSON 形状示例；请按任务自行设计布局', presentation: { version: /* @version format.plugin.presentation */ 1,
       pages: design.contract.pages.map(page => ({ pageId: page.id, layout: { layout: 'stack', children: design.parts.filter(part => part.pageId === page.id).map(part => ({ part: part.id })) } })), parts: {} } },
     propFormats: { title: '部件标题；Sheet/Dialog 同时用作入口按钮名称', submitLabel: '有 submit 绑定的部件，其实际提交按钮名称；不是标题区的新建按钮配置', columns: [{ field: '返回数据的字段名', label: '给用户看的名称', values: { '原始枚举值': '展示文字，可省略 values' } }], titleField: '返回对象或记录中的标题字段', textField: '返回对象或记录中的正文字段' },
     output: '只返回 summary、presentation、可选 props 三个字段的完整合法 JSON。presentation 中 version、pages、parts 是同级字段。props 是 {组件id:完整props}；columns 必须是 {field,label,values?} 对象的数组，不能写字符串或字段映射。每个部件引用一次，用尽量浅的布局树。kind 必须来自 choices。只改文案、列及展示，不改组件id、绑定、操作、验收，不返回业务 design。summary 只描述 JSON 中实际实现的取舍；未采用的评审建议可简述原因，不能声称修改了宿主拥有的样式或交互。' };

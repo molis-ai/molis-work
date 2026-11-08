@@ -119,7 +119,7 @@ With no Runtime connected Molis Work is still a full workbench: plugins work as 
 
 ### macOS Desktop (not yet publicly released)
 
-As of 2026-11-03, v0.3.0 remains a release draft and is not public. The latest public stable release, v0.2.0, has source only and does not represent the development features described here. To try them now, run from source as described below. Release scope and validation gaps are in the [v0.3.0 release record](docs/releases/v0.3.0.md).
+As of 2026-11-07, the product and built-in plugin versions have been reset to 0.1.0 for the new development baseline. The real Home on the development machine has been rebuilt clean from this baseline; this candidate has still not been published. The earlier v0.3.0 candidate remains a historical record; the published GoalBoard v0.2.0 has source only and does not represent the development features described here. To try them now, run from source as described below. Release scope and validation gaps are in the [0.1.0 candidate record](docs/releases/v0.1.0.md).
 
 Once a public installer is released, choose a DMG for your Mac from the actual assets on [GitHub Releases](https://github.com/molis-ai/molis-work/releases):
 
@@ -132,7 +132,7 @@ Development builds that are not signed with Developer ID and notarized by Apple 
 
 ### Run from source
 
-You need Node.js 24+, pnpm, and macOS (the persistent Web service currently uses LaunchAgent; other platforms can run Web in the foreground).
+You need Node.js 24.15.x (the exact version is pinned in `.nvmrc`), pnpm, and macOS (the persistent Web service currently uses LaunchAgent; other platforms can run Web in the foreground).
 
 ```bash
 git clone https://github.com/molis-ai/molis-work.git

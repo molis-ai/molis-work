@@ -28,6 +28,7 @@ export interface SideViewModel {
 }
 
 export interface SideViewDocumentInput {
+  readonly accountRegistration?: boolean;
   readonly projectPluginId: string;
   readonly viewId: string;
   readonly projectId: string;
@@ -61,7 +62,7 @@ export function renderSideViewDocument(input: SideViewDocumentInput): string | n
     title: `${view.title} · Molis Work`,
     // The workbench's own stylesheet (cached with the page), so a plugin's view looks here as it does on the stage.
     head_html: `<script>${input.themeBootstrapScript}</script>${input.headHtml}<link rel="stylesheet" href="/assets/molis-work-workbench.css"><style>${SIDE_VIEW_STYLES}</style>`,
-    body_attributes: { "data-project-id": input.projectId, "data-route-prefix": input.routePrefix, "data-side-view": `${input.projectPluginId}/${view.view_id}` },
+    body_attributes: { "data-project-id": input.projectId, "data-route-prefix": input.routePrefix, "data-side-view": `${input.projectPluginId}/${view.view_id}`, ...(input.accountRegistration ? {inert:true,'data-account-registering':true}:{}) },
     body_html: `${renderIconSprite()}<main class="side-view" data-side-view-root>${surfaceClient ? renderPluginFrameSurface(html, input.projectPluginId, view.title, false) : html}</main>
     <script src="/assets/molis-work-plugin-frame.js"></script>
     <script>${OVERFLOW_FADE_CLIENT_SCRIPT}

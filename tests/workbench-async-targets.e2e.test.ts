@@ -111,8 +111,8 @@ test("W2-18-MARKET-REFRESH-01: reopening the market after a switcher membership 
 async function installFileSource(browser: AuditBrowser, key: string, openId: string, read: () => string) {
   assert.ok(browser.localHost);
   const kinds = [{ kind: key + "-file", title: key.toUpperCase() + " files", surface: "pages" }];
-  const entries = defineFileEntriesAction("audit." + key + ".files.entries", kinds, key + " files", ["audit:read"]);
-  const content = defineFileContentAction("audit." + key + ".files.content", kinds, key + " files", ["audit:read"]);
+  const entries = defineFileEntriesAction("audit." + key + ".files.entries", 1, kinds, key + " files", ["audit:read"]);
+  const content = defineFileContentAction("audit." + key + ".files.content", 1, kinds, key + " files", ["audit:read"]);
   const title = key.toUpperCase() + " document", subject = { kind: key + "-file", id: "same-id" };
   const definition = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.audit." + key, version: "1.0.0", name: title,
     kind: "app", publisher: { publisher_id: "audit", signature: "audit-fixture" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],

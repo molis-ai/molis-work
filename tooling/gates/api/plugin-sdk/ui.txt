@@ -84,6 +84,8 @@ export declare const PLUGIN_ICON_NAMES: readonly ["presentation", "flask", "stat
 
 export type PluginIconName = typeof PLUGIN_ICON_NAMES[number];
 
+export type ReturnBarState = "waiting" | "look" | "ready" | "gone";
+
 export declare const STATE_RING_CORES: Record<string, string>;
 
 export declare const STATE_RING_FAMILIES: readonly [{
@@ -218,6 +220,11 @@ export declare function renderAlert(options: {
     body?: string;
     tone?: MwTone;
     className?: string;
+    state?: StateRingState;
+    actions?: readonly MwButtonOptions[];
+    rise?: boolean;
+    role?: "status" | "alert" | null;
+    attrs?: Record<string, AttrValue>;
 }): string;
 
 export declare function renderAttrs(attrs?: Record<string, AttrValue>): string;
@@ -367,6 +374,23 @@ export declare function renderInputGroup(options: {
 
 export declare function renderKbd(keys: string): string;
 
+export declare function renderKept(options: {
+    who: string;
+    text: string;
+    blankText?: string;
+    action: MwButtonOptions;
+    swapped?: boolean;
+    more?: {
+        label: string;
+        open?: boolean;
+        attrs?: Record<string, AttrValue>;
+    };
+    rise?: boolean;
+    index?: number;
+    className?: string;
+    attrs?: Record<string, AttrValue>;
+}): string;
+
 export declare function renderLabel(options: {
     text: string;
     forId?: string;
@@ -432,6 +456,23 @@ export declare function renderRadioGroup(options: {
     className?: string;
 }): string;
 
+export declare function renderResumePrompt(options: {
+    title: string;
+    body?: string;
+    resume: string;
+    dismiss: string;
+    className?: string;
+}): string;
+
+export declare function renderReturnBar(options: {
+    title: string;
+    body: string;
+    back: string;
+    label: string;
+    state?: ReturnBarState;
+    className?: string;
+}): string;
+
 export declare function renderScrollArea(options: {
     body: string;
     className?: string;
@@ -484,6 +525,11 @@ export declare function renderStatusMark(options: {
     plain?: boolean;
     className?: string;
     labelAttrs?: Record<string, AttrValue>;
+}): string;
+
+export declare function renderStepDot(options: {
+    label: string;
+    className?: string;
 }): string;
 
 export declare function renderSwitch(options: {

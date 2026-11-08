@@ -127,6 +127,7 @@ test("no model → settings → template → a failing check saves nothing → a
     await new Promise(resolve => setTimeout(resolve, 100));
     listed = await browser.web.get<States>(prefix + "/api/knowledge/states");
   }
+  // K01-01: the actual configured provider must receive the background card request.
   assert.equal(card()?.state, "ready", "the Home's real organizer received a valid card from the configured provider");
   assert.equal(standIn.requests.length, 2, "background organization does not consume a connection check");
 

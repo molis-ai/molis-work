@@ -1,0 +1,9 @@
+{
+  "reason": "13④d BL-1058 服务连接的密钥先查后存：连接页程序写被拒的话（密钥字段下 role=alert、aria-invalid、焦点回到框里）、限流到点再查（人改过就不自动重交）和存没存的结果，去掉旧的 /verify 补调（workbench.js）；「换密钥」一行表单里被拒那句单独占一行（settings.css、workbench.css 各一条规则）。两张表单共用一个 unsaved 处理，进度沿用已有的步骤条",
+  "review": "第 13 批统筹审过放行：#1903 issuecomment-6701382127 评审台同意，统筹放行",
+  "assets": {
+    "/assets/molis-work-workbench.js": 2024,
+    "/assets/molis-work-settings.css": 63,
+    "/assets/molis-work-workbench.css": 63
+  }
+}

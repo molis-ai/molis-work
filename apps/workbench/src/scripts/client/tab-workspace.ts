@@ -526,7 +526,10 @@ ${TAB_WORKSPACE_DRAG_PART}
     }
     const frame = panes.from(event);
     if (frame && event.data.type === "workbench-open-settings") {
-      document.dispatchEvent(new CustomEvent("molis-work:open-settings-path", { detail: { href: event.data.href || "" } }));
+      // A return trip's source is the pane this frame is (specs/draft-and-return §2.3, returnRelay in return-trips.ts), never the one it names.
+      const paneId = frame.dataset.paneOwner || "";
+      const surface = paneById(paneId)?.tabs.find(tab => tab.id === frame.dataset.paneTab)?.plugin || (frame.dataset.paneKey?.startsWith("plugin:") ? frame.dataset.paneKey.slice(7) : "");
+      document.dispatchEvent(new CustomEvent("molis-work:open-settings-path", { detail: molisWorkSettingsReturn.relay(event.data, paneId, surface) }));
       return;
     }
     if (!["workbench-pane-invalidate", "workbench-pane-focus", "workbench-pane-open", "workbench-pane-open-beside", "workbench-pane-view", "workbench-pane-history", "workbench-pane-solo"].includes(event.data?.type)) return;

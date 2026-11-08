@@ -82,7 +82,7 @@ test("RAC-2302 the project.created event records the project, not a path; the mo
 
 test("RAC-2303 the derived file name is the one the storage package names, and the catalog uses the declared current version", () => {
   assert.equal(projectDatabasePath("/home/projects", "p"), join("/home/projects", "p", PROJECT_DATABASE_FILENAME));
-  assert.equal(CATALOG_SCHEMA_VERSION, 26, "the current catalog includes synchronization and stores no path");
+  assert.equal(CATALOG_SCHEMA_VERSION, 1, "the current catalog includes synchronization and stores no path");
 });
 
 test("RAC-2303 a current catalog reopens; another version is refused without changing its bytes or project facts", async () => {
@@ -101,7 +101,7 @@ test("RAC-2303 a current catalog reopens; another version is refused without cha
     wrong.prepare("UPDATE catalog_meta SET value = ? WHERE key = 'schema_version'").run(String(CATALOG_SCHEMA_VERSION + 1));
     wrong.pragma("journal_mode = DELETE"); wrong.close();
     const before = readFileSync(file);
-    await assert.rejects(() => openMolisWorkProjectCatalog({ homeDirectory: home }), { code: "catalog.reader_too_old" });
+    await assert.rejects(() => openMolisWorkProjectCatalog({ homeDirectory: home }), { code: "storage.store_too_new" });
     assert.deepEqual(readFileSync(file), before);
     const preserved = openTestSqlite(file, { readonly: true });
     try {

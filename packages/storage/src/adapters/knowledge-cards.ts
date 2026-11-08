@@ -13,7 +13,7 @@ import { normalizeSearchText, relatedQueryPlan, searchQueryPlan, searchTokens } 
  */
 export const KNOWLEDGE_CARDS_STORE = "knowledge";
 
-export const KNOWLEDGE_CARDS_BASELINE: SqliteBaseline = { version: 1, schema: `
+export const KNOWLEDGE_CARDS_BASELINE: SqliteBaseline = { version: /* @version database.knowledge_cards_baseline */ 1, schema: `
 CREATE TABLE knowledge_cards (
   card_id INTEGER PRIMARY KEY, project_id TEXT NOT NULL, kind TEXT NOT NULL, object_id TEXT NOT NULL, body TEXT NOT NULL,
   UNIQUE (project_id, kind, object_id)

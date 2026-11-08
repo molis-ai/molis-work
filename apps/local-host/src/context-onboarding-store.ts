@@ -26,7 +26,7 @@ export interface ImportFile { path: string; staged?: string; bytes?: Buffer; rea
 export interface ContextFileMetadata { path: string; size: number; modified_ms: number; identity: string }
 /** A read material: its text and its original are staged in the journey (context-onboarding-staging.ts), named here by digest. */
 export interface ContextReference {
-  source_id: string; version: 1; label: string; title: string; path: string;
+  source_id: string; /** @record-revision First revision of an immutable staged source. */ version: 1; label: string; title: string; path: string;
   text: { sha256: string; bytes: number; chars: number };
   original: { filename: string; mime: string; sha256: string; size_bytes: number };
   artifact?: ArtifactReference;
@@ -80,7 +80,7 @@ export function contextJourneyId(value: unknown): string {
   return value;
 }
 /** The context onboarding store's one current schema (repository-anti-corruption §4.1). */
-export const CONTEXT_ONBOARDING_BASELINE: SqliteBaseline = { version: 1, schema: "CREATE TABLE journeys (id TEXT PRIMARY KEY, body TEXT NOT NULL, updated_at TEXT NOT NULL);" };
+export const CONTEXT_ONBOARDING_BASELINE: SqliteBaseline = { version: /* @version database.context_onboarding_baseline */ 1, schema: "CREATE TABLE journeys (id TEXT PRIMARY KEY, body TEXT NOT NULL, updated_at TEXT NOT NULL);" };
 export function withContextJourneys<T>(home: string, run: (store: ContextJourneyStore) => T): T {
   const db = openHomeSqliteDatabase(home, CONTEXT_ONBOARDING_HOME_STORE.path);
   try { return run(new ContextJourneyStore(db)); } finally { db.close(); }

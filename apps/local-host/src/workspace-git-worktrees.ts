@@ -107,7 +107,7 @@ export function createGitWorktreePort(workspacePath: string): GitWorktreePort {
     let origin: { version: number; owner: string; base: string };
     try { origin = JSON.parse(await git(ctx.root, ["config", "--local", "--get", metadataKey(row.branch)])); }
     catch { throw gitWorktreeErrors.not_owned("工作树缺少原始来源，不能猜测基线或接管"); }
-    if (origin?.version !== 1 || origin.owner !== ctx.root || !/^[0-9a-f]{40,64}$/u.test(origin.base)) {
+    if (origin?.version !== /* @version format.workspace.git-worktree */ 1 || origin.owner !== ctx.root || !/^[0-9a-f]{40,64}$/u.test(origin.base)) {
       throw gitWorktreeErrors.not_owned("工作树原始来源不属于当前工作区");
     }
     if (!(await lstat(row.directory)).isDirectory() || await realpath(row.directory) !== row.directory
@@ -149,7 +149,7 @@ export function createGitWorktreePort(workspacePath: string): GitWorktreePort {
       await ensureDirectory(ctx.directory);
       await git(ctx.root, ["worktree", "add", "-b", branch, directory, ctx.head]);
       // A metadata failure leaves the real worktree intact for reconciliation, never force-deletes it.
-      await git(ctx.root, ["config", "--local", metadataKey(branch), JSON.stringify({ version: 1, owner: ctx.root, base: ctx.head })]);
+      await git(ctx.root, ["config", "--local", metadataKey(branch), JSON.stringify({ version: /* @version format.workspace.git-worktree */ 1, owner: ctx.root, base: ctx.head })]);
       return { worktree_id: slotId, branch, base_commit: ctx.head, directory: path.relative(ctx.root, directory) };
     },
     async list() {

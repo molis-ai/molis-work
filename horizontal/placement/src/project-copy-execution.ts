@@ -1,6 +1,7 @@
 import {createHash} from 'node:crypto';
 import {setImmediate} from 'node:timers/promises';
 import {defineErrorCodes,requireSynchronous} from '@molis-ai/molis-work-contracts/platform/actions';
+import {compareCodeUnits} from '@molis-ai/molis-work-plugin-sdk';
 import type {ProjectCopyOwner} from '@molis-ai/molis-work-contracts/services/placement';
 import {projectCopyIdentities,type ProjectCopyIdentityInput} from './project-copy-identity.js';
 import type {ProjectCopyPreview,ProjectCopySource} from './project-copy-preview.js';
@@ -23,7 +24,7 @@ export async function executeProjectCopy(input:ProjectCopyExecution):Promise<Pro
  const operationId=input.operationId,sourceSpaceId=input.sourceSpaceId,targetSpaceId=input.targetSpaceId,projects=input.projects.map(project=>({...project})),fingerprint=input.fingerprint;
  const maps=projectCopyIdentities({operationId,sourceSpaceId,targetSpaceId,projects}),old=journal.get(operationId);
  if(old?.state==='complete'){
-  if(old.plan.sourceSpaceId!==sourceSpaceId||old.plan.targetSpaceId!==targetSpaceId||old.plan.fingerprint!==fingerprint||JSON.stringify(old.plan.projects)!==JSON.stringify(projects.map(p=>({sourceId:p.id,targetId:maps.project(p.id),title:p.title})).sort((a,b)=>a.sourceId.localeCompare(b.sourceId))))throw errors.copy_execution_stale('复制请求与已有回执不符');
+  if(old.plan.sourceSpaceId!==sourceSpaceId||old.plan.targetSpaceId!==targetSpaceId||old.plan.fingerprint!==fingerprint||JSON.stringify(old.plan.projects)!==JSON.stringify(projects.map(p=>({sourceId:p.id,targetId:maps.project(p.id),title:p.title})).sort((a,b)=>compareCodeUnits(a.sourceId,b.sourceId))))throw errors.copy_execution_stale('复制请求与已有回执不符');
   authorize();return old;
  }
  const sources=new Map(input.sources.map(source=>[source.ownerId,source.owner]));if(sources.size!==input.sources.length)throw errors.copy_execution_invalid('复制 owner 重复');

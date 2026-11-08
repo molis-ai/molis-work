@@ -149,6 +149,8 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       hideDirectory: () => immersiveNavigation?.hideDirectory(),
       showToast,
       projectId: state.project?.project_id || "",
+      returns: settingsReturn,
+      coverKind: () => tabWorkspace?.exclusive?.() || null,
     });
     if (goalData) bindGoalCreateEvents();
     addEventListener("popstate", (event) => {
@@ -398,7 +400,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     }, 4000);
     document.addEventListener("molis-work:attention", event => {
       const cursor = event.detail?.board_cursor;
-      if (goalData && typeof cursor === "number" && !goalStageShown() && cursor !== Number(state.snapshot.cursor)) void refreshBoard();
+      if (goalData && typeof cursor === "number" && !goalStageShown() && cursor !== goalData.boardCursor) void refreshBoard();
     });
     boardLifetime.own(() => clearTimeout(deferredRefreshTimer));
   })();

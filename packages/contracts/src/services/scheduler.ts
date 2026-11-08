@@ -2,9 +2,9 @@ import type { ContractDescriptor } from "../platform/package.js";
 import { defineErrorCodes } from "../platform/action-errors.js";
 
 export const servicesSchedulerContract = {
-  contractId: "io.molis.work.service.scheduler.v1",
+  contractId: /* @version contract.io.molis.work.service.scheduler "io.molis.work.service.scheduler.v{version}" */ "io.molis.work.service.scheduler.v1",
   kind: "service",
-  schemaVersion: 1,
+  schemaVersion: /* @version contract.io.molis.work.service.scheduler */ 1,
   maturity: "partial",
   ssot: "docs/horizontal/scheduler.md",
 } as const satisfies ContractDescriptor;

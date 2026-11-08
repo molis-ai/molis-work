@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import path from "node:path";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import type { ProjectPluginId } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -58,4 +59,27 @@ export function recordHostAlwaysOnAgreements(ledger: PluginConsentLedger, superv
     ledger.record({ plugin_id: manifest.plugin_id, publisher_signature: manifest.publisher.signature, manifest_digest: pluginManifestDigest(manifest),
       granted_by: "host_build", grants: [{ kind: "always_on", subject: consentSubject.alwaysOn() }], at });
   }
+}
+
+interface ReadOnlyPluginDirectory { readonly home: string; active: boolean; alwaysOn?: readonly ProjectPluginId[] }
+const readOnlyDirectories = new AsyncLocalStorage<ReadOnlyPluginDirectory>();
+/** Only explicit page projections or a fresh synchronous reach enumeration use this reader. */
+export function readOnlyAlwaysOnProjectPlugins(home: string): readonly ProjectPluginId[] {
+  const scope = readOnlyDirectories.getStore();
+  if (!scope?.active || scope.home !== path.resolve(home)) return alwaysOnProjectPlugins(home);
+  return scope.alwaysOn ??= Object.freeze(alwaysOnProjectPlugins(home));
+}
+/** Nested page projections share one Home directory; detached work cannot retain it after the request finishes. */
+export async function withReadOnlyPluginDirectory<T>(home: string | undefined, read: () => Promise<T>): Promise<T> {
+  if (!home) return read();
+  const existing = readOnlyDirectories.getStore(), resolved = path.resolve(home);
+  if (existing?.active && existing.home === resolved) return read();
+  const scope: ReadOnlyPluginDirectory = { home: resolved, active: true };
+  return readOnlyDirectories.run(scope, async () => { try { return await read(); } finally { scope.active = false; } });
+}
+
+/** A new current answer for one synchronous enumeration, independent of an older surrounding page projection. */
+export function withFreshReadOnlyPluginDirectory<T>(home: string, read: () => T): T {
+  const scope: ReadOnlyPluginDirectory = { home: path.resolve(home), active: true };
+  return readOnlyDirectories.run(scope, () => { try { return read(); } finally { scope.active = false; } });
 }

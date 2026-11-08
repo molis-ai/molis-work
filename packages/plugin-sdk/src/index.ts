@@ -41,6 +41,7 @@ export { cardInputValues, instantIn, wallClockIn } from "./card-values.js";
 export { QUESTION_LIMITS, questionProblems, questionSetFlaw } from "./question-rules.js";
 export { sceneConfigurationActions } from "@molis-ai/molis-work-contracts/platform/actions";
 export { createActionDefinition, defineAction } from "./actions.js";
+export { bindActionHandler, inputSchemaFor, type FlatUnion, type InferActionInput } from "@molis-ai/molis-work-contracts/platform/actions";
 /** The two binders: an HTTP route over an action, and an action over the local owner's personal state. A route answers a failure by its kind. */
 export { PLUGIN_ROUTE_STREAM_LIMITS, bindPluginActionRoute, bindOwnerPluginAction } from "./routes.js";
 export { PAGE_ROUTE_LIMITS, matchDeclaredPageRoute, matchPageRoute, pageRouteProblems, stageRequestParams, type DeclaredPageRouteMatch, type PageRouteMatch } from "./page-routes.js";
@@ -83,7 +84,7 @@ export { PLUGIN_MODEL_LIMITS } from "@molis-ai/molis-work-contracts/platform/plu
 export { defineInstructionPrompt, instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 export type { InstructionPrompt, InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 export type { ArtifactReference, ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
-export type { UiPluginClientHost, UiClientScope, UiClientTranslate, UiRequest, UiContribution, UiContributionDeclaration, UiContributionDescriptor, UiRenderRequest, UiPageActions, UiPageView, UiPageWorkspaces, UiPageReviewQuery, UiPageReviewOutcome, UiPageReviews, UiPageDrafts, UiPageDialogs, UiPageMessage, UiPageMessages, UiPageFiles, UiTerminalCommand, UiTerminalEvent, UiTerminalView, UiTerminalMountOptions, UiPageTerminal, UiPageTaskGrants, UiTaskGrantsAreaState } from "@molis-ai/molis-work-contracts/platform/ui";
+export type { UiPluginClientHost, UiClientScope, UiClientTranslate, UiRequest, UiContribution, UiContributionDeclaration, UiContributionDescriptor, UiRenderRequest, UiPageActions, UiPageView, UiPageWorkspaces, UiPageReviewQuery, UiPageReviewOutcome, UiPageReviews, UiPageDrafts, UiPageDialogs, UiPageMessage, UiPageMessages, UiPageFiles, UiTerminalCommand, UiTerminalEvent, UiTerminalView, UiTerminalMountOptions, UiPageTerminal, UiPageTaskGrants, UiTaskGrantsAreaState, UiConnectionNeedTarget, UiConnectionNeedOutcome, UiReturnNeed, UiReturnCarry, UiReturnOutcome, UiPageReturns } from "@molis-ai/molis-work-contracts/platform/ui";
 
 import type {
   IntegrationProviderPort,
@@ -301,7 +302,7 @@ export type { PluginInstallationClient, PluginInstallationProjects, PluginInstal
 export type { PluginNotificationClient, PluginNotificationDelivery, PluginNotificationDeliveryReceipt, PluginNotificationInput, PluginNotificationReceipt, PluginNotificationReceiverDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 export { PLUGIN_NOTIFICATION_DELIVERY_ACTOR } from "@molis-ai/molis-work-contracts/platform/plugin";
 export { arraySchema, nullableSchema, objectSchema } from "./action-schemas.js";
-export { canonicalJsonText, canonicalJsonValue, isRecord } from "./json-value.js";
+export { canonicalJsonText, canonicalJsonValue, compareCodeUnits, isRecord } from "./json-value.js";
 
 export { controlledConnectorFetch } from "./connector-call.js";
 

@@ -51,7 +51,7 @@ const id = { type: "string", minLength: 1 } as const;
  */
 export const agentOfferActions = {
   run: {
-    capability_id: "agent.offers.run", version: 1, operation: "command",
+    capability_id: "agent.offers.run", version: /* @version action.agent.offers.run */ 1, operation: "command",
     action: { title: "执行一轮的建议", description: "人点了一张建议卡：按这一轮自己的授权，只执行那条建议点名的动作（确切的引用与版本），输入经该动作自己的检查。引用不是这条建议的、动作已关闭或合同在建议之后变了，都拒绝且什么都不执行。只给插件调用。", kind: "operation", scope: "project", effect: "write", scheduling: "concurrent",
       audiences: ["plugin"], permissions: [], subject_kinds: [],
       input_schema: { type: "object", required: ["runtime_id", "session_id", "run_id", "offer_id", "reference", "input"], additionalProperties: false, properties: {

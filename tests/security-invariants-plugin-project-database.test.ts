@@ -300,6 +300,15 @@ test("PLIB-06 the step list is read against one SQLite, the Host's", async t => 
     "a new SQLite under better-sqlite3 means reading the step list again (project-database-statements.ts), then this pin");
 });
 
+test("PLIB-06 SQLD-06 a Host on another SQLite than the step list was read against refuses every statement; what the Host says at start does not change that", () => {
+  const record = notesRecord("io.molis.work.example.libprobe");
+  for (const version of ["3.51.2", "3.53.4", "3.54.1", ""]) {
+    // The guard asks the connection for its own version before it hands out a single check, so no statement of this plugin gets one.
+    const other = { exec: () => undefined, prepare: (sql: string) => ({ get: () => sql.includes("sqlite_version()") ? { version } : undefined, all: () => [], run: () => undefined }) };
+    assert.throws(() => pluginStatementGuard(other, record), { ...REFUSED, message: new RegExp(PLUGIN_STATEMENT_SQLITE_VERSION.replaceAll(".", "\\.")) }, `SQLite "${version}"`);
+  }
+});
+
 test("PLIB-06 the check reads the library's tables again once the schema changes: a root page the plugin's was can be someone else's after", async t => {
   const { store, mine } = await platform(t);
   const guard = pluginStatementGuard(store.db, notesRecord(mine.id, ["libprobe_later"]));

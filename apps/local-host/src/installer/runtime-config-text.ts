@@ -1,6 +1,7 @@
 import { installerErrors } from "./errors.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createHash } from "node:crypto";
+import { canonicalJsonText } from "@molis-ai/molis-work-plugin-sdk";
 
 
 function invalidToml(): never {
@@ -262,14 +263,7 @@ export function objectOrEmpty(value: unknown): Record<string, unknown> {
 }
 
 export function canonicalJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
-  if (value && typeof value === "object") {
-    return `{${Object.entries(value as Record<string, unknown>)
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([key, item]) => `${JSON.stringify(key)}:${canonicalJson(item)}`)
-      .join(",")}}`;
-  }
-  return JSON.stringify(value);
+  return canonicalJsonText(value, "literal")!;
 }
 
 function detectJsonIndent(contents: string): number {

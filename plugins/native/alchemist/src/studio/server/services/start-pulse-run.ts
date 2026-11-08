@@ -6,7 +6,7 @@ import type { SqliteDatabase } from "../db/open-database.js";
 import type { SqlitePulseRepository } from "../db/pulse-repository.js";
 import type { SqliteJobRunner } from "../jobs/sqlite-job-runner.js";
 
-export const DISCOVERY_PULSE_JOB = "discovery.pulse.v1";
+export const DISCOVERY_PULSE_JOB = /* @version type.discovery.pulse "discovery.pulse.v{version}" */ "discovery.pulse.v1";
 
 export interface DiscoveryPulseJobInput {
   pulseRunId: string;

@@ -34,7 +34,7 @@ export interface State {
   SECTION_SHORT: Record<string, string>;
   SESSION_STATE: Record<string, string>;
   actionSelections: Map<string, readonly ActionRef[]>;
-  adoptedConfigurations: Map<string, string>;
+  adoptedConfigurations: Map<string, string | undefined>;
   allRuns: RunView[];
   answeredQuestions: Set<string>;
   artifactRows: ArtifactRow[];

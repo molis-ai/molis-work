@@ -21,7 +21,7 @@ type RoundInputOutcome = "answered" | "steered" | "queued";
 export interface SendIntent { id?: string; target?: AssistantSendInput["target"]; delivery?: AgentSteerMode; byHost?: boolean; about?: string; original_input?: Omit<HostOfferedOriginalInput, "action">; continued_from?: AgentRunRef }
 
 /** Source identities point into the Runtime's immutable originals; run_id is only the route used to re-read them. */
-export interface AssistantMemorySourceRef { run_id: string; input_id: string | null; version: "1"; original?: AgentOriginalInputRef }
+export interface AssistantMemorySourceRef { run_id: string; input_id: string | null; /** @record-revision Initial revision of immutable source input. */ version: "1"; original?: AgentOriginalInputRef }
 export interface AssistantMemorySource extends AssistantMemorySourceRef { text: string }
 export function memorySourceIdentity(source: AssistantMemorySourceRef): string {
   return JSON.stringify(source.original ? ["original", source.original.session_id, source.original.input_id, source.original.version] : ["input", source.input_id, source.version]);

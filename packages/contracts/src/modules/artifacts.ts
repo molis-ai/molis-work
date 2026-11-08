@@ -1,9 +1,9 @@
 import type { ContractDescriptor } from "../platform/package.js";
 
 export const modulesArtifactsContract = {
-  contractId: "io.molis.work.module.artifacts.v1",
+  contractId: /* @version contract.io.molis.work.module.artifacts "io.molis.work.module.artifacts.v{version}" */ "io.molis.work.module.artifacts.v1",
   kind: "module",
-  schemaVersion: 1,
+  schemaVersion: /* @version contract.io.molis.work.module.artifacts */ 1,
   maturity: "partial",
   ssot: "docs/modules/artifacts.md",
 } as const satisfies ContractDescriptor;
@@ -29,7 +29,7 @@ export interface ArtifactReference {
 export const ARTIFACT_SUBJECT_KIND = "artifact";
 
 /** Imports a file into the caller's current project through its owner. */
-export const ARTIFACT_FILE_IMPORT_ACTION = { capability_id: "artifacts.import.file", version: 1, provider_id: "io.molis.work.artifacts" } as const;
+export const ARTIFACT_FILE_IMPORT_ACTION = { capability_id: "artifacts.import.file", version: /* @version action.artifacts.import.file */ 1, provider_id: "io.molis.work.artifacts" } as const;
 
 /**
  * An imported file or document in the 成果库 (specs/artifact-positioning A3): its type, and its original file as imported

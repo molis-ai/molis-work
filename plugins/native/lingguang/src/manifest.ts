@@ -14,11 +14,11 @@ const MATERIAL_BYTES = 36_000_000;
 const BODY_BYTES = 1_000_000;
 
 export const lingguangManifest: PluginManifest = {
-  schema_version: 1,
-  host_api_version: 1,
+  schema_version: /* @version manifest.schema */ 1,
+  host_api_version: /* @version host.api */ 1,
   plugin_id: LINGGUANG_PLUGIN_ID,
   sync: lingguangSync,
-  version: "0.3.0",
+  version: /* @version product.release */ "0.1.0",
   name: "灵光",
   name_en: "Lingguang",
   summary: "先记下想法，再决定留下或丢掉。",

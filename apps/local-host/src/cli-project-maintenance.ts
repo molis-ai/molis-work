@@ -1,3 +1,11 @@
+import {existsSync} from "node:fs";
+import {join} from "node:path";
+import {connectResidentAccount,type ResidentAccountConnection} from "./resident-account-connection.js";
+import {catalogManagementProjects} from "./management-action-client.js";
+import {actionGatewayHomeId} from "./action-gateway.js";
+import {readStorageSpace} from "@molis-ai/molis-work-storage";
+import {NATIVE_SESSION_FILE} from "./personal-native-session.js";
+import {WEB_CONTROL_TOKEN_RELATIVE_PATH} from "./web-control-token.js";
 import { cliFlagValue as flag, printCliJson, printCliLine } from "@molis-ai/molis-work-app-cli";
 import type { ProjectDeletionResult } from "@molis-ai/molis-work-contracts/modules/projects";
 import { createLocalUninstallService } from "./local-uninstall.js";
@@ -57,16 +65,17 @@ function printDemoResult(action: string, result: object | null, json: boolean): 
  * nothing listens): there is nothing to ask, and the command deletes in its own process. A Host that answers and refuses
  * stops the command, whatever the reason; it does not delete behind that Host's back.
  */
-async function removeDemoThroughResidentHost(homeDirectory: string | undefined): Promise<ProjectDeletionResult | null> {
+async function removeDemoThroughResidentHost(homeDirectory: string | undefined,action="remove",connected?:ResidentAccountConnection): Promise<object | null> {
   const address = process.env[RESIDENT_HOST_URL_ENV]?.trim() || DEFAULT_RESIDENT_HOST_URL;
-  const answer = await postToResidentHost({ origin: residentHostOrigin(address), homeDirectory: homeDirectory ?? resolveConfiguredHome(),
-    path: "/api/settings/demo", body: { action: "remove", user_confirmed: true },
+  const answer = await postToResidentHost({ origin: residentHostOrigin(address), homeDirectory: homeDirectory ?? resolveConfiguredHome(),controlToken:connected?.controlToken,homeId:connected? actionGatewayHomeId(connected.homeDirectory):undefined,
+    path: "/api/settings/demo", body: { action, user_confirmed: true },
     retryHint: "先运行不带 --confirm 的 molis-work demo remove，看示例项目还在不在" });
   if (!answer) return null;
   if (!answer.ok) {
     const reason = typeof answer.body.error === "string" ? answer.body.error : `HTTP ${answer.status}`;
     throw new Error(`${address} 上的常驻服务没有删除示例项目：${reason}（如果这个 Home 的常驻服务在别的地址，用环境变量 ${RESIDENT_HOST_URL_ENV} 指定）`);
   }
+  if(action!=="remove")return answer.body;
   const { deletion, replayed } = answer.body as { deletion?: ProjectDeletionResult["deletion"]; replayed?: unknown };
   if (!deletion || typeof deletion !== "object" || typeof replayed !== "boolean") throw new Error(`${address} 上的常驻服务的删除回执无效`);
   return { deletion, replayed };
@@ -79,11 +88,24 @@ export async function runLocalDemoCli(args: string[], withMolisWorkProjectCatalo
   }
   const action = args[1];
   if (!["create", "reset", "remove"].includes(action)) throw new Error(`未知 demo 操作: ${action}`);
-  const homeDirectory = flag(args, "--home");
-  if (action === "remove" && args.includes("--confirm")) {
-    const forwarded = await removeDemoThroughResidentHost(homeDirectory);
+  let homeDirectory = flag(args, "--home");
+  const home=homeDirectory??resolveConfiguredHome();
+  const required=homeDirectory===undefined&&readStorageSpace(home)?.kind!=="personal";
+  const connected=required||existsSync(join(home,NATIVE_SESSION_FILE))||existsSync(join(home,WEB_CONTROL_TOKEN_RELATIVE_PATH))?await connectResidentAccount(home,process.env[RESIDENT_HOST_URL_ENV]?.trim()||DEFAULT_RESIDENT_HOST_URL,undefined,required):undefined;
+  const allowLocalFallback=homeDirectory!==undefined&&!connected?.installation;
+  if(connected)homeDirectory=connected.homeDirectory;
+  if ((connected||action === "remove") && args.includes("--confirm")) {
+    const forwarded = await removeDemoThroughResidentHost(homeDirectory,action,connected);
     if (forwarded) { printDemoResult(action, forwarded, args.includes("--json")); return 0; }
+    if(!allowLocalFallback)throw new Error("当前账号宿主已断开，请显式重连；没有执行本地回退。");
   }
+  if(connected&&!args.includes("--confirm")){
+    const demo=catalogManagementProjects(homeDirectory!).find(project=>project.data_class==="regenerable_demo")??null;
+    const status=action==="create"&&demo?"no_change":action!=="create"&&!demo?"unavailable":"ready";
+    const preview={action,status,demo_project:demo,confirmation:"未执行；确认后重新运行并加 --confirm。"};
+    if(args.includes("--json"))printCliJson(preview);else printCliLine(preview.confirmation);return status==="unavailable"?1:0;
+  }
+  if(!allowLocalFallback)throw new Error("当前账号连接凭据缺失，请显式重新连接；不能打开匿名业务。");
   return await withMolisWorkProjectCatalog({ homeDirectory }, async (catalog) => {
     const demo = catalog.listProjects().find((project) => project.data_class === "regenerable_demo") ?? null;
     if (!args.includes("--confirm")) {

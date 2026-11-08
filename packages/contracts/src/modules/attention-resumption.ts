@@ -2,9 +2,9 @@ import { defineErrorCodes } from "../platform/action-errors.js";
 import type { ContractDescriptor } from "../platform/package.js";
 
 export const modulesAttentionResumptionContract = {
-  contractId: "io.molis.work.module.attention-resumption.v1",
+  contractId: /* @version contract.io.molis.work.module.attention-resumption "io.molis.work.module.attention-resumption.v{version}" */ "io.molis.work.module.attention-resumption.v1",
   kind: "module",
-  schemaVersion: 1,
+  schemaVersion: /* @version contract.io.molis.work.module.attention-resumption */ 1,
   maturity: "partial",
   ssot: "docs/modules/attention-resumption.md",
 } as const satisfies ContractDescriptor;

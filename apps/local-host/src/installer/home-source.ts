@@ -70,7 +70,7 @@ export async function assertFreshRepositoryBuild(sourceDirectory: string): Promi
   const manifestPath = path.join(sourceDirectory, "dist", ".molis-work-build.json");
   const manifest = await readJsonIfPresent<MolisWorkBuildManifest>(manifestPath);
   const currentDigest = await computeBuildSourceDigest(sourceDirectory);
-  if (manifest?.schema_version === 1 && manifest.source_digest === currentDigest) return;
+  if (manifest?.schema_version === /* @version format.build.manifest */ 1 && manifest.source_digest === currentDigest) return;
   throw installerErrors["installer.source.build_stale"](`Molis Work 源码与 dist 不一致，已停止安装旧构建。请在仓库运行 pnpm install:local（它会先 build）后重试: ${sourceDirectory}`);
 }
 

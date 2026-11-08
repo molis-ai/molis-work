@@ -6,7 +6,7 @@ import type { MolisWorkWebServiceManager } from "./web-service.js";
 import type { MolisWorkLocalHost } from "../project-host.js";
 import type { HomeSnapshotStoreRegistry } from "../home-store-snapshot.js";
 import type { MolisWorkWebServicePlan } from "./web-service-contract.js";
-export const UNINSTALL_OWNER = "molis-work-uninstall-v1";
+export const UNINSTALL_OWNER = /* @version type.molis-work-uninstall "molis-work-uninstall-v{version}" */ "molis-work-uninstall-v1";
 
 export interface MolisWorkUninstallChange {
   kind: "runtime" | "web_service" | "demo" | "launcher" | "release" | "install_manifest" | "user_data";
@@ -64,7 +64,7 @@ interface CatalogInspection {
 }
 
 export interface UninstallReceipt {
-  schema_version: 1;
+  schema_version: /* @version format.home.uninstall.receipt */ 1;
   owner: typeof UNINSTALL_OWNER;
   plan_id: string;
   home_directory: string;

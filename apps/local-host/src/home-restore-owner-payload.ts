@@ -22,11 +22,11 @@ export function preflightSnapshotFile(home: string, archive: string, owner: stri
   const binding = JSON.stringify(["home-snapshot-file/v1", owner, entry.path]);
   const wrapper = restoreRecord(readRestoreJson(join(archive, entry.payload_path)));
   restoreFields(wrapper, ["schema_version", "binding", "payload"]);
-  if (wrapper.schema_version !== 1 || wrapper.binding !== binding || entry.binding !== binding) throw invalidRestore();
+  if (wrapper.schema_version !== /* @version format.home.snapshot.file-wrapper */ 1 || wrapper.binding !== binding || entry.binding !== binding) throw invalidRestore();
   let contents: unknown;
   try { contents = JSON.parse(openExistingHomePayload(home, binding, wrapper.payload)) as unknown; } catch { throw invalidRestore(); }
   const body = restoreRecord(contents); restoreFields(body, ["schema_version", "path", "mode", "contents_base64"]);
-  if (body.schema_version !== 1 || body.path !== entry.path || body.mode !== entry.mode || typeof body.contents_base64 !== "string"
+  if (body.schema_version !== /* @version format.home.snapshot.file-body */ 1 || body.path !== entry.path || body.mode !== entry.mode || typeof body.contents_base64 !== "string"
     || body.contents_base64.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/u.test(body.contents_base64) || body.contents_base64.length > 4 * Math.ceil(32 * 1024 * 1024 / 3)) throw invalidRestore();
   const bytes = Buffer.from(body.contents_base64, "base64");
   if (bytes.length > 32 * 1024 * 1024 || bytes.toString("base64") !== body.contents_base64) throw invalidRestore();

@@ -8,7 +8,7 @@ import { MolisWorkLocalHost, molisWorkHostProjectReference, projectActionAvailab
 import { INBOX_ACTION_PERMISSIONS, inboxActions, inboxNextScene, inboxSceneBindingId } from "@molis-ai/molis-work-plugin-inbox";
 import { createFunctionsService } from "@molis-ai/molis-work-module-judgment-rules";
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 
 test("system capability pages derive unknown capabilities, bindings, lifecycle and scoped history from the real Host", { timeout: 30_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "capability-page-"));

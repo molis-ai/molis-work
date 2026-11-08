@@ -12,7 +12,7 @@ import type { NodeHost } from "./prologue-node-kit.js";
  * solely in Prologue's session ledger.
  */
 export interface SessionIndex {
-  schema: 1;
+  schema: /* @version format.prologue.session-index */ 1;
   /** Rooted child sessions may omit this; their frozen intent carries the authorized directory. */
   workspace?: "required" | "none" | "business";
   parent_run?: AgentRunRef;
@@ -49,7 +49,7 @@ export function createSessionIndexStore(host: NodeHost, appId: string): SessionI
     const bytes = new TextEncoder().encode(JSON.stringify(value));
     try {
       const record = await host.storage.commit({ kind: indexKind, id: value.ref.id,
-        expectedVersion: indexes.get(value.ref.id)?.version ?? 0, metadata: { schema: 1 }, secureBody: bytes });
+        expectedVersion: indexes.get(value.ref.id)?.version ?? 0, metadata: { schema: /* @version format.prologue.session-index */ 1 }, secureBody: bytes });
       indexes.set(value.ref.id, { value: structuredClone(value), version: record.version });
     } finally { bytes.fill(0); }
   };
@@ -61,7 +61,7 @@ export function createSessionIndexStore(host: NodeHost, appId: string): SessionI
     const bytes = await host.storage.readSecure({ kind: indexKind, id });
     try {
       const value: SessionIndex = JSON.parse(new TextDecoder().decode(bytes));
-      if (value.schema !== 1 || value.ref?.id !== id || value.ref?.kind !== "session"
+      if (value.schema !== /* @version format.prologue.session-index */ 1 || value.ref?.id !== id || value.ref?.kind !== "session"
         || typeof value.title !== "string" || !Array.isArray(value.attempts)
         || ![value.owner?.project_id, value.owner?.plugin_id, value.owner?.install_id].every(v => typeof v === "string" && v.length > 0)) {
         throw new Error("Coding 会话归属索引损坏，不能当作空会话继续");

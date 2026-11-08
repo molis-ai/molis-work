@@ -10,7 +10,7 @@ import { DEFAULT_GOAL_POLICY } from "./fixtures/goals-modules.js";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { readMcpActionAccess } from "@molis-ai/molis-work-test-kit/local-host-http";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { serveTestHost } from "./fixtures/test-home.js";
 import { callerPlugin, projectPluginCaller, type CallerPlugin } from "./fixtures/plugin-callers.js";
 import { goalApplicationOf, boardSnapshot } from "./fixtures/goal-application.js";

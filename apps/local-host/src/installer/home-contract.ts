@@ -1,12 +1,14 @@
+import type { VersionedFile, VersionedFileStep } from "@molis-ai/molis-work-storage";
 /** App-owned installation API and release-format types. No project facts. */
 
-export const INSTALLER_ID = "molis-work-home-install-v1";
+export const INSTALLER_ID = /* @version type.molis-work-home-install "molis-work-home-install-v{version}" */ "molis-work-home-install-v1";
 
 export function isOwnedInstaller(installer: unknown): boolean {
   return installer === INSTALLER_ID;
 }
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = /* @version format.home.installation */ 1;
+export const UPGRADES: readonly VersionedFileStep[] = [];
 
 /** Skills that must exist in the install source and every owned release. */
 export const REQUIRED_RELEASE_SKILL_FILES = [
@@ -150,3 +152,11 @@ export interface TextMutation {
   filePath: string;
   previous: string | null;
 }
+
+/** What `config/installation.json` and a `release.json` have to be after their steps (§2.6). The two share `SCHEMA_VERSION`, and so share their steps. */
+const currentOnly = <T>(accepts: (value: unknown) => value is T): VersionedFile<T> => ({
+  version: SCHEMA_VERSION, field: "schema_version", upgrades: UPGRADES,
+  parse: value => { if (!accepts(value)) throw new Error("not the current format"); return value; },
+});
+export const INSTALLATION_FILE = currentOnly(isCurrentInstallManifest);
+export const RELEASE_FILE = currentOnly(isCurrentReleaseManifest);

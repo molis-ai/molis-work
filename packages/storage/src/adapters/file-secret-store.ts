@@ -1,14 +1,15 @@
 import { isRecord } from "@molis-ai/molis-work-plugin-sdk";
 /**
- * SecretStore v2 — AES-256-GCM ciphertext only; never returns plaintext to Item rows.
+ * SecretStore — AES-256-GCM ciphertext only; never returns plaintext to Item rows.
  *
  * Backend selection (first match):
  *  1. MOLIS_WORK_ENCRYPTION_KEY env → env-key + AES-GCM file map
  *  2. darwin + keychain available → master key in Keychain, ciphertext in secrets.json
  *  3. otherwise → install key file (0600) + AES-GCM secrets.json
  *
- * Only the current AES-GCM format (file version 1) is read; an older file is refused rather than upgraded
- * (repository-anti-corruption §9.5 #4: the real Home held no v0.3 envelope on 2026-10-04).
+ * Only the current AES-GCM format is read. An older file is refused here too: the upgrade process takes it (`SECRET_STORE_FILE`), and reading
+ * never converts. Only the map's version is in the chain: `format.secret-store.envelope` and `.home-payload` stay at 1 (user 2026-11-08), and
+ * a new way of sealing has to raise the map with them (upgrade-chain-design §8.2).
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -23,6 +24,7 @@ import { execFileSync } from "node:child_process";
 import { withFileLock } from './file-lock.js';
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { atomicWriteFileSync } from "./atomic-write.js";
+import type { VersionedFile, VersionedFileStep } from "../versioned-file.js";
 import { readProductEnv, resolveHomeSecurityDirectory, resolveMolisWorkHome, runWithMolisWorkHome } from "./local-security-paths.js";
 
 export interface SecretStore {
@@ -60,23 +62,24 @@ export interface SecretStoreBackendInfo {
   formatVersion: number;
 }
 
-const FORMAT_VERSION = 1;
+const FORMAT_VERSION = /* @version format.secret-store.map */ 1;
+const FORMAT_UPGRADES: readonly VersionedFileStep[] = [];
 const ALG = "aes-256-gcm" as const;
 const KEYCHAIN_SERVICE = "com.molis.work.feed.secretstore";
 const KEYCHAIN_ACCOUNT = "install-master-key";
-/** Historical key-derivation constant. Changing the string would invalidate existing ciphertext. */
-const ENV_KEY_SALT = "goalboard-feed-secretstore-v1";
+/** Passphrase derivation for the clean Home starting point; no earlier salt is tried. */
+const ENV_KEY_SALT = "molis-work-secretstore-v1";
 
-/** On-disk sealed entry (v2). */
-interface SealedV2 {
-  v: 2;
+/** On-disk sealed entry. */
+interface SealedEnvelope {
+  v: /* @version format.secret-store.envelope */ 1;
   alg: typeof ALG;
   iv: string;
   tag: string;
   ct: string;
 }
 
-interface SecretsFileV2 {
+interface SecretsFile {
   version: number;
   backend: SecretStoreBackendKind;
   entries: Record<string, string>;
@@ -296,7 +299,7 @@ function resolveMasterKey(): ResolvedMaster {
   return masterInfo("aes-gcm-file", loadOrCreateInstallKeyFile());
 }
 
-function sealV2(plaintext: string, key: Buffer, aad?: Buffer): string {
+function sealEnvelope(plaintext: string, key: Buffer, aad?: Buffer): string {
   const iv = randomBytes(12);
   const cipher = createCipheriv(ALG, key, iv);
   if (aad) cipher.setAAD(aad);
@@ -305,8 +308,8 @@ function sealV2(plaintext: string, key: Buffer, aad?: Buffer): string {
     cipher.final(),
   ]);
   const tag = cipher.getAuthTag();
-  const sealed: SealedV2 = {
-    v: 2,
+  const sealed: SealedEnvelope = {
+    v: /* @version format.secret-store.envelope */ 1,
     alg: ALG,
     iv: iv.toString("base64"),
     tag: tag.toString("base64"),
@@ -315,10 +318,10 @@ function sealV2(plaintext: string, key: Buffer, aad?: Buffer): string {
   return Buffer.from(JSON.stringify(sealed)).toString("base64");
 }
 
-function openV2(sealed: string, key: Buffer, aad?: Buffer): string | null {
+function openEnvelope(sealed: string, key: Buffer, aad?: Buffer): string | null {
   try {
-    const raw = JSON.parse(Buffer.from(sealed, "base64").toString("utf8")) as SealedV2;
-    if (raw.v !== 2 || raw.alg !== ALG || typeof raw.iv !== "string" || typeof raw.tag !== "string" || typeof raw.ct !== "string") {
+    const raw = JSON.parse(Buffer.from(sealed, "base64").toString("utf8")) as SealedEnvelope;
+    if (raw.v !== /* @version format.secret-store.envelope */ 1 || raw.alg !== ALG || typeof raw.iv !== "string" || typeof raw.tag !== "string" || typeof raw.ct !== "string") {
       return null;
     }
     const iv = Buffer.from(raw.iv, "base64");
@@ -335,7 +338,7 @@ function openV2(sealed: string, key: Buffer, aad?: Buffer): string | null {
   }
 }
 
-function loadFile(): SecretsFileV2 {
+function loadFile(): SecretsFile {
   const p = secretsPath();
   if (!fs.existsSync(p)) {
     return { version: FORMAT_VERSION, backend: "aes-gcm-file", entries: {} };
@@ -343,13 +346,20 @@ function loadFile(): SecretsFileV2 {
   return parseSecretsFile(fs.readFileSync(p, "utf8"));
 }
 
-function parseSecretsFile(contents: string): SecretsFileV2 {
+function parseSecretsFile(contents: string): SecretsFile {
   let parsed: unknown;
   try {
     parsed = JSON.parse(contents);
   } catch {
     throw new Error("secrets file is corrupt");
   }
+  return parseSecretsValue(parsed);
+}
+
+/** `feed/secrets.json` for the upgrade process. Its steps go through a `SecretStore`, never around it, and its group is the stores it seals (§8.2). */
+export const SECRET_STORE_FILE: VersionedFile<SecretsFile> = { version: FORMAT_VERSION, field: "version", upgrades: FORMAT_UPGRADES, parse: parseSecretsValue };
+
+function parseSecretsValue(parsed: unknown): SecretsFile {
   if (!isRecord(parsed)) {
     throw new Error("secrets file has invalid structure");
   }
@@ -382,7 +392,7 @@ const snapshotErrors = defineErrorCodes("storage.secrets_snapshot", {
 });
 
 export interface SealedSecretsSnapshotInspection {
-  version: 1;
+  version: /* @version format.secret-store.map */ 1;
   backend: SecretStoreBackendKind;
   entries: number;
   key_reference: { location: string; sha256: string } | null;
@@ -404,20 +414,20 @@ function snapshotHome(homeDirectory: string): string {
 /** Reads only existing master material selected by the supplied vault, not the possibly damaged live vault. */
 function openSnapshot(homeDirectory: string, contents: string) {
   snapshotHome(homeDirectory);
-  let file: SecretsFileV2;
+  let file: SecretsFile;
   try { file = parseSecretsFile(contents); }
-  catch { throw snapshotErrors.invalid("凭据快照不是现行的 v2 密文格式或后端"); }
+  catch { throw snapshotErrors.invalid("凭据快照不是现行的密文格式或后端"); }
   return openSnapshotFile(homeDirectory, file);
 }
 
-function openSnapshotFile(homeDirectory: string, file: SecretsFileV2) {
+function openSnapshotFile(homeDirectory: string, file: SecretsFile) {
   const opened = new Map<string, string>();
   if (Object.keys(file.entries).length === 0) return { file, opened, master: null };
   let master: ResolvedMaster;
   try { master = runWithMolisWorkHome(homeDirectory, () => readExistingMasterKey(file.backend)); }
   catch { throw snapshotErrors.key_unavailable("原 Home 的凭据主密钥不可用；不会创建替代密钥"); }
   for (const [ref, sealed] of Object.entries(file.entries)) {
-    const value = openV2(sealed, master.key);
+    const value = openEnvelope(sealed, master.key);
     if (value === null) throw snapshotErrors.integrity_failed("原密钥与凭据快照不匹配，或密文已损坏");
     opened.set(ref, value);
   }
@@ -436,10 +446,10 @@ export function readSealedSecretSnapshotEntry(homeDirectory: string, contents: s
   return openSnapshot(homeDirectory, contents).opened.get(authRef) ?? null;
 }
 
-function readExistingSecretsFile(homeDirectory: string): SecretsFileV2 | null {
+function readExistingSecretsFile(homeDirectory: string): SecretsFile | null {
   snapshotHome(homeDirectory);
   try {
-    return runWithMolisWorkHome(homeDirectory, (): SecretsFileV2 | null => {
+    return runWithMolisWorkHome(homeDirectory, (): SecretsFile | null => {
       let descriptor: number;
       try { descriptor = fs.openSync(secretsPath(), fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK); }
       catch (error) {
@@ -464,7 +474,7 @@ export function readExistingSecret(homeDirectory: string, authRef: string): stri
 }
 
 export interface SealedHomePayload {
-  schema_version: 1;
+  schema_version: /* @version format.secret-store.home-payload */ 1;
   backend: SecretStoreBackendKind;
   key_reference: NonNullable<SealedSecretsSnapshotInspection["key_reference"]>;
   ciphertext: string;
@@ -501,25 +511,25 @@ export function sealExistingHomePayload(homeDirectory: string, binding: string, 
     throw snapshotErrors.invalid("密封数据需要现行凭据库、明确的主人绑定与正文");
   }
   const master = openSnapshotFile(home, file).master ?? payloadMaster(home, file.backend);
-  const body = JSON.stringify({ schema_version: 1, home, binding, contents });
-  return { schema_version: 1, backend: master.kind, key_reference: masterReference(master), ciphertext: sealV2(body, master.key, homePayloadAad(home, binding)) };
+  const body = JSON.stringify({ schema_version: /* @version format.secret-store.home-payload */ 1, home, binding, contents });
+  return { schema_version: /* @version format.secret-store.home-payload */ 1, backend: master.kind, key_reference: masterReference(master), ciphertext: sealEnvelope(body, master.key, homePayloadAad(home, binding)) };
 }
 
 /** Opens a previously sealed owner payload even when the live vault has been lost or damaged. */
 export function openExistingHomePayload(homeDirectory: string, binding: string, payload: unknown): string {
   const home = payloadHome(homeDirectory);
-  if (!isRecord(payload) || payload.schema_version !== 1 || !isSecretStoreBackend(payload.backend)
+  if (!isRecord(payload) || payload.schema_version !== /* @version format.secret-store.home-payload */ 1 || !isSecretStoreBackend(payload.backend)
     || typeof payload.ciphertext !== "string" || !payload.ciphertext || !isRecord(payload.key_reference)
     || typeof binding !== "string" || !binding) throw snapshotErrors.invalid("密封数据格式或主人绑定无效");
   const master = payloadMaster(home, payload.backend), reference = masterReference(master);
   if (payload.key_reference.location !== reference.location || payload.key_reference.sha256 !== reference.sha256) {
     throw snapshotErrors.integrity_failed("原密钥与密封数据的依赖不匹配");
   }
-  const text = openV2(payload.ciphertext, master.key, homePayloadAad(home, binding));
+  const text = openEnvelope(payload.ciphertext, master.key, homePayloadAad(home, binding));
   if (text === null) throw snapshotErrors.integrity_failed("原密钥与密封数据不匹配，或密文已损坏");
   let body: unknown;
   try { body = JSON.parse(text); } catch { throw snapshotErrors.invalid("密封数据正文格式无效"); }
-  if (!isRecord(body) || body.schema_version !== 1 || body.home !== home || body.binding !== binding || typeof body.contents !== "string") {
+  if (!isRecord(body) || body.schema_version !== /* @version format.secret-store.home-payload */ 1 || body.home !== home || body.binding !== binding || typeof body.contents !== "string") {
     throw snapshotErrors.integrity_failed("密封数据不属于当前 Home 或主人");
   }
   return body.contents;
@@ -537,9 +547,9 @@ export function assertExistingHomeKeyReference(homeDirectory: string, reference:
   if (actual.location !== reference.location || actual.sha256 !== reference.sha256) throw snapshotErrors.integrity_failed("原 Home 的现有主密钥身份已改变，不会创建替代值");
 }
 
-function saveFile(file: SecretsFileV2): void {
+function saveFile(file: SecretsFile): void {
   const p = secretsPath();
-  const payload: SecretsFileV2 = {
+  const payload: SecretsFile = {
     version: FORMAT_VERSION,
     backend: file.backend,
     entries: file.entries,
@@ -547,22 +557,22 @@ function saveFile(file: SecretsFileV2): void {
   atomicWriteFileSync(p, JSON.stringify(payload, null, 2), { mode: 0o600 });
 }
 
-/** A new seal must be an AES-GCM v2 envelope, never reversible encoding. */
-function assertSealedV2(sealed: string): void {
+/** A new seal must be a current AES-GCM envelope, never reversible encoding. */
+function assertSealedEnvelope(sealed: string): void {
   try {
-    const raw = JSON.parse(Buffer.from(sealed, "base64").toString("utf8")) as SealedV2;
-    if (raw.v === 2 && raw.alg === ALG && typeof raw.iv === "string" && typeof raw.tag === "string" && typeof raw.ct === "string"
+    const raw = JSON.parse(Buffer.from(sealed, "base64").toString("utf8")) as SealedEnvelope;
+    if (raw.v === /* @version format.secret-store.envelope */ 1 && raw.alg === ALG && typeof raw.iv === "string" && typeof raw.tag === "string" && typeof raw.ct === "string"
       && Buffer.from(raw.iv, "base64").length === 12 && Buffer.from(raw.tag, "base64").length === 16) return;
   } catch { /* reported below */ }
   throw new Error("secret not AES-GCM sealed");
 }
 
 /**
- * Every entry already in the file must still be a sealV2 envelope before the file is written back. `exceptRef` is the entry being
+ * Every entry already in the file must still be a current envelope before the file is written back. `exceptRef` is the entry being
  * deleted: deleting the bad entry itself is how a vault with one gets clean again, so that one is not checked.
  */
-function assertSealedEntries(file: SecretsFileV2, exceptRef?: string): void {
-  for (const [ref, sealed] of Object.entries(file.entries)) if (ref !== exceptRef) assertSealedV2(sealed);
+function assertSealedEntries(file: SecretsFile, exceptRef?: string): void {
+  for (const [ref, sealed] of Object.entries(file.entries)) if (ref !== exceptRef) assertSealedEnvelope(sealed);
 }
 
 /** Per data-dir store instances so put/get share one master resolution. */
@@ -585,8 +595,8 @@ function buildStore(master: ResolvedMaster): SecretStore {
       withSecretsLock(() => {
         const file = loadFile();
         assertSealedEntries(file);
-        const sealed = sealV2(plaintext, master.key);
-        assertSealedV2(sealed);
+        const sealed = sealEnvelope(plaintext, master.key);
+        assertSealedEnvelope(sealed);
         file.entries[authRef] = sealed;
         file.backend = master.kind;
         file.version = FORMAT_VERSION;
@@ -598,8 +608,8 @@ function buildStore(master: ResolvedMaster): SecretStore {
       // Presence is keyed by the entry name, not by the sealed string: "" is a legal string and a bad entry, not a missing one.
       if (!Object.hasOwn(file.entries, authRef)) return null;
       const sealed = file.entries[authRef];
-      assertSealedV2(sealed);
-      return openV2(sealed, master.key);
+      assertSealedEnvelope(sealed);
+      return openEnvelope(sealed, master.key);
     },
     delete(authRef) {
       withSecretsLock(() => {
@@ -615,8 +625,8 @@ function buildStore(master: ResolvedMaster): SecretStore {
         const file = loadFile();
         assertSealedEntries(file);
         if (Object.hasOwn(file.entries, authRef)) return false;
-        const sealed = sealV2(plaintext, master.key);
-        assertSealedV2(sealed);
+        const sealed = sealEnvelope(plaintext, master.key);
+        assertSealedEnvelope(sealed);
         file.entries[authRef] = sealed;
         file.backend = master.kind;
         file.version = FORMAT_VERSION;

@@ -75,10 +75,10 @@ test('S-130 PCSYNC-12/15 Studio refuses old schema intact and cannot overwrite a
  assert.throws(()=>replica.resolve(key,'remote',1),/仍在本机处理/);assert.equal(waitingRuntime.database.prepare('SELECT COUNT(*) AS n FROM conversation_messages').get().n,1);
  release();await active;replica.resolve(key,'local',1);assert.ok(replica.next());
  const oldHome=join(root,'old');ensureStorageSpace(oldHome,f.space);const directory=join(oldHome,'alchemist/projects/project');mkdirSync(directory,{recursive:true});const file=join(directory,'studio.sqlite'),db=new DatabaseSync(file);db.exec(readFileSync(new URL('./fixtures/home-store-schemas/alchemist-studio-v1.sql',import.meta.url),'utf8')+'PRAGMA user_version=1');db.close();const original=readFileSync(file);
- assert.throws(()=>openAlchemistSyncStore(oldHome,'project'),{code:'storage.schema_version_mismatch'});assert.deepEqual(readFileSync(file),original);
+ assert.throws(()=>openAlchemistSyncStore(oldHome,'project'),{code:'storage.schema_structure_mismatch'});assert.deepEqual(readFileSync(file),original);
  const priorFile=join(directory,'studio.sqlite');rmSync(priorFile);const prior=new DatabaseSync(priorFile);
  prior.exec(readFileSync(new URL('./fixtures/home-store-schemas/alchemist-studio-v2.sql',import.meta.url),'utf8')+'PRAGMA user_version=2');prior.close();
- const priorBytes=readFileSync(priorFile);assert.throws(()=>openAlchemistSyncStore(oldHome,'project'),{code:'storage.schema_version_mismatch'});assert.deepEqual(readFileSync(priorFile),priorBytes);
+ const priorBytes=readFileSync(priorFile);assert.throws(()=>openAlchemistSyncStore(oldHome,'project'),{code:'storage.store_too_new'});assert.deepEqual(readFileSync(priorFile),priorBytes);
  mkdirSync(join(oldHome,'alchemist/projects/linked-parent'));symlinkSync(join(oldHome,'alchemist/projects/linked-parent'),join(oldHome,'alchemist/projects/link'));assert.throws(()=>openAlchemistSyncStore(oldHome,'link'),{code:'alchemist.sync_scope'});
  const dangling=join(oldHome,'alchemist/projects/dangling');mkdirSync(dangling);symlinkSync(join(root,'must-not-create.sqlite'),join(dangling,'studio.sqlite'));assert.throws(()=>openAlchemistSyncStore(oldHome,'dangling'),{code:'alchemist.sync_scope'});
  assert.equal((await f.call(a.directionEditing,{id:direction.id})).etag,editing.etag);

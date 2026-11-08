@@ -1,10 +1,16 @@
 import { realpathSync } from "node:fs";
 import path from "node:path";
-import { acquireStorageOwner, assertStorageOwner, assertNoPendingHomeRestore, type StorageOwner } from "@molis-ai/molis-work-storage";
+import { acquireStorageOwner, assertStorageOwner, assertNoPendingHomeRestore, readStorageSpace, storageOwnerHeldHere, upgradeInProgressRefusal, type StorageOwner, type StorageSpace } from "@molis-ai/molis-work-storage";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
+import { ensureHomeUpgraded, homeUpgradeLooksPending, watchHomeUpgradePending } from "./home-upgrade.js";
 import { hostErrors } from "./host-errors.js";
+import { registerHomeUpgradeDescriptors } from "./home-upgrade-stores.js";
 import { hostLog } from "./host-log.js";
+import { platformUpgradeDescriptors } from "./platform-upgrade-stores.js";
+
+// Here, because every way to take the lock for business comes through this file: a process that reached it knows its stores.
+registerHomeUpgradeDescriptors(platformUpgradeDescriptors);
 
 /** A synchronous failed initializer still hands its caller the actual resource cleanup attempt. */
 export interface HomeInitializationFailure extends Error { close(): Promise<void> }
@@ -48,6 +54,31 @@ export function retainInitializationCleanup(reason: unknown, dispose: () => Prom
 
 const owners = new WeakMap<object, { home: string; owner: StorageOwner; released: boolean; resources: Set<() => Promise<void>> }>();
 
+/**
+ * The one way to take a Home's lock in order to open its stores (upgrade-chain-design §4.1): the Home comes back already upgraded, before
+ * any business store has been opened. A store that fails stays in the record and is not an error here. Only what stops the whole Home
+ * throws, and then the lock is given back. `expected` is compared before anything is upgraded, so another account's directory under this
+ * name is refused, not upgraded and then refused.
+ */
+export function acquireUpgradedHomeOwner(home: string, beforeAcquire?: (home: string) => void, expected?: StorageSpace): StorageOwner {
+  const lockDirectory = agentRuntimeDirectory(home);
+  assertNoPendingHomeRestore(lockDirectory);
+  beforeAcquire?.(home);
+  let owner: StorageOwner;
+  try { owner = acquireStorageOwner(lockDirectory); }
+  catch (error) {
+    if (error instanceof ActionError && error.code === "storage.owner.busy" && !storageOwnerHeldHere(lockDirectory) && homeUpgradeLooksPending(home)) throw upgradeInProgressRefusal();
+    throw error;
+  }
+  try {
+    const stored = expected ? readStorageSpace(home) : null;
+    if (stored && JSON.stringify(stored) !== JSON.stringify(expected)) throw new Error("SPACE_OWNERSHIP_MISMATCH");
+    watchHomeUpgradePending(home, owner);
+    ensureHomeUpgraded(home, owner, { expectedSpace: expected });
+    return owner;
+  } catch (error) { owner.release(); throw error; }
+}
+
 /** A Host acquires strictly once. Later transports and its one Agent can only use that same physical Home. */
 export function ensureHomeStorageOwner(host: object, homeDirectory: string, beforeAcquire?: (home: string) => void): StorageOwner {
   const requested = path.resolve(homeDirectory), held = owners.get(host);
@@ -61,10 +92,8 @@ export function ensureHomeStorageOwner(host: object, homeDirectory: string, befo
     assertNoPendingHomeRestore(agentRuntimeDirectory(held.home));
     return held.owner;
   }
-  assertNoPendingHomeRestore(agentRuntimeDirectory(requested));
   // Product admission precedes only the first acquisition; an existing owner's checks retain their order.
-  beforeAcquire?.(requested);
-  const owner = acquireStorageOwner(agentRuntimeDirectory(requested));
+  const owner = acquireUpgradedHomeOwner(requested, beforeAcquire);
   try {
     const home = realpathSync(requested);
     owners.set(host, { home, owner, released: false, resources: new Set() });
@@ -117,12 +146,12 @@ export function releaseHomeStorageOwner(host: object): void {
   held.released = true;
 }
 
-/** Try every independent close step, remember successes, and retry failures only on the next explicit close. */
-export async function closeHostResourceSteps(completed: Set<string>, steps: ReadonlyArray<readonly [string, () => unknown]>): Promise<void> {
+/** Try every independent close step and propagate failures; an outer entry may own the final diagnostic. */
+export async function closeHostResourceSteps(completed: Set<string>, steps: ReadonlyArray<readonly [string, () => unknown]>, failureReportedByCaller=false): Promise<void> {
   const failures: unknown[] = [];
   for (const [name, close] of steps) {
     if (completed.has(name)) continue;
-    try { await close(); completed.add(name); } catch (error) { hostLog.warn("host", "resource_close_failed", error, { resource: name }); failures.push(error); }
+    try { await close(); completed.add(name); } catch (error) { if(!failureReportedByCaller)hostLog.warn("host", "resource_close_failed", error, { resource: name }); failures.push(error); }
   }
   if (failures.length === 1) throw failures[0];
   if (failures.length) throw new AggregateError(failures, "Home 的部分资源尚未关闭，仍保留原存储所有权；可再次明确关闭");

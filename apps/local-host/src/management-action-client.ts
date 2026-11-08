@@ -2,7 +2,7 @@ import { existsSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ProjectsModule } from "@molis-ai/molis-work-module-projects";
-import { LocalSqliteStorage } from "@molis-ai/molis-work-storage";
+import { LocalSqliteStorage, upgradeFailedRefusal, upgradeInProgressRefusal } from "@molis-ai/molis-work-storage";
 import { currentCallId, markCallRecorded, newCallId, assertActionInput } from "@molis-ai/molis-work-kernel";
 import { actionErrorFromResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { assertOwnedCatalog, assertCurrentCatalog } from "./catalog-schema.js";
@@ -13,25 +13,50 @@ import { goalsManagementContext, managementInputFields, requireManagementDefinit
 export const MANAGEMENT_ACTION_PATH = "/api/internal/management-action";
 
 /** Catalog ownership is read without creating, upgrading or writing a Home. Project facts stay in Projects. */
+export function catalogManagementProjects(home:string) {
+  const file=join(home,"projects","catalog.db");if(!existsSync(file))return [];
+  const storage=new LocalSqliteStorage(file,{readonly:true});
+  try{
+    assertOwnedCatalog(storage,file);assertCurrentCatalog(storage,file);
+    return new ProjectsModule({db:storage.db,projects_directory:join(home,"projects"),plugins:{has:()=>false,companions:()=>[]}}).query.listProjects();
+  }finally{storage.close();}
+}
 export function catalogManagementProject(home: string, databasePath: string): { project_id: string; database_path: string } | undefined {
-  const path = join(home, "projects", "catalog.db");
-  if (!existsSync(path) || !existsSync(databasePath)) return undefined;
+  if(!existsSync(databasePath))return undefined;
+  const target=realpathSync(databasePath);
+  const matches=catalogManagementProjects(home).filter(project=>existsSync(project.database_path)&&realpathSync(project.database_path)===target);
+  if(matches.length>1)throw new ActionError("actions.scope_mismatch","这个数据库对应多个项目，不能选择管理调用范围");
+  const project=matches[0];return project&&{project_id:project.project_id,database_path:project.database_path};
+}
+
+const codeOf = (error: unknown) => (error instanceof ActionError ? error.code : undefined);
+
+/** What refuses this catalog for being older, if that is what refuses it. Any other refusal is the lookup's to raise, where it always has been. */
+function catalogUpgradePending(path: string): ActionError | undefined {
+  if (!existsSync(path)) return undefined;
   const storage = new LocalSqliteStorage(path, { readonly: true });
-  try {
-    assertOwnedCatalog(storage, path); assertCurrentCatalog(storage, path);
-    const target = realpathSync(databasePath);
-    // Only reads the catalog, so it knows no Plugin to enable.
-    const matches = new ProjectsModule({ db: storage.db, projects_directory: join(home, "projects"), plugins: { has: () => false, companions: () => [] } }).query.listProjects()
-      .filter(project => existsSync(project.database_path) && realpathSync(project.database_path) === target);
-    if (matches.length > 1) throw new ActionError("actions.scope_mismatch", "这个数据库对应多个项目，不能选择管理调用范围");
-    const project = matches[0];
-    return project && { project_id: project.project_id, database_path: project.database_path };
-  } finally { storage.close(); }
+  try { assertOwnedCatalog(storage, path); assertCurrentCatalog(storage, path); return undefined; }
+  catch (error) { return codeOf(error) === "storage.upgrade_pending" ? error as ActionError : undefined; }
+  finally { storage.close(); }
+}
+
+/**
+ * For the entries with nothing to forward to (the CLI, the management MCP without a resident starter), ahead of their lookup: an older
+ * catalog is theirs to upgrade, under the lock `upgrade` takes. Too new or already failed takes no lock and is left for the lookup to raise.
+ * Whoever only reads calls `catalogManagementProject`, which keeps refusing.
+ */
+export function upgradeOlderCatalog(home: string, upgrade: () => void): void {
+  const path = join(home, "projects", "catalog.db");
+  if (!catalogUpgradePending(path)) return;
+  try { upgrade(); }
+  catch (error) { throw codeOf(error) === "storage.owner.busy" ? upgradeInProgressRefusal() : error; }
+  const still = catalogUpgradePending(path);
+  if (still) throw upgradeFailedRefusal(typeof still.details?.path === "string" ? still.details.path : "projects/catalog.db", "still_pending", "这个库升级没有成功，已放回升级之前的样子。");
 }
 
 /** Only a never-delivered call may use its original in-process path. Refusal and unknown delivery never fall back. */
 export function residentManagementActions(options: {
-  home: string; origin: string; databasePath: string; projectId: string; signal?: AbortSignal;
+  home: string; origin: string; controlToken?:string; databasePath: string; projectId: string; signal?: AbortSignal;
   ensureResident?(): Promise<void>;
   fallback(): GoalsManagementActions;
 }): GoalsManagementActions {
@@ -45,7 +70,7 @@ export function residentManagementActions(options: {
       await options.ensureResident(); options.signal?.throwIfAborted();
     }
     const callId = currentCallId() ?? newCallId();
-    const answer = await postToResidentHost({ origin, homeDirectory: options.home, path: MANAGEMENT_ACTION_PATH, signal: options.signal,
+    const answer = await postToResidentHost({ origin, homeDirectory: options.home, controlToken:options.controlToken, homeId:actionGatewayHomeId(options.home), path: MANAGEMENT_ACTION_PATH, signal: options.signal,
       retryHint: "请先按调用编号核对结果，不要另起一次管理操作",
       body: { home_id: actionGatewayHomeId(options.home), database_path: options.databasePath, project_id: options.projectId, call_id: callId,
         capability: { capability_id: reference.capability_id, version: reference.version }, input, ...(evidence !== undefined ? { evidence } : {}) } });

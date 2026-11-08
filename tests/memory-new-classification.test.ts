@@ -98,11 +98,11 @@ test("new classification grants no permission when current preferences are revok
   assert.deepEqual(await f.raw().list("project", "project-a"), []);
 });
 
-test("unclassified direct writes, unknown scenes and old imports receive no guessed classification", async t => {
+test("unclassified direct writes, unknown scenes and unclassified current imports receive no guessed classification", async t => {
   const f = await fixture(t);
   await assert.rejects(f.raw().write({ scope: "project", owner: "project-a", operation_id: "raw", text: "No class", origin: "person", meta: { kind: "convention", source: "manual", approved_by: { by: "person" } } }), { code: "MEMORY_META_INVALID" });
   await assert.rejects(f.service.write(caller("unknown", { current_scene: "unknown" }), { scope: "project", text: "Unknown scene" }));
   await assert.rejects(f.service.importScope(caller("import"), "project", { format: "molis.memory", version: 1, exported_at: new Date().toISOString(), scope: "project", redactions: [],
-    entries: [{ text: "An older unclassified convention", kind: "convention", source: "manual", basis: "explicit", applies: {}, origin: "person", expires_at: null }] }));
+    entries: [{ text: "An older unclassified convention", kind: "convention", source: "manual", basis: "explicit", applies: {}, origin: "person", expires_at: null }] }), /缺少明确分类/);
   assert.deepEqual(await f.raw().list("project", "project-a"), []);
 });

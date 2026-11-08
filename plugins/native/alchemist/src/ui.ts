@@ -1,6 +1,6 @@
 import type { UiContribution, UiContributionDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
 import { icon, renderPluginStageShell } from "@molis-ai/molis-work-plugin-sdk/ui";
-export const ALCHEMIST_UI_CONTRIBUTION_ID = "io.molis.work.native.alchemist.ui.v1";
+export const ALCHEMIST_UI_CONTRIBUTION_ID = /* @version contract.io.molis.work.native.alchemist.ui "io.molis.work.native.alchemist.ui.v{version}" */ "io.molis.work.native.alchemist.ui.v1";
 export type AlchemistUiSurface = "directory" | "workbench";
 export interface AlchemistUiPrimitives { escape(value: unknown): string; text(value: string, values?: Record<string,string|number>): string }
 export interface AlchemistUiModel { readonly primitives: AlchemistUiPrimitives }

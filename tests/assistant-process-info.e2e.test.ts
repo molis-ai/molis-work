@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { asideReply } from "./fixtures/ending-review.js";
+import { CURRENT_WORK } from "./fixtures/assistant-current-work.js";
 
 /** One streamed model turn: some words, then (optionally) one tool call. */
 function turn(text: string, tool?: { name: string; input: unknown }): string {
@@ -127,7 +128,7 @@ test("VUX-13: a round's steps say what they did to what, open to where they came
   assert.deepEqual(settled, { group: true, first: true, failed: true, summary: "读取 Goals、查找能力 · 4 步 · 1 步没有完成", entries: 4, unique: 4, groups: 1 });
   assert.deepEqual(await texts(), ["已读取 Goals · 读取回收站", "读取 Goals · 读取目标正文 — 没有完成", "已查找能力 Goal", "已查找能力 Todo"]);
   // Every line is the activity's own record: the same steps, in order, as the Host keeps them; no step is made up.
-  const activity = await evaluate<Array<{ verb: string; state: string }>>(`fetch('/api/assistant/works/' + localStorage.getItem('molis.assistant.current')).then(r => r.json()).then(v => v.rounds.flatMap(r => r.activity))`);
+  const activity = await evaluate<Array<{ verb: string; state: string }>>(`fetch('/api/assistant/works/' + ${CURRENT_WORK}).then(r => r.json()).then(v => v.rounds.flatMap(r => r.activity))`);
   assert.deepEqual(activity.map(item => item.verb + ":" + item.state), ["read:completed", "read:failed", "lookup:completed", "lookup:completed"]);
   // A step with nothing behind it is a plain line: no control that opens nothing.
   assert.equal(await evaluate<number>(`[...document.querySelectorAll(${JSON.stringify(LINES)})].filter(node => node.matches('details') && !node.querySelector('.assistant-activity-detail').textContent).length`), 0);
@@ -143,7 +144,7 @@ test("VUX-13: a round's steps say what they did to what, open to where they came
   assert.ok(opening.heights.every((height, index) => index === 0 || height >= opening.heights[index - 1]!), "it only grows while it opens");
 
   // In English the summary is the same sentence, in English.
-  const work = await evaluate<string>("localStorage.getItem('molis.assistant.current')");
+  const work = await evaluate<string>(CURRENT_WORK);
   await navigate(() => command("Page.navigate", { url: `${origin}/locale?lang=en&next=${encodeURIComponent(`/projects/${projectId}/`)}` }, sessionId));
   await waitFor("Boolean(document.querySelector('[data-assistant-input]'))");
   await evaluate(`document.dispatchEvent(new CustomEvent('molis:assistant-open', { detail: { work_id: ${JSON.stringify(work)} } }))`);

@@ -109,7 +109,7 @@ it("returns structured reader-too-old diagnostics without exposing the catalog p
       const errorText = response.result.content[0]?.text ?? "";
       assert.equal(response.result.isError, true);
       assert.match(JSON.parse(errorText).error, new RegExp(`Molis Work catalog schema=${futureSchema}`));
-      assert.match(errorText, /"code":"catalog\.reader_too_old"/);
+      assert.match(errorText, /"code":"storage\.store_too_new"/);
       assert.match(errorText, new RegExp(`"actual_schema_version":${futureSchema}`));
       assert.match(errorText, new RegExp(`"supported_schema_max":${CATALOG_SCHEMA_VERSION}`));
       assert.match(errorText, /"recovery":"new_or_fork_session_then_context_resolve"/);

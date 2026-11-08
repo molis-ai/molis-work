@@ -5,7 +5,7 @@ import type { SqliteDatabase } from "../db/open-database.js";
 import type { SqliteResearchRepository } from "../db/research-repository.js";
 import type { SqliteJobRunner } from "../jobs/sqlite-job-runner.js";
 
-export const RESEARCH_LENS_JOB = "research.lens.v1";
+export const RESEARCH_LENS_JOB = /* @version type.research.lens "research.lens.v{version}" */ "research.lens.v1";
 
 export interface ResearchLensJobInput {
   lensRunId: string;

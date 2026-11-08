@@ -1,0 +1,9 @@
+{
+  "reason": "第 18 批 P3-3：项目设置里的「授权与放行」一页按任务列出后台任务能读的数据（specs/proactive-assistant/task-grants-platform-area.md §5、§5.3，S-task-grants-page）。workbench.js 895162 → 904593（+9431；整合时 +9797，评审小修改用这一页自己的说明、不再带上区域的 doneLine，并给取标题加上 20 页的上限，得 +9426；P4 走查修复给说明里的类别名两边加空格，+5，对照 origin/main 35d482a8）：这一页的浏览器脚本 task-grants-page.ts（按安装分组、每个任务一张卡、撤回一类、全部撤回的确认、允许与移除、冲突时重读、按插件自己的搜索条目取任务标题）；请求的组成、类别行的模型、行本身的画法（taskGrantRowHtml）取自 P3-1 的 task-grants-area.ts，不另写一份；改动后的说明用这一页自己的说法（doneText，这一页没有开关，不照搬区域里指向开关的句子）；整页用转义后的标记画、一处点按监听，比逐个建元素小约 400 B；内联在工作台脚本里，没有新资源。settings.css 761699 → 766252（+4553）与 workbench.css 增长中属于本片的 +3455（合计 +8132，P3-1 的 +4677 由 18-p3-1-task-grants-area.json 放行）：这一页的卡与分组，区域的行在这一页排成一行、说明画成状态色标签，以及设置表里补上的共用条目行样式（ITEM_ROW_STYLES）；没有新关键帧。实测：2026-11-07 整合 P3-1、P3-2、P3-3 与 main 之后 pnpm workspace:build，再对照 origin/main f12df790",
+  "review": "第 18 批整批合审（#1929）时由统筹核对这段增长；三项都不到 10 KB，没有新增资源",
+  "assets": {
+    "/assets/molis-work-workbench.js": 9431,
+    "/assets/molis-work-settings.css": 4553,
+    "/assets/molis-work-workbench.css": 3455
+  }
+}

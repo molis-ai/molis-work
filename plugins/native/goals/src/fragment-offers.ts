@@ -12,10 +12,10 @@ import {
  */
 const GOALS_FRAGMENT_CHOICES: readonly FragmentOfferChoice[] = [
   { offer_id: "progress", title: "记录进展", intent: "advance", apply: "record", hint: "把刚完成的这一步记为所属 Goal 的进展",
-    action: { capability_id: "goals.progress.record", version: 1 }, granularities: ["range", "block"], roles: ["task", "list"], requires: ["goal"] },
+    action: { capability_id: "goals.progress.record", version: /* @version action.goals.progress.record */ 1 }, granularities: ["range", "block"], roles: ["task", "list"], requires: ["goal"] },
 ];
 
-export const goalsFragmentOffersAction = defineFragmentOffersAction("goals.fragment.offers", [FRAGMENT_ANY_OBJECT], "选中的内容可以推进的目标", ["goals:read"], GOALS_FRAGMENT_CHOICES);
+export const goalsFragmentOffersAction = defineFragmentOffersAction("goals.fragment.offers", /* @version action.goals.fragment.offers */ 1, [FRAGMENT_ANY_OBJECT], "选中的内容可以推进的目标", ["goals:read"], GOALS_FRAGMENT_CHOICES);
 
 const MAX_STEPS = 6;
 // Whole characters, not UTF-16 units: an emoji is one, as the action schemas count it, and a cut inside one leaves half of it.
@@ -60,7 +60,7 @@ export function prepareGoalsFragmentOffers(input: FragmentOffersInput, ports: Go
         explanation: { ...explanation(index), depends_on_item_ids: [item("step", index)] } }] : []),
     ]);
     const placement = goal ? `，放在「${goal.title}」下` : "";
-    offers.push({ offer_id: "breakdown", title: "拆成目标步骤", action: { capability_id: "goals.tree.submit", version: 1 }, input: {
+    offers.push({ offer_id: "breakdown", title: "拆成目标步骤", action: { capability_id: "goals.tree.submit", version: /* @version action.goals.tree.submit */ 1 }, input: {
       ...(goal ? { root_goal_id: goal.id } : {}), summary: clip(`把${from}里的计划拆成 ${steps.length} 个目标步骤${placement}`, 200),
       narrative: { why_now: `正在${from}里整理这段计划`, problem: "计划写在文字里，没有可以跟踪的步骤", main_path: steps,
         expected_effect: "每一步都能在 Goals 里推进、记录进展和验收", non_goals: ["不修改原文"] },
@@ -72,7 +72,7 @@ export function prepareGoalsFragmentOffers(input: FragmentOffersInput, ports: Go
   const cursor = fragment.goal && done ? ports.cursor(fragment.goal.id) : null;
   if (fragment.goal && done && cursor !== null) {
     const summary = clip(`完成：${done}`, 200);
-    offers.push({ offer_id: "progress", title: "记录进展", action: { capability_id: "goals.progress.record", version: 1 },
+    offers.push({ offer_id: "progress", title: "记录进展", action: { capability_id: "goals.progress.record", version: /* @version action.goals.progress.record */ 1 },
       input: { goal_id: fragment.goal.id, idempotency_key: request_id, based_on_cursor: cursor, summary },
       summary: `为「${fragment.goal.title}」记录一条进展：${summary}`, editable: ["summary", "next_step"] });
   }

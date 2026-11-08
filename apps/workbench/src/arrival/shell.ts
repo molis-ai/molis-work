@@ -1,14 +1,18 @@
-import type { PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { renderCaption, renderWordmark } from "@molis-ai/molis-work-design-system";
+import { ACCOUNT_CLIENT_SCRIPT } from "../scripts/account.js";
+import { escapeHtml, icon, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { renderCaption, renderIconSprite, renderWordmark, THEME_BOOTSTRAP_SCRIPT } from "@molis-ai/molis-work-design-system";
 import { homePluginSideTabs, renderHomePluginNavigation, type HomePluginNavigationEntry } from "../home-plugin-navigation.js";
 import { renderSidePanel, renderSideStrip, SIDE_PANEL_SCRIPT, SIDE_PANEL_STYLES } from "../side-panel.js";
-import { NO_FAVICON_LINK } from "../document-shell.js";
+import { ACCOUNT_REGISTRATION_BODY, NO_FAVICON_LINK, renderWorkbenchDocument } from "../document-shell.js";
+import { createWorkbenchLocale } from "../i18n.js";
+import { CONTROL_CLIENT_SCRIPT } from "../scripts/control.js";
 
 /**
  * The frame every arrival screen shares: a titlebar, a stage and the resident bottom bar on the desk. A screen is
  * what goes inside the stage and the bar's three blocks; the frame itself never moves (specs/archive/project-arrival-flow).
  */
 export interface ArrivalShellPrimitives {
+  accountRegistration?: boolean;
   L(text: string, values?: Record<string, string | number>): string;
   escapeHtml(value: unknown): string;
   icon(name: PluginIconName): string;
@@ -74,7 +78,8 @@ export function createArrivalShell(p: ArrivalShellPrimitives) {
       ? `<span class="arrival-theme"><button class="mw-btn mw-btn--ghost mw-btn--md" data-slot="button" type="button" id="cx-theme" aria-label="${L("切换主题")}">${icon("switch")}<span data-slot="button-label">${L("切换主题")}</span></button></span>` : "";
     // The right side's tabs end the bar, as on a project page: the Home's side views, and the background tasks where they are read.
     const side = renderSideStrip(p, homePluginSideTabs(), { projectTools: false, tasks: options.tasks === true });
-    const global = options.tools === false ? "" : `<span class="arrival-global">${renderHomePluginNavigation(path => href(desktopShell, path), options.home_plugins)}${link("/capabilities/library", "sparkles", L("能力"), L("打开能力服务"))}${link("/settings/appearance", "settings", L("设置"), L("打开系统设置"))}${side.includes("data-side-tab=") ? side : ""}</span>`;
+    const unifiedAccount = options.account ? `<button class="mw-btn mw-btn--ghost mw-btn--md" type="button" data-slot="button" data-unified-account-link aria-label="${L("Molis 账号")}">${icon("user")}<span data-slot="button-label" data-unified-account-name>${L("Molis 账号")}</span></button>` : "";
+    const global = options.tools === false ? "" : `<span class="arrival-global">${renderHomePluginNavigation(path => href(desktopShell, path), options.home_plugins)}${unifiedAccount}${link("/capabilities/library", "sparkles", L("能力"), L("打开能力服务"))}${link("/settings/appearance", "settings", L("设置"), L("打开系统设置"))}${side.includes("data-side-tab=") ? side : ""}</span>`;
     const account = options.account ? `<button class="mw-btn mw-btn--ghost mw-btn--md" data-slot="button" type="button" data-account-link aria-label="${L("账号管理")}">${icon("user")}<span data-slot="button-label" data-personal-name>${L("未登录")}</span></button>` : "";
     return `<nav class="arrival-tools" aria-label="${L("全局")}">${theme}${account}${global}</nav>`;
   }
@@ -104,7 +109,7 @@ export function createArrivalShell(p: ArrivalShellPrimitives) {
   <link rel="stylesheet" href="/assets/molis-work-arrival.css">
   ${side ? `<style>${SIDE_PANEL_STYLES}body.immersive-workbench.arrival-page{--desktop-titlebar-height:var(--arrival-titlebar-h)}</style>` : ""}
 </head>
-<body class="arrival-page immersive-workbench" data-arrival="${options.screen}"${options.desktopShell ? ' data-native-desktop="true"' : ""}${options.bodyAttrs ?? ""}>
+<body${p.accountRegistration ? ACCOUNT_REGISTRATION_BODY : ''} class="arrival-page immersive-workbench" data-arrival="${options.screen}"${options.desktopShell ? ' data-native-desktop="true"' : ""}${options.bodyAttrs ?? ""}>
   ${p.renderIconSprite()}
   <div class="arrival" data-workspace data-screen="${options.screen}">
     ${options.titlebar}
@@ -113,10 +118,24 @@ export function createArrivalShell(p: ArrivalShellPrimitives) {
     ${side}
   </div>
   ${options.after ?? ""}
-  <script>${options.scripts}${side ? SIDE_PANEL_SCRIPT : ""}</script>
+  <script>${options.scripts}${options.screen === "chooser" ? ACCOUNT_CLIENT_SCRIPT : ""}${side ? SIDE_PANEL_SCRIPT : ""}</script>
 </body>
 </html>`;
   }
 
   return { href, titlebar, bar, document, caption, wordmark: () => renderWordmark() };
+}
+
+/** The same workbench document and account controls, without opening an anonymous business Home. */
+export function renderPersonalAccountEntry(controlToken: string, desktop: boolean, message?: string,
+  locale: Pick<ReturnType<typeof createWorkbenchLocale>, "L" | "htmlLang" | "clientI18nScript"> = createWorkbenchLocale(() => "zh"), nativeBootstrap = ""): string {
+  const { L } = locale;
+  return renderWorkbenchDocument({lang: locale.htmlLang(), title: "Molis Work",
+    body_attributes: {class: "arrival-page immersive-workbench", "data-arrival": "welcome", "data-account-entry": true, "data-native-desktop": desktop ? "true" : null},
+    head_html: `<meta name="molis-work-control-token" content="${escapeHtml(controlToken)}"><script>${THEME_BOOTSTRAP_SCRIPT}${desktop ? nativeBootstrap : ""}</script><link rel="stylesheet" href="/assets/molis-work-arrival.css">`,
+    body_html: `${renderIconSprite()}<div class="arrival" data-screen="welcome"><header class="arrival-titlebar"${desktop ? ' data-tauri-drag-region="deep"' : ""}><span class="arrival-brand">${icon("brand")}${renderWordmark()}</span></header>
+      <main class="arrival-stage"><section class="mw-empty"><h1>${escapeHtml(L("登录 / 注册 molis AI"))}</h1><p>${escapeHtml(L("登录后可管理你的 molis 账号"))}</p>
+      <button class="mw-btn mw-btn--primary" type="button" data-account-link aria-label="${escapeHtml(L("账号管理"))}">${icon("user")}<span data-personal-name>${escapeHtml(L("未登录"))}</span></button>
+      <p role="status" data-account-entry-status>${escapeHtml(message ?? "")}</p><button class="mw-btn mw-btn--secondary" type="button" data-personal-action="retry"${message ? "" : " hidden"}>${escapeHtml(L("重试"))}</button></section></main></div>
+      <script>${locale.clientI18nScript()}${CONTROL_CLIENT_SCRIPT}</script>`});
 }

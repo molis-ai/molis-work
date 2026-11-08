@@ -6,7 +6,7 @@
 
 文档右侧的「评论与备注」跟随当前主区文档。评论保存在 Pages 自己的 `page_comments` 表，正文的原批注与块备注不变。普通评论只保存文字；选中 `@助理` 后发送，宿主把当前正文、引用及本线程作为快照交给同一个 Prologue 运行时，答复只回到原评论，不修改正文。移除引用原文后保留摘录并显示失去定位。回复生成后投递失败可单独重试，避免重复调用模型。
 
-Pages 存储基线为 2；本次未实现旧库读取兼容或自动迁移，也未操作真实 Home。已有基线 1 的 Home 须先经过明确授权的维护升级，才能试用此构建。
+Pages 不读旧库，也不自动迁移：错版的库被拒绝，旧 Home 按发布检查单第 4 节搬开重建。
 
 包名：`@molis-ai/molis-work-plugin-pages`。装配：每个项目一个 Plugin Runtime 实例（`src/plugin.ts` 的 `createPagesPlugin`，`apps/local-host/src/project-plugins.ts` 的 Home 库条目，`trust: HOST_BUILD_TRUST`）；库仍是 Home 级的 `{home}/pages/pages.db`（`PAGES_DATABASE`），按 `project_id` 分区，经 Runtime 的 `services.database` 读写；成果经 `services.artifacts`、模型经 `services.model`、Goals 与其他插件经 `services.actions`。宿主里不再有 Pages 专用的动作、HTTP 或成果适配文件。
 

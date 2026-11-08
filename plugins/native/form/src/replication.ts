@@ -54,4 +54,4 @@ function questions(value:unknown):string[]{
 }
 function check(value:unknown):asserts value{if(!value)throw syncError("invalid",'问卷同步数据不合法');}
 
-export const formSync:PluginSyncDeclaration={protocol_version:1,collections:[{id:'forms',title:'问卷与答卷',schema_version: 2,requires:[],aggregates:syncAggregateDeclaration(formAggregates)}]};
+export const formSync:PluginSyncDeclaration={protocol_version:/* @version sync.protocol */ 1,collections:[{id:'forms',title:'问卷与答卷',schema_version: /* @version sync.collection.form.forms */ 1,requires:[],aggregates:syncAggregateDeclaration(formAggregates)}]};

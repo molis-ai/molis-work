@@ -134,7 +134,7 @@ export async function importArtifactDocument(input: Record<string, unknown>, por
   const result = ports.artifacts.commands.registerVersion({
     project_id: ports.projectId, actor_id: ports.actorId, owner_actor_id: ports.ownerActorId, artifact_id: artifactId,
     version: (latest?.version ?? 0) + 1,
-    artifact_type_id: DOCUMENT_ARTIFACT_TYPE, schema_version: 1,
+    artifact_type_id: DOCUMENT_ARTIFACT_TYPE, schema_version: /* @version artifact.io.molis.work.document */ 1,
     producer: ARTIFACT_PRODUCER,
     content: { kind: "inline", payload },
     metadata: { source: document.source, source_id: document.source_id, source_url: document.source_url,

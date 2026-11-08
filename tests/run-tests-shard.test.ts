@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 // @ts-expect-error the helper is a plain .mjs module
-import { pickShard, readWeights } from "../scripts/run-tests/shard.mjs";
+import { pickShard, planShards, readWeights } from "../scripts/run-tests/shard.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
 const files = Array.from({ length: 40 }, (_, index) => `tests/f-${String(index).padStart(2, "0")}.test.ts`);
@@ -70,5 +70,27 @@ test("the weights table: read from the repository, junk and a missing file give 
     assert.deepEqual(readWeights(scratch), { "tests/a.test.ts": 12 }, "only positive numbers count");
   } finally {
     rmSync(scratch, { recursive: true, force: true });
+  }
+});
+
+
+test("CIP-07 browser capacity prevents equal-total shards with very unequal completion times", () => {
+  const durations = [100, 400, 400, 400, 250, 100, 250, 150, 400, 350, 100, 350, 200, 50, 50, 250];
+  const browsers = new Set([0, 1, 3, 4, 5, 6, 7, 11, 15]);
+  const entries = durations.map((_, i) => ({ file: String(i), browser: browsers.has(i) }));
+  const weights = Object.fromEntries(entries.map((e, i) => [e.file, durations[i]!]));
+  const old = Array.from({ length: 4 }, (_, index) => pickShard(entries, { index, count: 4 }, weights, (e: { file: string }) => e.file));
+  const plan = planShards(entries, { count: 4, jobs: 2, browserJobs: 1 }, weights, (e: { file: string }) => e.file, (e: { browser: boolean }) => e.browser);
+  // Independent lower bounds from the two-worker total and the serial browser queue.
+  const bound = (part: typeof entries) => Math.max(part.reduce((s, e) => s + weights[e.file]!, 0) / 2, part.filter(e => e.browser).reduce((s, e) => s + weights[e.file]!, 0), ...part.map(e => weights[e.file]!));
+  assert.equal(Math.max(...old.map(bound)), 900, "equal total weight can hide a 900-second browser queue");
+  assert.ok(Math.max(...plan.shards.map(bound)) <= 600, "capacity-aware allocation lowers the longest queue by at least a third");
+  for (const count of [1, 8, 16, 32]) {
+    const allocate = (items: typeof entries, table = weights) => planShards(items, { count, jobs: 2, browserJobs: 1 }, table, (e: { file: string }) => e.file, (e: { browser: boolean }) => e.browser);
+    for (const table of [weights, {}, { [entries[0]!.file]: 200 }]) {
+      const result = allocate(entries, table);
+      assert.deepEqual(result.shards.flat().map((e: { file: string }) => e.file).sort(), entries.map(e => e.file).sort());
+      assert.deepEqual(allocate([...entries].reverse(), table).shards.map((part: typeof entries) => part.map(e => e.file).sort()), result.shards.map((part: typeof entries) => part.map(e => e.file).sort()));
+    }
   }
 });

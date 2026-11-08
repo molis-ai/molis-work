@@ -31,7 +31,7 @@ export function createNodeProjectWork(options: PrologueNodeAdapterOptions, host:
     async save(project, scopes) {
       const bytes = new TextEncoder().encode(JSON.stringify(scopes));
       try {
-        const record = await host.storage.commit({ kind: workKind, id: project, expectedVersion: workVersions.get(project) ?? 0, metadata: { schema: 1 }, secureBody: bytes });
+        const record = await host.storage.commit({ kind: workKind, id: project, expectedVersion: workVersions.get(project) ?? 0, metadata: { schema: /* @version format.prologue.session-metadata */ 1 }, secureBody: bytes });
         workVersions.set(project, record.version);
       } finally { bytes.fill(0); }
     },

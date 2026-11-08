@@ -11,7 +11,7 @@ import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { acquireStorageOwner } from "@molis-ai/molis-work-storage";
 import { createWebCatalogAccess } from "../apps/local-host/dist/web-catalog-access.js";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 
 test("current catalog reads under another writer without changing facts or waiting for its lock", async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-catalog-contention-"));
@@ -137,7 +137,7 @@ test("Web catalog owner reuses one connection, observes commits, and closes afte
   const metadata = openTestSqlite(join(home, "projects", "catalog.db"));
   const version = metadata.prepare("SELECT value FROM catalog_meta WHERE key='schema_version'").pluck().get();
   metadata.prepare("UPDATE catalog_meta SET value=? WHERE key='schema_version'").run(String(Number(version) + 1));
-  await assert.rejects(access.warm(), error => (error as { code?: string }).code === "catalog.reader_too_old");
+  await assert.rejects(access.warm(), error => (error as { code?: string }).code === "storage.store_too_new");
   metadata.prepare("UPDATE catalog_meta SET value=? WHERE key='schema_version'").run(version);
   metadata.close();
   await assert.rejects(access.withCatalog({ homeDirectory: join(home, "other") }, () => undefined), /another Home/);

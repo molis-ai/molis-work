@@ -60,7 +60,8 @@ test("W2-18-IMAGES-SETUP-01 / W2-18-CONTENT-CONTEXT-01: real empty-account setti
   await input(child, "[data-images-connection-url]", baseUrl); await input(child, "[data-images-connection-model]", "fixture-model");
   await child.click('[data-images-dialog] a[href^="/settings/"]');
   await child.waitFor("!document.querySelector('[data-images-dialog]').open");
-  await b.waitFor("document.querySelector('[data-connector-detail=image-api]:not([hidden]) [data-connector-token]')");
+  // The service's row opens in place (ASC-73); its key field is pressed once the row has finished opening.
+  await b.waitFor("document.querySelector('[data-connector-item=image-api][data-open=true] [data-connector-token]') && document.getElementById('connector-image-api-body').getAnimations({ subtree: true }).length === 0");
   const tokenSelector = '[data-connector-detail="image-api"] [data-connector-auth="image-api"] [data-connector-token]';
   await b.click(tokenSelector);
   assert.equal(await b.evaluate(`document.activeElement===document.querySelector(${JSON.stringify(tokenSelector)})`), true, "the settings cover receives focus after the native modal closes");
@@ -69,11 +70,13 @@ test("W2-18-IMAGES-SETUP-01 / W2-18-CONTENT-CONTEXT-01: real empty-account setti
   await b.command("Input.dispatchKeyEvent", { type: "keyUp", key: "Tab", code: "Tab", windowsVirtualKeyCode: 9 }, b.sessionId);
   assert.equal(await b.evaluate("document.activeElement.closest('[data-connector-detail]')?.dataset.connectorDetail"), "image-api");
   await b.click('[data-connector-detail="image-api"] [data-connector-auth="image-api"] button[type="submit"]');
-  await b.waitFor("document.querySelector('[data-connector-detail=image-api]:not([hidden]) [data-connection-row]')");
+  await b.waitFor("document.querySelector('[data-connector-item=image-api][data-open=true] [data-connector-detail=image-api] [data-connection-row]')");
   const accountId = await b.evaluate<string>("document.querySelector('[data-connector-detail=image-api] [data-connection-row]').dataset.connectionRow");
-  await b.evaluate("[...document.querySelectorAll('[data-cover-close]')].find(node=>node.getClientRects().length).setAttribute('data-content-close','')");
-  await b.click("[data-content-close]");
-  await b.waitFor("document.body.dataset.desktopSurface==='images'"); await child.click("[data-images-connections]");
+  // Opened from the page's link, the settings are a return trip (specs/draft-and-return §2.3): once the account is connected they close
+  // onto Images by themselves, with nothing left for the person to close.
+  await b.waitFor("document.body.dataset.desktopSurface==='images'");
+  assert.equal(await b.evaluate("[...document.querySelectorAll('[data-cover-close]')].some(node => node.getClientRects().length)"), false, "the settings closed onto Images");
+  await child.click("[data-images-connections]");
   await child.waitFor(`document.querySelector('[data-images-connection-auth] option[value="${accountId}"]')`);
   assert.equal(await child.evaluate("document.querySelector('[data-images-connection-name]').value"), "Draft local image service");
   assert.equal(await child.evaluate("document.querySelector('[data-images-connection-url]').value"), baseUrl);

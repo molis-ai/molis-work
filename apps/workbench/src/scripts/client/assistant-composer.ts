@@ -76,7 +76,7 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
   };
 
   /* ─── The input: the platform's composer ──────────────────────────────── */
-  const words = (${assistantComposerLabels.toString()})(L, /Mac|iPhone|iPad/.test(navigator.platform));
+  const words = (${assistantComposerLabels.toString()})(L, /Mac|iPhone|iPad/.test(navigator.platform), compose?.dataset.composerNext || L("补充"));
   const upload = (${ASSISTANT_ATTACHMENTS_FACTORY_SCRIPT})({ L, api });
   /* “/”: what this work may use now and the methods it may follow, read once, when the person first comes to the input. A method
      (how to do it) or a capability (what to use) chosen there goes with the next Send only, on the strip above the input. */

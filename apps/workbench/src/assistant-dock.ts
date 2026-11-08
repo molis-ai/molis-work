@@ -1,4 +1,4 @@
-import { renderButton, renderComposer, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { escapeHtml, renderButton, renderComposer, t, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { assistantComposerLabels } from "./assistant-composer-labels.js";
 
 /** The glyphs the side pane draws for kinds of things and states, rendered once from the shared icon set. */
@@ -13,6 +13,8 @@ const ASSISTANT_GLYPHS: readonly PluginIconName[] = ["file", "note", "image", "z
  */
 export function renderAssistantDock(primitives: { L(value: string): string; icon(name: PluginIconName): string }): string {
   const { L, icon } = primitives;
+  // The ordinary send while a turn runs, by its stable key; the island's script reads it back from the composer's mount.
+  const add = t.text("workbench.composer.next-boundary");
   return `<div class="bar-center" data-assistant-island data-system-view-owner="assistant">
       <section class="assistant-panel" data-assistant-panel aria-label="${L("助理")}" hidden>
         <template data-assistant-glyphs>${ASSISTANT_GLYPHS.map((name) => `<span data-glyph="${name}">${icon(name)}</span>`).join("")}</template>
@@ -74,8 +76,8 @@ export function renderAssistantDock(primitives: { L(value: string): string; icon
       <div class="assistant-context-strip" data-assistant-context-strip role="group" hidden></div>
       <div class="assistant-next-row" data-assistant-next-row hidden></div>
       <div class="assistant-popover assistant-notices" id="assistant-notices" data-assistant-notices role="group" aria-label="${L("需要你看看")}" hidden></div>
-      <div class="assistant-composer" data-assistant-composer>
-        ${renderComposer({ kind: "ai", labels: assistantComposerLabels(L, true), placeholder: L("让助理做点什么…"), receiver: { label: L("助理") } })}
+      <div class="assistant-composer" data-assistant-composer data-composer-next="${escapeHtml(add)}">
+        ${renderComposer({ kind: "ai", labels: assistantComposerLabels(L, true, add), placeholder: L("让助理做点什么…"), receiver: { label: L("助理") } })}
         <button class="assistant-attention" type="button" data-assistant-attention aria-haspopup="true" aria-expanded="false" aria-controls="assistant-notices" title="${L("需要你看看")}" hidden>${icon("bell")}<span data-assistant-attention-count></span></button>
       </div>
     </div>`;

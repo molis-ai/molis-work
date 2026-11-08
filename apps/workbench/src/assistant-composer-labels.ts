@@ -4,9 +4,11 @@ import type { MwComposerAiLabels } from "@molis-ai/molis-work-plugin-sdk/ui";
  * The resident Assistant's words for the unified input (unified-input-voice K3): one set for the Dock's first screen (Host, `L`)
  * and the island's `molisComposer` (browser, `host.translate`), so the two never say it differently. It is serialized into the
  * island's script with `.toString()`, so it uses nothing from outside itself. The Chinese is the board's and the Assistant's
- * own (one Chinese key, one English); the key glyphs are not words and follow the platform.
+ * own (one Chinese key, one English); the key glyphs are not words and follow the platform. `add` is the name of the ordinary send
+ * while a turn runs, the stable key `workbench.composer.next-boundary` (补充 / Add) the Host reads: by its Chinese, 补充 is a receipt's
+ * kind (Supplement), not this.
  */
-export function assistantComposerLabels(L: (text: string) => string, mac: boolean): MwComposerAiLabels {
+export function assistantComposerLabels(L: (text: string) => string, mac: boolean, add: string): MwComposerAiLabels {
   const keys = (text: string) => mac ? text : text.replace("⌘⇧↵", "Ctrl+Shift+↵").replace("⌘↵", "Ctrl+↵");
   return {
     input: L("发给助理"), send: L("发送"), sendTitle: keys(L("发送（⌘↵）")), add: L("添加文件、引用或能力"), more: L("更多"),
@@ -18,7 +20,7 @@ export function assistantComposerLabels(L: (text: string) => string, mac: boolea
     notSent: L("核对过：没有送到。字还在，可以再发"),
     to: L("发给："), stop: L("停止"), stopTitle: L("停止这一轮"), delivery: L("选择送达方式"), deliveryGroup: L("送达方式"),
     modes: {
-      "next-boundary": { name: L("补充"), title: keys(L("补充（⌘↵）")), description: L("当前回复或这批工具结束后读到，不打断") },
+      "next-boundary": { name: add, title: keys(L("补充（⌘↵）")), description: L("当前回复或这批工具结束后读到，不打断") },
       interrupt: { name: L("打断并改向"), title: L("打断并改向"), description: L("丢掉正在写的回复，改按这句做；已做的不撤销") },
       "after-run": { name: L("下一轮再做"), title: keys(L("下一轮再做（⌘⇧↵）")), description: L("排到下一轮开头，你开下一轮时带上") },
     },

@@ -3,6 +3,7 @@ import { validatePluginLocaleFiles, validatePluginManifestFile } from "./validat
 import { createPluginProject } from "./create.js";
 import { packPluginProject } from "./package-files.js";
 import { packSandboxProject, sandboxPackOptions } from "./pack-sandbox.js";
+import { contentPackOptions, packContentProject } from "./pack-content.js";
 import { readPublisherIdentity, signPluginPackageFile, verifyPluginPackageFile } from "./package-signing.js";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDevelopmentResult } from "@molis-ai/molis-work-contracts/platform/tooling";
@@ -13,6 +14,7 @@ const COMMANDS: readonly { line: string; host?: true }[] = [
   { line: "create <directory> <plugin-id> <publisher-id> <binding-signature>" },
   { line: "pack <directory> <output.json>" },
   { line: "pack-sandbox <directory> <output.json> --name <name> --version <version> --publisher-id <id> --publisher-key-id <fingerprint> [--scope project|home] [--icon <icon>] [--compatible-from <versions>] [--agent <JSON>] [--methods <JSON>]" },
+  { line: "pack-content <skills-directory> <output.json> --plugin-id <id> --name <name> --version <version> --publisher-id <id> --publisher-key-id <fingerprint> [--scope project|home] [--compatible-from <versions>]" },
   { line: "identity <public-key.pem>" },
   { line: "sign <input.json> <private-key.pem> <output.json>" },
   { line: "verify <input.json> <trusted-public-key.pem>" },
@@ -57,6 +59,19 @@ export async function runPluginCli(args: readonly string[], output: PluginCliOut
       output.stdout(`${JSON.stringify({ packed: true, plugin_id: bundle.payload.manifest.plugin_id, output: args[2], signed: false })}\n`);
       return 0;
     } catch (error) { output.stderr((error instanceof Error ? error.message : String(error)) + '\n'); return 1; }
+  }
+  if (args[0] === "pack-content") {
+    try {
+      if (!args[1] || !args[2]) throw new Error('pack-content 需要技能目录与输出文件');
+      const bundle = await packContentProject(args[1], args[2], contentPackOptions(args.slice(3)));
+      output.stdout(`${JSON.stringify({ packed: true, plugin_id: bundle.payload.manifest.plugin_id, skills: bundle.payload.manifest.methods?.length ?? 0, output: args[2], signed: false })}\n`);
+      return 0;
+    } catch (error) {
+      const problems = error && typeof error === "object" && "details" in error ? (error.details as { problems?: unknown } | undefined)?.problems : undefined;
+      output.stderr(`${JSON.stringify({ packed: false, code: error && typeof error === "object" && "code" in error ? error.code : "plugin.package_invalid",
+        message: error instanceof Error ? error.message : String(error), ...(problems ? { problems } : {}) })}\n`);
+      return 1;
+    }
   }
   // `dev` may end with `--locale <language>`, after the arguments it reads by position.
   const devLocale = args[0] === "dev" && args.length === 7 && args[5] === "--locale" ? args[6] : undefined;

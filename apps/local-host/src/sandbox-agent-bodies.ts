@@ -1,5 +1,6 @@
 import { pluginErrors, type SandboxAgentBody, type SandboxPackageManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
-import { readPackagedSkills, refuseDeclarations, sandboxRoleIdentity } from '@molis-ai/molis-work-plugin-sdk';
+import type { AgentSkillDeclaration } from '@molis-ai/molis-work-contracts/platform/plugin-agent';
+import { readPackagedSkills, refuseDeclarations, sandboxRoleIdentity, type PackagedSkillBody } from '@molis-ai/molis-work-plugin-sdk';
 
 /** Every file the package's text declarations name: each role material's body, and each method's body and resources. */
 export function sandboxAgentBodyPaths(manifest: SandboxPackageManifest): string[] {
@@ -25,9 +26,11 @@ export function readSandboxAgentBodies(manifest: SandboxPackageManifest, files: 
   }
   const methods = manifest.methods ?? [], skills = readPackagedSkills(methods, files);
   if (skills.problems.length) refuseDeclarations(skills.problems);
-  for (const method of methods) {
-    const body = skills.bodies.find(item => item.skill_id === method.skill_id)!.body;
-    result.push({ kind: 'method', entry_id: method.skill_id, name: method.name, purpose: method.summary, body });
-  }
-  return result;
+  return [...result, ...packagedMethodBodies(methods, skills.bodies)];
+}
+
+/** Each declared method with the body its package ships, read and checked by `readPackagedSkills`: a sandbox package's and a content package's alike. */
+export function packagedMethodBodies(methods: readonly AgentSkillDeclaration[], bodies: readonly PackagedSkillBody[]): SandboxAgentBody[] {
+  return methods.map(method => ({ kind: 'method', entry_id: method.skill_id, name: method.name, purpose: method.summary,
+    body: bodies.find(item => item.skill_id === method.skill_id)!.body }));
 }

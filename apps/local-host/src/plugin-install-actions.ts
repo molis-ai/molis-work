@@ -1,7 +1,10 @@
-import { ActionError, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionHandler, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginInstalledPermissionView, PluginInstalledView, PluginPublisherPin } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
+import { SKILL_LIMITS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
+import { SKILL_INSTALL_PREVIEW_SCHEMA, skillImportActions } from "@molis-ai/molis-work-contracts/services/skills";
 import { assertHomePluginPermissionSettingsEntry, assertPluginConsentSettingsEntry, assertPluginPermissionSettingsEntry } from "./plugin-consent-settings-entry.js";
 import type { PluginInstallPreviewResult, PluginInstallService } from "./plugin-install-service.js";
+import type { SkillImportService } from "./skill-import.js";
 
 // Installing a plugin from a signed package, as the person's own act (ac-trust T2, specs/archive/repository-anti-corruption/slices/ac-trust-install.md
 // §3.1, S-84). The audience is `user` and the writing handlers want the protected entry's `user_action`, so an Agent, MCP, a workflow
@@ -50,14 +53,18 @@ const installedView = {
 
 export const pluginInstallActions = {
   preview: { capability_id: "plugins.install.preview", version: /* @version action.plugins.install.preview */ 1, operation: "command", action: { ...metadata, scope: "project",
-    title: "预览插件包的安装", description: "检查一个签名的沙箱插件包：签名、发布者、包的格式，并说明装上它意味着什么（它要的权限、发布者有没有被固定）；不安装、不固定发布者。包不合格在这里就被拒，什么也不写。",
+    title: "预览插件包的安装", description: "检查一个签名的插件包（沙箱包，或只有声明的插件的内容包）：签名、发布者、包的格式，并说明装上它意味着什么（它要的权限、它带的技能与依赖、升级时每个技能变了什么、发布者有没有被固定）；不安装、不固定发布者。包不合格在这里就被拒，什么也不写。",
     kind: "operation", effect: "write", permissions: [PLUGIN_INSTALL_WRITE],
     input_schema: { type: "object", properties: { bundle: { type: "object" } }, required: ["bundle"], additionalProperties: false },
     output_schema: { type: "object", additionalProperties: false, required: ["preview_id", "name", "runtime_scope", "preview", "effects", "publisher"], properties: {
       preview_id: text, name: text, runtime_scope: { enum: ["home", "project"] }, effects,
       publisher: { type: "object", additionalProperties: false, required: ["key_id", "pinned_label"], properties: { key_id: text, pinned_label: { type: ["string", "null"] } } },
       agent_bodies: { type: "array", maxItems: 128, items: { type: "object", additionalProperties: false, required: ["kind", "name", "excerpt"], properties: {
-        kind: { type: "string", enum: ["role", "method"] }, name: { type: "string", maxLength: 80 }, excerpt: { type: "string", maxLength: 400 }, change: { type: "string", enum: ["added", "changed", "removed"] } } } },
+        kind: { type: "string", enum: ["role"] }, name: { type: "string", maxLength: 80 }, excerpt: { type: "string", maxLength: 400 }, change: { type: "string", enum: ["added", "changed", "removed"] } } } },
+      // An upgrade lists the Skills it removes besides the package's own, so twice the most one package declares.
+      skills: { type: "array", maxItems: 2 * SKILL_LIMITS.skillsPerPackage, items: SKILL_INSTALL_PREVIEW_SCHEMA },
+      requires: { type: "array", items: { type: "object", additionalProperties: false, required: ["capability_id", "version", "optional", "reason", "satisfied"], properties: {
+        capability_id: text, version: { type: "integer", minimum: 1 }, optional: { type: "boolean" }, reason: text, satisfied: { type: "boolean" } } } },
       origins: { type: "array", items: { type: "object", additionalProperties: false, required: ["service_id", "title", "origins"], properties: { service_id: text, title: text, origins: { type: "array", items: text } } } },
       preview: { type: "object", additionalProperties: false, required: ["plugin_id", "version", "trust", "publisher_signature", "publisher_pinned", "permissions", "declarations", "jobs"], properties: {
         plugin_id: text, version: text, trust: { enum: ["host", "pinned", "unsigned"] }, publisher_signature: text, publisher_pinned: { type: "boolean" },
@@ -135,7 +142,11 @@ export const pluginControlActions = {
     input_schema: { type: "object", properties: { ...controlInput, keep_data: { type: "boolean" } }, required: ["plugin_id", "keep_data"], additionalProperties: false }, output_schema: controlOutput } } as ActionDefinition<{ plugin_id: string; keep_data: boolean }, { plugin_id: string; state: string }>,
 };
 
-export function pluginInstallHandlers(service: PluginInstallService): ActionHandlerBinding[] {
+/** Importing Skills from this machine is installing the content package the import makes, so this provider offers it too (batch 08, 08-8). */
+export const pluginInstallDefinitions = (imports?: SkillImportService) =>
+  [...Object.values(pluginInstallActions), ...Object.values(pluginControlActions), ...imports ? Object.values(skillImportActions) : []] as ActionDefinition[];
+
+export function pluginInstallHandlers(service: PluginInstallService, imports?: SkillImportService): ActionHandlerBinding[] {
   const person = (caller: Parameters<ActionHandlerBinding["handle"]>[0]) => {
     if (!caller.user_action) throw new ActionError("actions.forbidden", "安装插件只接受本人在界面或命令行里的操作");
     if (!caller.project_id) throw new ActionError("actions.project_required", "请选择要安装到的项目");
@@ -185,5 +196,16 @@ export function pluginInstallHandlers(service: PluginInstallService): ActionHand
       if (!caller.project_id) throw new ActionError("actions.project_required", "请选择一个项目");
       return { plugins: await service.installed(caller.project_id) };
     } },
+    // The person's own, as installing is: a Skill imported here is a package installed here.
+    ...imports ? [
+      bindActionHandler(skillImportActions.preview, async (input, caller) => {
+        const who = person(caller); await caller.beforeEffect();
+        return imports.preview(input, who);
+      }),
+      bindActionHandler(skillImportActions.confirm, async (input, caller) => {
+        const who = person(caller); await caller.beforeEffect();
+        return imports.confirm(input, who);
+      }),
+    ] : [],
   ];
 }

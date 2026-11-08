@@ -121,6 +121,16 @@ export interface ContentPackage {
     skills: PackagedSkillBody[];
 }
 
+export interface ContentPackageInput {
+    plugin_id: string;
+    version: string;
+    name: string;
+    publisher: PluginManifest["publisher"];
+    scope?: "home" | "project";
+    compatible_from?: readonly string[];
+    skills: readonly FolderSkill[];
+}
+
 export declare const DIFF_STEP_BUDGET = 200000;
 
 export interface DeclaredPageRouteMatch extends PageRouteMatch {
@@ -160,6 +170,13 @@ export type { FileContent } from "@molis-ai/molis-work-contracts/platform/action
 export type { FileEntry } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { FileSourceKind } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { FlatUnion } from "@molis-ai/molis-work-contracts/platform/actions";
+
+export interface FolderSkill {
+    declaration: PluginMethodDeclaration;
+    files: Map<string, Uint8Array>;
+    applies_to_written: boolean;
+}
+
 export type { FragmentActionOffer } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { FragmentApply } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { FragmentGranularity } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -421,6 +438,7 @@ export type { SearchSourceKind } from "@molis-ai/molis-work-contracts/platform/a
 export interface SkillFrontmatterOptions {
     version?: number;
     resources?: SkillResourceDeclaration[];
+    applies_to?: SkillAppliesTo;
 }
 
 export type { SubjectActionOffer } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -576,6 +594,8 @@ export declare function compareCodeUnits(left: string, right: string): number;
 export declare function comparePluginVersions(left: string, right: string): number;
 
 export declare function compareTexts(before: string, after: string): TextDiff;
+
+export declare function contentPackagePayload(input: ContentPackageInput): PluginPackagePayload;
 
 export declare function controlledConnectorFetch<Input>(fetchImpl: (input: Input, init?: RequestInit) => Promise<Response>, control: ConnectorCallControl): (this: unknown, input: Input, init?: RequestInit) => Promise<Response>;
 
@@ -814,6 +834,11 @@ export { searchRevisionOf } from "@molis-ai/molis-work-contracts/platform/action
 export { searchText } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export declare function skillDeclarationFromFrontmatter(markdown: string, options?: SkillFrontmatterOptions): PluginMethodDeclaration;
+
+export declare function skillFromFolder(files: ReadonlyMap<string, Uint8Array>, options?: {
+    version?: number;
+    applies_to?: SkillAppliesTo;
+}): FolderSkill;
 
 export declare function splitLines(text: string): DiffLine[];
 

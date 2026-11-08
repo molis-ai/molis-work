@@ -1,8 +1,10 @@
 import { createHash } from "node:crypto";
-import { lstatSync, mkdirSync, realpathSync } from "node:fs";
+import { lstatSync, mkdirSync, opendirSync, realpathSync } from "node:fs";
+import { rm } from "node:fs/promises";
 import path from "node:path";
 
 import { projectCatalogErrors as catalogErrors } from "@molis-ai/molis-work-contracts/modules/projects";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 
 import { projectDirectoryPath } from "./project-paths.js";
 import type { Row } from "./sqlite.js";
@@ -84,4 +86,31 @@ export function prepareProjectOutputDirectory(outputsDirectory: string, projectI
     throw catalogErrors.project_storage_invalid("默认输出目录的真实位置不在这个 Home 的 outputs 里，不会在这里读写");
   }
   return { path: target, exists: true };
+}
+
+/**
+ * What the default output directory holds, for the deletion dialog (§3 「永久删除怎么做」): `empty` when it is not there or has nothing in it,
+ * `has_files` when it has one entry or more (only the first is read: nothing is counted or walked), and `unknown` when the folder or `outputs`
+ * does not pass the check above (a symbolic link, say) or the id is not one plain segment.
+ */
+export function projectOutputContents(outputsDirectory: string, projectId: string): "empty" | "has_files" | "unknown" {
+  let checked: { path: string; exists: boolean };
+  try { checked = prepareProjectOutputDirectory(outputsDirectory, projectId, "read"); } catch (error) {
+    if (error instanceof ActionError && error.code === "catalog.project_storage_invalid") return "unknown";
+    throw error;
+  }
+  if (!checked.exists) return "empty";
+  const entries = opendirSync(checked.path);
+  try { return entries.readSync() ? "has_files" : "empty"; } finally { entries.closeSync(); }
+}
+
+/**
+ * Removes a deleted project's default output directory, when the person chose to (§3 「永久删除怎么做」). The path is derived from the trusted
+ * Home and the id, never read from a receipt (S-102), and checked first as for a read: when `outputs` or the folder is a symbolic link or not a
+ * directory nothing is removed and `catalog.project_storage_invalid` is thrown, so the step stays to be retried. A folder that is not there is
+ * done. Symbolic links inside are removed as links; what they point to stays.
+ */
+export async function removeProjectOutputDirectory(outputsDirectory: string, projectId: string): Promise<void> {
+  const checked = prepareProjectOutputDirectory(outputsDirectory, projectId, "read");
+  if (checked.exists) await rm(checked.path, { recursive: true, force: true });
 }

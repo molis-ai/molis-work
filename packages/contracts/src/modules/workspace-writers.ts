@@ -26,8 +26,6 @@ export interface PreparedWriterDirectory {
   branch: string;
   base_commit: string;
   canonical_path: string;
-  /** Present only after the Host recorded the project authorization. */
-  workspace_id: string | null;
   /**
    * Why this directory in the writers' folder can no longer serve as a writer (its branch was switched, its origin is
    * missing). Such an entry is listed so the person sees it, and is never assigned or integrated.
@@ -48,8 +46,10 @@ export interface WriterIntegrationFile {
   conflict?: { base_text: string | null; merged_text: string; clean: boolean; markers: number };
 }
 export interface WriterIntegrationView {
+  /** The output the child's result comes back to. */
   workspace_id: string;
-  writer_workspace_id: string;
+  /** The Host's worktree the child wrote in. */
+  worktree_id: string;
   source_path: string;
   target_path: string;
   branch: string;
@@ -79,12 +79,12 @@ export const writerIntegrationCapabilities = {
 export const writerDirectoryCapabilities = {
   list: {
     capability_id: "projects.workspace.writers.list", version: /* @version action.projects.workspace.writers.list */ 1, operation: "query",
-    action: /* @__PURE__ */ gitHostAction("列出独立工作树", "列出主工作区下宿主创建的独立工作树，以及各自是否已授权给本项目；分支被手动切换或来源缺失的目录也列出并写明原因，但不能分配或整合", "query", "workspace:read",
+    action: /* @__PURE__ */ gitHostAction("列出独立工作树", "列出输出目录下宿主创建的独立工作树；分支被手动切换或来源缺失的目录也列出并写明原因，但不能分配或整合", "query", "workspace:read",
       /* @__PURE__ */ object({ workspace_id: id }), { type: "array", items: writerDirectory }),
   } as ActionDefinition<{ workspace_id: string }, PreparedWriterDirectory[]>,
   prepare: {
     capability_id: "projects.workspace.writers.prepare", version: /* @version action.projects.workspace.writers.prepare */ 1, operation: "command",
-    action: /* @__PURE__ */ gitHostAction("发起独立工作树的审查", "为在主工作区下创建一个独立工作树和本地分支、并授权本项目在其中执行发起宿主审查；只返回审查身份和将创建的目录，用户批准后才创建，期间仓库或授权变化会被拒绝", "operation", "review:git-worktree",
+    action: /* @__PURE__ */ gitHostAction("发起独立工作树的审查", "为在输出目录下创建一个独立工作树和本地分支发起宿主审查，供本项目的轮次在其中写入；只返回审查身份和将创建的目录，用户批准后才创建，期间仓库或授权变化会被拒绝", "operation", "review:git-worktree",
       /* @__PURE__ */ object({ workspace_id: id, operation_id: operationId }), /* @__PURE__ */ object({ review_id: id, directory: writerDirectory })),
   } as ActionDefinition<{ workspace_id: string; operation_id: string }, { review_id: string; directory: PreparedWriterDirectory }>,
 } as const;

@@ -2,6 +2,7 @@
 import type { ActionCallOrigin, ExactActionReference, ActionView } from "../platform/actions.js";
 import type { ArtifactReference, ArtifactProducerIdentity } from "../modules/artifacts.js";
 import type { CharacterContent } from "../modules/characters.js";
+import type { RunDirectories } from "../modules/projects.js";
 import type { AgentRoleExecution, AgentPromptLayer, AgentSkillDeclaration, AgentPromptText, AgentSkillDefinition } from "../platform/plugin-agent.js";
 import type { AgentActionOffer } from "./agent-host-offers.js";
 import type { AgentRecalledMemory } from "./agent-host-memory.js";
@@ -147,6 +148,11 @@ interface AgentFrozenStartFields {
   continues_step_board_of?: string;
   /** Child directory grants frozen for this run; never a grant to write the parent. */
   subagent_workspaces?: AgentSubagentWorkspace[];
+  /**
+   * Where the round works, as the project's folders were when it started (specs/shared-sources-and-surfaces §3): this says where,
+   * never whether. Present on a round in a directory; a view shows it beside the project's folders now.
+   */
+  directories?: RunDirectories;
   /** Authoritative fixed Character content and source at start, never looked up for history. */
   character?: AgentFrozenCharacter;
   role_id: string;
@@ -220,8 +226,9 @@ export interface AgentFrozenSubagentRole {
   prompts: AgentPromptText[]; host_tools: string[];
 }
 
+/** A writing child's own directory: one of the Host's worktrees of the output, named by its `worktree_id` (never a directory of the project). */
 export interface AgentSubagentWorkspace {
-  workspace_id: string;
+  worktree_id: string;
   directory: AgentWorkingDirectory;
 }
 
@@ -309,6 +316,8 @@ export interface AgentFrozenRole {
   actions?: { tools: ActionView[]; client: AgentActionClient };
   character_skill_ids?: string[];
   subagent_workspaces?: AgentSubagentWorkspace[];
+  /** Trusted Host composition only: where the round works, frozen into its record (`directories`). */
+  directories?: RunDirectories;
   subagents?: AgentFrozenSubagentRole[];
   character?: AgentFrozenCharacter;
   role_id: string;

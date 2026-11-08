@@ -292,6 +292,9 @@ test("D0209 the trash dialog settles focus after the board refresh: Escape retur
     if (!await evaluate(dom(".goal-more") + ".open")) await click(".goal-more > summary");
     await click(rowTrigger("INTERFACES"));
     await waitFor(dom("[data-goal-trash-dialog]") + ".open");
+    // Opening the confirmation closes the menu that offered the action: an open menu would rightly make the host read
+    // the workspace as mid-interaction and skip the very refresh a close settles on.
+    assert.equal(await evaluate(dom(".goal-more") + ".open"), false);
   };
   const pressEscape = async () => {
     await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
@@ -303,14 +306,19 @@ test("D0209 the trash dialog settles focus after the board refresh: Escape retur
   // run only after that held refresh is released. Every cursor request the phase issues stays held until the release,
   // so a background poll cannot consume the hold, and a fresh page and interceptor per phase keep one phase's traffic
   // out of the next — a prior refresh can never be caught by a later interceptor.
-  const shownSummary = "document.activeElement?.matches('.goal-more > summary') && document.activeElement.getClientRects().length > 0";
+  const shownSummary = `document.activeElement?.matches('.goal-more > summary') && document.activeElement.closest('[data-goal-view="INTERFACES"]') !== null && document.activeElement.getClientRects().length > 0`;
   const holdBoardCursor = async () => {
-    await evaluate(`{ window.boardCursorArrived = false; window.boardCursorReleased = false;
+    await evaluate(`{ window.boardCursorArrived = false; window.boardCursorReleased = false; window.boardCursorConsumed = false;
+      window.boardCursorGate = new Promise(resolve => { window.releaseBoardCursor = resolve; });
       const original = window.fetch;
       window.fetch = async (url, options) => {
         if (String(url).includes("/api/board/cursor") && !window.boardCursorReleased) {
           window.boardCursorArrived = true;
-          await new Promise(resolve => { window.releaseBoardCursor = resolve; });
+          await window.boardCursorGate;
+          const response = await original(url, options);
+          await response.clone().text();
+          window.boardCursorConsumed = true;
+          return response;
         }
         return original(url, options);
       }; }`);
@@ -332,25 +340,33 @@ test("D0209 the trash dialog settles focus after the board refresh: Escape retur
   await waitFor(shownSummary);
   await waitFor(dom("[data-goal-trash-dialog]") + ".open === false");
 
-  // Phase 2: take the return point away while the close's refresh is held, then release and settle:
-  // the gone summary falls back to the page's visible create entry.
+  // Phase 2: take the return point away while the close's refresh is held, then release and settle: the redrawn-away
+  // summary falls back to the same Goal's own visible info summary — the package's way back when the original entry
+  // is gone on a Goal's page — not to the list-page create entry.
+  const shownInfo = `document.activeElement?.matches('[data-goal-view="INTERFACES"] [data-goal-info] > summary') && document.activeElement.getClientRects().length > 0`;
   await freshPhase();
   await openTrash();
   await pressEscape();
   await waitFor("window.boardCursorArrived === true");
   await evaluate("document.querySelector('.goal-more')?.remove()");
   await releaseBoardCursor();
-  await waitFor("document.activeElement?.dataset?.openCreate !== undefined");
+  await waitFor("window.boardCursorConsumed === true");
+  await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+  await waitFor(shownInfo);
 
   // Phase 3: reopening the dialog while the earlier close's refresh is still held: the stale close neither moves focus
-  // out of the reopened dialog nor consumes the return point its own open just bound. The reopened dialog's own close
-  // then runs on a released cursor, so its settle brings the visible summary back.
+  // out of the reopened dialog nor consumes the return point its own open just bound. Release alone proves nothing —
+  // the dialog is already open — so the released response is waited for consumed, then two animation frames bound the
+  // settle's whole microtask chain, and only then may the reopened dialog be checked and closed. Its own close runs on
+  // a released cursor, so its settle brings the visible summary back.
   await freshPhase();
   await openTrash();
   await pressEscape();
   await waitFor("window.boardCursorArrived === true");
   await openTrash();
   await releaseBoardCursor();
+  await waitFor("window.boardCursorConsumed === true");
+  await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   await waitFor(`${dom("[data-goal-trash-dialog]")}.open && ${dom("[data-goal-trash-dialog]")}.contains(document.activeElement)`);
   await click('[data-goal-trash-dialog] footer [data-close-goal-trash]');
   await waitFor(shownSummary);

@@ -6,8 +6,9 @@ const GOALS_TRASH_DIALOG_SCRIPT = `    const openGoalTrashDialog = (trigger, tra
       const goalTitle = String(trigger.dataset.goalTitle || goalId).trim();
       if (!goalId) return;
       // The way back is a point that is shown: the menu summary the entry folded out of, else the entry itself —
-      // never a button that closing the menu hides.
-      const menu = trigger.closest("details");
+      // never a button that closing the menu hides. Only the originating goal menu is the menu; a direct restore
+      // entry outside one never closes an outer fold such as the Goal information disclosure.
+      const menu = trigger.closest("details.goal-more");
       trashTrigger = shown(menu && menu.querySelector(":scope > summary")) || shown(trigger);
       trashIntent = { goalId, goalTitle, trashed };
       trashError.hidden = true;
@@ -29,6 +30,14 @@ const GOALS_TRASH_DIALOG_SCRIPT = `    const openGoalTrashDialog = (trigger, tra
       trashSubmit.classList.toggle("mw-btn--danger", trashed);
       trashSubmit.classList.toggle("mw-btn--primary", !trashed);
       trashSubmit.textContent = trashed ? L("移入回收站") : L("恢复到 Goal Tree");
+      // The menu that offered this action must not stay open: the host rightly reads an open menu as an active
+      // interaction and skips the board refresh a close settles on. Only the nearest menu fold closes — the Goal
+      // information fold above it stays as it is — and its summary, the visible way back, takes the focus so the
+      // dialog's native return lands there too.
+      if (menu && menu.open) {
+        menu.open = false;
+        shown(menu.querySelector(":scope > summary"))?.focus({ preventScroll: true });
+      }
       trashDialog.showModal();
       if (!matchMedia("(max-width: 760px)").matches) {
         requestAnimationFrame(() => trashForm.elements.reason.focus());
@@ -37,12 +46,14 @@ const GOALS_TRASH_DIALOG_SCRIPT = `    const openGoalTrashDialog = (trigger, tra
 
     const closeGoalTrashDialog = () => {
       if (!trashDialog?.open || trashPending) return;
-      // This close binds its own trigger: a dialog opened before its refresh settles neither inherits nor clears it.
+      // This close binds its own return point and Goal: a dialog opened before its refresh settles neither inherits
+      // nor clears them.
       const back = trashTrigger;
+      const goalId = String(trashIntent?.goalId || "");
       trashTrigger = null;
       trashDialog.close();
       trashIntent = null;
-      void Promise.resolve(refreshBoard()).finally(() => settleTrashFocus(back));
+      void Promise.resolve(refreshBoard()).finally(() => settleTrashFocus(back, goalId));
     };
 
     const submitGoalTrashForm = async () => {
@@ -217,8 +228,10 @@ export const GOALS_DIALOGS_CLIENT_FACTORY_SCRIPT = `(host) => {
     // the menu hides, the old dialog's own focus) does not block the way back. A confirmed trash or restore navigates.
     // Shown is more than a box: the focus a closing dialog hands back can still carry geometry from menu content its
     // fold has already closed, so every closed details ancestor decides — only a detail's own first summary line shows.
+    // An inert subtree or a disabled control is not a way back either, and none of this opens a hidden page.
     const shown = (element) => {
-      if (!element || !element.isConnected || !element.getClientRects().length || element.closest("[hidden]")) return null;
+      if (!element || !element.isConnected || element.disabled || element.getAttribute?.("aria-disabled") === "true"
+        || !element.getClientRects().length || element.closest("[hidden],[inert]")) return null;
       for (let ancestor = element.parentElement; ancestor; ancestor = ancestor.parentElement) {
         if (ancestor.tagName !== "DETAILS" || ancestor.open) continue;
         const summary = Array.prototype.find.call(ancestor.children, (child) => child.tagName === "SUMMARY");
@@ -226,14 +239,18 @@ export const GOALS_DIALOGS_CLIENT_FACTORY_SCRIPT = `(host) => {
       }
       return element;
     };
-    const settleTrashFocus = (back) => {
+    const settleTrashFocus = (back, goalId) => {
       if (!back || trashDialog?.open || document.querySelector("dialog[open]")) return;
       const current = document.activeElement;
       // Unset focus — none, the body, the root — is not a choice the person made: the way back stays open.
       const chosen = current instanceof Element && current !== document.body && current !== document.documentElement
         && current !== back && shown(current);
       if (chosen) return;
-      (shown(back) || shown(document.querySelector("[data-open-create]")))?.focus({ preventScroll: true });
+      // A redrawn board may have taken the saved return point: the same Goal's own info summary is the way back on a
+      // Goal's page (the package's own convention when an original entry is lost), and a list page without one falls
+      // to a genuinely usable create entry.
+      const info = goalId ? document.querySelector('[data-goal-view="' + CSS.escape(goalId) + '"] [data-goal-info] > summary') : null;
+      (shown(back) || shown(info) || shown(document.querySelector("[data-open-create]")))?.focus({ preventScroll: true });
     };
 ${GOALS_TRASH_DIALOG_SCRIPT}
 ${GOALS_CREATE_COMPOSE_SCRIPT}

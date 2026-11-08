@@ -32,9 +32,9 @@ test("a judgment link hands content on only for the ticked results and records w
   } } };
   const published = await withFunctionsServiceAsync(home, async service => {
     const draft = service.create({ primitive: "choice", name: "要不要处理" });
-    service.updateDraft(draft.id, { instructions: "这条内容今天需要人处理吗", criteria: [{ key: "handle", description: "需要处理" }, { key: "skip", description: "不需要" }] });
-    await service.preview(draft.id, "需要处理的样例");
-    return service.publish(draft.id);
+    service.updateDraft(draft.id, { instructions: "这条内容今天需要人处理吗", criteria: [{ key: "handle", description: "需要处理" }, { key: "skip", description: "不需要" }] }, service.get(draft.id).updated_at);
+    await service.preview(draft.id, "需要处理的样例", service.get(draft.id).updated_at);
+    return service.publish(draft.id, service.get(draft.id).updated_at);
   }, functions);
   judged.length = 0;
   const host = new MolisWorkLocalHost({ homeDirectory: home, functions, completeText: null });

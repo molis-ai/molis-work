@@ -4,7 +4,7 @@ import path from "node:path";
 import type { Socket } from "node:net";
 import { fileURLToPath } from "node:url";
 import { createDesktopWebHost } from "@molis-ai/molis-work-app-desktop";
-import { finishMcpWebStartup, hostLog, reportMcpWebStartupFailure, reportSqliteVersion, watchMcpWebStartup } from "@molis-ai/molis-work-app-local-host";
+import { finishMcpWebStartup, hostLog, planHomeUpgrade, reportMcpWebStartupFailure, reportSqliteVersion, resolveConfiguredHome, runUpgradeMaintenance, watchMcpWebStartup } from "@molis-ai/molis-work-app-local-host";
 export type { WebServerOptions } from "@molis-ai/molis-work-app-local-host";
 export { resolveWebControlToken, WEB_CONTROL_TOKEN_RELATIVE_PATH } from "@molis-ai/molis-work-app-local-host";
 
@@ -45,6 +45,10 @@ if (isMain) {
     try {
     const mcpStartup = process.env.MOLIS_WORK_MCP_WEB_STARTUP === "1";
     if (mcpStartup && (!homeArgument || !Number.isInteger(port) || port < 1 || port > 65535)) throw new Error("Invalid MCP startup configuration");
+    // Before anything that opens a store, and while the port answers: whoever is waiting for this process sees that it is upgrading and leaves it be (§4.2).
+    const home = resolveConfiguredHome(homeArgument ? path.resolve(homeArgument) : undefined);
+    const plan = planHomeUpgrade(home);
+    if (plan.needed) await runUpgradeMaintenance({ home, port, plan });
     const server = createMolisWorkWebServer({
       ...(homeArgument ? { homeDirectory: path.resolve(homeArgument) } : {}),
     });

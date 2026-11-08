@@ -14,7 +14,6 @@ import { modelTemplatePageData } from "./model-provider-setup.js";
 import { withModelChecks } from "./model-provider-checks.js";
 import { modelAddressFromTemplate, modelKeyHint } from "./model-provider-templates.js";
 import { selectedTypeSafeConnection } from "./typesafe-connection.js";
-import { installationDiagnostics } from "./web-project-presentation.js";
 import { molisWorkHostProjectReference } from "./project-host.js";
 import { shownProjectPlugins } from "./plugin-registry.js";
 import { sendLocalWebJson as sendJson } from "./web-http.js";
@@ -107,7 +106,7 @@ export async function handleSettingsPage(ctx: CatalogRequestContext): Promise<bo
     ...(section === "connectors" ? await connectorSettingsView(localHost, serverOptions.homeDirectory, url, contextProject ? molisWorkHostProjectReference({ databasePath: contextProject.database_path, projectId: contextProject.project_id }) : undefined) : {}),
     projects,
     web_service: await webService.detect(),
-    diagnostics: installationDiagnostics(serverOptions.homeDirectory, projects.length), ...(section === "diagnostics" ? { ...callDiagnosticsView(localHost.callLog, url), periodic_tasks: composition.periodicTasks.list() } : {}),
+    diagnostics: composition.installationDiagnostics(projects.length), ...(section === "diagnostics" ? { ...callDiagnosticsView(localHost.callLog, url), periodic_tasks: composition.periodicTasks.list() } : {}),
   }, controlToken, isDesktopShellRequest(request, url)));
   return true;
 }
@@ -152,7 +151,7 @@ export async function handlePluginSettingsPage(ctx: CatalogRequestContext): Prom
     runtimes: [],
     projects,
     web_service: await webService.detect(),
-    diagnostics: installationDiagnostics(serverOptions.homeDirectory, projects.length),
+    diagnostics: composition.installationDiagnostics(projects.length),
   }, controlToken, isDesktopShellRequest(request, url)));
   return true;
 }

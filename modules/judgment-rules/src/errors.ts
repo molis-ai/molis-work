@@ -15,7 +15,11 @@ export const functionsErrors = defineErrorCodes("functions", {
   rule_key_taken: "conflict",
   preview_required: "invalid",
   not_found: "not_found",
-  /** The record changed since the caller read it. */
+  /** The rule is there; the sample the caller named is not. A page treats this differently: the rule did not go away. */
+  sample_not_found: "not_found",
+  /** The rule's definition moved on from the `updated_at` the caller read: read the latest and decide again. */
+  draft_stale: "conflict",
+  /** What the draft is for changed while it was being checked; loading the latest is not enough, it has to be checked again. */
   conflict: "conflict",
   version_conflict: "conflict",
   provider_not_configured: "conflict",

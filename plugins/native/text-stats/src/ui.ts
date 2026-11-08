@@ -7,7 +7,7 @@ import type {
 import { renderCompanionListStage, type CompanionStageModel } from "./companion-stage.js";
 import type { TextStatsView } from "./core.js";
 
-export const TEXT_STATS_UI_CONTRIBUTION_ID = /* @version contract.io.molis.work.native.text-stats.ui "io.molis.work.native.text-stats.ui.v{version}" */ "io.molis.work.native.text-stats.ui.v1";
+export const TEXT_STATS_UI_CONTRIBUTION_ID = "io.molis.work.native.text-stats.ui.v1";
 
 export interface TextStatsUiPrimitives {
   escape(value: unknown): string;

@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
+import { isMainScript } from "./script-paths.mjs";
 
 /**
  * Who answers for each workspace package, written once and rendered twice: the "归属" column of docs/SSOT-MATRIX.md and
@@ -279,7 +280,6 @@ async function main() {
   else console.log(`owners ok: ${WORKSPACE_PACKAGES.length} packages, ${CODEOWNERS_FILE} and ${SSOT_FILE} match the rules`);
 }
 
-const invokedPath = process.argv[1] ? pathToFileURL(path.resolve(process.argv[1])).href : null;
-if (invokedPath === import.meta.url) {
+if (isMainScript(import.meta.url)) {
   main().catch((error) => { console.error(error); process.exitCode = 1; });
 }

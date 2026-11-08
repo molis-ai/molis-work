@@ -1,4 +1,5 @@
-import { messageOf, required, showMessage } from "./dom.js";
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
+import { required, showMessage } from "./dom.js";
 import type { SchedulePage } from "./page.js";
 import { post, read } from "./request.js";
 import { closeForm, refreshStage, showForm } from "./stage.js";

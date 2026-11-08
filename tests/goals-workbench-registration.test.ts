@@ -58,5 +58,8 @@ test("the shipped page preserves the assembled registration program after litera
   const expected = UI_REQUEST_CLIENT_SCRIPT + transformSync(poolClientLiterals(source.slice(UI_REQUEST_CLIENT_SCRIPT.length)), {
     loader: "js", target: "es2022", charset: "utf8", minifyWhitespace: true, minifyIdentifiers: true, minifySyntax: true, legalComments: "none",
   }).code;
-  assert.equal(renderMolisWorkWorkbenchClientScript(), expected);
+  const shipped = renderMolisWorkWorkbenchClientScript();
+  assert.equal(shipped.slice(0, expected.length), expected);
+  assert.match(shipped.slice(expected.length), /data-unified-account-link/);
+  assert.equal(count(shipped, "data-unified-account-link"), 1);
 });

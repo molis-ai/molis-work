@@ -1,6 +1,8 @@
 import { BACKGROUND_TASKS_MENU_STYLES } from "./background-tasks.js";
 /** Approved project/plugin chrome. Scoped to the workbench, so settings retain their own layout. */
 export const IMMERSIVE_NAVIGATION_STYLES = `
+.mw-dialog.account-dialog{width:min(420px,calc(100vw - 32px));padding:24px;max-height:calc(100dvh - 32px);overflow:auto}.account-dialog>button{position:absolute;right:16px;top:16px}.account-form,.account-form .mw-field{display:grid;gap:8px}.account-form{gap:16px;margin-top:20px}.account-modes{display:flex;flex-wrap:wrap;gap:4px;margin-top:20px}.account-message{min-height:1.5em;line-height:1.6;margin-top:16px}.account-dialog h2{padding-right:56px}
+
   body.immersive-workbench {
     --desktop-titlebar-height: 32px; --desktop-titlebar-control-height: 26px; --workspace-chrome-height: 32px;
     --desktop-project-header-height: 36px; --plugin-rail-gap: 8px; --immersive-sidebar-width: 240px; --plugin-rail-width: 48px; --tab-strip-h: 32px;

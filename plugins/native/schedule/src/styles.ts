@@ -37,7 +37,11 @@ export const SCHEDULE_STYLES = `
   .schedule-reads__line svg { width: 15px; height: 15px; flex: none; margin-top: 2px; }
   .schedule-reads__line--fresh { color: var(--ink); }
   .schedule-reads__line--fresh svg { color: var(--accent); }
-  .schedule-reads__area:empty { display: none; }
+  /* The platform's area is drawn over this empty element, outside the page; the element only holds the height the shell gives it. */
+  .schedule-reads__area { display: block; min-width: 0; }
+  .schedule-reads__area:not([data-schedule-area-placed]) { display: none; }
+  /* Once shown, the area says each category and its state: Schedule's own count of them, or why it could not count, steps aside. */
+  .schedule-reads[data-schedule-area="shown"] :is([data-schedule-reads-summary], [data-schedule-reads-failed]) { display: none; }
   .schedule-reads__actions { display: flex; gap: 8px; margin-top: 4px; }
   .schedule-reads__actions .mw-btn svg { width: 14px; height: 14px; }
   /* New and edit, in the detail pane where the task will be (no dialog). */

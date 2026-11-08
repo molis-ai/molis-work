@@ -1,3 +1,4 @@
+import { readOnlyAlwaysOnProjectPlugins } from "./always-on-plugins.js";
 import { requireSynchronous, type ActionReference, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginPageRequest } from "./plugin-page-authority.js";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
@@ -52,6 +53,8 @@ type ProjectPluginServices = Pick<ProjectPluginSurfacePorts, "dependencyCheck" |
 
 export function projectRequestContext(context: WebRequestContext, options: ResolvedWebBoardOptions): ProjectRequestContext {
   const { localHost, composition, serverOptions } = context;
+  const homeDirectory = serverOptions.homeDirectory;
+  const directory = homeDirectory ? () => readOnlyAlwaysOnProjectPlugins(homeDirectory) : undefined;
   const hostReference = molisWorkHostProjectReference({ databasePath: options.databasePath, projectId: options.projectId });
   const userActions = (permissions: readonly string[], entry: LocalWebEntry = {}) => bindLocalWebActions(localHost, hostReference, permissions, entry);
   const shownPlugins = async (projectId: string) => {
@@ -65,12 +68,12 @@ export function projectRequestContext(context: WebRequestContext, options: Resol
     // An explicitly served single-database fixture has the same declared default selection as its page, without a Catalog record.
     if (!options.project) return withExternal(PAGE_PLUGINS_WITHOUT_SELECTION, []);
     return composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => {
-      const { plugins, hidden } = catalog.projectPluginMembership(projectId);
+      const { plugins, hidden } = catalog.projectPluginMembership(projectId, directory);
       return withExternal(plugins, hidden);
     });
   };
   const goalsHere = async () => !options.project || await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory },
-    catalog => catalog.listProjectPlugins(options.projectId).includes("goals"));
+    catalog => catalog.listProjectPlugins(options.projectId, directory).includes("goals"));
   return { ...context, options, hostReference, userActions, shownPlugins, goalsHere };
 }
 

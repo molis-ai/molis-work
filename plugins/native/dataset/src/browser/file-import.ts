@@ -1,4 +1,4 @@
-import { messageOf } from "./dom.js";
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import type { Dataset, DatasetPage, Failure } from "./types.js";
 
 const MAX_CSV_BYTES = 2_000_000;

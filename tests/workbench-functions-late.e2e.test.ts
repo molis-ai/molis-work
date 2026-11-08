@@ -75,7 +75,7 @@ for (const operation of ["sample-delete", "draft-delete"] as const) {
     const browser = await openAuditBrowser(t); if (!browser) return;
     const { a, b } = await setupRules(browser);
     if (operation === "sample-delete") {
-      await post(browser, "/api/functions/" + a.id + "/samples", { input: "Remove only A's sample", updated_at: a.updated_at });
+      await post(browser, "/api/functions/" + a.id + "/samples", { input: "Remove only A's sample", expected_updated_at: a.updated_at });
       await browser.reloadPage();
       await browser.waitFor("document.querySelector('[data-functions-name]')?.value === 'Rule A'");
       await browser.click("[data-functions-step=use]");

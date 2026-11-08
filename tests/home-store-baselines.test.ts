@@ -92,7 +92,7 @@ test("RAC-2645 the prior Runtime consent shape falsely labeled as current is ref
     db.prepare("INSERT INTO plugin_consents VALUES (?,?,?,?,?,?,?,?,?)").run("kept", "io.molis.work.example.old", "publisher", "always_on", "always_on", "old", "then", "user", null);
     db.close();
     const bytes = readFileSync(file), files = readdirSync(directory);
-    assert.throws(() => new HomeConsentLedger(home).revokeProjectReach({ project_id: "A" }, "now"), /结构与当前 v1 基线不一致/u);
+    assert.throws(() => new HomeConsentLedger(home).revokeProjectReach({ project_id: "A" }, "now"), /结构与当前基线不一致/u);
     assert.deepEqual(readFileSync(file), bytes); assert.deepEqual(readdirSync(directory), files);
   } finally { rmSync(home, { recursive: true, force: true }); }
 });
@@ -147,7 +147,7 @@ test("RAR-02 cached expectations keep both space shapes and still refuse changed
     const bytes = readFileSync(file), files = readdirSync(directory);
     const operation = damage === "owner" ? () => ledger.publishers() : () => ledger.revokeProjectReach({ project_id: "missing" }, "now");
     assert.throws(operation, damage === "owner" ? /SPACE_OWNERSHIP_MISMATCH/u
-      : damage === "version" ? /结构版本是 99/u : /结构与当前 v1 基线不一致/u);
+      : damage === "version" ? /结构版本是 99/u : /结构与当前基线不一致/u);
     assert.deepEqual(readFileSync(file), bytes, `${damage}: refusal must leave the store unchanged`);
     assert.deepEqual(readdirSync(directory), files, `${damage}: refusal must leave no new sidecar`);
   }

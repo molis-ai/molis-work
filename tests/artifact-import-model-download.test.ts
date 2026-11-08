@@ -9,7 +9,7 @@ import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work
 import { MolisWorkLocalHost, molisWorkHostProjectReference, resolveWebControlToken } from "@molis-ai/molis-work-app-local-host";
 import type { ActionAudience } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ARTIFACT_ACTION_PERMISSIONS, artifactsActions, type ArtifactImportResult } from "@molis-ai/molis-work-module-artifacts";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 
 // specs/project-knowledge PMAT-48, docs/system/SECURITY-INVARIANTS.md S-39: an audio or video file imported before the speech
 // model is downloaded says so in the result (not in the saved snapshot); only a person's explicit yes downloads it, and that

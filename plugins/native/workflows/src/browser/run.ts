@@ -1,5 +1,7 @@
 import { tint } from "./chain.js";
-import { arrive, calm, esc, ico, kindName, messageOf, required, said, settle, when } from "./dom.js";
+import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
+import { arrive, calm, ico, kindName, required, said, settle, when } from "./dom.js";
 import { dataHtml, handoffKey, renderHandoff } from "./handoff.js";
 import type { WorkflowsPage } from "./page.js";
 import { label, readyState, stnMeta } from "./state.js";

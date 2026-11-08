@@ -40,6 +40,7 @@ export class PersonalAuth {
   private checkingIdentity: Promise<PersonalIdentity|null>|null=null;
   private readonly key: string;
   private pending: {state:string;verifier:string;redirect:string;expires:number;epoch:number;clientId:string;generation:number}|null=null;
+  private exchanging: PersonalAuth["pending"]=null;
   constructor(readonly config: PersonalCloudConfig, private readonly secrets: Pick<SecretStore,'get'|'put'|'delete'>,
     private readonly http: HttpFetch=fetch, private readonly now=()=>Date.now()) {
     this.key=`personal-auth:${createHash("sha256").update(JSON.stringify(config)).digest("hex")}`;
@@ -75,7 +76,10 @@ export class PersonalAuth {
     this.refreshingIdentity=null;
     this.checkingIdentity=null;
   }
-  callbackState(): string|null { return this.pending?.state??null; }
+  accountGeneration(): number { return this.epoch; }
+  cancelLogin(): void { this.loginGeneration++;this.pending=null; }
+  callbackState(): string|null { if(this.pending&&this.pending.expires<this.now())this.cancelLogin();return this.pending?.state??null; }
+  loginPending():boolean { return [this.pending,this.exchanging].some(attempt=>!!attempt&&attempt.epoch===this.epoch&&attempt.generation===this.loginGeneration&&attempt.expires>=this.now()); }
   /** Host shutdown cancels in-flight work without signing out persistent native credentials. */
   suspend(): void { this.invalidateAccount();this.pending=null; }
   dispose(): void { this.invalidateAccount();this.pending=null;this.secrets.delete(this.key); }
@@ -148,19 +152,24 @@ export class PersonalAuth {
     if (login.origin!==this.config.authOrigin || login.pathname!=="/login") throw new Error("INVALID_LOGIN_URL");
     return login.href;
   }
-  async complete(code:string, state:string): Promise<PersonalIdentity> {
+  async complete(code:string, state:string, attachOnly=false): Promise<PersonalIdentity> {
     const pending=this.pending;
     if (!pending || pending.state!==state || pending.expires<this.now() || pending.epoch!==this.epoch || !code || code.length>2048) throw new Error("INVALID_LOGIN_CALLBACK");
     this.pending=null; // single use, including uncertain exchange results
+    this.exchanging=pending;
+    try{
     const tokens=await this.token({grant_type:"authorization_code",code,code_verifier:pending.verifier,redirect_uri:pending.redirect},pending.clientId);
     // Auth confirms the opaque token belongs to the client used for this login.
     const identity=await this.readIdentity(tokens.access_token, pending.clientId);
-    if (!identity.userId || pending.epoch!==this.epoch || pending.generation!==this.loginGeneration) throw new Error("LOGIN_CANCELLED");
+    const current=attachOnly?this.identity():null;
+    if (!identity.userId || pending.epoch!==this.epoch || pending.generation!==this.loginGeneration || attachOnly&&(!current||identity.userId!==current.userId||identity.applicationId!==current.applicationId)) throw new Error("LOGIN_CANCELLED");
+    if(attachOnly)return identity; // A new browser proves the installed account without replacing its lease or persistent credentials.
     // A status/refresh request started for the previous account must not overwrite
     // or clear the newly authenticated identity when it eventually returns.
     this.invalidateAccount();
     this.secrets.put(this.key,JSON.stringify({identity,clientId:pending.clientId,access:tokens.access_token,refresh:tokens.refresh_token,expires:this.now()+tokens.expires_in*1000}));
     return identity;
+    }finally{if(this.exchanging===pending)this.exchanging=null;}
   }
   private async token(fields:Record<string,string>,clientId=this.config.clientId): Promise<{access_token:string;refresh_token:string;expires_in:number}> {
     const response=await this.request(`${this.config.authOrigin}/oauth2/token`,{method:"POST",

@@ -29,6 +29,8 @@ Workbench 不直接访问 SQLite、Module implementation、Node-only API 或 Tau
 
 `host.reviews.show` 在页面占位处显示宿主审查区；只回传尺寸和决定完成通知，正文、回执与决策入口留在宿主，批准经过真实宿主确认。
 
+`host.returns`（`UiPageReturns`，[草稿与返回](../../specs/draft-and-return/spec.md)）让被缺模型挡住的页面去设置、配好再回来：`go({ kind: "model" }, carry)` 在原处打开模型设置并开一张回程，`arrived()` 给刷新、重建后的页面认领。页面只给需要和只含名字的 `carry`（草稿键、步骤、对象 id），来处由框架宿主（`apps/workbench/src/browser/plugin-frame/returns.ts`）按自己的授权与可信 DOM 写；回程只存在这个标签页的 `sessionStorage`，唯一写入方是外层文档的 `settings-return`（`apps/workbench/src/browser/settings-return.ts`），由它读回需要、在设置顶上画返回条、关覆盖层回到原处，并经 `molis-work:return-claim`／`return-settled` 把结果交给来处，只交一次。普通的设置链接、助理的「继续接入」、原处连接卡的「还不能一键连接」也开回程，前者只把人带回来、不交结果。规则见 `S-return-trip-source`、`S-return-trip-destination`、`S-return-trip-delivery`。
+
 被插入内容的 Plugin 必须显式开放 Slot，声明接受的 Contribution Contract。贡献方声明自己提供的 view/command 与权限；UI Host 决定是否装载、放在哪里、何时销毁，并隔离错误和权限。
 
 不允许：

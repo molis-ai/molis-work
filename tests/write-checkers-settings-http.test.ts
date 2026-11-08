@@ -6,7 +6,7 @@ import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { createDesktopWebHost, openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { createDesktopWebCore, openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { writeCheckerFieldsOf, writeCheckerFromFields, writeCheckersAfter } from "@molis-ai/molis-work-app-workbench";
 import type { AgentWriteChecker, AgentWriteCheckerList } from "@molis-ai/molis-work-contracts/services/agent-host";
 
@@ -23,7 +23,7 @@ async function fixture() {
   const project = await catalog.createProject({ display_name: "写后检查设置", actor_id: "user" });
   const neighbour = await catalog.createProject({ display_name: "隔壁项目", actor_id: "user" });
   catalog.close();
-  const server = createDesktopWebHost({ ptyClientFilePath: () => "" })({ homeDirectory: home, controlToken: TOKEN });
+  const server = createDesktopWebCore({ ptyClientFilePath: () => "" })({ homeDirectory: home, controlToken: TOKEN });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address === "object");
   const origin = `http://127.0.0.1:${address.port}`;

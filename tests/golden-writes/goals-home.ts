@@ -8,5 +8,6 @@ export default async function ({ call, tag }: GoldenWriteContext) {
   const builtIn = methods.find((item: { method_id: string }) => item.method_id === "domain-software-development");
   const method = { ...Object.fromEntries(INPUT_FIELDS.map(key => [key, builtIn[key]])), method_id: `golden-${tag}`, name: `金样方法 ${tag}` };
   await call("goals.planning.personal.save", { method }, { user_action: { source: "web", conversation_ref: "golden", message_ref: `golden-${tag}` } });
-  readsBack(await call("goals.planning.personal.list"), `金样方法 ${tag}`);
+  await call("goals.planning.personal.save", { method: { ...method, name: `金样方法 ${tag} 已改` } }, { user_action: { source: "web", conversation_ref: "golden", message_ref: `golden-${tag}-changed` } });
+  readsBack(await call("goals.planning.personal.list"), `金样方法 ${tag} 已改`);
 }

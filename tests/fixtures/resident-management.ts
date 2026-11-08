@@ -10,7 +10,7 @@ import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createMolisWorkLocalHost, type MolisWorkLocalHostOptions, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { GOALS_PLUGIN_ID } from "@molis-ai/molis-work-plugin-goals";
 import { startProjectPlugins } from "./plugin-callers.js";
-import { createMolisWorkWebServer } from "../../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./local-web-core.js";
 
 export const MANAGEMENT_ROUTE = "/api/internal/management-action";
 export const FORGED_CALL = "11111111-2222-4333-8444-555555555555";

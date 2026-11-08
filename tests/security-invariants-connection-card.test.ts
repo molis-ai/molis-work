@@ -325,7 +325,7 @@ test("S-plugin-connection-card ASC-68 C3-9 asking for a card writes nothing, and
   // Reading the target is all a card asks before the person presses anything.
   const read = await c.card(page, { operation: "read", target });
   assert.equal(read.status, 200, await read.clone().text());
-  assert.deepEqual(await read.json(), { service_id: "github", connection: null });
+  assert.deepEqual(await read.json(), { service_id: "github", service_title: "GitHub", reason: "读取本人的 GitHub 通知", connection: null });
   assert.equal(records(c.f.home), before, "asking writes no record");
   // The person presses 连接, then 取消: the authorization prepared as the person in this project is cancelled, and nothing is bound.
   const prepared = await c.card(page, { operation: "prepare", target });

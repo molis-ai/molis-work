@@ -231,6 +231,21 @@ test("W5-01-WORKFLOWS-08 a model answer is recorded only while its original call
   }, options);
 });
 
+// A role's current version is the floor: an action below it keeps the number an older shape held, and a step saved against that
+// number must find nothing rather than the new shape. Nothing else exercises this while every role is at its first version.
+test("a workflow action below its role's current version is refused when it is declared", () => {
+  const previous = WORKFLOW_CONTENT_VERSIONS.read;
+  Object.assign(WORKFLOW_CONTENT_VERSIONS, { read: previous + 1 });
+  try {
+    const read = defineWorkflowContentActions({ id: "versioned-source", title: "资料", icon: "note", subject_kind: "document",
+      read_permissions: ["documents:read"], write_permissions: [] }).read;
+    assert.equal(read.version, previous + 1);
+    assert.deepEqual(inspectActionDeclarations([read], undefined), [], "at the role's current version it is the protocol's");
+    const lower = inspectActionDeclarations([{ ...read, version: previous }], undefined);
+    assert.ok(lower.some(problem => problem.includes(`版本低于工作流内容协议 read 的现行版本 ${previous + 1}`)), JSON.stringify(lower));
+  } finally { Object.assign(WORKFLOW_CONTENT_VERSIONS, { read: previous }); }
+});
+
 // N34-VS-02: output formats are independent of the role's action/input version; both declaration and validator agree.
 test("N34-VS-02 a newer workflow role retains the independently declared output format", () => {
   const previous = WORKFLOW_CONTENT_VERSIONS.read;

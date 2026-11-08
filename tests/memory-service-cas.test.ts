@@ -1083,6 +1083,15 @@ function importPackage(texts: string[]): MemoryExportPackage {
       origin: "Original package", expires_at: null, classification: { scenes: ["coding"], lifecycle: "long-term" } })) };
 }
 
+test("an import's stored digest stays on the bytes it has always had, integer-shaped keys in `applies` included", async t => {
+  const env = await (await fixture(t)).open(), who = caller("integer-keys"), pack = importPackage(["Use concise summaries"]);
+  Object.assign(pack.entries[0]!.applies!, { "10": ["x"], "2": "y" });
+  assert.equal((await env.service.importScope(who, "personal", pack)).written, 1);
+  // Produced by the handwritten form on main over this normalized entry. `canonicalJsonText`, which orders "10" before "2", gives a773d7cb….
+  assert.equal((env.ledger.marker(who.actor_id, "memory-operation:integer-keys:import-package")?.body as { input_digest?: string } | undefined)?.input_digest,
+    "6d8fda5be118eb1bee5e581beb40f9abe733a69c6917865f212efb9abf69a867");
+});
+
 test("import snapshots nested input before awaiting its first SDK write", async t => {
   const setup = await fixture(t); const env = await setup.open();
   let reached!: () => void, release!: () => void;

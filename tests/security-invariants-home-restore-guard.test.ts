@@ -4,7 +4,7 @@ import { lstatSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 import { MolisWorkLocalHost, createHomeSnapshot, restoreHomeSnapshot, recoverHomeRestore } from "@molis-ai/molis-work-app-local-host";
-import { inspectMolisWorkProjectCatalogSnapshot, openMolisWorkProjectCatalog, withMolisWorkProjectCatalog, createDesktopWebHost } from "@molis-ai/molis-work-app-desktop";
+import { inspectMolisWorkProjectCatalogSnapshot, openMolisWorkProjectCatalog, withMolisWorkProjectCatalog, createDesktopWebCore } from "@molis-ai/molis-work-app-desktop";
 import { createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { acquireStorageOwner, acquireStorageOwnerForRecovery, assertStorageOwner, borrowStorageOwner, openMemoryLedger, HOME_RESTORE_JOURNAL } from "@molis-ai/molis-work-storage";
 import { homeBusinessTree } from "./fixtures/home-storage-files.js";
@@ -118,7 +118,7 @@ test("RAC-2918: pending blocks fresh Catalog/Web/Memory before creating any busi
   const marker = join(root, HOME_RESTORE_JOURNAL); writeFileSync(marker, "{pending", { mode: 0o600 });
   const before = homeBusinessTree(f.home);
   await assert.rejects(openMolisWorkProjectCatalog({ homeDirectory: f.home }), pending);
-  assert.throws(() => createDesktopWebHost({ ptyClientFilePath: () => "unused.js" })({ homeDirectory: f.home }), pending);
+  assert.throws(() => createDesktopWebCore({ ptyClientFilePath: () => "unused.js" })({ homeDirectory: f.home }), pending);
   assert.throws(() => openMemoryLedger({ homeDirectory: f.home }), pending);
   assert.deepEqual(homeBusinessTree(f.home), before);
   rmSync(marker);

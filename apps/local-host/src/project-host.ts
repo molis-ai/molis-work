@@ -1,3 +1,5 @@
+import { accountActionProvider } from "@molis-ai/molis-work-service-account";
+import { accountSessionForHost } from "./account-host.js";
 import { projectSyncAccess } from './project-sync-access.js';
 import { assertPassiveProjectAvailable } from './passive-sync-execution.js';
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -212,6 +214,7 @@ export class MolisWorkLocalHost {
     });
     // What the Host offers for as long as it runs, registered here and nowhere else: all `system`, none a plugin's (a plugin registers its own through the Plugin Runtime).
     const platform: ActionProviderRegistration[] = [
+      accountActionProvider(() => accountSessionForHost(this)),
       actionUsagesProvider(caller => {
         const project = caller.project_id ? this.host.projects().find(row => row.project_id === caller.project_id) : undefined;
         if (caller.project_id && !project) throw new ActionError("actions.scope_mismatch", "使用位置查询缺少当前项目运行环境");
@@ -336,13 +339,25 @@ export class MolisWorkLocalHost {
   /** Registered declarations only: no Runtime preparation, availability policy or execution authority. */
   inspectActionMetadata(caller: ActionCallContext, reference?: LocalHostProjectReference) { return this.host.inspectActionMetadata(caller, reference); }
 
+  inspectSceneMetadata(caller: ActionCallContext, reference?: LocalHostProjectReference) { return this.host.inspectSceneMetadata(caller, reference); }
+
+  /** Local caller construction needs the prepared providers' declarations, not an availability result it would discard. */
+  async inspectPreparedActionMetadata(caller: ActionCallContext, reference?: LocalHostProjectReference) {
+    await this.prepareInspection(caller, reference);
+    return this.host.inspectActionMetadata(caller, reference);
+  }
+
   async inspectActions(caller: ActionCallContext, reference?: LocalHostProjectReference) {
+    await this.prepareInspection(caller, reference);
+    return this.host.inspectActions(caller, reference);
+  }
+
+  private async prepareInspection(caller: ActionCallContext, reference?: LocalHostProjectReference): Promise<void> {
     caller.signal?.throwIfAborted();
     await this.prepareHomeActions();
     caller.signal?.throwIfAborted();
     if (reference) await this.prepareProjectPlugins(reference, caller);
     caller.signal?.throwIfAborted();
-    return this.host.inspectActions(caller, reference);
   }
 
   private async prepareProjectPlugins(reference: LocalHostProjectReference, caller: ActionCallContext): Promise<void> {

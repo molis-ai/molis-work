@@ -1,0 +1,13 @@
+{
+  "reason": "第 05 批 N14 第二段：判断规则在别处改过时，编辑器与 Feed 按 specs/action-input-contracts §2.7 留住输入（过期重读、离线再试、被删、已在别处发布、载入最新版与放回、存成新规则）。编辑器脚本 +9964 B：状态改为工厂作用域里的变量、离开确认用 dialog 表单自己的返回值、标记与文案由服务端 SDK 部件渲染进 template 只克隆不重写，已从 11252 B 压到 9964 B（含评审要的第二步失败时焦点回到名称）；Feed 客户端 +6966 B（含另起失败时接回草稿与焦点）、样式 +767 B；保留编辑部件规则 KEEP_EDITS_STYLES 从组件板移入两张页面样式表各 +3353 B；molisCraft.land 的 field 变体在 workbench.js +26 B、plugin-frame.js +24 B。",
+  "review": "specs/post-anticorruption-roadmap/reference/batches/05.md N14 第二段（统筹派工），docs/design/rule-stale-reload/README.md「实现时要动的」；本 PR 评审。",
+  "assets": {
+    "/assets/molis-work-capabilities.js": 9964,
+    "/assets/molis-work-plugin-frame.js": 24,
+    "/assets/molis-work-settings.css": 3353,
+    "/assets/molis-work-workbench.css": 3353,
+    "/assets/molis-work-workbench.js": 26,
+    "/assets/molis-work-plugins/feed.js": 6966,
+    "/assets/molis-work-plugins/feed.css": 767
+  }
+}

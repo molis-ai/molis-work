@@ -39,7 +39,7 @@ test("VUX-33: a large change reads whole at once and is coloured a slice a frame
     document.fonts.addEventListener = (type, listener, options) => { if (type === 'loadingdone') diffFontListeners.add(listener); addFontListener(type, listener, options); };
     document.fonts.removeEventListener = (type, listener, options) => { if (type === 'loadingdone') diffFontListeners.delete(listener); removeFontListener(type, listener, options); };`);
   const session = await start("看一份很大的改动");
-  const view = compareRunChangeSet({ content: { scope: "run-frozen", run_id: "run-large", applied: true, files: [{ path: "large.ts", kind: "modified", added_lines: 202, removed_lines: 200, diff: "",
+  const view = compareRunChangeSet({ content: { scope: "run-frozen", run_id: "run-large", applied: true, coverage: "text-reviews", origin: { session_id: "s", runtime_session_id: "r", workspace_id: "w", workspace_name: "w" }, files: [{ path: "large.ts", kind: "modified", added_lines: 202, removed_lines: 200, diff: "",
     review: { review_id: "review-large", before_text: BEFORE, after_text: AFTER, decision: "approved", execution: "applied" } }] },
   source_plugin_id: "io.molis.work.coding", content_version: 1 }, undefined, 0);
   const file = { path: "large.ts", kind: "modified", added_lines: 202, removed_lines: 200, review: { decision: "approved", execution: "applied" } };

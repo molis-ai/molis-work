@@ -5,9 +5,6 @@ import type { Page } from "./page.js";
 import { api } from "./request.js";
 import type { StateRead } from "./shapes.js";
 import { showWorkspace } from "./workspace.js";
-import { jsonComparisonText as canonical } from "@molis-ai/molis-work-plugin-sdk/browser";
-
-export { canonical };
 
 /** Puts the session's remembered start (intent, model, directory, effort) back on the composer. */
 export function applyConfiguration(page: Page) {

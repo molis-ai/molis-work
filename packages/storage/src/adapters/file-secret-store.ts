@@ -7,8 +7,9 @@ import { isRecord } from "@molis-ai/molis-work-plugin-sdk";
  *  2. darwin + keychain available → master key in Keychain, ciphertext in secrets.json
  *  3. otherwise → install key file (0600) + AES-GCM secrets.json
  *
- * Only the current AES-GCM format (file version 1) is read; an older file is refused rather than upgraded
- * (repository-anti-corruption §9.5 #4: the real Home held no v0.3 envelope on 2026-10-04).
+ * Only the current AES-GCM format is read. An older file is refused here too: the upgrade process takes it (`SECRET_STORE_FILE`), and reading
+ * never converts. Only the map's version is in the chain: `format.secret-store.envelope` and `.home-payload` stay at 1 (user 2026-11-08), and
+ * a new way of sealing has to raise the map with them (upgrade-chain-design §8.2).
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -23,6 +24,7 @@ import { execFileSync } from "node:child_process";
 import { withFileLock } from './file-lock.js';
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { atomicWriteFileSync } from "./atomic-write.js";
+import type { VersionedFile, VersionedFileStep } from "../versioned-file.js";
 import { readProductEnv, resolveHomeSecurityDirectory, resolveMolisWorkHome, runWithMolisWorkHome } from "./local-security-paths.js";
 
 export interface SecretStore {
@@ -61,6 +63,7 @@ export interface SecretStoreBackendInfo {
 }
 
 const FORMAT_VERSION = /* @version format.secret-store.map */ 1;
+const FORMAT_UPGRADES: readonly VersionedFileStep[] = [];
 const ALG = "aes-256-gcm" as const;
 const KEYCHAIN_SERVICE = "com.molis.work.feed.secretstore";
 const KEYCHAIN_ACCOUNT = "install-master-key";
@@ -350,6 +353,13 @@ function parseSecretsFile(contents: string): SecretsFile {
   } catch {
     throw new Error("secrets file is corrupt");
   }
+  return parseSecretsValue(parsed);
+}
+
+/** `feed/secrets.json` for the upgrade process. Its steps go through a `SecretStore`, never around it, and its group is the stores it seals (§8.2). */
+export const SECRET_STORE_FILE: VersionedFile<SecretsFile> = { version: FORMAT_VERSION, field: "version", upgrades: FORMAT_UPGRADES, parse: parseSecretsValue };
+
+function parseSecretsValue(parsed: unknown): SecretsFile {
   if (!isRecord(parsed)) {
     throw new Error("secrets file has invalid structure");
   }

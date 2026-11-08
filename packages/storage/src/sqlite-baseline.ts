@@ -39,6 +39,17 @@ export interface SqliteBaseline {
   readonly upgrades?: readonly SqliteUpgradeStep[];
 }
 
+/** Where a store keeps its version. Nearly all use `PRAGMA user_version`; the project catalog keeps it in `catalog_meta`, so the same run can be handed that instead. */
+export interface SqliteVersionAccess {
+  read(db: SqliteBaselineDatabase): number;
+  write(db: SqliteBaselineDatabase, version: number): void;
+}
+
+export const USER_VERSION_ACCESS: SqliteVersionAccess = {
+  read: db => Number((db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version),
+  write: (db, version) => { db.exec(`PRAGMA user_version = ${version}`); },
+};
+
 /** The refusals and failures of a store's version and upgrade. `path` in `details` is relative to the Home, or just the file's name. */
 export const storageErrors = defineErrorCodes("storage", {
   schema_version_mismatch: "invalid",
@@ -63,7 +74,7 @@ export function sqliteStoreLabel(path: string, home?: string): string {
 export function sqliteVersionMismatch(path: string, found: number, expected: number, home?: string) {
   const store = sqliteStoreLabel(path, home);
   return storageErrors.schema_version_mismatch(
-    `${store} 的结构版本是 ${found}，这个版本的 Molis Work 用 ${expected}，不能在这里使用。这个库没有改动：请用与它相符的版本打开，或备份后移走这个库让它重建。`,
+    `${store} 的结构版本是 ${found}，这个版本的 Molis Work 用 ${expected}，不能在这里使用。它没有被改动：请用与它相符的版本打开，或备份后移走它让它重建。`,
     { path: store, found, expected });
 }
 
@@ -75,13 +86,38 @@ export function sqliteVersionRefusal(path: string, found: number, expected: numb
   if (found < 1) return sqliteVersionMismatch(path, found, expected, home);
   const store = sqliteStoreLabel(path, home), details = { path: store, found, expected };
   return found < expected
-    ? storageErrors.upgrade_pending(`${store} 的结构版本是 ${found}，这个版本的 Molis Work 用 ${expected}，升级完成之前不能打开。这个库没有改动。`, details)
+    ? storageErrors.upgrade_pending(`${store} 的结构版本是 ${found}，这个版本的 Molis Work 用 ${expected}，升级完成之前不能打开。它没有被改动。`, details)
     : storageErrors.store_too_new(`${store} 的结构版本是 ${found}，比这个版本的 Molis Work（${expected}）新，所以不读也不写。请用更新版本的 Molis Work 打开。`, details);
 }
 
 /** Whether an error is one of the refusals above, for owners that give their store its own name and recovery page. */
 export const isSqliteVersionRefusal = (error: unknown): error is ActionError =>
-  error instanceof ActionError && (error.code === "storage.schema_version_mismatch" || error.code === "storage.upgrade_pending" || error.code === "storage.store_too_new");
+  error instanceof ActionError && (error.code === "storage.schema_version_mismatch" || error.code === "storage.upgrade_pending" || error.code === "storage.store_too_new"
+    || error.code === "storage.upgrade_failed" || error.code === "storage.upgrade_no_space");
+
+/** Hears of an older store being refused, by the path it was opened at. It may return what to raise instead: only the Host knows that this store's upgrade already failed. */
+export type UpgradePendingListener = (path: string) => Error | undefined;
+const upgradePendingListeners = new Set<UpgradePendingListener>();
+
+/**
+ * Tells the process holding a Home's lock that an open met an older store (upgrade-chain-design §3.3). Storage knows no Home, so it only
+ * passes the signal on; a process that holds no lock has no listener and writes nothing. This is the only work an open path can add here,
+ * and it is one emptiness check unless the open has already failed.
+ */
+export function onUpgradePending(listener: UpgradePendingListener): () => void {
+  upgradePendingListeners.add(listener);
+  return () => { upgradePendingListeners.delete(listener); };
+}
+
+/** The refusal an open raises, after the signal. A listener's own failure never hides the store's refusal. */
+export function versionRefusalAfterSignal(path: string, found: number, expected: number, home?: string): Error {
+  let replacement: Error | undefined;
+  if (found >= 1 && found < expected) for (const listener of upgradePendingListeners) {
+    try { replacement = listener(path) ?? replacement; }
+    catch { /* The listener logs its own failures; what the caller needs to hear is that this store is refused. */ }
+  }
+  return replacement ?? sqliteVersionRefusal(path, found, expected, home);
+}
 
 /**
  * The version half of every baseline check, on whichever driver owns the file: true when the store is at the baseline's version, false
@@ -91,7 +127,7 @@ export const isSqliteVersionRefusal = (error: unknown): error is ActionError =>
 export function checkSqliteBaselineVersion(db: SqliteBaselineDatabase, path: string, baseline: SqliteBaseline, home?: string): boolean {
   const found = Number((db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version);
   if (found === baseline.version) return true;
-  if (found !== 0 || !emptyForBaseline(db, path, home)) throw sqliteVersionRefusal(path, found, baseline.version, home);
+  if (found !== 0 || !emptyForBaseline(db, path, home)) throw versionRefusalAfterSignal(path, found, baseline.version, home);
   return false;
 }
 
@@ -132,8 +168,8 @@ export function upgradedShapeMatches(db: SqliteBaselineDatabase, baseline: Sqlit
 }
 
 /** A same-version store whose structure is not the baseline's: refused, never repaired in place (repository-anti-corruption §4.1). */
-const structureMismatch = (path: string) => storageErrors.schema_structure_mismatch(
-  `${path} 的结构与当前完整基线不符，不会就地修补。请用与它相符的版本打开，或备份后移走这个库让它重建。`);
+const structureMismatch = (path: string, home?: string) => storageErrors.schema_structure_mismatch(
+  `${sqliteStoreLabel(path, home)} 的结构与当前完整基线不符，不会就地修补。请用与它相符的版本打开，或备份后移走这个库让它重建。`);
 
 /** Whether an error is the refusal above, for callers that give this store its own name and recovery page. */
 export const isSqliteSchemaStructureMismatch = (error: unknown): error is ActionError =>
@@ -144,14 +180,25 @@ function emptyForBaseline(db:SqliteBaselineDatabase, path:string, home?:string):
   const objects = db.prepare("SELECT type,name FROM sqlite_schema").all() as Array<{type:string; name:string}>;
   if (!objects.length) return true;
   if (objects.length !== 1 || objects[0]!.type !== "table" || objects[0]!.name !== "molis_storage_space") return false;
-  if (!spaceMetadataShapeMatches(db)) throw structureMismatch(path);
+  if (!spaceMetadataShapeMatches(db)) throw structureMismatch(path, home);
   const row = db.prepare("SELECT space_id,descriptor FROM molis_storage_space WHERE singleton=1").get() as {space_id:string;descriptor:string}|undefined;
-  if (!row) throw structureMismatch(path);
+  if (!row) throw structureMismatch(path, home);
   if (home !== undefined) {
     const expected = readStorageSpace(home);
     if (!expected || row.space_id !== expected.spaceId || row.descriptor !== JSON.stringify(expected)) throw new Error("SPACE_OWNERSHIP_MISMATCH");
   }
   return true;
+}
+
+/**
+ * What the last full comparison of a file with a baseline saw (upgrade-chain-design §3.2): each structure is compared once per process, not at every
+ * open. `schema_version` is what makes this safe: in a WAL store a change of structure leaves the main file's identity as it was, and only that number moves.
+ */
+const comparedShapes = new WeakMap<SqliteBaseline, Map<string, string>>();
+function shapeIdentity(path: string, db: SqliteBaselineDatabase, version: number): string {
+  const { dev, ino, size, mtimeMs } = statSync(path);
+  const { schema_version: cookie } = db.prepare("PRAGMA schema_version").get() as { schema_version: number };
+  return [dev, ino, size, mtimeMs, cookie, version].join(":");
 }
 
 /**
@@ -175,7 +222,12 @@ function inspectSqliteBaseline(path: string, baseline: SqliteBaseline, home?:str
       if (!checkSqliteBaselineVersion(inspection, path, baseline, home)) return false;
       // A current version mark claims the baseline's schema: every baseline table must be there, even when no other business table is
       // left (a store whose tables were dropped is damaged, not an empty one). Only a file without a version is the creation path.
-      if (!baselineShapePresent(inspection, baseline)) throw structureMismatch(path);
+      const identity = shapeIdentity(path, inspection, baseline.version);
+      let compared = comparedShapes.get(baseline);
+      if (compared?.get(path) === identity) return true;
+      if (!baselineShapePresent(inspection, baseline)) throw structureMismatch(path, home);
+      if (!compared) comparedShapes.set(baseline, compared = new Map());
+      compared.set(path, identity);
       return true;
     } finally {
       inspection.close();
@@ -207,18 +259,18 @@ function applyBaseline(db: SqliteBaselineDatabase, path: string, baseline: Sqlit
   if (!Number.isInteger(baseline.version) || baseline.version < 1) throw new Error("基线版本必须是正整数");
   if (checkSqliteBaselineVersion(db, path, baseline, home)) {
     // The version mark claims the baseline's schema; missing baseline tables are damage even when no business table is left.
-    if (!shapeChecked && !baselineShapePresent(db, baseline)) throw structureMismatch(path);
+    if (!shapeChecked && !baselineShapePresent(db, baseline)) throw structureMismatch(path, home);
     return;
   }
   db.exec("BEGIN IMMEDIATE");
   try {
     const current = Number((db.prepare("PRAGMA user_version").get() as {user_version:number}).user_version);
     if (current === baseline.version) {
-      if (!baselineShapePresent(db,baseline)) throw structureMismatch(path);
+      if (!baselineShapePresent(db,baseline)) throw structureMismatch(path, home);
       db.exec("COMMIT");
       return;
     }
-    if (current !== 0 || !emptyForBaseline(db,path,home)) throw sqliteVersionRefusal(path,current,baseline.version,home);
+    if (current !== 0 || !emptyForBaseline(db,path,home)) throw versionRefusalAfterSignal(path,current,baseline.version,home);
     db.exec(baseline.schema);
     db.exec(`PRAGMA user_version = ${baseline.version}`);
     db.exec("COMMIT");

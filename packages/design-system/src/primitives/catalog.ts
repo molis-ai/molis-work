@@ -11,6 +11,7 @@ import { choiceSection, composeSection } from "./catalog-compose.js";
 import { advancedFieldSection, badgeSection, buttonSection, calendarSection, feedbackSection, fieldSection, formSection, groupsSection, menuSection, overlaySection, separatorSection, tabsSection } from "./catalog-controls.js";
 import { directorySection, layoutSection } from "./catalog-layout.js";
 import { COMPOSER_BOARD_STYLES, composerSection, menuDescSection, writeChinese, type Say } from "./catalog-composer.js";
+import { keepEditsSections, KEEP_EDITS_BOARD_STYLES } from "./catalog-keep-edits.js";
 import { buttonGroupSection, CATALOG_PATTERN_STYLES, dataTableSection, dropZoneSection, rowsSection, statSection, tagInputSection } from "./catalog-patterns.js";
 
 export const PRIMITIVE_CATALOG_IDS = [
@@ -235,6 +236,7 @@ export function renderPrimitiveCatalog(options: { readonly plugins?: readonly Ca
     ${badgeSection()}
     ${statSection()}
     ${feedbackSection()}
+    ${keepEditsSections(say)}
     ${separatorSection()}
     ${calendarSection()}
     ${overlaySection()}
@@ -247,7 +249,7 @@ export function renderPrimitiveCatalog(options: { readonly plugins?: readonly Ca
     ${dataTableSection()}`;
   return `<div class="mw-catalog">
     ${catalogIndex(sections)}
-    <style>${CATALOG_PATTERN_STYLES}${COMPOSER_BOARD_STYLES}</style>
+    <style>${CATALOG_PATTERN_STYLES}${COMPOSER_BOARD_STYLES}${KEEP_EDITS_BOARD_STYLES}</style>
     ${sections}
   </div>
   <script>${CATALOG_CLIENT_SCRIPT}</script>`;

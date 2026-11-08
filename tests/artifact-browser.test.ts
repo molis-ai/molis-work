@@ -12,7 +12,7 @@ import type { RegisterArtifactVersionInput } from "@molis-ai/molis-work-contract
 import { MolisWorkLocalHost, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { DEMO_PROJECT_ID, seedDemoBoard, seedDemoGoals } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { GoalProjectApplication, boardSnapshot } from "./fixtures/goal-application.js";

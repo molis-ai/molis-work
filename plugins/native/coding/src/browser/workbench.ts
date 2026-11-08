@@ -36,6 +36,8 @@ export interface CodingWorkbenchHost {
   readonly workspaces: UiPageWorkspaces;
   readonly clients: Readonly<Record<string, CompanionClient | undefined>>;
   readonly reviews: UiPageReviews<Element>;
+  readonly drafts: CodingHost["drafts"];
+  readonly returns: CodingHost["returns"];
 }
 
 /**
@@ -67,7 +69,7 @@ export function codingWorkbench(host: CodingWorkbenchHost): void {
   const filesBrowser: CompanionBrowser | null = codingRoot ? clients.files?.({ root: codingRoot,
     onWorkspaceSelected: () => { void gitBrowser?.refresh?.(); },
     openResult: () => openCompanionResult("files"), closeResult: closeCompanionResult }) ?? null : null;
-  mountCoding({ ...lent, interaction: host.interaction, receipts: host.receipts,
+  mountCoding({ ...lent, interaction: host.interaction, receipts: host.receipts, drafts: host.drafts, returns: host.returns,
     revealTask: () => { if (matchMedia("(max-width: 600px)").matches) host.hideDirectory?.(); closeCompanionResult(); },
     onDirectoryFace: (face: string) => { const handled = filesBrowser?.show?.(face) ?? false; gitBrowser?.show?.(face); return handled; },
     showReviews,

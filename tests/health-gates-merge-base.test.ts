@@ -128,10 +128,13 @@ const violations: Scenario[] = [
   { name: "an in-place schema patch", mutate: () => put("packages/alpha/src/patch.ts", 'export const sql = "ALTER TABLE t ADD COLUMN c TEXT";\n'), expect: [/in-place schema patches 0 → 1/] },
   { name: "an ALTER TABLE moved out of a baseline's upgrades", mutate: () => put("packages/alpha/src/patch.ts", 'const STEP = { from: 1, sql: "ALTER TABLE t ADD COLUMN c TEXT" };\nexport const TABLES: SqliteBaseline = { version: 2, schema: "", upgrades: [STEP] };\n'), expect: [/in-place schema patches 0 → 1/] },
   { name: "an in-place patch spelled by joining strings", mutate: () => put("packages/alpha/src/patch.ts", 'export const sql = "ALTER " + "TABLE t ADD COLUMN c TEXT";\n'), expect: [/in-place schema patches 0 → 1/] },
+  { name: "VG-34 schema text run by hand in a new file", mutate: () => put("packages/alpha/src/tables.ts", "db.exec(ALPHA_SCHEMA_SQL);\n"), expect: [/schema text run by hand in packages\/alpha\/src\/tables\.ts 0 → 1/] },
   { name: "an in-place patch moved to a .sql file", mutate: () => put("packages/alpha/src/patch.sql", "ALTER TABLE t ADD COLUMN c TEXT;\n"), expect: [/in-place schema patches 0 → 1/] },
   // UPG1-i-initial-16: the half of the unified-origin check with no build is an absolute rule of the gate (user 2026-11-07).
   { name: "a first-party version constant above 1", mutate: () => put("packages/alpha/src/stored.ts", "export const STORED_VERSION = 2;\n"), expect: [/packages\/alpha\/src\/stored\.ts: STORED_VERSION = 2 \(expected 1\)/], kind: "absolute" },
-  { name: "a persistent format entry above 1", mutate: () => put("tooling/versions.json", JSON.stringify({ versions: { "format.home.onboarding": 2 } })), expect: [/onboarding\.ts#schema_version = 2 \(expected 1; above 1 it needs a registered upgrade chain/], kind: "absolute" },
+  { name: "a persistent format entry above 1", mutate: () => put("tooling/versions.json", JSON.stringify({ versions: { "database.ledger_baseline": 2 } })), expect: [/installed-plugin-libraries\.ts#LEDGER_BASELINE = 2 \(expected 1; above 1 it needs a registered upgrade chain/], kind: "absolute" },
+  // The six files §2.6 put in the chain are read by their constant, not by a versions.json entry: above 1 with no chain it fails the same way.
+  { name: "a persistent format constant above 1", mutate: () => put("apps/local-host/src/onboarding.ts", "export const ONBOARDING_SCHEMA_VERSION = 2;\n"), expect: [/onboarding\.ts#ONBOARDING_SCHEMA_VERSION = 2 \(expected 1; above 1 it needs a registered upgrade chain/], kind: "absolute" },
   { name: "a version table that cannot be read", mutate: () => put("tooling/versions.json", "{"), expect: [/tooling\/versions\.json cannot be read/], kind: "absolute" },
   { name: "another compatibility marker in a file", mutate: () => put("packages/alpha/src/marked.ts", read("packages/alpha/src/marked.ts") + "// legacy again\n"), expect: [/compatibility markers in packages\/alpha\/src\/marked\.ts 1 → 2/] },
   { name: "a new file with a compatibility marker", mutate: () => put("packages/alpha/src/shim.ts", "// @deprecated\nexport const shim = 1;\n"), expect: [/compatibility markers in packages\/alpha\/src\/shim\.ts 0 → 1/] },
@@ -227,6 +230,25 @@ test("changes that shrink or only move things pass against the merge-base", () =
   assert.match(run.out, /Lower than the merge-base: giant, compatMarkers/);
   // …and lowering the baseline with the merge-base given is accepted.
   assert.equal(gate("--update", "--base", "main").code, 0);
+});
+
+test("VG-37 schema text run by hand is read on both sides: a package's own test that did not change passes, and it may only lose calls", () => {
+  const file = "plugins/native/alpha/tests/tables.test.ts";
+  branch("schema-execs-base", () => put(file, "db.exec(ALPHA_SCHEMA_SQL);\n"));
+  git("checkout", "-q", "-B", "schema-execs-same");
+  commit("nothing changed");
+  const same = gate("--base", "schema-execs-base");
+  assert.equal(same.code, 0, same.out);
+  put(file, "db.exec(ALPHA_SCHEMA_SQL);\ndb.exec(BETA_SCHEMA_SQL);\n");
+  commit("one more");
+  const grown = gate("--base", "schema-execs-base");
+  assert.equal(grown.code, 1, grown.out);
+  assert.match(grown.out, /schema text run by hand in plugins\/native\/alpha\/tests\/tables\.test\.ts 1 → 2/);
+  put(file, "export const none = 1;\n");
+  commit("none left");
+  const lowered = gate("--base", "schema-execs-base");
+  assert.equal(lowered.code, 0, lowered.out);
+  assert.match(lowered.out, /Lower than the merge-base: .*schemaExecs/);
 });
 
 test("a unit marked with its measured size is admitted new or grown; its entry follows it, and splitting is still a way out", () => {

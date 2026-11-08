@@ -77,9 +77,11 @@ test("workflows: an AI handoff stops saying the model is missing", { timeout: 90
   await evaluate(`(() => { const field = document.querySelector('[data-wf-link-field=instructions]');
     field.value = '整理成一页说明'; field.dispatchEvent(new Event('input', { bubbles: true })); })()`);
   await waitFor("document.querySelector('[data-wf-readiness]')?.dataset.ready === 'false' && /还没有可用的文字模型/.test(document.querySelector('[data-wf-readiness]').textContent)", 10_000);
+  // The way to the settings is the page's own return trip (specs/draft-and-return §4), not an address.
+  assert.equal(await evaluate("Boolean(document.querySelector('[data-wf-readiness] button[data-wf-action=model-settings]'))"), true, "the way to the settings is offered while the model is missing");
   await firstModelIsReady(browser);
   await waitFor("document.querySelector('[data-wf-readiness]')?.dataset.ready === 'true'", 10_000);
-  assert.equal(await evaluate("document.querySelector('[data-wf-readiness] a[href=\"/settings/models\"]')"), null, "the pointer to the settings is gone with the problem");
+  assert.equal(await evaluate("document.querySelector('[data-wf-readiness] [data-wf-action=model-settings]')"), null, "the way to the settings is gone with the problem");
 });
 
 test("alchemist: the banner that asks for a model is gone from the open direction", { timeout: 90_000 }, async t => {

@@ -1,7 +1,12 @@
 import { collapsePage } from "./view.js";
+import { accountTransition } from "../account-transition.js";
 import { pagePlacement } from "./placement.js";
 import { pageReviews } from "./reviews.js";
 import { pageEmbeds } from "./embed.js";
+import { pageFramedAreas } from "./framed-area.js";
+import { pageTaskGrants } from "./task-grants-area.js";
+import { pageConnectionNeed } from "./connection-need.js";
+import { pageReturns } from "./returns.js";
 import { downloadFrameFile, downloadPageBlob } from "./links.js";
 import { printPageDocument } from "./files.js";
 import { pageMessages } from "./messages.js";
@@ -45,23 +50,8 @@ function directoryLayout(root: HTMLElement): void {
   document.head.append(style);
 }
 
-/**
- * A page never navigates a document. A settings address opens the workbench's settings in place, in the shell page that
- * owns them: a frame in the shell asks this document, an embedded shell asks the one it is embedded in, and a pane hands
- * the address to the pane's one relay to the workbench it sits in. Any other address changes nothing.
- */
-function openSettings(url: URL): void {
-  const pane = new URLSearchParams(location.search).get("workbenchPane");
-  if (window.parent !== window && pane !== null) {
-    window.parent.postMessage({ type: "workbench-open-settings", paneId: pane, href: url.href }, location.origin);
-    return;
-  }
-  let owner = document;
-  try { if (window.top && window.top !== window) owner = window.top.document; } catch { /* A cross-origin embedder keeps its own documents. */ }
-  owner.dispatchEvent(new CustomEvent("molis-work:open-settings-path", { detail: { href: url.href } }));
-}
-
-function navigate(root: HTMLElement, message: Extract<FrameUp, { type: "link" }>, prefix: string): void {
+/** A page never navigates a document: an object link opens in the workbench, a settings address opens its settings (returns.ts). */
+function navigate(root: HTMLElement, message: Extract<FrameUp, { type: "link" }>, prefix: string, openSettings: (url: URL) => void): void {
   const url = new URL(message.url);
   const objectLink = url.pathname === prefix + "/" && /^[a-z][a-z0-9-]{0,100}$/u.test(url.searchParams.get("openPlugin") ?? "")
     && [...url.searchParams.keys()].every(key => ["openPlugin", "openItem", "openTitle", "openVersion"].includes(key));
@@ -94,6 +84,7 @@ function ownItemTab(root: HTMLElement, pack: FramePack): FrameConfig["itemTab"] 
 
 /** The trusted shell binds a real frame, channel and server authorization; child-supplied identity never selects them. */
 export async function mountFrame(root: HTMLElement, host: FrameHost, pack: FramePack) {
+  if (accountTransition().preparing) throw new Error("Account is switching");
   const route = host.route ?? (path => path), scope = host.mountPluginClient(root);
   if (!scope) throw new Error("View is already mounted");
   // The owner's deferred client already wrote the same guard before it called this; only the raw mounts own it.
@@ -106,13 +97,30 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   const grant = pack.authorization ?? await molisWorkRequest<{ page_id: string; storage_scope: string }>(route("/api/host/plugin-pages"), { body: { plugin_id: pack.plugin_id, ...(mount ? { mount, ...(root.dataset.pluginProducer ? { producer: root.dataset.pluginProducer } : {}) } : {}) }, scope });
   const surfaces = await subjectSurfaces(route, scope);
   scope.assertCurrent();
+  if (accountTransition().preparing) throw new Error("Account is switching");
   root.dataset.pluginPage = grant.page_id;
   const storagePrefix = "molis-plugin-page:" + grant.storage_scope + ":", storage = stored(storagePrefix);
   const frame = document.createElement("iframe"), channel = new MessageChannel();
   frame.setAttribute("sandbox", "allow-scripts allow-forms"); frame.setAttribute("referrerpolicy", "no-referrer");
   frame.title = root.dataset.workSurfaceLabel ?? pack.id; frame.dataset.pluginFrame = mount?.target_slot_id === "workbench.directory" ? pack.id + ":" + mount.surface : root.dataset.workSurface || pack.id;
   frame.style.cssText = "position:absolute;inset:0;width:100%;height:100%;border:0;padding:0;background:transparent";
-  const port = channel.port1, requests = frameRequests(port, grant.page_id, scope);
+  const transition = accountTransition();
+  const businessScope = new Proxy(scope, {get(target, key) {
+    if (key === "assertCurrent") return () => { target.assertCurrent(); if (transition.preparing) throw new Error("Account is switching"); };
+    return Reflect.get(target, key);
+  }});
+  const port = channel.port1, requests = frameRequests(port, grant.page_id, businessScope);
+  let flushSequence = 0;
+  let draftsPrepared = false;
+  const draftWork = new Set<Promise<void>>();
+  const flushes = new Map<number, {resolve(): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout>}>();
+  const flush = () => new Promise<void>((resolve, reject) => {
+    scope.assertCurrent(); draftsPrepared = false; const id = ++flushSequence;
+    const timer = setTimeout(() => { flushes.delete(id); reject(new Error(host.translate("草稿保存未完成，请返回原页面重试"))); }, 10000);
+    flushes.set(id, {resolve, reject, timer}); port.postMessage({type: "draft-flush", id});
+  });
+  scope.own(transition.page(root, flush, () => scope.dispose(), () => { draftsPrepared = false; port.postMessage({type: "draft-resume"}); }));
+  scope.own(() => { for (const pending of flushes.values()) { clearTimeout(pending.timer); pending.reject(new Error("View closed")); } flushes.clear(); });
   const documentReads = new Map<number, AbortController>();
   const cancelDocuments = () => { for (const controller of documentReads.values()) controller.abort(); documentReads.clear(); };
   scope.own(cancelDocuments);
@@ -144,6 +152,10 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
       if (!node.checkVisibility({ visibilityProperty: true })) return false;
     return scope.visible;
   };
+  // One registry of framed areas a page: the reads area and the connection card share its four places, layer and checks (§13.5).
+  const areas = pageFramedAreas(scope, root, frame, visible), owner = host.translate(frame.title);
+  const taskGrants = pageTaskGrants(port, scope, areas, grant.page_id, route, host.translate, owner);
+  const returns = pageReturns(port, scope, root, pack, grant.storage_scope, visible), connectionNeed = pageConnectionNeed(port, scope, areas, grant.page_id, route, host.translate, owner, returns.connection);
   const state = () => { if (visible() && invalidated) { invalidated = false; port.postMessage({ type: "select", detail: { invalidate: true }, itemTab: ownItemTab(root, pack) }); } port.postMessage({ type: "state", visible: visible(),
     theme: Object.fromEntries(["theme", "resolvedTheme", "density", "terminalTheme", "resolvedTerminalTheme"].map(key => [key, document.documentElement.dataset[key] ?? ""])) }); };
   scope.observe(new MutationObserver(state), document.documentElement, { attributes: true, attributeFilter: ["data-theme", "data-resolved-theme", "data-density", "data-terminal-theme", "data-resolved-terminal-theme"] });
@@ -175,6 +187,17 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   port.onmessage = (event: MessageEvent<FrameUp>) => {
     const message = event.data;
     if (!scope.alive || !message || typeof message.type !== "string") return;
+    if (message.type === "draft-flushed") {
+      const pending = flushes.get(message.id); if (!pending) return;
+      flushes.delete(message.id); clearTimeout(pending.timer);
+      draftsPrepared = true;
+      if (message.error) pending.reject(new Error(host.translate("草稿保存未完成，请返回原页面重试")));
+      else void Promise.all([...draftWork]).then(() => pending.resolve(), error => pending.reject(error));
+      return;
+    }
+    // Preserve the last already-submitted unsaved declaration before the child's FIFO flush acknowledgement.
+    if (transition.preparing && !draftsPrepared && message.type === "context-report") { void contextMessage(message); return; }
+    if (transition.preparing && !["draft", "storage", "fetch", "abort", "pull"].includes(message.type)) return;
     if (message.type === "document-cancel") { documentReads.get(message.id)?.abort(); documentReads.delete(message.id); return; }
     if (message.type === "frame-asset-layout") { assetLayout(message); return; }
     if (message.type === "connection-slot-cancel") { connectionSlot.cancel(message.id); return; }
@@ -198,8 +221,15 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
     if (message.type === "open-behind") { if (scope.visible && typeof message.itemId === "string" && message.itemId.length <= 1000 && typeof message.title === "string") host.openBehind?.(pack.id, message.itemId, message.title.slice(0, 1000)); return; }
     if (message.type === "workspace") { void workspaces(message); return; }
     if (message.type === "embed-open" || message.type === "embed-layout" || message.type === "embed-close") { void embed(message); return; }
+    if (message.type === "task-grants-open" || message.type === "task-grants-layout" || message.type === "task-grants-close") { taskGrants(message); return; }
+    if (message.type === "connection-need-open" || message.type === "connection-need-layout" || message.type === "connection-need-close") { connectionNeed(message); return; }
+    if (message.type === "return-go" || message.type === "return-arrived" || message.type === "return-abort") { returns.receive(message); return; }
     if (message.type === "fetch" || message.type === "abort" || message.type === "pull") { void requests(message); return; }
-    if (message.type === "draft") { void drafts(message); return; }
+    if (message.type === "draft") {
+      if (transition.preparing && draftsPrepared) { port.postMessage({type: "draft-result", id: message.id, error: "Account is switching"}); return; }
+      const work = drafts(message); draftWork.add(work);
+      void work.then(() => draftWork.delete(work), () => draftWork.delete(work)); return;
+    }
     if (message.type === "context-intake") { makeIntake(message); return; }
     if (message.type === "presentation") { presentation(message); return; }
     if (message.type === "modal") { modal(message.open); return; }
@@ -240,7 +270,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
         else if (["openItem", "openBeside", "hideDirectory", "status"].includes(message.name)) host[message.name as "openItem"]?.(...message.args);
       } else if (message.type === "link") {
         if (message.download) void downloadFrameFile(new URL(message.url), grant.page_id, scope).catch(error => host.showToast?.(String(error.message), true));
-        else navigate(root, message, route(""));
+        else navigate(root, message, route(""), returns.link);
       }
       else if (message.type === "context") {
         if (typeof message.value === "string" && message.value.length < 32000) {
@@ -248,6 +278,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
         } else root.removeAttribute("data-assistant-context");
         if (message.expanded === "true" || message.expanded === "false") { childExpanded = message.expanded; root.setAttribute("data-expanded", message.expanded); }
       } else if (message.type === "storage" && ["localStorage", "sessionStorage"].includes(message.area) && typeof message.key === "string" && message.key.length < 512) {
+        if (transition.preparing && draftsPrepared) return;
         if (message.value === null) window[message.area].removeItem(storagePrefix + message.key);
         else if (typeof message.value === "string" && message.value.length <= 1024 * 1024) window[message.area].setItem(storagePrefix + message.key, message.value);
       }

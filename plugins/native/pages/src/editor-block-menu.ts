@@ -10,7 +10,8 @@ import { spanRows, spanRoots } from "./reorder.js";
 import { PAGES_TONES } from "./tone.js";
 import { hoverKey, EMPTY_HOVER, nudgeEditor, runBlockCommand } from "./editor-block-selection.js";
 import type { Translate } from "./editor-types.js";
-import { t, dsIcon, escapeHtml, keepSelectedVisible, keepFocus } from "./editor-view-ui.js";
+import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t, dsIcon, keepSelectedVisible, keepFocus } from "./editor-view-ui.js";
 
 type MenuMode = "root" | "turn" | "tone";
 

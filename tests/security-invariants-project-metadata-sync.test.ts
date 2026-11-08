@@ -216,7 +216,7 @@ for(const mode of ['DELETE','WAL'])test(`PCSYNC-20 frozen v22 ${mode} catalog is
   mkdirSync(directory,{recursive:true});const file=join(directory,'catalog.db');
   const db=openTestSqlite(file);db.pragma('journal_mode='+mode);db.exec("CREATE TABLE catalog_meta(key TEXT PRIMARY KEY,value TEXT NOT NULL); INSERT INTO catalog_meta VALUES('owner','molis-work-project-catalog-v1'),('schema_version','22'); CREATE TABLE original_fact(value TEXT); INSERT INTO original_fact VALUES('retain');");db.close();
   const bytes=readFileSync(file),files=readdirSync(directory);assert.equal(CATALOG_SCHEMA_VERSION,1);
-  await assert.rejects(openMolisWorkProjectCatalog({homeDirectory:home}),{code:'catalog.reader_too_old'});assert.deepEqual(readFileSync(file),bytes);assert.deepEqual(readdirSync(directory),files);
+  await assert.rejects(openMolisWorkProjectCatalog({homeDirectory:home}),{code:'storage.store_too_new'});assert.deepEqual(readFileSync(file),bytes);assert.deepEqual(readdirSync(directory),files);
 });
 
 test('PCSYNC-20 stale project events cannot provision ghosts before receive; explicit deferred retry can prepare a missing project',async t=>{

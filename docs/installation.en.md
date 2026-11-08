@@ -82,7 +82,7 @@ The full pre-release checklist (version rules, the per-database version table, r
 4. Close and create a new Runtime Session, then verify that it loaded the current Release's tool declaration and Skill. An old Session is never evidence for a new Release.
 5. Finally, use a real project and representative data to inspect the user-visible result. Source, automated tests, package strings, version numbers, and page HTML prove only their own layers; they do not replace the final App's computed styles or end-to-end journey.
 
-If an older Session then reports a catalog schema above its reader's supported range, the running MCP is stale; the database is not damaged. Do not roll back `catalog.db` or bypass writes through SQLite, CLI, or Web. Create or Fork a Session, confirm that messages actually have the new task focus, and perform a read-only Molis Work project resolution before any write. A host navigation success alone does not prove that the next message will land in the new task.
+If an older Session then reports a catalog schema above its reader's supported range, the running MCP is stale; the database is not damaged. Do not roll back `catalog.db` or bypass writes through SQLite, CLI, or Web. Upgrade Molis Work to a version that can read it. If you already upgraded, restart the host service and open a new Session. Then confirm that messages actually have the new task focus, and perform a read-only Molis Work project resolution before any write. A host navigation success alone does not prove that the next message will land in the new task.
 
 ## Demo data
 

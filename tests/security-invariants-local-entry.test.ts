@@ -1,5 +1,5 @@
 // Security invariants S-01 .. S-08 (docs/system/SECURITY-INVARIANTS.md): the local control entry of the web host.
-// Every test asserts the REFUSAL itself, on the real web host (createMolisWorkWebServer) or the real launcher process:
+// Every test asserts the REFUSAL itself on the production single-Home core or the real installation launcher:
 //   S-01  the launcher listens on loopback only
 //   S-02  a foreign Host header (DNS rebinding) is refused, for every method and every route
 //   S-03  a mutation needs a same-origin Origin, the control token and a one-time operation key; a non-API mutation is refused
@@ -23,15 +23,16 @@ import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { BROWSER_SOCKET_PATH } from "@molis-ai/molis-work-contracts/services/browser";
 import { COMPUTER_SOCKET_PATH } from "@molis-ai/molis-work-contracts/services/computer";
 import { PLUGIN_STATEMENT_SQLITE_VERSION } from "@molis-ai/molis-work-plugin-runtime";
+import { createSingleHomeTestWebServer } from "./fixtures/local-web-core.js";
 import { createMolisWorkWebServer, resolveWebControlToken, WEB_CONTROL_TOKEN_RELATIVE_PATH } from "../apps/desktop/launchers/web/server.js";
 
 const TOKEN = "security-invariants-control-token-0123456789abcdef";
 const LAUNCHER = fileURLToPath(new URL("../apps/desktop/launchers/web/server.ts", import.meta.url));
 
 interface Host { home: string; port: number; origin: string; sockets: WebSocket[] }
-async function startHost(t: TestContext, options: Parameters<typeof createMolisWorkWebServer>[0] = {}): Promise<Host> {
+async function startHost(t: TestContext, options: Parameters<typeof createSingleHomeTestWebServer>[0] = {}, createServer=createSingleHomeTestWebServer): Promise<Host> {
   const home = await mkdtemp(join(os.tmpdir(), "security-invariants-"));
-  const server = createMolisWorkWebServer({ homeDirectory: home, controlToken: TOKEN, ...options });
+  const server = createServer({ homeDirectory: home, controlToken: TOKEN, ...options });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const port = (server.address() as AddressInfo).port;
   const sockets: WebSocket[] = [];
@@ -498,7 +499,9 @@ test("S-21 no answer of the host can be shown in another origin's frame: every r
       }
     }
   }
-  const account = await send(host, "GET", "/api/personal/status");
+  // Account entry belongs to the installation owner; the selected business core does not manufacture account responses.
+  const installation=await startHost(t,{},createMolisWorkWebServer);
+  const account = await send(installation, "GET", "/api/personal/status");
   assert.equal(account.headers["x-frame-options"], "DENY", "account responses retain their stricter no-framing policy");
   assert.ok(pages >= 2, `the sweep looked at pages with a policy (${pages})`);
 });

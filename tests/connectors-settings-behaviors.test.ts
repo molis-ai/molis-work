@@ -20,7 +20,7 @@ import { feedUiContribution, type FeedUiModel } from "@molis-ai/molis-work-plugi
 import { DEMO_PROJECT_ID, LocalProjectDatabase, liveHostJudgmentRuleAuthoringCatalog, seedDemoBoard, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { createFileSecretStore, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { connectorAccountActions, readConnectorAccount } from "../apps/local-host/dist/connector-account-actions.js";
 import { connectorDirectory, listConnectorSettingsCards } from "../apps/local-host/dist/connector-directory.js";
 import { CONNECTOR_MARKS } from "../apps/workbench/dist/connector-marks.js";

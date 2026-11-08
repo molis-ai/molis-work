@@ -75,8 +75,8 @@ async function serve(handle: (request: IncomingMessage, response: ServerResponse
 /** The status each Functions code answered through `functionsRouteErrorResponse` on the merge-base, by reason. The one change: provider_unauthorized was 401. */
 const FUNCTIONS_STATUS: Readonly<Record<string, number>> = {
   invalid: 400, stale_preview: 400, published_immutable: 400, key_conflict: 400, preview_required: 400,
-  not_found: 404,
-  conflict: 409, version_conflict: 409, provider_not_configured: 409,
+  not_found: 404, sample_not_found: 404,
+  conflict: 409, version_conflict: 409, provider_not_configured: 409, draft_stale: 409,
   // FI-2 (#1283): a plugin declaring a default rule whose key another plugin holds; it came after the mapper, as a conflict.
   rule_key_taken: 409,
   provider_unauthorized: 502, provider_failed: 502,
@@ -164,9 +164,9 @@ test("the catalog's failures are ActionErrors with a code and the kind each answ
     (error: unknown) => { expect(error, "catalog.project_terminal_live", 409); return true; });
   const tooOld = hostModule.catalogSchemaCompatibilityError(9, 8);
   assert.ok(tooOld instanceof ActionError);
-  assert.equal(tooOld.code, "catalog.reader_too_old");
-  assert.equal(actionHttpStatus(tooOld), 400);
-  assert.deepEqual(tooOld.details, { actual_schema_version: 9, supported_schema_min: 1, supported_schema_max: 8, recovery: "new_or_fork_session_then_context_resolve" });
+  assert.equal(tooOld.code, "storage.store_too_new");
+  assert.equal(actionHttpStatus(tooOld), 503);
+  assert.deepEqual(tooOld.details, { actual_schema_version: 9, supported_schema_min: 8, supported_schema_max: 8, recovery: "upgrade_then_context_resolve" });
 });
 
 test("W3-02-G2 MCP context_resolve preserves a future catalog's schema and recovery details without rewriting its facts", async t => {
@@ -188,9 +188,9 @@ test("W3-02-G2 MCP context_resolve preserves a future catalog's schema and recov
     { result: { isError: boolean; content: Array<{ text: string }> } };
   assert.equal(reply.result.isError, true);
   const line = JSON.parse(reply.result.content[0]!.text) as Record<string, unknown>;
-  assert.deepEqual(line, { error: `Molis Work catalog schema=${supported + 1}，当前 reader 支持 1..${supported}。当前 Session 不会热刷新 MCP；请新建或 Fork 一个 Session，先确认当前任务焦点，再只读调用 context_resolve。解析成功后再继续写入；不要回滚 catalog.db，也不要用 SQLite、CLI 或 Web 绕过。`, code: "catalog.reader_too_old",
-    details: { actual_schema_version: supported + 1, supported_schema_min: 1, supported_schema_max: supported,
-      recovery: "new_or_fork_session_then_context_resolve" } });
+  assert.deepEqual(line, { error: `Molis Work catalog schema=${supported + 1}，这个版本的 Molis Work 只认 ${supported}。目录库是更新的版本写的，没有损坏。请把 Molis Work 升级到能读它的版本；已经升级过的，运行中的 MCP 不会热刷新，请重启常驻服务并新开一个 Session。之后先确认当前任务焦点，只读调用 context_resolve，解析成功后再继续写入；不要回滚 catalog.db，也不要用 SQLite、CLI 或 Web 绕过。`, code: "storage.store_too_new",
+    details: { actual_schema_version: supported + 1, supported_schema_min: supported, supported_schema_max: supported,
+      recovery: "upgrade_then_context_resolve" } });
   const preserved = openTestSqlite(databasePath, { readonly: true });
   try {
     assert.equal(preserved.prepare("SELECT value FROM catalog_meta WHERE key = 'schema_version'").pluck().get(), String(supported + 1));
@@ -205,7 +205,7 @@ for (const leavesRow of [false, true]) {
     const ordinary = { actual_schema_version: 9, supported_schema_min: 1, supported_schema_max: 8, recovery: "new_or_fork_session_then_context_resolve" };
     const forgedId = "11111111-1111-1111-1111-111111111111";
     const details = { ...ordinary, code: "forged.code", call_id: forgedId };
-    const failure = new ActionError("catalog.reader_too_old", "目录读取器版本过旧", { details });
+    const failure = new ActionError("storage.store_too_new", "目录读取器版本过旧", { details });
     // The public catalog port fails inside the real MCP message scope. A failed Home read is a real Host settlement,
     // so the recorded case proves that its displayed number finds a row, without manufacturing a call-id marker.
     // Only the MCP's own catalog read fails. The server also gives this runner to the Home it shares, and Todo's `get` reads the catalog
@@ -224,7 +224,7 @@ for (const leavesRow of [false, true]) {
     assert.equal(reply.result.isError, true);
     const line = JSON.parse(reply.result.content[0]!.text) as Record<string, unknown>;
     const { call_id: id, ...fields } = line;
-    assert.deepEqual(fields, { error: "目录读取器版本过旧", code: "catalog.reader_too_old", details: ordinary }, "ordinary details survive, and the error owns its code");
+    assert.deepEqual(fields, { error: "目录读取器版本过旧", code: "storage.store_too_new", details: ordinary }, "ordinary details survive, and the error owns its code");
     if (leavesRow) {
       assert.equal(typeof id, "string");
       assert.notEqual(id, forgedId);
@@ -239,7 +239,7 @@ test("the plugin routes of the settings tell a missing project from every other 
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const project = await catalog.createProject({ display_name: "设置项目", actor_id: "test" });
   catalog.close();
-  const { createMolisWorkWebServer } = await import("../apps/desktop/launchers/web/server.js");
+  const { createSingleHomeTestWebServer: createMolisWorkWebServer } = await import("./fixtures/local-web-core.js");
   const server = createMolisWorkWebServer({ homeDirectory: home, controlToken: token });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;

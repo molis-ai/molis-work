@@ -17,6 +17,8 @@ Home 插件的 `PluginDatabaseDeclaration` / `PluginDatabase` 从 `platform/plug
 
 同一 `platform/plugin` 子路径的 `PluginOwnerFilesReader/Writer/Client/Declaration` 表达可信 Home 主人的私有文件树。`services.ownerFiles` 可缺省；独立读取需当前动作读权限，`write(run)` 只接同步回调并在退出后撤销 writer。目录和顶层条目是插件自己 Manifest 的 `owner_files`（PG-102），初始化钩子和实例来自可信启动条目，不从业务参数取得。
 
+`services/account` 表达 Host 私有中央账号适配器及安全 AccountView；DTO 从 Auth 固定 Schema 生成，中央身份与本地 actor 分离，操作映射与环境说明见 [中央账号服务](../../docs/horizontal/account.md)。
+
 ## 一次典型调用
 
 调用方按领域子路径导入，例如 @molis-ai/molis-work-contracts/modules/artifacts 或 /platform/plugin。Plugin Manifest 的类型在此定义；解析（`parsePluginManifest`）和动作、Agent、方法的声明检查（`inspectActionDeclarations` 等，内核注册时也用）会运行代码，由 `@molis-ai/molis-work-plugin-sdk` 持有，SDK、内核、运行时和命令行共用同一份；具体命令执行交给对应 owner。
@@ -85,7 +87,7 @@ node scripts/run-tests.mjs tests/plugin-authoring.test.ts
   - `ActionAvailability` 的拒绝分支可带 `kind`；Kernel 的动作与 typed 派发、SDK owner 绑定保留主人的分类，未给 kind 的取现行共同规则。此字段不改变动作 schema 或版本。
   - 改合同同时更新生产方、消费方、Skill 与手册，不留只有一边认识的字段。
   - 动作输入的类型工具只有类型和两个小函数，不加第三方依赖：外部作者只装 contracts 和 plugin-sdk（`specs/action-input-contracts/spec.md` §4.1）。
-  - 公开合同的动作（`services/*`、`modules/*` 和共享帮手）要留手写接口，schema 包 `inputSchemaFor`；包内部的动作要从 schema 推。现在还没有定义包上（N22-02、N22-03 才包），不要假设接口和 schema 已由编译器钉住。两种写法的取舍和过不了的名单在 §4.4。`inputSchemaFor` 没有关掉的参数，过不了就改接口或 schema，或者带理由进名单。
+  - 公开合同的动作（`services/*`、`modules/*` 和共享帮手）要留手写接口，schema 包 `inputSchemaFor`；包内部的动作要从 schema 推。共享帮手已经包上（N22-02），`services/*`、`modules/*` 的定义还没有（N22-03）；帮手里没包的是 `artifact` 三个（§4.4）和 `run.control`（等 S0）。帮手自己的 schema 用 `platform/closed-object-schema.ts` 保留字面量，它不进公开子路径。两种写法的取舍和过不了的名单在 §4.4。`inputSchemaFor` 没有关掉的参数，过不了就改接口或 schema，或者带理由进名单。
   - 导出的 schema 常量和帮手的类型在 API 快照里，加 `as const` 或改 `const` 泛型都要 `pnpm api:update`，排 api 队列（§4.5）。
   - Projects 的 `renameProject` 第四参为必填的原始名称观察值；Host HTTP、Workbench 表单和进程内调用同步更新。缺失或过期值按 `catalog.project_name_conflict` 拒绝，不提供旧签名别名或用新读取替换旧观察。
   - 项目目录的七个动作（`projectDirectoryActions`）和最近资料的两个动作（`materialRecentActions`）现在只声明，还没有提供方登记，调用得到 `actions.missing`。`ProjectDirectories.source_links` 只有 id 没有路径；目录的 `state` 只有 `ok`、`missing`；撤权按调用方的授权算，不是目录的状态；`projects.directory_revoked` 回答冻结轮次用到已经移除的目录。`MaterialOrigin` 的 `unmapped` 只用于 `source: "directory"`，这时不带 `directory`。规则见 [公共来源与呈现合同](../../specs/shared-sources-and-surfaces/spec.md)。
@@ -95,7 +97,7 @@ node scripts/run-tests.mjs tests/plugin-authoring.test.ts
   - 文字引用（`platform/ui-text.ts`，经 `platform/ui` 转出）分两个形状：声明位置的 `TextRef` 没有 `owner`，写了就被 `TEXT_REF_SCHEMA` 拒绝；`OwnedTextRef` 是平台从可信目录绑好主人之后的。`OWNED_TEXT_REF_SCHEMA` 由前者加 `owner` 得来，不复制属性；数字上限只写在 `TEXT_REF_LIMITS`。`SandboxSchema` 写不出联合，字段组合不归 schema 管。改动后跑 `node scripts/run-tests.mjs tests/ui-text-ref-contract.test.ts`。
   - 外观与语言文件的类型（`platform/ui-files.ts`）和展示快照（`platform/ui-environment.ts`）只有类型和现行格式常量；解析和每一条拒绝在插件 SDK 的 `/ui`。每种文件的版本数字只写在 `UI_FORMAT_VERSIONS`，接口的 `format_version` 从它取；快照只有身份和问题，不带令牌值和译文。文字工具（`t`、`say`、`format`）的类型在 `ui-text.ts`，实现同样在 SDK。改动后跑 `node scripts/run-tests.mjs tests/ui-text-files-contract.test.ts`。
 - 改了公开导出：`pnpm build` 后跑 `pnpm api:update`，提交 `tooling/gates/api/`；改了动作的形状或声明：跑 `pnpm actions:update`，提交 `tooling/gates/actions/`（两份快照与源码不同，CI 失败；PR 里写对调用方的影响，见 [CONTRACT-CHANGES](../../docs/system/CONTRACT-CHANGES.md)）。
-- 改动后必跑：`node scripts/run-tests.mjs tests/action-input-types.test.ts tests/action-schema-compiler.test.ts tests/action-plugin-audience.test.ts tests/plugin-manifest-v2.test.ts tests/plugin-declaration-rules.test.ts tests/action-read-compatibility.test.ts tests/runtime-provider-identity.test.ts tests/plugin-capability-availability.test.ts tests/action-error-model.test.ts tests/plugin-model-service.test.ts tests/action-availability-kind.test.ts tests/action-project-materials.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/action-input-types.test.ts tests/action-schema-compiler.test.ts tests/action-plugin-audience.test.ts tests/plugin-manifest.test.ts tests/plugin-declaration-rules.test.ts tests/action-read-compatibility.test.ts tests/runtime-provider-identity.test.ts tests/plugin-capability-availability.test.ts tests/action-error-model.test.ts tests/plugin-model-service.test.ts tests/action-availability-kind.test.ts tests/action-project-materials.test.ts`
 - 授权尾检与消费者改动另跑：`node scripts/run-tests.mjs tests/mcp-effect-authority.test.ts tests/mcp-scene-effect-authority.test.ts tests/action-authority-tail.test.ts tests/plugin-owner-effect-fence.test.ts tests/action-before-effect.test.ts tests/functions-scene-configuration.test.ts tests/functions-effect-boundaries.test.ts`。
 - 相关手册：[docs/platform/CONTRACTS-AND-OPERATIONS.md](../../docs/platform/CONTRACTS-AND-OPERATIONS.md)、[specs/action-architecture/spec.md](../../specs/action-architecture/spec.md)、[docs/system/PACKAGE-BOUNDARIES.md](../../docs/system/PACKAGE-BOUNDARIES.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 

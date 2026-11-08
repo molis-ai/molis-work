@@ -8,7 +8,7 @@ import test from "node:test";
 
 import { providerHealth, type ModelProviderHealth, type ModelProviderRecord } from "@molis-ai/molis-work-contracts/modules/model-providers";
 import { renderModelSettingsDocument, type ModelSettingsModel, type ModelSettingsPrimitives } from "@molis-ai/molis-work-app-workbench";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { startModelStandIn } from "./fixtures/model-stand-in.js";
 
 /**

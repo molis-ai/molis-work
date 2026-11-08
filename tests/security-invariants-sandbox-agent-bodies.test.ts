@@ -134,6 +134,23 @@ test("SKP-08 SKC-03 a signed method whose body file is missing is refused naming
     problems: [{ skill_id: METHOD, path: METHOD_BODY, reason: "包里找不到" }],
   });
 });
+
+test("RAC-383 S-84 every file outside the sandbox package format is named, quoted and cut to 200 units", async () => {
+  const long = `notes/${"x".repeat(300)}.md`, shown = `${long.slice(0, 200)}…`, odd = "extra\n：伪造的原因.txt";
+  const { publisher, payload } = textPackage();
+  for (const path of [long, odd]) payload.files.push({ path, content_base64: Buffer.from("hello").toString("base64") });
+  payload.files.sort((a, b) => a.path.localeCompare(b.path, "en"));
+  const { message, problems } = refusalOf(() => readSandboxPackage(payload));
+  const reason = "沙箱包的格式里没有这个文件";
+  assert.deepEqual(problems, [long, odd].sort((a, b) => a.localeCompare(b, "en")).map(path => ({ path: path === long ? shown : path, reason })));
+  assert.equal(message, (problems as Array<{ path: string }>).map(problem => `${JSON.stringify(problem.path)}：${reason}`).join("；"));
+  assert.ok(message.includes(JSON.stringify(odd)) && !message.includes(odd), "a line break in a path stays escaped in the message");
+  const h = await previewHarness();
+  try {
+    await assert.rejects(h.service.preview({ bundle: rawSigned(payload, publisher) }, previewWho), (error: unknown) => (error as Error).message === message);
+    h.unchanged();
+  } finally { await h.close(); }
+});
 for (const path of ["/tmp/secret", "agent/../secret", "agent/./body", "C:/secret", "agent\\body", "agent//body", "agent/missing"]) {
   test(`RAC-2638 S-105 refuses body path ${path}`, async () => {
     const h = await previewHarness();

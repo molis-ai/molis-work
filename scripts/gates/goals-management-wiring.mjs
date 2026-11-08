@@ -5,7 +5,7 @@ const HOST_NAMES = new Set(["LocalHostProjectClient", "actionClient", "client", 
 export function checkGoalsManagementWiring(source, mode) {
   const mcp = mode === "mcp", path = `apps/local-host/src/${mcp ? "mcp-v1-tool" : "cli-project"}.ts`;
   const file = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true);
-  const calls = [], accesses = [], names = [], declarations = new Map(), imports = new Set();
+  const calls = [], accesses = [], names = [], writes = [], declarations = new Map(), imports = new Set();
   const text = node => node?.getText(file).replace(/\s+/gu, "");
   const production = mcp ? productionMcpBranch(file, text) : undefined;
   const visit = node => {
@@ -15,6 +15,7 @@ export function checkGoalsManagementWiring(source, mode) {
       for (const element of node.importClause.namedBindings.elements) if (!element.propertyName && !element.isTypeOnly) imports.add(`${node.moduleSpecifier.text}:${element.name.text}`);
     }
     if (ts.isCallExpression(node)) calls.push(node);
+    if (ts.isBinaryExpression(node) && node.operatorToken.kind >= ts.SyntaxKind.FirstAssignment && node.operatorToken.kind <= ts.SyntaxKind.LastAssignment) writes.push(node);
     if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name)) declarations.set(node.name.text, node);
     if ((ts.isPropertyAccessExpression(node) && HOST_NAMES.has(node.name.text))
       || (ts.isElementAccessExpression(node) && ts.isStringLiteralLike(node.argumentExpression) && HOST_NAMES.has(node.argumentExpression.text))) accesses.push(node);
@@ -30,15 +31,16 @@ export function checkGoalsManagementWiring(source, mode) {
   const body = fallback?.initializer && ts.isArrowFunction(fallback.initializer) ? fallback.initializer.body : undefined;
   const creates = namedCalls("prepareLocalProjectStorage").filter(node => text(node.arguments[1]) === '"create"');
   const external = creates.find(node => node.pos < fallback?.pos);
-  const guarded = !mcp && body && ts.isBlock(body) && body.statements.length === 3
+  const guarded = !mcp && body && ts.isBlock(body) && body.statements.length === 4
     && imports.has("./home-storage-lifetime.js:ensureHomeStorageOwner")
     && imports.has("./memory/memory-initialization.js:preflightMemoryHome")
     && imports.has("./project-storage.js:prepareLocalProjectStorage")
     && text(declarations.get("homeDatabase")?.initializer) === "databaseInHome(home,databasePath)"
     && creates.length === 2 && text(external?.parent.parent) === 'if(operation==="init"&&!homeDatabase)prepareLocalProjectStorage(databasePath,"create");'
-    && text(body.statements[0]) === 'if(homeProject||homeDatabase)ensureHomeStorageOwner(localHost??=createMolisWorkLocalHost({homeDirectory:home}),home,preflightMemoryHome);'
-    && text(body.statements[1]) === 'if(operation==="init"&&homeDatabase)prepareLocalProjectStorage(databasePath,"create");'
-    && ts.isReturnStatement(body.statements[2]) && body.statements[2].expression === call;
+    && text(body.statements[0]) === 'if(!allowLocalFallback&&homeDatabase)thrownewActionError("actions.service_unavailable","当前账号宿主尚未连接，不能回退匿名业务。");'
+    && text(body.statements[1]) === 'if(homeProject||homeDatabase)ensureHomeStorageOwner(localHost??=createMolisWorkLocalHost({homeDirectory:home}),home,preflightMemoryHome);'
+    && text(body.statements[2]) === 'if(operation==="init"&&homeDatabase)prepareLocalProjectStorage(databasePath,"create");'
+    && ts.isReturnStatement(body.statements[3]) && body.statements[3].expression === call;
   const expectedClient = mcp ? "caller.localHost.actionClient" : "(localHost??=createMolisWorkLocalHost()).actionClient";
   if (!imports.has("./goal-callers.js:bindGoalsManagementActions") || !call || call.arguments.length !== 3
     || !opened || !ts.isCallExpression(opened) || text(opened.expression) !== expectedClient || opened.arguments.length !== 1
@@ -51,14 +53,28 @@ export function checkGoalsManagementWiring(source, mode) {
   const residentInput = residentCall?.arguments[0];
   const values = new Map(residentInput && ts.isObjectLiteralExpression(residentInput) ? residentInput.properties.map(property =>
     [property.name && text(property.name), ts.isShorthandPropertyAssignment(property) ? property.name.text : ts.isPropertyAssignment(property) ? text(property.initializer) : undefined]) : []);
-  const expected = mcp ? { home: "caller.resident.home", origin: "caller.resident.origin", signal: "caller.resident.signal",
+  const expected = mcp ? { home: "caller.resident.home", origin: "caller.resident.origin", controlToken: "caller.resident.controlToken", signal: "caller.resident.signal",
     databasePath: "owned.database_path", projectId: "owned.project_id", fallback: "fallback" }
-    : { home: "home", origin: "options.actionServiceUrl??readProductEnv(\"WEB_URL\")??DEFAULT_RESIDENT_HOST_URL", signal: "options.signal",
+    : { home: "home", origin: "origin", controlToken: "connected?.controlToken", signal: "options.signal",
       databasePath: "project.database_path", projectId: "project.project_id", fallback: "fallback" };
   if (!imports.has("./management-action-client.js:residentManagementActions") || !residentCall || residentCall.arguments.length !== 1
     || residentInput.properties.length !== Object.keys(expected).length || values.size !== Object.keys(expected).length
     || Object.entries(expected).some(([key, value]) => values.get(key) !== value)) {
     reject("residentManagementActions must carry the catalog project, original signal and the actual lazy fallback");
+  }
+  if (!mcp) {
+    const origin = declarations.get("origin"), connection = namedCalls("connectResidentAccount");
+    const connectedWrites = writes.filter(node => text(node.left) === "connected"), homeWrites = writes.filter(node => text(node.left) === "home");
+    const fallbackWrites = writes.filter(node => text(node.left) === "allowLocalFallback");
+    if (!imports.has("./resident-account-connection.js:connectResidentAccount") || !origin
+      || !(origin.parent.flags & ts.NodeFlags.Const) || text(origin.initializer) !== 'options.actionServiceUrl??readProductEnv("WEB_URL")??DEFAULT_RESIDENT_HOST_URL'
+      || connection.length !== 1 || text(connection[0]) !== "connectResidentAccount(home,origin,options.signal,required)"
+      || connectedWrites.length !== 1 || text(connectedWrites[0]) !== "connected=awaitconnectResidentAccount(home,origin,options.signal,required)"
+      || homeWrites.length !== 1 || text(homeWrites[0]) !== "home=connected.homeDirectory" || homeWrites[0].pos <= connectedWrites[0].end
+      || text(declarations.get("allowLocalFallback")?.initializer) !== "!!options.localHost||options.homeDirectory!==undefined"
+      || fallbackWrites.length !== 1 || text(fallbackWrites[0].parent.parent) !== "if(connected.installation)allowLocalFallback=false;") {
+      reject("CLI origin and captured token must come from the single native account connection; installation mode cannot regain local fallback");
+    }
   }
   const actions = declarations.get("actions"), dispatch = namedCalls(mcp ? "dispatchMcpProjectTool" : "dispatchCliProjectCommand");
   const expectedActions = mcp ? 'audience!=="management"?null:owned&&caller.resident?residentManagementActions' : "project?residentManagementActions";
@@ -120,7 +136,7 @@ function productionMcpBranch(file, text) {
   const dispatch = returned && ts.isCallExpression(returned) && text(returned.expression) === "dispatchMcpProjectTool" ? returned : undefined;
   const resident = dispatch?.arguments[0];
   const input = resident && ts.isCallExpression(resident) && text(resident.expression) === "residentManagementActions" && resident.arguments.length === 1 ? resident.arguments[0] : undefined;
-  const expected = { home: "caller.resident.home", origin: "caller.resident.origin", signal: "caller.resident.signal",
+  const expected = { home: "caller.resident.home", origin: "caller.resident.origin", controlToken: "caller.resident.controlToken", signal: "caller.resident.signal",
     ensureResident: "caller.resident.ensureResident", databasePath: "path.resolve(location)", projectId: "String(arguments_.project_id)",
     fallback: '()=>{thrownewActionError("actions.service_unavailable","生产MCP不在本地执行管理操作");}' };
   const values = new Map(input && ts.isObjectLiteralExpression(input) ? input.properties.map(property =>

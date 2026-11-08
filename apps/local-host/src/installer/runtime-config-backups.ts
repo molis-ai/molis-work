@@ -28,7 +28,7 @@ export function runtimeConfigBackupPath(homeDirectory: string, runtimeId: Suppor
   return path.join(homeDirectory, "runtime-config-backups", runtimeId, planId + ".bak");
 }
 
-async function directory(home: string, runtimeId: SupportedRuntimeId, create: boolean): Promise<string | null> {
+async function directory(home: string, runtimeId: SupportedRuntimeId, create: boolean, assertCurrent: () => void = () => {}): Promise<string | null> {
   let root: string;
   try { root = await fs.realpath(home); } catch (error) { if (absent(error) && !create) return null; throw error; }
   for (const name of ["runtime-config-backups", runtimeId]) {
@@ -38,7 +38,7 @@ async function directory(home: string, runtimeId: SupportedRuntimeId, create: bo
     catch (error) {
       if (!absent(error)) throw error;
       if (!create) return null;
-      try { await fs.mkdir(root, { mode: 0o700 }); }
+      try { assertCurrent(); await fs.mkdir(root, { mode: 0o700 }); assertCurrent(); }
       catch (failure) { if (!(failure instanceof Error && "code" in failure && failure.code === "EEXIST")) throw failure; }
       stat = await fs.lstat(root);
     }
@@ -81,11 +81,12 @@ async function original(home: string, authRef: string): Promise<string | null> {
 }
 
 /** The owner seals the current backup descriptor; no master material is returned. */
-export async function sealRuntimeConfigBackup(home: string, runtimeId: SupportedRuntimeId, planId: string, contents: string, mode: number): Promise<RuntimeConfigBackupReference> {
+export async function sealRuntimeConfigBackup(home: string, runtimeId: SupportedRuntimeId, planId: string, contents: string, mode: number, assertCurrent: () => void = () => {}): Promise<RuntimeConfigBackupReference> {
   runtimeConfigBackupPath(home, runtimeId, planId);
   if (typeof contents !== "string") throw errors.invalid("原配置正文必须是文字");
   const item = reference(runtimeId, planId, mode), before = await original(home, item.auth_ref);
   if (before !== null && before !== contents) throw errors.conflict("这份配置备份已绑定另一份原文");
+  assertCurrent();
   if (before === null) {
     const store = createLazyFileSecretStore(home);
     if (!store.createIfAbsent(item.auth_ref, contents) && await original(home, item.auth_ref) !== contents) throw errors.conflict("配置备份在保存期间发生冲突");
@@ -93,16 +94,17 @@ export async function sealRuntimeConfigBackup(home: string, runtimeId: Supported
   return item;
 }
 
-export async function captureRuntimeConfigBackup(home: string, runtimeId: SupportedRuntimeId, planId: string, contents: string, mode = 0o600): Promise<void> {
+export async function captureRuntimeConfigBackup(home: string, runtimeId: SupportedRuntimeId, planId: string, contents: string, mode = 0o600, assertCurrent: () => void = () => {}): Promise<void> {
   runtimeConfigBackupPath(home, runtimeId, planId);
-  const prior = await readReference(home, runtimeId, planId);
+  assertCurrent();
+  const prior = await readReference(home, runtimeId, planId); assertCurrent();
   if (prior) {
     if (prior.mode !== mode || await original(home, prior.auth_ref) !== contents) throw errors.conflict("这份配置备份已存在，内容或权限不一致");
     return;
   }
-  const item = await sealRuntimeConfigBackup(home, runtimeId, planId, contents, mode);
-  const parent = await directory(home, runtimeId, true);
-  await writeAtomic(path.join(parent!, planId + ".bak"), JSON.stringify(item) + "\n", 0o600);
+  const item = await sealRuntimeConfigBackup(home, runtimeId, planId, contents, mode, assertCurrent); assertCurrent();
+  const parent = await directory(home, runtimeId, true, assertCurrent); assertCurrent();
+  await writeAtomic(path.join(parent!, planId + ".bak"), JSON.stringify(item) + "\n", 0o600, assertCurrent);
 }
 
 /** Explicit recovery through the owner; listing/detection and ordinary integration results contain no original text. */

@@ -216,7 +216,15 @@ expectAfterOrigin("UPG1-i-store-07: a raise over two versions missing the middle
 expectAfterOrigin("UPG1-i-store-08: `from: 2` written in a comment or a string does not count", () => {
   raiseTo(3, 'upgrades: [{ from: 1, sql: "from: 2" /* from: 2 */ }]', pointer(2, 3));
 }, 1, [/has no upgrade step with `from: 2`/]);
-expectAfterOrigin("UPG1-i-store-08: an upgrades list that is a constant reference cannot be read and fails", () => raiseTo(3, "upgrades: STEPS", pointer(2, 3)), 1, [/not an array of steps with a number literal/]);
+expectAfterOrigin("UPG1-i-store-08: an upgrades list named by nothing this file declares cannot be read and fails", () => raiseTo(3, "upgrades: STEPS", pointer(2, 3)), 1, [/not an array of steps with a number literal/]);
+// The same reading as initial-versions.mjs (scripts/gates/upgrade-steps.mjs): a name is followed once, to a `const` array of this file.
+const namedSteps = (declaration: string) => () => { raiseTo(3, "upgrades: STEPS", pointer(2, 3)); put(PAGES_FILE, `${declaration}\n${baseline(3, "upgrades: STEPS")}`); };
+const TWO_STEPS = '[{ from: 1, sql: "SELECT 1" }, { from: 2, sql: "SELECT 2" }]';
+expectAfterOrigin("UPG1-i-store-08: an upgrades list named by a `const` array of this file is read like one in place", namedSteps(`const STEPS = ${TWO_STEPS};`), 0);
+expectAfterOrigin("UPG1-i-store-08: a named list missing its step still fails", namedSteps('const STEPS = [{ from: 1, sql: "SELECT 1" }];'), 1, [/has no upgrade step with `from: 2`/]);
+expectAfterOrigin("UPG1-i-store-08: a list named by a `let` cannot be read and fails", namedSteps(`let STEPS = ${TWO_STEPS};`), 1, [/not an array of steps/]);
+expectAfterOrigin("UPG1-i-store-08: a list whose name names another name cannot be read and fails", namedSteps(`const MORE = ${TWO_STEPS};\nconst STEPS = MORE;`), 1, [/not an array of steps/]);
+expectAfterOrigin("UPG1-i-store-08: a list name declared twice in the file cannot be read and fails", namedSteps(`const STEPS = ${TWO_STEPS};\nfunction other() { const STEPS = []; return STEPS; }`), 1, [/not an array of steps/]);
 expectAfterOrigin("UPG1-i-store-08: a spread in the list cannot be read and fails", () => raiseTo(3, 'upgrades: [...STEPS, { from: 2, sql: "B" }]', pointer(2, 3)), 1, [/not an array of steps/]);
 expectAfterOrigin("UPG1-i-store-08: a computed from cannot be read and fails", () => raiseTo(3, 'upgrades: [{ from: 1 + 1, sql: "B" }]', pointer(2, 3)), 1, [/not an array of steps/]);
 expectAfterOrigin("UPG1-i-store-08: a definition whose file is gone fails", () => {

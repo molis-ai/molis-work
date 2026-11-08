@@ -11,6 +11,7 @@ import { createProjectDeletionHttp, removeDemoThroughService, sendDeletionFailur
 import type { ProjectDeletionPorts } from "./project-deletion-service.js";
 import { hostLog } from "./host-log.js";
 import { projectPluginMembershipForPage } from "./web-home-plugin-recovery.js";
+import type { WebServerOptions } from "./web-types.js";
 
 export type LocalWebCatalogRunner = <T>(options: MolisWorkProjectCatalogOptions, operation: (catalog: MolisWorkProjectCatalog) => T | Promise<T>) => Promise<T>;
 
@@ -34,7 +35,7 @@ async function renameProjectFromHttp(request: IncomingMessage, response: ServerR
   }
 }
 
-export function createLocalProjectSettingsHttp(withMolisWorkProjectCatalog: LocalWebCatalogRunner) {
+export function createLocalProjectSettingsHttp(withMolisWorkProjectCatalog: LocalWebCatalogRunner, diagnostics?: WebServerOptions["installationDiagnostics"]) {
   const handleProjectDeletion = createProjectDeletionHttp(withMolisWorkProjectCatalog);
   async function settingsProjects(homeDirectory: string | undefined): Promise<WebSettingsProject[]> {
     return withMolisWorkProjectCatalog({ homeDirectory }, (catalog) => catalog.listProjects().map(settingsProject));
@@ -114,7 +115,7 @@ export function createLocalProjectSettingsHttp(withMolisWorkProjectCatalog: Loca
       return true;
     }
     if (request.method === "GET" && url.pathname === "/api/settings/diagnostics") {
-      sendJson(response, 200, installationDiagnostics(homeDirectory, projectCount));
+      sendJson(response, 200, diagnostics?.(projectCount)??installationDiagnostics(homeDirectory, projectCount));
       return true;
     }
     return false;

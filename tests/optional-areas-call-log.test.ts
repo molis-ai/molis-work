@@ -11,7 +11,7 @@ import { feedQueryActions } from "@molis-ai/molis-work-plugin-feed";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { inboxActions, INBOX_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-inbox";
 import { publishedFunctionAction } from "@molis-ai/molis-work-module-judgment-rules";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 /**

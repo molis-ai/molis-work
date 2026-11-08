@@ -38,6 +38,13 @@ export { createPluginPlatform } from "./plugin-platform.js";
 export { nativePluginReleaseArtifact } from "./native-plugin-release-artifact.js";
 export { bindDeclaredDefaults } from "./plugin-default-bindings.js";
 export { homeStores } from "./home-stores.js";
+export { BROWSER_SITES_FILE, BrowserSiteDecisions } from "./browser/browser-surfaces.js";
+export { ensureHomeUpgraded, pendingUpgradeUnits, runHomeUpgrade, type HomeUpgradeReport } from "./home-upgrade.js";
+export { planHomeUpgrade, runUpgradeMaintenance, upgradeHomesForMaintenance, type HomeUpgradePlan, type UpgradeMaintenanceMessage, type UpgradeMaintenanceOptions } from "./upgrade-maintenance.js";
+export { configuredModelChoices } from "./configured-models.js";
+export { homeUpgradeDescriptors, registerHomeUpgradeDescriptors, upgradeFingerprint, upgradeTarget, type HomeUpgradeDescriptor, type HomeUpgradeDescriptorSource, type HomeUpgradeFileDescriptor, type HomeUpgradeStoreDescriptor } from "./home-upgrade-stores.js";
+export { acquireUpgradedHomeOwner } from "./home-storage-lifetime.js";
+export { catalogManagementProject, upgradeOlderCatalog } from "./management-action-client.js";
 export { createHomeSnapshot, type HomeSnapshotOptions } from "./home-snapshot.js";
 export { restoreHomeSnapshot, recoverHomeRestore, type HomeRestoreOptions, type HomeRestoreRecoveryOptions } from "./home-restore.js";
 export type { HomeRestoreCatalogInspector, HomeRestoreResult } from "./home-restore-contract.js";
@@ -56,7 +63,8 @@ export { MolisWorkWebServiceManager } from "./installer/web-service.js";
 export { type MolisWorkWebServiceAction, type MolisWorkWebServiceState, type MolisWorkWebServiceDetection, type MolisWorkWebServicePlan, type MolisWorkWebServiceResult, type MolisWorkWebServiceManagerOptions } from "./installer/web-service-contract.js";
 export { MolisWorkUninstallService } from "./installer/uninstall.js";
 export { type MolisWorkUninstallPlan, type MolisWorkUninstallResult, type MolisWorkUninstallServiceOptions, type MolisWorkUninstallChange, type UninstallProjectAccess } from "./installer/uninstall-contract.js";
-export { resolveWebControlToken, WEB_CONTROL_TOKEN_RELATIVE_PATH } from "./web-control-token.js";
+export { resolveWebControlToken, sendWebHealth, WEB_CONTROL_TOKEN_RELATIVE_PATH, webHealthProof } from "./web-control-token.js";
+export { resolveConfiguredHome } from "./product-home.js";
 export { createMcpResidentStarter, type EnsureMcpResidentHost } from "./mcp-resident-start.js";
 export { finishMcpWebStartup, reportMcpWebStartupFailure, watchMcpWebStartup } from "./mcp-web-startup.js";
 export { createMolisWorkRuntimePayload, type MolisWorkRuntimePayloadOptions } from "./installer/runtime-payload.js";
@@ -93,7 +101,7 @@ export { DemoProjectLifecycle, type DemoProjectSeedPort } from "./demo-project-l
 export { exists } from "./project-file-paths.js";
 export type { CreateMolisWorkProjectInput, ManageMolisWorkDemoProjectInput, MolisWorkDemoProjectResult } from "./project-catalog-contract.js";
 
-export { initializeCatalog, assertOwnedCatalog, assertCurrentCatalog, type CatalogDesktopSchema } from "./catalog-schema.js";
+export { CATALOG_BASELINE, initializeCatalog, assertOwnedCatalog, assertCurrentCatalog, type CatalogDesktopSchema } from "./catalog-schema.js";
 
 export * from "./project-catalog.js";
 export { seedDemoBoard, seedDemoGoals, DEMO_PROJECT_ID } from "./demo-seed.js";
@@ -221,13 +229,16 @@ export * from "./web-project-settings.js";
 export * from "./web-project-presentation.js";
 export * from "./project-host.js";
 export { projectActionAvailability } from "./project-action-availability.js";
+export { withReadOnlyPluginDirectory } from "./always-on-plugins.js";
+export { homeProjectReach } from "./project-reach.js";
+export { AccountRefreshPages } from "./account-refresh-pages.js";
 export { runLocalPluginDevelopment, developInPrivateHost, createPrivateDevelopmentHost } from "./local-plugin-development.js";
 export { createLocalOnboardingHttp } from "./web-onboarding.js";
 export { handleLocalProjectReferenceHttp } from "./web-project-reference.js";
 export { readProjectReference } from "./project-file-reference.js";
 export { createLocalPlanningHttp } from "./web-planning.js";
 export { createLocalGoalsReadHttp } from "./web-goals-read.js";
-export { createLocalWebServerFactory } from "./web-server.js";
+export { createLocalWebCoreFactory, createLocalWebServerFactory } from "./web-server.js";
 export type { WebServerOptions } from "./web-types.js";
 export type { LocalWebPlatform } from "./web-composition.js";
 export { createLocalUninstallService } from "./local-uninstall.js";
@@ -272,7 +283,7 @@ export { AGENT_DEFINITIONS_BASELINE } from "./agent-definitions/agent-definition
 export { homeAgentDefinitions } from "./agent-definitions/builtin-registrations.js";
 export { PLACEMENT_BASELINE } from "./placement-actions.js";
 export { placementCallPorts } from "./placement-call.js";
-export { ALCHEMIST_SEARCH_BASELINE, createAlchemistSearchPort } from "./alchemist-search.js";
+export { ALCHEMIST_SEARCH_BASELINE, ALCHEMIST_STUDIO_BASELINE, createAlchemistSearchPort } from "./alchemist-search.js";
 export { ASSISTANT_STORE_BASELINE, ASSISTANT_STORE_NAME, AssistantStore } from "./assistant/assistant-store.js";
 export { raiseConnectionNotice } from "./assistant/assistant-connection-notices.js";
 export { AssistantService } from "./assistant/assistant-service.js";
@@ -295,7 +306,7 @@ export { memoryRuntimePolicy, type MemoryRuntimePolicyOwner } from "./memory/mem
 export { memorySources, type MemorySourceOwner } from "./memory/memory-sources.js";
 export { memoryExtractor } from "./memory/memory-extractor.js";
 export { registerMemoryProjectDeletion } from "./memory/memory-project-deletion.js";
-export { ComputerRecords } from "./computer/computer-records.js";
+export { COMPUTER_RECORD_FILE, ComputerRecords } from "./computer/computer-records.js";
 export { handleComputerHttp, type ComputerShelf } from "./computer/computer-http.js";
 export { assistantRelatedAction, assistantRelatedRegistration, type RelatedWorksSource } from "./assistant/assistant-related-action.js";
 export { assistantThreadActions } from "./assistant/assistant-thread-actions.js";
@@ -329,6 +340,7 @@ export {createPersonalNativeSession,NATIVE_SESSION_FILE,NATIVE_SESSION_HEADER} f
 export {artifactSyncSelection,createPersonalArtifactRegistration} from './personal-artifact-sync.js';
 export { projectOrNull } from "./catalog-lookup.js";
 export { createProjectArrivalHttp } from "./project-arrival-http.js";
+export { markProjectOpened, PROJECT_ARRIVAL_FILE, readProjectArrival, setProjectDescription } from "./project-arrival.js";
 export { handleAttentionHttp, type AttentionSources } from "./attention-http.js";
 export { handleBrowserHttp } from "./browser/browser-http.js";
 export { homeBackgroundTasks, type HomeBackgroundTaskRow } from "./home-background-tasks.js";
@@ -371,3 +383,5 @@ export { createWebCatalogAccess } from "./web-catalog-access.js";
 export { createSpaceWebServer, type SpaceWebSurface } from "./space-web-server.js";
 
 export { verifySyncPluginDistribution } from "./sync-distribution.js";
+
+export {connectResidentAccount,ACCOUNT_CONNECT_PATH,type ResidentAccountConnection} from "./resident-account-connection.js";

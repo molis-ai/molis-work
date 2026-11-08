@@ -15,7 +15,7 @@ import test, { type TestContext } from "node:test";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalActionGatewayClient } from "@molis-ai/molis-work-app-local-host";
 import { main as runCli } from "../apps/desktop/launchers/cli/main.js";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 
 const TOKEN = "security-invariants-gateway-0123456789abcdef";
 

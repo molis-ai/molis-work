@@ -1,58 +1,162 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {mkdtempSync,rmSync} from 'node:fs';
-import {tmpdir} from 'node:os';
-import {join,basename} from 'node:path';
-import {createServer} from 'node:http';
-import {createSpaceWebServer,type SpaceWebSurface} from '@molis-ai/molis-work-app-local-host';
+import {basename,join} from 'node:path';
+import {readFileSync} from 'node:fs';
+import {createHash} from 'node:crypto';
 import {personalStorageSpace} from '@molis-ai/molis-work-storage';
+import {accountRefreshFixture,accountProbeCore} from './fixtures/account-refresh.js';
 
-test('a surface delayed behind disposal cannot bootstrap the old account Home with the replacement login lease',async t=>{
-  const home=mkdtempSync(join(tmpdir(),'space-retire-race-')),authOrigin='https://auth.example.test';
-  const env={MOLIS_WORK_AUTH_ORIGIN:authOrigin,MOLIS_WORK_AUTH_CLIENT_ID:'web-test',MOLIS_WORK_CLOUD_ORIGIN:authOrigin};
-  const before=Object.fromEntries(Object.keys(env).map(key=>[key,process.env[key]]));Object.assign(process.env,env);
-  let state='',user='alice';const original=fetch;
-  t.mock.method(globalThis,'fetch',(async(input,init)=>{
-    const url=new URL(String(input));if(url.origin!==authOrigin)return original(input,init);
-    if(url.pathname==='/api/v1/auth/transactions'){state=JSON.parse(String(init?.body)).state;return Response.json({data:{loginUrl:authOrigin+'/login'}});}
-    if(url.pathname==='/oauth2/token')return Response.json({access_token:'synthetic-'+user,refresh_token:'synthetic-refresh',expires_in:3600});
-    if(url.pathname==='/api/v1/users/me')return Response.json({data:{userId:user,displayName:user,emails:[],applicationId:'work',clientId:'web-test'}});
-    return Response.json({});
-  }) as typeof fetch);
-  const alice=personalStorageSpace(authOrigin,'work','alice').spaceId;
-  let release!:()=>void;const disposed=new Promise<void>(resolve=>{release=resolve;});
-  const opened:string[]=[];
-  const token='synthetic-race-root-control-token-0123456789';
-  const server=createSpaceWebServer({homeDirectory:home,controlToken:token},options=>{
-    const name=basename(options.homeDirectory!);opened.push(name);
-    const core=createServer((_request,response)=>{response.end(name);}) as SpaceWebSurface;
-    core.spaceDisposed=name===alice?disposed:Promise.resolve();return core;
-  });
-  await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));const address=server.address();assert.ok(address&&typeof address==='object');
-  const origin='http://127.0.0.1:'+address.port;let cookie='',control=token,sequence=0;
-  const request=async(path:string,method='GET')=>{
-    const response=await fetch(origin+path,{method,redirect:'manual',headers:{Cookie:cookie,Origin:origin,'content-type':'application/json','x-molis-work-control-token':control,'x-molis-work-idempotency-key':'account-race-'+(++sequence)},...(method==='GET'?{}:{body:'{}'})});
-    const set=response.headers.get('set-cookie');if(set?.startsWith('molis-work-session='))cookie=set.split(';')[0]!;
-    return response;
-  };
-  const okay=async(path:string,method='GET')=>{const response=await request(path,method);assert.ok(response.status<400,await response.clone().text());return response;};
-  try {
-    await okay('/api/personal/login','POST');await okay('/account/callback?code=alice&state='+state);
-    await okay('/api/personal/space?kind=personal','POST');control=(await(await okay('/api/personal/status')).json()).viewToken;
-    assert.equal(await(await okay('/probe')).text(),alice);
-    await okay('/api/personal/space?kind=local','POST');control=token;
-    await okay('/api/personal/space?kind=personal','POST');control=(await(await okay('/api/personal/status')).json()).viewToken;
-    let reached!:()=>void;const pendingReached=new Promise<void>(resolve=>{reached=resolve;});
-    server.on('request',request=>{if(request.url==='/probe?pending')reached();});
-    const pending=request('/probe?pending');await pendingReached;
-    await okay('/api/personal/switch','POST');user='bob';await okay('/account/callback?code=bob&state='+state);
-    release();assert.equal((await pending).status,403);
-    assert.equal(opened.filter(name=>name===alice).length,1,'no second Alice core may start under the Bob login');
-    control=(await(await request('/api/personal/status')).json()).viewToken;
-    assert.equal(await(await okay('/probe')).text(),personalStorageSpace(authOrigin,'work','bob').spaceId);
-  } finally {
-    release();await new Promise<void>(resolve=>server.close(()=>resolve()));
-    for(const [key,value]of Object.entries(before))if(value===undefined)delete process.env[key];else process.env[key]=value;
-    rmSync(home,{recursive:true,force:true});
-  }
+test('ASR-01/02/03/08 account handoff keeps the public listener and waits for every old resource',async t=>{
+ let release!:()=>void,closed!:()=>void;const disposed=new Promise<void>(resolve=>{release=resolve;});const oldClosed=new Promise<void>(resolve=>{closed=resolve;});
+ const opened:string[]=[];
+ const f=await accountRefreshFixture(t,home=>{
+  const name=basename(home);opened.push(name);const core=accountProbeCore(home);
+  if(opened.length===1){core.spaceDisposed=disposed;core.once('close',closed);}return core;
+ });
+ try{
+  assert.deepEqual(opened,[],'no anonymous business core opens');assert.match(await(await f.request('/')).text(),/data-account-entry/);
+  const alice=personalStorageSpace(f.authOrigin,'work','alice').spaceId,bob=personalStorageSpace(f.authOrigin,'work','bob').spaceId;
+  const firstA=await f.login('alice');assert.equal(firstA.ready,true);assert.deepEqual(opened,[alice]);
+  const listener=f.server.address(),oldCookie=f.cookie;
+  const state=await f.begin('bob'),pending=f.complete(state);await oldClosed;
+  assert.deepEqual(opened,[alice],'B cannot open while A resources are releasing');
+  const old=await fetch(f.origin+'/api/personal/status',{headers:{Cookie:oldCookie}});assert.equal((await old.json()).identity,null);
+  release();assert.equal((await pending).status,303);assert.equal((await f.status()).ready,true);assert.deepEqual(opened,[alice,bob]);
+  assert.deepEqual(f.server.address(),listener,'public listener is not restarted');
+  const nextA=await f.login('alice');assert.equal(nextA.ready,true);assert.deepEqual(opened,[alice,bob,alice]);
+  assert.notEqual(nextA.viewToken,firstA.viewToken,'ASR-03 old A control credentials cannot revive');
+  const currentToken=readFileSync(join(f.home,'spaces',alice,'config','web-control-token'),'utf8').trim();assert.equal(currentToken,nextA.viewToken);
+  const oldRead=await fetch(f.origin+'/api/probe',{headers:{Cookie:f.cookie,'x-molis-work-control-token':firstA.viewToken}});assert.equal(oldRead.status,409);
+  const gateway=(credential:string)=>fetch(f.origin+'/api/internal/action-service',{method:'POST',headers:{Origin:f.origin,'content-type':'application/json','x-molis-work-home-id':createHash('sha256').update(join(f.home,'spaces',alice)).digest('hex'),'x-molis-work-control-token':credential},body:'{}'});
+  assert.equal((await gateway(firstA.viewToken)).status,403,'old gateway connection credentials are refused after A returns');
+  assert.equal((await gateway(currentToken)).status,200,'an explicit new connection can read the current credential');
+  assert.equal((await(await fetch(f.origin+'/api/personal/status',{headers:{Cookie:oldCookie}})).json()).identity,null,'old A cannot revive when A logs in again');
+  assert.equal((await f.logout()).status,200);assert.equal((await f.status()).identity,null);
+  assert.equal((await f.request('/probe')).status,200,'logged out navigation receives the login shell');
+  assert.match(await(await f.request('/probe')).text(),/data-account-entry/);
+ }finally{release();await f.close();}
+});
+
+test('ASR-05/08 failed old-owner disposal keeps both old authorization and new business closed until explicit retry',async t=>{
+ const opened:string[]=[];let closes=0;
+ const f=await accountRefreshFixture(t,home=>{
+  opened.push(basename(home));const core=accountProbeCore(home);
+  if(opened.length===1)Object.defineProperty(core,'spaceDisposed',{get(){closes++;return closes===1?Promise.reject(new Error('synthetic disposal failure')):Promise.resolve();}});
+  return core;
+ });
+ try{
+  await f.login('alice');const oldCookie=f.cookie,state=await f.begin('bob');assert.equal((await f.complete(state)).status,400);
+  assert.equal(opened.length,1);const failed=await f.status();assert.equal(failed.ready,false);assert.ok(failed.error);
+  assert.equal((await(await fetch(f.origin+'/api/personal/status',{headers:{Cookie:oldCookie}})).json()).identity,null);
+  assert.equal((await f.request('/api/personal/space?kind=personal','POST')).status,200);assert.equal((await f.status()).ready,true);assert.equal(opened.length,2);
+ }finally{await f.close();}
+});
+
+test('ASR-02 a new browser can prove current A, cannot replace A with B, and cannot interrupt an active account operation',async t=>{
+ const opened:string[]=[];const f=await accountRefreshFixture(t,home=>{opened.push(basename(home));return accountProbeCore(home);});
+ let cookie='',seq=0;
+ const browser=async(path:string,post=false)=>{
+  const response=await fetch(f.origin+path,{method:post?'POST':'GET',redirect:'manual',headers:{Cookie:cookie,Origin:f.origin,'content-type':'application/json','x-molis-work-control-token':f.rootToken,'x-molis-work-idempotency-key':'new-browser-'+(++seq)},...(post?{body:'{}'}:{})});
+  const set=response.headers.get('set-cookie');if(set?.startsWith('molis-work-session='))cookie=set.split(';')[0]!;return response;
+ };
+ try{
+  const a=await f.login('alice'),originalCookie=f.cookie;
+  f.setAuthUser('bob');assert.equal((await browser('/api/personal/login',true)).status,200);
+  const unproved=await(await browser('/api/personal/status')).json();assert.equal(unproved.identity,null,'a pending browser login has no account authority');assert.equal(unproved.viewToken,f.rootToken,'the pending browser must never receive A private gateway credential');
+  assert.equal((await browser('/api/personal/logout',true)).status,401,'an unproved browser cannot sign out installation A');
+  assert.equal((await f.status()).identity.userId,'alice','refusing the pending browser logout preserves A');
+  assert.equal((await browser('/account/callback?code=bob&state='+f.loginState)).status,400,'B cannot replace installed A through an unauthenticated browser');
+  assert.equal((await f.status()).identity.userId,'alice');assert.equal((await f.status()).accountGeneration,a.accountGeneration);assert.equal(opened.length,1);
+  cookie='';f.setAuthUser('alice');assert.equal((await browser('/api/personal/login',true)).status,200);
+  assert.equal((await browser('/account/callback?code=alice&state='+f.loginState)).status,303);
+  assert.equal((await(await browser('/api/personal/status')).json()).identity.userId,'alice');
+  assert.equal((await f.status()).accountGeneration,a.accountGeneration);assert.equal(f.cookie,originalCookie,'proving A does not rotate an existing page credential');
+  const pending=await f.begin('bob');cookie='';assert.equal((await browser('/api/personal/login',true)).status,409,'a new browser cannot replace a prepared login transaction');
+  assert.equal((await f.complete(pending)).status,303);assert.equal((await f.status()).identity.userId,'bob');
+ }finally{await f.close();}
+});
+
+
+test('ASR-06 active account dispatch retains the synchronous core request-guard fast path',async t=>{
+ const order:string[]=[];
+ const f=await accountRefreshFixture(t,home=>{const core=accountProbeCore(home);core.on('request',request=>{if(request.url==='/probe')order.push('core');});return core;});
+ f.server.on('request',request=>{if(request.url==='/probe')order.push('outer-return');});
+ try{
+  await f.login('alice');await f.request('/probe');assert.deepEqual(order,['core','outer-return'],'no await precedes cached core body guards');
+  await f.logout();order.length=0;assert.match(await(await f.request('/probe')).text(),/data-account-entry/);assert.deepEqual(order,['outer-return'],'revoked account never reaches old core');
+ }finally{await f.close();}
+});
+
+for(const phase of ['token','identity'] as const)for(const action of ['cancel','leave'] as const)test(`ASR-04/05 ${action} while replacement ${phase} waits keeps A and rejects the late B result`,async t=>{
+ const opened:string[]=[];const f=await accountRefreshFixture(t,home=>{opened.push(basename(home));return accountProbeCore(home);});
+ let release!:()=>void,reached!:()=>void;const gate=new Promise<void>(resolve=>{release=resolve;}),waiting=new Promise<void>(resolve=>{reached=resolve;});
+ try{
+  const before=await f.login('alice');
+  f.authWaits[phase]=async user=>{if(user==='bob'){reached();await gate;}};
+  const state=await f.begin('bob'),pending=f.complete(state);await waiting;
+  const waitingStatus=await f.status();assert.equal(waitingStatus.loginPending,true,"exchange remains pending after the one-use callback state is consumed");
+  const preparation=waitingStatus.preparation;assert.ok(preparation);
+  const stopped=await f.request('/api/personal/prepare?action='+action+'&page=account-refresh-page&id='+preparation.id,'POST');assert.equal(stopped.status,200);assert.equal((await f.status()).loginPending,false,'cancel invalidates the original in-flight attempt before its response arrives');
+  release();assert.equal((await pending).status,400,'a late authorization cannot commit after the page barrier is cancelled');
+  const after=await f.status();assert.equal(after.identity.userId,'alice');assert.equal(after.accountGeneration,before.accountGeneration);assert.equal(after.ready,true);assert.equal(after.preparation,null);assert.equal(after.loginPending,false);assert.equal(opened.length,1);
+ }finally{release();await f.close();}
+});
+
+
+test('ASR-04 losing a page event stream retains its draft participant until explicit page departure',async t=>{
+ const f=await accountRefreshFixture(t,accountProbeCore),controller=new AbortController();let ended!:()=>void;
+ const closed=new Promise<void>(resolve=>{ended=resolve;});
+ f.server.on('request',(request,response)=>{if(request.url==='/api/personal/events?page=other-page')response.once('close',ended);});
+ try{
+  await f.login('alice');await f.request('/api/personal/status?page=other-page');
+  const stream=await fetch(f.origin+'/api/personal/events?page=other-page',{signal:controller.signal,headers:{Cookie:f.cookie,Origin:f.origin,'x-molis-work-control-token':f.control}});assert.equal(stream.status,200);
+  const reader=stream.body!.getReader();await reader.read();const readerClosed=reader.closed.catch(()=>{});controller.abort();await readerClosed;await closed;
+  const start=await f.request('/api/personal/prepare?action=start&page=account-refresh-page&intent=switch','POST');assert.equal(start.status,200);const {id}=await start.json();
+  const ack=await f.request('/api/personal/prepare?action=ack&page=account-refresh-page&id='+id,'POST');assert.equal(ack.status,200);assert.equal((await ack.json()).ready,false,'a disconnected live page still owes its own saved-draft acknowledgement');
+  const refused=await f.request('/api/personal/switch?page=account-refresh-page&preparation='+id,'POST');assert.ok(refused.status>=400);assert.equal((await f.status()).identity.userId,'alice');
+ }finally{controller.abort();await f.close();}
+});
+
+
+test('ASR-05 cancelling the original popup attempt is owner-bound, idempotent and allows a fresh login',async t=>{
+ const f=await accountRefreshFixture(t,accountProbeCore);
+ try{
+  const start=await f.request('/api/personal/login','POST');assert.equal(start.status,200);const {loginAttempt}=await start.json(),oldState=f.loginState,oldCookie=f.cookie;
+  assert.equal((await f.status()).loginPending,true);
+  const stolen=await fetch(f.origin+'/api/personal/login-cancel?attempt='+loginAttempt,{method:'POST',headers:{Origin:f.origin,'x-molis-work-control-token':f.rootToken,'x-molis-work-idempotency-key':'unowned-popup-cancel'},body:'{}'});assert.equal(stolen.status,401);
+  assert.equal((await f.request('/api/personal/login-cancel?attempt=wrong','POST')).status,409);assert.equal((await f.status()).loginPending,true);
+  const cancelled=await f.request('/api/personal/login-cancel?attempt='+loginAttempt,'POST');assert.equal(cancelled.status,200);assert.equal((await f.status()).loginPending,false);
+  assert.equal((await f.request('/api/personal/login-cancel?attempt='+loginAttempt,'POST')).status,200,'repeating this page cancellation is harmless');
+  assert.equal((await f.complete(oldState)).status,400,'the cancelled callback cannot sign in late');
+  const next=await f.request('/api/personal/login','POST');assert.equal(next.status,200);const nextState=f.loginState;
+  assert.equal((await fetch(f.origin+'/api/personal/login-cancel?attempt='+loginAttempt,{method:'POST',headers:{Cookie:oldCookie,Origin:f.origin,'x-molis-work-control-token':f.rootToken,'x-molis-work-idempotency-key':'old-popup-cancel-new'},body:'{}'})).status,409);
+  assert.equal((await f.complete(nextState)).status,303);assert.equal((await f.status()).identity.userId,'alice');
+ }finally{await f.close();}
+});
+
+test('ASR-05 an expired unconsumed popup attempt does not permanently block the next login',async t=>{
+ const f=await accountRefreshFixture(t,accountProbeCore);let now=Date.now();t.mock.method(Date,'now',()=>now);
+ try{
+  const first=await f.request('/api/personal/login','POST');assert.equal(first.status,200);const oldState=f.loginState;
+  now+=11*60*1000;
+  const second=await f.request('/api/personal/login','POST');assert.equal(second.status,200,'the original Auth owner expires the consumed waiting slot');const state=f.loginState;assert.notEqual(state,oldState);
+  assert.equal((await f.complete(oldState)).status,400);assert.equal((await f.complete(state)).status,303);assert.equal((await f.status()).identity.userId,'alice');
+ }finally{await f.close();}
+});
+
+
+test('ASR-05 cancelling the first token exchange permits a new login before the old exchange settles',async t=>{
+ const f=await accountRefreshFixture(t,accountProbeCore);let release!:()=>void,reached!:()=>void,calls=0;
+ const gate=new Promise<void>(resolve=>{release=resolve;}),waiting=new Promise<void>(resolve=>{reached=resolve;});
+ f.authWaits.token=async()=>{if(++calls===1){reached();await gate;}};
+ try{
+  const first=await f.request('/api/personal/login','POST');assert.equal(first.status,200);const {loginAttempt}=await first.json(),old=f.complete(f.loginState);await waiting;
+  assert.equal((await f.status()).loginPending,true);
+  assert.equal((await f.request('/api/personal/login-cancel?attempt='+loginAttempt,'POST')).status,200);
+  assert.equal((await f.status()).loginPending,false);
+  const next=await f.request('/api/personal/login','POST');assert.equal(next.status,200,'the consumed old callback cannot hold the login slot after cancellation');const state=f.loginState;
+  release();assert.equal((await old).status,400,'the old late exchange cannot authenticate or cancel the new attempt');
+  assert.equal((await f.status()).loginPending,true,'old failure cleanup must not cancel the replacement pending owner');
+  assert.equal((await f.complete(state)).status,303);assert.equal((await f.status()).identity.userId,'alice');
+ }finally{release();await f.close();}
 });

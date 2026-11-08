@@ -47,7 +47,7 @@ interface Active { controller: AbortController; reader?: ReadableStreamDefaultRe
 export function frameRequests(port: MessagePort, pageId: string, scope: FrameScope) {
   const active = new Map<number, Active>();
   const send = (message: FrameAnswer, transfer: Transferable[] = []) => port.postMessage(message, transfer);
-  const fail = (id: number, error: unknown) => { active.delete(id); send({ type: "fetch-error", id, message: error instanceof Error ? error.message : "Request failed" }); };
+  const fail = (id: number, error: unknown) => { stop(id); if (scope.alive) send({ type: "fetch-error", id, message: error instanceof Error ? error.message : "Request failed" }); };
   const stop = (id: number) => {
     const entry = active.get(id); active.delete(id); entry?.controller.abort();
     void entry?.reader?.cancel().catch(() => { /* The request was already cancelled. */ });
@@ -59,7 +59,9 @@ export function frameRequests(port: MessagePort, pageId: string, scope: FrameSco
       const entry = active.get(message.id); if (!entry?.reader || entry.reading) return;
       entry.reading = true;
       try {
+        scope.assertCurrent();
         const chunk = await entry.reader.read();
+        scope.assertCurrent();
         if (!active.has(message.id)) return;
         if (chunk.done) { active.delete(message.id); send({ type: "end", id: message.id }); }
         else { const bytes = chunk.value.slice().buffer; send({ type: "chunk", id: message.id, bytes }, [bytes]); }
@@ -71,6 +73,7 @@ export function frameRequests(port: MessagePort, pageId: string, scope: FrameSco
     const id = message.id;
     if (!Number.isSafeInteger(id) || active.has(id)) return;
     try {
+      scope.assertCurrent();
       const url = new URL(message.url), method = message.method;
       if (url.origin !== location.origin || url.username || url.password || !["GET", "POST", "PUT", "PATCH", "DELETE"].includes(method)) throw new Error("Request refused");
       const headers: Record<string, string> = { "x-molis-plugin-page": pageId };
@@ -83,6 +86,7 @@ export function frameRequests(port: MessagePort, pageId: string, scope: FrameSco
       const body: unknown = message.body?.byteLength ? JSON.parse(new TextDecoder().decode(message.body)) : undefined;
       const response = await molisWorkRequest<Response>(url.href, { method: method as "GET" | "POST" | "PUT" | "PATCH" | "DELETE", headers,
         body, key, as: "response", signal: AbortSignal.any([scope.signal, entry.controller.signal]) });
+      scope.assertCurrent();
       if (!active.has(id)) return;
       entry.reader = response.body?.getReader();
       send({ type: "response", id, status: response.status, statusText: response.statusText, headers: [...response.headers] });

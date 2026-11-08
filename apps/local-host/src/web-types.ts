@@ -1,10 +1,12 @@
-import type { WebProjectNavigation } from "@molis-ai/molis-work-app-workbench";
+import type { WebProjectNavigation, WebInstallationDiagnostics } from "@molis-ai/molis-work-app-workbench";
 import type { ScheduleService } from "@molis-ai/molis-work-service-scheduler";
 import type { RuntimeIntegrationService } from "./installer/runtime-integration.js";
 import type { MolisWorkWebServiceManager } from "./installer/web-service.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
 
 export interface WebServerOptions {
+  /** Installation-owned presentation: keep business inert until its account page joins the refresh barrier. */
+  accountRegistration?: boolean;
   /** Trusted embedding/test port. Production uses the shared system directory chooser. */
   chooseDirectory?: import("./plugin-directory-service.js").DirectorySelection;
   /**
@@ -25,6 +27,10 @@ export interface WebServerOptions {
   runtimeIntegrationService?: RuntimeIntegrationService;
   /** Shared service manager so Web previews and confirmations use one in-memory plan. */
   webServiceManager?: MolisWorkWebServiceManager;
+  /** Bound by the installation composition; business Homes never infer the installation's location. */
+  installationDiagnostics?: (projectCount: number) => WebInstallationDiagnostics;
+  /** The installation fixes this core to its original account lease; standalone embeddings omit it. */
+  assertAccountCurrent?: () => void;
   /** Test-only deterministic local Web control token. Production persists one per Molis Work home. */
   controlToken?: string;
   /** Test/host injection. Production starts a private Codex app-server lazily on first read/resume. */

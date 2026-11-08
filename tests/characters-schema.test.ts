@@ -33,7 +33,7 @@ for (const version of [0, 1, 2, 3, 5]) test(`W1-18-CHARACTER-SCHEMA-01 an existi
   try {
     // The common store baseline refuses it (C-06 moved the Characters store onto it): the path and the version found are named.
     assert.throws(() => openCharacters(home, "owner"), error => version === 1
-      ? isSqliteSchemaStructureMismatch(error) && error.message.includes(filename)
+      ? isSqliteSchemaStructureMismatch(error) && error.message.includes("characters.sqlite") && !error.message.includes(home)
       : isSqliteVersionRefusal(error) && error.code === (version === 0 ? "storage.schema_version_mismatch" : "storage.store_too_new")
         && error.details?.path === "characters.sqlite" && error.details?.found === version && error.details?.expected === 1
         && error.message.includes("characters.sqlite") && !error.message.includes(home));

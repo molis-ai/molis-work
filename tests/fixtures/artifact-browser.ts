@@ -5,7 +5,7 @@ import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger"
 import { seedDemoGoals, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
-import { createMolisWorkWebServer } from "../../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./local-web-core.js";
 import { pinnedArtifact } from "./artifacts.js";
 import { GoalProjectApplication } from "./goal-application.js";
 

@@ -38,9 +38,9 @@ export async function handleComputerHttp(request: IncomingMessage, response: Ser
     if (request.method === "POST") {
       const body = await readNativePluginJsonBody(request, 2_000).catch(() => ({} as Record<string, unknown>));
       if (typeof body.enabled !== "boolean") { json(400, { error: "请说明开还是关" }); return true; }
-      ports.settings.setEnabled(body.enabled);
-      // Turning it off ends any round's hold on the computer at once.
-      if (!body.enabled) ports.desk.pause();
+      // Turning it off ends any round's hold on the computer at once, even when the setting cannot be saved (it then reads as off).
+      try { ports.settings.setEnabled(body.enabled); }
+      finally { if (!body.enabled) ports.desk.pause(); }
       json(200, { enabled: ports.settings.enabled });
       return true;
     }

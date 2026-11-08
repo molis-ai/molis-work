@@ -5,7 +5,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.ts";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 
 test("HTTP import previews lazily, rejects forged input and preserves old published resources across a confirmed source update", async t => {
   const home=mkdtempSync(join(tmpdir(),"character-import-http-")),config=join(home,"codex"),skill=join(config,"skills","guide");

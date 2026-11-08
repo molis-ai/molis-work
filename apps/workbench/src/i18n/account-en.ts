@@ -1,0 +1,21 @@
+/** Workbench account entry, sign-in feedback and switch preparation. */
+export const ACCOUNT_EN: Record<string, string> = {
+  "登录 / 注册": "Sign in / sign up",
+  "切换账号": "Switch account",
+  "退出登录": "Sign out",
+  "本地模式": "Local mode",
+  "登录后可管理你的 molis 账号": "Sign in to manage your molis account",
+  "正在读取账号状态…": "Reading account status…",
+  "浏览器阻止了登录窗口，请允许本站打开新标签页后重试。": "The browser blocked the sign-in window. Allow this site to open a new tab and try again.",
+  "登录窗口已关闭": "The sign-in window is closed",
+  "请在浏览器完成登录，此页面会自动更新。": "Finish signing in in your browser. This page will update automatically.",
+  "请求失败，请重试。": "The request failed. Please try again.",
+  "登录等待已结束，可重新登录。": "The sign-in request expired. Please sign in again.",
+  "登录成功": "Signed in successfully",
+  "登录窗口已关闭，未完成登录；可以重新尝试。": "The sign-in window closed before sign-in finished. You can try again.",
+  "暂时无法连接账号服务，本地工作不受影响。": "The account service is unavailable. Your local work is unaffected.",
+  "暂时无法读取账号状态。": "Account status is unavailable right now.",
+  "账号正在切换，请稍候": "Switching accounts. Please wait.",
+  "草稿保存未完成，请返回原页面重试": "The draft could not be saved. Return to the page and try again.",
+  "还有未保存的修改或运行中的任务。取消可返回原页面保存；继续将放弃未保存的修改并停止任务。继续切换账号？": "There are unsaved edits or running tasks. Cancel to return and save, or continue to discard unsaved edits and stop tasks. Switch accounts?",
+};

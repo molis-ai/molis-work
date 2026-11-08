@@ -6,7 +6,7 @@
 
 ### 升级须知（需要动手）
 
-- **并行写手的独立工作树不再算项目的目录（路线书 05 ②，`specs/shared-sources-and-surfaces/spec.md` §3 方案 A）。** 升级前还没做完的写手轮次（Coding 的「并行写手」），升级后不能续跑，也不能把子任务的成果整合回来：续跑会被拒，整合时提示「这一轮是旧版本开的，写手的目录接不上，请重开一轮」，请重开一轮。旧轮次照常显示，独立目录只显示路径。存下的下一轮分工也要重新选工作树（旧分工发出时被拒）。目录库升级到第 2 版时，旧版本为写手工作树加进项目的那些目录被去掉（只认宿主自己建工作树的位置，别的目录不动），所以只关联过一个文件夹、开过写手轮次的项目，那个文件夹照样成为输出目录。Coding 写手对话框里的「用于下一轮」按钮去掉：工作树不再能当会话的工作目录。调用方：开轮输入 `subagent_workspaces[]` 每项的 `workspace_id` 改名 `worktree_id`（值是宿主建的工作树 id，不是目录 id），冻结的轮次信息多了 `directories`（开轮时的输出、输入和执行位置）；`projects.workspace.writers.list` 与 `.prepare` 输出的目录不再有 `workspace_id`，`projects.workspace.writers.integration.read` 输出的 `writer_workspace_id` 改为 `worktree_id`；都在原版本 @1 上改，不留兼容。
+- **并行写手的独立工作树不再算项目的目录（路线书 05 ②，`specs/shared-sources-and-surfaces/spec.md` §3 方案 A）。** 升级前还没做完的写手轮次（Coding 的「并行写手」），升级后不能续跑，也不能把子任务的成果整合回来：续跑会被拒，整合时提示「这一轮是旧版本开的，写手的目录接不上，请重开一轮」，请重开一轮。旧轮次照常显示，独立目录只显示路径。存下的下一轮分工也要重新选工作树（旧分工发出时被拒）。目录库升级到第 2 版时，旧版本为写手工作树加进项目的那些目录被去掉（只认宿主自己建工作树的位置，别的目录不动），所以只关联过一个文件夹、开过写手轮次的项目，那个文件夹照样成为输出目录。Coding 写手对话框里的「用于下一轮」照旧：点了之后这个会话以后的轮次在那个独立工作树里跑，项目的输出目录不变；工作树已经整合删掉或不在了，开轮时被拒并提示换回输出目录或重新选，不会悄悄改回输出目录。调用方：`coding.runs.start@1` 输入多了可选的 `worktree_id`（在会话目录的哪个独立工作树里跑），会话设置多了可选的 `worktree`；开轮输入 `subagent_workspaces[]` 每项的 `workspace_id` 改名 `worktree_id`（值是宿主建的工作树 id，不是目录 id），冻结的轮次信息多了 `directories`（开轮时的输出、输入和执行位置）；`projects.workspace.writers.list` 与 `.prepare` 输出的目录不再有 `workspace_id`，`projects.workspace.writers.integration.read` 输出的 `writer_workspace_id` 改为 `worktree_id`；都在原版本 @1 上改，不留兼容。
 
 - **只作输入的目录谁都只能读（SSC-15）。** Agent 的轮次和会话、原生 Character、终端、Git 的写和 MCP 的本机进程只在项目的输出目录里开；在只作输入的目录里开会被拒（`projects.directory_input_only`），设为输出目录后再开。找方法（Skill）照样能读输入目录。
 

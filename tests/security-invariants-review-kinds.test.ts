@@ -363,13 +363,13 @@ test("PG035-GIT-05 PG035-WRITER-05 a plugin's dependency check asks whether a Ho
   // Git lists the Host's actions as what its own actions depend on; a page shows them unavailable while the review backend is not there.
   // Whether the installation may call one is the call's question: the dependency check answers the same for the two plugins.
   const h = await openGitHost(t);
-  const consumes = [projectSettingsCapabilities.browsingWorkspace.capability_id, projectSettingsCapabilities.selectBrowsingWorkspace.capability_id];
+  const consumes = [workspaceReadActions.file.capability_id, projectSettingsCapabilities.selectRuntime.capability_id];
   const holder = await h.start("holder", [INDEX, OPERATION], consumes), lacking = await h.start("lacking", [], consumes);
   for (const plugin of [holder, lacking]) {
     for (const action of [...gitHostActions, ...writerHostActions]) assert.deepEqual(plugin.actions.availability(action), { available: true }, `${plugin.plugin.id} ${action.capability_id}`);
-    // An action offered to plugins with no permission reads as before; one offered to the person only is still not offered.
-    assert.deepEqual(plugin.actions.availability(projectSettingsCapabilities.browsingWorkspace), { available: true });
-    assert.equal(plugin.actions.availability(projectSettingsCapabilities.selectBrowsingWorkspace).available, false);
+    // A Host read a plugin consumes under a permission it holds reads as before; one offered to the person only is still not offered.
+    assert.deepEqual(plugin.actions.availability(workspaceReadActions.file), { available: true });
+    assert.equal(plugin.actions.availability(projectSettingsCapabilities.selectRuntime).available, false);
   }
   const revision = await h.revisions(holder.actions);
   await assert.rejects(lacking.actions.invoke(prepareGitIndexCapability, stage(revision.index, "index-ready-not-held")), { code: "plugin.grant_denied" });

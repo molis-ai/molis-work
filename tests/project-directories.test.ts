@@ -6,6 +6,7 @@ import test from "node:test";
 
 import type { DirectoryChange, ProjectDirectories } from "@molis-ai/molis-work-contracts/modules/projects";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { resolveWorkspaceFileSubject, resolveWorkspaceId, workspaceFileSubjectId } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import {
   createProjectsSchema,
   fillProjectOutputs,
@@ -245,6 +246,18 @@ test("SSC-26 a folder named for another device's directory: map, change, unmap, 
     const toDefault = change(env, first, { kind: "map_source", source_workspace_id: "workspace-output-from-laptop", target: { default_output: true } });
     assert.deepEqual(toDefault.source_links.map(link => link.workspace_id), [env.projects.query.outputDirectory(first).workspace_id]);
   });
+});
+
+test("SSC-26 one rule names the folder an id stands for here, for a reference and for a page alike: its own, the one named for it, or none", () => {
+  const directories = { directories: [{ workspace_id: "here" }, { workspace_id: "named" }],
+    source_links: [{ source_workspace_id: "laptop", workspace_id: "named" }, { source_workspace_id: "gone", workspace_id: "removed" }] };
+  assert.equal(resolveWorkspaceId("here", directories), "here");
+  assert.equal(resolveWorkspaceId("laptop", directories), "named");
+  assert.equal(resolveWorkspaceId("gone", directories), null, "a link to a folder no longer in the project names nothing");
+  assert.equal(resolveWorkspaceId("elsewhere", directories), null);
+  // A reference reads through the same rule.
+  assert.deepEqual(resolveWorkspaceFileSubject({ id: workspaceFileSubjectId("laptop", ["a", "b.md"]) }, directories), { workspace_id: "named", path: ["a", "b.md"] });
+  assert.equal(resolveWorkspaceFileSubject({ id: workspaceFileSubjectId("gone", ["b.md"]) }, directories), null);
 });
 
 test("SSC-27 a folder for another device's directory may not be in the Home, hold it, be this project's own directory, or not resolve", () => {

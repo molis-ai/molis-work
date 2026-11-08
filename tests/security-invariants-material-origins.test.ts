@@ -8,13 +8,12 @@ import test from "node:test";
 import { ActionError, SUBJECT_CONTEXT_TYPE, SUBJECT_REFERENCE_TYPE, type ActionCallContext, type ActionClient, type ActionExecutionContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { materialOriginActions, materialRecentActions, PROJECT_WORKSPACE_PROVIDER_ID, projectDirectoryActions, type ProjectDirectories } from "@molis-ai/molis-work-contracts/modules/projects";
 import { workspaceFileSubjectId, workspaceReadActions, WORKSPACE_FILE_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { artifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { MATERIAL_ORIGIN_NOTES, type MaterialOriginQuery, type MaterialRef } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import { MATERIAL_RECENT_USES_SCHEMA_SQL, MaterialRecentUses } from "@molis-ai/molis-work-module-projects";
 import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 
-import { readMaterialOrigins, type MaterialOriginPorts } from "../apps/local-host/dist/material-origins.js";
-import { projectWorkspaceActionProvider } from "../apps/local-host/dist/project-workspace-actions.js";
-import { checkWorkspaceFile } from "../apps/local-host/dist/workspace-files.js";
+import { checkWorkspaceFile, projectWorkspaceActionProvider, readMaterialOrigins, type MaterialOriginPorts } from "@molis-ai/molis-work-app-local-host";
 
 // specs/shared-sources-and-surfaces §2, §2.1 (SSC-02, SSC-12, SSC-25, SSC-28, SSC-30): where a reference comes from is read now, under the
 // caller's own authority. A plugin cannot use it to learn about what it may not read; nothing is opened before the caller may read it.
@@ -42,6 +41,7 @@ const view = (capability_id: string, provider: ActionView["provider"], options: 
     input_schema: {}, output_schema: {}, ...(options.reader ? { input_type: SUBJECT_REFERENCE_TYPE, output_type: SUBJECT_CONTEXT_TYPE } : {}) },
 }) as ActionView;
 const goals = { provider_id: "goals", title: "目标", kind: "plugin", plugin_id: "goals" } as const;
+const library = { provider_id: "artifacts-install-1", title: "成果库", kind: "plugin", plugin_id: "io.molis.work.artifacts" } as const;
 const pages = { provider_id: "pages-install-1", title: "Pages", kind: "plugin", plugin_id: "pages" } as const;
 
 /** The catalog a caller discovers: the folder reads, and object readers of a few kinds as the tests need them. */
@@ -51,7 +51,7 @@ function catalog(options: { files?: boolean; pagesAvailable?: boolean } = {}) {
   const views = [
     view(workspaceReadActions.file.capability_id, system, { available: options.files !== false }),
     view(projectDirectoryActions.get.capability_id, { provider_id: PROJECT_WORKSPACE_PROVIDER_ID, title: "项目工作目录", kind: "system" }),
-    view("goals.read", goals, { kinds: ["goal"], reader: true }),
+    view("goals.read", goals, { kinds: ["goal"], reader: true }), view("artifacts.read", library, { kinds: ["artifact"], reader: true }),
     view("pages.read", pages, { kinds: ["page"], reader: true, available: options.pagesAvailable ?? true }),
     view("one.read", goals, { kinds: ["twice"], reader: true }), view("two.read", pages, { kinds: ["twice"], reader: true }),
     view("mcp.read", { provider_id: "mcp.x", title: "X", kind: "mcp" }, { kinds: ["remote"], reader: true }),
@@ -64,7 +64,7 @@ function catalog(options: { files?: boolean; pagesAvailable?: boolean } = {}) {
       if (id === "deleted") throw new ActionError("goals.goal_missing", "没有这个目标", { kind: "not_found" });
       if (id === "hidden") throw new ActionError("actions.forbidden", "不能看");
       if (id === "stuck") return new Promise(() => undefined);
-      const kind = reference.capability_id === "goals.read" ? "goal" : "page";
+      const kind = reference.capability_id === "goals.read" ? "goal" : reference.capability_id === "artifacts.read" ? "artifact" : "page";
       return { subject: { kind, id }, revision: "v2", title: id, content: "", truncated: false };
     },
   };
@@ -77,7 +77,7 @@ function ports(directories: ProjectDirectories, client: ActionClient, extra: Par
     client, origin: { capability_id: materialOriginActions.read.capability_id, version: 1, provider_id: PROJECT_WORKSPACE_PROVIDER_ID }, projectId: "p",
     folders: async () => ({ directories, default_output_id: OWN_DEFAULT }),
     check: async (query, workspaces, hash) => { opened.push(`${query.path.join("/")}${hash ? "#" : ""}`); return checkWorkspaceFile(query, workspaces, hash); },
-    versionKept: pin => pin.version.artifact_id === "kept", ...extra,
+    versionKept: pin => pin.version.artifact_id === "kept", imported: reference => reference.artifact_id === "imported-one", ...extra,
   };
   return { ports: value, opened };
 }
@@ -171,22 +171,87 @@ test("SSC-02, SSC-30: an object's origin is its one reader's answer now; no one 
   } finally { cleanup(); }
 });
 
-test("SSC-28: past the one-second deadline nothing more is started and what is left says unchecked", async () => {
+test("SSC-30: a 成果 is an import only when its record says it was imported; one a plugin pinned is an object", async () => {
+  const { directories, cleanup } = fixture();
+  try {
+    const { client } = catalog();
+    const kept = (artifact_id: string): MaterialOriginQuery => ({ ref: { subject: { kind: "artifact", id: artifactSubjectId({ artifact_id, version: 1 }) }, pin: { mode: "current", read_revision: "v2" } } });
+    const answers = await readMaterialOrigins(caller("user"), [kept("imported-one"), kept("pinned-one")], { compare: true }, ports(directories, client).ports);
+    assert.deepEqual(answers.map(item => [item.origin?.source, item.origin?.state]), [["import", "ok"], ["object", "ok"]]);
+  } finally { cleanup(); }
+});
+
+test("SSC-28: the items are read at the same time, four at most, and answered in the order given", async () => {
+  const { directories, cleanup } = fixture();
+  try {
+    const { client } = catalog();
+    let running = 0, most = 0;
+    const waiting: (() => void)[] = [];
+    const slow: ActionClient = { discover: client.discover, invoke: async (context, reference, input) => {
+      running += 1; most = Math.max(most, running);
+      await new Promise<void>(resolve => waiting.push(resolve));
+      running -= 1;
+      return client.invoke(context, reference, input);
+    } };
+    const goal = (n: number): MaterialOriginQuery => ({ ref: { subject: { kind: "goal", id: `g${n}` }, pin: { mode: "current", read_revision: n % 2 ? "v2" : "v1" } } });
+    const answering = readMaterialOrigins(caller("user"), [1, 2, 3, 4, 5, 6].map(goal), { compare: true }, ports(directories, slow).ports);
+    const settle = () => new Promise(resolve => setImmediate(resolve));
+    for (let tick = 0; tick < 20 && waiting.length < 4; tick += 1) await settle();
+    await settle();
+    assert.equal(waiting.length, 4, "four are asked at once, and the fifth waits for one of them");
+    // The later ones are let go first: the answers still come in the order asked.
+    let done = false;
+    void answering.then(() => { done = true; }, () => { done = true; });
+    while (!done) { for (const release of waiting.splice(0).reverse()) release(); await settle(); }
+    const answers = await answering;
+    assert.equal(most, 4, "never more than four at once");
+    assert.deepEqual(answers.map(item => item.origin?.state), ["ok", "changed", "ok", "changed", "ok", "changed"]);
+  } finally { cleanup(); }
+});
+
+test("SSC-28: one file asked at the same time in two projects is checked once for each, never shared between them", async () => {
+  const { directories, cleanup } = fixture();
+  try {
+    const { client } = catalog();
+    const held: (() => void)[] = [], checked: string[] = [];
+    // The same folder id, path and comparison in two projects: a check started for one is not an answer for the other.
+    const holding = (projectId: string) => ports(directories, client, { projectId, check: async (query, workspaces, hash) => {
+      checked.push(projectId);
+      await new Promise<void>(resolve => held.push(resolve));
+      return checkWorkspaceFile(query, workspaces, hash);
+    } }).ports;
+    const asked: MaterialOriginQuery[] = [{ ref: fileRef(1) }];
+    const first = readMaterialOrigins(caller("user"), asked, { compare: true }, holding("p"));
+    const second = readMaterialOrigins({ ...caller("user"), project_id: "q" }, asked, { compare: true }, holding("q"));
+    for (let tick = 0; tick < 20 && checked.length < 2; tick += 1) await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual([...checked].sort(), ["p", "q"], "each project checks its own folder");
+    for (const release of held.splice(0)) release();
+    assert.deepEqual((await Promise.all([first, second])).map(answers => answers[0]!.origin?.state), ["ok", "ok"]);
+  } finally { cleanup(); }
+});
+
+test("SSC-28: past the one-second deadline nothing more is started, and what did not finish, a file or an object, says unreadable and unchecked", async () => {
   const { directories, cleanup } = fixture();
   try {
     const { client, invoked } = catalog();
     let clock = 0;
     const given = ports(directories, client, { now: () => clock });
-    const stuck = { ref: { subject: { kind: "goal", id: "stuck" }, pin: { mode: "current", read_revision: "v" } } } as MaterialOriginQuery;
-    const waiting = readMaterialOrigins(caller("user"), [stuck, { ref: fileRef(1) }, { ref: { subject: { kind: "goal", id: "g1" }, pin: { mode: "current", read_revision: "v2" } } }],
+    const check = given.ports.check;
+    given.ports.check = (query, workspaces, hash) => {
+      if (query.path[0] !== "7.md") return check(query, workspaces, hash);
+      given.opened.push(`7.md${hash ? "#" : ""}`);
+      return new Promise<never>(() => undefined);
+    };
+    const goal = (id: string, revision = "v"): MaterialOriginQuery => ({ ref: { subject: { kind: "goal", id }, pin: { mode: "current", read_revision: revision } } });
+    // Four slow ones take every place; the deadline passes before the last two start.
+    const waiting = readMaterialOrigins(caller("user"), [goal("stuck"), { ref: fileRef(7) }, goal("stuck"), goal("stuck"), { ref: fileRef(2) }, goal("g1", "v2")],
       { compare: true }, given.ports);
-    // The stuck reader holds the first item until the deadline; then the clock says the second is gone too.
     setTimeout(() => { clock = 5_000; }, 10);
     const answers = await waiting;
-    assert.deepEqual(answers.map(item => [item.origin?.state, item.origin?.note ?? null]), [
-      ["unreadable", MATERIAL_ORIGIN_NOTES.unchecked], ["ok", MATERIAL_ORIGIN_NOTES.unchecked], ["unreadable", MATERIAL_ORIGIN_NOTES.unchecked]]);
-    assert.deepEqual(invoked, ["goals.read:stuck"], "nothing was asked after the deadline");
-    assert.deepEqual(given.opened, []);
+    assert.deepEqual(answers.map(item => [item.origin?.state, item.origin?.note ?? null]), [1, 2, 3, 4, 5, 6].map(() => ["unreadable", MATERIAL_ORIGIN_NOTES.unchecked]));
+    assert.equal(answers[1]!.origin?.directory?.workspace_id, "ws1", "a file is still named by its folder");
+    assert.deepEqual(invoked, ["goals.read:stuck", "goals.read:stuck", "goals.read:stuck"], "nothing was asked after the deadline");
+    assert.deepEqual(given.opened, ["7.md#"], "and no file was opened after it");
   } finally { cleanup(); }
 });
 
@@ -198,7 +263,7 @@ test("SSC-12: 「最近用过」 keeps only what the caller can read now, says n
     const { client } = catalog({ pagesAvailable: false });
     const fakeCatalog = { projectDirectories: () => directories, defaultOutputDirectoryId: () => OWN_DEFAULT };
     const provider = projectWorkspaceActionProvider("p", () => ({ home: "/home", run: async (_options: unknown, operation: (catalog: never) => unknown) => operation(fakeCatalog as never) }) as never,
-      async () => undefined, { client, db, now: () => new Date("2026-11-08T00:00:00.000Z"), versionKept: () => true });
+      async () => undefined, { client, db, now: () => new Date("2026-11-08T00:00:00.000Z"), versionKept: () => true, imported: () => false });
     const handler = (capability: string) => provider.handlers.find(item => item.capability_id === capability)!;
     let refuse = false;
     const call = (audience: "user" | "plugin") => ({ ...caller(audience), beforeEffect: async () => { if (refuse) throw new ActionError("actions.forbidden", "撤权了"); } }) as unknown as ActionExecutionContext;

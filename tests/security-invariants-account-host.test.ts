@@ -89,7 +89,7 @@ function assertAuthenticated(reply: Reply, account: Identity) {
 }
 
 async function fixture(t: TestContext, configure: (origin: string) => WebServerOptions["account"] = () => ({ environment: undefined }),
-  assertAccountCurrent?: WebServerOptions["assertAccountCurrent"]) {
+  assertAccountCurrent?: WebServerOptions["assertAccountCurrent"], isNativeAccountRequest?: WebServerOptions["isNativeAccountRequest"]) {
   const home = await mkdtemp(join(tmpdir(), "account-host-")), port = await freePort(), origin = `http://127.0.0.1:${port}`;
   let host = createMolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const control = randomBytes(32).toString("hex"), account = configure(origin);
@@ -103,7 +103,7 @@ async function fixture(t: TestContext, configure: (origin: string) => WebServerO
     await rm(home, { recursive: true, force: true });
   });
   const open = async () => {
-    const server = factory({ homeDirectory: home, localHost: host, controlToken: control, account, assertAccountCurrent });
+    const server = factory({ homeDirectory: home, localHost: host, controlToken: control, account, assertAccountCurrent, isNativeAccountRequest });
     servers.push(server);
     await new Promise<void>((resolve, reject) => { server.once("error", reject); server.listen(port, "127.0.0.1", resolve); });
     return server;
@@ -410,6 +410,58 @@ test("S-unified-account-provider-callback WUA-14: callback refuses unknown attem
   assert.equal((await request(f.origin, path, writeHeaders(f.headers), "{}", "POST")).status, 403);
   assert.equal((await request(f.origin, path, {}, "body")).status, 403);
   assert.equal(contacted, 0); assert.equal(((await f.account()).body.data as AccountView).state, "ANONYMOUS");
+});
+
+test("S-unified-account-provider-callback T01-CALLBACK-02: only live native provider starts match a callback without a Personal cookie", { timeout: 60_000 }, async t => {
+  const transactions = "/api/account/auth/transactions";
+  const nativeAttachment = `test-attachment=${randomBytes(16).toString("hex")}`;
+  const lease = new AbortController();
+  let contacted = 0;
+  let transactionId = "", state = "";
+  const f = await fixture(t, origin => ({ environment: environment(origin), fetch: async (url, init) => {
+    contacted++;
+    const path = new URL(String(url)).pathname;
+    const requestId = randomBytes(16).toString("hex");
+    if (path === "/api/v2/auth/transactions") {
+      transactionId = randomBytes(16).toString("hex");
+      state = JSON.parse(String(init?.body)).state;
+      return Response.json({ requestId, data: { transactionId, status: "PENDING", nextStep: "START_PROVIDER", expiresAt: new Date(Date.now() + 600_000).toISOString() } });
+    }
+    assert.equal(path, `/api/v2/auth/transactions/${transactionId}/providers/google/start`);
+    const browserStartUrl = `${environment(origin).authOrigin}/api/v2/auth/external/google/browser-start?ticket=${randomBytes(32).toString("hex")}`;
+    return Response.json({ requestId, data: { browserStartUrl } });
+  } }), () => lease.signal.throwIfAborted(), req => req.headers.cookie === nativeAttachment);
+
+  async function start(native: boolean) {
+    const headers: Record<string, string> = native ? { ...f.headers, cookie: nativeAttachment } : { ...f.headers, "x-molis-work-desktop": "1" };
+    const created = await post(f.origin, transactions, writeHeaders(headers), { purpose: "LOGIN", method: "GOOGLE" });
+    assert.equal(created.status, 200);
+    const route = `${transactions}/${(created.body.data as { handle: string }).handle}`;
+    const callback = new URL(`/account/callback?${new URLSearchParams({ transactionId, state, result: "VERIFIED" })}`, f.origin);
+    assert.equal(f.server.matchesNativeAccountCallback?.(callback), false, "creation alone does not allow cookie-less routing");
+    const started = await post(f.origin, route + "/submit", writeHeaders(headers), { step: "START_PROVIDER" });
+    assert.equal(started.status, 200);
+    return { route, callback };
+  }
+
+  const ordinary = await start(false);
+  assert.equal(f.server.matchesNativeAccountCallback?.(ordinary.callback), false, "an untrusted desktop hint does not mark a web attempt");
+  const native = await start(true);
+  assert.equal(f.server.matchesNativeAccountCallback?.(native.callback), true);
+  assert.equal(f.server.matchesNativeAccountCallback?.(native.callback, "https://foreign.example"), false);
+  const forged = new URL(native.callback);
+  forged.searchParams.set("state", randomBytes(32).toString("base64url"));
+  assert.equal(f.server.matchesNativeAccountCallback?.(forged), false);
+  const denied = await request(f.origin, forged.pathname + forged.search, { "sec-fetch-mode": "navigate", "sec-fetch-dest": "document" });
+  assert.equal(denied.status, 403);
+  assert.equal(denied.body.code, "account.forbidden");
+  assert.equal((await post(f.origin, native.route + "/cancel", writeHeaders(f.headers), {})).status, 200);
+  assert.equal(f.server.matchesNativeAccountCallback?.(native.callback), false);
+  const retired = await start(true);
+  assert.equal(f.server.matchesNativeAccountCallback?.(retired.callback), true);
+  lease.abort();
+  assert.equal(f.server.matchesNativeAccountCallback?.(retired.callback), false);
+  assert.equal(contacted, 6, "only the three create/start pairs reached Auth");
 });
 
 // WORK-05 / WUA-17: a sensitive handle is bound to the original login epoch, not just to this Home.

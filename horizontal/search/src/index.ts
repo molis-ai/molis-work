@@ -314,7 +314,7 @@ export class SearchService {
   indexedCatalog(access: SearchAccess) {
     const revisions = new Map(this.changed);
     return authorizedSearchCatalog(this.options.index, access, this.options.onError, source => {
-      const key = `${source.project_id ?? ""}|${source.reference.provider_id}`, revision = revisions.get(key);
+      const key = `${source.view.provider.project_id ?? ""}|${source.reference.provider_id}`, revision = revisions.get(key);
       return () => { if (this.closed || this.changed.get(key) !== revision) throw new ActionError("actions.forbidden", "原资料来源已变化，请重新整理"); };
     });
   }

@@ -611,12 +611,12 @@ test("D0244-02 indexed catalogs omit unavailable, failed and foreign sources and
   assert.deepEqual((await f.search.indexedCatalog(access)).documents("a"), [], "failed catch-up does not give stale content to a model");
 });
 
-test("D0244-03 indexed catalog authority is not restored by a later provider registration", async t => {
+for (const scope of ["project", "home"] as const) test(`D0244-03 ${scope} indexed catalog authority is not restored by a later provider registration`, async t => {
   const f = await fixture(t), notes = source([{ id: "n1", title: "试用资料", body: "body", version: 1 }]);
-  register(f.actions, notes, { provider_id: "notes", project_id: "a" });
+  register(f.actions, notes, { provider_id: "notes", ...(scope === "project" ? { project_id: "a" } : {}) });
   await ask(f, owner("a"), "试用");
   const snapshot = await f.search.indexedCatalog({ client: f.actions, caller: owner("a") });
-  snapshot.assertCurrent(); f.search.markRegistration("notes", "a");
+  snapshot.assertCurrent(); f.search.markRegistration("notes", scope === "project" ? "a" : null);
   assert.throws(() => snapshot.assertCurrent(), { code: "actions.forbidden" });
   assert.throws(() => snapshot.documents("a"), { code: "actions.forbidden" });
   const fresh = await f.search.indexedCatalog({ client: f.actions, caller: owner("a") }); fresh.assertCurrent();

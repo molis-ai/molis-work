@@ -149,11 +149,11 @@ test("D0244-05 S-41 real Host and SDK refuse an old source's held model result a
   try {
     await home.web.post(prefix + "/api/knowledge/organize", {}); await model.started;
     await platform.runtime.stop(install.install_id);
+    await platform.supervisor.restart(id);
     model.release();
     await untilSetup(async () => logs.some(entry => entry.fields?.where === "knowledge.organize" && entry.error?.code === "actions.forbidden") || undefined,
       "the real model returned and the original source fence refused its result");
     assert.ok(!["ready", "failed"].includes(cards.get(project.project_id, subject)?.state ?? "missing"), "no late draft or business failure was saved");
-    await platform.supervisor.restart(id);
     await home.web.get(prefix + "/api/knowledge/overview"); await home.web.post(prefix + "/api/knowledge/organize", {});
     await untilSetup(async () => cards.get(project.project_id, subject)?.state === "ready" || undefined, "a new authorized organize can complete");
     assert.ok(model.sent.length >= 2, "the fresh call actually used the real SDK model path");

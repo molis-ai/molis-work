@@ -22,7 +22,7 @@ import { openTestSqlite, type SqliteDatabase } from "@molis-ai/molis-work-test-k
 /** A Home in a temporary directory, with `projects/` and an `outputs/` that is not made yet, and folders outside it to link. */
 interface Env { home: string; outputs: string; outside: string; db: SqliteDatabase; projects: ProjectsModule; create(name: string): string }
 
-function withHome(run: (env: Env) => void): void {
+function withHome(run: (env: Env) => void, { sameMillisecond = false } = {}): void {
   const root = realpathSync(mkdtempSync(join(tmpdir(), "molis-work-directories-")));
   const home = join(root, "home"), outside = join(root, "outside");
   mkdirSync(join(home, "projects"), { recursive: true });
@@ -31,7 +31,7 @@ function withHome(run: (env: Env) => void): void {
   try {
     db.pragma("foreign_keys = ON");
     createProjectsSchema(db);
-    const projects = moduleOver(db, home);
+    const projects = moduleOver(db, home, sameMillisecond);
     const create = (name: string) => {
       const record = projects.lifecycle.prepareRecord({ display_name: name, data_class: "user" });
       projects.lifecycle.register(record, "project.created", "user-1");
@@ -44,7 +44,11 @@ function withHome(run: (env: Env) => void): void {
   }
 }
 
-function moduleOver(db: SqliteDatabase, home: string): ProjectsModule {
+/**
+ * `sameMillisecond`: every event at one instant, and each id sorting before the one made earlier, so that order by time and then by id
+ * would put a later event first.
+ */
+function moduleOver(db: SqliteDatabase, home: string, sameMillisecond = false): ProjectsModule {
   let sequence = 0;
   return new ProjectsModule({
     db,
@@ -52,8 +56,8 @@ function moduleOver(db: SqliteDatabase, home: string): ProjectsModule {
     outputs_directory: join(home, "outputs"),
     root_home_directory: home,
     plugins: { has: () => false, companions: () => [] },
-    now: () => `2026-11-08T00:00:${String(sequence % 60).padStart(2, "0")}.000Z`,
-    id: prefix => `${prefix}-${home.length}-${++sequence}`,
+    now: () => sameMillisecond ? "2026-11-08T00:00:00.000Z" : `2026-11-08T00:00:${String(sequence % 60).padStart(2, "0")}.000Z`,
+    id: prefix => sameMillisecond ? `${prefix}-${String(9999 - ++sequence).padStart(4, "0")}` : `${prefix}-${home.length}-${++sequence}`,
   });
 }
 
@@ -126,6 +130,22 @@ test("SSC-22 moving the output to a folder and back to the default finds the sam
     assert.deepEqual(back.directories.map(item => [item.workspace_id, item.roles]), [[defaultId, ["output"]]]);
     assert.equal(existsSync(env.outputs), false);
   });
+});
+
+test("SSC-22 the default output keeps the id it was written with when later events share its first event's millisecond", () => {
+  withHome(env => {
+    const id = env.create("甲");
+    const written = env.projects.query.outputDirectory(id).workspace_id;
+    const mine = folder(env, "mine");
+    change(env, id, { kind: "add_input", workspace_path: mine });
+    assert.equal(env.projects.query.outputDirectory(id).workspace_id, written, "an event at the same instant does not change which came first");
+    const again = change(env, id, { kind: "set_output", target: { default_output: true } });
+    assert.equal(again.directories.find(item => item.roles.includes("output"))?.workspace_id, written, "setting the default it already has is the same row, not a second one");
+    change(env, id, { kind: "set_output", target: { workspace_path: mine } });
+    const back = change(env, id, { kind: "set_output", target: { default_output: true } });
+    assert.equal(back.directories.find(item => item.roles.includes("output"))?.workspace_id, written, "and back from another folder, the same id again");
+    assert.equal(storedRows(env.db).filter(row => row.canonical_path === `project-output:${id}`).length, 1);
+  }, { sameMillisecond: true });
 });
 
 test("SSC-22 path to row: the project's own default place is its row, another project's or anywhere else in outputs is refused", () => {

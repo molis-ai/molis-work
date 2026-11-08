@@ -33,16 +33,29 @@ export const projectOutputWorkspaceId = (hash: string) => `${OUTPUT_ID_PREFIX}${
 export const projectOutputMembershipId = (hash: string) => `workspace-output-membership-${hash}`;
 export const isProjectOutputWorkspaceId = (workspaceId: string) => workspaceId.startsWith(OUTPUT_ID_PREFIX);
 
-/** The project's earliest event, by `created_at, event_id`. Every registered project has one: `register` writes it in the same transaction. */
+/**
+ * The project's earliest event, by `created_at` and then by the order this device wrote them: the event right after `register` often has the
+ * same millisecond, and its random `event_id` must not decide which came first. Every registered project has one: `register` writes it in
+ * the same transaction.
+ */
 export function firstProjectEventId(db: ProjectOutputDatabase, projectId: string): string {
-  const row = db.prepare("SELECT event_id FROM project_events WHERE project_id = ? ORDER BY created_at, event_id LIMIT 1").get(projectId) as Row | undefined;
+  const row = db.prepare("SELECT event_id FROM project_events WHERE project_id = ? ORDER BY created_at, rowid LIMIT 1").get(projectId) as Row | undefined;
   if (!row) throw catalogErrors.project_storage_invalid("这个项目在目录库里没有任何事件，算不出它的默认输出目录");
   return String(row.event_id);
 }
 
-/** The project's default output directory id on this device. */
+/**
+ * The project's default output directory id on this device: the row already written for it, found by its path, or else derived again. The
+ * row is the record, so an id once written never changes, even if the derivation would now give another (a device clock set back).
+ */
 export function projectOutputId(db: ProjectOutputDatabase, projectId: string): string {
-  return projectOutputWorkspaceId(projectOutputHash(projectId, firstProjectEventId(db, projectId)));
+  return projectOutputWorkspaceId(projectOutputHashOf(db, projectId));
+}
+
+function projectOutputHashOf(db: ProjectOutputDatabase, projectId: string): string {
+  const row = db.prepare("SELECT workspace_id FROM workspaces WHERE canonical_path = ?").get(`${PROJECT_OUTPUT_PATH_PREFIX}${projectId}`) as Row | undefined;
+  const written = row ? String(row.workspace_id) : undefined;
+  return written && isProjectOutputWorkspaceId(written) ? written.slice(OUTPUT_ID_PREFIX.length) : projectOutputHash(projectId, firstProjectEventId(db, projectId));
 }
 
 /**
@@ -51,7 +64,7 @@ export function projectOutputId(db: ProjectOutputDatabase, projectId: string): s
  */
 export function insertProjectOutput(db: ProjectOutputDatabase, projectId: string, at: string, boundBy: string): void {
   if (db.prepare("SELECT 1 FROM workspace_project_memberships WHERE project_id = ? AND role_output = 1").get(projectId)) return;
-  const hash = projectOutputHash(projectId, firstProjectEventId(db, projectId));
+  const hash = projectOutputHashOf(db, projectId);
   db.prepare(`INSERT INTO workspaces (workspace_id, canonical_path, realpath_verified, display_name, created_at, updated_at)
     VALUES (?, ?, 0, 'project-output', ?, ?) ON CONFLICT(workspace_id) DO NOTHING`).run(projectOutputWorkspaceId(hash), `${PROJECT_OUTPUT_PATH_PREFIX}${projectId}`, at, at);
   db.prepare(`INSERT INTO workspace_project_memberships (membership_id, workspace_id, project_id, role_input, role_output, bound_by, created_at, updated_at)

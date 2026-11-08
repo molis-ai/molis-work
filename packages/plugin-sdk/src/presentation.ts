@@ -5,6 +5,7 @@ import { PRESENTATION_FORM_KINDS, type FieldRole, type FormKind, type OwnedPrese
   type PresentationOverviewDeclaration, type PresentationValueItem, type PresentationValues, type PresentationValuesInput } from "@molis-ai/molis-work-contracts/platform/presentation";
 import type { OwnedTextRef, TextRef } from "@molis-ai/molis-work-contracts/platform/ui";
 import { isRecord } from "./json-value.js";
+import { PLATFORM_TEXT_OWNER } from "./message-declarations.js";
 import { say } from "./ui/text.js";
 import { tryOwnedTextRef } from "./ui/text-ref.js";
 
@@ -130,10 +131,10 @@ export function presentationOverviewProblems(declaration: PresentationOverviewDe
 }
 
 /** What a word the owner cannot have written shows as: the platform's own, never the key (a-section §2.3). */
-const UNAVAILABLE: OwnedTextRef = { owner: "workbench", key: "common.text.unavailable" };
+const UNAVAILABLE: OwnedTextRef = { owner: PLATFORM_TEXT_OWNER, key: "common.text.unavailable" };
 /** The mark on values the owner could not read now, so they are never read as current (IUI-10). The key is the workbench's. */
 const staleMark = (at: string): OwnedTextRef =>
-  ({ owner: "workbench", key: "common.presentation.stale", args: [{ name: "at", kind: "date", at, style: "relative" }], fallback: "以下是之前读到的值" });
+  ({ owner: PLATFORM_TEXT_OWNER, key: "common.presentation.stale", args: [{ name: "at", kind: "date", at, style: "relative" }], fallback: "以下是之前读到的值" });
 
 function valueText(role: FieldRole, value: unknown, words: (ref: unknown) => string): string | null {
   if (role === "activity") return value === undefined || value === null ? null : words(value);

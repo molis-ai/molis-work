@@ -1,6 +1,6 @@
 import { ActionError, findSubjectReader, platformErrorKind, retainActionAuthority, type ActionCallContext, type ActionClient, type ActionReference, type ActionSubject,
   type ActionSubjectContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
-import { ARTIFACT_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import { ARTIFACT_SUBJECT_KIND, parseArtifactSubjectId, type ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { isProjectOutputWorkspaceId } from "@molis-ai/molis-work-module-projects";
 import { PROJECT_WORKSPACE_PROVIDER_ID, projectDirectoryActions, type ProjectDirectories, type ProjectDirectory } from "@molis-ai/molis-work-contracts/modules/projects";
 import { parseWorkspaceFileSubjectId, resolveWorkspaceFileSubject, workspaceReadActions, WORKSPACE_FILE_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
@@ -9,6 +9,8 @@ import type { WorkspaceFileCheck } from "./workspace-files.js";
 
 /** How long one read of origins waits, all its comparisons and object reads together (spec §2): past it, what is not done says `unchecked`. */
 export const MATERIAL_ORIGINS_DEADLINE_MS = 1000;
+/** How many items of one read are read at the same time (合同台第二十三轮). */
+export const MATERIAL_ORIGINS_PARALLEL = 4;
 const HEX_REVISION = /^[0-9a-f]{64}$/;
 const SIZE_REVISION = /^size:(\d+)$/;
 /** Who owns a project's own files on the person's disk, for display. */
@@ -28,6 +30,8 @@ export interface MaterialOriginPorts {
   check(query: { workspace_id: string; path: readonly string[] }, workspaces: readonly ProjectDirectory[], hash: boolean): Promise<WorkspaceFileCheck>;
   /** Whether a pinned version is still kept: a fixed version in the 成果库, a snapshot among the process items. */
   versionKept(pin: Exclude<MaterialPin, { mode: "current" }>): boolean;
+  /** Whether a 成果库 version came in as an imported file (`origin.kind === "imported"`), not one a plugin pinned. */
+  imported(reference: ArtifactReference): boolean;
   now?(): number;
 }
 
@@ -37,8 +41,9 @@ export interface MaterialOriginPorts {
  * no file opened. The owner of an object is the one reader of its kind in the action catalog (`findSubjectReader`, 合同台第二十二轮).
  *
  * To a plugin, what it cannot read and what is gone are the same null, and so is an object with no one owner. To the person, only the
- * latter is null. With `compare`, the first `MATERIAL_ORIGINS_COMPARE` local files pinned to their current content are compared by content;
- * the rest, and whatever is not done within the deadline, say `unchecked`.
+ * latter is null. With `compare`, the first `MATERIAL_ORIGINS_COMPARE` local files pinned to their current content, in the order given,
+ * are compared by content. The items are read at the same time, `MATERIAL_ORIGINS_PARALLEL` at most, within one deadline; what has not
+ * answered by then, a file or an object, is `unreadable` and says `unchecked` (合同台第二十三轮). Answers keep the order asked.
  */
 export async function readMaterialOrigins(caller: ActionCallContext, queries: readonly MaterialOriginQuery[], options: { compare: boolean },
   ports: MaterialOriginPorts): Promise<MaterialOriginAnswer[]> {
@@ -47,10 +52,16 @@ export async function readMaterialOrigins(caller: ActionCallContext, queries: re
   const views = await ports.client.discover(nested);
   const now = ports.now ?? Date.now, deadline = now() + MATERIAL_ORIGINS_DEADLINE_MS;
   const plugin = caller.audience === "plugin";
-  const reading: OriginReading = { caller: nested, views, plugin, deadline, now, ports, compared: 0, compare: options.compare, folders: undefined };
-  const answers: MaterialOriginAnswer[] = [];
-  // In order, so the first five compared are the first five the caller ranked; each one waits only on what is left of the deadline.
-  for (const query of queries) answers.push({ origin: await originOf(reading, query) });
+  // Which five are compared is settled from the request before anything is read, so it does not depend on which read answers first.
+  const compared = new Set(queries.flatMap((query, index) => options.compare && "ref" in query && query.ref.subject.kind === WORKSPACE_FILE_SUBJECT_KIND
+    && query.ref.pin.mode === "current" && HEX_REVISION.test(query.ref.pin.read_revision) ? [index] : []).slice(0, MATERIAL_ORIGINS_COMPARE));
+  const reading: OriginReading = { caller: nested, views, plugin, deadline, now, ports, compare: options.compare, folders: undefined };
+  const answers: MaterialOriginAnswer[] = queries.map(() => ({ origin: null }));
+  let next = 0;
+  const worker = async () => {
+    for (let index = next++; index < queries.length; index = next++) answers[index] = { origin: await originOf(reading, queries[index]!, compared.has(index)) };
+  };
+  await Promise.all(Array.from({ length: Math.min(MATERIAL_ORIGINS_PARALLEL, queries.length) }, worker));
   if (caller.signal?.aborted) throw new ActionError("actions.cancelled", "读取出处已取消");
   return answers;
 }
@@ -62,14 +73,13 @@ interface OriginReading {
   deadline: number;
   now(): number;
   ports: MaterialOriginPorts;
-  compared: number;
   compare: boolean;
   folders: Promise<ProjectFolders | null> | undefined;
 }
 
-async function originOf(reading: OriginReading, query: MaterialOriginQuery): Promise<MaterialOrigin | null> {
+async function originOf(reading: OriginReading, query: MaterialOriginQuery, hash: boolean): Promise<MaterialOrigin | null> {
   const subject = "ref" in query ? query.ref.subject : query.subject, pin = "ref" in query ? query.ref.pin : null;
-  const origin = subject.kind === WORKSPACE_FILE_SUBJECT_KIND ? await fileOrigin(reading, subject, pin) : await objectOrigin(reading, subject, pin);
+  const origin = subject.kind === WORKSPACE_FILE_SUBJECT_KIND ? await fileOrigin(reading, subject, pin, hash) : await objectOrigin(reading, subject, pin);
   // A plugin is not told whether it may not read a thing or the thing is gone.
   return origin && reading.plugin && (origin.state === "forbidden" || origin.state === "missing") ? null : origin;
 }
@@ -83,7 +93,7 @@ function readableFolders(reading: OriginReading): Promise<ProjectFolders | null>
   return reading.folders;
 }
 
-async function fileOrigin(reading: OriginReading, subject: ActionSubject, pin: MaterialPin | null): Promise<MaterialOrigin> {
+async function fileOrigin(reading: OriginReading, subject: ActionSubject, pin: MaterialPin | null, hash: boolean): Promise<MaterialOrigin> {
   const base = { source: "directory" as const, owner: DIRECTORY_OWNER };
   const folders = await readableFolders(reading);
   if (!folders) return { ...base, state: "forbidden" };
@@ -102,11 +112,10 @@ async function fileOrigin(reading: OriginReading, subject: ActionSubject, pin: M
   if (pin && pin.mode !== "current") return { ...base, directory, state: reading.ports.versionKept(pin) ? "ok" : "missing" };
   const usable = directories.directories.filter(item => item.state === "ok" && item.realpath_verified);
   const revision = pin?.read_revision ?? "";
-  const hash = reading.compare && HEX_REVISION.test(revision) && reading.compared < MATERIAL_ORIGINS_COMPARE;
-  if (hash) reading.compared += 1;
-  const checked = await withinDeadline(reading, () => inFlight(resolved, hash, () => reading.ports.check(resolved, usable, hash))
+  const checked = await withinDeadline(reading, () => inFlight(reading.ports.projectId, resolved, hash, () => reading.ports.check(resolved, usable, hash))
     .catch((): WorkspaceFileCheck => ({ outcome: "denied" })));
-  if (checked === "late") return { ...base, directory, state: "ok", note: MATERIAL_ORIGIN_NOTES.unchecked };
+  // Not looked at in time: neither there nor gone can be said.
+  if (checked === "late") return { ...base, directory, state: "unreadable", note: MATERIAL_ORIGIN_NOTES.unchecked };
   if (checked.outcome === "missing") return { ...base, directory, state: "missing" };
   if (checked.outcome === "denied" || checked.outcome === "unsupported") return { ...base, directory, state: "unreadable" };
   // A reference was written from a read under the limit, so a file past it now is not the same one.
@@ -123,7 +132,9 @@ async function objectOrigin(reading: OriginReading, subject: ActionSubject, pin:
   const owner = ownerOf(lookup.view);
   // An owner reached only through MCP is not one an origin can name.
   if (!owner) return null;
-  const base = { source: subject.kind === ARTIFACT_SUBJECT_KIND ? "import" as const : "object" as const, owner };
+  // A 成果库 version is an import only when it came in as a file; one a plugin pinned is that plugin's object.
+  const kept = subject.kind === ARTIFACT_SUBJECT_KIND ? parseArtifactSubjectId(subject.id) : null;
+  const base = { source: kept && reading.ports.imported(kept) ? "import" as const : "object" as const, owner };
   if (lookup.found === "unavailable") return reading.plugin ? null : { ...base, state: "forbidden" };
   const view = lookup.view, reader = { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id };
   const read = await withinDeadline(reading, () => reading.ports.client.invoke(reading.caller, reader, { subject_id: subject.id }).then(
@@ -162,8 +173,8 @@ async function withinDeadline<T>(reading: OriginReading, start: () => Promise<T>
  * panel again would only pile more onto the thread pool (spec §2).
  */
 const running = new Map<string, Promise<WorkspaceFileCheck>>();
-function inFlight(file: { workspace_id: string; path: readonly string[] }, hash: boolean, start: () => Promise<WorkspaceFileCheck>): Promise<WorkspaceFileCheck> {
-  const key = JSON.stringify([file.workspace_id, file.path, hash]);
+function inFlight(projectId: string, file: { workspace_id: string; path: readonly string[] }, hash: boolean, start: () => Promise<WorkspaceFileCheck>): Promise<WorkspaceFileCheck> {
+  const key = JSON.stringify([projectId, file.workspace_id, file.path, hash]);
   const current = running.get(key);
   if (current) return current;
   const started = start().finally(() => running.delete(key));

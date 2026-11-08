@@ -147,7 +147,7 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
   );
   const unregisterGit = registerWorkspaceGitActions({ localHost: options.localHost, homeDirectory: options.homeDirectory ?? resolveConfiguredHome(),
     gitReviews: async () => { await initialize(); return prologue?.gitReviews; }, reviews: async () => { await initialize(); return agentHost.reviews; },
-    workspaces: projectId => workspaceGrants(options, projectId) });
+    workspaces: projectId => workspaceGrants(options, projectId), output: async projectId => options.workspaceFor(projectId) });
   const unregisterWriters = registerWorkspaceGitWriters({ localHost: options.localHost, authorizeWriterDirectory: options.authorizeWriterDirectory,
     runtime: async () => { await initialize(); return prologue; }, workspaces: projectId => workspaceGrants(options, projectId) });
   // Drafts borrow the same owner as Agent runs; only the ephemeral model Session is scoped to the request.

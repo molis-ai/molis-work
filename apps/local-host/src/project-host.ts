@@ -187,6 +187,7 @@ export class MolisWorkLocalHost {
                 client: this.actionClient(reference), db: store.db, now: clock,
                 versionKept: pin => (pin.mode === "fixed" ? runtime.artifacts.query : runtime.processItems.query)
                   .getArtifactVersion(reference.project_id, pin.version)?.availability === "available",
+                imported: version => runtime.artifacts.query.getArtifactVersion(reference.project_id, version)?.origin.kind === "imported",
               }));
             add(artifactActionProvider(runtime, options, this.actionClient(reference)));
             if (options.homeDirectory) add(informationActionProvider(options.homeDirectory, reference.project_id, this.actionClient(reference), options.completeText));

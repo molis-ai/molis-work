@@ -51,6 +51,9 @@ export { restoreHomeSnapshot, recoverHomeRestore, type HomeRestoreOptions, type 
 export type { HomeRestoreCatalogInspector, HomeRestoreResult } from "./home-restore-contract.js";
 export type { HomeSnapshotManifest, HomeSnapshotResult } from "./home-snapshot-contract.js";
 export { readMaterialLocalPage } from "./material-local-page.js";
+export { readMaterialOrigins, MATERIAL_ORIGINS_DEADLINE_MS, type MaterialOriginPorts, type ProjectFolders } from "./material-origins.js";
+export { projectWorkspaceActionProvider, type ProjectMaterialPorts } from "./project-workspace-actions.js";
+export { checkWorkspaceFile, type WorkspaceFileCheck } from "./workspace-files.js";
 export { isHostEndpointPort, trackHostChildEndpoint, trackHostPort } from "./host-endpoints.js";
 export { ORIGINAL_FILE_MAX_BYTES, ORIGINAL_RANGE_MAX_BYTES, readOriginalFile, readOriginalRange, registerOriginalFile, releaseOriginalFile } from "./material-original-files.js";
 export type { PluginPlatform, PluginPlatformDatabase, PluginPlatformEntry, PluginPlatformOptions } from "./plugin-platform.js";

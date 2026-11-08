@@ -1,5 +1,6 @@
 import { ActionError, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionHandlerBinding, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import { materialOriginActions, materialRecentActions, PROJECT_WORKSPACE_PROVIDER_ID, projectDirectoryActions as a, type DirectoryChange, type ProjectDirectories } from "@molis-ai/molis-work-contracts/modules/projects";
+import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { MaterialOriginQuery, MaterialPin, MaterialRef, RecentMaterial } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import { MaterialRecentUses, type MaterialRecentCaller } from "@molis-ai/molis-work-module-projects";
 import { assertMaterialRef } from "@molis-ai/molis-work-plugin-sdk/presentation";
@@ -24,6 +25,8 @@ export interface ProjectMaterialPorts {
   db: SqliteDatabase;
   /** Whether a pinned version is still kept: a fixed version in the 成果库, a snapshot among the process items. */
   versionKept(pin: Exclude<MaterialPin, { mode: "current" }>): boolean;
+  /** Whether a 成果库 version came in as an imported file rather than pinned by a plugin. */
+  imported(reference: ArtifactReference): boolean;
   now(): Date;
 }
 
@@ -112,7 +115,7 @@ function materialHandlers(projectId: string, materials: ProjectMaterialPorts,
     readMaterialOrigins(caller, queries, { compare }, {
       client: materials.client, origin: { capability_id: definition.capability_id, version: definition.version, provider_id: PROJECT_WORKSPACE_PROVIDER_ID }, projectId,
       folders: () => withCatalog(caller, catalog => ({ directories: catalog.projectDirectories(projectId), default_output_id: catalog.defaultOutputDirectoryId(projectId) })),
-      check: checkWorkspaceFile, versionKept: materials.versionKept,
+      check: checkWorkspaceFile, versionKept: materials.versionKept, imported: materials.imported,
     });
   const refs = (value: unknown): MaterialRef[] => {
     const list = (value as { refs?: unknown } | null)?.refs;

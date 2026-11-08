@@ -19,6 +19,7 @@ import type { ActionCallContext, ActionDefinition } from "@molis-ai/molis-work-c
 import { HOST_WORKSPACE_CHANGED_EVENT, type PluginDefinition, type PluginManifest, type PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { DEMO_PROJECT_ID, HOST_PROVIDER_ID, LocalProjectDatabase, MolisWorkLocalHost, PluginHostExecutor, molisWorkHostProjectReference, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
+import { directoriesWebOf, setProjectOutputFolder } from "./fixtures/project-directories-http.js";
 import { callAs, callerPlugin, issuedCaller, registerProbe, startProjectPlugins } from "./fixtures/plugin-callers.js";
 import { PENDING, within } from "./fixtures/stopped-calls.js";
 import { initializeBoard } from "./fixtures/goals-board.js";
@@ -243,8 +244,8 @@ test("Files, Git and Coding read the linked folder through the one action in a r
     await writeFile(join(directory, "chart.png"), PNG);
     await writeFile(join(directory, "src", "streaks.ts"), "export function currentStreak(days: number) { return days; }\n");
     execFileSync("git", ["init", "-q", "-b", "main"], { cwd: directory });
-    assert.equal((await request(`/projects/${id}/api/workspaces`, "POST", { workspace_path: directory, user_confirmed: true })).status, 201);
-    const workspace = (await request(`/projects/${id}/api/project-settings/workspaces`)).body.workspaces[0].workspace_id as string;
+    // The folder is the project's output, set in its settings as the person does: the side panel and Git show the output (SSC-17).
+    const workspace = (await setProjectOutputFolder(directoriesWebOf(request), id, directory)).workspace_id;
     const plugin = (name: string, suffix: string) => `/projects/${id}/api/plugins/io.molis.work.${name}${suffix}`;
 
     // Files: the side panel previews a picture in the linked folder whole, which only a plugin may ask the Host for.

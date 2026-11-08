@@ -2,16 +2,18 @@
 // requests go through the public web server, with the same local control guard in front; what may be saved is the action's
 // to say (tests/coding-checkers-settings.test.ts), so here the route only has to carry it there and back unchanged.
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { createDesktopWebCore, openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { writeCheckerFieldsOf, writeCheckerFromFields, writeCheckersAfter } from "@molis-ai/molis-work-app-workbench";
 import type { AgentWriteChecker, AgentWriteCheckerList } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { ProjectDirectories } from "@molis-ai/molis-work-contracts/modules/projects";
 
 const TOKEN = "write-checkers-settings-token-0123456789";
 const ROUTE = "/api/project-settings/write-checkers";
+const DIRECTORIES = "/api/project-settings/directories";
 const NODE: AgentWriteChecker = { checker_id: "node", display_name: "Node 语法", executable: "node", args: ["--check", "{file}"], applies_to: [".js"] };
 
 /** A throwaway Home with two projects, each linking its own folder through the same requests the settings page makes. */
@@ -36,13 +38,24 @@ async function fixture() {
     const text = await response.text();
     return { status: response.status, type: response.headers.get("content-type") ?? "", text, body: /json/.test(response.headers.get("content-type") ?? "") ? JSON.parse(text) as Record<string, unknown> : null };
   };
+  /** One change of the project's folders, from the revision read now, as the settings page makes it. */
+  const change = async (projectId: string, name: string, input: Record<string, unknown>) => {
+    const read = await request(projectId, DIRECTORIES);
+    assert.equal(read.status, 200, read.text);
+    const changed = await request(projectId, DIRECTORIES, { change: name, input: { ...input, expected_revision: (read.body as { revision: string }).revision } });
+    assert.equal(changed.status, 200, changed.text);
+    return JSON.parse(changed.text) as ProjectDirectories;
+  };
+  /** Makes the folder the project's output, where a round writes and the after-write checks run (SSC-15). */
   const link = async (projectId: string, folder: string) => {
-    const linked = await request(projectId, "/api/workspaces", { workspace_path: join(directory, folder), user_confirmed: true });
-    assert.equal(linked.status, 201, linked.text);
-    return (linked.body as { workspace: { workspace_id: string } }).workspace.workspace_id;
+    const canonical = await realpath(join(directory, folder));
+    const after = await change(projectId, "set_output", { workspace_path: canonical });
+    const output = after.directories.find(item => item.roles.includes("output"));
+    assert.ok(output && output.canonical_path === canonical, JSON.stringify(after));
+    return output.workspace_id;
   };
   return {
-    project: project.project_id, neighbour: neighbour.project_id, request, link,
+    project: project.project_id, neighbour: neighbour.project_id, request, link, change,
     /** A page or asset that is not under a project, as the browser asks for it. */
     get: async (path: string) => { const response = await fetch(origin + path); return { status: response.status, text: await response.text() }; },
     lists: async () => ((await request(project.project_id, ROUTE)).body as { lists: AgentWriteCheckerList[] }).lists,
@@ -62,7 +75,10 @@ test("PA-40 the workspaces settings page has the after-write checks, one group p
     assert.match(page.text, /data-write-checkers>/);
     for (const name of ["display_name", "executable", "args", "applies_to", "cwd", "timeout_seconds"]) assert.match(page.text, new RegExp(`name="${name}"`), name);
     assert.match(page.text, /<input class="mw-input"[^>]*name="timeout_seconds"[^>]*step="0\.001"/, "a time limit in fractions of a second can be typed");
-    assert.deepEqual(await f.lists(), [], "no folder linked yet: no group");
+    // A new project writes in its default output directory until the person chooses another (SSC-17): that is its one group.
+    const read = await f.request(f.project, "/api/project-settings/directories");
+    const defaultOutput = (read.body as { directories: Array<{ workspace_id: string; roles: string[] }> }).directories.find(item => item.roles.includes("output"))!.workspace_id;
+    assert.deepEqual(await f.lists(), [{ workspace_id: defaultOutput, version: 0, checkers: [] }], "no folder linked yet: only the default output's group");
 
     const app = await f.link(f.project, "app");
     const other = await f.link(f.neighbour, "other");
@@ -72,9 +88,10 @@ test("PA-40 the workspaces settings page has the after-write checks, one group p
     assert.equal(foreign.body?.code, "agent.directory_unauthorized");
 
     assert.equal((await f.save({ workspace_id: app, expected_version: 0, checkers: [NODE] })).status, 200);
-    const unlinked = await f.request(f.project, `/api/workspaces/${encodeURIComponent(app)}/unlink`, { user_confirmed: true });
-    assert.equal(unlinked.status, 200, unlinked.text);
-    assert.deepEqual(await f.lists(), [], "a folder taken back has no group");
+    // The person sets the output back to the default location: the folder was only the output, so it leaves the project.
+    const moved = await f.change(f.project, "set_output", { default_output: true });
+    assert.equal(moved.directories.some(item => item.workspace_id === app), false, JSON.stringify(moved));
+    assert.deepEqual(await f.lists(), [{ workspace_id: defaultOutput, version: 0, checkers: [] }], "a folder taken back has no group");
     const refused = await f.save({ workspace_id: app, expected_version: 1, checkers: [] });
     assert.equal(refused.status, 400, refused.text);
     assert.equal(refused.body?.code, "agent.directory_unauthorized");

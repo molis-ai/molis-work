@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { renderAlert, renderKept, renderStepDot } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { KEEP_EDITS_BOARD_EN, renderPrimitiveCatalog } from "@molis-ai/molis-work-design-system";
+import { KEEP_EDITS_BOARD_EN, KEEP_EDITS_STYLES, renderPrimitiveCatalog } from "@molis-ai/molis-work-design-system";
 import { renderMolisWorkArrivalStylesheet, renderMolisWorkSettingsStylesheet, renderMolisWorkWorkbenchStylesheet } from "./workbench-renderer-fixture.js";
 
 // The parts for keeping someone's edits (docs/design/rule-stale-reload/README.md「组件板新增」): the alert's action slot, the kept
@@ -67,13 +67,12 @@ test("the step's dot has a name, not only a colour", () => {
   assert.equal(renderStepDot({ label: 'a"b' }), '<i class="mw-step-dot" data-slot="step-dot" role="img" aria-label="a&quot;b" title="a&quot;b"></i>');
 });
 
-// RAC-551 says every class a /ui part writes has a rule in the host's sheets. These parts are published before their rules reach
-// the sheets: until N14's page draws them they are the board's own (KEEP_EDITS_BOARD_STYLES). These are
-// exactly the classes waiting. N14's interface moves the rules into the page sheets, empties this list and adds the parts to
-// samples() in sdk-ui-markup.test.ts; a class missing a rule for any other reason fails here.
-const UNTIL_N14 = ["mw-alert--rise", "mw-alert__actions", "mw-alert__mark", "mw-alert__title", "mw-kept", "mw-kept--rise", "mw-kept__head", "mw-kept__more", "mw-kept__text", "mw-kept__who", "mw-step-dot"];
+// RAC-551 says every class a /ui part writes has a rule in the host's sheets. These parts were published before their rules reached the
+// sheets; N14's rule editor and Feed's rule page draw them, so the rules are KEEP_EDITS_STYLES in the Workbench and settings sheets
+// and nothing waits any more (the parts are also among samples() in sdk-ui-markup.test.ts).
+const UNTIL_N14: readonly string[] = [];
 
-test("RAC-551: the classes these parts write without a host rule are exactly the ones waiting for N14, and the board defines them", () => {
+test("RAC-551: every class these parts write has a rule in the host's sheets, the board's page among them", () => {
   const sheets = [renderMolisWorkWorkbenchStylesheet(), renderMolisWorkArrivalStylesheet(), renderMolisWorkSettingsStylesheet()].join("\n");
   const defined = (css: string, token: string): boolean => new RegExp(`\\.${token}(?![\\w-])`, "u").test(css);
   const html = [
@@ -82,12 +81,13 @@ test("RAC-551: the classes these parts write without a host rule are exactly the
     renderStepDot({ label: "l" }),
   ].join("");
   const written = new Set([...html.matchAll(/\bclass="([^"]*)"/gu)].flatMap((match) => match[1]!.split(/\s+/u)));
-  // is-* are states of a named part; the words after the dot are checked with the part's own rule on the board.
+  // is-* are states of a named part; the words after the dot are checked with the part's own rule.
   const waiting = [...written].filter((token) => !token.startsWith("is-") && !defined(sheets, token)).sort();
   assert.deepEqual(waiting, UNTIL_N14);
+  // The board's page links the settings sheet, so its specimens wear the same rules as the product.
+  for (const token of written) if (!token.startsWith("is-")) assert.ok(defined(renderMolisWorkSettingsStylesheet(), token), `the settings sheet defines .${token}`);
   const board = renderPrimitiveCatalog();
-  const style = board.slice(board.indexOf("<style>"), board.indexOf("</style>"));
-  for (const token of UNTIL_N14) assert.ok(defined(style, token), `the board defines .${token}`);
+  assert.doesNotMatch(board.slice(board.indexOf("<style>"), board.indexOf("</style>")), /\.mw-kept \{|\.mw-alert__actions \{/u, "the board no longer keeps a copy of the parts' rules");
 });
 
 test("the board's words all have English, and the motion takes only tokens", () => {
@@ -95,11 +95,12 @@ test("the board's words all have English, and the motion takes only tokens", () 
   const start = english.indexOf('id="alert-actions"');
   const sections = english.slice(start, english.indexOf("</section>", english.indexOf('id="field-wash"')));
   assert.deepEqual(sections.match(/[㐀-鿿]+/gu) ?? [], [], "no Chinese is left in English");
-  const board = renderPrimitiveCatalog();
-  const style = board.slice(board.indexOf("<style>"), board.indexOf("</style>"));
-  const from = style.indexOf(".mw-alert > :is(strong, p)");
-  const rules = style.slice(from, style.indexOf("data-keep-wash-hold", from));
-  assert.doesNotMatch(rules, /#[0-9a-f]{3,8}\b/iu, "no written colour");
-  assert.doesNotMatch(rules, /(?:animation|transition)[^;]*\d+m?s\b/u, "no written duration");
-  assert.match(rules, /prefers-reduced-motion: reduce/);
+  assert.doesNotMatch(KEEP_EDITS_STYLES, /#[0-9a-f]{3,8}\b/iu, "no written colour");
+  assert.doesNotMatch(KEEP_EDITS_STYLES, /(?:animation|transition)[^;]*\d+m?s\b/u, "no written duration");
+  assert.match(KEEP_EDITS_STYLES, /prefers-reduced-motion: reduce/);
+  // The bounce is kept for a finished moment: only a success alert's mark settles on the spring.
+  assert.match(KEEP_EDITS_STYLES, /\.mw-alert--success\.mw-alert--rise \.mw-alert__mark \{ animation: mw-alert-land/u);
+  assert.doesNotMatch(KEEP_EDITS_STYLES, /(?<!--success)\.mw-alert--rise \.mw-alert__mark \{ animation/u);
+  // Forced colours drop the kept row's wash; a border keeps its edge.
+  assert.match(KEEP_EDITS_STYLES, /forced-colors: active\) \{ \.mw-kept \{ border: 1px solid transparent; \}/u);
 });

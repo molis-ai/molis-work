@@ -235,6 +235,17 @@ body.immersive-workbench .feed-workbench .feed-capture-rule-copy :is(strong,p,sm
 .feed-rule-preview-outcome[data-match=true] { color:var(--tone-done,var(--green)); }
 .feed-rule-note { font-size:11px !important; }
 [data-feed-rule-status][data-error=true] { color:var(--tone-attention,var(--amber)); }
+/* The draft changed elsewhere (docs/design/rule-stale-reload): the alert sits under the buttons that were pressed and pins to the
+   bottom of what can be seen, as the editor's footer does, so it stays whole above the bottom bar and the focus never lands behind it. */
+.feed-rule-band:not(:empty) { position:sticky; bottom:8px; z-index:2; margin-top:12px; }
+.feed-rule-band .mw-alert { box-shadow:var(--lift-3); }
+.feed-rule-band .mw-alert:not(.mw-alert--warning, .mw-alert--success) { background:var(--paper); }
+.feed-setup-panel .feed-rule-band .mw-alert p { margin:0; font-size:13px; color:var(--ink-soft); white-space:pre-line; }
+.feed-setup-panel p.mw-kept__text { font-size:13px; color:var(--ink-soft); }
+.feed-setup-panel p.mw-kept__text.is-blank { color:var(--muted); }
+.feed-setup-panel .mw-form__body:has(.feed-rule-band:not(:empty)) { scroll-padding-bottom:180px; }
+/* A short pane has no room for a pinned alert: it would cover the very rows it points to, so it stays in place under the buttons. */
+@media (max-height:560px) { .feed-rule-band:not(:empty) { position:static; } .feed-rule-band .mw-alert { box-shadow:none; } .feed-setup-panel .mw-form__body:has(.feed-rule-band:not(:empty)) { scroll-padding-bottom:0; } }
 @media (max-width:760px) {
   .feed-source-tabs button, .feed-rule-modes button { min-height:44px; }
 }

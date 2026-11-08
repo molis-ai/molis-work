@@ -1,9 +1,9 @@
 /** Functions workbench, part of FUNCTIONS_CLIENT_FACTORY_SCRIPT joined in place: the editor, the list, loading and saving of rules. */
 export const FUNCTIONS_CLIENT_RECORDS_PART = `  const fillEditor = (rec) => {
     const switching = sel?.id !== rec.id;
-    sel = rec;
+    sel = rec; base = rec;
     if (switching) {
-      dirty = false;
+      dirty = false; reset(); show("");
       bench.querySelector("[data-functions-subject-details]").open = Boolean(rec.subject_kinds?.length);
       paletteInfo.open = false;
       setStep(rec.status === "published" ? "use" : "look");
@@ -41,6 +41,7 @@ export const FUNCTIONS_CLIENT_RECORDS_PART = `  const fillEditor = (rec) => {
       row.classList.toggle("is-selected", on);
       row.setAttribute("aria-selected", String(on));
     });
+    if (switching) restore(rec);
   };
   const closeEditor = () => {
     sel = null;
@@ -124,18 +125,19 @@ export const FUNCTIONS_CLIENT_RECORDS_PART = `  const fillEditor = (rec) => {
     renderList();
     if (!sel) return;
     const next = records.find((item) => item.id === sel.id);
+    // Gone from the list: unsaved input keeps the editor open (client-keep); otherwise it closes and says why.
     if (opts.preserveForm) {
-      if (!next) closeEditor();
+      if (!next) gone();
       return;
     }
     if (next) {
       if (opts.remount) fillEditor(next);
       else {
-        sel = next;
+        sel = next; base = next;
         titleEl.textContent = next.name;
       }
     }
-    else closeEditor();
+    else gone();
   };
   const revisionOf = (rec) => ({ expected_updated_at: rec.updated_at });
   const draftBody = () => ({
@@ -160,14 +162,14 @@ export const FUNCTIONS_CLIENT_RECORDS_PART = `  const fillEditor = (rec) => {
     saving = operation;
     try { return await operation; } finally { if (saving === operation) saving = null; }
   };
-  const persistDraft = async (savingId, body, revision) => {
+  const persistDraft = async (savingId, body, revision, again = true) => {
     if (sel?.id === savingId) saveStatus.textContent = L("正在保存…");
     try {
       const payload = await req("POST", "/api/functions/" + encodeURIComponent(savingId), body);
       const saved = payload.function;
       rememberRecord(saved);
       if (sel?.id !== savingId) return saved;
-      sel = saved;
+      sel = saved; base = saved;
       if (revision === editRevision) dirty = false;
       saveStatus.textContent = dirty ? L("有更改，等待保存…") : L("已保存");
       titleEl.textContent = sel.name;
@@ -175,17 +177,24 @@ export const FUNCTIONS_CLIENT_RECORDS_PART = `  const fillEditor = (rec) => {
       return sel;
     } catch (error) {
       if (sel?.id === savingId) {
+        const outcome = await recover(error);
+        // Changed elsewhere and back again: the same content goes onto the new version, once.
+        if (outcome === "retry" && again && sel?.id === savingId) return persistDraft(savingId, { ...body, ...revisionOf(sel) }, revision, false);
+        if (outcome) throw answered(error);
         saveStatus.textContent = L("未保存 · 请修正后重试");
         await loadList({ preserveForm: true }).catch(() => {});
       }
       throw error;
     }
   };
-  const queueSave = () => {
+  const queueSave = (quiet = false) => {
     if (!sel || sel.status === "published") return;
     const savingId = sel.id;
     dirty = true;
     editRevision++;
+    // While a change elsewhere waits on you, auto-save rests and what you write is kept for this tab (client-keep).
+    if (owes()) { mineDef = formDef(); store(); return; }
+    if (!quiet && ["clean", "settled", "saved-new", "loaded"].includes(phase)) enter("");
     saveStatus.textContent = L("有更改，等待保存…");
     clearTimeout(saveTick);
     saveTick = setTimeout(() => {

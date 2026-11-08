@@ -2,6 +2,7 @@ import type { ActionReference } from "@molis-ai/molis-work-contracts/platform/ac
 import type { JudgmentRuleRecord } from "@molis-ai/molis-work-contracts/modules/functions";
 import { FEED_CAPTURE_SCENE_ID, FEED_OPEN_OPTION_ID, INBOX_ADMIT_OPTION_ID } from "@molis-ai/molis-work-contracts/modules/functions";
 import type { FeedPage } from "./factory.js";
+import { feedRuleKeep } from "./rule-keep.js";
 
 interface RuleDraft { mode?: string; fields?: Record<string, string>; function?: JudgmentRuleRecord; functionKey?: string; functionContent?: string; previewContent?: string }
 interface RuleInput { mode: string; instructions: string; contains: string; judgment: ActionReference | null; name: string; admission: string }
@@ -59,15 +60,26 @@ export function feedRules(page: FeedPage) {
     }
     return saved.function;
   };
+  const keep = feedRuleKeep(page, {
+    draft: state, save: remember,
+    get: async id => (await action<{ function: JudgmentRuleRecord }>("get", /* @version action.functions.authoring.get */ 1, { id })).function,
+    rebuild: async section => { await ensureDraft(section, read(section)); },
+  });
   for (const type of ["input", "change"] as const) page.listen(type, event => { const target = event.target instanceof Element ? event.target : null, section = target?.closest<HTMLElement>("[data-feed-out-rules]"); if (section && target?.closest("[data-feed-rule-composer]")) remember(section); });
   const click = async (target: Element): Promise<boolean> => {
+    if (await keep.click(target)) return true;
     const modeButton = target.closest<HTMLElement>("[data-feed-rule-mode]"); if (modeButton) { const section = modeButton.closest<HTMLElement>("[data-feed-out-rules]"); if (section) { mode(section, modeButton.dataset.feedRuleMode!); remember(section); const preview = q("[data-feed-rule-preview]", section); if (preview) preview.hidden = true; status(section, ""); if (modeButton.dataset.feedRuleMode === "existing") await catalog(section); } return true; }
     const manage = target.closest<HTMLButtonElement>("[data-feed-out-rule-toggle],[data-feed-out-rule-delete],[data-feed-out-rules-evaluate]");
     if (manage) { const check = page.guard(); manage.disabled = true; const release = page.pending(() => { if (manage.isConnected) manage.disabled = false; }); try { if (manage.dataset.feedOutRulesEvaluate) { const snapshot = await page.api<{ feed_items: Array<{ source_id: string; item_id: string }> }>("/snapshot"); const items = snapshot.feed_items.filter(item => item.source_id === manage.dataset.feedOutRulesEvaluate).slice(0, 20); if (!items.length) throw new Error(L("请先拉取来源内容")); await page.api("/out-rules/evaluate", "POST", { item_ids: items.map(item => item.item_id) }); } else await page.api("/out-rules/" + encodeURIComponent(manage.dataset.feedOutRuleToggle || manage.dataset.feedOutRuleDelete!), manage.dataset.feedOutRuleDelete ? "DELETE" : "PATCH", manage.dataset.feedOutRuleDelete ? undefined : { enabled: manage.dataset.enabled !== "true" }); host.invalidateView(); await page.refresh(); } catch (error) { try { check(); page.error(error); } catch { /* Old mount. */ } } finally { try { check(); release(); } catch { /* Old mount. */ } } return true; }
     const button = target.closest<HTMLButtonElement>("[data-feed-rule-preview-run],[data-feed-out-rule-create]"); if (!button) return false;
     const section = button.closest<HTMLElement>("[data-feed-out-rules]"), composer = section && q("[data-feed-rule-composer]", section); if (!section || !composer || composer.inert) return true;
+    if (keep.blocked(section)) return true;
+    keep.settle(section);
     const check = page.guard(), preview = button.hasAttribute("data-feed-rule-preview-run"); composer.inert = true; composer.setAttribute("aria-busy", "true"); const release = page.pending(() => { if (composer.isConnected) { composer.inert = false; composer.removeAttribute("aria-busy"); } });
-    try {
+    let answered = false;
+    // A write refused because the draft changed elsewhere is answered in place (rule-keep); when only its version moved, the press goes on once.
+    const run = async (again: boolean): Promise<void> => { try { await press(); } catch (error) { check(); const outcome = await keep.recover(section, error); check(); if (outcome === "retry" && again) return run(false); if (!outcome) throw error; answered = true; } };
+    const press = async () => {
       const rule = read(section), saved = state(section);
       if (preview) {
         const result = await page.api<Preview>("/out-rules/preview", "POST", { source_id: section.dataset.feedOutRules, contains: rule.contains });
@@ -89,8 +101,9 @@ export function feedRules(page: FeedPage) {
         if (rule.mode === "natural") { const content = JSON.stringify({ name: rule.name, instructions: rule.instructions }); if (!saved.function || saved.previewContent !== content) throw new Error(L("请先用当前描述预览，再保存并启用。")); if (saved.function.status !== "published") saved.function = (await action<{ function: JudgmentRuleRecord }>("publish", /* @version action.functions.authoring.publish */ 1, revisionOf(saved.function))).function; if (!saved.function.version) throw new Error(L("原判断能力不可用，请重新选择")); rule.judgment = { capability_id: "functions.published." + saved.function.function_key, version: saved.function.version, provider_id: "system.functions" }; remember(section); }
         await page.api("/out-rules", "POST", { name: rule.name || L("来源捕捉规则"), contains: rule.contains, source_id: section.dataset.feedOutRules, admission: rule.admission, judgment: rule.judgment }); check(); drafts.delete(key(section)); sessionStorage.removeItem(key(section)); composer.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input,textarea").forEach(field => field.value = ""); delete composer.dataset.hydrated; host.invalidateView(); await page.refresh(); host.showToast(L("规则已启用，将处理新消息和更新。"));
       }
-    } catch (error) { try { check(); status(section, error); } catch { /* Preserve the last committed draft, without stale writes. */ } }
-    finally { try { check(); release(); } catch { /* No old-finally DOM writes. */ } } return true;
+    };
+    try { await run(true); } catch (error) { try { check(); status(section, error); } catch { /* Preserve the last committed draft, without stale writes. */ } }
+    finally { try { check(); release(); if (answered) keep.focus(section); } catch { /* No old-finally DOM writes. */ } } return true;
   };
   return { click, hydrate };
 }

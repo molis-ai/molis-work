@@ -91,6 +91,7 @@ window.__read = () => ({
   instructions: document.querySelector("[data-functions-instructions]").value,
   note: document.querySelector("[data-functions-note]").textContent,
   noteHidden: document.querySelector("[data-functions-note]").hidden,
+  band: document.querySelector("[data-functions-band]").textContent,
   posts: window.__posts.map((post) => post.body),
   revision: records["fn-1"] && records["fn-1"].updated_at,
   dialog: Boolean(document.querySelector("[data-functions-create-dialog]").open)
@@ -229,23 +230,26 @@ test("failed function saves keep the typed fields and shortcut submit uses the f
   const conflicted = await read();
   assert.equal(conflicted.name, "我的新名称");
   assert.equal(conflicted.instructions, "旧说明");
-  assert.match(conflicted.note, /这条规则在别处改过/);
+  // The stale save is answered in place (spec §2.7): the alert says so and offers the latest version; nothing typed is lost.
+  assert.match(conflicted.band, /这条规则在别处改过/);
   assert.equal(conflicted.posts.at(-1).expected_updated_at, revision);
   await evaluate("window.__type('instructions', '我还留着的说明')");
   await sleep(700);
   const stillLocal = await read();
   assert.equal(stillLocal.name, "我的新名称");
   assert.equal(stillLocal.instructions, "我还留着的说明");
-  assert.equal(stillLocal.posts.at(-1).expected_updated_at, revision);
-  assert.equal(stillLocal.posts.at(-1).instructions, "我还留着的说明");
+  // While the change elsewhere waits on the user, auto-save rests: no second save onto the stale version.
+  assert.equal(stillLocal.posts.length, conflicted.posts.length);
 
   // Navigation must retain a conflicting draft until the user resolves it.
   await evaluate("window.__clickRow('fn-2')");
   await sleep(400);
   assert.equal((await read()).name, "我的新名称");
-  assert.match((await read()).note, /这条规则在别处改过/);
+  assert.match((await read()).band, /这条规则在别处改过/);
 
-  // Start the independent in-flight-save scenario with fresh fixture data.
+  // Start the independent in-flight-save scenario with fresh fixture data. The conflicting input above is kept for this tab
+  // (session storage) and would come back on reload, so the tab forgets it first.
+  await evaluate("sessionStorage.clear()");
   await command("Page.reload", {}, sessionId);
   await waitFor("window.__booted === true && window.__posts.length === 0 && document.querySelector('[data-function-id=\"fn-1\"]')");
   const beforeRace = (await read()).posts.length;

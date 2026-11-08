@@ -1,10 +1,11 @@
 import { FUNCTIONS_CLIENT_RENDER_PART } from "./client-render.js";
 import { FUNCTIONS_CLIENT_RECORDS_PART } from "./client-records.js";
 import { FUNCTIONS_CLIENT_EVENTS_PART } from "./client-events.js";
+import { FUNCTIONS_CLIENT_KEEP_PART } from "./client-keep.js";
 
 /**
  * Functions workbench: purpose, rules, then preview and activation. The factory body is one scope: this file holds the setup and the
- * readers, the three sibling files hold the rest as parts joined in place, in order.
+ * readers, the four sibling files hold the rest as parts joined in place, in order.
  */
 export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
   const { translate: L, api, root, page } = host;
@@ -58,6 +59,8 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     next.hidden = step === "use";
     next.textContent = step === "look" ? L("下一步：判断规则") : L("下一步：试跑与启用");
     bench.querySelector("[data-functions-columns]").scrollTop = 0;
+    // What waits on another step is marked there, and a kept row drawn while its step was hidden is measured now.
+    paintDots(); fitFolds();
     if (focus) bench.querySelector('[data-functions-col="' + step + '"] h2')?.focus();
   };
   bench.querySelectorAll("[data-functions-step]").forEach((node) => node.addEventListener("click", () => setStep(node.dataset.functionsStep, true)));
@@ -257,6 +260,8 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
 
   const req = (method, path, body) => molisWorkRequest(path, {method, body, fallback: L("Functions 请求失败")});
   const showNote = (text, isError) => {
+    // A refused write the editor already answered in place (client-keep) says nothing more here.
+    if (isError && text?.keepEdits) return;
     const aim = workspace.hidden ? bench.querySelector("[data-functions-list-note]") : note;
     if (!aim) return;
     aim.hidden = !text;
@@ -401,4 +406,4 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     row.append(label, advanced, remove);
     critEl.append(row);
   };
-${FUNCTIONS_CLIENT_RENDER_PART}${FUNCTIONS_CLIENT_RECORDS_PART}${FUNCTIONS_CLIENT_EVENTS_PART}`;
+${FUNCTIONS_CLIENT_RENDER_PART}${FUNCTIONS_CLIENT_RECORDS_PART}${FUNCTIONS_CLIENT_KEEP_PART}${FUNCTIONS_CLIENT_EVENTS_PART}`;

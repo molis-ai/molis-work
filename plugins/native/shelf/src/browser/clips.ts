@@ -1,5 +1,5 @@
 import { renderBar } from "./bar.js";
-import { messageOf } from "./dom.js";
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { flushEdit } from "./edit.js";
 import { batch, clipById, hasFile, itemById } from "./model.js";
 import { download } from "./preview.js";

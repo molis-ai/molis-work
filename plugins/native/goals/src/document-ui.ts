@@ -45,7 +45,7 @@ function createDocumentRenderer(primitives: GoalsDocumentUiPrimitives) {
   return { renderGoalDocument, renderTrashGoalDocument, renderEmptyGoalCollection };
 }
 export type GoalsDocumentRenderer = ReturnType<typeof createDocumentRenderer>;
-export const GOALS_DOCUMENT_UI_CONTRIBUTION_ID = /* @version contract.io.molis.work.native.goals.document "io.molis.work.native.goals.document.v{version}" */ "io.molis.work.native.goals.document.v1";
+export const GOALS_DOCUMENT_UI_CONTRIBUTION_ID = "io.molis.work.native.goals.document.v1";
 export type GoalsDocumentUiModel = { primitives: GoalsDocumentUiPrimitives } & (
   | { kind: "document"; args: Parameters<GoalsDocumentRenderer["renderGoalDocument"]> }
   | { kind: "trash"; args: Parameters<GoalsDocumentRenderer["renderTrashGoalDocument"]> }

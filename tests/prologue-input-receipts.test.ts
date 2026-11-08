@@ -63,7 +63,7 @@ test("AC-R3: what the Host relays is a note in the run, never the person's words
 });
 
 
-test("original acceptance and speaker survive carried prompt projection; old records stay unknown", () => {
+test("original acceptance and speaker survive carried prompt projection; a prompt the runtime gave no acceptance for stays unknown", () => {
   const state = emptyPrologueStreamState();
   applyRunEvent(state, { type: "prompt", role: "user", text: "Original text", steerId: "input-1", source: "peer", acceptedAtMs: 1234 }, null);
   applyRunEvent(state, { type: "steer-applied", steerId: "input-1" }, null);

@@ -1,5 +1,6 @@
 import { renderBar } from "./bar.js";
-import { bufferToBase64, messageOf } from "./dom.js";
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
+import { bufferToBase64 } from "./dom.js";
 import { expandShelfStage } from "./preview.js";
 import { showProblem } from "./panes.js";
 import { post } from "./request.js";

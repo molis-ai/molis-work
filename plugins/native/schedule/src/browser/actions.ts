@@ -1,4 +1,5 @@
-import { messageOf, showActionStatus } from "./dom.js";
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
+import { showActionStatus } from "./dom.js";
 import { openEdit } from "./form.js";
 import { openOperation } from "./operation.js";
 import type { SchedulePage } from "./page.js";

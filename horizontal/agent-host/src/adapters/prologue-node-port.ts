@@ -20,7 +20,7 @@ import { codingExecutionRules } from "./prologue-taskboard.js";
 import type { PrologueAdapterOptions, PrologueRuntimePort } from "./prologue.js";
 import { agentErrors } from "../errors.js";
 import { MAX_COMPOSED_INSTRUCTION_CHARS, readResource, sameRef, stageTextResource, type CommandEvent, type NodeHost, type PrologueNodeAdapterOptions } from "./prologue-node-kit.js";
-import type { SessionIndexStore } from "./prologue-session-index.js";
+import { SESSION_INDEX_SCHEMA, type SessionIndexStore } from "./prologue-session-index.js";
 import type { createPrologueMemoryAuthority } from "./prologue-memory-authority.js";
 
 /**
@@ -89,14 +89,14 @@ export function createNodeGitReviews(options: PrologueNodeAdapterOptions, host: 
     try {
       const decision = JSON.parse(new TextDecoder().decode(original));
       bytes = new TextEncoder().encode(JSON.stringify({ ...decision, ...patch }));
-      await host.storage.commit({ kind, id, expectedVersion: record.version, metadata: { schema: /* @version format.prologue.session-metadata */ 1 }, secureBody: bytes });
+      await host.storage.commit({ kind, id, expectedVersion: record.version, metadata: { schema: 1 }, secureBody: bytes });
     } finally { original.fill(0); bytes?.fill(0); }
   };
   return createPrologueGitReviews({ runtime, queue: options.reviewQueue,
     publish: value => stageTextResource(runtime, JSON.stringify(value), "git-index-review"), read: ref => readResource(runtime, ref),
     async saveDecision(id, value) {
       const bytes = new TextEncoder().encode(JSON.stringify(value));
-      try { await host.storage.commit({ kind, id, expectedVersion: 0, metadata: { schema: /* @version format.prologue.session-metadata */ 1 }, secureBody: bytes }); }
+      try { await host.storage.commit({ kind, id, expectedVersion: 0, metadata: { schema: 1 }, secureBody: bytes }); }
       finally { bytes.fill(0); }
     },
     async saveFailure(id, reason) {
@@ -202,7 +202,7 @@ function readCommandOutput(deps: PortDeps): NonNullable<PrologueRuntimePort["rea
     const { event, runId, root } = matches[0]!;
     const record = await readResource(runtime, event.receiptRef);
     const receipt = record.receipt;
-    if (record.kind !== WORKSPACE_COMMAND_RECEIPT_KIND || record.version !== /* @version format.prologue.session-metadata */ 1 || !sameRef(record.rootRef, root)
+    if (record.kind !== WORKSPACE_COMMAND_RECEIPT_KIND || record.version !== 1 || !sameRef(record.rootRef, root)
       || typeof record.executable !== "string" || !Array.isArray(record.argv) || !record.argv.every((arg: unknown) => typeof arg === "string")
       || !receipt || receipt.commandId !== event.commandId || !sameRef(receipt.effectRef, event.effectRef)
       || typeof receipt.stdout !== "string" || typeof receipt.stderr !== "string" || typeof receipt.truncated !== "boolean"
@@ -220,7 +220,7 @@ function sessionsPort(deps: PortDeps): PrologueRuntimePort["sessions"] {
   return {
     create: (input, execution) => deps.effects.start(execution, async () => {
       const session = await deps.runtime.sessions.create();
-      try { await deps.index.save({ schema: /* @version format.prologue.session-metadata */ 1, ref: session.ref, title: input.title, workspace: input.workspace ?? "required",
+      try { await deps.index.save({ schema: SESSION_INDEX_SCHEMA, ref: session.ref, title: input.title, workspace: input.workspace ?? "required",
         owner: { project_id: input.project_id, plugin_id: input.plugin_id, install_id: input.install_id, actor_id: input.actor_id }, attempts: [] }); }
       catch (error) {
         try {

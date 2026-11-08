@@ -29,8 +29,7 @@ export interface BuilderAgentRequest {
 
 export interface BuilderAgentRecord {
   id: string;
-  /** Older tool-free model-call records remain readable; new calls use the shared inference port. */
-  role: BuilderAgentRequest['role'] | 'model';
+  role: BuilderAgentRequest['role'];
   promptVersion: string;
   contractRevision: string;
   instruction: string;

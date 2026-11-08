@@ -8,7 +8,7 @@ export interface GoalsPlanningRenderer {
     renderMethod: ReturnType<typeof createPlanningMethodRenderer>;
     renderProject: ReturnType<typeof createPlanningProjectRenderer>;
 }
-export const GOALS_PLANNING_UI_CONTRIBUTION_ID = /* @version contract.io.molis.work.native.goals.planning "io.molis.work.native.goals.planning.v{version}" */ "io.molis.work.native.goals.planning.v1";
+export const GOALS_PLANNING_UI_CONTRIBUTION_ID = "io.molis.work.native.goals.planning.v1";
 export type GoalsPlanningUiModel = {
     primitives: GoalsPlanningPrimitives;
 } & ({

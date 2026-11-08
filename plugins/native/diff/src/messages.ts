@@ -19,11 +19,9 @@ export const DIFF_MESSAGES = {
   // own keys here: the page shows them through the translator.
   // Sentences with a path or a count in them are written in Chinese by the producer (an Agent reads them too), so each is a
   // template here (`DIFF_TEMPLATES`): the SDK's `diffViewText` finds which template a sentence is, and the page says it with the
-  // values in its own words. The three about a hunk are the sentences the SDK's `parseUnifiedDiff` refuses with.
+  // values in its own words.
   "diff.msg.no-change-in": { zh: "这一轮没有改动 {path}", en: "This turn didn't change {path}" },
   "diff.msg.renamed": { zh: "重命名：{from} → {to}", en: "Renamed: {from} → {to}" },
-  "diff.msg.hunk-count": { zh: "hunk 行数与 @@ 头不一致：声明 {declaredBefore}/{declaredAfter}，实际 {sawBefore}/{sawAfter}", en: "A hunk's line counts don't match its @@ header: declared {declaredBefore}/{declaredAfter}, found {sawBefore}/{sawAfter}" },
-  "diff.msg.hunk-header": { zh: "读不懂的 hunk 头：{header}", en: "Can't read this hunk header: {header}" },
   "diff.stage.refresh": { zh: "刷新", en: "Refresh" },
   "diff.stage.open-files": { zh: "打开 Files", en: "Open Files" },
   "diff.stage.reading": { zh: "正在读取固定内容…", en: "Reading the pinned versions…" },
@@ -33,4 +31,4 @@ export const DIFF_MESSAGES = {
 } as const;
 
 /** The keys above that are sentences with values in them. */
-export const DIFF_TEMPLATES: readonly string[] = ["diff.msg.no-change-in", "diff.msg.renamed", "diff.msg.hunk-count", "diff.msg.hunk-header"];
+export const DIFF_TEMPLATES: readonly string[] = ["diff.msg.no-change-in", "diff.msg.renamed"];

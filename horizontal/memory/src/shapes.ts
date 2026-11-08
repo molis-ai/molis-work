@@ -69,7 +69,10 @@ export function readPackage(pack: unknown): MemoryExportPackage["entries"] {
   });
 }
 
-/** Business retry identity of the normalized package; no body copy is persisted. Array order remains meaningful. */
+/**
+ * Business retry identity of the normalized package; no body copy is persisted. Array order remains meaningful.
+ * Not `canonicalJsonText`: this digest is stored, and `applies` and `classification.extra` take any key, so integer-shaped keys would hash differently.
+ */
 export function packageFingerprint(entries: MemoryExportPackage["entries"]): string {
   const encoded = JSON.stringify(entries, (_key, value) => value && typeof value === "object" && !Array.isArray(value)
     ? Object.fromEntries(Object.keys(value).sort().map(key => [key, value[key]])) : value);

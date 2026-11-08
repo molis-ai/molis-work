@@ -10,7 +10,7 @@ import type {
 
 import type { SecretStore } from "./file-secret-store.js";
 
-const AEAD_PREFIX = "molis-work-feed-aead-v1";
+const AEAD_PREFIX = /* @version type.molis-work-feed-aead "molis-work-feed-aead-v{version}" */ "molis-work-feed-aead-v1";
 const SQLITE_NOW_MS = "CAST(unixepoch('now', 'subsec') * 1000 AS INTEGER)";
 
 type SqliteChanges = { changes?: number | bigint };

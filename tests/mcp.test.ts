@@ -112,7 +112,7 @@ it("returns structured reader-too-old diagnostics without exposing the catalog p
       assert.match(errorText, /"code":"storage\.store_too_new"/);
       assert.match(errorText, new RegExp(`"actual_schema_version":${futureSchema}`));
       assert.match(errorText, new RegExp(`"supported_schema_max":${CATALOG_SCHEMA_VERSION}`));
-      assert.match(errorText, /"recovery":"new_or_fork_session_then_context_resolve"/);
+      assert.match(errorText, /"recovery":"upgrade_then_context_resolve"/);
       assert.doesNotMatch(errorText, new RegExp(databasePath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
     } finally {
       fs.rmSync(directory, { recursive: true, force: true });

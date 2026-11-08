@@ -1,4 +1,6 @@
-import { esc, messageOf, required } from "./dom.js";
+import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
+import { required } from "./dom.js";
 import { installPreview } from "./preview.js";
 import type { IssueImage, IssuesPage, Translate } from "./types.js";
 

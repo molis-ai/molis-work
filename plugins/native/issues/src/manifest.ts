@@ -6,7 +6,7 @@ import { issuesSync } from './replication.js';
 
 import { ISSUES_MESSAGES } from "./messages.js";
 export const ISSUES_PLUGIN_ID = "io.molis.work.issues";
-export const ISSUES_UI_CONTRIBUTION_ID = /* @version contract.io.molis.work.native.issues.ui "io.molis.work.native.issues.ui.v{version}" */ "io.molis.work.native.issues.ui.v1";
+export const ISSUES_UI_CONTRIBUTION_ID = "io.molis.work.native.issues.ui.v1";
 export const issuesManifest: PluginManifest = {
   schema_version: /* @version manifest.schema */ 1, host_api_version: /* @version host.api */ 1, plugin_id: ISSUES_PLUGIN_ID, version: /* @version product.release */ "0.1.0", name: "Issue", summary: "记录、查看和整理自己的问题。", kind: "app",
   publisher: { publisher_id: "molis", signature: "official-issues-binding" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],

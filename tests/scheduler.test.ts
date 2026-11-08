@@ -10,10 +10,18 @@ import { join } from "node:path";
 import {
   MIN_SCHEDULE_INTERVAL_MS,
 } from "@molis-ai/molis-work-contracts/services/scheduler";
+import { createScheduleService, SCHEDULER_SCHEMA_SQL } from "@molis-ai/molis-work-service-scheduler";
 import { wakeupInstallation } from "./fixtures/scheduler-owner.js";
 
+/** A library with the Scheduler's tables, as the project baseline makes them; the service itself never does. */
+function schedulerLibrary(path = ":memory:") {
+  const db = openTestSqlite(path);
+  db.exec(SCHEDULER_SCHEMA_SQL);
+  return db;
+}
+
 function service(clock: { now: Date }, calls: Array<Record<string, string>> = []) {
-  const db = openTestSqlite(":memory:");
+  const db = schedulerLibrary();
   const installation = wakeupInstallation("io.molis.work.test.owner");
   installation.action("test.wakeup", async (input) => {
     calls.push({ ...input });
@@ -22,10 +30,22 @@ function service(clock: { now: Date }, calls: Array<Record<string, string>> = []
   return { db, installation, schedule, calls };
 }
 
+test("a library missing the Scheduler's tables is refused, not repaired: building the service makes none, and using it fails", async () => {
+  const db = openTestSqlite(":memory:");
+  const tables = () => db.prepare("SELECT name FROM sqlite_master WHERE name LIKE 'schedule\\_%' ESCAPE '\\'").all();
+  const schedule = createScheduleService(db);
+  try {
+    assert.deepEqual(tables(), [], "building the service leaves the library as it found it");
+    assert.throws(() => schedule.list(), /no such table: schedule_jobs/);
+    await assert.rejects(schedule.tick(), /no such table: schedule_jobs/);
+    assert.deepEqual(tables(), [], "using it does not make them either");
+  } finally { await schedule.close(); db.close(); }
+});
+
 test("long wakeups renew through a second database connection without another owner tick", async t => {
   t.mock.timers.enable({ apis: ["setInterval"] });
   const home = mkdtempSync(join(tmpdir(), "schedule-lease-"));
-  const db = openTestSqlite(join(home, "jobs.sqlite")), observer = openTestSqlite(join(home, "jobs.sqlite"));
+  const db = schedulerLibrary(join(home, "jobs.sqlite")), observer = openTestSqlite(join(home, "jobs.sqlite"));
   const released = Promise.withResolvers<void>();
   const clock = { now: new Date("2026-09-22T00:00:00Z") };
   let calls = 0;
@@ -50,7 +70,7 @@ test("long wakeups renew through a second database connection without another ow
 for (const afterExpiry of ["commit", "renew", "return"] as const) test(`expired scheduler lease cannot ${afterExpiry} before takeover`, async t => {
   t.mock.timers.enable({ apis: ["setInterval"] });
   const home = mkdtempSync(join(tmpdir(), "schedule-expired-"));
-  const db = openTestSqlite(join(home, "jobs.sqlite")), observer = openTestSqlite(join(home, "jobs.sqlite"));
+  const db = schedulerLibrary(join(home, "jobs.sqlite")), observer = openTestSqlite(join(home, "jobs.sqlite"));
   const released = Promise.withResolvers<void>();
   const clock = { now: new Date("2026-09-22T00:00:00Z") };
   const installation = wakeupInstallation("io.molis.work.test.owner");
@@ -154,7 +174,7 @@ test("interval 漏打只叫醒一次，并跳到现在之后的下一拍", async
 
 test("重叠 tick 不会把还在执行的 job 再叫醒一次", async () => {
   const clock = { now: new Date("2026-09-20T03:00:00.000Z") };
-  const db = openTestSqlite(":memory:");
+  const db = schedulerLibrary();
   const installation = wakeupInstallation("io.molis.work.test.owner");
   let release!: () => void;
   const gate = new Promise<void>((resolve) => { release = resolve; });
@@ -290,7 +310,7 @@ function leaseOf(db: SqliteDatabase, jobId: string): LeaseRow {
 test("长执行在租约到期前持续续租，同一服务不重叠且下一拍仍按周期", async t => {
   t.mock.timers.enable({ apis: ["setInterval"] });
   const clock = { now: new Date("2026-09-22T00:00:00.000Z") };
-  const db = openTestSqlite(":memory:");
+  const db = schedulerLibrary();
   let release!: () => void;
   const gate = new Promise<void>((resolve) => { release = resolve; });
   let started = 0;
@@ -333,7 +353,7 @@ test("长执行在租约到期前持续续租，同一服务不重叠且下一�
 
 test("执行者消失后过期租约可以接管，旧结束不能清掉新租约", async () => {
   const clock = { now: new Date("2026-09-22T00:00:00.000Z") };
-  const db = openTestSqlite(":memory:");
+  const db = schedulerLibrary();
   let releaseFirst!: () => void;
   let releaseNext!: () => void;
   const firstGate = new Promise<void>((resolve) => { releaseFirst = resolve; });
@@ -383,7 +403,7 @@ test("执行者消失后过期租约可以接管，旧结束不能清掉新租�
 
 test("取消或停止后，迟到的执行结果不能把任务复活", async () => {
   const clock = { now: new Date("2026-09-22T00:00:00.000Z") };
-  const db = openTestSqlite(":memory:");
+  const db = schedulerLibrary();
   let release!: () => void;
   const gate = new Promise<void>((resolve) => { release = resolve; });
   let started = 0;
@@ -438,7 +458,7 @@ test("取消或停止后，迟到的执行结果不能把任务复活", async ()
 
 test("超长执行仍不重叠", async () => {
   const clock = { now: new Date("2026-09-22T00:00:00.000Z") };
-  const db = openTestSqlite(":memory:");
+  const db = schedulerLibrary();
   let release!: () => void;
   const gate = new Promise<void>((resolve) => { release = resolve; });
   let started = 0;
@@ -469,7 +489,7 @@ test("超长执行仍不重叠", async () => {
 // The Scheduler keeps the due point until the action answers, so it redelivers; the action's own ledger keeps the effect single.
 test("W2-18-SCHEDULE-02: close revokes waits before SQLite release; a dispatched one-shot is redelivered and its action's ledger keeps the effect single", async () => {
   const home = mkdtempSync(join(tmpdir(), "schedule-close-")), file = join(home, "project.sqlite");
-  const db = openTestSqlite(file), installation = wakeupInstallation("io.molis.work.test.owner"), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  const db = schedulerLibrary(file), installation = wakeupInstallation("io.molis.work.test.owner"), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
   db.exec("CREATE TABLE owner_results (job_id TEXT PRIMARY KEY, value TEXT NOT NULL)");
   let lateRejected = false;
   installation.action("test.wakeup", async (input, control) => {

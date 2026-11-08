@@ -17,7 +17,8 @@ export function filesRequests(host: FilesFactoryHost, embedded: boolean): Pick<F
     if (embedded && url.pathname !== "/view-revision") {
       const operation = url.pathname.slice(1);
       const input = method !== "GET" ? body ?? {}
-        : operation === "directory" ? { workspace_id: url.searchParams.get("workspace_id"), path: JSON.parse(url.searchParams.get("path") ?? "[]") } : {};
+        : operation === "directory" ? { workspace_id: url.searchParams.get("workspace_id"), path: JSON.parse(url.searchParams.get("path") ?? "[]") }
+        : url.searchParams.get("workspace_id") ? { workspace_id: url.searchParams.get("workspace_id") } : {};
       return action(host, "files." + operation, input, signal);
     }
     return molisWorkRequest(host.pluginRoute(path), { method, body: method === "GET" ? undefined : body ?? {}, signal, fallback: host.translate("files.error.workspace-unreadable") });

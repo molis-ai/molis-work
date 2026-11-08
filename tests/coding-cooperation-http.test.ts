@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { createServer } from "node:http";
 import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, handleProjectPluginHttp, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import { projectDirectoryActions } from "@molis-ai/molis-work-contracts/modules/projects";
 import { fakeKnowledgeReader, pluginActions, withFakeAgentHost } from "./fixtures/plugin-actions.js";
 import { artifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { createRequire } from "node:module";
@@ -35,7 +35,7 @@ test("委派与交付走会话间的信：只由对应一方推进，发送即�
     activity: [], usage: { tokens: { input: 10, output: 5 } }, awaiting_input: [], command_outputs: [] });
   const agentHost = { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
     const input = args as any[];
-    if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "w", canonical_path: root, realpath_verified: true }] as Output;
+    if (definition.capability_id === projectDirectoryActions.get.capability_id) return [{ workspace_id: "w", canonical_path: root }] as Output;
     if (definition.capability_id === agent.availableRoles.capability_id) return [{ role_id: "builder", available: true }] as Output;
     if (definition.capability_id === agent.listActions.capability_id) return [] as Output;
     if (definition.capability_id === agent.createSession.capability_id) { made.push(`sdk-${made.length}`); return { runtime_id: "prologue", session_id: made.at(-1) } as Output; }

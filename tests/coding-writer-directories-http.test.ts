@@ -8,6 +8,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
+import { directoriesWebOf, setProjectOutputFolder } from "./fixtures/project-directories-http.js";
 const exec = promisify(execFile);
 
 test("Coding formal worktree preparation requires the original review, grants only the created directory and retains results across restart", async () => {
@@ -28,7 +29,8 @@ test("Coding formal worktree preparation requires the original review, grants on
     await writeFile(path.join(root,"sample.txt"),"original\n");await git("add",".");await git("commit","-m","base");
     await start();const projects:string[]=[];
     for(const display_name of ["Writers A","Writers B"]){const created=await request("/api/settings/projects","POST",{display_name,user_confirmed:true});assert.equal(created.status,201);projects.push(created.body.project.project_id);await request(`/api/settings/projects/${projects.at(-1)}/plugins`,"POST",{plugin_id:"coding"});}
-    assert.equal((await request(`/projects/${projects[0]}/api/workspaces`,"POST",{workspace_path:root,user_confirmed:true})).status,201);
+    // A worktree is made from the repository by writing in it, so the repository is the project's output (SSC-15).
+    await setProjectOutputFolder(directoriesWebOf(request),projects[0],root);
     const state=()=>request(`/projects/${projects[0]}/api/plugins/io.molis.work.coding/state`);
     const originalState=await state();const workspace=originalState.body.workspaces.find((w:any)=>w.canonical_path===root);assert.ok(workspace,JSON.stringify(originalState));
     const endpoint=(project=projects[0])=>`/projects/${project}/api/plugins/io.molis.work.coding/workspaces/${workspace.workspace_id}/writers`;
@@ -52,10 +54,12 @@ test("Coding formal worktree preparation requires the original review, grants on
     assert.equal((await request(endpoint())).body.directories.length,0);
     const ready=await prepare();assert.equal(ready.status,200);
     const approved=await decide(ready.body.review_id);assert.equal(approved.status,200,JSON.stringify(approved));
-    const dirs=(await request(endpoint())).body.directories;assert.equal(dirs.length,1);assert.ok(dirs[0].workspace_id);
+    const dirs=(await request(endpoint())).body.directories;assert.equal(dirs.length,1);assert.ok(dirs[0].worktree_id);assert.equal(Object.hasOwn(dirs[0],"workspace_id"),false);
     assert.equal(await readFile(path.join(dirs[0].canonical_path,"sample.txt"),"utf8"),"new commit\n");
     assert.equal((await git("status","--porcelain")).stdout,"");
-    assert.ok((await state()).body.workspaces.some((w:any)=>w.workspace_id===dirs[0].workspace_id));
+    // A writer's worktree is named by its own id and is never linked as a folder of the project: the project still works in its one output.
+    const after:Array<{workspace_id:string;canonical_path:string}>=(await state()).body.workspaces;
+    assert.deepEqual(after.map(w=>w.workspace_id),[workspace.workspace_id]);assert.ok(!after.some(w=>w.canonical_path===dirs[0].canonical_path));
     rows=(await request(reviews("?workspace_id="+workspace.workspace_id))).body.reviews;
     assert.equal(rows.find((row:any)=>row.request.review_id===ready.body.review_id).receipt.effect_settled,true);
     const pending=await prepare();assert.equal(pending.status,200);

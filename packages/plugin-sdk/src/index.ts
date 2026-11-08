@@ -12,6 +12,9 @@ import { parsePluginManifest } from "./manifest.js";
 export { sandboxPluginManifest, sandboxIntegrationManifest, sandboxUiContribution, sandboxDerivedPermissions, sandboxRequestedPermissions, sandboxOperationPermissions, SANDBOX_IMAGE_PERMISSIONS, effectsFromContract, type SandboxManifestInput, type SandboxIntegrationManifestInput } from "./sandbox-manifest.js";
 export { sandboxOperationActions, sandboxActionId, sandboxPackageBuildId, sandboxOperationEffects, sandboxBackgroundProblems } from "./sandbox-actions.js";
 export { parsePluginManifest, comparePluginVersions } from "./manifest.js";
+export { inspectContentPlugin } from "./content-plugin.js";
+export { parseContentPackage, type ContentPackage, type ContentPackageSkill } from "./content-package.js";
+export { skillDeclarationFromFrontmatter, type SkillFrontmatterOptions } from "./skill-frontmatter.js";
 export { parsePluginSyncDeclaration, expandPluginSyncSelection } from "./plugin-sync.js";
 export { createSyncJsonContent, type SyncJsonContentOptions } from './sync-content.js';
 export { createSyncDocument, type SyncDocument, type SyncDocumentOwner, type SyncDocumentStorage } from './sync-document.js';
@@ -65,6 +68,9 @@ export type { FileEntry, FileContent, FileSourceKind } from "@molis-ai/molis-wor
 export { defineWorkExecutorAction, defineWorkExecutorActions, WORK_EXECUTOR_ROLES } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { WorkExecutorRole, WorkExecutorActionOptions, WorkExecutorCalls, WorkExecutorState, WorkExecutorSession, WorkExecutorRunControl } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SearchEntry, SearchEntriesInput, SearchEntriesPage, SearchOpenTarget, SearchSourceKind } from "@molis-ai/molis-work-contracts/platform/actions";
+/** Intelligent surfaces: the owner's values for the fields its presentation declaration shows, and the plugin's overview (`/presentation` has the checks). */
+export { definePresentationValuesAction, bindPresentationValuesHandler, isPresentationValuesAction, definePresentationOverviewAction, PRESENTATION_VALUES_AUDIENCES } from "@molis-ai/molis-work-contracts/platform/presentation";
+export type { PresentationValuesInput, PresentationValues, PresentationValueItem, PresentationOverview } from "@molis-ai/molis-work-contracts/platform/presentation";
 export type { HomeEventWindow, HomeEvent, HomeEventCollection, HomeOpenTarget } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { HomeBackgroundTask, HomeBackgroundTaskCollection, HomeBackgroundTaskCommand, HomeBackgroundTaskPhrase } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { ActionSubject, ActionSubjectContext } from "@molis-ai/molis-work-contracts/platform/actions";

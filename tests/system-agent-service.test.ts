@@ -47,7 +47,9 @@ test("MCP composes a lazy Host-owned review service before Web; later Web approv
   const project = await catalog({ homeDirectory: home }, async c => {
     const project = await c.createProject({ display_name: "Headless Git", actor_id: "web-user" });
     c.addProjectPlugin({ project_id: project.project_id, plugin_id: "coding", actor_id: "web-user" });
-    c.addWorkspaceProject({ project_id: project.project_id, canonical_path: directory, actor_id: "web-user", user_confirmed: true });
+    // The repository is the project's output: Git reads the output when no folder is named (batch 05).
+    c.changeDirectories({ project_id: project.project_id, actor_id: "web-user", change: { kind: "set_output", target: { workspace_path: directory } },
+      expected_revision: c.projectDirectories(project.project_id).revision });
     return project;
   });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null,

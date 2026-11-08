@@ -51,19 +51,21 @@ test("Immersive directories resize and retain compact, operable Goal and Feed li
   await waitFor("document.querySelector('[data-plugin-strip] [data-plugin-id=goals]')?.getAttribute('aria-current') === 'page' && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty') && document.querySelector('[data-goal-stage-chrome] [data-open-create]') && document.querySelector('[data-goal-stage-list] [data-tree-root]')");
   const addLayout = await evaluate<{ ok: boolean; dump: string }>(`(()=>{
     const tabs=[...document.querySelectorAll('[data-titlebar-tabs] .tab-item')].filter((tab)=>tab.getClientRects().length);
-    const last=tabs.at(-1), add=document.querySelector('[data-titlebar-tabs] .tab-add-button'), split=document.querySelector('.immersive-titlebar > .titlebar-layout [data-layout-open]'), titlebar=document.querySelector('.immersive-titlebar'), home=document.querySelector('[data-home-plugin-open]')?.parentElement, strip=titlebar?.querySelector('[data-side-tabs]');
-    if(!last||!add||!split||!titlebar||!home) return {ok:false, dump:'missing'};
-    const l=last.getBoundingClientRect(), a=add.getBoundingClientRect(), s=split.getBoundingClientRect(), t=titlebar.getBoundingClientRect(), h=home.getBoundingClientRect();
+    const last=tabs.at(-1), add=document.querySelector('[data-titlebar-tabs] .tab-add-button'), split=document.querySelector('.immersive-titlebar > .titlebar-layout [data-layout-open]'), titlebar=document.querySelector('.immersive-titlebar'), strip=titlebar?.querySelector('[data-side-tabs]');
+    if(!last||!add||!split||!titlebar) return {ok:false, dump:'missing'};
+    const l=last.getBoundingClientRect(), a=add.getBoundingClientRect(), s=split.getBoundingClientRect(), t=titlebar.getBoundingClientRect();
     const g=strip?.checkVisibility() ? strip.getBoundingClientRect() : null;
     return {
       // 07-S2: the layout button left the strip for the titlebar's right end; ＋ stays with the tabs. 07-S1: the right side's glyph
-      // strip follows the declared Home tools. So: tabs, ＋ … Home tools, the glyph strip, the layout button at the right end.
+      // strip sits before it. 07-1 S4b: the titlebar has no Home tools any more (they are the person's own, in the switcher and the
+      // bar's right tray), so the glyph strip follows ＋ and nothing sits between them. So: tabs, ＋ … the glyph strip, the layout
+      // button at the right end.
       ok: Math.abs((a.top+a.bottom)/2-(s.top+s.bottom)/2)<4 && a.left>=l.right+24 && Math.abs(t.right-s.right)<20
-        && (g ? g.left>=h.right && g.left-h.right<=24 && s.left>=g.right-1 : s.left>=h.right),
-      dump: JSON.stringify({lastRight:Math.round(l.right), addLeft:Math.round(a.left), addRight:Math.round(a.right), splitLeft:Math.round(s.left), splitRight:Math.round(s.right), homeLeft:Math.round(h.left), homeRight:Math.round(h.right), titlebarRight:Math.round(t.right), stripLeft:g&&Math.round(g.left), stripRight:g&&Math.round(g.right), addCy:Math.round((a.top+a.bottom)/2), splitCy:Math.round((s.top+s.bottom)/2)})
+        && !titlebar.querySelector('[data-home-plugin-open]') && (g ? g.left>=a.right && s.left>=g.right-1 : s.left>=a.right),
+      dump: JSON.stringify({lastRight:Math.round(l.right), addLeft:Math.round(a.left), addRight:Math.round(a.right), splitLeft:Math.round(s.left), splitRight:Math.round(s.right), titlebarRight:Math.round(t.right), stripLeft:g&&Math.round(g.left), stripRight:g&&Math.round(g.right), addCy:Math.round((a.top+a.bottom)/2), splitCy:Math.round((s.top+s.bottom)/2)})
     };
   })()`);
-  assert.ok(addLayout.ok, "ISSUE-30, PFG-22: Add stays after the tabs; the declared Home tools, then the right side's glyph strip (when shown), then the layout button at the titlebar's right end, without overlap " + addLayout.dump);
+  assert.ok(addLayout.ok, "ISSUE-30, PFG-22: Add stays after the tabs; no Home tools in the titlebar; the right side's glyph strip (when shown), then the layout button at the titlebar's right end, without overlap " + addLayout.dump);
   assert.ok(await evaluate("(()=>{const create=document.querySelector('[data-goal-stage-chrome] [data-open-create]'),filter=document.querySelector('[data-goal-stage-chrome] [data-tree-filter-trigger]'),board=document.querySelector('[data-goal-stage-chrome] [data-board-switch]'),shell=document.querySelector('[data-goal-canvas-shell]');if(!create||!filter||!board||!shell)return false;const c=create.getBoundingClientRect(),f=filter.getBoundingClientRect(),b=board.getBoundingClientRect(),s=shell.getBoundingClientRect();return c.left-s.left<40 && f.left-s.left<200 && b.left>=f.right && b.left-f.right<16 && Math.abs(b.top-f.top)<8 && s.right-b.right>80 && Math.abs(c.top-s.top)<28 && Math.abs(f.top-s.top)<28;})()"), "New Goal, filter, and icon view switch sit together in the stage top-left");
   assert.ok(await evaluate("(()=>{const search=document.querySelector('[data-workspace-chrome] [data-global-search-open]'),settings=document.querySelector('.titlebar-chrome .navigator-project-settings'),toggle=document.querySelector('.titlebar-chrome [data-directory-toggle]');return search.closest('.navigator-project-primary') && settings?.closest('.navigator-project-menu-popover') && getComputedStyle(toggle).display==='none';})()"), "Project settings live in the project menu; desktop hides directory collapse even on plugins without a directory");
   const create = await evaluate<{ bg: string; color: string; radius: string; icon: string; border: string }>("(()=>{const button=document.querySelector('[data-open-create]'),icon=button.querySelector('svg');const s=getComputedStyle(button);return {bg:s.backgroundColor,color:s.color,radius:s.borderRadius,icon:getComputedStyle(icon).color,border:s.borderTopColor};})()");
@@ -310,12 +312,13 @@ test("底栏：Assistant 常驻居中，回答在上方先写问题；插件从�
     const bar=document.querySelector('[data-dock]').getBoundingClientRect();
     const composer=document.querySelector('[data-assistant-composer]').getBoundingClientRect();
     const start=document.querySelector('.bar-start').getBoundingClientRect();
-    const side=document.querySelector('.bar-side').getBoundingClientRect();
+    // 07-1 S4b: the right of the bar is the person's own tray (shown once one of theirs is kept), then the project.
+    const own=document.querySelector('.bar-end > .bar-own'), side=own.checkVisibility() ? own.getBoundingClientRect() : null;
     const project=document.querySelector('.bar-end .navigator-project-selector').getBoundingClientRect();
     return Math.abs((composer.left+composer.right)/2-(bar.left+bar.right)/2)<2
-      && start.right<=composer.left && composer.right<=side.left && side.right<=project.left
+      && start.right<=composer.left && (side ? composer.right<=side.left && side.right<=project.left : composer.right<=project.left)
       && project.right<=innerWidth && project.bottom<=innerHeight && project.width>=39;
-  })()`), "the bar reads Dock · Assistant · side panel · project, left to right, none covering another");
+  })()`), "the bar reads switcher and Dock · Assistant · the person's own · project, left to right, none covering another");
   // At rest the bar is the input (K3, UIV-12): its receiver row says a new work goes to the Assistant, with nothing to reset
   // and no chooser nobody changed; “+” only adds (files, methods, capabilities) — who carries a new work and where it lives
   // are chosen in its tab.
@@ -338,10 +341,12 @@ test("底栏：Assistant 常驻居中，回答在上方先写问题；插件从�
   await waitFor("document.querySelector('[data-assistant-composer] .mw-composer__input').getBoundingClientRect().width >= 120");
   assert.ok(await evaluate("document.querySelector('[data-assistant-composer]').scrollWidth <= document.querySelector('[data-assistant-composer]').clientWidth + 1"), "nothing runs out of the composer");
   // A narrower window, where the bar's middle is well under 600px, keeps the same room. (With one button at the bar's end
-  // instead of three the middle is wider, so the window that puts it under 560px is narrower than the 900px it was.)
+  // instead of three the middle is wider, so the window that puts it under 560px is narrower than the 900px it was; and with
+  // nothing of the person's own on the right, that column is only as wide as the project button, so it is 780px, not 820px —
+  // 07-1 S4b.)
   const roomy = (floor: number) => `(()=>{const f=document.querySelector('[data-assistant-composer]'),end=document.querySelector('.bar-end').getBoundingClientRect();
     return f.querySelector('[data-assistant-composer] .mw-composer__input').getBoundingClientRect().width >= ${floor} && f.scrollWidth <= f.clientWidth + 1 && f.getBoundingClientRect().right <= end.left;})()`;
-  await command("Emulation.setDeviceMetricsOverride", { width: 820, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await command("Emulation.setDeviceMetricsOverride", { width: 780, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await waitFor(`document.querySelector('.bar-center').getBoundingClientRect().width < 560 && ${roomy(120)}`);
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await evaluate(`(()=>{const input=document.querySelector('[data-assistant-composer] .mw-composer__input');input.value='hello';input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
@@ -371,11 +376,13 @@ test("底栏：Assistant 常驻居中，回答在上方先写问题；插件从�
   assert.equal(await evaluate("document.querySelector('[data-assistant-panel]').hidden"), false, "working elsewhere leaves the answer open");
   await click("[data-assistant-panel-close]");
   await waitFor("document.querySelector('[data-assistant-panel]').hidden");
-  // Shelf and 灵光 are tabs of the side panel now (side-shelf §3.1): the right of the bar holds only its one button.
-  assert.deepEqual(await evaluate("[...document.querySelectorAll('.bar-side button')].map(button => button.matches('[data-side-toggle]'))"), [true]);
-  await click("[data-side-toggle]");
-  await waitFor("document.body.dataset.sideOpen === 'true' && document.querySelector('[data-side-toggle]').getAttribute('aria-expanded') === 'true'");
-  await click("[data-side-toggle]");
+  // Shelf and 灵光 are tabs of the side panel (side-shelf §3.1). Since 07-1 S4b the right of the bar is the person's own tray, with
+  // no side button: the side opens from its current glyph in the titlebar and closes from the layout menu (收起右侧).
+  assert.equal(await evaluate("document.querySelector('[data-side-toggle]')"), null);
+  assert.equal(await evaluate("document.querySelector('.bar-end > .bar-own')?.getAttribute('aria-label')"), "你自己的");
+  await click("[data-side-tabs] [data-side-tab][aria-selected=true]");
+  await waitFor("document.body.dataset.sideOpen === 'true' && document.querySelector('[data-side-tabs] [data-side-tab][aria-selected=true]').parentElement.getAttribute('aria-current') === 'page'");
+  await click("[data-layout-open]"); await click("[data-layout-action=side]");
   await waitFor("document.body.dataset.sideOpen === 'false'");
   // Choosing many plugins for the Dock (at the foot of the switcher's list) folds what does not fit instead of running
   // under the Assistant; ticking them keeps the list open.

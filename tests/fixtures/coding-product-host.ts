@@ -51,6 +51,7 @@ export async function codingProductHost(t: TestContext, respond: (request: Codin
   const host = new MolisWorkLocalHost({ homeDirectory: home,
     workspacesFor: projectId => withCatalog({ homeDirectory: home }, catalog => catalog.listWorkspaceDirectory(projectId)),
     workspaceFor: projectId => withCatalog({ homeDirectory: home }, catalog => workspaceRefFor(catalog, projectId)),
+    directoriesFor: projectId => withCatalog({ homeDirectory: home }, catalog => catalog.projectDirectories(projectId)),
   }), controlToken = randomUUID();
   const withCatalog = host.configurePersonalPlanning(home, withMolisWorkProjectCatalog);
   const server = createSingleHomeTestWebServer({ homeDirectory: home, localHost: host, controlToken });
@@ -63,12 +64,16 @@ export async function codingProductHost(t: TestContext, respond: (request: Codin
     }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
     return { status: response.status, body: await response.json() as Output };
   };
-  const added = await call(project.project_id, "/api/workspaces", { workspace_path: directory, user_confirmed: true });
-  assert.equal(added.status, 201, JSON.stringify(added.body));
-  const workspaces = await call<{ workspaces: Array<{ workspace_id: string }> }>(project.project_id, "/api/project-settings/workspaces");
-  const workspaceId = workspaces.body.workspaces[0]!.workspace_id;
-  const selected = await call(project.project_id, "/api/project-settings/workspaces", { workspace_id: workspaceId });
-  assert.equal(selected.status, 200, JSON.stringify(selected.body));
+  // The folder is the project's output, set in the project's settings as the person does: Coding writes and runs only there (SSC-15, SSC-17).
+  type Directories = { directories: Array<{ workspace_id: string; canonical_path: string; roles: string[] }>; revision: string };
+  const read = await call<Directories>(project.project_id, "/api/project-settings/directories");
+  assert.equal(read.status, 200, JSON.stringify(read.body));
+  const set = await call<Directories>(project.project_id, "/api/project-settings/directories",
+    { change: "set_output", input: { workspace_path: directory, expected_revision: read.body.revision } });
+  assert.equal(set.status, 200, JSON.stringify(set.body));
+  const output = set.body.directories.filter(item => item.roles.includes("output"));
+  assert.equal(output.length, 1, JSON.stringify(set.body));
+  const workspaceId = output[0]!.workspace_id;
   const ended = (ref: AgentRunRef) => new Promise<AgentRunView>((resolve, reject) => {
     const adapter = ensureSystemAgentService(host, home).agentHost.adapter("prologue");
     let off = () => {}; const timer = setTimeout(() => { off(); reject(new Error("controlled Coding Run did not finish")); }, 15_000);

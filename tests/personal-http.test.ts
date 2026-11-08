@@ -173,7 +173,7 @@ test('ASR-02/10 PCSYNC-02/04/05/06 Host keeps manual runs separate and preserves
     await request('/api/personal/login','POST');await request('/account/callback?code=synthetic&state='+state);
     await request('/api/personal/space?kind=personal','POST');
     const scopes=await(await request('/api/spaces')).json();spaceId=scopes.current.spaceId;
-    token=(await(await request('/api/personal/status')).json()).viewToken;
+    token=readFileSync(join(home,'spaces',spaceId,'config/web-control-token'),'utf8').trim();
     // Pages is a project Runtime owner on main; opening that project is the person's activation, not sync discovery.
     const project=historyProject??=(await(await request('/api/settings/projects','POST',{display_name:'History fixture',user_confirmed:true})).json()).project;
     historyKey=JSON.stringify([null,JSON.stringify([project.project_id,'document','page'])]);
@@ -223,7 +223,7 @@ test('ASR-02/10 PCSYNC-02/04/05/06 Host keeps manual runs separate and preserves
 test('web sessions expire, rotate identifiers, reject duplicate cookies and do not survive restart',()=>{
   let now=1000;const sessions=new PersonalWebSessions(()=>now);
   const config={authOrigin:'https://auth.example',clientId:'web',cloudOrigin:'https://cloud.example'};
-  const auth=new PersonalAuth(config,{get:()=>null,put:()=>{},delete:()=>{}});
+  const auth=new PersonalAuth(config,{get:()=>null,put:()=>{},delete:()=>{},assertWritable:()=>{}});
   const a=sessions.adopt(auth),b=sessions.adopt(auth);
   const before=sessions.cookie(a,true).split(';')[0];
   assert.equal(sessions.get(before),a);assert.match(sessions.cookie(a,true),/HttpOnly; SameSite=Lax; Max-Age=28800; Secure/);
@@ -402,9 +402,9 @@ for(const replacement of ['native','same-browser'] as const)test(`ASR-03 delayed
   f.authWaits.identity=async user=>{if(user==='alice'){reached();await gate;throw new Error('synthetic delayed identity network failure');}};
   const originalCookie=f.cookie,oldStatus=f.request('/api/personal/status');await waiting;
   const complete=await f.complete(state);assert.equal(complete.status,303);
-  const current=await(await native('/api/personal/status')).json();assert.equal(current.identity.userId,'bob');assert.equal(current.ready,true);assert.notEqual(current.viewToken,alice.viewToken);
+  const current=await(await native('/api/personal/status')).json();assert.equal(current.identity.userId,'bob');assert.equal(current.ready,true);assert.notEqual(current.viewScope,alice.viewScope);
   release();const response=await oldStatus;assert.equal(response.status,200);const refused=await response.json();
-  assert.equal(refused.accountChanged,true);assert.equal(refused.identity,null);assert.equal(refused.ready,false);assert.notEqual(refused.viewToken,current.viewToken);
+  assert.equal(refused.accountChanged,true);assert.equal(refused.identity,null);assert.equal(refused.ready,false);assert.notEqual(refused.viewScope,current.viewScope);
   assert.doesNotMatch(JSON.stringify(refused),/"bob"/,'an old authenticated request cannot receive the current installation identity');
   const stale=await fetch(f.origin+'/api/personal/status',{headers:{Cookie:originalCookie}});assert.equal((await stale.json()).identity,null);
   assert.equal((await(await native('/api/personal/status')).json()).identity.userId,'bob','rejecting A does not revoke the current native account');

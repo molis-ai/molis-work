@@ -1,17 +1,21 @@
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { parsePluginSyncDeclaration } from "./plugin-sync.js";
-import { SURFACE_BROWSER_PERMISSION, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { SURFACE_BROWSER_PERMISSION, type PluginDeclarationProblem, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { TEXT_REF_LIMITS, UI_VIEW_SLOTS } from "@molis-ai/molis-work-contracts/platform/ui";
 import { PLUGIN_REVIEW_KINDS, PLUGIN_REVIEW_PERMISSION_PREFIX } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { inspectActionCrossReferences } from "./action-cross-references.js";
 import { inspectActionDeclarations, projectReachPermissionProblems } from "./action-declarations.js";
-import { inspectAgentDeclaration, inspectSkillDeclarations } from "./agent-declarations.js";
+import { inspectAgentDeclaration } from "./agent-declarations.js";
+import { inspectContentPlugin } from "./content-plugin.js";
+import { refuseDeclarations } from "./declaration-problems.js";
+import { inspectSkillDeclarations } from "./skill-declarations.js";
 import { artifactDeclarationProblems } from "./artifact-declarations.js";
 import { backgroundDeclarationProblems } from "./background-declarations.js";
 import { notificationDeclarationProblems } from "./notification-declarations.js";
 import { attentionDeclarationProblems } from "./attention-declarations.js";
 import { readGroupDeclarationProblems } from "./read-group-declarations.js";
 import { taskSubjectDeclarationProblems } from "./task-subject-declarations.js";
+import { validatePresentationDeclaration } from "./presentation-declaration.js";
 import { connectionDeclarationProblems } from "./connection-declarations.js";
 import { databaseDeclarationProblems } from "./database-declarations.js";
 import { integrationDeclarationProblems } from "./integration-declarations.js";
@@ -42,16 +46,18 @@ export function parsePluginManifest(input: unknown): PluginManifest {
   if (!text(manifest.plugin_id) || !PLUGIN_ID.test(manifest.plugin_id)
     || !text(manifest.version) || !SEMVER.test(manifest.version)
     || !text(manifest.name) || !text(publisher.publisher_id) || !text(publisher.signature)
-    || (manifest.kind !== "native" && manifest.kind !== "integration" && manifest.kind !== "app")) {
+    || (manifest.kind !== "native" && manifest.kind !== "integration" && manifest.kind !== "app" && manifest.kind !== "content")) {
     throw pluginErrors.manifest_invalid("Plugin Manifest 身份、名称、类型或版本不合法");
   }
   // A text reference names its owner by this id and refuses a longer one, so a longer id would fail every page that draws the plugin's words.
   if (manifest.plugin_id.length > TEXT_REF_LIMITS.owner) invalid(`plugin_id 最长 ${TEXT_REF_LIMITS.owner} 个字符`);
+  // A plugin with only declarations is held to its own list of keys first, so a key it may not write is refused by name.
+  if (manifest.kind === "content") { const problems = inspectContentPlugin(manifest); if (problems.length) refuseDeclarations(problems); }
   inspectOptionalDeclarations(manifest);
   inspectUpgradeCompatibility(manifest);
   inspectPresentation(manifest);
   if (manifest.always_on !== undefined && typeof manifest.always_on !== "boolean") invalid("always_on 必须为布尔值");
-  if (!Array.isArray(manifest.entrypoints) || manifest.entrypoints.length === 0) {
+  if (!Array.isArray(manifest.entrypoints) || (manifest.entrypoints.length === 0 && manifest.kind !== "content")) {
     throw pluginErrors.entrypoint_missing("Plugin 至少需要一个 entrypoint");
   }
   const deployments = new Set<string>();
@@ -199,13 +205,8 @@ export function comparePluginVersions(left: string, right: string): number {
   return a.prerelease.length === b.prerelease.length ? 0 : a.prerelease.length < b.prerelease.length ? -1 : 1;
 }
 
-/** The one place a list of declaration problems becomes the refusal (the error-code gates count each literal of a code). */
-function assertNoDeclarationProblems(problems: readonly string[]): void {
-  if (problems.length > 0) throw pluginErrors.declaration_invalid(problems.join("；"));
-}
-
 function assertDeclarations(parsed: PluginManifest, ui: Record<string, unknown>): void {
-  const problems: string[] = [];
+  const problems: Array<string | PluginDeclarationProblem> = [];
   problems.push(...inspectActionDeclarations(parsed.actions, parsed.action_scenes), ...inspectActionCrossReferences(parsed.actions));
   const declaredPermissions = new Set(parsed.permissions.map(p => p.permission));
   for (const action of Array.isArray(parsed.actions) ? parsed.actions : []) {
@@ -242,7 +243,8 @@ function assertDeclarations(parsed: PluginManifest, ui: Record<string, unknown>)
   problems.push(...attentionDeclarationProblems(parsed.attention, declaredPermissions));
   problems.push(...readGroupDeclarationProblems(parsed.read_groups, parsed.actions));
   problems.push(...taskSubjectDeclarationProblems(parsed.task_subjects, parsed.actions));
-  assertNoDeclarationProblems(problems);
+  problems.push(...validatePresentationDeclaration(parsed));
+  if (problems.length) refuseDeclarations(problems);
 }
 
 function inspectViewDeclarations(parsed: PluginManifest, ui: Record<string, unknown>): string[] {
@@ -347,7 +349,9 @@ function inspectRequirementDeclarations(parsed: PluginManifest): string[] {
     if (!text(requirement.reason)) {
       problems.push(`依赖 ${key} 必须说明用途`);
     }
-    if (!consumes.has(requirement.capability_id)) {
+    // A plugin with only declarations calls nothing, so its `consumes` stays empty; its `requires` only decides whether it can be
+    // enabled (specs/skill-packs/contract-design.md §3, batch 08 coordinator 2026-11-06).
+    if (parsed.kind !== "content" && !consumes.has(requirement.capability_id)) {
       problems.push(`依赖 ${key} 未列入 capabilities.consumes`);
     }
   }

@@ -8,7 +8,8 @@ import { projectRowsProblems } from "./project-rows-declarations.js";
 /** The name a plugin's store goes by, the same rule as a library in the Home. */
 const STORE_NAME = /^[a-z][a-z0-9-]*$/u;
 const SCOPES = ["project", "home"] as const;
-const DECLARATION_FIELDS = new Set(["store_name", "version", "schema", "read_permission", "write_permission"]);
+const DECLARATION_FIELDS = new Set(["store_name", "version", "schema", "read_permission", "write_permission", "upgrades"]);
+const STEP_FIELDS = new Set(["from", "sql", "reduces_rows"]);
 /**
  * A library in the Home may also be partitioned by project, or say which of its rows belong to a project; a project's library is one
  * per project already.
@@ -42,7 +43,35 @@ function declarationProblems(scope: (typeof SCOPES)[number], declaration: unknow
     const permission = declaration[field];
     if (typeof permission !== "string" || !permissions.has(permission)) problems.push(`${path}.${field} 必须是这份 Manifest 在 permissions 里声明的权限`);
   }
+  problems.push(...upgradeStepsProblems(path, declaration.upgrades, declaration.version));
   if (scope === "home" && declaration.partition !== undefined && declaration.partition !== "project") problems.push(`${path}.partition 只能是 "project"`);
   if (scope === "home") problems.push(...projectRowsProblems(`${path}.project_rows`, declaration.project_rows, declaration.schema, declaration.partition !== undefined, ownerFiles));
+  return problems;
+}
+
+/**
+ * The shape of `upgrades` (upgrade-chain-design §2.4): steps of SQL, each `from` once, below the declaration's version. Which statements a
+ * step may hold, and that the chain reaches the version from where a library is, are the platform's checks (`packages/plugin-runtime`).
+ */
+function upgradeStepsProblems(path: string, steps: unknown, version: unknown): string[] {
+  if (steps === undefined) return [];
+  if (!Array.isArray(steps)) return [`${path}.upgrades 必须是升级段的数组`];
+  const problems: string[] = [], seen = new Set<number>();
+  steps.forEach((step: unknown, index) => {
+    const at = `${path}.upgrades[${index}]`;
+    if (!isRecord(step)) { problems.push(`${at} 必须为对象`); return; }
+    const unknown = Object.keys(step).filter(field => !STEP_FIELDS.has(field));
+    if (unknown.length > 0) problems.push(`${at} 不认这些字段：${unknown.join("、")}（升级段只有 SQL）`);
+    const from = step.from;
+    if (typeof from !== "number" || !Number.isSafeInteger(from) || from < 1 || (typeof version === "number" && from >= version)) {
+      problems.push(`${at}.from 必须是 1 到 version - 1 之间的整数`);
+    } else if (seen.has(from)) problems.push(`${at}.from 重复：每个版本只能有一段`);
+    else seen.add(from);
+    if (typeof step.sql !== "string" || step.sql.trim().length === 0) problems.push(`${at}.sql 必须写出这一段的语句`);
+    const reduces = step.reduces_rows;
+    if (reduces !== undefined && (!Array.isArray(reduces) || !reduces.every(table => typeof table === "string" && table.length > 0))) {
+      problems.push(`${at}.reduces_rows 必须是表名的数组`);
+    }
+  });
   return problems;
 }

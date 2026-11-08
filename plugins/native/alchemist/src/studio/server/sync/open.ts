@@ -3,7 +3,7 @@ import {lstatSync,mkdirSync} from 'node:fs';
 import {dirname,join} from 'node:path';
 import {sqliteVersionRefusal} from '@molis-ai/molis-work-storage';
 import {ALCHEMIST_STUDIO_BASELINE,applyStudioBaseline} from '../db/schema.js';
-import {openDatabase,type SqliteDatabase} from '../db/open-database.js';
+import {assertStudioDatabaseFile,openDatabase,type SqliteDatabase} from '../db/open-database.js';
 import {studioSyncErrors} from './errors.js';
 
 export function studioSyncPath(home:string,projectId:string):string{
@@ -19,6 +19,7 @@ export function studioSyncPath(home:string,projectId:string):string{
 }
 /** Refuse an old library read-only before opening WAL or changing any byte. */
 export function openStudioDatabase(path:string):SqliteDatabase{
+ assertStudioDatabaseFile(path);
  mkdirSync(dirname(path),{recursive:true});
  for(const file of [path,path+'-wal',path+'-shm',path+'-journal']){const entry=lstatSync(file,{throwIfNoEntry:false});if(entry&&(!entry.isFile()||entry.isSymbolicLink()))throw studioSyncErrors.sync_scope('研究库及其日志不允许链接');}
  if(lstatSync(path,{throwIfNoEntry:false})){

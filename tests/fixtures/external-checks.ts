@@ -129,7 +129,9 @@ export async function externalChecks(t: TestContext, script: (turn: number, mess
   const ref = (definition: ActionDefinition): ExactActionReference => ({ capability_id: definition.capability_id, version: 1, provider_id: provider.provider_id });
   // The round holds model:invoke, so only the checker's own rule keeps the model-backed query out.
   const caller = { actor_id: "agent:prologue", actor_kind: "runtime" as const, audience: "agent" as const, project_id: project.project_id, permissions: ["model:invoke"] };
-  const authority: AgentStartAuthority = { manifest: codingAgentManifest, prompts: [...codingPrompts], authorizedDirectories: [root, writer],
+  // The round works in the output; its writer works in one of the Host's worktrees of it (plan A).
+  const authority: AgentStartAuthority = { manifest: codingAgentManifest, prompts: [...codingPrompts], authorizedDirectories: [root],
+    worktrees: async () => [{ worktree_id: "writer-0", canonical_path: writer }],
     // The plugin instance that started the round: the real one throws this once the instance stops (apps/local-host/src/plugin-host-services.ts).
     beforeDispatch: async () => { calls.roundChecks++; if (!switches.pluginActive) throw new ActionError("actions.forbidden", "此插件实例已停止，请重新打开"); },
     actions: async (_runtime, validate) => {
@@ -187,7 +189,7 @@ export async function externalChecks(t: TestContext, script: (turn: number, mess
     return started;
   };
   return { root, requests, replies, said, usage, reviewed, switches, calls, adapter, session, start, wait, continuation, spent, wake, refs: { status: ref(status), cancel: ref(cancel), judge: ref(judge), summary: ref(summary), lookups: lookups.map(ref) }, reopen: open,
-    writerWorkspaces: [{ workspace_id: "writer-0", directory: { canonical_path: writer, realpath_verified: true } }] };
+    writerWorkspaces: [{ worktree_id: "writer-0", directory: { canonical_path: writer, realpath_verified: true } }] };
 }
 
 /** The model's call that registers the wait, as `board-wait` takes it. */

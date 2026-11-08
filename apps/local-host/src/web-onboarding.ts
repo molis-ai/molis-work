@@ -6,7 +6,8 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { bindGoalsWebActions, goalsHostActions } from "./goal-callers.js";
 import { onboardingPlanningHint } from "@molis-ai/molis-work-app-workbench";
 import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
-import { molisWorkOnboardingStatus, dismissMolisWorkOnboarding, completeMolisWorkOnboarding } from "./onboarding.js";
+import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
+import { assertOnboardingWritable, molisWorkOnboardingStatus, dismissMolisWorkOnboarding, completeMolisWorkOnboarding } from "./onboarding.js";
 import { projectNavigation } from "./web-project-presentation.js";
 import { webOnboardingInitializationInput, type WebOnboardingInitializationInput, type OnboardingRuntimePorts } from "./web-onboarding-input.js";
 import { sendLocalWebJson as sendJson, readLocalWebBody as readBody } from "./web-http.js";
@@ -19,6 +20,15 @@ interface OnboardingHttpPorts extends OnboardingRuntimePorts {
   renderOnboarding: ReturnType<typeof createLocalHostWorkbenchRenderer>["renderMolisWorkOnboarding"];
   isDesktopShellRequest(request: IncomingMessage, url: URL): boolean;
   pageCsp: string;
+}
+
+/**
+ * The two ways in below make something (the personal space, a project) and then write down that onboarding is done. A record this build
+ * may not replace is answered with its refusal before either is made (upgrade-chain-design §2.6), by the same check as the context journey's.
+ */
+function refusedBeforeMaking(response: ServerResponse, homeDirectory: string | undefined): boolean {
+  try { assertOnboardingWritable(homeDirectory); return false; }
+  catch (error) { const refusal = actionErrorResponse(error); sendJson(response, refusal.status, refusal.body); return true; }
 }
 
 export function createLocalOnboardingHttp(ports: OnboardingHttpPorts) {
@@ -35,6 +45,7 @@ export function createLocalOnboardingHttp(ports: OnboardingHttpPorts) {
     }
     // “空白开始”不必先建项目：进入个人空间，之后随时建项目、把内容移过去。
     if (request.method === "POST" && url.pathname === "/api/onboarding/personal") {
+      if (refusedBeforeMaking(response, homeDirectory)) return true;
       try {
         const space = await ports.withCatalog({ homeDirectory }, catalog => catalog.ensurePersonalSpace());
         completeMolisWorkOnboarding(homeDirectory, space.project_id);
@@ -68,6 +79,7 @@ export function createLocalOnboardingHttp(ports: OnboardingHttpPorts) {
         sendJson(response, 400, { error: error instanceof Error ? error.message : String(error) });
         return true;
       }
+      if (refusedBeforeMaking(response, homeDirectory)) return true;
       let partialProjectPath: string | null = null;
       try {
         await ports.withCatalog({ homeDirectory }, async (catalog) => {
@@ -93,13 +105,15 @@ export function createLocalOnboardingHttp(ports: OnboardingHttpPorts) {
             idempotency_key: `onboarding-root-goal-${project.project_id}`,
             source_kind: "onboarding",
           })).goal;
+          // The folder the person picked here is where the project works: its output, which is read as well (user 2026-11-08). The
+          // default output directory's row, written when the project was registered, goes with it; its folder was never made.
           const workspace = input.workspacePath
-            ? await catalog.commit(() => catalog.addWorkspaceProject({
-                project_id: project.project_id,
-                canonical_path: input.workspacePath!,
-                actor_id: LOCAL_PERSON_ACTOR_ID,
-                user_confirmed: true,
-              }))
+            ? await catalog.commit(() => {
+                const before = catalog.projectDirectories(project.project_id);
+                const after = catalog.changeDirectories({ project_id: project.project_id, actor_id: LOCAL_PERSON_ACTOR_ID,
+                  change: { kind: "set_output", target: { workspace_path: input.workspacePath! } }, expected_revision: before.revision });
+                return after.directories.find(item => item.roles.includes("output"))!;
+              })
             : null;
           let journeyWarning: string | null = null;
           try {

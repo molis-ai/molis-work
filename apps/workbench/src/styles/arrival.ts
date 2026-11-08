@@ -326,7 +326,7 @@ export const ARRIVAL_STYLES = String.raw`
   }
   @media (max-width: 600px) {
     .arrival-titlebar { padding-left: 14px; }
-    /* The right side's 44px glyphs share the row with the Home tools (07-S1): the brand keeps its mark, the name gives way. */
+    /* The right side's 44px glyphs share the row with the brand (07-S1): the brand keeps its mark, the name gives way. */
     .arrival:not([data-screen="welcome"]) .arrival-brand > .mw-wordmark { display: none; }
     .welcome-q, .onboard .welcome-scene { padding-inline: 28px; }
     .ob-model { grid-template-columns: 16px minmax(0, 1fr); } .ob-model > .mw-btn { grid-column: 2; justify-self: start; }

@@ -161,14 +161,14 @@ test("VUX-40: the writer directories and integration dialogs speak English in En
       const lifetime=(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})()(root),errors=[],q=selector=>root.querySelector(selector);
       const settle=()=>new Promise(resolve=>setTimeout(resolve,20));
       const writers=(${embeddedFactory("writerDirectories")})({lifetime,translate:L,q,reviews:()=>{},current:()=>'s',workspace:()=>'w',workspaceLabel:()=>'/repo',status:message=>errors.push(message),
-        assignments:()=>[{workspace_id:'wa',task:'Write the parser'}],saveAssignments:async()=>{},select:async()=>{},
-        api:async()=>({directories:[{canonical_path:'/repo-a',branch:'part-a',base_commit:'abc123',workspace_id:'wa'},{canonical_path:'/repo-b',branch:'part-b',problem:'its branch moved'},
-          {canonical_path:'/repo-c',branch:null,base_commit:'def456'}]})});
+        assignments:()=>[{worktree_id:'wa',task:'Write the parser'}],saveAssignments:async()=>{},select:async()=>{},chosen:()=>'wc',integrate:()=>{},
+        api:async()=>({directories:[{canonical_path:'/repo-a',branch:'part-a',base_commit:'abc123',worktree_id:'wa'},{canonical_path:'/repo-b',branch:'part-b',problem:'its branch moved',worktree_id:'wb'},
+          {canonical_path:'/repo-c',branch:null,base_commit:'def456',worktree_id:'wc'}]})});
       q('[data-coding-writer-directories-open]').click();await settle();
       q('[data-coding-writer-assignments-save]').click();await settle();
       const turn=document.createElement('div');document.body.append(turn);
-      writers.renderTurn(turn,{frozen:{role_id:'writers',subagent_workspaces:[{workspace_id:'wa',directory:{canonical_path:'/repo-a'}}]}},
-        {kind:'user',text:'Split the work'+${JSON.stringify(marker)}+JSON.stringify([{workspace_id:'wa',directory:'/repo-a',task:'Write the parser',branch:'part-a',base_commit:'abc123'}])});
+      writers.renderTurn(turn,{frozen:{role_id:'writers',subagent_workspaces:[{worktree_id:'wa',directory:{canonical_path:'/repo-a'}}]}},
+        {kind:'user',text:'Split the work'+${JSON.stringify(marker)}+JSON.stringify([{worktree_id:'wa',directory:'/repo-a',task:'Write the parser',branch:'part-a',base_commit:'abc123'}])});
       const writersText=q('[data-coding-writer-directories-dialog]').textContent.replace(/\\s+/g,' ');
       q('[data-coding-writer-directories-dialog]').close();
       const integrations=(${embeddedFactory("integrations")})({lifetime,translate:L,q,reviews:()=>{},status:message=>errors.push(message),
@@ -188,7 +188,13 @@ test("VUX-40: the writer directories and integration dialogs speak English in En
     assert.match(result.writers, /Main repository: \/repo/);
     assert.match(result.writers, /Branch: part-a.*Started from: abc123.*Include in the parallel split/);
     assert.match(result.writers, /Can no longer be used as a separate worktree: its branch moved\./);
-    assert.match(result.writers, /The directory exists but isn't authorized for this project/);
+    // Every worktree the Host lists is its own: it takes work, and the session's next round can run in it; none is a folder of the project to link (plan A).
+    assert.match(result.writers, /\/repo-a.*Started from: abc123.*Include in the parallel split.*Use for the next turn/);
+    assert.equal(result.writers.match(/Use for the next turn/g)?.length, 1, "a worktree that takes work, not the one whose branch moved, nor the one the session already runs in");
+    // CODING-WORKTREE-05: the worktree the session runs in brings its changes back from its own row.
+    assert.match(result.writers, /\/repo-c.*Started from: def456.*Include in the parallel split.*Bring back into the main workspace/);
+    assert.equal(result.writers.match(/Bring back into the main workspace/g)?.length, 1);
+    assert.doesNotMatch(result.writers, /isn't authorized for this project/);
     assert.match(result.writers, /Split saved, not sent yet\./);
     assert.match(result.turn, /^Split the work.*This turn's split · separate directories: 1.*Branch: part-a · started from: abc123/);
     assert.match(result.integration, /From: \/tmp\/child · child.*Back into: \/repo/);

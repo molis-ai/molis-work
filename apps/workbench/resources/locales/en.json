@@ -3,6 +3,7 @@
   "owner": "workbench",
   "locale": "en",
   "messages": {
+    "common.presentation.stale": "These values were read {at}",
     "common.text.unavailable": "This text cannot be shown right now",
     "workbench.composer.next-boundary": "Add",
     "workbench.env.add-row": "Add a line",

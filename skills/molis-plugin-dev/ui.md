@@ -114,7 +114,7 @@ renderPluginStageShell({
 
 Pages 族：交互在插件包的 `CLIENT_FACTORY_SCRIPT`（常是 `src/client.ts` 导出的工厂字符串），在包 `registration` 里声明 `workbench.clientFactory` / `settingsClient`，由 `plugin-workbench.ts` 自动派生并注入。
 
-Feed / Inbox：没有这条 factory。列表、详情、来源对话框在 `apps/workbench/src/scripts/client/navigation-feed.ts`、`navigation-inbox.ts`、`events-primary.ts`。抄 Pages 的 client 到 Feed 不会接到现有画面。
+Feed / Inbox：随迁到 Plugin Runtime（FI-6）后，列表、详情、来源对话框在各自包里的 `plugins/native/feed/src/client.ts`、`plugins/native/inbox/src/client.ts`，由包 `registration` 声明；外壳的 `apps/workbench/src/scripts/client/navigation-surfaces.ts` 只管工作面切换（原 `navigation-feed.ts`，07-1 改名）。
 
 要做：打开列表、点一行、主按钮、返回、空态、错误、搜索。只服务端渲 HTML、不写客户端，主路径点不动。
 

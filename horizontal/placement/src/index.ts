@@ -3,7 +3,7 @@ import {
   type ActionCallContext, type ActionClient, type ActionReference, type ActionView, type PlacementRelationRole, type PlacementResult,
   type WorkflowItemRef,
 } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { ContextAccess, ContextEdge, ContextLedgerApi, ObjectRef } from "@molis-ai/molis-work-contracts/modules/context-ledger";
+import { CONTEXT_RELATION_TYPES, type ContextAccess, type ContextEdge, type ContextLedgerApi, type ObjectRef } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import type {
   PlacedObject, PlacementAssociation, PlacementConvertRequest, PlacementConvertResponse, PlacementCreateRequest, PlacementDescription, PlacementGoalView,
   PlacementLocation, PlacementMoveResponse, PlacementOpen, PlacementRelatedItem, PlacementSpaceView,
@@ -43,7 +43,7 @@ export interface PlacementPorts {
 const ACCESS: ContextAccess = { actor_id: "module:placement", scope: { kind: "personal", id: "placement" } };
 /** Ledger-only marker for Home-level content (Shelf, Jelly, Cognia…): always personal, never moved. */
 const HOME = "home";
-const TYPES = { location: "placement.location", used: "placement.used_in", derived: "placement.derived_from", copied: "placement.copied_from", goal: "placement.goal_in",
+const TYPES = { location: "placement.location", used: "placement.used_in", derived: CONTEXT_RELATION_TYPES.derived_from, copied: CONTEXT_RELATION_TYPES.copied_from, goal: "placement.goal_in",
   belonging: "placement.belonged_to", belongs: "placement.belongs_to" } as const;
 
 const identity = (kind: string, id: string): ObjectRef => ({ module: "plugins", object_type: kind, id, version: null, scope: ACCESS.scope, project_id: null });

@@ -670,6 +670,16 @@ CREATE TABLE listener_instances (
       updated_at TEXT NOT NULL,
       PRIMARY KEY (project_id, source_id)
     );
+CREATE TABLE material_recent_uses (
+  caller_kind TEXT NOT NULL CHECK (caller_kind IN ('user', 'plugin')),
+  caller_id TEXT NOT NULL,
+  subject_kind TEXT NOT NULL,
+  subject_id TEXT NOT NULL,
+  ref_json TEXT NOT NULL,
+  sequence INTEGER NOT NULL,
+  used_at TEXT NOT NULL,
+  PRIMARY KEY (caller_kind, caller_id, subject_kind, subject_id)
+);
 CREATE TABLE molis_storage_space (singleton INTEGER PRIMARY KEY CHECK(singleton=1), space_id TEXT NOT NULL, descriptor TEXT NOT NULL);
 CREATE TABLE planning_method_packs (
     project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
@@ -848,9 +858,6 @@ CREATE TABLE process_items_replica_heads (key TEXT PRIMARY KEY, revision INTEGER
 CREATE TABLE process_items_replica_outbox (key TEXT PRIMARY KEY, through_seq INTEGER NOT NULL, operation TEXT NOT NULL);
 CREATE TABLE process_items_replica_resolutions (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, choice TEXT NOT NULL, local_json TEXT NOT NULL, remote_json TEXT NOT NULL);
 CREATE TABLE process_items_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
-CREATE TABLE project_browsing_settings (
-    project_id TEXT PRIMARY KEY, workspace_id TEXT
-  );
 CREATE TABLE project_guidance_entries (
     guidance_id TEXT PRIMARY KEY,
     project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
@@ -1553,6 +1560,8 @@ CREATE INDEX library_artifacts_project_idx
     ON library_artifacts(project_id, created_at DESC, artifact_id);
 CREATE INDEX listener_deliveries_recovery_idx
       ON listener_deliveries(project_id, source_id, state, updated_at, raw_event_id);
+CREATE INDEX material_recent_uses_caller_idx
+  ON material_recent_uses(caller_kind, caller_id, sequence);
 CREATE UNIQUE INDEX plugin_events_board_sequence ON plugin_events (project_id, sequence);
 CREATE INDEX plugin_events_board_type_source
       ON plugin_events (project_id, event_type_id, type_version, source_plugin_id, sequence);
@@ -1754,5 +1763,5 @@ CREATE TRIGGER "sync_ebbb9ae341b34cbb8aedd65a41e6_track_9_update" AFTER UPDATE O
 CREATE TRIGGER "sync_daec9cf494e58d382d6262de3af9_track_0_delete" AFTER DELETE ON "feed_out_rules" BEGIN INSERT INTO sync_daec9cf494e58d382d6262de3af9_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'feed_rule',OLD."rule_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_daec9cf494e58d382d6262de3af9_replica_state WHERE id=1)=0; END;
 CREATE TRIGGER "sync_daec9cf494e58d382d6262de3af9_track_0_insert" AFTER INSERT ON "feed_out_rules" BEGIN INSERT INTO sync_daec9cf494e58d382d6262de3af9_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'feed_rule',NEW."rule_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_daec9cf494e58d382d6262de3af9_replica_state WHERE id=1)=0; END;
 CREATE TRIGGER "sync_daec9cf494e58d382d6262de3af9_track_0_update" AFTER UPDATE ON "feed_out_rules" BEGIN INSERT INTO sync_daec9cf494e58d382d6262de3af9_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'feed_rule',NEW."rule_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_daec9cf494e58d382d6262de3af9_replica_state WHERE id=1)=0;INSERT INTO sync_daec9cf494e58d382d6262de3af9_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'feed_rule',OLD."rule_id") AS key WHERE 1=1 EXCEPT SELECT json_array(NEW."project_id",'feed_rule',NEW."rule_id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_daec9cf494e58d382d6262de3af9_replica_state WHERE id=1)=0; END;
-PRAGMA user_version=1;
+PRAGMA user_version=2;
 PRAGMA foreign_keys=ON;

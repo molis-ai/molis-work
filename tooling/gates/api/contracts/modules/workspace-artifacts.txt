@@ -231,7 +231,6 @@ export interface PreparedWriterDirectory {
     branch: string;
     base_commit: string;
     canonical_path: string;
-    workspace_id: string | null;
     problem?: string;
 }
 
@@ -300,7 +299,10 @@ export type WorkspaceFileResult = {
     bytes: number;
     limit: number;
 } | {
-    outcome: "binary" | "unsupported" | "missing" | "denied" | "changed";
+    outcome: "binary" | "unsupported";
+    fingerprint: string;
+} | {
+    outcome: "unsupported" | "missing" | "denied" | "changed";
 };
 
 export type WorkspaceGitQuery = {
@@ -376,6 +378,16 @@ export interface WorkspaceGitSummary {
     revision: string;
 }
 
+export interface WorkspaceIdMapping {
+    directories: readonly {
+        workspace_id: string;
+    }[];
+    source_links: readonly {
+        source_workspace_id: string;
+        workspace_id: string;
+    }[];
+}
+
 export interface WorkspaceRef {
     workspace_id: string;
     name: string;
@@ -405,12 +417,12 @@ export interface WriterIntegrationFile {
 export interface WriterIntegrationSource {
     session_id: string;
     run_id: string;
-    subagent_id: string;
+    subagent_id?: string;
 }
 
 export interface WriterIntegrationView {
     workspace_id: string;
-    writer_workspace_id: string;
+    worktree_id: string;
     source_path: string;
     target_path: string;
     branch: string;
@@ -489,6 +501,15 @@ export declare const readGitOperationsCapability: ActionDefinition<{
 export declare const readGitResultsCapability: ActionDefinition<{
     workspace_id: string;
 }, readonly GitReviewedResult[]>;
+
+export declare function resolveWorkspaceFileSubject(subject: {
+    id: string;
+}, directories: WorkspaceIdMapping): {
+    workspace_id: string;
+    path: string[];
+} | null;
+
+export declare function resolveWorkspaceId(workspaceId: string, directories: WorkspaceIdMapping): string | null;
 
 export declare function samePath(left: readonly string[], right: readonly string[]): boolean;
 

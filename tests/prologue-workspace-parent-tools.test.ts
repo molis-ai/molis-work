@@ -37,8 +37,9 @@ test("RCPT-365, 3e-0b: the writers parent still cannot hold a tool that writes o
   const host = new AgentHost({ reviews: queue }); host.register(adapter);
   const owner = { project_id: "b", plugin_id: "io.molis.work.coding", install_id: "i", actor_id: "user" }, directory = { canonical_path: parent, realpath_verified: true };
   const request = async () => ({ ...owner, session: await adapter.createSession({ ...owner, directory, title: "Parallel" }), directory, role_id: "writers", task: "Two changes.",
-    subagent_workspaces: [{ workspace_id: "writer-a", directory: { canonical_path: child, realpath_verified: true } }] });
-  const authority = (manifest: typeof codingAgentManifest) => ({ manifest, prompts: codingPrompts, authorizedDirectories: [parent, child] });
+    subagent_workspaces: [{ worktree_id: "writer-a", directory: { canonical_path: child, realpath_verified: true } }] });
+  const authority = (manifest: typeof codingAgentManifest) => ({ manifest, prompts: codingPrompts, authorizedDirectories: [parent],
+    worktrees: async () => [{ worktree_id: "writer-a", canonical_path: child }] });
 
   for (const tool of ["write", "run-command"]) {
     const manifest = structuredClone(codingAgentManifest), role = manifest.roles.find(one => one.role_id === "writers")!;

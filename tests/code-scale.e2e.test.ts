@@ -133,10 +133,12 @@ test("VUX-33: Coding reopens a turn with a large code block as text at once and 
   await click(".navigator-project-settings");
   await waitFor("!!document.querySelector('[data-directory-panel=project-settings] [data-settings-section=workspaces]')");
   await click("[data-directory-panel=project-settings] [data-settings-section=workspaces]");
-  await waitFor("!!document.querySelector('[data-project-workspaces-add]') && !document.querySelector('[data-project-workspaces-refresh]').disabled");
-  await fill("[data-project-workspaces-add] [name=path]", workspace);
-  await click("[data-project-workspaces-add] [type=submit]");
-  await waitFor("document.querySelector('[data-project-workspaces-list]').textContent.includes('code-scale')");
+  await waitFor("!!document.querySelector('[data-directories-add]') && document.querySelector('[data-project-directories]')?.dataset.state==='ready'");
+  await fill("[data-directories-add] [name=path]", workspace);
+  await click("[data-directories-add] [type=submit]");
+  await waitFor("document.querySelector('[data-directories-inputs]').textContent.includes('code-scale')");
+  await click("[data-directories-inputs] [data-directory-row]:has([title$='/code-scale']) [data-act=set-output]");
+  await waitFor("document.querySelector('[data-directories-output] [data-directory-row] [data-text=path]')?.title.endsWith('/code-scale')");
   const coding = "[data-coding-workbench]";
   await click(`[data-plugin-strip] [data-plugin-id="coding"]`);
   await waitFor(`document.querySelector('[data-work-surface="coding"]')?.getBoundingClientRect().width > 100`);

@@ -96,7 +96,8 @@ async function executeContext(owner: ContextGatewayOwner, body: Record<string, u
     await alias(); return withCatalog({ homeDirectory }, catalog => operation(guardedContextCatalog(catalog, check)));
   } },
     connection, requireHost: requiredHost, actorFor: runtimeHost => runtimeConnectionIdentity(runtimeHost, protocol).actor_id,
-    deleteProject: async (input, runtimeHost, context) => { await alias(); return deletion.deleteProject(owner.home, { ...input, actor_id: runtimeConnectionIdentity(runtimeHost, context).actor_id }); },
+    // MCP has no dialog to ask: the files in the default output directory stay where they are, whatever the request carries (SSC-23).
+    deleteProject: async (input, runtimeHost, context) => { await alias(); return deletion.deleteProject(owner.home, { ...input, actor_id: runtimeConnectionIdentity(runtimeHost, context).actor_id, output_files: "keep" }); },
     contextSignal: () => signal,
     contextActions: async () => {
       check();

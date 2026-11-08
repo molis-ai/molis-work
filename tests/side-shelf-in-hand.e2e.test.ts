@@ -134,7 +134,8 @@ test("W3-C AC-S04: a passage selected in Shelf's side tab is in hand there; the 
   // In hand on the right again (the left's bar goes), then the panel closed: the bar goes with it.
   await selectInShelf();
   await noteSceneOnTimeout(t, evaluate, waitFor(`Boolean(${SHELF}.contentDocument.querySelector(${JSON.stringify(`${BAR} .mw-btn[data-key]`)})) && !document.querySelector(${JSON.stringify(BAR)})`, 15_000));
-  await evaluate("document.dispatchEvent(new CustomEvent('molis:side-close'))");
+  // The page collapses the side from the layout menu (收起右侧); the side has no close event of its own (07-1 S4b).
+  await evaluate("document.body.dataset.sideOpen === 'true' && (document.querySelector('[data-layout-open]').click(), document.querySelector('[data-layout-action=side]').click())");
   await waitFor(`document.body.dataset.sideOpen === 'false' && !${SHELF}.contentDocument.querySelector(${JSON.stringify(BAR)}) && !document.querySelector(${JSON.stringify(BAR)})`, 10_000);
 });
 

@@ -23,8 +23,8 @@ test("SYS-15 S-47 real opaque page cannot read owner credentials, bypass its bro
   await browser.navigate(() => browser.command("Page.navigate", { url: `${browser.origin}/projects/${browser.projectId}/?openPlugin=cognia` }, browser.sessionId));
   await browser.surfaceReady("cognia"); await child.waitFor("document.querySelector('[data-cognia-rows]')");
   assert.deepEqual(await child.evaluate(`(()=>{
-    let owner='readable';try{parent.document.querySelector('meta[name=molis-work-control-token]')}catch(error){owner=error.name}
-    return {owner,token:!!document.querySelector('meta[name=molis-work-control-token]'),native:!!window.__TAURI_INTERNALS__};
+    let owner='readable';try{parent.document.querySelector('meta[name=molis-work-page-session]')}catch(error){owner=error.name}
+    return {owner,token:!!document.querySelector('meta[name=molis-work-page-session]'),native:!!window.__TAURI_INTERNALS__};
   })()`), { owner: "SecurityError", token: false, native: false });
   const own = `/projects/${browser.projectId}/api/plugins/io.molis.work.cognia/library`;
   assert.equal(await child.evaluate(`fetch(${JSON.stringify(own)}).then(response=>response.status)`), 200);
@@ -80,7 +80,7 @@ test("SYS-15 S-47 real opaque page cannot read owner credentials, bypass its bro
   await child.evaluate(`location.href=${JSON.stringify(ownerUrl)}`);
   await browser.waitFor("!document.querySelector('iframe[data-plugin-frame=cognia]')");
   assert.deepEqual(responses, [403], "actual opaque-frame navigation is refused before the owner token can be delivered");
-  assert.equal(await browser.evaluate("Boolean(document.querySelector('meta[name=molis-work-control-token]'))"), true, "the owner's independent page remains available");
+  assert.equal(await browser.evaluate("Boolean(document.querySelector('meta[name=molis-work-page-session]'))"), true, "the owner's independent page remains available");
 });
 
 // SYS-15 S-47 (2026-10-23 review of #1018): a page's link channel never navigates the owner document. The settings
@@ -93,7 +93,7 @@ test("SYS-15 S-47 a page link never navigates the owner document: a settings add
   await navigate(() => command("Page.navigate", { url: `${browser.origin}/projects/${browser.projectId}/?openPlugin=cognia` }, sessionId));
   await browser.surfaceReady("cognia"); await child.waitFor("!document.querySelector('[data-cognia-rows]').textContent.includes('正在读取')");
   const opened = "Boolean(document.querySelector('[data-work-surface=settings] [data-model-settings]') || document.querySelector('[data-directory-panel=settings] [data-settings-section=models][aria-current]'))";
-  const owner = "({href:location.href,marker:window.__ownerMarker,frames:document.querySelectorAll('iframe[data-plugin-frame]').length,token:Boolean(document.querySelector('meta[name=molis-work-control-token]'))})";
+  const owner = "({href:location.href,marker:window.__ownerMarker,frames:document.querySelectorAll('iframe[data-plugin-frame]').length,token:Boolean(document.querySelector('meta[name=molis-work-page-session]'))})";
   const page = await child.evaluate<string>("location.href");
   await evaluate("window.__ownerMarker='owner-page';window.__settingsAddresses=[];document.addEventListener('molis-work:open-settings-path',event=>window.__settingsAddresses.push(String(event.detail?.href||'')))");
   const before = await evaluate(owner);
@@ -238,14 +238,15 @@ test("D0033-01 S-47 the real side plugin cannot read either trusted ancestor, it
   await browser.waitFor(`document.querySelector(${JSON.stringify(ownerFrame)})?.contentDocument?.querySelector('[data-work-surface=shelf]')?.dataset.uiClientState==='ready'`);
   await child.waitFor("document.querySelector('[data-shelf-search]')");
   assert.deepEqual(await child.evaluate(`(()=>{
-    const read=target=>{try{return Boolean(target.document.querySelector('meta[name=molis-work-control-token]'))}catch(error){return error.name}};
-    return {parent:read(parent),top:read(top),token:!!document.querySelector('meta[name=molis-work-control-token]'),native:!!window.__TAURI_INTERNALS__,separate:parent!==top};
+    const read=target=>{try{return Boolean(target.document.querySelector('meta[name=molis-work-page-session]'))}catch(error){return error.name}};
+    return {parent:read(parent),top:read(top),token:!!document.querySelector('meta[name=molis-work-page-session]'),native:!!window.__TAURI_INTERNALS__,separate:parent!==top};
   })()`), { parent: "SecurityError", top: "SecurityError", token: false, native: false, separate: true });
   assert.equal(await browser.evaluate(`document.querySelector(${JSON.stringify(ownerFrame)}).contentDocument.querySelector('iframe[data-plugin-frame=shelf]').getAttribute('sandbox')`), "allow-scripts allow-forms");
   for (const path of ["/api/settings/projects", `/projects/${browser.projectId}/api/plugins/io.molis.work.todo/items`, "/projects/another-project/api/plugins/io.molis.work.shelf/"]) {
     assert.equal(await child.evaluate(`fetch(${JSON.stringify(path)}).then(response=>response.status)`), 403, path);
   }
   assert.equal(await child.evaluate(`fetch(${JSON.stringify(`/projects/${browser.projectId}/api/plugins/io.molis.work.shelf/`)}).then(response=>response.status)`), 200, "the same isolated bridge still serves the side plugin's own content");
-  await browser.evaluate("document.dispatchEvent(new CustomEvent('molis:side-close'))");
+  // The page collapses the side from the layout menu (收起右侧); the side has no close event of its own (07-1 S4b).
+  await browser.evaluate("document.body.dataset.sideOpen === 'true' && (document.querySelector('[data-layout-open]').click(), document.querySelector('[data-layout-action=side]').click())");
   await browser.waitFor("document.body.dataset.sideOpen==='false'");
 });

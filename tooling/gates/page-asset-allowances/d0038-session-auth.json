@@ -1,0 +1,8 @@
+{
+  "reason": "D0038 将页面改为 cookie 配对证明，需要空间修订比较并过滤调用方伪造的宿主控制请求头；复用现有请求助手，无新增资源。",
+  "review": "用户 2026-11-08 明确选择 D 方案；specs/daily-quality-d0038/spec.md 的决定与验收；本 PR 保留逐资源实测供评审。",
+  "assets": {
+    "/assets/molis-work-workbench.js": 64,
+    "/assets/molis-work-plugin-frame.js": 32
+  }
+}

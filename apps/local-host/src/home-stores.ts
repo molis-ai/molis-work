@@ -50,6 +50,9 @@ export const platformModelPreferences = (): readonly { readonly owner: string; r
 export function homeStores(homeDirectory?: string): HomeSnapshotStoreRegistry {
   const registered = registry ??= Object.assign(homeStoreRegistry([
     ...owned("apps/local-host", { path: "projects", snapshot: projectSnapshot }, { path: "logs", snapshot: omittedSnapshot("Diagnostic logs", "preserve") }),
+    // Each project's default output directory, `outputs/<project_id>/` (specs/shared-sources-and-surfaces §3): the person's own files, made
+    // the first time something writes or runs there. A snapshot carries none of it and a restore leaves it as it is (SSC-23); purge clears it.
+    ...owned("modules/projects", { path: "outputs", snapshot: omittedSnapshot("Files in each project's default output directory stay where they are", "preserve") }),
     ...owned("apps/local-host", { path: UPGRADE_DIRECTORY, snapshot: omittedSnapshot("Upgrade snapshots and progress", "reset") }),
     ...owned("apps/local-host",
       { path: "spaces", snapshot: omittedSnapshot("Each account space has its own Home and storage authority", "preserve") },
@@ -79,7 +82,9 @@ export function homeStores(homeDirectory?: string): HomeSnapshotStoreRegistry {
       return [
         ...entry.home_store ? [{ ...entry.home_store, owner: entry.manifest.plugin_id, snapshot }] : [],
         ...library ? [{ path: library.store_name, owner: entry.manifest.plugin_id, snapshot,
-          library: { baseline: { version: library.version, schema: library.schema }, ...library.partition ? { partition: library.partition } : {} } }] : [],
+          // The plugin's steps go with its library: the upgrade process runs them through the plugin's checks (platform-upgrade-stores.ts).
+          library: { baseline: { version: library.version, schema: library.schema, ...library.upgrades ? { upgrades: library.upgrades } : {} },
+            ...library.partition ? { partition: library.partition } : {} } }] : [],
       ];
     }),
     ...owned("horizontal/agent-host", { path: "agent-runtime", snapshot: agentSnapshot }),

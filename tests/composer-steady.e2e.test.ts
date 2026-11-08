@@ -43,10 +43,12 @@ async function oneRound(t: test.TestContext, width: number, locale: "zh" | "en")
   await click(".navigator-project-settings");
   await waitFor("!!document.querySelector('[data-directory-panel=project-settings] [data-settings-section=workspaces]')");
   await click("[data-directory-panel=project-settings] [data-settings-section=workspaces]");
-  await waitFor("!!document.querySelector('[data-project-workspaces-add]') && !document.querySelector('[data-project-workspaces-refresh]').disabled");
-  await fill("[data-project-workspaces-add] [name=path]", workspace);
-  await click("[data-project-workspaces-add] [type=submit]");
-  await waitFor("document.querySelector('[data-project-workspaces-list]').textContent.includes('steady')");
+  await waitFor("!!document.querySelector('[data-directories-add]') && document.querySelector('[data-project-directories]')?.dataset.state==='ready'");
+  await fill("[data-directories-add] [name=path]", workspace);
+  await click("[data-directories-add] [type=submit]");
+  await waitFor("document.querySelector('[data-directories-inputs]').textContent.includes('steady')");
+  await click("[data-directories-inputs] [data-directory-row]:has([title$='/steady']) [data-act=set-output]");
+  await waitFor("document.querySelector('[data-directories-output] [data-directory-row] [data-text=path]')?.title.endsWith('/steady')");
   await click(`[data-plugin-strip] [data-plugin-id="coding"]`);
   await waitFor(`document.querySelector('[data-work-surface="coding"]')?.getBoundingClientRect().width > 100`);
   active = child;
@@ -154,8 +156,9 @@ test("VUX-16: the discussion's send stays at the composer's corner when the stat
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await waitFor("document.querySelector('[data-side-toggle]')");
-  await click("[data-side-toggle]");
+  await waitFor("document.querySelector('[data-side-tabs] [data-side-tab][aria-selected=true]')");
+  // 07-1 S4b: the bar's side button is gone; the side opens from its current glyph in the titlebar.
+  await click("[data-side-tabs] [data-side-tab][aria-selected=true]");
   await waitFor("document.querySelector('[data-side-tab=\"discussion\"]')?.checkVisibility()");
   await click("[data-side-tab=\"discussion\"]");
   const im = "document.querySelector('[data-side-body=\"discussion\"] iframe')?.contentDocument";

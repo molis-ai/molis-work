@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { RuntimeWorkContext, NormalizedRuntimeWorkContext, RuntimeWorkspaceContext, NormalizedRuntimeWorkspaceContext } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 import { bindingErrors } from "./binding-errors.js";
 import { projectCatalogErrors } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -47,8 +48,9 @@ function requireRoutableRuntimeWorkContext(input: RuntimeWorkContext): Normalize
 
 function runtimeContextPersistenceId(context: NormalizedRuntimeWorkContext): string {
   if (context.stable_work_context_id) return context.stable_work_context_id;
-  // Callers hold a context that passed requireRoutableRuntimeWorkContext: without a Session id it has a workspace.
-  return `workspace-request:${context.workspace!.workspace_id}`;
+  // Callers hold a context that passed requireRoutableRuntimeWorkContext: without a Session id it has a workspace. The key is the path's
+  // hash: a request key only, never a folder id (§3 「路径到行」).
+  return `workspace-request:workspace-${createHash("sha256").update(context.workspace!.canonical_path).digest("hex").slice(0, 24)}`;
 }
 
 function requiredName(value: string): string {

@@ -117,10 +117,12 @@ test("VUX-33: Coding's streamed code block grows in place, coloured from its las
   await browser.click(".navigator-project-settings");
   await browser.waitFor("!!document.querySelector('[data-directory-panel=project-settings] [data-settings-section=workspaces]')");
   await browser.click("[data-directory-panel=project-settings] [data-settings-section=workspaces]");
-  await browser.waitFor("!!document.querySelector('[data-project-workspaces-add]') && !document.querySelector('[data-project-workspaces-refresh]').disabled");
-  await fill("[data-project-workspaces-add] [name=path]", workspace, true);
-  await browser.click("[data-project-workspaces-add] [type=submit]");
-  await browser.waitFor("document.querySelector('[data-project-workspaces-list]').textContent.includes('code-grow')");
+  await browser.waitFor("!!document.querySelector('[data-directories-add]') && document.querySelector('[data-project-directories]')?.dataset.state==='ready'");
+  await fill("[data-directories-add] [name=path]", workspace, true);
+  await browser.click("[data-directories-add] [type=submit]");
+  await browser.waitFor("document.querySelector('[data-directories-inputs]').textContent.includes('code-grow')");
+  await browser.click("[data-directories-inputs] [data-directory-row]:has([title$='/code-grow']) [data-act=set-output]");
+  await browser.waitFor("document.querySelector('[data-directories-output] [data-directory-row] [data-text=path]')?.title.endsWith('/code-grow')");
   const coding = "[data-coding-workbench]";
   await browser.click(`[data-plugin-strip] [data-plugin-id="coding"]`);
   await browser.waitFor(`document.querySelector('[data-work-surface="coding"]')?.getBoundingClientRect().width > 100`);

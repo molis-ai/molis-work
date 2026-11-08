@@ -196,6 +196,21 @@ export const SETTINGS_STYLES = `
   .project-delete-dialog .runtime-plan-body > p:first-child { margin: 0; }
   .project-delete-dialog .settings-form-error { margin-top: 12px; }
   .project-delete-dialog header p { overflow-wrap: anywhere; }
+  /* The default output directory's question (A3): one column of the interaction option cards, then what both choices mean. */
+  .project-delete-output { margin-top: 16px; display: grid; gap: 8px; }
+  .project-delete-output__ask { margin: 0; color: var(--ink); font-size: 13px; font-weight: var(--weight-control, 500); }
+  .project-delete-output .mw-ix-options { grid-template-columns: 1fr; }
+  .project-delete-output__say { margin: 4px 0 0; color: var(--ink-soft); font-size: 13px; }
+  .project-delete-dialog .project-delete-busy { margin-top: 12px; }
+  /* Where a kept folder stays: its full path in a container, one copy button. */
+  .project-delete-kept { display: grid; gap: 12px; }
+  .project-delete-kept__box { display: grid; gap: 8px; min-width: 0; padding: 12px; border: 1px solid var(--line); border-radius: var(--r-card); background: var(--surface-soft); }
+  .project-delete-kept__title { display: flex; align-items: center; gap: 8px; color: var(--ink); font-size: 13px; font-weight: var(--weight-control, 500); }
+  .project-delete-kept__title svg { width: 16px; height: 16px; flex: none; color: var(--ink-soft); }
+  .project-delete-kept__path { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px; min-width: 0; }
+  .project-delete-kept__path code { flex: 1 1 240px; min-width: 0; padding: 6px 8px; border-radius: var(--r-tag); background: var(--paper); box-shadow: inset 0 0 0 1px var(--line); font: 12px/1.5 var(--mono); color: var(--ink); overflow-wrap: anywhere; user-select: all; }
+  .project-delete-kept > p { margin: 0; color: var(--ink-soft); font-size: 13px; line-height: 1.6; }
+  :is(.settings-page, body.immersive-workbench) .project-delete-dialog [hidden] { display: none; }
   .connection-settings-section { margin-top: 32px; padding-top: 32px; border-top: 1px solid var(--line-strong); }
   .connection-settings-heading { max-width: 72ch; margin-bottom: 8px; }
   .connection-settings-heading h2 { margin: 0; font-size: 17px; letter-spacing: -.02em; }

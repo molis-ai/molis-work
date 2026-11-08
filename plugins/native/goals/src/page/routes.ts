@@ -1,5 +1,5 @@
 import type { DeclaredPageRouteMatch } from "@molis-ai/molis-work-plugin-sdk";
-import { goalsReadRouteNotFound, goalsReadRouteOf, goalsPageRouteOf, resolveGoalsPageCollection,
+import { GOAL_NOT_FOUND, goalsReadRouteNotFound, goalsReadRouteOf, goalsPageRouteOf, resolveGoalsPageCollection,
   type GoalsPageCollections, type GoalsRouteError, type GoalsReadRoute, type GoalDocumentCollection } from "../document-routes.js";
 
 type HtmlResult = { status: 200; html: string } | GoalsRouteError;
@@ -46,7 +46,7 @@ export interface GoalsReadRenderers {
   momentum: (goalId: string, collection: "current" | "archive") => string | null;
   document: (goalId: string, collection: GoalDocumentCollection) => string | null;
 }
-export function renderGoalsReadRoute(route: GoalsReadRoute, renderers: GoalsReadRenderers): { status: 200; html: string } | { status: 404; error: string } {
+export function renderGoalsReadRoute(route: GoalsReadRoute, renderers: GoalsReadRenderers): { status: 200; html: string } | { status: 404; error: string; code?: typeof GOAL_NOT_FOUND } {
   let html: string | null;
   switch (route.kind) {
     case "refresh": html = renderers.refresh(route.goal_id, route.collection); break;
@@ -54,5 +54,7 @@ export function renderGoalsReadRoute(route: GoalsReadRoute, renderers: GoalsRead
     case "document": html = renderers.document(route.goal_id, route.collection); break;
   }
   // Refresh historically accepts an empty render result; individual fragments do not.
-  return html || route.kind === "refresh" ? { status: 200, html: html ?? "" } : { status: 404, error: goalsReadRouteNotFound(route) };
+  if (html || route.kind === "refresh") return { status: 200, html: html ?? "" };
+  // A Goal's document that is not there is Goals' own "no such Goal", which the page reads to mark the record gone.
+  return { status: 404, error: goalsReadRouteNotFound(route), ...(route.kind === "document" ? { code: GOAL_NOT_FOUND } : {}) };
 }

@@ -49,7 +49,7 @@ import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { bindGoalsWebActions } from "./goal-callers.js";
 import {
   agentReviewsRoute, boardRoute, directoryGrantRoute, pluginPageRoute, directoryRoutes, homeDockRoute, pluginStudioRoute, projectAssistantRoutes, projectNotFoundRoute,
-  projectProbeRoutes, projectRuntimeRoute, projectWorkspacesRoute, projectWriteCheckersRoute, runtimePluginsRoute, sideFilesRoute, sideViewRoute,
+  projectProbeRoutes, projectRuntimeRoute, projectWriteCheckersRoute, runtimePluginsRoute, sideFilesRoute, sideViewRoute,
   workspaceMembershipRoute,
 } from "./web-project-platform-routes.js";
 
@@ -186,7 +186,6 @@ function projectWebView({ options, webViewCache, store, homeActions, localHost, 
       model: id => composition.workbenchRenderer.declaredStageModel(id, view) });
     return { ...view, plugin_stages: homeStages.html, plugin_panels: homeStages.panels, plugin_overlays: homeStages.overlays,
       plugin_stage_surfaces: homeStages.surfaces, ...(homeStages.page ? { page_stage: homeStages.page } : {}), unavailable_plugin_stages: homeStages.unavailable,
-      home_plugin_nav: await localHost.homePlugins?.navigation() ?? [],
       plugin_directory: mergePluginDirectories(await homePluginDirectory(localHost.homePlugins, serverOptions.homeDirectory), builtinMarketDirectory(serverOptions.homeDirectory)) };
   };
 }
@@ -253,7 +252,6 @@ const goalsAndArtifactRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
 
 /** Inside the project's open runtime, tried in this order; the last entry answers every address the project does not have. */
 const PROJECT_RUNTIME_ROUTES: readonly WebRoute<ProjectRuntimeContext>[] = [
-  projectWorkspacesRoute,
   projectRuntimeRoute,
   projectWriteCheckersRoute,
   pluginStudioRoute,

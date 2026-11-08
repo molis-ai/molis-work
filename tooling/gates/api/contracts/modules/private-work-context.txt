@@ -62,7 +62,6 @@ export interface NormalizedRuntimeWorkContext {
 }
 
 export interface NormalizedRuntimeWorkspaceContext extends RuntimeWorkspaceContext {
-    workspace_id: string;
     display_name: string;
 }
 

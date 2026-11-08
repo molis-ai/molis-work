@@ -75,7 +75,7 @@ async function openCoding(t: TestContext, asked: readonly Asked[]) {
   const child = await pluginFrameBrowser(t,b,"coding");
   const { click, evaluate, waitFor } = child;
 
-  const fill = (selector: string, value: string) => (selector.includes("data-project-workspaces") ? b.evaluate : evaluate)(`(()=>{const node=document.querySelector(${JSON.stringify(selector)});node.value=${JSON.stringify(value)};node.dispatchEvent(new Event('input',{bubbles:true}));node.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  const fill = (selector: string, value: string) => (selector.includes("data-directories") ? b.evaluate : evaluate)(`(()=>{const node=document.querySelector(${JSON.stringify(selector)});node.value=${JSON.stringify(value)};node.dispatchEvent(new Event('input',{bubbles:true}));node.dispatchEvent(new Event('change',{bubbles:true}));})()`);
   await command("Emulation.setDeviceMetricsOverride", { width: 1360, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   const coding = "[data-coding-workbench]";
   const prepared = new Set<string>();
@@ -89,10 +89,13 @@ async function openCoding(t: TestContext, asked: readonly Asked[]) {
       await b.click('.navigator-project-settings');
       await b.waitFor("!!document.querySelector('[data-directory-panel=project-settings] [data-settings-section=workspaces]')");
       await b.click('[data-directory-panel=project-settings] [data-settings-section=workspaces]');
-      await b.waitFor("!!document.querySelector('[data-project-workspaces-add]') && !document.querySelector('[data-project-workspaces-refresh]').disabled");
-      await fill('[data-project-workspaces-add] [name=path]', workspace);
-      await b.click('[data-project-workspaces-add] [type=submit]');
-      await b.waitFor(`document.querySelector('[data-project-workspaces-list]').textContent.includes(${JSON.stringify(`no-crosstalk-${prepared.size}`)})`);
+      await b.waitFor("!!document.querySelector('[data-directories-add]') && document.querySelector('[data-project-directories]')?.dataset.state==='ready'");
+      await fill('[data-directories-add] [name=path]', workspace);
+      await b.click('[data-directories-add] [type=submit]');
+      await b.waitFor(`document.querySelector('[data-directories-inputs]').textContent.includes(${JSON.stringify(`no-crosstalk-${prepared.size}`)})`);
+      // The folder becomes the project's output, the one Coding works in when no folder is named (spec §3, SSC-17).
+      await b.click(`[data-directories-inputs] [data-directory-row]:has([title$='/no-crosstalk-${prepared.size}']) [data-act=set-output]`);
+      await b.waitFor(`document.querySelector('[data-directories-output] [data-directory-row] [data-text=path]')?.title.endsWith('/no-crosstalk-${prepared.size}')`);
       prepared.add(project);
     }
     await b.click(`[data-plugin-strip] [data-plugin-id="coding"]`);

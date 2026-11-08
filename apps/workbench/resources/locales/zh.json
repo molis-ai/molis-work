@@ -3,6 +3,7 @@
   "owner": "workbench",
   "locale": "zh",
   "messages": {
+    "common.presentation.stale": "以下是{at}读到的值",
     "common.text.unavailable": "这句话暂时显示不了",
     "workbench.composer.next-boundary": "补充",
     "workbench.env.add-row": "加一行",

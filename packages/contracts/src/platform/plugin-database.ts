@@ -153,6 +153,33 @@ export interface PluginDatabaseDeclaration {
   readonly schema: string;
   readonly read_permission: string;
   readonly write_permission: string;
+  /**
+   * How a library at an older `version` reaches this one: one step from each `from` up to `version - 1`, each once (the oldest may
+   * be dropped once no supported library is that old). `schema` is always the complete current statements; the steps only bring an
+   * older library there. The platform runs them, in its upgrade process only, by one set of checks for every plugin
+   * (specs/upgrade-continuity/upgrade-chain-design.md §2.4): a step may only add, drop, rename or create this plugin's own tables and
+   * indexes and change their rows, by deterministic SQL; afterwards the tables must be exactly what `schema` makes, or none of it is
+   * kept and the plugin stops.
+   *
+   * 2026-10-18 改: for now only a plugin of the Host's own build may declare steps. An installed plugin whose Manifest has `upgrades`
+   * is refused at install and at a version change (`plugin.upgrade_steps_unsupported`), until U4 lets installed plugins upgrade their
+   * tables too (user 2026-11-06).
+   */
+  readonly upgrades?: readonly PluginDatabaseUpgradeStep[];
+}
+
+/**
+ * One step of a plugin's tables, from version `from` to `from + 1`. Only SQL: the statements a step may hold are the `ALTER` of a
+ * table (`ADD`, `DROP`, `RENAME`), `CREATE TABLE`, `CREATE [UNIQUE] INDEX`, `DROP TABLE`, `DROP INDEX`, `INSERT`, `UPDATE` and `DELETE`,
+ * none of them with `IF [NOT] EXISTS` or a library's name, and nothing that gives another result on another device (the time, a
+ * random value). The platform drops this plugin's triggers before the first step and makes them again from `schema` after the last,
+ * so a step's row changes reach no sync journal and run no trigger.
+ */
+export interface PluginDatabaseUpgradeStep {
+  readonly from: number;
+  readonly sql: string;
+  /** Tables this step means to leave with fewer rows (a table dropped counts; a renamed one keeps its rows under its new name). Every other table keeps at least its row count. */
+  readonly reduces_rows?: readonly string[];
 }
 
 /**
@@ -238,5 +265,16 @@ export interface HomeStoreDeclaration {
    * The SQLite library this store is, at its owner's one baseline: `file` in the store's directory (default `<path>.db`). With
    * `partition: "project"` there is one such file for each project, in `projects/<project>/` under the store's directory.
    */
-  readonly library?: { readonly baseline: { readonly version: number; readonly schema: string }; readonly file?: string; readonly partition?: "project" };
+  readonly library?: { readonly baseline: HomeStoreBaseline; readonly file?: string; readonly partition?: "project" };
+}
+
+/**
+ * A library's one baseline: its version, its complete current statements, and how an older library reaches them. A plugin's library has
+ * its Manifest's steps (`PluginDatabaseUpgradeStep`, SQL only, run through the plugin's checks); a store of the platform may carry more
+ * in each step (storage's `SqliteUpgradeStep`: a function that fills new columns, its own check), which only its owner's code writes.
+ */
+export interface HomeStoreBaseline {
+  readonly version: number;
+  readonly schema: string;
+  readonly upgrades?: readonly { readonly from: number; readonly sql?: string; readonly reduces_rows?: readonly string[] }[];
 }

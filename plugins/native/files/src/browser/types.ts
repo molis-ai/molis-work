@@ -51,7 +51,8 @@ export type EntryKind = "file" | "directory" | "other";
 export interface DirectoryEntry { readonly name: string; readonly kind: EntryKind; readonly path: readonly string[] }
 /** Why a read was not text or a directory, in the Host's words for it. */
 export type ReadOutcome = "missing" | "denied" | "unsupported" | "binary" | "changed";
-export interface StateAnswer { readonly workspace?: { readonly workspace_id: string }; readonly position?: { readonly workspace_id: string; readonly path: string[] } }
+/** `resolved`: the folder the asked id names here (its own, or the one the person named for another device's), or null. */
+export interface StateAnswer { readonly workspace?: { readonly workspace_id: string }; readonly resolved?: string | null; readonly position?: { readonly workspace_id: string; readonly path: string[] } }
 export interface DirectoryAnswer {
   readonly result: { readonly outcome: "directory"; readonly entries: readonly DirectoryEntry[]; readonly truncated: boolean } | { readonly outcome: ReadOutcome };
 }
@@ -70,6 +71,8 @@ export interface Current { readonly workspace_id: string; readonly path: string[
 /** What Files hands back to the bundle that mounts it. */
 export interface FilesBrowser {
   refresh(): Promise<void>;
+  /** Browses another of the project's folders: the page that mounts Files keeps where it looks. */
+  browse(workspaceId: string): void;
   /** Whether Files answered to the face on show: it is shown for `files`, hidden for the others it knows. */
   show(face: string): boolean;
 }

@@ -1,6 +1,10 @@
 import type { CatalogCommit } from "./catalog-commit.js";
 import { promises as fs } from "node:fs";
-import { projectDirectoryPath, recordedStagedProjectDirectoryPath, stagedProjectDirectoryPath, type ProjectsModule } from "@molis-ai/molis-work-module-projects";
+import {
+  projectDirectoryPath, projectOutputContents, projectOutputDirectoryPath, recordedStagedProjectDirectoryPath, removeProjectOutputDirectory, stagedProjectDirectoryPath,
+  type ProjectsModule,
+} from "@molis-ai/molis-work-module-projects";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { RuntimeProjectBindingValidation } from "@molis-ai/molis-work-module-private-work-context";
 import { catalogErrors } from "./project-catalog-contract.js";
 import { randomUUID } from "node:crypto";
@@ -11,31 +15,43 @@ export interface ProjectDeletionCleanupPorts {
   removeBindings(projectId: string, actorId: string, at: string): number;
   removePanels(projectId: string): void;
 }
+
+/**
+ * The receipt's step for the files in the project's default output directory, there only when the person chose to delete them (§3
+ * 「永久删除怎么做」). It is this class's own step, not an owner's: the demo's re-creation runs every owner (`clearAll`), and would delete
+ * files nobody chose to.
+ */
+export const PROJECT_OUTPUT_DELETION_STEP = "project-output";
 /**
  * Stage a managed directory, commit the catalog's own cleanup and the receipt (one pending step for each owner of
  * project data in the Home), then run those steps and the physical cleanup, and retry whatever is left from that receipt.
  */
 export class ManagedProjectDeletion {
   private readonly finishing = new Map<string, Promise<MolisWorkProjectDeletionRecord>>();
-  constructor(private readonly projects: Pick<ProjectsModule, "query" | "lifecycle">,
+  constructor(private readonly projects: Pick<ProjectsModule, "query" | "lifecycle" | "recycle">,
     private readonly projectsDirectory: string, private readonly cleanup: ProjectDeletionCleanupPorts,
     private readonly validation: Pick<RuntimeProjectBindingValidation, "requiredActorId" | "requiredProjectId">, private readonly commit: CatalogCommit,
-    private readonly owners: ProjectDeletedPort) {}
+    private readonly owners: ProjectDeletedPort,
+    /** This Home's `outputs`, derived from the trusted Home when the catalog opens (S-102). */
+    private readonly outputsDirectory: string) {}
 
   async deleteProject(input: DeleteMolisWorkProjectInput): Promise<MolisWorkProjectDeletionResult> {
     const projectId = this.validation.requiredProjectId(input.project_id);
     const actorId = this.validation.requiredActorId(input.actor_id);
     requireDeletionConfirmed(input.delete_confirmed);
     const idempotencyKey = requiredDeletionIdempotencyKey(input.idempotency_key);
-    const requestFingerprint = JSON.stringify({ project_id: projectId, delete_confirmed: true });
+    const deleteOutput = requiredOutputFiles(input.output_files) === "delete";
+    // Keeping the files is written as it always was; only a choice to delete them is part of the request, so the same key with the other choice
+    // is another request (`deletion_idempotency_conflict`).
+    const requestFingerprint = JSON.stringify({ project_id: projectId, delete_confirmed: true, ...(deleteOutput ? { output_files: "delete" } : {}) });
     const replay = this.projects.lifecycle.findDeletion(actorId, idempotencyKey);
     if (replay) {
       if (replay.request_fingerprint !== requestFingerprint) {
-        throw catalogErrors.deletion_idempotency_conflict("同一个项目删除请求键不能用于不同的项目或删除确认",
+        throw catalogErrors.deletion_idempotency_conflict("同一个项目删除请求键不能用于不同的项目、删除确认或对默认输出目录里文件的选择",
         );
       }
       const deletion = await this.finishProjectDeletionCleanup(replay);
-      return { deletion, replayed: true };
+      return { deletion, replayed: true, ...this.keptOutput(projectId, deleteOutput) };
     }
 
     const project = this.projects.query.getProject(projectId);
@@ -71,11 +87,12 @@ export class ManagedProjectDeletion {
           cleaned_at: null,
         };
         this.projects.lifecycle.insertDeletion(record);
-        this.projects.lifecycle.insertDeletionSteps(record.deletion_id, this.owners.owners().map(owner => owner.id));
+        this.projects.lifecycle.insertDeletionSteps(record.deletion_id,
+          [...this.owners.owners().map(owner => owner.id), ...(deleteOutput ? [PROJECT_OUTPUT_DELETION_STEP] : [])]);
         return record;
       }));
       catalogCommitted = true;
-      return { deletion: await this.finishProjectDeletionCleanup(deletion), replayed: false };
+      return { deletion: await this.finishProjectDeletionCleanup(deletion), replayed: false, ...this.keptOutput(project.project_id, deleteOutput) };
     } catch (error) {
       if (!catalogCommitted) {
         await restoreMovedProject(projectDirectory, stagedDirectory);
@@ -113,7 +130,8 @@ export class ManagedProjectDeletion {
     for (const step of this.projects.lifecycle.deletionSteps(record.deletion_id)) {
       if (step.state !== "pending") continue;
       try {
-        if (!await this.owners.clear(step.owner_id, record.project_id, { deletion_id: record.deletion_id, project_id: record.project_id })) {
+        if (step.owner_id === PROJECT_OUTPUT_DELETION_STEP) await this.removeOutputFiles(record.project_id);
+        else if (!await this.owners.clear(step.owner_id, record.project_id, { deletion_id: record.deletion_id, project_id: record.project_id })) {
           problems.push(`${step.owner_id}：${step.error ?? "这一步要由有这项数据的 Molis Work 入口完成"}`);
           continue;
         }
@@ -130,6 +148,40 @@ export class ManagedProjectDeletion {
       problems.push(error instanceof Error ? error.message : String(error));
     }
     return this.recordCleanup(record.deletion_id, problems);
+  }
+
+  /**
+   * The files the person chose to delete with the project. The receipt is not trusted (S-102): the folder is derived from the trusted Home and
+   * the id and checked like a read, and a project the catalog still has (recycled ones too) is never touched, since its receipt cannot be
+   * one its deletion wrote.
+   */
+  private async removeOutputFiles(projectId: string): Promise<void> {
+    if (this.stillRecorded(projectId)) {
+      throw catalogErrors.project_storage_invalid("这个项目还在目录库里，不删它默认输出目录里的文件");
+    }
+    await removeProjectOutputDirectory(this.outputsDirectory, projectId);
+  }
+
+  private stillRecorded(projectId: string): boolean {
+    if (this.projects.recycle.isRecycled(projectId)) return true;
+    try { this.projects.query.getProject(projectId); return true; } catch (error) {
+      if (error instanceof ActionError && error.code === "catalog.project_not_found") return false;
+      throw error;
+    }
+  }
+
+  /**
+   * What the default output directory of this project id holds, for the deletion dialog: `empty`, `has_files`, or `unknown` when it does not
+   * pass the check (a symbolic link, say). Asked of the id, not of the catalog: the dialog opens again for a deletion whose clean-up is pending.
+   */
+  outputContents(projectId: string): "empty" | "has_files" | "unknown" {
+    return projectOutputContents(this.outputsDirectory, projectId);
+  }
+
+  /** Where files were left: the default output directory, when the person did not choose to delete them and it has some. Never stored. */
+  private keptOutput(projectId: string, deleteOutput: boolean): { kept_output_directory?: string } {
+    if (deleteOutput || this.outputContents(projectId) !== "has_files") return {};
+    return { kept_output_directory: projectOutputDirectoryPath(this.outputsDirectory, projectId) };
   }
 
   private async recordCleanup(deletionId: string, problems: readonly string[]): Promise<MolisWorkProjectDeletionRecord> {
@@ -172,6 +224,13 @@ export function requireDeletionConfirmed(confirmed: boolean): void {
     throw catalogErrors.delete_confirmation_required("删除 Molis Work 项目及其数据库需要当前对话中的单独明确确认",
     );
   }
+}
+
+/** What happens to the files in the default output directory: `keep` when the entry gives nothing; anything else is refused. */
+export function requiredOutputFiles(value: unknown): "keep" | "delete" {
+  if (value === undefined || value === "keep") return "keep";
+  if (value === "delete") return "delete";
+  throw new ActionError("actions.input_invalid", "默认输出目录里的文件只能选择留下（keep）或删除（delete）");
 }
 
 export function requiredDeletionIdempotencyKey(value: string): string {

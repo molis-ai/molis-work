@@ -29,7 +29,7 @@ export function createLocalUninstallService(options: Omit<MolisWorkUninstallServ
       await withMolisWorkProjectCatalog({ homeDirectory, storageOwner }, async catalog => {
         for (const projectId of input.project_ids) await catalog.removeDemoProject({
           project_id: projectId, actor_id: "molis-work-uninstaller", delete_confirmed: true,
-          idempotency_key: `${input.plan_id}:${projectId}`,
+          idempotency_key: `${input.plan_id}:${projectId}`, output_files: "keep",
         });
       });
     },

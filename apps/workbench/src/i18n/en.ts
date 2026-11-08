@@ -386,6 +386,7 @@ export const EN: Record<string, string> = {
   "项目已从目录移除，但本机数据清理未完成。请重试清理。": "The project has been removed from the directory, but local data cleanup is incomplete. Please retry cleanup.",
   "重试清理": "Retry cleanup",
   "请明确确认删除项目，并提供有效的删除请求键。": "Confirm project deletion and provide a valid deletion request key.",
+  "默认输出目录里的文件只能选择留下或删除。": "The files in the default output folder can only be kept or deleted.",
   "请先关闭这个项目中正在运行的终端，再删除项目。": "Close the running terminals in this project before deleting it.",
   "这个项目还有未结束的执行记录，请结束工作后再删除。": "This project has unfinished execution records. Finish the work before deleting it.",
   "返回 Feed 列表": "Back to Feed list",

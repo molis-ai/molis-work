@@ -129,7 +129,8 @@ export class LocalMcpServer {
     const identity = runtimeConnectionIdentity(host, callContext);
     const home = host.homeDirectory;
     return new ProjectDeletionService(this.withCatalog, { isPanelAlive: () => false, releaseProject: async databasePath => { await this.localHost.closeProject(databasePath); } })
-      .deleteProject(home, { ...request, actor_id: identity.actor_id });
+      // MCP has no dialog to ask: the files in the default output directory stay where they are, whatever the request carries (SSC-23).
+      .deleteProject(home, { ...request, actor_id: identity.actor_id, output_files: "keep" });
   }
 
   /** The Runtime connection pins the installation-selected Home and credential once, until an explicit new context. */

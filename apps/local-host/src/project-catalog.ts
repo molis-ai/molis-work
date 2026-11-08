@@ -209,12 +209,12 @@ export class MolisWorkProjectCatalog {
     this.homeDirectory = homeDirectory;
     this.projectsDirectory = path.join(homeDirectory, "projects");
     this.databasePath = path.join(this.projectsDirectory, "catalog.db");
-    const space = ensureStorageSpace(homeDirectory), realHome = realpathSync.native(homeDirectory);
+    // `outputs` is derived from the trusted Home each time the catalog opens, never stored: a copied Home reads its own (S-102).
+    const space = ensureStorageSpace(homeDirectory), realHome = realpathSync.native(homeDirectory), outputsDirectory = path.join(realHome, "outputs");
     this.projects = new ProjectsModule({
       spaceId: space.spaceId,
       db, projects_directory: this.projectsDirectory,
-      // Derived from the trusted Home each time it is opened, never stored: a copied Home reads its own outputs (S-102).
-      outputs_directory: path.join(realHome, "outputs"),
+      outputs_directory: outputsDirectory,
       // An account Home is `<root>/spaces/<space_id>`: a folder named for another device's directory stays out of the whole root (SSC-27).
       root_home_directory: space.kind === "local" ? realHome : path.dirname(path.dirname(realHome)),
       plugins: homeProjectPlugins(homeDirectory, () => this.projectPluginDirectory?.() ?? alwaysOnProjectPlugins(homeDirectory)),
@@ -231,7 +231,7 @@ export class MolisWorkProjectCatalog {
     this.projectDeletion = new ManagedProjectDeletion(this.projects, this.projectsDirectory, {
       removeBindings: (projectId, actorId, at) => this.runtimeContexts.removeProjectFacts(projectId, actorId, at),
       removePanels: projectId => this.terminalPanels.deleteForProject(projectId),
-    }, contextBindingValidation, this.commit, projectDeletedHooksFor(homeDirectory));
+    }, contextBindingValidation, this.commit, projectDeletedHooksFor(homeDirectory), outputsDirectory);
     this.demoProjects = new DemoProjectLifecycle(
       this.projects,
       this.projectsDirectory,

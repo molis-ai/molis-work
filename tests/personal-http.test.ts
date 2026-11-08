@@ -211,7 +211,7 @@ test('ASR-02/10 PCSYNC-02/04/05/06 Host keeps manual runs separate and preserves
 test('web sessions expire, rotate identifiers, reject duplicate cookies and do not survive restart',()=>{
   let now=1000;const sessions=new PersonalWebSessions(()=>now);
   const config={authOrigin:'https://auth.example',clientId:'web',cloudOrigin:'https://cloud.example'};
-  const auth=new PersonalAuth(config,{get:()=>null,put:()=>{},delete:()=>{}});
+  const auth=new PersonalAuth(config,{get:()=>null,put:()=>{},delete:()=>{},assertWritable:()=>{}});
   const a=sessions.adopt(auth),b=sessions.adopt(auth);
   const before=sessions.cookie(a,true).split(';')[0];
   assert.equal(sessions.get(before),a);assert.match(sessions.cookie(a,true),/HttpOnly; SameSite=Lax; Max-Age=28800; Secure/);

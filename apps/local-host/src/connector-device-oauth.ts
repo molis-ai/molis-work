@@ -12,6 +12,7 @@ import { connectorProductAuth } from "./connector-product-auth.js";
 import { connectorProtocolSecrets, withConnectorProtocols } from "./connector-protocol-store.js";
 import { checkConnectorSetupSubmission } from "./connector-setup-submission.js";
 import type { PeriodicTasks } from "./periodic-tasks.js";
+import { assertHomeSecretsWritable } from "./versioned-file-read.js";
 
 // The device authorization grant of the generic OAuth flow (RFC 8628, W5-11 §2.5). The service's declaration says where to ask for the
 // code and where to poll; the platform does the rest: it keeps the device code, rate-limits the polling itself, and judges the
@@ -73,6 +74,8 @@ export async function startDeviceOAuth(home: string, input: { serviceId: string;
   }
   if (!clientId) clientId = connectorProductAuth(input.serviceId, "oauth")?.clientId ?? "";
   if (!clientId || clientId.length > 512 || /[\r\n]/u.test(clientId)) throw new ApiOAuthError("请填写有效的 OAuth Client ID");
+  // The device code is the vault's to keep: a vault this build cannot write is found before the service is asked for one.
+  assertHomeSecretsWritable(home);
   const request = declared(() => oauthDeviceRequest(method, settings, clientId), input.serviceId);
   const send = sender(fetchImpl, { current: () => checkConnectorSetupSubmission(home, input.setupId, setup) });
   let started: Json;

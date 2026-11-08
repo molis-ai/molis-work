@@ -8,7 +8,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { BROWSER_SITES_FILE, BrowserSiteDecisions, COMPUTER_RECORD_FILE, ComputerRecords, ComputerSettings, dismissMolisWorkOnboarding, homeUpgradeDescriptors, markProjectOpened, ModelProviderStore, ONBOARDING_FILE, PROJECT_ARRIVAL_FILE, readMolisWorkOnboardingState, readProjectArrival, setProjectDescription, upgradeTarget, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { BROWSER_SITES_FILE, BrowserSiteDecisions, COMPUTER_RECORD_FILE, ComputerRecords, ComputerSettings, dismissMolisWorkOnboarding, fileAccountSecrets, homeUpgradeDescriptors, markProjectOpened, ModelProviderStore, ONBOARDING_FILE, PersonalAuth, PROJECT_ARRIVAL_FILE, readMolisWorkOnboardingState, readProjectArrival, setProjectDescription, upgradeTarget, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { JELLY_MODEL_CONFIGURATION, jellyServiceActions } from "@molis-ai/molis-work-plugin-jelly";
 import { assertVersionedFileWritable, createFileSecretStore, LocalSqliteStorage, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { person, serveHomeRuntime } from "./fixtures/home-runtime.js";
@@ -98,6 +98,40 @@ test("S-upgrade-too-new-untouched: `config/onboarding.json` one version ahead or
   }
   const projects = await host.configurePersonalPlanning(home, withMolisWorkProjectCatalog)({ homeDirectory: home }, catalog => catalog.listProjects().map(project => project.project_id));
   assert.deepEqual(projects, [], "no project and no personal space");
+});
+
+test("S-upgrade-too-new-untouched: `feed/secrets.json` one version ahead or unreadable: a login is refused before it sends anything or spends its code", async t => {
+  const relative = join("feed", "secrets.json"), callback = "http://127.0.0.1:4173/account/callback";
+  const config = { authOrigin: "https://auth.example", clientId: "too-new-vault" };
+  for (const [contents, code] of [[null, "storage.store_too_new"], ["{", "storage.schema_version_mismatch"]] as const) {
+    const { home } = upgradeTestHome(t), sent: string[] = [];
+    let state = "";
+    // Only the Auth peer is synthetic; the vault is the Home's real one, through the same store and check the account HTTP owner uses.
+    const http: typeof fetch = async (url, init) => {
+      const at = new URL(String(url)).pathname;
+      sent.push(at);
+      if (at === "/api/v1/auth/transactions") { state = JSON.parse(String(init?.body)).state; return Response.json({ data: { loginUrl: `${config.authOrigin}/login` } }); }
+      if (at === "/oauth2/token") return Response.json({ access_token: "synthetic-vault-access", refresh_token: "synthetic-vault-refresh", expires_in: 3600 });
+      return Response.json({ data: { userId: "vault-person", displayName: "Vault", emails: [], applicationId: "work", clientId: config.clientId } });
+    };
+    const auth = runWithMolisWorkHome(home, () => new PersonalAuth(config, fileAccountSecrets(), http));
+    // Someone is signed in and is switching accounts when the vault turns out to be a newer build's, or damaged.
+    await auth.begin(callback);
+    await auth.complete("first-code", state);
+    const lease = auth.accountLease(), generation = auth.accountGeneration();
+    await auth.begin(callback, false, true);
+    const file = place(home, relative, contents ?? { ...json(join(home, relative)), version: versionAt(relative) + 1 }), before = sha256(file);
+    sent.length = 0;
+    await assert.rejects(auth.complete("second-code", state), { code });
+    assert.deepEqual(sent, [], `${code}: the code is not exchanged and no profile is read`);
+    assert.equal(auth.accountGeneration(), generation, `${code}: the signed-in account is not invalidated`);
+    assert.doesNotThrow(() => lease.assertCurrent(), `${code}: and its lease still holds`);
+    await assert.rejects(auth.begin(callback), { code });
+    assert.deepEqual(sent, [], `${code}: no new login is started either`);
+    assert.equal(auth.loginPending(), false, code);
+    assert.equal(sha256(file), before, code);
+    assert.deepEqual(temporaryFiles(file), [], `${code}: and no temporary file`);
+  }
 });
 
 const refusals = (t: TestContext, relative: string, version: number, field: "version" | "schema_version", use: (home: string) => void) => {

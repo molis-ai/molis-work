@@ -49,7 +49,7 @@ LocalSqliteStorage 打开连接并配置 WAL、FULL synchronous、外键和 busy
 
 首次初始化才调用 `initializeReplica(db,true)`（默认）；已经通过当前 owner 版本检查的库可用 `initializeReplica(db,false)` 验证既有状态，状态缺失即拒绝，不重新生成设备身份或清空下载位置。Work 的同一正常/被动打开器使用此区分。
 
-私密 owner 可由可信组合根向 `createSqliteReplica` 注入 contracts 的 `SyncLocalProtection` 端口。待发送 operation、冲突及恢复的双方正文均经同一个序列化器保护，绑定稳定键与用途，解码严格验证 UTF-8/JSON；保护模式拒绝明文，密钥不可用或撤权时不清队列、不尝试明文读取。序列化器不创建密钥，Storage 不依赖 SDK。owner 必须将此模式固定在自己的当前库格式与组合根中，并由提供方额外绑定 Home/空间及集合；不能把可选技术端口当成任意现有库自动切换格式的升级器。网络传输、共同下载缓存及实际 Work owner 的密钥接入仍须分别验证。
+私密 owner 可由可信组合根向 `createSqliteReplica` 注入 contracts 的 `SyncLocalProtection` 端口。待发送 operation、冲突及恢复的双方正文均经同一个序列化器保护，绑定稳定键与用途，解码严格验证 UTF-8/JSON；保护模式拒绝明文，密钥不可用或撤权时不清队列、不尝试明文读取。序列化器不创建密钥。owner 必须将此模式固定在自己的当前库格式与组合根中，并由提供方额外绑定 Home/空间及集合；不能把可选技术端口当成任意现有库自动切换格式的升级器。网络传输、共同下载缓存及实际 Work owner 的密钥接入仍须分别验证。
 
 `createSqliteReplica().inspectReceive` 只读观察事件当前属于忽略、游标追赶、本人回执、冲突或可应用，用于 Host 判断是否需要异步准备。它与 `receive` 使用同一份日志判断，不读取业务 owner、不改游标/队列/冲突；观察不是接纳凭证，任何等待之后 `receive` 必须在原事务中重新判断。Host 不能据旧观察绕过新编辑或新回执。验证：`tests/replica-dependencies.test.ts`。
 
@@ -63,7 +63,7 @@ LocalSqliteStorage 打开连接并配置 WAL、FULL synchronous、外键和 busy
 
 只在部分操作需要凭据的服务使用 `createLazyFileSecretStore(homeDirectory)`：创建时固定 Home，调用时才沿用原凭据库与锁；只读取尚未保存的凭据引用时直接返回空值，不初始化后端。Functions 的 Host、HTTP、MCP 和设置装配使用此入口，因此本地列表、说明、草稿与场景查询不因服务初始化而请求钥匙串。已有凭据的读取、写入、迁移与后端诊断仍走原保护；配置了环境凭据的 Functions 也不提前打开无关的本地凭据库。这里不承诺消除所有钥匙串提示，模型健康检查和实际需要本地密钥的调用仍可能读取钥匙串。
 
-工作区依赖：`@molis-ai/molis-work-contracts`。冲突确认指纹通过 `SyncConflictState` 端口由可信组合根传入；组合根复用公开 SDK 的同一份工具，Storage 不依赖 SDK、不复制算法。缺少端口时拒绝生成比较确认，不回退到旧内容覆盖。其他运行依赖见 [package.json](package.json)。
+冲突确认指纹通过 `SyncConflictState` 端口由可信组合根传入；组合根复用公开 SDK 的同一份工具，Storage 不复制算法。缺少端口时拒绝生成比较确认，不回退到旧内容覆盖。其他运行依赖见 [package.json](package.json)。
 
 `createLocalPayloadProtection` 复用与既有 Search AEAD 相同的内部 AES-GCM 字节实现，既有 Search 密文前缀保持不变。可信组合根明确提供 Home 固定的 SecretStore、密钥引用、作用域、授权尾检和完整的已存保护数据检查；首次初始化通过原 SecretStore 的跨进程 `createIfAbsent` 保存密钥与独立身份指纹。密钥身份指纹仍在，或仍有受保护数据时，缺失、无效或被替换的密钥均拒绝读写，即使业务缓存暂为空也不自动换 key。只有密钥、指纹均不存在且没有任何受保护数据时，才允许作为全新状态初始化。保护不传密钥、不创建另一份凭据库；它本身不代表某个业务 owner 已接线。`createSyncBodySerialization` 公开复用同一个严格 JSON 密封序列化器，供共同协调器的延迟事件使用；用途与稳定键绑定，不另写第二套密文 JSON 格式。
 `inspectSealedSecretsSnapshot(home, ciphertext)` 只读核对所给的现行第1版 vault（AES-GCM 封条同为第1版）与同 Home 原主密钥，逐条验证 AES-GCM，返回后端、条目数和 `{location, sha256}` 密钥身份引用；不返回 key 或正文，不创建目录、锁库或替代 key，不依赖现 Home 的 vault 是否完好。单独空 vault 没有密文依赖。`readSealedSecretSnapshotEntry` 是 owner 明确恢复时读取单条正文的端口；`readExistingSecret(home, authRef)` 对当前 vault 做同样的只读检查，并拒绝软/硬链接文件，不借用 store 缓存。它们不是普通诊断或 HTTP 返回接口；调用方仍负责自己的引用归属。已密封的 Runtime 原配置备份由其 owner 使用这些端口读取。
@@ -72,7 +72,7 @@ LocalSqliteStorage 打开连接并配置 WAL、FULL synchronous、外键和 busy
 
 已有 vault 的 backend 在 entries 为空时也保持绑定：正常重开不按新的环境偏好切换，原 key 缺失/无效即拒绝，不生成替代值；只有从未存在 vault 的首次初始化走原选择规则。单独空 vault inspection 的无密文依赖结论不代表 vault 外的 owner payload 没有依赖。
 
-工作区依赖：`@molis-ai/molis-work-contracts` 与 `@molis-ai/molis-work-plugin-sdk`。后者提供凭据封套读取时的对象判断。其他运行依赖见 [package.json](package.json)。
+工作区依赖：`@molis-ai/molis-work-contracts` 与 `@molis-ai/molis-work-plugin-sdk`。后者提供凭据封套读取时的对象判断和同步回执比较用的规范化 JSON。其他运行依赖见 [package.json](package.json)。
 
 `createEvidenceContentStore` 为 Feed 与研究等消费者保存受限大小的加密正文，Host 显式选择目录并固定 Home。`createSearchOpaqueBlobStore`、`createSearchAead`、`createSearchSecretStore` 为 SEL 提供持久化。Feed 正文只使用 `feed/evidence/`，显式选择根目录的研究消费者也只使用自己的该目录；共用 `system:feed:evidence-content-key:v1` 一把密钥。缺钥、错钥或损坏密文拒绝读取和同内容写入，不生成恢复副本或替代密钥。`molis-work-feed/sha256/...` 引用、现行密文格式及 `feed_runtime_blobs` 表名保持不变；旧的 `createFeedSearch*` 三个导出名已删，只剩 `createSearch*` 一套，不保留第二份存储。来源游标、研究策略和条目处置归消费者。正文按内容寻址、整个 Home 共用，本包看不到谁在引用：`EvidenceContentStore.delete` 删一份正文，`collect({ candidates, isReferenced })` 只删调用方数过引用、确认无人持有的候选；`createSearchOpaqueBlobStore` 返回的 `collect({ namespace, discard })` 按键删 SEL 操作记录（值保持密封、不被读取）。数引用的一方（Feed 删除来源）负责数全。
 

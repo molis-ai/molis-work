@@ -1,6 +1,7 @@
 import type {} from "@molis-ai/molis-work-plugin-sdk";
 import { fresh } from "./bind-basic.js";
-import { invoke, messageOf, refreshSettings, save, savePatch, say } from "./save.js";
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
+import { invoke, refreshSettings, save, savePatch, say } from "./save.js";
 import type { SettingsPage } from "./types.js";
 import type { ShelfItemKind, ShelfShortcutAction } from "@molis-ai/molis-work-module-shelf/contract";
 

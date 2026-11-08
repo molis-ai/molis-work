@@ -1,4 +1,5 @@
 import { resolveModelPrompt } from "./agent-definitions/instructions.js";
+import { objectSchema } from "@molis-ai/molis-work-plugin-sdk";
 import { retainActionAuthority, type ActionClient, type ActionDefinition, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import { hostCompleteText, textModelAvailability, textModelRequired, type HostCompleteText } from "./host-complete-text.js";
 import { planInformationWork, type InformationPlanEntry, type InformationPlanSnapshot } from "./information-planner.js";
@@ -10,7 +11,6 @@ const feedSnapshot = { capability_id: "feed.snapshot", version: /* @version acti
 const inboxList = { capability_id: "inbox.list", version: /* @version action.inbox.list */ 1 } as const;
 
 const text = { type: "string" };
-const fields = (properties: Record<string, unknown>) => ({ type: "object", properties, required: Object.keys(properties), additionalProperties: false });
 
 export const informationActions = {
   plan: { capability_id: "information.plan", version: /* @version action.information.plan */ 1, operation: "query", action: {
@@ -18,10 +18,10 @@ export const informationActions = {
     kind: "query", scope: "project", scheduling: "concurrent", execution: { cost: "metered" }, audiences: ["user"], permissions: ["feed:read", "inbox:read", "model:invoke"], subject_kinds: [],
     required_actions: [feedSnapshot, inboxList],
     input_schema: { type: "object", properties: { prompt: { type: "string", minLength: 1, maxLength: 4000 }, selected_item_id: { type: "string", maxLength: 200 } }, required: ["prompt"], additionalProperties: false },
-    output_schema: fields({ message: text, action: { anyOf: [{ type: "null" },
-      fields({ kind: { const: "configure_filter" }, source_id: text, sample_item_id: text, name: text, instructions: text }),
-      fields({ kind: { const: "draft_pages" }, entry_ids: { type: "array", items: text }, title: text, instructions: text }),
-    ] }, context: fields({ project_id: text, items: { type: "integer", minimum: 0 }, inbox: { type: "integer", minimum: 0 } }) }),
+    output_schema: objectSchema({ message: text, action: { anyOf: [{ type: "null" },
+      objectSchema({ kind: { const: "configure_filter" }, source_id: text, sample_item_id: text, name: text, instructions: text }),
+      objectSchema({ kind: { const: "draft_pages" }, entry_ids: { type: "array", items: text }, title: text, instructions: text }),
+    ] }, context: objectSchema({ project_id: text, items: { type: "integer", minimum: 0 }, inbox: { type: "integer", minimum: 0 } }) }),
   } } satisfies ActionDefinition<{ prompt: string; selected_item_id?: string }, Awaited<ReturnType<typeof planInformationWork>>>,
 };
 

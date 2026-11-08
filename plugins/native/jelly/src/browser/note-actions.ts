@@ -6,7 +6,8 @@ import { syncTaskIndicators } from "./note-sync.js";
 import { closeWorkspace, download, run, showNote } from "./page.js";
 import { openPlan } from "./plan.js";
 import { API } from "./request.js";
-import { civil, esc } from "./util.js";
+import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { civil } from "./util.js";
 import { command, loadList } from "./workspace.js";
 import type { JellyPage, Preview } from "./types.js";
 

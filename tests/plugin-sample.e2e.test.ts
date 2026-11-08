@@ -196,7 +196,7 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
     const previewed = await actions.client.invoke(caller, previewResult, { artifact: artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, reference) }) as { media_type: string; data: string };
     assert.equal(previewed.media_type, "text/markdown");
     assert.equal(previewed.data, "# Local sample result\n\nResult 1\n");
-    const render = () => ui.mount({ slot: { slot_id: "plugin.main", version: 1, accepts: ["html"] },
+    const render = () => ui.mount({ slot: { slot_id: "plugin.main", accepts: ["html"] },
       contribution: { contribution_id: definition.manifest.ui.contributions[0]!, surface: "main", model: null } }).html;
     assert.match(render(), /Saved results: 1/);
     assert.equal(registeredPublications, 1, "the real connector poll invoked the registered publishing action");

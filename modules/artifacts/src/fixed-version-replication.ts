@@ -3,7 +3,7 @@ import { canonicalArtifactJson } from './content.js';
 import { ArtifactsRepository, type ArtifactsSqliteDatabase, type VersionStoreTables } from './repository.js';
 import { ArtifactsService, type ArtifactsServiceOptions } from './service.js';
 import type { ArtifactReplicationContext } from './replication.js';
-import { fixedVersionInvalid as fail, fixedVersionRegistration, validateFixedVersionBundle, type PortableVersionBundle } from './fixed-version-replication-shape.js';
+import { ARTIFACT_INLINE_ENCODING, fixedVersionInvalid as fail, fixedVersionRegistration, validateFixedVersionBundle, type PortableVersionBundle } from './fixed-version-replication-shape.js';
 
 /** The same immutable-version engine in its two owner-declared stores. Tables are never selected by a network value. */
 export function createFixedVersionReplication<R extends FixedVersionRecord>(db: ArtifactsSqliteDatabase, context: ArtifactReplicationContext, options: ArtifactsServiceOptions, tables: VersionStoreTables) {
@@ -20,7 +20,7 @@ export function createFixedVersionReplication<R extends FixedVersionRecord>(db: 
       if (!identity) return null;
       const { project_id: _project, ...portableIdentity } = identity;
       const versions = repository.listVersions(context.projectId, artifactId).map(({ project_id: _project, ...version }) => version);
-      const result = validate({ format: /* @version format.artifact.portable */ 1, spaceId: context.spaceId, projectId: context.projectId, identity: portableIdentity, versions });
+      const result = validate({ ...ARTIFACT_INLINE_ENCODING, spaceId: context.spaceId, projectId: context.projectId, identity: portableIdentity, versions });
       check(); return result;
     },
     apply(input: unknown): void {

@@ -1,5 +1,7 @@
 import { handLink } from "./chain.js";
-import { esc, messageOf, targetOf, uid } from "./dom.js";
+import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
+import { targetOf, uid } from "./dom.js";
 import { cancelHand, resumeRun, refreshFlow, selectStep } from "./handoff.js";
 import { drawList } from "./list.js";
 import { loadList, openRun, remember, setMode, showFlow } from "./nav.js";

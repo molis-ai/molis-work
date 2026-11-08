@@ -10,7 +10,7 @@ import type { ScheduleJobView } from "./reminder-management.js";
 import type { ScheduledOperationView } from "./operation-management.js";
 import { renderOperationRow, renderOperationDetail, renderOperationRecoveryDialog } from "./operation-ui.js";
 
-export const SCHEDULE_UI_CONTRIBUTION_ID = /* @version contract.io.molis.work.native.schedule.ui "io.molis.work.native.schedule.ui.v{version}" */ "io.molis.work.native.schedule.ui.v1";
+export const SCHEDULE_UI_CONTRIBUTION_ID = "io.molis.work.native.schedule.ui.v1";
 
 export type ScheduleUiSurface = "directory" | "workbench";
 

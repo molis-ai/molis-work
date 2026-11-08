@@ -1,4 +1,4 @@
-import { messageOf } from "./dom.js";
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { active, request } from "./page.js";
 import type { GitPage } from "./page.js";
 import type { ResultRow, ResultsAnswer, Translate } from "./types.js";
@@ -31,7 +31,6 @@ export function renderResult(page: GitPage): void {
   q("[data-git-result-provenance]").textContent = item
     ? L("git.result.decided", { who: item.review.decided_by || L("git.result.no-decider"), when: item.review.decided_at ? when(item.review.decided_at) : L("git.result.no-time") })
       + (reconciliation ? L("git.result.checked", { who: reconciliation.actor_id, when: when(reconciliation.at), why: reconciliation.reason })
-        : item.review.reconciliation_reason ? L("git.result.checked-old", { why: item.review.reconciliation_reason })
         : item.review.failure_reason ? L("git.result.original", { why: S(item.review.failure_reason) }) : "")
     : "";
   resultStatus.textContent = row?.unavailable ? S(row.unavailable) : row?.saved ? L("git.result.saved", { version: row.saved.reference.version }) : row ? L("git.result.unsaved") : L("git.result.none");
@@ -57,7 +56,7 @@ export async function loadResults(page: GitPage): Promise<void> {
     for (const row of page.resultRows) {
       const item = row.result, option = document.createElement("option");
       option.value = item.review.review_id;
-      const shown = item.review.reconciliation || item.review.reconciliation_reason ? L("git.result.checked-none") : outcomeLabel(L, item.outcome);
+      const shown = item.review.reconciliation ? L("git.result.checked-none") : outcomeLabel(L, item.outcome);
       option.textContent = `${item.review.action === "stage" ? L("git.action.stage") : L("git.action.unstage")} · ${shown} · ${item.review.paths.join(L("git.list.joiner"))} · ${when(item.review.requested_at)}`;
       resultChoice.append(option);
     }

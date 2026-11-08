@@ -54,9 +54,9 @@
 //              The check ties a Host view to the plugin by `provider.plugin_id`. Without a Host (the Manifest layer alone, which
 //              the gate's own tests use) the column is carried over from the committed file, not checked.
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
+import { isMainScript } from "../script-paths.mjs";
 
 export const ACTION_SNAPSHOT_DIRECTORY = "tooling/gates/actions";
 export const ACTIONS_FILE = `${ACTION_SNAPSHOT_DIRECTORY}/actions.tsv`;
@@ -529,7 +529,7 @@ export const updateActionSnapshots = ({ root, manifests, effectOf, hostViews, ho
 };
 
 // ---- command line ----------------------------------------------------------------------------------------------------
-if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(path.resolve(process.argv[1]))).href) {
+if (isMainScript(import.meta.url)) {
   const USAGE = "usage: action-contract-snapshot.mjs [--update] [--root <dir>]";
   const args = process.argv.slice(2);
   let update = false, root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../..");

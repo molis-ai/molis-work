@@ -3,7 +3,7 @@ import type { SyncLocalProtection } from '@molis-ai/molis-work-contracts/platfor
 import type { SecretStore } from './file-secret-store.js';
 import { localPayloadErrors, openLocalAead, sealLocalAead } from './local-aead.js';
 
-const PREFIX="molis-work-local-payload-v1";
+const PREFIX=/* @version type.molis-work-local-payload "molis-work-local-payload-v{version}" */ "molis-work-local-payload-v1";
 /** Technical encryption only. The owner fixes the key reference, scope and complete persisted-data predicate. */
 export function createLocalPayloadProtection(options:{
   secrets:Pick<SecretStore,'get'|'createIfAbsent'>;

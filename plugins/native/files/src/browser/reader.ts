@@ -1,6 +1,7 @@
 import type {} from "@molis-ai/molis-work-plugin-sdk/page-globals";
 import { FILES_PLUGIN_ID } from "../plugin-id.js";
-import { messageOf, said } from "./dom.js";
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
+import { said } from "./dom.js";
 import { active, companionState, request } from "./page.js";
 import type { FilesPage } from "./page.js";
 import { readErrors } from "./tree.js";

@@ -1,7 +1,8 @@
 // Measure the exact bytes served by the built Host. Route discovery and independent base-path probes share this implementation.
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { pathToFileURL } from "node:url";
+import { isMainScript } from "../script-paths.mjs";
 import { gzipSync } from "node:zlib";
 const fail = (message) => { throw new Error(message); };
 // ---- what the host serves --------------------------------------------------------------------------------------------
@@ -122,7 +123,7 @@ export async function measureServed(root, probe = []) {
 }
 
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMainScript(import.meta.url)) {
   try {
     const [root, probeFile] = process.argv.slice(2);
     if (!root) throw new Error("usage: page-assets-measure.mjs <root> [probe.json]");

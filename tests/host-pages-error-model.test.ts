@@ -166,7 +166,7 @@ test("the catalog's failures are ActionErrors with a code and the kind each answ
   assert.ok(tooOld instanceof ActionError);
   assert.equal(tooOld.code, "storage.store_too_new");
   assert.equal(actionHttpStatus(tooOld), 503);
-  assert.deepEqual(tooOld.details, { actual_schema_version: 9, supported_schema_min: 1, supported_schema_max: 8, recovery: "new_or_fork_session_then_context_resolve" });
+  assert.deepEqual(tooOld.details, { actual_schema_version: 9, supported_schema_min: 8, supported_schema_max: 8, recovery: "upgrade_then_context_resolve" });
 });
 
 test("W3-02-G2 MCP context_resolve preserves a future catalog's schema and recovery details without rewriting its facts", async t => {
@@ -188,9 +188,9 @@ test("W3-02-G2 MCP context_resolve preserves a future catalog's schema and recov
     { result: { isError: boolean; content: Array<{ text: string }> } };
   assert.equal(reply.result.isError, true);
   const line = JSON.parse(reply.result.content[0]!.text) as Record<string, unknown>;
-  assert.deepEqual(line, { error: `Molis Work catalog schema=${supported + 1}，当前 reader 支持 1..${supported}。当前 Session 不会热刷新 MCP；请新建或 Fork 一个 Session，先确认当前任务焦点，再只读调用 context_resolve。解析成功后再继续写入；不要回滚 catalog.db，也不要用 SQLite、CLI 或 Web 绕过。`, code: "storage.store_too_new",
-    details: { actual_schema_version: supported + 1, supported_schema_min: 1, supported_schema_max: supported,
-      recovery: "new_or_fork_session_then_context_resolve" } });
+  assert.deepEqual(line, { error: `Molis Work catalog schema=${supported + 1}，这个版本的 Molis Work 只认 ${supported}。目录库是更新的版本写的，没有损坏。请把 Molis Work 升级到能读它的版本；已经升级过的，运行中的 MCP 不会热刷新，请重启常驻服务并新开一个 Session。之后先确认当前任务焦点，只读调用 context_resolve，解析成功后再继续写入；不要回滚 catalog.db，也不要用 SQLite、CLI 或 Web 绕过。`, code: "storage.store_too_new",
+    details: { actual_schema_version: supported + 1, supported_schema_min: supported, supported_schema_max: supported,
+      recovery: "upgrade_then_context_resolve" } });
   const preserved = openTestSqlite(databasePath, { readonly: true });
   try {
     assert.equal(preserved.prepare("SELECT value FROM catalog_meta WHERE key = 'schema_version'").pluck().get(), String(supported + 1));

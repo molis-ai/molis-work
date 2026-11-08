@@ -1,4 +1,4 @@
-import { messageOf } from "./dom.js";
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import * as record from "./record-commands.js";
 import * as grid from "./table-commands.js";
 import type { Dataset, DatasetPage, Failure } from "./types.js";

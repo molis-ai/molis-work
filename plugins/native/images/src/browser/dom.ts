@@ -1,5 +1,3 @@
-import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
-export { messageOf };
 import type { Failure } from "./types.js";
 
 /** An element the server drew; the page cannot work without it. */

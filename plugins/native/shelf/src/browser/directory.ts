@@ -1,6 +1,7 @@
 import { admitFiles, showAdmissionError } from "./admit.js";
 import { renderBar } from "./bar.js";
-import { closest, messageOf } from "./dom.js";
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
+import { closest } from "./dom.js";
 import { copyShelfItem, joinClips, makeClipCurrent, shelveClipboard } from "./clips.js";
 import { hasFile, itemById, items } from "./model.js";
 import { showProblem } from "./panes.js";

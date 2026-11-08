@@ -5,6 +5,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { isMainScript } from "./script-paths.mjs";
 import { planShards, describeShards, readWeights, WEIGHTS_FILE } from "./run-tests/shard.mjs";
 import { classifyFile } from "./ci-linux-probe/select.mjs";
 import { securityList, LEGS } from "./ci-test-selection.mjs";
@@ -73,6 +74,6 @@ function main() {
   return 0;
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMainScript(import.meta.url)) {
   try { process.exitCode = main(); } catch (error) { console.error(`ci-shard-weights: ${error.message}`); process.exitCode = 1; }
 }

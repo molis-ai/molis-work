@@ -177,7 +177,7 @@ export interface AgentTurnSteer {
   id: string;
   /** Original speaker from the runtime, independently of the user-role transport wrapper. */
   source?: AgentInputSource | "peer";
-  /** Original Host acceptance time; absent on older input records whose origin time is unknown. */
+  /** Original Host acceptance time, present only when the runtime supplies it; never replaced by a Run start or read time. */
   accepted_at_ms?: number;
   original?: AgentInputOriginalText;
   /** received: taken, not yet in the context; applied: in the context; read: a kept reply was made with it (not compliance); unread: the round ended before that. */

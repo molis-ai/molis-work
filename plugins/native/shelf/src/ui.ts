@@ -11,7 +11,7 @@ import type {
 import { icon, renderButton } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { SHELF_GLYPH, glyphForKind, toneForKind } from "./glyphs.js";
 
-export const SHELF_UI_CONTRIBUTION_ID = /* @version contract.io.molis.work.native.shelf.ui "io.molis.work.native.shelf.ui.v{version}" */ "io.molis.work.native.shelf.ui.v1";
+export const SHELF_UI_CONTRIBUTION_ID = "io.molis.work.native.shelf.ui.v1";
 
 /** Shelf has one surface: its tab in the side panel (specs/side-shelf §3.2). It never opens in the work area. */
 export type ShelfUiSurface = "side";

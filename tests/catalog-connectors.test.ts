@@ -9,6 +9,12 @@ import {
   createCatalogProvider,
 } from "@molis-ai/molis-work-integration-catalog";
 
+test("VG-21 every catalog connector provides the same two types it always did, now that the table holds their versions", () => {
+  for (const spec of CATALOG_CONNECTORS) {
+    assert.deepEqual(catalogIntegrationManifest(spec.id).capabilities?.provides, [`connector.driver.${spec.id}.v1`, `signal.adapter.${spec.id}.v1`], spec.id);
+  }
+});
+
 test("every catalog connector has a valid Integration Manifest and identity URL", () => {
   assert.equal(CATALOG_CONNECTORS.length, 39);
   const ids = new Set<string>();

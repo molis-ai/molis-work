@@ -109,7 +109,7 @@ ${ASSISTANT_BROWSER_HANDBACK_PART}
     if (work) {
       // A work opened from the list or a notice keeps where it belongs; the chip names it, before the title, when that is not this page.
       const where = work.scope?.project_id !== project?.id ? scopeLabel(work.scope, work.scope_title) : "";
-      targetLabel.textContent = work.reply_target ? L("回复到原评论") + "：" + work.reply_target.title : (isLive(work.state) ? L("补充到") : L("继续")) + "：" + (where ? where + " · " : "") + work.title;
+      targetLabel.textContent = work.reply_target ? L("回复到原评论：{title}", { title: work.reply_target.title }) : isLive(work.state) ? L("补充到：{title}", { title: (where ? where + " · " : "") + work.title }) : L("继续：{title}", { title: (where ? where + " · " : "") + work.title });
       target.title = work.reply_target ? L("请回到原评论继续回复") : L("下一次发送进入这项工作；点 × 改为开始新工作");
       if (targetClear) targetClear.hidden = false;
       if (targetWrap) { targetWrap.dataset.mode = "work"; targetWrap.hidden = false; }

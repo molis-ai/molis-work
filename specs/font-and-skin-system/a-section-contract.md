@@ -719,7 +719,7 @@ export interface UiTextProvider {
 
 **三方文字合并。** 服务端把同一页按旧、新两种语言各画一遍，两份的差异就是要改的字；用户内容两边相同，不在差异里。两份 HTML 结构差异是 0、同语言两次渲染噪声是 0，评审台静态比过 7 个页面。
 
-**不碰的内容（第 3、4 步都用，「两个都换」也不例外）：** `textarea`、`contenteditable` 及其内部的文字节点；`input`、`textarea` 的 `value`；`translate="no"` 及其内部的文字和属性。这些元素自己的 `placeholder`、`aria-label`、`title` 是界面字，照常改（七个页面逐节点比过，这类差异有 117 处，不改就留旧语言）。`input type=hidden` 的 `value` 有 4 处两种语言不同，T8 开工时先看是什么。可编辑节点的文字会被存进数据（Jelly `blocks.ts:39,57`、`note-events.ts:103`；`pages/src/editor-gap.ts:129,153`），超出用户接受的「不写数据」。
+**不碰的内容（第 3、4 步都用，「两个都换」也不例外）：** `textarea`、`contenteditable` 及其内部的文字节点；`input`、`textarea` 的 `value`；`translate="no"` 及其内部的文字和属性。这些元素自己的 `placeholder`、`aria-label`、`title` 是界面字，照常改（七个页面逐节点比过，这类差异有 117 处，不改就留旧语言）。`input type=hidden` 的 `value` 有 4 处两种语言不同，T8 看过：都是表单数据，不合并（Goals 每次渲染都不同的随机 `newToken`；日程的 `clock_label`，会抄进时间字段存下；连接器的 `display_name`，抄进 `body.display_name`）。所以只有按钮类 `input` 的 `value` 算界面字。可编辑节点的文字会被存进数据（Jelly `blocks.ts:39,57`、`note-events.ts:103`；`pages/src/editor-gap.ts:129,153`），超出用户接受的「不写数据」。
 
 1. **全部取到才动页面。** `fetch(location)` 两次，用请求头指定语言（语言不是权限，这个头不授予任何东西）；取工作台和本页插件的新语言词。主文档里每个 iframe 的文档就在 `script[data-plugin-document]` 里，不多发请求。**任何一步失败：** 页面和偏好都不动，说一句没切成，给重试。都到了才写偏好、换上下文。
 2. **算差异。** 两棵树同步走，记下不同的文字节点和属性（`checked`、`selected`、`open`、`style`、`class` 除外）。`value` 按元素类型分：按钮类算（演示页有 6 处），输入框不算。还要走进 `<template>` 的内容（每页 5 个），`<script type="application/json">` 按整段比（选择页 `arrival-data`）。CSS 变量里的字（`navigation-presentation.ts:9` 的 `--stage-title`）不合并，由画它的代码重跑。
@@ -736,6 +736,8 @@ export interface UiTextProvider {
 1. **客户端画的、和界面文字一字不差的用户内容，临时显示成译文。** 用户 2026-11-07 接受，范围只限：只影响显示，不写数据，之后重画或重新打开恢复。**超出这个范围（真界面字留旧语言、译错、半页中文）不算用户接受，第 16 批实走出现就停下问，不放宽 FSS-35。**
 2. **首屏有几种写法这个办法认不出，第 16 批要先改完才过得了首屏：** 直接 `new Intl.DateTimeFormat`（`project-home.ts:72,100,110`），改 `format.date`；`L(...).replace(…)`（`project-home.ts:141`、`assistant-island.ts:125`），改带参数；半句拼接（`project-home.ts:222`、`assistant-tabs.ts:28`），改整句一个键。它们进第 14 节。评审台实测首屏全走完仍有 9／34、17／58 处中文，含原型没记录的打包翻译，不全是这几种。
 3. **在途的旧响应：** 切换时正在路上的片段是旧语言，下一次重取才变。
+
+**T8 落地时与上面不同的三处（第 8.6 节）：** 第 3 步「结构不同的子树整块换」没有做，两份渲染形状不同就整块不动并记一条问题；第 5 步没有做（要动 DOM 事件登记，归第 16 批）；「两个都换」写成「可达」规则（第 8.6 节第 4 条）。
 
 **代价：** 一段平台代码，估计 150 行上下，放 `apps/workbench/src/browser/locale-switch.ts`，**没有量过**，超过 10 KB 按规矩问用户；切一次语言多画两遍页面（第 11 节）；浏览器里每次 `t` 多一次 `Map.set`。
 
@@ -873,7 +875,7 @@ apps/workbench/
 
 新文件 `packages/design-system/src/baseline.ts`：模块初始化读 4 个 JSON，走 SDK 解析，得到解析好的基线，错了抛 `ui.baseline_invalid`，带文件和字段。包入口转出 `BASELINE_SPEC`、`BASELINE_SKIN`、`BASELINE_FONT`、`BASELINE_REGISTRY`（T8b 的样张卡要用真实基线）；写回 CSS 文字的 `baselineGroups(groups, theme?)`、`baselineToken(name | names, theme = "light")`、`baselineTerminal(axis)`、`baselineFontToken(names)`、`baselineFontRoute(id)` 只给本包的样式文件，不转出。
 
-基线皮肤的 `name` 写键 `workbench.skin.soft-workbench`，基线字体的写 `workbench.font.system-sans`。A 段没有语言文件收这两个词，也没有页面显示它们，第 16 批的外观设置页（或先用到它们的片）加进工作台的语言文件。
+基线皮肤的 `name` 写键 `workbench.skin.soft-workbench`，基线字体的写 `workbench.font.system-sans`。T8 把这两个词放进了工作台的语言文件（`apps/workbench/resources/locales/`），组件板的语言与文字一节显示它们，发行物里的宿主读得到（FSS-59）；产品页面第 16 批再用。
 
 ## 8. 真实消费者
 
@@ -955,6 +957,22 @@ apps/workbench/
 ### 8.5 字体路径
 
 `apps/local-host/src/web-assets.ts:14-19` 写死 `../../../packages/design-system/fonts/…`。发行物里没有这个相对层级，**实测是 404**（T6：`installMolisWorkHome` 真装到临时 Home，用发行物自己的 `web-assets.js` 起 HTTP，两款字体都是 404，文件其实在 `node_modules/@molis-ai/molis-work-design-system/fonts/`）；系统字体排在前面，所以平时看不出。改成 `interVariableFontFilePath()`、`notoSansScFontFilePath()`（`typeface.ts:19,23`，`local-host` 已依赖 design-system）。路由字面量 `"/assets/inter-latin-variable.woff2"` 保留（第 3.6 节）。写进基线那一片，并补干净安装后路由能读到的测试（FSS-59），先把现状跑出来证明确实是 404，再改。
+
+### 8.6 T8 怎样落地（偏离与实测）
+
+1. **多出来的文件。** 组件板一节的服务端画法放在新文件 `apps/workbench/src/environment-specimens.ts`（`renderEnvironmentSpecimen`、`renderEnvironmentSection`），照 `collab-specimens.ts`；`apps/local-host/src/web-catalog-board.ts` 改了一行，在 `runWithLocale("zh")`、`("en")` 里各画一遍再交给 `renderMolisWorkPrimitiveCatalog` 的新第三个参数。CLI 模板的源码在 `tooling/plugin-cli/src/sample-source.ts`（`create.ts` 只写文件），所以也改了，和 `examples/plugin-sample/index.mjs` 同一份写法。`tooling/gates/error-owners.json` 把 `apps/workbench/src/plugin-text.ts` 归给 `ui`（它的 `ui.text_owner_conflict`）。
+2. **平台主人的默认语言。** 登记表的 `locale` 行没有写默认语言，宿主取 `WEB_LOCALES[0]`（`zh`）。目录是懒读的：第一次用到某种语言才读那个文件。
+3. **组件板的第二个主人。** 样例主人 `io.molis.work.example.board-notes` 由组件板第一次画这一节时登记一次，进程里一直在；只在开发页上，不是插件。
+4. **同字紧挨：可达规则。** 一串同字（中间只有空白）里，旧渲染有 n 个、页面上有 m 个时，每个位置只可能是 n 个里的某几个（差几个就能偏几个）；可能是要变的那个就改。对齐用最长公共子序列，平局时取后面的页面串。浏览器实测（`tests/board-locale-switch.e2e.test.ts`）：
+   - 界面词后面紧挨一个、两个客户端同字：界面词和客户端的都变。
+   - 客户端同字插在用户字前面：组件板上用户字带自己的属性，属性也算字，所以不紧挨，只有界面词变。三段纯文字紧挨（中间什么都没有）时，用户字会临时显示成译文，组件板上没有这种行，没有实测。
+   - 用户字被删：界面词照常变。
+   - 和界面词同字、隔着别的字的客户端行不变；可编辑节点的字不变。
+5. **客户端画的字。** 只在页面上没对上的字里找产出记录；`say` 和 `t` 都记。页面自己改过、不等于旧语言那份的字不动。
+6. **体积。** 组件板这一节的浏览器代码打出来 20.4 KB（含 SDK 的文字工具和 `resolveUiEnvironment`），只内联进开发页 `/__ui/catalog`；`locale-switch.ts` 单独压缩约 3.2 KB。页面资源门禁对照 `origin/main` 通过（51 个资源，没有新增）。工作台语言目录由宿主在服务端读，不下发给页面。
+7. **开发路径。** `--locale` 只认 `ui.locales.available` 里的；没写 `ui.locales` 却写了 `--locale` 也报 `actions.input_invalid`，说先在 Manifest 写 `ui.locales`。选中的语言和默认语言的文件有 `blocking` 问题就抛 `plugin.package_invalid`。状态目录在检查语言之前就建好了（`runLocalPluginDevelopment` 的原有顺序），没改。
+8. **`ui.views` 夹具（第 8.4 节末段）** 没有经 `createPluginPlatform`：`tests/host-ui-text.test.ts` 直接用 `PluginRuntime` 加 `PluginHostExecutor`（`localePacks` 由测试传入），会话打开、登记和释放走的是同一个 `plugin-host-services.ts`。`localePacks` 按 `plugin_id` 认插件，不按对象：运行时交给执行器的定义不是调用方手里的那个对象。
+9. **范围之外改的测试准备。** `tests/goals-project-database-refusal.test.ts`、`tests/plugin-development-artifacts.test.ts` 拷样例时多拷 `locales/`（样例的 Manifest 现在声明它们），断言没动。
 
 ## 9. 资源预算的接口
 

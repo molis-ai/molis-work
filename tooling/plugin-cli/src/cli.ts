@@ -6,7 +6,7 @@ import { packSandboxProject, sandboxPackOptions } from "./pack-sandbox.js";
 import { readPublisherIdentity, signPluginPackageFile, verifyPluginPackageFile } from "./package-signing.js";
 import type { PluginDevelopmentResult } from "@molis-ai/molis-work-contracts/platform/tooling";
 
-const usage = "Usage:\n  molis-work plugin dev <source-directory> <isolated-state-directory> <comma-separated-grants> --allow-unsigned-development\n  molis-work-plugin validate <manifest.json>\n  molis-work-plugin create <directory> <plugin-id> <publisher-id> <binding-signature>\n  molis-work-plugin pack <directory> <output.json>\n  molis-work-plugin pack-sandbox <directory> <output.json> --name <name> --version <version> --publisher-id <id> --publisher-key-id <fingerprint> [--scope project|home] [--icon <icon>] [--compatible-from <versions>] [--agent <JSON>] [--methods <JSON>]\n  molis-work-plugin identity <public-key.pem>\n  molis-work-plugin sign <input.json> <private-key.pem> <output.json>\n  molis-work-plugin verify <input.json> <trusted-public-key.pem>\n  molis-work plugin install <signed-package.json> <project-id> [--pin-as <publisher-name>] [--confirm]\n";
+const usage = "Usage:\n  molis-work plugin dev <source-directory> <isolated-state-directory> <comma-separated-grants> --allow-unsigned-development [--locale <language>]\n  molis-work-plugin validate <manifest.json>\n  molis-work-plugin create <directory> <plugin-id> <publisher-id> <binding-signature>\n  molis-work-plugin pack <directory> <output.json>\n  molis-work-plugin pack-sandbox <directory> <output.json> --name <name> --version <version> --publisher-id <id> --publisher-key-id <fingerprint> [--scope project|home] [--icon <icon>] [--compatible-from <versions>] [--agent <JSON>] [--methods <JSON>]\n  molis-work-plugin identity <public-key.pem>\n  molis-work-plugin sign <input.json> <private-key.pem> <output.json>\n  molis-work-plugin verify <input.json> <trusted-public-key.pem>\n  molis-work plugin install <signed-package.json> <project-id> [--pin-as <publisher-name>] [--confirm]\n";
 
 export interface PluginCliOutput {
   stdout(value: string): void;
@@ -14,7 +14,8 @@ export interface PluginCliOutput {
 }
 
 export interface PluginCliHost {
-  runDevelopment(input: { directory: string; state_directory: string; grants: string[]; allow_unsigned_development: true }): Promise<PluginDevelopmentResult>;
+  /** `locale` is the language the run renders in, one of the plugin's `ui.locales.available`; left out, its default. */
+  runDevelopment(input: { directory: string; state_directory: string; grants: string[]; allow_unsigned_development: true; locale?: string }): Promise<PluginDevelopmentResult>;
   /** Asks the Home's resident Host to preview a signed package, or with `confirm` to install it; answers what the Host answered. */
   install(input: { bundle_path: string; project_id: string; confirm: boolean; pin_label?: string }): Promise<Record<string, unknown>>;
 }
@@ -35,7 +36,9 @@ export async function runPluginCli(args: readonly string[], output: PluginCliOut
       return 0;
     } catch (error) { output.stderr((error instanceof Error ? error.message : String(error)) + '\n'); return 1; }
   }
-  if (arities[args[0]!] !== args.length) {
+  // `dev` may end with `--locale <language>`, after the arguments it reads by position.
+  const devLocale = args[0] === "dev" && args.length === 7 && args[5] === "--locale" ? args[6] : undefined;
+  if (arities[args[0]!] !== args.length && devLocale === undefined) {
     output.stderr(usage);
     return 2;
   }
@@ -44,7 +47,7 @@ export async function runPluginCli(args: readonly string[], output: PluginCliOut
       if (args[4] !== "--allow-unsigned-development") throw new Error("开发源码执行需要 --allow-unsigned-development；grant 不是 OS sandbox");
       if (!host) throw new Error("请通过 molis-work plugin dev 使用应用 Host；独立工具不会创建另一套数据库实现");
       const result = await host.runDevelopment({ directory: args[1]!, state_directory: args[2]!,
-        grants: args[3]!.split(",").map(value => value.trim()).filter(Boolean), allow_unsigned_development: true });
+        grants: args[3]!.split(",").map(value => value.trim()).filter(Boolean), allow_unsigned_development: true, ...(devLocale === undefined ? {} : { locale: devLocale }) });
       output.stdout(`${JSON.stringify(result)}\n`);
       return result.health.ok && result.poll.ok ? 0 : 1;
     }

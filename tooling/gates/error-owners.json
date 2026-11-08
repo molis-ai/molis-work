@@ -280,9 +280,10 @@
     "ui": {
       "paths": [
         "packages/plugin-sdk/src/ui/text-errors.ts",
-        "packages/design-system/src/baseline.ts"
+        "packages/design-system/src/baseline.ts",
+        "apps/workbench/src/plugin-text.ts"
       ],
-      "reason": "The failures of the interface text tools (specs/font-and-skin-system/a-section-contract.md §3.1): a bad binding, a wrong installation, a development path with no language. The rest of packages/plugin-sdk/ stays plugin's. And the baseline files of the interface (§7.3): a broken one is ui.baseline_invalid, naming the file and the field; the rest of packages/design-system/ has no owner yet."
+      "reason": "The failures of the interface text tools (specs/font-and-skin-system/a-section-contract.md §3.1): a bad binding, a wrong installation, a development path with no language. The rest of packages/plugin-sdk/ stays plugin's. And the baseline files of the interface (§7.3): a broken one is ui.baseline_invalid, naming the file and the field; the rest of packages/design-system/ has no owner yet. And the words a process holds for the text tools (§8.3): two owners of one key segment are ui.text_owner_conflict, the refusal the SDK's own index gives; the rest of apps/workbench/ has no owner yet."
     },
     "plugin_builder": {
       "paths": [

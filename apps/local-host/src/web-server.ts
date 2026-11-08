@@ -33,6 +33,7 @@ import { attachMolisWorkPtySocket } from "./pty-socket.js";
 import { bindPluginTerminalHost } from "./plugin-terminal-service.js";
 import { L, htmlLang, clientI18nScript, isWebLocale, localeSetCookie, resolveWebLocale, runWithLocale, safeNextPath } from "./web-locale.js";
 import { rememberUiLocale } from "./ui-locale-memory.js";
+import { installHostUiText } from "./ui-text-provider.js";
 import { fixtureWebBoardOptions } from "./web-routing.js";
 import { createLocalWebComposition, type LocalWebPlatform } from "./web-composition.js";
 import type { WebServerOptions } from "./web-types.js";
@@ -95,6 +96,8 @@ function webWorkspaceFor(projectId: string, options: WebServerOptions, fixture: 
 
 export function createLocalWebCoreFactory(platform: LocalWebPlatform) {
   function createMolisWorkWebServer(options: WebServerOptions = {}): SpaceWebSurface {
+    // The text tools' context, once a process: a page's `t` finds the request's language and the owners' words through it (§8.3).
+    installHostUiText();
     const storageHome = resolveConfiguredHome(options.homeDirectory);
     let catalogAccess: ReturnType<typeof createWebCatalogAccess> | undefined;
     const baseCatalog: LocalWebCatalogRunner = (settings, operation) => (catalogAccess?.withCatalog ?? platform.withCatalog)(settings, operation);

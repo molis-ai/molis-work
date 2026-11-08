@@ -3,12 +3,15 @@ import { createWorkbenchLocale, type WebLocale } from "@molis-ai/molis-work-app-
 export { EN, LOCALE_COOKIE, WEB_LOCALES, LOCALE_SWITCH_STYLES, type WebLocale } from "@molis-ai/molis-work-app-workbench";
 const localeStore = new AsyncLocalStorage<WebLocale>();
 
-/** One language scope, ended when the function that opened it is done (`activeLocale`). */
-interface LocaleScope { readonly locale: WebLocale; ended: boolean }
+/**
+ * One language scope, ended when the function that opened it is done (`activeLocale`, `textScope`). `noContext` is how the text tools answer a sentence
+ * with no language (specs/font-and-skin-system/a-section-contract.md §5.2): it outlives the scope, so a timer a developer's run left behind still throws.
+ */
+interface LocaleScope { readonly locale: string | null; readonly noContext: "default" | "throw"; ended: boolean }
 const scopeStore = new AsyncLocalStorage<LocaleScope>();
 
-function inLocaleScope<T>(locale: WebLocale, fn: () => T): T {
-  const scope: LocaleScope = { locale, ended: false };
+function inLocaleScope<T>(locale: string | null, fn: () => T, noContext: LocaleScope["noContext"] = scopeStore.getStore()?.noContext ?? "default"): T {
+  const scope: LocaleScope = { locale, noContext, ended: false };
   const end = () => { scope.ended = true; };
   let result: T;
   try { result = scopeStore.run(scope, fn); } catch (error) { end(); throw error; }
@@ -28,10 +31,24 @@ export function runBackgroundWork<T>(locale: WebLocale, fn: () => T): T {
   return inLocaleScope(locale, fn);
 }
 
+/**
+ * A developer's run (`molis-work plugin dev`, `runPluginDevelopment`): its language is any the plugin declares, or `null` for the work around the page.
+ * Inside it, and in what it leaves running, a sentence with no language throws `ui.text_no_context` instead of falling back to a default.
+ */
+export function runDevelopmentText<T>(locale: string | null, fn: () => T): T {
+  return inLocaleScope(locale, fn, "throw");
+}
+
 /** The language of the scope still under way here: `null` once it ended, so a timer started in a request does not keep that page's language. */
 export function activeLocale(): WebLocale | null {
   const scope = scopeStore.getStore();
-  return scope && !scope.ended ? scope.locale : null;
+  return scope && !scope.ended && isWebLocale(scope.locale) ? scope.locale : null;
+}
+
+/** What the text tools read (`ui-text-provider.ts`): the language of the scope under way, `null` once it ended; and how a missing one is answered. */
+export function textScope(): { readonly locale: string | null; readonly noContext: "default" | "throw" } {
+  const scope = scopeStore.getStore();
+  return { locale: scope && !scope.ended ? scope.locale : null, noContext: scope?.noContext ?? "default" };
 }
 
 /**

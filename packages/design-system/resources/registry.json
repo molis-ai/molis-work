@@ -26,6 +26,14 @@
       "load": "startup"
     },
     {
+      "id": "locale.workbench",
+      "kind": "locale",
+      "owner": "workbench",
+      "package": "@molis-ai/molis-work-app-workbench",
+      "path": "resources/locales",
+      "load": "tool"
+    },
+    {
       "id": "font.inter-latin-variable",
       "kind": "font",
       "owner": "design-system",

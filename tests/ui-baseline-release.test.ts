@@ -39,6 +39,15 @@ const PROBE = `
   console.log(JSON.stringify({ answers, page: BASELINE_SKIN.light.page, stackFromFile: BASELINE_FONT.tokens.font === FONT_STACK }));
 `;
 
+/** The release's own text context, as a Host in it installs it: the workbench's words come from the language files the release carries. */
+const TEXT_PROBE = `
+  const { installHostUiText, hostTextProblems } = await import(process.env.LOCAL_HOST + "/ui-text-provider.js");
+  const { runWithLocale } = await import(process.env.LOCAL_HOST + "/web-locale.js");
+  const { t } = await import(process.env.SDK_UI);
+  installHostUiText();
+  console.log(JSON.stringify({ zh: runWithLocale("zh", () => t("workbench.skin.soft-workbench")), en: runWithLocale("en", () => t("workbench.skin.soft-workbench")), problems: hostTextProblems() }));
+`;
+
 test("FSS-59 in a clean release the baseline files are readable and both offline fonts answer 200", { timeout: 300_000 }, async () => {
   const directory = await mkdtemp(path.join(tmpdir(), "molis-baseline-release-"));
   try {
@@ -63,6 +72,18 @@ test("FSS-59 in a clean release the baseline files are readable and both offline
       const shipped = await readFile(path.join(ROOT, "packages/design-system/fonts", path.basename(route)));
       assert.equal(answer.sha256, createHash("sha256").update(shipped).digest("hex"), route);
     }
+    // FSS-59 (T8): the workbench's language files are in the release, and the release's own Host reads its words from them.
+    const WORKBENCH = "node_modules/@molis-ai/molis-work-app-workbench";
+    for (const file of ["zh.json", "en.json"]) assert.ok((await stat(path.join(release, WORKBENCH, "resources/locales", file))).isFile(), file);
+    const words = await exec(process.execPath, ["--input-type=module", "-e", TEXT_PROBE], {
+      cwd: directory,
+      env: {
+        PATH: process.env.PATH,
+        LOCAL_HOST: `file://${path.join(release, "node_modules/@molis-ai/molis-work-app-local-host/dist")}`,
+        SDK_UI: `file://${path.join(release, "node_modules/@molis-ai/molis-work-plugin-sdk/dist/ui.js")}`,
+      },
+    });
+    assert.deepEqual(JSON.parse(words.stdout), { zh: "柔和工作台", en: "Soft Workbench", problems: [] });
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

@@ -1,0 +1,11 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.example.notes",
+  "locale": "zh",
+  "messages": {
+    "notes.main.saved": "已保存的结果：{count}",
+    "notes.main.saved-count": "已保存 {count} 个结果",
+    "notes.main.source": "来源：{name}",
+    "notes.main.title": "本地插件样例"
+  }
+}

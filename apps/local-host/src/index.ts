@@ -346,6 +346,7 @@ export { createProjectArrivalHttp } from "./project-arrival-http.js";
 export { markProjectOpened, PROJECT_ARRIVAL_FILE, readProjectArrival, setProjectDescription } from "./project-arrival.js";
 export { lastUsedLocale, readUiLocale, rememberUiLocale, UI_LOCALE_RELATIVE_PATH } from "./ui-locale-memory.js";
 export { replyLanguagePrompt } from "./reply-language.js";
+export { hostTextProblems, installHostUiText } from "./ui-text-provider.js";
 export { handleAttentionHttp, type AttentionSources } from "./attention-http.js";
 export { handleBrowserHttp } from "./browser/browser-http.js";
 export { homeBackgroundTasks, type HomeBackgroundTaskRow } from "./home-background-tasks.js";

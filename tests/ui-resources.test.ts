@@ -5,11 +5,12 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { BASELINE_REGISTRY, INTER_VARIABLE_ASSET_PATH, NOTO_SANS_SC_ASSET_PATH } from "@molis-ai/molis-work-design-system";
+import { inspectLocaleSet, parseLocalePack } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 // The one table of what ships with the product (specs/font-and-skin-system/a-section-contract.md §1.3, §3.6). What a row says of a file, and that nothing ships without a row.
 
 const ROOT = fileURLToPath(new URL("../", import.meta.url));
-const PACKAGE_DIRECTORIES: Readonly<Record<string, string>> = { "@molis-ai/molis-work-design-system": "packages/design-system" };
+const PACKAGE_DIRECTORIES: Readonly<Record<string, string>> = { "@molis-ai/molis-work-design-system": "packages/design-system", "@molis-ai/molis-work-app-workbench": "apps/workbench" };
 const NOT_REGISTERED = new Set(["packages/design-system/fonts/README.md", "packages/design-system/resources/registry.json"]);
 const directoryOf = (name: string) => PACKAGE_DIRECTORIES[name] ?? assert.fail(`登记表的包 ${name} 不认识，在 PACKAGE_DIRECTORIES 加上它`);
 const RESOURCES = BASELINE_REGISTRY.resources;
@@ -65,4 +66,22 @@ test("FSS-58 a row's route is the literal Local Host serves, which the page-asse
 
 test("FSS-58 the two font rows keep Local Host off the path the release does not have", () => {
   assert.doesNotMatch(readFileSync(path.join(ROOT, "apps/local-host/src/web-assets.ts"), "utf8"), /\.\.\/packages\//u);
+});
+
+test("FSS-58 a language directory's files parse, are the row's owner's, and agree with each other", () => {
+  const rows = RESOURCES.filter((row) => row.kind === "locale");
+  assert.deepEqual(rows.map((row) => row.owner), ["workbench"]);
+  for (const row of rows) {
+    const directory = path.join(ROOT, directoryOf(row.package), row.path);
+    const packs = readdirSync(directory).sort().map((name) => {
+      const parsed = parseLocalePack(readFileSync(path.join(directory, name), "utf8"), { file: name });
+      assert.ok(parsed.ok, `${row.id} ${name}: ${JSON.stringify(parsed.ok ? null : parsed.problems)}`);
+      assert.equal(parsed.value.owner, row.owner, `${row.id} ${name}: the owner is the row's`);
+      assert.equal(`${parsed.value.locale}.json`, name, `${row.id} ${name}: the file is named for its language`);
+      return parsed.value;
+    });
+    assert.deepEqual(packs.map((pack) => pack.locale), ["en", "zh"]);
+    // The platform's default language is the first of the Web's (`WEB_LOCALES[0]`, zh); every other language has the same keys and arguments.
+    assert.deepEqual(inspectLocaleSet(packs, { default: "zh", directory: row.path }), [], row.id);
+  }
 });

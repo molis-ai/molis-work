@@ -236,9 +236,9 @@ test("Home judgment resolves a formally installed plugin's own subjects and pins
     const authored = await withFunctionsServiceAsync(home, async service => {
       const draft = service.create({ primitive: "noul", function_key: "unknown_note_decision", name: "笔记完成判断" });
       service.updateDraft(draft.id, { instructions: "依据原文判断是否完成", criteria: { true_description: "已完成", false_description: "待确认完成" },
-        scene_id: HOME_DOCK_SCENE_ID, subject_kinds: [subject.kind], scene_map: { true: selectedKey, false: selectedKey } });
-      await service.preview(draft.id, "插件原始正文");
-      return service.publish(draft.id);
+        scene_id: HOME_DOCK_SCENE_ID, subject_kinds: [subject.kind], scene_map: { true: selectedKey, false: selectedKey } }, service.get(draft.id).updated_at);
+      await service.preview(draft.id, "插件原始正文", service.get(draft.id).updated_at);
+      return service.publish(draft.id, service.get(draft.id).updated_at);
     }, options);
     assert.equal((await host.sceneClient(reference).discoverScenes(caller, publishedFunctionAction(authored))).find(scene => scene.definition.scene_id === HOME_DOCK_SCENE_ID)!.compatible, true);
     await host.actionClient(reference).invoke(caller, homeActions.writeJudgment, { function_key: authored.function_key });

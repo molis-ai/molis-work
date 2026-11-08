@@ -3,7 +3,7 @@ import { ACTION_REFERENCE_SCHEMA, ACTION_SCENE_TARGETS_SCHEMA, withActionEffect 
 import type { ActionExecutionContext, ActionDefinition, ActionHandlerBinding, ActionSchema, ActionSceneTarget, ActionSceneUsage } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { JudgmentRecord, JudgmentRuleDraftPatch, JudgmentRuleRecord, JudgmentRulePrimitive, JudgmentRuleAuthoringCatalog } from "@molis-ai/molis-work-contracts/modules/functions";
 import type { FunctionsActionPorts } from "./actions.js";
-import { assertReadyToPublish } from "./record-rules.js";
+import { alreadyPublished, assertReadyToPublish } from "./record-rules.js";
 
 const text = { type: "string" };
 const id = { type: "string", minLength: 1 };
@@ -28,8 +28,10 @@ const recordSchema = { type: "object", properties: {
   published_at: nullableText, created_at: text, updated_at: text,
 }, required: ["id", "name", "function_key", "instructions", "criteria", "scene_id", "subject_kinds", "scene_map", "status", "primitive", "version", "model", "config_hash", "last_preview", "samples", "published_at", "created_at", "updated_at"] };
 const recordResult = { type: "object", properties: { function: recordSchema }, required: ["function"] };
-const revision = { id, updated_at: { type: ["string", "null"], minLength: 1 } };
-type Revision = { id: string; updated_at?: string | null };
+/** `expected_updated_at` is the `updated_at` of the record the caller read. There is no draft without one: `create` gives the id and the version together. */
+const revision = { id, expected_updated_at: { type: "string", minLength: 1 } };
+const revisionRequired = ["id", "expected_updated_at"] as const;
+type Revision = { id: string; expected_updated_at: string };
 type RecordResult = { function: JudgmentRuleRecord };
 
 function define<I, O>(suffix: string, version: number, title: string, description: string, input_schema: ActionSchema, output_schema: ActionSchema, write = false, preview = false, plugin = false): ActionDefinition<I, O> {
@@ -42,15 +44,15 @@ function define<I, O>(suffix: string, version: number, title: string, descriptio
 
 export const functionAuthoringActions = {
   list: define<Record<string, never>, { functions: JudgmentRuleRecord[] }>("list", /* @version action.functions.authoring.list */ 1, "管理判断规则", "读取草稿与已发布规则；需要规则管理权限。", objectSchema({}, []), { type: "object", properties: { functions: { type: "array", items: recordSchema } }, required: ["functions"] }, false, false, true),
-  get: define<{ id: string }, RecordResult>("get", /* @version action.functions.authoring.get */ 1, "读取判断定义", "按稳定记录 ID 读取判断定义、样本和最后试跑。", objectSchema({ id }, ["id"]), recordResult),
+  get: define<{ id: string }, RecordResult>("get", /* @version action.functions.authoring.get */ 1, "读取判断定义", "按稳定记录 ID 读取判断定义、样本和最后试跑。", objectSchema({ id }, ["id"]), recordResult, false, false, true),
   create: define<{ primitive?: JudgmentRulePrimitive; name?: string; function_key?: string }, RecordResult>("create", /* @version action.functions.authoring.create */ 1, "新建判断草稿", "创建可编辑草稿；不会自动发布或绑定。", objectSchema({ primitive, name: text, function_key: text }, []), recordResult, true, false, true),
-  update: define<Revision & { patch: JudgmentRuleDraftPatch }, RecordResult>("update", /* @version action.functions.authoring.update */ 1, "保存判断草稿", "修改草稿；updated_at 用于拒绝过期编辑，已发布规则不可修改。", objectSchema({ ...revision, patch: patchSchema }, ["id", "patch"]), recordResult, true, false, true),
-  preview: define<Revision & { input: string }, RecordResult>("preview", /* @version action.functions.authoring.preview */ 1, "试跑判断", "使用判断服务执行输入并保存试跑结果，不执行建议的业务操作。", objectSchema({ ...revision, input: { type: "string", minLength: 1, maxLength: 8000 } }, ["id", "input"]), recordResult, true, true, true),
-  publish: define<Revision, RecordResult>("publish", /* @version action.functions.authoring.publish */ 1, "发布判断规则", "通过已有试跑及配置校验后发布不可变版本，进入可调用目录。", objectSchema(revision, ["id"]), recordResult, true, false, true),
-  delete: define<Revision, { ok: true }>("delete", /* @version action.functions.authoring.delete */ 1, "删除判断草稿", "仅删除草稿；已发布规则和历史不可删除。", objectSchema(revision, ["id"]), { type: "object", properties: { ok: { const: true } }, required: ["ok"] }, true),
-  addSample: define<Revision & { input: string; label?: string }, RecordResult>("sample.add", /* @version action.functions.authoring.sample.add */ 1, "添加试跑样本", "将输入保存到规则的样本列表。", objectSchema({ ...revision, input: text, label: text }, ["id", "input"]), recordResult, true),
+  update: define<Revision & { patch: JudgmentRuleDraftPatch }, RecordResult>("update", /* @version action.functions.authoring.update */ 1, "保存判断草稿", "修改草稿；expected_updated_at 是读取时的版本，别处改过定义时被拒绝；已发布规则不可修改。", objectSchema({ ...revision, patch: patchSchema }, [...revisionRequired, "patch"]), recordResult, true, false, true),
+  preview: define<Revision & { input: string }, RecordResult>("preview", /* @version action.functions.authoring.preview */ 1, "试跑判断", "使用判断服务执行输入并保存试跑结果，不执行建议的业务操作。", objectSchema({ ...revision, input: { type: "string", minLength: 1, maxLength: 8000 } }, [...revisionRequired, "input"]), recordResult, true, true, true),
+  publish: define<Revision, RecordResult>("publish", /* @version action.functions.authoring.publish */ 1, "发布判断规则", "通过已有试跑及配置校验后发布不可变版本，进入可调用目录。", objectSchema(revision, revisionRequired), recordResult, true, false, true),
+  delete: define<Revision, { ok: true }>("delete", /* @version action.functions.authoring.delete */ 1, "删除判断草稿", "仅删除草稿；已发布规则和历史不可删除。", objectSchema(revision, revisionRequired), { type: "object", properties: { ok: { const: true } }, required: ["ok"] }, true),
+  addSample: define<Revision & { input: string; label?: string }, RecordResult>("sample.add", /* @version action.functions.authoring.sample.add */ 1, "添加试跑样本", "将输入保存到规则的样本列表。", objectSchema({ ...revision, input: text, label: text }, [...revisionRequired, "input"]), recordResult, true),
   // Removes one trial sample from the draft rule; another can be added again.
-  removeSample: withActionEffect(define<Revision & { sample_id: string }, RecordResult>("sample.remove", /* @version action.functions.authoring.sample.remove */ 1, "移除试跑样本", "从判断规则草稿的试跑样本里移除指定的一条；需带读取时的修订号，之后可以再添加。已发布的规则版本不受影响。", objectSchema({ ...revision, sample_id: id }, ["id", "sample_id"]), recordResult, true), "write", false),
+  removeSample: withActionEffect(define<Revision & { sample_id: string }, RecordResult>("sample.remove", /* @version action.functions.authoring.sample.remove */ 1, "移除试跑样本", "从判断规则草稿的试跑样本里移除指定的一条；需带读取时的版本，之后可以再添加。已发布的规则版本不受影响。", objectSchema({ ...revision, sample_id: id }, [...revisionRequired, "sample_id"]), recordResult, true), "write", false),
 } as const;
 
 /** Contextual reads are composed by the Host from the same authorized action and scene clients. */
@@ -78,19 +80,19 @@ export function functionAuthoringHandlers(ports: FunctionsActionPorts): ActionHa
     bind(functionAuthoringActions.list, () => ports.read(service => ({ functions: service.list() }))),
     bind(functionAuthoringActions.get, args => ports.read(service => ({ function: service.get(args.id) }))),
     bind(functionAuthoringActions.create, args => ports.read(service => ({ function: service.create(args) }))),
-    bind(functionAuthoringActions.update, args => ports.read(service => ({ function: service.updateDraft(args.id, args.patch, args.updated_at ?? undefined) }))),
-    bind(functionAuthoringActions.preview, (args, caller) => ports.run(async service => ({ function: await service.preview(args.id, args.input, args.updated_at ?? undefined, caller.signal, caller.beforeEffect) })),
+    bind(functionAuthoringActions.update, args => ports.read(service => ({ function: service.updateDraft(args.id, args.patch, args.expected_updated_at) }))),
+    bind(functionAuthoringActions.preview, (args, caller) => ports.run(async service => ({ function: await service.preview(args.id, args.input, args.expected_updated_at, caller.signal, caller.beforeEffect) })),
       () => ports.credentialAvailable() ? { available: true } : { available: false, code: "actions.connection_required", reason: "请先连接判断服务" }),
     bind(functionAuthoringActions.publish, async (args, caller) => {
       const record = ports.read(service => service.get(args.id));
-      if (record.status === "published") return { function: record };
+      if (alreadyPublished(record, args.expected_updated_at)) return { function: record };
       assertReadyToPublish(record);
       const scene = await ports.validatePublication?.(record, caller);
       await caller.beforeEffect();
-      return ports.read(service => ({ function: service.publish(args.id, args.updated_at ?? record.updated_at, scene ?? undefined) }));
+      return ports.read(service => ({ function: service.publish(args.id, args.expected_updated_at, scene ?? undefined) }));
     }),
-    bind(functionAuthoringActions.delete, args => ports.read(service => { service.deleteDraft(args.id, args.updated_at ?? undefined); return { ok: true }; })),
-    bind(functionAuthoringActions.addSample, args => ports.read(service => ({ function: service.addSample(args.id, { input: args.input, label: args.label }, args.updated_at ?? undefined) }))),
-    bind(functionAuthoringActions.removeSample, args => ports.read(service => ({ function: service.removeSample(args.id, args.sample_id, args.updated_at ?? undefined) }))),
+    bind(functionAuthoringActions.delete, args => ports.read(service => { service.deleteDraft(args.id, args.expected_updated_at); return { ok: true }; })),
+    bind(functionAuthoringActions.addSample, args => ports.read(service => ({ function: service.addSample(args.id, { input: args.input, label: args.label }, args.expected_updated_at) }))),
+    bind(functionAuthoringActions.removeSample, args => ports.read(service => ({ function: service.removeSample(args.id, args.sample_id, args.expected_updated_at) }))),
   ];
 }

@@ -107,4 +107,16 @@ export const FEED_EN: Record<string, string> = {
   // plugins/native/feed/src/ui.ts
   "仅建议": "Suggest only",
   "已启用，正在检查判断能力": "Enabled; checking the judgment capability",
+  // plugins/native/feed/src/ui.ts and browser/rule-keep.ts: the draft changed elsewhere (docs/design/rule-stale-reload)
+  "{fields}两边都改了，你写的就在它下面。": "{fields}: changed on both sides; yours is right under it.",
+  "别处还改了{fields}。": "Also changed elsewhere: {fields}.",
+  "你改的{fields}留着。": "Your edit to {fields} stays.",
+  "这条规则已在别处发布为 {version}": "This rule was published elsewhere as {version}",
+  "发布后不能再改。你写的都还在，可以用它另起一条。": "A published rule can't change. What you wrote is still here; you can start a new one with it.",
+  "再预览一次才能启用。": "Preview again before enabling it.",
+  "这条规则的草稿已被删除": "This rule's draft was deleted",
+  "你写的都还在。重新预览一次，草稿就会再建好。": "What you wrote is still here. Preview again and the draft is rebuilt.",
+  "重新预览": "Preview again",
+  "再预览一次，看看结果有没有变。": "Preview once more to see whether the results changed.",
+  "已用你写的另起一条": "Started fresh with what you wrote",
 };

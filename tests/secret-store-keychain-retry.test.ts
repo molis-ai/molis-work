@@ -181,9 +181,9 @@ test("Functions local reads work with locked Keychain across Host, HTTP and fres
     assert.deepEqual(calls(), [], "fixture has not used Keychain");
     const live = await withFunctionsServiceAsync(home, async (service) => {
       const draft = service.createChoice({ name: "无需凭据浏览的函数", function_key: "lazy_keychain" });
-      service.updateDraft(draft.id, { instructions: "Choose yes", criteria: [{ key: "yes", description: "yes" }, { key: "no", description: "no" }] });
-      await service.preview(draft.id, "publish fixture");
-      return service.publish(draft.id);
+      service.updateDraft(draft.id, { instructions: "Choose yes", criteria: [{ key: "yes", description: "yes" }, { key: "no", description: "no" }] }, service.get(draft.id).updated_at);
+      await service.preview(draft.id, "publish fixture", service.get(draft.id).updated_at);
+      return service.publish(draft.id, service.get(draft.id).updated_at);
     }, setup);
     assert.deepEqual(calls(), [], "environment-authenticated preview must not use Keychain");
     assert.equal(withFunctionsService(home, service => service.listPublished()).some(row => row.function_key === live.function_key), true);

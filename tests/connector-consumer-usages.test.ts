@@ -67,9 +67,9 @@ test("ASC-10 ASC-13 ASC-21: Functions reports its actual selected account and in
     store.bind({ scopeId: "home", pluginId: "functions", slotId: "typesafe", serviceId: "typesafe", connectionId: row.connection_id }); return row;
   });
   const { function: draft } = await client.invoke(caller, functionAuthoringActions.create, { primitive: "choice", name: "Use this account", function_key: "usage_choice" });
-  const { function: updated } = await client.invoke(caller, functionAuthoringActions.update, { id: draft.id, updated_at: draft.updated_at, patch: { instructions: "Pick yes", criteria: [{ key: "yes", description: "Yes" }, { key: "no", description: "No" }], scene_id: AGENT_MCP_DESTINATION_ID } });
-  const { function: previewed } = await client.invoke(caller, functionAuthoringActions.preview, { id: draft.id, updated_at: updated.updated_at, input: "Yes" });
-  await client.invoke(caller, functionAuthoringActions.publish, { id: draft.id, updated_at: previewed.updated_at });
+  const { function: updated } = await client.invoke(caller, functionAuthoringActions.update, { id: draft.id, expected_updated_at: draft.updated_at, patch: { instructions: "Pick yes", criteria: [{ key: "yes", description: "Yes" }, { key: "no", description: "No" }], scene_id: AGENT_MCP_DESTINATION_ID } });
+  const { function: previewed } = await client.invoke(caller, functionAuthoringActions.preview, { id: draft.id, expected_updated_at: updated.updated_at, input: "Yes" });
+  await client.invoke(caller, functionAuthoringActions.publish, { id: draft.id, expected_updated_at: previewed.updated_at });
   const result = await read(client, account.connection_id), usage = result.usages.find(usage => usage.usage_id === "usage_choice")!;
   assert.equal(usage.actions[0]?.available, true); assert.equal(calls, 1, "listing does not evaluate");
   const invocation = await client.invoke(caller, usage.actions[0]!.action, { ...usage.actions[0]!.input, content: "Yes" }) as { data: { choice: string } };

@@ -10,6 +10,8 @@
 
 - **只作输入的目录谁都只能读（SSC-15）。** Agent 的轮次和会话、原生 Character、终端、Git 的写和 MCP 的本机进程只在项目的输出目录里开；在只作输入的目录里开会被拒（`projects.directory_input_only`），设为输出目录后再开。找方法（Skill）照样能读输入目录。
 
+- **新项目的默认输出目录第一次在里面写或运行时才建（SSC-24、SSC-17、SSC-22、SSC-23）。** 项目建好时，它在 Home `outputs/` 下的输出目录还不在磁盘上：第一次在里面开 Agent 会话或轮次、启动原生 Character、开终端、连本机进程的 MCP 时才建，而且是各项检查都过了之后；被拒的那一次什么都不建。建好之前，Git 的暂存和提交答「这个文件夹还没有建立，不是 Git 仓库」（`workspace_git.not_a_repository`），独立工作树列表为空，新建工作树被拒；按项目内引用打开文件答找不到。Home 快照不含 `outputs/`（里面的符号链接和 `.sqlite` 文件也不看），恢复不动它。调用方：插件的 Agent（`services.agents.run`）没传 `workspace_id` 时在项目的输出目录里跑，原来是第一个目录；Runtime 上下文里的目录（`resolveRuntimeContext` 等返回的 `context.workspace`）不再带 `workspace_id`，宿主按路径找到这个目录的行（`ProjectsQueryApi.workspaceIdAt`）；在项目的输出目录里解除「目录关联」什么都不改（`changed: false`），换输出目录在项目设置里做。
+
 - **项目库换到 Node 自带的 SQLite（路线书 05 ③，`specs/sqlite-driver-switch/spec.md`）。** 库文件格式没变，已有的库照常打开。要做的是**服务必须用官方 Node 24.15.0 运行**（`.nvmrc`）：SQLite 现在跟着 Node 走，版本不是 3.51.3 时项目库里的插件语句全部被拒，启动时会提示，数据不受影响；Homebrew 的 Node 带的是系统另一版 SQLite，不能用来跑服务。改了 Node 之后，常驻服务要重装或重启才换得过来。插件作者：官方构建没有 `DELETE … LIMIT`、`UPDATE … LIMIT`（改成先 `SELECT` 出主键），`LIKE` 现在也会匹配 BLOB；写了这些的插件语句行为会变。
 
 - **第 02 批 Feed 证据和搜索回到统一起点。** 证据只读写 `feed/evidence/` 与一把现行密钥，搜索意图只用 `feed-intent-v1`；不再读取恢复副本或尝试旧环境口令盐。已有正文缺钥、错钥或损坏时拒绝，原文件不变。此变更须随约定维护窗口先验证完整备份可恢复，再干净重建真实 Home；不要把此构建直接用于旧 Home 的就地升级。实际现场完成另记。

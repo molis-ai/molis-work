@@ -240,7 +240,7 @@ load 之前的传输（不含这个文档和其他载入后的请求）是这样
 
 「第一屏资源都要登记」这个决定不变，但分两处放。一处管随产品分发的文件，一处管门禁要算的第一屏。放不到一起的理由有三条：账按页面和语言算，产品登记表没有这两个字段；隐藏文档、内联块、`/api/...` 没有包路径，放不进必须有 `package`、`path` 的表；每个加启动请求的 PR 都要改设计系统包里的同一个文件，正是并行 PR 冲突的来源。
 
-**产品资源登记表** `packages/design-system/resources/registry.json`。只放随产品分发、有包路径的东西：字体、皮肤、字体方案、共同规格、平台语言目录。字段以 A 段合同设计稿第 3.6 节（#1918，`a-section-contract.md`，未合入）为准，本文不重新定义，也不存字节：
+**产品资源登记表** `packages/design-system/resources/registry.json`。只放随产品分发、有包路径的东西：字体、皮肤、字体方案、共同规格、平台语言目录。字段以 A 段合同设计稿第 3.6 节（`a-section-contract.md`）为准，本文不重新定义，也不存字节：
 
 | 字段 | 含义 |
 | --- | --- |
@@ -284,6 +284,8 @@ load 之前的传输（不含这个文档和其他载入后的请求）是这样
 | `locale.workbench` | locale | `workbench` | `resources/locales/`（语言目录） | 英文 589,113，中文 0 | 英文 205,652 | 实算，今天中文作键的形状；中文第一屏今天不用工作台文件，第 16 批换稳定键后才有，估算见第 4.2 节 | 自有 | `first-screen` |
 
 皮肤文件由 Host 读后编译成 CSS，浏览器看到的是样式表和展示快照，所以登记里的 `path` 和线上字节要分开核对。
+
+**落地之后（第 14 批 T6、T8）。** 登记表现在有 6 行：`spec.molis-interface`、`skin.soft-workbench`、`font-scheme.system-sans`、`locale.workbench` 和两款字体。和上表不同的两处：规格的 id 是 `spec.molis-interface`；`locale.workbench` 的 `load` 是 `tool`，因为 A 段的工作台语言目录只有组件板「语言与文字」一节的词（中英各约 2 KB），第 16 批换稳定键、进第一屏时再改。两款圆润字体和 Folio 第 16 批才有，不在表里。每行的字节和 sha256 不存，现算：`node scripts/first-screen-report.mjs --resources`（要先 `pnpm build`；只读文件，不起宿主，不失败）。
 
 **插件语言文件**（不进上表，只在 Manifest 声明）今天的形状：英文 21 个共 364,220 B（gzip 120,987），中文 19 个共 214,777 B（gzip 72,124）。
 

@@ -164,8 +164,8 @@ test("the catalog's failures are ActionErrors with a code and the kind each answ
     (error: unknown) => { expect(error, "catalog.project_terminal_live", 409); return true; });
   const tooOld = hostModule.catalogSchemaCompatibilityError(9, 8);
   assert.ok(tooOld instanceof ActionError);
-  assert.equal(tooOld.code, "catalog.reader_too_old");
-  assert.equal(actionHttpStatus(tooOld), 400);
+  assert.equal(tooOld.code, "storage.store_too_new");
+  assert.equal(actionHttpStatus(tooOld), 503);
   assert.deepEqual(tooOld.details, { actual_schema_version: 9, supported_schema_min: 1, supported_schema_max: 8, recovery: "new_or_fork_session_then_context_resolve" });
 });
 
@@ -188,7 +188,7 @@ test("W3-02-G2 MCP context_resolve preserves a future catalog's schema and recov
     { result: { isError: boolean; content: Array<{ text: string }> } };
   assert.equal(reply.result.isError, true);
   const line = JSON.parse(reply.result.content[0]!.text) as Record<string, unknown>;
-  assert.deepEqual(line, { error: `Molis Work catalog schema=${supported + 1}，当前 reader 支持 1..${supported}。当前 Session 不会热刷新 MCP；请新建或 Fork 一个 Session，先确认当前任务焦点，再只读调用 context_resolve。解析成功后再继续写入；不要回滚 catalog.db，也不要用 SQLite、CLI 或 Web 绕过。`, code: "catalog.reader_too_old",
+  assert.deepEqual(line, { error: `Molis Work catalog schema=${supported + 1}，当前 reader 支持 1..${supported}。当前 Session 不会热刷新 MCP；请新建或 Fork 一个 Session，先确认当前任务焦点，再只读调用 context_resolve。解析成功后再继续写入；不要回滚 catalog.db，也不要用 SQLite、CLI 或 Web 绕过。`, code: "storage.store_too_new",
     details: { actual_schema_version: supported + 1, supported_schema_min: 1, supported_schema_max: supported,
       recovery: "new_or_fork_session_then_context_resolve" } });
   const preserved = openTestSqlite(databasePath, { readonly: true });
@@ -205,7 +205,7 @@ for (const leavesRow of [false, true]) {
     const ordinary = { actual_schema_version: 9, supported_schema_min: 1, supported_schema_max: 8, recovery: "new_or_fork_session_then_context_resolve" };
     const forgedId = "11111111-1111-1111-1111-111111111111";
     const details = { ...ordinary, code: "forged.code", call_id: forgedId };
-    const failure = new ActionError("catalog.reader_too_old", "目录读取器版本过旧", { details });
+    const failure = new ActionError("storage.store_too_new", "目录读取器版本过旧", { details });
     // The public catalog port fails inside the real MCP message scope. A failed Home read is a real Host settlement,
     // so the recorded case proves that its displayed number finds a row, without manufacturing a call-id marker.
     // Only the MCP's own catalog read fails. The server also gives this runner to the Home it shares, and Todo's `get` reads the catalog
@@ -224,7 +224,7 @@ for (const leavesRow of [false, true]) {
     assert.equal(reply.result.isError, true);
     const line = JSON.parse(reply.result.content[0]!.text) as Record<string, unknown>;
     const { call_id: id, ...fields } = line;
-    assert.deepEqual(fields, { error: "目录读取器版本过旧", code: "catalog.reader_too_old", details: ordinary }, "ordinary details survive, and the error owns its code");
+    assert.deepEqual(fields, { error: "目录读取器版本过旧", code: "storage.store_too_new", details: ordinary }, "ordinary details survive, and the error owns its code");
     if (leavesRow) {
       assert.equal(typeof id, "string");
       assert.notEqual(id, forgedId);

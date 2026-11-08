@@ -2,7 +2,7 @@ import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
 import { existsSync, realpathSync } from "node:fs";
 import path from "node:path";
 import { readProductEnv, readStorageSpace, resolveHomeDirectory, resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
-import { catalogManagementProject, residentManagementActions } from "./management-action-client.js";
+import { catalogManagementProject, residentManagementActions, upgradeOlderCatalog } from "./management-action-client.js";
 import {connectResidentAccount,type ResidentAccountConnection} from "./resident-account-connection.js";
 import {NATIVE_SESSION_FILE} from "./personal-native-session.js";
 import {WEB_CONTROL_TOKEN_RELATIVE_PATH} from "./web-control-token.js";
@@ -69,6 +69,11 @@ export async function runV1Cli(args: string[], options: V1CliOptions = {}): Prom
   };
   try {
     return await withCallId(newCallId(), async () => {
+      // Not left to `fallback`: it only takes the lock for a database inside the Home, and the catalog here may belong to a project outside it.
+      if (!options.localHost || options.actionServiceUrl) upgradeOlderCatalog(home, () => {
+        ensureHomeStorageOwner(localHost ??= createMolisWorkLocalHost({ homeDirectory: home }), home, preflightMemoryHome);
+        process.stderr.write("已检查并升级这份 Home 的数据库。\n");
+      });
       const project = options.localHost && !options.actionServiceUrl ? undefined : catalogManagementProject(home, databasePath);
       homeProject = Boolean(project);
       if(connected&&!project&&!allowLocalFallback)throw new ActionError("actions.scope_mismatch","当前账号没有登记这个项目，不能回退本地执行。");

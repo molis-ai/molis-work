@@ -193,7 +193,8 @@ export class MolisWorkUninstallService {
         receipt.completed_steps.push("web-service");
         await this.writeReceipt(receipt);
       }
-      if (prepared.demoProjectIds.length > 0) {
+      // A purge removes `projects/` whole below, and this opens the catalog, which may be at an older version: it would stop half way through.
+      if (prepared.demoProjectIds.length > 0 && !plan.purge_user_data) {
         await this.options.projects.removeDemos({ project_ids: prepared.demoProjectIds, plan_id: plan.plan_id }, owner!);
         receipt.completed_steps.push("regenerable-demo-data");
         await this.writeReceipt(receipt);

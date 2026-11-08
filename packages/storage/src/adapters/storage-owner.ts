@@ -33,9 +33,11 @@ interface Ownership {
   borrowed: boolean;
   retained: number;
   recovering: boolean;
+  onRelease: Set<() => void>;
 }
 
 const owners = new WeakMap<object, Ownership>();
+const heldHere = new Set<string>();
 const invalid = () => errors.invalid("存储所有权无效、所属目录不符，或原锁文件已被移动、替换或链接");
 const sameNode = (left: Stats, right: Stats) => left.dev === right.dev && left.ino === right.ino;
 
@@ -92,6 +94,20 @@ export function assertStorageOwner(directory: string, proof: unknown): void {
   heldOwner(directory, proof);
 }
 
+/** Runs after the lock is really gone, on whichever path gives it up. What only the holder may do ends there, not a moment later. */
+export function onStorageOwnerRelease(directory: string, proof: unknown, listener: () => void): void {
+  heldOwner(directory, proof).onRelease.add(listener);
+}
+
+/**
+ * Whether this process is the one holding the lock. Its stores may be open then, on another copy of SQLite, and file locks belong to the
+ * process: closing any descriptor on such a file, even after a read, drops that connection's locks. So a busy lock of our own is no reason to look at its stores.
+ */
+export function storageOwnerHeldHere(directory: string): boolean {
+  const root = directoryIdentity(directory);
+  return root !== undefined && heldHere.has(root.path);
+}
+
 /** Only owner bookkeeping, authenticated under the live lease; no raw descriptor to the SQLite lock is opened. */
 export function hasOnlyStorageOwnerFiles(directory: string, proof: unknown): boolean {
   const held = heldOwner(directory, proof);
@@ -126,14 +142,18 @@ function acquireOwner(directory: string, recovering: boolean): StorageOwner {
     if (!current || !sameNode(current.stat, root.stat) || !sameNode(lockIdentity(root.file), root.fileIdentity)) throw invalid();
     if (!recovering) assertNoPendingHomeRestore(root.path);
     const held: Ownership = { directory: root.path, directoryIdentity: root.stat, fileIdentity: root.fileIdentity,
-      database, released: false, borrowed: false, retained: 0, recovering };
+      database, released: false, borrowed: false, retained: 0, recovering, onRelease: new Set() };
     const proof: StorageOwner = Object.freeze({ [ownerBrand]: true as const, release() {
       if (held.released) return;
       if (held.borrowed || held.retained) throw errors.borrowed("存储资源仍借用此所有权；请先完成资源的关闭");
       held.database.close();
       held.released = true;
+      heldHere.delete(held.directory);
+      for (const listener of held.onRelease) listener();
+      held.onRelease.clear();
     } });
     owners.set(proof, held);
+    heldHere.add(held.directory);
     return proof;
   } catch (error) {
     database?.close();

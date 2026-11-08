@@ -44,6 +44,8 @@ export interface MolisWorkWebServiceManagerOptions {
   runCommand?: (file: string, args: string[]) => Promise<{ code: number; stdout: string; stderr: string }>;
   /** Returns true only when the endpoint belongs to the expected managed process. */
   healthCheck?: (expectedProcessId?: number) => Promise<boolean>;
+  /** Whether that process says it is upgrading its data, which is no reason to give up on it. */
+  upgradeCheck?: (expectedProcessId?: number) => Promise<boolean>;
   /** Returns true when another process is already accepting connections on the Web port. */
   portCheck?: () => Promise<boolean>;
   /** Tests may remove the real launchd transition wait without changing retry behavior. */

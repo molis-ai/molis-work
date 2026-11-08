@@ -4,6 +4,8 @@ import type { AgentRuntimeDescriptor, AgentStepBoard } from "../services/agent-h
 import type { AgentInputImpact, AgentInputKind, AgentInputQuestion, AgentInputTarget, AgentInputTreatment, AgentTurnSteer } from "../services/agent-inputs.js";
 import type { UiConnectionNeedOutcome, UiConnectionNeedTarget, UiConnectionSlotChoice, UiConnectionSlotRequest } from "./ui-connections.js";
 export * from "./ui-connections.js";
+import type { UiPageDrafts, UiPageReturns } from "./ui-returns.js";
+export * from "./ui-returns.js";
 export * from "./ui-environment.js";
 export * from "./ui-files.js";
 export * from "./ui-text.js";
@@ -100,12 +102,6 @@ export interface UiTaskGrantsAreaState {
  */
 export interface UiPageTaskGrants<Element = unknown> {
   place(element: Element, key: string, options?: { signal?: AbortSignal; onChange?: (state: UiTaskGrantsAreaState) => void }): Promise<void>;
-}
-
-/** Browser-local unsent drafts, namespaced by the Host to this installation. Keys are at most 256 characters; values at most 16 MiB of UTF-8. */
-export interface UiPageDrafts {
-  read(key: string): Promise<string | null>;
-  write(key: string, value: string | null): Promise<void>;
 }
 
 /** Modal page interactions work without native browser dialogs in an isolated view. Closing the view cancels them. */
@@ -668,6 +664,8 @@ export interface UiPluginClientHost<Element = unknown, Dialog = Element, Media =
   confirmBox(dialog: Dialog, ok: Element, run?: () => Promise<unknown>): Promise<boolean>;
   interaction(card: Element, options: { onSubmit?: () => void }): UiPageInteraction;
   readonly drafts: UiPageDrafts;
+  /** Settings for what a step needs, and the way back to this page with the step named (specs/draft-and-return §2.4). */
+  readonly returns: UiPageReturns;
   /** The platform's reads area on this installation's own tasks; the page gives a place and a key, never categories. */
   readonly taskGrants: UiPageTaskGrants<Element>;
 }

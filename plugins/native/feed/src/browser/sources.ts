@@ -35,12 +35,13 @@ function beginSourceOperation(page: FeedPage, button: HTMLButtonElement) {
   return { area: area || dialog, release };
 }
 
-/** Source selection/configuration belongs to this mount; account choice belongs to the trusted Host. */
-export function feedSources(page: FeedPage) {
-  const { host, q, all } = page, L = host.translate;
-  let filter = "all", previous = "all";
-  const field = (area: ParentNode, selector: string) => q<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(selector, area)?.value || "";
-  const status = (area: ParentNode | null, message: unknown) => { const node = area && q("[data-source-action-status],[data-feed-add-error],[data-feed-source-error],[data-feed-connection-status]", area); if (node) { node.hidden = !message; if (typeof message === "string") node.textContent = message; else molisWorkRequest.show(node, message); } };
+/**
+ * A source's account: what the trusted Host says is on it (never the directory), the picker, and, for a source just added here
+ * with none yet, the platform's connection card in the row. An older source without one keeps the picker (whose dialog shows the
+ * same card when there is no account at all).
+ */
+function sourceAccounts(page: FeedPage, status: (area: ParentNode | null, message: unknown) => void, changed: () => Promise<void>) {
+  const { host, q } = page, L = host.translate, added = new Set<string>();
   const reflectChoice = (region: HTMLElement, choice: UiConnectionSlotChoice | null) => {
     const select = q<HTMLSelectElement>("[data-plugin-record-slot-account]", region);
     if (select) { select.replaceChildren(new Option(choice?.label || L("请选择账号连接"), choice?.connection_id || "")); select.disabled = Boolean(choice); }
@@ -57,8 +58,42 @@ export function feedSources(page: FeedPage) {
     const release = page.pending(() => { if (region.isConnected) delete region.dataset.loading; });
     const slot = JSON.parse(region.dataset.pluginRecordSlot!) as { slot_id: string; record_key: string };
     const check = page.guard();
-    try { const choice = await host.connectionSlot({ ...slot, mode: "read", signal: page.signal() }); check(); if (region.isConnected) reflectChoice(region, choice); } finally { release(); }
+    try { const choice = await host.connectionSlot({ ...slot, mode: "read", signal: page.signal() }); check(); if (region.isConnected) { reflectChoice(region, choice); if (added.delete(slot.record_key) && !choice) void needAccount(region, slot); } } finally { release(); }
   };
+  /**
+   * A source with no account yet: the platform's connection card in this row (ASC-70, §13.5). Connected, the source is pulled for the
+   * first time, once (the pull's key is this card's, so an answer handled twice pulls once); cancelled, nothing changes and the
+   * picker stays. The card's folded line says how it ended, so the row's own status line says nothing more while the card is there
+   * (it is the picker's line, back with the picker). A person who left the source (another selection, a redraw) ends the card with
+   * nothing done.
+   */
+  const needAccount = async (region: HTMLElement, slot: { slot_id: string; record_key: string }) => {
+    const check = page.guard(), place = document.createElement("div"), pull = crypto.randomUUID();
+    place.dataset.feedConnectionNeed = ""; q("[data-feed-connection-status]", region)?.before(place);
+    const picker = q<HTMLElement>("[data-feed-account-picker]", region); if (picker) picker.hidden = true;
+    status(region, "");
+    try {
+      const outcome = await host.connectionNeed(place, { kind: "slot", slot_id: slot.slot_id, record_key: slot.record_key }, { signal: page.signal() }); check();
+      if (outcome.status !== "connected") { if (picker) picker.hidden = false; status(region, L("为这个来源选一个账号，选好就保存。")); return; }
+      const result = await page.api<SyncAnswer>("/sources/" + encodeURIComponent(slot.record_key) + "/sync", "POST", { idempotency_key: pull }); check();
+      await changed();
+      host.showToast(result.run?.error_code ? L("拉取失败：{code}。已保留上次成功内容，可按来源提示重试。", { code: result.run.error_code }) : L("拉取完成：新增 {created}，去重 {deduped}", { created: result.created || 0, deduped: result.deduped || 0 }));
+    } catch (error) {
+      try { check(); } catch { return; }
+      if ((error as Error).name === "AbortError") return;
+      if (picker) picker.hidden = false; place.remove(); status(region, error);
+    }
+  };
+  return { loadChoice, added: (id: string) => void added.add(id) };
+}
+
+/** Source selection/configuration belongs to this mount; account choice belongs to the trusted Host. */
+export function feedSources(page: FeedPage) {
+  const { host, q, all } = page, L = host.translate;
+  let filter = "all", previous = "all";
+  const field = (area: ParentNode, selector: string) => q<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(selector, area)?.value || "";
+  const status = (area: ParentNode | null, message: unknown) => { const node = area && q("[data-source-action-status],[data-feed-add-error],[data-feed-source-error],[data-feed-connection-status]", area); if (node) { node.hidden = !message; if (typeof message === "string") node.textContent = message; else molisWorkRequest.show(node, message); } };
+  const { loadChoice, added } = sourceAccounts(page, status, () => changed());
   const show = (view: string, kind = "") => {
     page.panel = view;
     const dialog = q("[data-feed-sources-dialog]"), workbench = q("[data-feed-workbench]") || host.root;
@@ -147,7 +182,7 @@ export function feedSources(page: FeedPage) {
       const sourceValue = kind === "rss" ? field(form, "[data-feed-rss-definition]") : field(form, '[data-feed-source-value="' + CSS.escape(kind) + '"]');
       const body = account ? { service: account, name: field(form, "[data-feed-account-name]") } : { kind, name: field(form, "[data-feed-add-name]").trim(), ...(kind === "rss" ? { definition_id: sourceValue } : kind === "research_library" ? { repository: sourceValue, research_source: field(form, "[data-feed-research-source]") } : kind === "web_query" ? { query: sourceValue } : kind === "youtube_channel" ? { channel_id: sourceValue } : { feed_url: sourceValue }) };
       let id = form.dataset.createdSourceId;
-      if (!id) { const result = await page.api<SourceAnswer>(account ? "/sources/accounts" : "/sources", "POST", body); id = result.source.source_id; form.dataset.createdSourceId = id; if (!account) show("setup", kind); }
+      if (!id) { const result = await page.api<SourceAnswer>(account ? "/sources/accounts" : "/sources", "POST", body); id = result.source.source_id; form.dataset.createdSourceId = id; if (account) added(id); else show("setup", kind); }
       const minutes = Number(field(form, "[data-feed-create-frequency]"));
       if (minutes) try { await page.api("/sources/" + encodeURIComponent(id) + "/schedule", "PUT", { mode: "interval", enabled: true, interval_minutes: minutes }); }
       catch (error) { check(); status(form, L("任务已创建，拉取计划未保存。请重试，不会重复创建任务。") + " " + molisWorkRequest.text(error)); return; }

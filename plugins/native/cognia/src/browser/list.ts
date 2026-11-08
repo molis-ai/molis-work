@@ -67,6 +67,7 @@ function paintModel(page: CogniaPage): void {
     control.disabled = !state.ai_available;
     control.title = state.ai_available ? "" : page.L(state.ai_unavailable_reason || "cognia.model.none");
   }
+  page.modelRead?.();
 }
 
 function paintManage(page: CogniaPage): void {

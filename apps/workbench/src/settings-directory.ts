@@ -1,4 +1,4 @@
-import { renderDirectoryPanel, renderDirectoryRow, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { renderDirectoryPanel, renderDirectoryRow, renderReturnBar, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderAppearanceSettingsDocument } from "./settings-appearance.js";
 import { createProjectSettingsFolds, type ProjectSettingsFoldProject } from "./project-settings-folds.js";
 import { groupedGlobalSettingsSections } from "./settings-sections.js";
@@ -88,6 +88,11 @@ export function renderProjectSettingsDirectorySection(primitives: SettingsDirect
   </section>`;
 }
 
+/** The return bar the settings-return owner puts on top of the settings it opened for a page (specs/draft-and-return §9); it fills the words. */
+function returnBarTemplate(L: SettingsDirectoryPrimitives["L"]): string {
+  return `<template data-settings-return-bar-template>${renderReturnBar({ title: "", body: "", back: L("现在回去"), label: L("从哪里来") })}</template>`;
+}
+
 /** Settings inside a project. `nextPath` is where switching the language lands: this project with Settings open on the same page (VUX-40). */
 export function renderSettingsWorkSurface(primitives: SettingsDirectoryPrimitives, nextPath: string): string {
   const { L, htmlLang } = primitives;
@@ -101,7 +106,7 @@ export function renderSettingsWorkSurface(primitives: SettingsDirectoryPrimitive
     '<section class="settings-document appearance-document" data-settings-panel="appearance"',
   );
   return `<section class="desktop-work-surface settings-stage" data-work-surface="settings" data-work-surface-label="${L("设置")}" hidden>
-    <div class="settings-content" data-settings-stage-body>${appearance}</div>
+    ${returnBarTemplate(L)}<div class="settings-content" data-settings-stage-body>${appearance}</div>
   </section>`;
 }
 
@@ -119,6 +124,6 @@ export function renderProjectSettingsWorkSurface(
   });
   const general = project ? folds.renderGeneralPage(project, desktopShell) : "";
   return `<section class="desktop-work-surface settings-stage" data-work-surface="project-settings" data-work-surface-label="${L("项目设置")}" hidden>
-    <div class="settings-content" data-settings-stage-body>${general}</div>
+    ${returnBarTemplate(L)}<div class="settings-content" data-settings-stage-body>${general}</div>
   </section>`;
 }

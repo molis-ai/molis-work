@@ -71,7 +71,8 @@ export function createPage(host: ImagesHost, life: Scope, root: HTMLElement): Im
     syncGenerate() {
       if (!life.alive) return;
       const connection = page.pickedConn();
-      el.generate.disabled = s.submitting || !s.context || !connection || connection.available === false || !el.prompt.value.trim();
+      // A service without a usable key can still be pressed: the key is asked for in place, on the platform's card (ASC-70).
+      el.generate.disabled = s.submitting || !s.context || !connection || !el.prompt.value.trim();
       el.generate.textContent = s.submitting ? L("images.compose.submitting") : L("images.compose.generate");
       field("project-note").hidden = Boolean(s.context);
     },

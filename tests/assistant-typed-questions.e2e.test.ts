@@ -60,10 +60,10 @@ async function assistantAsking(t: TestContext, asked: object, done: string) {
 
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/?openPlugin=todo" }, sessionId));
-  await waitFor("document.querySelector('[data-assistant-input]')");
-  await click("[data-assistant-input]"); await command("Input.insertText", { text: "约个复盘会" }, sessionId);
-  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
-  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
+  await waitFor("document.querySelector('[data-assistant-composer] .mw-composer__input')");
+  await click("[data-assistant-composer] .mw-composer__input"); await command("Input.insertText", { text: "约个复盘会" }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
   return { ...browser, requests };
 }
 
@@ -121,14 +121,14 @@ test("AC-11 AC-27-5: the Assistant answers words, a number, a date and a date an
 test("AC-27-5, D34: one text question is answered from the composer, and the run hears the words", { timeout: 240_000 }, async t => {
   const page = await assistantAsking(t, { why: "给复盘会起个标题", questions: [{ id: "title", type: "text", prompt: "会议标题" }] }, "标题记下了。"); if (!page) return;
   const { command, sessionId, evaluate, waitFor, click, requests } = page;
-  await waitFor("document.querySelector('[data-ix-question] [data-ix-field=t0]') && !document.querySelector('[data-assistant-answer]').hidden", 20_000);
-  assert.equal(await evaluate("document.querySelector('[data-assistant-answer]').textContent"), "回答上面的问题", "the default is to answer it");
-  await click("[data-assistant-input]"); await command("Input.insertText", { text: "Q4 发布复盘" }, sessionId);
-  await click("[data-assistant-send]");
+  await waitFor("document.querySelector('[data-ix-question] [data-ix-field=t0]') && document.querySelector('[data-assistant-composer] select[data-composer-control=answer]')", 20_000);
+  assert.equal(await evaluate("document.querySelector('[data-assistant-composer] select[data-composer-control=answer]').selectedOptions[0].textContent"), "回答上面的问题", "the default is to answer it");
+  await click("[data-assistant-composer] .mw-composer__input"); await command("Input.insertText", { text: "Q4 发布复盘" }, sessionId);
+  await click("[data-assistant-composer] [data-composer-send]");
   for (let attempt = 0; requests.length < 2 && attempt < 300; attempt++) await new Promise(resolve => setTimeout(resolve, 50));
   assert.ok(JSON.stringify(requests[1]?.messages ?? "").includes("Q4 发布复盘"), "the words answer the question");
   await waitFor("document.querySelector('[data-assistant-thread]')?.textContent.includes('标题记下了。')", 15_000);
-  assert.equal(await evaluate("document.querySelector('[data-assistant-answer]').hidden"), true, "nothing waits, so there is no choice");
+  assert.equal(await evaluate("document.querySelector('[data-assistant-composer] select[data-composer-control=answer]') === null"), true, "nothing waits, so there is no choice");
 });
 
 /** Every file of the Agent runtime (its sessions, runs and queued inputs), by content. */
@@ -146,16 +146,18 @@ test("AC-03, R4: among other questions, the composer writes into the questionnai
   const asked = { why: "约下周的复盘会", questions: [{ id: "minutes", type: "number", prompt: "时长", min: 15, max: 120, integer: true, unit: "分钟" }, { id: "notes", type: "text", prompt: "补充要求", required: false }] };
   const page = await assistantAsking(t, asked, "复盘会安排好了。"); if (!page) return;
   const { command, sessionId, evaluate, waitFor, click, navigate, requests, homeDirectory } = page;
-  const chip = "document.querySelector('[data-assistant-answer]')", notes = "document.querySelector('[data-ix-question] [data-ix-field=t1] textarea, [data-ix-question] [data-ix-field=t1] input')";
-  const send = async (text: string) => { await click("[data-assistant-input]"); await command("Input.insertText", { text }, sessionId); await click("[data-assistant-send]"); };
+  const chip = "document.querySelector('[data-assistant-composer] select[data-composer-control=answer]')", notes = "document.querySelector('[data-ix-question] [data-ix-field=t1] textarea, [data-ix-question] [data-ix-field=t1] input')";
+  const send = async (text: string) => { await click("[data-assistant-composer] .mw-composer__input"); await command("Input.insertText", { text }, sessionId); await click("[data-assistant-composer] [data-composer-send]"); };
+  // One change of the composer's select, as one click of the old chip (K3).
+  const flip = `(() => { const select = ${chip}; select.selectedIndex = (select.selectedIndex + 1) % select.options.length; select.dispatchEvent(new Event('change', { bubbles: true })); })()`;
   const work = () => evaluate<Array<{ revision: number }>>(`fetch(document.body.dataset.routePrefix + '/api/assistant/works', { headers: molisWorkControlHeaders() }).then(r => r.json()).then(body => body.works)`);
   const apart = (works: Array<{ revision: number }>) => works.map(({ revision: _revision, ...rest }) => rest);
-  await waitFor(`${notes} && !${chip}.hidden`, 20_000);
-  assert.equal(await evaluate(`${chip}.textContent`), "写进问卷", "the default is on the chip");
+  await waitFor(`${notes} && ${chip}`, 20_000);
+  assert.equal(await evaluate(`${chip}.selectedOptions[0].textContent`), "写进问卷", "the default is on the chip");
   const before = { files: await runtimeFiles(homeDirectory), works: await work() };
 
   await send("只约周三下午");
-  await waitFor(`${notes}.value === '只约周三下午' && document.querySelector('[data-assistant-input]').value === ''`, 10_000);
+  await waitFor(`${notes}.value === '只约周三下午' && document.querySelector('[data-assistant-composer] .mw-composer__input').value === ''`, 10_000);
   await send("会议室要有投影");
   await waitFor(`${notes}.value === '只约周三下午 会议室要有投影'`, 10_000);
   await new Promise(resolve => setTimeout(resolve, 800));
@@ -171,16 +173,16 @@ test("AC-03, R4: among other questions, the composer writes into the questionnai
   await navigate(() => command("Page.reload", {}, sessionId));
   await waitFor(`${notes}?.value === '只约周三下午 会议室要有投影'`, 20_000);
 
-  await click("[data-assistant-answer]");
-  assert.equal(await evaluate(`${chip}.textContent`), "补充这一轮");
-  assert.match(await evaluate<string>(`${chip}.title`), /写进问卷/u, "the way back names the form");
+  await evaluate(flip);
+  assert.equal(await evaluate(`${chip}.selectedOptions[0].textContent`), "补充这一轮");
+  assert.match(await evaluate<string>(`[...${chip}.options].map((option) => option.textContent).join(' ')`), /写进问卷/u, "the way back names the form");
   await send("顺便发个日历邀请");
   await waitFor("document.querySelector('[data-assistant-thread]')?.textContent.includes('顺便发个日历邀请')", 15_000);
   assert.notDeepEqual(await runtimeFiles(homeDirectory), before.files, "switched, the words reach the round as a supplement");
   assert.equal(requests.length, 1, "a supplement waits behind the answer; the AI is not called");
   assert.equal(await evaluate(`${notes}.value`), "只约周三下午 会议室要有投影", "the supplement does not touch the draft");
-  await click("[data-assistant-answer]");
-  assert.equal(await evaluate(`${chip}.textContent`), "写进问卷", "one click back");
+  await evaluate(flip);
+  assert.equal(await evaluate(`${chip}.selectedOptions[0].textContent`), "写进问卷", "one click back");
   assert.equal(await evaluate(`${notes}.value`), "只约周三下午 会议室要有投影", "and the draft is still on the card");
 
   await evaluate(`(() => { const node = document.querySelector('[data-ix-question] [data-ix-field=n0] input'); node.focus(); node.value = '45'; node.dispatchEvent(new Event('input', { bubbles: true })); })()`);

@@ -28,25 +28,89 @@ const HOLD_UPLOADS = `(() => {
 const drop = (files: Array<[string, string]>) => `(() => {
   const data = new DataTransfer();
   for (const [name, type] of ${JSON.stringify(files)}) data.items.add(new File([type.startsWith('image/') ? new Uint8Array([137, 80, 78, 71]) : 'hello'], name, { type }));
-  document.querySelector('[data-assistant-composer]').dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: data }));
+  document.querySelector('[data-assistant-composer] .mw-composer__box').dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: data }));
 })()`;
 
-type Chip = { key: string; text: string; state: string; busy: boolean; acts: string[] };
+type Row = { text: string; failed: boolean; acts: string[] };
 
-test("VUX-18: an added file has its own chip while it is read, keeps its failure and retry on the strip, and its neighbours move aside and close up", { timeout: 120_000 }, async (t) => {
+// K3 (UIV-12): the Assistant's files are the unified composer's own strip (one row per file inside the box, the board's upload rows).
+// Each file has its row from the moment it is added: being read (and the Send waits), read, or why it cannot go, with × to let it go;
+// a failed row holds the Send until it is let go (the composer's rule); a file let go while it is read stays gone when its late
+// answer comes. Trying a picture again is adding it again.
+test("VUX-18 UIV-12: an added file has its own row on the composer's strip while it is read, keeps its name and why when it cannot go, and a file let go while it is read stays gone", { timeout: 120_000 }, async (t) => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
   const { evaluate, waitFor, navigate, command, sessionId, origin, projectId } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await waitFor("document.querySelector('[data-assistant-composer] [data-assistant-input]') && typeof window.molisReflow === 'function'", 20_000);
+  await waitFor("document.querySelector('[data-assistant-composer] .mw-composer__box')", 20_000);
+  await evaluate(HOLD_UPLOADS);
+  await evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input').focus()");
+  const rows = () => evaluate<Row[]>(`[...document.querySelectorAll('[data-assistant-composer] .mw-composer__files .mw-upload')].map((row) => ({
+    text: row.querySelector(':scope > span:not(.mw-mark)').textContent, failed: Boolean(row.querySelector('small.is-failed')),
+    acts: [...row.querySelectorAll('button')].map((button) => button.getAttribute('aria-label') || button.title) }))`);
+  const remove = (name: string) => evaluate(`[...document.querySelectorAll('[data-assistant-composer] .mw-composer__files .mw-upload')].find((row) => row.querySelector(':scope > span:not(.mw-mark)').textContent.startsWith(${JSON.stringify(name)})).querySelector('[data-composer-remove]').click()`);
+  const sendDisabled = () => evaluate<boolean>("document.querySelector('[data-assistant-composer] [data-composer-send]').disabled");
+  await command("Input.insertText", { text: "看看这几个文件" }, sessionId);
+  assert.equal(await sendDisabled(), false, "words alone can be sent");
+
+  // Three at once: text is read here at once, a picture waits on the Host, an archive cannot go.
+  await evaluate(drop([["notes.txt", "text/plain"], ["shot.png", "image/png"], ["bundle.zip", "application/zip"]]));
+  await waitFor("uploads.names().includes('shot.png')");
+  await waitFor("[...document.querySelectorAll('[data-assistant-composer] .mw-composer__files .mw-upload')].some((row) => row.querySelector(':scope > span:not(.mw-mark)').textContent === 'notes.txt')");
+  assert.deepEqual((await rows()).map((row) => [row.text, row.failed]), [
+    ["notes.txt", false],
+    ["shot.pngshot.png 读取中", false],
+    ["bundle.zip暂时只能读取文本文件、PDF 和图片", true],
+  ], "each file has its row at once: read, being read, or why it cannot go");
+  assert.deepEqual((await rows())[2]!.acts, ["移除 bundle.zip"], "trying an archive again would not help: only × is offered");
+  assert.equal(await sendDisabled(), true, "the Send waits while a file is still being read");
+
+  // The Host cannot read the picture: its name and the Host's reason stay on its row.
+  await evaluate("uploads.answer('shot.png', false)");
+  await waitFor("[...document.querySelectorAll('[data-assistant-composer] .mw-composer__files small.is-failed')].length === 2");
+  assert.match((await rows())[1]!.text, /^shot\.png服务暂时读不了/, "the failure keeps the name and the Host's reason on the strip");
+  assert.equal(await sendDisabled(), true, "a row that cannot go holds the Send until it is let go");
+
+  // Let go of it and add it again, and this time it is read.
+  await remove("shot.png");
+  await evaluate(drop([["shot.png", "image/png"]]));
+  await waitFor("uploads.names().includes('shot.png')");
+  await evaluate("uploads.answer('shot.png', true)");
+  await waitFor("[...document.querySelectorAll('[data-assistant-composer] .mw-composer__files .mw-upload')].some((row) => row.querySelector(':scope > span:not(.mw-mark)').textContent === 'shot.png')");
+  await remove("bundle.zip");
+  assert.deepEqual((await rows()).map((row) => row.text), ["notes.txt", "shot.png"]);
+  assert.equal(await sendDisabled(), false, "with every row read, the Send can go");
+
+  // A file let go of while it is read stays gone when its late answer arrives.
+  await evaluate(drop([["late.png", "image/png"]]));
+  await waitFor("uploads.names().includes('late.png')");
+  assert.deepEqual((await rows()).at(-1), { text: "late.pnglate.png 读取中", failed: false, acts: ["移除 late.png"] });
+  await remove("late.png");
+  assert.equal(await sendDisabled(), false, "letting go of it frees the Send");
+  await evaluate("uploads.answer('late.png', true)");
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  assert.deepEqual((await rows()).map((row) => row.text), ["notes.txt", "shot.png"], "its late answer does not bring it back");
+});
+
+// What the island's own strip did and the composer's strip does not (yet): 重试 on a failed file, the picture's thumbnail, one row
+// kept through its states, and the neighbours easing aside and closing up. Kept as they were and skipped until the composer's strip
+// has them (asked of K2 in K3's report); the island's chips are gone with its input.
+type Chip = { key: string; text: string; state: string; busy: boolean; acts: string[] };
+
+test("VUX-18: an added file has its own chip while it is read, keeps its failure and retry on the strip, and its neighbours move aside and close up", { timeout: 120_000, skip: "K3: the composer's strip has no per-file 重试, thumbnail, kept row or easing yet (a K2 ask)" }, async (t) => {
+  const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
+  const { evaluate, waitFor, navigate, command, sessionId, origin, projectId } = browser;
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
+  await waitFor("document.querySelector('[data-assistant-composer] .mw-composer__input') && typeof window.molisReflow === 'function'", 20_000);
   // Product pages hold motion still under automation; the neighbours' moves are what is checked here.
   await evaluate("document.documentElement.removeAttribute('data-craft-still')");
   await evaluate(HOLD_UPLOADS);
-  await evaluate("document.querySelector('[data-assistant-input]').focus()");
+  await evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input').focus()");
   const chips = () => evaluate<Chip[]>(`[...document.querySelectorAll('[data-assistant-context-strip] .assistant-strip-chip')].filter((chip) => chip.dataset.stripKey.startsWith('file:')).map((chip) => ({
     key: chip.dataset.stripKey, text: chip.textContent, state: ['is-reading', 'is-failed'].find((name) => chip.classList.contains(name)) || '',
     busy: chip.getAttribute('aria-busy') === 'true', acts: [...chip.querySelectorAll('button')].map((button) => button.getAttribute('aria-label')) }))`);
-  const sendDisabled = () => evaluate<boolean>("document.querySelector('[data-assistant-send]').disabled");
+  const sendDisabled = () => evaluate<boolean>("document.querySelector('[data-assistant-composer] [data-composer-send]').disabled");
   await command("Input.insertText", { text: "看看这几个文件" }, sessionId);
   assert.equal(await sendDisabled(), false, "words alone can be sent");
 

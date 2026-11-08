@@ -49,10 +49,10 @@ test("a work's starting point names the page it started on, never its id", { tim
   await waitFor("document.body.dataset.desktopSurface === 'todo'");
   await child.waitFor("document.querySelector('[data-todo-view=\"all\"]')");
 
-  await click("[data-assistant-input]");
+  await click("[data-assistant-composer] .mw-composer__input");
   await command("Input.insertText", { text: "看看今天的待办" }, sessionId);
-  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
-  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
   await waitFor("Boolean(document.querySelector('[data-assistant-side-toggle]')?.getClientRects().length)", 30_000);
   if (await evaluate("document.querySelector('[data-assistant-side-toggle]').getAttribute('aria-expanded')") !== "true") await click("[data-assistant-side-toggle]");
   const startedAt = "[...document.querySelectorAll('[data-assistant-side] .assistant-step-label')].find(label => label.textContent === '起点')?.parentElement";

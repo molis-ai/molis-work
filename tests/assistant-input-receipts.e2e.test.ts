@@ -25,13 +25,13 @@ async function assistantPage(t: TestContext, behavior: IssueModelBehavior, stora
   return browser;
 }
 // A Send the Host took clears the composer (an empty composer also disables Send, so that cannot tell).
-const settled = (browser: SendBrowser) => browser.waitFor("document.querySelector('[data-assistant-input]').value === ''", 15_000);
-async function send(browser: SendBrowser, text: string) { await putInput(browser, text); await browser.click("[data-assistant-send]"); await settled(browser); }
+const settled = (browser: SendBrowser) => browser.waitFor("document.querySelector('[data-assistant-composer] .mw-composer__input').value === ''", 15_000);
+async function send(browser: SendBrowser, text: string) { await putInput(browser, text); await browser.click("[data-assistant-composer] [data-composer-send]"); await settled(browser); }
 /** Sends through the composer and returns the body the page actually put on the wire. */
 async function sendSeen(browser: SendBrowser, text: string) {
   const barrier = await sendBarrier(browser, [{ urlPattern: "*/api/assistant/send", requestStage: "Request" }]);
   try {
-    await putInput(browser, text); await browser.click("[data-assistant-send]");
+    await putInput(browser, text); await browser.click("[data-assistant-composer] [data-composer-send]");
     const paused = await barrier.next(); await barrier.release(paused);
     return JSON.parse(paused.request.postData!) as Record<string, unknown>;
   } finally { await barrier.close(); await settled(browser); }
@@ -40,7 +40,11 @@ async function shot(browser: SendBrowser, name: string) {
   const evidence = reviewEvidenceUrl("ai-input-receipts/"); await mkdir(evidence, { recursive: true });
   await writeFile(new URL(name, evidence), Buffer.from((await browser.command<{ data: string }>("Page.captureScreenshot", { format: "png" }, browser.sessionId)).data, "base64"));
 }
-const chip = (browser: SendBrowser) => browser.evaluate<string | null>("(() => { const chip = document.querySelector('[data-assistant-answer]'); return chip.hidden ? null : chip.textContent; })()");
+// The choice of what this Send does while a question waits is one of the composer's controls (K3): a select, there only while it applies.
+const ANSWER = "document.querySelector('[data-assistant-composer] select[data-composer-control=answer]')";
+const chip = (browser: SendBrowser) => browser.evaluate<string | null>(`(() => { const chip = ${ANSWER}; return chip ? chip.selectedOptions[0].textContent : null; })()`);
+/** The person switches it to the other choice (one change of the select, as one click of the old chip). */
+const flip = (browser: SendBrowser) => browser.evaluate(`(() => { const chip = ${ANSWER}; chip.selectedIndex = (chip.selectedIndex + 1) % chip.options.length; chip.dispatchEvent(new Event('change', { bubbles: true })); })()`);
 const receipts = (browser: SendBrowser) => browser.evaluate<string[]>("[...document.querySelectorAll('[data-assistant-thread] .mw-receipt__fact')].map(node => node.textContent)");
 
 test("RC-14/RC-15/RCPT-312: while a question waits the chip says what Send does, a supplement's receipt says the question still waits, and a changed receipt is said once on the status region", { timeout: 120_000 }, async t => {
@@ -48,11 +52,11 @@ test("RC-14/RC-15/RCPT-312: while a question waits the chip says what Send does,
   await send(browser, "帮我记一个问题");
   const id = await browser.evaluate<string>(CURRENT_WORK);
   await waitWork(browser, id, view => view.rounds.at(-1)?.phase === "awaiting-input");
-  await browser.waitFor("!document.querySelector('[data-assistant-answer]').hidden");
+  await browser.waitFor(`Boolean(${ANSWER})`);
   assert.equal(await chip(browser), "回答上面的问题", "the default is on the chip");
   await shot(browser, "assistant-target-chip.png");
 
-  await browser.click("[data-assistant-answer]");
+  await flip(browser);
   assert.equal(await chip(browser), "补充这一轮");
   const steered = await sendSeen(browser, "顺便看一下截图");
   assert.equal(steered.target, "steer", "the page sends the choice; the Host never guesses");
@@ -61,7 +65,7 @@ test("RC-14/RC-15/RCPT-312: while a question waits the chip says what Send does,
   assert.match(await browser.evaluate<string>("document.querySelector('[data-assistant-thread] .mw-receipt__note').textContent"), /读到不代表已遵循/u);
   await shot(browser, "assistant-receipt-waiting.png");
 
-  await browser.click("[data-assistant-answer]");
+  await flip(browser);
   await browser.evaluate("window.__waiting = document.querySelector('[data-assistant-thread] .mw-receipt')");
   const answered = await sendSeen(browser, "首页点保存没有反应");
   assert.equal(answered.target, "answer");
@@ -105,11 +109,13 @@ test("RC-16: a Send whose outcome was lost goes again after a refresh under the 
   await waitWork(browser, id, view => view.work.state === "completed");
   const barrier = await sendBarrier(browser, [{ urlPattern: "*/api/assistant/send", requestStage: "Response" }]);
   try {
-    await putInput(browser, "第二句"); await browser.click("[data-assistant-send]");
+    await putInput(browser, "第二句"); await browser.click("[data-assistant-composer] [data-composer-send]");
     await barrier.drop(await barrier.next());
   } finally { await barrier.close(); }
-  await browser.waitFor("Boolean(document.querySelector('.assistant-problem'))", 15_000);
-  assert.equal(await browser.evaluate("document.querySelector('[data-assistant-input]').value"), "第二句", "the words stay in the composer");
+  // K3: the composer says a Send's outcome was not confirmed (its 「待确认」 state, with 查一下), not the thread.
+  await browser.waitFor("document.querySelector('[data-assistant-composer] .mw-composer')?.dataset.state === 'unknown'", 15_000);
+  assert.match(await browser.evaluate<string>("document.querySelector('[data-assistant-composer] .mw-composer__status').textContent"), /没能确认是否送到/);
+  assert.equal(await browser.evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input').value"), "第二句", "the words stay in the composer");
   const kept = JSON.parse(await browser.evaluate<string>(UNSENT_WORDS)) as { work: string; text: string; id: string };
   assert.equal(kept.work, id); assert.equal(kept.text, "第二句");
   await browser.reloadPage();
@@ -158,10 +164,10 @@ test("RCPT-361, 3e-1: what the AI says it takes as a constraint shows in the sid
   await send(browser, "帮我记一个问题");
   const id = await browser.evaluate<string>(CURRENT_WORK);
   await waitWork(browser, id, view => view.rounds.at(-1)?.phase === "awaiting-input");
-  await browser.waitFor("!document.querySelector('[data-assistant-answer]').hidden");
-  await browser.click("[data-assistant-answer]");
+  await browser.waitFor(`Boolean(${ANSWER})`);
+  await flip(browser);
   await send(browser, "别直接发邮件给客户，我自己发");
-  await browser.click("[data-assistant-answer]");
+  await flip(browser);
   await send(browser, "首页点保存没有反应");
   await waitWork(browser, id, view => view.work.state === "completed");
   const block = "document.querySelector('[data-assistant-block=\"agreements\"]')";

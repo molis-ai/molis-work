@@ -322,27 +322,27 @@ test("the Assistant in the bar speaks for the project in view, and keeps a draft
   await view(1440);
   await open("/");
   await settled();
-  const placeholder = () => evaluate<string>("document.querySelector('[data-assistant-input]').placeholder");
+  const placeholder = () => evaluate<string>("document.querySelector('[data-assistant-composer] .mw-composer__input').placeholder");
   assert.match(await placeholder(), /目录交互验证/, "the first words it offers are about the project in view");
-  await evaluate("document.querySelector('[data-assistant-input]').focus()");
+  await evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input').focus()");
   await command("Input.insertText", { text: "把周五的发布清单整理出来" }, sessionId);
   await click(`#row-${others[0]}`);
   await waitFor("document.querySelector('#chooser-detail .mw-brief__title')?.textContent === 'Coding 开发沙盒'");
   assert.match(await placeholder(), /Coding 开发沙盒/);
-  assert.equal(await evaluate("document.querySelector('[data-assistant-input]').value"), "", "another project starts with an empty line");
-  await evaluate("document.querySelector('[data-assistant-input]').focus()");
+  assert.equal(await evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input').value"), "", "another project starts with an empty line");
+  await evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input').focus()");
   await command("Input.insertText", { text: "先看看沙盒的测试" }, sessionId);
   await click("#row-personal");
   await waitFor("document.querySelector('#chooser-detail .mw-brief__title')?.textContent === '个人空间'");
   assert.match(await placeholder(), /个人空间/);
-  assert.equal(await evaluate("document.querySelector('[data-assistant-input]').value"), "");
+  assert.equal(await evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input').value"), "");
   await click(`#row-${projectId}`);
   await waitFor("document.querySelector('#chooser-detail .mw-brief__title')?.textContent === '目录交互验证'");
-  assert.equal(await evaluate("document.querySelector('[data-assistant-input]').value"), "把周五的发布清单整理出来", "each project's words are where they were left");
+  assert.equal(await evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input').value"), "把周五的发布清单整理出来", "each project's words are where they were left");
   await click(`#row-${others[0]}`);
-  assert.equal(await evaluate("document.querySelector('[data-assistant-input]').value"), "先看看沙盒的测试");
+  assert.equal(await evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input').value"), "先看看沙盒的测试");
   // A long line in the bar stays inside it, whatever the width.
-  await evaluate("document.querySelector('[data-assistant-input]').focus()");
+  await evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input').focus()");
   await command("Input.insertText", { text: "再补一句很长很长很长很长很长很长很长很长很长很长很长很长很长很长很长很长很长很长很长很长很长的话，看看输入框会不会顶到旁边的按钮".repeat(2) }, sessionId);
   for (const width of [1440, 768, 390]) { await view(width, 900); await assertLayoutClean(evaluate, `a long line in the bar · ${width}`); }
 });

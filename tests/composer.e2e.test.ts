@@ -34,9 +34,12 @@ async function open(t: TestContext, locale: "zh" | "en" = "zh") {
   await page.command("Page.enable");
   await page.viewport(1440, 900);
   const path = `/projects/${encodeURIComponent(project.project_id)}/`;
-  const load = async () => {
+  // These pages test a plugin's own composer. Since K3 the bar carries the Assistant's composer too (tests/assistant-composer.e2e.test.ts):
+  // it is taken off the page once it is there, so `.mw-composer…` names the plugin's and nothing of the bar sits under its stage.
+  const load = async (keepAssistant = false) => {
     await Promise.all([browser.event("Page.loadEventFired"), page.command("Page.navigate", { url: f.origin + "/locale?lang=" + locale + "&next=" + encodeURIComponent(path) })]);
-    await page.wait("typeof window.molisComposer === 'function' && typeof window.molisWorkRequest === 'function'");
+    await page.wait("typeof window.molisComposer === 'function' && typeof window.molisWorkRequest === 'function' && Boolean(document.querySelector('[data-assistant-composer] .mw-composer'))");
+    if (!keepAssistant) await page.evaluate("document.querySelector('[data-assistant-composer]').remove()");
   };
   await load();
   const key = async (modifiers = 0, code = 13) => {
@@ -275,11 +278,17 @@ test("§3.1: the program is one shared file fetched on the first mount; one that
   if (!c) return;
   const { page } = c;
   const fetched = () => page.evaluate<number>("performance.getEntriesByType('resource').filter(entry => entry.name.endsWith('/assets/molis-work-composer.js')).length");
-  assert.equal(await fetched(), 0, "a page with no composer does not fetch it");
-  assert.equal(await page.evaluate("typeof globalThis.molisComposerProgram"), "undefined");
+  // K3: a project page mounts the Assistant's composer in the bar at once, so the program comes with the page's first mount, once.
+  await page.wait("typeof globalThis.molisComposerProgram !== 'undefined'");
+  assert.equal(await fetched(), 1, "the bar's Assistant is the page's first mount: the program is fetched once for it");
   // Cannot be fetched: the first screen the page drew stays, can be typed into, and its status line says why; send waits.
   await page.command("Network.enable");
   await page.command("Network.setBlockedURLs", { urls: ["*molis-work-composer.js*"] });
+  await c.load(true);
+  assert.equal(await page.evaluate("typeof globalThis.molisComposerProgram"), "undefined");
+  await page.wait("document.querySelector('[data-assistant-composer] .mw-composer__status')");
+  assert.match(await page.evaluate<string>("document.querySelector('[data-assistant-composer] .mw-composer__status').textContent"), /现在用不了/, "the Assistant's first screen stays and says so");
+  await page.evaluate("document.querySelector('[data-assistant-composer]').remove()");
   const first = renderComposer({ kind: "plain", labels: COMPOSER_PLAIN_LABELS, placeholder: "写评论…" });
   await page.evaluate(`(() => { const root = document.createElement("div"); root.id = "composer-first"; root.style.cssText = "position:fixed;left:16px;right:16px;bottom:16px;z-index:2147483000";
     root.innerHTML = ${JSON.stringify(first)}; document.body.append(root);
@@ -308,8 +317,10 @@ test("§3.1: a sandboxed plugin frame fetches the program only once its page mou
   let asked = 0, refuse = false;
   browser.server.removeAllListeners("request");
   browser.server.on("request", (request, response) => {
+    // Since K3 the Workbench page itself fetches the program for the bar's Assistant (same-origin); the sandboxed frame's own
+    // request comes from its opaque origin, and only those are counted.
     if (request.url === "/assets/molis-work-composer.js") {
-      asked += 1;
+      if (request.headers["sec-fetch-site"] !== "same-origin") asked += 1;
       if (refuse) { response.writeHead(503, { "content-type": "text/plain" }); response.end(); return; }
     }
     for (const handler of handlers) handler.call(browser.server, request, response);

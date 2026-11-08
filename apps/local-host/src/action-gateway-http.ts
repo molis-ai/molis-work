@@ -25,6 +25,7 @@ export async function handleActionGatewayHttp(request: IncomingMessage, response
   };
   try {
     const body = await readGatewayBody(request);
+    if (typeof body.home_id !== "string") throw new ActionError("actions.input_invalid", "动作传输参数缺少 Home");
     if (body.home_id !== actionGatewayHomeId(home)) throw new ActionError("actions.home_mismatch", "连接的系统服务属于另一个 Home");
     const identity = authenticateMcpClientProof(credentialHome, home, host.instanceId, request.headers["x-molis-work-client-proof"], body.operation === "invoke");
     const clientId = identity.clientId;

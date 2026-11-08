@@ -13,6 +13,7 @@ interface Panes {
   fromParent(event: unknown): boolean;
   keep(token: string, frame: unknown, value: unknown): void;
   take(token: string, frame: unknown): unknown;
+  recordAsk(event: unknown): { plugin: string; itemId: string; quiet: boolean } | null;
 }
 
 /** The page around the panes: two pane frames, and a frame that is not a pane. */
@@ -79,6 +80,46 @@ test("S-30 RAC-2687 generic view updates retain the exact pane-window and parent
     assert.equal(inside.panes.fromParent({ origin: ORIGIN, source: paneB.contentWindow, data: reply }), false);
     assert.equal(inside.panes.fromParent({ origin: "null", source: inside.around, data: reply }), false);
   }
+});
+
+test("S-30 a pane passes on the page's ask for a record only from the page around it, and only in its exact shape", () => {
+  const { around, self, panes } = pane();
+  const ask = { type: "workbench-select-item", plugin: "dataset", itemId: "record-1", quiet: false };
+  // Copied out of the script's realm so the comparison is of the fields alone.
+  assert.deepEqual({ ...panes.recordAsk({ origin: ORIGIN, source: around, data: ask }) }, { plugin: "dataset", itemId: "record-1", quiet: false });
+  assert.deepEqual({ ...panes.recordAsk({ origin: ORIGIN, source: around, data: { ...ask, quiet: true } }) }, { plugin: "dataset", itemId: "record-1", quiet: true });
+  // Not from the page around it.
+  assert.equal(panes.recordAsk({ origin: ORIGIN, source: self, data: ask }), null, "the pane's own window");
+  assert.equal(panes.recordAsk({ origin: ORIGIN, source: { name: "a sibling pane" }, data: ask }), null, "another frame");
+  assert.equal(panes.recordAsk({ origin: ORIGIN, source: page().paneA.contentWindow, data: ask }), null, "a pane of the page");
+  for (const origin of ["http://127.0.0.1:4174", "http://localhost:4173", "https://example.com", "null", ""]) {
+    assert.equal(panes.recordAsk({ origin, source: around, data: ask }), null, `from ${JSON.stringify(origin)}`);
+  }
+  // A page that is not framed has no page around it: not even what it posts to itself is an ask.
+  const alone: Record<string, unknown> = {};
+  alone.parent = alone;
+  const top = vm.runInNewContext(PANE_MESSAGES_SCRIPT, { window: alone, document: { querySelectorAll: () => [] }, location: { origin: ORIGIN } }) as Panes;
+  assert.equal(top.recordAsk({ origin: ORIGIN, source: alone, data: ask }), null, "a window that is not a frame");
+  // From the page around it, but not in the ask's shape: nothing is passed on.
+  const cases: Array<[string, unknown]> = [
+    ["another message type", { ...ask, type: "workbench-view" }],
+    ["plugin not a string", { ...ask, plugin: 7 }],
+    ["plugin null", { ...ask, plugin: null }],
+    ["plugin an object", { ...ask, plugin: { toString: () => "dataset" } }],
+    ["plugin empty", { ...ask, plugin: "" }],
+    ["plugin missing", { type: ask.type, itemId: ask.itemId, quiet: ask.quiet }],
+    ["itemId not a string", { ...ask, itemId: 42 }],
+    ["itemId an array", { ...ask, itemId: ["record-1"] }],
+    ["itemId empty", { ...ask, itemId: "" }],
+    ["itemId over 1000 characters", { ...ask, itemId: "r".repeat(1001) }],
+    ["quiet a string", { ...ask, quiet: "true" }],
+    ["quiet a number", { ...ask, quiet: 1 }],
+    ["quiet null", { ...ask, quiet: null }],
+    ["quiet missing", { type: ask.type, plugin: ask.plugin, itemId: ask.itemId }],
+    ["an extra field", { ...ask, view: "work" }],
+    ["an extra intent", { ...ask, intent: "open" }],
+  ];
+  for (const [why, data] of cases) assert.equal(panes.recordAsk({ origin: ORIGIN, source: around, data }), null, why);
 });
 
 test("S-30 a token handed to one pane is taken back only by that pane's frame, and only once", () => {

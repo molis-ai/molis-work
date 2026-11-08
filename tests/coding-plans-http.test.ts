@@ -8,7 +8,7 @@ import { createServer } from "node:http";
 import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, handleProjectPluginHttp, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { ProcessItemsModule, createProcessItemReplication } from "@molis-ai/molis-work-module-artifacts";
 import { agentHostCapabilities as agent, type AgentStartRequest, type AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import { projectDirectoryActions } from "@molis-ai/molis-work-contracts/modules/projects";
 import { writerDirectoryCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { CODING_PLAN_TYPE, codingManifest } from "@molis-ai/molis-work-plugin-coding";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
@@ -39,7 +39,8 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
     agentHost: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
       const input = args as any[];
-      if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: home, realpath_verified: true }] as Output;
+      // The project's output and one input elsewhere; the fixture completes them into `projects.directories.get@1`'s answer.
+      if (definition.capability_id === projectDirectoryActions.get.capability_id) return [{ workspace_id: "work", canonical_path: home }, { workspace_id: "foreign", canonical_path: home + "-other" }] as Output;
       if (definition.capability_id === agent.availableRoles.capability_id) return ["planner", "builder", "reader", "writers"].map(role_id => ({ role_id, available: true })) as Output;
       if (definition.capability_id === agent.listActions.capability_id) return [] as Output;
       if (definition.capability_id === agent.readSession.capability_id) return { runs: input[0].session_id === "sdk-app" ? runs.map(run => run.ref) : [] } as Output;
@@ -117,7 +118,7 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
       else assert.match(refused.body.error,/计划来源与当前会话不一致/);
       assert.equal(Object.hasOwn(refused.body,"plan"),false,"old schema and native-path-shaped fixed plans are not portable facts");
     }
-    assert.equal((await start({ workspace_id: "foreign" })).status, 409);
+    assert.equal((await start({ workspace_id: "foreign" })).status, 409, "a plan made in the output does not run in another of the project's folders");
     const wrongIntent = await start({ intent: "discuss" }); assert.equal(wrongIntent.status, 400, JSON.stringify(wrongIntent.body));
     const planning = runs.find(run => run.ref.run_id === "proposal")!;
     planning.phase = "running"; assert.equal((await start()).body.code, "coding.plan_origin_unavailable"); planning.phase = "completed";

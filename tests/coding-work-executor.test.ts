@@ -1,15 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtemp, realpath, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { WORK_EXECUTOR_ROLES, workExecutorRoleOf, type ActionCallContext, type ActionDefinition, type WorkExecutorRole } from "@molis-ai/molis-work-contracts/platform/actions";
-import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import { projectDirectoryActions, type ProjectDirectories } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { inspectActionCrossReferences, inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
 import { codingManifest, codingRouteActions, DEFAULT_SESSION_TITLE } from "@molis-ai/molis-work-plugin-coding";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { MolisWorkLocalHost, molisWorkHostProjectReference, ensureSystemAgentService } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, molisWorkHostProjectReference, ensureSystemAgentService, workspaceRefFor } from "@molis-ai/molis-work-app-local-host";
 import { seedConfiguredModels } from "./fixtures/configured-models.js";
 import { codingProductHost } from "./fixtures/coding-product-host.js";
 import { cogniaModelResponse } from "./fixtures/cognia-model-response.js";
@@ -23,6 +23,20 @@ const roles = Object.fromEntries(codingManifest.actions!.flatMap(row => {
 })) as Record<WorkExecutorRole, ActionDefinition>;
 const find = (id: string) => codingRouteActions[id]!.definition;
 const CODING = "io.molis.work.coding";
+/** A Host whose project folders are the Home catalog's own, as the application's are; the catalog is read once the Host has it. */
+function catalogHost(home: string) {
+  const host: MolisWorkLocalHost = new MolisWorkLocalHost({ homeDirectory: home, completeText: null,
+    workspacesFor: projectId => withCatalog({ homeDirectory: home }, catalog => catalog.listWorkspaceDirectory(projectId)),
+    workspaceFor: projectId => withCatalog({ homeDirectory: home }, catalog => workspaceRefFor(catalog, projectId)),
+    directoriesFor: projectId => withCatalog({ homeDirectory: home }, catalog => catalog.projectDirectories(projectId)) });
+  const withCatalog = host.configurePersonalPlanning(home, withMolisWorkProjectCatalog);
+  return { host, withCatalog };
+}
+/** Makes `path` the project's output, as the person does in the project's settings (`projects.directories.set_output@1`). */
+async function setOutput(client: ReturnType<MolisWorkLocalHost["actionClient"]>, person: ActionCallContext, path: string): Promise<ProjectDirectories> {
+  const { revision } = await client.invoke(person, projectDirectoryActions.get, {}) as ProjectDirectories;
+  return await client.invoke(person, projectDirectoryActions.setOutput, { workspace_path: path, expected_revision: revision }) as ProjectDirectories;
+}
 type Session = { session_id: string; title: string; mode: string | null; runs: AgentRunView[]; runtime_session_id: string | null;
   recovery: { message: string } | null; workspace_id?: string | null; mcp_tools?: unknown[] };
 
@@ -44,11 +58,14 @@ test("W5-01-CODING-71..76 the roles open, read and set a Coding session the page
   const project = await catalog.createProject({ display_name: "执行方", actor_id: "web-user" });
   catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "coding", actor_id: "web-user" });
   catalog.close();
-  const workspace = { workspace_id: "fixture", canonical_path: await realpath(home), realpath_verified: true as const, display_name: "fixture" };
-  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, workspaceFor: async () => workspace, workspacesFor: async () => [workspace] });
-  const withCatalog = host.configurePersonalPlanning(home, withMolisWorkProjectCatalog);
+  await mkdir(join(home, "fixture"));
+  const { host, withCatalog } = catalogHost(home);
   const owner: ActionCallContext = { actor_id: "web-user", project_id: project.project_id, audience: "user", permissions: ["artifact:read", "artifact:write", "storage:private"] };
   const client = host.actionClient(molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id }));
+  // The project's one folder is its output, a folder of its own named `fixture`.
+  const folders = await setOutput(client, { ...owner, permissions: ["projects:settings"] }, join(home, "fixture"));
+  const workspace = folders.directories.find(row => row.roles.includes("output"))!;
+  assert.equal(workspace.canonical_path, await realpath(join(home, "fixture")));
   const invoke = <Output>(role: WorkExecutorRole, input: unknown) => client.invoke(owner, roles[role], input) as Promise<Output>;
   const own = (session_id: string) => client.invoke(owner, find("coding.read-session"), { session_id }) as Promise<{ session: { title: string }; configuration: unknown }>;
   const sessions = async () => ((await client.invoke(owner, find("coding.state"), {})) as { sessions: unknown[] }).sessions.length;
@@ -72,17 +89,17 @@ test("W5-01-CODING-71..76 the roles open, read and set a Coding session the page
     assert.deepEqual(state.modes.map(mode => mode.id), ["discuss", "plan", "edit", "execute", "review"]);
     assert.equal(state.default_mode, "execute");
     assert.equal(state.images, false);
-    assert.equal(state.workspace_id, "fixture");
-    assert.deepEqual(state.workspaces, [{ workspace_id: "fixture", name: "fixture", path: workspace.canonical_path }]);
+    assert.equal(state.workspace_id, workspace.workspace_id);
+    assert.deepEqual(state.workspaces, [{ workspace_id: workspace.workspace_id, name: "fixture", path: workspace.canonical_path }]);
     assert.ok(Array.isArray(state.mcp));
 
     // W5-01-CODING-74: a session opened in a mode keeps the settings the page's own read shows; its next round runs with them.
     const planned = await invoke<{ session_id: string }>("session.open", { title: "", mode: "plan" });
     const page = await own(planned.session_id);
     assert.equal(page.session.title, DEFAULT_SESSION_TITLE);
-    assert.deepEqual(page.configuration, { intent: "plan", provider_id: "p", model_id: "m", workspace_id: "fixture" });
+    assert.deepEqual(page.configuration, { intent: "plan", provider_id: "p", model_id: "m", workspace_id: workspace.workspace_id });
     assert.deepEqual(await invoke<Session>("session.read", { session_id: planned.session_id }), { session_id: planned.session_id, title: DEFAULT_SESSION_TITLE,
-      mode: "plan", runs: [], runtime_session_id: null, recovery: null, workspace_id: "fixture", mcp_tools: [] });
+      mode: "plan", runs: [], runtime_session_id: null, recovery: null, workspace_id: workspace.workspace_id, mcp_tools: [] });
     const plain = await invoke<{ session_id: string }>("session.open", { title: "修复登录" });
     assert.equal((await own(plain.session_id)).session.title, "修复登录");
     assert.equal((await own(plain.session_id)).configuration, null, "no mode, nothing chosen: the page asks as it always does");
@@ -90,9 +107,9 @@ test("W5-01-CODING-71..76 the roles open, read and set a Coding session the page
 
     // W5-01-CODING-75: changing the mode keeps the rest of the session's settings, or starts from Coding's defaults.
     assert.deepEqual(await invoke("session.update", { session_id: planned.session_id, mode: "edit" }), { session_id: planned.session_id, mode: "edit" });
-    assert.deepEqual((await own(planned.session_id)).configuration, { intent: "edit", provider_id: "p", model_id: "m", workspace_id: "fixture" });
+    assert.deepEqual((await own(planned.session_id)).configuration, { intent: "edit", provider_id: "p", model_id: "m", workspace_id: workspace.workspace_id });
     await invoke("session.update", { session_id: plain.session_id, mode: "review" });
-    assert.deepEqual((await own(plain.session_id)).configuration, { intent: "review", provider_id: "p", model_id: "m", workspace_id: "fixture" });
+    assert.deepEqual((await own(plain.session_id)).configuration, { intent: "review", provider_id: "p", model_id: "m", workspace_id: workspace.workspace_id });
     assert.equal((await invoke<Session>("session.read", { session_id: plain.session_id })).mode, "review");
 
     // W5-01-CODING-76: ways that need the page first, unknown sessions, and control before any round are refused.
@@ -111,29 +128,36 @@ test("W5-01-CODING-71..76 the roles open, read and set a Coding session the page
 
 // Covers only the executor's default directory part of CHO-37; telling the two directories apart on the page, "back to the work
 // directory", and real reads and writes in A with B untouched come with the input/output directories (batches 05②, 06, 07).
-test("CHO-37 batch 12 item 1: a folder picked for browsing does not move where the Assistant's rounds run", { timeout: 60_000 }, async () => {
+// The rule since 05②: where a panel browses is the page's own state, in no contract (SSC-05); rounds that name no folder run in the
+// project's output (SSC-17). So a folder the person can look at — an input — never becomes where the Assistant's rounds run.
+test("CHO-37 SSC-05 SSC-17 batch 12 item 1: a folder the person can browse does not move where the Assistant's rounds run; they run in the output", { timeout: 60_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "coding-executor-dir-"));
   const browse = await mkdtemp(join(tmpdir(), "coding-executor-browse-"));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const project = await catalog.createProject({ display_name: "执行目录", actor_id: "web-user" });
   catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "coding", actor_id: "web-user" });
   catalog.close();
-  const preferred = { workspace_id: "preferred", canonical_path: await realpath(home), realpath_verified: true as const, display_name: "preferred" };
-  const other = { workspace_id: "browse", canonical_path: await realpath(browse), realpath_verified: true as const, display_name: "browse" };
-  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, workspaceFor: async () => preferred, workspacesFor: async () => [preferred, other] });
-  const withCatalog = host.configurePersonalPlanning(home, withMolisWorkProjectCatalog);
+  await mkdir(join(home, "output"));
+  const { host, withCatalog } = catalogHost(home);
   const owner: ActionCallContext = { actor_id: "web-user", project_id: project.project_id, audience: "user", permissions: ["artifact:read", "artifact:write", "storage:private", "projects:settings"] };
   const client = host.actionClient(molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id }));
   const invoke = <Output>(role: WorkExecutorRole, input: unknown) => client.invoke(owner, roles[role], input) as Promise<Output>;
   try {
     await seedConfiguredModels(home, undefined, undefined, withCatalog);
-    assert.equal((await client.invoke(owner, projectSettingsCapabilities.selectBrowsingWorkspace, ["browse"]) as { workspace_id: string }).workspace_id, "browse");
-    assert.equal((await client.invoke(owner, projectSettingsCapabilities.browsingWorkspace, []) as { workspace_id: string } | null)?.workspace_id, "browse",
-      "the person is looking at the other folder");
-    assert.equal((await invoke<{ workspace_id: string | null }>("state", {})).workspace_id, "preferred", "the Assistant is told rounds run in the preferred folder");
+    const output = (await setOutput(client, owner, join(home, "output"))).directories.find(row => row.roles.includes("output"))!;
+    const { revision } = await client.invoke(owner, projectDirectoryActions.get, {}) as ProjectDirectories;
+    const folders = await client.invoke(owner, projectDirectoryActions.addInput, { workspace_path: browse, expected_revision: revision }) as ProjectDirectories;
+    const input = folders.directories.find(row => row.workspace_id !== output.workspace_id)!;
+    assert.deepEqual(input.roles, ["input"], "the other folder is one the person can look at, not the output");
+    // SSC-05: no project setting says where a panel browses, so looking at the other folder cannot reach where rounds run.
+    assert.deepEqual((await client.discover(owner)).filter(row => /browsing|workspaces\.list|settings\.workspaces/.test(row.capability_id)).map(row => row.capability_id), [],
+      "the old browsing and folder-list settings are gone");
+    const state = await invoke<{ workspace_id: string | null; workspaces: Array<{ workspace_id: string }> }>("state", {});
+    assert.equal(state.workspace_id, output.workspace_id, "the Assistant is told rounds run in the output");
+    assert.deepEqual(state.workspaces.map(row => row.workspace_id).sort(), [output.workspace_id, input.workspace_id].sort(), "both folders are the project's, listed");
     const opened = await invoke<{ session_id: string }>("session.open", { title: "", mode: "execute" });
     const own = await client.invoke(owner, find("coding.read-session"), { session_id: opened.session_id }) as { configuration: { workspace_id: string } | null };
-    assert.equal(own.configuration?.workspace_id, "preferred", "the round the Assistant starts runs in the preferred folder, not the browsed one");
+    assert.equal(own.configuration?.workspace_id, output.workspace_id, "the round the Assistant starts runs in the output, not the folder the person can browse");
   } finally {
     await host.close();
     await rm(home, { recursive: true, force: true });

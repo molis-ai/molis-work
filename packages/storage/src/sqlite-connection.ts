@@ -16,10 +16,22 @@ export interface SqliteDatabase {
     immediate(...args: Args): Result;
   };
   function<Args extends unknown[]>(name: string, invoke: (...args: Args) => unknown): this;
+  /**
+   * SQLite's own authorizer (`sqlite3_set_authorizer`): asked about every table, column, function and schema change a statement
+   * would touch while it is prepared, so a refusal stops the statement before any of it runs. `null` takes it away.
+   */
+  setAuthorizer(callback: SqliteAuthorizer | null): void;
   /** `rate` is how many pages go in each step. `progress` is told after each one; throwing from it stops the backup with that error. */
   backup(destination: string, options?: { rate?: number; progress?(info: { totalPages: number; remainingPages: number }): void }): Promise<unknown>;
   close(): this;
 }
+
+/**
+ * One question of SQLite's authorizer: what the statement would do (`action`, SQLite's numbers from `SQLITE_CREATE_INDEX` to
+ * `SQLITE_RECURSIVE`), the two names it gives for that action, the database (`main`, `temp`, an attached one), and the trigger or view
+ * the access comes from. It answers 0 (allowed), 1 (refused, the statement fails) or 2 (a column read as NULL).
+ */
+export type SqliteAuthorizer = (action: number, first: string | null, second: string | null, database: string | null, origin: string | null) => number;
 
 export interface SqliteOpenOptions {
   readonly?: boolean;
@@ -217,6 +229,12 @@ class ProjectConnection implements SqliteDatabase {
       } finally { this.savepoints -= 1; }
     };
     return Object.assign(wrapped(""), { immediate: wrapped("IMMEDIATE") });
+  }
+
+  setAuthorizer(callback: SqliteAuthorizer | null): void {
+    this.assertOpen();
+    // Not in the Node 22 types either; Node has it from v24.10.0, and the locked Node is newer.
+    (this.database as DatabaseSync & { setAuthorizer(callback: SqliteAuthorizer | null): void }).setAuthorizer(callback);
   }
 
   function<Args extends unknown[]>(name: string, invoke: (...args: Args) => unknown): this {

@@ -25,6 +25,8 @@
 
 工作区依赖：`@molis-ai/molis-work-contracts`。
 
+`SearchService.indexedCatalog` 为可信消费者提供同项目索引目录快照：同一 source/reader 规则过滤当前可用且同步成功的来源，缺 reader 时不交正文；返回的同步原授权检查须跨消费者的异步等待保留。提供方变化后旧快照拒绝，不由重新登记恢复；知识目录仍归 Knowledge。
+
 ## 本地开发
 
 以下命令在**仓库根目录**执行，使用 Node.js 24+ 与仓库配置的 pnpm。首次准备运行 `pnpm install --frozen-lockfile` 和 `pnpm build`；之后可单独检查此包。

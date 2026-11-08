@@ -24,6 +24,8 @@
 
 - [plugin-builder-upgrade](plugin-builder-upgrade/spec.md)：插件创作工作台整体升级；首要解决用户至今未跑通的端到端交付与整体体验，平台同时提供手动／个人助理共用的场景组装能力，保留新能力插件的创作，Alchemist 并为完整落地场景；2026-10-27 需求已整理，尚未实现。需求维护 Codex，实现待分配；与三项场景包／Onboarding 需求独立。
 
+- [daily-quality-d0244](daily-quality-d0244/spec.md)：高项整理来源授权与迟到写入修复，已批准，验证中。
+
 - [prologue-memory-strategy](prologue-memory-strategy/spec.md)：以记忆更精准、好用、省 token 为目标；App 自定义分类与读写策略矩阵、Prologue 多策略组合、首期质量闭环及 40 项验收。C0/Q0 已独立交付，Prologue C0 与 S1 版本恢复/分类授权已合并；M1 配置采用 PR 的完整回归与产品验收仍待完成。
 - [unified-input-voice](unified-input-voice/spec.md)：平台统一输入组件与本地语音；10-27 已定整体体验归属、插件开放注册与补充／排队／打断操作，尚未实现。
 - [observation-collection](observation-collection/spec.md)：观测和采集层，统一记录全平台获准的用户行为、过程、结果与历史条件，供评测和主动助理共用；2026-10-27 从主动助理需求迁出，需求已整理，尚未实现。需求维护 Codex；实施沿用 C 轨（Claude），防腐收尾后阶段 1 设计、阶段 2 接通、阶段 3 验证下游效果。

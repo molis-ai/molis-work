@@ -215,7 +215,7 @@ for(const mode of ['DELETE','WAL'])test(`PCSYNC-20 frozen v22 ${mode} catalog is
   });}finally{memory.close();}
   mkdirSync(directory,{recursive:true});const file=join(directory,'catalog.db');
   const db=openTestSqlite(file);db.pragma('journal_mode='+mode);db.exec("CREATE TABLE catalog_meta(key TEXT PRIMARY KEY,value TEXT NOT NULL); INSERT INTO catalog_meta VALUES('owner','molis-work-project-catalog-v1'),('schema_version','22'); CREATE TABLE original_fact(value TEXT); INSERT INTO original_fact VALUES('retain');");db.close();
-  const bytes=readFileSync(file),files=readdirSync(directory);assert.equal(CATALOG_SCHEMA_VERSION,1);
+  const bytes=readFileSync(file),files=readdirSync(directory);assert.ok(CATALOG_SCHEMA_VERSION<22,'the frozen v22 catalog is newer than this program');
   await assert.rejects(openMolisWorkProjectCatalog({homeDirectory:home}),{code:'storage.store_too_new'});assert.deepEqual(readFileSync(file),bytes);assert.deepEqual(readdirSync(directory),files);
 });
 

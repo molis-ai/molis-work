@@ -1,0 +1,9 @@
+{
+  "format": 1,
+  "owners": [
+    {
+      "prefix": "plugins/native/alchemist/",
+      "reason": "Alchemist 自己的私有驱动（studio.sqlite 等）是唯一保留的 better-sqlite3 例外，BL-377 重做之前保留；其余项目库连接已由 packages/storage 统一走 node:sqlite，见 PACKAGE-BOUNDARIES.md 第 1 节。"
+    }
+  ]
+}

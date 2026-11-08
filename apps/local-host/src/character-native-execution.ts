@@ -63,6 +63,8 @@ function sameRequest(previous: CharacterRunRecord, owner: { actorId: string; pro
 export function characterNativeExecution(options: { home: string; actorId: string; projectId: string; workspaces(): Promise<readonly ProjectWorkspaceRef[]>;
   /** The project's output directory, read now: the one folder a native run may start in. */
   output(): Promise<ProjectWorkspaceRef | null>;
+  /** Makes the output on disk if it is a default output directory not made yet, before a run starts there (§3 「碰磁盘的调用方」). */
+  prepare?(workspaceId: string): Promise<void>;
   spawn(request: PtySpawnRequest): PtySpawnResult; executable(runtime: CharacterImportRuntimeId): string | null }): Pick<CharactersImportPorts, "execution" | "launch" | "runs"> {
   const runs = <T>(action: (store: ReturnType<typeof openCharacterRuns>["runs"]) => T): T => {
     const handle = openCharacterRuns(options.home, options.actorId, options.projectId);
@@ -82,15 +84,17 @@ export function characterNativeExecution(options: { home: string; actorId: strin
       const workspace = (await options.workspaces()).find(item => item.workspace_id === input.workspace_id);
       if (!workspace) throw characterErrors.invalid("请选择当前项目已绑定的工作目录");
       if ((await options.output())?.workspace_id !== workspace.workspace_id) throw directoryInputOnly(workspace.workspace_id);
+      const executable = options.executable(snapshot.runtime_id);
+      if (!executable) throw characterErrors.invalid("未发现对应 Agent CLI，请安装后重新检查；不会替换为其他引擎");
+      await control?.beforeStart();
+      // The caller still may: a default output directory not made yet is made for the run (§3 「碰磁盘的调用方」), then read where it is.
+      await options.prepare?.(workspace.workspace_id);
       const cwd = realpathSync(workspace.canonical_path);
       const source = snapshot.project_root;
       if (source) {
         const path = relative(realpathSync(source), cwd);
         if (path === ".." || path.startsWith("../") || isAbsolute(path)) throw characterErrors.invalid("此角色包含项目范围内容，不能在其他项目执行");
       }
-      const executable = options.executable(snapshot.runtime_id);
-      if (!executable) throw characterErrors.invalid("未发现对应 Agent CLI，请安装后重新检查；不会替换为其他引擎");
-      await control?.beforeStart();
       control?.assert_current();
       // From here on nothing waits: the record, the bundle and the dispatch happen for the call that was just checked.
       const panelId = `character-${input.request_id}`, spawn = { panelId, attachOnly: true } as const;

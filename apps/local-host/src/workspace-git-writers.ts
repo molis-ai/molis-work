@@ -36,6 +36,8 @@ export interface WriterHostActionPorts {
   workspaces(projectId: string): Promise<readonly ProjectWorkspaceRef[]>;
   /** The project's output directory: the only folder a worktree is made in or a child's result comes back to (SSC-15). */
   output(projectId: string): Promise<ProjectWorkspaceRef | null>;
+  /** Whether the folder is on disk: a default output directory is made the first time something writes or runs there. Absent, it always is. */
+  made?(projectId: string, workspaceId: string): Promise<boolean>;
 }
 
 const ENDED = ["completed", "failed", "cancelled", "stopped"];
@@ -48,16 +50,24 @@ const ENDED = ["completed", "failed", "cancelled", "stopped"];
  * (specs/shared-sources-and-surfaces §3, plan A), and a round is let work in it by agent-host, as one of the Host's worktrees.
  */
 export function registerWorkspaceGitWriters(ports: WriterHostActionPorts): () => void {
-  const writerParent = async (projectId: string, workspaceId: string, write: boolean) => {
+  const writerFolder = async (projectId: string, workspaceId: string, write: boolean) => {
     const grants = await ports.workspaces(projectId);
     const parent = grants.find(item => item.workspace_id === workspaceId && item.realpath_verified);
     if (!parent) throw writerErrors.workspace_unavailable("主工作区已取消授权，不能准备或读取子目录");
     // Making a worktree writes the repository, and integrating writes the folder: only in the output (SSC-15).
     if (write && (await ports.output(projectId))?.workspace_id !== workspaceId) throw directoryInputOnly(workspaceId);
+    // A default output directory not made yet holds no repository: git is not run there, and nothing makes it (§3 「碰磁盘的调用方」).
+    return { grants, parent, made: !ports.made || await ports.made(projectId, workspaceId) };
+  };
+  const writerParent = async (projectId: string, workspaceId: string, write: boolean) => {
+    const { grants, parent, made } = await writerFolder(projectId, workspaceId, write);
+    if (!made) throw writerErrors.workspace_unavailable("这个文件夹还没有建立，不是 Git 仓库，没有独立工作树");
     return { grants, parent, port: createGitWorktreePort(parent.canonical_path) };
   };
 
   const unregisterList = ports.localHost.registerAction(writerDirectoryCapabilities.list, async (project, input) => {
+    // A folder not made yet has no worktrees.
+    if (!(await writerFolder(project.project_id, input.workspace_id, false)).made) return [];
     const { parent, port } = await writerParent(project.project_id, input.workspace_id, false);
     const { owned, unavailable } = await port.inspect();
     return [...owned.map(tree => ({ worktree_id: tree.worktree_id, branch: tree.branch, base_commit: tree.base_commit, canonical_path: path.resolve(parent.canonical_path, tree.directory) })),

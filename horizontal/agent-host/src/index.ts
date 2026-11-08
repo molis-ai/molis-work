@@ -155,6 +155,12 @@ export interface AgentStartAuthority {
   /** The Host's own worktrees of the output, verified now: the only other places a round (a writing child among them) may work in. */
   worktrees?(): Promise<readonly AgentHostWorktree[]>;
   /**
+   * Makes the output on disk if it is a default output directory not made yet (specs/shared-sources-and-surfaces §3 「碰磁盘的调用方」).
+   * Called once a session, a round or a stdio MCP server is to start in the output, after its directory was checked; listing or reading
+   * makes nothing. Absent, the output is taken to be there.
+   */
+  prepareOutput?(): Promise<void>;
+  /**
    * Prompt bodies shipped in the Plugin package. The Host composes the role's
    * prompts from these; an adapter never invents one.
    */
@@ -268,6 +274,8 @@ export class AgentHost implements AgentHostApi {
     const worktrees = input.workspace === "none" || input.workspace === "business" ? [] : await worktreesFor(authority, input.directory);
     assertSessionCreation(adapter, input, authority, worktrees);
     await authority.beforeStart?.();
+    // Every check passed: a default output directory not made yet is made now, before the Runtime is asked to open a session in it.
+    if (input.directory && authority.authorizedDirectories.includes(input.directory.canonical_path)) await authority.prepareOutput?.();
     requireSynchronous(authority.assertBeforeStart?.(), "最终授权检查必须同步完成");
     return adapter.createSession(input, { beforeStart: authority.beforeStart, assertBeforeStart: authority.assertBeforeStart });
   }
@@ -368,7 +376,10 @@ export class AgentHost implements AgentHostApi {
     const prompts = composeRolePrompts(role, authority, character, character ? importedCharacterInstructions(character, request.directory?.canonical_path, characterSkillIds) : undefined);
     // The memories this run is given: the Host's recall for this consumer. A failed recall runs without memory, never stops the run.
     const memory = authority.memory ? await authority.memory(request.task, character ? { character: { artifact_id: character.reference.artifact_id, title: character.title } } : {}).catch(() => null) : null;
-    await beforeStart(); assertBeforeStart();
+    await beforeStart();
+    // Everything was checked: a default output directory not made yet is made now, before the Runtime is asked to run in it.
+    if (place?.kind === "output") await authority.prepareOutput?.();
+    assertBeforeStart();
     const handle = await adapter.start({
       ...request,
       ...(actionRefs.length || request.action_tools !== undefined || character?.action_tools ? { action_tools: actionRefs } : {}),

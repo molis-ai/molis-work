@@ -21,6 +21,7 @@ import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { CHARACTER_ARTIFACT_TYPE, CHARACTER_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/characters";
 import { freezeProjectCharacter } from "./characters-host.js";
 import type { ProjectDirectories, ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
+import type { PrepareProjectDirectory } from "./project-capabilities.js";
 import { readProjectGuidance, type ProjectGuidanceFacts } from "./goal-callers.js";
 import type { AgentPromptText } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { ActionError, type ActionCallContext, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -57,6 +58,12 @@ export interface AgentHostCompositionOptions {
   workspaceFor(projectId: string): ProjectWorkspaceRef | null | Promise<ProjectWorkspaceRef | null>;
   /** The project's folders with their roles and revision, which a round freezes as where it works; absent where the Host keeps no catalog. */
   directoriesFor?(projectId: string): ProjectDirectories | undefined | Promise<ProjectDirectories | undefined>;
+  /**
+   * Before a folder of the project is touched on disk (`MolisWorkLocalHostOptions.prepareDirectory`): a round, a session or a stdio MCP
+   * server makes a default output directory that is not made yet (`write`); Git reads whether it is there (`read`). Absent, every folder is
+   * taken to be there.
+   */
+  prepareDirectory?: PrepareProjectDirectory;
   /** The owning server supplies storage and credential access for this Home. */
   prologue?: Omit<PrologueNodeAdapterOptions, "app">;
 }
@@ -66,7 +73,7 @@ export interface AgentHostComposition {
    * Resolves only this live installation's declarations and the project's verified workspaces. `subject` is the task grant subject the
    * Host composed for this round (`agent:task:…`): its action calls are that subject's, reading only what the person allowed the task.
    */
-  preparePlugin(caller: HostPluginCaller, subject?: string): Promise<{ authority: AgentStartAuthority; workspaces: readonly ProjectWorkspaceRef[] }>;
+  preparePlugin(caller: HostPluginCaller, subject?: string): Promise<{ authority: AgentStartAuthority; workspaces: readonly ProjectWorkspaceRef[]; output: ProjectWorkspaceRef | null }>;
   readonly inference: PrologueInferenceClient;
   readonly savedHistory: Awaited<ReturnType<typeof createPrologueNodeAdapter>>["savedHistory"];
   mcpLibrary(): Promise<AgentMcpLibrary | undefined>;
@@ -148,11 +155,13 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
       writeCheckers: async (runtime) => ({ workspaces: await workspaceGrants(options, runtime.project_id), store: keptWriteCheckers(prologue) }),
     },
   );
+  // A default output directory not made yet is no repository: Git answers so without running (§3 「碰磁盘的调用方」).
+  const made = async (projectId: string, workspaceId: string) => !options.prepareDirectory || (await options.prepareDirectory(projectId, workspaceId, "read")).exists;
   const unregisterGit = registerWorkspaceGitActions({ localHost: options.localHost, homeDirectory: options.homeDirectory ?? resolveConfiguredHome(),
     gitReviews: async () => { await initialize(); return prologue?.gitReviews; }, reviews: async () => { await initialize(); return agentHost.reviews; },
-    workspaces: projectId => workspaceGrants(options, projectId), output: async projectId => options.workspaceFor(projectId) });
+    workspaces: projectId => workspaceGrants(options, projectId), output: async projectId => options.workspaceFor(projectId), made });
   const unregisterWriters = registerWorkspaceGitWriters({ localHost: options.localHost, runtime: async () => { await initialize(); return prologue; },
-    workspaces: projectId => workspaceGrants(options, projectId), output: async projectId => options.workspaceFor(projectId) });
+    workspaces: projectId => workspaceGrants(options, projectId), output: async projectId => options.workspaceFor(projectId), made });
   // Drafts borrow the same owner as Agent runs; only the ephemeral model Session is scoped to the request.
   const unregisterDraft = options.localHost.registerAction(agentHostCapabilities.draftText, async (_project, input, invocation) => {
     if (!options.prologue) throw new ActionError("actions.connection_required", "模型执行方尚未接通，不能起草");
@@ -245,9 +254,9 @@ async function preparePluginAgent(options: AgentHostCompositionOptions, caller: 
   caller.assertActive();
   const authority = await options.localHost.withProject(reference, runtime =>
     startAuthority(runtime, caller.plugin_id, options, caller, subject));
-  const workspaces = await workspaceGrants(options, caller.project_id);
+  const workspaces = await workspaceGrants(options, caller.project_id), output = await options.workspaceFor(caller.project_id);
   caller.assertActive();
-  return { authority, workspaces };
+  return { authority, workspaces, output };
 }
 
 function currentOriginalInput(caller: HostPluginCaller | undefined) {
@@ -285,6 +294,8 @@ async function startAuthority(
     authorizedDirectories: places.output ? [places.output.canonical_path] : [],
     ...(places.directories ? { directories: places.directories } : {}),
     worktrees: places.worktrees,
+    // Called by agent-host once a start in the output was checked, never by listing: a default output directory is made only to be used.
+    ...(places.output && options.prepareDirectory ? { prepareOutput: async () => { await options.prepareDirectory!(runtime.project_id, places.output!.workspace_id, "write"); } } : {}),
     prompts: declared?.prompts ?? [],
     skills: declared?.skills ?? [],
     skill_owner: { project_id: runtime.project_id, plugin_id: pluginId },

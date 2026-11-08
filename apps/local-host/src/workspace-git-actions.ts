@@ -12,6 +12,8 @@ import { reviewAuthority } from "./plugin-callers.js";
 const workspaceGitErrors = defineErrorCodes("workspace_git", {
   /** The workspace the call names is no longer authorized for this project (or its folder no longer matches). */
   workspace_unavailable: "unavailable",
+  /** The project's default output directory is not made yet, so there is no repository to stage or commit in. */
+  not_a_repository: "invalid",
 });
 
 type GitReviewPort = NonNullable<Awaited<ReturnType<typeof createPrologueNodeAdapter>>["gitReviews"]>;
@@ -27,6 +29,8 @@ export interface WorkspaceGitActionPorts {
   workspaces(projectId: string): Promise<readonly ProjectWorkspaceRef[]>;
   /** The project's output directory, the only folder Git writes in (SSC-15). */
   output(projectId: string): Promise<ProjectWorkspaceRef | null>;
+  /** Whether the folder is on disk: a default output directory is made the first time something writes or runs there. Absent, it always is. */
+  made?(projectId: string, workspaceId: string): Promise<boolean>;
 }
 
 const notWired = () => new ActionError("actions.connection_required", "Git 宿主审查执行方尚未接通");
@@ -45,6 +49,8 @@ export function registerWorkspaceGitActions(ports: WorkspaceGitActionPorts): () 
   // when the review is prepared and again right before an approved one runs, so a folder made input-only in between is refused then.
   const writable = async (projectId: string, workspaceId: string) => {
     if ((await ports.output(projectId))?.workspace_id !== workspaceId) throw directoryInputOnly(workspaceId);
+    // A default output directory not made yet holds no repository: answered before git runs, and nothing makes it (§3 「碰磁盘的调用方」).
+    if (ports.made && !await ports.made(projectId, workspaceId)) throw workspaceGitErrors.not_a_repository("这个文件夹还没有建立，不是 Git 仓库");
   };
   const writing = (projectId: string, workspaceId: string, prepared: { check(): Promise<void>; execute(): Promise<unknown> }) => ({
     async check() { await writable(projectId, workspaceId); await prepared.check(); },

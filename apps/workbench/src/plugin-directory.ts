@@ -131,9 +131,9 @@ export function scriptJson(value: unknown): string {
 /**
  * What the page's scripts read of the directory: each plugin's key, whether its views accept objects, and the colour of its group
  * on the tab strip (the first `hue` its views declare; null when none does, and the strip picks one by the key). A plugin this
- * project offers a place for carries its position on the rail (`order`, 0 first; the rail's keys in the rail's order), and the Host's
- * mark when it holds the person's data across projects (`personal`): the tab workspace's ＋ lists those, in two sections
- * (07-S2, 口径 8), instead of reading the page's buttons.
+ * project offers a place for carries its position on the rail (`order`, 0 first; the rail's keys in the rail's order), and `personal`
+ * when it is the person's own ({@link isPersonalPlugin}): the tab workspace's ＋ lists those, in two sections (07-S2, 口径 8), instead
+ * of reading the page's buttons.
  */
 export interface ClientDirectoryEntry {
   readonly id: string;
@@ -150,7 +150,7 @@ export function clientPluginDirectory(directory: PluginDirectory, offered: reado
     accepts_objects: entry.ui.views.some(view => view.accepts_objects === true),
     hue: entry.ui.views.find(view => view.hue !== undefined)?.hue ?? null,
     ...place(entry.id),
-    ...(entry.personal === true ? { personal: true as const } : {}),
+    ...(isPersonalPlugin(entry) ? { personal: true as const } : {}),
   }))];
 }
 

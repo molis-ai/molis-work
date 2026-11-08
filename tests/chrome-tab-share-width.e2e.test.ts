@@ -34,8 +34,9 @@ test("titlebar tabs hug short titles and share width when they overflow the stri
   assert.ok(compact.lastRight <= compact.addLeft + 1, "tabs stay left of the plus control: " + JSON.stringify(compact));
 
   // Narrow enough that the two Goal titles exceed the available strip. Home and the plugin tab keep their names;
-  // the item tabs share what is left.
-  await command("Emulation.setDeviceMetricsOverride", { width: 340, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
+  // the item tabs share what is left. Still wider than a phone: at 760px and under the strip keeps only the current tab and
+  // reaches the rest from 全部标签 (07-1 S3, tab-strip-scheme-a.e2e.test.ts), so there is nothing left to share there.
+  await command("Emulation.setDeviceMetricsOverride", { width: 860, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
   await waitFor(`(() => {
     const tabs = [...document.querySelectorAll('[data-titlebar-tabs] [data-tab-scroll] .tab-item[data-tab-kind=item]:not([data-pinned])')];
     if (tabs.length < 2) return false;

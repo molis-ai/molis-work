@@ -10,7 +10,9 @@ import { APPROVED, SECOND_PLUGIN_ID, mac, person, ref } from "./fixtures/home-sa
 import { openTestHome, serveTestHost } from "./fixtures/test-home.js";
 
 // BL-713 (PG-011; specs/archive/repository-anti-corruption/slices/pg011-pg017-remaining.md §5, T-401): a signed package installed in the Home draws
-// its stage in the Home: a page of its own, a stage in every project's workbench, and a place on the tool bar that follows its state.
+// its stage in the Home: a page of its own, a stage in every project's workbench, and a place that follows its state. Since 07-1 S4b
+// (口径 9) that place is the switcher's 个人 group and ＋'s 「个人 · 所有项目共用」 in a project, as every personal plugin's; the titlebar
+// and the arrival page no longer have a personal-tool slot.
 // Every case here installs a signed package and runs it in the sandbox, which only macOS has (`mac`); what needs no package (the stage markup,
 // the tool bar's entries, the pages nothing registers) is in `home-plugin-stage-pages.test.ts`, which Linux CI runs.
 
@@ -31,25 +33,36 @@ async function navHome(t: TestContext) {
   return { home, project, client, install, page, projectPath: `/projects/${encodeURIComponent(project.project_id)}/` };
 }
 
-/** The tool-bar entry a page draws for a package: the whole element, or none. */
-const entryOf = (html: string, pluginId: string) => new RegExp(`<(a|button) [^>]*data-home-plugin-open="${pluginId.replaceAll(".", "\\.")}"[^>]*>.*?</\\1>`, "s").exec(html)?.[0];
+const escaped = (pluginId: string) => pluginId.replaceAll(".", "\\.");
+/** The switcher's entry a project page draws for a package (its button in the tile), or none. */
+const entryOf = (html: string, pluginId: string) => new RegExp(`<button [^>]*class="immersive-plugin-link[^"]*"[^>]*data-plugin-id="${escaped(pluginId)}"[^>]*>.*?</button>`, "s").exec(html)?.[0];
+/** The switcher group its tile is in. */
+const groupOf = (html: string, pluginId: string) => new RegExp(`data-plugin-tile="${escaped(pluginId)}"(?: data-rail-group="([^"]+)")?`, "u").exec(html)?.[1];
+/** ＋ lists from the page's directory: whether it lists the package with the person's own (07-S2 口径 8, 07-1 S4b 口径 9). */
+const plusPersonal = (html: string, pluginId: string) => (JSON.parse(/<script type="application\/json" data-plugin-directory>(.*?)<\/script>/su.exec(html)?.[1] ?? "[]") as { id: string; personal?: true }[])
+  .find(entry => entry.id === pluginId)?.personal === true;
 const surfaceOf = (entry: string) => /data-work-surface-open="([^"]+)"/u.exec(entry)?.[1];
 const stagesOf = (html: string) => [...html.matchAll(/<section class="desktop-work-surface pb-surface" data-work-surface="([^"]+)"[^>]* data-installed-plugin="([^"]+)"/gu)].map(match => ({ surface: match[1]!, plugin_id: match[2]! }));
 
-test("RAC-2620 the arrival page and a project's tool bar offer a Home package beside the built-in tools, with the icon it picked and `package` when it picked none", mac, async t => {
+test("RAC-2620 a project's switcher (its 个人 group) and ＋ offer a Home package with the personal plugins, with the icon it picked and `package` when it picked none; the arrival page has no tool slot", mac, async t => {
   const h = await navHome(t);
   await h.install(PACKAGE_PLUGIN_ID, "book");
   await h.install(SECOND_PLUGIN_ID);
+  // 07-1 S4b removed the arrival page's personal-tool slot (and the titlebar's): a package is reached in a project, as every plugin is.
   const arrival = await h.page("/");
   assert.equal(arrival.status, 200);
-  const first = entryOf(arrival.text, PACKAGE_PLUGIN_ID), second = entryOf(arrival.text, SECOND_PLUGIN_ID);
-  assert.ok(first && second, "both packages are on the arrival page's tool bar");
-  assert.ok(first.includes(icon("book")) && !first.includes(icon("package")), "the icon the package picked");
-  assert.ok(second.includes(icon("package")), "no icon picked, the default");
-  assert.match(first, /href="\/plugins\/io\.molis\.work\.example\.notes"/u, "it opens the package's page");
+  assert.ok(!arrival.text.includes("data-home-plugin-open"), "the arrival page has no personal-tool slot");
   const project = await h.page(h.projectPath);
   assert.equal(project.status, 200);
-  assert.ok(entryOf(project.text, PACKAGE_PLUGIN_ID)?.includes(icon("book")), "the project's titlebar offers it too");
+  assert.ok(!project.text.includes("data-home-plugin-open"), "nor does the project's titlebar");
+  const first = entryOf(project.text, PACKAGE_PLUGIN_ID), second = entryOf(project.text, SECOND_PLUGIN_ID);
+  assert.ok(first && second, "both packages are in the project's switcher");
+  assert.ok(first.includes(icon("book")) && !first.includes(icon("package")), "the icon the package picked");
+  assert.ok(second.includes(icon("package")), "no icon picked, the default");
+  for (const id of [PACKAGE_PLUGIN_ID, SECOND_PLUGIN_ID]) {
+    assert.equal(groupOf(project.text, id), "personal", `${id} is in the switcher's 个人 group`);
+    assert.equal(plusPersonal(project.text, id), true, `${id} is in ＋'s 个人 section`);
+  }
   const stageTag = (pluginId: string) => new RegExp(`<section [^>]*data-installed-plugin="${pluginId.replaceAll(".", "\\.")}"[^>]*>`, "u").exec(project.text)?.[0];
   assert.ok(stageTag(PACKAGE_PLUGIN_ID)?.includes('data-installed-plugin-icon="book"'), "BL-912: the stage tells the tab strip the icon the package picked");
   assert.ok(stageTag(SECOND_PLUGIN_ID) && !stageTag(SECOND_PLUGIN_ID)!.includes("data-installed-plugin-icon"), "BL-912: no icon picked, the tab keeps the default");
@@ -81,15 +94,14 @@ test("RAC-2621 a package that has only a stage view has no side tab; its entry o
 test("RAC-2622 a package switched off leaves the tool bar and has no page; switched on again, it is back", mac, async t => {
   const h = await navHome(t);
   await h.install();
-  assert.ok(entryOf((await h.page("/")).text, PACKAGE_PLUGIN_ID), "it runs, so it is offered");
+  assert.ok(entryOf((await h.page(h.projectPath)).text, PACKAGE_PLUGIN_ID), "it runs, so it is offered");
   assert.equal((await h.home.web.post<{ disabled: boolean }>(`/api/plugins/${PACKAGE_PLUGIN_ID}/disable`, {})).disabled, true);
-  assert.equal(entryOf((await h.page("/")).text, PACKAGE_PLUGIN_ID), undefined, "gone from the arrival page");
   const project = await h.page(h.projectPath);
-  assert.equal(entryOf(project.text, PACKAGE_PLUGIN_ID), undefined, "gone from the project's titlebar");
+  assert.equal(entryOf(project.text, PACKAGE_PLUGIN_ID), undefined, "gone from the project's switcher");
   assert.deepEqual(stagesOf(project.text), [], "and its stage is not drawn");
   assert.equal((await h.page(`/plugins/${PACKAGE_PLUGIN_ID}`)).status, 404, "its page is not there");
   await h.home.web.post(`/api/plugins/${PACKAGE_PLUGIN_ID}/enable`, {});
-  assert.ok(entryOf((await h.page("/")).text, PACKAGE_PLUGIN_ID), "back on the tool bar");
+  assert.ok(entryOf((await h.page(h.projectPath)).text, PACKAGE_PLUGIN_ID), "back on the tool bar");
   assert.equal((await h.page(`/plugins/${PACKAGE_PLUGIN_ID}`)).status, 200, "and its page opens");
 });
 
@@ -106,7 +118,7 @@ test("RAC-2623 a package that did not come back stays on the tool bar, and its p
     await host.homePlugins!.ready();
     const reason = /找不到此安装的批准记录/u;
     assert.match(host.homePlugins!.packageError(PACKAGE_PLUGIN_ID) ?? "", reason);
-    assert.ok(entryOf((await h.page("/", served.origin)).text, PACKAGE_PLUGIN_ID), "it is still on the tool bar");
+    assert.ok(entryOf((await h.page(h.projectPath, served.origin)).text, PACKAGE_PLUGIN_ID), "it is still in the switcher");
     const opened = await h.page(`/plugins/${PACKAGE_PLUGIN_ID}`, served.origin);
     assert.equal(opened.status, 200);
     assert.match(opened.text, reason, "the page says why");
@@ -115,15 +127,18 @@ test("RAC-2623 a package that did not come back stays on the tool bar, and its p
     const project = await h.page(h.projectPath, served.origin);
     assert.deepEqual(stagesOf(project.text), [], "no stage is drawn for it in a project");
     assert.match(project.text, reason, "the project's placeholder says why");
+    // The placeholder marks it as not started, so the switcher and the Dock draw the amber point for it (07-1 S4b).
+    const surface = `data-work-surface="${escaped(PACKAGE_PLUGIN_ID)}"`, mark = "data-(?:home|project)-plugin-unavailable";
+    assert.match(project.text, new RegExp(`<[^>]*(?:${surface}[^>]*${mark}|${mark}[^>]*${surface})`, "u"));
   } finally { await served.close(); await host.close(); }
 });
 
 test("RAC-2624 a package that was uninstalled leaves the tool bar and has no page", mac, async t => {
   const h = await navHome(t);
   await h.install();
-  assert.ok(entryOf((await h.page("/")).text, PACKAGE_PLUGIN_ID));
+  assert.ok(entryOf((await h.page(h.projectPath)).text, PACKAGE_PLUGIN_ID));
   await h.home.web.post(`/api/plugins/${PACKAGE_PLUGIN_ID}/uninstall`, { keep_data: false });
-  assert.equal(entryOf((await h.page("/")).text, PACKAGE_PLUGIN_ID), undefined);
+  assert.equal(entryOf((await h.page(h.projectPath)).text, PACKAGE_PLUGIN_ID), undefined);
   assert.equal(entryOf((await h.page(h.projectPath)).text, PACKAGE_PLUGIN_ID), undefined);
   assert.equal((await h.page(`/plugins/${PACKAGE_PLUGIN_ID}`)).status, 404);
 });
@@ -131,7 +146,7 @@ test("RAC-2624 a package that was uninstalled leaves the tool bar and has no pag
 test("RAC-2626 the tool bar's entries are the person's page only: no action view an agent, an MCP client or a workflow is shown carries them, and a plugin is shown none without a caller the Host issued", mac, async t => {
   const h = await navHome(t);
   await h.install(PACKAGE_PLUGIN_ID, "book");
-  assert.ok(entryOf((await h.page("/")).text, PACKAGE_PLUGIN_ID), "the person's page has it");
+  assert.ok(entryOf((await h.page(h.projectPath)).text, PACKAGE_PLUGIN_ID), "the person's page has it");
   // The person's own permissions are the widest view there is: if the entries were in any action view, it would be this one.
   const seen = await Promise.all((["agent", "mcp", "workflow"] as const).map(async audience =>
     JSON.stringify(await h.client.discover({ actor_id: LOCAL_PERSON_ACTOR_ID, audience, project_id: h.project.project_id, permissions: LOCAL_OWNER_PERMISSIONS }))));
@@ -146,10 +161,10 @@ test("RAC-2626 the tool bar's entries are the person's page only: no action view
 test("RAC-2622.1 a package whose publisher was taken back leaves the tool bar and has no page or stage", mac, async t => {
   const h = await navHome(t);
   await h.install();
-  assert.ok(entryOf((await h.page("/")).text, PACKAGE_PLUGIN_ID), "it runs, so it is offered");
+  assert.ok(entryOf((await h.page(h.projectPath)).text, PACKAGE_PLUGIN_ID), "it runs, so it is offered");
   await h.home.web.post("/api/settings/plugin-publishers/revoke", { key_id: new HomeConsentLedger(h.home.home).publishers()[0]!.key_id });
   await h.home.host.homePlugins!.reconcilePublishers();
-  assert.equal(entryOf((await h.page("/")).text, PACKAGE_PLUGIN_ID), undefined, "stopped by the Home, it is no longer offered");
+  assert.equal(entryOf((await h.page(h.projectPath)).text, PACKAGE_PLUGIN_ID), undefined, "stopped by the Home, it is no longer offered");
   assert.equal((await h.page(`/plugins/${PACKAGE_PLUGIN_ID}`)).status, 404, "and has no page");
   assert.deepEqual(stagesOf((await h.page(h.projectPath)).text), [], "no stage is drawn for it in a project");
 });

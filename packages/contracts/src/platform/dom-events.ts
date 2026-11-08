@@ -306,6 +306,11 @@ export const DOM_EVENTS = [
     summary: "The project's plugins changed in place; plugins whose pages fill when the project has them fill them from next.",
   },
   {
+    name: "molis-work:record-gone", kind: "request", owner: "tab-workspace", on: "document",
+    detail: "{ plugin, itemId }",
+    summary: "A record a tab opens is no longer there: strike its tab through and say so in its pane, with a way to close it. Sent by a plugin's page when its read of the record answers 404 (Goals' document read first).",
+  },
+  {
     name: "molis-work:return-claim", kind: "request", owner: "settings-return", on: "document",
     detail: "{ return_id?, origin?: { scope, surface, place }, drop?, answer? }; the owner sets answer synchronously: { status, carry } (handed over and removed), { open: return_id } (still open, wait), or null",
     summary: "A plugin frame's host claims the outcome of a trip a page opened with host.returns.go, for this installation scope, surface and place as it is now; drop ends the trip as not ready. Only on the outer document.",

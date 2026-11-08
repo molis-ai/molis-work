@@ -260,20 +260,26 @@ test("PFG-22 between 601 and 760 every side tab shows on its own row, and a phon
     assert.ok(below.panel >= below.strip - 0.5, `${width}×${height}: the side sheet starts below its strip (${JSON.stringify(below)})`);
     assert.equal(below.corner, true, `${width}×${height}: the main area's top right corner is the work's own, not the strip`);
   }
-  // 07-S2 on a phone: the layout button ends the main tabs' row, so the title bar keeps the two rows S1 gave it (the strip shares
-  // the first); nothing that takes room starts below the tabs. Measured at 390 and 360 before the 320 walk below.
-  for (const width of [390, 360]) {
+  // 07-S2 on a phone: the title bar keeps the two rows S1 gave it (the strip shares the first); nothing that takes room starts below
+  // the tabs. 07-1 S3: the layout button ends the first row, after the side's strip, as it ends the bar after the side's glyphs on
+  // a wide window (the Home tools left that row in S4b), so the second row keeps its whole width for the main strip, which holds
+  // everything it shows. Measured at 390, 360 and 320 before the 320 walk below.
+  for (const width of [390, 360, 320]) {
     await command("Emulation.setDeviceMetricsOverride", { width, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
     await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
     await waitFor(`document.querySelector('${strip} [data-side-tab="tasks"]') && document.querySelector('[data-layout-open]')`, 15_000);
-    const bar = await evaluate<{ tabs: { top: number; bottom: number }; layout: { top: number; right: number }; strip: number; history: number; below: string[] }>(`(() => {
+    const bar = await evaluate<{ tabs: { top: number; bottom: number; fits: boolean; clipped: string[] }; layout: { top: number; left: number; right: number }; strip: number; stripRight: number; history: number; below: string[] }>(`(() => {
       const box = selector => document.querySelector(selector).getBoundingClientRect();
       const tabs = box('[data-titlebar-tabs]');
-      return { tabs: { top: tabs.top, bottom: tabs.bottom }, layout: { top: box('[data-layout-open]').top, right: box('[data-layout-open]').right }, strip: box('${strip}').top, history: box('[data-workspace-history]').top,
+      const bar = document.querySelector('[data-titlebar-tabs]');
+      const clipped = [...bar.children].filter(child => { const at = child.getBoundingClientRect(); return at.width > 0 && (at.left < tabs.left - 0.5 || at.right > tabs.right + 0.5 || at.top < tabs.top - 0.5 || at.bottom > tabs.bottom + 0.5); }).map(child => child.className);
+      return { tabs: { top: tabs.top, bottom: tabs.bottom, fits: bar.scrollWidth <= bar.clientWidth + 1, clipped }, layout: { top: box('[data-layout-open]').top, left: box('[data-layout-open]').left, right: box('[data-layout-open]').right },
+        strip: box('${strip}').top, stripRight: box('${strip}').right, history: box('[data-workspace-history]').top,
         below: [...document.querySelector('.immersive-titlebar').children].filter(child => { const at = child.getBoundingClientRect(); return at.width > 0 && at.height > 0 && at.top >= tabs.bottom - 0.5; }).map(child => child.className) };
     })()`);
-    assert.ok(Math.abs(bar.layout.top - bar.tabs.top) <= 1, `${width}: the layout button is on the main tabs' row (${JSON.stringify(bar)})`);
+    assert.ok(Math.abs(bar.layout.top - bar.history) <= 3 && bar.layout.left >= bar.stripRight - 0.5, `${width}: the layout button ends the first row, after the side's strip (${JSON.stringify(bar)})`);
     assert.ok(bar.layout.right <= width + 0.5, `${width}: the layout button is inside the window (${JSON.stringify(bar)})`);
+    assert.ok(bar.tabs.fits && bar.tabs.clipped.length === 0, `${width}: the main strip holds all it shows, none of it clipped (${JSON.stringify(bar)})`);
     assert.ok(Math.abs(bar.strip - bar.history) <= 3 && bar.tabs.top > bar.strip, `${width}: the side's strip shares the first row; the tabs are the second (${JSON.stringify(bar)})`);
     assert.deepEqual(bar.below, [], `${width}: no third row in the title bar (${JSON.stringify(bar)})`);
   }

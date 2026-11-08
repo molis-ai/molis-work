@@ -282,7 +282,8 @@ test("VUX-31: the side panel's file list does not add a late page to the list th
   await importPieces(browser, 505, (n) => `旧资料${n}`);
   await wide(browser);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await click("[data-side-toggle]"); await click("[data-side-tab=files]");
+  // 07-1 S4b: the bar's side button is gone; the side opens from its current glyph in the titlebar.
+  await click("[data-side-tabs] [data-side-tab][aria-selected=true]"); await click("[data-side-tab=files]");
   await waitFor("!!document.querySelector('[data-side-files-more]')", 30_000);
   const newRows = () => evaluate<number>("[...document.querySelectorAll('[data-side-file]')].filter((row) => row.textContent.includes('新资料')).length");
   // The page after the first is asked for, and the Host answers at once; the answer is held on its way to the page.

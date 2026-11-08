@@ -25,7 +25,7 @@ test("SHELF-LINK-01 SHELF-LINK-02 SHELF-LINK-03 a stored link, search hit and no
   const { evaluate, waitFor, click, command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await waitFor("document.querySelector('[data-side-toggle]')");
+  await waitFor("document.querySelector('[data-side-tabs] [data-side-tab][aria-selected=true]')");
   const item = await evaluate<{ item_id: string; name: string } | null>(`fetch(${JSON.stringify(`/projects/${projectId}/api/plugins/io.molis.work.shelf/`)}, { cache: "no-store" })
     .then((response) => response.json()).then((shelf) => (shelf.materials || []).find((row) => row.name === "试用示例.pdf") || null)`);
   assert.ok(item, "the sample material is on the shelf");
@@ -75,7 +75,7 @@ test("SHELF-LINK-01 SHELF-LINK-02 SHELF-LINK-03 a stored link, search hit and no
   const listed = () => evaluate<Array<{ notice_id: string; kind: string; open?: unknown }>>(`fetch(document.body.dataset.routePrefix + '/api/assistant/notices', { headers: molisWorkControlHeaders(), cache: 'no-store' }).then((r) => r.json()).then((body) => body.notices)`);
   // A person comes back to the page: its attention read picks the notice up and the bell shows by itself.
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await waitFor("document.querySelector('[data-side-toggle]')");
+  await waitFor("document.querySelector('[data-side-tabs] [data-side-tab][aria-selected=true]')");
   if (await evaluate("document.body.dataset.sideOpen === 'true'")) await closePanel();
   assert.notEqual(await evaluate("document.body.dataset.sideOpen"), "true", "the side panel starts closed, so only the notice can open it");
   const stored = (await listed()).find((one) => one.notice_id === seeded.notice_id);
@@ -108,7 +108,8 @@ test("SIDE-FWD-01 a side view's placement events reach the page; an unlisted eve
   const child = await pluginFrameBrowser(t, browser, "shelf", `[data-side-body="${SHELF_TAB}"] iframe`);
   const { evaluate, waitFor, click, command, sessionId, navigate, origin, projectId } = browser;
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await click("[data-side-toggle]");
+  // 07-1 S4b: the bar's side button is gone; the side opens from its current glyph in the titlebar.
+  await click("[data-side-tabs] [data-side-tab][aria-selected=true]");
   await child.waitFor("document.querySelector('[data-shelf-stage-shell]')", 10_000);
   await waitFor(`document.querySelector('[data-side-body="${SHELF_TAB}"] iframe')?.contentDocument?.querySelector('[data-work-surface=shelf]')?.dataset.uiClientState === 'ready'`);
   await evaluate(`(() => {

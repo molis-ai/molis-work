@@ -1185,7 +1185,8 @@ for (const [order, gonePluginId, keptPluginId] of [
       try {
         if (!new SqlitePluginRuntimeRepository(closed.db).get(gone.installId)) {
           const columns = Object.keys(saved);
-          closed.db.prepare(`INSERT INTO plugin_runtime_installs (${columns.join(', ')}) VALUES (${columns.map(column => '@' + column).join(', ')})`).run(saved);
+          closed.db.prepare(`INSERT INTO plugin_runtime_installs (${columns.join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`)
+            .run(...columns.map(column => saved![column]));
         }
       } finally { closed.close(); }
     }

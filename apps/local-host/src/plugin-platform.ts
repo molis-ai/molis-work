@@ -61,9 +61,9 @@ import { hostReservedRuleKeys } from "./scene-rule-admission.js";
 export type PluginPlatformDatabase = PluginEventsDatabase & PluginWiringDatabase & {
   exec(sql: string): unknown;
   readonly inTransaction?: boolean;
-  /** The file the connection is (better-sqlite3's `name`): the project's library, which plugins' own tables live in. */
+  /** The file the connection is: the project's library, which plugins' own tables live in. */
   readonly name?: string;
-  /** better-sqlite3's `open`: false once the connection is closed. */
+  /** False once the connection is closed. */
   readonly open?: boolean;
 };
 
@@ -322,7 +322,7 @@ function rememberingRestored(entry: PluginPlatformEntry, remember: (entries: rea
 }
 
 /**
- * The project's library, when the platform runs on the Host's own connection to its file (better-sqlite3, which says its file
+ * The project's library, when the platform runs on the Host's own connection to its file (which says its file
  * and whether it is in a transaction); otherwise none, and a plugin that declares tables there does not start.
  */
 function projectLibraryOf(options: PluginPlatformOptions): ProjectLibrary | null {

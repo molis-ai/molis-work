@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
-import { createEvidenceContentStore, createFileSecretStore } from "@molis-ai/molis-work-storage";
+import { createEvidenceContentStore, createFileSecretStore, sqliteErrorName } from "@molis-ai/molis-work-storage";
 import { createFeedContentLedger, createFeedContentLedgerHandlers, createFeedHomePlugin, FEED_CONTENT_LEDGER_BATCH, FEED_FORGET_BATCH, FEED_HOME_DATABASE, FEED_PLUGIN_ID, feedContentLedgerActions, feedManifest,
   createConnectionWatch, keepFeedReconcile, releaseHeldHistory, type FeedApplication, type FeedContentLedgerStore, type FeedEvidenceCollector, type FeedHistoryReleasePorts,
   type FeedReconcilePorts } from "@molis-ai/molis-work-plugin-feed";
@@ -207,7 +207,7 @@ test("RAC-494: a hold cannot enter while a release deletes files, so a body is w
   let during: unknown;
   const watching: FeedEvidenceCollector = { collect(input) {
     try { other.db.exec("BEGIN IMMEDIATE"); during = "entered"; other.db.exec("ROLLBACK"); }
-    catch (error) { during = (error as { code?: string }).code; }
+    catch (error) { during = sqliteErrorName(error); }
     return f.evidence.collect(input);
   } };
   assert.equal((await createFeedContentLedger(f.library.store, watching).release(noEffect, { project_id: "p1", source_id: "s1" }, [x])).bodies_deleted, 1);

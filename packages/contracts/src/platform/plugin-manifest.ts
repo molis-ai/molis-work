@@ -263,7 +263,7 @@ export interface PluginManifest {
   task_subjects?: import("./plugin-task-subjects.js").PluginTaskSubjectsDeclaration;
   /**
    * How its objects are shown in the four basic forms and how the plugin is summed up (`platform/presentation`, specs/shared-sources-and-surfaces §5).
-   * Refused by `parsePluginManifest` until the SDK's shared checks land, so no declaration enters unchecked.
+   * `parsePluginManifest` checks it with the SDK's `validatePresentationDeclaration`.
    */
   presentation?: import("./presentation.js").PresentationDeclaration;
 }

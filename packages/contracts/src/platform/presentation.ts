@@ -94,7 +94,7 @@ export interface PresentationOverviewDeclaration {
 
 /**
  * The Manifest's `presentation`. An object it does not declare is still shown, as its icon, name, owner and 「打开」 (IUI-02).
- * Until the SDK's shared checks land (the second PR of C-2), `parsePluginManifest` refuses a Manifest that writes it.
+ * `parsePluginManifest` checks it with the SDK's `validatePresentationDeclaration`, the same check an author runs (SSC-06).
  */
 export interface PresentationDeclaration {
   readonly objects: readonly PresentationObject[];

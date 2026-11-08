@@ -195,8 +195,8 @@ export class HomePluginHost {
     if (record) this.platform?.invalidateView(record.plugin_id);
   }
   /** A project closed: the Home instances' jobs kept in it stop (PG-038). Their bounded executions keep their call's authority and go on. */
-  stopProjectJobs(projectId: string): void {
-    this.executor?.stopProjectJobs(projectId);
+  async stopProjectJobs(projectId: string): Promise<void> {
+    await this.executor?.stopProjectJobs(projectId);
   }
   close(): Promise<void> {
     this.closed = true;

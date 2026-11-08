@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { atomicWriteFileSync } from "@molis-ai/molis-work-storage";
-import { LocalProjectDatabase, openProjectVersionStores, restoreArtifactVersions } from "@molis-ai/molis-work-app-local-host";
+import { assertRestorableArtifactVersions, LocalProjectDatabase, openProjectVersionStores, restoreArtifactVersions, WORK_ASSET_RESTORE_ACTOR_ID } from "@molis-ai/molis-work-app-local-host";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import type { RegisterArtifactVersionInput } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { ImError } from "@molis-ai/molis-work-server";
@@ -33,6 +33,7 @@ function bundleInput(value: unknown): AssetBundle {
 /** Explicit local restore, never a browser upload. Preserves selected immutable content, not private Home state. */
 export async function restoreWorkAssets(value: unknown, directory: string) {
   const bundle=bundleInput(value);
+  assertRestorableArtifactVersions(bundle.artifacts);
   const {project,snapshot,snapshotPath}=await withCatalog({homeDirectory:directory},async catalog=>{
     // Persist the Host-owned recovery identity before creation. The source identifier
     // never becomes a destination filesystem path or an arbitrary catalog identity.
@@ -43,7 +44,7 @@ export async function restoreWorkAssets(value: unknown, directory: string) {
     catch(error){if(!(error && typeof error === "object" && "code" in error && error.code === "EEXIST"))throw error;}
     const snapshot=JSON.parse(readFileSync(snapshotPath,"utf8")) as typeof initial;
     if(snapshot.source_project_id!==bundle.source_project_id || !/^project-onboarding-[0-9a-f]{8}-[0-9a-f-]{27}$/u.test(snapshot.project_id))throw new ImError("assets.invalid_destination","目标目录的恢复记录无效");
-    const project=await catalog.createProject({project_id:snapshot.project_id,display_name:bundle.title,actor_id:"continuity:local-restore"});
+    const project=await catalog.createProject({project_id:snapshot.project_id,display_name:bundle.title,actor_id:WORK_ASSET_RESTORE_ACTOR_ID});
     return {project,snapshot,snapshotPath};
   });
   const store=new LocalProjectDatabase(project.database_path,{existingOnly:true});

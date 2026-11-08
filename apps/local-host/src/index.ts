@@ -80,7 +80,7 @@ export { discoverRuntimeSyncCollections } from './runtime-sync-discovery.js';
 export { isProjectPluginDatabaseRefusal, openProjectPluginDatabases } from "./project-plugin-databases.js";
 export { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
 
-export { openProjectVersionStores, restoreArtifactVersions, type RestoredArtifactVersion, type ProjectVersionStores } from "./project-version-stores.js";
+export { openProjectVersionStores, restoreArtifactVersions, assertRestorableArtifactVersions, WORK_ASSET_RESTORE_ACTOR_ID, type RestoredArtifactVersion, type ProjectVersionStores } from "./project-version-stores.js";
 
 export * from "./web-locale.js";
 
@@ -273,6 +273,7 @@ export { draftText } from "./model-draft.js";
 
 export { ensureSystemAgentService } from "./system-agent-service.js";
 export { LocalActionGatewayClient } from "./action-gateway.js";
+export { changeMcpClientCredential, createMcpClientProof, hasMcpClientCredential, mcpClientCredentialPath } from "./mcp-client-credentials.js";
 
 export { createSearchEvidenceRuntime, type SearchEvidenceRuntime } from "./search-evidence-runtime.js";
 // Home stores' one current schema each (repository-anti-corruption §4.1); compared with the stores' fixtures by tests/home-store-baselines.test.ts.

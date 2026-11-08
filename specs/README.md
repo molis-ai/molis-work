@@ -6,9 +6,13 @@
 
 ## 在做的
 
+- [daily-quality-d0002](daily-quality-d0002/spec.md)：工作资产恢复使用宿主身份，不从资产包继承团队共享授权；2026-11-08 获批，实施中。
+
 - [unified-account](unified-account/spec.md)：WORK-01 至 WORK-09 已完成本地隔离实现与验证；接续中央执行指引做集成收尾，真实存量与外部服务仍待补验。
 
 - [ci-acceleration](ci-acceleration/spec.md)：CI P0/P1 提速，普通文档从 PR 到合并队列走轻量路径，增加单个 PR 分片并按耗时和浏览器容量平衡；2026-11-06 已获实施授权，负责人 Codex；本地实现与验证完成，待云端实测。
+
+- [daily-quality-d0071](daily-quality-d0071/spec.md)：高优先级 MCP 独立客户端凭据修复，用户已批准旧接入重连；实施与验证中。
 
 - [team-memory](team-memory/spec.md)：独立团队记忆需求（BL-022）；像持续在线的 PMO 观察获准项目、沟通和工作，积累决策、风险、知识、偏好及协作模式，减少人与人／人与 AI／AI 与 AI 的上下文交接，支持主动协作、工作习惯与交付质量改善。成员个人发布仍需最终确认并告知不可撤回，管理员维护团队认知；形成、融合及使用策略待细化，尚未实现或验收。需求维护 Codex，实现待分配；不改变现有记忆 P0 边界。
 
@@ -19,6 +23,8 @@
 - [product-flow-governance](product-flow-governance/spec.md)：全平台产品与架构系统性审查和优化——覆盖全部功能、入口、设置、交互与公共机制，核功能完整性、流程依赖、AI 效果和检查审查；Onboarding 与服务连接为已暴露案例，全平台覆盖与优化验证后才算专项完成。2026-10-27 首轮静态盘点已完成，具体发现与五批优化顺序见[核查记录](product-flow-governance/audit-2026-10-27.md)；真实路径实操与整改未完成。需求维护/本轮核查 Codex，后续整改统筹待分配。
 
 - [plugin-builder-upgrade](plugin-builder-upgrade/spec.md)：插件创作工作台整体升级；首要解决用户至今未跑通的端到端交付与整体体验，平台同时提供手动／个人助理共用的场景组装能力，保留新能力插件的创作，Alchemist 并为完整落地场景；2026-10-27 需求已整理，尚未实现。需求维护 Codex，实现待分配；与三项场景包／Onboarding 需求独立。
+
+- [daily-quality-d0244](daily-quality-d0244/spec.md)：高项整理来源授权与迟到写入修复，已批准，验证中。
 
 - [prologue-memory-strategy](prologue-memory-strategy/spec.md)：以记忆更精准、好用、省 token 为目标；App 自定义分类与读写策略矩阵、Prologue 多策略组合、首期质量闭环及 40 项验收。C0/Q0 已独立交付，Prologue C0 与 S1 版本恢复/分类授权已合并；M1 配置采用 PR 的完整回归与产品验收仍待完成。
 - [unified-input-voice](unified-input-voice/spec.md)：平台统一输入组件与本地语音；10-27 已定整体体验归属、插件开放注册与补充／排队／打断操作，尚未实现。
@@ -41,6 +47,7 @@
 - [subagent-interaction](subagent-interaction/spec.md)：个人助理与 Coding 的子代理固定入口、直接对话和父子动线；明确 Prologue/Molis Work 分工，需求已整理，尚未实现。
 - [ai-development-handbook](ai-development-handbook/spec.md)：内部 AI 能力开发手册；context over control、prompt/Skill/context/tool 分工、基础实现与评测方法，手册正文已写入 `docs/platform/PROLOGUE-AI.md` 第二部分（2026-10-16），存量清理清单已做完。2026-10-18 补充技能包渐进披露、从一次过程生成 Skill、评测循环与作者侧校验，正文 2026-10-19 写入（第 13.2、13.5、16.6、16.7 节），一个技能包在两处各用一次那条等技能包实现；用户验收未做（BL-320）。
 - [ai-input-receipts](ai-input-receipts/spec.md)：输入回执与会话排队；SDK S1–S4 已在 Prologue main，Molis 现用的过渡包带 S1–S3，Molis 接入（阶段 1）进行中。
+- [daily-quality-d0039](daily-quality-d0039/spec.md)：项目关闭与删除等待激活作业真实收尾；2026-11-08 获批，实施中。
 - [prologue-adoption](prologue-adoption/spec.md)：Prologue 完整能力采用——原 1–23 项及存储/预算决定，加 TaskBoard 统一协作与零模型外部等待；P1–P4、A0、A1、A2-1、A2-2、A2-3 已合；采用线 2026-10-20 交接，换包 #887 已合，接续见 spec 开头的「交接（2026-10-20）」与 BL-301～309。
 - [context-program](context-program/spec.md)：情境动作完整总纲与分期；W0 原型已实操；W1、W2（浮条取代底栏、Pages 迁移）已在交接分支 #411 里通过工程用例，未验收。接续入口见第 20 节「远端交接」。
 - [context-toolbar](context-toolbar/spec.md)：选区/对象浮条、面板槽、能力家族及存量接入；完整需求保留。
@@ -70,6 +77,8 @@
 - [post-anticorruption-roadmap](post-anticorruption-roadmap/spec.md)：防腐后的执行目录，01～89 与服务端批每项一行；交付详情、需求来源、依赖、轨道、决策、阶段验收及历史分别放在 [reference 分类](post-anticorruption-roadmap/spec.md#reference)。[开发手册](post-anticorruption-roadmap/reference/development-workflow.md)规定每项／每片开工前先讲清具体工作。原范围、负责人和暂停边界保留，尚未启动产品实施。
 
 - [ci-conflict-reduction](ci-conflict-reduction/spec.md)：减少页面资源预算与其他高频生成记录的冲突及重复 CI；2026-11-06 已获实施授权，历史 PR 核查、实现与本地回归完成，待独立 CI 实测，负责人 Codex。
+
+- [daily-quality-d0033](daily-quality-d0033/spec.md)：高项真实侧栏隔离核查；补拒绝证据并纠正外层 frame 的旧评估，待 PR 核回。
 
 ## 现行规范
 

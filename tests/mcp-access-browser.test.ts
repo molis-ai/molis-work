@@ -1,3 +1,4 @@
+import { changeMcpClientCredential } from "@molis-ai/molis-work-app-local-host";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -26,6 +27,7 @@ test("MCP access UI saves real grants, drives standard MCP calls, handles lost r
   const ref = { project_id: projectId, storage_key: b.databasePath };
   const clients: Client[] = []; t.after(async () => { await Promise.all(clients.map(client => client.close())); });
   const connect = async (identity: string) => {
+    changeMcpClientCredential(homeDirectory, `runtime:${identity}`, "connect");
     const client = new Client({ name: "browser-grant-test", version: "1" }); clients.push(client);
     const transport = new StdioClientTransport({ command: process.execPath, args: ["--import", "tsx", fileURLToPath(new URL("./fixtures/production-action-mcp-server.ts", import.meta.url)), homeDirectory, projectId, identity, b.databasePath, b.origin], stderr: "pipe" });
     let errors = ""; transport.stderr?.on("data", chunk => { errors += String(chunk); });

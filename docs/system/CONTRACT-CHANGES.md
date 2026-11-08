@@ -12,6 +12,8 @@
 
 这里的合同是别人（别的包、别的进程、外部插件、用户的数据）依赖的形状：
 
+2026-11-08 D0071：动作网关移除请求体 `client_id`，使用独立注册凭据签发的短时证明取得身份；原接入不自动换凭据，用户重新确认 Runtime 接入。新私有文件格式 `format.mcp.client.credential` 从第 1 版开始，凭据不进入快照。动作 id/schema、MCP 工具名与公开 contracts/SDK 形状不变；实验 Server 管理员授权必须指定本机安装 Home。
+
 | 合同 | 在哪里 | 版本记在哪 |
 | --- | --- | --- |
 | `packages/contracts` 的公开子路径 | `packages/contracts/package.json` 的 `exports` | 没有版本号；形状记在公开 API 快照 `tooling/gates/api/contracts/<子路径>.txt`，`pnpm health:check` 对照源码，有任何不同就失败，有意改用 `pnpm api:update`（第 3 节第 6 条）。新子路径不能只导出一个没人用的 `ContractDescriptor` 占位，`pnpm health:check` 的占位子路径规则（`scripts/gates/contract-placeholders.mjs`）直接失败 |
@@ -21,6 +23,8 @@
 | MCP 工具名与参数 | `apps/mcp`；`docs/mcp.md`；`skills/goal-advance` | 工具名即身份；Skill 与手册随它改 |
 | 对外合同 id | 现在没有（Casebook 的 `molis-work.casebook.*` 已于 2026-10-10 删除；以后出现新的对外合同 id，就在这里登记） | 合同 id 里的版本 |
 | Home 里存的数据 | 项目库、目录库等，清单与版本方案见 `docs/system/HOME-DATA.md` | 库的结构版本（`PRAGMA user_version` 或自带的 meta 表），经 `packages/storage/src/sqlite-baseline.ts` 的 `applySqliteBaseline` 建库，版本不符就拒绝 |
+
+2026-11-08 D0244：Search 的仓库内部公开服务新增 `SearchService.indexedCatalog`，提供受当前来源/读取器权限约束的同项目快照及原来源同步检查，Host 同片接入 Knowledge 整理。没有动作 id/schema、Manifest、MCP 工具名或公开 contracts/SDK 形状变化，也不改持久化格式；旧业务缓存保留，失效来源或失败缓存不用于新模型整理。
 
 ## 2. 版本号的编号方案
 

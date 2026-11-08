@@ -27,6 +27,8 @@ export interface WebServerOptions {
   projectRoot?: string;
   /** Shared in-process Runtime integration service. Tests may inject a fixture. */
   runtimeIntegrationService?: RuntimeIntegrationService;
+  /** Trusted installation owner of MCP registrations; account Home proofs still bind the actual target Home. */
+  mcpCredentialHomeDirectory?: string;
   /** Shared service manager so Web previews and confirmations use one in-memory plan. */
   webServiceManager?: MolisWorkWebServiceManager;
   /** Bound by the installation composition; business Homes never infer the installation's location. */

@@ -32,12 +32,16 @@ test('native identity requires an owner-only header capability, never a cookie o
 test('S-141 native login and restart remain isolated from ordinary browser sessions and UI hints',async()=>{
   const home=mkdtempSync(join(tmpdir(),'molis-native-login-'));
   let transaction:{state:string;codeChallenge:string;clientId:string;forceLogin?:boolean}, remote='', user='native-alice';
+  let authUnavailable=false;
   const upstream=createServer(async(req,res)=>{
     let raw='';for await(const chunk of req)raw+=chunk;
     res.setHeader('content-type','application/json');
     if(req.url==='/api/v1/auth/transactions') {transaction=JSON.parse(raw);res.end(JSON.stringify({data:{loginUrl:remote+'/login'}}));}
     else if(req.url==='/oauth2/token')res.end(JSON.stringify({access_token:'synthetic-native',refresh_token:'synthetic-refresh',expires_in:3600}));
-    else if(req.url==='/api/v1/users/me')res.end(JSON.stringify({data:{userId:user,displayName:'Alice',emails:[],applicationId:'work',clientId:'desktop-test'}}));
+    else if(req.url==='/api/v1/users/me') {
+      if(authUnavailable){res.statusCode=503;res.end('{}');}
+      else res.end(JSON.stringify({data:{userId:user,displayName:'Alice',emails:[],applicationId:'work',clientId:'desktop-test'}}));
+    }
     else res.end('{}');
   });
   const listen=async(server:ReturnType<typeof createServer>)=>{
@@ -82,14 +86,22 @@ test('S-141 native login and restart remain isolated from ordinary browser sessi
     const scopes=await(await fetch(origin+'/api/spaces',{headers:{Cookie:webCookie}})).json();
     assert.equal(scopes.current.kind,'personal');assert.equal(scopes.current.ownerUserId,'native-alice');
     await close(server);server=createMolisWorkWebServer({homeDirectory:home,controlToken});origin=await listen(server);
-    assert.equal((await(await native('/api/personal/status')).json()).identity.userId,'native-alice','host shutdown must preserve native login');
+    authUnavailable=true;
+    const offline=await(await native('/api/personal/status')).json();
+    assert.equal(offline.identity.userId,'native-alice','host shutdown must preserve native login');
+    assert.equal(offline.offline,true);
+    assert.equal(typeof offline.browserSessionTicket,'string','only the native caller can reattach while Auth is unavailable');
+    const staleWeb=await(await fetch(origin+'/api/personal/status?desktop=1',{headers:{Cookie:webCookie,'x-molis-work-desktop':'1'}})).json();
+    assert.equal(staleWeb.identity,null);
+    assert.equal(staleWeb.browserSessionTicket,undefined,'old WebView cookie and desktop hint are not native proof');
+    authUnavailable=false;
     const prepareNative=async(intent:'switch'|'logout')=>{
       const page='native-main';await native('/api/personal/status?page='+page);
       const start=await native('/api/personal/prepare?action=start&page='+page+'&intent='+intent,true);assert.equal(start.status,200);
       const {id}=await start.json();const ack=await native('/api/personal/prepare?action=ack&page='+page+'&id='+id,true);assert.equal((await ack.json()).ready,true);
       return '&page='+page+'&preparation='+id;
     };
-    const staleTicket=(await(await native('/api/personal/status')).json()).browserSessionTicket;
+    const staleTicket=offline.browserSessionTicket;
     const prepared=await prepareNative('switch');
     user='native-bob';assert.equal((await native('/api/personal/switch?returnTo=%2F'+prepared,true)).status,200);
     assert.equal((await fetch(origin+'/account/callback?code=synthetic-bob&state='+transaction.state,{redirect:'manual'})).status,303);

@@ -228,3 +228,24 @@ test("SYS-15 S-47 standalone Home settings reject invalid addresses and accept t
     await b.click("[data-home-model-close]"); await b.waitFor("!document.querySelector('[data-home-model-settings]').open");
   }
 });
+
+test("D0033-01 S-47 the real side plugin cannot read either trusted ancestor, its token or IPC and cannot use another owner's bridge", { timeout: 60_000 }, async t => {
+  const browser = await openGoalBrowser(t, true); if (!browser) return;
+  const ownerFrame = '[data-side-body="plugin:shelf/side"] iframe';
+  const child = await pluginFrameBrowser(t, browser, "shelf", ownerFrame);
+  await browser.navigate(() => browser.command("Page.navigate", { url: `${browser.origin}/projects/${browser.projectId}/` }, browser.sessionId));
+  await browser.evaluate(`document.dispatchEvent(new CustomEvent('molis:side-open',{detail:{tab:'plugin:shelf/side'}}))`);
+  await browser.waitFor(`document.querySelector(${JSON.stringify(ownerFrame)})?.contentDocument?.querySelector('[data-work-surface=shelf]')?.dataset.uiClientState==='ready'`);
+  await child.waitFor("document.querySelector('[data-shelf-search]')");
+  assert.deepEqual(await child.evaluate(`(()=>{
+    const read=target=>{try{return Boolean(target.document.querySelector('meta[name=molis-work-control-token]'))}catch(error){return error.name}};
+    return {parent:read(parent),top:read(top),token:!!document.querySelector('meta[name=molis-work-control-token]'),native:!!window.__TAURI_INTERNALS__,separate:parent!==top};
+  })()`), { parent: "SecurityError", top: "SecurityError", token: false, native: false, separate: true });
+  assert.equal(await browser.evaluate(`document.querySelector(${JSON.stringify(ownerFrame)}).contentDocument.querySelector('iframe[data-plugin-frame=shelf]').getAttribute('sandbox')`), "allow-scripts allow-forms");
+  for (const path of ["/api/settings/projects", `/projects/${browser.projectId}/api/plugins/io.molis.work.todo/items`, "/projects/another-project/api/plugins/io.molis.work.shelf/"]) {
+    assert.equal(await child.evaluate(`fetch(${JSON.stringify(path)}).then(response=>response.status)`), 403, path);
+  }
+  assert.equal(await child.evaluate(`fetch(${JSON.stringify(`/projects/${browser.projectId}/api/plugins/io.molis.work.shelf/`)}).then(response=>response.status)`), 200, "the same isolated bridge still serves the side plugin's own content");
+  await browser.evaluate("document.dispatchEvent(new CustomEvent('molis:side-close'))");
+  await browser.waitFor("document.body.dataset.sideOpen==='false'");
+});

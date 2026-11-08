@@ -1,3 +1,4 @@
+import { changeMcpClientCredential } from "@molis-ai/molis-work-app-local-host";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, mkdtemp, readFile, rename, rm } from "node:fs/promises";
@@ -176,6 +177,7 @@ test("ISSUE-03 ISSUE-06 ISSUE-07 ISSUE-09 real HTTP and authorized MCP process s
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address === "object");
   const origin = `http://127.0.0.1:${address.port}`, clientId = "runtime:issue-check";
+  changeMcpClientCredential(home, clientId, "connect");
   const request = (path: string, body?: unknown, authorized = true) => fetch(origin + path, { method: body === undefined ? "GET" : "POST",
     headers: { "content-type": "application/json", origin, referer: `${origin}/plugins/issues`,
       ...(authorized ? { "x-molis-work-control-token": token } : {}), "x-molis-work-idempotency-key": randomUUID() },

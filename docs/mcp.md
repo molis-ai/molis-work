@@ -1,5 +1,7 @@
 # MCP 接入
 
+独立客户端连接：更新到 D0071 修复后，已有 Runtime 须在设置中重新接入并重启 MCP。凭据由确认接入生成，保存在安装 Home 的私有配置目录，不填写在 Runtime 配置中；移除接入即撤销。仅持 Home 主令牌的动作网关请求不能选择客户端身份。Home 快照不携带该凭据，恢复后须重新接入。工具名与动作合同不变。
+
 Molis Work 通过统一 Skill 连接项目。Runtime 消费 `molis_work_v1_context_resolve` 返回的公开状态、项目身份和连接，不读取 catalog 或数据库路径，也不从仓库名推断项目。已绑定 Session 或唯一、已验证 workspace membership 可以只读恢复；候选本身不授权绑定。
 
 ## Runtime 工作入口绑定（推荐）

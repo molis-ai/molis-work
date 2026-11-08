@@ -1,3 +1,4 @@
+import { changeMcpClientCredential } from "@molis-ai/molis-work-app-local-host";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -38,6 +39,7 @@ test("headless runtime companions are discovered and called by the official MCP 
       const caller: ActionCallContext = { actor_id: "runtime:reader", project_id: project.project_id, audience: "mcp", permissions: ["artifact:read"] };
       const client = host.actionClient(reference), clients: Client[] = [];
       const connect = async (identity: string) => {
+    changeMcpClientCredential(home, `runtime:${identity}`, "connect");
         const sdk = new Client({ name: "untrusted", version: "1" }); clients.push(sdk);
         const transport = new StdioClientTransport({ command: process.execPath, args: ["--import", "tsx",
           fileURLToPath(new URL("./fixtures/production-action-mcp-server.ts", import.meta.url)), home, project.project_id, identity, project.database_path, served.origin], stderr: "pipe" });

@@ -480,7 +480,7 @@ async function registerProviders(registry: ActionRegistryPort, providers: readon
  * would leave its instances and the SQLite handle alive for good. The failures are reported once everything ran. The Home
  * instances' jobs kept in the project stop with it (PG-038); the project's own instances stop with their whole activation.
  */
-async function closeProjectRuntime(runtime: MolisWorkProjectRuntime, closed: () => void, stopSchedules: () => Promise<void>, stopHomeJobs: () => void): Promise<void> {
+async function closeProjectRuntime(runtime: MolisWorkProjectRuntime, closed: () => void, stopSchedules: () => Promise<void>, stopHomeJobs: () => Promise<void> | void): Promise<void> {
   const failures: unknown[] = [];
   const attempt = async (step: () => unknown) => { try { await step(); } catch (error) { failures.push(error); } };
   await attempt(stopSchedules);

@@ -223,7 +223,6 @@ export const ASSISTANT_EN: Record<string, string> = {
   "执行方": "Executor",
   "打开 Coding": "Open Coding",
   "Prompt 与 Character": "Prompts & Characters",
-  "系统和插件交给模型的全部说明文字，以及由它们组成的 Character（角色）。修改从下一轮开始生效，正在进行的一轮不受影响；每一轮的记录会写明用的是默认版还是你的版本。": "Every instruction the system and plugins give a model, and the Characters (roles) made of them. Edits take effect from the next turn; a turn under way keeps its text; each turn's record shows whether it used the default or your version.",
   "改这里的文字不会改变任何权限：能读写哪些目录、能调用哪些能力、哪些操作要你确认，都由系统在代码里执行，与文字写成什么无关。": "Editing these texts never changes any permission: which folders can be read or written, which capabilities can be called and what needs your approval are enforced by the system in code, whatever the text says.",
   "全部": "All",
   "已修改": "Edited",

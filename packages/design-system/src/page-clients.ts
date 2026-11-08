@@ -3,7 +3,8 @@ import { readFileSync } from "node:fs";
 /**
  * The design system's page programs written as TypeScript (`src/browser/`, tsconfig.browser.json), bundled by esbuild into
  * `dist/` when the package builds. This reads them from `dist/` whether it runs built or from source (a preview script
- * importing `src/index.ts`); the stylesheets that go with them stay free of file reads, so a style alone never needs a build.
+ * importing `src/index.ts`). The stylesheets that go with them read only the baseline files in `resources/` (`baseline.ts`), which
+ * need no build, so a style alone never needs one either.
  */
 /** `window.molisFollow`, one owner for a growing conversation's scroll (`browser/scroll-follow.ts`, VUX-26). */
 export const SCROLL_FOLLOW_CLIENT_SCRIPT = readFileSync(new URL("../dist/scroll-follow-client.js", import.meta.url), "utf8").trim();

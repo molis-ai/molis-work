@@ -5,7 +5,6 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { MolisWorkLocalHost, seedDemoBoard, DEMO_PROJECT_ID, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { ensureProjectPlugins, releaseProjectPlugins } from "../apps/local-host/dist/project-plugins.js";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -21,9 +20,8 @@ test("background startup shares its instance with later UI execution adapters an
   // call to one is refused as a call to any action nobody provides is.
   let agentCalls = 0, capabilityCalls = 0;
   const ports = { store, ...openProjectVersionStores(store), projectId: DEMO_PROJECT_ID, actorId: "web-user", homeDirectory: home, actions,
-    capabilities: { async invoke<I, O>(definition: { capability_id: string }, _input: I): Promise<O> {
+    capabilities: { async invoke<I, O>(_definition: { capability_id: string }, _input: I): Promise<O> {
       capabilityCalls++;
-      if (definition.capability_id === projectsCapabilities.readWorkspace.capability_id) return null as O;
       return { workspaces: [], selected: null } as O;
     } },
   };

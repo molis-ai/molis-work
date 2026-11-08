@@ -147,23 +147,28 @@ test("pick route reports the window result and does not open one without a proje
     [new ActionError("actions.forbidden", "没有目录权限"), 403],
     [new ActionError("host.workspace_not_found", "找不到当前 Project 的这条工作目录", { kind: "not_found" }), 404],
   ] as const) {
-    let invoked = 0;
-    await handleProjectWorkspaceHttp({ ...base, method: "PATCH", pathname: "/api/workspaces/current/path",
-      readBody: async () => ({ workspace_path: "/tmp/next", user_confirmed: true }),
-      actions: { discover: async () => [], invoke: async () => { invoked++; throw failure; } },
-    });
-    assert.equal(invoked, 1);
-    assert.deepEqual(calls.at(-1), { status: expectedStatus, body: { error: failure.message, code: failure.code } });
+    for (const request of [{ method: "GET", readBody: base.readBody }, { method: "POST", readBody: async () => ({ change: "repair", input: { workspace_id: "current", workspace_path: "/tmp/next", expected_revision: "r1" } }) }]) {
+      let invoked = 0;
+      await handleProjectWorkspaceHttp({ ...base, pathname: "/api/project-settings/directories", ...request,
+        actions: { discover: async () => [], invoke: async () => { invoked++; throw failure; } },
+      });
+      assert.equal(invoked, 1, request.method);
+      assert.deepEqual(calls.at(-1), { status: expectedStatus, body: { error: failure.message, code: failure.code } }, request.method);
+    }
   }
-  // A folder id that is not valid percent-encoding is the caller's mistake: refused as invalid before any action runs.
-  for (const [method, suffix] of [["POST", "unlink"], ["PATCH", "path"]]) {
+  // A change the settings page does not know, or one with more than its name and input, is the caller's mistake: refused before any action runs.
+  for (const body of [{ change: "link", input: {} }, { change: "toString", input: {} }, { input: {} }, { change: "add_input", input: {}, user_confirmed: true }]) {
     let invoked = 0;
-    assert.equal(await handleProjectWorkspaceHttp({ ...base, method, pathname: `/api/workspaces/%E0%A4%A/${suffix}`,
-      readBody: async () => ({ user_confirmed: true, workspace_path: "/tmp/next" }),
+    assert.equal(await handleProjectWorkspaceHttp({ ...base, pathname: "/api/project-settings/directories", readBody: async () => body,
       actions: { discover: async () => [], invoke: async () => { invoked++; return {}; } },
-    }), true, "the route answers malformed paths instead of throwing into the Host error logger");
-    assert.deepEqual(calls.at(-1), { status: 400, body: { error: "请求路径里有无效的编码", code: "host.request_path_invalid" } });
+    }), true);
+    assert.deepEqual(calls.at(-1), { status: 400, body: { error: "目录改动无效" } }, JSON.stringify(body));
     assert.equal(invoked, 0);
+  }
+  // The routes that linked, repaired or unlinked a folder by its id are gone: the Host's folder routes leave those addresses alone.
+  for (const [method, pathname] of [["POST", "/api/workspaces"], ["PATCH", "/api/workspaces/current/path"], ["POST", "/api/workspaces/%E0%A4%A/unlink"],
+    ["GET", "/api/project-settings/workspaces"], ["POST", "/api/project-settings/workspaces"]]) {
+    assert.equal(await handleProjectWorkspaceHttp({ ...base, method, pathname }), false, `${method} ${pathname}`);
   }
   // Starting a Session in a folder stays with Work: the Host's folder routes leave that address alone.
   assert.equal(await handleProjectWorkspaceHttp({ ...base, pathname: "/api/workspaces/current/sessions" }), false);

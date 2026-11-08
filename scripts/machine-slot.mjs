@@ -14,7 +14,7 @@ import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { constants, tmpdir } from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { isMainScript } from "./script-paths.mjs";
 
 export const KINDS = ["build", "browser"];
 export const SLOT_CAPACITY = 3;
@@ -150,4 +150,4 @@ async function main(args) {
   return code;
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) process.exitCode = await main(process.argv.slice(2));
+if (isMainScript(import.meta.url)) process.exitCode = await main(process.argv.slice(2));

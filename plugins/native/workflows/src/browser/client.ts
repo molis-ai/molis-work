@@ -1,6 +1,7 @@
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { wireClicks } from "./click.js";
 import { wireDrag } from "./drag.js";
-import { messageOf, required, statusOf } from "./dom.js";
+import { required, statusOf } from "./dom.js";
 import { drawList } from "./list.js";
 import { loadList, onModelReady, openRun, recalled, remember, setMode, showFlow } from "./nav.js";
 import { cameBack } from "./returns.js";

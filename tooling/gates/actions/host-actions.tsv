@@ -75,7 +75,7 @@ agent.roles	1	platform	query	query	project	read	-	plugin	-	-	-	-	d840c5a0a551	cb
 agent.run.control	1	platform	command	operation	project	write	-	plugin	-	-	-	-	632a0ef3732c	-	-
 agent.run.read	1	platform	query	query	project	read	-	plugin	-	-	-	-	7a5b04060871	54ff6105eb86	-
 agent.run.reviews	1	platform	query	query	project	read	-	plugin	-	-	-	-	7a5b04060871	710c08a0c3d9	-
-agent.run.start	1	platform	command	operation	project	write	-	plugin	-	-	-	-	5df03a7e1e5f	75fe4e5aac0f	-
+agent.run.start	1	platform	command	operation	project	write	-	plugin	-	-	-	-	c8c197473e14	75fe4e5aac0f	-
 agent.run.wait	1	platform	query	query	project	read	concurrent	plugin	-	-	-	-	3ae8db7426c4	e4c998474fd7	046efc93b6ac
 agent.runtimes	1	platform	query	query	project	read	-	plugin	-	-	-	-	9cecb8ebe607	49f5b25c9d4a	-
 agent.session.create	1	platform	command	operation	project	write	-	plugin	-	-	-	-	36c1b12fe97d	8237effa9721	-
@@ -263,7 +263,7 @@ projects.workspace.git.inspect	1	platform	query	query	project	read	-	agent,mcp,u
 projects.workspace.git.operation.prepare	1	platform	command	operation	project	write	-	plugin	review:git-operation	workspace	-	-	3994c5ceffab	18a6c013818d	-
 projects.workspace.git.operations	1	platform	query	query	project	read	-	plugin	workspace:read	workspace	-	-	614f112549e5	52405559fce7	-
 projects.workspace.git.prepare-index	1	platform	command	operation	project	write	-	plugin	review:git-index	workspace	-	-	f2b96d30b920	18a6c013818d	-
-projects.workspace.git.results	1	platform	query	query	project	read	-	plugin	workspace:read	workspace	-	-	614f112549e5	5f1692d9fc51	-
+projects.workspace.git.results	1	platform	query	query	project	read	-	plugin	workspace:read	workspace	-	-	614f112549e5	49e0010f0e0c	-
 projects.workspace.read	1	platform	query	query	project	read	-	agent,mcp,user,workflow	-	project	-	project.workspace.optional	9cecb8ebe607	bff4d7a70ea2	-
 projects.workspace.writers.integration.prepare	1	platform	command	operation	project	write	-	plugin	review:git-integration	workspace	-	-	7b81d085e37e	18a6c013818d	-
 projects.workspace.writers.integration.read	1	platform	query	query	project	read	-	plugin	workspace:read	workspace	-	-	a06b911bc763	435073ad19b3	-

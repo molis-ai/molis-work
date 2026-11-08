@@ -15,6 +15,10 @@ import { catalogOAuthMethod } from "./oauth-methods.js";
 import { catalogMcpMethod } from "./mcp-methods.js";
 import { catalogAccountPresentation } from "./provider.js";
 
+/** The version of the two types every catalog connector provides. The catalog's own manifest.json moves with the same two entries. */
+const CONNECTOR_DRIVER_VERSION = /* @version type.connector.driver.catalog */ 1;
+const SIGNAL_ADAPTER_VERSION = /* @version type.signal.adapter.catalog */ 1;
+
 /**
  * The document sources the 成果库 can import through a connected service, the service each reads with, and the ways of connecting its
  * reading works with: an API token or an OAuth grant everywhere, and Feishu's own CLI login as well.
@@ -84,7 +88,7 @@ export function catalogIntegrationManifest(connectorId: string): PluginManifest 
       { permission: `secret:${connectorId}`, required: true, reason: `使用不可导出的 ${spec.title} credential reference` },
     ],
     capabilities: {
-      provides: [`connector.driver.${connectorId}.v1`, `signal.adapter.${connectorId}.v1`],
+      provides: [`connector.driver.${connectorId}.v${CONNECTOR_DRIVER_VERSION}`, `signal.adapter.${connectorId}.v${SIGNAL_ADAPTER_VERSION}`],
       consumes: [/* @version type.connector.host "connector.host.v{version}" */ "connector.host.v1", /* @version type.listener.host "listener.host.v{version}" */ "listener.host.v1", /* @version type.signals.command "signals.command.v{version}" */ "signals.command.v1"],
     },
     artifacts: { produces: [], consumes: [] },

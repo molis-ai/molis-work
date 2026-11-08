@@ -7,7 +7,7 @@ import type {
 import { icon, renderPluginStageShell } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { PAGES_TEMPLATES } from "./templates.js";
 
-export const PAGES_UI_CONTRIBUTION_ID = /* @version contract.io.molis.work.native.pages.ui "io.molis.work.native.pages.ui.v{version}" */ "io.molis.work.native.pages.ui.v1";
+export const PAGES_UI_CONTRIBUTION_ID = "io.molis.work.native.pages.ui.v1";
 
 export type PagesUiSurface = "directory" | "workbench" | "comments";
 

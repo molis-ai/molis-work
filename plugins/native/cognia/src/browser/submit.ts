@@ -1,4 +1,5 @@
-import { esc, messageOf } from "./dom.js";
+import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { entryTable, setBusy, setStep, showDraft } from "./dialog.js";
 import { STATUS_KEY } from "./labels.js";
 import { load, reload } from "./list.js";

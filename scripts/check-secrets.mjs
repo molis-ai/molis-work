@@ -32,6 +32,7 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import readline from "node:readline";
 import { fileURLToPath } from "node:url";
+import { isMainScript } from "./script-paths.mjs";
 
 const EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
 const DEFAULT_ALLOWLIST = "tooling/gates/secret-allowlist.txt";
@@ -281,4 +282,4 @@ async function main() {
   process.exitCode = 1;
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await main();
+if (isMainScript(import.meta.url)) await main();

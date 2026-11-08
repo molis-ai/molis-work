@@ -29,7 +29,7 @@ node scripts/run-tests.mjs tests/functions-system-capability.test.ts
 - 负责：判断规则的草稿、不可变的已发布版本、样本与判断记录。
 - 不负责：TypeSafe HTTP、插件界面、场景执行。
 - 公开入口：`@molis-ai/molis-work-module-judgment-rules`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/modules/functions`。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-storage`、`@molis-ai/molis-work-plugin-sdk`（共用对象判断 `isRecord`）。方向：依赖公共合同及底层共享包；不导入另一个 Module 的实现或 Store，自己的库也不出包入口（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-storage`、`@molis-ai/molis-work-plugin-sdk`（动作声明 `createActionDefinition`、`objectSchema`，对象判断 `isRecord`，排序 `compareCodeUnits`）。方向：依赖公共合同及底层共享包；不导入另一个 Module 的实现或 Store，自己的库也不出包入口（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 已发布配置与版本不可变，只能删除草稿；样本、试跑及判断记录仍独立管理。
   - `updated_at` 只代表定义内容（`update` 能写的那些字段）：定义真的变了才往前走；试跑、样例、发布和规整后无变化的保存都不推它，发布时间在 `published_at`。6 个编辑动作必须带读到的版本 `expected_updated_at`，过期得 `functions.draft_stale`，不改记录；检查顺序是记录在不在、已发布吗、版本对不对、其余校验。预览先比版本再调模型，保存结果时再比一次。合同见 [specs/action-input-contracts/spec.md](../../specs/action-input-contracts/spec.md) §2。

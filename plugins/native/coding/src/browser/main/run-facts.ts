@@ -18,7 +18,7 @@ function factsOf(page: Page, run: RunView): { values: Fact[]; unused: string[] }
   else unused.push(L("coding.attach.method"));
   if ((f.action_tools || []).length) values.push([L("coding.facts.actions"), (f.action_tools || []).map(ref => ref.capability_id + " · v" + ref.version + " · " + ref.provider_id).join(joiner)]);
   else unused.push(L("coding.attach.actions"));
-  if (f.mcp_tools?.length) values.push([L("coding.facts.mcp"), f.mcp_tools.map(tool => (tool.server_label || tool.server) + " / " + tool.tool + " · " + L("coding.facts.configuration", { version: tool.configuration_version ?? L("coding.facts.not-recorded") }) + " · " + tool.version).join(joiner)]);
+  if (f.mcp_tools?.length) values.push([L("coding.facts.mcp"), f.mcp_tools.map(tool => (tool.server_label || tool.server) + " / " + tool.tool + " · " + L("coding.facts.configuration", { version: tool.configuration_version }) + " · " + tool.version).join(joiner)]);
   else unused.push("MCP");
   if ((f.mcp_sources || []).length) values.push([L("coding.facts.mcp-sources"), (f.mcp_sources || []).map(source => (source.server_label || source.server) + " · " + L("coding.facts.configuration", { version: source.configuration_version })).join(joiner)]);
   else unused.push(L("coding.facts.mcp-source-kind"));

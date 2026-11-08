@@ -1,4 +1,4 @@
-import { messageOf } from "./dom.js";
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { showLink } from "./link.js";
 import { onModelReady, showFlow } from "./nav.js";
 import type { WorkflowsPage } from "./page.js";

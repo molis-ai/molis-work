@@ -40,21 +40,21 @@ export const catalogErrors = {
   project_storage_invalid: projectCatalogErrors.project_storage_invalid,
 };
 
-/** A catalog newer than this build, in the words the MCP reader shows: a Session has to be renewed, and nothing may roll the catalog back. */
+/** A catalog newer than this build, in the words the MCP reader shows: upgrade Molis Work (one already upgraded restarts the service and opens a new Session), and nothing may roll the catalog back. */
 export function catalogSchemaCompatibilityError(
   actualSchemaVersion: number,
-  supportedSchemaMax: number = CATALOG_SCHEMA_VERSION,
+  currentSchemaVersion: number = CATALOG_SCHEMA_VERSION,
 ): ActionError | null {
-  if (Number.isInteger(actualSchemaVersion) && actualSchemaVersion > supportedSchemaMax) {
+  if (Number.isInteger(actualSchemaVersion) && actualSchemaVersion > currentSchemaVersion) {
     return storageErrors.store_too_new(
-      `Molis Work catalog schema=${actualSchemaVersion}，当前 reader 支持 1..${supportedSchemaMax}。`
-        + "当前 Session 不会热刷新 MCP；请新建或 Fork 一个 Session，先确认当前任务焦点，再只读调用 context_resolve。"
-        + "解析成功后再继续写入；不要回滚 catalog.db，也不要用 SQLite、CLI 或 Web 绕过。",
+      `Molis Work catalog schema=${actualSchemaVersion}，这个版本的 Molis Work 只认 ${currentSchemaVersion}。`
+        + "目录库是更新的版本写的，没有损坏。请把 Molis Work 升级到能读它的版本；已经升级过的，运行中的 MCP 不会热刷新，请重启常驻服务并新开一个 Session。"
+        + "之后先确认当前任务焦点，只读调用 context_resolve，解析成功后再继续写入；不要回滚 catalog.db，也不要用 SQLite、CLI 或 Web 绕过。",
       {
         actual_schema_version: actualSchemaVersion,
-        supported_schema_min: 1,
-        supported_schema_max: supportedSchemaMax,
-        recovery: "new_or_fork_session_then_context_resolve",
+        supported_schema_min: currentSchemaVersion,
+        supported_schema_max: currentSchemaVersion,
+        recovery: "upgrade_then_context_resolve",
       },
     );
   }

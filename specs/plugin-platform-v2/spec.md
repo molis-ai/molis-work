@@ -345,7 +345,7 @@ HTTP（项目前缀下）：
 | 阶段 | 内容 | 出口证据 |
 | --- | --- | --- |
 | P0 | 本 spec + 契约草案评审 | **已完成**：本文件，三条路线与 D4/D6 已确认 |
-| P1 | 契约 v2：manifest / events / wiring / ui / agent | **已完成**：contracts 构建通过；`tests/plugin-manifest-v2.test.ts` 8 项 |
+| P1 | 契约 v2：manifest / events / wiring / ui / agent | **已完成**：contracts 构建通过；`tests/plugin-manifest.test.ts` 8 项 |
 | P2 | Kernel + Plugin Runtime：依赖解析、激活顺序、隔离重启、app contribution | **已完成**：`tests/plugin-dependency-resolution.test.ts` 8 项、`tests/plugin-isolation-restart.test.ts` 8 项 |
 | P3 | 事件流落库 + 输入图落库 | **已完成**：`tests/plugin-events.test.ts` 9 项、`tests/plugin-input-graph.test.ts` 9 项、`tests/plugin-durable-coordination.test.ts` 真实 SQLite 重启 1 项 |
 | P4 | 声明式装配：视图/命令/路由；删除硬编码分支 | **机制已完成**：`UiViewRegistry`、`PluginRouteRouter`、`tests/plugin-declarative-mounting.test.ts` 7 项。宿主接线与硬编码分支删除随 P5 逐个插件进行 |
@@ -377,7 +377,7 @@ pnpm boundary:check
 
 ```bash
 pnpm exec tsx --test --test-concurrency=1 \
-  tests/plugin-manifest-v2.test.ts \
+  tests/plugin-manifest.test.ts \
   tests/plugin-dependency-resolution.test.ts \
   tests/plugin-events.test.ts \
   tests/plugin-input-graph.test.ts \

@@ -128,7 +128,7 @@
 
 **测试**
 - 新增：model-thinking、prologue-subagent-turns、prologue-review-child-command、coding-commit-draft。
-- 更新：plugin-manifest-v2（只运行命令的子代理可以留在主工作区，能写文件的不行）、prologue-writer-authority、coding-events。
+- 更新：plugin-manifest（只运行命令的子代理可以留在主工作区，能写文件的不行）、prologue-writer-authority、coding-events。
 - 相关测试 505 项：499 通过、1 跳过、5 失败。
   - 其中 3 个是之前记录过的原有问题：Goal 画布、目录样式、旧入口测试。
   - coding-events 的一个断言原来要求协调者只读，现在改为检查"协调者不能写文件"，已通过。

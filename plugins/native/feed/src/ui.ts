@@ -25,7 +25,7 @@ import {
   visibleFeedDispositionIds,
 } from "@molis-ai/molis-work-contracts/modules/functions";
 
-export const FEED_UI_CONTRIBUTION_ID = /* @version contract.io.molis.work.native.feed.ui "io.molis.work.native.feed.ui.v{version}" */ "io.molis.work.native.feed.ui.v1";
+export const FEED_UI_CONTRIBUTION_ID = "io.molis.work.native.feed.ui.v1";
 
 export type FeedUiPreset = "feed";
 export type FeedUiProvider = "github" | "gmail" | "rss" | "connector" | "other";
@@ -172,8 +172,8 @@ export const feedUiDescriptor: UiContributionDeclaration = {
     { surface_id: "frame-block", target_slot_id: "workbench.main", format: "declarative-html" },
   ],
   slots: [
-    { slot_id: "feed.detail.after-header", version: /* @version slot.feed.detail.after-header */ 1, accepts: ["declarative-html"] },
-    { slot_id: "feed.detail.after-content", version: /* @version slot.feed.detail.after-content */ 1, accepts: ["declarative-html"] },
+    { slot_id: "feed.detail.after-header", accepts: ["declarative-html"] },
+    { slot_id: "feed.detail.after-content", accepts: ["declarative-html"] },
   ],
 };
 

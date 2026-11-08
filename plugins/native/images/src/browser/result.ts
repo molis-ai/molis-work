@@ -1,4 +1,5 @@
-import { button, dateLabel, firstCharacters, messageOf, text } from "./dom.js";
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
+import { button, dateLabel, firstCharacters, text } from "./dom.js";
 import { imageUrl, stateOf } from "./list.js";
 import type { GeneratedImage, ImageJob, ImagesPage } from "./types.js";
 

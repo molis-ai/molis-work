@@ -1,5 +1,3 @@
-import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
-export { messageOf };
 /** An element the server drew; the page cannot work without it. */
 export const required = <T extends Element>(root: ParentNode, selector: string): T => {
   const node = root.querySelector<T>(selector);

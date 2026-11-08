@@ -216,6 +216,8 @@ test("Immersive directories resize and retain compact, operable Goal and Feed li
   feed.ingestItem({ source, externalId: "second", title: "终端与目标信息应当如何配合", summary: "切换工作时保留上下文，让记录留在正确的目标里。", body: "第二条目录内容。", occurredAt: now, attention: false });
   await reloadPage();
   await feedView.waitFor("document.querySelectorAll('[data-feed-entry-task=\"directory-rss\"]').length===2");
+  // The rows exist in the server-rendered document before the Feed client connects; measure and operate them only after.
+  await feedView.clientReady();
   const feedRow = await feedView.evaluate<{ height: number; size: string; weight: string; titleWidth: number; columns: string; status: boolean; chevron: boolean }>("(()=>{const row=document.querySelector('[data-feed-entry-id]'),title=row.querySelector('strong');return {height:Math.round(row.getBoundingClientRect().height),size:getComputedStyle(title).fontSize,weight:getComputedStyle(title).fontWeight,titleWidth:Math.round(title.getBoundingClientRect().width),columns:getComputedStyle(row).gridTemplateColumns,status:Boolean(row.querySelector('.feed-entry-status')),chevron:Boolean(row.querySelector('.feed-entry-chevron'))};})()");
   // Soft Workbench prototype: a Feed row is a reading card (source line, title, one-line summary), not a single line.
   assert.ok(feedRow.height >= 72 && feedRow.height <= 130, "Feed rows are compact reading cards: " + feedRow.height);
@@ -227,15 +229,19 @@ test("Immersive directories resize and retain compact, operable Goal and Feed li
   assert.equal(feedRow.chevron, false, "Closed Feed rows do not spend a column on a chevron");
   await capture("directory-feed-list");
   await feedView.evaluate("document.querySelector('[data-feed-filter-trigger]')?.click()");
+  await feedView.waitFor("document.querySelector('[data-feed-filter-panel]')?.hidden===false");
   await feedView.evaluate("(()=>{const status=document.querySelector('[data-feed-status-filter]');if(!status)return;status.value='archived';status.dispatchEvent(new Event('change',{bubbles:true}));document.querySelector('[data-feed-filter-option=\"status\"][data-feed-filter-value=\"archived\"]')?.click();})()");
   await feedView.waitFor("document.querySelector('[data-feed-empty]')?.hidden===false");
   assert.ok(await feedView.evaluate("document.querySelector('[data-feed-clear-filters]').getClientRects().length>0"));
   await feedView.evaluate("document.querySelector('[data-feed-filter-trigger]')?.click()");
+  await feedView.waitFor("document.querySelector('[data-feed-filter-panel]')?.hidden===true");
   await feedView.click('[data-feed-clear-filters]');
   await feedView.click('[data-feed-filter-trigger]');
+  await feedView.waitFor("document.querySelector('[data-feed-filter-panel]')?.hidden===false");
   assert.ok(await feedView.evaluate("(()=>{let p=document.querySelector('[data-feed-filter-panel]').getBoundingClientRect(),r=document.querySelector('[data-work-surface=feed]').getBoundingClientRect();return p.left>=r.left&&p.right<=r.right&&p.bottom<=innerHeight;})()"));
   await capture("directory-feed-filter");
   await feedView.click('[data-feed-filter-trigger]');
+  await feedView.waitFor("document.querySelector('[data-feed-filter-panel]')?.hidden===true");
   await feedView.click('[data-feed-entry-id][data-feed-item-id="' + item.item.item_id + '"]');
   await waitFor("document.body.dataset.desktopSurface === 'feed'");
   await feedView.waitFor("document.querySelector('[data-feed-stage-shell]')?.dataset.expanded === 'true' && Boolean(document.querySelector('[data-feed-entry-detail=\"" + item.item.item_id + "\"]:not([hidden])')) && (document.querySelector('[data-work-surface=feed]')?.textContent || '').includes('从首次使用观察中找到下一步值得改进的地方')");

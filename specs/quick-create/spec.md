@@ -238,7 +238,7 @@ W4-6b 排在 BL-174 后面的理由：Inbox 不声明 `fits`。有了 BL-174，�
 - 放置的「转成」每次都按当前目录找 `receive`（`horizontal/placement/src/index.ts:361-364`），不固定版本。
 - 创作台生成的插件调不到 `receive`：它的受众里没有 `plugin`，所以创作台的目录（`apps/local-host/src/plugin-builder/catalog.ts:60-90`）不把它开放给插件，理由写「提供方没有开放给插件」（:86）。
 
-**还会跟着变的东西：MCP 工具名带版本号。** 工具名是 `<capability_id>__v<version>`（`apps/mcp/src/action-tools.ts:8-21`），所以八个 `…content.receive__v1` 会变成 `__v2`。按 CONTRACT-CHANGES §3.5 这是产品决定，已定，见 11.9 第 2 条。
+**还会跟着变的东西：MCP 工具名带版本号。** 工具名是 `<capability_id>__v<version>`（`apps/mcp/src/action-tools.ts:8-21`），所以八个 `…content.receive__v1` 会变成 `__v2`。按 CONTRACT-CHANGES §3.5 这是产品决定，已定，见 11.9 第 2 条。（2026-11-08 审计更正：这是 2026-10 的设计；现行对外工具名是 `molis_work_v1_action_<capability_id>__v<version>`（`apps/mcp/src/action-tools.ts` 的 `MOLIS_WORK_ACTION_TOOL_PREFIX` 与 `molisWorkActionToolName`），第 02 批版本归一后八个 `content.receive` 都是 @1（`tooling/gates/actions/actions.tsv`），即 `molis_work_v1_action_<插件>.content.receive__v1`，不是 `__v2`。）
 
 **只能看真实 Home 才知道的**：真实 Home 里有没有用到这八个站的已存流程或运行中的实例。已定，见 11.9 第 1 条：由用户自己在编辑器里修。
 
@@ -423,7 +423,7 @@ defineWorkflowContentActions({ id: "inbox", title: "Inbox", icon: "inbox", subje
 | W4-6-04 | 固定旧 `receive@2` 的流程与实例仍保存原引用，使用时明确提示不可用，不写业务内容。移除再添加该站后重新固定现行 `receive@1`，能正常继续。 | `tests/workflow-content-actions.test.ts` |
 | W4-6-05 | 来源与归属只认可信的调用上下文。工作流交来的：Inbox 记 `added_by: "workflow"`，Feed 放在「工作流程」下。人经放置交来的：Inbox 记 `"web_user"`，Feed 放在「放进来的内容」下。输入里写什么都改不了这两项。Inbox 嵌套调用 Feed 时，受众不变 | `tests/inbox-action-scenes.test.ts`、`tests/workflows-plugin.test.ts`（:208）、`tests/work-placement.test.ts` |
 | W4-6-06 | 放置的「转成」用 `placement:<请求号>`，同一个请求只建一个 | `tests/work-placement.test.ts` |
-| W4-6-07 | MCP 里八个 `…content.receive__v1` 换成 `__v2`，其余工具名不变 | `tests/dataset-mcp.test.ts`、`tests/form-mcp.test.ts`、`tests/ppt-mcp.test.ts` |
+| W4-6-07 | MCP 里八个 `…content.receive__v1` 换成 `__v2`，其余工具名不变（2026-11-08 审计更正：这是 W4-6 当时的验收；第 02 批版本归一后八个 `content.receive` 回到 @1，现行名是 `molis_work_v1_action_…content.receive__v1`，不是 `__v2`） | `tests/dataset-mcp.test.ts`、`tests/form-mcp.test.ts`、`tests/ppt-mcp.test.ts` |
 | W4-6-08 | 动作快照只有八行 `receive` 变了（`@1` 换成 `@2`），其余行不变；公开 API 里 `workflowDeliveryKey` 没有了，多了 `WORKFLOW_CONTENT_VERSIONS` | `tests/action-contract-snapshot.test.ts`；`pnpm health:check` 的 API 快照 |
 
 **W4-6b**

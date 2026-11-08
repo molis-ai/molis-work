@@ -6,7 +6,7 @@ import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { UiContribution, UiLocalePack } from "@molis-ai/molis-work-contracts/platform/ui";
-import { DEMO_PROJECT_ID, LocalProjectDatabase, PluginHostExecutor, seedDemoBoard, hostTextProblems, installHostUiText, runBackgroundWork, runDevelopmentText, runWithLocale } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, LocalProjectDatabase, PluginHostExecutor, seedDemoBoard, captureHostLog, hostTextProblems, type HostLogEntry, installHostUiText, runBackgroundWork, runDevelopmentText, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import { hasPluginText, registerPluginText, renderStagePage } from "@molis-ai/molis-work-app-workbench";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { PluginRuntime, pluginLocaleReader } from "@molis-ai/molis-work-plugin-runtime";
@@ -40,6 +40,20 @@ test("FSS-69 a timer started in a request does not keep the request's language o
   assert.equal(inside, "Title");
   assert.equal(await after, "标题", "the owner's default language, not the ended request's");
   assert.ok(hostTextProblems().slice(before).some((problem) => problem.code === "ui.text_no_context" && problem.key === 't("text-probe.main.title")'), "and a problem says so");
+});
+
+// FSS-72: the page shows the platform's sentence for a key the author mistyped; the log line names the key, so the author can find it.
+test("FSS-69 a word not found shows the platform's sentence on the page, and the log line names its key", () => {
+  const entries: HostLogEntry[] = [];
+  const restore = captureHostLog(entries);
+  let shown: string;
+  try { shown = runWithLocale("en", () => t("text-probe.main.titel")); } finally { restore(); }
+  assert.doesNotMatch(shown, /text-probe\.main\.titel/u, "the key never reaches the page");
+  const line = entries.find((entry) => entry.area === "ui-text" && entry.event === "text-missing");
+  assert.ok(line, JSON.stringify(entries));
+  assert.equal(line.fields?.key, "text-probe.main.titel");
+  assert.equal(line.fields?.owner, PROBE);
+  assert.equal(hostTextProblems().at(-1)?.key, "text-probe.main.titel");
 });
 
 test("FSS-69 in a developer's run a timer left behind throws: it has no language, and it is not the place to fall back", async () => {

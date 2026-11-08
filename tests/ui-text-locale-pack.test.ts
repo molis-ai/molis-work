@@ -122,6 +122,11 @@ test("FSS-51: arguments that differ block, a plural_arg included", () => {
   assert.deepEqual(codes([pack("en", { "notes.a": "A {x}" }), pack("zh", { "notes.a": "甲 {y}" })]), [{ code: "ui.locale_args", locale: "zh", key: "notes.a", blocking: true }]);
   const plural = { plural_arg: "n", forms: { one: "{n} a", other: "{n} as" } };
   assert.deepEqual(codes([pack("en", { "notes.a": plural }), pack("zh", { "notes.a": "甲" })]).map(({ code }) => code), ["ui.locale_args"]);
+  // FSS-72: the default can be the side that is wrong, so the reason names both files and says which one is the default.
+  const [problem] = inspectLocaleSet([pack("en", { "notes.a": "A {x}" }), pack("zh", { "notes.a": "甲 {y}" })], { default: "en" });
+  assert.equal(problem?.file, "locales/zh.json");
+  assert.match(problem?.reason ?? "", /locales\/zh\.json 用 y，默认语言 en 的 locales\/en\.json 用 x/u);
+  assert.match(problem?.fix ?? "", /改写错的那一边/u);
 });
 
 test("FSS-51: a form the language needs and does not write is reported, without blocking: it falls to other", () => {

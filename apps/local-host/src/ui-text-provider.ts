@@ -28,7 +28,8 @@ const provider: UiTextProvider = {
   problem(problem) {
     problems.push(problem);
     if (problems.length > PROBLEM_LIMIT) problems.splice(0, problems.length - PROBLEM_LIMIT);
-    hostLog.warn("ui-text", problem.code.replace(/^ui\./u, "").replaceAll("_", "-"), undefined, { ...(problem.owner === undefined ? {} : { owner: problem.owner }), ...(problem.locale === undefined ? {} : { locale: problem.locale }) });
+    // The key goes to the log, never to the page: it is how an author finds which sentence showed the platform's "cannot be shown".
+    hostLog.warn("ui-text", problem.code.replace(/^ui\./u, "").replaceAll("_", "-"), undefined, { ...(problem.owner === undefined ? {} : { owner: problem.owner }), ...(problem.key === undefined ? {} : { key: problem.key }), ...(problem.locale === undefined ? {} : { locale: problem.locale }) });
   },
 };
 

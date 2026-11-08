@@ -8,7 +8,8 @@ import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { goldenFailure } from "./failure.mjs";
-import { expandedModuleSource, MODULE_SOURCES_DIRECTORY, moduleSourceReader, withModuleSources, withoutModuleSources, writeModuleSources } from "./module-sources.mjs";
+import { fileFormats, libraryVersions, storeFormats } from "./formats.mjs";
+import { expandedReleasePayload, isReleasePayload, MODULE_SOURCES_DIRECTORY, RELEASE_MANIFESTS_DIRECTORY, releasePayloadReader, withoutReleasePayloads, withReleasePayloads, writeReleasePayloads } from "./release-payloads.mjs";
 
 export const GOLDEN_MANIFEST_VERSION = 1;
 /** Used only by golden Homes; recorded in each manifest and marked as a test key there. */
@@ -57,19 +58,30 @@ function isSqliteFile(file) {
   return handle.length >= SQLITE_HEADER.length && handle.subarray(0, SQLITE_HEADER.length).toString("latin1") === SQLITE_HEADER;
 }
 
+/** A library's dump, with its version where its owner keeps it (formats.mjs) and the persistent formats it holds, read while the copy is open. */
 function dumpInto(storage, source, relative, out, owner, mode, tree) {
   const db = new DatabaseSync(source, { readOnly: true });
-  let dump;
-  try { dump = storage.dumpSqliteText(db, relative); } finally { db.close(); }
-  const full = withFixedSandboxEntries(dump.sql), sql = withoutModuleSources(full, tree.sources), payload = `stores/${relative}.sql`, file = path.join(out, payload);
-  if (withModuleSources(sql, digest => tree.sources.get(digest)) !== full) throw goldenFailure("golden.module_source_not_reversible", relative);
+  let dump, versions;
+  try {
+    dump = storage.dumpSqliteText(db, relative);
+    versions = libraryVersions(storage, db, relative, dump.version);
+    tree.formats.push(...storeFormats(db, relative, versions.schema_version));
+  } finally { db.close(); }
+  const full = withFixedSandboxEntries(dump.sql), sql = withoutReleasePayloads(full, tree.payloads), payload = `stores/${relative}.sql`, file = path.join(out, payload);
+  if (withReleasePayloads(sql, (directory, digest) => (directory === MODULE_SOURCES_DIRECTORY ? tree.payloads.sources : tree.payloads.manifests).get(digest)) !== full) throw goldenFailure("golden.release_payload_not_reversible", relative);
   mkdirSync(path.dirname(file), { recursive: true });
   writeFileSync(file, sql);
-  return { path: relative, owner, mode, payload, schema_version: dump.version, tables: dump.tables, sha256: sha256(sql), ...(sql === full ? {} : { expanded_sha256: sha256(full) }) };
+  return { path: relative, owner, mode, payload, ...versions, tables: dump.tables, sha256: sha256(sql), ...(sql === full ? {} : { expanded_sha256: sha256(full) }) };
 }
 
+/**
+ * Where a Home's file sits in a golden. An installed package's code is data here, the bytes a publisher signed, so it does not go in under a name that says it is this
+ * repository's code: tools that read code would hold the repository to what someone else's package does. A restore puts it back under its own name (`path`).
+ */
+export const filePayload = relative => `files/${relative}${/\.[cm]?[jt]sx?$/u.test(relative) ? ".data" : ""}`;
+
 function copyInto(source, relative, out, owner, mode) {
-  const payload = `files/${relative}`, file = path.join(out, payload);
+  const payload = filePayload(relative), file = path.join(out, payload);
   mkdirSync(path.dirname(file), { recursive: true });
   copyFileSync(source, file);
   const bytes = readFileSync(file);
@@ -130,15 +142,19 @@ export function assertNoHomePath(out, tree, home) {
     if (entry.path.endsWith(NATIVE_SESSION_TOKEN)) throw goldenFailure("golden.account_credential_present", entry.path);
     if (readFileSync(path.join(out, entry.payload)).includes(home)) throw goldenFailure("golden.home_path_recorded", entry.path);
   }
-  for (const [digest, source] of tree.sources) if (source.includes(home)) throw goldenFailure("golden.home_path_recorded", digest);
+  for (const texts of [tree.payloads.sources, tree.payloads.manifests]) for (const [digest, text] of texts) if (text.includes(home)) throw goldenFailure("golden.home_path_recorded", digest);
 }
 
-export function writeManifest(out, { sources, ...manifest }) {
-  const sorted = { ...manifest, module_sources: writeModuleSources(out, sources) };
+/** The manifest, each list once per path and in path order. A file's persistent formats are read here, from the bytes the golden keeps. */
+export function writeManifest(out, { payloads, formats, ...manifest }) {
+  const sorted = { ...manifest, module_sources: writeReleasePayloads(out, MODULE_SOURCES_DIRECTORY, payloads.sources), release_manifests: writeReleasePayloads(out, RELEASE_MANIFESTS_DIRECTORY, payloads.manifests) };
   for (const key of ["directories", "stores", "files", "excluded"]) {
     const seen = new Set();
     sorted[key] = manifest[key].filter(item => !seen.has(item.path) && seen.add(item.path)).sort(byPath);
   }
+  const all = [...formats, ...sorted.files.flatMap(entry => fileFormats(readFileSync(path.join(out, entry.payload)), entry.path))], seen = new Set();
+  sorted.formats = all.filter(item => !seen.has(`${item.entry}\0${item.path}`) && seen.add(`${item.entry}\0${item.path}`))
+    .sort((a, b) => a.entry < b.entry ? -1 : a.entry > b.entry ? 1 : byPath(a, b));
   writeFileSync(path.join(out, "manifest.json"), `${JSON.stringify(sorted, null, 2)}\n`);
   return sorted;
 }
@@ -151,12 +167,12 @@ export function readManifest(directory) {
 
 /** Restore every library and file into an empty Home, at its own path, with its own mode. The checksum comes first: a damaged golden is not a finding about the code. */
 export function restoreGolden(directory, manifest, home) {
-  const moduleSource = moduleSourceReader(directory);
+  const readPayload = releasePayloadReader(directory);
   for (const item of [...manifest.directories].sort(byPath)) mkdirSync(path.join(home, item.path), { recursive: true, mode: 0o700 });
   for (const entry of manifest.stores) {
     const stored = readFileSync(path.join(directory, entry.payload));
     if (sha256(stored) !== entry.sha256) throw goldenFailure("golden.payload_digest_mismatch", entry.path);
-    const text = entry.expanded_sha256 ? withModuleSources(stored.toString("utf8"), moduleSource) : stored.toString("utf8");
+    const text = entry.expanded_sha256 ? withReleasePayloads(stored.toString("utf8"), readPayload) : stored.toString("utf8");
     if (entry.expanded_sha256 && sha256(text) !== entry.expanded_sha256) throw goldenFailure("golden.payload_digest_mismatch", entry.path);
     const file = path.join(home, entry.path);
     mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
@@ -195,11 +211,11 @@ function firstDifference(left, right) {
 
 /**
  * The content a file is compared by. The commit says where a golden came from and is not part of it: a golden goes in with the commit after the one
- * it records, and a squash merge leaves that commit off main. A compressed copy is compared as its code: the compressor belongs to the Node that ran it.
+ * it records, and a squash merge leaves that commit off main. A compressed copy is compared as what it holds: the compressor belongs to the Node that ran it.
  */
 function comparable(file, bytes) {
   if (file === "manifest.json") return Buffer.from(JSON.stringify({ ...JSON.parse(bytes), commit: null }, null, 2));
-  return file.startsWith(`${MODULE_SOURCES_DIRECTORY}/`) ? expandedModuleSource(bytes) : bytes;
+  return isReleasePayload(file) ? expandedReleasePayload(bytes) : bytes;
 }
 
 /** UPG2-02: every difference between two golden directories, by path, line and table, and never by content. */

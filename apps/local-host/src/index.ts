@@ -286,7 +286,7 @@ export { AGENT_DEFINITIONS_BASELINE } from "./agent-definitions/agent-definition
 export { homeAgentDefinitions } from "./agent-definitions/builtin-registrations.js";
 export { PLACEMENT_BASELINE } from "./placement-actions.js";
 export { placementCallPorts } from "./placement-call.js";
-export { ALCHEMIST_SEARCH_BASELINE, createAlchemistSearchPort } from "./alchemist-search.js";
+export { ALCHEMIST_SEARCH_BASELINE, ALCHEMIST_STUDIO_BASELINE, createAlchemistSearchPort } from "./alchemist-search.js";
 export { ASSISTANT_STORE_BASELINE, ASSISTANT_STORE_NAME, AssistantStore } from "./assistant/assistant-store.js";
 export { raiseConnectionNotice } from "./assistant/assistant-connection-notices.js";
 export { assistantConnectionCard } from "./assistant/assistant-connection-card.js";

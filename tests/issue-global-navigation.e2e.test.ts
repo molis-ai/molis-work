@@ -163,7 +163,9 @@ test("RAC-2801 RAC-2802: native search from the nested Issue composer keeps its 
   await b.evaluate("window.issueSearchFrame.closest('[data-side-body]').inert=false");
   await probe("window.issueSearchFrame.closest('[data-side-body]').dataset.sideBody='plugin:inactive/probe'");
   await b.evaluate("window.issueSearchFrame.closest('[data-side-body]').dataset.sideBody='plugin:issues/capture'");
-  await v.chord(); await b.waitFor(closed);
+  // The probes above took the keyboard out of the tool, so the side closes from the layout menu (its titlebar button that did
+  // this left in 07-1 S4b).
+  await b.click("[data-layout-open]"); await b.click("[data-layout-action=side]"); await b.waitFor(closed);
   await probe(''); // mounted but panel closed
   await b.click(entry); await b.waitFor(open);
   await probe("window.removedSearchSource=window.issueSearchFrame.contentWindow;window.issueSearchFrame.remove()", 'Mod+K', 'location.origin', 'window.removedSearchSource');

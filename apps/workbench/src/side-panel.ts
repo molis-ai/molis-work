@@ -332,7 +332,10 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
   document.addEventListener('molis:side-toggle',event=>{if(open&&!(event.detail?.tab&&event.detail.tab!==current())){setOpen(false);save();}else request(event.detail||{});});
   strip.addEventListener('click',event=>{
     const button=event.target?.nodeType===1?event.target.closest('[data-side-tab]'):null;if(!button)return;
-    if(open)select(button.dataset.sideTab);else setOpen(true,{tab:button.dataset.sideTab});
+    // A Home tool's glyph, pressed, opens it ready to use, as its titlebar button did before 07-1 S4b moved it here; arrow keys
+    // and Enter on the strip keep the focus where it is.
+    if(button.hasAttribute('data-side-keys')&&event.detail>0)setOpen(true,{tab:button.dataset.sideTab,focus:'content'});
+    else if(open)select(button.dataset.sideTab);else setOpen(true,{tab:button.dataset.sideTab});
     save();
   });
   strip.addEventListener('keydown',event=>{

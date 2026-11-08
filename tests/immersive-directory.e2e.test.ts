@@ -341,10 +341,12 @@ test("底栏：Assistant 常驻居中，回答在上方先写问题；插件从�
   await waitFor("document.querySelector('[data-assistant-input]').getBoundingClientRect().width >= 120");
   assert.ok(await evaluate("document.querySelector('[data-assistant-composer]').scrollWidth <= document.querySelector('[data-assistant-composer]').clientWidth + 1"), "nothing runs out of the composer");
   // A narrower window, where the bar's middle is well under 600px, keeps the same room. (With one button at the bar's end
-  // instead of three the middle is wider, so the window that puts it under 560px is narrower than the 900px it was.)
+  // instead of three the middle is wider, so the window that puts it under 560px is narrower than the 900px it was; and with
+  // nothing of the person's own on the right, that column is only as wide as the project button, so it is 780px, not 820px —
+  // 07-1 S4b.)
   const roomy = (floor: number) => `(()=>{const f=document.querySelector('[data-assistant-composer]'),end=document.querySelector('.bar-end').getBoundingClientRect();
     return f.querySelector('[data-assistant-input]').getBoundingClientRect().width >= ${floor} && f.scrollWidth <= f.clientWidth + 1 && f.getBoundingClientRect().right <= end.left;})()`;
-  await command("Emulation.setDeviceMetricsOverride", { width: 820, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await command("Emulation.setDeviceMetricsOverride", { width: 780, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await waitFor(`document.querySelector('.bar-center').getBoundingClientRect().width < 560 && ${roomy(120)}`);
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await evaluate(`(()=>{const input=document.querySelector('[data-assistant-input]');input.value='hello';input.dispatchEvent(new Event('input',{bubbles:true}));})()`);

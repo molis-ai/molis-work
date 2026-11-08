@@ -6,7 +6,8 @@ import { attached, blocked, busy, sendable, type Composer, type Item } from "./c
 
 /**
  * Sending (§3.2, §3.5): one send per request. It locks the button until it settles and carries one `request_id`, kept for a retry
- * of the same text and dropped once the text changes. Only `sent` clears the box; `failed` keeps everything and marks the
+ * of the same text and dropped once the text changes. Only `sent` clears the box, of what that Send carried (words typed and files
+ * added while it was on its way stay); `failed` keeps everything and marks the
  * materials the target could not read; `unknown` offers 查一下 instead of another send. An outcome for a mount let go is dropped.
  * Attachments go to the page's own upload; each row says how it went.
  */
@@ -21,10 +22,13 @@ export function composerSender(c: Composer, drafts: ComposerDrafts, sentByKey: (
     if (control.kind === "toggle") return [[control.id, (node?.getAttribute("aria-pressed") ?? String(control.on)) === "true" ? "on" : "off"]];
     return [];
   }));
+  // What the last Send carried: words and files added while it was on its way are not its, and stay.
+  let went: { text: string; items: readonly Item[] } = { text: "", items: [] };
   function settle(outcome: ComposerOutcome) {
     c.phase = ""; c.check = null;
     if (outcome.state === "sent") {
-      field.value = ""; window.molisFit?.(field); c.items = []; c.requestId = ""; drafts.clear();
+      c.items = c.items.filter((item) => !went.items.includes(item)); c.requestId = "";
+      if (field.value === went.text) { field.value = ""; window.molisFit?.(field); drafts.clear(); } else drafts.save();
       const receipt = outcome.receipt, ai = c.ai;
       c.note = receipt && ai ? receipt.replayed ? { caption: labels.notice, text: ai.labels.replayed }
         : receipt.delivered === "queued" ? { caption: labels.notice, text: ai.labels.queued } : undefined : undefined;
@@ -56,6 +60,7 @@ export function composerSender(c: Composer, drafts: ComposerDrafts, sentByKey: (
       // Nothing running: the next turn is now, so ⌘⇧↵ sends as ⌘↵ does, without a delivery.
       c.requestId ||= crypto.randomUUID();
       const text = field.value, materials = attached(c);
+      went = { text, items: c.items.slice() };
       c.phase = "sending"; c.close(); c.paint();
       let outcome: ComposerOutcome;
       try { outcome = await options.submit({ text, materials, ...(delivery ? { delivery } : {}), controls: values(), request_id: c.requestId }, signal); }
@@ -77,15 +82,18 @@ export function composerSender(c: Composer, drafts: ComposerDrafts, sentByKey: (
     async upload(files) {
       const take = options.attachments;
       if (!take) return;
-      for (const file of files) {
-        const item: Item = { title: file.name, state: "reading" };
-        c.items = [...c.items, item]; c.requestId = ""; c.paint();
+      // Every file has its row at once (VUX-18) and is read on its own: one waiting on the Host holds up none of the others, and
+      // one let go while it is read is simply not brought back.
+      const list = Array.from(files), added: Item[] = list.map((file) => ({ title: file.name, state: "reading" }));
+      c.items = [...c.items, ...added]; c.requestId = ""; c.paint();
+      await Promise.all(list.map(async (file, index) => {
+        const item = added[index]!;
         let done: Awaited<ReturnType<typeof take.upload>>;
         try { done = await take.upload(file, signal); } catch (error) { done = { state: "failed", reason: error instanceof Error ? error.message : String(error) }; }
         if (signal.aborted || !c.items.includes(item)) return;
         Object.assign(item, done.state === "attached" ? { state: "attached", title: done.title, material: { kind: "attachment", ref: done.ref, title: done.title } } : { state: "failed", reason: done.reason });
         c.paint();
-      }
+      }));
     },
   };
 }

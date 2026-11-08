@@ -25,6 +25,8 @@ export function composerMenus(c: Composer): ComposerMenus {
     if (c.open !== menu) c.close();
     menu.innerHTML = html;
     menu.hidden = false; c.open = menu;
+    // A menu rises from the composer: it is no taller than the room above it, so in a short window it scrolls instead of leaving the screen.
+    menu.style.setProperty("--mw-composer-menu-room", `${Math.max(96, Math.floor(shell.getBoundingClientRect().top - 14))}px`);
     menu.parentElement?.querySelector("[aria-expanded]")?.setAttribute("aria-expanded", "true");
     if (focus) menu.querySelector<HTMLElement>("[data-composer-query], [role^=menuitem]:not(:disabled)")?.focus({ preventScroll: true });
   }

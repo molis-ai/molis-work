@@ -377,6 +377,8 @@ export const CRAFT_ASSISTANT_STYLES = `  /* 概况: the state, what it is doing 
     position: absolute; top: 8px; right: 4px; display: inline-flex; align-items: center; gap: 3px; height: 20px; padding: 0 7px; border: 0; border-radius: 6px;
     background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--ink); font: inherit; font-size: 12px; cursor: pointer;
   }
+  /* The target reaches past the drawn line, to the bar's 28px floor (44px to a finger, in the touch rules). */
+  ${ASSIST} .assistant-attention::after { content: ""; position: absolute; inset: -4px 0; }
   ${ASSIST} .assistant-attention[hidden] { display: none; }
   ${ASSIST} .assistant-attention svg { width: 14px; height: 14px; }
   ${ASSIST} .assistant-attention:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }

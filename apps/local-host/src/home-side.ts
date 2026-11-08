@@ -33,7 +33,7 @@ export interface PluginPlatformHome {
   capturePermission(project: PluginInstanceRecord, permission: string): () => void;
 }
 
-type HomeSideOptions = Pick<MolisWorkLocalHostOptions, "completeText" | "pluginFixtures" | "workspaceFor" | "workspacesFor">;
+type HomeSideOptions = Pick<MolisWorkLocalHostOptions, "completeText" | "pluginFixtures" | "workspaceFor" | "workspacesFor" | "directoriesFor">;
 
 /**
  * What each Home's Host was built with, by resolved path. A Home has one open Host at a time (its Agent service binds the
@@ -56,7 +56,7 @@ export function pluginCatalogFor(home: string): LocalWebCatalogRunner | undefine
  * (its model injection, the fixtures it was given). Platforms read it when they start or when a call needs it, not here.
  */
 export function bindHomeSide(host: MolisWorkLocalHost, homeDirectory: string, options: HomeSideOptions): void {
-  ensureSystemAgentService(host, homeDirectory, undefined, { workspaceFor: options.workspaceFor, workspacesFor: options.workspacesFor });
+  ensureSystemAgentService(host, homeDirectory, undefined, { workspaceFor: options.workspaceFor, workspacesFor: options.workspacesFor, directoriesFor: options.directoriesFor });
   sides.set(path.resolve(homeDirectory), { host, options });
 }
 

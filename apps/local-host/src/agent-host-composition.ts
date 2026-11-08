@@ -1,3 +1,4 @@
+import path from "node:path";
 import { currentPluginInvocation } from "@molis-ai/molis-work-plugin-runtime";
 import type { PrologueInferenceClient } from "@molis-ai/molis-work-service-agent-host";
 import { pdfDocumentParser } from "./pdf-document-parser.js";
@@ -11,6 +12,7 @@ import {
   AgentHost,
   createPrologueNodeAdapter,
   registerAgentHostCapabilities,
+  type AgentHostWorktree,
   type AgentStartAuthority,
   type PrologueNodeAdapterOptions,
   type AgentPromptResolver,
@@ -18,7 +20,7 @@ import {
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { CHARACTER_ARTIFACT_TYPE, CHARACTER_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/characters";
 import { freezeProjectCharacter } from "./characters-host.js";
-import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
+import type { ProjectDirectories, ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { readProjectGuidance, type ProjectGuidanceFacts } from "./goal-callers.js";
 import type { AgentPromptText } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { ActionError, type ActionCallContext, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -26,6 +28,7 @@ import { ActionError, type ActionCallContext, type ActionView, type ExactActionR
 import type { MolisWorkLocalHost, MolisWorkProjectRuntime } from "./project-host.js";
 import { registerWorkspaceGitActions } from "./workspace-git-actions.js";
 import { registerWorkspaceGitWriters } from "./workspace-git-writers.js";
+import { createGitWorktreePort } from "./workspace-git-worktrees.js";
 import { draftText } from "./model-draft.js";
 import { agentHostCapabilities, type AgentMcpLibrary, type AgentRuntimeDescriptor, type AgentSkillOwner, type AgentWriteCheckerStore } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { resolveConfiguredHome } from "./product-home.js";
@@ -46,14 +49,14 @@ import { workAuthorityCheck } from "./agent-work-authority.js";
 export interface AgentHostCompositionOptions {
   /** The person's edits of registered prompts; runs use them from their next start. */
   prompts?: AgentPromptResolver;
-  /** Called only inside the approved worktree-creation Effect. */
-  authorizeWriterDirectory?(projectId: string, canonicalPath: string): Promise<void>;
   localHost: MolisWorkLocalHost;
   homeDirectory?: string;
   projectReference?(projectId: string): Promise<LocalHostProjectReference>;
   /** Resolves the workspace a project is bound to, for directory authority. */
   workspacesFor?(projectId: string): readonly ProjectWorkspaceRef[] | Promise<readonly ProjectWorkspaceRef[]>;
   workspaceFor(projectId: string): ProjectWorkspaceRef | null | Promise<ProjectWorkspaceRef | null>;
+  /** The project's folders with their roles and revision, which a round freezes as where it works; absent where the Host keeps no catalog. */
+  directoriesFor?(projectId: string): ProjectDirectories | undefined | Promise<ProjectDirectories | undefined>;
   /** The owning server supplies storage and credential access for this Home. */
   prologue?: Omit<PrologueNodeAdapterOptions, "app">;
 }
@@ -139,7 +142,7 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     {
       agentHost: () => agentHost,
       originalInput: (_runtime, caller) => currentOriginalInput(caller),
-      authority: (runtime, pluginId, caller) => startAuthority(runtime, pluginId, options.workspaceFor, options.localHost, options.workspacesFor, options.homeDirectory, caller),
+      authority: (runtime, pluginId, caller) => startAuthority(runtime, pluginId, options, caller),
       projectId: (runtime) => runtime.project_id,
       mcpChanged: (runtime, runtimeId, library, owner, check) => externalMcp.sync(runtime, runtimeId, library, owner, check),
       writeCheckers: async (runtime) => ({ workspaces: await workspaceGrants(options, runtime.project_id), store: keptWriteCheckers(prologue) }),
@@ -148,8 +151,8 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
   const unregisterGit = registerWorkspaceGitActions({ localHost: options.localHost, homeDirectory: options.homeDirectory ?? resolveConfiguredHome(),
     gitReviews: async () => { await initialize(); return prologue?.gitReviews; }, reviews: async () => { await initialize(); return agentHost.reviews; },
     workspaces: projectId => workspaceGrants(options, projectId), output: async projectId => options.workspaceFor(projectId) });
-  const unregisterWriters = registerWorkspaceGitWriters({ localHost: options.localHost, authorizeWriterDirectory: options.authorizeWriterDirectory,
-    runtime: async () => { await initialize(); return prologue; }, workspaces: projectId => workspaceGrants(options, projectId) });
+  const unregisterWriters = registerWorkspaceGitWriters({ localHost: options.localHost, runtime: async () => { await initialize(); return prologue; },
+    workspaces: projectId => workspaceGrants(options, projectId), output: async projectId => options.workspaceFor(projectId) });
   // Drafts borrow the same owner as Agent runs; only the ephemeral model Session is scoped to the request.
   const unregisterDraft = options.localHost.registerAction(agentHostCapabilities.draftText, async (_project, input, invocation) => {
     if (!options.prologue) throw new ActionError("actions.connection_required", "模型执行方尚未接通，不能起草");
@@ -191,7 +194,7 @@ function charactersCatalog(options: AgentHostCompositionOptions, agentHost: Agen
     listRuntimes: async () => { await initialize(); return agentHost.descriptors(); },
     listActions: async (runtimeId: string) => {
       await initialize();
-      const authority = await startAuthority(runtime, CHARACTER_PLUGIN_ID, options.workspaceFor, options.localHost, options.workspacesFor, options.homeDirectory);
+      const authority = await startAuthority(runtime, CHARACTER_PLUGIN_ID, options);
       return authority.actions ? (await authority.actions(runtimeId)).discover() : [];
     },
   };
@@ -216,13 +219,32 @@ async function workspaceGrants(options: Pick<AgentHostCompositionOptions, "works
   return options.workspacesFor ? await options.workspacesFor(projectId) : [await options.workspaceFor(projectId)].filter((item): item is ProjectWorkspaceRef => item !== null);
 }
 
+/**
+ * Where a round may run in this project now (specs/shared-sources-and-surfaces §3, SSC-15): the output, verified, and the Host's own
+ * worktrees of it. An input folder is read, never run in: it is named only so a request for it is refused as input-only.
+ */
+async function runPlaces(options: Pick<AgentHostCompositionOptions, "workspaceFor" | "directoriesFor">, projectId: string) {
+  const found = await options.workspaceFor(projectId), output = found?.realpath_verified ? found : null;
+  const listed = output && options.directoriesFor ? await options.directoriesFor(projectId) : undefined;
+  const directories = output && listed ? { revision: listed.revision, output: { workspace_id: output.workspace_id, canonical_path: output.canonical_path },
+    inputs: listed.directories.filter(row => row.roles.includes("input")).map(row => ({ workspace_id: row.workspace_id, canonical_path: row.canonical_path })) } : undefined;
+  return { output, directories, worktrees: (): Promise<readonly AgentHostWorktree[]> => output ? hostWorktrees(output.canonical_path) : Promise.resolve([]) };
+}
+
+/** The worktrees the Host made of this output, as Git reports them now; reading them runs Git, so only when a round needs one. */
+async function hostWorktrees(outputPath: string): Promise<readonly AgentHostWorktree[]> {
+  try {
+    return (await createGitWorktreePort(outputPath).inspect()).owned.map(tree => ({ worktree_id: tree.worktree_id, canonical_path: path.resolve(outputPath, tree.directory) }));
+  } catch { return []; } // Not a repository, or Git cannot be run: none of its directories is a worktree the Host made.
+}
+
 async function preparePluginAgent(options: AgentHostCompositionOptions, caller: HostPluginCaller, subject?: string) {
   caller.assertActive();
   if (!caller.project_id || !options.projectReference) throw new ActionError("actions.connection_required", "Agent 需要项目连接目录");
   const reference = await options.projectReference(caller.project_id);
   caller.assertActive();
   const authority = await options.localHost.withProject(reference, runtime =>
-    startAuthority(runtime, caller.plugin_id, options.workspaceFor, options.localHost, options.workspacesFor, options.homeDirectory, caller, subject));
+    startAuthority(runtime, caller.plugin_id, options, caller, subject));
   const workspaces = await workspaceGrants(options, caller.project_id);
   caller.assertActive();
   return { authority, workspaces };
@@ -240,21 +262,18 @@ function currentOriginalInput(caller: HostPluginCaller | undefined) {
 async function startAuthority(
   runtime: MolisWorkProjectRuntime,
   pluginId: string,
-  workspaceFor: AgentHostCompositionOptions["workspaceFor"],
-  localHost: MolisWorkLocalHost,
-  workspacesFor?: AgentHostCompositionOptions["workspacesFor"],
-  homeDirectory?: string,
+  options: AgentHostCompositionOptions,
   caller?: HostPluginCaller,
   subject?: string,
 ): Promise<AgentStartAuthority> {
+  const { localHost, homeDirectory } = options;
   // A plugin's Agent declarations come only from its running activation (PG-051 RAC-195). A call without one (the Characters host
   // listing actions) gets none: it lists what it may call, and a run of a plugin role finds no role and is refused.
   const declared = caller ? { manifest: caller.declaration.manifest.agent, prompts: caller.declaration.agent_prompts, skills: caller.declaration.agent_skills } : undefined;
   const manifest = caller?.declaration.manifest ?? PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.manifest.plugin_id === pluginId)?.manifest;
   const consumesCharacters = manifest?.artifacts?.consumes?.some(type => type.artifact_type_id === CHARACTER_ARTIFACT_TYPE && type.schema_version === /* @version type.character.definition */ 1);
   const original = currentOriginalInput(caller);
-  const workspace = await workspaceFor(runtime.project_id);
-  const workspaces = workspacesFor ? await workspacesFor(runtime.project_id) : workspace ? [workspace] : [];
+  const places = await runPlaces(options, runtime.project_id);
   // The round's number: the call that starts it (agent.run.start), else a new one. The Runtime calls its tools later, in its own loop,
   // outside that call, so the number goes into every tool call's context instead of being read from the scope.
   const callId = currentCallId() ?? newCallId();
@@ -262,7 +281,10 @@ async function startAuthority(
     call_id: callId,
     ...(original ? { original_input: original } : {}),
     manifest: declared?.manifest ?? { roles: [], prompts: [] },
-    authorizedDirectories: workspaces.filter(entry => entry.realpath_verified).map(entry => entry.canonical_path),
+    // A round works in the output or one of the Host's worktrees of it, never in an input folder (SSC-15).
+    authorizedDirectories: places.output ? [places.output.canonical_path] : [],
+    ...(places.directories ? { directories: places.directories } : {}),
+    worktrees: places.worktrees,
     prompts: declared?.prompts ?? [],
     skills: declared?.skills ?? [],
     skill_owner: { project_id: runtime.project_id, plugin_id: pluginId },
@@ -359,10 +381,18 @@ function inferenceClient(initialize: () => Promise<void>, current: () => Awaited
   };
 }
 
-/** A file keeps its project directory grant; a prepared connection proves its own narrow, durable read grant. */
+/**
+ * A round's directory is still where it may run: the output, or one of the Host's worktrees of it (SSC-15); a prepared connection proves its
+ * own narrow, durable read grant. A worktree's after-write checkers are its output's: it is a checkout of the same repository.
+ */
 function hostConditionChecks(options: AgentHostCompositionOptions): NonNullable<PrologueNodeAdapterOptions["checks"]> {
   const home = options.homeDirectory ?? resolveConfiguredHome();
-  return { directoryAuthorized: async (project, directory) => (await workspaceGrants(options, project)).some(entry => entry.realpath_verified && entry.canonical_path === directory),
-    workspaceAt: async (project, directory) => (await workspaceGrants(options, project)).find(entry => entry.realpath_verified && entry.canonical_path === directory)?.workspace_id,
+  const runsIn = async (project: string, directory: string) => {
+    const places = await runPlaces(options, project);
+    if (!places.output) return undefined;
+    return places.output.canonical_path === directory || (await places.worktrees()).some(tree => tree.canonical_path === directory) ? places.output.workspace_id : undefined;
+  };
+  return { directoryAuthorized: async (project, directory) => await runsIn(project, directory) !== undefined,
+    workspaceAt: runsIn,
     owned: assistantConnectionCheckers(home, options.localHost), workAuthority: workAuthorityCheck(options.localHost) };
 }

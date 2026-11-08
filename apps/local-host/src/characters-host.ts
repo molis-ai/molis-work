@@ -91,7 +91,8 @@ function characterActionPorts(options: CharactersHostOptions, actorId: string, p
         if (!snapshot) throw characterErrors.invalid("预览已过期，请重新扫描本地 Agent");
         return use(service => service.import(snapshot, selection, existing));
       },
-      ...characterNativeExecution({ home, actorId, projectId, workspaces, spawn, executable: runtime => discovery.executable(runtime) }),
+      ...characterNativeExecution({ home, actorId, projectId, workspaces, spawn, executable: runtime => discovery.executable(runtime),
+        output: async () => options.workspaceFor ? await options.workspaceFor(projectId) : null }),
     },
     drafts: {
       list: () => use(service => service.list()), get: id => use(service => service.get(id)),

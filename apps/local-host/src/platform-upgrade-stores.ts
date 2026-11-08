@@ -15,7 +15,7 @@ import { MODEL_PREFERENCE_FILE } from "./model-configuration.js";
 import { ONBOARDING_FILE } from "./onboarding.js";
 import { PROJECT_ARRIVAL_FILE } from "./project-arrival.js";
 import { listProjectDatabasePaths } from "@molis-ai/molis-work-module-projects";
-import { assertCatalogOwner, CATALOG_BASELINE } from "./catalog-schema.js";
+import { assertCatalogOwner, CATALOG_BASELINE, catalogBaselineFor } from "./catalog-schema.js";
 import { homeStores, platformModelPreferences } from "./home-stores.js";
 import type { HomeUpgradeDescriptor } from "./home-upgrade-stores.js";
 import { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
@@ -130,7 +130,7 @@ const platformFiles = (): readonly HomeUpgradeDescriptor[] => [
  */
 export function platformUpgradeDescriptors(): readonly HomeUpgradeDescriptor[] {
   return [
-    { owner: "apps/local-host", pattern: CATALOG, baseline: CATALOG_BASELINE, version: CATALOG_VERSION_ACCESS, open: file => openSqliteConnection(file) },
+    { owner: "apps/local-host", pattern: CATALOG, baseline: CATALOG_BASELINE, baselineFor: catalogBaselineFor, version: CATALOG_VERSION_ACCESS, open: file => openSqliteConnection(file) },
     { owner: "apps/local-host", pattern: PROJECT_LIBRARY, baseline: PROJECT_DATABASE_BASELINE, open: file => openSqliteConnection(file), paths: projectDatabases },
     ...projectDatabasePlugins().map(manifest => pluginTablesDescriptor(manifest)),
     ...homeStores().stores.filter(store => store.library !== undefined).map(libraryDescriptor),

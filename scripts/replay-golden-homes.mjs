@@ -61,13 +61,26 @@ const homesOf = (manifest, home) => manifest.homes.map(item => {
   return { path: item.path, at, account: item.space.kind === "personal", projects: Object.values(item.projects).map(project => ({ project_id: project.project_id, database_path: path.join(at, project.database) })) };
 });
 
+/**
+ * The tables an owner's upgrade steps say they delete or merge, from the version the golden recorded on: they may lose rows or go (§4 step 5,
+ * the declaration beside the step). Read from the descriptors the upgrade itself runs, so a step that does not declare it fails here.
+ */
+function declaredReductions(entry) {
+  const relative = entry.path.replace(/^spaces\/[^/]+\//u, "");
+  const pattern = location => new RegExp(`^${location.split(path.sep).map(part => part === "*" ? "[^/]+" : part.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")).join("/")}$`, "u");
+  const descriptor = local.homeUpgradeDescriptors().find(item => "baseline" in item && pattern(item.pattern).test(relative));
+  return new Set((descriptor?.baseline.upgrades ?? []).filter(step => step.from >= entry.schema_version).flatMap(step => step.reduces_rows ?? []));
+}
+
 /** Every recorded table of every library still has at least its recorded rows (§4 step 5). Only numbers leave this function. */
 function assertRowsKept(manifest, home) {
   for (const entry of manifest.stores) {
     const db = new DatabaseSync(path.join(home, entry.path), { readOnly: true });
     let now;
     try { now = countSqliteRows(db); } finally { db.close(); }
+    const reduced = declaredReductions(entry);
     for (const [table, recorded] of Object.entries(entry.tables)) {
+      if (reduced.has(table)) continue;
       if (now[table] === undefined) throw goldenFailure("golden.table_missing", `${entry.path}#${table}`);
       if (now[table] < recorded) throw goldenFailure("golden.rows_decreased", `${entry.path}#${table}`);
     }

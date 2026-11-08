@@ -14,7 +14,7 @@ const SCRIPTED_MODEL_URL = "http://127.0.0.1:9/v1/chat/completions", SCRIPTED_AN
 /** What a case asks the scripted model; anything else is not this conversation. */
 const SCRIPTED_QUESTION = "金样对话";
 
-const { MolisWorkLocalHost, molisWorkHostProjectReference } = await import("@molis-ai/molis-work-app-local-host");
+const { MolisWorkLocalHost, molisWorkHostProjectReference, ensureSystemAgentService } = await import("@molis-ai/molis-work-app-local-host");
 const { withMolisWorkProjectCatalog } = await import("@molis-ai/molis-work-app-desktop");
 const { residentHost } = await import("../replay-plugins/signed-session.mjs");
 
@@ -82,8 +82,9 @@ export async function openGoldenHost(home, { web = true } = {}) {
   const real = enterHome(home), env = goldenEnvironment(real);
   if (!web) {
     const host = new MolisWorkLocalHost({ homeDirectory: real, completeText: null });
-    // The web surface does this when it starts; the Host's catalog-backed services wait for it.
-    host.configurePersonalPlanning(real, withMolisWorkProjectCatalog);
+    // The web surface does both when it starts: the Host's catalog-backed services wait for the first, and the Agent and Git services
+    // (their workspace and directory ports) read the same catalog only once the second has handed it over.
+    ensureSystemAgentService(host, real, host.configurePersonalPlanning(real, withMolisWorkProjectCatalog));
     return { host, home: real, close: () => host.close(), http: () => { throw goldenFailure("golden.web_surface_absent", "account"); } };
   }
   const resident = await residentHost(root, real, env);

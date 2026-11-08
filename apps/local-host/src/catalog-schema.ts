@@ -13,12 +13,12 @@ import {readDatabaseSpace} from '@molis-ai/molis-work-storage';
 export type CatalogDesktopSchema = (db: SqliteDatabase) => void;
 
 /** A new catalog: every owner's current tables on one local connection, at the catalog's version. */
-export function initializeCatalog(storage: LocalSqliteStorage, createDesktopPanelTables: CatalogDesktopSchema): void {
+export function initializeCatalog(storage: LocalSqliteStorage, createDesktopPanelTables: CatalogDesktopSchema, personal = readDatabaseSpace(storage.db)?.kind === "personal"): void {
   const db = storage.db;
   const metadata = new LocalCatalogMetadata(db);
   metadata.create();
   createProjectsSchema(db);
-  createProjectCatalogReplicationSchema(db,readDatabaseSpace(db)?.kind==='personal');
+  createProjectCatalogReplicationSchema(db, personal);
   createRuntimeContextBindingTables(db);
   createRuntimeContextSetupRequestTable(db);
   createRuntimeContextSuggestionRejectionTable(db);
@@ -28,22 +28,32 @@ export function initializeCatalog(storage: LocalSqliteStorage, createDesktopPane
   metadata.initialize(CATALOG_OWNER, CATALOG_SCHEMA_VERSION);
 }
 
-let catalogStatements: string | undefined;
-/** The catalog is built in code, not from one statement. Only an upgrade needs this as text, so opening a catalog never pays for it. The desktop's panel tables are not the Host's to name: an extra table passes the comparison. */
-function catalogSchemaStatements(): string {
-  if (catalogStatements !== undefined) return catalogStatements;
+const catalogStatements = new Map<boolean, string>();
+/**
+ * The catalog is built in code, not from one statement. Only an upgrade needs this as text, so opening a catalog never pays for it. The
+ * desktop's panel tables are not the Host's to name: an extra table passes the comparison. A personal space's catalog journals its projects
+ * for sync, so its triggers differ from every other catalog's: each kind has its own text.
+ */
+function catalogSchemaStatements(personal: boolean): string {
+  const known = catalogStatements.get(personal);
+  if (known !== undefined) return known;
   const reference = new LocalSqliteStorage(":memory:");
   try {
     createContextLedger(reference.db, { initializeSchema: true, authorize: () => false });
-    initializeCatalog(reference, () => undefined);
+    initializeCatalog(reference, () => undefined, personal);
     const objects = reference.db.prepare("SELECT sql FROM sqlite_master WHERE sql IS NOT NULL AND name NOT LIKE 'sqlite_%' ORDER BY rowid").all() as Array<{ sql: string }>;
-    catalogStatements = objects.map(({ sql }) => `${sql};`).join("\n");
-    return catalogStatements;
+    const statements = objects.map(({ sql }) => `${sql};`).join("\n");
+    catalogStatements.set(personal, statements);
+    return statements;
   } finally { reference.close(); }
 }
 
 /** The catalog as the upgrade process sees it: its version and steps stay where the catalog declares them. Its version is in `catalog_meta` (`CATALOG_VERSION_ACCESS`). */
-export const CATALOG_BASELINE = { version: CATALOG_SCHEMA_VERSION, upgrades: CATALOG_UPGRADES, get schema() { return catalogSchemaStatements(); } };
+export const CATALOG_BASELINE = { version: CATALOG_SCHEMA_VERSION, upgrades: CATALOG_UPGRADES, get schema() { return catalogSchemaStatements(false); } };
+const PERSONAL_CATALOG_BASELINE = { ...CATALOG_BASELINE, get schema() { return catalogSchemaStatements(true); } };
+
+/** The baseline an upgraded catalog must match: a personal space's has its sync triggers, so it is compared with that kind's (`db` is the catalog's own connection). */
+export const catalogBaselineFor = (db: Parameters<typeof readDatabaseSpace>[0]) => readDatabaseSpace(db)?.kind === "personal" ? PERSONAL_CATALOG_BASELINE : CATALOG_BASELINE;
 
 export function assertOwnedCatalog(storage: LocalSqliteStorage, databasePath: string): void {
   assertCatalogOwner(new LocalCatalogMetadata(storage.db).owner(),databasePath);

@@ -25,6 +25,8 @@ export interface HomeUpgradeFileDescriptor extends HomeUpgradeUnitDeclaration {
 
 export interface HomeUpgradeStoreDescriptor extends HomeUpgradeUnitDeclaration {
   readonly baseline: SqliteBaseline;
+  /** The baseline the upgraded store must match when it depends on the store itself (the catalog's triggers follow its space); `baseline` otherwise. */
+  readonly baselineFor?: (db: UpgradeSqliteConnection) => SqliteBaseline;
   /** A writable connection on the store's own driver, which must not write on its own: never `openHomeSqliteDatabase`, which binds the space first (§2.1). */
   readonly open: (file: string) => UpgradeSqliteConnection;
   /** Where this store keeps its version, when that is not `PRAGMA user_version`. */

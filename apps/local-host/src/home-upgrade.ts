@@ -218,7 +218,7 @@ function advance(round: Round, store: Store): void {
     else if (descriptor.upgrade) descriptor.upgrade(file);
     else {
       const db = descriptor.open(file);
-      try { runSqliteUpgrade(db, file, descriptor.baseline, round.root, descriptor.version); }
+      try { runSqliteUpgrade(db, file, descriptor.baselineFor?.(db) ?? descriptor.baseline, round.root, descriptor.version); }
       finally { db.close(); }
     }
   } catch (error) { failure = error; failed = true; }

@@ -1,15 +1,23 @@
 import type { ComposerPickItem } from "@molis-ai/molis-work-contracts/platform/composer";
-import { renderComposerAddMenu, renderComposerDeliveryMenu, renderComposerPick } from "../composer-parts.js";
+import type { SearchHit, SearchQueryResponse } from "@molis-ai/molis-work-contracts/services/search";
+import { renderComposerAddMenu, renderComposerDeliveryMenu, renderComposerMention, renderComposerPick } from "../composer-parts.js";
 import { composerDeliveries } from "../composer-rules.js";
 import { http, mac, route, type Composer, type Source } from "./composer-state.js";
 
 /**
- * The composer's menus (§3.3): ＋ (files, the registered sources, the page's `/` commands) and, while a turn runs, the delivery ▾.
- * One is open at a time; Esc and a press elsewhere close it. A source is called through the Workbench's own route as the person
- * (S-composer-source-call); its answers are kept only for the latest query of the menu still open.
+ * The composer's menus (§3.3): ＋ (files, the registered sources, the page's `/` commands), `@` (the system search, `/api/search/query`,
+ * the same transport the search palette uses) and, while a turn runs, the delivery ▾. One is open at a time; Esc and a press elsewhere
+ * close it. A source and the search are called through the Workbench's own routes as the person (S-composer-source-call); a query
+ * waits until the typing pauses, one under way is aborted by the next, and only the latest answer of the menu still open is kept.
  */
 
-export interface ComposerMenus { openAdd(focus: boolean, toggle?: boolean): void; toggleDelivery(toggle: HTMLElement): void; pick(source: Source): void; untype(): void }
+export interface ComposerMenus {
+  openAdd(focus: boolean, toggle?: boolean): void; toggleDelivery(toggle: HTMLElement): void; pick(source: Source): void; untype(): void;
+  /** Follows the text after an `@` (opened when `at` is given); closes when the caret leaves the words after it. */
+  mention(at?: number): void;
+  /** Takes the `@words` out of the text and gives the chosen hit. */
+  mentioned(index: number): SearchHit | null;
+}
 
 export function composerMenus(c: Composer): ComposerMenus {
   const { shell, field, labels, options, signal } = c;
@@ -22,13 +30,16 @@ export function composerMenus(c: Composer): ComposerMenus {
   }
   c.close = (refocus = false) => {
     if (!c.open) return;
-    const menu = c.open; c.open = null; c.picking = null; c.queries.end();
+    const menu = c.open, back = c.typed || c.mention; c.open = null; c.picking = null; c.mention = null; c.queries.end(); clearTimeout(timer);
     const opener = menu.parentElement?.querySelector<HTMLElement>("[aria-expanded]");
     opener?.setAttribute("aria-expanded", "false");
     const inside = menu.contains(document.activeElement);
     menu.hidden = true; menu.replaceChildren();
-    if (refocus || inside) (c.typed ? field : opener)?.focus({ preventScroll: true });
+    if (refocus || inside) (back ? field : opener)?.focus({ preventScroll: true });
   };
+  let timer = 0;
+  /** One query at a time: after `wait`, unless the menu it was for has gone; the next one aborts it. */
+  const later = (still: () => boolean, wait: number, run: () => void) => { clearTimeout(timer); timer = window.setTimeout(() => { if (still()) run(); }, wait); };
   const addMenu = () => shell.querySelector<HTMLElement>(".mw-composer__start [data-compose-menu]");
   function drawAdd(focus = true) {
     const menu = addMenu();
@@ -60,24 +71,48 @@ export function composerMenus(c: Composer): ComposerMenus {
     pick(source) {
       c.picking = { source, query: "" };
       drawAdd();
-      let timer = 0;
-      const ask = (words: string, wait: number) => {
-        clearTimeout(timer);
-        timer = window.setTimeout(() => c.queries.latest(
-          (aborted) => http()!<{ items: ComposerPickItem[] }>(route("/api/composer/pick"), { signal: aborted, body: {
-            layer: options.kind, capability_id: source.capability_id, version: source.version, provider_id: source.provider_id, query: words, limit: 20,
-            ...(options.near?.() ? { near: options.near()! } : {}) } }),
-          (found) => { if (c.picking?.source === source) { c.picking.found = found.items; redrawPick(source); } },
-          () => { if (c.picking?.source === source) { c.picking.found = c.fill(labels.unavailable, { name: `${source.provider} · ${source.title}` }); redrawPick(source); } },
-        ), wait);
-      };
+      const ask = (words: string, wait: number) => later(() => c.picking?.source === source, wait, () => void c.queries.latest(
+        (aborted) => http()!<{ items: ComposerPickItem[] }>(route("/api/composer/pick"), { signal: aborted, body: {
+          layer: options.kind, capability_id: source.capability_id, version: source.version, provider_id: source.provider_id, query: words, limit: 20,
+          ...(options.near?.() ? { near: options.near()! } : {}) } }),
+        (found) => { if (c.picking?.source === source) { c.picking.found = found.items; redrawPick(source); } },
+        () => { if (c.picking?.source === source) { c.picking.found = c.fill(labels.unavailable, { name: `${source.provider} · ${source.title}` }); redrawPick(source); } },
+      ));
       ask("", 0);
       c.open?.querySelector<HTMLInputElement>("[data-composer-query]")?.addEventListener("input", (event) => {
         if (!c.picking) return;
         c.picking.query = (event.target as HTMLInputElement).value; c.picking.found = undefined; redrawPick(source); ask(c.picking.query, 250);
       }, { signal });
     },
-    /** A trigger typed into the text (`/` on an empty line, `@` after a space) is taken out once its menu chose something. */
+    mention(at) {
+      const menu = addMenu();
+      if (!menu) return;
+      if (at !== undefined) c.mention = { at, query: "" };
+      const now = c.mention, caret = field.selectionStart;
+      if (!now) return;
+      const words = field.value.slice(now.at + 1, caret);
+      if (field.value[now.at] !== "@" || caret <= now.at || /\s/.test(words) || words.length > 200) { c.close(); c.mention = null; return; }
+      if (words === now.query && (c.open === menu || !words)) return;
+      now.query = words; now.found = undefined;
+      // A bare `@` has nothing to look for yet (the search takes one word at least): the menu waits for it.
+      if (!words) { c.close(); c.mention = now; return; }
+      show(menu, renderComposerMention(labels, now.found), false); c.mention = now;
+      later(() => c.mention === now, 250, () => void c.queries.latest(
+        (aborted) => http()!<SearchQueryResponse>(route("/api/search/query"), { signal: aborted, body: { query: words, scope: "all", limit: 8 } }),
+        (found) => { if (c.mention === now) { now.found = found.hits; show(menu, renderComposerMention(labels, now.found), false); } },
+        () => { if (c.mention === now) { now.found = c.fill(labels.unavailable, { name: "@" }); show(menu, renderComposerMention(labels, now.found), false); } },
+      ));
+    },
+    mentioned(index) {
+      const now = c.mention, hit = now && Array.isArray(now.found) ? now.found[index] : undefined;
+      if (!now || !hit) return null;
+      const end = now.at + 1 + now.query.length;
+      field.value = field.value.slice(0, now.at) + field.value.slice(end);
+      field.setSelectionRange(now.at, now.at);
+      c.close();
+      return hit;
+    },
+    /** A `/` typed on an empty line is taken out once its menu chose something. */
     untype() {
       if (!c.typed) return;
       const at = field.selectionStart, before = field.value.slice(0, at);

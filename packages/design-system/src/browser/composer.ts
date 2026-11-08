@@ -100,6 +100,12 @@ function wire(c: Composer, { drafts, menus, sender }: Parts, files: HTMLInputEle
     if (data.composerCommand) { const command = options.commands?.[Number(data.composerCommand)]; menus.untype(); c.close(); field.focus(); return command?.run(); }
     if (data.composerMore !== undefined) return void target.setAttribute("aria-expanded", String(target.getAttribute("aria-expanded") !== "true"));
     if (data.composerControl) {
+    if (data.composerMention) {
+      const hit = menus.mentioned(Number(data.composerMention));
+      if (hit) c.items = [...c.items, { title: hit.title, state: "attached", from: hit.plugin_title,
+        material: { kind: "material", ref: { subject: hit.subject, pin: { mode: "current", read_revision: hit.revision } }, title: hit.title, source: hit.source } }];
+      c.requestId = ""; drafts.save(); field.focus(); return c.paint();
+    }
       const control = options.controls?.find((one) => one.id === data.composerControl);
       if (control?.kind === "toggle") { const on = target.getAttribute("aria-pressed") !== "true"; target.setAttribute("aria-pressed", String(on)); control.change?.(on); }
       if (control?.kind === "button") control.run();
@@ -117,6 +123,10 @@ function wire(c: Composer, { drafts, menus, sender }: Parts, files: HTMLInputEle
     const key = composerKey(event, options.submitKeys !== false);
     if (key) { event.preventDefault(); return void sender.send(key === "after-run" ? "after-run" : undefined, true); }
     if (options.submitKeys !== false && !composing(event) && !enterHint.shown() && wantsEnterHint(event, field.value, field.selectionStart)) {
+    if (event.key === "ArrowDown" && c.open && (c.mention || c.typed) && !composing(event)) {
+      const first = c.open.querySelector<HTMLElement>("[role^=menuitem]:not(:disabled)");
+      if (first) { event.preventDefault(); return first.focus({ preventScroll: true }); }
+    }
       enterHint.done();
       c.note = { caption: labels.notice, text: c.fill(labels.enterHint, { keys: mac ? "⌘↵" : "Ctrl+↵" }), action: labels.enterHintDismiss, actionId: "hint" };
       c.paint();
@@ -130,7 +140,9 @@ function wire(c: Composer, { drafts, menus, sender }: Parts, files: HTMLInputEle
     drafts.save();
     const before = field.value.slice(0, field.selectionStart);
     if (data === "/" && before === "/" && options.commands?.length) { c.typed = "/"; menus.openAdd(false); }
-    else if (data === "@" && /(^|\s)@$/.test(before) && c.offersSources) { c.typed = "@"; menus.openAdd(false); }
+    // `@` after a space starts a system search for the words that follow it (§3.3), in every page that mounts a composer.
+    else if (data === "@" && /(^|\s)@$/.test(before) && c.offersSources) menus.mention(before.length - 1);
+    else if (c.mention) menus.mention();
     else if (c.typed) c.close();
     c.paint();
   }, { signal });

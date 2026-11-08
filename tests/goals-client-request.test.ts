@@ -123,6 +123,10 @@ test("PG094-09: a Goal document read keeps its one refusal copy, and an unreacha
   assert.deepEqual(lost.results, [false]);
   assert.deepEqual(lost.errors, ["连不上 Molis Work 服务，请稍后重试"]);
   assert.deepEqual(gone.splice(0), [], "an unreachable Host does not say the Goal is gone");
+  // A 404 that is not Goals' own "no such Goal" (a route the Host does not know, say) does not say the Goal is gone.
+  const route = await run(json(404, { error: "Goal 内容不存在" }), ["CORE"]);
+  assert.deepEqual(route.errors, ["无法读取这条 Goal 正文"]);
+  assert.deepEqual(gone.splice(0), [], "a 404 without Goals' not-found code does not say the Goal is gone");
 
   // A newer read cancels the older one, which ends quietly.
   const held: Answer = (sent) => sent.url.includes("/OLD/")

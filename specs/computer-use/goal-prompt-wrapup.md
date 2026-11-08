@@ -68,7 +68,7 @@
 1. **独立工作树。** 从最新 `origin/main` 建 `feat/computer-use-wrapup-20261018`，放在主检出之外；开工前 `git worktree list`、`git fetch origin main`、`gh pr list --state open`，记下在途 PR 与占用文件。不要在主检出改代码（4207 的真实 Home 在用），不要碰别人的未提交改动。
 2. **切片推进。** 一次只做一个切片；每个切片先写失败测试或复现，再实现，再跑相关用例；一个切片一个提交，PR 体量按 `PARALLEL-DEVELOPMENT.md` 控制。切片之间不交叉改同一批文件；合同变更单独一个提交。
 3. **冲突处理。** 动枢纽文件（`assistant-service.ts`、`computer-driver.ts`、`computer-desk.ts`、`ui-surfaces.ts`、`side-panel-computer.ts`）前先查在途 PR；能加新模块就不改大文件；必须改时先 rebase，冲突不猜，问用户或等对方合入。
-4. **构建/测试。** 整台机器同一时间只跑一个构建、一个浏览器批次；全量只在集成分支跑；失败用干净基线工作树对比；只按 pid 停自己的进程；测试用 `node scripts/run-tests.mjs`，选用例先用 `node scripts/affected-tests.mjs`。
+4. **构建/测试。** 整台机器构建和测试各三个槽位、同类第四个排队，同一工作树不并发构建（用户 2026-11-07 定）；全量只在集成分支跑；失败用干净基线工作树对比；只按 pid 停自己的进程；测试用 `node scripts/run-tests.mjs`，选用例先用 `node scripts/affected-tests.mjs`。
 5. **防腐线（逐条守住）。**
    - 不留 `legacy` / `compat` / `@deprecated` / `backfill`；合同变更只认现行取值，调用方一起改，不写别名。
    - 测试不 import 包内部；不同时从源码和 `dist` 加载同一个包。

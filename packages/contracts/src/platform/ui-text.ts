@@ -25,7 +25,7 @@ export type OwnedTextRef =
   | { readonly owner: string; readonly key: string; readonly args?: readonly TextArg[]; readonly fallback?: string }
   | { readonly literal: string };
 
-/** `owner` is a plugin_id or a platform owner's name; 200 is the longest plugin_id the Host's install actions take. */
+/** `owner` is a plugin_id or a platform owner's name; 200 is the longest plugin_id the Host's install actions take (a connector's slot actions take 160, and `parsePluginManifest` holds a Manifest to 200). */
 export const TEXT_REF_LIMITS = { key: 120, args: 8, arg_name: 64, arg_text: 2000, arg_at: 40, literal: 2000, fallback: 2000, owner: 200 } as const;
 
 /** A language tag. The Manifest's and the language pack's parsers both take it from here. */

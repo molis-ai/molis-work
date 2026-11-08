@@ -42,6 +42,13 @@ export interface SandboxPackage {
 }
 
 const refuse = (detail: string): never => { throw pluginErrors.declaration_invalid('沙箱包：' + detail); };
+/**
+ * Before the file and shape checks, whose own refusals would tell an author nothing about why (FSS-53). The way in comes with batch 16
+ * (specs/font-and-skin-system/a-section-contract.md §6.3), which reads a package's languages through `inspectPluginLocales`: strict, as this is not a content pack.
+ */
+function refuseLocales(manifest: PluginPackagePayload['manifest']): void {
+  if (manifest?.ui?.locales !== undefined) refuse('ui.locales 第 16 批才支持沙箱包。要试语言文件，用 molis-work plugin dev 跑；要安装，先去掉 ui.locales 和 locales/ 下的文件');
+}
 const plain = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 
 function jsonFile(files: ReadonlyMap<string, Uint8Array>, name: string): unknown {
@@ -75,6 +82,7 @@ function promptsOf(value: unknown): SandboxPackagePrompt[] {
 export function readSandboxPackage(payload: PluginPackagePayload): SandboxPackage {
   const wire = validated('manifest', () => parsePluginPackageManifest(payload.manifest));
   if (wire.kind !== 'app' || (wire.agent !== undefined && !Array.isArray(wire.agent))) refuse('文字正文只用于 app 包');
+  refuseLocales(wire);
   const manifest = wire as SandboxPackageManifest;
   const wanted = [...Object.values(SANDBOX_PACKAGE_FILES), ...(manifest.agent ?? []).map(item => item.body), ...(manifest.methods ?? []).map(item => item.body)];
   const files = new Map(payload.files.map(file => [file.path, Buffer.from(file.content_base64, 'base64')] as const));
@@ -148,6 +156,7 @@ export interface SandboxIntegrationPackage {
  * origins; any other declares its own (S-95), checked by the SDK's Manifest rules. Nothing here is written anywhere.
  */
 export function readSandboxIntegrationPackage(payload: PluginPackagePayload): SandboxIntegrationPackage {
+  refuseLocales(payload.manifest);
   const wanted = [SANDBOX_PACKAGE_FILES.manifest, SANDBOX_PACKAGE_FILES.contract, SANDBOX_PACKAGE_FILES.entrypoint] as string[];
   const files = new Map(payload.files.map(file => [file.path, Buffer.from(file.content_base64, 'base64')] as const));
   for (const path of files.keys()) if (!wanted.includes(path)) refuse('集成包只有清单、合同和代码，不能带 ' + path);

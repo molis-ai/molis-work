@@ -63,7 +63,14 @@
   "ui": {
     "contributions": [
       "io.molis.work.example.notes.main"
-    ]
+    ],
+    "locales": {
+      "default": "en",
+      "available": [
+        "en",
+        "zh"
+      ]
+    }
   },
   "actions": [
     {

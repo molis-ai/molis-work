@@ -180,7 +180,7 @@ test("purge needs a second exact home and user-project-count confirmation", asyn
     const registered = ["assistant/assistant.db", "placement/placement.db", "agent-definitions/agent-definitions.db", "characters/characters.sqlite",
       "agent-runtime/storage.key", "agent-runtime/records/run/one.json", "feed/secrets.json", "feed/evidence/blobs/one", "browser/sites.json",
       "browser/profile/Cookies", "plugin-builder/project/design/one.json", "cache/research-library/one/HEAD", "directory-access/bookmarks.json",
-      "git-operation-details.json", "runtime-integration-attempts/plan-one.json", "config/onboarding.json", "config/plugin-publisher.json", "config/project-arrival.json",
+      "git-operation-details.json", "runtime-integration-attempts/plan-one.json", "config/onboarding.json", "config/plugin-publisher.json", "config/project-arrival.json", "config/ui-locale.json",
       "config/mcp-tools.json", "config/external-mcp-tools.json", "config/connector-mcp-tools.json",
       // SSC-23: the files the person left in the default output directories when projects were deleted.
       "outputs/a-deleted-project/report.md"];

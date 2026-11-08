@@ -204,10 +204,11 @@ Shared controls, palette and icons are the `mw-*` HTML Slot primitives in `@moli
 
 | Concern | Source |
 | --- | --- |
-| Colour, surface, status, shadow and scrim tokens | `packages/design-system/src/palette.ts` → `renderShellTokens(theme)` |
+| Every token's value (colour, surface, status, shadow, scrim, corners, motion, focus, control height, type) | The baseline files in `packages/design-system/resources/`: `ui-spec.json` (every role, what may vary, the locked values), `skins/soft-workbench.json`, `fonts/system-sans.json`; read once through the SDK parsers by `src/baseline.ts`. A value changes there and nowhere else |
+| Colour, surface, status, shadow and scrim tokens as CSS | `packages/design-system/src/palette.ts` → `renderShellTokens(theme)` |
 | Corners, focus, motion, icon sizes | `renderShapeTokens()` (safe in late layers) |
 | Control height and padding | `renderControlMetrics()` — declared only by early layers so compact (28px) and touch (44px) rules win |
-| Font stacks and weight roles | `packages/design-system/src/typeface.ts` (`FONT_STACK`, `MONO_FONT_STACK`, `TYPEFACE_STYLES`) |
+| Font stacks and weight roles as CSS | `packages/design-system/src/typeface.ts` (`FONT_STACK`, `MONO_FONT_STACK`, `TYPEFACE_STYLES`) |
 | `mw-*` primitives | `packages/design-system/src/styles/primitives.ts` and `src/primitives/*` |
 | Final expression layer: desk, sheet, bottom bar geometry, depth, motion, moments | `packages/design-system/src/styles/craft-finish.ts` (`CRAFT_FINISH_STYLES`, last on every page before the skins) |
 | Skins (Tray, Pill) | `packages/design-system/src/styles/skins.ts` (`SKIN_STYLES`, the very last layer; draws nothing for the default skin) |
@@ -587,7 +588,7 @@ Project Workspaces settings replace the standalone Workspace navigator. Show ass
 
 - **Do** build hierarchy from spacing, weight and meaningful boundaries; keep work on the one continuous sheet and let only raised things cast a shadow.
 - **Do** use ink blue for the one primary action and a selected choice, the accent blue for focus (the shared `--focus-ring` / `--focus-stroke`), links and in-progress, and status colours only for status.
-- **Do** take every colour, corner, height and duration from the shared tokens; add a missing one to `palette.ts` or the final layer rather than a local value.
+- **Do** take every colour, corner, height and duration from the shared tokens; add a missing one to the baseline files (`packages/design-system/resources/`: the role in `ui-spec.json`, its value in the skin file) rather than a local value.
 - **Do** keep the current tab, loaded body, selected directory item and owned terminal consistent without copying domain state.
 - **Do** retain source links, exact Artifact versions and original record IDs; make current facts distinct from historical evidence.
 - **Do** preserve visible focus, keyboard paths, error recovery, responsive reading and reduced motion. Keep the shell within the viewport and scroll long content in its owning component.

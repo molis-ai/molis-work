@@ -87,11 +87,27 @@ node dist/cli/main.js plugin validate "$plugin_dev_dir/sample/manifest.json"
 node dist/cli/main.js plugin dev "$plugin_dev_dir/sample" "$plugin_dev_dir/state" storage:private,artifact:write,artifact:read,ui:register --allow-unsigned-development
 ```
 
-`dev` 会真实安装、启动、检查连接、poll 一次、渲染已注册 UI，最后卸载运行实例并撤销 UI/授权上下文。输出 JSON 包含健康状态、poll 结果、各个 Artifact 版本、渲染 HTML 和最终安装记录；退出码 0 表示该次健康检查与 poll 成功。它不打开浏览器，也不把 HTML 渲染成功称为用户交互已验收。
+`node dist/cli/main.js` 就是 Molis Work 本体的命令 `molis-work`，contracts、SDK 两个包里没有它。装过 Home 的（见[安装](../installation.md)）也可以写 `~/.molis-work/bin/molis-work plugin …`，参数一样，它不在 PATH 上；公开安装包还没发布。仓库里的独立工具 `molis-work-plugin`（`tooling/plugin-cli`）能 `validate`、`create`、`pack`、签名，但今天装不到仓库外面（[BL-plugin-cli-standalone-install](../../specs/backlog/BL-plugin-cli-standalone-install.md)），也没有 Host：`dev`、`install` 在它上面报 `plugin.host_required`，要换成 `molis-work plugin …`。插件代码跑在 `molis-work` 的进程里，Node 版本跟它走（24.15.x，仓库的 `.nvmrc`）。
+
+`dev` 会真实安装、启动、检查连接、poll 一次、渲染已注册 UI（声明了 `ui.locales` 的，用 `--locale <语言>` 选语言，见下一节），最后卸载运行实例并撤销 UI/授权上下文。输出 JSON 包含健康状态、poll 结果、各个 Artifact 版本、渲染 HTML 和最终安装记录；退出码 0 表示该次健康检查与 poll 成功。它不打开浏览器，也不把 HTML 渲染成功称为用户交互已验收。
 
 再次运行同一条 dev 命令，新进程会从开发数据库恢复私人计数并生成下一版本；已产生的 Artifact 保留。空 grant 字符串 `""` 会触发缺权限拒绝。缺少显式源码执行选项不会执行插件。版本不兼容在加载入口前拒绝。开发代码可以访问进程和文件系统，Host grant 只限制提供给插件的 API，不能阻止任意 JS 自行执行其他操作。
 
-状态目录只能是新目录、空目录或已有 `.molis-work-plugin-development.json` 标记的开发目录。普通非空目录不会被用作数据库；这条命令不选择或改动用户项目 catalog。同一状态目录用于串行调试，不是多进程运行服务；强制杀进程后的安装状态恢复、后台托管与发行物安装不是本命令承诺。不要把正式项目或 Team Server 目录作为开发状态目录。
+状态目录只能是新目录、空目录或已有 `.molis-work-plugin-development.json` 标记的开发目录。普通非空目录不会被用作数据库（拒绝时错误码今天误报成 `plugin.manifest_invalid`，看 `message`，见 [BL-plugin-cli-dev-uncoded-errors](../../specs/backlog/BL-plugin-cli-dev-uncoded-errors.md)）；这条命令不选择或改动用户项目 catalog。同一状态目录用于串行调试，不是多进程运行服务；强制杀进程后的安装状态恢复、后台托管与发行物安装不是本命令承诺。不要把正式项目或 Team Server 目录作为开发状态目录。
+
+## 界面文字与语言文件
+
+插件的界面文字写在自己的语言文件里，每种语言一个 `locales/<语言>.json`，在 Manifest 的 `ui.locales` 声明（`{ "default": "en", "available": ["en", "zh"] }`）；代码里用 SDK `/ui` 的 `t("<plugin_id 最后一段>.<位置>.<元素>", 参数)` 和 `format`，语言由平台给。文件形状、键和参数的规则、`t` 与 `t.text` 的区别、颜色和字体变量见 [文字与外观](../../skills/molis-plugin-dev/text-and-appearance.md)。`create` 生成的样例已经带两种语言。
+
+**现在哪条路走得通：** 只有 `molis-work plugin dev`。加 `--locale <语言>` 选画页面的语言，不写用 `default`；语言不在 `available` 里报 `actions.input_invalid` 并列出可选的，没写 `ui.locales` 却传了 `--locale` 同样报错，提示先写 `ui.locales`。开发路径只有画页面时有语言：`start`、`health`、`sync`、动作处理器、定时器里调 `t` 抛 `ui.text_no_context`，要显示的句子存键和参数，到画页面时再 `t`。`pack` 会自动带上声明的语言文件，不用写进 `package.json` 的 `files`；但带 `ui.locales` 的沙箱包第 16 批之前装不上，安装时被拒并说明原因。内置插件第 16 批之前照旧用 `L`、`p.text` 和 `ui.messages`，不写 `ui.locales`（`tests/ui-text-locale-files.test.ts` 拦）。
+
+**先 `validate`，再 `dev`。** `validate` 和打包用同一套规则查全部语言文件（`packages/plugin-runtime/src/locale-packs.ts`，规则本身在 SDK 的 `parseLocalePack`、`inspectLocaleSet`）。`dev` 只读这次用的语言和默认语言两个文件，用同一套规则查：单个文件坏了（不是合法 JSON、有那五个字符、`owner` 或 `locale` 不符），或者这两种语言之间参数不一样、默认语言缺这次语言有的键，都拒绝运行（`plugin.package_invalid`）；没用到的语言它不读，全部语言的检查仍看 `validate`；这次的语言少几个键不挡运行，那几处显示默认语言的字。
+
+**`validate` 的结果怎么读：**
+
+- 失败（退出码 1，`{"valid":false,"code":"plugin.package_invalid","message":…}`）：声明的文件缺失；`owner` 不是 `plugin_id`、`locale` 和文件名不同；键的形状不对或不以 `plugin_id` 最后一段开头；文字里有 `<`、`>`、`&`、`"`、`'`；占位符不合规或写了旧的 `{count|a|b}`；默认语言缺别的语言有的键；参数和默认语言不一样（问题记在非默认语言的文件上，`message` 写出两个文件各用什么参数、哪个是默认语言；写错的可能是任何一边，代码里 `t` 传的参数名以默认语言为准）。`message` 逐条写文件、位置（含行列）、原因和改法。
+- 通过但有提示：别的语言少几个键（`ui.locale_missing_key`）、少几种单复数形式（`ui.locale_plural_forms`，缺的用 `other`）、某种形式没写出数字（`ui.hidden_number`）。这些放进输出的 `locale_notes`，每条有 `file`、`code`、`locale`、`key`、`reason`、`fix`，不挡运行；少的键在那种语言里显示默认语言的字。
+- `validate` 只读语言文件，不读代码。代码里写错的键，页面显示平台的「这句话暂时显示不了」，`dev` 的 stderr 有一行 `ui-text` `text-missing`，`fields` 里写出 `owner`、`key`、`locale`；代码传的参数名和文件不一样（文件写 `{keeper}`、代码传 `keepr`），页面原样显示 `{keeper}`，没有警告，要自己看 `rendered_ui`。
 
 ## 成果类型声明
 

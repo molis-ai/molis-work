@@ -5,7 +5,7 @@
 export function renderPromptSettings({ L }: { L(text: string): string }): string {
   return `<section class="settings-document prompt-settings" aria-labelledby="settings-title" data-prompt-settings>
     <header class="settings-heading"><div class="settings-heading-title"><h1 id="settings-title">${L("提示词")}</h1></div>
-      <p>${L("系统和插件交给模型的全部说明文字；角色由其中几段组成。修改从下一轮开始生效，正在进行的一轮不受影响；每一轮的记录会写明用的是默认版还是你的版本。")}</p></header>
+      <p>${L("系统和插件交给模型的说明文字；角色由其中几段组成。修改从下一轮开始生效，正在进行的一轮不受影响；每一轮的记录会写明用的是默认版还是你的版本。")}</p></header>
     <p class="prompt-settings-notice" role="note">${L("改这里的文字不会改变任何权限：能读写哪些目录、能调用哪些能力、哪些操作要你确认，都由系统在代码里执行，与文字写成什么无关。")}</p>
     <div class="prompt-settings-tools">
       <div class="mw-toggle-group settings-segmented" role="group" aria-label="${L("筛选")}">

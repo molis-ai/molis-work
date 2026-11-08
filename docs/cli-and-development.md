@@ -58,6 +58,8 @@ goal-tree-propose | goal-tree-read | goal-tree-check | goal-tree-decide
 
 上述每条 v1 命令都要用 `--db PATH` 指明项目数据库；没有默认路径，没给（缺值、空白，或 `--db` 后紧跟另一个 `--` 旗标）就报错，不会按当前目录猜一个库（`init` 也一样，数据库在 `PATH` 处创建）。相对路径按你写的那个，相对当前目录解析。复杂输入可以通过 `--json` 或 `--file payload.json` 传入。旧create-goal、Claim/Run、Evidence/Review和Contract/Candidate/Rewire等命令已退役，旧名字会报未知操作。日常笔记、报告、约定、收尾与继续使用MCP或Web，CLI没有同义事件写命令。每条 v1 命令调用 Goals 的一个动作（`goals.board.initialize`、`goals.snapshot.read`、`goals.active.set`、`goals.tree.submit`、`.read`、`.check`、`.decide`），调用者由宿主造：本机这个人，出处 `management`，只带这一个动作自己的权限；命令的输入与输出不变（只有一处例外，S8：`init` 不再收 `title`，项目的名字只在项目目录里，`snapshot` 里的看板也不再带 `title`），命令的 JSON 必须带这条命令绑定的 `project_id`，否则 `actions.scope_mismatch`。CLI是用户/管理和本地调试入口，不是Runtime的服务故障回退。`init`、`goal-tree-propose`、`goal-tree-check`、`active-goal` 与 `goal-tree-decide` 以本机这个人的身份写入，参数里不带身份：`goal-tree-propose` 和 `goal-tree-check` 的参数带了 `actor_id` 或 `actor_kind` 会被拒绝（`actions.input_invalid`），`goal-tree-propose` 的 `submitted_session_id` 也一样（这扇门背后没有 Runtime 会话），`goal-tree-decide` 的参数带了 `actor_id`、`actor_kind`、`audit_actor_id` 或 `runtime_actor_id` 同样被拒绝（决定是本机这个人作的，没有 Runtime 转交；`authority` 只写 `conversation_ref`、`message_ref` 这类出处，写了 `actor_id`、`actor_kind` 或 `authority_source` 也被拒绝），`active-goal` 不再读 JSON 里的 `actor_id`，旧脚本多写这个字段也不会被当成别人。
 
+插件作者的命令（`molis-work plugin create`、`validate`、`dev`、`pack`）见[插件开发手册](platform/PLUGIN-DEVELOPMENT.md#创建和运行)；`validate` 也查 Manifest `ui.locales` 声明的语言文件，挡得住的失败、只提示的放进 `locale_notes`，读法见手册的[界面文字与语言文件](platform/PLUGIN-DEVELOPMENT.md#界面文字与语言文件)。
+
 `molis-work demo remove --confirm` 先问这个 Home 的常驻服务：常驻服务应答时，由它的删除服务来删（项目里的终端还开着就拒绝，和设置页一样；删除记在本机这个人名下），地址取环境变量 `MOLIS_WORK_WEB_URL`，没有就是 `http://127.0.0.1:4173`。Home 里没有控制令牌、或那个地址没人应答，命令才在自己的进程里删；应答的是别的 Home 的服务、或终端还开着，命令报错退出，示例项目原样保留。`molis-work uninstall` 先停掉常驻服务，再在自己的进程里清示例项目。
 
 ## 项目结构
@@ -177,7 +179,7 @@ molis-work-mcp
 硬规则：
 
 - **不准把操作系统默认控件当成产品 UI。** 禁止系统下拉菜单、系统颜色选择器、系统日期/时间弹出、`alert` / `confirm` / `prompt`、未换肤的 `range`。选择打开后必须是 `mw-menu`，原生 `<select>` 只可隐藏当表单值。文件选择可隐藏原生 input，按钮必须是 `mw-btn`。原生 `<dialog>` 只留 Escape 和焦点圈，外观走 `mw-*`。详见 [mw-select-custom-menu](../specs/archive/mw-select-custom-menu/spec.md)。
-- **图标与色彩成套。** 动作图标从 Lucide 库取，色随表面（`--ink-soft`，当前 `--ink`）。插件没有身份色（画插件的地方 `--plugin-tint` 都是中性色）。石墨 `--action` 只给主操作和选中的选项；铜色 `--accent`（`--blue*` / `--focus` 的实际值）只给焦点、链接和进行中，不填按钮。状态走 status family。颜色、圆角、高度、时长只取 `palette.ts` 的 token，不写 hex，不用 `!important` 或按插件覆盖去压前面的层。不要第二套 emoji 图标。
+- **图标与色彩成套。** 动作图标从 Lucide 库取，色随表面（`--ink-soft`，当前 `--ink`）。插件没有身份色（画插件的地方 `--plugin-tint` 都是中性色）。石墨 `--action` 只给主操作和选中的选项；铜色 `--accent`（`--blue*` / `--focus` 的实际值）只给焦点、链接和进行中，不填按钮。状态走 status family。颜色、圆角、高度、时长只取共享 token（值只在 `packages/design-system/resources/` 的基线文件里），不写 hex，不用 `!important` 或按插件覆盖去压前面的层。不要第二套 emoji 图标。
 - **动效成套，而且要做。** 只用 `--dur-*`（按压 130、状态 250、到达 420）/ `--ease-quint` / `--ease-spring` 和已有位移（分段滑块、目录 yield、底栏菜单升起、`craft-rise` 到达）。状态变了要看得出走过去或到达，不要硬切。hover 是色阶，不是浮起；按下回弹。`prefers-reduced-motion` 去掉位移。不为动而动。
 - **键盘焦点**只用 `--focus-stroke`（2px 铜色、偏移 1px）；字段是铜色边框加 3px 铜色光晕。不要自己写焦点色，不要去掉焦点。旧的「内侧 1px ink」规则（[neutral-focus-stroke](../specs/archive/neutral-focus-stroke/spec.md)）已被 Soft Workbench 取代。
 - **字与层次。** 系统字体栈，字重只有 400 / 500 / 600（`--weight-body` / `--weight-control` / `--weight-title`），不准全局强制字重。工作都在一张连续白色工作面上，插件不画自己的外框卡片；只有浮起的东西投影。

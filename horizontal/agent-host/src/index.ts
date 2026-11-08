@@ -174,6 +174,11 @@ export interface AgentStartAuthority {
    */
   project_prompts?: readonly AgentPromptText[];
   /**
+   * The language this round replies in, in the words the Host chose. Only the Host gives it, like `call_id`: no start request carries a
+   * language, so a Plugin cannot set it. Composed with the role's prompts, so the round's frozen record names it.
+   */
+  reply_language?: AgentPromptText;
+  /**
    * The platform memory for this run, recalled by the Host for this consumer (the switches and scopes are the Host's).
    * Absent or null: the run is given no memory.
    */

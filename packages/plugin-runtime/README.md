@@ -27,6 +27,7 @@ PluginRuntime 使用注入的 repository 和 executor；启动或恢复产生新
 | [src/repository.ts](src/repository.ts) | 安装状态持久化 |
 | [src/private-storage.ts](src/private-storage.ts) | 按安装隔离的数据 |
 | [src/package-verification.ts](src/package-verification.ts) | 包和签名验证 |
+| [src/locale-packs.ts](src/locale-packs.ts) | 插件语言文件的唯一读取规则：`inspectPluginLocales`（安装、`validate`、`pack` 时读全部语言）、`pluginLocaleReader`（运行时，用到才读）。内容由来源给：开发路径是 [development-loader.ts](src/development-loader.ts) 的 `loadDevelopmentLocalePacks`，打包是 CLI 的文件读取。只有已解析的 `manifest.kind === "content"` 放宽标记字符；判断单条语言文件的工具从 SDK `/ui` 取，这里不写第二份 |
 | [src/runtime-rules.ts](src/runtime-rules.ts) | 清单校验、安装身份、必需授权检查这些不碰状态的规则 |
 | [src/model-service.ts](src/model-service.ts)、[src/action-scope.ts](src/action-scope.ts) | `services.model` 的规则（谁能调、调之前问什么）与「正在执行哪个动作」的记录 |
 | [src/background-service.ts](src/background-service.ts) | 一次已受理后台执行的原授权、取消与结束；不拥有任务状态或重放 |

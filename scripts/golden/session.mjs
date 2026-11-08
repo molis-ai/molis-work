@@ -117,7 +117,7 @@ export function goldenActions(session, project, tag) {
     const home = view.action.scope === "home";
     return (home ? session.host.homeActionClient() : session.host.actionClient(ref)).invoke(home ? { ...caller, project_id: null } : caller, view, input);
   };
-  return { call, http: session.http, projectId: project.project_id, tag };
+  return { call, http: session.http, projectId: project.project_id, home: session.home, tag };
 }
 
 /** tests/golden-writes/<owner>.ts, found by location and not by any declaration (§4 step 6). */

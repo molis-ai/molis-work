@@ -67,6 +67,9 @@ function declaredSidePrompt(authority: AgentStartAuthority, promptId: string | u
  * Layers are then ordered base → role → project, stably, so the order inside a
  * layer stays the one the role meant.
  *
+ * The reply language, when the Host gives one, comes after all of them: it is the
+ * Host's word about this round, in no layer a package or a project can reorder.
+ *
  * The task is not here. It travels as its own argument, because it is what the
  * user typed this time and nothing in a package may stand in for it.
  */
@@ -95,7 +98,8 @@ export function composeRolePrompts(
   }));
   const characterPrompt: AgentPromptText[] = character ? [{ prompt_id: `character-${character.character_id}`, version: character.reference.version,
     layer: "role", body: characterInstructions ?? character.instructions }] : [];
-  return orderPromptsByLayer([...own, ...characterPrompt, ...project]);
+  // Last, after the layers: whatever language the texts before it are written in, this is what the reply follows.
+  return [...orderPromptsByLayer([...own, ...characterPrompt, ...project]), ...(authority.reply_language ? [{ ...authority.reply_language }] : [])];
 }
 
 /** Omitting `execution` means read-only. Callers must not reimplement this default. */

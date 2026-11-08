@@ -59,16 +59,17 @@ export { renderIconSprite, ICON_LIBRARY, STATUS_ICON, listedIconNames, registere
 export {
   MW_CONTENT_MARKS,
   MW_CONTENT_SURFACES,
-  MW_CONTENT_THEME,
   MW_HUES,
   MW_SURFACES,
   renderControlMetrics,
   renderPaletteTokens,
   renderShapeTokens,
   renderShellTokens,
+  renderTerminalBase,
   type MwContentMarkId,
   type MwHueId,
 } from "./palette.js";
+export { BASELINE_FONT, BASELINE_REGISTRY, BASELINE_SKIN, BASELINE_SPEC } from "./baseline.js";
 export * from "./primitives/index.js";
 export * from './plugin-components.js';
 export * from './plugin-component-client.js';

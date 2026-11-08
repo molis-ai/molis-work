@@ -24,7 +24,7 @@ test("W3-07-6-01: plugin dev lists the 成果 versions the plugin published alth
     // The repository sample, with the workspace SDK where `npm install` would put the packed one.
     const sample = join(directory, "sample");
     mkdirSync(sample);
-    for (const file of ["index.mjs", "manifest.json", "package.json"]) cpSync(join(root, "examples/plugin-sample", file), join(sample, file));
+    for (const file of ["index.mjs", "manifest.json", "package.json", "locales"]) cpSync(join(root, "examples/plugin-sample", file), join(sample, file), { recursive: true });
     mkdirSync(join(sample, "node_modules/@molis-ai"), { recursive: true });
     symlinkSync(join(root, "packages/plugin-sdk"), join(sample, "node_modules/@molis-ai/molis-work-plugin-sdk"), "dir");
     const manifest = JSON.parse(readFileSync(join(sample, "manifest.json"), "utf8")) as { permissions: Array<{ permission: string }> };
@@ -50,7 +50,7 @@ test("W3-07-6-01 A3-DEV-01: Runtime refuses an undeclared development publicatio
   try {
     const sample = join(directory, "sample");
     mkdirSync(sample);
-    for (const file of ["index.mjs", "package.json"]) cpSync(join(root, "examples/plugin-sample", file), join(sample, file));
+    for (const file of ["index.mjs", "package.json", "locales"]) cpSync(join(root, "examples/plugin-sample", file), join(sample, file), { recursive: true });
     const manifest = JSON.parse(readFileSync(join(root, "examples/plugin-sample/manifest.json"), "utf8")) as { permissions: Array<{ permission: string }>; artifacts: { produces: unknown[] } };
     manifest.artifacts.produces = [];
     writeFileSync(join(sample, "manifest.json"), JSON.stringify(manifest));
@@ -80,7 +80,7 @@ function developmentRig(directory: string, failure?: "start" | "stop") {
   try {
     const sample = join(directory, "sample");
     mkdirSync(sample);
-    for (const file of ["index.mjs", "manifest.json", "package.json"]) cpSync(join(root, "examples/plugin-sample", file), join(sample, file));
+    for (const file of ["index.mjs", "manifest.json", "package.json", "locales"]) cpSync(join(root, "examples/plugin-sample", file), join(sample, file), { recursive: true });
     mkdirSync(join(sample, "node_modules/@molis-ai"), { recursive: true });
     symlinkSync(join(root, "packages/plugin-sdk"), join(sample, "node_modules/@molis-ai/molis-work-plugin-sdk"), "dir");
     if (failure) {
@@ -233,7 +233,7 @@ test("RAC-417 S-82 a development plugin that declares a type this build already 
   try {
     const sample = join(directory, "sample");
     mkdirSync(sample);
-    for (const file of ["index.mjs", "package.json"]) cpSync(join(root, "examples/plugin-sample", file), join(sample, file));
+    for (const file of ["index.mjs", "package.json", "locales"]) cpSync(join(root, "examples/plugin-sample", file), join(sample, file), { recursive: true });
     const manifest = JSON.parse(readFileSync(join(root, "examples/plugin-sample/manifest.json"), "utf8")) as {
       permissions: Array<{ permission: string }>; artifacts: { produces: Array<{ artifact_type_id: string }>; consumes: Array<{ artifact_type_id: string }> } };
     manifest.artifacts.produces[0]!.artifact_type_id = CHARACTER_ARTIFACT_TYPE;

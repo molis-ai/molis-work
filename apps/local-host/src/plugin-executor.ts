@@ -23,6 +23,11 @@ export interface PluginHostExecutorOptions {
     /** Composition-only metadata of the whole directory (what the Plugin Builder's catalog is made from). */
     inspect?(caller: import("@molis-ai/molis-work-contracts/platform/actions").ActionCallContext): Promise<readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionView[]> };
   ui: UiHostApi;
+  /**
+   * The language files of a definition, registered for the text tools while its session is open and taken back when it is released
+   * (specs/font-and-skin-system/a-section-contract.md §8.3). Absent, or `null` for a definition: it has none, and nothing is read or registered.
+   */
+  localePacks?(definition: PluginDefinition): import("@molis-ai/molis-work-app-workbench").PluginTextReader | null;
   /** The Home the platform reaches in process; absent or `null`: none (a developed plugin, a bare executor in a test). */
   home?: PluginPlatformHome | null;
   /**

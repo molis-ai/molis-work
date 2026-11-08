@@ -12,14 +12,19 @@ export interface ModelStandIn {
   readonly origin: string;
   /** Foreground requests, excluding the Home's registered ending review and knowledge organization. */
   readonly requests: { model: string; offeredKey: string }[];
+  /** What each of those requests sent, as the model would read it. */
+  readonly bodies: string[];
   /** From now on the accepted key is refused too, the way a key that expired or was revoked at the provider is. */
   revoke(): void;
   close(): Promise<void>;
 }
 
-/** `throttledKey`: a key the stand-in answers with 429, the way a throttled or out-of-credit account is answered. */
-export async function startModelStandIn(acceptedKey: string, reply = "MOLIS_OK", options: { throttledKey?: string } = {}): Promise<ModelStandIn> {
-  const requests: ModelStandIn["requests"] = [];
+/**
+ * `throttledKey`: a key the stand-in answers with 429, the way a throttled or out-of-credit account is answered.
+ * `tool`: asked on each foreground request; a tool it names is called instead of replying, so a round can ask a question.
+ */
+export async function startModelStandIn(acceptedKey: string, reply = "MOLIS_OK", options: { throttledKey?: string; tool?: () => { name: string; input: unknown } | undefined } = {}): Promise<ModelStandIn> {
+  const requests: ModelStandIn["requests"] = [], bodies: string[] = [];
   let revoked = false;
   const server: Server = createServer(async (request, response) => {
     const chunks: Buffer[] = [];
@@ -30,7 +35,7 @@ export async function startModelStandIn(acceptedKey: string, reply = "MOLIS_OK",
     // The Home's registered background calls get their own valid answer, without consuming a foreground request.
     const aside = asideReply(body), content = aside ?? reply;
     if (request.method !== "POST" || request.url !== "/v1/chat/completions") { response.writeHead(404).end(); return; }
-    if (aside === undefined) requests.push({ model: String(payload.model ?? ""), offeredKey });
+    if (aside === undefined) { requests.push({ model: String(payload.model ?? ""), offeredKey }); bodies.push(body); }
     if (offeredKey === options.throttledKey) {
       response.writeHead(429, { "content-type": "application/json" });
       response.end(JSON.stringify({ error: { message: "rate limited" } }));
@@ -45,6 +50,13 @@ export async function startModelStandIn(acceptedKey: string, reply = "MOLIS_OK",
     if (payload.stream) {
       response.writeHead(200, { "content-type": "text/event-stream" });
       const send = (value: unknown) => response.write(`data: ${JSON.stringify(value)}\n\n`);
+      const tool = aside === undefined ? options.tool?.() : undefined;
+      if (tool) {
+        send({ id: "stand-in", object: "chat.completion.chunk", model: payload.model, choices: [{ index: 0, delta: { role: "assistant", tool_calls: [{ index: 0, id: "stand-in-call", type: "function", function: { name: tool.name, arguments: JSON.stringify(tool.input) } }] }, finish_reason: null }] });
+        send({ id: "stand-in", object: "chat.completion.chunk", model: payload.model, choices: [{ index: 0, delta: {}, finish_reason: "tool_calls" }], usage });
+        response.end("data: [DONE]\n\n");
+        return;
+      }
       send({ id: "stand-in", object: "chat.completion.chunk", model: payload.model, choices: [{ index: 0, delta: { role: "assistant", content }, finish_reason: null }] });
       send({ id: "stand-in", object: "chat.completion.chunk", model: payload.model, choices: [{ index: 0, delta: {}, finish_reason: "stop" }], usage });
       response.end("data: [DONE]\n\n");
@@ -58,7 +70,7 @@ export async function startModelStandIn(acceptedKey: string, reply = "MOLIS_OK",
   if (!address || typeof address !== "object") throw new Error("the stand-in provider did not start");
   const origin = `http://127.0.0.1:${address.port}`;
   return {
-    origin, baseUrl: `${origin}/v1`, requests,
+    origin, baseUrl: `${origin}/v1`, requests, bodies,
     revoke: () => { revoked = true; },
     close: () => new Promise<void>((resolve) => { server.close(() => resolve()); server.closeAllConnections(); }),
   };

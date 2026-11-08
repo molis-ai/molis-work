@@ -6,7 +6,7 @@ Manifest 定义在 `packages/contracts/src/platform/plugin-manifest.ts`，仍从
 
 - `schema_version`：现行格式为 `1`，支持 ports、events、views、routes、agent 和 actions。
 - `host_api_version`：与 schema 对齐，使用 `1`。
-- `plugin_id`：反向域名，如 `io.molis.work.feed`。
+- `plugin_id`：反向域名，前缀必须是 `io.molis.work.`，后面只用小写字母、数字、点和连字符，如 `io.molis.work.feed`；最长 200 个字符。声明了 `ui.locales` 的，最后一段是文字键的第一段，要以小写字母开头，不能是 `common`（[text-and-appearance.md](text-and-appearance.md)）。
 - `*_PROJECT_PLUGIN_ID`：项目库短名（`feed`）。和全球 id 不是同一个字段。
 - `name`、`version`：给人看的名字；代码变化必须自己递增 version。同一 `plugin_id + version + signature` 的 Manifest 不能静默改内容。升级来源要通过 `upgrade_compatibility` 精确声明。
 - `publisher.signature` 变了 = 新身份，旧 grant 不继承。

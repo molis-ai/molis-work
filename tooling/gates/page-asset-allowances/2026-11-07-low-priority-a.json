@@ -1,0 +1,12 @@
+{
+  "reason": "A批必要修复：共享带说明菜单样式归位、可见焦点与异步结算、选区与完整提示翻译、Feed预览说明。复用现有控件和翻译owner，无新增资源；各项只覆盖本次真实净增。",
+  "review": "docs/reviews/daily-quality/2026-11-07-low-a.md §页面资源增长评审（2026-11-08，Codex对ZCode实际diff独立审阅）",
+  "assets": {
+    "/assets/molis-work-arrival.css": 773,
+    "/assets/molis-work-plugin-frame.js": 212,
+    "/assets/molis-work-settings.css": 773,
+    "/assets/molis-work-workbench.css": 773,
+    "/assets/molis-work-workbench.js": 2782,
+    "/assets/molis-work-plugins/feed.js": 133
+  }
+}

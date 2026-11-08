@@ -236,7 +236,7 @@ test("PFG-22 review shots of the right side at 1440, 1024 and 390, Chinese and E
 test("PFG-22 between 601 and 760 every side tab shows on its own row, and a phone's strip keeps the current tab in view while the layout button ends the tabs' row", { timeout: 150_000 }, async t => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
-  const { evaluate, waitFor, command, sessionId, navigate, origin, projectId } = browser;
+  const { evaluate, waitFor, click, command, sessionId, navigate, origin, projectId } = browser;
   const shown = `[...document.querySelectorAll('${strip} [role=tab]')].filter(tab => tab.checkVisibility())`;
   const outside = `(() => { const box = document.querySelector('${strip}').getBoundingClientRect(); return ${shown}.filter(tab => { const at = tab.getBoundingClientRect(); return at.left < Math.max(0, box.left) - 0.5 || at.right > Math.min(innerWidth, box.right) + 0.5; }).map(tab => tab.dataset.sideTab); })()`;
   for (const [width, height] of [[601, 900], [700, 900], [760, 900], [700, 420]]) {
@@ -291,6 +291,40 @@ test("PFG-22 between 601 and 760 every side tab shows on its own row, and a phon
   for (const tab of [ends[0], ends.at(-1)]) {
     await waitFor(`(document.dispatchEvent(new CustomEvent('molis:side-open', { detail: { tab: ${JSON.stringify(tab)} }, cancelable: true })), document.querySelector('${strip} [aria-selected=true]')?.dataset.sideTab === ${JSON.stringify(tab)})`, 5_000);
     await waitFor(`!${outside}.includes(${JSON.stringify(tab)})`, 3_000);
+  }
+  // 07-1 S3: just after a group closes, a 360 or 320 phone row cannot hold the switch, a 98px current tab, the undo chip,
+  // 全部标签 and ＋ at once (English is the wider switch). The row scrolls rather than clips, as scheme A narrows the tabs to
+  // 96px and then scrolls: the current tab is in view as the chip comes in, each part shows whole once scrolled to, and ＋ is
+  // reached that way and takes the press.
+  for (const width of [360, 320]) {
+    await command("Emulation.setDeviceMetricsOverride", { width, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
+    await navigate(() => command("Page.navigate", { url: `${origin}/locale?lang=en&next=${encodeURIComponent(`/projects/${projectId}/`)}` }, sessionId));
+    await waitFor("typeof molisWorkOpenPlugin === 'function' && document.querySelector('[data-titlebar-tabs] .tab-pane-switch')", 15_000);
+    await evaluate("molisWorkOpenPlugin('todo')");
+    await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item[aria-current][data-plugin=todo]')", 15_000);
+    await evaluate("molisWorkOpenPlugin('pages')");
+    await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item[aria-current][data-plugin=pages]')", 15_000);
+    await click("[data-titlebar-tabs] .tab-item[aria-current][data-plugin=pages] [data-tab-close]");
+    await waitFor("document.querySelector('[data-titlebar-tabs] [data-tab-undo]')?.checkVisibility() && document.querySelector('[data-titlebar-tabs] .tab-item[aria-current][data-plugin=todo]')", 5_000);
+    const row = await evaluate<{ en: boolean; scrolls: boolean; current: { width: number; inView: boolean }; parts: string[]; plus: { inside: boolean; hit: boolean } }>(`(() => {
+      const strip = document.querySelector('[data-titlebar-tabs]'), edge = () => strip.getBoundingClientRect();
+      const inside = (el) => { const at = el.getBoundingClientRect(), box = edge(); return at.width > 0 && at.left >= box.left - 0.5 && at.right <= box.right + 0.5 && at.top >= box.top - 0.5 && at.bottom <= box.bottom + 0.5; };
+      const tab = strip.querySelector('.tab-item[aria-current]'), current = { width: Math.round(tab.getBoundingClientRect().width), inView: inside(tab) };
+      const overflowing = strip.scrollWidth > strip.clientWidth + 1, scrolls = !overflowing || getComputedStyle(strip).overflowX === 'auto';
+      const parts = [...strip.children].filter((child) => child.getClientRects().length && getComputedStyle(child).display !== 'none').flatMap((child) => {
+        child.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        const own = child.scrollWidth <= child.clientWidth + 1 || child.classList.contains('tab-scroll');
+        return inside(child) && own ? [] : [String(child.className).split(' ').pop() + ' ' + Math.round(child.getBoundingClientRect().left) + '→' + Math.round(child.getBoundingClientRect().right)];
+      });
+      const add = strip.querySelector('.tab-add-button'); add.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      const box = add.getBoundingClientRect(), hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+      return { en: document.documentElement.lang.startsWith('en'), scrolls, current, parts, plus: { inside: inside(add), hit: Boolean(hit && add.contains(hit)) } };
+    })()`);
+    assert.equal(row.en, true, `${width}: the page is in English`);
+    assert.ok(row.current.width >= 98 && row.current.inView, `${width}: the current tab keeps its 98px and is in view as the undo chip comes in (${JSON.stringify(row)})`);
+    assert.ok(row.scrolls, `${width}: a row that cannot hold it all scrolls rather than clips (${JSON.stringify(row)})`);
+    assert.deepEqual(row.parts, [], `${width}: every part of the row shows whole once scrolled to (${JSON.stringify(row)})`);
+    assert.ok(row.plus.inside && row.plus.hit, `${width}: ＋ is reached by scrolling and takes the press (${JSON.stringify(row)})`);
   }
 });
 

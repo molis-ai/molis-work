@@ -150,6 +150,8 @@ export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth
       }
       return tabScrollAllotment(innerWidth, siblingChrome, gapOf(strip), stripKids.length);
     };
+    // On a phone the titlebar's row scrolls when it cannot hold it all (workbench-navigation.ts); its edges fade like other scrollers.
+    if (strip.hasAttribute("data-titlebar-tabs")) strip.toggleAttribute("data-overflow-fade", phone);
     if (all) all.hidden = !phone;
     let allotted = allot();
     if (all && !phone && reserved + hugs.reduce((sum, hug) => sum + Math.min(hug, min), 0) > allotted + 0.5) { all.hidden = false; allotted = allot(); }
@@ -311,6 +313,13 @@ export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth
     strip.replaceChildren(fragment);
     scrollArea.scrollLeft = scrollLeft;
     shareTabStrip(scrollArea);
+    // A phone's row that scrolls (the undo chip came in) keeps the current tab in view.
+    const current = strip.hasAttribute("data-titlebar-tabs") && strip.scrollWidth > strip.clientWidth + 1 ? strip.querySelector("[data-tab-id][aria-current]") : null;
+    if (current) {
+      const edge = strip.getBoundingClientRect(), at = current.getBoundingClientRect();
+      if (at.left < edge.left) strip.scrollLeft -= edge.left - at.left;
+      else if (at.right > edge.right) strip.scrollLeft += at.right - edge.right;
+    }
     tabShareObserver.observe(strip);
     if (previousActive !== pane.activeTabId) requestAnimationFrame(() => {
       scrollTabIntoStrip(strip.querySelector('[data-tab-id][aria-current]'));

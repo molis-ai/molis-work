@@ -60,7 +60,23 @@
 }
 ```
 
-`locales/zh.json` 形状相同，`locale` 写 `zh`，`"greeting.main.unread": "{count} 条新笔记"`（中文不分单复数，写一句就够），`"greeting.main.level": "{at} 最高水位 {level} 米"`（参数顺序可以不同，名字要一样）。
+`locales/zh.json`：
+
+```json
+{
+  "format_version": 1,
+  "owner": "io.molis.work.demo.greeting",
+  "locale": "zh",
+  "messages": {
+    "greeting.main.title": "问候",
+    "greeting.main.hello": "你好，{name}",
+    "greeting.main.unread": "{count} 条新笔记",
+    "greeting.main.level": "{at} 最高水位 {level} 米"
+  }
+}
+```
+
+中文不分单复数，`unread` 写一句就够；`level` 的参数顺序可以和英文不同，名字要一样。
 
 - `owner` 是完整的 `plugin_id`，`locale` 和文件名相同。
 - 键是 `<plugin_id 最后一段>.<位置>.<元素>`：小写，2 到 5 段，最长 120 个字符。键说意思，不抄措辞；整句一个键，不拼半句（不写 `t("a") + "：" + title`）。
@@ -201,6 +217,6 @@ export default definePlugin({
 });
 ```
 
-`provider` 的 `health`、`sync` 返回什么、各字段的意思见 [integrations.md](integrations.md)。
+`provider` 的形状是合同里的 `IntegrationProviderPort`（`@molis-ai/molis-work-contracts/platform/plugin`）。`health()` 返回 `{ ok, status, message }`：`status` 是 `connected`、`disconnected`、`error`、`needs_auth` 之一，`message` 是给人看的一句话。`sync({ cursor, mode })` 成功时返回 `{ ok: true, mode: "live", cursor, items }`：`items` 是这次拉到的条目（这个例子没有，写空数组）；`cursor` 是下次从哪里接着拉，平台原样存下、下次传回来，没有就写 `null`。失败时返回 `{ ok: false, mode: "live", failure, message }`。连接、cursor 和重建 cursor 的做法见 [integrations.md](integrations.md)。
 
 `--locale en` 画出 `Hello, Tom&#039;s R&amp;D team` 和 `3 new notes`，`--locale zh` 画出 `你好，Tom&#039;s R&amp;D team` 和 `3 条新笔记`。`health`、`sync` 里不调 `t`（上面「没有页面的地方没有语言」）。

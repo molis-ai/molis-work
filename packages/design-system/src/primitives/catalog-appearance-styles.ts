@@ -12,8 +12,9 @@ export const APPEARANCE_BOARD_STYLES = `
   .mw-catalog :is([data-primitive="look-card"], [data-primitive="look-proof"], [data-primitive="look-fade"]) .mw-catalog__specimen { margin: 0; }
   .mw-look-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 196px), 1fr)); gap: 12px; width: 100%; min-width: 0; }
   .mw-look-grid--narrow { max-width: 196px; }
-  /* Room under the card for its open menu: three items at the touch size, so the menu never lies over what comes next. */
-  .mw-look-grid--room { padding-bottom: calc(3 * 44px); }
+  /* Room under the card for its open menu, so it never lies over what comes next. At desktop size the menu ends about where the card does; the touch
+     size below makes its three items 44px tall, and only there does it need the room. */
+  .mw-look-grid--room { padding-bottom: 0; }
   .mw-look-card { position: relative; display: grid; min-width: 0; }
   .mw-look-card__pick {
     --pick-r: var(--r-card);
@@ -99,5 +100,6 @@ export const APPEARANCE_BOARD_STYLES = `
   @media (max-width: 760px), (pointer: coarse) {
     .mw-look-card__more > .mw-btn { top: 8px; right: 8px; width: 44px; min-width: 44px; min-height: 44px; }
     .mw-look-card__more .mw-compose__menu { top: 56px; }
+    .mw-look-grid--room { padding-bottom: calc(3 * 44px); }
   }
 `;

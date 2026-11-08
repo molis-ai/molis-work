@@ -255,12 +255,16 @@ test("FSS-68: a look changes the whole page with a fade on the move clock and cu
   assert.deepEqual(quiet, { look: "warm", called: 0, fade: "direct", text: "正在用 暖色草稿", running: 0 }, "with reduced motion nothing fades and the state still changes");
   assert.equal(await evaluate<string>("getComputedStyle(document.querySelector('.mw-look-proof__canvas')).transitionDuration"), "0s", "and the canvas's own ease is off too");
 
-  // Dark: the same page-wide change in the dark theme, and English words.
+  // Dark: the same page-wide change in the dark theme, measured against the dark page before it.
   await open("dark");
+  const darkBefore = await page();
+  assert.equal(darkBefore.look, null);
   await evaluate("document.querySelector('[data-look-fade-to]').click()");
   const dark = await page();
   assert.equal(dark.look, "warm");
-  assert.notEqual(dark.page, "", "the dark page wears the look's dark ground");
+  assert.notEqual(darkBefore.page, "");
+  assert.notEqual(dark.page, darkBefore.page, "the dark page wears the look's dark ground");
+  assert.notEqual(dark.accent, darkBefore.accent, "and its dark accent");
   if (shots) { await evaluate("document.querySelector('#look-fade').scrollIntoView({ block: 'start' })"); await evaluate("new Promise((resolve) => setTimeout(resolve, 300))"); await writeFile(join(shots, "fade-warm-1440-zh-dark.png"), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64")); }
   await command("Emulation.setEmulatedMedia", { features: [] }, sessionId);
 });

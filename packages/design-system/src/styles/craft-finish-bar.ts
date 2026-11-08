@@ -370,7 +370,7 @@ export const CRAFT_BAR_STYLES = `
   ${SHELL} .is-split .plugin-picker-chip.is-focused { background: var(--paper); color: var(--ink); box-shadow: var(--lift-1); }
   ${SHELL} .plugin-picker-trigger:focus-visible { outline: var(--focus-stroke); outline-offset: -2px; }
   html ${SHELL} .workbench-bar .plugin-picker-popover {
-    position: absolute; z-index: 60; left: -8px; bottom: calc(100% + 16px); width: 560px; max-height: min(80dvh, 760px); overflow: auto; padding: 8px;
+    position: absolute; z-index: 60; left: -8px; bottom: calc(100% + 16px); width: 560px; max-height: min(80dvh, 760px, calc(100dvh - var(--desktop-titlebar-height, 0px) - var(--dock-h, 76px) - 32px)); overflow: auto; padding: 8px;
     border-radius: 14px; background: var(--paper); box-shadow: var(--lift-3);
   }
   html ${SHELL} .workbench-bar .plugin-picker-popover[hidden] { display: none; }

@@ -17,7 +17,9 @@ const READERS = new Map([
   ["config/mcp-tools.json", [({ http, projectId }) => http(`/api/settings/mcp/actions?client_id=agent%3Aprologue&project_id=${encodeURIComponent(projectId)}`, GET), "goals.create"]],
   ["config/onboarding.json", [({ http }) => http("/api/onboarding/status", GET), "dismissed"]],
   ["config/project-arrival.json", [({ http }) => http("/", GET), "2026-01-15"]],
-  // Read only when the Host starts a round with no page (a timed or continued one); the Host reads it with this function.
+  // Read only when the Host starts a round with no page (a timed or continued one); the Host reads it with this function. Only `readUiLocale` proves the
+  // file was read: "zh" is also the default language, so a reader that falls back to the default when the file is missing or unreadable
+  // (`lastUsedLocale`, say) would pass here without reading anything.
   ["config/ui-locale.json", [({ home }) => readUiLocale(home), "zh"]],
   ["feed/secrets.json", [({ http }) => http("/api/settings/models", GET), "present"]],
   ["jelly/preferences.json", [({ call }) => call("jelly.model.settings"), "golden-model-seed"]],

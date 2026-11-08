@@ -7,7 +7,7 @@ import { actionGatewayHomeId } from "./action-gateway.js";
 import { residentHostOrigin } from "./resident-host-request.js";
 import { WEB_CONTROL_TOKEN_RELATIVE_PATH, webHealthProof } from "./web-control-token.js";
 
-export type McpResidentHealth = "absent" | "starting" | "ready" | "pending";
+export type McpResidentHealth = "absent" | "starting" | "upgrading" | "ready" | "pending";
 
 /** Read-only challenge probe. A listener that cannot prove this Home is never a reason to spawn or send credentials. */
 export async function probeMcpResident(home: string, address: string, signal: AbortSignal): Promise<McpResidentHealth> {
@@ -63,6 +63,8 @@ export async function probeMcpResident(home: string, address: string, signal: Ab
   if (body && typeof body === "object" && "status" in body) {
     if (result.status === 200 && body.status === "ok" && "desktop_tui" in body && body.desktop_tui === true) return "ready";
     if (result.status === 503 && body.status === "starting") return "starting";
+    // A kind of starting (upgrade-chain-design §4.3): this Home's Host is there and busy with its data. No one should start another.
+    if (result.status === 503 && body.status === "upgrading") return "upgrading";
   }
   throw new ActionError("actions.transport_invalid", "常驻服务健康状态无效");
 }

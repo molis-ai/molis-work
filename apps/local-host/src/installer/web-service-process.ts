@@ -3,6 +3,8 @@ import { installerErrors } from "./errors.js";
 
 import { WebServiceEnvironment, commandError, delay, launchAgentProcessId } from "./web-service-platform.js";
 
+const UPGRADE_WAIT_MILLISECONDS = 30 * 60_000;
+
 /** Owns launchctl transitions and process-identity readiness, not install files or confirmation. */
 export class WebServiceProcess {
   constructor(private readonly environment: WebServiceEnvironment) {}
@@ -101,6 +103,8 @@ export class WebServiceProcess {
 
   private async waitForReady(authority: ConfirmationAuthority = unboundConfirmation): Promise<void> {
     authority.current();
+    // An upgrade takes as long as the data does (§3.2). While the process says so it uses up no attempts, up to a limit that still ends a stuck one.
+    const upgradeDeadline = Date.now() + UPGRADE_WAIT_MILLISECONDS;
     for (let attempt = 0; attempt < 25; attempt += 1) {
       const status = await this.environment.launchctl(["print", this.environment.serviceTarget()]);
       authority.current();
@@ -112,6 +116,11 @@ export class WebServiceProcess {
         authority.current();
         const stableProcessId = launchAgentProcessId(stableStatus);
         if (stableProcessId != null && await this.environment.healthCheck(stableProcessId)) { authority.current(); return; }
+        authority.current();
+      } else if (processId != null && Date.now() < upgradeDeadline && await this.environment.upgradeCheck(processId)) {
+        authority.current();
+        attempt -= 1;
+        await delay(this.environment.transitionDelayMilliseconds);
         authority.current();
       } else if (attempt < 24) {
         await delay(this.environment.transitionDelayMilliseconds);

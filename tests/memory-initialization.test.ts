@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -211,8 +211,21 @@ for (const shape of ["missing-ledger", "wrong-version", "missing-prefs", "partia
       assert.ok(generate);
       await assert.rejects(generate("must not dispatch", { timeoutMs: 500 }), { code: "actions.service_unavailable", message: "AI 执行服务尚未就绪或已停止，请稍后重试；材料已保留" });
     } finally { await unbound.close(); }
-    assert.deepEqual(files(home), before, "RAC-105-A-07: rejected entrances preserve all business bytes, modes and mtimes, excluding owner bookkeeping before it is read");
-    assert.deepEqual(readdirSync(home).sort(), directories, "the refused startup created no other Home stores");
+    // The upgrade process runs before these refusals and keeps its own bookkeeping in `upgrade/` (upgrade-chain design §3.3, §7): a
+    // too-new store is recorded before it is refused (UPG1-04), and a Home whose every store is current gets its stamp (UPG1-08). That one
+    // file is the only new one, it says exactly that, and every business file keeps its bytes, modes and mtimes.
+    const { [`upgrade/${shape === "wrong-version" ? "ledger" : "state"}.json`]: bookkeeping, ...after } = files(home);
+    const upgradeFile = (name: string) => JSON.parse(readFileSync(join(home, "upgrade", name), "utf8")) as Record<string, unknown>;
+    if (shape === "missing-ledger") assert.equal(existsSync(join(home, "upgrade")), false, "a Home with no store gets no upgrade bookkeeping");
+    else if (shape === "wrong-version") {
+      assert.ok(bookkeeping, "the too-new store is on the upgrade record");
+      assert.deepEqual(upgradeFile("ledger.json").units, [{ kind: "sqlite", owner: "packages/storage", relative_path: "memory/memory.db", group: null, from: 2, to: 1, state: "too_new", error: null }]);
+    } else {
+      assert.ok(bookkeeping, "every store is current, so the Home is stamped");
+      assert.deepEqual(Object.keys(upgradeFile("state.json")).sort(), ["completed_at", "fingerprint", "home_identity", "schema_version"]);
+    }
+    assert.deepEqual(after, before, "RAC-105-A-07: rejected entrances preserve all business bytes, modes and mtimes, excluding owner bookkeeping before it is read");
+    assert.deepEqual(readdirSync(home).filter(name => name !== "upgrade").sort(), directories, "the refused startup created no Home store beyond the upgrade bookkeeping");
     if (shape === "missing-ledger") assert.equal(existsSync(homeSqlitePath(home, MEMORY_LEDGER_STORE)), false);
   });
 }

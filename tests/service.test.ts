@@ -20,6 +20,7 @@ async function fixture() {
   let bootstrapFailureCount = 0;
   let bootoutTransitionPrintCount = 0;
   let healthCheckFailuresRemaining = 0;
+  let upgradingAnswersRemaining = 0;
   let healthCheckCount = 0;
   let endpointProcessId: number | null = 4242;
   let portInUse = false;
@@ -42,6 +43,11 @@ async function fixture() {
         return false;
       }
       return expectedProcessId == null || expectedProcessId === endpointProcessId;
+    },
+    async upgradeCheck() {
+      if (upgradingAnswersRemaining === 0) return false;
+      upgradingAnswersRemaining -= 1;
+      return true;
     },
     async portCheck() { await portCheckHook?.(); return portInUse; },
     async runCommand(file, args) {
@@ -92,6 +98,7 @@ async function fixture() {
     setBootstrapFailureCount: (value: number) => { bootstrapFailureCount = value; },
     setBootoutTransitionPrintCount: (value: number) => { bootoutTransitionPrintCount = value; },
     setHealthCheckFailures: (value: number) => { healthCheckFailuresRemaining = value; },
+    setUpgradingAnswers: (value: number) => { upgradingAnswersRemaining = value; },
     setEndpointProcessId: (value: number | null) => { endpointProcessId = value; },
     setPortInUse: (value: boolean) => { portInUse = value; },
     setPortCheckHook: (value: typeof portCheckHook) => { portCheckHook = value; },
@@ -240,6 +247,30 @@ test("start waits for the Web health endpoint and never reports a process-only s
     await assert.rejects(stat(unavailable.manager.receiptPath));
   } finally {
     await rm(unavailable.directory, { recursive: true, force: true });
+  }
+});
+
+test("UPG1-13: a process that says it is upgrading uses up no attempts, however long it takes; one that stops saying so gets the usual 25", async () => {
+  const upgrading = await fixture();
+  try {
+    upgrading.setHealthCheckFailures(60);
+    upgrading.setUpgradingAnswers(60);
+    const install = await upgrading.manager.prepare("install");
+    const installed = await upgrading.manager.confirm({ plan_id: install.plan_id, decision: "confirmed" });
+    assert.equal(installed.status, "installed");
+  } finally {
+    await rm(upgrading.directory, { recursive: true, force: true });
+  }
+
+  const stuck = await fixture();
+  try {
+    stuck.setHealthCheckFailures(100);
+    stuck.setUpgradingAnswers(10);
+    const install = await stuck.manager.prepare("install");
+    await assert.rejects(() => stuck.manager.confirm({ plan_id: install.plan_id, decision: "confirmed" }), { code: "installer.service.command_failed" });
+    assert.equal(stuck.healthCheckCount(), 35);
+  } finally {
+    await rm(stuck.directory, { recursive: true, force: true });
   }
 });
 

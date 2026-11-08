@@ -94,6 +94,8 @@ export const ASSISTANT_CONVERSATION_PART = String.raw`  /* ─── Showing a t
         if (hadFocus) (node.isConnected ? node.querySelector("[data-ix-action], [data-ix-operation]") : (neighbour && neighbour.isConnected && neighbour.querySelector("button")) || input)?.focus();
       } catch (error) { showError(error); lock(false); if (hadFocus) button.focus(); }
     } });
+    const pending = node.querySelector("[data-assistant-connection]");
+    if (pending) connectionCard(pending, work, card);
   };
   /** A card no round proposed: a page put it in (it names the page in from), or its round is not one of this work's. */
   const pageCard = (card) => Boolean(card.from) || !card.run_id || !(view && view.rounds.some((round) => round.run_id === card.run_id));

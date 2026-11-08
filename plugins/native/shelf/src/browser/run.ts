@@ -1,5 +1,6 @@
 import { renderBar } from "./bar.js";
-import { messageOf, said, setText } from "./dom.js";
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
+import { said, setText } from "./dom.js";
 import { aiLabel, batch, confirmRecipe, isLocalRecipe } from "./model.js";
 import { paintPreview } from "./preview.js";
 import { paintLists } from "./rows.js";

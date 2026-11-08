@@ -15,7 +15,7 @@ export const scheduleAgentManifest: AgentManifest = {
   roles: [
     {
       role_id: SCHEDULE_READER_ROLE,
-      version: /* @version role.reader */ 1,
+      version: /* @version role.schedule.reader */ 1,
       name: "只读执行",
       execution: "read-only",
       prompts: ["schedule-base", "schedule-reader"],

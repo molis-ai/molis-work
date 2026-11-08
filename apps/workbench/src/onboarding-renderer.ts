@@ -7,6 +7,7 @@ import { createArrivalShell } from "./arrival/shell.js";
 
 type OnboardingIcon = PluginIconName;
 export interface OnboardingRenderPrimitives {
+  accountRegistration?: boolean;
   L(text: string, values?: Record<string, string | number>): string;
   escapeHtml(value: unknown): string;
   htmlLang(): string;

@@ -10,7 +10,7 @@ import {
   openProjectVersionStores,
 } from "@molis-ai/molis-work-app-local-host";
 import { openPagesStore } from "./fixtures/plugin-home-stores.js";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 
 const TOKEN = "pages-project-binding-token-0123456789";
 

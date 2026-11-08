@@ -16,6 +16,19 @@ export function createPersonalNativeSession(homeDirectory: string) {
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
   }
+  const token=readPersonalNativeSession(homeDirectory);
+  const expected = Buffer.from(token);
+  return (request: IncomingMessage): boolean => {
+    const value = request.headers[NATIVE_SESSION_HEADER];
+    if (typeof value !== 'string') return false;
+    const supplied = Buffer.from(value);
+    return supplied.length === expected.length && timingSafeEqual(supplied, expected);
+  };
+}
+
+/** Read the existing OS capability; a forwarding client never creates a native identity. */
+export function readPersonalNativeSession(homeDirectory:string):string {
+  const file=path.join(homeDirectory,NATIVE_SESSION_FILE);
   const fd = fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
   let token: string;
   try {
@@ -27,11 +40,5 @@ export function createPersonalNativeSession(homeDirectory: string) {
     token = fs.readFileSync(fd, 'utf8').trim();
     if (!/^[A-Za-z0-9_-]{43}$/.test(token)) throw new Error('NATIVE_SESSION_FILE_INVALID');
   } finally { fs.closeSync(fd); }
-  const expected = Buffer.from(token);
-  return (request: IncomingMessage): boolean => {
-    const value = request.headers[NATIVE_SESSION_HEADER];
-    if (typeof value !== 'string') return false;
-    const supplied = Buffer.from(value);
-    return supplied.length === expected.length && timingSafeEqual(supplied, expected);
-  };
+  return token;
 }

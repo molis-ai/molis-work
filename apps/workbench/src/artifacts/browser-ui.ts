@@ -11,7 +11,7 @@ function artifactTypeLabel(typeId: string, titles: ArtifactBrowserUiModel["typeT
   return typeId.split(".").filter(Boolean).at(-1) || typeId;
 }
 
-export const ARTIFACT_BROWSER_UI_CONTRIBUTION_ID = /* @version contract.io.molis.work.native.artifacts.browser "io.molis.work.native.artifacts.browser.v{version}" */ "io.molis.work.native.artifacts.browser.v1";
+export const ARTIFACT_BROWSER_UI_CONTRIBUTION_ID = "io.molis.work.native.artifacts.browser.v1";
 
 export interface ArtifactBrowserUiModel {
   readonly view: ArtifactBrowserView;

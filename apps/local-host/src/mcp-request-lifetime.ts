@@ -23,8 +23,8 @@ export function ensureMcpRequestResident(ensure: EnsureMcpResidentHost | undefin
   return promise;
 }
 
-export function mcpResidentManagement(ensure: EnsureMcpResidentHost | undefined, home: string, origin: string, signal: AbortSignal) {
-  return { home, origin, signal, ...(ensure ? { ensureResident: () => ensureMcpRequestResident(ensure, home, origin, signal) } : {}) };
+export function mcpResidentManagement(ensure: EnsureMcpResidentHost | undefined, home: string, origin: string, signal: AbortSignal, controlToken?:string) {
+  return { home, origin, signal, controlToken, ...(ensure ? { ensureResident: () => ensureMcpRequestResident(ensure, home, origin, signal) } : {}) };
 }
 
 export function handleLocalMcpRequest(message: Record<string, unknown>, signal: AbortSignal | undefined, ports: {

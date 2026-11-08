@@ -169,6 +169,9 @@ importers:
       '@molis-ai/molis-work-plugin-workflows':
         specifier: workspace:*
         version: link:plugins/native/workflows
+      '@molis-ai/molis-work-service-account':
+        specifier: workspace:*
+        version: link:horizontal/account
       '@molis-ai/molis-work-service-agent-host':
         specifier: workspace:*
         version: link:horizontal/agent-host
@@ -437,6 +440,9 @@ importers:
       '@molis-ai/molis-work-server':
         specifier: workspace:*
         version: link:../../server
+      '@molis-ai/molis-work-service-account':
+        specifier: workspace:*
+        version: link:../../horizontal/account
       '@molis-ai/molis-work-service-agent-host':
         specifier: workspace:*
         version: link:../../horizontal/agent-host
@@ -636,6 +642,12 @@ importers:
       sanitize-html:
         specifier: ^2.17.7
         version: 2.17.7
+
+  horizontal/account:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
 
   horizontal/agent-host:
     dependencies:

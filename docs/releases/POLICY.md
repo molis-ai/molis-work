@@ -10,9 +10,13 @@ Molis Work 只有一个产品版本，每次发布都带发布说明、CHANGELOG
 
 ## 1. 一个产品版本和它的载体
 
-所有自有版本的唯一维护入口是 `tooling/versions.json`：产品、各库和文件格式、动作、提示词、角色、方法、同步集合与自有协议分别命名。修改条目后运行 `pnpm versions:generate`，它只把表里的值写到用的地方，校验不过就一个文件也不写。构建入口只核对不生成：结果过期就失败，并提示运行这条命令。绕过这张表的新声明归 `scripts/gates/version-declarations.mjs` 管，由 `node scripts/verify-release-versions.mjs` 调用；例外都写在 `tooling/gates/version-exceptions.json`，各带理由。代码只写字面量加标记（`version: /* @version action.todo.items.list */ 1`），不导入版本表，也没有生成的常量文件；代码以外的文件（方法 Markdown、Manifest、配置）只由表里的 `carriers` 改写。例外是外观与语言文件（共同规格、皮肤、字体方案、语言包、资源登记表，`format.ui.*`）：格式版本升一号时文件形状也变了，只改数字的工具帮不上忙，所以这些 JSON 手写 `format_version`，不走 `carriers`，`scripts/gates/version-declarations.mjs` 也不读它们；解析器发现不符就拒绝，CI 的解析测试拦住（`specs/font-and-skin-system/a-section-contract.md` 第 1.4 节）。当前库版本表的版本列也由定义处派生；历史维护清单仍人工登记。
+所有自有版本的唯一维护入口是 `tooling/versions.json`：产品、各库和文件格式、动作、提示词、角色、方法、同步集合与自有协议分别命名。修改条目后运行 `pnpm versions:generate`，它只把表里的值写到用的地方，校验不过就一个文件也不写。构建入口只核对不生成：结果过期就失败，并提示运行这条命令。绕过这张表的新声明归 `scripts/gates/version-declarations.mjs` 管，由 `node scripts/verify-release-versions.mjs` 调用；例外都写在 `tooling/gates/version-exceptions.json`，按文件、名字和字面量个数逐条登记，各带理由。代码只写字面量加标记（`version: /* @version action.todo.items.list */ 1`），不导入版本表，也没有生成的常量文件；写不了标记的地方（方法 Markdown、Manifest、配置，以及 `server/src/sync/quota.rs`、`server/src/sync/round.rs`、`apps/local-host/src/assistant/assistant-agent.ts` 里的几处）只由表里的 `carriers` 改写。例外是外观与语言文件（共同规格、皮肤、字体方案、语言包、资源登记表，`format.ui.*`）：格式版本升一号时文件形状也变了，只改数字的工具帮不上忙，所以这些 JSON 手写 `format_version`，不走 `carriers`，`scripts/gates/version-declarations.mjs` 也不读它们；解析器发现不符就拒绝，CI 的解析测试拦住（`specs/font-and-skin-system/a-section-contract.md` 第 1.4 节）。发布检查单的库版本表是手写的，`verify-release-versions` 对照定义处核对，不符就失败；历史维护清单也人工登记。
 
-字面量保留公开 literal 类型和浏览器函数的独立作用域；它只是表的副本，手改会被核对拦下。动作工厂没有缺省版本：`define*Action` 的版本是紧跟 id 的必填参数，`createActionDefinition` 和 `defineWorkExecutorAction` 也必须传；每个静态业务动作传自己的条目，调用方使用已有 descriptor.version。一个条目留在表里，要么改这个数字有业务含义（读取时比较，或对外承诺），要么它是名字里带版本的公开标识；其他的只留字面量。工作流内容的四个角色各是一份共享协议；动态 SDK 成果动作按真实操作管理。并存的 inline/blob、inline/chunks 编码分别保留 1/2；远端 D1 基线仍为 6，固定成果生产者身份仍为 0.3.0。依赖、上游协议、业务修订计数和用于拒绝的历史测试输入不属于当前声明。
+字面量保留公开 literal 类型和浏览器函数的独立作用域；它只是表的副本，手改会被核对拦下。动作工厂没有缺省版本：`define*Action` 的版本是紧跟 id 的必填参数，`createActionDefinition` 和 `defineWorkExecutorAction` 也必须传；每个静态业务动作传自己的条目，调用方使用已有 descriptor.version。改这个值会让旧数据或旧调用方不再被接受，就进表，包括读时按整串比较或拒绝的类型名和前缀（`type.molis.work-executor.*`、`type.molis-work-local-payload`）；只是一个名字就不进，比如界面贡献 id；其他的只留字面量。工作流内容的四个角色各是一份共享协议；动态 SDK 成果动作按真实操作管理。并存的 inline/blob、inline/chunks 编码是线上判别值，用具名常量加例外，不进表：成果一侧内容超过 64 KB 或带原件的导入文档走附件，项目内容一侧超过 64 KB 的 Goal 内容分块，其余内联。远端 D1 基线仍为 6，固定成果生产者身份跟产品版本。依赖、上游协议、业务修订计数和用于拒绝的历史测试输入不属于当前声明。
+
+**生成器的拒绝。** 模板没有 `{version}` 或含 `*`、值不是普通整数、JSON 有重复键，都失败。一个 carrier 只能命中一处、只改一行，Markdown 只改 frontmatter。注释里引用的标记不算使用。
+
+**页面脚本与信封前缀。** 页面脚本不能 import 服务端的值，在脚本文件里带同一条目的标记。信封前缀解封时按整串比较，升版本后旧密文打不开，所以要连同读取旧前缀一起设计。
 
 产品条目为 `product.release`，本次候选是 0.1.0。根 `package.json` 与下面各载体都是生成结果：
 
@@ -26,7 +30,7 @@ Molis Work 只有一个产品版本，每次发布都带发布说明、CHANGELOG
 | 内置插件 Manifest | `plugins/native/*/src/manifest.ts` 的 `version` | 等于产品版本。当前内置插件（以 `plugins/native/*` 为准，不在这里写死个数）统一为 0.1.0；Runtime 对 `bundled` 插件始终跟随当前构建（第 7 节），其安装身份与私有数据保留。官方集成、示例和第三方插件不在此范围 | 脚本；构建后的 `BUILTIN_PLUGIN_CATALOG` 由 `tests/builtin-manifests-contract.test.ts` 再核对 |
 | 各库的结构版本 | 见 [CHECKLIST.md](CHECKLIST.md) 的「各库版本表」 | 每个库自己一个数字，与产品版本无关；改库就升那个库的数字 | 脚本核对表与代码一致 |
 
-不属于这份策略的版本：非内置插件（第三方、生成的）的 Manifest 版本由插件自己定；`examples/plugin-sample` 是示例插件，自己的 2.0.0 不是产品版本；`vendor/` 里的包版本跟上游。官方集成（`plugins/official-integrations/*`：GitHub、Gmail、目录连接器、RSS、Web Query、YouTube）也不属于这份策略：内置插件指 `BUILTIN_PLUGIN_CATALOG` 里的条目（`docs/system/GLOSSARY.md` 第 3.2 节），官方集成另算，它们的 Manifest 版本（写在各自的 `src/index.ts` 里，现在 1.0.0 到 1.2.0）各自独立。它们没有持久的安装记录：`OfficialIntegrationRegistry`（`apps/local-host/src/official-integrations.ts`）为每个 Feed 来源在内存里装一个 Runtime（`MemoryPluginRuntimeRepository`），装进去的只有 GitHub、Gmail 和目录连接器，RSS、Web Query、YouTube 的 Manifest 现在没有任何调用把它们装进 Runtime；所以第 7 节的两种情形不会发生在它们身上。用户 2026-10-08 的决定没有说到它们，这个归类是起草时按上面的口径定的，等用户确认；要让它们也跟产品版本，就把它们并进上表「内置插件 Manifest」一行，并让脚本核对。
+不属于这份策略的版本：非内置插件（第三方、生成的）的 Manifest 版本由插件自己定；`examples/plugin-sample` 是示例插件，自己的 2.0.0 不是产品版本；`vendor/` 里的包版本跟上游。官方集成（`plugins/official-integrations/*`：GitHub、Gmail、目录连接器、RSS、Web Query、YouTube）也不属于这份策略：内置插件指 `BUILTIN_PLUGIN_CATALOG` 里的条目（`docs/system/GLOSSARY.md` 第 3.2 节），官方集成另算，它们的 Manifest 版本（写在版本表里，现在 1.0.0 到 1.5.0）各自独立。它们没有持久的安装记录：`OfficialIntegrationRegistry`（`apps/local-host/src/official-integrations.ts`）为每个 Feed 来源在内存里装一个 Runtime（`MemoryPluginRuntimeRepository`），装进去的只有 GitHub、Gmail 和目录连接器，RSS、Web Query、YouTube 的 Manifest 现在没有任何调用把它们装进 Runtime；所以第 7 节的两种情形不会发生在它们身上。用户 2026-10-08 的决定没有说到它们，这个归类是起草时按上面的口径定的，等用户确认；要让它们也跟产品版本，就把它们并进上表「内置插件 Manifest」一行，并让脚本核对。
 
 ## 2. 版本号怎么选
 

@@ -2,6 +2,9 @@ import type { ActionReference } from "@molis-ai/molis-work-contracts/platform/ac
 import { childFrameAssets } from "./frame-assets.js";
 import { childPlacement } from "./placement.js";
 import { childReviews } from "./review-slots.js";
+import { childTaskGrants } from "./task-grants-area.js";
+import { childConnectionNeed } from "./connection-need.js";
+import { childReturns } from "./returns.js";
 import { createUiFailureView, createUiRequest } from "@molis-ai/molis-work-ui-host";
 import type { SearchReferencesResponse } from "@molis-ai/molis-work-contracts/services/search";
 import type { UiPluginClientHost } from "@molis-ai/molis-work-contracts/platform/ui";
@@ -29,6 +32,7 @@ function bindStorage(port: MessagePort, config: FrameConfig): void {
   for (const area of ["localStorage", "sessionStorage"] as const) {
     const values = new Map(Object.entries(config.storage[area]));
     const write = (key: string, value: string | null) => {
+      if (document.body.inert) throw new Error("Account is switching");
       if (value === null) values.delete(key); else values.set(key, value);
       port.postMessage({ type: "storage", area, key, value } satisfies FrameUp);
     };
@@ -72,17 +76,13 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
   const select = pageSelection(root, scope, config.searchRow);
   let itemTab = config.itemTab;
   const intent = (name: Extract<FrameUp, { type: "ui" }>["name"], args: unknown[]) => send({ type: "ui", name, args });
-  // Neither the platform's reads area (specs/proactive-assistant/task-grants-platform-area.md) nor the connection card
-  // (specs/assistant-service-connections/spec.md §13.5) is drawn yet: every `taskGrants.place` and `connectionNeed` is refused with
-  // one fixed error and nothing reaches the shell. P3-1 and the ④c shell slice replace them with the frame halves that report the place.
-  const unavailable = () => Promise.reject(new Error("Unavailable"));
   const host = { root, scope, translate: L, mountPluginClient: ui.mountPluginClient, side: config.side,
-    mount: config.mount, search: config.search, connectionSlot: childConnectionSlot(port, scope), connectionNeed: unavailable,
+    mount: config.mount, search: config.search, connectionSlot: childConnectionSlot(port, scope), connectionNeed: childConnectionNeed(port, scope),
     openView: (selection: import("@molis-ai/molis-work-contracts/platform/ui").UiViewSelection) => send({ type: "view-open", selection }),
     invalidateView: () => send({ type: "view-invalidate" }),
     ...pageDialogs(scope, L), confirmBox: pageConfirmBox(scope, L), drafts: childDrafts(port, scope),
     reviews: childReviews(port, scope), view: childView(port, scope), workspaces: childWorkspaces(port, scope),
-    taskGrants: { place: unavailable },
+    taskGrants: childTaskGrants(port, scope), returns: childReturns(port, scope),
     ...pageFiles(port, scope, globalThis.molisWorkRequest, copyText),
     ...(config.nativeFiles ? { nativeFiles: childNativeFiles(port, scope) } : {}),
     terminal,

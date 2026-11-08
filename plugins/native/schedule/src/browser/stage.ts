@@ -3,6 +3,7 @@ import type { SchedulePage } from "./page.js";
 import type { RowKind } from "./types.js";
 import { post } from "./request.js";
 import { readTaskReads, showCreated } from "./reads.js";
+import { closeArea, placeArea } from "./area.js";
 
 const expand = (expanded: boolean) => {
   const shell = document.querySelector<HTMLElement>("[data-schedule-stage-shell]"), workspace = document.querySelector<HTMLElement>("[data-schedule-stage-workspace]");
@@ -19,9 +20,10 @@ function publishContext(page: SchedulePage, taskId: string | null): void {
   workbench.setAttribute("data-assistant-context", JSON.stringify(context));
 }
 
-/** No row is selected and no detail shown; the new/edit form is put away too. */
+/** No row is selected and no detail shown; the new/edit form is put away too, and the open task's reads area closes. */
 function clearSelection(page: SchedulePage): void {
   const { workbench, list } = page;
+  closeArea(page);
   list.querySelectorAll<HTMLElement>("[data-schedule-row]").forEach(row => {
     row.classList.remove("is-selected"); row.setAttribute("aria-selected", "false"); row.tabIndex = -1;
   });
@@ -65,6 +67,8 @@ export function select(page: SchedulePage, id: string | null | undefined, kind: 
   page.pane.hidden = true;
   if (kind === "task") showCreated(page, id);
   expand(true);
+  // The detail is on show before the area is placed on it: the place it reports is where the person sees it.
+  placeArea(page, kind === "task" ? id : null);
   publishContext(page, kind === "task" ? id : null);
   // Marking a task read is a courtesy: when it does not go through, nothing the person did is lost.
   if (kind === "task") void post(host, "/tasks/" + encodeURIComponent(id) + "/open", {}, "").catch(() => undefined);

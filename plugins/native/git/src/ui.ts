@@ -9,7 +9,7 @@ import { renderCompanionBrowserStage, type CompanionStageModel } from "./compani
 import type { GitListItem, GitView } from "./projection.js";
 import { GIT_SENTENCE_TABLE, sayHostSentence, sayUpstream } from "./sentences.js";
 
-export const GIT_UI_CONTRIBUTION_ID = /* @version contract.io.molis.work.native.git.ui "io.molis.work.native.git.ui.v{version}" */ "io.molis.work.native.git.ui.v1";
+export const GIT_UI_CONTRIBUTION_ID = "io.molis.work.native.git.ui.v1";
 
 /** Composed beside Files; the existing directory/result shell remains the owner. */
 export function renderGitBrowserDirectory(text: (key: string) => string): string {

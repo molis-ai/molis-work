@@ -1,4 +1,4 @@
-import { messageOf } from "./dom.js";
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { syncParameters } from "./connections.js";
 import { paintList, showCompose } from "./list.js";
 import { paintResult } from "./result.js";

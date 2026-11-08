@@ -1,4 +1,6 @@
-import { esc, ico, messageOf, required, settle, when } from "./dom.js";
+import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
+import { ico, required, settle, when } from "./dom.js";
 import { openRun, showFlow } from "./nav.js";
 import type { WorkflowsPage } from "./page.js";
 import { flushSave } from "./save.js";

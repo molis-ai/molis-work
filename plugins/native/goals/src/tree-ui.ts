@@ -4,7 +4,7 @@ import type { GoalsTreeItem, GoalsTreeView, GoalsTreeUiPrimitives, GoalVisibleSt
 import { sortGoalTreeItems as sortGoals } from "./tree-order.js";
 import { activeOutgoingDependsOn, findGoalTreeItem as findGoalView, goalWorkSatisfied, isBlockedWorkStatus, unsatisfiedOutgoingDependencies, goalTreeCreatedParts, goalTreeCreatorHue, goalTreeCreatorInitial, treeDependencySearchText, visibleGoalStatus } from "./tree-presentation.js";
 
-export const GOALS_TREE_UI_CONTRIBUTION_ID = /* @version contract.io.molis.work.native.goals.tree "io.molis.work.native.goals.tree.v{version}" */ "io.molis.work.native.goals.tree.v1";
+export const GOALS_TREE_UI_CONTRIBUTION_ID = "io.molis.work.native.goals.tree.v1";
 
 function createTreeRenderer(primitives: GoalsTreeUiPrimitives) {
   const { translate: L, escapeHtml, listJoin, icon, renderStatus, renderActionStatus, renderVisibleGoalStatus, displayStatuses: GOAL_DISPLAY_STATUSES } = primitives;

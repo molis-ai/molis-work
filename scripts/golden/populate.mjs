@@ -1,10 +1,10 @@
 // What a golden Home holds and how it gets there (specs/upgrade-continuity/golden-replay-design.md §2, §3): projects, every owner's data through
-// that owner's own actions and settings entries, an installed third-party plugin. The exceptions, recorded in the manifest: the Goal event
-// history, which has no write action and comes from its existing dump, and the personal sync library, whose owner has no write action.
+// that owner's own actions and settings entries, an installed third-party plugin. The exceptions are recorded in the manifest's `imports`: the Goal
+// event history, which has no write action and comes from its existing dump, and the libraries that can only be there empty.
 import { readFileSync, rmSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { goldenFailure } from "./layout.mjs";
+import { goldenFailure } from "./failure.mjs";
 import { enterHome, goldenActions, loadGoldenWrites, openGoldenHost, root } from "./session.mjs";
 
 const local = await import("@molis-ai/molis-work-app-local-host");
@@ -21,6 +21,7 @@ const BACKGROUND_SETTLE_MILLISECONDS = 4_000;
 const GOAL_HISTORY_KIND = "approved-completed";
 const GOAL_HISTORY_PROJECT = "goalboard-v1-demo";
 const CORPUS = path.join(root, "tests/fixtures/replay-plugins/corpus.json");
+const EMPTY_HOME_LIBRARIES = ["plugin-directories", "plugin-libraries", "plugin-originals"];
 
 /** The third-party sample: the one corpus entry that has a write, read back through its own action. */
 export function thirdPartySample() {
@@ -87,12 +88,21 @@ function createAccountSyncLibrary(home) {
 }
 
 /**
+ * Libraries a golden cannot put a row in, each for the reason in the manifest's `imports`, whose owner's current structure still has to be there for
+ * an upgrade to walk. Home-level ones from the registry, Alchemist's per project from its owner, which opens one the moment it is asked to search.
+ */
+async function createEmptyLibraries(home, projects) {
+  for (const store of EMPTY_HOME_LIBRARIES) openBaselineHomeSqlite(home, store, local.homeStores().get(store).library.baseline).close();
+  await local.createAlchemistSearchPort({ homeDirectory: home, projectId: projects.primary.project_id }).shutdown();
+}
+
+/**
  * A card's number is the order the organizer's timers happened to fire in, across projects, and a contentless index holds that number, so nothing
  * after the fact can make it stable. The cards hold nothing the catalog does not (no model, no edits), and with the search index complete the owner
  * rebuilds them in one pass, project by project: the library is removed and the Host lists each project that had cards. Recorded in the manifest's `imports`.
- * This runs after the owners' write cases, so a case under tests/golden-writes/ that writes to this library would be removed here and still run on replay.
+ * This runs after the owners' write cases, so the case that writes to this library says so and runs here, on the cards that stay.
  */
-async function cardsInOneOrder(home, account, projects, named) {
+async function cardsInOneOrder(home, account, projects, named, seed) {
   const directory = path.join(home, "knowledge"), db = new DatabaseSync(path.join(directory, "knowledge.db"), { readOnly: true });
   let holders;
   try { holders = db.prepare("SELECT DISTINCT project_id FROM knowledge_cards ORDER BY project_id").all().map(row => row.project_id); } finally { db.close(); }
@@ -107,6 +117,9 @@ async function cardsInOneOrder(home, account, projects, named) {
     }
     await new Promise(resolve => setTimeout(resolve, BACKGROUND_SETTLE_MILLISECONDS));
     await named("knowledge-settle");
+    await seed(session, projects, write => write.afterKnowledgeRebuild);
+    await new Promise(resolve => setTimeout(resolve, BACKGROUND_SETTLE_MILLISECONDS));
+    await named("knowledge-edit-settle");
   } finally { await session.close(); }
 }
 
@@ -119,20 +132,24 @@ export async function populateHome(home, { step, label, withThirdParty, account 
   enterHome(home);
   const accountProjects = account ? await createAccountProject(home, named) : undefined;
   const session = await openGoldenHost(home, { web: !account });
-  try {
-    const projects = accountProjects ?? await createRootProjects(session, named);
-    const actions = goldenActions(session, projects.primary, "seed");
-    for (const write of await loadGoldenWrites()) {
+  const seed = async (host, { primary }, wanted) => {
+    const actions = goldenActions(host, primary, "seed");
+    for (const write of (await loadGoldenWrites()).filter(wanted)) {
       if (account && write.webSurface) continue;
       await named(`write:${write.owner}`);
       try { await write.run(actions); } catch (error) { error.where = `${label}/write/${write.owner}`; throw error; }
     }
+  };
+  try {
+    const projects = accountProjects ?? await createRootProjects(session, named);
+    await seed(session, projects, write => !write.afterKnowledgeRebuild);
     if (withThirdParty) await installThirdParty(session, projects.primary, named);
     // The knowledge organizer runs a moment after a write, on a timer. Whether its cards made it in must not depend on how fast this machine is.
     await new Promise(resolve => setTimeout(resolve, BACKGROUND_SETTLE_MILLISECONDS));
     await named("settle");
     await session.close();
-    await cardsInOneOrder(home, account, projects, named);
+    await cardsInOneOrder(home, account, projects, named, seed);
+    await createEmptyLibraries(home, projects);
     if (account) createAccountSyncLibrary(home);
     return Object.fromEntries(Object.entries(projects).map(([role, project]) => [role, { project_id: project.project_id, database: path.relative(session.home, project.database_path) }]));
   } catch (error) {

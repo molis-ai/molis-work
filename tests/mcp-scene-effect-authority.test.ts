@@ -70,11 +70,11 @@ test("W3-09-AUTH-03 a real published function cannot consume Home Dock after its
     // Prepare the real binding through protected owner HTTP first: a scene-dependent MCP grant cannot create that binding.
     const functionsPath = `/projects/${project.project_id}/api/functions`;
     const { function: draft } = await home.web.post<{ function: JudgmentRuleRecord }>(functionsPath, { primitive: "choice", function_key: "effect_home_scene", name: "Actual Home scene rule" });
-    await home.web.post(`${functionsPath}/${draft.id}`, { instructions: "Recommend the available finish action", criteria: [{ key: "finish", description: "Finish this entry" }, { key: "dismiss", description: "Dismiss this entry" }],
+    const { function: saved } = await home.web.post<{ function: JudgmentRuleRecord }>(`${functionsPath}/${draft.id}`, { expected_updated_at: draft.updated_at, instructions: "Recommend the available finish action", criteria: [{ key: "finish", description: "Finish this entry" }, { key: "dismiss", description: "Dismiss this entry" }],
       scene_id: "home.dock", scene_version: 1, scene_provider_id: "system.home", subject_kinds: ["inbox_entry"],
       scene_map: { finish: choice.key, dismiss: dismiss.key }, action_map: { finish: choice.action, dismiss: dismiss.action } });
-    await home.web.post(`${functionsPath}/${draft.id}/preview`, { input: "Original inbox work" });
-    const { function: rule } = await home.web.post<{ function: JudgmentRuleRecord }>(`${functionsPath}/${draft.id}/publish`, {});
+    await home.web.post(`${functionsPath}/${draft.id}/preview`, { input: "Original inbox work", expected_updated_at: saved.updated_at });
+    const { function: rule } = await home.web.post<{ function: JudgmentRuleRecord }>(`${functionsPath}/${draft.id}/publish`, { expected_updated_at: saved.updated_at });
     const judgment = publishedFunctionAction(rule);
     assert.deepEqual(judgment.action.permissions, ["functions:invoke"], "the judgment does not itself grant Home's independent permissions");
     const configured = await home.web.post<{ binding: ActionSceneBinding }>(`/projects/${project.project_id}/api/home/dock-judgment`, { function_key: rule.function_key });

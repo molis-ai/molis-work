@@ -13,7 +13,7 @@ interface ChangeFile {
   readonly kind: string;
   readonly added_lines: number;
   readonly removed_lines: number;
-  readonly review?: { readonly decision: string; readonly execution?: string } | null;
+  readonly review: { readonly decision: string; readonly execution: string };
 }
 
 /** A round's changes, as `GET …/changeset` answers them. */
@@ -180,11 +180,10 @@ function renderComments(r: Reader) {
 /** The state of one write: tone, words, and the ring the page draws for it. */
 function stateOf(L: Translate, file: ChangeFile): readonly [string, string, string] {
   const tones: Readonly<Record<string, readonly [string, string, string]>> = { applied: ["done", L("coding.change.applied"), "done"], failed: ["failed", L("coding.change.apply-failed"), "failed"], unknown: ["attention", L("coding.change.unknown"), "verify"], "not-applied": ["idle", L("coding.change.not-applied"), "idle"] };
-  if (!file.review) return ["idle", L("coding.change.old-record"), "verify"];
   const decisions: Readonly<Record<string, readonly [string, string]>> = { rejected: [L("coding.change.rejected"), "cancelled"], cancelled: [L("coding.state.cancelled"), "cancelled"], expired: [L("coding.change.expired"), "stale"], pending: [L("coding.change.pending"), "approval"] };
   const decided = file.review.decision !== "approved" ? decisions[file.review.decision] : undefined;
   if (decided) return ["idle", decided[0], decided[1]];
-  return tones[file.review.execution ?? ""] ?? tones.unknown!;
+  return tones[file.review.execution] ?? tones.unknown!;
 }
 
 const fileIcon = () => {

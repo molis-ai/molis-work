@@ -6,9 +6,10 @@
 
 ## 1. 定版本，写材料
 
-- [ ] 对照上个 tag 以来的变化选次版本或补丁（[POLICY.md](POLICY.md) 第 2 节）。库版本有没有变，看第 3 节的表：`git diff <上个 tag> -- <表里的定义处文件>`。
+- [ ] 对照上个 tag 以来的变化选次版本或补丁（[POLICY.md](POLICY.md) 第 2 节）。库版本有没有变，看 `git diff <上个 tag> -- tooling/versions.json`；每个条目在哪里生效、读到别的版本时怎么处理，看第 3 节的表。
 - [ ] 这个版本是 1.0.0 或之后、并且会装到开发机之外吗？用户 2026-10-08 的决定 #15：「不留兼容」到第一个装到开发机之外的版本为止；用户 2026-10-29 又定「1.0.0 之前都是开发版本」，所以 1.0.0 之前的版本都不是它（`specs/archive/repository-anti-corruption/spec.md` §1）。两样都是的话，发布 PR 把版本号、日期和提交写进 [docs/system/CONTRACT-CHANGES.md](../system/CONTRACT-CHANGES.md) 顶部的「起点日期」，并把它的第 3 节标为已结束；从那以后合同变更走那份文件第 4 节的读取兼容流程。那份文件第 5 节列的前置（公开 API 快照、动作合同快照、插件回放工具等）要在发这个版本之前就位。有一样不是的话，在这一项写明「不是外部版本」，仍按「不留兼容」办。存储结构变更另从第 4 节真实 Home 重建核实的统一起点开始，须升版本并带连续升级步骤，不等到首次外部安装；见 [POLICY.md](POLICY.md) 第 5 节。
-- [ ] 改版本号：根 `package.json`；`apps/desktop/src-tauri/` 的 `tauri.conf.json`、`Cargo.toml`、`Cargo.lock` 里的 `molis-work-desktop`；`apps/local-host/src/product-version.ts` 的 `PRODUCT_VERSION`（Feed、搜索运行时、MCP 客户端、Codex 会话传输的版本都从它取；[POLICY.md](POLICY.md) 第 1 节）。
+- [ ] 改版本号：只改 `tooling/versions.json` 的 `product.release`，再跑 `pnpm versions:generate`。它会把新值写进根 `package.json`、`apps/desktop/src-tauri/` 的 `tauri.conf.json`、`Cargo.toml`、`Cargo.lock` 里的 `molis-work-desktop`，以及代码里所有标了 `@version product.release` 的地方：`apps/local-host/src/product-version.ts` 的 `PRODUCT_VERSION`（Feed、搜索运行时、MCP 客户端、Codex 会话传输的版本都从它取）、各内置插件的 Manifest 和成果库的生产者身份（[POLICY.md](POLICY.md) 第 1 节）。这些地方都不要手改：`pnpm build` 发现生成结果过期就失败。
+- [ ] 改产品版本之前，必须先做完 [BL-feed-product-version-replay](../../specs/backlog/BL-feed-product-version-replay.md)。不然产品版本一变，Feed 的每条捕获线都会在成果库多出一个内容相同的版本。这条待办做完、删掉时，这一项一起删。
 - [ ] 内置插件清单的版本与摘要：`BUILTIN_PLUGIN_CATALOG` 中现行的内置 Manifest（不在这里写死个数）均等于产品版本；`verify-release-versions.mjs` 核对源码，`tests/builtin-manifests-contract.test.ts` 核对构建后的目录。官方集成、示例与第三方插件独立编号。跑 `tests/plugin-release-artifact.test.ts` 验证 `bundled` 清单降版及同版本摘要变化仍跟随宿主。按第 4.5 节方法取得实际清单摘要并写入发布说明；表应覆盖整个目录，不只覆盖早期 7 个项目 Runtime 插件。
 - [ ] [CHANGELOG.md](CHANGELOG.md)：`[Unreleased]` 改成 `[<版本>] - <日期>`，上面另起一个空的 `[Unreleased]`，页尾比较链接（若有）跟着改。
 - [ ] 写 `docs/releases/v<版本>.md`，包含「兼容与升级」（哪些库的版本变了、旧 Home 要做什么、Runtime 要不要重新接入）和「发布范围与验证」（真实的回归数字、已知失败、没验证的东西）。
@@ -25,9 +26,9 @@
 
 ## 3. 各库版本表
 
-每个库只认一个当前版本，不符时的处理在最后一列。最后一列写的是升级链接好之后的行为（[U1 设计](../../specs/upgrade-continuity/upgrade-chain-design.md) §2.3、§2.6）：U1-c 接升级过程，U1-d 接平台的库，U1-e 接 JSON 文件，这三片现在都还没有合入。在那之前，低版本的库打开时报 `storage.upgrade_pending`，低版本的 JSON 文件也由各自的主人拒绝，报错各不相同（比如密钥文件报 `secrets file format N is not supported`），都只拒绝，还没有升级过程来升它们。三片里最后合入的那一片删掉这几句。表里有两类东西：Home 里的 SQLite 库，和需要在重建时核对的 JSON 文件（`feed/secrets.json`、`config/mcp-tools.json`、`shelf/catalog.json` 与安装/发行清单均由各 owner 拒绝错误格式）。§2.6 说进链的六个文件（名单在 `scripts/gates/initial-versions.mjs`）现在改到 2 过不了 `pnpm health:check`，U1-e 之前只能是 1。其他带版本字段的小 JSON 文件（`browser/sites.json`、`jelly/preferences.json`、`config/` 下未列入本表的文件）不在表里：它们的版本见 [docs/system/HOME-DATA.md](../system/HOME-DATA.md) 第 6 节的「种类 · 版本」列，版本不符时各自怎样没有逐个核对过，改其中任何一个的版本，就在发布说明的「兼容与升级」里写明。每个库的 owner、表、备份与卸载规则也在 HOME-DATA.md。位置都相对 Home（默认 `~/.molis-work`，`MOLIS_WORK_HOME` 可改）。
+每个库只认一个当前版本，不符时的处理在最后一列。升级过程见 [U1 设计](../../specs/upgrade-continuity/upgrade-chain-design.md) §2.3、§2.6。表里有两类东西：Home 里的 SQLite 库，和需要在重建时核对的 JSON 文件（`feed/secrets.json`、`config/mcp-tools.json`、`shelf/catalog.json` 与安装/发行清单均由各 owner 拒绝错误格式）。进链的文件要升版本，同一个 PR 带上连续的段（`pnpm health:check` 查）。其他带版本字段的小 JSON 文件（`config/` 下未列入本表的文件）不在表里：它们的版本见 [docs/system/HOME-DATA.md](../system/HOME-DATA.md) 第 6 节的「种类 · 版本」列，版本不符时各自怎样没有逐个核对过，改其中任何一个的版本，就在发布说明的「兼容与升级」里写明。每个库的 owner、表、备份与卸载规则也在 HOME-DATA.md。位置都相对 Home（默认 `~/.molis-work`，`MOLIS_WORK_HOME` 可改）。
 
-`scripts/verify-release-versions.mjs` 对照代码核对这张表，下面几种情况 CI 会失败：某行的版本和定义处的代码不一致；定义处不存在；包的 `src/` 里有一个 `SqliteBaseline` 常量（`const X: SqliteBaseline = {…}`、`const X = {…} satisfies SqliteBaseline`、`… as SqliteBaseline` 三种写法都算）没有列进表，或者它的版本不是对象里写成数字的 `version: N`（引用别的常量，脚本读不出来）；`applySqliteBaseline`、`openBaselineHomeSqlite`、`openOwnerCopyStore`、`openAggregateCopyOwner` 收到的不是一个已声明的常量（内联对象不行）；`runSqliteUpgrade` 收到的既不是已声明的常量，也不是属性（它转交描述符带的基线，`store.baseline` 这样的属性可以）；标「无」的库的定义处文件加上了版本标记。它找不到的是完全不经 `applySqliteBaseline` 的新库（比如又一个只靠 `CREATE TABLE IF NOT EXISTS` 的库）和表以外的 JSON 文件，这类只能靠 HOME-DATA.md 的清单和评审发现。
+`scripts/verify-release-versions.mjs` 对照代码核对这张表，下面几种情况 CI 会失败：某行的版本和定义处的代码不一致；定义处不存在；包的 `src/` 里有一个 `SqliteBaseline` 常量（`const X: SqliteBaseline = {…}`、`const X = {…} satisfies SqliteBaseline`、`… as SqliteBaseline` 三种写法都算）没有列进表，或者它的版本不是对象里写成数字的 `version: N`（引用别的常量，脚本读不出来）；`applySqliteBaseline`、`openBaselineHomeSqlite`、`openOwnerCopyStore`、`openAggregateCopyOwner` 收到的不是一个已声明的常量（内联对象不行）；`runSqliteUpgrade` 收到的既不是已声明的常量，也不是属性（它转交描述符带的基线，`store.baseline` 这样的属性可以）；「版本」不是整数（写「无」也不行）或定义处不是 `路径#名字`。JSON 文件没有常量可指时，定义处写字段名（`路径#schema_version`、`路径#version`）。脚本按语法读这个文件里叫这个名字的属性，键带不带引号都算：对象里写的数字、类型里写的单个数字，以及字符串和模板里写的 `名字: 数字`，都要是同一个数，并和表相同；有一处的值不是数字（常量名、表达式、`{ version }` 这种简写），就以「定义处写字面量」失败。注释不读；类型写成 `number` 的不算；在别处拼出来的版本（展开另一个对象、算出来的键）读不到。它找不到的是完全不经 `applySqliteBaseline` 的新库（比如又一个只靠 `CREATE TABLE IF NOT EXISTS` 的库）和表以外的 JSON 文件，这类只能靠 HOME-DATA.md 的清单和评审发现。
 
 插件自有库的 `PluginDatabaseDeclaration` 也按同一规则检查：必须具名、写出数字版本并列入下表。可信 Host 的连接服务仅转发这份声明；这一个类型化转发调用被单独识别，其余内联或未声明基线仍拒绝。
 
@@ -68,14 +69,21 @@
 | PPT | `ppt/ppt.db` | 1 | `user_version` | `plugins/native/ppt/src/database.ts#PPT_DATABASE` | 低版本升级，高版本拒绝 |
 | Todo | `todo/todo.db` | 1 | `user_version` | `plugins/native/todo/src/database.ts#TODO_DATABASE` | 低版本升级，高版本拒绝 |
 | Workflows | `workflows/workflows.db` | 1 | `user_version` | `plugins/native/workflows/src/database.ts#WORKFLOWS_DATABASE` | 低版本升级，高版本拒绝 |
-| 炼金术士工作室 | `alchemist/projects/<编码后的 project_id>/studio.sqlite` | 1 | `user_version` | `plugins/native/alchemist/src/studio/server/db/schema.ts#ALCHEMIST_STUDIO_BASELINE` | 低版本升级，高版本拒绝 |
+| 炼金术士工作室 | `alchemist/projects/<编码后的 project_id>/studio.sqlite` | 1 | `user_version` | `plugins/native/alchemist/src/studio/server/db/schema.ts#ALCHEMIST_STUDIO_BASELINE` | 拒绝。不进升级链（统筹按 `search.sqlite` 的同一理由并入：这个插件要重做，`specs/backlog/BL-377.md`） |
 | server（讨论） | `server/server.sqlite` | 1 | `user_version` | `server/src/database.ts#SERVER_DATABASE_BASELINE` | 低版本升级，高版本拒绝 |
 | 角色 | `characters/characters.sqlite` | 1 | `user_version` | `modules/characters/src/open.ts#CHARACTERS_STORE_BASELINE` | 低版本升级，高版本拒绝 |
 | 搜索索引（可重建的派生库） | `search/search.db` | 1 | `search_meta.schema` | `packages/storage/src/adapters/text-search-index.ts#SCHEMA_VERSION` | 清空重建 |
 | 密钥与凭据（JSON 文件，不是库） | `feed/secrets.json` | 1 | 文件里的 `version` | `packages/storage/src/adapters/file-secret-store.ts#FORMAT_VERSION` | 拒绝读取高版本（报错 `secrets file format N is not supported`），模型 API Key、连接器凭据和 Feed 证据密钥全部读不出；低版本升级 |
 | MCP 授权（JSON 文件，不是库） | `config/mcp-tools.json` | 1 | 文件里的 `version` | `apps/local-host/src/mcp-settings-store.ts#MCP_TOOL_PREFERENCE_VERSION` | 拒绝读取高版本并报告配置错误，保留原文件，明确修复后恢复；低版本升级 |
 | Shelf 目录（JSON 文件，不是库） | `shelf/catalog.json` | 1 | `version` | `modules/shelf/src/catalog-shape.ts#CATALOG_VERSION` | 低版本升级，高版本拒绝 |
-| 炼金术士搜索缓存 | `alchemist/projects/<编码后的 project_id>/search.sqlite` | 1 | `user_version` | `apps/local-host/src/alchemist-search.ts#ALCHEMIST_SEARCH_BASELINE` | 拒绝 |
+| 新用户引导（JSON 文件，不是库） | `config/onboarding.json` | 1 | `schema_version` | `apps/local-host/src/onboarding.ts#ONBOARDING_SCHEMA_VERSION` | 低版本由升级过程升。高版本或读不了（不是 JSON、没有版本号）时按没有引导过显示，日志记一行；完成或关掉引导时保存被拒并报错（高版本 `storage.store_too_new`，读不了 `storage.schema_version_mismatch`），文件不变。版本对时认不出的字段回默认值；文件不在当作没有引导过 |
+| 项目到达记录（JSON 文件，不是库） | `config/project-arrival.json` | 1 | `schema_version` | `apps/local-host/src/project-arrival.ts#PROJECT_ARRIVAL_SCHEMA_VERSION` | 低版本由升级过程升。高版本或读不了时当作空（项目选择器没有上次打开的顺序和项目介绍），日志记一行；打开项目、留下介绍时的写入被拒，这些写入本来就不报错，人看不到；文件不变。版本对时只留认得出的项目行；文件不在当作空 |
+| 侧栏浏览器的网站决定（JSON 文件，不是库） | `browser/sites.json` | 1 | `version` | `apps/local-host/src/browser/browser-surfaces.ts#BROWSER_SITES_VERSION` | 低版本由升级过程升。高版本或读不了时按没有决定处理：拦过的网站不再拦，助理可以用浏览器，日志记一行；设网站或开关助理时保存被拒并报错，文件不变。版本对时只留形状对的网站行，`assistant` 不是 `false` 就算开；文件不在当作没有决定 |
+| 电脑操作设置（JSON 文件，不是库） | `computer/settings.json` | 1 | `version` | `apps/local-host/src/computer/computer-settings.ts#COMPUTER_SETTINGS_VERSION` | 低版本由升级过程升。高版本或读不了时总开关关、人加的禁用应用读成空（内置的禁用应用不受影响），日志记一行；改开关或禁用应用时保存被拒并报错，文件不变。版本对时只有 `enabled` 是 `true` 才算开，只留形状对的禁用应用；文件不在时总开关关 |
+| 电脑操作记录（JSON 文件，不是库） | `computer/records/<id>/record.json` | 1 | `version` | `apps/local-host/src/computer/computer-records.ts#COMPUTER_RECORD_VERSION` | 低版本由升级过程升。高版本、读不了或 `id`、`steps`、`started_at`、`ended_at` 不对的那一条不列出，不追加步骤、不结束、不清理截图，文件不变（读不了的日志记一行）；别的记录照常列出和清理 |
+| 插件的模型选择（JSON 文件，不是库） | `jelly/preferences.json、plugin-files/<install_id>/.model-settings/preference.json` | 1 | `schema_version` | `apps/local-host/src/model-configuration.ts#MODEL_PREFERENCE_SCHEMA_VERSION` | `jelly/preferences.json` 的低版本由升级过程升，装进来的插件那份不在升级过程里。读的时候版本不是 1 或字段不对都报 `host.model_configuration_invalid`（「模型偏好文件无效，原文件已保留」），不是 JSON 时报解析错误，都不改文件；文件不在当作没有选。保存新的选择时不看原文件，整份替换，所以版本高的文件也会被盖掉 |
+| 常驻 Web 服务的收据（JSON 文件，不是库） | `config/web-service.json` | 1 | `schema_version` | `apps/local-host/src/installer/web-service-contract.ts#schema_version` | 读的时候不看版本，只看 `owner`、`label`、`plist_path`、`plist_hash`；文件不在或不是 JSON 时当作没有收据，已有的同名 LaunchAgent 算不是自己的，不覆盖（报 `conflict`）；设计 §2.6 不让它进升级链 |
+| 炼金术士搜索缓存 | `alchemist/projects/<编码后的 project_id>/search.sqlite` | 1 | `user_version` | `apps/local-host/src/alchemist-search.ts#ALCHEMIST_SEARCH_BASELINE` | 拒绝。不进升级链，也不清空：它存着研究报告引用的证据正文（用户 2026-11-08 定，理由是这个插件要重做，`specs/backlog/BL-377.md`） |
 
 Pages当前结构1保留 `page_comments`；原1→2维护及BL-157已被2026-10-30干净重建取代。实现历史见 [Pages与助理规格](../../specs/archive/pages-assistant-surfaces/spec.md)。
 当前版本只以上表和代码核对为准。2026-10-30用户决定统一为现行结构的第1版、旧Home搬开后重建；真实 Home 的统一起点已于 2026-11-07 生效（第 4 节）；本次合流保留 Personal 的个人同步技术表与高水位，将现行完整基线及本机持久化文件归一为 1（具体以上表为准）。现行同步集合也归一为 1；新 Home 不继承旧同步授权、游标或远端数据的采用结论。不增加读取兼容或请求内补表，不触及真实 Home。
@@ -167,7 +175,7 @@ Pages当前结构1保留 `page_comments`；原1→2维护及BL-157已被2026-10-
 
 备份核实后才把整个原 Home 搬到预定位置，保留旧安装和 Keychain 主密钥。新 Home 不带入旧库。记录实际两处位置，不把备份内容或密钥写进仓库。
 
-目录库1不再存项目库绝对路径，由当前Home与project_id推导。W5-17历史候选v23已于2026-10-30被当前起点1取代，不再执行该号迁移。W5-17迁移已取消；真实重建等用户另说“开始”。目录可推导不扩展跨Home/原key恢复承诺。旧v22目录库用新构建打开会以 `catalog.reader_too_old` 拒绝；其附带的新建或Fork Session、再 `context_resolve` 提示不能消除存储版本差异。重建前不要用新构建启动4207。
+目录库1不再存项目库绝对路径，由当前Home与project_id推导。W5-17历史候选v23已于2026-10-30被当前起点1取代，不再执行该号迁移。W5-17迁移已取消；真实重建等用户另说“开始”。目录可推导不扩展跨Home/原key恢复承诺。旧v22目录库用新构建打开会以 `storage.store_too_new` 拒绝；拒绝附带的提示说目录库是更新的版本写的、请升级，但旧v22目录库是旧程序写的，按提示升级解决不了，只能按本节搬开后干净重建。重建前不要用新构建启动4207。
 
 ### 4.3 先验证干净 Home
 

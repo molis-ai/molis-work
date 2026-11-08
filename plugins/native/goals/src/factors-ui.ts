@@ -56,7 +56,7 @@ function createFactorsRenderer(primitives: GoalsFactorsPrimitives) {
     return renderGoalFactors;
 }
 export type GoalsFactorsRenderer = ReturnType<typeof createFactorsRenderer>;
-export const GOALS_FACTORS_UI_CONTRIBUTION_ID = /* @version contract.io.molis.work.native.goals.factors "io.molis.work.native.goals.factors.v{version}" */ "io.molis.work.native.goals.factors.v1";
+export const GOALS_FACTORS_UI_CONTRIBUTION_ID = "io.molis.work.native.goals.factors.v1";
 /** The contribution's one surface; the shell mounts the whole renderer there (W5-06). */
 export const GOALS_FACTORS_UI_SURFACE = "factors";
 export const goalsFactorsUiContribution: UiContribution<{

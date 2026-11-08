@@ -27,6 +27,7 @@ function fixture(t: TestContext) {
 test('S-126 PCSYNC-11 large Goal content preserves Unicode and exact bytes with small D1 metadata', async t => {
   const f = fixture(t);
   assert.ok(f.encoded.blobs.length > 1); assert.ok(Buffer.byteLength(JSON.stringify(f.encoded.value)) < 4096);
+  assert.ok(JSON.stringify(f.encoded.value).startsWith('{"format":2,"spaceId":'), 'the chunked encoding says 2, first on the wire');
   assert.deepEqual(await f.codec.decode(f.key, f.encoded.value, f.read), f.value);
   assert.deepEqual(f.codec.encode(f.key, f.value), f.encoded, 'retry uses stable parts');
   const small = { ...f.value, facts: {} }, inline = f.codec.encode(f.key, small);

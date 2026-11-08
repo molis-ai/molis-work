@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// Machine-wide slots for the heavy local runs (docs/system/PARALLEL-DEVELOPMENT.md §5): one workspace build and one browser test
-// batch at a time on this machine, across every checkout and session. A run that finds its slot taken waits its turn in order of
+// Machine-wide slots for the heavy local runs (docs/system/PARALLEL-DEVELOPMENT.md §5): three workspace builds and three browser test
+// batches at a time on this machine, across every checkout and session. A run that finds its slot taken waits its turn in order of
 // arrival and says who holds it; a slot or a place in the queue whose process is gone is taken over. Nothing to poll by hand.
 //
 //   node scripts/machine-slot.mjs status                    who holds each slot and who waits
@@ -14,9 +14,10 @@ import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { constants, tmpdir } from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { isMainScript } from "./script-paths.mjs";
 
 export const KINDS = ["build", "browser"];
+export const SLOT_CAPACITY = 3;
 const POLL_MS = 1000;
 const ORPHAN_MS = 10_000;
 
@@ -45,13 +46,20 @@ const readJson = (file) => {
 
 const describe = (info) => info ? `${info.label} (pid ${info.pid}, ${info.cwd}, since ${new Date(info.since).toLocaleTimeString()})` : "a process that is gone";
 
-/** The holder of `kind` (null when free) and the live tickets waiting for it, oldest first; dead ones are removed. */
+const heldPaths = (kind, directory) => Array.from({ length: SLOT_CAPACITY }, (_, index) =>
+  path.join(directory, index === 0 ? `${kind}.held` : `${kind}.${index + 1}.held`));
+
+/** The holders of `kind` and the live tickets waiting for it, oldest first; dead ones are removed. */
 export function slotState(kind, directory = slotDirectory()) {
-  const held = path.join(directory, `${kind}.held`);
-  let holder = readJson(path.join(held, "info.json"));
-  if (holder && !alive(holder.pid)) { rmSync(held, { recursive: true, force: true }); holder = null; }
-  // A holder that died between making the directory and writing its info leaves the directory alone: taken over after a while.
-  if (!holder && existsSync(held) && Date.now() - statSync(held).mtimeMs > ORPHAN_MS) rmSync(held, { recursive: true, force: true });
+  const holders = [];
+  for (const held of heldPaths(kind, directory)) {
+    const holder = readJson(path.join(held, "info.json"));
+    if (holder && alive(holder.pid)) holders.push(holder);
+    else if (holder || Date.now() - (statSync(held, { throwIfNoEntry: false })?.mtimeMs ?? Date.now()) > ORPHAN_MS) {
+      // A holder that died before writing its info is reclaimed after the grace period.
+      rmSync(held, { recursive: true, force: true });
+    }
+  }
   const queue = path.join(directory, `${kind}.queue`);
   mkdirSync(queue, { recursive: true });
   const waiting = [];
@@ -63,7 +71,7 @@ export function slotState(kind, directory = slotDirectory()) {
   }
   const writing = `${queue}.writing`;
   for (const name of existsSync(writing) ? readdirSync(writing) : []) if (!alive(ownerOf(name))) rmSync(path.join(writing, name), { force: true });
-  return { holder, waiting };
+  return { holders, waiting };
 }
 
 // Written whole beside the queue and renamed into it, so no reader sees it half-written (and none reads the half-written copy).
@@ -92,15 +100,16 @@ export async function acquireSlot(kind, { label = path.basename(process.cwd()), 
   mkdirSync(queue, { recursive: true });
   const ticket = path.join(queue, `${String(info.since).padStart(15, "0")}-${process.pid}.json`);
   writeTicket(ticket, info);
-  const held = path.join(directory, `${kind}.held`);
+  let held;
   let shown = "";
   for (;;) {
-    const { holder, waiting } = slotState(kind, directory);
+    const { holders, waiting } = slotState(kind, directory);
     // A place that went missing (removed from outside) is taken again with its first arrival time, so the run cannot wait forever.
     if (!waiting.some((entry) => entry.pid === process.pid)) { writeTicket(ticket, info); continue; }
     const first = waiting[0]?.pid === process.pid;
-    if (!holder && first && tryTake(held, { ...info, since: Date.now() })) break;
-    const now = holder ? describe(holder) : `nobody, ${waiting.findIndex((entry) => entry.pid === process.pid)} ahead in the queue`;
+    if (first) held = heldPaths(kind, directory).find((candidate) => tryTake(candidate, { ...info, since: Date.now() }));
+    if (held) break;
+    const now = holders.length ? holders.map(describe).join(" | ") : `nobody, ${waiting.findIndex((entry) => entry.pid === process.pid)} ahead in the queue`;
     if (now !== shown) say(`machine-slot: waiting for the ${kind} slot, held by ${now}; ${waiting.length - 1} other(s) queued`);
     shown = now;
     await new Promise((resolve) => setTimeout(resolve, POLL_MS));
@@ -120,8 +129,8 @@ export async function acquireSlot(kind, { label = path.basename(process.cwd()), 
 async function main(args) {
   if (args[0] === "status") {
     for (const kind of KINDS) {
-      const { holder, waiting } = slotState(kind);
-      console.log(`${kind}: ${holder ? describe(holder) : "free"}${waiting.length ? `; waiting: ${waiting.map(describe).join(" | ")}` : ""}`);
+      const { holders, waiting } = slotState(kind);
+      console.log(`${kind}: ${holders.length}/${SLOT_CAPACITY} occupied; ${holders.length ? holders.map(describe).join(" | ") : "free"}${waiting.length ? `; waiting: ${waiting.map(describe).join(" | ")}` : ""}`);
     }
     return 0;
   }
@@ -141,4 +150,4 @@ async function main(args) {
   return code;
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) process.exitCode = await main(process.argv.slice(2));
+if (isMainScript(import.meta.url)) process.exitCode = await main(process.argv.slice(2));

@@ -33,7 +33,7 @@ export const ARTIFACT_FILE_IMPORT_ACTION = { capability_id: "artifacts.import.fi
 
 /**
  * An imported file or document in the 成果库 (specs/artifact-positioning A3): its type, and its original file as imported
- * (bytes for any file, or the text of an older text import). The 成果库 shows it; a plugin that continues from it reads it.
+ * (bytes for any file, or only the text when a text or external document import keeps no original). The 成果库 shows it; a plugin that continues from it reads it.
  */
 export const IMPORTED_DOCUMENT_TYPE = "io.molis.work.document";
 /**

@@ -7,5 +7,6 @@ export const webSurface = true;
 export default async function ({ http }: GoldenWriteContext) {
   const id = crypto.randomUUID();
   await http("/api/onboarding/context", { body: { id } });
-  readsBack(await http(`/api/onboarding/context/${id}`, { method: "GET" }), id);
+  await http(`/api/onboarding/context/${id}/selection`, { body: { sources: [], previewed: true } });
+  readsBack(await http(`/api/onboarding/context/${id}`, { method: "GET" }), `"previewed":true`);
 }

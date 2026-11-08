@@ -11,6 +11,13 @@ test("a desktop Kanban opens its columns after data refreshes while the board is
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await click('[data-plugin-id="goals"]');
   await waitFor("document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true'");
+  // T01-KANBAN-TOGGLE-01: an outside pointer closes floating details; Goals must retain its desktop columns.
+  await waitFor("[...document.querySelectorAll('[data-kanban-group]')].every(group => group.open && group.hasAttribute('data-layer-open'))");
+  await click('[data-dock-pin="inbox"]');
+  await waitFor("document.querySelector('[data-titlebar-tabs] [data-tab-kind=plugin][aria-current][data-plugin=inbox]')");
+  await waitFor("[...document.querySelectorAll('[data-kanban-group]')].every(group => group.open && group.hasAttribute('data-layer-open') && group.closest('[hidden], [inert]'))");
+  await click('[data-dock-pin="goals"]');
+  await waitFor("document.querySelector('[data-titlebar-tabs] [data-tab-kind=plugin][aria-current][data-plugin=goals]')");
   await click('[data-board-view-tab="list"]');
   await waitFor("document.querySelector('[data-goal-kanban]').clientWidth === 0");
   const app = new GoalProjectApplication(browser.store);

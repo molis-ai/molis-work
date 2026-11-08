@@ -226,7 +226,7 @@ test("VUX-40: the step report dialog and the change set reader speak English in 
           reference:{artifact_id:'a',version:2},saved_at:Date.UTC(2026,9,20,9,30),output:null,net_groups:[{path:'a.ts',available:true,indices:[0,1]}],
           change:{files:[{path:'a.ts',kind:'modified',added_lines:2,removed_lines:1,review:{decision:'approved',execution:'applied'}},
             {path:'a.ts',kind:'modified',added_lines:1,removed_lines:0,review:{decision:'approved',execution:'failed'}},
-            {path:'src/b.ts',kind:'added',added_lines:4,removed_lines:0,review:{decision:'rejected'}},{path:'c.ts',kind:'modified',added_lines:1,removed_lines:1}]}})});
+            {path:'src/b.ts',kind:'added',added_lines:4,removed_lines:0,review:{decision:'rejected',execution:'not-applied'}}]}})});
       const opener=document.createElement('button');opener.dataset.codingChangeOpen='r';root.append(opener);opener.click();
       await new Promise(resolve=>setTimeout(resolve,20));
       q('[data-coding-line]').click();
@@ -242,9 +242,9 @@ test("VUX-40: the step report dialog and the change set reader speak English in 
     assert.match(result.step, /You asked for rework.*Missing an edge case.*This assessment is for an earlier report/);
     assert.equal(result.stepStatus, "The run has ended; the step reports keep their states, so check each one.");
     assert.match(result.files, /a\.ts\s*Writes: 2\s*Net change this turn.*Write 1.*Written.*Write 2.*Write failed/);
-    assert.match(result.files, /b\.ts\s*new.*Rejected.*c\.ts\s*modified.*Older record/);
+    assert.match(result.files, /b\.ts\s*new.*Rejected/);
     assert.match(result.reader, /Fixed v2/);
-    assert.match(result.reader, /Files: 3 · writes: 4/);
+    assert.match(result.reader, /Files: 2 · writes: 3/);
     assert.match(result.reader, /Click a line number to leave a comment/);
     assert.equal(result.comments, "Comment on a.ts · write 1 · line 3 after");
   } finally { await browser.close(); rmSync(directory, { recursive: true, force: true }); }

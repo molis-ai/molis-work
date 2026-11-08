@@ -57,9 +57,10 @@
 //   --counts <file>                test hook: take { "<plugin id>": <rule blocks> } from a JSON file instead of the build
 // Exit codes: 0 passed, 1 a gate failed, 2 the command or the environment is unusable (a missing build is exit 2, never a pass).
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, realpathSync, writeFileSync, mkdirSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { isMainScript } from "../script-paths.mjs";
 
 // ---- counting rule blocks -------------------------------------------------------------------------------------------
 // A rule block is a style rule (`selector { … }`), not an at-rule wrapper: `@media`, `@supports` and `@container` carry rules
@@ -355,4 +356,4 @@ if (errors.length) {
 console.log(`Plugin style budgets passed against ${against} (${Object.keys(measured).length} plugin${Object.keys(measured).length === 1 ? "" : "s"}, ${total} rule blocks).${notes.length ? ` Note: ${notes.join("; ")}.` : ""}`);
 }
 
-if (process.argv[1] && pathToFileURL(realpathSync(path.resolve(process.argv[1]))).href === import.meta.url) await main();
+if (isMainScript(import.meta.url)) await main();

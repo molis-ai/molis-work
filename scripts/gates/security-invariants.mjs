@@ -14,6 +14,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { isMainScript } from "../script-paths.mjs";
 export const SECURITY_RECORDS = "docs/system/security-invariants/";
 export const SECURITY_DOC = "docs/system/SECURITY-INVARIANTS.md";
 const ROW = /^\|\s*(S-(?:\d+|[a-z][a-z0-9-]*))\s*\|/;
@@ -83,7 +84,7 @@ export function securityInvariantProblems(snapshot) {
   return problems;
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMainScript(import.meta.url)) {
   if (process.argv.slice(2).join(" ") !== "--report") { console.error("usage: security-invariants.mjs --report"); process.exitCode = 2; }
   else {
     const root = fileURLToPath(new URL("../../", import.meta.url));

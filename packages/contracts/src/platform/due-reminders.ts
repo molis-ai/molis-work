@@ -1,3 +1,4 @@
+import { inputSchemaFor } from "./action-input.js";
 import { ActionError, type ActionDefinition, type ActionSubject } from "./actions.js";
 import { ACTION_SUBJECT_SCHEMA } from "./action-subjects.js";
 
@@ -24,10 +25,10 @@ export interface DueReminder {
 }
 export interface DueReminderCollection { source: { surface: string; title: string }; reminders: DueReminder[] }
 
-const id = { type: "string", minLength: 1 };
+const id = { type: "string", minLength: 1 } as const;
 const token = { ...id, pattern: "^[a-zA-Z0-9_-]+$" };
-const instant = { ...id, format: "date-time" };
-export const DUE_REMINDER_WINDOW_SCHEMA = { type: "object", properties: { from: instant, to: instant }, required: ["from", "to"], additionalProperties: false };
+const instant = { ...id, format: "date-time" } as const;
+export const DUE_REMINDER_WINDOW_SCHEMA = { type: "object", properties: { from: instant, to: instant }, required: ["from", "to"], additionalProperties: false } as const;
 export const DUE_REMINDER_SCHEMA = { type: "object", properties: { reminder_id: { ...id, maxLength: 200 }, due_at: instant, title: { ...id, maxLength: 300 },
   subject: { anyOf: [{ type: "null" }, ACTION_SUBJECT_SCHEMA] }, project_id: { type: ["string", "null"], maxLength: 120 },
   open: { anyOf: [{ type: "null" }, { type: "object", properties: { surface: token, id }, required: ["surface", "id"], additionalProperties: false }] } },
@@ -39,7 +40,7 @@ export const DUE_REMINDER_COLLECTION_SCHEMA = { type: "object", properties: {
 export function defineDueRemindersAction(capabilityId: string, version: number, kinds: string[], title: string, permissions: string[]): ActionDefinition<DueReminderWindow, DueReminderCollection> {
   return { capability_id: capabilityId, version: version, operation: "query", action: { title, description: "列出用户自己设的、到期时间落在窗口内的提醒；只读，不改变提醒状态。", kind: "query", scope: "home", scheduling: "concurrent",
     audiences: ["user"], permissions, subject_kinds: kinds,
-    input_type: DUE_REMINDERS_INPUT_TYPE, output_type: DUE_REMINDERS_OUTPUT_TYPE, input_schema: DUE_REMINDER_WINDOW_SCHEMA, output_schema: DUE_REMINDER_COLLECTION_SCHEMA } };
+    input_type: DUE_REMINDERS_INPUT_TYPE, output_type: DUE_REMINDERS_OUTPUT_TYPE, input_schema: inputSchemaFor<DueReminderWindow>()(DUE_REMINDER_WINDOW_SCHEMA), output_schema: DUE_REMINDER_COLLECTION_SCHEMA } };
 }
 
 /** Providers return reminders with `from <= due_at < to`; the window itself is checked here. */

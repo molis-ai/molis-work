@@ -43,7 +43,7 @@ function createStatusRenderer(primitives: GoalsStatusPrimitives) {
     return { renderStatus, renderActionStatus, renderVisibleGoalStatus, visibleGoalStatusIcon };
 }
 export type GoalsStatusRenderer = ReturnType<typeof createStatusRenderer>;
-export const GOALS_STATUS_UI_CONTRIBUTION_ID = /* @version contract.io.molis.work.native.goals.status "io.molis.work.native.goals.status.v{version}" */ "io.molis.work.native.goals.status.v1";
+export const GOALS_STATUS_UI_CONTRIBUTION_ID = "io.molis.work.native.goals.status.v1";
 export type GoalsStatusUiModel = {
     primitives: GoalsStatusPrimitives;
 } & ({

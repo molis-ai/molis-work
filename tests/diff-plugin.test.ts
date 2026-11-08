@@ -12,7 +12,7 @@ import {
   emptyDiff,
   recoveryMessage,
 } from "@molis-ai/molis-work-plugin-diff";
-import { countChangedLines, parseUnifiedDiff, renderDiff } from "@molis-ai/molis-work-plugin-sdk/diff-view";
+import { compareHunks, countChangedLines, parseUnifiedDiff, renderDiff } from "@molis-ai/molis-work-plugin-sdk/diff-view";
 import {
   DIFF_STEP_BUDGET,
   alignSplitRows,
@@ -34,7 +34,7 @@ test("Git permission-only changes and renames remain visible in fixed comparison
   assert.deepEqual(view.metadata_changes, ["重命名：old.sh → new.sh", "文件权限：新增执行权限（100644 → 100755）", "正文未改变"]);
   assert.ok(view.rows.every(row => row.kind === "equal"));
   const textOnly = { ...content }; delete (textOnly as { git?: unknown }).git;
-  assert.equal(compareChangeSet({ ...input, content: textOnly }).identical, true, "older artifacts remain readable without invented mode facts");
+  assert.equal(compareChangeSet({ ...input, content: textOnly }).identical, true, "a producer that gives only the text gets no invented mode facts");
   for (const git of [{ ...content.git, before_mode: null }, { ...content.git, after_mode: "120000" }, { ...content.git, previous_path: ["..", "escape"] }]) {
     assert.equal(compareChangeSet({ ...input, content: { ...content, git } }).phase, "unavailable");
   }
@@ -145,23 +145,9 @@ test("新建与删除各自标出来，缺的一侧文本被当成空", () => {
   assert.equal(removed.removed, true);
 });
 
-test("一轮执行的 diff 是片段，视图明说自己不是整份文件", () => {
-  const view = compareRunChangeSet({
-    content: {
-      scope: "run-frozen",
-      run_id: "run-7",
-      applied: false,
-      files: [{
-        path: "src/a.ts",
-        kind: "modified",
-        added_lines: 1,
-        removed_lines: 1,
-        diff: "@@ -1,2 +1,2 @@ fn\n context\n-old\n+new\n",
-      }],
-    },
-    source_plugin_id: "io.molis.work.coding",
-    content_version: 2,
-  });
+test("生产方给的 diff 是片段，视图明说自己不是整份文件", () => {
+  const side = { workspace_id: "w", workspace_name: "w", path: "src/a.ts", source_plugin_id: "c", content_version: 2 };
+  const view = compareHunks(null, { before: side, after: { ...side } }, "@@ -1,2 +1,2 @@ fn\n context\n-old\n+new\n");
   assert.equal(view.partial, true, "没接通整份文件就不能假装比了整份文件");
   assert.equal(view.identical, false);
   assert.deepEqual(
@@ -175,9 +161,13 @@ test("重命名式多文件变更列出全部文件，只渲染选中的那个",
     scope: "run-frozen" as const,
     run_id: "run-8",
     applied: false,
+    coverage: "text-reviews" as const,
+    origin: { session_id: "s", runtime_session_id: "r", workspace_id: "w", workspace_name: "w" },
     files: [
-      { path: "a.ts", kind: "modified" as const, added_lines: 1, removed_lines: 0, diff: "@@ -1 +1,2 @@\n a\n+b\n" },
-      { path: "b.ts", kind: "added" as const, added_lines: 1, removed_lines: 0, diff: "@@ -0,0 +1 @@\n+x\n" },
+      { path: "a.ts", kind: "modified" as const, added_lines: 1, removed_lines: 0, diff: "",
+        review: { review_id: "v1", before_text: "a\n", after_text: "a\nb\n", decision: "approved" as const, execution: "applied" as const } },
+      { path: "b.ts", kind: "added" as const, added_lines: 1, removed_lines: 0, diff: "",
+        review: { review_id: "v2", before_text: null, after_text: "x\n", decision: "approved" as const, execution: "applied" as const } },
     ],
   };
   const first = compareRunChangeSet({ content: change, source_plugin_id: "c", content_version: 1 });
@@ -242,7 +232,7 @@ test("每个输入端口都是可选的：没连上也能起来", () => {
 test("折叠只收起远离改动的未改变行，行号按钮仍在原处可评论", () => {
   const lines = Array.from({ length: 20 }, (_, n) => `line ${n + 1}`);
   const after = lines.map((line, n) => n === 9 ? "changed" : line);
-  const view = compareRunChangeSet({ content: { scope: "run-frozen", run_id: "r", applied: true, files: [{ path: "a.ts", kind: "modified", added_lines: 1, removed_lines: 1, diff: "",
+  const view = compareRunChangeSet({ content: { scope: "run-frozen", run_id: "r", applied: true, coverage: "text-reviews", origin: { session_id: "s", runtime_session_id: "r", workspace_id: "w", workspace_name: "w" }, files: [{ path: "a.ts", kind: "modified", added_lines: 1, removed_lines: 1, diff: "",
     review: { review_id: "v", before_text: lines.join("\n") + "\n", after_text: after.join("\n") + "\n", decision: "approved", execution: "applied" } }] },
   source_plugin_id: "io.molis.work.coding", content_version: 1 }, undefined, 0);
   const primitives = { escape: (value: unknown) => String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;"), text: diffPageText("zh"), icon: (name: string) => `<svg data-icon="${name}"></svg>` };
@@ -256,7 +246,7 @@ test("折叠只收起远离改动的未改变行，行号按钮仍在原处可�
   const plain = renderDiff({ labels: DIFF_LABELS, view, primitives });
   assert.doesNotMatch(plain, /data-diff-unfold|data-diff-folded/, "不要求折叠时逐行展示");
   assert.match(plain, /mw-diff-sides/);
-  const tiny = compareRunChangeSet({ content: { scope: "run-frozen", run_id: "r", applied: true, files: [{ path: "b.ts", kind: "modified", added_lines: 1, removed_lines: 1, diff: "",
+  const tiny = compareRunChangeSet({ content: { scope: "run-frozen", run_id: "r", applied: true, coverage: "text-reviews", origin: { session_id: "s", runtime_session_id: "r", workspace_id: "w", workspace_name: "w" }, files: [{ path: "b.ts", kind: "modified", added_lines: 1, removed_lines: 1, diff: "",
     review: { review_id: "w", before_text: "a\nb\nc\nd\ne\n", after_text: "a\nb\nc\nd\nE\n", decision: "approved", execution: "applied" } }] },
   source_plugin_id: "io.molis.work.coding", content_version: 1 }, undefined, 0);
   assert.doesNotMatch(renderDiff({ labels: DIFF_LABELS, view: tiny, primitives, fold_context: 3 }), /data-diff-unfold/, "少于四行不值得折叠");
@@ -264,7 +254,7 @@ test("折叠只收起远离改动的未改变行，行号按钮仍在原处可�
 
 test("VUX-33 行的几何共用一份：行号列按最长的行号定宽；并排是真的两栏，折叠、正负号与行号评论与统一视图一致", () => {
   const primitives = { escape: (value: unknown) => String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;"), text: diffPageText("zh"), icon: (name: string) => `<svg data-icon="${name}"></svg>` };
-  const compare = (before: string, after: string) => compareRunChangeSet({ content: { scope: "run-frozen", run_id: "r", applied: true, files: [{ path: "a.ts", kind: "modified", added_lines: 1, removed_lines: 1, diff: "",
+  const compare = (before: string, after: string) => compareRunChangeSet({ content: { scope: "run-frozen", run_id: "r", applied: true, coverage: "text-reviews", origin: { session_id: "s", runtime_session_id: "r", workspace_id: "w", workspace_name: "w" }, files: [{ path: "a.ts", kind: "modified", added_lines: 1, removed_lines: 1, diff: "",
     review: { review_id: "v", before_text: before, after_text: after, decision: "approved", execution: "applied" } }] },
   source_plugin_id: "io.molis.work.coding", content_version: 1 }, undefined, 0);
   const many = Array.from({ length: 10_020 }, (_, n) => `line ${n + 1}`);
@@ -316,7 +306,7 @@ test("VUX-33: one 120,000-character line in a normal diff (under the line-pair b
   const normal = Array.from({ length: 400 }, (_, index) => `  const value${index} = compute(${index}); // ${index}`);
   let minified = ""; while (minified.length < 120_000) minified += 'function a1(b,c){return b+c*"x"/2}var q={k:1,"s":[1,2,3]};';
   const after = normal.map((line, index) => index % 10 === 3 ? line.replace("compute", "measure") : line).toSpliced(200, 0, minified);
-  const view = compareRunChangeSet({ content: { scope: "run-frozen", run_id: "r", applied: true, files: [{ path: "a.ts", kind: "modified", added_lines: 41, removed_lines: 40, diff: "",
+  const view = compareRunChangeSet({ content: { scope: "run-frozen", run_id: "r", applied: true, coverage: "text-reviews", origin: { session_id: "s", runtime_session_id: "r", workspace_id: "w", workspace_name: "w" }, files: [{ path: "a.ts", kind: "modified", added_lines: 41, removed_lines: 40, diff: "",
     review: { review_id: "v", before_text: normal.join("\n") + "\n", after_text: after.join("\n") + "\n", decision: "approved", execution: "applied" } }] },
   source_plugin_id: "io.molis.work.coding", content_version: 1 }, undefined, 0);
   const primitives = { escape: (value: unknown) => String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"), text: diffPageText("zh"), icon: (name: string) => `<svg data-icon="${name}"></svg>` };

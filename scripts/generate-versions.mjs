@@ -6,40 +6,19 @@
 //   node scripts/generate-versions.mjs --write | --check [--root <dir>]
 //
 // Everything is computed in memory and checked first, so a failure writes nothing.
-import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
-
-const ROOT = fileURLToPath(new URL("../", import.meta.url));
-const LITERAL = String.raw`"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|\d+(?:\.\d+)?`;
-const MARKED = new RegExp(String.raw`(/\* @version ([\w./-]+)(?: ("(?:[^"\\]|\\.)*"))? \*/\s*)(${LITERAL})`, "g");
-const MARKER = /\/\* @version [^*]*\*\//g;
-const SKIPPED_DIRECTORIES = new Set(["node_modules", "dist", "target", ".git", ".build"]);
-export const SOURCE_ROOTS = ["apps", "packages", "plugins", "modules", "horizontal", "server", "tooling/plugin-cli"];
-
-/** Real tests and their fixtures hold frozen inputs, not current declarations. `src/fixtures/` ships, so it is not one of them. */
-export function isTestFile(file) {
-  return /(?:^|\/)tests?\//.test(file) || /\.(?:test|spec)\.[cm]?[jt]sx?$/.test(file) || /(?:^|\/)test\.[cm]?[jt]sx?$/.test(file)
-    || (/(?:^|\/)fixtures\//.test(file) && !/\/src\/(?:.*\/)?fixtures\//.test(file));
-}
-
-export const versionSource = (root = ROOT) => JSON.parse(readFileSync(path.join(root, "tooling/versions.json"), "utf8"));
-
-/** Every first-party code file (relative path, text). */
-export function readSourceFiles(root = ROOT) {
-  const files = new Map();
-  const walk = directory => {
-    for (const entry of readdirSync(path.join(root, directory), { withFileTypes: true })) {
-      const relative = `${directory}/${entry.name}`;
-      if (entry.isDirectory()) { if (!SKIPPED_DIRECTORIES.has(entry.name)) walk(relative); }
-      else if (/\.[cm]?[jt]sx?$/.test(entry.name) && !isTestFile(relative)) files.set(relative, readFileSync(path.join(root, relative), "utf8"));
-    }
-  };
-  for (const directory of SOURCE_ROOTS) if (existsSync(path.join(root, directory))) walk(directory);
-  return files;
-}
+import { isMainScript } from "./script-paths.mjs";
+import { ANY_MARKER, isQuotedMarker, MARKED_LITERAL, readSourceFiles, REPOSITORY, versionSource } from "./version-source.mjs";
 
 const quoted = (text, original) => original.startsWith("'") ? `'${text.replaceAll("\\", "\\\\").replaceAll("'", "\\'")}'` : JSON.stringify(text);
+
+/** What is wrong with a carrier's one match, whose value it would replace. A carrier changes the one line it declares; in Markdown that line is in the frontmatter. */
+function carrierMatchProblem(file, source, [whole, prefix, suffix], index) {
+  if (whole.slice(prefix.length, whole.length - suffix.length).includes("\n")) return "replaces more than one line";
+  const frontmatter = /^---\n[\s\S]*?\n---/.exec(source)?.[0].length ?? 0;
+  return file.endsWith(".md") && index >= frontmatter ? "matches the body, not the frontmatter" : null;
+}
 
 /**
  * What the source says every file should be. Pure: `files` maps a path to its text and must include the carrier files.
@@ -54,14 +33,19 @@ export function computeVersions({ versions, carriers = [], ...extra }, files) {
   }
   for (const [file, source] of files) {
     let bound = 0;
-    const output = source.replace(MARKED, (match, marker, key, pattern, original) => {
+    const output = source.replace(MARKED_LITERAL, (match, marker, key, written, original, offset) => {
       bound++;
+      // A marker quoted in a comment declares nothing: it does not use the entry, and it is left as it was written.
+      if (isQuotedMarker(file, source, offset)) return match;
       if (!Object.hasOwn(versions, key)) { problems.push(`${file}: unknown version key ${key}`); return match; }
       used.add(key);
-      const value = pattern ? JSON.parse(pattern).replaceAll("{version}", String(versions[key])) : versions[key];
+      const template = written && JSON.parse(written);
+      if (template && !template.includes("{version}")) { problems.push(`${file}: the template of ${key} has no {version}`); return match; }
+      if (template?.includes("*")) { problems.push(`${file}: the template of ${key} contains *, which can end the comment it sits in`); return match; }
+      const value = template ? template.replaceAll("{version}", String(versions[key])) : versions[key];
       return marker + (typeof value === "string" ? quoted(value, original) : String(value));
     });
-    if ((source.match(MARKER) ?? []).length !== bound) problems.push(`${file}: a @version marker is not directly before a literal`);
+    if ((source.match(ANY_MARKER) ?? []).length !== bound) problems.push(`${file}: a @version marker is not directly before a literal`);
     if (output !== source) outputs.set(file, output);
   }
   for (const { file, key, pattern } of carriers) {
@@ -72,7 +56,10 @@ export function computeVersions({ versions, carriers = [], ...extra }, files) {
     const regex = new RegExp(pattern, "gm"), matches = [...source.matchAll(regex)];
     if (!matches.length) problems.push(`${file}: carrier for ${key} matches nothing`);
     else if (matches.some(match => match.length !== 3)) problems.push(`${file}: carrier for ${key} needs exactly a prefix and a suffix capture`);
+    else if (matches.length > 1) problems.push(`${file}: carrier for ${key} matches ${matches.length} places; it has to name one`);
     else {
+      const problem = carrierMatchProblem(file, source, matches[0], matches[0].index);
+      if (problem) { problems.push(`${file}: carrier for ${key} ${problem}`); continue; }
       const output = source.replace(regex, (_match, prefix, suffix) => `${prefix}${versions[key]}${suffix}`);
       if (output === files.get(file)) outputs.delete(file); else outputs.set(file, output);
     }
@@ -93,16 +80,16 @@ export function readVersionInputs(root, source) {
 }
 
 /** Reads the tree, computes, and only when everything checks out writes. Returns the files that differ; throws on any problem. */
-export function generateVersions({ root = ROOT, write = false } = {}) {
+export function generateVersions({ root = REPOSITORY, write = false } = {}) {
   const source = versionSource(root), { outputs, problems } = computeVersions(source, readVersionInputs(root, source));
   if (problems.length) throw new Error(problems.join("\n"));
   if (write) for (const [file, output] of outputs) writeFileSync(path.join(root, file), output);
   return [...outputs.keys()];
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMainScript(import.meta.url)) {
   const args = process.argv.slice(2), write = args.includes("--write"), check = args.includes("--check");
-  const rootAt = args.indexOf("--root"), root = rootAt >= 0 ? path.resolve(args[rootAt + 1] ?? ".") : ROOT;
+  const rootAt = args.indexOf("--root"), root = rootAt >= 0 ? path.resolve(args[rootAt + 1] ?? ".") : REPOSITORY;
   if (write === check || args.length !== (rootAt >= 0 ? 3 : 1)) throw new Error("usage: node scripts/generate-versions.mjs --write|--check [--root <dir>]");
   const changed = generateVersions({ root, write });
   if (changed.length && !write) { console.error(`Stale version outputs (run pnpm versions:generate):\n${changed.join("\n")}`); process.exitCode = 1; }

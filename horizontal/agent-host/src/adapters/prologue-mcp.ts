@@ -11,7 +11,7 @@ export type HostMcpConnection = string | { credentialRef?: string; revision: str
 export type SaveMcpConnection = (input: { label: string; endpoint: string; secret: string }) => Promise<{ connection_id: string; discard(): void | Promise<void> }>;
 const KIND = "molis-mcp";
 /** Each configuration has a distinct SDK connection identity; old calls cannot target a replacement. */
-export const mcpConnectionId = (ref: AgentMcpSourceRef) => ref.configuration_version === undefined ? ref.server : `${ref.server}@${ref.configuration_version}`;
+export const mcpConnectionId = (ref: AgentMcpSourceRef) => `${ref.server}@${ref.configuration_version}`;
 interface Saved extends Omit<AgentMcpServerInput, "auth" | "expected_version">, AgentSkillOwner {
   id: string; credential_ref?: ExactRef<"credential">; auth_connection_id?: string; removed?: boolean;
 }

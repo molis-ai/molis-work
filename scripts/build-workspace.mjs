@@ -15,13 +15,14 @@
 // before (`pnpm run clean`, `pnpm run build` in its directory), after the packages it depends on. The records are in
 // node_modules/.cache/molis-work-build/records.json of this checkout, never in dist/. A build that reads a file outside its package
 // without depending on that package is not seen: `pnpm build:clean` builds everything. CI starts with no records, so it builds all.
-// The build takes the machine's build slot first (scripts/machine-slot.mjs) and waits for it when another checkout is building.
+// The build takes one of the machine's three build slots (scripts/machine-slot.mjs) and waits when all three are occupied.
 import { generateVersions } from "./generate-versions.mjs";
 import { spawn, execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { isMainScript } from "./script-paths.mjs";
 import { acquireSlot } from "./machine-slot.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -236,4 +237,4 @@ async function main() {
   return failed.size ? 1 : 0;
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) process.exitCode = await main();
+if (isMainScript(import.meta.url)) process.exitCode = await main();

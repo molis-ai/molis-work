@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 import { openTestSqlite, type SqliteDatabase } from "@molis-ai/molis-work-test-kit/sqlite";
 import { createCodingPlugin } from "@molis-ai/molis-work-plugin-coding";
 import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 
 /**
  * The HTTP operations every Runtime plugin shares (restart, release-quarantine, upgrade, "not running", the view revision, then the

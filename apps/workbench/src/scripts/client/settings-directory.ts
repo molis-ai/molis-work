@@ -18,7 +18,8 @@
  * - `reopen`: History and the bar reopen a settings cover on the section it last showed. A place is "<section>" or "<section> <address>" (a nested page such as one role's prompts).
  * - `openGlobalSettingsFromUrl`: A project page draws root links under its own prefix; a global page named there is still the global page.
  * - `openGlobalSettingsFromUrl (moved pages)`: MCP, connectors and Functions moved to 能力; their old settings addresses open the 能力 page.
- * - `molis-work:model-ready` (models): `modelReady` below sends it, when the model settings page reports the first model that can run. What it means, who hears it, when the cover closes first and how it reaches other tabs is written once, in that event's entry in `packages/contracts/src/platform/dom-events.ts`, not here.
+ * - `molis-work:model-ready` (models): `modelSaved` below sends it, when the model settings page reports the first model that can run, after the return trip on these settings (settings-return.ts) was read and, when met, settled and taken back. What it means, who hears it and how it reaches other tabs is written once, in that event's entry in `packages/contracts/src/platform/dom-events.ts`, not here.
+ * - `returns`: the window's return trips (specs/draft-and-return). A request or a link from outside the settings opens one; a page inside them reports a save through `saved`.
  * - `molis-work:open-settings-section`: A plugin whose page lives in settings (角色) is opened there, from search, a link or an old tab.
  * - `?settings=`: “?settings=<section>” on the workbench address opens that settings page once the workbench has landed.
  * - `?settingsPath=`: “?settingsPath=<address>” is a settings page that was opened directly; the server sent it here to open in place.
@@ -98,16 +99,17 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
       document.head.append(link);
     })));
   };
-  let sentFromPage = false;
+  const returns = host.returns;
   const modelReady = () => {
-    const back = sentFromPage && host.closeCover?.();
-    sentFromPage = false;
     const frames = [...document.querySelectorAll("iframe[data-pane-tab]")].map((frame) => frame.contentDocument);
     [document, ...frames].forEach((doc) => doc?.dispatchEvent(new CustomEvent("molis-work:model-ready")));
-    if (back) host.showToast?.(L("模型已连接，可以继续了。"));
+  };
+  // A save whose answer already says this provider can run is not read again (specs/draft-and-return §3.4).
+  const modelSaved = async ({ first, ready } = {}) => {
+    try { await returns?.saved("model", ready === true); } finally { if (first) modelReady(); }
   };
   const bindEmbed = (root) => {
-    const page = pageOf(root);
+    const page = { ...pageOf(root), saved: (kind) => returns?.saved(kind) };
     globalThis.molisWorkBindPromptSettings?.(root, { search: root.dataset.settingsSearch || "", hash: root.dataset.settingsHash || "" });
     globalThis.molisWorkBindAssistantSettings?.(root);
     globalThis.molisWorkBindLocalDirectorySettings?.(root, { search: root.dataset.settingsSearch || "" });
@@ -120,7 +122,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     globalThis.molisWorkBindPlanningSettings?.(root);
     globalThis.molisWorkBindPlanningAdoption?.(root);
     globalThis.molisWorkBindShelfSettings?.(root);
-    globalThis.molisWorkBindModelSettings?.(root, { ready: modelReady });
+    globalThis.molisWorkBindModelSettings?.(root, { saved: modelSaved });
     globalThis.molisWorkBindConnectorsSettings?.(root, page);
     globalThis.molisWorkBindMcpAccess?.(root, page);
     globalThis.molisWorkBindFunctionsRules?.(root, page);
@@ -157,7 +159,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
       if (!body || !node) return;
       if (node.ownerDocument !== document) document.adoptNode(node);
       [...body.children].forEach((child) => {
-        if (child === node) return;
+        if (child === node || child.matches("[data-settings-return-bar]")) return;
         if (child.matches("[data-work-surface]") && pool) { child.hidden = true; pool.append(child); }
         else child.remove();
       });
@@ -295,6 +297,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     if (rest.startsWith("/memory")) return "memory";
     if (rest.startsWith("/knowledge")) return "knowledge";
     if (rest.startsWith("/plugins")) return "plugins";
+    if (rest.startsWith("/grants")) return "grants";
     if (rest.startsWith("/rules")) return "rules";
     if (rest.startsWith("/planning")) return "planning";
     return "";
@@ -313,8 +316,10 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
       .map((row) => row.dataset.settingsSection);
     return known.includes(slug) ? slug : "";
   };
+  let opened = null;
+  const covered = () => ["settings", "project-settings"].includes(host.coverKind?.() || "");
   const openShell = (kind, section, fetchPath) => {
-    sentFromPage = false;
+    opened = { kind, section: section || (kind === "project-settings" ? "general" : "appearance") };
     setDirectory?.(kind, true, true);
     setExclusive?.(kind);
     if (kind === "project-settings") {
@@ -365,7 +370,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
       globalSettings ||= bindGlobal();
       if (!section || !globalSettings) return false;
     }
-    if (fromPage !== undefined) sentFromPage = fromPage && section === "models";
+    opened = { kind: "settings", section };
     setDirectory?.("settings", true, true);
     setExclusive?.("settings");
     if (section === "appearance" && pathname === "/settings/appearance") {
@@ -376,9 +381,13 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     void globalSettings.loadSection(section, pathname + (fromPage === true ? keptAddress(url, GLOBAL_DEFAULTS, GLOBAL_QUERY_EXTRAS, section) : url.search + url.hash));
     return true;
   };
+  // The request may carry a return trip's need, source and carry (specs/draft-and-return §2.4); the owner checks and keeps them.
   document.addEventListener("molis-work:open-settings-path", (event) => {
-    const href = event.detail?.href || "";
-    if (!openProjectSettingsFromUrl(href, true)) openGlobalSettingsFromUrl(href, true);
+    const detail = event.detail && typeof event.detail === "object" ? event.detail : {};
+    const href = typeof detail.href === "string" ? detail.href : "", wasOpen = covered();
+    opened = null;
+    if (openProjectSettingsFromUrl(href, true) || openGlobalSettingsFromUrl(href, true)) returns?.open(detail, opened.kind + " " + opened.section, wasOpen);
+    else returns?.refuse(detail.return_id);
   });
   const knownGlobalSection = (section) => [...document.querySelectorAll("[data-directory-panel=settings] [data-settings-section]")]
     .some((row) => row.dataset.settingsSection === section);
@@ -402,6 +411,9 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     if (openProjectSettingsFromUrl(asked.href) || openGlobalSettingsFromUrl(asked.href, false)) return;
     openShell("settings", "appearance");
   }, 0);
+  // After the boot address opened the settings (the two timers above): the return trips are judged against the cover as it is then.
+  // A host without return trips (the standalone settings page) schedules nothing.
+  if (returns) setTimeout(returns.start, 0);
   document.addEventListener("click", (event) => {
     const projectOpener = event.target.closest("[data-directory-open=project-settings]");
     if (projectOpener) {
@@ -420,15 +432,15 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     const url = new URL(link.href, location.origin);
     if (url.origin !== location.origin) return;
     if (url.pathname === "/locale" || url.pathname.startsWith("/locale?")) return;
-    if (openProjectSettingsFromUrl(link.href)) {
-      event.preventDefault();
-      return;
-    }
     // A link clicked outside the settings shell is treated like a page address too: its address is filtered before opening, so a
-    // link that is not in the shell cannot carry parameters or fragments the target page does not read.
+    // link that is not in the shell cannot carry parameters or fragments the target page does not read. Such a link is where the
+    // person came from (a return trip); one inside the settings opens none.
     const inSettingsShell = link.closest("[data-work-surface=settings], [data-work-surface=project-settings], [data-directory-panel=settings], [data-directory-panel=project-settings]");
-    if (openGlobalSettingsFromUrl(link.href, !inSettingsShell)) {
+    const wasOpen = covered();
+    opened = null;
+    if (openProjectSettingsFromUrl(link.href) || openGlobalSettingsFromUrl(link.href, !inSettingsShell)) {
       event.preventDefault();
+      if (!inSettingsShell) returns?.link(link, link.href, opened.kind + " " + opened.section, wasOpen);
       return;
     }
     if (!inSettingsShell) return;

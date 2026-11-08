@@ -103,7 +103,7 @@ function safeError(error: unknown): ActionError {
 function readOAuthCredential<T extends { issuer?: string }>(raw: string | null, allowUnbound = false): T | undefined {
   if (!raw) return undefined;
   const credential = JSON.parse(raw) as T;
-  if (!allowUnbound && !credential.issuer?.trim()) throw authorizationError("MCP 授权凭据来自旧版本，请重新连接");
+  if (!allowUnbound && !credential.issuer?.trim()) throw authorizationError("MCP 授权凭据缺少签发方，请重新连接");
   return credential;
 }
 

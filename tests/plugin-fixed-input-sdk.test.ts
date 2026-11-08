@@ -185,7 +185,7 @@ test("W2-18-FIXED-INPUT-01, W2-18-FIXED-INPUT-02: real library bindings reach SD
 
 for (const selected of [
   { group: "change-set", port: "changeset", artifactType: CODING_CHANGESET_TYPE,
-    payload: { scope: "run-frozen", run_id: "run", applied: true, coverage: "text-reviews", files: [
+    payload: { scope: "run-frozen", run_id: "run", applied: true, coverage: "text-reviews", origin: { session_id: "s", runtime_session_id: "r", workspace_id: "w", workspace_name: "w" }, files: [
       { path: "a.ts", kind: "modified", diff: "", added_lines: 1, removed_lines: 1,
         review: { review_id: "review", before_text: "original\n", after_text: "saved\n", decision: "approved", execution: "applied" } },
     ] } },

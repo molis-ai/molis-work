@@ -30,7 +30,7 @@ test('PTR-02 local trial login creates a personal project, saves full text and a
   const callback=await fetch(redirect.headers.get('location')!,{redirect:'manual'});assert.equal(callback.status,303);
   const signed=await json('/api/personal/status?attempt='+login.loginAttempt);assert.equal(signed.identity.displayName,'个人试用用户（本机模拟）');
   await json('/api/personal/space?kind=personal',{});token=(await json('/api/personal/status')).viewToken;
-  assert.equal((await json('/api/spaces')).current.kind,'personal');
+  const personal=(await json('/api/spaces')).current;assert.equal(personal.kind,'personal');
   const created=await json('/api/settings/projects',{display_name:'个人首用验证',user_confirmed:true}),id=created.project.project_id,prefix='/projects/'+id;
   await json('/api/settings/projects/'+id+'/plugins',{plugin_id:'pages'});
   const text='完整正文🌲\r\n'+('离线保存与重启\n'.repeat(7000));
@@ -46,10 +46,10 @@ test('PTR-02 local trial login creates a personal project, saves full text and a
   // Stop the identity substitute too: no network identity or cloud service is required to retain local work.
   await close(auth);server=factory({homeDirectory:home,controlToken:rootToken});await listen(server,port);
   const offline=await json('/api/personal/status');assert.equal(offline.identity.userId,'local-personal-trial-user');assert.equal(offline.offline,true);token=offline.viewToken;
-  assert.equal((await json('/api/spaces')).current.kind,'local','restart begins at the local surface until the person chooses their account space');
-  assert.ok(!(await json('/api/settings/projects')).projects.some((p:{project_id:string})=>p.project_id===id),'the local space cannot see the personal project');
-  assert.equal((await request(attachmentPath)).ok,false,'the local space cannot download the personal attachment');
-  await json('/api/personal/space?kind=personal',{});token=(await json('/api/personal/status')).viewToken;
+  assert.equal(token,readFileSync(join(home,'spaces',personal.spaceId,'config','web-control-token'),'utf8').trim(),'the first offline status returns the newly opened account credential');
+  assert.equal((await json('/api/spaces')).current.kind,'personal','ASR-02 restart and offline use restore the persisted installation account directly');
+  assert.ok((await json('/api/settings/projects')).projects.some((p:{project_id:string})=>p.project_id===id),'the same account immediately sees its existing project offline');
+  assert.deepEqual(await readAttachment(),attachment,'offline restart preserves the complete existing attachment without a second workspace selection');
   assert.equal((await json('/api/spaces')).current.kind,'personal');
   assert.ok((await json('/api/settings/projects')).projects.some((p:{project_id:string})=>p.project_id===id));
   assert.deepEqual((await json(prefix+'/api/plugins/io.molis.work.pages/pages/'+page.id)).document.body,saved.body);

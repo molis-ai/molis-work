@@ -1,4 +1,5 @@
-import { messageOf, setOptions } from "./dom.js";
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
+import { setOptions } from "./dom.js";
 import { installConflicts, renderConflicts } from "./conflicts.js";
 import { refresh } from "./list.js";
 import { active, request, reveal, showReviews } from "./page.js";

@@ -21,6 +21,7 @@ import {
   renderEmpty,
   renderField,
   renderInput,
+  renderKept,
   renderPluginStageShell,
   renderProgress,
   renderSidebar,
@@ -28,6 +29,7 @@ import {
   renderSpinner,
   renderStateRing,
   renderStatusMark,
+  renderStepDot,
   renderSwitch,
   renderToast,
   STATE_RING_FAMILIES,
@@ -53,6 +55,9 @@ function samples(): readonly string[] {
     renderPluginStageShell({ surface: "demo", label: "Demo", dataset: "demo", body: "<p>x</p>" }),
     ...TONES.map((tone) => renderBadge({ label: "新", tone })),
     ...TONES.map((tone) => renderAlert({ title: "提示", body: "正文", tone })),
+    renderAlert({ title: "已载入", body: "正文", tone: "success", state: "done", rise: true, actions: [{ label: "收起" }, { label: "载入最新版", variant: "primary" }] }),
+    renderKept({ who: "你写的", text: "", blankText: "你清空了这一栏", swapped: true, rise: true, index: 1, action: { label: "换回" }, more: { label: "收起", open: true } }),
+    renderStepDot({ label: "这一步有改动要看" }),
     ...TONES.map((tone) => renderToast({ message: "完成", tone, action: { label: "撤销" } })),
     renderEmpty({ icon: "file", title: "空", body: "还没有内容", action: "" }),
     renderStatusMark({ label: "进行中", state: "running", tone: "progress" }),
@@ -173,4 +178,17 @@ test("no plugin but Plugin Studio imports the design system, in source or in its
     }
   }
   assert.deepEqual(offenders, []);
+});
+
+test("the resume prompt's buttons are renderButton's secondary text buttons, and the return bar puts its one button under the words", () => {
+  // resume-prompt.ts writes its two buttons out (a page that uses only the prompt takes no icon set); they stay what renderButton draws.
+  const prompt = sdkUi.renderResumePrompt({ title: "The model is ready", body: "Kept", resume: "Send <it>", dismiss: "Not now" });
+  assert.ok(prompt.includes(renderButton({ label: "Send <it>", variant: "secondary", attrs: { "data-resume-prompt": "resume" } })), prompt);
+  assert.ok(prompt.includes(renderButton({ label: "Not now", variant: "secondary", attrs: { "data-resume-prompt": "dismiss" } })), prompt);
+  assert.match(prompt, /class="mw-alert mw-alert--info"/u, "an info alert, as the connections page's 接着改／放弃改动");
+  const bar = sdkUi.renderReturnBar({ title: "From Coding", body: "Goes back", back: "Go back now", label: "Where you came from" });
+  assert.match(bar, /<p data-return-bar-body aria-live="polite">Goes back<\/p><div class="mw-return-bar__actions"><button [^>]*mw-btn--secondary[^>]*data-return-bar-back/u);
+  assert.match(bar, /data-return-bar-back[^>]*><svg aria-hidden="true"><use href="#icon-back">/u, "going back has the back arrow");
+  const gone = sdkUi.renderReturnBar({ title: "From Images", body: "The page is closed", back: "Close settings", label: "Where you came from", state: "gone" });
+  assert.match(gone, /data-return-bar-back[^>]*><span data-slot="button-label">Close settings<\/span><\/button>/u, "closing the settings has no back arrow");
 });

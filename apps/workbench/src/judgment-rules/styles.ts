@@ -8,7 +8,7 @@ export const FUNCTIONS_STYLES = `
   }
   .functions-steps { display: flex; flex: none; gap: 8px; padding: 16px 24px; border-bottom: 1px solid var(--line); }
   .functions-steps button { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font: inherit; cursor: pointer; }
-  .functions-steps button span { display: grid; place-items: center; width: 22px; height: 22px; border: 1px solid var(--line-strong); border-radius: 50%; font-size: 12px; font-variant-numeric: tabular-nums; }
+  .functions-steps button span { display: grid; place-items: center; flex: none; width: 22px; height: 22px; border: 1px solid var(--line-strong); border-radius: 50%; font-size: 12px; font-variant-numeric: tabular-nums; }
   .functions-steps button[aria-current] { background: var(--nav-active); color: var(--ink); }
   .functions-steps button[aria-current] span { background: var(--ink); color: var(--paper); border-color: var(--ink); }
   .functions-steps button:hover { color: var(--ink); background: var(--nav-hover); }
@@ -20,6 +20,16 @@ export const FUNCTIONS_STYLES = `
   .functions-editor-footer { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 16px; border-top: 1px solid var(--line); padding: 16px 24px; background: var(--paper); }
   .functions-feedback { min-width: 0; display: grid; gap: 4px; }
   .functions-save-status { font-size: 12px; color: var(--muted); }
+  /* The rule changed elsewhere (docs/design/rule-stale-reload): the alert sits in the feedback slot; one fact to a line. */
+  /* Empty, the live region stays in the tree (a region that appears with its words is often not read) and takes no room. */
+  .functions-band:empty { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .functions-band .mw-alert p { white-space: pre-line; }
+  .functions-band .mw-alert p:empty { display: none; }
+  /* Beside the step buttons (a wide footer), the alert takes the room and the buttons sit at its foot; a phone stacks them. */
+  @media (min-width: 761px) {
+    .functions-editor-footer:has(.functions-band:not(:empty)) { align-items: flex-end; }
+    .functions-feedback:has(.functions-band:not(:empty)) { flex: 1; }
+  }
   .functions-editor-footer .functions-actions { flex: none; }
   .functions-details { border-top: 1px solid var(--line); padding-top: 16px; min-width: 0; }
   .functions-details > summary { cursor: pointer; color: var(--ink-soft); font-size: 13px; padding: 4px 0; }
@@ -162,12 +172,14 @@ export const FUNCTIONS_STYLES = `
   }
   @media (max-width: 760px) {
     .functions-steps { gap: 4px; padding: 12px 12px; }
-    .functions-steps button { flex: 1; justify-content: center; gap: 4px; padding: 8px 4px; min-height: 44px; font-size: 12px; }
+    .functions-steps button { flex: 1; justify-content: center; gap: 6px; padding: 8px 4px; min-height: 44px; font-size: 12px; }
     .functions-steps button span { width: 19px; height: 19px; }
     .functions-col { padding: 24px 16px; gap: 24px; }
     .functions-section-heading h2 { font-size: 20px; }
     .functions-editor-footer { padding: 12px 16px; align-items: stretch; flex-direction: column; gap: 8px; }
     .functions-editor-footer .functions-actions { justify-content: flex-end; }
+    /* An alert takes the footer's room on a phone: the steps at the top move between steps meanwhile. */
+    .functions-editor-footer:has(.functions-band:not(:empty)) .functions-actions { display: none; }
     .functions-editor .mw-btn, .functions-editor summary, .functions-chip { min-height: 44px; }
     .functions-dest-list { grid-template-columns: 1fr; }
     .functions-map-row { grid-template-columns: 1fr; }

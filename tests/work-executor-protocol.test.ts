@@ -11,6 +11,17 @@ const options = (name: WorkExecutorRole): WorkExecutorActionOptions =>
   ({ capability_id: `fixture.executor.${name}`, version: 1, title: name, description: `执行方的 ${name}`, permissions: ["executor:use"] });
 const whole = () => Object.values(defineWorkExecutorActions(Object.fromEntries(WORK_EXECUTOR_ROLES.map(name => [name, options(name)])) as Record<WorkExecutorRole, WorkExecutorActionOptions>));
 
+test("VG-21 each role's two types are the same strings they always were, now that the table holds their versions", () => {
+  assert.deepEqual(WORK_EXECUTOR_ROLES.map(name => [WORK_EXECUTOR_PROTOCOL[name].input_type, WORK_EXECUTOR_PROTOCOL[name].output_type]), [
+    ["molis.work-executor.state.input.v1", "molis.work-executor.state.output.v1"],
+    ["molis.work-executor.session.open.input.v1", "molis.work-executor.session.open.output.v1"],
+    ["molis.work-executor.session.read.input.v1", "molis.work-executor.session.read.output.v1"],
+    ["molis.work-executor.session.update.input.v1", "molis.work-executor.session.update.output.v1"],
+    ["molis.work-executor.run.start.input.v1", "molis.work-executor.run.start.output.v1"],
+    ["molis.work-executor.run.control.input.v1", "molis.work-executor.run.control.output.v1"],
+  ]);
+});
+
 test("PG-036 an executor's whole set, made with defineWorkExecutorActions, passes the SDK's declaration and cross-reference checks", () => {
   const actions = whole();
   assert.deepEqual(actions.map(action => workExecutorRoleOf(action.action)), [...WORK_EXECUTOR_ROLES], "each action takes on its role by its two types");

@@ -46,14 +46,6 @@ export function installDeterminism(seed) {
   const realFork = childProcess.fork;
   childProcess.fork = (module, args, options) => realFork(module, args, { ...options, execArgv: [...(options?.execArgv ?? []), "--import", new URL("./frozen-clock.mjs", import.meta.url).href] });
 
-  // Still a real timer, so whoever holds it can unref and clear it as usual. Only its callback is gone.
-  const realInterval = globalThis.setInterval;
-  const standingInterval = (callback, period, ...rest) => period >= LONG_PERIOD_MILLISECONDS
-    ? realInterval(() => undefined, LONGEST_TIMER_MILLISECONDS)
-    : realInterval(callback, period, ...rest);
-  globalThis.setInterval = standingInterval;
-  timers.setInterval = standingInterval;
-
   const fill = (target, offset = 0, size = target.length - offset) => {
     lastUse = realNow();
     const key = callerKey(), first = counters.get(key) ?? 0;

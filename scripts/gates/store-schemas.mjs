@@ -9,9 +9,9 @@
 //   - a version that went down fails;
 //   - a version that went up needs a step with each `from` from the old version to the new one minus 1, as the product reports them;
 //   - and a golden Home under tests/fixtures/golden-homes/ that holds the library at the old version, so the golden replay has an old store
-//     to bring up (the replay itself is the `golden-replay` job, which blocks the merge). A golden records a library's `PRAGMA user_version`;
-//     the catalog keeps its version in `catalog_meta` and a plugin's project tables keep theirs beside the project's, so for those two no
-//     golden can show the old version yet and a raised version fails, which is what it should do until a golden records them.
+//     to bring up (the replay itself is the `golden-replay` job, which `Verify` requires, so it blocks the merge). A golden records each
+//     library's version where its owner keeps it (`PRAGMA user_version`, the catalog's `catalog_meta`) and, for a project library, each
+//     plugin's tables at the version of its ledger row (`plugin_tables`; scripts/golden/formats.mjs); a row `<library>#<plugin_id>` is read there.
 //
 // A new library (no row on the merge-base) and a library that is gone pass here; what a library that is gone means for a Home is another gate's
 // question. A file that cannot be read is a problem, never a pass: on the head when the merge-base has one, and on either side when a row
@@ -20,6 +20,8 @@
 // This gate does not decide whether a version may go above 1 at all, nor the maintenance row a raised version needs: those are
 // scripts/gates/initial-versions.mjs and scripts/gates/store-versions.mjs (upgrade-chain-design §11). It covers the libraries those two do not
 // list as well: every Home library, the project database, each built-in plugin's project tables and the old Alchemist's two stores.
+import { goldenManifests } from "../golden/formats.mjs";
+
 export const SCHEMAS_FILE = "tooling/gates/schemas/stores.tsv";
 export const SCHEMA_COLUMNS = ["store", "owner", "version", "structure", "upgrades"];
 const GOLDENS = "tests/fixtures/golden-homes/";
@@ -40,21 +42,22 @@ export function parseStoreSchemas(text, where = SCHEMAS_FILE) {
   return { rows };
 }
 
-/** Whether a path a golden recorded is the library `store`, in the root Home or in an account Home under `spaces/`. Not for plugin tables. */
+/** Whether a path a golden recorded is the library of `store` (for `<library>#<plugin_id>`, the library), in the root Home or in an account Home under `spaces/`. */
 export function goldenPathMatcher(store) {
-  if (store.includes("#")) return () => false;
-  const pattern = store.split("/").map(part => part === "*" ? "[^/]+" : part.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")).join("/");
+  const pattern = store.split("#")[0].split("/").map(part => part === "*" ? "[^/]+" : part.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")).join("/");
   const expression = new RegExp(`^(?:spaces/[^/]+/)?${pattern}$`, "u");
   return path => expression.test(path);
 }
 
-/** Each golden's recorded libraries: its version and `{ path, schema_version }` per store, from its manifest. */
-function goldenStores({ files, read }) {
-  return files.filter(file => file.startsWith(GOLDENS) && file.slice(GOLDENS.length).split("/").length === 2 && file.endsWith("/manifest.json")).map(file => {
-    let stores = [];
-    try { stores = JSON.parse(read(file) ?? "{}").stores ?? []; } catch { stores = []; }
-    return { golden: file.slice(GOLDENS.length, -"/manifest.json".length), stores: Array.isArray(stores) ? stores : [] };
-  });
+/** Whether a golden's store entry holds `store` at `version`: the library's own version, or for `<library>#<plugin_id>` that plugin's tables. */
+export function goldenHolds(store, version) {
+  const matches = goldenPathMatcher(store), plugin = store.split("#")[1];
+  return entry => matches(String(entry?.path)) && (plugin === undefined ? entry.schema_version === version : entry.plugin_tables?.[plugin] === version);
+}
+
+/** Each golden's recorded libraries, from its manifest; one that cannot be read holds nothing. */
+function goldenStores(tree) {
+  return goldenManifests(tree).map(({ golden, manifest }) => ({ golden, stores: Array.isArray(manifest?.stores) ? manifest.stores : [] }));
 }
 
 /**
@@ -82,9 +85,8 @@ export function storeSchemaProblems({ files, read }, readBase) {
     const missing = [];
     for (let from = before.version; from < now.version; from += 1) if (!now.froms.includes(from)) missing.push(from);
     if (missing.length) problems.push(`UPG-01 ${store}: its version went up, ${before.version} → ${now.version}, with no upgrade step from ${missing.join(", ")}`);
-    const matches = goldenPathMatcher(store);
-    const holding = goldens.filter(({ stores }) => stores.some(entry => matches(String(entry?.path)) && entry.schema_version === before.version)).map(({ golden }) => golden);
-    if (!holding.length) problems.push(`UPG-01 ${store}: its version went up, ${before.version} → ${now.version}, and no golden Home under ${GOLDENS} holds it at ${before.version}, so the replay would not bring an old one up. Generate a golden on the code before the change (specs/upgrade-continuity/golden-replay-design.md §3)${store.includes("#") || store === "projects/catalog.db" ? "; a golden does not record this one's version yet, so this cannot pass until it does" : ""}`);
+    const holds = goldenHolds(store, before.version);
+    if (!goldens.some(({ stores }) => stores.some(holds))) problems.push(`UPG-01 ${store}: its version went up, ${before.version} → ${now.version}, and no golden Home under ${GOLDENS} holds it at ${before.version}, so the replay would not bring an old one up. Generate a golden on the code before the change (specs/upgrade-continuity/golden-replay-design.md §3)`);
   }
   return problems;
 }

@@ -64,7 +64,7 @@ async function generate(version, out) {
 
     await clock.step("capture");
     enterHome(home);
-    const tree = { directories: [{ path: "spaces", mode: 0o700 }], stores: [], files: [], excluded: [], payloads: { sources: new Map(), manifests: new Map() } };
+    const tree = { directories: [{ path: "spaces", mode: 0o700 }], stores: [], files: [], excluded: [], formats: [], payloads: { sources: new Map(), manifests: new Map() } };
     mkdirSync(out, { recursive: true });
     await captureHome(local, storage, home, "", out, tree);
     enterHome(accountHome);

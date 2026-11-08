@@ -9,29 +9,31 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
 import { constantsIn, stepFroms, unwrapExpression } from "./upgrade-steps.mjs";
+import { goldenManifests } from "../golden/formats.mjs";
 import { collectHost, loadManifests, withIsolatedHome } from "./action-contract-host.mjs";
 
 // Persistent formats (specs/upgrade-continuity/upgrade-chain-design.md §11.1, CONTRACT-CHANGES.md §3): after the unified origin these
 // go up through the upgrade chain instead of staying at 1. Above 1 each needs a registered chain with consecutive steps and a replay
 // that passed. Everything else (actions, Manifests, prompts, roles, methods, any other first-party constant) stays at 1.
-// A constant is `file#NAME`, because the same name elsewhere (CATALOG_VERSION in the plugin builder) is not a persistent format.
+// A constant is `file#NAME`, because the same name elsewhere (CATALOG_VERSION in the plugin builder) is not a persistent format; each one
+// names its tooling/versions.json entry, which is how a golden Home records the format (scripts/golden/formats.mjs).
 // Not on the list, so above 1 they fail with or without a chain: a fixed version (CODING_PLAN, FEED_CAPTURE and the *_ARTIFACT_SCHEMA_VERSION
 // of Dataset, Form, Pages, PPT) must not change after it is written, by contract and by its content_digest, not by anything in the
 // database, so a step should not rewrite it; GMAIL_LIVE_CURSOR is sync progress a full sync rebuilds, so it needs no step.
-const PERSISTENT_CONSTANTS = new Set([
-  "apps/local-host/src/project-catalog-contract.ts#CATALOG_SCHEMA_VERSION",
-  "packages/storage/src/adapters/file-secret-store.ts#FORMAT_VERSION",
-  "apps/local-host/src/mcp-settings-store.ts#MCP_TOOL_PREFERENCE_VERSION",
-  "modules/shelf/src/catalog-shape.ts#CATALOG_VERSION",
-  "apps/local-host/src/installer/home-contract.ts#SCHEMA_VERSION",
-  "packages/storage/src/adapters/text-search-index.ts#SCHEMA_VERSION",
+const PERSISTENT_CONSTANTS = new Map([
+  ["apps/local-host/src/project-catalog-contract.ts#CATALOG_SCHEMA_VERSION", "database.home.catalog"],
+  ["packages/storage/src/adapters/file-secret-store.ts#FORMAT_VERSION", "format.secret-store.map"],
+  ["apps/local-host/src/mcp-settings-store.ts#MCP_TOOL_PREFERENCE_VERSION", "format.mcp.tool-preference"],
+  ["modules/shelf/src/catalog-shape.ts#CATALOG_VERSION", "format.shelf.catalog"],
+  ["apps/local-host/src/installer/home-contract.ts#SCHEMA_VERSION", "format.home.installation"],
+  ["packages/storage/src/adapters/text-search-index.ts#SCHEMA_VERSION", "database.search.text-index"],
   // The six files §2.6 of the design puts in the chain and §11.1 did not name (the user agreed to them on 2026-11-07). The last is jelly/preferences.json.
-  "apps/local-host/src/onboarding.ts#ONBOARDING_SCHEMA_VERSION",
-  "apps/local-host/src/project-arrival.ts#PROJECT_ARRIVAL_SCHEMA_VERSION",
-  "apps/local-host/src/browser/browser-surfaces.ts#BROWSER_SITES_VERSION",
-  "apps/local-host/src/computer/computer-settings.ts#COMPUTER_SETTINGS_VERSION",
-  "apps/local-host/src/computer/computer-records.ts#COMPUTER_RECORD_VERSION",
-  "apps/local-host/src/model-configuration.ts#MODEL_PREFERENCE_SCHEMA_VERSION",
+  ["apps/local-host/src/onboarding.ts#ONBOARDING_SCHEMA_VERSION", "format.home.onboarding"],
+  ["apps/local-host/src/project-arrival.ts#PROJECT_ARRIVAL_SCHEMA_VERSION", "format.project.arrival"],
+  ["apps/local-host/src/browser/browser-surfaces.ts#BROWSER_SITES_VERSION", "format.browser.site-decisions"],
+  ["apps/local-host/src/computer/computer-settings.ts#COMPUTER_SETTINGS_VERSION", "format.computer.settings"],
+  ["apps/local-host/src/computer/computer-records.ts#COMPUTER_RECORD_VERSION", "format.computer.record"],
+  ["apps/local-host/src/model-configuration.ts#MODEL_PREFERENCE_SCHEMA_VERSION", "format.model.preference"],
 ]);
 // The persistent formats that are no `*VERSION` constant reach this check through their tooling/versions.json entry. The code calls
 // two stores a ledger (账本) and the design's §2.5 names both, so both are here; a chain is what any library needs to go above 1 anyway.
@@ -43,8 +45,10 @@ const PERSISTENT_ENTRIES = new Map([
   ["database.memory_ledger_baseline", "packages/storage/src/adapters/memory-ledger.ts#MEMORY_LEDGER_BASELINE"],
   ["format.jelly.workspace", "plugins/native/jelly/src/contract.ts#schema_version"],
 ]);
-export const PERSISTENT_DEFINITIONS = Object.freeze([...PERSISTENT_CONSTANTS, ...PERSISTENT_ENTRIES.values()]);
+export const PERSISTENT_DEFINITIONS = Object.freeze([...PERSISTENT_CONSTANTS.keys(), ...PERSISTENT_ENTRIES.values()]);
 export const PERSISTENT_ENTRY_KEYS = Object.freeze(Object.fromEntries(PERSISTENT_ENTRIES));
+/** Each persistent format's tooling/versions.json entry, by its definition: what a golden records it under. */
+export const PERSISTENT_FORMAT_ENTRIES = Object.freeze(Object.fromEntries([...PERSISTENT_CONSTANTS, ...[...PERSISTENT_ENTRIES].map(([entry, definition]) => [definition, entry])]));
 
 /** Whether `froms` are the steps a chain to `version` needs: 1 to version - 1, each once. Empty when they are. */
 export function upgradeStepProblems(version, froms) {
@@ -59,7 +63,8 @@ export function upgradeStepProblems(version, froms) {
 
 /**
  * A persistent format at `version`. `chains` maps its definition to what the upgrade chain registers and what its replay found:
- * `{ version, froms: number[], replay_passed: boolean }`. A missing chain, a gap, or anything but a passed replay fails.
+ * `{ version, froms: number[], replay_passed: boolean, unheld?: number[] }`. A missing chain, a gap, or anything but a passed replay fails;
+ * `unheld` are the older versions no golden Home holds, which is why the replay cannot have passed.
  */
 function persistentVersionProblems(definition, version, chains) {
   const at = `${definition} = ${String(version)}`;
@@ -68,7 +73,9 @@ function persistentVersionProblems(definition, version, chains) {
   if (chain === undefined) return [`${at} (expected 1; above 1 it needs a registered upgrade chain and a replay that passed)`];
   const problems = chain.version === version ? upgradeStepProblems(version, chain.froms).map(problem => `${at}: the registered upgrade chain has ${problem}`)
     : [`${at}: the registered upgrade chain goes to ${String(chain.version)}`];
-  if (chain.replay_passed !== true) problems.push(`${at}: the replay of its upgrade chain did not pass`);
+  if (chain.replay_passed !== true) problems.push(Array.isArray(chain.unheld) && chain.unheld.length
+    ? `${at}: the replay of its upgrade chain did not pass: no golden Home under tests/fixtures/golden-homes/ holds it at ${chain.unheld.join(", ")}, so the golden replay has nothing to bring up from there. Generate a golden on the code before the change (specs/upgrade-continuity/golden-replay-design.md §3)`
+    : `${at}: the replay of its upgrade chain did not pass`);
   return problems;
 }
 
@@ -95,17 +102,36 @@ function chainInSource(file, source, name) {
   return froms && { version: Number(version.text), froms };
 }
 
+/** Each persistent format's entry and the versions the goldens under tests/fixtures/golden-homes/ hold it at (their manifests' `formats`). */
+export function goldenFormatVersions(tree) {
+  const held = new Map();
+  for (const { manifest } of goldenManifests(tree)) {
+    for (const item of Array.isArray(manifest?.formats) ? manifest.formats : []) {
+      if (typeof item?.entry !== "string" || !Number.isInteger(item.version)) continue;
+      if (!held.has(item.entry)) held.set(item.entry, new Set());
+      held.get(item.entry).add(item.version);
+    }
+  }
+  return held;
+}
+
 /**
- * The register `persistentVersionProblems` checks: each persistent format whose definition declares a chain. `replay_passed` stays false
- * until the golden replay (U2) can say otherwise, so for now a persistent format above 1 still fails, with or without its steps.
+ * The register `persistentVersionProblems` checks: each persistent format whose definition declares a chain (read with no build), and
+ * whether its replay passed. The replay itself is the `golden-replay` job, which `Verify` requires, so nothing merges past a failed one;
+ * what this half can know is whether there is anything to replay: `replay_passed` is true only when the goldens hold the format at every
+ * version from 1 to the chain's version - 1 (U2-d, the same reading as UPG-01's third rule). `tree` is `{ files, read }`; with no `files`
+ * there are no goldens, so nothing above 1 passes.
  */
-export function registeredUpgradeChains({ read }) {
-  const chains = new Map();
+export function registeredUpgradeChains({ files = [], read }) {
+  const chains = new Map(), held = goldenFormatVersions({ files, read });
   for (const definition of PERSISTENT_DEFINITIONS) {
     const [file, name] = definition.split("#");
     const source = read(file);
     const chain = source && chainInSource(file, source, name);
-    if (chain) chains.set(definition, { ...chain, replay_passed: false });
+    if (!chain) continue;
+    const versions = held.get(PERSISTENT_FORMAT_ENTRIES[definition]) ?? new Set(), unheld = [];
+    for (let older = 1; older < chain.version; older += 1) if (!versions.has(older)) unheld.push(older);
+    chains.set(definition, { ...chain, replay_passed: chain.version > 1 && unheld.length === 0, unheld });
   }
   return chains;
 }
@@ -200,7 +226,8 @@ async function check() {
   const root = fileURLToPath(new URL("../../", import.meta.url));
   const files = execFileSync("git", ["ls-files", "-z", "--", "apps", "packages", "plugins", "modules", "server", "horizontal"],
     { cwd: root, encoding: "utf8", maxBuffer: 8 * 1024 * 1024 }).split("\0").filter(Boolean);
-  const chains = registeredUpgradeChains({ read: file => readFileSync(path.join(root, file), "utf8") });
+  const goldens = execFileSync("git", ["ls-files", "-z", "--", "tests/fixtures/golden-homes"], { cwd: root, encoding: "utf8", maxBuffer: 8 * 1024 * 1024 }).split("\0").filter(Boolean);
+  const chains = registeredUpgradeChains({ files: goldens, read: file => readFileSync(path.join(root, file), "utf8") });
   const problems = await withIsolatedHome(async home => {
     const { builtinRegistrations } = await import("../../apps/local-host/dist/agent-definitions/builtin-registrations.js");
     const { manifests } = await loadManifests();

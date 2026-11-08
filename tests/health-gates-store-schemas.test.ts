@@ -17,10 +17,10 @@ const HASH = "0123456789abcdef", OTHER = "fedcba9876543210";
 const table = (...rows: string[]) => ["# a comment", HEADER, ...rows, ""].join("\n");
 const MEMORY = (version = 1, structure = HASH, upgrades = "-") => `memory/memory.db\tpackages/storage\t${version}\t${structure}\t${upgrades}`;
 const PROJECT = (version = 1, structure = HASH, upgrades = "-") => `projects/*/molis-work.db\tapps/local-host\t${version}\t${structure}\t${upgrades}`;
-const PLUGIN = (version = 1, structure = HASH) => `projects/*/molis-work.db#io.molis.work.todo\tio.molis.work.todo\t${version}\t${structure}\t-`;
+const PLUGIN = (version = 1, structure = HASH, upgrades = "-") => `projects/*/molis-work.db#io.molis.work.todo\tio.molis.work.todo\t${version}\t${structure}\t${upgrades}`;
 const CATALOG = (version = 1, structure = HASH, upgrades = "-") => `projects/catalog.db\tapps/local-host\t${version}\t${structure}\t${upgrades}`;
 const BASE = table(CATALOG(), MEMORY(), PLUGIN(), PROJECT());
-const golden = (stores: Array<{ path: string; schema_version: number }>) => JSON.stringify({ stores });
+const golden = (stores: Array<{ path: string; schema_version: number; plugin_tables?: Record<string, number> }>) => JSON.stringify({ stores });
 type Tree = Record<string, string>;
 const problems = (head: Tree, base: string | null = BASE): string[] => storeSchemaProblems(
   { files: Object.keys(head), read: (file: string) => head[file] ?? null }, base === undefined ? undefined : (file: string) => (file === SCHEMAS_FILE ? base : null));
@@ -56,7 +56,7 @@ test("UPG-01 a version that goes down fails", () => {
 });
 
 test("UPG-01 a raised version needs each step from the old version and a golden that holds the library at the old version", () => {
-  const holding = golden([{ path: "memory/memory.db", schema_version: 1 }, { path: "projects/p1/molis-work.db", schema_version: 1 }, { path: "projects/catalog.db", schema_version: 0 }]);
+  const holding = golden([{ path: "memory/memory.db", schema_version: 1 }, { path: "projects/p1/molis-work.db", schema_version: 1, plugin_tables: { "io.molis.work.todo": 1 } }, { path: "projects/catalog.db", schema_version: 1 }]);
   const raised = (memory: string, goldens: Tree = { "tests/fixtures/golden-homes/0.1.0/manifest.json": holding }) => problems({ [SCHEMAS_FILE]: table(CATALOG(), memory, PLUGIN(), PROJECT()), ...goldens });
   assert.deepEqual(raised(MEMORY(2, OTHER, "1")), [], "the step and a golden at the old version");
   assert.deepEqual(raised(MEMORY(3, OTHER, "1,2")), [], "two versions at once, each step there");
@@ -69,12 +69,18 @@ test("UPG-01 a raised version needs each step from the old version and a golden 
   // An account Home's copy counts, and so does a project database under any project id.
   assert.deepEqual(raised(MEMORY(2, OTHER, "1"), { "tests/fixtures/golden-homes/0.2.0/manifest.json": golden([{ path: "spaces/space_1/memory/memory.db", schema_version: 1 }]) }), []);
   assert.deepEqual(problems({ [SCHEMAS_FILE]: table(CATALOG(), MEMORY(), PLUGIN(), PROJECT(2, OTHER, "1")), "tests/fixtures/golden-homes/0.1.0/manifest.json": holding }), []);
-  // A golden does not record the catalog's version (catalog_meta) or a plugin's project tables', so those cannot pass yet, and say why.
-  const catalog = problems({ [SCHEMAS_FILE]: table(CATALOG(2, OTHER, "1"), MEMORY(), PLUGIN(), PROJECT()), "tests/fixtures/golden-homes/0.1.0/manifest.json": holding });
-  assert.match(catalog.join("\n"), /projects\/catalog\.db: .*a golden does not record this one's version yet/u);
-  const plugin = problems({ [SCHEMAS_FILE]: table(CATALOG(), MEMORY(), PLUGIN(2, OTHER), PROJECT()), "tests/fixtures/golden-homes/0.1.0/manifest.json": holding });
-  assert.match(plugin.join("\n"), /#io\.molis\.work\.todo: its version went up, 1 → 2, with no upgrade step from 1/u);
-  assert.match(plugin.join("\n"), /#io\.molis\.work\.todo: .*a golden does not record this one's version yet/u);
+  // The catalog's version is the one in catalog_meta, as a golden records it, and a plugin's project tables go by their ledger row in a project library.
+  const at = (rows: string[], manifest: string = holding) => problems({ [SCHEMAS_FILE]: table(...rows), "tests/fixtures/golden-homes/0.1.0/manifest.json": manifest });
+  assert.deepEqual(at([CATALOG(2, OTHER, "1"), MEMORY(), PLUGIN(), PROJECT()]), [], "the catalog at its recorded version");
+  assert.match(at([CATALOG(2, OTHER, "1"), MEMORY(), PLUGIN(), PROJECT()], golden([{ path: "projects/catalog.db", schema_version: 0 }])).join("\n"), /projects\/catalog\.db: .*holds it at 1/u, "0 is no catalog version");
+  assert.deepEqual(at([CATALOG(), MEMORY(), PLUGIN(2, OTHER, "1"), PROJECT()]), [], "a plugin's tables at their recorded version");
+  assert.match(at([CATALOG(), MEMORY(), PLUGIN(2, OTHER), PROJECT()]).join("\n"), /#io\.molis\.work\.todo: its version went up, 1 → 2, with no upgrade step from 1/u);
+  for (const [name, manifest] of [
+    ["the project library alone", golden([{ path: "projects/p1/molis-work.db", schema_version: 1 }])],
+    ["another plugin's tables", golden([{ path: "projects/p1/molis-work.db", schema_version: 1, plugin_tables: { "io.molis.work.goals": 1 } }])],
+    ["the tables at another version", golden([{ path: "projects/p1/molis-work.db", schema_version: 1, plugin_tables: { "io.molis.work.todo": 2 } }])],
+    ["the plugin's id on another library", golden([{ path: "todo/todo.db", schema_version: 1, plugin_tables: { "io.molis.work.todo": 1 } }])],
+  ] as const) assert.match(at([CATALOG(), MEMORY(), PLUGIN(2, OTHER, "1"), PROJECT()], manifest).join("\n"), /#io\.molis\.work\.todo: .*holds it at 1/u, name);
 });
 
 test("UPG-01 a golden's path is matched as the library's, in the root Home or an account Home, and nothing wider", () => {
@@ -84,7 +90,7 @@ test("UPG-01 a golden's path is matched as the library's, in the root Home or an
   assert.equal(project("projects/a/b/molis-work.db"), false);
   assert.equal(project("other/projects/a/molis-work.db"), false);
   assert.equal(goldenPathMatcher("memory/memory.db")("memory/memoryXdb"), false, "a dot is a dot");
-  assert.equal(goldenPathMatcher("projects/*/molis-work.db#io.molis.work.todo")("projects/a/molis-work.db"), false);
+  assert.equal(goldenPathMatcher("projects/*/molis-work.db#io.molis.work.todo")("projects/a/molis-work.db"), true, "a plugin's tables are in the project library");
 });
 
 // ---- wired into pnpm health:check against the merge-base -----------------------------------------------------------------

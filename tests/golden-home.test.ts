@@ -16,6 +16,7 @@ import { brotliCompressSync, constants } from "node:zlib";
 import { countSqliteRows, dumpSqliteText } from "@molis-ai/molis-work-storage";
 import { assertTemporaryHome, compareGoldens, filePayload, restoreGolden, withFixedSandboxEntries } from "../scripts/golden/layout.mjs";
 import { MODULE_SOURCES_DIRECTORY, RELEASE_MANIFESTS_DIRECTORY, releasePayloadReader, withoutReleasePayloads, withReleasePayloads, writeReleasePayloads } from "../scripts/golden/release-payloads.mjs";
+import { PERSISTENT_FORMAT_LOCATIONS } from "../scripts/golden/formats.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const GOLDEN_SCRIPT = path.join(root, "scripts/golden-home.mjs"), REPLAY_SCRIPT = path.join(root, "scripts/replay-golden-homes.mjs");
@@ -439,6 +440,23 @@ describe("a generated golden Home", { concurrency: false }, () => {
     assert.equal(refused.status, 1, refused.output);
     assert.match(refused.output, /^FAIL 9\.9\.8-dev\.1 golden\.node_not_locked$/mu);
     assert.equal(existsSync(out), false);
+  });
+
+  // UPG-01 and the unified-origin check read these back (scripts/gates/store-schemas.mjs, initial-versions.mjs), so they are what each owner keeps.
+  test("UPG-01: it records each library's version where its owner keeps it, each plugin's project tables, and the persistent formats it holds", () => {
+    const recorded = manifest(), account = recorded.homes[1].path as string;
+    type Store = { path: string; schema_version: number; plugin_tables?: Record<string, number> };
+    for (const entry of recorded.stores as Store[]) assert.ok(Number.isInteger(entry.schema_version) && entry.schema_version >= 1, `${entry.path} records a real version, not 0`);
+    for (const prefix of ["", `${account}/`]) assert.equal((recorded.stores as Store[]).find(entry => entry.path === `${prefix}projects/catalog.db`)?.schema_version, 1, `${prefix}the catalog's catalog_meta`);
+    const project = (recorded.stores as Store[]).find(entry => entry.path === `projects/${recorded.homes[0].projects.primary.project_id}/molis-work.db`);
+    assert.deepEqual(project?.plugin_tables, { "io.molis.work.coding": 1, "io.molis.work.feed": 1, "io.molis.work.goals": 1, "io.molis.work.inbox": 1, "io.molis.work.schedule": 1 });
+    type Format = { entry: string; path: string; version: number };
+    const formats = recorded.formats as Format[];
+    for (const item of formats) assert.equal(item.version, 1, `${item.entry} at ${item.path}`);
+    assert.ok(formats.some(item => item.entry === "database.home.catalog" && item.path === `${account}/projects/catalog.db`), "the account Home's copy too");
+    // The two the snapshot cannot hold, and the computer's two files the generation does not write yet (BL-golden-computer-settings).
+    const absent = new Set(["format.home.installation", "database.search.text-index", "format.computer.settings", "format.computer.record"]);
+    assert.deepEqual([...new Set(formats.map(item => item.entry))].sort(), Object.keys(PERSISTENT_FORMAT_LOCATIONS).filter(entry => !absent.has(entry)).sort());
   });
 
   test("the generation's directory holds a dump for every recorded store and nothing it does not record", () => {

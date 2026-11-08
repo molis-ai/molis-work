@@ -138,10 +138,12 @@ test("RAC-2360 RAC-496 a new library uses the current baseline, creates Feed's t
 
 test("RAC-2361 RAC-496 a noncurrent library is refused by the Host without rewriting it", t => {
   const file = scratch(t);
-  const old = new DatabaseSync(file); old.exec(PROJECT_DATABASE_BASELINE.schema); old.exec("PRAGMA user_version = 2"); old.close();
-  assert.throws(() => new LocalProjectDatabase(file), (error: { code?: string; details?: { found?: number; expected?: number } }) => error.code === "storage.store_too_new" && error.details?.found === 2 && error.details?.expected === PROJECT_DATABASE_BASELINE.version);
+  // One above the current library (2 since 05②), which no build of this code can have written.
+  const tooNew = PROJECT_DATABASE_BASELINE.version + 1;
+  const old = new DatabaseSync(file); old.exec(PROJECT_DATABASE_BASELINE.schema); old.exec(`PRAGMA user_version = ${tooNew}`); old.close();
+  assert.throws(() => new LocalProjectDatabase(file), (error: { code?: string; details?: { found?: number; expected?: number } }) => error.code === "storage.store_too_new" && error.details?.found === tooNew && error.details?.expected === PROJECT_DATABASE_BASELINE.version);
   const after = new DatabaseSync(file, { readOnly: true });
-  try { assert.equal((after.prepare("PRAGMA user_version").get() as { user_version: number }).user_version, 2, "and left as it was"); } finally { after.close(); }
+  try { assert.equal((after.prepare("PRAGMA user_version").get() as { user_version: number }).user_version, tooNew, "and left as it was"); } finally { after.close(); }
 });
 
 // What a refused Feed does at run time is the project's plugin supervisor's since FI-6 deleted the Host's Feed paths: the same edit leaves

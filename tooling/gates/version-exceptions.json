@@ -936,5 +936,11 @@
     "name": "provider_version",
     "values": { "0.0.0-rc.1": 1 },
     "reason": "调用方没有给版本时的占位值，Prologue 只校验格式，不读取也不比较，不是自有版本。"
+  },
+  {
+    "file": "modules/projects/src/catalog-upgrade.ts",
+    "name": "workspace_project_memberships_v1",
+    "values": { "workspace_project_memberships_v1": 4 },
+    "reason": "目录库第 1 版升到第 2 版时重建成员表的临时表名，指的是升级出发的那一版，升完即删，不是当前版本；目录库的当前版本是 database.home.catalog。"
   }
 ]

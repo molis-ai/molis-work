@@ -192,7 +192,8 @@ test("UPG1-i-initial-13: the half with no build passes on this repository as it 
   const root = new URL("../", import.meta.url);
   const files = execFileSync("git", ["ls-files", "-z"], { cwd: root, encoding: "utf8", maxBuffer: 1 << 30 }).split("\0").filter(Boolean);
   const read = (file: string) => { try { return readFileSync(new URL(file, root), "utf8"); } catch { return null; } };
-  assert.deepEqual(versionOriginProblems({ files, read }), []);
+  // The catalog is at 2 (05②): like the whole check, the half takes the chains this repository registers and the versions its goldens hold.
+  assert.deepEqual(versionOriginProblems({ files, read }, { chains: registeredUpgradeChains({ files, read }) }), []);
 });
 
 test("UPG1-i-initial-14: the half with no build finds a constant and a persistent format, leaves prompts and methods, keeps an exception, and passes a chain", () => {
@@ -387,7 +388,7 @@ test("VG-30 the whole check reads the tracked source, the two tables, the chains
     "system.home: action home.read = 2 (expected 1)",
     "tooling/versions.json: method method.a = 2 (expected 1)",
     "tooling/versions.json: prompt prompt.a.b = 2 (expected 1)",
-    "apps/local-host/src/onboarding.ts#ONBOARDING_SCHEMA_VERSION = 2: the replay of its upgrade chain did not pass",
+    "apps/local-host/src/onboarding.ts#ONBOARDING_SCHEMA_VERSION = 2: the replay of its upgrade chain did not pass: no golden Home under tests/fixtures/golden-homes/ holds it at 1, so the golden replay has nothing to bring up from there. Generate a golden on the code before the change (specs/upgrade-continuity/golden-replay-design.md §3)",
     "packages/a/src/fixtures/shipped.ts: SHIPPED_VERSION = 2 (expected 1)",
     "packages/a/src/marked.ts: OTHER_VERSION = 9 (expected 1)",
   ]);

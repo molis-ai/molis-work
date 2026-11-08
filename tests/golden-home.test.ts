@@ -14,6 +14,7 @@ import test, { after, before, describe } from "node:test";
 import { fileURLToPath } from "node:url";
 import { brotliCompressSync, constants } from "node:zlib";
 import { CATALOG_VERSION_ACCESS, countSqliteRows, dumpSqliteText } from "@molis-ai/molis-work-storage";
+import { CATALOG_SCHEMA_VERSION } from "@molis-ai/molis-work-app-local-host";
 import { assertTemporaryHome, compareGoldens, filePayload, restoreGolden, withFixedSandboxEntries } from "../scripts/golden/layout.mjs";
 import { MODULE_SOURCES_DIRECTORY, RELEASE_MANIFESTS_DIRECTORY, releasePayloadReader, withoutReleasePayloads, withReleasePayloads, writeReleasePayloads } from "../scripts/golden/release-payloads.mjs";
 import { assertRecordedVersions, PERSISTENT_FORMAT_LOCATIONS } from "../scripts/golden/formats.mjs";
@@ -451,12 +452,13 @@ describe("a generated golden Home", { concurrency: false }, () => {
     const recorded = manifest(), account = recorded.homes[1].path as string;
     type Store = { path: string; schema_version: number; plugin_tables?: Record<string, number> };
     for (const entry of recorded.stores as Store[]) assert.ok(Number.isInteger(entry.schema_version) && entry.schema_version >= 1, `${entry.path} records a real version, not 0`);
-    for (const prefix of ["", `${account}/`]) assert.equal((recorded.stores as Store[]).find(entry => entry.path === `${prefix}projects/catalog.db`)?.schema_version, 1, `${prefix}the catalog's catalog_meta`);
+    for (const prefix of ["", `${account}/`]) assert.equal((recorded.stores as Store[]).find(entry => entry.path === `${prefix}projects/catalog.db`)?.schema_version, CATALOG_SCHEMA_VERSION, `${prefix}the catalog's catalog_meta`);
     const project = (recorded.stores as Store[]).find(entry => entry.path === `projects/${recorded.homes[0].projects.primary.project_id}/molis-work.db`);
     assert.deepEqual(project?.plugin_tables, { "io.molis.work.coding": 1, "io.molis.work.feed": 1, "io.molis.work.goals": 1, "io.molis.work.inbox": 1, "io.molis.work.schedule": 1 });
     type Format = { entry: string; path: string; version: number };
     const formats = recorded.formats as Format[];
-    for (const item of formats) assert.equal(item.version, 1, `${item.entry} at ${item.path}`);
+    // A golden made now holds every format at this build's version: the catalog has had its first upgrade step (05②), the rest are at 1.
+    for (const item of formats) assert.equal(item.version, item.entry === "database.home.catalog" ? CATALOG_SCHEMA_VERSION : 1, `${item.entry} at ${item.path}`);
     assert.ok(formats.some(item => item.entry === "database.home.catalog" && item.path === `${account}/projects/catalog.db`), "the account Home's copy too");
     // The two the snapshot cannot hold, and the computer's two files the generation does not write yet (BL-golden-computer-settings).
     const absent = new Set(["format.home.installation", "database.search.text-index", "format.computer.settings", "format.computer.record"]);
@@ -470,8 +472,8 @@ describe("a generated golden Home", { concurrency: false }, () => {
   const edits: [string, (recorded: Manifest) => string][] = [
     ["a library's version raised", recorded => {
       const entry = recorded.stores.find(item => item.path === "projects/catalog.db");
-      assert.equal(entry?.schema_version, 1);
-      entry!.schema_version = 2;
+      assert.equal(entry?.schema_version, CATALOG_SCHEMA_VERSION);
+      entry!.schema_version = CATALOG_SCHEMA_VERSION + 1;
       return "projects/catalog.db";
     }],
     ["a plugin's project tables raised", recorded => {

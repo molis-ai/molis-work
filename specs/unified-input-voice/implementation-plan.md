@@ -192,7 +192,9 @@ type ComposerMaterial =
 - 规则已搬：`packages/design-system/src/composer-styles.ts` 的 `COMPOSER_STYLES`（含 `catalog-patterns.ts` 拆出的 `COMPOSER_PATTERN_STYLES`：`mw-mark`、`mw-btn-group`、`mw-tag`、`mw-uploads`）进工作台样式表，插件框架链接同一张；`COMPOSER_BOARD_STYLES` 只剩组件板自己的排版。
 - `stopTitle` 是停止钮的 `title`（悬停与读屏的补充说明，如「停止这一轮」），`stop` 是钮上的字；两者都在 `MwComposerAiLabels` 里，同一套标签给首屏与客户端。
 - 框里的菜单挂在整个 `.mw-composer` 之上（`bottom: calc(100% + 6px)`），不压住「发给」行；390 宽时也一样，菜单不超出窗口。容器窄于 480px 时场景控件收进「更多」，展开成框上方的浮层。
-- 本机草稿的键是 `mw.composer.draft:<项目>:<安装>:<入口>:<会话>`（每段 `encodeURIComponent`，没有项目时写 `home`），安装段取挂载点所在的 `[data-plugin-owner]`，框架里取插件 id，工作台自己的写 `workbench`；框架里的 `localStorage` 由父页面按安装加前缀，两层合起来不串写。删项目、卸载插件时同一处删掉（UIC-10）。
+- 本机草稿的键是 `mw.composer.draft:<项目>:<安装>:<入口>:<会话>`（每段 `encodeURIComponent`，没有项目时写 `home`），安装段取挂载点所在的 `[data-plugin-owner]`，框架里取插件 id，工作台自己的写 `workbench`；框架里的 `localStorage` 由父页面按安装加前缀，两层合起来不串写。清理（UIC-10）在工作台文档自己的脚本里（`browser/composer-sweep.ts`）：启动时把本机草稿键（不带正文）发给宿主一次（`POST /api/composer/drafts/sweep`），宿主按目录的项目列表与 `projectPluginReach` 回答哪些键已无主，没有草稿不发请求；插件当场移出项目时按 `molis-work:plugins-changed` 即时清。删项目后页面转到目录（新文档），由启动清扫清掉，删项目一处不另调全局。
+- 组件的程序是一份共享资源 `/assets/molis-work-composer.js`（用户 2026-11-08 弹窗定）：`workbench.js` 与插件框架脚本里只有 `window.molisComposer` 的小入口（`browser/composer-loader.ts`），文档里第一次挂载时取这份文件、浏览器缓存；在它到之前，页面画好的 `renderComposer()` 首屏留着、能打字，句柄的调用排队；取不到时首屏留着，状态行写「{输入框名} 现在用不了」，发送停住，下一次挂载再试。插件框架的 CSP 列出这份文件，只有页面挂了输入框才去取。
+- `@` 是组件自己的系统搜索（`/api/search/query`，与搜索面板同一请求），每个挂载页一样：空格后打 @，后面的词停顿后查，命中写所在插件，选中把「@词」拿掉、资料进附件条；只打 @ 不查。来源选取（`/api/composer/pick`）带上请求的中断，页面放下的选取在来源处就停（N42～N56）。
 - 插件框架里的输入框不列来源、没有 `@`：查来源要走工作台路由，框架的页面权限只放行插件自己的路由（S-composer-source-call 第 5 条）。要在框里选别的主人的资料，需要父页面代选的通道，留给以后。
 
 ## 4. 安全不变量的变化

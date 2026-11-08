@@ -1,17 +1,19 @@
 import type { AgentSteerMode } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 import type { ComposerHandle, ComposerOptions } from "@molis-ai/molis-work-plugin-sdk/page-globals";
 import { renderComposer } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { COMPOSER_DRAFT_PREFIX, composerKey, composing, staleComposerDrafts, wantsEnterHint } from "../composer-rules.js";
+import { composerKey, composing, wantsEnterHint } from "../composer-rules.js";
 import { composerDrafts, enterHint, type ComposerDrafts } from "./composer-drafts.js";
 import { composerMenus, type ComposerMenus } from "./composer-menus.js";
 import { composerSender, type ComposerSender } from "./composer-send.js";
-import { composerBasics, composerState, mac, storage, type Composer } from "./composer-state.js";
+import "./composer-program.js";
+import { composerBasics, composerState, mac, type Composer } from "./composer-state.js";
 import { firstScreen, paint } from "./composer-view.js";
 
 /**
- * The unified input's one program per document (specs/unified-input-voice/implementation-plan.md §3.1–3.5, slice K2):
- * `window.molisComposer(root, options)` mounts one composer in `root` and gives its handle. The first screen is the SDK's
- * `renderComposer()` (a page may have drawn it already; it is kept, so the text area and its caret are never replaced); after that
+ * The unified input's one program per document (specs/unified-input-voice/implementation-plan.md §3.1–3.5, slice K2), served
+ * once as `/assets/molis-work-composer.js`: `window.molisComposer(root, options)` (composer-loader.ts, in every page's own
+ * script) fetches it on a document's first mount and hands each mount to it; it mounts one composer in `root` and gives its
+ * handle. The first screen is the SDK's `renderComposer()` (a page may have drawn it already; it is kept, so the text area and its caret are never replaced); after that
  * composer-view.ts swaps only the parts that change, and puts in what only it knows: the attachment strip and the restored-draft
  * line. The menus are composer-menus.ts's, drafts composer-drafts.ts's, sending and uploads composer-send.ts's; the rules they
  * follow are composer-rules.ts's, shared with the node tests.
@@ -21,6 +23,7 @@ import { firstScreen, paint } from "./composer-view.js";
  * - Every mount is a generation: mounting the same root again or `destroy` aborts the last one's signal, and whatever comes back
  *   for it later (an outcome, an upload, a pick, a draft read) is dropped. A page that takes the root away calls `destroy` first.
  * - A framed plugin page has no route to the sources (S-composer-source-call): its composer lists only its own files and commands.
+ * - Drafts a deleted project or a removed plugin leaves are swept by composer-sweep.ts, in the Workbench document's own script.
  */
 
 const instances = new WeakMap<HTMLElement, () => void>();
@@ -97,15 +100,15 @@ function wire(c: Composer, { drafts, menus, sender }: Parts, files: HTMLInputEle
         material: { kind: "material", ref: chosen.ref, title: chosen.title, source: { capability_id: source.capability_id, version: source.version, provider_id: source.provider_id } } }];
       menus.untype(); c.requestId = ""; c.close(); field.focus(); return c.paint();
     }
-    if (data.composerCommand) { const command = options.commands?.[Number(data.composerCommand)]; menus.untype(); c.close(); field.focus(); return command?.run(); }
-    if (data.composerMore !== undefined) return void target.setAttribute("aria-expanded", String(target.getAttribute("aria-expanded") !== "true"));
-    if (data.composerControl) {
     if (data.composerMention) {
       const hit = menus.mentioned(Number(data.composerMention));
       if (hit) c.items = [...c.items, { title: hit.title, state: "attached", from: hit.plugin_title,
         material: { kind: "material", ref: { subject: hit.subject, pin: { mode: "current", read_revision: hit.revision } }, title: hit.title, source: hit.source } }];
       c.requestId = ""; drafts.save(); field.focus(); return c.paint();
     }
+    if (data.composerCommand) { const command = options.commands?.[Number(data.composerCommand)]; menus.untype(); c.close(); field.focus(); return command?.run(); }
+    if (data.composerMore !== undefined) return void target.setAttribute("aria-expanded", String(target.getAttribute("aria-expanded") !== "true"));
+    if (data.composerControl) {
       const control = options.controls?.find((one) => one.id === data.composerControl);
       if (control?.kind === "toggle") { const on = target.getAttribute("aria-pressed") !== "true"; target.setAttribute("aria-pressed", String(on)); control.change?.(on); }
       if (control?.kind === "button") control.run();
@@ -120,13 +123,13 @@ function wire(c: Composer, { drafts, menus, sender }: Parts, files: HTMLInputEle
   shell.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && c.open) { event.preventDefault(); event.stopPropagation(); return c.close(true); }
     if (event.target !== field) return;
-    const key = composerKey(event, options.submitKeys !== false);
-    if (key) { event.preventDefault(); return void sender.send(key === "after-run" ? "after-run" : undefined, true); }
-    if (options.submitKeys !== false && !composing(event) && !enterHint.shown() && wantsEnterHint(event, field.value, field.selectionStart)) {
     if (event.key === "ArrowDown" && c.open && (c.mention || c.typed) && !composing(event)) {
       const first = c.open.querySelector<HTMLElement>("[role^=menuitem]:not(:disabled)");
       if (first) { event.preventDefault(); return first.focus({ preventScroll: true }); }
     }
+    const key = composerKey(event, options.submitKeys !== false);
+    if (key) { event.preventDefault(); return void sender.send(key === "after-run" ? "after-run" : undefined, true); }
+    if (options.submitKeys !== false && !composing(event) && !enterHint.shown() && wantsEnterHint(event, field.value, field.selectionStart)) {
       enterHint.done();
       c.note = { caption: labels.notice, text: c.fill(labels.enterHint, { keys: mac ? "⌘↵" : "Ctrl+↵" }), action: labels.enterHintDismiss, actionId: "hint" };
       c.paint();
@@ -149,22 +152,4 @@ function wire(c: Composer, { drafts, menus, sender }: Parts, files: HTMLInputEle
   document.addEventListener("pointerdown", (event) => { if (c.open && !shell.contains(event.target as Node)) c.close(); }, { capture: true, signal });
 }
 
-/** A project deleted or a plugin removed from it leaves no draft behind on this machine (UIC-10). */
-function forget(gone: { project: string; install?: string }) {
-  try {
-    const store = storage(), keys = Array.from({ length: store.length }, (_, index) => store.key(index)!);
-    for (const key of staleComposerDrafts(keys, gone)) store.removeItem(key);
-    // A framed plugin's drafts live under its page's own prefix (`molis-plugin-page:<home>:<install>:<project>:`), the same key inside.
-    for (const key of keys) {
-      const inner = key.indexOf(COMPOSER_DRAFT_PREFIX);
-      if (key.startsWith("molis-plugin-page:") && inner > 0 && staleComposerDrafts([key.slice(inner)], gone).length) store.removeItem(key);
-    }
-  } catch { /* storage refused: nothing of it can be read either */ }
-}
-document.addEventListener("molis-work:plugins-changed", (event) => {
-  const project = document.body.dataset.projectId || "home";
-  for (const install of (event as CustomEvent<{ gone?: string[] }>).detail?.gone ?? []) forget({ project, install });
-});
-
-window.molisComposer ??= mount;
-(globalThis as { molisComposerForget?: typeof forget }).molisComposerForget ??= forget;
+globalThis.molisComposerProgram ??= mount;

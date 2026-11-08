@@ -210,17 +210,17 @@ export function readVersionedFile<T>(file, path, home?): { status: "absent" } | 
 
 文件定义里没有路径：路径写在描述符上（`computer/records/<id>/record.json` 一个定义对应很多文件）。`unreadable` 是解析不了、没有能起步的版本，或主人的 `parse` 不接受；它和 `too_new`、`upgrade_pending` 一样不是可以覆盖的理由。
 
-升级过程：拷快照 → 按段变换 → `parse` 检查 → 写临时文件、fsync、rename、fsync 目录 → 记录 committed。读取路径不做变换。描述符可以写同一个 `group`：组里任何一个失败，整组放回（§8.2）。写之前调 `assertVersionedFileWritable`，见到这三种状态就拒绝，不写。
+升级过程：拷快照 → 按段变换 → `parse` 检查 → 写临时文件、fsync、rename、fsync 目录 → 记录 committed。读取路径不做变换。描述符可以写同一个 `group`：组里任何一个失败，整组放回（§8.2）。写之前调 `assertVersionedFileWritable`，见到这三种状态就拒绝，不写。**而且在这次写要做的别的事之前调**（2026-11-08 补，U1 之后的复查）：被拒的保存不能先建了东西、定了别的状态再拒；内存里的值也等写成了再改。一件事最后才写文件、前面要建东西的（引导建项目），在建之前先查同一条，查和写之间只有本宿主写这个文件，比它新的构建在它占着 Home 时打不开，所以查过的到写时仍可写；查后文件在磁盘上坏了，写时照样拒，那一次按别的失败处理。删除也算写：程序不读的文件不由它删（`computer/records/<id>/`）。
 
 | 文件 | 处理 | 片 |
 | --- | --- | --- |
-| `config/mcp-tools.json`、`shelf/catalog.json`、`jelly/preferences.json` | 进链，现有严格解析作 `parse`。`shelf/catalog.json` 的主人是 `modules/shelf`，升级过程用 Shelf 导出的文件定义，不把写权拿到宿主外（现在写走 `saveCatalog(writer, …)`，开工时核这条路在升级过程里怎么给 writer） | U1-e |
+| `config/mcp-tools.json`、`shelf/catalog.json`、`jelly/preferences.json` | 进链，现有严格解析作 `parse`。`shelf/catalog.json` 的主人是 `modules/shelf`，升级过程用 Shelf 导出的文件定义，不把写权拿到宿主外（现在写走 `saveCatalog(writer, …)`，开工时核这条路在升级过程里怎么给 writer）。前两个的写都先用同一份严格解析读原文件，读不过不写；`jelly/preferences.json` 的保存原来不看原文件就整份替换，2026-11-08 改成一开头先 `assertVersionedFileWritable`（装进来的插件那份 `plugin-files/<install_id>/.model-settings/preference.json` 走同一处） | U1-e |
 | `browser/sites.json` | **吞错要修**：`browser-surfaces.ts:65-72` 不看版本、`catch` 全吞成默认值，下次保存就覆盖。高版本文件被读成默认再写回，直接违反 UPG-05。改成：没有文件才是默认；版本高或读不了时用内存默认、**拒绝写**，并记诊断 | U1-e |
-| `computer/settings.json`、`config/onboarding.json`、`config/project-arrival.json` | 读时不看版本或只整形，同样的问题，同样改 | U1-e |
+| `computer/settings.json`、`config/onboarding.json`、`config/project-arrival.json` | 读时不看版本或只整形，同样的问题，同样改。`config/onboarding.json` 是引导最后才写的：采用整理、「空白开始」、`/api/onboarding/initialize` 三个入口先调 `assertOnboardingWritable` 再建项目或个人空间（2026-11-08 补） | U1-e |
 | `computer/records/<id>/record.json` | 进链，按目录枚举 | U1-e |
 | `feed/secrets.json` | 只有文件的版本 `format.secret-store.map` 进链，规则见 §8.2；`format.secret-store.envelope`、`format.secret-store.home-payload` 留在 1（用户 2026-11-08 定） | U1-e |
 | `config/installation.json`、`releases/*/release.json` | **同一接口，不同时机**：安装器读它们时程序还没有进宿主，所以由安装器（`installer/home-files.ts`）在读的地方调同一个升级函数（`upgradeVersionedFileInPlace`）；不在快照内（已在 `snapshotExclusions`）。**不留副本（2026-11-08 勘误，原写「备份放在同目录」）：** `config/` 多一个文件，`home snapshot` 按未登记配置报 `unknown_data`（`home-snapshot-inventory.ts:59`）；登记成排除项，恢复要求排除清单和快照逐条相等（`home-restore-stores.ts:101`），旧快照就恢复不了。写入是整份替换，失败时原文件不变。回退要旧内容时放哪里归 U6 | U1-e |
-| `config/web-service.json`、`config/uninstall.json`、`runtime-integrations/*.json`、`runtime-config-backups` | 机器收据或可再生成，版本不符时现状是拒绝。版本升了之前不用段；第一次要升时按同接口加 | 不做 |
+| `config/web-service.json`、`config/uninstall.json`、`runtime-integrations/*.json`、`runtime-config-backups` | 机器收据或可再生成。`runtime-integrations/*.json`、`runtime-config-backups` 版本不符时现状是拒绝；`config/web-service.json` 读时不看版本，只认 `owner`、`label` 与 plist 的哈希（plist 不在时重装会重写收据），`config/uninstall.json` 不按内容读（只算进卸载计划的哈希），每次卸载整份写（2026-11-08 复查时照实改，原写「版本不符时现状是拒绝」）。版本升了之前不用段；第一次要升时按同接口加，这两个那时补上版本检查 | 不做 |
 | `config/external-mcp-actions.json`、`config/connector-mcp-actions.json` | 无版本字段，现在不是带版本文件；要改结构先加版本。它们不在 `homeStores()` 里，见 §15.2 | 不做 |
 
 ## 3. 什么时候升：启动时一次做

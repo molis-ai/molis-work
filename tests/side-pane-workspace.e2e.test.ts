@@ -190,7 +190,8 @@ test("PFG-22 review shots of the right side at 1440, 1024 and 390, Chinese and E
     await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: theme }] }, sessionId);
     await navigate(() => command("Page.navigate", { url: `${origin}/locale?lang=${lang}&next=${encodeURIComponent(`/projects/${projectId}/`)}` }, sessionId));
     await waitFor(`document.querySelector('${strip} [data-side-tab="tasks"]')`, 15_000);
-    await waitFor("document.body.dataset.sideOpen === 'false' || (document.dispatchEvent(new CustomEvent('molis:side-close')), false)", 5_000);
+    // The page collapses the side from the layout menu (收起右侧); the side has no close event of its own (07-1 S4b).
+    await waitFor("document.body.dataset.sideOpen === 'false' || (document.querySelector('[data-layout-open]').click(), document.querySelector('[data-layout-action=side]').click(), false)", 5_000);
     const name = `${lang}-${theme}-${width}`;
     await shot(name + "-collapsed");
     await waitFor("(document.dispatchEvent(new CustomEvent('molis:side-open', { detail: { tab: 'tasks' }, cancelable: true })), document.body.dataset.sideOpen === 'true')", 5_000);

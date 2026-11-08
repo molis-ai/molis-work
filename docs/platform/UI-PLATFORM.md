@@ -78,13 +78,12 @@ Workbench 不直接访问 SQLite、Module implementation、Node-only API 或 Tau
 
 （情境浮条的三个事件，主人是 `context-toolbar`（设计系统的页面程序）：`molis:context-tools` 与 `molis:context-panel-open` 是 `request`，发的是拥有内容的插件，听的是浮条；`molis:context-tool-invoke` 是公告，浮条在插件发布工具的那个元素上发，插件自己执行。工作台已经采用它，Pages 是第一个真实的发送方；组件板的示范是另一个。`molis:context-panel-open` 带 `cancelable`：浮条接住了（有这个情境的浮条在）就 `preventDefault()`，没接住时插件自己把表单放在原处。）
 
-另有五处也是 `--report` 提示出来、门禁不拦的：发了没人收的，或收不到的。它们是现状，不是设计：
+另有四处也是 `--report` 提示出来、门禁不拦的：发了没人收的，或收不到的。它们是现状，不是设计：
 
 - `molis-work:open-settings-section`：Assistant 在记忆变更卡片上的「去设置查看」（`apps/workbench/src/scripts/client/assistant-island.ts`）在 `window` 上发它并带 `cancelable: true`，没人接住就整页跳到记忆设置页（变更属于项目时跳项目的设置页）。设置目录只在 `document` 上听（`settings-directory.ts`），听不到发在 `window` 上的事件，听到了也不调用 `preventDefault()`，所以这个按钮今天永远是整页跳转。登记里这条是发在 `document`、不带 `cancelable`（真正走通的是 `tab-workspace.ts` 打开「页面放在设置里的插件」时发的那一处），所以登记没有把这第三处 `cancelable` 的用法算进去。要修，不能只把发送改到 `document`：设置目录对这条事件只打开全局设置分类，而项目范围的记忆变更要去的是项目的设置页，那个走 `molis-work:open-settings-path`，按地址打开。
 - `molis-work:place-changed`：`scripts/contextual-slice/client.ts`（情境交互的评估用脚本，不进产品页面）在 `window` 上听它，而它发在 `document` 且不冒泡，那个监听器永远不会触发。
 - `molis-work:work-mode-changed`：`immersive-navigation.ts` 发了，树里没有任何监听者。
 - `molis:side-toggle`：`side-panel.ts` 在听，树里没有任何地方发它。
-- `molis:side-close`：`side-panel.ts` 在 `document` 上听；07-1 S4b 去掉底栏的右侧开关（它在 `navigation-presentation.ts` 里是唯一的发送处）之后，页面里没有地方发它。插件框架仍用 `postMessage` 发同名消息（`browser/plugin-frame/navigation.ts`），由 `side-panel.ts` 的消息监听接住；页面里收起右侧走布局菜单与 ⌘\ 的窗格接口。删掉这个监听要连登记一起改（合同），留到改合同时一并处理。
 
 ## 4. 迁移
 

@@ -383,13 +383,6 @@ export declare const DOM_EVENTS: readonly [{
     readonly detail: "{ action: takeover | handback, project_id, session_id }";
     readonly summary: "The person took the side panel's browser over from a Work, or handed it back; the Assistant tells the Work.";
 }, {
-    readonly name: "molis:side-close";
-    readonly kind: "request";
-    readonly owner: "side-panel";
-    readonly on: "document";
-    readonly detail: "none";
-    readonly summary: "Close the side panel.";
-}, {
     readonly name: "molis:side-context-command";
     readonly kind: "announcement";
     readonly owner: "side-panel";

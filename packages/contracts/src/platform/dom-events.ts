@@ -449,11 +449,6 @@ export const DOM_EVENTS = [
     summary: "The person took the side panel's browser over from a Work, or handed it back; the Assistant tells the Work.",
   },
   {
-    name: "molis:side-close", kind: "request", owner: "side-panel", on: "document",
-    detail: "none",
-    summary: "Close the side panel.",
-  },
-  {
     name: "molis:side-context-command", kind: "announcement", owner: "side-panel", on: "document",
     detail: "{ context_epoch, context: { plugin_id, pane_id, tab_id, view_id, object_ref, revision, unsaved }, command }",
     summary: "A mounted contextual side view asks its current stage owner to focus an anchor or prepare a comment. UI context carries no authority.",

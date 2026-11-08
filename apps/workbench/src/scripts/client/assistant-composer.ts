@@ -216,7 +216,7 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
     mountedFor = curId || scoped("new-draft"); draftHere = draftFor(curId); painted = shown();
     composer = window.molisComposer(compose, { kind: "ai", entry: "assistant", labels: words, draft: { adapter: draftHere },
       receiver: receiverNow, delivery: deliveryNow, get controls() { return controlsNow(); }, get commands() { return commands(); },
-      attachments: { accept: upload.accept, upload: (file) => upload.upload(file) },
+      attachments: { accept: upload.accept, upload: (file) => upload.upload(file) }, onMaterials: () => paintMats(),
       near: () => { const page = pageObject(); return page ? { kind: page.object.kind, id: page.object.id } : null; },
       required: () => getWork()?.reply_target ? L("请回到原评论继续回复") : !String(input.value || "").trim() ? L("写一句话再发") : null,
       stop: () => control("stop"),
@@ -258,8 +258,10 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
   /** Words sent for the person by a page or by search, not typed in the box: what the person is writing stays where it is. */
   const say = (text, extra) => { sending += 1; return post(text, extra).catch((error) => { if (!String(input.value || "").trim()) setWords(text); showError(error); })
     .finally(() => { sending -= 1; syncComposer(); }); };
-  // Files the side pane takes go where every file goes: onto the composer's strip, whose upload reads them.
+  // Files the side pane takes go where every file goes: onto the composer's strip, whose upload reads them; 待发送 names what
+  // the strip carries (a read file as a picture or a file, a pick as the object it is), told again by the composer's onMaterials.
   function addFiles(chosen) { composer?.attach(chosen); }
+  stripPending = () => (composer ? composer.materials() : []).map((one) => ({ kind: one.kind === "attachment" ? (upload.material(one.ref) || {}).kind || "file" : "object", title: one.title }));
   function pickFile() { compose.querySelector("[data-composer-add]")?.click(); }
   /* The conversation behind the receiver: its name on the receiver row opens it, and so does ⌘↵ on an empty box (the work in front,
      or the list of works when a new one is next and there are others). */

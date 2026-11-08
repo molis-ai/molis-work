@@ -83,22 +83,20 @@ test("VUX-39 the board's Assistant section drives the shipped island through sev
   assert.deepEqual(await context(), { 待发送: [], 本次使用: ["首次使用记录汇总", "选中的内容：首次使用卡住最久的三处"], 历史引用: ["上周用户反馈", "试用记录.md", "白板.png"] });
 
   // Attachments that partly fail, dropped on the composer (K3: its own strip, inside the box): one goes in, one is refused before
-  // reading, one the (simulated) Host refuses. The composer's strip has no per-file 重试 (asked of K2): adding the picture again is
-  // refused again and stays failed. The side pane's 待发送 lists the strip above the composer, not the composer's own files.
-  const chips = () => inFrame<Array<[string, string, string]>>(`return [...d.querySelectorAll('[data-assistant-composer] .mw-composer__files .mw-upload')].map((row) =>
-    [row.querySelector(':scope > span:not(.mw-mark)').firstChild.textContent, row.querySelector('small.is-failed') ? 'is-failed' : '', row.querySelector('small')?.textContent ?? '']);`);
-  const settled = (count: number) => `${frame}.contentDocument.querySelectorAll('[data-assistant-composer] .mw-composer__files .mw-upload').length === ${count} && ![...${frame}.contentDocument.querySelectorAll('[data-assistant-composer] .mw-composer__files small')].some((n) => n.textContent.endsWith('读取中'))`;
+  // reading, one the (simulated) Host refuses and can be tried again. The side pane's 待发送 names what the composer's strip carries.
+  const chips = () => inFrame<Array<[string, string, string, boolean]>>(`return [...d.querySelectorAll('[data-assistant-composer] .mw-composer__files .mw-upload')].map((row) =>
+    [row.querySelector(':scope > span:not(.mw-mark)').firstChild.textContent, row.querySelector('small.is-failed') ? 'is-failed' : '', row.querySelector('small')?.textContent ?? '', !!row.querySelector('[data-composer-retry]')]);`);
+  const settled = (count: number) => `${frame}.contentDocument.querySelectorAll('[data-assistant-composer] .mw-composer__files .mw-upload').length === ${count} && !${frame}.contentDocument.querySelector('[data-assistant-composer] .mw-composer__files .is-reading')`;
   await inFrame("d.querySelector('[data-asst-attach]').click(); return null;");
   await waitFor(settled(3), 15_000);
-  assert.deepEqual(await chips(), [["会议记录.md", "", ""], ["设计稿.zip", "is-failed", "暂时只能读取文本文件、PDF 和图片"], ["白板照片.png", "is-failed", "样例不执行这一步（模拟）"]]);
-  assert.deepEqual((await context()).待发送, [], "the composer's files are on its strip; the rounds' own materials do not change");
+  assert.deepEqual(await chips(), [["会议记录.md", "", "", false], ["设计稿.zip", "is-failed", "暂时只能读取文本文件、PDF 和图片", false], ["白板照片.png", "is-failed", "样例不执行这一步（模拟）", true]]);
+  assert.deepEqual((await context()).待发送, ["会议记录.md"], "what went in waits for the next Send; the rounds' own materials do not change");
+  assert.equal(await inFrame<boolean>(`const row = d.querySelectorAll('[data-assistant-composer] .mw-composer__files .mw-upload')[2]; w.__chip = row; row.querySelector('[data-composer-retry]').click();
+    await new Promise((r) => setTimeout(r, 600)); const now = d.querySelectorAll('[data-assistant-composer] .mw-composer__files .mw-upload')[2]; return now === row && now.classList.contains('is-failed');`), true,
+    "a retry the Host refuses again stays failed on the same row");
   const remove = (name: string) => inFrame(`d.querySelector('[data-assistant-composer] [data-composer-remove][aria-label="移除 ${name}"]').click(); return null;`);
-  await remove("白板照片.png");
-  await inFrame(`const data = new DataTransfer(); data.items.add(new File([Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='), (c) => c.charCodeAt(0))], '白板照片.png', { type: 'image/png' }));
-    d.querySelector('[data-assistant-composer] .mw-composer__box').dispatchEvent(new DragEvent('drop', { dataTransfer: data, bubbles: true, cancelable: true })); return null;`);
-  await waitFor(settled(3), 15_000);
-  assert.deepEqual((await chips())[2], ["白板照片.png", "is-failed", "样例不执行这一步（模拟）"], "a picture the Host refuses again stays failed");
   await remove("设计稿.zip");
+  // Differs from the island: a row that cannot go holds the Send (the composer's rule), so the picture is let go too.
   await remove("白板照片.png");
   await waitFor(settled(1));
   // A Send the (simulated) Host refuses fails where the composer says how a Send went, and the words stay in the input.

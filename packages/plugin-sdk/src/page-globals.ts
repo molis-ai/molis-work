@@ -164,6 +164,8 @@ export interface ComposerCommonOptions {
   /** This page's own `/` commands. */
   commands?: readonly ComposerCommand[];
   attachments?: { accept?: string; upload(file: File, signal: AbortSignal): Promise<ComposerAttachmentState> };
+  /** Called after what the strip carries (`ComposerHandle.materials()`) changed, for a page that names it elsewhere too. */
+  onMaterials?(): void;
   /** Whether the registered sources are listed in `+`; by default when `kind` is `ai`. */
   sources?: boolean;
   /**
@@ -228,6 +230,8 @@ export interface ComposerHandle {
   setRunning(running: boolean): void; refresh(): void; focus(): void; insert(text: string): void;
   /** Files the page was handed elsewhere (its own side pane, say) go onto the strip as if dropped on the box, through `attachments`. */
   attach(files: readonly File[]): void;
+  /** What the strip carries now, in its order: the rows that are read (a Send takes these); none until the program is in. */
+  materials(): readonly ComposerMaterial[];
   destroy(): void;
 }
 

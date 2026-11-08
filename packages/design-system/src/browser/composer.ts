@@ -6,7 +6,7 @@ import { composerDrafts, enterHint, type ComposerDrafts } from "./composer-draft
 import { composerMenus, type ComposerMenus } from "./composer-menus.js";
 import { composerSender, type ComposerSender } from "./composer-send.js";
 import "./composer-program.js";
-import { composerBasics, composerState, itemKey, letGo, mac, type Composer } from "./composer-state.js";
+import { attached, composerBasics, composerState, itemKey, letGo, mac, type Composer } from "./composer-state.js";
 import { firstScreen, paint } from "./composer-view.js";
 
 /**
@@ -37,7 +37,13 @@ function mount(root: HTMLElement, options: ComposerOptions): ComposerHandle {
   if (!root.querySelector(".mw-composer")) root.innerHTML = renderComposer(firstScreen(basics, ""));
   const shell = root.querySelector<HTMLElement>(".mw-composer")!;
   const c = composerState(basics, root, life.signal, shell.id ||= `mw-composer-${++count}`);
-  c.paint = (controls) => paint(c, controls);
+  // What the strip carries, as last told to the page (`onMaterials`): told again only when it changed.
+  let carried: readonly unknown[] = [];
+  c.paint = (controls) => {
+    paint(c, controls);
+    const now = attached(c);
+    if (now.length !== carried.length || now.some((one, index) => one !== carried[index])) { carried = now; options.onMaterials?.(); }
+  };
   const drafts = composerDrafts(c), menus = composerMenus(c), sender = composerSender(c, drafts, enterHint.done);
   drafts.load();
 
@@ -56,7 +62,8 @@ function mount(root: HTMLElement, options: ComposerOptions): ComposerHandle {
   /** Lets go: every listener, the pending draft write, any open query; whatever comes back for this mount is dropped. */
   function release() {
     if (c.signal.aborted) return;
-    c.close(); life.abort(); c.queries.end(); drafts.stop(); files.remove(); letGo(c.items);
+    c.close(); life.abort(); c.queries.end(); drafts.stop(); files.remove(); letGo(c.items); c.items = [];
+    if (carried.length) { carried = []; options.onMaterials?.(); }
     if (instances.get(root) === release) instances.delete(root);
   }
   instances.set(root, release);
@@ -70,6 +77,7 @@ function mount(root: HTMLElement, options: ComposerOptions): ComposerHandle {
       c.field.setRangeText(text, c.field.selectionStart, c.field.selectionEnd, "end"); window.molisFit?.(c.field); drafts.save(); c.paint();
     },
     attach(given) { if (given.length) void sender.upload(given); },
+    materials: () => attached(c),
     destroy: release,
   };
 }

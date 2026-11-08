@@ -50,6 +50,8 @@ export const ASSISTANT_ATTACHMENTS_FACTORY_SCRIPT = String.raw`({ L, api }) => {
       held.set(material.material_id, material);
       return { state: "attached", ref: material.material_id, title: material.title };
     },
+    /** The material read for an attachment's ref, or null: what the side pane's 待发送 names it as (a picture, a file). */
+    material: (ref) => held.get(ref) || null,
     take(list) {
       const materials = [], over = [];
       let count = 0, pictures = 0;

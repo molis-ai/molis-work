@@ -9,6 +9,8 @@ export const ASSISTANT_MATERIALS_PART = String.raw`  /* ─── Sending ──
   let lastSurface = null;
   let sel = null;
   let files = [];
+  // The files and picks on the composer's own strip, as 待发送 names them; the composer part fills it in once the composer is there.
+  let stripPending = () => [];
   const removed = new Set();
   const visible = (node) => Boolean(node && node.isConnected && node.getClientRects().length && !node.closest("[hidden]"));
   const noteSurface = (target) => {
@@ -93,7 +95,7 @@ export const ASSISTANT_MATERIALS_PART = String.raw`  /* ─── Sending ──
   const stripNode = island.querySelector("[data-assistant-context-strip]");
   const sideContext = (${ASSISTANT_SIDE_CONTEXT_FACTORY_SCRIPT})({ L, el, kinds: MATERIAL_KIND, tile, glyph, group, sideAct, paintBlock, keepFocus, sidePanelHere, sidePreview, readBack, readImage, openObject, objectState, objectTitle, objectDetail, objectGlyph, surfaceName, addFiles,
     current: () => (view && view.work.work_id === curId ? view : null), pickFile, expired: EXPIRED_IMAGE, block: () => blocks.materials,
-    pending: () => materialsNow().filter((item) => !item.optional).map((item) => ({ kind: item.key === "draft" ? "text" : item.key === "selection" ? "selection" : item.key.startsWith("file:") ? (files.find((file) => "file:" + file.material_id === item.key) || {}).kind || "file" : "object", title: item.label })) });
+    pending: () => materialsNow().filter((item) => !item.optional).map((item) => ({ kind: item.key === "draft" ? "text" : item.key === "selection" ? "selection" : item.key.startsWith("file:") ? (files.find((file) => "file:" + file.material_id === item.key) || {}).kind || "file" : "object", title: item.label })).concat(stripPending()) });
   const surroundings = (${ASSISTANT_SIDE_SURROUNDINGS_FACTORY_SCRIPT})({ L, el, card, group, stack, paintBlock, keepFocus, api, environmentBlock: () => blocks.environment, toolsBlock: () => blocks.tools });
   const usagePane = (${ASSISTANT_SIDE_USAGE_FACTORY_SCRIPT})({ L, el, progress, api, toast: (error) => host.showToast?.(error), box: () => usageBox, current: () => (view && view.work.work_id === curId ? view : null), adopt: (next) => { view = next; render(); } });
   contextStrip = stripNode && (${ASSISTANT_CONTEXT_STRIP_FACTORY_SCRIPT})({ strip: stripNode, L, el, items: materialsNow, open: () => Boolean(panel && !panel.hidden), focused: () => document.activeElement === input,

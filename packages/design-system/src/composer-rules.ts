@@ -66,9 +66,19 @@ export function parseComposerDraftKey(key: string): ComposerDraftPlace | null {
  */
 export function staleComposerDrafts(keys: Iterable<string>, gone: { project: string; install?: string }): string[] {
   return [...keys].filter((key) => {
-    const place = parseComposerDraftKey(key);
+    const place = parseComposerDraftKey(composerDraftInner(key) ?? "");
     return place !== null && place.project === (gone.project || "home") && (gone.install === undefined || place.install === gone.install);
   });
+}
+
+/**
+ * The platform draft a stored key holds: the key itself, or, in a framed plugin's storage (the parent prefixes it per installation:
+ * `molis-plugin-page:<home>:<install>:<project>:`), the part after that prefix. Any other key is not a draft.
+ */
+export function composerDraftInner(key: string): string | null {
+  if (key.startsWith(COMPOSER_DRAFT_PREFIX)) return key;
+  const at = key.indexOf(COMPOSER_DRAFT_PREFIX);
+  return key.startsWith("molis-plugin-page:") && at > 0 ? key.slice(at) : null;
 }
 
 /** Storage as the page has it; any call may throw (full, disabled, a private window). */

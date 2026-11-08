@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 import { ActionError, defineSubjectContextAction, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import * as composer from "@molis-ai/molis-work-contracts/platform/composer";
+import { composerDraftKey } from "@molis-ai/molis-work-design-system";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { inspectActionCrossReferences, inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
 import { declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
@@ -185,6 +186,17 @@ test("S-composer-source-call N42–N56: a pick the page let go of is cancelled a
   const next = await post("/api/composer/pick", body);
   assert.deepEqual([next.status, (next.body.items as Array<{ title: string }>).map((item) => item.title)], [200, ["访谈记录", "访谈提纲"]]);
   assert.equal(source.seen.length, calls + 1, "one request, one call");
+});
+
+test("UIC-10 the start-up sweep names the drafts whose project or plugin is gone, and nothing else", async (t) => {
+  const { f, project, mount } = await composerHome(t);
+  const key = (place: string, install: string) => composerDraftKey({ project: place, install, entry: "comment", conversation: "c1" });
+  const kept = [key(project.project_id, mount.id), key(project.project_id, "workbench"), key("home", "io.molis.work.example.gone"), "mw.other:x", "unrelated"];
+  const gone = [key("p-deleted", mount.id), key("p-deleted", "workbench"), `molis-plugin-page:h:${mount.id}:p-deleted:${key("p-deleted", mount.id)}`];
+  const response = await f.request("/api/composer/drafts/sweep", { method: "POST", body: { keys: [...kept, ...gone, 7] } });
+  assert.equal(response.status, 200, await response.clone().text());
+  assert.deepEqual(await response.json(), { remove: gone }, "a project no longer in the Home goes whole, a framed page's too; this project's plugin, the Workbench's own, Home drafts and other keys stay");
+  assert.equal((await f.request("/api/composer/drafts/sweep", { method: "GET" })).status, 405);
 });
 
 test("S-composer-source-call item 4: a picked note the target cannot read stops the send; nothing is written", async (t) => {

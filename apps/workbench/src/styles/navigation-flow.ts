@@ -39,13 +39,10 @@ export const NAVIGATION_FLOW_STYLES = `
      under the composer. With the person's own tray on the right (07-1 S4b), that side folds too: the two share what the
      composer leaves, half and half, instead of the right one taking its whole width and the Dock folding to 项目首页. */
   @media (min-width: 601px) {
-    ${BAR} { --bar-side-min: calc(var(--dock-btn) * 2 + 84px); grid-template-columns: minmax(var(--bar-side-min), 1fr) minmax(200px, 660px) minmax(max-content, 1fr); }
-    ${BAR}:has(.bar-own:not(:empty)) { grid-template-columns: minmax(var(--bar-side-min), 1fr) minmax(200px, 660px) minmax(var(--bar-side-min), 1fr); }
+    ${BAR} { --bar-side: calc(var(--dock-btn) * 2 + 84px); --bar-own: max-content; --bar-mid: 660px; grid-template-columns: minmax(var(--bar-side), 1fr) minmax(200px, var(--bar-mid)) minmax(var(--bar-own), 1fr); }
   }
-  @media (min-width: 601px) and (max-width: 1100px) {
-    ${BAR} { grid-template-columns: minmax(var(--bar-side-min), 1fr) minmax(200px, 560px) minmax(max-content, 1fr); }
-    ${BAR}:has(.bar-own:not(:empty)) { grid-template-columns: minmax(var(--bar-side-min), 1fr) minmax(200px, 560px) minmax(var(--bar-side-min), 1fr); }
-  }
+  @media (min-width: 601px) and (max-width: 1100px) { ${BAR} { --bar-mid: 560px; } }
+  ${BAR}:has(.bar-own:not(:empty)) { --bar-own: var(--bar-side); }
   /* On a phone the Dock and the person's own tray share the second row half and half, so each folds what it cannot hold
      into its own +N instead of the right one taking the row and leaving the Dock only 项目首页. */
   @media (max-width: 600px) {
@@ -54,7 +51,6 @@ export const NAVIGATION_FLOW_STYLES = `
   }
   /* The switcher is its glyph alone at every width (07-1 S4b): the tab strip above names where you are, and the
      switcher's own name says it to a screen reader. A hairline (.plugin-picker::after) sets it apart from the Dock. */
-  ${BAR} .bar-start .plugin-picker { max-width: none; }
   ${BAR} .bar-start :is(.plugin-picker-current, .plugin-picker-trigger > svg:last-child) { display: none; }
   ${BAR} .bar-start .plugin-picker-all { display: inline-grid; place-items: center; color: var(--ink-soft); }
 

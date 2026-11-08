@@ -1,3 +1,4 @@
+import { webSocketAuthority } from "./web-sessions.js";
 import type { IncomingMessage } from "node:http";
 import type http from "node:http";
 import type { Duplex } from "node:stream";
@@ -6,7 +7,6 @@ import { loopbackHost } from "@molis-ai/molis-work-contracts/platform/loopback";
 import { MolisWorkPtyHost, type PtySpawnRequest } from "@molis-ai/molis-work-service-runtime-host";
 import { resolveConfiguredHome } from "./product-home.js";
 import { pageTerminalOwnership, type PageTerminalAccess } from "./pty-page-access.js";
-import { controlTokenMatches } from "./web-control-token.js";
 
 type ClientMessage =
   | { type: "auth"; token: string }
@@ -109,13 +109,23 @@ export function attachMolisWorkPtySocket(
 
   server.on("upgrade", (request, socket, head) => upgradeTerminal(wss, request, socket, head));
 
-  wss.on("connection", (ws) => {
+  wss.on("connection", (ws, request) => {
     let authed = false;
+    let authority: ReturnType<typeof webSocketAuthority>;
+    const bindAuthority = (proof: unknown) => {
+      authority = webSocketAuthority(request, controlToken, proof);
+      if (!authority) return false;
+      const close = () => ws.close();
+      authority.signal?.addEventListener("abort", close, { once: true });
+      ws.once("close", () => authority?.signal?.removeEventListener("abort", close));
+      return authority.valid();
+    };
     let pageAccess: PageTerminalAccess | undefined;
     let receiving = Promise.resolve();
     ws.on("close", () => { sockets.delete(ws); pageSockets.delete(ws); });
     const receive = async (raw: RawData) => {
       try {
+        if (authority && !authority.valid()) { ws.close(); return; }
         const message = parseMessage(raw);
         if (!authed) {
           if (message.type === "page-auth" && typeof message.pageId === "string") {
@@ -123,7 +133,7 @@ export function attachMolisWorkPtySocket(
             pageSockets.set(ws, { access: pageAccess, panels: new Set(), sending: Promise.resolve() });
             authed = true; send(ws, { type: "ready" }); return;
           }
-          if (message.type !== "auth" || !controlTokenMatches(controlToken, message.token)) {
+          if (message.type !== "auth" || !bindAuthority(message.token)) {
             send(ws, { type: "error", message: "本地终端通道校验失败" });
             ws.close();
             return;
@@ -143,6 +153,7 @@ export function attachMolisWorkPtySocket(
         if ((message.type === "resize" || message.type === "spawn") && [message.cols, message.rows].some(value => value !== undefined && (!Number.isInteger(value) || value < 1 || value > 1000))) throw refuse("终端尺寸无效");
         if (pageAccess) {
           await pageAccess.assertPanel(message.panelId);
+          if (authority && !authority.valid()) { ws.close(); return; }
           pageSockets.get(ws)?.panels.add(message.panelId);
         }
         if (message.type === "spawn") {

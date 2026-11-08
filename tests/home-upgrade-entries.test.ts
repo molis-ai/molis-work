@@ -330,7 +330,7 @@ test("UPG1-15: signing in to an account whose Home is older opens it upgraded", 
     "x-molis-work-control-token": viewToken, "x-molis-work-idempotency-key": `upgrade-entry-${++sequence}` } });
   assert.equal((await post("/api/personal/login")).status, 200);
   assert.equal((await request(`/account/callback?code=synthetic&state=${transaction.state}`, { redirect: "manual" })).status, 303);
-  viewToken = (await (await request("/api/personal/status")).json() as { viewToken: string }).viewToken;
+  viewToken = readFileSync(join(directory, "config/web-control-token"), "utf8").trim();
   // Since #1932 signing in prepares the account's Home at once; whatever opens it, it is opened upgraded, before any business store.
   assert.equal(versionOf(notes), 2, "the account's Home was opened by signing in, so it is already upgraded");
   assert.equal(present(stampFile(directory)), true);

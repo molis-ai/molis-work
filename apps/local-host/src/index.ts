@@ -388,3 +388,5 @@ export { createSpaceWebServer, type SpaceWebSurface } from "./space-web-server.j
 export { verifySyncPluginDistribution } from "./sync-distribution.js";
 
 export {connectResidentAccount,ACCOUNT_CONNECT_PATH,type ResidentAccountConnection} from "./resident-account-connection.js";
+
+export { WebSessions } from "./web-sessions.js";

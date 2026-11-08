@@ -50,7 +50,7 @@ test("W3-A3b PICK-01, PICK-05, FLASH-01, FLASH-02, FLASH-03: a result picked up 
   await waitFor("document.querySelector('.assistant-msg--assistant')?.textContent.includes('访谈纪要')", 20_000);
   const api = `/projects/${projectId}/api/assistant/works`;
   const workId = await evaluate<string>(`fetch(${JSON.stringify(api)}).then((r) => r.json()).then((body) => body.works[0].work_id)`);
-  const handed = await evaluate<number>(`fetch(${JSON.stringify(api)} + '/' + ${JSON.stringify(workId)} + '/results', { method: 'POST', headers: { 'content-type': 'application/json', 'x-molis-work-control-token': document.querySelector('meta[name=molis-work-control-token]').content,
+  const handed = await evaluate<number>(`fetch(${JSON.stringify(api)} + '/' + ${JSON.stringify(workId)} + '/results', { method: 'POST', headers: { 'content-type': 'application/json', 'x-molis-work-page-session': document.querySelector('meta[name=molis-work-page-session]').content,
       'x-molis-work-idempotency-key': 'w3a3b-hand-result' },
     body: JSON.stringify({ object: { kind: 'pages_document', id: ${JSON.stringify(made.id)} }, source: { title: 'Pages' } }) }).then((r) => r.status)`);
   assert.equal(handed, 200);
@@ -188,7 +188,7 @@ test("PRR-21 QA-017 opens the side panel; W3-A3b PICK-02 on the real result card
   await waitFor("document.querySelector('.assistant-msg--assistant')?.textContent.includes('访谈纪要')", 20_000);
   const api = `/projects/${projectId}/api/assistant/works`;
   const workId = await evaluate<string>(`fetch(${JSON.stringify(api)}).then((r) => r.json()).then((body) => body.works[0].work_id)`);
-  const handed = await evaluate<number>(`fetch(${JSON.stringify(api)} + '/' + ${JSON.stringify(workId)} + '/results', { method: 'POST', headers: { 'content-type': 'application/json', 'x-molis-work-control-token': document.querySelector('meta[name=molis-work-control-token]').content,
+  const handed = await evaluate<number>(`fetch(${JSON.stringify(api)} + '/' + ${JSON.stringify(workId)} + '/results', { method: 'POST', headers: { 'content-type': 'application/json', 'x-molis-work-page-session': document.querySelector('meta[name=molis-work-page-session]').content,
       'x-molis-work-idempotency-key': 'w3a3b-pick02-result' },
     body: JSON.stringify({ object: { kind: 'pages_document', id: ${JSON.stringify(made.id)} }, source: { title: 'Pages' } }) }).then((r) => r.status)`);
   assert.equal(handed, 200);

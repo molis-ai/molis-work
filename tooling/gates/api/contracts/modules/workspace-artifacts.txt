@@ -300,7 +300,10 @@ export type WorkspaceFileResult = {
     bytes: number;
     limit: number;
 } | {
-    outcome: "binary" | "unsupported" | "missing" | "denied" | "changed";
+    outcome: "binary" | "unsupported";
+    fingerprint: string;
+} | {
+    outcome: "unsupported" | "missing" | "denied" | "changed";
 };
 
 export type WorkspaceGitQuery = {
@@ -374,6 +377,16 @@ export interface WorkspaceGitSummary {
     conflicted: readonly string[];
     merging: boolean;
     revision: string;
+}
+
+export interface WorkspaceIdMapping {
+    directories: readonly {
+        workspace_id: string;
+    }[];
+    source_links: readonly {
+        source_workspace_id: string;
+        workspace_id: string;
+    }[];
 }
 
 export interface WorkspaceRef {
@@ -489,6 +502,15 @@ export declare const readGitOperationsCapability: ActionDefinition<{
 export declare const readGitResultsCapability: ActionDefinition<{
     workspace_id: string;
 }, readonly GitReviewedResult[]>;
+
+export declare function resolveWorkspaceFileSubject(subject: {
+    id: string;
+}, directories: WorkspaceIdMapping): {
+    workspace_id: string;
+    path: string[];
+} | null;
+
+export declare function resolveWorkspaceId(workspaceId: string, directories: WorkspaceIdMapping): string | null;
 
 export declare function samePath(left: readonly string[], right: readonly string[]): boolean;
 

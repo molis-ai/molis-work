@@ -276,7 +276,7 @@ load 之前的传输（不含这个文档和其他载入后的请求）是这样
 | `font.inter-latin-variable` | font | `design-system` | `fonts/` 下现有文件，route `/assets/inter-latin-variable.woff2` | 48,256 | 48,249 | 实测 | OFL 1.1；fontsource，The Inter Project Authors | `fallback` |
 | `font.noto-sans-sc-400` | font | `design-system` | `fonts/` 下现有文件，route `/assets/noto-sans-sc-400.woff2` | 1,141,536 | 1,141,904 | 实测 | OFL 1.1；fontsource，The Noto Project Authors | `fallback` |
 | `font.rounded-latin` | font | `design-system` | 待定 | 39,128 | 文件已是 woff2 | 实测：Nunito 拉丁、直立、可变 wght 200～1000，和 Inter 相同 `unicode-range` | OFL 1.1；`@fontsource-variable/nunito` 5.3.0，The Nunito Project Authors，许可和字体内没有保留字名 | `on-select` |
-| `font.rounded-cjk` | font | `design-system` | 待定 | 每字重 14 片共 1,290,556（Regular）／1,292,508（Medium），最大片 108,748；样式 46,950／字重 | 文件已是 woff2 | 实测：Resource Han Rounded CN v0.990 裁剪，覆盖 GB2312 全部 6,763 字加 481 个符号（裁法未定，见第 6.3 节） | SIL OFL 1.1，上游思源黑体带保留字名 Source；有未确认的点，见第 6.4 节 | `on-select` |
+| `font.rounded-cjk` | font | `design-system` | 待定 | 每字重 14 片共 1,290,556（Regular）／1,292,508（Medium），最大片 108,748；样式 46,950／字重 | 文件已是 woff2 | 实测：Resource Han Rounded CN v0.990 裁剪，覆盖 GB2312 全部 6,763 字加 481 个符号（裁法未定，见第 6.3 节）。用户 2026-11-08 改选 v1.910 转 TrueType（第 6.4 节、第 8 节），这一行第 16 批按它重算 | SIL OFL 1.1，上游思源黑体带保留字名 Source；有未确认的点，见第 6.4 节 | `on-select` |
 | `skin.soft-workbench` | skin | `design-system` | `resources/skins/soft-workbench.json` | 约 9,059（压缩写法）／11,368（缩进） | 约 2,266 | 估算：127 个浅色、127 个深色、31 个形状令牌 | 自有 | `startup` |
 | `skin.folio` | skin | `design-system` | `resources/skins/folio.json` | 约 9,000（同形状类比） | 约 2,300 | 粗估，第 16 批才有 | 自有 | `on-select` |
 | `font-scheme.system-sans` | font-scheme | `design-system` | `resources/fonts/system-sans.json` | 约 1,000 | 未算 | 粗估，字族表 362 B 加角色 | 自有 | `startup` |
@@ -377,7 +377,7 @@ load 之前的传输（不含这个文档和其他载入后的请求）是这样
 **发布情况。** 不是 2018 年后就没发布：
 
 - v0.990（2018-12-23）是最后一个静态 TTF 发行版，也是这次量的版本。
-- **v1.910（2022-04-23）标为预发布**，只有 OpenType/CFF2 可变字体，`RHR-CFF2-CN-1.910.7z` 16,255,241 B。不在批准的下载范围内，**没有下载、没有量**。
+- **v1.910（2022-04-23）标为预发布**，只有 OpenType/CFF2 可变字体，`RHR-CFF2-CN-1.910.7z` 16,255,241 B。最初不在批准的下载范围内；后来下载，切成静态字重、转成 TrueType 轮廓后量过（2026-11-08 字体对比页的第三列）：400／500／600 每个字重覆盖 GB2312 加 481 个符号约 1,392,820～1,407,112 B，切 14 片共 1,639,960～1,664,632 B、最大片 139,940～141,636 B。用户 11-08 选了它，见第 8 节。
 - 仓库最后一次提交是 2022-05-06，之后没有更新；未归档。
 
 **未确认：**
@@ -523,13 +523,17 @@ load 之前的传输（不含这个文档和其他载入后的请求）是这样
 
 ## 8. 已定的事和待办
 
-预算方案和语言目录不留待定。Folio 的中文字体还没定（用哪一款、裁法、标题字重 600 怎么办、要不要再量 v1.910、名字问题，见第 6.3、6.4 节）：它属[决策第 23 项](../post-anticorruption-roadmap/reference/decisions.md#decision-23)，不挡本批，第 16 批开工前问用户。
+预算方案和语言目录不留待定。Folio 的中文字体用户 2026-11-08 已选（见下面第 4 条）；还没定的是名字问题（第 6.4 节）和裁法、切片：它们属[决策第 23 项](../post-anticorruption-roadmap/reference/decisions.md#decision-23)，不挡本批，第 16 批落地时定。
 
 **已定（用户 2026-11-07）：**
 
 1. 预算方案选方案二，不设绝对上限；合入后的那次实测作起点，只比较变化。
 2. 语言目录「工作台一份，插件按需」；第 16 批带实测按类一次批准，不逐个问。
 3. 候选圆润字体批准下载实测，范围只限 `@fontsource-variable/nunito` 5.3.0、`RHR-CN-0.990.7z` 和临时工具，不进仓库。已做完，见第 6.3、6.4 节。
+
+**已定（用户 2026-11-08）：**
+
+4. 圆润字体选字体对比页的第三列：中文用 Resource Han Rounded v1.910，从 CFF2 可变字体切成静态字重、转成 TrueType 轮廓，400／500／600／700 都是真的字重；拉丁用 Nunito。v1.910 标为预发布，名字里的 source 是否算用了保留字名仍未确认（第 6.4 节），发行前要有结论。字体文件、登记表行和转换步骤第 16 批做，本批不进仓库。
 
 **第 16 批的前置待办：**
 

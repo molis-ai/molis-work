@@ -21,7 +21,6 @@ import path from "node:path";
 import type { MolisWorkPtyHost } from "@molis-ai/molis-work-service-runtime-host";
 import type { PtySpawnRequest, PtySpawnResult } from "@molis-ai/molis-work-contracts/services/runtime-host";
 import { workspaceRefFor } from "./agent-host-composition.js";
-import { projectDirectoryErrors } from "@molis-ai/molis-work-contracts/modules/projects";
 import { ensureSystemAgentService } from "./system-agent-service.js";
 import { createMolisWorkLocalHost, molisWorkHostProjectReference } from "./project-host.js";
 import { RuntimeIntegrationService } from "./installer/runtime-integration.js";
@@ -108,11 +107,7 @@ export function createLocalWebCoreFactory(platform: LocalWebPlatform) {
       workspacesFor: (projectId) => withCatalog({ homeDirectory: storageHome }, catalog => catalog.listWorkspaceDirectory(projectId)),
       workspaceFor: projectId => webWorkspaceFor(projectId, serverOptions, fixture, storageHome, withCatalog),
       directoriesFor: projectId => withCatalog({ homeDirectory: storageHome }, catalog => catalog.projectDirectories(projectId)),
-      prepareDirectory: (projectId, workspaceId, mode) => withCatalog({ homeDirectory: storageHome }, catalog => {
-        // Only a folder of this project: an id from elsewhere is refused before anything looks at the disk.
-        if (!catalog.projectDirectories(projectId).directories.some(item => item.workspace_id === workspaceId)) throw projectDirectoryErrors.directory_revoked("这个文件夹已经不是当前项目的目录");
-        return catalog.prepareWorkspaceDirectory(workspaceId, mode);
-      }),
+      prepareDirectory: (projectId, workspaceId, mode) => withCatalog({ homeDirectory: storageHome }, catalog => catalog.prepareWorkspaceDirectory(projectId, workspaceId, mode)),
     });
     const ownsLocalHost = !serverOptions.localHost;
     const completed = new Set<string>(), resources: Array<readonly [string, () => unknown]> = [];

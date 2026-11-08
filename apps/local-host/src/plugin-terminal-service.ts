@@ -283,9 +283,7 @@ async function terminalDirectory(home: string, directory: PluginTerminalDirector
     const linked = await catalog({ homeDirectory: home }, projects => {
       const directories = projects.projectDirectories(projectId).directories;
       const folder = named === undefined ? directories.find(item => item.roles.includes("output")) : directories.find(item => item.workspace_id === named);
-      if (!folder) return undefined;
-      if (!folder.roles.includes("output")) throw new ActionError("actions.forbidden", "这个文件夹只是输入目录，只能读；在项目设置里设为输出再开");
-      return projects.prepareWorkspaceDirectory(folder.workspace_id, "write").path;
+      return folder ? projects.prepareWorkspaceDirectory(projectId, folder.workspace_id, "write").path : undefined;
     });
     check();
     if (!linked) throw named === undefined ? new ActionError("actions.unavailable", "这个项目还没有输出目录")

@@ -202,6 +202,8 @@ schema 是 `closedInput` 加 `oneOf: [{ required: ["workspace_id"] }, { required
 - 文件夹没建时路径核实不了，第二行走不到；要用默认位置，给 `default_output: true`。
 - 运行上下文绑定不能拒绝，否则终端开不了：`directory.path` 可以让工作目录落在子目录。这种会话靠会话绑定，新会话按路径解析不到项目，和用户自己选的目录的子目录一样。
 - `upsertWorkspace` 是写这张表的唯一一处，这里再守一次：路径落在 `outputs/` 里就不写这张表，只写关联。它的 `ON CONFLICT` 会更新 `canonical_path`，读出来的绝对路径再传回来就写回库了。
+- 首次使用页选的文件夹加进项目时就是**输出**（输出也能读），Agent 和 Coding 在那里干活，建项目时写下的默认输出目录那一行随之去掉（文件夹从没建过）；没选文件夹的照旧用默认输出目录。和升级段「只关联一个的设成输出」同一条思路（用户 2026-11-08 定）。`addWorkspaceProject` 只剩写手目录以外的可信入口，加为输入。
+- Coding 的独立工作树**不写成目录行**：开轮时把这一轮的 `RunDirectories.execution` 冻结成工作树，由 agent-host 放行这一轮的工作树（统筹 2026-11-08 定方案 A；按路径认工作树等于在授权里另开一条私路）。
 - 还没有行的路径没有目录 id。`runtimeContextPersistenceId` 的 `workspace-request:` 键（`project-binding-validation.ts:51`）这时用路径哈希，只作请求键，不作目录 id。
 
 **碰磁盘的调用方。** 按 `canonical_path` 的消费者列，不按 C 表：C 表只列隐含取一个目录的地方，显式带 `workspace_id` 的不在里面。这是读代码列的，实现片开工时再查一遍。

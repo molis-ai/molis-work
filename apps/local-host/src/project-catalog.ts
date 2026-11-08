@@ -49,6 +49,7 @@ import type {
   ProjectWorkspaceMembership,
   ProjectWorkspaceRef,
 } from "@molis-ai/molis-work-contracts/modules/projects";
+import { directoryInputOnly, projectDirectoryErrors } from "@molis-ai/molis-work-contracts/modules/projects";
 import {
   normalizeProjectWorkspace,
   ProjectsModule,
@@ -375,8 +376,15 @@ export class MolisWorkProjectCatalog {
     return this.projects.query.outputDirectory(projectId);
   }
 
-  /** Before a folder of the project is touched on disk: `write` makes a default output directory that is not there yet (§3). */
-  prepareWorkspaceDirectory(workspaceId: string, mode: "read" | "write"): { path: string; exists: boolean } {
+  /**
+   * Before a folder of the project is touched on disk. Only this project's folders: an id from elsewhere is refused before anything
+   * looks at the disk. `write` (a write, a terminal, a Character or an Agent run in it) needs the output role — an input folder is only
+   * read (SSC-15, user 2026-11-08) — and makes a default output directory that is not there yet (§3, SSC-24).
+   */
+  prepareWorkspaceDirectory(projectId: string, workspaceId: string, mode: "read" | "write"): { path: string; exists: boolean } {
+    const folder = this.projects.query.projectDirectories(projectId).directories.find(item => item.workspace_id === workspaceId);
+    if (!folder) throw projectDirectoryErrors.directory_revoked("这个文件夹已经不是当前项目的目录");
+    if (mode === "write" && !folder.roles.includes("output")) throw directoryInputOnly(workspaceId);
     return this.projects.lifecycle.prepareWorkspaceDirectory(workspaceId, mode);
   }
 

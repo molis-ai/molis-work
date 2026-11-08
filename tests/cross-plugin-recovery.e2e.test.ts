@@ -56,10 +56,10 @@ test('Shelf saves the last keystroke before returning and keeps a failed draft a
   })()`);
   assert.equal(layout.viewport.w, 756);
   assert.equal(layout.viewport.h, 469);
-  assert.ok(layout.shelf, 'the titlebar has the side panel's current glyph');
+  assert.ok(layout.shelf, "the titlebar has the side panel's current glyph");
   assert.ok(layout.shelf.w >= 32 && layout.shelf.h >= 32, 'the side panel button keeps a whole target: ' + JSON.stringify(layout.shelf));
   assert.ok(layout.shelf.top >= 0 && layout.shelf.bottom <= layout.viewport.h && layout.shelf.right <= layout.viewport.w, 'the side panel button stays inside the viewport');
-  assert.equal(layout.neighbours, 0, 'no other titlebar control overlaps the side panel's glyph');
+  assert.equal(layout.neighbours, 0, "no other titlebar control overlaps the side panel's glyph");
   assert.equal(layout.hitsShelf, true, `elementFromPoint must hit the side panel button (got ${layout.hitTag})`);
   // Shelf's side panel tab, in the document the panel's frame loads.
   await navigate(() => command('Page.navigate', { url: `${origin}/projects/${projectId}/side/shelf/side` }, sessionId));

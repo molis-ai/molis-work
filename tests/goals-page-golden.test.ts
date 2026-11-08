@@ -97,6 +97,14 @@ const pages: Record<string, Draw> = {
 // bar's template (`<template data-settings-return-bar-template>`, the SDK's renderReturnBar; 546 / 568 characters in zh / en), so the
 // 16 records of the 8 project pages grew by 1092 / 1136. Each of those 16, drawn with only the two templates taken out, had its old hash
 // and length exactly; they were then recorded with MOLIS_WORK_GOLDEN_RECORD=1. The other 50 records did not change.
+// 07-1 S3–S5 (product-flow-governance §4.6.2; on S2 head abbb541639): the shell's bar and titlebar changed, and only they. All 66 pages
+// were drawn on an independently built abbb541639 (each matched its record there) and on this branch, and compared token by token: the
+// 16 records of the 8 project pages differ in 22 distinct shell hunks and nothing else — the titlebar's personal-tool slot gone
+// (`data-home-plugin-open`), the Issue side glyph's title and `aria-keyshortcuts`, `data-rail-group` on the switcher's tiles, the
+// switcher's name (切换插件 ⌘K), the bar's side button replaced by the person's own tray (`data-bar-own`), and the 个人 group of the
+// switcher emptied here (this view has no Host directory, so no plugin carries the Host's personal and home marks that 个人 now reads;
+// 灵光, 待办, Jelly and Cognia list under 更多). No Goals markup or JSON changed; the 16 were then recorded with
+// MOLIS_WORK_GOLDEN_RECORD=1. The other 50 records did not change.
 const RECORDED = new URL("golden.json", GOLDEN);
 interface Recorded { sha256: string; length: number }
 const recorded: Record<string, Recorded> = record ? {} : JSON.parse(readFileSync(RECORDED, "utf8"));

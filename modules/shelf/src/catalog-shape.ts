@@ -3,6 +3,7 @@ import { defaultShelfDeviceSettings, isCurrentShelfSettings } from './settings.j
 import { shelfErrors } from './errors.js';
 
 export const CATALOG_VERSION = /* @version format.shelf.catalog */ 1;
+export const CATALOG_UPGRADES: readonly { readonly from: number; readonly transform: (value: unknown) => unknown }[] = [];
 
 export interface StoredItem extends Omit<ShelfItemRecord, 'hidden' | 'size_bytes' | 'preview_text' | 'relative_path'> {
   hidden: boolean;

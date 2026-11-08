@@ -28,7 +28,9 @@
 //   - that file's upgrades literal has `from: n` for each n from old to new - 1. When 定义处 is a baseline constant that means the
 //     `upgrades` of that object; when it is a plain version constant (a JSON file, the catalog) or the field of a JSON file
 //     (`path#schema_version`, `path#version`: these have no constant to point at), any `upgrades` array in the file.
-// A step list the gate cannot read (a spread, a constant reference, a computed `from`) fails like one that is not there: whether the
+//     The list may be written in place or as the name of a `const` array in the same file, read by upgrade-steps.mjs exactly as
+//     initial-versions.mjs reads a chain.
+// A step list the gate cannot read (a spread, a name it cannot follow, a computed `from`) fails like one that is not there: whether the
 // whole chain from 1 is consecutive is checked on the real values elsewhere (tests/upgrade-chain-registry.test.ts).
 // A registered origin cannot go back to「未登记」.
 //
@@ -44,6 +46,7 @@
 // CHECKLIST §4.3, done by hand before a release. It does not check that the maintenance the row describes was done.
 import ts from "typescript";
 import { VERSION_FIELD } from "../version-source.mjs";
+import { constantsIn, stepFroms, unwrapExpression } from "./upgrade-steps.mjs";
 
 export const CHECKLIST_FILE = "docs/releases/CHECKLIST.md";
 export const SPEC_FILE = "docs/system/CONTRACT-CHANGES.md";
@@ -143,23 +146,7 @@ export function maintenanceEntries(text, where = SPEC_FILE) {
   });
 }
 
-const unwrap = (node) => { while (node && (ts.isAsExpression(node) || ts.isSatisfiesExpression(node) || ts.isParenthesizedExpression(node))) node = node.expression; return node; };
 const upgradesOf = (object) => object.properties.find((property) => ts.isPropertyAssignment(property) && ts.isIdentifier(property.name) && property.name.text === "upgrades");
-
-// The `from` numbers of one `upgrades` property. Anything but an array of objects with a number literal is not readable.
-function stepsOf(property) {
-  const list = unwrap(property.initializer);
-  if (!ts.isArrayLiteralExpression(list)) return null;
-  const froms = [];
-  for (const element of list.elements) {
-    const step = unwrap(element);
-    const from = step && ts.isObjectLiteralExpression(step) && step.properties.find((item) => ts.isPropertyAssignment(item) && ts.isIdentifier(item.name) && item.name.text === "from");
-    const value = from ? unwrap(from.initializer) : null;
-    if (!value || !ts.isNumericLiteral(value)) return null;
-    froms.push(Number(value.text));
-  }
-  return froms;
-}
 
 /** The `from` numbers the definition `name` has in `source`, or a sentence saying why they cannot be read. */
 function declaredSteps(file, source, name) {
@@ -173,12 +160,13 @@ function declaredSteps(file, source, name) {
   visit(tree);
   // A field of a JSON file (its 定义处 is `path#schema_version`) has no constant; scripts/verify-release-versions.mjs reads its number.
   if (!VERSION_FIELD.test(name) && declarations.length !== 1) return { why: `${file} has no one constant ${name}` };
-  const value = declarations.length === 1 ? unwrap(declarations[0].initializer) : null;
+  const value = declarations.length === 1 ? unwrapExpression(declarations[0].initializer) : null;
   const owners = value && ts.isObjectLiteralExpression(value) ? [value] : objects;
   const properties = owners.map(upgradesOf).filter(Boolean);
   if (properties.length === 0) return { why: `${file}#${name} has no upgrades` };
-  const lists = properties.map(stepsOf);
-  if (lists.includes(null)) return { why: `the upgrades of ${file}#${name} are not an array of steps with a number literal in \`from\`` };
+  // In place, or by the name of a \`const\` array in this file (upgrade-steps.mjs, the same reading as initial-versions.mjs).
+  const constants = constantsIn(tree), lists = properties.map((property) => stepFroms(property.initializer, constants));
+  if (lists.includes(undefined)) return { why: `the upgrades of ${file}#${name} are not an array of steps with a number literal in \`from\`, in place or as a \`const\` of this file` };
   return { froms: lists.flat() };
 }
 

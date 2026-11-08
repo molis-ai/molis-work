@@ -2,7 +2,7 @@ import { lstatSync } from "node:fs";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL, PLUGIN_RELEASE_ARTIFACTS_SCHEMA_SQL, PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL, PLUGIN_TRUST_SCHEMA_SQL,
   SqlitePluginConsentLedger, SqlitePluginPrivateStorage, type PluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
-import { readDatabaseSpace, readStorageSpace, STORAGE_SPACE_SCHEMA_SQL, describeSqliteBaseline, describeSqliteSchema, homeSqlitePath, isSqliteSchemaStructureMismatch, isSqliteVersionRefusal, openBaselineHomeSqlite, openReadOnlyHomeSqlite, sqliteVersionRefusal,
+import { checkSqliteBaselineVersion, readDatabaseSpace, readStorageSpace, STORAGE_SPACE_SCHEMA_SQL, describeSqliteBaseline, describeSqliteSchema, homeSqlitePath, isSqliteSchemaStructureMismatch, isSqliteVersionRefusal, openBaselineHomeSqlite, openReadOnlyHomeSqlite, sqliteVersionRefusal,
   type SqliteBaseline, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 
 const HOME_PLUGIN_RUNTIME_BASELINE: SqliteBaseline = {
@@ -62,8 +62,11 @@ export function openReadOnlyHomePluginStore(home: string) {
   const db = openReadOnlyHomeSqlite(home, HOME_PLUGIN_RUNTIME_HOME_STORE.path);
   try {
     db.exec("BEGIN");
-    const found = db.prepare("PRAGMA user_version").get()!.user_version as number;
-    if (found !== HOME_PLUGIN_RUNTIME_BASELINE.version) throw refusedHomeStore(sqliteVersionRefusal(file, found, HOME_PLUGIN_RUNTIME_BASELINE.version, home));
+    // A read-only open has no creation path: a store with no version is refused by its version, like any other (S-34).
+    let current: boolean;
+    try { current = checkSqliteBaselineVersion(db, file, HOME_PLUGIN_RUNTIME_BASELINE, home); }
+    catch (error) { throw isSqliteVersionRefusal(error) ? refusedHomeStore(error) : error; }
+    if (!current) throw refusedHomeStore(sqliteVersionRefusal(file, 0, HOME_PLUGIN_RUNTIME_BASELINE.version, home));
     const bound = readDatabaseSpace(db);
     if (bound && JSON.stringify(bound) !== JSON.stringify(readStorageSpace(home))) {
       throw refusedHomeStore(new ActionError("actions.forbidden", "Home 插件运行库不属于当前空间"));

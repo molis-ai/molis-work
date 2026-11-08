@@ -23,7 +23,7 @@ W5-16 A：Home 的排他使用由 storage 的同一 SQLite owner 提供，锁仍
 | 列 | 含义 |
 | --- | --- |
 | owner | 定义这个库或文件的结构、并且是唯一写者的目录。写“宿主”的，结构定义在 `apps/local-host`，宿主是事实上的 owner，这是否合理见第 11 节。 |
-| 种类 | SQLite 带版本：经 `applySqliteBaseline`（`packages/storage/src/sqlite-baseline.ts:31`）建库，版本不符就拒绝，不就地升级。SQLite 自带版本：用自己的 meta 表或自己读写 `user_version`。JSON 文件。加密文件。目录。WAL 表示打开时设了 `journal_mode = WAL`，旁边会有 `-wal`、`-shm`；没写 WAL 的是 SQLite 默认回滚日志，旁边可能有 `-journal`。 |
+| 种类 | SQLite 带版本：经 `applySqliteBaseline`（`packages/storage/src/sqlite-baseline.ts`）建库，打开时版本不符就拒绝；低版本由启动时的升级过程升（`apps/local-host/src/home-upgrade.ts`，名单在 `platform-upgrade-stores.ts`），打开路径不升。SQLite 自带版本：用自己的 meta 表或自己读写 `user_version`。JSON 文件。加密文件。目录。WAL 表示打开时设了 `journal_mode = WAL`，旁边会有 `-wal`、`-shm`；没写 WAL 的是 SQLite 默认回滚日志，旁边可能有 `-journal`。 |
 | 版本 | 版本方案和现行版本。 |
 | 备份 | 必备份：用户事实或配置，丢了不可再得。密钥：密钥或凭据，必须和它加密的数据取同一时点，不进共享位置与日志。可重建：删了代码会重建。日志：不必备份。前四类是路线图的分类；程序（安装器写入，可由安装包重装）和临时（锁、暂存、残留，从不备份）是本表为了把安装物和锁文件放进同一张表加的。 |
 | 卸载 | `purge` 指 `uninstall --purge-user-data`，删除 `apps/local-host/src/installer/uninstall.ts:44-56` 列出的路径。“普通”指不带 purge 的 `uninstall`，只删安装器自有的程序文件（`apps/local-host/src/installer/uninstall-files.ts:15-48`）。“否”表示两者都不碰。 |
@@ -269,6 +269,7 @@ server 库的表：`mw_server_identity`、`mw_members`、`mw_sessions`、`mw_pro
 | `runtime-integrations/<runtime>.json` | `installer/runtime-integration.ts:315`：Molis Work 往用户 Runtime 配置里写了哪些条目的所有权收据 | JSON · `schema_version` = 1 | 必备份（很小；没有它，卸载无法证明条目是自己写的） | purge（`installer/uninstall.ts:55`）；移除接入时单独删（`installer/runtime-integration.ts:177`） |
 | `runtime-config-backups/<runtime>/<plan>.bak` | `installer/runtime-config-backups.ts`：原 Runtime 配置的 owner 引用，完整正文在现有 SecretStore 中密封；公开 `readRuntimeConfigBackup` 明确恢复读取 `{contents, mode}` | JSON · `schema_version` = 1，owner `molis-work-runtime-config-backup-v1`，含 Runtime/plan 身份、`auth_ref` 与原权限 | 必备份，引用与 vault 同点、依赖同 Home 原 master；旧原文条目仍拒绝，旧转换已取消且孤立维护标记分支删除；旧Home整体搬开，不带入新快照 | purge（`installer/uninstall.ts:54`） |
 | `runtime-integration-attempts/<plan>-<uuid>.json` | `installer/runtime-integration.ts:342`：回滚记录 | JSON · `schema_version` = 1 | 日志 | purge；真实 Home 里还没有 |
+| `upgrade/` | `apps/local-host/src/home-upgrade.ts`、`apps/local-host/src/home-upgrade-ledger.ts`：升级记录 `ledger.json`、戳记 `state.json`（持这个 Home 的存储主人锁才写）和每轮的快照 `upgrade/<run-id>/`（`packages/storage/src/upgrade-snapshot.ts`）；一轮全部成功后只留这一轮的快照 | JSON · `schema_version` = 1；快照是库和带版本文件的原样拷贝加 `manifest.json` | 不备份：Home 快照跳过（`reset`），恢复之后下次启动全量扫 | purge |
 | `backups/` | 没有任何代码写它；只出现在卸载的清除与保留清单里（`installer/uninstall.ts:47`、`:81`） | 保留名，没有内容可分类 | 无 | purge |
 
 MCP授权当前完整格式起点为1，保留owner代次、精确动作引用及客户端/范围/权限/启停字段。ACA005的旧转换已被2026-10-30干净重建取代，工具不再执行；旧Home整体搬开后由用户重授权，不在正常读取时转换。版本号相同、结构不同的旧库不在检查范围内；重建前不要用新构建打开旧 Home。

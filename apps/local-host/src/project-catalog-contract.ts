@@ -1,7 +1,10 @@
 import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { projectCatalogErrors } from "@molis-ai/molis-work-contracts/modules/projects";
+import { storageErrors, type SqliteUpgradeStep } from "@molis-ai/molis-work-storage";
 
 export const CATALOG_SCHEMA_VERSION = /* @version database.home.catalog */ 1;
+/** Each step takes the catalog from `from` to `from + 1`. They sit beside the version, which is what they answer to; none yet. */
+export const CATALOG_UPGRADES: readonly SqliteUpgradeStep[] = [];
 export const CATALOG_OWNER = /* @version type.molis-work-project-catalog "molis-work-project-catalog-v{version}" */ "molis-work-project-catalog-v1";
 
 export function isOwnedCatalogOwner(owner: string | null | undefined): boolean {
@@ -18,7 +21,6 @@ const hostCatalogErrors = defineErrorCodes("catalog", {
   project_recovery_unsupported_schema: "invalid",
   unknown_database: "invalid",
   unsupported_schema: "invalid",
-  reader_too_old: "invalid",
   database_invalid: "invalid",
   delete_confirmation_required: "invalid",
   project_terminal_live: "conflict",
@@ -38,12 +40,13 @@ export const catalogErrors = {
   project_storage_invalid: projectCatalogErrors.project_storage_invalid,
 };
 
+/** A catalog newer than this build, in the words the MCP reader shows: upgrade Molis Work (one already upgraded restarts the service and opens a new Session), and nothing may roll the catalog back. */
 export function catalogSchemaCompatibilityError(
   actualSchemaVersion: number,
   currentSchemaVersion: number = CATALOG_SCHEMA_VERSION,
 ): ActionError | null {
   if (Number.isInteger(actualSchemaVersion) && actualSchemaVersion > currentSchemaVersion) {
-    return catalogErrors.reader_too_old(
+    return storageErrors.store_too_new(
       `Molis Work catalog schema=${actualSchemaVersion}，这个版本的 Molis Work 只认 ${currentSchemaVersion}。`
         + "目录库是更新的版本写的，没有损坏。请把 Molis Work 升级到能读它的版本；已经升级过的，运行中的 MCP 不会热刷新，请重启常驻服务并新开一个 Session。"
         + "之后先确认当前任务焦点，只读调用 context_resolve，解析成功后再继续写入；不要回滚 catalog.db，也不要用 SQLite、CLI 或 Web 绕过。",
@@ -53,12 +56,6 @@ export function catalogSchemaCompatibilityError(
         supported_schema_max: currentSchemaVersion,
         recovery: "upgrade_then_context_resolve",
       },
-    );
-  }
-  if (!Number.isInteger(actualSchemaVersion) || actualSchemaVersion < 1) {
-    return catalogErrors.unsupported_schema(
-      `Molis Work 项目目录数据库的 schema 元数据无效；这个版本只认 ${currentSchemaVersion}`,
-      { supported_schema_min: currentSchemaVersion, supported_schema_max: currentSchemaVersion },
     );
   }
   return null;

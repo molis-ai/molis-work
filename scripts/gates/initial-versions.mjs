@@ -4,11 +4,12 @@
 // this script checks, and only when someone runs it: the rebuild window does (docs/releases/CHECKLIST.md §4.1). A prompt or method goes up
 // when its text changes (tests/prompt-registration.test.ts), so those stay out of the rule. tooling/gates/README.md has the rules.
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import ts from "typescript";
 import { CODE_FILE, isMainScript } from "../script-paths.mjs";
 import { isTestFile, isUnderSourceRoots, markerAtEnd, REPOSITORY, SOURCE_ROOTS, versionSource } from "../version-source.mjs";
+import { constantsIn, stepFroms, unwrapExpression } from "./upgrade-steps.mjs";
 import { collectHost, loadManifests, withIsolatedHome } from "./action-contract-host.mjs";
 
 // Persistent formats (specs/upgrade-continuity/upgrade-chain-design.md §11.1, CONTRACT-CHANGES.md §3): after the unified origin these
@@ -25,23 +26,23 @@ const PERSISTENT_CONSTANTS = new Set([
   "modules/shelf/src/catalog-shape.ts#CATALOG_VERSION",
   "apps/local-host/src/installer/home-contract.ts#SCHEMA_VERSION",
   "packages/storage/src/adapters/text-search-index.ts#SCHEMA_VERSION",
+  // The six files §2.6 of the design puts in the chain and §11.1 did not name (the user agreed to them on 2026-11-07). The last is jelly/preferences.json.
+  "apps/local-host/src/onboarding.ts#ONBOARDING_SCHEMA_VERSION",
+  "apps/local-host/src/project-arrival.ts#PROJECT_ARRIVAL_SCHEMA_VERSION",
+  "apps/local-host/src/browser/browser-surfaces.ts#BROWSER_SITES_VERSION",
+  "apps/local-host/src/computer/computer-settings.ts#COMPUTER_SETTINGS_VERSION",
+  "apps/local-host/src/computer/computer-records.ts#COMPUTER_RECORD_VERSION",
+  "apps/local-host/src/model-configuration.ts#MODEL_PREFERENCE_SCHEMA_VERSION",
 ]);
 // The persistent formats that are no `*VERSION` constant reach this check through their tooling/versions.json entry. The code calls
 // two stores a ledger (账本) and the design's §2.5 names both, so both are here; a chain is what any library needs to go above 1 anyway.
 // format.jelly.workspace is the JSON in jelly_workspace.body, a row, not jelly/preferences.json: it is here because that row changes and
 // nothing rebuilds it. A step cannot rewrite it today: the row carries a sha256 checksum checked on read, a built-in plugin's steps are only
-// SQL, and SQLite cannot compute a sha256. The first raise decides how. The last six are the files §2.6 of the design puts in the chain and
-// §11.1 did not name, the last of them jelly/preferences.json: the user agreed to them on 2026-11-07.
+// SQL, and SQLite cannot compute a sha256. The first raise decides how.
 const PERSISTENT_ENTRIES = new Map([
   ["database.ledger_baseline", "apps/local-host/src/installed-plugin-libraries.ts#LEDGER_BASELINE"],
   ["database.memory_ledger_baseline", "packages/storage/src/adapters/memory-ledger.ts#MEMORY_LEDGER_BASELINE"],
   ["format.jelly.workspace", "plugins/native/jelly/src/contract.ts#schema_version"],
-  ["format.home.onboarding", "apps/local-host/src/onboarding.ts#schema_version"],
-  ["format.project.arrival", "apps/local-host/src/project-arrival.ts#schema_version"],
-  ["format.browser.site-decisions", "apps/local-host/src/browser/browser-surfaces.ts#version"],
-  ["format.computer.settings", "apps/local-host/src/computer/computer-settings.ts#version"],
-  ["format.computer.record", "apps/local-host/src/computer/computer-records.ts#version"],
-  ["format.model.preference", "apps/local-host/src/model-configuration.ts#schema_version"],
 ]);
 export const PERSISTENT_DEFINITIONS = Object.freeze([...PERSISTENT_CONSTANTS, ...PERSISTENT_ENTRIES.values()]);
 export const PERSISTENT_ENTRY_KEYS = Object.freeze(Object.fromEntries(PERSISTENT_ENTRIES));
@@ -73,6 +74,44 @@ function persistentVersionProblems(definition, version, chains) {
     : [`${at}: the registered upgrade chain goes to ${String(chain.version)}`];
   if (chain.replay_passed !== true) problems.push(`${at}: the replay of its upgrade chain did not pass`);
   return problems;
+}
+
+/**
+ * The chain one definition registers, read from its own file, with no build: `X_VERSION` (or `X_SCHEMA_VERSION`, or `SCHEMA_VERSION`) has its
+ * steps in the array `X_UPGRADES` (`UPGRADES`) beside it, and a baseline object has them in its `upgrades`, in place or by that array's name.
+ * Whatever this cannot read exactly is no chain, so it fails closed.
+ */
+function chainInSource(file, source, name) {
+  const constants = constantsIn(ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true));
+  const value = constants.get(name);
+  if (!value) return undefined;
+  if (ts.isNumericLiteral(value)) {
+    const steps = name.replace(/(?:_?SCHEMA)?_?VERSION$/, match => (match.startsWith("_") ? "_UPGRADES" : "UPGRADES"));
+    const list = constants.get(steps), froms = list && ts.isArrayLiteralExpression(list) ? stepFroms(list, constants) : undefined;
+    return froms && { version: Number(value.text), froms };
+  }
+  if (!ts.isObjectLiteralExpression(value)) return undefined;
+  const property = (key) => value.properties.find(item => ts.isPropertyAssignment(item) && ts.isIdentifier(item.name) && item.name.text === key)?.initializer;
+  const version = unwrapExpression(property("version"));
+  if (!version || !ts.isNumericLiteral(version)) return undefined;
+  const upgrades = property("upgrades");
+  const froms = upgrades ? stepFroms(upgrades, constants) : [];
+  return froms && { version: Number(version.text), froms };
+}
+
+/**
+ * The register `persistentVersionProblems` checks: each persistent format whose definition declares a chain. `replay_passed` stays false
+ * until the golden replay (U2) can say otherwise, so for now a persistent format above 1 still fails, with or without its steps.
+ */
+export function registeredUpgradeChains({ read }) {
+  const chains = new Map();
+  for (const definition of PERSISTENT_DEFINITIONS) {
+    const [file, name] = definition.split("#");
+    const source = read(file);
+    const chain = source && chainInSource(file, source, name);
+    if (chain) chains.set(definition, { ...chain, replay_passed: false });
+  }
+  return chains;
 }
 
 export function initialVersionProblems({ manifests, hostViews, registrations, versionEntries = {}, chains = new Map() }) {
@@ -144,7 +183,7 @@ export const isCheckedSource = (file) => isUnderSourceRoots(file) && CODE_FILE.t
 /**
  * The half with no build, over a snapshot (`files`, `read`): the version constants in source and the persistent formats of tooling/versions.json.
  * A repository with neither table is not this one (the gates' scratch repositories); losing a table this one had, or one that cannot be
- * read, is a problem and not a pass. `chains` arrives with U1-d, here and in check() below: until then nothing above 1 can pass.
+ * read, is a problem and not a pass. `chains` is `registeredUpgradeChains`, given here and in checkRepository() below.
  */
 export function versionOriginProblems({ files, read }, { readBase, chains = new Map() } = {}) {
   const problems = [];
@@ -175,9 +214,8 @@ const builtDeclarations = () => withIsolatedHome(async home => {
 /** Both halves over the repository at `root`: its tracked source and its two tables, and the `declarations` of a running Host. */
 export async function checkRepository(root = REPOSITORY, declarations = builtDeclarations) {
   const files = execFileSync("git", ["ls-files", "-z", "--", ...SOURCE_ROOTS], { cwd: root, encoding: "utf8", maxBuffer: 8 * 1024 * 1024 }).split("\0").filter(Boolean);
-  // The register of upgrade chains and the replay that proves them arrive with U1-d and U2 (versionOriginProblems takes it too): nothing is registered yet, so a persistent
-  // format above 1 fails here as it always did, and while everything is at 1 (the rebuild window) this is never consulted.
-  const chains = new Map();
+  // A definition whose file is not there (another repository, --root) declares no chain, so a persistent format above 1 there fails.
+  const chains = registeredUpgradeChains({ read: file => (existsSync(path.join(root, file)) ? readFileSync(path.join(root, file), "utf8") : null) });
   const versionEntries = versionSource(root).versions;
   const exceptions = exceptionNames(readFileSync(path.join(root, "tooling/gates/version-exceptions.json"), "utf8"));
   const problems = initialVersionProblems({ ...await declarations(), versionEntries, chains });

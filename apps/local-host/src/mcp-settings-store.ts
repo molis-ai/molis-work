@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { VersionedFile, VersionedFileStep } from "@molis-ai/molis-work-storage";
 
 export interface McpActionGrant {
   readonly client_id: string;
@@ -15,6 +16,7 @@ export interface McpActionGrant {
 }
 
 const MCP_TOOL_PREFERENCE_VERSION = /* @version format.mcp.tool-preference */ 1;
+const MCP_TOOL_PREFERENCE_UPGRADES: readonly VersionedFileStep[] = [];
 const MCP_TOOL_PREFERENCE_RELATIVE_PATH = "config/mcp-tools.json";
 
 /** Which actions each MCP client may use; nothing else switches an MCP tool on or off. */
@@ -66,6 +68,9 @@ export function readMcpToolPreferenceSync(homeDirectory: string): McpToolPrefere
   try { return parsePreferenceText(readFileSync(mcpToolPreferencePath(homeDirectory), "utf8")); }
   catch (error) { return unreadablePreference(error); }
 }
+
+/** `config/mcp-tools.json` for the upgrade process. An upgraded file has to pass the same strict reading as any other. */
+export const MCP_TOOL_PREFERENCE_FILE: VersionedFile<McpToolPreference> = { version: MCP_TOOL_PREFERENCE_VERSION, field: "version", upgrades: MCP_TOOL_PREFERENCE_UPGRADES, parse: parseMcpToolPreference };
 
 function invalidPreference(cause?: unknown): ActionError {
   return new ActionError("actions.configuration_unavailable", "MCP 授权配置无效，已保留原文件；请修复为完整 version 1 配置后重试", { cause });

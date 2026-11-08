@@ -69,10 +69,7 @@ export interface UiViewSelection {
  */
 export interface UiPageWorkspaces {
   add(path: string): Promise<{ workspace_id: string }>;
-  /**
-   * Makes a folder already in the project its output, once the person confirms it in the Host's own dialog, which names the folder as the
-   * Host reads it. For the 「设为输出」 beside a refusal that the folder is only an input (`projects.directory_input_only`).
-   */
+  /** For the 「设为输出」 beside a refusal that the folder is only an input (`projects.directory_input_only`); the Host's dialog names it as the Host reads it. */
   setOutput(workspaceId: string): Promise<void>;
 }
 

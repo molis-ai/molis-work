@@ -3,7 +3,7 @@ import { createActionDefinition, bindOwnerPluginAction } from "@molis-ai/molis-w
 import { object, id, integer, path, rootPath, workspace, fileResult, nullable, snapshot, publication } from "@molis-ai/molis-work-contracts/modules/workspace-action-schemas";
 import { projectDirectoryActions, type ProjectDirectories, type ProjectDirectory } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { parseFilePath, parseFileSnapshot, parseFileTextSelection, fileSnapshotFitsInline, resolveWorkspaceFileSubject, workspaceFileSubjectId,
+import { parseFilePath, parseFileSnapshot, parseFileTextSelection, fileSnapshotFitsInline, resolveWorkspaceFileSubject, resolveWorkspaceId, workspaceFileSubjectId,
   workspaceReadActions, WORKSPACE_FILE_SUBJECT_KIND, WORKSPACE_SKIPPED_FOLDERS, type WorkspaceFileResult, type FileSnapshot } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import type { ArtifactVersionResult } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { parseReadingPosition, serializeReadingPosition, READING_POSITION_KEY, type ReadingPosition } from "./position.js";
@@ -47,8 +47,8 @@ const mediaOf = (name: string) => MEDIA[name.split(".").pop()?.toLowerCase() ?? 
 
 /** The folder of this project an id names on this device: one of its folders, or the one the person named for another device's (SSC-26). */
 const folderOf = (all: ProjectDirectories, id: string): ProjectDirectory | null => {
-  const link = all.source_links.find(item => item.source_workspace_id === id);
-  return all.directories.find(item => item.workspace_id === id) ?? (link ? all.directories.find(item => item.workspace_id === link.workspace_id) ?? null : null);
+  const resolved = resolveWorkspaceId(id, all);
+  return resolved ? all.directories.find(item => item.workspace_id === resolved) ?? null : null;
 };
 
 /**

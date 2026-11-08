@@ -2,7 +2,7 @@ import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { setOptions } from "./dom.js";
 import { installConflicts, renderConflicts } from "./conflicts.js";
 import { refresh } from "./list.js";
-import { active, inFolder, request, reveal, showReviews } from "./page.js";
+import { active, inFolder, request, reveal, sayRefusal, showReviews } from "./page.js";
 import type { GitPage } from "./page.js";
 import { loadResults, outcomeLabel } from "./results.js";
 import type { DecisionOutcome, OperationRecord, PrSupportAnswer, SummaryAnswer, Translate } from "./types.js";
@@ -135,7 +135,11 @@ export async function prepare(page: GitPage, operation: { action: string } & Rec
   try {
     answer = await request(page, "/operations", "POST", { workspace_id: page.scWorkspace, operation_id: crypto.randomUUID(), revision: page.summary.revision, operation });
   } catch (error) {
-    if (active(page, epoch)) { scStatus.textContent = S(messageOf(error)); await loadSource(page); }
+    if (active(page, epoch)) {
+      await loadSource(page);
+      // Said after the reload, which writes its own status. Once the person makes the folder the output, the same review is asked for.
+      if (active(page, epoch)) sayRefusal(page, scStatus, error, page.scWorkspace, () => { void prepare(page, operation, label, source); });
+    }
     return;
   } finally {
     page.busy = false;

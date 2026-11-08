@@ -110,6 +110,7 @@ export const GIT_EN: Record<string, string> = {
   "核对期间仓库已改变，请重新读取": "The repository changed during the check. Read it again.",
   "暂存请求缺少有效的固定差异版本": "The stage request has no valid pinned difference version",
   "工作区已取消授权": "The workspace is no longer authorized",
+  "这个目录只作输入，设为输出目录后才能写入或在里面运行": "This folder is only an input. Make it the output folder to write or run anything in it.",
   "差异不可读": "The difference can't be read",
   "预览后文件或暂存区已改变，请重新打开差异": "The file or the index changed after the preview. Open the difference again.",
   "工作区授权已改变，本次没有更新暂存区": "The workspace's authorization changed. The index wasn't updated.",

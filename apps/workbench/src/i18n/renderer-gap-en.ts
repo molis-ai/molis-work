@@ -621,6 +621,9 @@ export const RENDERER_GAP_EN: Record<string, string> = {
   "开启（由模型决定想多少）": "On (the model decides how much to think)",
   "无法关联工作区": "Unable to link workspace",
   "允许 {plugin} 为项目 {project} 关联目录？\n{path}": "Allow {plugin} to link this folder to project {project}?\n{path}",
+  "允许 {plugin} 把「{folder}」设为项目 {project} 的输出目录？之后 Agent、终端和 Git 都在这里写入。": "Allow {plugin} to make “{folder}” the output folder of project {project}? Agents, the terminal and Git will write there from now on.",
+  "读不到项目目录": "Couldn't read the project's folders",
+  "这个文件夹已经不是当前项目的目录": "This folder is no longer one of the project's folders",
   "项目连接失败": "Couldn't connect to the project",
   "{name}，{action}": "{name}, {action}",
   // The start-up page words a todo candidate (it read them from Todo's dictionary before Todo had its own keys).

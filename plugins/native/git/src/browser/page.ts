@@ -1,3 +1,4 @@
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { sayHostSentence, sayUpstream } from "../say.js";
 import type { GitSentenceTable } from "../say.js";
 import { required } from "./dom.js";
@@ -130,6 +131,26 @@ export function reveal(page: GitPage, source: HTMLElement | null): void {
   page.result.classList.add("is-arriving");
   page.result.setAttribute("aria-busy", "false");
   page.q("[data-git-close]").focus({ preventScroll: true });
+}
+
+/**
+ * A refusal said in `target`. Git writes only in the project's output, so one that the folder is only an input gets 「设为输出」 beside it:
+ * the Host asks the person (the page cannot make a folder the output itself), and once it is the output `again` reads the folder anew.
+ */
+export function sayRefusal(page: GitPage, target: HTMLElement, error: unknown, workspaceId: string, again: () => void): void {
+  const said = document.createElement("span");
+  said.textContent = page.S(messageOf(error));
+  target.replaceChildren(said);
+  const workspaces = page.host.workspaces;
+  if ((error as { code?: unknown } | null)?.code !== "projects.directory_input_only" || !workspaces || !workspaceId) return;
+  const button = document.createElement("button");
+  button.type = "button"; button.className = "mw-btn mw-btn--secondary mw-btn--sm git-set-output"; button.textContent = page.L("git.output.set");
+  page.lifetime.listen(button, "click", () => {
+    button.disabled = true;
+    void workspaces.setOutput(workspaceId).then(() => { if (page.lifetime.alive) again(); },
+      (failure: unknown) => { if (!page.lifetime.alive) return; button.disabled = false; said.textContent = page.S(messageOf(failure)); });
+  });
+  target.append(" ", button);
 }
 
 /** The refresh button's busy look, and the list's. */

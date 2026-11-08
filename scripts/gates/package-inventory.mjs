@@ -15,6 +15,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { isMainScript } from "../script-paths.mjs";
 import ts from "typescript";
 import { homeRuntimePackages, projectRuntimePackages } from "./home-runtime-entries.mjs";
 
@@ -234,4 +235,4 @@ async function main() {
   }
   console.error(`${facts.length} packages; depth ${JSON.stringify(tally)}; status ${JSON.stringify(status)}`);
 }
-if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) await main();
+if (isMainScript(import.meta.url)) await main();

@@ -5,7 +5,8 @@ import {randomBytes} from 'node:crypto';
 import {mkdtemp,rm} from 'node:fs/promises';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
-import {createSpaceWebServer,createMcpResidentStarter} from '@molis-ai/molis-work-app-local-host';
+import {createMcpResidentStarter} from '@molis-ai/molis-work-app-local-host';
+import {accountRefreshFixture} from './fixtures/account-refresh.js';
 import {serveTestHost} from './fixtures/test-home.js';
 
 test('the public space listener proves a ready resident after catalog startup and stops proving it on close',async t=>{
@@ -27,19 +28,18 @@ test('the public space listener proves a ready resident after catalog startup an
 
 
 test('closing a space listener stops NDJSON streams while pending action responses can finish',async t=>{
- const home=await mkdtemp(join(tmpdir(),'space-close-stream-'));
  let pending:ServerResponse|undefined,stream:ServerResponse|undefined,entered!:()=>void;
  const reached=new Promise<void>(resolve=>{entered=resolve;});
- const server=createSpaceWebServer({homeDirectory:home,controlToken:'synthetic-stream-control-token-0123456789'},()=>createServer((request,response)=>{
+ const fixture=await accountRefreshFixture(t,()=>createServer((request,response)=>{
   if(request.url==='/events'){stream=response;response.writeHead(200,{'content-type':'application/x-ndjson'});response.write('{"ready":true}\n');}
   else {pending=response;entered();}
  }));
- await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));const address=server.address();assert.ok(address&&typeof address==='object');
- const origin='http://127.0.0.1:'+address.port;
- t.after(async()=>{stream?.destroy();pending?.destroy();server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));await rm(home,{recursive:true,force:true});});
- const events=await fetch(origin+'/events');await events.body!.getReader().read();
- const response=fetch(origin+'/pending',{headers:{connection:'close'}});await reached;
- const closed=new Promise<void>((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+ const {server}=fixture;
+ t.after(async()=>{stream?.destroy();pending?.destroy();server.closeAllConnections();await fixture.close();});
+ await fixture.login('alice');
+ const events=await fixture.request('/events');assert.equal(events.status,200);await events.body!.getReader().read();
+ const response=fixture.request('/pending','GET',{connection:'close'});await reached;
+ const closed=fixture.close();
  assert.equal(stream!.destroyed,true,'an open stream is terminated when closing begins');
  pending!.end('host closed');assert.equal(await(await response).text(),'host closed');
  let timer:ReturnType<typeof setTimeout>|undefined;

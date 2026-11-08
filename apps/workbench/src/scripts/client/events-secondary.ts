@@ -12,25 +12,7 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `      const surfaceLink = target.
       }
       const surfaceOpen = target.closest("[data-work-surface-open]");
       if (surfaceOpen) {
-        const surface = surfaceOpen.dataset.workSurfaceOpen || "goals";
-        const available = desktopWorkSurfaces.some((candidate) => candidate.dataset.workSurface === surface);
-        if (surface === "goals" && !available) {
-          saveUiState();
-          restoreLastGoal(true);
-          return;
-        }
-        const directory = surface === "goals" || OWN_DIRECTORY_SURFACES.includes(surface) ? surface : "root";
-        const nextDirectory = directory !== "root" && document.querySelector('[data-directory-panel="' + directory + '"]')
-          ? directory
-          : "root";
-        setDesktopDirectory(nextDirectory, true, true, surfaceOpen);
-        const pluginId = surfaceOpen.dataset.pluginId;
-        if (pluginId && pluginId !== "home" && pluginId !== "market" && nextDirectory !== "root") setDirectoryCollapsed?.(false, false);
-        if (!openDirectorySurface(surface, undefined, undefined, event)) setDesktopWorkSurface(surface, true, true);
-        if (surface === "home" && !collectionView && localPathname() !== "/") {
-          history.pushState({ workSurface: "home" }, "", route("/"));
-        }
-        if (matchMedia("(max-width: 760px)").matches) setMobileView(nextDirectory === "root" || surface === "home" || surface === "market" ? "document" : "tree");
+        openSurfaceEntry(surfaceOpen.dataset.workSurfaceOpen || "goals", surfaceOpen, event);
         return;
       }
       const directoryOpen = target.closest("[data-directory-open]");

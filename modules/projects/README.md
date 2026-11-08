@@ -68,7 +68,8 @@ node scripts/run-tests.mjs tests/projects-module.test.ts
   - `query.wasProjectPluginRemoved` 只读本项目的移除事实，供可信 Host 区分从未安装和用户主动移除；同步到达不能覆盖后者的本机选择。
   - 卸载检查只列 `projects` 表里的项目（`listCatalogProjectsForUninstall`）；`catalog_meta` 归 storage，目录是不是本产品的，由宿主用 `LocalCatalogMetadata` 判断后再问本模块。
   - 删除回执（`project_deletions`）带每个数据所有者的一步（`project_deletion_steps`：pending、complete），与目录自己的清理在同一个事务里写入；回执只有目录暂存已删且每一步都是 complete 时才是 complete。一步的所有者不在收尾的进程里时，这一步保持 pending 并留着上次的错误，等有这个所有者的进程来做，不会被当作无事可做。所有者清什么不归本模块。
-- 改动后必跑：`node scripts/run-tests.mjs tests/projects-module.test.ts tests/project-plugin-registry.test.ts tests/current-project-settings.test.ts tests/project-settings-deletion.test.ts tests/project-deletion-hooks.test.ts tests/project-recycle.test.ts`
+  - 删除回执记下的暂存目录不可信（目录库可能被手改、恢复，或随 Home 一起拷走）：只认最后一段，且必须是这个项目的 `.deleting-<project_id>-<uuid>`，上层目录一律取本 Home 的 projects 目录（`recordedStagedProjectDirectoryPath`）。宿主在清理的第一步之前先推导；推不出来就拒绝（`catalog.project_storage_invalid`）：所有者不跑、步骤保持原样，不删文件，回执保持 pending 并留下错误（S-102）。
+- 改动后必跑：`node scripts/run-tests.mjs tests/projects-module.test.ts tests/project-plugin-registry.test.ts tests/current-project-settings.test.ts tests/project-settings-deletion.test.ts tests/project-deletion-hooks.test.ts tests/project-recycle.test.ts tests/security-invariants-project-storage.test.ts`
 - 个人资料同步另跑：`node scripts/run-tests.mjs tests/security-invariants-project-metadata-sync.test.ts tests/project-catalog.test.ts tests/personal-sync.test.ts`。
 - 相关手册：[docs/modules/projects.md](../../docs/modules/projects.md)、[docs/platform/PROJECT-SETTINGS.md](../../docs/platform/PROJECT-SETTINGS.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 

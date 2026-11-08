@@ -3,7 +3,7 @@ import { collectHomeAggregate, type HomeAggregatePorts } from "./home-aggregate.
 import { repeatingFailure } from "./host-log.js";
 
 /**
- * The title bar's background tasks (PG-043): what the plugins that declare a `home_aggregate` query of this type say is still running
+ * The background tasks the right side's tab counts and lists (PG-043): what the plugins that declare a `home_aggregate` query of this type say is still running
  * or waiting on the person, in every open project, newest first. Nothing here names a plugin or reads a table: the Home asks each
  * project's plugin through its action (S-49) and flattens the answers, keeping the project each came from. A project that is not open
  * lists nothing (the Home never opens one to read it); a plugin that is off or not granted in a project is not called.

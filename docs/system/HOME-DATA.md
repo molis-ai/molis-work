@@ -23,7 +23,7 @@ W5-16 A：Home 的排他使用由 storage 的同一 SQLite owner 提供，锁仍
 | 列 | 含义 |
 | --- | --- |
 | owner | 定义这个库或文件的结构、并且是唯一写者的目录。写“宿主”的，结构定义在 `apps/local-host`，宿主是事实上的 owner，这是否合理见第 11 节。 |
-| 种类 | SQLite 带版本：经 `applySqliteBaseline`（`packages/storage/src/sqlite-baseline.ts:31`）建库，版本不符就拒绝，不就地升级。SQLite 自带版本：用自己的 meta 表或自己读写 `user_version`。JSON 文件。加密文件。目录。WAL 表示打开时设了 `journal_mode = WAL`，旁边会有 `-wal`、`-shm`；没写 WAL 的是 SQLite 默认回滚日志，旁边可能有 `-journal`。 |
+| 种类 | SQLite 带版本：经 `applySqliteBaseline`（`packages/storage/src/sqlite-baseline.ts`）建库，打开时版本不符就拒绝；低版本由启动时的升级过程升（`apps/local-host/src/home-upgrade.ts`，名单在 `platform-upgrade-stores.ts`），打开路径不升。SQLite 自带版本：用自己的 meta 表或自己读写 `user_version`。JSON 文件。加密文件。目录。WAL 表示打开时设了 `journal_mode = WAL`，旁边会有 `-wal`、`-shm`；没写 WAL 的是 SQLite 默认回滚日志，旁边可能有 `-journal`。 |
 | 版本 | 版本方案和现行版本。 |
 | 备份 | 必备份：用户事实或配置，丢了不可再得。密钥：密钥或凭据，必须和它加密的数据取同一时点，不进共享位置与日志。可重建：删了代码会重建。日志：不必备份。前四类是路线图的分类；程序（安装器写入，可由安装包重装）和临时（锁、暂存、残留，从不备份）是本表为了把安装物和锁文件放进同一张表加的。 |
 | 卸载 | `purge` 指 `uninstall --purge-user-data`，删除 `apps/local-host/src/installer/uninstall.ts:44-56` 列出的路径。“普通”指不带 purge 的 `uninstall`，只删安装器自有的程序文件（`apps/local-host/src/installer/uninstall-files.ts:15-48`）。“否”表示两者都不碰。 |
@@ -52,6 +52,7 @@ Home 里有 31 种 SQLite 文件：权威库 27 种（Home 级 24 种，按项�
 | `projects/.staging-<project_id>-<uuid>/` | `apps/local-host/src/managed-project-files.ts:42`：新建项目库时的暂存目录 | 目录 | 临时 | purge（在 `projects/` 内） |
 | `projects/.staging-<project_id>/` | `apps/local-host/src/demo-project-lifecycle.ts:56`：新建示例项目的暂存目录，建成后改名为 `projects/<project_id>/`，失败时删（`:69`） | 目录 | 临时 | purge（在 `projects/` 内） |
 | `projects/.resetting-<project_id>-<uuid>/`、`projects/.reset-backup-<project_id>-<uuid>/` | `apps/local-host/src/demo-project-lifecycle.ts:87-88`：重置示例项目时的新库暂存目录，和被换下的旧库。成功后 `.reset-backup-*` 被删（`:121`），失败时尝试改回（`:113`）；改回也失败就抛 `AggregateError`，消息里写出两个路径（`:116`） | 目录 | 临时（进程在中途被杀时 `.reset-backup-*` 是示例项目的旧库，示例项目可重建） | purge（在 `projects/` 内） |
+| `projects/.deleting-<project_id>-<uuid>/` | `apps/local-host/src/managed-project-deletion.ts:43-44`：永久删除项目时，先把项目目录改名到这里，清理时删掉（`:128`）。路径由 `modules/projects/src/project-paths.ts` 推导；目录库回执 `project_deletions.staged_directory` 记的路径只认最后一段（S-102） | 目录 | 临时（进程在中途被杀时，这里是用户已确认删除的项目数据，下次清理按未完成的回执删掉） | purge（在 `projects/` 内） |
 
 
 
@@ -90,6 +91,7 @@ Home 里有 31 种 SQLite 文件：权威库 27 种（Home 级 24 种，按项�
 | `ppt/ppt.db` | `plugins/native/ppt/src/store.ts:239`，基线 `:218` | 1 · 回滚 | `presentations`、`presentation_copies` |
 | `lingguang/lingguang.db` | `plugins/native/lingguang/src/store.ts:282`，基线 `:246` | 1 · 回滚 | `sparks`、`conversations`、`spark_requests`、`messages` |
 | `goals/goals.db` | Goals 的 Home 半：`plugins/native/goals/src/home-database.ts`（`GOALS_HOME_DATABASE`），由 Manifest 的 `databases.home` 登记；项目半的表在各项目库里 | 1 · 回滚 | `personal_planning_method_packs`（个人规划方法；当前事实归Goals Home半。旧目录表搬迁/旧名事件维护已于2026-10-30取消，旧Home整体搬开后新建，不转换旧事实） |
+| `feed-content/feed-content.db` | Feed 的 Home 半：`plugins/native/feed/src/content-ledger.ts`（`FEED_HOME_DATABASE`），由 Manifest 的 `databases.home` 登记 | 1 · 回滚 | `feed_content_holds`（各项目的 Feed 来源引用哪份正文） |
 | `todo/todo.db` | `plugins/native/todo/src/store.ts:522-524`，基线 `:464` | 1 · WAL | `todo_items`、`todo_changes`、`todo_requests`、`todo_batches`、`todo_source_memory` |
 | `jelly/jelly.db` | `plugins/native/jelly/src/store.ts:97-100`，基线 `:89` | 1 · WAL | `jelly_workspace`、`jelly_note_versions`、`jelly_history`、`jelly_previews` |
 | `cognia/cognia.db` | `plugins/native/cognia/src/store.ts:146-148`，基线 `:136` | 1 · WAL | `cognia_domains`、`cognia_sources`、`cognia_materials`、`cognia_versions`、`cognia_previews`、`cognia_drafts` |
@@ -155,10 +157,10 @@ server 库的表：`mw_server_identity`、`mw_members`、`mw_sessions`、`mw_pro
 | | `PLUGIN_EVENTS_SCHEMA_SQL` | `plugin_events`、`plugin_event_cursors`、`plugin_event_resolutions` |
 | | `PLUGIN_WIRING_SCHEMA_SQL` | `plugin_port_bindings`、`plugin_port_artifact_bindings`、`plugin_input_groups`、`plugin_port_outputs` |
 | | `PLUGIN_PROJECT_DATABASES_SCHEMA_SQL` | `plugin_project_databases`（插件的表的账本：谁的、哪个发布者、第几版） |
-| `horizontal/scheduler` | `SCHEDULER_SCHEMA_SQL` | `schedule_jobs`、`schedule_wakeups` |
+| `horizontal/scheduler` | `SCHEDULER_SCHEMA_SQL` | `schedule_jobs`、`schedule_wakeups`、`schedule_action_bindings` |
 | `apps/local-host` | `PROJECT_BROWSING_SETTINGS_SCHEMA_SQL`（`src/project-browsing-settings.ts`） | `project_browsing_settings` |
 
-owner 们仍会在打开时对自己的表执行 `IF NOT EXISTS`，在这里是空操作；改任何一段都要提高项目库的版本（`PROJECT_DATABASE_BASELINE.version`）。
+项目库的表由这份基线建。个别 owner 打开时还会执行 `IF NOT EXISTS`（见 BL-context-ledger-initialize-schema），在这里是空操作；改任何一段都要提高项目库的版本（`PROJECT_DATABASE_BASELINE.version`）。
 
 宿主自己按需建的表也不在基线里：`project_runtime_settings(project_id, runtime_id)`（`apps/local-host/src/project-runtime-settings.ts`）记项目选定的 Agent 运行时，第一次选择时才建表，没有行就是 Home 默认；读取不建表，删除项目时随项目库文件一起走。只有 `apps/local-host` 读写这张表，Coding 与 Characters 经 `projects.settings.runtime.read` 取。
 
@@ -225,6 +227,8 @@ owner 们仍会在打开时对自己的表执行 `IF NOT EXISTS`，在这里是�
 | 路径 | owner 与打开它的代码 | 种类 · 版本 | 备份 | 卸载 |
 | --- | --- | --- | --- | --- |
 | `shelf/catalog.json`、`shelf/catalog.json.lock.sqlite`、`shelf/files/<item>/`、`shelf/jobs/<job>/` | `modules/shelf/src/store.ts:848`（`catalog.json` 路径）、`:870`（打开；`files/`、`jobs/` 由 `plugins/native/shelf/src/plugin.ts:15` 的 `SHELF_OWNER_FILES` 声明）；桌面壳也读 `catalog.json` 的设置（`apps/desktop/adapters/tauri/src/shelf_http.rs:146`） | JSON 加文件 · `catalog.json` 的 `version` = 2（`modules/shelf/src/catalog.ts#CATALOG_VERSION`；现行条目不带原件路径，旧目录转换取消） | 必备份 | purge（`installer/uninstall.ts:52`） |
+| `computer/settings.json` | `apps/local-host/src/computer/computer-settings.ts`：助理能否用这台 Mac 的总开关、人加的禁用应用 | JSON · `version` = 1 | 必备份 | purge（`computer` 已登记） |
+| `computer/records/<id>/record.json`、`computer/records/<id>/<序号>.png` | `apps/local-host/src/computer/computer-records.ts`：每一轮用电脑的目标、步骤与回执，步骤的脱敏截图（结束 30 天后删截图，文字留下） | JSON · `version` = 1；截图是文件 | 必备份（截图是屏幕内容，只留在这个 Home 和它自己的快照里） | purge（`computer` 已登记） |
 | `browser/sites.json` | `apps/local-host/src/browser/browser-surfaces.ts:36`：侧栏浏览器允许、拒绝了哪些站点，助理能否使用浏览器 | JSON · `version` = 1（`:61`） | 必备份 | purge |
 | `browser/profile/` | `apps/local-host/src/browser/browser-host.ts:81`：侧栏浏览器的 Chrome 用户数据目录（`--user-data-dir`，`:147`），含该浏览器里登录过的站点的 Cookie 等登录态 | 目录（Chrome 自己的格式） | 密钥（登录态）；沿第 7 节既有明确排除，恢复后重新登录，不能声称已恢复登录态 | purge |
 | `browser/downloads/`、`browser/uploads/`、`browser/browser.pid` | `apps/local-host/src/browser/browser-host.ts:82-83`、`:206` | 目录、PID 文件 | 临时 | purge |
@@ -248,6 +252,7 @@ owner 们仍会在打开时对自己的表执行 `IF NOT EXISTS`，在这里是�
 | 路径 | owner 与打开它的代码 | 种类 · 版本 | 备份 | 卸载 |
 | --- | --- | --- | --- | --- |
 | `config/installation.json` | 安装器；`apps/local-host/src/installer/home.ts`；读取先经 `installer/home-files.ts` 核当前完整形状及引用 release 的版本、摘要 | JSON · `schema_version` = 1（`installer/home-contract.ts`） | 程序 | 普通（`installer/uninstall-files.ts`，不符合当前完整形状则冲突并停止） |
+| `config/mcp-client-credentials/` | `apps/local-host/src/mcp-client-credentials.ts`；显式 Runtime 接入或实验 Server 本机管理员授权建立独立客户端凭据 | JSON · `format.mcp.client.credential` = 1 | 私钥不导出，快照保留原机现有值；恢复或旧接入缺凭据时须重新接入 | 普通卸载保留；purge 依 Home store 登记删除；移除 Runtime 接入只撤销对应客户端 |
 | `config/web-control-token` | `apps/local-host/src/web-control-token.ts:6`；缺失时生成 32 字节随机值，0600；桌面壳也读（`apps/desktop/adapters/tauri/src/shelf_http.rs:348`） | 文本 · 无版本 | 密钥，可重建（重建会使旧持有者失效） | 普通（有效时，`installer/uninstall-files.ts:25-29`） |
 | `config/web-service.json` | `apps/local-host/src/installer/web-service-platform.ts:36`：常驻 Web 服务的所有权收据 | JSON · `schema_version` = 1（`installer/web-service-contract.ts:54`） | 程序 | 普通（移除服务时随 plist 删，`installer/web-service-operations.ts:110-111`） |
 | `config/uninstall.json` | `installer/uninstall.ts:20`：卸载进度收据 | JSON · `schema_version` = 1 | 临时 | purge 成功后删（`installer/uninstall.ts:190`）；普通卸载保留 |
@@ -256,6 +261,7 @@ owner 们仍会在打开时对自己的表执行 `IF NOT EXISTS`，在这里是�
 | `config/plugin-publisher.json` | `apps/local-host/src/plugin-builder/publisher-identity.ts`：每 Home 的发布密钥引用、指纹和公钥；私钥只由既有 SecretStore 持有，初始化不固定信任 | JSON · 无私钥 | 与 feed 密文一同备份；已有元数据对应的密钥丢失、或二者不匹配时拒绝发布，不自动轮换 | 普通卸载/删项目保留；显式 Home purge 删除 |
 | `config/mcp-tools.json` | `apps/local-host/src/mcp-settings-store.ts`：MCP 客户端的动作授权与逐条 generation（ACA005） | JSON · `version` = 1 | 必备份（授权及其代次不能丢，也不能凭空恢复） | purge |
 | `config/external-mcp-tools.json`、`config/connector-mcp-tools.json` | `apps/local-host/src/external-mcp-actions.ts:10`、`apps/local-host/src/connector-mcp-actions.ts:12`：见过的工具清单 | JSON · 无版本 | 可重建；真实 Home 里还没有 | purge |
+| `config/external-mcp-actions.json`、`config/connector-mcp-actions.json` | `apps/local-host/src/external-mcp-actions.ts:11`、`apps/local-host/src/connector-mcp-actions.ts:18`：工具的动作版本簿，保存的引用靠它不悄悄换成另一个工具 | JSON · 无版本 | 必备份 | purge |
 | `logs/web-service.log`、`logs/web-service.error.log` | `installer/web-service-platform.ts:37-38`：LaunchAgent 的标准输出与错误 | 文本 | 日志 | purge（`installer/uninstall.ts:48`） |
 | `logs/action-calls.jsonl` | `apps/local-host/src/action-call-log.ts`：诊断记录，不存输入输出。每个命令一行，读取只在失败时一行，处理器之前就被拒的调用一行（标「未执行」）；被拒的行与失败的读取只存谁、什么动作、结果与错误码，执行过又失败的命令另存前 200 字的错误信息；每行带这次操作的编号 `call_id`；连续相同的结果合并成一行（另存最近 20 个编号）；超过 2000 行时重写，执行过的命令留最近 1000 条、其余留最近 200 条；没有编号的旧行不读，重写时去掉 | JSON Lines | 日志 | purge（`installer/uninstall.ts:48`） |
 | `bin/molis-work`、`molis-work-mcp`、`molis-work-web` | 安装器；`installer/home.ts:24`，名字 `installer/home-contract.ts:26` | 启动脚本 | 程序 | 普通（`installer/uninstall-files.ts:31`，改过的启动脚本算冲突并停止） |
@@ -264,6 +270,7 @@ owner 们仍会在打开时对自己的表执行 `IF NOT EXISTS`，在这里是�
 | `runtime-integrations/<runtime>.json` | `installer/runtime-integration.ts:315`：Molis Work 往用户 Runtime 配置里写了哪些条目的所有权收据 | JSON · `schema_version` = 1 | 必备份（很小；没有它，卸载无法证明条目是自己写的） | purge（`installer/uninstall.ts:55`）；移除接入时单独删（`installer/runtime-integration.ts:177`） |
 | `runtime-config-backups/<runtime>/<plan>.bak` | `installer/runtime-config-backups.ts`：原 Runtime 配置的 owner 引用，完整正文在现有 SecretStore 中密封；公开 `readRuntimeConfigBackup` 明确恢复读取 `{contents, mode}` | JSON · `schema_version` = 1，owner `molis-work-runtime-config-backup-v1`，含 Runtime/plan 身份、`auth_ref` 与原权限 | 必备份，引用与 vault 同点、依赖同 Home 原 master；旧原文条目仍拒绝，旧转换已取消且孤立维护标记分支删除；旧Home整体搬开，不带入新快照 | purge（`installer/uninstall.ts:54`） |
 | `runtime-integration-attempts/<plan>-<uuid>.json` | `installer/runtime-integration.ts:342`：回滚记录 | JSON · `schema_version` = 1 | 日志 | purge；真实 Home 里还没有 |
+| `upgrade/` | `apps/local-host/src/home-upgrade.ts`、`apps/local-host/src/home-upgrade-ledger.ts`：升级记录 `ledger.json`、戳记 `state.json`（持这个 Home 的存储主人锁才写）和每轮的快照 `upgrade/<run-id>/`（`packages/storage/src/upgrade-snapshot.ts`）；一轮全部成功后只留这一轮的快照 | JSON · `schema_version` = 1；快照是库和带版本文件的原样拷贝加 `manifest.json` | 不备份：Home 快照跳过（`reset`），恢复之后下次启动全量扫 | purge |
 | `backups/` | 没有任何代码写它；只出现在卸载的清除与保留清单里（`installer/uninstall.ts:47`、`:81`） | 保留名，没有内容可分类 | 无 | purge |
 
 MCP授权当前完整格式起点为1，保留owner代次、精确动作引用及客户端/范围/权限/启停字段。ACA005的旧转换已被2026-10-30干净重建取代，工具不再执行；旧Home整体搬开后由用户重授权，不在正常读取时转换。版本号相同、结构不同的旧库不在检查范围内；重建前不要用新构建打开旧 Home。
@@ -336,7 +343,7 @@ W5-16 新命令不导出 raw master、Keychain、会话/SDK/构建 run 的 `.key
 
 - `tests/uninstall.test.ts` 的 purge 用例写死 10 个目录（`images`、`jelly`、`pages`、`form`、`dataset`、`ppt`、`lingguang`、`todo`、`alchemist`、`functions`），另放一份 `server/server.sqlite` 加 `-wal`、`-shm`。它断言：这些条目和 `runtime-config-backups/` 在 purge 计划里；确认数不对时被拒绝、项目库文件和讨论库还在；确认后讨论库没了、状态是 `purged`、Home 目录整个没了。同文件的普通卸载用例断言 `server/` 不在计划里、确认后讨论库还在。
 - 同一个 purge 用例还往本表登记的其余条目（宿主的四个库、`agent-runtime/`、`feed/`、`browser/`、`plugin-builder/`、`cache/`、`directory-access/`、`git-operation-details.json`、`runtime-integration-attempts/`、`config/` 里属于人的五个文件）各放一份内容，断言它们都在计划里，并以 Home 目录整个没了证明一件不留。
-- 登记的每一项由另一个文件盖到：`tests/personal-plugins-review-fixes.test.ts` 用 `deepEqual` 钉死登记的 44 个路径，再按登记往每一项写内容（库写库文件，`.json` 写文件，其余目录里放一个文件），断言每一项都在 purge 计划里、确认后都被删。新的条目只要登记，就进清除与这条用例；钉死的名单要在同一个 PR 里改。
+- 登记的每一项由另一个文件盖到：`tests/personal-plugins-review-fixes.test.ts` 用 `deepEqual` 钉死登记的路径，再按登记往每一项写内容（库写库文件，`.json` 写文件，其余目录里放一个文件），断言每一项都在 purge 计划里、确认后都被删。新的条目只要登记，就进清除与这条用例；钉死的名单要在同一个 PR 里改。
 - 讨论库的登记另有一条用例：`tests/im-local-project.test.ts` 启动本机的讨论挂载（`apps/local-host/src/im-server.ts`），断言它在 Home 里只写出 `server/server.sqlite`，且 `server` 已登记；挂载以后改写到别的目录，这条用例会红。
 
 purge 之后仍留下的（由代码推出，没有在真实 Home 上试过）：

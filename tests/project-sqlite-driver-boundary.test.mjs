@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import test from "node:test";
-import { usesProjectSqliteDriver } from "../scripts/gates/project-sqlite-driver.mjs";
+import { sqliteDriverFindings, usesProjectSqliteDriver } from "../scripts/gates/project-sqlite-driver.mjs";
 
 test("C3: project runtime and tests must open their database through its owner", () => {
   for (const path of ["apps/local-host/src/project.ts", "tests/lock.test.ts", "plugins/native/notes/src/db.ts"]) {
@@ -14,4 +17,65 @@ test("C3: project runtime and tests must open their database through its owner",
   }
   assert.equal(usesProjectSqliteDriver("tests/db.test.ts", 'import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";'), false);
   assert.equal(usesProjectSqliteDriver("scripts/audit.mjs", '// Docs: require("better-sqlite3")'), false);
+});
+
+test("VG-17 createRequire and a program handed to something that runs it are callers too", () => {
+  const file = "apps/sync-worker/test.mjs";
+  for (const source of [
+    'const DB = createRequire(import.meta.url)("better-sqlite3");',
+    'const load = createRequire(root); load("better-sqlite3/lib/database");',
+    'const DB = module.createRequire(root)("better-sqlite3");',
+    'const where = createRequire(root).resolve("better-sqlite3");',
+    'const load = createRequire(root); const where = load.resolve("better-sqlite3");',
+    'const where = require.resolve("better-sqlite3");',
+    'execFileSync("node", ["-e", `import("better-sqlite3")`]);',
+    'execFileSync("node", ["--eval", `require("better-sqlite3")`]);',
+    `execFileSync("node", ["--eval=require('better-sqlite3')"]);`,
+    `execFileSync("node", ["-p", "require('better-sqlite3')"]);`,
+    `execFileSync("node", ["-pe", "require('better-sqlite3')"]);`,
+    `execFileSync("node", ["--print", "require('better-sqlite3')"]);`,
+    `const program = "require('better-sqlite3')"; execFileSync("node", ["-e", program]);`,
+    `const program = \`const DB = createRequire(root)("better-sqlite3");\`; execFileSync("node", ["-e", program]);`,
+    `execSync(\`node -e "require('better-sqlite3')"\`);`,
+    `execSync("node --input-type=module -e \\"import DB from 'better-sqlite3'\\"");`,
+    `const command = "node -e \\"require('better-sqlite3')\\""; execSync(command);`,
+    `spawnSync("sh", ["-c", "node -e \\"require('better-sqlite3')\\""]);`,
+    `eval("require('better-sqlite3')");`,
+    `new Function("require", "return require('better-sqlite3')");`,
+    `vm.runInNewContext("require('better-sqlite3')");`,
+    `new vm.Script("require('better-sqlite3')");`,
+    `new Worker("require('better-sqlite3')", { eval: true });`,
+  ]) assert.equal(usesProjectSqliteDriver(file, source), true, source);
+  for (const source of [
+    'const note = "see createRequire(x)(\\"better-sqlite3\\")";',
+    '// createRequire(x)("better-sqlite3")',
+    'const name = "better-sqlite3";',
+    "assert.match(message, /better-sqlite3/);",
+    'execFileSync("node", ["-e", "console.log(1)"]); const name = "better-sqlite3";',
+    'createRequire(root)("other-package"); const name = "better-sqlite3";',
+    `execSync("echo require('better-sqlite3')");`,
+    `const fixture = "node -e require('better-sqlite3')";`, // a string nobody runs
+    `new Worker("require('better-sqlite3')");`, // a path, not a program
+    'assert.throws(() => eval(program), /better-sqlite3/);',
+  ]) assert.equal(usesProjectSqliteDriver(file, source), false, source);
+  assert.equal(usesProjectSqliteDriver("plugins/native/alchemist/src/a.ts", 'createRequire(root)("better-sqlite3");'), false, "its approved private driver");
+});
+
+test("VG-17 the scan reaches every place code lives, sync-worker included, and only its owners may use the driver", () => {
+  const root = mkdtempSync(path.join(tmpdir(), "sqlite-driver-scan-"));
+  const use = 'import DB from "better-sqlite3";\n';
+  const put = (file, text = use) => { mkdirSync(path.dirname(path.join(root, file)), { recursive: true }); writeFileSync(path.join(root, file), text); };
+  try {
+    // No directory here has a package.json: the scan goes by where code lives, not by the workspace list. apps/sync-worker really has none.
+    const reached = ["apps/sync-worker/test.mjs", "apps/sync-worker/worker/attachments.test.mjs", "apps/a/src/a.ts", "apps/a/tests/a.test.ts", "packages/a/tooling/a.mjs", "plugins/native/a/tests/a.test.tsx",
+      "plugins/official-integrations/a/src/a.cjs", "modules/a/src/a.mts", "horizontal/a/bin/a.js", "server/src/a.cts", "tooling/plugin-cli/src/a.ts", "tooling/gates/a.mjs", "tests/a.test.ts", "scripts/a.mjs", "examples/a/src/a.jsx",
+      // Rust and Swift output directories are walked, as the boundary check walked them before it shared this walk.
+      "apps/a/target/a.js", "apps/a/.build/a.js"];
+    for (const file of reached) put(file);
+    for (const file of ["packages/storage/src/a.ts", "plugins/native/alchemist/src/a.ts", "apps/a/dist/a.js", "apps/a/node_modules/b/a.js", "docs/a.ts", "apps/a/README.md"]) put(file);
+    assert.deepEqual(sqliteDriverFindings(root).map(finding => finding.file).sort(), [...reached].sort());
+    const [product, testing] = ["apps/a/src/a.ts", "tests/a.test.ts"].map(file => sqliteDriverFindings(root).find(finding => finding.file === file));
+    assert.equal(product.text, "[project-sqlite-driver] open project connections through storage");
+    assert.equal(testing.text, "[project-sqlite-driver] open test connections through test-kit or production connections through storage");
+  } finally { rmSync(root, { recursive: true, force: true }); }
 });

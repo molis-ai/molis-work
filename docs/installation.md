@@ -24,7 +24,7 @@ pnpm desktop:start:macos    # 启动已安装 App
 
 ## 安装边界
 
-开发者分发 npm 安装包时，先在仓库执行 `pnpm package:npm`，产物在 `release/npm/`。消费者在自己的目录运行 `npm install /absolute/adeptify-molis-work-版本.tgz`，然后使用 `npx --no-install molis-work --help` 或 `npx --no-install molis-work install`。npm 路径要求已有 Node 24+，会正常安装当前平台的原生依赖；不要使用 `--ignore-scripts`。飞书/Lark MCP 连接器的包 `@larksuiteoapi/lark-mcp` 在归档里是固定版本的注册表依赖，由 `npm install` 从注册表取，随之有两件已知的事，用户 2026-10-10 决定接受并如实写明（见本节末尾的小节）。它不依赖源码仓库，也不要求单独发布私有 workspace 子包。安装 npm 包本身不会启动服务或连接 Runtime；`molis-work install` 才写入下面说明的 Home。
+开发者分发 npm 安装包时，先在仓库执行 `pnpm package:npm`，产物在 `release/npm/`。消费者在自己的目录运行 `npm install /absolute/adeptify-molis-work-版本.tgz`，然后使用 `npx --no-install molis-work --help` 或 `npx --no-install molis-work install`。npm 路径要求已有 Node 24.15.x（`engines` 为 `>=24.15.0 <24.16.0`），会正常安装当前平台的原生依赖；不要使用 `--ignore-scripts`。飞书/Lark MCP 连接器的包 `@larksuiteoapi/lark-mcp` 在归档里是固定版本的注册表依赖，由 `npm install` 从注册表取，随之有两件已知的事，用户 2026-10-10 决定接受并如实写明（见本节末尾的小节）。它不依赖源码仓库，也不要求单独发布私有 workspace 子包。安装 npm 包本身不会启动服务或连接 Runtime；`molis-work install` 才写入下面说明的 Home。
 
 `molis-work install` 只维护 `~/.molis-work`：版本化程序与共享 Skill、MCP/Web/CLI 启动入口、项目 DB 根目录、日志和安装清单。它不会创建或启动项目，不会写入用户项目，也不会修改任何 Runtime 的用户级配置。之后若要把 MCP 入口注册到某个 Runtime，必须走用户确认的 Runtime 集成流程。
 
@@ -84,7 +84,7 @@ pnpm install:local
 4. 关闭并新建一个 Runtime Session，确认它加载了当前 Release 的工具声明和 Skill；旧 Session 不能作为新版本验收证据。
 5. 最后使用真实项目和代表性数据检查用户可见结果。源码、自动化测试、包内字符串、版本号和页面 HTML 只能分别证明对应层，不能代替最终 App 的计算后样式与完整旅程。
 
-如果旧 Session 随后报告 catalog schema 高于当前 reader 支持范围，这表示运行中的 MCP 已过期，不表示数据库损坏。不要回滚 `catalog.db`，也不要用 SQLite、CLI 或 Web 绕过写入。新建或 Fork Session 后，先确认消息确实落在新任务，再只读解析当前 Molis Work 项目；解析成功后才继续写入。宿主显示“已导航”不等于下一条消息一定进入了新任务。
+如果旧 Session 随后报告 catalog schema 高于当前 reader 支持范围，这表示运行中的 MCP 已过期，不表示数据库损坏。不要回滚 `catalog.db`，也不要用 SQLite、CLI 或 Web 绕过写入。把 Molis Work 升级到能读它的版本；已经升级过的，重启常驻服务并新开一个 Session。之后先确认消息确实落在新任务，再只读解析当前 Molis Work 项目；解析成功后才继续写入。宿主显示“已导航”不等于下一条消息一定进入了新任务。
 
 ## 演示数据
 

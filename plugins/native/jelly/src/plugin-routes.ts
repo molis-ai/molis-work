@@ -14,7 +14,7 @@ export function jellyRoutes(context: PluginStartContext): PluginRouteBinding[] {
     return value as Record<string, unknown>;
   };
   const route = (definition: ActionDefinition, id: string, input: (request: PluginRouteRequest) => unknown) =>
-    bindPluginActionRoute(context, definition, input as never, id);
+    bindPluginActionRoute(context, definition, input, id);
   const calendar = route(jellyActions.calendar, "jelly.calendar", ({ query }) => ({ start: query.start ?? "", end: query.end ?? "" }));
   const previewDelete = route(jellyActions.previewNoteDelete, "jelly.preview", request => ({ id: body(request).id }));
   const previewImport = route(jellyActions.previewImport, "jelly.preview", request => ({ source: body(request).source }));

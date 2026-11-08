@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createHash } from "node:crypto";
-import { PersonalAuth, personalCloudConfig } from "@molis-ai/molis-work-app-local-host";
+import { PersonalAuth, PersonalWebSessions, personalCloudConfig } from "@molis-ai/molis-work-app-local-host";
 import type { SecretStore } from "@molis-ai/molis-work-storage";
 
 const config={authOrigin:'https://auth.example',clientId:'molis-work-desktop'};
@@ -161,4 +161,44 @@ test('cancellation validates state and offline logout still clears local credent
   f.auth.cancel(f.transaction.state);await assert.rejects(f.auth.complete('code',f.transaction.state),/INVALID_LOGIN_CALLBACK/);
   await f.auth.begin('http://127.0.0.1:4173/account/callback');await f.auth.complete('code',f.transaction.state);
   f.failLogout();assert.equal(await f.auth.logout(),false);assert.equal(f.auth.identity(),null);
+});
+
+
+test('ASR-03 adopted browser cookies bind the original login generation, including A to A',async()=>{
+ const f=fixture(),sessions=new PersonalWebSessions();
+ const login=async()=>{await f.auth.begin('http://127.0.0.1:4173/account/callback');await f.auth.complete('code',f.transaction.state);};
+ await login();const a=sessions.adopt(f.auth),old=sessions.cookie(a,false);
+ assert.equal(sessions.get(old),a);
+ await f.auth.logout();assert.equal(sessions.get(old),null);
+ await login();assert.equal(sessions.get(old),null,'the same account cannot revive an old cookie');
+ const next=sessions.adopt(f.auth);assert.equal(sessions.get(sessions.cookie(next,false)),next);
+ sessions.close();assert.equal(f.auth.identity()?.userId,'alice','closing a borrowed page does not sign out the installation');
+});
+
+test('ASR-05 cancelling a pending replacement login preserves the current account lease',async()=>{
+ const f=fixture();await f.auth.begin('http://127.0.0.1:4173/account/callback');await f.auth.complete('code',f.transaction.state);
+ const old=f.auth.accountLease();await f.auth.begin('http://127.0.0.1:4173/account/callback',false,true);
+ f.auth.cancelLogin();assert.equal(f.auth.callbackState(),null);assert.doesNotThrow(()=>old.assertCurrent());assert.equal(f.auth.identity()?.userId,'alice');
+});
+
+test('ASR-05 cancelling during a replacement token exchange rejects the late login without revoking A',async()=>{
+ const f=fixture();await f.auth.begin('http://127.0.0.1:4173/account/callback');await f.auth.complete('code',f.transaction.state);
+ let release!:()=>void,reached!:()=>void;const gate=new Promise<void>(resolve=>{release=resolve;}),started=new Promise<void>(resolve=>{reached=resolve;});
+ const auth=new PersonalAuth(config,f.store,async(url,init)=>{if(String(url).endsWith('/oauth2/token')){reached();await gate;}return f.http(url,init);});
+ const lease=auth.accountLease(),before=[...f.values];
+ await auth.begin('http://127.0.0.1:4173/account/callback',false,true);
+ const finishing=auth.complete('replacement-code',f.transaction.state);await started;
+ auth.cancelLogin();release();await assert.rejects(finishing,/LOGIN_CANCELLED/);
+ assert.doesNotThrow(()=>lease.assertCurrent());assert.deepEqual([...f.values],before);assert.equal(auth.identity()?.userId,'alice');
+});
+
+test('ASR-02 a new browser proves the installed account without replacing its credentials or lease',async()=>{
+ const f=fixture();await f.auth.begin('http://127.0.0.1:4173/account/callback');await f.auth.complete('code',f.transaction.state);
+ const lease=f.auth.accountLease(),before=[...f.values],generation=f.auth.accountGeneration();
+ await f.auth.begin('http://127.0.0.1:4173/account/callback');await f.auth.complete('browser-code',f.transaction.state,true);
+ assert.doesNotThrow(()=>lease.assertCurrent());assert.equal(f.auth.accountGeneration(),generation);assert.deepEqual([...f.values],before);
+ const impostor:typeof fetch=async(url,init)=>String(url).endsWith('/api/v1/users/me')?Response.json({data:{userId:'bob',displayName:'Bob',emails:[],applicationId:'work',clientId:config.clientId}}):f.http(url,init);
+ const other=new PersonalAuth(config,f.store,impostor);const old=other.accountLease();
+ await other.begin('http://127.0.0.1:4173/account/callback');await assert.rejects(other.complete('bob-code',f.transaction.state,true),/LOGIN_CANCELLED/);
+ assert.doesNotThrow(()=>old.assertCurrent());assert.deepEqual([...f.values],before);assert.equal(other.identity()?.userId,'alice');
 });

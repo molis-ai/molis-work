@@ -70,6 +70,7 @@ export function renderImagesWorkbench({ primitives: p }: ImagesUiModel): string 
               <datalist id="images-size-options" data-images-size-options></datalist><datalist id="images-ratio-options" data-images-ratio-options></datalist>
             </div>
             <div class="images-submit-row"><p>${p.text("images.compose.cost")}</p><button class="mw-btn mw-btn--primary" type="submit" data-images-generate disabled>${p.text("images.compose.generate")}</button></div>
+            <div class="images-connection-need" data-images-connection-need hidden></div>
             <p class="images-note" data-images-project-note hidden>${p.text("images.compose.project")}</p>
           </form>
           <section class="images-result" aria-label="${p.text("images.result.title")}" data-images-result hidden></section>

@@ -1,7 +1,7 @@
 import { writeFile, rm } from "node:fs/promises";
 import { performance } from "node:perf_hooks";
-import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isMainScript } from "../script-paths.mjs";
 import { MEMORY_KINDS, type MemoryPrefs } from "@molis-ai/molis-work-contracts/services/memory";
 import { evaluationPerson } from "./originals.mjs";
 import { currentEvaluationSource, memoryEvaluationB2Preflight } from "./baseline.mjs";
@@ -114,7 +114,7 @@ export async function measureMemoryScale() {
     rows, failures, summaries };
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMainScript(import.meta.url)) {
   const [mode, ...args] = process.argv.slice(2);
   if (mode !== "--b2") throw new Error("usage: scale.mts --b2 --out <new report path>");
   if (args.length !== 2 || args[0] !== "--out") throw new Error("usage: scale.mts --b2 --out <new report path>");

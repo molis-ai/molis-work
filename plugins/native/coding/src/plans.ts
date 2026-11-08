@@ -3,7 +3,7 @@ import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/a
 import { CONTINUATION_MARKER, originalTask, requestText } from "./continuation.js";
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentTextMaterialContent, type AgentRunView, type AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { CODING_PLAN_TYPE } from "./artifacts.js";
+import { CODING_PLAN_SCHEMA_VERSION, CODING_PLAN_TYPE } from "./artifacts.js";
 import { parseCodingPlan, parseCodingPlanAnswer, type CodingPlanContent } from "./plan-content.js";
 
 export interface CodingPlanDraft {
@@ -16,7 +16,6 @@ export interface CodingPlanDraft {
 export type CodingFixedPlan = Omit<CodingPlanDraft, "source"> & {
   source: Omit<CodingPlanDraft["source"], "workspace_path">;
 };
-export const CODING_PLAN_SCHEMA_VERSION = /* @version format.coding.plan */ 1;
 export function portableCodingPlan(draft: CodingPlanDraft): CodingFixedPlan {
   return { revision: draft.revision, content: draft.content,
     source: { session_id: draft.source.session_id, run_id: draft.source.run_id, task: draft.source.task }, confirmed: draft.confirmed };

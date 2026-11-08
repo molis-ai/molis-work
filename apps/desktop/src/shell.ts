@@ -39,7 +39,7 @@ export const NATIVE_DESKTOP_BOOTSTRAP_SCRIPT = `(()=>{
     window.dispatchEvent(new CustomEvent("molis-shelf-refresh"));
   };
   const shelfPanel=()=>{
-    const tab=document.body.dataset.sideOpen==="true"&&document.querySelector('#side-panel [data-side-plugin^="shelf/"][aria-selected="true"]');
+    const tab=document.body.dataset.sideOpen==="true"&&document.querySelector('[data-side-tabs] [data-side-plugin^="shelf/"][aria-selected="true"]');
     const box=tab&&document.getElementById(tab.getAttribute("aria-controls"))?.getBoundingClientRect();
     return box&&box.width>0&&box.height>0?{x:box.left,y:box.top,width:box.width,height:box.height}:null;
   };
@@ -59,7 +59,7 @@ export const NATIVE_DESKTOP_BOOTSTRAP_SCRIPT = `(()=>{
     new MutationObserver(notifyShelfSurface).observe(document.documentElement,{attributes:true,attributeFilter:["lang","data-resolved-theme"]});
     const panel=document.getElementById("side-panel");
     if(panel){
-      new MutationObserver(notifyShelfSurface).observe(panel,{subtree:true,attributes:true,attributeFilter:["aria-selected"]});
+      const tabs=document.querySelector("[data-side-tabs]");if(tabs)new MutationObserver(notifyShelfSurface).observe(tabs,{subtree:true,attributes:true,attributeFilter:["aria-selected"]});
       new ResizeObserver(notifyShelfSurface).observe(panel);
       panel.addEventListener("transitionend",notifyShelfSurface);
     }

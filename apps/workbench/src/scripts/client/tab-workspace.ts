@@ -1,8 +1,9 @@
 import { SYSTEM_TABS_FACTORY, SCROLL_MEMORY_FACTORY } from "./system-tabs.js";
-import { openPluginInSide, sideOpenedTabs } from "./plugin-place.js";
+import { sideOpenedTabs } from "./plugin-place.js";
+import { SIDE_PANE_FACTORY } from "../../side-panel.js";
 import { recordRows, searchRows } from "../../search-rows.js";
 import { pluginTabGlyphs } from "../../plugin-catalog.js";
-import { createTabWorkspaceOps, isLoosePluginTab, settlePluginTabs, withPluginGroups } from "../../tab-workspace-ops.js";
+import { createTabWorkspaceOps, isLoosePluginTab, settlePluginTabs, withLayout, withPluginGroups, withSidePane } from "../../tab-workspace-ops.js";
 import { PLUGIN_TAB_GROUPS_FACTORY } from "./plugin-tab-groups.js";
 import { OPENED_PLUGIN_RECORD_SCRIPT } from "./plugin-open-record.js";
 import { TAB_DRAG_SLOT_FACTORY } from "./tab-drag-slot.js";
@@ -29,12 +30,19 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   if (!root || !panesEl || !pool) return { pluginTitle: (plugin) => plugin, apply() {}, openPlugin() {}, openPluginRecord() {}, openItem() {}, openBeside() {}, setExclusive() {}, restore() {}, isExclusive() { return false; },
     leavePlugin() { return false; }, closeCover() { return false; }, openCover() {}, registerCover() {}, noteCover() {}, coverPlace() { return ""; }, goHistory() { return false; }, shownPlugin() { return null; }, exclusive() { return null; } };
   const PLUGIN_TAB_ICON = ${JSON.stringify(pluginTabGlyphs())}, RECORD_ROWS = ${JSON.stringify(recordRows())};
-  const openInSide = (${openPluginInSide}).bind(null, ${sideOpenedTabs()});
+  // A plugin whose only place is a side view (plugin-place) opens there: the right side is a pane of this workspace, so it is
+  // the side's own open (recall or open, never a second copy), not an event sent before the workspace knows.
+  const SIDE_OPENED = ${sideOpenedTabs()};
+  const openInSide = (plugin, item, title) => {
+    const key = Object.hasOwn(SIDE_OPENED, plugin) && SIDE_OPENED[plugin];
+    if (key) sidePane?.open(key, item ? { item, title } : null);
+    return Boolean(key);
+  };
   const PLUGIN_TAB_TITLES = { home: "项目首页", market: L("插件市场"), ...globalThis.MOLIS_WORK_PLUGIN_TITLES };
   // Plugins installed at run time (built in the studio) name their own stage.
   document.querySelectorAll("[data-work-surface]").forEach((surface) => { const id = surface.dataset.workSurface; if (surface.dataset.workSurfaceLabel) PLUGIN_TAB_TITLES[id] = surface.dataset.workSurfaceLabel; if (!PLUGIN_TAB_ICON[id]) PLUGIN_TAB_ICON[id] = surface.dataset.installedPluginIcon || PLUGIN_TAB_ICON[surface.dataset.pluginClient] || "package"; });
   const GROUP_COLOR = { grey: "var(--hue-gray)", blue: "var(--hue-blue)", red: "var(--hue-red)", yellow: "var(--hue-yellow)", green: "var(--hue-green)", pink: "var(--hue-pink)", purple: "var(--hue-purple)", cyan: "var(--hue-cyan)" };
-  const ops = (${withPluginGroups.toString()})((${createTabWorkspaceOps.toString()})(PLUGIN_TAB_TITLES), ${settlePluginTabs.toString()}, ${isLoosePluginTab.toString()});
+  const ops = (${withLayout.toString()})((${withSidePane.toString()})((${withPluginGroups.toString()})((${createTabWorkspaceOps.toString()})(PLUGIN_TAB_TITLES), ${settlePluginTabs.toString()}, ${isLoosePluginTab.toString()})));
 ${TAB_WORKSPACE_PANES_PART}
 ${TAB_WORKSPACE_STRIP_PART}
 ${TAB_WORKSPACE_PLACES_PART}
@@ -70,42 +78,51 @@ ${TAB_WORKSPACE_DRAG_PART}
       notifyParent("workbench-open-settings", { href: link.href });
     });
   }
-  let state = ops.create();
+  const offeredPlugin = (plugin) => Boolean(document.querySelector('[data-global-menu] [data-plugin-id="' + CSS.escape(plugin) + '"], [data-plugin-strip] [data-plugin-id="' + CSS.escape(plugin) + '"]')); // a link opens only a plugin this project offers: its menu or strip lists the plugins it has on (Goals included, RAC-400)
+  // A plugin taken out of the project keeps its tabs where they were, greyed and marked, with nothing else moving; added back,
+  // they work again (design README, shared part 7). A Host surface is never one: it has its own stage or settings page.
+  const removedPlugin = (plugin) => Boolean(plugin) && plugin !== "home" && plugin !== "market" && !offeredPlugin(plugin)
+    && !document.querySelector('[data-work-surface="' + CSS.escape(plugin) + '"], [data-settings-page="' + CSS.escape(plugin) + '"]');
+  /** What a pane shows for a tab of a plugin no longer in the project: what happened, and that adding it back brings it back. */
+  const showRemoved = (pane, plugin) => {
+    const body = panesEl.querySelector('[data-tab-pane="' + pane.id + '"] [data-tab-pane-body]');
+    let stage = body?.querySelector(":scope > [data-tab-removed-stage]");
+    if (!plugin || !body) { stage?.remove(); return; }
+    if (!stage) { stage = document.createElement("div"); stage.className = "mw-empty tab-removed-stage"; stage.setAttribute("role", "status"); body.append(stage); }
+    if (stage.dataset.tabRemovedStage === plugin) return;
+    stage.dataset.tabRemovedStage = plugin;
+    const title = document.createElement("h2"), note = document.createElement("p");
+    title.textContent = L("{plugin} 已从这个项目移除", { plugin: L(ops.pluginTitle(plugin)) });
+    note.textContent = L("标签和内容都还在；把它加回这个项目，就能接着用。");
+    stage.replaceChildren(title, note);
+  };
+  let state = ops.create(), column = "main";
   let unsaved = false; // a layout this device would not keep is said once, and again only after it saved since
   const restore = (requestedGoalId = "", resetLayout = false) => {
     if (embedded) {
       state = ops.create();
       const pane = ops.focused(state);
       const plugin = paneParams.get("panePlugin") || "home";
-      if (paneParams.has("paneItem")) {
-        pane.tabs = [];
-        pane.activeTabId = null;
-        pane.groups = [];
-        ops.openItem(state, plugin, paneParams.get("paneItem"), paneParams.get("paneTitle"));
-      } else if (plugin === "home") {
-        ops.openPlugin(state, "home");
-      } else {
-        pane.tabs = [];
-        pane.activeTabId = null;
-        pane.groups = [];
-        ops.openPlugin(state, plugin);
-      }
+      if (paneParams.has("paneItem")) ops.openItem(state, plugin, paneParams.get("paneItem"), paneParams.get("paneTitle"));
+      else ops.openPlugin(state, plugin);
       if (paneParams.has("paneView")) ops.writeView(state, pane.id, paneParams.get("paneView"));
       apply();
       return;
     }
-    const offeredPlugin = (plugin) => Boolean(document.querySelector('[data-global-menu] [data-plugin-id="' + CSS.escape(plugin) + '"], [data-plugin-strip] [data-plugin-id="' + CSS.escape(plugin) + '"]')); // a link opens only a plugin this project offers: its menu or strip lists the plugins it has on (Goals included, RAC-400)
     try {
       const stored = JSON.parse(localStorage.getItem(storageKey) || "null");
-      const plugins = { ...PLUGIN_TAB_ICON }; if (!offeredPlugin("goals")) delete plugins.goals; // a layout saved with Goals starts fresh in a project without it, as for any plugin gone
-      document.querySelectorAll("[data-settings-page]").forEach(node => { plugins[node.dataset.settingsPage] = true; });
-      if (!resetLayout && isCurrent(stored, plugins)) {
-        state = ops.ensureHome(stored);
+      // Only a layout of another shape starts fresh (口径 4). One naming a plugin this project no longer offers, or one Home no
+      // longer has at all, is read as it is: that plugin's tabs stay, marked removed (removedPlugin), until added back or closed.
+      if (!resetLayout && isCurrent(stored)) {
+        state = ops.normalizeLayout(stored);
       } else if (stored || resetLayout) {
         state = ops.create();
         tabHistory.clear(); sessionStorage.removeItem(HISTORY_KEY);
       }
     } catch {}
+    sidePane?.restore();
+    // The right side kept alone (独看) has the focus it had.
+    if (ops.soloSide(state)) column = "side";
     if (state.exclusive) coverPlace = historyCoverPlace(state.exclusive);
     const dropParams = (...names) => { const url = new URL(location.href); names.forEach(name => url.searchParams.delete(name)); history.replaceState(history.state, "", url); };
     let requestedPlugin = paneParams.get("openPlugin"), requestedItem = paneParams.get("openItem");
@@ -113,7 +130,7 @@ ${TAB_WORKSPACE_DRAG_PART}
     if (requestedPlugin && openInSide(requestedPlugin, requestedItem || paneParams.get("openRecord"), paneParams.get("openTitle"))) { dropParams("openPlugin", "openItem", "openTitle", "openRecord"); requestedPlugin = null; }
     if (requestedPlugin && Object.hasOwn(PLUGIN_TAB_ICON, requestedPlugin) && requestedItem && offeredPlugin(requestedPlugin)) {
       ops.setExclusive(state, null);
-      const opened = ops.openItem(state, requestedPlugin, requestedItem, paneParams.get("openTitle") || undefined);
+      const opened = !recall(requestedPlugin, requestedItem) && ops.openItem(state, requestedPlugin, requestedItem, paneParams.get("openTitle") || undefined);
       if (opened && paneParams.has("openView")) ops.writeView(state, ops.focused(state).id, paneParams.get("openView"), opened.id);
       dropParams("openPlugin", "openItem", "openTitle", "openView");
     }
@@ -123,8 +140,7 @@ ${TAB_WORKSPACE_DRAG_PART}
     if (requestedPlugin && !requestedItem && !requestedRecord && Object.hasOwn(PLUGIN_TAB_ICON, requestedPlugin)) {
       if (offeredPlugin(requestedPlugin)) {
         ops.setExclusive(state, null);
-        state.focusedPaneId = ops.focused(state).id;
-        const opened = ops.openPlugin(state, requestedPlugin);
+        const opened = !recall(requestedPlugin) && ops.openPlugin(state, requestedPlugin);
         if (opened && paneParams.has("openView")) ops.writeView(state, ops.focused(state).id, paneParams.get("openView"), opened.id);
         pluginRequestedOnLoad = true;
       }
@@ -229,7 +245,7 @@ ${TAB_WORKSPACE_DRAG_PART}
     } catch {}
   }
   const persistHistory = () => { // A closed pane's way back goes with it (VUX-36): the map holds only the panes that are open.
-    for (const paneId of tabHistory.keys()) if (!state.panes.some((pane) => pane.id === paneId)) tabHistory.delete(paneId); if (embedded) return;
+    for (const paneId of tabHistory.keys()) if (paneId !== "side" && !state.panes.some((pane) => pane.id === paneId)) tabHistory.delete(paneId); if (embedded) return;
     try { sessionStorage.setItem(HISTORY_KEY, JSON.stringify(Object.fromEntries(tabHistory))); } catch {}
   };
   // Where inside a cover the person is (a settings category, the page it loaded), so Back walks those too.
@@ -240,9 +256,26 @@ ${TAB_WORKSPACE_DRAG_PART}
   const KEPT_PANE_FRAMES = 4;
   // Search keeps owner-specific save/select behavior, including inside a split pane.
   const SEARCH_ROWS = ${JSON.stringify(searchRows())};
-  // Each plugin's group colour is the hue its Manifest declares, which the Host writes into the page's plugin directory.
-  const DIRECTORY_HUES = Object.fromEntries(JSON.parse(document.querySelector("script[data-plugin-directory]")?.textContent || "[]").filter((entry) => entry.hue).map((entry) => [entry.id, entry.hue]));
-  const pluginGroups = (${PLUGIN_TAB_GROUPS_FACTORY})({ getState: () => state, ops, apply: () => apply(), persist, L, rows: RECORD_ROWS.concat(SEARCH_ROWS), embedded, notify: notifyParent, editable: (node) => editable(node), appendTab, hues: DIRECTORY_HUES });
+  // The Host's plugin directory on the page: each plugin's group colour (the hue its Manifest declares) and what ＋ lists (口径 8).
+  // A plugin added or taken out in place brings the next page, and its directory, with it.
+  const readDirectory = (doc) => JSON.parse(doc?.querySelector("script[data-plugin-directory]")?.textContent || "[]");
+  let directory = readDirectory(document);
+  const DIRECTORY_HUES = Object.fromEntries(directory.filter((entry) => entry.hue).map((entry) => [entry.id, entry.hue]));
+  const pluginGroups = (${PLUGIN_TAB_GROUPS_FACTORY})({ getState: () => state, ops, apply: () => apply(), persist, L, rows: RECORD_ROWS.concat(SEARCH_ROWS), embedded, notify: notifyParent, editable: (node) => editable(node), appendTab, removed: removedPlugin, hues: DIRECTORY_HUES });
+  // The right side, drawn from state.side; a tab closed there joins the closed groups, so ⌘⇧T reopens whichever closed last.
+  // A main tab moved there shows in the workbench's own pane page, as a split pane does (07-S2).
+  const paneUrl = (paneId, plugin, item, title, view) => {
+    const url = new URL(location.href); url.hash = ""; url.search = "";
+    url.pathname = location.pathname.startsWith("/projects/") ? "/projects/" + encodeURIComponent(getProjectId()) + "/" : "/";
+    url.searchParams.set("workbenchPane", paneId); url.searchParams.set("panePlugin", plugin); url.searchParams.set("paneTitle", title || "");
+    if (item) url.searchParams.set("paneItem", item);
+    if (view !== undefined) url.searchParams.set("paneView", view);
+    return url.href;
+  };
+  const sidePane = embedded ? null : (${SIDE_PANE_FACTORY})({ ops, getState: () => state, save: persist, remember: pluginGroups.keep, undoChip: pluginGroups.undoChip, menu: (tab, entries) => openSideTabMenu(tab, entries), removed: removedPlugin, L,
+    paneSrc: (tab) => paneUrl("side", tab.plugin, tab.item, tab.title, tab.view), glyph: iconMarkup, toMain: (id) => moveToMain(id) });
+  // A plugin taken out or added back in place: its tabs are drawn again, marked removed or working (removedPlugin).
+  document.addEventListener("molis-work:plugins-changed", (event) => { if (event.detail?.next) directory = readDirectory(event.detail.next); apply(); });
   let cancelRecordJump = null;
   // Remember the record chosen on a plugin's own page (not inside one of its tabs).
   document.addEventListener("click", (event) => {
@@ -307,24 +340,31 @@ ${TAB_WORKSPACE_DRAG_PART}
     }
     // Arrows, Home and End move through its items by the shared roving focus (design-system browser/roving-focus.ts).
   });
-  const layoutMenu = document.createElement("div");
-  layoutMenu.className = "workspace-layout-menu mw-menu"; layoutMenu.setAttribute("popover", "auto"); layoutMenu.dataset.workspaceLayout = "";
-  layoutMenu.setAttribute("aria-label", L("布局与分屏")); document.body.append(layoutMenu);
-  layoutMenu.addEventListener("keydown", event => {
-    if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
-    const buttons = [...layoutMenu.querySelectorAll("button:not(:disabled)")];
-    const index = buttons.indexOf(document.activeElement);
-    const next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1 : (index + (event.key === "ArrowDown" ? 1 : -1) + buttons.length) % buttons.length;
-    event.preventDefault(); buttons[next]?.focus(); buttons[next]?.scrollIntoView({ block: "nearest" });
+  // The titlebar's layout button, drawn by the shell (immersive-shell.ts) after the right side's glyphs.
+  document.addEventListener("click", (event) => { const button = !embedded && event.target?.closest?.("[data-layout-open]"); if (button) openLayoutMenu(button); });
+  /* Which column the person is in, the focused main pane or the right side (§4.6 口径 1: one focus over both): the layout menu
+     acts on it and the titlebar's arrows walk its way back. It follows where they press or move the focus, a frame included. */
+  const columnOf = (node) => node?.closest?.("[data-side-panel], [data-side-tabs]") ? "side" : node?.closest?.("[data-tab-panes], [data-titlebar-tabs]") ? "main" : "";
+  const followColumn = (node) => { const next = columnOf(node); if (next && next !== column) { column = next; syncHistoryButtons(); } };
+  if (!embedded) {
+    document.addEventListener("pointerdown", (event) => followColumn(event.target), true);
+    document.addEventListener("focusin", (event) => followColumn(event.target));
+    window.addEventListener("blur", () => setTimeout(() => followColumn(document.activeElement)));
+  }
+  /* The right side's way back (07-S1, kept under "side" with the panes' history): the tabs it showed, in turn. A step back shows
+     the one before; a collapse or 独看 ending redraws what depends on the side. */
+  document.addEventListener("molis:side-shown", (event) => {
+    if (embedded) return;
+    if (state.solo) apply();
+    if (!event.detail?.open) { if (column === "side") column = "main"; syncHistoryButtons(); return; }
+    if (event.detail.tab) { rememberPlace("side", event.detail.tab, sideKept); persistHistory(); syncHistoryButtons(); }
   });
-  let layoutPane = null;
-  layoutMenu.addEventListener("click", (event) => {
-    const button = event.target.closest("button"); if (!button) return;
-    if (button.dataset.layoutSplit) ops.splitPane(state, layoutPane, button.dataset.layoutSplit, "copy");
-    else if (button.dataset.layoutAction === "close") ops.closePane(state, layoutPane);
-    else if (button.dataset.layoutAction === "equal") { const equal = node => { if (node?.children) { node.ratio=.5; node.children.forEach(equal); } }; equal(state.layout.tree); }
-    else if (button.dataset.focusPane) state.focusedPaneId = button.dataset.focusPane;
-    layoutMenu.hidePopover(); apply(); persist(); focusActiveTab();
+  // ⌘⇧↵ / Ctrl+Shift+Enter shows only the focused pane, and brings the rest back (口径 2); a pane page hands it up.
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" || !event.shiftKey || event.altKey || !(MAC ? event.metaKey : event.ctrlKey) || editable(event.target)) return;
+    event.preventDefault();
+    if (embedded) { notifyParent("workbench-pane-solo"); return; }
+    toggleSolo(); apply(); persist();
   });
   panesEl.addEventListener("click", (event) => {
     const pane = event.target.closest("[data-tab-pane]");
@@ -479,6 +519,10 @@ ${TAB_WORKSPACE_DRAG_PART}
     if (embedded) {
       if (!panes.fromParent(event)) return;
       if (event.data.type === "workbench-view-invalidate") { const surface = topLevelSurface(ops.shownPlugin(ops.focused(state))); if (surface) invalidateView(surface, false); return; }
+      // The parent's ask for one record of a plugin here (its jump to a record), after this page's own start; its shape is
+      // checked with its source (S-30), and one that fails is dropped below.
+      const ask = panes.recordAsk(event);
+      if (ask) { document.querySelector('[data-work-surface="' + CSS.escape(ask.plugin) + '"]')?.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: { itemId: ask.itemId, quiet: ask.quiet } })); return; }
       if (event.data.type !== "workbench-view") return;
       if (ops.writeView(state, state.panes[0]?.id, event.data.view)) apply();
       if (event.data.intent === "open" || event.data.intent === "select") { const tab = ops.activeTab(state); if (tab) projectOwnSurface(ops.focused(state), tab.plugin, { id: event.data.view, surface: event.data.surface, panel: event.data.panel, intent: event.data.intent }, tab); }
@@ -486,10 +530,24 @@ ${TAB_WORKSPACE_DRAG_PART}
     }
     const frame = panes.from(event);
     if (frame && event.data.type === "workbench-open-settings") {
-      document.dispatchEvent(new CustomEvent("molis-work:open-settings-path", { detail: { href: event.data.href || "" } }));
+      // A return trip's source is the pane this frame is (specs/draft-and-return §2.3, returnRelay in return-trips.ts), never the one it names.
+      const paneId = frame.dataset.paneOwner || "";
+      const surface = paneById(paneId)?.tabs.find(tab => tab.id === frame.dataset.paneTab)?.plugin || (frame.dataset.paneKey?.startsWith("plugin:") ? frame.dataset.paneKey.slice(7) : "");
+      document.dispatchEvent(new CustomEvent("molis-work:open-settings-path", { detail: molisWorkSettingsReturn.relay(event.data, paneId, surface) }));
       return;
     }
-    if (!["workbench-pane-invalidate", "workbench-pane-focus", "workbench-pane-open", "workbench-pane-open-beside", "workbench-pane-view", "workbench-pane-history"].includes(event.data?.type)) return;
+    if (!["workbench-pane-invalidate", "workbench-pane-focus", "workbench-pane-open", "workbench-pane-open-beside", "workbench-pane-view", "workbench-pane-history", "workbench-pane-solo"].includes(event.data?.type)) return;
+    // A main tab moved to the right side (07-S2): its page keeps the tab's view, and what it opens opens in the main area.
+    if (frame?.dataset.paneOwner === "side") {
+      const tab = state.side.tabs.find((candidate) => candidate.kind === "pane" && frame.closest("[data-side-body]")?.dataset.sideBody === candidate.itemId);
+      if (event.data.type === "workbench-pane-focus") column = "side";
+      else if (event.data.type === "workbench-pane-view" && tab) { if (event.data.view === undefined) delete tab.view; else tab.view = event.data.view; persist(); }
+      else if (event.data.type === "workbench-pane-open" && event.data.itemId) openItem(event.data.plugin, event.data.itemId, event.data.title, event.data.view);
+      else if (event.data.type === "workbench-pane-open") openPlugin(event.data.plugin);
+      // ⌘⇧↵ in the side's pane page: the side is the focused column, so it goes alone (or comes back).
+      else if (event.data.type === "workbench-pane-solo") { column = "side"; toggleSolo(); apply(); persist(); }
+      return;
+    }
     const pane = paneById(frame?.dataset.paneOwner);
     if (!pane) return;
     if (event.data.type === "workbench-pane-invalidate") {
@@ -503,6 +561,8 @@ ${TAB_WORKSPACE_DRAG_PART}
       const tab = pane.tabs.find(tab => tab.id === frame.dataset.paneTab)
         || (frame.dataset.paneTab === pane.id + ":view" && pane.tabs.find(tab => tab.kind === "plugin" && "plugin:" + tab.plugin === frame.dataset.paneKey));
       if (tab) writeView(pane.id, event.data.view, tab.id);
+    } else if (event.data.type === "workbench-pane-solo") {
+      state.focusedPaneId = pane.id; toggleSolo(); apply(); persist();
     } else if (event.data.type === "workbench-pane-focus") {
       if (state.focusedPaneId !== pane.id) { state.focusedPaneId = pane.id; apply(); persist(); }
     } else if (event.data.type === "workbench-pane-open-beside") {

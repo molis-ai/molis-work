@@ -6,12 +6,13 @@ import { fileURLToPath } from "node:url";
 import type { TestContext } from "node:test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { createDesktopWebHost, openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { MolisWorkLocalHost, resolveWebControlToken } from "@molis-ai/molis-work-app-local-host";
+import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { createSingleHomeTestWebServer } from "./local-web-core.js";
+import { changeMcpClientCredential, MolisWorkLocalHost, resolveWebControlToken } from "@molis-ai/molis-work-app-local-host";
 
 export async function homeContextHost(t: TestContext) {
   const home = await mkdtemp(join(tmpdir(), "home-context-resident-"));
-  let host: MolisWorkLocalHost | undefined, server: ReturnType<ReturnType<typeof createDesktopWebHost>> | undefined;
+  let host: MolisWorkLocalHost | undefined, server: ReturnType<typeof createSingleHomeTestWebServer> | undefined;
   t.after(async () => {
     if (server) { const closing = new Promise<void>((resolve, reject) => server!.close(error => error ? reject(error) : resolve())); server.closeAllConnections(); await closing; }
     await host?.close(); await rm(home, { recursive: true, force: true });
@@ -19,9 +20,10 @@ export async function homeContextHost(t: TestContext) {
   host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null,
     workspacesFor: project => withCatalog({ homeDirectory: home }, catalog => catalog.listWorkspaceDirectory(project)) });
   const withCatalog = host.configurePersonalPlanning(home, withMolisWorkProjectCatalog);
-  server = createDesktopWebHost({ ptyClientFilePath: () => "" })({ homeDirectory: home, localHost: host });
+  server = createSingleHomeTestWebServer({ homeDirectory: home, localHost: host });
   await new Promise<void>(resolve => server!.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address === "object");
+  changeMcpClientCredential(home, "runtime:codex", "connect");
   const access = host.ensureWebCatalog(home, openMolisWorkProjectCatalog);
   await access.warm();
   return { home, host, server, origin: `http://127.0.0.1:${address.port}`, token: resolveWebControlToken({ homeDirectory: home }),

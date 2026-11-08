@@ -1,4 +1,5 @@
-import { esc, targetOf } from "./dom.js";
+import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { targetOf } from "./dom.js";
 import type { ToastAction, WorkflowsPage } from "./page.js";
 
 export function hideToast(page: WorkflowsPage) {

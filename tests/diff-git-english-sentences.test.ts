@@ -16,17 +16,16 @@ import { diffPageText } from "./fixtures/diff-page-text.js";
 const HAN = /[一-鿿]/;
 const primitives = (locale: "zh" | "en") => ({ escape: (value: unknown) => String(value), text: diffPageText(locale), icon: () => "" });
 const WS = { workspace_id: "ws-1", name: "项目" };
-const run = (diff: string) => ({ scope: "run-frozen" as const, run_id: "run-1", applied: false,
-  files: [{ path: "a.ts", kind: "modified" as const, added_lines: 1, removed_lines: 1, diff }] });
+const run = { scope: "run-frozen" as const, run_id: "run-1", applied: false, coverage: "text-reviews" as const,
+  origin: { session_id: "s", runtime_session_id: "r", workspace_id: "w", workspace_name: "w" },
+  files: [{ path: "a.ts", kind: "modified" as const, added_lines: 1, removed_lines: 1, diff: "",
+    review: { review_id: "v", before_text: "a\n", after_text: "b\n", decision: "approved" as const, execution: "applied" as const } }] };
 const shown = (locale: "zh" | "en", view: Parameters<typeof renderDiff>[0]["view"]) => renderDiff({ labels: DIFF_LABELS, view, primitives: primitives(locale), sides: false });
 
-test("VUX-40: Diff's path, rename and unified-diff sentences read in English on the English page and are unchanged for an Agent", () => {
-  const input = (diff: string) => ({ content: run(diff), source_plugin_id: "io.molis.work.coding", content_version: 1 });
+test("VUX-40: Diff's path and rename sentences read in English on the English page and are unchanged for an Agent", () => {
+  const input = { content: run, source_plugin_id: "io.molis.work.coding", content_version: 1 };
   const cases: Array<[view: ReturnType<typeof compareRunChangeSet>, zh: string, en: string]> = [
-    [compareRunChangeSet(input("@@ -1 +1 @@\n-a\n+b\n"), "src/missing.ts"), "这一轮没有改动 src/missing.ts", "This turn didn't change src/missing.ts"],
-    [compareRunChangeSet(input("@@ -1,5 +1,5 @@\n a\n")), "hunk 行数与 @@ 头不一致：声明 5/5，实际 1/1", "A hunk's line counts don't match its @@ header: declared 5/5, found 1/1"],
-    [compareRunChangeSet(input("@@ nonsense @@\n+x\n")), "读不懂的 hunk 头：@@ nonsense @@", "Can't read this hunk header: @@ nonsense @@"],
-    [compareRunChangeSet(input("not a diff\n")), "这段 diff 里没有可读的 hunk", "There is no readable hunk in this diff"],
+    [compareRunChangeSet(input, "src/missing.ts"), "这一轮没有改动 src/missing.ts", "This turn didn't change src/missing.ts"],
   ];
   for (const [view, zh, en] of cases) {
     assert.equal(view.message, zh, "the sentence an Agent reads is the one the producer wrote");

@@ -1,4 +1,5 @@
-import { codeOf, isAbort, messageOf, statusOf } from "./dom.js";
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
+import { codeOf, isAbort, statusOf } from "./dom.js";
 import type { Issue, IssuesHost, IssuesPage, PageReport, Pending, QuestionResult, SavedResult, Translate } from "./types.js";
 
 const UNSENT = "molis:issue-unsent";

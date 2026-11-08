@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test, { after, beforeEach } from "node:test";
 import { fileURLToPath } from "node:url";
+import { declarationFindings } from "../scripts/gates/version-declarations.mjs";
 
 // docs/releases/POLICY.md: one product version, and the per-database version table in docs/releases/CHECKLIST.md is the
 // code's. The script is run against this repository (it must pass), and each rule is mutation-verified on a small scratch
@@ -14,7 +15,26 @@ const repository = fileURLToPath(new URL("..", import.meta.url));
 const scratch: string[] = [];
 let root = "";
 
+// Scratch files whose literals these release rules break one at a time; the declaration rules have their own file (tests/version-source.test.ts).
+// An exception names the literals it lets through, so the list is written from the fixture as it stands when the script runs.
+let scratchFiles = new Set<string>();
+const scratchLiterals = (...files: string[]) => { for (const file of files) scratchFiles.add(file); };
+const writeScratchExceptions = () => {
+  const counts = new Map<string, Record<string, number>>();
+  const findings: Array<{ file: string; name: string; value: string }> = existsSync(path.join(root, "tooling/versions.json")) ? declarationFindings(root) : [];
+  for (const { file, name, value } of findings) {
+    if (!scratchFiles.has(file)) continue;
+    const id = JSON.stringify([file, name]), values = counts.get(id) ?? {};
+    values[value] = (values[value] ?? 0) + 1;
+    counts.set(id, values);
+  }
+  put("tooling/gates/version-exceptions.json", JSON.stringify([...counts].map(([id, values]) => {
+    const [file, name] = JSON.parse(id);
+    return { file, name, values, reason: "scratch fixture for the release rules, not a declaration" };
+  })));
+};
 const run = (...args: string[]) => {
+  writeScratchExceptions();
   const result = spawnSync(process.execPath, [script, "--root", root, ...args], { encoding: "utf8" });
   return { code: result.status, out: `${result.stdout}${result.stderr}` };
 };
@@ -25,11 +45,6 @@ const ownVersion = (file: string, key: string, value: string | number, pattern?:
   source.versions[key] = value;
   if (pattern && !source.carriers.some((carrier: { file: string; pattern: string }) => carrier.file === file && carrier.pattern === pattern)) source.carriers.push({ file, key, pattern });
   put("tooling/versions.json", JSON.stringify(source));
-};
-// A scratch file whose literals these release rules break one at a time; the declaration rules have their own file (tests/version-source.test.ts).
-const scratchLiterals = (...files: string[]) => {
-  const list = JSON.parse(readFileSync(path.join(root, "tooling/gates/version-exceptions.json"), "utf8"));
-  put("tooling/gates/version-exceptions.json", JSON.stringify([...list, ...files.map(file => ({ file, reason: "scratch fixture for the release rules, not a declaration" }))]));
 };
 const edit = (file: string, from: string, to: string) => {
   const text = readFileSync(path.join(root, file), "utf8");
@@ -50,7 +65,6 @@ const TABLE = [
   "| Server | `server/server.sqlite` | 1 | `user_version` | `server/src/db.ts#SERVER_BASELINE` | 拒绝 |",
   "| Catalog | `catalog.db` | 21 | `catalog_meta` | `apps/alpha/src/store.ts#CATALOG_VERSION` | 拒绝 |",
   "| Characters | `characters.sqlite` | 1 | `user_version` | `apps/alpha/src/characters.ts#PRAGMA user_version` | 只拒绝更高的版本 |",
-  "| Plain | `plain.sqlite` | 无 | 没有版本 | `apps/alpha/src/plain.ts` | 不检查 |",
 ].join("\n");
 
 // A scratch repository that satisfies every rule; the tests break one thing at a time.
@@ -66,8 +80,8 @@ const buildFixture = () => {
   ownVersion("apps/desktop/src-tauri/Cargo.toml", "product.release", VERSION, '(\\[package\\]\\nname = "molis-work-desktop"\\nversion = ")[^"]+(")');
   ownVersion("apps/desktop/src-tauri/Cargo.lock", "product.release", VERSION, '(name = "molis-work-desktop"\\nversion = ")[^"]+(")');
   // These fixtures keep their versions in carriers so the rules below can break one literal at a time.
-  put("tooling/gates/version-exceptions.json", JSON.stringify(["apps/alpha/src/store.ts", "server/src/db.ts", "apps/local-host/src/product-version.ts"]
-    .map(file => ({ file, reason: "scratch fixture for the release table, its versions are carriers" }))));
+  scratchFiles = new Set(["apps/alpha/src/store.ts", "apps/alpha/src/characters.ts", "server/src/db.ts", "apps/local-host/src/product-version.ts"]);
+  for (const snapshot of ["actions", "host-actions", "scenes", "host-scenes"]) put(`tooling/gates/actions/${snapshot}.tsv`, "");
   put("pnpm-workspace.yaml", "# comment\npackages:\n  - 'apps/*'\n  - 'server'\n\noverrides:\n  x: 1\n");
   put("apps/alpha/package.json", JSON.stringify({ name: "alpha", version: "0.0.0", private: true }));
   put("apps/alpha/src/store.ts", [
@@ -75,7 +89,6 @@ const buildFixture = () => {
     "export const CATALOG_VERSION = 21;",
   ].join("\n"));
   put("apps/alpha/src/characters.ts", "db.exec(`CREATE TABLE IF NOT EXISTS c (id TEXT); PRAGMA user_version = 1;`);\n");
-  put("apps/alpha/src/plain.ts", "export const plain = 'CREATE TABLE IF NOT EXISTS p (id TEXT)';\n");
   put("server/package.json", JSON.stringify({ name: "server", version: "0.0.0", private: true }));
   put("server/src/db.ts", "export const SERVER_BASELINE: SqliteBaseline = {\n  version: 1,\n  schema: ``,\n};\n");
   put("apps/desktop/src-tauri/tauri.conf.json", JSON.stringify({ productName: "Molis Work", version: VERSION }));
@@ -112,7 +125,7 @@ test("a consistent scratch tree passes, and the tag may be v<version>", () => {
   const plain = run();
   assert.equal(plain.code, 0, plain.out);
   assert.match(plain.out, new RegExp(`release version sources agree: ${VERSION}`));
-  assert.match(plain.out, /2 workspace packages are private 0\.0\.0; 5 stores/);
+  assert.match(plain.out, /2 workspace packages are private 0\.0\.0; 4 stores/);
   assert.equal(run("--tag", `v${VERSION}`).code, 0);
   assert.equal(run(`--tag=v${VERSION}`).code, 0);
 });
@@ -224,6 +237,25 @@ test("a SqliteBaseline the table does not list fails", () => {
   assert.equal(run().code, 0);
 });
 
+test("VG-13 the release table reads a package's .ts, .js, .mts and .mjs under src/, and only those", () => {
+  const baseline = "export const MORE_BASELINE: SqliteBaseline = { version: 1, schema: `` };\n";
+  for (const file of ["apps/alpha/src/more.ts", "apps/alpha/src/more.js", "apps/alpha/src/more.mts", "apps/alpha/src/more.mjs", "apps/alpha/src/deep/tests/more.ts", "apps/alpha/src/target/more.ts", "apps/alpha/src/.build/more.ts", "server/src/more.ts"]) {
+    buildFixture();
+    scratchLiterals(file);
+    put(file, baseline);
+    failsWith(run(), `${file}#MORE_BASELINE is a SqliteBaseline the 各库版本表 does not list`);
+    rmSyncFile(file);
+  }
+  for (const file of ["apps/alpha/more.ts", "apps/alpha/tooling/more.ts", "apps/alpha/tests/more.ts", "apps/alpha/src/more.tsx", "apps/alpha/src/more.cjs", "apps/alpha/src/dist/more.ts", "apps/alpha/src/node_modules/x/more.ts", "apps/beta/src/more.ts"]) {
+    buildFixture();
+    scratchLiterals(file);
+    put(file, baseline);
+    const result = run();
+    assert.equal(result.code, 0, `${file}\n${result.out}`);
+    rmSyncFile(file);
+  }
+});
+
 test("a plugin-owned database declaration has a listed literal baseline with the same version", () => {
   const table = readFileSync(path.join(root, "docs/releases/CHECKLIST.md"), "utf8");
   const listed = table.replace(TABLE, TABLE + "\n| Plugin | `plugin/plugin.db` | 1 | `user_version` | `apps/alpha/src/plugin.ts#PLUGIN_DB` | 拒绝 |");
@@ -289,6 +321,55 @@ test("a baseline declared with satisfies or as, or handed over inline, cannot hi
   assert.equal(run().code, 0, run().out);
 });
 
+// specs/upgrade-continuity/upgrade-chain-design.md §1, §11.3: the steps sit inside the literal and do not disturb the version reader.
+test("UPG1-i-verify-01: a baseline's upgrades do not change the version read from its literal", () => {
+  const table = readFileSync(path.join(root, "docs/releases/CHECKLIST.md"), "utf8");
+  ownVersion("apps/alpha/src/plugin.ts", "database.plugin", 3, '(version: )\\d+()');
+  scratchLiterals("apps/alpha/src/plugin.ts");
+  put("docs/releases/CHECKLIST.md", table.replace(TABLE, TABLE + "\n| Plugin | `plugin/plugin.db` | 3 | `user_version` | `apps/alpha/src/plugin.ts#PLUGIN_DB` | 低版本升级，高版本拒绝 |"));
+  const steps = '[{ from: 1, version:9, sql: "ALTER TABLE t ADD COLUMN version TEXT" }, { from: 2, run: (db) => { db.exec(`UPDATE t SET version = \'9\'`); } }]';
+  put("apps/alpha/src/plugin.ts", `const PLUGIN_DB: SqliteBaseline = { upgrades: ${steps}, version: 3, schema: \`\` };`);
+  assert.equal(run().code, 0, run().out);
+  put("apps/alpha/src/plugin.ts", `const PLUGIN_DB: SqliteBaseline = { version: 4, schema: \`\`, upgrades: ${steps} };`);
+  failsWith(run(), "the table says 3", "says 4");
+  put("apps/alpha/src/plugin.ts", `const PLUGIN_DB: SqliteBaseline = { schema: \`\`, upgrades: ${steps} };`);
+  failsWith(run(), "has no PLUGIN_DB with a version");
+});
+
+test("UPG1-i-verify-02: the upgrade entry takes what a descriptor carries, not a baseline written at the call", () => {
+  put("apps/alpha/src/upgrade.ts", "runSqliteUpgrade(db, path, store.baseline);\nrunSqliteUpgrade(db, path, store.library.baseline, home);\n");
+  assert.equal(run().code, 0, run().out);
+  put("apps/alpha/src/upgrade.ts", "runSqliteUpgrade(db, path, nobody);\n");
+  failsWith(run(), "apps/alpha/src/upgrade.ts: runSqliteUpgrade is called with nobody, which no package declares as a SqliteBaseline");
+  put("apps/alpha/src/upgrade.ts", "runSqliteUpgrade(db, path, { version: 2, schema: `CREATE TABLE t (a TEXT);`, upgrades: [] });\n");
+  failsWith(run(), "apps/alpha/src/upgrade.ts: runSqliteUpgrade is called with an inline baseline");
+  put("apps/alpha/src/upgrade.ts", "runSqliteUpgrade(db, path, { ...BASE, version: 2 } as SqliteBaseline);\n");
+  failsWith(run(), "apps/alpha/src/upgrade.ts: runSqliteUpgrade is called with an inline baseline");
+  put("apps/alpha/src/upgrade.ts", "runSqliteUpgrade(db, path);\n");
+  failsWith(run(), "apps/alpha/src/upgrade.ts: runSqliteUpgrade is called without a baseline");
+});
+
+test("UPG1-i-verify-03: the two aggregate copy openers take a declared baseline like the other entries, their own file aside", () => {
+  for (const opener of ["openOwnerCopyStore", "openAggregateCopyOwner"]) {
+    put("apps/alpha/src/copy.ts", `${opener}(home, "alpha", nobody, context);\n`);
+    failsWith(run(), `apps/alpha/src/copy.ts: ${opener} is called with nobody, which no package declares as a SqliteBaseline`);
+    put("apps/alpha/src/copy.ts", `${opener}(home, "alpha", { version: 1, schema: "" }, context);\n`);
+    failsWith(run(), `apps/alpha/src/copy.ts: ${opener} is called with an inline baseline`);
+    put("apps/alpha/src/copy.ts", `${opener}(home, "alpha", store.baseline, context);\n`);
+    failsWith(run(), `apps/alpha/src/copy.ts: ${opener} is called with an inline baseline`);
+  }
+  rmSync(path.join(root, "apps/alpha/src/copy.ts"));
+  put("packages/storage/src/aggregate-copy-store.ts", "export function openAggregateCopyOwner(home: string, name: string, baseline: SqliteBaseline) { return openOwnerCopyStore(home, name, baseline); }\n");
+  assert.equal(run().code, 0, run().out);
+  rmSync(path.join(root, "packages/storage/src/aggregate-copy-store.ts"));
+});
+
+test("UPG1-i-verify-04: a typed baseline inside a function is still a baseline the table has to list", () => {
+  put("apps/alpha/src/local.ts", "export function open() { const LOCAL_DB: SqliteBaseline = { version: 1, schema: ``, upgrades: [{ from: 1, sql: `ALTER TABLE t ADD COLUMN c TEXT` }] }; return LOCAL_DB; }\n");
+  failsWith(run(), "LOCAL_DB");
+  rmSync(path.join(root, "apps/alpha/src/local.ts"));
+});
+
 // The detection and the version reader agree on every spelling: a baseline that has to be listed can be listed and checked.
 test("a baseline written with satisfies or as is listed and read like an annotated one", () => {
   ownVersion("apps/alpha/src/more.ts", "database.more", 4, '(MORE_BASELINE[\\s\\S]*?\\}, version: )\\d+()');
@@ -310,7 +391,7 @@ test("a baseline written with satisfies or as is listed and read like an annotat
     "apps/alpha/src/more.ts#LAST_BASELINE is a SqliteBaseline the 各库版本表 does not list");
   withRows("4", "2");
   assert.equal(run().code, 0, run().out);
-  assert.match(run().out, /7 stores/);
+  assert.match(run().out, /6 stores/);
   withRows("9", "2");
   failsWith(run(), "More: the table says 9, the code (apps/alpha/src/more.ts#MORE_BASELINE) says 4");
   withRows("4", "3");
@@ -321,15 +402,72 @@ test("a baseline written with satisfies or as is listed and read like an annotat
   failsWith(run(), "More: apps/alpha/src/more.ts has no MORE_BASELINE with a version");
 });
 
-test("a database listed as having no version fails once it gets one", () => {
-  put("apps/alpha/src/plain.ts", "db.exec('PRAGMA user_version = 1');\n");
-  failsWith(run(), "Plain: apps/alpha/src/plain.ts now carries a version marker; give the table a number");
-  buildFixture();
-  put("apps/alpha/src/plain.ts", "const row = db.prepare('SELECT schema_version FROM meta');\n");
-  failsWith(run(), "Plain: apps/alpha/src/plain.ts now carries a version marker");
+const withRow = (row: string) => put("docs/releases/CHECKLIST.md", `# Checklist\n\n## 3. 各库版本表\n\n${TABLE}\n${row}\n`);
+
+test("VG-23 无 and a bare path are refused: no library is without a version, and scripts/gates/store-versions.mjs reads the same cells", () => {
+  put("apps/alpha/src/plain.ts", "export const plain = 'CREATE TABLE IF NOT EXISTS p (id TEXT)';\n");
+  withRow("| Plain | `plain.sqlite` | 无 | 没有版本 | `apps/alpha/src/plain.ts` | 不检查 |");
+  failsWith(run(), "Plain: needs a whole number in 版本 and `path#NAME` in 定义处");
+  withRow("| Plain | `plain.sqlite` | 无 | 没有版本 | `apps/alpha/src/plain.ts#plain` | 不检查 |");
+  failsWith(run(), "Plain: needs a whole number in 版本 and `path#NAME` in 定义处");
+  withRow("| Plain | `plain.sqlite` | 1 | 没有版本 | `apps/alpha/src/plain.ts` | 不检查 |");
+  failsWith(run(), "Plain: needs a whole number in 版本 and `path#NAME` in 定义处");
 });
 
-test("the table itself must exist, have the columns, and carry a number or 无", () => {
+test("VG-24 a JSON file's row points at the field the code writes, and every spelling of that field has to say the table's number", () => {
+  scratchLiterals("apps/alpha/src/settings.ts");
+  const row = (version: number, name = "schema_version") => withRow(`| Settings | \`settings.json\` | ${version} | \`${name}\` | \`apps/alpha/src/settings.ts#${name}\` | 当没有 |`);
+  put("apps/alpha/src/settings.ts", "export interface Saved { schema_version: 1; }\nexport const write = () => ({ schema_version: 1, name: 'a' });\n");
+  row(1);
+  assert.equal(run().code, 0, run().out);
+  assert.match(run().out, /5 stores/);
+  put("apps/alpha/src/settings.ts", "export const write = () => ({ version: 1, name: 'a' });\n");
+  row(1, "version");
+  assert.equal(run().code, 0, run().out);
+
+  put("apps/alpha/src/settings.ts", "export const write = () => ({ schema_version: 1 });\n");
+  row(2);
+  failsWith(run(), "Settings: the table says 2, the code (apps/alpha/src/settings.ts#schema_version) says 1");
+  row(1);
+  put("apps/alpha/src/settings.ts", "export interface Saved { schema_version: 1; }\nexport const write = () => ({ schema_version: 2 });\n");
+  failsWith(run(), "Settings: apps/alpha/src/settings.ts has no schema_version with a version");
+  put("apps/alpha/src/settings.ts", "export const write = (current: number) => ({ schema_version: current });\n");
+  failsWith(run(), "Settings: apps/alpha/src/settings.ts writes schema_version: current; write the number itself at every schema_version (定义处写字面量)");
+  put("apps/alpha/src/settings.ts", "export const write = () => ({ name: 'a' });\n");
+  failsWith(run(), "Settings: apps/alpha/src/settings.ts has no schema_version with a version");
+  // Only the two field names read this way: a constant's row still needs the constant.
+  put("apps/alpha/src/settings.ts", "export const write = () => ({ SETTINGS_VERSION: 1 });\n");
+  row(1, "SETTINGS_VERSION");
+  failsWith(run(), "Settings: apps/alpha/src/settings.ts has no SETTINGS_VERSION with a version");
+});
+
+test("VG-41 a JSON file's field is read with its key quoted too, and a field written from a name is refused", () => {
+  scratchLiterals("apps/alpha/src/settings.ts");
+  withRow("| Settings | `settings.json` | 1 | `version` | `apps/alpha/src/settings.ts#version` | 当没有 |");
+  const passes = (source: string) => { put("apps/alpha/src/settings.ts", source); const result = run(); assert.equal(result.code, 0, `${source}\n${result.out}`); };
+  passes("export const write = () => ({ version: 1 });\n// an older file said version: 2\n");
+  passes("export const write = () => ({ \"version\": 1, version_note: 3 });\nexport type Read = { version: number };\n");
+  passes("export const write = () => ({ version: 1 as const });\nexport const text = '{\"version\": 1}';\n");
+  put("apps/alpha/src/settings.ts", "export const write = () => ({ version: 1 });\nexport const other = () => ({ \"version\": 2 });\n");
+  failsWith(run(), "Settings: apps/alpha/src/settings.ts has no version with a version");
+  put("apps/alpha/src/settings.ts", "export const write = () => ({ version: 1 });\nexport const text = `{\"version\": 2}`;\n");
+  failsWith(run(), "Settings: apps/alpha/src/settings.ts has no version with a version");
+  put("apps/alpha/src/settings.ts", "export interface Saved { version: 1 }\nexport const write = () => ({ version: 2 });\n");
+  failsWith(run(), "Settings: apps/alpha/src/settings.ts has no version with a version");
+  const FORMAT = "const FORMAT = 1;\n";
+  for (const [source, written] of [
+    [`${FORMAT}export const write = () => ({ version: 1 });\nexport const again = () => ({ version: FORMAT });\n`, "FORMAT"],
+    [`${FORMAT}export const write = () => ({ "version": FORMAT });\n`, "FORMAT"],
+    [`${FORMAT}export const write = () => ({ version: FORMAT as 1 });\n`, "FORMAT"],
+    ["const version = 1;\nexport const write = () => ({ version });\n", "version"],
+    ["export const write = (old: { version: number }) => ({ version: 1, ...old, \"version\": old.version });\n", "old.version"],
+  ]) {
+    put("apps/alpha/src/settings.ts", source);
+    failsWith(run(), `Settings: apps/alpha/src/settings.ts writes version: ${written}; write the number itself at every version (定义处写字面量)`);
+  }
+});
+
+test("the table itself must exist, have the columns, and carry a whole number", () => {
   put("docs/releases/CHECKLIST.md", "# Checklist\n\nno table\n");
   failsWith(run(), "no section titled 各库版本表");
   put("docs/releases/CHECKLIST.md", "## 各库版本表\n\n| 库 | 版本 |\n| --- | --- |\n| Alpha | 3 |\n");
@@ -337,7 +475,7 @@ test("the table itself must exist, have the columns, and carry a number or 无",
   put("docs/releases/CHECKLIST.md", "## 各库版本表\n\n| 库 | 版本 | 定义处 |\n| --- | --- | --- |\n");
   failsWith(run(), "the 各库版本表 has no rows");
   put("docs/releases/CHECKLIST.md", "## 各库版本表\n\n| 库 | 版本 | 定义处 |\n| --- | --- | --- |\n| Alpha | three | `apps/alpha/src/store.ts#ALPHA_BASELINE` |\n");
-  failsWith(run(), "Alpha: needs a number or 无 in 版本 and a file in 定义处");
+  failsWith(run(), "Alpha: needs a whole number in 版本 and `path#NAME` in 定义处");
   rmSyncFile("docs/releases/CHECKLIST.md");
   failsWith(run(), "docs/releases/CHECKLIST.md: the file is missing");
 });
@@ -361,10 +499,10 @@ test("an unusable command line exits 2, not 0 or 1", () => {
 // REL-03: native Manifest versions are checked before any build or tag publication.
 test("a bundled plugin with a different or nonliteral version refuses release; integrations remain independent", () => {
   edit("pnpm-workspace.yaml", "  - 'server'", "  - 'server'\n  - 'plugins/native/*'\n  - 'plugins/official-integrations/*'");
-  ownVersion("plugins/native/alpha/src/manifest.ts", "manifest.schema", 2, '(schema_version: )\\d+()');
+  ownVersion("plugins/native/alpha/src/manifest.ts", "manifest.schema", 1, '(schema_version: )\\d+()');
   scratchLiterals("plugins/native/alpha/src/manifest.ts", "plugins/official-integrations/alpha/src/manifest.ts");
   put("plugins/native/alpha/package.json", JSON.stringify({ name: "native-alpha", version: "0.0.0", private: true }));
-  put("plugins/native/alpha/src/manifest.ts", `export const manifest = { schema_version: 2, version: '${VERSION}' };`);
+  put("plugins/native/alpha/src/manifest.ts", `export const manifest = { schema_version: 1, version: '${VERSION}' };`);
   put("plugins/official-integrations/alpha/package.json", JSON.stringify({ name: "integration-alpha", version: "0.0.0", private: true }));
   put("plugins/official-integrations/alpha/src/manifest.ts", `export const manifest = { version: "9.0.0" };`);
   assert.equal(run().code, 0);

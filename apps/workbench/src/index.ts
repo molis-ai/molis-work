@@ -66,6 +66,11 @@ export {
 export { deferredSurfaceClients, pluginOnDemandStylesheet, pluginSurfaceClients, pluginWorkbenchClientAsset } from "./plugin-workbench.js";
 export { pluginPageClients, pluginSettingsClients, pluginSettingsStyleLinks, pluginSettingsStyles } from "./plugin-workbench.js";
 export { SETTINGS_DIRECTORY_FACTORY_SCRIPT } from "./scripts/client/settings-directory.js";
+// The return trips' checks and their one writer (specs/draft-and-return §2), for the unit tests of S-return-trip-*.
+export {
+  RETURN_TRIP_RULES, createReturnOwner, needOfAddress, placeOf, readReturnTrips, returnGo, returnLanding, returnLink, returnRelay, returnTrip, startReturnWindow,
+  type ReturnTrip, type ReturnOwnerEnv, type ReturnStorage, type ReturnPlaceRoot,
+} from "./browser/return-trips.js";
 export { HOME_MODEL_SETTINGS_CLIENT_SCRIPT } from "./scripts/home-model-settings.js";
 export {
   GLOBAL_SETTINGS_QUERY_EXTRAS,
@@ -84,8 +89,10 @@ export { renderCharacters, renderCharactersSettingsEntry } from "./characters/ui
 export { renderMolisWorkCharactersClientScript } from "./characters/client-asset.js";
 
 export { assistantTextHtml, assistantReviewHtml } from "./scripts/client/assistant-island.js";
+export { connectionNeedHtml, isConnectionLoginUrl, type ConnectionNeedView } from "./connection-need-card.js";
 
 export {PERSONAL_ACCOUNT_CLIENT_SCRIPT} from './scripts/personal-account.js';
+export {renderPersonalAccountEntry} from './arrival/shell.js';
 export { renderPluginFrameClientScript, renderPluginFrameSurface } from "./plugin-frame.js";
 export { renderPluginDocumentShell } from "./plugin-document-shell.js";
 export { renderPluginStoreUnavailablePage } from "./plugin-store-unavailable.js";

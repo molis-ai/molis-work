@@ -28,6 +28,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { isMainScript } from "../script-paths.mjs";
 
 export const RUST_ROOT = "apps/desktop";
 export const RUST_MANIFEST = "apps/desktop/src-tauri/Cargo.toml";
@@ -190,4 +191,4 @@ const main = () => {
   }
   process.exit(failed ? 1 : 0);
 };
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main();
+if (isMainScript(import.meta.url)) main();

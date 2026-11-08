@@ -11,6 +11,7 @@ import { ASSISTANT_CHOOSERS_PART } from "./assistant-choosers.js";
 import { ASSISTANT_BROWSER_HANDBACK_PART } from "./assistant-browser-handback.js";
 import { ASSISTANT_LAYOUT_PART } from "./assistant-layout.js";
 import { ASSISTANT_CONVERSATION_PART } from "./assistant-conversation.js";
+import { ASSISTANT_CONNECTION_PART } from "./assistant-connection.js";
 import { ASSISTANT_SIDE_KIT_PART } from "./assistant-side-kit.js";
 import { ASSISTANT_SIDE_PATH_PART } from "./assistant-side-path.js";
 import { ASSISTANT_STRIP_PART } from "./assistant-strip.js";
@@ -109,9 +110,9 @@ ${ASSISTANT_BROWSER_HANDBACK_PART}
       // A work opened from the list or a notice keeps where it belongs. When that is not this page the chip opens with the place, because a narrow
       // bar has room for a few characters only; the tooltip keeps the whole line.
       const elsewhere = work.scope?.project_id !== project?.id ? scopeLabel(work.scope, work.scope_title) + " · " + work.title : "";
-      const verb = (isLive(work.state) ? L("补充到") : L("继续")) + "：";
-      targetLabel.textContent = work.reply_target ? L("回复到原评论") + "：" + work.reply_target.title : elsewhere || verb + work.title;
-      target.title = work.reply_target ? L("请回到原评论继续回复") : (elsewhere && verb + elsewhere + "\n") + L("下一次发送进入这项工作；点 × 改为开始新工作");
+      const aim = isLive(work.state) ? L("补充到：{title}", { title: elsewhere || work.title }) : L("继续：{title}", { title: elsewhere || work.title });
+      targetLabel.textContent = work.reply_target ? L("回复到原评论：{title}", { title: work.reply_target.title }) : elsewhere || aim;
+      target.title = work.reply_target ? L("请回到原评论继续回复") : (elsewhere && aim + "\n") + L("下一次发送进入这项工作；点 × 改为开始新工作");
       if (targetClear) targetClear.hidden = false;
       if (targetWrap) { targetWrap.dataset.mode = "work"; targetWrap.hidden = false; }
     } else {
@@ -228,6 +229,7 @@ ${ASSISTANT_LAYOUT_PART}
 
   const { bindMore, growCode, paint: paintCode } = (${createAssistantCodeGrow.toString()})(L);
   const placer = ${ASSISTANT_PLACER_SCRIPT};
+${ASSISTANT_CONNECTION_PART}
 ${ASSISTANT_CONVERSATION_PART}
   /* ─── The side pane: what this work is, how it got here, what it used and what it made ─ */
   const usageBox = island.querySelector("[data-assistant-usage]");

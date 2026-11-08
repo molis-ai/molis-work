@@ -38,14 +38,6 @@ export function readContextJourney(home: string, id: string): ContextJourney {
     journey.error = "这轮整理超过 30 天没有继续，暂存的文件已清理以腾出空间。原记录已保留，请重新选择资料开始一轮整理。";
     return journey;
   }
-  // Do not reinterpret old Cognia identities as Artifact identities, nor a material whose text sat in the row before staging
-  // (2026-10-22). Keep the historical journey intact and offer a fresh selection without reading its old store.
-  if (journey.phase !== "complete" && [...journey.sources.flatMap(s => s.references ?? []), ...(journey.summary?.references ?? [])]
-    .some(ref => !ref.source_id || !isStagedDigest(ref.original?.sha256) || !isStagedDigest(ref.text?.sha256)) || (journey.todo && !Array.isArray(journey.todo.batches))) {
-    journey.requires_reselection = true;
-    journey.error = "这轮资料使用旧版存储。原记录已保留，请重新选择资料开始一轮整理。";
-    return journey;
-  }
   if (journey.oauth_status === "pending" && Date.now() > (journey.oauth_expires_at ?? Date.parse(journey.updated_at) + 10 * 60_000)) {
     journey.oauth_status = "failed"; journey.auto_start = false;
     journey.error = "Google 授权已过期，已选材料仍在。请重新连接，或跳过 Gmail。";

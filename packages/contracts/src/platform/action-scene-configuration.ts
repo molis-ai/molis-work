@@ -1,9 +1,10 @@
+import { inputSchemaFor } from "./action-input.js";
 import { ACTION_REFERENCE_SCHEMA } from "./action-offers.js";
 import type { ActionDefinition, ActionReference, ActionSceneDefinition, ActionSceneTarget } from "./actions.js";
 
 export type SceneConfigurationInput = { binding_id: string; expected_revision: string | null; judgment: ActionReference & { provider_id: string } };
-const id = { type: "string", minLength: 1 };
-const pinnedReference = { ...ACTION_REFERENCE_SCHEMA, required: ["capability_id", "version", "provider_id"] };
+const id = { type: "string", minLength: 1 } as const;
+const pinnedReference = { ...ACTION_REFERENCE_SCHEMA, required: ["capability_id", "version", "provider_id"] } as const;
 const availability = { type: "object", properties: { available: { type: "boolean" }, code: id, reason: { type: "string" } }, required: ["available"] };
 export const ACTION_SCENE_TARGETS_SCHEMA = { type: "object", properties: { targets: { type: "array", items: {
   type: "object", properties: { binding_id: id, title: { type: "string" }, href: { type: "string" }, revision: { type: ["string", "null"] },
@@ -21,12 +22,12 @@ export function sceneConfigurationActions(scene: ActionSceneDefinition) {
       permissions: [...new Set(permissions)], subject_kinds: [], input_schema, output_schema,
     },
   });
-  const input = { type: "object", properties: { binding_id: id, expected_revision: { type: ["string", "null"] }, judgment: pinnedReference },
-    required: ["binding_id", "expected_revision", "judgment"], additionalProperties: false };
+  const input = inputSchemaFor<SceneConfigurationInput>()({ type: "object", properties: { binding_id: id, expected_revision: { type: ["string", "null"] }, judgment: pinnedReference },
+    required: ["binding_id", "expected_revision", "judgment"], additionalProperties: false });
   const result = { type: "object", properties: { ok: { const: true } }, required: ["ok"], additionalProperties: false };
   return {
     targets: define<{ judgment?: ActionReference & { provider_id: string } }, { targets: readonly ActionSceneTarget[] }>("targets", "读取使用位置", scene.configuration_permissions ?? [],
-      { type: "object", properties: { judgment: pinnedReference }, additionalProperties: false }, ACTION_SCENE_TARGETS_SCHEMA),
+      inputSchemaFor<{ judgment?: ActionReference & { provider_id: string } }>()({ type: "object", properties: { judgment: pinnedReference }, additionalProperties: false }), ACTION_SCENE_TARGETS_SCHEMA),
     enable: define<SceneConfigurationInput, { ok: true }>("enable", "启用判断", [...scene.configuration_permissions ?? [], ...scene.permissions], input, result, true),
     disable: define<SceneConfigurationInput, { ok: true }>("disable", "停用判断", scene.configuration_permissions ?? [], input, result, true),
   };

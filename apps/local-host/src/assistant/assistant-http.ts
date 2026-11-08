@@ -43,6 +43,7 @@ import { retainConnectorSetupsForSession } from "../connector-setup-retain.js";
 import { assistantSetupMaterial } from "./assistant-setup-material.js";
 import { pageChoices } from "./assistant-pages.js";
 import { hostLog } from "../host-log.js";
+import { assistantConnectionCard } from "./assistant-connection-card.js";
 
 /** The works related to an object, and each one's objects, as `assistant.works.related@1` and its HTTP read them. */
 const relatedSource = (service: AssistantService): RelatedWorksSource => ({ related: (projectId, subject) => service.reads.related(projectId, subject), read: workId => service.read(workId) });
@@ -352,6 +353,10 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
       if (method === "GET" && parts.length === 3 && parts[2] === "surroundings") return { status: 200, body: await surroundings(workId) };
       if (method === "GET" && parts.length === 4 && parts[2] === "materials") return { status: 200, body: { material: service.materials.material(workId, parts[3]!) } };
       if (method === "GET" && parts.length === 5 && parts[2] === "materials" && parts[4] === "image") return { status: 200, body: { image: await service.materials.materialImage(workId, parts[3]!) } };
+      // The connection card of a result that left a connection to finish (ASC-69): read, and cancelled, as whoever prepared it.
+      if (parts.length === 5 && parts[2] === "cards" && parts[4] === "connection" && (method === "GET" || method === "POST" && body.step === "cancel")) {
+        return { status: 200, body: await assistantConnectionCard(ports.localHost, ports.homeDirectory, store.get(WEB_ACTOR, workId), service.offers.card(workId, parts[3]!), method === "GET" ? "read" : "cancel", L) };
+      }
       if (method !== "POST") return null;
       const threadWork = await threadWorkRoute(workId, parts, body, ports);
       if (threadWork) return threadWork;

@@ -1,6 +1,6 @@
-import { installActions } from "./actions.js";
+import { installActions, installAskReturns } from "./actions.js";
 import { closeDialog } from "./dialog.js";
-import { messageOf } from "./dom.js";
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { reload } from "./list.js";
 import { cogniaPage, fail, q } from "./page.js";
 import { installSubmit } from "./submit.js";
@@ -34,4 +34,5 @@ export function cogniaClient(host: CogniaClientHost): void {
     void closeDialog(page).catch((error: unknown) => fail(page, messageOf(error)));
   });
   void reload(page);
+  installAskReturns(page);
 }

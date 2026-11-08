@@ -110,19 +110,31 @@ export function scriptJson(value: unknown): string {
 
 /**
  * What the page's scripts read of the directory: each plugin's key, whether its views accept objects, and the colour of its group
- * on the tab strip (the first `hue` its views declare; null when none does, and the strip picks one by the key).
+ * on the tab strip (the first `hue` its views declare; null when none does, and the strip picks one by the key). A plugin this
+ * project offers a place for carries its position on the rail (`order`, 0 first; the rail's keys in the rail's order), and the Host's
+ * mark when it holds the person's data across projects (`personal`): the tab workspace's ＋ lists those, in two sections
+ * (07-S2, 口径 8), instead of reading the page's buttons.
  */
-export interface ClientDirectoryEntry { readonly id: string; readonly accepts_objects: boolean; readonly hue: string | null }
+export interface ClientDirectoryEntry {
+  readonly id: string;
+  readonly accepts_objects: boolean;
+  readonly hue: string | null;
+  readonly order?: number;
+  readonly personal?: true;
+}
 
-export function clientPluginDirectory(directory: PluginDirectory): ClientDirectoryEntry[] {
-  return [{ id: ARTIFACT_NAVIGATION.id, accepts_objects: true, hue: ARTIFACT_NAVIGATION.hue }, ...directory.map(entry => ({
+export function clientPluginDirectory(directory: PluginDirectory, offered: readonly string[] = []): ClientDirectoryEntry[] {
+  const place = (id: string) => { const at = offered.indexOf(id); return at < 0 ? {} : { order: at }; };
+  return [{ id: ARTIFACT_NAVIGATION.id, accepts_objects: true, hue: ARTIFACT_NAVIGATION.hue, ...place(ARTIFACT_NAVIGATION.id) }, ...directory.map(entry => ({
     id: entry.id,
     accepts_objects: entry.ui.views.some(view => view.accepts_objects === true),
     hue: entry.ui.views.find(view => view.hue !== undefined)?.hue ?? null,
+    ...place(entry.id),
+    ...(entry.personal === true ? { personal: true as const } : {}),
   }))];
 }
 
 /** The directory element the page's scripts read once at start (`data-plugin-directory`). */
-export function renderPluginDirectoryData(directory: PluginDirectory): string {
-  return `<script type="application/json" data-plugin-directory>${scriptJson(clientPluginDirectory(directory))}</script>`;
+export function renderPluginDirectoryData(directory: PluginDirectory, offered: readonly string[] = []): string {
+  return `<script type="application/json" data-plugin-directory>${scriptJson(clientPluginDirectory(directory, offered))}</script>`;
 }

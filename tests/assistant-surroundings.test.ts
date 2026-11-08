@@ -29,7 +29,7 @@ function owners() {
     invoke: async (reference: { capability_id: string }, input: unknown) => {
       calls.push(reference.capability_id);
       if (reference.capability_id === `${EXECUTOR}.session.read`) return { session_id: (input as { session_id: string }).session_id, title: "会话", mode: null, runs: [], runtime_session_id: null, recovery: null, workspace_id: "w-1",
-        mcp_tools: [{ server: "gh", tool: "list_issues", version: "1" }, { server: "gh", tool: "close_issue", version: "1" }, { server: "lin", tool: "create_issue", version: "1", server_label: "Linear" }] };
+        mcp_tools: [{ server: "gh", tool: "list_issues", version: "1", configuration_version: 1 }, { server: "gh", tool: "close_issue", version: "1", configuration_version: 1 }, { server: "lin", tool: "create_issue", version: "1", configuration_version: 1, server_label: "Linear" }] };
       if (reference.capability_id === `${EXECUTOR}.state`) return { modes: EXECUTOR_MODES, default_mode: "execute", images: false, workspace_id: "w-0",
         workspaces: [{ workspace_id: "w-0", name: "other", path: "/work/other" }, { workspace_id: "w-1", name: "molis", path: "/work/molis" }],
         mcp: [mcp("gh", "GitHub MCP", "connected", ["list_issues"]), mcp("lin", "Linear MCP", "disconnected", ["create_issue"])] };

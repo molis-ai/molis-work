@@ -1,13 +1,14 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
-import { mkdtemp, mkdir, readdir, rename, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { TestContext } from "node:test";
-import { installMolisWorkHome } from "@molis-ai/molis-work-app-local-host";
-import { isolatedMcpResident } from "./isolated-mcp-resident.js";
+import { changeMcpClientCredential, installMolisWorkHome } from "@molis-ai/molis-work-app-local-host";
+import { isolatedMcpResident, waitUntil } from "./isolated-mcp-resident.js";
+import { installedAccountAuth } from "./installed-account.js";
 
 export { waitUntil } from "./isolated-mcp-resident.js";
 
@@ -15,28 +16,51 @@ export async function installedMcpHome(t: TestContext, install = installMolisWor
   const root = await mkdtemp(join(tmpdir(), "mcp-autostart-")), home = join(root, "home");
   const clients = new Set<ReturnType<typeof rawMcp>>();
   let cleanupHost = async () => {}, cleanupCandidates = async () => {};
+  let closeAuth = async () => {};
   let installation: ReturnType<typeof install> | undefined;
   const closePeers = async () => { await Promise.all([...clients].map(peer => peer.close())); clients.clear(); };
   t.after(async () => {
     // RAC-628-F1: an expired parent must not delete files while its installer is still writing them.
     await installation?.catch(() => { /* The test body retains the installation failure. */ });
     await closePeers(); await cleanupHost(); await cleanupCandidates();
+    await closeAuth();
     await rm(root, { recursive: true, force: true });
   });
   t.diagnostic("Installing the real build into an isolated Home");
   const installed = await (installation = install({ homeDirectory: home, sourceDirectory: fileURLToPath(new URL("../../", import.meta.url)),
     beforeStep: step => { t.signal.throwIfAborted(); t.diagnostic(`Real installer phase: ${step}`); } }));
   t.signal.throwIfAborted();
+  changeMcpClientCredential(home, "runtime:codex", "connect");
   t.diagnostic("Real install complete; beginning process scenarios");
   const { origin, health, stopHost } = await isolatedMcpResident(home);
   cleanupHost = stopHost;
+  const auth = await installedAccountAuth(root, origin); closeAuth = auth.close;
+  // Persist a real installation login once, then stop it so every scenario still tests an actual cold installed launcher.
+  const bootstrap = spawn(process.execPath, [installed.launchers.web, "--home", home, "--port", new URL(origin).port], {
+    env: { ...process.env, ...auth.environment, HOME: root, MOLIS_WORK_HOME: home, MOLIS_WORK_WEB_URL: origin }, stdio: ["ignore", "pipe", "pipe"],
+  });
+  let bootstrapErrors = ""; bootstrap.stderr.on("data", chunk => { bootstrapErrors = (bootstrapErrors + String(chunk)).slice(-3000); });
+  bootstrap.stdout.resume();
+  const bootstrapClosed = new Promise<void>((resolve, reject) => { bootstrap.once("error", reject); bootstrap.once("close", () => resolve()); });
+  let accountHome: string;
+  try {
+    await waitUntil(async () => {
+      if (bootstrap.exitCode !== null) throw new Error("Account bootstrap Web exited: " + bootstrapErrors);
+      return fetch(origin + "/health").then(response => response.ok, () => false);
+    });
+    assert.equal((await fetch(origin + "/api/settings/projects")).status, 401, "a fresh installed Host refuses anonymous business");
+    const rootToken = (await readFile(join(home, "config/web-control-token"), "utf8")).trim();
+    accountHome = (await auth.login(home, rootToken)).home;
+  } finally {
+    bootstrap.kill("SIGTERM"); await bootstrapClosed;
+  }
   const original = join(home, "bin", "molis-work-web-original"), barrier = join(root, "release-start"), attempts = join(root, "attempts");
   await mkdir(attempts);
   await rename(installed.launchers.web, original);
   const quote = (value: string) => `'${value.replaceAll("'", `'"'"'`)}'`;
   // The test barrier delays only the installed launch entry; the actual release and fd 3 chain remain production code.
   async function configureWeb(environment: Record<string, string> = {}) {
-    const trustedFixtureEnvironment = Object.entries(environment).map(([key, value]) => {
+    const trustedFixtureEnvironment = Object.entries({ ...auth.environment, ...environment }).map(([key, value]) => {
       assert.match(key, /^[A-Z][A-Z0-9_]*$/);
       return `export ${key}=${quote(value)}\n`;
     }).join("");
@@ -49,7 +73,7 @@ export async function installedMcpHome(t: TestContext, install = installMolisWor
   const env = (session: string) => ({ ...process.env, HOME: root, MOLIS_WORK_HOME: home, MOLIS_WORK_RUNTIME_ID: "codex",
     MOLIS_WORK_WEB_URL: origin, MOLIS_WORK_WORK_CONTEXT_ID: session, MOLIS_WORK_WORK_CONTEXT_STABLE: "true", MOLIS_WORK_SESSION_ID: "",
     MOLIS_WORK_PANEL_ID: "", MOLIS_WORK_FOCUS_ID: "", CODEX_THREAD_ID: "", CLAUDE_CODE_SESSION_NAME: "", PWD: root });
-  return { root, home, origin, installed, attempts, barrier, health, stopHost, env, configureWeb,
+  return { root, home, accountHome, origin, installed, attempts, barrier, health, stopHost, env, configureWeb,
     async cleanupCase() { await closePeers(); await stopHost(); await cleanupCandidates(); },
     async connect(session: string, override?: NodeJS.ProcessEnv) {
       const peer = rawMcp(t, installed.launchers.mcp, { ...env(session), ...override }); clients.add(peer);

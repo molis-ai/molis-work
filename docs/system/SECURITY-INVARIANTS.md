@@ -16,6 +16,7 @@
 
 
 
+
 ### S-15 插件权限
 
 详细规则、调用者、权限交集、内置信任与沙箱说明随该边界的独立记录维护：[S-15](security-invariants/S-15.md)。
@@ -51,7 +52,7 @@ node scripts/run-tests.mjs tests/security-invariants-local-entry.test.ts   # 单
 
 ## 4. 开放项（没有守住，或守住的范围有限）
 
-- **桌面 IPC 的可达范围没有实测（F15 的另一半）**：S-14 钉住了能力文件；`apps/desktop/src-tauri/capabilities/default.json` 现在只把 `capsule_*` 与 `shelf_*`（含 `platform_read_selected_file`、`shelf_admit_paths` 等）开放给 `127.0.0.1:4173`/`localhost:4173` 的页面，原生 PTY 命令已无消费方并移除（S-14）。同源的 iframe（插件侧栏 `apps/workbench/src/side-panel.ts` 的 frame 没有 `sandbox` 属性）能否直接调用这些命令、`tauri.conf.json` 的 `csp: null` 对壳加载的页面意味着什么，要有一次真实构建才能回答（c-end-readiness 的 S5 探针）。壳向 Host 换到路径、核对之后到 `open` 之间仍有毫秒级的窗口（文件可能在这一刻被换成链接），没有消除（PG-113）。已知的缓和：同一个页面里的脚本本来就能拿到控制令牌去连宿主两个 socket（S-04），所以 IPC 没有给同源脚本新增能力；别的本机进程占着 4173 时壳会加载它的页面，但本机进程本来就以用户身份运行。
+- **桌面 IPC 的可达范围没有实测（F15 的另一半）**：S-14 钉住了能力文件；`apps/desktop/src-tauri/capabilities/default.json` 现在只把 `capsule_*` 与 `shelf_*`（含 `platform_read_selected_file`、`shelf_admit_paths` 等）开放给 `127.0.0.1:4173`/`localhost:4173` 的页面，原生 PTY 命令已无消费方并移除（S-14）。插件侧栏的外层同源 iframe 是宿主包装页，插件 HTML 自 #1018 起由 `apps/workbench/src/home-plugin-page.ts` 交给共同的不透明 frame；不能仅凭外层无 `sandbox` 推断插件获得同源权限。D0033 的真实侧栏浏览器探针验证插件不能读取两层可信父页的 DOM/控制令牌、没有原生 IPC 对象，并拒绝跨 owner/项目的桥请求。实际 Tauri WebView 命令可达性与 `tauri.conf.json` 的 `csp: null` 仍须真实桌面构建的 S5 探针；浏览器中的模拟 IPC 不能替代该证据。壳向 Host 换到路径、核对之后到 `open` 之间仍有毫秒级的窗口（文件可能在这一刻被换成链接），没有消除（PG-113）。已知的缓和：同一个页面里的脚本本来就能拿到控制令牌去连宿主两个 socket（S-04），所以 IPC 没有给同源脚本新增能力；别的本机进程占着 4173 时壳会加载它的页面，但本机进程本来就以用户身份运行。
 - **“是不是本机”在两处不是共用那一份**：桌面壳的 Rust（`apps/desktop/adapters/tauri/src/main.rs`、`context_directories.rs`）是另一种语言；OAuth 代理 Worker（`apps/local-host/cloudflare/worker.ts`）单独用 `wrangler` 打包部署，今天不引用工作区里的任何包，部署步骤（`apps/local-host/cloudflare/README.md`）也不先构建，而 `contracts` 的子路径只导出构建产物。Worker 的那份与共用的那份等价，由 `tests/connector-oauth-broker.test.ts` 逐个写法比对钉住；要合成一份，先要让 Worker 的部署带上构建步骤（它是线上服务，由用户决定）。
 - **`/locale`、`/health` 等 GET 路由没有“只读”断言**：S-03 保证的是变更不绕过令牌，GET 路由是否真的只读靠评审；页面 HTML 里内嵌控制令牌是设计（只给回环 `Host`，S-02），没有跨域读的头（宿主不发 `Access-Control-Allow-*`，见 S-03 的测试）。
 - **控制令牌文件已存在但权限过宽时不会收紧**：新文件是 0600（S-06），旧文件（别的版本或手工放的）原样沿用。处理需要用户定：沿用并收紧权限、或换新令牌（换新令牌会让常驻服务与 MCP 进程重连）。

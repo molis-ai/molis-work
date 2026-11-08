@@ -189,7 +189,7 @@ test("global settings retain project context through sections, planning cancel a
   const shown=(selector:string)=>waitFor(`!!document.querySelector('[data-work-surface=settings] ${selector}')`,15_000);
   for(const desktop of [false,true]) {
     await navigate(()=>command('Page.navigate',{url:`${origin}/projects/${projectId}/${desktop?'?desktop=1':''}`},sessionId));
-    await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item')");
+    await waitFor("document.querySelector('[data-titlebar-tabs] .tab-add-button')");
     await click('[data-plugin-id=goals]');
     await openGoalFrame('.tree-node[data-select-goal=CORE]');
     await waitFor("document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal==='CORE'");

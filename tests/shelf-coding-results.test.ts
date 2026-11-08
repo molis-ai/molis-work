@@ -47,8 +47,8 @@ test("W5-01-CODING-08 the preview of a fixed change set is the very copy the hos
   assert.deepEqual(await preview(platform, CHANGESET_REFERENCE), {
     title: "这一轮的固定变更",
     text: heading("这一轮的固定变更", "coding-changeset:session-a:run-1") + CHANGE_SET_MARKDOWN,
-    source: source(CHANGESET_REFERENCE, "32638b75d368efc6906ab5059afe77cdd7b5e5e0dc276278abc6a9bed93610c9"),
-    fingerprint: "c3dc6c31c17300ac2d5bf78b28cd91fb20ecf2d4f6f32e9934db4566051750e2",
+    source: source(CHANGESET_REFERENCE, "9d6065d0946a3b148e32150f7b5d890d73b69f987debcc627292d0017cfd2f7e"),
+    fingerprint: "f01017348b1a2f77d37568ea62dfa0a0164d24bed8b1ea5018a29135b79a5b1e",
   });
 });
 

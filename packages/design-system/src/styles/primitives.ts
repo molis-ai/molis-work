@@ -337,6 +337,13 @@ export const PRIMITIVE_STYLES = `
   .mw-alert--danger { background: var(--red-soft); border-color: color-mix(in srgb, var(--red) 16%, transparent); }
   .mw-alert--success { background: color-mix(in srgb, var(--green) 12%, var(--paper)); }
   .mw-alert--warning { background: color-mix(in srgb, var(--amber) 14%, var(--paper)); }
+  /* The settings' return bar and a page's resume prompt (specs/draft-and-return §9): an alert with its answers under it, at any width. */
+  .mw-return-bar > strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mw-return-bar__actions, .mw-resume-prompt__actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  .mw-return-bar__actions { padding-top: 4px; }
+  .mw-return-bar[data-return-bar-state=gone] svg { display: none; }
+  .mw-resume-prompt { display: grid; gap: 8px; animation: craft-rise var(--dur-arrive) var(--ease-quint) both; }
+  @media (prefers-reduced-motion: reduce) { .mw-resume-prompt { animation: none; } }
 
   .mw-empty {
     display: grid; justify-items: start; align-content: start; gap: 8px; padding: 16px 12px; color: var(--ink-soft);
@@ -452,6 +459,13 @@ export const PRIMITIVE_STYLES = `
   .mw-menu__shortcut { flex: none; margin-left: 16px; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
   .mw-menu__item:disabled { background: transparent; color: var(--faint); cursor: default; }
   .mw-menu__item:disabled :is(svg, .mw-menu__shortcut) { color: var(--faint); }
+  /* Glyph, name and shortcut on the first row; the description takes the whole width under them, the shortcut's column too. */
+  .mw-menu__item--described { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: baseline; gap: 2px 8px; padding-block: 8px; }
+  .mw-menu__item--described > :is(svg, .mw-menu__check) { grid-area: 1 / 1; align-self: center; }
+  .mw-menu__item--described > [data-slot="menu-item-label"] { display: contents; }
+  .mw-menu__item--described > [data-slot="menu-item-label"] > span { grid-area: 1 / 2; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mw-menu__item--described .mw-menu__shortcut { grid-area: 1 / 3; }
+  .mw-menu__desc { grid-column: 2 / -1; color: var(--muted); font-size: 12px; font-weight: var(--weight-body, 400); line-height: 18px; text-wrap: pretty; word-break: keep-all; overflow-wrap: anywhere; }
   .mw-menu__label { padding: 4px 12px 2px; color: var(--muted); font-size: 11px; font-weight: var(--weight-control, 500); line-height: 20px; }
   .mw-menu__group + .mw-menu__group::before { content: ""; display: block; margin: 4px 8px; border-top: 1px solid var(--line); }
   .mw-tooltip {

@@ -5,9 +5,8 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { createDesktopWebHost } from "@molis-ai/molis-work-app-desktop";
-const createMolisWorkWebServer=createDesktopWebHost({ptyClientFilePath:()=>""});
+import { changeMcpClientCredential, MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { configureMemberActions } from "../apps/server/src/admin-grants.js";
 import { gatewayFactory } from "../apps/server/src/gateway.js";
 import { CONTINUITY_ACTIONS } from "@molis-ai/molis-work-server";
@@ -26,9 +25,11 @@ test("local administrator grants through the protected owner API and gateway kee
   const factory=gatewayFactory({url,homeDirectory:home});
   const first=factory({projectId:project.project_id,memberId:'member-a',validate:()=>{},signal:new AbortController().signal});
   const second=factory({projectId:project.project_id,memberId:'member-b',validate:()=>{},signal:new AbortController().signal});
-  const admin={hostUrl:url,controlTokenFile:join(home,'config/web-control-token'),projectId:project.project_id};
+  const admin={homeDirectory:home,hostUrl:url,controlTokenFile:join(home,'config/web-control-token'),projectId:project.project_id};
   const action=(id:string)=>CONTINUITY_ACTIONS.find(a=>a.capability_id===id)!;
   try {
+    await assert.rejects(first.client.discover(first.caller),{code:"actions.connection_required"});
+    changeMcpClientCredential(home,first.caller.actor_id,"connect");
     assert.equal((await first.client.discover(first.caller)).some(a=>a.capability_id==='goals.progress.record'),false);
     await configureMemberActions({...admin,memberId:'member-a',role:'editor'});
     await configureMemberActions({...admin,memberId:'member-b',role:'viewer'});
@@ -52,6 +53,6 @@ test("local administrator grants through the protected owner API and gateway kee
 test("the administrator command refuses everything but a numeric loopback origin before reading the token file", async () => {
   for (const hostUrl of ["https://127.0.0.1:4173", "http://localhost:4173", "http://evil.example:4173", "http://127.0.0.1:4173/path", "http://127.0.0.1:4173/?x=1", "http://127.0.0.1:4173/#x",
     "http://user:pass@127.0.0.1:4173", "http://0.0.0.0:4173", "http://[::ffff:127.0.0.1]:4173"]) {
-    await assert.rejects(configureMemberActions({ hostUrl, controlTokenFile: "/nonexistent/web-control-token", memberId: "m", projectId: "p", role: "viewer" }), /numeric loopback HTTP origin/, hostUrl);
+    await assert.rejects(configureMemberActions({ hostUrl, homeDirectory: "/unused", controlTokenFile: "/nonexistent/web-control-token", memberId: "m", projectId: "p", role: "viewer" }), /numeric loopback HTTP origin/, hostUrl);
   }
 });

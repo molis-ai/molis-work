@@ -1,6 +1,3 @@
-import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
-import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
-export { messageOf, esc };
 
 export const glyph = (name: string): string => `<svg aria-hidden="true"><use href="#icon-${name}"></use></svg>`;
 export const uid = (): string => crypto.randomUUID();

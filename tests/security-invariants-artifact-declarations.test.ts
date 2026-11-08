@@ -4,7 +4,7 @@ import { mkdtempSync, readdirSync, readFileSync, realpathSync, renameSync, rmSyn
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import test, { type TestContext } from "node:test";
-import { defineArtifactPreviewAction } from "@molis-ai/molis-work-contracts/platform/actions";
+import { defineArtifactPreviewAction, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginTrust } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import { goalsManifest } from "@molis-ai/molis-work-plugin-goals";
@@ -106,6 +106,37 @@ async function restoreTarget(t: TestContext) {
   return { home, bundle, p, asset, state };
 }
 
+test("D0002-01 S-81 a work-assets bundle cannot authorize team sharing, before a Home or recovery record is created", async t => {
+  const parent = bareHome(t), home = join(parent, "refused-team-restore");
+  const asset = { ...restored("source", OTHER, "example.note", "team-forgery"), owner_actor_id: "forged-owner", scope: "team_project",
+    team_share_authorized: true, actor_id: "forged-actor", availability: "available", lifecycle_state: "active", supersedes_version: null };
+  const bundle = { format: "molis-work-assets", version: 1, source_project_id: "source", title: "恢复", goals: [], artifacts: [asset], dependencies: [], notes: [] };
+  await assert.rejects(() => restoreWorkAssets(bundle, home), { code: "actions.forbidden" });
+  assert.ok(!readdirSync(parent).includes("refused-team-restore"), "a forged team scope creates neither catalog nor recovery identity");
+});
+
+test("D0002-02 S-81 restore records the Host actor and keeps the bundle owner only as untrusted source metadata", async t => {
+  const r = await restoreTarget(t), asset = { ...r.asset(OTHER, "example.note", "source-owner"), owner_actor_id: "forged-owner",
+    metadata: { note: "original", restore_source_owner_actor_id: "forged-provenance" }, lifecycle_state: "archived" };
+  await restoreWorkAssets({ ...r.bundle, artifacts: [asset] }, r.home);
+  const record = r.state().artifacts[0]!;
+  assert.equal(record.created_by, "continuity:local-restore");
+  assert.equal(record.archived_by, "continuity:local-restore");
+  assert.equal(record.owner_actor_id, LOCAL_PERSON_ACTOR_ID);
+  assert.equal(record.metadata.restore_source_owner_actor_id, "forged-owner");
+  assert.equal(record.metadata.note, "original");
+  assert.equal((await restoreWorkAssets({ ...r.bundle, artifacts: [asset] }, r.home)).restored, 1, "same source replays without changing the restored version");
+});
+
+test("D0002-03 S-81 the internal restore also rejects a team scope without changing an existing project's versions or journal", async t => {
+  const r = await restoreTarget(t), asset = r.asset(OTHER, "example.note", "kept");
+  restoreArtifactVersions(r.p.store, r.p.projectId, [asset]);
+  const before = r.state();
+  assert.throws(() => restoreArtifactVersions(r.p.store, r.p.projectId, [asset, { ...asset, artifact_id: "team-forgery", scope: "team_project" }]), { code: "actions.forbidden" });
+  assert.deepEqual(r.state(), before, "a rejected bundle changes neither versions nor the event cursor");
+  assert.equal(restoreArtifactVersions(r.p.store, r.p.projectId, [asset])[0]!.replayed, true);
+});
+
 for (const disabled of [false, true]) test(`RAC-416-R1 S-81 production restore checks the exact persisted ${disabled ? "disabled" : "installed"} release and rolls back the whole bundle`, async t => {
   const r = await restoreTarget(t), definition = plugin(PRODUCER, "1.0.0", ["example.note"]);
   let starts = 0;
@@ -175,7 +206,7 @@ test("RAC-417-R1 S-82 a missing catalog project's library refuses installs and k
   assert.equal(ia, ib, "scope, not install_id alone, distinguishes the holders");
   seedSceneRules(home, { provider_id: PRODUCER, plugin_id: PRODUCER, title: "笔记", kind: "plugin" }, [declaredScene("example.pick", declaredRule("restore_rule_hold"))], DECLARED_RULE_OPTIONS);
   const rule = () => withFunctionsService(home, service => service.getByKey("restore_rule_hold"), DECLARED_RULE_OPTIONS);
-  const before = withFunctionsService(home, service => service.addSample(rule()!.id, { input: "另一版本安装的用户样例" }), DECLARED_RULE_OPTIONS);
+  const before = withFunctionsService(home, service => service.addSample(rule()!.id, { input: "另一版本安装的用户样例" }, service.get(rule()!.id).updated_at), DECLARED_RULE_OPTIONS);
   const target = await withCatalog({ homeDirectory: home }, catalog => catalog.getProject(pb.projectId));
   const missing = target.database_path + ".temporarily-unavailable";
   renameSync(target.database_path, missing);

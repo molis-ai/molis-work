@@ -6,9 +6,18 @@
 
 ### 升级须知（需要动手）
 
+- **MCP 独立客户端凭据（D0071，2026-11-08）**：更新后在设置中对已有 Runtime 重新执行接入，并重启其 MCP 连接。主控制令牌不再允许动作网关声明任意客户端身份；旧请求体 `client_id` 被拒绝。连接凭据只存安装 Home，不写入 Runtime 配置、不随快照恢复；恢复后重新接入。动作名称、版本、输入输出 schema 与 MCP 工具名不变。实验 Server 的本地 `authorize` 命令须提供 `--host-home DIR`，由管理员为该成员建立独立连接。
+
+- MCP 客户端和已保存的调用：判断规则的 `functions.authoring.update`、`preview`、`publish`、`delete`、`sample.add`、`sample.remove` 改为必须带读取时的版本 `expected_updated_at`（必填的非空字符串，取读到的记录的 `updated_at`），原来的 `updated_at` 字段不再接受。Agent 和 MCP 缺版本时得到 `actions.version_required`，字段名写旧或值非法得到 `actions.input_invalid`，版本过期得到 `functions.draft_stale`：先用 `functions.authoring.get` 读最新内容，再决定怎样提交。另有三处结果变了，按原来的结果判断的客户端要改：
+  - 版本过期的错误码从 `functions.conflict` 改成 `functions.draft_stale`。`functions.conflict` 只剩「草稿用途变了」这一种。
+  - `functions.authoring.sample.remove` 找不到样例，从 `functions.not_found` 改成 `functions.sample_not_found`。
+  - `functions.authoring.publish` 遇到已发布的记录不再一律成功：读到的正是发布的那一版才幂等成功，读到更早的版本得到 `functions.published_immutable`。
+
+  `updated_at` 现在只随定义变化：试跑、样例、发布和规整后无变化的保存都不推它，规则列表按 `COALESCE(published_at, updated_at)` 排序。拿它当「最后改动时间」的客户端会看到不同。
 - **第 02 批 Feed 证据和搜索回到统一起点。** 证据只读写 `feed/evidence/` 与一把现行密钥，搜索意图只用 `feed-intent-v1`；不再读取恢复副本或尝试旧环境口令盐。已有正文缺钥、错钥或损坏时拒绝，原文件不变。此变更须随约定维护窗口先验证完整备份可恢复，再干净重建真实 Home；不要把此构建直接用于旧 Home 的就地升级。实际现场完成另记。
 - **个人版合入主线存储调整**：保留合并后的完整结构和同步日志，重建前各库与本机持久化文件归一为 1；同步日志随 owner 的完整结构验证。各库版本见[发布清单](CHECKLIST.md)。旧 Work／Sessions 功能随主线移除，其他个人同步保留；旧库不就地升级。安装前按第 02 批已定维护窗口先验证完整备份可恢复，再搬开旧 Home 并干净重建。这次只合代码，不维护正在使用的数据。
 - **第 02 批统一插件与动作版本。** 插件清单的 `schema_version` 和 `host_api_version` 都填 1，使用当前完整声明；填 2 的清单会被拒绝。内置清单和宿主快照中，101 个原为 @2～@8 的动作回到 @1；之后合入的 `shelf.items.edit@2` 也回到 @1，MCP 工具名从 `shelf.items.edit__v2` 变成 `shelf.items.edit__v1`。工作流步骤、绑定、外部脚本应按现行目录逐项核对输入输出：名字保留的动作若曾固定在旧 @1，现在会直接对上现行形状，版本号本身不会拒绝这条旧引用。真实 Home 在约定维护窗口重建。
+- **第 02 批：清单按统一起点 1 严格检查声明。** 插件 SDK 解析清单即执行现行声明检查（`assertDeclarations`）：声明按现行合同逐项核对，不合的清单解析不过、装不进去；没有只在开发期放宽的旧规则开关，也不保留旧工具别名（旧 MCP 工具名按现行目录版本重算，见上条）。本次统一起点把内置清单与动作回到 1，`plugins.install.preview`、`assistant.methods.read` 现行都是 @1；外部插件以各自 Manifest 声明的版本为准，不随这条复位。下面历史版本段（0.3.0、0.2.0）里的版本号与时间保留当时含义，不是当前检查。
 - **第 02 批：内置方法的版本回到 1。** Goals 内置规划方法的版本由 2、3 回到 1，`issues-capture` 由 11 回到 1，`meeting-notes` 由 2 回到 1，方法详情页显示的版本随之变化。`goals.events.configure` 明确固定旧版本 2、3 的调用会被拒（`goals.event_config.planning_version_unavailable`），要改成 1 或不传 `version`；固定 1 的引用现在对上现行正文。动作快照看不到这个变化。
 - **第 02 批：动作工厂的版本成为必填。** 20 个 `define*Action` 工厂的 `version` 改成紧跟 id 的必填参数，`createActionDefinition` 的末位 `version` 和 `defineWorkExecutorAction` 的 `version` 也去掉了缺省 1。插件源码要补上这个参数。
 - **记忆导出包的版本回到 1。** `molis.memory` 包只收 `version: 1`，之前导出的版本 2 文件导入时被拒（「版本 2 不认识」），不转换。

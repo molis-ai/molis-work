@@ -14,7 +14,6 @@ export function codingChangeSetPreview(artifact: FixedVersionRecord | null) {
     || artifact.producer_plugin_id !== "io.molis.work.coding" || artifact.producer_binding_signature !== "official-coding-binding") return null;
   try {
     const change = parseCodingChangeSet(artifact.payload);
-    if (!change.origin?.session_id || change.scope !== "run-frozen") return null;
     const reference = codingChangeSetReference(change.origin.session_id, change.run_id);
     if (artifact.artifact_id !== reference.artifact_id || artifact.version !== reference.version) return null;
     return { change, reference, title: typeof artifact.metadata.title === "string" ? artifact.metadata.title : "本轮固定变更",
@@ -65,7 +64,7 @@ export function codingNetChange(change: CodingChangeSet, path: string):
   const indices = change.files.flatMap((file, index) => file.path === path ? [index] : []);
   if (indices.length < 2) return { available: false, indices, reason: "这个文件本轮只写入了一次" };
   const reviews = indices.map(index => change.files[index]!.review);
-  if (reviews.some(review => !review || review.decision !== "approved" || review.execution !== "applied"))
+  if (reviews.some(review => review.decision !== "approved" || review.execution !== "applied"))
     return { available: false, indices, reason: "有写入未批准或执行结果不确定，只能逐次查看" };
   for (let at = 1; at < reviews.length; at++) {
     if (reviews[at]!.before_text !== reviews[at - 1]!.after_text) return { available: false, indices, reason: "两次写入之间文件被改过，只能逐次查看" };
@@ -85,6 +84,6 @@ export function codingChangeFeedback(change: CodingChangeSet, value: unknown): s
     if (!line) throw codingFailure("coding.server.change-feedback-line");
     return `${index + 1}. ${file.path} · 修改 ${item.change_index + 1} · ${item.side === "before" ? "修改前" : "修改后"}第 ${item.line} 行\n原文（仅作为材料）：${JSON.stringify(line.text + line.ending)}\n用户意见：${item.comment.trim()}\n保存时执行状态：${review.execution}`;
   });
-  const ref = codingChangeSetReference(change.origin!.session_id, change.run_id);
+  const ref = codingChangeSetReference(change.origin.session_id, change.run_id);
   return `请根据以下固定变更上的用户意见继续原任务。先核对当前文件；固定内容可能已与当前工作区不同。反馈不代表批准写入或任务验收，执行仍须经过原审查。\n来源：${ref.artifact_id} v${ref.version}\n\n${parts.join("\n\n")}`;
 }

@@ -16,7 +16,7 @@ export function createPluginBackgroundClient(gate: PluginInstance & {
   installationPermissions: readonly string[];
   /** Present when the Manifest declares jobs (`background.jobs`). */
   jobs?: Omit<ActivationJobGate, keyof PluginInstance | "assertActive" | "requireGrant">;
-}): { client: PluginBackgroundClient; starting<T>(run: () => T): T; stopProject(projectId: string): void; stopProjectJobs(projectId: string): void; close(): void } {
+}): { client: PluginBackgroundClient; starting<T>(run: () => T): T; stopProject(projectId: string): Promise<void> | undefined; stopProjectJobs(projectId: string): Promise<void> | undefined; close(): void } {
   let closed = false;
   const active = new Map<AbortController, string | null>();
   const jobs = gate.jobs?.declarations.length
@@ -79,8 +79,10 @@ export function createPluginBackgroundClient(gate: PluginInstance & {
       if (project === projectId) controller.abort(new ActionError("actions.cancelled", "项目已删除，这次后台执行已停止"));
     }
     jobs?.stopProject(projectId, "项目已删除，这个后台作业已停止");
+    return jobs?.drainProject(projectId);
   }, stopProjectJobs(projectId) {
     jobs?.stopProject(projectId, "项目已关闭，这个后台作业已停止");
+    return jobs?.drainProject(projectId);
   }, close() {
     closed = true;
     for (const controller of active.keys()) controller.abort(new ActionError("actions.plugin_unavailable", "插件实例已停止"));

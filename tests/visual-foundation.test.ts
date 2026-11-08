@@ -130,7 +130,7 @@ test("desktop Diagnostics cards keep content inset and actions grouped", () => {
   assert.match(stylesheet, /\.diagnostics-summary > div:first-child \{[^}]*align-items: flex-start;[^}]*justify-content: space-between;/);
   assert.doesNotMatch(stylesheet, /\.diagnostics-summary > div \{/);
   // The standalone settings page renders data-desktop-shell="false", so the foundation's body.settings-page[data-desktop-shell="true"] Diagnostics spacing never applied; it went with personal-workbench-v3 (W5-05).
-  assert.match(readFileSync(new URL("../apps/workbench/src/project-settings-pages.ts", import.meta.url), "utf8"), /<body class="settings-page project-preferences-page"[^>]*data-desktop-shell="false"/);
+  assert.match(readFileSync(new URL("../apps/workbench/src/project-settings-pages.ts", import.meta.url), "utf8"), /<body\$\{ports\.accountRegistration \? ACCOUNT_REGISTRATION_BODY : ''\} class="settings-page project-preferences-page"[^>]*data-desktop-shell="false"/);
 });
 
 test("visual foundation keeps Standard and Compact as local presentation choices", () => {

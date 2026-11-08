@@ -29,7 +29,7 @@ import { hostTextGeneration } from "./host-complete-text.js";
 
 export interface KnowledgeHostPorts {
   homeDirectory: string;
-  search: Pick<SearchService, "query">;
+  search: Pick<SearchService, "query" | "indexedCatalog">;
   /** The search index: the catalog of each project is what it holds (spec §4.4). */
   index: Pick<SearchIndexPort, "documents" | "sources" | "related">;
   clientFor(caller: ActionCallContext): ActionClient;
@@ -68,9 +68,9 @@ const CARD_SCHEMA = { type: "object", properties: { title: { type: "string" }, b
 export function knowledgeModelWriter(homeDirectory: string): KnowledgeWriter | null {
   const generate = hostTextGeneration({ homeDirectory });
   if (!generate) return null;
-  return async (input, signal) => {
+  return async (input, signal, beforeDispatch) => {
     const result = await generate(resolveModelPrompt(homeDirectory, instructed(KNOWLEDGE_ORGANIZE, JSON.stringify(input)), KNOWLEDGE_ORGANIZE.prompt_id), {
-      structured: { mode: "local", name: "knowledge_card", schema: CARD_SCHEMA as never }, signal, timeoutMs: 120_000, maxOutputTokens: 4000 });
+      structured: { mode: "local", name: "knowledge_card", schema: CARD_SCHEMA as never }, signal, beforeDispatch, timeoutMs: 120_000, maxOutputTokens: 4000 });
     const draft = result.structured as KnowledgeDraft | undefined;
     if (!draft || typeof draft !== "object") throw new Error("模型没有给出合格式的卡片");
     return draft;
@@ -100,7 +100,13 @@ export function knowledgeModelLocator(homeDirectory: string): KnowledgeLocator |
  */
 export function createKnowledgeHost(ports: KnowledgeHostPorts): KnowledgeHost {
   const store = openKnowledgeCards({ homeDirectory: ports.homeDirectory });
-  const organizer = new KnowledgeOrganizer({ store, catalog: async projectId => knowledgeCatalog(ports.index, projectId),
+  const organizer = new KnowledgeOrganizer({ store, catalog: async projectId => {
+    if (!ports.ownerContext || closed) return [];
+    const caller = await ports.ownerContext(projectId);
+    const current = await ports.search.indexedCatalog({ caller, client: ports.clientFor(caller) });
+    if (closed) return [];
+    return knowledgeCatalog(current, projectId).map(piece => ({ ...piece, assertCurrent: current.assertCurrent }));
+  },
     writer: ports.writer ?? (() => knowledgeModelWriter(ports.homeDirectory)), ...(ports.quota ? { quota: ports.quota } : {}), ...(ports.onError ? { onError: ports.onError } : {}) });
   const service = new KnowledgeService({ search: (access, input) => ports.search.query({ client: access.client, caller: knowledgeReader(access) }, input), cards: store,
     cut: projectId => knowledgeCutPieces(ports.index, projectId),
@@ -113,9 +119,11 @@ export function createKnowledgeHost(ports: KnowledgeHostPorts): KnowledgeHost {
   // the catalog (each round's directory and counts, the cards) holds the new piece before anyone asks for it.
   const settle = async (projectId: string) => {
     if (ports.ownerContext) {
-      const owner = await ports.ownerContext(projectId).catch(error => { ports.onError?.(error, "knowledge.catch_up"); return null; });
-      if (closed) return;
-      if (owner) await service.catchUp({ client: ports.clientFor(owner), caller: owner }).catch(error => ports.onError?.(error, "knowledge.catch_up"));
+      try {
+        const owner = await ports.ownerContext(projectId);
+        if (closed) return;
+        await service.catchUp({ client: ports.clientFor(owner), caller: owner });
+      } catch (error) { ports.onError?.(error, "knowledge.catch_up"); return; }
     }
     if (!closed) await organizer.kick(projectId);
   };
@@ -179,7 +187,8 @@ export function createKnowledgeHost(ports: KnowledgeHostPorts): KnowledgeHost {
     { ...knowledgeManageActions.organize, handle: async (caller, input) => { await caller.beforeEffect(); return cards.organize(caller, input as KnowledgeOrganizeRequest); } },
   ];
   return {
-    registration: { provider: { provider_id: KNOWLEDGE_PROVIDER_ID, title: "项目资料", kind: "system" },
+    // Project knowledge reads only this project's own materials, never across plugins: a task may be given it (S-task-grant-subjects).
+    registration: { provider: { provider_id: KNOWLEDGE_PROVIDER_ID, title: "项目资料", kind: "system", task_readable: true },
       definitions: [...Object.values(knowledgeActions), ...Object.values(knowledgeManageActions)], handlers },
     organizer,
     changed,

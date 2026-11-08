@@ -1,5 +1,4 @@
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
-export { messageOf };
 import type {} from "@molis-ai/molis-work-plugin-sdk";
 import { labelOf, panelChordOf, panelLabel, PANEL_DEFAULTS, sameChord, samePanel } from "./keys.js";
 import type { Chord, Settings, SettingsPage } from "./types.js";

@@ -91,6 +91,7 @@ Integration Manifest 用 `source_presentations` 声明纯展示；`definePolling
 - `@molis-ai/molis-work-plugin-sdk/browser`：会被打进插件自己页面包的 DOM 工具，没有 import、不碰 Node。`placeFloating`、`placeOverlay`、`pinAt`（浮层放哪里）、`followScroll`、`scrollShouldFollow`（跟随滚动）。
 - `@molis-ai/molis-work-plugin-sdk/page-globals`：宿主往每个插件页面注入的全局（`window.molisReflow`、`molisShowMore`、`molisMediaZoom` 等）与页面端口（`InteractionClient`、`Reflow` 等）的类型。插件的浏览器文件用 `import type {} from "@molis-ai/molis-work-plugin-sdk/page-globals"` 纳入，运行时什么也不加载。
 - 标记和类名是合同：部件写出的 `mw-btn`、`data-slot`、`data-work-surface` 等由宿主的样式表和页面脚本定义，一个类名都不能没有规则。`tests/sdk-ui-markup.test.ts` 把每个部件用典型输入渲染一遍，收集类名，逐个核对宿主样式表里有规则（RAC-551）；公开形状进 `tooling/gates/api/plugin-sdk/` 的快照，改它走 `pnpm api:update` 并在 PR 里写对插件作者的影响。
+- 接住「内容在别处变了」的部件（[定样](../../docs/design/rule-stale-reload/README.md)）：`renderAlert` 的 `actions`（提示里的按钮，`MwButtonOptions` 的列表，默认 ghost，转义归 `renderButton`）、`state`（标题前的状态环）、`rise`（第一次出现时升起、对勾落定，重绘时不传）、`role`（默认 `status`，外层已有常驻读屏区时传 `null`）、`attrs`；不传时输出不变。`renderKept`（你写的、最新版那一行）、`renderStepDot`（步骤数字上的小点，带可读名称）。样式现在是组件板自己的（`packages/design-system/src/primitives/catalog-keep-edits.ts`），N14 的界面把它们挪进页面样式表之前，页面用了也不成样；`tests/keep-edits-parts.test.ts` 的 `UNTIL_N14` 正好列着还差规则的类名。
 - 伙伴页面舞台（Files、Git、Diff、Text Stats 嵌进 Coding 页的那种）不在这里：四个插件各自用上面的部件写自己的舞台。
 
 ## 动作与判断消费场景
@@ -188,6 +189,26 @@ node scripts/run-tests.mjs tests/plugin-authoring.test.ts
 
 动作声明可用公开入口的 `createActionDefinition`。调用方给出 id、操作、输入输出、权限、受众和版本。默认是项目范围，查询的种类为 query，命令为 operation；需要 Home 范围、判断、导航或并发调度时显式声明。`objectSchema` 默认所有字段必填，第二个参数可指定必填字段；`arraySchema` 和 `nullableSchema` 分别声明数组和可空值。`isRecord` 排除 null 与数组，接受非数组对象。`/browser` 的 `messageOf` 保留 Error 的消息，其余抛出值按字符串呈现。
 
+新写的处理器从 schema 拿输入类型，不写 `input as X`。现有的处理器还没有迁完（`specs/action-input-contracts/spec.md` §8.2 的 N22 分片，到 N22-Z），不要假设全仓都是这样。平台在调用处理器之前已经按 schema 查过输入，`bindActionHandler` 把定义和处理函数接起来，处理函数拿到的就是声明的类型。`objectSchema`、`arraySchema`、`nullableSchema` 保留传入的字面量；自己写的共享片段加 `as const`。
+
+按输入类型归谁，有两种写法（`specs/action-input-contracts/spec.md` §4.4）：
+
+- **包内部的动作：从 schema 推。** 不写手写的输入类型。自己的 `define` 帮手用 `const` 泛型接 schema。TypeScript 不支持只推一部分泛型，所以写成柯里化：
+
+```ts
+const define = <Output>() => <const S extends ActionSchema>(suffix: string, version: number, input_schema: S) =>
+  createActionDefinition<InferActionInput<S>, Output>(`my.${suffix}`, "query", { title, description, audiences, permissions, subject_kinds, input_schema }, version);
+
+const read = define<{ title: string }>()("read", 1, objectSchema({ id: { type: "string", minLength: 1 } }));
+bindActionHandler(read, (input, caller) => load(input.id, caller.project_id), { availability });
+```
+
+- **输入类型是公开合同的一部分：留手写接口，由编译器钉住。** schema 外面包 `inputSchemaFor<Input>()(schema)`。接口和 schema 说的不是同一个形状就编译失败，包括两边多出来的键，没有关掉的参数。它返回 `ActionSchema`，字面量不进 `.d.ts`。接口是判别联合、schema 是一个扁平对象时写 `inputSchemaFor<FlatUnion<Input>>()(schema)`：键和字段类型由编译器管，哪些字段能一起出现仍归处理器。过不了也修不了的，写进 §4.4 的名单并带理由，不放宽工具。
+
+推不出来的 schema（`$ref`，没写 `type` 和 `properties` 的 `allOf`、`if/then`）推成 `unknown`：读字段时编译报错，不会悄悄变成 `any`。`allOf`、`if/then` 里的必填不参与推导，处理器读的时候还要自己判断。运行时才知道形状的动作用 `input: unknown`，原样转发。
+
+`defineAction` 收到 schema 还是字面量的定义时，处理函数的 `input` 从 schema 推，不用写 `Input`。`createActionDefinition` 的结果里 schema 已经是 `ActionSchema`，这时 `input` 是它声明的 `Input`。注意两边的参数顺序：`bindActionHandler` 的处理函数是 `(input, caller)`，`defineAction` 的是 `(context, input)`。
+
 ## 开发要求
 
 - 负责：面向插件作者的稳定 API、UI 扩展类型与测试入口，以及作者和平台共用的运行时工具：执行生命周期（`createExecutionLifetime`）、Manifest 解析与版本比较（`parsePluginManifest`、`comparePluginVersions`）、动作声明检查（`inspectActionDeclarations`，逐个动作的形状）和同一次注册里的交叉引用检查（`inspectActionCrossReferences`，撤销、后台任务、片段与事项选项、结果对象，见 `src/action-cross-references.ts`；查 schema 里的路径用不对外导出的 `src/schema-paths.ts`）；端口与事件、Agent 与方法、四种来源协议、成果类型的检查（每个产出类型有显示名和本插件的预览查询，固定要配比较，继续指向本插件的命令；v1 不能产出成果类型）分别在 `src/wiring-declarations.ts`、`src/agent-declarations.ts`、`src/source-declarations.ts`、`src/artifact-declarations.ts`，不对外导出；读取分组（Manifest 的 `read_groups`：别的插件的后台任务能被允许读的几组，只收本插件对 agent 开放的只读查询，一个动作只在一组）的检查在 `src/read-group-declarations.ts`，同样不对外导出；任务主体对应的对象种类（Manifest 的 `task_subjects`：只有 `kind` 一项，必须是本插件某个对 user 开放的搜索来源列出的种类，平台以本人身份经它取任务标题）的检查在 `src/task-subject-declarations.ts`，同样不对外导出；动作的两个绑定函数（`bindPluginActionRoute`：HTTP 路由兑现动作，失败按 kind 答；`bindOwnerPluginAction`：动作只对本机所有者开放，`src/routes.ts`）；有界逐行文本比较（`compareTexts`、`splitLines`、`joinLines`、`reconstructSides`、`textDiffRow`、`alignSplitRows`、`DIFF_STEP_BUDGET`，`src/text-diff.ts`；CRLF 与 LF 是不同的行，超过步数预算时退化为整块删加整块插入，结果仍然完整）；Git 工作树状态的读法（`parsePorcelainStatus` 读 `git status --porcelain=v1 -z --branch` 的输出，`src/git-porcelain.ts`；宿主的工作区 Git 服务和 Git 插件读的是同一份，重命名占两条记录、七种未合并字母对都算冲突，越界或带控制字符的路径抛 `git.path_unsafe`，读不懂的记录抛 `git.status_unreadable`）；问卷的读答与检查（`questionAnswer` 把共享问卷卡的字段值读成答案（字段按题型命名：`q`/`t`/`n`/`d`/`w` 加题号，名字只是读法，答案对不对以问过的题为准），`questionProblems` 按问过的题逐题给出原因，`questionSetFlaw` 检查一组题本身，`QUESTION_LIMITS`，`src/question-answers.ts`、`src/question-rules.ts`）：不经 Agent 运行、自己先问人的插件（结果形状是合同的 `InteractionRequest`）用它，规则与 Prologue 的 `validateQuestionnaireAnswer` 同结论，由 `tests/question-rules-consistency.test.ts` 锁住；操作卡的判断规则（`draftActionCard`、`runActionCard`、`dismissActionCard`、`sweepActionCard`、`cardSubject`，端口 `CardStore` 与 `CardAuthority`，`src/action-cards.ts`；卡上控件的值读成输入用的字符串 `cardInputValues`、`instantIn`、`wallClockIn`，`src/card-values.ts`）：一张卡只按它显示的 revision 与精确引用执行一次，先认领再执行，过期、对象改过、能力不再提供都不执行，未知结果不当普通失败重试；助理与 Coding 各用自己的存储实现端口（specs/ai-interaction-experience D26），规则由 `tests/action-cards.test.ts` 锁住；整字截（`/whole-units` 子路径，`cutHead`、`cutTail`、`cutCharacters`、`exceedsCharacters`，`src/whole-units.ts`；一处规则，各处不再各自 `slice` 再补代理判断）与代码着色（`/highlight` 子路径，`codeTokens`、`growCodeTokens`、`diffRowTokens`、`codeLanguage`，`src/highlight.ts`）：零 import、每个函数自包含，页面可以把源码带进脚本，Coding 与工作台的助理用同一份；富文本（`/rich-text` 子路径，`renderRichText`、`richPlainText`，`src/rich-text.ts`）：GFM Markdown 加白名单 HTML，结果一律消毒，链接只留 http(s)；密钥脱敏（根入口的 `redactSecrets`，`src/redact-secrets.ts`）：外部文字交给模型或显示之前遮住常见的凭据形状。三样原来分别住在 Coding 和 Feed，2026-10-22 搬来（PG-062，`specs/coding-plugin/spec.md` §K），由 `tests/plugin-sdk-subpaths.test.ts` 锁住。比较视图（`/diff-view` 子路径，`emptyDiffView`、`compareChange`、`compareHunks`、`renderDiff`、`diffViewText`，`src/diff-view.ts`；unified diff 的读写 `parseUnifiedDiff`、`hunkRows`、`countChangedLines`、`unifiedPatch`，`src/unified-diff.ts`，错误码 `diff.unified.*` 的主人是 diff）：2026-10-23 从 Diff 插件搬来，Diff 与 Coding 的变更阅读器都用它画（PG062-08..10）。连接器 OAuth 声明共用的模板与取值规则（`/oauth` 子路径，`src/oauth.ts`：占位文法 `oauthPlaceholder`、地址与路径模板、请求头和值的写法、setting 值的规则、租户来源、JSON Pointer 转义、码点排序）：Manifest 解析里 `kind: "oauth"` 方法的形状检查（`src/oauth-declarations.ts`，不对外导出）和宿主的解释器（`apps/local-host/src/connector-oauth-declarations.ts`）读同一份规则，不各写一套（写法见 `skills/molis-plugin-dev/integrations.md`「OAuth 与账号」）；根入口不导出它们。
@@ -202,6 +223,13 @@ node scripts/run-tests.mjs tests/plugin-authoring.test.ts
   - 动作适配只转换参数与结果，执行仍经同一 Kernel 的 schema、项目策略与权限；缺少动作服务时不直调业务兜底。
   - 处理器在外部等待之后、保存之前调用 `beforeWrite()`；owner binder 保留 owner、依赖、安装和 Runtime grant，最终复用原 execution fence，不能借新目录登记继续旧调用。
   - `availability()` 只读检查声明过的宿主能力，不代表给定参数一定能执行。
+  - 新写的处理器用 `bindActionHandler`，不写 `input as X`。现有的还没有迁完（N22 分片，到 N22-Z），不要假设全仓只有这一处；防回潮的门禁（N22-G）现在还没有。
+  - `objectSchema`、`arraySchema`、`nullableSchema` 的泛型只为保留字面量，返回的值不变，动作快照因此不变。
+  - 推出来的输入类型不能比运行时说得多。下面四种写法工具会说多，不要用：元组都写 `maxItems`（没写时运行时放行多余元素）；`required` 写字面量，不写条件表达式或字面量联合的数组；可空用 `nullableSchema`，不写 `nullable: true`；`objectSchema` 的属性不写条件展开（`objectSchema({ a, ...(flag ? { b } : {}) })`：类型说 `b` 必有，运行时可能没有）。
+  - `{ enum: string[] }` 只推成 `string`：比运行时宽，精度丢了也没有人报，读字段不会编译失败。所以 `enum` 和它所在的片段都要 `as const`，包内的小片段也一样。
+  - `inputSchemaFor` 的键检查走每一层，不含 `Record` 的值：`additionalProperties` 的值不往里走，两边多键都放行。
+  - `type: "object"` 和 `properties` 旁边有顶层 `oneOf`、`anyOf` 时只读 `properties`，分支里的 `required` 不算必填，接口是判别联合就包 `FlatUnion`；哪些字段能一起出现仍归 schema 和处理器。
+  - Manifest 的 `ui.locales` 在 `src/locale-declarations.ts` 检查：语言标记的形状只认合同里的 `LOCALE_TAG`（它也是文件名 `locales/<语言>.json`，所以形状就是路径的边界），`default` 在 `available` 里，语言不重复，最多 `PLUGIN_LOCALE_LIMITS.available` 种，只有这两个键，和 `ui.messages`、`ui.translations` 不同写，`plugin_id` 最后一段能当键的第一段（规则取 `message-declarations.ts` 的同一份）；`plugin_id` 最长 `TEXT_REF_LIMITS.owner`（200），否则这个插件的文字引用过不了页面的检查。改动后跑 `node scripts/run-tests.mjs tests/ui-text-manifest-locales.test.ts`。
   - 包是 private，包名不等于已发布到 npm 的承诺。
   - 操作卡给人读的样子只有一份：`actionCardView`（`src/action-cards.ts`），助理和保管卡的插件都用它，插件再交给 `services.interaction.cardHtml` 画（PG-062）。
   - `/diff-view` 只加载 SDK 自己的文件与合同包，不带词；`renderDiff` 不自己转义、翻译或画图标，三样都由调用方的 `primitives` 给，每个标签用调用方自己的键（`labels`），仓库里只有它一份比较画法（PG062-08、PG062-10）。
@@ -209,7 +237,7 @@ node scripts/run-tests.mjs tests/plugin-authoring.test.ts
   - 宿主自己运行的插件调模型用 `context.services.model`（类型 `PluginModelClient`、`PluginModelRequest`、`PluginModelResult`，限额 `PLUGIN_MODEL_LIMITS`），指令用 SDK 导出的 `defineInstructionPrompt`、`instructed`（W3-06 E）；插件在 `PluginDefinition.instructions` 里声明自己的指令，由 Host 在插件运行时统一登记，内置与安装的插件走同一条路。规则和错误码在 `packages/plugin-runtime` 与 `docs/platform/PROLOGUE-AI.md` 第 4 节，这里只导出类型和两个帮手。
   - 平台合同里给插件作者用的 `define…Action`、`bind…Handler`、`with…` 辅助函数都从这里导出：到期提醒、情境片段推荐、成果库的预览/固定/比较/继续/被引用、`withActionEffect`。新增一个辅助函数而没有导出，`tests/plugin-sdk-exports.test.ts` 会失败；确实不该给插件用的，在那个测试的 `NOT_FOR_PLUGINS` 里写明理由。
 - 改了公开导出：`pnpm build` 后跑 `pnpm api:update`，提交 `tooling/gates/api/`；改了动作的形状或声明：跑 `pnpm actions:update`，提交 `tooling/gates/actions/`（两份快照与源码不同，CI 失败；PR 里写对插件作者的影响，见 [CONTRACT-CHANGES](../../docs/system/CONTRACT-CHANGES.md)）。
-- 改动后必跑：`node scripts/run-tests.mjs tests/material-upload.test.ts tests/plugin-runtime-integration.test.ts tests/home-action-scenes.test.ts tests/plugin-artifact-client.test.ts tests/action-service.test.ts tests/execution-lifetime.test.ts tests/system-search.test.ts tests/plugin-sdk-exports.test.ts tests/plugin-declaration-rules.test.ts tests/plugin-manifest-v2.test.ts tests/builtin-manifests-contract.test.ts tests/side-panel-platform.test.ts tests/contextual-interaction.test.ts tests/work-placement.test.ts tests/action-error-model.test.ts tests/plugin-action-route.test.ts tests/plugin-sample.e2e.test.ts tests/action-cross-references.test.ts tests/action-artifact-references.test.ts tests/diff-plugin.test.ts tests/plugin-model-service.test.ts tests/action-availability-kind.test.ts tests/question-rules-consistency.test.ts tests/form-draft-questions.test.ts tests/action-cards.test.ts tests/assistant-card-outcomes.test.ts tests/assistant-interaction-html.test.ts tests/assistant-business-gateway.test.ts tests/plugin-sdk-subpaths.test.ts tests/feed-rich-content.test.ts tests/code-incremental-colour.test.ts tests/git-porcelain.test.ts tests/diff-patch.test.ts tests/companion-state-html.test.ts tests/coding-change-html.test.ts tests/plugin-read-groups.test.ts tests/plugin-task-subjects.test.ts tests/action-project-materials.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/action-input-types.test.ts tests/material-upload.test.ts tests/plugin-runtime-integration.test.ts tests/home-action-scenes.test.ts tests/plugin-artifact-client.test.ts tests/action-service.test.ts tests/execution-lifetime.test.ts tests/system-search.test.ts tests/plugin-sdk-exports.test.ts tests/plugin-declaration-rules.test.ts tests/plugin-manifest.test.ts tests/builtin-manifests-contract.test.ts tests/side-panel-platform.test.ts tests/contextual-interaction.test.ts tests/work-placement.test.ts tests/action-error-model.test.ts tests/plugin-action-route.test.ts tests/plugin-sample.e2e.test.ts tests/action-cross-references.test.ts tests/action-artifact-references.test.ts tests/diff-plugin.test.ts tests/plugin-model-service.test.ts tests/action-availability-kind.test.ts tests/question-rules-consistency.test.ts tests/form-draft-questions.test.ts tests/action-cards.test.ts tests/assistant-card-outcomes.test.ts tests/assistant-interaction-html.test.ts tests/assistant-business-gateway.test.ts tests/plugin-sdk-subpaths.test.ts tests/feed-rich-content.test.ts tests/code-incremental-colour.test.ts tests/git-porcelain.test.ts tests/diff-patch.test.ts tests/companion-state-html.test.ts tests/coding-change-html.test.ts tests/plugin-read-groups.test.ts tests/plugin-task-subjects.test.ts tests/action-project-materials.test.ts`
 - 授权尾检与消费者改动另跑：`node scripts/run-tests.mjs tests/mcp-effect-authority.test.ts tests/mcp-scene-effect-authority.test.ts tests/action-authority-tail.test.ts tests/plugin-owner-effect-fence.test.ts tests/action-before-effect.test.ts tests/functions-scene-configuration.test.ts tests/functions-effect-boundaries.test.ts`。
 - 相关手册：[skills/molis-plugin-dev/SKILL.md](../../skills/molis-plugin-dev/SKILL.md)、[docs/platform/PLUGIN-DEVELOPMENT.md](../../docs/platform/PLUGIN-DEVELOPMENT.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
@@ -224,7 +252,7 @@ node scripts/run-tests.mjs tests/plugin-authoring.test.ts
 
 ### 工作流内容站
 
-`defineWorkflowContentActions({ id, title, icon, create, subject_kind, read_permissions, write_permissions })`（`subject_kind` 是站点内容的对象种类，要有读取它的 subject 动作，不是站点 id） 生成内容协议的规范动作（每个角色按 `WORKFLOW_CONTENT_VERSIONS` 里的现行版本：`receive` 是 2，输入是平铺的标题、正文和必填的 `request_id`；按旧形状声明、或动作 `version` 低于该角色现行版本的，登记时被拒绝；插件可以自己往上升）；将 `Object.values(actions)` 放入 Manifest `actions`，用 `bindWorkflowContentHandlers(actions, { list, read, receive, create })` 兑现处理器并从 `start()` 返回。SDK 会核对权限声明；运行时再次核对协议 schema。处理器拿到可信 `ActionCallContext`，按当前项目读写插件自己的数据。
+`defineWorkflowContentActions({ id, title, icon, create, subject_kind, read_permissions, write_permissions })`（`subject_kind` 是站点内容的对象种类，要有读取它的 subject 动作，不是站点 id） 生成内容协议的规范动作（每个角色的现行版本从 `WORKFLOW_CONTENT_VERSIONS` 取，不要写死数字；`receive` 的输入是平铺的标题、正文和必填的 `request_id`；按旧形状声明、或动作 `version` 低于该角色现行版本的，登记时被拒绝；插件可以自己往上升）；将 `Object.values(actions)` 放入 Manifest `actions`，用 `bindWorkflowContentHandlers(actions, { list, read, receive, create })` 兑现处理器并从 `start()` 返回。SDK 会核对权限声明；运行时再次核对协议 schema。处理器拿到可信 `ActionCallContext`，按当前项目读写插件自己的数据。
 
 工作流从统一目录自动发现这些角色，使用同一执行服务，不增加 Host 支持名单或逐插件分支。读写权限须由安装 grant 和调用者同时满足。`receive` 返回该站点的实际内容引用；`list` 返回完整可选内容；不要把无结构输出或另一种业务对象冒充此内容合同。新增版本应保留或明确迁移旧引用，不能靠同名替换。
 
@@ -282,7 +310,7 @@ result_view: {
 
 操作卡在成功返回后也保存同一有界展示快照；助理与 Coding 的卡片重开不会重跑原动作或改用新版声明。`ActionCardPorts.projectId` 由卡片 owner 的可信项目作用域提供，不能从卡片输入或动作输出取。卡片只保存声明选取的展示字段，站内链接按导航打开原请求或成果；失败、未知结果与后台未完成的工作没有成功入口。
 
-工作流在成功返回后保存有界呈现和原结果；重开记录不会套用新版插件的声明。缺字段时省略对应正文或链接，无声明的旧记录只确认动作已返回，原数据可展开查看。声明不能将失败或仍在运行的工作声称为业务完成；例如启动任务的摘要应写“任务已启动”。对象页面仍负责当前读取权限、已删除对象和恢复。原生工作台插件可处理已有的 `molis-work:select-item` 事件打开准确对象，无需为每个结果增加 Host 分支。
+工作流在成功返回后保存有界呈现和原结果；重开记录不会套用新版插件的声明。缺字段时省略对应正文或链接；动作可以不声明 `result_view`，这时记录只确认动作已返回，原数据可展开查看。声明不能将失败或仍在运行的工作声称为业务完成；例如启动任务的摘要应写“任务已启动”。对象页面仍负责当前读取权限、已删除对象和恢复。原生工作台插件可处理已有的 `molis-work:select-item` 事件打开准确对象，无需为每个结果增加 Host 分支。
 
 共同同步文档 owner 可声明 `locate(data,key)`，在账号与当前文档格式检查下返回本机位置，供同步比较使用；导航不取得执行、写入或跨空间权限。
 

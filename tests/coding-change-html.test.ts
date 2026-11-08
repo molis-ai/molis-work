@@ -36,7 +36,7 @@ function hostReader(body: ChangeBody, query: URLSearchParams, locale: ActionLoca
 
 /** A child's file as the Host drew it: a one-file change set of the reviewed text. */
 function hostIntegration(file: IntegrationBody["files"][number], locale: ActionLocale) {
-  const view = compareRunChangeSet({ content: { scope: "run-frozen", run_id: "integration", applied: false, coverage: "text-reviews", files: [{ path: file.path.join("/"),
+  const view = compareRunChangeSet({ content: { scope: "run-frozen", run_id: "integration", applied: false, coverage: "text-reviews", origin: { session_id: "s", runtime_session_id: "r", workspace_id: "w", workspace_name: "w" }, files: [{ path: file.path.join("/"),
     kind: file.before_text === null ? "added" : file.after_text === null ? "deleted" : "modified", added_lines: 0, removed_lines: 0, diff: "",
     review: { review_id: "integration", before_text: file.before_text!, after_text: file.after_text ?? "", decision: "approved", execution: "applied" } }] } as never,
     source_plugin_id: CODING, content_version: 1 }, undefined, 0);

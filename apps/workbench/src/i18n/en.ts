@@ -1,6 +1,7 @@
 import { ARTIFACT_EN } from "../artifacts/en.js";
 import { FUNCTIONS_EN } from "../judgment-rules/en.js";
 import { GAP_EN } from "./gap-en.js";
+import { ACCOUNT_EN } from "./account-en.js";
 import { INFORMATION_LOOP_EN } from "./information-loop-en.js";
 import { ASSISTANT_EN } from "./assistant-en.js";
 import { PLACEMENT_EN } from "./placement-en.js";
@@ -18,6 +19,9 @@ import { SHARED_WORDS_EN } from "./shared-words-en.js";
 import { PLUGIN_TRUST_EN } from "./plugin-trust-en.js";
 import { SERVICE_CONNECTION_EN } from "./service-connection-en.js";
 import { MODEL_SETTINGS_EN } from "./model-settings-en.js";
+import { TASK_GRANTS_AREA_EN } from "./task-grants-area-en.js";
+import { CONNECTION_NEED_EN } from "./connection-need-en.js";
+import { TASK_GRANTS_PAGE_EN } from "./task-grants-page-en.js";
 /** Existing Workbench English catalog, isolated from locale runtime state in AP3. */
 export const EN: Record<string, string> = {
   "角色资料": "Role material",
@@ -33,6 +37,9 @@ export const EN: Record<string, string> = {
   ...SIDE_PANEL_EN,
   ...SERVICE_CONNECTION_EN,
   ...MODEL_SETTINGS_EN,
+  ...TASK_GRANTS_AREA_EN,
+  ...CONNECTION_NEED_EN,
+  ...TASK_GRANTS_PAGE_EN,
   "连接不可用": "Connection unavailable",
   "原连接已不可用，请重新选择": "Previous connection unavailable; choose another",
   "官方连接方式": "Official connection methods",
@@ -1086,6 +1093,10 @@ export const EN: Record<string, string> = {
   "没有可探测的 Runtime": "No Runtime could be detected",
   "Molis Work 本体仍可使用；稍后安装 Runtime 后再回来检查。": "Molis Work itself still works. Come back after you install a Runtime.",
   "当前自动适配 Codex、Claude Code、OpenCode、Pi Agent 和 Grok Build。每次确认只对应当前 Runtime 和当前预览；配置在预览后变化时会要求重新生成。": "Codex, Claude Code, OpenCode, Pi Agent, and Grok Build are adapted automatically. Each confirmation is for the current Runtime and the current preview. If config changes after the preview, you will need a new one.",
+  "当前自动适配 Codex、Claude Code、OpenCode、Pi Agent 和 Grok Build。每次确认只对应当前 Runtime 和当前预览；配置在预览后变化时会要求重新生成。接入后，在对应的外部 Runtime 里新开会话即可使用。": "Codex, Claude Code, OpenCode, Pi Agent, and Grok Build are adapted automatically. Each confirmation is for the current Runtime and preview. If config changes after the preview, generate a new one. After connecting, a new session in the external Runtime picks it up.",
+  "发布者身份": "Publisher identity",
+  "查看并复制完整签名": "See and copy the full signature",
+  "发布者签名": "Publisher signature",
   "切换到": "Switch to",
   "确认只把这个 Session 从“{name}”切换到所选项目": "Confirm switching only this Session from “{name}” to the selected project",
   "确认切换": "Confirm switch",
@@ -1194,7 +1205,6 @@ export const EN: Record<string, string> = {
   "待决定": "Waiting for you",
   "查看回收站": "View trash",
   "打开 Molis Work 设置": "Open Molis Work settings",
-  "收起": "Collapse all",
   "移动端视图": "Mobile view",
   "Goal 正文": "Goal document",
   "调整 Goal Tree 宽度": "Resize Goal Tree",
@@ -2815,8 +2825,6 @@ Object.assign(EN, {
   "预期效果": "Expected effect",
   "本次不改变": "What this change does not alter",
   "没有额外非目标": "No additional non-goals",
-  "这份历史方案缺少整体验证说明": "This historical proposal lacks a whole-change explanation",
-  "它创建于语义摘要成为大型提案必填项之前。请先让 Runtime 补充原问题、变更后的主链路、预期效果和非目标，再决定是否采用。": "It predates the required semantic summary for large proposals. Ask the Runtime to add the original problem, new main path, expected effect, and non-goals before deciding.",
   "主要解决": "Problem addressed",
   "会改变什么": "What changes",
   "明确不改变": "What stays unchanged",
@@ -3209,4 +3217,4 @@ Object.assign(EN, {
   "继续前必须打开「显式继续」并填写原因。": "Before continuing, open Resume explicitly and give a reason.",
   "这条 Goal 已从日常列表移除，但内容和历史仍然保留。": "This Goal was removed from the active list; its content and history remain.",
 });
-Object.assign(EN, GAP_EN, FLOW_EN, MEMORY_EN, KNOWLEDGE_EN, PLUGIN_TRUST_EN);
+Object.assign(EN, GAP_EN, ACCOUNT_EN, FLOW_EN, MEMORY_EN, KNOWLEDGE_EN, PLUGIN_TRUST_EN);

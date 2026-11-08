@@ -9,6 +9,7 @@ export const WEB_CONTROL_TOKEN_RELATIVE_PATH = "config/web-control-token";
 export function resolveWebControlToken(options: {
   controlToken?: string;
   homeDirectory?: string;
+  renew?: boolean;
 }): string {
   const injected = options.controlToken?.trim();
   if (injected) {
@@ -19,7 +20,7 @@ export function resolveWebControlToken(options: {
   }
   const home = resolveConfiguredHome(options.homeDirectory);
   const filePath = path.join(home, WEB_CONTROL_TOKEN_RELATIVE_PATH);
-  try {
+  if (!options.renew) try {
     const existing = fs.readFileSync(filePath, "utf8").trim();
     if (existing.length >= 32 && existing.length <= 512 && !/[\r\n\0]/.test(existing)) {
       return existing;

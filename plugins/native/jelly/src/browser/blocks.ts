@@ -1,7 +1,8 @@
 import { openGeneric } from "./dialog.js";
 import { queueSave } from "./notes.js";
 import { showNote } from "./page.js";
-import { esc, uid } from "./util.js";
+import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { uid } from "./util.js";
 import type { JellyBlock, JellyBlockKind, JellyPage } from "./types.js";
 
 type Span = NonNullable<JellyBlock["inline_spans"]>[number];

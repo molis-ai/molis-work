@@ -1,4 +1,4 @@
-import { messageOf } from "./dom.js";
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import type { Failure, Ppt, PptPage } from "./types.js";
 
 /** The open deck: opening and closing the editor, and saving what has been typed. */

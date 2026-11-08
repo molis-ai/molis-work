@@ -5,14 +5,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { TestContext } from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { LocalActionGatewayClient, MolisWorkLocalHost, molisWorkHostProjectReference, projectActionAvailability, resolveWebControlToken } from "@molis-ai/molis-work-app-local-host";
+import { changeMcpClientCredential, LocalActionGatewayClient, MolisWorkLocalHost, molisWorkHostProjectReference, projectActionAvailability, resolveWebControlToken } from "@molis-ai/molis-work-app-local-host";
 import type { ActionCallContext, ActionReference, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import {
   LocalHostHttpClient, addProjectPlugin, createProject, grantMcpActions, revokeMcpAction,
   type McpActionGrantRow,
 } from "@molis-ai/molis-work-test-kit/local-host-http";
-import { createMolisWorkWebServer } from "../../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./local-web-core.js";
 
 /** The host the web server wraps. */
 type ServedHost = NonNullable<NonNullable<Parameters<typeof createMolisWorkWebServer>[0]>["localHost"]>;
@@ -120,6 +120,7 @@ export async function serveTestHost(t: TestContext | null, options: { home: stri
     },
     /** Grant actions to a client through the access settings, in dependency order. The Host's refusal is the test's. */
     async grant(clientId: string, projectId: string | null, targets: readonly GrantTarget[]): Promise<McpActionGrantRow[]> {
+      if (!clientId.startsWith("agent:")) changeMcpClientCredential(home, clientId, "connect");
       return grantMcpActions(web, { clientId, projectId, actions: await viewsOf(clientId, projectId, targets) });
     },
     /** Turn grants off through the same route. */
@@ -131,6 +132,7 @@ export async function serveTestHost(t: TestContext | null, options: { home: stri
     },
     /** An MCP client's connection to this Home: the gateway client an MCP process uses, discovered once so that a later refusal is the action's own. */
     async mcp(clientId: string, projectId: string | null): Promise<TestMcpCaller> {
+      if (!clientId.startsWith("agent:")) changeMcpClientCredential(home, clientId, "connect");
       const client = new LocalActionGatewayClient({ url: origin, homeDirectory: home, clientId, projectId, controlToken });
       const caller: ActionCallContext = { actor_id: clientId, project_id: projectId, audience: "mcp", permissions: [] };
       await client.discover(caller);

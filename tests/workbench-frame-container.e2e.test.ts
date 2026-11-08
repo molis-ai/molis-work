@@ -40,6 +40,14 @@ async function syncFrameStorage(browser: NonNullable<Awaited<ReturnType<typeof o
   return receipt;
 }
 
+
+// T01-FRAME-CURSOR-01: fixture writes must finish refreshing the page before measuring camera-only reads.
+// A real board refresh may reread the owner; it is not a second read caused by the tested storage event.
+async function awaitFrameCursor(browser: NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>, owner: LocalHostHttpClient, receiver = "window") {
+  const cursor = await owner.get<{ observed_event_cursor: number }>(`/projects/${browser.projectId}/api/board/cursor`);
+  await browser.waitFor(`Number(${receiver}.document.querySelector('#molis-work-data').boardCursor) >= ${cursor.observed_event_cursor}`);
+}
+
 test("RAC-2516 RAC-2518 trusted Feed and Inbox drag handles reach the actual Goal pane; child messages and late withdrawn sources cannot add blocks", { timeout: 90000 }, async t => {
   const b = await openGoalBrowser(t, true, undefined, null, undefined, undefined, {}, undefined, undefined, true); if (!b) return;
   const { command, sessionId, projectId, origin } = b;
@@ -84,7 +92,7 @@ test("RAC-2516 RAC-2518 trusted Feed and Inbox drag handles reach the actual Goa
   await b.waitFor("document.querySelector('[data-graph-node][data-goal-id=CORE] [data-graph-frame]')");
   await b.evaluate("document.querySelector('[data-graph-node][data-goal-id=CORE] [data-graph-frame]').click()");
   await b.waitFor("document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal==='CORE' && !document.querySelector('[data-goal-frame-surface]').hidden && !!window.molisPluginFrames");
-  await b.click('[data-titlebar-tabs] [data-tab-split]'); await b.click('[data-layout-split=right]');
+  await b.click('[data-layout-open]'); await b.click('[data-layout-split=right]');
   await b.waitFor("document.querySelectorAll('iframe.tab-content-frame').length===2");
   try { await b.click('[data-plugin-strip] [data-plugin-id=feed]'); }
   catch (error) {
@@ -234,6 +242,7 @@ test("RAC-2516 RAC-2518 trusted Feed and Inbox drag handles reach the actual Goa
   assert.ok(firstStored.blocks[0]!.x >= 16 && firstStored.blocks[0]!.y >= 16, "the actual target canvas chooses the stored position");
   await b.click(`[data-tab-pane="${goalPane}"] .tab-item[aria-current] .tab-item-trigger`);
   const goalWindow = "document.querySelector('iframe[data-t403-goal-pane]').contentWindow";
+  await awaitFrameCursor(b, owner, goalWindow);
   const gesture = <T>(expression: string) => b.evaluate<T>(`(() => {const view=${goalWindow},doc=view.document,p=view.t403Gesture;return (${expression});})()`);
   await b.evaluate(`(() => {
     const view=${goalWindow},doc=view.document,p=view.t403Gesture={events:[],reads:[],target:null,article:null};
@@ -335,7 +344,7 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, store, projectId } = browser;
-  // RAR-09: a Frame redraw can replace the ready preview between two CDP calls.
+  // RAR-09 / T01-FRAME-01: a Frame redraw can replace the ready preview between two CDP calls.
   // Capture readiness, content and forbidden controls together, with the original 10 s deadline.
   const readPreview = (ready: string, forbidden: string) => evaluate<{ text: string; hasForbidden: boolean; surface: string; expanded: number }>(`new Promise((resolve, reject) => {
     const deadline = Date.now() + 10000;
@@ -384,7 +393,8 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
   await waitFor("document.body.dataset.desktopSurface === 'home'");
-  await waitFor("Boolean(document.querySelector('[data-titlebar-tabs] .tab-item[data-tab-kind=home], [data-tab-workspace] .tab-item[data-tab-kind=home]'))");
+  // 07-S2: the project home is not a tab; the titlebar's strip is drawn once its ＋ is there.
+  await waitFor("Boolean(document.querySelector('[data-titlebar-tabs] .tab-add-button'))");
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await waitFor("document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true' && document.body.dataset.desktopSurface === 'goals' && !document.querySelector('.tab-item[data-tab-kind=mother]')");
   await evaluate("document.querySelector('[data-board-view-tab=canvas]')?.click()");
@@ -446,6 +456,7 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
   assert.equal(feedPreview.hasForbidden, false);
   assert.equal(feedPreview.surface, "goals");
   assert.equal(feedPreview.expanded, 1);
+  await awaitFrameCursor(browser, owner);
   // FCS-02: observe real GETs and hold the actual first response; no body or loaded marker is supplied by the test.
   await evaluate(`(() => {
     window.t403Artifact={reads:[]};const fetch=window.fetch;

@@ -50,11 +50,6 @@ export interface AgentSkillsCapability {
   catalog(session: AgentSessionRef): Promise<AgentSkillCatalogEntry[]>;
 }
 
-export interface AgentMcpServerHealth {
-  server: string;
-  status: "ready" | "failed" | "unknown";
-}
-
 export interface AgentMcpServerInput {
   id?: string;
   expected_version: number;
@@ -109,13 +104,6 @@ export interface AgentMcpToolDescriptor extends Required<Pick<AgentMcpToolRef, "
 
 /** What the external tool returned; untrusted data, never instructions. */
 export interface AgentMcpCallResult { text: string; truncated: boolean }
-
-export interface AgentMcpCapability {
-  catalog(session: AgentSessionRef): Promise<{
-    servers: AgentMcpServerHealth[];
-    tools: AgentMcpToolRef[];
-  }>;
-}
 
 export type AgentSubagentState = "running" | "completed" | "failed" | "cancelled" | "reconcile-required";
 

@@ -47,6 +47,12 @@ const detach = async (home: TestHome, item: Package) => (await homeIntegrationRe
 const callAs = (item: Package, connection_id: string | null): CallConnection => ({ plugin_id: item.manifest.plugin_id, install_id: item.install_id, service_id: SERVICE, connection_id, origins: [ORIGIN] });
 const paste = async (home: TestHome, service: string, name: string, extra: Record<string, unknown> = {}) =>
   (await home.web.post<{ connection: { connection_id: string } }>("/api/settings/connectors/connections", { service_id: service, display_name: name, token: BEARER, ...extra })).connection.connection_id;
+// A GitHub key is checked with GitHub before it is saved (§13.6 ④d): a stand-in accepts it; the Host's check never leaves the machine.
+function acceptGithubKeys(t: TestContext) {
+  const realFetch = globalThis.fetch;
+  t.mock.method(globalThis, "fetch", async (input: string | URL | Request, init?: RequestInit) => String(input) === "https://api.github.com/user"
+    ? Response.json({ login: "fixture-octocat", id: 7 }) : realFetch(input, init));
+}
 const pinOf = (home: TestHome, id: string) => withConnectorConnections(home.home, store => store.declarers.get(id));
 const dispatch = (url: string): PluginConnectionDispatch => ({ ...connectorControl(), url: new URL(url), method: "GET", headers: {}, signal: new AbortController().signal, beforeEffect: async () => {} });
 
@@ -76,6 +82,7 @@ test("S-104 RAC-2522: pasting a credential for a package's service pins the conn
   const listed = await home.web.get<{ connections: Array<{ connection_id: string; declared_by?: unknown }> }>(`/api/settings/connectors/connections?service_id=${SERVICE}`);
   assert.deepEqual(listed.connections.map(row => [row.connection_id, row.declared_by]), [[id, { plugin_id: a.manifest.plugin_id, title: "Feed probe" }]], "the settings list says which package it was made for");
   assert.equal(JSON.stringify(listed).includes(a.install_id), false, "and never the installation");
+  acceptGithubKeys(t);
   const builtin = await paste(home, "github", "GitHub account");
   assert.equal(pinOf(home, builtin), null, "the Host's own service is pinned to nothing");
   const builtinList = await home.web.get<{ connections: Array<{ declared_by?: unknown }> }>("/api/settings/connectors/connections?service_id=github");
@@ -182,6 +189,7 @@ test("S-104 RAC-2526: a slot of another installation is refused a pinned connect
   const home = await openTestHome(t), port = createPluginConnectionsPort(home.home, { lookup, allowAddress: () => true, testServer });
   const owner = { plugin_id: "io.molis.work.example.feedprobe", install_id: "install-slot-owner", plugin_title: "Feed probe" };
   const target = (install_id: string): PluginConnectionTarget => ({ plugin_id: owner.plugin_id, install_id, slot_id: "feed", service_id: "github" });
+  acceptGithubKeys(t);
   const id = await paste(home, "github", "GitHub account");
   withConnectorConnections(home.home, store => {
     store.declarers.pin(id, owner);
@@ -208,6 +216,7 @@ test("S-104 RAC-2527: describing a call's connection as another installation say
 test("S-104 RAC-2529: a built-in service's connections are pinned to nothing and keep the rule they had: any installation may use one as before", async t => {
   const { seen, testServer, lookup } = await standIn(t, ["api.github.com"]);
   const home = await openTestHome(t), port = createCallConnectionsPort(home.home, { lookup, allowAddress: () => true, testServer });
+  acceptGithubKeys(t);
   const github = await paste(home, "github", "GitHub account"), model = await paste(home, "model-api", "Model account");
   assert.deepEqual([pinOf(home, github), pinOf(home, model)], [null, null]);
   for (const install_id of ["install-one", "install-two"]) {

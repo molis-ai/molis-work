@@ -17,6 +17,8 @@ import { outlineOf } from "./text.js";
 
 /** One piece in a project's catalog, as the system search indexed it with the local person's access (spec §4.4). */
 export interface KnowledgePiece {
+  /** Captured by the trusted catalog owner; never persisted or supplied by a model. */
+  assertCurrent?(): void;
   subject: ActionSubject;
   source_key: string;
   provider_id: string;
@@ -54,7 +56,7 @@ export interface KnowledgeDraftInput { title: string; summary: string; text: str
 /** What the model proposes. Anything outside these bounds is cut; a section anchor the piece does not have is dropped. */
 /** What a model wrote for one piece: only a title and a brief are certain; keywords and section notes may be missing or partial. */
 export interface KnowledgeDraft { title: string; brief: string; keywords?: string[]; sections?: Array<{ anchor?: string; summary?: string }> }
-export type KnowledgeWriter = (input: KnowledgeDraftInput, signal?: AbortSignal) => Promise<KnowledgeDraft>;
+export type KnowledgeWriter = (input: KnowledgeDraftInput, signal?: AbortSignal, beforeDispatch?: () => void) => Promise<KnowledgeDraft>;
 
 export interface KnowledgeOrganizerOptions {
   store: KnowledgeCardStorePort;
@@ -189,6 +191,7 @@ export class KnowledgeOrganizer {
     if (this.closed || this.removed.has(projectId)) return;
     const cards = new Map(store.list(projectId).map(card => [keyOf(card.subject), card]));
     for (const piece of pieces) {
+      piece.assertCurrent?.();
       const card = cards.get(keyOf(piece.subject));
       cards.delete(keyOf(piece.subject));
       const next = card ? cardSeen(card, piece) : cardFor(projectId, piece);
@@ -251,6 +254,7 @@ export class KnowledgeOrganizer {
       if (signal.aborted) return;
       const waiting = this.options.store.get(projectId, queued.subject);
       if (!waiting || waiting.excluded || waiting.state !== "pending" || !piece || piece.revision !== waiting.revision || bare(piece)) continue;
+      piece.assertCurrent?.();
       const input = draftInput(piece);
       const quota = this.quota(projectId);
       if (quota.used_pieces + 1 > quota.limit_pieces || quota.used_chars + input.text.length > quota.limit_chars) {
@@ -259,9 +263,15 @@ export class KnowledgeOrganizer {
         return;
       }
       this.options.store.addUsage(projectId, this.day(), { pieces: 1, chars: input.text.length });
-      const outcome = await writer(input, signal).then(draft => ({ draft }), (error: unknown) => ({ error }));
+      const outcome = await writer(input, signal, () => { signal.throwIfAborted(); piece.assertCurrent?.(); }).then(draft => ({ draft }), (error: unknown) => ({ error }));
       if (signal.aborted) return;
-      // The piece may have changed, or the person queued it again, while the model wrote: then this draft is for nothing.
+      // Refresh availability and revision, then fence the original source before any success or failure record.
+      const fresh = (await this.options.catalog(projectId)).find(item => keyOf(item.subject) === keyOf(piece.subject));
+      if (signal.aborted) return;
+      piece.assertCurrent?.();
+      if (!fresh || fresh.source_key !== piece.source_key || fresh.revision !== piece.revision || fresh.content_policy !== piece.content_policy) continue;
+      fresh.assertCurrent?.();
+      // The person may have queued or excluded it while the model wrote.
       const now = this.options.store.get(projectId, waiting.subject);
       if (!now || now.revision !== waiting.revision || now.state !== "pending" || now.excluded) continue;
       this.options.store.put("draft" in outcome ? cardOrganized(now, input, outcome.draft, this.clock().toISOString())

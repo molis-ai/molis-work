@@ -1,5 +1,6 @@
 import type { IssueListResult } from "../store.js";
-import { esc, isAbort } from "./dom.js";
+import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { isAbort } from "./dom.js";
 import type { IssuesPage, IssueSummary, Pending } from "./types.js";
 
 export const KIND_KEYS: Record<string, string> = { bug: "issues.kind.bug", experience: "issues.kind.experience", feature: "issues.kind.feature" };

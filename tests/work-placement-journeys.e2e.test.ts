@@ -55,9 +55,9 @@ async function journey(t: TestContext, mode: "empty" | "seeded", name: string) {
   };
   const projectHome = async (project: string) => {
     await go(`/projects/${project}/`);
-    await waitFor("document.querySelector('.tab-item[data-tab-kind=home]')", 15_000);
-    if (!await evaluate<boolean>("Boolean(document.querySelector('.tab-item[data-tab-kind=home][aria-current]'))")) await click(".tab-item[data-tab-kind=home] .tab-item-trigger");
-    await waitFor("document.querySelector('.tab-item[data-tab-kind=home][aria-current]')", 15_000);
+    await waitFor("document.querySelector('[data-dock-pin=home]')", 15_000);
+    if (!await evaluate<boolean>("Boolean(document.body.dataset.desktopSurface === 'home' && !document.querySelector(':is([data-titlebar-tabs], [data-tab-strip]) .tab-item[aria-current]'))")) await click("[data-dock-pin=home]");
+    await waitFor("document.body.dataset.desktopSurface === 'home' && !document.querySelector(':is([data-titlebar-tabs], [data-tab-strip]) .tab-item[aria-current]')", 15_000);
   };
   // The bar repaints as descriptions arrive; if the click landed on a node that was just replaced, click the new one.
   const panel = async (action: string) => {

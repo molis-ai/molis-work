@@ -127,6 +127,7 @@ test("no model → settings → template → a failing check saves nothing → a
     await new Promise(resolve => setTimeout(resolve, 100));
     listed = await browser.web.get<States>(prefix + "/api/knowledge/states");
   }
+  // K01-01: the actual configured provider must receive the background card request.
   assert.equal(card()?.state, "ready", "the Home's real organizer received a valid card from the configured provider");
   assert.equal(standIn.requests.length, 2, "background organization does not consume a connection check");
 
@@ -171,7 +172,7 @@ test("Cognia in a pane beside the page: its settings link opens the settings ove
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?desktop=1&openPlugin=cognia` }, sessionId));
   await child.waitFor("document.querySelector('[data-cognia-action=model-settings]') && !document.querySelector('[data-cognia-action=model-settings]').hidden");
-  await click("[data-titlebar-tabs]:not([hidden]) [data-tab-split], .tab-pane.is-focused [data-tab-split]");
+  await click("[data-layout-open]");
   await click("[data-layout-split=right]");
   await paneView.waitFor("document.querySelector('[data-cognia-action=model-settings]') && !document.querySelector('[data-cognia-action=model-settings]').hidden",20_000);
   const hidden = async () => ({page:await child.evaluate<boolean>("document.querySelector('[data-cognia-action=model-settings]').hidden"),pane:await paneView.evaluate<boolean>("document.querySelector('[data-cognia-action=model-settings]').hidden")});

@@ -61,7 +61,7 @@ export interface PageStateOwner {
 export const PAGE_STATE_OWNERS = {
   "side-panel": {
     files: ["apps/workbench/src/side-panel-context.ts", "apps/workbench/src/side-panel.ts", "apps/workbench/src/side-panel-browser.ts", "apps/workbench/src/side-panel-files.ts"],
-    state: "Whether the right-hand panel is open, which tab it shows and what that tab was asked to show (a file, a web page, the browser held by the person or by a Work). The last tab is kept in localStorage as molis:side-tab.",
+    state: "The right side's views, their documents and what each was asked to show (a file, a web page, the browser held by the person or by a Work). Whether it is open, its tabs, the current one and its width are the tab workspace's state, not this owner's.",
   },
   assistant: {
     files: ["apps/workbench/src/scripts/client/assistant-island.ts", "apps/workbench/src/scripts/client/assistant-choosers.ts", "apps/workbench/src/scripts/client/assistant-browser-handback.ts", "apps/workbench/src/scripts/client/assistant-conversation.ts", "apps/workbench/src/scripts/client/assistant-page-messages.ts", "apps/workbench/src/scripts/client/assistant-send.ts", "apps/workbench/src/scripts/client/assistant-stage.ts", "apps/workbench/src/scripts/client/assistant-work-objects.ts", "apps/workbench/src/browser/plugin-frame/context-child.ts"],
@@ -81,15 +81,19 @@ export const PAGE_STATE_OWNERS = {
   },
   "tab-workspace": {
     files: ["apps/workbench/src/scripts/client/tab-workspace.ts", "apps/workbench/src/scripts/client/tab-workspace-panes.ts", "apps/workbench/src/scripts/client/tab-workspace-places.ts", "apps/workbench/src/scripts/client/tab-workspace-plugins.ts", "apps/workbench/src/scripts/client/system-tabs.ts", "apps/workbench/src/side-view-document.ts", "apps/workbench/src/browser/plugin-frame/view.ts"],
-    state: "The open tabs and panes of the work area, the current place, and which item each plugin surface has been asked to show (a plugin's side tab is its own document, which asks its one surface the same way).",
+    state: "The open tabs and panes of the work area and of the right side (whether it is open, its tabs, the current one and its width: `side`, per project), the current place, and which item each plugin surface has been asked to show (a plugin's side tab is its own document, which asks its one surface the same way).",
   },
   "settings-directory": {
     files: ["apps/workbench/src/scripts/client/settings-directory.ts", "apps/workbench/src/scripts/home-model-settings.ts", "apps/workbench/src/browser/plugin-frame/child.ts"],
     state: "The settings area: which global or project settings page is open, and the embedded settings pages inside it, including the standalone Home settings host.",
   },
+  "settings-return": {
+    files: ["apps/workbench/src/browser/settings-return.ts", "apps/workbench/src/browser/return-trips.ts"],
+    state: "This window's return trips (specs/draft-and-return): where the person went into the settings from, what the settings had to make true and what goes back, kept in this tab's sessionStorage (molis-work:return-trips, molis-work:return-window, molis-work:return-window-handoff).",
+  },
   attention: {
     files: ["apps/workbench/src/scripts/client/attention.ts"],
-    state: "What waits on the person, read once for the whole page (W4-10): the background tasks the title bar lists, the Assistant's notices for the plugin in front, the plugin deliveries waiting in the market and, on a project page, the board's event cursor.",
+    state: "What waits on the person, read once for the whole page (W4-10): the background tasks the right side's background-tasks tab counts and lists, the Assistant's notices for the plugin in front, the plugin deliveries waiting in the market and, on a project page, the board's event cursor.",
   },
   "plugin-notifications": {
     files: ["apps/workbench/src/scripts/client/plugin-notifications.ts"],
@@ -257,14 +261,19 @@ export const DOM_EVENTS = [
     summary: "The person confirmed the picker opened for request_id; picks is the whole choice, replacing what was chosen before.",
   },
   {
+    name: "molis-work:layout-holds", kind: "request", owner: "tab-workspace", on: "document",
+    detail: "{ pane, surface, answer? }; the handler sets answer to a boolean, synchronously",
+    summary: "Is a return trip's place still in the layout: the pane is there and has a view or a tab of this surface (not a frame's key). Sent by the settings-return owner when a trip settles with no page claiming it; an embedded pane document does not answer, and with no answer the sender does not judge.",
+  },
+  {
     name: "molis-work:model-ready", kind: "announcement", owner: "settings-directory", on: "document",
     detail: "none",
-    summary: "The model settings page saved the first provider that can run. Sent on the document and into every pane frame; each page that showed \"no model\" reads its model state again (listeners: `node scripts/gates/dom-events.mjs --report`). When a page of this tab sent the person to the settings (an ordinary link, or a pane's relay; not the gear, a menu or an address), the settings cover closes over that page first and a toast says so, and only then is the event sent, so a page that reacts finds itself as the person sees it; with the settings opened any other way the settings stay open, and a page beneath them is still hidden when it hears the event. The same script also posts it on a BroadcastChannel of the same name to the other tabs of the origin, which is how the onboarding page that opened the settings in a new tab learns of it (also on the standalone settings page of a person with no project, where the settings directory is not loaded); that channel is not a DOM event and has no entry of its own, and a desktop shell that hands the new tab to the system browser cannot reach it.",
+    summary: "The model settings page saved the first provider that can run. Sent on the document and into every pane frame; each page that showed \"no model\" reads its model state again (listeners: `node scripts/gates/dom-events.mjs --report`). When a return trip is open on these settings (a page of this tab sent the person there: an ordinary link, a pane's relay or a page's host.returns.go; not the gear, a menu or an address), the trip is settled first (settings-return): read back, the cover closed over that page and a toast, and only then is the event sent, so a page that reacts finds itself as the person sees it; with the settings opened any other way the settings stay open, and a page beneath them is still hidden when it hears the event. The model settings script also posts it on a BroadcastChannel of the same name to the other tabs of the origin, which is how an onboarding page open in another tab learns that a model was set up there (also on the standalone settings page of a person with no project, where the settings directory is not loaded); that channel is not a DOM event and has no entry of its own, and a desktop shell that hands a tab to the system browser cannot reach it.",
   },
   {
     name: "molis-work:open-settings-path", kind: "request", owner: "settings-directory", on: "document",
-    detail: "{ href }",
-    summary: "Open the settings page at a settings address, global or of the project. The standalone Home host accepts only same-origin /settings/models, /settings/connectors and /capabilities/connections in its existing dialog; invalid detail, foreign origins and other paths open nothing, send no request and never navigate the owner document.",
+    detail: "{ href, return_id?, need?, from?, carry? }; return_id only from a plugin frame's host, with from a page's (specs/draft-and-return §2.1)",
+    summary: "Open the settings page at a settings address, global or of the project, and open a return trip from where it was asked (the settings-return owner checks need, from and carry and keeps them; only a frame host's return_id makes a trip a page claims; a request while the settings are open opens none). The standalone Home host accepts only same-origin /settings/models, /settings/connectors and /capabilities/connections in its existing dialog; invalid detail, foreign origins and other paths open nothing, send no request and never navigate the owner document.",
   },
   {
     name: "molis-work:open-settings-section", kind: "request", owner: "settings-directory", on: "document",
@@ -273,8 +282,8 @@ export const DOM_EVENTS = [
   },
   {
     name: "molis-work:place-changed", kind: "announcement", owner: "tab-workspace", on: "document",
-    detail: "{ paneId, place, previous }; the constant is PLACE_CHANGED_EVENT (services/contextual)",
-    summary: "The focused pane's place changed; whatever was judged to be in hand there is void.",
+    detail: "{ paneId, place, previous, cover }; cover is the kind of the cover over the panes or null (previous.cover missing reads as null); the constant is PLACE_CHANGED_EVENT (services/contextual)",
+    summary: "The focused pane's place changed, or the cover over the panes did (a cover closing or turning into another is announced too); whatever was judged to be in hand there is void.",
   },
   {
     name: "molis-work:plugin-events", kind: "announcement", owner: "plugin-event-recovery", on: "document",
@@ -295,6 +304,16 @@ export const DOM_EVENTS = [
     name: "molis-work:plugins-changed", kind: "announcement", owner: "plugin-membership", on: "document",
     detail: "{ came, gone, next, failed }; a listener sets failed to true when it could not bring its page in line",
     summary: "The project's plugins changed in place; plugins whose pages fill when the project has them fill them from next.",
+  },
+  {
+    name: "molis-work:return-claim", kind: "request", owner: "settings-return", on: "document",
+    detail: "{ return_id?, origin?: { scope, surface, place }, drop?, answer? }; the owner sets answer synchronously: { status, carry } (handed over and removed), { open: return_id } (still open, wait), or null",
+    summary: "A plugin frame's host claims the outcome of a trip a page opened with host.returns.go, for this installation scope, surface and place as it is now; drop ends the trip as not ready. Only on the outer document.",
+  },
+  {
+    name: "molis-work:return-settled", kind: "announcement", owner: "settings-return", on: "document",
+    detail: "{ return_id, status }: ready, not_ready, ended (removed with no outcome: expired, or the person left the place), or refused (it never opened: no settings or no trips in this document)",
+    summary: "A return trip settled or ended; the frame host waiting on it claims it inside the dispatch. It hands nothing over itself. After a start the owner sends it once more for each settled trip still waiting. Only on the outer document.",
   },
   {
     name: "molis-work:select-item", kind: "announcement", owner: "tab-workspace", on: "element",

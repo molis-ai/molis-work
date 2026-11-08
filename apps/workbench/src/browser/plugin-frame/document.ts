@@ -1,8 +1,8 @@
+import { escapeHtml as escape } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { FramePack } from "./types.js";
 
 /** The CSP names only the registered bundle and its declared static dependencies. No child network or nested frame. */
 export function frameDocument(root: HTMLElement, pack: FramePack): string {
-  const escape = (value: string) => value.replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!);
   const origin = location.origin, script = origin + "/assets/molis-work-plugin-frame.js";
   const sources = [script, origin + "/desktop/pty-client.js", origin + "/assets/molis-work-plugins/" + encodeURIComponent(pack.bundle) + ".js", ...pack.assets.map(path => new URL(path, origin).href)];
   const policy = "default-src 'none'; script-src " + sources.join(" ") + "; style-src 'unsafe-inline' " + origin + "/assets/; font-src " + origin

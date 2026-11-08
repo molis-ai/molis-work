@@ -172,9 +172,9 @@ export class HomePluginHost {
     return this.installed?.releaseFor(pluginId) && this.installation(pluginId)?.state === "running" && !this.packageError(pluginId) ? pluginId : undefined;
   }
   /** The page that stage frames (`?frame=workbench`), opened for the person under the package's Home activation. Throws when that is not open. */
-  packageDocument(pluginId: string, controlToken: string, projectId: string | null = null): string | undefined {
+  packageDocument(pluginId: string, controlToken: string, projectId: string | null = null, accountRegistration=false): string | undefined {
     const release = this.packageSurface(pluginId) ? this.installed?.releaseFor(pluginId) : undefined;
-    return release ? renderHomePackageDocument({ home: this.options.home, actorId: this.options.actorId, release, controlToken, projectId,
+    return release ? renderHomePackageDocument({ home: this.options.home, actorId: this.options.actorId, release, controlToken, projectId, accountRegistration,
       assertProject: projectId ? async () => {
         if (!this.options.projectActions) throw new ActionError("actions.forbidden", "Home 插件没有项目入口");
         await this.options.projectActions(projectId, pluginId);
@@ -220,8 +220,8 @@ export class HomePluginHost {
     if (record) this.platform?.invalidateView(record.plugin_id);
   }
   /** A project closed: the Home instances' jobs kept in it stop (PG-038). Their bounded executions keep their call's authority and go on. */
-  stopProjectJobs(projectId: string): void {
-    this.executor?.stopProjectJobs(projectId);
+  async stopProjectJobs(projectId: string): Promise<void> {
+    await this.executor?.stopProjectJobs(projectId);
   }
   close(): Promise<void> {
     this.closed = true;

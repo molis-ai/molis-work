@@ -41,6 +41,8 @@ export function createActivationJobs(gate: ActivationJobGate) {
   let closed = false, timer: ReturnType<typeof setInterval> | undefined;
   const window = new AsyncLocalStorage<{ open: boolean }>();
   const jobs = new Map<AbortController, { readonly project: string | null; readonly check: () => void }>();
+  // A cancelled handle settles immediately; its work may still be unwinding. Keep that work until it really exits.
+  const settling = new Map<Promise<void>, string | null>();
   /** Per project stopped, the last call begun then: a call still under way from before keeps nothing there. */
   const stoppedUpTo = new Map<string, { readonly begun: number; readonly reason: string }>();
   const sweep = () => {
@@ -98,6 +100,8 @@ export function createActivationJobs(gate: ActivationJobGate) {
     const run = () => outsidePluginAction(() => runInPluginJob(scope, () => work(control)));
     const stopped = new Promise<never>((_, reject) => controller.signal.addEventListener("abort", () => reject(controller.signal.reason), { once: true }));
     const pending = Promise.resolve().then(() => outsidePluginAction(() => { check(); return gate.operation ? gate.operation(run) : run(); }));
+    settling.set(pending, project);
+    void pending.finally(() => settling.delete(pending)).catch(() => undefined);
     const done = Promise.race([pending, stopped]).finally(() => {
       running = false; jobs.delete(controller);
       if (!controller.signal.aborted) controller.abort(new ActionError("actions.expired", "这个后台作业已经结束"));
@@ -123,6 +127,10 @@ export function createActivationJobs(gate: ActivationJobGate) {
       for (const [controller, job] of jobs) {
         if (job.project === projectId) controller.abort(new ActionError("actions.cancelled", reason));
       }
+    },
+    drainProject(projectId: string): Promise<void> | undefined {
+      const pending = [...settling].filter(([, project]) => project === projectId).map(([pending]) => pending);
+      return pending.length ? Promise.allSettled(pending).then(() => undefined) : undefined;
     },
     close() {
       closed = true;

@@ -91,7 +91,6 @@ export interface ReviewRecord {
   readonly decided_by?: string | null;
   readonly decided_at?: string | null;
   readonly reconciliation?: Reconciliation | null;
-  readonly reconciliation_reason?: string | null;
   readonly failure_reason?: string | null;
 }
 export interface ReviewResult { readonly review: ReviewRecord; readonly outcome: string; readonly summary?: string }

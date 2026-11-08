@@ -1,9 +1,10 @@
 /** English copy for the side panel (specs/archive/side-panel): the shell, the browser tab, the file tab and assistant control. */
 export const SIDE_PANEL_EN: Record<string, string> = {
-  "侧栏": "Side panel",
+  "现在没有后台任务": "No background tasks right now",
+  "{n} 个后台任务没做完": "{n} background {n|task|tasks} not finished",
+  "已关闭 {plugin}": "Closed {plugin}",
   "侧栏内容": "Side panel content",
   "侧栏：Shelf、灵光、资料、浏览器、电脑与讨论": "Side panel: Shelf, Lingguang, knowledge, browser, computer and discussion",
-  "收起侧栏": "Close side panel",
   "浏览器": "Browser",
   "文件": "Files",
   "浏览器地址与导航": "Browser address and navigation",

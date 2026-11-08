@@ -26,6 +26,21 @@ Home 安装、Runtime 接入、常驻 Web 服务和卸载的实现统一在 `app
 
 修改 workspace 源码后必须重新构建。`pnpm build` 最后通过 `apps/local-host/tooling/write-build-manifest.mjs` 调用 Local Host 的构建记录生成函数，覆盖根源码、workspace 包源码/配置和构建脚本；不要单独生成记录掩盖旧构建。新建 workspace 层级时同步 installer fingerprint 的包发现范围与构建列表。定向回归包括 `tests/install.test.ts`、`tests/service.test.ts`、`tests/uninstall.test.ts`、`tests/uninstall-catalog.test.ts`，真实 Web/Desktop 调用由对应集成测试覆盖。DV4 完整发布验收尚未完成，不能把这些回归当成可发布证明。
 
+## macOS 构建运行时
+
+2026-11-04 排查到本机 CLT 内的 `swift-package` 与 BuildServerProtocol framework 版本不一致，且默认 macOS 27 SDK 与 Swift 6.3.3 不匹配。使用 Swift 官方 6.3.3 发布包中完整的工具链，配合已安装 macOS 26.5 SDK，Foundation/AppKit 编译、SwiftPM 与整个 Work 构建已通过；没有绕过原生助手编译或更改系统 xcode-select。
+
+本机隔离工具链存放在主检出的已忽略 `node_modules/.cache/toolchains/`，包含激活脚本和来源记录。每个新的构建 shell 先执行：
+
+```sh
+source /path/to/molis-work/node_modules/.cache/toolchains/activate-work-build-env.sh
+pnpm build
+```
+
+2026-11-05 扩展验证又确认 Homebrew Node 26.9.0 依赖外部 `libnode.147.dylib`，插件的既有 Seatbelt 规则拒绝该动态库。采用官方独立 Node 26.9.0（ABI 147）后，原先 5 个失败文件在同一干净主线构建上全部通过，包含插件安装与项目清理。官方包 SHA-256 为 `8dd6e383c216dbadd04e6eaac5b8fcaec8ba700a58fa51ebd38d4f9532741909`，代码签名 Node.js Foundation（HX7739G8FX）有效；没有更改全局 Node、重装原生依赖或修改沙箱规则。组合激活脚本会同时选择这份 Node 和 Swift；两份来源记录保存在同一工具链缓存。
+
+脚本只设置该 shell 的 PATH、SDKROOT 和工具链路径。其他机器不依赖此绝对路径，使用一致的完整 Swift 工具链与匹配 SDK 即可。当前来源为 Swift 官方 `swift-6.3.3-RELEASE-osx.pkg`，SHA-256 为 `ee82e57774d6650f94aa06302435d6f44a055b9411698db8ecb85d9a3bcc91d0`，签名 Swift Open Source（V9AUD2URP3）与 Apple notarization 验证通过。
+
 ## 当前Goal、父目标与依赖
 
 当前工作由事件状态表示，公开读取使用 `goals.state.read`。父目标按自己的当前约定、报告、要求和适用阻塞判断完成，子目标数量不构成完成证明。未完成依赖影响正式完成，但不禁止记录普通笔记或部分结果。
@@ -239,6 +254,6 @@ pnpm --filter @molis-ai/molis-work-integration-github typecheck
 
 当前 Desktop payload 包含根 dist、正式 workspace 运行依赖、Runtime Skill、Node 和 vendor 来源/许可资产，不包含第二套业务实现。npm 使用 `pnpm package:npm`：先完整构建，再由 Local Host tooling 在临时目录生成 `release/npm/*.tgz`。需要其他输出目录时用 `pnpm package:npm /absolute/output`。不要直接在源码根执行 npm/pnpm pack；它会提示正确命令，避免生成含 workspace:* 的不可安装包。
 
-npm 产物随包交付实际依赖的 workspace 与 vendor JavaScript 包，按各包 files 声明保留发布资产；注册表依赖由消费者正常安装，SQLite/PTY 不带入构建机二进制，也不附 Node。消费环境需要 Node 24+。本地验收先在新目录执行 `npm install /absolute/archive.tgz`（不能跳过安装脚本），再执行 `node tests/npm-distribution-smoke.mjs /absolute/consumer`。该检查通过实际产品入口验证 CLI、SQLite 持久化、PTY、方法资产、Home 安装及源包不可用时的 MCP 握手；只支持当前 Unix 测试宿主，不声称验证其他平台。
+npm 产物随包交付实际依赖的 workspace 与 vendor JavaScript 包，按各包 files 声明保留发布资产；注册表依赖由消费者正常安装，SQLite/PTY 不带入构建机二进制，也不附 Node。消费环境需要 Node 24.15.x。本地验收先在新目录执行 `npm install /absolute/archive.tgz`（不能跳过安装脚本），再执行 `node tests/npm-distribution-smoke.mjs /absolute/consumer`。该检查通过实际产品入口验证 CLI、SQLite 持久化、PTY、方法资产、Home 安装及源包不可用时的 MCP 握手；只支持当前 Unix 测试宿主，不声称验证其他平台。
 
 上句描述当前发布物；DV4 的干净环境完整发布验收仍未完成。

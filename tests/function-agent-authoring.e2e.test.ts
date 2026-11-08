@@ -1,3 +1,4 @@
+import { changeMcpClientCredential } from "@molis-ai/molis-work-app-local-host";
 import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
@@ -123,6 +124,7 @@ test("Agent authoring discovers runtime capabilities, preserves exact references
     await revoke(write);
     await writeMcpActionGrant(homeDirectory, createMcpActionGrant(caller.actor_id, null, viewOf(judgment), true));
     await grant(read, functionsActions.invoke);
+    changeMcpClientCredential(homeDirectory, caller.actor_id, "connect");
     external = new LocalMcpServer(withMolisWorkProjectCatalog, "runtime", { projectId, databasePath: browser.databasePath, webBaseUrl: origin },
       { homeDirectory: homeDirectory, runtimeContext: { runtime_id: "agent-notes", stable_work_context_id: null, host_declares_stable: false } }, localHost);
     let request = 0;
@@ -157,20 +159,21 @@ test("Agent authoring discovers runtime capabilities, preserves exact references
     await runtime.start(install.install_id);
     assert.deepEqual(record().action_map, { true: ref(write) });
     assert.deepEqual((await result(judgment, { content: "Restarted source" })).recommended_actions, [ref(write)]);
+    const version = async (id: string) => (await actions.invoke(functionAuthoringActions.get, { id })).function.updated_at;
     const other = (await actions.invoke(functionAuthoringActions.create, { primitive: "noul" })).function;
     const patch = { scene_id: "agent.mcp", instructions: "Choose", criteria: { true_description: "Yes", false_description: "No" }, action_map: { true: { ...ref(write), version: 1 } } };
-    await actions.invoke(functionAuthoringActions.update, { id: other.id, patch });
-    await actions.invoke(functionAuthoringActions.preview, { id: other.id, input: "Example" });
+    await actions.invoke(functionAuthoringActions.update, { id: other.id, expected_updated_at: await version(other.id), patch });
+    await actions.invoke(functionAuthoringActions.preview, { id: other.id, expected_updated_at: await version(other.id), input: "Example" });
     const evaluatedBefore = evaluated;
-    await assert.rejects(actions.invoke(functionAuthoringActions.publish, { id: other.id }), { code: "actions.recommendation_missing" });
-    await actions.invoke(functionAuthoringActions.update, { id: other.id, patch: { action_map: { true: { ...ref(write), provider_id: "replacement" } } } });
-    await assert.rejects(actions.invoke(functionAuthoringActions.publish, { id: other.id }), { code: "actions.recommendation_missing" });
-    await actions.invoke(functionAuthoringActions.update, { id: other.id, patch: { subject_kinds: ["different-object"], action_map: { true: ref(write) } } });
-    await assert.rejects(actions.invoke(functionAuthoringActions.publish, { id: other.id }), { code: "actions.recommendation_incompatible" });
+    await assert.rejects(actions.invoke(functionAuthoringActions.publish, { id: other.id, expected_updated_at: await version(other.id) }), { code: "actions.recommendation_missing" });
+    await actions.invoke(functionAuthoringActions.update, { id: other.id, expected_updated_at: await version(other.id), patch: { action_map: { true: { ...ref(write), provider_id: "replacement" } } } });
+    await assert.rejects(actions.invoke(functionAuthoringActions.publish, { id: other.id, expected_updated_at: await version(other.id) }), { code: "actions.recommendation_missing" });
+    await actions.invoke(functionAuthoringActions.update, { id: other.id, expected_updated_at: await version(other.id), patch: { subject_kinds: ["different-object"], action_map: { true: ref(write) } } });
+    await assert.rejects(actions.invoke(functionAuthoringActions.publish, { id: other.id, expected_updated_at: await version(other.id) }), { code: "actions.recommendation_incompatible" });
     assert.equal(evaluated, evaluatedBefore);
     assert.equal((await actions.invoke(functionAuthoringActions.get, { id: other.id })).function.status, "draft");
     const choice = (await actions.invoke(functionAuthoringActions.create, { primitive: "choice", name: "Agent 选项" })).function;
-    await actions.invoke(functionAuthoringActions.update, { id: choice.id, patch: { scene_id: "agent.mcp", criteria: [
+    await actions.invoke(functionAuthoringActions.update, { id: choice.id, expected_updated_at: await version(choice.id), patch: { scene_id: "agent.mcp", criteria: [
       { key: "molis_work_v1_legacy_tool", description: "原结果保留" }, { key: "skip", description: "无需动作" },
     ] } });
     await navigate(() => command("Page.navigate", { url: origin + "/capabilities/rules?project=" + projectId + "&rule=" + choice.id }, sessionId));

@@ -1,5 +1,7 @@
 # MCP 接入
 
+独立客户端连接：更新到 D0071 修复后，已有 Runtime 须在设置中重新接入并重启 MCP。凭据由确认接入生成，保存在安装 Home 的私有配置目录，不填写在 Runtime 配置中；移除接入即撤销。仅持 Home 主令牌的动作网关请求不能选择客户端身份。Home 快照不携带该凭据，恢复后须重新接入。工具名与动作合同不变。
+
 Molis Work 通过统一 Skill 连接项目。Runtime 消费 `molis_work_v1_context_resolve` 返回的公开状态、项目身份和连接，不读取 catalog 或数据库路径，也不从仓库名推断项目。已绑定 Session 或唯一、已验证 workspace membership 可以只读恢复；候选本身不授权绑定。
 
 ## Runtime 工作入口绑定（推荐）
@@ -59,7 +61,7 @@ Web 是可选查看和用户确认界面，不是连接项目或推进 Goal 的�
 
 已精确授权的动作暂不可用时，`tools/list` 隐藏它；调用原工具名仍交给 Host 判断，返回同一原因和稳定错误码（例如 `actions.plugin_disabled`），并在这次操作留行时附可查询的诊断编号。未知、未授权、撤权或 provider/version 不匹配的名字仍在 MCP 入口拒绝，不恢复管理工具权限。
 
-AI来源修改已有对象时，提交动作schema声明的读取版本（`expected_version`、`expected_revision`、`expected_revisions`、`expected_updated_at`，Functions authoring用`updated_at`）。缺版本或版本表未覆盖全部`ids`时返回`actions.version_required`，原事实不变；先重新读取再由当前意图决定提交。实际schema允许的`expected_revision: null`仍表示create-if-absent，陈旧版本由owner拒绝。
+AI来源修改已有对象时，提交动作schema声明的读取版本（`expected_version`、`expected_revision`、`expected_revisions`、`expected_updated_at`）。缺版本或版本表未覆盖全部`ids`时返回`actions.version_required`，原事实不变；先重新读取再由当前意图决定提交。实际schema允许的`expected_revision: null`仍表示create-if-absent，陈旧版本由owner拒绝。
 
 动作的输入只含业务字段：项目、操作者和创建渠道由宿主从连接与会话注入，不接受 `project_id`、数据库路径、Web URL、`actor_id` / `actor_kind` / `runtime_actor_id`、`source_kind`。Runtime 写入时，宿主用会话身份生成审计作者（`runtime:<runtime_id>:<会话>`），没有稳定会话身份时写入被拒绝。
 

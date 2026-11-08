@@ -1,5 +1,3 @@
-import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
-export { escapeHtml };
 /** The icon sprite entry the design system draws (`#icon-<name>`). */
 export const ICON = (name: string) => `<svg aria-hidden="true"><use href="#icon-${name}"></use></svg>`;
 

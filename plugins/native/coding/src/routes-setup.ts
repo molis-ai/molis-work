@@ -1,8 +1,8 @@
-import { codingArtifacts, CODING_PLAN_TYPE } from "./artifacts.js";
+import { codingArtifacts, CODING_PLAN_SCHEMA_VERSION, CODING_PLAN_TYPE } from "./artifacts.js";
 import { savedCharacter, savedCharacterSkills } from "./characters.js";
 import { symbolsIn, workspaceFileIndex, workspaceFileReader } from "./mentions.js";
 import { parseCodingPlan } from "./plan-content.js";
-import { confirmedPlan, planFromRun, planMaterial, planReference, CODING_PLAN_SCHEMA_VERSION, portableCodingPlan } from "./plans.js";
+import { confirmedPlan, planFromRun, planMaterial, planReference, portableCodingPlan } from "./plans.js";
 import { type CodingActivation, selected } from "./route-activation.js";
 import { bodyOf, savedActions, methodSelection } from "./route-selections.js";
 import { codingActions, codingActionControl } from "./route-entry.js";

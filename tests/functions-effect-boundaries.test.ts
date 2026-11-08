@@ -27,9 +27,9 @@ test("AAP-06 Functions discovery reuses its connection, sees external publicatio
   assert.equal(closed.mock.callCount(), 0, "directory reads keep their database connection");
   const published = await withFunctionsServiceAsync(home, async service => {
     const record = service.create({ primitive: "noul", function_key: "external_read_test" });
-    service.updateDraft(record.id, { instructions: "Evaluate", criteria: { true_description: "Yes", false_description: "No" } });
-    await service.preview(record.id, "Sample");
-    return service.publish(record.id);
+    service.updateDraft(record.id, { instructions: "Evaluate", criteria: { true_description: "Yes", false_description: "No" } }, service.get(record.id).updated_at);
+    await service.preview(record.id, "Sample", service.get(record.id).updated_at);
+    return service.publish(record.id, service.get(record.id).updated_at);
   }, options);
   assert.equal(closed.mock.callCount(), 1, "the independent writer still closes its own connection");
   assert.ok((await actions.discover(owner)).some(view => view.capability_id === publishedFunctionAction(published).capability_id),
@@ -77,8 +77,8 @@ test("AAP-06 closing the Host during Functions preview refuses the result and le
   t.after(async () => { release.resolve(); await host.close(); await rm(home, { recursive: true, force: true }); });
   const actions = bindActionClient(host.homeActionClient(), () => owner);
   const { function: draft } = await actions.invoke(authoring.create, { primitive: "noul" });
-  const { function: before } = await actions.invoke(authoring.update, { id: draft.id, patch: { instructions: "Evaluate", criteria: { true_description: "Yes", false_description: "No" } } });
-  const pending = actions.invoke(authoring.preview, { id: draft.id, input: "Pending" });
+  const { function: before } = await actions.invoke(authoring.update, { id: draft.id, expected_updated_at: draft.updated_at, patch: { instructions: "Evaluate", criteria: { true_description: "Yes", false_description: "No" } } });
+  const pending = actions.invoke(authoring.preview, { id: draft.id, expected_updated_at: before.updated_at, input: "Pending" });
   const rejected = assert.rejects(pending, error => error instanceof ActionError);
   await entered.promise;
   const closing = host.close();
@@ -107,10 +107,10 @@ for (const operation of ["preview", "invoke", "published"] as const) {
     const actions = bindActionClient(service, () => owner);
     try {
       let record = (await actions.invoke(authoring.create, { primitive: "noul" })).function;
-      record = (await actions.invoke(authoring.update, { id: record.id, patch: { instructions: "Evaluate", criteria: { true_description: "Yes", false_description: "No" } } })).function;
+      record = (await actions.invoke(authoring.update, { id: record.id, expected_updated_at: record.updated_at, patch: { instructions: "Evaluate", criteria: { true_description: "Yes", false_description: "No" } } })).function;
       if (operation !== "preview") {
-        await actions.invoke(authoring.preview, { id: record.id, input: "Initial" });
-        record = (await actions.invoke(authoring.publish, { id: record.id })).function;
+        await actions.invoke(authoring.preview, { id: record.id, expected_updated_at: record.updated_at, input: "Initial" });
+        record = (await actions.invoke(authoring.publish, { id: record.id, expected_updated_at: record.updated_at })).function;
       }
       if (operation === "published") { dispose(); dispose = service.registerProvider(publishedFunctionProvider(record, ports)); }
       const before = ports.read(value => value.get(record.id));
@@ -119,7 +119,7 @@ for (const operation of ["preview", "invoke", "published"] as const) {
       const caller = { ...owner, signal: controller.signal, validate_authority: async () => { if (!allowed) throw new ActionError("fixture.revoked", "Revoked"); } };
       pause = true;
       const ref = operation === "preview" ? authoring.preview : operation === "invoke" ? functionsActions.invoke : publishedFunctionAction(record);
-      const input = operation === "preview" ? { id: record.id, input: "Pending" } : operation === "invoke" ? { function_key: record.function_key, input: "Pending" } : { content: "Pending" };
+      const input = operation === "preview" ? { id: record.id, expected_updated_at: record.updated_at, input: "Pending" } : operation === "invoke" ? { function_key: record.function_key, input: "Pending" } : { content: "Pending" };
       const pending = service.invoke(caller, ref, input);
       const rejected = assert.rejects(pending);
       await entered.promise;
@@ -146,13 +146,13 @@ test("Functions preview releases the Home queue and rejects edits made while the
   const actions = bindActionClient(host.homeActionClient(), () => owner);
   try {
     const { function: draft } = await actions.invoke(authoring.create, { primitive: "noul" });
-    await actions.invoke(authoring.update, { id: draft.id, patch: { instructions: "Original", criteria: { true_description: "Yes", false_description: "No" } } });
-    const pending = actions.invoke(authoring.preview, { id: draft.id, input: "Old input" });
-    const rejected = assert.rejects(pending, { code: "functions.stale_preview" });
+    const { function: read } = await actions.invoke(authoring.update, { id: draft.id, expected_updated_at: draft.updated_at, patch: { instructions: "Original", criteria: { true_description: "Yes", false_description: "No" } } });
+    const pending = actions.invoke(authoring.preview, { id: draft.id, expected_updated_at: read.updated_at, input: "Old input" });
+    const rejected = assert.rejects(pending, { code: "functions.draft_stale" });
     await entered.promise;
     let timeout: ReturnType<typeof setTimeout> | undefined;
     try {
-      await Promise.race([actions.invoke(authoring.update, { id: draft.id, patch: { instructions: "Edited while model waits" } }),
+      await Promise.race([actions.invoke(authoring.update, { id: draft.id, expected_updated_at: read.updated_at, patch: { instructions: "Edited while model waits" } }),
         new Promise((_, reject) => { timeout = setTimeout(() => reject(new Error("Model wait blocked the Home queue")), 2000); })]);
     } finally { clearTimeout(timeout); release.resolve(); }
     await rejected;

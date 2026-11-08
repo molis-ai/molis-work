@@ -1,3 +1,4 @@
+import { changeMcpClientCredential } from "@molis-ai/molis-work-app-local-host";
 import assert from "node:assert/strict";
 import { existsSync, rmSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -120,6 +121,7 @@ test("an external MCP client searches through the same action with only what it 
     const views = await host.inspectActions(caller, reference);
     const view = (definition: ActionDefinition) => views.find(item => item.capability_id === definition.capability_id && item.version === definition.version)!;
     const searchTool = molisWorkActionToolName({ ...searchActions.query, provider_id: view(searchActions.query).provider.provider_id });
+    changeMcpClientCredential(home, clientId, "connect");
     assert.equal((await sdk.listTools()).tools.some(tool => tool.name === searchTool), false, "search is not offered before the person grants it");
     await served.grant(clientId, null, [view(searchActions.query)]);
     assert.ok((await sdk.listTools()).tools.some(tool => tool.name === searchTool));

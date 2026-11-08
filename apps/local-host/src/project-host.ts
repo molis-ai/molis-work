@@ -43,10 +43,10 @@ import { resolveConfiguredHome } from "./product-home.js";
 import { LocalHost, type HostCapabilityHandler, type LocalHostOptions } from "./local-host.js";
 import { openProjectVersionStores, type ProjectVersionStores } from "./project-version-stores.js";
 import { LocalProjectDatabase } from "./project-database.js";
-import { registerProjectCapabilities } from "./project-capabilities.js";
+import { registerProjectCapabilities, type PrepareProjectDirectory } from "./project-capabilities.js";
 import { releaseProjectPlugins } from "./project-plugins.js";
 import type { LocalHostProjectClient, LocalHostProjectReference, LocalHostStatus } from "@molis-ai/molis-work-contracts/platform/app-host";
-import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
+import type { ProjectDirectories, ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionProviderRegistration, type ActionRegistryPort, type ActionSceneClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentHostComposition } from "./agent-host-composition.js";
 import { createSearchHost, type SearchHost } from "./search-actions.js";
@@ -104,7 +104,15 @@ export interface MolisWorkLocalHostOptions {
    * workspace", which would not be.
    */
   workspacesFor?: (projectId: string) => readonly ProjectWorkspaceRef[] | Promise<readonly ProjectWorkspaceRef[]>;
+  /** The project's output directory: where what names no folder reads, writes and runs (SSC-17). */
   workspaceFor?: (projectId: string) => ProjectWorkspaceRef | null | Promise<ProjectWorkspaceRef | null>;
+  /** The project's folders with their roles (`projects.directories.get@1`): only the output is written or run in (SSC-15, user 2026-11-08). */
+  directoriesFor?: (projectId: string) => ProjectDirectories | Promise<ProjectDirectories>;
+  /**
+   * Before a folder of the project is touched on disk (specs/shared-sources-and-surfaces §3 「碰磁盘的调用方」): `write` for what writes or
+   * starts a process there, `read` for what only reads. It checks a default output directory and, for `write`, makes it.
+   */
+  prepareDirectory?: PrepareProjectDirectory;
   /** The native terminal a Character launch starts in; the web entry owns it and supplies it once it is up. */
   characterSpawn?: (request: PtySpawnRequest) => PtySpawnResult;
 }
@@ -175,7 +183,12 @@ export class MolisWorkLocalHost {
             const scenes = this.sceneClient(reference);
             const providers: ActionProviderRegistration[] = [], add = (provider: ActionProviderRegistration) => { providers.push(provider); };
             add(projectWorkspaceActionProvider(reference.project_id, () => this.personalPlanningHome && this.catalogRunner ? { home: this.personalPlanningHome, run: this.catalogRunner } : undefined,
-              workspaceId => announceWorkspaceSettingsChange(store, reference.project_id, workspaceId)));
+              workspaceId => announceWorkspaceSettingsChange(store, reference.project_id, workspaceId), {
+                client: this.actionClient(reference), db: store.db, now: clock,
+                versionKept: pin => (pin.mode === "fixed" ? runtime.artifacts.query : runtime.processItems.query)
+                  .getArtifactVersion(reference.project_id, pin.version)?.availability === "available",
+                imported: version => runtime.artifacts.query.getArtifactVersion(reference.project_id, version)?.origin.kind === "imported",
+              }));
             add(artifactActionProvider(runtime, options, this.actionClient(reference)));
             if (options.homeDirectory) add(informationActionProvider(options.homeDirectory, reference.project_id, this.actionClient(reference), options.completeText));
             if (options.homeDirectory) add(charactersActionProvider(runtime, { ...options, homeDirectory: options.homeDirectory }, () => this.agents?.service.charactersCatalog(runtime)));
@@ -231,7 +244,7 @@ export class MolisWorkLocalHost {
     }
     registerProjectCapabilities(
       this.host,
-      { workspaceFor: options.workspaceFor, workspacesFor: options.workspacesFor },
+      { workspaceFor: options.workspaceFor, workspacesFor: options.workspacesFor, prepareDirectory: options.prepareDirectory },
     );
     if (options.homeDirectory) bindHomeSide(this, options.homeDirectory, options);
     if (options.homeDirectory) {

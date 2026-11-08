@@ -24,7 +24,7 @@ const open = (file: string, projectsDirectory: string, initialize = true) => {
   const db = openTestSqlite(file);
   db.pragma("foreign_keys = ON");
   if (initialize) createProjectsSchema(db);
-  return { db, projects: new ProjectsModule({ db, projects_directory: projectsDirectory, plugins }) };
+  return { db, projects: new ProjectsModule({ db, projects_directory: projectsDirectory, outputs_directory: join(projectsDirectory, "..", "outputs"), plugins }) };
 };
 const scratch = () => mkdtempSync(join(tmpdir(), "catalog-path-derivation-"));
 

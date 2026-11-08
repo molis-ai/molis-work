@@ -146,7 +146,7 @@ node scripts/replay-golden-homes.mjs [--latest N | --all] [--json]
 
 **实测与改正（用户 2026-11-08 定）：** 代码只存一份并压缩后整份 15.3 MB，其中 `stores/` 13.5 MB，`plugin_runtime_release_artifacts` 占 11.18 MB，大头是每行都带的 `manifest`，代码压缩后只有 1.58 MB。重复的 Manifest 也只存一份（统筹定，做法同 `module_source`），整份约 4.47 MB（评审台实做量的，以第一份入库时的数字为准）。
 
-**第一份入库的实际数字（2026-11-08，`0.1.0`，Node 24.15.0，带两个签名样本）：** 工作树 4,459,450 字节，低于上面的 4.47 MB 估算（多了 Home 库样本，少了一点转储）。其中 `stores/` 2,385,791，`files/module-sources/` 24 份 1,582,387，`files/release-manifests/` 21 份 247,245，其余文件 98,448，`manifest.json` 145,037，README 542（第 05 批集成时在 main + SQLite + U1 + U1-f 上重新生成，2026-11-09）。离 50 MB 还能放十来份。覆盖面的缺口（必须备份、这份金样里没有的路径和原因）列在 `tooling/gates/golden-coverage.json` 的 `uncovered`；`feed-content/feed-content.db` 有结构没有业务行，原因在同一文件的 `writes`。
+**第一份入库的实际数字（2026-11-08，`0.1.0`，Node 24.15.0，带两个签名样本）：** 工作树 4,459,450 字节，低于上面的 4.47 MB 估算（多了 Home 库样本，少了一点转储）。其中 `stores/` 2,385,791，`files/module-sources/` 24 份 1,582,387，`files/release-manifests/` 21 份 247,245，其余文件 98,448，`manifest.json` 145,037，README 542（第 05 批集成时在 main + SQLite + U1 + U1-f 上重新生成，2026-11-08）。离 50 MB 还能放十来份。覆盖面的缺口（必须备份、这份金样里没有的路径和原因）列在 `tooling/gates/golden-coverage.json` 的 `uncovered`；`feed-content/feed-content.db` 有结构没有业务行，原因在同一文件的 `writes`。
 
 这里原来还写了一条理由，写错了：当时说不能只留校验值，因为「新版和已安装版本不兼容时，宿主要用存着的旧代码继续跑（`packages/plugin-runtime/src/supervisor.ts:500-532`），这条路回放要测」。用户 2026-10-08 已定内置插件一律跟当前构建（`packages/plugin-runtime/README.md:104`），这条路今天用不上。用户重新定：**回放不测这条路，代码照存**，这样金样才和真实 Home 的库一样。代价：这条路没人测，真要启用时再补。产品是否继续存这些代码登在 [`BL-plugin-release-module-source`](../backlog/BL-plugin-release-module-source.md)。
 

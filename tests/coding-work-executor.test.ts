@@ -183,7 +183,7 @@ test("W5-01-CODING-77..81 a round the Assistant starts is the page's round: same
   // only for parallel writers, so a session set up for them on the page and switched to another way still starts.
   const chose = await invoke<{ session_id: string }>("session.open", { title: "按方法修改" });
   await client.invoke(owner, find("coding.update-session"), { session_id: chose.session_id, methods: [{ skill_id: "coding-review-change", version: 1 }],
-    configuration: { intent: "parallel", provider_id: "fixture", model_id: "fixture-model", workspace_id: f.workspaceId, writer_assignments: [{ workspace_id: "writer-1", task: "改登录" }] } });
+    configuration: { intent: "parallel", provider_id: "fixture", model_id: "fixture-model", workspace_id: f.workspaceId, writer_assignments: [{ worktree_id: "writer-1", task: "改登录" }] } });
   await invoke("session.update", { session_id: chose.session_id, mode: "edit" });
   const second = await invoke<{ run_id: string }>("run.start", { session_id: chose.session_id, task: "按方法修改登录" });
   let edited = await invoke<Session>("session.read", { session_id: chose.session_id });

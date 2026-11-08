@@ -32,14 +32,14 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
   const starts: AgentStartRequest[] = [];
   // The one writer directory the Host lists; the other writer actions are not asked here.
   const writerActions = fakeWriterActions(pluginActions(store, DEMO_PROJECT_ID), definition => {
-    if (definition.capability_id === writerDirectoryCapabilities.list.capability_id) return [{ worktree_id: "writer-a", workspace_id: "foreign", canonical_path: home + "-other", branch: "writer/a", base_commit: "abc123" }];
+    if (definition.capability_id === writerDirectoryCapabilities.list.capability_id) return [{ worktree_id: "writer-a", canonical_path: home + "-other", branch: "writer/a", base_commit: "abc123" }];
     throw new Error(`Unexpected action ${definition.capability_id}`);
   });
   const host = () => ({ store, ...openProjectVersionStores(store), homeDirectory: activeHome, projectId: DEMO_PROJECT_ID, actions: writerActions, actorId: "web-user",
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
     agentHost: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
       const input = args as any[];
-      if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: home, realpath_verified: true }, { workspace_id: "foreign", canonical_path: home + "-other", realpath_verified: true }] as Output;
+      if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: home, realpath_verified: true }] as Output;
       if (definition.capability_id === agent.availableRoles.capability_id) return ["planner", "builder", "reader", "writers"].map(role_id => ({ role_id, available: true })) as Output;
       if (definition.capability_id === agent.listActions.capability_id) return [] as Output;
       if (definition.capability_id === agent.readSession.capability_id) return { runs: input[0].session_id === "sdk-app" ? runs.map(run => run.ref) : [] } as Output;
@@ -141,7 +141,7 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
     assert.equal((await request("/plan", "POST", { expected_revision: 1, content })).status, 400);
     await request("/plan", "POST", { expected_revision: 2, content: { ...adjusted, blockers: "" } });
     assert.equal((await request("/plan/confirm", "POST", { expected_revision: 3 })).status, 200);
-    const parallel = { plan_revision:3, intent:"parallel", writer_assignments:[{workspace_id:"foreign",task:"只核对既定运费边界并补测试"}] };
+    const parallel = { plan_revision:3, intent:"parallel", writer_assignments:[{worktree_id:"writer-a",task:"只核对既定运费边界并补测试"}] };
     assert.equal((await start({...parallel,writer_assignments:[]})).status,400);assert.equal(starts.length,1);
     assert.equal((await start(parallel)).status, 200);assert.equal(starts.length, 2);
     assert.equal(starts[1].role_id,"writers");assert.equal(starts[1].subagent_workspaces?.[0]?.directory.canonical_path,home+"-other");

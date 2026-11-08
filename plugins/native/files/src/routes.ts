@@ -3,7 +3,7 @@ import { bindPluginActionRoute } from "@molis-ai/molis-work-plugin-sdk";
 import { filesActions, type FileInput, type FileCaptureInput } from "./actions.js";
 
 export function filesRoutes(context: PluginStartContext): PluginRouteBinding[] {
-  return [bindPluginActionRoute(context, filesActions.state, () => ({})),
+  return [bindPluginActionRoute(context, filesActions.state, request => request.query.workspace_id ? { workspace_id: request.query.workspace_id } : {}),
     bindPluginActionRoute(context, filesActions.directory, request => ({ workspace_id: request.query.workspace_id!, path: JSON.parse(request.query.path ?? "[]") })),
     bindPluginActionRoute(context, filesActions.open, request => request.body as FileInput),
     bindPluginActionRoute(context, filesActions.capture, request => request.body as FileCaptureInput)];

@@ -1,5 +1,5 @@
 import { ActionError, bindActionClient, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
-import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import { projectDirectoryActions, type ProjectDirectories } from "@molis-ai/molis-work-contracts/modules/projects";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { HOST_EVENT_SOURCE, HOST_WORKSPACE_CHANGED_EVENT, type HostWorkspaceChangedPayload, type PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -38,6 +38,12 @@ function listing(names: Array<[string, "file" | "directory"]>, prefix: string[] 
     entries: names.map(([name, kind]) => ({ name, kind, path: [...prefix, name] })),
     truncated: false,
   };
+}
+
+/** The project's folders as the Host's directory action answers them: `output` is the output, or there is no folder at all. */
+function directoriesOf(project_id: string, output: { workspace_id: string; display_name: string } | null): ProjectDirectories {
+  return { project_id, source_links: [], revision: "r1", directories: output
+    ? [{ ...output, canonical_path: `/${output.workspace_id}`, realpath_verified: true, roles: ["output"], state: "ok" }] : [] };
 }
 
 // WSERR-01: the shared parser rejects these actual unsafe paths.
@@ -216,10 +222,10 @@ test("S18-FILES-RETRY a refused workspace transition retries persistence and eve
       deployment: "local", grants: filesManifest.permissions.map(item => item.permission), project_id: caller.project_id, actor_id: caller.actor_id,
       requireGrant: () => {}, services: {
         ui: { register: () => {}, unregister: () => {} },
-        // Files' own state action through the action service; the project's current folder (a Host action it consumes) answers `selected`.
+        // Files' own state action through the action service; the project's folders (a Host action it consumes) have `selected` as the output.
         actions: { ...actions, availability: () => ({ available: true }), invokeQuery: async () => assert.fail("the state action does not delegate queries"),
-          invoke: ((definition: ActionReference, input: never, control?: never) => definition.capability_id === projectSettingsCapabilities.browsingWorkspace.capability_id
-            ? Promise.resolve(selected) : actions.invoke(definition as never, input, control)) as typeof actions.invoke },
+          invoke: ((definition: ActionReference, input: never, control?: never) => definition.capability_id === projectDirectoryActions.get.capability_id
+            ? Promise.resolve(directoriesOf(caller.project_id, selected)) : actions.invoke(definition as never, input, control)) as typeof actions.invoke },
         storage: { get: key => stored.get(key) ?? null, set: (key, value) => {
           persistenceCalls++; if (refuse && failure === "save") rejected(); stored.set(key, value);
         }, delete: key => { persistenceCalls++; if (refuse && failure === "delete") rejected(); return stored.delete(key); } },
@@ -280,7 +286,7 @@ test("RAC-332 BL-366 a workspace change makes Files look again at the folder it 
   const context: PluginStartContext = { install_id: "files-recheck", installation_generation: "1", plugin_id: filesManifest.plugin_id, version: filesManifest.version,
     deployment: "local", grants: filesManifest.permissions.map(item => item.permission), project_id: "project", actor_id: "web-user", requireGrant: () => {}, services: {
       ui: { register: () => {}, unregister: () => {}, invalidate: () => { invalidated++; } },
-      actions: { availability: () => ({ available: true }), invoke: async <Input, Output>(_definition: unknown, _input: Input) => selected as Output,
+      actions: { availability: () => ({ available: true }), invoke: async <Input, Output>(_definition: unknown, _input: Input) => directoriesOf("project", selected) as Output,
         discover: async () => [], invokeQuery: async () => assert.fail("no query delegation") },
       storage: { get: key => stored.get(key) ?? null, set: (key, value) => { stored.set(key, value); }, delete: key => stored.delete(key) },
       outputs: { publish: () => assert.fail("no publish"), select: () => assert.fail("no select"), reference: () => null, retain: () => assert.fail("no retain"), read: () => null,
@@ -331,5 +337,5 @@ test("RAC-2531 BL-616 Files' factory takes nothing from the Host: with no folder
   const contribution = await plugin.start(context);
   const entries = contribution.actions!.find(binding => binding.capability_id === "files.side.entries")!;
   await assert.rejects(async () => entries.handle({ actor_id: "web-user" } as never, {}), { code: "files.invalid" });
-  assert.deepEqual(asked, [projectSettingsCapabilities.browsingWorkspace.capability_id], "only the browsing folder was asked; no file was read");
+  assert.deepEqual(asked, [projectDirectoryActions.get.capability_id], "only the project's folders were asked; no file was read");
 });

@@ -24,7 +24,7 @@ function moduleFixture(t:TestContext){
   const db=openTestSqlite(':memory:');t.after(()=>db.close());db.pragma('foreign_keys = ON');createProjectsSchema(db);db.exec(replicaSchemaSql());
   const ledger=borrowedReplicaDatabase({exec:sql=>db.exec(sql),prepare:sql=>db.prepare(sql)});initializeReplica(ledger);installProjectReplicationJournal(db,replicaMarkSql);
   let current=true;const authorize=()=>{if(!current)throw new Error('revoked');},options={spaceId,authorize,excludedProjectIds:['personal-root']};
-  const projects=new ProjectsModule({db,spaceId,projects_directory:'/source/private-only',now:()=>at,plugins:{has:id=>['goals','pages'].includes(id),initial:()=>['goals'],companions:()=>[]}});
+  const projects=new ProjectsModule({db,spaceId,projects_directory:'/source/private-only',outputs_directory:'/source/private-only-outputs',now:()=>at,plugins:{has:id=>['goals','pages'].includes(id),initial:()=>['goals'],companions:()=>[]}});
   const owner=projectReplicationOwner(db,options),replica=createSqliteReplica(ledger,{...owner,conflictState:createSyncConflictState});
   const create=(id:string,synced=false)=>{const p=projects.lifecycle.prepareRecord({project_id:id,display_name:'项目',data_class:'user'});projects.lifecycle.register(p,synced?'project.sync_prepared':'project.created','alice');return p;};
   return {db,projects,replica,owner,options,create,revoke:()=>{current=false;}};

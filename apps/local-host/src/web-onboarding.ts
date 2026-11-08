@@ -105,13 +105,15 @@ export function createLocalOnboardingHttp(ports: OnboardingHttpPorts) {
             idempotency_key: `onboarding-root-goal-${project.project_id}`,
             source_kind: "onboarding",
           })).goal;
+          // The folder the person picked here is where the project works: its output, which is read as well (user 2026-11-08). The
+          // default output directory's row, written when the project was registered, goes with it; its folder was never made.
           const workspace = input.workspacePath
-            ? await catalog.commit(() => catalog.addWorkspaceProject({
-                project_id: project.project_id,
-                canonical_path: input.workspacePath!,
-                actor_id: LOCAL_PERSON_ACTOR_ID,
-                user_confirmed: true,
-              }))
+            ? await catalog.commit(() => {
+                const before = catalog.projectDirectories(project.project_id);
+                const after = catalog.changeDirectories({ project_id: project.project_id, actor_id: LOCAL_PERSON_ACTOR_ID,
+                  change: { kind: "set_output", target: { workspace_path: input.workspacePath! } }, expected_revision: before.revision });
+                return after.directories.find(item => item.roles.includes("output"))!;
+              })
             : null;
           let journeyWarning: string | null = null;
           try {

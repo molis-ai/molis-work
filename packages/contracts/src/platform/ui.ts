@@ -5,10 +5,13 @@ import type { AgentInputImpact, AgentInputKind, AgentInputQuestion, AgentInputTa
 import type { UiConnectionNeedOutcome, UiConnectionNeedTarget, UiConnectionSlotChoice, UiConnectionSlotRequest } from "./ui-connections.js";
 export * from "./ui-connections.js";
 import type { UiPageDrafts, UiPageReturns } from "./ui-returns.js";
+import type { UiSlotDescriptor } from "./ui-slots.js";
 export * from "./ui-returns.js";
 export * from "./ui-environment.js";
 export * from "./ui-files.js";
 export * from "./ui-text.js";
+export * from "./ui-state-rings.js";
+export * from "./ui-slots.js";
 
 /** A renderer contract requirement, not a callable business capability. */
 export const PLUGIN_PRESENTATION_CAPABILITY = { capability_id: "ui.plugin-presentation", version: /* @version action.ui.plugin-presentation */ 1 } as const;
@@ -59,10 +62,15 @@ export interface UiViewSelection {
   readonly intent?: "open" | "select";
 }
 
-/** Current-project directories only. Linking requires confirmation in the trusted Host; selecting grants no new access. */
+/**
+ * Current-project directories only: a page may ask to add an input folder, or to make one of the project's folders its output, and the
+ * trusted Host confirms each with the person first. Which folder a page shows is that page's own state (specs/shared-sources-and-surfaces
+ * §3); the project keeps no browsing choice to select.
+ */
 export interface UiPageWorkspaces {
   add(path: string): Promise<{ workspace_id: string }>;
-  select(workspaceId: string): Promise<void>;
+  /** For the 「设为输出」 beside a refusal that the folder is only an input (`projects.directory_input_only`); the Host's dialog names it as the Host reads it. */
+  setOutput(workspaceId: string): Promise<void>;
 }
 
 /** A Host-owned review surface. The page supplies filters and a slot, never a decision or review contents. */
@@ -491,11 +499,6 @@ export interface UiSideContextMessage {
   readonly type: "molis:side-context";
   readonly context_epoch: number;
   readonly context: UiSideContext | null;
-}
-
-export interface UiSlotDescriptor {
-  readonly slot_id: string;
-  readonly accepts: readonly string[];
 }
 
 export interface UiSurfaceDescriptor {

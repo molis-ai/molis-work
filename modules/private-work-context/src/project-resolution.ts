@@ -6,7 +6,7 @@ import { normalizeRuntimeProjectSuggestionClues, scoreProjectSuggestion } from "
 /** Resolve confirmed Session and workspace facts before offering non-authoritative suggestions. Never writes a binding. */
 export class RuntimeProjectResolution {
   constructor(
-    private readonly projects: Pick<ProjectsQueryApi, "getProject" | "listProjects" | "selections" | "workspaceProjectSelections">,
+    private readonly projects: Pick<ProjectsQueryApi, "getProject" | "listProjects" | "selections" | "workspaceIdAt" | "workspaceProjectSelections">,
     private readonly workContexts: Pick<RuntimeContextBindingRepository, "find" | "rejectedProjectIds" | "hasUnboundEvent" | "confirmedProjectIdsForOtherSessions">,
   ) {}
 resolveRuntimeContext(
@@ -39,8 +39,10 @@ private projectSelections(): MolisWorkProjectSelection[] {
 private workspaceMemberSuggestions(
     workspace: NormalizedRuntimeWorkspaceContext | undefined,
   ): MolisWorkProjectSuggestion[] {
-    if (!workspace) return [];
-    return this.projects.workspaceProjectSelections(workspace.workspace_id).map((project) => ({
+    // The folder's row is found by its path (§3 「路径到行」); a path with no row is linked to no project.
+    const workspaceId = workspace ? this.projects.workspaceIdAt(workspace.canonical_path) : null;
+    if (!workspaceId) return [];
+    return this.projects.workspaceProjectSelections(workspaceId).map((project) => ({
       project_id: project.project_id,
       display_name: project.display_name,
       reasons: ["这个项目已经与当前目录精确关联"],

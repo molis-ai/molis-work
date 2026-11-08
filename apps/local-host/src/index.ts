@@ -52,6 +52,9 @@ export { restoreHomeSnapshot, recoverHomeRestore, type HomeRestoreOptions, type 
 export type { HomeRestoreCatalogInspector, HomeRestoreResult } from "./home-restore-contract.js";
 export type { HomeSnapshotManifest, HomeSnapshotResult } from "./home-snapshot-contract.js";
 export { readMaterialLocalPage } from "./material-local-page.js";
+export { readMaterialOrigins, MATERIAL_ORIGINS_DEADLINE_MS, type MaterialOriginPorts, type ProjectFolders } from "./material-origins.js";
+export { projectWorkspaceActionProvider, type ProjectMaterialPorts } from "./project-workspace-actions.js";
+export { checkWorkspaceFile, type WorkspaceFileCheck } from "./workspace-files.js";
 export { isHostEndpointPort, trackHostChildEndpoint, trackHostPort } from "./host-endpoints.js";
 export { ORIGINAL_FILE_MAX_BYTES, ORIGINAL_RANGE_MAX_BYTES, readOriginalFile, readOriginalRange, registerOriginalFile, releaseOriginalFile } from "./material-original-files.js";
 export type { PluginPlatform, PluginPlatformDatabase, PluginPlatformEntry, PluginPlatformOptions } from "./plugin-platform.js";
@@ -87,7 +90,7 @@ export * from "./web-locale.js";
 
 export { createLocalHostWorkbenchRenderer } from "./workbench-renderer.js";
 
-export { CATALOG_SCHEMA_VERSION, CATALOG_OWNER, isOwnedCatalogOwner, catalogSchemaCompatibilityError } from "./project-catalog-contract.js";
+export { CATALOG_SCHEMA_VERSION, CATALOG_OWNER, CATALOG_UPGRADES, isOwnedCatalogOwner, catalogSchemaCompatibilityError } from "./project-catalog-contract.js";
 export { initializeProjectDatabase, validateManagedProject } from "./managed-project-database.js";
 
 export { ManagedProjectFiles } from "./managed-project-files.js";
@@ -198,6 +201,7 @@ export * from "./onboarding.js";
 export { createLocalHostCapsule } from "./capsule.js";
 
 export { attachMolisWorkPtySocket } from "./pty-socket.js";
+export { characterNativeExecution } from "./character-native-execution.js";
 
 export { buildMolisWorkWebView, cachedMolisWorkWebView, type MolisWorkWebViewCache, type WebViewOptions } from "./web-view.js";
 export { declaredStageData, declaredStageRequests } from "./project-stage-data.js";
@@ -268,7 +272,7 @@ export { ensureProjectPlugins, projectPluginProblem, releaseProjectPlugins, runn
 export { announceConnectionChanged } from "./connection-change-events.js";
 export { builtinMarketDirectory, homePluginDirectory, mergePluginDirectories, runningPluginDirectory, type DirectorySource } from "./plugin-directory.js";
 export { observeReviewSettlements, reviewSettlementForwarder, type AgentWritePlaces, type ObserveReviewSettlements, type ReviewSettlement } from "./review-settlement-events.js";
-export { createGitWorktreePort, type GitWorktreePort } from "./workspace-git-worktrees.js";
+export { createGitWorktreePort, hostWriterId, type GitWorktreePort } from "./workspace-git-worktrees.js";
 export { readWriterIntegration, prepareWriterIntegration } from "./workspace-git-integration.js";
 export { draftText } from "./model-draft.js";
 

@@ -5,10 +5,13 @@ import { pathToFileURL } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 
-/** What a baseline needs from a connection: `node:sqlite` itself and the project connection both fit. */
+/**
+ * What a baseline needs from a connection: `node:sqlite` itself and the project connection both fit. `run` is for an upgrade step that
+ * writes rows computed outside SQL (an id from a hash), with positional parameters.
+ */
 export interface SqliteBaselineDatabase {
   exec(sql: string): unknown;
-  prepare(sql: string): { get(...params: unknown[]): unknown; all(...params: unknown[]): unknown[] };
+  prepare(sql: string): { get(...params: unknown[]): unknown; all(...params: unknown[]): unknown[]; run(...params: unknown[]): unknown };
 }
 import { homeSqlitePath, openHomeSqliteDatabase } from "./home-sqlite.js";
 

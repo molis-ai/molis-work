@@ -3546,6 +3546,7 @@ export interface PluginManifest {
     action_scenes?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneDefinition[];
     read_groups?: readonly import("platform/plugin-read-groups").PluginReadGroupDeclaration[];
     task_subjects?: import("platform/plugin-task-subjects").PluginTaskSubjectsDeclaration;
+    presentation?: import("@molis-ai/molis-work-contracts/platform/presentation").PresentationDeclaration;
 }
 
 export interface PluginManifestDatabases {
@@ -5066,6 +5067,18 @@ export interface SubjectOffersInput {
     request_id: string;
 }
 
+export type SubjectReaderLookup = {
+    found: "one";
+    view: ActionView;
+} | {
+    found: "unavailable";
+    view: ActionView;
+} | {
+    found: "ambiguous";
+} | {
+    found: "none";
+};
+
 export interface SyncActionClient {
     invokeSync(context: ActionCallContext, reference: ActionReference, input: unknown): unknown;
 }
@@ -5574,6 +5587,8 @@ export declare function fileContentOf(input: {
 }): FileContent;
 
 export declare function fileEntriesPage(entries: readonly FileEntry[], input: FileEntriesInput): FileEntriesPage;
+
+export declare function findSubjectReader(views: readonly ActionView[], kind: string): SubjectReaderLookup;
 
 export declare function hostEventType(eventTypeId: string, typeVersion: number): HostEventType | undefined;
 

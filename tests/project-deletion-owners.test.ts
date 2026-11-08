@@ -245,11 +245,13 @@ test("RAC-2457 deleting a project through the catalog removes the directory reco
       const db = openTestSqlite(catalog.databasePath, { readonly: true });
       try { return (db.prepare("SELECT canonical_path FROM workspaces ORDER BY canonical_path").all() as Array<{ canonical_path: string }>).map(row => row.canonical_path); } finally { db.close(); }
     };
-    assert.equal(directories().length, 2);
+    // Each project also has its own default output directory, a row that stores no path (SSC-20).
+    const named = () => directories().map(directory => directory.startsWith("project-output:") ? directory : basename(directory));
+    assert.deepEqual(named(), ["alone", "shared", `project-output:${gone}`, `project-output:${kept}`]);
 
     await catalog.deleteProject(deletion(gone));
 
-    assert.deepEqual(directories().map(directory => basename(directory)), ["shared"], "the directory only the deleted project was in is gone, the shared one stays");
-    assert.deepEqual(catalog.listWorkspaceMemberships().map(membership => membership.project_id), [kept]);
+    assert.deepEqual(named(), ["shared", `project-output:${kept}`], "the directory only the deleted project was in is gone with its own output row, the shared one stays");
+    assert.deepEqual(catalog.listWorkspaceMemberships().map(membership => [membership.project_id, membership.roles.join()]).sort(), [[kept, "input"], [kept, "output"]]);
   });
 });

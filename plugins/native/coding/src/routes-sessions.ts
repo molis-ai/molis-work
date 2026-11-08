@@ -13,7 +13,7 @@ import { DEFAULT_SESSION_TITLE, codingSessionTitleFrom } from "./session-title.j
 import { roundAfterParkedAnswer, startRound } from "./start-round.js";
 import { codingInputPatch } from "./inputs.js";
 import type { CodingSessionRecord } from "./store.js";
-import { projectsCapabilities, projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import { outputFolder, projectFolders } from "./project-folders.js";
 import { defineErrorCodes, parseExactActionReferences, searchEntriesPage, subjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginRouteBinding } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities as agent, isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -57,12 +57,11 @@ const readState = async (a: CodingActivation, api: Capabilities, execution: Codi
   return { sessions, methods, mcp, models: execution.models.list(),
     // The Runtime a new session runs on; the page reads the role matrix of the open session's Runtime, or this one when none is open.
     project_runtime_id: library?.runtime_id ?? null,
-    // The page's directory: the one chosen in project settings (and by Coding's own workspace choice) is where the page's new rounds
-    // run and what Files and Git show. Only when none was chosen does the catalog's pick stand. Rounds the Assistant starts use the
-    // project's preferred directory instead (`executor.ts`, batch 12 item 1).
+    // Where the page's new rounds run unless the person picks another folder on the page: the project's output (SSC-17). Which folder
+    // the page shows is the page's own state, never a setting (specs/shared-sources-and-surfaces §4).
     // A host without workspace settings offers none of these: sessions still list and open, and a round asks for a directory.
-    workspace: await unlessMissing(api.invoke(projectSettingsCapabilities.browsingWorkspace, []), null) ?? await unlessMissing(api.invoke(projectsCapabilities.readWorkspace, []), null),
-    workspaces: await unlessMissing(api.invoke(projectSettingsCapabilities.workspaces, []), []),
+    workspace: await unlessMissing(outputFolder(api), null),
+    workspaces: await unlessMissing(projectFolders(api), []),
     runtimes: await Promise.all(runtimes.map(async (runtime) => ({ ...runtime,
       roles: await actions.invoke(agent.availableRoles, [runtime.runtime_id]),
     }))),
@@ -70,7 +69,7 @@ const readState = async (a: CodingActivation, api: Capabilities, execution: Codi
 };
 /** The workspace a send names, as the directory it will run in. */
 const directoryOf = async (api: Capabilities, workspaceId: unknown) => {
-  const workspace = (await api.invoke(projectSettingsCapabilities.workspaces, [])).find(entry => entry.workspace_id === workspaceId);
+  const workspace = (await projectFolders(api)).find(entry => entry.workspace_id === workspaceId);
   if (!workspace?.realpath_verified) throw codingError(codingSessionErrors.choose_workspace, "coding.server.choose-workspace");
   return workspace.canonical_path;
 };

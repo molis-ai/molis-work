@@ -296,10 +296,13 @@ test("SSC-12, SSC-25: recent materials come back with an origin read just now, a
   for (const state of ["forbidden", "missing"] as const) await read([{ ref: currentFile, origin: { source: "directory", owner: origin.owner, state } }]);
   await assert.rejects(read([{ ref: fixedArtifact, origin: { source: "import", owner: origin.owner, directory: origin.directory, state: "ok" } }]), "an import has no directory");
   await read([{ ref: currentFile, origin: { source: "directory", owner: origin.owner, state: "unmapped", note: "这个项目原来的默认输出目录" } }]);
+  // To the person, a line whose object has no one owner now (uninstalled, or declared twice) comes back without an origin (合同台第二十二轮).
+  await read([{ ref: fixedArtifact, origin: null }]);
 });
 
-test("the four refusals are declared codes of one error model, not error classes", () => {
+test("the refusals are declared codes of one error model, not error classes", () => {
   const cases = [
+    [projectDirectoryErrors.directory_input_only("x", { workspace_id: "ws1" }), "projects.directory_input_only", "forbidden"],
     [projectDirectoryErrors.directory_missing("x"), "projects.directory_missing", "not_found"],
     [projectDirectoryErrors.directory_unmapped("x"), "projects.directory_unmapped", "not_found"],
     [projectDirectoryErrors.directory_revoked("x"), "projects.directory_revoked", "forbidden"],

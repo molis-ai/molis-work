@@ -376,6 +376,11 @@ export class MolisWorkProjectCatalog {
     return this.projects.query.outputDirectory(projectId);
   }
 
+  /** The id of this project's default output directory, whether or not it is the output now. */
+  defaultOutputDirectoryId(projectId: string): string {
+    return this.projects.query.defaultOutputDirectoryId(projectId);
+  }
+
   /**
    * Before a folder of the project is touched on disk. Only this project's folders: an id from elsewhere is refused before anything
    * looks at the disk. `write` (a write, a terminal, a Character or an Agent run in it) needs the output role — an input folder is only

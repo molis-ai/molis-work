@@ -12,6 +12,62 @@ export function fingerprintWorkspaceFile(content: Uint8Array): string {
   return createHash("sha256").update(content).digest("hex");
 }
 
+const inside = (root: string, value: string) => value === root || value.startsWith(root + path.sep);
+
+/** The path under a linked folder, or null when the folder was replaced, a segment is a symlink, or the real path leaves the folder. */
+async function targetInside(root: string, segments: readonly string[]): Promise<string | null> {
+  // A replaced directory or a symlink is not the directory the user linked.
+  if (!path.isAbsolute(root) || await fs.realpath(root) !== root) return null;
+  let target = root;
+  for (const segment of segments) {
+    target = path.join(target, segment);
+    if ((await fs.lstat(target)).isSymbolicLink()) return null;
+  }
+  return inside(root, await fs.realpath(target)) ? target : null;
+}
+
+/** The most of a file a reference is compared over (spec §2). A reference was written from a read under it, so a bigger file has changed. */
+export const WORKSPACE_FINGERPRINT_LIMIT = 8 * 1024 * 1024;
+export type WorkspaceFileCheck =
+  | { outcome: "file"; size: number; fingerprint: string | null }
+  | { outcome: "too-large"; size: number }
+  | { outcome: "missing" } | { outcome: "denied" } | { outcome: "unsupported" };
+
+/**
+ * Whether a file is there, its size, and with `hash` its fingerprint, under the checks `readWorkspaceFile` makes (the folder's real path,
+ * each segment by `lstat`, `O_NOFOLLOW`). The bytes are hashed as they are read and never kept; past `WORKSPACE_FINGERPRINT_LIMIT` it
+ * stops. Called only after the caller was found to be allowed to read the folder.
+ */
+export async function checkWorkspaceFile(query: { workspace_id: string; path: readonly string[] }, workspaces: readonly ProjectWorkspaceRef[], hash: boolean): Promise<WorkspaceFileCheck> {
+  const segments = parseFilePath(query.path);
+  const workspace = workspaces.find(item => item.workspace_id === query.workspace_id && item.realpath_verified);
+  if (!workspace) return { outcome: "denied" };
+  try {
+    const target = await targetInside(workspace.canonical_path, segments);
+    if (!target) return { outcome: "denied" };
+    const file = await fs.open(target, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+    try {
+      const before = await file.stat();
+      if (!before.isFile()) return { outcome: "unsupported" };
+      if (!hash) return { outcome: "file", size: before.size, fingerprint: null };
+      if (before.size > WORKSPACE_FINGERPRINT_LIMIT) return { outcome: "too-large", size: before.size };
+      const digest = createHash("sha256"), chunk = Buffer.alloc(64 * 1024);
+      let used = 0;
+      for (let read = await file.read(chunk, 0, chunk.length, 0); read.bytesRead; read = await file.read(chunk, 0, chunk.length, used)) {
+        used += read.bytesRead;
+        if (used > WORKSPACE_FINGERPRINT_LIMIT) return { outcome: "too-large", size: used };
+        digest.update(chunk.subarray(0, read.bytesRead));
+      }
+      return { outcome: "file", size: used, fingerprint: digest.digest("hex") };
+    } finally { await file.close(); }
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === "ENOENT" || code === "ENOTDIR") return { outcome: "missing" };
+    if (["EACCES", "EPERM", "ELOOP"].includes(code ?? "")) return { outcome: "denied" };
+    return { outcome: "unsupported" };
+  }
+}
+
 /** Read-only adapter; Projects remains the owner of the live workspace membership. */
 export async function readWorkspaceFile(
   query: WorkspaceFileQuery,
@@ -23,15 +79,8 @@ export async function readWorkspaceFile(
   if (!workspace) return { outcome: "denied" };
   const root = workspace.canonical_path;
   try {
-    // A replaced directory or a symlink is not the directory the user linked.
-    if (!path.isAbsolute(root) || await fs.realpath(root) !== root) return { outcome: "denied" };
-    let target = root;
-    for (const segment of segments) {
-      target = path.join(target, segment);
-      if ((await fs.lstat(target)).isSymbolicLink()) return { outcome: "denied" };
-    }
-    const inside = (value: string) => value === root || value.startsWith(root + path.sep);
-    if (!inside(await fs.realpath(target))) return { outcome: "denied" };
+    const target = await targetInside(root, segments);
+    if (!target) return { outcome: "denied" };
     if (query.kind === "directory") {
       if (!(await fs.lstat(target)).isDirectory()) return { outcome: "unsupported" };
       const entries: Extract<WorkspaceFileResult, { outcome: "directory" }>["entries"][number][] = [];
@@ -44,7 +93,7 @@ export async function readWorkspaceFile(
         entries.push({ name: entry.name, path: [...segments, entry.name],
           kind: entry.isDirectory() ? "directory" : entry.isFile() ? "file" : "other" });
       }
-      if (await fs.realpath(root) !== root || !inside(await fs.realpath(target))) return { outcome: "denied" };
+      if (await fs.realpath(root) !== root || !inside(root, await fs.realpath(target))) return { outcome: "denied" };
       entries.sort((a, b) => Number(b.kind === "directory") - Number(a.kind === "directory") || a.name.localeCompare(b.name));
       return { outcome: "directory", entries, truncated };
     }
@@ -63,7 +112,7 @@ export async function readWorkspaceFile(
         used += read.bytesRead;
       }
       const after = await file.stat(), named = await fs.lstat(target);
-      if (await fs.realpath(root) !== root || !inside(await fs.realpath(target)) || named.isSymbolicLink()) return { outcome: "denied" };
+      if (await fs.realpath(root) !== root || !inside(root, await fs.realpath(target)) || named.isSymbolicLink()) return { outcome: "denied" };
       if (after.ino !== named.ino || after.dev !== named.dev || before.size !== after.size
         || before.mtimeMs !== after.mtimeMs || before.ctimeMs !== after.ctimeMs) return { outcome: "changed" };
       if (used > limit) return { outcome: "too-large", bytes: used, limit };

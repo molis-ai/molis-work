@@ -88,11 +88,14 @@ interface RecentMaterial {
 
   它分不出是这份文件后来改过，还是另一份文件，所以只说「和引用时不是同一份」。
 
-  **读出处的动作（暂名 `materials.origins@1`）在实现片加之前先定，并过评审（合同台定）。** 现在不定：第一个调用方的定样还没有，插件页面和工作台谁来取也没定，先写了多半要改。它只加不删，不进 C-1。定的时候要回答：
+  **读出处的动作 `materials.origins@1`**（query，`system.project-workspaces` 提供，受众 user、plugin，`scheduling: "concurrent"`；合同台 11-08 第二十一、二十二轮定）。输入 `{ items }`，1 到 20 项，每项是完整引用 `{ ref }`，或没有指纹时只给对象 `{ subject }`；输出同样条数、同样顺序的 `{ origin: MaterialOrigin | null }`。行为都在宿主的 `readMaterialOrigins(caller, items, { compare })`（`apps/local-host/src/material-origins.ts`），`materials.recent@1` 和 `materials.recent.record@1` 用的也是它：
 
-  - **给 plugin 怎么答。** 调用方自己传引用，所以不能照抄 `materials.recent@1`，也不能让它借此探测别人的对象（第 2.1 节 `record` 那条）。`unmapped` 要回，这不泄露什么，`projects.directories.get` 它本来就读得到。`forbidden` 和 `missing` 不区分，`owner`、`directory` 只在读得了时带；`MATERIAL_ORIGIN_SCHEMA` 的 `owner` 必填，所以读不了的项要另定形状。代价是插件页面分不出「没有权限」和「已删除」，要写明这两种说法由谁显示。
-  - **没有指纹时怎么传。** `MaterialRef` 的 `read_revision` 必填，没有指纹的绑定拼不出合法引用。这种只查在不在，`note` 写「内容没有核对」。
-  - **上限和授权。** 走 `readMaterialOrigins`，一次的份数由定的时候给；验收见 SSC-30。
+  - **先查授权，再碰东西。** 本机文件先看调用方此刻能不能调读文件的动作和 `projects.directories.get`，不能就不打开文件：给 user 是 `forbidden`（不带 `directory`），给 plugin 是 null。
+  - **对象的主人按动作目录里的对象读取器找**（`findSubjectReader`，和 `resolveActionSubject`、`knowledge.read` 同一套查法；合同台第二十二轮）。只有一个可用的：以调用方身份调它，读到了比 `revision`，被拒按错误类别给 `missing`、`forbidden` 或 `unreadable`。声明了但现在不可用的（停用、没有授权）：给 user 是 `forbidden`，`owner` 照给，读取器不调；给 plugin 是 null。不止一个可用的、一个都没有的（卸载了），以及只有 MCP 提供的：两边都是 null，平台不替人挑。主人取自读取器的提供方：插件给 `plugin_id` 和它的名字，系统给提供方 id。成果库的对象（`artifact`）记作 `import`，其余记作 `object`。
+  - **给 plugin**：`forbidden`、`missing` 一律是 null，形状相同，分不出没有权限还是已删除；`unmapped` 照回（不泄露什么）。插件页面只显示一句「现在读不到这份资料」，分原因由工作台以用户身份现读时显示。
+  - **比较**：只比前 5 个带 `current` pin 的本机文件（`size:` 只比大小，不算在 5 个里）；第 6 个起，和超过 1 秒总时限没做完的，写「内容没有核对」。对象每项调一次读取器，也算在这 1 秒里，超时的是 `unreadable` 加同一句 `note`。时限过了就不再发新的读取；同一个文件的读取在途时不重发。`{ subject }` 项只查在不在，永远不是 `changed`，写「内容没有核对」。`fixed`、`snapshot` 只查那个版本还在不在，不写 `note`。
+  - `workspace_file` 解析不出（这个项目没有这个目录，也没有为它指定文件夹）是 `unmapped`，带 `owner`、不带 `directory`；id 是这个项目自己的默认输出目录写「这个项目原来的默认输出目录」，是别的默认输出目录写「另一台设备的默认输出目录」。
+  - 只读：不写记录，不走 `beforeEffect`；调用取消了就什么也不返回。验收见 SSC-30。
 - **引用不因为换设备而变**（第 3 节「另一台设备上的引用」）：`subject.id` 写的是原设备的目录 id，对应关系在读的时候换算，不改写引用。这样同步回原设备照样能读，换一次对应，这个目录的引用一起跟着走。所以 `MaterialRef` 不加字段；要改的是 `MaterialOrigin`，多一个 `unmapped`。
 
 ### 2.1 最近用过
@@ -109,7 +112,7 @@ interface RecentMaterial {
   - **给 plugin**：只返回调用方此刻读得了的项；`forbidden`、`missing`、`unmapped` 的项连 `subject` 都不给，也不给件数。插件拿到别的插件对象或本机文件的 `subject`，本身就是泄露（和第 6 节 `excluded` 同一条理由）。
 - **生命周期**：
   - 每个调用方在每个项目里留 20 份，写入时在同一个事务里删掉最旧的。
-  - 主人插件停用或卸载后记录不改写；读的时候出处按第 2 节现读：给 user 显示「已删除」或「没有权限查看」，给 plugin 不返回。
+  - 主人插件停用或卸载后记录不改写；读的时候出处按第 2 节现读。停用时是 `forbidden`，给 user 显示「没有权限查看」；卸载了或不止一个插件声明这种对象时 `origin` 是 null，给 user 显示「现在没有插件能打开这份资料」；给 plugin 都不返回（统筹 11-08 定，合同台第二十二轮）。
   - 删项目时随项目库一起删（项目库是每个项目一份，`ProjectDeletionService` 删项目库那一步就清掉了），不另登记步骤。
   - Home 快照照项目库的规矩带上。
 

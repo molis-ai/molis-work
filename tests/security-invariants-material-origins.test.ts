@@ -1,0 +1,225 @@
+import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import test from "node:test";
+
+import { ActionError, SUBJECT_CONTEXT_TYPE, SUBJECT_REFERENCE_TYPE, type ActionCallContext, type ActionClient, type ActionExecutionContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { materialOriginActions, materialRecentActions, PROJECT_WORKSPACE_PROVIDER_ID, projectDirectoryActions, type ProjectDirectories } from "@molis-ai/molis-work-contracts/modules/projects";
+import { workspaceFileSubjectId, workspaceReadActions, WORKSPACE_FILE_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { MATERIAL_ORIGIN_NOTES, type MaterialOriginQuery, type MaterialRef } from "@molis-ai/molis-work-contracts/platform/project-materials";
+import { MATERIAL_RECENT_USES_SCHEMA_SQL, MaterialRecentUses } from "@molis-ai/molis-work-module-projects";
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
+
+import { readMaterialOrigins, type MaterialOriginPorts } from "../apps/local-host/dist/material-origins.js";
+import { projectWorkspaceActionProvider } from "../apps/local-host/dist/project-workspace-actions.js";
+import { checkWorkspaceFile } from "../apps/local-host/dist/workspace-files.js";
+
+// specs/shared-sources-and-surfaces §2, §2.1 (SSC-02, SSC-12, SSC-25, SSC-28, SSC-30): where a reference comes from is read now, under the
+// caller's own authority. A plugin cannot use it to learn about what it may not read; nothing is opened before the caller may read it.
+
+const OWN_DEFAULT = "workspace-output-own000000000000000000000";
+const sha = (text: string) => createHash("sha256").update(text).digest("hex");
+
+function fixture() {
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), "molis-origins-")));
+  const docs = path.join(root, "docs");
+  mkdirSync(docs);
+  for (let n = 1; n <= 7; n += 1) writeFileSync(path.join(docs, `${n}.md`), `file ${n}`);
+  const directories: ProjectDirectories = { project_id: "p", revision: "r1", source_links: [],
+    directories: [{ workspace_id: "ws1", canonical_path: docs, realpath_verified: true, display_name: "docs", roles: ["input"], state: "ok" }] };
+  return { root, directories, cleanup: () => rmSync(root, { recursive: true, force: true }) };
+}
+const fileRef = (n: number, revision = sha(`file ${n}`)): MaterialRef => ({ subject: { kind: WORKSPACE_FILE_SUBJECT_KIND, id: workspaceFileSubjectId("ws1", [`${n}.md`]) }, pin: { mode: "current", read_revision: revision } });
+const caller = (audience: "user" | "plugin"): ActionCallContext => ({ actor_id: audience === "user" ? "local-person" : "plugin:goals", project_id: "p", audience, permissions: [],
+  ...(audience === "plugin" ? { calling_plugin_id: "goals" } : {}) });
+
+const view = (capability_id: string, provider: ActionView["provider"], options: { kinds?: string[]; available?: boolean; reader?: boolean } = {}): ActionView => ({
+  capability_id, version: 1, operation: "query", provider,
+  availability: options.available === false ? { available: false, code: "actions.plugin_permission", reason: "没有授权" } : { available: true },
+  action: { title: capability_id, description: "", kind: "query", audiences: ["user", "plugin"], permissions: [], subject_kinds: options.kinds ?? ["project"],
+    input_schema: {}, output_schema: {}, ...(options.reader ? { input_type: SUBJECT_REFERENCE_TYPE, output_type: SUBJECT_CONTEXT_TYPE } : {}) },
+}) as ActionView;
+const goals = { provider_id: "goals", title: "目标", kind: "plugin", plugin_id: "goals" } as const;
+const pages = { provider_id: "pages-install-1", title: "Pages", kind: "plugin", plugin_id: "pages" } as const;
+
+/** The catalog a caller discovers: the folder reads, and object readers of a few kinds as the tests need them. */
+function catalog(options: { files?: boolean; pagesAvailable?: boolean } = {}) {
+  const invoked: string[] = [];
+  const system = { provider_id: "system.workspace", title: "工作目录", kind: "system" } as const;
+  const views = [
+    view(workspaceReadActions.file.capability_id, system, { available: options.files !== false }),
+    view(projectDirectoryActions.get.capability_id, { provider_id: PROJECT_WORKSPACE_PROVIDER_ID, title: "项目工作目录", kind: "system" }),
+    view("goals.read", goals, { kinds: ["goal"], reader: true }),
+    view("pages.read", pages, { kinds: ["page"], reader: true, available: options.pagesAvailable ?? true }),
+    view("one.read", goals, { kinds: ["twice"], reader: true }), view("two.read", pages, { kinds: ["twice"], reader: true }),
+    view("mcp.read", { provider_id: "mcp.x", title: "X", kind: "mcp" }, { kinds: ["remote"], reader: true }),
+  ];
+  const client: ActionClient = {
+    discover: () => views,
+    invoke: async (_context, reference, input) => {
+      const id = (input as { subject_id: string }).subject_id;
+      invoked.push(`${reference.capability_id}:${id}`);
+      if (id === "deleted") throw new ActionError("goals.goal_missing", "没有这个目标", { kind: "not_found" });
+      if (id === "hidden") throw new ActionError("actions.forbidden", "不能看");
+      if (id === "stuck") return new Promise(() => undefined);
+      const kind = reference.capability_id === "goals.read" ? "goal" : "page";
+      return { subject: { kind, id }, revision: "v2", title: id, content: "", truncated: false };
+    },
+  };
+  return { client, invoked };
+}
+
+function ports(directories: ProjectDirectories, client: ActionClient, extra: Partial<MaterialOriginPorts> = {}) {
+  const opened: string[] = [];
+  const value: MaterialOriginPorts = {
+    client, origin: { capability_id: materialOriginActions.read.capability_id, version: 1, provider_id: PROJECT_WORKSPACE_PROVIDER_ID }, projectId: "p",
+    folders: async () => ({ directories, default_output_id: OWN_DEFAULT }),
+    check: async (query, workspaces, hash) => { opened.push(`${query.path.join("/")}${hash ? "#" : ""}`); return checkWorkspaceFile(query, workspaces, hash); },
+    versionKept: pin => pin.version.artifact_id === "kept", ...extra,
+  };
+  return { ports: value, opened };
+}
+
+test("SSC-30: a plugin's reference to another plugin's object and one to a deleted object both come back as the same null", async () => {
+  const { root, directories, cleanup } = fixture();
+  try {
+    const { client } = catalog({ pagesAvailable: false });
+    const asked: MaterialOriginQuery[] = [{ ref: { subject: { kind: "page", id: "p1" }, pin: { mode: "current", read_revision: "v2" } } },
+      { ref: { subject: { kind: "goal", id: "deleted" }, pin: { mode: "current", read_revision: "v1" } } }];
+    const plugin = await readMaterialOrigins(caller("plugin"), asked, { compare: true }, ports(directories, client).ports);
+    assert.deepEqual(plugin, [{ origin: null }, { origin: null }]);
+    // The person is told which: no access now (owner still named, the reader not called), or gone.
+    const person = await readMaterialOrigins(caller("user"), asked, { compare: true }, ports(directories, client).ports);
+    assert.deepEqual(person.map(item => [item.origin?.state, item.origin?.owner]), [
+      ["forbidden", { kind: "plugin", id: "pages", title: "Pages" }], ["missing", { kind: "plugin", id: "goals", title: "目标" }]]);
+    assert.ok(root);
+  } finally { cleanup(); }
+});
+
+test("SSC-30: without the grant to read the folder a plugin gets null and no file is opened", async () => {
+  const { directories, cleanup } = fixture();
+  try {
+    const { client } = catalog({ files: false });
+    const { ports: given, opened } = ports(directories, client);
+    assert.deepEqual(await readMaterialOrigins(caller("plugin"), [{ ref: fileRef(1) }], { compare: true }, given), [{ origin: null }]);
+    const person = await readMaterialOrigins(caller("user"), [{ ref: fileRef(1) }], { compare: true }, given);
+    assert.equal(person[0]!.origin?.state, "forbidden");
+    assert.equal(person[0]!.origin?.directory, undefined, "nothing about the folder before the grant");
+    assert.deepEqual(opened, [], "fingerprinting never started");
+  } finally { cleanup(); }
+});
+
+test("SSC-25, SSC-30: an id this project has no folder for is unmapped, with its owner and no directory, to a plugin as well", async () => {
+  const { directories, cleanup } = fixture();
+  try {
+    const { client } = catalog();
+    const at = (folder: string): MaterialOriginQuery => ({ ref: { subject: { kind: WORKSPACE_FILE_SUBJECT_KIND, id: workspaceFileSubjectId(folder, ["README.md"]) }, pin: { mode: "current", read_revision: "size:3" } } });
+    const { ports: given, opened } = ports(directories, client);
+    const answers = await readMaterialOrigins(caller("plugin"), [at(OWN_DEFAULT), at("workspace-output-elsewhere0000000000000000"), at("ws-other-device")], { compare: true }, given);
+    assert.deepEqual(answers.map(item => item.origin), [
+      { source: "directory", owner: { kind: "system", id: PROJECT_WORKSPACE_PROVIDER_ID, title: "项目目录" }, state: "unmapped", note: MATERIAL_ORIGIN_NOTES.former_default_output },
+      { source: "directory", owner: { kind: "system", id: PROJECT_WORKSPACE_PROVIDER_ID, title: "项目目录" }, state: "unmapped", note: MATERIAL_ORIGIN_NOTES.other_default_output },
+      { source: "directory", owner: { kind: "system", id: PROJECT_WORKSPACE_PROVIDER_ID, title: "项目目录" }, state: "unmapped" }]);
+    assert.deepEqual(opened, [], "a folder nobody named here is not looked in, even for a file of the same name");
+    // Named here: the same reference reads from that folder.
+    const mapped = { ...directories, source_links: [{ source_workspace_id: "ws-other-device", workspace_id: "ws1" }] };
+    writeFileSync(path.join(directories.directories[0]!.canonical_path, "README.md"), "abc");
+    const now = await readMaterialOrigins(caller("plugin"), [at("ws-other-device")], { compare: true }, ports(mapped, client).ports);
+    assert.equal(now[0]!.origin?.state, "ok");
+    assert.equal(now[0]!.origin?.directory?.workspace_id, "ws1");
+  } finally { cleanup(); }
+});
+
+test("SSC-28, SSC-30: the first five current files are compared by content; the sixth on, and a subject alone, say unchecked and never changed", async () => {
+  const { directories, cleanup } = fixture();
+  try {
+    const { client } = catalog();
+    const { ports: given, opened } = ports(directories, client);
+    const asked: MaterialOriginQuery[] = [{ ref: fileRef(1) }, { ref: fileRef(2, sha("before")) }, { ref: fileRef(3) }, { ref: fileRef(4) }, { ref: fileRef(5) },
+      { ref: fileRef(6, sha("before")) }, { subject: fileRef(7).subject }, { ref: fileRef(1, "size:6") }, { ref: fileRef(1, "size:99") }];
+    const answers = await readMaterialOrigins(caller("user"), asked, { compare: true }, given);
+    assert.deepEqual(answers.map(item => [item.origin?.state, item.origin?.note ?? null]), [
+      ["ok", null], ["changed", null], ["ok", null], ["ok", null], ["ok", null],
+      ["ok", MATERIAL_ORIGIN_NOTES.unchecked], ["ok", MATERIAL_ORIGIN_NOTES.unchecked], ["ok", null], ["changed", null]]);
+    assert.deepEqual(opened.filter(item => item.endsWith("#")), ["1.md#", "2.md#", "3.md#", "4.md#", "5.md#"], "only five read for their content");
+    // Recording reads no content at all.
+    const recording = ports(directories, client);
+    await readMaterialOrigins(caller("user"), asked, { compare: false }, recording.ports);
+    assert.deepEqual(recording.opened.filter(item => item.endsWith("#")), []);
+  } finally { cleanup(); }
+});
+
+test("SSC-02, SSC-30: an object's origin is its one reader's answer now; no one owner means no origin", async () => {
+  const { directories, cleanup } = fixture();
+  try {
+    const { client, invoked } = catalog();
+    const goal = (id: string, revision = "v2"): MaterialOriginQuery => ({ ref: { subject: { kind: "goal", id }, pin: { mode: "current", read_revision: revision } } });
+    const asked: MaterialOriginQuery[] = [goal("g1"), goal("g1", "v1"), goal("hidden"), { subject: { kind: "goal", id: "g1" } },
+      { ref: { subject: { kind: "twice", id: "x" }, pin: { mode: "current", read_revision: "v" } } }, { ref: { subject: { kind: "gone", id: "x" }, pin: { mode: "current", read_revision: "v" } } },
+      { ref: { subject: { kind: "remote", id: "x" }, pin: { mode: "current", read_revision: "v" } } },
+      { ref: { subject: { kind: "goal", id: "g1" }, pin: { mode: "fixed", version: { artifact_id: "kept", version: 1 } } } },
+      { ref: { subject: { kind: "goal", id: "g1" }, pin: { mode: "snapshot", version: { artifact_id: "dropped", version: 1 } } } }];
+    const person = await readMaterialOrigins(caller("user"), asked, { compare: true }, ports(directories, client).ports);
+    assert.deepEqual(person.map(item => item.origin && [item.origin.source, item.origin.state, item.origin.note ?? null]), [
+      ["object", "ok", null], ["object", "changed", null], ["object", "forbidden", null], ["object", "ok", MATERIAL_ORIGIN_NOTES.unchecked],
+      null, null, null, ["object", "ok", null], ["object", "missing", null]]);
+    assert.ok(!invoked.some(call => call.startsWith("one.read") || call.startsWith("two.read") || call.startsWith("mcp.read")), "the platform never picks one of two readers");
+    const plugin = await readMaterialOrigins(caller("plugin"), asked, { compare: true }, ports(directories, client).ports);
+    assert.deepEqual(plugin.map(item => item.origin?.state ?? null), ["ok", "changed", null, "ok", null, null, null, "ok", null]);
+  } finally { cleanup(); }
+});
+
+test("SSC-28: past the one-second deadline nothing more is started and what is left says unchecked", async () => {
+  const { directories, cleanup } = fixture();
+  try {
+    const { client, invoked } = catalog();
+    let clock = 0;
+    const given = ports(directories, client, { now: () => clock });
+    const stuck = { ref: { subject: { kind: "goal", id: "stuck" }, pin: { mode: "current", read_revision: "v" } } } as MaterialOriginQuery;
+    const waiting = readMaterialOrigins(caller("user"), [stuck, { ref: fileRef(1) }, { ref: { subject: { kind: "goal", id: "g1" }, pin: { mode: "current", read_revision: "v2" } } }],
+      { compare: true }, given.ports);
+    // The stuck reader holds the first item until the deadline; then the clock says the second is gone too.
+    setTimeout(() => { clock = 5_000; }, 10);
+    const answers = await waiting;
+    assert.deepEqual(answers.map(item => [item.origin?.state, item.origin?.note ?? null]), [
+      ["unreadable", MATERIAL_ORIGIN_NOTES.unchecked], ["ok", MATERIAL_ORIGIN_NOTES.unchecked], ["unreadable", MATERIAL_ORIGIN_NOTES.unchecked]]);
+    assert.deepEqual(invoked, ["goals.read:stuck"], "nothing was asked after the deadline");
+    assert.deepEqual(given.opened, []);
+  } finally { cleanup(); }
+});
+
+test("SSC-12: 「最近用过」 keeps only what the caller can read now, says nothing about the rest, and a refused call keeps nothing", async () => {
+  const { directories, cleanup } = fixture();
+  const db = openTestSqlite(":memory:");
+  try {
+    db.exec(MATERIAL_RECENT_USES_SCHEMA_SQL);
+    const { client } = catalog({ pagesAvailable: false });
+    const fakeCatalog = { projectDirectories: () => directories, defaultOutputDirectoryId: () => OWN_DEFAULT };
+    const provider = projectWorkspaceActionProvider("p", () => ({ home: "/home", run: async (_options: unknown, operation: (catalog: never) => unknown) => operation(fakeCatalog as never) }) as never,
+      async () => undefined, { client, db, now: () => new Date("2026-11-08T00:00:00.000Z"), versionKept: () => true });
+    const handler = (capability: string) => provider.handlers.find(item => item.capability_id === capability)!;
+    let refuse = false;
+    const call = (audience: "user" | "plugin") => ({ ...caller(audience), beforeEffect: async () => { if (refuse) throw new ActionError("actions.forbidden", "撤权了"); } }) as unknown as ActionExecutionContext;
+    const page: MaterialRef = { subject: { kind: "page", id: "p1" }, pin: { mode: "current", read_revision: "v2" } };
+    const deleted: MaterialRef = { subject: { kind: "goal", id: "deleted" }, pin: { mode: "current", read_revision: "v1" } };
+    const elsewhere: MaterialRef = { subject: { kind: WORKSPACE_FILE_SUBJECT_KIND, id: workspaceFileSubjectId("ws-other", ["a.md"]) }, pin: { mode: "current", read_revision: "size:1" } };
+    const answer = await handler(materialRecentActions.record.capability_id).handle(call("plugin"), { refs: [fileRef(1), page, deleted, elsewhere, fileRef(2)] });
+    assert.deepEqual(answer, {}, "no count, no reason");
+    const recent = new MaterialRecentUses(db);
+    assert.deepEqual(recent.list({ kind: "plugin", id: "goals" }), [fileRef(2), fileRef(1)]);
+    // The person's list is their own; one recorded under a revoked call is not kept.
+    refuse = true;
+    await assert.rejects(handler(materialRecentActions.record.capability_id).handle(call("user"), { refs: [fileRef(3)] }) as Promise<unknown>);
+    assert.deepEqual(recent.list({ kind: "user", id: "local-person" }), []);
+    refuse = false;
+    recent.record({ kind: "plugin", id: "goals" }, [page, deleted], "2026-11-08T00:01:00.000Z");
+    recent.record({ kind: "user", id: "local-person" }, [page, { subject: { kind: "twice", id: "x" }, pin: { mode: "current", read_revision: "v" } }], "2026-11-08T00:01:00.000Z");
+    const read = handler(materialRecentActions.read.capability_id);
+    const plugin = await read.handle(call("plugin"), {}) as { items: { ref: MaterialRef }[] };
+    assert.deepEqual(plugin.items.map(item => item.ref), [fileRef(2), fileRef(1)], "a plugin is not given the subject of what it cannot read");
+    const person = await read.handle(call("user"), {}) as { items: { ref: MaterialRef; origin: { state: string } | null }[] };
+    assert.deepEqual(person.items.map(item => item.origin?.state ?? null), [null, "forbidden"], "the person sees each line, and why");
+  } finally { db.close(); cleanup(); }
+});

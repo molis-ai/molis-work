@@ -146,10 +146,11 @@ argument_hint: "<周期，可选>"
 
 - **2026-11-07 用户定**：「发布者撤销」那种用不了的状态字保留定样的「已撤销」，英文先用产品词典已有的 Retracted；第 16 批换成稳定键以后再单独译成 Revoked。否掉的：改成「发布者已撤销」（改了已定的样里的一个词）。
 - **2026-11-07 第 08 批主会话定**：C-1 的 frontmatter 转声明照写手的做法——`name` 兼作 Skill 的 id 与名称；没写 `summary` 时取 `description` 开头 300 个 UTF-16 单元；`version` 先取调用方给的，其次取 frontmatter 的，都没有就是 1。只有声明的插件写 `requires` 不要求同时列进 `capabilities.consumes`（它自己不调用动作，`consumes` 必须为空）。`connector_categories` 先只查格式，类别表由助理统一接入服务的主人给出。
+- **2026-11-08 用户定（C-3 落在 02③ 重建之后）**：旧三键写法（`methods: [{ name, purpose, body }]`）的签名沙箱包不兼容、不迁移，照阶段一 Manifest 原地改的规则明确失败（`plugin.declaration_invalid`），作者重新打包、重新签名；创作台发布的包不带 `methods`，不受影响。否掉的：先读真实 Home 数一遍再定（要动真实 Home，而结论不随数量变）；保留旧写法的读取（宿主得替包编 `description`／`applies_to`，违背「宿主不编默认值」的设计，还要长期维护）。
 
 ## 10. 开工前检查（第 08 批主会话，2026-11-06）
 
-按[需求开发流程](../post-anticorruption-roadmap/reference/development-workflow.md#4-开工前检查)第 4 节逐项答（第 15 项随决定 27 于 2026-11-07 补）。依据：本 spec、[合同稿](contract-design.md)、main `cf21c8d67`（第 14 项冲突面 2026-11-07 按 main `52f1e9836` 重核）。档位：大需求；类型：横向能力（主），兼产品线（助理、Coding）。决策标记：直接做；第 6、7 项里两张新表与 Coding 旧路的存量，用户 2026-11-06 已定（§9）；C-3 落在 02③ 之后时的存量另问（第 7 项）。
+按[需求开发流程](../post-anticorruption-roadmap/reference/development-workflow.md#4-开工前检查)第 4 节逐项答（第 15 项随决定 27 于 2026-11-07 补）。依据：本 spec、[合同稿](contract-design.md)、main `cf21c8d67`（第 14 项冲突面 2026-11-07 按 main `52f1e9836` 重核）。档位：大需求；类型：横向能力（主），兼产品线（助理、Coding）。决策标记：直接做；第 6、7 项里两张新表与 Coding 旧路的存量，用户 2026-11-06 已定（§9）；C-3 落在 02③ 之后时的存量，用户 2026-11-08 已定不兼容、不迁移（§9，第 7 项②）。
 
 本批只交合同、Plugin Runtime、安装、Skill 目录与设置、导入、界面和设计与无障碍内容包。助理与 Coding 两个消费方在[第 09 批](../post-anticorruption-roadmap/reference/batches/09.md)（9-2～9-5），见 §11 末尾。
 
@@ -161,7 +162,7 @@ argument_hint: "<周期，可选>"
 | 4 | 合同 | 改。分三份只改合同的小 PR：C-1 声明，C-2 动作与安装预览，C-3 沙箱方法写法合一（合同稿 §12）。M1 之前按 N35 一个 PR 改完所有消费者，不留兼容期；各片随之刷新动作快照与 api 快照 |
 | 5 | 放在哪个包 | 合同与校验放 `packages/contracts`、`packages/plugin-sdk`；「已声明、不启动」放 `packages/plugin-runtime`。目录、设置、用量扩展宿主已有的 Agent 定义登记：它今天已经按 Manifest 的 `methods` 登记方法，是方法定义的事实主人，所以这是给已有主人加状态，不是新的平台服务。用户 2026-11-01 定「新的平台服务放 `horizontal/` 新包」，管的是新服务，这里不新开包。依赖方向不变 |
 | 6 | 表与存储 | 新增两张表 `skill_settings`、`skill_uses`，只由 `apps/local-host/src/agent-definitions/` 读写；别的包调它导出的函数，不进 `tooling/gates/table-owners.json` 的共写名单。`table-owners.json` 的 `areas` 现在只有 Feed 一条，08-7 评估给 `agent-definitions` 加一条，只许变严。同片改 `docs/SSOT-MATRIX.md` 的主人行、`docs/system/HOME-DATA.md` 和库版本维护清单。动表的实现按本批前置，等 05 的 U1／U2 与 SQLite 切换；那时真实 Home 已经重建，在 U1 升级链里加一步，只建这两张空表（用户 2026-11-06 同意，§9） |
-| 7 | 兼容与迁移 | 不加读取兼容。迁移只有两处。① 上一项的建表一步，用户已同意；08-7 在同一个 PR 里把它写进 `docs/system/CONTRACT-CHANGES.md`「当前保留机制」。② C-3 把沙箱 app 包的 `methods: [{ name, purpose, body }]` 改成完整的 Skill 声明，已签名留存的沙箱包和创作台生成的包会读不了（`docs/platform/PLUGIN-DEVELOPMENT.md`「沙箱包格式与安装」）。C-3 若在 02③ 真实 Home 重建之前合入，直接改，不迁；若在重建之后，旧包要迁移或兼容，属红线，开 PR 前先问用户（合同稿 §12、§13 第 3 条）。Coding 旧路的 `molis-coding-method` 不认也不迁（用户 2026-11-06 定，§9；删除在 09 的 9-4、9-5） |
+| 7 | 兼容与迁移 | 不加读取兼容。迁移只有两处。① 上一项的建表一步，用户已同意；08-7 在同一个 PR 里把它写进 `docs/system/CONTRACT-CHANGES.md`「当前保留机制」。② C-3 把沙箱 app 包的 `methods: [{ name, purpose, body }]` 改成完整的 Skill 声明，已签名留存、写了这种 `methods` 的沙箱包会读不了（创作台发布的包不带 `methods`，不受影响；`docs/platform/PLUGIN-DEVELOPMENT.md`「沙箱包格式与安装」）。02③ 真实 Home 已于 11-07 重建，C-3 落在重建之后；用户 2026-11-08 已定不兼容、不迁移，旧写法的包明确失败、重新打包签名（§9；合同稿 §12、§13 第 3 条）。Coding 旧路的 `molis-coding-method` 不认也不迁（用户 2026-11-06 定，§9；删除在 09 的 9-4、9-5） |
 | 8 | 安全边界 | 碰。包内路径校验，拒 `..`、绝对路径、符号链接。签名验证复用现有的。资源只按声明的路径读，并核对 `sha256`。导入只读来源目录之内。`manual` 的 Skill 只认冻结名单，防提示注入。Skill 不授予权限：`tools` 只是说明，Coding 不借它扩大 `host_tools`（SKC-13，代码随 09 的 9-5 落）。各实现片在 `docs/system/SECURITY-INVARIANTS.md` 加行，配断言「拒绝」本身的测试 |
 | 9 | 调用次数 | 打开目录发一次请求，返回里带 `excerpt` 和 `availability`，详情不再为开头另读正文。改状态一次点击一次请求：原型的启用步骤与目录都是「选好就生效」，「完成」只跳转，不按条目逐个发。`skills.catalog.list@1` 每次请求做一遍目录发现与授权核对，开一次库。页面不轮询。一轮开头要冻结多个 `SkillRef` 时，读正文不能逐个重核、逐个开库（N42～N44）：C-2 定为 `skills.body.read@1` 收引用数组（1～20 个），一次请求一份上下文；这条和 09 第八节第 6 条「一轮只取一次目录」对齐 |
 | 10 | 升级与数据 | 包升级、插件停用再启用都不改设置；被移除的 Skill 删设置，新增的是 `off`。正在跑的一轮固定原 `SkillRef`。卸载后，用量历史保留当时的引用与名称。再导入同一来源就是升级。沙箱包的方法写法见第 7 项② |
@@ -192,7 +193,7 @@ argument_hint: "<周期，可选>"
 | 08-2 组件板标本 | §9 的五个「组件板新增」补成 `/__ui/catalog` 上的标本，D 轨合审 | 定样（已合）；#1872 合入后开 PR | 照定样决策；每个标本的正常／异常、中英文、深浅色、1440／1024／390 都齐 |
 | 08-3 三个内置插件补取值 | Todo、Issues、Pages 的 `methods` 写上 `description`、`applies_to`（E 轨文件） | 08-1 | 三个插件照常装配；为 08-5 改必填铺路 |
 | 08-4 C-2 动作合同 | 合同稿 §12 C-2 行；`skills.body.read@1` 的批量读法按 §10 第 9 项定 | 08-1；`host-actions.tsv` 上没有别的片在途 | SKC-05～09 的合同部分 |
-| 08-5 C-3 方法写法合一 | 合同稿 §12 C-3 行，`description`、`applies_to` 改必填；跑 `pnpm studio:replay` | 08-1、08-3；#1837 合入；开 PR 前核 02③ 是否已重建（§10 第 7 项②） | SKP-08；现有沙箱包与创作台回放不被拒 |
+| 08-5 C-3 方法写法合一 | 合同稿 §12 C-3 行，`description`、`applies_to` 改必填；跑 `pnpm studio:replay` | 08-1、08-3；#1837 合入；开 PR 前核 02③ 是否已重建（已于 11-07 重建，用户 11-08 定不兼容、不迁移，§9、§10 第 7 项②） | SKP-08；现有沙箱包与创作台回放不被拒 |
 | 08-6 Runtime 与安装 | 「已声明、不启动」装配；内容包的解析接进安装服务；启用时从已验证包登记方法；安装预览的 `skills`、`requires`，以及按 Skill 的升级差异 | 08-4、08-5（预览要给沙箱包方法列 `description`／`applies_to`，宿主不替它编） | SKC-02、SKC-03、SKC-04，SKP-01、SKP-08 |
 | 08-7 Skill 目录、设置与用量 | `system.skills` 的四个动作；两张新表（U1 里加一步建表）；冻结点名；SSOT、HOME-DATA、库版本清单 | 08-4、08-6；05 的 U1／U2 与 SQLite 切换 | SKC-05、SKC-06、SKC-08、SKC-09、SKC-12，SKC-07 的目录一侧 |
 | 08-8 外部 Skills 导入 | `skills.import.*`、CLI `pack-content`、用本机发布身份签名 | 08-4、08-6（不动表）。和 08-7 改同一份 `system.skills` 登记或 `host-actions.tsv` 时，同一时间一个写手，先准备好的先落 | SKC-10 |

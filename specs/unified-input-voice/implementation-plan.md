@@ -173,7 +173,7 @@ type ComposerMaterial =
 
 按 [SECURITY-INVARIANTS](../../docs/system/SECURITY-INVARIANTS.md) 第 3 节加一行。测试要先在没有保护的代码上红过。
 
-**新增 S-109（暂编；第 18 批已暂占 S-108，落地时按表顺延）：输入组件的扩展只拿到本次调用。** 拒绝什么：
+**新增 S-109（暂编；第 18 批已暂占 S-108，落地时按表顺延）：输入组件的扩展只拿到本次调用。** K0 落地时 S-109 已被别的记录占用，表也已改成新增用语义 ID，所以这条记作 [`S-composer-source-call`](../../docs/system/security-invariants/S-composer-source-call.md)，第 1、2 条随 K0 落，第 3～5 条随 K2 补进同一条记录。拒绝什么：
 
 1. 来源动作的输入里没有草稿、接收者、别的附件：给 `composer_source` 动作的调用只含 `query`、`limit`、`near`；挂载页没交 `near` 时也没有当前对象；声明的 `input_schema` 与平台定死的那份差一个字（多收字段、放宽长度）就装不上。
 2. 不合规的声明装不上：`composer_source` 声明在非 `query`、非只读、受众不含 `user`、种类不归自己的动作上，Manifest 解析被拒。

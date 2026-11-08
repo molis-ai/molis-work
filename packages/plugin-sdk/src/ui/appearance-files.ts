@@ -1,5 +1,6 @@
 import { TEXT_REF_LIMITS, UI_FILE_LIMITS, UI_FILE_PATTERNS, UI_FONT_ROLE_NAMES, UI_FORMAT_VERSIONS, UI_RESOURCE_KINDS, UI_RESOURCE_LOADS, UI_ROLE_TYPES, UI_ROLE_VARIES_BY, type UiFileResult, type UiFontSchemeFile, type UiResourceRegistry, type UiRoleSpec, type UiSkinFile, type UiSpecFile } from "@molis-ai/molis-work-contracts/platform/ui";
-import { checkFormatVersion, childPath, finishFile, isObject, readObject, readStrictJson, type ProblemSink } from "./file-reader.js";
+import { checkFormatVersion, childPath, finishFile, readObject, readStrictJson, type ProblemSink } from "./file-reader.js";
+import { isRecord } from "../json-value.js";
 import { textRefProblems } from "./text-ref.js";
 import { tokenValueProblem, tokenValueRefs } from "./token-values.js";
 
@@ -182,13 +183,13 @@ export function parseSkinFile(source: string, spec: UiSpecFile, options: UiFileO
   checkDefinitionRef(sink, "$.spec", skin.spec);
   checkDefinitionRef(sink, "$.recommended_font", skin.recommended_font);
   checkTextRef(sink, "$.name", skin.name);
-  const named = isObject(skin.spec) ? skin.spec : {};
+  const named = isRecord(skin.spec) ? skin.spec : {};
   if (named.id !== spec.id || named.revision !== spec.revision) sink.add("$.spec", "ui.skin_spec_mismatch", `这款皮肤写给 ${String(named.id)} 第 ${String(named.revision)} 版，现在的规格是 ${spec.id} 第 ${spec.revision} 版`, "按现在的规格改好，再改 spec");
   const isBaseline = skin.id === spec.baseline_skin.id && skin.revision === spec.baseline_skin.revision;
   const roles = specRoles(spec);
   const tokens = specFontTokens(spec);
   const checkMap = (path: string, map: unknown, where: UiRoleSpec["varies_by"]) => {
-    for (const [name, token] of Object.entries(readObject(sink, map, path, [], Object.keys(isObject(map) ? map : {})) ?? {})) checkSkinRole(sink, childPath(path, name), name, token, where, roles, tokens, isBaseline);
+    for (const [name, token] of Object.entries(readObject(sink, map, path, [], Object.keys(isRecord(map) ? map : {})) ?? {})) checkSkinRole(sink, childPath(path, name), name, token, where, roles, tokens, isBaseline);
   };
   for (const theme of THEME_MAPS) checkMap(`$.${theme}`, skin[theme], "theme");
   checkMap("$.shared", skin.shared, "none");
@@ -254,7 +255,7 @@ export function parseFontScheme(source: string, options: UiFileOptions = {}): Ui
   const faces = Array.isArray(scheme.faces) ? scheme.faces : [];
   if (!Array.isArray(scheme.faces)) sink.add("$.faces", "ui.file_wrong_type", "faces 必须是数组", "没有自带字体就写 []");
   faces.forEach((face: unknown, index) => checkFontFace(sink, `$.faces[${index}]`, face));
-  const declared = new Set(faces.map((face: unknown) => (isObject(face) ? face.family : undefined)));
+  const declared = new Set(faces.map((face: unknown) => (isRecord(face) ? face.family : undefined)));
   const roles = readObject(sink, scheme.roles, "$.roles", UI_FONT_ROLE_NAMES);
   for (const name of UI_FONT_ROLE_NAMES) if (roles?.[name] !== undefined) checkFontRole(sink, `$.roles.${name}`, roles[name], declared);
   return finishFile(sink, value);
@@ -265,7 +266,7 @@ function checkPackagePath(sink: ProblemSink, path: string, value: unknown): void
 }
 
 function checkResourceRow(sink: ProblemSink, path: string, value: unknown, ids: Set<unknown>): void {
-  const binary = isObject(value) && (value.kind === "font" || value.kind === "asset");
+  const binary = isRecord(value) && (value.kind === "font" || value.kind === "asset");
   const row = readObject(sink, value, path, ["id", "owner", "package", "path", "load", "kind", ...(binary ? ["sha256", "license"] : [])], ["route"]);
   if (row === null) return;
   checkPattern(sink, childPath(path, "id"), row.id, UI_FILE_PATTERNS.resource_id, "资源 id ");

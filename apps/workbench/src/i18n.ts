@@ -1,5 +1,6 @@
 
 import { fillMessage } from "@molis-ai/molis-work-plugin-sdk";
+import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { EN } from "./i18n/en.js";
 import { BUILTIN_PLUGIN_CATALOG, pluginTabTitles } from "./plugin-catalog.js";
 import { createPluginMessageStore } from "./plugin-messages.js";
@@ -130,7 +131,7 @@ function L(key: string, vars?: Record<string, string | number>): string {
 
 function renderLocaleSwitch(nextPath: string): string {
   const locale = currentLocale();
-  return `<nav class="locale-switch" aria-label="${escapeAttr(L("界面语言"))}">
+  return `<nav class="locale-switch" aria-label="${escapeHtml(L("界面语言"))}">
     <a href="${localeSwitchHref("zh", nextPath)}" hreflang="zh-CN" lang="zh-CN"${locale === "zh" ? ' aria-current="true"' : ""}>中文</a>
     <a href="${localeSwitchHref("en", nextPath)}" hreflang="en" lang="en"${locale === "en" ? ' aria-current="true"' : ""}>EN</a>
   </nav>`;
@@ -164,15 +165,6 @@ function clientI18nScript(): string {
     globalThis.LF = function LF(pluginId, key, vars) { return fill(globalThis.MOLIS_WORK_MESSAGES[key] ?? globalThis.MOLIS_WORK_PLUGIN_WORDS[pluginId]?.[key] ?? key, vars); };
     globalThis.LFor = function LFor(pluginId) { return function (key, vars) { return globalThis.LF(pluginId, key, vars); }; };
   })(${fillMessage.toString()});`;
-}
-
-
-function escapeAttr(value: string): string {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
 }
 
   return { currentLocale, isWebLocale, htmlLang, dateTimeLocale, listJoin, resolveWebLocale, safeNextPath, localeSetCookie, localeSwitchHref, L, renderLocaleSwitch, englishCatalogJson, clientI18nScript };

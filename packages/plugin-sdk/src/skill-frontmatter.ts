@@ -1,4 +1,4 @@
-import type { AgentSkillDeclaration, PluginMethodDeclaration, SkillResourceDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
+import type { AgentSkillDeclaration, PluginMethodDeclaration, SkillAppliesTo, SkillResourceDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { refuseDeclarations } from "./declaration-problems.js";
 import { inspectSkillDeclarations, skillBodyPath } from "./skill-declarations.js";
 import { cutHead } from "./whole-units.js";
@@ -21,6 +21,11 @@ export interface SkillFrontmatterOptions {
   version?: number;
   /** The files under `references/`, `scripts/`, `assets/`, with their sizes and digests, as the packer measured them. */
   resources?: SkillResourceDeclaration[];
+  /**
+   * Who the Skill is for when its frontmatter writes no `applies_to`: the person's choice at an import (spec §9, 2026-11-08). A
+   * frontmatter that writes one keeps its own; without either the declaration is refused, as before.
+   */
+  applies_to?: SkillAppliesTo;
 }
 
 /**
@@ -31,7 +36,7 @@ export interface SkillFrontmatterOptions {
  * string, `true`/`false`, a whole number or a one-line `[a, b]` list; a nested or multi-line value is refused, not guessed. A key this
  * reading takes is read only as the declaration spells it: written with hyphens (`argument-hint`, `user-invocable`) it is refused with
  * the spelling to use, not read as the other and not dropped unseen (batch 08, 08-8: only the current spelling is read). The result
- * passes the same check as Manifest `methods` (so `description` and `applies_to` must be written), or the call is refused with `plugin.declaration_invalid` and its `details.problems`.
+ * passes the same check as Manifest `methods` (so `description` must be written, and `applies_to` written or given), or the call is refused with `plugin.declaration_invalid` and its `details.problems`.
  */
 export function skillDeclarationFromFrontmatter(markdown: string, options: SkillFrontmatterOptions = {}): PluginMethodDeclaration {
   const fields = frontmatterFields(markdown);
@@ -43,7 +48,7 @@ export function skillDeclarationFromFrontmatter(markdown: string, options: Skill
     skill_id, version: options.version ?? (fields.get("version") as number | undefined) ?? 1, name: skill_id, summary: summary ?? "",
     tools: listOf(fields.get("tools")) ?? [],
     ...optional("description", description), ...optional("when_to_use", text("when_to_use")), ...optional("when_not_to_use", text("when_not_to_use")),
-    ...optional("applies_to", fields.get("applies_to") as AgentSkillDeclaration["applies_to"]),
+    ...optional("applies_to", (fields.get("applies_to") as AgentSkillDeclaration["applies_to"]) ?? options.applies_to),
     ...optional("user_invocable", fields.get("user_invocable") as boolean | undefined), ...optional("argument_hint", text("argument_hint")),
     body: skillBodyPath(skill_id),
     ...optional("resources", options.resources?.map(resource => ({ ...resource }))),
@@ -51,8 +56,13 @@ export function skillDeclarationFromFrontmatter(markdown: string, options: Skill
   };
   const problems = inspectSkillDeclarations([declaration]);
   if (problems.length) refuseDeclarations(problems.map(problem => ({ ...problem, path: problem.path ?? skillBodyPath(skill_id) })));
-  // The check above refuses a declaration without `description` or `applies_to`.
+  // The check above refuses a declaration without `description` or `applies_to` (written, or given in `options`).
   return declaration as PluginMethodDeclaration;
+}
+
+/** Whether this SKILL.md's frontmatter writes `applies_to` itself; refused as `skillDeclarationFromFrontmatter` refuses an unreadable one. */
+export function frontmatterWritesAppliesTo(markdown: string): boolean {
+  return frontmatterFields(markdown).has("applies_to");
 }
 
 function optional<K extends string, V>(key: K, value: V | undefined): Partial<Record<K, V>> {

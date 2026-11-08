@@ -154,9 +154,15 @@ export interface SkillImportCandidate {
   /**
    * Whether this Skill can be imported. One that cannot (a SKILL.md the declaration reading refuses, such as a multi-line value or a
    * hyphenated key; a file outside `references/`, `scripts/`, `assets/`; a folder that is a link) is listed with `reason` and leaves the
-   * others importable (batch 08, 08-8).
+   * others importable (batch 08, 08-8). A SKILL.md that writes no `applies_to` can be imported: the person chooses it at confirmation.
    */
   importable: boolean;
+  /**
+   * Who it is for, on an importable Skill: its SKILL.md's own `applies_to` (`applies_to_from: "file"`, kept and not changed by the
+   * import), else the preview's suggestion (`"suggested"`), which counts only once the person's confirmation names it.
+   */
+  applies_to?: SkillAppliesTo;
+  applies_to_from?: "file" | "suggested";
   /** Character import's words: a `native-only` Skill imports, and is unavailable to the built-in engine (`native_only`) with this reason. */
   compatibility: "portable" | "native-only";
   /** Why it cannot be imported; for one that can, why only a local Agent can use it (`native-only`). */
@@ -174,6 +180,8 @@ export interface SkillImportPreview {
   preview_id: string;
   /** The package the import makes. Its `plugin_id` follows from the source's kind and root, so importing the same source again upgrades it. */
   package: { plugin_id: string; version: string; installed_version: string | null };
+  /** The 「给谁用」 pre-selected for the whole import from the source: `coding` from a coding tool's Skills folder, `both` otherwise. */
+  applies_to: SkillAppliesTo;
   candidates: SkillImportCandidate[];
 }
 
@@ -218,6 +226,11 @@ export interface SkillImportConfirmRequest {
   preview_id: string;
   skill_ids: string[];
   scope: SkillScope;
+  /**
+   * The person's 「给谁用」, one entry for each chosen Skill whose SKILL.md writes no `applies_to` (`applies_to_from: "suggested"`), and
+   * none for the others: a Skill's own value is not overridden. Missing, extra or repeated entries are refused (`skills.import_applies_to_invalid`).
+   */
+  applies_to?: Array<{ skill_id: string; applies_to: SkillAppliesTo }>;
 }
 /** The same as `plugins.install.confirm`'s answer: importing is installing a package. */
 export interface SkillImportConfirmResult {
@@ -248,6 +261,8 @@ export const skillErrors = defineErrorCodes("skills", {
   import_preview_unknown: "not_found",
   /** A `skill_ids` entry is not an importable candidate of the preview. */
   import_skill_unknown: "invalid",
+  /** The confirmation's `applies_to` misses a chosen Skill that writes none, names one that writes its own or is not chosen, or repeats one. */
+  import_applies_to_invalid: "invalid",
 });
 
 // The input schemas keep their literal types so `inputSchemaFor` holds each to its handwritten request interface
@@ -336,13 +351,15 @@ export const skillImportActions = {
     title: "预览从本机导入技能", description: "从本机一个 Agent 的技能目录，或这个项目授权的目录里，找出可以导入的技能：名称、什么时候用、文件数与大小、能不能在内置引擎里用、会不会执行脚本、是新的还是会升级已导入的；给出导入后的包。只读来源目录之内，什么也不装。",
     input_schema: inputSchemaFor<SkillImportPreviewRequest>()(object({ source: { oneOf: [object({ kind: { const: "runtime" }, runtime_id: { enum: [...CHARACTER_IMPORT_RUNTIMES] } }),
       object({ kind: { const: "project_directory" }, directory_id: id })] } })),
-    output_schema: object({ preview_id: text, package: object({ plugin_id: text, version: text, installed_version: { type: ["string", "null"] } }),
+    output_schema: object({ preview_id: text, package: object({ plugin_id: text, version: text, installed_version: { type: ["string", "null"] } }), applies_to: appliesTo,
       candidates: { type: "array", maxItems: CHARACTER_IMPORT_LIMITS.skills, items: object({ skill_id: text, name: text, description: text, file_count: count, bytes: count,
-        importable: { type: "boolean" }, compatibility: { enum: ["portable", "native-only"] }, reason: text, runs_scripts: { type: "boolean" }, change: { enum: ["new", "upgrade"] } },
+        importable: { type: "boolean" }, applies_to: appliesTo, applies_to_from: { enum: ["file", "suggested"] }, compatibility: { enum: ["portable", "native-only"] }, reason: text,
+        runs_scripts: { type: "boolean" }, change: { enum: ["new", "upgrade"] } },
         ["skill_id", "name", "description", "file_count", "bytes", "importable", "compatibility", "runs_scripts", "change"]) } }) } } as ActionDefinition<SkillImportPreviewRequest, SkillImportPreview>,
   confirm: { capability_id: "skills.import.confirm", version: /* @version action.skills.import.confirm */ 1, operation: "command", action: { ...person,
-    title: "确认从本机导入技能", description: "把预览里选中的技能做成一个包，用这个 Home 的发布身份签名，装进这个项目（scope 为 project）或个人空间（home）。导入的是此刻的固定拷贝，原目录之后的改动不影响它；装上不等于启用。预览用过一次就作废。",
+    title: "确认从本机导入技能", description: "把预览里选中的技能做成一个包（SKILL.md 没写给谁用的，按本人在 applies_to 里为它选的；写了的照它自己的，不能改），用这个 Home 的发布身份签名，装进这个项目（scope 为 project）或个人空间（home）。导入的是此刻的固定拷贝，原目录之后的改动不影响它；装上不等于启用。预览用过一次就作废。",
     input_schema: inputSchemaFor<SkillImportConfirmRequest>()(object({ preview_id: { type: "string", minLength: 1, maxLength: 80 },
-      skill_ids: { type: "array", minItems: 1, maxItems: SKILL_LIMITS.skillsPerPackage, uniqueItems: true, items: id }, scope })),
+      skill_ids: { type: "array", minItems: 1, maxItems: SKILL_LIMITS.skillsPerPackage, uniqueItems: true, items: id }, scope,
+      applies_to: { type: "array", maxItems: SKILL_LIMITS.skillsPerPackage, items: object({ skill_id: id, applies_to: appliesTo }) } }, ["preview_id", "skill_ids", "scope"])),
     output_schema: object({ plugin_id: text, version: text, publisher_key_id: text }) } } as ActionDefinition<SkillImportConfirmRequest, SkillImportConfirmResult>,
 };

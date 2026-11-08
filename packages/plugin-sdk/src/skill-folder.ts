@@ -1,11 +1,11 @@
 import { Buffer } from "node:buffer";
 import { createHash } from "node:crypto";
 import { CONTENT_PACKAGE_FILES, type PluginDeclarationProblem, type PluginManifest, type PluginPackagePayload } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { SKILL_LIMITS, SKILL_RESOURCE_FOLDERS, type PluginMethodDeclaration, type SkillResourceDeclaration, type SkillResourceRole } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
+import { SKILL_LIMITS, SKILL_RESOURCE_FOLDERS, type PluginMethodDeclaration, type SkillAppliesTo, type SkillResourceDeclaration, type SkillResourceRole } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { parseContentPackage } from "./content-package.js";
 import { refuseDeclarations } from "./declaration-problems.js";
 import { packagePathProblem } from "./skill-declarations.js";
-import { skillDeclarationFromFrontmatter } from "./skill-frontmatter.js";
+import { frontmatterWritesAppliesTo, skillDeclarationFromFrontmatter } from "./skill-frontmatter.js";
 
 // A Skills folder made into a content package (specs/skill-packs/contract-design.md §3, §4.1, §6): what CLI `pack-content` packs
 // from the author's folder and what the Host's Skills import packs from a local Agent's Skills folder, so both make the same package.
@@ -15,6 +15,8 @@ import { skillDeclarationFromFrontmatter } from "./skill-frontmatter.js";
 export interface FolderSkill {
   declaration: PluginMethodDeclaration;
   files: Map<string, Uint8Array>;
+  /** Whether SKILL.md writes `applies_to` itself; when it does not, the declaration's is the one the caller gave (`options.applies_to`). */
+  applies_to_written: boolean;
 }
 
 const ROLES = Object.entries(SKILL_RESOURCE_FOLDERS) as Array<[SkillResourceRole, string]>;
@@ -35,9 +37,10 @@ function mediaTypeOf(path: string): string {
  * One Skill from its folder's files (paths relative to the folder): `SKILL.md`, whose frontmatter `skillDeclarationFromFrontmatter`
  * turns into the declaration, and its resources, each under `references/`, `scripts/` or `assets/` with its size and digest. A file
  * anywhere else, a path that leaves the folder, or a SKILL.md the reading refuses refuses this Skill with `plugin.declaration_invalid`.
- * `version` is the caller's when it counts versions (an import, §4.3); otherwise the frontmatter's.
+ * `version` is the caller's when it counts versions (an import, §4.3); otherwise the frontmatter's. `applies_to` is who the Skill is for
+ * when SKILL.md writes none (the person's choice at an import); one SKILL.md writes is kept, never replaced.
  */
-export function skillFromFolder(files: ReadonlyMap<string, Uint8Array>, options: { version?: number } = {}): FolderSkill {
+export function skillFromFolder(files: ReadonlyMap<string, Uint8Array>, options: { version?: number; applies_to?: SkillAppliesTo } = {}): FolderSkill {
   const body = files.get(CONTENT_PACKAGE_FILES.body);
   if (!body) refuseDeclarations([{ path: CONTENT_PACKAGE_FILES.body, reason: "技能目录里找不到" }]);
   let markdown: string;
@@ -56,7 +59,7 @@ export function skillFromFolder(files: ReadonlyMap<string, Uint8Array>, options:
   const declared: SkillResourceDeclaration[] = resources.map(({ path, role, bytes }) => ({ path: `${folder}/${path}`, role, media_type: mediaTypeOf(path),
     bytes: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex") }));
   const declaration = skillDeclarationFromFrontmatter(markdown, { ...options, ...(declared.length ? { resources: declared } : {}) });
-  return { declaration, files: new Map([[`${folder}/${CONTENT_PACKAGE_FILES.body}`, body], ...resources.map(({ path, bytes }): [string, Uint8Array] => [`${folder}/${path}`, bytes])]) };
+  return { declaration, applies_to_written: frontmatterWritesAppliesTo(markdown), files: new Map([[`${folder}/${CONTENT_PACKAGE_FILES.body}`, body], ...resources.map(({ path, bytes }): [string, Uint8Array] => [`${folder}/${path}`, bytes])]) };
 }
 
 /** Who and what the package is; its Skills come from `skillFromFolder`. */

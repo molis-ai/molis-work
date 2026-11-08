@@ -7,11 +7,12 @@ import test from "node:test";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginInstanceRecord, PluginPackageBundle, PluginPackageSigner } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { SKILL_LIMITS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
+import { CHARACTER_IMPORT_RUNTIMES } from "@molis-ai/molis-work-contracts/modules/characters";
 import { skillImportActions, SKILLS_MANAGE_PERMISSION } from "@molis-ai/molis-work-contracts/services/skills";
 import { MemoryPluginConsentLedger, signPluginPackage, verifyPluginPackageSignature } from "@molis-ai/molis-work-plugin-runtime";
 import { contentPackagePayload, parseContentPackage, skillDeclarationFromFrontmatter, skillFromFolder } from "@molis-ai/molis-work-plugin-sdk";
 import { runPluginCli } from "@molis-ai/molis-work-plugin-cli";
-import { PluginInstallService, SandboxPackageStore, SkillImportService, homeAgentDefinitions, localSkillScan, pluginInstallActions } from "@molis-ai/molis-work-app-local-host";
+import { PluginInstallService, SandboxPackageStore, SkillImportService, homeAgentDefinitions, localSkillScan, pluginInstallActions, suggestedAppliesTo } from "@molis-ai/molis-work-app-local-host";
 import { newPublisher } from "./fixtures/sandbox-package.js";
 import { caller, installedPackageHost, mac } from "./fixtures/signed-package-host.js";
 
@@ -19,7 +20,9 @@ import { caller, installedPackageHost, mac } from "./fixtures/signed-package-hos
 // import's scan, its roots, links and size limits) and makes one content package of the Skills the person picks, signed with this
 // Home's publisher identity and installed through the one install path. A Skill that cannot be imported (a frontmatter the reading
 // refuses, a hyphenated key, a file outside its resource folders, a folder that is a link) is listed with its reason and leaves the
-// others importable; confirming takes only the person's own preview, once, and only its importable Skills. Acceptance SKC-10.
+// others importable; confirming takes only the person's own preview, once, and only its importable Skills. Who a Skill is for
+// (`applies_to`) is its SKILL.md's when written, else the person's choice at the confirmation, pre-selected from the source and never
+// filled in by the Host (spec §9, 2026-11-08 用户定). Acceptance SKC-10.
 
 const AT = "2026-11-08T00:00:00.000Z";
 const who = { project_id: "project-one", actor_id: LOCAL_PERSON_ACTOR_ID };
@@ -93,6 +96,7 @@ test("SKC-10 S-skill-import the preview lists every Skill found, each that canno
     await writeSkill(h.skills, "hinted", good("hinted", ["argument-hint: <周期>"]));
     await writeSkill(h.skills, "loose", good("loose"), { "reference.md": "放错了地方\n" });
     await writeSkill(h.skills, "unscoped", skillMd(["name: unscoped", "description: 没写适用范围。"]));
+    await writeSkill(h.skills, "undescribed", skillMd(["name: undescribed", "applies_to: both"]));
     // A Skill folder that is a link to a folder outside the source, and a resource that is a link out of its Skill.
     await writeSkill(outside, "linked", good("linked"), { "references/secret.md": "来源之外的内容\n" });
     await symlink(join(outside, "linked"), join(h.skills, "linked"));
@@ -102,13 +106,18 @@ test("SKC-10 S-skill-import the preview lists every Skill found, each that canno
 
     const preview = await h.service.preview({ source: { kind: "runtime", runtime_id: "claude-code" } }, who);
     const by = new Map(preview.candidates.map(candidate => [candidate.skill_id, candidate]));
-    assert.deepEqual([...by.keys()].sort(), ["hinted", "leaky", "linked", "loose", "multi", "notes", "unscoped"]);
-    assert.deepEqual(preview.candidates.filter(item => item.importable).map(item => item.skill_id).sort(), ["leaky", "notes"]);
+    assert.deepEqual([...by.keys()].sort(), ["hinted", "leaky", "linked", "loose", "multi", "notes", "undescribed", "unscoped"]);
+    assert.deepEqual(preview.candidates.filter(item => item.importable).map(item => item.skill_id).sort(), ["leaky", "notes", "unscoped"]);
     assert.deepEqual([by.get("notes")!.file_count, by.get("notes")!.runs_scripts, by.get("notes")!.change], [3, true, "new"]);
     assert.match(by.get("multi")!.reason!, /多行/u);
     assert.match(by.get("hinted")!.reason!, /argument-hint 要写成 argument_hint/u);
     assert.match(by.get("loose")!.reason!, /reference\.md：不在 references\/、scripts\/、assets\/ 下/u);
-    assert.match(by.get("unscoped")!.reason!, /applies_to/u);
+    // A SKILL.md without `applies_to` is importable, for whom the person chooses; one without `description` still is not.
+    assert.deepEqual([by.get("unscoped")!.applies_to, by.get("unscoped")!.applies_to_from, by.get("unscoped")!.reason], ["coding", "suggested", undefined]);
+    assert.deepEqual([by.get("notes")!.applies_to, by.get("notes")!.applies_to_from], ["both", "file"]);
+    assert.match(by.get("undescribed")!.reason!, /description/u);
+    assert.deepEqual([by.get("multi")!.applies_to, by.get("multi")!.applies_to_from], [undefined, undefined], "a Skill that cannot be imported says no 「给谁用」");
+    assert.equal(preview.applies_to, "coding", "a coding tool's Skills folder pre-selects coding");
     assert.match(by.get("linked")!.reason!, /符号链接/u);
     assert.equal(by.get("leaky")!.file_count, 1, "a resource linking out of its Skill is not read");
     assert.equal(by.get("leaky")!.compatibility, "native-only", "and the Skill says it is incomplete");
@@ -159,6 +168,47 @@ test("SKC-10 S-skill-import confirming makes one content package signed by this 
   } finally { await h.done(); }
 });
 
+test("SKC-10 S-skill-import 给谁用: a SKILL.md without applies_to imports with the person's choice, a confirmation without one is refused, an author's value is not overridden, and the pre-selection follows the source", async () => {
+  const h = await harness();
+  try {
+    await writeSkill(h.skills, "notes", good("notes").replace("applies_to: both", "applies_to: assistant"));
+    await writeSkill(h.skills, "plain", skillMd(["name: plain", "description: 用户要整理时使用。"]));
+    const source = { kind: "runtime" as const, runtime_id: "claude-code" as const }, preview = () => h.service.preview({ source }, who);
+    const first = await preview(), by = new Map(first.candidates.map(item => [item.skill_id, item]));
+    assert.equal(first.applies_to, "coding");
+    assert.deepEqual([by.get("plain")!.applies_to, by.get("plain")!.applies_to_from], ["coding", "suggested"], "suggested, not yet chosen");
+    assert.deepEqual([by.get("notes")!.applies_to, by.get("notes")!.applies_to_from], ["assistant", "file"]);
+
+    // The suggestion alone does not count: a confirmation that names no choice for `plain` is refused, and nothing is written.
+    await assert.rejects(h.service.confirm({ preview_id: first.preview_id, skill_ids: ["notes", "plain"], scope: "project" }, who), refused("skills.import_applies_to_invalid"));
+    h.nothingWritten();
+    // An author's own value is not overridden, even to the suggestion.
+    for (const applies_to of [[{ skill_id: "notes", applies_to: "coding" as const }, { skill_id: "plain", applies_to: "coding" as const }],
+      [{ skill_id: "notes", applies_to: "assistant" as const }, { skill_id: "plain", applies_to: "coding" as const }]]) {
+      await assert.rejects(h.service.confirm({ preview_id: (await preview()).preview_id, skill_ids: ["notes", "plain"], scope: "project", applies_to }, who), refused("skills.import_applies_to_invalid"));
+    }
+    // A choice for a Skill not chosen, or two for one, is refused too.
+    await assert.rejects(h.service.confirm({ preview_id: (await preview()).preview_id, skill_ids: ["notes"], scope: "project", applies_to: [{ skill_id: "plain", applies_to: "both" }] }, who),
+      refused("skills.import_applies_to_invalid"));
+    await assert.rejects(h.service.confirm({ preview_id: (await preview()).preview_id, skill_ids: ["plain"], scope: "project",
+      applies_to: [{ skill_id: "plain", applies_to: "both" }, { skill_id: "plain", applies_to: "coding" }] }, who), refused("skills.import_applies_to_invalid"));
+    h.nothingWritten();
+
+    // The person's choice, not the suggestion, is what the signed package says; the author's value stays the author's.
+    await h.service.confirm({ preview_id: (await preview()).preview_id, skill_ids: ["notes", "plain"], scope: "project", applies_to: [{ skill_id: "plain", applies_to: "assistant" }] }, who);
+    assert.deepEqual(h.kept()[0]!.manifest.methods!.map(method => [method.skill_id, method.applies_to, method.version]), [["notes", "assistant", 1], ["plain", "assistant", 1]]);
+    // Choosing again on the next import is a change of that Skill: its version counts up, the other's does not.
+    await h.service.confirm({ preview_id: (await preview()).preview_id, skill_ids: ["notes", "plain"], scope: "project", applies_to: [{ skill_id: "plain", applies_to: "both" }] }, who);
+    assert.deepEqual(h.kept()[0]!.manifest.methods!.map(method => [method.skill_id, method.applies_to, method.version]), [["notes", "assistant", 1], ["plain", "both", 2]]);
+
+    // The pre-selection follows the source: every local Agent the import reads is a coding tool; any other source suggests both.
+    for (const runtime_id of CHARACTER_IMPORT_RUNTIMES) assert.equal(suggestedAppliesTo({ kind: "runtime", runtime_id }), "coding", runtime_id);
+    assert.equal(suggestedAppliesTo({ kind: "project_directory", directory_id: "any" }), "both");
+    // A project directory is not a source in this batch (spec §9, 2026-11-08 用户定; BACKLOG): refused before anything is read.
+    await assert.rejects(h.service.preview({ source: { kind: "project_directory", directory_id: "any" } }, who), refused("skills.import_source_unavailable"));
+  } finally { await h.done(); }
+});
+
 test("SKC-10 S-skill-import more Skills than one package holds are refused, not dropped: the person picks fewer or splits them", async () => {
   const h = await harness();
   try {
@@ -206,6 +256,7 @@ test("SKC-10 S-skill-import in a real Host the person imports a local Skills fol
   process.env.HOME = userHome;
   try {
     await writeSkill(join(userHome, ".claude", "skills"), "notes", good("notes"));
+    await writeSkill(join(userHome, ".claude", "skills"), "plain", skillMd(["name: plain", "description: 用户要整理时使用。"]));
     const h = await installedPackageHost();
     try {
       const person: ActionCallContext = { ...h.person, permissions: [...h.person.permissions, SKILLS_MANAGE_PERMISSION] };
@@ -213,13 +264,16 @@ test("SKC-10 S-skill-import in a real Host the person imports a local Skills fol
       const input = { source: { kind: "runtime", runtime_id: "claude-code" } };
       await assert.rejects(h.client.invoke({ ...caller, permissions: [SKILLS_MANAGE_PERMISSION] }, ref(skillImportActions.preview), input), "without the person's protected entry");
       await assert.rejects(h.client.invoke({ ...person, audience: "agent" }, ref(skillImportActions.preview), input), "not offered to an Agent");
-      const preview = await h.client.invoke(person, ref(skillImportActions.preview), input) as { preview_id: string; candidates: Array<{ skill_id: string; importable: boolean }> };
-      assert.deepEqual(preview.candidates.map(item => [item.skill_id, item.importable]), [["notes", true]]);
-      const result = await h.client.invoke(person, ref(skillImportActions.confirm), { preview_id: preview.preview_id, skill_ids: ["notes"], scope: "project" }) as { plugin_id: string; version: string };
+      const preview = await h.client.invoke(person, ref(skillImportActions.preview), input) as
+        { preview_id: string; applies_to: string; candidates: Array<{ skill_id: string; importable: boolean; applies_to_from: string }> };
+      assert.deepEqual(preview.candidates.map(item => [item.skill_id, item.importable, item.applies_to_from]).sort(), [["notes", true, "file"], ["plain", true, "suggested"]]);
+      assert.equal(preview.applies_to, "coding");
+      const result = await h.client.invoke(person, ref(skillImportActions.confirm), { preview_id: preview.preview_id, skill_ids: ["notes", "plain"], scope: "project",
+        applies_to: [{ skill_id: "plain", applies_to: "coding" }] }) as { plugin_id: string; version: string };
       const listed = await h.client.invoke(h.person, { capability_id: pluginInstallActions.installed.capability_id, version: pluginInstallActions.installed.version }, {}) as
         { plugins: Array<{ plugin_id: string; version: string; state: string }> };
       assert.deepEqual(listed.plugins.filter(item => item.plugin_id === result.plugin_id).map(item => [item.version, item.state]), [["1.0.0", "running"]]);
-      assert.deepEqual(homeAgentDefinitions(h.home).methods().filter(item => item.owner_id === result.plugin_id).map(item => item.name), ["notes"]);
+      assert.deepEqual(homeAgentDefinitions(h.home).methods().filter(item => item.owner_id === result.plugin_id).map(item => item.name).sort(), ["notes", "plain"]);
       assert.deepEqual(h.ledger.publishers().map(pin => pin.label), ["这台电脑"]);
     } finally { await h.close(); }
   } finally {

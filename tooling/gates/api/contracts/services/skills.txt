@@ -105,6 +105,8 @@ export interface SkillImportCandidate {
     file_count: number;
     bytes: number;
     importable: boolean;
+    applies_to?: SkillAppliesTo;
+    applies_to_from?: "file" | "suggested";
     compatibility: "portable" | "native-only";
     reason?: string;
     runs_scripts: boolean;
@@ -115,6 +117,10 @@ export interface SkillImportConfirmRequest {
     preview_id: string;
     skill_ids: string[];
     scope: SkillScope;
+    applies_to?: Array<{
+        skill_id: string;
+        applies_to: SkillAppliesTo;
+    }>;
 }
 
 export interface SkillImportConfirmResult {
@@ -130,6 +136,7 @@ export interface SkillImportPreview {
         version: string;
         installed_version: string | null;
     };
+    applies_to: SkillAppliesTo;
     candidates: SkillImportCandidate[];
 }
 
@@ -233,6 +240,7 @@ export declare const skillErrors: import("platform/action-errors").ErrorCodeRais
     readonly import_source_unavailable: "not_found";
     readonly import_preview_unknown: "not_found";
     readonly import_skill_unknown: "invalid";
+    readonly import_applies_to_invalid: "invalid";
 }>;
 
 export declare const skillImportActions: {

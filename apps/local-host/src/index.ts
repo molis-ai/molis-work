@@ -146,7 +146,7 @@ export { PluginInstallService } from "./plugin-install-service.js";
 export { installedPluginViews } from "./plugin-installed-view.js";
 export { runLocalPluginInstall, type LocalPluginInstallInput } from "./plugin-install-client.js";
 export { pluginInstallProvider } from "./plugin-trust-actions.js";
-export { SkillImportService, localSkillScan, type SkillImportPorts } from "./skill-import.js";
+export { SkillImportService, localSkillScan, suggestedAppliesTo, type SkillImportPorts } from "./skill-import.js";
 export { readSandboxPackage, readSandboxIntegrationPackage } from "./sandbox-package.js";
 export { sandboxedIntegrationDefinition, sandboxIntegrationContribution } from "./sandbox-integration.js";
 

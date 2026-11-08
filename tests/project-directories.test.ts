@@ -166,6 +166,24 @@ test("SSC-22 a session bound in the default output directory or under it writes 
   });
 });
 
+test("SSC-22 a path names its folder's row: an input by its path, a default output by its place in outputs, nothing else in outputs or unlinked", () => {
+  withHome(env => {
+    const first = env.create("甲"), second = env.create("乙"), mine = folder(env, "mine");
+    const added = change(env, first, { kind: "add_input", workspace_path: mine }).directories.find(item => item.canonical_path === mine)!;
+    assert.equal(env.projects.query.workspaceIdAt(mine), added.workspace_id, "the row the folder was given, not one computed from its path");
+    assert.equal(env.projects.query.workspaceIdAt(join(env.outputs, first)), env.projects.query.outputDirectory(first).workspace_id);
+    assert.equal(env.projects.query.workspaceIdAt(join(env.outputs, second)), env.projects.query.outputDirectory(second).workspace_id);
+    assert.equal(env.projects.query.workspaceIdAt(join(env.outputs, first, "sub")), null);
+    assert.equal(env.projects.query.workspaceIdAt(env.outputs), null);
+    assert.equal(env.projects.query.workspaceIdAt(folder(env, "unlinked")), null);
+    // A runtime context's folder that stops offering the project: an input link goes; the project's output stays (SSC-17).
+    assert.equal(env.projects.lifecycle.unlinkWorkspaceMembership(env.projects.query.outputDirectory(first).workspace_id, first, "user-1"), false);
+    assert.equal(env.projects.lifecycle.unlinkWorkspaceMembership(added.workspace_id, first, "user-1"), true);
+    assert.deepEqual(env.projects.query.projectDirectories(first).directories.map(item => [item.workspace_id, item.roles]),
+      [[env.projects.query.outputDirectory(first).workspace_id, ["output"]]]);
+  });
+});
+
 test("SSC-03 a folder is linked once, may be input and output at once, and a change from an old revision is refused", () => {
   withHome(env => {
     const first = env.create("甲"), second = env.create("乙");

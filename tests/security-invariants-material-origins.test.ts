@@ -266,7 +266,7 @@ test("SSC-12: 「最近用过」 keeps only what the caller can read now, says n
       async () => undefined, { client, db, now: () => new Date("2026-11-08T00:00:00.000Z"), versionKept: () => true, imported: () => false });
     const handler = (capability: string) => provider.handlers.find(item => item.capability_id === capability)!;
     let refuse = false;
-    const call = (audience: "user" | "plugin") => ({ ...caller(audience), beforeEffect: async () => { if (refuse) throw new ActionError("actions.forbidden", "撤权了"); } }) as unknown as ActionExecutionContext;
+    const call = (audience: "user" | "plugin"): ActionExecutionContext => ({ ...caller(audience), beforeEffect: async () => { if (refuse) throw new ActionError("actions.forbidden", "撤权了"); } });
     const page: MaterialRef = { subject: { kind: "page", id: "p1" }, pin: { mode: "current", read_revision: "v2" } };
     const deleted: MaterialRef = { subject: { kind: "goal", id: "deleted" }, pin: { mode: "current", read_revision: "v1" } };
     const elsewhere: MaterialRef = { subject: { kind: WORKSPACE_FILE_SUBJECT_KIND, id: workspaceFileSubjectId("ws-other", ["a.md"]) }, pin: { mode: "current", read_revision: "size:1" } };

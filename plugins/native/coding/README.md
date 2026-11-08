@@ -54,11 +54,11 @@ Coding 不按类型解析材料，也没有输入端口。运行中的这一轮�
 只读协作通过原协调者和 Prologue 子任务能力派出代码调查、独立评审。结果区显示原任务、权限、实际工具活动、完整报告和子任务单独用量；可停止执行中的子任务，对结束结果记录接受或返工。返工意见带原父子引用加入任务草稿，由人发送新一轮，原结果保留。Markdown 由 Host 现有清洗渲染器提供，不信任模型 HTML。「并行写入」按用户保存的独立目录分工派出写入子任务；主任务只读，子任务每项修改与命令仍走原审查。成果整合与 TaskBoard 仍未接通，状态及实操证据见原 Coding spec C13。
 
 
-「独立工作树」可准备并审查从当前仓库提交创建的新目录/分支，批准后关联到项目，再选为下一轮工作区。准备和选用本身不启动模型；Git 注册保存目录与原始提交，项目目录簿保存授权，原 SDK Effect 保存审查及执行回执。主仓库未提交内容、活动内容过滤器、已改变的提交起点或未知执行结果会明确阻止继续。失败时保留已创建目录与分支，旧批准不会重复执行；可勾选 1–4 个已授权的独立目录，填写任务与完成条件并保存，再选择并行写入发送。目录与分工在发送时固定；关闭/刷新保留未保存的本窗口分工草稿，保存后沿用原会话配置。下一轮改分工不改本轮权限或历史。成果整合尚未接通。
+「独立工作树」可准备并审查从输出目录的仓库提交创建的新目录/分支，批准后由宿主记下，按它自己的 `worktree_id` 认，不算项目的目录，也不进项目目录簿；之后可把它选为这个会话以后各轮的执行位置（「用于下一轮」，项目的输出目录不变）。准备和选用本身不启动模型；Git 注册保存目录与原始提交，原 SDK Effect 保存审查及执行回执。主仓库未提交内容、活动内容过滤器、已改变的提交起点或未知执行结果会明确阻止继续。失败时保留已创建目录与分支，旧批准不会重复执行；可勾选 1–4 个已建好的独立工作树，填写任务与完成条件并保存，再选择并行写入发送。工作树与分工在发送时固定；关闭/刷新保留未保存的本窗口分工草稿，保存后沿用原会话配置。下一轮改分工不改本轮权限或历史。成果整合：写手的子任务成果，以及会话在选中的工作树里跑出的改动（那一行的「整合回主工作区」），都逐个文件审查，批准后整合回输出目录。
 
 Coding 每次发送明确冻结 60 轮执行预算；固定计划按步骤计算若需更多轮次，保留较大值。达到上限会停止，可在原会话开始下一轮继续；这不替代逐笔操作审查。
 
-Directory candidates and browsing preferences come from the [current-project settings protocol](../../../docs/platform/PROJECT-SETTINGS.md). Files/Git consume `projectSettingsCapabilities.browsingWorkspace`; Coding consumes `workspaces` and keeps its execution directory per session. Manage directories in Project Settings → Workspaces.
+The project's folders come from the [current-project settings protocol](../../../docs/platform/PROJECT-SETTINGS.md): Coding, Files and Git read them through `projects.directories.get` (declared in `capabilities.consumes`), each with its `roles`. A round that names no folder runs in the project's one output directory, and a folder that is only an input is never written in or run in (`projects.directory_input_only`); the project keeps no browsing choice. A session may instead run its rounds in a worktree the Host made for it, named by `worktree_id`; that is not one of the project's directories. Manage the folders in Project Settings → Workspaces.
 
 短草稿（提交说明、接续摘要）的固定指令归 `src/prompts.ts`，由 Coding 的插件定义（`PluginDefinition.instructions`）携带，Coding 运行时登记，支持用户覆盖（PG-051）。`agent.draft-text` 只传 `prompt` id、材料和所选模型；Host 使用原调用插件身份解析，不能在业务输入声明 owner。材料裁剪、摘要降级及提交前的用户审阅仍由 Coding 负责。相关回归：`tests/coding-commit-draft.test.ts`、`tests/coding-history-summary-http.test.ts`、`tests/prompt-registration.test.ts`。
 

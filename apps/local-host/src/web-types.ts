@@ -33,6 +33,8 @@ export interface WebServerOptions {
   installationDiagnostics?: (projectCount: number) => WebInstallationDiagnostics;
   /** The installation fixes this core to its original account lease; standalone embeddings omit it. */
   assertAccountCurrent?: () => void;
+  /** The installation recognizes a server-issued native WebView session, not a caller flag. */
+  isNativeAccountRequest?: (request: import("node:http").IncomingMessage) => boolean;
   /** Test-only deterministic local Web control token. Production persists one per Molis Work home. */
   controlToken?: string;
   /** Test/host injection. Production starts a private Codex app-server lazily on first read/resume. */

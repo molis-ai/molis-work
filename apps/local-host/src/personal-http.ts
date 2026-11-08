@@ -50,6 +50,7 @@ function createNativeWebAttachment(webSessions:PersonalWebSessions) {
   };
   return {
     session,
+    owns(candidate:WebAccountSession|null){return candidate!==null&&candidate===current;},
     issue:(service:PersonalAuth)=>issueNativeTicket(tickets,service),
     clear(){tickets.clear();},
     handle(request:IncomingMessage,response:ServerResponse,url:URL,origin:string,auth:PersonalAuth|null):boolean {
@@ -216,9 +217,9 @@ export function createPersonalAccountHttp(isNativeRequest: (request:IncomingMess
   return Object.assign(handle, {
     preparing(){const service=getAuth();return !!service?.identity()&&!!refreshPages.snapshot(service.accountLease());},
     current(){const service=getAuth();return service?.identity()?nativeAttachment.session(service):null;},
-    context(request:IncomingMessage){
+    context(request:IncomingMessage,nativeOnly=false){
       const current=isNativeRequest(request)?(auth?nativeAttachment.session(auth):null):webSessions.get(request.headers.cookie);
-      return current?.authenticated&&current.auth.identity()?current:null;
+      return current?.authenticated&&current.auth.identity()&&(!nativeOnly||nativeAttachment.owns(current))?current:null;
     },
     close(){pageHttp.close();refreshPages.close();webSessions.close();auth?.suspend();desktopNavigation=null;nativeAttachment.clear();},
   });

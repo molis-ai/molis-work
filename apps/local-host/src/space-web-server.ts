@@ -1,6 +1,6 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { awaitWebServerShutdown } from "./web-server-close.js";
-import type { WebAccountSession } from "./personal-web-sessions.js";
+import { WEB_ACCOUNT_COOKIE, type WebAccountSession } from "./personal-web-sessions.js";
 import { prepareMemoryHome, preflightMemoryHome } from "./memory/memory-initialization.js";
 import { bindPersonalSpaceAuthority } from './personal-space-authority.js';
 import http, { type IncomingMessage, type ServerResponse } from 'node:http';
@@ -40,6 +40,19 @@ export interface SpaceWebSurface extends http.Server {
   withSyncCatalog?:LocalWebCatalogRunner;
   readSyncCatalog?:import('./personal-runtime-sync-authority.js').SyncCatalogReader;
   discoverSync?(authorize:()=>void):Promise<readonly import('@molis-ai/molis-work-module-sync-replication').SyncRegistration[]>;
+  matchesNativeAccountCallback?(url:URL,origin?:string):boolean;
+}
+
+/** A system browser has no WebView cookie. Only a pending native attempt on the live Home can complete here. */
+function dispatchNativeAccountCallback(request:IncomingMessage,response:ServerResponse,url:URL,entry:Surface,valid:()=>boolean):boolean {
+  const host=requestHost(request);
+  if(request.method!=='GET'||!host||!valid()||request.headers['x-molis-work-control-token']!==undefined
+    ||request.headers.cookie?.split(';').some(part=>part.trim().startsWith(WEB_ACCOUNT_COOKIE+'=')))return false;
+  if(!entry.server.matchesNativeAccountCallback?.(new URL(url.pathname+url.search,`http://${host}`),request.headers.origin))return false;
+  entry.responses.set(response,valid);
+  response.once('close',()=>entry.responses.delete(response));
+  entry.server.emit('request',request,response);
+  return true;
 }
 
 /** A delayed surface open must not borrow a newer account's lease for an older selected directory. */
@@ -179,7 +192,7 @@ function createSpaceContext(options:WebServerOptions,createCore:(options:WebServ
     const initialLease=personalSurfaceLease(space,selected.session);
     const coreOptions=space.kind==='local'?{...options,homeDirectory:directory}:{homeDirectory:directory};
     const token=tokenFor(selected);
-    const core=runWithMolisWorkHome(directory,()=>createCore({...coreOptions,controlToken:token,accountRegistration:true,runtimeIntegrationService:options.runtimeIntegrationService,webServiceManager:options.webServiceManager,installationDiagnostics:options.installationDiagnostics,...(initialLease?{assertAccountCurrent:()=>{if(stopping)throw new ActionError("actions.unavailable","服务正在关闭。");initialLease.assertCurrent();}}:{})}));
+    const core=runWithMolisWorkHome(directory,()=>createCore({...coreOptions,controlToken:token,accountRegistration:true,runtimeIntegrationService:options.runtimeIntegrationService,webServiceManager:options.webServiceManager,installationDiagnostics:options.installationDiagnostics,...(initialLease?{isNativeAccountRequest:request=>!!account.context(request,true),assertAccountCurrent:()=>{if(stopping)throw new ActionError("actions.unavailable","服务正在关闭。");initialLease.assertCurrent();}}:{})}));
     core.address=address;
     result={home:directory,space,token,server:core,users:new Map(),connections:new Map(),responses:new Map()};
     if(space.kind==='personal'){
@@ -246,7 +259,7 @@ function createSpaceContext(options:WebServerOptions,createCore:(options:WebServ
     try{(await syncFor(selection(request),request))?.start();}
     catch{ /* Sync settings report the failure; unavailable sync must not prevent local work. */ }
   };
-  return {home,native,account,rootToken,tokenFor,mutations,surface,selection,attach,sweep,syncFor,resume,surfaces,stop,settleAccount,releaseRetired,isAccountReady,isStopping:()=>stopping};
+  return {home,native,account,rootToken,tokenFor,mutations,surface,selection,attach,sweep,syncFor,resume,surfaces,stop,settleAccount,releaseRetired,isAccountReady,activeSurface:()=>activeSpaceId?surfaces.get(activeSpaceId):undefined,isStopping:()=>stopping};
 }
 
 async function closeSpaceSurface(core: SpaceWebSurface):Promise<void> {
@@ -264,7 +277,7 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
   asset(request:IncomingMessage,response:ServerResponse,url:URL):boolean;
 }):http.Server {
   let server:http.Server;
-  const {home,native,account,rootToken,tokenFor,mutations,surface,selection,attach,sweep,syncFor,resume,surfaces,stop,settleAccount,releaseRetired,isAccountReady,isStopping}=createSpaceContext(options,createCore,withCatalog,()=>server?.address()??null);
+  const {home,native,account,rootToken,tokenFor,mutations,surface,selection,attach,sweep,syncFor,resume,surfaces,stop,settleAccount,releaseRetired,isAccountReady,activeSurface,isStopping}=createSpaceContext(options,createCore,withCatalog,()=>server?.address()??null);
   let timer:ReturnType<typeof setInterval>|undefined, shutdown:(()=>Promise<void>)|undefined;
   try {
     server=trackHostListener(http.createServer((request,response)=>{
@@ -330,7 +343,11 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
           sweep();await resume(request);return;
         }
         if(selected.space.kind==='local'){
-          if(unifiedCallback){refuseLocalWebRequest(response);return;}
+          if(unifiedCallback){
+            const entry=activeSurface();
+            if(entry&&!account.preparing()&&dispatchNativeAccountCallback(request,response,url,entry,()=>isAccountReady(entry.space.spaceId)))return;
+            refuseLocalWebRequest(response);return;
+          }
           if(request.method==='GET'&&!url.pathname.startsWith('/api/')&&accountEntry){response.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-frame-options':'DENY'});response.end(accountEntry.render(rootToken,request,url));}
           else sendLocalWebJson(response,401,{error:'请先登录当前安装的账号。'});
           return;

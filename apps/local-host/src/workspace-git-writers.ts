@@ -92,15 +92,40 @@ export function registerWorkspaceGitWriters(ports: WriterHostActionPorts): () =>
     return { review_id: request.review_id, directory: { worktree_id: id, branch: preview.branch, base_commit: preview.base_commit, canonical_path: target } };
   });
 
-  /** The child's result to integrate, once its session is the caller's, its run and child have ended and both directories are as the run froze them. */
+  /**
+   * A round that ran in one of the Host's worktrees (Coding's 「用于下一轮」): the worktree is the one its frozen record names
+   * (`directories.execution`), never one the caller names, and it is read as it is now, as a child's is. It comes back to the output
+   * the round was frozen under, while that is still the output, once the round and the session's latest round have ended.
+   */
+  const worktreeRoundSource = async (project: MolisWorkProjectRuntime, session: Awaited<ReturnType<WriterRuntimePort["readSession"]>>,
+    run: Awaited<ReturnType<WriterRuntimePort["read"]>>, runtime: WriterRuntimePort) => {
+    if (!ENDED.includes(run.phase) || session.latest_run && !ENDED.includes(session.latest_run.phase)) throw writerErrors.unsettled("这一轮或会话里后来的一轮仍在执行或需核对，暂不能整合");
+    const place = run.frozen.directories?.execution, directory = run.frozen.directory;
+    if (place?.kind !== "worktree" || !directory?.realpath_verified) throw writerErrors.source_missing("这一轮不是在宿主的独立工作树里跑的，没有可以整合的成果");
+    const output = await ports.output(project.project_id);
+    if (!output?.realpath_verified || output.workspace_id !== run.frozen.directories!.output) throw writerErrors.workspace_unavailable("原主工作区已不是这个项目的输出目录，不能整合");
+    const { grants, parent, port } = await writerParent(project.project_id, output.workspace_id, true);
+    const tree = (await port.inspect()).owned.find(item => item.worktree_id === place.worktree_id && path.resolve(parent.canonical_path, item.directory) === directory.canonical_path);
+    if (!tree) throw writerErrors.workspace_unavailable("这一轮的独立工作树已不是宿主为这个项目建的");
+    await runtime.assertDirectoriesIdle([parent.canonical_path, directory.canonical_path]);
+    return { workspace_id: parent.workspace_id, worktree_id: tree.worktree_id, grants, reviews: runtime.gitReviews! };
+  };
+
+  /**
+   * The result to integrate, once its session is the caller's: a child of a parallel-writers round, once its run and child have ended
+   * and both directories are as the run froze them; or, with no child named, a round that ran in one of the Host's worktrees.
+   */
   const integrationSource = async (project: MolisWorkProjectRuntime, source: WriterIntegrationSource, caller: HostPluginCaller | undefined) => {
     const runtime = await ports.runtime();
-    if (!runtime?.gitReviews || !runtime.subagents) throw new ActionError("actions.connection_required", "子任务成果整合执行方尚未接通");
+    // A child is found through the Runtime's sub-agents; a round in a worktree needs only the reviews.
+    if (!runtime?.gitReviews || source.subagent_id !== undefined && !runtime.subagents) throw new ActionError("actions.connection_required", "子任务成果整合执行方尚未接通");
     const session = await runtime.readSession({ runtime_id: "prologue", session_id: source.session_id });
     assertIntegrableSession(session, project.project_id, caller);
     const ref = session.runs.find(run => run.run_id === source.run_id);
     if (!ref) throw writerErrors.source_missing("此轮执行不属于原会话");
     const run = await runtime.read(ref);
+    if (source.subagent_id === undefined) return worktreeRoundSource(project, session, run, runtime);
+    if (!runtime.subagents) throw new ActionError("actions.connection_required", "子任务成果整合执行方尚未接通");
     if (!ENDED.includes(run.phase) || run.frozen.role_id !== "writers" || session.latest_run && !ENDED.includes(session.latest_run.phase)) throw writerErrors.unsettled("父任务仍在执行或需核对，暂不能整合");
     const children = await runtime.subagents.list(ref), child = children.find(c => c.subagent_id === source.subagent_id);
     // Any ended child may be brought back: one that ran out of turns after writing and testing its files still did the
@@ -133,7 +158,7 @@ export function registerWorkspaceGitWriters(ports: WriterHostActionPorts): () =>
     await invocation.beforeEffect();
     const request = await reviews.prepare({ project_id: project.project_id, workspace_id, operation_id: input.operation_id,
       operation_kind: "git-integration", document: { kind: "git-integration", target_directory: prepared.view.target_path,
-        source: { session_id: input.session_id, run_id: input.run_id, subagent_id: input.subagent_id, branch: prepared.view.branch, base_commit: prepared.view.base_commit, directory: prepared.view.source_path },
+        source: { session_id: input.session_id, run_id: input.run_id, ...(input.subagent_id === undefined ? {} : { subagent_id: input.subagent_id }), branch: prepared.view.branch, base_commit: prepared.view.base_commit, directory: prepared.view.source_path },
         files: prepared.files.map(file => ({ path: file.path.join("/"), before_text: file.before_text!, after_text: file.after_text!, before_mode: file.before_mode!, after_mode: file.after_mode! })) } },
       { ...prepared, authority: reviewAuthority(invocation.plugin, "git-integration") });
     return { review_id: request.review_id };

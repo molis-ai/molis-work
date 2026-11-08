@@ -6,6 +6,8 @@
 
 ## 在做的
 
+- [daily-quality-d0071](daily-quality-d0071/spec.md)：高优先级 MCP 独立客户端凭据修复，用户已批准旧接入重连；实施与验证中。
+
 - [unified-account](unified-account/spec.md)：WORK-01 至 WORK-09 已完成本地隔离实现与验证；接续中央执行指引做集成收尾，真实存量与外部服务仍待补验。
 
 - [ci-acceleration](ci-acceleration/spec.md)：CI P0/P1 提速，普通文档从 PR 到合并队列走轻量路径，增加单个 PR 分片并按耗时和浏览器容量平衡；2026-11-06 已获实施授权，负责人 Codex；本地实现与验证完成，待云端实测。

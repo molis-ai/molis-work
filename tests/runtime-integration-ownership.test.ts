@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, readFile, readdir, readlink, rm, symlink, writeFile } f
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
-import { RuntimeIntegrationService, readRuntimeConfigBackup, type RuntimeIntegrationServiceOptions } from "@molis-ai/molis-work-app-local-host";
+import { changeMcpClientCredential, createMcpClientProof, hasMcpClientCredential, mcpClientCredentialPath, RuntimeIntegrationService, readRuntimeConfigBackup, type RuntimeIntegrationServiceOptions } from "@molis-ai/molis-work-app-local-host";
 
 async function fixture(t: TestContext, before = 'model = "original"\n') {
   const directory = await mkdtemp(join(tmpdir(), "molis-runtime-owner-"));
@@ -98,7 +98,7 @@ for (const header of ['[mcp_servers."molis-work"]', "[ 'mcp_servers' . 'molis-wo
     const after = await readFile(f.config, "utf8");
     const expected = `${prefix}[mcp_servers.molis-work]\ncommand = ${JSON.stringify(f.launcher)}\n\n`
       + `[mcp_servers.molis-work.env]\nMOLIS_WORK_HOME = ${JSON.stringify(f.home)}\n`
-      + `MOLIS_WORK_MCP_AUDIENCE = "runtime"\nMOLIS_WORK_RUNTIME_ID = "codex"\n${suffix}`;
+      + `MOLIS_WORK_MCP_AUDIENCE = "runtime"\nMOLIS_WORK_RUNTIME_ID = "codex"\nMOLIS_WORK_CLIENT_AUTH = "independent"\n${suffix}`;
     assert.equal(after, expected);
     assert.equal((await runtime.detect("codex")).connection_state, "connected");
   });
@@ -231,3 +231,35 @@ for (const action of ["connect", "remove"] as const) for (const replacement of [
     assert.equal((await readdir(f.home)).includes("runtime-integration-attempts"), false, "a withdrawn confirmation records no new attempt");
   });
 }
+
+test("D0071-04 explicit connect creates a private credential; failure and removal revoke it; stale rollback preserves a newer registration", async t => {
+  const f = await fixture(t), runtime = f.service(), client = "runtime:codex";
+  const plan = await runtime.prepare("codex", "connect");
+  assert.equal(hasMcpClientCredential(f.home, client), false, "preview is read-only");
+  assert.ok(plan.changes.some(change => change.kind === "client_credential"));
+  const declined = await runtime.confirm({ runtime_id: "codex", plan_id: plan.plan_id, decision: "declined" });
+  assert.equal(declined.status, "declined"); assert.equal(hasMcpClientCredential(f.home, client), false);
+  assert.equal((await runtime.confirm({ runtime_id: "codex", plan_id: plan.plan_id, decision: "confirmed" })).status, "connected");
+  const file = mcpClientCredentialPath(f.home, client), original = await readFile(file, "utf8");
+  assert.equal((await filesystem.stat(file)).mode & 0o777, 0o600);
+  assert.doesNotMatch(await readFile(f.config, "utf8"), new RegExp(JSON.parse(original).secret));
+  await rm(file);
+  assert.equal((await runtime.detect("codex")).connection_state, "needs_repair");
+  const failed = f.service(() => false), repair = await failed.prepare("codex", "connect");
+  assert.equal((await failed.confirm({ runtime_id: "codex", plan_id: repair.plan_id, decision: "confirmed" })).status, "rolled_back");
+  assert.equal(hasMcpClientCredential(f.home, client), false);
+  const fresh = await runtime.prepare("codex", "connect");
+  assert.equal((await runtime.confirm({ runtime_id: "codex", plan_id: fresh.plan_id, decision: "confirmed" })).status, "connected");
+  const removing = await runtime.prepare("codex", "remove");
+  assert.equal((await runtime.confirm({ runtime_id: "codex", plan_id: removing.plan_id, decision: "confirmed" })).status, "removed");
+  assert.throws(() => createMcpClientProof(f.home, client, f.home, null), { code: "actions.connection_required" });
+  let cancelled = false;
+  const cancelling = f.service(() => { cancelled = true; return true; }), cancellationPlan = await cancelling.prepare("codex", "connect");
+  await assert.rejects(cancelling.confirm({ runtime_id: "codex", plan_id: cancellationPlan.plan_id, decision: "confirmed" }, () => {
+    if (cancelled) throw new Error("withdrawn fixture");
+  }), /withdrawn fixture/);
+  assert.equal(hasMcpClientCredential(f.home, client), false, "a cancelled confirmation rolls back its private key");
+  const first = changeMcpClientCredential(f.home, client, "connect"); changeMcpClientCredential(f.home, client, "remove");
+  changeMcpClientCredential(f.home, client, "connect"); const newer = await readFile(file, "utf8");
+  assert.equal(first.rollback(), false); assert.equal(await readFile(file, "utf8"), newer);
+});

@@ -6,6 +6,8 @@
 
 ### 升级须知（需要动手）
 
+- **MCP 独立客户端凭据（D0071，2026-11-08）**：更新后在设置中对已有 Runtime 重新执行接入，并重启其 MCP 连接。主控制令牌不再允许动作网关声明任意客户端身份；旧请求体 `client_id` 被拒绝。连接凭据只存安装 Home，不写入 Runtime 配置、不随快照恢复；恢复后重新接入。动作名称、版本、输入输出 schema 与 MCP 工具名不变。实验 Server 的本地 `authorize` 命令须提供 `--host-home DIR`，由管理员为该成员建立独立连接。
+
 - MCP 客户端和已保存的调用：判断规则的 `functions.authoring.update`、`preview`、`publish`、`delete`、`sample.add`、`sample.remove` 改为必须带读取时的版本 `expected_updated_at`（必填的非空字符串，取读到的记录的 `updated_at`），原来的 `updated_at` 字段不再接受。Agent 和 MCP 缺版本时得到 `actions.version_required`，字段名写旧或值非法得到 `actions.input_invalid`，版本过期得到 `functions.draft_stale`：先用 `functions.authoring.get` 读最新内容，再决定怎样提交。另有三处结果变了，按原来的结果判断的客户端要改：
   - 版本过期的错误码从 `functions.conflict` 改成 `functions.draft_stale`。`functions.conflict` 只剩「草稿用途变了」这一种。
   - `functions.authoring.sample.remove` 找不到样例，从 `functions.not_found` 改成 `functions.sample_not_found`。

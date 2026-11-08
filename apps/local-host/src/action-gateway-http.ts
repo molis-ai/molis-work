@@ -6,13 +6,14 @@ import { ACTION_GATEWAY_PATH, actionGatewayHomeId, isGatewayCallId } from "./act
 import { recordedCallIdField } from "./call-id-response.js";
 import { authorizeMcpActions } from "./mcp-action-client.js";
 import { actionClientAudience } from "./mcp-action-grants.js";
+import { authenticateMcpClientProof } from "./mcp-client-credentials.js";
 import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { sendLocalWebJson as sendJson } from "./web-http.js";
 
 /** Must be mounted after the existing local origin, control-token and one-time-key gate. */
 export async function handleActionGatewayHttp(request: IncomingMessage, response: ServerResponse, url: URL,
-  home: string, host: MolisWorkLocalHost, withCatalog: LocalWebCatalogRunner): Promise<boolean> {
+  home: string, host: MolisWorkLocalHost, withCatalog: LocalWebCatalogRunner, credentialHome = home): Promise<boolean> {
   if (url.pathname !== ACTION_GATEWAY_PATH) return false;
   if (request.method !== "POST") { sendJson(response, 405, { error: "只支持本机 POST 调用" }); return true; }
   const abort = new AbortController();
@@ -24,18 +25,19 @@ export async function handleActionGatewayHttp(request: IncomingMessage, response
   };
   try {
     const body = await readGatewayBody(request);
-    const fields = ["operation", "home_id", "client_id", "project_id", "instance_id", "capability", "input", "runtime_session_id", "call_id"];
+    if (body.home_id !== actionGatewayHomeId(home)) throw new ActionError("actions.home_mismatch", "连接的系统服务属于另一个 Home");
+    const identity = authenticateMcpClientProof(credentialHome, home, host.instanceId, request.headers["x-molis-work-client-proof"], body.operation === "invoke");
+    const clientId = identity.clientId;
+    const fields = ["operation", "home_id", "project_id", "instance_id", "capability", "input", "runtime_session_id", "call_id"];
     if (Object.keys(body).some(key => !fields.includes(key)) || !["discover", "invoke"].includes(String(body.operation))
-      || typeof body.client_id !== "string" || !body.client_id.trim()
       || !(body.project_id === null || typeof body.project_id === "string" && body.project_id.trim())) throw new ActionError("actions.input_invalid", "动作传输参数无效");
     if (body.runtime_session_id !== undefined && (typeof body.runtime_session_id !== "string" || !body.runtime_session_id.trim()
-      || !body.client_id.startsWith("runtime:"))) throw new ActionError("actions.input_invalid", "Runtime 会话元数据无效");
+      || !clientId.startsWith("runtime:"))) throw new ActionError("actions.input_invalid", "Runtime 会话元数据无效");
     // Grants are matched by client id alone, and `agent:` ids are the Host's own runtimes (the built-in Agent, later a task's grant
     // subject): a forwarding process naming one would borrow that client's grants. Nothing outside the Host may speak as them.
-    if (actionClientAudience(body.client_id) === "agent") throw new ActionError("actions.input_invalid", "内部 Agent 的身份不能经网关使用");
+    if (actionClientAudience(clientId) === "agent") throw new ActionError("actions.input_invalid", "内部 Agent 的身份不能经网关使用");
     // The number of the operation an invocation belongs to is the forwarding process's own and takes this one shape; a discovery has none.
     if (body.operation === "invoke" ? !isGatewayCallId(body.call_id) : body.call_id !== undefined) throw new ActionError("actions.input_invalid", "调用编号无效");
-    if (body.home_id !== actionGatewayHomeId(home)) throw new ActionError("actions.home_mismatch", "连接的系统服务属于另一个 Home");
     const serve = async () => {
       try {
         const instance = host.instanceId;
@@ -43,11 +45,12 @@ export async function handleActionGatewayHttp(request: IncomingMessage, response
         const projectId = body.project_id as string | null;
         const project = projectId ? await withCatalog({ homeDirectory: home }, catalog => catalog.getProject(projectId)) : null;
         const reference = project ? molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path }) : undefined;
-        const caller: ActionCallContext = { actor_id: body.client_id as string, project_id: projectId, audience: "mcp", permissions: [], signal: abort.signal,
+        const caller: ActionCallContext = { actor_id: clientId, project_id: projectId, audience: "mcp", permissions: [], signal: abort.signal,
           ...(body.operation === "invoke" ? { call_id: body.call_id as string } : {}),
-          ...(body.runtime_session_id === undefined ? {} : { audit_actor_id: `${body.client_id}:${body.runtime_session_id}`, actor_kind: "runtime", runtime_session_id: body.runtime_session_id as string }) };
+          ...(body.runtime_session_id === undefined ? {} : { audit_actor_id: `${clientId}:${body.runtime_session_id}`, actor_kind: "runtime", runtime_session_id: body.runtime_session_id as string }) };
         const checkTransport = () => {
           abort.signal.throwIfAborted();
+          identity.assertCurrent();
           if (host.instanceId !== instance || host.lifecycle() !== "running") throw new ActionError("actions.host_closed", "原系统服务已关闭");
         };
         const { context, service } = await authorizeMcpActions(host, caller, home, reference, checkTransport, checkTransport, () => {

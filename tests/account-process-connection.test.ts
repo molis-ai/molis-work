@@ -1,3 +1,4 @@
+import { changeMcpClientCredential } from "@molis-ai/molis-work-app-local-host";
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {createServer,type Server} from 'node:http';
@@ -43,6 +44,7 @@ test('ASR-02/03/06 shipped stdio and CLI explicitly connect current A/B/A while 
   if(current.identity){const start=await json('/api/personal/prepare?action=start&page=process-page&intent=switch',{});assert.equal((await json('/api/personal/prepare?action=ack&page=process-page&id='+start.id,{})).ready,true);prepared='&page=process-page&preparation='+start.id;}
   user=name;await json('/api/personal/'+(current.identity?'switch':'login')+'?returnTo=%2F'+prepared,{});assert.equal((await request('/account/callback?code=synthetic&state='+state)).status,303);token=(await json('/api/personal/status')).viewToken;
  };
+ changeMcpClientCredential(home,"runtime:codex","connect");changeMcpClientCredential(home,"runtime:account-process-test","connect");
  const peers:Client[]=[];
  const processEnv=()=>({...Object.fromEntries(Object.entries(process.env).filter((entry):entry is [string,string]=>entry[1]!==undefined)),MOLIS_WORK_HOME:home,MOLIS_WORK_RUNTIME_ID:'codex',MOLIS_WORK_WEB_URL:origin,CODEX_THREAD_ID:'account-process-context'});
  const stdio=async()=>{
@@ -70,7 +72,7 @@ test('ASR-02/03/06 shipped stdio and CLI explicitly connect current A/B/A while 
   const attached=await connectResidentAccount(home,origin);assert.equal(attached.controlToken,token);assert.ok(attached.homeDirectory.startsWith(join(home,'spaces')));
   await starter.ensure(attached.homeDirectory,origin,new AbortController().signal);
   const caller={actor_id:'runtime:account-process-test',project_id:null,audience:'mcp' as const,permissions:[]};
-  const oldGateway=new LocalActionGatewayClient({url:origin,homeDirectory:attached.homeDirectory,clientId:caller.actor_id,projectId:null});await oldGateway.discover(caller);
+  const oldGateway=new LocalActionGatewayClient({url:origin,homeDirectory:attached.homeDirectory,credentialHomeDirectory:home,clientId:caller.actor_id,projectId:null});await oldGateway.discover(caller);
   const oldA=await stdio();assert.ok((await projects(oldA)).some(project=>project.project_id===a.project_id));await snapshot(a);
   await login('bob');const b=(await json('/api/settings/projects',{display_name:'Bob process project',user_confirmed:true})).project;await request('/projects/'+b.project_id);
   assert.equal((await oldA.callTool({name:'molis_work_v1_context_list_projects',arguments:{}})).isError,true);

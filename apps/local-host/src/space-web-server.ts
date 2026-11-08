@@ -192,7 +192,7 @@ function createSpaceContext(options:WebServerOptions,createCore:(options:WebServ
     const initialLease=personalSurfaceLease(space,selected.session);
     const coreOptions=space.kind==='local'?{...options,homeDirectory:directory}:{homeDirectory:directory};
     const token=tokenFor(selected);
-    const core=runWithMolisWorkHome(directory,()=>createCore({...coreOptions,controlToken:token,accountRegistration:true,runtimeIntegrationService:options.runtimeIntegrationService,webServiceManager:options.webServiceManager,installationDiagnostics:options.installationDiagnostics,...(initialLease?{isNativeAccountRequest:request=>!!account.context(request,true),assertAccountCurrent:()=>{if(stopping)throw new ActionError("actions.unavailable","服务正在关闭。");initialLease.assertCurrent();}}:{})}));
+    const core=runWithMolisWorkHome(directory,()=>createCore({...coreOptions,controlToken:token,accountRegistration:true,mcpCredentialHomeDirectory:home,runtimeIntegrationService:options.runtimeIntegrationService,webServiceManager:options.webServiceManager,installationDiagnostics:options.installationDiagnostics,...(initialLease?{isNativeAccountRequest:request=>!!account.context(request,true),assertAccountCurrent:()=>{if(stopping)throw new ActionError("actions.unavailable","服务正在关闭。");initialLease.assertCurrent();}}:{})}));
     core.address=address;
     result={home:directory,space,token,server:core,users:new Map(),connections:new Map(),responses:new Map()};
     if(space.kind==='personal'){

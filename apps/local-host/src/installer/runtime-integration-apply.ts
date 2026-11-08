@@ -4,6 +4,7 @@ import { INTEGRATION_OWNER, integrationResult } from "./runtime-integration-cont
 import type { IntegrationReceipt, PreparedPlan, RuntimeIntegrationPlan, RuntimeIntegrationResult } from "./runtime-integration-contract.js";
 import { fileModeOrUndefined, replaceTextFile, replaceSkillLink, removeExpectedSkillLink, restoreSkillSnapshot,
   restoreTextSnapshot, textWriteMatches, skillWriteMatches, readTextOrNull } from "./runtime-installation-files.js";
+import { changeMcpClientCredential } from "../mcp-client-credentials.js";
 
 // The resident host has one process; confirmations from separate service objects share this target queue.
 const confirmations = new Map<string, Promise<unknown>>();
@@ -43,6 +44,7 @@ export async function applyRuntimeIntegration(prepared: PreparedPlan, ports: App
   let receiptMutated = false, receiptIdentity: Stats | null = null, receiptAfter: string | null = null;
   let configMutated = false, skillMutated = false;
   let configIdentity: Stats | null = null, skillIdentity: Stats | null = null;
+  let credentialChange: ReturnType<typeof changeMcpClientCredential> | undefined;
   try {
     if (prepared.nextConfigText !== prepared.beforeConfigText) {
       if (prepared.beforeConfigText != null && plan.backup_path) {
@@ -66,6 +68,7 @@ export async function applyRuntimeIntegration(prepared: PreparedPlan, ports: App
       await removeExpectedSkillLink(skillPath, prepared.receipt?.skill_target ?? "", current);
       skillMutated = prepared.beforeSkill.state !== "absent"; current();
     }
+    credentialChange = changeMcpClientCredential(ports.homeDirectory, `runtime:${plan.runtime_id}`, plan.action, current);
     if (!await ports.validate()) throw new Error("Runtime 接入验证未通过");
     current();
     if (!await textWriteMatches(configPath, prepared.nextConfigText, configIdentity)
@@ -94,7 +97,7 @@ export async function applyRuntimeIntegration(prepared: PreparedPlan, ports: App
     return integrationResult("removed", plan.runtime_id, plan.plan_id, plan.backup_path, null,
       `${plan.display_name} 的 Molis Work 接入已移除，其他 Runtime 配置保持不变。`);
   } catch (error) {
-    if (withdrawn && !configMutated && !skillMutated && !receiptMutated) throw error;
+    if (withdrawn && !configMutated && !skillMutated && !receiptMutated && !credentialChange?.changed) throw error;
     const configRestored = await (configMutated
       ? restoreTextSnapshot(configPath, prepared.beforeConfigText, prepared.nextConfigText, configIdentity)
       : textWriteMatches(configPath, prepared.beforeConfigText, originalConfigIdentity)).catch(() => false);
@@ -102,7 +105,8 @@ export async function applyRuntimeIntegration(prepared: PreparedPlan, ports: App
       ? restoreSkillSnapshot(skillPath, prepared.beforeSkill, expectedSkill, skillIdentity)
       : skillWriteMatches(skillPath, prepared.beforeSkill.rawLinkTarget, originalSkillIdentity)).catch(() => false);
     const receiptRestored = !receiptMutated || await restoreTextSnapshot(ports.receiptPath, receiptBefore, receiptAfter, receiptAfter === null ? originalReceiptIdentity : receiptIdentity).catch(() => false);
-    const status = configRestored && skillRestored && receiptRestored ? "rolled_back" : "conflict";
+    const credentialRestored = credentialChange?.rollback() ?? true;
+    const status = configRestored && skillRestored && receiptRestored && credentialRestored ? "rolled_back" : "conflict";
     const message = error instanceof Error ? error.message : String(error);
     // Withdrawal permits only CAS restoration of this attempt, never a new attempt record.
     current();

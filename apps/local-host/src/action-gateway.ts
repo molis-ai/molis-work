@@ -1,16 +1,15 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { WEB_CONTROL_TOKEN_RELATIVE_PATH } from "./web-control-token.js";
-import { createHash } from "node:crypto";
-import { resolveHomeDirectory } from "@molis-ai/molis-work-storage";
+import { actionGatewayHomeId } from "./action-gateway-identity.js";
+import { createMcpClientProof } from "./mcp-client-credentials.js";
 import { ActionError, type ActionClient, type ActionCallContext, type ActionReference, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { currentCallId, markCallRecorded, newCallId } from "@molis-ai/molis-work-kernel";
 import { actionErrorFromResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { postToResidentHost, residentHostOrigin, type ResidentHostAnswer } from "./resident-host-request.js";
 
 export const ACTION_GATEWAY_PATH = "/api/internal/action-service";
-/** The id the Host and its clients both compute for a Home: its real path, so a Home reached through a link has one id. */
-export const actionGatewayHomeId = (home: string) => createHash("sha256").update(resolveHomeDirectory(home)).digest("hex");
+export { actionGatewayHomeId } from "./action-gateway-identity.js";
 
 const CALL_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 /**
@@ -28,7 +27,7 @@ export class LocalActionGatewayClient implements ActionClient {
   private readonly origin: string;
   private instance?: string;
   private credential?:Promise<string|null>;
-  constructor(private readonly options: { url: string; homeDirectory: string; clientId: string; projectId: string | null; controlToken?: string; runtimeSessionId?: string }) {
+  constructor(private readonly options: { url: string; homeDirectory: string; credentialHomeDirectory?: string; clientId: string; projectId: string | null; controlToken?: string; runtimeSessionId?: string }) {
     this.origin = residentHostOrigin(options.url);
   }
   async discover(caller: ActionCallContext): Promise<ActionView[]> {
@@ -65,8 +64,9 @@ export class LocalActionGatewayClient implements ActionClient {
     let answer: ResidentHostAnswer | null;
     try {
       answer = await postToResidentHost({ origin: this.origin, homeDirectory: this.options.homeDirectory, controlToken: token,
+        clientProof: createMcpClientProof(this.options.credentialHomeDirectory ?? this.options.homeDirectory, this.options.clientId, this.options.homeDirectory, invoking ? this.instance ?? null : null),
         path: ACTION_GATEWAY_PATH, homeId: actionGatewayHomeId(this.options.homeDirectory), signal: caller.signal, retryHint: "请核对原结果，不会自动重试",
-        body: { ...body, home_id: actionGatewayHomeId(this.options.homeDirectory), client_id: this.options.clientId,
+        body: { ...body, home_id: actionGatewayHomeId(this.options.homeDirectory),
           project_id: this.options.projectId, ...(this.options.runtimeSessionId === undefined ? {} : { runtime_session_id: this.options.runtimeSessionId }) } });
     } catch (error) {
       // A discovery changes nothing: a connection that breaks or a reply that never completes is the service not being there, not an outcome to check.

@@ -13,6 +13,7 @@ import { captureRuntimeConfigBackup, runtimeConfigBackupPath } from "./runtime-c
 import { digest } from "./runtime-config-text.js";
 import { inspectSkillLink, writeAtomic, readTextOrNull, pathState, anyPathExists, canExecute, isInside } from "./runtime-installation-files.js";
 import { resolveConfiguredHome } from "../product-home.js";
+import { hasMcpClientCredential } from "../mcp-client-credentials.js";
 
 export class RuntimeIntegrationService {
   private readonly planner: RuntimeIntegrationPlanner;
@@ -166,6 +167,8 @@ export class RuntimeIntegrationService {
         entryFingerprint: null,
       };
     }
+    const credentialPresent = hasMcpClientCredential(this.homeDirectory, `runtime:${adapter.id}`);
+    if (configInspection.state === "current" && !credentialPresent) configInspection = { ...configInspection, state: "outdated", summary: "独立客户端连接凭据缺失，请重新接入" };
     const skill = await inspectSkillLink(adapter.skillPath(this.userHomeDirectory), artifacts?.skillSourcePath ?? null, this.homeDirectory);
     return {
       adapter,
@@ -175,6 +178,7 @@ export class RuntimeIntegrationService {
       configText,
       configHash: configText == null ? null : digest(configText),
       configInspection,
+      credentialPresent,
       skill,
     };
   }

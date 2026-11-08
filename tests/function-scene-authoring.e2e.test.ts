@@ -1,3 +1,4 @@
+import { changeMcpClientCredential } from "@molis-ai/molis-work-app-local-host";
 import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
@@ -148,6 +149,7 @@ test("unknown registered scenes can be authored in the real editor, retain missi
     await grantMcpActions(web, { clientId: mcpCaller.actor_id, projectId, actions: [functionContextActions.catalog, functionContextActions.usages, functionContextActions.targets,
       functionContextActions.configure, ...Object.values(sceneConfigurationActions(scene)), publishedFunctionAction(published), read, write].map(viewOf) });
     // The cross-process gateway an MCP client process uses; the Host rereads the grants on every call.
+    changeMcpClientCredential(homeDirectory, mcpCaller.actor_id, "connect");
     const gateway = new LocalActionGatewayClient({ url: origin, homeDirectory, clientId: mcpCaller.actor_id, projectId, controlToken: browser.controlToken });
     await gateway.discover(mcpCaller);
     const mcpQuery = async <I, O>(definition: ActionDefinition<I, O>, args: I): Promise<O> => {

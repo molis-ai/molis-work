@@ -120,7 +120,7 @@ node scripts/replay-golden-homes.mjs [--latest N | --all] [--json]
 | --- | --- | --- |
 | 金样回放（挡合并） | 第一份金样入库即开 | 最近 3 份金样有任何一份回放不过。U1 之前这已经能拦住「同版本改了结构」，因为打开时的结构检查会拒绝。平台改同步技术表也归这一条（U1 设计 §2.4） |
 | 金样回放（定时） | 同上 | 全部金样，每天一次；失败开 issue，不挡合并 |
-| 建库语句与版本（UPG-01） | U1 合入后（U2-d 已做） | 每个库的基线结构算一个哈希，入库在 `tooling/gates/schemas/stores.tsv`（与动作合同快照同一种做法，`pnpm schemas:update` 刷新；文件与构建出的产品一致由 `pnpm test:contracts` 的 `tests/store-schema-snapshot.test.ts` 看住，和 merge-base 比的三条在 `pnpm health:check`，`scripts/gates/store-schemas.mjs`）。哈希变了而版本没升，失败；版本升了却没有对应的升级段，失败；升了版本却没有新的中间金样或回放没过，失败。哈希是 SQLite 跑完建库语句后报的结构（`describeSqliteSchema`，加上触发器和视图的语句，空白归一），所以只改排版不算，改触发器算。「中间金样」读金样清单里这个库的版本：要有一份金样存着旧版本；「回放没过」由 `golden-replay` 作业管，`Verify` 要它过，所以它挡合并。金样清单按主人存版本的地方记真实取值（`scripts/golden/formats.mjs`）：大多数库是 `PRAGMA user_version`，目录库读 `catalog_meta`，项目库另记每个插件项目表在 `plugin_project_databases` 账本里的版本（`plugin_tables`），`<库>#<插件>` 那一行读它。带版本的文件没有建库语句，不在这一条里：持久化格式（`initial-versions.mjs` 的名单）按 `tooling/versions.json` 的条目名记在清单的 `formats`（条目、位置、版本），大于 1 时同样要金样存着每个旧版本，统一起点检查的 `replay_passed` 读的就是它（U1 设计 §11.1）。`tests/fixtures/home-store-schemas/`（#1877 加的各库冻结结构，配 `tests/home-store-baselines.test.ts`）只比当前结构，没有这三条，不代替它；它的历史样本（`sync-v2`～`v5` 等）可以当 U1 用例的真实输入 |
+| 建库语句与版本（UPG-01） | U1 合入后（U2-d 已做） | 每个库的基线结构算一个哈希，入库在 `tooling/gates/schemas/stores.tsv`（与动作合同快照同一种做法，`pnpm schemas:update` 刷新；文件与构建出的产品一致由 `pnpm test:contracts` 的 `tests/store-schema-snapshot.test.ts` 看住，和 merge-base 比的三条在 `pnpm health:check`，`scripts/gates/store-schemas.mjs`）。哈希变了而版本没升，失败；版本升了却没有对应的升级段，失败；升了版本却没有新的中间金样或回放没过，失败。哈希是 SQLite 跑完建库语句后报的结构（`describeSqliteSchema`，加上触发器和视图的语句，空白归一），所以只改排版不算，改触发器算。「中间金样」读金样清单里这个库的版本：要有一份金样存着旧版本；「回放没过」由 `golden-replay` 作业管，`Verify` 要它过，所以它挡合并。金样清单按主人存版本的地方记真实取值（`scripts/golden/formats.mjs`）：大多数库是 `PRAGMA user_version`，目录库读 `catalog_meta`，项目库另记每个插件项目表在 `plugin_project_databases` 账本里的版本（`plugin_tables`），`<库>#<插件>` 那一行读它。带版本的文件没有建库语句，不在这一条里：持久化格式（`initial-versions.mjs` 的名单）按 `tooling/versions.json` 的条目名记在清单的 `formats`（条目、位置、版本），大于 1 时要金样存着从 1 到版本减 1 的每个旧版本，统一起点检查的 `replay_passed` 读的就是它（U1 设计 §11.1）。这比库要的多，是有意的：UPG-01 和 merge-base 比，知道这次从哪个版本升，只要前一个；统一起点检查只读一棵树，看不到这次从哪里升，只有每个都要才漏不掉。两条门禁都只读清单，所以回放还原以后、宿主打开之前，先用生成时的读法把清单里的版本（`schema_version`、`plugin_tables`、`formats`）从还原出的 Home 重读一遍，不符就失败（`golden.recorded_version_mismatch`），手改清单骗不过门禁。`tests/fixtures/home-store-schemas/`（#1877 加的各库冻结结构，配 `tests/home-store-baselines.test.ts`）只比当前结构，没有这三条，不代替它；它的历史样本（`sync-v2`～`v5` 等）可以当 U1 用例的真实输入 |
 | 覆盖面 | 第一份金样入库即开 | `HOME-DATA.md` 里登记的每个「必备份」库和带版本的文件，在最新一份金样里都存在；少一项就失败。新库在登记表里加一行，就要在同一个 PR 里让金样也有它。开工时先把 `HOME-DATA.md` 缺的 `feed-content/feed-content.db`、`computer/` 补上（核账第二节），否则覆盖面本身有洞。登记成不进快照、却是用户数据的（`spaces`、`sync`、`plugin-packages`、`storage-space.json`）也算，不只看「必备份」 |
 | 换 Prologue 包（UPG-11） | 第一份金样入库即开 | 改了 `vendor/prologue-sdk/` 的 PR 回放全部金样，不只最近 3 份 |
 
@@ -130,13 +130,13 @@ node scripts/replay-golden-homes.mjs [--latest N | --all] [--json]
 
 **第三方插件（用户 2026-11-07 定）：** 第三方插件的沙箱只有 macOS 有，Linux 上回放跳过这段：结果的 `steps.third_party`、`steps.home_library` 是 `"not-run"`（清单里没装样本才是 `"absent"`，跑过是 `"replayed"`），`not_run` 列出没跑的步骤。`ok: true` 只说跑了的都过了，`not_run` 不空就不算这段通过；CI 把它写进作业摘要和运行页的 notice（`scripts/ci-golden-replay.mjs`），不只留在日志里。所以 `golden-replay` 在 Linux 上跑第三方之外的全部，并在结果里写明第三方这段没跑，不算通过；改到插件运行、沙箱、存储这些相关部分时，另一个 macOS 作业加跑第三方插件，不过就合不进去；每天的定时作业在 macOS 上跑全部，兜住路径清单漏掉的。路径清单写在 `scripts/ci-test-selection.mjs` 的 `GOLDEN_THIRD_PARTY_RUN_WHEN`，和 `native-checks` 同一种做法，宁宽勿窄，选择器失败时照跑。定时作业是 `.github/workflows/golden-replay-nightly.yml`。
 
-**50 MB（用户 2026-11-08 定）：** `tests/fixtures/golden-homes/` 的工作树字节超过 50 MB，门禁失败并点名最老的一份。真正移到发布附件、回放按摘要下载，到那时再写，现在只有门禁（§6）。
+**50 MB（用户 2026-11-08 定）：** `tests/fixtures/golden-homes/` 的工作树字节超过 50 MB，门禁失败并点名最老的一份。真正移到发布附件、回放按摘要下载，到那时再写，现在只有门禁（§6）。移走的只是数据段（`stores/`、`files/`），`manifest.json` 留在 `tests/fixtures/golden-homes/<版本>/` 里，所以 UPG-01 和统一起点版本检查照样看得到这个版本存着什么。
 
 ## 6. 金样放在哪里（按推荐先定）
 
 | 方案 | 好处 | 代价 |
 | --- | --- | --- |
-| **A. 文本转储入库（推荐）** | CI 不用联网；改动能在 PR 里看 diff；与 `goal-event-history/*.sql` 的先例一致 | 仓库会慢慢变大。按每份 2～5 MB 估，一年十几份在可接受范围；`tests/fixtures/golden-homes/` 的工作树字节超过 50 MB 时，从最老的一份起移到发布附件，不看年龄（用户 2026-11-08 定），仓库里只留它们的 SHA-256 和下载地址 |
+| **A. 文本转储入库（推荐）** | CI 不用联网；改动能在 PR 里看 diff；与 `goal-event-history/*.sql` 的先例一致 | 仓库会慢慢变大。按每份 2～5 MB 估，一年十几份在可接受范围；`tests/fixtures/golden-homes/` 的工作树字节超过 50 MB 时，从最老的一份起移到发布附件，不看年龄（用户 2026-11-08 定），仓库里只留它们的 SHA-256 和下载地址。移走的只是数据段，`manifest.json` 留在原处，门禁照样看得到这个版本 |
 | B. 只放发布附件 | 仓库不长 | CI 要联网下载；开发中的中间金样没有发布可挂；看不到 diff |
 | C. 另开一个仓库 | 主仓库不长，也能看 diff | 多一个仓库要维护权限和同步；PR 要跨仓库提交 |
 

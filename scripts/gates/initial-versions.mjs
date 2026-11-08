@@ -119,8 +119,14 @@ export function goldenFormatVersions(tree) {
  * The register `persistentVersionProblems` checks: each persistent format whose definition declares a chain (read with no build), and
  * whether its replay passed. The replay itself is the `golden-replay` job, which `Verify` requires, so nothing merges past a failed one;
  * what this half can know is whether there is anything to replay: `replay_passed` is true only when the goldens hold the format at every
- * version from 1 to the chain's version - 1 (U2-d, the same reading as UPG-01's third rule). `tree` is `{ files, read }`; with no `files`
- * there are no goldens, so nothing above 1 passes.
+ * version from 1 to the chain's version - 1 (U2-d). `tree` is `{ files, read }`; with no `files` there are no goldens, so nothing above 1 passes.
+ *
+ * This asks more than UPG-01 does of a library (scripts/gates/store-schemas.mjs), which wants a golden only at the version before the change,
+ * and the two differ on purpose. UPG-01 compares with the merge-base, so it knows which version a change starts from, and each earlier raise
+ * was checked the same way when it merged. This check reads one tree and no merge-base: it sees a format's current version but not where
+ * this change took it from, so the only reading that cannot miss a version (a raise of two at once, a golden later removed) is every one.
+ * A golden whose data is moved out of the repository (design §5, §6) keeps its manifest.json under tests/fixtures/golden-homes/, so both
+ * checks still see the versions it holds.
  */
 export function registeredUpgradeChains({ files = [], read }) {
   const chains = new Map(), held = goldenFormatVersions({ files, read });

@@ -258,7 +258,8 @@ describe("a generated golden Home", { concurrency: false }, () => {
   const manifest = (at = golden) => JSON.parse(readFileSync(path.join(at, "manifest.json"), "utf8"));
 
   /** A copy under its own directory, with one store's dump changed and its checksum made right again, so only the code under test can object. */
-  function tampered(name: string, change: (sql: string, entry: { path: string; tables: Record<string, number> }) => string, pick: (entry: { path: string; tables: Record<string, number> }) => boolean): string {
+  type StoreEntry = { path: string; tables: Record<string, number>; schema_version: number };
+  function tampered(name: string, change: (sql: string, entry: StoreEntry) => string, pick: (entry: StoreEntry) => boolean): string {
     const parent = path.join(directory, name), copy = path.join(parent, VERSION);
     cpSync(golden, copy, { recursive: true });
     const recorded = manifest(copy), entry = recorded.stores.find(pick);
@@ -376,8 +377,10 @@ describe("a generated golden Home", { concurrency: false }, () => {
   }, { timeout: 600_000 });
 
   test("UPG2-03: a library at another version fails at the upgrade with its code, and the output has only the place and the code", () => {
-    const parent = tampered("version", sql => {
+    // A golden of a library at 999 records 999, so the replay's reading of the recorded versions lets it through to the upgrade.
+    const parent = tampered("version", (sql, entry) => {
       assert.match(sql, /PRAGMA user_version=\d+;/u);
+      entry.schema_version = 999;
       return sql.replace(/PRAGMA user_version=\d+;/u, "PRAGMA user_version=999;");
     }, entry => entry.path.endsWith("knowledge/knowledge.db"));
     const result = run(REPLAY_SCRIPT, "--dir", parent);
@@ -413,8 +416,9 @@ describe("a generated golden Home", { concurrency: false }, () => {
   // The sync library's baseline is version 1, so there is no older version with steps to test: 0 is the only version below it.
   for (const [found, code] of [[999, "store_too_new"], [0, "schema_version_mismatch"]] as const) {
     test(`UPG2-06: the account Home's sync library at version ${found} fails the structure check with ${code}, though nothing else opens it`, () => {
-      const parent = tampered(`sync-${found}`, sql => {
+      const parent = tampered(`sync-${found}`, (sql, entry) => {
         assert.match(sql, /PRAGMA user_version=\d+;/u);
+        entry.schema_version = found;
         return sql.replace(/PRAGMA user_version=\d+;/u, `PRAGMA user_version=${found};`);
       }, entry => entry.path.endsWith("/sync/sync.db"));
       const result = run(REPLAY_SCRIPT, "--dir", parent);
@@ -458,6 +462,51 @@ describe("a generated golden Home", { concurrency: false }, () => {
     const absent = new Set(["format.home.installation", "database.search.text-index", "format.computer.settings", "format.computer.record"]);
     assert.deepEqual([...new Set(formats.map(item => item.entry))].sort(), Object.keys(PERSISTENT_FORMAT_LOCATIONS).filter(entry => !absent.has(entry)).sort());
   });
+
+  // The gates believe the manifest (UPG-01, the unified-origin check), so the replay reads each recorded version again from what it restored,
+  // before the Host opens and upgrades anything. Each of these changes only the manifest, which no checksum covers.
+  type Manifest = { homes: { projects: { primary: { project_id: string } } }[]; stores: (StoreEntry & { plugin_tables?: Record<string, number> })[]; formats: { entry: string; path: string; version: number }[] };
+  const edits: [string, (recorded: Manifest) => string][] = [
+    ["a library's version raised", recorded => {
+      const entry = recorded.stores.find(item => item.path === "projects/catalog.db");
+      assert.equal(entry?.schema_version, 1);
+      entry!.schema_version = 2;
+      return "projects/catalog.db";
+    }],
+    ["a plugin's project tables raised", recorded => {
+      const at = `projects/${recorded.homes[0].projects.primary.project_id}/molis-work.db`, entry = recorded.stores.find(item => item.path === at);
+      assert.equal(entry?.plugin_tables?.["io.molis.work.goals"], 1);
+      entry!.plugin_tables!["io.molis.work.goals"] = 2;
+      return `${at}#plugin_tables`;
+    }],
+    ["a format's version raised", recorded => {
+      const item = recorded.formats.find(format => format.entry === "format.shelf.catalog" && format.path === "shelf/catalog.json");
+      assert.equal(item?.version, 1);
+      item!.version = 2;
+      return "shelf/catalog.json#format.shelf.catalog";
+    }],
+    ["a format added that the Home does not have", recorded => {
+      recorded.formats.push({ entry: "format.computer.settings", path: "computer/settings.json", version: 1 });
+      return "computer/settings.json#format.computer.settings";
+    }],
+    ["a format left out", recorded => {
+      const at = recorded.formats.findIndex(format => format.entry === "database.home.catalog" && format.path === "projects/catalog.db");
+      assert.ok(at >= 0);
+      recorded.formats.splice(at, 1);
+      return "projects/catalog.db#database.home.catalog";
+    }],
+  ];
+  for (const [what, edit] of edits) {
+    test(`UPG-01: a manifest with ${what} fails the replay at the recorded versions, before anything opens it`, () => {
+      const parent = path.join(directory, `recorded-${what.replaceAll(/\W+/gu, "-")}`), copy = path.join(parent, VERSION);
+      cpSync(golden, copy, { recursive: true });
+      const recorded = manifest(copy) as Manifest, where = edit(recorded);
+      writeFileSync(path.join(copy, "manifest.json"), `${JSON.stringify(recorded, null, 2)}\n`);
+      const result = run(REPLAY_SCRIPT, "--dir", parent);
+      assert.equal(result.status, 1, result.output);
+      assert.match(result.output, new RegExp(`^FAIL 9\\.9\\.9-dev\\.1 recorded-versions ${where.replaceAll(".", "\\.")} golden\\.recorded_version_mismatch$`, "mu"));
+    }, { timeout: 600_000 });
+  }
 
   test("the generation's directory holds a dump for every recorded store and nothing it does not record", () => {
     const recorded = manifest();

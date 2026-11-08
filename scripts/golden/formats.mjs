@@ -8,6 +8,13 @@
 // The table below says where in a Home each one sits; the generator records what it finds there as `formats` (entry, path, version), and the
 // unified-origin check lets a format above 1 through only when the goldens hold each older version. One with `absent` cannot be in a golden,
 // so raising it fails; one whose file a golden does not have yet (computer/settings.json, BL-golden-computer-settings) fails the same way.
+//
+// The gates only read the manifest, so the replay reads every one of these versions again from the restored Home (`assertRecordedVersions`):
+// a manifest edited by hand fails there instead of making a golden hold a version it does not.
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { DatabaseSync } from "node:sqlite";
+import { isDeepStrictEqual } from "node:util";
 import { goldenFailure } from "./failure.mjs";
 import { GOLDEN_HOMES_DIRECTORY } from "./versions.mjs";
 
@@ -64,6 +71,29 @@ export function fileFormats(bytes, relative) {
   let value;
   try { value = JSON.parse(bytes.toString("utf8")); } catch { throw goldenFailure("golden.format_version_unreadable", relative); }
   return found.map(([entry, location]) => ({ entry, path: relative, version: version(value?.[location.field], relative) }));
+}
+
+/**
+ * After a restore, every version the manifest records is read again from the Home, with the readers the generator used: each library's
+ * `schema_version` and `plugin_tables`, and the whole `formats` list. A difference fails at the library, or at `<path>#<entry>` for a format,
+ * and never says which values differed. Run before the Host opens the Home, which would upgrade what it finds.
+ */
+export function assertRecordedVersions(storage, manifest, home) {
+  const found = [];
+  for (const entry of manifest.stores) {
+    const db = new DatabaseSync(path.join(home, entry.path), { readOnly: true });
+    let versions;
+    try {
+      versions = libraryVersions(storage, db, entry.path, Number(db.prepare("PRAGMA user_version").get().user_version));
+      found.push(...storeFormats(db, entry.path, versions.schema_version));
+    } finally { db.close(); }
+    if (versions.schema_version !== entry.schema_version) throw goldenFailure("golden.recorded_version_mismatch", entry.path);
+    if (!isDeepStrictEqual(versions.plugin_tables ?? null, entry.plugin_tables ?? null)) throw goldenFailure("golden.recorded_version_mismatch", `${entry.path}#plugin_tables`);
+  }
+  for (const entry of manifest.files) found.push(...fileFormats(readFileSync(path.join(home, entry.path)), entry.path));
+  const byPlace = list => new Map(list.map(item => [`${item.path}#${item.entry}`, item.version]));
+  const recorded = byPlace(Array.isArray(manifest.formats) ? manifest.formats : []), read = byPlace(found);
+  for (const place of [...new Set([...recorded.keys(), ...read.keys()])].sort()) if (recorded.get(place) !== read.get(place)) throw goldenFailure("golden.recorded_version_mismatch", place);
 }
 
 /** Each golden under tests/fixtures/golden-homes/ and its manifest, or null for one that cannot be read; a gate treats that as holding nothing. */

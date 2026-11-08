@@ -34,6 +34,8 @@ const { expectAnswer, installedPluginSession } = await import("./replay-plugins/
 const { thirdPartySample } = await import("./golden/populate.mjs");
 const { replayHomeLibrarySample } = await import("./golden/home-library-sample.mjs");
 const { assertVersionedFilesRead } = await import("./golden/versioned-files.mjs");
+const { assertRecordedVersions } = await import("./golden/formats.mjs");
+const storage = await import("@molis-ai/molis-work-storage");
 const { versionsNewestLast } = await import("./golden/versions.mjs");
 
 /** A golden Home has neither a managed workspace nor a model a read could reach. The table of the shared read, and nothing wider. */
@@ -206,6 +208,8 @@ async function replayGolden(name) {
     if (manifest.test_key.value !== GOLDEN_TEST_KEY) throw goldenFailure("golden.test_key_changed", "manifest.json");
     enterHome(restored.home);
     restoreGolden(source, manifest, restored.home);
+    // The gates take a golden's versions from its manifest; before anything upgrades them, they are read from what was restored.
+    step = "recorded-versions"; assertRecordedVersions(storage, manifest, restored.home);
     const homes = homesOf(manifest, restored.home);
     step = "upgrade"; await openEveryProject(homes);
     step = "rows-after-upgrade"; assertRowsKept(manifest, restored.home);

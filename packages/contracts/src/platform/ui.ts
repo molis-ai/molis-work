@@ -63,11 +63,17 @@ export interface UiViewSelection {
 }
 
 /**
- * Current-project directories only: a page may ask to add an input folder, which the trusted Host confirms first. Which folder a page
- * shows is that page's own state (specs/shared-sources-and-surfaces §3); the project keeps no browsing choice to select.
+ * Current-project directories only: a page may ask to add an input folder, or to make one of the project's folders its output, and the
+ * trusted Host confirms each with the person first. Which folder a page shows is that page's own state (specs/shared-sources-and-surfaces
+ * §3); the project keeps no browsing choice to select.
  */
 export interface UiPageWorkspaces {
   add(path: string): Promise<{ workspace_id: string }>;
+  /**
+   * Makes a folder already in the project its output, once the person confirms it in the Host's own dialog, which names the folder as the
+   * Host reads it. For the 「设为输出」 beside a refusal that the folder is only an input (`projects.directory_input_only`).
+   */
+  setOutput(workspaceId: string): Promise<void>;
 }
 
 /** A Host-owned review surface. The page supplies filters and a slot, never a decision or review contents. */

@@ -304,20 +304,29 @@ export function parseWorkspaceFileSubjectId(id: string): { workspace_id: string;
   if (at <= 0) return null;
   try { return { workspace_id: id.slice(0, at), path: parseFilePath(id.slice(at + 1).split("/")) }; } catch { return null; }
 }
-/**
- * The folder of this project a workspace file subject reads from on this device: its own folder when the id is one of the project's
- * directories, otherwise the folder the person named for that id (`source_links`). Null when neither: the reference is `unmapped`.
- * Only the places that read a reference call this; a write is never given the id of another device's folder.
- */
-export function resolveWorkspaceFileSubject(subject: { id: string }, directories: {
+/** A project's folders and the folders the person named for another device's ids, as `projects.directories.get@1` answers them. */
+export interface WorkspaceIdMapping {
   directories: readonly { workspace_id: string }[];
   source_links: readonly { source_workspace_id: string; workspace_id: string }[];
-}): { workspace_id: string; path: string[] } | null {
+}
+/**
+ * The folder of this project a folder id names on this device: the id itself when it is one of the project's directories, otherwise
+ * the folder the person named for it (`source_links`, SSC-26). Null when neither. The one place this rule is written: a reference is
+ * read through it (`resolveWorkspaceFileSubject`) and a page naming a folder is too. A write is never given another device's id.
+ */
+export function resolveWorkspaceId(workspaceId: string, directories: WorkspaceIdMapping): string | null {
+  if (directories.directories.some(item => item.workspace_id === workspaceId)) return workspaceId;
+  const link = directories.source_links.find(item => item.source_workspace_id === workspaceId);
+  return link && directories.directories.some(item => item.workspace_id === link.workspace_id) ? link.workspace_id : null;
+}
+/**
+ * The folder of this project a workspace file subject reads from on this device (`resolveWorkspaceId`) and the path in it. Null when
+ * the id names none: the reference is `unmapped`. Only the places that read a reference call this.
+ */
+export function resolveWorkspaceFileSubject(subject: { id: string }, directories: WorkspaceIdMapping): { workspace_id: string; path: string[] } | null {
   const named = parseWorkspaceFileSubjectId(subject.id);
-  if (!named) return null;
-  if (directories.directories.some(item => item.workspace_id === named.workspace_id)) return named;
-  const link = directories.source_links.find(item => item.source_workspace_id === named.workspace_id);
-  return link && directories.directories.some(item => item.workspace_id === link.workspace_id) ? { workspace_id: link.workspace_id, path: named.path } : null;
+  const workspaceId = named ? resolveWorkspaceId(named.workspace_id, directories) : null;
+  return named && workspaceId ? { workspace_id: workspaceId, path: named.path } : null;
 }
 /** Folders that are built, fetched or tool state rather than the project's own files: walking a workspace skips them unless asked by name. */
 export const WORKSPACE_SKIPPED_FOLDERS = ["node_modules", ".git", "dist", "build", ".next", ".cache", "target", "__pycache__", ".venv", "vendor"] as const;

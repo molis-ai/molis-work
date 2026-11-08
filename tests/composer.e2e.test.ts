@@ -67,7 +67,7 @@ test("UIC-05 UIC-06 UIV-01 UIV-02 UIV-03 VUX-16: keys, the input method, one sen
   const measure = () => page.evaluate<{ h: number; scroll: number; client: number; min: number; window: number }>(`(() => { const f = document.querySelector(".mw-composer__input");
     return { h: f.getBoundingClientRect().height, scroll: f.scrollHeight, client: f.clientHeight, min: parseFloat(getComputedStyle(f).minHeight), window: innerHeight }; })()`);
   const empty = await measure();
-  assert.equal(empty.min, 44, "the composer's own min-height: two 22px lines, no padding");
+  assert.equal(empty.min, 40, "the composer's own min-height: two 20px lines (13px body on the type scale), no padding");
   assert.equal(Math.round(empty.h), empty.min);
   await type("把第 3 步的测试补上");
   // UIC-06: a plain Enter after one written line breaks it and says once how to send now.

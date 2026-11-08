@@ -30,7 +30,7 @@ export const COMPOSER_STYLES = `${COMPOSER_PATTERN_STYLES}
   .mw-composer__text { display: flex; padding: 10px 12px 0; }
   /* The page sheets style every bare textarea (a border and a field's fill); the field here is the box itself, so one id-weight
      \`:not\` takes those off, as the button group's joined corners do. */
-  .mw-composer__text > .mw-composer__input:not(#mw-composer) { flex: 1; min-width: 0; min-height: 2lh; padding: 0; border: 0; border-radius: 0; outline: 0; background: transparent; box-shadow: none; color: var(--ink); font: inherit; font-size: 14px; line-height: 22px; }
+  .mw-composer__text > .mw-composer__input:not(#mw-composer) { flex: 1; min-width: 0; min-height: 2lh; padding: 0; border: 0; border-radius: 0; outline: 0; background: transparent; box-shadow: none; color: var(--ink); font: inherit; font-size: 13px; line-height: 20px; }
   .mw-composer__input::placeholder { color: var(--muted); }
   .mw-composer__status { display: flex; align-items: baseline; gap: 8px; min-width: 0; padding: 8px 12px 0; color: var(--ink-soft); font-size: 12px; line-height: 18px; text-wrap: pretty; }
   .mw-composer__status > .mw-status { flex: none; }

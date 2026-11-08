@@ -203,7 +203,7 @@ test("touch sizing goes by the input: 44px targets for phones and coarse pointer
   assert.match(composerTouch, /\.mw-composer__foot \.mw-btn--icon-only \{ width: 44px; min-width: 44px; \}/, "send and add are 44px on touch");
   assert.match(composerTouch, /\.mw-composer__foot \.mw-btn--sm, \.mw-composer__foot \.mw-btn--icon \{ min-height: 44px; \}/, "and 44px tall");
   assert.match(composerTouch, /\.mw-composer__input:not\(#mw-composer\) \{ font-size: 16px; \}/, "the input's text is 16px on touch, so the page does not zoom");
-  assert.match(css, /\.mw-composer__text > \.mw-composer__input:not\(#mw-composer\) \{[^}]*min-height: 2lh;[^}]*line-height: 22px;/, "the input is two 22px lines, 44px, tall");
+  assert.match(css, /\.mw-composer__text > \.mw-composer__input:not\(#mw-composer\) \{[^}]*min-height: 2lh;[^}]*line-height: 20px;/, "the input is two 20px lines, 40px, tall");
   assert.match(touch, /\.navigator-project-selector \{ grid-template-columns: 44px; width: 44px; height: 44px; min-height: 44px; \}/, "the project mark is 44px on touch");
   assert.match(touch, /\.plugin-picker-trigger \{[^}]*min-width: 44px;/, "the plugin switcher is 44px wide on touch");
   // The 「材料」 chip left the line for the strip above it (context-program §21.2 point 1); the bell on the receiver row reaches 44px.

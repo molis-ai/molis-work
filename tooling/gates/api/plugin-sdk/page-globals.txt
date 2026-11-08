@@ -93,6 +93,7 @@ export type ComposerOptions = ComposerCommonOptions & ({
     receiver?: () => {
         label: string;
         reset?: () => void;
+        resetLabel?: string;
     } | null;
     delivery?: () => ComposerDelivery;
     stop?(signal: AbortSignal): Promise<void>;

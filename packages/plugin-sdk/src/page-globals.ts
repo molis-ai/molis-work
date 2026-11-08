@@ -144,8 +144,8 @@ export type ComposerOptions = ComposerCommonOptions & (
   | { kind: "plain"; labels: MwComposerLabels }
   /** The receiver row and the delivery menu besides. */
   | { kind: "ai"; labels: MwComposerAiLabels;
-      /** Who it goes to now; null or absent draws no receiver row. `reset` puts back the default receiver (the tag's ×). */
-      receiver?: () => { label: string; reset?: () => void } | null;
+      /** Who it goes to now; null or absent draws no receiver row. `reset` puts back the default receiver (the tag's ×), named `resetLabel`. */
+      receiver?: () => { label: string; reset?: () => void; resetLabel?: string } | null;
       /** Which deliveries the target takes now; without it only the default (`next-boundary`) is offered. */
       delivery?: () => ComposerDelivery;
       /** Stops the turn under way; without it no stop is drawn. Pause is not offered (§3.1 lists it; no target takes it yet). */

@@ -132,8 +132,8 @@ test("FSS-61 a value sent with a form stays: an option's and a button's value ar
   // The same form at the same place in the page and in both renders; two renders of one form differ in their words and, here, in the values too.
   await evaluate(`(() => {
     const form = (zh) => { const f = document.createElement('form'); f.dataset.testForm = '';
-      f.innerHTML = zh ? '<select name="pick"><option value="甲">中文选项</option></select><button name="go" value="提交的值">提交</button>'
-        : '<select name="pick"><option value="A">English option</option></select><button name="go" value="sent-value">Send</button>';
+      f.innerHTML = zh ? '<button name="go" value="提交的值">提交</button><select name="pick"><option value="甲">中文选项</option></select>'
+        : '<button name="go" value="sent-value">Send</button><select name="pick"><option value="A">English option</option></select>';
       return f; };
     document.querySelector('[data-board-env-live]').append(form(true));
     document.querySelector('template[data-board-env-render=zh]').content.append(form(true));
@@ -141,9 +141,10 @@ test("FSS-61 a value sent with a form stays: an option's and a button's value ar
   })()`);
   await evaluate(WATCH);
   await switchTo(browser, "en");
-  assert.deepEqual(await evaluate(`(() => { const f = document.querySelector('[data-board-env-live] [data-test-form]'), option = f.querySelector('option'), button = f.querySelector('button');
-    return [option.getAttribute('value'), option.textContent, button.getAttribute('value'), button.textContent, window.__boardEnv]; })()`),
-  ["甲", "English option", "提交的值", "Send", { removed: 0, html: 0, values: 0, loadedOnce: true }]);
+  // A select may mirror its chosen option's words itself (Chrome's selectedcontent), so only what the merge writes is counted here: no HTML, no field value.
+  assert.deepEqual(await evaluate(`(() => { const f = document.querySelector('[data-board-env-live] [data-test-form]'), option = f.querySelector('option[value]'), button = f.querySelector('button[name=go]');
+    return [option.getAttribute('value'), option.textContent, button.getAttribute('value'), button.textContent, window.__boardEnv.html, window.__boardEnv.values]; })()`),
+  ["甲", "English option", "提交的值", "Send", 0, 0]);
 });
 
 test("FSS-61 a merge that throws puts the old language back: what the page writes next is in the language on show", async (t) => {

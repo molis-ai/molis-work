@@ -41,6 +41,11 @@ ${STRIP_BUTTON}:focus-visible{outline:var(--focus-stroke);outline-offset:1px}
 .tab-all-count{color:var(--muted);font-variant-numeric:tabular-nums}
 .tab-solo-chip{background:var(--accent-soft);color:var(--accent-strong,var(--accent))}
 .tab-solo-chip:hover{background:color-mix(in srgb,var(--accent) 18%,var(--paper));color:var(--accent-strong,var(--accent))}
+/* 全部标签 shows only once the strip cannot hold its tabs (tab-workspace-strip.ts); the right side's 独看 chip sits before its glyphs. */
+${STRIP_BUTTON}[hidden]{display:none}
+.side-solo-chip{order:5}
+/* The right side without the focus: its current glyph keeps only its place, as a pane's tab does. */
+.tab-glyph-row[data-unfocused]>.tab-item[data-glyph-only][aria-current]{background:var(--nav-active);box-shadow:none}
 /* Menus that open from the titlebar: a search field on top, sections, a row's place and its "open beside", the keys at the foot. */
 .mw-menu.tab-menu[hidden]{display:none}
 .mw-menu.tab-menu{--ops-btn:var(--control-h,32px);width:320px;max-width:calc(100vw - 16px);max-height:min(70dvh,560px);overflow:auto;overscroll-behavior:contain}
@@ -65,6 +70,7 @@ ${STRIP_BUTTON}:focus-visible{outline:var(--focus-stroke);outline-offset:1px}
 /* A tab whose record is gone is struck through and still opens, so it keeps a readable ink; a plugin that did not start carries the amber point. */
 ${W} .tab-item[data-tab-state="gone"] .tab-item-name{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--ink-soft)}
 .tab-item-trigger>.nav-warn-dot{margin-left:-2px}
+.tab-menu .mw-menu__item[data-tab-state="gone"] [data-slot]{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--ink-soft)}
 /* A removed plugin's group greys. Its hue is written inline on the group, which no sheet rule can override there, so the grey
    replaces what the group derives from the hue (its wash and head ink) and the hue itself on everything inside it, where the
    tabs' own ink is mixed from it. One step above the active group's wash (tab-groups.ts), so it holds while the group is active. */
@@ -104,6 +110,10 @@ ${BAR} :is(.tab-group,.tab-group-pages,.tab-item[aria-current]){flex:1;min-width
 ${SWITCH}>.mw-toggle{min-height:44px}
 ${SWITCH}>.mw-toggle.is-current{box-shadow:var(--shadow-soft),inset 0 0 0 1px var(--line-strong)}
 .tab-all-button>span:not(.tab-all-count){display:none}
+}
+/* Where the right side's glyphs share the first row (side-panel.ts), the layout button ends that row instead of taking a row of its own under the strip. */
+@media (max-width:600px){
+${W}:not(.arrival-page) .immersive-titlebar>.titlebar-layout{order:1}
 }
 @media (prefers-reduced-motion:reduce){
 ${PINNED_GROWN} .tab-item-name{animation:none}

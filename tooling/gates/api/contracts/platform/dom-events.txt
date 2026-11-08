@@ -173,6 +173,13 @@ export declare const DOM_EVENTS: readonly [{
     readonly detail: "{ came, gone, next, failed }; a listener sets failed to true when it could not bring its page in line";
     readonly summary: "The project's plugins changed in place; plugins whose pages fill when the project has them fill them from next.";
 }, {
+    readonly name: "molis-work:record-gone";
+    readonly kind: "request";
+    readonly owner: "tab-workspace";
+    readonly on: "document";
+    readonly detail: "{ plugin, itemId }";
+    readonly summary: "A record a tab opens is no longer there: strike its tab through and say so in its pane, with a way to close it. Sent by a plugin's page when its read of the record answers 404 (Goals' document read first).";
+}, {
     readonly name: "molis-work:return-claim";
     readonly kind: "request";
     readonly owner: "settings-return";

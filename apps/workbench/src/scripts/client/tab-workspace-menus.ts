@@ -71,7 +71,7 @@ export const TAB_WORKSPACE_MENUS_PART = `  const svg = (name) => '<svg aria-hidd
   };
   const keyName = (mac, other) => MAC ? mac : other;
   // One tab's menu (or a group's) at a time, and none of them under another.
-  const onlyMenu = (menu) => [tabMenu, plusMenu, layoutMenu].forEach((other) => { if (other !== menu && other.matches(":popover-open")) other.hidePopover(); });
+  const onlyMenu = (menu) => [tabMenu, plusMenu, allTabsMenu, layoutMenu].forEach((other) => { if (other !== menu && other.matches(":popover-open")) other.hidePopover(); });
   // One item of the tab menu, for a tab's menu and a group's alike; a tab's puts focus back on the active tab unless the item
   // took it somewhere else (it answers false).
   const menuItem = (paneId, refocus) => (label, icon, key, action, disabled) => tabMenu.append(menuRow(label, icon, () => {
@@ -202,6 +202,91 @@ export const TAB_WORKSPACE_MENUS_PART = `  const svg = (name) => '<svg aria-hidd
     event.preventDefault();
     if (event.altKey && item.dataset.plusOpen) item.nextElementSibling.click(); else item.click();
   });
+  /* 全部标签 (07-1 S3, scheme A; PFG-26): every tab of the pane in sections by group, each with how many it holds, the current one
+     marked; choosing one goes to it as its own tab would. It reaches the tabs scrolled out of the strip, and on a phone every tab
+     but the current one (pinned ones too). A popover of its own like ＋: typing narrows it, Esc gives the focus back. */
+  const allTabsMenu = document.createElement("div");
+  allTabsMenu.className = "workspace-layout-menu mw-menu tab-menu"; allTabsMenu.setAttribute("popover", "manual"); allTabsMenu.dataset.workspaceAllTabs = "";
+  document.body.append(allTabsMenu);
+  // The strip may draw itself again while the list is open; its button is found again by the pane it lists.
+  const allTabsAnchor = () => {
+    const buttons = [...document.querySelectorAll('[data-tab-all="' + CSS.escape(allTabsMenu.dataset.forPane || "") + '"]')];
+    return buttons.find((button) => button.getClientRects().length) || buttons[0];
+  };
+  // Its button says whether it is open as it opens and closes (the toggle event comes a task later); another menu opening closes it too.
+  allTabsMenu.addEventListener("toggle", (event) => allTabsAnchor()?.setAttribute("aria-expanded", String(event.newState === "open")));
+  const closeAllTabs = (refocus) => {
+    if (!allTabsMenu.matches(":popover-open")) return;
+    allTabsMenu.hidePopover(); allTabsAnchor()?.setAttribute("aria-expanded", "false");
+    if (refocus) allTabsAnchor()?.focus({ preventScroll: true });
+  };
+  // Manual, so pressing 全部标签 again closes it rather than light-dismissing and reopening; a press or focus elsewhere closes it.
+  ["pointerdown", "focusin"].forEach((type) => document.addEventListener(type, (event) => {
+    if (allTabsMenu.matches(":popover-open") && !allTabsMenu.contains(event.target) && !allTabsAnchor()?.contains(event.target)) closeAllTabs(false);
+  }));
+  allTabsMenu.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); closeAllTabs(true); return; }
+    const items = [...allTabsMenu.querySelectorAll("[role=menuitem]")].filter((item) => !item.closest("[hidden]"));
+    if (!event.target.matches("input")) return;
+    if (event.key === "ArrowDown") { event.preventDefault(); items[0]?.focus(); }
+    if (event.key === "Enter" && items[0]) { event.preventDefault(); items[0].click(); }
+  });
+  const openAllTabs = (paneId, anchor) => {
+    const pane = paneById(paneId);
+    if (!pane || allTabsMenu.matches(":popover-open")) { closeAllTabs(true); return; }
+    allTabsMenu.dataset.forPane = paneId;
+    const go = (tab) => () => {
+      closeAllTabs(false);
+      // The strip's own tab does the going, so a plugin's tab, a record and a system tab each behave as when pressed there.
+      const own = (allTabsAnchor() || anchor).closest(".tab-strip")?.querySelector('[data-tab-id="' + CSS.escape(tab.id) + '"] .tab-item-trigger');
+      if (own) own.click(); else { activate(paneId, tab.id); focusActiveTab(); }
+    };
+    const sections = [];
+    pane.tabs.forEach((tab) => {
+      const key = tab.pinned ? "pinned" : tab.groupId ? "group:" + tab.groupId : "plugin:" + (tab.plugin || tab.id);
+      let section = sections.at(-1);
+      if (section?.key !== key) {
+        const group = !tab.pinned && tab.groupId ? (pane.groups || []).find((candidate) => candidate.id === tab.groupId) : null;
+        section = { key, rows: [],
+          name: tab.pinned ? L("已固定") : group ? group.title || L("分组") : tab.kind === "system" ? "" : L(ops.pluginTitle(tab.plugin)),
+          color: tab.pinned || tab.kind === "system" ? "" : group ? GROUP_COLOR[group.color] || GROUP_COLOR.grey : "var(--hue-" + pluginGroups.hueOf(tab.plugin) + ")" };
+        sections.push(section);
+      }
+      const row = menuRow(tabLabel(tab), tab.kind === "plugin" ? tabIcon(tab.plugin) : "", go(tab), { data: { allTab: tab.id } });
+      if (tab.id === pane.activeTabId || pluginGroups.shows(pane, tab)) row.setAttribute("aria-current", "true");
+      if (section.color) row.style.setProperty("--group-color", section.color);
+      // The list carries the strip's marks: struck through when the record is gone, the amber point when its plugin did not start.
+      if (goneRecord(tab)) row.dataset.tabState = "gone";
+      if (tab.kind !== "system" && failedPlugin(tab.plugin)) row.insertAdjacentHTML("beforeend", '<span class="nav-warn-dot" aria-hidden="true"></span>');
+      section.rows.push(row);
+      section.lone = section.rows.length === 1 && tab.kind === "plugin";
+    });
+    // A plugin open with nothing behind it is a section of its own name and one row; such plugins share one unnamed section instead.
+    for (let index = sections.length - 1; index > 0; index -= 1) {
+      if (sections[index].lone && sections[index - 1].lone) { sections[index - 1].rows.push(...sections[index].rows); sections.splice(index, 1); }
+    }
+    sections.forEach((section) => { if (section.lone) { section.name = ""; section.color = ""; } });
+    const find = document.createElement("label"), list = document.createElement("div");
+    find.className = "mw-input-group tab-menu-find"; find.innerHTML = svg("search") + '<input class="mw-input" type="search" autocomplete="off">';
+    const input = find.lastChild;
+    input.placeholder = L("找标签"); input.setAttribute("aria-label", input.placeholder);
+    list.setAttribute("role", "menu"); list.setAttribute("aria-label", L("全部标签"));
+    list.append(...sections.map(({ name, color, rows }) => {
+      const count = rows.length === 1 ? L("1 张") : L("{n} 张", { n: rows.length });
+      const group = menuGroup(name ? name + " · " + count : "", rows), head = group.querySelector(".mw-menu__label");
+      if (color && head) { const dot = document.createElement("span"); dot.className = "tab-menu-dot"; dot.setAttribute("aria-hidden", "true"); head.prepend(dot); group.style.setProperty("--group-color", color); }
+      return group;
+    }));
+    input.addEventListener("input", () => {
+      const words = input.value.trim().toLowerCase();
+      list.querySelectorAll("[role=menuitem]").forEach((item) => { item.hidden = Boolean(words) && !item.querySelector("[data-slot]").textContent.toLowerCase().includes(words); });
+      list.querySelectorAll(".mw-menu__group").forEach((group) => { group.hidden = !group.querySelector("[role=menuitem]:not([hidden])"); });
+    });
+    allTabsMenu.replaceChildren(find, list);
+    onlyMenu(allTabsMenu); placeMenu(allTabsMenu, anchor, false);
+    anchor.setAttribute("aria-expanded", "true");
+    input.focus();
+  };
   /* The titlebar's one layout button (§4.6.2 S2, 口径 6): its menu acts on the column the focus is in, the focused pane or the
      right side, and says which in its title. 独看 is its own state (口径 2), not a cover. */
   const layoutMenu = document.createElement("div");

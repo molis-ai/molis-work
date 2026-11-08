@@ -96,6 +96,36 @@ ${TAB_WORKSPACE_DRAG_PART}
     note.textContent = L("标签和内容都还在；把它加回这个项目，就能接着用。");
     stage.replaceChildren(title, note);
   };
+  // A plugin that did not start draws its placeholder stage marked unavailable (plugin-store-unavailable.ts, project-plugin-stages);
+  // its tabs carry the amber point and stay (design README, shared part 7).
+  const failedPlugin = (plugin) => Boolean(plugin) && Boolean(document.querySelector('[data-work-surface="' + CSS.escape(plugin) + '"]:is([data-home-plugin-unavailable], [data-project-plugin-unavailable])'));
+  /* Records their plugin said are gone (molis-work:record-gone, sent by the page that tried to show one): their tabs are struck
+     through and stay; shown, the pane says so and offers the way out. Kept for this page only: a reload asks the plugin again. */
+  const goneRecords = new Set();
+  const goneKey = (plugin, itemId) => plugin + "|" + itemId;
+  const goneRecord = (tab) => tab.kind === "item" && goneRecords.has(goneKey(tab.plugin, tab.itemId));
+  document.addEventListener("molis-work:record-gone", (event) => {
+    const { plugin, itemId } = event.detail || {};
+    if (typeof plugin !== "string" || typeof itemId !== "string" || goneRecords.has(goneKey(plugin, itemId))) return;
+    goneRecords.add(goneKey(plugin, itemId)); apply();
+  });
+  /** What a pane shows for a tab whose record is gone: what happened, closing the tab, and the plugin's own list. */
+  const showGone = (pane, tab) => {
+    const body = panesEl.querySelector('[data-tab-pane="' + pane.id + '"] [data-tab-pane-body]');
+    let stage = body?.querySelector(":scope > [data-tab-gone-stage]");
+    if (!tab || !body) { stage?.remove(); return; }
+    if (!stage) { stage = document.createElement("div"); stage.className = "mw-empty tab-removed-stage"; stage.setAttribute("role", "status"); body.append(stage); }
+    if (stage.dataset.tabGoneStage === tab.id) return;
+    stage.dataset.tabGoneStage = tab.id;
+    const title = document.createElement("h2"), note = document.createElement("p"), actions = document.createElement("div");
+    title.textContent = L("这一条已经不在了");
+    note.textContent = L("可能已被删除，或移到了别的项目。标签先留着，关掉它不影响别的。");
+    const button = (label, variant, run) => { const node = document.createElement("button"); node.type = "button"; node.className = "mw-btn mw-btn--" + variant; node.textContent = label; node.addEventListener("click", run); return node; };
+    actions.className = "mw-empty__actions";
+    actions.append(button(L("关闭标签"), "secondary", () => { closeTabBack(pane.id, tab.id); focusActiveTab(); }),
+      button(L("回到 {plugin} 列表", { plugin: L(ops.pluginTitle(tab.plugin)) }), "ghost", () => openPlugin(tab.plugin)));
+    stage.replaceChildren(title, note, actions);
+  };
   let state = ops.create(), column = "main";
   let unsaved = false; // a layout this device would not keep is said once, and again only after it saved since
   const restore = (requestedGoalId = "", resetLayout = false) => {
@@ -345,7 +375,7 @@ ${TAB_WORKSPACE_DRAG_PART}
   /* Which column the person is in, the focused main pane or the right side (§4.6 口径 1: one focus over both): the layout menu
      acts on it and the titlebar's arrows walk its way back. It follows where they press or move the focus, a frame included. */
   const columnOf = (node) => node?.closest?.("[data-side-panel], [data-side-tabs]") ? "side" : node?.closest?.("[data-tab-panes], [data-titlebar-tabs]") ? "main" : "";
-  const followColumn = (node) => { const next = columnOf(node); if (next && next !== column) { column = next; syncHistoryButtons(); } };
+  const followColumn = (node) => { const next = columnOf(node); if (next && next !== column) { column = next; syncHistoryButtons(); markFocus(); } };
   if (!embedded) {
     document.addEventListener("pointerdown", (event) => followColumn(event.target), true);
     document.addEventListener("focusin", (event) => followColumn(event.target));
@@ -356,7 +386,7 @@ ${TAB_WORKSPACE_DRAG_PART}
   document.addEventListener("molis:side-shown", (event) => {
     if (embedded) return;
     if (state.solo) apply();
-    if (!event.detail?.open) { if (column === "side") column = "main"; syncHistoryButtons(); return; }
+    if (!event.detail?.open) { if (column === "side") column = "main"; syncHistoryButtons(); markFocus(); return; }
     if (event.detail.tab) { rememberPlace("side", event.detail.tab, sideKept); persistHistory(); syncHistoryButtons(); }
   });
   // ⌘⇧↵ / Ctrl+Shift+Enter shows only the focused pane, and brings the rest back (口径 2); a pane page hands it up.

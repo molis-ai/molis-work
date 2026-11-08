@@ -5,7 +5,7 @@ import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plu
 import { agentHostCapabilities, agentOfferActions } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentCollaborationActions } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 import { agentInputActions } from "@molis-ai/molis-work-contracts/services/agent-inputs";
-import { projectsCapabilities, projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import { projectDirectoryActions, projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { GOALS_ACTIONS } from "./goals-actions.js";
 import { KNOWLEDGE_READ_PERMISSION, knowledgeActions } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { CODING_GOAL_CONTEXT_TYPE, CODING_PLAN_TYPE } from "./artifacts.js";
@@ -94,11 +94,9 @@ export const codingManifest: PluginManifest = {
       ...Object.values(characterPluginActions).map(entry => entry.capability_id),
       knowledgeActions.read.capability_id,
       knowledgeActions.list.capability_id,
-      projectsCapabilities.readWorkspace.capability_id,
+      projectDirectoryActions.get.capability_id,
       workspaceReadActions.file.capability_id,
       workspaceReadActions.git.capability_id,
-      projectSettingsCapabilities.workspaces.capability_id,
-      projectSettingsCapabilities.browsingWorkspace.capability_id,
       projectSettingsCapabilities.runtime.capability_id,
       ...Object.values(writerDirectoryCapabilities).map(entry => entry.capability_id),
       ...Object.values(writerIntegrationCapabilities).map(entry => entry.capability_id),

@@ -120,6 +120,8 @@ export interface PrSupportAnswer { readonly message: string; readonly tool: stri
 /** What Git hands back to the bundle that mounts it. */
 export interface GitBrowser {
   refresh(): Promise<void>;
+  /** Shows another of the project's folders: the page that mounts Git keeps where it looks. */
+  browse(workspaceId: string): void;
   afterDecision(outcome: DecisionOutcome): Promise<void>;
   show(face: string): void;
 }

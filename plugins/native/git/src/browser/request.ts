@@ -23,7 +23,8 @@ export function gitRequests(host: GitFactoryHost, embedded: boolean): Pick<GitHo
     const url = new URL(path, "https://plugin.invalid");
     if (embedded && url.pathname !== "/view-revision") {
       const operation = OPERATIONS[url.pathname]?.[method] ?? url.pathname.slice(1);
-      const input = method !== "GET" ? body ?? {} : operation === "conflict" ? { path: url.searchParams.get("path") ?? "" } : {};
+      const folder = url.searchParams.get("workspace_id");
+      const input = method !== "GET" ? body ?? {} : { ...(operation === "conflict" ? { path: url.searchParams.get("path") ?? "" } : {}), ...(folder ? { workspace_id: folder } : {}) };
       return action(host, "git." + operation, input, signal);
     }
     return molisWorkRequest(host.pluginRoute(path), { method, body: method === "GET" ? undefined : body ?? {}, signal, fallback: host.translate("git.error.workspace-unreadable") });

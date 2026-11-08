@@ -1,6 +1,6 @@
 import { parseExactActionReferences } from "@molis-ai/molis-work-contracts/platform/actions";
 import { writerDirectoryCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
-import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import { projectFolders } from "./project-folders.js";
 import { agentHostCapabilities as agent, type AgentRunView, type AgentSubagentWorkspace } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { characterSelection, characterSkillSelection, savedCharacter, savedCharacterSkills } from "./characters.js";
 import { CONTINUATION_MARKER } from "./continuation.js";
@@ -137,7 +137,7 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
   }
   const role = body.intent === "parallel" ? "writers" : body.intent === "collaborate" ? "coordinator" : body.intent === "plan" ? "planner" : body.intent === "review" ? "reviewer" : body.intent === "execute" ? "builder" : body.intent === "edit" ? "writer" : body.intent === "discuss" ? "reader" : null;
   if (!role) throw codingFailure("coding.server.pick-intent");
-  const workspaces = await api!.invoke(projectSettingsCapabilities.workspaces, []);
+  const workspaces = await projectFolders(api!);
   const workspace = workspaces.find(entry => entry.workspace_id === body.workspace_id);
   if (!workspace?.realpath_verified) throw codingFailure("coding.server.authorize-workspace");
   const directory = { canonical_path: workspace.canonical_path, realpath_verified: true };

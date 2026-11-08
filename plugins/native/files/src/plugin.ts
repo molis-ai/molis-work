@@ -40,7 +40,7 @@ export function createFilesPlugin(): PluginDefinition {
           // Files keeps no timer or watcher that could call it once this
           // activation has stopped (BL-411).
           delivery.beforeEffect();
-          await folder.confirm(async () => delivery.beforeEffect());
+          await folder.confirm(async () => delivery.beforeEffect(), folder.last);
           delivery.beforeEffect();
           context.services?.ui.invalidate();
         },

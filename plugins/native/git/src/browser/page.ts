@@ -41,7 +41,10 @@ export interface GitPage {
   viewSignal: AbortSignal | undefined;
   initialRead: boolean;
   opener: HTMLElement | null;
+  /** The folder on show. */
   workspace: string;
+  /** The folder the page that mounts Git asked it to show ("" for the project's output). */
+  folder: string;
   generation: number;
   ticket: number;
   selected: Selected | null;
@@ -83,7 +86,7 @@ export function createPage(host: GitHost, sentences: GitSentenceTable): GitPage 
     resultPanel: q("[data-git-saved-results]"), resultChoice: q("[data-git-result-choice]"), resultSave: q("[data-git-result-save]"), resultStatus: q("[data-git-result-status]"),
     message: s("[data-git-commit-message]"), scStatus: s("[data-git-sc-status]"), operations: s("[data-git-operations]"),
     conflicts: s("[data-git-conflicts]"), conflictEditor: s("[data-git-conflict-editor]"), conflictText: s("[data-git-conflict-text]"),
-    viewSignal: undefined, initialRead: true, opener: null, workspace: "", generation: 0, ticket: 0, selected: null, displayed: null, preparing: false,
+    viewSignal: undefined, initialRead: true, opener: null, workspace: "", folder: "", generation: 0, ticket: 0, selected: null, displayed: null, preparing: false,
     resultRows: [], resultsTicket: 0, resultSaving: false,
     summary: null, draft: "", scWorkspace: "", busy: false, lastPrepared: null,
     conflictTicket: 0, conflictPath: "", conflictSides: { ours: L("git.conflict.ours"), theirs: L("git.conflict.theirs") },
@@ -107,6 +110,9 @@ async function whileShown<T>(page: GitPage, send: (signal: AbortSignal) => Promi
 /** One request to Git's routes. */
 export const request = <T>(page: GitPage, path: string, method: "GET" | "POST" = "GET", body?: unknown): Promise<T> =>
   whileShown<T>(page, signal => page.host.request(path, method, body, signal), method !== "GET");
+
+/** A read of the folder on show (`id`), or of the project's output when none is: where the page looks is its own state. */
+export const inFolder = (path: string, id: string): string => id ? path + (path.includes("?") ? "&" : "?") + "workspace_id=" + encodeURIComponent(id) : path;
 
 /** The comparison Diff drew for a diff that was read and kept, by Diff's page action. */
 export const diffState = <T>(page: GitPage, reference: { readonly artifact_id: string; readonly version: number }): Promise<T> =>

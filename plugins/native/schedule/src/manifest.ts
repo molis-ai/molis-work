@@ -1,6 +1,6 @@
 import { scheduleTracking } from "./replication.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import { projectDirectoryActions } from "@molis-ai/molis-work-contracts/modules/projects";
 import { scheduleAgentManifest } from "./roles.js";
 import { SCHEDULE_UI_CONTRIBUTION_ID } from "./ui.js";
 import { SCHEDULE_ACTIONS, scheduleActions } from "./actions.js";
@@ -40,7 +40,7 @@ export const scheduleManifest: PluginManifest = {
   capabilities: {
     provides: [],
     // The platform's grants of this installation's tasks: listed to pick a round's role and mark the page, cleared when a task ends.
-    consumes: [projectsCapabilities.readWorkspace.capability_id, ...SCHEDULE_TASK_GRANT_ACTIONS.map(action => action.capability_id)],
+    consumes: [projectDirectoryActions.get.capability_id, ...SCHEDULE_TASK_GRANT_ACTIONS.map(action => action.capability_id)],
   },
   actions: [...SCHEDULE_ACTIONS, ...REMINDER_ACTIONS, ...SCHEDULE_OPERATION_ACTIONS, ...Object.values(scheduleWakeupActions)],
   // What another plugin's background task may be let read, one switch per group (specs/proactive-assistant/schedule-task-reads.md §3.2).

@@ -496,7 +496,6 @@ export interface UiSideContextMessage {
 
 export interface UiSlotDescriptor {
   readonly slot_id: string;
-  readonly version: number;
   readonly accepts: readonly string[];
 }
 

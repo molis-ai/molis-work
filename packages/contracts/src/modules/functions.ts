@@ -234,7 +234,7 @@ export interface JudgmentRecord {
   readonly suggested_behavior_ids: readonly string[];
   readonly error_code: string | null;
   readonly created_at: string;
-  /** Present on shared-scene results; old records remain readable history. */
+  /** Present on shared-scene results; a judgment made without a scene has none. */
   readonly scene_provenance?: {
     readonly binding_id: string;
     readonly binding_revision: string;

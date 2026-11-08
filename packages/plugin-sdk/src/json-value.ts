@@ -9,7 +9,8 @@ export function compareCodeUnits(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
 }
 
-/** Sort object keys recursively by raw UTF-16 code units; preserve values and array order.
+/** Sort object keys recursively by raw UTF-16 code units; preserve values and array order. JavaScript still enumerates
+ * integer-shaped keys first in numeric order, so they do not stay in that order; `canonicalJsonText` holds them to it.
  * Returns a new value; this does not validate or serialize non-JSON inputs. */
 export function canonicalJsonValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonicalJsonValue);

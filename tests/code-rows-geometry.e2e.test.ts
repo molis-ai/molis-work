@@ -16,7 +16,7 @@ const BEFORE = ["function check(x) {", "\treturn x;", "// 中文注释", "const 
 const AFTER = ["function check(x) {", "\treturn x + 1;", "// 中文说明", "const mark = '🙂✅';", "\t\tnested(1);", "\tadded(2);", "}", ""].join("\n");
 
 function write() {
-  const view = compareRunChangeSet({ content: { scope: "run-frozen", run_id: "run-rows", applied: true, files: [{ path: "rows.ts", kind: "modified", added_lines: 4, removed_lines: 3, diff: "",
+  const view = compareRunChangeSet({ content: { scope: "run-frozen", run_id: "run-rows", applied: true, coverage: "text-reviews", origin: { session_id: "s", runtime_session_id: "r", workspace_id: "w", workspace_name: "w" }, files: [{ path: "rows.ts", kind: "modified", added_lines: 4, removed_lines: 3, diff: "",
     review: { review_id: "review-rows", before_text: BEFORE, after_text: AFTER, decision: "approved", execution: "applied" } }] },
   source_plugin_id: "io.molis.work.coding", content_version: 1 }, undefined, 0);
   const html = (mode: "unified" | "split") => renderDiff({ labels: DIFF_LABELS, view: { ...view, mode }, primitives, line_feedback: true, fold_context: 3, sides: false });

@@ -1,4 +1,5 @@
 import { actionEffect, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { isRecord } from "./json-value.js";
 
 // The shape of a Manifest's `read_groups` (specs/proactive-assistant/schedule-task-reads.md §3.2): the switches a person sees when
 // letting another plugin's background task read this plugin's data. A group may hold only what such a task can be given: the
@@ -59,8 +60,4 @@ function namedAction(value: unknown): value is ActionDefinition {
 
 function words(value: unknown, max: number): boolean {
   return typeof value === "string" && value.trim().length > 0 && value.length <= max;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === "object" && !Array.isArray(value);
 }

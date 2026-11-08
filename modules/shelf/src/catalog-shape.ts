@@ -40,7 +40,7 @@ export function readCurrentCatalog(value: unknown): CatalogFile {
     || new Set(raw.jobs.map(job=>job.job_id)).size!==raw.jobs.length
     || raw.clipboard.some(clip => !clip || typeof clip.clip_id !== 'string' || !['url', 'text'].includes(clip.kind)
       || typeof clip.body !== 'string' || typeof clip.title !== 'string' || typeof clip.created_at !== 'string' || typeof clip.fingerprint !== 'string')) {
-    throw shelfErrors.invalid_file('Shelf 目录格式不符；期望版本 1 的现行格式。原文件已保留，请恢复当前格式的目录。');
+    throw shelfErrors.invalid_file(`Shelf 目录格式不符；期望版本 ${CATALOG_VERSION} 的现行格式。原文件已保留，请恢复当前格式的目录。`);
   }
   return raw as CatalogFile;
 }

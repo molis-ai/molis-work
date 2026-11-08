@@ -22,7 +22,7 @@ export interface AgentWorkingDirectory {
   realpath_verified: boolean;
 }
 
-/** Absence retains the historical workspace requirement. No process cwd fallback is permitted. */
+/** Absent means required, the default mode: the request names its directory. No process cwd fallback is permitted. */
 export type AgentWorkspace =
   | { workspace?: "required"; directory: AgentWorkingDirectory }
   | { workspace: "none"; directory?: never }
@@ -76,11 +76,11 @@ export interface AgentSkillRef {
 export interface AgentMcpToolRef {
   server: string;
   tool: string;
-  /** Required for execution; older unversioned selections must be reselected. */
-  version?: string;
+  /** The tool's shape as chosen: execution refuses it once the service offers another shape, and the person chooses again. */
+  version: string;
   server_label?: string;
   /** Pins the endpoint, credentials and launch configuration, independently of tool schema. */
-  configuration_version?: number;
+  configuration_version: number;
 }
 
 /** Explicit access to the documents of a configured MCP service, without its external tools. */

@@ -153,7 +153,6 @@ tests/coding-next-steps.test.ts
 tests/coding-recovery.test.ts
 tests/coding-report-usage.test.ts
 tests/coding-review-card.test.ts
-tests/coding-selection.test.ts
 tests/coding-session-messages.test.ts
 tests/coding-session-recovery.test.ts
 tests/coding-session-title.test.ts

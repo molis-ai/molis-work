@@ -3,7 +3,8 @@ import { extractMaterial } from "./material.js";
 import { openRecord } from "./notes.js";
 import { run, showNote } from "./page.js";
 import { command } from "./workspace.js";
-import { addDays, civil, clockLabel, dayOffset, esc, parseClock } from "./util.js";
+import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { addDays, civil, clockLabel, dayOffset, parseClock } from "./util.js";
 import type { JellyPage, JellyPlan, JellyPlanAction, PlanSource, PlanUi } from "./types.js";
 
 const DURATIONS = [15, 30, 45, 60, 90] as const;

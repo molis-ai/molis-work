@@ -1,4 +1,5 @@
-import { isAbort, messageOf, required } from "./dom.js";
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
+import { isAbort, required } from "./dom.js";
 import type { Failure, LingguangPage, Reading, Spark } from "./types.js";
 
 const FILE_LIMIT = 25 * 1024 * 1024;

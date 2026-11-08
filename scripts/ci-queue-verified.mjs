@@ -19,7 +19,7 @@
 // Exit: 0 whenever it answered (`false` from a failure included), 2 on a usage error.
 import { appendFileSync } from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { isMainScript } from "./script-paths.mjs";
 
 export const WORKFLOW_PATH = ".github/workflows/ci.yml";
 export const REQUIRED_JOB = "Verify";
@@ -64,8 +64,7 @@ export async function queueVerified({ repo, sha, before, token, api = "https://a
   }
 }
 
-const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
-if (isMain) {
+if (isMainScript(import.meta.url)) {
   if (process.argv.length > 2) {
     console.error("usage: ci-queue-verified.mjs (reads GITHUB_REPOSITORY, GITHUB_SHA, PUSH_BEFORE, GITHUB_TOKEN from the environment)");
     process.exit(2);

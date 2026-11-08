@@ -1,5 +1,6 @@
 import { PANEL_DEFAULTS } from "./keys.js";
-import { messageOf, paintPanelKeys, paintPanes, refreshSettings, save, savePatch, say, stopRecording } from "./save.js";
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
+import { paintPanelKeys, paintPanes, refreshSettings, save, savePatch, say, stopRecording } from "./save.js";
 import type { SettingsPage } from "./types.js";
 import type { ShelfCustomRuntime, ShelfPanelKeySlot } from "@molis-ai/molis-work-module-shelf/contract";
 

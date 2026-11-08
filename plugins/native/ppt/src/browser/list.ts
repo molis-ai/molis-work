@@ -1,4 +1,5 @@
-import { firstLine, messageOf, textCell, whenOf } from "./dom.js";
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
+import { firstLine, textCell, whenOf } from "./dom.js";
 import type { Ppt, PptPage } from "./types.js";
 
 /** A row's only label is its state: a fixed version exists, or one is still being saved. Nothing repeats the title or the count. */

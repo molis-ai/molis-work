@@ -1,5 +1,3 @@
-import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
-export { messageOf };
 export function required<T extends Element = HTMLElement>(root: ParentNode, selector: string): T {
   const node = root.querySelector<T>(selector);
   if (!node) throw new Error(`Git page: ${selector} is missing`);

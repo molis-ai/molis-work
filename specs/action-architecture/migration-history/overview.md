@@ -134,7 +134,7 @@ Inbox 七项业务 API 和已发布判断已接入共同调用（下述证据）
 2026-09-25 工程证据：
 
 - Contracts、Kernel、Plugin Runtime、Plugin SDK、MCP 和 Local Host 包 build 通过。
-- `node --import tsx --test --test-concurrency=1 tests/action-service.test.ts tests/action-mcp.test.ts tests/action-mcp-stdio.test.ts tests/mcp-protocol.test.ts tests/plugin-manifest-v2.test.ts tests/plugin-runtime-integration.test.ts tests/plugin-upgrades.test.ts`：39 项通过。
+- `node --import tsx --test --test-concurrency=1 tests/action-service.test.ts tests/action-mcp.test.ts tests/action-mcp-stdio.test.ts tests/mcp-protocol.test.ts tests/plugin-manifest.test.ts tests/plugin-runtime-integration.test.ts tests/plugin-upgrades.test.ts`：39 项通过。
 - 覆盖未知插件真实 SQLite 读写、输入输出拒绝、调用者与插件权限、停用/重启/卸载、场景实际消费及使用位置、异步期间改绑和提供方重载、旧 Runtime 与升级回归。
 - 官方 `@modelcontextprotocol/sdk` Client 经 StdioClientTransport 启动独立进程，连接正式 Runtime 注册的测试插件；schema 带局部 `$ref` 的数组输出经客户端校验；写入与读取结果一致，伪造身份元数据及参数不能越权，两个项目隔离，重启仍可读。此项证明协议/核心组合，不证明产品生产入口已迁移。
 - 修改范围的 `git diff --check` 通过。
@@ -190,7 +190,7 @@ Inbox 尚未全量闭环：判断场景仍在旧 Functions 场景体系，部分
 - 在原 function_scene_bindings 行新增通用绑定 JSON 与修订标识，旧行仍可读取。新旧绑定写入都会变更修订，关闭保留引用。旧 Functions 查询只投影仍启用且可表示的绑定，通用插件身份不伪装成 Functions。已发布函数返回建议合同，场景调用的历史延迟到消费后写入，避免多记一条 MCP 调用或保存过期成功结果。
 - 删除 FeedApplication.evaluateInboxEntries 旧显式执行实现，源码和测试中已无该旧 API 引用。原对应的业务断言迁入真实 Host 场景测试，覆盖跨项目、整批选择预检查、compose/verify/done 建议、不确定结果、已关闭事项、历史与事件。Feed 自动触发中的旧 judgeScene 路径仍未迁移，function_scenes 兼容声明暂时仍保留，不能宣称 Inbox 全量完成。
 - Contracts、Kernel、Functions 模块、Feed、Inbox、Local Host 构建通过，根 `pnpm exec tsc --noEmit -p tsconfig.json` 通过。
-- `node --import tsx --test --test-concurrency=1 tests/action-service.test.ts tests/local-host-actions.test.ts tests/inbox-action-scenes.test.ts tests/inbox-plugin.test.ts tests/inbox-native-plugin.test.ts tests/feed-inbox-pages-loop.test.ts tests/system-functions-actions.test.ts tests/functions-plugin.test.ts tests/plugin-outbound-mcp.test.ts tests/action-mcp.test.ts tests/action-mcp-stdio.test.ts tests/plugin-runtime-integration.test.ts tests/plugin-manifest-v2.test.ts`：98 项通过。包含真实 HTTP/SQLite、官方 MCP 客户端与生产 LocalMcpServer 的既有回归；判断供应商仍用 fixture，未验证真实模型。
+- `node --import tsx --test --test-concurrency=1 tests/action-service.test.ts tests/local-host-actions.test.ts tests/inbox-action-scenes.test.ts tests/inbox-plugin.test.ts tests/inbox-native-plugin.test.ts tests/feed-inbox-pages-loop.test.ts tests/system-functions-actions.test.ts tests/functions-plugin.test.ts tests/plugin-outbound-mcp.test.ts tests/action-mcp.test.ts tests/action-mcp-stdio.test.ts tests/plugin-runtime-integration.test.ts tests/plugin-manifest.test.ts`：98 项通过。包含真实 HTTP/SQLite、官方 MCP 客户端与生产 LocalMcpServer 的既有回归；判断供应商仍用 fixture，未验证真实模型。
 - 新增 Inbox 集成证明：旧绑定无需先保存即可执行，建议不会改变 Attention 状态；每次成功只生成一条消费历史；同函数重新绑定、消费方停用、事项变化时均无过期历史；禁用与历史重启保留；未知注册判断真实消费后撤销提供方，引用仍保留并显示不可用。
 
 当前未完成项仍包括：自动 Feed/Inbox/Home 触发链、停用消费插件后的持久使用位置发现（Runtime 撤回场景后目录仍需保留配置事实）、系统岛高保真和正式 UI、Functions 插件删除、工作流与 Character、所有剩余插件、外部 MCP 接入及授权管理。用户本人验收和这些产品路径的真实操作尚未进行。目标保持执行中。
@@ -206,7 +206,7 @@ Inbox 尚未全量闭环：判断场景仍在旧 Functions 场景体系，部分
 - 场景核心新增失败期间改绑和取消的回归，证明不能借失败处理落入过期消费。HTTP 验供应商失败与 8000 字上限，来源同步验后续判断失败仍保留已完成收据和事项。
 - Contracts、Kernel、Inbox、Feed、Local Host 构建通过，根 `pnpm exec tsc --noEmit -p tsconfig.json` 与修改范围 diff 检查通过。
 - 主回归 `node --import tsx --test --test-concurrency=1 tests/action-service.test.ts tests/local-host-actions.test.ts tests/inbox-automatic-scenes.test.ts tests/inbox-action-scenes.test.ts tests/inbox-plugin.test.ts tests/feed-out-rules.test.ts tests/feed-inbox-pages-loop.test.ts tests/feed-sources.test.ts tests/feed-connectors.test.ts tests/workflows-plugin.test.ts tests/system-functions-actions.test.ts tests/functions-plugin.test.ts tests/action-mcp-stdio.test.ts tests/plugin-runtime-integration.test.ts`：97 项通过。
-- 移除旧 Inbox requires 后补充 `tests/functions-system-capability.test.ts tests/plugin-manifest-v2.test.ts tests/inbox-automatic-scenes.test.ts`：38 项通过。
+- 移除旧 Inbox requires 后补充 `tests/functions-system-capability.test.ts tests/plugin-manifest.test.ts tests/inbox-automatic-scenes.test.ts`：38 项通过。
 
 仍未完成：Feed 捕捉判断、首页判断与动作、其他直接创建 Attention 的业务方；进程中断后未处理自动事件恢复；独立于页面的运行时启动；停用消费者后的持久使用位置发现；系统岛高保真/正式 UI；工作流通用能力步骤、Character、其余存量插件、外部 MCP 接入与授权、Functions 插件彻底移除。此段仅证明自动入箱子链，不证明所有插件或整体产品内部完整。真实模型和最终产品 UI 实操、用户本人验收仍未完成。
 
@@ -248,7 +248,7 @@ Inbox 尚未全量闭环：判断场景仍在旧 Functions 场景体系，部分
 - API 为流程/实例投影真实站点可用性；界面保留失效引用、显示原因并禁止开始/推进。失效站点使用警示图标与下方说明，窄屏不被长消息撑宽；模板转换在产品中不再标为 Function，存量 `kind: function` 存储值继续兼容。模板、AI、人工交接及已完成的历史仍按原语义工作。
 - `tests/workflow-content-actions.test.ts` 通过正式 Plugin Runtime 注册宿主不知道 ID 的草稿插件，以真实 SQLite 验证自动发现、保存、模板交接、实际写入、MCP 读回、项目隔离、缺权限无写入、旧链/旧运行实例固定引用、重新打开存储、正式升级撤回旧版本、保留失效引用，以及提供方变化拒绝执行。此新增 MCP 用协议适配测试；官方 SDK 的跨进程 stdio 路径由下列既有回归覆盖，不声称这一个 fixture 完成了最终客户端授权产品。
 - `tests/workflows-plugin.test.ts` 改用实际 MolisWorkLocalHost 组合根，验证 Feed → Inbox → Pages → 灵光真实存储交接、手工/AI/模板、配置修订和历史；新增 65 篇当前项目文稿完整可选、其他项目文稿不混入的验证。AI 和上游内容仍使用本地 fixture。
-- 主回归 61 项通过：`node --import tsx --test --test-concurrency=1 tests/workflow-content-actions.test.ts tests/workflows-plugin.test.ts tests/inbox-automatic-scenes.test.ts tests/local-host-actions.test.ts tests/action-service.test.ts tests/plugin-manifest-v2.test.ts tests/inbox-action-scenes.test.ts tests/inbox-plugin.test.ts tests/inbox-native-plugin.test.ts tests/capabilities-page.test.ts tests/plugin-runtime-integration.test.ts tests/action-mcp-stdio.test.ts`。后续收紧内容引用合同并扩充旧实例/完整列表场景后，动作/Host/自动入箱回归仍通过；新增旧实例用例初次未填写正文，正确被模板空内容校验拒绝，补齐真实编辑操作后，工作流两文件 9 项全部通过。Workbench 注册边界 2 项通过。
+- 主回归 61 项通过：`node --import tsx --test --test-concurrency=1 tests/workflow-content-actions.test.ts tests/workflows-plugin.test.ts tests/inbox-automatic-scenes.test.ts tests/local-host-actions.test.ts tests/action-service.test.ts tests/plugin-manifest.test.ts tests/inbox-action-scenes.test.ts tests/inbox-plugin.test.ts tests/inbox-native-plugin.test.ts tests/capabilities-page.test.ts tests/plugin-runtime-integration.test.ts tests/action-mcp-stdio.test.ts`。后续收紧内容引用合同并扩充旧实例/完整列表场景后，动作/Host/自动入箱回归仍通过；新增旧实例用例初次未填写正文，正确被模板空内容校验拒绝，补齐真实编辑操作后，工作流两文件 9 项全部通过。Workbench 注册边界 2 项通过。
 - Contracts、Kernel、SDK、四个内容插件、Workflows、Workbench、Local Host 构建和根 `pnpm exec tsc --noEmit -p tsconfig.json` 通过。全仓包边界检查仍为原来的两项 App 直接依赖 SQLite：`connector-connection-store.ts`、`web-connector-connections.ts`，本轮没有新增边界错误，没有为全绿加豁免。
 - Chrome 在 1440×950、390×844 真实操作：进入工作流程 → 目录选 Feed/Pages → 配模板 → 选材料 → 交接 → 在嵌入 Pages 中读取实际正文 → 重载；另用隔离存储中的旧版本引用验证说明可见、开始按钮禁用、数据引用保留。修正测试入口为真正的工作流导航、等待目标 Pages frame 正文和页面动画结束后截图，避免把尚未加载的空 frame 或过渡模糊态当成结果。最终截图已视觉检查，无文档横向溢出、无 JS 错误；用户本人验收未进行。可复现脚本为 `.impeccable/review/action-service/workflows-browser-qa.cjs`、`workflow-stale-fixture.mts`，截图 `workflow-{config,done,unavailable}-{desktop,mobile}.png`。使用临时 Home 与本地模型 fixture，没有访问真实外部账号。
 
@@ -262,7 +262,7 @@ Inbox 尚未全量闭环：判断场景仍在旧 Functions 场景体系，部分
 - 工作台改用 host.route 的项目 API，不再由请求正文选择项目。保存串行执行且防覆盖，保存失败阻止切换/开启对话；发送期间禁用按钮并防止重复提交，失败保留输入，迟到的回复不清空新草稿或覆盖其他会话。分发候选中的旧 Functions 名称改成判断规则，本轮仍仅复制正文。同步插件 README。
 - `tests/lingguang-actions.test.ts` 以真实 Host/SQLite/HTTP 验证目录自动注册、身份/权限/schema 拒绝、内容协议不能绕过业务动作授权、CAS、批量原子性、原库重开、旧 stub 保留、模型获得所选灵光与历史、非法会话不调用模型、无模型/失败/空结果/忽略取消的晚回复，以及另一连接修改/丢弃/追加消息时拒绝过期结果。
 - `tests/lingguang-mcp.test.ts` 通过官方 SDK 和独立 stdio 进程连接真实 Host 组合根，验证查询、创建、修改、对话、丢弃、两个项目隔离、只读客户端拒绝写入、伪造项目参数拒绝及进程重启后历史一致。fixture launcher 明确提供测试授权和本地模型回复，不冒充生产 LocalMcpServer 的全量客户端授权已经完成。
-- 主回归 58 项通过：`node --import tsx --test --test-concurrency=1 tests/lingguang-actions.test.ts tests/lingguang-plugin.test.ts tests/lingguang-mcp.test.ts tests/workflows-plugin.test.ts tests/workflow-content-actions.test.ts tests/local-host-actions.test.ts tests/action-service.test.ts tests/plugin-manifest-v2.test.ts tests/capabilities-page.test.ts tests/inbox-automatic-scenes.test.ts`。清理旧灵光测试中已经过时的 Functions 名单、Assistant 占位及 stub 断言，保留原有实际数据和 UI 检查；新行为另有集成验证。
+- 主回归 58 项通过：`node --import tsx --test --test-concurrency=1 tests/lingguang-actions.test.ts tests/lingguang-plugin.test.ts tests/lingguang-mcp.test.ts tests/workflows-plugin.test.ts tests/workflow-content-actions.test.ts tests/local-host-actions.test.ts tests/action-service.test.ts tests/plugin-manifest.test.ts tests/capabilities-page.test.ts tests/inbox-automatic-scenes.test.ts`。清理旧灵光测试中已经过时的 Functions 名单、Assistant 占位及 stub 断言，保留原有实际数据和 UI 检查；新行为另有集成验证。
 - `tests/lingguang-plugin.e2e.test.ts` 3 项真实 Chrome 操作通过：桌面原主路径、1440×950 和 390×844 下模型失败保留输入、防重复发送、新草稿不被晚回复清空、保存冲突阻止进入对话。fixture 新增可选 Host completion 注入，未影响默认调用者；其点击助手在等待布局后重新定位节点，避免列表刷新时点击已脱离 DOM 的旧节点。截图 `lingguang-dialogue-{1440,390}.png` 位于 `.impeccable/review/action-service/` 并已视觉检查，无横向溢出。模型为确定性本地 fixture，没有调用真实外部服务；用户本人验收未进行。
 - Contracts、Lingguang、Workbench、Local Host 构建和根 tsc 通过；Workbench 注册边界 2 项通过；此次修改范围 diff 检查通过。包边界检查仍有此前两项 App 直接引用 SQLite（connector-connection-store.ts、web-connector-connections.ts），未加豁免，未宣称全仓通过。
 

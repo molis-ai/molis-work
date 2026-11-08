@@ -1,5 +1,6 @@
 import { renderBar } from "./bar.js";
-import { closest, messageOf } from "./dom.js";
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
+import { closest } from "./dom.js";
 import { saveSettings } from "./composer.js";
 import { actionOrder } from "./model.js";
 import type { ShelfPage } from "./types.js";

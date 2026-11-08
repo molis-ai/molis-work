@@ -157,7 +157,7 @@ const ROUTES: RouteMaker[] = [
         if (!isTerminalAgentPhase(run.phase)) continue;
         let change: ReturnType<typeof createCodingChangeSet>;
         try { change = createCodingChangeSet(record.session_id, run, await codingActions(a.context, beforeWrite).invoke(agent.readRunReviews, [session, ref])); } catch { continue; }
-        if (change.files.some(file => file.review?.execution === "applied")) rounds.unshift({ number: index + 1, run, change });
+        if (change.files.some(file => file.review.execution === "applied")) rounds.unshift({ number: index + 1, run, change });
       }
       if (!rounds.length) throw codingFailure("coding.server.no-saved-edits");
       const plan = execution.sessions.plan(projectId, record.session_id);

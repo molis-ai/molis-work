@@ -1,6 +1,7 @@
 import { empty, keepListScroll, matches } from "./page.js";
 import { API } from "./request.js";
-import { addDays, civil, clockLabel, dateLabel, dayDate, esc, glyph, mondayIndex, monthLabel } from "./util.js";
+import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { addDays, civil, clockLabel, dateLabel, dayDate, glyph, mondayIndex, monthLabel } from "./util.js";
 import type { JellyOccurrence, JellyPage } from "./types.js";
 
 export const WEEKDAYS = ["jelly.week.mon", "jelly.week.tue", "jelly.week.wed", "jelly.week.thu", "jelly.week.fri", "jelly.week.sat", "jelly.week.sun"];

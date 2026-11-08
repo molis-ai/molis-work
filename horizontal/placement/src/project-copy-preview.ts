@@ -1,6 +1,6 @@
 import {createHash} from 'node:crypto';
 import {defineErrorCodes} from '@molis-ai/molis-work-contracts/platform/actions';
-import {compareCodeUnits} from '@molis-ai/molis-work-plugin-sdk';
+import {canonicalJsonText,compareCodeUnits} from '@molis-ai/molis-work-plugin-sdk';
 import type {ProjectCopyAsset,ProjectCopyOwner,ProjectCopyReference} from '@molis-ai/molis-work-contracts/services/placement';
 
 const errors=defineErrorCodes('placement',{copy_invalid:'invalid',copy_unavailable:'unavailable',copy_stale:'conflict',copy_limit:'invalid'});
@@ -30,22 +30,28 @@ export interface ProjectCopyPreview {
  confirm(fingerprint:string):readonly ProjectCopyPreviewEntry[];
 }
 
-/** Canonical JSON only; no getters, implicit serialization, lost fields or executable values. */
-function canonical(value:unknown,depth=0):string {
+/**
+ * Complete JSON only; no getters, implicit serialization, lost fields or executable values. Returns a plain copy built from the
+ * descriptors it checked, so what is serialized is what was checked: a Proxy cannot answer the check and the read differently.
+ */
+function completeJsonCopy(value:unknown,depth=0):unknown {
  if(depth>100)throw errors.copy_limit('复制内容嵌套过深，原件已保留');
- if(value===null||typeof value==='string'||typeof value==='boolean')return JSON.stringify(value);
- if(typeof value==='number'&&Number.isFinite(value))return JSON.stringify(value);
+ if(value===null||typeof value==='string'||typeof value==='boolean')return value;
+ if(typeof value==='number'&&Number.isFinite(value))return value;
  if(Array.isArray(value)){
-  const descriptors=Object.getOwnPropertyDescriptors(value),keys=Reflect.ownKeys(descriptors);
-  if(keys.length!==value.length+1||Object.keys(value).length!==value.length||keys.some(key=>typeof key!=='string'||key!=='length'&&(!/^(0|[1-9][0-9]*)$/.test(key)||Number(key)>=value.length||!descriptors[key]?.enumerable||!Object.hasOwn(descriptors[key]!,'value'))))throw errors.copy_invalid('复制内容不是完整的 JSON 数组');
-  return '['+Array.from({length:value.length},(_,index)=>canonical(descriptors[String(index)]!.value,depth+1)).join(',')+']';
+  const descriptors=Object.getOwnPropertyDescriptors(value as object),keys=Reflect.ownKeys(descriptors),length=descriptors.length!.value as number;
+  if(keys.length!==length+1||Object.keys(value).length!==length||keys.some(key=>typeof key!=='string'||key!=='length'&&(!/^(0|[1-9][0-9]*)$/.test(key)||Number(key)>=length||!descriptors[key]?.enumerable||!Object.hasOwn(descriptors[key]!,'value'))))throw errors.copy_invalid('复制内容不是完整的 JSON 数组');
+  return Array.from({length},(_,index)=>completeJsonCopy(descriptors[String(index)]!.value,depth+1));
  }
  if(value&&typeof value==='object'&&(Object.getPrototypeOf(value)===Object.prototype||Object.getPrototypeOf(value)===null)){
   const descriptors=Object.getOwnPropertyDescriptors(value),keys=Reflect.ownKeys(descriptors);
   if(keys.some(key=>typeof key!=='string'||!descriptors[key]?.enumerable||!Object.hasOwn(descriptors[key]!,'value')))throw errors.copy_invalid('复制内容包含非 JSON 字段');
-  return '{'+(keys as string[]).sort().map(key=>JSON.stringify(key)+':'+canonical(descriptors[key]!.value,depth+1)).join(',')+'}';
+  return Object.fromEntries((keys as string[]).sort().map(key=>[key,completeJsonCopy(descriptors[key]!.value,depth+1)]));
  }
  throw errors.copy_invalid('复制内容必须由 owner 提供完整 JSON');
+}
+function canonical(value:unknown):string {
+ return canonicalJsonText(completeJsonCopy(value),'null');
 }
 const referenceKey=(ref:ProjectCopyReference)=>JSON.stringify([ref.kind,ref.projectId,ref.id]);
 function checkedReference(input:ProjectCopyReference):ProjectCopyReference {

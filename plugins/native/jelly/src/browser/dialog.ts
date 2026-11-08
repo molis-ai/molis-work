@@ -1,5 +1,6 @@
 import { showNote } from "./page.js";
-import { esc, messageOf } from "./util.js";
+import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import type { JellyPage } from "./types.js";
 
 /** The shared dialog: the page fills it for one view at a time; `version` tells a late answer which view it belongs to. */

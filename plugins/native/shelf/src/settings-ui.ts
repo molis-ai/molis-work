@@ -30,7 +30,7 @@ import {
 import { SHELF_GLYPH } from "./glyphs.js";
 import type { ShelfUiPrimitives } from "./ui.js";
 
-export const SHELF_SETTINGS_UI_CONTRIBUTION_ID = /* @version contract.io.molis.work.native.shelf.settings "io.molis.work.native.shelf.settings.v{version}" */ "io.molis.work.native.shelf.settings.v1";
+export const SHELF_SETTINGS_UI_CONTRIBUTION_ID = "io.molis.work.native.shelf.settings.v1";
 
 export interface ShelfSettingsUiModel {
   readonly settings: ShelfDeviceSettings;

@@ -44,7 +44,7 @@ test("RAC-1760 a job runs whole when affected-tests cannot narrow it, when what 
     ".github/workflows/ci.yml", "package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", "AGENTS.md", "skills/molis-plugin-dev/SKILL.md",
     "vendor/prologue-sdk/README.md", "scripts/ci-test-selection.mjs", "scripts/ci-check-selection.mjs", "scripts/affected-tests.mjs", "scripts/affected-tests/select.mjs",
     "scripts/run-tests.mjs", "scripts/run-tests/pool.mjs", "scripts/build-workspace.mjs", "scripts/workspace-packages.mjs",
-    "scripts/package-dev-requirements.mjs", "scripts/ci-linux-probe/run.mjs", "scripts/ci-product-subset/plan.mjs", "scripts/machine-slot.mjs",
+    "scripts/package-dev-requirements.mjs", "scripts/ci-linux-probe/run.mjs", "scripts/ci-product-subset/plan.mjs", "scripts/machine-slot.mjs", "scripts/script-paths.mjs",
   ];
   for (const file of BOTH) {
     for (const job of ["security", "product"] as const) whole(job, affected({ tests: someTests, changes: [{ path: file }] }), new RegExp(`runs whole when these change: ${file.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
@@ -142,7 +142,7 @@ test("RAC-1762 the security list is test:security with its globs expanded over t
 });
 
 // ---- end to end ------------------------------------------------------------------------------------------------------------------
-const SCRIPTS = ["scripts/run-tests/shard.mjs", "scripts/ci-test-selection.mjs", "scripts/ci-check-selection.mjs", "scripts/affected-tests.mjs", "scripts/affected-tests", "scripts/ci-product-subset/plan.mjs", "scripts/ci-linux-probe/select.mjs", "scripts/package-dev-requirements.mjs"];
+const SCRIPTS = ["scripts/run-tests/shard.mjs", "scripts/ci-test-selection.mjs", "scripts/ci-check-selection.mjs", "scripts/affected-tests.mjs", "scripts/affected-tests", "scripts/ci-product-subset/plan.mjs", "scripts/ci-linux-probe/select.mjs", "scripts/package-dev-requirements.mjs", "scripts/script-paths.mjs"];
 function scratch() {
   const root = mkdtempSync(path.join(tmpdir(), "molis-test-selection-"));
   directories.push(root);
@@ -373,7 +373,7 @@ test("RAC-1766 the Rust and Swift checks run when a changed file is one they rea
     "apps/local-host/native/materials/JellyMaterial.swift", "apps/local-host/native/computer/Sources/main.swift", "apps/local-host/native/computer/build.sh",
     "apps/local-host/native/materials/whisper/Package.swift", "crates/elsewhere/src/lib.rs", "other/Cargo.toml", "other/Cargo.lock",
     "rust-toolchain.toml", "sub/rust-toolchain", "clippy.toml", "rustfmt.toml", ".cargo/config.toml", ".github/workflows/ci.yml", ".github/workflows/full-suite.yml",
-    "scripts/gates/native-checks.mjs", "tests/native-checks.test.mjs", "scripts/ci-test-selection.mjs", "package.json", ".nvmrc", "pnpm-lock.yaml",
+    "scripts/gates/native-checks.mjs", "scripts/script-paths.mjs", "tests/native-checks.test.mjs", "scripts/ci-test-selection.mjs", "package.json", ".nvmrc", "pnpm-lock.yaml",
   ]) {
     const decision = change("docs/guide.md", file);
     assert.equal(decision.mode, "whole", `${file}: ${JSON.stringify(decision)}`);

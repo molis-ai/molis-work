@@ -1,5 +1,4 @@
 import { isRecord } from "@molis-ai/molis-work-plugin-sdk";
-export { isRecord };
 import {
   AGENT_MCP_DESTINATION_ID,
   isJudgmentRuleDestinationId,

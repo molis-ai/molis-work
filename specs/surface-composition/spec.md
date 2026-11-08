@@ -1,6 +1,6 @@
 # 确定组合平台服务（路线书 15 ①）
 
-状态：设计稿，2026-11-04 写，没有实现。写在 C3（只写设计稿和核查）；实现等[05②](https://github.com/molis-ai/molis-work/pull/1771)的呈现合同（C-2、C-3）、第 14 批 A 段的 `TextRef` 合入和 C 轨交接；服务骨架 S-1 不等第 16 批，首页与接页面的片在第 16 批切换之后合入（第 12 节第 7 条，统筹 11-04 定）。第 7 节对着第 15 批的基础首页定样写，D 轨 11-04 共审过；第 4 节和第 12 节牵涉的合同缺口 C 轨 11-04 已同意，收进 C-2、C-3。现状核查见[第 15 批核账](../post-anticorruption-roadmap/reference/batches/15.md#baseline-15)。05② 的稿子（`specs/shared-sources-and-surfaces/spec.md`）和基础首页定样（`docs/design/basic-home/`）还在 #1771、#1778 上，合入 main 后把这里的链接改成仓库内链接。
+状态：设计稿，2026-11-04 写，没有实现。写在 C3（只写设计稿和核查）；实现等[05②](https://github.com/molis-ai/molis-work/pull/1771)的呈现合同（C-2、C-3）、第 14 批 A 段的 `TextRef` 合入和 C 轨交接；服务骨架 S-1 不等第 16 批，首页与接页面的片在第 16 批切换之后合入（第 12 节第 7 条，统筹 11-04 定）。第 7 节对着第 15 批的基础首页定样写，D 轨 11-04 共审过；第 4 节和第 12 节牵涉的合同缺口 C 轨 11-04 已同意，收进 C-2、C-3。现状核查见[第 15 批核账](../post-anticorruption-roadmap/reference/batches/15.md#baseline-15)。05② 的稿子（`specs/shared-sources-and-surfaces/spec.md`）和基础首页定样（`docs/design/basic-home/`）还在 #1771、#1778 上，合入 main 后把这里的链接改成仓库内链接。05② 把挂载位并进 slots（统筹 2026-11-08 定）。
 
 ## 0. 给人讲清楚
 
@@ -55,7 +55,7 @@
 ```text
 surface_corrections        项目库
   actor_id      调用方（取自调用上下文）
-  slot_key      位置：kind + plugin_id + mount_id 归一后的串（如 "plugin-mount:goals:evidence"、"home"）
+  slot_key      位置：kind + plugin_id + slot_id 归一后的串（如 "plugin-slot:goals:evidence"、"home"）
   subject_kind, subject_id   针对哪个对象；为空表示对整个位置（如密度）
   correction    "form" | "remove" | "pin"
   value         form 时是形态名；pin 时是顺序
@@ -133,7 +133,7 @@ surface_corrections        项目库
 
 | 位置 slot | 接受的形态 | 对象从哪来 | 默认形态 | 最多 |
 | --- | --- | --- | --- | --- |
-| `plugin-mount` | 挂载位声明的 `accepts` | 请求带的对象；挂载位声明的 `refuse_kinds` 先排除 | `accepts` 里最大的一种 | 挂载位声明的 `max` |
+| `plugin-slot` | 挂载位声明的 `accepts_forms` | 请求带的对象；挂载位声明的 `refuse_kinds` 先排除 | `accepts_forms` 里最大的一种 | 挂载位声明的 `max` |
 | `conversation` | 名字片、卡片 | 请求带的对象（助理回答里提到的、交回的） | 正文里提到的是名字片，交回的是卡片 | 请求带几个给几个，超过 6 个时多出的收成「另有 N 件」 |
 | `discussion` | 卡片、名字片 | 请求带的对象（消息里贴的） | 卡片 | 同上 |
 | `attention` | 行 | 「等你」条目 | 行 | 不限，按第 6.7 节排 |
@@ -141,7 +141,7 @@ surface_corrections        项目库
 
 `home` 在 05② 里列为「以后」，第 15 批第 3 项的基础首页要用，所以第一片就要（第 12 节第 2 条）。
 
-没有声明挂载位的插件，`plugin-mount` 什么都不放（IUI-13）。
+没有声明挂载位的插件，`plugin-slot` 什么都不放（IUI-13）。
 
 ### 6.2 形态
 
@@ -318,7 +318,7 @@ surface_corrections        项目库
 | 片 | 内容 | 谁写 | 前置 |
 | --- | --- | --- | --- |
 | C-2、C-3（05② 已排） | 呈现声明与组合服务的合同，**加上第 12 节要补的** | C 轨 | 02 交接；D 轨把状态环取值下沉到 contracts |
-| S-1 服务骨架与四处位置 | 新包、端口、纠正表、`plugin-mount`／`conversation`／`discussion`／`attention` 的规则、6.2～6.8；宿主装配与两个动作登记；动作快照；包清单与 SSOT 行 | C3 | C-2、C-3 合入；C 轨交接 |
+| S-1 服务骨架与四处位置 | 新包、端口、纠正表、`plugin-slot`／`conversation`／`discussion`／`attention` 的规则、6.2～6.8；宿主装配与两个动作登记；动作快照；包清单与 SSOT 行 | C3 | C-2、C-3 合入；C 轨交接 |
 | S-2 首页位置 | `home` 的三组、插件概况读取、去重与「另有 N 件在上面」、停用与读不到 | C3 | S-1；第 12 节第 1、4 条进合同；工作记录读取（21／28，没交就先不出「接着做」） |
 | 消费者 | 四种形态的组件、页面接线、Goals／Inbox／Coding 的声明（第 15 批第 2 项）；基础首页与 Feed 归属（第 3 项）；现有分支退出（核账） | D 轨、E 轨、各插件 | S-1；首页用 S-2 |
 
@@ -365,7 +365,7 @@ surface_corrections        项目库
 | SCS-02 | 形态按纠正、位置默认、声明梯度、兜底的顺序定；位置不接受的形态不出现 | IUI-02、IUI-03 |
 | SCS-03 | 描述里的操作都在动作目录里、调用方当前能调；`consequence` 来自动作元数据；至多一个主操作 | IUI-07、IUI-08、SSC-08 |
 | SCS-04 | 撤权、删除、读不到分别给 `forbidden`、`deleted`、`stale`，撤权的不带字段和操作 | IUI-09、IUI-10、SSC-13 |
-| SCS-05 | 没有声明挂载位的插件，`plugin-mount` 什么都不放；挂载位的 `max`、`refuse_kinds` 被遵守 | IUI-13、SSC-09 |
+| SCS-05 | 没有声明挂载位的插件，`plugin-slot` 什么都不放；挂载位的 `max`、`refuse_kinds` 被遵守 | IUI-13、SSC-09 |
 | SCS-06 | 由 Context Ledger 关系连着的两个对象在同一位置只算一次，被合并的挂在留下的下面 | WBR-24 |
 | SCS-07 | 首页「等你」只来自 attention-resumption；停用插件的条目不算，并写明少了几件；Feed 同步来的资料不进「等你」 | WBR-21、WBR-24、SSC-11 |
 | SCS-08 | 首页插件卡在读不到、停用、没有声明、新项目四种情况下各给对应状态，与「没有内容」分开 | WBR-21、WBR-25 |

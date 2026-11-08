@@ -5,11 +5,13 @@ import type { AgentInputImpact, AgentInputKind, AgentInputQuestion, AgentInputTa
 import type { UiConnectionNeedOutcome, UiConnectionNeedTarget, UiConnectionSlotChoice, UiConnectionSlotRequest } from "./ui-connections.js";
 export * from "./ui-connections.js";
 import type { UiPageDrafts, UiPageReturns } from "./ui-returns.js";
+import type { UiSlotDescriptor } from "./ui-slots.js";
 export * from "./ui-returns.js";
 export * from "./ui-environment.js";
 export * from "./ui-files.js";
 export * from "./ui-text.js";
 export * from "./ui-state-rings.js";
+export * from "./ui-slots.js";
 
 /** A renderer contract requirement, not a callable business capability. */
 export const PLUGIN_PRESENTATION_CAPABILITY = { capability_id: "ui.plugin-presentation", version: /* @version action.ui.plugin-presentation */ 1 } as const;
@@ -494,11 +496,6 @@ export interface UiSideContextMessage {
   readonly type: "molis:side-context";
   readonly context_epoch: number;
   readonly context: UiSideContext | null;
-}
-
-export interface UiSlotDescriptor {
-  readonly slot_id: string;
-  readonly accepts: readonly string[];
 }
 
 export interface UiSurfaceDescriptor {

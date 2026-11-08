@@ -12,6 +12,7 @@ import { notificationDeclarationProblems } from "./notification-declarations.js"
 import { attentionDeclarationProblems } from "./attention-declarations.js";
 import { readGroupDeclarationProblems } from "./read-group-declarations.js";
 import { taskSubjectDeclarationProblems } from "./task-subject-declarations.js";
+import { validatePresentationDeclaration } from "./presentation-declaration.js";
 import { connectionDeclarationProblems } from "./connection-declarations.js";
 import { databaseDeclarationProblems } from "./database-declarations.js";
 import { integrationDeclarationProblems } from "./integration-declarations.js";
@@ -129,10 +130,6 @@ export function parsePluginManifest(input: unknown): PluginManifest {
 }
 
 function inspectOptionalDeclarations(manifest: Record<string, unknown>): void {
-  // Temporary, not a compatibility path: the contract of `presentation` is out before its shared check (`validatePresentationDeclaration`),
-  // and a declaration nobody checks must not reach the composition service. The second PR of C-2, which adds the check, removes this
-  // (specs/shared-sources-and-surfaces §9).
-  if (manifest.presentation !== undefined) invalid("呈现声明的校验还没上线：Manifest 暂时不能写 presentation");
   if (manifest.sync === undefined) return;
   try { parsePluginSyncDeclaration(manifest.sync); }
   catch (error) { invalid(error instanceof Error ? error.message : "同步声明不合法"); }
@@ -246,6 +243,7 @@ function assertDeclarations(parsed: PluginManifest, ui: Record<string, unknown>)
   problems.push(...attentionDeclarationProblems(parsed.attention, declaredPermissions));
   problems.push(...readGroupDeclarationProblems(parsed.read_groups, parsed.actions));
   problems.push(...taskSubjectDeclarationProblems(parsed.task_subjects, parsed.actions));
+  problems.push(...validatePresentationDeclaration(parsed));
   assertNoDeclarationProblems(problems);
 }
 

@@ -271,7 +271,7 @@ export interface PresentationValuesInput {
     fields: string[];
 }
 
-export declare const SURFACE_SLOT_KINDS: readonly ["plugin-mount", "conversation", "discussion", "attention", "home", "shelf", "search", "side", "text"];
+export declare const SURFACE_SLOT_KINDS: readonly ["plugin-slot", "conversation", "discussion", "attention", "home", "shelf", "search", "side", "text"];
 
 export type SurfaceSlotKind = (typeof SURFACE_SLOT_KINDS)[number];
 

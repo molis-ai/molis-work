@@ -1000,6 +1000,9 @@ export interface UiSkinFile {
 export interface UiSlotDescriptor {
     readonly slot_id: string;
     readonly accepts: readonly string[];
+    readonly accepts_forms?: readonly FormKind[];
+    readonly max?: number;
+    readonly refuse_kinds?: readonly string[];
 }
 
 export interface UiSpecFile {

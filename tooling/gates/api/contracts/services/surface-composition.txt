@@ -88,7 +88,7 @@ export interface SurfaceRequest {
 export interface SurfaceSlot {
     kind: SurfaceSlotKind;
     plugin_id?: string;
-    mount_id?: string;
+    slot_id?: string;
 }
 
 export type SurfaceTask = (typeof SURFACE_TASKS)[number];

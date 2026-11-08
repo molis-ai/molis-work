@@ -1,7 +1,7 @@
 /**
  * The context strip just above the Assistant's input (specs/context-program §21.2 point 1): what the next Send carries,
  * one removable chip each — what the person has in hand (a selection, an object a page handed over), the page's object
- * once added, its unsaved edits, the files and references the person added. The object on show that is not added is a
+ * once added, its unsaved edits, the references, methods and capabilities the person added. The object on show that is not added is a
  * dashed chip that says so, with + to add it: added, the model sees it and the work is linked under it; not added,
  * neither (§21.5). A work that already holds that object is one click away. It replaces the 「材料」 button and list.
  *
@@ -9,12 +9,10 @@
  * selection alone does not raise it over the page. More chips than fit scroll sideways: the side with more fades out (the
  * design system's overflow fade), a chip reached by keyboard scrolls into view, and a vertical wheel scrolls the row (§21.5).
  *
- * A chip keeps its element while its item stays (specs/visual-ui-experience §composer-mentions, VUX-16, VUX-18): a file
- * being read turns into the material in the same element, a new chip makes its neighbours move aside and a removed one lets them close
- * up (`window.molisReflow`), and the focused chip keeps focus. A file not in hand yet says so on its chip: 「读取中」, or its
- * name and why it cannot go, with 重试 when trying again could help. A chip in a new state takes the new look in its own
- * element, so it does not arrive again; focus stays on the same chip's button of the same kind, or the first one when that
- * chip went away.
+ * A chip keeps its element while its item stays (specs/visual-ui-experience §composer-mentions, VUX-16, VUX-18): a new chip
+ * makes its neighbours move aside and a removed one lets them close up (`window.molisReflow`), and the focused chip keeps focus.
+ * A chip whose words change takes them in its own element, so it does not arrive again; focus stays on the same chip's button of
+ * the same kind, or the first one when that chip went away. Files from this machine are the composer's own strip, in its box.
  */
 export const ASSISTANT_CONTEXT_STRIP_FACTORY_SCRIPT = String.raw`(input) => {
   const { strip, L, el } = input;
@@ -40,16 +38,12 @@ export const ASSISTANT_CONTEXT_STRIP_FACTORY_SCRIPT = String.raw`(input) => {
       go.addEventListener("click", () => input.go(item.work));
       return go;
     }
-    const node = el("span", "assistant-strip-chip" + (item.optional ? " is-optional" : "") + (item.landing ? " is-landing" : "") + (item.state ? " is-" + item.state : ""));
-    if (item.state === "reading") node.setAttribute("aria-busy", "true");
-    node.title = item.note || (item.state === "reading" ? L("读取中") : item.optional ? L("没加入：助理看不到它，这项工作也不会记在它下面") : item.auto ? L("来自当前页面") : L("你添加的"));
-    if (item.thumb) { const thumb = el("img", "assistant-strip-thumb"); thumb.src = item.thumb; thumb.alt = ""; node.append(thumb); }
+    const node = el("span", "assistant-strip-chip" + (item.optional ? " is-optional" : "") + (item.landing ? " is-landing" : ""));
+    node.title = item.note || (item.optional ? L("没加入：助理看不到它，这项工作也不会记在它下面") : item.auto ? L("来自当前页面") : L("你添加的"));
     const label = el("span", "assistant-strip-label", item.label);
     // The arrow and the short name are for the eye; a screen reader hears the whole sentence (「放进去的位置：…」).
     if (item.landing) { const arrow = el("span", "", "→"); arrow.setAttribute("aria-hidden", "true"); label.setAttribute("aria-hidden", "true"); node.append(arrow, el("span", "mw-sr-only", item.note)); }
     node.append(label);
-    if (item.state) node.append(el("span", "assistant-strip-note", item.state === "reading" ? L("读取中") : item.note));
-    if (item.again) node.append(act("↻", L("重试") + "：" + item.label, () => input.retry(item)));
     if (item.optional) node.append(el("span", "assistant-strip-note", L("没加入")), act("+", L("加入") + "：" + item.label, () => input.add(item)));
     else node.append(act("×", L("不带上") + "：" + item.label, () => { if (item.landing) { left = landing.object.id; paint(); } else input.drop(item); }));
     return node;
@@ -86,7 +80,7 @@ export const ASSISTANT_CONTEXT_STRIP_FACTORY_SCRIPT = String.raw`(input) => {
     const shown = items.length > 0 && (input.open() || strip.contains(document.activeElement) || input.focused() || items.some((item) => item.put));
     strip.hidden = !shown;
     if (!shown) return;
-    const look = (item) => JSON.stringify([item.label, item.optional, item.note, Boolean(item.thumb), item.state, item.again]);
+    const look = (item) => JSON.stringify([item.label, item.optional, item.note]);
     const next = JSON.stringify(items.map((item) => [item.key, look(item)]));
     if (next === signature) return;
     signature = next;

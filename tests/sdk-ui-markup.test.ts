@@ -101,7 +101,8 @@ function composerSamples(): readonly string[] {
     renderComposerAddMenu(plain, { files: true, sources: [{ provider: "Todo", title: "待办" }], commands: [{ slash: "plan", label: "计划", hint: "先列步骤" }] }),
     renderComposerAddMenu(plain, { files: false, commands: [] }),
     renderComposerPick(plain, { provider: "Todo", title: "待办" }, "", "Todo 现在用不了"),
-    renderComposerStrip(plain, [{ title: "a.png", state: "reading" }, { title: "b.pdf", state: "failed", reason: "太大" }, { title: "待办一", state: "attached", from: "Todo · 待办" }], (text) => text),
+    renderComposerStrip(plain, [{ key: "f1", title: "a.png", state: "reading" }, { key: "f2", title: "b.pdf", state: "failed", reason: "太大" }, { key: "f3", title: "待办一", state: "attached", from: "Todo · 待办" },
+      { key: "f4", title: "c.png", state: "failed", reason: "服务暂时读不了", retry: true }, { key: "f5", title: "d.png", state: "attached", thumb: "blob:d" }], (text) => text),
     renderComposerRestore(plain, "刚才", (text) => text),
   ];
 }

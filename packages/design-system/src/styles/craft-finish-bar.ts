@@ -224,14 +224,16 @@ export const CRAFT_BAR_STYLES = `
   /* ─── Bottom bar: the Dock, the resident Assistant, the project ─── */
   /* No global sidebar: the work spans the window and the resident bar under it holds the way around.
      Controls sit straight on the desk; only the composer and the current Dock item are raised. */
-  ${SHELL} { --dock-h: 76px; --dock-btn: 38px; --composer-h: 50px; }
-  @media (max-height: 560px) and (min-width: 601px) { ${SHELL} { --dock-h: 52px; --dock-btn: 34px; --composer-h: 40px; } }
+  /* --dock-min is the bar at rest; the bar grows with the composer (its words, its strip), and the island writes the height it
+     really has into --dock-h, the one value everything that sits above the bar reads (the panel, the side panel, popovers, toasts). */
+  ${SHELL} { --dock-min: 76px; --dock-h: var(--dock-min); --dock-btn: 38px; }
+  @media (max-height: 560px) and (min-width: 601px) { ${SHELL} { --dock-min: 52px; --dock-btn: 34px; } }
   ${WORKBENCH}[data-pane-embedded] .workbench-bar { display: none; }
   @media (min-width: 601px) {
     ${SHELL}, ${SHELL}:not([data-navigation-labels="false"]) { --plugin-rail-width: var(--sheet-inset); }
     ${SHELL} .immersive-workspace,
     ${SHELL} .immersive-workspace.is-directory-collapsed,
-    ${SHELL} .immersive-workspace.is-plugin-directory-empty { grid-template-rows: var(--desktop-titlebar-height) minmax(0, 1fr) var(--dock-h); }
+    ${SHELL} .immersive-workspace.is-plugin-directory-empty { grid-template-rows: var(--desktop-titlebar-height) minmax(0, 1fr) minmax(var(--dock-min), auto); }
     ${SHELL} .immersive-workspace > .tree-pane { grid-row: 2; }
     ${SHELL} .immersive-plugin-stage { grid-row: 2; }
   }
@@ -239,13 +241,14 @@ export const CRAFT_BAR_STYLES = `
     grid-column: 1 / -1; grid-row: 3; position: relative; z-index: 30; min-width: 0;
     /* The end column is at least as wide as its fixed buttons (Shelf, 灵光, chat, project), so they are never squeezed;
        the Assistant keeps 200px down to the 601px desktop minimum. */
-    display: grid; grid-template-columns: minmax(150px, 1fr) minmax(200px, 660px) minmax(max-content, 1fr); align-items: center; gap: 24px;
+    display: grid; grid-template-columns: minmax(150px, 1fr) minmax(200px, 660px) minmax(max-content, 1fr); align-items: end; gap: 24px;
     padding: 0 var(--sheet-inset); background: var(--desk);
   }
   /* Each side stays inside its column: the Dock folds what does not fit instead of running under the Assistant. */
-  ${SHELL} .bar-start { justify-self: start; position: relative; display: flex; align-items: center; gap: 4px; min-width: 0; max-width: 100%; }
+  /* The composer grows upward; the two sides stay in the rest band at the bottom, level with its foot. */
+  ${SHELL} .bar-start { justify-self: start; position: relative; display: flex; align-items: center; gap: 4px; min-width: 0; max-width: 100%; min-height: var(--dock-min); }
   ${SHELL} .bar-center { position: relative; min-width: 0; container: assistant-bar / inline-size; }
-  html ${SHELL} .workbench-bar .bar-end { justify-self: stretch; position: relative; display: flex; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; }
+  html ${SHELL} .workbench-bar .bar-end { justify-self: stretch; position: relative; display: flex; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; min-height: var(--dock-min); }
 
   /* One Dock button everywhere in the bar: 38px, soft corners, neutral glyph; hover washes and lifts a hair,
      the current one becomes a small raised piece of the work surface with a copper point under it. */
@@ -328,23 +331,25 @@ export const CRAFT_BAR_STYLES = `
   ${SHELL} .dock-pin.is-fixed { margin-right: 8px; }
   ${SHELL} .dock-pin.is-fixed:not(:only-child)::before { content: ""; position: absolute; right: -7px; top: 12px; width: 1px; height: 14px; background: var(--line); pointer-events: none; }
 
-  /* The resident Assistant: one raised white line with the plugin switcher in front of it. */
-  ${SHELL} .bar-composer {
-    position: static; inset: auto; display: flex; flex-direction: row; flex-wrap: nowrap; align-items: center; gap: 8px;
-    width: 100%; height: var(--composer-h); min-height: var(--composer-h); max-height: none; margin: 0; padding: 0 8px 0 8px; border: 0; border-radius: var(--r-composer); overflow: visible;
-    background: var(--paper); box-shadow: var(--composer-shadow, var(--lift-2));
-    transition: box-shadow var(--dur-move) var(--ease-quint);
+  /* The resident Assistant: the platform composer (unified-input K3) as wide as its column allows; the bar keeps its rest
+     height and grows with it. */
+  ${SHELL} .bar-center > .assistant-composer { position: relative; padding-block: 8px; }
+  ${SHELL} .assistant-composer > .mw-composer { width: 100%; }
+  /* The receiver's name opens its conversation (the island's click). */
+  ${SHELL} .assistant-composer .mw-composer__to .mw-tag { cursor: pointer; }
+  /* A short window gives its height to writing (DESIGN.md → Layout, ≤ 560px tall): the bar's composer starts at one line and
+     sits tighter, so the panel above keeps room; it still grows with what is written, and its targets keep their size: the text
+     row's top padding moves into the input, so the input itself stays the target (30px with a mouse, 44px to a finger). */
+  @media (max-height: 560px) {
+    ${SHELL} .bar-center > .assistant-composer { padding-block: 4px; }
+    ${SHELL} .assistant-composer > .mw-composer { gap: 2px; }
+    ${SHELL} .assistant-composer .mw-composer__text { padding-top: 0; }
+    ${SHELL} .assistant-composer .mw-composer__text > .mw-composer__input:not(#mw-composer) { box-sizing: border-box; min-height: 30px; padding-block: 6px 2px; }
+    ${SHELL} .assistant-composer .mw-composer__foot { padding-block: 2px 4px; }
   }
-  html[data-resolved-theme="dark"] ${SHELL} .bar-composer { --composer-shadow: 0 0 0 1px var(--edge-highlight), var(--lift-1); }
-  ${SHELL} .bar-composer:focus-within { box-shadow: 0 0 0 1px var(--line-strong), var(--lift-1); }
-  html[data-resolved-theme="dark"] ${SHELL} .bar-composer:focus-within { box-shadow: 0 0 0 1px var(--line-strong), var(--lift-1); }
-  ${SHELL} .bar-composer .assistant-composer-input { flex: 1; min-width: 0; font-size: 13px; }
-  ${SHELL} .bar-composer .assistant-composer-input::placeholder { color: var(--muted); }
-  /* Search opens from the same line: a quiet glyph with its shortcut, the one mouse entry to ⌘K. */
-  /* Send: graphite when there is something to send, a quiet wash while the line is empty. */
-  ${SHELL} .bar-composer [data-assistant-send] { flex: none; width: 34px; height: 34px; min-height: 34px; padding: 0; border-radius: 10px; }
-  ${SHELL} .bar-composer [data-assistant-send]:disabled { background: var(--rail); color: var(--muted); border-color: transparent; opacity: 1; }
-  ${SHELL} .bar-composer [data-assistant-send] svg { width: 16px; height: 16px; }
+  @media (max-height: 560px) and (pointer: coarse), (max-height: 560px) and (max-width: 600px) {
+    ${SHELL} .assistant-composer .mw-composer__text > .mw-composer__input:not(#mw-composer) { min-height: 44px; }
+  }
   ${SHELL} .plugin-picker { position: relative; flex: none; min-width: 0; max-width: 46%; padding-right: 8px; }
   ${SHELL} .plugin-picker::after { content: ""; position: absolute; right: 0; top: 50%; width: 1px; height: 18px; margin-top: -8px; background: var(--line); pointer-events: none; }
   ${SHELL} .plugin-picker-trigger {

@@ -61,7 +61,6 @@ export const CHOOSER_CLIENT_SCRIPT = String.raw`
 
   /* ───────── The Assistant in the bar speaks for the project being looked at ───────── */
   const assistant = globalThis.__ARRIVAL_ASSISTANT__ || null;
-  const composerInput = () => $('[data-assistant-input]', bar);
   const aboutSelection = () => {
     if (!state.selected || state.selected === PERSONAL) { assistant?.setProject(null); return; }
     assistant?.setProject({ id: state.selected, title: nameOf(state.selected) });
@@ -240,7 +239,7 @@ export const CHOOSER_CLIENT_SCRIPT = String.raw`
     else if (act === 'new-named') { event.preventDefault(); location.assign(route('/onboarding?mode=new-project&name=' + encodeURIComponent(state.query.trim()))); }
     else if (act === 'retry-brief') { if (state.selected) loadBrief(state.selected, { force: true }); }
     else if (act === 'reload') location.reload();
-    else if (act === 'prefill') { const input = composerInput(); if (input) { input.value = target.dataset.text || ''; input.dispatchEvent(new Event('input', { bubbles: true })); input.focus(); } }
+    else if (act === 'prefill') assistant?.fill(target.dataset.text || '');
   });
   root.addEventListener('dblclick', (event) => { const row = event.target.closest('#chooser-dir .mw-dir-row'); if (row) { pick(row.dataset.id); enterSelected(row.dataset.id); } });
   search.addEventListener('input', () => { state.query = search.value; applySearch(); });

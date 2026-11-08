@@ -1,6 +1,6 @@
 import type { ComposerPickItem } from "@molis-ai/molis-work-contracts/platform/composer";
 import type { SearchHit, SearchQueryResponse } from "@molis-ai/molis-work-contracts/services/search";
-import { renderComposerAddMenu, renderComposerDeliveryMenu, renderComposerMention, renderComposerPick } from "../composer-parts.js";
+import { narrowComposerCommands, renderComposerAddMenu, renderComposerDeliveryMenu, renderComposerMention, renderComposerPick } from "../composer-parts.js";
 import { composerDeliveries } from "../composer-rules.js";
 import { http, mac, route, type Composer, type Source } from "./composer-state.js";
 
@@ -12,7 +12,10 @@ import { http, mac, route, type Composer, type Source } from "./composer-state.j
  */
 
 export interface ComposerMenus {
-  openAdd(focus: boolean, toggle?: boolean): void; toggleDelivery(toggle: HTMLElement): void; pick(source: Source): void; untype(): void;
+  openAdd(focus: boolean, toggle?: boolean): void;
+  /** Draws the open ＋ menu again for the words typed after `/` (`c.typed`). */
+  narrow(): void;
+  toggleDelivery(toggle: HTMLElement): void; pick(source: Source): void; untype(): void;
   /** Follows the text after an `@` (opened when `at` is given); closes when the caret leaves the words after it. */
   mention(at?: number): void;
   /** Takes the `@words` out of the text and gives the chosen hit. */
@@ -25,6 +28,8 @@ export function composerMenus(c: Composer): ComposerMenus {
     if (c.open !== menu) c.close();
     menu.innerHTML = html;
     menu.hidden = false; c.open = menu;
+    // A menu rises from the composer: it is no taller than the room above it, so in a short window it scrolls instead of leaving the screen.
+    menu.style.setProperty("--mw-composer-menu-room", `${Math.max(96, Math.floor(shell.getBoundingClientRect().top - 14))}px`);
     menu.parentElement?.querySelector("[aria-expanded]")?.setAttribute("aria-expanded", "true");
     if (focus) menu.querySelector<HTMLElement>("[data-composer-query], [role^=menuitem]:not(:disabled)")?.focus({ preventScroll: true });
   }
@@ -45,8 +50,10 @@ export function composerMenus(c: Composer): ComposerMenus {
     const menu = addMenu();
     if (!menu) return;
     if (c.picking) return show(menu, renderComposerPick(labels, c.picking.source, c.picking.query, c.picking.found), focus);
+    // `/` with words after it: only the commands they name, still in one scrolling list.
+    const narrowed = c.typed.length > 1;
     show(menu, renderComposerAddMenu(labels, { files: Boolean(options.attachments), ...(c.offersSources ? c.sources === undefined ? {} : { sources: c.sources } : { sources: "unavailable" as const }),
-      commands: options.commands ?? [] }), focus);
+      commands: narrowed ? narrowComposerCommands(options.commands ?? [], c.typed) : options.commands ?? [], narrowed }), focus);
   }
   function redrawPick(source: Source) {
     const list = c.open?.querySelector(".mw-menu__group"), fresh = document.createElement("template");
@@ -63,6 +70,7 @@ export function composerMenus(c: Composer): ComposerMenus {
         .then((found) => { c.sources = found.sources; }, () => { c.sources = "unavailable"; })
         .then(() => { if (!signal.aborted && !c.picking && c.open === addMenu()) drawAdd(false); });
     },
+    narrow() { if (c.open === addMenu() && !c.picking) drawAdd(false); },
     toggleDelivery(toggle) {
       const menu = toggle.parentElement!.querySelector<HTMLElement>("[data-compose-menu]")!;
       if (c.open === menu || !c.ai) return c.close(true);
@@ -112,7 +120,7 @@ export function composerMenus(c: Composer): ComposerMenus {
       c.close();
       return hit;
     },
-    /** A `/` typed on an empty line is taken out once its menu chose something. */
+    /** A `/` typed on an empty line (and the words after it) is taken out once its menu chose something. */
     untype() {
       if (!c.typed) return;
       const at = field.selectionStart, before = field.value.slice(0, at);

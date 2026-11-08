@@ -20,6 +20,7 @@ export const COMPOSER_BOARD_EN: Readonly<Record<string, string>> = {
   "语音输入（还没有接上）": "Voice input (not connected yet)",
   "发给 {who} 的话": "Message to {who}",
   "移除 {name}": "Remove {name}",
+  "重试 {name}": "Retry {name}",
   "{name} 读取中": "Reading {name}",
   "太大（2.1 GB），附不上": "Too large (2.1 GB); cannot attach",
   "把第 3 步的测试补上": "Add the tests for step 3",

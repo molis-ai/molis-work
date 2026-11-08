@@ -14,7 +14,7 @@ test("W2-18-SEND-01: waiting for A's draft sends A's intent and preserves B's se
     await putInput(browser, "只给 A 的补充", "A 的材料");
     const draft = await barrier.next();
     await browser.evaluate("document.querySelector('.chooser').setAttribute('data-assistant-context', JSON.stringify({ plugin_id: 'todo', surface_title: '页面 A' }))");
-    await browser.click("[data-assistant-send]");
+    await browser.click("[data-assistant-composer] [data-composer-send]");
     await openWork(browser, b);
     await browser.evaluate("document.querySelector('.chooser').setAttribute('data-assistant-context', JSON.stringify({ plugin_id: 'todo', surface_title: '页面 B' }))");
     await putInput(browser, "B 的下一条输入", "B 的材料");
@@ -26,16 +26,16 @@ test("W2-18-SEND-01: waiting for A's draft sends A's intent and preserves B's se
     assert.equal(body.context.source.title, "页面 A", "context is captured with the original work before waiting for its draft");
     assert.deepEqual(body.materials.map((item: { title: string }) => item.title), ["A 的材料"]);
     await barrier.release(sent);
-    await browser.waitFor("!document.querySelector('[data-assistant-send]').disabled");
+    await browser.waitFor("!document.querySelector('[data-assistant-composer] [data-composer-send]').disabled");
     assert.equal(await browser.evaluate(CURRENT_WORK), b);
-    assert.equal(await browser.evaluate("document.querySelector('[data-assistant-input]').value"), "B 的下一条输入");
+    assert.equal(await browser.evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input').value"), "B 的下一条输入");
     assert.match(await browser.evaluate<string>("document.querySelector('[data-assistant-context-strip]:not([hidden])').textContent"), /B 的材料/);
     const afterA = await readWork(browser, a), afterB = await readWork(browser, b);
     assert.equal(afterA.rounds.at(-1)?.text, "只给 A 的补充");
     assert.deepEqual(afterB.rounds, beforeB.rounds, "B receives no round or steer from A's send");
     await waitWork(browser, b, view => view.work.draft === "B 的下一条输入");
     await browser.reloadPage();
-    await browser.waitFor("document.querySelector('[data-assistant-input]').value === 'B 的下一条输入'");
+    await browser.waitFor("document.querySelector('[data-assistant-composer] .mw-composer__input').value === 'B 的下一条输入'");
     assert.equal(await browser.evaluate(CURRENT_WORK), b, "the preserved draft and choice survive a reload");
   } finally { await barrier.close(); }
 });
@@ -49,15 +49,15 @@ test("W2-18-SEND-01: a late Host refusal belongs to A and leaves B's input and m
   const barrier = await sendBarrier(browser, [{ urlPattern: "*/api/assistant/send", requestStage: "Response" }]);
   try {
     await putInput(browser, "A 的失败输入", "A 的材料");
-    await browser.click("[data-assistant-send]");
+    await browser.click("[data-assistant-composer] [data-composer-send]");
     const sent = await barrier.next();
     assert.ok(sent.responseStatusCode! >= 400, "this is a real Host refusal, not a fabricated error body");
     await openWork(browser, b);
     await putInput(browser, "B 留下的输入", "B 的材料");
     await barrier.release(sent);
-    await browser.waitFor("!document.querySelector('[data-assistant-send]').disabled");
+    await browser.waitFor("!document.querySelector('[data-assistant-composer] [data-composer-send]').disabled");
     assert.equal(await browser.evaluate(CURRENT_WORK), b);
-    assert.equal(await browser.evaluate("document.querySelector('[data-assistant-input]').value"), "B 留下的输入");
+    assert.equal(await browser.evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input').value"), "B 留下的输入");
     assert.equal(await browser.evaluate("document.querySelector('.assistant-problem')"), null);
     assert.match(await browser.evaluate<string>("document.querySelector('[data-assistant-context-strip]:not([hidden])').textContent"), /B 的材料/);
     assert.equal((await readWork(browser, a)).work.draft, "A 的失败输入");
@@ -73,18 +73,18 @@ test("W2-18-SEND-01: text written after Send survives in A while B remains curre
   const barrier = await sendBarrier(browser, [{ urlPattern: "*/api/assistant/send", requestStage: "Response" }]);
   try {
     await putInput(browser, "A 发出的内容");
-    await browser.click("[data-assistant-send]");
+    await browser.click("[data-assistant-composer] [data-composer-send]");
     const sent = await barrier.next();
     await putInput(browser, "A 还没发送的新输入");
     await openWork(browser, b);
     await putInput(browser, "B 的输入");
     await barrier.release(sent);
-    await browser.waitFor("!document.querySelector('[data-assistant-send]').disabled");
+    await browser.waitFor("!document.querySelector('[data-assistant-composer] [data-composer-send]').disabled");
     const afterA = await waitWork(browser, a, view => view.work.draft === "A 还没发送的新输入");
     assert.equal(afterA.rounds.at(-1)?.text, "A 发出的内容");
     assert.equal(afterA.rounds.length, 2);
     assert.equal(await browser.evaluate(CURRENT_WORK), b);
-    assert.equal(await browser.evaluate("document.querySelector('[data-assistant-input]').value"), "B 的输入");
+    assert.equal(await browser.evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input').value"), "B 的输入");
     const afterB = await waitWork(browser, b, view => view.work.draft === "B 的输入");
     assert.equal(afterB.rounds.length, 1);
   } finally { await barrier.close(); }
@@ -100,7 +100,7 @@ test("W2-18-SEND-01: A to B to A before the receipt retains A's later draft on s
   const barrier = await sendBarrier(browser, [{ urlPattern: "*/api/assistant/send", requestStage: "Response" }]);
   try {
     await putInput(browser, "A 已发送的文字");
-    await browser.click("[data-assistant-send]");
+    await browser.click("[data-assistant-composer] [data-composer-send]");
     const sent = await barrier.next();
     await putInput(browser, "A 等回执期间写下的 X");
     await browser.click(`[data-assistant-tabs] [data-tab="${b}"] .assistant-tab-main`);
@@ -128,28 +128,28 @@ test("W2-18-SEND-01: A to B to A before the receipt retains A's later draft on s
     } finally { clearTimeout(timer); stopResponse(); stopFinished(); }
     await browser.click(`[data-assistant-works] [data-work-id="${a}"]`);
     assert.equal(await browser.evaluate(CURRENT_WORK), a);
-    assert.equal(await browser.evaluate("document.querySelector('[data-assistant-input]').value"), "A 等回执期间写下的 X", "loadDraft must use A's later input before the receipt arrives");
+    assert.equal(await browser.evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input').value"), "A 等回执期间写下的 X", "loadDraft must use A's later input before the receipt arrives");
     await barrier.release(sent);
-    await browser.waitFor("!document.querySelector('[data-assistant-send]').disabled");
-    assert.equal(await browser.evaluate("document.querySelector('[data-assistant-input]').value"), "A 等回执期间写下的 X", "the send receipt cannot restore the sent words over the later input");
+    await browser.waitFor("!document.querySelector('[data-assistant-composer] [data-composer-send]').disabled");
+    assert.equal(await browser.evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input').value"), "A 等回执期间写下的 X", "the send receipt cannot restore the sent words over the later input");
     const afterA = await waitWork(browser, a, view => view.work.draft === "A 等回执期间写下的 X");
     assert.equal(afterA.rounds.at(-1)?.text, "A 已发送的文字"); assert.equal(afterA.rounds.length, 2);
     const afterB = await waitWork(browser, b, view => view.work.draft === "B 自己的 Y"); assert.equal(afterB.rounds.length, 1);
     await browser.reloadPage();
-    await browser.waitFor("document.querySelector('[data-assistant-input]').value === 'A 等回执期间写下的 X'");
+    await browser.waitFor("document.querySelector('[data-assistant-composer] .mw-composer__input').value === 'A 等回执期间写下的 X'");
     assert.equal(await browser.evaluate(CURRENT_WORK), a);
     await openWork(browser, b);
-    assert.equal(await browser.evaluate("document.querySelector('[data-assistant-input]').value"), "B 自己的 Y");
+    assert.equal(await browser.evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input').value"), "B 自己的 Y");
     // B's later edit alone is not an edit of A: returning without typing in A must still clear only A's sent text.
     await browser.click(`[data-assistant-tabs] [data-tab="${a}"] .assistant-tab-main`);
     await putInput(browser, "A 下一次发送的文字");
-    await browser.click("[data-assistant-send]");
+    await browser.click("[data-assistant-composer] [data-composer-send]");
     const nextSend = await barrier.next();
     await browser.click(`[data-assistant-tabs] [data-tab="${b}"] .assistant-tab-main`);
     await putInput(browser, "B 再写的 Y2");
     await browser.click(`[data-assistant-tabs] [data-tab="${a}"] .assistant-tab-main`);
     await barrier.release(nextSend);
-    await browser.waitFor("document.querySelector('[data-assistant-input]').value === ''");
+    await browser.waitFor("document.querySelector('[data-assistant-composer] .mw-composer__input').value === ''");
     const finalA = await waitWork(browser, a, view => view.work.state === "completed"); assert.equal(finalA.work.draft, ""); assert.equal(finalA.rounds.length, 3);
     await waitWork(browser, b, view => view.work.draft === "B 再写的 Y2");
   } finally { await barrier.close(); }
@@ -166,7 +166,7 @@ test("W2-18-SEND-02: chooser changes and a lost receipt retry the original scope
     const draft = await barrier.next();
     await browser.click("[data-assistant-new]");
     await putInput(browser, "项目 A 的新工作", "项目 A 的材料");
-    await browser.click("[data-assistant-send]");
+    await browser.click("[data-assistant-composer] [data-composer-send]");
     await browser.click("[data-assistant-panel-close]");
     await browser.click("#row-personal");
     await putInput(browser, "项目 A 的新工作", "后来选择的材料");
@@ -180,16 +180,16 @@ test("W2-18-SEND-02: chooser changes and a lost receipt retry the original scope
     const created = await browser.evaluate<Array<{ work_id: string }>>("fetch('/api/assistant/works').then(r => r.json()).then(b => b.works)");
     const newId = created.find(work => work.work_id !== a)?.work_id; assert.ok(newId);
     await barrier.drop(first);
-    await browser.waitFor("!document.querySelector('[data-assistant-send]').disabled");
-    await browser.click("[data-assistant-send]");
+    await browser.waitFor("!document.querySelector('[data-assistant-composer] [data-composer-send]').disabled");
+    await browser.click("[data-assistant-composer] [data-composer-send]");
     const retry = await barrier.next();
     assert.equal(retry.request.url, first.request.url, "retry keeps the original trusted route");
     assert.deepEqual(JSON.parse(retry.request.postData!), body, "including context, original materials and request_id");
     await barrier.release(retry);
-    await browser.waitFor("!document.querySelector('[data-assistant-send]').disabled");
+    await browser.waitFor("!document.querySelector('[data-assistant-composer] [data-composer-send]').disabled");
     assert.equal(await browser.evaluate("document.querySelector('.chooser').dataset.selected"), "personal");
     assert.equal(await browser.evaluate(CURRENT_WORK), null);
-    assert.equal(await browser.evaluate("document.querySelector('[data-assistant-input]').value"), "项目 A 的新工作");
+    assert.equal(await browser.evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input').value"), "项目 A 的新工作");
     assert.match(await browser.evaluate<string>("document.querySelector('[data-assistant-context-strip]:not([hidden])').textContent"), /后来选择的材料/);
     const persisted = await waitWork(browser, newId, view => view.work.state === "completed");
     assert.deepEqual(persisted.work.scope, { kind: "project", project_id: browser.projectId });

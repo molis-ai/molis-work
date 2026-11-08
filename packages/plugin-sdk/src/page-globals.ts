@@ -164,6 +164,8 @@ export interface ComposerCommonOptions {
   /** This page's own `/` commands. */
   commands?: readonly ComposerCommand[];
   attachments?: { accept?: string; upload(file: File, signal: AbortSignal): Promise<ComposerAttachmentState> };
+  /** Called after what the strip carries (`ComposerHandle.materials()`) changed, for a page that names it elsewhere too. */
+  onMaterials?(): void;
   /** Whether the registered sources are listed in `+`; by default when `kind` is `ai`. */
   sources?: boolean;
   /**
@@ -197,7 +199,10 @@ export type ComposerControl =
 
 export interface ComposerCommand { slash: string; label: string; hint?: string; run(): void }
 
-/** What an upload ends as; while it runs the strip says it is being read. */
+/**
+ * What an upload ends as; while it runs the strip says it is being read. `failed` is a file that will not go (its row offers only
+ * ×); an upload that rejects could not be read this time, and its row offers 重试 beside × (VUX-18).
+ */
 export type ComposerAttachmentState = { state: "attached"; ref: string; title: string } | { state: "failed"; reason: string };
 
 export interface ComposerSubmission {
@@ -221,7 +226,14 @@ export type ComposerOutcome =
   | { state: "failed"; message: string; unreadable?: readonly { index: number; reason: string }[] }
   | { state: "unknown"; check(): Promise<"sent" | "not-sent" | "unknown"> };
 
-export interface ComposerHandle { setRunning(running: boolean): void; refresh(): void; focus(): void; insert(text: string): void; destroy(): void }
+export interface ComposerHandle {
+  setRunning(running: boolean): void; refresh(): void; focus(): void; insert(text: string): void;
+  /** Files the page was handed elsewhere (its own side pane, say) go onto the strip as if dropped on the box, through `attachments`. */
+  attach(files: readonly File[]): void;
+  /** What the strip carries now, in its order: the rows that are read (a Send takes these); none until the program is in. */
+  materials(): readonly ComposerMaterial[];
+  destroy(): void;
+}
 
 declare global {
   interface Window {

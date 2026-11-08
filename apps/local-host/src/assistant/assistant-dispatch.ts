@@ -205,8 +205,11 @@ export class AssistantDispatch {
           const receipt = await inputsOf(adapter).send(latest.ref, input, assertCurrent);
           handoff.accepted(); return receipt;
         },
-        // A running round cannot be shown a picture any more; it goes with the next round.
-        beforeSteer: () => { if (materials.some(item => item.kind === "image")) throw assistantErrors.state("这一轮还在进行，图片只能随新的一轮发送：等它结束后再发，或先停止这一轮"); } }, { ...intent, original_input });
+        // A round under way cannot be shown a picture any more, and words kept for the next turn of an ended one cannot carry it
+        // either (they are queued text): the picture goes only with a new turn, and the words say which case this is.
+        beforeSteer: () => { if (materials.some(item => item.kind === "image")) throw assistantErrors.state(isTerminalAgentPhase(latest.phase)
+          ? "这一轮刚结束，留给下一轮的话带不了图片：直接再发一次，就会和图片一起开始新的一轮"
+          : "这一轮还在进行，图片只能随新的一轮发送：等它结束后再发，或先停止这一轮"); } }, { ...intent, original_input });
       return this.result(work, outcome, latest.ref.run_id, stillCurrent);
     }
     const previousWaitWithdrawn = !intent?.byHost && await this.link.continuations.withdraw(work, "用户更新了任务，接下来按最新要求处理");

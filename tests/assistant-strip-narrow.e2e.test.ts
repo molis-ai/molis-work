@@ -58,10 +58,10 @@ test("with the side pane out of sight, the top line offers 去确认, then 继�
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   const say = async (text: string) => {
-    await click("[data-assistant-input]");
+    await click("[data-assistant-composer] .mw-composer__input");
     await command("Input.insertText", { text }, sessionId);
-    await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
-    await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
+    await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
+    await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
   };
   const shown = (selector: string) => `(() => { const node = document.querySelector(${JSON.stringify(selector)}); if (!node || node.hidden || !node.getClientRects().length) return false;
     const box = node.getBoundingClientRect(); return box.width > 0 && box.left >= 0 && box.right <= innerWidth && box.top >= 0 && box.bottom <= innerHeight; })()`;

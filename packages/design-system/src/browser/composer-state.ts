@@ -12,7 +12,17 @@ import { composerGenerations } from "../composer-rules.js";
  */
 
 export type Request = <T>(url: string, init: { body?: unknown; signal?: AbortSignal }) => Promise<T>;
-export type Item = { title: string; state: "reading" | "attached" | "failed"; reason?: string; material?: ComposerMaterial; from?: string };
+/**
+ * One row of the strip. `key` names it while it lives, so the row keeps its element through its states (VUX-18); `file` is what was
+ * added, kept for 重试 (`retry`: the page could not read it this time, so trying again may help); `thumb` is a picture's own preview.
+ */
+export type Item = { key: string; title: string; state: "reading" | "attached" | "failed"; reason?: string; material?: ComposerMaterial; from?: string;
+  file?: File; retry?: boolean; thumb?: string };
+let keys = 0;
+/** A new row's key, unique in the document. */
+export const itemKey = () => `f${++keys}`;
+/** Lets rows go: a picture's preview is given back. */
+export const letGo = (items: readonly Item[]) => { for (const item of items) if (item.thumb) URL.revokeObjectURL(item.thumb); };
 export type Source = ComposerMenuSource & { capability_id: string; version: number; provider_id: string };
 export type Status = MwComposerStatus | undefined;
 export type AiOptions = Extract<ComposerOptions, { kind: "ai" }>;

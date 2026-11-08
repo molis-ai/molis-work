@@ -365,7 +365,9 @@ test("plugin rail reuses the segmented thumb and stages share the one arrival", 
   assert.doesNotMatch(MICRO_INTERACTION_STYLES, /assistant-island-card/, "RAC-1823: the island card left the rail, and its thumb rules with it");
   assert.match(MICRO_INTERACTION_STYLES, /aria-expanded="true"/);
   assert.match(MICRO_INTERACTION_STYLES, /\.is-arriving \{ animation: craft-rise var\(--dur-arrive, 420ms\)/);
-  assert.match(MICRO_INTERACTION_STYLES, /\.assistant-composer\):popover-open/);
+  // K3 (UIV-12): the Assistant's composer sits in the bar, no longer a popover; menus and the select picker still arrive as popovers.
+  assert.match(MICRO_INTERACTION_STYLES, /:is\(\.mw-menu, \.mw-select-picker__menu\):popover-open/);
+  assert.doesNotMatch(MICRO_INTERACTION_STYLES, /\.assistant-composer\):popover-open/);
   assert.match(MICRO_INTERACTION_STYLES, /prefers-reduced-motion: reduce[\s\S]*\.is-arriving[\s\S]*animation: none/);
 });
 

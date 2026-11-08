@@ -15,10 +15,16 @@ export const COMPOSER_STYLES = `${COMPOSER_PATTERN_STYLES}
   .mw-composer__to { display: flex; align-items: center; gap: 6px; min-width: 0; padding-inline: 4px; color: var(--muted); font-size: 12px; white-space: nowrap; }
   .mw-composer__to .mw-tag { min-width: 0; max-width: min(100%, 320px); }
   .mw-composer__to .mw-tag > span { overflow: hidden; text-overflow: ellipsis; }
+  /* The receiver's reset (start a new one instead) is a real target, 28px, in the tag's own place: the margins take back what the row would grow by. */
+  .mw-composer__to [data-tag-remove] { width: 28px; height: 28px; margin: -2px -5px -2px -3px; }
   .mw-composer__box { display: grid; min-width: 0; border-radius: var(--r-composer, 15px); background: var(--paper); box-shadow: 0 0 0 1px var(--line), var(--lift-1); transition: box-shadow var(--dur-hover) var(--ease-quint), background-color var(--dur-hover) var(--ease-quint); }
   .mw-composer__box:focus-within { box-shadow: 0 0 0 1px var(--line-strong), var(--lift-1); }
   .mw-composer__box[data-dropping] { box-shadow: 0 0 0 2px var(--accent), var(--lift-1); }
   .mw-composer__files { width: auto; padding: 6px 6px 0; }
+  /* A read picture shows itself in its row's mark; a row being read is quieter until it is. */
+  .mw-composer__files .mw-mark { overflow: hidden; }
+  .mw-composer__thumb { width: 100%; height: 100%; object-fit: cover; }
+  .mw-upload.is-reading .mw-mark { color: var(--muted); }
   .mw-composer__restore { margin: 0; padding: 8px 12px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .mw-composer__restore .mw-btn--link { min-height: 0; padding: 0; vertical-align: baseline; }
   .mw-composer__text { display: flex; padding: 10px 12px 0; }
@@ -38,7 +44,7 @@ export const COMPOSER_STYLES = `${COMPOSER_PATTERN_STYLES}
   .mw-composer .mw-compose__anchor { position: static; }
   .mw-composer .mw-compose__menu { top: auto; right: 0; bottom: calc(100% + 6px); left: auto; width: min(340px, 100%); }
   .mw-composer__start .mw-compose__menu { right: auto; left: 0; }
-  .mw-composer .mw-compose__menu .mw-menu { width: 100%; min-width: 0; max-height: min(360px, 60vh); overflow-y: auto; animation-name: craft-rise-from-bar; }
+  .mw-composer .mw-compose__menu .mw-menu { width: 100%; min-width: 0; max-height: min(360px, 60vh, var(--mw-composer-menu-room, 60vh)); overflow-y: auto; animation-name: craft-rise-from-bar; }
   .mw-composer__query { padding: 4px 4px 6px; }
   .mw-composer__query > .mw-input { width: 100%; }
   .mw-composer__line { margin: 0; padding: 6px 10px; color: var(--muted); font-size: 12px; line-height: 18px; }
@@ -60,4 +66,6 @@ export const COMPOSER_STYLES = `${COMPOSER_PATTERN_STYLES}
     .mw-composer__text > .mw-composer__input:not(#mw-composer) { font-size: 16px; }
     .mw-composer__foot .mw-btn--sm, .mw-composer__foot .mw-btn--icon { min-height: 44px; }
     .mw-composer__foot .mw-btn--icon-only { width: 44px; min-width: 44px; }
+    .mw-composer__to { gap: 12px; }
+    .mw-composer__to [data-tag-remove] { width: 44px; height: 44px; margin: -10px -13px -10px -11px; }
   }`;

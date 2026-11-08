@@ -79,25 +79,30 @@ test("VUX-39 the board's Assistant section drives the shipped island through sev
     for (const node of d.querySelectorAll('[data-assistant-block=materials] .assistant-drop-label, [data-assistant-block=materials] .assistant-block-sub, [data-assistant-block=materials] .assistant-item-title'))
       if (!node.classList.contains('assistant-item-title')) out[at = node.textContent] = []; else out[at].push(node.textContent);
     return out;`);
-  assert.equal(await inFrame<string>("return d.querySelector('[data-assistant-input]').value;"), "顺便把三楼的会议室也订上");
+  assert.equal(await inFrame<string>("return d.querySelector('[data-assistant-composer] .mw-composer__input').value;"), "顺便把三楼的会议室也订上");
   assert.deepEqual(await context(), { 待发送: [], 本次使用: ["首次使用记录汇总", "选中的内容：首次使用卡住最久的三处"], 历史引用: ["上周用户反馈", "试用记录.md", "白板.png"] });
 
-  // Attachments that partly fail, through the island's own file input: one goes in, one is refused before reading, one the (simulated) Host refuses and can be tried again.
-  const chips = () => inFrame<Array<[string, string, string, boolean]>>(`return [...d.querySelectorAll('[data-assistant-context-strip] .assistant-strip-chip')].map((c) =>
-    [c.querySelector('.assistant-strip-label').textContent, [...c.classList].find((n) => n.startsWith('is-')) ?? '', c.querySelector('.assistant-strip-note')?.textContent ?? '', !!c.querySelector('[aria-label^="重试"]')]);`);
+  // Attachments that partly fail, dropped on the composer (K3: its own strip, inside the box): one goes in, one is refused before
+  // reading, one the (simulated) Host refuses and can be tried again. The side pane's 待发送 names what the composer's strip carries.
+  const chips = () => inFrame<Array<[string, string, string, boolean]>>(`return [...d.querySelectorAll('[data-assistant-composer] .mw-composer__files .mw-upload')].map((row) =>
+    [row.querySelector(':scope > span:not(.mw-mark)').firstChild.textContent, row.querySelector('small.is-failed') ? 'is-failed' : '', row.querySelector('small')?.textContent ?? '', !!row.querySelector('[data-composer-retry]')]);`);
+  const settled = (count: number) => `${frame}.contentDocument.querySelectorAll('[data-assistant-composer] .mw-composer__files .mw-upload').length === ${count} && !${frame}.contentDocument.querySelector('[data-assistant-composer] .mw-composer__files .is-reading')`;
   await inFrame("d.querySelector('[data-asst-attach]').click(); return null;");
-  await waitFor(`${frame}.contentDocument.querySelectorAll('[data-assistant-context-strip] .assistant-strip-chip').length === 3 && !${frame}.contentDocument.querySelector('[data-assistant-context-strip] .is-reading')`, 15_000);
-  assert.deepEqual(await chips(), [["会议记录.md", "", "", false], ["设计稿.zip", "is-failed", "暂时只能读取文本文件、PDF 和图片", false], ["图片：白板照片.png", "is-failed", "样例不执行这一步（模拟）", true]]);
+  await waitFor(settled(3), 15_000);
+  assert.deepEqual(await chips(), [["会议记录.md", "", "", false], ["设计稿.zip", "is-failed", "暂时只能读取文本文件、PDF 和图片", false], ["白板照片.png", "is-failed", "样例不执行这一步（模拟）", true]]);
   assert.deepEqual((await context()).待发送, ["会议记录.md"], "what went in waits for the next Send; the rounds' own materials do not change");
-  assert.equal(await inFrame<boolean>(`const chip = d.querySelectorAll('[data-assistant-context-strip] .assistant-strip-chip')[2]; w.__chip = chip; chip.querySelector('[aria-label^="重试"]').click();
-    await new Promise((r) => setTimeout(r, 600)); const now = d.querySelectorAll('[data-assistant-context-strip] .assistant-strip-chip')[2]; return now === chip && now.classList.contains('is-failed');`), true,
-    "a retry the Host refuses again stays failed on the same chip");
-  await inFrame("d.querySelector('[data-assistant-context-strip] [aria-label=\"不带上：设计稿.zip\"]').click(); return null;");
-  await waitFor(`${frame}.contentDocument.querySelectorAll('[data-assistant-context-strip] .assistant-strip-chip').length === 2`);
-  // A Send the (simulated) Host refuses fails where the island shows a failure, and the words stay in the input.
-  await inFrame("d.querySelector('[data-assistant-send]').click(); return null;");
-  await waitFor(`!!${frame}.contentDocument.querySelector('.assistant-problem')`, 15_000);
-  assert.deepEqual(await inFrame("return [d.querySelector('[data-assistant-input]').value, d.querySelector('.assistant-problem').textContent.includes('样例不执行这一步（模拟）')];"), ["顺便把三楼的会议室也订上", true]);
+  assert.equal(await inFrame<boolean>(`const row = d.querySelectorAll('[data-assistant-composer] .mw-composer__files .mw-upload')[2]; w.__chip = row; row.querySelector('[data-composer-retry]').click();
+    await new Promise((r) => setTimeout(r, 600)); const now = d.querySelectorAll('[data-assistant-composer] .mw-composer__files .mw-upload')[2]; return now === row && now.classList.contains('is-failed');`), true,
+    "a retry the Host refuses again stays failed on the same row");
+  const remove = (name: string) => inFrame(`d.querySelector('[data-assistant-composer] [data-composer-remove][aria-label="移除 ${name}"]').click(); return null;`);
+  await remove("设计稿.zip");
+  // Differs from the island: a row that cannot go holds the Send (the composer's rule), so the picture is let go too.
+  await remove("白板照片.png");
+  await waitFor(settled(1));
+  // A Send the (simulated) Host refuses fails where the composer says how a Send went, and the words stay in the input.
+  await inFrame("d.querySelector('[data-assistant-composer] [data-composer-send]').click(); return null;");
+  await waitFor(`${frame}.contentDocument.querySelector('[data-assistant-composer] .mw-composer__status')?.textContent.includes('样例不执行这一步（模拟）')`, 15_000);
+  assert.equal(await inFrame("return d.querySelector('[data-assistant-composer] .mw-composer__input').value;"), "顺便把三楼的会议室也订上");
 
   // About code: each work keeps its own draft; Coding's surroundings are its directory, repository and its own tools.
   await inFrame("d.querySelector('[data-tab=\"board-coding\"] .assistant-tab-main').click(); return null;");
@@ -105,7 +110,7 @@ test("VUX-39 the board's Assistant section drives the shipped island through sev
   await waitFor(`${frame}.contentDocument.querySelector('[data-assistant-block=environment]').textContent.includes('molis-auth')`, 15_000);
   const coding = await blocks();
   assert.deepEqual([coding.environment, coding.tools], [["工作环境", "1 处冲突", true], ["连接与工具", "1 项要处理", true]]);
-  const codingText = await inFrame<{ input: string; environment: string; tools: string }>(`return { input: d.querySelector('[data-assistant-input]').value,
+  const codingText = await inFrame<{ input: string; environment: string; tools: string }>(`return { input: d.querySelector('[data-assistant-composer] .mw-composer__input').value,
     environment: d.querySelector('[data-assistant-block=environment]').textContent.replace(/\\s+/g, ' '), tools: d.querySelector('[data-assistant-block=tools]').textContent.replace(/\\s+/g, ' ') };`);
   assert.equal(codingText.input, "", "the Coding work has its own (empty) draft");
   assert.match(codingText.environment, /~\/code\/molis-auth.*molis-ai\/molis-auth · feature\/session-cookie.*领先 2 · 3 处未提交 · 1 处冲突/);
@@ -128,10 +133,11 @@ test("VUX-39 the board's Assistant section drives the shipped island through sev
 
   // A new work: where it would go is chosen before anything is sent.
   await choose("work", "new", "new");
-  const fresh = await inFrame<{ title: string; target: string; scope: string[] }>(`return { title: d.querySelector('[data-assistant-work-title]').textContent, target: d.querySelector('[data-assistant-target-label]').textContent,
+  const fresh = await inFrame<{ title: string; target: string; scope: string[] }>(`return { title: d.querySelector('[data-assistant-work-title]').textContent, target: d.querySelector('[data-assistant-composer] .mw-composer__to .mw-tag > span').textContent,
     scope: [...d.querySelectorAll('[data-assistant-meta] [aria-label="新工作放在"] button')].map((b) => b.textContent + (b.getAttribute('aria-pressed') === 'true' ? '*' : '')) };`);
-  assert.deepEqual(fresh, { title: "新工作", target: "新工作 · 示例项目", scope: ["示例项目*", "个人"] });
-  assert.equal(await inFrame<string>("d.querySelectorAll('[data-assistant-meta] [aria-label=\"新工作放在\"] button')[1].click(); return d.querySelector('[data-assistant-target-label]').textContent;"), "新工作 · 个人");
+  // K3 (UIV-12): the receiver row says who the Send goes to (发给：助理); where a new work is put is the pane's 新工作放在.
+  assert.deepEqual(fresh, { title: "新工作", target: "助理", scope: ["示例项目*", "个人"] });
+  assert.deepEqual(await inFrame<[string, string[]]>("d.querySelectorAll('[data-assistant-meta] [aria-label=\"新工作放在\"] button')[1].click(); return [d.querySelector('[data-assistant-composer] .mw-composer__to .mw-tag > span').textContent, [...d.querySelectorAll('[data-assistant-meta] [aria-label=\"新工作放在\"] button')].map((b) => b.textContent + (b.getAttribute('aria-pressed') === 'true' ? '*' : ''))];"), ["助理", ["示例项目", "个人*"]]);
 
   // The interface in English: the island's own words, the groups' titles and the states, with no Chinese of the product's.
   await choose("work", "plan", "board-plan");
@@ -172,24 +178,36 @@ test("VUX-39 the board's Assistant section drives the shipped island through sev
     assert.equal(top.overlap, false, `${tab}: nothing on the top line overlaps`);
   }
 
-  // A Coding work's mode in the bar, in English: one sentence ("Mode: Execute", not a Chinese colon); where the bar is
-  // tight it shows the mode alone, the whole sentence still read out, and words that still do not fit end in an ellipsis
-  // inside the chip instead of running under the input (before, at 760 and 390).
+  // A Coding work's mode in the bar, in English (K3: one of the unified composer's controls, a select under the text): it
+  // reads the mode's own word, says what it chooses, and stays inside the composer clear of the input. On a narrow box it
+  // folds behind 更多 with the other controls; while the side pane is shown the mode is chosen there, not in the bar.
   await choose("lang", "en", "board-plan");
   await inFrame("d.querySelector('[data-tab=\"board-coding\"] .assistant-tab-main').click(); return null;");
-  await waitFor(`${frame}.contentDocument.querySelector('[data-tab="board-coding"]').hasAttribute('data-current') && !${frame}.contentDocument.querySelector('[data-assistant-mode]').hidden`, 10_000);
+  await waitFor(`${frame}.contentDocument.querySelector('[data-tab="board-coding"]').hasAttribute('data-current')`, 10_000);
   for (const width of ["1280", "760", "390"]) {
     await choose("width", width, "board-coding");
     await waitFor(`${frame}.contentWindow.innerWidth === ${width}`, 15_000);
     // The frame applies its media rules for a new width at its next rendering step, not when innerWidth changes.
     await inFrame("await new Promise((resolve) => w.requestAnimationFrame(() => w.requestAnimationFrame(resolve))); return null;");
-    const chip = await inFrame<{ text: string; said: string; inside: boolean; clear: boolean; cut: boolean; ellipsis: boolean }>(`const button = d.querySelector('.bar-composer [data-assistant-mode]'), label = d.querySelector('[data-assistant-mode-label]');
-      const b = button.getBoundingClientRect(), l = label.getBoundingClientRect(), input = d.querySelector('.bar-composer .assistant-composer-input').getBoundingClientRect();
-      return { text: label.innerText, said: button.getAttribute('aria-label'), inside: l.right <= b.right + 0.5, clear: b.right <= input.left + 0.5, cut: label.scrollWidth > label.clientWidth, ellipsis: w.getComputedStyle(label).textOverflow === 'ellipsis' };`);
-    assert.equal(chip.text, width === "1280" ? "Mode: Execute" : "Execute", width);
-    assert.match(chip.said, /Mode: Execute$/, `${width}px: the whole sentence is read out`);
-    assert.equal(chip.inside && chip.clear, true, `${width}px: the mode's words stay inside its chip, clear of the input`);
-    assert.equal(!chip.cut || chip.ellipsis, true, `${width}px: words that do not fit end in an ellipsis`);
+    const side = await inFrame<boolean>("return d.querySelector('[data-assistant-island]').hasAttribute('data-side-shown');");
+    if (side) {
+      assert.equal(await inFrame<boolean>("return d.querySelector('[data-assistant-composer] [data-composer-control=mode]') === null;"), true, `${width}px: with the side pane shown the mode is chosen there, not in the bar`);
+      continue;
+    }
+    await waitFor(`Boolean(${frame}.contentDocument.querySelector('[data-assistant-composer] select[data-composer-control=mode]'))`, 10_000);
+    const chip = await inFrame<{ text: string; said: string; inside: boolean; clear: boolean; onScreen: boolean }>(`const select = d.querySelector('[data-assistant-composer] select[data-composer-control=mode]'), more = d.querySelector('[data-assistant-composer] [data-composer-more]');
+      // The platform's select picker draws the select: its trigger is what is on screen, the native select stays hidden.
+      const face = select.closest('.mw-select-picker')?.querySelector('.mw-select-picker__trigger') || select;
+      const folded = !face.checkVisibility(); if (folded) more.click();
+      const b = face.getBoundingClientRect(), box = d.querySelector('[data-assistant-composer] .mw-composer__box').getBoundingClientRect(), input = d.querySelector('[data-assistant-composer] .mw-composer__input').getBoundingClientRect();
+      const out = { text: select.selectedOptions[0].textContent, said: select.getAttribute('aria-label'), inside: b.left >= box.left - 0.5 && b.right <= box.right + 0.5,
+        clear: folded || b.top >= input.bottom - 0.5 || b.bottom <= input.top + 0.5, onScreen: b.width > 0 && b.left >= 0 && b.right <= w.innerWidth + 0.5 };
+      if (folded) more.click();
+      return out;`);
+    assert.equal(chip.text, "Execute", width);
+    assert.match(chip.said, /^Mode for the next turn$/, `${width}px: what it chooses is read out`);
+    assert.equal(chip.inside && chip.clear, true, `${width}px: the mode stays inside the composer, clear of the input (folded, it is a menu over it)`);
+    assert.equal(chip.onScreen, true, `${width}px: the mode is on screen`);
   }
 });
 

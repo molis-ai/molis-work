@@ -18,9 +18,9 @@ test("the chooser sends from the selected project and switches back to personal 
   type Work = { work_id: string; scope: { kind: string; project_id?: string }; state: string };
   const works = () => evaluate<Work[]>("fetch('/api/assistant/works').then(r => r.json()).then(b => b.works)");
   const send = async (text: string, count: number) => {
-    await click("[data-assistant-input]");
+    await click("[data-assistant-composer] .mw-composer__input");
     await command("Input.insertText", { text }, sessionId);
-    await click("[data-assistant-send]");
+    await click("[data-assistant-composer] [data-composer-send]");
     await waitFor("document.querySelector('[data-assistant-thread]').textContent.includes('已收到本轮查询') || document.querySelector('.assistant-problem')", 20_000);
     assert.match(await evaluate<string>("document.querySelector('[data-assistant-thread]').textContent"), /已收到本轮查询/);
     for (let attempt = 0; attempt < 100; attempt += 1) {
@@ -49,9 +49,9 @@ test("the chooser sends from the selected project and switches back to personal 
   await navigate(() => command("Page.reload", {}, sessionId));
   assert.equal((await works()).length, 2, "both works persist and the refused request creates nothing");
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await click("[data-assistant-input]");
-  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
-  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
+  await click("[data-assistant-composer] .mw-composer__input");
+  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
   await waitFor("!document.querySelector('[data-assistant-panel]').hidden");
   await click("[data-assistant-panel-close]");
   await waitFor("document.querySelector('[data-assistant-panel]').hidden", 4_000);

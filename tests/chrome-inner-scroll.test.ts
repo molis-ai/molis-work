@@ -17,7 +17,7 @@ test("chooser, settings, and workbench keep titles pinned and scroll only the co
   // The way in is one fixed frame: titlebar, stage, bar. The page never scrolls; the directory and the sheet do.
   assert.match(arrival, /html:has\(> body\.arrival-page\), body\.arrival-page \{[^}]*overflow: hidden;/);
   // T01-LAYOUT-01: the frame also anchors the side panel to the content grid; browser geometry/clicks are checked in issue-draft-preview.e2e.
-  assert.match(arrival, /\.arrival \{ position: relative; height: 100dvh; display: grid; grid-template-rows: var\(--arrival-titlebar-h\) minmax\(0, 1fr\) var\(--dock-h, 76px\);/);
+  assert.match(arrival, /\.arrival \{ position: relative; height: 100dvh; display: grid; grid-template-rows: var\(--arrival-titlebar-h\) minmax\(0, 1fr\) minmax\(var\(--dock-min, 76px\), auto\);/, "the bar row rests at --dock-min and grows with the composer (K3)");
   assert.match(arrival, /\.arrival-stage \{[^}]*min-height: 0;[^}]*overflow: hidden;/);
   assert.match(arrival, /\.stage-side \{[^}]*min-height: 0;[^}]*overflow: hidden;/);
   assert.match(arrival, /\.chooser-dir \{ flex: 1; min-height: 0; overflow: auto;/);
@@ -85,10 +85,9 @@ test("chooser, settings, and workbench keep titles pinned and scroll only the co
   assert.match(workbench, /\.plugin-rail \.immersive-plugin-link svg \{ color: var\(--plugin-tint, var\(--faint\)\)/);
   assert.doesNotMatch(workbench, /\.plugin-rail \.immersive-plugin-link:hover svg \{ color: var\(--ink\)/);
   assert.doesNotMatch(workbench, /\.plugin-rail \.immersive-plugin-link\[aria-current\] svg \{ color: var\(--ink\)/);
-  assert.match(workbench, /\.assistant-composer \{[\s\S]*width: min\(480px, calc\(100vw - 88px\)\);[\s\S]*max-height: min\(620px, 85vh\);[\s\S]*border-radius: 16px;[\s\S]*flex-direction: row;/);
-  assert.match(workbench, /:not\(\.assistant-composer-input\)/);
-  assert.match(workbench, /textarea\.assistant-composer-input:is\(:hover, :focus, :focus-visible\) \{[\s\S]*outline: none;[\s\S]*border: 0;/);
-  assert.match(workbench, /\.assistant-composer:popover-open \{ display: flex; inset: auto; margin: 0; \}/);
+  // K3: the old popover composer is gone; the bar's input is the unified composer, whose field draws no border or outline of its own.
+  assert.doesNotMatch(workbench, /\.assistant-composer:popover-open|assistant-composer-input/);
+  assert.match(workbench, /\.mw-composer__text > \.mw-composer__input:not\(#mw-composer\) \{[^}]*border: 0;[^}]*outline: 0;/);
   assert.match(workbench, /\.workspace-chrome\.project-island \{/);
   assert.match(workbench, /\.workspace-chrome\.project-island \{[\s\S]*flex: none;/);
   assert.match(workbench, /\.plugin-stack:has\(\[data-project-menu\]\[open\]\) \{ z-index: 50; \}/);

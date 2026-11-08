@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
-import { escapeHtml, icon, renderButton, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { escapeHtml, icon, renderButton, renderComposer, t, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { assistantComposerLabels } from "./assistant-composer-labels.js";
 import {
   THEME_BOOTSTRAP_SCRIPT, VISUAL_FOUNDATION_CLIENT_SCRIPT, renderIconSprite, renderMenuGroup, renderMenuItem, renderProjectMonogram, renderToggleGroup,
 } from "@molis-ai/molis-work-design-system";
@@ -184,8 +185,8 @@ function bar(L: Say, state: "ok" | "wrong"): string {
   // On a phone the bar folds what its second row cannot hold behind +N (the product's `.dock-pin-more`); here it is drawn, not measured.
   const fold = (count: number, label: string) => `<button type="button" class="dock-pin dock-pin-more mw-navs__fold" aria-haspopup="true" aria-expanded="false" aria-label="${escapeHtml(`${label} ${count}`)}" title="${escapeHtml(label)}">+${count}</button>`;
   const dock = `<div class="dock-pins" role="toolbar" aria-label="${escapeHtml(L("常驻插件"))}">${dockPin(L, "home")}${dockPin(L, "goals", { current: true })}${dockPin(L, "pages", { fold: true })}${dockPin(L, "coding", { fold: true })}${dockPin(L, "feed", { fold: true })}${fold(3, L("更多常驻插件"))}</div>`;
-  const composer = `<div class="bar-center"><form class="assistant-composer bar-composer" aria-label="Molis Work Assistant" data-nav-composer><textarea class="assistant-composer-input" rows="1" placeholder="${escapeHtml(L("让助理做点什么…"))}" aria-label="${escapeHtml(L("发给助理"))}"></textarea>`
-    + `${renderButton({ label: L("发送"), icon: "send", variant: "primary", size: "sm", iconOnly: true, disabled: true, type: "submit" })}</form></div>`;
+  // The Dock's own first screen (assistant-dock.ts): the platform composer with the Assistant's words.
+  const composer = `<div class="bar-center"><div class="assistant-composer">${renderComposer({ kind: "ai", labels: assistantComposerLabels(L, true, t.text("workbench.composer.next-boundary")), placeholder: L("让助理做点什么…"), receiver: { label: L("助理") } })}</div></div>`;
   const own = `<div class="bar-side bar-own" role="toolbar" aria-label="${escapeHtml(L("你自己的"))}">${wrong ? dockPin(L, "receipts", { warn: true }) : ""}${dockPin(L, "jelly", { fold: wrong })}${dockPin(L, "todo", { fold: true })}${dockPin(L, "cognia", { fold: true })}${fold(wrong ? 3 : 2, L("你自己的"))}</div>`;
   const project = `<section class="workspace-chrome project-island titlebar-chrome navigator-project" aria-label="${escapeHtml(L("当前项目"))}"><div class="navigator-project-primary"><button type="button" class="navigator-project-selector" aria-label="${escapeHtml(L("切换项目"))} · ${escapeHtml(L("网站改版"))}">${renderProjectMonogram(L("网站改版"), "project-sample", escapeHtml)}</button></div></section>`;
   return `<div class="workbench-bar" data-nav-bar="${state}" aria-label="${escapeHtml(L("底栏"))}"><div class="bar-start">${switcher}${dock}</div>${composer}<div class="bar-end">${own}${project}</div></div>`;
@@ -284,8 +285,7 @@ body.mw-navs-page .mw-navs__phone .tab-pane-switch>.mw-toggle{min-height:44px}
 @media (min-width:761px){[data-nav-when-full][data-nav-fits]{display:none}}
 .mw-navs__live{margin:0;font-size:12px;color:var(--ink-soft)}
 .mw-navs__bar{min-width:0}
-.mw-navs .workbench-bar{height:var(--dock-h);padding:0;background:transparent}
-.mw-navs .bar-composer textarea{resize:none}
+.mw-navs .workbench-bar{min-height:var(--dock-min);padding:8px 0;background:transparent}
 html body.mw-navs-page .workbench-bar .mw-navs__fold{display:none}
 @media (max-width:760px){.mw-navs__history{display:none}.mw-navs__titlebar{position:relative;display:grid;grid-template-columns:1fr auto auto;grid-template-rows:44px 44px;gap:4px;height:auto;padding:0}.mw-navs__main{display:contents}.mw-navs__main>.tab-strip{grid-area:1/1/3/4}.mw-navs__main>.mw-navs__anchor:not(.mw-navs__anchor--all){grid-area:1/2;z-index:1}.mw-navs__titlebar>.mw-navs__anchor--end{grid-area:1/3;z-index:1}body.mw-navs-page .mw-navs__titlebar>.tab-glyph-row{display:none}.mw-navs .workbench-bar{height:auto}.mw-navs__titlebar .mw-navs__anchor{position:static}.mw-navs__titlebar .mw-navs__anchor>[data-nav-popover]{left:0;right:0;width:auto}body.mw-navs-page .mw-navs .bar-composer>.mw-btn{width:44px;min-width:44px;height:44px;min-height:44px}html body.mw-navs-page .workbench-bar [data-fold]{display:none}html body.mw-navs-page .workbench-bar .mw-navs__fold{display:inline-grid}}`;
 

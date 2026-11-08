@@ -510,9 +510,10 @@ export interface AssistantSendInput extends Pick<AgentInputSend, "about"> {
   target?: "answer" | "steer";
   /**
    * How a supplement reaches the round under way (specs/ai-input-receipts §4.1; specs/unified-input-voice §4): `next-boundary`
-   * (补充) when absent, `interrupt` (打断并改向) or `after-run` (下一轮再做). Only for an existing work's supplement: refused with
-   * `target: "answer"`, on a new work, and for any other value. `interrupt` and `after-run` never start a round: when the
-   * round has ended they wait in its session for the next one (outcome `queued`); a work with no round yet refuses them.
+   * (补充) when absent, `interrupt` (打断并改向) or `after-run` (下一轮再做). Only for an existing work's supplement: refused
+   * (`assistant.invalid`) with `target: "answer"`, on a new work, and for any other value. `interrupt` and `after-run` never start
+   * a round: when the round has ended they wait in its session for the next one (outcome `queued`); a work with no round yet
+   * refuses them (`assistant.state`).
    */
   delivery?: AgentSteerMode;
   reask?: AgentQuestionReask;

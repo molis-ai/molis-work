@@ -48,7 +48,7 @@ test('Shelf saves the last keystroke before returning and keeps a failed draft a
     const shelf = document.querySelector('.workbench-bar [data-side-toggle]');
     const r = shelf?.getBoundingClientRect();
     const hit = r ? document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2) : null;
-    const neighbours = [...document.querySelectorAll('.workbench-bar :is(.dock-pin, .navigator-project-selector, .bar-composer)')].filter(e => e !== shelf && e.getClientRects().length)
+    const neighbours = [...document.querySelectorAll('.workbench-bar :is(.dock-pin, .navigator-project-selector, .assistant-composer)')].filter(e => e !== shelf && e.getClientRects().length)
       .map(e => e.getBoundingClientRect()).filter(n => r && n.left < r.right && n.right > r.left && n.top < r.bottom && n.bottom > r.top).length;
     return { viewport: { w: innerWidth, h: innerHeight }, shelf: r ? { w: r.width, h: r.height, top: r.top, bottom: r.bottom, left: r.left, right: r.right } : null,
       hitsShelf: !!(hit && shelf.contains(hit)), hitTag: hit?.tagName.toLowerCase(), neighbours };

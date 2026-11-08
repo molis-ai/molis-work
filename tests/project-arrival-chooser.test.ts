@@ -33,7 +33,7 @@ test("the chooser is the arrival frame: titlebar, stage, and the resident bar, o
   assert.match(html, /href="\/settings\/appearance"[^>]*>[\s\S]*?设置/);
   assert.match(html, /<div class="workbench-bar arrival-bar" data-dock data-bar="chooser"/);
   assert.match(html, /data-act="new" aria-label="新建项目"/, "a phone shows only the icon, so the link carries its name");
-  assert.match(html, /data-assistant-island|assistant-composer-input/, "the bar's centre is the assistant");
+  assert.match(html, /data-assistant-island|mw-composer__input/, "the bar's centre is the assistant");
   assert.match(html, /<main class="arrival-stage" id="stage"><div class="stage-split chooser" data-view="chooser"/);
   assert.match(html, /<section class="stage-sheet chooser-detail" id="chooser-detail" role="region" aria-label="项目简介" aria-live="polite" tabindex="0"/, "the sheet scrolls, so the keyboard can reach it");
   assert.doesNotMatch(html, /project-index-page|project-card|data-project-search-row|migration/);

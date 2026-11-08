@@ -135,6 +135,7 @@ export interface MwComposerLabels {
     unavailable: string;
     reading: string;
     remove: string;
+    retryFile: string;
     blocked: string;
     restored: string;
     clear: string;

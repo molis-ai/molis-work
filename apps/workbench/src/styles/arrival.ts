@@ -12,7 +12,7 @@ export const ARRIVAL_STYLES = String.raw`
   body.arrival-page { margin: 0; caret-color: var(--ink); color: var(--ink); }
   body.arrival-page ::selection { background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--ink); }
   .icon-sprite { position: absolute; width: 0; height: 0; overflow: hidden; pointer-events: none; }
-  .arrival { position: relative; height: 100dvh; display: grid; grid-template-rows: var(--arrival-titlebar-h) minmax(0, 1fr) var(--dock-h, 76px); background: var(--desk); color: var(--ink); }
+  .arrival { position: relative; height: 100dvh; display: grid; grid-template-rows: var(--arrival-titlebar-h) minmax(0, 1fr) minmax(var(--dock-min, 76px), auto); background: var(--desk); color: var(--ink); }
   :where(.arrival) :is(h1, h2, p) { margin: 0; }
   :where(.arrival) :is(ol, ul) { margin: 0; padding: 0; list-style: none; }
   .arrival :focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, 1px); }
@@ -315,6 +315,14 @@ export const ARRIVAL_STYLES = String.raw`
     .arrival-bar .arrival-back [data-slot="button-label"] { display: none; }
     .arrival-bar .arrival-back:not(:has(svg)) [data-slot="button-label"] { display: inline; }
     .mw-bar-status__text small { display: none; }
+  }
+  /* A short window wider than a phone (one on its side): the chooser's composer grows to rows, so it shares one row with the
+     project and the actions, level with its foot, instead of taking a row of its own that leaves the directory no room. */
+  @media (min-width: 601px) and (max-width: 900px) and (max-height: 560px) {
+    html body.immersive-workbench.arrival-page .arrival-bar[data-bar="chooser"] { grid-template-columns: auto minmax(0, 1fr) auto; grid-template-rows: auto; align-items: end; }
+    html body.immersive-workbench.arrival-page .arrival-bar[data-bar="chooser"] .bar-start { grid-column: 1; grid-row: 1; }
+    html body.immersive-workbench.arrival-page .arrival-bar[data-bar="chooser"] .bar-center { grid-column: 2; grid-row: 1; }
+    html body.immersive-workbench.arrival-page .arrival-bar[data-bar="chooser"] .bar-end { grid-column: 3; grid-row: 1; flex-wrap: nowrap; }
   }
   @media (max-width: 600px) {
     .arrival-titlebar { padding-left: 14px; }

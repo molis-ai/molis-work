@@ -305,19 +305,19 @@ test("PAS-01 PAS-02 PAS-06 PAS-07: real Pages sidebar follows the active documen
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setTouchEmulationEnabled", { enabled: false }, sessionId);
   await click('[data-side-toggle]');
-  await click('[data-assistant-input]');
+  await click('[data-assistant-composer] .mw-composer__input');
   await command("Input.insertText", { text: "新工作：保留这份助理草稿" }, sessionId);
-  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
-  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
   await waitFor("document.querySelector('[data-assistant-expand]')?.disabled === false");
   await waitFor("document.querySelector('.assistant-msg--assistant')?.textContent.includes('这是输入与展示回归的固定回答。')", 15000);
-  const draft = await evaluate("document.querySelector('[data-assistant-input]').value");
-  await evaluate("window.originalComposer=document.querySelector('[data-assistant-input]')");
+  const draft = await evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input').value");
+  await evaluate("window.originalComposer=document.querySelector('[data-assistant-composer] .mw-composer__input')");
   await click('[data-assistant-expand]');
-  await waitFor("document.querySelector('[data-system-tab] [data-assistant-input]')");
-  assert.equal(await evaluate("document.querySelector('[data-assistant-input]') === window.originalComposer"), true);
-  assert.equal(await evaluate("document.querySelector('[data-assistant-input]').value"), draft);
-  assert.equal(await evaluate("document.querySelectorAll('[data-assistant-input]').length"), 1);
+  await waitFor("document.querySelector('[data-system-tab] [data-assistant-composer] .mw-composer__input')");
+  assert.equal(await evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input') === window.originalComposer"), true);
+  assert.equal(await evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input').value"), draft);
+  assert.equal(await evaluate("document.querySelectorAll('[data-assistant-composer] .mw-composer__input').length"), 1);
   for (const width of [1440, 390]) {
     await command("Emulation.setDeviceMetricsOverride", { width, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
     await waitFor("document.querySelector('[data-assistant-panel]').dataset.layout === (innerWidth >= 1240 ? 'split' : 'drawer')");
@@ -325,8 +325,8 @@ test("PAS-01 PAS-02 PAS-06 PAS-07: real Pages sidebar follows the active documen
   }
   await checkAssistantStage(browser);
   await click('[data-assistant-retract]');
-  await waitFor("document.querySelector('[data-dock] [data-assistant-input]') && !document.querySelector('.tab-item[data-tab-kind=system]')");
-  assert.equal(await evaluate("document.querySelector('[data-assistant-input]') === window.originalComposer"), true);
+  await waitFor("document.querySelector('[data-dock] [data-assistant-composer] .mw-composer__input') && !document.querySelector('.tab-item[data-tab-kind=system]')");
+  assert.equal(await evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input') === window.originalComposer"), true);
   const saved = openPagesStore(homeDirectory);
   try { assert.match(JSON.stringify(saved.get(a.id, projectId!).body), /在侧栏保存的备注/);assert.equal(saved.comments.list(a.id, projectId!).length, 2);assert.equal(saved.comments.list(b.id, projectId!).length, 0); }
   finally { saved.close(); }

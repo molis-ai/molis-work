@@ -6,7 +6,7 @@ import { composerDrafts, enterHint, type ComposerDrafts } from "./composer-draft
 import { composerMenus, type ComposerMenus } from "./composer-menus.js";
 import { composerSender, type ComposerSender } from "./composer-send.js";
 import "./composer-program.js";
-import { composerBasics, composerState, mac, type Composer } from "./composer-state.js";
+import { attached, composerBasics, composerState, itemKey, letGo, mac, type Composer } from "./composer-state.js";
 import { firstScreen, paint } from "./composer-view.js";
 
 /**
@@ -37,7 +37,13 @@ function mount(root: HTMLElement, options: ComposerOptions): ComposerHandle {
   if (!root.querySelector(".mw-composer")) root.innerHTML = renderComposer(firstScreen(basics, ""));
   const shell = root.querySelector<HTMLElement>(".mw-composer")!;
   const c = composerState(basics, root, life.signal, shell.id ||= `mw-composer-${++count}`);
-  c.paint = (controls) => paint(c, controls);
+  // What the strip carries, as last told to the page (`onMaterials`): told again only when it changed.
+  let carried: readonly unknown[] = [];
+  c.paint = (controls) => {
+    paint(c, controls);
+    const now = attached(c);
+    if (now.length !== carried.length || now.some((one, index) => one !== carried[index])) { carried = now; options.onMaterials?.(); }
+  };
   const drafts = composerDrafts(c), menus = composerMenus(c), sender = composerSender(c, drafts, enterHint.done);
   drafts.load();
 
@@ -56,7 +62,8 @@ function mount(root: HTMLElement, options: ComposerOptions): ComposerHandle {
   /** Lets go: every listener, the pending draft write, any open query; whatever comes back for this mount is dropped. */
   function release() {
     if (c.signal.aborted) return;
-    c.close(); life.abort(); c.queries.end(); drafts.stop(); files.remove();
+    c.close(); life.abort(); c.queries.end(); drafts.stop(); files.remove(); letGo(c.items); c.items = [];
+    if (carried.length) { carried = []; options.onMaterials?.(); }
     if (instances.get(root) === release) instances.delete(root);
   }
   instances.set(root, release);
@@ -69,6 +76,8 @@ function mount(root: HTMLElement, options: ComposerOptions): ComposerHandle {
     insert(text) {
       c.field.setRangeText(text, c.field.selectionStart, c.field.selectionEnd, "end"); window.molisFit?.(c.field); drafts.save(); c.paint();
     },
+    attach(given) { if (given.length) void sender.upload(given); },
+    materials: () => attached(c),
     destroy: release,
   };
 }
@@ -91,18 +100,22 @@ function wire(c: Composer, { drafts, menus, sender }: Parts, files: HTMLInputEle
       return void c.ai.stop(signal).catch(() => undefined).finally(() => { if (!signal.aborted) { c.stopping = false; c.paint(); } });
     }
     if (data.composerClear !== undefined) { field.value = ""; window.molisFit?.(field); drafts.clear(); field.focus(); return c.paint(); }
-    if (data.composerRemove) { c.items = c.items.filter((_, index) => index !== Number(data.composerRemove)); c.requestId = ""; c.paint(); return field.focus(); }
+    if (data.composerRemove) {
+      letGo(c.items.filter((item) => item.key === data.composerRemove));
+      c.items = c.items.filter((item) => item.key !== data.composerRemove); c.requestId = ""; c.paint(); return field.focus();
+    }
+    if (data.composerRetry) return void sender.retry(data.composerRetry);
     if (data.composerFiles !== undefined) { c.close(); menus.untype(); return files.click(); }
     if (data.composerSource && Array.isArray(c.sources)) return menus.pick(c.sources[Number(data.composerSource)]!);
     if (data.composerPick && c.picking && Array.isArray(c.picking.found)) {
       const chosen = c.picking.found[Number(data.composerPick)]!, source = c.picking.source;
-      c.items = [...c.items, { title: chosen.title, state: "attached", from: `${source.provider} · ${source.title}`,
+      c.items = [...c.items, { key: itemKey(), title: chosen.title, state: "attached", from: `${source.provider} · ${source.title}`,
         material: { kind: "material", ref: chosen.ref, title: chosen.title, source: { capability_id: source.capability_id, version: source.version, provider_id: source.provider_id } } }];
       menus.untype(); c.requestId = ""; c.close(); field.focus(); return c.paint();
     }
     if (data.composerMention) {
       const hit = menus.mentioned(Number(data.composerMention));
-      if (hit) c.items = [...c.items, { title: hit.title, state: "attached", from: hit.plugin_title,
+      if (hit) c.items = [...c.items, { key: itemKey(), title: hit.title, state: "attached", from: hit.plugin_title,
         material: { kind: "material", ref: { subject: hit.subject, pin: { mode: "current", read_revision: hit.revision } }, title: hit.title, source: hit.source } }];
       c.requestId = ""; drafts.save(); field.focus(); return c.paint();
     }
@@ -146,7 +159,9 @@ function wire(c: Composer, { drafts, menus, sender }: Parts, files: HTMLInputEle
     // `@` after a space starts a system search for the words that follow it (§3.3), in every page that mounts a composer.
     else if (data === "@" && /(^|\s)@$/.test(before) && c.offersSources) menus.mention(before.length - 1);
     else if (c.mention) menus.mention();
-    else if (c.typed) c.close();
+    // The words after a `/` that opened the menu narrow its commands, until the line is left or the menu closed.
+    else if (c.typed && c.open && /^\/[^\n]{0,80}$/u.test(before)) { c.typed = before; menus.narrow(); }
+    else if (c.typed) { c.close(); c.typed = ""; }
     c.paint();
   }, { signal });
   document.addEventListener("pointerdown", (event) => { if (c.open && !shell.contains(event.target as Node)) c.close(); }, { capture: true, signal });

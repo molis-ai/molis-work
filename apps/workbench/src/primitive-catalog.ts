@@ -101,12 +101,12 @@ const BAR_SPECIMEN_SCRIPT = `
   if (!stage) return;
   const toggle = stage.querySelector("[data-plugin-picker-toggle]");
   const popover = stage.querySelector("[data-plugin-picker-popover]");
-  const input = stage.querySelector("[data-assistant-input]");
-  const send = stage.querySelector("[data-assistant-send]");
+  // The composer is its first screen only (nothing is sent from the board): typing just wakes the send button.
+  const input = stage.querySelector("[data-assistant-composer] .mw-composer__input");
+  const send = stage.querySelector("[data-assistant-composer] [data-composer-send]");
   const setPicker = (open) => { if (!toggle || !popover) return; popover.hidden = !open; toggle.setAttribute("aria-expanded", String(open)); };
   toggle?.addEventListener("click", () => setPicker(popover.hidden));
   input?.addEventListener("input", () => { if (send) send.disabled = !input.value.trim(); });
-  stage.querySelector("[data-assistant-composer]")?.addEventListener("submit", (event) => event.preventDefault());
   stage.addEventListener("click", (event) => {
     // The switcher's two buttons answer here the way the workbench's do (the specimen holds no project, so nothing is kept).
     const keep = event.target.closest("[data-dock-choice]");

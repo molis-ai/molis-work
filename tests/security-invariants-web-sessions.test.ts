@@ -8,6 +8,7 @@ import { WebSessions, authorizeLocalWebRequest } from "@molis-ai/molis-work-app-
 import { deferred, grantHomeProbe, homeProbe, serveHomeRuntime } from "./fixtures/home-runtime.js";
 
 const HEADER = "x-molis-work-page-session";
+const cookieJar = (...cookies: string[]) => [...new Map(cookies.map(cookie => [cookie.slice(0, cookie.indexOf("=")), cookie])).values()].join("; ");
 const readPage = async (origin: string, cookie?: string, path = "/") => {
   const response = await fetch(origin + path, { headers: cookie ? { cookie } : {} });
   assert.equal(response.status, 200, await response.clone().text());
@@ -24,7 +25,8 @@ test("WAS-01 WAS-02 real workbench pages exclude Host credentials and require bo
   assert.equal((await f.request("/api/browser/assistant", { method: "POST", body: { enabled: false } })).status, 200);
   assert.ok(a.cookie); assert.match(a.cookies[0]!, /HttpOnly; SameSite=Strict/);
   assert.notEqual(a.proof, f.token); assert.notEqual(a.proof, b.proof);
-  for (const path of ["/", "/settings/appearance", "/settings/models"]) {
+  const project = await f.project("Session HTML coverage");
+  for (const path of ["/", "/settings/appearance", "/settings/models", `/projects/${project.project_id}/`, `/projects/${project.project_id}/settings`, "/plugins/issues"]) {
     const page = await readPage(f.origin, a.cookie, path);
     assert.ok(!page.html.includes(f.token), path + " must not contain the Host control token");
     assert.doesNotMatch(page.html, /<meta[^>]+name=["']molis-work-control-token["']/);
@@ -82,6 +84,21 @@ test("WAS-03 WAS-05 session issuer binds origin, rejects cross-site issuance and
   assert.equal((await send(fresh.cookie, fresh.proof)).status, 403, "restarted Host does not revive a persisted cookie"); assert.equal(effects, 2);
 });
 
+test("WAS-09 concurrent first documents in one browser retain both original sessions without cookie overwrite", { timeout: 30_000 }, async t => {
+  const f = await serveHomeRuntime(t);
+  // A Tauri main window and capsule can navigate before either response's cookie has arrived.
+  const [a, b] = await Promise.all([readPage(f.origin), readPage(f.origin)]);
+  const cookie = cookieJar(a.cookie, b.cookie);
+  const request = (proof: string, method = "POST", path = "/api/browser/assistant") => fetch(f.origin + path, { method,
+    headers: { origin: f.origin, cookie, [HEADER]: proof, "content-type": "application/json", "x-molis-work-idempotency-key": randomUUID() },
+    ...(method === "POST" ? { body: '{"enabled":false}' } : {}) });
+  assert.equal((await request(a.proof)).status, 200, "the later Set-Cookie must not invalidate the first document");
+  assert.equal((await request(b.proof)).status, 200);
+  assert.equal((await request(a.proof, "DELETE", "/api/web-session")).status, 200);
+  assert.equal((await request(a.proof)).status, 403, "a revoked document must not borrow the other cookie");
+  assert.equal((await request(b.proof)).status, 200, "the other initial window retains its own authority");
+});
+
 test("WAS-04 WAS-05 all real socket entries require the paired cookie and close when that session is revoked", { timeout: 30_000 }, async t => {
   const sockets = new Set<WebSocket>();
   t.after(() => { for (const socket of sockets) socket.terminate(); });
@@ -101,6 +118,9 @@ test("WAS-04 WAS-05 all real socket entries require the paired cookie and close 
     if (path === "/computer" && accepted.message.type === "error") assert.equal(accepted.message.message, "这个进程没有电脑助手");
     else { assert.equal(accepted.message.type, "ready", path); live.push(accepted.socket); }
   }
+  const combined = await open("/pty", cookieJar(a.cookie, b.cookie), a.proof);
+  assert.equal(combined.message.type, "ready", "a shared WebView cookie jar selects the session named by the socket proof");
+  live.push(combined.socket);
   const closed = live.map(socket => once(socket, "close"));
   const response = await fetch(f.origin + "/api/web-session", { method: "DELETE", headers: { origin: f.origin, cookie: a.cookie, [HEADER]: a.proof, "x-molis-work-idempotency-key": randomUUID() } });
   assert.equal(response.status, 200); await Promise.all(closed);

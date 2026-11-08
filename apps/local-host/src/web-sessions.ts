@@ -18,7 +18,7 @@ interface Session {
   abort: AbortController;
   timer: ReturnType<typeof setTimeout>;
 }
-interface RequestSession { owner: WebSessions; session: Session | null; expected: string; statusRead: boolean }
+interface RequestSession { owner: WebSessions; session: Session | null; candidates: readonly Session[]; expected: string; statusRead: boolean }
 const requestSessions = new WeakMap<IncomingMessage, RequestSession>();
 const currentRequest = new AsyncLocalStorage<IncomingMessage>();
 
@@ -41,13 +41,20 @@ export class WebSessions {
   private name(origin: string): string {
     return COOKIE_PREFIX + this.suffix + "-" + createHash("sha256").update(origin).digest("hex").slice(0, 12);
   }
-  private read(request: IncomingMessage, origin: string): Session | null {
-    const name = this.name(origin) + "=";
-    const values = request.headers.cookie?.split(";").map(value => value.trim()).filter(value => value.startsWith(name)) ?? [];
-    if (values.length !== 1) return null;
-    const session = this.sessions.get(values[0]!.slice(name.length)) ?? null;
-    if (session && !this.valid(session)) { this.remove(session); return null; }
-    return session?.origin === origin ? session : null;
+  private cookieName(session: Session): string {
+    return this.name(session.origin) + "-" + session.proof.split(".")[0];
+  }
+  private read(request: IncomingMessage, origin: string): Session[] {
+    const prefix = this.name(origin) + "-";
+    const values = request.headers.cookie?.split(";").map(value => value.trim()).filter(value => value.startsWith(prefix)) ?? [];
+    const names = values.map(value => value.slice(0, value.indexOf("=")));
+    if (new Set(names).size !== names.length) return [];
+    return values.flatMap((value, index) => {
+      const session = this.sessions.get(value.slice(value.indexOf("=") + 1));
+      if (!session) return [];
+      if (!this.valid(session)) { this.remove(session); return []; }
+      return session.origin === origin && names[index] === this.cookieName(session) ? [session] : [];
+    });
   }
   private valid(session: Session): boolean {
     return this.sessions.get(session.id) === session && !session.abort.signal.aborted && session.expires > this.now();
@@ -68,7 +75,10 @@ export class WebSessions {
     const bound = requestSessions.get(request);
     if (bound?.owner === this && bound.expected === expected) return;
     const origin = this.origin(request);
-    let session = origin ? this.read(request, origin) : null;
+    const candidates = origin ? this.read(request, origin) : [];
+    const proof = request.headers[WEB_PAGE_SESSION_HEADER], scope = webPageScope(expected);
+    let session = proof === undefined ? candidates.find(value => value.scope === scope) ?? candidates[0] ?? null
+      : candidates.find(value => controlTokenMatches(value.proof, proof)) ?? null;
     const url = new URL(request.url ?? "/", "http://localhost");
     const page = request.method === "GET" && !/^(?:\/api(?:\/|$)|\/projects\/[^/]+\/api(?:\/|$)|\/assets\/|\/health$|\/locale$|\/account\/callback$)/.test(url.pathname);
     const site = request.headers["sec-fetch-site"], source = request.headers.origin;
@@ -76,9 +86,10 @@ export class WebSessions {
     if (response && origin && page && trustedPage && (!session || session.scope !== webPageScope(expected))) {
       if (session) this.remove(session);
       session = this.create(origin, expected);
-      response.appendHeader("Set-Cookie", this.name(origin) + "=" + session.id + "; Path=/; HttpOnly; SameSite=Strict; Max-Age=" + Math.floor(this.ttl / 1000));
+      candidates.push(session);
+      response.appendHeader("Set-Cookie", this.cookieName(session) + "=" + session.id + "; Path=/; HttpOnly; SameSite=Strict; Max-Age=" + Math.floor(this.ttl / 1000));
     }
-    requestSessions.set(request, { owner: this, session, expected, statusRead: request.method === "GET" && url.pathname === "/api/personal/status" });
+    requestSessions.set(request, { owner: this, session, candidates, expected, statusRead: request.method === "GET" && url.pathname === "/api/personal/status" });
     if (response && session && !url.pathname.startsWith("/api/personal/") && url.pathname !== "/account/callback") {
       const cancel = () => { if (!response.writableEnded) response.destroy(); };
       const cleanup = () => session.abort.signal.removeEventListener("abort", cancel);
@@ -131,9 +142,11 @@ export function handleWebSessionHttp(request: IncomingMessage, response: ServerR
 /** Socket authority retains the original session; expiry/revocation closes it and never adopts a successor. */
 export function webSocketAuthority(request: IncomingMessage, control: string, proof: unknown): { valid(): boolean; signal?: AbortSignal } | null {
   const context = requestSessions.get(request);
-  if (context?.expected === control && context.owner.accepts(context, proof)) {
-    if (request.headers.origin !== context.session!.origin) return null;
-    return { valid: () => context.owner.accepts(context, proof), signal: context.session!.abort.signal };
+  const session = context?.candidates.find(value => controlTokenMatches(value.proof, proof));
+  const selected = context && session ? { ...context, session } : null;
+  if (selected?.expected === control && selected.owner.accepts(selected, proof)) {
+    if (request.headers.origin !== selected.session.origin) return null;
+    return { valid: () => selected.owner.accepts(selected, proof), signal: selected.session.abort.signal };
   }
   if (request.headers.cookie?.includes(COOKIE_PREFIX) || request.headers["sec-fetch-site"] !== undefined || !controlTokenMatches(control, proof)) return null;
   return { valid: () => true };

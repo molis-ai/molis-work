@@ -408,7 +408,7 @@ interface PresentationObject {
 /** 平台按可信目录填上主人以后的样子，声明里没有 owner（A 段 §2.4 第 3 条）。 */
 type OwnedPresentationObject = PresentationObject & { readonly owner: string };
 
-// packages/contracts/src/platform/ui.ts：插件的一个贡献给别人的内容开的位置。原有两项不动，加三项可选的收法。
+// packages/contracts/src/platform/ui-slots.ts（由 ui.ts 转出）：插件的一个贡献给别人的内容开的位置。原有两项不动，加三项可选的收法。
 interface UiSlotDescriptor {
   slot_id: string;
   accepts: string[];               // 原有：嵌入插件自己画的 surface 的格式，如 "declarative-html"
@@ -556,7 +556,7 @@ interface SurfaceItem {
 - `status.field` 要是一个角色为 `status` 的字段；`when.status` 只能列 `status.map` 里的状态；`input_from` 只查字段键，输入键归目标动作的 schema，在点下去时查。
 - 声明里不收 `owner`、`mounts` 和别的未知字段。
 - `presentationValuesProblems`：问到以外的对象或字段、`forbidden`、`deleted` 还带值、同一个对象答两次、`stale` 没有 `read_at`，都算问题。`bind` 已经裁剪过，这一步给不走 `bind` 的主人（如沙箱插件）同样查。
-- `assertSurfaceDescription(value, candidates)` 返回 `{ description, dropped }`。形状或组的规矩不对就抛 `actions.output_invalid`，组合服务改用候选（IUI-05）。对象只在候选里有同一主体、主人、形态、状态、字段和合并对象时保留；操作只在那个候选有同一 `ref` 时保留，并用候选的预备输入和后果，值只决定挑哪些、哪个是 primary。一件东西至多一个 primary，同一个对象只放一次，plugin 组里只放这个插件的东西，`corrections_revision` 和候选的一样。丢掉的记进 `dropped`：对象，或对象加操作的 `ref`。
+- `assertSurfaceDescription(value, candidates)` 返回 `{ description, dropped }`。形状或组的规矩不对就抛 `actions.output_invalid`，组合服务改用候选（IUI-05）。值里的每一组要对上候选里 `kind` 和 `owner_plugin_id` 都相同的那一组，同一组只放一次，对不上就抛；组的 `state`、`read_at`、`excluded`、`hidden_above` 一律取那个候选组的，值里写的不算，组的规矩查在这些事实上，所以拿候选当值自查也查得出来。对象只留在和它的候选同 `kind`、同主人的组里，且候选有同一主体、主人、形态、状态、字段和合并对象；放进别的组（「等你」的 attention 组也一样）就照候选以外丢掉并记下。操作只在那个候选有同一 `ref` 时保留，并用候选的预备输入和后果。值能决定的只剩：组的先后、组里挑哪几件及其先后、操作挑哪些、哪个是 primary、`title`、`reason`（评审台 11-08 退回后补，统筹认可）。一件东西至多一个 primary，同一个对象只放一次，`corrections_revision` 和候选的一样；`composed_by`、`revision` 照值里的，显示出去的 `revision` 由组合服务按结果定（IUI-04，第 15 批 S-1）。丢掉的记进 `dropped`：对象，或对象加操作的 `ref`。
 
 `renderPresentationForm` 只给签名和取值规则，外观用组件板（`/__ui/catalog`）已有的控件拼，不另画（用户 11-04 的要求，#1772）。组件板没有的标「组件板新增」，由 D 轨先补成标本，再接进来：
 
@@ -599,7 +599,7 @@ SDK 只依赖 contracts，不依赖也不转出私有包。改 SDK 算动共享�
 | 片 | 内容 | 前置 |
 | --- | --- | --- |
 | C-1 资料与目录合同（**不碰 `packages/storage`，也不等 U1**：建表语句在 `modules/projects`，由 `apps/local-host/src/project-database-schema.ts` 汇进项目库基线；动表的部分不在这一片，见前置列） | `platform/project-materials.ts`；`modules/projects` 的 `ProjectDirectory`、`ProjectDirectories`（含 `source_links`）、`RunDirectories`，第 3 节的七个动作（`set_output`、`map_source` 的目标三选一）与 `materials.recent@1`、`materials.recent.record@1` 的声明；三个错误码；SDK 新的 `presentation` 子路径放 `assertMaterialRef`；api 快照（`contracts/modules/projects.txt`、新 `contracts/platform/project-materials.txt`、新 `plugin-sdk/presentation.txt`）。**只加不删**：现有动作、字段和端口都不动，不碰 `services/agent-host`。动作只声明、不登记，所以动作快照不变 | 不等 02 收尾（用户定放行，撞了就让路）：排在 #1837 之后入队，合入前补 4 处 `version: 1` 的 `@version` 标记和 `tooling/versions.json` 条目。`material_recent_uses` 表挪到实现片走 U1 升级段（用户 2026-11-06 定重建不等 C-1）；这一片只声明动作 |
-| C-2 呈现声明合同 | 一个 PR，和 C-3、第 05 批剩下的工作同一个（用户 2026-11-08 定）：状态环取值下沉（`platform/ui-state-rings.ts`，SDK `/ui` 从 contracts 取）、`platform/presentation.ts`、Manifest 的 `presentation` 字段、values 的类型与 define/bind、概况动作的定死 schema 与 define、SDK `/presentation` 的共用校验（第 7 节），`parsePluginManifest` 直接调 `validatePresentationDeclaration`，不设临时拒绝；api 快照。用 T4 文字工具的部分（文字引用全查、`presentationText`）单独一个提交。挂载位的收法加在 `platform/ui` 的 `UiSlotDescriptor` 上（`mounts` 并进 `slots`，统筹 11-08 定）。`renderPresentationForm` 和 SSC-14 移到第 15 批第 2 项（统筹 11-08 定），不在这一片 | 02 交接（已交）。T4 那个提交等第 14 批合入，统一合 main 时编译 |
+| C-2 呈现声明合同 | 一个 PR，和 C-3、第 05 批剩下的工作同一个（用户 2026-11-08 定）：状态环取值下沉（`platform/ui-state-rings.ts`，SDK `/ui` 从 contracts 取）、`platform/presentation.ts`、Manifest 的 `presentation` 字段、values 的类型与 define/bind、概况动作的定死 schema 与 define、SDK `/presentation` 的共用校验（第 7 节），`parsePluginManifest` 直接调 `validatePresentationDeclaration`，不设临时拒绝；api 快照。用 T4 文字工具的部分（文字引用全查、`presentationText`）单独一个提交。挂载位的收法加在 `platform/ui` 的 `UiSlotDescriptor` 上（`mounts` 并进 `slots`，统筹 11-08 定），这个类型连同注释搬进 `platform/ui-slots.ts`、由 `ui.ts` 转出，`ui.ts` 不过巨大单元的 800 行（评审台 11-08）。`renderPresentationForm` 和 SSC-14 移到第 15 批第 2 项（统筹 11-08 定），不在这一片 | 02 交接（已交）。T4 那个提交等第 14 批合入，统一合 main 时编译 |
 | C-3 组合服务合同 | `services/surface-composition.ts`、`SurfaceGroup`、`surfaces.compose@1`、`surfaces.correct@1` 的声明（只声明不登记，动作快照不变，`tooling/gates/version-exceptions.json` 两条例外由 S-1 登记时删）；context-ledger 的关系类型表（placement 的两种边改从表里取）——和 C-2 同一个 PR，`assertSurfaceDescription` 也在里面 | C-2；第 14 批 A 段的 `TextRef`（T1 已合入；`assertSurfaceDescription` 查词的那一步在 T4 那个提交） |
 | 实现 | 组合服务包（第 15 批）；`modules/projects` 的服务与界面接线（WMD 的实施切片），含 id 与路径脱钩、`outputDirectory`、登记 C-1 声明的动作；重写 `workspace-repository.ts` 的查询（`is_default` 换 `roles`）时，保留 `:22,57,69` 三处「回收的项目不算」的过滤（`project_recycle`，#1877 加的）；默认输出目录写在 `register` 里，升级段连回收的项目一起补（第 3 节）；第 3 节的路径到行、碰磁盘的调用方和永久删除；第 2 节的 `fingerprintWorkspaceFile` 和 `binary`、`unsupported` 带指纹（改 `WorkspaceFileResult`）；这一片不产出 `unmapped`；加读出处的动作之前先定第 2 节那几件并过评审；删除确认框多的一问和留下文件夹的提示是新状态，先定样；`goals.inputs.bind` 写指纹不在这一片；`RunDirectories` 随轮次视图和冻结轮次信息的字段加进 `services/agent-host`；收资料引用的地方都调 `assertMaterialRef`，它比 schema 严（查 `workspace_file` 的 id 落在目录内），只靠 schema 会放过 `ws1:../secret`；宿主的 `PROJECT_WORKSPACE_PROVIDER_ID`（`apps/local-host/src/project-workspace-actions.ts:7`）改成从合同取；同一次切换里删 `projects.settings.browsing-workspace.*` 和它的表、`projects.workspaces.add/repair/unlink`、`projects.workspace.read`、`is_default`、`preferredWorkspacePath`，改完所有读它们的地方（宿主的 `project-capabilities.ts`、`workspace-settings-events.ts` 和 Files、Git、Coding，第 4 节）；Git 显式带目录；Goals、Inbox、Coding 的第一片声明。Coding 的浏览与执行拆开归 B 轨，`assistant-executor.ts` 的部分归 A 轨。第 8 节的升级段在这一片写 | C-1～C-3 合入；升级段另等 U1 和四份门禁（U1 设计第 14 节）。**发布排序：合入早于首次外部安装**，否则外部用户也有第 3 节「脱钩之前建的目录行」那个缺口；这条依赖由统筹写进路线图依赖或发版清单，不只留在这里 |
 | 实现（指定文件夹） | 第 3 节「另一台设备上的引用」：`workspace_source_links` 和它的升级段、登记 `map_source`、`unmap_source`、`resolveWorkspaceFileSubject` 和四处读的地方、产出 `unmapped`（从这一片起，解析不出的不再显示「找不到位置」）、`goals.inputs.bind` 多 `read_revision`（动作快照跟着改）、界面（六个状态先定样） | 上一行的目录实现片合入（目录 id 脱钩和默认输出目录都在那一片）；定样；U1 和四份门禁 |
@@ -661,7 +661,7 @@ SDK 只依赖 contracts，不依赖也不转出私有包。改 SDK 算动共享�
 | SSC-07 | `surfaces.compose` 的确定组合不调模型，同样输入得到同样的 revision；描述里只有引用，值由主人现给 | IUI-04、IUI-09 |
 | SSC-08 | 描述里的每个操作都是已注册动作或通用操作；点下去时走动作网关，用当时的授权；撤权以后点击不写任何业务记录 | IUI-07、IUI-08 |
 | SSC-09 | 插件只在自己带 `accepts_forms` 的 slot 上出现别人的东西，按它的 `max`、`refuse_kinds` 收；没有这种 slot 的插件，什么都不放 | IUI-13；`mounts` 并进 `slots`（统筹 11-08 定）；由第 15 批 S-1 证明（SCS-05） |
-| SSC-10 | `assertSurfaceDescription` 丢掉候选以外的对象和操作并记下；不合格时退回确定组合 | IUI-05（第三片才用到） |
+| SSC-10 | `assertSurfaceDescription` 丢掉候选以外的对象和操作并记下，放进别的组的对象也算候选以外；组的状态、`read_at`、`excluded`、`hidden_above` 取候选的；不合格时退回确定组合 | IUI-05（第三片才用到） |
 | SSC-11 | 呈现声明里的 `attention` 只改色点和状态标签，不产生等你条目；等你列表只来自 attention-resumption | D 轨共审 2026-11-04 |
 | SSC-12 | 「最近用过」由引用发生处在提交成功后调 `materials.recent.record@1` 记，插件与平台同一个动作，读不了的引用不记；`materials.recent@1` 按调用方和项目读，最多 5 份显示，出处现读；给 plugin 受众时无权或不在的项连 `subject` 都不返回；被拒或取消的调用不记；每个调用方每个项目只留 20 份；没有授权的 plugin 调 `materials.recent@1` 时文件没有被打开；`record` 一次 10 个也不读内容 | WMD-01、WMD-05 |
 | SSC-13 | 主人读不到时 `PresentationValues` 给 `stale` 和 `read_at`，界面写「x 分钟前的值」，不当成当前值 | IUI-10 |

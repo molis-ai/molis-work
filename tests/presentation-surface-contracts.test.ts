@@ -230,6 +230,10 @@ const composeRequest = (slot: Record<string, unknown>) => ({ slot, subjects: [no
 const item = { subject: note, owner_plugin_id: "notes", form: "row", state: "ok", fields: [{ key: "title", role: "title" }],
   actions: [{ ref: "notes.publish@1", primary: true, prepared_input: { note_id: "id" }, consequence: ["external"] }, { ref: "open", primary: false }] };
 const description = (groups: unknown[]): SurfaceDescription => ({ composed_by: "rules", revision: "d1", corrections_revision: "0", groups } as SurfaceDescription);
+const otherNote = { ...item, subject: { kind: "note", id: "n2" }, actions: [{ ref: "open", primary: true }] };
+const todo = { ...item, subject: { kind: "todo", id: "t1" }, owner_plugin_id: "todo", actions: [] };
+const notesGroup = { kind: "plugin", owner_plugin_id: "notes", state: "ok", items: [item, otherNote] };
+const attentionGroup = { kind: "attention", state: "ok", items: [todo] };
 
 test("surfaces.compose@1: a plugin-slot names the plugin and its slot and no other place does; the first slice answers the person and plugins", async () => {
   const { compose, correct } = surfaceCompositionActions;
@@ -300,33 +304,29 @@ test("a group leaves out only disabled plugins: the person's description may say
 });
 
 test("SSC-10: the assistant's choice keeps only what the candidates have, records what it dropped, and shows the candidates when it is malformed", () => {
-  const other = { ...item, subject: { kind: "note", id: "n2" }, actions: [{ ref: "open", primary: true }] };
-  const todo = { ...item, subject: { kind: "todo", id: "t1" }, owner_plugin_id: "todo", actions: [] };
-  const candidates = description([{ kind: "plugin", owner_plugin_id: "notes", state: "ok", items: [item, other] }, { kind: "attention", state: "ok", items: [todo] }]);
+  const candidates = description([notesGroup, attentionGroup]);
   assert.deepEqual(assertSurfaceDescription(candidates, candidates), { description: candidates, dropped: [] });
   const chosen = { ...candidates, composed_by: "assistant", revision: "a1", reason: { owner: "workbench", key: "common.surface.reason" }, groups: [
-    { kind: "attention", state: "ok", items: [
-      // The assistant may pick, order and say which action leads; the prepared input and the consequences stay the candidate's.
+    // The assistant may order the groups, and pick and order the items of each among that group's candidates.
+    attentionGroup,
+    { ...notesGroup, items: [
+      // It may say which actions and which one leads; the prepared input and the consequences stay the candidate's.
       { ...item, actions: [{ ref: "notes.publish@1", primary: false, prepared_input: { note_id: "summary" } }, { ref: "notes.delete@1", primary: true }] },
       { ...item, subject: { kind: "note", id: "n9" } },
-      { ...other, form: "card" },
-      todo,
+      { ...otherNote, form: "card" },
     ] },
   ] };
   const checked = assertSurfaceDescription(chosen, candidates);
-  assert.deepEqual(checked.description, { ...chosen, groups: [{ kind: "attention", state: "ok", items: [{ ...item, actions: [{ ...item.actions[0], primary: false }] }, todo] }] });
+  assert.deepEqual(checked.description, { ...chosen, groups: [attentionGroup, { ...notesGroup, items: [{ ...item, actions: [{ ...item.actions[0], primary: false }] }] }] });
   assert.deepEqual(checked.dropped, [{ subject: note, action: "notes.delete@1" }, { subject: { kind: "note", id: "n9" } }, { subject: { kind: "note", id: "n2" } }]);
-  const group = { kind: "attention", state: "ok", items: [todo] };
   const malformed: ReadonlyArray<readonly [string, unknown]> = [
-    ["disabled outside a plugin group", { ...chosen, groups: [{ ...group, state: "disabled" }] }],
-    ["undeclared outside a plugin group", { ...chosen, groups: [{ ...group, state: "undeclared" }] }],
-    ["an owner on an attention group", { ...chosen, groups: [{ ...group, owner_plugin_id: "todo" }] }],
-    ["a plugin group without its owner", { ...chosen, groups: [{ ...group, kind: "plugin" }] }],
-    ["a plugin group holding another plugin's item", { ...chosen, groups: [{ ...group, kind: "plugin", owner_plugin_id: "notes" }] }],
-    ["stale without read_at", { ...chosen, groups: [{ ...group, state: "stale" }] }],
-    ["read_at on a group that is not stale", { ...chosen, groups: [{ ...group, read_at: "2026-11-08T09:00:00.000Z" }] }],
-    ["two primary actions", { ...chosen, groups: [{ ...group, items: [{ ...item, actions: item.actions.map(action => ({ ...action, primary: true })) }] }] }],
-    ["one object twice", { ...chosen, groups: [group, group] }],
+    ["a group the candidates do not have", { ...chosen, groups: [{ kind: "continue", state: "ok", items: [] }] }],
+    ["an owner on an attention group", { ...chosen, groups: [{ ...attentionGroup, owner_plugin_id: "todo" }] }],
+    ["a plugin group without its owner", { ...chosen, groups: [{ kind: "plugin", state: "ok", items: [] }] }],
+    ["another plugin's group", { ...chosen, groups: [{ ...notesGroup, owner_plugin_id: "todo", items: [] }] }],
+    ["one group twice", { ...chosen, groups: [attentionGroup, { ...attentionGroup, items: [] }] }],
+    ["two primary actions", { ...chosen, groups: [{ ...notesGroup, items: [{ ...item, actions: item.actions.map(action => ({ ...action, primary: true })) }] }] }],
+    ["one object twice", { ...chosen, groups: [{ ...attentionGroup, items: [todo, todo] }] }],
     ["another corrections revision", { ...chosen, corrections_revision: "7" }],
     ["a key outside the contract", { ...chosen, values: {} }],
   ];
@@ -341,8 +341,38 @@ test("SSC-10: the assistant's choice keeps only what the candidates have, record
     }
   };
   assert.equal(shown(malformed[0]?.[1]), candidates);
-  const stale = assertSurfaceDescription({ ...candidates, groups: [{ ...group, state: "stale", read_at: "2026-11-08T09:00:00.000Z" }] }, candidates);
-  assert.equal(stale.description.groups[0]?.read_at, "2026-11-08T09:00:00.000Z");
+});
+
+test("SSC-10 (IUI-05): a group's facts are the candidates'; the value's state, read_at, excluded and hidden_above do not take effect", () => {
+  const candidates = description([attentionGroup]);
+  const forged = { ...attentionGroup, state: "stale", read_at: "2026-11-08T09:00:00.000Z", excluded: [{ reason: "disabled", count: 3, owner_plugin_id: "todo" }],
+    hidden_above: { count: 9, label: { owner: "workbench", key: "common.surface.hidden-above" } } };
+  assert.deepEqual(assertSurfaceDescription({ ...candidates, groups: [forged] }, candidates).description.groups, [attentionGroup], "the assistant cannot say a value is old, or that something was left out");
+  const held = description([{ ...attentionGroup, state: "stale", read_at: "2026-11-08T09:00:00.000Z", excluded: [{ reason: "disabled" }],
+    hidden_above: { count: 2, label: { owner: "workbench", key: "common.surface.hidden-above" } } }]);
+  assert.deepEqual(assertSurfaceDescription({ ...held, groups: [attentionGroup] }, held).description.groups, held.groups, "nor leave out what the service says");
+  // The group rules hold on the candidates themselves, so the service's self-check (the candidates as the value) refuses a misplaced state.
+  const wrong: ReadonlyArray<readonly [string, unknown]> = [
+    ["disabled outside a plugin group", { ...attentionGroup, state: "disabled" }],
+    ["undeclared outside a plugin group", { ...attentionGroup, state: "undeclared" }],
+    ["an owner on an attention group", { ...attentionGroup, owner_plugin_id: "todo" }],
+    ["a plugin group without its owner", { ...attentionGroup, kind: "plugin" }],
+    ["a plugin group holding another plugin's item", { ...attentionGroup, kind: "plugin", owner_plugin_id: "notes" }],
+    ["stale without read_at", { ...attentionGroup, state: "stale" }],
+    ["read_at on a group that is not stale", { ...attentionGroup, read_at: "2026-11-08T09:00:00.000Z" }],
+  ];
+  for (const [what, group] of wrong) {
+    const composed = description([group]);
+    assert.throws(() => assertSurfaceDescription(composed, composed), code("actions.output_invalid"), what);
+  }
+});
+
+test("SSC-10 (IUI-05): an object stays only in the group its candidate is in; put in another, the attention group among them, it is dropped and recorded", () => {
+  const candidates = description([notesGroup, attentionGroup]);
+  const checked = assertSurfaceDescription({ ...candidates, groups: [{ ...attentionGroup, items: [item] }, { ...notesGroup, items: [todo, otherNote] }] }, candidates);
+  assert.deepEqual(checked.description.groups, [{ ...attentionGroup, items: [] }, { ...notesGroup, items: [otherNote] }],
+    "a note is not waiting for you because the assistant put it there, and Notes' group holds only Notes' things");
+  assert.deepEqual(checked.dropped, [{ subject: note }, { subject: todo.subject }]);
 });
 
 test("surfaces.correct@1 commits from the corrections revision: a form, a removal or a pin, each with exactly what it needs, and only the person corrects", async () => {

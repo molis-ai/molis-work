@@ -86,6 +86,7 @@ const subjectKey = (subject: { readonly kind: string; readonly id: string }) => 
  * values on an object the caller may not read or that is gone, and a `stale` item without `read_at` (SSC-13), which a page would then show
  * as current. `bindPresentationValuesHandler` already trims what an owner gives; the composition service and a page reading values run this
  * on every answer, from any owner alike, and show an item with a problem as unreadable. Each problem names the item by its position only.
+ * An object asked for and not answered is no problem here, as there is no item to name: the page shows a missing object as unreadable too.
  */
 export function presentationValuesProblems(input: PresentationValuesInput, values: PresentationValues): string[] {
   const asked = new Set(input.subjects.map(subjectKey));

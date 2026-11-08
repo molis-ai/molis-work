@@ -209,6 +209,11 @@ export const TAB_WORKSPACE_STYLES = `
   /* 独看 on the right side: the side takes the stage, the main area and the divider step aside, kept. */
   body[data-side-solo] #side-panel { inset: var(--desktop-titlebar-height, 32px) var(--sheet-inset, 14px) var(--dock-h, 48px); width: auto; height: auto; }
   body[data-side-solo] :is([data-plugin-stage], .side-panel-divider) { visibility: hidden; }
+  /* 601–760: the right side's strip is the title bar's second row (side-panel.ts), so 独看 starts below it, where the side's
+     sheet does: the strip row's 8px gap, 4px block padding and 8px of air, the sheet's 8px sides and its 8px over the Dock. */
+  @media (min-width: 601px) and (max-width: 760px) {
+    body[data-side-solo] #side-panel { inset: calc(var(--desktop-titlebar-height) + var(--tab-strip-h) + 20px) 8px calc(var(--dock-h, 48px) + 8px); }
+  }
   @media (max-width: 760px) {
     body.immersive-workbench .tab-workspace-panes > .tab-content-frame:not(.is-focused) { display: none; }
     body.immersive-workbench .tab-workspace-panes > .tab-content-frame.is-focused { left: 0 !important; top: var(--pane-strip-height) !important; width: 100% !important; height: calc(100% - var(--pane-strip-height)) !important; }

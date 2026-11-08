@@ -3,6 +3,7 @@ import { PRESENTATION_LIMITS } from "@molis-ai/molis-work-contracts/platform/pre
 import type { OwnedTextRef } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { SurfaceDescription, SurfaceExclusion, SurfaceGroup, SurfaceItem, SurfaceItemAction } from "@molis-ai/molis-work-contracts/services/surface-composition";
 import { canonicalJsonText, isRecord } from "./json-value.js";
+import { textRefProblems } from "./ui/text-ref.js";
 
 // The check of a composed surface against its candidates (specs/shared-sources-and-surfaces §6, §7; SSC-10, IUI-05). The composition
 // service runs it on the assistant's choice before showing it, and a plugin runs it in its tests on what is put on its page. The candidates
@@ -37,9 +38,9 @@ function count(value: unknown, part: string): number {
   if (!Number.isSafeInteger(value) || (value as number) < 1) throw malformed(part);
   return value as number;
 }
-/** A word on the surface, bound to its owner by the service. Only its shape is looked at here; the text tools of `/ui` check it in full. */
+/** A word on the surface, bound to its owner by the service: it has an `owner` unless it is a `literal` (a-section §2.3, `owned: true`). */
 function ownedText(value: unknown, part: string): OwnedTextRef {
-  if (!isRecord(value)) throw malformed(part);
+  if (!isRecord(value) || textRefProblems(value, { owned: true }).length > 0) throw malformed(part);
   return value as OwnedTextRef;
 }
 function isSubject(value: unknown): value is ActionSubject {

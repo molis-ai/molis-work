@@ -3,22 +3,23 @@ import test from "node:test";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { definePresentationOverviewAction, definePresentationValuesAction, bindPresentationValuesHandler, inspectActionDeclarations, isPresentationValuesAction,
   parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
-import { assertSurfaceDescription, presentationCatalog, presentationFormFields, presentationOverviewProblems, presentationValuesProblems,
+import { assertSurfaceDescription, presentationCatalog, presentationFormFields, presentationOverviewProblems, presentationText, presentationValuesProblems,
   validatePresentationDeclaration } from "@molis-ai/molis-work-plugin-sdk/presentation";
+import { installTextForTest, say } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { ActionError, defineSearchEntriesAction, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { CONTEXT_RELATION_TYPES } from "@molis-ai/molis-work-contracts/modules/context-ledger";
-import { PRESENTATION_OVERVIEW_INPUT_SCHEMA, PRESENTATION_OVERVIEW_OUTPUT_SCHEMA, PRESENTATION_LIMITS, type PresentationObject, type PresentationValues }
-  from "@molis-ai/molis-work-contracts/platform/presentation";
+import { PRESENTATION_OVERVIEW_INPUT_SCHEMA, PRESENTATION_OVERVIEW_OUTPUT_SCHEMA, PRESENTATION_LIMITS, type OwnedPresentationObject, type PresentationObject,
+  type PresentationValueItem, type PresentationValues } from "@molis-ai/molis-work-contracts/platform/presentation";
 import { SURFACES_PROVIDER_ID, surfaceCompositionActions, type SurfaceDescription } from "@molis-ai/molis-work-contracts/services/surface-composition";
-import { declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
+import { DECLARATION_PLUGIN_ID, declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
 
 // specs/shared-sources-and-surfaces §5–§7 (C-2, C-3): the contracts and the SDK's shared checks. Nothing registers these actions in the
 // product yet, so the providers here are stand-ins answering what each test gives them; the refusals are the Kernel's schema checks and
 // the SDK's own. Proven here: SSC-06 (a wrong declaration is refused at install, saying which item), SSC-10 (the assistant's choice is held
 // to its candidates), SSC-13 (a stale value says when it was read, by schema and by the shared check), SSC-18 (the overview action's
 // schemas, its declared starts and the starts it returns), and the contract half of SSC-07 (a description holds references, never values).
-// What a person reads (`label`, `note`, a surface's words) is checked in shape only until batch 14's text tools are in. Moved to batch 15
-// item 2: SSC-14 (`renderPresentationForm`). Left to batch 15 S-1: SSC-07's determinism, SSC-08, SSC-09, SSC-11 and SSC-19 (SCS-01,
+// What a person reads (`label`, `note`, a surface's words) is checked with batch 14's text tools, and `presentationText` writes the text form.
+// Moved to batch 15 item 2: SSC-14 (`renderPresentationForm`). Left to batch 15 S-1: SSC-07's determinism, SSC-08, SSC-09, SSC-11 and SSC-19 (SCS-01,
 // SCS-03, SCS-05, SCS-07).
 const context = (audience: ActionCallContext["audience"]): ActionCallContext => ({ actor_id: `${audience}:someone`, project_id: "p", audience, permissions: [] });
 const code = (expected: string) => (error: unknown) => (error as ActionError).code === expected;
@@ -208,6 +209,54 @@ test("SSC-13 (code half): an answer whose stale item has no read_at, or that say
     { subject: note, revision: "r1", state: "ok", values: { title: "周报", body: "正文" } },
     { subject: { kind: "note", id: "n9" }, revision: "r9", state: "ok" },
   ] }), ["items[0] 是 stale，要写 read_at", "items[1] 是 deleted，只能给状态", "items[2] 重复回答了同一个对象", "items[2] 给了没有问到的字段", "items[3] 不是问到的对象"]);
+});
+
+// What a person reads, checked with batch 14's text tools (a-section §2.3, §2.4). These need T4's `/ui` (`textRefProblems`,
+// `tryOwnedTextRef`, `say`, `installTextForTest`): they compile once batch 14 is in.
+const owned = (ref: unknown) => withObject({ fields: [{ key: "title", role: "title", label: ref }, ...noteObject.fields.slice(1)] });
+
+test("SSC-06 (words): a label or note is a key of the plugin's own words or common., never a literal; a wrong one is refused saying where", () => {
+  assert.equal(presenting(owned({ key: "common.title" })), "");
+  assert.match(presenting(owned({ literal: "标题" })), /^presentation\.objects\[0\]\.fields\[0\]\.label：/u);
+  assert.match(presenting(owned({ key: "declaration-rules.note.title", literal: "标题" })), /^presentation\.objects\[0\]\.fields\[0\]\.label：/u);
+  assert.equal(presenting(owned({ key: "goals.note.title" })), "presentation.objects[0].fields[0].label 的键要用本插件自己的文字前缀，或平台共有的 common.");
+  assert.match(presenting(withOverview({ note: { literal: "同步来的资料不算你接下的工作" } })), /^presentation\.overview\.note：/u);
+  assert.equal(presenting(withOverview({ note: { key: "feed.overview.note" } })), "presentation.overview.note 的键要用本插件自己的文字前缀，或平台共有的 common.");
+});
+
+test("SSC-10 (words): every word on a composed surface is bound to its owner, or the choice is malformed and the candidates are shown", () => {
+  const candidates = description([{ kind: "attention", state: "ok", items: [] }]);
+  const group = { kind: "attention", state: "ok", items: [] };
+  for (const [what, value] of [
+    ["a title without its owner", { ...candidates, groups: [{ ...group, title: { key: "notes.surface.title" } }] }],
+    ["a reason with both a key and a literal", { ...candidates, reason: { owner: "notes", key: "notes.surface.why", literal: "因为" } }],
+  ] as const) assert.throws(() => assertSurfaceDescription(value, candidates), code("actions.output_invalid"), what);
+  // The hidden-above label is the candidates' (the value's does not count), so it is checked there: the service's self-check refuses one without its owner.
+  const unbound = description([{ ...group, hidden_above: { count: 2, label: { key: "common.surface.hidden-above" } } }]);
+  assert.throws(() => assertSurfaceDescription(unbound, unbound), code("actions.output_invalid"), "a hidden-above label without its owner");
+  assert.deepEqual(assertSurfaceDescription({ ...candidates, reason: { literal: "按你上次的调整排" } }, candidates).description.reason, { literal: "按你上次的调整排" });
+});
+
+test("presentationText: one line per text line from the owner's values, its words bound to the owner without throwing; stale values say so", () => {
+  const messages = { "declaration-rules.note.title": "标题", "declaration-rules.note.edited": "改了正文", "declaration-rules.note.kept": "留着" };
+  const revoke = installTextForTest({ locale: "zh-CN", packs: [{ format_version: 1, owner: DECLARATION_PLUGIN_ID, locale: "zh-CN", messages }] });
+  try {
+    const object: OwnedPresentationObject = { ...noteObject, owner: DECLARATION_PLUGIN_ID,
+      fields: [...noteObject.fields, { key: "activity", role: "activity" }, { key: "call", role: "judgment" }] as OwnedPresentationObject["fields"],
+      text: { lines: ["title", "state", "activity", "call", "summary"] } } as OwnedPresentationObject;
+    const values = { title: "周报", state: "draft", activity: { key: "declaration-rules.note.edited" }, call: { label: { key: "declaration-rules.note.kept" }, reason: { literal: "下周还要用" } } };
+    const item: PresentationValueItem = { subject: note, revision: "r1", state: "ok", values };
+    assert.equal(presentationText(object, item, "zh-CN"), "标题：周报\ndraft\n改了正文\n留着（下周还要用）");
+    const unavailable = say.text({ owner: "workbench", key: "common.text.unavailable" }, { locale: "zh-CN" });
+    const forged = presentationText(object, { ...item, values: { ...values, activity: { key: "goals.note.edited" } } }, "zh-CN");
+    assert.equal(forged.split("\n")[2], unavailable, "a word under another owner's prefix shows as unavailable, never as that owner's");
+    const stale = presentationText(object, { ...item, state: "stale", read_at: "2026-11-08T09:00:00.000Z" }, "zh-CN").split("\n");
+    assert.deepEqual([stale.length, stale.slice(1)], [5, ["标题：周报", "draft", "改了正文", "留着（下周还要用）"]]);
+    assert.equal(presentationText(object, { subject: note, revision: "r1", state: "forbidden" }, null), "");
+    assert.equal(presentationText(object, { subject: note, revision: "r1", state: "deleted" }, null), "");
+  } finally {
+    revoke();
+  }
 });
 
 test("a form the object does not declare steps down to the next simpler one it does; with none left the platform draws its fallback", () => {

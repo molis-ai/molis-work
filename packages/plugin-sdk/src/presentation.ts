@@ -1,8 +1,12 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { parseWorkspaceFileSubjectId, WORKSPACE_FILE_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { MATERIAL_REF_LIMITS, type MaterialRef } from "@molis-ai/molis-work-contracts/platform/project-materials";
-import { PRESENTATION_FORM_KINDS, type FormKind, type PresentationObject, type PresentationOverview, type PresentationOverviewDeclaration,
-  type PresentationValues, type PresentationValuesInput } from "@molis-ai/molis-work-contracts/platform/presentation";
+import { PRESENTATION_FORM_KINDS, type FieldRole, type FormKind, type OwnedPresentationObject, type PresentationObject, type PresentationOverview,
+  type PresentationOverviewDeclaration, type PresentationValueItem, type PresentationValues, type PresentationValuesInput } from "@molis-ai/molis-work-contracts/platform/presentation";
+import type { OwnedTextRef, TextRef } from "@molis-ai/molis-work-contracts/platform/ui";
+import { isRecord } from "./json-value.js";
+import { say } from "./ui/text.js";
+import { tryOwnedTextRef } from "./ui/text-ref.js";
 
 export { presentationCatalog, validatePresentationDeclaration, type PresentationCatalog,
   type PresentationCatalogAnswer } from "./presentation-declaration.js";
@@ -117,4 +121,37 @@ export function presentationOverviewProblems(declaration: PresentationOverviewDe
     seen.add(key);
     return problem ? [problem] : [];
   });
+}
+
+/** What a word the owner cannot have written shows as: the platform's own, never the key (a-section §2.3). */
+const UNAVAILABLE: OwnedTextRef = { owner: "workbench", key: "common.text.unavailable" };
+/** The mark on values the owner could not read now, so they are never read as current (IUI-10). The key is the workbench's. */
+const staleMark = (at: string): OwnedTextRef =>
+  ({ owner: "workbench", key: "common.presentation.stale", args: [{ name: "at", kind: "date", at, style: "relative" }], fallback: "以下是之前读到的值" });
+
+function valueText(role: FieldRole, value: unknown, words: (ref: unknown) => string): string | null {
+  if (role === "activity") return value === undefined || value === null ? null : words(value);
+  if (role === "judgment") return isRecord(value) ? `${words(value.label)}${value.reason === undefined ? "" : `（${words(value.reason)}）`}` : null;
+  if (typeof value === "string") return value;
+  return typeof value === "number" || typeof value === "boolean" ? String(value) : null;
+}
+
+/**
+ * The text form of one object for an external Agent, a terminal or a notification (IUI §4.5): one line per key of its `text.lines`, written
+ * `label：value` from the same values the drawn forms read, after a line saying when they were read if the owner gave them `stale`. A word
+ * in the values (`activity`, `judgment`) is bound to the object's owner without throwing, so one under another owner's prefix or of a wrong
+ * shape shows as unavailable (a-section §2.3); a field with no value is left out. `locale: null` asks for the owner's default language
+ * (a-section §5.2). A `forbidden` or `deleted` object has no text: what to say instead is the caller's. Plain text, unescaped: never
+ * interpolate it into HTML.
+ */
+export function presentationText(object: OwnedPresentationObject, item: PresentationValueItem, locale: string | null): string {
+  if (item.state === "forbidden" || item.state === "deleted") return "";
+  const words = (ref: unknown) => say.text((isRecord(ref) ? tryOwnedTextRef(ref as TextRef, object.owner) : null) ?? UNAVAILABLE, { locale });
+  const lines = (object.text?.lines ?? []).flatMap(key => {
+    const field = object.fields.find(entry => entry.key === key);
+    const shown = field ? valueText(field.role, item.values?.[key], words) : null;
+    if (!field || shown === null) return [];
+    return [field.label ? `${words(field.label)}：${shown}` : shown];
+  });
+  return [...(item.state === "stale" && item.read_at ? [say.text(staleMark(item.read_at), { locale })] : []), ...lines].join("\n");
 }

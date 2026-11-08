@@ -82,8 +82,8 @@ const pages: Record<string, Draw> = {
 // Its 66 normalized draws first matched every original hash. Only the personal-account button's disabled attribute
 // and unavailable title were replaced by the enabled Sign in / 登录 entry. All other markup and JSON stayed fixed;
 // each candidate draw matched that derived expectation byte for byte, without candidate RECORD mode.
-// Work #1846 after #1877: for 16 whole-page records, removing only the new unified account button from
-// each normalized candidate page reproduces the corresponding main 10322f83b hash and length.
+// Work #1846 after #1952: removing only the unified account button from the 16 normalized whole pages
+// reproduces their main ad25b414e hashes and lengths. The other 50 records match without changes.
 // PR #1877: all 66 original hashes were first reproduced by independently built main b1e0e5b6.
 // The 26 changed records were derived from those pages by only the reviewed personal-shell additions:
 // sync indicator/settings links, active account label/local-space status, and the observed project-name attribute

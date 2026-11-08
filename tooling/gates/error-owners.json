@@ -13,7 +13,10 @@
     "account": {
       "paths": [
         "horizontal/account/",
-        "apps/local-host/src/account-*"
+        "apps/local-host/src/account-auth-http.ts",
+        "apps/local-host/src/account-callback-http.ts",
+        "apps/local-host/src/account-host.ts",
+        "apps/local-host/src/account-session-storage.ts"
       ],
       "reason": "The central account client and its trusted Host protocol map Auth failures to the account owner without exposing credentials."
     },

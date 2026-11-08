@@ -42,7 +42,7 @@ test('ASR-02/03/06 shipped stdio and CLI explicitly connect current A/B/A while 
  const login=async(name:string)=>{
   const current=await json('/api/personal/status?page=process-page');let prepared='';
   if(current.identity){const start=await json('/api/personal/prepare?action=start&page=process-page&intent=switch',{});assert.equal((await json('/api/personal/prepare?action=ack&page=process-page&id='+start.id,{})).ready,true);prepared='&page=process-page&preparation='+start.id;}
-  user=name;await json('/api/personal/'+(current.identity?'switch':'login')+'?returnTo=%2F'+prepared,{});assert.equal((await request('/account/callback?code=synthetic&state='+state)).status,303);token=(await json('/api/personal/status')).viewToken;
+  user=name;await json('/api/personal/'+(current.identity?'switch':'login')+'?returnTo=%2F'+prepared,{});assert.equal((await request('/account/callback?code=synthetic&state='+state)).status,303);token=readFileSync(join(home,'spaces',(await json('/api/spaces')).current.spaceId,'config/web-control-token'),'utf8').trim();
  };
  changeMcpClientCredential(home,"runtime:codex","connect");changeMcpClientCredential(home,"runtime:account-process-test","connect");
  const peers:Client[]=[];

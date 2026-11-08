@@ -37,13 +37,13 @@ export async function installedAccountAuth(root: string, origin: string) {
       const completed = await fetch(callback, { redirect: "manual" }); assert.equal(completed.status, 303, await completed.clone().text());
       const status = await request("/api/personal/status?attempt=" + encodeURIComponent(login.loginAttempt));
       assert.equal(status.status, 200);
-      const account = await status.json() as { identity: { userId: string } | null; ready: boolean; viewToken: string };
+      const account = await status.json() as { identity: { userId: string } | null; ready: boolean; viewScope: string };
       assert.equal(account.identity?.userId, "local-personal-trial-user"); assert.equal(account.ready, true);
-      assert.equal(typeof account.viewToken, "string");
+      assert.equal(typeof account.viewScope, "string");
       const spaces = await request("/api/spaces"); assert.equal(spaces.status, 200);
       const { current } = await spaces.json() as { current: { kind: string; spaceId: string; ownerUserId: string } };
       assert.equal(current.kind, "personal"); assert.equal(current.ownerUserId, account.identity?.userId);
-      return { request, proof, token: account.viewToken, home: join(home, "spaces", current.spaceId) };
+      return { request, proof, token: (await readFile(join(home, "spaces", current.spaceId, "config/web-control-token"), "utf8")).trim(), home: join(home, "spaces", current.spaceId) };
     },
   };
 }

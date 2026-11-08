@@ -144,7 +144,7 @@ test('ASR-02/03 real Web routing isolates A/B, retains root data behind login, r
   const login=async(name:string)=>{
     const prepared=await prepare('switch');user=name;assert.equal((await post('/api/personal/'+(prepared?'switch':'login')+'?returnTo=%2F'+prepared)).status,200);
     assert.equal((await request('/account/callback?code=synthetic&state='+transaction.state,{redirect:'manual'})).status,303);
-    const state=await(await request('/api/personal/status')).json();token=state.viewToken;
+    const state=await(await request('/api/personal/status')).json();token=readFileSync(join(home,"spaces",personalStorageSpace(remote,state.identity.applicationId,state.identity.userId).spaceId,"config/web-control-token"),"utf8").trim();
   };
   try {
     assert.equal((await request('/api/settings/projects')).status,401,'an installation without an account never opens root business data');
@@ -154,7 +154,7 @@ test('ASR-02/03 real Web routing isolates A/B, retains root data behind login, r
     assert.equal((await post('/api/personal/space?kind=team')).status,400);
     assert.equal((await post('/api/personal/space?kind=personal&userId=bob')).status,200);
     const a=(await scopes()).current;assert.equal(a.ownerUserId,'alice');assert.equal(a.kind,'personal');
-    token=(await(await request('/api/personal/status')).json()).viewToken;
+    token=readFileSync(join(home,'spaces',a.spaceId,'config/web-control-token'),'utf8').trim();
     const aToken=token;
     assert.notEqual(token,rootToken);
     assert.notEqual((await request('/projects/'+localProject.project_id)).status,200);

@@ -1,10 +1,10 @@
+import { webSocketAuthority } from "../web-sessions.js";
 import type http from "node:http";
 import type { IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
 import { WebSocketServer, type WebSocket } from "ws";
 import { COMPUTER_SOCKET_PATH, type ComputerClientMessage, type ComputerServerMessage } from "@molis-ai/molis-work-contracts/services/computer";
 import { loopbackHost } from "@molis-ai/molis-work-contracts/platform/loopback";
-import { controlTokenMatches } from "../web-control-token.js";
 import type { ComputerDesk } from "./computer-desk.js";
 
 /**
@@ -30,8 +30,17 @@ export function attachMolisWorkComputerSocket(server: http.Server, controlToken:
     wss.handleUpgrade(request, socket, head, ws => wss.emit("connection", ws, request));
   });
 
-  wss.on("connection", (ws: WebSocket) => {
+  wss.on("connection", (ws: WebSocket, request: IncomingMessage) => {
     let authed = false;
+    let authority: ReturnType<typeof webSocketAuthority>;
+    const bindAuthority = (proof: unknown) => {
+      authority = webSocketAuthority(request, controlToken, proof);
+      if (!authority) return false;
+      const close = () => ws.close();
+      authority.signal?.addEventListener("abort", close, { once: true });
+      ws.once("close", () => authority?.signal?.removeEventListener("abort", close));
+      return authority.valid();
+    };
     let visible = true;
     let offState: (() => void) | null = null;
     let offFrame: (() => void) | null = null;
@@ -40,10 +49,11 @@ export function attachMolisWorkComputerSocket(server: http.Server, controlToken:
     const detach = () => { offState?.(); offFrame?.(); offState = offFrame = null; };
 
     ws.on("message", (raw: Buffer) => {
+      if (authority && !authority.valid()) { ws.close(); return; }
       let message: ComputerClientMessage;
       try { message = JSON.parse(raw.toString("utf8")) as ComputerClientMessage; } catch { return; }
       if (!authed) {
-        if (message.type !== "auth" || !controlTokenMatches(controlToken, message.token)) { send(ws, { type: "error", message: "电脑通道校验失败" }); ws.close(); return; }
+        if (message.type !== "auth" || !bindAuthority(message.token)) { send(ws, { type: "error", message: "电脑通道校验失败" }); ws.close(); return; }
         authed = true;
         const current = desk();
         if (!current) { send(ws, { type: "error", message: "这个进程没有电脑助手" }); ws.close(); return; }

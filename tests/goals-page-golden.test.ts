@@ -105,9 +105,13 @@ const pages: Record<string, Draw> = {
 // switcher emptied here (this view has no Host directory, so no plugin carries the Host's personal and home marks that 个人 now reads;
 // 灵光, 待办, Jelly and Cognia list under 更多). No Goals markup or JSON changed; the 16 were then recorded with
 // MOLIS_WORK_GOLDEN_RECORD=1. The other 50 records did not change.
+// D0038: independently built main cee9bb122 reproduced all 66 original hashes. The 34 changed expectations were
+// derived only by renaming the complete meta name molis-work-control-token to molis-work-page-session in those draws.
+// Candidate normalized markup matched each derived page byte for byte; the other 32 records remained exact.
+// Candidate RECORD mode was not used; executable scripts remain covered by the existing page-asset checks.
 // Batch 05 (#1979, shared sources and surfaces): the shell's project settings section 工作目录 / its English is now 输入与输出 / its English
 // (the directory row and settings link), and the shell's project-delete dialog carries the default-output choice, the busy alert and the
-// kept-folder view. All 66 pages were drawn on an independently built main cee9bb1229 (each matched its record there) and on this branch,
+// kept-folder view. All 66 pages were drawn on an independently built main 481e3d7500 (with D0038) (each matched its record there) and on this branch merged with it,
 // and compared token by token: the 20 records of the 8 project pages and settings-general(-embedded) differ in the label and the dialog,
 // the other 10 (5 settings and planning pages) in the label alone; no Goals markup or JSON changed. The 30 were then recorded with
 // MOLIS_WORK_GOLDEN_RECORD=1. The other 36 records did not change.

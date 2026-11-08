@@ -856,7 +856,9 @@ test("panel APIs and the TUI pane work without a desktop shell marker", async ()
     assert.doesNotMatch(indexHtml, /class="tui-pane"|pty-client\.js/);
 
     const desktopIndex = await webFetch(`${origin}/?desktop=1`);
-    assert.equal(desktopIndex.headers.get("set-cookie"), null);
+    // WAS-01/WAS-06: desktop=1 changes presentation; the only new cookie is the ordinary HttpOnly transport session.
+    assert.match(desktopIndex.headers.get("set-cookie") ?? "", /^molis-work-web-[a-f0-9]+-[a-f0-9]+-[A-Za-z0-9_-]{43}=[A-Za-z0-9_-]+; Path=\/; HttpOnly; SameSite=Strict;/);
+    assert.doesNotMatch(desktopIndex.headers.get("set-cookie") ?? "", /native|desktop/);
     const desktopIndexHtml = await desktopIndex.text();
     assert.match(desktopIndexHtml, /class="arrival-page immersive-workbench"/);
     assert.match(desktopIndexHtml, new RegExp(`href="${prefix}/\\?desktop=1"`));
@@ -869,7 +871,8 @@ test("panel APIs and the TUI pane work without a desktop shell marker", async ()
     assert.match(cookiePage, /添加终端/);
     assert.match(cookiePage, /data-desktop-shell="true"/);
     assert.doesNotMatch(cookiePage, /data-native-desktop="true"|class="navigator-project-meta"/);
-    assert.equal(cookieResponse.headers.get("set-cookie"), null);
+    assert.match(cookieResponse.headers.get("set-cookie") ?? "", /^molis-work-web-[a-f0-9]+-[a-f0-9]+-[A-Za-z0-9_-]{43}=[A-Za-z0-9_-]+; Path=\/; HttpOnly; SameSite=Strict;/);
+    assert.doesNotMatch(cookieResponse.headers.get("set-cookie") ?? "", /native|desktop/);
 
     const queryPage = await (await webFetch(`${origin}${prefix}/goals/TUI-GOAL?desktop=1`)).text();
     assert.match(queryPage, /data-tui-pane/);

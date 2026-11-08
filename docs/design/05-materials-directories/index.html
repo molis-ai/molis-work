@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>目录定样 · Molis Work 原型</title>
+  <!-- [原型] errors are kept for ./shots.mjs to report -->
+  <script>window.protoErrors = []; addEventListener("error", (event) => window.protoErrors.push(String(event.message)));</script>
+  <!-- The component board's kit (../kit/kit.js: theme bootstrap and renderers) and what ./export.mjs takes from the product build
+       (./dist/, run it first): the board's stylesheet, icons and client script of this build, the settings page's own sheet for
+       group A (switched on with the group, as the product switches sheets with the page), the product's markup of that page,
+       and the board renderers the kit does not carry. -->
+  <script src="../kit/kit.js"></script>
+  <link rel="stylesheet" href="dist/board.css">
+  <link rel="stylesheet" href="dist/settings.css" id="css-settings" disabled>
+  <link rel="stylesheet" href="proto.css">
+</head>
+<body class="proto-on">
+  <div id="icons" hidden></div>
+  <div class="proto" role="region" aria-label="原型控制（不是产品界面）">
+    <b id="p-title"></b>
+    <label><span id="p-group"></span>
+      <span class="mw-toggle-group" data-slot="toggle-group" role="group" id="group"><button type="button" class="mw-toggle" data-group="a"></button><button type="button" class="mw-toggle" data-group="b"></button></span>
+    </label>
+    <label><span id="p-option"></span><span class="mw-toggle-group" data-slot="toggle-group" role="group" id="option"></span></label>
+    <label><span id="p-state"></span><select class="mw-select" data-slot="select" id="state"></select></label>
+    <label><span id="p-data"></span><select class="mw-select" data-slot="select" id="data"></select></label>
+    <label><span id="p-lang"></span>
+      <span class="mw-toggle-group" data-slot="toggle-group" role="group" id="lang"><button type="button" class="mw-toggle" data-lang="zh">中</button><button type="button" class="mw-toggle" data-lang="en">EN</button></span>
+    </label>
+    <label><span id="p-theme"></span>
+      <span class="mw-toggle-group" data-slot="toggle-group" role="group" id="theme"><button type="button" class="mw-toggle" data-theme-set="light"></button><button type="button" class="mw-toggle" data-theme-set="dark"></button></span>
+    </label>
+    <button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-slot="button" id="reset"><span data-slot="button-label"></span></button>
+  </div>
+  <p class="proto-note" id="note" role="note"></p>
+  <div id="app"></div>
+  <script src="dist/settings.js"></script>
+  <script src="dist/parts.js"></script>
+  <script>
+    document.getElementById("icons").innerHTML = window.mw05Sprite || window.mwKitSprite;
+    const client = document.createElement("script");
+    client.textContent = window.mw05Client || window.mwKitClient;
+    document.body.appendChild(client);
+  </script>
+  <script src="proto.js"></script>
+  <script src="delete.js"></script>
+  <script src="folders.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -162,7 +162,8 @@ export interface PluginDatabaseDeclaration {
    * kept and the plugin stops.
    *
    * 2026-10-18 改: for now only a plugin of the Host's own build may declare steps. An installed plugin whose Manifest has `upgrades`
-   * is refused at install (`plugin.upgrade_steps_unsupported`), until U4 lets installed plugins upgrade their tables too (user 2026-11-06).
+   * is refused at install and at a version change (`plugin.upgrade_steps_unsupported`), until U4 lets installed plugins upgrade their
+   * tables too (user 2026-11-06).
    */
   readonly upgrades?: readonly PluginDatabaseUpgradeStep[];
 }

@@ -23,6 +23,7 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 import { parseStoreSchemas, SCHEMA_COLUMNS, SCHEMAS_FILE } from "./store-schemas.mjs";
+import { isMainScript } from "../script-paths.mjs";
 
 const repository = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const HEADER = [
@@ -93,7 +94,7 @@ export function snapshotDifferences(text, rows) {
   return problems;
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMainScript(import.meta.url)) {
   const file = path.join(repository, SCHEMAS_FILE), rows = await productRows();
   if (process.argv.includes("--update")) {
     mkdirSync(path.dirname(file), { recursive: true });

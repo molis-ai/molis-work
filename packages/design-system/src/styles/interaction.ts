@@ -88,7 +88,7 @@ ${INTERACTION_OPTION_STYLES}.mw-ix-choices .mw-choice { min-width: 0; min-height
 .mw-ix-answered dt, .mw-ix-preview dt { color: var(--muted); }
 .mw-ix-answered dd, .mw-ix-preview dd { margin: 0; color: var(--ink); overflow-wrap: anywhere; white-space: pre-line; }
 @media (max-width: 760px), (pointer: coarse) {
-  .mw-ix-choices .mw-choice { min-height: 44px; }
+  :is(.mw-ix-option, .mw-ix-choices .mw-choice) { min-height: 44px; }
   .mw-ix-card .mw-btn { min-height: 44px; }
   .mw-ix-card .mw-btn--icon-only { width: 44px; min-width: 44px; }
 }

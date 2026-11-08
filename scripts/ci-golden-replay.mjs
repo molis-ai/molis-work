@@ -6,8 +6,8 @@
 //   node scripts/ci-golden-replay.mjs [any arguments of scripts/replay-golden-homes.mjs]    exit: the replay's own
 import { spawnSync } from "node:child_process";
 import { appendFileSync } from "node:fs";
-import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { isMainScript } from "./script-paths.mjs";
 
 const NOT_A_PASS = /not run on [^,)]+, not a pass/u;
 
@@ -20,7 +20,7 @@ export function reported(stdout, status) {
   };
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMainScript(import.meta.url)) {
   const script = fileURLToPath(new URL("./replay-golden-homes.mjs", import.meta.url));
   const replay = spawnSync(process.execPath, ["--disable-warning=ExperimentalWarning", script, ...process.argv.slice(2)], { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"], maxBuffer: 16 * 1024 * 1024 });
   const status = replay.status ?? 1, { summary, notices } = reported(replay.stdout ?? "", status);

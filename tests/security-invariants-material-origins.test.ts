@@ -268,7 +268,7 @@ test("SSC-28: past the one-second deadline nothing more is started, and what did
   } finally { cleanup(); }
 });
 
-test("SSC-12: 「最近用过」 keeps only what the caller can read now, says nothing about the rest, and a refused call keeps nothing", async () => {
+test("SSC-12: “最近用过” keeps only what the caller can read now, says nothing about the rest, and a refused call keeps nothing", async () => {
   const { directories, cleanup } = fixture();
   const db = openTestSqlite(":memory:");
   try {

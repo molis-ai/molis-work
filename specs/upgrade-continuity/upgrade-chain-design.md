@@ -379,7 +379,7 @@ apps/desktop/launchers/web/server.ts：
 
 | 入口 | 现在 | 升级中 |
 | --- | --- | --- |
-| 桌面 Tauri（`web_service.rs` 的 `wait_for_web`） | 等 8 秒后杀服务，报启动失败 | **已改（U1-h，F 轨文件）**：`web_identity` 的 `answer` 认 `HTTP/1.1 503 Service Unavailable`、证明可验、`status` 为 `upgrading`，和 MCP、托管服务认的是同一个形状；见到就继续等，8 秒从最后一次 `upgrading` 重新算，上限 30 分钟（和托管服务的 `UPGRADE_WAIT_MILLISECONDS` 相同）；没有 `upgrading`、或证明不过的 503 仍按 8 秒。已经在升级的宿主不再另起一个、也不替换它。后台请求（`authenticate`）只发给 `ok` 的服务。启动画面读 `upgrade` 显示进度归 U3 |
+| 桌面 Tauri（`web_service.rs` 的 `wait_for_web`） | 等 8 秒后杀服务，报启动失败 | **已改（U1-h，F 轨文件）**：`web_identity` 的 `answer` 认 `HTTP/1.1 503 Service Unavailable`、证明可验、`status` 为 `upgrading`，和 MCP、托管服务认的是同一个形状；见到就继续等，8 秒从最后一次 `upgrading` 重新算，上限 30 分钟（和托管服务的 `UPGRADE_WAIT_MILLISECONDS` 相同）；没有 `upgrading`、或证明不过的 503 仍按 8 秒。已经在升级的宿主不再另起一个、也不替换它。后台请求（`authenticate`）只发给 `ok` 的服务。桌面在 Tauri 的 `setup` 里、也就是主线程上启动，所以启动（`start_molis_work_web`）见到第一次 `upgrading` 就把等待交出来，剩下的在自己的线程里等（`wait_for_upgrading_web`），等完经 `run_on_main_thread` 回主线程导航，健康巡检排在它之后；窗口和托盘（含退出）这期间照常响应。没有 `upgrading` 时主线程照旧至多等 8 秒。启动画面读 `upgrade` 显示进度归 U3 |
 | 托管服务（`web-service-platform.ts:129`） | 1 秒一探，要 `ok`，25 次后失败 | 进程带证明说 `upgrading` 时不消耗次数，继续等，上限 30 分钟（`UPGRADE_WAIT_MILLISECONDS`，防一个永远说升级中的进程）；不再说了就回到 25 次 |
 | 设置页（`settings-web-service.ts:32`） | 读 `/health` | 不会在升级中加载 |
 

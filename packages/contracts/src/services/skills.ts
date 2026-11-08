@@ -1,6 +1,7 @@
 import type { ContractDescriptor } from "../platform/package.js";
 import { defineErrorCodes, type ActionDefinition, type ActionSchema } from "../platform/actions.js";
 import { inputSchemaFor } from "../platform/action-input.js";
+import { closedObjectSchema as object } from "../platform/closed-object-schema.js";
 import { SKILL_APPLIES_TO, SKILL_LIMITS, SKILL_RESOURCE_FOLDERS, type SkillAppliesTo, type SkillResourceRole } from "../platform/plugin-agent.js";
 import { CHARACTER_IMPORT_LIMITS, CHARACTER_IMPORT_RUNTIMES, type CharacterImportRuntimeId } from "../modules/character-import.js";
 import type { SkillRef } from "./agent-definitions.js";
@@ -252,9 +253,6 @@ const appliesTo = { enum: [...SKILL_APPLIES_TO] };
 const state = { enum: [...SKILL_STATES] };
 const scope = { enum: [...SKILL_SCOPES] };
 const role = { enum: Object.keys(SKILL_RESOURCE_FOLDERS) };
-/** Closed, and every property required unless `required` says otherwise. */
-const object = <const P extends Record<string, unknown>, const R extends readonly (keyof P & string)[] = (keyof P & string)[]>(properties: P, required?: R) =>
-  ({ type: "object", properties, required: (required ?? Object.keys(properties)) as R, additionalProperties: false }) as const;
 
 const skillRef = object({
   source: object({ kind: { const: "plugin" }, plugin_id: id, plugin_version: id, publisher_signature: id }),

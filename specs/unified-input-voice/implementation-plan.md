@@ -187,6 +187,14 @@ type ComposerMaterial =
 - **麦克风**：mic 图标与外壳底行的麦克风位随 K0c 落（主会话 11-05 定，因 #1775 占着 plugin-sdk/ui 快照）。图标名 `mic`（Lucide `Mic`）进 SDK `PLUGIN_ICON_NAMES` 与图标表「动作」组，组件板加 `#mic` 一节（16px、20px）；底行的位置在 `.mw-composer__end` 最前，停止与发送的左边，用 ghost 图标钮。
 - 这些规则现在是组件板自己的样式（`COMPOSER_BOARD_STYLES`，不在页面样式表里，与 `catalog-patterns.ts` 的写法相同）；K2 第一次在产品里用时，连同它用到的 `mw-upload`、`mw-tag`、`mw-btn-group` 规则一起搬进页面样式表，页面资源增长在 K2 与 K3 合并落地时计。
 
+**K2 落地时的补记**（2026-11-08）：
+
+- 规则已搬：`packages/design-system/src/composer-styles.ts` 的 `COMPOSER_STYLES`（含 `catalog-patterns.ts` 拆出的 `COMPOSER_PATTERN_STYLES`：`mw-mark`、`mw-btn-group`、`mw-tag`、`mw-uploads`）进工作台样式表，插件框架链接同一张；`COMPOSER_BOARD_STYLES` 只剩组件板自己的排版。
+- `stopTitle` 是停止钮的 `title`（悬停与读屏的补充说明，如「停止这一轮」），`stop` 是钮上的字；两者都在 `MwComposerAiLabels` 里，同一套标签给首屏与客户端。
+- 框里的菜单挂在整个 `.mw-composer` 之上（`bottom: calc(100% + 6px)`），不压住「发给」行；390 宽时也一样，菜单不超出窗口。容器窄于 480px 时场景控件收进「更多」，展开成框上方的浮层。
+- 本机草稿的键是 `mw.composer.draft:<项目>:<安装>:<入口>:<会话>`（每段 `encodeURIComponent`，没有项目时写 `home`），安装段取挂载点所在的 `[data-plugin-owner]`，框架里取插件 id，工作台自己的写 `workbench`；框架里的 `localStorage` 由父页面按安装加前缀，两层合起来不串写。删项目、卸载插件时同一处删掉（UIC-10）。
+- 插件框架里的输入框不列来源、没有 `@`：查来源要走工作台路由，框架的页面权限只放行插件自己的路由（S-composer-source-call 第 5 条）。要在框里选别的主人的资料，需要父页面代选的通道，留给以后。
+
 ## 4. 安全不变量的变化
 
 按 [SECURITY-INVARIANTS](../../docs/system/SECURITY-INVARIANTS.md) 第 3 节加一行。测试要先在没有保护的代码上红过。

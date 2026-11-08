@@ -472,6 +472,14 @@
     "reason": "页面展示能力的合同常量，由工作台在页面里提供，不经动作目录登记，所以快照里没有行。"
   },
   {
+    "entry": "action.surfaces.compose",
+    "reason": "C-3 合同片只声明，提供方 system.surfaces 由第 15 批 S-1 登记，所以动作快照里还没有行；登记之后这条例外不再需要，门禁会要求删掉。"
+  },
+  {
+    "entry": "action.surfaces.correct",
+    "reason": "C-3 合同片只声明，提供方 system.surfaces 由第 15 批 S-1 登记，所以动作快照里还没有行；登记之后这条例外不再需要，门禁会要求删掉。"
+  },
+  {
     "entry": "action.materials.recent",
     "reason": "C-1 合同片只声明，提供方由目录实现片登记，所以动作快照里还没有行；登记之后这条例外不再需要，门禁会要求删掉。"
   },

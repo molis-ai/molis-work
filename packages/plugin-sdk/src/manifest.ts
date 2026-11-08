@@ -129,6 +129,10 @@ export function parsePluginManifest(input: unknown): PluginManifest {
 }
 
 function inspectOptionalDeclarations(manifest: Record<string, unknown>): void {
+  // Temporary, not a compatibility path: the contract of `presentation` is out before its shared check (`validatePresentationDeclaration`),
+  // and a declaration nobody checks must not reach the composition service. The second PR of C-2, which adds the check, removes this
+  // (specs/shared-sources-and-surfaces §9).
+  if (manifest.presentation !== undefined) invalid("呈现声明的校验还没上线：Manifest 暂时不能写 presentation");
   if (manifest.sync === undefined) return;
   try { parsePluginSyncDeclaration(manifest.sync); }
   catch (error) { invalid(error instanceof Error ? error.message : "同步声明不合法"); }

@@ -3532,6 +3532,7 @@ export interface PluginManifest {
     action_scenes?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneDefinition[];
     read_groups?: readonly import("platform/plugin-read-groups").PluginReadGroupDeclaration[];
     task_subjects?: import("platform/plugin-task-subjects").PluginTaskSubjectsDeclaration;
+    presentation?: import("@molis-ai/molis-work-contracts/platform/presentation").PresentationDeclaration;
 }
 
 export interface PluginManifestDatabases {

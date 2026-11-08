@@ -3,3 +3,8 @@
 // say what it means for them in the PR.
 
 export declare function assertMaterialRef(value: unknown): asserts value is MaterialRef;
+
+export declare function presentationFormFields(object: PresentationObject, form: FormKind): {
+    readonly form: FormKind;
+    readonly fields: readonly string[];
+} | null;

@@ -5,6 +5,8 @@ import type { MolisWorkWebServiceManager } from "./installer/web-service.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
 
 export interface WebServerOptions {
+  /** Installation-owned transport sessions, shared with the selected business core. */
+  webSessions?: import("./web-sessions.js").WebSessions;
   /** Trusted Host-only account configuration/credential ports. Never populated from an HTTP request. */
   account?: import("./account-host.js").AccountHostOptions;
   /** Installation-owned presentation: keep business inert until its account page joins the refresh barrier. */

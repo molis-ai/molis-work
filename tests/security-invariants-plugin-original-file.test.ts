@@ -18,7 +18,7 @@ function send(env: { origin: string; token: string }, path: string, input: { met
     const url = new URL(env.origin + path), data = JSON.stringify(input.body ?? {});
     const request = httpRequest({ host: url.hostname, port: url.port, path: url.pathname + url.search, method: input.method ?? "POST",
       headers: { origin: env.origin, host: url.host, "content-type": "application/json", "content-length": Buffer.byteLength(data),
-        "x-molis-work-control-token": env.token, "x-molis-work-idempotency-key": randomUUID(), ...input.headers } }, response => {
+        ...(env.token ? { "x-molis-work-control-token": env.token } : {}), "x-molis-work-idempotency-key": randomUUID(), ...input.headers } }, response => {
       const chunks: Buffer[] = [];
       response.on("data", chunk => chunks.push(chunk));
       response.on("end", () => { try { resolve({ status: response.statusCode ?? 0, body: JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}") }); } catch (error) { reject(error); } });
@@ -67,12 +67,18 @@ test("S-45 a plugin that did not declare materials:original has no original-file
 test("S-45 only the Host's entry can offer a file: nothing a plugin, an input or another audience names becomes a path", { timeout: 60_000 }, async t => {
   const probe = localOriginalProbe("origforge"), env = await serve(t, [probe]), file = env.file("secret.txt", "not offered"), encoded = encodeURIComponent(file);
   const notRegistered = async (key: string) => assert.rejects(env.read(probe, key), { code: "material.original.not_registered" }, key);
+  // WAS-02: reach the original-file guard as an authenticated browser, rather than failing at the transport gate.
+  const page = await fetch(env.origin + "/"), html = await page.text();
+  const proof = /<meta name="molis-work-page-session" content="([^"]+)"/.exec(html)?.[1];
+  const cookie = page.headers.getSetCookie().find(value => value.startsWith("molis-work-web-"))?.split(";")[0];
+  assert.ok(proof && cookie);
+  const browser = { origin: env.origin, token: "" }, browserHeaders = { cookie, "x-molis-work-page-session": proof };
   const refusals: Array<[string, Promise<{ body: { code?: string } }>]> = [
     ["no header", importFile(env, probe, "no-header", file, {})],
     ["the path in the body", send(env, `/api/plugins/${probe.id}/claim`, { body: { key: "in-body", origin_realpath: file, path: file, original_file: { path: file, install_id: env.installId(probe) } } })],
     ["the path in the query", send(env, `/api/plugins/${probe.id}/claim?key=in-query&path=${encoded}&origin_realpath=${encoded}`, { body: {} })],
-    ["a header on a request that carries Fetch Metadata, which a page always sends", importFile(env, probe, "fetch-metadata", file, { [HEADER]: encoded, "sec-fetch-site": "same-origin", "sec-fetch-mode": "cors" })],
-    ["a header on a request with only one Fetch Metadata field", importFile(env, probe, "fetch-dest", file, { [HEADER]: encoded, "sec-fetch-dest": "empty" })],
+    ["a header on a request that carries Fetch Metadata, which a page always sends", importFile(browser, probe, "fetch-metadata", file, { ...browserHeaders, [HEADER]: encoded, "sec-fetch-site": "same-origin", "sec-fetch-mode": "cors" })],
+    ["a header on a request with only one Fetch Metadata field", importFile(browser, probe, "fetch-dest", file, { ...browserHeaders, [HEADER]: encoded, "sec-fetch-dest": "empty" })],
     ["the header twice", importFile(env, probe, "twice", file, { [HEADER]: [encoded, encodeURIComponent(env.file("other.txt", "x"))] })],
     ["a read, not an import", send(env, `/api/plugins/${probe.id}/claim-get?key=by-get`, { method: "GET", headers: { [HEADER]: encoded } })],
     ["a relative path", importFile(env, probe, "relative", file, { [HEADER]: encodeURIComponent("secret.txt") })],

@@ -1,3 +1,4 @@
+import { captureWebSessionAuthority } from "./web-sessions.js";
 import { ActionError, bindActionClient, type ActionCallContext, type ActionDefinition, type ActionProvider, type ActionReference, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ActionSceneView, ActionUserAction } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
@@ -36,6 +37,8 @@ export async function capturePluginSceneAuthority(host: MolisWorkLocalHost, view
 /** Only the authenticated local-user transport uses this adapter; it is not an Agent/MCP grant resolver. */
 export async function localWebActionContext(host: MolisWorkLocalHost, reference: LocalHostProjectReference | undefined,
   builtinPermissions: readonly string[], signal?: AbortSignal, entry: LocalWebEntry = {}, stageAction?: ActionDefinition): Promise<ActionCallContext> {
+  const sessionCurrent = captureWebSessionAuthority();
+  sessionCurrent();
   signal?.throwIfAborted();
   // What a handler sends back to be shown follows the page the call came from; a call no page made keeps the handler's default.
   const locale = pageLocale();
@@ -118,6 +121,7 @@ export async function localWebActionContext(host: MolisWorkLocalHost, reference:
   // Only the authenticated stage can inspect the person's wider metadata; execution keeps the original cap and refs.
   const metadata = stage ? catalog.filter(view => accepted.includes(view) || accept(view, LOCAL_OWNER_PERMISSIONS)) : [];
   const assertAuthority = (action?: ActionReference, required: readonly string[] = []) => {
+    sessionCurrent();
     signal?.throwIfAborted();
     owner?.assertCurrent();
     if (!required.every(permission => permissions.includes(permission))) throw new ActionError("actions.forbidden", "此能力的本地用户授权已失效，请检查插件权限和运行状态");

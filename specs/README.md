@@ -6,6 +6,8 @@
 
 ## 在做的
 
+- [daily-quality-d0038](daily-quality-d0038/spec.md)：用户已选择 D 方案，工作台改用可撤销会话，宿主控制凭据不进入页面；执行中。
+
 - [daily-quality-d0002](daily-quality-d0002/spec.md)：工作资产恢复使用宿主身份，不从资产包继承团队共享授权；2026-11-08 获批，实施中。
 
 - [unified-account](unified-account/spec.md)：WORK-01 至 WORK-09 已完成本地隔离实现与验证；接续中央执行指引做集成收尾，真实存量与外部服务仍待补验。

@@ -1,3 +1,4 @@
+import { WebSessions, webPageToken, withWebSessionRequest } from "./web-sessions.js";
 import { renderPersonalAccountEntry } from "@molis-ai/molis-work-app-workbench";
 import { createLocalWebAssets } from "./web-assets.js";
 import { createLocalHostWorkbenchRenderer } from "./workbench-renderer.js";
@@ -143,6 +144,7 @@ export function createLocalWebCoreFactory(platform: LocalWebPlatform) {
     const composition = createLocalWebComposition({ ...platform, withCatalog }, storageHome,serverOptions.accountRegistration??false,serverOptions.installationDiagnostics);
     const { serveWorkbenchAsset } = composition;
     const controlToken = resolveWebControlToken(serverOptions);
+    const sessions = serverOptions.webSessions ?? new WebSessions(storageHome);
     const mutationKeys = new Map<string, LocalMutationState>();
     const webViewCache: MolisWorkWebViewCache = new Map();
     const demoSeeding = startDemoSeed(fixture);
@@ -151,11 +153,12 @@ export function createLocalWebCoreFactory(platform: LocalWebPlatform) {
     const { im, browserHost, sites, computer, projectExists, projectSchedules } = createWebStorageResources({
       home: storageHome, localHost, withCatalog, fixture, periodic, webViewCache, resources, server: () => server,
     });
-    const server = trackHostListener(http.createServer((request, response) => runWithMolisWorkHome(storageHome, () => withCallId(newCallId(), async () => {
+    const server = trackHostListener(http.createServer((request, response) => withWebSessionRequest(request, () => runWithMolisWorkHome(storageHome, () => withCallId(newCallId(), async () => {
       const url = new URL(request.url ?? "/", "http://localhost");
       try { await demoSeeding;
         // Every route (locale switch included) answers only a request addressed to this machine by a loopback name, and none can be framed by another origin (S-02, S-21).
         if (refuseForeignRequest(request, response)) return;
+        sessions.bind(request, controlToken, response);
         if (request.method === "GET" && url.pathname === "/locale") { switchLocale(request, response, url, storageHome); return; }
         const capsuleLocale = request.method === "GET" && (
           url.pathname === "/desktop/capsule" ||
@@ -195,7 +198,7 @@ export function createLocalWebCoreFactory(platform: LocalWebPlatform) {
             serverOptions,
             runtimeIntegrations,
             webService,
-            controlToken,
+            webPageToken(request),
             webViewCache,
             projectSchedules,
             pty.host,
@@ -209,13 +212,14 @@ export function createLocalWebCoreFactory(platform: LocalWebPlatform) {
       } catch (error) {
         runWithLocale(resolveWebLocale(request.headers.cookie, request.headers["accept-language"]), () => sendUnhandledWebError(response, error, request));
       }
-    }))));
+    })))));
     // SSE is an active HTTP response, so stop its streams before close waits. The side panel's browser is asked to quit
     // at once, not when the last connection ends: a shutdown that is cut short still leaves its sign-ins written.
-    shutdown = awaitWebServerShutdown(server, () => { im.stop(); }, cleanup, async () => {
+    shutdown = awaitWebServerShutdown(server, () => { im.stop(); sessions.revokeScope(controlToken); }, cleanup, async () => {
       releaseTransport?.();
       if (ownsLocalHost) await localHost.close();
     });
+    server.prependListener("upgrade", request => sessions.bind(request, controlToken));
     attachMolisWorkBrowserSocket(server, controlToken, browserHost, { projectExists });
     computer.attach(server, controlToken);
     pty.host = attachMolisWorkPtySocket(server, controlToken, storageHome);

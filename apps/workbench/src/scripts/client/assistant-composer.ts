@@ -131,6 +131,8 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
     const work = getWork(), list = [], asking = receipts.choices();
     if (asking) list.push({ kind: "select", id: "answer", label: L("这次发送"), options: asking.options.map((one) => ({ value: one, label: L(receipts.label(one)) })), value: asking.value,
       change: (value) => { receipts.choose(value); syncComposer(); } });
+    // With the side pane shown, its summary (「谁来做」「方式」, the Character) is where these are chosen, as before K3: one place for
+    // each choice, so the composer does not repeat them (implementation-plan §3.2's 「更多」 is the narrow composer's fold, not this).
     if (island.hasAttribute("data-side-shown")) return list;
     if (!work && executorsHere() && nextExec !== "assistant") list.push({ kind: "select", id: "executor", label: L("由谁来做"),
       options: executorChoices().map((one) => ({ value: one.id, label: L(one.label) + (one.id === nextExec && executorSession(one.id) ? " · " + L("当前会话") : "") })), value: nextExec,

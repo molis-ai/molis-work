@@ -29,6 +29,9 @@ test('PTR-02 local trial login creates a personal project, saves full text and a
   const login=await json('/api/personal/login',{}),redirect=await fetch(login.loginUrl,{redirect:'manual'});assert.equal(redirect.status,303);
   const callback=await fetch(redirect.headers.get('location')!,{redirect:'manual'});assert.equal(callback.status,303);
   const signed=await json('/api/personal/status?attempt='+login.loginAttempt);assert.equal(signed.identity.displayName,'个人试用用户（本机模拟）');
+  const attach=(ticket:string,cookie='')=>fetch(origin+'/api/personal/native-attach?ticket='+encodeURIComponent(ticket),{method:'POST',headers:{Connection:'close',Cookie:cookie,Origin:origin,'content-type':'application/json','x-molis-work-control-token':rootToken,'x-molis-work-idempotency-key':'trial-attach-'+(++sequence)},body:'{}'});
+  const firstAttachment=await attach(signed.browserSessionTicket);assert.equal(firstAttachment.status,200);
+  const staleCookie=firstAttachment.headers.get('set-cookie')!.split(';')[0];await firstAttachment.json();
   await json('/api/personal/space?kind=personal',{});token=(await json('/api/personal/status')).viewToken;
   const personal=(await json('/api/spaces')).current;assert.equal(personal.kind,'personal');
   const created=await json('/api/settings/projects',{display_name:'个人首用验证',user_confirmed:true}),id=created.project.project_id,prefix='/projects/'+id;
@@ -47,6 +50,18 @@ test('PTR-02 local trial login creates a personal project, saves full text and a
   await close(auth);server=factory({homeDirectory:home,controlToken:rootToken});await listen(server,port);
   const offline=await json('/api/personal/status');assert.equal(offline.identity.userId,'local-personal-trial-user');assert.equal(offline.offline,true);token=offline.viewToken;
   assert.equal(token,readFileSync(join(home,'spaces',personal.spaceId,'config','web-control-token'),'utf8').trim(),'the first offline status returns the newly opened account credential');
+  const webStatus=async(cookie:string)=>(await fetch(origin+'/api/personal/status?browser=1',{headers:{Connection:'close',Cookie:cookie}})).json();
+  const staleStatus=await webStatus(staleCookie);
+  assert.equal(staleStatus.identity,null,'ASR-05 the persisted WebView cookie does not survive a Host restart');
+  assert.equal(staleStatus.browserSessionTicket,undefined,'a stale cookie cannot mint a native reattachment ticket');
+  assert.equal(typeof offline.browserSessionTicket,'string','ASR-05 the verified native caller can reattach its WebView while Auth is unreachable');
+  assert.equal(offline.space,'account','offline and online status refer to the same account space');
+  const attached=await attach(offline.browserSessionTicket,staleCookie);assert.equal(attached.status,200);
+  const freshCookie=attached.headers.get('set-cookie')!.split(';')[0];await attached.json();
+  assert.notEqual(freshCookie,staleCookie);
+  const current=await webStatus(freshCookie);assert.equal(current.identity?.userId,offline.identity.userId);
+  assert.equal(current.browserSessionTicket,undefined,'the WebView cookie does not grant native ticket issuance');
+  const replay=await attach(offline.browserSessionTicket,staleCookie);assert.equal(replay.status,401);await replay.json();
   assert.equal((await json('/api/spaces')).current.kind,'personal','ASR-02 restart and offline use restore the persisted installation account directly');
   assert.ok((await json('/api/settings/projects')).projects.some((p:{project_id:string})=>p.project_id===id),'the same account immediately sees its existing project offline');
   assert.deepEqual(await readAttachment(),attachment,'offline restart preserves the complete existing attachment without a second workspace selection');

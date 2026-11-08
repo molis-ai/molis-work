@@ -73,10 +73,54 @@ function browserStatusFence(desktop:boolean,session:WebAccountSession|null,respo
   };
 }
 
+interface PersonalAccountEnvironment {
+  ready(retry?:boolean):Promise<void>;
+  status():{ready:boolean;switching:boolean;error?:string;viewToken?:string};
+}
+
+async function respondPersonalStatus({desktop,session,response,service,setupError,url,refreshPages,environment,nativeAttachment,navigation,setMode,controlToken}:{
+  desktop:boolean;session:WebAccountSession|null;response:ServerResponse;service:PersonalAuth|null;setupError:string;url:URL;
+  refreshPages:AccountRefreshPages;environment?:PersonalAccountEnvironment;nativeAttachment:ReturnType<typeof createNativeWebAttachment>;
+  navigation:AccountNavigation|null;setMode:(mode:'account')=>void;controlToken:string;
+}):Promise<void> {
+  const statusCurrent=browserStatusFence(desktop,session,response,!!service);
+  if(desktop && setupError){sendLocalWebJson(response,503,{error:setupError});return;}
+  const generation=service?.accountGeneration();
+  let offline=false;
+  let identity:ReturnType<PersonalAuth['identity']>=null;
+  try {
+    identity=!desktop&&!session?.authenticated?null:await service?.currentIdentity()??null;
+  }catch{
+    offline=true;
+    identity=desktop||session?.authenticated?service?.identity()??null:null;
+  }
+  if(!statusCurrent())return;
+  const lease=identity&&service?service.accountLease():null;
+  const page=url.searchParams.get('page');
+  if(lease&&page)refreshPages.register(page,lease);
+  if(lease)try{await environment?.ready();}catch{ /* The environment status retains the cleanup or initialization failure. */ }
+  if(!statusCurrent())return;
+  if(lease&&(lease.signal.aborted||generation!==service?.accountGeneration())){
+    sendLocalWebJson(response,200,{configured:!!service,identity:null,syncEnabled:false,accountChanged:true,ready:false,switching:false});return;
+  }
+  const status:ReturnType<PersonalAccountEnvironment['status']>=lease?(environment?.status()??{ready:true,switching:false}):{ready:false,switching:false};
+  // The native lease already proves this local account. A failed upstream check must not strand its WebView with a stale cookie.
+  const nativeSession=desktop&&lease&&service&&status.ready?nativeAttachment.session(service):null;
+  const browserSessionTicket=nativeSession&&service?nativeAttachment.issue(service):undefined;
+  const completed=!offline&&status.ready&&!!navigation?.complete&&navigation.expires>Date.now()&&url.searchParams.get('attempt')===navigation.id;
+  if(completed&&desktop)setMode('account');
+  sendLocalWebJson(response,200,{
+    configured:!!service,identity,syncEnabled:false,...(offline?{offline:true}:{}),
+    accountGeneration:service?.accountGeneration(),loginPending:service?.loginPending()??false,
+    preparation:lease?refreshPages.snapshot(lease):null,...status,
+    space:(nativeSession??session)?.space??'local',viewToken:status.viewToken??controlToken,
+    ...(browserSessionTicket?{browserSessionTicket}:{}),
+    ...(completed?{loginCompleted:true,returnTo:navigation!.returnTo}:{}),
+  });
+}
+
 /** Construct lazily in the server's Home scope; no credentials/configuration means no network. */
-export function createPersonalAccountHttp(isNativeRequest: (request:IncomingMessage)=>boolean = ()=>false, environment?:{
-  ready(retry?:boolean):Promise<void>; status():{ready:boolean;switching:boolean;error?:string;viewToken?:string};
-}) {
+export function createPersonalAccountHttp(isNativeRequest: (request:IncomingMessage)=>boolean = ()=>false, environment?:PersonalAccountEnvironment) {
   let auth:PersonalAuth|null=null;
   let setupError='';
   const webSessions=new PersonalWebSessions();
@@ -126,25 +170,7 @@ export function createPersonalAccountHttp(isNativeRequest: (request:IncomingMess
     const ownedCallback=callback&&!!pendingState&&pendingState===url.searchParams.get('state');
     try{
       if(request.method==='GET' && url.pathname==='/api/personal/status') {
-        const statusCurrent=browserStatusFence(desktop,session,response,!!service);
-        if(desktop && setupError){sendLocalWebJson(response,503,{error:setupError});return true;}
-        try {
-          const identity=!desktop&&!session?.authenticated?null:await service?.currentIdentity()??null;
-          if(!statusCurrent())return true;
-          const page=url.searchParams.get('page');if(identity&&service&&page)refreshPages.register(page,service.accountLease());
-          if(identity)await environment?.ready();
-          if(!statusCurrent())return true;
-          const browserSessionTicket=desktop&&identity&&service?nativeAttachment.issue(service):undefined;
-          const completed=!!identity && (environment?.status().ready??true) && !!navigation?.complete && navigation.expires>Date.now() && url.searchParams.get('attempt')===navigation.id;
-          if(completed && desktop)setMode('account');
-          sendLocalWebJson(response,200,{configured:!!service,identity,syncEnabled:false,accountGeneration:service?.accountGeneration(),loginPending:service?.loginPending()??false,preparation:service?.identity()&&(desktop||session?.authenticated)?refreshPages.snapshot(service.accountLease()):null,...(identity?environment?.status()??{ready:true,switching:false}:{ready:false,switching:false}),space:(desktop&&service?nativeAttachment.session(service):session)?.space??'local',viewToken:identity?(environment?.status().viewToken??_controlToken):_controlToken,...(browserSessionTicket?{browserSessionTicket}:{}),...(completed?{loginCompleted:true,returnTo:navigation!.returnTo}:{})});
-        }catch{
-          if(!statusCurrent())return true;
-          if(service?.identity())try{await environment?.ready();}catch{ /* The environment status retains the cleanup or initialization failure. */ }
-          if(!statusCurrent())return true;
-          const identity=desktop||session?.authenticated?service?.identity()??null:null;
-          sendLocalWebJson(response,200,{configured:!!service,identity,syncEnabled:false,offline:true,accountGeneration:service?.accountGeneration(),loginPending:service?.loginPending()??false,preparation:identity&&service?refreshPages.snapshot(service.accountLease()):null,...(identity?environment?.status()??{ready:true,switching:false}:{ready:false,switching:false}),space:session?.space??'local',viewToken:identity?(environment?.status().viewToken??_controlToken):_controlToken});
-        }
+        await respondPersonalStatus({desktop,session,response,service,setupError,url,refreshPages,environment,nativeAttachment,navigation,setMode,controlToken:_controlToken});
         return true;
       }
       if(!service){sendLocalWebJson(response,configured?401:503,{error:desktop?setupError:'登录会话已失效，请重新登录。'});return true;}

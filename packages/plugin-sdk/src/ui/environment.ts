@@ -23,6 +23,9 @@ export interface UiEnvironmentInput {
   readonly problems?: readonly UiEnvironmentProblem[];
 }
 
+/** What a snapshot says when the language it was given is not a tag (`LOCALE_TAG`). */
+const UNDETERMINED_LOCALE = "und";
+
 const identity = ({ id, revision }: UiDefinitionRef): UiDefinitionRef => ({ id, revision });
 const written = ({ id, revision }: UiDefinitionRef): string => `${id}@${revision}`;
 
@@ -48,8 +51,12 @@ function boundedProblems(problems: readonly UiEnvironmentProblem[]): readonly Ui
 export function resolveUiEnvironment(input: UiEnvironmentInput): UiEnvironmentSnapshot {
   const scheme = identity(input.font ?? input.skin.recommended_font);
   const mono = identity(input.mono ?? scheme);
-  const problems = [...(LOCALE_TAG.test(input.locale.tag) ? [] : [{ code: "ui.environment_locale", subject: input.locale.tag }]), ...(input.problems ?? [])];
-  const { tag, source, direction = "ltr" } = input.locale;
+  const valid = LOCALE_TAG.test(input.locale.tag);
+  const problems = [...(valid ? [] : [{ code: "ui.environment_locale", subject: input.locale.tag }]), ...(input.problems ?? [])];
+  // A tag that is no tag never reaches `revision` or `locale.tag`, which are not bounded like the problems: it is `und`, BCP 47 for "undetermined",
+  // and what was given is left only in the problem, cut to its length there.
+  const { source, direction = "ltr" } = input.locale;
+  const tag = valid ? input.locale.tag : UNDETERMINED_LOCALE;
   return {
     revision: [written(input.spec), written(input.skin), written(scheme), written(mono), tag].join(";"),
     spec: identity(input.spec),

@@ -970,7 +970,7 @@ apps/workbench/
    - 和界面词同字、隔着别的字的客户端行不变；可编辑节点的字不变。
 5. **客户端画的字。** 只在页面上没对上的字里找产出记录；`say` 和 `t` 都记。页面自己改过、不等于旧语言那份的字不动。
 6. **体积。** 组件板这一节的浏览器代码打出来 20.4 KB（含 SDK 的文字工具和 `resolveUiEnvironment`），只内联进开发页 `/__ui/catalog`；`locale-switch.ts` 单独压缩约 3.2 KB。页面资源门禁对照 `origin/main` 通过（51 个资源，没有新增）。工作台语言目录由宿主在服务端读，不下发给页面。
-7. **开发路径。** `--locale` 只认 `ui.locales.available` 里的；没写 `ui.locales` 却写了 `--locale` 也报 `actions.input_invalid`，说先在 Manifest 写 `ui.locales`。选中的语言和默认语言的文件有 `blocking` 问题就抛 `plugin.package_invalid`。状态目录在检查语言之前就建好了（`runLocalPluginDevelopment` 的原有顺序），没改。
+7. **开发路径。** `--locale` 只认 `ui.locales.available` 里的；没写 `ui.locales` 却写了 `--locale` 也报 `actions.input_invalid`，说先在 Manifest 写 `ui.locales`。选中的语言和默认语言的文件有 `blocking` 问题就抛 `plugin.package_invalid`；两份都读得通时，再用 `inspectLocaleSet` 比这两份，参数不一致、默认语言缺键这类 `blocking` 问题同样抛（#1976 评审①第 4 条），别的语言缺键不挡。状态目录在检查语言之前就建好了（`runLocalPluginDevelopment` 的原有顺序），没改。
 8. **`ui.views` 夹具（第 8.4 节末段）** 没有经 `createPluginPlatform`：`tests/host-ui-text.test.ts` 直接用 `PluginRuntime` 加 `PluginHostExecutor`（`localePacks` 由测试传入），会话打开、登记和释放走的是同一个 `plugin-host-services.ts`。`localePacks` 按 `plugin_id` 认插件，不按对象：运行时交给执行器的定义不是调用方手里的那个对象。
 9. **范围之外改的测试准备。** `tests/goals-project-database-refusal.test.ts`、`tests/plugin-development-artifacts.test.ts` 拷样例时多拷 `locales/`（样例的 Manifest 现在声明它们），断言没动。
 

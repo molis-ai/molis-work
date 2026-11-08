@@ -101,7 +101,7 @@ node dist/cli/main.js plugin dev "$plugin_dev_dir/sample" "$plugin_dev_dir/state
 
 **现在哪条路走得通：** 只有 `molis-work plugin dev`。加 `--locale <语言>` 选画页面的语言，不写用 `default`；语言不在 `available` 里报 `actions.input_invalid` 并列出可选的，没写 `ui.locales` 却传了 `--locale` 同样报错，提示先写 `ui.locales`。开发路径只有画页面时有语言：`start`、`health`、`sync`、动作处理器、定时器里调 `t` 抛 `ui.text_no_context`，要显示的句子存键和参数，到画页面时再 `t`。`pack` 会自动带上声明的语言文件，不用写进 `package.json` 的 `files`；但带 `ui.locales` 的沙箱包第 16 批之前装不上，安装时被拒并说明原因。内置插件第 16 批之前照旧用 `L`、`p.text` 和 `ui.messages`，不写 `ui.locales`（`tests/ui-text-locale-files.test.ts` 拦）。
 
-**先 `validate`，再 `dev`。** `validate` 和打包用同一套规则查全部语言文件（`packages/plugin-runtime/src/locale-packs.ts`，规则本身在 SDK 的 `parseLocalePack`、`inspectLocaleSet`）。`dev` 不替你查：它只读这次用的语言和默认语言两个文件，单个文件坏了（不是合法 JSON、有那五个字符、`owner` 或 `locale` 不符）会拒绝；两种语言之间参数不一样、默认语言缺键它不比，照样跑，页面原样显示没替换的 `{…}`。
+**先 `validate`，再 `dev`。** `validate` 和打包用同一套规则查全部语言文件（`packages/plugin-runtime/src/locale-packs.ts`，规则本身在 SDK 的 `parseLocalePack`、`inspectLocaleSet`）。`dev` 只读这次用的语言和默认语言两个文件，用同一套规则查：单个文件坏了（不是合法 JSON、有那五个字符、`owner` 或 `locale` 不符），或者这两种语言之间参数不一样、默认语言缺这次语言有的键，都拒绝运行（`plugin.package_invalid`）；没用到的语言它不读，全部语言的检查仍看 `validate`；这次的语言少几个键不挡运行，那几处显示默认语言的字。
 
 **`validate` 的结果怎么读：**
 

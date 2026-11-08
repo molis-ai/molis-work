@@ -126,4 +126,10 @@ test("FSS-49: problems go into the first screen, so their number and length are 
   const { problems: long } = resolveUiEnvironment({ spec: SPEC, skin: SOFT, locale: { tag: `</script>${"x".repeat(1000)}`, source: "explicit" } });
   assert.equal(long[0]?.code, "ui.environment_locale");
   assert.ok(long[0]!.subject.length <= field);
+  // #1976 review ① item 6: a tag that is no tag does not reach the unbounded parts of the snapshot either, and the snapshot still has a language.
+  const unknown = resolveUiEnvironment({ spec: SPEC, skin: SOFT, locale: { tag: `</script>${"x".repeat(1000)}`, source: "explicit" } });
+  assert.equal(unknown.locale.tag, "und");
+  assert.equal(unknown.revision.includes("</script>"), false);
+  assert.ok(unknown.revision.length < 200, unknown.revision);
+  assert.equal(unknown.locale.formatting.length > 0, true);
 });

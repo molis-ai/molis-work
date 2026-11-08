@@ -85,7 +85,7 @@ export const LINEAR_DENSITY_STYLES = `
   body.immersive-workbench .tab-item,
   body.immersive-workbench [data-tab-reorder-slot] { height: 26px; border-radius: 6px; }
   body.immersive-workbench .tab-item[data-pinned] { width: 28px; min-width: 28px; max-width: 28px; }
-  body.immersive-workbench :is(.tab-split-button, .tab-add-button) { width: 26px; height: 26px; }
+  body.immersive-workbench .tab-add-button { width: 26px; height: 26px; }
   body.immersive-workbench .tab-pane-close { top: 4px; width: 22px; height: 26px; }
   body.immersive-workbench .immersive-plugin-stage > .desktop-work-surface:not(.plugin-stage-shell, .immersive-home) { padding: 16px clamp(14px, 3%, 28px); }
   body.immersive-workbench .immersive-plugin-stage > .plugin-stage-shell { padding: 0; overflow: hidden; }
@@ -224,7 +224,7 @@ export const LINEAR_DENSITY_STYLES = `
     body.immersive-workbench .tab-item,
     body.immersive-workbench [data-tab-reorder-slot] { height: 44px; min-height: 44px; }
     body.immersive-workbench .tab-item[data-pinned] { width: 44px; min-width: 44px; max-width: 44px; }
-    body.immersive-workbench :is(.tab-item-close, .tab-split-button, .tab-add-button) { width: 44px; height: 44px; }
+    body.immersive-workbench :is(.tab-item-close, .tab-add-button) { width: 44px; height: 44px; }
     /* A pane's close is a touch target too, and its strip keeps the room for it. */
     body.immersive-workbench .tab-pane-close { top: 0; width: 44px; height: 44px; }
     body.immersive-workbench .tab-pane > .tab-strip { padding-right: 50px; }

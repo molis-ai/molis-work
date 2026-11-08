@@ -105,11 +105,12 @@ export const TAB_WORKSPACE_PANES_PART = `  const isCurrent = (${isCurrentTabWork
     }
   };
   // Splits that cannot all keep their panes' minimum size at this stage size take the narrow layout (VUX-24), not a squeeze.
-  const layoutSplits = () => { syncSplitSizes(state.layout.tree); const stage = panesEl.getBoundingClientRect(); if (stage.width && stage.height) root.toggleAttribute("data-split-narrow", !splitTreeFits(state.layout.tree, stage.width, stage.height)); };
+  // 独看 (口径 2) lays the focused pane over the whole stage; the others keep their places, hidden (data-solo).
+  const layoutSplits = () => { syncSplitSizes(state.solo && !ops.soloSide(state) ? { paneId: state.solo.paneId } : state.layout.tree); const stage = panesEl.getBoundingClientRect(); if (stage.width && stage.height) root.toggleAttribute("data-split-narrow", !state.solo && !splitTreeFits(state.layout.tree, stage.width, stage.height)); };
   const paneFrameKey = (pane) => {
     const tab = pane.tabs.find((item) => item.id === pane.activeTabId);
     if (tab) return tab.kind === "system" ? null : tab.id;
-    return pane.viewPlugin ? pane.id + ":view" : null;
+    return pane.id + ":view";
   };
   const apply = () => {
     if (applying) { applyQueued = true; return; }
@@ -157,6 +158,11 @@ export const TAB_WORKSPACE_PANES_PART = `  const isCurrent = (${isCurrentTabWork
     // However the cover went away (a tab, the Dock, history), its category column goes with it.
     leaveCoverDirectory();
     ops.normalizeLayout(state);
+    // 独看 ends once the focus goes to another column or the right side opens (or, alone itself, collapses); the side it
+    // collapsed comes back. The right side alone covers the main stage from the body (the side panel is outside the stage).
+    if (state.solo) { ops.settleSolo(state, column === "side"); if (!state.solo) sidePane?.restore(); }
+    root.toggleAttribute("data-solo", Boolean(state.solo) && !ops.soloSide(state));
+    if (!embedded) document.body.toggleAttribute("data-side-solo", ops.soloSide(state));
     root.toggleAttribute("data-split", state.panes.length > 1);
     const chromeTabs = !embedded && state.panes.length < 2;
     if (titlebarStrip) {
@@ -167,7 +173,8 @@ export const TAB_WORKSPACE_PANES_PART = `  const isCurrent = (${isCurrentTabWork
       }
     }
     const focusedTab = ops.activeTab(state);
-    const focusedView = ops.focused(state)?.viewPlugin;
+    // A pane with no tab chosen and no plugin page shows the project home (§4.6.1, 口径 3): it is a place, not a tab.
+    const focusedView = ops.focused(state)?.viewPlugin || (focusedTab ? null : "home");
     if (focusedTab && focusedTab.kind !== "system") {
       const surface = focusedTab.plugin;
       if (getSurface() !== surface) setWorkSurface(surface, false, false, "restore");
@@ -182,7 +189,7 @@ export const TAB_WORKSPACE_PANES_PART = `  const isCurrent = (${isCurrentTabWork
       if (!["settings", "project-settings"].includes(document.querySelector("#goal-tree-pane")?.dataset.desktopDirectory)) {
         setDirectory(directoryOf(focusedView), false, false);
       }
-      document.title = ops.pluginTitle(focusedView) + " · Molis Work";
+      document.title = (focusedView === "home" ? L(personal ? "个人首页" : "项目首页") : ops.pluginTitle(focusedView)) + " · Molis Work";
     }
     // Surfaces stay where they are while they keep showing: moving a node out and back drops its scroll and focus.
     // Hidden isolated pages stay attached: reparenting an iframe reloads its browsing context.
@@ -230,9 +237,9 @@ export const TAB_WORKSPACE_PANES_PART = `  const isCurrent = (${isCurrentTabWork
         renderStrip(pane, inStrip);
       }
       const tab = pane.tabs.find((item) => item.id === pane.activeTabId);
-      const viewPlugin = tab ? null : pane.viewPlugin;
+      const viewPlugin = tab ? null : pane.viewPlugin || "home";
       const frameKey = paneFrameKey(pane);
-      const paneKey = tab ? ops.tabKey(tab) : (viewPlugin ? "plugin:" + viewPlugin : "");
+      const paneKey = tab ? ops.tabKey(tab) : "plugin:" + viewPlugin;
       const cachedFrame = frameKey && panesEl.querySelector('iframe[data-pane-tab="' + frameKey + '"]');
       if (cachedFrame && cachedFrame.dataset.paneKey !== paneKey) { cachedFrame.remove(); }
       const liveFrame = frameKey && panesEl.querySelector('iframe[data-pane-tab="' + frameKey + '"]');
@@ -259,6 +266,8 @@ export const TAB_WORKSPACE_PANES_PART = `  const isCurrent = (${isCurrentTabWork
         if (liveFrame) frame.contentWindow?.postMessage({ type: "workbench-view", view: readView(pane.id) }, location.origin);
       } else {
         const node = tab ? rootForTab(tab) : (viewPlugin ? topLevelSurface(viewPlugin) : null);
+        const shownPlugin = tab ? (tab.kind === "system" ? "" : tab.plugin) : viewPlugin;
+        showRemoved(pane, !node && shownPlugin && removedPlugin(shownPlugin) ? shownPlugin : null);
         if (node) {
           const returning = node.parentElement === pool;
           mount(pane, node);
@@ -267,6 +276,10 @@ export const TAB_WORKSPACE_PANES_PART = `  const isCurrent = (${isCurrentTabWork
             applyTabContent(tab, keepFrame);
             if (returning && surfaceShows.get(tab.plugin) === "tab:" + tab.id) restoreScroll(node);
             surfaceShows.set(tab.plugin, "tab:" + tab.id);
+          } else if (viewPlugin === "home") {
+            declareGoal(null);
+            if (returning) restoreScroll(node);
+            selectItem(node, null, readView(pane.id));
           } else {
             // A plugin page keeps what was open in it. It goes back to its list only after showing one of its tabs,
             // whose item is not the page's, or when asked to (the plugin tab, the plugin's own back).

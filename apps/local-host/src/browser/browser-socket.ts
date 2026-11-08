@@ -51,6 +51,21 @@ export function attachMolisWorkBrowserSocket(server: http.Server, controlToken: 
       copied: text => send(ws, { type: "copied", text }),
     };
     ws.on("close", () => { detach?.(); detach = null; });
+    // Binding the page (watch, attach) waits on the project check, and the panel sends what follows (visible, a queued
+    // navigate) right behind it: each message waits for the bindings sent before it, so none finds no page and is dropped.
+    let bound: Promise<void> = Promise.resolve();
+    const bind = async (message: Extract<BrowserClientMessage, { type: "watch" | "attach" }>) => {
+      if (typeof message.project_id !== "string" || !await options.projectExists(message.project_id)) { send(ws, { type: "error", message: "项目不存在" }); return; }
+      if (message.type === "watch") {
+        if (page) return;
+        page = browsers().page(message.project_id);
+        detach = page.watch(listener);
+        return;
+      }
+      detach?.();
+      page = browsers().page(message.project_id);
+      detach = page.attach(listener, message.viewport);
+    };
     ws.on("message", async (raw: RawData, binary: boolean) => {
       if (binary) return;
       let message: BrowserClientMessage;
@@ -60,20 +75,13 @@ export function attachMolisWorkBrowserSocket(server: http.Server, controlToken: 
           if (message.type !== "auth" || !controlTokenMatches(controlToken, message.token)) { send(ws, { type: "error", message: "本地浏览器通道校验失败" }); ws.close(); return; }
           authed = true; send(ws, { type: "ready" }); return;
         }
-        if (message.type === "watch") {
-          if (typeof message.project_id !== "string" || !await options.projectExists(message.project_id)) { send(ws, { type: "error", message: "项目不存在" }); return; }
-          if (page) return;
-          page = browsers().page(message.project_id);
-          detach = page.watch(listener);
+        if (message.type === "watch" || message.type === "attach") {
+          const binding = bound.then(() => bind(message));
+          bound = binding.catch(() => undefined);
+          await binding;
           return;
         }
-        if (message.type === "attach") {
-          if (typeof message.project_id !== "string" || !await options.projectExists(message.project_id)) { send(ws, { type: "error", message: "项目不存在" }); return; }
-          detach?.();
-          page = browsers().page(message.project_id);
-          detach = page.attach(listener, message.viewport);
-          return;
-        }
+        await bound;
         if (!page) return;
         switch (message.type) {
           case "visible": page.setVisible(listener, !!message.visible); return;

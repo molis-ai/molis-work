@@ -204,7 +204,7 @@ test("PRR-21 QA-017 opens the side panel; W3-A3b PICK-02 on the real result card
   await click(`${CARD} .assistant-item-title`);
   await waitFor("window.opens.length >= 1", 10_000);
   await waitFor("document.body.dataset.sideOpen === 'true'", 10_000);
-  await waitFor("document.querySelector('#side-panel [role=tab][aria-selected=true]')", 10_000);
+  await waitFor("document.querySelector('[data-side-tabs] [role=tab][aria-selected=true]')", 10_000);
   await new Promise((resolve) => setTimeout(resolve, 400));
   const opens = await evaluate<Array<{ subject?: { kind?: string; id?: string }; title?: string; open?: { surface?: string; id?: string } } | null>>("window.opens");
   assert.equal(opens.length, 1, "the title asked to open exactly once");

@@ -27,8 +27,8 @@ test("Shelf opens as the side panel's first tab, extracts the sample PDF, and ke
   await browser.waitFor("document.querySelector('[data-side-toggle]')");
   assert.equal(await browser.evaluate("document.querySelector('[data-plugin-strip] [data-plugin-id=shelf], [data-plugin-section=shelf], [data-directory-panel=shelf], [data-work-surface=shelf]')?.outerHTML ?? null"), null);
   await browser.click("[data-side-toggle]");
-  await browser.waitFor("document.querySelector('#side-panel [role=tab][aria-selected=true]')?.dataset.sideTab === 'plugin:shelf/side'");
-  assert.equal(await browser.evaluate("document.querySelector('#side-panel [role=tab]')?.dataset.sideTab"), "plugin:shelf/side");
+  await browser.waitFor("document.querySelector('[data-side-tabs] [role=tab][aria-selected=true]')?.dataset.sideTab === 'plugin:shelf/side'");
+  assert.equal(await browser.evaluate("document.querySelector('[data-side-tabs] [role=tab]')?.dataset.sideTab"), "plugin:shelf/side");
   await browser.waitFor(`document.querySelector('[data-side-body="plugin:shelf/side"] iframe')?.getAttribute('src') === ${JSON.stringify(`/projects/${projectId}/side/shelf/side`)}`);
   // The tab's own document, as the panel's frame loads it (the work below is all inside it).
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/side/shelf/side` }, sessionId));

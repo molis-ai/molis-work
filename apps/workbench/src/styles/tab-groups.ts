@@ -9,7 +9,7 @@ const GROUP = `${WORKBENCH} .tab-strip ${GROUP_IN}`;
 
 export const TAB_GROUP_STYLES = `
   ${WORKBENCH} .tab-strip .tab-scroll { gap: 6px; }
-  ${WORKBENCH} .tab-strip .tab-item:is([data-tab-kind="home"], [data-tab-kind="plugin"]):not([data-pinned]) { width: max-content; flex-shrink: 0; }
+  ${WORKBENCH} .tab-strip .tab-item[data-tab-kind="plugin"]:not([data-pinned]) { width: max-content; flex-shrink: 0; }
   ${GROUP} {
     --group-wash: color-mix(in srgb, var(--group-color) 10%, transparent);
     height: 28px; gap: 2px; padding: 2px; border-radius: var(--r-row, 10px); background: var(--group-wash);

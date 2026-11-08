@@ -12,7 +12,7 @@ const SPARE_HUES = ["blue", "green", "orange", "purple", "cyan", "pink", "yellow
  * Plugin groups on the tab strip: drawing a plugin's automatic group, the plugin tab as the current place, closing a
  * group with a way back, and ⌘/Ctrl- or middle-click on a record opening it as a tab in its group.
  */
-export const PLUGIN_TAB_GROUPS_FACTORY = String.raw`({ getState, ops, apply, persist, L, rows, embedded, notify, editable, appendTab, hues = {} }) => {
+export const PLUGIN_TAB_GROUPS_FACTORY = String.raw`({ getState, ops, apply, persist, L, rows, embedded, notify, editable, appendTab, removed = () => false, hues = {} }) => {
   const HUES = { ...${JSON.stringify(SURFACE_HUES)}, ...hues };
   const SPARE = ${JSON.stringify(SPARE_HUES)};
   const hueOf = (plugin) => HUES[plugin] || SPARE[[...String(plugin)].reduce((sum, char) => sum + char.charCodeAt(0), 0) % SPARE.length];
@@ -52,10 +52,16 @@ export const PLUGIN_TAB_GROUPS_FACTORY = String.raw`({ getState, ops, apply, per
       count.title = L("组里还有 {n} 个标签", { n: items }); count.setAttribute("aria-hidden", "true");
       pages.querySelector('[data-tab-kind="plugin"]')?.append(count);
     }
+    // A plugin taken out of the project keeps its group where it was, marked removed (07-S1; the look is S3's).
+    if (removed(plugin)) {
+      wrap.dataset.groupState = "removed";
+      const tag = document.createElement("span"); tag.className = "tab-group-tag"; tag.textContent = L("已移除");
+      pages.append(tag);
+    }
     wrap.append(pages); parent.append(wrap);
     return end;
   };
-  const undoLabel = (record) => L("撤销关闭 {plugin}", { plugin: L(ops.pluginTitle(record.plugin)) });
+  const undoLabel = (record) => L("撤销关闭 {plugin}", { plugin: record.side ? record.title : L(ops.pluginTitle(record.plugin)) });
   // Screen readers hear that a group closed and how to get it back; the chip itself appears with the next render.
   const live = document.createElement("div");
   live.setAttribute("role", "status"); live.className = "mw-sr-only";
@@ -71,17 +77,26 @@ export const PLUGIN_TAB_GROUPS_FACTORY = String.raw`({ getState, ops, apply, per
     undoTimer = setTimeout(() => apply(), UNDO_MS + 20);
     return record;
   };
-  const reopen = () => {
-    const last = closed.pop();
-    if (!last) return false;
-    ops.reopenPluginGroup(getState(), last.record);
+  /** Something closed elsewhere in the workspace (a tab of the right side) joins the same way back; it says how it reopens. */
+  const keep = (record, reopenIt) => {
+    closed.push({ record, until: Date.now() + UNDO_MS, reopen: reopenIt });
+    if (closed.length > 10) closed.shift();
+  };
+  /** Reopen what closed last, or one chosen from the 刚关掉的 list of ＋ (recent, newest first). */
+  const reopen = (entry = closed.at(-1)) => {
+    const at = closed.indexOf(entry);
+    if (at < 0) return false;
+    closed.splice(at, 1);
+    if (entry.reopen) return entry.reopen() !== false;
+    ops.reopenPluginGroup(getState(), entry.record);
     apply(); persist();
     return true;
   };
-  /** The way back after closing a group, at the end of the strip it was closed in. */
-  const undoChip = (pane) => {
+  const recent = () => closed.slice(-5).reverse();
+  /** The way back after closing a group, at the end of the strip it was closed in: a pane's, or the right side's ("side"). */
+  const undoChip = (paneId) => {
     const last = closed.at(-1);
-    if (!last || last.until < Date.now() || last.record.paneId !== pane.id) return null;
+    if (!last || last.until < Date.now() || last.record.paneId !== paneId) return null;
     const chip = document.createElement("button");
     chip.type = "button"; chip.className = "tab-undo-chip"; chip.dataset.tabUndo = "";
     chip.style.setProperty("--group-color", "var(--hue-" + hueOf(last.record.plugin) + ")");
@@ -131,5 +146,5 @@ export const PLUGIN_TAB_GROUPS_FACTORY = String.raw`({ getState, ops, apply, per
   };
   window.addEventListener("click", openInBackground, true);
   window.addEventListener("auxclick", openInBackground, true);
-  return { shows, render, close, reopen, undoChip, menu, hueOf, openBehind };
+  return { shows, render, close, keep, reopen, recent, undoChip, menu, hueOf, openBehind };
 }`;

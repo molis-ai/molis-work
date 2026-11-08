@@ -57,7 +57,7 @@ export const INTERACTION_TEXTURE_STYLES = `
     filter: brightness(1.06);
   }
   body.immersive-workbench :is(.tree-tool, .immersive-plugin-link, .tab-item-close, .workspace-history-button,
-        .navigator-project-settings, .navigator-project-search, .tab-add-button, .tab-split-button):active:not(:disabled) {
+        .navigator-project-settings, .navigator-project-search, .tab-add-button):active:not(:disabled) {
     background: var(--nav-press);
   }
 
@@ -68,7 +68,7 @@ export const INTERACTION_TEXTURE_STYLES = `
   body.immersive-workbench :is(.immersive-plugin-link, .tree-tool, .tab-item-close, .workspace-history-button) svg {
     transition: color var(--dur-hover) var(--ease-quint), opacity var(--dur-hover) var(--ease-quint);
   }
-  body.immersive-workbench :is(.navigator-project-settings, .navigator-project-search, .navigator-project-notifications, .workspace-history-button, .tab-add-button, .tab-split-button) svg {
+  body.immersive-workbench :is(.navigator-project-settings, .navigator-project-search, .navigator-project-notifications, .workspace-history-button, .tab-add-button) svg {
     width: var(--icon-md); height: var(--icon-md);
   }
   body.immersive-workbench .plugin-rail .immersive-plugin-link svg { color: var(--plugin-tint, var(--faint)); }

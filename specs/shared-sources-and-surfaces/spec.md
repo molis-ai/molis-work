@@ -553,7 +553,7 @@ interface SurfaceItem {
 | `presentationOverviewProblems(declaration, overview)` | 组合服务读概况，查返回的 `start` 是声明的子集（SSC-18） | 插件在测试里查自己的概况动作 |
 | `assertMaterialRef(value)` | 资料引用进对话、任务时 | 插件处理别人交来的引用时 |
 | `assertSurfaceDescription(value, candidates)` | 组合服务校验助理组合的输出 | 插件在测试里检查自己挂载位上的东西 |
-| `presentationText(object, values, locale)` | 文本形态（MCP、通知、导出） | 插件预览自己的文本形态 |
+| `presentationText(object, item, locale)` | 文本形态（MCP、通知、导出） | 插件预览自己的文本形态 |
 | `presentationFormFields(object, form)` | 组合服务和单独使用的页面算出一个形态要取哪些字段，再调主人的 values 动作 | 插件检查自己每种形态取的字段 |
 | `renderPresentationForm(object, form, values)`（`/ui`，第 15 批第 2 项交，统筹 11-08 定） | 不经组合服务单独画一个形态：第一个用的是 MLN-23 的「行」，挂载位里的东西也由平台这样画好放进插件文档 | 插件预览自己的对象 |
 
@@ -562,7 +562,7 @@ interface SurfaceItem {
 已经定下的取值规则：
 
 - `presentationFormFields` 返回 `{ form, fields }`：没声明的形态按 `chip → row → card → peek` 往简单的一侧降，降到有声明的为止；一个都没有时返回 `null`，平台画兜底（IUI-02）。声明了 `status` 的，它的字段跟着每种形态一起取，因为每种形态都显示状态和提醒标记。
-- `OwnedPresentationObject = PresentationObject & { owner }`，`owner` 由平台按可信目录填，声明里没有。`renderPresentationForm(object: OwnedPresentationObject, form, values): string` 不加工具和主人参数；平台画（挂载位、MLN-23）和插件预览是同一个函数。它和 `presentationText(object, values, locale)` 对值里的引用做不抛的绑定（`tryOwnedTextRef`），`locale` 必填，可以是 `null`（A 段 §2.4 第 3 条、§5.2）。插件页面不画别人的对象：挂载位的内容由平台在服务端画好放进插件文档（A 段 §8.3 的 (a)）。
+- `OwnedPresentationObject = PresentationObject & { owner }`，`owner` 由平台按可信目录填，声明里没有。`renderPresentationForm(object: OwnedPresentationObject, form, values): string` 不加工具和主人参数；平台画（挂载位、MLN-23）和插件预览是同一个函数。它和 `presentationText(object, item, locale)` 对值里的引用做不抛的绑定（`tryOwnedTextRef`），`locale` 必填，可以是 `null`（A 段 §2.4 第 3 条、§5.2）。插件页面不画别人的对象：挂载位的内容由平台在服务端画好放进插件文档（A 段 §8.3 的 (a)）。
 - `catalog` 对每个动作引用答三种：有、没有、不知道（统筹 2026-11-08 定）。`parsePluginManifest` 里只拿本 Manifest 自己的动作当目录：引用本插件的动作必须存在、版本对；引用别的提供方的答「不知道」，不拦。安装时对着整份动作目录查的那一步归第 15 批 S-1。
 - 概况动作返回的 `start` 必须是声明里 `overview.start` 的子集，每个只出现一次；`presentationOverviewProblems` 查，组合服务和作者的测试用同一个函数。
 
@@ -571,6 +571,7 @@ interface SurfaceItem {
 - 对象种类只认本插件的搜索来源或别的动作已经声明的；给值的动作列出的种类不算，否则一份声明就能自带新类型。每种对象要有一个给值的动作，用 `definePresentationValuesAction` 写，只读 query，schema 与平台定的一样。
 - `status.field` 要是一个角色为 `status` 的字段；`when.status` 只能列 `status.map` 里的状态；`input_from` 只查字段键，输入键归目标动作的 schema，在点下去时查。
 - 声明里不收 `owner`、`mounts` 和别的未知字段。
+- `presentationText(object, item, locale)` 写一个对象：`text.lines` 每个键一行，有 `label` 的写「label：值」，`judgment` 写「label（reason）」，没有值的字段不写；值里的词绑不上主人时显示 `common.text.unavailable`。`stale` 的项第一行是 `common.presentation.stale`（参数 `at` 是 `read_at`，相对时间），这个键集成时和第 14 批一起加进工作台的语言包，第 15 批第 2 项画「x 分钟前的值」用同一个键；`forbidden`、`deleted` 返回空字符串，说什么由调用方定。
 - `presentationValuesProblems`：问到以外的对象或字段、`forbidden`、`deleted` 还带值、同一个对象答两次、`stale` 没有 `read_at`，都算问题。`bind` 已经裁剪过，这一步给不走 `bind` 的主人（如沙箱插件）同样查。
 - `assertSurfaceDescription(value, candidates)` 返回 `{ description, dropped }`。形状或组的规矩不对就抛 `actions.output_invalid`，组合服务改用候选（IUI-05）。值里的每一组要对上候选里 `kind` 和 `owner_plugin_id` 都相同的那一组，同一组只放一次，对不上就抛；组的 `state`、`read_at`、`excluded`、`hidden_above` 一律取那个候选组的，值里写的不算，组的规矩查在这些事实上，所以拿候选当值自查也查得出来。对象只留在和它的候选同 `kind`、同主人的组里，且候选有同一主体、主人、形态、状态、字段和合并对象；放进别的组（「等你」的 attention 组也一样）就照候选以外丢掉并记下。操作只在那个候选有同一 `ref` 时保留，并用候选的预备输入和后果。值能决定的只剩：组的先后、组里挑哪几件及其先后、操作挑哪些、哪个是 primary、`title`、`reason`（评审台 11-08 退回后补，统筹认可）。一件东西至多一个 primary，同一个对象只放一次，`corrections_revision` 和候选的一样；`composed_by`、`revision` 照值里的，显示出去的 `revision` 由组合服务按结果定（IUI-04，第 15 批 S-1）。丢掉的记进 `dropped`：对象，或对象加操作的 `ref`。
 

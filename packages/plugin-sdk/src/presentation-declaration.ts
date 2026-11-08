@@ -1,12 +1,13 @@
 import { PRESENTATION_ATTENTION_STATES, PRESENTATION_FIELD_ROLES, PRESENTATION_FORM_KINDS, PRESENTATION_LIMITS, PRESENTATION_OVERVIEW_INPUT_SCHEMA,
   PRESENTATION_OVERVIEW_OUTPUT_SCHEMA, PRESENTATION_OVERVIEW_OUTPUT_TYPE, PRESENTATION_VALUES_INPUT_SCHEMA, PRESENTATION_VALUES_INPUT_TYPE,
   PRESENTATION_VALUES_OUTPUT_SCHEMA, PRESENTATION_VALUES_OUTPUT_TYPE, SURFACE_SLOT_KINDS } from "@molis-ai/molis-work-contracts/platform/presentation";
-import { STATE_RING_FAMILIES } from "@molis-ai/molis-work-contracts/platform/ui";
+import { STATE_RING_FAMILIES, type TextRef } from "@molis-ai/molis-work-contracts/platform/ui";
 import { canonicalJsonText, isRecord } from "./json-value.js";
+import { textRefProblems, tryOwnedTextRef } from "./ui/text-ref.js";
 
 // The one check of a Manifest's `presentation` (specs/shared-sources-and-surfaces §5, §7): `parsePluginManifest` runs it at install for
 // every plugin alike, and an author runs the same function on its own Manifest (SSC-06, IUI-01, IUI-22). Each problem names the part by
-// its path, so a refused install says which item is wrong. A word a person reads (`label`, `note`) is checked by `textProblems`.
+// its path, so a refused install says which item is wrong. A word a person reads (`label`, `note`) is checked by `wordProblems`.
 
 /** What the directory says of one action reference: it is there, it is not, or this check cannot tell (another provider's action). */
 export type PresentationCatalogAnswer = "present" | "absent" | "unknown";
@@ -42,7 +43,7 @@ function extraKeys(value: Record<string, unknown>, allowed: readonly string[], a
   return extra.length > 0 ? [`${at} 不认这些字段：${extra.join("、")}`] : [];
 }
 
-/** A word a person reads, written in a declaration. Only its shape is looked at here; the text tools of `/ui` check it in full. */
+/** A word a person reads, written in a declaration, has to be a text reference; `wordProblems` checks what it says. */
 function textProblems(value: unknown, at: string): string[] {
   return isRecord(value) ? [] : [`${at} 必须是文字引用`];
 }
@@ -58,7 +59,7 @@ interface ObjectContext {
  * The problems of a Manifest's `presentation`, empty when it has none or it is right. `catalog` answers for each action an object names;
  * left out, it is this Manifest's own actions. The overview action and the `start` it offers are always this Manifest's own (SSC-18).
  */
-export function validatePresentationDeclaration(manifest: { readonly presentation?: unknown; readonly actions?: unknown },
+export function validatePresentationDeclaration(manifest: { readonly presentation?: unknown; readonly actions?: unknown; readonly plugin_id?: unknown },
   catalog: PresentationCatalog = presentationCatalog(manifest.actions)): string[] {
   const declaration = manifest.presentation;
   if (declaration === undefined) return [];
@@ -72,7 +73,27 @@ export function validatePresentationDeclaration(manifest: { readonly presentatio
     declaration.objects.forEach((object, index) => problems.push(...objectProblems(object, `presentation.objects[${index}]`, context)));
   }
   if (declaration.overview !== undefined) problems.push(...overviewProblems(declaration.overview, actions));
-  return problems;
+  return [...problems, ...wordProblems(declaration, manifest.plugin_id)];
+}
+
+/**
+ * The words a declaration writes (`label`, `note`), with the text tools of `/ui` (a-section §2.3, §2.4): never a `literal`, so no word of
+ * the interface is written past translation, and a key under this plugin's own prefix or `common.`, so a plugin cannot show its words as
+ * another owner's. One that is not a text reference at all is reported where it is written.
+ */
+function wordProblems(declaration: Record<string, unknown>, pluginId: unknown): string[] {
+  const words: Array<readonly [string, Record<string, unknown>]> = [];
+  (Array.isArray(declaration.objects) ? declaration.objects : []).forEach((object, index) => {
+    (isRecord(object) && Array.isArray(object.fields) ? object.fields : []).forEach((field, at) => {
+      if (isRecord(field) && isRecord(field.label)) words.push([`presentation.objects[${index}].fields[${at}].label`, field.label]);
+    });
+  });
+  if (isRecord(declaration.overview) && isRecord(declaration.overview.note)) words.push(["presentation.overview.note", declaration.overview.note]);
+  return words.flatMap(([at, ref]) => {
+    const problems = textRefProblems(ref, { literal: false });
+    if (problems.length > 0) return problems.map(problem => `${at}：${problem}`);
+    return typeof pluginId === "string" && tryOwnedTextRef(ref as TextRef, pluginId) === null ? [`${at} 的键要用本插件自己的文字前缀，或平台共有的 common.`] : [];
+  });
 }
 
 const isValuesAction = (metadata: Record<string, unknown>) => metadata.input_type === PRESENTATION_VALUES_INPUT_TYPE && metadata.output_type === PRESENTATION_VALUES_OUTPUT_TYPE;

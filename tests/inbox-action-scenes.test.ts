@@ -25,9 +25,9 @@ test("FI-1 RAC-482 binding a published rule goes through the plugin's own scene 
     const publish = async (function_key: string) => {
       const draft = service.createChoice({ name: function_key, function_key });
       service.updateDraft(draft.id, { instructions: "Choose the next Inbox step", subject_kinds: ["inbox_entry"], scene_id: "inbox.next",
-        criteria: [{ key: "inbox.done", description: "Done" }, { key: "inbox.compose", description: "Compose" }] });
-      await service.preview(draft.id, "A real publication fixture");
-      return service.publish(draft.id, undefined, { scene_id: "inbox.next", version: 1, provider_id: "io.molis.work.inbox" });
+        criteria: [{ key: "inbox.done", description: "Done" }, { key: "inbox.compose", description: "Compose" }] }, service.get(draft.id).updated_at);
+      await service.preview(draft.id, "A real publication fixture", service.get(draft.id).updated_at);
+      return service.publish(draft.id, service.get(draft.id).updated_at, { scene_id: "inbox.next", version: 1, provider_id: "io.molis.work.inbox" });
     };
     const target = await publish("fi1_target"), unrelated = await publish("fi1_unrelated");
     const draft = service.createChoice({ name: "Not published", function_key: "fi1_draft" });

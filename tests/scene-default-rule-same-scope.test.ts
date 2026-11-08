@@ -22,7 +22,7 @@ const signedAs = (definition: PluginDefinition, signature: string): PluginDefini
 function rules(home: string, pluginId: string) {
   const declare = (plugin: string) => seedSceneRules(home, { provider_id: `${plugin}.provider`, plugin_id: plugin, title: "插件", kind: "plugin" }, [declaredScene(`scene.${KEY}`, declaredRule(KEY))], OPTIONS);
   declare(pluginId);
-  const sample = withFunctionsService(home, service => service.addSample(service.getByKey(KEY)!.id, { input: "同一作用域里留下的示例" }), OPTIONS);
+  const sample = withFunctionsService(home, service => service.addSample(service.getByKey(KEY)!.id, { input: "同一作用域里留下的示例" }, service.get(service.getByKey(KEY)!.id).updated_at), OPTIONS);
   const rule = () => withFunctionsService(home, service => service.getByKey(KEY), OPTIONS);
   assert.deepEqual(rule(), sample);
   assert.equal(rule()?.id, `declared:${pluginId}:${KEY}`);

@@ -1201,7 +1201,6 @@ export const EN: Record<string, string> = {
   "待决定": "Waiting for you",
   "查看回收站": "View trash",
   "打开 Molis Work 设置": "Open Molis Work settings",
-  "收起": "Collapse all",
   "移动端视图": "Mobile view",
   "Goal 正文": "Goal document",
   "调整 Goal Tree 宽度": "Resize Goal Tree",

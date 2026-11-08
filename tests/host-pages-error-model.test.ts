@@ -75,8 +75,8 @@ async function serve(handle: (request: IncomingMessage, response: ServerResponse
 /** The status each Functions code answered through `functionsRouteErrorResponse` on the merge-base, by reason. The one change: provider_unauthorized was 401. */
 const FUNCTIONS_STATUS: Readonly<Record<string, number>> = {
   invalid: 400, stale_preview: 400, published_immutable: 400, key_conflict: 400, preview_required: 400,
-  not_found: 404,
-  conflict: 409, version_conflict: 409, provider_not_configured: 409,
+  not_found: 404, sample_not_found: 404,
+  conflict: 409, version_conflict: 409, provider_not_configured: 409, draft_stale: 409,
   // FI-2 (#1283): a plugin declaring a default rule whose key another plugin holds; it came after the mapper, as a conflict.
   rule_key_taken: 409,
   provider_unauthorized: 502, provider_failed: 502,

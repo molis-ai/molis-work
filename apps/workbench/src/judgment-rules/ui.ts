@@ -1,4 +1,4 @@
-import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { icon, type MwButtonOptions, renderAlert, renderButton, renderKept, renderStepDot } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 export interface FunctionsUiPrimitives {
   escape(value: unknown): string;
@@ -91,11 +91,19 @@ export function renderFunctionsWorkbench(model: FunctionsUiModel): string {
           </section>
         </div>
         <footer class="functions-editor-footer">
-          <div class="functions-feedback"><span class="functions-save-status" data-functions-save-status role="status"></span><p class="functions-note" data-functions-note role="status" hidden></p></div>
+          <div class="functions-feedback"><span class="functions-save-status" data-functions-save-status role="status"></span><div class="functions-band" data-functions-band role="status"></div><p class="functions-note" data-functions-note role="status" hidden></p></div>
           <div class="functions-actions"><button class="mw-btn mw-btn--ghost" type="button" data-functions-prev>${p.text("上一步")}</button><button class="mw-btn mw-btn--primary" type="button" data-functions-next>${p.text("下一步：判断规则")}</button></div>
         </footer>
       </form>
     </div>
+    ${renderKeepEdits(p)}
+    <dialog class="mw-dialog" data-functions-leave aria-labelledby="functions-leave-title">
+      <form class="mw-form mw-dialog__shell" method="dialog">
+        <header class="mw-form__header"><div><h2 id="functions-leave-title">${p.text("你写的还没存")}</h2></div></header>
+        <div class="mw-form__body"><p>${p.text("这次没能存上。离开后，你写的就没有了。")}</p></div>
+        <footer class="mw-form__footer">${renderButton({ label: p.text("不要了，回到列表"), variant: "secondary", type: "submit", attrs: { value: "discard", "data-functions-leave-discard": "" } })}${renderButton({ label: p.text("留在这里"), type: "submit", attrs: { value: "stay", autofocus: true, "data-functions-leave-stay": "" } })}</footer>
+      </form>
+    </dialog>
     <dialog class="mw-dialog mw-dialog--form" data-functions-create-dialog aria-labelledby="functions-create-title">
       <form class="mw-form mw-dialog__shell" data-functions-create-form>
         <header class="mw-form__header"><div><h2 id="functions-create-title">${p.text("新建判断")}</h2></div><button class="mw-btn mw-btn--ghost mw-btn--icon-only" type="button" data-functions-create-close aria-label="${p.text("关闭")}">${icon("x")}</button></header>
@@ -108,4 +116,32 @@ export function renderFunctionsWorkbench(model: FunctionsUiModel): string {
       </form>
     </dialog>
   </section>`;
+}
+
+const act = (name: string, label: string, primary = false): MwButtonOptions => ({ label, variant: primary ? "primary" : undefined, attrs: { "data-functions-keep-act": name } });
+const band = (phase: string, alert: Parameters<typeof renderAlert>[0]): string =>
+  `<template data-functions-keep="${phase}">${renderAlert({ role: null, rise: true, attrs: { tabindex: "-1" }, ...alert })}</template>`;
+
+/**
+ * What the editor shows when a rule changed elsewhere (docs/design/rule-stale-reload, plan A; specs/action-input-contracts §2.7):
+ * one alert per state for the feedback slot, the kept row and the step's dot, drawn by the SDK's parts and cloned by the page.
+ * `{version}` is filled in by the page from the record it read.
+ */
+function renderKeepEdits(p: FunctionsUiPrimitives): string {
+  const reload = act("reload", p.text("载入最新版"), true), saveNew = (primary: boolean) => act("save-new", p.text("存成新规则"), primary);
+  return [
+    band("conflict", { tone: "warning", title: p.text("这条规则在别处改过"), body: p.text("你写的都还在，还没存。"), actions: [reload] }),
+    band("offline", { tone: "warning", title: p.text("最新版还没载入"), body: p.text("连接好像断了。你写的都还在，连上后再试一次。"), actions: [act("reload", p.text("再试一次"), true)] }),
+    band("second", { tone: "warning", title: p.text("这条规则又被改了一次"), body: p.text("可能还有人在改它。你写的都还在，还没存。"), actions: [saveNew(false), reload] }),
+    band("deleted", { tone: "warning", title: p.text("这条规则已被删除"), body: p.text("你写的都还在，可以存成一条新规则。"), actions: [act("discard", p.text("不要了")), saveNew(true)] }),
+    band("published", { tone: "warning", title: p.text("这条规则已在别处发布为 {version}", { version: "{version}" }), body: p.text("发布后不能再改。你写的都还在，可以用它另起一条。"), actions: [act("view", p.text("查看 {version}", { version: "{version}" })), saveNew(true)] }),
+    band("viewing", { title: p.text("这是已发布的 {version}", { version: "{version}" }), body: p.text("你写的还留着，可以用它另起一条。"), actions: [saveNew(true)] }),
+    band("settled", { title: p.text("这条规则已在别处发布为 {version}", { version: "{version}" }), body: p.text("发布后不能再改。") }),
+    band("clean", { title: p.text("这条规则刚在别处改过，已换成最新版"), body: p.text("发布前看一眼。"), actions: [act("goto", p.text("看看改了什么"))] }),
+    band("loaded", { tone: "success", state: "done", title: p.text("已载入最新版"), body: " ", actions: [act("dismiss", p.text("收起"))] }),
+    band("saved-new", { tone: "success", state: "done", title: p.text("已存成新规则"), body: p.text("名字和内容都是你写的。"), actions: [act("dismiss", p.text("收起"))] }),
+    `<template data-functions-keep="busy">${renderButton({ label: "", loading: true, attrs: { "data-functions-keep-act": "busy" } })}</template>`,
+    `<template data-functions-keep="kept">${renderKept({ who: p.text("你写的"), text: "", rise: true, action: { label: p.text("放回"), attrs: { "data-functions-kept-swap": "" } }, more: { label: p.text("看全部"), attrs: { hidden: true, "data-functions-kept-more": "" } } })}</template>`,
+    `<template data-functions-keep="dot">${renderStepDot({ label: p.text("这一步有改动要看") })}</template>`,
+  ].join("");
 }

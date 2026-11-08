@@ -1,3 +1,4 @@
+import { ACCOUNT_CLIENT_SCRIPT } from "../scripts/account.js";
 import { escapeHtml, icon, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderCaption, renderIconSprite, renderWordmark, THEME_BOOTSTRAP_SCRIPT } from "@molis-ai/molis-work-design-system";
 import { homePluginSideTabs, renderHomePluginNavigation, type HomePluginNavigationEntry } from "../home-plugin-navigation.js";
@@ -74,7 +75,8 @@ export function createArrivalShell(p: ArrivalShellPrimitives) {
     const background = `<span class="arrival-bg"><button class="mw-btn mw-btn--ghost mw-btn--md background-tasks-button" data-slot="button" type="button" data-background-tasks aria-label="${L("后台任务")}" title="${L("后台任务")}" hidden>${icon("activity")}<span data-slot="button-label">${L("后台任务")}</span></button><span data-background-tasks-count hidden>0</span></span>`;
     const theme = options.theme
       ? `<span class="arrival-theme"><button class="mw-btn mw-btn--ghost mw-btn--md" data-slot="button" type="button" id="cx-theme" aria-label="${L("切换主题")}">${icon("switch")}<span data-slot="button-label">${L("切换主题")}</span></button></span>` : "";
-    const global = options.tools === false ? "" : `<span class="arrival-global">${renderHomePluginNavigation(path => href(desktopShell, path), options.home_plugins)}${background}${link("/capabilities/library", "sparkles", L("能力"), L("打开能力服务"))}${link("/settings/appearance", "settings", L("设置"), L("打开系统设置"))}</span>`;
+    const unifiedAccount = options.account ? `<button class="mw-btn mw-btn--ghost mw-btn--md" type="button" data-slot="button" data-unified-account-link aria-label="${L("Molis 账号")}">${icon("user")}<span data-slot="button-label" data-unified-account-name>${L("Molis 账号")}</span></button>` : "";
+    const global = options.tools === false ? "" : `<span class="arrival-global">${renderHomePluginNavigation(path => href(desktopShell, path), options.home_plugins)}${background}${unifiedAccount}${link("/capabilities/library", "sparkles", L("能力"), L("打开能力服务"))}${link("/settings/appearance", "settings", L("设置"), L("打开系统设置"))}</span>`;
     const account = options.account ? `<button class="mw-btn mw-btn--ghost mw-btn--md" data-slot="button" type="button" data-account-link aria-label="${L("账号管理")}">${icon("user")}<span data-slot="button-label" data-personal-name>${L("未登录")}</span></button>` : "";
     return `<nav class="arrival-tools" aria-label="${L("全局")}">${theme}${account}${global}</nav>`;
   }
@@ -113,7 +115,7 @@ export function createArrivalShell(p: ArrivalShellPrimitives) {
     ${side}
   </div>
   ${options.after ?? ""}
-  <script>${options.scripts}${side ? SIDE_PANEL_SCRIPT : ""}</script>
+  <script>${options.scripts}${options.screen === "chooser" ? ACCOUNT_CLIENT_SCRIPT : ""}${side ? SIDE_PANEL_SCRIPT : ""}</script>
 </body>
 </html>`;
   }

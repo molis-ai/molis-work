@@ -1,23 +1,28 @@
 import type { UiConnectionSlotChoice, UiConnectionSlotRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { ConnectorConnectionView } from "@molis-ai/molis-work-contracts/services/connector-host";
+import { childConnectionNeed } from "./connection-need.js";
 import type { FrameDown, FrameScope, FrameUp, Translate } from "./types.js";
 
-/** The child can cancel a choice when its selection ends; no account directory crosses this port. */
+/**
+ * The child can cancel a choice when its selection ends; no account directory crosses this port. With no account at all, the shell says
+ * so (`need`) and the page shows the platform's connection card beside the anchor (ASC-70): connected there, the slot is read again.
+ */
 export function childConnectionSlot(port: MessagePort, scope: FrameScope) {
   let sequence = 0;
-  const pending = new Map<number, { finish(value: UiConnectionSlotChoice | null, error?: Error): void; cancel(): void }>();
+  const need = childConnectionNeed(port, scope);
+  const pending = new Map<number, { finish(value: UiConnectionSlotChoice | null, error?: Error, card?: true): void; cancel(): void }>();
   scope.own(() => { for (const waiter of [...pending.values()]) waiter.cancel(); });
   port.addEventListener("message", (event: MessageEvent<FrameDown>) => {
     if (event.data.type !== "connection-slot") return;
-    pending.get(event.data.id)?.finish(event.data.value ?? null, event.data.error ? new Error(event.data.error) : undefined);
+    pending.get(event.data.id)?.finish(event.data.value ?? null, event.data.error ? new Error(event.data.error) : undefined, event.data.need);
   });
-  return (query: UiConnectionSlotRequest<HTMLElement>): Promise<UiConnectionSlotChoice | null> => new Promise((resolve, reject) => {
+  const choose = (query: UiConnectionSlotRequest<HTMLElement>): Promise<UiConnectionSlotChoice | null> => new Promise((resolve, reject) => {
     scope.assertCurrent(); query.signal?.throwIfAborted();
     const id = ++sequence, box = query.mode === "choose" ? query.anchor.getBoundingClientRect() : undefined;
-    const finish = (value: UiConnectionSlotChoice | null, error?: Error) => {
+    const finish = (value: UiConnectionSlotChoice | null, error?: Error, card?: true) => {
       if (!pending.delete(id)) return;
       query.signal?.removeEventListener("abort", cancel);
-      if (error) reject(error); else resolve(value);
+      if (error) reject(error); else if (!card) resolve(value); else resolve(connectHere(query));
     };
     const cancel = () => {
       port.postMessage({ type: "connection-slot-cancel", id } satisfies FrameUp);
@@ -27,6 +32,17 @@ export function childConnectionSlot(port: MessagePort, scope: FrameScope) {
     port.postMessage({ type: "connection-slot", id, mode: query.mode, slot_id: query.slot_id, record_key: query.record_key,
       ...(box ? { box: { x: box.x, y: box.y, width: box.width, height: box.height } } : {}) } satisfies FrameUp);
   });
+  /** The card on an empty place right after the anchor, gone once answered; cancelled is no choice, as the dialog's 取消 was. */
+  const connectHere = async (query: UiConnectionSlotRequest<HTMLElement>): Promise<UiConnectionSlotChoice | null> => {
+    if (query.mode !== "choose") return null;
+    const place = document.createElement("div");
+    query.anchor.after(place);
+    try {
+      const outcome = await need(place, { kind: "slot", slot_id: query.slot_id, record_key: query.record_key }, query.signal ? { signal: query.signal } : {});
+      return outcome.status === "connected" ? await choose({ ...query, mode: "read" }) : null;
+    } finally { place.remove(); }
+  };
+  return choose;
 }
 
 /** Only a record rendered by this current owner can request a picker. Installation/service remain server-derived. */
@@ -50,10 +66,10 @@ export function pageConnectionSlot(port: MessagePort, scope: FrameScope, frame: 
   const receive = async (message: Extract<FrameUp, { type: "connection-slot" }>): Promise<void> => {
     cancel();
     const controller = new AbortController(); let popup: HTMLDialogElement | undefined, settled = false;
-    const finish = (value: UiConnectionSlotChoice | null, error?: string) => {
+    const finish = (value: UiConnectionSlotChoice | null, error?: string, need?: true) => {
       if (settled) return; settled = true; controller.abort(); popup?.remove();
       if (current === request) current = null;
-      if (scope.alive && scope.visible && !frame.hidden) port.postMessage({ type: "connection-slot", id: message.id, value, ...(error ? { error } : {}) } satisfies FrameDown);
+      if (scope.alive && scope.visible && !frame.hidden) port.postMessage({ type: "connection-slot", id: message.id, value, ...(error ? { error } : {}), ...(need ? { need } : {}) } satisfies FrameDown);
     };
     const request = { id: message.id, finish }; current = request;
     const check = () => { scope.assertCurrent(); if (!scope.visible || frame.hidden || current !== request || settled || controller.signal.aborted) throw new DOMException("View changed", "AbortError"); };
@@ -72,6 +88,8 @@ export function pageConnectionSlot(port: MessagePort, scope: FrameScope, frame: 
         "/api/settings/connectors/connections?service_id=" + encodeURIComponent(bound.service_id), { scope, signal: controller.signal });
       check();
       const accounts = directory.connections.filter((connection): connection is ConnectorConnectionView => !("project_id" in connection));
+      // No account at all: the connection card on the page instead of a dialog with nothing to pick (ASC-70, §13.5).
+      if (!accounts.length) { finish(null, undefined, true); return; }
       popup = document.createElement("dialog"); popup.className = "mw-dialog mw-dialog--form"; popup.setAttribute("aria-label", translate("请选择账号连接"));
       const area = document.createElement("div"); area.className = "mw-dialog__body"; area.style.cssText = "display:grid;gap:8px;overflow:auto"; popup.append(area);
       popup.addEventListener("cancel", event => { event.preventDefault(); finish(null); });
@@ -87,7 +105,6 @@ export function pageConnectionSlot(port: MessagePort, scope: FrameScope, frame: 
             .catch(error => { if (current === request && !settled) finish(null, error instanceof Error ? error.message : String(error)); });
         }); area.append(button);
       }
-      if (!accounts.length) { const note = document.createElement("p"); note.textContent = translate("还没有账号连接，请先在 Connectors 添加。"); area.append(note); }
       const back = document.createElement("button"); back.type = "button"; back.className = "mw-btn"; back.textContent = translate("取消"); back.addEventListener("click", () => finish(null)); area.append(back);
       popup.style.cssText = "max-height:min(400px,80vh);max-width:min(440px,90vw)";
       const box = frame.getBoundingClientRect(), anchor = message.box;

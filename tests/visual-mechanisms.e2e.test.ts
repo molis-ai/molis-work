@@ -20,6 +20,9 @@ async function openPage(t: test.TestContext, body: string): Promise<ChromePage |
   await page.viewport(900, 700);
   // The viewport helper turns reduced motion on; these mechanisms are checked with motion, and with reduced motion where said.
   await page.command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "no-preference" }] });
+  // T01-MOTION-01: the fixture uses the product pages' standards mode.
+  await page.evaluate(`document.open(); document.write("<!doctype html><html><head></head><body></body></html>"); document.close()`);
+  assert.equal(await page.evaluate("document.compatMode"), "CSS1Compat");
   await page.evaluate(`(() => {
     const style = document.createElement("style");
     // The page's own motion tokens, as every product page defines them.
@@ -28,6 +31,8 @@ async function openPage(t: test.TestContext, body: string): Promise<ChromePage |
     document.body.innerHTML = ${JSON.stringify(body)};
     for (const code of [${JSON.stringify(MICRO_INTERACTION_CLIENT_SCRIPT)}, ${JSON.stringify(COPY_FEEDBACK_CLIENT_SCRIPT)}, ${JSON.stringify(SHOW_MORE_CLIENT_SCRIPT)}, ${JSON.stringify(MEDIA_ZOOM_CLIENT_SCRIPT)}]) { const s = document.createElement("script"); s.textContent = code; document.body.append(s); }
   })()`);
+  // Establish the initial painted state before testing its transition; do not open a fold in its insertion frame.
+  await page.evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   return page;
 }
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));

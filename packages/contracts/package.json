@@ -257,6 +257,10 @@
     "./platform/plugin-sync": {
       "types": "./dist/platform/plugin-sync.d.ts",
       "import": "./dist/platform/plugin-sync.js"
+    },
+    "./services/account": {
+      "types": "./dist/services/account.d.ts",
+      "import": "./dist/services/account.js"
     }
   },
   "files": [

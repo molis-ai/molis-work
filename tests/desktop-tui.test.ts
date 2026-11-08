@@ -735,8 +735,9 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.doesNotMatch(desktop, /class="desktop-workbench-actions"/);
     assert.doesNotMatch(desktop, /class="desktop-workbench-bar" data-tauri-drag-region/);
     assert.match(desktop, /data-plugin-id="settings"[^>]*data-directory-open="settings"[^>]*aria-label="打开全局设置"/);
-    // Personal keeps its working account entry instead of main's disabled placeholder.
+    // WUA-10/WUA-13: the personal workspace and unified account use distinct enabled entries.
     assert.match(desktop, /<button class="personal-account" type="button" data-account-link aria-label="账号管理">/);
+    assert.match(desktop, /<button class="immersive-plugin-link account-global-item" type="button" data-unified-account-link aria-label="Molis 账号" title="Molis 账号">/);
     // 能力 is part of settings (specs/artifact-positioning S6b): its entry opens the settings at the library, not a framed page.
     assert.doesNotMatch(desktop, /data-capabilities-frame|data-work-surface="capabilities"/);
     assert.match(desktop, /href="\/capabilities\/library(?:\?[^"]*)?"[^>]*data-capabilities-open/);

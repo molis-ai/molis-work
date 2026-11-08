@@ -1,6 +1,6 @@
 # 草稿与返回：从哪里来、回到哪里、接着做什么（路线书 12 第三项）
 
-状态：设计稿（2026-11-07），没有实现，也没有改合同代码。第 13 批统筹按用户 11-07 的安排派写手写稿。评审台第一轮（[#1928 评论][REVIEW1]）、第二轮（[#1928 评论][REVIEW2]）与第三轮（[#1928 评论][REVIEW3]）的意见已按统筹裁定改进本稿，见第 12 节；第三轮剩下的一条挡合并已改，等评审台核。第 11.1 节四项用户 11-07 已定，第 11.2 节由统筹定。第 13 批⑤等本项合入后接入。本稿由 Claude（第 13 批统筹派的写手）维护；实现片的写手按第 8 节由统筹派。
+状态：R0～R4 已实现（2026-11-07，分支 `claude/12-draft-and-return`，与第 13 批④c-2 合成一个 PR 统一验收），统一评审（逻辑、合同、D 轨三台）的意见已按统筹裁定改完（第 12 节最后一条），等统筹复核与合入；DRT-21 的实操与本人验收两级未做（第 13 节）。设计稿经评审台三轮（[#1928 评论][REVIEW1]、[REVIEW2]、[REVIEW3]）改进，第 11.1 节四项用户 11-07 已定，第 11.2 节由统筹定。本稿由 Claude（第 13 批统筹派的写手）维护。
 
 - **档位**：大需求。新的平台能力，改 `UiPluginClientHost` 合同，跨工作台外壳、设置页与多个插件。
 - **类型**：横向能力（主）；产品线（工作台、服务连接、模型设置、各插件）；体验与效果。
@@ -134,7 +134,7 @@ interface ReturnTrip {
 
 | 问题 | 定法 | 理由 |
 | --- | --- | --- |
-| 谁存 | **只有一个写入方**：外层文档里新的页面状态主人 `settings-return`（新文件 `apps/workbench/src/scripts/client/settings-return.ts`）。形状检查与窗口号放在 `apps/workbench/src/browser/return-trips.ts`，只供这个主人用。框架宿主、窗格文档、助理、设置页都不直接读写存储，一律经页面事件（2.6）。窗格文档里不装这个模块（嵌入时什么都不做）。主人在外层文档脚本启动时**同步**初始化，在工作区挂上任何框之前就能回答认领 | 回程里记的是栏、标签、挂载这些**浏览器里的布局事实**，它们的主人本来就在外壳；放到宿主，就是给浏览器布局在宿主里另记一份。只有一个写入方，「交出即删」和「留给重建后认领」才不会互相打架。`settings-directory.ts` 已经 463 行，不往里加 |
+| 谁存 | **只有一个写入方**：外层文档里新的页面状态主人 `settings-return`（新文件 `apps/workbench/src/browser/settings-return.ts`）。形状检查与窗口号放在 `apps/workbench/src/browser/return-trips.ts`，只供这个主人用。框架宿主、窗格文档、助理、设置页都不直接读写存储，一律经页面事件（2.6）。窗格文档里不装这个模块（嵌入时什么都不做）。主人在外层文档脚本启动时**同步**初始化，在工作区挂上任何框之前就能回答认领 | 回程里记的是栏、标签、挂载这些**浏览器里的布局事实**，它们的主人本来就在外壳；放到宿主，就是给浏览器布局在宿主里另记一份。只有一个写入方，「交出即删」和「留给重建后认领」才不会互相打架。`settings-directory.ts` 已经 463 行，不往里加 |
 | 存在哪 | 这个标签页的 `sessionStorage`，用三个键：`molis-work:return-trips`（按项目分开）、`molis-work:return-window`（窗口号）、`molis-work:return-window-handoff`（离开记号）。这是 U3 已定的 A | 刷新以后还在。插件框的存储转存一律加 `molis-plugin-page:<scope>:` 前缀（`parent.ts:250-253`），碰不到这三个键 |
 | 属于哪个窗口 | 每个窗口在 `sessionStorage` 里记一个随机的窗口号，回程带上它。窗口号会随会话存储一起被复制：带 opener 打开的标签页、浏览器的「复制标签页」都会复制。分辨的办法是**离开时留记号**：<br>• `pagehide` 时写 `molis-work:return-window-handoff = { id, at }`；页面从往返缓存里回来（`pageshow` 且 `persisted`）时，把这个记号删掉。<br>• 启动时读出记号就删。记号在外层脚本最早的时候同步读，不等页面加载完。读到的是本窗口号、且 10 秒以内的，就是这个标签页自己刷新或站内跳转，沿用窗口号。读不到、或者过期了，就是新标签或复制出来的：换一个新窗口号，把存储里的回程全部删掉。<br>• 从往返缓存回来时，除了删记号，主人还要**从存储里重读回程**：这期间同一个标签页的另一份文档可能已经认领或删掉了回程，内存里那份已经过时。<br>• 浏览器「重新打开刚关掉的标签页」在 10 秒内恢复时会沿用窗口号，算同一个标签页接着用，可以接受。<br>• 不用跨标签通道，也不用等 | 复制发生时，原窗口还开着，存储里没有记号（启动时已经删了），所以弹出的标签页和复制出来的标签页**一定**换号；刷新**一定**沿用。启动是同步的，返回条和 `arrived()` 不用等。崩溃恢复的标签页也会换号（1.3 不做） |
 | 回调落地页 | 授权回调带回来的文档，启动时**无条件**换号、清掉回程，不出返回条。这里指：开机地址里带 `connected`、`connection_error`、`setup`，由宿主重定向而来，`?settingsPath=` 开机，`fromPage=false` | 弹窗里的第一份工作台文档一定是落地页：`popup.location.replace` 先去授权页，回调再 302 到这两个地址（`web-connector-api-methods.ts:34-36`）。所以这一条靠确定的规则挡住，与上一条的记号互相独立 |
@@ -161,7 +161,7 @@ interface ReturnTrip {
   - 窗格框里的页面：`window.frameElement.dataset.paneOwner`（窗格框与外层同源，`frameElement` 可信）。
   - 两者都取不到（侧栏格 `#side-panel iframe[data-side-frame]` 等不在窗格布局里的位置）：`place` 为 `null`。
   - `place.surface` 就是 `from.surface`。不记框的键：`paneFrameKey` 有标签时是标签 id，作为视图显示时是 `<pane>:view`，S2 还会改它。
-- **平台界面**：助理按它此刻显示的工作填 `work_id`，并明确给出 `need`（「继续接入」给 `setup`）。提醒和其他平台界面里的普通链接，是 `under-cover`。
+- **平台界面**：助理按它此刻显示的工作填 `work_id`，并明确给出 `need`（「继续接入」给 `setup`）：助理岛在「继续接入」被点时自己发 `molis-work:open-settings-path`，带上它此刻显示的工作号与宿主画链接时写下的授权号（`data-return-setup`），回程主人不读助理的列表。提醒和其他平台界面里的普通链接，是 `under-cover`。
 - **外层文档里的同源代码**（含 Alchemist、创作台两个构建期例外）能直接发带任意 `from`、`carry` 的 `open-settings-path`。这不是新的口子：它们本来就能读写所有 `molis-plugin-page:` 存储与控制令牌。`S-return-trip-source` 只守插件框与窗格转发。外层文档发的回程一律 `claim: false`。
 - **普通链接**（第 2.4 节第三种）：外壳的链接处理按链接所在的可信文档位置算来处，`need` 按地址查一张封闭的表（U1 已定）：
   - `/settings/models` → `model`；
@@ -302,12 +302,12 @@ export interface UiPageReturns {
 | `apps/workbench/src/browser/plugin-frame/child.ts` | `returns.go` 与 `returns.arrived` 先给固定的拒绝（「暂不可用」）占位，与④c C1 的做法相同 | R0 |
 | 过时说明 | `docs/platform/PROLOGUE-AI.md:204`，以及 `dom-events.ts:262`（`model-ready` 的 summary），改成 Onboarding 的现状。`pnpm api:update` 刷新 dom-events 快照 | R0 |
 | 已登记事件的载荷 | `molis-work:place-changed` 的 detail 登记改成 `{ paneId, place, previous, cover }`，说明 `cover` 是覆盖层类型或 `null`，`previous.cover` 缺省时按 `null`；与 `announcePlace` 发它的代码在同一个改动里 | R1a |
-| `packages/contracts/src/platform/dom-events.ts`（新条目与发它的代码在同一个改动里登记） | ① `molis-work:open-settings-path`（请求，主人 `settings-directory`）：载荷从 `{ href }` 扩成 `{ href, return_id?, need?, from?, carry? }`。`return_id` 只由插件框的框架宿主生成，别的发送者不填，由主人生成。② 新增请求 `molis-work:layout-holds`（主人 `tab-workspace`，`on: "document"`）：载荷 `{ pane, surface, answer? }`，同步回填 `answer: boolean`（窗格还在，并且有这个界面的视图或标签）；嵌入的窗格文档不答；没人回填时，请求方不作判断。这条请求以后归 07 维护（统筹定，第 10 节）。③ `molis-work:model-ready` 改说明里「谁先关覆盖层」那一句。④ 主人表加 `settings-return` 一行：`files` 为 `apps/workbench/src/scripts/client/settings-return.ts`、`apps/workbench/src/browser/return-trips.ts`；`state` 为「这个窗口的回程：来处、需要、结算，存在本标签页的 `sessionStorage`」 | R1a |
-| 同上 | ⑤ 新增请求 `molis-work:return-claim`（主人 `settings-return`，`on: "document"`，只在外层文档）：载荷 `{ return_id?, origin?: { scope, surface, place }, drop?, answer? }`。主人同步处理，回填 `answer`：<br>• `{ status, carry }`：交出，即删；<br>• `{ open: return_id }`：这个来处有 `go` 开的回程还开着，请等。只回给 `scope`、`surface`、`place` 都对得上的认领。等的一方收到带这个 `return_id` 的 `return-settled` 再认领一次；收到 `ended` 给 `null`，挂载结束也给 `null`；<br>• `null`：没有可认领的。<br>`drop: true` 按 `not_ready` 结掉并删除。回填和在载荷里带回调的写法都有先例：`molis-work:plugins-changed` 的 `failed`、`molis:assistant-card-target` 的 `reply`。⑥ 新增宣告 `molis-work:return-settled { return_id, status }`（主人 `settings-return`，只发在外层文档）。`status` 是 `ready`、`not_ready` 或 `ended`（没结果就删了：过期、人离开）。它只提醒「去认领」，本身不交结果；主人启动完成（对开着的回程补读完）后，对每张已结算、等认领的回程补发一次 | R1b |
+| `packages/contracts/src/platform/dom-events.ts`（新条目与发它的代码在同一个改动里登记） | ① `molis-work:open-settings-path`（请求，主人 `settings-directory`）：载荷从 `{ href }` 扩成 `{ href, return_id?, need?, from?, carry? }`。`return_id` 只由插件框的框架宿主生成，别的发送者不填，由主人生成。② 新增请求 `molis-work:layout-holds`（主人 `tab-workspace`，`on: "document"`）：载荷 `{ pane, surface, answer? }`，同步回填 `answer: boolean`（窗格还在，并且有这个界面的视图或标签）；嵌入的窗格文档不答；没人回填时，请求方不作判断。这条请求以后归 07 维护（统筹定，第 10 节）。③ `molis-work:model-ready` 改说明里「谁先关覆盖层」那一句。④ 主人表加 `settings-return` 一行：`files` 为 `apps/workbench/src/browser/settings-return.ts`、`apps/workbench/src/browser/return-trips.ts`；`state` 为「这个窗口的回程：来处、需要、结算，存在本标签页的 `sessionStorage`」 | R1a |
+| 同上 | ⑤ 新增请求 `molis-work:return-claim`（主人 `settings-return`，`on: "document"`，只在外层文档）：载荷 `{ return_id?, origin?: { scope, surface, place }, drop?, answer? }`。主人同步处理，回填 `answer`：<br>• `{ status, carry }`：交出，即删；<br>• `{ open: return_id }`：这个来处有 `go` 开的回程还开着，请等。只回给 `scope`、`surface`、`place` 都对得上的认领。等的一方收到带这个 `return_id` 的 `return-settled` 再认领一次；收到 `ended` 给 `null`，挂载结束也给 `null`；<br>• `null`：没有可认领的。<br>`drop: true` 按 `not_ready` 结掉并删除。回填和在载荷里带回调的写法都有先例：`molis-work:plugins-changed` 的 `failed`、`molis:assistant-card-target` 的 `reply`。⑥ 新增宣告 `molis-work:return-settled { return_id, status }`（主人 `settings-return`，只发在外层文档）。`status` 是 `ready`、`not_ready`、`ended`（没结果就删了：过期、人离开）或 `refused`（根本没开成：设置打不开、这个窗口开不了回程，`go()` 立即拒绝，统一评审后加）。它只提醒「去认领」，本身不交结果；主人启动完成（对开着的回程补读完）后，对每张已结算、等认领的回程补发一次 | R1b |
 | 跨标签通道 | 不加 | — |
 | 动作合同快照 `tooling/gates/actions/` | 不变：不加动作，不改动作的 schema | — |
 | `apps/workbench/src/settings-address-params.ts` | 不变：地址里不带回程号 | — |
-| 框架与外壳之间的 MessagePort 消息（`types.ts` 的 `FrameUp`／`FrameDown`） | 加 `return-go`、`return-arrived`、`return-result` 三种，不在页面事件登记的范围里 | R1b |
+| 框架与外壳之间的 MessagePort 消息（`types.ts` 的 `FrameUp`／`FrameDown`） | 加 `return-go`、`return-arrived`、`return-result`，以及第 4 种 `return-abort`（页面中止 `go()`，实现时定（统筹 11-07），见 C12），不在页面事件登记的范围里 | R1b |
 | 巨大单元 | 框架宿主一侧的回程逻辑放进新模块 `apps/workbench/src/browser/plugin-frame/returns.ts`，照 `drafts.ts`、`connection-slot.ts` 的做法；`parent.ts#mountFrame` 里只接一行。`mountFrame` 登记在 `tooling/gates/giant-exceptions/apps/workbench/src/browser/plugin-frame/parent.ts.json`（现为 `size: 188`；#1929、④c-2 也会改它），每片在 diff 里写实测的新 `size` | R1a、R1b |
 | 安全不变量 | 新增三条，见第 5 节 | R1a（destination）；R1b（source、delivery） |
 | 页面资源 | 按任务许可文件写：`tooling/gates/page-asset-allowances/12-draft-and-return-r1a.json`、`…-r1b.json`，格式见 `docs/cli-and-development.md`「页面资源体积」。预计 `workbench.js` 增几 KB，`plugin-frame.js` 增约 1 KB，以实测为准；单项一次超过 10 KB，先问用户。**不改 `tooling/gates/page-assets.json`**：它是枢纽文件，07-S1、S2 都在改 | R1a、R1b |
@@ -408,7 +408,7 @@ export interface UiPageReturns {
 - 模型 → `/api/settings/models`（`health` 里有 `ready`）。
 - 连接 → 连接页的 `/api/settings/connectors/connections?service_id=…`，背后是 `connectors.connections.read@1`。
 - 接入授权 → 连接页现在用的 `/api/settings/connectors/authorizations/<授权号>`（`connectors-settings.ts:62` 的 `api` 加 `:208` 的读法）。不经 `connectors.authorization.read@1` 的动作网关，因为那个动作只认发起它的人、项目与运行会话（S-37）。
-- 带槽的连接（原处连接卡）→ C2 的 `read`，只在来处页面还活着时调，用它的页面授权。
+- 带槽的连接（原处连接卡）→ 按服务读（与上面「连接」同一条路由：这个服务有已连上的账号就算配好），见 C17。槽上绑哪个账号仍归卡：回到原处后，卡用 C2 的 `read` 再读一次，接着走它自己的流程（选账号、绑上）。
 
 | 动作 | 请求 |
 | --- | --- |
@@ -430,12 +430,12 @@ export interface UiPageReturns {
 | **服务连接页**（落点） | 回调写「请回到原来的应用窗口继续」；「连好以后」是往前走的链接 | • 授权监视得知完成、保存密钥通过后，交回程结算。<br>• 有回程时，「连好以后」那段让位给返回条：配好就回去，属于 U1 已定的行为，不另问。<br>• 回调落地页改文案（C8），启动时换号清回程。<br>• `setup` 需要按 3.4 的路由读 | R4（13⑤） |
 | **助理对话**（来处） | 「继续接入」去连接页，工作会续，人不回 | • 「继续接入」以 `from: assistant`、`need: setup` 开回程（`claim: false`）。<br>• 连好后关覆盖层，发 `molis:assistant-open { work_id }`；在等的工作照 §4.7 只续一次（宿主一侧不改）。<br>• ④c-2 之后，多数情况在原处出卡，链接只剩卡画不出的情况 | R4（13⑤） |
 | **连接提醒**（来处） | 去设置，不回 | 普通链接即可（`under-cover`）；提醒照原规则消掉，不改提醒合同 | R4（只验收） |
-| **原处连接卡的「还不能一键连接」**（来处） | 卡里给去连接页的入口，人离开原处 | 卡以来处页面开回程（`need: connection` 带槽）。回来后，卡用 C2 的 `read` 再读一次，接着走它自己的流程 | R4（④c-2 已先合） |
+| **原处连接卡的「还不能一键连接」**（来处） | 卡里给去连接页的入口，人离开原处 | 卡以来处页面开回程（`need: connection` 带槽，框架宿主的 `return_id`，可认领），落点是 `/settings/connectors?connector=<服务>`。不论怎样结束（配好、没配好、结束），卡在原处、看得见时只再读一次（C2 的 `read`），接着走它自己的流程。实现：`plugin-frame/returns.ts` 的 `connection`，`connection-need.ts` 的 `settings` 一步 | R4（④c-2 已先合） |
 | **Feed** | `connectorSettingsHref` 链到连接页，回来靠人 | ④c-2 改成原处连接卡；剩下的「还不能一键连接」走上一行。`connectorSettingsHref` 若还留着，普通链接按 `connection` 推断，配好自动回来 | 随④c-2，本项只验收 |
 | **Images** | 自己的 `resumeConnection` | 缺的是图像服务，不在 `UiReturnNeed` 里，**不用 `host.returns.go`**。④c-2 的卡取代缺密钥那一处后，删 `resumeConnection`。对话框里若还留着去设置的链接，保留普通链接（地址推断为 `none`，只回来、不判断） | 随④c-2 |
-| **Cognia** | 「模型设置」普通链接，加上听 `model-ready` 重读 | 被缺模型挡住的那一问，改用 `host.returns.go`：`step` 记那一问，草稿放 `host.drafts`。`model-ready` 监听保留 | R3 |
-| **工作流程** | 连接浮层里的「打开模型设置」是普通链接；`ui.returnTo` 是它自己的返回 | 改用 `host.returns.go`：`carry.object` 是这条流程，`step` 记连接序号。回来后重开那个浮层，重读能不能交接。`returnTo` 不动 | R3 |
-| **Coding** | `data-coding-model-setup` 与设置页的模型链接；输入草稿存在转存的 `sessionStorage` | 被缺模型挡住的发送，改用 `host.returns.go`（3.1 的例子）。草稿改存 `host.drafts`，才能过「重开后继续」。工作目录（「角色执行另选工作目录」）第一版不在 `UiReturnNeed` 里，走普通链接 | R3 |
+| **Cognia** | 「模型设置」普通链接，加上听 `model-ready` 重读 | 页面上「模型设置」那个普通入口（一个按钮，不是被某一问挡住）带着要问的话去设置：入口调 `host.returns.go`，`step: "query"`，问题仍在输入框里。配好回来后重读，用平台的「接着做」共用件问一句「接着问」，人点了才问，从不自动问（U1 第二种入口，实现时定（统筹 11-07））。没配好、取消都只回来。`model-ready` 监听保留 | R3 |
+| **工作流程** | 连接浮层里的「打开模型设置」是普通链接；`ui.returnTo` 是它自己的返回 | 浮层里的「打开模型设置」改成按钮，调 `host.returns.go`：`carry.object` 是 `{ kind: "workflow", id: <流程> }`，`step` 是 `link:<连接序号>`。回来（`go()` 的答复，或重建后 `arrived()`）后打开那条流程、重读模型，再打开那个连接的浮层，重读能不能交接；不替人做交接。`returnTo` 不动 | R3 |
+| **Coding** | `data-coding-model-setup` 与设置页的模型链接；输入草稿存在转存的 `sessionStorage` | 「模型设置」那个普通入口（改成按钮）先把输入框的草稿写进 `host.drafts`（键 `composer:<会话>`），再调 `host.returns.go`，`step: "send"`。配好回来后，在输入框上方用平台的「接着做」共用件问一句「发送」，人点了才把草稿填回、发出，从不自动发（U1 第二种入口，实现时定（统筹 11-07））。工作目录（「角色执行另选工作目录」）第一版不在 `UiReturnNeed` 里，走普通链接 | R3 |
 | **Onboarding** | 已经就地连模型（#1310）；Gmail OAuth 有自己的回程 | **不改**。跨标签的 `BroadcastChannel` 是独立清理项（C7） | 不改 |
 | **独立 Home 的模型设置对话框**（没有项目的 Home 页面） | `open-settings-path` 的第二个监听者 | 第一版**忽略新字段**，照现在打开对话框，不开回程，不出返回条。这些页面没有插件框，也没有工作区，没有「原处」可回 | R1a（只确认忽略） |
 | **Alchemist**（构建期例外） | 客户端在外层文档；链接由 `settings-directory.ts:414-433` 的点击处理接住；听 `model-ready` | **只写边界，不改代码**。那段点击处理开普通链接的回程（来处按链接所在的文档位置算），配好自动回到原处。不用 `host.returns`；`step` 那一半等 BL-377 重做时再接 | 不改 |
@@ -447,7 +447,7 @@ export interface UiPageReturns {
 格式照 [安全不变量记录](../../docs/system/security-invariants/README.md)：每条一个 `S-<语义名>.md`，一行五列。下面是拟写的「不变量（拒绝什么）」与测试计划，代码位置随实现填。
 
 - 能在 Linux 上稳定跑的检查，写成单元测试，放进 `test:security`（CI 里跑）：`return-go` 的字段检查、`return-trips.ts` 的形状与窗口归属、位置计算、`placeOf`、认领比对与 `{ open }`、布局判断、到期。
-- 这些逻辑都写在 `apps/workbench/src/browser/return-trips.ts`，它是真正的 TS 模块，测试 import 得进。`scripts/client/settings-return.ts` 是浏览器端的模板字符串脚本，只接线；`plugin-frame/returns.ts` 只接框架宿主一侧。
+- 这些逻辑都写在 `apps/workbench/src/browser/return-trips.ts`，它是真正的 TS 模块，测试 import 得进。外层的接线写在 `apps/workbench/src/browser/settings-return.ts`，也是 TS，由 esbuild 打成 `dist/settings-return-client.js`、排在客户端启动脚本前面（健康门禁不收新的 `*_SCRIPT` 文本脚本，所以不写成模板字符串；实现时改）；`plugin-frame/returns.ts` 只接框架宿主一侧。
 - 要真实浏览器的，另写浏览器用例，只在本机跑，并写明原因。
 
 | ID | 拒绝什么 | 断言「拒绝」的测试（计划） |
@@ -538,6 +538,7 @@ export interface UiPageReturns {
 24. **DRT-24** 没有项目的 Home 页面上的模型设置对话框：照现在打开，不开回程，不出返回条。
 25. **DRT-25** 两种「两栏」：
     - **分屏的两个窗格**（主区左右两栏，靠复制标签做出，`ops.moveTab(…, copy)`）各开同一界面一份：结果只交给来处那一栏，另一栏的 `arrived()` 为 `null`。
+    - 同一窗格里同一界面的另一个标签可能拿到结果：认领只比对安装、界面与窗格，不区分同一窗格里的标签（实现时补，记在这里）。
     - **侧栏格**（`workbench.side` 槽，与主区不是同一个界面）里的页面调 `go()`：仍挂着的 `go()` 能拿到结果；它的 `place` 为 `null`，重建后的 `arrived()` 按设计不交。
     - fixture 插件要同时有主区视图和侧栏视图。
 
@@ -558,7 +559,7 @@ export interface UiPageReturns {
 | 片 | 内容 | 文件范围 | 前置 | 要跑的测试 |
 | --- | --- | --- | --- | --- |
 | **R0 合同** | • 加 `UiReturnNeed`、`UiReturnCarry`、`UiReturnOutcome`、`UiPageReturns` 与 `UiPluginClientHost.returns`（2.4 的说明原样进合同）。<br>• `child.ts` 的固定拒绝占位。<br>• SDK 再导出类型名。<br>• 改两处过时说明（`docs/platform/PROLOGUE-AI.md:204`、`dom-events.ts:262`）。<br>• `pnpm api:update` | `packages/contracts/src/platform/ui.ts`；`packages/contracts/src/platform/dom-events.ts`（只改 `model-ready` 的说明）；`packages/plugin-sdk/src/`（类型再导出处）；`apps/workbench/src/browser/plugin-frame/child.ts`；`docs/platform/PROLOGUE-AI.md`；`tooling/gates/api/` | ④c-2 合入 | `pnpm health:check`（API 快照、文档引用、页面事件）；`tests/plugin-sample.e2e.test.ts` 的类型检查那一半（SDK 只依赖 contracts） |
-| **R1a 回程主人、普通链接与模型结算** | • 逻辑都写在 `return-trips.ts`：存取、形状检查、窗口号与离开记号（外层脚本最早时同步读；从往返缓存回来时重读回程）、回调落地页换号、期限、上限与到期计时、`placeOf`、布局判断。`settings-return.ts` 只接线；主人同步初始化。<br>• 普通链接与平台界面开回程（2.3 的推断表，`claim: false`）。<br>• 模型设置的保存结算、人回去、经 `place-changed` 的 `cover` 得知关掉或换掉设置、刷新与启动时补读。<br>• 回去：关覆盖层、对象链接入口、`molis:assistant-open`。<br>• `sentFromPage` 挪进回程。<br>• `open-settings-path` 载荷扩展；外层转发带上 `need`、`from`、`carry` 并补 `place`；`announcePlace` 发 `cover`（去重算上 `cover`）并登记字段；`layout-holds { pane, surface }` 的回答。<br>• 框架宿主一侧给普通链接补来处：新模块 `plugin-frame/returns.ts`，`mountFrame` 接一行。<br>• 独立 Home 对话框忽略新字段。<br>• `S-return-trip-destination`；页面资源许可文件 | 新：`apps/workbench/src/scripts/client/settings-return.ts`、`apps/workbench/src/browser/return-trips.ts`、`apps/workbench/src/browser/plugin-frame/returns.ts`。<br>改：`apps/workbench/src/browser/plugin-frame/parent.ts`（`mountFrame` 一行）、`tooling/gates/giant-exceptions/apps/workbench/src/browser/plugin-frame/parent.ts.json`（新的 `size`）、`settings-directory.ts`、`tab-workspace.ts`（外层转发）、`tab-workspace-places.ts`（`announcePlace` 与 `layout-holds`）、`packages/contracts/src/platform/dom-events.ts`、`apps/workbench/src/i18n/en.ts`（提示语）、`docs/platform/UI-PLATFORM.md`、`docs/system/security-invariants/S-return-trip-destination.md`、`tooling/gates/page-asset-allowances/12-draft-and-return-r1a.json`。<br>新测试 | R0；先于 07-S1、S2；`dom-events.ts`、`en.ts` 与 07 排时段 | `tests/model-first-setup.e2e.test.ts`、`tests/model-ready-surfaces.e2e.test.ts`、`tests/model-ready-cross-tab.e2e.test.ts`、`tests/cognia-embedded-settings.e2e.test.ts`、`tests/security-invariants-pane-messages.test.ts`（S-30）；新 `tests/settings-return-trips.e2e.test.ts`（DRT-01～04、07～09、16～18、23、24）；新 `tests/security-invariants-return-trips.test.ts` 的 destination 一半、窗口归属一半与布局判断（⑫、⑭、⑮，单栏与分屏）；`pnpm health:check`（页面事件、页面资源、巨大单元） |
+| **R1a 回程主人、普通链接与模型结算** | • 逻辑都写在 `return-trips.ts`：存取、形状检查、窗口号与离开记号（外层脚本最早时同步读；从往返缓存回来时重读回程）、回调落地页换号、期限、上限与到期计时、`placeOf`、布局判断。`settings-return.ts` 只接线；主人同步初始化。<br>• 普通链接与平台界面开回程（2.3 的推断表，`claim: false`）。<br>• 模型设置的保存结算、人回去、经 `place-changed` 的 `cover` 得知关掉或换掉设置、刷新与启动时补读。<br>• 回去：关覆盖层、对象链接入口、`molis:assistant-open`。<br>• `sentFromPage` 挪进回程。<br>• `open-settings-path` 载荷扩展；外层转发带上 `need`、`from`、`carry` 并补 `place`；`announcePlace` 发 `cover`（去重算上 `cover`）并登记字段；`layout-holds { pane, surface }` 的回答。<br>• 框架宿主一侧给普通链接补来处：新模块 `plugin-frame/returns.ts`，`mountFrame` 接一行。<br>• 独立 Home 对话框忽略新字段。<br>• `S-return-trip-destination`；页面资源许可文件 | 新：`apps/workbench/src/browser/settings-return.ts`、`apps/workbench/src/browser/return-trips.ts`、`apps/workbench/src/browser/plugin-frame/returns.ts`。<br>改：`apps/workbench/src/browser/plugin-frame/parent.ts`（`mountFrame` 一行）、`tooling/gates/giant-exceptions/apps/workbench/src/browser/plugin-frame/parent.ts.json`（新的 `size`）、`settings-directory.ts`、`tab-workspace.ts`（外层转发）、`tab-workspace-places.ts`（`announcePlace` 与 `layout-holds`）、`packages/contracts/src/platform/dom-events.ts`、`apps/workbench/src/i18n/en.ts`（提示语）、`docs/platform/UI-PLATFORM.md`、`docs/system/security-invariants/S-return-trip-destination.md`、`tooling/gates/page-asset-allowances/12-draft-and-return-r1a.json`。<br>新测试 | R0；先于 07-S1、S2；`dom-events.ts`、`en.ts` 与 07 排时段 | `tests/model-first-setup.e2e.test.ts`、`tests/model-ready-surfaces.e2e.test.ts`、`tests/model-ready-cross-tab.e2e.test.ts`、`tests/cognia-embedded-settings.e2e.test.ts`、`tests/security-invariants-pane-messages.test.ts`（S-30）；新 `tests/settings-return-trips.e2e.test.ts`（DRT-01～04、07～09、16～18、23、24）；新 `tests/security-invariants-return-trips.test.ts` 的 destination 一半、窗口归属一半与布局判断（⑫、⑭、⑮，单栏与分屏）；`pnpm health:check`（页面事件、页面资源、巨大单元） |
 | **R1b 插件页的 `go`、认领与交还** | • 认领比对、`{ open }` 与等待的逻辑写在 `return-trips.ts`（单元测试落在这里）；`host.returns.go`／`arrived()` 的接线在 `plugin-frame/returns.ts`：生成 `return_id` 与挂载随机号、看不见的页拒绝、`carry` 检查、在 `window.top.document` 上听 `return-settled` 与认领、`arrived()` 等开着的回程。<br>• `molis-work:return-claim`、`molis-work:return-settled`；主人启动完成后补发。<br>• 按布局判断重建与离开（2.4 的表）；同一文档清理时发 `drop`。<br>• 嵌套派发与快照（3.1 第 8 步）。<br>• `S-return-trip-source`、`S-return-trip-delivery`，以及它们的单元、浏览器测试。<br>• Skill 与文档：`skills/molis-plugin-dev`、`skills/molis-prologue-ai` 步骤 6、`apps/workbench/README.md` | `apps/workbench/src/browser/plugin-frame/returns.ts`、`child.ts`、`types.ts`；`parent.ts` 与它的巨大单元登记（若 `mountFrame` 的大小又变）；`settings-return.ts`；`dom-events.ts`；`docs/system/security-invariants/S-return-trip-source.md`、`S-return-trip-delivery.md`；`tooling/gates/page-asset-allowances/12-draft-and-return-r1b.json`；新测试 | R1a（因而在④c-2 之后） | `tests/security-invariants-plugin-pages.test.ts`、`tests/security-invariants-plugin-pages.e2e.test.ts`；新 `tests/settings-return-trips.e2e.test.ts`（DRT-05、06 的单栏与分屏、15、22、25）；新 `tests/security-invariants-return-trips.test.ts` 与 `.e2e.test.ts`（DRT-19） |
 | **R2 返回条与「接着做」共用件（界面）** | 先定样（U4、U2），做成组件板标本：<br>• 设置顶上的返回条；<br>• 插件页面里「刚才去配了〈什么〉，已经好了 · 接着〈那一步〉 · 不用了」的共用件（第 9 节）。<br>然后进设置的两处落点；回来后的提示用现有的 toast | 组件板与设置外壳的样式和渲染；共用件放在设计系统，由平台提供，插件只放位置（具体文件随定样定）；`DESIGN.md` 的设置一节 | 定样；R1a | 新用例里的 DRT-20 部分；`tests/connections-page.e2e.test.ts`（ASC-76 的「接着改」不受影响）；组件板快照 |
 | **R3 模型消费者** | Cognia、工作流程、Coding 改用 `host.returns.go`，并用共用件接 `arrived()`（第 4 节）；Coding 的输入草稿改存 `host.drafts`；各插件 README 的「改动后必跑」补用例 | `plugins/native/cognia/src/`、`plugins/native/workflows/src/browser/`、`plugins/native/coding/src/browser/`，以及各自的 README 与测试；`skills/molis-plugin-dev` 的例子 | R1b、R2 | `tests/cognia-embedded-settings.e2e.test.ts`、`tests/workflows-plugin.test.ts`、`tests/coding-model-controls.e2e.test.ts`、`tests/model-ready-surfaces.e2e.test.ts`，以及各插件新增的 DRT-05 用例 |
@@ -566,15 +567,15 @@ export interface UiPageReturns {
 | ~~R5 Onboarding~~ | 已取消：引导已经就地连模型（#1310） | — | — | — |
 | Images、Feed | 删 `resumeConnection`；去设置的链接让位给卡 | 随④c-2 | ④c-2 | 随④c-2 |
 
-本稿这一步只改文档，没有跑测试。
+写稿那一步只改文档；实现与测试结果见第 13 节。
 
 ## 9. 界面：组件板能覆盖什么、要定样的
 
 | 界面 | 组件板现有的能不能覆盖 | 结论 |
 | --- | --- | --- |
 | 回来后的一句提示（「模型已连接，回到 Coding 接着做」） | 能：用现有的 toast（`host.showToast`，`settings-directory.ts` 已经在用） | 不定样，只加文案 |
-| 设置顶上的返回条「从 Feed 来 · 连好后自动回去 · 现在回去」，三种状态：等着、已经好了、原来的页面已关 | 不能：组件板没有这一条。最接近的是 13 定样原型里块 ③ 方案 B 的顶条（`docs/design/service-connections/`）；用户 11-04 选了 A（原处就地连），B 没有进组件板 | **要定样**，方向用户 11-07 已定（U4）：照 B 的顶条，用 `mw-alert` 的信息档加一个 `mw-btn` 次要按钮，做成组件板标本后进设置 |
-| 刷新后在原处问一句：「刚才去配了模型，已经好了 · 接着发送 ／ 不用了」 | 部分能：样子照连接页「高级」的「接着改／放弃改动」（`settings-connector-draft`，`mw-alert` 加两个按钮） | **要定样，做成共用件**（用户 11-07 定 U2，统筹定由平台提供）：放在设计系统里，插件只在自己页面里放位置、给「接着〈那一步〉」的文字，不各画一份。R2 做成组件板标本 |
+| 设置顶上的返回条「从 Feed 来 · 连好后自动回去 · 现在回去」，三种状态：等着、已经好了、原来的页面已关 | 不能：组件板没有这一条。最接近的是 13 定样原型里块 ③ 方案 B 的顶条（`docs/design/service-connections/`）；用户 11-04 选了 A（原处就地连），B 没有进组件板 | **要定样**，方向用户 11-07 已定（U4）：照 B 的顶条，用 `mw-alert` 的信息档（配好后成功档）加一个带返回图标的 `mw-btn` 次要按钮，按钮在文字**下面**一行（与原型方案 B 一致，任何宽度都一样，窄屏不另排），做成组件板标本后进设置。放在设置正文那一栏的顶上、与正文同宽、同底色，随正文滚动，下面留 24px 再接标题。原处已关时按钮叫「关闭设置」；只有回程带了 `draft_key` 才说「你写的都还在」；来处没有名字时标题写「从原来的页面来」 |
+| 刷新后在原处问一句：「刚才去配了模型，已经好了 · 接着发送 ／ 不用了」 | 部分能：样子照连接页「高级」的「接着改／放弃改动」（`settings-connector-draft`，`mw-alert` 加两个按钮） | **要定样，做成共用件**（用户 11-07 定 U2，统筹定由平台提供）：放在设计系统里，插件只在自己页面里放位置、给「接着〈那一步〉」的文字，不各画一份。R2 做成组件板标本。与「接着改／放弃改动」一致：信息档提示框，下面两个次要按钮，「接着〈那一步〉」在前，没有主按钮。插件把它放在被挡住的那一步旁边、与它同宽（Coding 是输入表单的第一行，Cognia 与列表同样内缩） |
 | 原处连接卡「还不能一键连接」的去连接页入口 | 能：#1862 的卡标本已经有这一种 | 不定样 |
 | 回调落地页文案 | 能：用现有连接页的反馈行 | 不定样，只改文案（C8） |
 
@@ -629,6 +630,12 @@ export interface UiPageReturns {
 | C9 | 片的写手与时段 | R0、R1a、R1b 由工作台外壳的写手做；R4 交 D·13 连接会话。④c-2 先合，R0、R1a、R1b 在它之上变基；R1a 先于 07-S1、S2；`dom-events.ts`、`en.ts` 与 07 排时段 |
 | C10 | 对象 id 的上限 | 256 个字符，不含控制字符，拼链接一律编码；R1a 开工前核对各搜索来源现有的 id 都放得进 |
 | C11 | 插件重启、宿主把视图重画 | **已定（统筹 2026-11-07）**：算人离开，回程按 `not_ready` 结掉，不留给 `arrived()`。这种情况少见，后果只是少一次自动接着做 |
+| C12 | 页面中止 `go()` 怎样告诉外壳 | **实现时定（统筹 11-07）**：MessagePort 加第 4 种消息 `return-abort { id }`。框架宿主收到后删掉那张回程（`drop`，不交结果），`go()` 在页面一侧以 `AbortError` 结束 |
+| C13 | `carry.object.kind` 的上限 | **实现时定（统筹 11-07）**：至多 64 个字符，不含控制字符（`RETURN_TRIP_RULES.objectKind`） |
+| C14 | 回程在等认领时被宣告结束（`ended`：到期、被同一来处的新回程替换、被挤出上限） | **实现时定（统筹 11-07）**：还挂着的 `go()` 答 `not_ready`，并原样带回它的 `carry`；`arrived()` 答 `null` |
+| C15 | 回到别的栏用什么入口 | **实现时定（统筹 11-07）**：来处不在前面时，用工作台自己的 `openItem(界面, 对象)`（带 `carry.object`）或 `openPlugin(界面)`，不拼地址、不导航文档。补充 C6 |
+| C16 | 在等的 `arrived()` 什么时候认领 | **实现时定（统筹 11-07）**：只在页面看得见时认领；藏在池里、被覆盖层盖住时先等着，看得见时再认领（池里的页面没有可比的位置） |
+| C17 | 带槽的连接怎样读回 | **实现时定（统筹 11-07）**：回程主人按服务读（3.4 的「连接」那条路由），不调 C2 的 `read`：外层的回程主人没有那个页面的授权；槽上绑哪个账号由卡回来后自己再读（第 4 节那一行） |
 
 ## 12. 决策记录
 
@@ -665,16 +672,33 @@ export interface UiPageReturns {
   - 不挡 5：逻辑放进 `browser/return-trips.ts`；浏览器用例只断言最后的结果，「一直等着」那一支放进单元测试。
   - 不挡 6：DRT-25 写清是分屏的两个窗格与侧栏格，以及 fixture 的要求。
 
-用户与统筹之后定的，按日期接着写在这里，正文跟着改。
+- 2026-11-07，统筹按 R0～R4 第一版的回报裁定，本稿照改：
+  - 页面资源：用户弹窗定「先缩再一次性放行」：先合并重复的形状检查、用平台与 SDK 已有的工具，再按实测写放行文件，每条带用户批准。
+  - 实现时定的五项写进第 11.2 节 C12～C16：第 4 种消息 `return-abort`；`object.kind` 至多 64 字；`ended` 时答 `not_ready` 并带回 `carry`；回到别的栏用 `openItem`／`openPlugin`；在等的 `arrived()` 只在看得见时认领。
+  - Coding、Cognia 的入口是普通入口：带着草稿去设置，回来问一句，从不自动做那一步（U1 第二种入口），写进第 4 节两行。
+  - 助理的「继续接入」由助理岛自己在点击时发 `molis-work:open-settings-path`，带它此刻显示的工作号（`from: assistant`、`need: setup`），回程主人不再从列表的 `aria-current` 去猜。
+  - 原处连接卡的「还不能一键连接」开回程（`need: connection` 带槽），回来后卡再读一次（第 4 节那一行）；带槽的读回按服务读，记为 C17（统筹 11-07 认可）。
+
+- 2026-11-07，统筹按统一评审（逻辑、合同、D 轨三台）裁定，实现照改：
+  - 逻辑 B2：窗格转发的改写（`returnRelay`）与落地页判断（`returnLanding`）挪进 `return-trips.ts` 做成纯函数，补单元测试与 ④、⑯ 两条浏览器用例；四处突变（转发原样带 `from.place`、落地页恒为否、`arrived()` 也认连接卡的回程、转发放过 `setup`）都让单元测试变红。
+  - D2：返回条移进设置正文那一栏的顶上（第 9 节）。D6：Cognia 等列表读到模型可用之后才问（读回之前不判断）；Coding 的问话放进输入表单、作为第一行；两者各补浏览器用例与三种宽度的截图。U4、U2 的样子照原型方案 B 与「接着改／放弃改动」改（第 9 节）。
+  - 不挡的照改：`met_at_open` 在第一次读回之前记 `null`，这时保存按「打开时没满足」处理；连接卡开的回程只按回程号交还，没人认领就删，`arrived()` 拿不到（`byGo`）；设置打不开、这个窗口开不了回程时，回程主人宣告 `refused`，`go()` 立即拒绝（合同原话），`ended` 仍答 `not_ready`；Coding 答 `not_ready` 时清掉这次回程写的 `composer:<会话>` 草稿；窗格转发带上连接的槽；外壳的上限从合同的 `UI_RETURN_CARRY_LIMITS` 取，长度按码点计，合同写明非空与 `kind` 至多 64 字；`layout-holds` 的交接说明已在 C2（以后归 07 维护），从事件登记里删掉。
+  - 换语言（`/locale?lang=…&next=…`）按刷新处理：回程主人等文档启动完（设置目录打开启动地址要的设置之后，`start()`）才判断开着的回程，启动过程中覆盖层的开关不算人自己关。补了浏览器用例。
+- 用户与统筹之后定的，按日期接着写在这里，正文跟着改。
 
 ## 13. 证据
 
-本稿只做了只读核查：
-- main `c39746b20` 的文件与行号，见第 1.1 节；
-- 看过 [#1853][PR1853]、[#1867][PR1867]、[#1929][PR1929] 的文件清单；
-- 看过 #1867 的说明，以及 S1、S2 在 `tab-workspace*.ts` 里的改动块。
+写稿时只做了只读核查（main `c39746b20` 的文件与行号见第 1.1 节；看过 [#1853][PR1853]、[#1867][PR1867]、[#1929][PR1929] 的文件清单，#1867 的说明，S1、S2 在 `tab-workspace*.ts` 里的改动块）。
 
-没有改产品代码，没有跑测试，没有启动 Home。
+实现之后（分支 `claude/12-draft-and-return`，都在临时 Home 里跑，`--jobs 1`，没跑全量；全量由统筹在集成分支跑）：
+
+- 单元：`tests/security-invariants-return-trips.test.ts`（形状、位置、转发改写、落地页、认领、窗口号、布局、到期，`test:security`）、`tests/sdk-ui-markup.test.ts`（接着做共用件的按钮与 `renderButton` 一致，返回条按钮在文字下面）。转发改写、落地页、`byGo`、转发放过 `setup` 四处突变核对，各让一条单元测试变红。
+- 浏览器：`tests/settings-return-trips.e2e.test.ts`（DRT-03、05、06 含换语言、10 含先回去、15、20 的返回条位置与截图、22、23、25 两种两栏、S-return-trip-source ④）、`tests/security-invariants-return-trips.e2e.test.ts`（③、⑨、⑯、⑲ 与窗口号）、`tests/return-trip-consumers.e2e.test.ts`（Coding、Cognia 回来后的问话：出现一次、位置、点了才做）、`tests/security-invariants-connection-card.e2e.test.ts`（DRT-13 与连接卡）。截图在已忽略的 `.impeccable/qa/review/draft-and-return/`：返回条浅色、深色各 1440、1024、375；Coding、Cognia 的问话各三种宽度。
+- DRT-21 三级：
+  - **工程**：第 4 节要改的消费者里，模型这一类（Coding、Cognia、Schedule 代测的页面）的进入设置、失败返回（「现在回去」与人自己关）、成功返回、刷新与换语言后继续，都有上面的浏览器用例；工作流程只有单元与代码复查；连接这一类（Feed、Images 的原处卡、助理「继续接入」）有 DRT-10、DRT-13 与连接卡用例。
+  - **实操**：没做。要在本机真实界面里按第 4 节逐个消费者各走一遍，记下每一步看到的。
+  - **本人验收**：没做，等用户。
+- DRT-24（没有项目的 Home 页面的模型设置对话框不开回程）没有单独的用例：回程主人在没有项目时直接是空实现（`createSettingsReturn` 的第一行判断），只有代码复查。
 
 [B12]: ../post-anticorruption-roadmap/reference/batches/12.md#batch-12-item-3
 [B13]: ../post-anticorruption-roadmap/reference/batches/13.md#batch-13-item-1

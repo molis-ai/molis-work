@@ -499,3 +499,6 @@ tests/workbench-entry-exports.test.ts
 tests/sqlite-version-notice.test.ts
 # SQLD-01..04: what the project connection promises its callers, on the driver underneath it (the macOS-only compile list is in sqlite-build-options).
 tests/sqlite-driver-conformance.test.ts
+
+# Account session and Host refusal tests already run in the blocking security-invariants job (pnpm test:security).
+tests/account-client.test.ts

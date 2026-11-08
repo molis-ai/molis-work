@@ -45,6 +45,9 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
       const itemOf = node => node?.closest('[data-connector-item]'), detailOf = node => node?.closest('[data-connector-detail]');
       const make = tag => document.createElement(tag);
       let waiting = null;
+      // A connection or an authorization this page finished: the workbench's return trip reads it back and, when it is met, takes the
+      // person back (specs/draft-and-return §2.5, R4). Only the settings section in the workbench has a page that hears it.
+      const settled = () => { void page.saved?.('connection'); void page.saved?.('setup'); };
       const stopWaiting = () => { if (waiting) { waiting.stopped = true; waiting.stop?.(); clearTimeout(waiting.timer); } waiting = null; remember(stateKey, null); };
       const busy = (node, on) => { if (node) { node.disabled = on; node.setAttribute('aria-busy', String(on)); } };
       const output = (node, message, error = false, details) => {
@@ -209,7 +212,7 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
           read: async () => {
             try { const state = await api('authorizations/' + encodeURIComponent(authorizationId), undefined, 'GET'); if (state.commit_held) output(box.querySelector('[data-connector-feedback]'), L('正在核对你刚提出的新要求，接入暂不提交。请回到原对话继续。')); return state.status; } catch (error) { if (error.status === 404) return 'expired'; throw error; }
           },
-          connected: async () => { busy(start, false); step(area, 'login', 1, 'running'); await reload(service, notice); },
+          connected: async () => { busy(start, false); step(area, 'login', 1, 'running'); await reload(service, notice); settled(); },
           ended: status => {
             finish(); restoreState(item); step(area, 'login', 0, status === 'cancelled' ? 'cancelled' : 'failed');
             if (box.dataset.setupId) { reload(service).catch(refreshFailed); return; }
@@ -362,6 +365,7 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
           step(form, 'key', 2, 'done');
           await reload(service, { id: saved.connection.connection_id, message: L(saved.verification ? '密钥检查通过，已经存好。'
             : pluginKeys.has(service) ? '密钥已保存。请在使用它的功能中完成配置和验证。' : '密钥已保存。请在用它的地方检查。') });
+          settled();
         }, () => { restoreState(item); step(form, 'key', 0, 'failed'); });
       }));
       box.querySelectorAll('[data-connection-replace], [data-connection-rename]').forEach(form => form.addEventListener('submit', event => {
@@ -617,7 +621,7 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
         output(feedback, box.dataset.setupId ? glue(feedback.textContent, notice.message) : glue(notice.message, offered ? L('下面可以把用到原来那条的地方换到新连接。') : '')); remember(noticeKey, null);
         if (!offered) requestAnimationFrame(() => { reveal(feedback); feedback.focus?.({ preventScroll: true }); });
       } else if (opened && box.dataset.openConnector) requestAnimationFrame(() => opened.querySelector('[data-connection-toggle]')?.focus({ preventScroll: true }));
-      if (connected && panelFor(connected)) output(panelFor(connected).querySelector('[data-connector-feedback]'), L('官方授权已完成。请回到原来的应用窗口继续，或在这里设置使用范围。'));
+      if (connected && panelFor(connected)) output(panelFor(connected).querySelector('[data-connector-feedback]'), L('已连上。回到 Molis Work 的窗口继续；这一页可以关掉。'));
       box.querySelectorAll('[data-connector-next-link]').forEach(link => {
         const project = params.get('project') || /^\\/projects\\/([^/]+)/.exec(location.pathname)?.[1];
         const plugin = link.dataset.connectorNextLink; const next = new URL(link.getAttribute('href'), location.origin);

@@ -27,6 +27,21 @@ export const unavailableInFixture: Record<string, string> = {
   "git.summary@1": "actions.dependency_missing",
 };
 
+// WUA-16 / WUA-26: local and restored fixtures lack central account configuration.
+// Each read must be refused. The authenticated reads are covered against Auth in account-management.test.mjs.
+const accountReadsRequiringConfiguration = new Set([
+  "account.features.list@1",
+  "account.login-methods.read@1",
+  "account.tenants.list@1",
+  "account.invitations.list@1",
+  "account.ownership.list@1",
+  "account.platform-tenants.list@1",
+  "account.plans.list@1",
+  "account.subscriptions.list@1",
+  "account.platform-subscriptions.list@1",
+  "account.platform-audit.list@1",
+]);
+
 type CatalogRunner = <T>(options: { homeDirectory: string }, body: (catalog: { databasePath: string; projectsDirectory: string; getProject(id: string): { database_path: string } }) => T | Promise<T>) => Promise<T>;
 
 /** Put a project dump into a Home under its own id, through the catalog table's owner; neither data nor identity is rewritten. */
@@ -65,9 +80,14 @@ export async function readEveryParameterlessAction(host: MolisWorkLocalHost, dat
   const base = { actor_id: "web-user", project_id: projectId, audience: "user" as const, permissions: [] };
   for (const view of (await host.inspectActions(base, ref)).filter(needsNothing)) {
     if (view.action.scope === "home" && options.homeScope === false) continue;
+    const action = `${view.capability_id}@${view.version}`;
     const caller = { ...base, permissions: view.action.permissions };
     const client = view.action.scope === "home" ? host.homeActionClient() : host.actionClient(ref);
     try {
+      if (accountReadsRequiringConfiguration.has(action)) {
+        await assert.rejects(client.invoke({ ...caller, project_id: null }, view, {}), { code: "account.invalid_configuration" });
+        continue;
+      }
       if (view.capability_id === "plugins.project_reach.list" && view.version === 1) {
         await assert.rejects(client.invoke(caller, view, {}), { code: "actions.forbidden", message: "项目同意只接受本人在对应项目设置里的操作" });
         await options.projectReachThroughSettings();
@@ -77,8 +97,8 @@ export async function readEveryParameterlessAction(host: MolisWorkLocalHost, dat
       read.add(view.capability_id);
     } catch (error) {
       const code = (error as { code?: string }).code;
-      if (code && unavailable[`${view.capability_id}@${view.version}`] === code) continue;
-      broken.push({ action: `${view.capability_id}@${view.version}`, code: code ?? "unexpected_error", message: (error as Error).message });
+      if (code && unavailable[action] === code) continue;
+      broken.push({ action, code: code ?? "unexpected_error", message: (error as Error).message });
     }
   }
   return { broken, read };

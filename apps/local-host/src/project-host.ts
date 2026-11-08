@@ -1,3 +1,5 @@
+import { accountActionProvider } from "@molis-ai/molis-work-service-account";
+import { accountSessionForHost } from "./account-host.js";
 import { projectSyncAccess } from './project-sync-access.js';
 import { assertPassiveProjectAvailable } from './passive-sync-execution.js';
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -212,6 +214,7 @@ export class MolisWorkLocalHost {
     });
     // What the Host offers for as long as it runs, registered here and nowhere else: all `system`, none a plugin's (a plugin registers its own through the Plugin Runtime).
     const platform: ActionProviderRegistration[] = [
+      accountActionProvider(() => accountSessionForHost(this)),
       actionUsagesProvider(caller => {
         const project = caller.project_id ? this.host.projects().find(row => row.project_id === caller.project_id) : undefined;
         if (caller.project_id && !project) throw new ActionError("actions.scope_mismatch", "使用位置查询缺少当前项目运行环境");

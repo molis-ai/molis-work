@@ -473,7 +473,7 @@ export type JellyCommandInput = CommandFields & { readonly expected_revision: nu
 Object.entries<ActionDefinition<JellyCommandInput>>(jellyCommandActions).map(([type, definition]) => bindActionHandler(definition, ({ expected_revision, ...input }, caller) => { /* … */ }))
 ```
 
-**4. 看一眼推出来的类型。** 先 `pnpm build`（整机一次一个）：类型来自 `packages/*/dist`，新工作树没有 `dist`，或者工具合入后没重建，看到的类型就是错的。然后在要看的包里建一个临时文件（不提交），错误信息里就是类型：
+**4. 看一眼推出来的类型。** 先 `pnpm build`（走机器槽，整机三个构建槽）：类型来自 `packages/*/dist`，新工作树没有 `dist`，或者工具合入后没重建，看到的类型就是错的。然后在要看的包里建一个临时文件（不提交），错误信息里就是类型：
 
 ```ts
 // <包>/src/__probe.ts，这里以 Jelly 为例
@@ -549,7 +549,7 @@ for (const [type, good, bad] of cases) {
 
 #### 怎么量声明大小和类型检查时间
 
-先 `pnpm build`（整机一次一个），然后在仓库根目录跑：
+先 `pnpm build`（走机器槽，整机三个构建槽），然后在仓库根目录跑：
 
 ```sh
 node_modules/.bin/tsc -p <包>/tsconfig.json --noEmit --extendedDiagnostics   # 实例化、时间
@@ -717,7 +717,7 @@ N22 只动 N12 第 ④ 块（`normalizeProjectId`）；①②③⑤（两段固�
 
 **这张表是 2026-11-06 按一次迁完排的。** 2026-11-08 拆分后，第 05 批只跑到第 2 轮（第 3 轮起移到第 55 批，§8.2），下面当作余片的排法参考。
 
-用「轮」计数：一轮是一个写手从开工到合入。这里不估天数，真正的上限是整台机器一次一个构建（`PARALLEL-DEVELOPMENT.md` 第 5 节）。
+用「轮」计数：一轮是一个写手从开工到合入。这里不估天数，真正的上限是整台机器的构建槽（2026-11-07 起三个，`PARALLEL-DEVELOPMENT.md` 第 5 节）。
 
 | 轮 | 写手一 | 写手二 | 写手三 |
 | --- | --- | --- | --- |

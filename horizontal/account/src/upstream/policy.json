@@ -1,0 +1,1397 @@
+{
+  "contractVersion": "1.1.0",
+  "implementationStatus": "CONTRACT_ONLY",
+  "policyProfile": "unified-account-v2",
+  "defaults": {
+    "transactionTtlSeconds": 600,
+    "challengeTtlSeconds": 300,
+    "challengeMaxWrongAttempts": 5,
+    "challengeResendSeconds": 60,
+    "loginCodeTtlSeconds": 60,
+    "proofTtlSeconds": 300,
+    "invitationTtlSeconds": 604800,
+    "transferTtlSeconds": 86400,
+    "idempotencyTtlSeconds": 86400,
+    "loginIdleSeconds": 2592000,
+    "loginAbsoluteSeconds": 7776000,
+    "accessTokenTtlSeconds": 900,
+    "passwordMinNormalizedCodePoints": 8,
+    "passwordMaxNormalizedCodePoints": 128,
+    "passwordMaxRawUtf16Units": 512,
+    "pageDefault": 20,
+    "pageMax": 100,
+    "entitlementFeatureMax": 100,
+    "sendQuotaWindowSeconds": 3600,
+    "sendQuotaPerIp": 60,
+    "sendQuotaPerTarget": 10,
+    "sendQuotaPerClient": 1000
+  },
+  "errors": {
+    "400": [
+      "INVALID_REQUEST",
+      "INVALID_SCOPE",
+      "FEATURE_UNKNOWN"
+    ],
+    "401": [
+      "LOGIN_REQUIRED",
+      "SESSION_EXPIRED",
+      "SESSION_REVOKED",
+      "INVALID_CREDENTIALS",
+      "INVALID_GRANT"
+    ],
+    "403": [
+      "FORBIDDEN",
+      "POLICY_MISMATCH",
+      "TENANT_DISABLED",
+      "REAUTH_REQUIRED",
+      "CLIENT_POLICY_REQUIRES_V2",
+      "TENANT_API_REQUIRED"
+    ],
+    "404": [
+      "NOT_FOUND"
+    ],
+    "409": [
+      "VERSION_CONFLICT",
+      "CAPACITY_CONFLICT",
+      "IDENTITY_IN_USE",
+      "LAST_LOGIN_METHOD",
+      "OWNER_TRANSFER_REQUIRED",
+      "PROOF_CONSUMED",
+      "TRANSACTION_EXPIRED",
+      "IDEMPOTENCY_CONFLICT"
+    ],
+    "429": [
+      "RATE_LIMITED"
+    ],
+    "501": [
+      "UNIFIED_ACCOUNT_NOT_IMPLEMENTED"
+    ],
+    "503": [
+      "UPSTREAM_UNAVAILABLE",
+      "AUTH_UNAVAILABLE",
+      "UNIFIED_CONFIGURATION_INVALID"
+    ]
+  },
+  "permissions": [
+    {
+      "operationId": "createTransaction",
+      "authority": "transaction-create",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": "CreateTransactionRequest",
+      "outputSchema": "TransactionCreated"
+    },
+    {
+      "operationId": "getTransaction",
+      "authority": "initiator",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "TransactionView"
+    },
+    {
+      "operationId": "createChallenge",
+      "authority": "initiator",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": "ChallengeRequest",
+      "outputSchema": "ChallengeCreated"
+    },
+    {
+      "operationId": "verifyChallenge",
+      "authority": "initiator",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": "VerifyChallengeRequest",
+      "outputSchema": "VerificationResult"
+    },
+    {
+      "operationId": "verifyPassword",
+      "authority": "initiator",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": "PasswordLoginRequest",
+      "outputSchema": "VerifiedResult"
+    },
+    {
+      "operationId": "signUpEmail",
+      "authority": "initiator",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": "EmailSignupRequest",
+      "outputSchema": "VerifiedResult"
+    },
+    {
+      "operationId": "signInPhone",
+      "authority": "initiator",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": "PhoneLoginRequest",
+      "outputSchema": "VerifiedResult"
+    },
+    {
+      "operationId": "completeTransaction",
+      "authority": "initiator",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": "Empty",
+      "outputSchema": "TransactionCompleteResult"
+    },
+    {
+      "operationId": "cancelTransaction",
+      "authority": "initiator",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": "Empty",
+      "outputSchema": "TransactionCancelResult"
+    },
+    {
+      "operationId": "startGoogle",
+      "authority": "initiator",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": "Empty",
+      "outputSchema": "ProviderStartResult"
+    },
+    {
+      "operationId": "startGitHub",
+      "authority": "initiator",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": "Empty",
+      "outputSchema": "ProviderStartResult"
+    },
+    {
+      "operationId": "exchangeToken",
+      "authority": "grant",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": "TokenRequest",
+      "outputSchema": "TokenSet"
+    },
+    {
+      "operationId": "getMe",
+      "authority": "session",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "MeView"
+    },
+    {
+      "operationId": "updateProfile",
+      "authority": "session",
+      "idempotency": "REQUIRED",
+      "inputSchema": "ProfileUpdateRequest",
+      "outputSchema": "UserView"
+    },
+    {
+      "operationId": "listLoginMethods",
+      "authority": "session",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "LoginMethodsView"
+    },
+    {
+      "operationId": "createReauthentication",
+      "authority": "session",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": "ReauthenticationRequest",
+      "outputSchema": "TransactionCreated"
+    },
+    {
+      "operationId": "bindMethod",
+      "authority": "session",
+      "idempotency": "REQUIRED",
+      "inputSchema": "BindMethodRequest",
+      "outputSchema": "LoginMethodsView"
+    },
+    {
+      "operationId": "replaceMethod",
+      "authority": "session",
+      "idempotency": "REQUIRED",
+      "inputSchema": "BindMethodRequest",
+      "outputSchema": "LoginMethodsView"
+    },
+    {
+      "operationId": "unlinkMethod",
+      "authority": "session",
+      "idempotency": "REQUIRED",
+      "inputSchema": "UnlinkMethodRequest",
+      "outputSchema": "LoginMethodsView"
+    },
+    {
+      "operationId": "changePassword",
+      "authority": "session",
+      "idempotency": "REQUIRED",
+      "inputSchema": "PasswordChangeRequest",
+      "outputSchema": "PasswordChangeResult"
+    },
+    {
+      "operationId": "resetPassword",
+      "authority": "initiator",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": "PasswordResetRequest",
+      "outputSchema": "PasswordResetResult"
+    },
+    {
+      "operationId": "getCurrentSession",
+      "authority": "session",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "SessionView"
+    },
+    {
+      "operationId": "recordActivity",
+      "authority": "session",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": "ActivityRequest",
+      "outputSchema": "SessionView"
+    },
+    {
+      "operationId": "logoutCurrent",
+      "authority": "revoke",
+      "idempotency": "REQUIRED",
+      "inputSchema": "LogoutRequest",
+      "outputSchema": "CurrentLogoutResult"
+    },
+    {
+      "operationId": "logoutAll",
+      "authority": "revoke",
+      "idempotency": "REQUIRED",
+      "inputSchema": "LogoutRequest",
+      "outputSchema": "GlobalLogoutResult"
+    },
+    {
+      "operationId": "listMyTenants",
+      "authority": "session",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "MyTenantsPage"
+    },
+    {
+      "operationId": "getTenant",
+      "authority": "session",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "TenantView"
+    },
+    {
+      "operationId": "updateTenant",
+      "authority": "tenant-manager",
+      "idempotency": "REQUIRED",
+      "inputSchema": "TenantUpdateRequest",
+      "outputSchema": "TenantView"
+    },
+    {
+      "operationId": "createTenant",
+      "authority": "platform:TENANT_CREATE",
+      "idempotency": "REQUIRED",
+      "inputSchema": "TenantCreateRequest",
+      "outputSchema": "PlatformTenantView"
+    },
+    {
+      "operationId": "listPlatformTenants",
+      "authority": "platform:TENANT_READ",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "PlatformTenantViewPage"
+    },
+    {
+      "operationId": "getPlatformTenant",
+      "authority": "platform:TENANT_READ",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "PlatformTenantView"
+    },
+    {
+      "operationId": "disableTenant",
+      "authority": "platform:TENANT_STATUS",
+      "idempotency": "REQUIRED",
+      "inputSchema": "PlatformVersionRequest",
+      "outputSchema": "PlatformTenantView"
+    },
+    {
+      "operationId": "enableTenant",
+      "authority": "platform:TENANT_STATUS",
+      "idempotency": "REQUIRED",
+      "inputSchema": "PlatformVersionRequest",
+      "outputSchema": "PlatformTenantView"
+    },
+    {
+      "operationId": "listMembers",
+      "authority": "session",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "MembershipPage"
+    },
+    {
+      "operationId": "updateMemberRole",
+      "authority": "tenant-owner",
+      "idempotency": "REQUIRED",
+      "inputSchema": "RoleUpdateRequest",
+      "outputSchema": "Membership"
+    },
+    {
+      "operationId": "removeMember",
+      "authority": "tenant-manager",
+      "idempotency": "REQUIRED",
+      "inputSchema": "ExpectedVersionRequest",
+      "outputSchema": "Membership"
+    },
+    {
+      "operationId": "leaveTenant",
+      "authority": "session",
+      "idempotency": "REQUIRED",
+      "inputSchema": "ExpectedVersionRequest",
+      "outputSchema": "Membership"
+    },
+    {
+      "operationId": "createInvitation",
+      "authority": "tenant-manager",
+      "idempotency": "REQUIRED",
+      "inputSchema": "InvitationCreateRequest",
+      "outputSchema": "Invitation"
+    },
+    {
+      "operationId": "listTenantInvitations",
+      "authority": "tenant-manager",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "InvitationPage"
+    },
+    {
+      "operationId": "revokeInvitation",
+      "authority": "tenant-manager",
+      "idempotency": "REQUIRED",
+      "inputSchema": "ExpectedVersionRequest",
+      "outputSchema": "Invitation"
+    },
+    {
+      "operationId": "listMyInvitations",
+      "authority": "session",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "InvitationPage"
+    },
+    {
+      "operationId": "acceptInvitation",
+      "authority": "invitation-target",
+      "idempotency": "REQUIRED",
+      "inputSchema": "ExpectedVersionRequest",
+      "outputSchema": "InvitationAcceptResult"
+    },
+    {
+      "operationId": "declineInvitation",
+      "authority": "invitation-target",
+      "idempotency": "REQUIRED",
+      "inputSchema": "ExpectedVersionRequest",
+      "outputSchema": "Invitation"
+    },
+    {
+      "operationId": "createOwnershipTransfer",
+      "authority": "tenant-owner",
+      "idempotency": "REQUIRED",
+      "inputSchema": "TransferCreateRequest",
+      "outputSchema": "OwnershipTransfer"
+    },
+    {
+      "operationId": "listOwnershipTransfers",
+      "authority": "session",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "OwnershipTransferPage"
+    },
+    {
+      "operationId": "acceptOwnershipTransfer",
+      "authority": "transfer-target",
+      "idempotency": "REQUIRED",
+      "inputSchema": "ExpectedVersionRequest",
+      "outputSchema": "TransferAcceptResult"
+    },
+    {
+      "operationId": "cancelOwnershipTransfer",
+      "authority": "transfer-owner",
+      "idempotency": "REQUIRED",
+      "inputSchema": "ExpectedVersionRequest",
+      "outputSchema": "OwnershipTransfer"
+    },
+    {
+      "operationId": "listPlans",
+      "authority": "session",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "PlanVersionPage"
+    },
+    {
+      "operationId": "listFeatures",
+      "authority": "session",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "FeaturePage"
+    },
+    {
+      "operationId": "createFeature",
+      "authority": "platform:CATALOG_WRITE",
+      "idempotency": "REQUIRED",
+      "inputSchema": "FeatureCreateRequest",
+      "outputSchema": "Feature"
+    },
+    {
+      "operationId": "publishPlanVersion",
+      "authority": "platform:CATALOG_WRITE",
+      "idempotency": "REQUIRED",
+      "inputSchema": "PlanVersionCreateRequest",
+      "outputSchema": "PlanVersion"
+    },
+    {
+      "operationId": "listPersonalSubscriptions",
+      "authority": "session",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "SubscriptionPage"
+    },
+    {
+      "operationId": "listTenantSubscriptions",
+      "authority": "session",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "SubscriptionPage"
+    },
+    {
+      "operationId": "listSeatPools",
+      "authority": "tenant-manager",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "SeatPoolPage"
+    },
+    {
+      "operationId": "listSeatAssignments",
+      "authority": "session",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "AssignmentPage"
+    },
+    {
+      "operationId": "createSubscription",
+      "authority": "platform:SUBSCRIPTION_WRITE",
+      "idempotency": "REQUIRED",
+      "inputSchema": "SubscriptionCreateRequest",
+      "outputSchema": "Subscription"
+    },
+    {
+      "operationId": "listPlatformSubscriptions",
+      "authority": "platform:SUBSCRIPTION_READ",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "SubscriptionPage"
+    },
+    {
+      "operationId": "getPlatformSubscription",
+      "authority": "platform:SUBSCRIPTION_READ",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "Subscription"
+    },
+    {
+      "operationId": "listPlatformSeatPools",
+      "authority": "platform:SUBSCRIPTION_READ",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "SeatPoolPage"
+    },
+    {
+      "operationId": "updateSubscription",
+      "authority": "platform:SUBSCRIPTION_WRITE",
+      "idempotency": "REQUIRED",
+      "inputSchema": "SubscriptionUpdateRequest",
+      "outputSchema": "Subscription"
+    },
+    {
+      "operationId": "renewSubscription",
+      "authority": "platform:SUBSCRIPTION_WRITE",
+      "idempotency": "REQUIRED",
+      "inputSchema": "SubscriptionRenewRequest",
+      "outputSchema": "Subscription"
+    },
+    {
+      "operationId": "assignSeat",
+      "authority": "tenant-manager",
+      "idempotency": "REQUIRED",
+      "inputSchema": "SeatAssignRequest",
+      "outputSchema": "SeatMutationResult"
+    },
+    {
+      "operationId": "releaseSeat",
+      "authority": "tenant-manager",
+      "idempotency": "REQUIRED",
+      "inputSchema": "SeatReleaseRequest",
+      "outputSchema": "SeatMutationResult"
+    },
+    {
+      "operationId": "reassignSeat",
+      "authority": "tenant-manager",
+      "idempotency": "REQUIRED",
+      "inputSchema": "SeatReassignRequest",
+      "outputSchema": "SeatReassignResult"
+    },
+    {
+      "operationId": "listTenantAudit",
+      "authority": "tenant-manager",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "AuditEventPage"
+    },
+    {
+      "operationId": "listPlatformAudit",
+      "authority": "platform:AUDIT_READ",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "AuditEventPage"
+    },
+    {
+      "operationId": "checkEntitlements",
+      "authority": "session",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": "EntitlementCheckRequest",
+      "outputSchema": "EntitlementCheckResult"
+    },
+    {
+      "operationId": "productSession",
+      "authority": "product",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "AccountView"
+    },
+    {
+      "operationId": "productCreateTransaction",
+      "authority": "product",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": "ProductTransactionRequest",
+      "outputSchema": "ProductTransactionView"
+    },
+    {
+      "operationId": "productCreateReauthentication",
+      "authority": "product",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": "ProductReauthenticationRequest",
+      "outputSchema": "ProductTransactionView"
+    },
+    {
+      "operationId": "productGetTransaction",
+      "authority": "product",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "ProductTransactionView"
+    },
+    {
+      "operationId": "productSubmit",
+      "authority": "product",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": "ProductSubmitRequest",
+      "outputSchema": "ProductSubmitResult"
+    },
+    {
+      "operationId": "productResend",
+      "authority": "product",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": "Empty",
+      "outputSchema": "ProductTransactionView"
+    },
+    {
+      "operationId": "productCancel",
+      "authority": "product",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": "Empty",
+      "outputSchema": "ProductTransactionView"
+    },
+    {
+      "operationId": "productCallback",
+      "authority": "product-callback",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "ProductCallbackResult"
+    },
+    {
+      "operationId": "productActivity",
+      "authority": "product",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": "ActivityRequest",
+      "outputSchema": "SessionView"
+    },
+    {
+      "operationId": "productLogout",
+      "authority": "product",
+      "idempotency": "REQUIRED",
+      "inputSchema": "ProductLogoutRequest",
+      "outputSchema": "ProductLogoutResult"
+    },
+    {
+      "operationId": "productUpdateProfile",
+      "authority": "product",
+      "idempotency": "REQUIRED",
+      "inputSchema": "ProfileUpdateRequest",
+      "outputSchema": "UserView"
+    },
+    {
+      "operationId": "productListLoginMethods",
+      "authority": "product",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "LoginMethodsView"
+    },
+    {
+      "operationId": "productBindMethod",
+      "authority": "product",
+      "idempotency": "REQUIRED",
+      "inputSchema": "ProductBindRequest",
+      "outputSchema": "LoginMethodsView"
+    },
+    {
+      "operationId": "productReplaceMethod",
+      "authority": "product",
+      "idempotency": "REQUIRED",
+      "inputSchema": "ProductBindRequest",
+      "outputSchema": "LoginMethodsView"
+    },
+    {
+      "operationId": "productUnlinkMethod",
+      "authority": "product",
+      "idempotency": "REQUIRED",
+      "inputSchema": "ProductUnlinkRequest",
+      "outputSchema": "LoginMethodsView"
+    },
+    {
+      "operationId": "productChangePassword",
+      "authority": "product",
+      "idempotency": "REQUIRED",
+      "inputSchema": "ProductPasswordChangeRequest",
+      "outputSchema": "PasswordChangeResult"
+    },
+    {
+      "operationId": "productResetPassword",
+      "authority": "product",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": "ProductPasswordResetRequest",
+      "outputSchema": "PasswordResetResult"
+    },
+    {
+      "operationId": "product_listMyTenants",
+      "authority": "product",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "MyTenantsPage"
+    },
+    {
+      "operationId": "product_getTenant",
+      "authority": "product",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "TenantView"
+    },
+    {
+      "operationId": "product_updateTenant",
+      "authority": "product",
+      "idempotency": "REQUIRED",
+      "inputSchema": "TenantUpdateRequest",
+      "outputSchema": "TenantView"
+    },
+    {
+      "operationId": "product_createTenant",
+      "authority": "product",
+      "idempotency": "REQUIRED",
+      "inputSchema": "TenantCreateRequest",
+      "outputSchema": "PlatformTenantView"
+    },
+    {
+      "operationId": "product_listPlatformTenants",
+      "authority": "product",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "PlatformTenantViewPage"
+    },
+    {
+      "operationId": "product_getPlatformTenant",
+      "authority": "product",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "PlatformTenantView"
+    },
+    {
+      "operationId": "product_disableTenant",
+      "authority": "product",
+      "idempotency": "REQUIRED",
+      "inputSchema": "PlatformVersionRequest",
+      "outputSchema": "PlatformTenantView"
+    },
+    {
+      "operationId": "product_enableTenant",
+      "authority": "product",
+      "idempotency": "REQUIRED",
+      "inputSchema": "PlatformVersionRequest",
+      "outputSchema": "PlatformTenantView"
+    },
+    {
+      "operationId": "product_listMembers",
+      "authority": "product",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "MembershipPage"
+    },
+    {
+      "operationId": "product_updateMemberRole",
+      "authority": "product",
+      "idempotency": "REQUIRED",
+      "inputSchema": "RoleUpdateRequest",
+      "outputSchema": "Membership"
+    },
+    {
+      "operationId": "product_removeMember",
+      "authority": "product",
+      "idempotency": "REQUIRED",
+      "inputSchema": "ExpectedVersionRequest",
+      "outputSchema": "Membership"
+    },
+    {
+      "operationId": "product_leaveTenant",
+      "authority": "product",
+      "idempotency": "REQUIRED",
+      "inputSchema": "ExpectedVersionRequest",
+      "outputSchema": "Membership"
+    },
+    {
+      "operationId": "product_createInvitation",
+      "authority": "product",
+      "idempotency": "REQUIRED",
+      "inputSchema": "InvitationCreateRequest",
+      "outputSchema": "Invitation"
+    },
+    {
+      "operationId": "product_listTenantInvitations",
+      "authority": "product",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "InvitationPage"
+    },
+    {
+      "operationId": "product_revokeInvitation",
+      "authority": "product",
+      "idempotency": "REQUIRED",
+      "inputSchema": "ExpectedVersionRequest",
+      "outputSchema": "Invitation"
+    },
+    {
+      "operationId": "product_listMyInvitations",
+      "authority": "product",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "InvitationPage"
+    },
+    {
+      "operationId": "product_acceptInvitation",
+      "authority": "product",
+      "idempotency": "REQUIRED",
+      "inputSchema": "ExpectedVersionRequest",
+      "outputSchema": "InvitationAcceptResult"
+    },
+    {
+      "operationId": "product_declineInvitation",
+      "authority": "product",
+      "idempotency": "REQUIRED",
+      "inputSchema": "ExpectedVersionRequest",
+      "outputSchema": "Invitation"
+    },
+    {
+      "operationId": "product_createOwnershipTransfer",
+      "authority": "product",
+      "idempotency": "REQUIRED",
+      "inputSchema": "TransferCreateRequest",
+      "outputSchema": "OwnershipTransfer"
+    },
+    {
+      "operationId": "product_listOwnershipTransfers",
+      "authority": "product",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "OwnershipTransferPage"
+    },
+    {
+      "operationId": "product_acceptOwnershipTransfer",
+      "authority": "product",
+      "idempotency": "REQUIRED",
+      "inputSchema": "ExpectedVersionRequest",
+      "outputSchema": "TransferAcceptResult"
+    },
+    {
+      "operationId": "product_cancelOwnershipTransfer",
+      "authority": "product",
+      "idempotency": "REQUIRED",
+      "inputSchema": "ExpectedVersionRequest",
+      "outputSchema": "OwnershipTransfer"
+    },
+    {
+      "operationId": "product_listPlans",
+      "authority": "product",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "PlanVersionPage"
+    },
+    {
+      "operationId": "product_listFeatures",
+      "authority": "product",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "FeaturePage"
+    },
+    {
+      "operationId": "product_createFeature",
+      "authority": "product",
+      "idempotency": "REQUIRED",
+      "inputSchema": "FeatureCreateRequest",
+      "outputSchema": "Feature"
+    },
+    {
+      "operationId": "product_publishPlanVersion",
+      "authority": "product",
+      "idempotency": "REQUIRED",
+      "inputSchema": "PlanVersionCreateRequest",
+      "outputSchema": "PlanVersion"
+    },
+    {
+      "operationId": "product_listPersonalSubscriptions",
+      "authority": "product",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "SubscriptionPage"
+    },
+    {
+      "operationId": "product_listTenantSubscriptions",
+      "authority": "product",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "SubscriptionPage"
+    },
+    {
+      "operationId": "product_listSeatPools",
+      "authority": "product",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "SeatPoolPage"
+    },
+    {
+      "operationId": "product_listSeatAssignments",
+      "authority": "product",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "AssignmentPage"
+    },
+    {
+      "operationId": "product_createSubscription",
+      "authority": "product",
+      "idempotency": "REQUIRED",
+      "inputSchema": "SubscriptionCreateRequest",
+      "outputSchema": "Subscription"
+    },
+    {
+      "operationId": "product_listPlatformSubscriptions",
+      "authority": "product",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "SubscriptionPage"
+    },
+    {
+      "operationId": "product_getPlatformSubscription",
+      "authority": "product",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "Subscription"
+    },
+    {
+      "operationId": "product_listPlatformSeatPools",
+      "authority": "product",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "SeatPoolPage"
+    },
+    {
+      "operationId": "product_updateSubscription",
+      "authority": "product",
+      "idempotency": "REQUIRED",
+      "inputSchema": "SubscriptionUpdateRequest",
+      "outputSchema": "Subscription"
+    },
+    {
+      "operationId": "product_renewSubscription",
+      "authority": "product",
+      "idempotency": "REQUIRED",
+      "inputSchema": "SubscriptionRenewRequest",
+      "outputSchema": "Subscription"
+    },
+    {
+      "operationId": "product_assignSeat",
+      "authority": "product",
+      "idempotency": "REQUIRED",
+      "inputSchema": "SeatAssignRequest",
+      "outputSchema": "SeatMutationResult"
+    },
+    {
+      "operationId": "product_releaseSeat",
+      "authority": "product",
+      "idempotency": "REQUIRED",
+      "inputSchema": "SeatReleaseRequest",
+      "outputSchema": "SeatMutationResult"
+    },
+    {
+      "operationId": "product_reassignSeat",
+      "authority": "product",
+      "idempotency": "REQUIRED",
+      "inputSchema": "SeatReassignRequest",
+      "outputSchema": "SeatReassignResult"
+    },
+    {
+      "operationId": "product_listTenantAudit",
+      "authority": "product",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "AuditEventPage"
+    },
+    {
+      "operationId": "product_listPlatformAudit",
+      "authority": "product",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "AuditEventPage"
+    },
+    {
+      "operationId": "product_checkEntitlements",
+      "authority": "product",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": "EntitlementCheckRequest",
+      "outputSchema": "EntitlementCheckResult"
+    }
+  ],
+  "stateMachines": {
+    "transaction": {
+      "initial": "PENDING",
+      "transitions": [
+        [
+          "PENDING",
+          "VERIFIED"
+        ],
+        [
+          "PENDING",
+          "CANCELLED"
+        ],
+        [
+          "PENDING",
+          "EXPIRED"
+        ],
+        [
+          "VERIFIED",
+          "CONSUMED"
+        ],
+        [
+          "VERIFIED",
+          "CANCELLED"
+        ],
+        [
+          "VERIFIED",
+          "EXPIRED"
+        ]
+      ],
+      "terminal": [
+        "CONSUMED",
+        "CANCELLED",
+        "EXPIRED"
+      ]
+    },
+    "challenge": {
+      "initial": "ISSUED",
+      "transitions": [
+        [
+          "ISSUED",
+          "VERIFIED"
+        ],
+        [
+          "ISSUED",
+          "LOCKED"
+        ],
+        [
+          "ISSUED",
+          "EXPIRED"
+        ],
+        [
+          "ISSUED",
+          "SUPERSEDED"
+        ]
+      ],
+      "terminal": [
+        "VERIFIED",
+        "LOCKED",
+        "EXPIRED",
+        "SUPERSEDED"
+      ]
+    },
+    "proof": {
+      "initial": "ISSUED",
+      "transitions": [
+        [
+          "ISSUED",
+          "CONSUMED"
+        ],
+        [
+          "ISSUED",
+          "REVOKED"
+        ],
+        [
+          "ISSUED",
+          "EXPIRED"
+        ]
+      ],
+      "terminal": [
+        "CONSUMED",
+        "REVOKED",
+        "EXPIRED"
+      ]
+    },
+    "invitation": {
+      "initial": "PENDING",
+      "transitions": [
+        [
+          "PENDING",
+          "ACCEPTED"
+        ],
+        [
+          "PENDING",
+          "DECLINED"
+        ],
+        [
+          "PENDING",
+          "REVOKED"
+        ],
+        [
+          "PENDING",
+          "EXPIRED"
+        ]
+      ],
+      "terminal": [
+        "ACCEPTED",
+        "DECLINED",
+        "REVOKED",
+        "EXPIRED"
+      ]
+    },
+    "transfer": {
+      "initial": "PENDING",
+      "transitions": [
+        [
+          "PENDING",
+          "ACCEPTED"
+        ],
+        [
+          "PENDING",
+          "CANCELLED"
+        ],
+        [
+          "PENDING",
+          "EXPIRED"
+        ]
+      ],
+      "terminal": [
+        "ACCEPTED",
+        "CANCELLED",
+        "EXPIRED"
+      ]
+    },
+    "membership": {
+      "initial": "ACTIVE",
+      "transitions": [
+        [
+          "ACTIVE",
+          "LEFT"
+        ],
+        [
+          "ACTIVE",
+          "REMOVED"
+        ]
+      ],
+      "terminal": [
+        "LEFT",
+        "REMOVED"
+      ],
+      "rejoin": "NEW_MEMBERSHIP_ID"
+    },
+    "assignment": {
+      "initial": "ASSIGNED",
+      "transitions": [
+        [
+          "ASSIGNED",
+          "ENDED"
+        ]
+      ],
+      "terminal": [
+        "ENDED"
+      ],
+      "expiration": "RETAIN_ASSIGNED",
+      "reassign": "END_OLD_CREATE_NEW_ATOMICALLY"
+    },
+    "session": {
+      "initial": "ACTIVE",
+      "transitions": [
+        [
+          "ACTIVE",
+          "REVOKED"
+        ],
+        [
+          "ACTIVE",
+          "EXPIRED"
+        ]
+      ],
+      "terminal": [
+        "REVOKED",
+        "EXPIRED"
+      ]
+    }
+  },
+  "authenticationFlows": [
+    {
+      "purpose": "LOGIN",
+      "methods": [
+        "EMAIL_PASSWORD"
+      ],
+      "verification": "PASSWORD",
+      "verifiedBy": "password",
+      "completion": "LOGIN_CODE",
+      "createsUser": false,
+      "requiresCurrentSession": false
+    },
+    {
+      "purpose": "LOGIN",
+      "methods": [
+        "PHONE_OTP"
+      ],
+      "verification": "CHALLENGE_THEN_PHONE",
+      "verifiedBy": "phone",
+      "completion": "LOGIN_CODE",
+      "createsUser": true,
+      "requiresCurrentSession": false
+    },
+    {
+      "purpose": "LOGIN",
+      "methods": [
+        "GOOGLE",
+        "GITHUB"
+      ],
+      "verification": "PROVIDER_CALLBACK",
+      "verifiedBy": "provider-callback",
+      "completion": "LOGIN_CODE",
+      "createsUser": true,
+      "requiresCurrentSession": false
+    },
+    {
+      "purpose": "EMAIL_SIGNUP",
+      "methods": [
+        "EMAIL_CODE"
+      ],
+      "verification": "CHALLENGE_THEN_SIGNUP",
+      "verifiedBy": "email-signup",
+      "completion": "LOGIN_CODE",
+      "createsUser": true,
+      "requiresCurrentSession": false
+    },
+    {
+      "purpose": "REAUTH",
+      "methods": [
+        "EMAIL_PASSWORD",
+        "PHONE_OTP",
+        "GOOGLE",
+        "GITHUB"
+      ],
+      "verification": "EXISTING_USABLE_IDENTITY",
+      "verifiedBy": "password/challenge/provider-callback",
+      "completion": "OPERATION_PROOF",
+      "createsUser": false,
+      "requiresCurrentSession": true
+    },
+    {
+      "purpose": "BIND",
+      "methods": [
+        "EMAIL_CODE",
+        "PHONE_OTP",
+        "GOOGLE",
+        "GITHUB"
+      ],
+      "verification": "NEW_IDENTITY_ONLY",
+      "verifiedBy": "challenge/provider-callback",
+      "completion": "NEW_IDENTITY_PROOF",
+      "createsUser": false,
+      "requiresCurrentSession": true
+    },
+    {
+      "purpose": "REPLACE",
+      "methods": [
+        "EMAIL_CODE",
+        "PHONE_OTP",
+        "GOOGLE",
+        "GITHUB"
+      ],
+      "verification": "NEW_IDENTITY_ONLY",
+      "verifiedBy": "challenge/provider-callback",
+      "completion": "NEW_IDENTITY_PROOF",
+      "createsUser": false,
+      "requiresCurrentSession": true
+    },
+    {
+      "purpose": "PASSWORD_RESET",
+      "methods": [
+        "EMAIL_CODE"
+      ],
+      "verification": "EXISTING_VERIFIED_EMAIL",
+      "verifiedBy": "challenge",
+      "completion": "RESET_PROOF",
+      "createsUser": false,
+      "requiresCurrentSession": false
+    }
+  ],
+  "roleRules": {
+    "tenantDisabled": "DENY_MEMBER_READ_AND_WRITE_EXCEPT_MINIMAL_MY_TENANTS",
+    "platformAuthority": "INDEPENDENT_OF_TENANT_ROLE",
+    "OWNER": [
+      "PROFILE_WRITE",
+      "MEMBERS_READ",
+      "INVITE",
+      "REMOVE_NON_OWNER",
+      "APPOINT_ADMIN",
+      "TRANSFER_OWNER",
+      "SEAT_MANAGE",
+      "AUDIT_READ"
+    ],
+    "ADMIN": [
+      "PROFILE_WRITE",
+      "MEMBERS_READ",
+      "INVITE",
+      "REMOVE_MEMBER",
+      "LEAVE",
+      "SEAT_MANAGE",
+      "AUDIT_READ"
+    ],
+    "MEMBER": [
+      "MEMBERS_READ",
+      "LEAVE",
+      "OWN_ASSIGNMENTS_READ",
+      "TENANT_SUBSCRIPTIONS_READ",
+      "SHARED_CONTENT_READ_DOWNLOAD"
+    ],
+    "transferAccepted": {
+      "targetRole": "OWNER",
+      "previousOwnerRole": "MEMBER",
+      "existingAssignments": "PRESERVE",
+      "uniqueOwner": true
+    }
+  },
+  "proofBindings": {
+    "verificationProof": [
+      "transactionId",
+      "normalizedTarget",
+      "purpose",
+      "currentSubjectIfKnown",
+      "expiry",
+      "oneUse"
+    ],
+    "operationProof": [
+      "userId",
+      "loginSessionId",
+      "operation",
+      "target",
+      "identityRevision",
+      "sessionRevision",
+      "revocationBoundary",
+      "expiry",
+      "oneUse"
+    ],
+    "newIdentityProof": [
+      "userId",
+      "loginSessionId",
+      "transactionId",
+      "purpose",
+      "method",
+      "normalizedIdentity",
+      "bindingIdForReplace",
+      "identityRevision",
+      "sessionRevision",
+      "expiry",
+      "oneUse"
+    ],
+    "resetProof": [
+      "transactionId",
+      "userId",
+      "verifiedEmailBinding",
+      "identityRevision",
+      "revocationBoundary",
+      "expiry",
+      "oneUse"
+    ],
+    "loginCode": [
+      "clientId",
+      "redirectUri",
+      "codeChallenge",
+      "userId",
+      "transactionCreationSequence",
+      "revocationBoundary",
+      "purpose",
+      "expiry",
+      "oneUse"
+    ]
+  },
+  "atomicConstraints": [
+    "PASSWORD_CHANGE_AND_REVOKE_OTHERS_KEEP_TRUSTED_CURRENT_SESSION",
+    "PASSWORD_RESET_AND_REVOKE_ALL",
+    "GLOBAL_REVOKE_FENCES_OLD_PENDING_TRANSACTIONS_AND_LATE_REFRESH",
+    "ROTATE_REFRESH_ONCE_PER_LOGIN_FAMILY",
+    "MEMBERSHIP_END_AND_ALL_TENANT_ASSIGNMENTS_END_AND_REVISION",
+    "ASSIGN_CAPACITY_VERSION_AND_ENTITLEMENT_REVISION",
+    "REASSIGN_END_OLD_CREATE_NEW_WITHOUT_TRANSIENT_OVERALLOCATION",
+    "RETAINED_ASSIGNED_COUNTS_TOWARDS_EXPIRED_POOL_CAPACITY",
+    "REDUCE_QUANTITY_NOT_BELOW_ASSIGNED",
+    "REMOVE_SEAT_TYPE_ONLY_AFTER_ALL_ASSIGNMENTS_END",
+    "TRANSFER_UNIQUE_OWNER_AND_KEEP_ASSIGNMENTS",
+    "BIND_IDENTITY_UNIQUE_AND_AT_LEAST_ONE_USABLE_METHOD",
+    "IDEMPOTENT_BUSINESS_WRITE_RESULT_AND_AUDIT_COMMIT_TOGETHER"
+  ],
+  "entitlementRules": {
+    "personal": "VALID_PERSONAL_SUBSCRIPTIONS_UNION",
+    "tenant": "ACTIVE_MEMBERSHIP_AND_ACTIVE_TENANT_THEN_PERSONAL_UNION_CURRENT_TENANT_VALID_ASSIGNMENTS",
+    "adminGrantsPaidFeatures": false,
+    "sharedReadRequiresPaidFeature": false,
+    "unavailableIsDenied": false,
+    "resultsAreOfflineLicenses": false
+  },
+  "deliveryRules": {
+    "acceptedMeansVerified": false,
+    "universalTestCode": false,
+    "mockProductionAllowed": false,
+    "liveFailureFallsBackToMock": false,
+    "replacementChallengeInvalidatesPrevious": true
+  },
+  "sessionRules": {
+    "refreshCountsAsActivity": false,
+    "pollingCountsAsActivity": false,
+    "sensitiveReauthenticationResetsAbsolute": false,
+    "clientTimeAccepted": false,
+    "currentLogout": "CURRENT_LOGIN_ONLY",
+    "globalLogout": "ALL_MOLIS_PRODUCTS",
+    "refreshUnknownOutcome": "NO_REPLAY_REAUTHENTICATE",
+    "revokedProofMayReadSameLogoutResultOnly": true
+  },
+  "migrationRules": {
+    "preserveData": true,
+    "automaticEmailMerge": false,
+    "raiseEmailVerification": false,
+    "reuseWorkClubOldSessions": false,
+    "revokeOtherProductLegacySessions": false,
+    "legacyTeamAutoAdoption": false
+  },
+  "legacyGuards": [
+    "MANAGED_CLIENT_CANNOT_USE_LEGACY_USER_GRANT",
+    "MANAGED_TENANT_SAME_POLICY_ON_ALL_VERSIONS",
+    "NO_IMPLICIT_TEAM_ADOPTION"
+  ],
+  "portSchemas": [
+    "SmsDelivery",
+    "MailDelivery",
+    "DeliveryResult",
+    "ProviderServerContext",
+    "ProviderCallback",
+    "ProviderIdentity",
+    "EnvironmentConfig",
+    "ClientEnvironmentConfig",
+    "MigrationMapping",
+    "MigrationInventoryRecord"
+  ]
+}

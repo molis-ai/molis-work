@@ -21,10 +21,10 @@ const source = (over: Part = {}, top: Part = {}): ActionDefinition => ({
   action: { title: "选笔记", description: "按名字找本项目的笔记", kind: "query", scope: "project", audiences: ["user", "agent"], permissions: [],
     subject_kinds: ["note"], input_type: COMPOSER_PICK_INPUT_TYPE, output_type: COMPOSER_PICK_OUTPUT_TYPE,
     input_schema: COMPOSER_PICK_INPUT_SCHEMA, output_schema: COMPOSER_PICK_OUTPUT_SCHEMA,
-    composer_source: { title: "笔记", subject_kinds: ["note"], layers: ["ai", "plain"] }, ...over },
+    composer_source: { title: "笔记", layers: ["ai", "plain"] }, ...over },
   ...top,
 } as ActionDefinition);
-const NOT_A_SOURCE = "能力 notes.pick@1 没有兑现输入框来源协议 v1：需要平台给的输入输出、对本机用户开放的只读查询，以及名称、与动作相同的对象种类和所在的层（ai、plain）";
+const NOT_A_SOURCE = "能力 notes.pick@1 没有兑现输入框来源协议 v1：需要平台给的输入输出、对本机用户开放的只读查询，动作自己的对象种类，以及名称和所在的层（ai、plain）";
 const parsed = (...actions: ActionDefinition[]) => manifestProblems(declarationManifest({ actions }));
 /** Registers a source (and a reader) with a Kernel as a provider does; `pick` handles the source, the reader is not called here. */
 const registered = (pickDefinition: ActionDefinition, readerDefinition?: ActionDefinition, pick: ActionHandlerBinding["handle"] = () => ({ items: [] })) => {
@@ -53,7 +53,7 @@ test("S-composer-source-call UIC-02 a source declared as the platform fixes it, 
   assert.deepEqual(inspectActionDeclarations([source(), reader], undefined), []);
   assert.deepEqual(inspectActionCrossReferences([source(), reader]), []);
   assert.equal(parsed(source(), reader), "");
-  assert.equal(parsed(source({ scope: "home", audiences: ["user"], effect: "read", composer_source: { title: "笔记", subject_kinds: ["note"], layers: ["ai"] } }), reader), "", "a Home source for the AI layer only");
+  assert.equal(parsed(source({ scope: "home", audiences: ["user"], effect: "read", composer_source: { title: "笔记", layers: ["ai"] } }), reader), "", "a Home source for the AI layer only");
 });
 
 test("S-composer-source-call UIC-02 item 1 a pick schema one character away from the platform's is refused", () => {
@@ -79,11 +79,13 @@ test("S-composer-source-call UIC-02 item 2 a source on an action that is not a r
     ["a command", source({ kind: "operation" }, { operation: "command" })],
     ["a query that writes", source({ effect: "write" })],
     ["closed to the person", source({ audiences: ["agent", "mcp"] })],
-    ["kinds other than the action's", source({ subject_kinds: ["note", "page"] })],
-    ["no layer", source({ composer_source: { title: "笔记", subject_kinds: ["note"], layers: [] } })],
-    ["a layer that is not one", source({ composer_source: { title: "笔记", subject_kinds: ["note"], layers: ["voice"] } })],
-    ["no name", source({ composer_source: { title: " ", subject_kinds: ["note"], layers: ["ai"] } })],
-    ["a field the declaration does not have", source({ composer_source: { title: "笔记", subject_kinds: ["note"], layers: ["ai"], draft: true } })],
+    // The kinds are the action's own; a declaration that writes them again is a field it does not have.
+    ["an action that picks no kind", source({ subject_kinds: [] })],
+    ["the kinds written again in the declaration", source({ composer_source: { title: "笔记", subject_kinds: ["note"], layers: ["ai"] } })],
+    ["no layer", source({ composer_source: { title: "笔记", layers: [] } })],
+    ["a layer that is not one", source({ composer_source: { title: "笔记", layers: ["voice"] } })],
+    ["no name", source({ composer_source: { title: " ", layers: ["ai"] } })],
+    ["a field the declaration does not have", source({ composer_source: { title: "笔记", layers: ["ai"], draft: true } })],
   ];
   for (const [what, definition] of refusals) {
     assert.ok(inspectActionDeclarations([definition, reader], undefined).includes(NOT_A_SOURCE), what);
@@ -95,6 +97,8 @@ test("S-composer-source-call UIC-02 item 2 a source of a kind its provider has n
   const foreign = "能力 notes.pick@1 的输入框来源种类 note 不是同一提供方有对象读取器的种类";
   assert.deepEqual(inspectActionCrossReferences([source()]), [foreign], "no reader at all");
   assert.deepEqual(inspectActionCrossReferences([source(), defineSubjectContextAction("pages.read", 1, "page", "页面", [])]), [foreign], "a reader of another kind");
+  assert.deepEqual(inspectActionCrossReferences([source({ subject_kinds: ["note", "page"] }), reader]), ["能力 notes.pick@1 的输入框来源种类 page 不是同一提供方有对象读取器的种类"],
+    "every kind of the action's own is checked, not only the first");
   assert.equal(parsed(source()), foreign);
   assert.throws(() => registered(source()), (error: unknown) => error instanceof ActionError && error.code === "actions.definition_invalid" && error.message === foreign);
 });

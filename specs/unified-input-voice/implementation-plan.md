@@ -55,24 +55,42 @@
 ```ts
 window.molisComposer(root: HTMLElement, options: ComposerOptions): ComposerHandle
 
-interface ComposerOptions {
-  kind: "ai" | "plain";
+type ComposerOptions = ComposerCommonOptions & (
+  | { kind: "plain"; labels: MwComposerLabels }
+  | { kind: "ai"; labels: MwComposerAiLabels;
+      receiver?: () => { label: string; reset?: () => void } | null;
+      delivery?: () => ComposerDelivery;          // 此刻能用哪几种、各自为什么不能用；不给时只有默认的补充
+      stop?(signal: AbortSignal): Promise<void> }  // 不给就不画停止；暂停不做（还没有目标收它）
+);
+interface ComposerCommonOptions {
   entry: string;                          // 入口名，在插件内唯一，如 "session"
   draft: { conversation: string }         // 平台草稿：键里的项目与安装由页面上下文给（3.4）
        | { adapter: ComposerDraftAdapter }; // 草稿本是主人事实时（助理按工作存、Coding 服务端按会话存）用主人的读写
-  receiver?: () => { label: string; reset?: () => void } | null;
-  delivery?: () => ComposerDelivery;      // 只 ai：此刻能用哪几种、各自为什么不能用
+  submitKeys?: false;                     // 决定理由型：发送键只写字，由页面自己的按钮提交
   controls?: readonly ComposerControl[];  // 场景控件：select / toggle / button；组件按板子控件画、窄屏收进「更多」
   commands?: readonly ComposerCommand[];  // 本页自己的 / 命令（Coding 现有的那些）
   attachments?: { accept?: string; upload(file: File, signal: AbortSignal): Promise<ComposerAttachmentState> };
   sources?: boolean;                      // 是否列出已注册的插件来源（3.3），默认 kind 为 ai 时列
+  near?: () => ActionSubject | null;      // 挂载页交出的当前对象；只交给自己 subject_kinds 含这个种类的来源（S-composer-source-call）
+  voice?: string;                         // 麦克风的名字，要语音的页面才给（第 53 批）；与 renderComposer 同名同形
   required?: () => string | null;         // 挂载页自己的必填检查，返回缺什么
   submit(input: ComposerSubmission, signal: AbortSignal): Promise<ComposerOutcome>;
 }
+// labels 与 renderComposer 是同一套（MwComposerLabels／MwComposerAiLabels），首屏只画其中几项，其余是客户端随时要说的话；
+// 送达方式的三个词按模式（AgentSteerMode）给，不按字：modes["next-boundary"|"interrupt"|"after-run"]: { name, title, description }。
+// ＋ 只在 attachments、sources 或 commands 有内容时才画。
+interface ComposerDraftAdapter { read(signal: AbortSignal): Promise<string>; write(text: string): Promise<void> }
+type ComposerDelivery = { [Mode in AgentSteerMode]: { available: true } | { available: false; reason: string } };
+type ComposerControl =
+  | { kind: "select"; id: string; label: string; options: readonly { value: string; label: string }[]; value: string; change?(value: string): void }
+  | { kind: "toggle"; id: string; label: string; on: boolean; change?(on: boolean): void }   // 提交时是 "on"／"off"
+  | { kind: "button"; id: string; label: string; run(): void };
+interface ComposerCommand { slash: string; label: string; hint?: string; run(): void }
+type ComposerAttachmentState = { state: "attached"; ref: string; title: string } | { state: "failed"; reason: string };
 interface ComposerSubmission { text: string; materials: readonly ComposerMaterial[]; delivery?: AgentSteerMode; controls: Readonly<Record<string, string>>; request_id: string }
 type ComposerOutcome =
   | { state: "sent"; receipt?: AgentSteerReceipt }
-  | { state: "failed"; message: string }
+  | { state: "failed"; message: string; unreadable?: readonly { index: number; reason: string }[] }   // 目标读不到的资料（按 materials 里的位置）
   | { state: "unknown"; check(): Promise<"sent" | "not-sent" | "unknown"> };
 interface ComposerHandle { setRunning(running: boolean): void; refresh(): void; focus(): void; insert(text: string): void; destroy(): void }
 ```
@@ -90,7 +108,7 @@ interface ComposerHandle { setRunning(running: boolean): void; refresh(): void; 
 // 一个声明挂在一个动作上，capability_id@version 已经唯一，不另设 source_id
 interface ComposerSourceDeclaration {
   readonly title: string;                      // 菜单里的名字，翻译同 SearchSourceKind.title
-  readonly subject_kinds: readonly string[];   // 返回的对象种类，必须是本提供方有对象读取器的种类
+  // 返回的对象种类就是动作自己的 subject_kinds（每个都要本提供方有对象读取器），声明里不再写一遍（K0 合同台 11-08）
   readonly layers: readonly ("ai" | "plain")[];   // 出现在哪一层的输入框
 }
 // ActionMetadata 加：readonly composer_source?: ComposerSourceDeclaration;
@@ -99,8 +117,8 @@ export const COMPOSER_PICK_OUTPUT_TYPE = "molis.composer.pick.items.v1";
 // 平台定死的 schema，声明者的 input_schema／output_schema 必须与之一字不差（同沙箱集成包的 SANDBOX_INTEGRATION_CONTRACT）
 export const COMPOSER_PICK_INPUT_SCHEMA: ActionSchema;   // query 0～200 字，limit 1～50，near 可选
 export const COMPOSER_PICK_OUTPUT_SCHEMA: ActionSchema;  // items 至多 50 项
-interface ComposerPickInput { query: string; limit: number; near?: ActionSubject }   // near：挂载页明确交出的当前对象，可没有
-interface ComposerPickItem { ref: MaterialRef; title: string; hint?: string }        // 插件对象给 pin: { mode: "current", read_revision }
+interface ComposerPickInput { query: string; limit: number; near?: ActionSubject }   // near：挂载页明确交出的当前对象，只交给自己 subject_kinds 含它种类的来源，否则没有
+interface ComposerPickItem { ref: MaterialRef; title: string; hint?: string }        // title 1～1000 字、hint 至多 300 字； 插件对象给 pin: { mode: "current", read_revision }
 interface ComposerPickOutput { items: ComposerPickItem[] }
 type ComposerMaterial =
   | { kind: "attachment"; ref: string; title: string }                       // 挂载页 upload 给的句柄，主人是挂载页

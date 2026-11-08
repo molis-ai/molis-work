@@ -18,6 +18,27 @@ export interface ComposerCommand {
     run(): void;
 }
 
+export interface ComposerCommonOptions {
+    entry: string;
+    draft: {
+        conversation: string;
+    } | {
+        adapter: ComposerDraftAdapter;
+    };
+    submitKeys?: false;
+    controls?: readonly ComposerControl[];
+    commands?: readonly ComposerCommand[];
+    attachments?: {
+        accept?: string;
+        upload(file: File, signal: AbortSignal): Promise<ComposerAttachmentState>;
+    };
+    sources?: boolean;
+    near?: () => ActionSubject | null;
+    voice?: string;
+    required?: () => string | null;
+    submit(input: ComposerSubmission, signal: AbortSignal): Promise<ComposerOutcome>;
+}
+
 export type ComposerControl = {
     kind: "select";
     id: string;
@@ -63,30 +84,19 @@ export interface ComposerHandle {
     destroy(): void;
 }
 
-export interface ComposerOptions {
-    kind: ComposerSourceDeclaration["layers"][number];
-    entry: string;
-    draft: {
-        conversation: string;
-    } | {
-        adapter: ComposerDraftAdapter;
-    };
-    submitKeys?: false;
+export type ComposerOptions = ComposerCommonOptions & ({
+    kind: "plain";
+    labels: MwComposerLabels;
+} | {
+    kind: "ai";
+    labels: MwComposerAiLabels;
     receiver?: () => {
         label: string;
         reset?: () => void;
     } | null;
     delivery?: () => ComposerDelivery;
-    controls?: readonly ComposerControl[];
-    commands?: readonly ComposerCommand[];
-    attachments?: {
-        accept?: string;
-        upload(file: File, signal: AbortSignal): Promise<ComposerAttachmentState>;
-    };
-    sources?: boolean;
-    required?: () => string | null;
-    submit(input: ComposerSubmission, signal: AbortSignal): Promise<ComposerOutcome>;
-}
+    stop?(signal: AbortSignal): Promise<void>;
+});
 
 export type ComposerOutcome = {
     state: "sent";
@@ -94,6 +104,10 @@ export type ComposerOutcome = {
 } | {
     state: "failed";
     message: string;
+    unreadable?: readonly {
+        index: number;
+        reason: string;
+    }[];
 } | {
     state: "unknown";
     check(): Promise<"sent" | "not-sent" | "unknown">;

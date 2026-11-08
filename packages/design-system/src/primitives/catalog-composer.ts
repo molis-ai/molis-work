@@ -104,10 +104,22 @@ interface ShellOptions {
 }
 
 /** The words of the shell, in the board's language. */
-const labelsIn = (say: Say, to: string): MwComposerAiLabels => ({
-  input: say("发给 {who} 的话", { who: to }), send: say("发送"), sendTitle: say("发送（⌘↵）"), add: say("添加文件与资料"),
-  voice: say("语音输入（还没有接上）"), to: say("发给："), stop: say("停止"), supplement: say("补充"), supplementTitle: say("补充（⌘↵）"),
-  delivery: say("选择送达方式"), deliveryGroup: say("送达方式"),
+const composerLabelsIn = (say: Say, to: string): MwComposerAiLabels => ({
+  input: say("发给 {who} 的话", { who: to }), send: say("发送"), sendTitle: say("发送（⌘↵）"), add: say("添加文件与资料"), more: say("更多"),
+  files: say("文件与图片"), filesHint: say("从这台电脑选，或直接拖进输入框"), dropRefused: say("这里只收文件"), commands: say("命令"),
+  searching: say("正在找…"), nothing: say("没有找到"), unavailable: say("{name} 现在用不了"), reading: say("{name} 读取中"), remove: say("移除 {name}"),
+  blocked: say("移除附不上的那一项再发"), restored: say("已恢复上次没发出的草稿 · {time}"), clear: say("清空草稿"), unsaved: say("草稿没能保存在本机；字还在，照常能发"),
+  enterHint: say("回车已改为换行。要发送请按 {keys}"), enterHintDismiss: say("知道了"), notice: say("提示"), sending: say("发送中"), sendingText: say("正在发送…"),
+  failed: say("没发出"), retry: say("重试"), unknown: say("待确认"), unknownText: say("没能确认是否送到；先别重复发"), check: say("查一下"),
+  notSent: say("核对过：没有送到。字还在，可以再发"),
+  to: say("发给："), stop: say("停止"), stopTitle: say("停止这一轮"), delivery: say("选择送达方式"), deliveryGroup: say("送达方式"),
+  modes: {
+    "next-boundary": { name: say("补充"), title: say("补充（⌘↵）"), description: say("当前回复或这批工具结束后读到，不打断") },
+    interrupt: { name: say("打断并改向"), title: say("打断并改向"), description: say("丢掉正在写的回复，改按这句做；已做的不撤销") },
+    "after-run": { name: say("下一轮再做"), title: say("下一轮再做（⌘⇧↵）"), description: say("排到下一轮开头，你开下一轮时带上") },
+  },
+  unsupported: say("这个对象不收这种送达方式"), running: say("运行中"), runningText: say("正在做这一轮 · 再发会作为补充"),
+  queued: say("这一轮刚结束，留到下一轮"), replayed: say("这句已经发过，没有再发一次"),
 });
 
 /**
@@ -118,9 +130,11 @@ function shell(say: Say, options: ShellOptions): string {
   const { state } = options;
   const to = options.to ?? say("助理");
   const drawn = renderComposer({
-    kind: "ai", labels: labelsIn(say, to),
+    kind: "ai", labels: composerLabelsIn(say, to),
     receiver: { label: to, ...(options.to ? { resetLabel: say("改回发给助理") } : {}) },
     placeholder: options.placeholder ?? say("让助理做点什么…"),
+    // The board shows the microphone's place; a product page draws it only once it takes voice (user 11-08).
+    voice: say("语音输入（还没有接上）"),
     ...(options.text ? { text: options.text } : {}),
     ...(state === "disabled" && options.status ? { disabled: { caption: options.status.caption, reason: options.status.text } } : {}),
     ...(state && state !== "disabled" ? { state } : {}),
@@ -132,7 +146,8 @@ function shell(say: Say, options: ShellOptions): string {
   const menu = renderMenu({ items: renderMenuGroup({ label: say("送达方式"), items: deliveryItems(say, "catalog-composer-running") }) });
   return drawn
     .replace('<div class="mw-composer__box">', (box) => `${box}${options.files ?? ""}${restored}`)
-    .replace('<div class="mw-compose__menu" data-compose-menu hidden></div>', () => `<div class="mw-compose__menu" data-compose-menu hidden>${menu}</div>`);
+    // The ▾'s menu, not ＋'s (both are empty in the first screen).
+    .replace(/(data-compose-menu-toggle[^>]*>(?:(?!<\/button>)[\s\S])*<\/button>)<div class="mw-compose__menu" data-compose-menu hidden><\/div>/, (_, toggle: string) => `${toggle}<div class="mw-compose__menu" data-compose-menu hidden>${menu}</div>`);
 }
 
 /** The attachment strip is the board's upload rows: one being read, one read, one refused with its reason. */

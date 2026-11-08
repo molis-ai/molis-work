@@ -39,6 +39,7 @@ import {
 } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { listedIconNames, registeredIconNames } from "@molis-ai/molis-work-design-system";
 import { renderMolisWorkArrivalStylesheet, renderMolisWorkSettingsStylesheet, renderMolisWorkWorkbenchStylesheet } from "./workbench-renderer-fixture.js";
+import { COMPOSER_AI_LABELS, COMPOSER_PLAIN_LABELS } from "./fixtures/composer-labels.js";
 
 // The parts of the Plugin SDK's `/ui` write class names and `data-*` hooks that the host's style sheets and page scripts define,
 // so the markup is a contract with the host page (specs/archive/repository-anti-corruption/slices/pg055-sdk-ui-parts.md §4).
@@ -120,8 +121,7 @@ const UNTIL_K2 = [
 test("UIC-13 / RAC-551: the classes renderComposer writes without a host rule are exactly the ones waiting for K2", () => {
   const sheets = [renderMolisWorkWorkbenchStylesheet(), renderMolisWorkArrivalStylesheet(), renderMolisWorkSettingsStylesheet()].join("\n");
   const defined = (token: string): boolean => new RegExp(`\\.${token.replace(/[\\^$*+?.()|[\]{}]/gu, "\\$&")}(?![\\w-])`, "u").test(sheets);
-  const ai = { input: "发给 助理 的话", send: "发送", sendTitle: "发送（⌘↵）", add: "添加", voice: "语音输入（还没有接上）", to: "发给：", stop: "停止", supplement: "补充", supplementTitle: "补充（⌘↵）", delivery: "选择送达方式", deliveryGroup: "送达方式" };
-  const plain = { input: "评论", send: ai.send, sendTitle: ai.sendTitle, add: ai.add, voice: ai.voice };
+  const ai = COMPOSER_AI_LABELS, plain = COMPOSER_PLAIN_LABELS;
   const shells = [
     renderComposer({ kind: "ai", labels: ai, receiver: { label: "Coding", resetLabel: "改回发给助理" }, state: "running", text: "补一句", status: { caption: "运行中", text: "正在做这一轮", action: "查看" } }),
     renderComposer({ kind: "plain", labels: plain, placeholder: "写评论", disabled: { caption: "不可用", reason: "这条已关闭" } }),

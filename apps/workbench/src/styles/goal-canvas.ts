@@ -164,6 +164,12 @@ export const GOAL_CANVAS_STYLES = `
     body.immersive-workbench .goal-stage-list .tree-entry { grid-template-columns: minmax(0, 1fr) fit-content(45%); }
     body.immersive-workbench .goal-stage-list .tree-entry > :is(.tree-progress, .tree-relations, .tree-created-meta) { display: none !important; }
   }
+  /* A narrow column on a wide window is the same: the right side kept open beside Goals (07-S1) or a split leaves it under the
+     five columns' 600-odd px, and the row keeps the title and its status rather than sliding sideways. */
+  @container goal-board (max-width: 640px) {
+    body.immersive-workbench .goal-stage-list .tree-entry { grid-template-columns: minmax(0, 1fr) fit-content(45%); }
+    body.immersive-workbench .goal-stage-list .tree-entry > :is(.tree-progress, .tree-relations, .tree-created-meta) { display: none !important; }
+  }
   .goal-stage-list .tree-entry:hover { background: var(--nav-hover); }
   .goal-stage-list .tree-entry.is-selected { background: var(--nav-active); }
   body.immersive-workbench .goal-stage-list .tree-leading {

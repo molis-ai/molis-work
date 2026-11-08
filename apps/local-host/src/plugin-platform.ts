@@ -135,6 +135,8 @@ export interface PluginPlatform {
   viewRevision(pluginId: string): string;
   /** Stop input refresh/delivery and events before stopping plugins or closing storage. */
   closeCoordination(): Promise<void>;
+  /** Cancel this project's activation jobs and wait for their actual cleanup before storage is released. */
+  stopProjectJobs(projectId: string): Promise<void>;
   /**
    * The consent ledger this platform installs against and reads defaults from (a default wiring binds only on a standing agreement),
    * or `null` when it has none: then nothing is agreed to and no default binds.
@@ -263,6 +265,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     wiring,
     invalidateView,
     viewRevision(pluginId) { return `${viewEpoch}:${viewRevisions.get(pluginId) ?? 0}`; },
+    stopProjectJobs: projectId => executor.stopProjectJobs(projectId),
     async closeCoordination() {
       closed = true; installations.dispose(); unwatchArtifacts(); unbindArtifacts();
       stopArtifactRefresh?.();

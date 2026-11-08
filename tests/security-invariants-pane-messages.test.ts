@@ -82,6 +82,28 @@ test("S-30 RAC-2687 generic view updates retain the exact pane-window and parent
   }
 });
 
+// 07-S2: a main tab moved to the right side shows in a pane page whose frame is `iframe[data-pane-owner="side"]`, and a pane
+// page hands ⌘⇧↵ up as `workbench-pane-solo`. The check is the same one; this puts the new sender and message in its evidence.
+test("S-30 07-S2 the right side's pane page frame and workbench-pane-solo pass the same check: only that frame's own window, from this origin", () => {
+  const top: Record<string, unknown> = {};
+  top.parent = top;
+  const main = { contentWindow: { name: "pane a" }, dataset: { paneOwner: "a" } };
+  const side = { contentWindow: { name: "moved tab on the right" }, dataset: { paneOwner: "side" } };
+  const sidePlugin = { contentWindow: { name: "a side panel plugin frame" }, dataset: { sideFrame: "" } };
+  const document = { querySelectorAll: (selector: string) => selector === "iframe[data-pane-owner]" ? [main, side] : [main, side, sidePlugin] };
+  const panes = vm.runInNewContext(PANE_MESSAGES_SCRIPT, { window: top, document, location: { origin: ORIGIN } }) as Panes;
+  for (const data of [{ type: "workbench-pane-solo" }, { type: "workbench-pane-open", plugin: "goals" }, { type: "workbench-pane-focus" }]) {
+    assert.equal(panes.from({ origin: ORIGIN, source: side.contentWindow, data }), side, `${data.type} from the side's pane page names its frame`);
+    assert.equal(panes.from({ origin: ORIGIN, source: main.contentWindow, data: { ...data, paneOwner: "side", paneId: "side" } }), main, `${data.type}: a main pane cannot speak as the side by saying so`);
+    assert.equal(panes.from({ origin: ORIGIN, source: sidePlugin.contentWindow, data }), null, `${data.type}: a side panel plugin frame is not a pane page`);
+    assert.equal(panes.from({ origin: ORIGIN, source: top, data }), null, `${data.type}: the page itself`);
+    assert.equal(panes.from({ origin: ORIGIN, source: { name: "a popup" }, data }), null, `${data.type}: a window that is not a frame here`);
+    for (const origin of ["http://127.0.0.1:4174", "https://example.com", "null", ""]) {
+      assert.equal(panes.from({ origin, source: side.contentWindow, data }), null, `${data.type} from ${JSON.stringify(origin)}`);
+    }
+  }
+});
+
 test("S-30 a pane passes on the page's ask for a record only from the page around it, and only in its exact shape", () => {
   const { around, self, panes } = pane();
   const ask = { type: "workbench-select-item", plugin: "dataset", itemId: "record-1", quiet: false };

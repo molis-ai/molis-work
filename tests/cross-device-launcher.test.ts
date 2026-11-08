@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { spawn } from 'node:child_process';
-import { mkdtemp, writeFile, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, writeFile, readFile, readdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
@@ -71,6 +71,14 @@ test('compiled standalone launcher starts headless, restores a real Catalog proj
       origin:{kind:'pinned',subject:{kind:'document',id:'headless-artifact'},revision:'1'},title:'CLI artifact',media_type:'application/json',supersedes_version:null,source_supersedes_version:null,
     }]};
     const bundleFile=join(directory,'bundle.json');await writeFile(bundleFile,JSON.stringify(bundle));
+    // D0002-05: the compiled CLI must not turn a bundle's team scope into sharing authority either.
+    const deniedDestination=join(directory,'refused-team-home');
+    const denied=launch(['restore','--bundle',bundleFile,'--destination',deniedDestination]);
+    assert.notEqual(await denied.exited,0);assert.match(denied.errors(),/恢复包不能授予团队共享权限/);
+    assert.ok(!(await readdir(directory)).includes('refused-team-home'),'the rejected CLI creates no destination');
+    // The caller supplies a separate personal bundle; the restore command itself never changes a scope.
+    const personalBundle={...bundle,artifacts:bundle.artifacts.map(asset=>({...asset,scope:'personal'}))};
+    await writeFile(bundleFile,JSON.stringify(personalBundle));
     const destination=join(directory,'new-home');
     const restored=await command(['restore','--bundle',bundleFile,'--destination',destination]);assert.equal(restored.restored,1);assert.match(restored.project_id,/^project-onboarding-/);assert.ok(restored.warnings.some((warning:string)=>warning.includes('io.test.writer@1.0.0')));
     const read=await command(['read-assets','--destination',destination,'--project','headless-source']);

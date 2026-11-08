@@ -30,7 +30,7 @@ test("PANE-LAND-01, PANE-LAND-02 (W3-B3, S-30): a passage selected in the right 
   await command("Page.addScriptToEvaluateOnNewDocument", { source: "if (window.parent === window) document.addEventListener('molis:surface-landing', (event) => { window.landings = [...(window.landings || []), { detail: event.detail, framed: event.target instanceof HTMLIFrameElement }]; });" }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${left.id}` }, sessionId));
   await child.waitFor("document.querySelector('[data-pages-title]')?.value === '发布计划'");
-  await click("[data-titlebar-tabs] [data-tab-split]");
+  await click("[data-layout-open]");
   await click("[data-layout-split=right]");
   await pane.waitFor(`${paneText}.includes('先完成核心体验')`, 20_000);
 

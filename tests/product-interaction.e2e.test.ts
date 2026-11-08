@@ -20,7 +20,7 @@ test("Goal Frame keeps the outer tabs and layout offers explicit bottom splittin
   t.after(() => { b.server?.off("request", observePane); });
   await b.setViewport(1440, 960);
   await navigate(() => command("Page.navigate", {url: `${origin}/projects/${projectId}/`}, sessionId));
-  await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item')");
+  await waitFor("document.querySelector('[data-titlebar-tabs] .tab-add-button')");
   await click('[data-plugin-id="goals"]');
   await openGoalFrame('.tree-node[data-select-goal="CORE"]');
   await waitFor("document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal==='CORE' && !document.querySelector('[data-goal-frame-surface]').hidden");
@@ -29,8 +29,8 @@ test("Goal Frame keeps the outer tabs and layout offers explicit bottom splittin
   assert.equal(await evaluate<string>("document.querySelector('[data-frame-goal-title]').textContent"), core.title);
   assert.equal(await evaluate<string>("document.querySelector('[data-frame-goal-outcome]').textContent"), core.outcome);
   assert.equal(await evaluate<string>("document.querySelector('[data-frame-goal-status]').textContent"), "已完成");
-  await click('[data-titlebar-tabs] [data-tab-split]');
-  assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-layout-split]')].map(x=>x.dataset.layoutSplit)"), ["right","bottom","left","top"]);
+  await click('[data-layout-open]');
+  assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-layout-split]')].map(x=>x.dataset.layoutSplit)"), ["right","bottom"], "07-S2: the titlebar's one layout menu splits right or down (copy table)");
   await click('[data-layout-split="bottom"]');
   await waitFor("document.querySelectorAll('[data-tab-pane]').length===2 && document.querySelector('[data-direction=column]')");
   // Each pane is a page of its own, so both panes load the whole workbench before showing the Frame.
@@ -71,7 +71,7 @@ test("Feed task creation is a scoped panel with validation and persistent schedu
   await addProjectPlugin(b.web, projectId!, "feed");
   await b.setViewport(1440, 960);
   await navigate(() => command("Page.navigate", {url: `${origin}/projects/${projectId}/`}, sessionId));
-  await b.waitFor("document.querySelector('[data-titlebar-tabs] .tab-item')");
+  await b.waitFor("document.querySelector('[data-titlebar-tabs] .tab-add-button')");
   await b.click('[data-plugin-id="feed"]');
   await waitFor("document.querySelector('[data-feed-workbench]')");
   assert.equal(await evaluate("document.querySelector('[data-feed-advanced-open]')"), null);
@@ -141,7 +141,7 @@ test("Feed creation recovers a failed schedule without duplicating the task", { 
   const { evaluate, waitFor, click } = await pluginFrameBrowser(t, b, "feed");
   await addProjectPlugin(b.web, projectId!, "feed");
   await navigate(() => command("Page.navigate", {url: `${origin}/projects/${projectId}/`}, sessionId));
-  await b.waitFor("document.querySelector('[data-titlebar-tabs] .tab-item')");
+  await b.waitFor("document.querySelector('[data-titlebar-tabs] .tab-add-button')");
   await b.click('[data-plugin-id="feed"]');
   await click('[data-feed-add-toggle]');
   await click('[data-feed-choose-kind="custom_rss"]');
@@ -201,7 +201,7 @@ test("Feed configuration cancels drafts and saves its schedule independently", {
   const feed = createLocalFeedApplication(b.store.db);
   await addProjectPlugin(b.web, projectId!, "feed");
   await navigate(() => command("Page.navigate", {url:`${origin}/projects/${projectId}/`},sessionId));
-  await b.waitFor("document.querySelector('[data-titlebar-tabs] .tab-item')");
+  await b.waitFor("document.querySelector('[data-titlebar-tabs] .tab-add-button')");
   await b.click('[data-plugin-id="feed"]');
   const panel = `[data-feed-task-config="${source.source_id}"]`;
   // Settings open the way a person reaches them now: pick the source in the rail, then its 来源设置 tab.
@@ -322,7 +322,7 @@ test("Feed reader keeps one title, tracks read state, collapses and retries a fa
   // A fixed desktop size: Chrome's default window is 756 px wide on macOS and 780 px on Linux, either side of the 760 px phone layout.
   await b.setViewport(1440,960);
   await navigate(()=>command('Page.navigate',{url:`${origin}/projects/${projectId}/`},sessionId));
-  await b.waitFor("document.querySelector('[data-titlebar-tabs] .tab-item')");await b.click('[data-plugin-id=feed]');
+  await b.waitFor("document.querySelector('[data-titlebar-tabs] .tab-add-button')");await b.click('[data-plugin-id=feed]');
   const row=`[data-feed-entry-id="${item.item_id}"]`;
   await waitFor(`Boolean(document.querySelector('${row}'))`);
   // The actual owner's object-document port fails until the trusted retry is pressed. Until then the attention read's board cursor is held back: a new cursor

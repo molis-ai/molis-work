@@ -80,14 +80,14 @@ ${PINNED_GROWN} .tab-item-name{display:block;animation:craft-fade-in ${EASE} bot
 .titlebar-layout{position:relative;display:flex;align-items:center;flex:none;gap:4px;padding-left:9px}
 .titlebar-layout::before{content:"";position:absolute;left:0;top:50%;width:1px;height:16px;margin-top:-8px;background:var(--line-strong)}
 /* Touch targets on a phone and under a coarse pointer at any width, as the tabs beside them. With no hover to look with,
-   "open beside" stays shown and the row's place moves left of it. */
+   "open beside" stays shown, as the row's own target after the item rather than over its end, so two targets never share a point. */
 @media (max-width:760px),(pointer:coarse){
 ${STRIP_BUTTON}{height:44px;min-width:44px}
 /* The small icon button is a fixed 28px square (primitives.ts); here it is the strip's touch target. */
 .titlebar-layout>.mw-btn{width:44px;min-width:44px;height:44px;min-height:44px}
 .tab-menu .mw-menu__item{min-height:44px}
-.tab-menu-row>.tab-menu-beside{opacity:1;transform:none}
-.tab-menu-row>.mw-menu__item{padding-right:calc(var(--ops-btn) + 8px)}
+.tab-menu-row>.tab-menu-beside{position:static;flex:none;margin:0 4px 0 2px;opacity:1;transform:none}
+.tab-menu-row>.mw-menu__item{flex:1;min-width:0}
 .tab-menu-row:is(:hover,:has(:focus-visible)) :is(.tab-menu-where,.tab-menu-note){opacity:1}
 }
 @media (max-width:760px){

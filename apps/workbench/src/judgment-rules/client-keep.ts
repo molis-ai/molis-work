@@ -244,8 +244,9 @@ export const FUNCTIONS_CLIENT_KEEP_PART = `  const bandEl = bench.querySelector(
       remember((await req("POST", "/api/functions/" + encodeURIComponent(created.id), { ...patch, ...revisionOf(created) })).function);
       dirty = false; enter("saved-new"); toBand();
     } catch (error) {
-      // The new rule is the current one; the form still holds what you wrote, and saving again goes to it.
-      remember(created); fillEditor(asRecord(created, mine)); base = created; dirty = true; enter(""); showNote(error, true);
+      // The new rule is the current one; the form still holds what you wrote, and saving again goes to it. The alert the focus was
+      // on is gone, so the focus goes to the new rule's name.
+      remember(created); fillEditor(asRecord(created, mine)); base = created; dirty = true; enter(""); nameInput.focus(); showNote(error, true);
     }
   };
   /** Gives up what could not be saved, then goes where the person was going. */

@@ -170,10 +170,16 @@ export function feedRuleKeep(page: FeedPage, ports: KeepPorts) {
   };
   /** Starts a new draft from what is written here; the one published elsewhere keeps its key. */
   const fresh = async (section: HTMLElement, button: HTMLElement) => {
-    const phase = keepOf(section).phase, latest = keepOf(section).latest, check = page.guard();
+    const phase = keepOf(section).phase, latest = keepOf(section).latest, check = page.guard(), prior = { ...ports.draft(section) };
     forgetDraft(section, true); busy(section, button);
     try { await ports.rebuild(section); check(); keepOf(section).kept = {}; section.querySelectorAll("[data-feed-kept]").forEach(node => node.remove()); band(section, "saved-new"); toBand(section); }
-    catch (error) { check(); band(section, phase, latest ? withVersion(latest) : undefined); throw error; }
+    catch (error) {
+      check();
+      // No new draft was made: the draft points at its rule again, so "Load the latest" in the alert drawn back still has a rule to load.
+      if (!ports.draft(section).function) { Object.assign(ports.draft(section), prior); ports.save(section); }
+      band(section, phase, latest ? withVersion(latest) : undefined); toBand(section);
+      throw error;
+    }
   };
 
   return {

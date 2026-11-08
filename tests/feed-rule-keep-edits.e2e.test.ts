@@ -55,7 +55,8 @@ test("AIC-08: Feed keeps what you wrote when the draft changed elsewhere; the la
   assert.equal(await child.evaluate("document.activeElement?.matches('[data-feed-kept-swap]')"), true);
 
   // This frame is short (under 560px): the alert is not pinned over the row it points to.
-  assert.equal(await child.evaluate(`innerHeight <= 560 ? getComputedStyle(document.querySelector('${bandSel}')).position : 'static'`), "static");
+  assert.ok(await child.evaluate<boolean>("innerHeight <= 560"), "the frame under test is the short case");
+  assert.equal(await child.evaluate(`getComputedStyle(document.querySelector('${bandSel}')).position`), "static");
   // Put yours back and preview: the next write names the new version and goes through.
   await child.click(section + " [data-feed-kept=instructions] [data-feed-kept-swap]");
   assert.equal(await child.evaluate(`document.querySelector('${section} [data-feed-rule-instructions]').value`), "我写的说明");
@@ -64,4 +65,22 @@ test("AIC-08: Feed keeps what you wrote when the draft changed elsewhere; the la
   const after = (await owner.get<{ functions: JudgmentRuleRecord[] }>("/api/functions")).functions.find(row => row.id === first.id)!;
   assert.equal(after.instructions, "我写的说明"); assert.ok(after.last_preview);
   assert.equal((await draft()).function!.updated_at, after.updated_at);
+
+  // Changed elsewhere a second time: the alert offers a new rule from what you wrote. When that new draft cannot be made, the alert
+  // comes back with the focus on it, and the draft still points at its rule, so "Load the latest" still loads.
+  await owner.post("/api/functions/" + first.id, { instructions: "别处第二次写的", expected_updated_at: after.updated_at });
+  await fill("data-feed-rule-instructions", "我第三次写的");
+  await child.click(section + " [data-feed-rule-preview-run]");
+  await child.waitFor(`document.querySelector('${bandSel} [data-feed-keep-act=fresh]') && !document.querySelector('${section} [data-feed-rule-composer]').inert`);
+  await child.evaluate(`(() => { const invoke = t403Host.invokeAction; window.t403Invoke = invoke;
+    t403Host.invokeAction = (ref, input) => ref.capability_id === 'functions.authoring.create' ? Promise.reject(Object.assign(new Error('offline'), { code: 'feed.test_offline' })) : invoke.call(t403Host, ref, input); })()`);
+  await child.click(bandSel + " [data-feed-keep-act=fresh]");
+  await child.waitFor(`document.querySelector('${bandSel} [data-feed-keep-act=fresh]:not([disabled])') && document.querySelector('${bandSel} [data-feed-keep-act=reload]')`);
+  assert.equal(await child.evaluate(`document.querySelector('${bandSel}').contains(document.activeElement)`), true, "the focus is back on the alert, not on the page");
+  assert.equal((await draft()).function?.id, first.id, "the draft points at its rule again");
+  assert.equal(await child.evaluate(`document.querySelector('${section} [data-feed-rule-instructions]').value`), "我第三次写的", "what you wrote stays");
+  await child.evaluate("t403Host.invokeAction = window.t403Invoke");
+  await child.click(bandSel + " [data-feed-keep-act=reload]");
+  await child.waitFor(`document.querySelector('${bandSel} .mw-alert--success')`);
+  assert.equal(await child.evaluate(`document.querySelector('${section} [data-feed-kept=instructions] .mw-kept__text').textContent`), "我第三次写的");
 });

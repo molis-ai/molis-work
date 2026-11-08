@@ -120,6 +120,53 @@ test("AIC-07: a save that met a change elsewhere keeps the cursor and the input;
   assert.equal((await get(browser, rule.id))!.name, "Their second name", "the other edit stands");
 });
 
+test("AIC-07: at 320 wide in English the loaded latest fits — the step bar, every number (the dotted one too), the field's wash, and \"See all\" on the step it is on", { timeout: 180_000 }, async t => {
+  const browser = await open(t); if (!browser) return;
+  await browser.command("Emulation.setDeviceMetricsOverride", { width: 320, height: 800, deviceScaleFactor: 1, mobile: false }, browser.sessionId);
+  await browser.navigate(() => browser.command("Page.navigate", { url: browser.origin + "/locale?lang=en&next=%2F" }, browser.sessionId));
+  const rule = await openRule(browser, "Rule W");
+  const long = (who: string) => who + ": " + "Flag the message when it asks for a decision, names a deadline, or needs a reply from the team; otherwise let it pass. ".repeat(4);
+  await elsewhere(browser, rule.id, { name: "Their name", instructions: long("Theirs") });
+  await typeField(browser, "[data-functions-name]", "My name");
+  await browser.waitFor("document.querySelector('[data-functions-band] .mw-alert--warning')", 15_000);
+  await browser.click("[data-functions-step=fn]");
+  await typeField(browser, "[data-functions-instructions]", long("Mine"));
+  await browser.click("[data-functions-step=look]");
+  await browser.click("[data-functions-band] [data-functions-keep-act=reload]");
+  await browser.waitFor("document.querySelector('[data-functions-band] .mw-alert--success')", 15_000);
+  assert.deepEqual(await browser.evaluate("[...document.querySelectorAll('[data-functions-kept]')].map(node => node.dataset.functionsKept)"), ["name", "instructions"]);
+  assert.equal(await browser.evaluate("document.querySelector('[data-functions-band] [data-functions-keep-act=dismiss]').textContent.trim()"), "Collapse");
+
+  // The step bar holds three English steps and a dot on the step with yours waiting; every number stays a circle.
+  const bar = await browser.evaluate<{ over: number; circles: Array<[number, number]>; dots: number; dotInside: boolean }>(`(() => {
+    const nav = document.querySelector('.functions-steps'), right = nav.getBoundingClientRect().right;
+    const circles = [...nav.querySelectorAll('button > span')].map(node => { const box = node.getBoundingClientRect(); return [Math.round(box.width * 10) / 10, Math.round(box.height * 10) / 10]; });
+    const dots = [...nav.querySelectorAll('.mw-step-dot')].filter(dot => dot.getBoundingClientRect().width > 0);
+    return { over: nav.scrollWidth - nav.clientWidth, circles, dots: dots.length, dotInside: dots.every(dot => dot.getBoundingClientRect().right <= right) };
+  })()`);
+  assert.ok(bar.over <= 0, `the step bar does not run over (${bar.over}px)`);
+  assert.equal(bar.dots, 1, "the step with yours waiting has its dot");
+  assert.ok(bar.dotInside, "the dot stays inside the bar");
+  for (const [width, height] of bar.circles) assert.equal(width, height, `each number is a circle (${width}×${height})`);
+
+  // The field's wash reaches past the field and does not make the columns scroll sideways. Under automation molisCraft.land() holds
+  // still and sets nothing, so the test sets the same attribute land(node, "field") would.
+  const wash = (selector: string) => browser.evaluate<{ left: string; over: number }>(`(() => {
+    const box = document.querySelector(${JSON.stringify(selector)}).closest('label'), columns = document.querySelector('[data-functions-columns]');
+    box.setAttribute('data-craft-new', 'field');
+    const result = { left: getComputedStyle(box, '::after').left, over: columns.scrollWidth - columns.clientWidth };
+    box.removeAttribute('data-craft-new');
+    return result;
+  })()`);
+  assert.deepEqual(await wash("[data-functions-name]"), { left: "-8px", over: 0 });
+
+  // "See all" is measured on the step it shows on: hidden while its step is not drawn, there once you go to it.
+  assert.equal(await browser.evaluate("document.querySelector('[data-functions-kept=instructions] [data-functions-kept-more]').hidden"), true);
+  await browser.click("[data-functions-step=fn]");
+  await browser.waitFor("document.querySelector('[data-functions-kept=instructions] [data-functions-kept-more]').hidden === false");
+  assert.deepEqual(await wash("[data-functions-instructions]"), { left: "-8px", over: 0 });
+});
+
 test("AIC-07: changed elsewhere and changed back saves again without a word", { timeout: 120_000 }, async t => {
   const browser = await open(t); if (!browser) return;
   const rule = await openRule(browser, "Rule R");

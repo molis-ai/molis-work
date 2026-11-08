@@ -52,8 +52,9 @@ export const KEEP_EDITS_STYLES = `
 
   /* 4 · A field whose content just changed: the same [data-craft-new] moment on the same clock (molisCraft.land(node, "field")), but
      the row's opaque wash would hide the words in a field. A tenth of the accent shows as much and leaves the words readable; it
-     reaches a little past the field's edge. */
-  [data-craft-new="field"]::after { inset: -4px -8px; border-radius: var(--r-control); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+     reaches a little past the field's edge. The attribute is named twice so the variant outweighs the one rule wherever the sheets
+     put it. */
+  [data-craft-new][data-craft-new="field"]::after { inset: -4px -8px; border-radius: var(--r-control); background: color-mix(in srgb, var(--accent) 10%, transparent); }
 
   @media (prefers-reduced-motion: reduce) { .mw-alert--rise, .mw-alert--success.mw-alert--rise .mw-alert__mark, .mw-alert.is-nudged, .mw-kept--rise { animation: none; } }
   html[data-craft-still] :is(.mw-alert--rise, .mw-alert--rise .mw-alert__mark, .mw-alert.is-nudged, .mw-kept--rise) { animation: none !important; }

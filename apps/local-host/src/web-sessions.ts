@@ -82,7 +82,7 @@ export class WebSessions {
     const url = new URL(request.url ?? "/", "http://localhost");
     const page = request.method === "GET" && !/^(?:\/api(?:\/|$)|\/projects\/[^/]+\/api(?:\/|$)|\/assets\/|\/health$|\/locale$|\/account\/callback$)/.test(url.pathname);
     const site = request.headers["sec-fetch-site"], source = request.headers.origin;
-    const trustedPage = site !== "cross-site" && (source === undefined || source === origin) && request.headers["sec-fetch-dest"] !== "empty";
+    const trustedPage = request.headers["x-molis-work-control-token"] === undefined && site !== "cross-site" && (source === undefined || source === origin) && request.headers["sec-fetch-dest"] !== "empty";
     if (response && origin && page && trustedPage && (!session || session.scope !== webPageScope(expected))) {
       if (session) this.remove(session);
       session = this.create(origin, expected);

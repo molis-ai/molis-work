@@ -69,6 +69,9 @@ test("WAS-03 WAS-05 session issuer binds origin, rejects cross-site issuance and
   const origin = "http://127.0.0.1:" + address.port;
   const cross = await fetch(origin, { headers: { "sec-fetch-site": "cross-site" } });
   assert.equal(cross.headers.getSetCookie().length, 0); assert.ok(!(await cross.text()).includes(control));
+  const processRead = await fetch(origin, { headers: { "x-molis-work-control-token": control } });
+  assert.equal(processRead.headers.getSetCookie().length, 0, "a trusted process read does not become a browser session");
+  assert.equal(await processRead.text(), '<meta name="molis-work-page-session" content="">');
   const a = await readPage(origin), b = await readPage(origin);
   const send = (cookie: string, proof: string) => fetch(origin + "/api/test", { method: "POST", headers: { origin, cookie, [HEADER]: proof, "x-molis-work-idempotency-key": randomUUID() } });
   // Neither a page's proof by itself nor a cookie from another precise origin is sufficient.

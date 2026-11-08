@@ -126,7 +126,7 @@ Runtime 原调用者查询委托由 `plugin-action-query.ts` 持有：只接受�
 
 ## 开发要求
 
-工作台页面由 `web-sessions.ts` 签发有界、精确 origin 和空间修订绑定的传输会话；HTML 与页面可读账号状态不返回宿主控制凭据。账号身份仍由既有账号会话独占，传输会话只拥有认证与 CSRF 证明。HTTP、三个 socket、插件页面和动作尾检查捕获原会话，撤销不借后继会话；受信进程认证独立。验证 `tests/security-invariants-web-sessions.test.ts`，完整范围见 [D0038 spec](../../specs/daily-quality-d0038/spec.md)。
+工作台页面由 `web-sessions.ts` 签发有界、精确 origin 和空间修订绑定的传输会话；HTML 与页面可读账号状态不返回宿主控制凭据。账号身份仍由既有账号会话独占，传输会话只拥有认证与 CSRF 证明。HTTP、三个 socket、插件页面和动作尾检查捕获原会话，撤销不借后继会话；受信进程认证独立，携带私有控制头的请求不签发浏览器会话。验证 `tests/security-invariants-web-sessions.test.ts`，完整范围见 [D0038 spec](../../specs/daily-quality-d0038/spec.md)。
 
 首次 Host 或独立 Catalog 取得 Home 所有权前，先以只读检查拒绝非空且缺少 Memory ledger 的 Home，避免拒绝后新增 owner 目录。未完成恢复优先拒绝；已有 owner 的借用路径不变。早检查不授予初始化许可，取得锁后仍重新判定完整 Memory 状态。回归：`tests/cross-device-continuity.test.ts`、`tests/memory-initialization.test.ts`、`tests/security-invariants-home-storage-owner.test.ts`、`tests/security-invariants-home-restore-guard.test.ts`。
 

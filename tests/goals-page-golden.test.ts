@@ -97,6 +97,10 @@ const pages: Record<string, Draw> = {
 // bar's template (`<template data-settings-return-bar-template>`, the SDK's renderReturnBar; 546 / 568 characters in zh / en), so the
 // 16 records of the 8 project pages grew by 1092 / 1136. Each of those 16, drawn with only the two templates taken out, had its old hash
 // and length exactly; they were then recorded with MOLIS_WORK_GOLDEN_RECORD=1. The other 50 records did not change.
+// D0038: independently built main 5945c0271 reproduced all 66 original hashes. The 34 changed expectations were
+// derived only by renaming the complete meta name molis-work-control-token to molis-work-page-session in those draws.
+// Candidate normalized markup matched each derived page byte for byte; the other 32 records remained exact.
+// Candidate RECORD mode was not used; executable scripts remain covered by the existing page-asset checks.
 const RECORDED = new URL("golden.json", GOLDEN);
 interface Recorded { sha256: string; length: number }
 const recorded: Record<string, Recorded> = record ? {} : JSON.parse(readFileSync(RECORDED, "utf8"));

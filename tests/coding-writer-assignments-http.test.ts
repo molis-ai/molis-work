@@ -8,7 +8,7 @@ import { createServer } from "node:http";
 import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, handleProjectPluginHttp, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { agentHostCapabilities as agent, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectDirectoryActions, type ProjectDirectories, type ProjectDirectory } from "@molis-ai/molis-work-contracts/modules/projects";
-import { writerDirectoryCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { writerDirectoryCapabilities, writerIntegrationCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 import { seedConfiguredModels } from "./fixtures/configured-models.js";
 
@@ -95,7 +95,7 @@ test("parallel assignment routes retain drafts, freeze trusted roots and task bo
   } finally { await new Promise<void>(resolve => server.close(() => resolve())); await releaseProjectPlugins(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
 });
 
-test("CODING-WORKTREE-01..04 a session pointed at one of the Host's worktrees runs its next rounds there; without it they run in the output; a worktree that is gone is refused, never swapped for the output", async () => {
+test("CODING-WORKTREE-01..05 CODING-WORKTREE-07 CODING-WORKTREE-08 a session pointed at one of the Host's worktrees runs its next rounds there and brings them back from it; without it they run in the output; a worktree that is gone is refused, never swapped for the output", async () => {
   const root = mkdtempSync(join(tmpdir(), "coding-worktree-use-")), dbPath = join(root, "board.db");
   await seedConfiguredModels(root); seedDemoBoard(dbPath); let store = new LocalProjectDatabase(dbPath);
   await codingSessions(store).create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: "app", title: "独立工作树", runtime_id: "prologue", at: new Date().toISOString() });
@@ -103,8 +103,16 @@ test("CODING-WORKTREE-01..04 a session pointed at one of the Host's worktrees ru
   // The Host's worktree of the output, named by its own id; it is not a folder of the project (plan A).
   const tree = { worktree_id: "writer-0123456789abcdef01234567", canonical_path: join(root, ".molis-work-writers", "x", "writer-0123456789abcdef01234567"), branch: "molis-writer/a", base_commit: "abc123" };
   let owned: Array<typeof tree & { problem?: string }> = [tree];
-  const starts: AgentStartRequest[] = [], sessions: unknown[] = [], listed: unknown[] = [];
+  const starts: AgentStartRequest[] = [], sessions: unknown[] = [], listed: unknown[] = [], integrations: Array<[string, unknown]> = [];
+  // The session's rounds as the Host froze them: where each one ran.
+  const ran: Array<{ ref: { session_id: string; run_id: string }; execution: { kind: "output" } | { kind: "worktree"; worktree_id: string } }> = [];
+  const note = { path: ["note.txt"], target: "added", selectable: true, revision: "1", before_text: null, after_text: "写在独立工作树里\n" };
   const writerActions = fakeWriterActions(pluginActions(store, DEMO_PROJECT_ID), (definition, input) => {
+    if (definition.capability_id === writerIntegrationCapabilities.read.capability_id || definition.capability_id === writerIntegrationCapabilities.prepare.capability_id) {
+      integrations.push([definition.capability_id, structuredClone(input)]);
+      if (definition.capability_id === writerIntegrationCapabilities.prepare.capability_id) return { review_id: "bring-back" };
+      return { workspace_id: "main", worktree_id: tree.worktree_id, source_path: tree.canonical_path, target_path: output.canonical_path, branch: tree.branch, base_commit: tree.base_commit, files: [structuredClone(note)] };
+    }
     if (definition.capability_id !== writerDirectoryCapabilities.list.capability_id) throw new Error(`Unexpected action ${definition.capability_id}`);
     listed.push(input);
     return structuredClone(owned);
@@ -116,8 +124,17 @@ test("CODING-WORKTREE-01..04 a session pointed at one of the Host's worktrees ru
       if (definition.capability_id === agent.availableRoles.capability_id) return ["reader", "writers"].map(role_id => ({ role_id, available: true })) as Output;
       if (definition.capability_id === agent.listActions.capability_id) return [] as Output;
       if (definition.capability_id === agent.createSession.capability_id) { sessions.push(structuredClone((args as any[])[1].directory)); return { runtime_id: "prologue", session_id: "sdk" } as Output; }
-      if (definition.capability_id === agent.startRun.capability_id) { starts.push(structuredClone((args as any[])[1])); return { ref: { session_id: "sdk", run_id: `run-${starts.length}` } } as Output; }
-      if (definition.capability_id === agent.readSession.capability_id) return { runs: [] } as Output;
+      if (definition.capability_id === agent.startRun.capability_id) {
+        const started = structuredClone((args as any[])[1]) as AgentStartRequest, ref = { session_id: "sdk", run_id: `run-${starts.length + 1}` };
+        starts.push(started);
+        ran.push({ ref, execution: started.directory?.canonical_path === tree.canonical_path ? { kind: "worktree", worktree_id: tree.worktree_id } : { kind: "output" } });
+        return { ref } as Output;
+      }
+      if (definition.capability_id === agent.readSession.capability_id) return { runs: ran.map(round => round.ref) } as Output;
+      if (definition.capability_id === agent.readRun.capability_id) {
+        const asked = (args as unknown[])[1] as { run_id: string }, round = ran.find(entry => entry.ref.run_id === asked.run_id)!;
+        return { ref: round.ref, frozen: { directories: { directories_revision: "directories-1", output: "main", inputs: ["notes"], execution: round.execution } } } as Output;
+      }
       throw new Error(`Unexpected capability ${definition.capability_id}`);
     } },
   });
@@ -130,6 +147,7 @@ test("CODING-WORKTREE-01..04 a session pointed at one of the Host's worktrees ru
     }); return { status: result.status, body: await result.json() };
   };
   const start = (extra = {}) => request("/runs", "POST", { task: "看一下这个目录", intent: "discuss", workspace_id: "main", provider_id: "p", model_id: "m", ...extra });
+  const integration = (worktreeId: string, body?: unknown) => request(`/worktrees/${worktreeId}/integration`, body === undefined ? "GET" : "POST", body);
   const where = (index: number) => starts[index]?.directory?.canonical_path;
   try {
     // CODING-WORKTREE-02: a round the session was not pointed at a worktree for runs in the output, as before; no worktree is looked up.
@@ -144,6 +162,18 @@ test("CODING-WORKTREE-01..04 a session pointed at one of the Host's worktrees ru
     assert.equal(accepted.status, 200, JSON.stringify(accepted.body));
     assert.equal(where(1), tree.canonical_path, "the round runs in the Host's worktree");
     assert.deepEqual(listed, [{ workspace_id: "main" }], "found among the Host's worktrees of the session's folder");
+    // CODING-WORKTREE-05: what the round wrote there comes back from the worktree's own row (「整合回主工作区」) through the integration
+    // dialog: the source is the session's latest round there, with no writers' child; whether that round ran there is the Host's to prove
+    // from its frozen record (tests/writer-integration-host.test.ts).
+    const read = await integration(tree.worktree_id);
+    assert.equal(read.status, 200, JSON.stringify(read.body)); assert.equal(typeof read.body.files[0].diff_html, "string", "drawn like a writer's result");
+    const choice = { operation_id: "bring-back-1", files: [{ path: ["note.txt"], revision: "1" }] };
+    assert.equal((await integration(tree.worktree_id, choice)).status, 200);
+    assert.deepEqual(integrations, [[writerIntegrationCapabilities.read.capability_id, { session_id: "sdk", run_id: "run-2" }],
+      [writerIntegrationCapabilities.prepare.capability_id, { session_id: "sdk", run_id: "run-2", ...choice }]]);
+    // CODING-WORKTREE-08: a worktree the session never ran a round in has nothing of the session's to bring back; nothing is asked of the Host.
+    const elsewhere = await integration("writer-ffffffffffffffffffffffff");
+    assert.equal(elsewhere.status, 400); assert.match(JSON.stringify(elsewhere.body), /还没在这个独立工作树里跑过一轮/u); assert.equal(integrations.length, 2);
     // A saved worktree with anything besides its id and path is not read.
     assert.equal((await request("", "PATCH", { configuration: { ...configuration, worktree: { ...configuration.worktree, workspace_id: "main" } } })).status, 400);
     // CODING-WORKTREE-03: once the worktree is gone (integrated and removed), or no longer the Host's as it was made, the round is refused, never run in the output instead.
@@ -157,8 +187,15 @@ test("CODING-WORKTREE-01..04 a session pointed at one of the Host's worktrees ru
     // Parallel writers split from the folder itself: a session in a worktree switches back first.
     const parallel = await start({ worktree_id: tree.worktree_id, intent: "parallel", writer_assignments: [{ worktree_id: tree.worktree_id, task: "补测试" }] });
     assert.equal(parallel.status, 400); assert.match(JSON.stringify(parallel.body), /换回输出目录/u);
-    // Switching back is choosing the folder again: the round runs in the output.
+    // CODING-WORKTREE-07 整合后换回，下一轮在输出目录: switching back is choosing the folder again, which drops the worktree from the
+    // session; the round runs in the output. The worktree stays (this batch removes none), and bringing it back still reads the
+    // session's latest round there, not its latest round.
+    const { worktree: _chosen, ...back } = configuration;
+    assert.equal((await request("", "PATCH", { configuration: back })).status, 200);
+    assert.equal((await request()).body.configuration.worktree, undefined);
     assert.equal((await start()).status, 200); assert.equal(where(2), output.canonical_path);
+    assert.equal((await integration(tree.worktree_id)).status, 200);
+    assert.deepEqual(integrations.at(-1), [writerIntegrationCapabilities.read.capability_id, { session_id: "sdk", run_id: "run-2" }]);
     // CODING-WORKTREE-04: a folder that is only an input stays one; the Host refuses the round there (tests/security-invariants-directory-output-only.test.ts).
     assert.deepEqual(sessions, [{ canonical_path: output.canonical_path, realpath_verified: true }]);
   } finally { await new Promise<void>(resolve => server.close(() => resolve())); await releaseProjectPlugins(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true }); }

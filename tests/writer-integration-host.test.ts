@@ -96,3 +96,68 @@ for (const parentOutcome of ["completed", "failed"] as const) test(`Host integra
   await git("worktree","remove","--force",childRoot);await assert.rejects(reads.invoke(integration.read,source),{code:"workspace_git.writer.workspace_unavailable",message:/独立工作树/});
  }finally{await plugins.close();await elsewhere.close();await composition.dispose();await localHost.close();await rm(home,{recursive:true,force:true});}
 });
+
+// Coding's 「用于下一轮」 (coordinator 2026-11-08): a session's rounds run in one of the Host's worktrees of the output, and what they changed
+// comes back the way a writer's does, reviewed file by file. The worktree is the one the round's frozen record names, never the caller's.
+test("CODING-WORKTREE-05 CODING-WORKTREE-06 CODING-WORKTREE-08 a round that ran in a worktree the Host made, never one of a writers round, brings what it wrote back to the output; a round in the output, or one whose worktree is not the Host's, is refused",{timeout:40000},async t=>{
+ const home=await realpath(await mkdtemp(path.join(tmpdir(),"worktree-integration-"))),root=path.join(home,"repo");await mkdir(root);
+ const git=(...args:string[])=>exec("git",args,{cwd:root});await git("init","-q");await git("config","user.name","Fixture");await git("config","user.email","fixture@example.invalid");await writeFile(path.join(root,"note.txt"),"base\n");await git("add",".");await git("commit","-qm","base");
+ // Made straight from the writers dialog, never assigned to a writer.
+ const made=await createGitWorktreePort(root).create("tree"),treeRoot=path.resolve(root,made.directory);
+ const output={workspace_id:"main",canonical_path:root,realpath_verified:true,display_name:"Parent"},grants=[output];
+ let calls=0;
+ t.mock.method(globalThis,"fetch",async(_url:unknown,init:RequestInit)=>{
+  const body=JSON.parse(typeof init.body==="string"?init.body:new TextDecoder().decode(init.body as Uint8Array));
+  // A file that exists is read before it is written.
+  calls++;return !JSON.stringify(body.messages).includes("WRITE_NOTE")?response():calls===1?response("read",{path:"note.txt"}):calls===2?response("write",{path:"note.txt",text:"from the worktree\n"}):response();
+ });
+ const localHost=new MolisWorkLocalHost(),reference=molisWorkHostProjectReference({databasePath:path.join(home,"board.db"),projectId: "board"});
+ const composition=composeAgentHost({localHost,homeDirectory:home,workspaceFor:()=>output,workspacesFor:()=>grants,prologue:{storageRoot:path.join(home,"sdk"),modelConfiguration:async()=>({protocol:"anthropic-compatible",endpoint:"https://1.1.1.1/v1/messages",model:"fixture",credential_ref:"fixture"}),resolveCredential:()=>"test-only"}});await composition.ready;
+ const plugins=reviewPlugins(localHost,reference,path.join(home,"plugins.db")),coding="io.molis.work.coding";
+ const integrate=[{permission:"review:git-integration",required:true,reason:"Brings a worktree's result back once a person approves"},{permission:"workspace:read",required:true,reason:"Reads what a worktree's result would bring back"}] as const;
+ const install_id=await plugins.start(coding,[...integrate],["review:git-integration","workspace:read"],[integration.read.capability_id,integration.prepare.capability_id]);
+ const reads=plugins.actions(coding);
+ try{
+  const adapter=composition.agentHost.adapter("prologue"),owner={project_id:"board",plugin_id:coding,install_id,actor_id:"user"};
+  const authority={manifest:codingAgentManifest,prompts:codingPrompts,authorizedDirectories:[root],worktrees:async()=>[{worktree_id:"tree",canonical_path:treeRoot}],
+   directories:{revision:"directories-1",output,inputs:[]}};
+  const session=await adapter.createSession({...owner,directory:{canonical_path:root,realpath_verified:true},title:"worktree"});
+  const settle=async(ref:{session_id:string;run_id:string})=>{const deadline=Date.now()+15000,decided=new Set<string>();
+   while(!["completed","failed"].includes((await adapter.read(ref)).phase)){
+    assert.ok(Date.now()<deadline,"fixture round must end");await composition.agentHost.reviews.refresh("board");
+    for(const review of composition.agentHost.reviews.list("board"))if(composition.agentHost.reviews.receipt(review.review_id)?.status==="pending"&&!decided.has(review.review_id)){decided.add(review.review_id);await composition.agentHost.reviews.respond({review_id:review.review_id,decision:"approve",actor_id:"user"});}
+    await new Promise(r=>setTimeout(r,10));
+   }};
+  // CODING-WORKTREE-05: the round runs in the worktree and writes there; the output is untouched.
+  const inTree=await composition.agentHost.start("prologue",{...owner,session,directory:{canonical_path:treeRoot,realpath_verified:true},role_id:"writer",task:"WRITE_NOTE in note.txt"},authority);
+  await settle(inTree.ref);
+  assert.equal(await readFile(path.join(treeRoot,"note.txt"),"utf8"),"from the worktree\n");assert.equal(await readFile(path.join(root,"note.txt"),"utf8"),"base\n");
+  assert.deepEqual((await adapter.read(inTree.ref)).frozen.directories?.execution,{kind:"worktree",worktree_id:"tree"});
+  // CODING-WORKTREE-06: a worktree made straight from the dialog, never a writer's, is read as a child's would be: named by the session and
+  // that round alone, as it is now.
+  const source={session_id:session.session_id,run_id:inTree.ref.run_id};
+  const view=await reads.invoke(integration.read,source);
+  assert.deepEqual([view.workspace_id,view.worktree_id,view.source_path],["main","tree",treeRoot]);
+  assert.equal(view.files[0]!.after_text,"from the worktree\n");assert.equal(view.files[0]!.selectable,true);
+  // CODING-WORKTREE-08: a round that ran in the output has nothing to bring back; a round whose record names a worktree the Host does not
+  // have for this project (another one, or one gone) is refused, whatever the caller says.
+  const inOutput=await composition.agentHost.start("prologue",{...owner,session,directory:{canonical_path:root,realpath_verified:true},role_id:"reader",task:"look around"},authority);
+  await settle(inOutput.ref);
+  await assert.rejects(reads.invoke(integration.read,{session_id:session.session_id,run_id:inOutput.ref.run_id}),{code:"workspace_git.writer.source_missing",message:/不是在宿主的独立工作树里跑的/});
+  // Naming the worktree in the input does not make it the round's: only the round's record says where it ran.
+  await assert.rejects(reads.invoke(integration.read,{session_id:session.session_id,run_id:inOutput.ref.run_id,worktree_id:"tree"} as never),{code:"actions.input_invalid"});
+  const recorded=adapter.read.bind(adapter),other=t.mock.method(adapter,"read",async(ref:Parameters<typeof recorded>[0])=>{const run=await recorded(ref);
+   return {...run,frozen:{...run.frozen,directories:{...run.frozen.directories!,execution:{kind:"worktree" as const,worktree_id:"elsewhere"}}}};});
+  await assert.rejects(reads.invoke(integration.read,source),{code:"workspace_git.writer.workspace_unavailable",message:/不是宿主为这个项目建的/});
+  other.mock.restore();
+  // CODING-WORKTREE-05: what the person approves lands in the output, and the worktree stays (nothing removes it; switching the session
+  // back to the output is CODING-WORKTREE-07, tests/coding-writer-assignments-http.test.ts).
+  const asked=await reads.invoke(integration.prepare,{...source,files:view.files.map(f=>({path:f.path,revision:f.revision!})),operation_id:randomUUID()});
+  const document=composition.agentHost.reviews.get(asked.review_id)?.document;
+  assert.ok(document?.kind==="git-integration"&&document.source.run_id===inTree.ref.run_id&&!("subagent_id" in document.source),"the review names the round, with no child");
+  await composition.agentHost.reviews.respond({review_id:asked.review_id,decision:"approve",actor_id:"user"});
+  assert.equal(composition.agentHost.reviews.receipt(asked.review_id)?.effect_settled,true);
+  assert.equal(await readFile(path.join(root,"note.txt"),"utf8"),"from the worktree\n");
+  assert.equal((await createGitWorktreePort(root).list()).length,1,"the worktree is kept");
+ }finally{await plugins.close();await composition.dispose();await localHost.close();await rm(home,{recursive:true,force:true});}
+});

@@ -149,6 +149,8 @@ export const codingManifest: PluginManifest = {
     { route_id: "coding.prepare-writer-directory", method: "POST", path: "/workspaces/:workspaceId/writers" },
     { route_id: "coding.read-integration", method: "GET", path: "/sessions/:sessionId/runs/:runId/subagents/:childId/integration" },
     { route_id: "coding.prepare-integration", method: "POST", path: "/sessions/:sessionId/runs/:runId/subagents/:childId/integration" },
+    { route_id: "coding.read-worktree-integration", method: "GET", path: "/sessions/:sessionId/worktrees/:worktreeId/integration" },
+    { route_id: "coding.prepare-worktree-integration", method: "POST", path: "/sessions/:sessionId/worktrees/:worktreeId/integration" },
     { route_id: "coding.control-subagent", method: "POST", path: "/sessions/:sessionId/runs/:runId/subagents/:childId" },
     { route_id: "coding.read-plan", method: "GET", path: "/sessions/:sessionId/plan" },
     { route_id: "coding.save-plan", method: "POST", path: "/sessions/:sessionId/plan" },

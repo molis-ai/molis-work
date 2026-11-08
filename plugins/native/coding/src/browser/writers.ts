@@ -25,6 +25,10 @@ export interface WriterPorts extends Pick<PagePorts, "lifetime" | "translate" | 
   readonly saveAssignments: (owner: string, parent: string, assignments: readonly WriterAssignment[]) => Promise<void>;
   /** Has the session's next rounds run in this worktree of `parent` (the Host's, named by its id): the folder stays the project's output. */
   readonly select: (owner: string, parent: string, worktree: { readonly worktree_id: string; readonly canonical_path: string }) => Promise<void>;
+  /** The worktree the session's rounds run in now, if any: its row offers to bring its changes back. */
+  readonly chosen: () => string | undefined;
+  /** Opens the integration of what the session's rounds changed in that worktree, as a person reviews it file by file. */
+  readonly integrate: (owner: string, worktreeId: string) => void;
   /** Draws the review cards of the directory's runs (the Host's). */
   readonly reviews: (container: Element, workspaceId: string) => unknown;
 }
@@ -102,7 +106,10 @@ function assignmentFields(state: Dialog, row: HTMLElement, directory: WriterDire
   });
 }
 
-/** A worktree a writer may work in, with its split fields and the button that has the session's next round run in it. */
+/**
+ * A worktree a writer may work in, with its split fields and the button that has the session's next round run in it; the one the
+ * session already runs in offers to bring its changes back instead.
+ */
 function directoryRow(state: Dialog, directory: WriterDirectory) {
   const { translate: L, lifetime } = state.ports;
   const row = el("section", "", "coding-material");
@@ -117,6 +124,17 @@ function directoryRow(state: Dialog, directory: WriterDirectory) {
   const draft = state.assignments.get(id) || { task: "", selected: false };
   state.assignments.set(id, draft);
   assignmentFields(state, row, directory, draft);
+  // The worktree the session works in brings its changes back the way a writer's do: reviewed file by file, checked again when approved.
+  if (state.ports.chosen() === id) {
+    const integrate = button(L("coding.writers.integrate"));
+    lifetime.listen(integrate, "click", () => {
+      if (state.busy) return;
+      state.dialog.close();
+      state.ports.integrate(state.owner, id);
+    });
+    row.append(integrate);
+    return row;
+  }
   const use = button(L("coding.writers.use"));
   lifetime.listen(use, "click", async () => {
     if (state.busy) return;

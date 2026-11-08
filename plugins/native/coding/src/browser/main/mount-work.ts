@@ -53,6 +53,9 @@ function mountWriterDirectories(page: Page) {
       await refreshState(page);
       status(page, L("coding.worktrees.used-next"));
     },
+    chosen: () => s.worktree?.worktree_id,
+    // Opened for the session it was asked on; the dialog reads where the session ran from the Host.
+    integrate: (owner, worktreeId) => { if (owner === s.current) void refs.integrations.openWorktree(owner, worktreeId); },
   });
 }
 

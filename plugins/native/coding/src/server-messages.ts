@@ -198,6 +198,7 @@ export const CODING_SERVER_MESSAGES = {
   "coding.server.pick-intent": { zh: "请选择讨论、规划、修改文件、执行或评审", en: "Choose Discuss, Plan, Edit files, Execute or Review" },
   "coding.server.plan-workspace": { zh: "计划属于原工作区，请选择原工作区或重新规划，不能在另一目录执行", en: "The plan belongs to its original workspace; choose it or plan again rather than running in another folder" },
   "coding.server.worktree-gone": { zh: "所选的独立工作树已不在（可能已整合或删除）；请换回输出目录，或重新选择独立工作树", en: "The chosen separate worktree is gone (it may have been integrated or removed); switch back to the output folder or choose a separate worktree again" },
+  "coding.server.worktree-not-run": { zh: "这个会话还没在这个独立工作树里跑过一轮，没有可以整合的成果", en: "This session has not run a turn in this separate worktree yet, so there is nothing to bring back" },
   "coding.server.worktree-parallel": { zh: "并行写入在主工作区里分工；请先换回输出目录", en: "Parallel writing splits work from the main workspace; switch back to the output folder first" },
   "coding.server.worktree-unauthorized": { zh: "分工的独立工作树已不在当前目录的仓库里；请重新选择独立工作树", en: "That separate worktree is no longer in this folder's repository; choose a separate worktree again" },
   "coding.server.task-too-long": { zh: "总任务与分工合计超过 100000 字符，请缩短后发送", en: "The task and its parts add up to more than 100,000 characters; shorten them before sending" },

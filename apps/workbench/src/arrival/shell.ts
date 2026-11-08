@@ -38,7 +38,7 @@ interface ArrivalTitlebarOptions {
   account?: boolean;
   /** The AI caption sits beside the wordmark on the chooser only. */
   caption?: boolean;
-  /** The Home tools, capabilities, settings and the right side's tabs; the opening has none of them. */
+  /** The account, capabilities, settings and the right side's tabs; the opening has none of them. */
   tools?: boolean;
   /** The background tasks as a tab of the right side, where the screen reads them (the chooser). */
   tasks?: boolean;

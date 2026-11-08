@@ -96,10 +96,9 @@ export function renderSidePanel(primitives: SidePanelPrimitives, pluginTabs: rea
       </section>`;
 }
 
-/* On a phone the layout button ends the title bar's second row, after the main tabs (whose phone width is the whole row,
- * linear-density.ts): the tabs leave it 80px, the room the strip leaves it at 601–760, and still need more than the first row
- * has, so they start the second one. The zero-width drag line follows the button and wraps alone, as it does without the button,
- * so the bar keeps two rows. Written here rather than beside the rule, which ships in workbench.css. */
+/* On a phone the layout button ends the title bar's first row, after the right side's glyphs, and the main tabs take the whole
+ * second row (linear-density.ts gives them the row's width; workbench-navigation.ts places the button). The zero-width drag line
+ * is left out there, so the bar keeps two rows. */
 export const SIDE_PANEL_STYLES = String.raw`
 html body.immersive-workbench{--side-gap:8px}
 html body.immersive-workbench[data-side-open=true] [data-plugin-stage]{margin-right:calc(var(--side-panel-width,35vw) + var(--side-gap) + var(--sheet-inset,14px))}
@@ -141,14 +140,13 @@ body.is-side-resizing{cursor:col-resize;user-select:none}
  .arrival-page .side-strip{flex:0 1 auto}
  .side-panel-divider{display:none!important}
 }
-/* On a phone the strip shares the title bar's first row with the history buttons and the Home tools, and takes the room left
+/* On a phone the strip shares the title bar's first row with the history buttons and the layout button, and takes the room left
    between them: the glyphs keep their 44px targets and scroll sideways, and reveal() keeps the current one in view (measured:
    three glyphs at 360, four at 390). The bar keeps its two rows, so the work below loses no height. The strip's 2px block padding
    (room for a count badge and the focus ring inside its scroller) is taken back by its margin, so the row stays 44px. The drag
    line is zero wide beside the tabs (immersive-navigation.ts), so here it would only cost the row a gap: it is left out. */
 @media(max-width:600px){
  html body.immersive-workbench:not(.arrival-page) .immersive-titlebar>.side-strip{order:1;flex:1 1 0;margin-block:-2px}
- html body.immersive-workbench:not(.arrival-page) .immersive-titlebar:has(>.titlebar-layout)>[data-titlebar-tabs]{flex-basis:0;min-width:calc(100% - 80px)}
  html body.immersive-workbench:not(.arrival-page) .immersive-titlebar:has(>.titlebar-layout)>.desktop-titlebar-drag{display:none}
 }
 /* Between 601 and 760 the strip is the title bar's second row, so the bar's grid row grows with it (over craft-finish's fixed

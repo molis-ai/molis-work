@@ -1,4 +1,5 @@
 import { dockDefaultPins, pluginStageSummaries } from "../../plugin-catalog.js";
+import { UNAVAILABLE_STAGE } from "../../unavailable-plugin-stage.js";
 /** Menus of the bottom bar and the stage: presentation only; opening one never selects or starts a tool. */
 export const NAVIGATION_PRESENTATION_SCRIPT = `(L) => {
   // Plugin list pages draw their heading from the surface's own label (craft-finish, "Plugin list pages").
@@ -130,7 +131,7 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
   const pins = dock.querySelector('[data-dock-pins]'), own = dock.querySelector('[data-bar-own]');
   const personal = new Set([...dock.querySelectorAll('[data-plugin-tile][data-rail-group="personal"]')].map((tile) => tile.dataset.pluginTile));
   // A plugin that did not start keeps its place and its stage says why; wherever it is named here it carries the amber point.
-  const failed = (id) => Boolean(document.querySelector('[data-work-surface="' + CSS.escape(id) + '"]:is([data-home-plugin-unavailable], [data-project-plugin-unavailable])'));
+  const failed = (id) => Boolean(document.querySelector('[data-work-surface="' + CSS.escape(id) + '"]${UNAVAILABLE_STAGE}'));
   const warn = (node, id) => { if (failed(id) && !node.querySelector(':scope > .nav-warn-dot')) node.insertAdjacentHTML('beforeend', '<span class="nav-warn-dot" aria-hidden="true"></span>'); };
   rail().forEach((item) => warn(item, item.dataset.pluginId));
   const readPins = () => {

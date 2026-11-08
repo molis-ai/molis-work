@@ -62,8 +62,9 @@ export function builtinMarketDirectory(home?: string): PluginDirectoryEntry[] {
 /**
  * The Home Runtime's plugins; a Home that did not start has none. What runs in the Home holds the person's data across projects, so a
  * package installed there is the person's as the built-in Home plugins are: the Host marks it `personal` and `home` (07-1 S4b, 口径 9),
- * and the switcher, the bar's right tray and ＋ list it with them (`isPersonalPlugin`). A dual plugin (one instance each side, as
- * Goals and Feed) is no one's own tool: it is not marked. A package that did not come back keeps its place, as it kept it on the
+ * and the switcher, the bar's right tray and ＋ list it with them (`isPersonalPlugin`). A built-in keeps the marks its registration
+ * gives (Goals and Feed are not registered personal, so they are not marked; Shelf, also one instance each side, is). An installed
+ * package that runs one instance each side is no one's own tool: it is not marked. A package that did not come back keeps its place, as it kept it on the
  * titlebar before: its stage says why, and wherever it is named it carries the amber point.
  */
 export async function homePluginDirectory(host?: HomePluginHost, home?: string): Promise<PluginDirectoryEntry[]> {

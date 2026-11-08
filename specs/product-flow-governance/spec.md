@@ -168,7 +168,7 @@
 6. 「窗格按钮」指每条标签条上的「布局与分屏」按钮，移到标题栏最右端的「布局」。
 7. 后台任务图标上的数是没做完的任务数（在跑的加等你的）。
 8. 召回跨栏找已打开的那一份，焦点移过去并提示落点；底栏、「＋」、切换器、深链都调这一个公共打开／激活，不再经隐藏按钮的 DOM 点击中转，「＋」也不再从页面结构读插件名单。
-9. 装进 Home 的包进切换器「个人」组与「＋」菜单，由宿主给出的插件目录带上，和别的插件同一种条目，不按插件名分支；图标取包在 stage 视图声明的 `icon`，没有才用 `package`（BL-912）。「个人」只有一条规则（第 07 批主会话 11-07 定）：登记为个人且 Manifest 写 `runtime.scope: "home"`，加上装进 Home 的包；两边各有一份的插件（Goals、Feed）不算。切换器「个人」组、底栏右托盘与「＋」的「个人」段都读 `apps/workbench/src/plugin-directory.ts` 的 `isPersonalPlugin`，不另写名单，不改 Manifest 与登记。
+9. 装进 Home 的包进切换器「个人」组与「＋」菜单，由宿主给出的插件目录带上，和别的插件同一种条目，不按插件名分支；图标取包在 stage 视图声明的 `icon`，没有才用 `package`（BL-912）。「个人」只有一条规则（第 07 批主会话 11-07 定）：登记为个人且 Manifest 写 `runtime.scope: "home"`，加上装进 Home 的包。Goals、Feed 不算，因为它们没有登记为个人，与两边各有一份无关（Shelf 也两边各有一份，登记为个人，算）；装进 Home、两边各有一份的包不标个人。切换器「个人」组、底栏右托盘与「＋」的「个人」段都读 `apps/workbench/src/plugin-directory.ts` 的 `isPersonalPlugin`，不另写名单，不改 Manifest 与登记。
 10. 标签恢复时按插件名删 Goals 的特例（BL-1032）随 S1 去掉：它是「布局里有不再提供的插件就整份重建」（`scripts/client/tab-workspace.ts` 第 100～102 行）这条规则写明的一个例子，S1 把规则本身改成留标签（口径 4），状态行为归 S1，「已移除」「划掉」「琥珀点」三种标记的画法归 S3。
 11. `apps/workbench/src/scripts/client/navigation-feed.ts` 改名为 `navigation-surfaces.ts`（`CLIENT_NAVIGATION_SURFACES_SCRIPT`），它管的是工作面切换，与 Feed 无关。
 12. 新增的页面事件登记在 `packages/contracts/src/platform/dom-events.ts`，`PAGE_STATE_OWNERS` 的文件清单跟着改；不改动作合同。

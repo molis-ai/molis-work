@@ -1,8 +1,8 @@
 /**
  * What waits on the person, read once for the whole page (W4-10): `/api/attention` answers the background tasks, the
- * Assistant's notices for the plugin in front and the plugin deliveries waiting in the market in one request. It is read
- * every 15 seconds while the page is visible, at once when the person comes back or moves to another plugin, and when a
- * reader asks (`molis-work:attention-refresh`, after the person acted on something). The Assistant's bell, with the plugin
+ * Assistant's notices for the plugin in front and the plugin deliveries waiting in the market in one request. It is read on a
+ * beat while the page is visible (15 seconds after the last read ends, longer after a failure: see below), at once when the person
+ * comes back or moves to another plugin, and when a reader asks (`molis-work:attention-refresh`, after the person acted on something). The Assistant's bell, with the plugin
  * notification count, paints from `molis-work:attention`; this module paints the right side's background-tasks tab: its
  * badge counts the tasks not finished (running plus waiting on the person), and its view lists them, in this project and every
  * other open one, with the background commands they left running (each can be stopped here). It knows no plugin: each row names the surface and item it opens, the words under its title, whether
@@ -11,7 +11,8 @@
  *
  * The notices asked for are those of the plugin in front (the person's rules hold some while it matches). Each read
  * carries when it started: a count the market reports later than that is newer than its answer (assistant-island.ts).
- * A failed read leaves what the page last showed: each part is a convenience. A 404 (the project or Home is gone) stops the reads.
+ * A failed read leaves what the page last showed: each part is a convenience. A 404 (the project or Home is gone) stops the reads
+ * of that address; the beat goes on, and reads the address again once it names another project (the chooser's).
  * One beat is waiting at a time, 15 seconds after the last read ends; a read that failed waits twice as long as the last before the
  * next (up to two minutes), so a host that is not answering is not asked every 15 seconds; a hidden page waits for nothing (N54).
  */

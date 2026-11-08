@@ -113,8 +113,8 @@ function trustedMarks(entry: PluginDirectoryEntry): Pick<PluginDirectoryEntry, "
  * Whether a plugin is the person's own, as the switcher's 个人 group, the bar's right tray and ＋'s 「个人 · 所有项目共用」 all list it
  * (docs/design/workbench-navigation ②; 07-1 S4b): one the Host marks as holding the person's data across projects *and* running in
  * the Home's Runtime — the built-in Home plugins and every package installed in the Home. A personal plugin that runs per project
- * (Pages, 灵光) and a Home plugin that is not the person's (Goals, Feed: one instance each side) are not. The one rule; nothing
- * else decides it.
+ * (Pages, 灵光) and a Home plugin not registered as the person's (Goals, Feed) are not. Running an instance on each side decides
+ * nothing (Shelf does and is personal). The one rule; nothing else decides it.
  */
 export function isPersonalPlugin(entry: Pick<PluginDirectoryEntry, "personal" | "home">): boolean {
   return entry.personal === true && entry.home === true;

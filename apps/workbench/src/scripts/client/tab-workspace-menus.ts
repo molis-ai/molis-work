@@ -258,8 +258,11 @@ export const TAB_WORKSPACE_MENUS_PART = `  const svg = (name) => '<svg aria-hidd
       if (tab.id === pane.activeTabId || pluginGroups.shows(pane, tab)) row.setAttribute("aria-current", "true");
       if (section.color) row.style.setProperty("--group-color", section.color);
       // The list carries the strip's marks: struck through when the record is gone, the amber point when its plugin did not start.
-      if (goneRecord(tab)) row.dataset.tabState = "gone";
-      if (tab.kind !== "system" && failedPlugin(tab.plugin)) row.insertAdjacentHTML("beforeend", '<span class="nav-warn-dot" aria-hidden="true"></span>');
+      // Both are said in the row's name as well, as the strip's tab says them.
+      const notStarted = tab.kind !== "system" && failedPlugin(tab.plugin), recordGone = goneRecord(tab);
+      if (recordGone) row.dataset.tabState = "gone";
+      if (notStarted) row.insertAdjacentHTML("beforeend", '<span class="nav-warn-dot" aria-hidden="true"></span>');
+      if (recordGone || notStarted) row.setAttribute("aria-label", tabLabel(tab) + " · " + (recordGone ? L("这一条已经不在了") : L("没能启动")));
       section.rows.push(row);
       section.lone = section.rows.length === 1 && tab.kind === "plugin";
     });

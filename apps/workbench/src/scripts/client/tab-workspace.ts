@@ -17,6 +17,7 @@ import { TAB_WORKSPACE_PLACES_PART } from "./tab-workspace-places.js";
 import { TAB_WORKSPACE_PLUGINS_PART } from "./tab-workspace-plugins.js";
 import { TAB_WORKSPACE_MENUS_PART } from "./tab-workspace-menus.js";
 import { TAB_WORKSPACE_DRAG_PART } from "./tab-workspace-drag.js";
+import { UNAVAILABLE_STAGE } from "../../unavailable-plugin-stage.js";
 
 export { placeLayoutMenu } from "./tab-workspace-menus.js";
 
@@ -98,7 +99,7 @@ ${TAB_WORKSPACE_DRAG_PART}
   };
   // A plugin that did not start draws its placeholder stage marked unavailable (plugin-store-unavailable.ts, project-plugin-stages);
   // its tabs carry the amber point and stay (design README, shared part 7).
-  const failedPlugin = (plugin) => Boolean(plugin) && Boolean(document.querySelector('[data-work-surface="' + CSS.escape(plugin) + '"]:is([data-home-plugin-unavailable], [data-project-plugin-unavailable])'));
+  const failedPlugin = (plugin) => Boolean(plugin) && Boolean(document.querySelector('[data-work-surface="' + CSS.escape(plugin) + '"]${UNAVAILABLE_STAGE}'));
   /* Records their plugin said are gone (molis-work:record-gone, sent by the page that tried to show one): their tabs are struck
      through and stay; shown, the pane says so and offers the way out. Kept for this page only: a reload asks the plugin again. */
   const goneRecords = new Set();

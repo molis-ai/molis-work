@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { PLUGIN_ICON_NAMES } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { COMPOSER_BOARD_EN, KEEP_EDITS_BOARD_EN, LOOK_BOARD_EN, listedIconNames, renderIconSprite, renderMenuItem, renderPrimitiveCatalog } from "@molis-ai/molis-work-design-system";
 
@@ -79,4 +80,16 @@ test("UIC-04: the microphone is in the icon set, the sprite and the board at 16 
   const mic = sectionOf(renderPrimitiveCatalog(), "mic");
   assert.match(mic, /--mic-size: 16px/);
   assert.match(mic, /--mic-size: 20px/);
+});
+
+test("UIC-04: the running send is named by its stable key on the board, so the board and the product say the same word (Add, not the receipts' Supplement)", async (t) => {
+  const label = (html: string) => /<span id="catalog-composer-running-delivery-next-boundary-label">([^<]*)<\/span>/.exec(sectionOf(html, "composer"))?.[1];
+  assert.equal(label(renderPrimitiveCatalog()), "补充", "without the platform's words, the Chinese");
+  assert.equal(label(renderPrimitiveCatalog({ delivery: "Add" })), "Add");
+  const f = await serveHomeRuntime(t);
+  for (const [lang, word] of [["en", "Add"], ["zh", "补充"]] as const) {
+    const page = await (await f.request(`/__ui/catalog?lang=${lang}`)).text();
+    assert.equal(label(page), word, lang);
+    assert.match(sectionOf(page, "menu-desc"), new RegExp(`<span id="catalog-menu-desc-delivery-next-boundary-label">${word}</span>`), `${lang}: the menu section too`);
+  }
 });

@@ -5,7 +5,7 @@ import { installList } from "./list.js";
 import { installLoad } from "./load.js";
 import { installMaterial } from "./material.js";
 import { createPage } from "./page.js";
-import { messageOf } from "./dom.js";
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import type { LingguangHost } from "./types.js";
 
 /** The workbench calls this bundle as `(host) => …`: the build wraps the entry in that function. */

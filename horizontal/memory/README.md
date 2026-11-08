@@ -44,7 +44,7 @@ Molis 在配置中声明分类、读写矩阵、保留策略、候选限额、�
 
 自动条目采用沿原 facts CAS 重放，更新时间使用原 marker 时刻；即使当前 source 已变成 imported，仍由 SDK 的原操作与输入核验确认。导入不增加原话证据，未知 basis/approved 保持现导入语义，原 namespace、分类、期限和 paused/disabled 不被采用恢复或重置。SDK 已提交而响应/ledger 失败后可以补账，取消或撤权后不补完成。重复项职责在 `src/duplicates.ts`；其它保存来源的后续恢复见上节普通保存合同。Service 的权限、筛查及唯一正式写链不变。
 
-本片不支持 v1、缺分类采用或整包输入身份，亦不保存正文快照、编码请求或新账。真实反例和专项以 `tests/memory-service-cas.test.ts` 的公开 Node SDK 与 SQLite 路径验证；源码完成、静态检查和尚未执行的行为回归分别记录，不将旧产物红例当成修复后验证。
+本片不支持旧格式、缺分类采用或整包输入身份，亦不保存正文快照、编码请求或新账。真实反例和专项以 `tests/memory-service-cas.test.ts` 的公开 Node SDK 与 SQLite 路径验证；源码完成、静态检查和尚未执行的行为回归分别记录，不将旧产物红例当成修复后验证。
 
 ### M1 第一片：采用与有效开关
 
@@ -61,9 +61,9 @@ Molis 在配置中声明分类、读写矩阵、保留策略、候选限额、�
 
 2026-10-22 的隔离验证覆盖了真实 Host / SDK 持久化、新 Home 安装及中断重试、偏好动作保存后重启、旧有效设置和项目/插件限制保留。副本维护在偏好更新后、版本提升前实际注入失败，旧基线、原偏好、SDK 正文与备份不变，随后能重新采用；冻结的旧 Home / Web / MCP 入口打开采用副本均拒绝且 SDK 正文零写。对应回归为 `tests/memory-initialization.test.ts`、`tests/install.test.ts` 和 `tests/secret-store-keychain-retry.test.ts`，另保留原记忆和存储定向回归。此处只证明偏好与 ledger 格式门；SDK 分类数据采用、最终安装包全链路和真实 Home 操作尚未验收。
 
-### M1 后续独立片：自动批准门
+### M1 后续独立片：自动批准门 v2
 
-范围与验收见 [spec §9.4](../../specs/prologue-memory-strategy/spec.md#94-c0-首期产品配置与采用决定)。现役自动批准门改为 preference/convention 正向白名单，experience 和 fact 即使重复出现也等待本人认可；首次候选的原因使用同一规则，不再承诺它们下次会自动生效。新自动批准记录使用当前规则；旧记录、人工保存/接受、插件独立批准与现有开关不重写。规则由内部 `src/policy.ts` 持有，Service 仍是唯一业务写主人。
+范围与验收见 [spec §9.4](../../specs/prologue-memory-strategy/spec.md#94-c0-首期产品配置与采用决定)。现役自动批准门改为 preference/convention 正向白名单，experience 和 fact 即使重复出现也等待本人认可；首次候选的原因使用同一规则，不再承诺它们下次会自动生效。新自动批准记录使用规则 v2；旧记录、人工保存/接受、插件独立批准与现有开关不重写。规则由内部 `src/policy.ts` 持有，Service 仍是唯一业务写主人。
 
 本片不增加持久配置或 SDK 适配口。分类字典、四预设及矩阵随 M2 真实装配完成，不能把 `form=false` 当成 off，也不能把泛用 agent 身份当成 coding 场景。验证覆盖真实候选、接受、历史、撤销、重启及下面列出的记忆回归，不将配置声明当成已接通的管理能力。
 
@@ -148,9 +148,9 @@ pnpm --filter @molis-ai/molis-work-service-memory typecheck
 pnpm --filter @molis-ai/molis-work-service-memory build
 ```
 
-### M2 来源绑定与规则 v1（实施中）
+### M2 来源绑定与规则 v3（实施中）
 
-当前规则是第 1 版；Memory 其余工作仍按原决定暂停。
+「规则 v2」「规则 v3」是这条产品规则的代号，不是版本号；记录里的规则版本是 `src/policy.ts` 的 `MEMORY_GATE_VERSION`。Memory 其余工作仍按原决定暂停。
 
 范围与验收以 [spec §9.4](../../specs/prologue-memory-strategy/spec.md#94-c0-首期产品配置与采用决定) 为准。沿现学习队列，自动学习只经 SDK `candidates.form` 调用一次登记的 Host 提炼并写候选；人工提议仍使用现公开提议口。无长期信号时返回 skipped，不读取来源、不调用模型。明确表达复用 `spoken.theirWords` 的整条消息规则，重复只数独立来源。模型引用、工作/Run/job 数量和旧无来源候选不构成自动批准。
 
@@ -158,9 +158,9 @@ pnpm --filter @molis-ai/molis-work-service-memory build
 
 每次实际模型派发前沿同一公开读取口复核这份固定上下文的权限、状态及原版本；变化即拒绝派发，不替换正文、目标或期望版本。该回调只活在当前调用，不进模型或持久记录。
 
-候选账注只登记 SDK 已确认的引用、版本、来源和冻结期限。模型的 inferred 提示始终保守待审；自动 v1 晋升仍独立核验两份完整本人表态、当前权限、低风险类别及原撤销 journal。形成的 partial、unknown、取消和提炼用量原样返回，不能变成空成功；同操作按 SDK 完整创建输入恢复，不宣称整批 exactly-once。模型、SDK 写主人、权限与取消都不可替换为第二条 App 提议循环。验收使用真实 Node 存储及有界提炼替身，覆盖无信号零调用、同类多条、条件与跨类纠正、来源重复、固定版本冲突、取消和部分提交。
+候选账注只登记 SDK 已确认的引用、版本、来源和冻结期限。模型的 inferred 提示始终保守待审；自动 v3 晋升仍独立核验两份完整本人表态、当前权限、低风险类别及原撤销 journal。形成的 partial、unknown、取消和提炼用量原样返回，不能变成空成功；同操作按 SDK 完整创建输入恢复，不宣称整批 exactly-once。模型、SDK 写主人、权限与取消都不可替换为第二条 App 提议循环。验收使用真实 Node 存储及有界提炼替身，覆盖无信号零调用、同类多条、条件与跨类纠正、来源重复、固定版本冲突、取消和部分提交。
 
-产品规则 v1 和撤销准备/补账归本包，SDK 仍拥有正式 CAS 与候选决定。准备写现操作 marker/原版本历史，并在原 marker 内一次生成有界变更 ID；提交及重试复用该 ID，提交后记现变更与撤销；失败沿原操作恢复，后继人工版本不得覆盖。遗忘先写无正文来源抑制标识，清理和重放都复用现 ledger，不新增来源正文表。`learning.ts` 拥有学习编排，`promotion.ts` 拥有版本化批准与当前账本回执；这些不成为另一个候选或执行内核。现候选账注的可选 `source_refs` 只保留 SDK 已确认的来源身份，不保存原文、不替代最终授权；晋升准备读此账注，避免重入 SDK 正在执行的候选队列。
+产品规则 v3 和撤销准备/补账归本包，SDK 仍拥有正式 CAS 与候选决定。准备写现操作 marker/原版本历史，并在原 marker 内一次生成有界变更 ID；提交及重试复用该 ID，提交后记现变更与撤销；失败沿原操作恢复，后继人工版本不得覆盖。遗忘先写无正文来源抑制标识，清理和重放都复用现 ledger，不新增来源正文表。`learning.ts` 拥有学习编排，`promotion.ts` 拥有版本化批准与当前账本回执；这些不成为另一个候选或执行内核。现候选账注的可选 `source_refs` 只保留 SDK 已确认的来源身份，不保存原文、不替代最终授权；晋升准备读此账注，避免重入 SDK 正在执行的候选队列。
 
 ## 开发要求
 

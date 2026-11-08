@@ -1,4 +1,5 @@
-import { escapeHtml, type TerminalPaneElements, type TerminalStatus, type TerminalTranslate } from "./client-dom.js";
+import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { type TerminalPaneElements, type TerminalStatus, type TerminalTranslate } from "./client-dom.js";
 import type { TerminalGuard } from "./client-guard.js";
 import type { createTerminalPanels } from "./panels.js";
 import type { TerminalScreens } from "./types.js";

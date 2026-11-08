@@ -4,7 +4,7 @@ import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 export const DECLARATION_PLUGIN_ID = "io.molis.work.declaration-rules";
 
 /**
- * The smallest v2 Manifest that parses, with `parts` laid over it field by field (a part replaces the field it names,
+ * The smallest Manifest that parses, with `parts` laid over it field by field (a part replaces the field it names,
  * it is not merged into it). A test names exactly the declarations it wants checked: `agent`, `methods`, `actions`,
  * `action_scenes`, `ports`, `events`, `routes`, `requires`, `ui`, `permissions`, `artifacts`, `capabilities`.
  */

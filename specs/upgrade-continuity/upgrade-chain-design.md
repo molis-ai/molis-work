@@ -186,7 +186,7 @@ readonly upgrades?: readonly { readonly from: number; readonly sql: string; read
 | `memory-ledger.ts:110` | 自写 | 同上 |
 | `installed-plugin-libraries.ts:71`（账本） | 自写，核账漏 | 同上 |
 | `installed-plugin-libraries.ts:121`（已装的库） | 自写 | 留下，这是 U4 的版本；错误码改 §9.1 的码，空文件也报 `storage.schema_version_mismatch`（版本 0，不是低版本） |
-| `catalog-schema.ts:47-52`、`project-catalog-contract.ts:41-46` | `catalogSchemaCompatibilityError`、`catalog.reader_too_old` | 用适配读版本，走同一分类。`reader_too_old` 的提示语是 MCP 用的，保留文字改码 |
+| `catalog-schema.ts:47-52`、`project-catalog-contract.ts:41-46` | `catalogSchemaCompatibilityError`、`catalog.reader_too_old` | 用适配读版本，走同一分类。`reader_too_old` 的提示语是 MCP 用的，码改成 `storage.store_too_new`；文字先说升级 Molis Work，已升级的再重启并新开 Session |
 | `project-catalog-replication.ts:12`（读 `inspectCatalogFile`） | #1877 新增，宿主运行中，只读 | 同目录库走同一分类 |
 | `aggregate-copy-store.ts:28`（`openOwnerCopyStore`，#1877 新增） | 自写，抛 `SqliteSchemaVersionError` | U1-d 核过没有调用方，整个文件删掉，所以不用改（`BL-storage-copy-owner-unused`）。`verify-release-versions.mjs` 的名单里还留着这两个名字，不影响判定，不为此改门禁 |
 | Alchemist `sync/open.ts:27-29`（#1877 新增） | 自写，抛 `SqliteSchemaVersionError` | **不改**（用户 2026-11-08 定）：这组不动 Alchemist，这一处照旧，保持自己的拒绝 |

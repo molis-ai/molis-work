@@ -1,4 +1,3 @@
-const workflowOutputVersions = { list: /* @version type.molis.workflow.content.list.output */ 1, read: /* @version type.molis.workflow.content.read.output */ 1, receive: /* @version type.molis.workflow.content.receive.output */ 1, create: /* @version type.molis.workflow.content.create.output */ 1 } as const;
 import { bindActionHandler, inputSchemaFor } from "./action-input.js";
 import { closedObjectSchema as object } from "./closed-object-schema.js";
 import type { ActionDefinition, ActionExecutionContext, ActionHandlerBinding, ActionReference, ActionSchema } from "./actions.js";
@@ -30,6 +29,9 @@ export interface WorkflowStartItem { readonly item_id: string; readonly title: s
 /** The version each role of the protocol is at now. A role changes shape only by raising its own number here: a station declares
  * every role at this version (the platform refuses another), so a saved reference to an older one stays pinned and reports why. */
 export const WORKFLOW_CONTENT_VERSIONS = { list: /* @version protocol.workflow-content.list */ 1, read: /* @version protocol.workflow-content.read */ 1, receive: /* @version protocol.workflow-content.receive */ 1, create: /* @version protocol.workflow-content.create */ 1 } as const;
+
+/** The version each role's output format is at, maintained apart from the role's protocol number above. */
+export const WORKFLOW_CONTENT_OUTPUT_VERSIONS = { list: /* @version type.molis.workflow.content.list.output */ 1, read: /* @version type.molis.workflow.content.read.output */ 1, receive: /* @version type.molis.workflow.content.receive.output */ 1, create: /* @version type.molis.workflow.content.create.output */ 1 } as const;
 
 export interface WorkflowReceiveInput extends WorkflowPayload {
   /** One delivery. A receiver makes one object for a request id and returns that same object when the id arrives again (a retry
@@ -72,7 +74,7 @@ const isQueryRole = (role: WorkflowContentRole) => role === "read" || role === "
 
 /** Input types follow their role; each output format has its own independently maintained version. */
 function roleTypes(role: WorkflowContentRole) {
-  return { input_type: `molis.workflow.content.${role}.input.v${WORKFLOW_CONTENT_VERSIONS[role]}`, output_type: `molis.workflow.content.${role}.output.v${workflowOutputVersions[role]}` };
+  return { input_type: `molis.workflow.content.${role}.input.v${WORKFLOW_CONTENT_VERSIONS[role]}`, output_type: `molis.workflow.content.${role}.output.v${WORKFLOW_CONTENT_OUTPUT_VERSIONS[role]}` };
 }
 
 function roleStation(station: WorkflowStationSpec & { receive?: boolean }, role: WorkflowContentRole): WorkflowContentStation {

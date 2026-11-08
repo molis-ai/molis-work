@@ -42,20 +42,19 @@ export function reportOf(sessionId: string, runId: string, over: Partial<Artifac
 
 export const CHANGESET_REFERENCE: ArtifactReference = { artifact_id: "coding-changeset:session-a:run-1", version: 1 };
 
-/** One file changed with its review, one created, one rejected, one whose write is not known, and one kept only as an old diff. */
+/** One file changed with its review, one created, one rejected, and one whose write is not known. */
 export const CHANGE_SET: CodingChangeSet = {
   scope: "run-frozen", run_id: "run-1", applied: true, coverage: "text-reviews",
   origin: { session_id: "session-a", runtime_session_id: "runtime-1", workspace_id: "workspace-1", workspace_name: "demo" },
   files: [
-    { path: "src/a.ts", kind: "modified", added_lines: 1, removed_lines: 1, diff: "@@ -1 +1 @@\n-old\n+new",
+    { path: "src/a.ts", kind: "modified", added_lines: 1, removed_lines: 1, diff: "",
       review: { review_id: "review-1", before_text: "const a = 1;\n", after_text: "const a = 2; // `tick`\n", decision: "approved", execution: "applied" } },
-    { path: "src/b.md", kind: "added", added_lines: 2, removed_lines: 0, diff: "@@ -0,0 +1,2 @@\n+# B\n+```\n",
+    { path: "src/b.md", kind: "added", added_lines: 2, removed_lines: 0, diff: "",
       review: { review_id: "review-2", before_text: null, after_text: "# B\n```ts\nlet b;\n```\n", decision: "approved", execution: "applied" } },
-    { path: "src/c.ts", kind: "modified", added_lines: 1, removed_lines: 0, diff: "@@ @@",
+    { path: "src/c.ts", kind: "modified", added_lines: 1, removed_lines: 0, diff: "",
       review: { review_id: "review-3", before_text: "", after_text: "c", decision: "rejected", execution: "not-applied" } },
-    { path: "src/d.ts", kind: "modified", added_lines: 1, removed_lines: 0, diff: "@@ @@",
+    { path: "src/d.ts", kind: "modified", added_lines: 1, removed_lines: 0, diff: "",
       review: { review_id: "review-4", before_text: "d", after_text: "dd", decision: "approved", execution: "unknown" } },
-    { path: "src/e.ts", kind: "modified", added_lines: 1, removed_lines: 1, diff: "@@ -1 +1 @@\n-e\n+ee" },
   ],
 };
 
@@ -65,7 +64,6 @@ export const CHANGE_SET_MARKDOWN = [
   "## 修改 2 · src/b.md\n\n批准决定：已批准；保存时执行状态：已执行\n原审查：review-2\n\n修改前（文件不存在）：\n```\n\n```\n\n修改后：\n````\n# B\n```ts\nlet b;\n```\n\n````",
   "## 修改 3 · src/c.ts\n\n批准决定：已拒绝；保存时执行状态：未执行\n原审查：review-3\n\n修改前：\n```\n\n```\n\n修改后：\n```\nc\n```",
   "## 修改 4 · src/d.ts\n\n批准决定：已批准；保存时执行状态：执行结果未知\n原审查：review-4\n\n修改前：\n```\nd\n```\n\n修改后：\n```\ndd\n```",
-  "## 修改 5 · src/e.ts\n\n旧版局部差异（不是完整文件）：\n```\n@@ -1 +1 @@\n-e\n+ee\n```",
 ].join("\n\n");
 
 /** A Coding change set as its process-item store holds it (exchange data, not a 成果). */

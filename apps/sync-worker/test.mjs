@@ -8,7 +8,7 @@ import {personalStorageSpace,ensureStorageSpace} from '@molis-ai/molis-work-stor
 import {pagesManifest} from '@molis-ai/molis-work-plugin-pages';
 import {openPagesStore,openFormStore,openDatasetStore,openPptStore,openLingguangStore} from '../../tests/fixtures/plugin-sync-stores.ts';
 import {runtimePersonalSync,prepareSyncTestHome} from '../../tests/fixtures/runtime-personal-sync.ts';
-import Database from 'better-sqlite3';
+import {openTestSqlite} from '@molis-ai/molis-work-test-kit/sqlite';
 import {ArtifactsModule,createArtifactsSchema,createArtifactReplication} from '@molis-ai/molis-work-module-artifacts';
 import {formManifest} from '@molis-ai/molis-work-plugin-form';
 import {datasetManifest} from '@molis-ai/molis-work-plugin-dataset';
@@ -78,7 +78,7 @@ test('real Rust WASM + isolated D1: two-device sync, authentication, CAS and iso
     const artifactSelection={plugin_id:'io.molis.work.artifacts',publisher_id:'molis',publisher_signature:'official-artifacts-binding',collection_id:'versions',schema_version:1};
     const artifactNamespace=JSON.stringify([artifactSelection.plugin_id,artifactSelection.publisher_id,artifactSelection.publisher_signature,artifactSelection.collection_id,1]);
     const nextPolicy=await call('/v1/policy','alice',{spaceId:space.spaceId,revision:1,selections:[selection,artifactSelection]},'PUT');assert.equal(nextPolicy.status,200);
-    const databases=[new Database(':memory:'),new Database(':memory:')];
+    const databases=[openTestSqlite(':memory:'),openTestSqlite(':memory:')];
     try{
       const replicas=databases.map((d,index)=>{
         d.pragma('foreign_keys=ON');d.exec('CREATE TABLE project_root(project_id TEXT PRIMARY KEY);CREATE TABLE events(seq INTEGER PRIMARY KEY AUTOINCREMENT,project_id TEXT);');

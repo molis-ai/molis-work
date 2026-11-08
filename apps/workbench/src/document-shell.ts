@@ -2,12 +2,12 @@ import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { UiSlotDescriptor, WorkbenchDocumentRenderRequest } from '@molis-ai/molis-work-contracts/platform/ui';
 
 export const WORKBENCH_UI_SLOTS = {
-  directory: { slot_id: 'workbench.directory', version: /* @version slot.workbench.directory */ 1, accepts: ['declarative-html'] },
-  main: { slot_id: 'workbench.main', version: /* @version slot.workbench.main */ 1, accepts: ['declarative-html'] },
-  overlay: { slot_id: 'workbench.overlay', version: /* @version slot.workbench.overlay */ 1, accepts: ['declarative-html'] },
-  settings: { slot_id: 'workbench.settings', version: /* @version slot.workbench.settings */ 1, accepts: ['declarative-html'] },
+  directory: { slot_id: 'workbench.directory', accepts: ['declarative-html'] },
+  main: { slot_id: 'workbench.main', accepts: ['declarative-html'] },
+  overlay: { slot_id: 'workbench.overlay', accepts: ['declarative-html'] },
+  settings: { slot_id: 'workbench.settings', accepts: ['declarative-html'] },
   /** One tab of the side panel (specs/archive/side-panel D13): served in its own document, sized and placed by the Host. */
-  side: { slot_id: 'workbench.side', version: /* @version slot.workbench.side */ 1, accepts: ['declarative-html'] },
+  side: { slot_id: 'workbench.side', accepts: ['declarative-html'] },
 } as const satisfies Record<string, UiSlotDescriptor>;
 
 

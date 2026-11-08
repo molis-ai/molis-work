@@ -1,6 +1,3 @@
-import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
-import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
-export { messageOf, esc };
 
 /** An element the server drew; the page cannot work without it. */
 export function required<T extends Element>(root: ParentNode, selector: string): T {

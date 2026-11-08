@@ -1,4 +1,5 @@
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { isRecord } from "./json-value.js";
 
 // The shape of a Manifest's `task_subjects` (specs/proactive-assistant/task-grants-platform-area.md §5.1, decided 2026-11-06): which
 // of this plugin's own object kinds its task grant subjects are, so the page where a person reviews grants can show each task's title.
@@ -28,8 +29,4 @@ function sourceListing(value: unknown): { kinds: readonly string[]; openToUser: 
   const source = metadata && isRecord(metadata.search_source) ? metadata.search_source : undefined;
   const kinds = Array.isArray(source?.kinds) ? source.kinds.flatMap(entry => isRecord(entry) && typeof entry.kind === "string" ? [entry.kind] : []) : [];
   return { kinds, openToUser: Array.isArray(metadata?.audiences) && metadata.audiences.includes("user") };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === "object" && !Array.isArray(value);
 }

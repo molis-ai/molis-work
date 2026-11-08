@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { countSchemaPatches, measureSchemaPatches, schemaPatchesWantText } from "../scripts/gates/schema-patches.mjs";
+import { countSchemaExecs, countSchemaPatches, measureSchemaExecs, measureSchemaPatches, schemaExecsWantText, schemaPatchesWantText } from "../scripts/gates/schema-patches.mjs";
 
 // specs/upgrade-continuity/upgrade-chain-design.md §11.4: ALTER TABLE is left out of the count in one place only, the `upgrades` of a
 // baseline constant. Each case says where the words stand and how many it should count. The scratch-repository form of these
@@ -138,4 +138,39 @@ test("UPG1-i-patches-08: it reads the source files and the .sql files of the sou
     "docs/e.md": "ALTER TABLE t",
   };
   assert.equal(measureSchemaPatches({ files: Object.keys(files), read: (file: string) => files[file] }), 2);
+});
+
+test("VG-32 a schema constant handed to exec counts once per call, however it is spelled", () => {
+  const counted: Array<[string, string, number]> = [
+    ["the plain call", "db.exec(ALPHA_SCHEMA_SQL);", 1],
+    ["a field holding the connection", "this.db.exec(ALPHA_SCHEMA_SQL);", 1],
+    ["a name ending on SCHEMA", "db.exec(BINDING_METADATA_SCHEMA);", 1],
+    ["the bare word", "db.exec(SCHEMA);", 1],
+    ["a constant on another object", "db.exec(tables.ALPHA_SCHEMA_SQL);", 1],
+    ["a cast", "db.exec(ALPHA_SCHEMA_SQL as string);", 1],
+    ["a template", "db.exec(`${ALPHA_SCHEMA_SQL}\\nCREATE TABLE b (id TEXT);`);", 1],
+    ["joined to more text", 'db.exec(ALPHA_SCHEMA_SQL + "CREATE TABLE b (id TEXT);");', 1],
+    ["space and a line break", "db.exec(\n  ALPHA_SCHEMA_SQL\n);", 1],
+    ["two calls", "db.exec(ALPHA_SCHEMA_SQL); db.exec(BETA_SCHEMA_SQL);", 2],
+    ["nothing to do with a schema", 'db.exec("CREATE TABLE a (id TEXT)"); db.exec(sql);', 0],
+    ["the text declared, not run", 'export const ALPHA_SCHEMA_SQL = "CREATE TABLE a (id TEXT)";', 0],
+    ["SCHEMA inside a longer word", "db.exec(SCHEMATIC); db.exec(MY_SCHEMAS);", 0],
+    ["a comment", "// db.exec(ALPHA_SCHEMA_SQL);\nexport const a = 1;", 0],
+    ["another method", "db.prepare(ALPHA_SCHEMA_SQL);", 0],
+  ];
+  for (const [name, source, expected] of counted) assert.equal(countSchemaExecs(FILE, source), expected, name);
+});
+
+test("VG-33 schema text run by hand is counted per file, in every code file under the source roots, a package's own tests too", () => {
+  assert.equal(schemaExecsWantText("plugins/native/schedule/tests/replication.test.ts"), true);
+  assert.equal(schemaExecsWantText("packages/alpha/src/store.tsx"), true);
+  assert.equal(schemaExecsWantText("tests/fixture.test.ts"), false, "the top-level tests build in-memory fixtures");
+  assert.equal(schemaExecsWantText("docs/a.ts"), false);
+  const files: Record<string, string> = {
+    "packages/alpha/src/a.ts": "db.exec(ALPHA_SCHEMA_SQL); db.exec(BETA_SCHEMA_SQL);",
+    "plugins/native/x/tests/b.test.ts": "db.exec(X_SCHEMA_SQL);",
+    "packages/alpha/src/clean.ts": "export const ALPHA_SCHEMA_SQL = 'CREATE TABLE a (id TEXT)';",
+    "tests/c.test.ts": "db.exec(ALPHA_SCHEMA_SQL);",
+  };
+  assert.deepEqual(measureSchemaExecs({ files: Object.keys(files), read: (file: string) => files[file] }), { "packages/alpha/src/a.ts": 2, "plugins/native/x/tests/b.test.ts": 1 });
 });

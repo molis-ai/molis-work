@@ -2,7 +2,8 @@ import { openGeneric } from "./dialog.js";
 import { flushEditor } from "./notes.js";
 import { run } from "./page.js";
 import { command } from "./workspace.js";
-import { TONES, TONE_COLORS, esc, toneOf } from "./util.js";
+import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { TONES, TONE_COLORS, toneOf } from "./util.js";
 import type { JellyPage } from "./types.js";
 
 const paint = (page: JellyPage): string => {

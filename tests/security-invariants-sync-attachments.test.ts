@@ -16,7 +16,7 @@ const key=JSON.stringify(['project','artifact','file']);
 const value=(payload:unknown)=>({project:{id:'project',title:'File'},artifact:{format:1,spaceId:'space-alice',projectId:'project',identity:{artifact_id:'file'},versions:[{version:1,artifact_type_id:'io.molis.work.document',payload}]}});
 test('S-126 PCSYNC-11/13 owner projects raw file bytes and large bodies without changing immutable payloads',async()=>{
   const codec=createArtifactSyncContent('space-alice'),file=Buffer.alloc(700000,31),original=value({content:'正文'.repeat(100000),original_file:{filename:'image.jpg',mime:'image/jpeg',data_base64:file.toString('base64')}});
-  const encoded=codec.encode(key,original);assert.equal(encoded.blobs.length,2);assert.ok(encoded.blobs.some(b=>Buffer.from(b.bytes).equals(file)));assert.ok(Buffer.byteLength(JSON.stringify(encoded.value))<512*1024);
+  const encoded=codec.encode(key,original);assert.equal(encoded.blobs.length,2);assert.ok(JSON.stringify(encoded.value).includes('"artifact":{"format":2,"spaceId":"space-alice"'),'the attached encoding says 2, in its place on the wire');assert.ok(encoded.blobs.some(b=>Buffer.from(b.bytes).equals(file)));assert.ok(Buffer.byteLength(JSON.stringify(encoded.value))<512*1024);
   const restored=await codec.decode(key,encoded.value,async ref=>{const source=encoded.blobs.find(b=>b.digest===ref.digest&&b.size===ref.size);assert.ok(source);return source.bytes;});
   assert.deepEqual(restored,original);assert.equal(original.artifact.format,1,'no mutation of the owner snapshot');
   const empty=value({original_file:{filename:'empty.bin',mime:'application/octet-stream',data_base64:''}}),projected=codec.encode(key,empty);

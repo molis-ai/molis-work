@@ -9,7 +9,7 @@ function createContextRenderer(primitives: GoalsContextUiPrimitives) {
   return { renderAcceptanceSummary, renderChildProgress, renderContractCoverage };
 }
 export type GoalsContextRenderer = ReturnType<typeof createContextRenderer>;
-export const GOALS_CONTEXT_UI_CONTRIBUTION_ID = /* @version contract.io.molis.work.native.goals.context "io.molis.work.native.goals.context.v{version}" */ "io.molis.work.native.goals.context.v1";
+export const GOALS_CONTEXT_UI_CONTRIBUTION_ID = "io.molis.work.native.goals.context.v1";
 export type GoalsContextUiModel = { primitives: GoalsContextUiPrimitives } & (
   | { kind: "acceptance-summary"; args: Parameters<GoalsContextRenderer["renderAcceptanceSummary"]> }
   | { kind: "child-progress"; args: Parameters<GoalsContextRenderer["renderChildProgress"]> }

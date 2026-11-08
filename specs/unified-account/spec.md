@@ -417,3 +417,7 @@ K-20 最终整体构建后，Workbench README 与动画/资源相关 22 文件 3
 接续 Personal 安装登录和 Home 选择后，统一账号只绑定当前 Home 的单空间 Host。Personal 安装入口处理其原有回跳；统一账号的事务回跳只转发给已选择且仍有效的 Home。租约在读取完成后和中央写入前重查，`tests/security-invariants-account-host.test.ts` 的 WUA-04 断言等待身份验证时换出 Home 会拒绝资料写入。联合验证使用合成 Personal 登录、临时 Home 和 mock 中央提供方。
 
 接续 main `ad25b414e` 后，66 条页面记录逐条核对：16 张项目页移除统一账号按钮后完全符合主线的哈希和长度，其余 50 张不变。独立构建实测 51 项资源，共 6,884,008 字节；工作台脚本 +39,251 字节、工作台样式 +450、到达页样式 +656、插件框脚本 +27，均在原批准范围内。
+
+- **T01-CALLBACK-02** 桌面系统浏览器与 Work WebView 不共用 Personal Cookie。只接受由可信桌面会话发起、仍属于当前 Home 和租约的待完成第三方回跳。Host 继续核验精确 URL、事务、state 和中央结果；错误 state、普通网页的无 Cookie 回跳、换出 Home 后或重放均拒绝。不通过回跳授予浏览器 Personal 会话。
+
+隔离联调以实际 Work 监听器、Club BFF、Auth WASM 和合成数据通过普通网页与桌面 WebView 两种入口。桌面模拟分别使用 WebView Cookie 与独立系统浏览器，核对正确回跳、伪造 state、重放和切换后的拒绝。两端登录返回同一 Auth 用户、各自独立会话；退出 Work 后 Club 仍登录。另用临时 Home 和 D1 验证资料、租户、订阅、席位、权限和旧数据保留。此处是候选验证，合入后仍需从 main 复验。

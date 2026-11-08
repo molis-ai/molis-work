@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { spawnSync } from "node:child_process";
-import { canonicalJsonText, canonicalJsonValue } from "@molis-ai/molis-work-plugin-sdk";
+import { canonicalJsonText, canonicalJsonValue, createSyncConflictState } from "@molis-ai/molis-work-plugin-sdk";
+import { goalContextReference } from "@molis-ai/molis-work-plugin-coding";
 import { servicesImContract } from "@molis-ai/molis-work-contracts/services/im";
 import { servicesMemoryContract } from "@molis-ai/molis-work-contracts/services/memory";
+import { previewProjectCopy } from "@molis-ai/molis-work-service-placement";
 import { buildSync } from "esbuild";
 
 test("CLN-06 canonical JSON keeps existing request comparison and fingerprint inputs", () => {
@@ -50,6 +52,28 @@ test("N4 SDK byte output remains identical in fresh en-US and zh-CN processes", 
     '{"10":{"😀":4,"":5},"2":3,"e":2,"é":1}',
     '{"10":{"😀":4,"":5},"2":3,"e":2,"é":1}',
   ]);
+});
+
+test("the copy preview's fingerprint and saved bytes stay what they were before it took its text from canonicalJsonText, integer-shaped keys included", () => {
+  const value = { "2": 1, "10": 2, a: 3, nested: [{ "é": 1, e: 2, "😀": null, "\ue000": true }] };
+  const { view } = previewProjectCopy({ sourceSpaceId: "space", projectIds: ["project"], authorize() {}, sources: [{ ownerId: "owner",
+    owner: { kinds: ["owner:thing"], snapshot: () => [{ key: "thing", value }], references: () => [], read: () => null } }] });
+  // Taken from the handwritten serializer this replaced, run over the same input.
+  assert.equal(view.fingerprint, "cad3f5ad5c37c2e22fafdd812eab5536234fa83d5b42a74ff4d26aee8b8b1742");
+  assert.equal(view.savedBytes, 69);
+});
+
+/** Holds two integer-shaped keys, where the handwritten forms below and `canonicalJsonText` disagree. */
+const INTEGER_KEYS = { "10": [{ z: 1, "10": 3, "2": 2 }], a: 3, "2": 1 };
+
+test("digests that keep JavaScript's integer key order stay on the bytes of the forms they replaced", () => {
+  // Every expected value below was produced by the handwritten form on main before this test existed, over the same input.
+  const text = '{"2":1,"10":[{"2":2,"10":3,"z":1}],"a":3}';
+  assert.notEqual(canonicalJsonText(INTEGER_KEYS), text, "a swap to canonicalJsonText would change every line below");
+  assert.deepEqual(goalContextReference({ state: { goal_id: "g", target: INTEGER_KEYS }, goal: { target: INTEGER_KEYS, project_id: "p", goal_id: "g" } } as never),
+    { artifact_id: "coding-goal-context:9be10d6d9bac77c511ea6254a0d1a2df22b70668b3543e63356d0b9fc0a9eef1", version: 1 });
+  assert.equal(createSyncConflictState({ operationId: "op", key: "k", base: 0, revision: 1, value: INTEGER_KEYS }, { "10": 1, "2": 2 }, 1),
+    "0f5442a601f182e7b000a407df566cda1da77d90d39e7f381e6768e656b23c08");
 });
 
 test("N30 IM and Memory descriptors publish the current first-version identities", () => {

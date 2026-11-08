@@ -111,7 +111,7 @@ async function actionCard(deps: ReviewDeps, pending: Pending, effect: Effect, su
     if (typeof subject.input !== "string") throw new Error("MCP 原始参数不可读，不能批准");
     const { attempt } = await attemptOf(deps, pending);
     const selected = attempt?.frozen.mcp_tools.find(item => `mcp:${mcpConnectionId(item)}/${item.tool}` === subject.name);
-    if (!selected?.version) throw new Error("MCP 操作不属于本轮固定工具，不能批准");
+    if (!selected) throw new Error("MCP 操作不属于本轮固定工具，不能批准");
     jsonObject(subject.input, "MCP 原始参数格式无效");
     deps.state.reviewEffects.set(`prologue:${pending.ref.id}`, effect.ref);
     return { kind: "mcp", server: selected.server_label ?? selected.server, tool: selected.tool, arguments_json: subject.input };
@@ -278,8 +278,8 @@ export function restoreReviewHistory(deps: ReviewDeps, pendings: ProloguePending
         const { status, decided_by, decided_at, note } = decision;
         queue.restoreDecision(request, { status, decided_by, decided_at, note });
       } else {
-        // No durable cancellation time exists in older records. Never turn
-        // the time of opening history into a fictional execution event.
+        // Still undecided when its run ended: nothing recorded when it was given up, so the
+        // time of opening history must not become a fictional execution event.
         queue.restoreDecision(request, { status: "cancelled", decided_by: null, decided_at: null,
           note: "历史操作没有可恢复的批准；保留原提案供核对，不会重新执行" });
         await remember(pending.origin.session, pending.ref.id, queue.receipt(request.review_id)!);

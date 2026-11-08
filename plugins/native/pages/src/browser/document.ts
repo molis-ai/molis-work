@@ -1,6 +1,7 @@
 import { blankLeaving, dropBlank, leaveOnFold } from "./blank.js";
 import { publishContext, syncEditorChrome } from "./context.js";
-import { escapeHtml, said, statusOf } from "./dom.js";
+import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { said, statusOf } from "./dom.js";
 import { adoptSaved, closeEditor, draftOf, enqueueSave, fillEditor, remember, storeDocument } from "./editor.js";
 import { renderList } from "./list.js";
 import { noteFailure, showNote } from "./notes.js";

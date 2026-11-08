@@ -152,8 +152,8 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
     const pane = ops.focused(state), key = paneFrameKey(pane);
     const frame = key && panesEl.querySelector('iframe[data-pane-tab="' + CSS.escape(key) + '"]');
     const current = () => !state.exclusive && ops.focused(state) === pane && pane.viewPlugin === plugin && !pane.activeTabId && (!frame || (frame.isConnected && !frame.hidden && frame.dataset.paneOwner === pane.id));
-    let observer = null, timer = null, asked = null, done = false, clicks = 0, lastClick = 0;
-    const finish = () => { done = true; observer?.disconnect(); clearTimeout(timer); clearTimeout(asked); frame?.removeEventListener('load', watch); if (cancelRecordJump === finish) cancelRecordJump = null; };
+    let observer = null, timer = null, asked = null, due = false, done = false, clicks = 0, lastClick = 0;
+    const finish = () => { done = true; observer?.disconnect(); clearTimeout(timer); clearTimeout(asked); frame?.removeEventListener('load', loaded); if (cancelRecordJump === finish) cancelRecordJump = null; };
     const surfaceIn = (doc) => doc?.querySelector('[data-work-surface="' + plugin + '"]') || null;
     // The plugin says it has the record open (its current object), however it got there; on a quiet reopen the workbench's own name counts only while the page is open.
     const showsIt = (doc) => {
@@ -188,14 +188,24 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
     };
     cancelRecordJump = finish;
     // Not among the rows shown now (another view or filter): a plugin that opens records by id is asked directly.
-    asked = setTimeout(() => { if (!done && current()) surfaceIn(frame ? frame.contentDocument : document)?.dispatchEvent(new CustomEvent('molis-work:select-item', { detail: { itemId, quiet } })); }, 1500);
+    // A pane page still starting puts its plugin back on its list when this page hands it its view on load (a message),
+    // which undid an ask sent before it: the pane is asked once it has loaded, by a message that queues behind that hand-off.
+    const ask = () => {
+      if (done || !current()) return;
+      if (!frame) { surfaceIn(document)?.dispatchEvent(new CustomEvent('molis-work:select-item', { detail: { itemId, quiet } })); return; }
+      const doc = frame.contentDocument;
+      if (doc?.readyState === 'complete' && doc.body?.hasAttribute('data-pane-embedded')) frame.contentWindow?.postMessage({ type: 'workbench-select-item', plugin, itemId, quiet }, location.origin);
+    };
+    // A pane page that loads after the ask is due (or loads again) is asked then; this listener runs after the hand-off's.
+    const loaded = () => { watch(); if (due) ask(); };
+    asked = setTimeout(() => { due = true; ask(); }, 1500);
     timer = setTimeout(() => {
       const stillCurrent = current(); const opened = showsIt(frame ? frame.contentDocument : document); finish();
       if (opened) return;
       if (quiet) { if (openRecords[plugin] === itemId) forgetRecord(plugin); } // quiet: no error, and only the record it looked for is forgotten
       else if (stillCurrent) showToast?.(L('未能打开这条内容，请重试或从列表中选择。'), true);
     }, quiet ? 8000 : 10000);
-    frame?.addEventListener('load', watch); watch();
+    frame?.addEventListener('load', loaded); watch();
   };
   const openItem = (plugin, itemId, title, view) => {
     if (embedded) { notifyParent("workbench-pane-open", { plugin, itemId, title: titleForItem(plugin, itemId, title), view }); return; }

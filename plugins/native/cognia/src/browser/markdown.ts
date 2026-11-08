@@ -1,4 +1,5 @@
-import { button, esc } from "./dom.js";
+import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { button } from "./dom.js";
 import type { Link, Reference, Translate } from "./types.js";
 
 const TOKENS = /`([^`]+)`|!?\[\[([^\]\n]+)\]\]|!?\[([^\]\n]*)\]\(<?([^\s)>]+)>?(?:\s+"[^"]*")?\)|\[S(\d+)\]/g;

@@ -13,7 +13,14 @@
 //
 // KNOWN GAP. It reads where the text is, not what runs it: `db.exec(PAGES_DATABASE.upgrades[0].sql)` on a read path is not seen. Other
 // spellings it does not see, all of which take intent to write, are listed in tooling/gates/README.md「就地补表」.
+//
+// A SECOND COUNT (`schemaExecs`), per file: `db.exec(X_SCHEMA_SQL)`, a call to `exec` whose argument names a constant with SCHEMA as a word
+// of its name. It makes tables by hand, beside the baselines and with no version, and it needs no ALTER TABLE to patch one (the text can
+// say CREATE TABLE IF NOT EXISTS). Every code file under the source roots counts, a package's own tests too. The top-level tests/ does not:
+// there it makes the tables of an in-memory fixture from the owner's exported text.
 import ts from "typescript";
+import { CODE_FILE } from "../script-paths.mjs";
+import { isUnderSourceRoots, scriptKind } from "../version-source.mjs";
 import { isSource } from "./giant-units.mjs";
 
 const ALTER_TABLE = /ALTER\s+TABLE/gi;
@@ -115,4 +122,30 @@ export function measureSchemaPatches(snapshot) {
   let count = 0;
   for (const file of snapshot.files.filter(schemaPatchesWantText)) count += countSchemaPatches(file, snapshot.read(file) ?? "");
   return count;
+}
+
+const SCHEMA_CONSTANT = /(?:^|_)SCHEMA(?:_|$)/;
+export const schemaExecsWantText = (file) => isUnderSourceRoots(file) && CODE_FILE.test(file);
+
+/** How many calls to `exec` in one file are handed a schema constant, alone, in a template, or joined to something. */
+export function countSchemaExecs(file, text) {
+  if (!text.includes(".exec") || !text.includes("SCHEMA")) return 0;
+  const tree = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, scriptKind(file));
+  const namesSchema = (node) => (ts.isIdentifier(node) && SCHEMA_CONSTANT.test(node.text)) || !!ts.forEachChild(node, namesSchema);
+  let count = 0;
+  const visit = (node) => {
+    if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === "exec" && node.arguments.some(namesSchema)) count += 1;
+    ts.forEachChild(node, visit);
+  };
+  visit(tree);
+  return count;
+}
+
+export function measureSchemaExecs(snapshot) {
+  const counts = {};
+  for (const file of snapshot.files.filter(schemaExecsWantText)) {
+    const count = countSchemaExecs(file, snapshot.read(file) ?? "");
+    if (count) counts[file] = count;
+  }
+  return counts;
 }

@@ -1,6 +1,7 @@
 import type { ActionSceneBinding, ActionSceneReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openBaselineHomeSqlite } from "@molis-ai/molis-work-storage";
 import type { DatabaseSync } from "node:sqlite";
+import { isDeepStrictEqual } from "node:util";
 import {
   FUNCTIONS_DEFAULT_MODEL,
   FUNCTIONS_MAX_SAMPLES,
@@ -21,14 +22,17 @@ import {
 } from "./judgments.js";
 import { functionsErrors, assertFunctionKey, suggestFunctionKey } from "./keys.js";
 import {
-  assertAvailableKey, uniqueKey, assertPrimitive, assertReadyToPublish, assertSceneReference, defaultCriteria, defaultName, normalizeActionMap,
+  alreadyPublished, assertAvailableKey, assertRuleVersion, uniqueKey, assertPrimitive, assertReadyToPublish, assertSceneReference, defaultCriteria, defaultName, normalizeActionMap,
   normalizeCriteria, normalizeDraftInstructions, normalizeName, normalizeSampleInput, normalizeSampleLabel, normalizeSceneId,
-  normalizeSceneMap, normalizeSubjectKinds, pinModel, pruneSceneMap,
+  normalizeSceneMap, normalizeSubjectKinds, pinModel, pruneSceneMap, staleRule,
 } from "./record-rules.js";
 import { buildRecord, fromRow, insert, type FunctionRow } from "./record-rows.js";
 import { FUNCTIONS_HOME_STORE, FUNCTIONS_STORE_BASELINE } from "./store-schema.js";
 
-/** The next `updated_at` (also the version writes are checked against): always later, even within one millisecond. */
+/**
+ * The next `updated_at`, the version every write is checked against: always later, even within one millisecond. It moves only when the
+ * definition changes (the fields `updateDraft` writes); a preview, a sample or publishing leaves it where it is.
+ */
 const laterThan = (previous: string) => new Date(Math.max(Date.now(), Date.parse(previous) + 1)).toISOString();
 
 export class FunctionsStore {
@@ -45,7 +49,7 @@ export class FunctionsStore {
 
   list(): JudgmentRuleRecord[] {
     const rows = this.db.prepare(
-      "SELECT * FROM functions ORDER BY datetime(updated_at) DESC, name COLLATE NOCASE",
+      "SELECT * FROM functions ORDER BY datetime(COALESCE(published_at, updated_at)) DESC, name COLLATE NOCASE",
     ).all() as unknown as FunctionRow[];
     return rows.map(fromRow);
   }
@@ -96,11 +100,12 @@ export class FunctionsStore {
     return this.create({ ...input, primitive: "choice" });
   }
 
-  updateDraft(id: string, patch: JudgmentRuleDraftPatch, expectedUpdatedAt?: string): JudgmentRuleRecord {
+  updateDraft(id: string, patch: JudgmentRuleDraftPatch, expectedUpdatedAt: string): JudgmentRuleRecord {
     const current = this.require(id);
     if (current.status === "published") {
       throw functionsErrors.published_immutable("已发布的函数不能再改配置");
     }
+    assertRuleVersion(current, expectedUpdatedAt);
     const name = patch.name === undefined ? current.name : normalizeName(patch.name);
     const function_key = patch.function_key === undefined
       ? current.function_key
@@ -126,6 +131,12 @@ export class FunctionsStore {
       ? pruneSceneMap(current.scene_map, current.primitive, criteria, scene_id)
       : normalizeSceneMap(patch.scene_map, current.primitive, criteria, scene_id);
     const action_map = normalizeActionMap(patch.action_map === undefined ? current.action_map ?? {} : patch.action_map, scene_id, current.primitive, criteria);
+    // Saved as it already is: nothing to write, and the version stays, so another reader's edit is not refused over it.
+    if (isDeepStrictEqual(
+      { name, function_key, instructions, criteria, scene_id, scene_version, scene_provider_id, subject_kinds, scene_map, action_map },
+      { name: current.name, function_key: current.function_key, instructions: current.instructions, criteria: current.criteria, scene_id: current.scene_id, scene_version: current.scene_version ?? null,
+        scene_provider_id: current.scene_provider_id ?? null, subject_kinds: current.subject_kinds, scene_map: current.scene_map, action_map: current.action_map ?? {} },
+    )) return current;
     const now = laterThan(current.updated_at);
     const written = this.db.prepare(`
       UPDATE functions
@@ -147,25 +158,27 @@ export class FunctionsStore {
       last_preview ? JSON.stringify(last_preview) : null,
       now,
       id,
-      expectedUpdatedAt ?? current.updated_at,
+      expectedUpdatedAt,
     );
     return this.requireCas(id, written.changes);
   }
 
-  savePreview(id: string, preview: JudgmentRulePreviewRecord, expectedUpdatedAt?: string): JudgmentRuleRecord {
+  savePreview(id: string, preview: JudgmentRulePreviewRecord, expectedUpdatedAt: string): JudgmentRuleRecord {
     const current = this.require(id);
+    // The version first: a definition edited during the model call is a stale caller, not a stale preview.
+    assertRuleVersion(current, expectedUpdatedAt);
     if (preview.config_hash !== current.config_hash) {
       throw functionsErrors.stale_preview("预览结果对不上当前配置，请再试一次");
     }
-    const now = laterThan(current.updated_at);
     const written = this.db.prepare(
-      "UPDATE functions SET last_preview_json = ?, updated_at = ? WHERE id = ? AND updated_at = ?",
-    ).run(JSON.stringify(preview), now, id, expectedUpdatedAt ?? current.updated_at);
+      "UPDATE functions SET last_preview_json = ? WHERE id = ? AND updated_at = ?",
+    ).run(JSON.stringify(preview), id, expectedUpdatedAt);
     return this.requireCas(id, written.changes);
   }
 
-  addSample(id: string, input: { label?: string; input: string }, expectedUpdatedAt?: string): JudgmentRuleRecord {
+  addSample(id: string, input: { label?: string; input: string }, expectedUpdatedAt: string): JudgmentRuleRecord {
     const current = this.require(id);
+    assertRuleVersion(current, expectedUpdatedAt);
     if (current.samples.length >= FUNCTIONS_MAX_SAMPLES) {
       throw functionsErrors.invalid(`每个函数最多 ${FUNCTIONS_MAX_SAMPLES} 条样例`);
     }
@@ -174,26 +187,26 @@ export class FunctionsStore {
       label: normalizeSampleLabel(input.label, current.samples.length),
       input: normalizeSampleInput(input.input),
     };
-    return this.writeSamples(current, [...current.samples, sample], expectedUpdatedAt ?? current.updated_at);
+    return this.writeSamples(current, [...current.samples, sample], expectedUpdatedAt);
   }
 
-  removeSample(id: string, sampleId: string, expectedUpdatedAt?: string): JudgmentRuleRecord {
+  removeSample(id: string, sampleId: string, expectedUpdatedAt: string): JudgmentRuleRecord {
     const current = this.require(id);
+    assertRuleVersion(current, expectedUpdatedAt);
     const samples = current.samples.filter((item) => item.id !== sampleId);
     if (samples.length === current.samples.length) {
-      throw functionsErrors.not_found("样例不存在");
+      throw functionsErrors.sample_not_found("样例不存在");
     }
-    return this.writeSamples(current, samples, expectedUpdatedAt ?? current.updated_at);
+    return this.writeSamples(current, samples, expectedUpdatedAt);
   }
 
-  publish(id: string, expectedUpdatedAt?: string, scene?: ActionSceneReference): JudgmentRuleRecord {
+  publish(id: string, expectedUpdatedAt: string, scene?: ActionSceneReference): JudgmentRuleRecord {
     const current = this.require(id);
-    if (current.status === "published") return current;
+    if (alreadyPublished(current, expectedUpdatedAt)) return current;
     assertReadyToPublish(current);
     if (scene && (scene.scene_id !== current.scene_id || current.scene_version && scene.version !== current.scene_version
       || current.scene_provider_id && scene.provider_id !== current.scene_provider_id)) throw functionsErrors.conflict("草稿用途已变化，请重新检查");
     const model = pinModel(current);
-    const now = laterThan(current.updated_at);
     const config_hash = hashFunctionConfig({
       primitive: current.primitive,
       instructions: current.instructions,
@@ -205,29 +218,28 @@ export class FunctionsStore {
       : current.last_preview;
     const written = this.db.prepare(`
       UPDATE functions
-      SET status = 'published', version = 1, model = ?, config_hash = ?, last_preview_json = ?, published_at = ?, updated_at = ?, scene_version = ?, scene_provider_id = ?
+      SET status = 'published', version = 1, model = ?, config_hash = ?, last_preview_json = ?, published_at = ?, scene_version = ?, scene_provider_id = ?
       WHERE id = ? AND status = 'draft' AND updated_at = ?
-    `).run(model, config_hash, last_preview ? JSON.stringify(last_preview) : null, now, now, scene?.version ?? current.scene_version ?? null,
-      scene?.provider_id ?? current.scene_provider_id ?? null, id, expectedUpdatedAt ?? current.updated_at);
+    `).run(model, config_hash, last_preview ? JSON.stringify(last_preview) : null, laterThan(current.updated_at), scene?.version ?? current.scene_version ?? null,
+      scene?.provider_id ?? current.scene_provider_id ?? null, id, expectedUpdatedAt);
     if (written.changes !== 1) {
       const latest = this.require(id);
-      if (latest.status === "published") return latest;
-      throw functionsErrors.conflict("草稿已被更新，请刷新后再试");
+      if (alreadyPublished(latest, expectedUpdatedAt)) return latest;
+      throw staleRule(id);
     }
     return this.require(id);
   }
 
-  deleteDraft(id: string, expectedUpdatedAt?: string): void {
+  deleteDraft(id: string, expectedUpdatedAt: string): void {
     const current = this.require(id);
     if (current.status === "published") {
       throw functionsErrors.published_immutable("已发布的函数不能删除");
     }
+    assertRuleVersion(current, expectedUpdatedAt);
     const written = this.db.prepare(
       "DELETE FROM functions WHERE id = ? AND status = 'draft' AND updated_at = ?",
-    ).run(id, expectedUpdatedAt ?? current.updated_at);
-    if (written.changes !== 1) {
-      throw functionsErrors.conflict("草稿已被更新，请刷新后再试");
-    }
+    ).run(id, expectedUpdatedAt);
+    if (written.changes !== 1) throw staleRule(id);
   }
 
   require(id: string): JudgmentRuleRecord {
@@ -237,9 +249,7 @@ export class FunctionsStore {
   }
 
   private requireCas(id: string, changes: number | bigint): JudgmentRuleRecord {
-    if (changes !== 1 && changes !== 1n) {
-      throw functionsErrors.conflict("草稿已被更新，请刷新后再试");
-    }
+    if (changes !== 1 && changes !== 1n) throw staleRule(id);
     return this.require(id);
   }
 
@@ -278,8 +288,8 @@ export class FunctionsStore {
 
   private writeSamples(current: JudgmentRuleRecord, samples: readonly JudgmentRuleSample[], expectedUpdatedAt: string): JudgmentRuleRecord {
     const written = this.db.prepare(
-      "UPDATE functions SET samples_json = ?, updated_at = ? WHERE id = ? AND updated_at = ?",
-    ).run(JSON.stringify(samples), laterThan(current.updated_at), current.id, expectedUpdatedAt);
+      "UPDATE functions SET samples_json = ? WHERE id = ? AND updated_at = ?",
+    ).run(JSON.stringify(samples), current.id, expectedUpdatedAt);
     return this.requireCas(current.id, written.changes);
   }
 }

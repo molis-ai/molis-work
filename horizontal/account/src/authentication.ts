@@ -9,6 +9,8 @@ import { AuthenticationProtocol, assertAuthentication, authenticationDigest, aut
 /** Host-only credential protocol. All pending secrets are memory-only and expire on restart. */
 export function createAccountAuthentication(config: AccountEnvironmentConfig, sessions: AccountSessionManager, fetcher?: typeof fetch) {
   const pending = new Map<string, AuthenticationTransaction>(), protocol = new AuthenticationProtocol(config, sessions, fetcher);
+  const nativeCallbacks = new WeakSet<AuthenticationTransaction>();
+  const callbackAttempt = (url: URL) => [...pending.values()].find(item => item.id === url.searchParams.get("transactionId"));
   let current: AuthenticationTransaction | undefined;
   const discard = (t: AuthenticationTransaction) => { t.status = "CANCELLED"; t.nextStep = "NONE"; t.operationProof = undefined; t.identityProof = undefined; t.reset = undefined; t.verification = undefined; };
   const keep = (t: AuthenticationTransaction) => {
@@ -50,8 +52,17 @@ export function createAccountAuthentication(config: AccountEnvironmentConfig, se
     async reauthenticate(input: unknown, control: AccountCallControl) { validAuthentication("ProductReauthenticationRequest", input); return management.create(input, control, true); },
     mutate: management.mutate,
     async get(handle: string, control: AccountCallControl) { return authenticationView(lookup(handle, control)); },
+    matchesNativeCallback(url: URL, origin?: string): boolean {
+      const t = callbackAttempt(url);
+      if (!t || !nativeCallbacks.has(t) || t.busy || t.finished) return false;
+      try {
+        assertAccountProviderCallback(config, url, origin, t);
+        assertAuthentication(t);
+        return true;
+      } catch { return false; }
+    },
     async callback(url: URL, origin: string | undefined, control: AccountCallControl) {
-      const t = [...pending.values()].find(item => item.id === url.searchParams.get("transactionId"));
+      const t = callbackAttempt(url);
       assertAccountProviderCallback(config, url, origin, t);
       return exclusive(t.handle, control, async transaction => {
         await protocol.sync(transaction, control);
@@ -63,7 +74,18 @@ export function createAccountAuthentication(config: AccountEnvironmentConfig, se
         await protocol.complete(transaction, control); return { status: "COMPLETE" };
       });
     },
-    async submit(handle: string, input: unknown, control: AccountCallControl) { validAuthentication("ProductSubmitRequest", input); return exclusive(handle, control, t => protocol.submit(t, input, control)); },
+    async submit(handle: string, input: unknown, control: AccountCallControl, nativeCallback = false) {
+      validAuthentication("ProductSubmitRequest", input);
+      return exclusive(handle, control, async t => {
+        const result = await protocol.submit(t, input, control);
+        if (nativeCallback && input.step === "START_PROVIDER") {
+          control.assertCurrent();
+          assertAuthentication(t);
+          nativeCallbacks.add(t);
+        }
+        return result;
+      });
+    },
     async resend(handle: string, control: AccountCallControl) { await exclusive(handle, control, t => protocol.send(t, control)); return authenticationView(lookup(handle, control)); },
     async cancel(handle: string, control: AccountCallControl) {
       const t = lookup(handle, control);

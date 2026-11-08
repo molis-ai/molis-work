@@ -1,4 +1,5 @@
-import { messageOf, statusOf } from "./dom.js";
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
+import { statusOf } from "./dom.js";
 import { loadJobs, ensureContext, rememberJob, schedulePoll } from "./jobs.js";
 import { loadConnections } from "./connections.js";
 import type { ImageConnection, ImageJob, ImagesPage } from "./types.js";

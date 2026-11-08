@@ -1,6 +1,6 @@
 import { renderResumePrompt } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { UiReturnOutcome } from "@molis-ai/molis-work-plugin-sdk";
-import { messageOf } from "./dom.js";
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { reload } from "./list.js";
 import { notice, q, type CogniaPage } from "./page.js";
 

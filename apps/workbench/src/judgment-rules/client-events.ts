@@ -6,13 +6,14 @@ export const FUNCTIONS_CLIENT_EVENTS_PART = `  bench.addEventListener("molis-wor
       bench.setAttribute("data-expanded", "true"); workspace.hidden = false; return;
     }
     if (openingId === id) return;
+    if (sel && holding()) { leaving(() => bench.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: { itemId: id } }))); return; }
     openingId = id;
     const seq = ++selectSeq;
     void (async () => {
       if (sel && (saveTick || saving || dirty)) { clearTimeout(saveTick); saveTick = 0; await saveDraft(); }
       await loadCatalog();
-      const payload = await req("GET", "/api/functions/" + encodeURIComponent(id));
-      if (seq === selectSeq) remember(payload.function);
+      const rec = await getRule(id);
+      if (seq === selectSeq) remember(rec);
     })().catch((error) => { if (seq === selectSeq) showNote(error, true); })
       .finally(() => { if (seq === selectSeq) openingId = null; });
   });
@@ -27,7 +28,7 @@ export const FUNCTIONS_CLIENT_EVENTS_PART = `  bench.addEventListener("molis-wor
 
   bench.querySelector("[data-functions-new]").addEventListener("click", () => {
     showNote("", false);
-    openCreate();
+    leaving(openCreate);
   });
   bench.querySelectorAll("[data-functions-create-close]").forEach((node) => {
     node.addEventListener("click", () => closeCreate());
@@ -55,19 +56,19 @@ export const FUNCTIONS_CLIENT_EVENTS_PART = `  bench.addEventListener("molis-wor
       createForm.querySelectorAll("button").forEach((node) => { node.disabled = false; });
     }
   });
-  bench.querySelector("[data-functions-back]").addEventListener("click", async () => {
+  bench.querySelector("[data-functions-back]").addEventListener("click", () => leaving(async () => {
     try {
-      await saveDraft();
+      if (dirty || saveTick || saving) await saveDraft();
       closeEditor();
       await loadList();
     } catch (error) { showNote(error, true); }
-  });
+  }));
   deleteBtn.addEventListener("click", async () => {
     if (!sel || sel.status === "published") return;
     const rec = sel;
     if (!window.confirm(L("确定删除这个草稿？"))) return;
     try {
-      await req("POST", "/api/functions/" + encodeURIComponent(rec.id) + "/delete", { updated_at: rec.updated_at });
+      await withKeep(() => req("POST", "/api/functions/" + encodeURIComponent(rec.id) + "/delete", revisionOf(sel)));
       if (sel?.id === rec.id) closeEditor();
       await loadList({ preserveForm: true });
     } catch (error) { if (sel?.id === rec.id) showNote(error, true); }
@@ -189,28 +190,28 @@ export const FUNCTIONS_CLIENT_EVENTS_PART = `  bench.addEventListener("molis-wor
     if (remove) {
       const rec = sel, origin = { id: rec.id, revision: editRevision };
       try {
-        const payload = await req("POST", "/api/functions/" + encodeURIComponent(rec.id) + "/samples/delete", {
-          sample_id: row.dataset.sampleId, updated_at: rec.updated_at,
-        });
+        const payload = await withKeep(() => req("POST", "/api/functions/" + encodeURIComponent(rec.id) + "/samples/delete", {
+          sample_id: row.dataset.sampleId, ...revisionOf(sel),
+        }));
         remember(payload.function, origin);
       } catch (error) { if (sel?.id === rec.id) showNote(error, true); }
     }
   });
   bench.querySelector("[data-functions-save-sample]").addEventListener("click", async () => {
-    if (!sel) return;
+    if (!sel || blocked()) return;
     const origin = { id: sel.id, revision: editRevision }, input = sampleText.value;
     try {
       const saved = await saveDraft();
-      const payload = await req("POST", "/api/functions/" + encodeURIComponent(origin.id) + "/samples", { input, updated_at: saved.updated_at });
+      const payload = await withKeep(() => req("POST", "/api/functions/" + encodeURIComponent(origin.id) + "/samples", { input, ...revisionOf(sel?.id === origin.id ? sel : saved) }));
       remember(payload.function, origin);
-    } catch (error) { if (sel?.id === origin.id) showNote(error, true); }
+    } catch (error) { if (sel?.id === origin.id) { showNote(error, true); if (error?.keepEdits) toBand(); } }
   });
   rowsEl.addEventListener("click", async (event) => {
     const row = event.target.closest("[data-function-id]");
     if (!row) return;
     const rec = records.find((item) => item.id === row.dataset.functionId);
     if (rec) {
-      if (sel?.id === rec.id) return;
+      if (sel?.id === rec.id || holding()) return;
       try {
         if (saveTick || saving || dirty) await saveDraft();
         fillEditor(rec);
@@ -220,7 +221,7 @@ export const FUNCTIONS_CLIENT_EVENTS_PART = `  bench.addEventListener("molis-wor
   let previewing = false;
   const previewBtn = bench.querySelector("[data-functions-preview]");
   previewBtn.addEventListener("click", async () => {
-    if (!sel || previewing) return;
+    if (!sel || previewing || blocked()) return;
     const previewId = sel.id;
     previewing = true;
     bench.querySelectorAll("[data-functions-col=look], [data-functions-col=fn]").forEach((node) => { node.inert = true; });
@@ -231,14 +232,15 @@ export const FUNCTIONS_CLIENT_EVENTS_PART = `  bench.addEventListener("molis-wor
     try {
       await saveDraft();
       if (sel?.id !== previewId) return;
-      const payload = await req("POST", "/api/functions/" + encodeURIComponent(previewId) + "/preview", {
+      const payload = await withKeep(() => req("POST", "/api/functions/" + encodeURIComponent(previewId) + "/preview", {
         input: sampleText.value,
-        updated_at: sel.updated_at,
-      });
+        ...revisionOf(sel),
+      }));
       if (sel?.id !== previewId) return;
       remember(payload.function);
     } catch (error) {
       if (sel?.id === previewId) {
+        if (error.keepEdits) { toBand(); return; }
         if (error.code === "functions.invalid" && !promptInput.value.trim()) setStep("fn", true);
         showNote(error, true);
         if (error.code === "functions.provider_not_configured" || error.code === "actions.connection_required") {
@@ -261,7 +263,7 @@ export const FUNCTIONS_CLIENT_EVENTS_PART = `  bench.addEventListener("molis-wor
     }
   });
   pubBtn.addEventListener("click", async () => {
-    if (!sel || pubBtn.disabled) return;
+    if (!sel || pubBtn.disabled || blocked()) return;
     if (destKey() && destKey() !== "agent.mcp" && !mappingReady({ ...sel, scene_id: destKey(), criteria: readCriteria(), scene_map: sceneMap() })) {
       setStep("fn", true);
       showNote(L("还有结果未对应页面动作，请补齐后再发布。"), true);
@@ -274,13 +276,12 @@ export const FUNCTIONS_CLIENT_EVENTS_PART = `  bench.addEventListener("molis-wor
       await saveDraft();
       if (sel?.id !== publishId) return;
       const path = "/api/functions/" + encodeURIComponent(publishId) + "/publish";
-      const body = { updated_at: sel.updated_at };
-      const payload = api ? await api(path, "POST", body) : await req("POST", path, body);
+      const payload = await withKeep(() => api ? api(path, "POST", revisionOf(sel)) : req("POST", path, revisionOf(sel)));
       if (sel?.id !== publishId) return;
       remember(payload.function);
       await loadList();
     } catch (error) {
-      if (sel?.id === publishId) showNote(error, true);
+      if (sel?.id === publishId) { showNote(error, true); if (error?.keepEdits) toBand(); }
     } finally { pubBtn.disabled = false; }
   });
   const load = () => loadCatalog().then(loadList).catch((error) => {

@@ -1,6 +1,7 @@
 import { inlineHtml } from "./blocks.js";
 import { recordFor } from "./notes.js";
-import { esc, dateLabel } from "./util.js";
+import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { dateLabel } from "./util.js";
 import type { JellyPage } from "./types.js";
 
 export function renderBacklinks(page: JellyPage): void {

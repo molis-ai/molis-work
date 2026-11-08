@@ -66,7 +66,7 @@ test("RAC-214: Home renders and executes unknown plugin offers and Inbox status 
     const draft = withFunctionsService(browser.homeDirectory, service => {
       const created = service.createChoice({ name: "材料核查规则", function_key: "browser_offer_rule" });
       return service.updateDraft(created.id, { instructions: "保留原条件", scene_id: "home.dock", subject_kinds: ["feed_item"],
-        criteria: [{ key: "yes", description: "需要核查" }, { key: "no", description: "稍后核查" }], scene_map: { yes: choiceKey, no: choiceKey } });
+        criteria: [{ key: "yes", description: "需要核查" }, { key: "no", description: "稍后核查" }], scene_map: { yes: choiceKey, no: choiceKey } }, service.get(created.id).updated_at);
     });
     await navigate(() => command("Page.navigate", { url: origin + "/capabilities/rules?project=" + projectId + "&rule=" + draft.id }, sessionId));
     await waitFor(`document.querySelector('[data-map-key="yes"]')?.value === '${choiceKey}'`);

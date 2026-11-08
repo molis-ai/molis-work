@@ -75,7 +75,7 @@ export function renderSideStrip(primitives: SidePanelPrimitives, pluginTabs: rea
     ? { title: `${entry.label} ${entry.plugin.keys.replace("Mod+", "⌘").replace("Shift+", "⇧").replace("Alt+", "⌥")}`, attrs: ` aria-keyshortcuts="${escapeHtml(entry.plugin.keys.replace("Mod+", "Meta+"))}"` }
     : { title: entry.label, attrs: "" };
   const tab = (entry: SideEntry) => `<div class="tab-item" data-glyph-only title="${escapeHtml(keyed(entry).title)}"><button class="tab-item-trigger" type="button" role="tab" id="side-tab-${escapeHtml(entry.id)}" aria-controls="side-body-${escapeHtml(entry.id)}" aria-selected="false" tabindex="-1" data-side-tab="${escapeHtml(entry.id)}" aria-label="${escapeHtml(entry.label)}"${keyed(entry).attrs}${entry.attrs}>${icon(entry.glyph).replace("<svg", '<svg class="tab-item-icon"')}<span class="tab-item-name" aria-hidden="true">${escapeHtml(entry.label)}</span></button>${entry.id === "tasks" ? `<span class="tab-count-badge" data-background-tasks-count aria-hidden="true" hidden>0</span>` : ""}</div>`;
-  return `<div class="side-strip tab-glyph-row" role="tablist" aria-label="${L("右侧")}" data-side-tabs>${sideEntries(primitives, pluginTabs, views).map(tab).join("")}</div>`;
+  return `<div class="side-strip tab-glyph-row" role="tablist" aria-label="${L("右侧")}" data-side-tabs data-overflow-fade>${sideEntries(primitives, pluginTabs, views).map(tab).join("")}</div>`;
 }
 
 export function renderSidePanel(primitives: SidePanelPrimitives, pluginTabs: readonly SidePanelPluginTab[] = [], views: SideViews = {}): string {
@@ -96,6 +96,10 @@ export function renderSidePanel(primitives: SidePanelPrimitives, pluginTabs: rea
       </section>`;
 }
 
+/* On a phone the layout button ends the title bar's second row, after the main tabs (whose phone width is the whole row,
+ * linear-density.ts): the tabs leave it 80px, the room the strip leaves it at 601–760, and still need more than the first row
+ * has, so they start the second one. The zero-width drag line follows the button and wraps alone, as it does without the button,
+ * so the bar keeps two rows. Written here rather than beside the rule, which ships in workbench.css. */
 export const SIDE_PANEL_STYLES = String.raw`
 html body.immersive-workbench{--side-gap:8px}
 html body.immersive-workbench[data-side-open=true] [data-plugin-stage]{margin-right:calc(var(--side-panel-width,35vw) + var(--side-gap) + var(--sheet-inset,14px))}
@@ -131,7 +135,7 @@ body.is-side-resizing{cursor:col-resize;user-select:none}
  html body.immersive-workbench[data-side-open=true] [data-plugin-stage]{margin-right:8px;margin-bottom:calc(52dvh + var(--side-gap) + var(--sheet-inset,14px))}
  html body.immersive-workbench .side-panel{inset:auto 8px calc(var(--dock-h,48px) + 8px) 8px;width:auto;height:52dvh;transform:translateY(12px)}
  body[data-side-open=true] .side-strip{min-width:0}
- .side-strip{max-width:100%;padding-block:2px;overflow-x:auto;scrollbar-width:none;justify-content:safe flex-end}
+ .side-strip{max-width:100%;padding-block:2px;overflow-x:auto;justify-content:safe flex-end}
  .immersive-titlebar>.side-strip{flex:1 0 100%}
  .immersive-titlebar:has(>.titlebar-layout)>.side-strip{flex-basis:calc(100% - 80px)}
  .arrival-page .side-strip{flex:0 1 auto}
@@ -141,7 +145,11 @@ body.is-side-resizing{cursor:col-resize;user-select:none}
    between them: the glyphs keep their 44px targets and scroll sideways, and reveal() keeps the current one in view (measured:
    three glyphs at 360, four at 390). The bar keeps its two rows, so the work below loses no height. The strip's 2px block padding
    (room for a count badge and the focus ring inside its scroller) is taken back by its margin, so the row stays 44px. */
-@media(max-width:600px){html body.immersive-workbench:not(.arrival-page) .immersive-titlebar>.side-strip{order:1;flex:1 1 0;margin-block:-2px}}
+@media(max-width:600px){
+ html body.immersive-workbench:not(.arrival-page) .immersive-titlebar>.side-strip{order:1;flex:1 1 0;margin-block:-2px}
+ html body.immersive-workbench:not(.arrival-page) .immersive-titlebar:has(>.titlebar-layout)>[data-titlebar-tabs]{flex-basis:0;min-width:calc(100% - 80px)}
+ html body.immersive-workbench:not(.arrival-page) .immersive-titlebar:has(>.titlebar-layout)>.desktop-titlebar-drag{order:8}
+}
 /* Between 601 and 760 the strip is the title bar's second row, so the bar's grid row grows with it (over craft-finish's fixed
    titlebar row, which names the directory states) and the work and the side sheet start below it. The sheet's 28px is the
    strip row's 8px gap and 4px block padding above the strip, the 8px the sheet keeps over the Dock and 8px of air under the strip. */
@@ -298,7 +306,6 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
   const reopen=record=>{
     const before=side().open;
     if(!ops.reopenSideTab(getState(),record))return false;
-    if(undo?.record===record)undo=null;
     if(side().open&&!before&&!open)setOpen(true,{tab:record.tab.itemId});else if(record.active&&open)select(record.tab.itemId);else draw();
     if(strip.contains(document.activeElement))buttons().find(button=>button.dataset.sideTab===record.tab.itemId)?.focus({preventScroll:true});
     save();return true;

@@ -232,7 +232,7 @@ test("PFG-22 review shots of the right side at 1440, 1024 and 390, Chinese and E
 // 07-S1 review B3: from 601 to 760 the side's strip is a row of its own, as on a phone (S3 sets its final look), so every tab,
 // the background tasks with their count among them, shows; on the narrowest phone, where it still scrolls, the current tab is
 // kept in view.
-test("PFG-22 between 601 and 760 every side tab shows on its own row, and a phone's strip keeps the current tab in view", { timeout: 150_000 }, async t => {
+test("PFG-22 between 601 and 760 every side tab shows on its own row, and a phone's strip keeps the current tab in view while the layout button ends the tabs' row", { timeout: 150_000 }, async t => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { evaluate, waitFor, command, sessionId, navigate, origin, projectId } = browser;
@@ -259,6 +259,23 @@ test("PFG-22 between 601 and 760 every side tab shows on its own row, and a phon
     assert.ok(below.stage >= below.strip - 0.5, `${width}×${height}: the work starts below the side's strip (${JSON.stringify(below)})`);
     assert.ok(below.panel >= below.strip - 0.5, `${width}×${height}: the side sheet starts below its strip (${JSON.stringify(below)})`);
     assert.equal(below.corner, true, `${width}×${height}: the main area's top right corner is the work's own, not the strip`);
+  }
+  // 07-S2 on a phone: the layout button ends the main tabs' row, so the title bar keeps the two rows S1 gave it (the strip shares
+  // the first); nothing that takes room starts below the tabs. Measured at 390 and 360 before the 320 walk below.
+  for (const width of [390, 360]) {
+    await command("Emulation.setDeviceMetricsOverride", { width, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
+    await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
+    await waitFor(`document.querySelector('${strip} [data-side-tab="tasks"]') && document.querySelector('[data-layout-open]')`, 15_000);
+    const bar = await evaluate<{ tabs: { top: number; bottom: number }; layout: { top: number; right: number }; strip: number; history: number; below: string[] }>(`(() => {
+      const box = selector => document.querySelector(selector).getBoundingClientRect();
+      const tabs = box('[data-titlebar-tabs]');
+      return { tabs: { top: tabs.top, bottom: tabs.bottom }, layout: { top: box('[data-layout-open]').top, right: box('[data-layout-open]').right }, strip: box('${strip}').top, history: box('[data-workspace-history]').top,
+        below: [...document.querySelector('.immersive-titlebar').children].filter(child => { const at = child.getBoundingClientRect(); return at.width > 0 && at.height > 0 && at.top >= tabs.bottom - 0.5; }).map(child => child.className) };
+    })()`);
+    assert.ok(Math.abs(bar.layout.top - bar.tabs.top) <= 1, `${width}: the layout button is on the main tabs' row (${JSON.stringify(bar)})`);
+    assert.ok(bar.layout.right <= width + 0.5, `${width}: the layout button is inside the window (${JSON.stringify(bar)})`);
+    assert.ok(Math.abs(bar.strip - bar.history) <= 3 && bar.tabs.top > bar.strip, `${width}: the side's strip shares the first row; the tabs are the second (${JSON.stringify(bar)})`);
+    assert.deepEqual(bar.below, [], `${width}: no third row in the title bar (${JSON.stringify(bar)})`);
   }
   await command("Emulation.setDeviceMetricsOverride", { width: 320, height: 720, deviceScaleFactor: 1, mobile: true }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));

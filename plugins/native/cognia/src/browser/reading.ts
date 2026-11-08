@@ -1,4 +1,5 @@
-import { button, esc } from "./dom.js";
+import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { button } from "./dom.js";
 import { OWN_SOURCES, ROLE_KEY } from "./labels.js";
 import { renderMarkdown, renderReferences } from "./markdown.js";
 import { q, tx, type CogniaPage } from "./page.js";

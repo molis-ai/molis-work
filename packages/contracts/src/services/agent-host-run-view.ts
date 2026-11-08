@@ -192,7 +192,7 @@ export interface AgentTurnChanges {
 }
 
 export interface AgentSessionView {
-  /** Immutable session mode; missing historical values mean required. */
+  /** Immutable session mode; absent means required. A sub-task's index entry need not write it: its frozen intent carries the granted directory. */
   workspace?: "required" | "none" | "business";
   /** A manual rewind is in progress or has an unresolved execution outcome. */
   checkpoint_busy?: boolean;

@@ -28,6 +28,7 @@ import { execFileSync } from "node:child_process";
 import { appendFileSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { isMainScript } from "./script-paths.mjs";
 import { readPlan } from "./ci-product-subset/plan.mjs";
 import { changedPaths, decideChecks } from "./ci-check-selection.mjs";
 import { planShards, readWeights } from "./run-tests/shard.mjs";
@@ -44,7 +45,7 @@ export const FULL_WHEN = {
     "scripts/build-workspace.mjs", "scripts/workspace-packages.mjs",
     // What this script, affected-tests and the two runners import (tests/ci-test-selection.test.ts follows the imports and holds this):
     // the READMEs' test lists, the browser marks and the probe's runner, the product list's rules, the machine slot.
-    "scripts/package-dev-requirements.mjs", "scripts/ci-linux-probe/", "scripts/ci-product-subset/plan.mjs", "scripts/machine-slot.mjs",
+    "scripts/package-dev-requirements.mjs", "scripts/ci-linux-probe/", "scripts/ci-product-subset/plan.mjs", "scripts/machine-slot.mjs", "scripts/script-paths.mjs",
   ],
   security: ["docs/system/SECURITY-INVARIANTS.md", "docs/system/security-invariants/", "tests/security-invariants-", "scripts/gates/security-invariants.mjs"],
   product: ["tests/ci-product-subset.txt", "tests/quarantine.json", "scripts/ci-product-subset.mjs", "scripts/ci-product-subset/", "scripts/ci-linux-probe.mjs"],
@@ -60,7 +61,7 @@ const ROOT_CONFIG = /^[^/]+$/;
  */
 export const NATIVE_RUN_WHEN = {
   prefixes: ["apps/desktop/", "apps/local-host/native/", ".github/workflows/", ".cargo/"],
-  files: ["scripts/gates/native-checks.mjs", "tests/native-checks.test.mjs", "scripts/ci-test-selection.mjs", "scripts/ci-check-selection.mjs"],
+  files: ["scripts/gates/native-checks.mjs", "scripts/script-paths.mjs", "tests/native-checks.test.mjs", "scripts/ci-test-selection.mjs", "scripts/ci-check-selection.mjs"],
   extensions: [".rs", ".swift"],
   names: ["Cargo.toml", "Cargo.lock", "rust-toolchain", "rust-toolchain.toml", "clippy.toml", ".clippy.toml", "rustfmt.toml", ".rustfmt.toml"],
 };
@@ -167,8 +168,7 @@ function summary(decisions, base) {
   return out.join("\n");
 }
 
-const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
-if (isMain) {
+if (isMainScript(import.meta.url)) {
   const args = process.argv.slice(2);
   const value = (name) => { const index = args.indexOf(name); return index === -1 ? undefined : args[index + 1]; };
   const known = new Set(["--base", "--root"]);

@@ -87,14 +87,8 @@ function mapProvider(row: Row): ModelProviderRecord {
     api_format: String(row.api_format) as ModelApiFormat,
     credential_ref: String(row.credential_ref),
     enabled: Number(row.enabled) === 1,
-    // A row written before this column existed, or holding something this build
-    // does not recognise, reads as `off` — the mode that behaves as if caching
-    // were not there. Guessing `best-effort` would turn an old row into a
-    // request nobody made.
-    prompt_cache: PROMPT_CACHE_MODES.includes(row.prompt_cache as ModelPromptCacheMode)
-      ? row.prompt_cache as ModelPromptCacheMode
-      : "off",
-    thinking: THINKING_MODES.includes(row.thinking as ModelThinkingMode) ? row.thinking as ModelThinkingMode : "off",
+    prompt_cache: String(row.prompt_cache) as ModelPromptCacheMode,
+    thinking: String(row.thinking) as ModelThinkingMode,
     models,
     created_at: String(row.created_at),
     updated_at: String(row.updated_at),

@@ -1,3 +1,4 @@
+import { createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import { defineConnectorUsagesAction } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { ActionError, ACTION_REFERENCE_SCHEMA, type ActionDefinition, type ActionProviderRegistration, type ActionCallContext, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { AGENT_MCP_DESTINATION_ID, FUNCTIONS_PROVIDER_ID, PUBLISHED_FUNCTION_PREFIX, publishedFunctionKey, type JudgmentRuleRecord, JudgmentRuleSummary, JudgmentRuleDescribe, JudgmentRuleInvokeResult } from "@molis-ai/molis-work-contracts/modules/functions";
@@ -21,11 +22,11 @@ const resultSchema = { type: "object", properties: {
 }, required: ["suggested_behavior_ids", "status", "function_key", "version", "model", "config_hash", "primitive", "data", "probabilities", "confidence"] };
 
 function define<Input, Output>(id: string, version: number, title: string, description: string, input: Record<string, unknown>, output: Record<string, unknown>, judgment = false): ActionDefinition<Input, Output> {
-  return { capability_id: id, version: version, operation: judgment ? "command" : "query", action: {
+  return createActionDefinition<Input, Output>(id, judgment ? "command" : "query", {
     title, description, kind: judgment ? "judgment" : "query", scope: "home", audiences: ["user", "agent", "workflow", "mcp"],
     permissions: judgment ? ["functions:invoke"] : [], subject_kinds: [], input_schema: input, output_schema: output,
     ...(judgment ? { scheduling: "concurrent" as const, execution: { cost: "metered" as const } } : {}),
-  } };
+  }, version);
 }
 
 export const functionsActions = {

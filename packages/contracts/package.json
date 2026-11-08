@@ -250,6 +250,10 @@
       "types": "./dist/platform/project-materials.d.ts",
       "import": "./dist/platform/project-materials.js"
     },
+    "./platform/composer": {
+      "types": "./dist/platform/composer.d.ts",
+      "import": "./dist/platform/composer.js"
+    },
     "./platform/plugin-attention": {
       "types": "./dist/platform/plugin-attention.d.ts",
       "import": "./dist/platform/plugin-attention.js"

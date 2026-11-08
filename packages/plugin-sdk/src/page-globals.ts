@@ -1,4 +1,6 @@
 /// <reference lib="dom" />
+import type { ComposerMaterial, ComposerSourceDeclaration } from "@molis-ai/molis-work-contracts/platform/composer";
+import type { AgentSteerMode, AgentSteerReceipt } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 
 /**
  * What the Workbench page puts on `window` for every plugin page, and the shapes those helpers take and give. The helpers are
@@ -127,8 +129,82 @@ export interface InteractionClient {
   destroy(): void;
 }
 
+/**
+ * The unified input (specs/unified-input-voice/implementation-plan.md §3.2, slice K0): what `window.molisComposer(root, options)`
+ * takes and gives. The options are this one instance's own and are seen by no other plugin; a source another plugin offers in the
+ * `+` menu is registered as an action (`composer_source`) instead. The keys are the platform's (Enter breaks the line, ⌘/Ctrl+Enter
+ * sends or supplements, ⌘/Ctrl+Shift+Enter is for the next turn, Esc closes a menu, Tab moves focus): nothing here rebinds them,
+ * and neither commands nor controls see them.
+ */
+export interface ComposerOptions {
+  /** `plain` is the editor layer only; `ai` adds the receiver row and the delivery menu. */
+  kind: ComposerSourceDeclaration["layers"][number];
+  /** The entry's name, unique inside the plugin ("session"). */
+  entry: string;
+  /** A platform draft kept on this machine per conversation (project and installation come from the page), or the owner's own. */
+  draft: { conversation: string } | { adapter: ComposerDraftAdapter };
+  /** A decision's reason, say, is submitted by the page's own button: the send keys then only write. */
+  submitKeys?: false;
+  receiver?: () => { label: string; reset?: () => void } | null;
+  /** `ai` only: which deliveries the target takes now. */
+  delivery?: () => ComposerDelivery;
+  /** Scene controls, drawn with the board's controls and folded into "more" on a narrow screen. */
+  controls?: readonly ComposerControl[];
+  /** This page's own `/` commands. */
+  commands?: readonly ComposerCommand[];
+  attachments?: { accept?: string; upload(file: File, signal: AbortSignal): Promise<ComposerAttachmentState> };
+  /** Whether the registered sources are listed in `+`; by default when `kind` is `ai`. */
+  sources?: boolean;
+  /** The page's own required check: what is missing, or null. */
+  required?: () => string | null;
+  /** `signal` aborts when the instance is mounted again or let go; a late outcome is dropped. */
+  submit(input: ComposerSubmission, signal: AbortSignal): Promise<ComposerOutcome>;
+}
+
+/** A draft its owner already keeps (the Assistant per work, Coding per session); the composer keeps no second copy. */
+export interface ComposerDraftAdapter {
+  read(signal: AbortSignal): Promise<string>;
+  /** Throttled as the person writes; a rejection is told in the status line and the text stays. */
+  write(text: string): Promise<void>;
+}
+
+/** Each delivery the target may take now, or why not: a mode it does not take is shown and cannot be picked, never sent as another. */
+export type ComposerDelivery = { readonly [Mode in AgentSteerMode]: { available: true } | { available: false; reason: string } };
+
+/** A select's value is one of its options; a toggle's is `"on"` or `"off"`; a button only runs. */
+export type ComposerControl =
+  | { kind: "select"; id: string; label: string; options: readonly { value: string; label: string }[]; value: string; change?(value: string): void }
+  | { kind: "toggle"; id: string; label: string; on: boolean; change?(on: boolean): void }
+  | { kind: "button"; id: string; label: string; run(): void };
+
+export interface ComposerCommand { slash: string; label: string; hint?: string; run(): void }
+
+/** What an upload ends as; while it runs the strip says it is being read. */
+export type ComposerAttachmentState = { state: "attached"; ref: string; title: string } | { state: "failed"; reason: string };
+
+export interface ComposerSubmission {
+  text: string;
+  materials: readonly ComposerMaterial[];
+  /** `ai` only. */
+  delivery?: AgentSteerMode;
+  /** Each control's value by its id. */
+  controls: Readonly<Record<string, string>>;
+  /** Names this send, so the target can tell a repeat of it. */
+  request_id: string;
+}
+
+/** `unknown`: the page cannot tell yet whether it went; `check` asks the target. */
+export type ComposerOutcome =
+  | { state: "sent"; receipt?: AgentSteerReceipt }
+  | { state: "failed"; message: string }
+  | { state: "unknown"; check(): Promise<"sent" | "not-sent" | "unknown"> };
+
+export interface ComposerHandle { setRunning(running: boolean): void; refresh(): void; focus(): void; insert(text: string): void; destroy(): void }
+
 declare global {
   interface Window {
+    /** `window.molisComposer(root, options)`: the unified input in `root`; mounting the same root again lets the last one go first. */
+    molisComposer?: (root: HTMLElement, options: ComposerOptions) => ComposerHandle;
     /** `window.molisMediaZoom(viewport, image, options)`: zoom about the point looked at, and bounded panning, for one image. */
     molisMediaZoom?: (viewport: HTMLElement, image: HTMLImageElement, options?: MediaZoomOptions) => MediaZoom;
     /** `window.molisDropZone(zone, mark, accepts, reason)`: `mark(true)` while a drag `accepts` takes (files, unless said) is over the

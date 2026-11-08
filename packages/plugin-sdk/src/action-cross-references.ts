@@ -1,5 +1,6 @@
 import { isRecord } from "./json-value.js";
 import { isId, isOutputPath, isText, isVersion } from "./action-declarations.js";
+import { readerKinds } from "./context-declarations.js";
 import { schemaFields, schemaPathExists } from "./schema-paths.js";
 import { workExecutorSetProblems } from "./work-executor-declarations.js";
 
@@ -13,8 +14,8 @@ import { workExecutorSetProblems } from "./work-executor-declarations.js";
 //
 // This is a separate pass from `inspectActionDeclarations`, which reads one definition at a time. A definition or a reference that
 // is incomplete (`inspectActionDeclarations` reports that) is skipped, never reported twice. Problems come in the order of the
-// definitions, then undo, background job, fragment options, subject options, result object; the work executor's set of roles comes
-// last, once for the group. The one thing read here that the shape
+// definitions, then undo, background job, fragment options, subject options, result object, composer source kinds; the work
+// executor's set of roles comes last, once for the group. The one thing read here that the shape
 // check does not read at all is `result_subject`, so a value of it that is not an object is reported here.
 
 /** A definition complete enough to be pointed at or to point: its identity, its operation, and its action body. */
@@ -31,12 +32,14 @@ interface Option { readonly offerId: string; readonly ref: string; readonly targ
 /** Every cross-reference problem in a group of action declarations, or none. Anything that is not a list of definitions has none. */
 export function inspectActionCrossReferences(definitions: unknown): string[] {
   const group = declaredGroup(definitions);
+  const readable = readerKinds(definitions);
   return [...[...group.values()].flatMap(source => [
     ...undoProblems(source, group),
     ...backgroundJobProblems(source, group),
     ...fragmentTargetProblems(source, group),
     ...subjectTargetProblems(source, group),
     ...resultSubjectProblems(source),
+    ...composerKindProblems(source, readable),
   ]), ...workExecutorSetProblems([...group.values()])];
 }
 
@@ -160,6 +163,19 @@ function resultSubjectProblems(source: Declared): string[] {
     if (typeof position !== "string") return [`能力 ${source.key} 的结果对象位置必须写成输出里的路径`];
     return schemaPathExists(source.action.output_schema, position) ? [] : [`能力 ${source.key} 的结果对象位置 ${position} 不在输出合同里`];
   });
+}
+
+// ---- composer sources ---------------------------------------------------------------------------------------------------------
+
+/**
+ * Every kind a composer source picks is one this provider reads back (S-composer-source-call): the target reads a pick again through
+ * its owner's reader at send time, so a source cannot hand out another plugin's objects under its own name. The same reader test as
+ * the kinds the Manifest owns (`readerKinds`).
+ */
+function composerKindProblems(source: Declared, readable: ReadonlySet<string>): string[] {
+  const declared = source.action.composer_source;
+  const kinds = isRecord(declared) && Array.isArray(declared.subject_kinds) ? declared.subject_kinds.filter(isText) : [];
+  return kinds.filter(kind => !readable.has(kind)).map(kind => `能力 ${source.key} 的输入框来源种类 ${kind} 不是同一提供方有对象读取器的种类`);
 }
 
 // ---- small guards -----------------------------------------------------------------------------------------------------------

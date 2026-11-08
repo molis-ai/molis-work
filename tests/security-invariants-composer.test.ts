@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { type TestContext } from "node:test";
 import { ActionError, defineSubjectContextAction, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import * as composer from "@molis-ai/molis-work-contracts/platform/composer";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { inspectActionCrossReferences, inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
 import { declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
+import { NOTE_KIND, composerMountPlugin, composerSourcePlugin } from "./fixtures/composer-plugins.js";
+import { grantHomeProbe, homeProbe, serveHomeRuntime } from "./fixtures/home-runtime.js";
 
 // S-composer-source-call (docs/system/security-invariants/S-composer-source-call.md; specs/unified-input-voice/implementation-plan.md
 // §4 items 1 and 2, slice K0): a source in the unified input's `+` menu gets only this call's query, and a declaration that is not one
@@ -114,4 +116,82 @@ test("S-composer-source-call item 1 a call carries only query, limit and the nea
   assert.deepEqual(seen, [], "the handler never ran");
   assert.deepEqual(await kernel.invoke(person, pick, { query: "q", limit: 5 }), { items: [] });
   assert.deepEqual(seen, [{ query: "q", limit: 5 }], "no current object unless the page handed one over");
+});
+
+// Items 3 to 5 and `near` (slice K2): the Workbench's own route is the only way a composer reaches a source. It lists and calls only
+// what the person's directory holds now, hands a source nothing but this call's query (`near` only of its own kind), and a plugin
+// page has no way in. The browser half (late results dropped, a pick checked again at send) is tests/composer.e2e.test.ts.
+async function composerHome(t: TestContext) {
+  const source = composerSourcePlugin(), mount = composerMountPlugin(source.reader);
+  const f = await serveHomeRuntime(t, { pluginFixtures: { project: [source.definition, mount.definition] } });
+  const project = await f.project("统一输入");
+  const post = async (path: string, body: unknown, headers: Record<string, string> = {}) => {
+    const response = await f.request(`/projects/${encodeURIComponent(project.project_id)}${path}`, { method: "POST", body, headers });
+    return { status: response.status, body: await response.json() as Record<string, unknown> };
+  };
+  return { f, source, mount, project, post };
+}
+
+test("S-composer-source-call item 1 near: a source gets only query, limit and the page's object of its own kind", async (t) => {
+  const { source, post } = await composerHome(t);
+  const listed = await post("/api/composer/sources", { layer: "ai" });
+  assert.equal(listed.status, 200, JSON.stringify(listed.body));
+  const [entry] = listed.body.sources as Array<Record<string, unknown>>;
+  assert.deepEqual(entry, { capability_id: "composernotes.pick", version: 1, provider_id: entry!.provider_id, provider: entry!.provider, title: "测试笔记" });
+  const ask = (extra: Record<string, unknown>) => post("/api/composer/pick", { layer: "ai", capability_id: "composernotes.pick", version: 1, provider_id: entry!.provider_id, query: "访谈", limit: 5, ...extra });
+  const found = await ask({ near: { kind: NOTE_KIND, id: "n3" }, draft: "没发出的字", receiver: "Coding", materials: [{ kind: "attachment", ref: "x" }] });
+  assert.equal(found.status, 200, JSON.stringify(found.body));
+  assert.deepEqual((found.body.items as Array<{ title: string }>).map((item) => item.title), ["访谈记录", "访谈提纲"]);
+  assert.deepEqual(source.seen.at(-1), { query: "访谈", limit: 5, near: { kind: NOTE_KIND, id: "n3" } }, "no draft, receiver or other material reaches the source");
+  await ask({ near: { kind: "goal", id: "g-private" } });
+  assert.deepEqual(source.seen.at(-1), { query: "访谈", limit: 5 }, "another owner's object is not handed over");
+  const wide = await ask({ query: "x".repeat(201) });
+  assert.equal(wide.status, 400, "the platform's schema bounds the query");
+});
+
+test("S-composer-source-call item 3: a source turned off is not listed, an open menu's next query is refused, a forged one too", async (t) => {
+  const { source, post } = await composerHome(t);
+  const [entry] = (await post("/api/composer/sources", { layer: "plain" })).body.sources as Array<Record<string, unknown>>;
+  const pick = (over: Record<string, unknown> = {}) => post("/api/composer/pick", { layer: "plain", capability_id: "composernotes.pick", version: 1, provider_id: entry!.provider_id, query: "", limit: 5, ...over });
+  assert.equal((await pick()).status, 200);
+  for (const forged of [{ provider_id: "io.molis.work.example.other" }, { version: 2 }, { capability_id: "composernotes.read" }]) {
+    const refused = await pick(forged);
+    assert.deepEqual([refused.status, refused.body.code], [503, "composer.source_unavailable"], JSON.stringify(forged));
+  }
+  const calls = source.seen.length;
+  source.off();
+  assert.deepEqual((await post("/api/composer/sources", { layer: "plain" })).body.sources, [], "off: not listed");
+  const late = await pick();
+  assert.deepEqual([late.status, late.body.code], [503, "composer.source_unavailable"], "the menu opened before is refused now");
+  assert.equal(source.seen.length, calls, "the source is not called");
+});
+
+test("S-composer-source-call item 4: a picked note the target cannot read stops the send; nothing is written", async (t) => {
+  const { source, mount, post } = await composerHome(t);
+  const material = { kind: "material", ref: { subject: { kind: NOTE_KIND, id: "n1" }, pin: { mode: "current", read_revision: "r1" } }, title: "访谈记录",
+    source: { capability_id: "composernotes.pick", version: 1, provider_id: "x" } };
+  const submission = { text: "看一下这条", materials: [{ kind: "attachment", ref: "upload:a", title: "a" }, material], controls: {}, request_id: "r-1" };
+  source.reading(false);
+  const refused = await post(`/api/plugins/${mount.id}/submit`, submission);
+  assert.equal(refused.status, 200, JSON.stringify(refused.body));
+  assert.deepEqual([refused.body.state, (refused.body.unreadable as Array<{ index: number }>).map((one) => one.index)], ["failed", [1]]);
+  assert.deepEqual(mount.sent, [], "not sent without it");
+  source.reading(true);
+  const accepted = await post(`/api/plugins/${mount.id}/submit`, submission);
+  assert.equal(accepted.body.state, "sent", JSON.stringify(accepted.body));
+  assert.equal(mount.sent.length, 1);
+});
+
+test("S-composer-source-call item 5: a plugin page has no way to the sources: listing and picking are refused", async (t) => {
+  const probe = homeProbe("composerpage");
+  const f = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } });
+  await grantHomeProbe(f.host, probe);
+  const opened = await f.request("/api/host/plugin-pages", { method: "POST", body: { plugin_id: probe.id } });
+  assert.equal(opened.status, 200, await opened.clone().text());
+  const headers = { "x-molis-plugin-page": (await opened.json()).page_id as string };
+  for (const path of ["/api/composer/sources", "/api/composer/pick"]) {
+    const response = await f.request(path, { method: "POST", body: { layer: "ai", capability_id: "composernotes.pick", version: 1, query: "", limit: 5 }, headers });
+    assert.equal(response.status, 403, `${path}: ${await response.text()}`);
+  }
+  assert.equal((await f.request("/api/composer/sources", { method: "POST", body: { layer: "ai" } })).status, 200, "the person's own page still lists them");
 });

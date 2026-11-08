@@ -27,6 +27,7 @@ import { handleAttentionHttp } from "./attention-http.js";
 import { handleMemoryHttp } from "./memory/memory-host.js";
 import { handleHomeDockJudgmentHttp } from "./home-dock-http.js";
 import { handleSearchHttp } from "./search-http.js";
+import { handleComposerSourcesHttp } from "./composer-sources-http.js";
 import { handleDirectoryGrantHttp } from "./plugin-directory-http.js";
 import { handleKnowledgeHttp } from "./knowledge-http.js";
 import { handlePluginTrustHttp } from "./plugin-trust-http.js";
@@ -236,6 +237,9 @@ export const boardRoute: WebRoute<ProjectRuntimeContext> = { id: "board", handle
 export const directoryRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
   { id: "search", handle: ({ request, response, url, localHost, hostReference }) =>
     handleSearchHttp(request, response, url, () => bindLocalWebActions(localHost, hostReference, LOCAL_OWNER_PERMISSIONS)) },
+  // The unified input's `+` sources (S-composer-source-call): every plugin's `composer_source`, as the person, in this project.
+  { id: "composer-sources", handle: ({ request, response, url, localHost, hostReference }) =>
+    handleComposerSourcesHttp(request, response, url, () => bindLocalWebActions(localHost, hostReference, LOCAL_OWNER_PERMISSIONS)) },
   // Project knowledge's management page and side panel tab (specs/project-knowledge §8), as the person.
   { id: "knowledge", handle: ({ request, response, url, localHost, hostReference }) =>
     handleKnowledgeHttp(request, response, url, { localHost, projectRef: hostReference }) },

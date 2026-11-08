@@ -67,7 +67,8 @@ export interface AssistantHttpPorts {
 
 /**
  * The language of a round the page itself starts (a message, an answer, a card prepared again): the page's own, whatever
- * the record says, and using it moves the record (FSS-71). A request with no page language leaves the round to the record.
+ * the record says, and using it moves the record (FSS-71). A request with no page language leaves the round to the record. It is read
+ * here at the entry and carried down as a parameter, so nothing below looks at the request again.
  */
 function pageRoundLanguage(ports: Pick<AssistantHttpPorts, "homeDirectory">): { reply_locale?: WebLocale } {
   const reply_locale = pageLocale();
@@ -283,7 +284,6 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
         // shape is checked: the runtime keeps `about` as a pointer without looking it up (D34), so an id that is not one of this
         // session's inputs names nothing, and the receipt shows 「更早的一条」.
         if (body.about !== undefined && (typeof body.about !== "string" || !body.about || body.about.length > 200 || !body.work_id || body.target === "answer")) throw assistantErrors.invalid("about 要写一条输入的 id，只能用在已有的工作里，且不能用于回答");
-        // Sending is using the language: the page's own, read here at the entry and carried down, so nothing below looks at the request again.
         return { status: 200, body: await service.send(body as unknown as AssistantSendInput, { ...pageRoundLanguage(ports), ...(ports.projectRef ? { project_ref: ports.projectRef } : {}),
           ...(!body.written_by && body.reask === undefined && typeof body.text === "string" && typeof body.request_id === "string" ? { original_input: {
             input_id: body.request_id, text: body.text, written_by: "person" as const, occurred_at: new Date().toISOString(), install_id: ASSISTANT_INSTALL_ID,

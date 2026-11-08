@@ -43,7 +43,8 @@ export { BROWSER_SITES_FILE, BrowserSiteDecisions } from "./browser/browser-surf
 export { ensureHomeUpgraded, pendingUpgradeUnits, runHomeUpgrade, type HomeUpgradeReport } from "./home-upgrade.js";
 export { planHomeUpgrade, runUpgradeMaintenance, upgradeHomesForMaintenance, type HomeUpgradePlan, type UpgradeMaintenanceMessage, type UpgradeMaintenanceOptions } from "./upgrade-maintenance.js";
 export { configuredModelChoices } from "./configured-models.js";
-export { homeUpgradeDescriptors, registerHomeUpgradeDescriptors, upgradeFingerprint, upgradeTarget, type HomeUpgradeDescriptor, type HomeUpgradeDescriptorSource, type HomeUpgradeFileDescriptor, type HomeUpgradeStoreDescriptor } from "./home-upgrade-stores.js";
+export { homeUpgradeDescriptors, registerHomeUpgradeDescriptors, upgradeFingerprint, upgradeTarget, type HomeUpgradeDescriptor, type HomeUpgradeDescriptorSource, type HomeUpgradeFileDescriptor, type HomeUpgradeStoreDescriptor, type HomeUpgradeTablesDescriptor } from "./home-upgrade-stores.js";
+export { pluginTablesDescriptor, upgradePluginLibraryFile, type PluginTablesLibrary } from "./platform-upgrade-stores.js";
 export { acquireUpgradedHomeOwner } from "./home-storage-lifetime.js";
 export { catalogManagementProject, upgradeOlderCatalog } from "./management-action-client.js";
 export { createHomeSnapshot, type HomeSnapshotOptions } from "./home-snapshot.js";
@@ -77,7 +78,7 @@ export { createPersonalSync } from './personal-sync.js';
 export {createPersonalPluginRegistrations} from './personal-plugin-sync.js';
 export {createPersonalCatalogRegistration} from './personal-catalog-sync.js';
 export { discoverRuntimeSyncCollections } from './runtime-sync-discovery.js';
-export { isProjectPluginDatabaseRefusal, openProjectPluginDatabases } from "./project-plugin-databases.js";
+export { isProjectPluginDatabaseRefusal, openProjectPluginDatabases, upgradePluginLibrary, upgradePluginTables } from "./project-plugin-databases.js";
 export { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
 
 export { openProjectVersionStores, restoreArtifactVersions, assertRestorableArtifactVersions, WORK_ASSET_RESTORE_ACTOR_ID, type RestoredArtifactVersion, type ProjectVersionStores } from "./project-version-stores.js";

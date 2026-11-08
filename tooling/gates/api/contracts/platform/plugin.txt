@@ -2295,6 +2295,16 @@ export interface HomePluginDatabaseDeclaration extends PluginDatabaseDeclaration
     readonly project_rows?: PluginProjectRowsDeclaration;
 }
 
+export interface HomeStoreBaseline {
+    readonly version: number;
+    readonly schema: string;
+    readonly upgrades?: readonly {
+        readonly from: number;
+        readonly sql?: string;
+        readonly reduces_rows?: readonly string[];
+    }[];
+}
+
 export interface HomeStoreDeclaration {
     readonly replication?: (home: string, ownerId: string) => {
         close(): void;
@@ -2302,10 +2312,7 @@ export interface HomeStoreDeclaration {
     };
     readonly path: string;
     readonly library?: {
-        readonly baseline: {
-            readonly version: number;
-            readonly schema: string;
-        };
+        readonly baseline: HomeStoreBaseline;
         readonly file?: string;
         readonly partition?: "project";
     };
@@ -2814,6 +2821,7 @@ export interface PluginDatabaseDeclaration {
     readonly schema: string;
     readonly read_permission: string;
     readonly write_permission: string;
+    readonly upgrades?: readonly PluginDatabaseUpgradeStep[];
 }
 
 export interface PluginDatabaseReader {
@@ -2829,6 +2837,12 @@ export interface PluginDatabaseTransaction extends PluginDatabaseReader {
         readonly keep: boolean;
         readonly value: T;
     }): T;
+}
+
+export interface PluginDatabaseUpgradeStep {
+    readonly from: number;
+    readonly sql: string;
+    readonly reduces_rows?: readonly string[];
 }
 
 export interface PluginDefinition {

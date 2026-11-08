@@ -1,6 +1,11 @@
-import { join, relative } from "node:path";
+import { basename, dirname, join, relative } from "node:path";
 import { readdirSync } from "node:fs";
-import { CATALOG_VERSION_ACCESS, catalogOwner, entryAt, openHomeSqliteFile, openSqliteConnection, readUpgradeStore, SECRET_STORE_FILE, type HomeStore } from "@molis-ai/molis-work-storage";
+import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { pluginProjectTablesVersion } from "@molis-ai/molis-work-plugin-runtime";
+import {
+  CATALOG_VERSION_ACCESS, catalogOwner, entryAt, openHomeSqliteFile, openSqliteConnection, readUpgradeStore, SECRET_STORE_FILE, upgradeFailedRefusal, upgradeStepsProblem,
+  USER_VERSION_ACCESS, type HomeStore,
+} from "@molis-ai/molis-work-storage";
 import { SHELF_CATALOG_FILE } from "@molis-ai/molis-work-module-shelf";
 import { BROWSER_SITES_FILE } from "./browser/browser-surfaces.js";
 import { COMPUTER_RECORD_FILE, COMPUTER_RECORD_ID } from "./computer/computer-records.js";
@@ -14,8 +19,10 @@ import { assertCatalogOwner, CATALOG_BASELINE } from "./catalog-schema.js";
 import { homeStores, platformModelPreferences } from "./home-stores.js";
 import type { HomeUpgradeDescriptor } from "./home-upgrade-stores.js";
 import { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
+import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
+import { projectDatabasePlugins, upgradePluginLibrary, upgradePluginTables } from "./project-plugin-databases.js";
 
-const CATALOG = join("projects", "catalog.db");
+const CATALOG = join("projects", "catalog.db"), PROJECT_LIBRARY = join("projects", "*", "molis-work.db");
 
 /**
  * Every project, recycled ones too, since they can come back: `listProjects` leaves those out (§2.3). Read only, at whatever version the
@@ -39,10 +46,60 @@ function partitionFiles(home: string, store: HomeStore): readonly string[] {
   return readdirSync(join(home, projects)).sort().map(project => join(projects, project, store.library!.file ?? `${store.path}.db`));
 }
 
+/** A file's name for messages, from the Home down: never the absolute path. */
+const label = (file: string, depth: number): string => (depth <= 1 ? basename(file) : join(label(dirname(file), depth - 1), basename(file)));
+
+/**
+ * A plugin's own library in the Home, upgraded by the plugin's checks (§2.4) on a connection of its own: `openSqliteConnection`, which the
+ * upgrade process calls only once every other connection on the file is closed, and which is closed again before this returns or throws.
+ */
+export function upgradePluginLibraryFile(file: string, manifest: PluginManifest): void {
+  const db = openSqliteConnection(file);
+  try { upgradePluginLibrary(db, label(file, 2), manifest); }
+  finally { db.close(); }
+}
+
 function libraryDescriptor(store: HomeStore): HomeUpgradeDescriptor {
   const { baseline, partition } = store.library!, name = store.library!.file ?? `${store.path}.db`;
   const pattern = partition ? join(store.path, "projects", "*", name) : join(store.path, name);
-  return { owner: store.owner, pattern, baseline, open: file => openHomeSqliteFile(file), ...(partition ? { paths: (home: string) => partitionFiles(home, store) } : {}) };
+  const plugin = PLATFORM_PLUGIN_REGISTRATIONS.map(entry => entry.manifest)
+    .find(manifest => manifest.plugin_id === store.owner && manifest.databases?.home?.store_name === store.path);
+  return { owner: store.owner, pattern, baseline, open: file => openHomeSqliteFile(file), ...(partition ? { paths: (home: string) => partitionFiles(home, store) } : {}),
+    ...(plugin ? { upgrade: (file: string) => upgradePluginLibraryFile(file, plugin) } : {}) };
+}
+
+/** The SQLite files a plugin's tables are in: their pattern, the files behind it, and the version they must be at before the tables are touched. */
+export interface PluginTablesLibrary {
+  readonly pattern: string;
+  readonly paths: (home: string) => readonly string[];
+  readonly version: number;
+}
+
+const PROJECT_LIBRARIES: PluginTablesLibrary = { pattern: PROJECT_LIBRARY, paths: projectDatabases, version: PROJECT_DATABASE_BASELINE.version };
+
+/**
+ * A plugin's tables in every project's library (§2.4), one unit per plugin and file at `<file>#<store>`, after the file's own. Their version
+ * is read from the ledger inside the file, and only from a file this build can read; they are upgraded only in a file at this build's version.
+ */
+export function pluginTablesDescriptor(manifest: PluginManifest, library: PluginTablesLibrary = PROJECT_LIBRARIES): HomeUpgradeDescriptor {
+  const declaration = manifest.databases!.project!, store = `#${declaration.store_name}`;
+  return {
+    owner: manifest.plugin_id, pattern: library.pattern + store, paths: home => library.paths(home).map(file => file + store),
+    tables: {
+      version: declaration.version,
+      read: file => readUpgradeStore(file, db => (USER_VERSION_ACCESS.read(db) > library.version ? undefined : pluginProjectTablesVersion(db, manifest.plugin_id))),
+      problem: found => upgradeStepsProblem({ version: declaration.version, schema: declaration.schema, upgrades: declaration.upgrades ?? [] }, found),
+      upgrade: file => {
+        const db = openSqliteConnection(file);
+        try {
+          if (USER_VERSION_ACCESS.read(db) !== library.version) {
+            throw upgradeFailedRefusal(label(file, 3), "prerequisite_failed", "插件的表所在的库本身还不是这个程序的版本，插件的表没有动。");
+          }
+          upgradePluginTables(db, label(file, 3), manifest);
+        } finally { db.close(); }
+      },
+    },
+  };
 }
 
 /** One round's record each. The folder's name is checked the way the owner checks it: anything else there is not a record. */
@@ -66,14 +123,16 @@ const platformFiles = (): readonly HomeUpgradeDescriptor[] => [
 ];
 
 /**
- * What the upgrade process looks after (upgrade-chain-design §2.3), in the order they upgrade: the catalog first. Only the plugins this
+ * What the upgrade process looks after (upgrade-chain-design §2.3), in the order they upgrade: the catalog first, then each project's library,
+ * then each built-in plugin's tables in it (§2.4), then the libraries and files of the Home. Only the plugins this
  * build ships are here. An installed plugin's library keeps its own check until U4 opens that door. The search index is rebuilt, so it is not
  * here. Nor are the old Alchemist's two stores: they stay at version 1 with their own refusal until the plugin is redone (user 2026-11-08, BL-377).
  */
 export function platformUpgradeDescriptors(): readonly HomeUpgradeDescriptor[] {
   return [
     { owner: "apps/local-host", pattern: CATALOG, baseline: CATALOG_BASELINE, version: CATALOG_VERSION_ACCESS, open: file => openSqliteConnection(file) },
-    { owner: "apps/local-host", pattern: join("projects", "*", "molis-work.db"), baseline: PROJECT_DATABASE_BASELINE, open: file => openSqliteConnection(file), paths: projectDatabases },
+    { owner: "apps/local-host", pattern: PROJECT_LIBRARY, baseline: PROJECT_DATABASE_BASELINE, open: file => openSqliteConnection(file), paths: projectDatabases },
+    ...projectDatabasePlugins().map(manifest => pluginTablesDescriptor(manifest)),
     ...homeStores().stores.filter(store => store.library !== undefined).map(libraryDescriptor),
     ...platformFiles(),
   ];

@@ -1,5 +1,5 @@
 /** Local SQLite technical owner. */
-export { openSqliteConnection, sqliteErrorName } from "./sqlite-connection.js";
+export { openSqliteConnection, sqliteErrorName, type SqliteAuthorizer } from "./sqlite-connection.js";
 export { LocalSqliteJournal, LocalSqliteStorage, LOCAL_JOURNAL_SCHEMA_SQL, type SqliteDatabase } from "./sqlite.js";
 
 export { LOCAL_OPAQUE_BLOB_SCHEMA_SQL } from "./schema.js";
@@ -104,7 +104,7 @@ export { compileSyncTrackingSql, syncTrackingSeedSql } from './sync-tracking.js'
 export { compileAggregateTrackingSql, aggregateTrackingSeedSql } from './aggregate-tracking.js';
 export { createCollectionCopy } from './collection-copy.js';
 
-export { nativeSqliteOwnerBoundary, type PluginSqlExecution } from './sqlite-owner-boundary.js';
+export { nativeSqliteOwnerBoundary, nativeSqliteSchemaBoundary, type PluginSqlExecution } from './sqlite-owner-boundary.js';
 export { sqliteBaselineTriggers, assertSqliteBaselineTriggers } from './sqlite-baseline-inspection.js';
 export { dumpSqliteText, countSqliteRows, SQLITE_DUMP_NORMALIZED_COLUMNS, type SqliteTextDump } from './sqlite-text-dump.js';
 export { inspectEvidenceContentSnapshot } from "./evidence-snapshot.js";

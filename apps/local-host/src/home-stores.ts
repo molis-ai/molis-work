@@ -78,7 +78,9 @@ export function homeStores(homeDirectory?: string): HomeSnapshotStoreRegistry {
       return [
         ...entry.home_store ? [{ ...entry.home_store, owner: entry.manifest.plugin_id, snapshot }] : [],
         ...library ? [{ path: library.store_name, owner: entry.manifest.plugin_id, snapshot,
-          library: { baseline: { version: library.version, schema: library.schema }, ...library.partition ? { partition: library.partition } : {} } }] : [],
+          // The plugin's steps go with its library: the upgrade process runs them through the plugin's checks (platform-upgrade-stores.ts).
+          library: { baseline: { version: library.version, schema: library.schema, ...library.upgrades ? { upgrades: library.upgrades } : {} },
+            ...library.partition ? { partition: library.partition } : {} } }] : [],
       ];
     }),
     ...owned("horizontal/agent-host", { path: "agent-runtime", snapshot: agentSnapshot }),

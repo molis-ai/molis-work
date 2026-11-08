@@ -20,7 +20,12 @@ import { isDeepStrictEqual } from "node:util";
 import { goldenFailure } from "./failure.mjs";
 import { GOLDEN_HOMES_DIRECTORY } from "./versions.mjs";
 
-const { pluginProjectTablesVersion } = await import("@molis-ai/molis-work-plugin-runtime");
+// Only reading a library with plugin tables needs it; the gates that list the golden files run before anything is built (CI's Gates job).
+const runtime = await import("@molis-ai/molis-work-plugin-runtime").catch(error => ({ unbuilt: error }));
+function pluginProjectTablesVersion(db, pluginId) {
+  if (runtime.unbuilt) throw new Error("读插件表的版本要先构建 @molis-ai/molis-work-plugin-runtime", { cause: runtime.unbuilt });
+  return runtime.pluginProjectTablesVersion(db, pluginId);
+}
 
 export const PERSISTENT_FORMAT_LOCATIONS = Object.freeze({
   "database.home.catalog": { store: "projects/catalog.db" },

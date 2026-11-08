@@ -50,7 +50,7 @@
 | --- | --- | --- |
 | `AgentSkillDeclaration` 只有 `skill_id`、`version`、`name`、`summary`、`tools` | `packages/contracts/src/platform/plugin-agent.ts` | 没有「什么时候用」、资源清单、`applies_to` |
 | Manifest 至少要一个 `entrypoints`，安装时还要有当前部署环境的入口 | `packages/plugin-sdk/src/manifest.ts`、`packages/plugin-runtime/src/index.ts` 的 `installRecord` | 没有 runtime 的插件装不上 |
-| 沙箱 app 包已经能带方法：wire 写 `methods: [{ name, purpose, body }]`，id 由 SHA-256 算出，版本固定为 1 | [沙箱包格式与安装](../../docs/platform/PLUGIN-DEVELOPMENT.md#沙箱包格式与安装) | 第二种方法写法，没有 skill_id、版本和资源；由 C-3 并进来（第 12 节） |
+| 沙箱 app 包已经能带方法：wire 写 `methods: [{ name, purpose, body }]`，id 由 SHA-256 算出，版本固定为 1 | [沙箱包格式与安装](../../docs/platform/PLUGIN-DEVELOPMENT.md#沙箱包格式与安装) | 第二种方法写法，没有 skill_id、版本和资源；已由 C-3 并进来（第 12 节）：`methods` 现在就是 Manifest 的方法声明，旧三键写法被拒 |
 | 助理的 `methods()` 只留「所属插件在这个范围里有可用动作」的方法 | `apps/local-host/src/assistant/assistant-work-reads.ts` | G1：只有内容的插件，助理看不见它的方法 |
 | 宿主的 Agent 定义登记：各插件的提示词、角色和方法，加上人改过的覆盖；存在 Home 库 `agent-definitions`，第 1 版 | `apps/local-host/src/agent-definitions/agent-definitions.ts` | 这就是 Skill 目录的主人，但还没有启用状态和资源 |
 | Coding 另有一条路：从项目目录找 Skill（`agent.skills.discover.v1`），装进 Prologue 存储（`agent.skills.install.v1`，类型 `molis-coding-method`） | `horizontal/agent-host/src/adapters/prologue-methods.ts`；SSOT「Agent Host 保存的人的配置」 | 第二份名单，与助理不共用 |
@@ -132,13 +132,13 @@ my-skill-plugin/
 
 | 字段 | 类型与上限 | `methods` 里（给别的 Agent） | `agent.skills` 里（插件自己的 Agent） |
 | --- | --- | --- | --- |
-| `skill_id`、`version`、`name`、`summary`、`tools` | 不变 | 必填 | 必填 |
+| `skill_id`、`version`、`name`、`summary`、`tools` | 不变；`skill_id` 至多 64 字（`SKILL_LIMITS.skillIdChars`，C-3） | 必填 | 必填 |
 | `description` | 什么时候触发，1～1024 字 | 必填 | 可选 |
 | `when_to_use`、`when_not_to_use` | 各 ≤500 字 | 可选 | 可选 |
 | `applies_to` | `"assistant" \| "coding" \| "both"` | 必填 | 不许写（只给自己的 Agent 用） |
 | `user_invocable` | 布尔；不写表示可以点名 | 可选 | 不许写 |
 | `argument_hint` | ≤80 字 | 可选 | 不许写 |
-| `body` | 正文的包内路径，必须是 `skills/<skill_id>/SKILL.md` | 签名包必填；随系统带的由定义给正文 | 同左 |
+| `body` | 正文的包内路径，必须是 `skills/<skill_id>/SKILL.md` | 签名包必填；随系统带的由定义给正文；签名沙箱包的方法另要求 `tools` 为空（S-105，C-3） | 同左 |
 | `resources` | `SkillResourceDeclaration[]`，见下 | 可选 | 可选 |
 | `connector_categories` | 正文里用到的连接器类别占位符，如 `project-tracker`，取值见[助理统一接入服务](../assistant-service-connections/spec.md) | 可选 | 可选 |
 
@@ -146,7 +146,7 @@ my-skill-plugin/
 
 1. **C-1 把两个字段加进 `AgentSkillDeclaration`，先是可选。** 没有这两个字段之前，插件写进去过不了类型检查，所以合同必须先落。
 2. **E 轨补上取值。** main 上已有三个内置插件声明了 `methods`：取值写在 `plugins/native/todo/src/roles.ts`（`todoSkills`）、`plugins/native/issues/src/skills.ts`、`plugins/native/pages/src/skills.ts`，各自的 `manifest.ts` 只是映射过去，经 `apps/local-host/src/plugin-instructions.ts` 的 `declaredMethods` 在运行时登记。这三处是 E 轨的文件，按轨道规则 7 由 E 轨落，叠在 C-1 后面。
-3. **改成必填和 C-3 放在同一片**：C-3 把沙箱 app 包的 `{ name, purpose, body }` 改成完整的 Skill 声明，包自己带上这两个字段，宿主不再替它派生、也不替它编默认值。这样改成必填的那一刻，没有一个现有包会被拒。
+3. **改成必填和 C-3 放在同一片**：C-3 把沙箱 app 包的 `{ name, purpose, body }` 改成完整的 Skill 声明，包自己带上这两个字段，宿主不再替它派生、也不替它编默认值。这样改成必填的那一刻，没有一个现有包会被拒。（2026-11-07 C-3 已落：`methods` 的类型是 `PluginMethodDeclaration`，`description`、`applies_to` 必填；`methods` 里声明之外的键点名拒绝，`skill_id` 至多 64 字；`agent.skills` 照旧可不写、不许写 `applies_to`。）
 
 （2026-11-04 更正，依据 09 核账 #1804，统筹裁定；分步依据合同台评审。）
 
@@ -424,7 +424,7 @@ interface SkillCatalogEntry {
 | --- | --- | --- |
 | C-1 声明合同 | contracts：`PluginKind` 的 `"content"`、`AgentSkillDeclaration` 的新字段、`SkillResourceDeclaration`、`SkillRef`、内容包的文件常量。SDK：`inspectContentPlugin`、扩展后的 `inspectSkillDeclarations`、`skillDeclarationFromFrontmatter`、内容包的解析。GLOSSARY 加一行；刷新 api 快照。新字段先是可选；E 轨随后补上 Todo、Issues、Pages 的取值，改成必填随 C-3 一起做（第 4.2 节）。给第 09 批 9-1 留位：委派协议的「本轮技能」用 `SkillRef` | 02 交接；#1762 合入 |
 | C-2 目录、设置与导入的动作合同 | `services/skills.ts`：第 6、7、8 节的六个动作声明、`SkillCatalogEntry` 与 `SkillUnavailableReason`、`SkillInstallPreview` 与导入候选的类型；`skills.body.read@1` 收引用数组（第 8 节）。**挪出本片**（第 08 批主会话 2026-11-07 定）：`plugins.install.preview` 的输出形状（`skills`、`requires`、`scope`，`agent_bodies` 只留角色）挪到 08-6（Runtime 与安装）；`plugins.bundled.list@1` 挪到 08-10，和随安装包带上的官方包一起做（spec §11 的 08-10 行）。原因：预览动作的声明和 `additionalProperties: false` 的输出 schema 都写在宿主的 `apps/local-host/src/plugin-install-actions.ts`，产出是 `plugin-install-service.ts` 的 `preview`；改形状就得同时改宿主产出和 `host-actions.tsv`，而且沙箱包的方法在 C-3 之前给不出 `description`、`applies_to`。`plugins.bundled.list@1` 与它同属宿主的 `pluginInstallActions`，主人是插件安装服务，单独搬进 contracts 会让同一组动作分在两处。本片只写 `SkillInstallPreview` 类型，不改宿主、不动动作快照 | C-1；E 轨定样定下 |
-| C-3 方法写法合一（统筹 2026-11-04 定：做） | 沙箱 app 包的 `{ name, purpose, body }` 改成完整的 Skill 声明；`applies_to`、`description` 在同一片改成必填；跑 `pnpm studio:replay`；已有数据按第 11 节同一条 02③ 分界 | C-1；E 轨补好三个内置插件的取值 |
+| C-3 方法写法合一（统筹 2026-11-04 定：做；2026-11-07 已实现，分支 `batch/08-c3`） | 沙箱 app 包的 `{ name, purpose, body }` 改成完整的 Skill 声明；`applies_to`、`description` 在同一片改成必填；跑 `pnpm studio:replay`；已有数据按第 11 节同一条 02③ 分界（02③ 已于 11-07 重建；用户 2026-11-08 定不兼容、不迁移，旧写法的包明确失败、重新打包签名，见 [spec](spec.md) §9） | C-1；E 轨补好三个内置插件的取值 |
 | 实现 | Plugin Runtime 的「已声明、不启动」装配；随安装包带上的官方包与 `plugins.bundled.list@1`；宿主的目录、设置和用量；导入服务与 CLI `pack-content`；BL-165 设计与无障碍内容包 | C-1、C-2 合入；E 轨定样 |
 | 消费方（第 09 批） | 助理与 Coding 两个消费方，以及删掉 Coding 的旧路：09 的 9-2～9-5 | C-2 与目录服务合入；09 的 9-1 |
 
@@ -432,7 +432,7 @@ interface SkillCatalogEntry {
 
 1. **官方技能包和官方套组怎么交**：不走内置 `registration`，做成随安装包带上的签名「只有声明的插件」，走同一条预览、确认安装的路，并有「随包带上、还没装」这个状态（第 3、9 节）。安装包里不预先固定 Molis 发布者，首次照常预览、本人确认。发布者密钥和签包步骤并进第 26 批的签名问题。与 #1793 第 20 批第 2 项的裁定一致。
 2. **信任档**：外部 Skills 导入、个人场景包、AI 生成的方案，都用这个 Home 现有的发布身份签名，与 Plugin Builder 同一档；首次照常预览、本人确认，不另造钥匙，也不另开 `unsigned` 一档。
-3. **沙箱 app 包的三键方法写法**：并进完整的 Skill 声明，单开 C-3，跑 `pnpm studio:replay`，按 02③ 的分界处理已有数据。
+3. **沙箱 app 包的三键方法写法**：并进完整的 Skill 声明，单开 C-3，跑 `pnpm studio:replay`，按 02③ 的分界处理已有数据。（2026-11-07 已实现，不加兼容；02③ 已于 11-07 重建，用户 2026-11-08 定旧写法的包不兼容、不迁移，明确失败、重新打包签名；沙箱包方法 `tools` 为空维持 S-105 现状，用户 2026-11-07 定不放宽。均见 [spec](spec.md) §9。）
 4. **Character 快照里的 Skills**：改成引用目录里的 `SkillRef`。这是 Characters 的合同，记为 BL-957，不在本批做。
 
 另两项已和 E 轨对齐（2026-11-04）：安装与导入的确认都不带启用参数，启用只走 `skills.settings.set@1`；启用状态只按范围记。

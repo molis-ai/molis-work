@@ -44,13 +44,16 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
   // A model call runs in its own process, so the plugin's other reads and saves never wait behind it.
   const lanes = new Map<Lane, Promise<SandboxRunner>>();
   let background: SandboxBackgroundLane | undefined;
+  const packaged = release.packaged, bodies = packaged?.agentBodies;
   const definition: PluginDefinition = {
     manifest,
     ...(instructions ? { instructions } : {}),
-    ...(release.packaged?.agentBodies ? {
-      agent_prompt_names: Object.fromEntries(release.packaged.agentBodies.filter(item => item.kind === 'role').map(item => [item.prompt_id!, { title: item.name, purpose: item.purpose }])),
-      agent_prompts: release.packaged.agentBodies.filter(item => item.kind === 'role').map(item => ({ prompt_id: item.prompt_id!, version: /* @version format.sandbox.agent-prompt */ 1, layer: 'role' as const, body: item.body })),
-      methods: release.packaged.agentBodies.filter(item => item.kind === 'method').map(item => ({ skill_id: item.entry_id, version: /* @version format.sandbox.agent-method */ 1, name: item.name, summary: item.purpose, tools: [], body: item.body })),
+    ...(packaged && bodies ? {
+      agent_prompt_names: Object.fromEntries(bodies.filter(item => item.kind === 'role').map(item => [item.prompt_id!, { title: item.name, purpose: item.purpose }])),
+      agent_prompts: bodies.filter(item => item.kind === 'role').map(item => ({ prompt_id: item.prompt_id!, version: /* @version format.sandbox.agent-prompt */ 1, layer: 'role' as const, body: item.body })),
+      // A method is its package's own declaration, with the body the package ships in place of the body's path.
+      methods: (packaged.manifest.methods ?? []).map(({ body: _path, ...declared }) => ({ ...declared,
+        body: bodies.find(item => item.kind === 'method' && item.entry_id === declared.skill_id)?.body ?? '' })),
     } : {}),
     // Host provenance: Plugin Runtime then requires explicit grants and rolls back code without rolling back data.
     execution: 'sandbox',

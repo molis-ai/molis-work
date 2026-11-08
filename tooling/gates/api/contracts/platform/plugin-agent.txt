@@ -111,9 +111,19 @@ export declare const BUSINESS_HOST_TOOLS: readonly ["ask-user", "update-todo", "
 
 export declare const MAX_SKILL_BODY_CHARS = 20000;
 
+export interface PluginMethodDeclaration extends AgentSkillDeclaration {
+    description: string;
+    applies_to: SkillAppliesTo;
+}
+
+export interface PluginMethodDefinition extends Omit<PluginMethodDeclaration, "body"> {
+    body: string;
+}
+
 export declare const SKILL_APPLIES_TO: readonly ["assistant", "coding", "both"];
 
 export declare const SKILL_LIMITS: {
+    readonly skillIdChars: 64;
     readonly descriptionChars: 1024;
     readonly whenChars: 500;
     readonly argumentHintChars: 80;

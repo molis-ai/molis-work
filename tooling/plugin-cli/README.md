@@ -56,9 +56,9 @@ node tooling/plugin-cli/dist/main.js validate examples/plugin-sample/manifest.js
 
 ## 沙箱包
 
-`pack-sandbox <directory> <output.json>` 从 `plugin.mjs`、`contract.json`、`interface.json`、`prompts.json` 生成未签名包。必填 `--name`、`--version`、`--publisher-id`、`--publisher-key-id`；范围用 `--scope project|home`（默认 project），可选 `--icon`、逗号分隔的 `--compatible-from`，以及 JSON 三元组列表 `--agent`、`--methods`。清单、派生权限和 effects 由公开 SDK 的 `sandboxPluginManifest` / `effectsFromContract` 生成。
+`pack-sandbox <directory> <output.json>` 从 `plugin.mjs`、`contract.json`、`interface.json`、`prompts.json` 生成未签名包。必填 `--name`、`--version`、`--publisher-id`、`--publisher-key-id`；范围用 `--scope project|home`（默认 project），可选 `--icon`、逗号分隔的 `--compatible-from`，以及 JSON 列表 `--agent`（角色资料，每项 `{ name, purpose, body }`）与 `--methods`（完整的方法声明，`description`、`applies_to` 必填，`body` 是 `skills/<skill_id>/SKILL.md`，`tools` 为空）。清单、派生权限和 effects 由公开 SDK 的 `sandboxPluginManifest` / `effectsFromContract` 生成。
 
-命令只读取固定文件和正文声明引用的 `agent/` 文件，不读取源目录的 BuildManifest，不递归打包，也不把 `package.json` 放进沙箱包。输出不能覆盖；路径跳转、symlink、文件/包超限会拒绝。随后用既有 `sign`、`verify` 命令签名与核验。打包只检查它消费的结构；完整合同、界面和正文语义仍由 Host 在安装预览时检查，打包成功不代表插件可运行。
+命令只读取固定文件、角色资料引用的 `agent/` 文件和方法声明的正文与资源，不读取源目录的 BuildManifest，不递归打包，也不把 `package.json` 放进沙箱包。输出不能覆盖；路径跳转、symlink、文件/包超限会拒绝。随后用既有 `sign`、`verify` 命令签名与核验。打包只检查它消费的结构；完整合同、界面和正文语义仍由 Host 在安装预览时检查，打包成功不代表插件可运行。
 
 ## 开发要求
 

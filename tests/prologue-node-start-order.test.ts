@@ -29,8 +29,8 @@ test("W4-06-01: refusing overlapping child directories leaves no durable plan or
     const plan = { source: { artifact_id: "confirmed-plan", version: 1 }, title: "Confirmed plan", steps: [{ id: "step-1", title: "Inspect", acceptance: "Report the evidence" }] };
     await assert.rejects(host.start("prologue", { ...owner, session, directory, role_id: "coordinator", task: "Follow the confirmed plan.",
       execution_plan: plan, text_materials: [{ material_id: "plan", title: plan.title, source_artifact_id: plan.source.artifact_id, source_version: 1, text: JSON.stringify(plan) }],
-      subagent_workspaces: [{ workspace_id: "outer", directory: { canonical_path: root, realpath_verified: true } }] },
-    { manifest, prompts: codingPrompts, authorizedDirectories: [parent, root] }), /子任务目录必须与主目录及其他子目录互不包含/u);
+      subagent_workspaces: [{ worktree_id: "outer", directory: { canonical_path: root, realpath_verified: true } }] },
+    { manifest, prompts: codingPrompts, authorizedDirectories: [parent], worktrees: async () => [{ worktree_id: "outer", canonical_path: root }] }), /子任务目录必须与主目录及其他子目录互不包含/u);
     assert.equal(credentialExchanges, 0, "the refused launch never reaches model credential exchange");
     assert.deepEqual((await adapter.readSession(session)).runs, [], "no run is recorded for the refused launch");
     await adapter.close();

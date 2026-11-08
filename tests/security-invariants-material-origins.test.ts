@@ -45,13 +45,13 @@ const library = { provider_id: "artifacts-install-1", title: "成果库", kind: 
 const pages = { provider_id: "pages-install-1", title: "Pages", kind: "plugin", plugin_id: "pages" } as const;
 
 /** The catalog a caller discovers: the folder reads, and object readers of a few kinds as the tests need them. */
-function catalog(options: { files?: boolean; pagesAvailable?: boolean } = {}) {
+function catalog(options: { files?: boolean; pagesAvailable?: boolean; libraryAvailable?: boolean } = {}) {
   const invoked: string[] = [];
   const system = { provider_id: "system.workspace", title: "工作目录", kind: "system" } as const;
   const views = [
     view(workspaceReadActions.file.capability_id, system, { available: options.files !== false }),
     view(projectDirectoryActions.get.capability_id, { provider_id: PROJECT_WORKSPACE_PROVIDER_ID, title: "项目工作目录", kind: "system" }),
-    view("goals.read", goals, { kinds: ["goal"], reader: true }), view("artifacts.read", library, { kinds: ["artifact"], reader: true }),
+    view("goals.read", goals, { kinds: ["goal"], reader: true }), view("artifacts.read", library, { kinds: ["artifact"], reader: true, available: options.libraryAvailable ?? true }),
     view("pages.read", pages, { kinds: ["page"], reader: true, available: options.pagesAvailable ?? true }),
     view("one.read", goals, { kinds: ["twice"], reader: true }), view("two.read", pages, { kinds: ["twice"], reader: true }),
     view("mcp.read", { provider_id: "mcp.x", title: "X", kind: "mcp" }, { kinds: ["remote"], reader: true }),
@@ -178,6 +178,19 @@ test("SSC-30: a 成果 is an import only when its record says it was imported; o
     const kept = (artifact_id: string): MaterialOriginQuery => ({ ref: { subject: { kind: "artifact", id: artifactSubjectId({ artifact_id, version: 1 }) }, pin: { mode: "current", read_revision: "v2" } } });
     const answers = await readMaterialOrigins(caller("user"), [kept("imported-one"), kept("pinned-one")], { compare: true }, ports(directories, client).ports);
     assert.deepEqual(answers.map(item => [item.origin?.source, item.origin?.state]), [["import", "ok"], ["object", "ok"]]);
+  } finally { cleanup(); }
+});
+
+test("SSC-30: whether a 成果 was imported is read only once the caller may read it", async () => {
+  const { directories, cleanup } = fixture();
+  try {
+    const { client } = catalog({ libraryAvailable: false });
+    const looked: string[] = [];
+    const given = ports(directories, client, { imported: reference => { looked.push(reference.artifact_id); return true; } }).ports;
+    const asked: MaterialOriginQuery[] = [{ ref: { subject: { kind: "artifact", id: artifactSubjectId({ artifact_id: "imported-one", version: 1 }) }, pin: { mode: "current", read_revision: "v2" } } }];
+    assert.deepEqual((await readMaterialOrigins(caller("plugin"), asked, { compare: true }, given)).map(item => item.origin), [null]);
+    assert.deepEqual((await readMaterialOrigins(caller("user"), asked, { compare: true }, given)).map(item => [item.origin?.source, item.origin?.state]), [["object", "forbidden"]]);
+    assert.deepEqual(looked, [], "the library's record was not read for a caller who may not read the object");
   } finally { cleanup(); }
 });
 

@@ -20,7 +20,8 @@ for (const parentOutcome of ["completed", "failed"] as const) test(`Host integra
  const home=await realpath(await mkdtemp(path.join(tmpdir(),"integration-host-"))),root=path.join(home,"repo");await mkdir(root);
  const git=(...args:string[])=>exec("git",args,{cwd:root});await git("init","-q");await git("config","user.name","Fixture");await git("config","user.email","fixture@example.invalid");await writeFile(path.join(root,"note.txt"),"base\n");await git("add",".");await git("commit","-qm","base");
  const tree=await createGitWorktreePort(root).create("child"),childRoot=path.resolve(root,tree.directory);
- let grants=[{workspace_id:"main",canonical_path:root,realpath_verified:true,display_name:"Parent"},{workspace_id:"child",canonical_path:childRoot,realpath_verified:true,display_name:"Child"}];
+ // The child's worktree is the Host's own, not a folder of the project (plan A): the project has only its output.
+ const grants=[{workspace_id:"main",canonical_path:root,realpath_verified:true,display_name:"Parent"}];let output:typeof grants[0]|null=grants[0]!;
  let parentCalls=0,childCalls=0;
  t.mock.method(globalThis,"fetch",async(_url:unknown,init:RequestInit)=>{
   const body=JSON.parse(typeof init.body==="string"?init.body:new TextDecoder().decode(init.body as Uint8Array));
@@ -30,7 +31,7 @@ for (const parentOutcome of ["completed", "failed"] as const) test(`Host integra
   return parentCalls===1?response("dispatch-subagent",{instruction:"CHILD_TASK read and update note.txt",tools:["read","search","context-remaining","write","edit","run-command"],workspace:"child",character,idempotencyKey:"child",background:false}):parentOutcome === "failed" ? new Response(JSON.stringify({type:"error",error:{type:"invalid_request_error",message:"fixture parent cannot finish its report"}}),{status:400,headers:{"content-type":"application/json"}}):response();
  });
  const localHost=new MolisWorkLocalHost(),reference=molisWorkHostProjectReference({databasePath:path.join(home,"board.db"),projectId: "board"});
- const make=()=>composeAgentHost({localHost,homeDirectory:home,workspaceFor:()=>grants[0]!,workspacesFor:()=>grants,prologue:{storageRoot:path.join(home,"sdk"),modelConfiguration:async()=>({protocol:"anthropic-compatible",endpoint:"https://1.1.1.1/v1/messages",model:"fixture",credential_ref:"fixture"}),resolveCredential:()=>"test-only"}});
+ const make=()=>composeAgentHost({localHost,homeDirectory:home,workspaceFor:()=>output,workspacesFor:()=>grants,prologue:{storageRoot:path.join(home,"sdk"),modelConfiguration:async()=>({protocol:"anthropic-compatible",endpoint:"https://1.1.1.1/v1/messages",model:"fixture",credential_ref:"fixture"}),resolveCredential:()=>"test-only"}});
  let composition=make();await composition.ready;
  // Integrating is a review only the installation holding review:git-integration asks for, through its own session (S-50); reading
  // what would be integrated is that installation's too (W5-01-CODING-46). Both are the Host's actions, offered to plugins only (PG-035).
@@ -42,7 +43,7 @@ for (const parentOutcome of ["completed", "failed"] as const) test(`Host integra
  try{
   const adapter=composition.agentHost.adapter("prologue"),owner={project_id:"board",plugin_id:coding,install_id,actor_id:"user"},directory={canonical_path:root,realpath_verified:true};
   const session=await adapter.createSession({...owner,directory,title:"integration"});
-  const handle=await composition.agentHost.start("prologue",{...owner,session,directory,role_id:"writers",task:"delegate once",subagent_workspaces:[{workspace_id:"child",directory:{canonical_path:childRoot,realpath_verified:true}}]}, {manifest:codingAgentManifest,prompts:codingPrompts,authorizedDirectories:[root,childRoot]});
+  const handle=await composition.agentHost.start("prologue",{...owner,session,directory,role_id:"writers",task:"delegate once",subagent_workspaces:[{worktree_id:"child",directory:{canonical_path:childRoot,realpath_verified:true}}]}, {manifest:codingAgentManifest,prompts:codingPrompts,authorizedDirectories:[root],worktrees:async()=>[{worktree_id:"child",canonical_path:childRoot}]});
   const source={session_id:session.session_id,run_id:handle.ref.run_id,subagent_id:"unknown"};
   await assert.rejects(reads.invoke(integration.read,source),{code:"workspace_git.writer.unsettled",message:/父任务|子任务/});
   const deadline=Date.now()+15000,decided=new Set<string>();
@@ -54,6 +55,12 @@ for (const parentOutcome of ["completed", "failed"] as const) test(`Host integra
   assert.equal((await adapter.read(handle.ref)).phase,parentOutcome);
   const children=await adapter.subagents!.list(handle.ref); assert.equal(children.length,1,JSON.stringify(await adapter.read(handle.ref))); source.subagent_id=children[0]!.subagent_id;
   const view=await reads.invoke(integration.read,source);assert.equal(view.files[0]!.after_text,"child result\n");assert.equal(view.files[0]!.selectable,true);
+  assert.deepEqual([view.workspace_id,view.worktree_id],["main","child"],"the output it comes back to, and the Host's worktree it comes from");
+  // A round recorded before writers were named by their worktree (its child carries `workspace_id`) is refused, never read another way.
+  const recorded=adapter.read.bind(adapter),old=t.mock.method(adapter,"read",async(ref:Parameters<typeof recorded>[0])=>{const run=await recorded(ref);
+   return {...run,frozen:{...run.frozen,subagent_workspaces:run.frozen.subagent_workspaces?.map(({worktree_id,directory})=>({workspace_id:worktree_id,directory}))}};});
+  await assert.rejects(reads.invoke(integration.read,source),{code:"workspace_git.writer.round_outdated",message:/这一轮是旧版本开的，写手的目录接不上，请重开一轮/});
+  old.mock.restore();
   await elsewhere.start(coding,[...integrate],granted,consumes);
   await assert.rejects(elsewhere.actions(coding).invoke(integration.read,source),{code:"workspace_git.writer.session_foreign",message:/不属于本项目/});
   await assert.rejects(reads.invoke(integration.read,{...source,subagent_id:"forged"}),{code:"workspace_git.writer.unsettled",message:/子任务/});
@@ -84,6 +91,8 @@ for (const parentOutcome of ["completed", "failed"] as const) test(`Host integra
   await composition.dispose();composition=make();await composition.ready;await composition.agentHost.reviews.refresh("board");
   assert.deepEqual(composition.agentHost.reviews.receipt(ready.review_id),receipt);assert.deepEqual(composition.agentHost.reviews.get(ready.review_id),request);
   await assert.rejects(composition.agentHost.reviews.respond({review_id:ready.review_id,decision:"approve",actor_id:"user"}));assert.equal(parentCalls+childCalls,calls);
-  grants=grants.slice(0,1);await assert.rejects(reads.invoke(integration.read,source),{code:"workspace_git.writer.workspace_unavailable",message:/授权/});
+  // It comes back only to the folder the round ran in while that is still the output, and only from the worktree the Host made for it.
+  output=null;await assert.rejects(reads.invoke(integration.read,source),{code:"workspace_git.writer.workspace_unavailable",message:/输出目录/});output=grants[0]!;
+  await git("worktree","remove","--force",childRoot);await assert.rejects(reads.invoke(integration.read,source),{code:"workspace_git.writer.workspace_unavailable",message:/独立工作树/});
  }finally{await plugins.close();await elsewhere.close();await composition.dispose();await localHost.close();await rm(home,{recursive:true,force:true});}
 });

@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, realpathSync, renameSync, rmSync, symlinkSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import test from "node:test";
 
 import type { DirectoryChange, ProjectDirectories } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -9,15 +10,13 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { resolveWorkspaceFileSubject, resolveWorkspaceId, workspaceFileSubjectId } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import {
   createProjectsSchema,
-  fillProjectOutputs,
   isProjectOutputWorkspaceId,
-  PROJECTS_CATALOG_UPGRADE_1_SQL,
   prepareProjectOutputDirectory,
   projectOutputHash,
   projectOutputWorkspaceId,
   ProjectsModule,
-  verifyProjectOutputs,
 } from "@molis-ai/molis-work-module-projects";
+import { CATALOG_UPGRADES, createGitWorktreePort, hostWriterId } from "@molis-ai/molis-work-app-local-host";
 import { openTestSqlite, type SqliteDatabase } from "@molis-ai/molis-work-test-kit/sqlite";
 
 /** A Home in a temporary directory, with `projects/` and an `outputs/` that is not made yet, and folders outside it to link. */
@@ -358,11 +357,13 @@ function catalogV1(eventSuffix: string): SqliteDatabase {
   return db;
 }
 
+/** The Host's own step from 1 to 2, as the catalog's upgrade run calls it (its transaction, its owner's check). */
 function upgrade(db: SqliteDatabase): void {
+  const step = CATALOG_UPGRADES.find(entry => entry.from === 1)!;
+  assert.equal(step.sql, undefined, "the step is one function, so the writers' links go before the roles are drawn");
   db.transaction(() => {
-    db.exec(PROJECTS_CATALOG_UPGRADE_1_SQL);
-    fillProjectOutputs(db);
-    verifyProjectOutputs(db);
+    step.run!(db);
+    step.verify!(db);
   })();
 }
 
@@ -426,5 +427,88 @@ test("SSC-20 a project with no event cannot be given an output, and the step fai
     assert.equal(db.prepare("SELECT name FROM sqlite_master WHERE name = 'workspace_source_links'").get(), undefined);
   } finally {
     db.close();
+  }
+});
+
+/** A repository with a worktree the Host made for a writer, where the Host makes them (`createGitWorktreePort`, `hostWriterId`). */
+async function repositoryWithWriter(root: string) {
+  const repo = join(root, "repo");
+  mkdirSync(repo);
+  writeFileSync(join(repo, "README.md"), "fixture\n");
+  const git = (...args: string[]) => execFileSync("git", ["-C", repo, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "-c", "commit.gpgsign=false", ...args]);
+  git("init", "-q"); git("add", "README.md"); git("commit", "-q", "-m", "fixture");
+  const tree = await createGitWorktreePort(repo).create(hostWriterId("operation-1"));
+  return { repo, writer: resolve(repo, tree.directory) };
+}
+
+/** A version-1 catalog with the given projects (each with an event) and links (`[project, path, is_default]`), one folder row per path. */
+function catalogWithLinks(projects: readonly string[], links: ReadonlyArray<readonly [string, string, 0 | 1]>): SqliteDatabase {
+  const db = openTestSqlite(":memory:");
+  db.pragma("foreign_keys = ON");
+  createProjectsSchema(db);
+  db.exec("DROP TABLE workspace_source_links; DROP TABLE workspace_project_memberships;");
+  db.exec(MEMBERSHIPS_V1_SQL);
+  const at = "2026-10-01T00:00:00.000Z";
+  for (const project of projects) {
+    db.prepare("INSERT INTO projects (project_id, display_name, source, data_class, created_at, updated_at) VALUES (?, ?, 'created', 'user', ?, ?)").run(`project-${project}`, project, at, at);
+    db.prepare("INSERT INTO project_events (event_id, project_id, type, actor_id, payload_json, created_at) VALUES (?, ?, 'project.created', 'user-1', '{}', ?)").run(`event-${project}`, `project-${project}`, at);
+  }
+  const ids = new Map<string, string>();
+  links.forEach(([project, path, isDefault], index) => {
+    if (!ids.has(path)) {
+      ids.set(path, `workspace-${ids.size}`);
+      db.prepare("INSERT INTO workspaces (workspace_id, canonical_path, realpath_verified, display_name, created_at, updated_at) VALUES (?, ?, 1, ?, ?, ?)").run(ids.get(path), path, basename(path), at, at);
+    }
+    db.prepare("INSERT INTO workspace_project_memberships (membership_id, workspace_id, project_id, is_default, bound_by, created_at, updated_at) VALUES (?, ?, ?, ?, 'user-1', ?, ?)")
+      .run(`m${index}`, ids.get(path), `project-${project}`, isDefault, at, at);
+  });
+  return db;
+}
+
+const linkedPaths = (db: SqliteDatabase, project: string) => (db.prepare(`SELECT workspaces.canonical_path AS path, role_input, role_output FROM workspace_project_memberships
+  JOIN workspaces USING (workspace_id) WHERE project_id = ? ORDER BY workspaces.canonical_path`).all(`project-${project}`) as Array<{ path: string; role_input: number; role_output: number }>);
+
+test("SSC-20 catalog 1 to 2: a single-folder project that ran writers keeps that folder as its output, and the writers' worktree links are gone", async () => {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "molis-work-upgrade-writers-")));
+  try {
+    const { repo, writer } = await repositoryWithWriter(root);
+    // Host 0.x linked each writer's worktree to the project (`authorizeWriterDirectory`): the project counted two folders.
+    const db = catalogWithLinks(["甲"], [["甲", repo, 1], ["甲", writer, 0]]);
+    try {
+      upgrade(db);
+      assert.deepEqual(linkedPaths(db, "甲"), [{ path: repo, role_input: 1, role_output: 1 }], "the person's one folder is the output, as for any one-folder project");
+      assert.equal(db.prepare("SELECT 1 FROM workspaces WHERE canonical_path = ?").get(writer), undefined, "the worktree's folder row went with its link");
+    } finally {
+      db.close();
+    }
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("SSC-20 catalog 1 to 2: a folder the person linked that is not where the Host makes writers' worktrees for that project stays as it was", async () => {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "molis-work-upgrade-folders-")));
+  try {
+    const { repo, writer } = await repositoryWithWriter(root);
+    const writersOf = dirname(writer), name = basename(writer);
+    const kept = [
+      join(root, "elsewhere", name), // named like a writer, not under the writers' folder
+      join(dirname(writersOf), "0123456789abcdef", name), // under the writers' folder, under another repository's key
+      join(writersOf, "notes"), // under this repository's key, not a writer's id
+    ];
+    // 乙 links the repository's real worktree too, but not the repository: a worktree is the Host's only beside its own repository.
+    const db = catalogWithLinks(["甲", "乙"], [["甲", repo, 1], ...kept.map(path => ["甲", path, 0] as const), ["乙", writer, 1]]);
+    try {
+      upgrade(db);
+      const rows = linkedPaths(db, "甲");
+      assert.deepEqual(rows.filter(row => row.role_input).map(row => [row.path, row.role_output]), [repo, ...kept].sort().map(path => [path, 0]),
+        "every folder of a project with several stays, an input");
+      assert.deepEqual(rows.filter(row => row.role_output).map(row => row.path), ["project-output:project-甲"], "and the project's output is its default output directory");
+      assert.deepEqual(linkedPaths(db, "乙"), [{ path: writer, role_input: 1, role_output: 1 }], "a project's one folder is its output");
+    } finally {
+      db.close();
+    }
+  } finally {
+    rmSync(root, { recursive: true, force: true });
   }
 });

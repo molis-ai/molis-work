@@ -48,8 +48,8 @@ async function bench(t: { mock: { method: Function } }, script: (side: "parent" 
   const directory = { canonical_path: main, realpath_verified: true };
   const session = await adapter.createSession({ ...owner, directory, title: "Claims" });
   const start = () => host.start("prologue", { ...owner, session, directory, role_id: "writers", task: "按计划执行。", execution_plan: plan, text_materials: [material],
-    subagent_workspaces: [{ workspace_id: "writer-0", directory: { canonical_path: writer, realpath_verified: true } }] } as never,
-    { manifest: codingAgentManifest, prompts: codingPrompts, authorizedDirectories: [main, writer] });
+    subagent_workspaces: [{ worktree_id: "writer-0", directory: { canonical_path: writer, realpath_verified: true } }] } as never,
+    { manifest: codingAgentManifest, prompts: codingPrompts, authorizedDirectories: [main], worktrees: async () => [{ worktree_id: "writer-0", canonical_path: writer }] });
   const settle = async (ref: AgentRunRef): Promise<AgentRunView> => {
     const decided = new Set<string>();
     for (const deadline = Date.now() + 40_000; ;) {

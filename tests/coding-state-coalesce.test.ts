@@ -103,7 +103,7 @@ async function harness(initial: Entry[]) {
   // Reading a child's result is the Host's action (PG-035): it answers an empty view, and the call is recorded with the others.
   const actions = fakeWriterActions(pluginActions(store, DEMO_PROJECT_ID), definition => {
     if (definition.capability_id !== writerIntegrationCapabilities.read.capability_id) throw new Error(`Unexpected action ${definition.capability_id}`);
-    return { workspace_id: "work", writer_workspace_id: "child", source_path: root + "-child", target_path: root, branch: "writer/child", base_commit: "abc123", files: [] };
+    return { workspace_id: "work", worktree_id: "child", source_path: root + "-child", target_path: root, branch: "writer/child", base_commit: "abc123", files: [] };
   }, calls);
   const letter = (input: Wording, state: AgentSessionMessage["state"]): AgentSessionMessage => ({ message_id: "m1", audience: "people", kind: "request",
     from_session: input.from_session, to_session: input.to_session, from_title: "发起", to_title: "委派", body: input.body, state, sent_at_ms: Date.now(), history: [], attachments: [] });

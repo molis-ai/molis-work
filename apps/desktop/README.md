@@ -26,7 +26,7 @@ Tauri 工程、配置和资源已集中在本包的 `src-tauri/`，启动占位�
 
 本包的装配依赖见 [package.json](package.json)；包之间的允许方向由仓库边界检查约束。
 
-桌面启动、原生命令分发及 Shelf 后台请求先用随机 challenge 和 Home 控制密钥验证本地服务的 HMAC 响应。后台请求复用已验证的 TCP 连接再发送令牌和内容；端口上的任意 HTTP 服务不能冒充本 Home。原生 PTY 已移除，终端仍走工作台的 WebSocket PTY。对应 SYS-14 的 Rust/HTTP 负向用例证明协议拒绝，原生 WebKit 实操单列验收。
+桌面启动、原生命令分发及 Shelf 后台请求先用随机 challenge 和 Home 控制密钥验证本地服务的 HMAC 响应。后台请求复用已验证的 TCP 连接再发送令牌和内容；端口上的任意 HTTP 服务不能冒充本 Home。原生 PTY 已移除，终端仍走工作台的 WebSocket PTY。对应 SYS-14 的 Rust/HTTP 负向用例证明协议拒绝，原生 WebKit 实操单列验收。启动时宿主若在升级数据（`/health` 回 503、证明可验、`status` 为 `upgrading`），`web_service.rs` 就接着等：8 秒从最后一次这样的回答重新算，上限 30 分钟；已经在升级的宿主不再另起一个、也不替换它；后台请求仍只发给 `ok` 的服务（U1-h，设计见 `specs/upgrade-continuity/upgrade-chain-design.md` §4.3）。
 
 ## 产品启动与打包
 

@@ -1,4 +1,5 @@
 use crate::runtime_env::login_shell_path;
+use crate::web_identity::Answer;
 use semver::Version;
 use serde::Deserialize;
 use std::fs;
@@ -16,6 +17,72 @@ use std::time::{Duration, Instant};
 pub(crate) struct WebServiceState {
     pub(crate) owned_child: Mutex<Option<std::process::Child>>,
     pub(crate) shutting_down: AtomicBool,
+}
+
+/// How long a started service has to answer ready. Time it spends proving it is upgrading does
+/// not count (upgrade-chain-design §4.3).
+const START_WAIT: Duration = Duration::from_secs(8);
+/// The limit the managed service has too (`UPGRADE_WAIT_MILLISECONDS` in
+/// `installer/web-service-process.ts`): an upgrade takes as long as the data does, and this still
+/// ends a process that never stops saying so.
+const UPGRADE_WAIT: Duration = Duration::from_secs(30 * 60);
+const PROBE_INTERVAL: Duration = Duration::from_millis(120);
+
+#[derive(Debug, PartialEq, Eq)]
+enum Wait {
+    Ready,
+    TimedOut,
+    Stopped,
+}
+
+/// Waits for the service on 4173. A ready answer ends it. While this Home's Host proves it is
+/// upgrading, the 8 seconds start again from its last such answer, up to `UPGRADE_WAIT`; anything
+/// else, a 503 no one can prove is this Home's among them, uses them up.
+fn wait_for_web(
+    mut answer: impl FnMut() -> Option<Answer>,
+    mut now: impl FnMut() -> Instant,
+    mut pause: impl FnMut(),
+    stopping: impl Fn() -> bool,
+) -> Wait {
+    let started = now();
+    let mut deadline = started + START_WAIT;
+    loop {
+        if stopping() {
+            return Wait::Stopped;
+        }
+        let at = now();
+        if at >= deadline {
+            return Wait::TimedOut;
+        }
+        match answer() {
+            Some(Answer::Ready(_)) => return Wait::Ready,
+            Some(Answer::Upgrading) if at < started + UPGRADE_WAIT => deadline = at + START_WAIT,
+            _ => {}
+        }
+        pause();
+    }
+}
+
+/// The wait, on this machine's port and clock. A service that does not come up in it is stopped,
+/// if this App started it.
+fn wait_for_owned_web(service_state: &WebServiceState) -> Result<(), String> {
+    let waited = wait_for_web(
+        || crate::web_identity::answer().ok(),
+        Instant::now,
+        || thread::sleep(PROBE_INTERVAL),
+        || service_state.shutting_down.load(Ordering::Acquire),
+    );
+    match waited {
+        Wait::Ready => Ok(()),
+        Wait::Stopped => {
+            stop_owned_web_service(service_state);
+            Err("Molis Work 正在退出，不再等待 Web 服务".into())
+        }
+        Wait::TimedOut => {
+            stop_owned_web_service(service_state);
+            Err("Molis Work Web 已启动，但 127.0.0.1:4173 尚未就绪".into())
+        }
+    }
 }
 
 fn product_env(suffix: &str) -> Option<String> {
@@ -222,6 +289,11 @@ pub(crate) fn ensure_molis_work_web(
         }
         return Ok(());
     }
+    // This Home's Host is already upgrading its data (the managed service, or one this App
+    // started): another would only fail on the Home's lock, and replacing it stops the upgrade.
+    if matches!(crate::web_identity::answer(), Ok(Answer::Upgrading)) {
+        return wait_for_owned_web(service_state);
+    }
     if !bin.is_file() {
         if let Some(resource_dir) = resource_dir {
             // A first-run App can seed its self-contained Runtime. Existing installs are
@@ -250,19 +322,7 @@ pub(crate) fn ensure_molis_work_web(
         .spawn()
         .map_err(|error| format!("无法启动 Molis Work Web：{error}"))?;
     replace_owned_web_child(service_state, child)?;
-    let deadline = Instant::now() + Duration::from_secs(8);
-    while Instant::now() < deadline {
-        if service_state.shutting_down.load(Ordering::Acquire) {
-            stop_owned_web_service(service_state);
-            return Err("Molis Work 正在退出，不再等待 Web 服务".into());
-        }
-        if web_healthy() {
-            return Ok(());
-        }
-        thread::sleep(Duration::from_millis(120));
-    }
-    stop_owned_web_service(service_state);
-    Err("Molis Work Web 已启动，但 127.0.0.1:4173 尚未就绪".into())
+    wait_for_owned_web(service_state)
 }
 
 #[cfg(test)]
@@ -325,5 +385,67 @@ mod embedded_runtime_version_tests {
             ),
         );
         fs::remove_dir_all(home).unwrap();
+    }
+}
+
+#[cfg(test)]
+mod upgrade_wait_tests {
+    use super::{wait_for_web, Wait, START_WAIT, UPGRADE_WAIT};
+    use crate::web_identity::Answer;
+    use std::cell::Cell;
+    use std::time::{Duration, Instant};
+
+    const READY: &str = r#"{"status":"ok","desktop_tui":true}"#;
+    const STEP: Duration = Duration::from_secs(1);
+
+    /// The wait on a clock that moves only while it pauses, a second at a time: how it ended, and
+    /// after how long. `says` is what 4173 answers that far in.
+    fn waited(mut says: impl FnMut(Duration) -> Option<Answer>) -> (Wait, Duration) {
+        let start = Instant::now();
+        let clock = Cell::new(start);
+        let wait = wait_for_web(
+            || says(clock.get() - start),
+            || clock.get(),
+            || clock.set(clock.get() + STEP),
+            || false,
+        );
+        (wait, clock.get() - start)
+    }
+
+    fn ready() -> Option<Answer> {
+        let health = serde_json::from_str(READY).unwrap();
+        Some(Answer::Ready(health))
+    }
+
+    #[test]
+    fn upg19_an_upgrading_host_is_not_stopped_and_has_its_eight_seconds_after() {
+        let upgrade = Duration::from_secs(120);
+        let (wait, after) = waited(|elapsed| {
+            if elapsed < upgrade {
+                Some(Answer::Upgrading)
+            } else if elapsed < upgrade + Duration::from_secs(5) {
+                None
+            } else {
+                ready()
+            }
+        });
+        assert_eq!(wait, Wait::Ready);
+        assert_eq!(after, upgrade + Duration::from_secs(5));
+    }
+
+    #[test]
+    fn upg19_without_a_proven_upgrading_answer_the_service_still_has_eight_seconds() {
+        assert_eq!(waited(|_| None), (Wait::TimedOut, START_WAIT));
+        let upgrade = Duration::from_secs(120);
+        let (wait, after) = waited(|elapsed| (elapsed < upgrade).then_some(Answer::Upgrading));
+        assert_eq!(wait, Wait::TimedOut);
+        assert_eq!(after, upgrade - STEP + START_WAIT);
+    }
+
+    #[test]
+    fn upg19_a_host_that_never_stops_upgrading_is_still_given_up_on() {
+        let (wait, after) = waited(|_| Some(Answer::Upgrading));
+        assert_eq!(wait, Wait::TimedOut);
+        assert_eq!(after, UPGRADE_WAIT - STEP + START_WAIT);
     }
 }

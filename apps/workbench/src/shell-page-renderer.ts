@@ -163,6 +163,7 @@ function renderMolisWorkWeb(
   const defer = deferredSurfaces(L, enabledPlugins, view.pane_plugin);
   const projectTitlebarChrome = renderDesktopProjectChrome(view.project ?? null, projectOptions, desktopShell, view.project ? "__PROJECT_SETTINGS__" : null, { switcherClass: "desktop-project-switcher", manageHref: "__PROJECT_INDEX__", directoryToggle: true, globalSearch: true });
   const directoryEmpty = initialDesktopDirectory === "root";
+  const sideTabs = projectSideTabs(enabledPlugins, view.route_prefix);
   const collection = parts?.body_attributes?.["data-board-view"];
   const widthPreference = directoryWidthPreferenceScript(view.project?.project_id ?? "", collection === "archive" || collection === "trash" ? collection : "current", view.pane_plugin !== undefined);
 
@@ -191,15 +192,15 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
     },
     body_html: `
   ${renderIconSprite()}
-  ${renderPluginDirectoryData(directory)}
+  ${renderPluginDirectoryData(directory, offered.map(entry => entry.id))}
   <div class="app">
     <main class="immersive-workspace${parts?.workspace_classes?.length ? ` ${escapeHtml(parts.workspace_classes.join(" "))}` : ""}${directoryEmpty ? " is-plugin-directory-empty" : ""}" data-workspace data-mobile-view="document" data-workspace-mode="graph">
-      ${renderImmersiveHeader(primitives, desktopShell, view.home_plugin_nav)}
+      ${renderImmersiveHeader(primitives, desktopShell, view.home_plugin_nav, sideTabs)}
       ${renderWorkbenchBar(primitives, {
         enabled: enabledPlugins,
         rail: renderPluginRail(primitives, enabledPlugins, directory, { developerMode: view.developer_mode, marksFromHost: Boolean(view.plugin_directory) }),
         projectChrome: renderWorkspaceChrome(primitives, projectTitlebarChrome.replace("<!-- project-menu-extra -->", renderPersonalMenuItems(primitives))),
-        sideTabs: projectSideTabs(enabledPlugins, view.route_prefix),
+        sideTabs,
       })}
       <aside class="mw-sidebar mw-sidebar--directory mw-drawer mw-drawer--left tree-pane" id="goal-tree-pane" data-desktop-directory="${initialDesktopDirectory}" data-slot="sidebar" aria-label="${L("应用目录")}">
         <div class="mw-scroll directory-content-scroll">

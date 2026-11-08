@@ -92,6 +92,30 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
       return openWorkbenchSurface(surface, itemId, title, directoryTabMode());
     };
 
+    /* Opening a plugin's place from any entry (the switcher, the Dock, a strip's plugin tab, ?openSurface=) is this one call, so
+       no entry presses another's button (specs/product-flow-governance §4.6.2, 口径 8). The origin is the switcher's entry for it,
+       when there is one: its place in the directory decides whether the directory column opens. */
+    const openSurfaceEntry = (surface, origin = null, clickEvent) => {
+      const available = desktopWorkSurfaces.some((candidate) => candidate.dataset.workSurface === surface);
+      if (surface === "goals" && !available) {
+        saveUiState();
+        restoreLastGoal(true);
+        return;
+      }
+      const directory = surface === "goals" || OWN_DIRECTORY_SURFACES.includes(surface) ? surface : "root";
+      const nextDirectory = directory !== "root" && document.querySelector('[data-directory-panel="' + directory + '"]')
+        ? directory
+        : "root";
+      setDesktopDirectory(nextDirectory, true, true, origin);
+      const pluginId = origin?.dataset.pluginId;
+      if (pluginId && pluginId !== "home" && pluginId !== "market" && nextDirectory !== "root") setDirectoryCollapsed?.(false, false);
+      if (!openDirectorySurface(surface, undefined, undefined, clickEvent)) setDesktopWorkSurface(surface, true, true);
+      if (surface === "home" && !collectionView && localPathname() !== "/") {
+        history.pushState({ workSurface: "home" }, "", route("/"));
+      }
+      if (matchMedia("(max-width: 760px)").matches) setMobileView(nextDirectory === "root" || surface === "home" || surface === "market" ? "document" : "tree");
+    };
+
     const LIST_PLUGIN_SECTIONS = ["goals", ...OWN_DIRECTORY_SURFACES.filter((id) => id !== "sources")];
 
     const syncPluginDirectory = (directory) => {

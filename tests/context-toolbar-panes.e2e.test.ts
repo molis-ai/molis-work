@@ -41,7 +41,7 @@ test("W2-02: a split pane draws its bar in its own document; holding it is repor
   const browser = await pagesWorkbench(t);
   if (!browser) return;
   const { evaluate, waitFor, click } = browser;
-  await click("[data-titlebar-tabs] [data-tab-split]");
+  await click("[data-layout-open]");
   await click("[data-layout-split=right]");
   const PANE = "[...document.querySelectorAll('iframe.tab-content-frame')].find(frame => frame.contentDocument?.querySelector('iframe[data-plugin-frame=pages]'))";
   await browser.pane.waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(TEXT)})`,20_000);

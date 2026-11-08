@@ -81,7 +81,7 @@ test("RAC2804 RAC2805 RAC2806: the right Goals page stays readable beside CORE",
   await gesture(corePoint);
   await waitFor("document.querySelector('.tab-item[aria-current][data-item-id=CORE]') && document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal === 'CORE'");
   assert.deepEqual(await evaluate("window.__t380CoreTrusted"), [{ id: "CORE", trusted: true }, { id: "CORE", trusted: true }]);
-  await click('[data-tab-split]');
+  await click('[data-layout-open]');
   await click('[data-layout-split="right"]');
   await waitFor("document.querySelectorAll('[data-tab-pane]').length === 2");
   const paneIds = await evaluate<string[]>("[...document.querySelectorAll('[data-tab-pane]')].sort((a,b)=>a.getBoundingClientRect().left-b.getBoundingClientRect().left).map(p=>p.dataset.tabPane)");
@@ -255,7 +255,7 @@ test("PTG-01 PTG-06 PTG-07 PTG-09 plugins stay on the strip as coloured groups; 
   await browser.setViewport(1440, 1000);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
-  await waitFor("document.querySelector('.tab-item[data-tab-kind=home][aria-current]')");
+  await waitFor("document.body.dataset.desktopSurface === 'home' && !document.querySelector(':is([data-titlebar-tabs], [data-tab-strip]) .tab-item[aria-current]')");
   const plugin = (id: string) => `[data-titlebar-tabs] .tab-item[data-tab-kind=plugin][data-plugin=${id}]`;
 
   await click('[data-plugin-strip] [data-plugin-id="goals"]');

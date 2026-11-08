@@ -15,9 +15,9 @@ export function homePluginSideTabs(routePrefix = ""): SidePanelPluginTab[] {
     })));
 }
 
-/** The chords Home tools answer to, for frames that hand them to the shell. */
+/** The chords frames hand to the shell: the Home tools', and ⌘\ / Ctrl+\, which collapses or opens the right side. */
 function homePluginKeys(): string[] {
-  return homePluginSideTabs().flatMap(tab => tab.keys ? [tab.keys] : []);
+  return ["Mod+Backslash", ...homePluginSideTabs().flatMap(tab => tab.keys ? [tab.keys] : [])];
 }
 
 /**

@@ -119,7 +119,7 @@ test("VUX-31: a Shelf action dragged to another place that could not be saved go
   await browser.waitFor("document.documentElement.dataset.resolvedTheme === 'light'");
   await browser.waitFor("document.querySelector('[data-side-toggle]')");
   await browser.click("[data-side-toggle]");
-  await browser.waitFor("document.querySelector('#side-panel [role=tab][aria-selected=true]')?.dataset.sideTab === 'plugin:shelf/side'");
+  await browser.waitFor("document.querySelector('[data-side-tabs] [role=tab][aria-selected=true]')?.dataset.sideTab === 'plugin:shelf/side'");
   await browser.waitFor(`document.querySelector('[data-side-body="plugin:shelf/side"] iframe')?.getAttribute('src') === ${JSON.stringify(`/projects/${projectId}/side/shelf/side`)}`);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/side/shelf/side` }, sessionId));
   await waitFor("document.documentElement.dataset.resolvedTheme === 'light' && document.querySelector('[data-shelf-stage-shell]')", 8_000);

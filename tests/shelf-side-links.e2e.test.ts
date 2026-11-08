@@ -30,7 +30,7 @@ test("SHELF-LINK-01 SHELF-LINK-02 SHELF-LINK-03 a stored link, search hit and no
     .then((response) => response.json()).then((shelf) => (shelf.materials || []).find((row) => row.name === "试用示例.pdf") || null)`);
   assert.ok(item, "the sample material is on the shelf");
   const landed = async (why: string) => {
-    await waitFor(`document.body.dataset.sideOpen === 'true' && document.querySelector('#side-panel [role=tab][aria-selected=true]')?.dataset.sideTab === ${JSON.stringify(SHELF_TAB)}`, 8_000);
+    await waitFor(`document.body.dataset.sideOpen === 'true' && document.querySelector('[data-side-tabs] [role=tab][aria-selected=true]')?.dataset.sideTab === ${JSON.stringify(SHELF_TAB)}`, 8_000);
     await child.waitFor(`document.querySelector('[data-shelf-item].is-on')?.dataset.shelfItem === ${JSON.stringify(item.item_id)}`, 10_000);
     assert.equal(await evaluate("document.querySelector('[data-work-surface=shelf], [data-tab-workspace] [data-tab-plugin=shelf]')"), null, `${why}: nothing of Shelf opens in the work area`);
   };

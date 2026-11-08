@@ -5,6 +5,34 @@
  * Tokens only; the card lays itself out by its own width, so one markup fits the Assistant panel, Coding and a phone.
  * It comes in segments, so a page pays only for the parts it draws (a question without dates leaves the calendar out).
  */
+/** Option cards (`renderInteractionOptions` with descriptions): a choice whose difference is said under its name. Part of the question
+ * sheet; a page that draws only option cards, such as the settings page's delete confirmation, takes this segment alone. */
+export const INTERACTION_OPTION_STYLES = `
+/* Options with a reason: the product's choice, the difference under the name, a copper tag for the recommendation. */
+.mw-ix-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; width: 100%; }
+.mw-ix-option { display: grid; gap: 3px; min-height: 52px; padding: 8px 12px; border: 0; border-radius: var(--r-control, 8px); background: var(--paper); color: var(--ink); font: inherit; text-align: left; cursor: pointer; box-shadow: var(--lift-1), 0 0 0 1px var(--line);
+  transition: background-color var(--dur-move) var(--ease-quint), color var(--dur-move) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
+.mw-ix-option:hover:not([aria-pressed="true"], [aria-checked="true"]):not(:disabled) { background: color-mix(in srgb, var(--ink) 3%, var(--paper)); }
+.mw-ix-option:active:not(:disabled) { transform: scale(.97); }
+/* A single pick is a radio (aria-checked); the product's choice styles its selected state from aria-pressed, so mirror them. */
+.mw-ix-option:is([aria-pressed="true"], [aria-checked="true"]), .mw-ix-choices .mw-choice[aria-checked="true"] { background: var(--action); color: var(--action-ink); box-shadow: var(--lift-1); }
+.mw-ix-option:focus-visible { outline: var(--focus-stroke); outline-offset: 2px; }
+.mw-ix-option__top { display: flex; align-items: center; gap: 6px; }
+.mw-ix-option__title { font-weight: var(--weight-control, 500); }
+.mw-ix-option__desc { color: var(--muted); font-size: 12px; line-height: 1.4; }
+.mw-ix-option:is([aria-pressed="true"], [aria-checked="true"]) .mw-ix-option__desc { color: color-mix(in srgb, var(--action-ink) 74%, transparent); }
+.mw-ix-option__check { margin-left: auto; display: inline-grid; opacity: 0; transform: scale(.6); transition: opacity var(--dur-move) var(--ease-quint), transform var(--dur-move) var(--ease-spring); }
+.mw-ix-option__check svg { width: 12px; height: 12px; }
+.mw-ix-option:is([aria-pressed="true"], [aria-checked="true"]) .mw-ix-option__check, .mw-ix-choices .mw-choice[aria-checked="true"] .mw-choice__check { opacity: 1; transform: none; }
+.mw-ix-tag { display: inline-flex; align-items: center; padding: 0 6px; border-radius: var(--r-tag, 6px); background: var(--accent-soft); color: var(--ink); font-size: 11px; font-weight: var(--weight-control, 500); line-height: 18px; }
+.mw-ix-option:is([aria-pressed="true"], [aria-checked="true"]) .mw-ix-tag { background: color-mix(in srgb, var(--action-ink) 18%, transparent); color: var(--action-ink); }
+.mw-ix-option:disabled { cursor: default; opacity: .6; }
+@media (max-width: 760px), (pointer: coarse) { .mw-ix-option { min-height: 44px; } }
+@media (prefers-reduced-motion: reduce) {
+  :is(.mw-ix-option, .mw-ix-option__check) { animation: none; transition: none; }
+}
+`;
+
 /** The card, its fields, option groups, banners, the footer and an answered summary: every page that shows a question or a card takes it. */
 export const INTERACTION_QUESTION_STYLES = `
 .mw-ix-card { container: mw-ix / inline-size; display: grid; gap: 12px; padding: 14px 16px 16px; border-radius: var(--r-card, 12px); background: var(--paper); box-shadow: 0 0 0 1px var(--line); color: var(--ink); text-align: left; }
@@ -44,29 +72,10 @@ export const INTERACTION_QUESTION_STYLES = `
 [data-ix-focus], .mw-ix-preview, .mw-ix-result, .mw-ix-operation { scroll-margin-block: 24px; }
 :is(.mw-ix-options, .mw-ix-choices, .mw-ix-refs)[aria-invalid="true"] { border-radius: var(--r-control, 8px); box-shadow: 0 0 0 1px var(--red); }
 :is(.mw-ix-options, .mw-ix-choices):focus-visible { outline: var(--focus-stroke); outline-offset: 3px; }
-/* Options with a reason: the product's choice, the difference under the name, a copper tag for the recommendation. */
-.mw-ix-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; width: 100%; }
-.mw-ix-option { display: grid; gap: 3px; min-height: 52px; padding: 8px 12px; border: 0; border-radius: var(--r-control, 8px); background: var(--paper); color: var(--ink); font: inherit; text-align: left; cursor: pointer; box-shadow: var(--lift-1), 0 0 0 1px var(--line);
-  transition: background-color var(--dur-move) var(--ease-quint), color var(--dur-move) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
-.mw-ix-option:hover:not([aria-pressed="true"], [aria-checked="true"]):not(:disabled) { background: color-mix(in srgb, var(--ink) 3%, var(--paper)); }
-.mw-ix-option:active:not(:disabled) { transform: scale(.97); }
-/* A single pick is a radio (aria-checked); the product's choice styles its selected state from aria-pressed, so mirror them. */
-.mw-ix-option:is([aria-pressed="true"], [aria-checked="true"]), .mw-ix-choices .mw-choice[aria-checked="true"] { background: var(--action); color: var(--action-ink); box-shadow: var(--lift-1); }
-.mw-ix-option:focus-visible { outline: var(--focus-stroke); outline-offset: 2px; }
-.mw-ix-option__top { display: flex; align-items: center; gap: 6px; }
-.mw-ix-option__title { font-weight: var(--weight-control, 500); }
-.mw-ix-option__desc { color: var(--muted); font-size: 12px; line-height: 1.4; }
-.mw-ix-option:is([aria-pressed="true"], [aria-checked="true"]) .mw-ix-option__desc { color: color-mix(in srgb, var(--action-ink) 74%, transparent); }
-.mw-ix-option__check { margin-left: auto; display: inline-grid; opacity: 0; transform: scale(.6); transition: opacity var(--dur-move) var(--ease-quint), transform var(--dur-move) var(--ease-spring); }
-.mw-ix-option__check svg { width: 12px; height: 12px; }
-.mw-ix-option:is([aria-pressed="true"], [aria-checked="true"]) .mw-ix-option__check, .mw-ix-choices .mw-choice[aria-checked="true"] .mw-choice__check { opacity: 1; transform: none; }
-.mw-ix-tag { display: inline-flex; align-items: center; padding: 0 6px; border-radius: var(--r-tag, 6px); background: var(--accent-soft); color: var(--ink); font-size: 11px; font-weight: var(--weight-control, 500); line-height: 18px; }
-.mw-ix-option:is([aria-pressed="true"], [aria-checked="true"]) .mw-ix-tag { background: color-mix(in srgb, var(--action-ink) 18%, transparent); color: var(--action-ink); }
-.mw-ix-choices .mw-choice { min-width: 0; min-height: 34px; }
+${INTERACTION_OPTION_STYLES}.mw-ix-choices .mw-choice { min-width: 0; min-height: 34px; }
 .mw-ix-banner { display: grid; gap: 8px; padding: 10px 12px; border-radius: var(--r-control, 8px); background: var(--rail); color: var(--ink); }
 .mw-ix-banner[data-tone="waiting"] { background: color-mix(in srgb, var(--amber) 12%, var(--paper)); }
 .mw-ix-banner[data-tone="failed"] { background: color-mix(in srgb, var(--red) 10%, var(--paper)); }
-.mw-ix-option:disabled { cursor: default; opacity: .6; }
 .mw-ix-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .mw-ix-actions--end { justify-content: flex-end; }
 .mw-ix-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding-top: 12px; box-shadow: inset 0 1px 0 var(--line); }
@@ -79,7 +88,7 @@ export const INTERACTION_QUESTION_STYLES = `
 .mw-ix-answered dt, .mw-ix-preview dt { color: var(--muted); }
 .mw-ix-answered dd, .mw-ix-preview dd { margin: 0; color: var(--ink); overflow-wrap: anywhere; white-space: pre-line; }
 @media (max-width: 760px), (pointer: coarse) {
-  :is(.mw-ix-option, .mw-ix-choices .mw-choice) { min-height: 44px; }
+  .mw-ix-choices .mw-choice { min-height: 44px; }
   .mw-ix-card .mw-btn { min-height: 44px; }
   .mw-ix-card .mw-btn--icon-only { width: 44px; min-width: 44px; }
 }
@@ -87,9 +96,6 @@ export const INTERACTION_QUESTION_STYLES = `
   .mw-ix-card { padding: 12px 12px 14px; }
   .mw-ix-foot .mw-ix-actions { width: 100%; }
   .mw-ix-foot [data-ix-action="submit"] { flex: 1; }
-}
-@media (prefers-reduced-motion: reduce) {
-  :is(.mw-ix-option, .mw-ix-option__check) { animation: none; transition: none; }
 }
 `;
 

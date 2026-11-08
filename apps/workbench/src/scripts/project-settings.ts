@@ -90,49 +90,140 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
         const root = dialog.closest("[data-project-pane], .project-settings-page") || scope || document;
         const form = dialog.querySelector("form");
         const confirmation = form.elements.delete_confirmed;
+        const confirmRow = dialog.querySelector("[data-project-delete-confirm]");
         const submit = form.querySelector("button[type=submit]");
         const error = dialog.querySelector("[data-project-delete-error]");
         const cancel = dialog.querySelector("[data-project-delete-cancel]");
         const names = dialog.querySelector("[data-project-delete-scope] span");
-        const loadNames = () => molisWorkRequest("/api/settings/projects/" + encodeURIComponent(form.dataset.projectDelete) + "/delete-scope")
-          .then((result) => { names.textContent = result.owners.map((owner) => owner.label).join("；"); }).catch(() => null);
+        const description = dialog.querySelector(".runtime-plan-body > p[id]");
+        const plainDescription = description.textContent;
+        // The default output directory's question (A3): its two option cards are the confirmation, so the checkbox goes while it shows.
+        const question = dialog.querySelector("[data-project-delete-output]");
+        const options = [...question.querySelectorAll("[data-ix-option]")];
+        const busyNotice = dialog.querySelector("[data-project-delete-busy]");
+        const title = dialog.querySelector("header h2");
+        const plainTitle = title.textContent;
+        const formBody = dialog.querySelector(".runtime-plan-body:not([data-project-delete-kept])");
+        const kept = dialog.querySelector("[data-project-delete-kept]");
+        const actions = dialog.querySelector("[data-project-delete-actions]");
+        const done = dialog.querySelector("[data-project-delete-done]");
         let busy = false;
         let cleanupPending = false;
         let deletionKey = null;
+        let asks = false;
+        let choice = null;
+        const ready = () => !busy && (cleanupPending || (asks ? choice !== null : confirmation.checked));
+        const label = () => cleanupPending ? L("重试清理") : asks && choice === "delete" ? L("删除项目和文件") : asks && choice === "keep" ? L("删除项目") : L("确认删除项目");
+        const paint = () => {
+          question.hidden = !asks;
+          confirmRow.hidden = asks;
+          description.textContent = asks ? L("永久删除这个项目在 Molis Work 中的目标、记录和关联。你自己选的文件夹里的代码和文件会保留。") : plainDescription;
+          options.forEach((option) => {
+            const on = option.dataset.ixOption === choice;
+            option.setAttribute("aria-checked", on ? "true" : "false");
+            option.tabIndex = on || (choice === null && option === options[0]) ? 0 : -1;
+            // Once the deletion started the choice is fixed (another choice under the same key is refused), so the cards stop moving.
+            option.disabled = busy || cleanupPending;
+          });
+          confirmation.disabled = busy || cleanupPending;
+          submit.disabled = !ready();
+          if (!busy) submit.textContent = label();
+        };
+        const choose = (value, focus) => {
+          choice = value;
+          busyNotice.hidden = true;
+          paint();
+          if (focus) options.find((option) => option.dataset.ixOption === value)?.focus();
+        };
+        options.forEach((option, index) => {
+          option.addEventListener("click", () => choose(option.dataset.ixOption, false));
+          option.addEventListener("keydown", (event) => {
+            const step = event.key === "ArrowDown" || event.key === "ArrowRight" ? 1 : event.key === "ArrowUp" || event.key === "ArrowLeft" ? -1 : 0;
+            if (!step) return;
+            event.preventDefault();
+            choose(options[(index + step + options.length) % options.length].dataset.ixOption, true);
+          });
+        });
+        dialog.querySelector("[data-project-delete-keep-instead]").addEventListener("click", () => choose("keep", true));
+        const loadScope = () => molisWorkRequest("/api/settings/projects/" + encodeURIComponent(form.dataset.projectDelete) + "/delete-scope")
+          .then((result) => {
+            names.textContent = result.owners.map((owner) => owner.label).join("；");
+            // Asked once per deletion: a retry keeps the shape the deletion started with.
+            if (!deletionKey) { asks = result.default_output === "has_files"; paint(); }
+          }).catch(() => null);
+        const showKept = (path) => {
+          title.textContent = L("项目已删除");
+          formBody.hidden = actions.hidden = true;
+          kept.hidden = done.hidden = false;
+          kept.querySelector("[data-project-delete-kept-path]").textContent = path;
+          const note = kept.querySelector("[data-project-delete-kept-note]");
+          if (!asks) note.textContent = L("里面有文件，删除时没有动它们。") + note.textContent;
+          busy = true;
+          requestAnimationFrame(() => done.querySelector("a")?.focus({ preventScroll: true }));
+        };
+        kept.querySelector("[data-project-delete-copy]").addEventListener("click", async (event) => {
+          const path = kept.querySelector("[data-project-delete-kept-path]").textContent;
+          const button = event.currentTarget;
+          if (window.molisCopy) { await window.molisCopy(button, () => path, { done: L("已复制"), failed: L("没能复制") }); return; }
+          try { await navigator.clipboard.writeText(path); } catch (caught) { molisWorkRequest.show(error, caught); }
+        });
+        done.querySelector("a").addEventListener("click", (event) => {
+          event.preventDefault();
+          location.assign(globalThis.molisWorkNavigationUrl(form.dataset.projectDirectoryHref));
+        });
         root.querySelector("[data-project-delete-open]")?.addEventListener("click", () => {
           if (!deletionKey) {
             confirmation.checked = false;
-            submit.disabled = true;
-            error.hidden = true;
+            choice = null;
+            asks = false;
+            error.hidden = busyNotice.hidden = true;
+            title.textContent = plainTitle;
+            paint();
           }
           dialog.showModal();
-          loadNames();
+          loadScope();
         });
         cancel.addEventListener("click", () => { if (!busy) dialog.close(); });
-        dialog.addEventListener("cancel", (event) => { if (busy) event.preventDefault(); });
-        confirmation.addEventListener("change", () => { submit.disabled = busy || !confirmation.checked; });
+        dialog.addEventListener("cancel", (event) => { if (busy && kept.hidden) event.preventDefault(); });
+        confirmation.addEventListener("change", paint);
         form.addEventListener("submit", async (event) => {
           event.preventDefault();
-          if (busy || !confirmation.checked) return;
+          if (!ready()) return;
           deletionKey ||= crypto.randomUUID();
           busy = true;
-          submit.disabled = cancel.disabled = confirmation.disabled = true;
+          cancel.disabled = true;
           error.hidden = true;
+          paint();
           submit.textContent = L("正在删除…");
           try {
             const result = await molisWorkRequest("/api/settings/projects/" + encodeURIComponent(form.dataset.projectDelete) + "/delete", {
-              body: { delete_confirmed: true, idempotency_key: deletionKey }, fallback: L("项目删除失败"),
+              body: { delete_confirmed: true, idempotency_key: deletionKey, ...(asks && choice ? { output_files: choice } : {}) }, fallback: L("项目删除失败"),
             });
             cleanupPending = result.deletion.cleanup_state !== "complete";
             if (cleanupPending) throw new Error(L("项目已从目录移除，但本机数据清理未完成。请重试清理。"));
+            busyNotice.hidden = true;
+            if (result.kept_output_directory) { showKept(result.kept_output_directory); return; }
             location.assign(globalThis.molisWorkNavigationUrl(form.dataset.projectDirectoryHref));
           } catch (caught) {
-            molisWorkRequest.show(error, caught);
-            error.hidden = false;
             busy = false;
-            cancel.disabled = confirmation.disabled = false;
-            submit.disabled = !confirmation.checked;
-            submit.textContent = cleanupPending ? L("重试清理") : L("确认删除项目");
+            cancel.disabled = false;
+            if (caught?.code === "catalog.project_task_live") {
+              // Tasks may still be writing into the folder: say so where the choice is, and offer the way that works now.
+              // The deletion did not start, so the next try may choose again under a new key.
+              deletionKey = null;
+              const shown = !busyNotice.hidden;
+              busyNotice.hidden = false;
+              // First time it rises in; pressed again while it shows, it hops once instead of appearing again.
+              busyNotice.classList.remove("is-nudged", "mw-alert--rise");
+              void busyNotice.offsetWidth;
+              busyNotice.classList.add(shown ? "is-nudged" : "mw-alert--rise");
+              busyNotice.scrollIntoView({ block: "nearest" });
+            } else {
+              molisWorkRequest.show(error, caught);
+              error.hidden = false;
+              error.scrollIntoView({ block: "nearest" });
+            }
+            paint();
           }
         });
       });

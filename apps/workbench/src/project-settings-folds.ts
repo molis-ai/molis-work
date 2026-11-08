@@ -1,4 +1,5 @@
-import { renderStatusMark } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { renderInteractionOptions } from "@molis-ai/molis-work-design-system";
+import { icon as uiIcon, renderAlert, renderButton, renderStatusMark } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 /** Standalone hub / embed fold stack. Workbench exclusive settings use project-settings-stage. */
@@ -105,6 +106,21 @@ export function createProjectSettingsFolds(primitives: ProjectSettingsFoldsPrimi
     </section>`;
   }
 
+  /**
+   * The one question the dialog asks when the project's default output directory still has files (design 05-materials-directories, A3,
+   * user 2026-11-08): the two option cards are the confirmation, so the checkbox goes while it shows. Hidden until delete-scope says
+   * `has_files`; empty or unreadable folders are not asked about and stay (SSC-23).
+   */
+  function renderDeleteOutputQuestion(project: ProjectSettingsFoldProject): string {
+    const id = `project-delete-output-${project.project_id}`;
+    const options = [
+      { value: "keep", label: L("删除项目，文件留下"), description: L("默认输出目录原样留在这台电脑上，删除后告诉你它在哪里。") },
+      { value: "delete", label: L("删除项目和文件"), description: L("默认输出目录和里面的文件一起删掉，包括还没提交的代码。") },
+    ];
+    return `<div class="project-delete-output" data-project-delete-output hidden><p class="project-delete-output__ask" id="${escapeHtml(id)}-label">${L("默认输出目录里还有文件，要怎么处理？")}</p>${
+      renderInteractionOptions(options, { id, labelledBy: `${id}-label` })}<p class="project-delete-output__say">${L("两种都会永久删除项目，不能撤销。")}</p></div>`;
+  }
+
   function renderProjectDeleteDialog(project: ProjectSettingsFoldProject, desktopShell: boolean): string {
     if (project.data_class === "regenerable_demo") return "";
     const directoryHref = desktopShell ? withDesktopQuery("/") : "/";
@@ -112,8 +128,15 @@ export function createProjectSettingsFolds(primitives: ProjectSettingsFoldsPrimi
     return `<dialog class="runtime-plan-dialog project-delete-dialog" data-project-delete-dialog aria-labelledby="project-delete-dialog-title-${escapeHtml(project.project_id)}" aria-describedby="project-delete-description-${escapeHtml(project.project_id)}">
       <form class="runtime-plan-shell" data-project-delete="${escapeHtml(project.project_id)}" data-project-directory-href="${directoryHref}">
         <header><div><h2 id="project-delete-dialog-title-${escapeHtml(project.project_id)}">${L("删除项目")}</h2><p>${escapeHtml(project.display_name)}</p></div></header>
-        <div class="runtime-plan-body"><p id="project-delete-description-${escapeHtml(project.project_id)}">${L("永久删除这个项目在 Molis Work 中的目标、记录和关联。关联工作目录中的代码和文件会保留。")}</p><p class="mw-field__hint" data-project-delete-scope>${L("各插件里属于这个项目的数据也会一起删除。")}<br><span></span></p><label class="runtime-plan-confirm"><input type="checkbox" name="delete_confirmed"><span>${L("我确认删除这个项目，且理解此操作无法撤销。")}</span></label><p class="settings-form-error" data-project-delete-error role="alert" hidden></p></div>
-        <footer><button class="mw-btn mw-btn--secondary" type="button" data-project-delete-cancel autofocus>${L("取消")}</button><button class="mw-btn mw-btn--danger project-delete-button" type="submit" disabled>${L("确认删除项目")}</button></footer>
+        <div class="runtime-plan-body"><p id="project-delete-description-${escapeHtml(project.project_id)}">${L("永久删除这个项目在 Molis Work 中的目标、记录和关联。关联工作目录中的代码和文件会保留。")}</p><p class="mw-field__hint" data-project-delete-scope>${L("各插件里属于这个项目的数据也会一起删除。")}<br><span></span></p>${renderDeleteOutputQuestion(project)}<label class="runtime-plan-confirm" data-project-delete-confirm><input type="checkbox" name="delete_confirmed"><span>${L("我确认删除这个项目，且理解此操作无法撤销。")}</span></label>${renderAlert({
+          title: L("现在删不干净这些文件"), tone: "warning", state: "answer", role: "alert", className: "project-delete-busy", attrs: { "data-project-delete-busy": true, hidden: true },
+          body: L("这个项目还有任务在运行或排队，它们可能还在往这个文件夹里写。等任务结束，或者先在项目里停下它们，再来删除；也可以留下文件，现在就删除项目。"),
+          actions: [{ label: L("改成留下文件"), variant: "secondary", attrs: { "data-project-delete-keep-instead": true } }] })}<p class="settings-form-error" data-project-delete-error role="alert" hidden></p></div>
+        <div class="runtime-plan-body project-delete-kept" data-project-delete-kept hidden><div class="project-delete-kept__box"><div class="project-delete-kept__title">${uiIcon("folder")}<span>${L("默认输出目录留在这台电脑上")}</span></div>
+          <div class="project-delete-kept__path"><code data-project-delete-kept-path></code>${renderButton({ label: L("复制位置"), icon: "copy", variant: "secondary", size: "sm", attrs: { "data-project-delete-copy": true } })}</div></div>
+          <p data-project-delete-kept-note>${L("文件夹以项目编号命名，Molis Work 里不会再列出它。要用里面的文件，到这个位置去找。")}</p></div>
+        <footer data-project-delete-actions><button class="mw-btn mw-btn--secondary" type="button" data-project-delete-cancel autofocus>${L("取消")}</button><button class="mw-btn mw-btn--danger project-delete-button" type="submit" disabled>${L("确认删除项目")}</button></footer>
+        <footer data-project-delete-done hidden><a class="mw-btn mw-btn--primary" href="${directoryHref}" data-project-delete-home>${L("回到项目列表")}</a></footer>
       </form>
     </dialog>`;
   }

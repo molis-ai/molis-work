@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { mkdir, readFile, realpath, writeFile } from "node:fs/promises";
+import { join, resolve } from "node:path";
 import test from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
@@ -179,6 +179,77 @@ test("project general settings persist a rename, cancel safely, and retry deleti
   await navigate(() => click('[data-project-delete-dialog] button[type=submit]'));
   assert.equal(await evaluate("location.pathname + location.search"), "/?desktop=1");
   assert.deepEqual(await (await fetch(origin + "/api/settings/projects")).json(), { projects: [] });
+});
+
+// SSC-23, design 05-materials-directories A3 (user 2026-11-08): when the project's default output directory has files, the two option cards
+// are the confirmation (no checkbox); keeping says where the folder stays, deleting removes it; an empty folder keeps today's checkbox.
+test("SSC-23 A3 the delete dialog asks about the default output directory's files with option cards, says where kept files stay, and deletes them only when chosen", { timeout: 60_000 }, async t => {
+  const browser = await openGoalBrowser(t, "empty");
+  if (!browser) return;
+  const { origin, sessionId, command, evaluate, waitFor, click, navigate, homeDirectory } = browser;
+  await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await navigate(() => command("Page.navigate", { url: origin + "/onboarding?desktop=1" }, sessionId));
+  await navigate(() => click("#cx-exit"));
+  const create = async (name: string) => (await evaluate<{ project: { project_id: string } }>(`fetch('/api/settings/projects', {
+    method: 'POST', headers: molisWorkControlHeaders(), body: JSON.stringify({display_name:${JSON.stringify(name)},user_confirmed:true})
+  }).then(async response => { if (!response.ok) throw new Error(await response.text()); return response.json(); })`)).project.project_id;
+  const general = "document.querySelector('[data-tab-workspace]')?.dataset.exclusive === 'project-settings' && !!document.querySelector('[data-work-surface=project-settings] [data-project-rename]')";
+  const openSettings = async (projectId: string) => {
+    await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/settings/general?desktop=1` }, sessionId));
+    await waitFor(general, 15_000);
+  };
+  const dialog = "document.querySelector('[data-project-delete-dialog]')";
+  const submit = `${dialog}.querySelector('button[type=submit]')`;
+
+  // An empty default output directory is not asked about: the checkbox confirms, as before.
+  const empty = await create("没有文件的项目");
+  await openSettings(empty);
+  await click("[data-project-delete-open]");
+  await waitFor(`${dialog}.querySelector('[data-project-delete-scope] span').textContent !== ''`);
+  assert.equal(await evaluate(`${dialog}.querySelector('[data-project-delete-output]').hidden`), true);
+  assert.equal(await evaluate(`${dialog}.querySelector('[data-project-delete-confirm]').hidden`), false);
+  await click("[data-project-delete-cancel]");
+
+  // Files there: the question shows, the checkbox goes, nothing is preset, and the button says what it will do.
+  const keep = await create("留下文件的项目");
+  const keptFolder = join(homeDirectory, "outputs", keep);
+  await mkdir(keptFolder, { recursive: true });
+  await writeFile(join(keptFolder, "报告.md"), "# 留着\n");
+  await openSettings(keep);
+  await click("[data-project-delete-open]");
+  await waitFor(`!${dialog}.querySelector('[data-project-delete-output]').hidden`);
+  assert.equal(await evaluate(`${dialog}.querySelector('[data-project-delete-confirm]').hidden`), true);
+  assert.equal(await evaluate(`${submit}.disabled`), true);
+  assert.deepEqual(await evaluate(`[...${dialog}.querySelectorAll('[data-ix-option]')].map(option => option.getAttribute('aria-checked'))`), ["false", "false"]);
+  assert.equal(await evaluate(`${dialog}.querySelector('[role=radiogroup]').getAttribute('aria-labelledby') === ${dialog}.querySelector('.project-delete-output__ask').id`), true);
+  await click("[data-project-delete-dialog] [data-ix-option=delete]");
+  assert.equal(await evaluate(`${submit}.textContent`), "删除项目和文件");
+  // The arrow keys move the choice, as a radio group does.
+  await evaluate(`${dialog}.querySelector('[data-ix-option=delete]').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }))`);
+  assert.equal(await evaluate(`document.activeElement?.dataset.ixOption`), "keep");
+  assert.equal(await evaluate(`${submit}.textContent`), "删除项目");
+  assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
+  await click("[data-project-delete-dialog] button[type=submit]");
+  await waitFor(`!${dialog}.querySelector('[data-project-delete-kept]').hidden`, 15_000);
+  assert.equal(await evaluate(`${dialog}.querySelector('header h2').textContent`), "项目已删除");
+  assert.equal(await evaluate(`${dialog}.querySelector('[data-project-delete-kept-path]').textContent`), await realpath(keptFolder).catch(() => keptFolder));
+  assert.equal(await readFile(join(keptFolder, "报告.md"), "utf8"), "# 留着\n");
+  assert.equal(await evaluate(`${dialog}.querySelector('[data-project-delete-actions]').hidden`), true);
+  await navigate(() => click("[data-project-delete-home]"));
+  assert.equal(await evaluate("location.pathname + location.search"), "/?desktop=1");
+
+  // Chosen to delete: the folder goes with the project and the page goes back to the list.
+  const gone = await create("删除文件的项目");
+  const goneFolder = join(homeDirectory, "outputs", gone);
+  await mkdir(goneFolder, { recursive: true });
+  await writeFile(join(goneFolder, "草稿.md"), "# 删掉\n");
+  await openSettings(gone);
+  await click("[data-project-delete-open]");
+  await waitFor(`!${dialog}.querySelector('[data-project-delete-output]').hidden`);
+  await click("[data-project-delete-dialog] [data-ix-option=delete]");
+  await navigate(() => click("[data-project-delete-dialog] button[type=submit]"));
+  assert.equal(await evaluate("location.pathname + location.search"), "/?desktop=1");
+  await assert.rejects(readFile(join(goneFolder, "草稿.md")), { code: "ENOENT" });
 });
 
 // Global settings open over the named project's workbench (specs/artifact-positioning S6): moving between categories,

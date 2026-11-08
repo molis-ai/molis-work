@@ -163,7 +163,7 @@ export function createLocalWebCoreFactory(platform: LocalWebPlatform) {
           if (!authorizeLocalWebRequest(request, response, url, controlToken, mutationKeys)) return;
           if (localHost.lifecycle() !== "running") throw new Error("Local Host is closing");
           await pluginPagesFor(storageHome).bind(request, url, response);
-          if (await handleAccountHttp(request, response, url, account)) return;
+          if (await handleAccountHttp(request, response, url, account, serverOptions.isNativeAccountRequest)) return;
           if (request.method === "GET" && url.pathname === "/health" && catalogAccess) {
             const ready = server.address() !== null && Boolean(pty.host) && (Boolean(fixture) || catalogAccess.ready);
             sendWebHealth(response, ready ? 200 : 503, {
@@ -219,7 +219,7 @@ export function createLocalWebCoreFactory(platform: LocalWebPlatform) {
       projectTitle: async projectId => withCatalog({ homeDirectory: storageHome }, catalog => projectOrNull(catalog, projectId)?.display_name ?? null), pages: installedPagesPort(withCatalog, storageHome) }).service;
     attachWebAssistant(server, storageHome, assistant, agents, periodic);
     if (!fixture && catalogAccess) finishLeftOverDeletions(server, storageHome, catalogAccess, periodic, serverOptions.deletionSweepMs);
-    return Object.assign(runtimeSyncSurface(server, storageHome, localHost, withCatalog, operation=>{if(!catalogAccess)throw new Error('同步项目目录尚未就绪');return catalogAccess.read(operation);}), { projectSyncLifecycle: new ProjectDeletionService(withCatalog, webProjectDeletionPorts({ isPanelAlive: panelId => pty.host?.alive(panelId) ?? false, projectSchedules, webViewCache, localHost })) });
+    return Object.assign(runtimeSyncSurface(server, storageHome, localHost, withCatalog, operation=>{if(!catalogAccess)throw new Error('同步项目目录尚未就绪');return catalogAccess.read(operation);}), { matchesNativeAccountCallback: account.matchesNativeCallback, projectSyncLifecycle: new ProjectDeletionService(withCatalog, webProjectDeletionPorts({ isPanelAlive: panelId => pty.host?.alive(panelId) ?? false, projectSchedules, webViewCache, localHost })) });
     } catch (error) {
       if (!ownsLocalHost && !releaseTransport) throw error;
       throw retainInitializationCleanup(error, () => ownsLocalHost ? localHost.close() : (async () => { await (shutdown ? shutdown() : cleanup()); releaseTransport?.(); })(), "web_initialization_cleanup_failed");

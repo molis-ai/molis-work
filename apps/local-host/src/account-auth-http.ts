@@ -5,7 +5,8 @@ import type { AccountHostBinding } from "./account-host.js";
 import { readLocalWebBody, requestHost, sendLocalWebJson } from "./web-http.js";
 
 /** Narrow credential routes; the outer local-entry guard supplies control Token, Origin and one-time key. */
-export async function handleAccountAuthenticationHttp(request: IncomingMessage, response: ServerResponse, url: URL, account: AccountHostBinding): Promise<boolean> {
+export async function handleAccountAuthenticationHttp(request: IncomingMessage, response: ServerResponse, url: URL, account: AccountHostBinding,
+  isNativeAccountRequest?: (request: IncomingMessage) => boolean): Promise<boolean> {
   const create = url.pathname === "/api/account/auth/transactions" && request.method === "POST";
   const reset = url.pathname === "/api/account/password/reset" && request.method === "POST";
   const reauth = url.pathname === "/api/account/reauthentications";
@@ -32,7 +33,7 @@ export async function handleAccountAuthenticationHttp(request: IncomingMessage, 
       }
       if (operation === "create") return auth.create(body, control);
       if (operation === "reset") return auth.reset(body, control);
-      if (operation === "submit") return auth.submit(handle, body, control);
+      if (operation === "submit") return auth.submit(handle, body, control, body?.step === "START_PROVIDER" && isNativeAccountRequest?.(request) === true);
       if (operation === "resend") return auth.resend(handle, control);
       if (operation === "cancel") return auth.cancel(handle, control);
       return auth.get(handle, control);

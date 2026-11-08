@@ -2,17 +2,23 @@
 // injection point for them, and should not get one for a test, so the process replaces them before it loads any product code. Install this
 // first; everything else is imported dynamically after it.
 //
-// Time stands still for the whole generation: a background timer (the Host's knowledge organizer, say) fires when it fires, and what it records
-// must not depend on which step it landed in. The id stream is keyed by the step and by the line asking, not by a global counter: anything in
+// Time stands still for the whole generation, periods included: a Host's round every 30 seconds is about time passing, and how much real time a
+// generation takes is the machine's business. On a slow enough one the round came due and woke what was due (Feed's job is due the moment it is
+// registered), which is a row that is there or not, so no normalized column can make it the same. A short timer still runs: that is code waiting
+// for something else to settle, and what it records must not depend on which step it landed in. The id stream is keyed by the step and by the line asking, not by a global counter: anything in
 // the background may take an id any number of times, and that must not shift what other code gets. A step does not start until the last one has
 // gone quiet, so what a step started in the background lands in that step.
 import crypto, { createHash } from "node:crypto";
 import { syncBuiltinESMExports } from "node:module";
 import path from "node:path";
+import timers from "node:timers";
 import { fileURLToPath } from "node:url";
 
 const START = Date.parse("2026-01-15T09:00:00.000Z");
 const QUIET_MILLISECONDS = 150;
+/** A period this long never comes due. The longest one that has to run for a generation to work is 2 seconds, and the shortest of the Host's rounds is 20. */
+const LONG_PERIOD_MILLISECONDS = 10_000;
+const LONGEST_TIMER_MILLISECONDS = 2 ** 31 - 1;
 const THIS_FILE = path.basename(fileURLToPath(import.meta.url));
 
 /** The two nearest frames outside this file, by file name and position: the same across checkouts, unlike a path. */
@@ -36,6 +42,14 @@ export function installDeterminism(seed) {
   FixedDate.parse = RealDate.parse;
   FixedDate.UTC = RealDate.UTC;
   globalThis.Date = FixedDate;
+
+  // Still a real timer, so whoever holds it can unref and clear it as usual. Only its callback is gone.
+  const realInterval = globalThis.setInterval;
+  const standingInterval = (callback, period, ...rest) => period >= LONG_PERIOD_MILLISECONDS
+    ? realInterval(() => undefined, LONGEST_TIMER_MILLISECONDS)
+    : realInterval(callback, period, ...rest);
+  globalThis.setInterval = standingInterval;
+  timers.setInterval = standingInterval;
 
   const fill = (target, offset = 0, size = target.length - offset) => {
     lastUse = realNow();

@@ -3,7 +3,7 @@ import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform
 import type { UiViewDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
 import { hostLog } from "./host-log.js";
 import type { HomePluginHost } from "./home-plugins.js";
-import { alwaysOnProjectPlugins } from "./always-on-plugins.js";
+import { readOnlyAlwaysOnProjectPlugins } from "./always-on-plugins.js";
 import { BUILTIN_PLUGIN_REGISTRY, PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 
 /** What the directory reads of a Runtime's supervisor: which plugins it holds enabled, how each one is doing, and its Manifest. */
@@ -31,7 +31,7 @@ export interface DirectorySource {
  * from the platform's own registration, `always_on` from what this Home agreed to (`alwaysOnProjectPlugins`; without a Home, none).
  */
 export function runningPluginDirectory(source: DirectorySource, home?: string): PluginDirectoryEntry[] {
-  const alwaysOn = home ? alwaysOnProjectPlugins(home) : [];
+  const alwaysOn = home ? readOnlyAlwaysOnProjectPlugins(home) : [];
   return source.enabledPluginIds().flatMap(pluginId => {
     const manifest = source.manifest(pluginId), state = source.state(pluginId);
     if (!manifest || !state || state.status === "blocked") return [];
@@ -53,7 +53,7 @@ function builtinMarks(builtin: PluginRegistration, alwaysOn: readonly string[]):
  * a built-in no Runtime here runs stays one to add, and the shell reads what it adds along or locks from the Host, never from its own copy.
  */
 export function builtinMarketDirectory(home?: string): PluginDirectoryEntry[] {
-  const alwaysOn = home ? alwaysOnProjectPlugins(home) : [];
+  const alwaysOn = home ? readOnlyAlwaysOnProjectPlugins(home) : [];
   return PLATFORM_PLUGIN_REGISTRATIONS.map(entry => ({ id: entry.project_plugin_id, plugin_id: entry.manifest.plugin_id, name: entry.manifest.name, ...(entry.manifest.name_en !== undefined ? { name_en: entry.manifest.name_en } : {}),
     chosen: true, ...builtinMarks(entry, alwaysOn), ui: { views: entry.manifest.ui.views ?? [] } }));
 }

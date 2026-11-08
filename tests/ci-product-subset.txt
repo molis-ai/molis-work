@@ -153,7 +153,6 @@ tests/coding-next-steps.test.ts
 tests/coding-recovery.test.ts
 tests/coding-report-usage.test.ts
 tests/coding-review-card.test.ts
-tests/coding-selection.test.ts
 tests/coding-session-messages.test.ts
 tests/coding-session-recovery.test.ts
 tests/coding-session-title.test.ts
@@ -373,6 +372,7 @@ tests/form-draft-questions.test.ts
 tests/form-draft-retry.test.ts
 tests/form-fillpage-answer-length.test.ts
 tests/functions-agent-references.test.ts
+tests/functions-version-contract.test.ts
 tests/generated-action-costs.test.ts
 tests/generated-plugin-prompts.test.ts
 tests/git-operation-review.test.ts
@@ -497,3 +497,6 @@ tests/view-placement-declarations.test.ts
 tests/workbench-entry-exports.test.ts
 # SQLD-06 (SQLD-b): .nvmrc, the workflows and engines name one Node patch; on that Node the SQLite is the one the plugin statement check was read against.
 tests/sqlite-version-notice.test.ts
+
+# Account session and Host refusal tests already run in the blocking security-invariants job (pnpm test:security).
+tests/account-client.test.ts

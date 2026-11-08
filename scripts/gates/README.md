@@ -19,6 +19,7 @@
 | `skills/`、`AGENTS.md`、`docs/system/CALL-CHAINS.md` 引用的路径与动作 id 存在 | `doc-citations.mjs` | `bad citation: … points at …` / `… is not an id the code defines` | 改文档；确属有意（计划中的文件、插件工程内的相对路径）写进 `tooling/gates/doc-citation-exceptions.json`，带理由，不再需要时门禁会要求删掉 |
 | `specs/README.md` 索引与根目录分类 | `spec-index.mjs` | `spec index: …` | 根目录的 spec 目录都要在索引里出现一次：状态句以「状态：现行规范」开头的列在「现行规范」，其余在「在做的」；索引里不列归档的；`specs/` 根只放 `README.md`、`BACKLOG.md`、`archive/` 与 spec 目录 |
 | BACKLOG 没有完成行 | `backlog-rows.mjs` | `BACKLOG: … says it is done` | 做完就删行，在提交说明里写编号；编号不复用 |
+| BACKLOG 行形状不对 | `backlog-rows.mjs` | `<文件>:<行>: BL-… has n columns; a row has 8` / `… has no source` / `… has no owner` / `… has priority "…", which is not 高, 中 or 低` | 每行正好 8 列（单元格里用反斜杠转义的竖线不分列），来源、优先级、负责人不能空，优先级只写高、中、低。完成行在转义的竖线处分开、不分开各看一遍，所以「说明、转义竖线、已完成」这样的格子也算完成行 |
 | 安全不变量文档里的测试存在 | `security-invariants.mjs` | `security invariants: docs/system/SECURITY-INVARIANTS.md:行: S-NN names …` | `docs/system/SECURITY-INVARIANTS.md` 的每一行（`\| S-NN \|`）至少点名一个测试；点名的测试文件存在、每一个「标题片段」（一个文件后可连写几个，每个都查）确在文件里；「CI 里跑」一列的文件被根 `package.json` 的 `test:security` / `test:contracts` 或 `ci.yml` 跑到；每个 `tests/security-invariants-*.test.ts` 都被某一行点名。改了测试名就改文档；新增不变量测试就加一行 |
 | 根目录只放允许名单里的 | `root-entries.mjs` + `tooling/gates/root-allowlist.json` | `tracked files at the repository root outside the allow-list in <名>` | 放到合适的目录；确要放在根目录，把名字和理由写进允许名单。名单里的名字不在根目录了要删。名单之外的现存条目只许变少 |
 | `.impeccable/` 文件数只许减少 | `impeccable-files.mjs` | `tracked files under .impeccable in <组> n → m` | 评审截图默认写进被忽略的 `.impeccable/qa/review/`；原地覆盖已有图不改数量；删掉没有现行 spec、文档或测试引用的评审组 |
@@ -131,11 +132,18 @@ W4-08 给记忆、放置、搜索加同类规则时，可以在同一个模块�
 
 读法：在做的 spec 读 `specs/<目录>/spec.md`，已归档的读 `specs/archive/<目录>/spec.md`，但只当定义用（前缀继续被占着，编号继续算有人定义，老测试的引用不会变成「没人认」；不要求覆盖、不报它自己的缺口；两份归档 spec 之间的重号和串用前缀也不报，因为已经改不了）。读不到的：spec 目录里的其他文件；编号写在 spec 里别的节或正文里不算定义；测试里提到编号就算引用，不看提到的位置是不是真的在证明那一条；只认 `git ls-files` 里的文件，新文件要先 `git add`。验证：`node scripts/run-tests.mjs tests/health-gates-spec-coverage.test.ts`（每种问题在临时仓库里被故意造一次，报告模式仍退出 0、`--strict` 退出 1；读法的每条规则也各有一个删掉就失败的用例：哪些文件算测试（`fixtures/` 下的 `*.test.*` 也不算；`vendor/`、`node_modules/`、`dist/`、`.impeccable/`、`fixtures/` 在仓库根和嵌在任何一层都一样）、豁免只认前 12 行里行首的那一句、编号不能粘在更长的词上（左边的大小写字母、数字、`_`、`-`，右边的字母、数字、`-`；紧挨着中文不算粘）、`[人工]` 只认带两个括号的整个标记（正文里的「人工」二字不算）、列表标记 `-`、`*`、`+`、`1.`、`1)` 都读、归档 spec 留下什么、仓库路径带空格与非 ASCII 字符）。
 
+## 动作输入的两项过渡计数（`action-input-counts.mjs`，AIC-20）
+
+处理器输入上的 `as`（`handlerInputCasts`）和定义处手写的输入类型（`handwrittenActionInputs`）。N22 迁移期间按文件、对照 merge-base 只许减少，N22-G 开绝对门禁时删掉（路线书决定 29）。它们读代码，不属于文档类，所以直接挂在入口的 `METRICS` 上（三行：import、注释、push），不经 `doc-gates.mjs`。口径和看不到的写法在 [tooling/gates/README.md](../../tooling/gates/README.md#按文件计数只许减少的项) 的那两行；用例是 `tests/health-gates-action-input-counts.test.ts`，CI 的 `tests/health-gates-*.test.ts` 那一步跑。
+
+删的时候删这个模块、入口那三行、这一节、那两行、`AGENTS.md` 那一条和这个测试文件。
+
 ## 怎么加一条规则
 
 1. 没有基线的检查：写 `scripts/gates/<名>.mjs`，导出 `(snapshot) => string[]`；`snapshot` 是 `{ files, read(file) }`（入库文件与读取函数）；在 `doc-gates.mjs` 的 `docGateProblems` 里加一行。不是文档类、要读合同或浏览器源码的检查（页面事件 `dom-events.mjs` 就是）自己挂在入口 `check-health-gates.mjs` 的 `absolute()` 里，入口只加一行引入和一处调用，规则与突变用例留在自己的模块和测试文件里，并在 `.github/workflows/ci.yml` 里给这个测试文件加一步（它不匹配 `tests/health-gates-*.test.ts`，也不在 `doc-reference-gates.test.ts` 里，不加这一步 CI 就不跑它的突变用例）。
 2. 只许减少的计数：模块导出一个规则对象（`id`、`baselineKey`、`totalKey`、`measure(snapshot)`、`grewWhat`、`grewHint`、`title`、`summary`），在 `doc-gates.mjs` 的 `docGateMetrics` 里加进去；merge-base 一侧读不到的文件在 `docGateInputs` 里登记。
 3. 在 `tests/doc-reference-gates.test.ts` 里加突变用例：干净的底子上加一处违规，`--base main` 要失败；计数类再确认 `--update --base main` 拒绝写入、本机改基线后 CI 的比法仍然失败。
+4. 脚本主入口一律写 `if (isMainScript(import.meta.url))`（`scripts/script-paths.mjs`）。比路径字符串的旧写法，从符号链接或编码过的路径运行时什么都不做就退出 0，门禁显示通过却根本没跑。
 
 ## 验证
 

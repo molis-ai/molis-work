@@ -289,13 +289,17 @@ test("RAC-1774: the CLI and MCP name no Goals contract in any file and call Goal
 // PG094-CLI-04 / T405-FULL-09: require product admission and retain every owner, mkdir, reference and signal mutation.
 test("RAC-105-S-08: the CLI fallback requires ownership before Home init and retains its single management route", () => {
   const source = read("apps/local-host/src/cli-project.ts");
+  const account = 'if(!allowLocalFallback&&homeDatabase)throw new ActionError("actions.service_unavailable","当前账号宿主尚未连接，不能回退匿名业务。");';
   const own = "if (homeProject || homeDatabase) ensureHomeStorageOwner(localHost ??= createMolisWorkLocalHost({ homeDirectory: home }), home, preflightMemoryHome);";
   const initialize = 'if (operation === "init" && homeDatabase) prepareLocalProjectStorage(databasePath, "create");';
   const bind = "bindGoalsManagementActions((localHost ??= createMolisWorkLocalHost()).actionClient(reference), reference, { signal: options.signal })";
-  const guarded = `const fallback = () => {\n    ${own}\n    ${initialize}\n    return ${bind};\n  };`;
+  const guarded = `const fallback = () => {\n    ${account}\n    ${own}\n    ${initialize}\n    return ${bind};\n  };`;
   assert.ok(source.includes(guarded), "mutations edit the actual canonical fallback");
   for (const [mutation, edit] of [
     ["old unguarded expression", text => text.replace(guarded, `const fallback = () => ${bind};`)],
+    ["missing account refusal", text => text.replace(account, "")],
+    ["account refusal no longer guards Home", text => text.replace(account, account.replace("!allowLocalFallback&&homeDatabase", "!allowLocalFallback"))],
+    ["installation regains local fallback", text => text.replace("if(connected.installation)allowLocalFallback=false;", "if(connected.installation)allowLocalFallback=true;")],
     ["missing owner preparation", text => text.replace(own, "")],
     ["wrong Home predicate", text => text.replace("homeProject || homeDatabase", "homeProject")],
     ["wrong Home argument", text => text.replace("createMolisWorkLocalHost({ homeDirectory: home }), home, preflightMemoryHome);", "createMolisWorkLocalHost({ homeDirectory: home }), otherHome, preflightMemoryHome);")],

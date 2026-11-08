@@ -1,5 +1,3 @@
-import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
-export { messageOf };
 import type { Translate } from "./types.js";
 
 export const escText = (value: unknown): string => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");

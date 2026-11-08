@@ -101,7 +101,7 @@ test("Home 存储登记列出全部个人库、讨论库 server/ 和 Home 里的
     "placement", "agent-definitions", "agent-declarations", "connectors", "runtime", "context-onboarding", "alchemist", "plugin-originals", "plugin-directories", "functions", "characters", "memory", "search", "knowledge", "feed", "feed-content", "server",
     "issues", "goals", "cognia", "images", "jelly", "lingguang", "todo", "pages", "form", "dataset", "ppt", "workflows", "artifacts", "agent-runtime", "runtime-config-backups",
     "runtime-integrations", "runtime-integration-attempts", "browser", "plugin-builder", "plugin-files", "cache", "git-operation-details.json", "config/onboarding.json", "config/plugin-publisher.json",
-    "config/project-arrival.json", "config/mcp-tools.json", "config/external-mcp-tools.json", "config/connector-mcp-tools.json", "directory-access"].sort());
+    "config/project-arrival.json", "config/mcp-tools.json", "config/external-mcp-tools.json", "config/connector-mcp-tools.json", "config/external-mcp-actions.json", "config/connector-mcp-actions.json", "computer", "directory-access", "upgrade"].sort());
 });
 
 test("uninstall --purge 会把登记的每个 Home 存储列入删除并真正删掉", async () => {
@@ -269,35 +269,35 @@ test("W5-01-PAGES-05 promote through the HTTP route and through the action write
   assert.ok(await versionOf(pinned.artifact.artifact_id));
 });
 
-test("草稿 CAS：过期 updated_at 不能覆盖已写入的草稿、预览和样例", async () => {
+test("AIC-03 草稿 CAS：过期的版本不能覆盖已写入的草稿、预览和样例", async () => {
   await withHome(async (home) => {
     const provider: TypeSafeProvider = { async evaluate() { return { primitive: "choice", choice: "yes", noul: null, score: null, legend: null,
       probabilities: { yes: 0.9, no: 0.1 }, confidence: 0.8, model: "jev-1.13.0" }; } };
     const functions = createFunctionsService({ home, credential: () => null, env: { TYPESAFE_API_KEY: "fixture-only" }, provider });
     try {
       const created = functions.createChoice({ name: "cas" });
-      functions.updateDraft(created.id, { name: "first" });
+      functions.updateDraft(created.id, { name: "first" }, functions.get(created.id).updated_at);
       const stale = "2000-01-01T00:00:00.000Z";
       assert.throws(
         () => functions.updateDraft(created.id, { name: "mine" }, stale),
-        (error: unknown) => error instanceof ActionError && error.code === "functions.conflict",
+        (error: unknown) => error instanceof ActionError && error.code === "functions.draft_stale",
       );
       assert.equal(functions.get(created.id).name, "first");
 
       const live = functions.get(created.id);
-      functions.addSample(live.id, { input: "样例一" });
+      functions.addSample(live.id, { input: "样例一" }, functions.get(live.id).updated_at);
       assert.throws(
         () => functions.addSample(live.id, { input: "样例二" }, stale),
-        (error: unknown) => error instanceof ActionError && error.code === "functions.conflict",
+        (error: unknown) => error instanceof ActionError && error.code === "functions.draft_stale",
       );
       assert.equal(functions.get(created.id).samples.length, 1);
 
       const ready = functions.updateDraft(created.id, { instructions: "判断说明要够长才能试跑。",
-        criteria: [{ key: "yes", description: "是" }, { key: "no", description: "否" }] });
-      await functions.preview(ready.id, "请退款");
+        criteria: [{ key: "yes", description: "是" }, { key: "no", description: "否" }] }, functions.get(created.id).updated_at);
+      await functions.preview(ready.id, "请退款", functions.get(ready.id).updated_at);
       await assert.rejects(
         functions.preview(ready.id, "请退款", stale),
-        (error: unknown) => error instanceof ActionError && error.code === "functions.conflict",
+        (error: unknown) => error instanceof ActionError && error.code === "functions.draft_stale",
       );
     } finally {
       functions.close();
@@ -375,7 +375,7 @@ test("Host 不再进口 Functions 的库（FunctionsStore）；错误类型来�
   assert.doesNotMatch(await readFile(join(ROOT, "..", "apps/local-host/src/web-view.ts"), "utf8"), /openFunctionsStore|functionsViewFingerprint/);
 });
 
-test("HTTP 带着过期 updated_at 保存草稿会 409", async () => {
+test("AIC-01 AIC-03 HTTP 带着过期版本保存草稿会 409，旧字段名和缺版本都被拒", async () => {
   await withHome(async (home) => {
     const dispatcher = await listenDispatcher(home);
     try {
@@ -389,16 +389,26 @@ test("HTTP 带着过期 updated_at 保存草稿会 409", async () => {
       const first = await fetch(`${dispatcher.origin}/api/functions/${record.id}`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name: "first", updated_at: record.updated_at }),
+        body: JSON.stringify({ name: "first", expected_updated_at: record.updated_at }),
       });
       assert.equal(first.status, 200);
       const second = await fetch(`${dispatcher.origin}/api/functions/${record.id}`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name: "second", updated_at: record.updated_at }),
+        body: JSON.stringify({ name: "second", expected_updated_at: record.updated_at }),
       });
       assert.equal(second.status, 409);
-      assert.equal((await second.json() as { code: string }).code, "functions.conflict");
+      assert.equal((await second.json() as { code: string }).code, "functions.draft_stale");
+      // The old field has no second life: at the top of the body it would land in the patch, which allows no such key.
+      for (const body of [{ name: "old field", updated_at: record.updated_at }, { name: "no version" }, { name: "null", expected_updated_at: null }, { name: "empty", expected_updated_at: "" }]) {
+        const refused = await fetch(`${dispatcher.origin}/api/functions/${record.id}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        assert.equal(refused.status, 400, body.name);
+        assert.equal((await refused.json() as { code: string }).code, "actions.input_invalid", body.name);
+      }
       const latest = await fetch(`${dispatcher.origin}/api/functions/${record.id}`);
       assert.equal(((await latest.json()) as { function: { name: string } }).function.name, "first");
     } finally {

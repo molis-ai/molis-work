@@ -340,6 +340,13 @@ export declare const UI_RESOURCE_KINDS: readonly ["spec", "skin", "font-scheme",
 
 export declare const UI_RESOURCE_LOADS: readonly ["startup", "first-screen", "fallback", "on-open", "on-select", "tool"];
 
+export declare const UI_RETURN_CARRY_LIMITS: {
+    readonly draft_key: 256;
+    readonly step: 128;
+    readonly object_id: 256;
+    readonly object_kind: 64;
+};
+
 export declare const UI_ROLE_TYPES: readonly ["color", "shadow", "length", "duration", "easing", "stroke", "number"];
 
 export declare const UI_ROLE_VARIES_BY: readonly ["theme", "none", "terminal"];
@@ -629,6 +636,13 @@ export interface UiPageMessages {
     listen(receive: (message: UiPageMessage) => void): () => void;
 }
 
+export interface UiPageReturns {
+    go(need: UiReturnNeed, carry?: UiReturnCarry, options?: {
+        signal?: AbortSignal;
+    }): Promise<UiReturnOutcome>;
+    arrived(): Promise<UiReturnOutcome | null>;
+}
+
 export type UiPageReviewOutcome = "unavailable" | "uncertain" | "rejected" | "reconciled" | "failed" | "settled" | "pending";
 
 export interface UiPageReviewQuery {
@@ -726,6 +740,7 @@ export interface UiPluginClientHost<Element = unknown, Dialog = Element, Media =
         onSubmit?: () => void;
     }): UiPageInteraction;
     readonly drafts: UiPageDrafts;
+    readonly returns: UiPageReturns;
     readonly taskGrants: UiPageTaskGrants<Element>;
 }
 
@@ -752,6 +767,7 @@ export interface UiRequestFailure extends Error {
 }
 
 export interface UiRequestInit {
+    readonly control?: boolean;
     readonly method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
     readonly body?: unknown;
     readonly file?: Blob;
@@ -792,6 +808,24 @@ export type UiResourceRow = (UiResourceFields & {
     readonly sha256: string;
     readonly license: UiResourceLicense;
 });
+
+export interface UiReturnCarry {
+    readonly draft_key?: string;
+    readonly step?: string;
+    readonly object?: {
+        readonly kind: string;
+        readonly id: string;
+    };
+}
+
+export type UiReturnNeed = {
+    readonly kind: "model";
+};
+
+export interface UiReturnOutcome {
+    readonly status: "ready" | "not_ready";
+    readonly carry: UiReturnCarry;
+}
 
 export type UiRgba = readonly [red: number, green: number, blue: number, alpha: number];
 
@@ -875,7 +909,6 @@ export interface UiSkinFile {
 
 export interface UiSlotDescriptor {
     readonly slot_id: string;
-    readonly version: number;
     readonly accepts: readonly string[];
 }
 

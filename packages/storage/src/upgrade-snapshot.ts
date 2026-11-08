@@ -36,7 +36,8 @@ export interface UpgradeSnapshotEntry {
   readonly mode: number;
   readonly size: number;
   readonly sha256: string;
-  readonly sqlite: { readonly user_version: number; readonly schema_sha256: string };
+  /** A store's version and schema when it was taken. A JSON file has neither to record: its version is in its bytes. */
+  readonly sqlite?: { readonly user_version: number; readonly schema_sha256: string };
   readonly keys?: readonly UpgradeSnapshotKeyDependency[];
 }
 
@@ -147,12 +148,17 @@ function parseKey(value: unknown): UpgradeSnapshotKeyDependency {
   return { kind, location, sha256: digest };
 }
 
+function parseStoreFacts(value: unknown): NonNullable<UpgradeSnapshotEntry["sqlite"]> {
+  const { user_version, schema_sha256 } = exactFields(value, ["user_version", "schema_sha256"]);
+  if (!isCount(user_version) || !isSha(schema_sha256)) throw new Error("wrong values");
+  return { user_version, schema_sha256 };
+}
+
 function parseEntry(value: unknown): UpgradeSnapshotEntry {
-  const { path, mode, size, sha256: digest, sqlite, keys } = exactFields(value, ["path", "mode", "size", "sha256", "sqlite"], ["keys"]);
-  const { user_version, schema_sha256 } = exactFields(sqlite, ["user_version", "schema_sha256"]);
-  if (typeof path !== "string" || !isCount(mode) || mode > 0o777 || !isCount(size) || !isSha(digest) || !isCount(user_version) || !isSha(schema_sha256)) throw new Error("wrong values");
+  const { path, mode, size, sha256: digest, sqlite, keys } = exactFields(value, ["path", "mode", "size", "sha256"], ["sqlite", "keys"]);
+  if (typeof path !== "string" || !isCount(mode) || mode > 0o777 || !isCount(size) || !isSha(digest)) throw new Error("wrong values");
   if (keys !== undefined && !Array.isArray(keys)) throw new Error("wrong keys");
-  return { path, mode, size, sha256: digest, sqlite: { user_version, schema_sha256 }, ...(keys ? { keys: keys.map(parseKey) } : {}) };
+  return { path, mode, size, sha256: digest, ...(sqlite === undefined ? {} : { sqlite: parseStoreFacts(sqlite) }), ...(keys ? { keys: keys.map(parseKey) } : {}) };
 }
 
 /** The entries of a run's manifest, read strictly. A missing manifest is no entries; one this code did not write is refused, not repaired. */
@@ -196,7 +202,7 @@ function removeUnflushedJournal(db: UpgradeSqliteConnection, file: string): void
 }
 
 /** §2.2 step 2. Also how a store left by a kill recovers: opening replays a WAL, and a read rolls back a hot journal. */
-function checkpoint(paths: UnitPaths, open: (file: string) => UpgradeSqliteConnection): UpgradeSnapshotEntry["sqlite"] {
+function checkpoint(paths: UnitPaths, open: (file: string) => UpgradeSqliteConnection): NonNullable<UpgradeSnapshotEntry["sqlite"]> {
   const sqlite = attempt("checkpoint_failed", paths.label, () => {
     const db = open(paths.file);
     try {
@@ -241,7 +247,18 @@ export function captureUpgradeSnapshot(unit: UpgradeSnapshotUnit, open: (file: s
   assertHomeLock(unit);
   const paths = unitPaths(unit);
   assertOrdinaryPlaces(paths);
-  const sqlite = checkpoint(paths, open);
+  return copyIntoSnapshot(unit, paths, checkpoint(paths, open), keys);
+}
+
+/** The same for a JSON file (§2.6): no connection and no side files, so what is on disk is the baseline already. */
+export function captureUpgradeFileSnapshot(unit: UpgradeSnapshotUnit): UpgradeSnapshotEntry {
+  assertHomeLock(unit);
+  const paths = unitPaths(unit);
+  assertOrdinaryPlaces(paths);
+  return copyIntoSnapshot(unit, paths);
+}
+
+function copyIntoSnapshot(unit: UpgradeSnapshotUnit, paths: UnitPaths, sqlite?: NonNullable<UpgradeSnapshotEntry["sqlite"]>, keys?: readonly UpgradeSnapshotKeyDependency[]): UpgradeSnapshotEntry {
   return attempt("snapshot_write_failed", paths.label, () => {
     const mode = snapshotFileStat(paths.file).mode & 0o777, { size, sha256: digest } = snapshotFileDigest(paths.file);
     const files = attempt("snapshot_invalid", paths.label, () => readManifest(paths, unit.runId));
@@ -261,7 +278,7 @@ export function captureUpgradeSnapshot(unit: UpgradeSnapshotUnit, open: (file: s
     if (copied.size !== size || copied.sha256 !== digest) throw fail("snapshot_write_failed", paths.label);
     renameSync(temporary, paths.snapshot);
     syncPath(paths.run);
-    const entry: UpgradeSnapshotEntry = { path: unit.relativePath, mode, size, sha256: digest, sqlite, ...(keys?.length ? { keys } : {}) };
+    const entry: UpgradeSnapshotEntry = { path: unit.relativePath, mode, size, sha256: digest, ...(sqlite ? { sqlite } : {}), ...(keys?.length ? { keys } : {}) };
     writeManifest(paths, unit.runId, [...files, entry]);
     return entry;
   });

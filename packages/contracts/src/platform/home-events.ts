@@ -1,3 +1,4 @@
+import { inputSchemaFor } from "./action-input.js";
 import { ActionError, type ActionDefinition, type ActionReference, type ActionSubject } from "./actions.js";
 import { ACTION_SUBJECT_SCHEMA } from "./action-subjects.js";
 
@@ -15,14 +16,14 @@ export interface HomeEventCollection {
   events: HomeEvent[];
 }
 export interface HomeEventView extends HomeEvent { id: string; source: ActionReference; origin: HomeEventCollection["source"]; suggested_behavior_ids: string[] }
-const text = { type: "string" };
-const id = { ...text, minLength: 1 };
+const text = { type: "string" } as const;
+const id = { ...text, minLength: 1 } as const;
 const token = { ...id, pattern: "^[a-zA-Z0-9_-]+$" };
-const instant = { ...id, format: "date-time" };
-export const HOME_EVENT_WINDOW_SCHEMA = { type: "object", properties: { from: instant, to: instant, now: instant }, required: ["from", "to", "now"], additionalProperties: false };
+const instant = { ...id, format: "date-time" } as const;
+export const HOME_EVENT_WINDOW_SCHEMA = { type: "object", properties: { from: instant, to: instant, now: instant }, required: ["from", "to", "now"], additionalProperties: false } as const;
 export const HOME_OPEN_TARGET_SCHEMA = { type: "object", properties: { kind: { enum: ["item", "group", "surface"] }, surface: token,
   id: { type: ["string", "null"], minLength: 1 }, title: id, label: id }, required: ["kind", "surface", "id", "title", "label"], additionalProperties: false,
-  anyOf: [{ properties: { kind: { const: "surface" }, id: { type: "null" } } }, { properties: { kind: { enum: ["item", "group"] }, id } }] };
+  anyOf: [{ properties: { kind: { const: "surface" }, id: { type: "null" } } }, { properties: { kind: { enum: ["item", "group"] }, id } }] } as const;
 export const HOME_EVENT_SCHEMA = { type: "object", properties: { event_id: id, subject: ACTION_SUBJECT_SCHEMA, occurred_at: instant,
   placement: { enum: ["occurred", "active", "today"] }, category: { enum: ["personal", "organization"] }, title: id, summary: text, content: text,
   facts: { type: "array", items: { type: "array", items: text, minItems: 2, maxItems: 2 } }, needs_attention: { type: "boolean" },
@@ -33,7 +34,7 @@ export const HOME_EVENT_COLLECTION_SCHEMA = { type: "object", properties: { sour
 export function defineHomeEventsAction(capabilityId: string, version: number, kinds: string[], title: string, permissions: string[]): ActionDefinition<HomeEventWindow, HomeEventCollection> {
   return { capability_id: capabilityId, version: version, operation: "query", action: { title, description: "从原数据提供当前窗口的首页事项及每项的打开位置；不会执行事项上的动作。", kind: "query", scope: "project", scheduling: "concurrent",
     audiences: ["user", "agent", "workflow", "mcp", "plugin"], permissions, subject_kinds: kinds,
-    input_type: HOME_EVENTS_INPUT_TYPE, output_type: HOME_EVENTS_OUTPUT_TYPE, input_schema: HOME_EVENT_WINDOW_SCHEMA, output_schema: HOME_EVENT_COLLECTION_SCHEMA } };
+    input_type: HOME_EVENTS_INPUT_TYPE, output_type: HOME_EVENTS_OUTPUT_TYPE, input_schema: inputSchemaFor<HomeEventWindow>()(HOME_EVENT_WINDOW_SCHEMA), output_schema: HOME_EVENT_COLLECTION_SCHEMA } };
 }
 /** Providers filter ordinary events by instant; active/today placement can retain unresolved older items. */
 export function withinHomeEventWindow(value: string, window: HomeEventWindow): boolean {

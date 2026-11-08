@@ -1,9 +1,10 @@
 # Horizontal Services
 
-`horizontal/` 目录下有八个包，分两类（定义见[系统架构 §3](../system/ARCHITECTURE.md)，逐包清单见 [SSOT-MATRIX §6](../SSOT-MATRIX.md)）。
+`horizontal/` 目录下有九个包，分两类（定义见[系统架构 §3](../system/ARCHITECTURE.md)，逐包清单见 [SSOT-MATRIX §6](../SSOT-MATRIX.md)）。
 
 **横向运行服务**是多种业务都会复用的可靠运行能力。它保存 cursor、lease、retry、process handle 等可恢复技术状态，但不拥有正式业务事实，也不替 Module 做业务决定。
 
+- [Account](account.md)：中央账号协议、可信配置与 Host 安全视图；业务事实由 Auth 持有。
 - [Connector Host](connector-host.md)：建立和维护 Provider 连接。
 - [Listener Host](listener-host.md)：持续接收 Raw Event，并可靠投递 Signal Draft。代码在 Feed 插件里（`plugins/native/feed/src/store/listener.ts`），不再是 `horizontal/` 下的包。
 - [Scheduler](scheduler.md)：到点唤醒一个已注册 Capability。

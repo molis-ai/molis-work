@@ -388,7 +388,6 @@ export const CODING_PANELS_MESSAGES = {
   "coding.change.rejected": { zh: "已拒绝", en: "Rejected" },
   "coding.change.expired": { zh: "已过期", en: "Expired" },
   "coding.change.pending": { zh: "待审", en: "Awaiting review" },
-  "coding.change.old-record": { zh: "旧版记录", en: "Older record" },
   "coding.change.created": { zh: "新建", en: "new" },
   "coding.change.modified": { zh: "修改", en: "modified" },
   "coding.change.writes": { zh: "{count} 次写入", en: "Writes: {count}" },

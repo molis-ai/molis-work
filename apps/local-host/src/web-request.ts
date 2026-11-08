@@ -1,4 +1,6 @@
+import { withReadOnlyPluginDirectory } from "./always-on-plugins.js";
 import { handlePluginConsentSettingsHttp } from "./plugin-consent-settings-http.js";
+import { handleTaskGrantsSettingsHttp } from "./task-grants-settings-http.js";
 import { resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { withHomePluginStorePageRecovery } from "./web-home-plugin-recovery.js";
 import { agentDefinitionsFor } from "./agent-definitions/agent-definitions.js";
@@ -73,30 +75,34 @@ export async function handleMolisWorkWebRequest(
   agentHost: AgentHost,
   agentReady: () => Promise<void>,
 ): Promise<void> {
-  const context: WebRequestContext = { request, response, url, serverOptions, runtimeIntegrations, webService, controlToken, webViewCache, projectSchedules,
-    ptyHost, webUrl, localHost, composition, agentHost, agentReady };
-  if (await homePluginsRoute.handle(context)) return;
-  // The personal space always exists for the person; it is made the first time anyone opens it.
-  if (/^\/projects\/personal(?:\/|$)/u.test(url.pathname) && !serverOptions.databasePath) {
-    await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => catalog.ensurePersonalSpace());
-  }
-  const resolved = await resolveOrChooser(context);
-  if (!resolved || redirectFunctionsPage(request.method, response, url, resolved)) return;
-  // Every registered prompt and role, and the person's edits of them: one register per Home, whichever page asks.
-  if (serverOptions.homeDirectory && url.pathname.startsWith("/api/agent-definitions/")
-    && await handleAgentDefinitionsHttp(request, response, url, agentDefinitionsFor(serverOptions.homeDirectory, builtinRegistrations))) return;
-  if (resolved.kind === "catalog_index") {
-    const assistant = serverOptions.homeDirectory ? assistantPortsFor(serverOptions.homeDirectory, composition, localHost, agentHost, agentReady) : null;
-    await withHomePluginStorePageRecovery(context, null, () => dispatchWebRoutes(CATALOG_INDEX_ROUTES, { ...context, projects: resolved.projects, assistant }));
-    return;
-  }
-  if (resolved.kind === "project_not_found") {
-    sendJson(response, 404, { error: L("找不到这个 Molis Work 项目") });
-    return;
-  }
-  url.pathname = resolved.pathname;
-  await withHomePluginStorePageRecovery(context, resolved.options.project?.project_id ?? null,
-    () => dispatchWebRoutes(PROJECT_ROUTES, projectRequestContext(context, resolved.options)));
+  const readonly = request.method === "GET" || request.method === "POST" && url.pathname.endsWith("/api/home/events");
+  const handle = async () => {
+    const context: WebRequestContext = { request, response, url, serverOptions, runtimeIntegrations, webService, controlToken, webViewCache, projectSchedules,
+      ptyHost, webUrl, localHost, composition, agentHost, agentReady };
+    if (await homePluginsRoute.handle(context)) return;
+    // The personal space always exists for the person; it is made the first time anyone opens it.
+    if (/^\/projects\/personal(?:\/|$)/u.test(url.pathname) && !serverOptions.databasePath) {
+      await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => catalog.ensurePersonalSpace());
+    }
+    const resolved = await resolveOrChooser(context);
+    if (!resolved || redirectFunctionsPage(request.method, response, url, resolved)) return;
+    // Every registered prompt and role, and the person's edits of them: one register per Home, whichever page asks.
+    if (serverOptions.homeDirectory && url.pathname.startsWith("/api/agent-definitions/")
+      && await handleAgentDefinitionsHttp(request, response, url, agentDefinitionsFor(serverOptions.homeDirectory, builtinRegistrations))) return;
+    if (resolved.kind === "catalog_index") {
+      const assistant = serverOptions.homeDirectory ? assistantPortsFor(serverOptions.homeDirectory, composition, localHost, agentHost, agentReady) : null;
+      await withHomePluginStorePageRecovery(context, null, () => dispatchWebRoutes(CATALOG_INDEX_ROUTES, { ...context, projects: resolved.projects, assistant }));
+      return;
+    }
+    if (resolved.kind === "project_not_found") {
+      sendJson(response, 404, { error: L("找不到这个 Molis Work 项目") });
+      return;
+    }
+    url.pathname = resolved.pathname;
+    await withHomePluginStorePageRecovery(context, resolved.options.project?.project_id ?? null,
+      () => dispatchWebRoutes(PROJECT_ROUTES, projectRequestContext(context, resolved.options)));
+  };
+  return readonly ? withReadOnlyPluginDirectory(serverOptions.homeDirectory, handle) : handle();
 }
 
 /** The project list, or (when it cannot be read) the chooser saying so: the chooser is the way in, and the personal space still opens. */
@@ -114,7 +120,7 @@ async function resolveOrChooser({ request, response, url, serverOptions, composi
 
 /** Home plugin HTTP keeps its Home caller and the same instance; under a project's prefix its routes run in that project, checked here. */
 const homePluginsRoute: WebRoute<WebRequestContext> = { id: "home-plugins", handle: context =>
-  handleHomePluginHttp(context.request, context.response, context.url, context.localHost, context.controlToken, context.composition.PAGE_CSP, homeRouteProjectPlugins(context)) };
+  handleHomePluginHttp(context.request, context.response, context.url, context.localHost, context.controlToken, context.composition.PAGE_CSP, homeRouteProjectPlugins(context),context.composition.accountRegistration) };
 
 /** A project request before its runtime opens; the last entry opens it and runs PROJECT_RUNTIME_ROUTES there. */
 const PROJECT_ROUTES: readonly WebRoute<ProjectRequestContext>[] = [
@@ -134,6 +140,7 @@ const PROJECT_ROUTES: readonly WebRoute<ProjectRequestContext>[] = [
   homePluginsRoute,
   pluginPageRoute, directoryGrantRoute,
   { id: "project-plugin-consents", handle: context => handlePluginConsentSettingsHttp(context, context.hostReference) },
+  { id: "project-task-grants", handle: context => handleTaskGrantsSettingsHttp(context, context.hostReference) },
   sideViewRoute,
   sideFilesRoute,
   { id: "project-runtime", handle: async context => {

@@ -1,14 +1,12 @@
-import { ActionError, type ActionLocale } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionLocale } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { CodingChangeSet } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { fillMessage } from "@molis-ai/molis-work-plugin-sdk";
 import {
   compareChange,
-  compareHunks,
   diffViewText,
   emptyDiffView,
   renderDiff,
-  unifiedErrors,
   unifiedPatch,
   type DiffFileEntry,
   type DiffSide,
@@ -50,7 +48,7 @@ const LABELS: DiffViewLabels = {
 };
 
 /** The keys whose sentences come written in Chinese with values in them. */
-const TEMPLATES = ["coding.change.reader.no-change-in", "coding.change.reader.hunk-count", "coding.change.reader.hunk-header", "coding.change.reader.no-hunks"];
+const TEMPLATES = ["coding.change.reader.no-change-in"];
 
 /** What the reader is drawn with: Coding's words in the page's language, a sentence with a value in it said again with that value. */
 const texts = new Map<ActionLocale, DiffViewPrimitives["text"]>();
@@ -60,28 +58,17 @@ function primitives(locale: ActionLocale = "zh"): DiffViewPrimitives {
   return { escape: value => escapeHtml(String(value)), text, icon: name => icon(name as Parameters<typeof icon>[0]) };
 }
 
-/** One file of a round's change set as the reader shows it: both ends of a reviewed write, or the hunks the round produced. */
+/** One file of a round's change set as the reader shows it: both ends of a reviewed write. */
 function changeView(change: CodingChangeSet, index: number, version: number): DiffView {
   const files: DiffFileEntry[] = change.files.map(file => ({ path: file.path, kind: file.kind, added_lines: file.added_lines, removed_lines: file.removed_lines }));
-  if (files.length === 0) return emptyDiffView(GROUP, change.coverage === "text-reviews" ? "coding.change.reader.no-text-review" : "coding.change.reader.no-files",
-    "ready", "coding.change.reader.run-again");
+  if (files.length === 0) return emptyDiffView(GROUP, "coding.change.reader.no-text-review", "ready", "coding.change.reader.run-again");
   const chosen = change.files[index];
   // The reader asks by index, so no path is known here: the sentence reads as the Host's did.
   if (chosen === undefined) return { ...emptyDiffView(GROUP, fillMessage(CODING_CHANGE_MESSAGES["coding.change.reader.no-change-in"].zh, { path: String(undefined) }), "unavailable", "coding.change.reader.run-again"), files };
-  if (chosen.review) {
-    const side: DiffSide = { workspace_id: change.origin?.workspace_id ?? change.run_id, workspace_name: change.origin?.workspace_name ?? change.run_id,
-      path: chosen.path, source_plugin_id: CODING_PLUGIN_ID, content_version: version };
-    return { ...compareChange(GROUP, { before: side, after: { ...side } }, { before: chosen.review.before_text ?? "", after: chosen.review.after_text,
-      created: chosen.review.before_text === null }), files };
-  }
-  const side: DiffSide = { workspace_id: change.run_id, workspace_name: change.run_id, path: chosen.path, source_plugin_id: CODING_PLUGIN_ID, content_version: version };
-  try {
-    return { ...compareHunks(GROUP, { before: side, after: { ...side } }, chosen.diff, { created: chosen.kind === "added", removed: chosen.kind === "deleted" }), files };
-  } catch (error) {
-    const message = error instanceof ActionError && error.code.startsWith("diff.unified.")
-      && Object.hasOwn(unifiedErrors, error.code.slice("diff.unified.".length)) ? error.message : "coding.change.reader.unreadable-diff";
-    return { ...emptyDiffView(GROUP, message, "unavailable", "coding.change.reader.run-again"), files };
-  }
+  const side: DiffSide = { workspace_id: change.origin.workspace_id, workspace_name: change.origin.workspace_name,
+    path: chosen.path, source_plugin_id: CODING_PLUGIN_ID, content_version: version };
+  return { ...compareChange(GROUP, { before: side, after: { ...side } }, { before: chosen.review.before_text ?? "", after: chosen.review.after_text,
+    created: chosen.review.before_text === null }), files };
 }
 
 /**
@@ -96,7 +83,7 @@ function drawChange(body: ChangeBody & { change: CodingChangeSet }, query: Reado
   const requested = query.net, net = chosen && (requested === "1" || requested === "auto") ? codingNetChange(change, chosen.path) : null;
   const netFiles = net?.available ? (() => {
     const first = change.files[net.indices[0]!]!, last = change.files[net.indices.at(-1)!]!;
-    return [{ ...last, kind: first.kind, review: { ...last.review!, before_text: net.before_text } }];
+    return [{ ...last, kind: first.kind, review: { ...last.review, before_text: net.before_text } }];
   })() : null;
   const view = changeView(netFiles ? { ...change, files: netFiles } : change, netFiles ? 0 : index, body.reference?.version ?? 1);
   const groups = [...new Set(change.files.map(file => file.path))].map(path => ({ path, ...codingNetChange(change, path) })).filter(group => group.indices.length > 1);

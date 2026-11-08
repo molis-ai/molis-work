@@ -9,7 +9,7 @@ import { pathLabel } from "./paths.js";
 import { previewMessage, type FilePreview } from "./preview.js";
 import type { FileTreeNode } from "./tree.js";
 
-export const FILES_UI_CONTRIBUTION_ID = /* @version contract.io.molis.work.native.files.ui "io.molis.work.native.files.ui.v{version}" */ "io.molis.work.native.files.ui.v1";
+export const FILES_UI_CONTRIBUTION_ID = "io.molis.work.native.files.ui.v1";
 
 /** Host mounts these fragments in the existing directory and result slots, worded through its translator. */
 export function renderFilesBrowserDirectory(text: (key: string) => string): string {

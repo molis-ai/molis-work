@@ -49,7 +49,7 @@ LocalSqliteStorage 打开连接并配置 WAL、FULL synchronous、外键和 busy
 
 首次初始化才调用 `initializeReplica(db,true)`（默认）；已经通过当前 owner 版本检查的库可用 `initializeReplica(db,false)` 验证既有状态，状态缺失即拒绝，不重新生成设备身份或清空下载位置。Work 的同一正常/被动打开器使用此区分。
 
-私密 owner 可由可信组合根向 `createSqliteReplica` 注入 contracts 的 `SyncLocalProtection` 端口。待发送 operation、冲突及恢复的双方正文均经同一个序列化器保护，绑定稳定键与用途，解码严格验证 UTF-8/JSON；保护模式拒绝明文，密钥不可用或撤权时不清队列、不尝试明文读取。序列化器不创建密钥，Storage 不依赖 SDK。owner 必须将此模式固定在自己的当前库格式与组合根中，并由提供方额外绑定 Home/空间及集合；不能把可选技术端口当成任意现有库自动切换格式的升级器。网络传输、共同下载缓存及实际 Work owner 的密钥接入仍须分别验证。
+私密 owner 可由可信组合根向 `createSqliteReplica` 注入 contracts 的 `SyncLocalProtection` 端口。待发送 operation、冲突及恢复的双方正文均经同一个序列化器保护，绑定稳定键与用途，解码严格验证 UTF-8/JSON；保护模式拒绝明文，密钥不可用或撤权时不清队列、不尝试明文读取。序列化器不创建密钥。owner 必须将此模式固定在自己的当前库格式与组合根中，并由提供方额外绑定 Home/空间及集合；不能把可选技术端口当成任意现有库自动切换格式的升级器。网络传输、共同下载缓存及实际 Work owner 的密钥接入仍须分别验证。
 
 `createSqliteReplica().inspectReceive` 只读观察事件当前属于忽略、游标追赶、本人回执、冲突或可应用，用于 Host 判断是否需要异步准备。它与 `receive` 使用同一份日志判断，不读取业务 owner、不改游标/队列/冲突；观察不是接纳凭证，任何等待之后 `receive` 必须在原事务中重新判断。Host 不能据旧观察绕过新编辑或新回执。验证：`tests/replica-dependencies.test.ts`。
 
@@ -63,7 +63,7 @@ LocalSqliteStorage 打开连接并配置 WAL、FULL synchronous、外键和 busy
 
 只在部分操作需要凭据的服务使用 `createLazyFileSecretStore(homeDirectory)`：创建时固定 Home，调用时才沿用原凭据库与锁；只读取尚未保存的凭据引用时直接返回空值，不初始化后端。Functions 的 Host、HTTP、MCP 和设置装配使用此入口，因此本地列表、说明、草稿与场景查询不因服务初始化而请求钥匙串。已有凭据的读取、写入、迁移与后端诊断仍走原保护；配置了环境凭据的 Functions 也不提前打开无关的本地凭据库。这里不承诺消除所有钥匙串提示，模型健康检查和实际需要本地密钥的调用仍可能读取钥匙串。
 
-工作区依赖：`@molis-ai/molis-work-contracts`。冲突确认指纹通过 `SyncConflictState` 端口由可信组合根传入；组合根复用公开 SDK 的同一份工具，Storage 不依赖 SDK、不复制算法。缺少端口时拒绝生成比较确认，不回退到旧内容覆盖。其他运行依赖见 [package.json](package.json)。
+冲突确认指纹通过 `SyncConflictState` 端口由可信组合根传入；组合根复用公开 SDK 的同一份工具，Storage 不复制算法。缺少端口时拒绝生成比较确认，不回退到旧内容覆盖。其他运行依赖见 [package.json](package.json)。
 
 `createLocalPayloadProtection` 复用与既有 Search AEAD 相同的内部 AES-GCM 字节实现，既有 Search 密文前缀保持不变。可信组合根明确提供 Home 固定的 SecretStore、密钥引用、作用域、授权尾检和完整的已存保护数据检查；首次初始化通过原 SecretStore 的跨进程 `createIfAbsent` 保存密钥与独立身份指纹。密钥身份指纹仍在，或仍有受保护数据时，缺失、无效或被替换的密钥均拒绝读写，即使业务缓存暂为空也不自动换 key。只有密钥、指纹均不存在且没有任何受保护数据时，才允许作为全新状态初始化。保护不传密钥、不创建另一份凭据库；它本身不代表某个业务 owner 已接线。`createSyncBodySerialization` 公开复用同一个严格 JSON 密封序列化器，供共同协调器的延迟事件使用；用途与稳定键绑定，不另写第二套密文 JSON 格式。
 `inspectSealedSecretsSnapshot(home, ciphertext)` 只读核对所给的现行第1版 vault（AES-GCM 封条同为第1版）与同 Home 原主密钥，逐条验证 AES-GCM，返回后端、条目数和 `{location, sha256}` 密钥身份引用；不返回 key 或正文，不创建目录、锁库或替代 key，不依赖现 Home 的 vault 是否完好。单独空 vault 没有密文依赖。`readSealedSecretSnapshotEntry` 是 owner 明确恢复时读取单条正文的端口；`readExistingSecret(home, authRef)` 对当前 vault 做同样的只读检查，并拒绝软/硬链接文件，不借用 store 缓存。它们不是普通诊断或 HTTP 返回接口；调用方仍负责自己的引用归属。已密封的 Runtime 原配置备份由其 owner 使用这些端口读取。
@@ -72,7 +72,7 @@ LocalSqliteStorage 打开连接并配置 WAL、FULL synchronous、外键和 busy
 
 已有 vault 的 backend 在 entries 为空时也保持绑定：正常重开不按新的环境偏好切换，原 key 缺失/无效即拒绝，不生成替代值；只有从未存在 vault 的首次初始化走原选择规则。单独空 vault inspection 的无密文依赖结论不代表 vault 外的 owner payload 没有依赖。
 
-工作区依赖：`@molis-ai/molis-work-contracts` 与 `@molis-ai/molis-work-plugin-sdk`。后者提供凭据封套读取时的对象判断。其他运行依赖见 [package.json](package.json)。
+工作区依赖：`@molis-ai/molis-work-contracts` 与 `@molis-ai/molis-work-plugin-sdk`。后者提供凭据封套读取时的对象判断和同步回执比较用的规范化 JSON。其他运行依赖见 [package.json](package.json)。
 
 `createEvidenceContentStore` 为 Feed 与研究等消费者保存受限大小的加密正文，Host 显式选择目录并固定 Home。`createSearchOpaqueBlobStore`、`createSearchAead`、`createSearchSecretStore` 为 SEL 提供持久化。Feed 正文只使用 `feed/evidence/`，显式选择根目录的研究消费者也只使用自己的该目录；共用 `system:feed:evidence-content-key:v1` 一把密钥。缺钥、错钥或损坏密文拒绝读取和同内容写入，不生成恢复副本或替代密钥。`molis-work-feed/sha256/...` 引用、现行密文格式及 `feed_runtime_blobs` 表名保持不变；旧的 `createFeedSearch*` 三个导出名已删，只剩 `createSearch*` 一套，不保留第二份存储。来源游标、研究策略和条目处置归消费者。正文按内容寻址、整个 Home 共用，本包看不到谁在引用：`EvidenceContentStore.delete` 删一份正文，`collect({ candidates, isReferenced })` 只删调用方数过引用、确认无人持有的候选；`createSearchOpaqueBlobStore` 返回的 `collect({ namespace, discard })` 按键删 SEL 操作记录（值保持密封、不被读取）。数引用的一方（Feed 删除来源）负责数全。
 
@@ -115,6 +115,12 @@ pnpm test:run tests/feed-security.test.ts tests/web-home-isolation.test.ts tests
 
 升级链的单库跑法在 `sqlite-upgrade.ts`（`runSqliteUpgrade`，[设计](../../specs/upgrade-continuity/upgrade-chain-design.md) §2.2）：调用方持存储主人锁、这个文件上没有别的连接，自己开好连接交进来，跑法校验段连续，在一个写事务里依次跑段、写版本，提交前查完整性、外键、结构（含 Home 空间表）、各表行数和主人的检查；任何一步失败都回滚并报 `storage.upgrade_failed`，段抛出的原始错误只放在 `cause`，不进消息和 `details`。事务不能等，`run`、`verify` 返回 Promise 或别的 thenable 一律按失败算；这时函数可能还没跑完，所以 `runSqliteUpgrade` 抛出后调用方要同步关掉连接，中间不能有 `await`，否则这个函数后面的写还会落进库。段带 `rebuilds_tables` 时外键在事务外关掉，结束后恢复原状并读回确认。快照与放回在 `upgrade-snapshot.ts`。版本拒绝的 `details` 带 `found`、`expected` 和 `path`：`path` 与消息里的位置只写相对 Home 的路径，没有 Home 时只写文件名，因为动作错误原样给调用方。
 
+整个 Home 的升级过程在宿主的 `apps/local-host/src/home-upgrade.ts`，这里只给它用的端口：`upgrade-inspection.ts` 不留痕地读一个库的版本和空间归属（不打开写连接、不生成旁路文件），并造升级的拒绝；`onUpgradePending` 让持锁进程听到「打开了低版本的库」，监听可以换一个错误（宿主用它把已失败的库报成 `upgrade_failed`）；不持锁的进程没有监听，所以读者不写任何东西；`onStorageOwnerRelease` 在锁真正释放之后通知，监听随之退场；`storageOwnerHeldHere` 说这把锁是不是这个进程自己拿着，这时不能去看它的库（文件锁属于进程）；`upgradeStepsProblem` 在碰库之前按跑法同样的规则查段（设计 §2.2 第 1 步）。
+
+带版本的 JSON 文件在 `versioned-file.ts`（[设计](../../specs/upgrade-continuity/upgrade-chain-design.md) §2.6）：主人声明 `VersionedFile`（版本、版本字段、段、`parse`），路径写在升级过程的描述符上。读者走 `readVersionedFile`，只读不转换；写之前走 `assertVersionedFileWritable`，比程序新、还没升、读不了的文件都拒绝，不写。`upgradeVersionedFile` 由持锁的升级过程调，`upgradeVersionedFileInPlace` 给还没有宿主的安装器用，都是整份替换、不留副本。`captureUpgradeFileSnapshot` 拍文件的快照，清单条目没有 `sqlite` 这一块。
+
+打开路径的结构比较按基线对象加文件路径记忆（`comparedShapes`，设计 §3.2）：dev、ino、size、mtimeMs、`PRAGMA schema_version`、版本都没变就不再比，只记比过且相符的。
+
 升级快照与放回在 `upgrade-snapshot.ts`（[设计](../../specs/upgrade-continuity/upgrade-chain-design.md) §2.2 第 2、3 步、§5），全部同步，调用方持这个 Home 的存储主人锁（函数自己核：`lockDirectory` 是锁所在的目录，宿主放在 `<home>/agent-runtime`，只能是这个 Home 本身或它的直接子目录）、这个文件上没有别的连接：`captureUpgradeSnapshot` 做 checkpoint，确认 `-wal`、`-shm`、`-journal` 都不在了（回滚日志模式的库，写在日志刷盘之前被杀，会留下 SQLite 自己也不理的空日志或首字节为 0 的日志，这种在独占锁下清掉；活着的写者的日志字节相同，拿不到独占锁就报错，什么都不删；同一进程里另一份 SQLite 的连接看不见，所以这个前提要调用方守），再把主文件原样拷进 `upgrade/<run-id>/`，这份就是放回的基准；连接由调用方给（`SqliteBaselineDatabase` 加 `close`），用这个库自己的驱动，不用 `openHomeSqliteDatabase`（它一打开就可能写空间表）。`restoreUpgradeSnapshot` 先核快照的 sha256、大小和清单的形状（清单的其他字段不防改），不符就报 `snapshot_invalid` 并停下，库文件和旁路文件都不动；相符才删旁路文件、经同目录临时文件 `rename` 放回、恢复原 mode、再核一遍。两个函数的每一步都能中断后重来，`tests/upgrade-snapshot.test.ts` 在每个文件操作之前 `kill -9` 一次验证。放不放回看版本，不看失败的 `reason`：已是目标版本的不放回（提交之后才失败），其余一律放回，因为段写 `COMMIT; BEGIN`，或 `async` 段在第一个 `await` 之前写 `COMMIT` 时，版本还是旧的、前半已经提交。从 `runSqliteUpgrade` 抛出，到关连接、调放回，中间不能有 `await`。`assertUpgradeDiskSpace` 按整个 Home 算（主文件加 `-wal`，乘 2），不够就报 `storage.upgrade_no_space`，什么都不动。路径只从可信 Home 和描述符推导，清单里写的路径只用来对上单元，不用来找文件；密文原样进快照，密钥不进，清单只记依赖。`pruneUpgradeSnapshots` 留下指定的一轮，删别的轮。`manifest.json` 只管这一轮拍了什么，单元走到哪一步由调用方的升级记录管。不变量见 [S-upgrade-snapshot-confinement](../../docs/system/security-invariants/S-upgrade-snapshot-confinement.md)、[S-upgrade-restore-verified](../../docs/system/security-invariants/S-upgrade-restore-verified.md)、[S-upgrade-journal-removal](../../docs/system/security-invariants/S-upgrade-journal-removal.md)。
 
 - 负责：SQLite、文件系统、Blob、事务、当前 schema 基线与版本校验、备份与本地密钥存储的技术端口；系统搜索的本地全文索引适配（`openTextSearchIndex`，`{home}/search/search.db`）。
@@ -134,7 +140,7 @@ pnpm test:run tests/feed-security.test.ts tests/web-home-isolation.test.ts tests
   - 正文由读取器提供的条目，只对能读该种类的调用来源返回。
   - 项目被删除时清掉它在个人库里的行：`clearInExistingHomeSqlite` 对已存在的库在一个写事务里运行删除（库不存在就不创建、版本不符照常拒绝）；`deleteSecretEntriesWithPrefix` 按引用前缀删密封的密钥，不解密；记忆账本的 `forgetScopes` 一并忘掉已不存在的范围。
 - 知识卡与搜索索引适配器的 SQLite 语句读取整数使用 BigInt，避免全文索引遗留的 64 位内部行号使已成功的写入在返回结果时抛错；对外卡片、用量和回执仍沿原合同。回归：`tests/knowledge-cards.test.ts` 的 K01-01 与 `tests/model-first-setup.e2e.test.ts`。
-- 改动后必跑：`node scripts/run-tests.mjs tests/storage-baseline.test.ts tests/upgrade-chain.test.ts tests/upgrade-snapshot.test.ts tests/security-invariants-upgrade-snapshot.test.ts tests/home-store-baselines.test.ts tests/secret-store-keychain-retry.test.ts tests/secret-store-format.test.ts tests/home-backup-recovery.test.ts tests/plugin-private-storage.test.ts tests/system-search.test.ts tests/feed-local-history-delete.test.ts tests/project-deletion-owners.test.ts tests/project-deletion-studios.test.ts tests/security-invariants-secret-snapshot.test.ts tests/security-invariants-connector-private-state.test.ts tests/security-invariants-home-payload-purpose.test.ts tests/security-invariants-connector-private-state-limits.test.ts tests/secret-store-missing-key.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/storage-baseline.test.ts tests/upgrade-chain.test.ts tests/upgrade-snapshot.test.ts tests/security-invariants-upgrade-snapshot.test.ts tests/versioned-file.test.ts tests/security-invariants-versioned-file.test.ts tests/sqlite-shape-memo.test.ts tests/upgrade-chain-registry.test.ts tests/home-upgrade.test.ts tests/security-invariants-home-upgrade.test.ts tests/home-store-baselines.test.ts tests/secret-store-keychain-retry.test.ts tests/secret-store-format.test.ts tests/home-backup-recovery.test.ts tests/plugin-private-storage.test.ts tests/system-search.test.ts tests/feed-local-history-delete.test.ts tests/project-deletion-owners.test.ts tests/project-deletion-studios.test.ts tests/security-invariants-secret-snapshot.test.ts tests/security-invariants-connector-private-state.test.ts tests/security-invariants-home-payload-purpose.test.ts tests/security-invariants-connector-private-state-limits.test.ts tests/secret-store-missing-key.test.ts`
 
 - 空间归属改动另跑：`node scripts/run-tests.mjs tests/space-ownership.test.ts tests/web-home-isolation.test.ts`。
 - 文本转储（`src/sqlite-text-dump.ts`，金样 Home 用，设计见 `specs/upgrade-continuity/golden-replay-design.md` §2）：同样的已提交行写出同样的字节，只走窄接口 `SqliteBaselineDatabase` 与 SQLite 的 `quote()`。要归一的随机列只写进 `SQLITE_DUMP_NORMALIZED_COLUMNS` 这张短表，不做通配。改它另跑：`node scripts/run-tests.mjs tests/golden-home.test.ts`。
@@ -156,4 +162,4 @@ pnpm test:run tests/feed-security.test.ts tests/web-home-isolation.test.ts tests
 
 `createAggregateCopy` 为原 owner 声明的保存图提供独立复制入口；源接口可在本地空间只读导出，不取得个人同步准入，目标仅向当前个人空间创建。owner 明确声明 copy kind、依赖及 JSON 引用重映射；普通正文不搜索 ID。根记录和全局子记录建立新标识，完整答卷、保存版本及终态对话保留。目标相同结果重试不重复导入，已编辑目标拒绝覆盖，最终撤权回滚业务与日志。此接口不是整项目复制用户入口，项目编排及其他 owner 尚在实现。
 
-`openOwnerCopyStore` 复用同一只读路径、基线和关闭句柄边界，owner 自行提供投影、目标日志安装和以具名基线显式打开的目标连接；公共工具不转交未知 schema；缺失源库不创建，目标仅个人空间。Images 通过此端口复用完整终态图片投影。`hasReplicaHistory` 只检查技术日志；副本当前不存在但已有删除/替换历史时，复制重试必须拒绝重新创建。
+`hasReplicaHistory` 只检查技术日志；副本当前不存在但已有删除/替换历史时，复制重试必须拒绝重新创建。

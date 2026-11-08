@@ -5,7 +5,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
-import { createDesktopWebHost } from "@molis-ai/molis-work-app-desktop";
+import { createDesktopWebCore } from "@molis-ai/molis-work-app-desktop";
 import { pagesActions, pagesContentActions } from "@molis-ai/molis-work-plugin-pages";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openTestHome } from "./fixtures/test-home.js";
@@ -43,7 +43,7 @@ test("AQD-04 standalone database root does not manufacture a catalog Runtime plu
   seedDemoBoard(databasePath);
   const probe = queryProbe("queryroot", "project"), controlToken = randomUUID();
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, pluginFixtures: { project: [probe.definition] } });
-  const root = createDesktopWebHost({ ptyClientFilePath: () => "" })({ homeDirectory: home, databasePath,
+  const root = createDesktopWebCore({ ptyClientFilePath: () => "" })({ homeDirectory: home, databasePath,
     projectId: DEMO_PROJECT_ID, localHost: host, controlToken });
   t.after(async () => {
     await new Promise<void>((resolve, reject) => { root.close(error => error ? reject(error) : resolve()); root.closeAllConnections(); });

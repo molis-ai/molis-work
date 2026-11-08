@@ -1,4 +1,5 @@
 import type { InteractionClient, InteractionClientHost } from "@molis-ai/molis-work-plugin-sdk/page-globals";
+import type { UiPageDrafts, UiPageReturns } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { ReceiptActions } from "../input-receipts.js";
 import type { Lifetime, ReceiptLinks, ShowReviews, Translate } from "../types.js";
 
@@ -33,6 +34,9 @@ export interface CodingHost {
   selectWorkspace(id: string): Promise<void>;
   addWorkspace(path: string): Promise<{ readonly workspace_id: string }>;
   confirm(question: string): Promise<boolean>;
+  /** The platform's drafts and the way to the settings and back (specs/draft-and-return §2.4); main/returns.ts uses them. */
+  readonly drafts: UiPageDrafts;
+  readonly returns: UiPageReturns;
   /** The directory column's face was chosen; true when the Host handled it. */
   onDirectoryFace?(face: string): boolean;
 }

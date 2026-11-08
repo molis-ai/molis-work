@@ -1,5 +1,6 @@
 import { tint } from "./chain.js";
-import { EASE_SETTLE, MOD, arrive, calm, esc, ico, kindName, motion, required, said, settle, when } from "./dom.js";
+import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { EASE_SETTLE, MOD, arrive, calm, ico, kindName, motion, required, said, settle, when } from "./dom.js";
 import { emitCtx } from "./nav.js";
 import type { WorkflowsPage } from "./page.js";
 import { pipsHtml, runStatus } from "./run.js";

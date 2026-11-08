@@ -16,8 +16,8 @@ export function createFunctionsRouteHandlers(
     "functions.published": call(functionsActions.list, () => ({})),
     "functions.get": call(functionAuthoringActions.get, ({ params }) => ({ id: params.id })),
     "functions.update": call(functionAuthoringActions.update, ({ params, request }) => {
-      const { updated_at, ...patch } = request.body;
-      return { id: params.id, ...(updated_at === undefined ? {} : { updated_at }), patch };
+      const { expected_updated_at, ...patch } = request.body;
+      return { id: params.id, expected_updated_at, patch };
     }),
     "functions.preview": call(functionAuthoringActions.preview, revision),
     "functions.publish": call(functionAuthoringActions.publish, revision),

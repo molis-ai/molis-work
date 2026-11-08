@@ -8,7 +8,7 @@ import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work
 import { MolisWorkLocalHost, resolveWebControlToken } from "@molis-ai/molis-work-app-local-host";
 import type { KnowledgeSearchResponse } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { openKnowledgeCards } from "@molis-ai/molis-work-storage";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 
 // specs/project-knowledge PMAT-41, PMAT-44: what is imported reaches the project's catalog (the cards each round's directory and
 // counts come from) without anyone searching, a ref a search hands back names a card, and an imported file's text is read when

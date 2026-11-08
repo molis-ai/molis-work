@@ -98,7 +98,6 @@ export const GIT_MESSAGES = {
   "git.result.no-decider": { zh: "未记录决定者", en: "decider not recorded" },
   "git.result.no-time": { zh: "未记录决定时间", en: "time not recorded" },
   "git.result.checked": { zh: "；核对：{who} · {when}；依据：{why}", en: "; checked: {who} · {when}; because: {why}" },
-  "git.result.checked-old": { zh: "；核对依据：{why}（这份旧固定结果未记录核对者与核对时间）", en: "; checked because: {why} (this older pinned result didn't record who checked or when)" },
   "git.result.original": { zh: "；原说明：{why}", en: "; original note: {why}" },
   "git.result.saved": { zh: "已保存固定结果 · v{version}；后续操作不会改写这份结果。", en: "Pinned result saved · v{version}. Later operations won't rewrite it." },
   "git.result.unsaved": { zh: "尚未保存", en: "Not saved yet" },

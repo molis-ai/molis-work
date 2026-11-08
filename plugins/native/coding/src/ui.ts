@@ -20,8 +20,8 @@ import {
   type CodingToolAvailability,
 } from "./projection.js";
 
-export const CODING_UI_CONTRIBUTION_ID = /* @version contract.io.molis.work.native.coding.ui "io.molis.work.native.coding.ui.v{version}" */ "io.molis.work.native.coding.ui.v1";
-export const CODING_SETTINGS_UI_CONTRIBUTION_ID = /* @version contract.io.molis.work.native.coding.settings "io.molis.work.native.coding.settings.v{version}" */ "io.molis.work.native.coding.settings.v1";
+export const CODING_UI_CONTRIBUTION_ID = "io.molis.work.native.coding.ui.v1";
+export const CODING_SETTINGS_UI_CONTRIBUTION_ID = "io.molis.work.native.coding.settings.v1";
 
 /**
  * The two places Coding's page opens for the plugins it embeds (`ui.embedded_plugins`): their browsers' lists go in the directory
@@ -75,8 +75,8 @@ export const codingUiDescriptor: UiContributionDeclaration = {
     { surface_id: "workbench", target_slot_id: "workbench.main", format: "declarative-html" },
   ],
   slots: [
-    { slot_id: CODING_COMPANION_DIRECTORY_SLOT, version: /* @version slot.coding.companion-directory */ 1, accepts: ["declarative-html"] },
-    { slot_id: CODING_COMPANION_RESULT_SLOT, version: /* @version slot.coding.companion-result */ 1, accepts: ["declarative-html"] },
+    { slot_id: CODING_COMPANION_DIRECTORY_SLOT, accepts: ["declarative-html"] },
+    { slot_id: CODING_COMPANION_RESULT_SLOT, accepts: ["declarative-html"] },
   ],
 };
 
@@ -342,7 +342,7 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
               </div>
             </div>
           </div>
-          <a class="mw-btn mw-btn--ghost coding-model-setup" data-coding-model-setup href="/settings/models" hidden>${p.escape(p.text("coding.model.open-settings"))}</a><div class="mw-field__hint" data-coding-input-status role="status" hidden></div><div class="coding-composer-footnote"><small data-coding-draft-status>${p.escape(p.text("coding.composer.draft-note"))}</small><small class="coding-model-note" data-coding-model-note hidden></small><span class="coding-composer-keys"><kbd class="mw-kbd" title="${p.escape(p.text("coding.keys.slash-title"))}">${p.escape(p.text("coding.keys.slash"))}</kbd><kbd class="mw-kbd" title="${p.escape(p.text("coding.keys.palette-title"))}">${p.escape(p.text("coding.keys.palette"))}</kbd><kbd class="mw-kbd" title="${p.escape(p.text("coding.keys.send-title"))}">⌘ / Ctrl ↵</kbd></span></div>
+          <button type="button" class="mw-btn mw-btn--ghost coding-model-setup" data-coding-model-setup hidden>${p.escape(p.text("coding.model.open-settings"))}</button><div class="mw-field__hint" data-coding-input-status role="status" hidden></div><div class="coding-composer-footnote"><small data-coding-draft-status>${p.escape(p.text("coding.composer.draft-note"))}</small><small class="coding-model-note" data-coding-model-note hidden></small><span class="coding-composer-keys"><kbd class="mw-kbd" title="${p.escape(p.text("coding.keys.slash-title"))}">${p.escape(p.text("coding.keys.slash"))}</kbd><kbd class="mw-kbd" title="${p.escape(p.text("coding.keys.palette-title"))}">${p.escape(p.text("coding.keys.palette"))}</kbd><kbd class="mw-kbd" title="${p.escape(p.text("coding.keys.send-title"))}">⌘ / Ctrl ↵</kbd></span></div>
         </form>
       </div>
       <aside class="coding-tools" data-coding-tools>

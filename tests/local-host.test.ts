@@ -18,7 +18,7 @@ import {
   molisWorkHostProjectReference,
 } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { runV1Cli } from "@molis-ai/molis-work-app-local-host";
 
 /** A Host action of these tests: offered to the person in a project, taking anything. */

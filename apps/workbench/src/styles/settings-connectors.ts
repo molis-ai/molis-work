@@ -92,6 +92,8 @@ export const CONNECTOR_EXPERIENCE_STYLES = `${SERVICE_CONNECTION_ITEM_STYLES}
   .settings-connector-alternative > summary small { margin-left: 12px; color: var(--muted); font-weight: 400; }
   .settings-connector-alternative[open] .settings-connector-method { padding: 12px 0 16px; }
   .settings-connector-next { display: grid; gap: 12px; border-top: 1px solid var(--line); padding-top: 16px; }
+  /* With a way back open, 连好以后 gives way to the return bar: once connected the person goes back (specs/draft-and-return §4). */
+  [data-work-surface]:has(> [data-settings-return-bar]:not([data-return-bar-state="gone"])) [data-connector-next] { display: none; }
   .settings-connector-next h3 { font-size: 13px; font-weight: 600; margin: 0; }
   .settings-connector-next__step { display: grid; justify-items: start; gap: 8px; }
   .settings-connector-next p { color: var(--ink-soft); font-size: 13px; line-height: 1.65; margin: 0; max-width: 65ch; }

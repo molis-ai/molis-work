@@ -6,11 +6,9 @@ import { SIGNALS_SCHEMA_SQL } from "./store/signals.js";
 import { SOURCES_SCHEMA_SQL } from "./store/sources.js";
 
 /**
- * Feed's tables in each project's library (`databases.project`, PG-020): its out rules (version 1), and since FI-5 (version 2) the
- * Feed items, the Sources, the Signals and the Listener Host's runs and deliveries, which were the library baseline's. One
- * declaration, one store: all twelve are Feed's. Their statements are the baseline's word for word, so a library made before the
- * move holds exactly what the declaration would have made. The platform makes the tables the first time the library opens with
- * Feed and refuses to open it again if its version or shape has changed, stopping only Feed.
+ * Feed's tables in each project's library (`databases.project`, PG-020): its out rules, the Feed items, the Sources, the Signals
+ * and the Listener Host's runs and deliveries. One declaration, one store: all twelve are Feed's. The platform makes the tables the
+ * first time the library opens with Feed and refuses to open it again if its version or shape has changed, stopping only Feed.
  */
 export const FEED_PROJECT_DATABASE: PluginDatabaseDeclaration = {
   store_name: "feed",

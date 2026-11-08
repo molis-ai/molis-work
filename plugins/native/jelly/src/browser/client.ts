@@ -1,3 +1,4 @@
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { installCalendarEvents } from "./calendar-events.js";
 import { periodTitle } from "./calendar.js";
 import { installDatePickers } from "./datepicker.js";
@@ -8,7 +9,6 @@ import { installModelReady } from "./model.js";
 import { installNoteEvents } from "./note-events.js";
 import { createPage, empty, showNote } from "./page.js";
 import { installRootClicks } from "./root-clicks.js";
-import { messageOf } from "./util.js";
 import { loadList } from "./workspace.js";
 import type { JellyHost } from "./types.js";
 

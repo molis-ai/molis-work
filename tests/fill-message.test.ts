@@ -29,7 +29,16 @@ test("VUX-40: the page's L and the Host's L fill the same way, and every agreein
   }
   assert.equal(host.L("git.commit.staged", { count: 1 }), "Commit 1 staged file…");
   assert.equal(host.L("git.commit.staged", { count: 2 }), "Commit 2 staged files…");
+  // T01-MODEL-COUNT-01: model-list counts use the same plural contract on both rendering paths.
   for (const count of [0, 1, 2]) {
+    const expected = `The service offers ${count} ${count === 1 ? "model" : "models"}. Pick one to add it.`;
+    const key = "服务提供 {count} 个模型，选一个加进列表";
+    assert.equal(host.L(key, { count }), expected);
+    assert.equal(page.L!(key, { count }), expected);
+    // T01-TAB-COUNT-01: the navigation board follows the same count rule.
+    const tabs = `${count} ${count === 1 ? "tab" : "tabs"}`;
+    assert.equal(host.L("{n} 张", { n: count }), tabs);
+    assert.equal(page.L!("{n} 张", { n: count }), tabs);
     // T01-REPOSITORY-COUNT-01: both connection specimens agree with 0/1/2 repositories.
     const noun = count === 1 ? "repository" : "repositories";
     for (const [key, expected] of [

@@ -534,8 +534,9 @@ async function seededScreens(journey: NonNullable<Awaited<ReturnType<typeof open
     item.todo = { status: "pending", batches: [], total: 6, error: null, timing: { ms: 0, calls: 0 } };
   });
   const reselect = seed(item => {
-    item.sources = [{ kind: "browser", selected: true, references: [{ ...reference(1), original: undefined as never }] }];
+    item.sources = [{ kind: "browser", selected: true, references: [reference(1)] }];
     item.phase = "review";
+    item.staging_removed = true;
   });
   return [
     ["sources, nothing added", "/onboarding?mode=new-project", obView("sources")],

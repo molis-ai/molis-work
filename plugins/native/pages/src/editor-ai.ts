@@ -7,7 +7,8 @@ import { nodeFromUnknown } from "./schema.js";
 import { applyToPagesFrozen, freezePagesFocus, readPagesFocus, releasePagesFrozen, resolvePagesFrozen } from "./focus.js";
 import type { EditorPopup } from "./editor-popup.js";
 import type { PagesCommandPreset, PagesEditorMountOptions } from "./editor-types.js";
-import { t, escapeHtml, actions } from "./editor-view-ui.js";
+import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t, actions } from "./editor-view-ui.js";
 
 function replaceSelectionText(view: EditorView, text: string): void {
   const { from, to } = view.state.selection;

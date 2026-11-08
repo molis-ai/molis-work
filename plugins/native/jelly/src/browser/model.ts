@@ -2,7 +2,7 @@ import { openGeneric } from "./dialog.js";
 import { flushEditor } from "./notes.js";
 import { run, showNote } from "./page.js";
 import { API } from "./request.js";
-import { esc } from "./util.js";
+import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { JellyPage } from "./types.js";
 
 interface ModelChoice { model_id: string; display_name?: string; enabled?: boolean }

@@ -1,4 +1,4 @@
-import { messageOf } from "./dom.js";
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { installCommands } from "./commands.js";
 import { installEditor } from "./editor.js";
 import { installEvents } from "./events.js";

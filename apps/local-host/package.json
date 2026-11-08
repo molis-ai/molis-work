@@ -84,6 +84,7 @@
     "@molis-ai/molis-work-plugin-todo": "workspace:*",
     "@molis-ai/molis-work-plugin-workflows": "workspace:*",
     "@molis-ai/molis-work-server": "workspace:*",
+    "@molis-ai/molis-work-service-account": "workspace:*",
     "@molis-ai/molis-work-service-agent-host": "workspace:*",
     "@molis-ai/molis-work-service-connector-host": "workspace:*",
     "@molis-ai/molis-work-service-knowledge": "workspace:*",

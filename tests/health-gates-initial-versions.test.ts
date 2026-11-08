@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
-import { PERSISTENT_DEFINITIONS, PERSISTENT_ENTRY_KEYS, initialVersionProblems, sourceVersionProblems, upgradeStepProblems, versionOriginProblems } from "../scripts/gates/initial-versions.mjs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { PERSISTENT_DEFINITIONS, PERSISTENT_ENTRY_KEYS, checkRepository, initialVersionProblems, isCheckedSource, registeredUpgradeChains, sourceVersionProblems, upgradeStepProblems, versionOriginProblems } from "../scripts/gates/initial-versions.mjs";
 
 test("U0-03: an active registration cannot hide a later action, manifest, role, prompt, instruction or method version", () => {
   const agent = {
@@ -147,24 +149,26 @@ test("UPG1-i-initial-10: a payload version kept in a row is no persistent format
 });
 
 const CHAIN_FILES = [
-  ["format.home.onboarding", "apps/local-host/src/onboarding.ts#schema_version"],
-  ["format.project.arrival", "apps/local-host/src/project-arrival.ts#schema_version"],
-  ["format.browser.site-decisions", "apps/local-host/src/browser/browser-surfaces.ts#version"],
-  ["format.computer.settings", "apps/local-host/src/computer/computer-settings.ts#version"],
-  ["format.computer.record", "apps/local-host/src/computer/computer-records.ts#version"],
-  ["format.model.preference", "apps/local-host/src/model-configuration.ts#schema_version"],
+  ["apps/local-host/src/onboarding.ts", "ONBOARDING_SCHEMA_VERSION", "format.home.onboarding"],
+  ["apps/local-host/src/project-arrival.ts", "PROJECT_ARRIVAL_SCHEMA_VERSION", "format.project.arrival"],
+  ["apps/local-host/src/browser/browser-surfaces.ts", "BROWSER_SITES_VERSION", "format.browser.site-decisions"],
+  ["apps/local-host/src/computer/computer-settings.ts", "COMPUTER_SETTINGS_VERSION", "format.computer.settings"],
+  ["apps/local-host/src/computer/computer-records.ts", "COMPUTER_RECORD_VERSION", "format.computer.record"],
+  ["apps/local-host/src/model-configuration.ts", "MODEL_PREFERENCE_SCHEMA_VERSION", "format.model.preference"],
 ] as const;
 const inspectEntries = (versionEntries: Record<string, number>, chains?: Map<string, unknown>) =>
   initialVersionProblems({ manifests: [], hostViews: [], registrations: [], versionEntries, ...(chains ? { chains } : {}) });
 
 test("UPG1-i-initial-11: the six files of design §2.6 at 2 fail with no chain and pass only with a consecutive chain and a passed replay", () => {
-  for (const [key, definition] of CHAIN_FILES) {
-    assert.deepEqual(inspectEntries({ [key]: 1 }), [], `${key} at 1 needs no chain`);
-    assert.deepEqual(inspectEntries({ [key]: 2 }), [`${definition} = 2 (expected 1; above 1 it needs a registered upgrade chain and a replay that passed)`]);
-    const withChain = (froms: number[], replay_passed: boolean) => inspectEntries({ [key]: 2 }, new Map([[definition, { version: 2, froms, replay_passed }]]));
-    assert.deepEqual(withChain([1], true), [], `${key}: a consecutive chain with a passed replay`);
-    assert.equal(withChain([], true).length, 1, `${key}: a chain with a gap`);
-    assert.equal(withChain([1], false).length, 1, `${key}: a replay that did not pass`);
+  for (const [file, name, tag] of CHAIN_FILES) {
+    const definition = `${file}#${name}`, source = (version: number) => `const ${name} = /* @version ${tag} */ ${version};`;
+    assert.deepEqual(sourceVersionProblems(file, source(1)), [], `${name} at 1 needs no chain`);
+    assert.deepEqual(sourceVersionProblems(file, source(2)), [`${definition} = 2 (expected 1; above 1 it needs a registered upgrade chain and a replay that passed)`]);
+    const withChain = (froms: number[], replay_passed: boolean) => sourceVersionProblems(file, source(2), new Map([[definition, { version: 2, froms, replay_passed }]]));
+    assert.deepEqual(withChain([1], true), [], `${name}: a consecutive chain with a passed replay`);
+    assert.equal(withChain([], true).length, 1, `${name}: a chain with a gap`);
+    assert.equal(withChain([1], false).length, 1, `${name}: a replay that did not pass`);
+    assert.ok(PERSISTENT_DEFINITIONS.includes(definition), `${definition} is on the list`);
   }
 });
 
@@ -191,12 +195,34 @@ test("UPG1-i-initial-14: the half with no build finds a constant and a persisten
   assert.deepEqual(inspect({ "packages/a/tests/a.ts": "const A_VERSION = 2;", "docs/a.ts": "const A_VERSION = 2;" }), [], "outside the checked source");
   // A prompt or method goes up when its text changes (tests/prompt-registration.test.ts); only the hand-run half holds them at 1 (U0-03).
   assert.deepEqual(inspect({ "tooling/versions.json": versions({ "prompt.a.b": 2, "method.a": 2, "role.a": 2 }) }), [], "not data files, so not this half");
-  const onboarding = "apps/local-host/src/onboarding.ts#schema_version";
-  const raised = { "tooling/versions.json": versions({ "format.home.onboarding": 2 }) };
-  assert.match(inspect(raised)[0]!, /onboarding\.ts#schema_version = 2 .*registered upgrade chain/);
-  assert.deepEqual(inspect(raised, { chains: new Map([[onboarding, { version: 2, froms: [1], replay_passed: true }]]) }), []);
+  const ledger = "apps/local-host/src/installed-plugin-libraries.ts#LEDGER_BASELINE";
+  const raised = { "tooling/versions.json": versions({ "database.ledger_baseline": 2 }) };
+  assert.match(inspect(raised)[0]!, /installed-plugin-libraries\.ts#LEDGER_BASELINE = 2 .*registered upgrade chain/);
+  assert.deepEqual(inspect(raised, { chains: new Map([[ledger, { version: 2, froms: [1], replay_passed: true }]]) }), []);
   const excepted = JSON.stringify([{ file: "packages/a/src/a.ts", name: "A_VERSION", reason: "x" }]);
   assert.deepEqual(inspect({ "packages/a/src/a.ts": "const A_VERSION = 2;", "tooling/gates/version-exceptions.json": excepted }), [], "the exceptions of the repository it reads, not of this one");
+});
+
+test("UPG1-12: the register is read from the definition's own file: its steps beside it, or in its baseline. What cannot be read exactly is no chain", () => {
+  const catalog = "apps/local-host/src/project-catalog-contract.ts#CATALOG_SCHEMA_VERSION", file = catalog.split("#")[0]!;
+  const ledger = "apps/local-host/src/installed-plugin-libraries.ts#LEDGER_BASELINE", ledgerFile = ledger.split("#")[0]!;
+  const chainsOf = (texts: Record<string, string>) => registeredUpgradeChains({ read: (name: string) => texts[name] ?? null });
+  assert.deepEqual(chainsOf({ [file]: "export const CATALOG_SCHEMA_VERSION = 3;\nexport const CATALOG_UPGRADES: readonly SqliteUpgradeStep[] = [{ from: 1, sql: `x` }, { from: 2, run: () => {} }];" }).get(catalog),
+    { version: 3, froms: [1, 2], replay_passed: false });
+  assert.deepEqual(chainsOf({ [ledgerFile]: "const LEDGER_BASELINE: SqliteBaseline = { version: 2, schema: ``, upgrades: [{ from: 1, sql: `x` }] };" }).get(ledger),
+    { version: 2, froms: [1], replay_passed: false });
+  assert.deepEqual(chainsOf({ [ledgerFile]: "const STEPS = [{ from: 1, sql: `x` }];\nconst LEDGER_BASELINE = { version: 2, schema: ``, upgrades: STEPS } satisfies SqliteBaseline;" }).get(ledger),
+    { version: 2, froms: [1], replay_passed: false });
+  assert.equal(chainsOf({ [file]: "const CATALOG_SCHEMA_VERSION = 2;\nconst CATALOG_UPGRADES = [...older];" }).has(catalog), false, "a spread");
+  assert.equal(chainsOf({ [file]: "const CATALOG_SCHEMA_VERSION = 2;\nconst CATALOG_UPGRADES = [{ from: FIRST }];" }).has(catalog), false, "a computed from");
+  assert.equal(chainsOf({ [file]: "const CATALOG_SCHEMA_VERSION = 2;" }).has(catalog), false, "no steps");
+  assert.equal(chainsOf({ [ledgerFile]: "const LEDGER_BASELINE = { version: CURRENT, schema: `` };" }).has(ledger), false, "a version that is not a number");
+});
+
+test("UPG1-12: steps alone do not raise a persistent format: until the replay passes, what is above 1 fails, and here it reaches the rule", () => {
+  const file = "apps/local-host/src/project-catalog-contract.ts", text = "export const CATALOG_SCHEMA_VERSION = 2;\nexport const CATALOG_UPGRADES = [{ from: 1, sql: `x` }];";
+  const snapshot = snapshotOf({ [file]: text });
+  assert.deepEqual(versionOriginProblems(snapshot, { chains: registeredUpgradeChains(snapshot) }), [`${file}#CATALOG_SCHEMA_VERSION = 2: the replay of its upgrade chain did not pass`]);
 });
 
 test("UPG1-i-initial-15: a table it cannot read, or one this repository had and lost, is a problem and not a pass", () => {
@@ -204,6 +230,117 @@ test("UPG1-i-initial-15: a table it cannot read, or one this repository had and 
   assert.match(versionOriginProblems(snapshotOf({ "tooling/gates/version-exceptions.json": "{" }))[0]!, /version-exceptions\.json cannot be read/);
   const hadIt = (file: string) => (file === "tooling/versions.json" ? "{}" : "");
   assert.deepEqual(versionOriginProblems(snapshotOf({}), { readBase: hadIt }), ["tooling/versions.json is gone, so the versions it holds cannot be checked"]);
+});
+
+test("VG-28 a product marker lets through the product constant and nothing else", () => {
+  const PRODUCT = "apps/local-host/src/product-version.ts", MARKER = "/* @version product.release */";
+  assert.deepEqual(sourceVersionProblems(PRODUCT, `export const PRODUCT_VERSION = ${MARKER} "0.1.0";`), []);
+  const refused: Array<[string, string, string]> = [
+    ["packages/a/src/a.ts", `const OTHER_VERSION = ${MARKER} 9;`, "OTHER_VERSION = 9"],
+    ["packages/a/src/a.ts", `const OTHER_VERSION = ${MARKER} "0.1.0";`, 'OTHER_VERSION = "0.1.0"'],
+    ["packages/a/src/a.ts", `const PRODUCT_VERSION = ${MARKER} "0.1.0";`, 'PRODUCT_VERSION = "0.1.0"'],
+    [PRODUCT, `const OTHER_VERSION = ${MARKER} "0.1.0";`, 'OTHER_VERSION = "0.1.0"'],
+    [PRODUCT, `export const PRODUCT_VERSION = ${MARKER} 9;`, "PRODUCT_VERSION = 9"],
+    [PRODUCT, 'export const PRODUCT_VERSION = "0.1.0";', 'PRODUCT_VERSION = "0.1.0"'],
+    [PRODUCT, 'export const PRODUCT_VERSION = /* @version format.other */ "0.1.0";', 'PRODUCT_VERSION = "0.1.0"'],
+    [PRODUCT, `export const PRODUCT_VERSION = // ${MARKER}\n"0.1.0";`, 'PRODUCT_VERSION = "0.1.0"'],
+  ];
+  for (const [file, source, found] of refused) assert.deepEqual(sourceVersionProblems(file, source), [`${file}: ${found} (expected 1)`], source);
+});
+
+test("VG-29 the test boundary is the package: `src/fixtures` and `src/tests` ship, so their constants are checked", () => {
+  const raised = (name: string) => `const ${name}_VERSION = 2;`;
+  const problems = versionOriginProblems(snapshotOf({
+    "packages/a/src/fixtures/shipped.ts": raised("FIXTURE"),
+    "packages/a/src/tests/shipped.ts": raised("TESTS"),
+    "plugins/native/x/src/fixtures/shipped.ts": raised("PLUGIN"),
+    "tooling/plugin-cli/src/cli.ts": raised("CLI"),
+    "packages/a/tests/frozen.ts": raised("A"),
+    "packages/a/test/frozen.ts": raised("B"),
+    "packages/a/fixtures/frozen.ts": raised("C"),
+    "plugins/native/x/tests/frozen.ts": raised("D"),
+    "packages/a/tests/frozen.test.ts": raised("E"),
+    "tooling/other/src/not-a-root.ts": raised("F"),
+  }));
+  assert.deepEqual(problems, [
+    "packages/a/src/fixtures/shipped.ts: FIXTURE_VERSION = 2 (expected 1)",
+    "packages/a/src/tests/shipped.ts: TESTS_VERSION = 2 (expected 1)",
+    "plugins/native/x/src/fixtures/shipped.ts: PLUGIN_VERSION = 2 (expected 1)",
+    "tooling/plugin-cli/src/cli.ts: CLI_VERSION = 2 (expected 1)",
+    "packages/a/test/frozen.ts: B_VERSION = 2 (expected 1)",
+  ]);
+});
+
+test("VG-39 a test file outside a `tests/` or `fixtures/` directory is checked as before the shared boundary", () => {
+  const raised = (name: string) => `const ${name}_VERSION = 2;`;
+  const problems = versionOriginProblems(snapshotOf({
+    "apps/sync-worker/feed.test.mjs": raised("WORKER"),
+    "apps/sync-worker/test.mjs": raised("RUNNER"),
+    "apps/workbench/tooling/client-literals.test.mjs": raised("TOOLING"),
+    "packages/a/src/frozen.test.ts": raised("SPEC"),
+  }));
+  assert.deepEqual(problems, [
+    "apps/sync-worker/feed.test.mjs: WORKER_VERSION = 2 (expected 1)",
+    "apps/sync-worker/test.mjs: RUNNER_VERSION = 2 (expected 1)",
+    "apps/workbench/tooling/client-literals.test.mjs: TOOLING_VERSION = 2 (expected 1)",
+    "packages/a/src/frozen.test.ts: SPEC_VERSION = 2 (expected 1)",
+  ]);
+  // Over this repository: every file the gate checked at #1934 (its rule copied here) it still checks.
+  const before = (file: string) => /^(?:apps|packages|plugins|modules|server|horizontal)\//.test(file) && /\.(?:[cm]?[jt]s|[jt]sx)$/.test(file) && !/(?:^|\/)(?:tests|fixtures)\//.test(file);
+  const files = execFileSync("git", ["ls-files", "-z"], { cwd: new URL("../", import.meta.url), encoding: "utf8", maxBuffer: 1 << 30 }).split("\0").filter(Boolean);
+  assert.deepEqual(files.filter(before).filter(file => !isCheckedSource(file)), []);
+});
+
+// The whole check over a tracked repository, with the running Host's half handed in: this job has no build, and
+// tests/initial-versions-check.test.ts runs the script itself against the real build.
+const scratchRepository = (t: { after: (cleanup: () => void) => void }, texts: Record<string, string>, untracked: Record<string, string> = {}) => {
+  const root = mkdtempSync(path.join(tmpdir(), "molis-initial-versions-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const put = (file: string, text: string) => { mkdirSync(path.dirname(path.join(root, file)), { recursive: true }); writeFileSync(path.join(root, file), text); };
+  for (const [file, text] of Object.entries(texts)) put(file, text);
+  execFileSync("git", ["init", "-q"], { cwd: root });
+  execFileSync("git", ["add", "-A"], { cwd: root });
+  for (const [file, text] of Object.entries(untracked)) put(file, text);
+  return root;
+};
+const TABLES = { "tooling/versions.json": JSON.stringify({ versions: {} }), "tooling/gates/version-exceptions.json": "[]" };
+const NOTHING_RUNNING = async () => ({ manifests: [], hostViews: [], registrations: [] });
+
+test("VG-30 the whole check reads the tracked source, the two tables, the chains its source registers and the running Host, and finds what each of them holds", async (t) => {
+  assert.deepEqual(await checkRepository(scratchRepository(t, { ...TABLES, "packages/a/src/a.ts": "const A_VERSION = 1;" }), NOTHING_RUNNING), []);
+  const root = scratchRepository(t, {
+    "tooling/versions.json": JSON.stringify({ versions: { "prompt.a.b": 2, "method.a": 2, "database.ledger_baseline": 2 } }),
+    // A persistent format whose steps are beside it: the chain is read from this repository, so only the replay is missing.
+    "apps/local-host/src/onboarding.ts": "const ONBOARDING_SCHEMA_VERSION = 2;\nconst ONBOARDING_UPGRADES = [{ from: 1, transform: (value) => value }];",
+    "tooling/gates/version-exceptions.json": JSON.stringify([{ file: "packages/a/src/excepted.ts", name: "EXCEPTED_VERSION", values: { 5: 1 }, reason: "an upstream's" }]),
+    "packages/a/src/marked.ts": "const OTHER_VERSION = /* @version product.release */ 9;",
+    "packages/a/src/fixtures/shipped.ts": "const SHIPPED_VERSION = 2;",
+    "packages/a/src/excepted.ts": "const EXCEPTED_VERSION = 5;",
+    "packages/a/tests/frozen.ts": "const FROZEN_VERSION = 2;",
+  }, { "packages/a/src/untracked.ts": "const UNTRACKED_VERSION = 2;" });
+  const problems = await checkRepository(root, async () => ({
+    manifests: [{ plugin_id: "notes", schema_version: 2, host_api_version: 1, actions: [{ capability_id: "notes.read", version: 2 }] }],
+    hostViews: [{ provider: { provider_id: "system.home" }, capability_id: "home.read", version: 2 }],
+    registrations: [{ owner_id: "assistant", prompts: [{ prompt_id: "work", version: 2 }], roles: [] }],
+  }));
+  assert.deepEqual(problems, [
+    "apps/local-host/src/installed-plugin-libraries.ts#LEDGER_BASELINE = 2 (expected 1; above 1 it needs a registered upgrade chain and a replay that passed)",
+    "assistant: prompt work = 2 (expected 1)",
+    "notes: Manifest schema_version = 2 (expected 1)",
+    "notes: action notes.read = 2 (expected 1)",
+    "system.home: action home.read = 2 (expected 1)",
+    "tooling/versions.json: method method.a = 2 (expected 1)",
+    "tooling/versions.json: prompt prompt.a.b = 2 (expected 1)",
+    "apps/local-host/src/onboarding.ts#ONBOARDING_SCHEMA_VERSION = 2: the replay of its upgrade chain did not pass",
+    "packages/a/src/fixtures/shipped.ts: SHIPPED_VERSION = 2 (expected 1)",
+    "packages/a/src/marked.ts: OTHER_VERSION = 9 (expected 1)",
+  ]);
+});
+
+test("VG-31 the whole check does not pass a repository whose tables it cannot read", async (t) => {
+  await assert.rejects(checkRepository(scratchRepository(t, { "tooling/gates/version-exceptions.json": "[]" }), NOTHING_RUNNING), /versions\.json/);
+  await assert.rejects(checkRepository(scratchRepository(t, { "tooling/versions.json": "{}" }), NOTHING_RUNNING), /version-exceptions\.json/);
+  await assert.rejects(checkRepository(scratchRepository(t, { ...TABLES, "tooling/versions.json": '{ "versions": { "prompt.a": 1, "prompt.a": 2 } }' }), NOTHING_RUNNING), /prompt\.a appears twice/);
 });
 
 test("UPG1-i-initial-09: the step rule is from 1 to version - 1, each once", () => {

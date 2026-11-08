@@ -16,7 +16,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { INTERACTION_TEXTURE_STYLES } from "@molis-ai/molis-work-design-system";
 import { createFileSecretStore, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { renderMolisWorkSettings, renderMolisWorkWorkbenchClientScript } from "./workbench-renderer-fixture.js";
 import { renderSettingsDirectorySection } from "../apps/workbench/dist/settings-directory.js";
 import {
@@ -136,20 +136,20 @@ test("a draft Choice can be saved with empty instructions, then published only a
       ],
       scene_id: "agent.mcp",
       subject_kinds: ["mcp_invoke"],
-    });
+    }, functions.get(created.id).updated_at);
     assert.equal(updated.instructions, "这是账单吗？");
     assert.equal(updated.scene_id, "agent.mcp");
     assert.deepEqual([...updated.subject_kinds], ["mcp_invoke"]);
     assert.equal(updated.last_preview, null);
-    assert.throws(() => functions.publish(created.id), (error: unknown) => (
+    assert.throws(() => functions.publish(created.id, functions.get(created.id).updated_at), (error: unknown) => (
       error instanceof ActionError && error.code === "functions.preview_required"
     ));
-    const previewed = await functions.preview(created.id, "请退款");
+    const previewed = await functions.preview(created.id, "请退款", functions.get(created.id).updated_at);
     assert.equal(previewed.last_preview?.choice, "billing");
-    const published = functions.publish(previewed.id);
+    const published = functions.publish(previewed.id, functions.get(previewed.id).updated_at);
     assert.equal(published.status, "published");
     assert.equal(published.version, 1);
-    assert.throws(() => functions.updateDraft(published.id, { name: "改名" }), (error: unknown) => (
+    assert.throws(() => functions.updateDraft(published.id, { name: "改名" }, functions.get(published.id).updated_at), (error: unknown) => (
       error instanceof ActionError && error.code === "functions.published_immutable"
     ));
     functions.close();
@@ -175,7 +175,7 @@ test("custom Choice options survive an Inbox destination and bind through a scen
         { key: "later", description: "不急" },
       ],
       subject_kinds: ["inbox_entry"],
-    });
+    }, functions.get(created.id).updated_at);
     const hash = drafted.config_hash;
     const mapped = functions.updateDraft(created.id, {
       scene_id: INBOX_NEXT_SCENE_ID,
@@ -183,7 +183,7 @@ test("custom Choice options survive an Inbox destination and bind through a scen
         urgent: INBOX_DONE_OPTION_ID,
         later: INBOX_DISMISS_OPTION_ID,
       },
-    });
+    }, functions.get(created.id).updated_at);
     assert.equal(mapped.scene_id, INBOX_NEXT_SCENE_ID);
     assert.equal(mapped.config_hash, hash);
     assert.deepEqual(mapped.criteria, drafted.criteria);
@@ -196,10 +196,10 @@ test("custom Choice options survive an Inbox destination and bind through a scen
     const noulMapped = functions.updateDraft(noul.id, {
       scene_id: INBOX_NEXT_SCENE_ID,
       scene_map: { true: INBOX_DONE_OPTION_ID, false: INBOX_DISMISS_OPTION_ID },
-    });
+    }, functions.get(noul.id).updated_at);
     assert.equal(noulMapped.scene_id, INBOX_NEXT_SCENE_ID);
     const score = functions.create({ primitive: "score", name: "相关程度" });
-    assert.throws(() => functions.updateDraft(score.id, { scene_id: INBOX_NEXT_SCENE_ID }), (error: unknown) => (
+    assert.throws(() => functions.updateDraft(score.id, { scene_id: INBOX_NEXT_SCENE_ID }, functions.get(score.id).updated_at), (error: unknown) => (
       error instanceof ActionError && error.code === "functions.invalid"
     ));
     functions.close();
@@ -223,13 +223,13 @@ test("preview uses the injected provider once, stores last_preview, and does not
           { key: "yes", description: "急" },
           { key: "no", description: "不急" },
         ],
-      });
-      const previewed = await service.preview(created.id, "三天没人回");
+      }, service.get(created.id).updated_at);
+      const previewed = await service.preview(created.id, "三天没人回", service.get(created.id).updated_at);
       assert.equal(calls.count, 1);
       assert.equal(previewed.last_preview?.outcome, "ok");
       assert.equal(previewed.last_preview?.choice, "yes");
       assert.equal(previewed.last_preview?.input, "三天没人回");
-      const published = service.publish(created.id);
+      const published = service.publish(created.id, service.get(created.id).updated_at);
       assert.equal(published.version, 1);
     } finally {
       service.close();
@@ -249,8 +249,8 @@ test("preview without a key is a configured-state, not a TypeSafe call", async (
     service.updateDraft(created.id, {
       instructions: "急吗？",
       criteria: [{ key: "yes", description: "急" }, { key: "no", description: "不急" }],
-    });
-    await assert.rejects(() => service.preview(created.id, "hello"), (error: unknown) => (
+    }, service.get(created.id).updated_at);
+    await assert.rejects(() => service.preview(created.id, "hello", service.get(created.id).updated_at), (error: unknown) => (
       error instanceof ActionError && error.code === "functions.provider_not_configured"
     ));
     assert.equal(calls.count, 0);
@@ -270,11 +270,11 @@ test("changing instructions invalidates the previous preview", async () => {
     service.updateDraft(created.id, {
       instructions: "第一版",
       criteria: [{ key: "yes", description: "是" }, { key: "no", description: "否" }],
-    });
-    await service.preview(created.id, "input");
-    const changed = service.updateDraft(created.id, { instructions: "第二版" });
+    }, service.get(created.id).updated_at);
+    await service.preview(created.id, "input", service.get(created.id).updated_at);
+    const changed = service.updateDraft(created.id, { instructions: "第二版" }, service.get(created.id).updated_at);
     assert.equal(changed.last_preview, null);
-    assert.throws(() => service.publish(created.id), (error: unknown) => (
+    assert.throws(() => service.publish(created.id, service.get(created.id).updated_at), (error: unknown) => (
       error instanceof ActionError && error.code === "functions.preview_required"
     ));
   });
@@ -310,12 +310,13 @@ test("route table lists, previews, publishes, and maps missing functions to 404"
     const routes = new FunctionsHttpRouteTable(createFunctionsRouteHandlers({ actions: registeredFunctionActions(service) }));
     const created = await routes.handle({ method: "POST", pathname: "/api/functions", query: new URLSearchParams(), body: { name: "复核" } });
     assert.equal(created?.status, 200);
-    const id = (created?.body as { function: { id: string } }).function.id;
-    await routes.handle({
+    const { id, updated_at } = (created?.body as { function: { id: string; updated_at: string } }).function;
+    const saved = await routes.handle({
       method: "POST",
       pathname: `/api/functions/${id}`,
       query: new URLSearchParams(),
       body: {
+        expected_updated_at: updated_at,
         instructions: "要不要人看？",
         criteria: [{ key: "yes", description: "要" }, { key: "no", description: "不要" }],
       },
@@ -324,14 +325,14 @@ test("route table lists, previews, publishes, and maps missing functions to 404"
       method: "POST",
       pathname: `/api/functions/${id}/preview`,
       query: new URLSearchParams(),
-      body: { input: "unclear" },
+      body: { input: "unclear", expected_updated_at: (saved?.body as { function: { updated_at: string } }).function.updated_at },
     });
     assert.equal((preview?.body as { function: { last_preview: { outcome: string } } }).function.last_preview.outcome, "needs_review");
     const published = await routes.handle({
       method: "POST",
       pathname: `/api/functions/${id}/publish`,
       query: new URLSearchParams(),
-      body: {},
+      body: { expected_updated_at: (saved?.body as { function: { updated_at: string } }).function.updated_at },
     });
     assert.equal((published?.body as { function: { status: string } }).function.status, "published");
     const missing = actionErrorResponse(functionsErrors.not_found("函数不存在"));
@@ -641,12 +642,12 @@ test("Noul preview stores probability without confidence, and publish pins the r
     service.updateDraft(created.id, {
       instructions: "这些材料能否支持这个结论？",
       criteria: { true_description: "证据充分", false_description: "证据不够" },
-    });
-    const previewed = await service.preview(created.id, "只有一句口号");
+    }, service.get(created.id).updated_at);
+    const previewed = await service.preview(created.id, "只有一句口号", service.get(created.id).updated_at);
     assert.equal(previewed.last_preview?.outcome, "ok");
     assert.equal(previewed.last_preview?.noul, 0.91);
     assert.equal(previewed.last_preview?.confidence, null);
-    const published = service.publish(created.id);
+    const published = service.publish(created.id, service.get(created.id).updated_at);
     assert.equal(published.status, "published");
     assert.equal(published.model, "jev-1.13.0");
     assert.equal(published.version, 1);
@@ -660,21 +661,21 @@ test("samples do not change config_hash, drafts can be deleted, published cannot
     const updated = functions.updateDraft(created.id, {
       instructions: "材料与主题有多相关",
       criteria: ["无关", "相关"],
-    });
+    }, functions.get(created.id).updated_at);
     const hash = updated.config_hash;
-    const withSample = functions.addSample(updated.id, { label: "清楚", input: "完全对题" });
+    const withSample = functions.addSample(updated.id, { label: "清楚", input: "完全对题" }, functions.get(updated.id).updated_at);
     assert.equal(withSample.samples.length, 1);
     assert.equal(withSample.config_hash, hash);
-    functions.deleteDraft(updated.id);
+    functions.deleteDraft(updated.id, functions.get(updated.id).updated_at);
     assert.throws(() => functions.get(updated.id), (error: unknown) => error instanceof ActionError && error.code === "functions.not_found");
     const again = functions.createChoice({ name: "可发布" });
     functions.updateDraft(again.id, {
       instructions: "急吗？",
       criteria: [{ key: "yes", description: "急" }, { key: "no", description: "不急" }],
-    });
-    await functions.preview(again.id, "三天没人回");
-    functions.publish(again.id);
-    assert.throws(() => functions.deleteDraft(again.id), (error: unknown) => (
+    }, functions.get(again.id).updated_at);
+    await functions.preview(again.id, "三天没人回", functions.get(again.id).updated_at);
+    functions.publish(again.id, functions.get(again.id).updated_at);
+    assert.throws(() => functions.deleteDraft(again.id, functions.get(again.id).updated_at), (error: unknown) => (
       error instanceof ActionError && error.code === "functions.published_immutable"
     ));
     assert.equal(functions.get(again.id).status, "published");
@@ -693,12 +694,12 @@ test("invoke uses published config once and does not overwrite last_preview", as
     service.updateDraft(created.id, {
       instructions: "急吗？",
       criteria: [{ key: "yes", description: "急" }, { key: "no", description: "不急" }],
-    });
+    }, service.get(created.id).updated_at);
     await assert.rejects(() => service.invokePublished(created.function_key, "三天没人回"), (error: unknown) => (
       error instanceof ActionError && error.code === "functions.not_found"
     ));
-    const previewed = await service.preview(created.id, "预览输入");
-    const published = service.publish(created.id);
+    const previewed = await service.preview(created.id, "预览输入", service.get(created.id).updated_at);
+    const published = service.publish(created.id, service.get(created.id).updated_at);
     const invoked = await service.invokePublished(published.function_key, "调用输入");
     assert.equal(calls.count, 2);
     assert.equal(invoked.status, "ok");
@@ -721,14 +722,14 @@ test("invoke by key goes through the Functions actions, drafts stay hidden, and 
     service.updateDraft(draft.id, {
       instructions: "要不要？",
       criteria: [{ key: "yes", description: "要" }, { key: "no", description: "不要" }],
-    });
+    }, service.get(draft.id).updated_at);
     const live = service.createChoice({ name: "已发" });
     service.updateDraft(live.id, {
       instructions: "要不要？",
       criteria: [{ key: "yes", description: "要" }, { key: "no", description: "不要" }],
-    });
-    await service.preview(live.id, "input");
-    service.publish(live.id);
+    }, service.get(live.id).updated_at);
+    await service.preview(live.id, "input", service.get(live.id).updated_at);
+    service.publish(live.id, service.get(live.id).updated_at);
     const routes = new FunctionsHttpRouteTable(createFunctionsRouteHandlers({ actions: registeredFunctionActions(service) }));
     const listed = await routes.handle({
       method: "GET",

@@ -5,12 +5,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog, desktopWorkbenchRendererPorts,
   isDesktopShellRequest, NATIVE_DESKTOP_BOOTSTRAP_SCRIPT, renderDesktopCapsuleShell } from "@molis-ai/molis-work-app-desktop";
-import { createLocalWebServerFactory } from "@molis-ai/molis-work-app-local-host";
+import { createLocalWebCoreFactory } from "@molis-ai/molis-work-app-local-host";
 import { LocalHostHttpClient, createProject } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { acquireStorageOwner } from "@molis-ai/molis-work-storage";
 import { captureHostLog, type HostLogEntry, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { createWebCatalogAccess } from "../apps/local-host/dist/web-catalog-access.js";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 test("health becomes ready after a transient catalog lock without a business request", { timeout: 20_000 }, async t => {
@@ -44,7 +44,7 @@ test("health becomes ready after a transient catalog lock without a business req
 test("permanent catalog refusal is not retried, and closing cancels a queued transient retry", async () => {
   const home = await mkdtemp(join(tmpdir(), "molis-web-retry-lifecycle-"));
   try {
-    for (const code of ["catalog.reader_too_old", "catalog.unknown_database", "SQLITE_BUSY"]) {
+    for (const code of ["storage.store_too_new", "catalog.unknown_database", "SQLITE_BUSY"]) {
       let opens = 0;
       const access = createWebCatalogAccess(home, async () => { opens++; throw Object.assign(new Error(code), { code }); });
       await assert.rejects(access.warm(), { code });
@@ -103,7 +103,8 @@ test("SYS-39 an unhandled HTTP failure has a safe localized answer and a matchin
 test("RAC-2918: a Web factory without openCatalog reuses its actual Host owner for HTTP Catalog operations", async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-web-bound-fallback-"));
   const token = "catalog-fallback-test-control-token-0123456789";
-  const create = createLocalWebServerFactory({
+  // This exercises the already selected Home's real Catalog owner, without an installation login wrapper.
+  const create = createLocalWebCoreFactory({
     withCatalog: withMolisWorkProjectCatalog, desktopRenderer: desktopWorkbenchRendererPorts,
     cliAvailability: () => ({}), isDesktopShellRequest, nativeDesktopBootstrapScript: NATIVE_DESKTOP_BOOTSTRAP_SCRIPT,
     renderDesktopCapsuleShell, ptyClientFilePath: () => "unused.js",

@@ -20,9 +20,11 @@ async function fixture() {
   let bootstrapFailureCount = 0;
   let bootoutTransitionPrintCount = 0;
   let healthCheckFailuresRemaining = 0;
+  let upgradingAnswersRemaining = 0;
   let healthCheckCount = 0;
   let endpointProcessId: number | null = 4242;
   let portInUse = false;
+  let portCheckHook: (() => Promise<void>) | null = null;
   let healthCheckHook: ((expectedProcessId: number | undefined, count: number) => void) | null = null;
   const healthCheckExpectedProcessIds: Array<number | undefined> = [];
   const commands: string[][] = [];
@@ -42,7 +44,12 @@ async function fixture() {
       }
       return expectedProcessId == null || expectedProcessId === endpointProcessId;
     },
-    async portCheck() { return portInUse; },
+    async upgradeCheck() {
+      if (upgradingAnswersRemaining === 0) return false;
+      upgradingAnswersRemaining -= 1;
+      return true;
+    },
+    async portCheck() { await portCheckHook?.(); return portInUse; },
     async runCommand(file, args) {
       commands.push([file, ...args]);
       if (args[0] === "print") {
@@ -91,8 +98,10 @@ async function fixture() {
     setBootstrapFailureCount: (value: number) => { bootstrapFailureCount = value; },
     setBootoutTransitionPrintCount: (value: number) => { bootoutTransitionPrintCount = value; },
     setHealthCheckFailures: (value: number) => { healthCheckFailuresRemaining = value; },
+    setUpgradingAnswers: (value: number) => { upgradingAnswersRemaining = value; },
     setEndpointProcessId: (value: number | null) => { endpointProcessId = value; },
     setPortInUse: (value: boolean) => { portInUse = value; },
+    setPortCheckHook: (value: typeof portCheckHook) => { portCheckHook = value; },
     setHealthCheckHook: (value: typeof healthCheckHook) => { healthCheckHook = value; },
     healthCheckCount: () => healthCheckCount,
     healthCheckExpectedProcessIds,
@@ -238,6 +247,30 @@ test("start waits for the Web health endpoint and never reports a process-only s
     await assert.rejects(stat(unavailable.manager.receiptPath));
   } finally {
     await rm(unavailable.directory, { recursive: true, force: true });
+  }
+});
+
+test("UPG1-13: a process that says it is upgrading uses up no attempts, however long it takes; one that stops saying so gets the usual 25", async () => {
+  const upgrading = await fixture();
+  try {
+    upgrading.setHealthCheckFailures(60);
+    upgrading.setUpgradingAnswers(60);
+    const install = await upgrading.manager.prepare("install");
+    const installed = await upgrading.manager.confirm({ plan_id: install.plan_id, decision: "confirmed" });
+    assert.equal(installed.status, "installed");
+  } finally {
+    await rm(upgrading.directory, { recursive: true, force: true });
+  }
+
+  const stuck = await fixture();
+  try {
+    stuck.setHealthCheckFailures(100);
+    stuck.setUpgradingAnswers(10);
+    const install = await stuck.manager.prepare("install");
+    await assert.rejects(() => stuck.manager.confirm({ plan_id: install.plan_id, decision: "confirmed" }), { code: "installer.service.command_failed" });
+    assert.equal(stuck.healthCheckCount(), 35);
+  } finally {
+    await rm(stuck.directory, { recursive: true, force: true });
   }
 });
 
@@ -745,3 +778,32 @@ test("public CLI service command previews without writing until --confirm", asyn
 async function exists(filePath: string): Promise<boolean> {
   try { await stat(filePath); return true; } catch { return false; }
 }
+
+
+test("ASR an installation confirm withdrawn at the real port await neither writes nor consumes the shared plan", async t => {
+  const item = await fixture(); t.after(() => rm(item.directory, { recursive: true, force: true }));
+  const plan = await item.manager.prepare("install"); assert.equal(plan.status, "ready");
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  item.setPortCheckHook(async () => { entered.resolve(); await release.promise; });
+  let withdrawn = false; const cancelled = new Error("old service confirmation withdrawn");
+  const pending = item.manager.confirm({ plan_id: plan.plan_id, decision: "confirmed" }, () => { if (withdrawn) throw cancelled; });
+  const rejected = assert.rejects(pending, error => error === cancelled);
+  t.after(async () => { release.resolve(); await pending.catch(() => undefined); });
+  await entered.promise; withdrawn = true; release.resolve(); await rejected;
+  assert.deepEqual(item.commands.filter(command => command[1] !== "print"), [], "withdrawal cannot trigger compensating bootout/bootstrap either");
+  await assert.rejects(readFile(item.manager.plistPath), { code: "ENOENT" });
+  await assert.rejects(readFile(item.manager.receiptPath), { code: "ENOENT" });
+  item.setPortCheckHook(null);
+  assert.equal((await item.manager.confirm({ plan_id: plan.plan_id, decision: "confirmed" })).status, "installed", "the current owner can still confirm the same unconsumed plan");
+});
+
+test("ASR withdrawal after an authorized bootstrap does not bootout or restart from the old callback", async t => {
+  const item = await fixture(); t.after(() => rm(item.directory, { recursive: true, force: true }));
+  const plan = await item.manager.prepare("install");
+  let withdrawn = false; const cancelled = new Error("service lease replaced");
+  item.setHealthCheckHook(() => { withdrawn = true; });
+  await assert.rejects(item.manager.confirm({ plan_id: plan.plan_id, decision: "confirmed" }, () => { if (withdrawn) throw cancelled; }), error => error === cancelled);
+  assert.deepEqual(item.commands.filter(command => command[1] !== "print").map(command => command[1]), ["bootstrap"], "only the originally authorized OS effect ran; cancellation adds no OS compensation");
+  await assert.rejects(readFile(item.manager.plistPath), { code: "ENOENT" });
+  await assert.rejects(readFile(item.manager.receiptPath), { code: "ENOENT" });
+});

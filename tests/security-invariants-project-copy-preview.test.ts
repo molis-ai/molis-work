@@ -58,6 +58,28 @@ test('copy preview refuses lossy or executable JSON rather than silently omittin
  const array:unknown[]=[];Object.defineProperty(array,'0',{enumerable:true,get(){calls++;return 'private';}});port.owner.snapshot=()=>[{key:'original',value:array}];assert.throws(()=>previewProjectCopy(input),{code:'placement.copy_invalid'});assert.equal(calls,0);
 });
 
+function copyPreview(value: unknown) {
+  return previewProjectCopy({ sourceSpaceId: "space", projectIds: ["project"], authorize() {}, sources: [{ ownerId: "owner",
+    owner: { kinds: ["owner:thing"], snapshot: () => [{ key: "thing", value }], references: () => [], read: () => null } }] });
+}
+
+test("S-121 a Proxy cannot answer the copy preview's check and its read differently: what is serialized is what was checked", () => {
+  const object = { a: 1, list: [1] };
+  const lyingObject = new Proxy({ a: 1, list: [1] }, { get: (target, key, receiver) => key === "a" ? (() => "not JSON") : Reflect.get(target, key, receiver) });
+  assert.equal(copyPreview(lyingObject).view.fingerprint, copyPreview(object).view.fingerprint);
+  const lyingList = { a: 1, list: new Proxy([1], { get: (target, key, receiver) => key === "0" ? 2 : Reflect.get(target, key, receiver) }) };
+  assert.equal(copyPreview(lyingList).view.fingerprint, copyPreview(object).view.fingerprint);
+  const hiddenField = new Proxy({ a: 1 }, { getOwnPropertyDescriptor: () => ({ get: () => 1, enumerable: true, configurable: true }) });
+  assert.throws(() => copyPreview(hiddenField), { code: "placement.copy_invalid" });
+});
+
+test("S-121 a copy that breaks two rules is refused for the one its first key in sorted order breaks, whichever way it was written", () => {
+  const tooDeep = (depth: number): unknown => depth === 0 ? null : [tooDeep(depth - 1)];
+  assert.throws(() => copyPreview({ z: () => 1, a: tooDeep(102) }), { code: "placement.copy_limit" });
+  assert.throws(() => copyPreview({ a: () => 1, z: tooDeep(102) }), { code: "placement.copy_invalid" });
+  assert.throws(() => copyPreview({ "2": () => 1, "10": tooDeep(102) }), { code: "placement.copy_limit" }, "10 sorts before 2, though it enumerates after");
+});
+
 test('copy identity is stable across retries and separates projects, accounts, operations and object kinds',()=>{
  const input={operationId:'durable-operation-1',sourceSpaceId:'space_local',targetSpaceId:'space_alice',projects:[{id:'p1',title:'First'},{id:'p2',title:'Second'}]},first=projectCopyIdentities(input),again=projectCopyIdentities({...input,projects:[...input.projects].reverse()});
  assert.equal(first.project('p1'),again.project('p1'));assert.notEqual(first.project('p1'),first.project('p2'));assert.match(first.project('p1'),/^project-[a-f0-9-]{36}$/);

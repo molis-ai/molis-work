@@ -177,7 +177,7 @@ readonly upgrades?: readonly { readonly from: number; readonly sql: string; read
     - 第 1 层先把整段按词读一遍，再用 `statements()` 分句：`statements()` 按 JS 的 `trim` 去掉句子两头的空白，会把句末的 U+00A0 当空白去掉，而 SQLite 把它当名字的一部分，`DROP TABLE probe_notes<U+00A0>` 就成了删另一张表。4212 种写法的用例是这样查出来的。
     - 第 3 层的 `AUTOINCREMENT` 只查最终范围里的表，平台的技术表不算。
     - 段删掉一张表算行数变少，要写进 `reduces_rows`；一句里正好少一张表、多一张新名字的表（改名），行数跟着新名字走。
-    - 多了一个码 `plugin.project_database.upgrade_failed`（internal）：段跑完结构对不上声明，或 SQLite 中途报错；§9.1 的码表里没有它。
+    - 多了一个码 `plugin.project_database.upgrade_failed`（internal）：段跑完结构对不上声明，或 SQLite 中途报错；九种原因见 §9.1 的码表。
     - 在锁定版本 24.15.0（SQLite 3.51.3）上跑了 4212 种写法：1280 种不拦就会动别人的表，全部在执行前被拒；400 种过了全部三层，都只动了自己的表；平台和别的插件的表一行没变。UPG1-14 的合法段全部走通。
 - **插件的段一律 `foreign_keys=OFF`。** 段不写 PRAGMA，平台在事务外设。**恢复也在事务外：** `COMMIT` 或 `ROLLBACK` 之后再设 `ON`，读回来确认是 1，不是 1 就关掉这条连接、记 failed，成功和失败两条路都走这一步。事务里设 `ON` 是空操作（实测：设完读到 0，回滚后还是 0）；项目库的插件表是在长连接上打开的（`apps/local-host/src/project-database.ts:23`），写反了这个项目之后的外键都不再生效，而且什么都不报。最后一段之后，**范围里**的每张表跑 `PRAGMA foreign_key_check(t)`，有违反就回滚。按范围不按账本：段删过的表会报 `no such table`，新建的表账本里还没有。不用给插件的段加 `rebuilds_tables`。不能用 `defer_foreign_keys=ON`：外键还开着，`DROP TABLE` 的隐式删除照样触发外键动作。实测重建 `ON DELETE SET NULL` 子表的父表，子表的列全变 NULL，行数不变，`foreign_key_check` 还是空，什么都比不出。真实的表就有这种：Goals 的 `goal_tree_proposals.root_goal_id`（`plugins/native/goals/src/project-database-governance.ts:10`）。关掉之后 `CASCADE` 和 `SET NULL` 都不跑，子表原值都在。真要依赖级联删除的段，留下的孤儿行由 `foreign_key_check` 挡下回滚，失败是安全的。
 - **Home 库走同一份。** 库文件只归这个插件，第 3 层没有别人的行可比，第 1、2 层照旧，`ATTACH` 这类一样拒绝。**这一步的连接用 `openSqliteConnection`（合同台定）：** `pluginStatementGuard` 要求 3.51.3（`project-database-statements.ts:130`），`home-sqlite.ts` 用的 `node:sqlite` 在 CI 的 24.14.0 上是 3.51.2，走它 Home 库的增删改段全被拒。这样 U1-f 不等 SQLD-b，SQLD-d 之后两边一起换。开它之前这个文件上别的连接都已关闭，这是 [SQLite 第二步](../sqlite-driver-switch/spec.md) §4 的不变量（同一个进程里，同一个文件不同时被两份 SQLite 开着），U1-f 带用例。
@@ -502,8 +502,9 @@ apps/desktop/launchers/web/server.ts：
 | `storage.upgrade_failed` | internal | 这个库升级失败，已放回 |
 | `storage.upgrade_no_space` | unavailable | 磁盘不够，没动 |
 | `storage.store_too_new` | unavailable | 比程序新 |
+| `plugin.project_database.upgrade_failed` | internal | 插件的段没有升成（声明在 `packages/plugin-runtime`，U1-f）：这个插件的事务整个回滚，只停它。`details` 是 `{ reason, from, to, step? }`，`reason` 九种：`missing_step`（缺从这一版起的段）、`version_changed`（途中版本变了）、`begin_failed`（拿不到写事务）、`foreign_keys_state`（外键开关没切到要的状态）、`step_failed`（SQLite 执行某一句时报错）、`transaction_ended`（段自己结束了事务）、`foreign_keys`（`foreign_key_check` 没过）、`structure`（升完的表、索引或触发器与声明不同）、`rows_reduced`（没声明的表行数变少）。消息按原因固定，只带库的标签和两个版本号，不带 SQL 和行内容；SQLite 的原话只放在不可枚举、不序列化的 `cause` 里。其中 `missing_step`、`structure`、`rows_reduced`、`transaction_ended`、`foreign_keys` 严格说是作者写错，该算 invalid；仍归 internal，因为用户看到的都是「这个插件停用了」，作者看 `details.reason` 分辨（合同台 2026-11-08 认可） |
 
-插件的段另有三个码，声明在 `packages/plugin-runtime`：`plugin.project_database.upgrade_out_of_scope`（段碰了不该碰的，§2.4）；`plugin.project_database.upgrade_nondeterministic`（段用了不确定的函数，§2.4）；`plugin.upgrade_steps_unsupported`（装上的插件写了段，U4 移除）。
+插件的段另有三个码，声明在 `packages/plugin-runtime`：`plugin.project_database.upgrade_out_of_scope`（段碰了不该碰的，§2.4）；`plugin.project_database.upgrade_nondeterministic`（段用了不确定的函数，§2.4）；`plugin.upgrade_steps_unsupported`（装上的插件写了段，U4 移除）。段的其余失败是表里的 `plugin.project_database.upgrade_failed`。
 
 ### 9.2 `SqliteSchemaVersionError`
 

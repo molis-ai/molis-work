@@ -20,7 +20,7 @@ import { codingExecutionRules } from "./prologue-taskboard.js";
 import type { PrologueAdapterOptions, PrologueRuntimePort } from "./prologue.js";
 import { agentErrors } from "../errors.js";
 import { MAX_COMPOSED_INSTRUCTION_CHARS, readResource, sameRef, stageTextResource, type CommandEvent, type NodeHost, type PrologueNodeAdapterOptions } from "./prologue-node-kit.js";
-import type { SessionIndexStore } from "./prologue-session-index.js";
+import { SESSION_INDEX_SCHEMA, type SessionIndexStore } from "./prologue-session-index.js";
 import type { createPrologueMemoryAuthority } from "./prologue-memory-authority.js";
 
 /**
@@ -49,8 +49,8 @@ export function createNodeRuntime(options: PrologueNodeAdapterOptions, host: Nod
     preset: "local-agent",
     onQueuedWork: runScheduled,
     slots: {
-      ...(options.documentParsers?.length ? { "document-parser": { implementation: "molis-host-document-parsers", version: "1.0.0", impl: options.documentParsers } } : {}),
-      ...(memoryAccess.extractor ? { "memory-extractor": { implementation: "molis-host-memory-extractor", version: "1.0.0", impl: memoryAccess.extractor } } : {}),
+      ...(options.documentParsers?.length ? { "document-parser": { implementation: "molis-host-document-parsers", version: /* @version protocol.prologue.implementation.node-port */ "1.0.0", impl: options.documentParsers } } : {}),
+      ...(memoryAccess.extractor ? { "memory-extractor": { implementation: "molis-host-memory-extractor", version: /* @version protocol.prologue.implementation.node-port */ "1.0.0", impl: memoryAccess.extractor } } : {}),
     },
     // The runtime's turn default is what a subagent gets when its dispatch names none; the user set it to 20.
     // A request between sessions may wait for the other side's whole round, or a restart: a week, not half an hour.
@@ -220,7 +220,7 @@ function sessionsPort(deps: PortDeps): PrologueRuntimePort["sessions"] {
   return {
     create: (input, execution) => deps.effects.start(execution, async () => {
       const session = await deps.runtime.sessions.create();
-      try { await deps.index.save({ schema: 1, ref: session.ref, title: input.title, workspace: input.workspace ?? "required",
+      try { await deps.index.save({ schema: SESSION_INDEX_SCHEMA, ref: session.ref, title: input.title, workspace: input.workspace ?? "required",
         owner: { project_id: input.project_id, plugin_id: input.plugin_id, install_id: input.install_id, actor_id: input.actor_id }, attempts: [] }); }
       catch (error) {
         try {

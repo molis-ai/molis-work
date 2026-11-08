@@ -111,7 +111,7 @@ test("Host gives a real Plugin private storage, Artifact exchange and revocable 
     const old = contexts[0]!.services!;
     assert.equal(ui.list()[0]!.plugin_id, id, "RAC-635 the owner is the one the installation's Manifest names");
     assert.equal(ui.list()[0]!.label, "Notes", "what the plugin changes after registering is not what the registry holds");
-    assert.equal(ui.mount({ slot: { slot_id: "main", version: 1, accepts: ["html"] },
+    assert.equal(ui.mount({ slot: { slot_id: "main", accepts: ["html"] },
       contribution: { contribution_id: "example.notes", surface: "main", model: null } }).html, "<p>Visit 1</p>");
     assert.deepEqual(old.artifacts.read({ artifact_id: "hosted-note", version: 1 })!.payload, { visits: 1 });
     // UIERR-01: an actual Plugin client cannot remove another owner or register undeclared content.
@@ -211,7 +211,7 @@ test("compatible Host execution and crash recovery use the implementation versio
     await runtime.start(installed.install_id);
     assert.equal(contexts.at(-1)!.services!.storage!.get("visits"), "2");
     assert.deepEqual(contexts.at(-1)!.services!.artifacts.read({ artifact_id: "compatible-note", version: 1 })!.payload, { count: 1 });
-    assert.equal(ui.mount({ slot: { slot_id: "main", version: 1, accepts: ["html"] },
+    assert.equal(ui.mount({ slot: { slot_id: "main", accepts: ["html"] },
       contribution: { contribution_id: "example.compatible", surface: "main", model: null } }).html, "<p>2.0.0</p>");
     const previous = contexts.at(-1)!;
     await runtime.reportCrash(installed.install_id);

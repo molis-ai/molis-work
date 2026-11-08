@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { PluginRuntime, MemoryPluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
-import { definePlugin, defineWorkflowContentActions, bindWorkflowContentHandlers } from "@molis-ai/molis-work-plugin-sdk";
+import { definePlugin, defineWorkflowContentActions, bindWorkflowContentHandlers, inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionError, bindActionClient, WORKFLOW_CONTENT_SCHEMAS, WORKFLOW_CONTENT_VERSIONS, type ActionCallContext, type ActionDefinition, type BoundActionClient, type WorkflowContentActions, type WorkflowPayload } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createWorkflowContentPorts, createWorkflowsActionHandlers, manualLink, workflowsActions as w, workflowsManifest, WORKFLOWS_ACTION_PERMISSIONS, type Workflow, type WorkflowInstance } from "@molis-ai/molis-work-plugin-workflows";
 import { openWorkflowsStore } from "./fixtures/plugin-home-stores.js";
@@ -229,4 +229,35 @@ test("W5-01-WORKFLOWS-08 a model answer is recorded only while its original call
     assert.equal(done.steps[0]!.handoff?.actor, "ai");
     assert.equal(done.steps[0]!.handoff?.output.title, "模型整理的标题");
   }, options);
+});
+
+// A role's current version is the floor: an action below it keeps the number an older shape held, and a step saved against that
+// number must find nothing rather than the new shape. Nothing else exercises this while every role is at its first version.
+test("a workflow action below its role's current version is refused when it is declared", () => {
+  const previous = WORKFLOW_CONTENT_VERSIONS.read;
+  Object.assign(WORKFLOW_CONTENT_VERSIONS, { read: previous + 1 });
+  try {
+    const read = defineWorkflowContentActions({ id: "versioned-source", title: "资料", icon: "note", subject_kind: "document",
+      read_permissions: ["documents:read"], write_permissions: [] }).read;
+    assert.equal(read.version, previous + 1);
+    assert.deepEqual(inspectActionDeclarations([read], undefined), [], "at the role's current version it is the protocol's");
+    const lower = inspectActionDeclarations([{ ...read, version: previous }], undefined);
+    assert.ok(lower.some(problem => problem.includes(`版本低于工作流内容协议 read 的现行版本 ${previous + 1}`)), JSON.stringify(lower));
+  } finally { Object.assign(WORKFLOW_CONTENT_VERSIONS, { read: previous }); }
+});
+
+// N34-VS-02: output formats are independent of the role's action/input version; both declaration and validator agree.
+test("N34-VS-02 a newer workflow role retains the independently declared output format", () => {
+  const previous = WORKFLOW_CONTENT_VERSIONS.read;
+  Object.assign(WORKFLOW_CONTENT_VERSIONS, { read: 2 });
+  try {
+    const read = defineWorkflowContentActions({ id: "versioned-source", title: "资料", icon: "note", subject_kind: "document",
+      read_permissions: ["documents:read"], write_permissions: [] }).read;
+    assert.equal(read.version, 2);
+    assert.equal(read.action.input_type, "molis.workflow.content.read.input.v2");
+    assert.equal(read.action.output_type, "molis.workflow.content.read.output.v1");
+    assert.deepEqual(inspectActionDeclarations([read], undefined), []);
+    assert.ok(inspectActionDeclarations([{ ...read, action: { ...read.action, output_type: "molis.workflow.content.read.output.v2" } }], undefined)
+      .some(problem => problem.includes("没有兑现工作流内容协议")));
+  } finally { Object.assign(WORKFLOW_CONTENT_VERSIONS, { read: previous }); }
 });

@@ -1405,7 +1405,7 @@ type SourceChange = "pause" | "configure" | "delete";
 const SOURCE_CHANGES: readonly SourceChange[] = ["pause", "configure", "delete"];
 const SOURCE_REFUSALS = new Set(["feed.source_paused", "feed.source_not_found", "feed.source_configuration_changed", "feed.source_changed"]);
 /** Where the platform keeps the search record of each pull (`intent-run/<scope>/<sha256 of the operation id>`). */
-const PULL_RECORDS = "search-evidence-layer/molis-work/feed-intent-v2/data/operation/v1";
+const PULL_RECORDS = "search-evidence-layer/molis-work/feed-intent-v1/data/operation/v1";
 
 function changeSource(store: LocalProjectDatabase, sourceId: string, change: SourceChange): void {
   if (change === "pause") store.db.prepare("UPDATE feed_sources SET enabled = 0, status = 'paused' WHERE source_id = ?").run(sourceId);

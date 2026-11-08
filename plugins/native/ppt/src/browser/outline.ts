@@ -1,4 +1,4 @@
-import { messageOf } from "./dom.js";
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import type { OutlineAttempt, Ppt, PptPage } from "./types.js";
 import type { Translate } from "./types.js";
 

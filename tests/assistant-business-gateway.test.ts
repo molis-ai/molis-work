@@ -291,7 +291,7 @@ test("business roles are declared narrowly and the Host keeps directories, MCP a
     const base = { project_id: "project", plugin_id: "io.molis.work.assistant", install_id: "system", actor_id: "web-user", session, role_id: "assistant", workspace: "business" as const, task: "x" };
     const { ASSISTANT_AGENT, ASSISTANT_PROMPTS } = await import("../apps/local-host/dist/assistant/assistant-agent.js");
     const authority = { manifest: ASSISTANT_AGENT, prompts: ASSISTANT_PROMPTS, authorizedDirectories: ["/tmp"], actions: async () => ({ discover: async () => [], invoke: async () => null }) };
-    for (const extra of [{ directory: { canonical_path: "/tmp", realpath_verified: true } }, { mcp_tools: [{ server: "s", tool: "t", version: "1" }] },
+    for (const extra of [{ directory: { canonical_path: "/tmp", realpath_verified: true } }, { mcp_tools: [{ server: "s", tool: "t", version: "1", configuration_version: 1 }] },
       { action_gateway: true, action_tools: [{ capability_id: "fixture.notes.count", version: 1, provider_id: "fixture.notes" }] }]) {
       await assert.rejects(f.host.start("prologue", { ...base, ...extra } as never, authority as never), /业务|能力网关|directory|目录|MCP/);
     }

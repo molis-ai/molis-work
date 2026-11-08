@@ -48,9 +48,9 @@ test("RAC-191 Todo activation carries its organizer role and prompt body into th
   assert.equal(captured.project_id, null);
   const agent = captured.declaration.manifest.agent;
   assert.deepEqual(agent?.roles.find(role => role.role_id === "organizer")?.prompts, ["todo-organizer"]);
-  assert.equal(agent?.prompts.find(prompt => prompt.prompt_id === "todo-organizer")?.version, 2);
+  assert.equal(agent?.prompts.find(prompt => prompt.prompt_id === "todo-organizer")?.version, 1);
   const prompt = captured.declaration.agent_prompts?.find(item => item.prompt_id === "todo-organizer");
   assert.ok(prompt?.body.trim(), "the activation carries the prompt body, not only Manifest metadata");
-  assert.equal(prompt.version, 2);
+  assert.equal(prompt.version, 1);
   assert.equal(prompt.body, todoPrompts.find(item => item.prompt_id === "todo-organizer")?.body);
 });

@@ -1,5 +1,5 @@
 import { editConnection, loadConnections, openConnections, paintConn, paintConnections, syncParameters, usePreset } from "./connections.js";
-import { messageOf } from "./dom.js";
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { loadJobs, rememberJob, schedulePoll } from "./jobs.js";
 import { paintList, showCompose } from "./list.js";
 import { paintResult } from "./result.js";

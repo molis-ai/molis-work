@@ -1,12 +1,13 @@
 import { ActionError, type ActionAudience, type ActionDefinition, type ActionHandlerBinding, type ActionCallContext } from "./actions.js";
+import { bindActionHandler, inputSchemaFor } from "./action-input.js";
 import { ACTION_SUBJECT_SCHEMA, type ActionSubject } from "./action-subjects.js";
 
 /**
  * How a plugin hands its searchable objects to the system search (specs/archive/system-search §5.1).
  * The plugin keeps its own store and rules; search only calls these declared actions with the caller's authority.
  */
-export const SEARCH_ENTRIES_INPUT_TYPE = "molis.search.entries.window.v1";
-export const SEARCH_ENTRIES_OUTPUT_TYPE = "molis.search.entries.page.v1";
+export const SEARCH_ENTRIES_INPUT_TYPE = /* @version type.molis.search.entries.window "molis.search.entries.window.v{version}" */ "molis.search.entries.window.v1";
+export const SEARCH_ENTRIES_OUTPUT_TYPE = /* @version type.molis.search.entries.page "molis.search.entries.page.v{version}" */ "molis.search.entries.page.v1";
 export const SEARCH_ENTRIES_PAGE_LIMIT = 500;
 
 /** Where the person opens an object: the Workbench plugin surface and the object's id inside it. */
@@ -41,11 +42,11 @@ export interface SearchEntriesPage {
 const token = { type: "string", minLength: 1, maxLength: 64, pattern: "^[a-zA-Z0-9_-]+$" };
 const id = { type: "string", minLength: 1 };
 const text = (maxLength: number) => ({ type: "string", maxLength });
-const nullableText = { type: ["string", "null"] };
+const nullableText = { type: ["string", "null"] } as const;
 export const SEARCH_OPEN_TARGET_SCHEMA = { type: "object", properties: { surface: token, id }, required: ["surface", "id"], additionalProperties: false };
 const open = { anyOf: [{ type: "null" }, SEARCH_OPEN_TARGET_SCHEMA] };
 export const SEARCH_ENTRIES_INPUT_SCHEMA = { type: "object", properties: { cursor: nullableText, limit: { type: "integer", minimum: 1, maximum: SEARCH_ENTRIES_PAGE_LIMIT } },
-  required: ["cursor", "limit"], additionalProperties: false };
+  required: ["cursor", "limit"], additionalProperties: false } as const;
 export const SEARCH_ENTRY_SCHEMA = { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, revision: { ...id, maxLength: 200 }, title: text(1000), summary: text(4000),
   updated_at: nullableText, content: { enum: ["context", "summary"] }, open }, required: ["subject", "revision", "title", "summary", "updated_at", "content", "open"], additionalProperties: false };
 export const SEARCH_ENTRIES_OUTPUT_SCHEMA = { type: "object", properties: { entries: { type: "array", maxItems: SEARCH_ENTRIES_PAGE_LIMIT, items: SEARCH_ENTRY_SCHEMA },
@@ -64,11 +65,11 @@ const metadata = (kinds: readonly SearchSourceKind[], title: string, permissions
 });
 
 /** One declaration per source: which kinds it lists and where they open. Discovery confers no authority. */
-export function defineSearchEntriesAction(capabilityId: string, kinds: readonly SearchSourceKind[], title: string, permissions: readonly string[],
+export function defineSearchEntriesAction(capabilityId: string, version: number, kinds: readonly SearchSourceKind[], title: string, permissions: readonly string[],
   scope: "home" | "project" = "project", audiences: readonly ActionAudience[] = SEARCH_SOURCE_AUDIENCES): ActionDefinition<SearchEntriesInput, SearchEntriesPage> {
-  return { capability_id: capabilityId, version: 1, operation: "query", action: { ...metadata(kinds, `列出可搜索的${/^[A-Za-z]/.test(title) ? " " : ""}${title}`, permissions, scope, audiences),
+  return { capability_id: capabilityId, version: version, operation: "query", action: { ...metadata(kinds, `列出可搜索的${/^[A-Za-z]/.test(title) ? " " : ""}${title}`, permissions, scope, audiences),
     description: `按版本分页列出${title}的全部可搜索条目，供系统搜索建立与更新索引；不修改数据。`,
-    input_type: SEARCH_ENTRIES_INPUT_TYPE, output_type: SEARCH_ENTRIES_OUTPUT_TYPE, input_schema: SEARCH_ENTRIES_INPUT_SCHEMA, output_schema: SEARCH_ENTRIES_OUTPUT_SCHEMA } };
+    input_type: SEARCH_ENTRIES_INPUT_TYPE, output_type: SEARCH_ENTRIES_OUTPUT_TYPE, input_schema: inputSchemaFor<SearchEntriesInput>()(SEARCH_ENTRIES_INPUT_SCHEMA), output_schema: SEARCH_ENTRIES_OUTPUT_SCHEMA } };
 }
 
 export function isSearchEntriesSource(action: { input_type?: string; output_type?: string }): boolean {
@@ -122,6 +123,5 @@ export function searchEntriesPage(entries: readonly SearchEntry[], input: Search
 export function bindSearchEntriesHandler(definition: ActionDefinition<SearchEntriesInput, SearchEntriesPage>,
   list: (caller: ActionCallContext) => readonly SearchEntry[] | Promise<readonly SearchEntry[]>,
   availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding {
-  return { capability_id: definition.capability_id, version: definition.version, ...(availability ? { availability } : {}),
-    handle: async (caller, input) => searchEntriesPage(await list(caller), input as SearchEntriesInput) };
+  return bindActionHandler(definition, async (input, caller) => searchEntriesPage(await list(caller), input), availability ? { availability } : undefined);
 }

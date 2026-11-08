@@ -5,7 +5,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { startModelStandIn } from "./fixtures/model-stand-in.js";
 import { MINIMAX_ANTHROPIC_BASE_URL, MODEL_PROVIDER_TEMPLATES, hostCompleteText, modelProviderTemplate, withConnectorConnections, type HostTextOptions } from "@molis-ai/molis-work-app-local-host";
 

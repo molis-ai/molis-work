@@ -1,3 +1,4 @@
+import { canonicalJsonValue } from "@molis-ai/molis-work-plugin-sdk";
 import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { GOALS_ACTIONS, type GoalContextSnapshot } from "./goals-actions.js";
 import { codingArtifacts } from "./artifacts.js";
@@ -11,11 +12,11 @@ import { CODING_GOAL_CONTEXT_TYPE } from "./artifacts.js";
 import { codingGoalVersionLabel } from "./goal-versions.js";
 import { codingZh } from "./words.js";
 const PREFIX = "coding-goal-context:";
+/** Not `canonicalJsonText`: the digest of this text is the stored artifact id, and a Goal's open fields can hold integer-shaped keys, which it orders differently. */
 function serialize(value: unknown, indent?: number): string {
-  return JSON.stringify(value, (_key, entry) => entry && typeof entry === "object" && !Array.isArray(entry)
-    ? Object.fromEntries(Object.keys(entry).sort().map(key => [key, entry[key]])) : entry, indent);
+  return JSON.stringify(canonicalJsonValue(value), undefined, indent);
 }
-function identity(snapshot: GoalContextSnapshot): ArtifactReference {
+export function goalContextReference(snapshot: GoalContextSnapshot): ArtifactReference {
   const digest = createHash("sha256").update(serialize(snapshot)).digest("hex");
   return { artifact_id: PREFIX + digest, version: 1 };
 }
@@ -44,7 +45,7 @@ export async function readCurrentGoalSnapshot(context: PluginStartContext, goalI
 }
 export async function currentGoalContext(context: PluginStartContext, goalId: string, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "assert_authority_current">) {
   const snapshot = await readCurrentGoalSnapshot(context, goalId, control);
-  const reference = identity(snapshot);
+  const reference = goalContextReference(snapshot);
   return { snapshot, reference, material: material(snapshot, reference) };
 }
 export function savedGoalContext(context: PluginStartContext, sessionId: string) {
@@ -56,10 +57,10 @@ export function savedGoalContext(context: PluginStartContext, sessionId: string)
 }
 function readGoalSnapshot(context: PluginStartContext, reference: ArtifactReference) {
   const record = codingArtifacts(context).read(reference);
-  if (!record || record.artifact_type_id !== CODING_GOAL_CONTEXT_TYPE || record.schema_version !== 1
+  if (!record || record.artifact_type_id !== CODING_GOAL_CONTEXT_TYPE || record.schema_version !== /* @version type.coding.goal-context */ 1
     || record.availability !== "available" || record.lifecycle_state !== "active") throw new Error("固定目标版本不可读，请重新关联；历史执行不会被替换");
   const snapshot = record.payload as unknown as GoalContextSnapshot;
-  if (snapshot?.goal?.project_id !== context.project_id || identity(snapshot).artifact_id !== reference.artifact_id) throw new Error("固定目标版本与来源不一致");
+  if (snapshot?.goal?.project_id !== context.project_id || goalContextReference(snapshot).artifact_id !== reference.artifact_id) throw new Error("固定目标版本与来源不一致");
   return { snapshot, reference };
 }
 function readGoalContext(context: PluginStartContext, reference: ArtifactReference) {
@@ -70,7 +71,7 @@ export function saveGoalContext(context: PluginStartContext, sessionId: string, 
   const { snapshot, reference } = value;
   const previous = codingArtifacts(context).read(reference);
   if (previous) readGoalContext(context, reference);
-  else context.services!.processItems!.record({ ...reference, artifact_type_id: CODING_GOAL_CONTEXT_TYPE, schema_version: 1,
+  else context.services!.processItems!.record({ ...reference, artifact_type_id: CODING_GOAL_CONTEXT_TYPE, schema_version: /* @version type.coding.goal-context */ 1,
     content: { kind: "inline", payload: JSON.parse(JSON.stringify(snapshot)) },
     metadata: { title: value.material.title, goal_id: snapshot.goal.goal_id } });
   context.services!.storage!.set(`goal-context:${sessionId}`, JSON.stringify(reference));

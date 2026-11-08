@@ -1,0 +1,9 @@
+{
+  "exceptions": {
+    "function horizontal/scheduler/src/index.ts#createScheduleService": {
+      "kind": "cohesive-unit",
+      "reason": "定时服务：存储、启停、认领、执行 tick 与续租，共享同一张定时表和同一把认领租约；认领与执行必须在同一个服务里才能保证一次只一个执行者。",
+      "size": 214
+    }
+  }
+}

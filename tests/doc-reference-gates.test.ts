@@ -115,8 +115,9 @@ before(() => {
   put("specs/alpha/spec.md", "# Alpha\n\n状态：执行中（2026-10-08）。\n");
   put("specs/beta/spec.md", "# Beta\n\n状态：现行规范（2026-10-08）。\n");
   put("specs/archive/old/spec.md", "[gone](../../missing.md)\n");
-  put("specs/BACKLOG.md", lines("# 统一待办清单", "", "## 1. 待你验收", "", "| 编号 | 事项 | 类型 |", "| --- | --- | --- |", "| BL-001 | 试用首页 | 待你验收 |", "",
-    "## 2. 未实现", "", "| 编号 | 事项 | 类型 |", "| --- | --- | --- |", "| BL-002 | 做一件事 | 未实现 |"));
+  put("specs/BACKLOG.md", "# 统一待办清单\n");
+  put("specs/backlog/BL-001.md", "| BL-001 | 试用首页 | spec | 待你验收 | next | none | 中 | Codex |\n");
+  put("specs/backlog/BL-002.md", "| BL-002 | 做一件事 | spec | 未实现 | next | none | 中 | Codex |\n");
 
   put("packages/contracts/package.json", contractsManifest(["platform/real", "platform/used", "platform/wired"]));
   put("packages/contracts/src/index.ts", "export {};\n");
@@ -139,6 +140,7 @@ after(() => { if (repo) rmSync(repo, { recursive: true, force: true }); });
 // Start a branch from the base, add one change, commit it.
 const branch = (name: string, mutate: () => void) => {
   git("checkout", "-q", "-f", "main");
+  assert.equal(gate("--update").code, 0);
   git("clean", "-fdq");
   git("checkout", "-q", "-B", name);
   mutate();
@@ -245,12 +247,26 @@ const violations: Scenario[] = [
     expect: [/spec index: specs\/notes\.md: specs\/ holds README\.md, BACKLOG\.md, archive\/ and spec directories at its root/] },
 
   // ---- BACKLOG rows ----
-  { kind: "absolute", name: "a struck-through BACKLOG row", mutate: () => append("specs/BACKLOG.md", "| BL-003 | ~~做过的事~~ 已删 | 已完成 |\n"),
-    expect: [/BACKLOG: specs\/BACKLOG\.md:\d+: BL-003 is struck through; a finished item is deleted/] },
-  { kind: "absolute", name: "a BACKLOG row that says it is done", mutate: () => append("specs/BACKLOG.md", "| BL-003 | 做过的事 | 已完成（#281） |\n"),
-    expect: [/BACKLOG: specs\/BACKLOG\.md:\d+: BL-003 says it is done; delete the row/] },
-  { kind: "absolute", name: "a BACKLOG id used twice", mutate: () => append("specs/BACKLOG.md", "| BL-002 | 又一件事 | 未实现 |\n"),
+  { kind: "absolute", name: "a struck-through BACKLOG row", mutate: () => put("specs/backlog/BL-003.md", "| BL-003 | ~~做过的事~~ 已删 | spec | 已完成 | next | none | 中 | Codex |\n"),
+    expect: [/BACKLOG: specs\/backlog\/BL-003\.md:\d+: BL-003 is struck through; a finished item is deleted/] },
+  { kind: "absolute", name: "a BACKLOG row that says it is done", mutate: () => put("specs/backlog/BL-003.md", "| BL-003 | 做过的事 | spec | 已完成（#281） | next | none | 中 | Codex |\n"),
+    expect: [/BACKLOG: specs\/backlog\/BL-003\.md:\d+: BL-003 says it is done; delete the row/] },
+  { kind: "absolute", name: "VG-38 a BACKLOG cell that says it is done after an escaped pipe", mutate: () => put("specs/backlog/BL-003.md", "| BL-003 | 说明 \\| 已完成 | spec | 未实现 | next | none | 中 | Codex |\n"),
+    expect: [/BACKLOG: specs\/backlog\/BL-003\.md:1: BL-003 says it is done; delete the row/] },
+  { kind: "absolute", name: "a BACKLOG id used twice", mutate: () => put("specs/backlog/BL-duplicate.md", "| BL-002 | 又一件事 | spec | 未实现 | next | none | 中 | Codex |\n"),
     expect: [/BL-002 is on two rows \(first at line \d+\); ids are not reused/] },
+  { kind: "absolute", name: "VG-18 a BACKLOG row with a column too few", mutate: () => put("specs/backlog/BL-003.md", "| BL-003 | 少一列 | spec | 未实现 | next | none | 中 |\n"),
+    expect: [/BACKLOG: specs\/backlog\/BL-003\.md:1: BL-003 has 7 columns; a row has 8/] },
+  { kind: "absolute", name: "VG-18 a BACKLOG row with a column too many", mutate: () => put("specs/backlog/BL-003.md", "| BL-003 | 多一列 | spec | 未实现 | next | none | 中 | Codex | 多 |\n"),
+    expect: [/BACKLOG: specs\/backlog\/BL-003\.md:1: BL-003 has 9 columns; a row has 8/] },
+  { kind: "absolute", name: "VG-18 a BACKLOG row without a source", mutate: () => put("specs/backlog/BL-003.md", "| BL-003 | 一件事 |  | 未实现 | next | none | 中 | Codex |\n"),
+    expect: [/BACKLOG: specs\/backlog\/BL-003\.md:1: BL-003 has no source/] },
+  { kind: "absolute", name: "VG-18 a BACKLOG row without an owner", mutate: () => put("specs/backlog/BL-003.md", "| BL-003 | 一件事 | spec | 未实现 | next | none | 中 |   |\n"),
+    expect: [/BACKLOG: specs\/backlog\/BL-003\.md:1: BL-003 has no owner/] },
+  { kind: "absolute", name: "VG-18 a BACKLOG row without a priority", mutate: () => put("specs/backlog/BL-003.md", "| BL-003 | 一件事 | spec | 未实现 | next | none |  | Codex |\n"),
+    expect: [/BACKLOG: specs\/backlog\/BL-003\.md:1: BL-003 has priority "", which is not 高, 中 or 低/] },
+  { kind: "absolute", name: "VG-18 a BACKLOG row with a priority that is not one of the three", mutate: () => put("specs/backlog/BL-003.md", "| BL-003 | 一件事 | spec | 未实现 | next | none | 紧急 | Codex |\n"),
+    expect: [/BACKLOG: specs\/backlog\/BL-003\.md:1: BL-003 has priority "紧急", which is not 高, 中 or 低/] },
 
   // ---- the root allow-list file ----
   { kind: "absolute", name: "an allow-list entry without a reason", mutate: () => put("tooling/gates/root-allowlist.json", allowlist({ ...baseAllowed, "leftover.md": "" })),
@@ -337,7 +353,7 @@ for (const scenario of violations) {
       if (scenario.localCheck) {
         assert.equal(local.code, 1, local.out);
         for (const pattern of scenario.localCheck) assert.match(local.out, pattern);
-      } else assert.equal(local.code, 0, "the local check against the committed baseline is satisfied by the rewrite");
+      } else assert.equal(local.code, 0, local.out);
     }
     const still = gate("--base", "main");
     assert.equal(still.code, 1, still.out);
@@ -347,6 +363,7 @@ for (const scenario of violations) {
 
 test("the clean base passes: archive/ links, fenced and inline code, globs, placeholders and non-owner tokens are not problems", () => {
   git("checkout", "-q", "-f", "main");
+  assert.equal(gate("--update").code, 0);
   const run = gate("--base", "main");
   assert.equal(run.code, 0, run.out);
   // The summary lists the counts of every gate in the order the gates are registered, so each count is matched on its own.

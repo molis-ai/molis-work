@@ -1,0 +1,9 @@
+{
+  "exceptions": {
+    "function plugins/native/goals/src/page/capsule-items.ts#createCapsuleItemProjection": {
+      "kind": "cohesive-unit",
+      "reason": "胶囊条目的投影：由目标与状态推出决定、可做、阻塞、进行中、等待、最近完成六类条目，共用 itemBase 与排序；一个投影按条目类别分支，每类 14 到 19 行。",
+      "size": 229
+    }
+  }
+}

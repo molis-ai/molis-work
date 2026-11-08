@@ -38,7 +38,7 @@ context_resolve → goals.list / goals.create → goals.state.read
   → 查原文：goals.events.list / goals.events.read
 ```
 
-`goals.events.list`、`goals.events.latest`、`goals.events.read` 只提供 @2；旧 @1 的工具名不再可调用，客户端授权与工作流程固定引用需重新选择 @2。
+`goals.events.list`、`goals.events.latest`、`goals.events.read` 的输出包含 `input_acknowledged` 系统记录。
 
 `goals.events.configure` 可以登记局部类型，也可以采用合适的规划。类型的已发布版本不能重写；新增版本可以调整名称、字段和约束，旧报告始终按其保存的类型版本读取。专业方法可通过 `goals.planning.catalog` 按实际任务选择，不要求先规划才能记录。
 

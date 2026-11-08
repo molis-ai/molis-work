@@ -16,14 +16,8 @@ export const CODING_CHANGE_MESSAGES = {
   "coding.change.reader.delete": { zh: "删除", en: "Removed" },
   "coding.change.reader.same": { zh: "未改变", en: "Unchanged" },
   "coding.change.reader.reveal": { zh: "展开 {count} 行未改变", en: "Show {count} unchanged lines" },
-  "coding.change.reader.no-text-review": { zh: "这一轮没有可读取的文本审查；命令及外部操作请查看原回执", en: "This round has no text review to read. See the original receipt for commands and outside actions." },
-  "coding.change.reader.no-files": { zh: "这一轮没有改动任何文件", en: "This round didn't change any files" },
-  "coding.change.reader.unreadable-diff": { zh: "读不了这一轮的 diff", en: "Couldn't read this round's diff" },
-  "coding.change.reader.run-again": { zh: "让 Coding 再跑一轮", en: "Have Coding run another round" },
-  // Sentences written in Chinese where the fact was found, said again with their values (`diffViewText`): the reader's own, and
-  // the three the SDK's `parseUnifiedDiff` refuses a round's diff with.
-  "coding.change.reader.no-change-in": { zh: "这一轮没有改动 {path}", en: "This round didn't change {path}" },
-  "coding.change.reader.hunk-count": { zh: "hunk 行数与 @@ 头不一致：声明 {declaredBefore}/{declaredAfter}，实际 {sawBefore}/{sawAfter}", en: "A hunk's line counts don't match its @@ header: declared {declaredBefore}/{declaredAfter}, found {sawBefore}/{sawAfter}" },
-  "coding.change.reader.hunk-header": { zh: "读不懂的 hunk 头：{header}", en: "Can't read this hunk header: {header}" },
-  "coding.change.reader.no-hunks": { zh: "这段 diff 里没有可读的 hunk", en: "There is no readable hunk in this diff" },
+  "coding.change.reader.no-text-review": { zh: "这一轮没有可读取的文本审查；命令及外部操作请查看原回执", en: "This turn has no text review to read. See the original receipt for commands and outside actions." },
+  "coding.change.reader.run-again": { zh: "让 Coding 再跑一轮", en: "Have Coding run another turn" },
+  // A sentence written in Chinese where the fact was found, said again with its value (`diffViewText`).
+  "coding.change.reader.no-change-in": { zh: "这一轮没有改动 {path}", en: "This turn didn't change {path}" },
 } as const;

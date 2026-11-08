@@ -39,7 +39,7 @@ import { liveHostJudgmentRuleAuthoringCatalog } from "@molis-ai/molis-work-app-l
 import { defineSubjectOffersAction, type ActionProvider, type ActionSceneView, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { projectHomeEvents } from "../apps/workbench/dist/home-flow.js";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { openTestHome } from "./fixtures/test-home.js";
 
@@ -96,9 +96,9 @@ async function publishChoice(
   service.updateDraft(created.id, {
     instructions: "挑一个已登记行为",
     criteria,
-  });
-  await service.preview(created.id, "样例");
-  const published = service.publish(created.id);
+  }, service.get(created.id).updated_at);
+  await service.preview(created.id, "样例", service.get(created.id).updated_at);
+  const published = service.publish(created.id, service.get(created.id).updated_at);
   return { service, published };
 }
 
@@ -183,9 +183,9 @@ test("system module can publish using the existing rule store", async () => {
           { key: "yes", description: "账单" },
           { key: "no", description: "其他" },
         ],
-      });
-      await service.preview(created.id, "请退款");
-      const published = service.publish(created.id);
+      }, service.get(created.id).updated_at);
+      await service.preview(created.id, "请退款", service.get(created.id).updated_at);
+      const published = service.publish(created.id, service.get(created.id).updated_at);
       assert.equal(published.status, "published");
       assert.equal(published.version, 1);
     } finally {
@@ -223,7 +223,7 @@ test("authoring names the owning plugin by its plugin id, never by the installat
   const read: ActionView = { ...catalogAction("notes.read"), provider: notes };
   const finishAction = { ...read.action, kind: "operation" as const, audiences: ["user" as const], subject_kinds: ["note"] };
   const finish: ActionView = { ...read, capability_id: "notes.finish", operation: "command", action: finishAction };
-  const offerDefinition = defineSubjectOffersAction("notes.offers", ["note"], "Offer next steps", [],
+  const offerDefinition = defineSubjectOffersAction("notes.offers", 1, ["note"], "Offer next steps", [],
     [{ offer_id: "notes.finish", title: "Finish note", action: { capability_id: "notes.finish", version: 1 } }]);
   const offers: ActionView = { capability_id: offerDefinition.capability_id, version: offerDefinition.version, operation: "query", provider: notes,
     availability: { available: true }, action: { ...offerDefinition.action, audiences: ["user"] } };
@@ -340,9 +340,9 @@ test("agent.mcp functions are plain judgments, never a site scene's recommendati
         ],
         scene_id: "agent.mcp",
         subject_kinds: ["mcp_invoke"],
-      });
-      await service.preview(created.id, "样例");
-      const published = service.publish(created.id);
+      }, service.get(created.id).updated_at);
+      await service.preview(created.id, "样例", service.get(created.id).updated_at);
+      const published = service.publish(created.id, service.get(created.id).updated_at);
       assert.equal(publishedFunctionAction(published).action.output_type, "molis.judgment.v1");
     } finally {
       service.close();

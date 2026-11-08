@@ -80,12 +80,15 @@ test("Coding stops hidden polling and releases every client listener before the 
   await child.evaluate("codingRoot.remove()"); await pause(100);
   const detachedReads = await evaluate<number>("codingRequests.length"); await pause(1200);
   assert.equal(await evaluate("codingRequests.length"), detachedReads);
+  // The host stands in for the frame host: `returns` is a required member of the page host (UiPluginClientHost, specs/draft-and-return
+  // §2.4); with no trip open, arrived() answers null.
   await child.evaluate(`(() => {
     codingParent.append(codingRoot);
     const mount=(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})();
     const pluginId='io.molis.work.coding';
     window.remountCoding=()=>(${CODING_WORKBENCH_CLIENT_FACTORY_SCRIPT})({root:codingRoot,mountPluginClient:mount,translate:globalThis.L,pluginId,pluginRoute:path=>codingRoot.dataset.codingPrefix+'/api/plugins/'+pluginId+path,
-      confirm:async()=>true,interaction:()=>{throw new Error('no card is drawn in this test');},receipts:{},workspaces:{add:async()=>({workspace_id:'none'}),select:async()=>{}},clients:{},reviews:{show:async()=>{}},openItem:()=>{}});
+      confirm:async()=>true,interaction:()=>{throw new Error('no card is drawn in this test');},receipts:{},workspaces:{add:async()=>({workspace_id:'none'}),select:async()=>{}},clients:{},reviews:{show:async()=>{}},openItem:()=>{},
+      returns:{arrived:async()=>null,go:async()=>{throw new Error('no settings are opened in this test');}}});
     remountCoding();remountCoding();
   })()`);
   await waitFor(`codingRequests.length > ${detachedReads}`);

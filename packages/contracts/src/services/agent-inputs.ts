@@ -9,9 +9,9 @@ import type { AgentRunRef } from "./agent-host.js";
  * the model, never an approval.
  */
 export const servicesAgentInputsContract = {
-  contractId: "io.molis.work.service.agent-inputs.v1",
+  contractId: /* @version contract.io.molis.work.service.agent-inputs "io.molis.work.service.agent-inputs.v{version}" */ "io.molis.work.service.agent-inputs.v1",
   kind: "service",
-  schemaVersion: 1,
+  schemaVersion: /* @version contract.io.molis.work.service.agent-inputs */ 1,
   maturity: "partial",
   ssot: "specs/ai-input-receipts/spec.md",
 } as const satisfies ContractDescriptor;
@@ -27,6 +27,7 @@ export const AGENT_INPUT_SOURCES: readonly AgentInputSource[] = ["person", "host
 export interface AgentOriginalInputRef {
   readonly session_id: string;
   readonly input_id: string;
+  /** @record-revision Immutable original input points to its first saved revision. */
   readonly version: 1;
 }
 /** Original text before material/digest assembly. The protected Host, never business input, establishes authorship/time. */
@@ -176,7 +177,7 @@ export interface AgentTurnSteer {
   id: string;
   /** Original speaker from the runtime, independently of the user-role transport wrapper. */
   source?: AgentInputSource | "peer";
-  /** Original Host acceptance time; absent on older input records whose origin time is unknown. */
+  /** Original Host acceptance time, present only when the runtime supplies it; never replaced by a Run start or read time. */
   accepted_at_ms?: number;
   original?: AgentInputOriginalText;
   /** received: taken, not yet in the context; applied: in the context; read: a kept reply was made with it (not compliance); unread: the round ended before that. */
@@ -199,7 +200,7 @@ const id = { type: "string", minLength: 1 } as const;
 /** The one way a plugin speaks to a round of its sessions; the Assistant, inside the Host, uses the runtime's port. */
 export const agentInputActions = {
   send: {
-    capability_id: "agent.inputs.send", version: 1, operation: "command",
+    capability_id: "agent.inputs.send", version: /* @version action.agent.inputs.send */ 1, operation: "command",
     action: { title: "向一轮补充要求", description: "把一段话交给这个项目里一个会话的一轮：下一个边界读进上下文、打断当前回复，或留到下一轮；纠正或改关联时用 about 指向原来那条。回执说这一轮收下了，还是留在会话里等下一轮；同键同文只算一次。只给插件调用。", kind: "operation", scope: "project", effect: "write", scheduling: "concurrent",
       audiences: ["plugin"], permissions: [], subject_kinds: [],
       input_schema: { type: "object", required: ["runtime_id", "session_id", "run_id", "text"], additionalProperties: false, properties: {
@@ -209,7 +210,7 @@ export const agentInputActions = {
         input_id: { type: "string" }, replayed: { type: "boolean" }, delivered: { enum: ["run", "queued"] } } } },
   } as ActionDefinition<AgentInputSendRequest, AgentSteerReceipt>,
   withdraw: {
-    capability_id: "agent.inputs.withdraw", version: 1, operation: "command",
+    capability_id: "agent.inputs.withdraw", version: /* @version action.agent.inputs.withdraw */ 1, operation: "command",
     action: { title: "撤回一条补充", description: "撤回这个项目里一个会话还没交给模型的一条补充：这一轮还没放进上下文的，或排在会话里等下一轮的。已经放进上下文的撤不回，要改口就发一条纠正。只给插件调用。", kind: "operation", scope: "project", effect: "write", scheduling: "concurrent",
       audiences: ["plugin"], permissions: [], subject_kinds: [],
       input_schema: { type: "object", required: ["runtime_id", "session_id", "run_id", "input_id"], additionalProperties: false, properties: { runtime_id: id, session_id: id, run_id: id, input_id: id } },

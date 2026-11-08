@@ -16,10 +16,10 @@ test("new material that shares a Goal with a live work raises one merged notice;
   const goals = new Map([["g-q4", "Q4 计划"], ["g-other", "别的目标"]]);
   const notes = new Map([["n1", ["g-q4"]]]);
   const feed: Array<HomeEvent & { goal_ids: string[] }> = [];
-  const goalReader = defineSubjectContextAction("fixture.goal.read", "goal", "目标", []);
-  const noteReader = defineSubjectContextAction("fixture.note.read", "note", "笔记", []);
-  const itemReader = defineSubjectContextAction("fixture.item.read", "feed_item", "Feed 条目", []);
-  const events = defineHomeEventsAction("fixture.feed.events", ["feed_item"], "Feed 首页事项", []);
+  const goalReader = defineSubjectContextAction("fixture.goal.read", 1, "goal", "目标", []);
+  const noteReader = defineSubjectContextAction("fixture.note.read", 1, "note", "笔记", []);
+  const itemReader = defineSubjectContextAction("fixture.item.read", 1, "feed_item", "Feed 条目", []);
+  const events = defineHomeEventsAction("fixture.feed.events", 1, ["feed_item"], "Feed 首页事项", []);
   local.actionRegistry(project).registerProvider({ provider: { provider_id: "fixture.feed", kind: "plugin", title: "Feed" }, definitions: [goalReader, noteReader, itemReader, events], handlers: [
     { ...goalReader, handle: (_c, input) => { const id = (input as { subject_id: string }).subject_id; return subjectContext({ subject: { kind: "goal", id }, revision: "1", title: goals.get(id)!, content: "", goal_ids: [id] }); } },
     { ...noteReader, handle: (_c, input) => { const id = (input as { subject_id: string }).subject_id; return subjectContext({ subject: { kind: "note", id }, revision: "1", title: id, content: "", goal_ids: notes.get(id) ?? [] }); } },

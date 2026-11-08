@@ -1,4 +1,4 @@
-import { messageOf } from "./dom.js";
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { open } from "./diff.js";
 import { active, reading, request, rowOf, showReviews } from "./page.js";
 import type { GitPage } from "./page.js";

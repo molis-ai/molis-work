@@ -16,14 +16,15 @@ test("chooser, settings, and workbench keep titles pinned and scroll only the co
 
   // The way in is one fixed frame: titlebar, stage, bar. The page never scrolls; the directory and the sheet do.
   assert.match(arrival, /html:has\(> body\.arrival-page\), body\.arrival-page \{[^}]*overflow: hidden;/);
-  assert.match(arrival, /\.arrival \{ height: 100dvh; display: grid; grid-template-rows: var\(--arrival-titlebar-h\) minmax\(0, 1fr\) var\(--dock-h, 76px\);/);
+  // T01-LAYOUT-01: the frame also anchors the side panel to the content grid; browser geometry/clicks are checked in issue-draft-preview.e2e.
+  assert.match(arrival, /\.arrival \{ position: relative; height: 100dvh; display: grid; grid-template-rows: var\(--arrival-titlebar-h\) minmax\(0, 1fr\) var\(--dock-h, 76px\);/);
   assert.match(arrival, /\.arrival-stage \{[^}]*min-height: 0;[^}]*overflow: hidden;/);
   assert.match(arrival, /\.stage-side \{[^}]*min-height: 0;[^}]*overflow: hidden;/);
   assert.match(arrival, /\.chooser-dir \{ flex: 1; min-height: 0; overflow: auto;/);
   assert.match(arrival, /\.stage-sheet \{[^}]*min-height: 0;[^}]*overflow: auto;/);
-  // On a phone the directory is capped so the brief keeps the larger part of the stage, and the bar grows to two rows.
+  // On a phone the directory is capped so the brief keeps the larger part of the stage. The two-row bar also covers narrow desktop windows.
   assert.match(arrival, /\.stage-split > \.stage-side \{ max-height: 36vh; overflow: auto; \}/);
-  assert.match(arrival, /@media \(max-width: 600px\)[\s\S]*arrival-bar \{ grid-template-columns: auto minmax\(0, 1fr\); grid-template-rows: auto auto;/);
+  assert.match(arrival, /@media \(max-width: 900px\)[\s\S]*arrival-bar \{ grid-template-columns: auto minmax\(0, 1fr\); grid-template-rows: auto auto;/);
   assert.match(arrival, /@media \(prefers-reduced-motion: reduce\)/);
   assert.doesNotMatch(arrival, /project-index-page|\.project-card\b|\.project-index-body/);
 

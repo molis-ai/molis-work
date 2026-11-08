@@ -31,6 +31,7 @@ export function createScheduleActionPorts(options: {
   reminders?: ScheduleReminderManagement;
   operations?: ScheduledOperationManagement;
   readiness?: ScheduleActionPorts["readiness"];
+  archived?: ScheduleActionPorts["archived"];
   now?: () => Date;
 }): ScheduleActionPorts {
   const now = options.now ?? (() => new Date());
@@ -66,6 +67,7 @@ export function createScheduleActionPorts(options: {
     },
     listTasks: () => listScheduleConversationTasks(options.db).map(viewOf),
     ...(options.readiness ? { readiness: options.readiness } : {}),
+    ...(options.archived ? { archived: options.archived } : {}),
     createTask(input) {
       const created = createScheduleConversationTask(options.db, input, now);
       const job = registerConversationJob(options.schedule, created, now());

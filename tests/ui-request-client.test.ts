@@ -561,3 +561,14 @@ test("SYS-15-L4 a closing request keeps its transport alive while retaining the 
   assert.equal(headersOf(seen[0]!)["x-molis-work-control-token"], "page-token");
   assert.ok(headersOf(seen[0]!)["x-molis-work-idempotency-key"]);
 });
+
+// WUA-10 / S-unified-account-credentials: a protected read uses only this page's token, never a supplied credential.
+test("protected GET sends the page control token only to its own origin", async () => {
+  const seen: {url: string; init: UiFetchInit}[] = [];
+  const request = createUiRequest({ origin: ORIGIN, token: () => "page-control", newKey: () => "unused", translate: value => value,
+    fetch: async (url, init) => { seen.push({url, init}); return Response.json({}); } });
+  await request("/api/account/session", { control: true, headers: { "x-molis-work-control-token": "injected" } });
+  assert.deepEqual(seen[0]!.init.headers, { "x-molis-work-control-token": "page-control" });
+  await assert.rejects(request("https://outside.invalid/api/account/session", {control: true}));
+  assert.equal(seen.length, 1);
+});

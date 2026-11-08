@@ -1,5 +1,8 @@
 import { PANE_MESSAGES_SCRIPT } from "./pane-messages.js";
 
+/** Page-local state: a saved directory from another version is not restored, and the page opens at the root. */
+const DESKTOP_NAVIGATION_STATE = /* @version format.workbench.navigation-state */ 1;
+
 /**
  * AP3 Workbench client segment: bootstrap.
  *
@@ -8,6 +11,8 @@ import { PANE_MESSAGES_SCRIPT } from "./pane-messages.js";
  *
  * - `paneMessages`: the one split-pane message check (S-30, `pane-messages.ts`), handed to the factories that listen for
  *   pane messages (the tab workspace, the context actions) so the page carries it once.
+ * - `settingsReturn`: this window's return trips (settings-return.ts), set up before anything mounts a frame; it reads the tab
+ *   workspace only when asked, so it does not wait for it.
  */
 export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     const q = (selector) => document.querySelector(selector);
@@ -48,11 +53,13 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
         ? goalUiStorageKey + ":archive"
         : currentGoalUiStorageKey;
     const goalMoveReceiptKey = "molis-work-goal-move-receipt:" + (state.project?.project_id || state.snapshot.board.project_id);
-    const desktopNavigationStateVersion = 4;
+    const desktopNavigationStateVersion = ${DESKTOP_NAVIGATION_STATE};
     let immersiveNavigation = null;
     let frameContainer = null;
     let tabWorkspace = null;
     const paneMessages = ${PANE_MESSAGES_SCRIPT};
+    const settingsReturn = molisWorkSettingsReturn({ translate: (...args) => L(...args), projectId: state.project?.project_id || "", prefix: routePrefix,
+      tabWorkspace: () => tabWorkspace, showToast: (...args) => showToast(...args), setDirectory: (...args) => setDesktopDirectory(...args) });
     let projectHome = null;
     let pluginWorkbench = null;
     let globalSearchPalette = null;

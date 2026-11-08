@@ -20,9 +20,9 @@ export interface SpaceAssetRef {
 }
 
 export const platformStorageContract = {
-  contractId: "io.molis.work.platform.storage.v1",
+  contractId: /* @version contract.io.molis.work.platform.storage "io.molis.work.platform.storage.v{version}" */ "io.molis.work.platform.storage.v1",
   kind: "platform",
-  schemaVersion: 1,
+  schemaVersion: /* @version contract.io.molis.work.platform.storage */ 1,
   maturity: "contract-only",
   ssot: "docs/platform/STORAGE-AND-EXCHANGE.md",
 } as const satisfies ContractDescriptor;

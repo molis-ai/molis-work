@@ -24,7 +24,7 @@ function readStore(path: string) {
 }
 
 // RAC-2365 RAC-2367 W3-06-F-05: independent current-schema facts at a wrong version or with KV removed; no historical DDL.
-async function rejectedStore(version: 4 | 2) {
+async function rejectedStore(version: 1 | 2) {
   const home = await mkdtemp(join(tmpdir(), "home-runtime-version-"));
   await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   await mkdir(join(home, "plugin-runtime"));
@@ -34,21 +34,21 @@ async function rejectedStore(version: 4 | 2) {
     db.prepare("INSERT INTO plugin_runtime_installs (install_id, record_json, publisher_trust) VALUES (?,?,?)").run("original-install", JSON.stringify({ plugin_id: "example.retained", install_id: "original-install",
       installation_generation: "original-generation", grants: ["storage:private", "retained:read"], state: "installed", version: "1.0.0", publisher_trust: "unsigned" }), "unsigned");
     db.prepare("INSERT INTO plugin_runtime_release_artifacts VALUES (?,?,?,?,?)").run("example.retained", "original-publisher", "1.0.0", "original-digest", "{\"module_source\":\"original release\"}");
-    if (version === 4) db.exec("DROP TABLE plugin_private_values");
+    if (version === 1) db.exec("DROP TABLE plugin_private_values");
     db.exec(`PRAGMA user_version = ${version}`);
   } finally { db.close(); }
   return home;
 }
 
-for (const version of [2, 4] as const) {
-  test(`W3-06-F-05 W3-06-F-08 RAC-402 RAC-404 Home ${version === 2 ? "wrong-version 2" : "incomplete current 4"} refuses Goals authority intact while its recovery page opens`, { timeout: 60_000 }, async t => {
+for (const version of [2, 1] as const) {
+  test(`W3-06-F-05 W3-06-F-08 RAC-402 RAC-404 Home ${version === 2 ? "wrong-version 2" : "incomplete current 1"} refuses Goals authority intact while its recovery page opens`, { timeout: 60_000 }, async t => {
     const home = await rejectedStore(version), before = readStore(runtimePath(home));
     const beforeBytes = await readFile(runtimePath(home));
     const { host, project, request } = await serveHomeRuntime(t, { homeDirectory: home,
       actionAvailability: projectActionAvailability((options, operation) => withCatalog(options, operation), home) });
     const withCatalog = host.configurePersonalPlanning(home, withMolisWorkProjectCatalog);
     const first = host.homePlugins!.ready();
-    const refusal = version === 2 ? { code: "storage.schema_version_mismatch" } : { code: "actions.execution_failed" };
+    const refusal = version === 2 ? { code: "storage.store_too_new" } : { code: "actions.execution_failed" };
     await assert.rejects(first, refusal);
     assert.equal(host.homePlugins!.ready(), first, "ordinary preparation keeps the failure and never retries");
     const one = await project("A broken Home has a recovery page");

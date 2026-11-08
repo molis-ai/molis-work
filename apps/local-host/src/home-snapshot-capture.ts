@@ -55,10 +55,10 @@ export async function captureSnapshotStore(home: string, stage: string, inventor
     let binding: string | undefined;
     if (entry.disposition.kind === "sealed") {
       binding = JSON.stringify(["home-snapshot-file/v1", inventory.store.owner, path]);
-      const body = { schema_version: 1, path, mode: entry.info.mode & 0o777, contents_base64: readSnapshotFile(entry.path, 32 * 1024 * 1024).toString("base64") };
+      const body = { schema_version: /* @version format.home.snapshot.file-body */ 1, path, mode: entry.info.mode & 0o777, contents_base64: readSnapshotFile(entry.path, 32 * 1024 * 1024).toString("base64") };
       const payload = sealExistingHomePayload(home, binding, JSON.stringify(body));
       keys.add({ kind: "master-key", ...payload.key_reference });
-      writeSnapshotJson(destination, { schema_version: 1, binding, payload });
+      writeSnapshotJson(destination, { schema_version: /* @version format.home.snapshot.file-wrapper */ 1, binding, payload });
       captured = { ...snapshotFileDigest(destination), mode: entry.info.mode & 0o777 };
     } else captured = entry.database ? await backupSnapshotSqlite(entry.path, destination, { ...entry.database, signal: control.signal })
       : await copySnapshotFile(entry.path, destination, control.signal, !deferFlush);

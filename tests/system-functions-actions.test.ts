@@ -42,10 +42,10 @@ test("published rules become versioned system actions without a project, preserv
     for (const primitive of ["choice", "noul", "score"] as const) {
       const record = await withFunctionsServiceAsync(home, async service => {
         const draft = service.create({ primitive, function_key: `test_${primitive}` });
-        service.updateDraft(draft.id, { instructions: "根据用户文本判断", criteria: criteria[primitive] });
+        service.updateDraft(draft.id, { instructions: "根据用户文本判断", criteria: criteria[primitive] }, service.get(draft.id).updated_at);
         assert.ok(!(await client.discover(caller)).some(action => action.capability_id === `functions.published.${draft.function_key}`));
-        await service.preview(draft.id, "preview");
-        return service.publish(draft.id);
+        await service.preview(draft.id, "preview", service.get(draft.id).updated_at);
+        return service.publish(draft.id, service.get(draft.id).updated_at);
       }, options);
       records.push(record);
       const definition = publishedFunctionAction(record);
@@ -117,9 +117,9 @@ test("global published invocation by the Host action client and by MCP uses the 
   try {
     const record = await withFunctionsServiceAsync(home, async service => {
       const draft = service.createChoice({ function_key: "account_a_only" });
-      service.updateDraft(draft.id, { instructions: "判断输入", criteria: criteria.choice });
-      await service.preview(draft.id, "publish");
-      return service.publish(draft.id);
+      service.updateDraft(draft.id, { instructions: "判断输入", criteria: criteria.choice }, service.get(draft.id).updated_at);
+      await service.preview(draft.id, "publish", service.get(draft.id).updated_at);
+      return service.publish(draft.id, service.get(draft.id).updated_at);
     }, options);
     const definition = publishedFunctionAction(record);
     assert.ok(!(await other.homeActionClient().discover(caller)).some(action => action.capability_id === definition.capability_id));
@@ -190,9 +190,9 @@ test("system judgments use the selected TypeSafe account and a disconnected sele
     bindTypeSafeConnection(home, first!.connection_id);
     const record = await withFunctionsServiceAsync(home, async service => {
       const draft = service.createChoice({ function_key: "selected_account" });
-      service.updateDraft(draft.id, { instructions: "选择是或否", criteria: criteria.choice });
-      await service.preview(draft.id, "preview");
-      return service.publish(draft.id);
+      service.updateDraft(draft.id, { instructions: "选择是或否", criteria: criteria.choice }, service.get(draft.id).updated_at);
+      await service.preview(draft.id, "preview", service.get(draft.id).updated_at);
+      return service.publish(draft.id, service.get(draft.id).updated_at);
     }, options);
     const action = publishedFunctionAction(record), client = host.homeActionClient();
     await client.invoke(caller, action, { content: "account a" });

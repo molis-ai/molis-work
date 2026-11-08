@@ -195,7 +195,6 @@ export const SHARED_WORDS_EN: Record<string, string> = {
   "原操作未完成；具体说明保留在宿主审查记录中。": "The operation didn't finish. The details are kept in the host's review record.",
   "Git 宿主审查执行方尚未接通": "The Host's Git review runner isn't connected yet",
   "Git 操作标识无效": "The Git operation's id isn't valid",
-  "这段 diff 里没有可读的 hunk": "There is no readable hunk in this diff",
   "关键词": "Keyword",
   "请输入文档的 HTTPS 链接。": "Enter the document's HTTPS URL.",
   "{count} 份": "{count}",

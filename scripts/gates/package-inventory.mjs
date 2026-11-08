@@ -1,3 +1,4 @@
+import { measureGiantUnits } from "./giant-units.mjs";
 // Package inventory (docs/system/PACKAGE-BOUNDARIES.md, 现行包清单): one row per workspace package, measured from the code
 // and kept true by a gate. The gate is wired into check-health-gates.mjs (an absolute rule, no merge-base comparison).
 //
@@ -14,6 +15,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { isMainScript } from "../script-paths.mjs";
 import ts from "typescript";
 import { homeRuntimePackages, projectRuntimePackages } from "./home-runtime-entries.mjs";
 
@@ -204,7 +206,7 @@ async function main() {
     console.log(`Package inventory holds ${registry.length} packages, all matching the code.`);
     return;
   }
-  // --table: also needs the churn since the Cutover and the giant units of the committed baseline.
+  // --table: also needs the churn since the Cutover and the giant units measured from the current source.
   const facts = measurePackages(snapshot, registry);
   const sorted = sortedBy(registry);
   const churn = new Map();
@@ -215,8 +217,8 @@ async function main() {
     const owner = line ? ownerOf(sorted, line) : undefined;
     if (owner && !seen.has(owner.path)) { seen.add(owner.path); churn.set(owner.path, (churn.get(owner.path) ?? 0) + 1); }
   }
-  const baselineFile = path.join(root, "tooling/gates/baseline.json");
-  const giantUnits = existsSync(baselineFile) ? Object.keys(JSON.parse(readFileSync(baselineFile, "utf8")).giant ?? {}) : [];
+  const limits = JSON.parse(readFileSync(path.join(root, "tooling/gates/limits.json"), "utf8"));
+  const giantUnits = Object.keys(measureGiantUnits(snapshot, limits));
   const giants = new Map();
   for (const unit of giantUnits) {
     const owner = ownerOf(sorted, unit.replace(/^(?:file|class|function) /, "").split("#")[0]);
@@ -233,4 +235,4 @@ async function main() {
   }
   console.error(`${facts.length} packages; depth ${JSON.stringify(tally)}; status ${JSON.stringify(status)}`);
 }
-if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) await main();
+if (isMainScript(import.meta.url)) await main();

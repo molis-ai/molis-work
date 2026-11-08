@@ -1,3 +1,5 @@
+import { inputSchemaFor } from "./action-input.js";
+import { closedObjectSchema as closed } from "./closed-object-schema.js";
 import type { ActionAudience, ActionDefinition, ActionSchema } from "./actions.js";
 import type { ActionExecutionPolicy } from "./action-execution.js";
 import type { AgentMcpServerView } from "../services/agent-host-ports.js";
@@ -67,16 +69,14 @@ export interface WorkExecutorCalls {
   "run.control": { input: WorkExecutorRunControl; output: WorkExecutorRunControlResult };
 }
 
-const id = { type: "string", minLength: 1, maxLength: 200 };
-const words = (maxLength: number) => ({ type: "string", minLength: 1, maxLength, pattern: "\\S" });
+const id = { type: "string", minLength: 1, maxLength: 200 } as const;
+const words = (maxLength: number) => ({ type: "string", minLength: 1, maxLength, pattern: "\\S" } as const);
 const nullable = (schema: Record<string, unknown>) => ({ anyOf: [{ type: "null" }, schema] });
-const closed = (properties: Record<string, unknown>, required: readonly string[] = Object.keys(properties)): ActionSchema =>
-  ({ type: "object", properties, required: [...required], additionalProperties: false });
 const list = (items: Record<string, unknown>, maxItems = 200) => ({ type: "array", maxItems, items });
-const MODE = { type: "string", minLength: 1, maxLength: 64, pattern: "^[a-z][a-z0-9_-]*$" };
+const MODE = { type: "string", minLength: 1, maxLength: 64, pattern: "^[a-z][a-z0-9_-]*$" } as const;
 const round = { session_id: id, run_id: id };
 const control = (kind: string, extra: Record<string, unknown> = {}, required: readonly string[] = Object.keys(extra)) =>
-  closed({ ...round, kind: { const: kind }, ...extra }, ["session_id", "run_id", "kind", ...required]);
+  closed<Record<string, unknown>, readonly string[]>({ ...round, kind: { const: kind }, ...extra }, ["session_id", "run_id", "kind", ...required]);
 const answer = { pending_id: words(200), pending_revision: { type: "integer", minimum: 1 } };
 
 /** The role's fixed half of a declaration: its operation, its two types and the schemas checked against them. */
@@ -87,22 +87,36 @@ export interface WorkExecutorRoleContract {
   readonly input_schema: ActionSchema;
   readonly output_schema: ActionSchema;
 }
+/**
+ * The version each role's two types are at. The Assistant compares the whole type. Now, in stage one (CONTRACT-CHANGES §3), a shape changes
+ * at the version it has, as session.read's `mcp_tools` did; from the first install outside the development machines a new shape raises its
+ * number here (§4), and the Assistant follows in the same change.
+ */
+const ROLE_TYPE_VERSIONS: Readonly<Record<WorkExecutorRole, { readonly input: number; readonly output: number }>> = {
+  state: { input: /* @version type.molis.work-executor.state.input */ 1, output: /* @version type.molis.work-executor.state.output */ 1 },
+  "session.open": { input: /* @version type.molis.work-executor.session.open.input */ 1, output: /* @version type.molis.work-executor.session.open.output */ 1 },
+  "session.read": { input: /* @version type.molis.work-executor.session.read.input */ 1, output: /* @version type.molis.work-executor.session.read.output */ 1 },
+  "session.update": { input: /* @version type.molis.work-executor.session.update.input */ 1, output: /* @version type.molis.work-executor.session.update.output */ 1 },
+  "run.start": { input: /* @version type.molis.work-executor.run.start.input */ 1, output: /* @version type.molis.work-executor.run.start.output */ 1 },
+  "run.control": { input: /* @version type.molis.work-executor.run.control.input */ 1, output: /* @version type.molis.work-executor.run.control.output */ 1 },
+};
 const role = (name: WorkExecutorRole, operation: "query" | "command", input_schema: ActionSchema, output_schema: ActionSchema): WorkExecutorRoleContract =>
-  ({ operation, input_type: `molis.work-executor.${name}.input.v1`, output_type: `molis.work-executor.${name}.output.v1`, input_schema, output_schema });
+  ({ operation, input_type: `molis.work-executor.${name}.input.v${ROLE_TYPE_VERSIONS[name].input}`, output_type: `molis.work-executor.${name}.output.v${ROLE_TYPE_VERSIONS[name].output}`, input_schema, output_schema });
 
-/** Version 1 of each role. A new shape is a `.v2` type, and the Assistant follows in the same change (CONTRACT-CHANGES §3). */
+/** Each role at its version above. */
 export const WORK_EXECUTOR_PROTOCOL: Readonly<Record<WorkExecutorRole, WorkExecutorRoleContract>> = {
-  state: role("state", "query", closed({}), closed({ modes: { ...list(closed({ id: MODE, title: words(40) }), 20), minItems: 1 }, default_mode: MODE, images: { type: "boolean" },
+  state: role("state", "query", inputSchemaFor<WorkExecutorCalls["state"]["input"]>()(closed({})), closed({ modes: { ...list(closed({ id: MODE, title: words(40) }), 20), minItems: 1 }, default_mode: MODE, images: { type: "boolean" },
     workspace_id: nullable(id), workspaces: list(closed({ workspace_id: id, name: words(200), path: words(4096) })), mcp: list({ type: "object" }) }, ["modes", "default_mode", "images"])),
-  "session.open": role("session.open", "command", closed({ title: { type: "string", maxLength: 200 }, mode: MODE }, ["title"]), closed({ session_id: id })),
+  "session.open": role("session.open", "command", inputSchemaFor<WorkExecutorSessionOpen>()(closed({ title: { type: "string", maxLength: 200 }, mode: MODE }, ["title"])), closed({ session_id: id })),
   // A run is an `AgentRunView` (services/agent-host); its own fields are the Agent Host's contract, not this protocol's.
-  "session.read": role("session.read", "query", closed({ session_id: id, window: { type: "integer", minimum: 1, maximum: 50 } }, ["session_id"]),
+  "session.read": role("session.read", "query", inputSchemaFor<WorkExecutorSessionReadInput>()(closed({ session_id: id, window: { type: "integer", minimum: 1, maximum: 50 } }, ["session_id"])),
     closed({ session_id: id, title: { type: "string", maxLength: 200 }, mode: nullable(MODE), runs: list({ type: "object", required: ["ref", "phase", "turns"] }, 50),
       runtime_session_id: nullable(id), recovery: nullable(closed({ message: words(2000) })), workspace_id: nullable(id),
-      mcp_tools: list({ type: "object", required: ["server", "tool"] }) }, ["session_id", "title", "mode", "runs", "runtime_session_id", "recovery"])),
-  "session.update": role("session.update", "command", closed({ session_id: id, mode: MODE }), closed({ session_id: id, mode: MODE })),
-  "run.start": role("run.start", "command", closed({ session_id: id, task: words(100_000) }), closed({ run_id: id })),
+      mcp_tools: list({ type: "object", required: ["server", "tool", "version", "configuration_version"] }) }, ["session_id", "title", "mode", "runs", "runtime_session_id", "recovery"])),
+  "session.update": role("session.update", "command", inputSchemaFor<WorkExecutorSessionUpdate>()(closed({ session_id: id, mode: MODE })), closed({ session_id: id, mode: MODE })),
+  "run.start": role("run.start", "command", inputSchemaFor<WorkExecutorRunStart>()(closed({ session_id: id, task: words(100_000) })), closed({ run_id: id })),
   // A questionnaire answer's items are the Agent Host's answer shape; the executor checks them against the question it asked.
+  // So its input is not held to `WorkExecutorRunControl` yet: the interface says more than `{ type: "object" }` does (N22 S0, specs/action-input-contracts §5.1).
   "run.control": role("run.control", "command", { oneOf: [
     control("answer", { ...answer, text: words(100_000) }), control("answer", { ...answer, answers: { type: "array", minItems: 1, maxItems: 10, items: { type: "object" } } }),
     control("steer", { text: words(100_000), source: { enum: [...AGENT_INPUT_SOURCES] }, key: { type: "string", pattern: AGENT_INPUT_KEY_PATTERN },
@@ -119,7 +133,7 @@ export function workExecutorRoleOf(action: { input_type?: string; output_type?: 
 /** What a provider says about one of its role actions; the role fixes the rest. */
 export interface WorkExecutorActionOptions {
   readonly capability_id: string;
-  readonly version?: number;
+  readonly version: number;
   readonly title: string;
   readonly description: string;
   readonly permissions: readonly string[];
@@ -133,7 +147,7 @@ export interface WorkExecutorActionOptions {
 /** One role action, scoped to the project, with the role's operation, types and schemas filled in. */
 export function defineWorkExecutorAction<R extends WorkExecutorRole>(name: R, options: WorkExecutorActionOptions): ActionDefinition<WorkExecutorCalls[R]["input"], WorkExecutorCalls[R]["output"]> {
   const { operation, ...contract } = WORK_EXECUTOR_PROTOCOL[name];
-  return { capability_id: options.capability_id, version: options.version ?? 1, operation, action: { title: options.title, description: options.description,
+  return { capability_id: options.capability_id, version: options.version, operation, action: { title: options.title, description: options.description,
     kind: operation === "query" ? "query" : "operation", scope: "project", audiences: [...new Set<ActionAudience>(["user", ...options.audiences ?? []])],
     permissions: [...options.permissions], subject_kinds: [...options.subject_kinds ?? []], ...(options.scheduling ? { scheduling: options.scheduling } : {}),
     ...(options.execution ? { execution: options.execution } : {}), ...contract } };

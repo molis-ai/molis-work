@@ -255,7 +255,7 @@ const ARTIFACT_PERMISSIONS = [
 ];
 // A type pinned into the 成果库 is named and has a preview action of its own plugin (W3-05-2); `OUTPUT_TYPE` itself stays the bare
 // type the ports and the process items name.
-const OUTPUT_PREVIEW = defineArtifactPreviewAction("example.output.preview", "输出", []);
+const OUTPUT_PREVIEW = defineArtifactPreviewAction("example.output.preview", 1, "输出", []);
 const PRODUCED_OUTPUT = { ...OUTPUT_TYPE, title: "输出", preview: { capability_id: OUTPUT_PREVIEW.capability_id, version: OUTPUT_PREVIEW.version } };
 const CONSUMES_INPUT = { produces: [PRODUCED_OUTPUT], consumes: [INPUT_TYPE] };
 
@@ -477,7 +477,7 @@ test("Agent declarations: a block that breaks every segment reports them in the 
   ].join(SEPARATOR));
 });
 
-test("Manifest declarations: a v2 Manifest that breaks every section reports them in the order the sections are checked", () => {
+test("Manifest declarations: a Manifest that breaks every section reports them in the order the sections are checked", () => {
   const broken = declarationManifest({
     actions: [defined({ permissions: ["storage:private"], result_scene: { scene_id: "example.review" } })],
     action_scenes: [scene({ permissions: ["a:one"], configuration_permissions: ["c:two"] })],

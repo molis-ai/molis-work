@@ -43,7 +43,7 @@ export function readPackage(pack: unknown): MemoryExportPackage["entries"] {
   if (!pack || typeof pack !== "object") refuse("不是记忆包");
   const value = pack as Partial<MemoryExportPackage>;
   if (value.format !== "molis.memory") refuse("格式不认识");
-  if (value.version !== 2) refuse(`版本 ${String(value.version)} 不认识`);
+  if (value.version !== /* @version format.memory.export */ 1) refuse(`版本 ${String(value.version)} 不认识`);
   if (!Array.isArray(value.entries) || value.entries.length > 2000) refuse("条目缺失或太多");
   return value.entries!.map((item, index) => {
     const at = `第 ${index + 1} 条`;
@@ -69,7 +69,10 @@ export function readPackage(pack: unknown): MemoryExportPackage["entries"] {
   });
 }
 
-/** Business retry identity of the normalized package; no body copy is persisted. Array order remains meaningful. */
+/**
+ * Business retry identity of the normalized package; no body copy is persisted. Array order remains meaningful.
+ * Not `canonicalJsonText`: this digest is stored, and `applies` and `classification.extra` take any key, so integer-shaped keys would hash differently.
+ */
 export function packageFingerprint(entries: MemoryExportPackage["entries"]): string {
   const encoded = JSON.stringify(entries, (_key, value) => value && typeof value === "object" && !Array.isArray(value)
     ? Object.fromEntries(Object.keys(value).sort().map(key => [key, value[key]])) : value);

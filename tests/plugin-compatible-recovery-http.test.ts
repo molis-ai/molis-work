@@ -9,7 +9,7 @@ import { openTestSqlite, type SqliteDatabase } from "@molis-ai/molis-work-test-k
 import { createDiffPlugin } from "@molis-ai/molis-work-plugin-diff";
 import { createCodingPlugin } from "@molis-ai/molis-work-plugin-coding";
 import { PluginRuntime, SqlitePluginRuntimeRepository, pluginManifestDigest } from "@molis-ai/molis-work-plugin-runtime";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 
 for (const quarantined of [false, true]) test(`SYS-15-S8 authorized retry restores an older Coding install (quarantined=${quarantined}) at the Host's version`, async () => {
   const root = await mkdtemp(path.join(tmpdir(), "compatible-recovery-http-"));

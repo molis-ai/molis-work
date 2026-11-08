@@ -4,13 +4,13 @@ import { DatabaseSync } from "node:sqlite";
 import { assertDueReminderWindow, defineDueRemindersAction, withinDueReminderWindow, type ActionCallContext, type DueReminder, type DueReminderWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 import { inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
 import { LocalHost, AssistantStore, AssistantService } from "@molis-ai/molis-work-app-local-host";
-import { createDesktopWebHost } from "@molis-ai/molis-work-app-desktop";
+import { createDesktopWebCore } from "@molis-ai/molis-work-app-desktop";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 
-const due = defineDueRemindersAction("fixture.todo.reminders.due", ["todo"], "到期提醒", ["todo:read"]);
+const due = defineDueRemindersAction("fixture.todo.reminders.due", 1, ["todo"], "到期提醒", ["todo:read"]);
 
 test("a due-reminders query is declared in the Home with the whole contract", () => {
   assert.deepEqual(inspectActionDeclarations([due], undefined), []);
@@ -87,7 +87,7 @@ test("W2-18-S8-TODO-01: a real Todo reminder automatically produces one Assistan
   t.mock.timers.enable({ apis: ["setInterval"] });
   const home = await mkdtemp(join(tmpdir(), "todo-assistant-timer-")), previous = process.env.MOLIS_WORK_SECRET_BACKEND;
   process.env.MOLIS_WORK_SECRET_BACKEND = "file";
-  const token = "todo-reminder-test-token-012345678901234", server = createDesktopWebHost({ ptyClientFilePath: () => "unused" })({ homeDirectory: home, controlToken: token });
+  const token = "todo-reminder-test-token-012345678901234", server = createDesktopWebCore({ ptyClientFilePath: () => "unused" })({ homeDirectory: home, controlToken: token });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address === "object"); const origin = `http://127.0.0.1:${address.port}`;
   let requests = 0;

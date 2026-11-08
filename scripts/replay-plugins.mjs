@@ -16,12 +16,12 @@
 // after action.initial_expect and before action.expect (or the brief's fixed expect_texts projection of { items: [...] }). The
 // package is installed/upgraded by the resident Host's CLI and read again after a real Host restart; it never uses pluginFixtures.
 // Nothing reads or writes a real Home: every sample gets its own temporary one.
-import { execFile, execFileSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { isDeepStrictEqual, promisify } from "node:util";
+import { isDeepStrictEqual } from "node:util";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const args = process.argv.slice(2);
@@ -29,51 +29,11 @@ const corpusFile = path.resolve(root, args.includes("--corpus") ? args[args.inde
 const json = args.includes("--json");
 
 const { parsePluginManifest } = await import("@molis-ai/molis-work-plugin-sdk");
-const { HomeConsentLedger, MolisWorkLocalHost, molisWorkHostProjectReference, runningProjectPlatform } = await import("@molis-ai/molis-work-app-local-host");
-const { createDesktopWebHost, withMolisWorkProjectCatalog } = await import("@molis-ai/molis-work-app-desktop");
+const { MolisWorkLocalHost, molisWorkHostProjectReference, runningProjectPlatform } = await import("@molis-ai/molis-work-app-local-host");
+const { withMolisWorkProjectCatalog } = await import("@molis-ai/molis-work-app-desktop");
 const { verifyPluginPackageSignature } = await import("@molis-ai/molis-work-plugin-runtime");
-const runFile = promisify(execFile);
-
-/** The same resident web/CLI entry used by package installation; closing it releases this sample's Host before reopening. */
-async function resident(home) {
-  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-  const server = createDesktopWebHost({ ptyClientFilePath: () => path.join(root, "dist/web/pty-client.js") })({ homeDirectory: home, localHost: host });
-  const close = async () => {
-    try {
-      server.closeAllConnections();
-      if (server.listening) await new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
-    } finally { await host.close(); }
-  };
-  try {
-    await new Promise((resolve, reject) => { server.once("error", reject); server.listen(0, "127.0.0.1", resolve); });
-    const origin = `http://127.0.0.1:${server.address().port}`;
-    const cli = async (file, projectId, ...flags) => {
-      const result = await runFile(process.execPath, ["--disable-warning=ExperimentalWarning", path.join(root, "dist/cli/main.js"), "plugin", "install", file, projectId, ...flags],
-        { env: { ...process.env, MOLIS_WORK_HOME: home, MOLIS_WORK_WEB_URL: origin, MOLIS_WORK_SECRET_BACKEND: "file", MOLIS_WORK_ENCRYPTION_KEY: "" }, timeout: 60_000 }).then(
-        ok => ({ code: 0, text: ok.stdout }), error => ({ code: error.code, text: error.stderr }));
-      return { code: result.code, out: JSON.parse(result.text.trim().split("\n").at(-1)) };
-    };
-    return { host, cli, close };
-  } catch (error) { await close(); throw error; }
-}
-
-function expectAnswer(action, result) {
-  if (action.expect === undefined && action.expect_texts === undefined) throw new Error(`${action.operation_id} needs a fixed expected answer`);
-  if (action.expect !== undefined && !isDeepStrictEqual(result, action.expect)) {
-    throw new Error(`${action.operation_id} returned ${JSON.stringify(result)}, expected ${JSON.stringify(action.expect)}`);
-  }
-  if (action.expect_texts !== undefined) {
-    // The list brief excludes only the random id/time values from its fixed oracle, never fields, count, order or text.
-    const rows = result?.items;
-    if (!result || !isDeepStrictEqual(Object.keys(result), ["items"]) || !Array.isArray(rows)
-      || rows.some(row => !row || !isDeepStrictEqual(Object.keys(row).sort(), ["created_at", "id", "text"])
-        || typeof row.id !== "string" || !row.id || typeof row.text !== "string" || typeof row.created_at !== "string"
-        || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(row.created_at) || !Number.isFinite(Date.parse(row.created_at)))) {
-      throw new Error(`${action.operation_id} returned invalid items, expected { items: [{ id, text, created_at }] }`);
-    }
-    if (!isDeepStrictEqual(rows.map(row => row.text), action.expect_texts)) throw new Error(`${action.operation_id} returned ${JSON.stringify(rows.map(row => row.text))}, expected ${JSON.stringify(action.expect_texts)}`);
-  }
-}
+const { expectAnswer, installedPluginSession, residentHost } = await import("./replay-plugins/signed-session.mjs");
+const FRESH_KEYS = { MOLIS_WORK_SECRET_BACKEND: "file", MOLIS_WORK_ENCRYPTION_KEY: "" };
 
 async function replayPackage(sample) {
   const steps = { load: null, uninstalled: null, preview: null, install: null, before: null, run: null, upgrade: null, run_after_upgrade: null, restart: null, restarted_read: null };
@@ -91,32 +51,8 @@ async function replayPackage(sample) {
     mkdirSync(home);
     const project = await withMolisWorkProjectCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: `Replay ${sample.id}`, actor_id: "owner" }));
     const ref = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
-    env = await resident(home);
-    const discovered = async () => {
-      const owner = await env.host.localPersonContext(ref);
-      await env.host.inspectActions(owner, ref);
-      return (await env.host.actionClient(ref).discover(owner)).filter(view => view.provider.plugin_id === pluginId);
-    };
-    const records = async () => {
-      const platform = await env.host.withProject(ref, runtime => runningProjectPlatform(runtime.store, project.project_id));
-      if (!platform) throw new Error("the project's plugin platform did not start");
-      return platform.runtime.list().filter(record => record.plugin_id === pluginId);
-    };
-    const pins = () => new HomeConsentLedger(home).publishers();
-    const installed = async (version, installId) => {
-      await discovered();
-      const [record, ...extra] = await records();
-      if (!record || extra.length || record.version !== version || record.state !== "running" || record.publisher_trust !== "pinned"
-        || record.publisher_signature !== publisher || (installId !== undefined && record.install_id !== installId)
-        || !pins().some(pin => pin.key_id === publisher && !pin.revoked_at)) throw new Error(`expected the same pinned running ${pluginId}@${version}, got ${JSON.stringify(record)}`);
-      return { install_id: record.install_id, plugin_id: record.plugin_id, version: record.version, state: record.state, trust: record.publisher_trust, publisher: record.publisher_signature };
-    };
-    const invoke = async action => {
-      const offered = (await discovered()).filter(view => view.action.local_id === action.operation_id && view.version === action.version);
-      if (offered.length !== 1) throw new Error(`${action.operation_id}@${action.version} is not uniquely in the installed plugin's action directory`);
-      const view = offered[0], owner = await env.host.localPersonContext(ref);
-      return env.host.actionClient(ref).invoke(owner, { capability_id: view.capability_id, version: view.version, provider_id: view.provider_id }, action.input);
-    };
+    env = await residentHost(root, home, FRESH_KEYS);
+    const { discovered, records, pins, installed, invoke } = installedPluginSession(() => env.host, { home, ref, projectId: project.project_id, pluginId, publisher });
     steps.uninstalled = { actions: (await discovered()).map(view => view.capability_id), installations: await records(), publishers: pins() };
     if (steps.uninstalled.actions.length || steps.uninstalled.installations.length || steps.uninstalled.publishers.length) throw new Error("the package is already present before installation");
     const preview = await env.cli(file, project.project_id);
@@ -155,7 +91,7 @@ async function replayPackage(sample) {
     expectAnswer(sample.action, steps.run_after_upgrade);
     if (!isDeepStrictEqual(steps.run_after_upgrade, steps.run)) throw new Error("the upgrade changed the retained business value");
     await env.close(); env = undefined;
-    env = await resident(home);
+    env = await residentHost(root, home, FRESH_KEYS);
     steps.restart = await installed(next.version, steps.install.record.install_id);
     steps.restarted_read = await invoke(sample.action);
     expectAnswer(sample.action, steps.restarted_read);

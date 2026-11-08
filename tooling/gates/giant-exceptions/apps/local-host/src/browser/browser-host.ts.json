@@ -1,0 +1,12 @@
+{
+  "exceptions": {
+    "class apps/local-host/src/browser/browser-host.ts#BrowserPage": {
+      "kind": "cohesive-unit",
+      "reason": "一个浏览器目标页（CDP target）的适配器：连接、视口与画面、导航与历史、输入/对话框/下载，45 个方法最长 44 行，全部围绕同一个 CDP 会话和同一份页面状态；协议适配器拆开会把同一个会话的状态共享出去。",
+      "size": {
+        "lines": 443,
+        "methods": 45
+      }
+    }
+  }
+}

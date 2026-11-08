@@ -25,5 +25,6 @@ dialog.mw-dialog.cognia-dialog{width:min(680px,calc(100vw - 24px));padding:0;max
 .plugin-stage-shell[data-expanded="false"] .cognia-empty > .mw-empty__mark { margin:0 auto 16px; }
 /* The list has no padding of its own (rows carry 24px), so on phones the page heading takes the same inset. */
 @media (max-width: 760px) { body.immersive-workbench .plugin-stage-shell[data-cognia=workbench][data-expanded="false"] .cognia-list > .cognia-toolbar.plugin-stage-chrome { margin-inline: 24px; } }
-.cognia-model-settings { width:fit-content; align-self:flex-start; margin:0 24px 8px; }
+.cognia-model-settings, .cognia-resume { margin:0 24px 8px; }
+.cognia-model-settings { width:fit-content; align-self:flex-start; }
 `;

@@ -88,10 +88,10 @@ export function reviewSettlementForwarder(hostEvents: Pick<PluginHostEvents, "no
         if (settlement.changed) changed = settlement.changed;
         else {
           const { recipient, payload } = settlement;
-          if (recipient) hostEvents.notify(recipient, { event_type_id: HOST_REVIEW_SETTLED_EVENT, type_version: 1, payload, correlation_id: payload.review_id });
+          if (recipient) hostEvents.notify(recipient, { event_type_id: HOST_REVIEW_SETTLED_EVENT, type_version: /* @version event.host.review.settled */ 1, payload, correlation_id: payload.review_id });
           changed = { workspace_id: payload.workspace_id, cause: "plugin-operation" };
         }
-        hostEvents.broadcast({ event_type_id: HOST_WORKSPACE_CHANGED_EVENT, type_version: 1, payload: changed });
+        hostEvents.broadcast({ event_type_id: HOST_WORKSPACE_CHANGED_EVENT, type_version: /* @version event.host.workspace.changed */ 1, payload: changed });
       });
     },
     stop(): void {

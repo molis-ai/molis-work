@@ -29,7 +29,7 @@ const PRODUCER = "io.molis.work.example.notes", OTHER = "io.molis.work.example.o
 
 /** An installed app Plugin of another publisher, declaring `types` and link `kinds`. */
 function plugin(id: string, version: string, types: string[], kinds: string[] = []): PluginDefinition {
-  const previews = types.map(type => defineArtifactPreviewAction(`${type}.preview`, "笔记", []));
+  const previews = types.map(type => defineArtifactPreviewAction(`${type}.preview`, 1, "笔记", []));
   return { manifest: { schema_version: 1, host_api_version: 1, plugin_id: id, version, name: id, kind: "app",
     publisher: { publisher_id: "example", signature: `sig-${id}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [], capabilities: { provides: [], consumes: [] }, ui: { contributions: [], views: [] }, actions: previews,
@@ -175,7 +175,7 @@ test("RAC-417-R1 S-82 a missing catalog project's library refuses installs and k
   assert.equal(ia, ib, "scope, not install_id alone, distinguishes the holders");
   seedSceneRules(home, { provider_id: PRODUCER, plugin_id: PRODUCER, title: "笔记", kind: "plugin" }, [declaredScene("example.pick", declaredRule("restore_rule_hold"))], DECLARED_RULE_OPTIONS);
   const rule = () => withFunctionsService(home, service => service.getByKey("restore_rule_hold"), DECLARED_RULE_OPTIONS);
-  const before = withFunctionsService(home, service => service.addSample(rule()!.id, { input: "另一版本安装的用户样例" }), DECLARED_RULE_OPTIONS);
+  const before = withFunctionsService(home, service => service.addSample(rule()!.id, { input: "另一版本安装的用户样例" }, service.get(rule()!.id).updated_at), DECLARED_RULE_OPTIONS);
   const target = await withCatalog({ homeDirectory: home }, catalog => catalog.getProject(pb.projectId));
   const missing = target.database_path + ".temporarily-unavailable";
   renameSync(target.database_path, missing);

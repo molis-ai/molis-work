@@ -24,7 +24,7 @@ import { WORKSPACE_BYTES_LIMIT, workspaceReadActions } from "@molis-ai/molis-wor
 import {
   bindFileEntriesHandler, defineFileContentAction, defineFileEntriesAction, definePlugin, fileContentOf, fileEntriesPage, FILE_CONTENT_MAX_BYTES,
 } from "@molis-ai/molis-work-plugin-sdk";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { browserAddress, safeFilename } from "../apps/local-host/dist/browser/browser-host.js";
 import { renderSidePanel } from "../apps/workbench/dist/side-panel.js";
 
@@ -38,8 +38,8 @@ const kinds = [{ kind: "memo", title: "备忘", surface: "memos" }];
 const canonical = (value: unknown) => JSON.stringify(value);
 
 test("file source declarations pass the manifest check only in the protocol's exact shape", () => {
-  const entries = defineFileEntriesAction("memos.files.entries", kinds, "备忘", ["memos:read"]);
-  const content = defineFileContentAction("memos.files.content", kinds, "备忘", ["memos:read"]);
+  const entries = defineFileEntriesAction("memos.files.entries", 1, kinds, "备忘", ["memos:read"]);
+  const content = defineFileContentAction("memos.files.content", 1, kinds, "备忘", ["memos:read"]);
   assert.deepEqual(inspectActionDeclarations([entries, content]), []);
   assert.equal(entries.action.file_source?.role, "entries");
   assert.deepEqual(entries.action.audiences, ["user"], "a side panel source is for the person unless its owner widens it");
@@ -128,8 +128,8 @@ test("real Host: the file tab lists and previews plugin files through the action
     assert.match(preview.body.content.data, /^# 周报草稿\n[\s\S]*- 完成侧栏/u);
 
     // A plugin nobody told the Host about: its declarations alone put its files in the panel.
-    const entries = defineFileEntriesAction("newcomer.files.entries", [{ kind: "newcomer-file", title: "新插件文件", surface: "newcomer" }], "新插件文件", ["newcomer:read"]);
-    const content = defineFileContentAction("newcomer.files.content", [{ kind: "newcomer-file", title: "新插件文件", surface: "newcomer" }], "新插件文件", ["newcomer:read"]);
+    const entries = defineFileEntriesAction("newcomer.files.entries", 1, [{ kind: "newcomer-file", title: "新插件文件", surface: "newcomer" }], "新插件文件", ["newcomer:read"]);
+    const content = defineFileContentAction("newcomer.files.content", 1, [{ kind: "newcomer-file", title: "新插件文件", surface: "newcomer" }], "新插件文件", ["newcomer:read"]);
     const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.newcomer-files", version: "1.0.0", name: "新插件",
       kind: "app", publisher: { publisher_id: "example", signature: "example-newcomer" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
       permissions: [{ permission: "newcomer:read", required: false, reason: "读取文件" }], actions: [entries, content], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] } },

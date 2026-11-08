@@ -1,3 +1,5 @@
+import { inputSchemaFor } from "./action-input.js";
+import { ACTION_REFERENCE_SCHEMA } from "./action-offers.js";
 import type { ActionDefinition, ActionReference } from "./actions.js";
 import type { SurfacePlace } from "../services/contextual.js";
 
@@ -7,8 +9,8 @@ import type { SurfacePlace } from "../services/contextual.js";
  * statically (so a judgment can only pick among declared keys) and prepares each one's complete input on request.
  * Preparing never writes; the chosen action runs only when the person clicks it.
  */
-export const FRAGMENT_OFFERS_INPUT_TYPE = "molis.fragment-offers.input.v1";
-export const FRAGMENT_OFFERS_OUTPUT_TYPE = "molis.fragment-offers.output.v1";
+export const FRAGMENT_OFFERS_INPUT_TYPE = /* @version type.molis.fragment-offers.input "molis.fragment-offers.input.v{version}" */ "molis.fragment-offers.input.v1";
+export const FRAGMENT_OFFERS_OUTPUT_TYPE = /* @version type.molis.fragment-offers.output "molis.fragment-offers.output.v{version}" */ "molis.fragment-offers.output.v1";
 
 /**
  * Declared in `subject_kinds` by a fragment offers query whose choices fit a fragment of any object (search it, note
@@ -106,21 +108,22 @@ export interface FragmentOfferChoice {
   readonly places?: readonly SurfacePlace[];
 }
 
-const id = { type: "string", minLength: 1 };
-const text = { type: "string", maxLength: 4000 };
+const id = { type: "string", minLength: 1 } as const;
+const text = { type: "string", maxLength: 4000 } as const;
+const OBJECT_REF_SCHEMA = { type: "object", properties: { kind: id, id, version: { type: ["string", "integer"] }, title: { type: "string", maxLength: 200 } }, required: ["kind", "id"], additionalProperties: false } as const;
 const TARGET_SCHEMA = {
   type: "object",
   properties: { kind: { enum: ["text_range", "block", "object"] }, role: { enum: [...FRAGMENT_ROLES] }, text, truncated: { type: "boolean" },
-    ref: { type: "object", properties: { kind: id, id, version: { type: ["string", "integer"] }, title: { type: "string", maxLength: 200 } }, required: ["kind", "id"], additionalProperties: false } },
+    ref: OBJECT_REF_SCHEMA },
   required: ["kind", "text"], additionalProperties: false,
-};
+} as const;
 export const FRAGMENT_OFFERS_INPUT_SCHEMA = {
   type: "object",
   properties: {
     fragment: {
       type: "object",
       properties: {
-        object: { type: "object", properties: { kind: id, id, version: { type: ["string", "integer"] }, title: { type: "string", maxLength: 200 } }, required: ["kind", "id"], additionalProperties: false },
+        object: OBJECT_REF_SCHEMA,
         granularity: { enum: [...FRAGMENT_GRANULARITIES] },
         targets: { type: "array", minItems: 1, maxItems: 8, items: TARGET_SCHEMA },
         heading_path: { type: "array", maxItems: 6, items: { type: "string", maxLength: 200 } },
@@ -131,7 +134,7 @@ export const FRAGMENT_OFFERS_INPUT_SCHEMA = {
     request_id: { ...id, maxLength: 200 },
   },
   required: ["fragment", "request_id"], additionalProperties: false,
-};
+} as const;
 export const FRAGMENT_OFFERS_OUTPUT_SCHEMA = {
   type: "object",
   properties: {
@@ -141,7 +144,7 @@ export const FRAGMENT_OFFERS_OUTPUT_SCHEMA = {
         type: "object",
         properties: {
           offer_id: id, title: { ...id, maxLength: 120 },
-          action: { type: "object", properties: { capability_id: id, version: { type: "integer", minimum: 1 }, provider_id: id }, required: ["capability_id", "version"], additionalProperties: false },
+          action: ACTION_REFERENCE_SCHEMA,
           input: {},
           summary: { type: "string", maxLength: 600 },
           editable: { type: "array", maxItems: 20, items: id },
@@ -154,9 +157,9 @@ export const FRAGMENT_OFFERS_OUTPUT_SCHEMA = {
   required: ["offers"], additionalProperties: false,
 };
 
-export function defineFragmentOffersAction(capabilityId: string, kinds: string[], title: string, permissions: string[],
+export function defineFragmentOffersAction(capabilityId: string, version: number, kinds: string[], title: string, permissions: string[],
   choices: readonly FragmentOfferChoice[], scope: "project" | "home" = "project"): ActionDefinition<FragmentOffersInput, { offers: FragmentActionOffer[] }> {
-  return { capability_id: capabilityId, version: 1, operation: "query", action: { title, description: "按选中的片段准备本插件真实动作的完整参数；不会执行这些动作。", kind: "query", scope, scheduling: "concurrent",
+  return { capability_id: capabilityId, version: version, operation: "query", action: { title, description: "按选中的片段准备本插件真实动作的完整参数；不会执行这些动作。", kind: "query", scope, scheduling: "concurrent",
     permissions, audiences: ["user", "agent", "workflow", "mcp", "plugin"], subject_kinds: kinds, fragment_offer_choices: choices,
-    input_type: FRAGMENT_OFFERS_INPUT_TYPE, output_type: FRAGMENT_OFFERS_OUTPUT_TYPE, input_schema: FRAGMENT_OFFERS_INPUT_SCHEMA, output_schema: FRAGMENT_OFFERS_OUTPUT_SCHEMA } };
+    input_type: FRAGMENT_OFFERS_INPUT_TYPE, output_type: FRAGMENT_OFFERS_OUTPUT_TYPE, input_schema: inputSchemaFor<FragmentOffersInput>()(FRAGMENT_OFFERS_INPUT_SCHEMA), output_schema: FRAGMENT_OFFERS_OUTPUT_SCHEMA } };
 }

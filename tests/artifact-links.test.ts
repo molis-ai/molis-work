@@ -116,7 +116,7 @@ function linkedVersion(t: { after(fn: () => void): void }, sources: readonly Art
 }
 const notesSource: ArtifactProducerSource = { plugin_id: "example.notes", name: "Notes", surface: "notes",
   artifacts: { produces: [], consumes: [], links: [{ kind: "note.cites", role: "output" }] },
-  actions: [defineArtifactLinkSubjectsAction("notes.artifacts.link_subjects", "笔记", ["notes:read"])] } as ArtifactProducerSource;
+  actions: [defineArtifactLinkSubjectsAction("notes.artifacts.link_subjects", 1, "笔记", ["notes:read"])] } as ArtifactProducerSource;
 const declarers = () => [...artifactProducerSources().filter(source => source.plugin_id === GOALS), notesSource];
 
 test("RAC-2081: a second Plugin's linking object is listed under that Plugin with the name it gives, never as a Goal or by Goals' naming", async t => {
@@ -170,7 +170,7 @@ test("RAC-2087: a Plugin with more linking objects than one call takes is asked 
 });
 
 test("RAC-2086: the link-subjects contract is recognised by its types, and the Host finds Goals' as the one declarer that has it", () => {
-  const definition = defineArtifactLinkSubjectsAction("notes.artifacts.link_subjects", "笔记", ["notes:read"]);
+  const definition = defineArtifactLinkSubjectsAction("notes.artifacts.link_subjects", 1, "笔记", ["notes:read"]);
   assert.equal(isArtifactLinkSubjectsAction(definition.action), true);
   assert.equal(isArtifactReferrersAction(definition.action), false);
   assert.deepEqual(definition.action.permissions, ["notes:read"]);

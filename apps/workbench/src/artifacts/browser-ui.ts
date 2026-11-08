@@ -86,7 +86,7 @@ function directory({ view, routePrefix, primitives: p, typeTitles }: ArtifactBro
 }
 
 function documentPreview(artifact: NonNullable<ArtifactBrowserView["selected"]>, p: ArtifactBrowserUiModel["primitives"], routePrefix: string, ownerPreview = false): string {
-  if (artifact.artifact_type_id !== "io.molis.work.document" || artifact.schema_version !== 1
+  if (artifact.artifact_type_id !== "io.molis.work.document" || artifact.schema_version !== /* @version artifact.io.molis.work.document */ 1
     || artifact.availability !== "available" || artifact.content_kind !== "inline") return "";
   const payload = artifact.payload;
   if (!payload || typeof payload !== "object" || Array.isArray(payload) || typeof payload.content !== "string") return "";

@@ -12,7 +12,7 @@ test("RAC-2376 RAC-2377 W1-18-SHELF-FORMAT-01 current Shelf data reopens, while 
     const store = openTestShelfStore(home, { disabled: true });
     const item = await store.admitText("Current copy", "current");
     const filename = join(home, "shelf", "catalog.json"), current = readFileSync(filename, "utf8");
-    assert.equal(JSON.parse(current).version, 2);
+    assert.equal(JSON.parse(current).version, 1);
     assert.equal(openTestShelfStore(home, { disabled: true }).readFile(item.item_id).bytes.toString("utf8"), "Current copy");
     const changedVersion = JSON.parse(current); changedVersion.version = 99;
     const missingDigest=JSON.parse(current);delete missingDigest.items[0].copy_hash;

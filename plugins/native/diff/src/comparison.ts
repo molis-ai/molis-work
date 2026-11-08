@@ -6,12 +6,9 @@ import {
   type CodingChangeSet,
   type FileSnapshot,
 } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   compareChange,
-  compareHunks,
   emptyDiffView,
-  unifiedErrors,
   type DiffFileEntry,
   type DiffPhase,
   type DiffSide,
@@ -130,7 +127,7 @@ export function compareChangeSet(input: DiffInputSnapshot, group: DiffInputGroup
 }
 
 /**
- * A Run's change set, which carries hunks rather than both ends of each file.
+ * A Run's change set: each write's original review, both ends of the file.
  *
  * `path` picks which file to show. Left out, the first file is shown — never a
  * merged view across files, which would put line numbers from different files
@@ -150,7 +147,7 @@ export function compareRunChangeSet(
     removed_lines: file.removed_lines,
   }));
   if (files.length === 0) {
-    return emptyDiff(group, change.coverage === "text-reviews" ? "这一轮没有可读取的文本审查；命令及外部操作请查看原回执" : "这一轮没有改动任何文件", "ready", recoveryMessage(group));
+    return emptyDiff(group, "这一轮没有可读取的文本审查；命令及外部操作请查看原回执", "ready", recoveryMessage(group));
   }
   const chosen = changeIndex !== undefined ? change.files[changeIndex] : path === undefined
     ? change.files[0]!
@@ -158,26 +155,10 @@ export function compareRunChangeSet(
   if (chosen === undefined) {
     return { ...emptyDiff(group, `这一轮没有改动 ${path}`, "unavailable", recoveryMessage(group)), files };
   }
-  if (chosen.review) {
-    const side: DiffSide = { workspace_id: change.origin?.workspace_id ?? change.run_id, workspace_name: change.origin?.workspace_name ?? change.run_id,
-      path: chosen.path, source_plugin_id: input.source_plugin_id, content_version: input.content_version };
-    return { ...compareChange(group, { before: side, after: { ...side } }, { before: chosen.review.before_text ?? "", after: chosen.review.after_text,
-      created: chosen.review.before_text === null }), files };
-  }
-  const side: DiffSide = {
-    workspace_id: change.run_id,
-    workspace_name: change.run_id,
-    path: chosen.path,
-    source_plugin_id: input.source_plugin_id,
-    content_version: input.content_version,
-  };
-  try {
-    return { ...compareHunks(group, { before: side, after: { ...side } }, chosen.diff, { created: chosen.kind === "added", removed: chosen.kind === "deleted" }), files };
-  } catch (error) {
-    const message = error instanceof ActionError && error.code.startsWith("diff.unified.")
-      && Object.hasOwn(unifiedErrors, error.code.slice("diff.unified.".length)) ? error.message : "读不了这一轮的 diff";
-    return { ...emptyDiff(group, message, "unavailable", recoveryMessage(group)), files };
-  }
+  const side: DiffSide = { workspace_id: change.origin.workspace_id, workspace_name: change.origin.workspace_name,
+    path: chosen.path, source_plugin_id: input.source_plugin_id, content_version: input.content_version };
+  return { ...compareChange(group, { before: side, after: { ...side } }, { before: chosen.review.before_text ?? "", after: chosen.review.after_text,
+    created: chosen.review.before_text === null }), files };
 }
 
 function sideOf(snapshot: FileSnapshot, input: DiffInputSnapshot): DiffSide {

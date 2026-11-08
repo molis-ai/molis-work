@@ -9,7 +9,7 @@ import { postToResidentHost, residentHostOrigin } from "./resident-host-request.
 
 /** One explicitly pinned request. An unavailable or ambiguous resident never causes a local catalog fallback. */
 export async function forwardMcpContext(options: {
-  url: string; host: MolisWorkRuntimeContextHost; context: McpToolCallContext; signal: AbortSignal;
+  url: string; controlToken?:string; host: MolisWorkRuntimeContextHost; context: McpToolCallContext; signal: AbortSignal;
   operation: "tool" | "restore" | "alias"; tool?: { name: string; arguments: Record<string, unknown> };
   checkCurrent(): void; updateCache(update: ContextCacheUpdate): void;
 }): Promise<string | null> {
@@ -21,7 +21,7 @@ export async function forwardMcpContext(options: {
   const callId = currentCallId() ?? newCallId();
   const request = async (body: Record<string, unknown>) => {
     options.checkCurrent(); options.signal.throwIfAborted();
-    const answer = await postToResidentHost({ origin, homeDirectory: home, path: MCP_CONTEXT_PATH,
+    const answer = await postToResidentHost({ origin, homeDirectory: home, controlToken:options.controlToken, homeId, path: MCP_CONTEXT_PATH,
       signal: options.signal, retryHint: "请重新解析当前连接并核对原请求结果，不会自动重发",
       body: { ...body, home_id: homeId } });
     options.checkCurrent(); options.signal.throwIfAborted();

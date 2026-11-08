@@ -12,7 +12,7 @@ import { ActionError, bindActionClient } from "@molis-ai/molis-work-contracts/pl
 import { ATTENTION_SCHEMA_SQL, AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
 import { DEMO_PROJECT_ID, LocalProjectDatabase, openProjectVersionStores, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import {
   FEED_CAPTURE_ARTIFACT_TYPE_ID,
   feedCaptureArtifactId,
@@ -45,6 +45,43 @@ function close(data: ReturnType<typeof harness>): void {
   data.store.close();
   rmSync(data.directory, { recursive: true, force: true });
 }
+
+test("a capture line replays its newest version: unchanged content adds nothing, however far the line has gone", async () => {
+  const data = harness();
+  try {
+    const rule = data.feed.outRules.create(DEMO_PROJECT_ID, { name: "发布相关", match: { contains: "launch" } });
+    const ingest = (revision: number, title: string) => data.feed.ingestItem({
+      source: data.source,
+      externalId: "launch-replay",
+      signal: { signal_id: "sig-replay", revision },
+      title,
+      summary: "s",
+      occurredAt: "2026-09-15T00:00:00.000Z",
+      attention: false,
+    });
+    const { item } = ingest(1, "Launch notes");
+    const artifactId = feedCaptureArtifactId(item.item_id, rule.rule_id);
+    const line = () => data.app.artifacts.query.listArtifactVersions(DEMO_PROJECT_ID, artifactId).map(version => [version.version, version.supersedes_version]);
+    const tryRules = async () => { for (let run = 0; run < 3; run++) await data.feed.evaluateItems(DEMO_PROJECT_ID, [item.item_id]); };
+
+    // The message is edited once: the line reaches v2, and stays there when the rules are tried by hand or the source re-sends the same content.
+    assert.equal(ingest(2, "Launch notes revised").updated, true);
+    assert.deepEqual(line(), [[1, null], [2, 1]]);
+    await tryRules();
+    assert.deepEqual(line(), [[1, null], [2, 1]], "trying the rules over unchanged content writes nothing");
+    assert.equal(ingest(3, "Launch notes revised").updated, true);
+    assert.deepEqual(line(), [[1, null], [2, 1]], "a source re-sending the same content writes nothing");
+
+    // Versions an earlier Feed wrote keep its version, so the 成果库 no longer takes a replay as the same: one more version, then steady again.
+    data.store.db.prepare("UPDATE library_artifact_versions SET producer_plugin_version = ? WHERE artifact_id = ?").run("0.0.1", artifactId);
+    await tryRules();
+    assert.deepEqual(line(), [[1, null], [2, 1], [3, 2]], "a new Feed version adds one version, not one per run");
+    assert.equal(ingest(4, "Launch notes revised").updated, true);
+    assert.deepEqual(line(), [[1, null], [2, 1], [3, 2]]);
+  } finally {
+    close(data);
+  }
+});
 
 test("new Feed Item matching an out rule leaves an exact Artifact and no success Inbox row", () => {
   const data = harness();

@@ -18,7 +18,7 @@ Home 级插件的数据按项目放、删项目时整份一起走时，只在 Ma
 
 `personal: true` 不等于已经迁到 Home Runtime。业务库与 SQL 归插件，连接来自 `context.services.database`；写入必须 `transaction(caller.beforeEffect, tx => …)`，回调同步。Home 不提供项目 artifacts、端口和事件，不能用假项目补齐。只有可信 bundled 定义对象用插件 ID，其余用安装 ID；Home/项目执行器共用此规则，安装记录和 generation 仍约束执行；MCP 保留自己的 caller，不伪装成 owner。
 
-Home 的 `services.storage` 是 v2 Home Runtime 库里的安装隔离 KV；升级校验只读，候选失败恢复原值，停止/撤权/重装后的旧句柄失效。业务数据继续在插件原 SQLite，不迁到 KV。Home 的动作与场景若声明项目 scope，必须经真实项目客户端；Home HTTP 不带项目前缀时没有项目；带真实项目前缀时，Host 核对项目存在且显示该插件，发出的执行控制使动作保留该项目；不得从 body/query 自报项目。通用 operations 保留控制令牌、断开取消、beforeEffect、client_reported 页面上下文与上传限额，不借项目 Files/wiring 钩子。库失败不挡 Goals；普通读取不自行重试，显式 POST retry 共用一次启动。
+Home 的 `services.storage` 是 Home Runtime 库里的安装隔离 KV；升级校验只读，候选失败恢复原值，停止/撤权/重装后的旧句柄失效。业务数据继续在插件原 SQLite，不迁到 KV。Home 的动作与场景若声明项目 scope，必须经真实项目客户端；Home HTTP 不带项目前缀时没有项目；带真实项目前缀时，Host 核对项目存在且显示该插件，发出的执行控制使动作保留该项目；不得从 body/query 自报项目。通用 operations 保留控制令牌、断开取消、beforeEffect、client_reported 页面上下文与上传限额，不借项目 Files/wiring 钩子。库失败不挡 Goals；普通读取不自行重试，显式 POST retry 共用一次启动。
 
 项目里宿主自己运行的内置插件（登记上的 `project_runtime`）要有 Home 里的库，也是同一个 `context.services.database`：在 Manifest 写 `databases.home`（条目上不再有 `database`）；库名由 Manifest 决定，动作入参选不了。登记上的定义对象拿登记里的库，项目没有 Home 时宿主不启动它；不在名单上、由宿主自己运行的插件（开发中的、装进来的）经 `plugin-libraries/` 的账本拿：首次打开记下发布者（取自安装记录）、版本和表，之后换了发布者、版本、表或库名都拒绝启动，库名不能是宿主已有的存储或目录，也不能按项目分开。库必须在 Home 存储登记中归该插件所有、与登记的基线一致，并列入 `docs/releases/CHECKLIST.md` 的各库版本表；Manifest 声明 `storage:private` 和库的读写权限，沙箱插件拿不到。数据由插件自己按项目分区，写入必须 `transaction(caller.beforeEffect, tx => …)`。Dataset、Form、灵光、Pages、PPT、Workflows 已这样装配。
 
@@ -107,7 +107,7 @@ Home 或项目里宿主自己运行的插件要调模型：Manifest 声明 `mode
 10. **构建**：`pnpm --filter @molis-ai/molis-work-plugin-<id> build`。根目录 `pnpm build` 含 workspace。
 11. **会点名插件名单的测试**：`tests/plugin-declarative-mounting.test.ts`（插件切换/常驻/个人插件）、`tests/creative-tools-plugins.test.ts` 的 `PERSONAL_PLUGIN_IDS`、`tests/uninstall.test.ts` 的 `{home}` 库名、有列表时 `tests/list-silent-refresh.test.ts` 的 factory 表。按需改 `tests/plugin-catalog-companions.test.ts`。
 12. **动作定义**：用 SDK 的 `defineAction` 写一份定义，同一份既进 Manifest 的 `actions`，也绑定运行实例的 `actions` 处理器（`packages/plugin-sdk/README.md`）；注册后自动进共同目录，UI、编排、Agent、MCP 共用它，没有另外的适配。
-13. **快照与预算**：改了动作或场景，`pnpm build` 后跑 `pnpm actions:update`（`tooling/gates/actions/`）；改了 contracts 子路径或 SDK 的公开 API，跑 `pnpm api:update`；插件的客户端包是 `/assets/` 下的新文件，要进 `tooling/gates/page-assets.json` 的预算，新增资源先问用户（`scripts/gates/page-assets.mjs`）。
+13. **快照与预算**：改了动作或场景，`pnpm build` 后跑 `pnpm actions:update`（`tooling/gates/actions/`）；改了 contracts 子路径或 SDK 的公开 API，跑 `pnpm api:update`；插件的客户端包是 `/assets/` 下的新文件，在 `tooling/gates/page-asset-allowances/` 写本任务的独立增长许可，新增资源先问用户（`scripts/gates/page-assets.mjs`）。
 
 导航、设置位置、项目启用由 catalog 和 Manifest 推导；客户端与 i18n 仍需接线。公共动作注册后自动进入 MCP 目录，没有另外的 MCP 适配。
 
@@ -301,7 +301,18 @@ Home 级插件要在本人自己的页面里看到各个项目的内容（Todo �
 
 ### 用本人的服务账号发请求
 
-插件要以本人身份调某个服务（如读 GitHub 通知），不自己存令牌、不让人把令牌填进插件：Manifest 声明权限 `connections:use` 和 `connections.slots`（`{ slot_id, service_id, reason }`，`service_id` 只能是平台登记了的服务，名单是 `CONNECTOR_REQUEST_SERVICES`：GitHub、Gmail、目录里发到固定地址的服务，和按租户分地址的 Salesforce、Jira、Confluence——地址是所绑账号连接时的那个站点，用 `describe(slot_id)` 读 `origin`），在自己声明了 `connections:use` 的并发动作里调 `context.services.connections.request(slot_id, { url, method?, headers?, body? })`，返回 `{ status, headers, body, authenticated }`。槽绑哪个账号只由人选（`connectors.plugin_slot.bind@1`，只对 `user`）；绑了的由宿主加凭据、插件看不到，没绑就不带凭据。一条记录一个账号时槽写 `binding: "per_record"`：人按项目为一条记录选账号（`bind@2`），插件请求时写 `record_key`，用 `describe(slot_id, record_key)` 读有没有绑、`release(slot_id, record_key)` 在删记录时解除，不能自己绑。地址只能是该服务登记的来源之一，不能自己写 `Authorization`、`Cookie`、`PRIVATE-TOKEN` 一类收凭据的头，跳转原样交回，只读动作只发 GET/HEAD；拿到结果后、写业务记录之前照样 `await caller.beforeEffect()`。沙箱插件经 broker 用同一份客户端，操作要在 `effects.connections` 里写出用的槽（S-60）。写法见 [插件开发手册](../../docs/platform/PLUGIN-DEVELOPMENT.md#用本人的服务账号发请求servicesconnections)，规则与测试见 `docs/system/SECURITY-INVARIANTS.md` S-57、S-69、S-71。
+插件要以本人身份调某个服务（如读 GitHub 通知），不自己存令牌、不让人把令牌填进插件：Manifest 声明权限 `connections:use` 和 `connections.slots`（`{ slot_id, service_id, reason }`，`service_id` 只能是平台登记了的服务，名单是 `CONNECTOR_REQUEST_SERVICES`：GitHub、Gmail、目录里发到固定地址的服务，和按租户分地址的 Salesforce、Jira、Confluence——地址是所绑账号连接时的那个站点，用 `describe(slot_id)` 读 `origin`），在自己声明了 `connections:use` 的并发动作里调 `context.services.connections.request(slot_id, { url, method?, headers?, body? })`，返回 `{ status, headers, body, authenticated }`。槽绑哪个账号只由人选（`connectors.plugin_slot.bind@1`，只对 `user`）；绑了的由宿主加凭据、插件看不到，没绑就不带凭据。一条记录一个账号时槽写 `binding: "per_record"`：人按项目为一条记录选账号（`connectors.plugin_slot.record.bind@1`），插件请求时写 `record_key`，用 `describe(slot_id, record_key)` 读有没有绑、`release(slot_id, record_key)` 在删记录时解除，不能自己绑。地址只能是该服务登记的来源之一，不能自己写 `Authorization`、`Cookie`、`PRIVATE-TOKEN` 一类收凭据的头，跳转原样交回，只读动作只发 GET/HEAD；拿到结果后、写业务记录之前照样 `await caller.beforeEffect()`。沙箱插件经 broker 用同一份客户端，操作要在 `effects.connections` 里写出用的槽（S-60）。写法见 [插件开发手册](../../docs/platform/PLUGIN-DEVELOPMENT.md#用本人的服务账号发请求servicesconnections)，规则与测试见 `docs/system/SECURITY-INVARIANTS.md` S-57、S-69、S-71。
+
+缺账号（或图像生成缺密钥）时，在页面里缺的那个位置留一个空元素，调 `host.connectionNeed(place, target, { signal })`：`target` 是 `{ kind: "slot", slot_id, record_key? }`（按记录的槽带记录键，按安装的不带）或 `{ kind: "image", slot_id, base_url }`。平台在插件框外贴着这个元素画连接卡（元素的高由平台给，两档按宽度），人在卡里连好、选好账号或填好密钥；插件只拿到 `{ status: "connected", account: { label } }` 或 `{ status: "cancelled" }`，页面关了、`signal` 中止时以 `AbortError` 结束。**拿到 `connected` 后，插件自动把人刚才按下的那一件做一次**（用户 11-06 定）：用原来那一步的幂等键（同一个 `request_id`、`idempotency_key`）保证只做一次；原本有确认的（花钱、不可撤回）照原有的确认再问，原本没有的不新加；写之前照旧 `beforeEffect()`。`cancelled` 时草稿与输入不动。已经接着可用账号的目标不出卡、直接答 `connected`。例子：Feed 新加的账号来源连好后拉第一次，Images 缺密钥时在生成区出卡、连好后照同一请求接着生成。规则与测试见 `docs/system/security-invariants/S-plugin-connection-card.md`。
+
+### 缺模型去设置、配好再回来：`host.returns`
+
+页面上被缺模型挡住时，不链到设置地址，调 `host.returns.go({ kind: "model" }, carry, { signal })`（合同 `UiPageReturns`，`@molis-ai/molis-work-contracts/platform/ui`）：外壳在原处打开模型设置，顶上出返回条；人配好（回程主人读回模型目录，`health` 里有 `ready`）就关掉设置回到这一页，Promise 答 `{ status: "ready", carry }`；人自己回去、没配好，答 `{ status: "not_ready", carry }`；页面关了或 `signal` 中止，以 `AbortError` 结束；`carry` 不合、页面看不见、或这个窗口开不了回程时立即拒绝，设置不开或不带返回条。
+
+- `carry` 只放名字：`draft_key`（至多 256 字）、`step`（`[A-Za-z0-9._:-]`，至多 128 字）、`object: { kind, id }`（kind 至多 64 字，id 至多 256 字）；按码点计、不许为空，上限是合同的 `UI_RETURN_CARRY_LIMITS`。返回条只在带了 `draft_key` 时说「你写的都还在」。草稿正文先写进 `host.drafts`，回程里不放正文、密钥、地址。来处（安装、界面、所在的栏）由外壳写，页面给不了。
+- 页面在设置里被刷新、重建过，回来后调一次 `host.returns.arrived()`：有这一页开的回程还开着就一直等，结算后答结果，没有就是 `null`，第二次也是 `null`。只在页面看得见时认领。
+- 回来以后：入口是页面上一个普通的「模型设置」按钮（没说为了哪一步）的，配好也只问一句，用 SDK 的 `renderResumePrompt`（`@molis-ai/molis-work-plugin-sdk/ui`，平台的「接着做」共用件），人点了才做，从不自动做那一步（U1）。问话放在被挡住的那一步旁边、与它同宽（Coding 是输入表单的第一行）。要等页面自己再读到模型可用才出问话（Cognia 在列表读回 `ai_available` 之后），答 `not_ready` 时清掉为这次回程写进 `host.drafts` 的那份草稿。用的是原来那一步的幂等键，原有的确认照问。
+- 例子：Coding 的模型设置入口（`plugins/native/coding/src/browser/main/returns.ts`）、Cognia（`plugins/native/cognia/src/browser/returns.ts`）、工作流程连接浮层（`plugins/native/workflows/src/browser/returns.ts`，带 `object` 回来重开那条流程与浮层）。规格 `specs/draft-and-return/spec.md`，安全规则 `docs/system/security-invariants/S-return-trip-source.md` 等三条。
 
 ### 项目插件的闹钟、后台 Agent 与通知
 

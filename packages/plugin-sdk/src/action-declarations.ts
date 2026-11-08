@@ -1,11 +1,11 @@
-import { isRecord } from "./json-value.js";
+import { canonicalJsonText, isRecord } from "./json-value.js";
 import {
   DUE_REMINDERS_INPUT_TYPE, DUE_REMINDERS_OUTPUT_TYPE, DUE_REMINDER_COLLECTION_SCHEMA, DUE_REMINDER_WINDOW_SCHEMA,
   HOME_EVENTS_INPUT_TYPE, HOME_EVENTS_OUTPUT_TYPE, HOME_EVENT_COLLECTION_SCHEMA, HOME_EVENT_WINDOW_SCHEMA,
   SUBJECT_CONTEXT_INPUT_SCHEMA, SUBJECT_CONTEXT_OUTPUT_SCHEMA, SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_OPEN,
   SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_PROJECT, SUBJECT_CONTEXT_TYPE, SUBJECT_REFERENCE_TYPE,
   SUBJECT_OFFERS_INPUT_SCHEMA, SUBJECT_OFFERS_INPUT_TYPE, SUBJECT_OFFERS_OUTPUT_SCHEMA, SUBJECT_OFFERS_OUTPUT_TYPE,
-  WORKFLOW_CONTENT_SCHEMAS, WORKFLOW_CONTENT_VERSIONS, validActionExecutionPolicy, validActionResultView, type WorkflowContentStation,
+  WORKFLOW_CONTENT_OUTPUT_VERSIONS, WORKFLOW_CONTENT_SCHEMAS, WORKFLOW_CONTENT_VERSIONS, validActionExecutionPolicy, validActionResultView, type WorkflowContentStation,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import { contextDeclarationProblems } from "./context-declarations.js";
 import {
@@ -247,7 +247,7 @@ function workflowContentProblems(key: string, version: unknown, operation: unkno
   if (a.workflow_content === undefined) return [];
   const w = a.workflow_content;
   if (!isRecord(w) || !/^[a-z][a-z0-9-]{1,40}$/.test(String(w.id)) || !isText(w.title) || !isText(w.icon)
-    || w.protocol !== 1 || !["list", "read", "receive", "create"].includes(String(w.role)) || (w.receives !== undefined && (w.receives !== false || w.role === "receive"))) {
+    || w.protocol !== /* @version protocol.workflow-content */ 1 || !["list", "read", "receive", "create"].includes(String(w.role)) || (w.receives !== undefined && (w.receives !== false || w.role === "receive"))) {
     return [`能力 ${key} 的工作流内容合同无效`];
   }
   const role = w.role as WorkflowContentStation["role"];
@@ -257,7 +257,7 @@ function workflowContentProblems(key: string, version: unknown, operation: unkno
   // saved against it must find nothing rather than the new shape under that number.
   const current = WORKFLOW_CONTENT_VERSIONS[role];
   const inputOk = a.input_type === `molis.workflow.content.${role}.input.v${current}` && canonicalSchema(a.input_schema) === canonicalSchema(schemas.input);
-  const outputOk = a.output_type === `molis.workflow.content.${role}.output.v1` && canonicalSchema(a.output_schema) === canonicalSchema(schemas.output);
+  const outputOk = a.output_type === `molis.workflow.content.${role}.output.v${WORKFLOW_CONTENT_OUTPUT_VERSIONS[role]}` && canonicalSchema(a.output_schema) === canonicalSchema(schemas.output);
   const shapeOk = a.scope === "project" && a.audiences.includes("workflow") && operation === (role === "list" || role === "read" ? "query" : "command");
   if (inputOk && outputOk && shapeOk) return Number(version) >= current ? [] : [`能力 ${key} 的版本低于工作流内容协议 ${role} 的现行版本 ${current}`];
   const gap = shapeOk && outputOk ? "输入" : shapeOk && inputOk ? "输出" : "输入输出";
@@ -293,13 +293,13 @@ function sceneProblems(s: unknown, seen: Set<string>, ruleKeys: Set<string>): st
 function sceneContractProblems(s: Record<string, unknown>): string[] {
   const problems: string[] = [];
   if (s.event_schema !== undefined && !isRecord(s.event_schema)) problems.push(`消费场景 ${s.scene_id} 的事件合同无效`);
-  if (s.recommendation_source !== undefined && (s.recommendation_source !== "subject-offers" || s.result_type !== "molis.behavior-recommendation.v1")) {
+  if (s.recommendation_source !== undefined && (s.recommendation_source !== "subject-offers" || s.result_type !== /* @version type.molis.behavior-recommendation "molis.behavior-recommendation.v{version}" */ "molis.behavior-recommendation.v1")) {
     problems.push(`消费场景 ${s.scene_id} 的推荐来源合同无效`);
   }
   if (s.recommendation_labels !== undefined) {
     const schema = s.result_schema as { properties?: { suggested_behavior_ids?: { items?: { enum?: unknown } } } } | undefined;
     const keys = schema?.properties?.suggested_behavior_ids?.items?.enum;
-    if (!isRecord(s.recommendation_labels) || s.result_type !== "molis.behavior-recommendation.v1" || s.recommendation_source !== undefined || !Array.isArray(keys)
+    if (!isRecord(s.recommendation_labels) || s.result_type !== /* @version type.molis.behavior-recommendation "molis.behavior-recommendation.v{version}" */ "molis.behavior-recommendation.v1" || s.recommendation_source !== undefined || !Array.isArray(keys)
       || Object.entries(s.recommendation_labels).some(([label, value]) => !keys.includes(label) || !isText(value))) {
       problems.push(`消费场景 ${s.scene_id} 的推荐名称必须对应结果合同中的选项`);
     }
@@ -338,9 +338,7 @@ function isCompleteScene(s: Record<string, unknown>): boolean {
 
 /** The same schema written with its keys in another order is the same schema. */
 function canonicalSchema(value: unknown): string {
-  const sort = (entry: unknown): unknown => Array.isArray(entry) ? entry.map(sort)
-    : isRecord(entry) ? Object.fromEntries(Object.keys(entry).sort().map(name => [name, sort(entry[name])])) : entry;
-  return JSON.stringify(sort(value));
+  return canonicalJsonText(value)!;
 }
 
 export function isText(v: unknown): v is string { return typeof v === "string" && v.trim().length > 0; }

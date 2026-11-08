@@ -2,9 +2,9 @@ import type { ContractDescriptor } from "../platform/package.js";
 export * from "./runtime-project-context.js";
 
 export const modulesPrivateWorkContextContract = {
-  contractId: "io.molis.work.module.private-work-context.v1",
+  contractId: /* @version contract.io.molis.work.module.private-work-context "io.molis.work.module.private-work-context.v{version}" */ "io.molis.work.module.private-work-context.v1",
   kind: "module",
-  schemaVersion: 1,
+  schemaVersion: /* @version contract.io.molis.work.module.private-work-context */ 1,
   maturity: "partial",
   ssot: "docs/modules/private-work-context.md",
 } as const satisfies ContractDescriptor;

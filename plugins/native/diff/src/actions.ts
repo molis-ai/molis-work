@@ -1,6 +1,6 @@
 import type { ActionCallContext, ActionDefinition, ActionHandlerBinding, ActionLocale } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { DIFF_CHANGESET_TYPE, CODING_CHANGESET_TYPE, parseCodingChangeSet, type TextDiff } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { DIFF_CHANGESET_SCHEMA_VERSION, DIFF_CHANGESET_TYPE, CODING_CHANGESET_TYPE, parseCodingChangeSet, type TextDiff } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { compareSnapshots, compareChangeSet, compareRunChangeSet, emptyDiff, type DiffView } from "./comparison.js";
 import { objectSchema as object, compareTexts } from "@molis-ai/molis-work-plugin-sdk";
 import { diffViewText, renderDiff, type DiffViewText } from "@molis-ai/molis-work-plugin-sdk/diff-view";
@@ -25,10 +25,10 @@ interface DiffStateInput { reference?: { artifact_id: string; version: number };
 /** `html` is the comparison drawn for a page, in the page's language; a model or a workflow reads `view` alone. */
 interface DiffState { view: DiffView; html?: string }
 export const diffActions = {
-  state: { capability_id: "diff.state", version: 1, operation: "query", action: { ...base, audiences: [...base.audiences, "plugin"],
+  state: { capability_id: "diff.state", version: /* @version action.diff.state */ 1, operation: "query", action: { ...base, audiences: [...base.audiences, "plugin"],
     title: "读取固定差异", description: "读取明确指定的固定成果或当前已选输入组，保留原版本、来源和失效状态，不读取当前磁盘", permissions: ["artifact:read"],
     input_schema: object({ reference, change_index: count }, []), output_schema: object({ view, html: text }, ["view"]) } } as ActionDefinition<DiffStateInput, DiffState>,
-  compare: { capability_id: "diff.compare", version: 1, operation: "query", action: { ...base,
+  compare: { capability_id: "diff.compare", version: /* @version action.diff.compare */ 1, operation: "query", action: { ...base,
     title: "比较两段文本", description: "比较提供的两段文本，保留原行尾；超出计算预算时返回完整删除与新增，不改文件或保存成果", permissions: [],
     input_schema: object({ before: { type: "string", maxLength: 2_000_000 }, after: { type: "string", maxLength: 2_000_000 } }),
     output_schema: object({ identical: boolean, empty: boolean, coarse: boolean,
@@ -62,7 +62,7 @@ function readState(context: PluginStartContext, input: DiffStateInput): DiffView
   if (input.reference) {
     try {
       const record = context.services?.artifacts?.read(input.reference);
-      if (!record || ![DIFF_CHANGESET_TYPE, CODING_CHANGESET_TYPE].includes(record.artifact_type_id) || record.schema_version !== 1
+      if (!record || ![DIFF_CHANGESET_TYPE, CODING_CHANGESET_TYPE].includes(record.artifact_type_id) || record.schema_version !== (record.artifact_type_id === DIFF_CHANGESET_TYPE ? DIFF_CHANGESET_SCHEMA_VERSION : /* @version type.coding.changeset */ 1)
         || record.availability !== "available" || record.lifecycle_state !== "active") throw diffErrors.invalid("固定差异不可用");
       if (record.artifact_type_id === CODING_CHANGESET_TYPE) return compareRunChangeSet({ content: parseCodingChangeSet(record.payload),
         source_plugin_id: record.producer_plugin_id, content_version: record.version }, undefined, input.change_index ?? 0);

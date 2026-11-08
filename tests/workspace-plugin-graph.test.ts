@@ -170,7 +170,7 @@ test("Coding fixed output reaches Diff through the production default binding wi
     assert.equal(platform.wiring.selectedGroup(DIFF_PLUGIN_ID), "snapshots", "publishing must not change the user's comparison group");
     // Coding records its change set as a process item (artifact-positioning A2), then selects it into the port.
     const saved = coding!.services!.processItems!.record({ artifact_id: "fixed-coding", version: 1, artifact_type_id: "coding.changeset.v1", schema_version: 1,
-      content: { kind: "inline", payload: { scope: "run-frozen", run_id: "run", applied: true, coverage: "text-reviews", files: [{ path: "a.ts", kind: "modified", diff: "", added_lines: 1, removed_lines: 1,
+      content: { kind: "inline", payload: { scope: "run-frozen", run_id: "run", applied: true, coverage: "text-reviews", origin: { session_id: "s", runtime_session_id: "r", workspace_id: "w", workspace_name: "w" }, files: [{ path: "a.ts", kind: "modified", diff: "", added_lines: 1, removed_lines: 1,
         review: { review_id: "review", before_text: "original\r\n", after_text: "fixed\n", decision: "approved", execution: "applied" } }] } } });
     coding!.services!.outputs!.select({ port: "changeset", reference: { artifact_id: saved.artifact.artifact_id, version: 1 }, expected_reference: null });
     await platform.wiring.drain();

@@ -1,9 +1,9 @@
 import type { ContractDescriptor } from "../platform/package.js";
 
 export const modulesFunctionsContract = {
-  contractId: "io.molis.work.module.functions.v1",
+  contractId: /* @version contract.io.molis.work.module.functions "io.molis.work.module.functions.v{version}" */ "io.molis.work.module.functions.v1",
   kind: "module",
-  schemaVersion: 1,
+  schemaVersion: /* @version contract.io.molis.work.module.functions */ 1,
   maturity: "partial",
   ssot: "specs/archive/functions-independent-authoring/spec.md",
 } as const satisfies ContractDescriptor;
@@ -234,7 +234,7 @@ export interface JudgmentRecord {
   readonly suggested_behavior_ids: readonly string[];
   readonly error_code: string | null;
   readonly created_at: string;
-  /** Present on shared-scene results; old records remain readable history. */
+  /** Present on shared-scene results; a judgment made without a scene has none. */
   readonly scene_provenance?: {
     readonly binding_id: string;
     readonly binding_revision: string;

@@ -110,11 +110,20 @@ export type PluginMessagesDeclaration = Readonly<Record<string, { readonly zh: s
 /** A Plugin's English for words still keyed by their Chinese source text. */
 export type PluginTranslationsDeclaration = Readonly<Record<string, string>>;
 
+/** The languages a Plugin has words in; the words of each are the package's `locales/<language>.json`. */
+export interface PluginLocalesDeclaration {
+  readonly default: string;
+  readonly available: readonly string[];
+}
+
+/** A bad list costs one message per entry, and a language is a file in the package: far more than any plugin translates into, so the author's mistake, not a real need. */
+export const PLUGIN_LOCALE_LIMITS = { available: 32 } as const;
+
 export interface PluginManifest {
   /** Portable collections; requires an authorized owner adapter. */
   sync?: import("./plugin-sync.js").PluginSyncDeclaration;
   /** The current Manifest format; all plugins declare version 1. */
-  schema_version: 1;
+  schema_version: /* @version manifest.schema */ 1;
   plugin_id: string;
   version: string;
   name: string;
@@ -130,7 +139,7 @@ export interface PluginManifest {
     /** Signature identity. A changed value creates a different Plugin identity. */
     signature: string;
   };
-  host_api_version: 1;
+  host_api_version: /* @version host.api */ 1;
   /**
    * 常开插件. Enabled in every project, never listed where plugins are chosen, added or removed (the plugin list, the
    * market, the Dock, a project's plugin settings), so it cannot be removed. Only a plugin that ships with the Host may
@@ -193,6 +202,8 @@ export interface PluginManifest {
      * Plugin is not changed by it, and the Host's own English wins. New words use `messages`.
      */
     translations?: PluginTranslationsDeclaration;
+    /** The Plugin's languages. A Manifest that declares them writes neither `messages` nor `translations`: no Plugin takes both roads. */
+    locales?: PluginLocalesDeclaration;
   };
   /** named, typed connection points wired by the user inside a project. */
   ports?: PluginPortsDeclaration;

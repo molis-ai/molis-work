@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 
+import { canonicalJsonText, compareCodeUnits } from "@molis-ai/molis-work-plugin-sdk";
 import type {
   ArtifactJsonValue,
   ArtifactMetadata,
@@ -21,7 +22,7 @@ function normalizedValue(value: unknown, path: string): ArtifactJsonValue {
     }
     return Object.fromEntries(
       Object.entries(value as Record<string, unknown>)
-        .sort(([left], [right]) => left.localeCompare(right))
+        .sort(([left], [right]) => compareCodeUnits(left, right))
         .map(([key, item]) => [key, normalizedValue(item, `${path}.${key}`)]),
     );
   }
@@ -41,7 +42,7 @@ export function normalizeArtifactMetadata(value: unknown): ArtifactMetadata {
 }
 
 export function canonicalArtifactJson(value: ArtifactJsonValue): string {
-  return JSON.stringify(normalizedValue(value, "payload"));
+  return canonicalJsonText(normalizedValue(value, "payload"), "null");
 }
 
 export function artifactContentDigest(serializedContent: string): string {

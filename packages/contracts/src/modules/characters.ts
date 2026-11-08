@@ -6,16 +6,16 @@ export { characterErrors } from "./characters-errors.js";
 import type { ContractDescriptor } from "../platform/package.js";
 
 export const modulesCharactersContract = {
-  contractId: "io.molis.work.module.characters.v1", kind: "module", schemaVersion: 1,
+  contractId: /* @version contract.io.molis.work.module.characters "io.molis.work.module.characters.v{version}" */ "io.molis.work.module.characters.v1", kind: "module", schemaVersion: /* @version contract.io.molis.work.module.characters */ 1,
   maturity: "partial", ssot: "specs/coding-plugin/spec.md",
 } as const satisfies ContractDescriptor;
 
-export const CHARACTER_ARTIFACT_TYPE = "character.definition.v1";
+export const CHARACTER_ARTIFACT_TYPE = /* @version type.character.definition "character.definition.v{version}" */ "character.definition.v1";
 export const CHARACTER_PLUGIN_ID = "io.molis.work.characters";
 export const CHARACTER_PUBLISHER_SIGNATURE = "official-characters-binding";
 
 /** How a published Character reads in the 成果库; Characters answers it, the 成果库 and the Host's producer table name it. */
-export const characterArtifactPreviewAction = defineArtifactPreviewAction("characters.artifacts.preview", "角色", ["artifact:read"]);
+export const characterArtifactPreviewAction = defineArtifactPreviewAction("characters.artifacts.preview", /* @version action.characters.artifacts.preview */ 1, "角色", ["artifact:read"]);
 
 /**
  * What Characters writes to the 成果库, declared the way a Manifest's `artifacts.produces` would be: Characters is part of the
@@ -23,7 +23,7 @@ export const characterArtifactPreviewAction = defineArtifactPreviewAction("chara
  */
 export const CHARACTER_ARTIFACT_PRODUCER = {
   plugin_id: CHARACTER_PLUGIN_ID, name: "Characters", binding_signature: CHARACTER_PUBLISHER_SIGNATURE,
-  produces: [{ artifact_type_id: CHARACTER_ARTIFACT_TYPE, schema_version: 1, title: "角色",
+  produces: [{ artifact_type_id: CHARACTER_ARTIFACT_TYPE, schema_version: /* @version type.character.definition */ 1, title: "角色",
     preview: { capability_id: characterArtifactPreviewAction.capability_id, version: characterArtifactPreviewAction.version } }],
 } as const;
 
@@ -122,13 +122,13 @@ export const characterPluginActions: {
   readonly runnable: ActionDefinition<{ reference: ArtifactReference }, { available: true } | { available: false; reason: string }>;
 } = {
   list: {
-    capability_id: "characters.list", version: 1, operation: "query",
+    capability_id: "characters.list", version: /* @version action.characters.list */ 1, operation: "query",
     action: { title: "角色列表", description: "读取本人的角色草稿和本项目已发布的固定版本", kind: "query", scope: "project",
       audiences: ["user", "agent", "workflow", "mcp", "plugin"], permissions: ["artifact:read"], subject_kinds: ["character"],
       input_schema: closedObject({}), output_schema: closedObject({ drafts: { type: "array" }, publications: { type: "array" } }) },
   },
   runnable: {
-    capability_id: "characters.runnable", version: 1, operation: "query",
+    capability_id: "characters.runnable", version: /* @version action.characters.runnable */ 1, operation: "query",
     action: { title: "角色能否运行", description: "核对这个发布版本现在能否运行：是本项目当前的发布版本，角色也没有停用或删除；不能运行时给出原因", kind: "query", scope: "project",
       audiences: ["user", "plugin"], permissions: ["artifact:read"], subject_kinds: ["character"],
       input_schema: closedObject({ reference: versionReference }),

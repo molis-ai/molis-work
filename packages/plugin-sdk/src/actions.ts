@@ -1,4 +1,4 @@
-import type { ActionExecutionContext, ActionDefinition, ActionHandlerBinding, ActionMetadata } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionHandler, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionMetadata, type ActionSchema, type InferActionInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import { inspectActionDeclarations } from "./action-declarations.js";
 
 /** Build the public descriptor. The author supplies audiences, permissions and subject kinds explicitly. */
@@ -6,7 +6,7 @@ export function createActionDefinition<Input = unknown, Output = unknown>(
   capability_id: string,
   operation: ActionDefinition["operation"],
   metadata: Omit<ActionMetadata, "kind" | "scope"> & Partial<Pick<ActionMetadata, "kind" | "scope">>,
-  version = 1,
+  version: number,
 ): ActionDefinition<Input, Output> {
   return {
     capability_id, version, operation,
@@ -14,7 +14,20 @@ export function createActionDefinition<Input = unknown, Output = unknown>(
   };
 }
 
-/** One author definition generates both manifest data and the runtime binding. */
+/** A definition whose schema is still a literal; one already typed `ActionSchema` has nothing to infer from and goes to the handwritten form. */
+type LiteralSchemaDefinition<S extends ActionSchema, Output> = Omit<ActionDefinition<unknown, Output>, "action"> & {
+  readonly action: Omit<ActionMetadata, "input_schema"> & { readonly input_schema: S & (string extends keyof S ? never : unknown) };
+};
+
+/** One author definition generates both manifest data and the runtime binding. The input type comes from the schema. */
+export function defineAction<const S extends ActionSchema, Output>(
+  definition: LiteralSchemaDefinition<S, Output>,
+  handle: (context: ActionExecutionContext, input: InferActionInput<S>) => Output | Promise<Output>,
+): { readonly definition: ActionDefinition<InferActionInput<S>, Output>; readonly handler: ActionHandlerBinding };
+export function defineAction<Input, Output>(
+  definition: ActionDefinition<Input, Output>,
+  handle: (context: ActionExecutionContext, input: Input) => Output | Promise<Output>,
+): { readonly definition: ActionDefinition<Input, Output>; readonly handler: ActionHandlerBinding };
 export function defineAction<Input, Output>(
   definition: ActionDefinition<Input, Output>,
   handle: (context: ActionExecutionContext, input: Input) => Output | Promise<Output>,
@@ -23,8 +36,6 @@ export function defineAction<Input, Output>(
   if (problems.length) throw new Error(problems.join("；"));
   return {
     definition: structuredClone(definition),
-    handler: { capability_id: definition.capability_id, version: definition.version,
-      // The service validates JSON before entering this typed handler.
-      handle: (context, input) => handle(context, input as Input) },
+    handler: bindActionHandler(definition, (input, context) => handle(context, input)),
   };
 }

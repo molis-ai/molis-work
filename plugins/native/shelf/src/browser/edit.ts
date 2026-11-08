@@ -2,7 +2,7 @@ import { renderBar } from "./bar.js";
 import { isEditable, itemById, stageBusy } from "./model.js";
 import { readFullText, paintPreview } from "./preview.js";
 import { post } from "./request.js";
-import { messageOf } from "./dom.js";
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import type { ShelfPage, SnapshotAnswer } from "./types.js";
 
 export function focusEditor(page: ShelfPage): void {

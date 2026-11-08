@@ -1,4 +1,6 @@
-import { MOD, esc, ico, kindName, messageOf, said, statusOf, when } from "./dom.js";
+import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
+import { MOD, ico, kindName, said, statusOf, when } from "./dom.js";
 import { drawList } from "./list.js";
 import { openRun, remember } from "./nav.js";
 import type { WorkflowsPage } from "./page.js";

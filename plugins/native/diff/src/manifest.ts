@@ -36,10 +36,10 @@ export const DIFF_GIT_GROUP = "git-change-set";
  * activation, and Diff with nothing bound is a legitimate, explainable state.
  */
 export const diffManifest: PluginManifest = {
-  schema_version: 1,
-  host_api_version: 1,
+  schema_version: /* @version manifest.schema */ 1,
+  host_api_version: /* @version host.api */ 1,
   plugin_id: DIFF_PLUGIN_ID,
-  version: "0.3.0",
+  version: /* @version product.release */ "0.1.0",
   name: "Diff",
   summary: "比较固定版本，逐项阅读差异。",
   kind: "app",
@@ -55,7 +55,7 @@ export const diffManifest: PluginManifest = {
     consumes: [
       { artifact_type_id: FILE_SNAPSHOT_TYPE, schema_version: FILE_SNAPSHOT_SCHEMA_VERSION },
       { artifact_type_id: DIFF_CHANGESET_TYPE, schema_version: DIFF_CHANGESET_SCHEMA_VERSION },
-      { artifact_type_id: CODING_CHANGESET_TYPE, schema_version: 1 },
+      { artifact_type_id: CODING_CHANGESET_TYPE, schema_version: /* @version type.coding.changeset */ 1 },
     ],
   },
   process_items: {
@@ -63,7 +63,7 @@ export const diffManifest: PluginManifest = {
     consumes: [
       { artifact_type_id: FILE_SNAPSHOT_TYPE, schema_version: FILE_SNAPSHOT_SCHEMA_VERSION },
       { artifact_type_id: DIFF_CHANGESET_TYPE, schema_version: DIFF_CHANGESET_SCHEMA_VERSION },
-      { artifact_type_id: CODING_CHANGESET_TYPE, schema_version: 1 },
+      { artifact_type_id: CODING_CHANGESET_TYPE, schema_version: /* @version type.coding.changeset */ 1 },
     ],
   },
   ports: {
@@ -85,7 +85,7 @@ export const diffManifest: PluginManifest = {
       {
         port: DIFF_CHANGESET_INPUT_PORT,
         artifact_type_id: CODING_CHANGESET_TYPE,
-        schema_version: 1,
+        schema_version: /* @version type.coding.changeset */ 1,
         optional: true,
         default_source: { plugin_id: "io.molis.work.coding", port: "changeset" },
       },

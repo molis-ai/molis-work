@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
+import { isMainScript } from "./script-paths.mjs";
 import { checkDevRequirements } from "./package-dev-requirements.mjs";
 import { checkPackageOwners, packageOwner } from "./package-owners.mjs";
 
@@ -207,6 +208,7 @@ export const WORKSPACE_PACKAGES = [
       "@molis-ai/molis-work-module-shelf",
       "@molis-ai/molis-work-plugin-runtime",
       "@molis-ai/molis-work-plugin-sdk",
+      "@molis-ai/molis-work-service-account",
       "@molis-ai/molis-work-service-agent-host",
       "@molis-ai/molis-work-service-connector-host",
       "@molis-ai/molis-work-service-runtime-host",
@@ -392,6 +394,10 @@ export const WORKSPACE_PACKAGES = [
       "@molis-ai/molis-work-storage"
     ]
   }),
+  entry("horizontal/account", "@molis-ai/molis-work-contracts/services/account", {
+    maturity: "slice",
+    capabilities: ["account.central-client.v1"]
+  }),
   entry("horizontal/agent-host", "@molis-ai/molis-work-contracts/services/agent-host", {
     maturity: "production",
     capabilities: [
@@ -461,6 +467,9 @@ export const WORKSPACE_PACKAGES = [
     capabilities: [
       "placement.describe.v1",
       "placement.links.v1"
+    ],
+    extraWorkspaceDependencies: [
+      "@molis-ai/molis-work-plugin-sdk"
     ]
   }),
   entry("plugins/official-integrations/catalog", "@molis-ai/molis-work-contracts/platform/plugin", {
@@ -675,8 +684,7 @@ export function checkWorkspacePackages(repositoryRoot) {
   };
 }
 
-const invokedPath = process.argv[1] ? pathToFileURL(path.resolve(process.argv[1])).href : null;
-if (invokedPath === import.meta.url) {
+if (isMainScript(import.meta.url)) {
   const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
   const result = checkWorkspacePackages(repositoryRoot);
   console.log(JSON.stringify(result, null, 2));

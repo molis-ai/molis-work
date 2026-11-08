@@ -108,7 +108,7 @@ export function installWorks(page: TodoPage): void {
   const { state } = page;
   page.loadWorks = async (item) => {
     // The action's output always carries `works`; unreadable (Assistant off, no grant) shows none.
-    const found = await page.host.invokeAction<{ works: AssistantWork[] }>({ capability_id: "assistant.works.related", version: 1 }, { kind: "todo_item", id: item.id })
+    const found = await page.host.invokeAction<{ works: AssistantWork[] }>({ capability_id: "assistant.works.related", version: /* @version action.assistant.works.related */ 1 }, { kind: "todo_item", id: item.id })
       .then(read => read.works, () => []);
     // One work can relate to the todo more than once (where it started, and as material): list it once.
     const unique = found.filter((work, index) => found.findIndex((other) => other.work_id === work.work_id) === index);

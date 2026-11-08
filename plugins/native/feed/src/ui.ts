@@ -9,7 +9,7 @@ import type { SourceRecord } from "./contract/sources.js";
 import { FEED_PLUGIN_ID } from "./identity.js";
 import { buildFeedReaderUiModel, buildFeedStageUiModel } from "./stage-ui.js";
 import type { FeedReaderData, FeedStageData } from "./query-actions.js";
-import { renderStateRing, renderStatusMark, type StateRingState } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { type MwButtonOptions, renderAlert, renderButton, renderKept, renderStateRing, renderStatusMark, type StateRingState } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type {
   UiContribution,
   UiContributionDeclaration,
@@ -172,8 +172,8 @@ export const feedUiDescriptor: UiContributionDeclaration = {
     { surface_id: "frame-block", target_slot_id: "workbench.main", format: "declarative-html" },
   ],
   slots: [
-    { slot_id: "feed.detail.after-header", version: 1, accepts: ["declarative-html"] },
-    { slot_id: "feed.detail.after-content", version: 1, accepts: ["declarative-html"] },
+    { slot_id: "feed.detail.after-header", accepts: ["declarative-html"] },
+    { slot_id: "feed.detail.after-content", accepts: ["declarative-html"] },
   ],
 };
 
@@ -523,6 +523,7 @@ function renderOutRulesSection(model: FeedUiModel, source: FeedUiSource): string
     ${renderAdmissionSelect(model, "data-feed-out-rule-admission")}
     <div class="feed-rule-preview" data-feed-rule-preview hidden aria-live="polite"></div>
     <div class="feed-rule-actions"><button class="mw-btn mw-btn--secondary" type="button" data-feed-rule-preview-run>${p.icon("play")}${p.text("预览最近消息")}</button><button class="mw-btn mw-btn--primary" type="button" data-feed-out-rule-create>${p.text("保存并启用")}</button></div>
+    <div class="feed-rule-band" data-feed-rule-band role="status"></div>${renderRuleKeep(p)}
     <p class="feed-rule-note">${p.text("预览不会入箱；启用后只处理新消息和更新。")}</p><p data-feed-rule-status role="status" hidden></p>
   </section>`;
   return `<section class="feed-rules-panel" data-feed-out-rules="${id}"><div class="feed-section-heading"><h3>${p.text("已有捕捉规则")}</h3><span>${p.text("{count} 条规则", { count: rules.length })}</span></div><p>${p.text("符合条件的消息会保存精确版本，你可以决定是否自动加入 Inbox。")}</p><div class="feed-source-list">${rows}</div>${form}${rules.length ? `<details class="feed-task-extra"><summary>${p.text("处理已有消息")}</summary><p>${p.text("将当前已启用规则应用到最近 20 条消息，可能写入 Inbox。")}</p><button class="mw-btn mw-btn--secondary" type="button" data-feed-out-rules-evaluate="${id}">${p.text("对最近 20 条消息运行当前规则")}</button></details>` : ''}</section>`;
@@ -645,4 +646,29 @@ function destinationCopy(value: string, p: FeedUiPrimitives): readonly [string, 
 
 function sourceIconName(kind: FeedUiSource["ui_kind"]) {
   return kind === "github" ? "tree" : kind === "gmail" ? "mail" : kind === "rss" ? "rss" : kind === "connector" ? "link" : "link";
+}
+
+const keepAct = (name: string, label: string, primary = false): MwButtonOptions => ({ label, variant: primary ? "primary" : undefined, attrs: { "data-feed-keep-act": name } });
+const keepBand = (phase: string, alert: Parameters<typeof renderAlert>[0]): string =>
+  `<template data-feed-keep="${phase}">${renderAlert({ role: null, rise: true, attrs: { tabindex: "-1" }, ...alert })}</template>`;
+
+/**
+ * What the rule composer shows when its draft changed elsewhere (docs/design/rule-stale-reload, plan A): one alert per state for the
+ * slot under the buttons, and the kept row, drawn by the SDK's parts and cloned by the page. The draft is only a carrier here, so a
+ * deleted one is rebuilt by the next preview, and starting fresh needs no other place to go.
+ */
+function renderRuleKeep(p: FeedUiModel["primitives"]): string {
+  const reload = keepAct("reload", p.text("载入最新版"), true), fresh = (primary: boolean) => keepAct("fresh", p.text("用我写的另起一条"), primary);
+  return [
+    keepBand("conflict", { tone: "warning", title: p.text("这条规则在别处改过"), body: p.text("你写的都还在，还没存。"), actions: [reload] }),
+    keepBand("offline", { tone: "warning", title: p.text("最新版还没载入"), body: p.text("连接好像断了。你写的都还在，连上后再试一次。"), actions: [keepAct("reload", p.text("再试一次"), true)] }),
+    keepBand("second", { tone: "warning", title: p.text("这条规则又被改了一次"), body: p.text("可能还有人在改它。你写的都还在，还没存。"), actions: [fresh(false), reload] }),
+    keepBand("deleted", { tone: "warning", title: p.text("这条规则的草稿已被删除"), body: p.text("你写的都还在。重新预览一次，草稿就会再建好。"), actions: [keepAct("preview", p.text("重新预览"), true)] }),
+    keepBand("published", { tone: "warning", title: p.text("这条规则已在别处发布为 {version}", { version: "{version}" }), body: p.text("发布后不能再改。你写的都还在，可以用它另起一条。"), actions: [fresh(true)] }),
+    keepBand("clean", { title: p.text("这条规则刚在别处改过，已换成最新版"), body: p.text("再预览一次，看看结果有没有变。") }),
+    keepBand("loaded", { tone: "success", state: "done", title: p.text("已载入最新版"), body: " ", actions: [keepAct("dismiss", p.text("feed.rule.dismiss"))] }),
+    keepBand("saved-new", { tone: "success", state: "done", title: p.text("已用你写的另起一条"), body: p.text("再预览一次才能启用。"), actions: [keepAct("dismiss", p.text("feed.rule.dismiss"))] }),
+    `<template data-feed-keep="busy">${renderButton({ label: "", loading: true })}</template>`,
+    `<template data-feed-keep="kept">${renderKept({ who: p.text("你写的"), text: "", rise: true, action: { label: p.text("放回"), attrs: { "data-feed-kept-swap": "" } }, more: { label: p.text("看全部"), attrs: { hidden: true, "data-feed-kept-more": "" } } })}</template>`,
+  ].join("");
 }

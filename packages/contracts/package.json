@@ -246,6 +246,10 @@
       "types": "./dist/platform/plugin-integrations.d.ts",
       "import": "./dist/platform/plugin-integrations.js"
     },
+    "./platform/project-materials": {
+      "types": "./dist/platform/project-materials.d.ts",
+      "import": "./dist/platform/project-materials.js"
+    },
     "./platform/plugin-attention": {
       "types": "./dist/platform/plugin-attention.d.ts",
       "import": "./dist/platform/plugin-attention.js"
@@ -253,6 +257,10 @@
     "./platform/plugin-sync": {
       "types": "./dist/platform/plugin-sync.d.ts",
       "import": "./dist/platform/plugin-sync.js"
+    },
+    "./services/account": {
+      "types": "./dist/services/account.d.ts",
+      "import": "./dist/services/account.js"
     }
   },
   "files": [

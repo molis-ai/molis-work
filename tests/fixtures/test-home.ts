@@ -12,7 +12,7 @@ import {
   LocalHostHttpClient, addProjectPlugin, createProject, grantMcpActions, revokeMcpAction,
   type McpActionGrantRow,
 } from "@molis-ai/molis-work-test-kit/local-host-http";
-import { createMolisWorkWebServer } from "../../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./local-web-core.js";
 
 /** The host the web server wraps. */
 type ServedHost = NonNullable<NonNullable<Parameters<typeof createMolisWorkWebServer>[0]>["localHost"]>;

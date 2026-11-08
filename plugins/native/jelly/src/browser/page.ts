@@ -1,4 +1,5 @@
-import { toneOf, esc, glyph, civil } from "./util.js";
+import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { toneOf, glyph, civil } from "./util.js";
 import { makeRequest, makeStream } from "./request.js";
 import type { JellyHost, JellyPage, JellyWorkspace } from "./types.js";
 import { required } from "./dom.js";

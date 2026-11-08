@@ -1,8 +1,10 @@
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { wireClicks } from "./click.js";
 import { wireDrag } from "./drag.js";
-import { messageOf, required, statusOf } from "./dom.js";
+import { required, statusOf } from "./dom.js";
 import { drawList } from "./list.js";
 import { loadList, onModelReady, openRun, recalled, remember, setMode, showFlow } from "./nav.js";
+import { cameBack } from "./returns.js";
 import { createPage } from "./page.js";
 import type { WorkflowsPage } from "./page.js";
 import { wirePopover } from "./pop-events.js";
@@ -59,6 +61,7 @@ export function workflowsClient(host: WorkflowsHost) {
   wirePopover(page);
   wireRoot(page);
   wireDrag(page);
+  void cameBack(page);
 
   new MutationObserver(() => { void start(page); }).observe(root, { attributes: true, attributeFilter: ["hidden"] });
   root.addEventListener("molis-work:select-item", async (event) => {

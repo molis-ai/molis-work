@@ -524,7 +524,7 @@ test("import keeps committed entries after a later ledger failure and original-r
   const setup = await fixture(t), env = await setup.open();
   try {
     const entry = (text: string) => ({ text, kind: "preference", source: "manual", basis: "explicit", applies: {}, origin: "a portable preference", expires_at: null, classification: { scenes: ["coding"], lifecycle: "long-term" } });
-    const pack = { format: "molis.memory", version: 2, exported_at: "2026-10-23T00:00:00.000Z", scope: "personal", entries: [entry("Prefer short summaries"), entry("Prefer numbered examples")], redactions: [] };
+    const pack = { format: "molis.memory", version: 1, exported_at: "2026-10-23T00:00:00.000Z", scope: "personal", entries: [entry("Prefer short summaries"), entry("Prefer numbered examples")], redactions: [] };
     const original = env.ledger.addRevision.bind(env.ledger); let writes = 0;
     const fail = t.mock.method(env.ledger, "addRevision", (...args: Parameters<typeof env.ledger.addRevision>) => {
       if (++writes === 2) throw new Error("second history interrupted");
@@ -1038,7 +1038,7 @@ test("an append receipt arriving after an observed deletion cannot restore histo
 test("an interrupted import cannot replace an unstarted entry under the same operation", async t => {
   const setup = await fixture(t); let env = await setup.open();
   const texts = ["Prefer concise changelogs", "Use numbered review steps", "Keep original release examples"];
-  const pack = { format: "molis.memory" as const, version: 2 as const, scope: "personal" as const, exported_at: "2026-10-24T00:00:00Z", redactions: [],
+  const pack = { format: "molis.memory" as const, version: 1 as const, scope: "personal" as const, exported_at: "2026-10-24T00:00:00Z", redactions: [],
     entries: texts.map(text => ({ text, kind: "preference" as const, source: "imported" as const, basis: null, applies: {},
       origin: "Original package", expires_at: null, classification: { scenes: ["coding"], lifecycle: "long-term" } })) };
   const who = caller("whole-package-retry"), replacement = "Keep substituted release examples";
@@ -1078,10 +1078,19 @@ test("an interrupted import cannot replace an unstarted entry under the same ope
 });
 
 function importPackage(texts: string[]): MemoryExportPackage {
-  return { format: "molis.memory" as const, version: 2 as const, scope: "personal" as const, exported_at: "2026-10-24T00:00:00Z", redactions: [],
+  return { format: "molis.memory" as const, version: 1 as const, scope: "personal" as const, exported_at: "2026-10-24T00:00:00Z", redactions: [],
     entries: texts.map(text => ({ text, kind: "preference" as const, source: "imported" as const, basis: null, applies: { task: "release", plugin_ids: ["first", "second"] },
       origin: "Original package", expires_at: null, classification: { scenes: ["coding"], lifecycle: "long-term" } })) };
 }
+
+test("an import's stored digest stays on the bytes it has always had, integer-shaped keys in `applies` included", async t => {
+  const env = await (await fixture(t)).open(), who = caller("integer-keys"), pack = importPackage(["Use concise summaries"]);
+  Object.assign(pack.entries[0]!.applies!, { "10": ["x"], "2": "y" });
+  assert.equal((await env.service.importScope(who, "personal", pack)).written, 1);
+  // Produced by the handwritten form on main over this normalized entry. `canonicalJsonText`, which orders "10" before "2", gives a773d7cb….
+  assert.equal((env.ledger.marker(who.actor_id, "memory-operation:integer-keys:import-package")?.body as { input_digest?: string } | undefined)?.input_digest,
+    "6d8fda5be118eb1bee5e581beb40f9abe733a69c6917865f212efb9abf69a867");
+});
 
 test("import snapshots nested input before awaiting its first SDK write", async t => {
   const setup = await fixture(t); const env = await setup.open();

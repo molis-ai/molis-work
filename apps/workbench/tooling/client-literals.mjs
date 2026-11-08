@@ -1,23 +1,25 @@
 import ts from 'typescript';
 
 /** Pool repeated expression strings inside existing function scopes only; never rename public keys or change literals. */
-export function poolClientLiterals(source) {
+export function poolClientLiterals(source, { byBytes = false } = {}) {
   const ast=ts.createSourceFile('client.js',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.JS);
   const edits=[];let sequence=0;
   const visit=node=>{
     if(!ts.isFunctionLike(node)||!node.body||!ts.isBlock(node.body)||node.getWidth()<10000){ts.forEachChild(node,visit);return;}
     const strings=new Map();
     const collect=child=>{
-      if(ts.isStringLiteral(child)&&child.text.length>10&&child.parent.name!==child&&child.parent.propertyName!==child&&!ts.isExpressionStatement(child.parent)){
+      if(ts.isStringLiteral(child)&&(byBytes||child.text.length>10)&&child.parent.name!==child&&child.parent.propertyName!==child&&!ts.isExpressionStatement(child.parent)){
         const rows=strings.get(child.text)??[];rows.push(child);strings.set(child.text,rows);
       }
       ts.forEachChild(child,collect);
     };
     collect(node.body);const declarations=[];
     for(const [value,rows] of strings){
-      if(rows.length<3)continue;
+      const literal=JSON.stringify(value);
+      // Estimate two bytes per shortened reference and five for its declaration.
+      if(byBytes ? (rows.length-1)*Buffer.byteLength(literal)<=rows.length*2+5 : rows.length<3)continue;
       let name;do{name=`_molisTextPool${sequence++}`;}while(source.includes(name));
-      declarations.push(`${name}=${JSON.stringify(value)}`);
+      declarations.push(`${name}=${literal}`);
       for(const row of rows)edits.push({start:row.getStart(),end:row.end,text:name});
     }
     if(!declarations.length)return;

@@ -19,40 +19,40 @@ const sourceResult: ActionSchema = { type: "object", properties: { source }, req
 const SHARED: readonly ActionAudience[] = ["user", "agent", "mcp"];
 /** Disconnecting removes an account's credentials: only the person at this computer does that. */
 const LOCAL: readonly ActionAudience[] = ["user"];
-function define<Input, Output>(suffix: string, title: string, description: string, input: ActionSchema, output: ActionSchema,
+function define<Input, Output>(suffix: string, version: number, title: string, description: string, input: ActionSchema, output: ActionSchema,
   audiences: readonly ActionAudience[] = SHARED, permissions: readonly string[] = ["feed:read", "feed:write"], scheduling?: "concurrent", execution?: ActionDefinition["action"]["execution"]): ActionDefinition<Input, Output> {
   return createActionDefinition<Input, Output>(`feed.sources.${suffix}`, "command", { title, description, ...(execution ? { execution } : {}),
-    audiences, permissions, subject_kinds: ["source"], input_schema: input, output_schema: output, ...((scheduling ?? (suffix === "sync" ? "concurrent" : undefined)) ? { scheduling: scheduling ?? "concurrent" } : {}) });
+    audiences, permissions, subject_kinds: ["source"], input_schema: input, output_schema: output, ...((scheduling ?? (suffix === "sync" ? "concurrent" : undefined)) ? { scheduling: scheduling ?? "concurrent" } : {}) }, version);
 }
 
 export type FeedSourceRegistration = Record<string, unknown> & { kind: string };
 export interface FeedSourceRegistered { source: FeedSourceRecord; registered: boolean }
 /** Source management: the Feed page and every other caller change sources through these, never the store directly. */
 export const feedSourceActions = {
-  register: define<FeedSourceRegistration, FeedSourceRegistered>("register", "添加来源", "添加研究库、RSS、网页查询、YouTube 频道或自定义 RSS 来源；已有同一来源时返回原来源",
+  register: define<FeedSourceRegistration, FeedSourceRegistered>("register", /* @version action.feed.sources.register */ 1, "添加来源", "添加研究库、RSS、网页查询、YouTube 频道或自定义 RSS 来源；已有同一来源时返回原来源",
     { type: "object", properties: { kind: { enum: ["research_library", "rss", "web_query", "youtube_channel", "custom_rss"] }, name: text, repository: text, research_source: text,
       definition_id: text, query: text, channel_id: text, feed_url: text }, required: ["kind"], additionalProperties: false },
     { type: "object", properties: { source, registered: { type: "boolean" } }, required: ["source", "registered"] }),
-  add_account: define<AddFeedAccountSourceInput, FeedSourceRegistered>("add_account", "添加账号来源", "为 GitHub 或 Gmail 添加一个账号来源；同一服务同名时返回原来源。账号由本人在来源设置里选，选好之前不能拉取",
+  add_account: define<AddFeedAccountSourceInput, FeedSourceRegistered>("add_account", /* @version action.feed.sources.add_account */ 1, "添加账号来源", "为 GitHub 或 Gmail 添加一个账号来源；同一服务同名时返回原来源。账号由本人在来源设置里选，选好之前不能拉取",
     closed({ service: { enum: [...FEED_ACCOUNT_SERVICES] }, name: { type: "string", minLength: 1, maxLength: 80 } }, ["service", "name"]),
     { type: "object", properties: { source, registered: { type: "boolean" } }, required: ["source", "registered"] }),
-  // @2: the account is no longer a field of the source (`connection_id` went in T-121); it is the person's binding on the platform.
-  update: { ...define<{ source_id: string; name?: string; description?: string; scope?: string; feed_url?: string }, { source: FeedSourceRecord }>("update", "修改来源", "修改来源名称、说明、范围或订阅地址",
-    closed({ source_id: id, name: text, description: text, scope: text, feed_url: text }, ["source_id"]), sourceResult), version: 1 },
-  delete: define<{ source_id: string; history_decision: SourceHistoryDecision }, { source: FeedSourceRecord; history_decision: SourceHistoryDecision }>("delete", "删除来源",
+  // The account is not a field of the source: it is the person's binding on the platform.
+  update: define<{ source_id: string; name?: string; description?: string; scope?: string; feed_url?: string }, { source: FeedSourceRecord }>("update", /* @version action.feed.sources.update */ 1, "修改来源", "修改来源名称、说明、范围或订阅地址",
+    closed({ source_id: id, name: text, description: text, scope: text, feed_url: text }, ["source_id"]), sourceResult),
+  delete: define<{ source_id: string; history_decision: SourceHistoryDecision }, { source: FeedSourceRecord; history_decision: SourceHistoryDecision }>("delete", /* @version action.feed.sources.delete */ 1, "删除来源",
     "删除来源；必须说明保留（retain_history）还是删除（delete_local_history）本地已收到的消息",
     closed({ source_id: id, history_decision: { enum: ["retain_history", "delete_local_history"] } }, ["source_id", "history_decision"]),
     { type: "object", properties: { source, history_decision: { type: "string" } }, required: ["source", "history_decision"] }),
-  schedule: define<ConfigureFeedSourceScheduleInput & { source_id: string }, { source: FeedSourceRecord }>("schedule", "设置拉取计划", "设为仅手动拉取，或按固定分钟间隔自动拉取",
+  schedule: define<ConfigureFeedSourceScheduleInput & { source_id: string }, { source: FeedSourceRecord }>("schedule", /* @version action.feed.sources.schedule */ 1, "设置拉取计划", "设为仅手动拉取，或按固定分钟间隔自动拉取",
     { type: "object", properties: { source_id: id, mode: { enum: ["manual", "interval"] }, enabled: { type: "boolean" }, interval_minutes: { type: "integer", minimum: 1 } },
       required: ["source_id", "mode"], additionalProperties: false }, sourceResult),
-  enabled: define<{ source_id: string; enabled: boolean }, { source: FeedSourceRecord }>("enabled", "暂停或恢复来源", "暂停后不再拉取新消息，已收到的消息保留",
+  enabled: define<{ source_id: string; enabled: boolean }, { source: FeedSourceRecord }>("enabled", /* @version action.feed.sources.enabled */ 1, "暂停或恢复来源", "暂停后不再拉取新消息，已收到的消息保留",
     closed({ source_id: id, enabled: { type: "boolean" } }, ["source_id", "enabled"]), sourceResult),
-  disconnect: define<{ source_id: string }, { source: FeedSourceRecord }>("disconnect", "断开来源账号", "断开账号型来源所用的账号；公开来源请暂停或删除",
+  disconnect: define<{ source_id: string }, { source: FeedSourceRecord }>("disconnect", /* @version action.feed.sources.disconnect */ 1, "断开来源账号", "断开账号型来源所用的账号；公开来源请暂停或删除",
     closed({ source_id: id }, ["source_id"]), sourceResult, LOCAL),
-  sync: define<{ source_id: string; idempotency_key?: string; mode?: "normal" | "rebuild_cursor" }, FeedSourceSyncResult>("sync", "立即拉取", "立即从来源拉取新消息，并按当前捕捉规则处理；同一幂等键重试不会重复拉取",
+  sync: define<{ source_id: string; idempotency_key?: string; mode?: "normal" | "rebuild_cursor" }, FeedSourceSyncResult>("sync", /* @version action.feed.sources.sync */ 1, "立即拉取", "立即从来源拉取新消息，并按当前捕捉规则处理；同一幂等键重试不会重复拉取",
     closed({ source_id: id, idempotency_key: { type: "string", maxLength: 200 }, mode: { enum: ["normal", "rebuild_cursor"] } }, ["source_id"]), { type: "object" }, undefined, undefined, "concurrent", { cost: "metered" }),
-  tick: define<Record<string, never>, FeedSourceSchedulerResult>("tick", "执行到期拉取", "执行已启用来源的到期拉取计划，并更新下次拉取时间",
+  tick: define<Record<string, never>, FeedSourceSchedulerResult>("tick", /* @version action.feed.sources.tick */ 1, "执行到期拉取", "执行已启用来源的到期拉取计划，并更新下次拉取时间",
     closed({}, []), closed({ due: { type: "integer" }, completed: { type: "integer" }, failed: { type: "integer" }, skipped: { type: "integer" } }, ["due", "completed", "failed", "skipped"]), LOCAL, ["feed:read", "feed:write"], "concurrent", { cost: "metered" }),
 } as const;
 export const FEED_SOURCE_ACTIONS: readonly ActionDefinition[] = Object.values(feedSourceActions);

@@ -6,11 +6,6 @@ import { api } from "./request.js";
 import type { StateRead } from "./shapes.js";
 import { showWorkspace } from "./workspace.js";
 
-/** A value as JSON with its keys in order, to compare two reads of the same thing. */
-export function canonical(value: unknown): string {
-  return JSON.stringify(value, (_key, item: unknown) => item && typeof item === "object" && !Array.isArray(item) ? Object.fromEntries(Object.keys(item).sort().map(name => [name, (item as Record<string, unknown>)[name]])) : item);
-}
-
 /** Puts the session's remembered start (intent, model, directory, effort) back on the composer. */
 export function applyConfiguration(page: Page) {
   const { L, q } = page, { composerModels } = page.refs, { s } = page;

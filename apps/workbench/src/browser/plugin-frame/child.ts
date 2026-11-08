@@ -2,6 +2,9 @@ import type { ActionReference } from "@molis-ai/molis-work-contracts/platform/ac
 import { childFrameAssets } from "./frame-assets.js";
 import { childPlacement } from "./placement.js";
 import { childReviews } from "./review-slots.js";
+import { childTaskGrants } from "./task-grants-area.js";
+import { childConnectionNeed } from "./connection-need.js";
+import { childReturns } from "./returns.js";
 import { createUiFailureView, createUiRequest } from "@molis-ai/molis-work-ui-host";
 import type { SearchReferencesResponse } from "@molis-ai/molis-work-contracts/services/search";
 import type { UiPluginClientHost } from "@molis-ai/molis-work-contracts/platform/ui";
@@ -29,6 +32,7 @@ function bindStorage(port: MessagePort, config: FrameConfig): void {
   for (const area of ["localStorage", "sessionStorage"] as const) {
     const values = new Map(Object.entries(config.storage[area]));
     const write = (key: string, value: string | null) => {
+      if (document.body.inert) throw new Error("Account is switching");
       if (value === null) values.delete(key); else values.set(key, value);
       port.postMessage({ type: "storage", area, key, value } satisfies FrameUp);
     };
@@ -73,11 +77,12 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
   let itemTab = config.itemTab;
   const intent = (name: Extract<FrameUp, { type: "ui" }>["name"], args: unknown[]) => send({ type: "ui", name, args });
   const host = { root, scope, translate: L, mountPluginClient: ui.mountPluginClient, side: config.side,
-    mount: config.mount, search: config.search, connectionSlot: childConnectionSlot(port, scope),
+    mount: config.mount, search: config.search, connectionSlot: childConnectionSlot(port, scope), connectionNeed: childConnectionNeed(port, scope),
     openView: (selection: import("@molis-ai/molis-work-contracts/platform/ui").UiViewSelection) => send({ type: "view-open", selection }),
     invalidateView: () => send({ type: "view-invalidate" }),
     ...pageDialogs(scope, L), confirmBox: pageConfirmBox(scope, L), drafts: childDrafts(port, scope),
     reviews: childReviews(port, scope), view: childView(port, scope), workspaces: childWorkspaces(port, scope),
+    taskGrants: childTaskGrants(port, scope), returns: childReturns(port, scope),
     ...pageFiles(port, scope, globalThis.molisWorkRequest, copyText),
     ...(config.nativeFiles ? { nativeFiles: childNativeFiles(port, scope) } : {}),
     terminal,
@@ -94,7 +99,7 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
     hideDirectory: () => intent("hideDirectory", []), showToast: (...args: unknown[]) => intent("showToast", args), page: () => config.page,
     status: (status: unknown) => intent("status", [status]), interaction: (element: HTMLElement, options: { onSubmit?: () => void }) => ui.interaction(element, {
       references: (source: string, query: string) => call<SearchReferencesResponse>(route("/api/host/plugin-page-actions"), {
-        body: { reference: { capability_id: "search.references", version: 1 }, input: { kinds: source.split(","), query, limit: 8 } }, scope,
+        body: { reference: { capability_id: "search.references", version: /* @version action.search.references */ 1 }, input: { kinds: source.split(","), query, limit: 8 } }, scope,
       }).then(found => ({ items: found.candidates.map(item => ({ value: item.kind + " " + item.id, label: item.label, meta: item.plugin_title })) })),
       ...options,
     }), receipts: ui.receipts,

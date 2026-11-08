@@ -1,4 +1,4 @@
-export const SERVICE_OWNER = "molis-work-web-service-v1";
+export const SERVICE_OWNER = /* @version type.molis-work-web-service "molis-work-web-service-v{version}" */ "molis-work-web-service-v1";
 export const SERVICE_LABEL = "com.molis.work.web";
 
 export function isOwnedWebServiceReceipt(receipt: { owner?: string; label?: string } | null | undefined): boolean {
@@ -44,6 +44,8 @@ export interface MolisWorkWebServiceManagerOptions {
   runCommand?: (file: string, args: string[]) => Promise<{ code: number; stdout: string; stderr: string }>;
   /** Returns true only when the endpoint belongs to the expected managed process. */
   healthCheck?: (expectedProcessId?: number) => Promise<boolean>;
+  /** Whether that process says it is upgrading its data, which is no reason to give up on it. */
+  upgradeCheck?: (expectedProcessId?: number) => Promise<boolean>;
   /** Returns true when another process is already accepting connections on the Web port. */
   portCheck?: () => Promise<boolean>;
   /** Tests may remove the real launchd transition wait without changing retry behavior. */
@@ -51,7 +53,7 @@ export interface MolisWorkWebServiceManagerOptions {
 }
 
 export interface WebServiceReceipt {
-  schema_version: 1;
+  schema_version: /* @version format.web.service.receipt */ 1;
   owner: string;
   label: string;
   plist_path: string;

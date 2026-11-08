@@ -21,7 +21,7 @@ import {
 import { functionsErrors } from "./errors.js";
 import type { DeclaredRuleSubject, DeclaredSceneRule } from "./declared-rules.js";
 import type { RecordJudgmentInput } from "./judgments.js";
-import { assertReadyToEvaluate } from "./record-rules.js";
+import { assertReadyToEvaluate, assertRuleVersion } from "./record-rules.js";
 import { FunctionsStore, openFunctionsStore } from "./store.js";
 
 export type { TypeSafeProvider, TypeSafeEvaluateResult };
@@ -114,19 +114,19 @@ export class FunctionsService {
     return this.store.createChoice(input);
   }
 
-  updateDraft(id: string, patch: JudgmentRuleDraftPatch, expectedUpdatedAt?: string): JudgmentRuleRecord {
+  updateDraft(id: string, patch: JudgmentRuleDraftPatch, expectedUpdatedAt: string): JudgmentRuleRecord {
     return this.store.updateDraft(id, patch, expectedUpdatedAt);
   }
 
-  addSample(id: string, input: { label?: string; input: string }, expectedUpdatedAt?: string): JudgmentRuleRecord {
+  addSample(id: string, input: { label?: string; input: string }, expectedUpdatedAt: string): JudgmentRuleRecord {
     return this.store.addSample(id, input, expectedUpdatedAt);
   }
 
-  removeSample(id: string, sampleId: string, expectedUpdatedAt?: string): JudgmentRuleRecord {
+  removeSample(id: string, sampleId: string, expectedUpdatedAt: string): JudgmentRuleRecord {
     return this.store.removeSample(id, sampleId, expectedUpdatedAt);
   }
 
-  deleteDraft(id: string, expectedUpdatedAt?: string): void {
+  deleteDraft(id: string, expectedUpdatedAt: string): void {
     this.store.deleteDraft(id, expectedUpdatedAt);
   }
 
@@ -136,8 +136,10 @@ export class FunctionsService {
     return { has_credential: false, source: "none" };
   }
 
-  async preview(id: string, input: string, expectedUpdatedAt?: string, signal?: AbortSignal, beforeSave?: () => Promise<void>): Promise<JudgmentRuleRecord> {
+  async preview(id: string, input: string, expectedUpdatedAt: string, signal?: AbortSignal, beforeSave?: () => Promise<void>): Promise<JudgmentRuleRecord> {
     const current = this.store.require(id);
+    // A stale preview is refused before the model is paid for; saving it compares again, the definition may change during the call.
+    assertRuleVersion(current, expectedUpdatedAt);
     const result = await this.evaluate(current, input, signal);
     const preview: JudgmentRulePreviewRecord = {
       input: input.trim(),
@@ -155,7 +157,7 @@ export class FunctionsService {
     };
     await beforeSave?.();
     signal?.throwIfAborted();
-    return this.store.savePreview(id, preview, expectedUpdatedAt ?? current.updated_at);
+    return this.store.savePreview(id, preview, expectedUpdatedAt);
   }
 
   async invokePublished(functionKey: string, input: string, context: { version?: number; config_hash?: string; project_id?: string; signal?: AbortSignal; record_history?: boolean;
@@ -227,7 +229,7 @@ export class FunctionsService {
     return this.store.latestJudgment(kind, id, projectId, sceneId);
   }
 
-  publish(id: string, expectedUpdatedAt?: string, scene?: import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneReference): JudgmentRuleRecord {
+  publish(id: string, expectedUpdatedAt: string, scene?: import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneReference): JudgmentRuleRecord {
     return this.store.publish(id, expectedUpdatedAt, scene);
   }
 

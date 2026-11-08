@@ -25,7 +25,7 @@ function item(owner:PrivateValueReplicationOwner,context:PrivateValueReplicaCont
 export function validatePrivateValueReplication(value:unknown,owner:PrivateValueReplicationOwner,context:PrivateValueReplicaContext,key:string):unknown{
  context.authorize();const id=item(owner,context,key);if(value===null)return null;
  const wire=object(value);exact(wire,['format','spaceId','project','content']);const project=object(wire.project);exact(project,['id','title']);
- if(wire.format!==1||wire.spaceId!==context.spaceId||project.id!==context.projectId||typeof project.title!=='string'||!project.title.trim()||project.title.length>120||wire.content===null)invalid();
+ if(wire.format!==/* @version format.runtime.private-replica */ 1||wire.spaceId!==context.spaceId||project.id!==context.projectId||typeof project.title!=='string'||!project.title.trim()||project.title.length>120||wire.content===null)invalid();
  if(Buffer.byteLength(JSON.stringify(value))>100000000)invalid();owner.validate(wire.content,context.projectId,id);context.authorize();return wire.content;
 }
 /** Runtime owns the table; Storage owns the transaction and common queue. No business document is duplicated. */
@@ -36,7 +36,7 @@ export function privateValueReplicaOwner(db:PluginPrivateStorageDatabase,owner:P
  return {authorize:context.authorize,
   read(key:string){context.authorize();const id=item(owner,context,key),local=read();if(local.value===null)return null;
    const content=owner.project(local.value,context.projectId,id);if(content===null)return null;
-   const value={format:1,spaceId:context.spaceId,project:{id:context.projectId,title:context.title},content};validatePrivateValueReplication(value,owner,context,key);return value;},
+   const value={format:/* @version format.runtime.private-replica */ 1,spaceId:context.spaceId,project:{id:context.projectId,title:context.title},content};validatePrivateValueReplication(value,owner,context,key);return value;},
   apply(key:string,value:unknown|null){const content=validatePrivateValueReplication(value,owner,context,key),id=item(owner,context,key),local=read();
    owner.beforeClear?.(local.value,context.projectId,id);const restored=owner.restore(content,local.value,context.projectId,id);
    const encoded=restored===null?null:JSON.stringify(restored);context.authorize();

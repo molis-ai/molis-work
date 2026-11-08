@@ -7,7 +7,7 @@ import { DatabaseSync } from "node:sqlite";
 
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, assistantServiceFor, closeAssistantService, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { AssistantStore } from "@molis-ai/molis-work-app-local-host";
 import { AssistantService } from "@molis-ai/molis-work-app-local-host";
 import { assistantAuthority } from "@molis-ai/molis-work-app-local-host";
@@ -50,14 +50,14 @@ test("a method a Plugin offers for business work is declared with business tools
     const listed = registry.methods().find(method => method.key === PAGES_METHOD);
     assert.ok(listed, "Pages' method is registered with the Host, from its running definition");
     assert.equal(listed.source.kind, "plugin");
-    assert.deepEqual([listed.name, listed.version], ["会议纪要整理", 2]);
+    assert.deepEqual([listed.name, listed.version], ["会议纪要整理", 1]);
     // ADH-14: whether writing the page asks first is the Host's, by the action's effect; the method no longer stops for it.
     assert.equal(listed.summary, "把一段会议记录或一篇会议文档整理成结论、待办（谁、做什么、何时）和待定问题，每条注明依据；用户要时写成 Pages 文档。");
-    const method = registry.method("io.molis.work.pages", "meeting-notes", 2);
+    const method = registry.method("io.molis.work.pages", "meeting-notes", 1);
     assert.match(method.body, /待定问题/);
     assert.match(method.body, /\n5\. 用户要写成 Pages 文档时，新建文档写入；不覆盖已有文档，除非用户明确要求。$/);
     assert.doesNotMatch(method.body, /确认/);
-    assert.throws(() => registry.method("io.molis.work.pages", "meeting-notes", 1), /没有登记这个方法版本/);
+    assert.throws(() => registry.method("io.molis.work.pages", "meeting-notes", 2), /没有登记这个方法版本/);
     assert.equal(registry.diagnostics().owners.find(owner => owner.owner_id === "io.molis.work.pages")?.methods, 1);
   } finally { await rm(home, { recursive: true, force: true }); }
 });
@@ -110,13 +110,19 @@ test("a round lists the methods its scope can use; one the person chose goes wit
     assert.ok(!second.includes("用户为这一轮选定的方法"), "a chosen method is for its own round only");
     assert.ok(second.includes("可用的方法") && second.includes(PAGES_METHOD), "the round sees which methods it can read");
     assert.ok(second.includes("input 是对象，例如") && second.includes("method_id"), "and exactly how to read one (its input is an object)");
+    // The gateway matches capability, version and provider exactly, so the identity the round is told is the registered one, not a copy of it.
+    assistantServiceFor({ localHost: local, homeDirectory: home, agentHost, agentReady: async () => {}, projectTitle: async () => project.display_name, pages: async () => [] });
+    const offered = await local.actionClient(reference).discover(await local.localPersonContext(reference));
+    const methodRead = offered.find(view => view.capability_id === "assistant.methods.read");
+    assert.ok(methodRead, "the read action is registered");
+    assert.ok(second.includes(`capability_id 为 assistant.methods.read，version 为 ${methodRead.version}，provider_id 为 ${methodRead.provider.provider_id}。`), "the round is told the action's registered version");
 
     // Reading one, as the round's own read action does; one that is not offered here is refused with why.
     const read = await service.reads.readMethod(service.reads.workRecord(sent.work.work_id), PAGES_METHOD);
     assert.match(read.body, /每条结论和待办后面用括号注明原文依据/);
     await assert.rejects(service.reads.readMethod(null, "io.molis.work.pages/unknown"), /没有可用的方法/);
   } finally {
-    service.continuations.close(); await adapter.close();
+    service.continuations.close(); closeAssistantService(local); await adapter.close();
     await local.close();
     await rm(home, { recursive: true, force: true });
   }

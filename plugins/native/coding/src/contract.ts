@@ -26,7 +26,7 @@ const versionReference: ActionSchema = {
  * or change set of this project, or is no longer current, with `coding.shelf_material_invalid`.
  */
 export const codingResultDocument: ActionDefinition<CodingResultDocumentInput, CodingResultDocument> = {
-  capability_id: "coding.results.document", version: 1, operation: "query",
+  capability_id: "coding.results.document", version: /* @version action.coding.results.document */ 1, operation: "query",
   action: {
     title: "读取 Coding 固定成果的正文", description: "把本项目一份固定的 Coding 执行报告或固定变更转成可复制的 Markdown 正文；已归档、不属于本项目或不是 Coding 固定成果的拒绝；只读",
     kind: "query", scope: "project", audiences: ["plugin"], permissions: ["artifact:read"], subject_kinds: [],

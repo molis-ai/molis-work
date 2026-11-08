@@ -10,6 +10,7 @@ import { L, listJoin } from "./web-locale.js";
 import { readMcpActionAccess } from "./mcp-action-access.js";
 import { actionClientAudience, createMcpActionGrant, resolveMcpActionContext } from "./mcp-action-grants.js";
 import { actionGrantKey, readMcpToolPreference, writeMcpActionGrant, writeMcpActionGrants } from "./mcp-settings-store.js";
+import { isTaskGrantSubject } from "./task-grant-subjects.js";
 
 /** An action identity granted in the same request as the one being saved: the actions it depends on. */
 interface GrantedTogether { capability_id: string; version: number; provider_id: string }
@@ -29,6 +30,8 @@ export async function handleMcpActionSettingsHttp(request: IncomingMessage, resp
     if (typeof clientId !== "string" || !clientId.trim() || (projectId !== null && (typeof projectId !== "string" || !projectId.trim()))) {
       throw mcpErrors.grant_invalid("请选择客户端和有效范围");
     }
+    // A task's grant subject is given only what `agent.task_grants.set` records for the categories the person turned on; here it is no client.
+    if (isTaskGrantSubject(clientId)) throw mcpErrors.grant_invalid("任务能读的数据在任务里设置，不在对外接入里");
     const preference = await readMcpToolPreference(homeDirectory);
     if (request.method === "POST") {
       const keys = ["client_id", "project_id", "capability_id", "version", "provider_id", "enabled", "with"];

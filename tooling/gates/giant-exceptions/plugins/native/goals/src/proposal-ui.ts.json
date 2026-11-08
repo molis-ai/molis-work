@@ -1,0 +1,9 @@
+{
+  "exceptions": {
+    "function plugins/native/goals/src/proposal-ui.ts#createProposalRenderer": {
+      "kind": "cohesive-unit",
+      "reason": "Goal 树提案决定卡的渲染：决定卡（126 行）和它的场景与关系说明，共用同一套文案助手；同一张卡的渲染函数族。",
+      "size": 185
+    }
+  }
+}

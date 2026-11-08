@@ -17,8 +17,8 @@ const sdkEntry = (JSON.parse(readFileSync(join(sdkDirectory, "package.json"), "u
 type Declaration = { capability_id: string; operation: string; action: { scope: string; audiences: string[]; effect?: string; plugin?: false } };
 interface Sdk {
   [name: string]: unknown;
-  defineDueRemindersAction(id: string, kinds: string[], title: string, permissions: string[]): Declaration;
-  defineArtifactCompareAction(id: string, title: string, permissions: string[]): Declaration;
+  defineDueRemindersAction(id: string, version: number, kinds: string[], title: string, permissions: string[]): Declaration;
+  defineArtifactCompareAction(id: string, version: number, title: string, permissions: string[]): Declaration;
   withActionEffect(definition: Declaration, effect: string, plugin?: false): Declaration;
   FRAGMENT_ANY_OBJECT: string;
   FRAGMENT_INTENTS: readonly unknown[];
@@ -71,9 +71,9 @@ test("the SDK exports are working functions, among them the ones W2-03 added", (
   assert.equal("defineSearchQueryAction" in sdk, false, "decision 19 removed the on-demand search source");
 
   // What an author gets from the helpers is the same declaration the Host registers.
-  const reminders = sdk.defineDueRemindersAction("notes.reminders.window", ["note"], "到期提醒", ["notes:read"]);
+  const reminders = sdk.defineDueRemindersAction("notes.reminders.window", 1, ["note"], "到期提醒", ["notes:read"]);
   assert.deepEqual([reminders.operation, reminders.action.scope, reminders.action.audiences], ["query", "home", ["user"]]);
-  const effect = sdk.withActionEffect(sdk.defineArtifactCompareAction("notes.artifacts.compare", "笔记", ["notes:read"]), "irreversible", false);
+  const effect = sdk.withActionEffect(sdk.defineArtifactCompareAction("notes.artifacts.compare", 1, "笔记", ["notes:read"]), "irreversible", false);
   assert.deepEqual([effect.action.effect, effect.action.plugin], ["irreversible", false]);
 });
 
@@ -100,7 +100,7 @@ test("R2-01/02/03: an author builds a closed action input and keeps its scope an
   const input = objectSchema(properties, ["title"]);
   const meta = { title: "Read", description: "Read notes", audiences: ["user"] as const, permissions: ["notes:read"],
     subject_kinds: ["note"], input_schema: input };
-  const action = createActionDefinition("notes.read", "query", meta);
+  const action = createActionDefinition("notes.read", "query", meta, 1);
   assert.deepEqual(action, { capability_id: "notes.read", version: 1, operation: "query", action: { ...meta, kind: "query", scope: "project" } });
   assertActionInput(input, { title: "a" });
   assertActionInput(input, { title: "a", tags: ["x", null] });
@@ -108,7 +108,7 @@ test("R2-01/02/03: an author builds a closed action input and keeps its scope an
     assert.throws(() => assertActionInput(input, value), { code: "actions.input_invalid" });
   }
   assert.throws(() => assertActionInput(objectSchema(properties), { title: "a" }), { code: "actions.input_invalid" });
-  const command = createActionDefinition("notes.home", "command", { ...meta, scope: "home", scheduling: "concurrent" });
+  const command = createActionDefinition("notes.home", "command", { ...meta, scope: "home", scheduling: "concurrent" }, 1);
   assert.equal(command.action.scope, "home");
   assert.equal(command.action.kind, "operation");
   assert.equal(command.action.scheduling, "concurrent");

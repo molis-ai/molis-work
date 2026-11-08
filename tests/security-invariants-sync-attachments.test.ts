@@ -16,7 +16,7 @@ const key=JSON.stringify(['project','artifact','file']);
 const value=(payload:unknown)=>({project:{id:'project',title:'File'},artifact:{format:1,spaceId:'space-alice',projectId:'project',identity:{artifact_id:'file'},versions:[{version:1,artifact_type_id:'io.molis.work.document',payload}]}});
 test('S-126 PCSYNC-11/13 owner projects raw file bytes and large bodies without changing immutable payloads',async()=>{
   const codec=createArtifactSyncContent('space-alice'),file=Buffer.alloc(700000,31),original=value({content:'正文'.repeat(100000),original_file:{filename:'image.jpg',mime:'image/jpeg',data_base64:file.toString('base64')}});
-  const encoded=codec.encode(key,original);assert.equal(encoded.blobs.length,2);assert.ok(encoded.blobs.some(b=>Buffer.from(b.bytes).equals(file)));assert.ok(Buffer.byteLength(JSON.stringify(encoded.value))<512*1024);
+  const encoded=codec.encode(key,original);assert.equal(encoded.blobs.length,2);assert.ok(JSON.stringify(encoded.value).includes('"artifact":{"format":2,"spaceId":"space-alice"'),'the attached encoding says 2, in its place on the wire');assert.ok(encoded.blobs.some(b=>Buffer.from(b.bytes).equals(file)));assert.ok(Buffer.byteLength(JSON.stringify(encoded.value))<512*1024);
   const restored=await codec.decode(key,encoded.value,async ref=>{const source=encoded.blobs.find(b=>b.digest===ref.digest&&b.size===ref.size);assert.ok(source);return source.bytes;});
   assert.deepEqual(restored,original);assert.equal(original.artifact.format,1,'no mutation of the owner snapshot');
   const empty=value({original_file:{filename:'empty.bin',mime:'application/octet-stream',data_base64:''}}),projected=codec.encode(key,empty);
@@ -27,10 +27,10 @@ test('S-126 PCSYNC-11/13 owner projects raw file bytes and large bodies without 
 for(const version of [1,2,3,4])test(`S-126 PCSYNC-12 the current sync store refuses and preserves an existing v${version} file`,t=>{
   const home=mkdtempSync(join(tmpdir(),'molis-sync-v1-'));t.after(()=>rmSync(home,{recursive:true,force:true}));
   ensureStorageSpace(home,personalStorageSpace('https://auth.example.test','work','alice'));
-  const schema=readFileSync(new URL(version===1?'./fixtures/home-store-schemas/sync.sql':`./fixtures/home-store-schemas/sync-v${version}.sql`,import.meta.url),'utf8'),old=openBaselineHomeSqlite(home,'sync',{version,schema});
+  const schema=readFileSync(new URL(version===1?'./fixtures/home-store-schemas/sync-v2.sql':`./fixtures/home-store-schemas/sync-v${version}.sql`,import.meta.url),'utf8'),old=openBaselineHomeSqlite(home,'sync',{version,schema});
   old.prepare('INSERT INTO sync_policy VALUES(1,?)').run('{"preserved":true}');old.close();
   const path=join(home,'sync','sync.db'),before=readFileSync(path);
-  assert.throws(()=>openBaselineHomeSqlite(home,'sync',SYNC_STORE_BASELINE),/version|版本/i);assert.deepEqual(readFileSync(path),before);
+  assert.throws(()=>openBaselineHomeSqlite(home,'sync',SYNC_STORE_BASELINE),{code:version===1?'storage.schema_structure_mismatch':'storage.store_too_new'});assert.deepEqual(readFileSync(path),before);
 });
 
 test('S-126 PCSYNC-06/12 revocation during a file download prevents late cache and owner writes',async t=>{

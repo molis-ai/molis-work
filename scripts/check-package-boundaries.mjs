@@ -1,8 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 import ts from "typescript";
-import { usesProjectSqliteDriver } from "./gates/project-sqlite-driver.mjs";
+import { sqliteDriverFindings } from "./gates/project-sqlite-driver.mjs";
 import { catalogText } from "./gates/catalog-entries.mjs";
 import { checkGoalsManagementWiring } from "./gates/goals-management-wiring.mjs";
 import { checkArtifactsPlatformUi } from "./gates/artifacts-platform-ui.mjs";
@@ -14,6 +14,8 @@ import {
   unusedLayerExceptions,
 } from "@molis-ai/molis-work-test-kit";
 
+import { isMainScript } from "./script-paths.mjs";
+import { versionSource } from "./version-source.mjs";
 import { checkWorkspacePackages, REGISTERED_PLUGINS, WORKSPACE_PACKAGES } from "./workspace-packages.mjs";
 
 const SOURCE_EXTENSIONS = new Set([".cjs", ".js", ".jsx", ".mjs", ".ts", ".tsx"]);
@@ -109,7 +111,6 @@ function checkSourceImports(repositoryRoot, packages) {
     for (const sourceFile of sourceFiles) {
       const relativeSource = path.relative(repositoryRoot, sourceFile);
       const source = fs.readFileSync(sourceFile, "utf8");
-      if (usesProjectSqliteDriver(relativeSource, source)) errors.push(`${relativeSource}: [project-sqlite-driver] open project connections through storage`);
       for (const specifier of extractImportSpecifiers(source)) {
         importCount += 1;
         let target = targetForSpecifier(specifier, packages);
@@ -138,13 +139,7 @@ function checkSourceImports(repositoryRoot, packages) {
     }
   }
 
-  for (const area of ["tests", "scripts", "examples"]) {
-    const files = filesUnder(path.join(repositoryRoot, area), file => /\.(?:[cm]?[jt]s|[jt]sx)$/u.test(file));
-    for (const file of files) {
-      const relative = path.relative(repositoryRoot, file);
-      if (usesProjectSqliteDriver(relative, fs.readFileSync(file, "utf8"))) errors.push(`${relative}: [project-sqlite-driver] open test connections through test-kit or production connections through storage`);
-    }
-  }
+  for (const { file, text } of sqliteDriverFindings(repositoryRoot)) errors.push(`${file}: ${text}`);
   return { errors, edges, importCount, sourceFileCount };
 }
 
@@ -248,6 +243,7 @@ export function checkMigratedIntegrationOwnership(repositoryRoot) {
     errors.push(`${listenerPath}: Listener Host must remain Provider-neutral`);
   }
 
+  const centralVersions = versionSource(repositoryRoot).versions;
   for (const name of ["github", "gmail", "rss", "web-query", "youtube"]) {
     const pluginRoot = path.join(repositoryRoot, "plugins/official-integrations", name);
     const manifestPath = path.join(pluginRoot, "manifest.json");
@@ -257,7 +253,7 @@ export function checkMigratedIntegrationOwnership(repositoryRoot) {
     }
     const manifest = readJson(manifestPath);
     if (
-      manifest.schema_version !== 1 || manifest.host_api_version !== 1
+      manifest.schema_version !== centralVersions["manifest.schema"] || manifest.host_api_version !== centralVersions["host.api"]
       || manifest.kind !== "integration"
       || !String(manifest.plugin_id ?? "").startsWith("io.molis.work.integration.")
       || !String(manifest.version ?? "").match(/^\d+\.\d+\.\d+/u)
@@ -1746,8 +1742,7 @@ export function checkPackageBoundaries(repositoryRoot) {
   };
 }
 
-const invokedPath = process.argv[1] ? pathToFileURL(path.resolve(process.argv[1])).href : null;
-if (invokedPath === import.meta.url) {
+if (isMainScript(import.meta.url)) {
   const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
   const result = checkPackageBoundaries(repositoryRoot);
   console.log(JSON.stringify(result, null, 2));

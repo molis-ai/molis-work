@@ -1,5 +1,6 @@
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { canonicalJsonText } from "@molis-ai/molis-work-plugin-sdk";
 import type { PluginRuntimeDatabase } from "./repository.js";
 
 // A plugin's own tables in a project's library (PG-020, specs/archive/plugin-project-database). The plugin declares them in its Manifest
@@ -201,11 +202,7 @@ function inspectSchema(schema: string, inspector: PluginProjectSchemaInspector,
 }
 
 function canonical(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
-  if (value && typeof value === "object") {
-    return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${canonical((value as Record<string, unknown>)[key])}`).join(",")}}`;
-  }
-  return JSON.stringify(value) ?? "null";
+  return canonicalJsonText(value, "null");
 }
 
 /** The plugin's tables as they stand in the library, in the declaration's terms; a missing table is `null`. */

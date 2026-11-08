@@ -218,10 +218,11 @@ export const CRAFT_FINISH_CLIENT_SCRIPT = `
     body.append(burst);
     setTimeout(() => burst.remove(), 1200);
   };
-  /* Something that just arrived: one wash from its leading edge. */
-  const land = (node) => {
+  /* Something that just arrived: one wash from its leading edge. A field whose content changed passes "field": the wash is
+     translucent so its words stay readable, and it reaches a little past the field's edge. */
+  const land = (node, variant) => {
     if (!node || reduced()) return;
-    node.setAttribute("data-craft-new", "");
+    node.setAttribute("data-craft-new", variant === "field" ? "field" : "");
     setTimeout(() => node.removeAttribute("data-craft-new"), 1700);
   };
   /* Plugins may mark their own finish and arrival moments; both are presentation only. */

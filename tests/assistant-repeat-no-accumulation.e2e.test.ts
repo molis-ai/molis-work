@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { openWork, seedWork, sendBrowser } from "./fixtures/assistant-send-journey.js";
 import { domCounters } from "./fixtures/dom-counters.js";
+import { CURRENT_WORK } from "./fixtures/assistant-current-work.js";
 
 // specs/visual-ui-experience VUX-36「监听/计时/观察/请求/动画可释放，无无限缓存」, for the Assistant with real works: moving
 // between three works that each finished a round (their steps, answers, side pane and long wait) again and again keeps the
@@ -42,7 +43,7 @@ test("VUX-36: moving between finished Assistant works again and again leaves not
   for (let i = 0; i < 15; i++) { await around(); if (i === 7) await pause(16_000); }
   const after = await domCounters(command, sessionId);
   t.diagnostic(`45 moves: ${JSON.stringify(before)} → ${JSON.stringify(after)}`);
-  assert.equal(await evaluate("localStorage.getItem('molis.assistant.current')"), works[2]);
+  assert.equal(await evaluate(CURRENT_WORK), works[2]);
   assert.ok(after.nodes <= before.nodes + 200, `nodes ${before.nodes} → ${after.nodes}`);
   assert.ok(after.listeners <= before.listeners + 10, `listeners ${before.listeners} → ${after.listeners}`);
   assert.ok(after.arrays - before.arrays < 40, `arrays ${before.arrays} → ${after.arrays}`);

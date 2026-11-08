@@ -23,9 +23,9 @@ export interface PtyHostHandlers {
 }
 
 export const servicesRuntimeHostContract = {
-  contractId: "io.molis.work.service.runtime-host.v1",
+  contractId: /* @version contract.io.molis.work.service.runtime-host "io.molis.work.service.runtime-host.v{version}" */ "io.molis.work.service.runtime-host.v1",
   kind: "service",
-  schemaVersion: 1,
+  schemaVersion: /* @version contract.io.molis.work.service.runtime-host */ 1,
   maturity: "partial",
   ssot: "docs/horizontal/runtime-host.md",
 } as const satisfies ContractDescriptor;

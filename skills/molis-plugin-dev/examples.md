@@ -69,8 +69,8 @@ Feed、Inbox 已由 Plugin Runtime 装配：页面请求写在各自 Manifest `r
 ## Diff / Files / Git
 
 - Diff：三组可选输入（两份快照 / Run 变更 / Git 变更），`input_groups`，没绑也能激活并说明自己。
-- Files：浏览工作区；`onEvent` 在 Coding/Git 发 file-changed 之后重读目录。事件 id 来自合同，不 import Coding 包。这是插件事件总线，不是 Functions 去向。
-- Git：工作区改动；目录通过当前项目设置读取。抄事件订阅时点名 `from_plugin_ids`，不要通配。
+- Files：浏览项目的文件夹（不指定就是输出目录）；`onEvent` 在 Coding/Git 发 file-changed 之后重读目录。事件 id 来自合同，不 import Coding 包。这是插件事件总线，不是 Functions 去向。
+- Git：工作区改动；文件夹通过 `projects.directories.get` 读取（不指定就是输出目录，写只在输出目录里）。抄事件订阅时点名 `from_plugin_ids`，不要通配。
 - 三者都不声明搜索来源：文件与改动归工作区和 Git，快照已经是 Artifact，经 Artifacts 可搜。
 
 ## Coding：Runtime 托管的 app

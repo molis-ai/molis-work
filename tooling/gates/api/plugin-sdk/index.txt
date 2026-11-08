@@ -260,6 +260,8 @@ export declare const PLUGIN_ROUTE_STREAM_LIMITS: Readonly<{
     progress_bytes: 1048576;
 }>;
 
+export { PRESENTATION_VALUES_AUDIENCES } from "@molis-ai/molis-work-contracts/platform/presentation";
+
 export interface PageRouteMatch {
     readonly route_id: string;
     readonly params: Readonly<Record<string, string>>;
@@ -340,6 +342,10 @@ export interface PorcelainInput {
     truncated?: boolean;
 }
 
+export type { PresentationOverview } from "@molis-ai/molis-work-contracts/platform/presentation";
+export type { PresentationValueItem } from "@molis-ai/molis-work-contracts/platform/presentation";
+export type { PresentationValues } from "@molis-ai/molis-work-contracts/platform/presentation";
+export type { PresentationValuesInput } from "@molis-ai/molis-work-contracts/platform/presentation";
 export type { ProjectCopyAsset } from "@molis-ai/molis-work-contracts/services/placement";
 export type { ProjectCopyIdentity } from "@molis-ai/molis-work-contracts/services/placement";
 export type { ProjectCopyOwner } from "@molis-ai/molis-work-contracts/services/placement";
@@ -545,6 +551,7 @@ export declare function bindOwnerPluginAction<Input, Output>(context: PluginStar
 
 export declare function bindPluginActionRoute<Input, Output>(context: PluginStartContext, definition: ActionDefinition<Input, Output>, input: (request: PluginRouteRequest) => Input, route_id?: string): PluginRouteBinding;
 
+export { bindPresentationValuesHandler } from "@molis-ai/molis-work-contracts/platform/presentation";
 export { bindSearchEntriesHandler } from "@molis-ai/molis-work-contracts/platform/actions";
 export { bindWorkflowContentHandlers } from "@molis-ai/molis-work-contracts/platform/actions";
 
@@ -623,6 +630,8 @@ export declare function definePollingIntegrationPlugin(input: {
     now?: () => Date;
 }): PluginDefinition;
 
+export { definePresentationOverviewAction } from "@molis-ai/molis-work-contracts/platform/presentation";
+export { definePresentationValuesAction } from "@molis-ai/molis-work-contracts/platform/presentation";
 export { defineSearchEntriesAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineSubjectContextAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineSubjectOffersAction } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -661,6 +670,8 @@ export declare function isHomeAggregateQuery(definition: {
     readonly operation: string;
     readonly action: object;
 }): boolean;
+
+export { isPresentationValuesAction } from "@molis-ai/molis-work-contracts/platform/presentation";
 
 export declare function isRecord(value: unknown): value is Record<string, unknown>;
 

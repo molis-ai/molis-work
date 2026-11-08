@@ -11,7 +11,7 @@ import { openConfiguredModels as openProviders, selectConfiguredTextModel, model
 import { hostCompleteText } from "./host-complete-text.js";
 import { listConnectorConnectionViews } from "./connector-connection-views.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
-import type { VersionedFile, VersionedFileStep } from "@molis-ai/molis-work-storage";
+import { assertVersionedFileWritable, type VersionedFile, type VersionedFileStep } from "@molis-ai/molis-work-storage";
 
 const errors = defineErrorCodes("host", { model_configuration_invalid: "invalid" });
 /** What the settings need of a declaration: where the choice is kept and the id of the consumer's own provider (a Home package's settings are derived without actions, BL-491). */
@@ -67,9 +67,14 @@ function saveSettings(home: string, declaration: ConsumerModelConfigurationDecla
   const format = input.api_format;
   if (format !== undefined && !["anthropic-messages", "openai-chat-completions"].includes(format)) throw errors.model_configuration_invalid("模型接口格式无效");
   const suppliedUrl = input.base_url !== undefined ? validBaseUrl(input.base_url) : undefined;
+  const prefPath = preferencePath(home, declaration);
+  // Before anything this save does (the custom provider, the connection's first origin, the file): a choice file too new for this build, not
+  // yet upgraded or unreadable is not this build's to replace (upgrade-chain-design §2.6), and refusing it here leaves all of them as they were.
+  // Nothing in this save waits, and only this Host writes the file, so what passes here is what the write below replaces.
+  assertVersionedFileWritable(MODEL_PREFERENCE_FILE, prefPath, home);
   // The catalog is created and owned by the normal Host lifecycle. Never write an incomplete lookalike catalog.
   const opened = openProviders(home); if (!opened) throw errors.model_configuration_invalid("Molis Work 工作台尚未初始化，请先打开工作台再保存模型设置");
-  const prefPath = preferencePath(home, declaration), oldPreference = existsSync(prefPath) ? readFileSync(prefPath, "utf8") : undefined;
+  const oldPreference = existsSync(prefPath) ? readFileSync(prefPath, "utf8") : undefined;
   let preferenceWritten = false;
   try {
     const existing = opened.store.get(providerId);

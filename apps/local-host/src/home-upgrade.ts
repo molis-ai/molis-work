@@ -13,7 +13,7 @@ import {
   homeIdentity, newUpgradeLedger, readUpgradeLedger, readUpgradeStamp, removeUpgradeStamp, removeUpgradeTemporaries, unfinishedUnit, UPGRADE_DIRECTORY, writeUpgradeLedger, writeUpgradeStamp,
   type UpgradeLedger, type UpgradeUnit, type UpgradeUnitError,
 } from "./home-upgrade-ledger.js";
-import { homeUpgradeDescriptors, upgradeFingerprint, upgradeTarget, type HomeUpgradeDescriptor } from "./home-upgrade-stores.js";
+import { homeUpgradeDescriptors, upgradeFingerprint, upgradeTarget, upgradeUnitFile, type HomeUpgradeDescriptor } from "./home-upgrade-stores.js";
 
 /** What this call did. Nothing to do reads `ran: false`; a store that failed is in `units`, not an exception (§5.2). */
 export interface HomeUpgradeReport {
@@ -90,9 +90,13 @@ function ordinaryFile(root: string, relativePath: string): "absent" | "ordinary"
   return SIDECARS.every(suffix => lstatSync(file + suffix, { throwIfNoEntry: false })?.isFile() ?? true) ? "ordinary" : "refused";
 }
 
-/** The version, by reading only. A hot journal is the one thing that needs more: unless the store is too new for this build, the holder of the lock recovers it. */
-function storeVersion({ descriptor }: Store, file: string, holdsLock: boolean): number {
+/**
+ * The version, by reading only. A hot journal is the one thing that needs more: unless the store is too new for this build, the holder of the
+ * lock recovers it. A plugin's tables read undefined when their file has none of them.
+ */
+function storeVersion({ descriptor }: Store, file: string, holdsLock: boolean): number | undefined {
   if ("file" in descriptor) return readVersionedFileVersion(descriptor.file, file);
+  if ("tables" in descriptor) return descriptor.tables.read(file);
   const access = descriptor.version ?? USER_VERSION_ACCESS, seen = readUpgradeStoreVersion(file, access);
   if (!seen.hot_journal || !holdsLock || seen.version > descriptor.baseline.version) return seen.version;
   const db = descriptor.open(file);
@@ -103,19 +107,20 @@ function storeVersion({ descriptor }: Store, file: string, holdsLock: boolean): 
 /** A version of 0 is not this process's to judge: a store being created, or one with tables and no version, which every open refuses on its own. */
 function lookAt(root: string, store: Store, holdsLock: boolean): Look {
   if (store.unlisted) return { kind: "refused", reason: "list_failed" };
-  const place = ordinaryFile(root, store.relative_path);
+  const file = upgradeUnitFile(store.descriptor, store.relative_path), place = ordinaryFile(root, file);
   if (place !== "ordinary") return place === "absent" ? { kind: "absent" } : { kind: "refused", reason: "invalid_path" };
-  let found: number;
-  try { found = storeVersion(store, join(root, store.relative_path), holdsLock); }
+  let found: number | undefined;
+  try { found = storeVersion(store, join(root, file), holdsLock); }
   catch (error) { if (lockLost(error)) throw error; return { kind: "refused", reason: "unreadable" }; }
   const version = upgradeTarget(store.descriptor);
+  if (found === undefined) return { kind: "absent" };
   if (found === version) return { kind: "current" };
   if (found === 0) return { kind: "unversioned" };
   return { kind: found > version ? "too_new" : "older", found };
 }
 
 const newUnit = (store: Store, from: number, state: UpgradeUnit["state"], error: UpgradeUnitError | null = null): UpgradeUnit => ({
-  kind: "file" in store.descriptor ? "file" : "sqlite", owner: store.descriptor.owner, relative_path: store.relative_path, group: store.descriptor.group ?? null, from, to: upgradeTarget(store.descriptor), state, error,
+  kind: "file" in store.descriptor ? "file" : "tables" in store.descriptor ? "plugin_tables" : "sqlite", owner: store.descriptor.owner, relative_path: store.relative_path, group: store.descriptor.group ?? null, from, to: upgradeTarget(store.descriptor), state, error,
 });
 
 function record(round: Round, relativePath: string, change: Pick<UpgradeUnit, "state"> & Partial<UpgradeUnit>): void {
@@ -144,16 +149,20 @@ function restore(round: Round, relativePath: string, cause: UpgradeUnitError): v
 
 /** Whether to put the snapshot back is decided by the store's version, not by what failed: only a store at the target was really upgraded (§5.2). */
 function recoverFromFailure(round: Round, store: Store, failure: unknown): void {
-  const { relative_path, descriptor } = store, target = upgradeTarget(descriptor), file = join(round.root, relative_path);
+  const { relative_path, descriptor } = store, target = upgradeTarget(descriptor), file = join(round.root, upgradeUnitFile(descriptor, relative_path));
   let found: number | undefined;
-  try { found = "file" in descriptor ? readVersionedFileVersion(descriptor.file, file) : readUpgradeStoreVersion(file, descriptor.version).version; }
-  catch { found = undefined; }
+  try {
+    found = "file" in descriptor ? readVersionedFileVersion(descriptor.file, file) : "tables" in descriptor ? descriptor.tables.read(file)
+      : readUpgradeStoreVersion(file, descriptor.version).version;
+  } catch { found = undefined; }
   if (found === target) {
     hostLog.warn("host", "home_upgrade_failed_after_commit", failure);
     record(round, relative_path, { state: "committed" });
     return;
   }
   const cause = recordedError(failure);
+  // A plugin's tables have no snapshot: their transaction rolled back, and that is all there is to put back.
+  if ("tables" in descriptor) { record(round, relative_path, { state: "failed", error: cause }); return; }
   record(round, relative_path, { state: "restoring", error: cause });
   restore(round, relative_path, cause);
 }
@@ -172,10 +181,12 @@ function spaceProblem(round: Round, file: string): string | undefined {
 
 /** One store, from wherever its record says it got to. Every step can be repeated, so a kill at any point comes back here (§6). */
 function advance(round: Round, store: Store): void {
-  const { relative_path, descriptor } = store, file = join(round.root, relative_path);
+  const { relative_path, descriptor } = store, file = join(round.root, upgradeUnitFile(descriptor, relative_path));
   const unit = unitOf(round, relative_path);
   const waitedFor = descriptor.after?.some(pattern => round.ledger!.units.some(other => round.stores.get(other.relative_path)?.descriptor.pattern === pattern && (other.state === "failed" || other.state === "too_new")));
-  if (waitedFor) { record(round, relative_path, { state: "failed", error: ownReason("prerequisite_failed") }); return; }
+  // A plugin's tables wait for their file: the platform's steps on it, when it has any this round, must have gone through.
+  const fileUnit = "tables" in descriptor ? round.ledger!.units.find(other => other.relative_path === upgradeUnitFile(descriptor, relative_path)) : undefined;
+  if (waitedFor || (fileUnit !== undefined && fileUnit.state !== "committed")) { record(round, relative_path, { state: "failed", error: ownReason("prerequisite_failed") }); return; }
   const started = unit.state === "snapshotted";
   const look = lookAt(round.root, store, true);
   if (look.kind === "current") { record(round, relative_path, { state: "committed" }); return; }
@@ -185,13 +196,14 @@ function advance(round: Round, store: Store): void {
   }
   if (!started) {
     // Before the snapshot, and before anything opens the store to write: the checkpoint is already a write (§2.1, §2.2 step 1).
-    const problem = "file" in descriptor ? versionedFileStepsProblem(descriptor.file, look.found) : upgradeStepsProblem(descriptor.baseline, look.found) ?? spaceProblem(round, file);
+    const problem = "file" in descriptor ? versionedFileStepsProblem(descriptor.file, look.found)
+      : ("tables" in descriptor ? descriptor.tables.problem(look.found) : upgradeStepsProblem(descriptor.baseline, look.found)) ?? spaceProblem(round, file);
     if (problem) { record(round, relative_path, { state: "failed", error: ownReason(problem) }); return; }
   }
   try {
     if ("file" in descriptor) captureUpgradeFileSnapshot(snapshotUnit(round, relative_path));
-    else captureUpgradeSnapshot(snapshotUnit(round, relative_path), descriptor.open);
-    if (!started) record(round, relative_path, { state: "snapshotted" });
+    else if (!("tables" in descriptor)) captureUpgradeSnapshot(snapshotUnit(round, relative_path), descriptor.open);
+    if (!started && !("tables" in descriptor)) record(round, relative_path, { state: "snapshotted" });
   } catch (error) {
     if (lockLost(error)) throw error;
     const seen = recordedError(error);
@@ -202,9 +214,15 @@ function advance(round: Round, store: Store): void {
   let failure: unknown, failed = false;
   try {
     if ("file" in descriptor) upgradeVersionedFile(descriptor.file, file, round.root);
+    else if ("tables" in descriptor) descriptor.tables.upgrade(file);
+    else if (descriptor.upgrade) descriptor.upgrade(file);
     else {
       const db = descriptor.open(file);
-      try { runSqliteUpgrade(db, file, descriptor.baseline, round.root, descriptor.version); }
+      // A store whose baseline depends on what it holds (the catalog of a personal space) says which one, read from the open file.
+      try {
+        const store = { ...descriptor, baseline: descriptor.baselineFor?.(db) ?? descriptor.baseline };
+        runSqliteUpgrade(db, file, store.baseline, round.root, store.version);
+      }
       finally { db.close(); }
     }
   } catch (error) { failure = error; failed = true; }
@@ -308,7 +326,8 @@ const sameOutcome = (left: readonly UpgradeUnit[], right: readonly UpgradeUnit[]
 
 /** §5.2: not enough room means this Home's round touches nothing at all, and the others go on. */
 function runPlanned(round: Round, planned: readonly UpgradeUnit[]): void {
-  try { assertUpgradeDiskSpace(round.root, planned.map(unit => unit.relative_path)); }
+  // A plugin's tables are a transaction inside a file already counted, with no snapshot of their own.
+  try { assertUpgradeDiskSpace(round.root, planned.filter(unit => unit.kind !== "plugin_tables").map(unit => unit.relative_path)); }
   catch (error) {
     if (lockLost(error)) throw error;
     const seen = recordedError(error), paths = new Set(planned.map(unit => unit.relative_path)), ledger = round.ledger!;

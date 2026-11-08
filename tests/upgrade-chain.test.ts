@@ -65,7 +65,7 @@ const failed = (reason: string, step?: number) => (error: unknown) => {
   return true;
 };
 
-for (const driver of ["node:sqlite", "better-sqlite3"] as const) {
+for (const driver of ["node:sqlite", "project connection"] as const) {
   test(`UPG1-01 v1 upgrades through a SQL step and a function step to v3 on ${driver}: structure, version and data are the new baseline's`, t => {
     const { path } = seededV1(t);
     const db: SqliteBaselineDatabase & { close(): void } = driver === "node:sqlite" ? new DatabaseSync(path) : openSqliteConnection(path);

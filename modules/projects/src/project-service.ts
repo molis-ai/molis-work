@@ -1,5 +1,6 @@
 import { projectCatalogErrors as catalogErrors } from "@molis-ai/molis-work-contracts/modules/projects";
 
+import { insertProjectOutput } from "./project-output.js";
 import type {
   AddProjectPluginInput,
   ProjectDeletionReceipt,
@@ -73,11 +74,18 @@ export class ProjectService {
         this.repository.projects.addProjectPlugin(record.project_id, pluginId, record.created_at);
       }
       this.appendEvent(record.project_id, eventType, this.requiredActorId(actorId), { project_id: record.project_id });
+      // Every way a project is made comes here, so every project has its output from the start (§3); the folder waits until first used.
+      insertProjectOutput(this.repository.db, record.project_id, record.created_at, this.requiredActorId(actorId));
     });
   }
 
   rollbackRegistration(projectId: string): void {
-    this.repository.projects.removeProject(this.requiredProjectId(projectId));
+    const id = this.requiredProjectId(projectId);
+    // The default output directory's row went in with the project; it goes with it, not left behind with no member.
+    this.repository.transaction(() => {
+      this.repository.workspaces.removeWorkspaceMembershipsForProject(id);
+      this.repository.projects.removeProject(id);
+    });
   }
 
   /**

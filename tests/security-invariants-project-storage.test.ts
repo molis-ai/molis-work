@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, promises as fs, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, promises as fs, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
@@ -215,4 +215,105 @@ test("S-102 a Home copied while a deletion is under way clears its own staged di
     assert.equal(await resumed.projectDeletion.finishAll(), 0);
     assert.deepEqual(stagesIn(original), []);
   } finally { resumed.close(); }
+});
+
+// A project's default output directory is <Home>/outputs/<project_id>, derived from the trusted Home, never from a receipt. The person may choose to
+// delete its files with the project (specs/shared-sources-and-surfaces §3 「永久删除怎么做」): that step, too, never leaves the Home (SSC-21).
+
+const deleteWithOutput = (catalog: Catalog, projectId: string) =>
+  catalog.deleteProject({ project_id: projectId, actor_id: "tester", delete_confirmed: true, idempotency_key: `delete-with-output-${projectId}`, output_files: "delete" });
+const outputStep = (deletion: { owner_steps: ReadonlyArray<{ owner_id: string; state: string; error: string | null }> }) => {
+  const [step] = deletion.owner_steps.filter(item => item.owner_id === "project-output");
+  assert.ok(step, "the person chose to delete the files, so the receipt has the step");
+  return step;
+};
+
+test("SSC-21 S-102 deleting a default output directory's files never follows a symbolic link: outputs or the folder as a link is refused and the step waits to be retried, a link inside is removed as a link", async t => {
+  const root = mkdtempSync(join(tmpdir(), "security-project-storage-")), home = join(root, "home");
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+  try {
+    const outputs = join(realpathSync(home), "outputs"), outside = join(root, "outside");
+    const keep = (projectId: string) => join(outside, projectId, "keep.txt");
+    const leaveOutside = (projectId: string) => { mkdirSync(join(outside, projectId), { recursive: true }); writeFileSync(keep(projectId), "keep"); };
+
+    // `outputs` is a link to a folder outside the Home with the project's id in it.
+    const underLinkedOutputs = await catalog.createProject({ display_name: "outputs 是链接", actor_id: "tester" });
+    leaveOutside(underLinkedOutputs.project_id);
+    symlinkSync(outside, outputs);
+    assert.equal(catalog.projectDeletion.outputContents(underLinkedOutputs.project_id), "unknown", "the dialog cannot say what is there, so it asks");
+    const refused = await deleteWithOutput(catalog, underLinkedOutputs.project_id);
+    assert.equal(refused.deletion.cleanup_state, "pending");
+    assert.equal(outputStep(refused.deletion).state, "pending");
+    assert.match(outputStep(refused.deletion).error ?? "", /符号链接/);
+    assert.equal(existsSync(underLinkedOutputs.database_path), false, "the project itself is deleted: only this step waits");
+    assert.equal(await catalog.projectDeletion.finishAll(), 1, "the sweep leaves it pending too");
+    assert.equal(readFileSync(keep(underLinkedOutputs.project_id), "utf8"), "keep", "nothing outside the Home is removed");
+
+    // Once `outputs` is a folder of this Home again, the same request finishes, and only the Home's own folder goes.
+    unlinkSync(outputs);
+    mkdirSync(join(outputs, underLinkedOutputs.project_id), { recursive: true });
+    writeFileSync(join(outputs, underLinkedOutputs.project_id, "draft.md"), "draft");
+    const retried = await deleteWithOutput(catalog, underLinkedOutputs.project_id);
+    assert.equal(retried.replayed, true);
+    assert.equal(retried.deletion.cleanup_state, "complete");
+    assert.equal(outputStep(retried.deletion).state, "complete");
+    assert.equal(existsSync(join(outputs, underLinkedOutputs.project_id)), false);
+    assert.equal(readFileSync(keep(underLinkedOutputs.project_id), "utf8"), "keep");
+
+    // The project's own folder is a link.
+    const linkedFolder = await catalog.createProject({ display_name: "输出目录是链接", actor_id: "tester" });
+    leaveOutside(linkedFolder.project_id);
+    symlinkSync(join(outside, linkedFolder.project_id), join(outputs, linkedFolder.project_id));
+    assert.equal(catalog.projectDeletion.outputContents(linkedFolder.project_id), "unknown");
+    const linked = await deleteWithOutput(catalog, linkedFolder.project_id);
+    assert.equal(outputStep(linked.deletion).state, "pending");
+    assert.equal(lstatSync(join(outputs, linkedFolder.project_id)).isSymbolicLink(), true, "the link is left for the person to look at");
+    assert.equal(readFileSync(keep(linkedFolder.project_id), "utf8"), "keep");
+
+    // A link inside the folder is removed as a link: what it points to stays.
+    const linkInside = await catalog.createProject({ display_name: "里面有链接", actor_id: "tester" });
+    leaveOutside(linkInside.project_id);
+    mkdirSync(join(outputs, linkInside.project_id));
+    writeFileSync(join(outputs, linkInside.project_id, "report.md"), "report");
+    symlinkSync(join(outside, linkInside.project_id), join(outputs, linkInside.project_id, "elsewhere"));
+    const inside = await deleteWithOutput(catalog, linkInside.project_id);
+    assert.equal(inside.deletion.cleanup_state, "complete");
+    assert.equal(existsSync(join(outputs, linkInside.project_id)), false);
+    assert.equal(readFileSync(keep(linkInside.project_id), "utf8"), "keep", "the link is not followed");
+  } finally { catalog.close(); }
+});
+
+test("SSC-21 S-102 a receipt edited to name a project still in the catalog never deletes that project's default output directory", async t => {
+  const root = mkdtempSync(join(tmpdir(), "security-project-storage-")), home = join(root, "home");
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+  try {
+    const outputs = join(realpathSync(home), "outputs");
+    const live = await catalog.createProject({ display_name: "还在用的项目", actor_id: "tester" });
+    const recycled = await catalog.createProject({ display_name: "在回收站里的项目", actor_id: "tester" });
+    await catalog.commit(() => catalog.recycle.change({ project_id: recycled.project_id, actor_id: "tester", operation_id: "recycle-one",
+      expected_state: catalog.recycle.inspect(recycled.project_id).state, recycled: true, confirmed: true }, () => undefined));
+    for (const project of [live, recycled]) {
+      mkdirSync(join(outputs, project.project_id), { recursive: true });
+      writeFileSync(join(outputs, project.project_id, "work.md"), "in use");
+    }
+    const gone = await catalog.createProject({ display_name: "删掉的项目", actor_id: "tester" });
+    const { deletion } = await deleteWithOutput(catalog, gone.project_id);
+    assert.equal(deletion.cleanup_state, "complete");
+
+    // The receipt is edited to stand for a project that is still there, with a stage name that project's deletion would give, and its step reset.
+    for (const target of [live, recycled]) {
+      const db = openTestSqlite(join(home, "projects", "catalog.db"));
+      try {
+        db.prepare("UPDATE project_deletion_steps SET state = 'pending', error = NULL WHERE deletion_id = ? AND owner_id = 'project-output'").run(deletion.deletion_id);
+      } finally { db.close(); }
+      recordStaged(home, deletion.deletion_id, join(home, "projects", `.deleting-${target.project_id}-00000000-0000-4000-8000-000000000000`), target.project_id);
+      assert.equal(await catalog.projectDeletion.finishAll(), 1, target.display_name);
+      const step = outputStep(receiptOf(catalog, deletion.deletion_id));
+      assert.equal(step.state, "pending", target.display_name);
+      assert.match(step.error ?? "", /还在目录库里/, target.display_name);
+      assert.equal(readFileSync(join(outputs, target.project_id, "work.md"), "utf8"), "in use", target.display_name);
+    }
+  } finally { catalog.close(); }
 });

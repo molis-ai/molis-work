@@ -8,7 +8,7 @@ import { createServer } from "node:http";
 import { LocalHost, LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, handleProjectPluginHttp, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { HISTORY_DIGEST_MARKER, digestTask } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent, type AgentDraftTextRequest, type AgentRunView, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import { projectDirectoryActions } from "@molis-ai/molis-work-contracts/modules/projects";
 import { ActionError, type ActionCallContext, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
@@ -43,7 +43,7 @@ test("整理前面的对话由模型写摘要：接着上次的摘要写，宿�
   const host = () => ({ store, ...openProjectVersionStores(store), homeDirectory: root, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user",
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
     agentHost: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
-      if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: root, realpath_verified: true }] as Output;
+      if (definition.capability_id === projectDirectoryActions.get.capability_id) return [{ workspace_id: "work", canonical_path: root }] as Output;
       if (definition.capability_id === agent.availableRoles.capability_id) return [{ role_id: "builder", available: true }] as Output;
       if (definition.capability_id === agent.listActions.capability_id) return [] as Output;
       if (definition.capability_id === agent.readSession.capability_id) return { runs: earlier.map(item => item.ref) } as Output;
@@ -133,7 +133,7 @@ test("a round whose digest the model is still writing runs beside the project's 
   const host = () => ({ store, ...openProjectVersionStores(store), homeDirectory: root, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user",
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
     agentHost: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
-      if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: root, realpath_verified: true }] as Output;
+      if (definition.capability_id === projectDirectoryActions.get.capability_id) return [{ workspace_id: "work", canonical_path: root }] as Output;
       if (definition.capability_id === agent.availableRoles.capability_id) return [{ role_id: "builder", available: true }] as Output;
       if (definition.capability_id === agent.listActions.capability_id) return [] as Output;
       if (definition.capability_id === agent.readSession.capability_id) return { runs: earlier.map(item => item.ref) } as Output;
@@ -219,7 +219,7 @@ test("PG035-07 with model:invoke switched off Coding's two drafts are refused wi
   const host = () => ({ store, ...openProjectVersionStores(store), homeDirectory: root, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user",
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
     agentHost: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
-      if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: root, realpath_verified: true }] as Output;
+      if (definition.capability_id === projectDirectoryActions.get.capability_id) return [{ workspace_id: "work", canonical_path: root }] as Output;
       if (definition.capability_id === agent.availableRoles.capability_id) return [{ role_id: "builder", available: true }] as Output;
       if (definition.capability_id === agent.listActions.capability_id) return [] as Output;
       if (definition.capability_id === agent.readSession.capability_id) return { runs: earlier.map(item => item.ref) } as Output;

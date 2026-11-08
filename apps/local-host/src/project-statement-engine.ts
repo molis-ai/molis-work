@@ -13,7 +13,7 @@ export interface StatementEngine {
   close(): void;
 }
 
-/** One connection as the engine uses it: better-sqlite3's `Database` (the project's library) and node:sqlite's `DatabaseSync` (a library in the Home) both fit through this. */
+/** One connection as the engine uses it: the storage package's connection (the project's library) and node:sqlite's `DatabaseSync` (a library in the Home) both fit through this. */
 interface StatementConnection {
   prepare(sql: string): { get(...parameters: unknown[]): unknown; run(...parameters: unknown[]): unknown; iterate(...parameters: unknown[]): Iterable<unknown> };
   exec(sql: string): unknown;
@@ -27,7 +27,7 @@ interface StatementConnections {
   close(): void;
 }
 
-/** The plugin's tables in a project's library: two better-sqlite3 connections, every statement checked against the plugin's record. */
+/** The plugin's tables in a project's library: two connections, every statement checked against the plugin's record. */
 function projectConnections(path: string, record: PluginProjectDatabaseRecord): StatementConnections {
   const readStorage = new LocalSqliteStorage(path, { readonly: true });
   let writeStorage: LocalSqliteStorage | undefined;

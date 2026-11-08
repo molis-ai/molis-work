@@ -3,6 +3,8 @@ import { DEFAULT_RESIDENT_HOST_URL } from "./resident-host-request.js";
 import { mcpErrors } from "./mcp-errors.js";
 import { resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { ensureSystemAgentService } from "./system-agent-service.js";
+import { workspaceRefFor } from "./agent-host-composition.js";
+import type { MolisWorkProjectCatalog } from "./project-catalog.js";
 import { projectActionAvailability } from "./project-action-availability.js";
 import type { MolisWorkRuntimeConnection, MolisWorkRuntimeContextHost } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { bindActionClient, ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -91,8 +93,7 @@ export class LocalMcpServer {
         ? projectActionAvailability((settings, operation) => this.withCatalog(settings, operation), this.runtimeContextHost.homeDirectory) : undefined,
       actionAvailability: this.runtimeContextHost?.homeDirectory
         ? projectActionAvailability((settings, operation) => this.withCatalog(settings, operation), this.runtimeContextHost.homeDirectory) : undefined,
-      ...(this.runtimeContextHost?.homeDirectory ? { workspacesFor: (projectId: string) => this.withCatalog(
-        { homeDirectory: this.runtimeContextHost!.homeDirectory }, catalog => catalog.listWorkspaceDirectory(projectId)) } : {}),
+      ...(this.runtimeContextHost?.homeDirectory ? this.directoryPorts(this.runtimeContextHost.homeDirectory) : {}),
     });
     if (!this.actionServiceUrl && this.runtimeContextHost?.homeDirectory) this.withCatalog = this.localHost.configurePersonalPlanning(this.runtimeContextHost.homeDirectory, this.withCatalog);
     if (!this.actionServiceUrl && this.runtimeContextHost?.homeDirectory) {
@@ -107,6 +108,20 @@ export class LocalMcpServer {
   }
 
   /**
+   * The project's folders as this MCP server's own Host reads them from the catalog, as the web server's does: the folders and their roles,
+   * the output (what names no folder uses, SSC-17), and the check before a folder is touched on disk (§3 「碰磁盘的调用方」).
+   */
+  private directoryPorts(homeDirectory: string) {
+    const catalog = <T>(operation: (catalog: MolisWorkProjectCatalog) => T) => this.withCatalog({ homeDirectory }, operation);
+    return {
+      workspacesFor: (projectId: string) => catalog(item => item.listWorkspaceDirectory(projectId)),
+      workspaceFor: (projectId: string) => catalog(item => workspaceRefFor(item, projectId)),
+      directoriesFor: (projectId: string) => catalog(item => item.projectDirectories(projectId)),
+      prepareDirectory: (projectId: string, workspaceId: string, mode: "read" | "write") => catalog(item => item.prepareWorkspaceDirectory(projectId, workspaceId, mode)),
+    };
+  }
+
+  /**
    * Embedded MCP uses the same deletion service over its own resources. Forwarding MCP invokes the resident context
    * handlers instead; it never enters this local path or opens a catalog to prepare a request.
    */
@@ -114,7 +129,8 @@ export class LocalMcpServer {
     const identity = runtimeConnectionIdentity(host, callContext);
     const home = host.homeDirectory;
     return new ProjectDeletionService(this.withCatalog, { isPanelAlive: () => false, releaseProject: async databasePath => { await this.localHost.closeProject(databasePath); } })
-      .deleteProject(home, { ...request, actor_id: identity.actor_id });
+      // MCP has no dialog to ask: the files in the default output directory stay where they are, whatever the request carries (SSC-23).
+      .deleteProject(home, { ...request, actor_id: identity.actor_id, output_files: "keep" });
   }
 
   /** The Runtime connection pins the installation-selected Home and credential once, until an explicit new context. */

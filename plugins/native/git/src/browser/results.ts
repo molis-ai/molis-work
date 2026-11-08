@@ -1,5 +1,5 @@
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
-import { active, request } from "./page.js";
+import { active, inFolder, request } from "./page.js";
 import type { GitPage } from "./page.js";
 import type { ResultRow, ResultsAnswer, Translate } from "./types.js";
 
@@ -49,7 +49,7 @@ export async function loadResults(page: GitPage): Promise<void> {
   const epoch = page.generation, serial = ++page.resultsTicket, id = page.workspace, selectedId = resultChoice.value;
   resultSave.disabled = true;
   try {
-    const data = await request<ResultsAnswer>(page, "/results");
+    const data = await request<ResultsAnswer>(page, inFolder("/results", id));
     if (!active(page, epoch) || serial !== page.resultsTicket || id !== page.workspace) return;
     page.resultRows = data.results;
     resultChoice.replaceChildren();

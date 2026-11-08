@@ -32,7 +32,7 @@ test("W2-18-SETTINGS-LATE-01: a delayed failed settings load cannot replace anot
   assert.equal(await browser.evaluate("location.href"), address);
   await browser.command("Network.setBlockedURLs", { urls: [] }, browser.sessionId);
   await browser.click("[data-directory-panel=project-settings] [data-settings-section=workspaces]");
-  await browser.waitFor("!!document.querySelector('[data-project-workspaces-add]')", 15_000);
+  await browser.waitFor("!!document.querySelector('[data-directories-add]')", 15_000);
 });
 
 const reference = createArtifactReferenceRenderer({ escape: value => value.replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;"), icon: () => "", text: value => value });

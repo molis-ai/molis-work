@@ -32,7 +32,7 @@ export function alchemistFixture(home: string, projectId = "a", permissions: rea
   const service = new ActionService();
   const caller: ActionCallContext = { actor_id: "fixture-owner", project_id: projectId, audience: "user", permissions };
   const bound = bindActionClient(service, () => caller);
-  const runtime = createAlchemistStudioRuntime({ databasePath: join(home, `${projectId}.sqlite`), ai, ...sources,
+  const runtime = createAlchemistStudioRuntime({ databasePath: join(home, projectId, "studio.sqlite"), ai, ...sources,
     actions: { async invoke<I, O>(definition: ActionDefinition<I, O>, input: I, signal?: AbortSignal): Promise<O> { return await service.invoke({ ...caller, signal }, definition, input) as O; } } });
   const dispose = service.registerProvider({ provider: { provider_id: alchemistManifest.plugin_id, title: alchemistManifest.name, kind: "plugin", plugin_id: alchemistManifest.plugin_id, project_id: projectId },
     definitions: Object.values(alchemistActions), handlers: createAlchemistActionHandlers({ resolve: caller => runtime.actionsFor(caller.actor_id) }) });

@@ -9,7 +9,8 @@ import { readWorkspaceFile } from "./workspace-files.js";
 import { currentWorkspaceBranch as branch, runWorkspaceGit as git } from "./workspace-git.js";
 
 interface Side { text: string | null; mode: GitFileMode | null }
-interface WriterIntegrationSelection { workspace_id: string; writer_workspace_id: string }
+/** The output the result comes back to, and the Host's worktree it comes from. */
+interface WriterIntegrationSelection { workspace_id: string; worktree_id: string }
 type Grants = () => Promise<readonly ProjectWorkspaceRef[]>;
 const LIMIT = 256 * 1024;
 const fingerprint = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -70,11 +71,13 @@ const CONFLICT_MARKER = /^(<{7}|={7}|>{7}|\|{7})( |$)/m;
 
 /** A live read, not a historical child-run artifact. No filesystem write occurs here. */
 export async function readWriterIntegration(selection: WriterIntegrationSelection, current: Grants): Promise<WriterIntegrationView> {
-  const grants = await current(), parent = grants.find(g => g.workspace_id === selection.workspace_id && g.realpath_verified), child = grants.find(g => g.workspace_id === selection.writer_workspace_id && g.realpath_verified);
-  if (!parent || !child || parent.workspace_id === child.workspace_id) throw new Error("主工作区或子工作树已取消授权，不能读取成果");
+  const grants = await current(), parent = grants.find(g => g.workspace_id === selection.workspace_id && g.realpath_verified);
+  if (!parent) throw new Error("输出目录已取消授权，不能读取成果");
   const port = createGitWorktreePort(parent.canonical_path);
-  const tree = (await port.list()).find(t => path.resolve(parent.canonical_path, t.directory) === child.canonical_path);
-  if (!tree) throw new Error("此目录不属于主工作区的原独立工作树");
+  const tree = (await port.list()).find(t => t.worktree_id === selection.worktree_id);
+  if (!tree) throw new Error("此目录不属于输出目录的原独立工作树");
+  // The worktree is the Host's own, not a directory of the project: it is read as itself, never looked up among the project's folders.
+  const child: ProjectWorkspaceRef = { workspace_id: tree.worktree_id, canonical_path: path.resolve(parent.canonical_path, tree.directory), realpath_verified: true, display_name: tree.worktree_id };
   const head = (await git(parent.canonical_path, ["rev-parse", "--verify", "HEAD"])).toString().trim(), parentBranch = await branch(parent.canonical_path);
   const changes = await port.changes(tree);
   if (changes.length > 1000) throw new Error("变更超过当前完整清单上限（1000 个文件），不能截断后整合");
@@ -85,7 +88,7 @@ export async function readWriterIntegration(selection: WriterIntegrationSelectio
       const segments = parseFilePath(change.path), name = segments.join("/");
       if (segments.some(s => s.toLowerCase() === ".git")) throw new Error("Git 元数据不能作为成果整合");
       await rawTextAllowed(parent.canonical_path, name); await rawTextAllowed(child.canonical_path, name);
-      const base = await treeSide(child.canonical_path, tree.base_commit, name), before = await diskSide(parent.workspace_id, segments, grants), after = await diskSide(child.workspace_id, segments, grants);
+      const base = await treeSide(child.canonical_path, tree.base_commit, name), before = await diskSide(parent.workspace_id, segments, [parent]), after = await diskSide(child.workspace_id, segments, [child]);
       file.before_text = before.text; file.after_text = after.text; file.before_mode = before.mode; file.after_mode = after.mode;
       // The index must also still match the original base; a staged edit is user work.
       const index = (await git(parent.canonical_path, ["ls-files", "--stage", "-z", "--", name])).toString();
@@ -110,7 +113,7 @@ export async function readWriterIntegration(selection: WriterIntegrationSelectio
     files.push(file);
   }
   if (head !== (await git(parent.canonical_path, ["rev-parse", "--verify", "HEAD"])).toString().trim() || parentBranch !== await branch(parent.canonical_path)) throw new Error("读取期间主分支已改变，请刷新成果");
-  return { workspace_id: parent.workspace_id, writer_workspace_id: child.workspace_id, source_path: child.canonical_path, target_path: parent.canonical_path, branch: tree.branch, base_commit: tree.base_commit, files };
+  return { workspace_id: parent.workspace_id, worktree_id: tree.worktree_id, source_path: child.canonical_path, target_path: parent.canonical_path, branch: tree.branch, base_commit: tree.base_commit, files };
 }
 
 /** Full-file hunks ensure Git never accepts an offset/fuzzy partial match. */
@@ -166,7 +169,7 @@ export async function prepareWriterIntegration(selection: WriterIntegrationSelec
     try {
       await git(prepared.view.target_path, [...args, "-"], undefined, { input: patch });
       for (const file of prepared.files) {
-      const actual = await diskSide(selection.workspace_id, [...file.path], await current());
+      const actual = await diskSide(selection.workspace_id, [...file.path], (await current()).filter(grant => grant.workspace_id === selection.workspace_id));
       if (!same(actual, { text: file.after_text!, mode: file.after_mode! })) throw new Error("执行后内容与审查不符，可能存在并发修改；请核对现场，不能自动重试");
       }
     } catch (error) {

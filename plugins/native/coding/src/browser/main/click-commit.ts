@@ -46,7 +46,13 @@ async function modelDraft(page: Page, id: string, run: RunView, fallback: string
 /** Hands the drafted message to Git, which works on the project's directory: point it at the round's own directory first. */
 async function handToGit(page: Page, run: RunView, draft: string, note: string, failed: boolean) {
   const { L, directory, s } = page;
-  const ownWorkspace = (s.state.workspaces || []).find(item => item.canonical_path === run.frozen.directory?.canonical_path), own = ownWorkspace?.workspace_id || s.workspaceId;
+  // A round that ran in one of the Host's worktrees changed files there, and Git shows only the project's folders: its draft is not
+  // handed to another folder, where it does not belong.
+  if (run.frozen.directories?.execution.kind === "worktree") {
+    status(page, L("coding.commit.git-worktree"), true);
+    return;
+  }
+  const ownWorkspace =(s.state.workspaces || []).find(item => item.canonical_path === run.frozen.directory?.canonical_path), own = ownWorkspace?.workspace_id || s.workspaceId;
   try {
     sessionStorage.setItem("molis-commit-draft:" + own, draft);
   } catch {

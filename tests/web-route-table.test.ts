@@ -70,8 +70,10 @@ const PROJECT_PROBES: Probe[] = [
   { method: "GET", path: "/settings/connectors", html: true },
   { method: "GET", path: "/plugins/todo", html: true },
   { method: "GET", path: "/api/plugins/todo/no-such-operation" },
+  // A project's inputs and output (projects.directories.*); the route that listed and chose a browsing folder is gone.
+  { method: "GET", path: "/api/project-settings/directories" },
+  { method: "POST", path: "/api/project-settings/directories", body: {} },
   { method: "GET", path: "/api/project-settings/workspaces" },
-  { method: "POST", path: "/api/project-settings/workspaces", body: {} },
   { method: "GET", path: "/api/project-settings/write-checkers" },
   { method: "POST", path: "/api/project-settings/write-checkers", body: {} },
   { method: "GET", path: "/side/todo/no-such-view", html: true },

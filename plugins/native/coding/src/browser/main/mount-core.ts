@@ -47,7 +47,7 @@ function emptyState(L: Page["L"]): Omit<State, "ports" | "follow" | "earlierWatc
     reportItem: "", reportOutput: null, reportRun: "", reportSaving: false, reportTicket: 0, reportTrigger: undefined,
     runtimeSessionId: null, selectionTask: undefined, sending: false, sessionOnShow: false,
     state: { sessions: [], models: [], runtimes: [], workspaces: [] }, stateLoaded: false, stateNext: null, stateRead: null, statusKey: "",
-    subagentGroups: [], viewSignal: undefined, windowRuns: [], workspaceId: "",
+    subagentGroups: [], viewSignal: undefined, windowRuns: [], workspaceId: "", worktree: null,
   };
 }
 

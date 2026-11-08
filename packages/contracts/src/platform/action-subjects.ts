@@ -1,5 +1,5 @@
 import { inputSchemaFor } from "./action-input.js";
-import { ActionError, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionReference } from "./actions.js";
+import { ActionError, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionReference, type ActionView } from "./actions.js";
 
 export const SUBJECT_REFERENCE_TYPE = /* @version type.molis.subject-reference "molis.subject-reference.v{version}" */ "molis.subject-reference.v1";
 export const SUBJECT_CONTEXT_TYPE = /* @version type.molis.subject-context "molis.subject-context.v{version}" */ "molis.subject-context.v1";
@@ -95,17 +95,35 @@ export function actionResultSubject(action: Pick<ActionDefinition["action"], "ki
 export function isSubjectReader(action: Pick<ActionDefinition["action"], "input_type" | "output_type">): boolean {
   return action.input_type === SUBJECT_REFERENCE_TYPE && action.output_type === SUBJECT_CONTEXT_TYPE;
 }
+/** What looking for the reader of one kind of object among the actions a caller discovered found. */
+export type SubjectReaderLookup =
+  /** Exactly one reader is available now. */
+  | { found: "one"; view: ActionView }
+  /** Readers are declared but none is available now: the first one, for its availability and its provider. */
+  | { found: "unavailable"; view: ActionView }
+  /** More than one is available: the platform never picks one. */
+  | { found: "ambiguous" }
+  | { found: "none" };
+/**
+ * The reader of `kind`'s objects (`isSubjectReader`, with `kind` in its `subject_kinds`). The one lookup `resolveActionSubject` and the
+ * origins of references (`materials.origins@1`) both use, so who owns an object never comes out two ways.
+ */
+export function findSubjectReader(views: readonly ActionView[], kind: string): SubjectReaderLookup {
+  const matches = views.filter(view => isSubjectReader(view.action) && view.action.subject_kinds.includes(kind));
+  const available = matches.filter(view => view.availability.available);
+  if (available.length > 1) return { found: "ambiguous" };
+  if (available[0]) return { found: "one", view: available[0] };
+  return matches[0] ? { found: "unavailable", view: matches[0] } : { found: "none" };
+}
 /** Protocol discovery confers no authority; invocation keeps the original caller and exact provider. */
 export async function resolveActionSubject(client: ActionClient, caller: ActionCallContext, subject: ActionSubject): Promise<{ context: ActionSubjectContext; reader: ActionReference }> {
-  const matches = (await client.discover(caller)).filter(view => view.action.input_type === SUBJECT_REFERENCE_TYPE
-    && view.action.output_type === SUBJECT_CONTEXT_TYPE && view.action.subject_kinds.includes(subject.kind));
-  const available = matches.filter(view => view.availability.available);
-  if (available.length > 1) throw new ActionError("actions.subject_ambiguous", "有多个能力提供此对象上下文，不能任意选择提供方");
-  const selected = available[0];
-  if (!selected) {
-    const state = matches[0]?.availability;
+  const lookup = findSubjectReader(await client.discover(caller), subject.kind);
+  if (lookup.found === "ambiguous") throw new ActionError("actions.subject_ambiguous", "有多个能力提供此对象上下文，不能任意选择提供方");
+  if (lookup.found !== "one") {
+    const state = lookup.found === "unavailable" ? lookup.view.availability : undefined;
     throw new ActionError(state && !state.available ? state.code : "actions.subject_unavailable", state && !state.available ? state.reason : "此对象尚未提供可读取的上下文");
   }
+  const selected = lookup.view;
   const reader = { capability_id: selected.capability_id, version: selected.version, provider_id: selected.provider.provider_id };
   const context = await client.invoke(caller, reader, { subject_id: subject.id }) as ActionSubjectContext;
   if (context.subject.id !== subject.id || context.subject.kind !== subject.kind) throw new ActionError("actions.subject_mismatch", "对象上下文与当前选择不一致");

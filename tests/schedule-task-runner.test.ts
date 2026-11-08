@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { mkdirSync, rmSync } from "node:fs";
+import { join } from "node:path";
 import { createServer } from "node:http";
 import test, { type TestContext } from "node:test";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
@@ -15,9 +17,14 @@ import { createLocalFeedApplication } from "./fixtures/feed-library.js";
 
 async function scheduledAgent(t: TestContext, options: { hold?: boolean; workspace?: boolean; model?: boolean } = {}) {
   const f = await openTestHome(t), project = await f.createProject("Scheduled Agent");
-  if (options.workspace !== false) await f.host.configurePersonalPlanning(f.home, withMolisWorkProjectCatalog)({ homeDirectory: f.home }, catalog => catalog.commit(() => catalog.addWorkspaceProject({
-    project_id: project.project_id, canonical_path: f.home, actor_id: "web-user", user_confirmed: true,
-  })));
+  // Every project has an output folder; the one a task cannot use is an output that is gone from disk.
+  const gone = join(f.home, "removed-output");
+  if (options.workspace === false) mkdirSync(gone);
+  await f.host.configurePersonalPlanning(f.home, withMolisWorkProjectCatalog)({ homeDirectory: f.home }, catalog => catalog.commit(() => options.workspace === false
+    ? catalog.changeDirectories({ project_id: project.project_id, actor_id: "web-user", change: { kind: "set_output", target: { workspace_path: gone } },
+      expected_revision: catalog.projectDirectories(project.project_id).revision })
+    : catalog.addWorkspaceProject({ project_id: project.project_id, canonical_path: f.home, actor_id: "web-user", user_confirmed: true })));
+  if (options.workspace === false) rmSync(gone, { recursive: true });
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), disconnected = Promise.withResolvers<void>(), prompts: string[] = [];
   const model = createServer(async (request, response) => {
     let body = ""; for await (const part of request) body += part;
@@ -72,7 +79,7 @@ for (const missing of ["workspace", "model"] as const) test(`Schedule persists a
   const f = await scheduledAgent(t, { [missing]: false });
   assert.equal((await f.tick()).failed, 1);
   assert.equal(f.prompts.length, 0); assert.equal(f.task().turns.at(-1)?.kind, "system");
-  assert.match(f.task().last_error ?? "", missing === "workspace" ? /工作区/ : /模型|model/i);
+  assert.match(f.task().last_error ?? "", missing === "workspace" ? /工作区|文件夹|folder/i : /模型|model/i);
 });
 
 test("SYS-15-S7/A3: disabling Schedule during the actual model request cancels it and writes no late task result or notification", { timeout: 60_000 }, async t => {

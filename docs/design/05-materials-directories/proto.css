@@ -1,0 +1,276 @@
+/* Batch 05 directory samples, on the board (dist/board.css, the kit's recipe from this build) and the settings page's sheet
+   (dist/settings.css, group A only). Tokens only; no new colour, radius, shadow or duration.
+   [原型]       the prototype's strips, its markers, and what stands in for the rest of the workbench: not product UI.
+   [编排]       arranging existing parts for these views.
+   Nothing here is a new board part: where a view needs one, the page says 「组件板新增」 beside it (README). */
+
+/* [原型] control strip, above the product frame */
+.proto { position: fixed; inset: 0 0 auto 0; z-index: 80; height: 40px; display: flex; align-items: center; gap: 12px; padding: 0 12px; overflow-x: auto;
+  background: repeating-linear-gradient(-45deg, var(--surface-soft), var(--surface-soft) 8px, var(--rail) 8px, var(--rail) 16px); border-bottom: 1px dashed var(--line-strong); color: var(--ink-soft); font-size: 12px; }
+.proto b, .proto > span { white-space: nowrap; color: var(--ink); }
+.proto label { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.proto .mw-select { height: 28px; min-height: 28px; font-size: 12px; }
+.proto .mw-toggle-group { padding: 2px; border-radius: 8px; background: var(--control-fill); box-shadow: inset 0 0 0 1px var(--control-border); }
+.proto .mw-toggle { min-height: 24px; height: 24px; padding: 0 8px; font-size: 12px; white-space: nowrap; }
+.proto .mw-toggle[aria-pressed="true"] { background: color-mix(in srgb, var(--ink) 12%, var(--paper)); color: var(--ink); box-shadow: 0 0 0 1px var(--control-border); }
+.proto .mw-toggle[data-recommended]::after { content: "★"; margin-left: 4px; color: var(--muted); font-size: 10px; }
+.proto #reset { flex: none; box-shadow: inset 0 0 0 1px var(--control-border); }
+.proto-toast { position: fixed; inset-inline: 0; margin-inline: auto; bottom: 88px; z-index: 90; width: max-content; max-width: calc(100vw - 32px); }
+
+/* [原型] one line under the strip: what this state shows and what is simulated */
+.proto-note { position: fixed; inset: 40px 0 auto 0; z-index: 79; height: 28px; margin: 0; padding: 0 12px; line-height: 28px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  background: repeating-linear-gradient(-45deg, var(--surface-soft), var(--surface-soft) 8px, var(--rail) 8px, var(--rail) 16px); border-bottom: 1px dashed var(--line-strong); color: var(--ink-soft); font-size: 12px; }
+.proto-note:hover { height: auto; white-space: normal; line-height: 1.5; padding-block: 5px; }
+
+/* [原型] a small striped tag where the page simulates something, and the marker for a part the board does not have */
+.proto-sim { display: inline-flex; align-items: center; flex: none; height: 18px; padding: 0 6px; border-radius: var(--r-tag); border: 1px dashed var(--line-strong);
+  background: repeating-linear-gradient(-45deg, var(--surface-soft), var(--surface-soft) 4px, var(--rail) 4px, var(--rail) 8px); color: var(--muted); font-size: 11px; line-height: 1; vertical-align: middle; white-space: nowrap; }
+.proto-added { position: relative; display: inline-flex; align-items: center; height: 18px; padding: 0 6px; border-radius: var(--r-tag); border: 1px dashed var(--accent); color: var(--accent); font-size: 11px; white-space: nowrap; cursor: help; }
+.proto-added__why { position: absolute; z-index: 5; top: calc(100% + 4px); left: 0; width: 240px; padding: 8px 10px; border-radius: var(--r-control); background: var(--popover); box-shadow: var(--lift-2); color: var(--ink-soft); font-size: 12px; line-height: 1.5; white-space: normal; opacity: 0; pointer-events: none; transition: opacity var(--dur-hover) var(--ease-quint); }
+.proto-added:is(:hover, :focus-visible) .proto-added__why { opacity: 1; }
+.proto-copy-change { display: block; margin-top: 4px; }
+/* [原型] a modal opened without the top layer, so the strip above it stays usable; the product opens these modal */
+.proto-scrim { position: fixed; inset: 68px 0 0 0; z-index: 60; background: var(--scrim); animation: proto-fade var(--dur-move) var(--ease-quint); }
+@keyframes proto-fade { from { opacity: 0; } }
+
+/* ========== Group A · the settings page and its delete dialog ========== */
+/* [原型] the settings sheet lays out body > header + shell; the prototype's #app takes that grid under the strips */
+body.proto-on.settings-page { display: block; height: 100dvh; margin: 0; padding-top: 68px; box-sizing: border-box; overflow: hidden; }
+body.proto-on.settings-page #app { display: grid; grid-template-rows: auto minmax(0, 1fr); height: 100%; min-height: 0; }
+body.proto-on .project-delete-dialog[open] { position: fixed; inset: 68px 0 0 0; z-index: 61; max-height: calc(100dvh - 68px - 28px); }
+body.proto-on .project-delete-dialog[open] .runtime-plan-shell { max-height: calc(100dvh - 68px - 28px); }
+@media (max-width: 760px) { body.proto-on .project-delete-dialog[open] { inset: 68px 0 0 0; } }
+
+/* [编排] the question inside the dialog: the existing confirm box, twice, as a radio pair; no choice is made for you */
+.a-ask { margin: 16px 0 0; padding: 0; border: 0; min-width: 0; }
+.a-ask > legend { padding: 0; color: var(--ink); font-size: 13px; font-weight: var(--weight-control, 500); }
+.a-ask > .mw-field__hint { margin: 4px 0 0; }
+.a-ask .runtime-plan-confirm { margin-top: 8px; border-radius: var(--r-control); transition: background-color var(--dur-hover) var(--ease-quint), border-color var(--dur-hover) var(--ease-quint); }
+.a-ask .runtime-plan-confirm:hover { background: var(--nav-hover); }
+.a-ask .runtime-plan-confirm:has(input:checked) { border-color: var(--line-strong); background: var(--nav-active); }
+.a-ask .runtime-plan-confirm:has(input:focus-visible) { outline: var(--focus-stroke); outline-offset: 1px; }
+.a-ask .runtime-plan-confirm > span { display: grid; gap: 2px; min-width: 0; }
+.a-ask .runtime-plan-confirm strong { font-size: 13px; font-weight: var(--weight-control, 500); color: var(--ink); }
+.a-ask .runtime-plan-confirm small { color: var(--muted); font-size: 12px; line-height: 1.5; }
+.a-ask .runtime-plan-confirm.is-danger:has(input:checked) strong { color: var(--red); }
+.a-ask .runtime-plan-confirm:has(input:disabled) { cursor: default; }
+.a-ask .runtime-plan-confirm:has(input:disabled:not(:checked)) { opacity: .55; }
+/* [编排] A3: the option cards are the confirmation; the board's interaction cards, one column inside a 560 dialog */
+.a-cards { margin-top: 16px; }
+.a-cards > .a-ask { margin: 0 0 8px; }
+.a-cards > .a-ask strong { font-size: 13px; font-weight: var(--weight-control, 500); }
+.a-cards .mw-ix-options { grid-template-columns: 1fr; }
+.a-cards__say { margin: 12px 0 0; color: var(--ink-soft); font-size: 13px; }
+/* [编排] A2: two ways to finish, the outline one is the keep */
+.project-delete-dialog footer .a-keep { border-color: var(--red); color: var(--red); background: transparent; }
+.project-delete-dialog footer .a-keep:hover:not(:disabled) { background: var(--red-soft); }
+.project-delete-dialog footer { flex-wrap: wrap; }
+.a-facts { margin: 16px 0 0; padding: 12px; border-radius: var(--r-control); background: var(--surface-soft); display: grid; gap: 4px; }
+.a-facts strong { font-size: 13px; font-weight: var(--weight-control, 500); }
+.a-facts span { color: var(--ink-soft); font-size: 12px; line-height: 1.5; }
+.a-facts span + span { color: var(--ink); }
+/* [编排] where the folder stays: its path in a container, one copy button */
+.a-done { display: grid; gap: 12px; }
+.a-done__head { display: flex; align-items: center; gap: 8px; }
+.a-done__head .mw-state-ring { animation: a-land var(--dur-move) var(--ease-spring); }
+@keyframes a-land { from { transform: scale(.6); } to { transform: none; } }
+.a-kept { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: var(--r-card); background: var(--surface-soft); min-width: 0; }
+.a-kept__title { display: flex; align-items: center; gap: 8px; color: var(--ink); font-size: 13px; font-weight: var(--weight-control, 500); }
+.a-kept__title svg { width: 16px; height: 16px; color: var(--ink-soft); flex: none; }
+.a-kept__path { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px; min-width: 0; }
+.a-kept__path code { flex: 1 1 240px; min-width: 0; padding: 6px 8px; border-radius: var(--r-tag); background: var(--paper); box-shadow: inset 0 0 0 1px var(--line); font: 12px/1.5 var(--mono); color: var(--ink); overflow-wrap: anywhere; user-select: all; }
+.a-done p { margin: 0; color: var(--ink-soft); font-size: 13px; line-height: 1.6; }
+.a-busy { margin-top: 12px; }
+.project-delete-dialog .runtime-plan-body > p:first-child .proto-added { margin-left: 4px; }
+
+/* ========== Group B · a project's workbench: the main sheet, the materials sheet beside it, the bar ========== */
+/* [原型] what stands in for the workbench: a desk, two sheets, a plain composer (the real bar and tab strip play no part here) */
+body.proto-on.b-page { height: 100dvh; margin: 0; padding-top: 68px; box-sizing: border-box; overflow: hidden; background: var(--desk); color: var(--ink); font-family: var(--font); }
+body.proto-on.b-page #app { height: 100%; }
+/* [原型] the workbench page sheet's base for icons (its first rule), which this frame does not load */
+:where(body.b-page) svg { width: 1em; height: 1em; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.b-frame { display: grid; grid-template-rows: minmax(0, 1fr) auto; height: 100%; min-height: 0; }
+.b-switch { display: none; }
+.b-desk { display: grid; grid-template-columns: minmax(0, 1fr) minmax(340px, 420px); gap: 8px; padding: 8px 8px 0; min-height: 0; }
+.b-sheet { min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; border-radius: var(--r-sheet); background: var(--paper); box-shadow: var(--sheet-shadow); }
+.b-mhead { display: flex; align-items: center; gap: 8px; height: 48px; padding: 0 16px; border-bottom: 1px solid var(--line); flex: none; }
+.b-mbody { flex: 1; min-height: 0; overflow: auto; padding: 24px 24px 40px; }
+.b-bar { padding: 8px; }
+.b-composer { display: flex; align-items: center; gap: 8px; max-width: 760px; min-height: 48px; margin: 0 auto; padding: 6px 8px; border-radius: var(--r-card); background: var(--paper); box-shadow: var(--lift-1); }
+.b-plus, .b-send { display: grid; place-items: center; flex: none; width: 32px; height: 32px; border: 0; border-radius: var(--r-control); background: transparent; color: var(--ink-soft); cursor: pointer; transition: background-color var(--dur-hover) var(--ease-quint); }
+.b-plus:hover { background: var(--nav-hover); color: var(--ink); }
+.b-plus:active { background: var(--nav-press); transform: scale(.97); }
+.b-plus:focus-visible { outline: var(--focus-stroke); outline-offset: 1px; }
+.b-plus svg, .b-send svg { width: 16px; height: 16px; }
+.b-send { background: var(--control-fill); color: var(--faint); cursor: default; }
+.b-chips { display: flex; gap: 6px; min-width: 0; overflow: hidden; }
+.b-chip { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 4px 0 6px; border-radius: var(--r-control); background: var(--surface-soft); box-shadow: inset 0 0 0 1px var(--line); font-size: 12px; white-space: nowrap; animation: craft-rise var(--dur-move) var(--ease-quint); }
+.b-chip button { display: grid; place-items: center; width: 20px; height: 20px; border: 0; border-radius: var(--r-tag); background: none; color: var(--muted); cursor: pointer; }
+.b-chip button svg { width: 12px; height: 12px; }
+.b-ph { flex: 1; min-width: 0; color: var(--faint); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* [编排] the materials sheet, as 03 chose it: head, the inputs-and-output line, search, then sources (最近用过 on top) */
+.b-phead { display: flex; align-items: center; gap: 8px; height: 48px; padding: 0 12px 0 16px; flex: none; }
+.b-phead h2 { margin: 0; font-size: 15px; font-weight: var(--weight-title, 600); }
+.b-grow { flex: 1; }
+.b-io { display: flex; align-items: center; gap: 6px; margin: 0 12px; padding: 4px 4px 4px 8px; min-height: 36px; border-radius: var(--r-control); background: var(--surface-soft); color: var(--ink-soft); font-size: 12px; flex: none; flex-wrap: wrap; }
+.b-io > svg { width: 14px; height: 14px; color: var(--muted); }
+.b-search { margin: 8px 12px 4px; flex: none; }
+.b-search > svg { width: 14px; height: 14px; }
+.b-scroll { flex: 1; min-height: 0; overflow: auto; padding: 4px 8px 24px; }
+.b-scroll .mw-dir__heading { margin-top: 12px; }
+.b-sec-note { margin: 0 8px 8px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.b-folder-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px; border-radius: var(--r-row); }
+.b-roles { display: inline-flex; gap: 4px; padding-right: 8px; }
+
+/* [编排] the references of one folder of the other device, kept together in one container: the board's file group inside a soft card */
+.b-group { --i: 0; margin: 6px 0; padding: 8px 10px 10px; border: 1px solid var(--line); border-radius: var(--r-card); background: var(--surface-soft); min-width: 0; }
+.b-group .mw-file-group__head { min-height: 32px; gap: 10px; }
+.b-group .mw-file-group__ic { background: var(--paper); }
+.b-group .mw-file-list { padding-left: 38px; }
+.b-group .mw-file-row { min-height: 30px; grid-template-columns: minmax(0, 1fr) auto; }
+.b-group .mw-file-row__name { color: var(--ink-soft); }
+.b-group .mw-file-group__note { padding-left: 38px; }
+.b-group__acts { display: flex; gap: 8px; flex-wrap: wrap; margin: 6px 0 0 38px; }
+.b-group + .b-group { margin-top: 8px; }
+.b-group .mw-status { flex: none; }
+.b-receipt .b-group, .b-inputs .b-group, .b-thread .b-group { background: var(--paper); }
+.b-receipt .b-group .mw-file-group__ic, .b-inputs .b-group .mw-file-group__ic { background: var(--surface-soft); }
+
+/* [编排] B2: a folder of the other device as one more source group of the panel */
+.b-block { margin: 6px 0; padding: 8px 8px 10px; border: 1px solid var(--line); border-radius: var(--r-card); background: var(--surface-soft); transition: box-shadow var(--dur-move) var(--ease-quint); }
+.b-block__head { display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 4px; }
+.b-block__head > svg { width: 16px; height: 16px; color: var(--ink-soft); flex: none; }
+.b-block__name { flex: 1; min-width: 0; font-size: 13px; }
+.b-block__name strong { font-weight: var(--weight-control, 500); }
+.b-block .b-group__acts { margin-left: 28px; }
+.b-block .mw-dir-row.b-off strong { color: var(--ink-soft); font-weight: var(--weight-body, 400); }
+.b-block.is-flash { box-shadow: 0 0 0 2px var(--accent-soft); }
+.b-more { margin: 2px 0 0 38px; color: var(--faint); font-size: 12px; }
+.b-more--nested { margin-left: 28px; }
+.b-waiting { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 36px; margin: 4px 0; padding: 0 8px; border: 0; border-radius: var(--r-row); background: var(--amber-soft); color: var(--ink); font: inherit; font-size: 12px; text-align: start; cursor: pointer; transition: background-color var(--dur-hover) var(--ease-quint); }
+.b-waiting > span { flex: 1; min-width: 0; }
+.b-waiting > svg { width: 14px; height: 14px; color: var(--muted); }
+.b-waiting:hover { background: color-mix(in srgb, var(--amber) 22%, var(--paper)); }
+.b-waiting:focus-visible { outline: var(--focus-stroke); outline-offset: 1px; }
+
+/* [编排] a folder of this Mac that stands in for one of the other device: one quiet line under its head (④) */
+.b-linked { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; align-items: center; gap: 8px; margin: 0 0 4px 24px; padding: 4px 4px 4px 8px; border-radius: var(--r-row); background: var(--surface-soft); }
+.b-linked > svg { width: 14px; height: 14px; color: var(--muted); }
+.b-linked__text { display: grid; min-width: 0; font-size: 12px; color: var(--ink-soft); }
+.b-linked__text small { color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* [编排] one reference opened beside: back, its name, where it is read from and its state, then the content */
+.b-vhead { display: flex; align-items: center; gap: 8px; min-height: 56px; padding: 6px 12px; border-bottom: 1px solid var(--line); flex: none; }
+.b-vhead > svg { width: 16px; height: 16px; color: var(--ink-soft); flex: none; }
+.b-vhead__t { display: grid; min-width: 0; }
+.b-vhead__t strong { font-size: 14px; font-weight: var(--weight-title, 600); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.b-vhead__t small { color: var(--muted); font-size: 12px; }
+.b-facts { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; }
+.b-origin { display: inline-flex; align-items: center; gap: 4px; }
+.b-origin svg { width: 12px; height: 12px; }
+.b-origin .mw-btn { width: 24px; height: 24px; min-height: 24px; }
+.b-vacts { display: flex; align-items: center; gap: 8px; padding: 8px 12px 4px; flex: none; }
+.b-vhead + .b-vbody { padding-top: 12px; }
+.b-vbody { flex: 1; min-height: 0; overflow: auto; padding: 4px 12px 24px; display: grid; gap: 12px; align-content: start; }
+.b-vbody > .proto-sim { justify-self: start; }
+.b-code { margin: 0; padding: 12px; border-radius: var(--r-control); background: var(--surface-soft); font: 12px/1.6 var(--mono); color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
+.b-quiet { display: flex; align-items: flex-start; gap: 6px; margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.b-quiet svg { width: 14px; height: 14px; flex: none; margin-top: 1px; }
+.b-quiet--done svg { color: var(--green); }
+
+/* [编排] the conversation and the Goal: sample turns, the materials they used, and what the Agent could not read */
+.b-thread, .b-goal { display: grid; gap: 16px; max-width: 720px; margin: 0 auto; }
+.b-thread > .proto-sim, .b-goal > .proto-sim { justify-self: start; }
+.b-when { margin: 8px 0 0; color: var(--faint); font-size: 12px; text-align: center; }
+.b-turn { display: grid; gap: 8px; min-width: 0; }
+.b-turn p { margin: 0; font-size: 14px; line-height: 1.65; }
+.b-turn--you { justify-self: end; max-width: 80%; padding: 10px 14px; border-radius: var(--r-card); background: var(--surface-soft); }
+.b-who { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
+.b-who svg { width: 14px; height: 14px; }
+.b-filelist { padding: 4px 8px; margin: 0; border: 1px solid var(--line); border-radius: var(--r-card); }
+.b-fr { grid-template-columns: minmax(0, 1fr) auto auto; margin-left: 0; }
+.b-fr__open { border: 0; padding: 0; background: none; font: inherit; text-align: start; cursor: pointer; color: inherit; }
+.b-fr__open:focus-visible { outline: var(--focus-stroke); outline-offset: 2px; border-radius: var(--r-tag); }
+.b-receipt { display: grid; gap: 8px; min-width: 0; }
+.b-step { display: flex; align-items: center; gap: 8px; color: var(--ink-soft); font-size: 13px; }
+.b-goal__head { display: flex; align-items: center; gap: 10px; }
+.b-goal__head h2 { flex: 1; margin: 0; font-size: 20px; font-weight: var(--weight-title, 600); letter-spacing: -.01em; }
+.b-inputs { display: grid; gap: 8px; }
+
+/* [编排] the popovers: choosing a folder, 输入与输出, an origin's menu, the picker. Placed by their control, grown from it */
+.b-pop { position: fixed; z-index: 70; box-sizing: border-box; width: min(360px, calc(100vw - 16px)); max-height: calc(100dvh - 92px); overflow: auto; padding: 8px; border-radius: var(--r-card); background: var(--popover); box-shadow: var(--lift-2); animation: b-pop-in var(--dur-move) var(--ease-quint); }
+.b-pop--origin, .b-pop--dsel { width: min(300px, calc(100vw - 16px)); padding: 4px; }
+.b-pop--io { width: min(440px, calc(100vw - 16px)); }
+.b-pop--picker { width: min(400px, calc(100vw - 16px)); }
+@keyframes b-pop-in { from { opacity: 0; transform: translateY(-4px) scale(.98); } }
+.b-pop__head { display: grid; gap: 2px; padding: 6px 8px 8px; }
+.b-pop__head strong { font-size: 14px; font-weight: var(--weight-title, 600); }
+.b-pop__head small { color: var(--muted); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.b-pop .mw-menu { padding: 0; box-shadow: none; background: transparent; min-width: 0; }
+.b-pop__say { margin: 8px 8px 0; color: var(--ink-soft); font-size: 12px; line-height: 1.55; }
+.b-pop__foot { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 4px 4px; }
+.b-search--pop { margin: 0 4px 4px; }
+.b-picklist { padding: 0 4px; }
+.b-io__pop { display: grid; gap: 12px; padding: 4px; }
+.b-io__title { font-size: 14px; font-weight: var(--weight-title, 600); padding: 4px 4px 0; }
+.b-io__grp { display: grid; gap: 4px; }
+.b-io__grp-h { padding: 0 4px; color: var(--muted); font-size: 11px; }
+.b-io__row { padding: 6px; border-radius: var(--r-row); background: var(--surface-soft); display: grid; gap: 4px; }
+.b-io__it { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.b-io__it > svg { width: 16px; height: 16px; color: var(--ink-soft); flex: none; }
+.b-io__nm { flex: 1; min-width: 0; display: grid; }
+.b-io__nm strong { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: var(--weight-control, 500); }
+.b-io__nm small { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.b-io__link { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto auto; align-items: center; gap: 6px; margin-left: 24px; padding: 4px 4px 4px 8px; border-radius: var(--r-row); background: var(--paper); font-size: 12px; color: var(--ink-soft); }
+.b-io__link > svg { width: 14px; height: 14px; color: var(--muted); }
+.b-io__link > span { display: grid; min-width: 0; }
+.b-io__link small { color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.b-io__foot { margin: 0; padding: 0 4px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+
+/* [编排] B3: one dialog, a card per folder, each with its own choice */
+.b-dialog[open] { position: fixed; inset: 68px 0 0 0; z-index: 61; width: min(600px, calc(100vw - 24px)); max-height: calc(100dvh - 68px - 32px); margin: auto; padding: 0; border: 0; background: var(--paper); color: var(--ink); }
+.b-dialog .mw-form__body { display: grid; gap: 8px; }
+.b-dcard { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 10px; border: 1px solid var(--line); border-radius: var(--r-card); background: var(--surface-soft); }
+.b-dcard.is-focus { border-color: var(--line-strong); }
+.b-dcard__ic { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; background: var(--paper); color: var(--ink-soft); }
+.b-dcard__ic svg { width: 16px; height: 16px; }
+.b-dcard__t { display: grid; min-width: 0; }
+.b-dcard__t strong { font-size: 13px; font-weight: var(--weight-control, 500); }
+.b-dcard__t small { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.b-dcard__res { color: var(--ink-soft) !important; }
+.b-dsel { min-width: 150px; max-width: 200px; justify-content: space-between; gap: 6px; }
+.b-dsel > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.b-dsel:not(.is-set) { color: var(--muted); }
+.b-dcard:has(> .mw-state-ring) { grid-template-columns: 20px minmax(0, 1fr); }
+
+/* [编排] a landed reference washes once (the board's [data-craft-new]); nothing else moves */
+.b-scroll [data-craft-new], .b-thread [data-craft-new] { position: relative; }
+
+/* [编排] 1024: the materials sheet narrows; 390 and other phones: one sheet at a time, chosen at the top */
+@media (max-width: 1100px) { .b-desk { grid-template-columns: minmax(0, 1fr) 340px; } .b-mbody { padding: 20px 16px 32px; } }
+@media (max-width: 760px) {
+  .b-frame { grid-template-rows: auto minmax(0, 1fr) auto; }
+  .b-switch { display: flex; margin: 8px 8px 0; }
+  .b-switch .mw-toggle { flex: 1; min-height: 44px; }
+  .b-desk { grid-template-columns: minmax(0, 1fr); padding: 8px 0 0; }
+  .b-sheet { border-radius: var(--r-sheet) var(--r-sheet) 0 0; }
+  .b-frame[data-pane="main"] .b-side, .b-frame[data-pane="side"] .b-main { display: none; }
+  .b-mbody { padding: 16px 16px 32px; }
+  .b-turn--you { max-width: 92%; }
+  .b-group__acts { margin-left: 0; }
+  .b-group__acts .mw-btn, .b-pop__foot .mw-btn, .b-waiting { min-height: 44px; }
+  .b-pop { left: 8px !important; right: 8px; width: auto; }
+  .b-dcard { grid-template-columns: 28px minmax(0, 1fr); }
+  .b-dsel { grid-column: 1 / -1; max-width: none; min-height: 44px; }
+  .b-composer { min-height: 52px; }
+  .b-plus { width: 44px; height: 44px; }
+  .b-linked .mw-btn, .b-io__link .mw-btn { min-height: 44px; min-width: 44px; }
+  .b-io__link { grid-template-columns: 14px minmax(0, 1fr); }
+  .b-io__link .mw-btn { grid-column: 2; justify-self: start; }
+}
+@media (pointer: coarse) { .b-group__acts .mw-btn, .b-pop__foot .mw-btn, .b-waiting, .b-plus { min-height: 44px; } }
+@media (prefers-reduced-motion: reduce) {
+  .proto-scrim, .b-pop, .b-chip, .a-done__head .mw-state-ring { animation: none; }
+  .b-block, .a-ask .runtime-plan-confirm, .b-waiting { transition: none; }
+}

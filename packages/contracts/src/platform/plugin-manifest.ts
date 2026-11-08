@@ -265,4 +265,9 @@ export interface PluginManifest {
   read_groups?: readonly import("./plugin-read-groups.js").PluginReadGroupDeclaration[];
   /** What this plugin's background tasks are, by its own object kind (`plugin-task-subjects.ts`). */
   task_subjects?: import("./plugin-task-subjects.js").PluginTaskSubjectsDeclaration;
+  /**
+   * How its objects are shown in the four basic forms and how the plugin is summed up (`platform/presentation`, specs/shared-sources-and-surfaces §5).
+   * `parsePluginManifest` checks it with the SDK's `validatePresentationDeclaration`.
+   */
+  presentation?: import("./presentation.js").PresentationDeclaration;
 }

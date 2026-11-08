@@ -126,6 +126,8 @@ export function createLocalWebCoreFactory(platform: LocalWebPlatform) {
       projectRoutePrefix: projectId => fixture && projectId === fixture.projectId ? "" : `/projects/${encodeURIComponent(projectId)}`,
       workspacesFor: (projectId) => withCatalog({ homeDirectory: storageHome }, catalog => catalog.listWorkspaceDirectory(projectId)),
       workspaceFor: projectId => webWorkspaceFor(projectId, serverOptions, fixture, storageHome, withCatalog),
+      directoriesFor: projectId => withCatalog({ homeDirectory: storageHome }, catalog => catalog.projectDirectories(projectId)),
+      prepareDirectory: (projectId, workspaceId, mode) => withCatalog({ homeDirectory: storageHome }, catalog => catalog.prepareWorkspaceDirectory(projectId, workspaceId, mode)),
     });
     const ownsLocalHost = !serverOptions.localHost;
     const completed = new Set<string>(), resources: Array<readonly [string, () => unknown]> = [];

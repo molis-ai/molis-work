@@ -8,7 +8,7 @@ import { bodyOf, savedActions, methodSelection } from "./route-selections.js";
 import { codingActions, codingActionControl } from "./route-entry.js";
 import { text } from "./run-inputs.js";
 import { libraryRuntime, limitsCharacters, runtimeDirectory } from "./runtime-choice.js";
-import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import { projectFolders } from "./project-folders.js";
 import type { PluginRouteBinding } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities as agent, type AgentRunView, type AgentMcpServerInput } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { isDeepStrictEqual } from "node:util";
@@ -47,7 +47,7 @@ const ROUTES: RouteMaker[] = [
       const input = { id: body.id, expected_version: body.expected_version, label: body.label, enabled: body.enabled, timeout_ms: body.timeout_ms,
         transport: body.transport, executable: body.executable, argv: body.argv, endpoint: body.endpoint, auth: body.auth } as AgentMcpServerInput;
       if (input.transport === "stdio") {
-        const workspaces = await api!.invoke(projectSettingsCapabilities.workspaces, []);
+        const workspaces = await projectFolders(api!);
         const workspace = workspaces.find(item=>item.workspace_id === body.workspace_id);
         if (!workspace?.realpath_verified) throw codingFailure("coding.server.mcp-workspace");
         input.directory = { canonical_path: workspace.canonical_path, realpath_verified: true };
@@ -70,7 +70,7 @@ const ROUTES: RouteMaker[] = [
     return route("coding.discover-methods", async (request, api, _execution, beforeWrite) => {
       const body = bodyOf(request);
       const runtime = libraryRuntime(await runtimeDirectory(codingActions(context, beforeWrite), api!), "skills");
-      const workspaces = await api!.invoke(projectSettingsCapabilities.workspaces, []);
+      const workspaces = await projectFolders(api!);
       const workspace = workspaces.find(item => item.workspace_id === body.workspace_id);
       if (!workspace?.realpath_verified) throw codingFailure("coding.server.pick-workspace");
       return { candidates: await codingActions(context, beforeWrite).invoke(agent.discoverSkills, [runtime.runtime_id,
@@ -179,7 +179,7 @@ const ROUTES: RouteMaker[] = [
     return route("coding.files", async (request, api, execution) => {
       selected(a, request, execution);
       const workspaceId = text(request.query?.workspace_id, "coding.field.workspace", 200);
-      const workspaces = await api!.invoke(projectSettingsCapabilities.workspaces, []);
+      const workspaces = await projectFolders(api!);
       if (!workspaces.some(entry => entry.workspace_id === workspaceId && entry.realpath_verified)) throw codingFailure("coding.server.authorize-workspace");
       const held = fileIndexes.get(workspaceId);
       if (held && Date.now() - held.at < 30_000) return await held.value;
@@ -194,7 +194,7 @@ const ROUTES: RouteMaker[] = [
     return route("coding.symbols", async (request, api, execution) => {
       selected(a, request, execution);
       const workspaceId = text(request.query?.workspace_id, "coding.field.workspace", 200), path = text(request.query?.path, "coding.field.file", 1000);
-      const workspaces = await api!.invoke(projectSettingsCapabilities.workspaces, []);
+      const workspaces = await projectFolders(api!);
       if (!workspaces.some(entry => entry.workspace_id === workspaceId && entry.realpath_verified)) throw codingFailure("coding.server.authorize-workspace");
       if (path.split("/").includes("..")) throw codingFailure("coding.server.file-path");
       const file = await workspaceFileReader(context)({ workspace_id: workspaceId, path: path.split("/").filter(Boolean), kind: "text" });

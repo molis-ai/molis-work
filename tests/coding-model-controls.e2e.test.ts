@@ -67,10 +67,12 @@ test("PA-24: the composer sends a chosen reasoning effort and switches a running
   await b.click('.navigator-project-settings');
   await b.waitFor("!!document.querySelector('[data-directory-panel=project-settings] [data-settings-section=workspaces]')");
   await b.click('[data-directory-panel=project-settings] [data-settings-section=workspaces]');
-  await b.waitFor("!!document.querySelector('[data-project-workspaces-add]') && !document.querySelector('[data-project-workspaces-refresh]').disabled");
-  await fill('[data-project-workspaces-add] [name=path]', workspace, b);
-  await b.click('[data-project-workspaces-add] [type=submit]');
-  await b.waitFor("document.querySelector('[data-project-workspaces-list]').textContent.includes('coding-model-fixture')");
+  await b.waitFor("!!document.querySelector('[data-directories-add]') && document.querySelector('[data-project-directories]')?.dataset.state==='ready'");
+  await fill('[data-directories-add] [name=path]', workspace, b);
+  await b.click('[data-directories-add] [type=submit]');
+  await b.waitFor("document.querySelector('[data-directories-inputs]').textContent.includes('coding-model-fixture')");
+  await b.click("[data-directories-inputs] [data-directory-row]:has([title$='/coding-model-fixture']) [data-act=set-output]");
+  await b.waitFor("document.querySelector('[data-directories-output] [data-directory-row] [data-text=path]')?.title.endsWith('/coding-model-fixture')");
   const coding = "[data-coding-workbench]";
   await b.click(`[data-plugin-strip] [data-plugin-id="coding"]`);
   await b.waitFor(`document.querySelector('[data-work-surface="coding"]')?.getBoundingClientRect().width > 100`);

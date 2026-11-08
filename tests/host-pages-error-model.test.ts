@@ -176,7 +176,7 @@ test("W3-02-G2 MCP context_resolve preserves a future catalog's schema and recov
   catalog.close();
   const databasePath = join(home, "projects", "catalog.db");
   const future = openTestSqlite(databasePath);
-  const supported = Number(future.prepare("SELECT value FROM catalog_meta WHERE key = 'schema_version'").pluck().get());
+  const supported = Number(future.prepare<unknown[], { value: unknown }>("SELECT value FROM catalog_meta WHERE key = 'schema_version'").get()?.value);
   future.prepare("UPDATE catalog_meta SET value = ? WHERE key = 'schema_version'").run(String(supported + 1));
   future.close();
   const host = new hostModule.MolisWorkLocalHost({ homeDirectory: home, completeText: null });
@@ -193,8 +193,8 @@ test("W3-02-G2 MCP context_resolve preserves a future catalog's schema and recov
       recovery: "upgrade_then_context_resolve" } });
   const preserved = openTestSqlite(databasePath, { readonly: true });
   try {
-    assert.equal(preserved.prepare("SELECT value FROM catalog_meta WHERE key = 'schema_version'").pluck().get(), String(supported + 1));
-    assert.equal(preserved.prepare("SELECT display_name FROM projects WHERE project_id = ?").pluck().get(project.project_id), "保留目录项目");
+    assert.equal(preserved.prepare<unknown[], { value: unknown }>("SELECT value FROM catalog_meta WHERE key = 'schema_version'").get()?.value, String(supported + 1));
+    assert.equal(preserved.prepare<unknown[], { display_name: unknown }>("SELECT display_name FROM projects WHERE project_id = ?").get(project.project_id)?.display_name, "保留目录项目");
   } finally { preserved.close(); }
 });
 

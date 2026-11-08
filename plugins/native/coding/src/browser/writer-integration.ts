@@ -32,6 +32,8 @@ export interface WriterIntegration {
   refreshReviews(): Promise<void>;
   /** Opens the dialog on what the subagent's directory changed. */
   open(id: string, run: string, child: { readonly subagent_id: string }): Promise<void>;
+  /** What the session's rounds changed in one of the Host's worktrees, from its latest round there. */
+  openWorktree(id: string, worktreeId: string): Promise<void>;
 }
 
 /** What the dialog holds while it is open. */
@@ -288,13 +290,13 @@ async function prepare(state: Integration) {
   }
 }
 
-async function open(state: Integration, id: string, run: string, child: { readonly subagent_id: string }) {
+async function open(state: Integration, endpoint: string) {
   const { ports, list, message } = state, { translate: L, q } = ports;
   if (state.busy || state.reading) {
     ports.status(L("coding.integration.busy"), true);
     return;
   }
-  state.endpoint = "/sessions/" + encodeURIComponent(id) + "/runs/" + encodeURIComponent(run) + "/subagents/" + encodeURIComponent(child.subagent_id) + "/integration";
+  state.endpoint = endpoint;
   state.resolutions = new Map();
   state.draft = "coding-integration:" + location.pathname + ":" + state.endpoint;
   state.selection = new Map();
@@ -326,5 +328,7 @@ export function writerIntegration(ports: WriterIntegrationPorts): WriterIntegrat
   lifetime.listen(state.dialog, "close", () => { state.ticket++; });
   lifetime.listen(q("[data-coding-integration-refresh]"), "click", () => void refresh(state));
   lifetime.listen(state.prepare, "click", () => void prepare(state));
-  return { refreshReviews: () => refreshReviews(state), open: (id, run, child) => open(state, id, run, child) };
+  return { refreshReviews: () => refreshReviews(state),
+    open: (id, run, child) => open(state, "/sessions/" + encodeURIComponent(id) + "/runs/" + encodeURIComponent(run) + "/subagents/" + encodeURIComponent(child.subagent_id) + "/integration"),
+    openWorktree: (id, worktreeId) => open(state, "/sessions/" + encodeURIComponent(id) + "/worktrees/" + encodeURIComponent(worktreeId) + "/integration") };
 }

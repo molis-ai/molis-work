@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import { projectDirectoryActions } from "@molis-ai/molis-work-contracts/modules/projects";
+import { projectDirectories } from "./fixtures/plugin-actions.js";
 import { CODING_PROJECT_DATABASE, CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { codingFixtureRoutes as codingRoutes } from "./fixtures/coding-surface.js";
 import { noEffect } from "./fixtures/coding-sessions.js";
@@ -16,9 +17,10 @@ test("one unreadable runtime history does not hide other sessions or lose its dr
   await sessions.setRuntimeSession(noEffect, "board", "broken", "sdk-broken", at);
   await sessions.setState(noEffect, "board", "broken", "done", at);
   const draft='不要丢掉未提交的要求';await sessions.inputs.write(noEffect,'board','broken',0,{draft});
-  // The Agent Host's actions answer an empty list here, but the broken session's history cannot be read.
+  // The Agent Host's actions answer an empty list here and the project has no folders, but the broken session's history cannot be read.
   const answer = { invoke: async (definition: { capability_id: string }) => {
     if (definition.capability_id === agent.readSession.capability_id) throw new Error("SESSION_HISTORY_UNAVAILABLE");
+    if (definition.capability_id === projectDirectoryActions.get.capability_id) return projectDirectories("board", []);
     return [];
   } };
   const context = { project_id: "board", plugin_id: "io.molis.work.coding", services: {
@@ -119,7 +121,7 @@ test("AC-07 an answer to a round parked at a restart opens the next round, or sa
       if(definition.capability_id===agent.readRun.capability_id)return {phase:'reconcile-required',awaiting_input:[{pending_id:'asked',pending_revision:1,parked:true}]};
       if(definition.capability_id===agent.controlRun.capability_id||definition.capability_id===agent.inspectRecovery.capability_id)return {runs:[],blockers:[]};
       // The first thing a round reads; a session still being recovered refuses it the way the Agent Host does.
-      if(definition.capability_id===projectSettingsCapabilities.workspaces.capability_id){if(busy-->0)throw Object.assign(new Error('这个会话正在恢复，请稍后再试'),{code:'agent.session_busy'});return [];}
+      if(definition.capability_id===projectDirectoryActions.get.capability_id){if(busy-->0)throw Object.assign(new Error('这个会话正在恢复，请稍后再试'),{code:'agent.session_busy'});return projectDirectories('board',[]);}
       throw new Error('unexpected capability '+definition.capability_id);
   }}});
   const route=codingRoutes(context,sessions).find(item=>item.route_id==='coding.control-run')!;
@@ -131,7 +133,7 @@ test("AC-07 an answer to a round parked at a restart opens the next round, or sa
     saved.set('last-start:app',JSON.stringify({intent:'discuss',provider_id:'p',model_id:'m',workspace_id:'w',actor_id:'web-user',origin_task:'约复盘会'}));
     busy=2;calls.length=0;
     const refused=await call();
-    assert.equal(calls.filter(id=>id===projectSettingsCapabilities.workspaces.capability_id).length,2,'busy: the round is tried once more, not in a loop');
+    assert.equal(calls.filter(id=>id===projectDirectoryActions.get.capability_id).length,2,'busy: the round is tried once more, not in a loop');
     assert.equal(calls.filter(id=>id===agent.inspectRecovery.capability_id).length,1,'after one look at the session');
     assert.equal(refused.next_round?.started,false);
     assert.equal(refused.next_round?.reason,'这个会话正在恢复，请稍后再试');
@@ -155,7 +157,7 @@ test("AC-07 the round after a parked answer is started by the one who answered, 
       if(definition.capability_id===agent.readSession.capability_id)return {runs:[{session_id:'sdk',run_id:'parked'}]};
       if(definition.capability_id===agent.readRun.capability_id)return view;
       if(definition.capability_id===agent.controlRun.capability_id)return;
-      if(definition.capability_id===projectSettingsCapabilities.workspaces.capability_id)return [{workspace_id:'w',canonical_path:'/tmp/parked-answer',realpath_verified:true}];
+      if(definition.capability_id===projectDirectoryActions.get.capability_id)return projectDirectories('board',[{workspace_id:'w',canonical_path:'/tmp/parked-answer'}]);
       if(definition.capability_id===agent.availableRoles.capability_id)return [{role_id:'reader',available:true}];
       if(definition.capability_id===agent.listActions.capability_id)return [];
       // The start itself: what it was asked as is all this needs, so it stops here.

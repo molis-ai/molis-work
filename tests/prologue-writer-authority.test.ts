@@ -105,17 +105,22 @@ for (const decision of ["approve", "reject", "stop", "bridge-failure", "escape",
     const owner = { project_id: "b", plugin_id: "io.molis.work.coding", install_id: "i", actor_id: "user" }, directory = { canonical_path: parent, realpath_verified: true };
     const session = await adapter.createSession({ ...owner, directory, title: "Parent" });
     const request = { ...owner, session, directory, role_id: "coordinator", task: "Delegate an isolated write.",
-      subagent_workspaces: [{ workspace_id: "writer-a", directory: { canonical_path: childPath, realpath_verified: true } }] };
-    await assert.rejects(host.start("prologue", request, { manifest, prompts: codingPrompts, authorizedDirectories: [parent] }), /子任务目录未授权/u);
+      subagent_workspaces: [{ worktree_id: "writer-a", directory: { canonical_path: childPath, realpath_verified: true } }] };
+    // A child works only in a worktree the Host made of the output (plan A): a directory that is not one, even a linked one, is refused.
+    await assert.rejects(host.start("prologue", request, { manifest, prompts: codingPrompts, authorizedDirectories: [parent] }), /不是宿主建的独立工作树/u);
+    await assert.rejects(host.start("prologue", request, { manifest, prompts: codingPrompts, authorizedDirectories: [parent, childPath], worktrees: async () => [] }), /不是宿主建的独立工作树/u);
+    await assert.rejects(host.start("prologue", request, { manifest, prompts: codingPrompts, authorizedDirectories: [parent],
+      worktrees: async () => [{ worktree_id: "writer-b", canonical_path: childPath }] }), /不是宿主建的独立工作树/u, "the worktree's own id, not just its path");
+    const worktrees = async () => [{ worktree_id: "writer-a", canonical_path: childPath }, { worktree_id: "parent", canonical_path: parent }, { worktree_id: "outer", canonical_path: root }];
     if (decision === "approve") {
-      const authority = { manifest, prompts: codingPrompts, authorizedDirectories: [parent, childPath, root] };
+      const authority = { manifest, prompts: codingPrompts, authorizedDirectories: [parent], worktrees };
       await assert.rejects(host.start("prologue", { ...request, subagent_workspaces: [] }, authority), /独立的已授权目录/u);
-      await assert.rejects(host.start("prologue", { ...request, subagent_workspaces: [{ workspace_id: "parent", directory }] }, authority), /指向主工作区/u);
+      await assert.rejects(host.start("prologue", { ...request, subagent_workspaces: [{ worktree_id: "parent", directory }] }, authority), /指向主工作区/u);
       await assert.rejects(host.start("prologue", { ...request, subagent_workspaces: [...request.subagent_workspaces, ...request.subagent_workspaces] }, authority), /重复/u);
-      await assert.rejects(host.start("prologue", { ...request, subagent_workspaces: [{ workspace_id: "outer", directory: { canonical_path: root, realpath_verified: true } }] }, authority), /互不包含/u);
+      await assert.rejects(host.start("prologue", { ...request, subagent_workspaces: [{ worktree_id: "outer", directory: { canonical_path: root, realpath_verified: true } }] }, authority), /互不包含/u);
     }
     assert.equal(calls, 0);
-    const handle = await host.start("prologue", request, { manifest, prompts: codingPrompts, authorizedDirectories: [parent, childPath] });
+    const handle = await host.start("prologue", request, { manifest, prompts: codingPrompts, authorizedDirectories: [parent], worktrees });
     let writeReview: string | undefined;
     const decided = new Set<string>(), deadline = Date.now() + 90_000;
     polling: for (;;) {
@@ -248,8 +253,9 @@ test("production writers role runs two isolated children concurrently with indep
     const owner = { project_id: "b", plugin_id: "io.molis.work.coding", install_id: "i", actor_id: "user" }, directory = { canonical_path: parent, realpath_verified: true };
     const session = await adapter.createSession({ ...owner, directory, title: "Two parallel changes" });
     const handle = await host.start("prologue", { ...owner, session, directory, role_id: "writers", task: "Implement the two specified assignments independently.",
-      subagent_workspaces: childPaths.map((canonical_path, index) => ({ workspace_id: `writer-${index}`, directory: { canonical_path, realpath_verified: true } })) },
-      { manifest: codingAgentManifest, prompts: codingPrompts, authorizedDirectories: [parent, ...childPaths] });
+      subagent_workspaces: childPaths.map((canonical_path, index) => ({ worktree_id: `writer-${index}`, directory: { canonical_path, realpath_verified: true } })) },
+      { manifest: codingAgentManifest, prompts: codingPrompts, authorizedDirectories: [parent],
+        worktrees: async () => childPaths.map((canonical_path, index) => ({ worktree_id: `writer-${index}`, canonical_path })) });
     const decided = new Set<string>(); let concurrent = false; const deadline = Date.now() + 20_000;
     for (;;) {
       const view = await adapter.read(handle.ref);

@@ -90,6 +90,20 @@ export function readInstalledMolisWorkVersion(homeDirectory?: string): string | 
   }
 }
 
+/**
+ * Whether `config/onboarding.json` may be replaced (upgrade-chain-design §2.6): one too new for this build, not yet upgraded or unreadable
+ * refuses, and the file is left as it is. Every write below asks it, and so does every way in that makes something before it writes: a
+ * first run's project, the personal space. They ask before they make anything, so a refusal leaves nothing behind to undo.
+ *
+ * Between that question and the write at the end of the run only this Host writes the file: a newer build, the only writer of a newer one,
+ * cannot open the Home while this Host holds it, and the person's own dismissal writes the current version. What passed is still writable
+ * then. A file damaged on disk in the meantime is still refused at the write, and that run then fails like any other failure there.
+ */
+export function assertOnboardingWritable(homeDirectory: string | undefined): void {
+  const home = molisWorkHome(homeDirectory);
+  assertVersionedFileWritable(ONBOARDING_FILE, path.join(home, ONBOARDING_STATE_RELATIVE_PATH), home);
+}
+
 export function writeMolisWorkOnboardingState(
   homeDirectory: string | undefined,
   state: MolisWorkOnboardingState,
@@ -99,7 +113,7 @@ export function writeMolisWorkOnboardingState(
   const statePath = path.join(home, ONBOARDING_STATE_RELATIVE_PATH);
   const tempPath = path.join(configDirectory, `.onboarding-${process.pid}-${randomUUID()}.tmp`);
   const normalized = normalizeState(state);
-  assertVersionedFileWritable(ONBOARDING_FILE, statePath, home);
+  assertOnboardingWritable(homeDirectory);
   mkdirSync(configDirectory, { recursive: true });
   writeFileSync(tempPath, `${JSON.stringify(normalized, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
   renameSync(tempPath, statePath);

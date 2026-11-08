@@ -393,19 +393,28 @@ it("lets the current Runtime list, unbind, and separately confirm project deleti
       assert.match(deniedDelete.result.content[0]?.text ?? "", /单独明确确认/);
       assert.equal(fs.existsSync(removable.database_path), true);
 
+      // SSC-23: MCP has no dialog to ask, so the files in the project's default output directory stay, even when the request asks to delete them.
+      const output = path.join(fs.realpathSync(home), "outputs", removable.project_id);
+      fs.mkdirSync(output, { recursive: true });
+      fs.writeFileSync(path.join(output, "notes.md"), "the person's file");
       const deleted = await call(runtime, "molis_work_v1_project_delete", {
         project_id: removable.project_id,
         delete_confirmed: true,
         idempotency_key: "mcp-delete-current-project",
+        output_files: "delete",
       });
       assert.equal(deleted.result.isError, false, deleted.result.content[0]?.text);
       const deletedPayload = JSON.parse(deleted.result.content[0]?.text ?? "{}") as {
-        replayed: boolean;
-        deletion: { project_id: string; deleted_binding_count: number; staged_directory?: string };
+        replayed: boolean; kept_output_directory?: string;
+        deletion: { project_id: string; deleted_binding_count: number; staged_directory?: string; owner_steps: Array<{ owner_id: string }> };
       };
+      assert.equal(fs.readFileSync(path.join(output, "notes.md"), "utf8"), "the person's file");
+      assert.equal(deletedPayload.kept_output_directory, output, "the answer says where the files were left");
+      assert.equal(deletedPayload.deletion.owner_steps.some(step => step.owner_id === "project-output"), false, "no step deletes them later");
       assert.equal(deletedPayload.replayed, false);
       assert.equal(deletedPayload.deletion.project_id, removable.project_id);
-      assert.equal(deletedPayload.deletion.deleted_binding_count, 1);
+      // The Session binding and the project's own default output membership (every project has one, SSC-20).
+      assert.equal(deletedPayload.deletion.deleted_binding_count, 2);
       assert.equal(deletedPayload.deletion.staged_directory, undefined);
       assert.deepEqual(runtime.runtimeConnection, null);
       assert.equal(fs.existsSync(removable.database_path), false);

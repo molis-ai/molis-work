@@ -161,11 +161,19 @@ function declaredSteps(file, source, name) {
   // A field of a JSON file (its 定义处 is `path#schema_version`) has no constant; scripts/verify-release-versions.mjs reads its number.
   if (!VERSION_FIELD.test(name) && declarations.length !== 1) return { why: `${file} has no one constant ${name}` };
   const value = declarations.length === 1 ? unwrapExpression(declarations[0].initializer) : null;
+  // A number `X_VERSION` (`X_SCHEMA_VERSION`, `SCHEMA_VERSION`) also has its steps in the array `X_UPGRADES` (`UPGRADES`) beside it, as
+  // initial-versions.mjs reads a chain: the catalog's are written that way (apps/local-host/src/project-catalog-contract.ts).
+  const constants = constantsIn(tree);
+  let beside = [];
+  if (value && ts.isNumericLiteral(value)) {
+    const list = constants.get(name.replace(/(?:_?SCHEMA)?_?VERSION$/, (match) => (match.startsWith("_") ? "_UPGRADES" : "UPGRADES")));
+    if (list && ts.isArrayLiteralExpression(list)) beside = [list];
+  }
   const owners = value && ts.isObjectLiteralExpression(value) ? [value] : objects;
-  const properties = owners.map(upgradesOf).filter(Boolean);
-  if (properties.length === 0) return { why: `${file}#${name} has no upgrades` };
+  const initializers = [...beside, ...owners.map(upgradesOf).filter(Boolean).map((property) => property.initializer)];
+  if (initializers.length === 0) return { why: `${file}#${name} has no upgrades` };
   // In place, or by the name of a \`const\` array in this file (upgrade-steps.mjs, the same reading as initial-versions.mjs).
-  const constants = constantsIn(tree), lists = properties.map((property) => stepFroms(property.initializer, constants));
+  const lists = initializers.map((initializer) => stepFroms(initializer, constants));
   if (lists.includes(undefined)) return { why: `the upgrades of ${file}#${name} are not an array of steps with a number literal in \`from\`, in place or as a \`const\` of this file` };
   return { froms: lists.flat() };
 }

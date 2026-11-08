@@ -73,3 +73,26 @@ test("07-2a N54: after a 404 (the project is gone) the page stops reading what w
   await new Promise(resolve => setTimeout(resolve, 500));
   assert.equal(await evaluate<number>("window.__attention"), after, "no read after the 404");
 });
+
+test("07-2a N54: a read of what waits on the person that fails waits longer before the next, instead of every 15 seconds", { timeout: 120_000 }, async t => {
+  const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
+  const { command, sessionId, navigate, waitFor, evaluate, origin, projectId } = browser;
+  // The page's own fetch answers /api/attention with a 503, as a host that is not answering would.
+  await command("Page.addScriptToEvaluateOnNewDocument", { source: `(() => {
+    const real = window.fetch.bind(window); window.__attention = 0;
+    window.fetch = (input, init) => {
+      const url = String(input?.url ?? input);
+      if (!/\\/api\\/attention/.test(url)) return real(input, init);
+      window.__attention++;
+      return Promise.resolve(new Response(JSON.stringify({ error: "暂时不可用" }), { status: 503, headers: { "content-type": "application/json" } }));
+    };
+  })()` }, sessionId);
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
+  await waitFor("window.__attention >= 1", 20_000);
+  await new Promise(resolve => setTimeout(resolve, 3_000));
+  const settled = await evaluate<number>("window.__attention");
+  // At a beat of 15 s, 50 s would ask three more times; after a failure the next waits at least 30 s, then 60, up to 2 minutes.
+  await new Promise(resolve => setTimeout(resolve, 50_000));
+  const more = await evaluate<number>("window.__attention") - settled;
+  assert.ok(more <= 1, `a failing read backs off: ${more} more reads in 50 s`);
+});

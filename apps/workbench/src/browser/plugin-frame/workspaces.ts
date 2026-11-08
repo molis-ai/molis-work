@@ -25,6 +25,18 @@ export function childWorkspaces(port: MessagePort, scope: FrameScope): UiPageWor
 interface DirectoryRow { workspace_id: string; display_name: string; roles: string[] }
 
 /**
+ * What the person is asked before a folder becomes the output, with what happens to the output now (specs/shared-sources-and-surfaces §3):
+ * it is no longer written and its files stay; one that is only the output also leaves the project, one that is an input as well stays one.
+ */
+function outputQuestion(L: Translate, asked: { plugin: string; project: string; folder: DirectoryRow }, current: DirectoryRow | undefined): string {
+  const names = { plugin: asked.plugin, project: asked.project, folder: asked.folder.display_name };
+  if (!current) return L("允许 {plugin} 把「{folder}」设为项目 {project} 的输出目录？Agent、终端和 Git 以后只在这里写入。", names);
+  return current.roles.includes("input")
+    ? L("允许 {plugin} 把「{folder}」设为项目 {project} 的输出目录？Agent、终端和 Git 以后只在这里写入。现在的输出目录「{current}」不再写入，里面的文件不动。", { ...names, current: current.display_name })
+    : L("允许 {plugin} 把「{folder}」设为项目 {project} 的输出目录？Agent、终端和 Git 以后只在这里写入。现在的输出目录「{current}」不再写入，里面的文件不动，它会从项目里移出。", { ...names, current: current.display_name });
+}
+
+/**
  * A page can request a new input folder, or that a folder of the project become its output, but only the trusted outer dialog can
  * authorize either. The dialog names a folder as the Host reads it, never as the page says.
  */
@@ -49,7 +61,7 @@ export function pageWorkspaces(port: MessagePort, scope: FrameScope, pageId: str
         const folder = read.directories.find(item => item.workspace_id === message.value);
         if (!folder) throw new Error(L("这个文件夹已经不是当前项目的目录"));
         if (folder.roles.includes("output")) { port.postMessage({ type: "workspace-result", id: message.id, workspace: { workspace_id: folder.workspace_id } } satisfies FrameDown); return; }
-        if (!await dialogs.confirm(L("允许 {plugin} 把「{folder}」设为项目 {project} 的输出目录？之后 Agent、终端和 Git 都在这里写入。", { plugin, project, folder: folder.display_name }))) throw new Error(L("已取消"));
+        if (!await dialogs.confirm(outputQuestion(L, { plugin, project, folder }, read.directories.find(item => item.roles.includes("output"))))) throw new Error(L("已取消"));
       } else if (!await dialogs.confirm(L("允许 {plugin} 为项目 {project} 关联目录？\n{path}", { plugin, project, path: message.value }))) throw new Error(L("已取消"));
       scope.assertCurrent(); if (!scope.visible) throw new Error(L("已取消"));
       const result = await molisWorkRequest<{ workspace?: { workspace_id: string } }>(route("/api/host/plugin-page-workspaces"), {

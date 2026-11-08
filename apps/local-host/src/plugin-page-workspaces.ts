@@ -1,6 +1,6 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { projectDirectoryActions, projectDirectoryErrors } from "@molis-ai/molis-work-contracts/modules/projects";
+import { projectDirectoryActions } from "@molis-ai/molis-work-contracts/modules/projects";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { bindLocalWebActions } from "./local-web-actions.js";
 import { pluginPageRequest } from "./plugin-page-authority.js";
@@ -30,8 +30,8 @@ export async function changePageWorkspace(context: WebRequestContext, project: L
   // The person adds it from what they see now: the revision is read in the same request, so a change in between is a conflict, not lost.
   const current = await actions.invoke(projectDirectoryActions.get, {}, control);
   if (body.operation === "set_output") {
+    // A folder that is not the project's is refused by `set_output` itself, under its own code.
     const workspaceId = body.value;
-    if (!current.directories.some(item => item.workspace_id === workspaceId)) throw projectDirectoryErrors.directory_revoked("这个文件夹已经不是当前项目的目录");
     await actions.invoke(projectDirectoryActions.setOutput, { workspace_id: workspaceId, expected_revision: current.revision }, control);
     return { workspace: { workspace_id: workspaceId } };
   }

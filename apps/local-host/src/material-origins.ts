@@ -132,10 +132,11 @@ async function objectOrigin(reading: OriginReading, subject: ActionSubject, pin:
   const owner = ownerOf(lookup.view);
   // An owner reached only through MCP is not one an origin can name.
   if (!owner) return null;
+  // Nothing of the object is read before the caller may read it, not even whether it was imported: a forbidden one says object.
+  if (lookup.found === "unavailable") return reading.plugin ? null : { source: "object", owner, state: "forbidden" };
   // A 成果库 version is an import only when it came in as a file; one a plugin pinned is that plugin's object.
   const kept = subject.kind === ARTIFACT_SUBJECT_KIND ? parseArtifactSubjectId(subject.id) : null;
   const base = { source: kept && reading.ports.imported(kept) ? "import" as const : "object" as const, owner };
-  if (lookup.found === "unavailable") return reading.plugin ? null : { ...base, state: "forbidden" };
   const view = lookup.view, reader = { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id };
   const read = await withinDeadline(reading, () => reading.ports.client.invoke(reading.caller, reader, { subject_id: subject.id }).then(
     context => ({ context: context as ActionSubjectContext }), (error: unknown) => ({ error })));

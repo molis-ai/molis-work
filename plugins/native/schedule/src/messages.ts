@@ -99,7 +99,7 @@ export const SCHEDULE_MESSAGES = {
   "schedule.reads.nothing-readable": { zh: "选了的几类现在都读不到。到点照常运行，结果里会写明读不到什么。", en: "None of the chosen kinds can be read right now. It still runs when due and says what it couldn't read." },
   "schedule.reads.workspace": { zh: "只读项目文件的任务要先给这个项目选一个工作区。", en: "A task that reads only project files needs a workspace for this project first." },
   "schedule.reads.failed": { zh: "暂时读不到这个任务能读什么", en: "Can't show what this task may read right now" },
-  "schedule.reads.failed-body": { zh: "到点照常按上次确认的范围读，只是这里显示不出来。", en: "When due it reads what was last confirmed; it just can't be shown here." },
+  "schedule.reads.failed-body": { zh: "暂时无法读取授权，可重试读取。任务到点会重新检查；届时仍读不到则本轮失败。", en: "Permissions can't be read right now. You can retry reading them. The task checks again when due; if it still can't read them, that run fails." },
   "schedule.reads.retry": { zh: "重试", en: "Retry" },
   "schedule.form.saving": { zh: "正在保存…", en: "Saving…" },
   "schedule.form.save": { zh: "保存", en: "Save" },

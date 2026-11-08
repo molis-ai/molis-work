@@ -178,6 +178,10 @@ export class PluginHostExecutor implements PluginExecutor {
     }
   }
 
+  async stopProjectJobs(projectId: string): Promise<void> {
+    await Promise.all([...this.sessions.values()].map(session => session.stopProjectJobs(projectId)));
+  }
+
   async validateUpgrade(definition: PluginDefinition, context: PluginUpgradeContext, from: PluginInstanceRecord): Promise<void> {
     if (!definition.validateUpgrade) return;
     const manifest = definition.manifest;

@@ -54,6 +54,7 @@ export interface HostSession {
   readonly context: PluginStartContext;
   /** Runs the Plugin's `start()`: until it settles, the activation may keep its jobs outside every action (PG-038). */
   starting<T>(run: () => T): T;
+  stopProjectJobs(projectId: string): Promise<void>;
   revoke(): void;
   dispose(): void;
 }
@@ -122,6 +123,7 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
       invoke: pluginPageActions(manifest, context, { client: options.actions.client, actions: hosted.services?.actions, caller: pluginCaller, provider: providerId }),
       assertCurrent: permission => { assertActive(); if (permission) context.requireGrant(permission); } }) : undefined;
     return { context: servicesUntilStopped(hosted, () => stopped, stoppedCalls), starting: run => background ? background.starting(run) : run(),
+      stopProjectJobs: async projectId => { await background?.stopProjectJobs(projectId); },
       revoke: () => { active = false; try { terminal?.dispose(); } finally { withdrawPages?.(); directory?.dispose(); scheduler?.dispose(); agents?.dispose(); background?.close(); withdrawCaller?.(); } }, dispose };
   } catch (error) {
     dispose();

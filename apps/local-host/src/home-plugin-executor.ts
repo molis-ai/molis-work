@@ -195,13 +195,17 @@ export class HomePluginExecutor implements PluginExecutor {
   }
 
   /** The executor's first part of deleting a project: the running instance's background executions accepted in the project stop. */
-  stopProjectBackground(installId: string, projectId: string): void {
-    this.sessions.get(installId)?.background?.stopProject(projectId);
+  stopProjectBackground(installId: string, projectId: string): Promise<void> | undefined {
+    return this.sessions.get(installId)?.background?.stopProject(projectId);
+  }
+
+  blockProjectLibrary(installId: string, projectId: string): () => void {
+    return beginPartitionClearing(this.deletionsOf(installId), projectId);
   }
 
   /** A project closing: every running instance's jobs kept in that project stop (PG-038); its bounded executions go on. */
-  stopProjectJobs(projectId: string): void {
-    for (const session of this.sessions.values()) session.background?.stopProjectJobs(projectId);
+  async stopProjectJobs(projectId: string): Promise<void> {
+    await Promise.all([...this.sessions.values()].map(session => session.background?.stopProjectJobs(projectId)));
   }
 
   private deletionsOf(installId: string): PartitionDeletions {

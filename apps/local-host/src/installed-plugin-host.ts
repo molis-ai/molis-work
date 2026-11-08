@@ -193,6 +193,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
   const close = async () => {
     if (closed) return;
     closed = true; disposePlatform();
+    await platform.stopProjectJobs(projectId);
     await platform.closeCoordination();
     for (const id of [...exposed.keys()]) withdraw(id);
     const failures: unknown[] = [];

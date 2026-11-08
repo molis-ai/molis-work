@@ -1,6 +1,7 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { parseWorkspaceFileSubjectId, WORKSPACE_FILE_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { MATERIAL_REF_LIMITS, type MaterialRef } from "@molis-ai/molis-work-contracts/platform/project-materials";
+import { PRESENTATION_FORM_KINDS, type FormKind, type PresentationObject } from "@molis-ai/molis-work-contracts/platform/presentation";
 
 // The message names the part that is wrong and never echoes a value: a reference can carry another owner's id or a local path.
 const refused = (part: string) => new ActionError("actions.input_invalid", `资料引用无效：${part}`);
@@ -57,4 +58,18 @@ export function assertMaterialRef(value: unknown): asserts value is MaterialRef 
   const ref = closed(value, "引用", ["subject", "pin", "range"]);
   pin(ref.pin, subject(ref.subject));
   if (ref.range !== undefined) range(ref.range);
+}
+
+/**
+ * The form an object is drawn in where `form` is asked for, and the fields to ask its owner's values action for: what the composition
+ * service and a page drawing one form on its own (MLN-23) both use. A form the object does not declare steps down to the next simpler one
+ * it does (IUI-03); null when none is left, and the platform draws its fallback of icon, name, owner and 「打开」 (IUI-02). The status
+ * field comes with every form, because every form shows the state and its attention mark.
+ */
+export function presentationFormFields(object: PresentationObject, form: FormKind): { readonly form: FormKind; readonly fields: readonly string[] } | null {
+  for (const kind of PRESENTATION_FORM_KINDS.slice(0, PRESENTATION_FORM_KINDS.indexOf(form) + 1).reverse()) {
+    const declared = object.forms[kind];
+    if (declared) return { form: kind, fields: [...new Set([...declared.fields, ...(object.status ? [object.status.field] : [])])] };
+  }
+  return null;
 }

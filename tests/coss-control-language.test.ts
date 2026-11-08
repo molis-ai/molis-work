@@ -202,7 +202,7 @@ test("touch sizing goes by the input: 44px targets for phones and coarse pointer
   const composerTouch = css.match(/@media \(max-width: 600px\), \(pointer: coarse\) \{\s*\.mw-composer__text[\s\S]*?\n  \}/)?.[0] ?? "";
   assert.match(composerTouch, /\.mw-composer__foot \.mw-btn--icon-only \{ width: 44px; min-width: 44px; \}/, "send and add are 44px on touch");
   assert.match(composerTouch, /\.mw-composer__foot \.mw-btn--sm, \.mw-composer__foot \.mw-btn--icon \{ min-height: 44px; \}/, "and 44px tall");
-  assert.match(composerTouch, /\.mw-composer__input:not\(#mw-composer\) \{ font-size: 16px; \}/, "the input's text is 16px on touch, so the page does not zoom");
+  assert.match(composerTouch, /\.mw-composer__input:not\(#mw-composer\) \{ font-size: 16px; line-height: 22px; \}/, "the input's text is 16px on touch, so the page does not zoom, on 22px lines, so its two lines stay a 44px target");
   assert.match(css, /\.mw-composer__text > \.mw-composer__input:not\(#mw-composer\) \{[^}]*min-height: 2lh;[^}]*line-height: 20px;/, "the input is two 20px lines, 40px, tall");
   assert.match(touch, /\.navigator-project-selector \{ grid-template-columns: 44px; width: 44px; height: 44px; min-height: 44px; \}/, "the project mark is 44px on touch");
   assert.match(touch, /\.plugin-picker-trigger \{[^}]*min-width: 44px;/, "the plugin switcher is 44px wide on touch");

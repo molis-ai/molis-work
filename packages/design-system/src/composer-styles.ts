@@ -63,7 +63,7 @@ export const COMPOSER_STYLES = `${COMPOSER_PATTERN_STYLES}
   }
   @media (prefers-reduced-motion: reduce) { .mw-composer__box { transition: none; } .mw-composer__controls { animation: none; } }
   @media (max-width: 600px), (pointer: coarse) {
-    .mw-composer__text > .mw-composer__input:not(#mw-composer) { font-size: 16px; }
+    .mw-composer__text > .mw-composer__input:not(#mw-composer) { font-size: 16px; line-height: 22px; }
     .mw-composer__foot .mw-btn--sm, .mw-composer__foot .mw-btn--icon { min-height: 44px; }
     .mw-composer__foot .mw-btn--icon-only { width: 44px; min-width: 44px; }
     .mw-composer__to { gap: 12px; }

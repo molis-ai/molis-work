@@ -121,7 +121,9 @@ function bindingProblems(ref: unknown, owner: unknown): readonly string[] {
 
 function bound(ref: TextRef, owner: string): OwnedTextRef {
   if ("literal" in ref && ref.literal !== undefined) return { literal: ref.literal };
-  return { ...ref, owner: ref.key.startsWith(`${SHARED_OWNER}.`) ? PLATFORM_TEXT_OWNER : owner };
+  // A `literal` written as undefined beside a key is not one, and is not carried along.
+  const { key, args, fallback } = ref as Extract<TextRef, { key: string }>;
+  return { key, ...(args === undefined ? {} : { args }), ...(fallback === undefined ? {} : { fallback }), owner: key.startsWith(`${SHARED_OWNER}.`) ? PLATFORM_TEXT_OWNER : owner };
 }
 
 /**

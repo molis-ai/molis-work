@@ -362,6 +362,8 @@ export declare const processFold: (scope: string, { group, groupBody, step, step
     stepBody: string;
 }) => string;
 
+export declare function refuseSharedTextPrefix(taken: string | null | undefined, owner: string): void;
+
 export declare function renderAlert(options: {
     title: string;
     body?: string;
@@ -735,6 +737,8 @@ export declare function stateRingGeometry(id: StateRingFamily, t: number, progre
 export declare const t: UiTextTool;
 
 export declare function textArgs(args: TextArgs): TextArg[];
+
+export declare const textKeyPrefix: (owner: string) => string;
 
 export declare function textRefProblems(value: unknown, check?: TextRefCheck): readonly string[];
 

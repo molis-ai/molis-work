@@ -26,7 +26,7 @@ export async function runPluginDevelopment(input: PluginDevelopmentInput, option
   const definition = await loadDevelopmentPlugin(input.directory);
   const locale = developmentLocale(definition.manifest, input.locale);
   const words = await loadDevelopmentLocalePacks(input.directory, definition.manifest);
-  if (words !== null && locale !== null) refuseBrokenLocaleFiles(words, locale, definition.manifest);
+  if (words !== null && locale !== null) refuseBrokenLocaleFiles(words, locale);
   // A developer's run: the page renders in the chosen language, and a sentence anywhere with no language throws, so the mistake shows here (§5.2).
   return runDevelopmentText(null, () => developPlugin(input, options, definition, words, locale));
 }
@@ -46,12 +46,13 @@ function developmentLocale(manifest: PluginManifest, requested: string | undefin
 /**
  * The two languages a run can show, read before anything starts: a broken file is the author's to fix, so it stops the run with every problem it has.
  * The two are then compared as `validate` compares them (`inspectLocaleSet`): differing arguments or a key the default lacks would show an unreplaced
- * `{…}`, so they stop the run the same way (§8.3 item 7). Another language short of a key is coverage, not a fault, and does not stop it.
+ * `{…}`, so they stop the run the same way (§8.3 item 7). Another language short of a key is coverage, not a fault, and does not stop it. A plugin
+ * here is never a content pack, so its words are held to the strict rules.
  */
-function refuseBrokenLocaleFiles(words: PluginLocaleReader, locale: string, manifest: PluginManifest): void {
+function refuseBrokenLocaleFiles(words: PluginLocaleReader, locale: string): void {
   const packs = [...new Set([words.default, locale])].flatMap(tag => words.pack(tag) ?? []);
   const read = words.problems().filter(problem => problem.blocking);
-  const blocking = read.length > 0 ? read : inspectLocaleSet(packs, { default: words.default, contentPack: manifest.kind === "content" }).filter(problem => problem.blocking);
+  const blocking = read.length > 0 ? read : inspectLocaleSet(packs, { default: words.default }).filter(problem => problem.blocking);
   if (blocking.length > 0) throw pluginErrors.package_invalid(`语言文件有问题：${blocking.map(({ file, key, reason, fix }) => `${file}${key === null ? "" : ` ${key}`}：${reason}；${fix}`).join("。")}`);
 }
 

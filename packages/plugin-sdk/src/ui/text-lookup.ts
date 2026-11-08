@@ -97,12 +97,14 @@ export function sayText(provider: UiTextProvider, ref: OwnedTextRef, options: Ui
     return guarded(provider, () => unavailableText(provider, options.locale ?? null), UI_TEXT_UNAVAILABLE);
   }
   if ("literal" in merged && merged.literal !== undefined) return merged.literal;
+  // A `literal` written as undefined beside a key is not one (`textRefProblems` reads it the same way): this is the key.
+  const keyed = merged as Extract<OwnedTextRef, { key: string }>;
   return guarded(provider, () => {
-    const locale = options.locale === undefined ? languageFor(provider, merged.owner, `say("${merged.key}")`) : options.locale ?? provider.defaultLocale(merged.owner);
-    const text = wordText(provider, merged, locale);
-    provider.produced?.(text, merged);
+    const locale = options.locale === undefined ? languageFor(provider, keyed.owner, `say("${keyed.key}")`) : options.locale ?? provider.defaultLocale(keyed.owner);
+    const text = wordText(provider, keyed, locale);
+    provider.produced?.(text, keyed);
     return text;
-  }, merged.fallback ?? UI_TEXT_UNAVAILABLE);
+  }, keyed.fallback ?? UI_TEXT_UNAVAILABLE);
 }
 
 /** For `t`: the first segment of a key to its full owner. Two owners of one name would answer each other's keys, so this is where that stops. */

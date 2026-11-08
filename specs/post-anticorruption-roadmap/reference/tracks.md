@@ -93,7 +93,7 @@ C1 管合同与快照，C2 管 AI 运行时与换包，C3 管独立平台服务�
 | [02-3](batches/02.md#batch-02-item-3) | 版本归一与重建清理 | 统筹 | 否 | — |
 | [02-4](batches/02.md#batch-02-item-4) | 升级起点与合同规则 U0 | C1 | 否 | — |
 | [02-5](batches/02.md#batch-02-item-5) | 对外许可口径与 BACKLOG 整理 | 不属于任何轨道 | 否 | — |
-| [06-1](batches/06.md#batch-06-item-1) | 公共资料与迁移清单 | C1 | 是 | D |
+| [06-1](batches/06.md#batch-06-item-1) | 公共资料与 Files 退役 | C1、B、D | 是 | E |
 | [06-2](batches/06.md#batch-06-item-2) | 文档记录协议与 SDK 共用实现 | C1 | 是 | A、B、E |
 | [06-3](batches/06.md#batch-06-item-3) | 宿主调用整治与缓存核查 | 统筹 | 否 | — |
 | [06-4](batches/06.md#batch-06-item-4) | 各包调用成本补齐 | C1 | 是 | E |

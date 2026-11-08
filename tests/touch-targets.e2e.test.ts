@@ -39,6 +39,9 @@ const KINDS: Record<string, string> = {
   ".tab-item-trigger": "tab",
   ".tab-item-close": "tab close",
   ".tab-add-button": "open plugin",
+  // 07-1 S3: at 760px and under the strip leads with 主区｜右侧 and always shows 全部标签, in the one row it paints first.
+  ".tab-pane-switch > .mw-toggle": "main or side",
+  "[data-tab-all]": "all tabs",
   "[data-layout-open]": "layout", // 07-S2: the titlebar's one layout button replaces each strip's
   ".tab-view-chip-close": "cover close",
   ".assistant-target-main": "work chip",
@@ -401,15 +404,22 @@ type Browser = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;
 /**
  * ISSUE-30: declared Home tools stay inside the viewport, and the visible target can actually be reached. Since 07-1 S4b a Home
  * tool with a chord (Issue) is reached by its glyph on the right side of the titlebar, no longer a titlebar button of its own.
+ * That glyph row scrolls sideways where the window is too narrow for every glyph (07-1 S1, the right side's tabs), so a glyph the
+ * row has scrolled out of sight is reached by scrolling the row to it: it is measured where the row brings it (scrolled into view
+ * along the row only), and must then be inside the window and neither clipped nor covered, as the titlebar button had to be.
  */
 async function assertHomeToolsReachable(browser: Browser): Promise<void> {
   const report = await browser.evaluate<{ count: number; blocked: string[] }>(`(() => {
     const nodes = [...document.querySelectorAll('[data-side-tabs] [data-side-keys]')];
     const blocked = nodes.filter(el => {
+      const row = el.closest('.tab-glyph-row'), before = row ? row.scrollLeft : 0;
+      if (row && row.scrollWidth > row.clientWidth) el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
       const r = el.getBoundingClientRect(), x = r.left + r.width / 2;
       const inside = r.width > 0 && r.height > 0 && r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight;
-      return !inside || ![r.top + 2, r.top + r.height / 2, r.bottom - 2].every(y => el.contains(document.elementFromPoint(x, y)));
-    }).map(el => el.textContent.trim());
+      const reached = inside && [r.top + 2, r.top + r.height / 2, r.bottom - 2].every(y => el.contains(document.elementFromPoint(x, y)));
+      if (row) row.scrollLeft = before;
+      return !reached;
+    }).map(el => el.textContent.trim() || el.getAttribute('aria-label') || el.parentElement.title);
     return { count: nodes.length, blocked };
   })()`);
   assert.ok(report.count > 0, "the current Home tools are present");

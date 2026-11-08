@@ -100,14 +100,22 @@ ${STRIP_BUTTON}{height:44px;min-width:44px}
 ${SWITCH}{display:inline-flex}
 /* The menus take the phone's width, less the gutters, so the search prompt reads whole. */
 .mw-menu.tab-menu{width:calc(100vw - 32px)}
-/* The titlebar's strip on a phone: the switch and the strip's chips on one row, the current tab alone on the next, as wide as the
-   strip so its title reads in full; the other tabs, pinned ones too, are reached from 全部标签, which a phone always shows. */
-${BAR}{flex-wrap:wrap;gap:4px;height:auto}
-${BAR}>.tab-scroll{order:1;flex:1 0 100%;width:auto}
+/* The titlebar's strip on a phone is one row, as tall as it paints first (the 定样's 52px): the switch, then the current tab taking
+   the rest of the width so its title reads as far as it can, then 全部标签 (a phone always shows it) and ＋. The other tabs, pinned
+   ones too, are reached from 全部标签. A second row for the tab would push the page down once the strip is drawn (VUX-31). */
+${BAR}{gap:4px}
+${BAR}>.tab-scroll{flex:1 1 0;width:auto;min-width:98px}
+${BAR}>.tab-strip-spacer{display:none}
+/* Settings or the market in front is the current one: its chip takes the tab's place, and the tabs behind it are in 全部标签. */
+${BAR}:has(>.tab-view-chip:not([hidden]))>:is(.tab-scroll,.tab-view-divider){display:none}
+${BAR}>.tab-view-chip{flex:1 1 0;min-width:0}
+/* Down to 320px the row still holds the switch, a 98px tab, 全部标签 and ＋: the switch's halves give up some padding first. */
+@media (max-width:379px){${SWITCH}>.mw-toggle{padding-inline:8px}}
 ${BAR} :is(.tab-item:not([aria-current]),.tab-group:not(:has([aria-current])),.tab-group-sep,.tab-group-tag){display:none}
-${BAR} :is(.tab-group,.tab-group-pages,.tab-item[aria-current]){flex:1;min-width:0;max-width:none}
+/* A pinned tab keeps its 44px glyph when it is the current one: it has no title to read. */
+${BAR} :is(.tab-group,.tab-group-pages,.tab-item[aria-current]:not([data-pinned])){flex:1;min-width:0;max-width:none}
 /* Each half is a 44px target; the current one is told by a ring as well as the chip, which is faint against the track in the dark. */
-${SWITCH}>.mw-toggle{min-height:44px}
+${SWITCH}>.mw-toggle{min-height:44px;min-width:44px}
 ${SWITCH}>.mw-toggle.is-current{box-shadow:var(--shadow-soft),inset 0 0 0 1px var(--line-strong)}
 .tab-all-button>span:not(.tab-all-count){display:none}
 }

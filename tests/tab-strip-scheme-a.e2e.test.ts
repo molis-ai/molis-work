@@ -52,7 +52,9 @@ test("PFG-22 PFG-24 PFG-26 scheme A: two tiers, tabs narrow to 96px before the s
   })()`);
   assert.deepEqual(tiers, { after: "plugin", hidden: "true" }, "the group's head and its tabs are a hairline apart");
 
-  // Narrowing: the record tabs stop at 96px and the strip scrolls; 全部标签 comes up at its end with the count.
+  // Narrowing: the record tabs stop at 96px and the strip scrolls; 全部标签 comes up at its end with the count. The window narrows
+  // so the strip cannot hold nine tabs whether or not the right side was left open (it remembers that across pages, 07-1 S4b).
+  await command("Emulation.setDeviceMetricsOverride", { width: 1100, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await waitFor(`!document.querySelector('${ALL}').hidden`);
   const strip = await evaluate<{ min: number; scrolls: boolean; count: string; label: string | null }>(`(() => {
     const items = [...document.querySelectorAll('${TABS} .tab-item[data-tab-kind=item]:not([data-pinned])')].filter(tab => tab.checkVisibility());
@@ -137,17 +139,20 @@ test("PFG-22 PFG-26 独看 says so at the strip's end, and a phone leads with �
   await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await waitFor(`document.querySelector('${TABS} > .tab-pane-switch')?.checkVisibility()`, 15_000);
-  const phone = await evaluate<{ shown: string[]; all: boolean; switch: (string | null)[]; overflow: boolean; target: number }>(`(() => ({
+  const phone = await evaluate<{ shown: string[]; all: boolean; switch: (string | null)[]; overflow: boolean; rowHeight: number; target: number }>(`(() => ({
     shown: [...document.querySelectorAll('${TABS} [data-tab-id]')].filter(tab => tab.checkVisibility()).map(tab => tab.dataset.tabId),
     all: document.querySelector('${ALL}').checkVisibility(),
     switch: [...document.querySelectorAll('${TABS} [data-pane-switch]')].map(button => button.getAttribute('aria-pressed')),
     overflow: document.documentElement.scrollWidth > innerWidth,
+    rowHeight: Math.round(document.querySelector('${TABS}').getBoundingClientRect().height),
     target: Math.min(...[...document.querySelectorAll('${TABS} > .tab-pane-switch > button, ${ALL}')].map(node => node.getBoundingClientRect().height)),
   }))()`);
   assert.deepEqual(phone.shown, ["tg1"], "a phone shows the current tab alone; the pinned one too is in 全部标签");
   assert.equal(phone.all, true, "a phone always shows 全部标签");
   assert.deepEqual(phone.switch, ["true", "false"]);
   assert.equal(phone.overflow, false);
+  // One row, as the 定样 draws it (52px at most): the current tab beside the switch, so the page is not pushed down once the strip is drawn (VUX-31).
+  assert.ok(phone.rowHeight <= 52, `the phone strip is one row: ${phone.rowHeight}px`);
   assert.ok(phone.target >= 44, `touch targets ${phone.target}`);
   // 右侧 shows the right side and takes the focus there.
   await click(`${TABS} [data-pane-switch=side]`);

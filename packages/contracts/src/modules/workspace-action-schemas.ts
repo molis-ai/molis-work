@@ -46,8 +46,13 @@ export const gitReviewedResult = object({ workspace_id: id, operation_id: id, ou
 /** A writer's directory under the main workspace (`PreparedWriterDirectory`). */
 export const writerDirectory = object({ worktree_id: id, branch: text, base_commit: text, canonical_path: id, problem: text },
   ["worktree_id", "branch", "base_commit", "canonical_path"]);
-/** Whose child, in which run of which session (`WriterIntegrationSource`). */
+/**
+ * Whose result, in which run of which session (`WriterIntegrationSource`): a child of a parallel-writers round, or, without
+ * `subagent_id`, a round that ran in one of the Host's worktrees of the output.
+ */
 export const writerSource = { session_id: id, run_id: id, subagent_id: id };
+/** What a source must name: the session and its run; the child only for a parallel-writers round. */
+export const writerSourceRequired = ["session_id", "run_id"];
 /** One file a child changed, and whether it can be brought back as it is (`WriterIntegrationFile`). */
 export const writerIntegrationFile = object({ path: { type: "array", items: text }, target: { enum: ["added", "modified", "deleted"] }, selectable: boolean, reason: text, revision: text,
   before_text: nullable(text), after_text: nullable(text), before_mode: nullable(fileMode), after_mode: nullable(fileMode),

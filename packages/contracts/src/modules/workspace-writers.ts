@@ -1,5 +1,5 @@
 import type { ActionDefinition, ActionMetadata } from "../platform/actions.js";
-import { object, id, operationId, writerDirectory, writerSource, writerIntegrationView, writerIntegrationChoice } from "./workspace-action-schemas.js";
+import { object, id, operationId, writerDirectory, writerSource, writerSourceRequired, writerIntegrationView, writerIntegrationChoice } from "./workspace-action-schemas.js";
 import type { GitFileMode } from "./workspace-artifacts.js";
 
 /**
@@ -62,17 +62,22 @@ export interface WriterIntegrationView {
  * bringing a child's result back are each a Host review a person approves, under the calling installation's `review:<kind>`
  * (S-50); integrating, and reading what would be integrated, answer only for a session the calling installation owns.
  */
-export interface WriterIntegrationSource { session_id: string; run_id: string; subagent_id: string }
+/**
+ * Where the result to bring back is: a child of a parallel-writers round (`subagent_id`), or, without one, a round that ran in one of
+ * the Host's worktrees of the output, which the round's frozen record proves (`directories.execution`), never the caller's input.
+ * Either way what is read is the worktree as it is now.
+ */
+export interface WriterIntegrationSource { session_id: string; run_id: string; subagent_id?: string }
 export const writerIntegrationCapabilities = {
   read: {
     capability_id: "projects.workspace.writers.integration.read", version: /* @version action.projects.workspace.writers.integration.read */ 1, operation: "query",
-    action: /* @__PURE__ */ gitHostAction("读取子任务成果", "读取本安装自己的会话里一个已结束子任务的独立工作树相对主工作区的逐文件变更，每个文件能否整合、为什么；两边都改过的文本给出三方合并", "query", "workspace:read",
-      /* @__PURE__ */ object(writerSource), writerIntegrationView),
+    action: /* @__PURE__ */ gitHostAction("读取独立工作树里的成果", "读取本安装自己的会话里一个已结束子任务的独立工作树（不点名子任务时，是这一轮跑在其中的宿主独立工作树）相对主工作区的逐文件变更，每个文件能否整合、为什么；两边都改过的文本给出三方合并", "query", "workspace:read",
+      /* @__PURE__ */ object(writerSource, writerSourceRequired), writerIntegrationView),
   } as ActionDefinition<WriterIntegrationSource, WriterIntegrationView>,
   prepare: {
     capability_id: "projects.workspace.writers.integration.prepare", version: /* @version action.projects.workspace.writers.integration.prepare */ 1, operation: "command",
-    action: /* @__PURE__ */ gitHostAction("发起子任务成果整合的审查", "按调用方看到的逐文件修订，为把所选文件从子任务的独立工作树整合回主工作区发起宿主审查；只返回审查身份，用户批准后才写入，期间任何一边变化都会被拒绝", "operation", "review:git-integration",
-      /* @__PURE__ */ object({ ...writerSource, operation_id: operationId, files: { type: "array", items: writerIntegrationChoice } }), reviewIdentity),
+    action: /* @__PURE__ */ gitHostAction("发起独立工作树成果整合的审查", "按调用方看到的逐文件修订，为把所选文件从子任务（或这一轮跑在其中）的独立工作树整合回主工作区发起宿主审查；只返回审查身份，用户批准后才写入，期间任何一边变化都会被拒绝", "operation", "review:git-integration",
+      /* @__PURE__ */ object({ ...writerSource, operation_id: operationId, files: { type: "array", items: writerIntegrationChoice } }, [...writerSourceRequired, "operation_id", "files"]), reviewIdentity),
   } as ActionDefinition<WriterIntegrationSource & { operation_id: string; files: readonly { path: readonly string[]; revision: string; resolution?: string }[] }, { review_id: string }>,
 } as const;
 

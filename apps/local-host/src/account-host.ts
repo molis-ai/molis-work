@@ -26,6 +26,7 @@ export interface AccountHostBinding {
   readonly fetch: typeof fetch | undefined;
   readonly assertAccountCurrent: (() => void) | undefined;
   session(): AccountSessionManager;
+  matchesNativeCallback(url: URL, origin?: string): boolean;
   manage(origin: string, operation: "profile" | "methods" | ActionDefinition, input: unknown, signal: AbortSignal): Promise<unknown>;
   authenticate<T>(origin: string, signal: AbortSignal, operation: (auth: ReturnType<typeof createAccountAuthentication>, control: AccountCallControl) => Promise<T>): Promise<T>;
   read(origin: string, signal: AbortSignal): Promise<AccountView>;
@@ -100,7 +101,11 @@ export function bindAccountHost(host: MolisWorkLocalHost, home: string, options?
       assert_authority_current: control.assertCurrent,
     });
     return host.homeActionClient().invoke({ ...caller, ...authority }, typeof operation === "string" ? accountActions[operation] : operation, input);
-  }), authenticate: (origin, signal, operation) => run(origin, signal, (_owner, control) => operation(authentication!, control)), read: (origin, signal) => {
+  }), authenticate: (origin, signal, operation) => run(origin, signal, (_owner, control) => operation(authentication!, control)), matchesNativeCallback: (url, origin) => {
+    if (!authentication) return false;
+    try { assertCurrent(); return authentication.matchesNativeCallback(url, origin); }
+    catch { return false; }
+  }, read: (origin, signal) => {
     if (configuration !== undefined) return run(origin, signal, (owner, control) => owner.readSession(control));
     return track((async () => {
       assertCurrent();
@@ -115,13 +120,14 @@ export function bindAccountHost(host: MolisWorkLocalHost, home: string, options?
 }
 
 /** Credential/session protocol only. Management capabilities use the existing action gateway. */
-export async function handleAccountHttp(request: IncomingMessage, response: ServerResponse, url: URL, account: AccountHostBinding): Promise<boolean> {
+export async function handleAccountHttp(request: IncomingMessage, response: ServerResponse, url: URL, account: AccountHostBinding,
+  isNativeAccountRequest?: (request: IncomingMessage) => boolean): Promise<boolean> {
   if (await handleAccountCallbackHttp(request, response, url, account)) return true;
   if (url.pathname !== "/api/account" && !url.pathname.startsWith("/api/account/")) return false;
   const managementRoute = matchAccountManagementRoute(request.method ?? "", url);
   if (request.headers.authorization || request.headers["x-auth-initiator-proof"] || (url.search && !managementRoute))
     throw accountErrors.invalid_request("Unexpected account request parameters");
-  if (await handleAccountAuthenticationHttp(request, response, url, account)) return true;
+  if (await handleAccountAuthenticationHttp(request, response, url, account, isNativeAccountRequest)) return true;
   const profile = url.pathname === "/api/account/profile" && request.method === "PATCH";
   const methods = url.pathname === "/api/account/login-methods" && request.method === "GET";
   const read = url.pathname === "/api/account/session" && request.method === "GET";

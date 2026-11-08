@@ -30,10 +30,12 @@ import { AgentReviewQueue } from "./reviews.js";
 import { freezeExecutionPlan, STEP_TOOLS } from "./execution-plan.js";
 import {
   assertBusinessRole, assertInferenceRole, assertMaySuggest, checkStartRole, checkStartSession, composeRolePrompts, EXECUTION_CAPABILITIES,
-  frozenActions, frozenGateway, frozenMcp, frozenSidePrompts, frozenSubagents, roleExecution, selectStartCharacter, startGuards, widensFrozen,
+  frozenActions, frozenGateway, frozenMcp, frozenSidePrompts, frozenSubagents, placeOf, roleExecution, runDirectoriesOf, selectStartCharacter, startGuards, widensFrozen, worktreesFor,
+  type AgentHostWorktree,
 } from "./run-start.js";
 
 export { AgentReviewQueue } from "./reviews.js";
+export type { AgentHostWorktree } from "./run-start.js";
 export { emptyCapabilityMatrix } from "./capabilities.js";
 export {
   PrologueCredentialBridge,
@@ -101,7 +103,8 @@ export type {
   PrologueStartInput,
 } from "./adapters/prologue.js";
 
-function assertSessionCreation(adapter: AgentRuntimeAdapter, input: import("@molis-ai/molis-work-contracts/services/agent-host").AgentCreateSessionRequest, authority: AgentStartAuthority): void {
+function assertSessionCreation(adapter: AgentRuntimeAdapter, input: import("@molis-ai/molis-work-contracts/services/agent-host").AgentCreateSessionRequest, authority: AgentStartAuthority,
+  worktrees: readonly AgentHostWorktree[]): void {
   if (input.workspace === "none") {
     const role = authority.manifest.roles.find(row => row.role_id === input.role_id);
     if (!role) throw agentErrors.role_not_declared("无工作区会话需要插件声明的推理角色");
@@ -114,9 +117,7 @@ function assertSessionCreation(adapter: AgentRuntimeAdapter, input: import("@mol
     assertBusinessRole(role, authority.manifest);
     if (!adapter.descriptor.supports_workspace_business) throw agentErrors.capability_unavailable("当前运行时尚未接通无目录的业务执行");
     if (input.directory !== undefined || !input.actor_id?.trim()) throw agentErrors.directory_unauthorized("业务会话不能携带目录且必须有明确用户归属");
-  } else if (!input.directory?.realpath_verified || !authority.authorizedDirectories.includes(input.directory.canonical_path)) {
-    throw agentErrors.directory_unauthorized("这个目录没有被授权给当前项目");
-  }
+  } else placeOf(input.directory, authority, worktrees, "这个目录没有被授权给当前项目");
 }
 
 export interface AgentStartAuthority {
@@ -140,8 +141,19 @@ export interface AgentStartAuthority {
   resolveCharacter?(reference: ArtifactReference, actorId: string): AgentFrozenCharacter;
   /** The Plugin's own Agent block. A role outside it can never start. */
   manifest: AgentManifest;
-  /** Directories the Host authorized for this Plugin, already realpath-verified. */
+  /**
+   * The directories a round or session of this Plugin may work in without asking the Host again, already realpath-verified: the project's
+   * output (specs/shared-sources-and-surfaces §3, SSC-15). An input folder is never among them; the Host's worktrees are read by `worktrees`.
+   */
   authorizedDirectories: readonly string[];
+  /** The project's folders as the Host read them for this call: what a round freezes as `RunDirectories`, and which folders are only inputs. */
+  directories?: {
+    revision: string;
+    output: { workspace_id: string; canonical_path: string };
+    inputs: readonly { workspace_id: string; canonical_path: string }[];
+  };
+  /** The Host's own worktrees of the output, verified now: the only other places a round (a writing child among them) may work in. */
+  worktrees?(): Promise<readonly AgentHostWorktree[]>;
   /**
    * Prompt bodies shipped in the Plugin package. The Host composes the role's
    * prompts from these; an adapter never invents one.
@@ -253,7 +265,8 @@ export class AgentHost implements AgentHostApi {
 
   async createSession(runtimeId: string, input: import("@molis-ai/molis-work-contracts/services/agent-host").AgentCreateSessionRequest, authority: AgentStartAuthority) {
     const adapter = this.adapter(runtimeId);
-    assertSessionCreation(adapter, input, authority);
+    const worktrees = input.workspace === "none" || input.workspace === "business" ? [] : await worktreesFor(authority, input.directory);
+    assertSessionCreation(adapter, input, authority, worktrees);
     await authority.beforeStart?.();
     requireSynchronous(authority.assertBeforeStart?.(), "最终授权检查必须同步完成");
     return adapter.createSession(input, { beforeStart: authority.beforeStart, assertBeforeStart: authority.assertBeforeStart });
@@ -283,7 +296,9 @@ export class AgentHost implements AgentHostApi {
   }
 
   async discoverSkills(runtimeId: string, authority: AgentStartAuthority, directory: AgentWorkingDirectory, path: string) {
-    if (!directory.realpath_verified || !authority.authorizedDirectories.includes(directory.canonical_path)) {
+    // Finding methods only reads the folder, so an input of the project is read as well as the output (SSC-15 refuses writing, not reading).
+    const readable = authority.authorizedDirectories.includes(directory.canonical_path) || authority.directories?.inputs.some(item => item.canonical_path === directory.canonical_path);
+    if (!directory.realpath_verified || !readable) {
       throw agentErrors.directory_unauthorized("这个方法目录不属于当前项目的授权工作区");
     }
     const library = this.adapter(runtimeId).skillLibrary;
@@ -316,7 +331,8 @@ export class AgentHost implements AgentHostApi {
       authority = { ...authority, prompts: authority.prompts.map(prompt => resolve.effective(request.plugin_id, prompt)) };
     }
     const adapter = this.adapter(runtimeId);
-    const { role, execution, workspace } = checkStartRole(adapter, runtimeId, request, authority);
+    const worktrees = request.workspace === "none" || request.workspace === "business" ? [] : await worktreesFor(authority, request.directory, request.subagent_workspaces?.length);
+    const { role, execution, workspace, place } = checkStartRole(adapter, runtimeId, request, authority, worktrees);
     const session = await adapter.readSession(request.session);
     checkStartSession(session, request, runtimeId, workspace);
     const { character, hostTools } = selectStartCharacter(role, request, authority);
@@ -345,7 +361,8 @@ export class AgentHost implements AgentHostApi {
     const gateway = request.action_gateway ? await frozenGateway(source, workspace) : undefined;
     const { mcp, sources } = await frozenMcp(request, execution, character, hostTools, () => this.mcpLibrary(runtimeId, authority));
     const { compaction, endingReview } = frozenSidePrompts(adapter, authority);
-    const { subagents, childWorkspaces } = frozenSubagents(adapter, role, execution, request, authority, hostTools);
+    const { subagents, childWorkspaces } = frozenSubagents(adapter, role, execution, request, authority, hostTools, worktrees);
+    const directories = runDirectoriesOf(authority, place);
     const characterSkillIds = request.character_skill_ids === undefined ? undefined : [...request.character_skill_ids];
     if (characterSkillIds && !character?.import_snapshot && characterSkillIds.length) throw new Error("请先选择包含导入 Skills 的 Character");
     const prompts = composeRolePrompts(role, authority, character, character ? importedCharacterInstructions(character, request.directory?.canonical_path, characterSkillIds) : undefined);
@@ -366,6 +383,7 @@ export class AgentHost implements AgentHostApi {
         ...(gateway ? { action_gateway: gateway } : {}),
         ...(subagents ? { subagents } : {}),
         ...(childWorkspaces ? { subagent_workspaces: childWorkspaces } : {}),
+        ...(directories ? { directories } : {}),
         ...(character ? { character } : {}),
         ...(characterSkillIds === undefined ? {} : { character_skill_ids: characterSkillIds }),
         prompts: prompts.map((prompt) => ({ ...prompt })),

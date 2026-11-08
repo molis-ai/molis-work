@@ -1,6 +1,7 @@
 import { agentErrors } from "./errors.js";
 import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentCallPorts, Call, Register } from "./capability-ports.js";
+import { placeOf } from "./run-start.js";
 
 /**
  * The caller's own method library and MCP servers (`skill_owner`): no input names another's. Saving or connecting a
@@ -28,7 +29,8 @@ export function registerLibraryActions<C extends Call>(register: Register<C>, po
     }),
     register(agentHostCapabilities.saveMcp, async (context, [runtimeId, input]) => {
       const authority = await ports.authority(context);
-      if (input.transport === "stdio" && (!input.directory?.realpath_verified || !authority.authorizedDirectories.includes(input.directory.canonical_path))) throw agentErrors.directory_unauthorized("MCP 进程目录必须是当前项目的授权工作区");
+      // A stdio server is a process started in its directory: the output only, as a round (SSC-15); an input folder is refused as such.
+      if (input.transport === "stdio") placeOf(input.directory, authority, [], "MCP 进程目录必须是当前项目的授权工作区");
       const { library, owner } = ports.agentHost(context).mcpLibrary(runtimeId, authority);
       await context.invocation.beforeEffect(); context.invocation.assertAuthorityCurrent();
       const saved = await library.save(owner, input);

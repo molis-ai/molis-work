@@ -13,7 +13,7 @@ export function assistantComposerLabels(L: (text: string) => string, mac: boolea
   return {
     input: L("发给助理"), send: L("发送"), sendTitle: keys(L("发送（⌘↵）")), add: L("添加文件、引用或能力"), more: L("更多"),
     files: L("添加文件或图片…"), filesHint: L("也可以拖入、粘贴"), dropRefused: L("这里只收文件"), commands: L("用一个方法或能力，或这样开始"),
-    searching: L("正在找…"), nothing: L("没有找到"), unavailable: L("{name} 现在用不了"), reading: L("{name} 读取中"), remove: L("移除 {name}"),
+    searching: L("正在找…"), nothing: L("没有找到"), unavailable: L("{name} 现在用不了"), reading: L("{name} 读取中"), remove: L("移除 {name}"), retryFile: L("重试 {name}"),
     blocked: L("移除附不上的那一项再发"), restored: L("已恢复上次没发出的草稿 · {time}"), clear: L("清空草稿"), unsaved: L("草稿没能保存；字还在，照常能发"),
     enterHint: L("回车已改为换行。要发送请按 {keys}"), enterHintDismiss: L("知道了"), notice: L("提示"), sending: L("发送中"), sendingText: L("正在发送…"),
     failed: L("没发出"), retry: L("重试"), unknown: L("待确认"), unknownText: L("没能确认是否送到；先别重复发"), check: L("查一下"),

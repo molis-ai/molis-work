@@ -2,7 +2,7 @@ import type { ComposerOutcome } from "@molis-ai/molis-work-plugin-sdk/page-globa
 import type { AgentSteerMode } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 import { composerDeliveries, pickComposerDelivery } from "../composer-rules.js";
 import type { ComposerDrafts } from "./composer-drafts.js";
-import { attached, blocked, busy, sendable, type Composer, type Item } from "./composer-state.js";
+import { attached, blocked, busy, itemKey, letGo, sendable, type Composer, type Item } from "./composer-state.js";
 
 /**
  * Sending (§3.2, §3.5): one send per request. It locks the button until it settles and carries one `request_id`, kept for a retry
@@ -12,7 +12,11 @@ import { attached, blocked, busy, sendable, type Composer, type Item } from "./c
  * Attachments go to the page's own upload; each row says how it went.
  */
 
-export interface ComposerSender { send(mode?: AgentSteerMode, key?: boolean): Promise<void>; confirm(): Promise<void>; upload(files: Iterable<File>): Promise<void> }
+export interface ComposerSender {
+  send(mode?: AgentSteerMode, key?: boolean): Promise<void>; confirm(): Promise<void>; upload(files: Iterable<File>): Promise<void>;
+  /** Reads a row that failed in a way trying again may mend, in the same row. */
+  retry(key: string): Promise<void>;
+}
 
 export function composerSender(c: Composer, drafts: ComposerDrafts, sentByKey: () => void): ComposerSender {
   const { options, labels, signal, field } = c;
@@ -27,6 +31,7 @@ export function composerSender(c: Composer, drafts: ComposerDrafts, sentByKey: (
   function settle(outcome: ComposerOutcome) {
     c.phase = ""; c.check = null;
     if (outcome.state === "sent") {
+      letGo(c.items.filter((item) => went.items.includes(item)));
       c.items = c.items.filter((item) => !went.items.includes(item)); c.requestId = "";
       if (field.value === went.text) { field.value = ""; window.molisFit?.(field); drafts.clear(); } else drafts.save();
       const receipt = outcome.receipt, ai = c.ai;
@@ -80,20 +85,35 @@ export function composerSender(c: Composer, drafts: ComposerDrafts, sentByKey: (
       else { c.phase = "unknown"; c.check = asked; c.paint(); }
     },
     async upload(files) {
-      const take = options.attachments;
-      if (!take) return;
+      if (!options.attachments) return;
       // Every file has its row at once (VUX-18) and is read on its own: one waiting on the Host holds up none of the others, and
       // one let go while it is read is simply not brought back.
-      const list = Array.from(files), added: Item[] = list.map((file) => ({ title: file.name, state: "reading" }));
+      const added: Item[] = Array.from(files, (file) => ({ key: itemKey(), title: file.name, state: "reading", file }));
       c.items = [...c.items, ...added]; c.requestId = ""; c.paint();
-      await Promise.all(list.map(async (file, index) => {
-        const item = added[index]!;
-        let done: Awaited<ReturnType<typeof take.upload>>;
-        try { done = await take.upload(file, signal); } catch (error) { done = { state: "failed", reason: error instanceof Error ? error.message : String(error) }; }
-        if (signal.aborted || !c.items.includes(item)) return;
-        Object.assign(item, done.state === "attached" ? { state: "attached", title: done.title, material: { kind: "attachment", ref: done.ref, title: done.title } } : { state: "failed", reason: done.reason });
-        c.paint();
-      }));
+      await Promise.all(added.map(read));
+    },
+    async retry(key) {
+      const item = c.items.find((one) => one.key === key);
+      if (!item?.file || item.state !== "failed" || !item.retry) return;
+      Object.assign(item, { state: "reading", title: item.file.name, reason: undefined, retry: undefined }); c.requestId = ""; c.paint();
+      await read(item);
     },
   };
+
+  /**
+   * One row's read, kept in the same row: read (a picture with its own preview), or why not. A failure the page rejected with may
+   * pass on a second try, so its row offers 重试; one it answered with will not, so only ×.
+   */
+  async function read(item: Item) {
+    const take = options.attachments!, file = item.file!;
+    let done: Awaited<ReturnType<typeof take.upload>>, retry = false;
+    try { done = await take.upload(file, signal); }
+    catch (error) { done = { state: "failed", reason: error instanceof Error ? error.message : String(error) }; retry = true; }
+    if (signal.aborted || !c.items.includes(item) || item.state !== "reading") return;
+    if (done.state === "attached") {
+      Object.assign(item, { state: "attached", title: done.title, material: { kind: "attachment", ref: done.ref, title: done.title } });
+      if (file.type.startsWith("image/")) item.thumb = URL.createObjectURL(file);
+    } else Object.assign(item, { state: "failed", reason: done.reason, retry });
+    c.paint();
+  }
 }

@@ -56,9 +56,10 @@ export interface MwComposerLabels {
   searching: string;
   nothing: string;
   unavailable: string;
-  /** An attachment strip row: "{name} 读取中", "移除 {name}". */
+  /** An attachment strip row: "{name} 读取中", "移除 {name}", and the name of its 重试 (shown as `retry`): "重试 {name}". */
   reading: string;
   remove: string;
+  retryFile: string;
   /** Send stops while a row of the strip cannot go: "移除附不上的那一项再发". */
   blocked: string;
   /** The restored draft's line ("已恢复上次没发出的草稿 · {time}") and its button ("清空草稿"). */

@@ -69,18 +69,30 @@ const line = (text: string) => `<p class="mw-composer__line" role="status">${esc
 /** Fills a label's `{name}` and the like (the page's own filler: the SDK's `formatMessage`). */
 export type Fill = (text: string, values: Readonly<Record<string, string>>) => string;
 
-/** One row of the attachment strip. */
-export interface ComposerStripItem { readonly title: string; readonly state: "reading" | "attached" | "failed"; readonly reason?: string; readonly from?: string }
+/**
+ * One row of the attachment strip: `key` names it while it lives (the row is redrawn in its own element); `retry` offers 重试 on a
+ * failed row; `thumb` is a read picture's own preview (an object URL), in place of the file mark.
+ */
+export interface ComposerStripItem {
+  readonly key: string; readonly title: string; readonly state: "reading" | "attached" | "failed"; readonly reason?: string; readonly from?: string;
+  readonly retry?: boolean; readonly thumb?: string;
+}
 
-/** The attachment strip (the board's upload rows): being read, read (with where a pick came from) or refused with its reason and a remove. */
+/**
+ * The attachment strip (the board's upload rows): being read (`aria-busy`), read (with where a pick came from, or a picture's
+ * preview) or refused with its reason, 重试 when trying again may help, and a remove (VUX-18).
+ */
 export function renderComposerStrip(labels: MwComposerLabels, items: readonly ComposerStripItem[], fill: Fill): string {
   if (!items.length) return "";
-  return `<ul class="mw-uploads mw-composer__files">${items.map((item, index) => {
+  return `<ul class="mw-uploads mw-composer__files">${items.map((item) => {
     const note = item.state === "reading" ? `<small>${escapeHtml(fill(labels.reading, { name: item.title }))}</small>`
       : item.state === "failed" ? `<small class="is-failed">${escapeHtml(item.reason ?? "")}</small>` : item.from ? `<small>${escapeHtml(item.from)}</small>` : "";
-    const remove = fill(labels.remove, { name: item.title });
-    return `<li class="mw-upload"><span class="mw-mark">${icon(item.from ? "package" : "file")}</span><span>${escapeHtml(item.title)}${note}</span>${
-      renderButton({ label: remove, variant: "ghost", size: "icon", icon: "x", iconOnly: true, attrs: { title: remove, "data-composer-remove": String(index) } })}</li>`;
+    const remove = fill(labels.remove, { name: item.title }), again = fill(labels.retryFile, { name: item.title });
+    const mark = item.thumb ? `<img class="mw-composer__thumb" src="${escapeHtml(item.thumb)}" alt="">` : icon(item.from ? "package" : "file");
+    const retry = item.state === "failed" && item.retry
+      ? renderButton({ label: labels.retry, variant: "ghost", size: "sm", attrs: { "aria-label": again, title: again, "data-composer-retry": item.key } }) : "";
+    return `<li class="mw-upload${item.state === "attached" ? "" : ` is-${item.state}`}" data-composer-file="${escapeHtml(item.key)}"${item.state === "reading" ? ' aria-busy="true"' : ""}><span class="mw-mark">${mark}</span><span>${escapeHtml(item.title)}${note}</span>${retry}${
+      renderButton({ label: remove, variant: "ghost", size: "icon", icon: "x", iconOnly: true, attrs: { title: remove, "data-composer-remove": item.key } })}</li>`;
   }).join("")}</ul>`;
 }
 

@@ -1,7 +1,7 @@
 /**
  * The composer's upload for the Assistant (unified-input K3; specs/visual-ui-experience §composer-mentions, VUX-16, VUX-18): a
  * file picked, pasted or dropped on the composer comes here, and the composer's own strip says how it went (读取中, then its name,
- * or why it cannot go, with × to let it go). Text is read here and sent as the person's own material; a picture or a PDF goes to
+ * a picture with its preview, or why it cannot go, with × to let it go; a read the Host could not do throws, so its row offers 重试). Text is read here and sent as the person's own material; a picture or a PDF goes to
  * the Host, which reads it (`POST /api/assistant/attachments`): the runtime takes a picture in and shows it to the model in the round
  * it is sent with, and reads a PDF's text layer with its own parser. `refused` says why a file cannot go before anything is read
  * (other binary files would reach the model as noise).

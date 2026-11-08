@@ -158,7 +158,7 @@ test("UIV-04 UIV-14 UIV-15 VUX-17 VUX-18 UIC-07 UIC-10 UIC-11 S-composer-source-
   assert.ok((await page.evaluate<string>("document.querySelector('.mw-composer__files .is-failed').textContent")).trim(), "the row says why");
   assert.equal(await page.evaluate("document.querySelector('[data-composer-send]').disabled"), true, "never sent without it unasked");
   const sends = mount.sent.length;
-  await page.click("[data-composer-remove='0']");
+  await page.click(".mw-composer__files .mw-upload:nth-child(1) [data-composer-remove]");
   await page.click("[data-composer-send]");
   await page.wait("document.querySelector('.mw-composer__input').value === ''");
   assert.equal(mount.sent.length, sends + 1);
@@ -185,8 +185,8 @@ test("UIV-04 UIV-14 UIV-15 VUX-17 VUX-18 UIC-07 UIC-10 UIC-11 S-composer-source-
   assert.deepEqual((await state()).files, ["草图.png", "setup.exe这里不收可执行文件"]);
   assert.equal(await page.evaluate("document.querySelector('[data-composer-send]').disabled"), true);
   await page.screenshot(join(EVIDENCE, "plain-strip-zh-1440-light.png"));
-  await page.click("[data-composer-remove='1']");
-  await page.click("[data-composer-remove='0']");
+  await page.click(".mw-composer__files .mw-upload:nth-child(2) [data-composer-remove]");
+  await page.click(".mw-composer__files .mw-upload:nth-child(1) [data-composer-remove]");
   // `/` on an empty line opens this page's commands; the `/` is taken out once one is chosen.
   await page.click(".mw-composer__input");
   await type("/");
@@ -353,7 +353,7 @@ test("§3.1: a sandboxed plugin frame fetches the program only once its page mou
 const AI_EN: MwComposerAiLabels = {
   input: "Message to the Assistant", send: "Send", sendTitle: "Send (⌘↵)", add: "Add files and materials", more: "More",
   files: "Files and images", filesHint: "Pick from this computer, or drop them into the box", dropRefused: "Only files go here", commands: "Commands",
-  searching: "Looking…", nothing: "Nothing found", unavailable: "{name} is unavailable now", reading: "Reading {name}", remove: "Remove {name}",
+  searching: "Looking…", nothing: "Nothing found", unavailable: "{name} is unavailable now", reading: "Reading {name}", remove: "Remove {name}", retryFile: "Retry {name}",
   blocked: "Remove the item that cannot attach, then send", restored: "Restored your unsent draft · {time}", clear: "Clear draft",
   unsaved: "The draft could not be saved on this computer; your text is still here and can be sent",
   enterHint: "Enter now starts a new line. To send, press {keys}", enterHintDismiss: "Got it", notice: "Note", sending: "Sending", sendingText: "Sending…",

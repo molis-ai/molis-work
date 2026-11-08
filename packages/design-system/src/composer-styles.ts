@@ -21,6 +21,10 @@ export const COMPOSER_STYLES = `${COMPOSER_PATTERN_STYLES}
   .mw-composer__box:focus-within { box-shadow: 0 0 0 1px var(--line-strong), var(--lift-1); }
   .mw-composer__box[data-dropping] { box-shadow: 0 0 0 2px var(--accent), var(--lift-1); }
   .mw-composer__files { width: auto; padding: 6px 6px 0; }
+  /* A read picture shows itself in its row's mark; a row being read is quieter until it is. */
+  .mw-composer__files .mw-mark { overflow: hidden; }
+  .mw-composer__thumb { width: 100%; height: 100%; object-fit: cover; }
+  .mw-upload.is-reading .mw-mark { color: var(--muted); }
   .mw-composer__restore { margin: 0; padding: 8px 12px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .mw-composer__restore .mw-btn--link { min-height: 0; padding: 0; vertical-align: baseline; }
   .mw-composer__text { display: flex; padding: 10px 12px 0; }

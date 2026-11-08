@@ -197,7 +197,10 @@ export type ComposerControl =
 
 export interface ComposerCommand { slash: string; label: string; hint?: string; run(): void }
 
-/** What an upload ends as; while it runs the strip says it is being read. */
+/**
+ * What an upload ends as; while it runs the strip says it is being read. `failed` is a file that will not go (its row offers only
+ * ×); an upload that rejects could not be read this time, and its row offers 重试 beside × (VUX-18).
+ */
 export type ComposerAttachmentState = { state: "attached"; ref: string; title: string } | { state: "failed"; reason: string };
 
 export interface ComposerSubmission {

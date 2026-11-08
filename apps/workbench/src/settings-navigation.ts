@@ -113,7 +113,7 @@ function renderProjectSettingsNavigation(
     <div class="settings-project-identity"><strong title="${escapeHtml(project.display_name)}">${escapeHtml(project.display_name)}</strong><span>${L("项目设置")}</span></div>
     <div class="settings-nav-body">
       <a href="${href(`${routePrefix}/settings`)}"${current("general")}>${icon("tune")}${L("常规")}</a>
-      <a href="${href(`${routePrefix}/settings/workspaces`)}"${current("workspaces")}>${icon("folder")}${L("工作目录")}</a>
+      <a href="${href(`${routePrefix}/settings/workspaces`)}"${current("workspaces")}>${icon("folder")}${L("输入与输出")}</a>
       ${options.goals ? `<a href="${href(`${routePrefix}/settings/guidance`)}"${current("guidance")}>${icon("book")}${L("项目说明")}</a>` : ""}
       <a href="${href(`${routePrefix}/settings/memory`)}"${current("memory")}>${icon("bookmark")}${L("项目记忆")}</a>
       <a href="${href(`${routePrefix}/settings/knowledge`)}"${current("knowledge")}>${icon("file")}${L("项目资料")}</a>

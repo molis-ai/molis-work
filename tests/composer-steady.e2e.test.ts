@@ -43,10 +43,12 @@ async function oneRound(t: test.TestContext, width: number, locale: "zh" | "en")
   await click(".navigator-project-settings");
   await waitFor("!!document.querySelector('[data-directory-panel=project-settings] [data-settings-section=workspaces]')");
   await click("[data-directory-panel=project-settings] [data-settings-section=workspaces]");
-  await waitFor("!!document.querySelector('[data-project-workspaces-add]') && !document.querySelector('[data-project-workspaces-refresh]').disabled");
-  await fill("[data-project-workspaces-add] [name=path]", workspace);
-  await click("[data-project-workspaces-add] [type=submit]");
-  await waitFor("document.querySelector('[data-project-workspaces-list]').textContent.includes('steady')");
+  await waitFor("!!document.querySelector('[data-directories-add]') && document.querySelector('[data-project-directories]')?.dataset.state==='ready'");
+  await fill("[data-directories-add] [name=path]", workspace);
+  await click("[data-directories-add] [type=submit]");
+  await waitFor("document.querySelector('[data-directories-inputs]').textContent.includes('steady')");
+  await click("[data-directories-inputs] [data-directory-row]:has([title$='/steady']) [data-act=set-output]");
+  await waitFor("document.querySelector('[data-directories-output] [data-directory-row] [data-text=path]')?.title.endsWith('/steady')");
   await click(`[data-plugin-strip] [data-plugin-id="coding"]`);
   await waitFor(`document.querySelector('[data-work-surface="coding"]')?.getBoundingClientRect().width > 100`);
   active = child;

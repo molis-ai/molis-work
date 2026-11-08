@@ -111,6 +111,7 @@ test("pick route reports the window result and does not open one without a proje
       calls.push({ status, body });
     },
     pickDirectory: () => Promise.reject(new Error("unused")),
+    defaultOutput: () => Promise.reject(new Error("unused")),
   };
   let opened = 0;
   await handleProjectWorkspaceHttp({

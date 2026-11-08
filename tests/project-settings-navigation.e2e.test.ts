@@ -252,6 +252,103 @@ test("SSC-23 A3 the delete dialog asks about the default output directory's file
   await assert.rejects(readFile(join(goneFolder, "草稿.md")), { code: "ENOENT" });
 });
 
+// SSC-23, design 05-materials-directories A3 and review N4 (user 2026-11-08): the deletion is one request under one key. Refused before it
+// started, the choice opens again and the next try is a new deletion under a new key; once the project is out of the list but cleanup is
+// unfinished, the choice is fixed and the only way on is 「重试清理」 under the same key. Files kept without being asked are said so.
+test("SSC-23 A3 N4 the delete dialog opens the choice again under a new key after a refusal, fixes it while cleanup is unfinished, and says files were kept when not asked", { timeout: 60_000 }, async t => {
+  const browser = await openGoalBrowser(t, "empty");
+  if (!browser) return;
+  const { origin, sessionId, command, evaluate, waitFor, click, navigate, homeDirectory } = browser;
+  await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await navigate(() => command("Page.navigate", { url: origin + "/onboarding?desktop=1" }, sessionId));
+  await navigate(() => click("#cx-exit"));
+  const create = async (name: string) => (await evaluate<{ project: { project_id: string } }>(`fetch('/api/settings/projects', {
+    method: 'POST', headers: molisWorkControlHeaders(), body: JSON.stringify({display_name:${JSON.stringify(name)},user_confirmed:true})
+  }).then(async response => { if (!response.ok) throw new Error(await response.text()); return response.json(); })`)).project.project_id;
+  const general = "document.querySelector('[data-tab-workspace]')?.dataset.exclusive === 'project-settings' && !!document.querySelector('[data-work-surface=project-settings] [data-project-rename]')";
+  const openSettings = async (projectId: string) => {
+    await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/settings/general?desktop=1` }, sessionId));
+    await waitFor(general, 15_000);
+  };
+  const dialog = "document.querySelector('[data-project-delete-dialog]')";
+  const submit = `${dialog}.querySelector('button[type=submit]')`;
+  // The page's delete request answers from a queue the test fills; every body it sent is kept to read the keys and choices back.
+  const stubDelete = (answers: Array<{ status: number; body: unknown }>) => evaluate(`(() => {
+    const original = window.fetch, answers = ${JSON.stringify(answers)};
+    window.__deleteBodies = [];
+    window.fetch = async (input, init) => {
+      if (!String(input).endsWith('/delete')) return original(input, init);
+      window.__deleteBodies.push(JSON.parse(init.body));
+      const answer = answers.shift();
+      return new Response(JSON.stringify(answer.body), { status: answer.status, headers: { 'content-type': 'application/json' } });
+    };
+  })()`);
+  const sent = () => evaluate<Array<{ idempotency_key: string; output_files?: string }>>("window.__deleteBodies");
+
+  t.diagnostic("asked about the files: the description says the person's own folders stay");
+  const projectId = await create("清理未完成的项目");
+  const folder = join(homeDirectory, "outputs", projectId);
+  await mkdir(folder, { recursive: true });
+  await writeFile(join(folder, "报告.md"), "# 留着\n");
+  await openSettings(projectId);
+  await click("[data-project-delete-open]");
+  await waitFor(`!${dialog}.querySelector('[data-project-delete-output]').hidden`);
+  assert.match(await evaluate<string>(`${dialog}.querySelector('.runtime-plan-body > p[id]').textContent`), /。你自己选的文件夹里的代码和文件会保留。$/);
+
+  t.diagnostic("refused before the deletion started: the choice opens again and the next try has a new key (N4)");
+  await stubDelete([
+    { status: 400, body: { error: "现在不能删除这个项目", code: "catalog.delete_refused" } },
+    { status: 200, body: { deletion: { cleanup_state: "pending" } } },
+    { status: 200, body: { deletion: { cleanup_state: "pending" } } },
+  ]);
+  await click("[data-project-delete-dialog] [data-ix-option=keep]");
+  await click("[data-project-delete-dialog] button[type=submit]");
+  await waitFor(`!${dialog}.querySelector('[data-project-delete-error]').hidden && !${submit}.disabled`);
+  assert.match(await evaluate<string>(`${dialog}.querySelector('[data-project-delete-error]').textContent`), /现在不能删除这个项目/);
+  assert.deepEqual(await evaluate(`[...${dialog}.querySelectorAll('[data-ix-option]')].map(option => option.disabled)`), [false, false]);
+  await click("[data-project-delete-dialog] [data-ix-option=delete]");
+  assert.equal(await evaluate(`${submit}.textContent`), "删除项目和文件");
+
+  t.diagnostic("out of the list but cleanup unfinished: the choice is fixed and only 「重试清理」 is offered, under the same key");
+  await click("[data-project-delete-dialog] button[type=submit]");
+  await waitFor(`${submit}.textContent === '重试清理' && !${submit}.disabled`);
+  const [refused, started] = await sent();
+  assert.equal(refused.output_files, "keep");
+  assert.equal(started.output_files, "delete");
+  assert.notEqual(started.idempotency_key, refused.idempotency_key, "a refused deletion's key is not reused for another choice");
+  assert.match(await evaluate<string>(`${dialog}.querySelector('[data-project-delete-error]').textContent`), /本机数据清理未完成/);
+  assert.deepEqual(await evaluate(`[...${dialog}.querySelectorAll('[data-ix-option]')].map(option => option.disabled)`), [true, true]);
+  assert.equal(await evaluate(`${dialog}.querySelector('[data-project-delete-keep-instead]').disabled`), true);
+  assert.equal(await evaluate(`${dialog}.querySelector('[data-project-delete-busy]').hidden`), true);
+  // The fixed choice does not move from the keyboard either.
+  await evaluate(`${dialog}.querySelector('[data-ix-option=delete]').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }))`);
+  assert.equal(await evaluate(`${dialog}.querySelector('[aria-checked=true]')?.dataset.ixOption`), "delete");
+  // Closed and opened again, the dialog still only retries the cleanup.
+  await click("[data-project-delete-cancel]");
+  await click("[data-project-delete-open]");
+  assert.equal(await evaluate(`${submit}.textContent`), "重试清理");
+  await click("[data-project-delete-dialog] button[type=submit]");
+  await waitFor(`window.__deleteBodies.length === 3 && ${submit}.textContent === '重试清理' && !${submit}.disabled`);
+  const retried = (await sent())[2];
+  assert.equal(retried.idempotency_key, started.idempotency_key);
+  assert.equal(retried.output_files, "delete");
+
+  t.diagnostic("not asked, files found and kept: the note starts by saying so");
+  const quiet = await create("没被问到的项目");
+  await openSettings(quiet);
+  await click("[data-project-delete-open]");
+  await waitFor(`${dialog}.querySelector('[data-project-delete-scope] span').textContent !== ''`);
+  assert.equal(await evaluate(`${dialog}.querySelector('[data-project-delete-output]').hidden`), true);
+  assert.doesNotMatch(await evaluate<string>(`${dialog}.querySelector('.runtime-plan-body > p[id]').textContent`), /你自己选的文件夹/);
+  await stubDelete([{ status: 200, body: { deletion: { cleanup_state: "complete" }, kept_output_directory: "/kept/outputs/" + quiet } }]);
+  await click("[name=delete_confirmed]");
+  await click("[data-project-delete-dialog] button[type=submit]");
+  await waitFor(`!${dialog}.querySelector('[data-project-delete-kept]').hidden`);
+  assert.equal(await evaluate(`${dialog}.querySelector('[data-project-delete-kept-path]').textContent`), "/kept/outputs/" + quiet);
+  assert.match(await evaluate<string>(`${dialog}.querySelector('[data-project-delete-kept-note]').textContent`), /^里面有文件，删除时没有动它们。文件夹以项目编号命名/);
+  assert.equal((await sent())[0].output_files, undefined, "nothing was asked, so no choice is sent");
+});
+
 // Global settings open over the named project's workbench (specs/artifact-positioning S6): moving between categories,
 // into the planning editor and out again stays on that page, and closing settings is back at the work.
 test("global settings retain project context through sections, planning cancel and return", {timeout:60_000}, async t=>{

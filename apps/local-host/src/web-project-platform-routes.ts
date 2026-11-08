@@ -14,6 +14,7 @@ import { handleAgentStudioHttp } from "./plugin-builder/agent-surface.js";
 import { configuredModelChoices } from "./configured-models.js";
 import { handleSideFilesHttp } from "./side-files-http.js";
 import { handleProjectWorkspaceHttp } from "./project-workspace-http.js";
+import type { MolisWorkProjectCatalog } from "./project-catalog.js";
 import { pickLocalDirectory } from "./directory-picker.js";
 import { handleFunctionsHttp } from "./judgment-rules-http.js";
 import { handleAgentReviewHttp } from "./agent-review-http.js";
@@ -101,11 +102,20 @@ export const projectRuntimeRoute: WebRoute<ProjectRuntimeContext> = { id: "proje
 } };
 
 /** The project's inputs and output (read, and one change at a time) and the folder window, as the person under the project setting's permission. */
-export const workspaceMembershipRoute: WebRoute<ProjectRuntimeContext> = { id: "workspace-membership", handle: ({ request, response, url, options, localHost, hostReference }) =>
+export const workspaceMembershipRoute: WebRoute<ProjectRuntimeContext> = { id: "workspace-membership", handle: ({ request, response, url, options, localHost, hostReference, composition, serverOptions }) =>
   handleProjectWorkspaceHttp({ method: request.method, pathname: url.pathname, hasProject: Boolean(options.project),
     actions: bindLocalWebActions(localHost, hostReference, ["projects:settings"]),
     readBody: () => readBody(request), respond: (status, body) => sendJson(response, status, body),
-    pickDirectory: () => pickLocalDirectory() }) };
+    pickDirectory: () => pickLocalDirectory(),
+    defaultOutput: () => composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => defaultOutputOf(catalog, options.project!.project_id)) }) };
+
+/** The project's default output directory and whether it is made: only looked at when it is one of the project's folders (read, never made). */
+function defaultOutputOf(catalog: Pick<MolisWorkProjectCatalog, "defaultOutputDirectoryId" | "projectDirectories" | "prepareWorkspaceDirectory">, projectId: string) {
+  const workspaceId = catalog.defaultOutputDirectoryId(projectId);
+  if (!catalog.projectDirectories(projectId).directories.some(item => item.workspace_id === workspaceId)) return { workspace_id: workspaceId, made: true };
+  // A folder that cannot be looked at (a symbolic link, say) is not called unmade: its own refusal comes when it is used.
+  try { return { workspace_id: workspaceId, made: catalog.prepareWorkspaceDirectory(projectId, workspaceId, "read").exists }; } catch { return { workspace_id: workspaceId, made: true }; }
+}
 
 /**
  * The after-write checkers of the project's authorized workspaces (specs/prologue-adoption §6.0p.13): the person's own two

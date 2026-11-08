@@ -50,10 +50,12 @@ export async function openCoding(t: TestContext, before = "") {
   await browser.click(".navigator-project-settings");
   await browser.waitFor("!!document.querySelector('[data-directory-panel=project-settings] [data-settings-section=workspaces]')");
   await browser.click("[data-directory-panel=project-settings] [data-settings-section=workspaces]");
-  await browser.waitFor("!!document.querySelector('[data-project-workspaces-add]') && !document.querySelector('[data-project-workspaces-refresh]').disabled");
-  await browser.evaluate(`(()=>{const node=document.querySelector('[data-project-workspaces-add] [name=path]');node.value=${JSON.stringify(workspace)};node.dispatchEvent(new Event('input',{bubbles:true}));node.dispatchEvent(new Event('change',{bubbles:true}));})()`);
-  await browser.click("[data-project-workspaces-add] [type=submit]");
-  await browser.waitFor("document.querySelector('[data-project-workspaces-list]').textContent.includes('coding-first-read')");
+  await browser.waitFor("!!document.querySelector('[data-directories-add]') && document.querySelector('[data-project-directories]')?.dataset.state==='ready'");
+  await browser.evaluate(`(()=>{const node=document.querySelector('[data-directories-add] [name=path]');node.value=${JSON.stringify(workspace)};node.dispatchEvent(new Event('input',{bubbles:true}));node.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  await browser.click("[data-directories-add] [type=submit]");
+  await browser.waitFor("document.querySelector('[data-directories-inputs]').textContent.includes('coding-first-read')");
+  await browser.click("[data-directories-inputs] [data-directory-row]:has([title$='/coding-first-read']) [data-act=set-output]");
+  await browser.waitFor("document.querySelector('[data-directories-output] [data-directory-row] [data-text=path]')?.title.endsWith('/coding-first-read')");
   await browser.click('[data-plugin-strip] [data-plugin-id="coding"]');
   await browser.waitFor(`document.querySelector('[data-work-surface="coding"]')?.getBoundingClientRect().width > 100`);
   await browser.waitFor(`document.querySelector('[data-work-surface="coding"]')?.dataset.uiClientState === 'ready'`);

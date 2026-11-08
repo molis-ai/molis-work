@@ -1,52 +1,15 @@
 /**
- * Project operations initialize independently of the Runtime settings dialog. The after-write checkers below the workspaces
- * (specs/prologue-adoption §6.0p.13) are a separate program, WRITE_CHECKERS_CLIENT_SCRIPT, that only the pages drawing that
- * section load; here the workspaces hand it `{ section, prefix, load }` when it is there and call the `load` it sets. The Runtime
+ * Project operations initialize independently of the Runtime settings dialog. The project's 「输入与输出」 and the after-write
+ * checkers below them (specs/prologue-adoption §6.0p.13) are separate programs (PROJECT_DIRECTORIES_CLIENT_SCRIPT, which hands
+ * WRITE_CHECKERS_CLIENT_SCRIPT its part), loaded only by the pages drawing that section; here they are bound with the rest. The Runtime
  * row on the general page (BL-372) is in view with more than one Runtime to pick, or when the picked one is gone, so it can be
  * changed or put back to the default.
  */
 export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
   (() => {
     const L = globalThis.L || ((text) => text);
-    const bindWorkspaces = (scope) => {
-      const roots = scope?.matches?.('[data-project-workspaces]') ? [scope] : (scope || document).querySelectorAll('[data-project-workspaces]');
-      roots.forEach(root => {
-        if(root.dataset.bound === '1')return;root.dataset.bound='1';
-        const list=root.querySelector('[data-project-workspaces-list]'), status=root.querySelector('[data-project-workspaces-status]');
-        const form=root.querySelector('[data-project-workspaces-add]'), message=root.querySelector('[data-project-workspaces-add-status]');
-        const refresh=root.querySelector('[data-project-workspaces-refresh]'), pick=root.querySelector('[data-project-workspaces-pick]');
-        const prefix=root.dataset.workspacePrefix, checkers={section:root.querySelector('[data-write-checkers]'),prefix,load:null};if(typeof molisWorkWriteCheckers==='function')molisWorkWriteCheckers(checkers);
-        let busy=false;
-        const api=(path,body)=>molisWorkRequest(prefix+path,{body,fallback:L('工作目录操作失败')});
-        const load=async()=>{
-          refresh.disabled=true;status.textContent=L('正在读取工作目录…');
-          try{
-            const state=await api('/api/project-settings/workspaces');list.replaceChildren();
-            for(const workspace of state.workspaces){
-              const row=document.createElement('div');row.className='settings-setting-row';
-              const copy=document.createElement('span');copy.className='setting-copy';
-              const title=document.createElement('strong');title.textContent=workspace.display_name;
-              const path=document.createElement('span');path.textContent=workspace.canonical_path;path.style.overflowWrap='anywhere';copy.append(title,path);
-              const button=document.createElement('button');button.type='button';button.className='mw-btn mw-btn--secondary';
-              const selected=state.selected===workspace.workspace_id;button.textContent=selected?L('当前浏览目录'):workspace.realpath_verified?L('用于浏览'):L('目录不可用');
-              button.disabled=selected || !workspace.realpath_verified;button.setAttribute('aria-pressed',String(selected));button.dataset.browseWorkspace=workspace.workspace_id;
-              button.addEventListener('click',async()=>{if(busy)return;busy=true;button.disabled=true;try{await api('/api/project-settings/workspaces',{workspace_id:workspace.workspace_id});await load();}catch(error){molisWorkRequest.show(status,error);button.disabled=false;}finally{busy=false;}});
-              row.append(copy,button);list.append(row);
-            }
-            status.textContent=state.workspaces.length?(state.selected?'':L('请选择一个目录供 Files 和 Git 浏览。')):L('还没有关联目录，请在下方添加。');
-            void checkers.load?.(state.workspaces);
-          }catch(error){list.replaceChildren();molisWorkRequest.show(status,error);}finally{refresh.disabled=false;}
-        };
-        refresh.addEventListener('click',()=>void load());
-        pick.addEventListener('click',async()=>{pick.disabled=true;try{const result=await api('/api/workspaces/pick',{});if(!result.cancelled)form.elements.path.value=result.path;}catch(error){molisWorkRequest.show(message,error);}finally{pick.disabled=false;}});
-        form.addEventListener('submit',async(event)=>{
-          event.preventDefault();if(busy)return;busy=true;const submit=form.querySelector('[type=submit]');submit.disabled=true;message.textContent=L('正在关联目录…');
-          try{await api('/api/workspaces',{workspace_path:form.elements.path.value.trim(),user_confirmed:true});form.reset();message.textContent=L('目录已关联。可在上方选择用于浏览。');await load();}
-          catch(error){molisWorkRequest.show(message,error);}finally{busy=false;submit.disabled=false;}
-        });
-        void load();
-      });
-    };
+    // A project's 「输入与输出」 is its own typed program (src/browser/project-directories.ts), loaded before this one.
+    const bindWorkspaces = (scope) => globalThis.molisWorkBindProjectDirectories?.(scope);
     const bindRename = (scope) => {
       (scope || document).querySelectorAll("[data-project-rename]").forEach((form) => {
         if (form.dataset.bound === "1") return;
@@ -109,9 +72,13 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
         const done = dialog.querySelector("[data-project-delete-done]");
         let busy = false;
         let cleanupPending = false;
+        // The last answer was lost on the way (the deletion may have started): the next try sends the same key and the same choice.
+        let unsure = false;
         let deletionKey = null;
         let asks = false;
         let choice = null;
+        // Once the deletion may have started the choice is fixed: another choice under the same key is refused.
+        const locked = () => cleanupPending || unsure;
         const ready = () => !busy && (cleanupPending || (asks ? choice !== null : confirmation.checked));
         const label = () => cleanupPending ? L("重试清理") : asks && choice === "delete" ? L("删除项目和文件") : asks && choice === "keep" ? L("删除项目") : L("确认删除项目");
         const paint = () => {
@@ -122,14 +89,17 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
             const on = option.dataset.ixOption === choice;
             option.setAttribute("aria-checked", on ? "true" : "false");
             option.tabIndex = on || (choice === null && option === options[0]) ? 0 : -1;
-            // Once the deletion started the choice is fixed (another choice under the same key is refused), so the cards stop moving.
-            option.disabled = busy || cleanupPending;
+            option.disabled = busy || locked();
           });
-          confirmation.disabled = busy || cleanupPending;
+          confirmation.disabled = busy || locked();
+          keepInstead.disabled = busy || locked();
+          // Cleaning up what is left is the one way on, so the way around a busy refusal goes.
+          if (cleanupPending) busyNotice.hidden = true;
           submit.disabled = !ready();
           if (!busy) submit.textContent = label();
         };
         const choose = (value, focus) => {
+          if (busy || locked()) return;
           choice = value;
           busyNotice.hidden = true;
           paint();
@@ -144,7 +114,8 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
             choose(options[(index + step + options.length) % options.length].dataset.ixOption, true);
           });
         });
-        dialog.querySelector("[data-project-delete-keep-instead]").addEventListener("click", () => choose("keep", true));
+        const keepInstead = dialog.querySelector("[data-project-delete-keep-instead]");
+        keepInstead.addEventListener("click", () => choose("keep", true));
         const loadScope = () => molisWorkRequest("/api/settings/projects/" + encodeURIComponent(form.dataset.projectDelete) + "/delete-scope")
           .then((result) => {
             names.textContent = result.owners.map((owner) => owner.label).join("；");
@@ -199,6 +170,7 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
             const result = await molisWorkRequest("/api/settings/projects/" + encodeURIComponent(form.dataset.projectDelete) + "/delete", {
               body: { delete_confirmed: true, idempotency_key: deletionKey, ...(asks && choice ? { output_files: choice } : {}) }, fallback: L("项目删除失败"),
             });
+            unsure = false;
             cleanupPending = result.deletion.cleanup_state !== "complete";
             if (cleanupPending) throw new Error(L("项目已从目录移除，但本机数据清理未完成。请重试清理。"));
             busyNotice.hidden = true;
@@ -211,6 +183,7 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
               // Tasks may still be writing into the folder: say so where the choice is, and offer the way that works now.
               // The deletion did not start, so the next try may choose again under a new key.
               deletionKey = null;
+              unsure = false;
               const shown = !busyNotice.hidden;
               busyNotice.hidden = false;
               // First time it rises in; pressed again while it shows, it hops once instead of appearing again.
@@ -219,6 +192,12 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
               busyNotice.classList.add(shown ? "is-nudged" : "mw-alert--rise");
               busyNotice.scrollIntoView({ block: "nearest" });
             } else {
+              if (!cleanupPending) {
+                // Refused before the deletion started: the choice is open again, so the next try is a new deletion under a new key
+                // (the old key with another choice would be refused). When the answer was lost, the deletion may have started: keep both.
+                unsure = ["ui_host.outcome_unknown", "ui_host.invalid_response", "actions.outcome_unknown"].includes(caught?.code);
+                if (!unsure) deletionKey = null;
+              }
               molisWorkRequest.show(error, caught);
               error.hidden = false;
               error.scrollIntoView({ block: "nearest" });

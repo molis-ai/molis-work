@@ -41,21 +41,20 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   await b.navigate(() => command("Page.navigate", { url: b.origin + "/__ui/catalog" }, sessionId));
   const boardFrame = await evaluate(`(()=>{const h=document.querySelector('.mw-catalog-shell .mw-frame__header'),title=h.querySelector('h2');return {padding:getComputedStyle(h).padding,font:getComputedStyle(title).fontSize,weight:getComputedStyle(title).fontWeight};})()`);
   await b.navigate(() => command("Page.navigate", { url: prefix + "/" }, sessionId));
-  // Folders are associated in project settings; the chosen one is the project's current directory for Files, Git and Coding.
+  // Folders are added in project settings (「输入与输出」); the output is the folder Files, Git and Coding use when none is named.
   const showWorkspaceSettings = async () => {
     active = b;
     await click('.navigator-project-settings');
     await waitFor("!!document.querySelector('[data-directory-panel=project-settings] [data-settings-section=workspaces]')");
     await click('[data-directory-panel=project-settings] [data-settings-section=workspaces]');
-    await waitFor("!!document.querySelector('[data-project-workspaces-add]') && !document.querySelector('[data-project-workspaces-refresh]').disabled");
+    await waitFor("!!document.querySelector('[data-directories-add]') && document.querySelector('[data-project-directories]')?.dataset.state==='ready'");
   };
   await showWorkspaceSettings();
-  await fill('[data-project-workspaces-add] [name=path]', workspace);
-  await click('[data-project-workspaces-add] [type=submit]');
-  await waitFor("document.querySelector('[data-project-workspaces-list]').textContent.includes('coding-fixture') && !document.querySelector('[data-project-workspaces-add] [type=submit]').disabled");
-  const workspaceId = await evaluate<string>("document.querySelector('[data-browse-workspace]').dataset.browseWorkspace");
-  if (await evaluate(`document.querySelector('[data-browse-workspace="${workspaceId}"]').getAttribute('aria-pressed')`) !== 'true') await click(`[data-browse-workspace="${workspaceId}"]`);
-  await waitFor(`document.querySelector('[data-browse-workspace="${workspaceId}"]')?.getAttribute('aria-pressed') === 'true'`);
+  await fill('[data-directories-add] [name=path]', workspace);
+  await click('[data-directories-add] [type=submit]');
+  await waitFor("document.querySelector('[data-directories-inputs]').textContent.includes('coding-fixture') && !document.querySelector('[data-directories-add] [type=submit]').disabled");
+  await click("[data-directories-inputs] [data-directory-row]:has([title$='/coding-fixture']) [data-act=set-output]");
+  await waitFor("document.querySelector('[data-directories-output] [data-directory-row] [data-text=path]')?.title.endsWith('/coding-fixture')");
   await capture("workspace-desktop");
   await open("files");
   await waitFor(`document.querySelector('${files} [data-files-tree] [title="note.txt"]')`);

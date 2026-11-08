@@ -54,7 +54,7 @@ export const LOOK_BOARD_EN: Readonly<Record<string, string>> = {
   "页面没变；用上之后这个 Home 的所有窗口一起换。": "The page hasn’t changed; once used, every window of this Home switches.",
   "字体加载中，样张先用后备字体": "The font is loading; the specimen uses the fallback font",
   "字体没加载上，样张先用后备字体；这个组合还不能用上": "The font didn’t load; the specimen uses the fallback font and the combination can’t be used yet",
-  "有 {n} 个问题，修好之前不能用上": "{n} problems; fix them before using it",
+  "有 {n} 个问题，修好之前不能用上": "{n} {n|problem|problems}; fix {n|it|them} before using it",
   "另一个窗口刚换成了「{name}」；用上会替换它": "Another window just switched to “{name}”; using this replaces it",
   "深色下正文和底色的对比不够。": "In dark, body text on its ground doesn’t have enough contrast.",
   "推荐字体不在这台电脑上，也没有随方案带来。": "Its suggested font is not on this Mac and did not come with the look.",

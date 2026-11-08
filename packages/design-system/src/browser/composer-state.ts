@@ -1,4 +1,5 @@
 import type { ComposerMaterial, ComposerPickItem } from "@molis-ai/molis-work-contracts/platform/composer";
+import type { SearchHit } from "@molis-ai/molis-work-contracts/services/search";
 import type { ComposerOptions } from "@molis-ai/molis-work-plugin-sdk/page-globals";
 import { formatMessage, type MwComposerLabels, type MwComposerStatus } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { ComposerMenuSource, Fill } from "../composer-parts.js";
@@ -25,6 +26,8 @@ export interface Composer {
   running: boolean; phase: "" | "sending" | "failed" | "unknown"; failure: string; check: Check | null; requestId: string;
   items: Item[]; note: Status; unsaved: boolean; restored: string; stopping: boolean;
   sources: Source[] | "unavailable" | undefined; picking: { source: Source; query: string; found?: ComposerPickItem[] | string } | null;
+  /** `@` typed at `at` in the text: the system search's hits for the words after it. */
+  mention: { at: number; query: string; found?: SearchHit[] | string } | null;
   typed: string; open: HTMLElement | null; painted: string;
   /** Draws the parts again (composer-view.ts). */
   paint(controls?: boolean): void;
@@ -54,7 +57,7 @@ export function composerState(basics: ComposerBasics, root: HTMLElement, signal:
     ...basics, root, shell, box: shell.querySelector<HTMLElement>(".mw-composer__box")!, field: shell.querySelector<HTMLTextAreaElement>(".mw-composer__input")!, id,
     signal, queries: composerGenerations(),
     running: false, phase: "", failure: "", check: null, requestId: "", items: [], note: undefined, unsaved: false, restored: "", stopping: false,
-    sources: undefined, picking: null, typed: "", open: null, painted: "",
+    sources: undefined, picking: null, mention: null, typed: "", open: null, painted: "",
     paint: () => undefined, close: () => undefined,
   };
 }

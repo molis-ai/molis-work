@@ -30,12 +30,15 @@ export function composerSourcePlugin() {
       composer_source: { title: "测试笔记", layers: ["ai", "plain"] } } };
   const notes = [{ id: "n1", title: "访谈记录" }, { id: "n2", title: "访谈提纲" }, { id: "n3", title: "周报" }];
   const seen: unknown[] = [];
-  let available = true, readable = true;
+  let available = true, readable = true, gate: Promise<void> | null = null;
+  /** Each held pick's signal, as its handler got it: a pick the page let go of sees its abort here. */
+  const held: AbortSignal[] = [];
   const availability = (): ActionAvailability => available ? { available: true } : { available: false, code: "composernotes.off", reason: "测试笔记已停用" };
   const definition: PluginDefinition = { manifest: manifest(id, "composernotes", [pick, reader]), async start() {
     return { kind: "app", actions: [
-      { ...pick, availability, handle: (_caller, input) => {
+      { ...pick, availability, handle: async (caller, input) => {
         seen.push(structuredClone(input));
+        if (gate) { held.push(caller.signal!); await Promise.race([gate, new Promise((resolve) => caller.signal?.addEventListener("abort", resolve, { once: true }))]); caller.signal?.throwIfAborted(); }
         const { query, limit } = input as ComposerPickInput;
         return { items: notes.filter((note) => note.title.includes(query)).slice(0, limit)
           .map((note) => ({ ref: { subject: { kind: NOTE_KIND, id: note.id }, pin: { mode: "current" as const, read_revision: "r1" } }, title: note.title, hint: "测试笔记" })) };
@@ -48,7 +51,10 @@ export function composerSourcePlugin() {
       } },
     ] };
   } };
-  return { id, definition, pick, reader, seen, off: () => { available = false; }, on: () => { available = true; }, reading: (can: boolean) => { readable = can; } };
+  let release = () => {};
+  return { id, definition, pick, reader, seen, held, off: () => { available = false; }, on: () => { available = true; }, reading: (can: boolean) => { readable = can; },
+    /** Picks wait until `release()` (or their abort) from now on. */
+    hold: () => { gate = new Promise((resolve) => { release = () => { gate = null; resolve(); }; }); }, release: () => release() };
 }
 
 export interface MountSubmission { text: string; materials: ComposerMaterial[]; controls: Record<string, string>; request_id: string; delivery?: string }

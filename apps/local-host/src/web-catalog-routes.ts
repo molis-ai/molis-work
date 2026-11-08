@@ -2,7 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { WebProjectNavigation } from "@molis-ai/molis-work-app-workbench";
 import type { AgentRuntimeDescriptor } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { handleSearchHttp } from "./search-http.js";
-import { handleComposerSourcesHttp } from "./composer-sources-http.js";
+import { handleComposerDraftsHttp, handleComposerSourcesHttp } from "./composer-sources-http.js";
 import { refreshOpenProjectPlugins } from "./project-plugin-enablement.js";
 import { handlePluginSlotsHttp } from "./plugin-connection-slots-http.js";
 import { handlePlacementHttp } from "./placement-http.js";
@@ -81,7 +81,11 @@ export const CATALOG_ROUTES: readonly WebRoute<CatalogRequestContext>[] = [
   // Without a project, search covers personal content only; the caller's context has no project to widen it.
   { id: "search", handle: ({ request, response, url, localHost }) => handleSearchHttp(request, response, url, () => homeActions(localHost)) },
   // Outside a project the unified input lists the Home sources only (S-composer-source-call).
-  { id: "composer-sources", handle: ({ request, response, url, localHost }) => handleComposerSourcesHttp(request, response, url, () => homeActions(localHost)) },
+  { id: "composer-sources", handle: ({ request, response, url, localHost }) => handleComposerSourcesHttp(request, response, url,
+    (signal) => bindLocalWebActions(localHost, undefined, LOCAL_OWNER_PERMISSIONS, { signal })) },
+  // The unified input's start-up sweep (UIC-10): which of this machine's draft places are for a project or plugin now gone.
+  { id: "composer-drafts", handle: ({ request, response, url, localHost, projects }) => handleComposerDraftsHttp(request, response, url,
+    { projects: () => projects.map((project) => project.project_id), reach: (project) => localHost.projectPluginReach(project) }) },
   { id: "placement", handle: ({ request, response, url, localHost }) => handlePlacementHttp(request, response, url, () => homeActions(localHost)) },
   { id: "functions", handle: async ({ request, response, url, serverOptions, localHost }) => Boolean(serverOptions.homeDirectory && await handleFunctionsHttp(request, response, url, serverOptions.homeDirectory, {
     actions: bindLocalWebActions(localHost, undefined, ["functions:invoke", "functions:manage"]),

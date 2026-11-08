@@ -54,6 +54,16 @@ export function renderComposerPick(labels: MwComposerLabels, source: ComposerMen
   return renderMenu({ items: `<div class="mw-composer__query"><input class="mw-input" type="search" data-composer-query aria-label="${escapeHtml(name)}" placeholder="${escapeHtml(name)}" value="${escapeHtml(query)}"></div>${renderMenuGroup({ label: name, items: found })}` });
 }
 
+/**
+ * `@` in the text: what the system search found for the words after it (§3.3: `@` stays the system search), each with the plugin
+ * it is from. `hits` undefined while it looks, a string when it failed. The words are typed in the text itself, so no query field.
+ */
+export function renderComposerMention(labels: MwComposerLabels, hits: readonly { title: string; plugin_title: string }[] | string | undefined): string {
+  const found = hits === undefined ? line(labels.searching) : typeof hits === "string" ? line(hits) : hits.length === 0 ? line(labels.nothing)
+    : hits.map((hit, index) => renderMenuItem({ label: hit.title, iconName: "package", description: hit.plugin_title, id: `mw-composer-mention-${index}`, attrs: { "data-composer-mention": String(index) } })).join("");
+  return renderMenu({ items: renderMenuGroup({ items: found }) });
+}
+
 const line = (text: string) => `<p class="mw-composer__line" role="status">${escapeHtml(text)}</p>`;
 
 /** Fills a label's `{name}` and the like (the page's own filler: the SDK's `formatMessage`). */

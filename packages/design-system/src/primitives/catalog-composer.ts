@@ -38,9 +38,9 @@ const ghostIcon = (label: string, name: Parameters<typeof icon>[0], attrs: Recor
  * 打断并改向, 下一轮再做), each with what choosing it does. `interruptRefused` is why the receiver cannot take an interruption: the item
  * stays, cannot be chosen and says why. The board draws it three times, so each copy names its items (`<scope>-delivery-<mode>`).
  */
-function deliveryMenu(say: Say, scope: string, interruptRefused?: string): string {
+function deliveryMenu(say: Say, add: string, scope: string, interruptRefused?: string): string {
   const yes = { available: true } as const;
-  return renderComposerDeliveryMenu(scope, composerLabelsIn(say, say("助理")), { "next-boundary": yes, interrupt: interruptRefused ? { available: false, reason: interruptRefused } : yes, "after-run": yes }, true);
+  return renderComposerDeliveryMenu(scope, composerLabelsIn(say, say("助理"), add), { "next-boundary": yes, interrupt: interruptRefused ? { available: false, reason: interruptRefused } : yes, "after-run": yes }, true);
 }
 
 /** Every text is already in the page's language. */
@@ -57,8 +57,12 @@ interface ShellOptions {
   readonly menuRoom?: boolean;
 }
 
-/** The words of the shell, in the board's language. */
-const composerLabelsIn = (say: Say, to: string): MwComposerAiLabels => ({
+/**
+ * The words of the shell, in the board's language. `add` is the running send's name (补充, English Add), read by its stable key
+ * (`workbench.composer.next-boundary`) where the board has the platform's words: by its Chinese alone it would meet the receipts'
+ * 补充 (an input's kind, English Supplement).
+ */
+const composerLabelsIn = (say: Say, to: string, add: string): MwComposerAiLabels => ({
   input: say("发给 {who} 的话", { who: to }), send: say("发送"), sendTitle: say("发送（⌘↵）"), add: say("添加文件与资料"), more: say("更多"),
   files: say("文件与图片"), filesHint: say("从这台电脑选，或直接拖进输入框"), dropRefused: say("这里只收文件"), commands: say("命令"),
   searching: say("正在找…"), nothing: say("没有找到"), unavailable: say("{name} 现在用不了"), reading: say("{name} 读取中"), remove: say("移除 {name}"),
@@ -68,7 +72,7 @@ const composerLabelsIn = (say: Say, to: string): MwComposerAiLabels => ({
   notSent: say("核对过：没有送到。字还在，可以再发"),
   to: say("发给："), stop: say("停止"), stopTitle: say("停止这一轮"), delivery: say("选择送达方式"), deliveryGroup: say("送达方式"),
   modes: {
-    "next-boundary": { name: say("补充"), title: say("补充（⌘↵）"), description: say("当前回复或这批工具结束后读到，不打断") },
+    "next-boundary": { name: add, title: say("补充（⌘↵）"), description: say("当前回复或这批工具结束后读到，不打断") },
     interrupt: { name: say("打断并改向"), title: say("打断并改向"), description: say("丢掉正在写的回复，改按这句做；已做的不撤销") },
     "after-run": { name: say("下一轮再做"), title: say("下一轮再做（⌘⇧↵）"), description: say("排到下一轮开头，你开下一轮时带上") },
   },
@@ -80,11 +84,11 @@ const composerLabelsIn = (say: Say, to: string): MwComposerAiLabels => ({
  * One composer as a page draws it: the SDK's first screen (`renderComposer`, the same function plugins call), with what K2's
  * client puts in as it happens (the attachment strip and the restored-draft line at the top of the box, the ▾ menu's items).
  */
-function shell(say: Say, options: ShellOptions): string {
+function shell(say: Say, add: string, options: ShellOptions): string {
   const { state } = options;
   const to = options.to ?? say("助理");
   const drawn = renderComposer({
-    kind: "ai", labels: composerLabelsIn(say, to),
+    kind: "ai", labels: composerLabelsIn(say, to, add),
     receiver: { label: to, ...(options.to ? { resetLabel: say("改回发给助理") } : {}) },
     placeholder: options.placeholder ?? say("让助理做点什么…"),
     // The board shows the microphone's place; a product page draws it only once it takes voice (user 11-08).
@@ -97,7 +101,7 @@ function shell(say: Say, options: ShellOptions): string {
   });
   const restored = options.restored
     ? `<p class="mw-field__hint mw-composer__restore">${escapeHtml(say("已恢复上次没发出的草稿 · 上午 11:02"))} · ${renderButton({ label: say("清空草稿"), variant: "link" })}</p>` : "";
-  const menu = deliveryMenu(say, "catalog-composer-running");
+  const menu = deliveryMenu(say, add, "catalog-composer-running");
   return drawn
     .replace('<div class="mw-composer__box">', (box) => `${box}${options.files ?? ""}${restored}`)
     // The ▾'s menu, not ＋'s (both are empty in the first screen).
@@ -115,7 +119,7 @@ function files(say: Say): string {
   }</ul>`;
 }
 
-export function composerSection(say: Say): string {
+export function composerSection(say: Say, add = say("补充")): string {
   const task = say("把第 3 步的测试补上");
   // A request well past the field's cap (about twice its 240px in either language), so the box plainly scrolls inside.
   const long = [
@@ -130,26 +134,26 @@ export function composerSection(say: Say): string {
     say("如果中间遇到需要我决定的地方，先停下来问我，不要自己选；拿不准的写在最后，我一起看。"),
   ].join("\n\n");
   return section("composer", escapeHtml(say("多行输入框 / Composer")), `<p class="mw-catalog__hint">${escapeHtml(say("首页单行胶囊长成多行：同一套圆角、阴影和焦点描边。写字区随内容长高，到 240px 或窗口的 40% 后在框里滚动。"))}</p><div class="mw-catalog__specimens">
-    ${specimen(escapeHtml(say("空白")), shell(say, {}))}
-    ${specimen(escapeHtml(say("普通 · 只有编辑器层")), renderComposer({ kind: "plain", labels: { ...composerLabelsIn(say, say("助理")), input: say("评论") }, placeholder: say("写评论…"), add: false }))}
-    ${specimen(escapeHtml(say("聚焦")), shell(say, { focus: true, text: task }))}
-    ${specimen(escapeHtml(say("有草稿 · 恢复行")), shell(say, { restored: true, text: say("把第 3 步的测试补上，再看一下 Coding 的会话草稿") }))}
-    ${specimen(escapeHtml(say("附件与长高到上限 · 框内滚动")), shell(say, { to: say("Coding · 注册接口"), files: files(say), text: long }))}
-    ${specimen(escapeHtml(say("处理中 · 发送中")), shell(say, { state: "sending", text: task, status: { caption: say("发送中"), text: say("正在发送…") } }))}
-    ${specimen(escapeHtml(say("处理中 · 运行中 · 送达菜单")), shell(say, { state: "running", menuRoom: true, text: say("顺便把失败截图也附上"), status: { caption: say("运行中"), text: say("正在做这一轮 · 再发会作为补充") } }))}
-    ${specimen(escapeHtml(say("失败")), shell(say, { state: "failed", text: task, status: { caption: say("失败"), text: say("没发出去：连接被重置。文字还在，可以改了再发"), action: say("重试") } }))}
-    ${specimen(escapeHtml(say("待确认")), shell(say, { state: "unknown", text: task, status: { caption: say("待确认"), text: say("没能确认是否送到，正在核对；先别重复发"), action: say("查看") } }))}
-    ${specimen(escapeHtml(say("不可用")), shell(say, { state: "disabled", placeholder: say("这个会话已结束"), status: { caption: say("不可用"), text: say("会话已结束，不能再发；新开一个会话接着做") } }))}
+    ${specimen(escapeHtml(say("空白")), shell(say, add, {}))}
+    ${specimen(escapeHtml(say("普通 · 只有编辑器层")), renderComposer({ kind: "plain", labels: { ...composerLabelsIn(say, say("助理"), add), input: say("评论") }, placeholder: say("写评论…"), add: false }))}
+    ${specimen(escapeHtml(say("聚焦")), shell(say, add, { focus: true, text: task }))}
+    ${specimen(escapeHtml(say("有草稿 · 恢复行")), shell(say, add, { restored: true, text: say("把第 3 步的测试补上，再看一下 Coding 的会话草稿") }))}
+    ${specimen(escapeHtml(say("附件与长高到上限 · 框内滚动")), shell(say, add, { to: say("Coding · 注册接口"), files: files(say), text: long }))}
+    ${specimen(escapeHtml(say("处理中 · 发送中")), shell(say, add, { state: "sending", text: task, status: { caption: say("发送中"), text: say("正在发送…") } }))}
+    ${specimen(escapeHtml(say("处理中 · 运行中 · 送达菜单")), shell(say, add, { state: "running", menuRoom: true, text: say("顺便把失败截图也附上"), status: { caption: say("运行中"), text: say("正在做这一轮 · 再发会作为补充") } }))}
+    ${specimen(escapeHtml(say("失败")), shell(say, add, { state: "failed", text: task, status: { caption: say("失败"), text: say("没发出去：连接被重置。文字还在，可以改了再发"), action: say("重试") } }))}
+    ${specimen(escapeHtml(say("待确认")), shell(say, add, { state: "unknown", text: task, status: { caption: say("待确认"), text: say("没能确认是否送到，正在核对；先别重复发"), action: say("查看") } }))}
+    ${specimen(escapeHtml(say("不可用")), shell(say, add, { state: "disabled", placeholder: say("这个会话已结束"), status: { caption: say("不可用"), text: say("会话已结束，不能再发；新开一个会话接着做") } }))}
   </div>`);
 }
 
-export function menuDescSection(say: Say): string {
+export function menuDescSection(say: Say, delivery = say("补充")): string {
   const add = renderMenu({ items: renderMenuGroup({ items: renderMenuItem({ label: say("项目资料…"), iconName: "book", description: say("从这个项目已经收进来的资料里选") })
     + renderMenuItem({ label: say("文件与图片"), iconName: "paperclip", description: say("从这台电脑选，或直接拖进输入框") })
     + renderMenuItem({ label: say("Todo · 待办"), iconName: "package", description: say("没有可选的待办：这个项目里还没有建"), disabled: true }) }) });
   return section("menu-desc", escapeHtml(say("菜单说明行 / Menu Description")), `<p class="mw-catalog__hint">${escapeHtml(say("挂在菜单项下一行的灰字，说清选它会怎样；不可选时写原因。"))}</p><div class="mw-catalog__specimens">
-    ${specimen(escapeHtml(say("带快捷键 · 送达方式")), deliveryMenu(say, "catalog-menu-desc"))}
-    ${specimen(escapeHtml(say("不可选并写原因")), deliveryMenu(say, "catalog-menu-desc-refused", say("这个对象不支持打断：它一次只做完一整轮")))}
+    ${specimen(escapeHtml(say("带快捷键 · 送达方式")), deliveryMenu(say, delivery, "catalog-menu-desc"))}
+    ${specimen(escapeHtml(say("不可选并写原因")), deliveryMenu(say, delivery, "catalog-menu-desc-refused", say("这个对象不支持打断：它一次只做完一整轮")))}
     ${specimen(escapeHtml(say("不带快捷键 · 添加")), add)}
     ${specimen(escapeHtml(say("长说明没有标点 · 在框内折行")), renderMenu({ items: renderMenuGroup({ items: renderMenuItem({ label: say("合并到上一条"), iconName: "message", description: say("把这句话接在你上一条还没被读到的消息后面一起送给助理而不另起一条") }) }) }))}
   </div>`);

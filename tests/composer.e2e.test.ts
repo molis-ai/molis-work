@@ -4,11 +4,13 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test, { type TestContext } from "node:test";
 import { FIELD_FIT_MAX, FIELD_FIT_ROOM, fieldHeight } from "@molis-ai/molis-work-design-system";
-import type { MwComposerAiLabels } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { renderComposer, type MwComposerAiLabels } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { ChromeHarness } from "@molis-ai/molis-work-test-kit/browser";
 import { COMPOSER_AI_LABELS, COMPOSER_PLAIN_LABELS } from "./fixtures/composer-labels.js";
 import { NOTE_KIND, composerMountPlugin, composerSourcePlugin, mountScript } from "./fixtures/composer-plugins.js";
+import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 
 // The unified input in a temporary Home (specs/unified-input-voice/implementation-plan.md §5 K2 row): the Workbench page the Host
 // really sends, its `window.molisComposer`, and two ordinary test plugins: one registers a `composer_source`, the other mounts the
@@ -46,8 +48,10 @@ async function open(t: TestContext, locale: "zh" | "en" = "zh") {
   const state = () => page.evaluate<{ text: string; status: string; state: string; files: string[] }>(`({ text: document.querySelector(".mw-composer__input").value,
     status: document.querySelector(".mw-composer__status")?.textContent ?? "", state: document.querySelector(".mw-composer")?.dataset.state ?? "",
     files: [...document.querySelectorAll(".mw-composer__files .mw-upload")].map(row => row.querySelector(":scope > span:not(.mw-mark)").textContent) })`);
-  const mountPlain = () => page.evaluate(mountScript(mount.id, COMPOSER_PLAIN_LABELS));
-  return { f, project, source, mount, page, load, key, type, state, mountPlain };
+  // `window.molisComposer` hands a document's first mount to the shared program (/assets/molis-work-composer.js) once it is in.
+  const ready = (root: string) => page.wait(`globalThis.molisComposerProgram && document.querySelector(${JSON.stringify(root + " .mw-composer")})`);
+  const mountPlain = async () => { await page.evaluate(mountScript(mount.id, COMPOSER_PLAIN_LABELS)); await ready("#composer-probe"); };
+  return { f, project, source, mount, page, load, key, type, state, mountPlain, ready };
 }
 
 test("UIC-05 UIC-06 UIV-01 UIV-02 UIV-03 VUX-16: keys, the input method, one send per request and the field's height", { timeout: 120_000 }, async (t) => {
@@ -204,6 +208,135 @@ test("UIV-04 UIV-14 UIV-15 VUX-17 VUX-18 UIC-07 UIC-10 UIC-11 S-composer-source-
   await page.evaluate(`document.dispatchEvent(new CustomEvent("molis-work:plugins-changed", { detail: { came: [], gone: [${JSON.stringify(mount.id)}], next: document, failed: false } }))`);
   assert.equal(await page.evaluate(`localStorage.getItem(${JSON.stringify(draftKey)})`), null);
   await page.evaluate("globalThis.composerHandle.destroy()");
+  // UIC-10 §3.4: at start the Workbench sends its draft keys (never their text) once; those of a project no longer in the Home go,
+  // a framed page's among them; this project's own stays.
+  const deleted = `mw.composer.draft:p-deleted:${encodeURIComponent(mount.id)}:comment:c1`, framed = `molis-plugin-page:h:${mount.id}:p-deleted:${deleted}`;
+  await page.evaluate(`[${JSON.stringify(deleted)}, ${JSON.stringify(framed)}, ${JSON.stringify(draftKey)}].forEach(key => localStorage.setItem(key, JSON.stringify({ text: "留着", at: "2026-11-08T03:00:00.000Z" })))`);
+  await c.load();
+  await page.wait(`localStorage.getItem(${JSON.stringify(deleted)}) === null && localStorage.getItem(${JSON.stringify(framed)}) === null`);
+  assert.notEqual(await page.evaluate(`localStorage.getItem(${JSON.stringify(draftKey)})`), null, "this project's own draft stays");
+});
+
+/** The system search as the page asks it, answered by the test: each request's body is kept, `searchHits` is the answer. */
+const SEARCH_STUB = `(() => {
+  const real = window.fetch;
+  globalThis.searchAsked = []; globalThis.searchHits = [];
+  window.fetch = async (input, init) => {
+    const url = typeof input === "string" ? input : input.url;
+    if (!url.endsWith("/api/search/query")) return real(input, init);
+    globalThis.searchAsked.push(JSON.parse(init.body));
+    return new Response(JSON.stringify({ status: "ready", hits: globalThis.searchHits, next_cursor: null, sources: [] }), { status: 200, headers: { "content-type": "application/json" } });
+  };
+})()`;
+const searchHit = (id: string, title: string, plugin: string) => ({ hit_id: id, subject: { kind: NOTE_KIND, id }, project_id: null, plugin_id: "io.molis.work.example.composernotes", plugin_title: plugin,
+  source: { capability_id: "composernotes.search", version: 1, provider_id: "composernotes" }, title, snippet: title, highlights: [], revision: "r7", updated_at: null, open: null,
+  locator: { field: "title", offset: 0, length: title.length, text: title } });
+
+test("UIV-14 §3.3: `@` in the text is the system search inside the component; a hit goes to the strip with its plugin and the `@words` come out", { timeout: 120_000 }, async (t) => {
+  await mkdir(EVIDENCE, { recursive: true });
+  const c = await open(t);
+  if (!c) return;
+  const { page, type, state, mount } = c;
+  await page.evaluate(SEARCH_STUB);
+  await c.mountPlain();
+  await page.click(".mw-composer__input");
+  await type("对照 ");
+  await type("@");
+  assert.equal(await page.evaluate("document.querySelector('.mw-compose__menu:not([hidden])')"), null, "a bare @ has nothing to look for yet; the ＋ menu does not open");
+  await page.evaluate(`globalThis.searchHits = ${JSON.stringify([searchHit("n1", "访谈记录", "测试笔记"), searchHit("n2", "访谈提纲", "测试笔记")])}`);
+  await type("访谈");
+  await page.wait("document.querySelectorAll('[data-composer-mention]').length === 2");
+  assert.deepEqual(await page.evaluate("globalThis.searchAsked"), [{ query: "访谈", scope: "all", limit: 8 }], "one search for the words after @, as the search palette asks it");
+  assert.match(await page.evaluate<string>("document.querySelector('[data-composer-mention]').textContent"), /访谈记录.*测试笔记/, "each hit says which plugin it is from");
+  await page.screenshot(join(EVIDENCE, "plain-mention-zh-1440-light.png"));
+  // Down from the text goes into the hits; choosing one takes the @words out and puts the reference in the strip.
+  await page.command("Input.dispatchKeyEvent", { type: "keyDown", key: "ArrowDown", code: "ArrowDown", windowsVirtualKeyCode: 40 });
+  await page.command("Input.dispatchKeyEvent", { type: "keyUp", key: "ArrowDown", code: "ArrowDown", windowsVirtualKeyCode: 40 });
+  assert.equal(await page.evaluate("document.activeElement?.dataset.composerMention"), "0");
+  await page.click("[data-composer-mention='1']");
+  assert.deepEqual([(await state()).text, (await state()).files], ["对照 ", ["访谈提纲测试笔记"]]);
+  assert.equal(await page.evaluate("document.activeElement?.matches('.mw-composer__input')"), true, "focus is back in the text");
+  // A space ends the words; nothing found says so.
+  await page.evaluate("globalThis.searchHits = []");
+  await type("@");
+  await type("无");
+  await page.wait("document.querySelector('.mw-compose__menu:not([hidden]) .mw-composer__line')?.textContent.includes('没有找到')");
+  await type(" ");
+  assert.equal(await page.evaluate("document.querySelector('.mw-compose__menu:not([hidden])')"), null, "a space after the words closes it");
+  await type("就这些");
+  await page.click("[data-composer-send]");
+  await page.wait("document.querySelector('.mw-composer__input').value === ''");
+  assert.deepEqual(mount.sent.at(-1)!.materials, [{ kind: "material", ref: { subject: { kind: NOTE_KIND, id: "n2" }, pin: { mode: "current", read_revision: "r7" } }, title: "访谈提纲",
+    source: { capability_id: "composernotes.search", version: 1, provider_id: "composernotes" } }], "the hit goes as a pinned reference, read again by its owner at send");
+});
+
+test("§3.1: the program is one shared file fetched on the first mount; one that cannot load leaves the first screen and says so", { timeout: 120_000 }, async (t) => {
+  const c = await open(t);
+  if (!c) return;
+  const { page } = c;
+  const fetched = () => page.evaluate<number>("performance.getEntriesByType('resource').filter(entry => entry.name.endsWith('/assets/molis-work-composer.js')).length");
+  assert.equal(await fetched(), 0, "a page with no composer does not fetch it");
+  assert.equal(await page.evaluate("typeof globalThis.molisComposerProgram"), "undefined");
+  // Cannot be fetched: the first screen the page drew stays, can be typed into, and its status line says why; send waits.
+  await page.command("Network.enable");
+  await page.command("Network.setBlockedURLs", { urls: ["*molis-work-composer.js*"] });
+  const first = renderComposer({ kind: "plain", labels: COMPOSER_PLAIN_LABELS, placeholder: "写评论…" });
+  await page.evaluate(`(() => { const root = document.createElement("div"); root.id = "composer-first"; root.style.cssText = "position:fixed;left:16px;right:16px;bottom:16px;z-index:2147483000";
+    root.innerHTML = ${JSON.stringify(first)}; document.body.append(root);
+    globalThis.firstHandle = window.molisComposer(root, { kind: "plain", labels: ${JSON.stringify(COMPOSER_PLAIN_LABELS)}, entry: "comment", draft: { conversation: "first" }, submit: async () => ({ state: "sent" }) }); })()`);
+  await page.wait("document.querySelector('#composer-first .mw-composer__status')");
+  assert.equal(await page.evaluate("document.querySelector('#composer-first .mw-composer__status').textContent"), "评论 现在用不了");
+  assert.equal(await page.evaluate("document.querySelector('#composer-first [data-composer-send]').disabled"), true);
+  await page.click("#composer-first .mw-composer__input");
+  await c.type("字还能写");
+  assert.equal(await page.evaluate("document.querySelector('#composer-first .mw-composer__input').value"), "字还能写");
+  // The next mount tries again; once it is in, every mount is the program's own and the file is fetched once.
+  await page.command("Network.setBlockedURLs", { urls: [] });
+  await c.mountPlain();
+  const once = await fetched();
+  assert.ok(once >= 1);
+  await page.evaluate(mountScript(c.mount.id, COMPOSER_PLAIN_LABELS));
+  assert.equal(await page.evaluate("document.querySelectorAll('#composer-probe .mw-composer').length"), 1, "mounted at once, the same root replaced");
+  assert.equal(await fetched(), once, "no fetch for the mounts after it");
+});
+
+test("§3.1: a sandboxed plugin frame fetches the program only once its page mounts a composer; one it cannot fetch keeps the first screen and says so", { timeout: 120_000 }, async (t) => {
+  const browser = await openGoalBrowser(t, true);
+  if (!browser) return;
+  const child = await pluginFrameBrowser(t, browser, "lingguang");
+  const handlers = browser.server.listeners("request");
+  let asked = 0, refuse = false;
+  browser.server.removeAllListeners("request");
+  browser.server.on("request", (request, response) => {
+    if (request.url === "/assets/molis-work-composer.js") {
+      asked += 1;
+      if (refuse) { response.writeHead(503, { "content-type": "text/plain" }); response.end(); return; }
+    }
+    for (const handler of handlers) handler.call(browser.server, request, response);
+  });
+  const lingguang = async () => {
+    await browser.navigate(() => browser.command("Page.navigate", { url: `${browser.origin}/projects/${browser.projectId}/` }, browser.sessionId));
+    await browser.waitFor("document.body.dataset.desktopSurface === 'home'");
+    await browser.click("[data-plugin-picker-popover] [data-plugin-id=lingguang]");
+    await child.waitFor("typeof window.molisComposer === 'function' && !document.querySelector('[data-work-surface=lingguang]').hidden");
+  };
+  // The plugin draws the first screen itself (renderComposer, from its own SDK) and mounts on it, as a plugin page does.
+  const first = renderComposer({ kind: "plain", labels: COMPOSER_PLAIN_LABELS, placeholder: "写评论…" });
+  const mount = `(() => { const root = document.createElement("div"); root.id = "probe"; root.innerHTML = ${JSON.stringify(first)}; document.body.prepend(root);
+    globalThis.probe = window.molisComposer(root, { kind: "plain", labels: ${JSON.stringify(COMPOSER_PLAIN_LABELS)}, entry: "comment", draft: { conversation: "c1" }, submit: async () => ({ state: "sent" }) }); })()`;
+  await lingguang();
+  assert.equal(asked, 0, "a frame whose page mounts no composer does not fetch the program");
+  await child.evaluate(mount);
+  await child.waitFor("typeof globalThis.molisComposerProgram === 'function'");
+  assert.equal(asked, 1, "the frame's CSP lets the one shared file in");
+  assert.equal(await child.evaluate("document.querySelector('#probe .mw-composer__status')"), null, "mounted, nothing to say");
+  refuse = true;
+  await lingguang();
+  await child.evaluate(mount);
+  await child.waitFor("document.querySelector('#probe .mw-composer__status')?.textContent === '评论 现在用不了'");
+  assert.equal(await child.evaluate("document.querySelector('#probe [data-composer-send]').disabled"), true, "send waits");
+  assert.equal(await child.evaluate("typeof globalThis.molisComposerProgram"), "undefined");
+  assert.equal(await child.evaluate("document.querySelector('[data-work-surface=lingguang]').hidden"), false, "the plugin's page goes on");
 });
 
 const AI_EN: MwComposerAiLabels = {
@@ -254,6 +387,7 @@ for (const locale of ["zh", "en"] as const) {
     if (!c) return;
     const { page, key, type } = c, words = AI_WORDS[locale];
     await page.evaluate(aiScript(words));
+    await c.ready("#composer-ai");
     assert.match(await page.evaluate<string>("document.querySelector('.mw-composer__to').textContent"), /Coding · 注册接口/);
     assert.equal(await page.evaluate("document.querySelector('[data-composer-voice]')"), null, "no microphone on a page that takes no voice");
     await page.click(".mw-composer__input");
@@ -305,9 +439,12 @@ for (const locale of ["zh", "en"] as const) {
     await page.wait("globalThis.aiStopped === true");
     await page.evaluate("globalThis.aiHandle.setRunning(false)");
     assert.equal(await page.evaluate("document.querySelector('[data-composer-stop]')"), null, "stop is there only while a turn runs");
+    // Nothing running: the next turn is now, so ⌘⇧↵ is a plain send, with no delivery.
     await type("新的一轮");
     await key(META | SHIFT);
-    assert.equal(await page.evaluate("globalThis.aiSent.length"), 3);
+    await page.wait("globalThis.aiSent.length === 4");
+    assert.equal(await page.evaluate("globalThis.aiSent[3].text"), "新的一轮");
+    assert.equal(await page.evaluate("'delivery' in globalThis.aiSent[3]"), false);
     // 390: the scene controls fold behind 更多 and open above it.
     await page.viewport(390, 844, true);
     assert.equal(await page.evaluate("getComputedStyle(document.querySelector('.mw-composer__controls')).display"), "none");

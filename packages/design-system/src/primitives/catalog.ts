@@ -213,8 +213,9 @@ function iconSection(): string {
 /**
  * `plugins` fills the icon inventory's plugin rows; the design system keeps no list of plugins (PG-075), so omitted means none.
  * `say` is the page's translator: the sections written through it (the unified input's parts) follow the board's language.
+ * `delivery` is the running send's name (补充) by its stable key, where the page has the platform's words.
  */
-export function renderPrimitiveCatalog(options: { readonly plugins?: readonly CatalogPluginIcon[]; readonly say?: Say } = {}): string {
+export function renderPrimitiveCatalog(options: { readonly plugins?: readonly CatalogPluginIcon[]; readonly say?: Say; readonly delivery?: string } = {}): string {
   const say = options.say ?? writeChinese;
   const sections = `
     ${paletteSection()}
@@ -237,7 +238,7 @@ export function renderPrimitiveCatalog(options: { readonly plugins?: readonly Ca
     ${tagInputSection()}
     ${formSection()}
     ${dropZoneSection()}
-    ${composerSection(say)}
+    ${composerSection(say, options.delivery)}
     ${badgeSection()}
     ${statSection()}
     ${feedbackSection()}
@@ -246,7 +247,7 @@ export function renderPrimitiveCatalog(options: { readonly plugins?: readonly Ca
     ${calendarSection()}
     ${overlaySection()}
     ${menuSection()}
-    ${menuDescSection(say)}
+    ${menuDescSection(say, options.delivery)}
     ${tabsSection()}
     ${directorySection()}
     ${rowsSection()}

@@ -123,8 +123,6 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
             const result = await molisWorkRequest("/api/settings/projects/" + encodeURIComponent(form.dataset.projectDelete) + "/delete", {
               body: { delete_confirmed: true, idempotency_key: deletionKey }, fallback: L("项目删除失败"),
             });
-            // The project is gone from the directory: its unsent drafts on this machine go with it (unified input, UIC-10).
-            globalThis.molisComposerForget?.({ project: form.dataset.projectDelete });
             cleanupPending = result.deletion.cleanup_state !== "complete";
             if (cleanupPending) throw new Error(L("项目已从目录移除，但本机数据清理未完成。请重试清理。"));
             location.assign(globalThis.molisWorkNavigationUrl(form.dataset.projectDirectoryHref));

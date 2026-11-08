@@ -13,7 +13,7 @@ export { UI_TEXT_UNAVAILABLE };
 // built-in plugin's release bundles its own copy of this SDK, and every copy in a realm has to see the one provider.
 
 /** Carries a version: an external plugin bundles the SDK of the day it was published, so a change of the provider's shape installs under a new key. */
-const CONTEXT_KEY = "molis.work.ui-text.v1";
+const CONTEXT_KEY = /* @version protocol.ui.text-context "molis.work.ui-text.v{version}" */ "molis.work.ui-text.v1";
 
 function installedProvider(): UiTextProvider | null {
   const provider: unknown = Reflect.get(globalThis, Symbol.for(CONTEXT_KEY));

@@ -1044,7 +1044,7 @@ C1 独占合同文件和 `tooling/gates/api/`；D 独占 `packages/design-system
 - **T8：** FSS-61 把三段相邻同字（客户端、服务端用户内容、界面字，含客户端删掉用户内容）和连续几条客户端行跑一遍，结果写进第 5.4 节的限制。
 - **T9b：** `skills/molis-plugin-dev/elements.md:9` 的「反向域名」写明：前缀是 `io.molis.work.`，最长 200 字符（T3 起 `parsePluginManifest` 拒绝更长的），用 `ui.locales` 时最后一段要以字母开头（不是 `common`），否则写不出一个键。
 - **T10：** 文件清单加 `docs/system/HOME-DATA.md` 一行，不变量正文在 `docs/system/security-invariants/`，`SECURITY-INVARIANTS.md:56` 提到 `/locale` 现在写 Home，看不到的部分写本机非浏览器进程能自带这个头。拒绝测试覆盖 `cross-site`、`same-site`、`none`、没有头。只在 `lang` 合法时写（`web-server.ts:136-138` 的推算不算切语言）。同步写，临时文件改名，权限 0600（同 `project-arrival.ts`）；写成功才改内存，失败下次还能重试。比程序新的文件：`readUiLocale` 返回 `null`，`rememberUiLocale` 不盖。
-- **T10 的提醒给统筹：** `prompt.assistant-base` 升到 2 后 `scripts/gates/initial-versions.mjs` 会报它不是 1。这个脚本不在 CI 里，发布检查单点名（`CHECKLIST.md:129,158`），统一起点已登记，属于预期。
+- **T10 的提醒给统筹（收口时改正）：** 原写 `prompt.assistant-base` 升到 2。#1960 把提示词的第 1 版检查放进了 CI 里的 `verify-release-versions`（阶段一提示词在原版本改，`CONTRACT-CHANGES.md` 第 3 节），所以收口时留在第 1 版、原地改正文。
 
 **给别批的。** 合同都只等 T1 或 T3 的类型；校验等 T4；**T4 随第 14 批大 PR 合入，不单合（05 请求过单合，11-08 两边统筹商定：05 先合合同，SDK 校验跟在后面）**；**实现里要调 `say` 的片等 T8**（`ui-text-provider.ts`、`plugin-text.ts`），没装时抛 `ui.text_no_context`（第 5.2 节）。
 
@@ -1201,7 +1201,7 @@ A 段的验收写在[需求书 §11](spec.md#11-验收标准) 的 FSS-42～FSS-7
 - **有页面的一轮：** 发消息、回答重启前搁置的问题（`assistant-outcomes.ts`）、重新准备操作卡，这三处都由 `assistant-http.ts` 的 `pageRoundLanguage` 读 `pageLocale()`、记第 15.1 节的记录，作为参数经 `send` 或 `answer`、`dispatch` 进 authority，后面不再碰全局。一轮跟发起它的页面走，不读记录：两个浏览器语言不同时，各自发起的一轮用各自的语言。讨论串的回复第 16 批之前读记录。
 - **宿主发起的一轮**（定时安排、续轮等，开轮的入口不止 `assistant-service.ts:81,95`）：`dispatch` 没收到语言就读第 15.1 节的记录，放在这一处，不靠入口名单，也不继承当初页面的语言。长期任务的入口包 `runBackgroundWork`（第 5.2 节）。
 - **固定文字：** 取值校验（`isWebLocale`）后映射到固定的一段话，不把字符串拼进提示词。不用 `LOCALE_TAG`，所以 T10 不等 T1。按 `fencedMaterials` 的做法算代码里的固定文字，不登记、不进「提示词」设置页（`docs/platform/PROLOGUE-AI.md` 第 14 节「回复语言」一行）。
-- **版本记得下：** 放进 `composeRolePrompts`（`run-start.ts:71`，调用在 `index.ts:351`），一条带 `prompt_id`、`version`（`prompt.reply-language`，走 `tooling/versions.json`）的提示词，`freezeRunStart` 就记下了。`prologue-run-start.ts:87` 只拼字符串，记不下。`ASSISTANT_BASE` 那句改成「回复语言见本轮说明；本轮没有说明时，用用户使用的语言」，`prompt.assistant-base` 升一版。
+- **版本记得下：** 放进 `composeRolePrompts`（`run-start.ts:71`，调用在 `index.ts:351`），一条带 `prompt_id`、`version`（`prompt.reply-language`，走 `tooling/versions.json`）的提示词，`freezeRunStart` 就记下了。`prologue-run-start.ts:87` 只拼字符串，记不下。`ASSISTANT_BASE` 那句改成「回复语言见本轮说明；本轮没有说明时，用用户使用的语言」，`prompt.assistant-base` 按阶段一在第 1 版原地改（收口时改正：#1960 起 `verify-release-versions` 在 CI 里拒绝未到首次外部安装就升提示词版本，`CONTRACT-CHANGES.md` 第 3 节）。
 - **它不是最后一段：** `roundCharacter`（`prologue-run.ts`）在 `character.instructions` 之后还接子角色说明、侧栏浏览器和桌面说明、步骤板，今天都是中文，都可能把回复带回中文。助理开轮时 `skills: []`（`assistant-round-start.ts`），方法正文不进系统提示，走材料（`compose`）或 `assistant.methods.read@2` 的工具结果，以用户消息或工具结果的身份到模型那边。FSS-71 的真实模型验证用两个用例：带一个点名的中文方法，和一轮有侧栏浏览器的。
 - **T10 只接个人助理。** Coding、创作台第 16 批接同一个字段，宿主从 `caller.locale` 补。压缩和结尾复核的提示词不动。
 

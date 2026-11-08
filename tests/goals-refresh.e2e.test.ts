@@ -274,3 +274,19 @@ test("ASC-41: a pending save blocks an in-flight refresh and later polls until i
   assert.equal(await evaluate("location.pathname"), prefix + "/trash/goals/" + goalId);
   assert.deepEqual(boardSnapshot(store, DEMO_PROJECT_ID), saved);
 });
+
+// T01-GRAPH-REFRESH-01: a focused workspace also consumes the graph, even when its mode is not "graph".
+test("T01-GRAPH-REFRESH-01 a focused Goal workspace reloads graph facts after a real board refresh", { timeout: 60_000 }, async t => {
+  const browser = await openGoalBrowser(t, true); if (!browser) return;
+  const { store, origin, projectId, sessionId, command, evaluate, waitFor, navigate, openGoalWork } = browser;
+  const prefix = `/projects/${projectId}`;
+  await navigate(() => command("Page.navigate", { url: origin + prefix + "/goals/CORE" }, sessionId));
+  await openGoalWork();
+  await waitFor("document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true'");
+  await addGoal(origin, prefix, "T01-GRAPH-REFRESH");
+  const saved = boardSnapshot(store, DEMO_PROJECT_ID);
+  await waitFor("document.querySelector('.tree-node[data-select-goal=T01-GRAPH-REFRESH]')", 10_000);
+  await waitFor("document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true' && document.querySelector('[data-goal-momentum] [data-goal-id=T01-GRAPH-REFRESH]')", 10_000);
+  assert.equal(await evaluate("document.querySelector('[data-goal-view]').dataset.goalView"), "CORE");
+  assert.deepEqual(boardSnapshot(store, DEMO_PROJECT_ID), saved, "the graph refresh is read-only");
+});

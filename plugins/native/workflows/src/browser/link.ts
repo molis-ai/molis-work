@@ -53,7 +53,8 @@ function backFoot(page: WorkflowsPage, ready: Ready) {
 export function readyRow(page: WorkflowsPage, ready: Ready) {
   const { L } = page;
   if (ready.ready) return `${ico("check")}<span>${esc(L("workflows.link.connected"))}</span>`;
-  const fix = ready.reason === "workflows.ready.no-model" ? ` <a href="/settings/models">${esc(L("workflows.link.open-model-settings"))}</a>` : "";
+  // The settings open for this link and come back to it (specs/draft-and-return §4): the flow is the object, the link the step.
+  const fix = ready.reason === "workflows.ready.no-model" ? ` <button class="mw-btn mw-btn--ghost mw-btn--sm wf-model-settings" type="button" data-wf-action="model-settings">${esc(L("workflows.link.open-model-settings"))}</button>` : "";
   return `${ico("alert")}<span>${esc(L("workflows.link.not-connected-reason", { reason: said(L, ready.reason) }))}${fix}</span>`;
 }
 

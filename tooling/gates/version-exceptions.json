@@ -796,6 +796,12 @@
     "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
   },
   {
+    "file": "apps/local-host/src/account-session-storage.ts",
+    "name": "molis.account.session.v1.X",
+    "values": { "molis.account.session.v1.X": 1 },
+    "reason": "账号会话在密钥库里的引用名，后面是 Home 与账号环境的摘要；只按整串取，改它就找不到已存的会话。记录本身的格式版本是 format.account.session，这里不是版本号。"
+  },
+  {
     "file": "apps/local-host/src/alchemist-search.ts",
     "name": "materials_v1",
     "values": { "materials_v1": 1 },
@@ -872,6 +878,12 @@
     "name": "project-settings-v2.",
     "values": { "project-settings-v2.": 1 },
     "reason": "页面 HTML 注释里提到的设计稿名字，不进页面行为，不是版本。"
+  },
+  {
+    "file": "packages/contracts/src/services/account-dto.ts",
+    "name": "unified-account-v2",
+    "values": { "unified-account-v2": 2 },
+    "reason": "Auth 统一账号 schemas.json 生成的类型里 policyProfile 的取值，由上游 Auth 服务定义，文件写明不手改；不是自有版本。"
   },
   {
     "file": "packages/design-system/src/plugin-presentation-example.ts",

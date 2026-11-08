@@ -309,7 +309,10 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
         }
         const selected=selection(request);
         let token=selected.space.kind==='local'?rootToken:tokenFor(selected);
-        const accountPath=url.pathname.startsWith('/api/personal/')||['/account','/account/callback','/welcome'].includes(url.pathname);
+        const callback=url.pathname==='/account/callback';
+        // Protocol markers only route the request; the selected Home verifies the pending attempt.
+        const unifiedCallback=callback&&(url.searchParams.has('transactionId')||url.searchParams.has('result'));
+        const accountPath=url.pathname.startsWith('/api/personal/')||['/account','/welcome'].includes(url.pathname)||(callback&&!unifiedCallback);
         const address=server.address();
         const origin=`http://127.0.0.1:${address&&typeof address==='object'?address.port:4173}`;
         if(accountEntry?.asset(request,response,url))return;
@@ -327,6 +330,7 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
           sweep();await resume(request);return;
         }
         if(selected.space.kind==='local'){
+          if(unifiedCallback){refuseLocalWebRequest(response);return;}
           if(request.method==='GET'&&!url.pathname.startsWith('/api/')&&accountEntry){response.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-frame-options':'DENY'});response.end(accountEntry.render(rootToken,request,url));}
           else sendLocalWebJson(response,401,{error:'请先登录当前安装的账号。'});
           return;

@@ -5,6 +5,8 @@ import { pageReviews } from "./reviews.js";
 import { pageEmbeds } from "./embed.js";
 import { pageFramedAreas } from "./framed-area.js";
 import { pageTaskGrants } from "./task-grants-area.js";
+import { pageConnectionNeed } from "./connection-need.js";
+import { pageReturns } from "./returns.js";
 import { downloadFrameFile, downloadPageBlob } from "./links.js";
 import { printPageDocument } from "./files.js";
 import { pageMessages } from "./messages.js";
@@ -48,23 +50,8 @@ function directoryLayout(root: HTMLElement): void {
   document.head.append(style);
 }
 
-/**
- * A page never navigates a document. A settings address opens the workbench's settings in place, in the shell page that
- * owns them: a frame in the shell asks this document, an embedded shell asks the one it is embedded in, and a pane hands
- * the address to the pane's one relay to the workbench it sits in. Any other address changes nothing.
- */
-function openSettings(url: URL): void {
-  const pane = new URLSearchParams(location.search).get("workbenchPane");
-  if (window.parent !== window && pane !== null) {
-    window.parent.postMessage({ type: "workbench-open-settings", paneId: pane, href: url.href }, location.origin);
-    return;
-  }
-  let owner = document;
-  try { if (window.top && window.top !== window) owner = window.top.document; } catch { /* A cross-origin embedder keeps its own documents. */ }
-  owner.dispatchEvent(new CustomEvent("molis-work:open-settings-path", { detail: { href: url.href } }));
-}
-
-function navigate(root: HTMLElement, message: Extract<FrameUp, { type: "link" }>, prefix: string): void {
+/** A page never navigates a document: an object link opens in the workbench, a settings address opens its settings (returns.ts). */
+function navigate(root: HTMLElement, message: Extract<FrameUp, { type: "link" }>, prefix: string, openSettings: (url: URL) => void): void {
   const url = new URL(message.url);
   const objectLink = url.pathname === prefix + "/" && /^[a-z][a-z0-9-]{0,100}$/u.test(url.searchParams.get("openPlugin") ?? "")
     && [...url.searchParams.keys()].every(key => ["openPlugin", "openItem", "openTitle", "openVersion"].includes(key));
@@ -165,7 +152,10 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
       if (!node.checkVisibility({ visibilityProperty: true })) return false;
     return scope.visible;
   };
-  const taskGrants = pageTaskGrants(port, scope, pageFramedAreas(scope, root, frame, visible), grant.page_id, route, host.translate, host.translate(frame.title));
+  // One registry of framed areas a page: the reads area and the connection card share its four places, layer and checks (§13.5).
+  const areas = pageFramedAreas(scope, root, frame, visible), owner = host.translate(frame.title);
+  const taskGrants = pageTaskGrants(port, scope, areas, grant.page_id, route, host.translate, owner);
+  const returns = pageReturns(port, scope, root, pack, grant.storage_scope, visible), connectionNeed = pageConnectionNeed(port, scope, areas, grant.page_id, route, host.translate, owner, returns.connection);
   const state = () => { if (visible() && invalidated) { invalidated = false; port.postMessage({ type: "select", detail: { invalidate: true }, itemTab: ownItemTab(root, pack) }); } port.postMessage({ type: "state", visible: visible(),
     theme: Object.fromEntries(["theme", "resolvedTheme", "density", "terminalTheme", "resolvedTerminalTheme"].map(key => [key, document.documentElement.dataset[key] ?? ""])) }); };
   scope.observe(new MutationObserver(state), document.documentElement, { attributes: true, attributeFilter: ["data-theme", "data-resolved-theme", "data-density", "data-terminal-theme", "data-resolved-terminal-theme"] });
@@ -232,6 +222,8 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
     if (message.type === "workspace") { void workspaces(message); return; }
     if (message.type === "embed-open" || message.type === "embed-layout" || message.type === "embed-close") { void embed(message); return; }
     if (message.type === "task-grants-open" || message.type === "task-grants-layout" || message.type === "task-grants-close") { taskGrants(message); return; }
+    if (message.type === "connection-need-open" || message.type === "connection-need-layout" || message.type === "connection-need-close") { connectionNeed(message); return; }
+    if (message.type === "return-go" || message.type === "return-arrived" || message.type === "return-abort") { returns.receive(message); return; }
     if (message.type === "fetch" || message.type === "abort" || message.type === "pull") { void requests(message); return; }
     if (message.type === "draft") {
       if (transition.preparing && draftsPrepared) { port.postMessage({type: "draft-result", id: message.id, error: "Account is switching"}); return; }
@@ -278,7 +270,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
         else if (["openItem", "openBeside", "hideDirectory", "status"].includes(message.name)) host[message.name as "openItem"]?.(...message.args);
       } else if (message.type === "link") {
         if (message.download) void downloadFrameFile(new URL(message.url), grant.page_id, scope).catch(error => host.showToast?.(String(error.message), true));
-        else navigate(root, message, route(""));
+        else navigate(root, message, route(""), returns.link);
       }
       else if (message.type === "context") {
         if (typeof message.value === "string" && message.value.length < 32000) {

@@ -11,6 +11,8 @@ const DESKTOP_NAVIGATION_STATE = /* @version format.workbench.navigation-state *
  *
  * - `paneMessages`: the one split-pane message check (S-30, `pane-messages.ts`), handed to the factories that listen for
  *   pane messages (the tab workspace, the context actions) so the page carries it once.
+ * - `settingsReturn`: this window's return trips (settings-return.ts), set up before anything mounts a frame; it reads the tab
+ *   workspace only when asked, so it does not wait for it.
  */
 export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     const q = (selector) => document.querySelector(selector);
@@ -56,6 +58,8 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     let frameContainer = null;
     let tabWorkspace = null;
     const paneMessages = ${PANE_MESSAGES_SCRIPT};
+    const settingsReturn = molisWorkSettingsReturn({ translate: (...args) => L(...args), projectId: state.project?.project_id || "", prefix: routePrefix,
+      tabWorkspace: () => tabWorkspace, showToast: (...args) => showToast(...args), setDirectory: (...args) => setDesktopDirectory(...args) });
     let projectHome = null;
     let pluginWorkbench = null;
     let globalSearchPalette = null;

@@ -69,7 +69,8 @@ export interface UiFailureViewPorts {
  * may not have been done, and the helper does not guess. (Notes live here, not in the body: the body is sent to the page.)
  */
 export function createUiRequest(ports: UiRequestPorts): UiRequestCall {
-  const controlHeaders = ["content-type", "x-molis-work-control-token", "x-molis-work-idempotency-key"];
+  const controlTokenHeader = "x-molis-work-control-token";
+  const controlHeaders = ["content-type", controlTokenHeader, "x-molis-work-idempotency-key"];
   const failure = (message: string, code: string, status: number, callId: string | null, body: unknown): UiRequestFailure =>
     Object.assign(new Error(message), { code, status, callId, body });
   const text = (value: unknown): string | null => (typeof value === "string" && value !== "" ? value : null);
@@ -79,7 +80,7 @@ export function createUiRequest(ports: UiRequestPorts): UiRequestCall {
   };
   const writeHeaders = (key?: string): Record<string, string> => ({
     "content-type": "application/json",
-    "x-molis-work-control-token": ports.token(),
+    [controlTokenHeader]: ports.token(),
     "x-molis-work-idempotency-key": key ?? ports.newKey(),
   });
 
@@ -94,7 +95,10 @@ export function createUiRequest(ports: UiRequestPorts): UiRequestCall {
     const headers: Record<string, string> = {};
     for (const [name, value] of Object.entries(init.headers ?? {})) if (!controlHeaders.includes(name.toLowerCase())) headers[name] = value;
     if (!read) Object.assign(headers, writeHeaders(init.key));
-    else Object.assign(headers, ports.readHeaders?.());
+    else {
+      Object.assign(headers, ports.readHeaders?.());
+      if (init.control) headers[controlTokenHeader] = ports.token();
+    }
     const options: UiFetchInit = { method, headers, cache: "no-store" };
     if (init.signal) options.signal = init.signal;
     if (init.keepalive) options.keepalive = true;

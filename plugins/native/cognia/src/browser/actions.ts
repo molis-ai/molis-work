@@ -1,4 +1,5 @@
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
+import { goForModel, installReturns } from "./returns.js";
 import { closeDialog, showAdd, showAi, showDomain, showDraft, showDrafts, showEdit, showImport } from "./dialog.js";
 import { OWN_SOURCES } from "./labels.js";
 import { countSelected, load } from "./list.js";
@@ -95,7 +96,11 @@ const HANDLERS: Record<string, Handler> = {
   synthesize: async (page) => askModel(page, "synthesize"),
   "synthesize-current": async (page) => askModel(page, "synthesize-current"),
   query: async (page) => askModel(page, "query"),
+  "model-settings": (page) => goForModel(page, () => askModel(page, "query")),
 };
+
+/** The asks a model was missing for, offered again once the settings have one (browser/returns.ts). */
+export const installAskReturns = (page: CogniaPage): void => installReturns(page, () => askModel(page, "query"));
 
 async function click(page: CogniaPage, event: MouseEvent): Promise<void> {
   const target = event.target instanceof Element ? event.target : null;

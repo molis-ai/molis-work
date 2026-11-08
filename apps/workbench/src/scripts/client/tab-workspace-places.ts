@@ -203,15 +203,24 @@ export const TAB_WORKSPACE_PLACES_PART = `  const coverLabel = (kind) => kind ==
     apply();
     persist();
   };
+  // The cover field says which cover lies over the panes (or null), so a cover closing or changing is heard even with no pane focused.
   const announcePlace = () => {
     if (embedded) return;
     const pane = ops.focused(state);
-    const next = { paneId: pane?.id || "", place: pane ? historyId(pane) || "" : "" };
-    if (next.paneId === announcedPlace.paneId && next.place === announcedPlace.place) return;
+    const next = { paneId: pane?.id || "", place: pane ? historyId(pane) || "" : "", cover: state.exclusive || null };
+    if (next.paneId === announcedPlace.paneId && next.place === announcedPlace.place && next.cover === (announcedPlace.cover ?? null)) return;
     const previous = announcedPlace;
     announcedPlace = next;
     document.dispatchEvent(new CustomEvent("molis-work:place-changed", { detail: { ...next, previous } }));
   };
+  // Whether a return trip's place is still in the layout (specs/draft-and-return §2.4): the pane is there and has a view or a tab of the surface.
+  // \`embedded\` is declared after this part, so it is read when asked, never while the part is set up.
+  document.addEventListener("molis-work:layout-holds", (event) => {
+    const detail = event.detail;
+    if (embedded || !detail || typeof detail !== "object" || typeof detail.pane !== "string" || typeof detail.surface !== "string") return;
+    const pane = paneById(detail.pane);
+    detail.answer = Boolean(pane && (pane.viewPlugin === detail.surface || pane.tabs.some((tab) => tab.plugin === detail.surface)));
+  });
   /** The page itself moved (a record opened or closed on it): one step of history, outside any history walk. */
   const notePlace = () => {
     const pane = ops.focused(state);

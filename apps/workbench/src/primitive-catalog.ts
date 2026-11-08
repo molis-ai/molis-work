@@ -15,7 +15,9 @@ import { CONDITIONS_SECTION_STYLES, renderConditionsSection } from "./condition-
 import { ASSISTANT_SECTION_STYLES, renderAssistantBoardSection } from "./assistant-board-specimens.js";
 import { PLUGIN_ROWS_SECTION_STYLES, renderPluginRowsSection } from "./board-plugin-rows.js";
 import { renderServiceConnectionSection, SERVICE_CONNECTION_SECTION_SCRIPT, SERVICE_CONNECTION_SECTION_STYLES } from "./service-connection-specimens.js";
+import { RETURN_TRIP_SECTION_STYLES, renderReturnTripSection } from "./return-trip-specimens.js";
 import { PLATFORM_AREA_SECTION_SCRIPT, PLATFORM_AREA_SECTION_STYLES, renderPlatformAreaSection } from "./platform-area-specimens.js";
+import { CONNECTION_NEED_SECTION_STYLES, renderConnectionNeedSection } from "./connection-need-specimens.js";
 import { COLLAB_SECTION_SCRIPT, COLLAB_SECTION_STYLES, renderCollabSection } from "./collab-specimens.js";
 import { NAVIGATION_SECTION_STYLES, renderNavigationSection } from "./navigation-specimens.js";
 import { renderPluginRail, renderWorkbenchBar, renderWorkspaceChrome } from "./immersive-shell.js";
@@ -222,8 +224,8 @@ export function renderMolisWorkPrimitiveCatalog(say: (text: string, values?: Rec
     ],
   });
   const catalog = renderPrimitiveCatalog({ plugins: iconInventoryPlugins(), say })
-    .replace("</nav>", `<a href="#foundation" title="视觉机制">视觉机制</a><a href="#conditions" title="${say("条件与状态")}">${say("条件与状态")}</a><a href="#assistant" title="${say("助理信息与任务")}">${say("助理信息与任务")}</a><a href="#plugin-rows" title="${say("插件行视图")}">${say("插件行视图")}</a><a href="#service-connections" title="${say("服务连接")}">${say("服务连接")}</a><a href="#platform-area" title="${say("平台区域")}">${say("平台区域")}</a><a href="#bar" title="底栏与浮层">底栏与浮层</a><a href="#collab" title="协作零件">协作零件</a><a href="#navigation" title="${say("工作台导航")}">${say("工作台导航")}</a></nav>`)
-    .replace("\n  </div>\n  <script>", `\n    ${renderFoundationSection()}\n    ${renderConditionsSection(say, lang)}\n    ${renderAssistantBoardSection(say, lang)}\n    ${renderPluginRowsSection(say, lang)}\n    ${renderServiceConnectionSection(say)}\n    ${renderPlatformAreaSection(say, lang)}\n    ${renderBarSection()}\n    ${renderCollabSection()}\n    ${renderNavigationSection(say, lang)}\n  </div>\n  <script>`);
+    .replace("</nav>", `<a href="#foundation" title="视觉机制">视觉机制</a><a href="#conditions" title="${say("条件与状态")}">${say("条件与状态")}</a><a href="#assistant" title="${say("助理信息与任务")}">${say("助理信息与任务")}</a><a href="#plugin-rows" title="${say("插件行视图")}">${say("插件行视图")}</a><a href="#service-connections" title="${say("服务连接")}">${say("服务连接")}</a><a href="#return-trips" title="${say("回到原处")}">${say("回到原处")}</a><a href="#platform-area" title="${say("平台区域")}">${say("平台区域")}</a><a href="#connection-need" title="${say("原处的连接卡 · 平台区域版")}">${say("原处的连接卡 · 平台区域版")}</a><a href="#bar" title="底栏与浮层">底栏与浮层</a><a href="#collab" title="协作零件">协作零件</a><a href="#navigation" title="${say("工作台导航")}">${say("工作台导航")}</a></nav>`)
+    .replace("\n  </div>\n  <script>", `\n    ${renderFoundationSection()}\n    ${renderConditionsSection(say, lang)}\n    ${renderAssistantBoardSection(say, lang)}\n    ${renderPluginRowsSection(say, lang)}\n    ${renderServiceConnectionSection(say)}\n    ${renderReturnTripSection(say)}\n    ${renderPlatformAreaSection(say, lang)}\n    ${renderConnectionNeedSection(say)}\n    ${renderBarSection()}\n    ${renderCollabSection()}\n    ${renderNavigationSection(say, lang)}\n  </div>\n  <script>`);
   return `<!doctype html>
 <html lang="${lang === "en" ? "en" : "zh-CN"}">
 <head>
@@ -232,7 +234,7 @@ export function renderMolisWorkPrimitiveCatalog(say: (text: string, values?: Rec
   <title>组件板 · Molis Work</title>
   <script>${THEME_BOOTSTRAP_SCRIPT}</script>
   <link rel="stylesheet" href="/assets/molis-work-settings.css">
-  <style>${FOUNDATION_SPECIMEN_STYLES}${CONDITIONS_SECTION_STYLES}${ASSISTANT_SECTION_STYLES}${PLUGIN_ROWS_SECTION_STYLES}${COLLAB_SECTION_STYLES}${NAVIGATION_SECTION_STYLES}${SERVICE_CONNECTION_SECTION_STYLES}${PLATFORM_AREA_SECTION_STYLES}.mw-catalog-top__tools{display:flex;flex-wrap:wrap;gap:8px}${BOARD_PAGE_STYLES}</style>
+  <style>${FOUNDATION_SPECIMEN_STYLES}${CONDITIONS_SECTION_STYLES}${ASSISTANT_SECTION_STYLES}${PLUGIN_ROWS_SECTION_STYLES}${COLLAB_SECTION_STYLES}${NAVIGATION_SECTION_STYLES}${SERVICE_CONNECTION_SECTION_STYLES}${RETURN_TRIP_SECTION_STYLES}${PLATFORM_AREA_SECTION_STYLES}${CONNECTION_NEED_SECTION_STYLES}.mw-catalog-top__tools{display:flex;flex-wrap:wrap;gap:8px}${BOARD_PAGE_STYLES}</style>
 </head>
 <body class="mw-catalog-page settings-page">
   ${renderIconSprite()}

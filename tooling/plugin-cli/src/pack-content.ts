@@ -18,7 +18,7 @@ export interface PackContentOptions {
   publisherId: string;
   publisherKeyId: string;
   scope?: 'project' | 'home';
-  compatibleFrom?: string[];
+  upgradesFrom?: string[];
 }
 
 const invalid = (message: string): never => { throw pluginErrors.package_invalid(message); };
@@ -57,7 +57,7 @@ export async function packContentProject(directory: string, output: string, opti
   if (!skills.length) invalid('目录里没有技能：每个技能是一个带 SKILL.md 的子目录');
   const payload = contentPackagePayload({ plugin_id: options.pluginId, version: options.version, name: options.name,
     publisher: { publisher_id: options.publisherId, signature: options.publisherKeyId }, scope: options.scope ?? 'project',
-    ...(options.compatibleFrom ? { compatible_from: options.compatibleFrom } : {}), skills });
+    ...(options.upgradesFrom ? { compatible_from: options.upgradesFrom } : {}), skills });
   const bundle = parsePluginPackage({ payload, signature: null, publisher_key: null });
   await writePluginPackageFile(output, bundle);
   return bundle;
@@ -76,5 +76,5 @@ export function contentPackOptions(args: readonly string[]): PackContentOptions 
   const scope = fields.get('scope') ?? 'project';
   if (scope !== 'project' && scope !== 'home') return invalid('scope 只能是 project 或 home');
   return { pluginId: need('plugin-id'), name: need('name'), version: need('version'), publisherId: need('publisher-id'), publisherKeyId: need('publisher-key-id'), scope,
-    ...(fields.has('compatible-from') ? { compatibleFrom: fields.get('compatible-from')!.split(',') } : {}) };
+    ...(fields.has('compatible-from') ? { upgradesFrom: fields.get('compatible-from')!.split(',') } : {}) };
 }

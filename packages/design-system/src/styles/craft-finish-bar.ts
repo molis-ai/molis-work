@@ -335,6 +335,8 @@ export const CRAFT_BAR_STYLES = `
      height and grows with it. */
   ${SHELL} .bar-center > .assistant-composer { position: relative; padding-block: 8px; }
   ${SHELL} .assistant-composer > .mw-composer { width: 100%; }
+  /* Its menus (＋, @, the delivery ▾) rise over the open Assistant panel above the bar (z 50), as the island's menus did (z 60). */
+  ${SHELL} .assistant-composer :is(.mw-compose__menu, .mw-composer__controls) { z-index: 60; }
   /* The receiver's name opens its conversation (the island's click). */
   ${SHELL} .assistant-composer .mw-composer__to .mw-tag { cursor: pointer; }
   /* A short window gives its height to writing (DESIGN.md → Layout, ≤ 560px tall): the bar's composer starts at one line and

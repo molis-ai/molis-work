@@ -294,7 +294,6 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
   const reopen=record=>{
     const before=side().open;
     if(!ops.reopenSideTab(getState(),record))return false;
-    if(undo?.record===record)undo=null;
     if(side().open&&!before&&!open)setOpen(true,{tab:record.tab.itemId});else if(record.active&&open)select(record.tab.itemId);else draw();
     if(strip.contains(document.activeElement))buttons().find(button=>button.dataset.sideTab===record.tab.itemId)?.focus({preventScroll:true});
     save();return true;

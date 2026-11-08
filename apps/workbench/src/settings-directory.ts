@@ -34,6 +34,7 @@ export function renderPersonalMenuItems(primitives: SettingsDirectoryPrimitives)
       <span class="personal-account-avatar" aria-hidden="true">${icon("user")}</span>
       <span class="personal-account-copy"><strong data-personal-name>${L("未登录")}</strong><small data-personal-status>${L("本地空间")}</small></span>
     </button>
+    <button class="immersive-plugin-link account-global-item" type="button" data-unified-account-link aria-label="${L("Molis 账号")}" title="${L("Molis 账号")}">${icon("user")}<span data-unified-account-name>${L("Molis 账号")}</span></button>
     <a class="immersive-plugin-link account-global-item" href="__SYSTEM_CAPABILITIES__" data-capabilities-open aria-label="${L("打开能力服务")}" title="${L("能力")}">${icon("sparkles")}<span>${L("能力")}</span></a>
     <button class="immersive-plugin-link account-global-item personal-settings" type="button" data-plugin-id="settings" data-directory-open="settings" aria-label="${L("打开全局设置")}" title="${L("设置")}">${icon("settings")}<span>${L("设置")}</span></button>
   </div>`;

@@ -17,6 +17,8 @@ Home 插件的 `PluginDatabaseDeclaration` / `PluginDatabase` 从 `platform/plug
 
 同一 `platform/plugin` 子路径的 `PluginOwnerFilesReader/Writer/Client/Declaration` 表达可信 Home 主人的私有文件树。`services.ownerFiles` 可缺省；独立读取需当前动作读权限，`write(run)` 只接同步回调并在退出后撤销 writer。目录和顶层条目是插件自己 Manifest 的 `owner_files`（PG-102），初始化钩子和实例来自可信启动条目，不从业务参数取得。
 
+`services/account` 表达 Host 私有中央账号适配器及安全 AccountView；DTO 从 Auth 固定 Schema 生成，中央身份与本地 actor 分离，操作映射与环境说明见 [中央账号服务](../../docs/horizontal/account.md)。
+
 ## 一次典型调用
 
 调用方按领域子路径导入，例如 @molis-ai/molis-work-contracts/modules/artifacts 或 /platform/plugin。Plugin Manifest 的类型在此定义；解析（`parsePluginManifest`）和动作、Agent、方法的声明检查（`inspectActionDeclarations` 等，内核注册时也用）会运行代码，由 `@molis-ai/molis-work-plugin-sdk` 持有，SDK、内核、运行时和命令行共用同一份；具体命令执行交给对应 owner。

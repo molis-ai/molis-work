@@ -142,6 +142,24 @@ function isGuardedMutationPath(pathname: string): boolean {
 }
 const SELF_GUARDED_MOUNT = /^\/im(?:\/|$)/;
 
+/** Account reads expose cloud identity, so they require the same local control proof as writes.
+ * Browsers omit Origin on same-origin GET; only an exact same-origin Referer may replace it.
+ */
+function authorizeAccountRead(request: IncomingMessage, response: ServerResponse, host: string, controlToken: string): boolean {
+  if (!controlTokenMatches(controlToken, requestHeader(request, "x-molis-work-control-token"))) return refuse(response);
+  const site = request.headers["sec-fetch-site"];
+  if (site !== undefined && site !== "same-origin" && site !== "none") return refuse(response);
+  const origin = request.headers.origin, referer = request.headers.referer;
+  const proof = origin === undefined ? referer : origin;
+  if (typeof proof !== "string") return refuse(response);
+  try {
+    const parsed = new URL(proof);
+    if (parsed.username || parsed.password || parsed.origin !== `http://${host}` || !isLoopbackHostname(parsed.hostname)) return refuse(response);
+    if (origin !== undefined && origin !== parsed.origin) return refuse(response);
+  } catch { return refuse(response); }
+  return true;
+}
+
 export function authorizeLocalWebRequest(
   request: IncomingMessage,
   response: ServerResponse,
@@ -151,7 +169,10 @@ export function authorizeLocalWebRequest(
 ): boolean {
   const host = requestHost(request);
   if (!host) return refuse(response);
-  if (!request.method || ["GET", "HEAD"].includes(request.method)) return true;
+  if (!request.method || ["GET", "HEAD"].includes(request.method)) {
+    return url.pathname === "/api/account" || url.pathname.startsWith("/api/account/")
+      ? authorizeAccountRead(request, response, host, controlToken) : true;
+  }
   if (!isGuardedMutationPath(url.pathname)) {
     if (SELF_GUARDED_MOUNT.test(url.pathname)) return true;
     return refuse(response);

@@ -1,0 +1,10 @@
+export { createAccountService, type AccountServicePorts } from "./client.js";
+export { parseAccountEnvironment } from "./config.js";
+export { accountErrors } from "./errors.js";
+export { centralAccountOperationForProduct } from "./operations.js";
+export { validateNamed as validateAccountContract } from "./upstream/validate.js";
+export { createAccountSessionManager } from "./session-manager.js";
+export type { AccountLoginAttempt, AccountLogoutResult, AccountLogoutScope, AccountSessionManager, AccountSessionManagerPorts, AccountSessionStorage } from "./session-types.js";
+export { createAccountAuthentication } from "./authentication.js";
+export { accountActions, accountActionProvider, ACCOUNT_PROVIDER_ID, ACCOUNT_PERMISSIONS } from "./actions.js";
+export { accountManagementActions, matchAccountManagementRoute } from "./management-actions.js";

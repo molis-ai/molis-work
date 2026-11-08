@@ -5,6 +5,7 @@ import { createSpaceWebServer, type SpaceWebSurface } from "./space-web-server.j
 import { runtimeSyncSurface } from "./runtime-sync-discovery.js";
 import { ProjectDeletionService } from "./project-deletion-service.js";
 import { pluginPagesFor } from "./plugin-page-authority.js";
+import { bindAccountHost, handleAccountHttp } from "./account-host.js";
 import { projectOrNull } from "./catalog-lookup.js";
 import { projectActionAvailability } from "./project-action-availability.js";
 import { handleManagementActionHttp } from "./management-action-gateway.js";
@@ -114,6 +115,7 @@ export function createLocalWebCoreFactory(platform: LocalWebPlatform) {
     try {
     // The Host, including a borrowed one, cannot relinquish its lease while this transport still owns storage.
     boundCatalog = localHost.configurePersonalPlanning(storageHome, baseCatalog);
+    const account = bindAccountHost(localHost, storageHome, serverOptions.account, serverOptions.assertAccountCurrent);
     releaseTransport = retainHomeStorageResources(localHost, () => shutdown ? shutdown() : cleanup());
     if (platform.openCatalog) catalogAccess = localHost.ensureWebCatalog(storageHome, platform.openCatalog);
     const runtimeIntegrations = serverOptions.runtimeIntegrationService ?? new RuntimeIntegrationService({ homeDirectory: storageHome });
@@ -161,6 +163,7 @@ export function createLocalWebCoreFactory(platform: LocalWebPlatform) {
           if (!authorizeLocalWebRequest(request, response, url, controlToken, mutationKeys)) return;
           if (localHost.lifecycle() !== "running") throw new Error("Local Host is closing");
           await pluginPagesFor(storageHome).bind(request, url, response);
+          if (await handleAccountHttp(request, response, url, account)) return;
           if (request.method === "GET" && url.pathname === "/health" && catalogAccess) {
             const ready = server.address() !== null && Boolean(pty.host) && (Boolean(fixture) || catalogAccess.ready);
             sendWebHealth(response, ready ? 200 : 503, {

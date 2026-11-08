@@ -14,7 +14,7 @@ const ASSISTANT_GLYPHS: readonly PluginIconName[] = ["file", "note", "image", "z
 export function renderAssistantDock(primitives: { L(value: string): string; icon(name: PluginIconName): string }): string {
   const { L, icon } = primitives;
   // The ordinary send while a turn runs, by its stable key; the island's script reads it back from the composer's mount.
-  const add = nextBoundaryWord();
+  const add = t.text("workbench.composer.next-boundary");
   return `<div class="bar-center" data-assistant-island data-system-view-owner="assistant">
       <section class="assistant-panel" data-assistant-panel aria-label="${L("助理")}" hidden>
         <template data-assistant-glyphs>${ASSISTANT_GLYPHS.map((name) => `<span data-glyph="${name}">${icon(name)}</span>`).join("")}</template>
@@ -81,17 +81,4 @@ export function renderAssistantDock(primitives: { L(value: string): string; icon
         <button class="assistant-attention" type="button" data-assistant-attention aria-haspopup="true" aria-expanded="false" aria-controls="assistant-notices" title="${L("需要你看看")}" hidden>${icon("bell")}<span data-assistant-attention-count></span></button>
       </div>
     </div>`;
-}
-
-/**
- * 补充 / Add: the stable key `workbench.composer.next-boundary`, which needs the platform's text context. The Host has it for every
- * page; a render outside it (a unit test of the page's HTML) gets the Chinese. By its Chinese the word is a receipt's kind (Supplement).
- */
-export function nextBoundaryWord(): string {
-  try {
-    return t.text("workbench.composer.next-boundary");
-  } catch (error) {
-    if ((error as { code?: unknown } | null)?.code !== "ui.text_no_context") throw error;
-    return "补充";
-  }
 }

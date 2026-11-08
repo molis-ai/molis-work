@@ -1,5 +1,5 @@
 {
-  "reason": "输入栏标签打开别的项目的工作时项目名放最前，完整内容进悬浮提示，窄屏才看得到归属；合并判断后从 37 字节压到 19 字节",
+  "reason": "输入栏标签打开别的项目的工作时项目名放最前，完整内容进悬浮提示，窄屏才看得到归属；合并判断后从 37 字节压到 19 字节，合入 main 的 {title} 翻译模板后实测 7 字节",
   "review": "用户 2026-11-07 在会话中决定把项目名放最前，并已知需要这次放行；PR 评审待认可（specs/proactive-assistant/spec.md §12.1）",
-  "assets": { "/assets/molis-work-workbench.js": 19 }
+  "assets": { "/assets/molis-work-workbench.js": 7 }
 }

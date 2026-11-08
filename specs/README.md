@@ -71,6 +71,8 @@
 
 - [ci-conflict-reduction](ci-conflict-reduction/spec.md)：减少页面资源预算与其他高频生成记录的冲突及重复 CI；2026-11-06 已获实施授权，历史 PR 核查、实现与本地回归完成，待独立 CI 实测，负责人 Codex。
 
+- [daily-quality-d0033](daily-quality-d0033/spec.md)：高项真实侧栏隔离核查；补拒绝证据并纠正外层 frame 的旧评估，待 PR 核回。
+
 ## 现行规范
 
 仍被 `AGENTS.md`、SSOT、Skill 或包 README 引为现行规则的 spec。它们不归档；改规则就改它们。

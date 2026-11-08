@@ -9,15 +9,16 @@ import { MATERIAL_REF_SCHEMA, type MaterialRef } from "./project-materials.js";
  * A plugin's source for the unified input's `+` menu (specs/unified-input-voice/implementation-plan.md §3.3, slice K0): the one
  * extension that shows across plugins, so it is an action role like `search_source`. Everything else a mount page gives is its own
  * instance's options (the SDK's `page-globals`), never registered. The provider sees only what the pick schema lets in (`query`,
- * `limit`, and `near` when the mount page hands it over): no draft, receiver or other attachment (`S-composer-source-call`).
+ * `limit`, and `near` when the mount page hands it over and its kind is the source's own): no draft, receiver or other attachment (`S-composer-source-call`).
  */
 
-/** Read from the directory; one per action, since `capability_id@version` already names the source. */
+/**
+ * Read from the directory; one per action, since `capability_id@version` already names the source. The kinds its items are, and the
+ * kinds a `near` may be, are the action's own `subject_kinds`, each read back by an object reader of the same provider.
+ */
 export interface ComposerSourceDeclaration {
   /** The group's name in the menu, translated as `SearchSourceKind.title` is. */
   readonly title: string;
-  /** The kinds its items are: the action's own `subject_kinds`, each read back by an object reader of the same provider. */
-  readonly subject_kinds: readonly string[];
   /** Which layer's composers list it. */
   readonly layers: readonly ("ai" | "plain")[];
 }
@@ -28,7 +29,10 @@ export const COMPOSER_PICK_OUTPUT_TYPE = /* @version type.molis.composer.pick.it
 export interface ComposerPickInput {
   query: string;
   limit: number;
-  /** The object the mount page explicitly hands over as current; absent when it hands none. */
+  /**
+   * The object the mount page explicitly hands over as current, given only to a source whose own `subject_kinds` hold its kind: a
+   * source never learns which object of another owner the page is on. Absent when the page hands none or the kind is not the source's.
+   */
   near?: ActionSubject;
 }
 /** An object of the provider's own gives `pin: { mode: "current", read_revision }`; the target reads it again at send time. */
@@ -42,7 +46,7 @@ export const COMPOSER_PICK_INPUT_SCHEMA: ActionSchema = inputSchemaFor<ComposerP
   near: ACTION_SUBJECT_SCHEMA,
 }, ["query", "limit"]));
 export const COMPOSER_PICK_OUTPUT_SCHEMA: ActionSchema = closed({
-  items: { type: "array", maxItems: 50, items: closed({ ref: MATERIAL_REF_SCHEMA, title: { type: "string", minLength: 1, maxLength: 1000 }, hint: { type: "string", maxLength: 1000 } }, ["ref", "title"]) },
+  items: { type: "array", maxItems: 50, items: closed({ ref: MATERIAL_REF_SCHEMA, title: { type: "string", minLength: 1, maxLength: 1000 }, hint: { type: "string", maxLength: 300 } }, ["ref", "title"]) },
 });
 
 /** What a composer hands its mount page on send: an upload the page owns, or a picked reference. */
@@ -51,6 +55,11 @@ export type ComposerMaterial =
   /** `source` is for display only, as `AssistantMaterial.capability` is; the target authorizes by the reference's owner. */
   | { kind: "material"; ref: MaterialRef; title: string; source: { capability_id: string; version: number; provider_id: string } };
 
+/**
+ * Reported by the composer client (`molisComposer`) to the person, never raised by a target: a target refuses with its own code (a
+ * pick it cannot read is its `not_found`, `forbidden` or `conflict`), and the client says it as `subject_unreadable`. Every one of
+ * them leaves the way out to the person (pick again, fill the gap); the client never retries the same send by itself.
+ */
 export const composerErrors = defineErrorCodes("composer", {
   /** A source the menu listed is off, uninstalled or no longer granted. */
   source_unavailable: "unavailable",

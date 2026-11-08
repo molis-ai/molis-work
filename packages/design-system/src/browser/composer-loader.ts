@@ -1,0 +1,59 @@
+import type { ComposerHandle, ComposerOptions } from "@molis-ai/molis-work-plugin-sdk/page-globals";
+import { COMPOSER_ASSET, type ComposerMount } from "./composer-program.js";
+
+/**
+ * `window.molisComposer`, as every page has it (in `workbench.js` and in the plugin frame's own script): the composer's program is
+ * one shared file, `/assets/molis-work-composer.js`, that the browser fetches once and keeps, on the first mount of a document.
+ *
+ * - The call gives its handle at once, as the SDK says. Until the program is in, the page's first screen (`renderComposer()`)
+ *   stays as drawn and can already be typed into; `focus` acts now, the handle's other calls wait and then run in order, and
+ *   `destroy` before then means it never mounts. Once the program is in, a mount is the program's own, with nothing in between.
+ * - A program that cannot be fetched leaves the first screen and says so in its status line, with send held; the page goes on.
+ *   The next mount tries again.
+ */
+
+let program: Promise<ComposerMount> | undefined;
+
+function load(): Promise<ComposerMount> {
+  return program ??= new Promise<ComposerMount>((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = new URL(COMPOSER_ASSET, document.baseURI).href;
+    script.onload = () => globalThis.molisComposerProgram ? resolve(globalThis.molisComposerProgram) : reject();
+    script.onerror = () => reject();
+    document.head.append(script);
+  }).catch(() => { program = undefined; throw COMPOSER_ASSET; });
+}
+
+/** The first screen keeps its text; its status line says the composer cannot be used now, and send waits. */
+function unavailable(root: HTMLElement, options: ComposerOptions) {
+  const box = root.querySelector(".mw-composer__box") ?? root, line = document.createElement("div"), words = document.createElement("span");
+  line.className = "mw-composer__status"; line.setAttribute("role", "status");
+  words.textContent = options.labels.unavailable.replace("{name}", options.labels.input);
+  line.append(words);
+  box.querySelector(".mw-composer__status")?.remove();
+  box.insertBefore(line, box.querySelector(".mw-composer__foot"));
+  root.querySelectorAll<HTMLButtonElement>("[data-composer-send]").forEach((send) => { send.disabled = true; });
+}
+
+function molisComposer(root: HTMLElement, options: ComposerOptions): ComposerHandle {
+  const ready = globalThis.molisComposerProgram;
+  if (ready) return ready(root, options);
+  let handle: ComposerHandle | null = null, gone = false;
+  const waiting: (() => void)[] = [];
+  void load().then((mount) => {
+    if (gone) return;
+    handle = mount(root, options);
+    for (const call of waiting.splice(0)) call();
+  }, () => { if (!gone) unavailable(root, options); });
+  const later = <Name extends keyof ComposerHandle>(name: Name) => (...args: Parameters<ComposerHandle[Name]>) => {
+    const run = () => (handle![name] as (...given: typeof args) => void)(...args);
+    if (handle) run(); else waiting.push(run);
+  };
+  return {
+    setRunning: later("setRunning"), refresh: later("refresh"), insert: later("insert"),
+    focus: () => { if (handle) handle.focus(); else root.querySelector<HTMLElement>(".mw-composer__input")?.focus(); },
+    destroy: () => { if (handle) handle.destroy(); else { gone = true; waiting.length = 0; } },
+  };
+}
+
+window.molisComposer ??= molisComposer;

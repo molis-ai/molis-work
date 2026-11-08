@@ -103,10 +103,21 @@ export type MwButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "da
 export interface MwComposerAiLabels extends MwComposerLabels {
     to: string;
     stop: string;
-    supplement: string;
-    supplementTitle: string;
+    stopTitle: string;
     delivery: string;
     deliveryGroup: string;
+    modes: Readonly<Record<AgentSteerMode, MwComposerDeliveryWords>>;
+    unsupported: string;
+    running: string;
+    runningText: string;
+    queued: string;
+    replayed: string;
+}
+
+export interface MwComposerDeliveryWords {
+    name: string;
+    title: string;
+    description: string;
 }
 
 export interface MwComposerLabels {
@@ -114,7 +125,31 @@ export interface MwComposerLabels {
     send: string;
     sendTitle: string;
     add: string;
-    voice: string;
+    more: string;
+    files: string;
+    filesHint: string;
+    dropRefused: string;
+    commands: string;
+    searching: string;
+    nothing: string;
+    unavailable: string;
+    reading: string;
+    remove: string;
+    blocked: string;
+    restored: string;
+    clear: string;
+    unsaved: string;
+    enterHint: string;
+    enterHintDismiss: string;
+    notice: string;
+    sending: string;
+    sendingText: string;
+    failed: string;
+    retry: string;
+    unknown: string;
+    unknownText: string;
+    check: string;
+    notSent: string;
 }
 
 export type MwComposerOptions = {
@@ -125,6 +160,9 @@ export type MwComposerOptions = {
         caption: string;
         reason: string;
     };
+    add?: boolean;
+    controls?: readonly ComposerControl[];
+    voice?: string;
     attrs?: Record<string, AttrValue>;
 } & ({
     kind: "plain";
@@ -133,7 +171,7 @@ export type MwComposerOptions = {
 } | {
     kind: "ai";
     labels: MwComposerAiLabels;
-    receiver: {
+    receiver?: {
         label: string;
         resetLabel?: string;
     };
@@ -144,6 +182,7 @@ export interface MwComposerStatus {
     caption: string;
     text: string;
     action?: string;
+    actionId?: string;
     tone?: MwStatusTone;
     ring?: StateRingState;
 }

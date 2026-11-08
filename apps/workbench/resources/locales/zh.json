@@ -4,6 +4,7 @@
   "locale": "zh",
   "messages": {
     "common.text.unavailable": "这句话暂时显示不了",
+    "workbench.composer.next-boundary": "补充",
     "workbench.env.add-row": "加一行",
     "workbench.env.add-user": "替用户加一行“保存”",
     "workbench.env.clear": "清空",

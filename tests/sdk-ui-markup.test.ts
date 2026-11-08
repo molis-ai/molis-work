@@ -37,8 +37,9 @@ import {
   type MwButtonVariant,
   type MwTone,
 } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { listedIconNames, registeredIconNames } from "@molis-ai/molis-work-design-system";
+import { listedIconNames, registeredIconNames, renderComposerAddMenu, renderComposerDeliveryMenu, renderComposerPick, renderComposerRestore, renderComposerStrip } from "@molis-ai/molis-work-design-system";
 import { renderMolisWorkArrivalStylesheet, renderMolisWorkSettingsStylesheet, renderMolisWorkWorkbenchStylesheet } from "./workbench-renderer-fixture.js";
+import { COMPOSER_AI_LABELS, COMPOSER_PLAIN_LABELS } from "./fixtures/composer-labels.js";
 
 // The parts of the Plugin SDK's `/ui` write class names and `data-*` hooks that the host's style sheets and page scripts define,
 // so the markup is a contract with the host page (specs/archive/repository-anti-corruption/slices/pg055-sdk-ui-parts.md §4).
@@ -83,6 +84,25 @@ function samples(): readonly string[] {
     renderCalendar({ year: 2026, month: 9, compact: true }),
     renderDatePicker({ name: "d", value: "2026-10-25", calendar: { year: 2026, month: 9 } }),
     icon("folder", "extra"),
+    // UIC-13 (K2): the unified input's shell and the parts its client puts in, in every state, are served like every other part.
+    ...composerSamples(),
+  ];
+}
+
+function composerSamples(): readonly string[] {
+  const ai = COMPOSER_AI_LABELS, plain = COMPOSER_PLAIN_LABELS;
+  const controls = [{ kind: "select" as const, id: "mode", label: "方式", value: "a", options: [{ value: "a", label: "甲" }] }, { kind: "toggle" as const, id: "web", label: "联网", on: true }];
+  const yes = { available: true } as const;
+  return [
+    renderComposer({ kind: "ai", labels: ai, receiver: { label: "Coding", resetLabel: "改回发给助理" }, state: "running", text: "补一句", controls, voice: "语音", status: { caption: "运行中", text: "正在做这一轮", action: "查看" } }),
+    renderComposer({ kind: "plain", labels: plain, placeholder: "写评论", disabled: { caption: "不可用", reason: "这条已关闭" } }),
+    renderComposer({ kind: "plain", labels: plain, state: "sending", text: "好的", status: { caption: "发送中", text: "正在发送…" } }),
+    renderComposerDeliveryMenu("c1", ai, { "next-boundary": yes, interrupt: { available: false, reason: "不收" }, "after-run": yes }, true),
+    renderComposerAddMenu(plain, { files: true, sources: [{ provider: "Todo", title: "待办" }], commands: [{ slash: "plan", label: "计划", hint: "先列步骤" }] }),
+    renderComposerAddMenu(plain, { files: false, commands: [] }),
+    renderComposerPick(plain, { provider: "Todo", title: "待办" }, "", "Todo 现在用不了"),
+    renderComposerStrip(plain, [{ title: "a.png", state: "reading" }, { title: "b.pdf", state: "failed", reason: "太大" }, { title: "待办一", state: "attached", from: "Todo · 待办" }], (text) => text),
+    renderComposerRestore(plain, "刚才", (text) => text),
   ];
 }
 
@@ -104,32 +124,6 @@ test("every class a /ui part writes has a rule in the host's style sheets", () =
   const BASE_LOOK = new Set(["extra", "mw-alert--info", "mw-alert--neutral"]);
   const missing = [...written].filter((token) => !BASE_LOOK.has(token) && !defined(token)).sort();
   assert.deepEqual(missing, []);
-});
-
-// The unified input's shell (renderComposer, K0c) is published before its rules reach the host's sheets: until K2 they are the
-// component board's own (COMPOSER_BOARD_STYLES; specs/unified-input-voice/implementation-plan.md §3.6, batch 10 review desk on
-// #1872). These are exactly the classes it writes that the host does not define yet. K2 moves COMPOSER_BOARD_STYLES into the
-// page sheets: it empties this list and puts renderComposer into samples() above, so RAC-551 covers it like every other part.
-const UNTIL_K2 = [
-  "mw-btn-group", "mw-composer", "mw-composer__box", "mw-composer__end", "mw-composer__foot", "mw-composer__input",
-  "mw-composer__start", "mw-composer__status", "mw-composer__text", "mw-composer__to", "mw-tag",
-];
-
-// UIC-13, RAC-551: renderComposer's classes without a host rule are exactly UNTIL_K2, so any other class missing a rule fails,
-// and so does K2 moving the rules without emptying the list.
-test("UIC-13 / RAC-551: the classes renderComposer writes without a host rule are exactly the ones waiting for K2", () => {
-  const sheets = [renderMolisWorkWorkbenchStylesheet(), renderMolisWorkArrivalStylesheet(), renderMolisWorkSettingsStylesheet()].join("\n");
-  const defined = (token: string): boolean => new RegExp(`\\.${token.replace(/[\\^$*+?.()|[\]{}]/gu, "\\$&")}(?![\\w-])`, "u").test(sheets);
-  const ai = { input: "发给 助理 的话", send: "发送", sendTitle: "发送（⌘↵）", add: "添加", voice: "语音输入（还没有接上）", to: "发给：", stop: "停止", supplement: "补充", supplementTitle: "补充（⌘↵）", delivery: "选择送达方式", deliveryGroup: "送达方式" };
-  const plain = { input: "评论", send: ai.send, sendTitle: ai.sendTitle, add: ai.add, voice: ai.voice };
-  const shells = [
-    renderComposer({ kind: "ai", labels: ai, receiver: { label: "Coding", resetLabel: "改回发给助理" }, state: "running", text: "补一句", status: { caption: "运行中", text: "正在做这一轮", action: "查看" } }),
-    renderComposer({ kind: "plain", labels: plain, placeholder: "写评论", disabled: { caption: "不可用", reason: "这条已关闭" } }),
-    renderComposer({ kind: "plain", labels: plain, state: "sending", text: "好的", status: { caption: "发送中", text: "正在发送…" } }),
-  ];
-  const written = new Set<string>();
-  for (const html of shells) for (const token of classesOf(html)) written.add(token);
-  assert.deepEqual([...written].filter((token) => !defined(token)).sort(), UNTIL_K2);
 });
 
 // RAC-766

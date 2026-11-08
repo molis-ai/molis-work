@@ -173,8 +173,8 @@ function resultSubjectProblems(source: Declared): string[] {
  * the kinds the Manifest owns (`readerKinds`).
  */
 function composerKindProblems(source: Declared, readable: ReadonlySet<string>): string[] {
-  const declared = source.action.composer_source;
-  const kinds = isRecord(declared) && Array.isArray(declared.subject_kinds) ? declared.subject_kinds.filter(isText) : [];
+  if (source.action.composer_source === undefined) return [];
+  const kinds = Array.isArray(source.action.subject_kinds) ? source.action.subject_kinds.filter(isText) : [];
   return kinds.filter(kind => !readable.has(kind)).map(kind => `能力 ${source.key} 的输入框来源种类 ${kind} 不是同一提供方有对象读取器的种类`);
 }
 

@@ -1,5 +1,4 @@
-import { fileURLToPath } from "node:url";
-import { BASELINE_FONT, BASELINE_FONT_FACES, baselineFontRoute, baselineFontToken } from "./baseline.js";
+import { BASELINE_FONT, BASELINE_FONT_FACES, baselineFontRoute, baselineFontToken, baselinePackageFile } from "./baseline.js";
 
 /** Same-origin font files served by local-host. Offline fallbacks only; the platform's own sans comes first. */
 export const INTER_VARIABLE_ASSET_PATH = baselineFontRoute("font.inter-latin-variable");
@@ -16,12 +15,13 @@ export const FONT_STACK = BASELINE_FONT.tokens.font!;
 /** Code, terminal and diff keep a monospace face. */
 export const MONO_FONT_STACK = BASELINE_FONT.tokens["font-mono"]!;
 
+/** The font files on disk, from the registry's `path` as the routes are from its `route`. */
 export function interVariableFontFilePath(): string {
-  return fileURLToPath(new URL("../fonts/inter-latin-variable.woff2", import.meta.url));
+  return baselinePackageFile("font.inter-latin-variable");
 }
 
 export function notoSansScFontFilePath(): string {
-  return fileURLToPath(new URL("../fonts/noto-sans-sc-400.woff2", import.meta.url));
+  return baselinePackageFile("font.noto-sans-sc-400");
 }
 
 /**

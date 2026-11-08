@@ -54,6 +54,13 @@ test("FSS-69 a word not found shows the platform's sentence on the page, and the
   assert.equal(line.fields?.key, "text-probe.main.titel");
   assert.equal(line.fields?.owner, PROBE);
   assert.equal(hostTextProblems().at(-1)?.key, "text-probe.main.titel");
+  // #1976 review ② item 4: the same word missing on every render is one line of the log, however often; each is still a problem to see.
+  const again: HostLogEntry[] = [];
+  const before = hostTextProblems().length;
+  const restoreAgain = captureHostLog(again);
+  try { for (const locale of ["en", "zh", "en"] as const) runWithLocale(locale, () => t("text-probe.main.titel")); runWithLocale("en", () => t("text-probe.main.other-typo")); } finally { restoreAgain(); }
+  assert.deepEqual(again.filter((entry) => entry.area === "ui-text").map((entry) => entry.fields?.key), ["text-probe.main.other-typo"]);
+  assert.equal(hostTextProblems().length - before, 4);
 });
 
 test("FSS-69 in a developer's run a timer left behind throws: it has no language, and it is not the place to fall back", async () => {
@@ -135,13 +142,13 @@ function viewsProbe() {
   return { definition, words, reads, view };
 }
 
-function projectRig(t: TestContext, localePacks?: (definition: PluginDefinition) => ReturnType<typeof pluginLocaleReader>) {
+function projectRig(t: TestContext, localePacks?: (definition: PluginDefinition) => ReturnType<typeof pluginLocaleReader>, ui: UiHost = new UiHost()) {
   const directory = mkdtempSync(join(tmpdir(), "molis-host-ui-text-")), file = join(directory, "board.db");
   seedDemoBoard(file);
   const store = new LocalProjectDatabase(file);
   const events = { appendEvent: (event: Parameters<LocalProjectDatabase["appendEvent"]>[0]) => store.appendEvent(event), eventCursor: (projectId: string) => store.eventCursor(projectId) };
   const executor = new PluginHostExecutor({ actions: pluginActions(store, DEMO_PROJECT_ID), project_id: DEMO_PROJECT_ID, actor_id: "user",
-    artifacts: new ArtifactsModule({ db: store.db, ...events }), processItems: new ProcessItemsModule({ db: store.db, ...events }), ui: new UiHost(),
+    artifacts: new ArtifactsModule({ db: store.db, ...events }), processItems: new ProcessItemsModule({ db: store.db, ...events }), ui,
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }), ...(localePacks ? { localePacks } : {}) });
   const runtime = new PluginRuntime(undefined, executor, { hostIds: ISOLATED_HOST_IDS, actions: pluginActions(store, DEMO_PROJECT_ID) });
   t.after(() => { store.close(); rmSync(directory, { recursive: true, force: true }); });
@@ -164,6 +171,24 @@ test("FSS-60 FSS-63 a plugin with stage views draws its own words through render
   assert.deepEqual(probe.reads, ["locales/en.json", "locales/zh.json"], "a second render of a language reads nothing");
   await runtime.uninstall(installId);
   assert.equal(hasPluginText(probe.definition.manifest.plugin_id), false, "released with the session");
+});
+
+test("FSS-60 the words leave with the session even when something released before them throws", async (t) => {
+  const probe = viewsProbe(), id = probe.definition.manifest.plugin_id, extra = `${id}.extra`;
+  const manifest = { ...probe.definition.manifest, permissions: [{ permission: "ui:register", required: true, reason: "Registers a page of its own" }],
+    ui: { ...probe.definition.manifest.ui, contributions: [...probe.definition.manifest.ui.contributions, extra] } };
+  const definition: PluginDefinition = { manifest, async start(context) {
+    context.services!.ui.register({ descriptor: { contribution_id: extra, kind: "primary-page", label: "Extra", slots: [] }, render: () => "<p>extra</p>" });
+    return probe.definition.start(context);
+  } };
+  // Taking the page back throws, as a defect in any release before the words would (#1976 review ② item 3).
+  class StuckUi extends UiHost { override unregister(): void { throw new Error("unregister stuck for the test"); } }
+  const runtime = projectRig(t, (given) => given.manifest.plugin_id === id ? probe.words : null, new StuckUi());
+  const installId = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: ["ui:register"] }).install.install_id;
+  await runtime.start(installId);
+  assert.equal(hasPluginText(id), true);
+  await runtime.uninstall(installId).catch(() => undefined);
+  assert.equal(hasPluginText(id), false, "the words are taken back all the same");
 });
 
 test("FSS-63 a plugin with no language files reads nothing and registers nothing", async (t) => {

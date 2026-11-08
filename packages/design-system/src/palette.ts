@@ -1,4 +1,4 @@
-import { baselineGroups } from "./baseline.js";
+import { baselineGroups, baselineToken } from "./baseline.js";
 
 /** Hue ramps: text for 13px copy, fill for 6–8px marks, soft for 11% washes. Plugin identity and status only;
  * Content family is the DropAgent reading-surface set: warm paper + five type marks, no green.
@@ -136,6 +136,11 @@ export function renderShellTokens(theme: "light" | "dark"): string {
  */
 export function renderControlMetrics(): string {
   return baselineGroups(["control"]);
+}
+
+/** The terminal canvas and its ink with no terminal theme chosen, for the workbench base. The foundation's later blocks give all six per theme. */
+export function renderTerminalBase(): string {
+  return baselineToken(["terminal", "terminal-ink"]);
 }
 
 /** Theme-independent shape, motion and focus. Safe to restate in late layers: it carries no metrics. */

@@ -4,7 +4,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { BASELINE_REGISTRY, INTER_VARIABLE_ASSET_PATH, NOTO_SANS_SC_ASSET_PATH } from "@molis-ai/molis-work-design-system";
+import { BASELINE_REGISTRY, INTER_VARIABLE_ASSET_PATH, interVariableFontFilePath, NOTO_SANS_SC_ASSET_PATH, notoSansScFontFilePath } from "@molis-ai/molis-work-design-system";
 import { inspectLocaleSet, parseLocalePack } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 // The one table of what ships with the product (specs/font-and-skin-system/a-section-contract.md §1.3, §3.6). What a row says of a file, and that nothing ships without a row.
@@ -66,6 +66,11 @@ test("FSS-58 a row's route is the literal Local Host serves, which the page-asse
 
 test("FSS-58 the two font rows keep Local Host off the path the release does not have", () => {
   assert.doesNotMatch(readFileSync(path.join(ROOT, "apps/local-host/src/web-assets.ts"), "utf8"), /\.\.\/packages\//u);
+  // The files on disk come from the rows' path as the routes come from their route: typeface.ts writes neither (#1976 review ② item 5).
+  const fileOf = (id: string) => path.join(ROOT, directoryOf(RESOURCES.find((row) => row.id === id)!.package), RESOURCES.find((row) => row.id === id)!.path);
+  assert.equal(interVariableFontFilePath(), fileOf("font.inter-latin-variable"));
+  assert.equal(notoSansScFontFilePath(), fileOf("font.noto-sans-sc-400"));
+  assert.doesNotMatch(readFileSync(path.join(ROOT, "packages/design-system/src/typeface.ts"), "utf8"), /\.woff2/u);
 });
 
 test("FSS-58 a language directory's files parse, are the row's owner's, and agree with each other", () => {

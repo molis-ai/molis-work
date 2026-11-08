@@ -125,6 +125,46 @@ test("FSS-61 when the other language cannot be had, nothing on the page changes,
     ["Language and text", true, true]);
 });
 
+test("FSS-61 a value sent with a form stays: an option's and a button's value are data, their words change", async (t) => {
+  const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
+  const { evaluate } = browser;
+  await openSection(browser);
+  // The same form at the same place in the page and in both renders; two renders of one form differ in their words and, here, in the values too.
+  await evaluate(`(() => {
+    const form = (zh) => { const f = document.createElement('form'); f.dataset.testForm = '';
+      f.innerHTML = zh ? '<select name="pick"><option value="甲">中文选项</option></select><button name="go" value="提交的值">提交</button>'
+        : '<select name="pick"><option value="A">English option</option></select><button name="go" value="sent-value">Send</button>';
+      return f; };
+    document.querySelector('[data-board-env-live]').append(form(true));
+    document.querySelector('template[data-board-env-render=zh]').content.append(form(true));
+    document.querySelector('template[data-board-env-render=en]').content.append(form(false));
+  })()`);
+  await evaluate(WATCH);
+  await switchTo(browser, "en");
+  assert.deepEqual(await evaluate(`(() => { const f = document.querySelector('[data-board-env-live] [data-test-form]'), option = f.querySelector('option'), button = f.querySelector('button');
+    return [option.getAttribute('value'), option.textContent, button.getAttribute('value'), button.textContent, window.__boardEnv]; })()`),
+  ["甲", "English option", "提交的值", "Send", { removed: 0, html: 0, values: 0, loadedOnce: true }]);
+});
+
+test("FSS-61 a merge that throws puts the old language back: what the page writes next is in the language on show", async (t) => {
+  const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
+  const { evaluate } = browser;
+  await openSection(browser);
+  // The first word the merge writes throws, once: the merge stops halfway, as a defect in it would.
+  await evaluate(`(() => {
+    const d = Object.getOwnPropertyDescriptor(CharacterData.prototype, 'data'); window.__failOnce = true;
+    Object.defineProperty(CharacterData.prototype, 'data', { ...d, set(value) { if (window.__failOnce && value === 'Language and text') { window.__failOnce = false; throw new Error('merge stopped for the test'); } d.set.call(this, value); } });
+  })()`);
+  await evaluate("document.querySelector('[data-board-env-lang=en]').click()");
+  await browser.waitFor("window.__failOnce === false");
+  await evaluate("new Promise((done) => setTimeout(done, 50))");
+  await evaluate("document.querySelector('[data-board-env-add-row]').click()");
+  assert.deepEqual(await evaluate("[document.querySelector('#environment').dataset.boardEnvShown, document.querySelector('#board-env h2').textContent, document.querySelector('[data-board-env-rows] li:last-child').textContent]"),
+    ["zh", "语言与文字", "列表第 2 行"], "the switcher still says zh, and so does the language the page's own words are written in");
+  await switchTo(browser, "en");
+  assert.equal(await evaluate("document.querySelector('#board-env h2').textContent"), "Language and text", "the next switch works");
+});
+
 /**
  * Same words next to each other (§5.4, the reach rule). What each case comes to is the record the design doc keeps: a real interface word is never
  * left in the old language; a word the page or the person put right beside it may show translated until it is drawn again.

@@ -81,6 +81,8 @@ test("FSS-56 no token block holds a value of its own, and there is no second tab
     "styles/craft-finish-bar.ts": read("packages/design-system/src/styles/craft-finish-bar.ts").split("/* ─── Browser defaults")[0]!,
     "typeface.ts": read("packages/design-system/src/typeface.ts"),
     "palette.ts": read("packages/design-system/src/palette.ts"),
+    // The workbench base sets the shell before the foundation does: its terminal pair once had values of its own (#1976 review ② item 1).
+    "apps/workbench/src/styles/base.ts": read("apps/workbench/src/styles/base.ts").split("  * { box-sizing")[0]!,
   };
   for (const [file, block] of Object.entries(blocks)) {
     for (const declaration of declared(block)) assert.ok(/: \$\{/u.test(declaration) || aliases.has(declaration), `${file} writes ${declaration}`);

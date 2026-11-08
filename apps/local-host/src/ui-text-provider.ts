@@ -15,9 +15,15 @@ import { textScope, WEB_LOCALES } from "./web-locale.js";
 
 type TextProblem = Parameters<NonNullable<UiTextProvider["problem"]>>[0];
 
-/** The problems kept for whoever looks (`hostTextProblems`), newest last. Each is also a line of the Host's log. */
+/** The problems kept for whoever looks (`hostTextProblems`), newest last, every one of them. The first of each kind is also a line of the Host's log. */
 const PROBLEM_LIMIT = 200;
 const problems: TextProblem[] = [];
+/**
+ * What the log already has, by code, owner and key: a word missing on a page, or a timer's `t` with no language, comes back on every render or round,
+ * and is written once (as `host-log.ts`'s `repeatingFailure` does). Bounded: past the limit it starts again, so a line may come back, never grow without end.
+ */
+const LOGGED_LIMIT = 1000;
+const logged = new Set<string>();
 
 const provider: UiTextProvider = {
   locale: () => textScope().locale,
@@ -28,6 +34,10 @@ const provider: UiTextProvider = {
   problem(problem) {
     problems.push(problem);
     if (problems.length > PROBLEM_LIMIT) problems.splice(0, problems.length - PROBLEM_LIMIT);
+    const seen = JSON.stringify([problem.code, problem.owner ?? null, problem.key ?? null]);
+    if (logged.has(seen)) return;
+    if (logged.size >= LOGGED_LIMIT) logged.clear();
+    logged.add(seen);
     // The key goes to the log, never to the page: it is how an author finds which sentence showed the platform's "cannot be shown".
     hostLog.warn("ui-text", problem.code.replace(/^ui\./u, "").replaceAll("_", "-"), undefined, { ...(problem.owner === undefined ? {} : { owner: problem.owner }), ...(problem.key === undefined ? {} : { key: problem.key }), ...(problem.locale === undefined ? {} : { locale: problem.locale }) });
   },

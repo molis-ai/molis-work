@@ -83,7 +83,7 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
   let directory: ReturnType<DirectoryGrantService["connect"]> | undefined;
   let terminal: ReturnType<typeof pluginTerminalFor>;
   let withdrawText: (() => void) | undefined;
-  const dispose = () => { active = false; stopped = true; try { terminal?.dispose(); } finally { withdrawPages?.(); directory?.dispose(); scheduler?.dispose(); agents?.dispose(); background?.close(); withdrawCaller?.(); disposeArtifacts(); library?.close(); projectLibrary?.close(); withdrawAgentDefinitions?.(); ui.dispose(); withdrawText?.(); } };
+  const dispose = () => { active = false; stopped = true; try { terminal?.dispose(); } finally { try { withdrawPages?.(); directory?.dispose(); scheduler?.dispose(); agents?.dispose(); background?.close(); withdrawCaller?.(); disposeArtifacts(); library?.close(); projectLibrary?.close(); withdrawAgentDefinitions?.(); ui.dispose(); } finally { withdrawText?.(); } } };
   const assertActive = () => { if (!active) throw new ActionError("actions.forbidden", "此插件实例已停止，请重新打开"); };
   try {
     // Running in a sandbox is an install trust; what the package asks for that the sandbox is not given stops its start with a code (S-60).

@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { UiFileProblem, UiFileResult, UiFontSchemeFile, UiResourceRegistry, UiSkinFile, UiSpecFile } from "@molis-ai/molis-work-contracts/platform/ui";
 import { fontFaceRules, fontTokenDeclarations, parseFontScheme, parseResourceRegistry, parseSkinFile, parseUiSpecFile, resolveFontScheme, resolveSkin, skinTokenDeclarations, type UiResolvedFont, type UiResolvedSkin } from "@molis-ai/molis-work-plugin-sdk/ui";
@@ -44,15 +45,28 @@ export function baselineGroups(groups: readonly string[], theme?: Theme): string
   return skinTokenDeclarations(BASELINE_SKIN, { groups, ...(theme === undefined ? {} : { theme }) });
 }
 
-/** The declarations of these roles, in this order, one space between them. A theme's role takes `theme`'s value, `light` being what `:root` holds. */
+/**
+ * The declarations of these roles, in this order, one space between them. A theme's role takes `theme`'s value, `light` being what `:root` holds; a
+ * terminal role takes its value with no terminal theme chosen (`unset`).
+ */
 export function baselineToken(names: string | readonly string[], theme: Theme = "light"): string {
   const list = typeof names === "string" ? [names] : names;
-  return list.map((name) => skinTokenDeclarations(BASELINE_SKIN, { theme, names: [name] }) || invalid([{ file: "resources/ui-spec.json", path: "$.groups", code: "ui.baseline_invalid", reason: `样式写了 --${name}，基线里没有这个令牌`, fix: "在规格和基线皮肤里加上它，或改样式" }])).join(" ");
+  return list.map((name) => skinTokenDeclarations(BASELINE_SKIN, { theme, terminal: "unset", names: [name] }) || invalid([{ file: "resources/ui-spec.json", path: "$.groups", code: "ui.baseline_invalid", reason: `样式写了 --${name}，基线里没有这个令牌`, fix: "在规格和基线皮肤里加上它，或改样式" }])).join(" ");
 }
 
 /** The route of a registered font. The registry is the one place it is written; `tests/ui-resources.test.ts` holds Local Host's route literal to it. */
 export function baselineFontRoute(id: string): string {
   return BASELINE_REGISTRY.resources.find((row) => row.id === id)?.route ?? invalid([{ file: "resources/registry.json", path: "$.resources", code: "ui.baseline_invalid", reason: `没有带 route 的资源 ${id}`, fix: "在登记表加这一行" }]);
+}
+
+/**
+ * Where a file this package registers is on disk, from the row's `path` (relative to the package root): the registry is the one place the path is
+ * written, as it is for the route. The same file from source and when built, since `src/` and `dist/` are one level below the root.
+ */
+export function baselinePackageFile(id: string): string {
+  const row = BASELINE_REGISTRY.resources.find((item) => item.id === id && item.package === "@molis-ai/molis-work-design-system");
+  if (row === undefined) return invalid([{ file: "resources/registry.json", path: "$.resources", code: "ui.baseline_invalid", reason: `本包没有登记资源 ${id}`, fix: "在登记表加这一行" }]);
+  return fileURLToPath(new URL(`../${row.path}`, import.meta.url));
 }
 
 /** The six terminal tokens of one of its three values, one declaration a line, indented as the foundation's blocks are. */

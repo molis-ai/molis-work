@@ -65,6 +65,7 @@ export {
   renderPaletteTokens,
   renderShapeTokens,
   renderShellTokens,
+  renderTerminalBase,
   type MwContentMarkId,
   type MwHueId,
 } from "./palette.js";

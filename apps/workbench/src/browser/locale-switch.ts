@@ -34,7 +34,10 @@ export interface LocaleMerge {
 
 /** These change with what a person does, not with the language. */
 const STATE_ATTRIBUTES = new Set(["checked", "selected", "open", "style", "class"]);
-/** A button's label is its value; a field's value is the person's. */
+/**
+ * A button-type input's label is its value. Every other `value` is data: a field's is the person's, and an `<option>`'s or a `<button>`'s goes with
+ * the form when it is sent (a `<button>`'s label is the text inside it), so it is never merged.
+ */
 const BUTTON_INPUTS = new Set(["button", "submit", "reset"]);
 
 const editable = (element: Element) => element.hasAttribute("contenteditable") && element.getAttribute("contenteditable") !== "false";
@@ -182,8 +185,16 @@ export function createLocaleSwitch(options: LocaleSwitchOptions, shown: string) 
       const target = wanted;
       const [old, next] = await Promise.all([options.render(current), options.render(target)]);
       if (old === null || next === null) { wanted = current; return null; }
+      // The new language goes in first, since a word `t` produced is drawn again in it. A merge that throws puts the old one back, so the language
+      // in force and `current` always say the same (#1976 review ② item 6); whatever it had already written stays until the next switch.
       options.use(target);
-      merged = mergeLocaleText({ root: options.root, old, next, produced: options.produced, retext: options.retext });
+      try {
+        merged = mergeLocaleText({ root: options.root, old, next, produced: options.produced, retext: options.retext });
+      } catch (error) {
+        options.use(current);
+        wanted = current;
+        throw error;
+      }
       current = target;
     }
     return merged;

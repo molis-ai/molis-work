@@ -3,7 +3,7 @@ import { tabWorkspaceSource } from "./tab-workspace-files.js";
 
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
-import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { execFileSync } from "node:child_process";
@@ -1424,29 +1424,51 @@ test("isolated PTY PATH can start Grok Build help", async (t) => {
   }
 });
 
-test("opening a terminal without a project workspace is rejected", async () => {
-  const homeDirectory = mkdtempSync(join(tmpdir(), "molis-work-desktop-nows-"));
+// SSC-24: every project has an output directory, so a new project's first terminal opens there and the folder is made for it.
+// SSC-21: with `outputs` a symbolic link out of the Home, the terminal is refused and nothing is made outside the Home.
+test("a new project's first terminal opens in its default output directory, made for it; a symbolic-linked outputs is refused", async () => {
+  const root = mkdtempSync(join(tmpdir(), "molis-work-desktop-nows-"));
+  const homeDirectory = join(root, "home"), outside = join(root, "outside");
+  mkdirSync(homeDirectory);
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
-  let projectId = "";
+  let projectId = "", linkedId = "", output = "", linkedOutput = "";
   try {
     const created = await catalog.createProject({ display_name: "无目录项目", actor_id: "test-user" });
+    const linked = await catalog.createProject({ display_name: "输出目录是链接", actor_id: "test-user" });
     projectId = created.project_id;
+    linkedId = linked.project_id;
+    output = catalog.outputDirectory(projectId).canonical_path;
+    linkedOutput = catalog.outputDirectory(linkedId).canonical_path;
     addProjectGoal(created, "NO-WS", "没有工作目录");
+    addProjectGoal(linked, "LINKED", "输出目录是链接");
   } finally {
     catalog.close();
   }
+  assert.equal(existsSync(output), false, "the default output directory is not made with the project");
   const server = createMolisWorkWebServer({ homeDirectory });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   try {
     const address = server.address();
     assert.ok(address && typeof address === "object");
-    const opened = await openGoalTerminal(`http://127.0.0.1:${address.port}`, projectId, "NO-WS", { command: "/bin/sh" });
-    assert.equal(opened.status, 503);
-    assert.match(await opened.text(), /工作目录/);
+    const origin = `http://127.0.0.1:${address.port}`;
+    const opened = await openGoalTerminal(origin, projectId, "NO-WS", { command: "/bin/sh" });
+    assert.equal(opened.status, 200, await opened.clone().text());
+    assert.equal(statSync(output).isDirectory(), true, "the first terminal made the default output directory");
+
+    // The Home's `outputs` replaced by a link out of the Home: the folder it would make is refused, and nothing is made there.
+    const outputs = dirname(linkedOutput);
+    rmSync(outputs, { recursive: true, force: true });
+    mkdirSync(outside);
+    symlinkSync(outside, outputs);
+    const refused = await openGoalTerminal(origin, linkedId, "LINKED", { command: "/bin/sh" });
+    assert.notEqual(refused.status, 200);
+    assert.match(await refused.text(), /project_storage_invalid/);
+    assert.deepEqual(readdirSync(outside), [], "nothing is made outside the Home");
   } finally {
     await new Promise<void>((resolve, reject) =>
       server.close((error) => (error ? reject(error) : resolve())),
     );
+    rmSync(root, { recursive: true, force: true });
   }
 });
 

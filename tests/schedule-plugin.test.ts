@@ -14,7 +14,7 @@ import {
   createScheduleActionHandlers,
   createScheduleRouteHandlers,
   createSchedulePlugin,
-  scheduleUiContribution,
+  scheduleUiContribution, scheduleManifest,
   type ScheduleConversationTaskView,
   type ScheduleStageData,
   type ScheduleUiModel,
@@ -270,7 +270,7 @@ test("启用 Schedule 后导航出现且没有第二列目录", () => {
 });
 
 test("N0705 rendered permission-read warning distinguishes retrying the read from the due task run in both languages", () => {
-  const host = new UiHost(); host.register(scheduleUiContribution);
+  const host = new UiHost(); host.register({ ...scheduleUiContribution, descriptor: { ...scheduleUiContribution.descriptor, plugin_id: scheduleManifest.plugin_id } });
   for (const locale of ["zh", "en"] as const) {
     const text: typeof primitives.text = (key, values) => fillMessage(SCHEDULE_MESSAGES[key as keyof typeof SCHEDULE_MESSAGES]?.[locale] ?? key, values);
     const html = host.render({ contribution_id: SCHEDULE_UI_CONTRIBUTION_ID, surface: "workbench", model: { ...model({ tasks: [task()] }), primitives: { ...primitives, text } } });

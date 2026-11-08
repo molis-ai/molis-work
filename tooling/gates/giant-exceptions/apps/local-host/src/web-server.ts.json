@@ -1,9 +1,0 @@
-{
-  "exceptions": {
-    "function apps/local-host/src/web-server.ts#createLocalWebCoreFactory": {
-      "kind": "cohesive-unit",
-      "reason": "单 Home 网页服务的装配根在同一生命周期管理宿主、HTTP、周期任务与关停。统一账号绑定复用当前空间的 Host 和租约，业务逻辑仍由各服务负责。 D0038 在同一生命周期接入页面会话，认证细节归独立服务，不拆出第二份宿主或账号状态。",
-      "size": 154
-    }
-  }
-}

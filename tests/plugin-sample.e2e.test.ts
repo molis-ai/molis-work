@@ -11,8 +11,11 @@ import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import test from "node:test";
 import { type SqliteDatabase } from "@molis-ai/molis-work-test-kit/sqlite";
-import { PluginHostExecutor } from "@molis-ai/molis-work-app-local-host";
-import { PluginRuntime, SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
+import { PluginHostExecutor, installHostUiText, runWithLocale } from "@molis-ai/molis-work-app-local-host";
+import { registerPluginText } from "@molis-ai/molis-work-app-workbench";
+import { t as hostT } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { build } from "esbuild";
+import { PluginRuntime, SqlitePluginPrivateStorage, pluginLocaleReader } from "@molis-ai/molis-work-plugin-runtime";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { createActionMcpPorts, handleMcpMessage, actionMcpToolName } from "@molis-ai/molis-work-app-mcp";
@@ -38,6 +41,17 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
     assert.equal(readFileSync(join(project, "index.mjs"), "utf8"), original);
     const validated = JSON.parse(execFileSync(process.execPath, [cli, "validate", join(project, "manifest.json")], { encoding: "utf8" }));
     assert.equal(validated.plugin_id, "io.molis.work.example.notes");
+    // FSS-62: the language files are checked too; a placeholder broken in one language fails the check, and fixing it passes again.
+    const zhPath = join(project, "locales/zh.json"), zhSource = readFileSync(zhPath, "utf8");
+    writeFileSync(zhPath, zhSource.replace("已保存的结果：{count}", "已保存的结果：{count"));
+    const brokenPlaceholder = spawnSync(process.execPath, [cli, "validate", join(project, "manifest.json")], { encoding: "utf8" });
+    assert.equal(brokenPlaceholder.status, 1, brokenPlaceholder.stdout);
+    assert.equal(JSON.parse(brokenPlaceholder.stderr).valid, false);
+    writeFileSync(zhPath, zhSource);
+    // FSS-62: business code has no branch on a language or a skin: the scaffold's and the repository sample's source alike.
+    for (const source of [original, readFileSync(join(root, "examples/plugin-sample/index.mjs"), "utf8")]) {
+      for (const word of ["currentLocale", "navigator.language", "data-resolved-theme", "data-skin"]) assert.equal(source.includes(word), false, word);
+    }
     for (const name of ["contracts", "plugin-sdk"]) {
       execFileSync("pnpm", ["--dir", join(root, "packages", name), "pack", "--pack-destination", directory, "--json"], { encoding: "utf8" });
     }
@@ -99,7 +113,44 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
         assert.deepEqual(artifact.payload, { title: "Local sample result", sequence: version });
       }
       assert.match(result.rendered_ui[0].html, new RegExp(`Saved results: ${sequence}`));
+      // FSS-60: no --locale is the plugin's default language, en, with its plural forms.
+      assert.match(result.rendered_ui[0].html, sequence === 1 ? /1 result saved/ : /2 results saved/);
     }
+    // FSS-60 FSS-62: the real `molis-work plugin dev` command draws in the language it is given, from the plugin's own files.
+    const devIn = (locale: string, target: string) => spawnSync(process.execPath,
+      ["--disable-warning=ExperimentalWarning", appCli, "plugin", "dev", project, join(directory, target), grants, "--allow-unsigned-development", "--locale", locale], { encoding: "utf8" });
+    const inEnglish = devIn("en", "state-en"), inChinese = devIn("zh", "state-zh");
+    assert.equal(inEnglish.status, 0, inEnglish.stderr);
+    assert.equal(inChinese.status, 0, inChinese.stderr);
+    const english = JSON.parse(inEnglish.stdout).rendered_ui[0].html as string, chinese = JSON.parse(inChinese.stdout).rendered_ui[0].html as string;
+    assert.match(english, /Local Plugin Sample/);
+    assert.match(english, /Saved results: 1/);
+    assert.match(english, /1 result saved/);
+    assert.match(chinese, /本地插件样例/);
+    assert.match(chinese, /已保存的结果：1/);
+    assert.match(chinese, /已保存 1 个结果/);
+    // A name with ' and & is escaped once, by `t`: never left raw, never twice.
+    assert.ok(english.includes("Source: Tom&#039;s R&amp;D notes"), english);
+    assert.ok(chinese.includes("来源：Tom&#039;s R&amp;D notes"), chinese);
+    for (const html of [english, chinese]) assert.equal(/&amp;(?:amp|#039);/u.test(html), false, html);
+    const undeclared = devIn("fr", "state-fr");
+    assert.equal(undeclared.status, 1, undeclared.stderr);
+    assert.equal(JSON.parse(undeclared.stderr).code, "actions.input_invalid");
+    assert.match(undeclared.stderr, /fr/);
+    assert.match(undeclared.stderr, /en、zh/, "the error lists the languages it can draw in");
+    // FSS-60 FSS-62 (#1976 review ① item 4): dev compares the language it draws in with the default, as validate does. Arguments that differ
+    // would leave `{name}` on the page, so the run stops and names both files; a language short of a key only shows the default's word.
+    writeFileSync(zhPath, zhSource.replace("来源：{name}", "来源：{who}"));
+    const differingArgs = devIn("zh", "state-zh-args");
+    assert.equal(differingArgs.status, 1, differingArgs.stderr);
+    assert.equal(JSON.parse(differingArgs.stderr).code, "plugin.package_invalid");
+    assert.match(differingArgs.stderr, /locales\/zh\.json notes\.main\.source/);
+    assert.match(differingArgs.stderr, /locales\/en\.json/);
+    writeFileSync(zhPath, zhSource.replace(/\n\s*"notes\.main\.title": "[^"]*"/u, "").replace(/,(\s*\})/u, "$1"));
+    const shortOfOne = devIn("zh", "state-zh-short");
+    assert.equal(shortOfOne.status, 0, shortOfOne.stderr);
+    assert.match(JSON.parse(shortOfOne.stdout).rendered_ui[0].html as string, /Local Plugin Sample/);
+    writeFileSync(zhPath, zhSource);
     const manifestPath = join(project, "manifest.json");
     const originalManifest = readFileSync(manifestPath, "utf8");
     const incompatibleManifest = JSON.parse(originalManifest);
@@ -108,11 +159,20 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
     const incompatible = dev(state, grants);
     assert.equal(incompatible.status, 1, incompatible.stderr);
     assert.match(incompatible.stderr, /version|版本/);
+    // FSS-60: a plugin that declares no languages has none to pick; asking for one says what to write first.
+    const unlocalized = JSON.parse(originalManifest);
+    delete unlocalized.ui.locales;
+    writeFileSync(manifestPath, JSON.stringify(unlocalized));
+    const noLanguages = devIn("en", "state-unlocalized");
+    assert.equal(noLanguages.status, 1, noLanguages.stderr);
+    assert.equal(JSON.parse(noLanguages.stderr).code, "actions.input_invalid");
+    assert.match(noLanguages.stderr, /ui\.locales/);
     writeFileSync(manifestPath, originalManifest);
 
     const repositorySample = join(directory, "repository-sample");
     mkdirSync(repositorySample);
-    for (const file of ["index.mjs", "manifest.json", "package.json", "README.md"]) {
+    for (const file of ["index.mjs", "manifest.json", "package.json", "README.md", "locales/en.json", "locales/zh.json"]) {
+      mkdirSync(dirname(join(repositorySample, file)), { recursive: true });
       writeFileSync(join(repositorySample, file), readFileSync(join(root, "examples/plugin-sample", file)));
     }
     execFileSync("npm", ["install", "--offline", "--ignore-scripts", "--no-audit", "--no-fund", "--cache", join(directory, "npm-cache"),
@@ -132,6 +192,44 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
     assert.match(drawn.button, /class="mw-btn mw-btn--primary/u);
     assert.match(drawn.shell, /data-work-surface="demo"/u);
     assert.equal(drawn.placed, "function");
+    // FSS-62 (RAC-553): the same author reads language files, words and appearance files with the two packages alone. The spec is a minimal one
+    // written inline: an author has no private design-system.
+    const texts = spawnSync(process.execPath, ["--input-type=module", "-e", `
+      import { readFileSync } from "node:fs";
+      import { installTextForTest, parseLocalePack, parseSkinFile, resolveUiEnvironment, t } from "@molis-ai/molis-work-plugin-sdk/ui";
+      const pack = parseLocalePack(readFileSync("locales/zh.json", "utf8"), { file: "locales/zh.json" });
+      let before = null; try { t("notes.main.title"); } catch (error) { before = error.code; }
+      const spec = { format_version: 1, id: "author-spec", revision: 1, baseline_skin: { id: "author-skin", revision: 1 }, baseline_font: { id: "author-font", revision: 1 }, groups: [], font_roles: [] };
+      const skinFile = { format_version: 1, id: "author-skin", revision: 1, spec: { id: "author-spec", revision: 1 }, name: { literal: "Author" }, recommended_font: { id: "author-font", revision: 1 }, light: {}, dark: {}, shared: {}, terminal: {} };
+      const skin = parseSkinFile(JSON.stringify(skinFile), spec, { file: "skin.json" });
+      const environment = resolveUiEnvironment({ spec, skin: skinFile, locale: { tag: "zh", source: "explicit" } });
+      const withLanguage = installTextForTest({ packs: [pack.value], locale: "zh" });
+      const title = t("notes.main.saved", { count: 2 });
+      withLanguage();
+      const withoutLanguage = installTextForTest({ packs: [pack.value], locale: null });
+      let none = null; try { t("notes.main.title"); } catch (error) { none = { code: error.code, key: error.message.includes("notes.main.title") }; }
+      withoutLanguage();
+      console.log(JSON.stringify({ pack: pack.ok, owner: pack.value.owner, before, skin: skin.ok ? true : skin.problems, locale: environment.locale.tag, title, none }));`],
+    { cwd: repositorySample, encoding: "utf8" });
+    assert.equal(texts.status, 0, texts.stderr);
+    assert.deepEqual(JSON.parse(texts.stdout), { pack: true, owner: "io.molis.work.example.notes", before: "ui.text_no_context", skin: true, locale: "zh",
+      title: "已保存的结果：2", none: { code: "ui.text_no_context", key: true } });
+    // The SDK's `/ui` goes into a browser page: bundled for the browser it reaches no Node built-in module.
+    const forBrowser = await build({ stdin: { contents: 'export * from "@molis-ai/molis-work-plugin-sdk/ui";', resolveDir: repositorySample, loader: "js" },
+      bundle: true, write: false, format: "esm", platform: "browser", metafile: true, logLevel: "silent" });
+    assert.deepEqual(Object.keys(forBrowser.metafile.inputs).filter(input => input.startsWith("node:") || !input.includes("node_modules") && input !== "<stdin>"), []);
+    // FSS-69: the sample bundled into one module, with a copy of the SDK of its own, loaded from `data:` as a built-in plugin's release is: its `t` reads
+    // the context the Host installed in this process (`Symbol.for`), not a variable of its copy.
+    installHostUiText();
+    const single = await build({ stdin: { contents: 'export { default } from "./index.mjs"; export { t } from "@molis-ai/molis-work-plugin-sdk/ui";', resolveDir: repositorySample, loader: "js" },
+      bundle: true, write: false, format: "esm", platform: "node", packages: "bundle", target: "node24", logLevel: "silent" });
+    const copy = await import(`data:text/javascript;base64,${Buffer.from(single.outputFiles[0]!.text).toString("base64")}`) as { default: PluginDefinition; t: typeof hostT };
+    assert.notEqual(copy.t, hostT, "a copy of its own");
+    const copyWords = registerPluginText(pluginLocaleReader(copy.default.manifest, path => existsSync(join(repositorySample, path)) ? readFileSync(join(repositorySample, path), "utf8") : null)!, { t: true });
+    try {
+      assert.equal(runWithLocale("zh", () => copy.t("notes.main.title")), "本地插件样例");
+      assert.equal(runWithLocale("en", () => copy.t("notes.main.source", { name: "Tom's" })), "Source: Tom&#039;s");
+    } finally { copyWords(); }
     assert.ok(existsSync(join(repositorySample, "node_modules/@molis-ai/molis-work-plugin-sdk/dist/page-globals.d.ts")));
     const repositoryRun = dev(join(directory, "repository-state"), grants, "--allow-unsigned-development", repositorySample);
     assert.equal(repositoryRun.status, 0, repositoryRun.stderr);
@@ -155,8 +253,10 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
       if (reference.capability_id === publishResult.capability_id) registeredPublications++;
       return result;
     };
+    // The Host's text context and the plugin's own words, as `createPluginPlatform` gives them (§8.3): the page the Host mounts says them.
     const runtime = new PluginRuntime(undefined, new PluginHostExecutor({ actions, project_id: DEMO_PROJECT_ID, actor_id: "developer",
-      artifacts, processItems, ui, privateStorageFor: (context, manifest) => privateOwner.forPlugin(context, manifest) }), { hostIds: ISOLATED_HOST_IDS, actions });
+      artifacts, processItems, ui, privateStorageFor: (context, manifest) => privateOwner.forPlugin(context, manifest),
+      localePacks: given => pluginLocaleReader(given.manifest, path => existsSync(join(project, path)) ? readFileSync(join(project, path), "utf8") : null) }), { hostIds: ISOLATED_HOST_IDS, actions });
     const installed = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local" });
     const installId = installed.install.install_id;
     await assert.rejects(runtime.start(installId), (error: unknown) => (error instanceof ActionError && error.kind === "invalid") && error.code === "plugin.grant_denied");

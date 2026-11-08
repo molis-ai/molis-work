@@ -8,7 +8,7 @@
 
 ## 一次典型调用
 
-runPluginCli 分发命令；validate 使用 Contracts 的 Manifest parser，pack 生成显式文件列表的 JSON bundle，签名和验证使用 Plugin Runtime 的公开包验证接口。dev 通过注入的 PluginCliHost 使用真实 Local Host。
+runPluginCli 分发命令；validate 使用 Contracts 的 Manifest parser，并按 Plugin Runtime 的规则读 Manifest 旁边声明的语言文件（`blocking` 的失败，只缺译文的放进输出的 `locale_notes`）；pack 生成显式文件列表的 JSON bundle，声明的语言文件自动带上、不用写进 `files`，同一套规则不过就不写输出，签名和验证使用 Plugin Runtime 的公开包验证接口。dev 通过注入的 PluginCliHost 使用真实 Local Host；独立的 `molis-work-plugin` 没有 Host，`dev`、`install` 报 `plugin.host_required`。
 
 ## 从哪里读代码
 
@@ -69,6 +69,7 @@ node tooling/plugin-cli/dist/main.js validate examples/plugin-sample/manifest.js
 - 不变量：
   - `create` 要求父目录已存在且目标不存在；`pack` 不覆盖输出，拒绝 symlink、越界路径与超过 64 MiB 的包；分发文件必须用 `package.json` 的 `files` 明确列出，不执行 glob 或生命周期脚本。
   - `validate` 只读校验，不启动插件。
+  - `dev`、`install` 只经注入的 `PluginCliHost` 跑；独立的 `molis-work-plugin` 没有 Host，这两条报 `plugin.host_required`（`unavailable`），在建任何状态目录之前；帮助按入口列命令，独立工具把这两条写成 `molis-work plugin …`。
   - 生成的模板不给未知消费者伪造场景或业务触发。
 - 改动后必跑：`node scripts/run-tests.mjs tests/plugin-authoring.test.ts tests/plugin-package.test.ts tests/npm-package.test.ts tests/plugin-declaration-rules.test.ts tests/action-artifact-references.test.ts`
 - 加跑：`node scripts/run-tests.mjs tests/plugin-sample.e2e.test.ts`（不开浏览器，要 `pnpm pack` 加 npm 离线安装，只在本机跑，不在 CI 里，见 BL-124）

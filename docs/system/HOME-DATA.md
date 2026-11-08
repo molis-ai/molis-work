@@ -258,6 +258,7 @@ server 库的表：`mw_server_identity`、`mw_members`、`mw_sessions`、`mw_pro
 | `config/uninstall.json` | `installer/uninstall.ts:20`：卸载进度收据 | JSON · `schema_version` = 1 | 临时 | purge 成功后删（`installer/uninstall.ts:190`）；普通卸载保留 |
 | `config/onboarding.json` | `apps/local-host/src/onboarding.ts:6`：首次引导状态，0600（`:99`） | JSON · `schema_version` = 1 | 必备份（很小） | purge |
 | `config/project-arrival.json` | `apps/local-host/src/project-arrival.ts:11`：最近打开的项目与到达状态，0600（`:66`） | JSON · `schema_version` = 1 | 必备份（很小） | purge |
+| `config/ui-locale.json` | `apps/local-host/src/ui-locale-memory.ts:12`：最后一次用的语言，给没有页面的工作（定时安排、续轮），不决定任何页面的显示；0600 | JSON · `schema_version` = 1 | 必备份（很小） | purge |
 | `config/plugin-publisher.json` | `apps/local-host/src/plugin-builder/publisher-identity.ts`：每 Home 的发布密钥引用、指纹和公钥；私钥只由既有 SecretStore 持有，初始化不固定信任 | JSON · 无私钥 | 与 feed 密文一同备份；已有元数据对应的密钥丢失、或二者不匹配时拒绝发布，不自动轮换 | 普通卸载/删项目保留；显式 Home purge 删除 |
 | `config/mcp-tools.json` | `apps/local-host/src/mcp-settings-store.ts`：MCP 客户端的动作授权与逐条 generation（ACA005） | JSON · `version` = 1 | 必备份（授权及其代次不能丢，也不能凭空恢复） | purge |
 | `config/external-mcp-tools.json`、`config/connector-mcp-tools.json` | `apps/local-host/src/external-mcp-actions.ts:10`、`apps/local-host/src/connector-mcp-actions.ts:12`：见过的工具清单 | JSON · 无版本 | 可重建；真实 Home 里还没有 | purge |
@@ -313,7 +314,7 @@ W5-16 新命令不导出 raw master、Keychain、会话/SDK/构建 run 的 `.key
 | C Agent 与记忆 | `agent-runtime/`（`records/`、`checkpoints/`、`storage.key`）、`git-operation-details.json`、`memory/memory.db`、`assistant/assistant.db`、`agent-definitions/`、`agent-declarations/` | 记忆正文在 Prologue 条目，账本在 `memory.db`；Git 审查回执与细节分在两处 |
 | D 凭据 | `feed/secrets.json`、Keychain 里的主密钥（没有 Keychain 时是 `feed/secrets.key`）、`feed/evidence*/`、`alchemist/projects/*/search-content*/` 加同目录的 `search.sqlite`，以及存 `credential_ref` 的 `connectors/connectors.db` 和目录库的 `model_providers` | 引用与密文必须配对；证据索引 `search.sqlite` 和它指向的 `search-content*` 要取同一时点；主密钥不在 Home 里 |
 | E 个人内容 | 10 个个人插件库、`images/assets/`、`lingguang/imports/`、`shelf/`、`jelly/preferences.json`、`plugin-builder/`、Alchemist 工作室库、`characters/`、`server/`（讨论库 `server.sqlite`，带 `-wal`、`-shm`；当前 v1 库的邀请只存哈希，仍含私人正文，见 3.4）、`placement/`、`functions/`、`context-onboarding/` | 彼此独立；按 `project_id` 分区的行引用 A 里的项目 |
-| F 配置 | `config/` 里的 `onboarding.json`、`project-arrival.json`、`mcp-tools.json`，`runtime-integrations/`、`runtime-config-backups/`、`browser/sites.json` | 很小，授权类的丢了不能凭空重建 |
+| F 配置 | `config/` 里的 `onboarding.json`、`project-arrival.json`、`ui-locale.json`、`mcp-tools.json`，`runtime-integrations/`、`runtime-config-backups/`、`browser/sites.json` | 很小，授权类的丢了不能凭空重建 |
 
 不必备份：`releases/`、`bin/`（可重装），`search/`、`cache/`、`lingguang/models/`（可重建），`logs/`，`browser/profile/`、`browser/downloads/`、`browser/uploads/`，所有锁与暂存。
 

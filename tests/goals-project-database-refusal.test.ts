@@ -1,6 +1,6 @@
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
-import { copyFile, mkdir, mkdtemp, readFile, rm, symlink } from "node:fs/promises";
+import { copyFile, cp, mkdir, mkdtemp, readFile, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -83,6 +83,7 @@ async function developmentState(t: TestContext) {
   const root = dirname(dirname(fileURLToPath(import.meta.url)));
   await mkdir(sample);
   for (const name of ["index.mjs", "manifest.json", "package.json"]) await copyFile(join(root, "examples/plugin-sample", name), join(sample, name));
+  await cp(join(root, "examples/plugin-sample/locales"), join(sample, "locales"), { recursive: true });
   await mkdir(join(sample, "node_modules/@molis-ai"), { recursive: true });
   await symlink(join(root, "packages/plugin-sdk"), join(sample, "node_modules/@molis-ai/molis-work-plugin-sdk"), "dir");
   const manifest = JSON.parse(await readFile(join(sample, "manifest.json"), "utf8")) as { permissions: Array<{ permission: string }> };

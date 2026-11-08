@@ -78,5 +78,10 @@ test("CIP-06 Full expands independent runners while preserving worker caps and f
   assert.match(block, /MOLIS_WORK_TEST_BROWSER_JOBS: 1/);
   assert.match(block, /--shard \$\{\{ matrix.shard \}\}\/32/);
   assert.match(block, /--retries 1 \$BAIL/);
-  assert.match(block, /fail-fast: \$\{\{ !startsWith\(github.ref, 'refs\/heads\/integration\/'\) \}\}/);
+  // Integration branches and roadmap batch pull requests (decision 31) run every file; everything else stops at the first
+  // failure. `fail-fast` and `--bail` must use the same condition.
+  const runsEveryFile =
+    "(startsWith(github.ref, 'refs/heads/integration/') || startsWith(github.ref, 'refs/heads/batch/') || startsWith(github.head_ref, 'batch/'))";
+  assert.ok(block.includes(`fail-fast: \${{ !${runsEveryFile} }}`));
+  assert.ok(block.includes(`BAIL: \${{ !${runsEveryFile} && '--bail' || '' }}`));
 });

@@ -62,6 +62,19 @@ test("SQLD-06 .nvmrc, every workflow's setup-node and engines.node name one Node
   assert.ok(sqliteVersionNotice("0.0.0")!.includes(`Node ${LOCKED}`));
 });
 
+test("SQLD-11 the macOS Desktop payload downloads the locked Node, and its smoke compares the bundled SQLite with the reviewed one", () => {
+  // Without this the Desktop app would bundle a Node whose SQLite refuses every plugin statement (S-46). The release build calls the
+  // script without an override (build-macos-release.sh), so the default is what ships.
+  const runtime = read("apps/desktop/tooling/prepare-macos-runtime.sh");
+  const defaults = [...runtime.matchAll(/^NODE_VERSION="\$\{MOLIS_WORK_NODE_VERSION:-([^}]+)\}"$/gm)].map(match => match[1]);
+  assert.deepEqual(defaults, [LOCKED]);
+  assert.doesNotMatch(read("apps/desktop/tooling/build-macos-release.sh"), /MOLIS_WORK_NODE_VERSION/, "the release build does not pick another Node");
+  const smoke = read("apps/desktop/tooling/prepare-runtime-payload.mjs");
+  assert.match(smoke, /SELECT sqlite_version\(\)/);
+  assert.match(smoke, /import\('@molis-ai\/molis-work-plugin-runtime'\)/, "the reviewed version is read from its source, not copied");
+  assert.doesNotMatch(smoke, /\b3\.\d+\.\d+\b/, "no second copy of the version");
+});
+
 test("SQLD-06 on the locked Node the SQLite is the reviewed one (a machine on another Node has nothing to compare, and says which)", t => {
   if (process.version !== `v${LOCKED}`) { t.diagnostic(`this Node is ${process.version}, not the locked ${LOCKED}: its SQLite ${process.versions.sqlite} is not compared here`); return; }
   assert.equal(process.versions.sqlite, PLUGIN_STATEMENT_SQLITE_VERSION,

@@ -1,6 +1,6 @@
 # SQLite 第二步：项目库换到 node:sqlite（路线书 05 第 3 项）
 
-状态：实现中，SQLD-a、c、d、e 在分支 `claude/05-sqlite-switch` 上，合成一个 PR（用户 2026-11-08 定，§10）。SQLD-b（锁 Node）已随 #1917 合入。桌面打包那半归 F 轨，还没有证据（§6、SQLD-11）。本文已按实现改过：和当初设计不一样的地方写在原处，并汇总在 §14。要不要换用户已定（台账 C3，分两步）；第一步（驱动收拢到窄接口）已随 #1790 合入（`a942bd9c3`）。
+状态：实现中，SQLD-a、c、d、e 在分支 `claude/05-sqlite-switch` 上，合成一个 PR（用户 2026-11-08 定，§10）。SQLD-b（锁 Node）已随 #1917 合入。桌面打包那半的两个文件归 F 轨，用户 2026-11-08 同意由本批写手放进同一个 PR，F 轨事后审；打包冒烟在本机经 `tests/runtime-payload.test.ts` 跑过，正式包没有打（§6、SQLD-11）。本文已按实现改过：和当初设计不一样的地方写在原处，并汇总在 §14。要不要换用户已定（台账 C3，分两步）；第一步（驱动收拢到窄接口）已随 #1790 合入（`a942bd9c3`）。
 
 验收编号前缀 `SQLD`，见 §12。
 
@@ -233,8 +233,8 @@ Home 插件库：U1-f 的段用 `openSqliteConnection` 开 Home 库（U1 设计 
 
 | 位置 | 现在 | 切换后 |
 | --- | --- | --- |
-| `apps/desktop/tooling/prepare-runtime-payload.mjs:25`（已改用 `openSqliteConnection`） | 冒烟开内存库 | 不用改驱动。**加一条**：断言 `sqlite_version()` 等于 `PLUGIN_STATEMENT_SQLITE_VERSION`，版本对不上打包就失败。这是 F 轨文件，**还没落**（等 F 轨，SQLD-11） |
-| `prepare-macos-runtime.sh:7` | `24.14.0` | §2.1。F 轨，**还没落**：不改的话 macOS 桌面包里的插件语句全部被拒（S-46），所以切换合入后、发桌面包之前 F 轨必须改 |
+| `apps/desktop/tooling/prepare-runtime-payload.mjs:25`（已改用 `openSqliteConnection`） | 冒烟开内存库 | 不用改驱动。**加了**：`sqlite_version()` 和 `process.versions.sqlite` 都要等于 `PLUGIN_STATEMENT_SQLITE_VERSION`（从包里的 plugin-runtime 读，不另写一份），版本对不上打包就失败；包里的 storage 不带任何 SQLite 驱动依赖。F 轨文件，用户 2026-11-08 同意本批写手改，F 轨事后审（SQLD-11）。Alchemist 的 `better-sqlite3` 原生模块冒烟里不载：门禁 `project-sqlite-driver` 连 `-e` 程序也查，Alchemist 之外不许 import，留给 F 轨定 |
+| `prepare-macos-runtime.sh:7` | `24.14.0` | §2.1。**改成 `24.15.0`**（同上，F 轨事后审）：不改的话 macOS 桌面包里的插件语句全部被拒（S-46）。调用方 `build-macos-release.sh` 不传 `MOLIS_WORK_NODE_VERSION`，默认值就是发出去的版本；`tests/sqlite-version-notice.test.ts` 钉住它等于 `.nvmrc` |
 | CI 3 个 workflow | `ci.yml`、`full-suite.yml:75` 是 `24.14.0`，`release-macos.yml:29` 是浮动的 `24` | §2.1，写确切补丁版本。用户 2026-11-06 已定 |
 | `packages/storage/package.json` | 依赖 `better-sqlite3`、`@types/better-sqlite3` | SQLD-e 删 |
 | `tests/npm-package.test.ts:64`、`tests/npm-distribution-smoke.mjs:26` | 钉着「归档不带原生模块」 | 不用改：Alchemist 还要，注册表依赖仍由消费者装，见 §7 |
@@ -316,8 +316,8 @@ Home 插件库：U1-f 的段用 `openSqliteConnection` 开 Home 库（U1 设计 
 | SQLD-07 | S-59 的超时、超内存、SIGKILL 用例在新驱动上全过，数字不改 |
 | SQLD-08 | Alchemist 的两个打开点都拒绝 `studio.sqlite` 以外的文件（`plugins/native/alchemist/tests/db/open-file-name.test.ts`；经宿主的路径，`tests/security-invariants-plugin-project-database.test.ts`）。检查写在 Alchemist 自己的打开点，旧驱动的 import、`.transaction(`、`package.json` 都不动，例外不扩大 |
 | SQLD-09 | 全量（`full-suite.yml`）和浏览器用例通过；用切换前的库文件打开、读写一遍（一次性核对，结果在 PR 里：旧驱动写出 WAL 和回滚日志两种库，含 BLOB、索引和 trigram FTS5，新连接读写、`integrity_check` 通过，旧驱动再读回新写的行。旧驱动只留在 Alchemist，用例不能 import 它，所以不入库）。「revert 后同一个库仍能打开」用户 2026-11-08 定不考虑（§9） |
-| SQLD-10 | `packages/storage` 不再依赖 `better-sqlite3`；门禁 `project-sqlite-driver` 只放行 Alchemist，别处 import 旧驱动的变异用例失败（SQLD-d 时只多放行 `sqlite-connection.ts`）；npm 冒烟通过；桌面冒烟等 F 轨 |
-| SQLD-11 | 官方 24.15 上，适配层跑 S-46 全部用例（含 `tests/security-invariants-plugin-project-database.test.ts` 的 PLIB-06）全过；误拒的语句逐条写明（§2.1）；`.nvmrc`、CI 的确切版本一致，用例核对（`tests/sqlite-version-notice.test.ts`）；桌面那一项等 F 轨改 `prepare-macos-runtime.sh` 后由 F 轨加进这个用例 |
+| SQLD-10 | `packages/storage` 不再依赖 `better-sqlite3`；门禁 `project-sqlite-driver` 只放行 Alchemist，别处 import 旧驱动的变异用例失败（SQLD-d 时只多放行 `sqlite-connection.ts`）；npm 冒烟通过；桌面冒烟（`tests/runtime-payload.test.ts` 跑 `prepare-runtime-payload.mjs`）在锁定版本上通过，包里的 storage 不带 SQLite 驱动 |
+| SQLD-11 | 官方 24.15 上，适配层跑 S-46 全部用例（含 `tests/security-invariants-plugin-project-database.test.ts` 的 PLIB-06）全过；误拒的语句逐条写明（§2.1）；`.nvmrc`、CI 的确切版本一致，用例核对（`tests/sqlite-version-notice.test.ts`）；桌面那一项也在这个用例里：`prepare-macos-runtime.sh` 的默认版本等于 `.nvmrc`，打包冒烟比对 `sqlite_version()` 与 `PLUGIN_STATEMENT_SQLITE_VERSION` 且不另写版本号 |
 
 ## 13. 决策记录
 
@@ -344,3 +344,4 @@ Home 插件库：U1-f 的段用 `openSqliteConnection` 开 Home 库（U1 设计 
 | §4 文件 | 新文件放适配层 | SQLD-e 并回 `sqlite-connection.ts` | 旧实现删掉以后两个文件没有理由分开 |
 | §4、§7 U1 | U1 在宿主里开 `studio.sqlite` | 不开 | 用户 2026-11-08 定不接升级链 |
 | §9、§10 | 分四个 PR，SQLD-e 等稳定一轮 | 一个 PR | 用户 2026-11-08 定 |
+| §6 打包 | F 轨落两个打包文件 | 本批写手放进同一个 PR，F 轨事后审 | 用户 2026-11-08 定 |

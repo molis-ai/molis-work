@@ -43,8 +43,9 @@ export const ARRIVAL_STYLES = String.raw`
   .arrival:not([data-screen="chooser"]) .arrival-titlebar .mw-caption { opacity: 0; visibility: hidden; pointer-events: none; }
   .arrival[data-screen="chooser"] .arrival-titlebar .mw-caption { transition-delay: 0s; }
   .arrival-tools { display: flex; align-items: center; gap: 2px; min-width: 0; }
-  /* One row with the right side's tabs at its end (07-S1): the strip is a flex row of its own. */
-  .arrival-global { display: inline-flex; align-items: center; gap: 2px; min-width: 0; }
+  /* One row with the right side's tabs at its end (07-S1): the strip is a flex row of its own. The tools have words, so they
+     keep a compact group's 4px (DESIGN「Peers are one height, one line, one gap」); 2px is only for icon buttons. */
+  .arrival-global { display: inline-flex; align-items: center; gap: 4px; min-width: 0; }
   .arrival-tools .mw-btn { color: var(--ink-soft); }
   .arrival-tools .mw-btn:hover:not(:disabled) { color: var(--ink); }
   .arrival[data-screen="opening"] .arrival-tools { visibility: hidden; }
@@ -281,6 +282,8 @@ export const ARRIVAL_STYLES = String.raw`
     .onboard .welcome-scene { display: block; justify-items: stretch; padding: 0 clamp(32px, 7vw, 120px) 32px; }
     .ob-right { width: auto; max-height: none; }
     .arrival-tools .mw-btn [data-slot="button-label"] { display: none; }
+    /* Without their words the tools are icon buttons, which pack at 2px (and a 320 phone needs the room). */
+    .arrival-global { gap: 2px; }
   }
   @media (max-width: 760px) {
     .stage-split { padding-right: 0; }

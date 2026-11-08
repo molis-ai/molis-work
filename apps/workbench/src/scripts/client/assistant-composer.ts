@@ -80,25 +80,35 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
   const upload = (${ASSISTANT_ATTACHMENTS_FACTORY_SCRIPT})({ L, api });
   /* “/”: what this work may use now and the methods it may follow, read once, when the person first comes to the input. A method
      (how to do it) or a capability (what to use) chosen there goes with the next Send only, on the strip above the input. */
-  let catalog = null, rows = { capabilities: [], methods: [] };
+  let catalog = null, rows = { capabilities: [], methods: [] }, rowsIn = false;
   const readCatalog = () => catalog ||= Promise.all([api("/capabilities").then((res) => (res.capabilities || []).filter((row) => row.enabled), () => []),
-    api("/methods").then((res) => res.methods || [], () => [])]).then(([capabilities, methods]) => { rows = { capabilities, methods }; });
+    api("/methods").then((res) => res.methods || [], () => [])]).then(([capabilities, methods]) => { rows = { capabilities, methods }; rowsIn = true; });
   compose.addEventListener("focusin", () => void readCatalog());
   compose.addEventListener("pointerenter", () => void readCatalog());
+  // A "/" typed before the list has arrived opens the menu once it has: the composer opens it only when there is something to list.
+  compose.addEventListener("input", (event) => {
+    if (rowsIn || event.data !== "/" || !event.target.matches?.(".mw-composer__input")) return;
+    void readCatalog().then(() => {
+      const caret = input.selectionStart ?? input.value.length;
+      if (document.activeElement === input && input.value.slice(0, caret).endsWith("/") && !compose.querySelector("[data-compose-menu]:not([hidden])"))
+        input.dispatchEvent(new InputEvent("input", { bubbles: true, data: "/", inputType: "insertText" }));
+    });
+  });
   const choose = (material, same) => () => {
     if (!files.some((file) => file.kind === material.kind && same(file))) files.push({ material_id: material.kind + "-" + crypto.randomUUID(), explicit: true, ...material });
     paintMats(); input.focus();
   };
+  // Every method and capability is listed (the menu scrolls): the composer's "/" does not narrow by the words after it yet.
   const commands = () => [
     ...startersFor().map((starter) => ({ slash: L("开始"), label: starter.label + (starter.kind ? " · " + starter.kind : ""), ...(starter.hint ? { hint: starter.hint } : {}),
       run: () => { if (useStarter(starter)) input.focus(); } })),
-    ...rows.methods.slice(0, 5).map((row) => {
+    ...rows.methods.map((row) => {
       const title = L(row.kind === "role" ? "角色资料" : "方法") + "：" + row.name;
       return { slash: L(row.kind === "role" ? "角色资料" : "方法"), label: row.name + " · " + row.plugin_title, hint: row.summary || row.name, run: choose({ kind: "method", title,
         method: { method_id: row.method_id, version: row.version, ...(row.default_ref ? { default_ref: row.default_ref, installation: row.installation } : {}) } },
         (file) => file.method.method_id === row.method_id && file.method.installation?.install_id === row.installation?.install_id) };
     }),
-    ...rows.capabilities.slice(0, 8).map((row) => {
+    ...rows.capabilities.map((row) => {
       const title = row.provider + " · " + row.title;
       return { slash: L("用"), label: title, hint: row.description || title, run: choose({ kind: "capability", title: L("用") + "：" + title,
         capability: { capability_id: row.capability_id, version: row.version, provider_id: row.provider_id, title } }, (file) => file.capability.capability_id === row.capability_id) };
@@ -148,21 +158,58 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
     const why = receipts.target() === "answer" || receipts.into() ? { available: false, reason: L("这次发送是回答上面的问题；改成「补充这一轮」才能选") } : { available: true };
     return { "next-boundary": { available: true }, interrupt: why, "after-run": why };
   };
-  let composer = null, mountedFor = null, draftHere = null, painted = "", sending = 0, handedOver = false;
+  let composer = null, mountedFor = null, draftHere = null, painted = "", sending = 0, handedOver = false, inFlight = null;
   let worksArrived; const worksIn = new Promise((resolve) => { worksArrived = resolve; });
+  /* A work's Send on its way (going), the words written for that work meanwhile (later) and a draft write not yet answered
+     (writing). The Host clears a work's draft when a Send lands, so words written after the Send are kept here and written once it
+     has landed, and the Send itself goes only after the draft write before it (W2-18-SEND-01). */
+  const going = new Map(), later = new Map(), writing = new Map();
   const draftFor = (id) => {
     if (!id) { const key = scoped("new-draft"); return { read: async () => store.get(key) || "", write: async (text) => store.set(key, text || null) }; }
     const route = host.route("/api/assistant/works/" + encodeURIComponent(id) + "/draft");
     return {
-      // A work's draft comes with the list of works.
-      read: () => worksIn.then(() => (works.find((work) => work.work_id === id) || {}).draft || ""),
+      // A work's draft comes with the list of works. While a Send is on its way the box holds only what was written after it: the
+      // Host's draft is the Send's own words, or older ones, and is cleared when the Send lands.
+      read: () => later.has(id) ? Promise.resolve(later.get(id)) : going.has(id) ? Promise.resolve("")
+        : worksIn.then(() => (works.find((work) => work.work_id === id) || {}).draft || ""),
       write: (text) => {
+        if (going.has(id)) { if (text === going.get(id).text) later.delete(id); else later.set(id, text); return Promise.resolve(); }
         const work = works.find((row) => row.work_id === id);
         if (work && work.draft === text) return Promise.resolve();
         if (work) work.draft = text;
-        return api("", "POST", { draft: text }, route).then(() => undefined);
+        const run = api("", "POST", { draft: text }, route).then(() => undefined), done = () => { if (writing.get(id) === run) writing.delete(id); };
+        writing.set(id, run); run.then(done, done);
+        return run;
       },
     };
+  };
+  /** One Send from the composer: the work it is for is the one in front now, whatever the person opens while it is on its way. */
+  const sendNow = async (sent) => {
+    const id = curId, mine = { text: sent.text, mount: mountedFor };
+    sending += 1; inFlight = mine; if (id) going.set(id, mine);
+    try {
+      const outcome = await submit(sent, id ? writing.get(id) : undefined);
+      // The person came back to this work while the Send was on its way, so another composer shows it: a Send that did not go
+      // gives its words back to the empty box (the composer that sent them is gone and cannot).
+      if (id && outcome.state !== "sent" && mountedFor === id && !input.value) {
+        input.value = sent.text; window.molisFit?.(input);
+      }
+      // A new work's words, kept in this viewer's storage, went with it: they are not left there as a draft (the person may have
+      // opened another receiver meanwhile, so the composer that sent them does not settle it).
+      if (outcome.elsewhere) {
+        // It went again as it first went, to another receiver (W2-18-SEND-02): the same words written here stay here as a draft.
+        const here = draftHere, words = sent.text;
+        setTimeout(() => { if (draftHere === here && !input.value) { input.value = words; window.molisFit?.(input); void here.write(words).catch(() => undefined); composer?.refresh(); } }, 0);
+      } else if (!id && outcome.state === "sent" && store.get(scoped("new-draft")) === sent.text) store.set(scoped("new-draft"), null);
+      return outcome;
+    } finally {
+      sending -= 1; if (inFlight === mine) inFlight = null;
+      if (id && going.get(id) === mine) {
+        going.delete(id);
+        if (later.has(id)) { const words = later.get(id); later.delete(id); void draftFor(id).write(words).catch(() => undefined); }
+      }
+      setTimeout(syncComposer, 0);
+    }
   };
   const shown = () => JSON.stringify([receiverNow().label, Boolean(getWork()), controlsNow().map((one) => [one.id, one.value, one.options])]);
   const mountComposer = () => {
@@ -173,28 +220,36 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
       near: () => { const page = pageObject(); return page ? { kind: page.object.kind, id: page.object.id } : null; },
       required: () => getWork()?.reply_target ? L("请回到原评论继续回复") : !String(input.value || "").trim() ? L("写一句话再发") : null,
       stop: () => control("stop"),
-      submit: async (sent) => { sending += 1; try { return await submit(sent); } finally { sending -= 1; setTimeout(syncComposer, 0); } } });
+      submit: sendNow });
     const work = getWork(); composer.setRunning(Boolean(work && isLive(work.state)));
   };
   /** Keeps the composer on the receiver in front; redrawn only when what it shows changed, so a poll never closes its menu. */
   function syncComposer() {
-    if (sending || !window.molisComposer) return;
-    if (mountedFor !== (curId || scoped("new-draft"))) {
-      if (composer && !handedOver) { void draftHere.write(input.value).catch(() => undefined); input.value = ""; window.molisFit?.(input); }
+    if (!window.molisComposer) return;
+    // The person opened another receiver: the composer moves now, even with a Send on its way (its outcome is the Host's and the
+    // thread's). A new work's first Send moving it to that work waits until the composer has settled the Send.
+    if (mountedFor !== (curId || scoped("new-draft")) && !(sending && handedOver)) {
+      if (composer && !handedOver) {
+        // The words of a Send on its way are that Send's; only words written after it stay with the receiver they were for.
+        const words = input.value;
+        if (!(inFlight && inFlight.mount === mountedFor && words === inFlight.text)) void draftHere.write(words).catch(() => undefined);
+        input.value = ""; window.molisFit?.(input);
+      }
       handedOver = false;
       return mountComposer();
     }
+    if (sending) return;
     const work = getWork(); composer.setRunning(Boolean(work && isLive(work.state)));
     const now = shown();
     if (now !== painted) { painted = now; composer.refresh(); }
   }
-  const asOutcome = (res, id) => ({ state: "sent", ...(res.outcome === "repeated" || res.outcome === "queued" ? { receipt: { input_id: "send." + id, replayed: res.outcome === "repeated", delivered: res.outcome === "queued" ? "queued" : "run" } } : {}) });
-  async function submit(sent) {
+  const asOutcome = (res, id) => ({ state: "sent", ...(res.elsewhere ? { elsewhere: true } : {}),...(res.outcome === "repeated" || res.outcome === "queued" ? { receipt: { input_id: "send." + id, replayed: res.outcome === "repeated", delivered: res.outcome === "queued" ? "queued" : "run" } } : {}) });
+  async function submit(sent, before) {
     const text = sent.text.trim(), into = curId && receipts.into(), fill = into && fills.get(into.pending_id);
     if (fill) return fill(into.draft_from_composer, text).then(() => { host.showToast?.(L("已写进问卷；按「提交回答」才交回")); return { state: "sent" }; }, (error) => ({ state: "failed", message: error.message }));
     const { materials, over } = upload.take(sent.materials);
     if (over.length) return { state: "failed", message: over[0].reason, unreadable: over };
-    const asked = { request_id: sent.request_id, delivery: sent.delivery, materials };
+    const asked = { request_id: sent.request_id, delivery: sent.delivery, materials, ...(before ? { before } : {}) };
     const outcome = (error) => error.code === "ui_host.outcome_unknown" ? { state: "unknown", check: () => { sending += 1;
       return post(text, asked).then(() => "sent", (again) => again.code === "ui_host.outcome_unknown" ? "unknown" : "not-sent").finally(() => { sending -= 1; setTimeout(syncComposer, 0); }); } }
       : { state: "failed", message: error.message };
@@ -209,6 +264,21 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
     compose.querySelector(".mw-composer__box")?.dispatchEvent(new DragEvent("drop", { dataTransfer: moved, bubbles: true, cancelable: true }));
   }
   function pickFile() { compose.querySelector("[data-composer-add]")?.click(); }
+  /* The conversation behind the receiver: its name on the receiver row opens it, and so does ⌘↵ on an empty box (the work in front,
+     or the list of works when a new one is next and there are others). */
+  const openConversation = () => {
+    if (getWork()) { setPanel(true); reload().then(poll); return true; }
+    if (works.length) { setPanel(true); setWorks(true); return true; }
+    return false;
+  };
+  compose.addEventListener("click", (event) => {
+    if (event.target.closest(".mw-composer__to .mw-tag") && !event.target.closest("[data-tag-remove]")) openConversation();
+  });
+  compose.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" || !(event.metaKey || event.ctrlKey) || event.shiftKey || event.isComposing || event.keyCode === 229) return;
+    if (!event.target.matches?.(".mw-composer__input") || String(event.target.value || "").trim() || compose.querySelector(".mw-composer__files")) return;
+    if (openConversation()) event.preventDefault();
+  }, true);
   // What opens from the island besides the composer's own menus, and the button focus returns to.
   const popovers = () => [[workNav, setWorks, worksToggle], [noticePop, setNotices, noticeBtn]];
   document.addEventListener("pointerdown", (event) => {

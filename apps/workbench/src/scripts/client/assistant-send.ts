@@ -3,9 +3,13 @@
  * client scope: the request, then what the page keeps of it. A Send whose outcome is unknown keeps its words and key across a
  * refresh, so the same words go again under the same key and the Host starts nothing twice (§7). What the composer shows of the
  * outcome is the composer's; the thread shows a problem only when it carries a way out (a link to settings, a cap to raise).
- * `extra` is the composer's key, delivery and materials, or a delegated message's own key (`named`) and `written_by`.
+ * `extra` is the composer's key, delivery and materials (and `before`, the work's draft write the Send waits for), or a delegated
+ * message's own key (`named`) and `written_by`.
  */
 export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
+  // A Send whose outcome was lost goes again as it went (W2-18-SEND-02): the same body (key, scope, context, materials) on the
+  // same route, though the chooser or the page has moved on since; one per receiver, until the Host answers or refuses it.
+  const lostSends = new Map();
   const unsent = () => { try { return JSON.parse(store.get(scoped("unsent")) || "null") || {}; } catch { return {}; } };
   const sendTarget = () => curId || JSON.stringify([project?.id, nextScope, nextExec, nextMode, nextChar]);
   const retainSent = (work) => {
@@ -17,7 +21,7 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
   const reaskQuestion = (work, round, question) => api("/send", "POST", { work_id: work.work_id, request_id: crypto.randomUUID(),
     written_by: "page", reask: { run_id: round.run_id, pending_id: question.pending_id } }).then(reload).then(poll, showError);
   async function post(text, extra = {}) {
-    const kept = unsent(), unsentKey = scoped("unsent");
+    const again = extra.named ? undefined : lostSends.get(curId || null), kept = unsent(), unsentKey = scoped("unsent");
     const body = { text, request_id: extra.named || (kept.work === (curId || null) && kept.text === text ? kept.id : extra.request_id || crypto.randomUUID()),
       context: pageContext(), materials: [...sendMaterials(), ...(extra.materials || [])], ...(extra.written_by ? { written_by: extra.written_by } : {}) };
     const character = curId ? pendingChar : nextChar || undefined;
@@ -32,15 +36,19 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
       const session = executorSession(nextExec);
       if (session) body.executor_session_id = session; else if (nextMode) body.mode = nextMode;
     } else body.scope = nextScope === "project" && project ? { kind: "project", project_id: project.id } : { kind: "personal" };
-    const intent = { work: curId, target: sendTarget(), route: host.route("/api/assistant/send"), character, files: files.slice(), selection: sel, removed: [...removed], joined: [...joined] };
+    const intent = again?.body.text === text ? again
+      : { body, work: curId, target: sendTarget(), route: host.route("/api/assistant/send"), character, files: files.slice(), selection: sel, removed: [...removed], joined: [...joined] };
     const here = () => sendTarget() === intent.target && host.route("/api/assistant/send") === intent.route;
     // The work a new work's Send made is where the words are now: the composer moves to it without writing them anywhere else.
     const chooseSent = (work) => { if (!intent.work) handedOver = true; curId = work.work_id; remember(); openTab(curId); };
     problem = null; setPanel(true); scrollOwner()?.toLatest();
-    store.set(unsentKey, JSON.stringify({ work: intent.work || null, text, id: body.request_id }));
+    lostSends.set(intent.work || null, intent);
+    store.set(unsentKey, JSON.stringify({ work: intent.work || null, text, id: intent.body.request_id }));
     try {
-      const res = await api("/send", "POST", body, intent.route);
-      store.set(unsentKey, null);
+      // Everything the Send is for was read above; it goes once the work's draft write before it has been answered.
+      if (extra.before) await extra.before.catch(() => undefined);
+      const res = await api("/send", "POST", intent.body, intent.route);
+      lostSends.delete(intent.work || null); store.set(unsentKey, null);
       const visible = here();
       retainSent(res.work);
       if (visible) {
@@ -53,9 +61,10 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
       if (carrier) window.dispatchEvent(new CustomEvent("molis:assistant-effect", { detail: { work_id: res.work.work_id, capability_id: carrier.capability_ids["run.start"], session_id: res.work.executor.session_id } }));
       // A supplement's fate is its receipt line in the thread, and words kept for the next turn the composer's status line.
       if (visible && res.outcome === "answered") host.showToast?.(L("已作为回答发送"));
-      return res;
+      // A lost Send that went again from another receiver went where it was first sent: the words in the box now are not its.
+      return visible ? res : { ...res, elsewhere: true };
     } catch (error) {
-      if (error.code !== "ui_host.outcome_unknown") store.set(unsentKey, null);
+      if (error.code !== "ui_host.outcome_unknown") { lostSends.delete(intent.work || null); store.set(unsentKey, null); }
       const data = error.body?.details || {}, visible = here();
       if (data.work) retainSent(data.work);
       if (visible) {

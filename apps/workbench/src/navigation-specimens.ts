@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
-import { escapeHtml, icon, renderButton, renderComposer, t, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { escapeHtml, icon, renderButton, renderComposer, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { assistantComposerLabels } from "./assistant-composer-labels.js";
+import { nextBoundaryWord } from "./assistant-dock.js";
 import {
   THEME_BOOTSTRAP_SCRIPT, VISUAL_FOUNDATION_CLIENT_SCRIPT, renderIconSprite, renderMenuGroup, renderMenuItem, renderProjectMonogram, renderToggleGroup,
 } from "@molis-ai/molis-work-design-system";
@@ -186,7 +187,7 @@ function bar(L: Say, state: "ok" | "wrong"): string {
   const fold = (count: number, label: string) => `<button type="button" class="dock-pin dock-pin-more mw-navs__fold" aria-haspopup="true" aria-expanded="false" aria-label="${escapeHtml(`${label} ${count}`)}" title="${escapeHtml(label)}">+${count}</button>`;
   const dock = `<div class="dock-pins" role="toolbar" aria-label="${escapeHtml(L("常驻插件"))}">${dockPin(L, "home")}${dockPin(L, "goals", { current: true })}${dockPin(L, "pages", { fold: true })}${dockPin(L, "coding", { fold: true })}${dockPin(L, "feed", { fold: true })}${fold(3, L("更多常驻插件"))}</div>`;
   // The Dock's own first screen (assistant-dock.ts): the platform composer with the Assistant's words.
-  const composer = `<div class="bar-center"><div class="assistant-composer">${renderComposer({ kind: "ai", labels: assistantComposerLabels(L, true, t.text("workbench.composer.next-boundary")), placeholder: L("让助理做点什么…"), receiver: { label: L("助理") } })}</div></div>`;
+  const composer = `<div class="bar-center"><div class="assistant-composer">${renderComposer({ kind: "ai", labels: assistantComposerLabels(L, true, nextBoundaryWord()), placeholder: L("让助理做点什么…"), receiver: { label: L("助理") } })}</div></div>`;
   const own = `<div class="bar-side bar-own" role="toolbar" aria-label="${escapeHtml(L("你自己的"))}">${wrong ? dockPin(L, "receipts", { warn: true }) : ""}${dockPin(L, "jelly", { fold: wrong })}${dockPin(L, "todo", { fold: true })}${dockPin(L, "cognia", { fold: true })}${fold(wrong ? 3 : 2, L("你自己的"))}</div>`;
   const project = `<section class="workspace-chrome project-island titlebar-chrome navigator-project" aria-label="${escapeHtml(L("当前项目"))}"><div class="navigator-project-primary"><button type="button" class="navigator-project-selector" aria-label="${escapeHtml(L("切换项目"))} · ${escapeHtml(L("网站改版"))}">${renderProjectMonogram(L("网站改版"), "project-sample", escapeHtml)}</button></div></section>`;
   return `<div class="workbench-bar" data-nav-bar="${state}" aria-label="${escapeHtml(L("底栏"))}"><div class="bar-start">${switcher}${dock}</div>${composer}<div class="bar-end">${own}${project}</div></div>`;

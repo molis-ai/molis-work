@@ -28,9 +28,15 @@ function subject(value: unknown): string {
   const named = closed(value, "subject", ["kind", "id"]);
   text(named.kind, "subject.kind", MATERIAL_REF_LIMITS.subject_kind);
   text(named.id, "subject.id", MATERIAL_REF_LIMITS.subject_id);
-  if (named.kind === WORKSPACE_FILE_SUBJECT_KIND && !parseWorkspaceFileSubjectId(named.id)) throw refused("subject.id");
+  if (named.kind === WORKSPACE_FILE_SUBJECT_KIND) {
+    const file = parseWorkspaceFileSubjectId(named.id);
+    // The folder id is what `projects.directories.map_source@1` names (at most 200, no control characters): a longer one could never be mapped back.
+    if (!file || file.workspace_id.length > WORKSPACE_FOLDER_ID_MAX || hasControlCharacter(file.workspace_id)) throw refused("subject.id");
+  }
   return named.kind;
 }
+const WORKSPACE_FOLDER_ID_MAX = 200;
+const hasControlCharacter = (value: string) => [...value].some(character => character.charCodeAt(0) < 0x20 || character.charCodeAt(0) === 0x7f);
 /** A local file's revision: 64 hex digits are the sha256 of its bytes, the same as `knowledge.read`'s `revision`; `size:<bytes>` is its size alone, when its content cannot be read. */
 const WORKSPACE_FILE_REVISION = /^(?:[0-9a-f]{64}|size:\d+)$/u;
 function pin(value: unknown, kind: string): void {

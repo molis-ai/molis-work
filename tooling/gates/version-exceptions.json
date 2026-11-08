@@ -452,22 +452,6 @@
     "reason": "电脑记录来源只在 Home 层登记，动作快照读的是一个项目的目录，所以没有行。"
   },
   {
-    "entry": "action.projects.settings.browsing-workspace.read",
-    "reason": "宿主的项目设置动作，只由设置页走自己的路由，不进动作目录，所以快照里没有行。"
-  },
-  {
-    "entry": "action.projects.settings.browsing-workspace.select",
-    "reason": "宿主的项目设置动作，只由设置页走自己的路由，不进动作目录，所以快照里没有行。"
-  },
-  {
-    "entry": "action.projects.settings.workspaces.read",
-    "reason": "宿主的项目设置动作，只由设置页走自己的路由，不进动作目录，所以快照里没有行。"
-  },
-  {
-    "entry": "action.projects.workspaces.list",
-    "reason": "宿主的项目设置动作，只由设置页走自己的路由，不进动作目录，所以快照里没有行。"
-  },
-  {
     "entry": "action.ui.plugin-presentation",
     "reason": "页面展示能力的合同常量，由工作台在页面里提供，不经动作目录登记，所以快照里没有行。"
   },
@@ -478,42 +462,6 @@
   {
     "entry": "action.surfaces.correct",
     "reason": "C-3 合同片只声明，提供方 system.surfaces 由第 15 批 S-1 登记，所以动作快照里还没有行；登记之后这条例外不再需要，门禁会要求删掉。"
-  },
-  {
-    "entry": "action.materials.recent",
-    "reason": "C-1 合同片只声明，提供方由目录实现片登记，所以动作快照里还没有行；登记之后这条例外不再需要，门禁会要求删掉。"
-  },
-  {
-    "entry": "action.materials.recent.record",
-    "reason": "C-1 合同片只声明，提供方由目录实现片登记，所以动作快照里还没有行；登记之后这条例外不再需要，门禁会要求删掉。"
-  },
-  {
-    "entry": "action.projects.directories.add_input",
-    "reason": "C-1 合同片只声明，提供方由目录实现片登记，所以动作快照里还没有行；登记之后这条例外不再需要，门禁会要求删掉。"
-  },
-  {
-    "entry": "action.projects.directories.get",
-    "reason": "C-1 合同片只声明，提供方由目录实现片登记，所以动作快照里还没有行；登记之后这条例外不再需要，门禁会要求删掉。"
-  },
-  {
-    "entry": "action.projects.directories.map_source",
-    "reason": "C-1 合同片只声明，提供方由「实现（指定文件夹）」片登记，所以动作快照里还没有行；登记之后这条例外不再需要，门禁会要求删掉。"
-  },
-  {
-    "entry": "action.projects.directories.remove_input",
-    "reason": "C-1 合同片只声明，提供方由目录实现片登记，所以动作快照里还没有行；登记之后这条例外不再需要，门禁会要求删掉。"
-  },
-  {
-    "entry": "action.projects.directories.repair",
-    "reason": "C-1 合同片只声明，提供方由目录实现片登记，所以动作快照里还没有行；登记之后这条例外不再需要，门禁会要求删掉。"
-  },
-  {
-    "entry": "action.projects.directories.set_output",
-    "reason": "C-1 合同片只声明，提供方由目录实现片登记，所以动作快照里还没有行；登记之后这条例外不再需要，门禁会要求删掉。"
-  },
-  {
-    "entry": "action.projects.directories.unmap_source",
-    "reason": "C-1 合同片只声明，提供方由「实现（指定文件夹）」片登记，所以动作快照里还没有行；登记之后这条例外不再需要，门禁会要求删掉。"
   },
   {
     "row": "functions.published.system_admit_inbox",

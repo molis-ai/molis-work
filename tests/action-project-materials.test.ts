@@ -4,15 +4,15 @@ import { ActionService } from "@molis-ai/molis-work-kernel";
 import { inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
 import { assertMaterialRef } from "@molis-ai/molis-work-plugin-sdk/presentation";
 import { actionEffect, ActionError, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import { materialRecentActions, PROJECT_WORKSPACE_PROVIDER_ID, projectDirectoryActions, projectDirectoryErrors, projectWorkspaceActions } from "@molis-ai/molis-work-contracts/modules/projects";
+import { materialOriginActions, materialRecentActions, PROJECT_WORKSPACE_PROVIDER_ID, projectDirectoryActions, projectDirectoryErrors } from "@molis-ai/molis-work-contracts/modules/projects";
 import { FILE_PATH_MAX_SEGMENTS, FILE_SEGMENT_MAX_LENGTH, WORKSPACE_FILE_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { knowledgeActions } from "@molis-ai/molis-work-contracts/services/knowledge";
-import { MATERIAL_RECENT_KEEP, MATERIAL_RECENT_RECORD_MAX, MATERIAL_REF_LIMITS, type MaterialOrigin, type MaterialRef } from "@molis-ai/molis-work-contracts/platform/project-materials";
+import { MATERIAL_ORIGINS_MAX, MATERIAL_RECENT_KEEP, MATERIAL_RECENT_RECORD_MAX, MATERIAL_REF_LIMITS, type MaterialOrigin, type MaterialRef } from "@molis-ai/molis-work-contracts/platform/project-materials";
 
-// specs/shared-sources-and-surfaces §2, §2.1, §3, §7 (C-1): the contract alone. Nothing registers these actions in the product yet, so the
-// provider here is a stand-in that answers what each test gives it; the refusals are the schema's and the SDK's own, and the behaviour behind
-// the actions (SSC-02, SSC-04, SSC-05, SSC-16, and the rest of SSC-03, SSC-12 and SSC-25 to SSC-28) waits for the implementation.
-const declared = [...Object.values(projectDirectoryActions), ...Object.values(materialRecentActions)] as ActionDefinition[];
+// specs/shared-sources-and-surfaces §2, §2.1, §3, §7: the contract alone. The provider here is a stand-in that answers what each test gives it,
+// so the refusals are the schema's and the SDK's own; the behaviour behind the actions is the Host's, tested where it registers them
+// (tests/project-directories.test.ts, tests/security-invariants-material-origins.test.ts and the rest).
+const declared = [...Object.values(projectDirectoryActions), ...Object.values(materialRecentActions), ...Object.values(materialOriginActions)] as ActionDefinition[];
 const context = (audience: ActionCallContext["audience"], permissions: string[] = []): ActionCallContext => ({ actor_id: `${audience}:someone`, project_id: "p", audience, permissions });
 const person = context("user", ["projects:settings"]);
 
@@ -75,7 +75,8 @@ test("SSC-01: assertMaterialRef and the action's schema refuse the same malforme
 });
 
 test("SSC-01: a workspace file id has to name a path inside its folder, which the SDK refuses and the JSON shape cannot see", () => {
-  for (const id of ["no-separator", ":docs/plan.md", "ws1:", "ws1:/etc/passwd", "ws1:../secret", "ws1:docs/../../secret", "ws1:docs\\plan.md", "ws1:docs/\u0000plan.md"]) {
+  // The folder id is one map_source can name: at most 200 characters, none of them a control character (SSC-27).
+  for (const id of ["no-separator", ":docs/plan.md", "ws1:", "ws1:/etc/passwd", "ws1:../secret", "ws1:docs/../../secret", "ws1:docs\\plan.md", "ws1:docs/\u0000plan.md", `${"w".repeat(201)}:a.md`, "w\u0001s:a.md", "w\u007fs:a.md"]) {
     assert.throws(() => assertMaterialRef({ ...currentFile, subject: { kind: WORKSPACE_FILE_SUBJECT_KIND, id } }), invalid, JSON.stringify(id));
   }
   // The limit is the longest id a real folder and path can make: exactly that fits, one more does not.
@@ -123,20 +124,35 @@ test("the declarations are complete, version 1, and the ones the design names", 
     "projects.directories.unmap_source@1:command",
     "materials.recent@1:query",
     "materials.recent.record@1:command",
+    "materials.origins@1:query",
   ]);
   assert.equal(PROJECT_WORKSPACE_PROVIDER_ID, "system.project-workspaces");
-  // The Host registers `Object.values(projectWorkspaceActions)` with a handler each: a declaration only stays out of that list until it has one.
-  const registered = new Set(Object.values(projectWorkspaceActions).map(definition => definition.capability_id));
-  for (const definition of declared) assert.ok(!registered.has(definition.capability_id), definition.capability_id);
 });
 
-test("who may call each: reading directories is open to four audiences, changing them only to the person, recent materials to the person and plugins", () => {
+test("who may call each: reading directories is open to five audiences, changing them only to the person, materials to the person and plugins", () => {
   const { service } = serving();
   const offered = (caller: ActionCallContext) => service.discover(caller).map(view => view.capability_id).sort();
   assert.deepEqual(offered(person), declared.map(definition => definition.capability_id).sort());
-  assert.deepEqual(offered(context("plugin")), ["materials.recent", "materials.recent.record", "projects.directories.get"]);
-  assert.deepEqual(offered(context("agent")), ["projects.directories.get"]);
-  assert.deepEqual(offered(context("mcp")), ["projects.directories.get"]);
+  assert.deepEqual(offered(context("plugin")), ["materials.origins", "materials.recent", "materials.recent.record", "projects.directories.get"]);
+  // A workflow step reads the directories with `get`, which replaced projects.workspaces.list (2026-11-08); it changes nothing.
+  for (const audience of ["agent", "mcp", "workflow"] as const) assert.deepEqual(offered(context(audience)), ["projects.directories.get"], audience);
+});
+
+test("SSC-30: materials.origins takes 1 to 20 references or subjects and answers each in order; agent, mcp and workflow are refused", async () => {
+  const { service, calls } = serving(() => ({ items: [{ origin: null }] }));
+  const ask = (caller: ActionCallContext, items: unknown[]) => service.invoke(caller, reference(materialOriginActions.read), { items });
+  await assert.rejects(ask(person, []), invalid);
+  await assert.rejects(ask(person, Array.from({ length: MATERIAL_ORIGINS_MAX + 1 }, () => ({ ref: currentFile }))), invalid, "21 is one too many");
+  await assert.rejects(ask(person, [{ ref: currentFile, subject: currentFile.subject }]), invalid, "a reference or a subject, not both");
+  await assert.rejects(ask(person, [{ subject: { ...currentFile.subject, plugin_id: "x" } }]), invalid);
+  for (const audience of ["agent", "mcp", "workflow"] as const) await assert.rejects(ask(context(audience), [{ ref: currentFile }]), code("actions.forbidden"), audience);
+  assert.deepEqual(calls, []);
+  assert.deepEqual(await ask(context("plugin"), [{ ref: currentFile }]), { items: [{ origin: null }] });
+  await ask(person, Array.from({ length: MATERIAL_ORIGINS_MAX }, () => ({ subject: fixedArtifact.subject })));
+  assert.equal(calls.length, 2);
+  // An answer longer than any question is refused at the gateway, so a provider cannot add origins nobody asked for.
+  const padding = serving(() => ({ items: Array.from({ length: MATERIAL_ORIGINS_MAX + 1 }, () => ({ origin: null })) })).service;
+  await assert.rejects(padding.invoke(person, reference(materialOriginActions.read), { items: [{ ref: currentFile }] }));
 });
 
 test("a plugin cannot change a project's directories, even with a legal input and the settings permission", async () => {
@@ -276,11 +292,16 @@ test("SSC-12, SSC-25: recent materials come back with an origin read just now, a
   await assert.rejects(read([{ ref: fixedArtifact, origin: { source: "object", owner: origin.owner, state: "unmapped" } }]));
   await assert.rejects(read([{ ref: fixedArtifact, origin: { source: "import", owner: origin.owner, state: "unmapped" } }]));
   await assert.rejects(read([{ ref: currentFile, origin: { ...origin, state: "unmapped" } }]));
+  // A directory origin the caller may not read, or whose file is gone, need not say which directory (SSC-30); one that is there must.
+  for (const state of ["forbidden", "missing"] as const) await read([{ ref: currentFile, origin: { source: "directory", owner: origin.owner, state } }]);
+  await assert.rejects(read([{ ref: fixedArtifact, origin: { source: "import", owner: origin.owner, directory: origin.directory, state: "ok" } }]), "an import has no directory");
+  await read([{ ref: currentFile, origin: { source: "directory", owner: origin.owner, state: "unmapped", note: "这个项目原来的默认输出目录" } }]);
 });
 
-test("the three refusals are declared codes of one error model, not error classes", () => {
+test("the four refusals are declared codes of one error model, not error classes", () => {
   const cases = [
     [projectDirectoryErrors.directory_missing("x"), "projects.directory_missing", "not_found"],
+    [projectDirectoryErrors.directory_unmapped("x"), "projects.directory_unmapped", "not_found"],
     [projectDirectoryErrors.directory_revoked("x"), "projects.directory_revoked", "forbidden"],
     [projectDirectoryErrors.directory_duplicate("x"), "projects.directory_duplicate", "conflict"],
   ] as const;

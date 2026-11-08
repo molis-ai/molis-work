@@ -18,6 +18,7 @@ export { readPackagedSkills, type PackagedSkillBody, type PackagedSkills } from 
 /** The one refusal of a declaration or package check (`plugin.declaration_invalid`): outside paths quoted and cut short, at most 30 problems listed. */
 export { refuseDeclarations } from "./declaration-problems.js";
 export { skillDeclarationFromFrontmatter, type SkillFrontmatterOptions } from "./skill-frontmatter.js";
+export { contentPackagePayload, skillFromFolder, type ContentPackageInput, type FolderSkill } from "./skill-folder.js";
 export { parsePluginSyncDeclaration, expandPluginSyncSelection } from "./plugin-sync.js";
 export { createSyncJsonContent, type SyncJsonContentOptions } from './sync-content.js';
 export { createSyncDocument, type SyncDocument, type SyncDocumentOwner, type SyncDocumentStorage } from './sync-document.js';

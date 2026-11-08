@@ -150,6 +150,8 @@ argument_hint: "<周期，可选>"
 - **2026-11-07 用户定（沙箱包方法的 `tools`）**：签名沙箱包的方法仍要求 `tools` 为空，C-3 照这样做。S-105 里「空工具方法不授予执行、目录或子 Agent 权限」一条不放宽；C-3 只把 S-105 写的三键写法改成完整声明。沙箱方法要声明只在 `SKILL_TOOLS` 里的工具，得另开需求放宽 S-105，并带上拒绝测试。否掉的：在 C-3 里一并放开（那样要改安全边界，C-3 就不再只是合并写法）。
 - **2026-11-08 用户定（C-3 落在 02③ 重建之后）**：旧三键写法（`methods: [{ name, purpose, body }]`）的签名沙箱包不兼容、不迁移，照阶段一 Manifest 原地改的规则明确失败（`plugin.declaration_invalid`），作者重新打包、重新签名；创作台发布的包不带 `methods`，不受影响。否掉的：先读真实 Home 数一遍再定（要动真实 Home，而结论不随数量变）；保留旧写法的读取（宿主得替包编 `description`／`applies_to`，违背「宿主不编默认值」的设计，还要长期维护）。
 
+- **2026-11-08 08-8 写手定（带连字符的键，按「只认现行取值」）**：frontmatter 里带连字符、换成下划线就是本读法认的键的（`argument-hint`、`user-invocable`、`when-to-use`、`when-not-to-use`、`applies-to`、`connector-categories`），不当成下划线那个键读，也不悄悄丢掉：`skillDeclarationFromFrontmatter` 以 `plugin.declaration_invalid` 拒绝并写出该用的写法（「argument-hint 要写成 argument_hint」）；导入里只把那一个 Skill 标为不能导入。别的工具自己的键（如 Claude Code 的 `allowed-tools`）照旧不读、不拒。否掉的：两种写法等同（等于给旧写法留读取兜底，要长期维护两份写法）；连字符的键一律拒（会挡住只写了别的工具自己的键的 Skill）。CLI `pack-content` 用同一个读法，同样拒绝。
+
 ## 10. 开工前检查（第 08 批主会话，2026-11-06）
 
 按[需求开发流程](../post-anticorruption-roadmap/reference/development-workflow.md#4-开工前检查)第 4 节逐项答（第 15 项随决定 27 于 2026-11-07 补）。依据：本 spec、[合同稿](contract-design.md)、main `cf21c8d67`（第 14 项冲突面 2026-11-07 按 main `52f1e9836` 重核）。档位：大需求；类型：横向能力（主），兼产品线（助理、Coding）。决策标记：直接做；第 6、7 项里两张新表与 Coding 旧路的存量，用户 2026-11-06 已定（§9）；C-3 落在 02③ 之后时的存量，用户 2026-11-08 已定不兼容、不迁移（§9，第 7 项②）。
@@ -215,6 +217,14 @@ argument_hint: "<周期，可选>"
 - 它没有运行实例来握住 Agent 定义，宿主在它启用时代为握住（`declaredOnlyHolds`），停用、卸载、发布者被撤、宿主关闭时放开；所以 Skill 只在启用且包验过的时候提供。
 - 预览：`skills` 列每个方法（沙箱包的方法也在这里），`agent_bodies` 只留角色；`requires` 每项给 `satisfied`；装到哪里沿用已有的 `runtime_scope`，不另加 `scope`。升级时 Skill 的正文或资源变了而 `version` 没加、或 `version` 变小，预览和确认各拒一次。
 - `state` 现在一律 `off`：设置的保留与删除要 08-7 的设置表，08-6 不另造存储。
+
+**08-8 的做法（子分支 `batch/08-runtime`，2026-11-08）：**
+
+- 从本机导入复用 Character 导入的扫描（`createCharacterDiscovery`，它的根、链接和大小限制），只取 Skills；每个 Skill 用和 CLI `pack-content` 同一个打包函数（SDK 的 `skillFromFolder`、`contentPackagePayload`）做成内容包里的一项，用这个 Home 的发布身份（创作台的那一个）签名，再走 `plugins.install.preview`／`confirm` 安装；第一次导入确认时把这个 Home 的发布者以「这台电脑」固定。动作登记在插件安装的提供方（`plugin-install`）下：导入就是安装，和安装同一个服务、同一个本人入口；08-7 的 `system.skills` 只登记目录与设置。
+- 一个 Skill 不能导入（frontmatter 读不了：多行值、带连字符的键、没写 `description` 或 `applies_to`、名字不是合法的 id；有 `references/`、`scripts/`、`assets/` 之外的文件；技能目录本身是符号链接），预览照列，`importable: false` 加 `reason`，别的照常能导入（合同里候选项加了 `importable`，原版本改）。
+- 包的 `plugin_id` 由来源种类与来源根目录算出（`io.molis.work.imported-skills.<runtime>-<12 位摘要>`），再导入就是升级：包版本加一个主版本，正文或附带文件变了的 Skill 版本加一，没变的不动。
+- 一个包至多 128 个 Skill：确认的输入至多 128 项；打包函数对更多的明确拒绝（`plugin.declaration_invalid`，「请分成几个包，或少选几个」），不悄悄丢。
+- 留给主会话定的：①外部 Skill 大多不写 `applies_to`，按「宿主不编默认值」现在标为不能导入，要不要由导入替它定一个取值；②`project_directory` 来源现在明确拒绝（`skills.import_source_unavailable`）：已有的目录授权是给某个插件安装的，借来给导入用等于改它的含义，要先定授权从哪里来。
 
 **不在本批的验收编号：**
 

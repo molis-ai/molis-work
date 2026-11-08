@@ -104,6 +104,7 @@ export interface SkillImportCandidate {
     description: string;
     file_count: number;
     bytes: number;
+    importable: boolean;
     compatibility: "portable" | "native-only";
     reason?: string;
     runs_scripts: boolean;

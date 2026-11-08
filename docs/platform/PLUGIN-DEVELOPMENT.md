@@ -501,6 +501,8 @@ Inbox → Pages 通过 Host 组合各插件公开能力，输入快照与幂等�
 
 作者可用 `molis-work-plugin pack-sandbox <源目录> <输出.json> --name <名称> --version <版本> --publisher-id <发布者> --publisher-key-id <指纹> [--scope home]` 生成 wire 清单和未签名包，再沿既有 `sign` / `verify` 签验。可选图标、兼容版本和文字声明参数见 [CLI 文档](../../tooling/plugin-cli/README.md#沙箱包)。SDK 的 `sandboxPluginManifest`、`sandboxIntegrationManifest` 和 `effectsFromContract` 是 Host、CLI 与创作台共用的生成实现；作者只需 contracts 和 plugin-sdk。
 
+只带技能、不带代码的插件（只有声明的插件，`kind: "content"`）用 `molis-work-plugin pack-content <技能目录> <输出.json> --plugin-id <id> --name <名称> --version <版本> --publisher-id <发布者> --publisher-key-id <指纹> [--scope home]` 打成内容包，同样用 `sign` / `verify` 签验，见 [CLI 文档](../../tooling/plugin-cli/README.md#内容包)。打包函数是 SDK 的 `skillFromFolder` / `contentPackagePayload`，宿主「从本机导入技能」（`skills.import.preview`／`confirm`）用的是同一个，签名用这个 Home 的发布身份。内容包装上后已声明、不启动：没有执行进程，技能由宿主按声明登记。
+
 创作台首次发布前可选择项目或个人空间。切换范围会作废旧范围的通过结果，并按新范围重新检查已有源码和界面；不会为重验调用模型。首份发布固定该草稿的范围。发布在原五文件旁保存独立签名分发包，下载后在插件设置中导入，查看指纹、范围和权限，再由本人命名固定并确认；本机生成不等于已经信任。已有 agent-built 项目安装沿用原身份和数据，签名包不自动替换它。每个 Home 的签名私钥归现有 SecretStore，公开身份记录在 `config/plugin-publisher.json`；删除项目和普通卸载保留，显式 Home purge 才移除。身份缺失、不匹配或已撤销时拒绝发布，不能自动换钥绕过。
 
 包就是一个 `PluginPackageBundle`（`payload` + `signature` + `publisher_key`，签名方式同上），`payload.files` 包含下面五个文件，以及 `agent` 逐项引用的 `agent/` 资源、`methods` 每项声明的正文 `skills/<skill_id>/SKILL.md` 与资源；缺文件、重复路径或未声明的额外文件均拒绝：

@@ -151,8 +151,15 @@ export interface SkillImportCandidate {
   description: string;
   file_count: number;
   bytes: number;
+  /**
+   * Whether this Skill can be imported. One that cannot (a SKILL.md the declaration reading refuses, such as a multi-line value or a
+   * hyphenated key; a file outside `references/`, `scripts/`, `assets/`; a folder that is a link) is listed with `reason` and leaves the
+   * others importable (batch 08, 08-8).
+   */
+  importable: boolean;
   /** Character import's words: a `native-only` Skill imports, and is unavailable to the built-in engine (`native_only`) with this reason. */
   compatibility: "portable" | "native-only";
+  /** Why it cannot be imported; for one that can, why only a local Agent can use it (`native-only`). */
   reason?: string;
   runs_scripts: boolean;
   /** `upgrade`: a Skill of this id is installed from the same source and the import adds a version. */
@@ -239,7 +246,7 @@ export const skillErrors = defineErrorCodes("skills", {
   import_source_unavailable: "not_found",
   /** The preview is unknown, used, or not this person's. */
   import_preview_unknown: "not_found",
-  /** A `skill_ids` entry is not a candidate of the preview. */
+  /** A `skill_ids` entry is not an importable candidate of the preview. */
   import_skill_unknown: "invalid",
 });
 
@@ -331,8 +338,8 @@ export const skillImportActions = {
       object({ kind: { const: "project_directory" }, directory_id: id })] } })),
     output_schema: object({ preview_id: text, package: object({ plugin_id: text, version: text, installed_version: { type: ["string", "null"] } }),
       candidates: { type: "array", maxItems: CHARACTER_IMPORT_LIMITS.skills, items: object({ skill_id: text, name: text, description: text, file_count: count, bytes: count,
-        compatibility: { enum: ["portable", "native-only"] }, reason: text, runs_scripts: { type: "boolean" }, change: { enum: ["new", "upgrade"] } },
-        ["skill_id", "name", "description", "file_count", "bytes", "compatibility", "runs_scripts", "change"]) } }) } } as ActionDefinition<SkillImportPreviewRequest, SkillImportPreview>,
+        importable: { type: "boolean" }, compatibility: { enum: ["portable", "native-only"] }, reason: text, runs_scripts: { type: "boolean" }, change: { enum: ["new", "upgrade"] } },
+        ["skill_id", "name", "description", "file_count", "bytes", "importable", "compatibility", "runs_scripts", "change"]) } }) } } as ActionDefinition<SkillImportPreviewRequest, SkillImportPreview>,
   confirm: { capability_id: "skills.import.confirm", version: /* @version action.skills.import.confirm */ 1, operation: "command", action: { ...person,
     title: "确认从本机导入技能", description: "把预览里选中的技能做成一个包，用这个 Home 的发布身份签名，装进这个项目（scope 为 project）或个人空间（home）。导入的是此刻的固定拷贝，原目录之后的改动不影响它；装上不等于启用。预览用过一次就作废。",
     input_schema: inputSchemaFor<SkillImportConfirmRequest>()(object({ preview_id: { type: "string", minLength: 1, maxLength: 80 },

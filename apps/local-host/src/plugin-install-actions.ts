@@ -1,9 +1,10 @@
-import { ActionError, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionHandler, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginInstalledPermissionView, PluginInstalledView, PluginPublisherPin } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import { SKILL_LIMITS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
-import { SKILL_INSTALL_PREVIEW_SCHEMA } from "@molis-ai/molis-work-contracts/services/skills";
+import { SKILL_INSTALL_PREVIEW_SCHEMA, skillImportActions } from "@molis-ai/molis-work-contracts/services/skills";
 import { assertHomePluginPermissionSettingsEntry, assertPluginConsentSettingsEntry, assertPluginPermissionSettingsEntry } from "./plugin-consent-settings-entry.js";
 import type { PluginInstallPreviewResult, PluginInstallService } from "./plugin-install-service.js";
+import type { SkillImportService } from "./skill-import.js";
 
 // Installing a plugin from a signed package, as the person's own act (ac-trust T2, specs/archive/repository-anti-corruption/slices/ac-trust-install.md
 // §3.1, S-84). The audience is `user` and the writing handlers want the protected entry's `user_action`, so an Agent, MCP, a workflow
@@ -141,7 +142,11 @@ export const pluginControlActions = {
     input_schema: { type: "object", properties: { ...controlInput, keep_data: { type: "boolean" } }, required: ["plugin_id", "keep_data"], additionalProperties: false }, output_schema: controlOutput } } as ActionDefinition<{ plugin_id: string; keep_data: boolean }, { plugin_id: string; state: string }>,
 };
 
-export function pluginInstallHandlers(service: PluginInstallService): ActionHandlerBinding[] {
+/** Importing Skills from this machine is installing the content package the import makes, so this provider offers it too (batch 08, 08-8). */
+export const pluginInstallDefinitions = (imports?: SkillImportService) =>
+  [...Object.values(pluginInstallActions), ...Object.values(pluginControlActions), ...imports ? Object.values(skillImportActions) : []] as ActionDefinition[];
+
+export function pluginInstallHandlers(service: PluginInstallService, imports?: SkillImportService): ActionHandlerBinding[] {
   const person = (caller: Parameters<ActionHandlerBinding["handle"]>[0]) => {
     if (!caller.user_action) throw new ActionError("actions.forbidden", "安装插件只接受本人在界面或命令行里的操作");
     if (!caller.project_id) throw new ActionError("actions.project_required", "请选择要安装到的项目");
@@ -191,5 +196,16 @@ export function pluginInstallHandlers(service: PluginInstallService): ActionHand
       if (!caller.project_id) throw new ActionError("actions.project_required", "请选择一个项目");
       return { plugins: await service.installed(caller.project_id) };
     } },
+    // The person's own, as installing is: a Skill imported here is a package installed here.
+    ...imports ? [
+      bindActionHandler(skillImportActions.preview, async (input, caller) => {
+        const who = person(caller); await caller.beforeEffect();
+        return imports.preview(input, who);
+      }),
+      bindActionHandler(skillImportActions.confirm, async (input, caller) => {
+        const who = person(caller); await caller.beforeEffect();
+        return imports.confirm(input, who);
+      }),
+    ] : [],
   ];
 }

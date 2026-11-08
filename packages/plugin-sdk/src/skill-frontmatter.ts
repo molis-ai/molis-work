@@ -10,6 +10,8 @@ const FRONTMATTER = /^﻿?---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/u;
 const FIELD = /^([A-Za-z_][A-Za-z0-9_-]*):(?:[ \t]+(.*))?$/u;
 /** The longest `summary`, as `inspectSkillDeclarations` counts it. */
 const SUMMARY_UNITS = 300;
+/** The keys this reading takes. Each is written with underscores, as in the declaration: `argument-hint` is not `argument_hint`. */
+const KEYS = new Set(["name", "version", "summary", "description", "when_to_use", "when_not_to_use", "applies_to", "user_invocable", "argument_hint", "tools", "connector_categories"]);
 
 type Scalar = string | number | boolean;
 type Value = Scalar | Scalar[];
@@ -26,7 +28,9 @@ export interface SkillFrontmatterOptions {
  * else the head of `description`; `description`, `when_to_use`, `when_not_to_use`, `applies_to`, `user_invocable`, `argument_hint`,
  * `tools` and `connector_categories` are taken as written; `body` is always `skills/<id>/SKILL.md`. Other keys are left to the tools
  * that wrote them. The frontmatter is the flat subset Skills folders use: per line `key: value`, where a value is plain text, a quoted
- * string, `true`/`false`, a whole number or a one-line `[a, b]` list; a nested or multi-line value is refused, not guessed. The result
+ * string, `true`/`false`, a whole number or a one-line `[a, b]` list; a nested or multi-line value is refused, not guessed. A key this
+ * reading takes is read only as the declaration spells it: written with hyphens (`argument-hint`, `user-invocable`) it is refused with
+ * the spelling to use, not read as the other and not dropped unseen (batch 08, 08-8: only the current spelling is read). The result
  * passes the same check as Manifest `methods` (so `description` and `applies_to` must be written), or the call is refused with `plugin.declaration_invalid` and its `details.problems`.
  */
 export function skillDeclarationFromFrontmatter(markdown: string, options: SkillFrontmatterOptions = {}): PluginMethodDeclaration {
@@ -68,6 +72,8 @@ function frontmatterFields(markdown: string): Map<string, Value> {
     if (!line.trim() || line.trimStart().startsWith("#")) continue;
     const match = FIELD.exec(line), value = match?.[2] === undefined ? undefined : valueOf(match[2]);
     if (!match || value === undefined) refuseDeclarations([{ reason: `SKILL.md 的 frontmatter 第 ${index + 2} 行要写成一行的 key: value（不支持嵌套和多行值）` }]);
+    const spelled = match[1]!.replaceAll("-", "_");
+    if (spelled !== match[1] && KEYS.has(spelled)) refuseDeclarations([{ reason: `SKILL.md 的 frontmatter 第 ${index + 2} 行的 ${match[1]} 要写成 ${spelled}（只认下划线的写法）` }]);
     fields.set(match[1]!, value);
   }
   return fields;

@@ -206,7 +206,7 @@ interface SkillRef {
 
 `SignedAgentReference` 的 `kind: "method"` 改成用 `SkillRef`；角色资料仍用 `kind: "role"`。官方包、第三方包、本机导入的包都是签名包，都有 `publisher_signature`；随宿主构建、带 Manifest `methods` 的内置插件也有构建的签名身份。所以引用的写法只有一种。`SignedAgentReference` 的方法引用随第 09 批改（合同部分并进 9-1，9-2 只做读取与消费），C-1 只加 `SkillRef` 类型，见 08 偏离记录。
 
-这一步不在 C-1、C-2 里改（第 08 批主会话 2026-11-07 定）：`kind: "method"` 的消费方都在助理一侧，即 `assistant-rule-actions.ts` 的 `assistant.methods.read` 输入、`assistant-send-materials.ts` 的材料校验、`agent-definitions.ts` 的 `methods()` 与 `signedMaterial()`，以及 `prompt_uses.source_ref` 里存着的引用。它跟第 09 批 9-2「助理改读目录」一起改，同一个 PR 改完所有读它的地方。C-2 的 Skill 目录动作只用 `SkillRef`，不碰 `SignedAgentReference`。
+C-2 也不改它（第 08 批主会话 2026-11-07 定）。`kind: "method"` 的消费方都在助理一侧：`assistant-rule-actions.ts` 的 `assistant.methods.read` 输入、`assistant-send-materials.ts` 的材料校验、`agent-definitions.ts` 的 `methods()` 与 `signedMaterial()`，以及 `prompt_uses.source_ref` 里存着的引用，由 9-1、9-2 改完。C-2 的 Skill 目录动作只用 `SkillRef`，不碰 `SignedAgentReference`。
 
 ## 5. 安装与升级
 

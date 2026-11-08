@@ -97,8 +97,8 @@ const pages: Record<string, Draw> = {
 // bar's template (`<template data-settings-return-bar-template>`, the SDK's renderReturnBar; 546 / 568 characters in zh / en), so the
 // 16 records of the 8 project pages grew by 1092 / 1136. Each of those 16, drawn with only the two templates taken out, had its old hash
 // and length exactly; they were then recorded with MOLIS_WORK_GOLDEN_RECORD=1. The other 50 records did not change.
-// 07-1 S3–S5 (product-flow-governance §4.6.2; on S2 head abbb541639): the shell's bar and titlebar changed, and only they. All 66 pages
-// were drawn on an independently built abbb541639 (each matched its record there) and on this branch, and compared token by token: the
+// 07-1 S3–S5 (product-flow-governance §4.6.2; on main 6f39755f00, where S1+S2 landed as #1853): the shell's bar and titlebar changed, and
+// only they. All 66 pages were drawn on an independently built 6f39755f00 (each matched its record there) and on this branch, and compared token by token: the
 // 16 records of the 8 project pages differ in 22 distinct shell hunks and nothing else — the titlebar's personal-tool slot gone
 // (`data-home-plugin-open`), the Issue side glyph's title and `aria-keyshortcuts`, `data-rail-group` on the switcher's tiles, the
 // switcher's name (切换插件 ⌘K), the bar's side button replaced by the person's own tray (`data-bar-own`), and the 个人 group of the

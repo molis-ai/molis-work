@@ -50,7 +50,9 @@ function catalogSchemaStatements(personal: boolean): string {
 
 /** The catalog as the upgrade process sees it: its version and steps stay where the catalog declares them. Its version is in `catalog_meta` (`CATALOG_VERSION_ACCESS`). */
 export const CATALOG_BASELINE = { version: CATALOG_SCHEMA_VERSION, upgrades: CATALOG_UPGRADES, get schema() { return catalogSchemaStatements(false); } };
-const PERSONAL_CATALOG_BASELINE = { ...CATALOG_BASELINE, get schema() { return catalogSchemaStatements(true); } };
+// Reads the shared baseline's number and steps on every use, so the two kinds never disagree on them.
+const PERSONAL_CATALOG_BASELINE = { get version() { return CATALOG_BASELINE.version; }, get upgrades() { return CATALOG_BASELINE.upgrades; },
+  get schema() { return catalogSchemaStatements(true); } };
 
 /** The baseline an upgraded catalog must match: a personal space's has its sync triggers, so it is compared with that kind's (`db` is the catalog's own connection). */
 export const catalogBaselineFor = (db: Parameters<typeof readDatabaseSpace>[0]) => readDatabaseSpace(db)?.kind === "personal" ? PERSONAL_CATALOG_BASELINE : CATALOG_BASELINE;

@@ -20,6 +20,8 @@ import { isDeepStrictEqual } from "node:util";
 import { goldenFailure } from "./failure.mjs";
 import { GOLDEN_HOMES_DIRECTORY } from "./versions.mjs";
 
+const { pluginProjectTablesVersion } = await import("@molis-ai/molis-work-plugin-runtime");
+
 export const PERSISTENT_FORMAT_LOCATIONS = Object.freeze({
   "database.home.catalog": { store: "projects/catalog.db" },
   "database.ledger_baseline": { store: "plugin-libraries/plugin-libraries.db" },
@@ -55,8 +57,9 @@ export function libraryVersions(storage, db, relative, userVersion) {
   const has = table => Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(table));
   const schema_version = /^projects\/catalog\.db$/u.test(inHome(relative)) ? version(storage.CATALOG_VERSION_ACCESS.read(db), relative) : userVersion;
   if (!has("plugin_project_databases")) return { schema_version };
-  const rows = db.prepare("SELECT plugin_id, version FROM plugin_project_databases ORDER BY plugin_id").all();
-  return rows.length ? { schema_version, plugin_tables: Object.fromEntries(rows.map(row => [row.plugin_id, version(Number(row.version), `${relative}#${row.plugin_id}`)])) } : { schema_version };
+  // Each plugin's version read the way the upgrade reads it (plugin-runtime), so the golden and the chain agree on what a row says.
+  const plugins = db.prepare("SELECT plugin_id FROM plugin_project_databases ORDER BY plugin_id").all().map(row => row.plugin_id);
+  return plugins.length ? { schema_version, plugin_tables: Object.fromEntries(plugins.map(id => [id, version(pluginProjectTablesVersion(db, id), `${relative}#${id}`)])) } : { schema_version };
 }
 
 /** The persistent formats a captured library holds: a library's own version, or a version kept in its rows. */

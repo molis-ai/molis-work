@@ -192,6 +192,8 @@ node scripts/run-tests.mjs tests/action-before-effect.test.ts tests/agent-budget
 
 这些示例证明工程调用和恢复边界，不代表真实供应商或生成质量已验收。产品接入复用常驻 Host 的 Runtime，不能把测试里新建 adapter 的做法复制到每次按钮调用。
 
+项目资料后台整理（D0244）的材料从 Search 公开的授权索引目录进入 Knowledge：发出前保留原来源检查，模型返回后重读可用目录与版本，再同步核原检查，才提交卡片或失败。来源停用、撤权、重新登记或 catch-up 失败不派出新材料或写迟到结果；仍用原 hostTextGeneration，不改变提示词与模型质量口径。
+
 ## 5. 模型、凭据、上下文
 
 - 模型来自设置里的 `catalog.models` 与服务连接；`hostCompleteText` 发现阶段只读元数据，执行前才解密，派发前与返回后都核对「这次固定的供应商/模型/凭据」没变，变了报 `actions.configuration_changed` 且不提交结果。

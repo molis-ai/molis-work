@@ -22,6 +22,8 @@
 | 对外合同 id | 现在没有（Casebook 的 `molis-work.casebook.*` 已于 2026-10-10 删除；以后出现新的对外合同 id，就在这里登记） | 合同 id 里的版本 |
 | Home 里存的数据 | 项目库、目录库等，清单与版本方案见 `docs/system/HOME-DATA.md` | 库的结构版本（`PRAGMA user_version` 或自带的 meta 表），经 `packages/storage/src/sqlite-baseline.ts` 的 `applySqliteBaseline` 建库，版本不符就拒绝 |
 
+2026-11-08 D0244：Search 的仓库内部公开服务新增 `SearchService.indexedCatalog`，提供受当前来源/读取器权限约束的同项目快照及原来源同步检查，Host 同片接入 Knowledge 整理。没有动作 id/schema、Manifest、MCP 工具名或公开 contracts/SDK 形状变化，也不改持久化格式；旧业务缓存保留，失效来源或失败缓存不用于新模型整理。
+
 ## 2. 版本号的编号方案
 
 产品只有一个版本，根包、桌面端、Tauri 和内置插件的 Manifest 同版，工作区包保持私有 0.0.0；每次发布有说明、CHANGELOG 和带各库版本表的检查单。2026-10-08 原定的下一版 0.3.0，已由用户 2026-11-02 的 N34 决定改为复位 0.1.0。2026-11-06 依追加授权删除旧 GoalBoard `v0.1.0` release 与同名 tag、核实名称释放后，现行产品载体及全部内置 Manifest 已复位 0.1.0；版本归属和发布流程见 [版本策略](../releases/POLICY.md)，候选范围见 [v0.1.0.md](../releases/v0.1.0.md)。这是未发布的开发候选，不登记首次外部安装或真实 Home 的统一起点日期。

@@ -143,3 +143,18 @@ test("PRR-01 S-41 a plugin with knowledge:read but no workspace:read cannot read
   const files = await f.knowledge.glob(granted, { pattern: "README.md" });
   assert.deepEqual(files.files.map(file => file.path), ["README.md"]);
 });
+
+test("D0244-04 S-41 the real search catalog cannot revive a held organizer after its source registers again", async t => {
+  const f = await fixture(t), owner = person("a");
+  await f.search.query(f.access(owner), { query: "试用", scope: "project" });
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  const organizer = new KnowledgeOrganizer({ store: f.cards, catalog: async project => {
+    const snapshot = await f.search.indexedCatalog(f.access(owner));
+    return knowledgeCatalog(snapshot, project).filter(piece => piece.subject.kind === "page").map(piece => ({ ...piece, assertCurrent: snapshot.assertCurrent }));
+  }, writer: () => async () => { entered.resolve(); await release.promise; throw new Error("late provider error"); } });
+  t.after(async () => { release.resolve(); await organizer.close(); });
+  const work = organizer.kick("a"); await entered.promise;
+  const before = f.cards.list("a");
+  f.search.markRegistration("pages", "a"); release.resolve(); await work;
+  assert.deepEqual(f.cards.list("a"), before, "the new registration never authorizes an old draft or a failure record");
+});

@@ -293,3 +293,33 @@ test("PMAT-01 managing cards is the person's own: user-only actions under knowle
   }
   assert.deepEqual(definitions.map(item => item.operation), ["query", "command", "command", "command", "query"]);
 });
+
+for (const outcome of ["draft", "failure"] as const) {
+  test(`D0244-01 organizer refuses a ${outcome} after its original source authority is withdrawn`, async t => {
+    const f = await fixture(t); await f.indexAll();
+    let current = true;
+    const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+    const organizer = new KnowledgeOrganizer({ store: f.cards,
+      catalog: async project => knowledgeCatalog(f.index, project).filter(piece => piece.subject.kind === "page").map(piece => ({ ...piece,
+        assertCurrent: () => { if (!current) throw new ActionError("actions.forbidden", "source withdrawn"); } })),
+      writer: () => async () => { entered.resolve(); await release.promise; if (outcome === "failure") throw new Error("late model error"); return { title: "late draft", brief: "late body" }; },
+    });
+    t.after(async () => { release.resolve(); await organizer.close(); });
+    const work = organizer.kick("a"); await entered.promise;
+    const before = f.cards.list("a"); current = false; release.resolve(); await work;
+    assert.deepEqual(f.cards.list("a"), before, "neither a late card nor a business failure is saved after source withdrawal");
+  });
+}
+
+test("D0244-06 source withdrawal during model preparation is checked again at actual dispatch", async t => {
+  const f = await fixture(t); await f.indexAll();
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(); let current = true, sent = 0;
+  const organizer = new KnowledgeOrganizer({ store: f.cards,
+    catalog: async project => knowledgeCatalog(f.index, project).filter(piece => piece.subject.kind === "page").map(piece => ({ ...piece,
+      assertCurrent: () => { if (!current) throw new ActionError("actions.forbidden", "withdrawn before dispatch"); } })),
+    writer: () => async (_input, _signal, beforeDispatch) => { entered.resolve(); await release.promise; beforeDispatch?.(); sent++; return { title: "late", brief: "late" }; },
+  });
+  t.after(async () => { release.resolve(); await organizer.close(); });
+  const work = organizer.kick("a"); await entered.promise; const before = f.cards.list("a"); current = false; release.resolve(); await work;
+  assert.equal(sent, 0); assert.deepEqual(f.cards.list("a"), before);
+});

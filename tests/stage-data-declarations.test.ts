@@ -12,7 +12,7 @@ import { BUILTIN_PLUGIN_CATALOG, stageDataAction, renderStagePage } from "@molis
 import { scheduleActions, scheduleManifest } from "@molis-ai/molis-work-plugin-schedule";
 import { MolisWorkLocalHost, declaredStageData, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { DECLARATION_PLUGIN_ID, declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
 
 type Part = Record<string, unknown>;

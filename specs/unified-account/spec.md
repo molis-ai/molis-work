@@ -409,3 +409,9 @@ K-20 最终整体构建后，Workbench README 与动画/资源相关 22 文件 3
 `47424e14` 的 Verify 通过，Full 10/32 两次复现 390px 下标题栏控件裁切。本机独立 Chrome 复现相同的三个裁切元素。将原有标题栏字标折叠阈值从 360px 调整到 420px，保留品牌图标和两个账号入口。51 项 Host 下发资源字节数保持与上一候选一致。
 
 - **T01-ACCOUNT-ARRIVAL-01** 中英文的项目选择页在原有屏宽和主题组合下，标题栏控件不重叠或裁切，并保留键盘导航。证明：`tests/project-arrival.e2e.test.ts` 的 15 项用例均通过，其中窄屏和浅深色布局断言保持原样。
+
+`b3ad47dc` 的 [Verify](https://github.com/molis-ai/molis-work/actions/runs/42407308527) 与 [32 片 Full](https://github.com/molis-ai/molis-work/actions/runs/42407328645) 均已通过。10/32 中项目选择页 15/15，11/32 为 47/47。后续主线接续需要重新验证。
+
+### T-01 安装登录与当前 Home
+
+接续 Personal 安装登录和 Home 选择后，统一账号只绑定当前 Home 的单空间 Host。Personal 安装入口处理其原有回跳；统一账号的事务回跳只转发给已选择且仍有效的 Home。租约在读取完成后和中央写入前重查，`tests/security-invariants-account-host.test.ts` 的 WUA-04 断言等待身份验证时换出 Home 会拒绝资料写入。联合验证使用合成 Personal 登录、临时 Home 和 mock 中央提供方。

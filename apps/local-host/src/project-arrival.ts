@@ -1,8 +1,10 @@
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { mkdirSync, renameSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { PERSONAL_SPACE_PROJECT_ID } from "./personal-space.js";
 import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { resolveConfiguredHome } from "./product-home.js";
+import { assertVersionedFileWritable, type VersionedFile, type VersionedFileStep } from "@molis-ai/molis-work-storage";
+import { readVersionedFileOr } from "./versioned-file-read.js";
 
 /**
  * What the project chooser remembers about each project on this machine: when it was last opened (its order, and which
@@ -17,13 +19,16 @@ interface ProjectArrivalRecord {
   description: string | null;
 }
 
+const PROJECT_ARRIVAL_SCHEMA_VERSION = /* @version format.project.arrival */ 1;
+const PROJECT_ARRIVAL_UPGRADES: readonly VersionedFileStep[] = [];
+
 interface ProjectArrivalState {
-  schema_version: /* @version format.project.arrival */ 1;
+  schema_version: typeof PROJECT_ARRIVAL_SCHEMA_VERSION;
   last_project_id: string | null;
   projects: Record<string, ProjectArrivalRecord>;
 }
 
-const EMPTY: ProjectArrivalState = Object.freeze({ schema_version: /* @version format.project.arrival */ 1, last_project_id: null, projects: {} });
+const EMPTY: ProjectArrivalState = Object.freeze({ schema_version: PROJECT_ARRIVAL_SCHEMA_VERSION, last_project_id: null, projects: {} });
 /** A reload of the project page is not a new visit: opens closer together than this keep the first stamp. */
 const REOPEN_WINDOW_MS = 5_000;
 const MAX_DESCRIPTION = 240;
@@ -49,19 +54,18 @@ function normalize(value: unknown): ProjectArrivalState {
       projects[id] = { last_opened_at: instant(item.last_opened_at), description };
     }
   }
-  return { schema_version: /* @version format.project.arrival */ 1, last_project_id: typeof record.last_project_id === "string" && record.last_project_id ? record.last_project_id : null, projects };
+  return { schema_version: PROJECT_ARRIVAL_SCHEMA_VERSION, last_project_id: typeof record.last_project_id === "string" && record.last_project_id ? record.last_project_id : null, projects };
 }
 
+export const PROJECT_ARRIVAL_FILE: VersionedFile<ProjectArrivalState> = { version: PROJECT_ARRIVAL_SCHEMA_VERSION, field: "schema_version", upgrades: PROJECT_ARRIVAL_UPGRADES, parse: normalize };
+
 export function readProjectArrival(homeDirectory?: string): ProjectArrivalState {
-  try {
-    return normalize(JSON.parse(readFileSync(statePath(homeDirectory), "utf8")));
-  } catch {
-    return { ...EMPTY, projects: {} };
-  }
+  return readVersionedFileOr(PROJECT_ARRIVAL_FILE, statePath(homeDirectory), () => ({ ...EMPTY, projects: {} }), resolveConfiguredHome(homeDirectory));
 }
 
 function write(homeDirectory: string | undefined, state: ProjectArrivalState): void {
   const target = statePath(homeDirectory);
+  assertVersionedFileWritable(PROJECT_ARRIVAL_FILE, target, resolveConfiguredHome(homeDirectory));
   mkdirSync(path.dirname(target), { recursive: true });
   const staging = `${target}.${process.pid}.tmp`;
   writeFileSync(staging, `${JSON.stringify(state, null, 2)}\n`, { mode: 0o600 });

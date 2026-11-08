@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve, isAbsolute } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createMolisWorkLocalHost } from '@molis-ai/molis-work-app-local-host';
-import { createDesktopWebHost } from '@molis-ai/molis-work-app-desktop';
+import { createDesktopWebCore } from '@molis-ai/molis-work-app-desktop';
 import { ChromeHarness } from '@molis-ai/molis-work-test-kit/browser';
 const source = process.env.MOLIS_AUTH_SOURCE; assert.ok(source && isAbsolute(source));
 const { getRustProxy, initializeLocalRuntime } = await import(pathToFileURL(resolve(source, 'worker/scripts/local-runtime.mjs')).href);
@@ -75,7 +75,7 @@ try {
   const config = { environmentId: 'unified-local', environmentKind: 'LOCAL', authOrigin, productOrigin: origin, clientId: 'molis-work-unified-local', applicationId: 'molis-work-unified-local-app', policyProfile: 'unified-account-v2', redirectAllowlist: [origin + '/account/callback'], providerMode: 'MOCK', deliveryMode: 'MOCK' };
   const boot = async () => {
     host = createMolisWorkLocalHost({ homeDirectory: home, completeText: null });
-    server = createDesktopWebHost({ ptyClientFilePath: () => join(home, 'unused.js') })({ homeDirectory: home, localHost: host, controlToken: control, account: { environment: config, fetch: async (url, init) => {
+    server = createDesktopWebCore({ ptyClientFilePath: () => join(home, 'unused.js') })({ homeDirectory: home, localHost: host, controlToken: control, account: { environment: config, fetch: async (url, init) => {
       const path = new URL(String(url)).pathname;
       if (maliciousStart && path.endsWith('/start')) return Response.json({ requestId: 'test', data: { browserStartUrl: 'https://example.test/steal' } });
       const result = await proxy.fetch(new Request(url, init));

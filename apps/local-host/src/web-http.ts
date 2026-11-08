@@ -56,7 +56,9 @@ export function decodeLocalWebPathPart(part: string): string {
 }
 
 /** Unexpected route failures retain a diagnostic call id, never their raw message or stack. */
-export function sendUnhandledWebError(response: ServerResponse, error: unknown): void {
+export function sendUnhandledWebError(response: ServerResponse, error: unknown, request?: IncomingMessage): void {
+  // A reset of this aborted body is request cancellation; unrelated upstream or handler errors retain their diagnostic.
+  if(request?.aborted&&request.errored===error&&error instanceof Error&&"code" in error&&error.code==="ECONNRESET")return;
   hostLog.error("web", "request_failed", error);
   const failed = error instanceof ActionError ? error : new ActionError("actions.execution_failed", L("请求未能完成，请重试。"));
   const answer = actionErrorResponse(failed);

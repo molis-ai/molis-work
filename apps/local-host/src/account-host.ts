@@ -2,7 +2,7 @@ import { localWebActionContext } from "./local-web-actions.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { randomUUID } from "node:crypto";
 import type { AccountCallControl, AccountView } from "@molis-ai/molis-work-contracts/services/account";
-import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { withControlChecks, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { accountActions, ACCOUNT_PERMISSIONS, accountErrors, createAccountAuthentication, createAccountSessionManager, parseAccountEnvironment, validateAccountContract, matchAccountManagementRoute,
   type AccountSessionManager, type AccountSessionStorage } from "@molis-ai/molis-work-service-account";
 import type { MolisWorkLocalHost } from "./project-host.js";
@@ -24,6 +24,7 @@ export interface AccountHostBinding {
   readonly configuration: string | undefined;
   readonly storage: AccountSessionStorage | undefined;
   readonly fetch: typeof fetch | undefined;
+  readonly assertAccountCurrent: (() => void) | undefined;
   session(): AccountSessionManager;
   manage(origin: string, operation: "profile" | "methods" | ActionDefinition, input: unknown, signal: AbortSignal): Promise<unknown>;
   authenticate<T>(origin: string, signal: AbortSignal, operation: (auth: ReturnType<typeof createAccountAuthentication>, control: AccountCallControl) => Promise<T>): Promise<T>;
@@ -45,11 +46,12 @@ export function accountSessionForHost(host: MolisWorkLocalHost): AccountSessionM
 }
 
 /** One session authority per owning Host, shared by borrowed Web and desktop transports. */
-export function bindAccountHost(host: MolisWorkLocalHost, home: string, options?: AccountHostOptions): AccountHostBinding {
+export function bindAccountHost(host: MolisWorkLocalHost, home: string, options?: AccountHostOptions, assertAccountCurrent?: () => void): AccountHostBinding {
   const configuration = encodeConfiguration(options ? options.environment : process.env.MOLIS_WORK_ACCOUNT_CONFIG);
   const storage = options?.storage, fetcher = options?.fetch, existing = accounts.get(host);
   if (existing) {
-    if (existing.home !== home || existing.configuration !== configuration || existing.storage !== storage || existing.fetch !== fetcher)
+    if (existing.home !== home || existing.configuration !== configuration || existing.storage !== storage || existing.fetch !== fetcher
+      || existing.assertAccountCurrent !== assertAccountCurrent)
       throw accountErrors.invalid_configuration("Account configuration must match the owning Host");
     return existing;
   }
@@ -58,6 +60,8 @@ export function bindAccountHost(host: MolisWorkLocalHost, home: string, options?
   let manager: AccountSessionManager | undefined, productOrigin: string | undefined;
   const assertCurrent = () => {
     if (stop.signal.aborted || host.lifecycle() !== "running") throw accountErrors.cancelled("Account Host is closing");
+    try { assertAccountCurrent?.(); }
+    catch { throw accountErrors.cancelled("Account Home is no longer current"); }
   };
   const session = () => {
     assertCurrent();
@@ -78,12 +82,24 @@ export function bindAccountHost(host: MolisWorkLocalHost, home: string, options?
   const run = <T>(origin: string, signal: AbortSignal, operation: (owner: AccountSessionManager, control: AccountCallControl) => Promise<T>) => track((async () => {
     const owner = session();
     if (origin !== productOrigin) throw accountErrors.forbidden("Account request belongs to another product origin");
-    return operation(owner, { assertCurrent, signal: AbortSignal.any([stop.signal, signal]) });
+    const requestSignal = AbortSignal.any([stop.signal, signal]);
+    const check = () => {
+      if (requestSignal.aborted) throw accountErrors.cancelled("Account request was cancelled");
+      assertCurrent();
+    };
+    check();
+    const result = await operation(owner, { assertCurrent: check, signal: requestSignal });
+    check();
+    return result;
   })());
-  const binding: AccountHostBinding = { home, configuration, storage, fetch: fetcher, session, run, manage: (origin, operation, input, signal) => run(origin, signal, async () => {
-    assertCurrent();
-    const caller = await localWebActionContext(host, undefined, ACCOUNT_PERMISSIONS, AbortSignal.any([stop.signal, signal]));
-    return host.homeActionClient().invoke(caller, typeof operation === "string" ? accountActions[operation] : operation, input);
+  const binding: AccountHostBinding = { home, configuration, storage, fetch: fetcher, assertAccountCurrent, session, run, manage: (origin, operation, input, signal) => run(origin, signal, async (_owner, control) => {
+    const caller = await localWebActionContext(host, undefined, ACCOUNT_PERMISSIONS, control.signal);
+    control.assertCurrent();
+    const authority = withControlChecks(caller, {
+      beforeEffect: async () => control.assertCurrent(),
+      assert_authority_current: control.assertCurrent,
+    });
+    return host.homeActionClient().invoke({ ...caller, ...authority }, typeof operation === "string" ? accountActions[operation] : operation, input);
   }), authenticate: (origin, signal, operation) => run(origin, signal, (_owner, control) => operation(authentication!, control)), read: (origin, signal) => {
     if (configuration !== undefined) return run(origin, signal, (owner, control) => owner.readSession(control));
     return track((async () => {

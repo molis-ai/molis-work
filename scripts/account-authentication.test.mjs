@@ -8,7 +8,7 @@ import { join, resolve, isAbsolute } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import net from 'node:net';
 import { createMolisWorkLocalHost } from '@molis-ai/molis-work-app-local-host';
-import { createDesktopWebHost } from '@molis-ai/molis-work-app-desktop';
+import { createDesktopWebCore } from '@molis-ai/molis-work-app-desktop';
 import { ChromeHarness } from '@molis-ai/molis-work-test-kit/browser';
 const source=process.env.MOLIS_AUTH_SOURCE;assert.ok(source&&isAbsolute(source));
 const {getRustProxy,initializeLocalRuntime}=await import(pathToFileURL(resolve(source,'worker/scripts/local-runtime.mjs')).href);
@@ -34,7 +34,7 @@ async function verify(tx,target) {const sent=await step(tx,{step:'REQUEST_CHALLE
 try {
  await initializeLocalRuntime(proxy);
  for(const sql of readFileSync(resolve(source,'worker/unified-account-local-seed.sql'),'utf8').replaceAll('http://127.0.0.1:4207',origin).replace(/--[^\n]*/g,'').split(';').map(v=>v.trim()).filter(Boolean))await proxy.env.DB.prepare(sql).run();
- host=createMolisWorkLocalHost({homeDirectory:home,completeText:null});server=createDesktopWebHost({ptyClientFilePath:()=>join(home,'unused.js')})({homeDirectory:home,localHost:host,controlToken:control,account:{environment:config,fetch:async(url,init)=>{const req=new Request(url,init);const response=await proxy.fetch(req);if(exchangeGate&&new URL(req.url).pathname==='/api/v2/auth/token'){const gate=exchangeGate;exchangeGate=undefined;gate.enter();await gate.wait;}return response;}}});await new Promise(r=>server.listen(port,'127.0.0.1',r));
+ host=createMolisWorkLocalHost({homeDirectory:home,completeText:null});server=createDesktopWebCore({ptyClientFilePath:()=>join(home,'unused.js')})({homeDirectory:home,localHost:host,controlToken:control,account:{environment:config,fetch:async(url,init)=>{const req=new Request(url,init);const response=await proxy.fetch(req);if(exchangeGate&&new URL(req.url).pathname==='/api/v2/auth/token'){const gate=exchangeGate;exchangeGate=undefined;gate.enter();await gate.wait;}return response;}}});await new Promise(r=>server.listen(port,'127.0.0.1',r));
  const email='work03@example.test',password=randomBytes(20).toString('base64url');allSecrets.push(password);
  let tx=await create('EMAIL_SIGNUP','EMAIL_CODE');let verified=await verify(tx,email);assert.equal(verified.nextStep,'EMAIL_SIGNUP');
  await step(tx,{step:'EMAIL_SIGNUP',email,password});let result=await step(tx,{step:'COMPLETE'});assert.equal(result.account.state,'AUTHENTICATED');const user=result.account.user.userId;await end();

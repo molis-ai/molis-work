@@ -3,6 +3,8 @@ import type { AccountSessionManager } from "./session-types.js";
 import schemas from "./upstream/schemas.json" with { type: "json" };
 import type { AccountOperationInput } from "@molis-ai/molis-work-contracts/services/account";
 import { accountManagementActions } from "./management-actions.js";
+import { accountErrors } from "./errors.js";
+import { isRecord } from "./operations.js";
 export const ACCOUNT_PROVIDER_ID = "system.account";
 export const ACCOUNT_PERMISSIONS = ["account:read", "account:write"] as const;
 function expand(value: unknown): unknown {
@@ -18,6 +20,13 @@ const schema = (name: keyof typeof schemas.$defs) => expand(schemas.$defs[name])
 const profileSchema = schema("ProfileUpdateRequest");
 const profileInput = { ...profileSchema, properties: { ...profileSchema.properties as Record<string, unknown>, idempotencyKey: { type: "string", minLength: 16, maxLength: 128, pattern: "^[ -~]+$" } }, required: [...profileSchema.required as string[], "idempotencyKey"] };
 const metadata = { scope: "home", audiences: ["user"], subject_kinds: [], scheduling: "concurrent" } as const;
+function isOperationInput(value: unknown): value is AccountOperationInput {
+  if (!isRecord(value)) return false;
+  const { params, query, idempotencyKey } = value;
+  return (params === undefined || (isRecord(params) && Object.values(params).every(item => typeof item === "string")))
+    && (query === undefined || (isRecord(query) && Object.values(query).every(item => typeof item === "string" || typeof item === "number")))
+    && (idempotencyKey === undefined || typeof idempotencyKey === "string");
+}
 export const accountActions = {
   methods: { capability_id: "account.login-methods.read", version: /* @version action.account.login-methods.read */ 1, operation: "query", action: { ...metadata,
     title: "读取登录方式", description: "读取当前 Molis 账号的登录方式及验证状态，只返回脱敏标签，不包含密码或验证凭据。", kind: "query", effect: "read", permissions: [ACCOUNT_PERMISSIONS[0]], input_schema: schema("Empty"), output_schema: schema("LoginMethodsView") } },
@@ -28,14 +37,18 @@ export function accountActionProvider(session: () => AccountSessionManager): Act
   return { provider: { provider_id: ACCOUNT_PROVIDER_ID, kind: "system", title: "Molis 账号" }, definitions: [...Object.values(accountActions), ...accountManagementActions.map(item => item.definition)],
     handlers: [...Object.entries(accountActions).map(([name, definition]) => ({ capability_id: definition.capability_id, version: definition.version,
       handle: async (caller: ActionExecutionContext, input: unknown) => {
-        const { idempotencyKey, ...body } = input as Record<string, unknown>;
+        if (!isRecord(input)) throw accountErrors.invalid_request("Invalid account action input");
+        const { idempotencyKey, ...body } = input;
         return (await session().invoke(name === "profile" ? "updateProfile" : "listLoginMethods", name === "profile" ? { body, idempotencyKey: String(idempotencyKey) } : {}, {
         signal: caller.signal, assertCurrent: () => { caller.signal?.throwIfAborted(); caller.assert_authority_current?.(); }, beforeEffect: caller.beforeEffect,
       })).data; },
     })), ...accountManagementActions.map(({ operation, definition }) => ({ capability_id: definition.capability_id, version: definition.version,
-      handle: async (caller: ActionExecutionContext, input: unknown) => (await session().invoke(operation, input as AccountOperationInput, {
-        signal: caller.signal, assertCurrent: () => { caller.signal?.throwIfAborted(); caller.assert_authority_current?.(); }, beforeEffect: caller.beforeEffect,
-      })).data,
+      handle: async (caller: ActionExecutionContext, input: unknown) => {
+        if (!isOperationInput(input)) throw accountErrors.invalid_request("Invalid account operation input");
+        return (await session().invoke(operation, input, {
+          signal: caller.signal, assertCurrent: () => { caller.signal?.throwIfAborted(); caller.assert_authority_current?.(); }, beforeEffect: caller.beforeEffect,
+        })).data;
+      },
     }))],
   };
 }

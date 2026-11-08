@@ -1,4 +1,4 @@
-import { ActionError, bindActionClient, type ActionCallContext, type ActionDefinition, type ActionProvider, type ActionReference, type ActionView, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient, type ActionCallContext, type ActionDefinition, type ActionProvider, type ActionReference, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ActionSceneView, ActionUserAction } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
@@ -7,6 +7,8 @@ import { pageLocale } from "./web-locale.js";
 import { LOCAL_OWNER_PERMISSIONS, localOwnerPermissionsOver } from "./local-owner-permissions.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { runningProjectPlatform } from "./project-plugins.js";
+
+type LocalActionMetadata = ReturnType<MolisWorkLocalHost["inspectActionMetadata"]>[number];
 
 /** Host-issued request-local owner fence; never populated from page input. */
 export interface LocalWebStageRead {
@@ -40,7 +42,7 @@ export async function localWebActionContext(host: MolisWorkLocalHost, reference:
   const base: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: reference?.project_id ?? null, audience: "user", permissions: builtinPermissions, signal,
     ...(locale ? { locale } : {}), ...(entry.original_file ? { original_file: entry.original_file } : {}) };
   // Inspection activates the actual project providers. Metadata alone never supplies a grant.
-  const catalog = await host.inspectActions(base, reference);
+  const catalog = await host.inspectPreparedActionMetadata(base, reference);
   signal?.throwIfAborted();
   const projectRepository = reference ? await host.withProject(reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db)) : undefined;
   const installed = projectRepository?.list() ?? [];
@@ -62,18 +64,18 @@ export async function localWebActionContext(host: MolisWorkLocalHost, reference:
     if (!inProject(provider)) return undefined;
     return platform?.dualInstance(install.plugin_id) ? platform.runtime.capturePermission(install.install_id, permission) : undefined;
   };
-  const checks = new Map<ActionView, Array<() => void>>();
+  const checks = new Map<LocalActionMetadata, Array<() => void>>();
   // The person's own permissions reach only what the Host registers itself, and over each such provider only what the person holds
   // over that provider (PG-007): a permission held over Characters is not held over another Host action that asks for it. A
   // provider the Plugin Runtime registered, built in or not, names its installation, and is reached through its grants alone.
-  const ownerReaches = (view: ActionView, ownerCap: readonly string[]) => {
+  const ownerReaches = (view: LocalActionMetadata, ownerCap: readonly string[]) => {
     if (view.provider.plugin_install_id !== undefined) return false;
     const held = localOwnerPermissionsOver(view.provider.provider_id, view.action.permissions);
     return view.action.permissions.every(permission => ownerCap.includes(permission) && held.includes(permission));
   };
   const scopeMatches = (provider: ActionProvider, scope: "home" | "project") =>
     (!provider.project_id || provider.project_id === reference?.project_id) && (scope === "home" || !!reference);
-  const accept = (view: ActionView, ownerCap: readonly string[]) => {
+  const accept = (view: LocalActionMetadata, ownerCap: readonly string[]) => {
     if (!scopeMatches(view.provider, view.action.scope)) return false;
     if (ownerReaches(view, ownerCap)) return true;
     const install = installOf(view.provider);
@@ -88,7 +90,7 @@ export async function localWebActionContext(host: MolisWorkLocalHost, reference:
   // Scene-only plugins have no action from which to infer their local-user permissions.
   // Inspect actual registrations using installed grants, then accept only the matching running owner.
   const candidates = [...new Set([...builtinPermissions, ...[...projectRecords.values(), ...homeRecords.values()].flatMap(row => row.grants)])];
-  const scenes = await host.sceneClient(reference).discoverScenes({ ...base, permissions: candidates });
+  const scenes = host.inspectSceneMetadata({ ...base, permissions: candidates }, reference);
   signal?.throwIfAborted();
   const scenePermissions = scenes.flatMap(view => {
     const install = installOf(view.provider);
@@ -101,7 +103,7 @@ export async function localWebActionContext(host: MolisWorkLocalHost, reference:
   });
   const owner = entry.stage_read, ownActions = new Set(owner?.manifest.actions?.map(action => `${action.capability_id}@${action.version}`));
   owner?.assertCurrent();
-  const sourceChecks = new Map<ActionView, Array<() => void>>();
+  const sourceChecks = new Map<LocalActionMetadata, Array<() => void>>();
   const authority = owner ? accepted.filter(view => ownActions.has(`${view.capability_id}@${view.version}`)
     ? view.provider.plugin_id === owner.manifest.plugin_id && view.provider.plugin_install_id === owner.install_id
       && (owner.scope === "home" ? !view.provider.project_id : view.provider.project_id === reference?.project_id)

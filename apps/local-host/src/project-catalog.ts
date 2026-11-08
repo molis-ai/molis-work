@@ -1,7 +1,8 @@
 import { createCatalogCommit, type CatalogCommit } from "./catalog-commit.js";
 import { preflightMemoryHome, prepareMemoryHome } from "./memory/memory-initialization.js";
 import { ModelProviderStore } from "./model-provider-store.js";
-import { acquireStorageOwner, assertStorageOwner, assertNoPendingHomeRestore, retainStorageOwner, type StorageOwner, ensureStorageSpace, bindDatabaseSpace, createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { assertStorageOwner, assertNoPendingHomeRestore, retainStorageOwner, type StorageOwner, ensureStorageSpace, bindDatabaseSpace, createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { acquireUpgradedHomeOwner } from "./home-storage-lifetime.js";
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
 import { ManagedProjectFiles } from "./managed-project-files.js";
 import { PERSONAL_SPACE_PROJECT_ID } from "./personal-space.js";
@@ -165,8 +166,8 @@ async function prepareCatalogStorage(options: MolisWorkProjectCatalogOptions) {
  * compiled into Projects; which are 常开 is worked out from the install records and the Home's consent ledger each time it is asked. The
  * Home's own registration adds its personal plugins outside the build, so a project can hide those too (#679).
  */
-function homeProjectPlugins(homeDirectory: string): ProjectPluginRegistry {
-  return { ...BUILTIN_PLUGIN_REGISTRY, alwaysOn: () => alwaysOnProjectPlugins(homeDirectory),
+function homeProjectPlugins(homeDirectory: string, directory: () => readonly ProjectPluginId[]): ProjectPluginRegistry {
+  return { ...BUILTIN_PLUGIN_REGISTRY, alwaysOn: () => [...directory()],
     isPersonal: pluginId => BUILTIN_PLUGIN_REGISTRY.isPersonal?.(pluginId) === true || homePluginsOutsideBuild(homeDirectory).includes(pluginId) };
 }
 
@@ -179,6 +180,7 @@ export class MolisWorkProjectCatalog {
   readonly recycle: ProjectsModule['recycle'];
   private readonly demoProjects: DemoProjectLifecycle;
   private readonly projects: ProjectsModule;
+  private projectPluginDirectory?: () => readonly ProjectPluginId[];
   private readonly runtimeContexts: ReturnType<typeof createRuntimeContextModule>;
   /** The terminals plugins start through `services.terminal`. */
   readonly terminalPanels: PluginTerminalPanels;
@@ -208,7 +210,7 @@ export class MolisWorkProjectCatalog {
     this.projects = new ProjectsModule({
       spaceId: ensureStorageSpace(homeDirectory).spaceId,
       db, projects_directory: this.projectsDirectory,
-      plugins: homeProjectPlugins(homeDirectory),
+      plugins: homeProjectPlugins(homeDirectory, () => this.projectPluginDirectory?.() ?? alwaysOnProjectPlugins(homeDirectory)),
     });
     this.runtimeContexts = createRuntimeContextModule({
       db, ledger, projects: this.projects, validation: contextBindingValidation,
@@ -243,11 +245,8 @@ export class MolisWorkProjectCatalog {
 
   static async open(options: MolisWorkProjectCatalogOptions, platform: LocalCatalogPlatform): Promise<MolisWorkProjectCatalog> {
     const home = resolveConfiguredHome(options.homeDirectory), root = agentRuntimeDirectory(home);
-    if (options.storageOwner === undefined) {
-      assertNoPendingHomeRestore(root);
-      preflightMemoryHome(home);
-    }
-    const owned = options.storageOwner === undefined ? acquireStorageOwner(root) : undefined;
+    // Given an owner, that owner's taker has already upgraded this Home.
+    const owned = options.storageOwner === undefined ? acquireUpgradedHomeOwner(home, preflightMemoryHome) : undefined;
     const owner = options.storageOwner ?? owned!;
     let retained: ReturnType<typeof retainStorageOwner> | undefined;
     let opened: MolisWorkProjectCatalog | undefined;
@@ -315,12 +314,19 @@ export class MolisWorkProjectCatalog {
     return this.projects.query.listProjects();
   }
 
-  projectPluginMembership(projectId: string): ProjectPluginMembership {
-    return this.projects.query.projectPluginMembership(projectId);
+  /** The override exists only during this synchronous owner query; default callers always read the live directory. */
+  private withProjectPluginDirectory<T>(directory: (() => readonly ProjectPluginId[]) | undefined, read: () => T): T {
+    const previous = this.projectPluginDirectory;
+    this.projectPluginDirectory = directory;
+    try { return read(); } finally { this.projectPluginDirectory = previous; }
   }
 
-  listProjectPlugins(projectId: string): ProjectPluginId[] {
-    return this.projects.query.listProjectPlugins(projectId);
+  projectPluginMembership(projectId: string, directory?: () => readonly ProjectPluginId[]): ProjectPluginMembership {
+    return this.withProjectPluginDirectory(directory, () => this.projects.query.projectPluginMembership(projectId));
+  }
+
+  listProjectPlugins(projectId: string, directory?: () => readonly ProjectPluginId[]): ProjectPluginId[] {
+    return this.withProjectPluginDirectory(directory, () => this.projects.query.listProjectPlugins(projectId));
   }
 
   addProjectPlugin(input: AddProjectPluginInput): ProjectPluginId[] {

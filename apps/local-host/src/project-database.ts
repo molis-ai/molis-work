@@ -2,7 +2,7 @@ import { projectReplicationTriggers } from './project-replication-triggers.js';
 import type {ReplicaInputValue,ReplicaOutputValue} from "@molis-ai/molis-work-storage";
 import type {ReplicaDatabase} from "@molis-ai/molis-work-storage";
 import { catalogErrors } from "./project-catalog-contract.js";
-import { shareReplicaTriggerDefinitions, applySqliteBaseline, LocalSqliteStorage, checkSqliteBaselineVersion, ensureStorageSpace, bindDatabaseSpace } from "@molis-ai/molis-work-storage";
+import { shareReplicaTriggerDefinitions, applySqliteBaseline, LocalSqliteStorage, checkSqliteBaselineVersion, ensureStorageSpace, bindDatabaseSpace, readDatabaseSpace } from "@molis-ai/molis-work-storage";
 import pathUtil from 'node:path';
 import fs from 'node:fs';
 import { existsSync } from "node:fs";
@@ -23,33 +23,38 @@ export class LocalProjectDatabase extends LocalSqliteStorage {
   readonly pluginDatabases: ReadonlyMap<string, ProjectPluginDatabaseOutcome>;
 
   constructor(path: string, options: { existingOnly?: boolean } = {}) {
-    super(inspectDatabase(path, options.existingOnly ?? false), { fileMustExist: options.existingOnly });
+    const home = managedProjectHome(path);
+    super(inspectDatabase(path, options.existingOnly ?? false, home), { fileMustExist: options.existingOnly });
     this.replicationDatabase = {exec: sql => this.db.exec(sql), prepare: sql => this.db.prepare<ReplicaInputValue[], Record<string, ReplicaOutputValue>>(sql)};
     shareReplicaTriggerDefinitions(this.db, this.replicationDatabase);
     try {
       if (!options.existingOnly) applySqliteBaseline(this.db, path, PROJECT_DATABASE_BASELINE);
       projectReplicationTriggers(this.db);
       this.pluginDatabases = options.existingOnly ? new Map() : openProjectPluginDatabases(this.db, path);
-      // Managed projects inherit their Home even when opened by CLI/background code.
-      const candidate=pathUtil.resolve(pathUtil.dirname(path),'../..');
-      // Standalone fixtures/inspection paths are not implicitly assigned to the
-      // process default Home. Only managed project paths have an owning Home.
-      if (pathUtil.basename(pathUtil.dirname(pathUtil.dirname(path)))==='projects' && fs.existsSync(pathUtil.join(candidate,'storage-space.json'))) {
-        const space=ensureStorageSpace(candidate);bindDatabaseSpace(this.db,space);
-      }
+      if (home) bindDatabaseSpace(this.db, ensureStorageSpace(home));
     } catch (error) { this.close(); throw error; }
   }
 }
 
+function managedProjectHome(path: string): string | undefined {
+  const candidate = pathUtil.resolve(pathUtil.dirname(path), '../..');
+  // Standalone libraries never borrow the process default Home.
+  return pathUtil.basename(pathUtil.dirname(pathUtil.dirname(path))) === 'projects'
+    && fs.existsSync(pathUtil.join(candidate, 'storage-space.json')) ? candidate : undefined;
+}
+
 /** Reject before a writable connection can change journal mode; the normal baseline still rechecks after opening. */
-function inspectDatabase(path: string, existingOnly: boolean): string {
+function inspectDatabase(path: string, existingOnly: boolean, home?: string): string {
   if (!existingOnly && !existsSync(path)) return path;
   const inspection = new LocalSqliteStorage(path, { readonly: true });
   try {
+    // Reject an existing foreign binding before the writable connection can change WAL or schema, at any version.
+    // Reading validates the row and its descriptor; with an existing row the shared binding check performs no write.
+    if (home && readDatabaseSpace(inspection.db)) bindDatabaseSpace(inspection.db, ensureStorageSpace(home));
     // Inspect through the project owner's driver so closing another SQLite engine cannot release its locks.
     const { user_version: version } = inspection.db.prepare("PRAGMA user_version").get() as { user_version: number };
     if (existingOnly && version !== PROJECT_DATABASE_BASELINE.version) throw catalogErrors.project_recovery_unsupported_schema("catalog.project_recovery_unsupported_schema");
-    if (!existingOnly) checkSqliteBaselineVersion(inspection.db, path, PROJECT_DATABASE_BASELINE);
+    if (!existingOnly) checkSqliteBaselineVersion(inspection.db, path, PROJECT_DATABASE_BASELINE, home);
     if (version === PROJECT_DATABASE_BASELINE.version) projectReplicationTriggers(inspection.db);
     return path;
   } finally { inspection.close(); }

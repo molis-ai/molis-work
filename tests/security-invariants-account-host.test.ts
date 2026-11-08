@@ -7,7 +7,7 @@ import net from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
-import { createDesktopWebHost } from "@molis-ai/molis-work-app-desktop";
+import { createDesktopWebCore } from "@molis-ai/molis-work-app-desktop";
 import { accountSessionForHost, createMolisWorkLocalHost, type WebServerOptions } from "@molis-ai/molis-work-app-local-host";
 import type { AccountView, SessionView, UserView } from "@molis-ai/molis-work-contracts/services/account";
 import { createLazyFileSecretStore } from "@molis-ai/molis-work-storage";
@@ -88,11 +88,14 @@ function assertAuthenticated(reply: Reply, account: Identity) {
   for (const hidden of [account.tokens.accessToken, account.tokens.refreshToken, "secretRef", "accessToken", "refreshToken"]) assert.ok(!reply.text.includes(hidden));
 }
 
-async function fixture(t: TestContext, configure: (origin: string) => WebServerOptions["account"] = () => ({ environment: undefined })) {
+async function fixture(t: TestContext, configure: (origin: string) => WebServerOptions["account"] = () => ({ environment: undefined }),
+  assertAccountCurrent?: WebServerOptions["assertAccountCurrent"]) {
   const home = await mkdtemp(join(tmpdir(), "account-host-")), port = await freePort(), origin = `http://127.0.0.1:${port}`;
   let host = createMolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const control = randomBytes(32).toString("hex"), account = configure(origin);
-  const factory = createDesktopWebHost({ ptyClientFilePath: () => join(home, "unused-pty.js") });
+  // Exercise the production HTTP core for an already selected synthetic Home.
+  // The installation-level Personal selection is covered by ASR-02/03 in personal-http.test.ts.
+  const factory = createDesktopWebCore({ ptyClientFilePath: () => join(home, "unused-pty.js") });
   const servers: Server[] = [];
   t.after(async () => {
     for (const server of servers) { server.closeAllConnections(); if (server.listening) await closeWeb(server); }
@@ -100,7 +103,7 @@ async function fixture(t: TestContext, configure: (origin: string) => WebServerO
     await rm(home, { recursive: true, force: true });
   });
   const open = async () => {
-    const server = factory({ homeDirectory: home, localHost: host, controlToken: control, account });
+    const server = factory({ homeDirectory: home, localHost: host, controlToken: control, account, assertAccountCurrent });
     servers.push(server);
     await new Promise<void>((resolve, reject) => { server.once("error", reject); server.listen(port, "127.0.0.1", resolve); });
     return server;
@@ -131,8 +134,8 @@ test("S-unified-account-host WUA-02: unconfigured account stays anonymous; exact
   ];
   for (const headers of refusedHeaders) assert.equal((await request(f.origin, "/api/account/session", headers)).status, 403);
   const wrongToken = await request(f.origin, "/api/account/session", { ...f.headers, "x-molis-work-control-token": randomBytes(32).toString("hex") });
-  assert.equal(wrongToken.status, 409);
-  assert.equal(wrongToken.body.code, "space.changed");
+  assert.equal(wrongToken.status, 403);
+  assert.equal(wrongToken.body.code, "host.request_refused");
   assert.equal(wrongToken.body.data, undefined);
   assert.equal((await request(f.origin, "/api/account/session", { "x-molis-work-control-token": f.control, referer: f.origin + "/settings" })).status, 200);
   assert.equal((await request(f.origin, "/api/account/session", { "x-molis-work-control-token": f.control, referer: "https://evil.example.test/settings" })).status, 403);
@@ -165,8 +168,8 @@ test("S-unified-account-host WUA-03/04: current credentials and safe view are is
   };
   await read(a, first); await read(b, second);
   const otherHome = await request(a.origin, "/api/account/session", { ...a.headers, "x-molis-work-control-token": b.control });
-  assert.equal(otherHome.status, 409);
-  assert.equal(otherHome.body.code, "space.changed");
+  assert.equal(otherHome.status, 403);
+  assert.equal(otherHome.body.code, "host.request_refused");
   assert.equal(otherHome.body.data, undefined);
   await closeWeb(a.server); assert.equal(a.host.lifecycle(), "running");
   await a.open(); await read(a, first); await read(b, second);
@@ -212,6 +215,38 @@ test("S-unified-account-host WUA-04: owning Host close cancels an in-flight acco
   for (const hidden of [account.user.userId, account.tokens.accessToken, account.tokens.refreshToken]) assert.ok(!reply.text.includes(hidden));
   await closing;
   assert.equal(f.host.lifecycle(), "closed"); assert.equal(f.server.listening, false);
+});
+
+test("S-unified-account-host WUA-04: revoking the selected Home lease during verification prevents the central profile write", { timeout: 60_000 }, async t => {
+  const lease = new AbortController(), entered = deferred<void>(), finish = deferred<void>();
+  const account = identity("selected-home");
+  let holdVerification = false, profileWrites = 0;
+  t.after(() => finish.resolve());
+  const f = await fixture(t, origin => ({ environment: environment(origin), fetch: async (url, init) => {
+    const path = new URL(String(url)).pathname;
+    if (init?.method === "PATCH" && path === "/api/v2/users/me/profile") {
+      profileWrites++;
+      return Response.json({ requestId: "central-request", data: { ...account.user, displayName: "Delayed update", version: 1 } });
+    }
+    if (holdVerification && init?.method === "GET" && path === "/api/v2/users/me") {
+      entered.resolve();
+      await finish.promise;
+    }
+    return upstream(account, url);
+  } }), () => lease.signal.throwIfAborted());
+  await adopt(f.host, account);
+  holdVerification = true;
+  const response = request(f.origin, "/api/account/profile", writeHeaders(f.headers),
+    JSON.stringify({ displayName: "Delayed update", expectedVersion: account.user.version }), "PATCH");
+  const early = await Promise.race([entered.promise, response]);
+  assert.ok(early === undefined, "profile update must reach the held verification read");
+  lease.abort();
+  finish.resolve();
+  const reply = await response;
+  assert.equal(reply.status, 499);
+  assert.equal(reply.body.code, "account.cancelled");
+  assert.equal(reply.body.data, undefined);
+  assert.equal(profileWrites, 0);
 });
 
 test("S-unified-account-session WUA-06: default encrypted Home storage restores the same login after Host restart without recording activity", { timeout: 60_000 }, async t => {

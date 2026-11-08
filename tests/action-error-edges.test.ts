@@ -21,7 +21,7 @@ import { createContextLedger, type ContextLedgerDatabase } from "@molis-ai/molis
 import { TODO_ACTION_PERMISSIONS, createTodoActionHandlers, todoActions, todoManifest, ownTodoStores } from "@molis-ai/molis-work-plugin-todo";
 import { openTodoStore } from "./fixtures/plugin-home-stores.js";
 import { PLACEMENT_LEDGER_ACCESS, PlacementService } from "@molis-ai/molis-work-service-placement";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { serveNativeHttp } from "./fixtures/native-http.js";
 
 // specs/archive/repository-anti-corruption W3-02-A. Todo's failures used to be a class of their own (`TodoError extends Error`: a code on a plain Error, not an

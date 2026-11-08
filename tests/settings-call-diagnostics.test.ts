@@ -5,7 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 
 // W3-01 F: 设置 › 诊断 looks a call up by its 诊断编号, and the call history shows the id of each row. The pages are served by the real Host
 // from a call log it wrote itself, so what is shown is what a person copying an id from an error would find.

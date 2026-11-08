@@ -56,11 +56,12 @@ import { inventoryProblems, loadRegistry } from "./gates/package-inventory.mjs";
 import { structureMetrics, structureWantsText } from "./gates/structure.mjs";
 import { tableOwnerProblems } from "./gates/table-owners.mjs";
 import { storeVersionProblems } from "./gates/store-versions.mjs";
-import { versionOriginProblems } from "./gates/initial-versions.mjs";
+import { registeredUpgradeChains, versionOriginProblems } from "./gates/initial-versions.mjs";
 import { measureSchemaPatches, schemaPatchesWantText } from "./gates/schema-patches.mjs";
 import { specCoverageLine } from "./gates/spec-coverage.mjs";
 import { createLintMetrics, isOwnRepository, lintWantsText } from "./gates/lint.mjs";
 import { createErrorMetrics } from "./gates/error-metrics.mjs";
+import { actionInputMetrics } from "./gates/action-input-counts.mjs";
 import { errorOwnersWantsText } from "./gates/error-owners.mjs";
 import { pluginRegistryProblems } from "./generate-plugin-registry.mjs";
 
@@ -404,6 +405,8 @@ METRICS.push(testImportSplits({ perFile }));
 // 9. The error model (W3-02-B): Error subclasses, code shape, statuses chosen by a test of an error, the owner of a code; the rules live in
 // scripts/gates/error-*.mjs and the owner table in tooling/gates/error-owners.json (the repository this script belongs to must have it).
 METRICS.push(...createErrorMetrics({ root, required: isOwnRepository(root, import.meta.url), isSource: isStructureSource, perFile, rekey, rekeyFile, sumOf }));
+// 10. `as` on an action handler's input and input types written by hand at a definition, interim until N22-G turns them into absolute rules (scripts/gates/action-input-counts.mjs).
+METRICS.push(...actionInputMetrics({ perFile }));
 const measureAll = (snapshot) => Object.fromEntries(METRICS.map((metric) => [metric.id, metric.measure(snapshot)]));
 const summaryOf = (measured) => METRICS.map((metric) => metric.summary(measured[metric.id])).join(", ");
 
@@ -503,7 +506,7 @@ const storeVersions = () => {
   }
 };
 // The half of the unified-origin check that needs no build (scripts/gates/initial-versions.mjs, user 2026-11-07): not a number, every version is 1 or has its chain.
-const versionOrigin = () => versionOriginProblems(workingTree(), { readBase: mergeBase ? (file) => gitMaybe(["cat-file", "blob", `${mergeBase}:${file}`]) : undefined });
+const versionOrigin = () => versionOriginProblems(workingTree(), { chains: registeredUpgradeChains(workingTree()), readBase: mergeBase ? (file) => gitMaybe(["cat-file", "blob", `${mergeBase}:${file}`]) : undefined });
 const against = mergeBase ? `merge-base ${mergeBase.slice(0, 8)} (${options.base})` : "the local Git health baseline";
 
 // ---- --report --------------------------------------------------------------------------------------------------------

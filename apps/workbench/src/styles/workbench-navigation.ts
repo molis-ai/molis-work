@@ -107,6 +107,8 @@ ${SWITCH}{display:inline-flex}
 ${BAR}{gap:4px;height:52px;min-height:52px;padding-block:0}
 ${BAR}>.tab-scroll{flex:1 1 0;width:auto;min-width:98px}
 ${BAR}>.tab-strip-spacer{display:none}
+/* The row's 4px gap spaces its parts; the switch's and the undo chip's own margins would double it and push 全部标签 out. */
+${BAR}>:is(.tab-pane-switch,.tab-undo-chip){margin-inline:0}
 /* Settings or the market in front is the current one: its chip takes the tab's place, and the tabs behind it are in 全部标签. */
 ${BAR}:has(>.tab-view-chip:not([hidden]))>:is(.tab-scroll,.tab-view-divider){display:none}
 ${BAR}>.tab-view-chip{flex:1 1 0;min-width:0}

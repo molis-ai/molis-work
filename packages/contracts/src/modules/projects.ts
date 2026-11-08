@@ -281,6 +281,11 @@ export interface ProjectsQueryApi {
    * reads as this project's former default output (`MATERIAL_ORIGIN_NOTES.former_default_output`).
    */
   defaultOutputDirectoryId(projectId: string): string;
+  /**
+   * The id of the folder row at this path (§3 「路径到行」): found by the path as resolved now, `outputs/<project_id>` as that project's default
+   * output directory. Null where there is no row: a path that has none has no folder id, and none is made up from the path.
+   */
+  workspaceIdAt(canonicalPath: string): string | null;
   workspaceProjectSelections(workspaceId: string): ProjectSelection[];
   listProjectDeletions(): ProjectDeletionRecord[];
 }

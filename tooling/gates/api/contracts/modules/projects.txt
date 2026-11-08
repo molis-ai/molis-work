@@ -202,6 +202,7 @@ export interface ProjectsQueryApi {
     projectDirectories(projectId: string): ProjectDirectories;
     outputDirectory(projectId: string): ProjectWorkspaceRef;
     defaultOutputDirectoryId(projectId: string): string;
+    workspaceIdAt(canonicalPath: string): string | null;
     workspaceProjectSelections(workspaceId: string): ProjectSelection[];
     listProjectDeletions(): ProjectDeletionRecord[];
 }

@@ -881,7 +881,8 @@ test("panel APIs and the TUI pane work without a desktop shell marker", async ()
     assert.match(cookiePage, /添加终端/);
     assert.match(cookiePage, /data-desktop-shell="true"/);
     assert.doesNotMatch(cookiePage, /data-native-desktop="true"|class="navigator-project-meta"/);
-    assert.equal(cookieResponse.headers.get("set-cookie"), null);
+    assert.match(cookieResponse.headers.get("set-cookie") ?? "", /^molis-work-web-[a-f0-9]+-[a-f0-9]+=[A-Za-z0-9_-]+; Path=\/; HttpOnly; SameSite=Strict;/);
+    assert.doesNotMatch(cookieResponse.headers.get("set-cookie") ?? "", /native|desktop/);
 
     const queryPage = await (await webFetch(`${origin}${prefix}/goals/TUI-GOAL?desktop=1`)).text();
     assert.match(queryPage, /data-tui-pane/);

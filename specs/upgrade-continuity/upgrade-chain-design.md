@@ -184,6 +184,7 @@ readonly upgrades?: readonly { readonly from: number; readonly sql: string; read
 - **U4 要做的不只是打开开关。** 打开之前第 2 层必须已经换成原生授权（上面）。装上的插件的 SQL 要放进专属子进程的 Worker（S-59）才有超时和内存上限，内置的在升级过程里直接跑。所以这三层写成只收一个连接的函数，U4 把它放进 Worker，并和 `upgrade_compatibility` 合流。**U4 还要另定升级用的限额：** S-59 的限额是给日常语句定的（写句 2 秒，`BEGIN` 到 `COMMIT` 共 3 秒，超了整个进程结束），重建或回填一张大表一定超。
 - 所以「首次改任何插件表的结构」要等 U1-f，不只是等机制。
 - 项目库里的插件表：每个插件自己一个 `BEGIN IMMEDIATE`，做升级、更新 `plugin_project_databases` 的 `version` 和 `tables_json`、查结构。失败只回滚这一个事务，这个插件走现有的 `plugin.project_database.*` 停用路径，项目库其余照常（`project-plugin-databases.ts` 已是这样）。**这里做不到文件级逐字节**：同一个文件里平台段已经提交了。保证的是这个插件的表内容和结构与升级前相同：升级前后比这个插件每张表的内容摘要（按主键顺序）和结构摘要，只比行数查不出内容被改。决策记录有一行，spec §9 UPG-03 旁有脚注。
+- **同步分区变了的版本，不能只靠升级段升上去（U1-f 评审，2026-11-08）。** 声明了同步分区（`sync.collections[].sections`）的插件，平台替它在共用的平台表上建了触发器：`apps/local-host/src/plugin-sync-sections.ts` 的 `sectionsPlatformSchema` 按分区生成，建在 `context_edges`、`events` 和注意力那几张表上，名字带这个插件的命名空间前缀。这些表不归插件，所以这些触发器不在段的范围里：段跑之前不删，跑完也不按新声明重建。第 3 层对它们比两次：挂在平台表上的对象要和开始时逐字相同，这个插件的触发器又要逐字等于新声明生成的样子。一个版本改了分区，两样就不可能同时成立，升级只能失败（`plugin.project_database.upgrade_failed` 的 `structure`，或 `upgrade_out_of_scope`），这个插件回滚并停用。数据不会坏，现在也没有插件这样改。插件作者遇到时：先别改已经发出去的插件的同步分区；真要改，先提出来，由平台定怎样把这些触发器换过去，和上面「插件升 `collection.schema_version`」那条一样，等第一次真要这样做时再定。
 
 ### 2.5 手写版本检查收到哪里
 

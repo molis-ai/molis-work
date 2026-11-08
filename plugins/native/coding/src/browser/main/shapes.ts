@@ -110,6 +110,8 @@ export interface FrozenSetup {
   readonly role_version: number;
   readonly directory?: { readonly canonical_path: string };
   readonly subagent_workspaces?: readonly { readonly directory: { readonly canonical_path: string } }[];
+  /** Where the round ran, as the Host froze it: the project's output, or one of the Host's worktrees of it (by id). */
+  readonly directories?: { readonly execution: { readonly kind: "output" } | { readonly kind: "worktree"; readonly worktree_id: string } };
   readonly skills: readonly { readonly name: string; readonly version: number }[];
   readonly action_tools?: readonly { readonly capability_id: string; readonly version: number; readonly provider_id: string }[];
   readonly mcp_tools?: readonly { readonly server: string; readonly server_label?: string; readonly tool: string; readonly version: string; readonly configuration_version: number }[];
@@ -185,6 +187,8 @@ export interface SessionConfiguration {
   readonly workspace_id: string;
   readonly reasoning_effort?: string;
   readonly writer_assignments?: readonly { readonly worktree_id: string; readonly task: string }[];
+  /** The Host's worktree of the folder the session's rounds run in, when the person chose one. */
+  readonly worktree?: { readonly worktree_id: string; readonly canonical_path: string };
   readonly [field: string]: unknown;
 }
 
@@ -279,6 +283,8 @@ export interface StateRead {
 /** What a round is started with besides its words: the choices the session holds. */
 export interface RoundSelection {
   readonly workspace_id: string;
+  /** The Host's worktree of that folder the round runs in, when the session was pointed at one. */
+  readonly worktree_id?: string;
   readonly methods: readonly MethodRef[];
   readonly action_tools?: readonly unknown[];
   readonly mcp_tools: readonly McpToolRef[];

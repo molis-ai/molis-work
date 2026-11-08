@@ -63,6 +63,7 @@ export const CODING_SETTINGS_MESSAGES = {
   "coding.writers.join": { zh: "加入并行分工", en: "Include in the parallel split" },
   "coding.writers.task-label": { zh: "任务与完成条件：{path}", en: "Task and done condition: {path}" },
   "coding.writers.task": { zh: "这个目录的任务与完成条件", en: "This directory's task and done condition" },
+  "coding.writers.use": { zh: "用于下一轮", en: "Use for the next turn" },
   "coding.writers.saved-gone": { zh: "已保存的分工目录暂不可用：{id}", en: "A saved split directory isn't available right now: {id}" },
   "coding.writers.no-task": { zh: "尚未填写任务", en: "No task written yet" },
   "coding.writers.remove": { zh: "移除此分工", en: "Remove this assignment" },

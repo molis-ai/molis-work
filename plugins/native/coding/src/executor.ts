@@ -58,12 +58,13 @@ const keep = (call: CodingActionCall, sessionId: string, configuration: Settings
  * What the page sends with every round it starts besides the settings (`client.ts` startRound): the session's methods and MCP
  * choices, and writer assignments only for parallel writers. The start reads the session's other choices itself.
  */
-const roundOf = (a: CodingActivation, sessionId: string, { writer_assignments, ...chosen }: Settings, task: string) => {
+const roundOf = (a: CodingActivation, sessionId: string, { writer_assignments, worktree, ...chosen }: Settings, task: string) => {
   const saved = (key: string) => {
     const value = a.context.services?.storage?.get(`${key}:${sessionId}`);
     return typeof value === "string" ? JSON.parse(value) as unknown : undefined;
   };
-  return { ...chosen, ...(chosen.intent === "parallel" && writer_assignments ? { writer_assignments } : {}),
+  // The worktree the person pointed the session at runs the Assistant's rounds too, as it runs the page's.
+  return { ...chosen, ...(chosen.intent === "parallel" && writer_assignments ? { writer_assignments } : {}), ...(worktree ? { worktree_id: worktree.worktree_id } : {}),
     methods: saved("methods"), mcp_tools: saved("mcp"), mcp_sources: saved("mcp-sources"), task };
 };
 

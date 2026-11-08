@@ -140,7 +140,14 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
   const workspaces = await projectFolders(api!);
   const workspace = workspaces.find(entry => entry.workspace_id === body.workspace_id);
   if (!workspace?.realpath_verified) throw codingFailure("coding.server.authorize-workspace");
-  const directory = { canonical_path: workspace.canonical_path, realpath_verified: true };
+  // A session pointed at one of the Host's worktrees of this folder (「用这个」) runs there; one that is gone is refused, never
+  // swapped for the folder itself: the person switches back to the output or picks another (coordinator 2026-11-08).
+  const worktreeId = body.worktree_id === undefined ? undefined : text(body.worktree_id, "coding.field.worktree", 200);
+  if (worktreeId !== undefined && role === "writers") throw codingFailure("coding.server.worktree-parallel");
+  const tree = worktreeId === undefined ? undefined : (await context.services!.actions!.invoke(writerDirectoryCapabilities.list, { workspace_id: workspace.workspace_id }, codingActionControl(beforeWrite)))
+    .find(child => child.worktree_id === worktreeId && !child.problem);
+  if (worktreeId !== undefined && !tree) throw codingFailure("coding.server.worktree-gone");
+  const directory = { canonical_path: tree?.canonical_path ?? workspace.canonical_path, realpath_verified: true };
   if (plan) await requireLocalPlanningRun(api, record, plan, directory.canonical_path);
   // Files named with @ travel with the task, as they read at this moment.
   task = (await attachMentions(workspaceFileReader(context), workspace.workspace_id, task)).task;
@@ -245,7 +252,7 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
     const continued = typeof body.task === "string" && body.task.startsWith(CONTINUATION_MARKER) && typeof lastStart?.origin_task === "string";
     context.services!.storage!.set(`last-start:${record.session_id}`, JSON.stringify({ intent: body.intent === "parallel" ? "execute" : body.intent, provider_id: body.provider_id, model_id: body.model_id,
       ...(effort ? { reasoning_effort: effort } : {}),
-      workspace_id: body.workspace_id,
+      workspace_id: body.workspace_id, ...(worktreeId === undefined ? {} : { worktree_id: worktreeId }),
       origin_task: typeof body.origin_task === "string" ? body.origin_task : continued ? lastStart!.origin_task : plan ? plan.source.task : body.reask !== undefined ? QUESTION_REASK.task : text(body.task, "coding.field.task", 100_000) }));
     receipted = true;
     return { run, history, ...(cleared_input_revision===undefined?{}:{cleared_input_revision}), ...(historyReason ? { history_reason: historyReason } : {}),

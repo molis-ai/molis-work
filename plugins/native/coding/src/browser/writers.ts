@@ -23,6 +23,8 @@ export interface WriterPorts extends Pick<PagePorts, "lifetime" | "translate" | 
   readonly workspaceLabel: () => string;
   readonly assignments: () => readonly WriterAssignment[];
   readonly saveAssignments: (owner: string, parent: string, assignments: readonly WriterAssignment[]) => Promise<void>;
+  /** Has the session's next rounds run in this worktree of `parent` (the Host's, named by its id): the folder stays the project's output. */
+  readonly select: (owner: string, parent: string, worktree: { readonly worktree_id: string; readonly canonical_path: string }) => Promise<void>;
   /** Draws the review cards of the directory's runs (the Host's). */
   readonly reviews: (container: Element, workspaceId: string) => unknown;
 }
@@ -100,9 +102,9 @@ function assignmentFields(state: Dialog, row: HTMLElement, directory: WriterDire
   });
 }
 
-/** A worktree a writer may work in, with its split fields. */
+/** A worktree a writer may work in, with its split fields and the button that has the session's next round run in it. */
 function directoryRow(state: Dialog, directory: WriterDirectory) {
-  const L = state.ports.translate;
+  const { translate: L, lifetime } = state.ports;
   const row = el("section", "", "coding-material");
   row.append(el("p", directory.canonical_path), el("p", L("coding.writers.branch", { branch: directory.branch || L("coding.writers.no-branch") })));
   // A directory whose branch or origin no longer matches is listed so it is not a mystery, but it takes no work.
@@ -115,6 +117,23 @@ function directoryRow(state: Dialog, directory: WriterDirectory) {
   const draft = state.assignments.get(id) || { task: "", selected: false };
   state.assignments.set(id, draft);
   assignmentFields(state, row, directory, draft);
+  const use = button(L("coding.writers.use"));
+  lifetime.listen(use, "click", async () => {
+    if (state.busy) return;
+    state.busy = true;
+    use.disabled = true;
+    try {
+      await state.ports.select(state.owner, state.parent, { worktree_id: id, canonical_path: directory.canonical_path });
+      state.dialog.close();
+    } catch (error) {
+      if (!lifetime.alive) return;
+      state.message.textContent = errorMessage(error);
+    } finally {
+      state.busy = false;
+      use.disabled = false;
+    }
+  });
+  row.append(use);
   return row;
 }
 

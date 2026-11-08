@@ -417,7 +417,7 @@ export interface WriterIntegrationFile {
 export interface WriterIntegrationSource {
     session_id: string;
     run_id: string;
-    subagent_id: string;
+    subagent_id?: string;
 }
 
 export interface WriterIntegrationView {

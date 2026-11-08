@@ -274,8 +274,8 @@ projects.workspace.git.operation.prepare	1	platform	command	operation	project	wr
 projects.workspace.git.operations	1	platform	query	query	project	read	-	plugin	workspace:read	workspace	-	-	614f112549e5	52405559fce7	-
 projects.workspace.git.prepare-index	1	platform	command	operation	project	write	-	plugin	review:git-index	workspace	-	-	f2b96d30b920	18a6c013818d	-
 projects.workspace.git.results	1	platform	query	query	project	read	-	plugin	workspace:read	workspace	-	-	614f112549e5	49e0010f0e0c	-
-projects.workspace.writers.integration.prepare	1	platform	command	operation	project	write	-	plugin	review:git-integration	workspace	-	-	7b81d085e37e	18a6c013818d	-
-projects.workspace.writers.integration.read	1	platform	query	query	project	read	-	plugin	workspace:read	workspace	-	-	a06b911bc763	5030011c841c	-
+projects.workspace.writers.integration.prepare	1	platform	command	operation	project	write	-	plugin	review:git-integration	workspace	-	-	5e15535caa04	18a6c013818d	-
+projects.workspace.writers.integration.read	1	platform	query	query	project	read	-	plugin	workspace:read	workspace	-	-	efffc229e8f8	5030011c841c	-
 projects.workspace.writers.list	1	platform	query	query	project	read	-	plugin	workspace:read	workspace	-	-	614f112549e5	444ca2382039	-
 projects.workspace.writers.prepare	1	platform	command	operation	project	write	-	plugin	review:git-worktree	workspace	-	-	0a2e064efc3f	4c2f70ec1224	-
 scenes.disable:feed.capture	1	io.molis.work.feed	command	operation	project	write	-	agent,mcp,plugin,user,workflow	feed:write	-	-	-	440ceca300ea	7606656fb550	-

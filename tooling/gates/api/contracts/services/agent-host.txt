@@ -305,7 +305,7 @@ export interface AgentGitIntegrationReviewDocument {
     source: {
         session_id: string;
         run_id: string;
-        subagent_id: string;
+        subagent_id?: string;
         branch: string;
         base_commit: string;
         directory: string;

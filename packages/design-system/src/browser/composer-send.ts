@@ -52,7 +52,8 @@ export function composerSender(c: Composer, drafts: ComposerDrafts, sentByKey: (
         const chosen = pickComposerDelivery(mode ?? "next-boundary", composerDeliveries(true, c.ai.delivery?.(), c.ai.labels.unsupported));
         if ("refused" in chosen) { c.note = { caption: labels.notice, text: chosen.refused, tone: "attention" }; return c.paint(); }
         delivery = chosen.mode;
-      } else if (mode && mode !== "next-boundary") return;
+      }
+      // Nothing running: the next turn is now, so ⌘⇧↵ sends as ⌘↵ does, without a delivery.
       c.requestId ||= crypto.randomUUID();
       const text = field.value, materials = attached(c);
       c.phase = "sending"; c.close(); c.paint();

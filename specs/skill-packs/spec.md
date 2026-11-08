@@ -209,6 +209,13 @@ argument_hint: "<周期，可选>"
 - 08-9 的 `role`：动作之后才出现的失败用 `alert`；页面上原本就有的文字用 `status`。
 - 08-9 的状态词用主人的稳定键，如 `<主人>.status.retracted`；浏览器用例断言英文 `Retracted`。
 
+**08-6 的做法（子分支 `batch/08-runtime`，2026-11-08）：**
+
+- 内容包和沙箱包走同一个预览／确认：验签之后按 Manifest 的 `kind` 选读法（`readKeptPackage`），内容包用 SDK 的 `parseContentPackage`；留在 `plugin-packages/` 的只有 `bundle.json`，读回时再验签与摘要，不符就不启用并写明原因。装上的 release 是空合同（无动作、页面、提示词），Plugin Runtime 不启动它，`requires` 不挡启用（不满足由 08-7 的目录标 `requires_unmet`）。
+- 它没有运行实例来握住 Agent 定义，宿主在它启用时代为握住（`declaredOnlyHolds`），停用、卸载、发布者被撤、宿主关闭时放开；所以 Skill 只在启用且包验过的时候提供。
+- 预览：`skills` 列每个方法（沙箱包的方法也在这里），`agent_bodies` 只留角色；`requires` 每项给 `satisfied`；装到哪里沿用已有的 `runtime_scope`，不另加 `scope`。升级时 Skill 的正文或资源变了而 `version` 没加、或 `version` 变小，预览和确认各拒一次。
+- `state` 现在一律 `off`：设置的保留与删除要 08-7 的设置表，08-6 不另造存储。
+
 **不在本批的验收编号：**
 
 - **消费方，在第 09 批**：助理的 `methods()` 改读目录，`SignedAgentReference` 的方法引用改用 `SkillRef`（9-2）；助理交活时带 `SkillRef`（9-3）；Coding 读目录并删旧路（9-4，SKC-11）；agent-host 按 `SkillRef` 冻结、`tools` 的两道检查（9-5，SKC-13）；真实验证（9-6，SKP-12 与 ADH-23）。SKP-02～07、SKP-10 的消费方一侧（`/` 点名、AI 自动选用，9-2／9-4）、SKC-07 的消费方部分，以及 SKC-06 委派之后仍成立的部分，都随 09 验。

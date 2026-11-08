@@ -20,7 +20,7 @@ import { capabilityCatalog, catalogCapabilities, registerPlatformCapabilities, t
 import { createPluginModelGeneration } from './plugin-builder/model.js';
 import { exposedOperationPolicies, type InstalledPluginActions } from './plugin-builder/exposed-actions.js';
 import { hostNetwork } from './plugin-builder/network.js';
-import { pluginAgentRegistration, updatePluginAgentDefinitions, forgetPluginAgentDefinitions } from './plugin-instructions.js';
+import { declaredOnlyHolds, pluginAgentRegistration, updatePluginAgentDefinitions, forgetPluginAgentDefinitions } from './plugin-instructions.js';
 import { forgetTaskGrantSubjects } from './task-grant-subjects.js';
 import { pluginHomeFor } from './home-side.js';
 import { pluginSecrets } from './plugin-builder/secrets.js';
@@ -67,7 +67,7 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
   const { home, platform } = options;
   const actions: ProjectActions = { ...options.actions, project_id: null };
   const storage = studioStorage(options.db, HOME_INSTALL_SCOPE);
-  const packages = new SandboxPackageStore(home), packaged = new Map<string, InstalledRelease>();
+  const packages = new SandboxPackageStore(home), packaged = new Map<string, InstalledRelease>(), declared = declaredOnlyHolds(pluginHomeFor(home));
   const exposed = new Map<string, InstalledPluginActions>(), recoveryErrors = new Map<string, string>();
   let closed = false, exposureRevision = 0, catalogPending: Promise<CatalogCapability[]> | undefined;
   const isClosed = () => closed || options.closed();
@@ -191,13 +191,14 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
   const registerPrompts = (release: InstalledRelease, state: 'enabled' | 'disabled', restored = false) => {
     const record = recordFor(release.pluginId);
     if (!record || record.version !== installedVersion(release)) return;
-    updatePluginAgentDefinitions(pluginHomeFor(home), definition(release, approvedFor(release.pluginId) ?? release.permissions), record.install_id, state, restored);
+    const value = definition(release, approvedFor(release.pluginId) ?? release.permissions); declared.set(value, record.install_id, state);
+    updatePluginAgentDefinitions(pluginHomeFor(home), value, record.install_id, state, restored);
   };
-  const stops = publisherStops({ standing, platform, recoveryErrors, withdraw, records });
+  const stops = publisherStops({ standing, platform, recoveryErrors, withdraw: id => { withdraw(id); declared.release(id); }, records });
   const lifecycle = installedLifecycle({ platform, storage, privateStorage: options.privateStorage, secrets, recoveryErrors, closed: isClosed, trusted: standing.trusted, recordFor, releaseFor, approvedFor,
     definition, expose, withdraw, registerPrompts,
-    async forget(pluginId, installId) { forgetPluginAgentDefinitions(pluginHomeFor(home), installId); forgetDefinitions(pluginId); await forgetTaskGrantSubjects(home, subject => subject.plugin_install_id === installId); } });
-  const close = () => { closed = true; for (const id of [...exposed.keys(), ...attached.keys()]) withdraw(id); disposePlatform(); };
+    async forget(pluginId, installId) { declared.release(pluginId); forgetPluginAgentDefinitions(pluginHomeFor(home), installId); forgetDefinitions(pluginId); await forgetTaskGrantSubjects(home, subject => subject.plugin_install_id === installId); } });
+  const close = () => { closed = true; for (const id of [...exposed.keys(), ...attached.keys()]) withdraw(id); disposePlatform(); declared.releaseAll(); };
 
   try {
     // Registered inside the guard: a start that fails from here on takes it back with the rest (`close`).

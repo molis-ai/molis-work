@@ -18,6 +18,10 @@ export function pluginInstallProviderFor(home: string, source: ProjectPluginHost
     installInProject: (projectId, release) => installPackageInProject(source, projectId, release), installInHome: release => installPackageInHome(source, release),
     assertIntegrationsFree: async manifest => (await homeIntegrationRegistry(home)).assertFree(manifest),
     installed: projectId => installedPluginsInProject(source, projectId),
+    offers: (projectId, reference) => {
+      const project = source.host.projects().find(row => row.project_id === projectId);
+      return project !== undefined && source.host.client(project).availability(reference).available;
+    },
     control: (projectId, pluginId, action, input) => controlPackageInProject(source, projectId, pluginId, action, input),
     regrant: (projectId, installId, permission, granted, expected) => regrantPluginInProject(source, projectId, installId, permission, granted, expected),
     homeInstalled: () => installedHomePlugins(source.homePlugins()), homeRegrant: (installId, permission, granted, expected) => regrantHomePlugin(source.homePlugins(), installId, permission, granted, expected),

@@ -10,12 +10,12 @@ import { isDeepStrictEqual } from 'node:util';
 import { pluginErrors, SANDBOX_PACKAGE_FILES, type PluginManifest, type SandboxAgentBody, type SandboxPackageManifest, type PluginPackagePayload, type SandboxPackagePrompt } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { SANDBOX_INTEGRATION_CONTRACT, SANDBOX_INTEGRATION_OPERATIONS, type SandboxEffects, type SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { CONNECTOR_REQUEST_SERVICES } from '@molis-ai/molis-work-contracts/services/connector-host';
-import { parsePluginManifest, parsePluginPackageManifest, refuseDeclarations } from '@molis-ai/molis-work-plugin-sdk';
+import { parseContentPackage, parsePluginManifest, parsePluginPackageManifest, refuseDeclarations } from '@molis-ai/molis-work-plugin-sdk';
 import { PLUGIN_ICON_NAMES } from '@molis-ai/molis-work-plugin-sdk/ui';
 import { assertContract } from '@molis-ai/molis-work-plugin-sandbox';
 import { validatePluginComponentNodes, validatePluginComponentPlans, validatePluginPresentation,
   type PluginComponentNode, type PluginComponentPlan, type PluginPresentation } from '@molis-ai/molis-work-design-system';
-import { readSandboxAgentBodies, sandboxAgentBodyPaths } from './sandbox-agent-bodies.js';
+import { packagedMethodBodies, readSandboxAgentBodies, sandboxAgentBodyPaths } from './sandbox-agent-bodies.js';
 import { assertPluginHomeSchema } from '@molis-ai/molis-work-plugin-runtime';
 
 
@@ -139,6 +139,31 @@ export type KeptSandboxPackage = SandboxPackage | SandboxIntegrationPackage;
 export const isIntegrationPackage = (pkg: KeptSandboxPackage): pkg is SandboxIntegrationPackage => pkg.manifest.kind === 'integration';
 export function readKeptSandboxPackage(payload: PluginPackagePayload): KeptSandboxPackage {
   return payload.manifest.kind === 'integration' ? readSandboxIntegrationPackage(payload) : readSandboxPackage(payload);
+}
+
+/**
+ * A content package as the Host keeps it (specs/skill-packs/contract-design.md §3): the Manifest of a plugin with only declarations and
+ * each declared Skill with the body its package ships. No code, contract, interface or prompts, and it asks for nothing.
+ */
+export interface ContentKeptPackage {
+  readonly manifest: PluginManifest;
+  readonly agentBodies: SandboxAgentBody[];
+  readonly permissions: SandboxEffects;
+}
+
+/** Every package the Host keeps and installs: a sandbox package, or a content package. */
+export type KeptPackage = KeptSandboxPackage | ContentKeptPackage;
+export const isContentPackage = (pkg: KeptPackage): pkg is ContentKeptPackage => pkg.manifest.kind === 'content';
+
+/**
+ * Reads a verified package by its Manifest's kind: a content package through the SDK's `parseContentPackage` (every declared file there,
+ * nothing else, each path inside the package, each resource's size and digest as declared), any other as a sandbox package. One install
+ * path for both: the same signature check before, the same preview and confirmation after.
+ */
+export function readKeptPackage(payload: PluginPackagePayload): KeptPackage {
+  if (payload.manifest?.kind !== 'content') return readKeptSandboxPackage(payload);
+  const { manifest, skills } = parseContentPackage(payload);
+  return { manifest, agentBodies: packagedMethodBodies(manifest.methods ?? [], skills), permissions: {} };
 }
 
 /** A sandboxed integration as the Host runs it (BL-530): its Manifest, its contract of the platform's operations and its code. */

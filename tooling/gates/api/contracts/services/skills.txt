@@ -16,6 +16,8 @@ export declare const SKILL_CATALOG_ENTRY_SCHEMA: ActionSchema;
 
 export declare const SKILL_EXCERPT_CHARS = 200;
 
+export declare const SKILL_INSTALL_PREVIEW_SCHEMA: ActionSchema;
+
 export declare const SKILL_READ_REFUSALS: readonly ["plugin_disabled", "publisher_revoked", "resource_invalid", "requires_unmet", "connection_missing", "native_only", "not_applicable", "not_current", "off", "not_named"];
 
 export declare const SKILL_REF_SCHEMA: ActionSchema;

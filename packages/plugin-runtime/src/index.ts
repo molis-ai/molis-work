@@ -18,7 +18,7 @@ import { outsidePluginAction } from "./action-scope.js";
 import { OfferedContributions } from "./offered-contributions.js";
 import { MemoryPluginRuntimeRepository } from "./memory-repository.js";
 import { NativePluginExecutor } from "./native-executor.js";
-import { assertRecoverableState, assertRequiredGrants, cloneRecord, definitionKey, installIdentity, normalizeErrorCode, requireDefinition, requireInstall, safeErrorCode, safeErrorMessage, sameStrings, validateManifest } from "./runtime-rules.js";
+import { assertRecoverableState, assertRequiredGrants, cloneRecord, declaresOnly, definitionKey, installIdentity, normalizeErrorCode, requireDefinition, requireInstall, safeErrorCode, safeErrorMessage, sameStrings, selectedEntrypoint, validateManifest } from "./runtime-rules.js";
 import { createActivationContext, releaseUnrecorded } from "./activation-context.js";
 import { regrantInstall } from "./regrant.js";
 
@@ -122,10 +122,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     const host = isHostTrust(trust);
     const manifest = input.definition.manifest;
     validateInstalledManifest(manifest, this.options.declarationOwners);
-    const entrypoint = manifest.entrypoints.find((candidate) => candidate.deployment === input.deployment);
-    if (!entrypoint) {
-      throw pluginErrors.entrypoint_missing("Plugin 没有当前部署环境的 entrypoint");
-    }
+    const entrypoint = selectedEntrypoint(manifest, input.deployment);
     const installId = installIdentity(manifest);
     const current = this.repository.get(installId);
     if (current?.state === "uninstalled" && this.locks.busy(installId)) throw pluginErrors.state_invalid("Plugin 卸载尚未完成，请等待卸载完成后再安装");
@@ -154,7 +151,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     }
     if (follow) {
       this.register(input.definition);
-      const moved = followHostBuild(follow, input.deployment, manifest, digest, entrypoint.entrypoint, this.now(), input.declared_before);
+      const moved = followHostBuild(follow, input.deployment, manifest, digest, entrypoint, this.now(), input.declared_before);
       this.repository.save(moved);
       return this.receipt("install", moved, false);
     }
@@ -199,7 +196,7 @@ export class PluginRuntime implements PluginRuntimeApi {
       publisher_signature: manifest.publisher.signature,
       manifest_digest: digest,
       deployment: input.deployment,
-      selected_entrypoint: entrypoint.entrypoint,
+      selected_entrypoint: entrypoint,
       grants,
       execution: input.definition.execution ?? "host",
       publisher_trust: trust.level,
@@ -262,8 +259,7 @@ export class PluginRuntime implements PluginRuntimeApi {
       const targetGrants = normalizeGrants(target, input.grants ?? (rollbackCode ? current.grants.filter(permission => declaredPermissions.has(permission)) : current.grants));
       assertRequiredGrants(target, targetGrants);
       const deployment = input.deployment ?? current.deployment;
-      const entrypoint = target.entrypoints.find(candidate => candidate.deployment === deployment);
-      if (!entrypoint) throw pluginErrors.entrypoint_missing("Plugin 没有当前部署环境的 entrypoint");
+      const entrypoint = selectedEntrypoint(target, deployment);
       if (migratable && !input.definition.validateUpgrade) {
         throw pluginErrors.upgrade_validation_missing("此升级需要插件提供旧私有数据校验");
       }
@@ -307,7 +303,7 @@ export class PluginRuntime implements PluginRuntimeApi {
           publisher_signature: target.publisher.signature,
           manifest_digest: pluginManifestDigest(target),
           deployment,
-          selected_entrypoint: entrypoint.entrypoint,
+          selected_entrypoint: entrypoint,
           grants: targetGrants,
           state: current.state === "disabled" ? "disabled" : "installed", // a new version does not undo the person's disable
           recovery_count: 0,
@@ -408,8 +404,8 @@ export class PluginRuntime implements PluginRuntimeApi {
     try {
       assertStartIdentity(current, definition, this.repository.list(), this.options.hostIds, this.options.scope, this.options.inProcess);
       if (current.state === "running" && this.hasLiveInstance(installId)) return this.receipt("start", current, true);
-      const handle = await outsidePluginAction(() => this.executor.start(definition, this.activateContext(current, definition)));
-      await this.redeem(definition, current, handle.contribution);
+      const handle = declaresOnly(definition.manifest) ? undefined : await outsidePluginAction(() => this.executor.start(definition, this.activateContext(current, definition)));
+      if (handle) await this.redeem(definition, current, handle.contribution);
       const updated = {
         ...current,
         state: "running" as const,
@@ -417,7 +413,7 @@ export class PluginRuntime implements PluginRuntimeApi {
         updated_at: this.now(),
       };
       this.repository.save(updated);
-      this.contributions.set(installId, handle.contribution, definition.manifest);
+      if (handle) this.contributions.set(installId, handle.contribution, definition.manifest);
       return this.receipt("start", updated, false);
     } catch (error) {
       // A stop revokes the context first and waits for the lock: a start it interrupted is cancelled, not crashed.
@@ -536,8 +532,8 @@ export class PluginRuntime implements PluginRuntimeApi {
       assertStartIdentity(current, definition, this.repository.list(), this.options.hostIds, this.options.scope, this.options.inProcess);
       // Explicit release admits this attempt's start-time jobs; a failed start below restores quarantine.
       if (releaseQuarantine) this.repository.save({ ...current, state: "crashed", updated_at: this.now() });
-      const handle = await outsidePluginAction(() => this.executor.start(definition, this.activateContext(current, definition)));
-      await this.redeem(definition, current, handle.contribution);
+      const handle = declaresOnly(definition.manifest) ? undefined : await outsidePluginAction(() => this.executor.start(definition, this.activateContext(current, definition)));
+      if (handle) await this.redeem(definition, current, handle.contribution);
       const updated = {
         ...current,
         state: "running" as const,
@@ -546,7 +542,7 @@ export class PluginRuntime implements PluginRuntimeApi {
         updated_at: this.now(),
       };
       this.repository.save(updated);
-      this.contributions.set(installId, handle.contribution, definition.manifest);
+      if (handle) this.contributions.set(installId, handle.contribution, definition.manifest);
       return this.receipt("recover", updated, false);
     } catch (error) {
       // Interrupted by a stop, the recovery is cancelled: no attempt is counted, and a release puts the quarantine back as it was.

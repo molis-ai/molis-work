@@ -443,7 +443,9 @@ test("RAC-2640/2643 S-84 preview exposes each signed body and compares the compl
   try {
     const first = signedAgentPackage(publisher, base);
     const peek = await h.client.invoke(h.person, { capability_id: pluginInstallActions.preview.capability_id, version: pluginInstallActions.preview.version }, { bundle: first }) as PluginInstallPreviewResult;
-    assert.deepEqual(peek.agent_bodies?.map(item => [item.kind, item.name]), [["role", "共享名称"], ["method", "将被移除"]]);
+    // SKP-01: roles stay in `agent_bodies`; a method is a Skill and is listed in `skills`, off until the person turns it on.
+    assert.deepEqual(peek.agent_bodies?.map(item => [item.kind, item.name]), [["role", "共享名称"]]);
+    assert.deepEqual(peek.skills?.map(item => [item.skill_id, item.name, item.change, item.state]), [["removed-method", "将被移除", undefined, "off"]]);
     assert.equal(peek.agent_bodies![0]!.excerpt, prefix, "200 code points, without splitting surrogate pairs");
     assert.equal(peek.preview.publisher_signature, publisher.identity); assert.equal(peek.preview.version, "1.1.0");
     assert.deepEqual(await h.plugins(), []); assert.deepEqual(h.ledger.publishers(), []);
@@ -453,7 +455,8 @@ test("RAC-2640/2643 S-84 preview exposes each signed body and compares the compl
     const next = signedAgentPackage(publisher, { ...base, version: "1.2.0", compatibleFrom: ["1.1.0"], methods: [packageMethod("new-method", "新增方法", "整理")], bodies: { "agent/role.md": prefix + "新尾部", "skills/new-method/SKILL.md": "<script>仅为文本</script>" } });
     const preview = await h.client.invoke(h.person, { capability_id: pluginInstallActions.preview.capability_id, version: pluginInstallActions.preview.version }, { bundle: next }) as PluginInstallPreviewResult;
     // RAC-2643: a changed tail beyond the displayed 200 code points still changes the upgrade preview.
-    assert.deepEqual(preview.agent_bodies?.map(item => [item.kind, item.name, item.change]), [["role", "共享名称", "changed"], ["method", "新增方法", "added"], ["method", "将被移除", "removed"]]);
+    assert.deepEqual(preview.agent_bodies?.map(item => [item.kind, item.name, item.change]), [["role", "共享名称", "changed"]]);
+    assert.deepEqual(preview.skills?.map(item => [item.skill_id, item.name, item.change, item.excerpt]), [["new-method", "新增方法", "added", "<script>仅为文本</script>"], ["removed-method", "将被移除", "removed", "逐条核对可验证的事实。"]]);
     assert.equal(preview.agent_bodies![0]!.excerpt, prefix, "same excerpt still reports the full-body change");
     assert.equal((await h.plugins())[0]!.version, "1.1.0", "preview keeps the installed version");
     assert.equal(homeAgentDefinitions(h.home).methods().find(item => item.kind === "role" && item.owner_id === PACKAGE_PLUGIN_ID)!.default_ref!.source.plugin_version, "1.1.0");

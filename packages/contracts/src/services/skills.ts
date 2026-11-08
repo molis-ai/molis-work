@@ -116,8 +116,8 @@ export interface SkillCatalogEntry {
 }
 
 /**
- * One Skill in an install or upgrade preview (§5), for the review the person reads before installing. The type only: the preview's
- * action and its producer change in batch 08's Runtime and install slice (08-6), which also adds `requires` and `scope`.
+ * One Skill in an install or upgrade preview (§5), for the review the person reads before installing: `plugins.install.preview` lists
+ * one for each method a package declares (`SKILL_INSTALL_PREVIEW_SCHEMA`), a sandbox package's as a content package's.
  */
 export interface SkillInstallPreview {
   skill_id: string;
@@ -276,6 +276,14 @@ export const SKILL_CATALOG_ENTRY_SCHEMA: ActionSchema = object({
   last_used: object({ at: text, caller: { enum: ["assistant", "coding", "agent"] }, run_ref: text }, ["at", "caller"]),
 }, ["ref", "name", "description", "applies_to", "user_invocable", "tools", "resources", "connector_categories", "runs_scripts", "excerpt", "pack", "state",
   "settings_revision", "availability"]);
+
+/** `SkillInstallPreview`, closed: the install preview's `skills` items. */
+export const SKILL_INSTALL_PREVIEW_SCHEMA: ActionSchema = object({
+  skill_id: text, version: skillVersion, name: text, description: text, when_to_use: text, when_not_to_use: text, applies_to: appliesTo,
+  user_invocable: { type: "boolean" }, argument_hint: text, tools: { type: "array", items: text }, resources: { type: "array", items: resourceSummary },
+  runs_scripts: { type: "boolean" }, connector_categories: { type: "array", items: text }, excerpt: { type: "string", maxLength: SKILL_EXCERPT_CHARS },
+  change: { enum: ["added", "body_changed", "resources_changed", "removed"] }, state,
+}, ["skill_id", "version", "name", "description", "applies_to", "user_invocable", "tools", "resources", "runs_scripts", "connector_categories", "excerpt", "state"]);
 
 const bodyResult = { oneOf: [
   object({ ref: SKILL_REF_SCHEMA, ok: { const: true }, name: text, body: { type: "string", maxLength: SKILL_LIMITS.bodyChars } }),

@@ -1,27 +1,32 @@
 import { sandboxPackageBuildId } from '@molis-ai/molis-work-plugin-sdk';
 /**
- * Where the Host keeps the signed sandbox packages it installed (the Home's `plugin-packages/`): the package exactly as it was verified
- * and the plugin's code beside it, written once and read-only. A package is read back with the same checks it was installed with, so
- * an installed plugin runs from bytes whose signature, form and publisher the Host has checked again, not from a record of having checked.
+ * Where the Host keeps the signed packages it installed (the Home's `plugin-packages/`): the package exactly as it was verified and a
+ * sandbox plugin's code beside it, written once and read-only. A package is read back with the same checks it was installed with, so
+ * an installed plugin runs from bytes whose signature, form and publisher the Host has checked again, not from a record of having checked;
+ * a content package whose files no longer match its declarations (a body, a resource's digest) is not read back, and does not run.
  */
 import { createHash } from 'node:crypto';
 import { chmodSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { readSnapshotFile } from "@molis-ai/molis-work-storage";
 import { join } from 'node:path';
 import { pluginErrors, SANDBOX_PACKAGE_FILES, type PluginPackageBundle } from '@molis-ai/molis-work-contracts/platform/plugin';
-import { verifyPluginPackageSignature } from '@molis-ai/molis-work-plugin-runtime';
-import { isIntegrationPackage, readKeptSandboxPackage, type KeptSandboxPackage, type SandboxPackage } from './sandbox-package.js';
+import type { SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import { pluginManifestDigest, verifyPluginPackageSignature } from '@molis-ai/molis-work-plugin-runtime';
+import { isContentPackage, isIntegrationPackage, readKeptPackage, type KeptPackage, type SandboxPackage } from './sandbox-package.js';
 import type { InstalledRelease } from './installed-release.js';
 
 const BUNDLE_FILE = 'bundle.json';
 
 /**
  * What the Host runs a verified package from: the release, with the trust its publisher's pinned key gives it. An integration package
- * (BL-530) has no interface and no prompts: its release has none either.
+ * (BL-530) has no interface and no prompts: its release has none either. A content package has no code and no contract: its release
+ * offers no operation, page or prompt, and Plugin Runtime never starts it (declared, not started); its Skills are its methods' bodies.
  */
-export function packagedRelease(pkg: KeptSandboxPackage, directory: string, publishedAt: string): InstalledRelease {
-  const { manifest, contract } = pkg;
-  const app: Pick<SandboxPackage, 'parts' | 'nodes' | 'prompts' | 'presentation'> = isIntegrationPackage(pkg) ? { parts: [], nodes: [], prompts: [] } : pkg;
+export function packagedRelease(pkg: KeptPackage, directory: string, publishedAt: string): InstalledRelease {
+  const { manifest } = pkg;
+  const contract: SandboxPluginContract = isContentPackage(pkg)
+    ? { version: /* @version format.sandbox.contract */ 1, pluginId: manifest.plugin_id, revision: pluginManifestDigest(manifest), operations: [], entities: [], pages: [], acceptance: [] } : pkg.contract;
+  const app: Pick<SandboxPackage, 'parts' | 'nodes' | 'prompts' | 'presentation'> = isContentPackage(pkg) || isIntegrationPackage(pkg) ? { parts: [], nodes: [], prompts: [] } : pkg;
   return {
     // Names this plugin under this publisher: its actions are registered as `generated.<first 8>.<operation>`, so two plugins of one publisher must differ.
     buildId: sandboxPackageBuildId(manifest.plugin_id, manifest.publisher.signature), pluginId: manifest.plugin_id, version: 1,
@@ -40,7 +45,7 @@ export class SandboxPackageStore {
   }
 
   /** Writes a verified package. The same package again changes nothing; other content under the same plugin, publisher and version is refused. */
-  save(bundle: PluginPackageBundle, pkg: KeptSandboxPackage): string {
+  save(bundle: PluginPackageBundle, pkg: KeptPackage): string {
     const { manifest } = pkg, directory = this.directory(manifest.plugin_id, manifest.publisher.signature, manifest.version);
     const text = JSON.stringify(bundle);
     if (existsSync(join(directory, BUNDLE_FILE))) {
@@ -49,7 +54,7 @@ export class SandboxPackageStore {
     }
     mkdirSync(directory, { recursive: true, mode: 0o700 });
     const write = (name: string, content: string | Uint8Array) => { const path = join(directory, name); writeFileSync(path, content, { flag: 'w', mode: 0o600 }); chmodSync(path, 0o400); };
-    write(SANDBOX_PACKAGE_FILES.entrypoint, pkg.entrypoint);
+    if ('entrypoint' in pkg) write(SANDBOX_PACKAGE_FILES.entrypoint, pkg.entrypoint);
     write(BUNDLE_FILE, text);
     return directory;
   }
@@ -76,7 +81,7 @@ export class SandboxPackageStore {
     const path = join(this.directory(pluginId,keyId,version),BUNDLE_FILE);
     if (!lstatSync(path,{throwIfNoEntry:false})) return undefined;
     const {bundle,key_id} = verifyPluginPackageSignature(JSON.parse(readSnapshotFile(path,64 * 1024 * 1024).toString("utf8")));
-    const {manifest} = readKeptSandboxPackage(bundle.payload);
+    const {manifest} = readKeptPackage(bundle.payload);
     if (key_id !== keyId || manifest.plugin_id !== pluginId || manifest.version !== version)
       throw pluginErrors.signer_mismatch("留存发行包的身份与安装记录不符");
     return manifest;
@@ -89,8 +94,8 @@ export class SandboxPackageStore {
     const { bundle, key_id } = verifyPluginPackageSignature(raw);
     const { manifest } = bundle.payload;
     if (key_id !== keyId || manifest.plugin_id !== pluginId || manifest.version !== version) throw new Error('已存的插件包与安装记录对不上：' + pluginId + ' ' + version);
-    const pkg = readKeptSandboxPackage(bundle.payload);
-    if (!Buffer.from(readFileSync(join(directory, SANDBOX_PACKAGE_FILES.entrypoint))).equals(Buffer.from(pkg.entrypoint))) throw new Error('已存的插件代码被改过：' + pluginId + ' ' + version);
+    const pkg = readKeptPackage(bundle.payload);
+    if ('entrypoint' in pkg && !Buffer.from(readFileSync(join(directory, SANDBOX_PACKAGE_FILES.entrypoint))).equals(Buffer.from(pkg.entrypoint))) throw new Error('已存的插件代码被改过：' + pluginId + ' ' + version);
     return packagedRelease(pkg, directory, statSync(join(directory, BUNDLE_FILE)).mtime.toISOString());
   }
 }

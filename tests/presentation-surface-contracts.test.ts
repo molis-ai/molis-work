@@ -17,8 +17,8 @@ import { declarationManifest, manifestProblems } from "./fixtures/declaration-ma
 // the SDK's own. Proven here: SSC-06 (a wrong declaration is refused at install, saying which item), SSC-10 (the assistant's choice is held
 // to its candidates), SSC-13 (a stale value says when it was read, by schema and by the shared check), SSC-18 (the overview action's
 // schemas, its declared starts and the starts it returns), and the contract half of SSC-07 (a description holds references, never values).
-// What a person reads (`label`, `note`, a surface's words) is checked in shape only until batch 14's text tools are in. Left to D 轨 and
-// batch 14: SSC-14 (`renderPresentationForm`). Left to batch 15 S-1: SSC-07's determinism, SSC-08, SSC-09, SSC-11 and SSC-19 (SCS-01,
+// What a person reads (`label`, `note`, a surface's words) is checked in shape only until batch 14's text tools are in. Moved to batch 15
+// item 2: SSC-14 (`renderPresentationForm`). Left to batch 15 S-1: SSC-07's determinism, SSC-08, SSC-09, SSC-11 and SSC-19 (SCS-01,
 // SCS-03, SCS-05, SCS-07).
 const context = (audience: ActionCallContext["audience"]): ActionCallContext => ({ actor_id: `${audience}:someone`, project_id: "p", audience, permissions: [] });
 const code = (expected: string) => (error: unknown) => (error as ActionError).code === expected;
@@ -113,7 +113,7 @@ const noteObject = {
   status: { field: "state", map: { draft: { ring: "draft", attention: "needs_acceptance" }, published: { ring: "done" } } },
   forms: { chip: { fields: ["title"] }, row: { fields: ["title", "summary"] } },
   // `goals.attach@1` is another provider's: this Manifest cannot tell whether it exists, so it passes here and is checked against the whole directory by S-1.
-  actions: [{ ref: "notes.publish@1", primary: true, when: { status: ["draft"], slots: ["plugin-mount", "attention"] }, input_from: { note_id: "title" } }, { ref: "goals.attach@1" }],
+  actions: [{ ref: "notes.publish@1", primary: true, when: { status: ["draft"], slots: ["plugin-slot", "attention"] }, input_from: { note_id: "title" } }, { ref: "goals.attach@1" }],
   text: { lines: ["title", "state"] },
 };
 const ownStart = { capability_id: "notes.create", version: 1 };
@@ -231,18 +231,20 @@ const item = { subject: note, owner_plugin_id: "notes", form: "row", state: "ok"
   actions: [{ ref: "notes.publish@1", primary: true, prepared_input: { note_id: "id" }, consequence: ["external"] }, { ref: "open", primary: false }] };
 const description = (groups: unknown[]): SurfaceDescription => ({ composed_by: "rules", revision: "d1", corrections_revision: "0", groups } as SurfaceDescription);
 
-test("surfaces.compose@1: a plugin-mount names the plugin and its mount and no other place does; the first slice answers the person and plugins", async () => {
+test("surfaces.compose@1: a plugin-slot names the plugin and its slot and no other place does; the first slice answers the person and plugins", async () => {
   const { compose, correct } = surfaceCompositionActions;
   assert.deepEqual(inspectActionDeclarations([compose, correct], undefined), []);
   assert.deepEqual([compose.operation, compose.action.scheduling, compose.action.audiences, correct.operation, correct.action.audiences, correct.action.effect],
     ["query", "concurrent", ["user", "plugin"], "command", ["user"], "write"]);
   const service = serving(SURFACES_PROVIDER_ID, [compose], [answering(compose, () => description([]))]);
   const ask = (input: unknown, audience: ActionCallContext["audience"] = "user") => service.invoke(context(audience), reference(compose), input);
-  await ask(composeRequest({ kind: "plugin-mount", plugin_id: "goals", mount_id: "evidence" }));
+  await ask(composeRequest({ kind: "plugin-slot", plugin_id: "goals", slot_id: "goals.detail.evidence" }));
   await ask(composeRequest({ kind: "conversation" }), "plugin");
   await ask({ slot: { kind: "attention" }, task: "reviewing" });
   for (const [what, input] of [
-    ["a plugin-mount without its mount", composeRequest({ kind: "plugin-mount", plugin_id: "goals" })],
+    ["a plugin-slot without its slot", composeRequest({ kind: "plugin-slot", plugin_id: "goals" })],
+    ["the old name of the place", composeRequest({ kind: "plugin-mount", plugin_id: "goals", slot_id: "goals.detail.evidence" })],
+    ["the old name of the slot", composeRequest({ kind: "plugin-slot", plugin_id: "goals", mount_id: "goals.detail.evidence" })],
     ["a conversation naming a plugin", composeRequest({ kind: "conversation", plugin_id: "goals" })],
     ["an unknown place", composeRequest({ kind: "page" })],
     ["an unknown task", { slot: { kind: "home" }, task: "playing" }],

@@ -18,8 +18,11 @@ export const SURFACES_PROVIDER_ID = "system.surfaces";
 export const SURFACE_TASKS = ["writing", "reviewing", "finding", "handing-off", "discussing"] as const;
 export type SurfaceTask = (typeof SURFACE_TASKS)[number];
 
-/** A place. A `plugin-mount` names the plugin and its mount; no other kind takes either. `plugin_id` names where, never who asks. */
-export interface SurfaceSlot { kind: SurfaceSlotKind; plugin_id?: string; mount_id?: string }
+/**
+ * A place. A `plugin-slot` names the plugin and one of its contributions' slots (`UiSlotDescriptor.slot_id`, a slot with `accepts_forms`);
+ * no other kind takes either. `plugin_id` names where, never who asks.
+ */
+export interface SurfaceSlot { kind: SurfaceSlotKind; plugin_id?: string; slot_id?: string }
 export interface SurfaceRequest { slot: SurfaceSlot; subjects?: ActionSubject[]; task?: SurfaceTask }
 
 /**
@@ -103,9 +106,9 @@ export interface SurfaceCorrectionResult { corrections_revision: string }
 
 const text = (maxLength: number) => ({ type: "string", minLength: 1, maxLength } as const);
 const SLOT_SCHEMA = { type: "object", additionalProperties: false, required: ["kind"],
-  properties: { kind: { enum: SURFACE_SLOT_KINDS }, plugin_id: text(200), mount_id: text(PRESENTATION_LIMITS.field_key) },
-  if: { properties: { kind: { const: "plugin-mount" } } }, then: { required: ["plugin_id", "mount_id"] },
-  else: { not: { anyOf: [{ required: ["plugin_id"] }, { required: ["mount_id"] }] } } } as const;
+  properties: { kind: { enum: SURFACE_SLOT_KINDS }, plugin_id: text(200), slot_id: text(200) },
+  if: { properties: { kind: { const: "plugin-slot" } } }, then: { required: ["plugin_id", "slot_id"] },
+  else: { not: { anyOf: [{ required: ["plugin_id"] }, { required: ["slot_id"] }] } } } as const;
 const REQUEST_SCHEMA = { type: "object", additionalProperties: false, required: ["slot"], properties: { slot: SLOT_SCHEMA,
   subjects: { type: "array", items: ACTION_SUBJECT_SCHEMA, maxItems: PRESENTATION_LIMITS.values_subjects }, task: { enum: SURFACE_TASKS } } } as const;
 const ACTION_SCHEMA = { type: "object", additionalProperties: false, required: ["ref", "primary"], properties: { ref: text(PRESENTATION_LIMITS.action_ref), primary: { type: "boolean" },

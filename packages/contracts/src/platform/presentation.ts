@@ -29,8 +29,11 @@ export type FormKind = (typeof PRESENTATION_FORM_KINDS)[number];
 export const PRESENTATION_ATTENTION_STATES = ["needs_decision", "needs_acceptance", "failed", "partial", "stale"] as const;
 export type AttentionState = (typeof PRESENTATION_ATTENTION_STATES)[number];
 
-/** The places a composed surface is drawn (`services/surface-composition`), named here because an action's `when.slots` names them. */
-export const SURFACE_SLOT_KINDS = ["plugin-mount", "conversation", "discussion", "attention", "home", "shelf", "search", "side", "text"] as const;
+/**
+ * The places a composed surface is drawn (`services/surface-composition`), named here because an action's `when.slots` names them.
+ * `plugin-slot` is a slot a plugin's contribution opens with `accepts_forms` (`UiSlotDescriptor`, `platform/ui`).
+ */
+export const SURFACE_SLOT_KINDS = ["plugin-slot", "conversation", "discussion", "attention", "home", "shelf", "search", "side", "text"] as const;
 export type SurfaceSlotKind = (typeof SURFACE_SLOT_KINDS)[number];
 
 /** Upper bounds a declaration and the two actions are held to. A field key is also checked in code for its form (`[a-z][a-z0-9_]*`). */

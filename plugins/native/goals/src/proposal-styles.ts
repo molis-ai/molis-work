@@ -40,7 +40,6 @@ export const GOALS_PROPOSAL_STYLES = `  .goal-tree-proposal-summary { margin-top
   .goal-tree-proposal-summary > strong { font-size: 15px; }
   .goal-tree-proposal-summary > p { margin: 4px 0 0; color: var(--ink); overflow-wrap: anywhere; }
   .goal-tree-proposal-narrative { margin-top: 12px; padding: 12px; border: 1px solid var(--line); background: var(--surface); }
-  .goal-tree-proposal-narrative.is-missing { border-color: var(--amber); background: var(--amber-soft); }
   .goal-tree-proposal-narrative > h4 { margin: 0 0 8px; font-size: 13px; }
   .goal-tree-proposal-narrative > p { margin: 0; color: var(--ink); }
   .goal-tree-proposal-narrative dl, .goal-tree-proposal-item-explanation { margin: 0; display: grid; gap: 8px; }

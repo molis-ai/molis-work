@@ -10,6 +10,7 @@ import { ProcessItemsModule, createProcessItemReplication } from "@molis-ai/moli
 import { agentHostCapabilities as agent, type AgentStartRequest, type AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { writerDirectoryCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { CODING_PLAN_TYPE, codingManifest } from "@molis-ai/molis-work-plugin-coding";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 import { seedConfiguredModels } from "./fixtures/configured-models.js";
 
@@ -86,7 +87,10 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
       { appendEvent: event => database.appendEvent(event), eventCursor: id => database.eventCursor(id) });
     try {
       const bundle = replication(store).read(fixed.confirmed.artifact_id)!;
-      assert.equal(bundle.versions[0]!.schema_version, 1);
+      // What the confirmation really wrote is what the Manifest declares: the Host refuses any other pair (declared-types.ts).
+      const declared = codingManifest.process_items!.produces.find(type => type.artifact_type_id === bundle.versions[0]!.artifact_type_id);
+      assert.equal(bundle.versions[0]!.artifact_type_id, CODING_PLAN_TYPE);
+      assert.equal(bundle.versions[0]!.schema_version, declared?.schema_version);
       assert.deepEqual(bundle.versions[0]!.payload, fixed);
       assert.equal(JSON.stringify(bundle).includes(home), false, "the owner's fixed bytes contain no original directory");
       replication(targetStore).apply(bundle);

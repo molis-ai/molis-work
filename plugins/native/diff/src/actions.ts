@@ -1,6 +1,6 @@
 import type { ActionCallContext, ActionDefinition, ActionHandlerBinding, ActionLocale } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { DIFF_CHANGESET_TYPE, CODING_CHANGESET_TYPE, parseCodingChangeSet, type TextDiff } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { DIFF_CHANGESET_SCHEMA_VERSION, DIFF_CHANGESET_TYPE, CODING_CHANGESET_TYPE, parseCodingChangeSet, type TextDiff } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { compareSnapshots, compareChangeSet, compareRunChangeSet, emptyDiff, type DiffView } from "./comparison.js";
 import { objectSchema as object, compareTexts } from "@molis-ai/molis-work-plugin-sdk";
 import { diffViewText, renderDiff, type DiffViewText } from "@molis-ai/molis-work-plugin-sdk/diff-view";
@@ -62,7 +62,7 @@ function readState(context: PluginStartContext, input: DiffStateInput): DiffView
   if (input.reference) {
     try {
       const record = context.services?.artifacts?.read(input.reference);
-      if (!record || ![DIFF_CHANGESET_TYPE, CODING_CHANGESET_TYPE].includes(record.artifact_type_id) || record.schema_version !== (record.artifact_type_id === DIFF_CHANGESET_TYPE ? /* @version format.contracts.diff_changeset_schema */ 1 : /* @version type.coding.changeset */ 1)
+      if (!record || ![DIFF_CHANGESET_TYPE, CODING_CHANGESET_TYPE].includes(record.artifact_type_id) || record.schema_version !== (record.artifact_type_id === DIFF_CHANGESET_TYPE ? DIFF_CHANGESET_SCHEMA_VERSION : /* @version type.coding.changeset */ 1)
         || record.availability !== "available" || record.lifecycle_state !== "active") throw diffErrors.invalid("固定差异不可用");
       if (record.artifact_type_id === CODING_CHANGESET_TYPE) return compareRunChangeSet({ content: parseCodingChangeSet(record.payload),
         source_plugin_id: record.producer_plugin_id, content_version: record.version }, undefined, input.change_index ?? 0);

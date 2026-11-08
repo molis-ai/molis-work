@@ -84,7 +84,7 @@ pnpm install:local
 4. 关闭并新建一个 Runtime Session，确认它加载了当前 Release 的工具声明和 Skill；旧 Session 不能作为新版本验收证据。
 5. 最后使用真实项目和代表性数据检查用户可见结果。源码、自动化测试、包内字符串、版本号和页面 HTML 只能分别证明对应层，不能代替最终 App 的计算后样式与完整旅程。
 
-如果旧 Session 随后报告 catalog schema 高于当前 reader 支持范围，这表示运行中的 MCP 已过期，不表示数据库损坏。不要回滚 `catalog.db`，也不要用 SQLite、CLI 或 Web 绕过写入。新建或 Fork Session 后，先确认消息确实落在新任务，再只读解析当前 Molis Work 项目；解析成功后才继续写入。宿主显示“已导航”不等于下一条消息一定进入了新任务。
+如果旧 Session 随后报告 catalog schema 高于当前 reader 支持范围，这表示运行中的 MCP 已过期，不表示数据库损坏。不要回滚 `catalog.db`，也不要用 SQLite、CLI 或 Web 绕过写入。把 Molis Work 升级到能读它的版本；已经升级过的，重启常驻服务并新开一个 Session。之后先确认消息确实落在新任务，再只读解析当前 Molis Work 项目；解析成功后才继续写入。宿主显示“已导航”不等于下一条消息一定进入了新任务。
 
 ## 演示数据
 

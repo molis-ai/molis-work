@@ -1,4 +1,4 @@
-import { messageOf } from "./dom.js";
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import type { LingguangPage, Spark } from "./types.js";
 
 type Detail = { from?: { kind?: string; id?: string }; to?: { kind?: string }; mode?: string };

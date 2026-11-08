@@ -2822,8 +2822,6 @@ Object.assign(EN, {
   "预期效果": "Expected effect",
   "本次不改变": "What this change does not alter",
   "没有额外非目标": "No additional non-goals",
-  "这份历史方案缺少整体验证说明": "This historical proposal lacks a whole-change explanation",
-  "它创建于语义摘要成为大型提案必填项之前。请先让 Runtime 补充原问题、变更后的主链路、预期效果和非目标，再决定是否采用。": "It predates the required semantic summary for large proposals. Ask the Runtime to add the original problem, new main path, expected effect, and non-goals before deciding.",
   "主要解决": "Problem addressed",
   "会改变什么": "What changes",
   "明确不改变": "What stays unchanged",

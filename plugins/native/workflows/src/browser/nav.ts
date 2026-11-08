@@ -1,4 +1,5 @@
-import { esc, required } from "./dom.js";
+import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { required } from "./dom.js";
 import { drawFlow } from "./flow.js";
 import { drawList } from "./list.js";
 import type { WorkflowsPage } from "./page.js";

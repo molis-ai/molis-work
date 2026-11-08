@@ -3,7 +3,7 @@ import type { AgentDocumentCapability, AgentTextMaterial } from "@molis-ai/molis
 import { isSubjectReader, type ActionSubjectContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AssistantDelegations } from "./assistant-delegation.js";
 import type { AssistantMethod, AssistantContextSnapshot, AssistantMaterial, AssistantMaterialText } from "@molis-ai/molis-work-contracts/services/assistant";
-import { ASSISTANT_RULES_PROVIDER } from "./assistant-rule-actions.js";
+import { ASSISTANT_METHOD_ACTIONS } from "./assistant-rule-actions.js";
 import { capabilityDirectory, knowledgeDirectory, knowledgeFact } from "./assistant-directory.js";
 import { identity } from "./assistant-relations.js";
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
@@ -140,7 +140,7 @@ export class AssistantRoundMaterials {
       listed.push(method);
     }
     if (listed.length) out.push({ material_id: "methods", title: "可用角色资料与方法", text:
-      `按需读取资料：read-capability 的 capability_id 为 assistant.methods.read，version 为 2，provider_id 为 ${ASSISTANT_RULES_PROVIDER}。input 是对象，例如 {"method_id":"owner/method","version":1}；签名条目必须附目录中的完整 default_ref 和 installation。\n` +
+      `按需读取资料：read-capability 的 capability_id 为 ${ASSISTANT_METHOD_ACTIONS.read.capability_id}，version 为 ${ASSISTANT_METHOD_ACTIONS.read.version}，provider_id 为 ${ASSISTANT_METHOD_ACTIONS.read.provider_id}。input 是对象，例如 {"method_id":"owner/method","version":1}；签名条目必须附目录中的完整 default_ref 和 installation。\n` +
       SIGNED_MATERIAL_NOTICE + "\n" + JSON.stringify(listed) });
     // The object the person is on, as its owner has it: where it stands and what it belongs to. The page's claim is
     // only a pointer; this is read again from the owner, so a work started in the plugin continues with its background.

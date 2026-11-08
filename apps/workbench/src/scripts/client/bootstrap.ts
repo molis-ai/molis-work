@@ -1,5 +1,8 @@
 import { PANE_MESSAGES_SCRIPT } from "./pane-messages.js";
 
+/** Page-local state: a saved directory from another version is not restored, and the page opens at the root. */
+const DESKTOP_NAVIGATION_STATE = /* @version format.workbench.navigation-state */ 1;
+
 /**
  * AP3 Workbench client segment: bootstrap.
  *
@@ -50,7 +53,7 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
         ? goalUiStorageKey + ":archive"
         : currentGoalUiStorageKey;
     const goalMoveReceiptKey = "molis-work-goal-move-receipt:" + (state.project?.project_id || state.snapshot.board.project_id);
-    const desktopNavigationStateVersion = 4;
+    const desktopNavigationStateVersion = ${DESKTOP_NAVIGATION_STATE};
     let immersiveNavigation = null;
     let frameContainer = null;
     let tabWorkspace = null;

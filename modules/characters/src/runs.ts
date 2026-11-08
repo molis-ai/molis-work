@@ -22,7 +22,7 @@ export interface CharacterRunStart {
   character_id: string; task: string; workspace_id: string; runtime_id: string; bundle_path: string;
 }
 
-/** The native runs Characters keeps for one person in one project (`character_runs`, store version 2). */
+/** The native runs Characters keeps for one person in one project (`character_runs`). */
 export interface CharacterRuns {
   /** This person's runs of a Character in this project, newest first. */
   list(characterId: string): CharacterNativeRun[];

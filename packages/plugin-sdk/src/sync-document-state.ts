@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { SyncEvent, SyncMutation } from '@molis-ai/molis-work-contracts/platform/sync-transport';
+import { compareCodeUnits } from './json-value.js';
 import { syncError } from './sync-errors.js';
 
 export interface DocumentConflict { event: SyncEvent; reason: string; waiting: boolean }
@@ -12,6 +13,10 @@ export interface DocumentState<T> {
   conflicts: DocumentConflict[];
   history: DocumentRecovery[];
 }
+/**
+ * Refuses what is not complete JSON while it sorts, reading each field once. Not `canonicalJsonText`: a document can hold
+ * integer-shaped keys, and the conflict state digests this text, so its order stays what these bytes have always been.
+ */
 export function canonicalDocumentValue(value: unknown): string {
   const ancestors = new Set<object>(); let count = 0;
   const sort = (input: unknown, depth = 0): unknown => {
@@ -22,7 +27,7 @@ export function canonicalDocumentValue(value: unknown): string {
       || (!Array.isArray(input) && ![Object.prototype, null].includes(Object.getPrototypeOf(input)))) throw syncError('invalid', '同步内容须为完整 JSON 值');
     ancestors.add(input);
     const result: unknown = Array.isArray(input) ? Array.from(input, item => sort(item, depth + 1))
-      : Object.fromEntries(Object.entries(input).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0).map(([key, item]) => [key, sort(item, depth + 1)]));
+      : Object.fromEntries(Object.entries(input).sort(([a], [b]) => compareCodeUnits(a, b)).map(([key, item]) => [key, sort(item, depth + 1)]));
     ancestors.delete(input); return result;
   };
   const encoded = JSON.stringify(sort(value));

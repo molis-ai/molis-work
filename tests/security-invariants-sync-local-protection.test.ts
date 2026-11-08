@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { DatabaseSync } from 'node:sqlite';
 import type { SyncLocalProtection } from '@molis-ai/molis-work-contracts/platform/sync-transport';
-import { createSqliteReplica, initializeReplica, queueReplicaChange, replicaSchemaSql, createLazyFileSecretStore, createLocalPayloadProtection } from '@molis-ai/molis-work-storage';
+import { createSearchAead, createSqliteReplica, initializeReplica, queueReplicaChange, replicaSchemaSql, createLazyFileSecretStore, createLocalPayloadProtection } from '@molis-ai/molis-work-storage';
 import { createSyncConflictState } from '@molis-ai/molis-work-plugin-sdk';
 
 // A real AEAD provider exercises the technical port. This fixture is not product key management.
@@ -25,6 +25,28 @@ function protection(key: Uint8Array, afterSeal = () => {}): SyncLocalProtection 
     },
   };
 }
+
+// What is on disk already: the format's prefix written out by hand, so a change to the prefix cannot agree with itself.
+function storedBy(prefix: string, key: Uint8Array, aad: Uint8Array, text: string): string {
+  const iv = randomBytes(12), cipher = createCipheriv('aes-256-gcm', key, iv);
+  cipher.setAAD(aad);
+  const encrypted = Buffer.concat([cipher.update(text, 'utf8'), cipher.final()]);
+  return [prefix, iv.toString('base64url'), cipher.getAuthTag().toString('base64url'), encrypted.toString('base64url')].join('.');
+}
+
+test('VG-21 both sealed formats keep the prefix they always had, and what they sealed before still opens', async t => {
+  const root = mkdtempSync(join(tmpdir(), 'sealed-prefixes-'));t.after(() => rmSync(root, {recursive:true,force:true}));
+  const secrets = createLazyFileSecretStore(root), keyRef = 'system:test:sealed-prefixes', scope = 'alice:work:history', binding = 'asset';
+  const local = createLocalPayloadProtection({ secrets, keyRef, scope, authorize() {}, hasProtectedData: () => false });
+  const prefix = 'molis-work-local-payload-v1';
+  assert.ok(Buffer.from(local.seal(Buffer.from('正文'), binding)).toString('utf8').startsWith(`${prefix}.`));
+  const localKey = Buffer.from(secrets.get(keyRef)!, 'base64'), localAad = Buffer.from(JSON.stringify([prefix, scope, binding]), 'utf8');
+  assert.equal(Buffer.from(local.open(Buffer.from(storedBy(prefix, localKey, localAad, '存量正文')), binding)).toString('utf8'), '存量正文');
+
+  const search = createSearchAead(), key = randomBytes(32), aad = Buffer.from('search-entry');
+  assert.ok((await search.seal({ key, aad, plaintext: Buffer.from('搜索') })).startsWith('molis-work-feed-aead-v1.'));
+  assert.equal(Buffer.from(await search.open({ key, aad, encrypted: storedBy('molis-work-feed-aead-v1', key, aad, '存量搜索') })).toString('utf8'), '存量搜索');
+});
 
 test('S-109 PCSYNC-23 protected outbox, conflicts and recovery bodies round-trip without persisting plaintext', t => {
   const root = mkdtempSync(join(tmpdir(), 'protected-replica-'));t.after(() => rmSync(root, {recursive:true,force:true}));

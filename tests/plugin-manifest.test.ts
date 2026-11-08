@@ -104,7 +104,7 @@ function rejects(mutate: (manifest: Record<string, unknown>) => void, needle: st
   );
 }
 
-test("v2 Manifest keeps author declarations for ports, events, views, routes and agent", () => {
+test("a Manifest keeps author declarations for ports, events, views, routes and agent", () => {
   const input = currentManifest();
   assert.deepEqual(parsePluginManifest(input), input);
 });
@@ -243,7 +243,7 @@ test("ports must agree with the Artifact permissions and declarations they rely 
   }, "没有列入 artifacts.consumes");
 });
 
-test("embedded plugin dependencies are explicit v2 IDs, not implicit grants or self links", () => {
+test("embedded plugin dependencies are explicit IDs, not implicit grants or self links", () => {
   const input = currentManifest();
   const ui = input.ui as Record<string, unknown>;
   ui.embedded_plugins = ["io.molis.work.example.reader"];

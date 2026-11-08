@@ -804,7 +804,7 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.match(desktop, /molis-work-tab-workspace:/);
     assert.doesNotMatch(desktop, /molis-work-work-tabs:|goalboard-work-tabs:/);
     assert.doesNotMatch(desktop, /goalUiStorageKey \+ ":inbox"/, "the Goal-era decisions page, which had its own saved state, is gone");
-    assert.match(CLIENT_SCRIPT, /const desktopNavigationStateVersion = 4/);
+    assert.match(CLIENT_SCRIPT, /const desktopNavigationStateVersion = 1/);
     assert.match(CLIENT_SCRIPT, /navigationVersion: desktopNavigationStateVersion/);
     assert.match(CLIENT_SCRIPT, /const setDesktopWorkSurface = \(surface, persist = true, restoreScroll = true, intent = "open"\) =>/);
     assert.match(CLIENT_SCRIPT, /surfaceScroll: \{ \.\.\.desktopSurfaceScroll, \[activeDesktopSurface\]:/);

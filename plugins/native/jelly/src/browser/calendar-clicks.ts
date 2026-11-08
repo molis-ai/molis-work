@@ -6,7 +6,8 @@ import { flushEditor, openRecord } from "./notes.js";
 import { run, showNote } from "./page.js";
 import { renderView } from "./view.js";
 import { command } from "./workspace.js";
-import { addDays, civil, esc, mondayIndex } from "./util.js";
+import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { addDays, civil, mondayIndex } from "./util.js";
 import type { JellyPage, RelationRole, ReviewTab, Scope } from "./types.js";
 
 type Click = (page: JellyPage, target: HTMLElement) => void;

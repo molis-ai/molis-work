@@ -1,6 +1,6 @@
 import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 
-export const ARTIFACT_REFERENCE_UI_CONTRIBUTION_ID = /* @version contract.io.molis.work.native.artifacts.reference "io.molis.work.native.artifacts.reference.v{version}" */ "io.molis.work.native.artifacts.reference.v1";
+export const ARTIFACT_REFERENCE_UI_CONTRIBUTION_ID = "io.molis.work.native.artifacts.reference.v1";
 
 export interface ArtifactReferenceUiPrimitives {
   escape(value: string): string;

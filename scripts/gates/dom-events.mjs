@@ -35,10 +35,11 @@
 //   node scripts/gates/dom-events.mjs [--root <dir>]             check the working tree (what `pnpm health:check` runs)
 //   node scripts/gates/dom-events.mjs --report [--json] [--root <dir>]
 import { execFileSync } from "node:child_process";
-import { readFileSync, realpathSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
+import { isMainScript } from "../script-paths.mjs";
 import vm from "node:vm";
 
 const ts = createRequire(fileURLToPath(import.meta.url))("typescript");
@@ -356,7 +357,7 @@ const workingTree = (root) => ({
   read: (file) => { try { return readFileSync(path.join(root, file), "utf8"); } catch { return null; } },
 });
 
-if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(path.resolve(process.argv[1]))).href) {
+if (isMainScript(import.meta.url)) {
   const USAGE = "usage: dom-events.mjs [--report [--json]] [--root <dir>]";
   const args = process.argv.slice(2);
   let root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");

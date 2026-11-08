@@ -40,7 +40,7 @@ export const gitOperationRecord = object({ operation_id: id, review_id: id, tool
 /** A settled stage or unstage with its Host review (`GitReviewedResult`). */
 export const gitReviewedResult = object({ workspace_id: id, operation_id: id, outcome: { enum: ["succeeded", "failed", "denied", "cancelled", "expired", "reconcile", "conflict"] }, summary: text,
   review: object({ review_id: id, action: { enum: ["stage", "unstage"] }, paths: { type: "array", items: text }, requested_at: text,
-    decided_by: nullable(text), decided_at: nullable(text), failure_reason: text, reconciliation_reason: text,
+    decided_by: nullable(text), decided_at: nullable(text), failure_reason: text,
     reconciliation: object({ actor_id: id, at: text, reason: text }) }, ["review_id", "action", "paths", "requested_at", "decided_by", "decided_at"]) });
 // Parallel writers' wire shapes (PG-035): the Host actions Coding calls for a writer's own worktree and to bring a child's result back.
 /** A writer's directory under the main workspace (`PreparedWriterDirectory`). */

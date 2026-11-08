@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
+import { SCHEDULER_SCHEMA_SQL } from "@molis-ai/molis-work-service-scheduler";
 
 import * as attentionContracts from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import * as feedContracts from "@molis-ai/molis-work-plugin-feed/contract";
@@ -383,6 +384,7 @@ test("what is not the scheduler's refusal passes the wrapper untouched: another 
 
 test("with the real scheduler: a toggle of a job that is gone is schedule.job_not_found, a refusal of the scheduler's own registration is schedule.job_invalid, a live job still toggles", async () => {
   const db = openTestSqlite(":memory:");
+  db.exec(SCHEDULER_SCHEMA_SQL);
   const installation = wakeupInstallation(SCHEDULE_PLUGIN);
   installation.action("test.wakeup", async () => {});
   const schedule = installation.scheduler(db, { now: () => new Date(CLOCK) });
@@ -421,6 +423,7 @@ test("with the real scheduler: a toggle of a job that is gone is schedule.job_no
 
 test("with the real reminder and timed-operation services: the caller's mistakes are schedule.job_invalid, an identity they cannot take is actions.forbidden, a good call still works", async () => {
   const db = openTestSqlite(":memory:");
+  db.exec(SCHEDULER_SCHEMA_SQL);
   db.exec(schedulePlugin.SCHEDULE_PROJECT_DATABASE.schema);
   const installation = wakeupInstallation(schedulePlugin.SCHEDULE_PLUGIN_ID);
   installation.action(schedulePlugin.SCHEDULE_REMINDER_WAKEUP, async () => {});

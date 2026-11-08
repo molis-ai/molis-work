@@ -1,3 +1,4 @@
+import { baselineToken } from "../baseline.js";
 import { WORKBENCH, SHELL, ASSIST, RAIL_LINK, PAGES } from "./craft-finish-selectors.js";
 
 /** The finish layer, first part: tokens, the desk and sheet, titlebar tabs, the plugin rail and the bottom bar down to the switcher and the work tabs. */
@@ -5,28 +6,28 @@ export const CRAFT_BAR_STYLES = `
   /* ─── Tokens ─── */
   :root,
   ${PAGES} {
-    --r-tag: 6px; --r-row: 10px; --r-control: 8px; --r-card: 12px; --r-sheet: 14px; --r-dialog: 16px; --r-composer: 15px;
-    --sheet-inset: 14px;
+    ${baselineToken(["r-tag", "r-row", "r-control", "r-card", "r-sheet", "r-dialog", "r-composer"])}
+    ${baselineToken("sheet-inset")}
     --desk: var(--page);
-    --ease-quint: cubic-bezier(.22, 1, .36, 1);
-    --ease-spring: cubic-bezier(.2, 1.35, .4, 1);
-    --ease-swift: var(--ease-quint);
-    --dur-press: 130ms; --dur-hover: 130ms; --dur-move: 250ms; --dur-arrive: 420ms; --dur-moment: 640ms; --code-tab: 4;
+    ${baselineToken("ease-quint")}
+    ${baselineToken("ease-spring")}
+    ${baselineToken("ease-swift")}
+    ${baselineToken(["dur-press", "dur-hover", "dur-move", "dur-arrive", "dur-moment", "code-tab"])}
     /* Depth steps: a small raised piece (current tab, segment thumb, Dock item), a raised surface
        (the composer, an inner sheet), and the one floating layer (menus, dialogs, toasts). */
     --lift-1: var(--shadow-soft);
     --lift-2: var(--shadow-raised);
     --lift-3: var(--shadow);
-    --sheet-shadow: var(--surface-shadow);
-    --press-shade: color-mix(in srgb, var(--ink) 5%, transparent);
-    --tip-bg: var(--action); --tip-ink: var(--action-ink);
-    --celebrate-a: var(--hue-green-fill, #4cb782);
-    --celebrate-b: var(--accent, #3c6e98);
-    --celebrate-c: var(--hue-yellow-fill, #e2b203);
+    ${baselineToken("sheet-shadow")}
+    ${baselineToken("press-shade")}
+    ${baselineToken(["tip-bg", "tip-ink"])}
+    ${baselineToken("celebrate-a")}
+    ${baselineToken("celebrate-b")}
+    ${baselineToken("celebrate-c")}
   }
   html[data-resolved-theme="dark"],
   html[data-resolved-theme="dark"] ${PAGES} {
-    --press-shade: color-mix(in srgb, var(--ink) 7%, transparent);
+    ${baselineToken("press-shade", "dark")}
   }
 
   /* ─── Browser defaults: no system blue, purple or yellow anywhere (zero specificity, so any real rule wins) ─── */

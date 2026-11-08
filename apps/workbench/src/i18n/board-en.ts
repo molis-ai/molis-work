@@ -1,4 +1,4 @@
-import { COMPOSER_BOARD_EN, KEEP_EDITS_BOARD_EN } from "@molis-ai/molis-work-design-system";
+import { COMPOSER_BOARD_EN, KEEP_EDITS_BOARD_EN, LOOK_BOARD_EN } from "@molis-ai/molis-work-design-system";
 
 /**
  * English for the component board's conditions section and its frame (apps/workbench/src/condition-*.ts, specs/visual-ui-experience
@@ -7,6 +7,7 @@ import { COMPOSER_BOARD_EN, KEEP_EDITS_BOARD_EN } from "@molis-ai/molis-work-des
 export const BOARD_EN: Record<string, string> = {
   ...COMPOSER_BOARD_EN,
   ...KEEP_EDITS_BOARD_EN,
+  ...LOOK_BOARD_EN,
   "条件与状态": "Conditions and states",
   "正文语言": "Body language",
   "混排": "Mixed",
@@ -182,6 +183,10 @@ export const BOARD_EN: Record<string, string> = {
   "1 张": "1 tab",
   "找标签": "Find a tab",
   "全部标签": "All tabs",
+  "已固定": "Pinned",
+  "这一条已经不在了": "This one is no longer here",
+  "可能已被删除，或移到了别的项目。标签先留着，关掉它不影响别的。": "It may have been deleted or moved to another project. The tab stays so you remember it; closing it changes nothing else.",
+  "回到 {plugin} 列表": "Back to the {plugin} list",
   "在旁边打开": "Open beside",
   "没能启动": "Didn't start",
   "找插件，或刚关掉的标签": "Find a plugin, or a tab you just closed",

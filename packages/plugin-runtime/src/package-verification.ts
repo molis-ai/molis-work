@@ -2,6 +2,7 @@ import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createHash, createPublicKey, type KeyObject, verify } from "node:crypto";
 import { canonicalJsonText, isRecord, parsePluginPackageManifest } from "@molis-ai/molis-work-plugin-sdk";
 import type { PluginPackageBundle, PluginPackagePayload, PluginPackageSigner } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { pluginLocaleFilePaths } from "./locale-packs.js";
 
 
 
@@ -51,6 +52,8 @@ export function parsePluginPackage(input: unknown): PluginPackageBundle {
     assertPluginPackagePath(path);
     if (!paths.has(path)) invalid("包内缺少 Manifest 声明的入口");
   }
+  // Only that they are there: this runs on every read of a package, and a language's file is parsed the first time it is used (`locale-packs.ts`).
+  for (const path of pluginLocaleFilePaths(manifest)) if (!paths.has(path)) invalid(`包内缺少 Manifest 声明的语言文件 ${path}`);
   const manifestFile = files.find(file => file.path === "manifest.json");
   if (!manifestFile) invalid("包内缺少 manifest.json");
   let fileManifest: unknown;

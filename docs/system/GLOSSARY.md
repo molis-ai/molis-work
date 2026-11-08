@@ -51,8 +51,18 @@
 | 宿主事件 | 宿主自己发出、插件按 Manifest 声明订阅的事件（X-6），`host.` 前缀；投递方式由类型表固定：定向的只投给事件上记着的那个安装，广播的投给持有登记权限的每个订阅安装；即时、不落库、不重投，订阅不写来源插件（S-54） | 无（用户看不见） | 插件事件（指它时；插件事件由运行中的插件发、落项目库）、领域事件（X-6 的另一种来源，还没有订阅口） |
 | 插件的名字 | `project_plugin_id`、`manifest.plugin_id`、`manifest.name`、界面显示名、目录与包名，五样各有用处 | 显示名中英文混用 | 见第 3 节 |
 | 翻译键 | 界面文字在词典里的稳定标识，标识概念和位置，不含措辞；措辞是词典的值 | 无（用户看不见） | 中文原文当键（现状，将被取代，见 2.7） |
+| 文字主人 | 一句界面文字归谁：插件的 `plugin_id`，或平台主人的名字（今天只有 `workbench`）；每个主人一张词表，不合成一张 | 无（用户看不见） | 词典所有者；把 `common.*` 当作谁都能写的词（它归 `workbench`） |
+| 语言文件 | 一个文字主人一种语言的一份词表，`locales/<语言>.json`：插件在 Manifest 的 `ui.locales` 声明，平台主人在资源登记表登记语言目录（第 14 批起；工作台、宿主和内置插件第 16 批起才用） | 无 | `*_EN` 词典、`ui.messages`（第 16 批前的写法）、合成总表 `EN` |
+| 文字引用（`TextRef`） | 存下来以后才显示的一句话：键加参数，或用户的原文（`literal`），不存译好的句子；平台绑上主人后叫 `OwnedTextRef`（`@molis-ai/molis-work-contracts/platform/ui`） | 无 | 存译文、存已格式化的日期和数字 |
+| 文字上下文 | 进程里装一次的「现在用哪种语言、去哪查词」，SDK 的 `t`、`say`、`format` 每次读它；由宿主装（`apps/local-host/src/ui-text-provider.ts`），测试用 `installTextForTest` | 无 | — |
+| 语言读取器 | 一个文字主人的语言文件在运行时的读口：哪种语言第一次用到才读那个文件，坏文件不抛（`pluginLocaleReader`，`packages/plugin-runtime/src/locale-packs.ts`） | 无 | — |
+| 基线文件 | `packages/design-system/resources/` 下的共同规格（`ui-spec.json`，有哪些令牌角色、哪些锁定）、基线皮肤（Soft Workbench）和基线字体方案；令牌的值只在这里 | 无 | 把 `palette.ts` 当来源（它只把值写成 CSS） |
+| 皮肤 | 一整套颜色、阴影、圆角、动效的值文件（`skins/<id>.json`），今天只有基线 Soft Workbench | 组件板上两种意思并存：旧的「皮肤」开关切 Tray、Pill；选外观的标本里「皮肤」已是这个意思 | DESIGN「Skins」里的 Tray、Pill：在基线上只换圆角和控件高度的差量，第 16 批删；第 16 批起「皮肤」只指值文件 |
+| 字体方案 | 一套字族、字重、字距与离线字体的描述（`fonts/<id>.json`）；皮肤推荐一个 | 字体 | 字体栈（那是方案算出来的一个值） |
+| 展示快照 | 一页用的规格、皮肤、字体、语言的身份与问题，不带令牌值和译文（`UiEnvironmentSnapshot`，`resolveUiEnvironment` 算）；第 16 批进首屏 | 无 | — |
 | 成果（Artifact） | 人要留存、引用的固定版本与导入文件，存在成果库；类型在 Manifest 的 `artifacts.produces` 声明 | 成果 | 交给别的插件接着用的数据不是成果，叫过程项 |
 | 过程项（process item） | 交给别的插件接着用的数据，在 Manifest 的 `process_items.produces` 声明；不进成果库、侧栏文件和搜索 | 界面里没有单独的词 | 不要叫成果 |
+| 只有声明的插件（content） | Manifest 写 `kind: "content"` 的插件：只有身份与展示、`methods`（技能）、`requires`、`upgrade_compatibility`、双语文字和范围（`runtime: { scope: "home" }`）；入口、权限、能力、成果类型、界面贡献都是空列表，其余键一出现就由 SDK 的 `inspectContentPlugin` 点名拒绝（`plugin.declaration_invalid`）。只从签名的内容包（`CONTENT_PACKAGE_FILES`）安装，不起进程、不挂路由、不进 MCP 工具表；技能包是它，第 20 批的场景套组也用它（`specs/skill-packs/contract-design.md` 第 3 节）。不是场景包建议（第 20 批 `BlueprintProposal`）里的 `content` | 还没有界面；文档与将来的界面都叫「只有声明的插件」 | 内容插件；技能包（只指带技能的那种）；内容包（指它的安装包，不指插件）；`pack.json`、`SkillPackRegistry`（2026-10-19 删掉的第二条安装路） |
 | 发布者签名 | 插件包由谁发布的签名；它只决定安装信任：要不要首次确认、跑不跑沙箱、动作提供方身份。官方、个人、创作台生成和第三方插件在别处待遇一样 | 界面里没有单独的词 | 官方插件、第三方插件（不是待遇上的分类） |
 | 归属角色 | SSOT 各表「归属」列的角色词，由 `scripts/package-owners.mjs` 的 `ROLE_BY_KIND` 按包的类别生成：应用、平台包、Module、横向服务、内置插件、官方集成、工具；`packages/contracts`、`packages/kernel`、`packages/plugin-sdk`、`apps/local-host`、`apps/workbench`、`horizontal/agent-host` 另记「共享核心」。评审人写在 `.github/CODEOWNERS`，同一个脚本生成，`pnpm boundary:check` 校验 | 界面里没有 | — |
 | 组件板 | 设计系统的组件与状态标本页，本地宿主的 `/__ui/catalog`（`pnpm web` 起宿主，默认 `http://127.0.0.1:4173`）；不是 Goals 的看板 | 规格板、控件板混用 | 规格板、控件板、component board |
@@ -223,6 +233,7 @@
 - **工具**必须加限定：MCP 工具（动作的呈现）、Agent 工具（内置 Agent 一轮里的工具，如 `ask-user`、`find-capabilities`）、执行工具（界面「AI 与执行工具」页里的外部 Runtime）。
 - **后台作业**必须加限定：已受理的后台执行（`services.background.start`，一次声明了 `background_job` 的命令受理后继续做完，随那次调用的授权，撤权就停，S-18）；随激活作业（`services.background.keep`，随插件这次激活存活，属于安装，S-52）。
 - **事件**必须加限定：插件事件（运行中的插件经 `services.events.publish` 发，落项目库、按订阅者续投）；宿主事件（宿主自己发，如定向的 `host.review.settled@1`、广播的 `host.workspace.changed@1`，只投给收件安装、不落库，S-54）；领域事件（构建期插件与 Module 写进项目库事件流的事件，X-6 的另一种来源，还没有订阅口）；页面里的 DOM 事件（`CustomEvent`，登记在 `packages/contracts/src/platform/dom-events.ts`）。
+- **角色**在外观里另有两个意思：令牌角色（共同规格里的一个令牌，如 `ink`、`r-card`）和字体角色（`body`、`control`、`title`、`display`、`code` 这类用途）。它们是 `ui-spec.json` 的字段，和 Character、Agent role 无关；文档写全「令牌角色」「字体角色」，不裸写「角色」。
 - **Function**：在代码里同时指判断规则（`modules/judgment-rules`）和工作流程的模板转换（衔接类型 `function`）；文档写判断规则或模板转换。
 
 ### 2.6 讨论（项目讨论）
@@ -235,10 +246,11 @@
 ### 2.7 术语与翻译键
 
 - 现状：翻译键就是中文原文。`apps/workbench/src/i18n/en.ts` 的 `EN: Record<string, string>` 由工作台和各插件的词典展开合成，条目形如 `"连接不可用": "Connection unavailable"`。所以改一个界面用词要同时改源码里的文字和每份词典的键，同一句中文在不同词典里还可以有不同的英文，例如「判断规则」在 `apps/workbench/src/judgment-rules/en.ts:148` 是 Judgment rules，在 `plugins/native/lingguang/src/en.ts:47` 是 Rules，在 `plugins/native/workflows/src/en.ts:151` 是 Judgment rule。
+- 第 14 批起：新的一套已落地，但只在 `molis-work plugin dev` 跑的插件和组件板上用（文字主人、语言文件、`t`，见速查和 `skills/molis-plugin-dev/text-and-appearance.md`）；工作台、宿主和内置插件第 16 批一起换，在那之前照旧是上面的中文键加 `*_EN` 词典，以及 `ui.messages` 的稳定键。
 - 决定（2026-10-08，`specs/archive/repository-anti-corruption/spec.md` §1「界面翻译」，用户没有选推荐）：全部换成稳定键，词典按主人分，CI 查缺失、无用与冲突；路线第 5 波的「翻译按主人分」改成「稳定键」，先做一个插件样板（W5-03）。
 - 术语怎样对应键（规则；样板落地时按实际调整，调整在同一个 PR 里改本节）：
   1. 键标识概念和位置，不含措辞；中文和英文措辞都是词典的值。所以第 4 节的界面用词获批后只改词典的值，键、代码标识符和文档都不动；不获批就保持现值。英文值跟中文值同一批审批，例如「能力」今天译作 Capabilities（`apps/workbench/src/i18n/gap-en.ts:109`）。
-  2. 键用英文小写加点分层，形如 `<主人>.<位置>.<元素>`：主人是 `project_plugin_id`（第 3 节）或宿主区域（如 `settings`、`shell`）。键里指本表概念的那一段，用下表「键里的词」；旧称不进新键。示例（不是现存的键）：`judgment_rule.editor.step.scene`。
+  2. 键用英文小写加点分层，形如 `<主人>.<位置>.<元素>`：主人是插件 `plugin_id` 的最后一段，或平台主人（`workbench`）；`settings`、`shell` 这类宿主区域写成 `workbench` 的第二段（`workbench.settings.*`），不另设主人。第一段只用小写字母、数字和连字符，所以下表「键里的词」用在第二段起。键里指本表概念的那一段，用下表「键里的词」；旧称不进新键。示例（不是现存的键）：`workbench.judgment_rule.editor.scene`。
   3. 下表的词与第 5 节 R-A 的新标识符同源，代码改名完成后键里的词与标识符一致。
   4. 同一个键在合并后的全部词典里只能有一个值（现在中文键下的冲突，如上面「判断规则」的三个英文，换成稳定键后由 CI 的冲突检查拦）；同一概念被写成两个不同的键、各带不同措辞（如 U1 的「动作库」和「能力库」），CI 看不出，靠评审对照本表。
   5. 现在词典里含旧术语的无用条目（R-A8 的 11 条）不带进稳定键，转换时作为无用键处理，不单独改名。

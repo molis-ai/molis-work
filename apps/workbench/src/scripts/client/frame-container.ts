@@ -323,8 +323,10 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
   const showCanvas = () => showBoard(CANVAS_TAB);
   const showKanban = () => showBoard(KANBAN_TAB);
   const openFrame = (goalId) => host.openGoalTab?.(goalId);
+  // Answers false for a Goal the board does not list, so the caller reads it instead (it may be gone: 07-1 S3).
   const showGoalFrame = (goalId) => {
-    if (!enabled() || !goalId || !knownIds().has(goalId)) return;
+    if (!enabled() || !goalId) return;
+    if (!knownIds().has(goalId)) return false;
     frameOf(goalId);
     if (!openIds.includes(goalId)) openIds.push(goalId);
     curTab = goalId;
@@ -332,6 +334,7 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     setWorkspaceMode("graph");
     sync();
     persist();
+    return true;
   };
   const closeFrame = (goalId) => {
     openIds = openIds.filter((id) => id !== goalId);

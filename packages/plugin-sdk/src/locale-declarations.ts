@@ -1,6 +1,6 @@
 import { PLUGIN_LOCALE_LIMITS, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { LOCALE_TAG } from "@molis-ai/molis-work-contracts/platform/ui";
-import { messageOwnerOf, SHARED_OWNER, STABLE_KEY } from "./message-declarations.js";
+import { keyOwnerProblem } from "./message-declarations.js";
 
 // Checks of `ui.locales` (specs/font-and-skin-system/a-section-contract.md §6.1). A tag is also a file name, `locales/<tag>.json`,
 // so the shape check is what keeps a declared language inside the package. The files themselves are read by the platform, not here.
@@ -35,13 +35,6 @@ function localeListProblems(declared: unknown): string[] {
   ];
 }
 
-/** Every key a Plugin writes starts with the last segment of its id, so an id that cannot start a key could never fill the language files it declares. */
-function keyOwnerProblems(pluginId: string): string[] {
-  const owner = messageOwnerOf(pluginId);
-  if (owner !== SHARED_OWNER && STABLE_KEY.test(`${owner}.key`)) return [];
-  return [`用 ui.locales 的插件，plugin_id 最后一段要以字母开头，也不能是 ${SHARED_OWNER}：它是这个插件所有键的第一段，${SHARED_OWNER} 留给通用词`];
-}
-
 /** One Plugin brings its words one way: a Manifest with `ui.locales` that also writes the older fields would need a translator reading both. */
 export function localeDeclarationProblems(manifest: PluginManifest): string[] {
   const { locales, messages, translations } = manifest.ui;
@@ -49,7 +42,8 @@ export function localeDeclarationProblems(manifest: PluginManifest): string[] {
   const bothRoads = messages !== undefined || translations !== undefined;
   return [
     ...(bothRoads ? ["ui.locales 不能和 ui.messages、ui.translations 写在同一个 Manifest 里：留 ui.locales，把词搬到 locales/<语言>.json，再删掉 ui.messages、ui.translations"] : []),
-    ...keyOwnerProblems(manifest.plugin_id),
+    // Every key a Plugin writes starts with the last segment of its id, so an id that cannot start a key could never fill the language files it declares.
+    ...[keyOwnerProblem(manifest.plugin_id)].flatMap((problem) => (problem === null ? [] : [`ui.locales 写不了键：${problem}`])),
     ...localeListProblems(locales),
   ];
 }

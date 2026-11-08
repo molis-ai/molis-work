@@ -26,10 +26,12 @@ test("W3-A3a: a write chosen on the page goes into the open work that holds the 
   // The same document in the right panel's file preview, beside the Assistant's panel: what is selected there is in hand.
   await evaluate(`document.dispatchEvent(new CustomEvent('molis:side-open', { detail: { tab: 'files', target: { subject: { kind: 'pages_document', id: ${JSON.stringify(page.id)} } } } }))`);
   await waitFor(`document.querySelector('[data-side-files-body]')?.textContent.includes(${JSON.stringify(TEXTS[2])})`, 20_000);
-  // Every card the page places, with what it asked for.
+  // Every card the page places, with what it asked for; and every ranking the toolbar asks the Host for (the text in hand when it does; the request also carries the whole document, so only the focus is read).
   await evaluate(`(() => {
-    const original = window.fetch; window.placed = [];
+    const original = window.fetch; window.placed = []; window.ranked = [];
     window.fetch = async (url, options) => {
+      // Sent when a new thing in hand reaches the toolbar, right after it put away the one it showed for the thing before.
+      if (String(url).includes('/api/contextual/candidates') && typeof options?.body === 'string') window.ranked.push(JSON.parse(options.body).focus.targets.map(target => target.text).join('\\n'));
       const response = await original(url, options);
       if (String(url).endsWith('/api/assistant/cards')) window.placed.push({ asked: JSON.parse(options.body), ...(await response.clone().json()) });
       return response;
@@ -46,6 +48,10 @@ test("W3-A3a: a write chosen on the page goes into the open work that holds the 
       body.focus({ preventScroll: true });
       const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range);
     })()`);
+    // The toolbar still up from the passage before stays on show, at the same spot, until the new passage's report reaches it
+    // (the preview reports a moment after the selection), and it asks the Host to rank the new passage only after putting that one
+    // away. Taking it for the new passage's own, 更多 opened on it is closed by that report, or its button is gone as it is pressed.
+    await waitFor(`window.ranked.includes(${JSON.stringify(TEXTS[index])})`, 10_000);
     await waitFor(`document.querySelector('${BAR} [data-more]')`, 10_000);
     await click(`${BAR} [data-more]`);
     await waitFor(`Boolean(${WRITE})`, 10_000);

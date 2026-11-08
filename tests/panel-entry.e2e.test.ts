@@ -11,7 +11,9 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 // tests/overlay-placement. At 1440 and 1024, an open side panel leaves the plugin's own page at least half the width.
 
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-const TOGGLES = "[data-assistant-toggle], [data-assistant-side-toggle], [data-assistant-works-toggle], [data-side-toggle], [data-side-plugin-open]";
+// The side opens from its current glyph in the titlebar since the bar's side button left, and a Home tool from its own glyph there
+// since its titlebar button left (07-1 S4b).
+const TOGGLES = "[data-assistant-toggle], [data-assistant-side-toggle], [data-assistant-works-toggle], [data-side-tabs] [data-side-tab][aria-selected=true], [data-side-tabs] [data-side-tab][data-side-keys]";
 
 /** Records the first frame of every animation that starts from now on. */
 const RECORD = String.raw`(() => { window.__entries = [];
@@ -48,6 +50,15 @@ test("VUX-25: panels enter from their edge, and a side panel leaves the page its
       await command("Page.bringToFront", {}, sessionId);
       await waitFor("document.readyState === 'complete'", 20_000);
       await pause(1200);
+      // The right side remembers it was open across pages, and its glyph opens it but does not shut it (07-1 S4b; the bar's side
+      // button used to toggle it back on every page). Shut it from the layout menu first, so its glyph has something to open here.
+      if (await evaluate<boolean>("document.body.dataset.sideOpen === 'true'")) {
+        await evaluate("document.querySelector('[data-layout-open]').click()");
+        await waitFor("document.querySelector('[data-layout-action=side]')?.checkVisibility()");
+        await evaluate("document.querySelector('[data-layout-action=side]').click()");
+        // Until it has gone (hidden once its leaving is over), opening it again only turns it back and starts no entrance.
+        await waitFor("document.body.dataset.sideOpen !== 'true' && document.querySelector('[data-side-panel]')?.hidden === true");
+      }
       await evaluate(RECORD);
       // Each toggle on screen, pressed open and then shut, the new ones a press reveals too.
       const pressed = new Set<string>();

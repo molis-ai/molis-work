@@ -160,7 +160,7 @@ revision 由插件自己推动：服务端在改了页面显示的内容以后�
 | 件 | 在哪 | 做什么 |
 | --- | --- | --- |
 | 文字工具 | SDK `/ui`：`t`、`say`、`format`，语言文件的 `parseLocalePack`、`inspectLocaleSet`，外观文件的解析器 | 业务代码只调它们。工具不存语言和译文，每次从进程的文字上下文取（`Symbol.for("molis.work.ui-text.v1")`），所以打进插件包里的那份 SDK 读到的也是同一个 |
-| 文字上下文 | `apps/local-host/src/ui-text-provider.ts` 的 `installHostUiText` | 每个进程装一次：应用宿主启动时，开发入口运行插件之前。查不到词、没有语言都记一条问题（宿主日志，`hostTextProblems` 留最近 200 条） |
+| 文字上下文 | `apps/local-host/src/ui-text-provider.ts` 的 `installHostUiText` | 每个进程装一次：应用宿主启动时，开发入口运行插件之前。查不到词、没有语言都记一条问题（宿主日志 `ui-text` 一行，`fields` 带 `owner`、`key`、`locale`，键名只进日志、不上页面；`hostTextProblems` 留最近 200 条） |
 | 语言范围 | `apps/local-host/src/web-locale.ts` | 页面请求在 `runWithLocale` 里；没有页面的平台工作用 `runBackgroundWork(locale, fn)`，语言由入口每次开始时读最后用的语言；开发路径用 `runDevelopmentText`。范围结束，语言就作废：请求里起的定时器在请求结束后读不到那次的语言。没有语言时开发路径和测试抛 `ui.text_no_context`，正式运行用主人的默认语言、不抛 |
 | 各主人的词 | `apps/workbench/src/plugin-text.ts` | 每个主人一张表，不合成一张。插件的会话打开时登记自己的语言读取器、释放时撤回（按次计数，升级不留旧词）。`t` 按键的第一段找主人，两个主人最后一段相同就拒绝（`ui.text_owner_conflict`）；`say` 按完整 `plugin_id` 找 |
 | 平台自己的词 | 资源登记表 `packages/design-system/resources/registry.json` 的 `locale` 行，现在只有工作台（`apps/workbench/resources/locales/`） | 加一个平台主人是一行，加一种语言是目录里一个文件；默认语言是 `WEB_LOCALES` 的第一个（`zh`）。A 段里面只有组件板的词 |

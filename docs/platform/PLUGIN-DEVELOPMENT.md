@@ -101,11 +101,13 @@ node dist/cli/main.js plugin dev "$plugin_dev_dir/sample" "$plugin_dev_dir/state
 
 **现在哪条路走得通：** 只有 `molis-work plugin dev`。加 `--locale <语言>` 选画页面的语言，不写用 `default`；语言不在 `available` 里报 `actions.input_invalid` 并列出可选的，没写 `ui.locales` 却传了 `--locale` 同样报错，提示先写 `ui.locales`。开发路径只有画页面时有语言：`start`、`health`、`sync`、动作处理器、定时器里调 `t` 抛 `ui.text_no_context`，要显示的句子存键和参数，到画页面时再 `t`。`pack` 会自动带上声明的语言文件，不用写进 `package.json` 的 `files`；但带 `ui.locales` 的沙箱包第 16 批之前装不上，安装时被拒并说明原因。内置插件第 16 批之前照旧用 `L`、`p.text` 和 `ui.messages`，不写 `ui.locales`（`tests/ui-text-locale-files.test.ts` 拦）。
 
-**`validate` 的结果怎么读：** 它和打包、开发运行用同一套规则读语言文件（`packages/plugin-runtime/src/locale-packs.ts`，规则本身在 SDK 的 `parseLocalePack`、`inspectLocaleSet`）。
+**先 `validate`，再 `dev`。** `validate` 和打包用同一套规则查全部语言文件（`packages/plugin-runtime/src/locale-packs.ts`，规则本身在 SDK 的 `parseLocalePack`、`inspectLocaleSet`）。`dev` 不替你查：它只读这次用的语言和默认语言两个文件，单个文件坏了（不是合法 JSON、有那五个字符、`owner` 或 `locale` 不符）会拒绝；两种语言之间参数不一样、默认语言缺键它不比，照样跑，页面原样显示没替换的 `{…}`。
 
-- 失败（退出码 1，`{"valid":false,"code":"plugin.package_invalid","message":…}`）：声明的文件缺失；`owner` 不是 `plugin_id`、`locale` 和文件名不同；键的形状不对或不以 `plugin_id` 最后一段开头；文字里有 `<`、`>`、`&`、`"`、`'`；占位符不合规或写了旧的 `{count|a|b}`；默认语言缺别的语言有的键；参数和默认语言不一样。`message` 逐条写文件、位置（含行列）、原因和改法。
+**`validate` 的结果怎么读：**
+
+- 失败（退出码 1，`{"valid":false,"code":"plugin.package_invalid","message":…}`）：声明的文件缺失；`owner` 不是 `plugin_id`、`locale` 和文件名不同；键的形状不对或不以 `plugin_id` 最后一段开头；文字里有 `<`、`>`、`&`、`"`、`'`；占位符不合规或写了旧的 `{count|a|b}`；默认语言缺别的语言有的键；参数和默认语言不一样（问题记在非默认语言的文件上，`message` 写出两个文件各用什么参数、哪个是默认语言；写错的可能是任何一边，代码里 `t` 传的参数名以默认语言为准）。`message` 逐条写文件、位置（含行列）、原因和改法。
 - 通过但有提示：别的语言少几个键（`ui.locale_missing_key`）、少几种单复数形式（`ui.locale_plural_forms`，缺的用 `other`）、某种形式没写出数字（`ui.hidden_number`）。这些放进输出的 `locale_notes`，每条有 `file`、`code`、`locale`、`key`、`reason`、`fix`，不挡运行；少的键在那种语言里显示默认语言的字。
-- `validate` 只读语言文件，不读代码：代码里写错的键，看 `dev` 输出的 HTML。
+- `validate` 只读语言文件，不读代码。代码里写错的键，页面显示平台的「这句话暂时显示不了」，`dev` 的 stderr 有一行 `ui-text` `text-missing`，`fields` 里写出 `owner`、`key`、`locale`；代码传的参数名和文件不一样（文件写 `{keeper}`、代码传 `keepr`），页面原样显示 `{keeper}`，没有警告，要自己看 `rendered_ui`。
 
 ## 成果类型声明
 

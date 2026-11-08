@@ -54,12 +54,13 @@
   "messages": {
     "greeting.main.title": "Greeting",
     "greeting.main.hello": "Hello, {name}",
-    "greeting.main.unread": { "plural_arg": "count", "forms": { "one": "{count} new note", "other": "{count} new notes" } }
+    "greeting.main.unread": { "plural_arg": "count", "forms": { "one": "{count} new note", "other": "{count} new notes" } },
+    "greeting.main.level": "Peak level {level} m, {at}"
   }
 }
 ```
 
-`locales/zh.json` 形状相同，`locale` 写 `zh`，`"greeting.main.unread": "{count} 条新笔记"`（中文不分单复数，写一句就够）。
+`locales/zh.json` 形状相同，`locale` 写 `zh`，`"greeting.main.unread": "{count} 条新笔记"`（中文不分单复数，写一句就够），`"greeting.main.level": "{at} 最高水位 {level} 米"`（参数顺序可以不同，名字要一样）。
 
 - `owner` 是完整的 `plugin_id`，`locale` 和文件名相同。
 - 键是 `<plugin_id 最后一段>.<位置>.<元素>`：小写，2 到 5 段，最长 120 个字符。键说意思，不抄措辞；整句一个键，不拼半句（不写 `t("a") + "：" + title`）。
@@ -69,22 +70,26 @@
 **3. 代码里用 `t`。**
 
 ```js
-import { t, format, dateArg } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t, format, numberArg, dateArg } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 const team = "Tom's R&D team";   // 用户的字带 ' 和 &：当参数传
 render() {
   return `<h2>${t("greeting.main.title")}</h2>`
     + `<p title="${t("greeting.main.hello", { name: team })}">${t("greeting.main.hello", { name: team })}</p>`
     + `<p>${t("greeting.main.unread", { count: 3 })}</p>`
-    + `<time>${format.date("2026-11-08T09:30:00Z", "datetime")}</time>`;
+    + `<p>${t("greeting.main.level", { level: numberArg(12345.678, "decimal"), at: dateArg("2026-11-08T21:15:00Z", "datetime") })}</p>`
+    + `<time>${format.date("2026-11-08", "date")}</time>`;
 }
 ```
 
 - **拼进 HTML（文本和属性）写 `t`。** 它先用原始参数算出整句，再把整句转义一次：上面那句英文出来是 `Hello, Tom&#039;s R&amp;D team`，浏览器显示成 `Hello, Tom's R&D team`，不会转义两次。
 - **交给自己会转义的地方写 `t.text`**：`textContent`、`el.title =`、`new Option(…)`、`renderButton({ label })` 这类。写成 `t` 会显示成 `Tom&#039;s`。反过来，**`t.text` 绝不能拼进 HTML**，那是注入。不带字符串参数的句子两种写法结果相同。
-- 普通数字照原样，不分组（`{ count: 2026 }` 显示 `2026`）；要分组写 `numberArg(n, "decimal")` 或 `format.number(n)`。句子里的日期写 `dateArg(at, "datetime")`，单独的日期写 `format.date(at, style)`；样式是 `date`、`time`、`datetime`、`relative`、`weekday`、`month-day` 等。`at` 是 ISO 8601，坏日期不抛，显示原文。
+- **句子里的数和日期，当 `t` 的参数传：** 普通数字照原样，不分组（`{ count: 2026 }` 显示 `2026`，`numberArg(n)` 不带样式也一样）；要分组写 `numberArg(n, "decimal")`，另有 `percent`、`compact`。日期写 `dateArg(at, style)`。这两个只是值：画页面时按那句话的语言排版，和整句一起转义一次；它们也能存进键和参数里，在没有页面的地方建（下一节）。
+- **单独一个数或日期放进 HTML，写 `format.number(n, style?)`、`format.date(at, style)`：** 调用的时候就按当前语言排好并转义，没有页面的地方调会抛 `ui.text_no_context`。`format.number` 不写样式按 `decimal`，**会分组**，和 `numberArg(n)` 不一样。不要把 `format.*` 的结果再当 `t` 的参数：它已经是转义过的 HTML，再进 `t` 就转义第二次；今天数字和日期排出来没有那五个字符，所以看不出来，但写法是错的。
+- **日期：** 样式是 `date`、`time`、`datetime`、`relative`、`weekday`、`month-day` 等，`at` 写 ISO 8601。带时间的（`2026-11-08T21:15:00Z`）按运行这段代码的机器的本地时区显示，`dev` 里就是你这台机器：UTC 21:15 在东八区显示成次日 05:15。只有日期的（`2026-11-08`）照写的那天显示，不随时区挪，`time`、`datetime` 样式对它只显示日期。坏日期不抛，显示原文。
+- **代码里的参数名要和语言文件里的一样。** 文件写 `{keeper}`、代码传 `{ keepr: … }`，页面原样显示 `{keeper}`，没有警告；`validate` 不读代码，也查不到。`dev` 之后看一眼 `rendered_ui` 里有没有没替换的 `{…}`。
 - 代码里不读语言：没有 `navigator.language`、`currentLocale`，也不按语言写分支。语言由平台给，`t` 自己知道。
-- 一个键在所有语言里都查不到时，页面显示「这句话暂时显示不了」，宿主记一条问题。`validate` 只读语言文件、不读代码，所以写错的键要靠 `dev` 的输出看出来。
+- 一个键在所有语言里都查不到时，页面显示平台的一句「这句话暂时显示不了」（英文 This text cannot be shown right now），键名不上页面；宿主在 stderr 记一行 `"area":"ui-text","event":"text-missing"`，`fields` 里有 `owner`、`key`、`locale`。`validate` 只读语言文件、不读代码，所以写错的键看 `dev` 的这行日志。
 
 **4. 检查和运行。** `validate` 和 `dev` 都用 Molis Work 本体的命令 `molis-work plugin …`。它不在你装的 contracts、SDK 两个包里，装完它们 PATH 上也没有 `molis-work`。今天拿到它有两条路，命令后面的参数一样：
 
@@ -100,7 +105,9 @@ molis-work plugin dev <项目> <开发状态目录> <grants> --allow-unsigned-de
 
 `<grants>` 是逗号分隔的、Manifest 要的权限（下面的最小例子只要 `ui:register`）。`<开发状态目录>` 必须是新的、空的，或之前 `dev` 用过、带 `.molis-work-plugin-development.json` 标记的目录，普通的非空目录会被拒绝（`message` 写「Plugin 开发不能使用非空的普通目录或用户项目目录」；错误码今天误报成 `plugin.manifest_invalid`，看 `message`，见 `specs/backlog/BL-plugin-cli-dev-uncoded-errors.md`）；中英文各跑一次可以用同一个。
 
-- `validate` 读 Manifest 旁边声明的语言文件。默认语言缺键（别的语言有、它没有）、参数和默认语言不一样、文字里有那五个字符、文件缺失、`owner` 或 `locale` 和声明不符：都失败，退出码 1，`message` 写哪个文件、哪个键、怎么改。只是别的语言少几个键不算失败，写进输出的 `locale_notes`（每条有 `file`、`code`、`locale`、`key`、`reason`、`fix`），那种语言暂时显示默认语言的字。
+**先 `validate`，再 `dev`。** `dev` 不替你比较语言文件：它只读这次用的语言和默认语言两个文件，单个文件坏了（不是合法 JSON、有那五个字符、`owner` 或 `locale` 不符）会拒绝；两种语言之间参数不一样、默认语言缺键这些只有 `validate` 查，`dev` 照样跑，页面原样显示没替换的 `{…}`。
+
+- `validate` 读 Manifest 旁边声明的语言文件。默认语言缺键（别的语言有、它没有）、参数和默认语言不一样、文字里有那五个字符、文件缺失、`owner` 或 `locale` 和声明不符：都失败，退出码 1，`message` 写哪个文件、哪个键、怎么改。参数不一样时，问题记在非默认语言的文件上，但写错的可能是任何一边：`message` 写出两个文件各用什么参数、哪个是默认语言，改写错的那一边；代码里 `t` 传的参数名以默认语言为准。只是别的语言少几个键不算失败，写进输出的 `locale_notes`（每条有 `file`、`code`、`locale`、`key`、`reason`、`fix`），那种语言暂时显示默认语言的字。
 - `dev` 加 `--locale <语言>` 用那种语言画页面，不写用 `default`。语言不在 `available` 里报 `actions.input_invalid` 并列出可选的；插件没写 `ui.locales` 却传了 `--locale`，同样报错，提示先写 `ui.locales`。中英文各跑一次，看输出 JSON 里 `rendered_ui` 的 HTML。
 
 ## 没有页面的地方没有语言
@@ -140,7 +147,7 @@ molis-work plugin dev <项目> <开发状态目录> <grants> --allow-unsigned-de
 
 一个只画一页的 Integration 插件，中英文，参数带 `'` 和 `&`。上面第 2 步的 `locales/en.json`、`locales/zh.json` 放在同一目录。
 
-插件代码跑在 `molis-work` 的进程里，所以 Node 版本跟它走：24.15.x（仓库的 `.nvmrc`，根 `package.json` 的 `engines` 写 `>=24.15.0 <24.16.0`；contracts 和 SDK 两包写 `>=24`），`import … with { type: "json" }` 在这个版本能用。入口写成 `.mjs`，不管 `package.json` 的 `"type"` 都按 ES 模块读。`validate` 和 `dev` 不读 `package.json`，自己不用写；`npm install` 装两个包时会建一个。到 `pack` 时才要它：`files` 列出分发的文件（语言文件不用列，自动带上）。
+插件代码跑在 `molis-work` 的进程里，所以 Node 版本跟它走。仓库锁定 24.15.x：`.nvmrc` 写 24.15.0，根 `package.json` 的 `engines` 写 `>=24.15.0 <24.16.0`，npm 安装包也要求这一版；别的版本不在支持范围，能跑也不保证。contracts 和 SDK 两包自己写的是 `>=24`。`import … with { type: "json" }` 在 24.15 能用。入口写成 `.mjs`，不管 `package.json` 的 `"type"` 都按 ES 模块读。`validate` 和 `dev` 不读 `package.json`，自己不用写；`npm install` 装两个包时会建一个。到 `pack` 时才要它：`files` 列出分发的文件（语言文件不用列，自动带上）。
 
 `manifest.json`：
 
@@ -193,5 +200,7 @@ export default definePlugin({
   },
 });
 ```
+
+`provider` 的 `health`、`sync` 返回什么、各字段的意思见 [integrations.md](integrations.md)。
 
 `--locale en` 画出 `Hello, Tom&#039;s R&amp;D team` 和 `3 new notes`，`--locale zh` 画出 `你好，Tom&#039;s R&amp;D team` 和 `3 条新笔记`。`health`、`sync` 里不调 `t`（上面「没有页面的地方没有语言」）。

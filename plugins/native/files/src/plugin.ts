@@ -47,7 +47,7 @@ export function createFilesPlugin(): PluginDefinition {
       };
     },
     async health(): Promise<{ ok: boolean; message: string }> {
-      return { ok: true, message: "插件已启动；浏览目录按项目设置读取" };
+      return { ok: true, message: "插件已启动；目录按项目设置的输入与输出读取" };
     },
   };
 }

@@ -208,7 +208,11 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   await click(`${coding} [data-coding-context-toggle]`);
   await capture("coding-mobile");
   await click(`${coding} [data-coding-results-open]`);
-  await b.click(`[data-tab-id="${firstTab.id}"]`);
+  // 07-1 S3: a phone's strip shows the current tab only; the others are opened from 全部标签.
+  await b.click("[data-titlebar-tabs] [data-tab-all]");
+  // The menu is the workbench's, not the Coding frame's, so it is waited for on the page itself.
+  await b.waitFor(`document.querySelector('[data-workspace-all-tabs] [data-all-tab="${firstTab.id}"]')?.checkVisibility()`);
+  await b.click(`[data-workspace-all-tabs] [data-all-tab="${firstTab.id}"]`);
   await waitFor(`document.querySelector('${coding}').dataset.codingResults === 'false' && document.querySelector('${coding} [data-coding-task]').value === 'first session draft'`);
   await click(`${coding} [data-coding-results-open]`);
   await click(`${coding} [data-coding-results-close]`);

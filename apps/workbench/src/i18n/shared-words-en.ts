@@ -90,7 +90,6 @@ export const SHARED_WORDS_EN: Record<string, string> = {
   "规则": "Rule",
   "是": "Yes",
   "否": "No",
-  "请在项目设置的工作目录中选择可用浏览目录": "Choose a folder to browse in the project's working folder settings",
   "文件在读取时变化，请刷新": "The file changed while it was read. Refresh.",
   "这个目录不是 Git 仓库": "This folder isn't a Git repository",
   "这个仓库还没有远端": "This repository has no remote yet",

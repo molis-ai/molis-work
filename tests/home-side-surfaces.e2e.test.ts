@@ -113,8 +113,9 @@ test("VUX-16 (fallback): the discussion side panel's IM composer is the same fie
   await command("Page.addScriptToEvaluateOnNewDocument", { source: WITHOUT_FIELD_SIZING }, sessionId);
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await waitFor("document.querySelector('[data-side-toggle]')", 20_000);
-  await click("[data-side-toggle]");
+  await waitFor("document.querySelector('[data-side-tabs] [data-side-tab][aria-selected=true]')", 20_000);
+  // 07-1 S4b: the bar's side button is gone; the side opens from its current glyph in the titlebar.
+  await click("[data-side-tabs] [data-side-tab][aria-selected=true]");
   await waitFor("document.querySelector('[data-side-tab=\"discussion\"]')?.checkVisibility()", 10_000);
   await click("[data-side-tab=\"discussion\"]");
   const im = "document.querySelector('[data-side-body=\"discussion\"] iframe')?.contentDocument";

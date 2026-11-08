@@ -32,16 +32,17 @@ const KINDS: Record<string, string> = {
   "[data-assistant-send]": "assistant send",
   "[data-plugin-picker-toggle]": "plugin switcher",
   ".dock-pin": "dock",
-  ".bar-chat": "side panel",
+  // 07-1 S4b: the bar's side button and the titlebar's Home tools are gone; the side's glyphs (Issue's among them) are tabs.
   ".navigator-project-selector": "project",
-  "[data-home-plugin-open]": "home plugin", // ISSUE-30: the declared Home tools remain visible in the titlebar.
   ".immersive-show-directory, .navigator-directory-toggle": "directory toggle",
   ".workspace-history-button": "history",
   ".tab-item-trigger": "tab",
   ".tab-item-close": "tab close",
   ".tab-add-button": "open plugin",
+  // 07-1 S3: at 760px and under the strip leads with 主区｜右侧 and always shows 全部标签, in the one row it paints first.
+  ".tab-pane-switch > .mw-toggle": "main or side",
+  "[data-tab-all]": "all tabs",
   "[data-layout-open]": "layout", // 07-S2: the titlebar's one layout button replaces each strip's
-  "[data-home-plugin-open]": "home tool",
   ".tab-view-chip-close": "cover close",
   ".assistant-target-main": "work chip",
   ".assistant-target-clear": "work chip clear",
@@ -400,15 +401,20 @@ const IN_SHELL = /bar-composer|assistant-composer|dock-pin|bar-side|bar-chat|plu
 
 type Browser = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;
 
-/** ISSUE-30: declared Home tools stay inside the viewport, and the visible target can actually be reached. */
+/**
+ * ISSUE-30: declared Home tools stay inside the viewport, and the visible target can actually be reached, without scrolling
+ * anything to it. Since 07-1 S4b a Home tool with a chord (Issue) is reached by its glyph on the right side of the titlebar, no
+ * longer a titlebar button of its own; on a phone the glyph row scrolls, and the Home tool leads it there, so it is in view as the
+ * page draws (the always-there entry the person kept at the top right, 10-12).
+ */
 async function assertHomeToolsReachable(browser: Browser): Promise<void> {
   const report = await browser.evaluate<{ count: number; blocked: string[] }>(`(() => {
-    const nodes = [...document.querySelectorAll('[data-home-plugin-open]')];
+    const nodes = [...document.querySelectorAll('[data-side-tabs] [data-side-keys]')];
     const blocked = nodes.filter(el => {
       const r = el.getBoundingClientRect(), x = r.left + r.width / 2;
       const inside = r.width > 0 && r.height > 0 && r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight;
       return !inside || ![r.top + 2, r.top + r.height / 2, r.bottom - 2].every(y => el.contains(document.elementFromPoint(x, y)));
-    }).map(el => el.textContent.trim());
+    }).map(el => el.textContent.trim() || el.getAttribute('aria-label') || el.parentElement.title);
     return { count: nodes.length, blocked };
   })()`);
   assert.ok(report.count > 0, "the current Home tools are present");
@@ -690,8 +696,10 @@ for (const scheme of ["light", "dark"] as const) {
     // widths below were written for, and at 390px it holds every pin, so no "+N" button would be drawn and the checks that hold it
     // next to 项目首页 on the widest row would pass over nothing. The Dock keeps what a person pinned in the page's storage, so the
     // test pins one more plugin and the row is as long as it was; the assertions below are the ones that were written for it.
+    // Todo is the person's own now, kept in the tray at the bar's right end, not on the Dock, and the bar's side switch has left
+    // the Dock more room (07-1 S4b): the test pins Pages, 灵光 and Workflows instead, so the row at 390px still folds into "+N".
     await w.open(390, 844, HOME[1], HOME[2]);
-    await w.evaluate(`localStorage.setItem('molis-work:dock-pins', JSON.stringify(['goals', 'inbox', 'feed', 'todo']))`);
+    await w.evaluate(`localStorage.setItem('molis-work:dock-pins', JSON.stringify(['goals', 'inbox', 'feed', 'pages', 'lingguang', 'workflows']))`);
     for (const [width, height] of [[390, 844], [375, 667], [360, 740], [350, 640], [320, 568]] as const) {
       for (const [name, path, ready] of [HOME, PLUGIN, SETTINGS]) {
         const controls = await w.open(width, height, path, ready);
@@ -728,7 +736,7 @@ for (const scheme of ["light", "dark"] as const) {
     assert.deepEqual(folded.listed, folded.hidden, `320px home: the "+N" list holds exactly the pins the row folded (${JSON.stringify(folded)})`);
     assert.deepEqual([...folded.pins.filter(pin => !folded.hidden.includes(pin)), ...folded.listed].sort(), folded.pins,
       `320px home: the pins on the row plus the pins in the list are the whole set, none lost and none twice (${JSON.stringify(folded)})`);
-    for (const pin of ["home", "goals", "inbox", "feed", "todo"]) assert.ok(folded.pins.includes(pin), `320px home: the Dock drew ${pin} (${JSON.stringify(folded)})`);
+    for (const pin of ["home", "goals", "inbox", "feed", "pages"]) assert.ok(folded.pins.includes(pin), `320px home: the Dock drew ${pin} (${JSON.stringify(folded)})`);
     const dockList = (await w.popovers(44))["the Dock's list"];
     assert.ok(dockList, "320px home: the \"+N\" button is there to open the Dock's list");
     assert.equal(dockList.shown, true, "320px home: the Dock's list opens");
@@ -868,10 +876,12 @@ for (const scheme of ["light", "dark"] as const) {
       "667 a work with a notice and a Character": "", "667 a Coding work with a notice": "",
     }, "the steps the island takes at 390, 360 and 667px");
     // A 640×360 window: with the bar's end down to one button, a bare current work folds nothing and the fullest line only the
-    // choosers (it folded the mark, and the chips, while the end held three). The mark still folds first at 320px.
+    // choosers (it folded the mark, and the chips, while the end held three). Since the side switch left the bar and the end holds
+    // only the project and whatever of the person's own is pinned (none here), the fullest line folds nothing at 640px either
+    // (07-1 S4b). The mark still folds first at 320px.
     assert.deepEqual(Object.fromEntries(Object.entries(stages).filter(([key]) => key.startsWith("640 "))), {
       "640 a current work": "", "640 a current work with a notice": "", "640 a Coding work": "",
-      "640 a work with a notice and a Character": "choosers", "640 a Coding work with a notice": "choosers",
+      "640 a work with a notice and a Character": "", "640 a Coding work with a notice": "",
     }, "the steps the island takes in a 640×360 window");
     assert.equal(stages["320 a current work with a notice"], "mark", "at 320px a current work with a notice folds the mark and nothing else");
 
@@ -895,7 +905,7 @@ for (const scheme of ["light", "dark"] as const) {
       ["the project's settings", "settings", "!!document.querySelector('.tab-view-chip-close')"],
     ] as const) {
       const controls = await w.open(1280, 800, path, ready);
-      assert.deepEqual(controls.filter(control => w.short(control) < (control.kind === "home plugin" ? 32 : floors[control.area])).map(control => `${control.kind} ${control.w}×${control.h}`), [],
+      assert.deepEqual(controls.filter(control => w.short(control) < floors[control.area]).map(control => `${control.kind} ${control.w}×${control.h}`), [],
         `${name} · 1280: nothing in the strip is under ${floors.strip}px or in the bar under ${floors.bar}px`);
       assert.deepEqual(controls.filter(control => control.kind.startsWith("unlisted")).map(control => control.kind), [], `${name} · 1280: every control is a known one`);
       const input = controls.find(control => control.kind === "assistant input");
@@ -954,7 +964,7 @@ for (const scheme of ["light", "dark"] as const) {
 
     // A short window: DESIGN.md writes the Dock, resident and switcher buttons as 34px there, and the floors still hold.
     const shortWindow = await w.open(1280, 500, "", "true");
-    assert.deepEqual(shortWindow.filter(control => w.short(control) < (control.kind === "home plugin" ? 32 : floors[control.area])).map(control => `${control.kind} ${control.w}×${control.h}`), [],
+    assert.deepEqual(shortWindow.filter(control => w.short(control) < floors[control.area]).map(control => `${control.kind} ${control.w}×${control.h}`), [],
       "a short window · 1280×500: nothing in the strip is under 20px or in the bar under 28px");
     assert.deepEqual(shortWindow.filter(control => ["dock", "resident", "plugin switcher"].includes(control.kind) && control.area === "bar").map(control => control.h).filter(h => h !== 34), [],
       "a short window · 1280×500: the Dock, resident and switcher buttons are the 34px DESIGN.md writes");

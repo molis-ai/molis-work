@@ -12,7 +12,9 @@ export const fileResult = { oneOf: [
   object({ outcome: { const: "directory" }, entries: { type: "array", items: object({ name: text, path, kind: { enum: ["file", "directory", "other"] } }) }, truncated: boolean }),
   object({ outcome: { const: "text" }, text, fingerprint: id, mode: fileMode }, ["outcome", "text", "fingerprint"]),
   object({ outcome: { const: "too-large" }, bytes: integer, limit: integer }),
-  object({ outcome: { enum: ["binary", "unsupported", "missing", "denied", "changed"] } }),
+  // Content that was read but cannot be shown as text carries its fingerprint, so a reference can be written from it (`WorkspaceFileResult`).
+  object({ outcome: { enum: ["binary", "unsupported"] }, fingerprint: id }),
+  object({ outcome: { enum: ["unsupported", "missing", "denied", "changed"] } }),
 ] };
 /** Full Artifact envelope remains owned/versioned by Artifacts; consumers need this fixed identity and origin. */
 export const publication = object({ artifact: { type: "object", required: ["artifact_id", "version", "owner_actor_id", "created_by", "created_at", "payload"],

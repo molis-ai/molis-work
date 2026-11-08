@@ -32,7 +32,7 @@ export interface GitFactoryHost {
   /** Given only by the page that mounts Git in its own panel (Coding): where the result opens and closes. */
   openResult?(): void;
   closeResult?(): void;
-  /** Reads the browsing workspace again for every client on the page; Git alone refreshes when it is absent. */
+  /** Reads the folder the page shows again for every client on the page; Git alone refreshes when it is absent. */
   refreshWorkspace?(): void;
   /** The Host's folder service: making a folder the output, which the person confirms in the Host's own dialog. */
   readonly workspaces?: Pick<UiPageWorkspaces, "setOutput">;

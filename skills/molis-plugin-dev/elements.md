@@ -173,7 +173,7 @@ Manifest 里没有 `behaviors`、`function_scenes`、`judgment_subjects`（2026-
 
 提示词层级是 `base` | `role` | `project`，省略等于 `role`。`task` 是用户这一次写的，插件声明会被拒绝。提示词正文放在 `PluginDefinition.agent_prompts`，Skill 正文放在 `PluginDefinition.agent_skills`，不进 Manifest；Manifest 声明的每段 Prompt、`compaction` 与 `ending_review` 都要在 `agent_prompts` 里有正文，否则开跑时角色是空的。运行中的非沙箱插件由 Host 从 Manifest 的 `agent` 与定义的正文登记（内置与安装的插件同一条路，PG-051），停下后按「未运行」留在设置里，作者不必再另接一份 catalog。沙箱插件的登记尚待 PG-017。正文与缺失检查见 [authoring.md](authoring.md#sdk)。
 
-`subagent_workspaces: "required"` 只放在只读父角色上（Coding 的协调者、并行写入）。工作目录是 Host 事实，候选通过 `projectSettingsCapabilities.workspaces` 读取。`directory_input_port` 不会让 Host 采信目录。
+`subagent_workspaces: "required"` 只放在只读父角色上（Coding 的协调者、并行写入）。工作目录是 Host 事实：项目的输入目录和输出目录用 `projects.directories.get` 读（见下面「当前项目设置能力」），并行写手的独立工作树由宿主建、按 `worktree_id` 认，不是项目的目录。`directory_input_port` 不会让 Host 采信目录。
 
 今天三例：`plugins/native/coding`（kind `app`），以及 `plugins/native/schedule`、`plugins/native/todo`（kind `native`）。不要把 Coding 的 agent 块抄到普通内容插件。合同里还有 `compaction`、`ending_review`、`text_sources`、`skills`，只有 Coding 用了 `compaction`、`ending_review` 与 `skills`，先不要写成必填。`ending_review` 指向自己 `prompts` 里的一条：可写的一轮没有成功的改动就要结束时，宿主用它对照这一轮的事实核对最后的话（用户能在「设置 › 提示词」的「收尾核对」下改）；不声明就不核对。
 
@@ -183,7 +183,9 @@ Manifest 里没有 `behaviors`、`function_scenes`、`judgment_subjects`（2026-
 
 ## 当前项目设置能力
 
-从 `contracts/modules/projects` 导入 `projectSettingsCapabilities`：`workspaces` 返回当前项目已关联目录，`browsingWorkspace` 返回 Files/Git 的当前浏览目录或 null。逐项将完整 `capability_id` 写入 Manifest consumes，然后调用 `invoke(capability, [])`。不可传 project_id，不支持 key 袋或通配读取。Host 裁剪其他项目关联字段。工作目录在项目设置中维护，不再接 Workspace 输出。Coding 会话执行目录独立；`projects.workspace.read` 返回项目的首选工作区，Coding 在没有浏览目录时用它。
+项目的目录是项目设置的一项：从 `contracts/modules/projects` 导入 `projectDirectoryActions`，`get`（`projects.directories.get`）返回当前项目的 `{ project_id, directories, source_links, revision }`。`directories` 每项带 `workspace_id`、`canonical_path`、`display_name`、`roles`（`"input"`、`"output"`，同一个文件夹既是输入又是输出时两项都有）和 `state`（`ok`、`missing`）；恰好一项带 `output`，没选过输出的项目指向默认输出目录（Home 的 `outputs/<项目>`，第一次在里面写或运行时才建）。把完整的 `capability_id` 写入 Manifest consumes，然后调用 `invoke(projectDirectoryActions.get, {})`（输入是空对象）。不可传 project_id，不支持 key 袋或通配读取，Host 只回当前项目的目录。`projectSettingsCapabilities` 现在只剩 Agent 运行时的两项（`runtime`、`selectRuntime`）。
+
+没有「浏览目录」这项设置，也没有「首选工作区」：读写不指定目录时就是输出目录，页面在几个目录里看哪一个是页面自己的状态，不写回项目。输入目录只读，输出目录才可写：Git 的写、终端、Agent 的会话和轮次、原生 Character 在只作输入的目录里开会被拒（`projects.directory_input_only`），本人把它设为输出之后再开。改目录（`add_input`、`remove_input`、`set_output`、`repair`、`map_source`、`unmap_source`，都带读到的 `expected_revision`）只给本人，插件、Agent 与 MCP 调不到；页面里的插件要关联目录或换输出，用 `host.workspaces.add(path)`、`host.workspaces.setOutput(id)`，由宿主显示并真实确认。Coding 并行写手的独立工作树由宿主建、按 `worktree_id` 认，不是项目的目录。
 
 `settings` 槽只放页面，不给其他插件读权；`storage:private` 只存自己的偏好。项目说明仍属 Goals。归属与例子见 `docs/platform/PROJECT-SETTINGS.md`。
 

@@ -256,18 +256,25 @@
     "type": "application/json",
     "error": "页面或接口不存在"
   },
-  "GET <project>/api/project-settings/workspaces": {
+  "GET <project>/api/project-settings/directories": {
     "status": 200,
     "type": "application/json",
     "keys": [
-      "selected",
-      "workspaces"
+      "directories",
+      "project_id",
+      "revision",
+      "source_links"
     ]
   },
-  "POST <project>/api/project-settings/workspaces": {
-    "status": 403,
+  "POST <project>/api/project-settings/directories": {
+    "status": 400,
     "type": "application/json",
-    "error": "请选择当前项目已关联且可用的工作目录"
+    "error": "目录改动无效"
+  },
+  "GET <project>/api/project-settings/workspaces": {
+    "status": 404,
+    "type": "application/json",
+    "error": "页面或接口不存在"
   },
   "GET <project>/api/project-settings/write-checkers": {
     "status": 200,
@@ -434,7 +441,6 @@
       "developer_mode",
       "events",
       "goals",
-      "home_plugin_nav",
       "inbox_judgment",
       "input_bindings",
       "plugin_directory",
@@ -915,7 +921,6 @@
       "developer_mode",
       "events",
       "goals",
-      "home_plugin_nav",
       "inbox_judgment",
       "input_bindings",
       "plugin_directory",

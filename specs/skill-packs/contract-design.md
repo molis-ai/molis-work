@@ -82,7 +82,7 @@
 | --- | --- |
 | 身份与展示：`schema_version`、`plugin_id`、`version`、`name`、`name_en`、`summary`、`publisher`、`host_api_version`、`developer` | 与其他插件一样 |
 | `methods` | 技能，见第 4 节；只有声明的插件至少要有一项（第 20 批加入套组的键以后，改成「`methods` 或套组至少一项」） |
-| `requires` | 依赖的动作：必要的不满足就不能启用，可选的不满足只降级，安装预览列出现在满不满足（第 5 节） |
+| `requires` | 依赖的动作：必要的不满足就不能启用，可选的不满足只降级，安装预览列出现在满不满足（第 5 节）；只有声明的插件不要求列进 `capabilities.consumes`（第 08 批主会话 2026-11-06 定） |
 | `upgrade_compatibility` | 与其他插件一样 |
 | `ui.messages`、`ui.translations` | 名称与说明的双语 |
 | `runtime: { scope: "home" }` | 这里只表示范围：装给个人空间，所有项目和个人助理都能用。没有进程可起，所以不受 PG-011 对 Home 代码来源的限制；没写就装进项目 |
@@ -180,7 +180,7 @@ interface SkillResourceDeclaration {
 - 资源缺失或摘要不符；
 - `applies_to` 非法；
 - `tools` 越界：指取值不在 `SKILL_TOOLS` 里，不是指超出某个角色的 `host_tools`；
-- `connector_categories` 不认识。
+- `connector_categories` 不认识。类别表的常量由助理统一接入服务的主人给出；给出之前 C-1 只查格式。
 
 ### 4.3 版本
 
@@ -198,7 +198,7 @@ interface SkillRef {
 }
 ```
 
-`SignedAgentReference` 的 `kind: "method"` 改成用 `SkillRef`；角色资料仍用 `kind: "role"`。官方包、第三方包、本机导入的包都是签名包，都有 `publisher_signature`；随宿主构建、带 Manifest `methods` 的内置插件也有构建的签名身份。所以引用的写法只有一种。
+`SignedAgentReference` 的 `kind: "method"` 改成用 `SkillRef`；角色资料仍用 `kind: "role"`。官方包、第三方包、本机导入的包都是签名包，都有 `publisher_signature`；随宿主构建、带 Manifest `methods` 的内置插件也有构建的签名身份。所以引用的写法只有一种。`SignedAgentReference` 的方法引用随第 09 批改（合同部分并进 9-1，9-2 只做读取与消费），C-1 只加 `SkillRef` 类型，见 08 偏离记录。
 
 ## 5. 安装与升级
 

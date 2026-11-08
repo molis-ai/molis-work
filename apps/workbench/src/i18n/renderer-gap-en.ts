@@ -311,7 +311,7 @@ export const RENDERER_GAP_EN: Record<string, string> = {
   "暂时无法取得动作结果": "Can't get the action's result right now",
   // apps/workbench/src/scripts/client/initialization.ts
   "消息请求失败，请核对原请求": "The message request failed. Check the original request",
-  // apps/workbench/src/scripts/client/navigation-feed.ts
+  // apps/workbench/src/scripts/client/navigation-surfaces.ts
   "原捕捉规则不存在，可能已经删除。": "The original capture rule doesn't exist; it may have been deleted.",
   // apps/workbench/src/scripts/client/plugin-event-recovery.ts
   "来自": "from",

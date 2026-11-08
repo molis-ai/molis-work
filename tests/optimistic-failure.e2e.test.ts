@@ -117,8 +117,9 @@ test("VUX-31: a Shelf action dragged to another place that could not be saved go
   // Shelf is the side panel's first tab; the panel's own document is then opened as its frame loads it.
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await browser.waitFor("document.documentElement.dataset.resolvedTheme === 'light'");
-  await browser.waitFor("document.querySelector('[data-side-toggle]')");
-  await browser.click("[data-side-toggle]");
+  await browser.waitFor("document.querySelector('[data-side-tabs] [data-side-tab][aria-selected=true]')");
+  // 07-1 S4b: the bar's side button is gone; the side opens from its current glyph in the titlebar.
+  await browser.click("[data-side-tabs] [data-side-tab][aria-selected=true]");
   await browser.waitFor("document.querySelector('[data-side-tabs] [role=tab][aria-selected=true]')?.dataset.sideTab === 'plugin:shelf/side'");
   await browser.waitFor(`document.querySelector('[data-side-body="plugin:shelf/side"] iframe')?.getAttribute('src') === ${JSON.stringify(`/projects/${projectId}/side/shelf/side`)}`);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/side/shelf/side` }, sessionId));

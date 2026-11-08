@@ -333,7 +333,7 @@ test("RAC-2531 BL-616 Files' factory takes nothing from the Host: with no folder
         invalidate: () => assert.fail("nothing is withdrawn") },
     } };
   const plugin = createFilesPlugin();
-  assert.deepEqual(await plugin.health!(context), { ok: true, message: "插件已启动；浏览目录按项目设置读取" });
+  assert.deepEqual(await plugin.health!(context), { ok: true, message: "插件已启动；目录按项目设置的输入与输出读取" });
   const contribution = await plugin.start(context);
   const entries = contribution.actions!.find(binding => binding.capability_id === "files.side.entries")!;
   await assert.rejects(async () => entries.handle({ actor_id: "web-user" } as never, {}), { code: "files.invalid" });

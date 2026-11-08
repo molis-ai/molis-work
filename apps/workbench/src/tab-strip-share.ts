@@ -1,8 +1,9 @@
-/** Chrome-like tab widths: hug content until the strip overflows, then share equally.
+/** Chrome-like tab widths: hug content until the strip overflows, then share equally down to the minimum, then scroll
+ *  (07-1 scheme A: tabs narrow first, to 96px, and only then does the strip scroll, with 全部标签 at its end).
  *  Stringified into the browser factory — keep parameter lists type-annotation-free. */
 
 export const TAB_SHARE_MAX = 172;
-export const TAB_SHARE_MIN = 72;
+export const TAB_SHARE_MIN = 96;
 /** Narrow/touch: the 10px padding, a 44px title target and the 44px close; 72 cannot hold them. */
 export const TAB_SHARE_MIN_TOUCH = 98;
 

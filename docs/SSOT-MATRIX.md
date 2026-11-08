@@ -99,7 +99,7 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 | 目标 package | 事实 owner | 当前来源 | 包成熟度 | 迁移 / 实现 Goal | 归属 |
 | --- | --- | --- | --- | --- | --- |
 | `modules/identity-team-access` | User、Team、membership、Access Decision | 占位包已删除；未来功能 | `absent` | F2；未来独立功能 Spec | — |
-| `modules/projects` | Project 身份、Catalog、workspace membership | 正式 Project/Catalog 事实；Host 编排文件生命周期，Desktop 提供平台 | `production` | AP1/AP2/Cutover；旧 Catalog 已删除 | Module：@yijunw0212 |
+| `modules/projects` | Project 身份、Catalog、workspace membership（输入、输出两种角色）、默认输出目录与「最近用过」 | 正式 Project/Catalog 事实；Host 编排文件生命周期，Desktop 提供平台 | `production` | AP1/AP2/Cutover；旧 Catalog 已删除 | Module：@yijunw0212 |
 | `modules/context-ledger` | ObjectRef、跨模块关系、publication、materialization | Feed / Runtime 关联、输入来源、临时重建与 Coordinator 归属审计已通过；未来 publication / 异步 materialization 未实现；缺片：未来 publication / 异步 materialization；后续：补未来能力时另立 Goal（AR2 已验收主路径） | `slice` | AR2 已验收；[验收记录](../specs/molis-work-architecture-reorganization/ar2-validation.md) | Module：@yijunw0212 |
 | `modules/sync-replication` | 空间同步策略、增量协调、冲突与同步状态 | 个人空间本机联调；复用 owner 适配器与持久队列，默认关闭 | `slice` | F2；`specs/personal-plugin-replication/spec.md` | Module：@yijunw0212 |
 | `modules/actions` | 个人/外部 Action 请求、状态和结果引用 | 占位包已删除；未来功能 | `absent` | F2；未来独立功能 Spec | — |
@@ -154,8 +154,8 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 | `plugins/native/alchemist` | 炼金术士：项目隔离的 Founder Lab | Direction / Idea / 双 Lens / 证据决策 / Pulse / Copilot / Memory；AI 经 Prologue，公开证据经 SEL；验收见 spec；缺片：工作台升级中的 Alchemist 场景（用户 2026-10-27 归并；现有代码仍不删、先绕过）；后续：BL-377 | `slice` | `specs/plugin-builder-upgrade/spec.md`（旧迁入证据：`specs/archive/alchemist-plugin/spec.md`） | 内置插件：@yijunw0212 |
 | `plugins/native/feed` | Feed 一级入口和处置 UI | Sources/Feed 流水、同步与 promotion；支持研究库发布包接收；用户显式配置规则可自动加入 Inbox，需复核保留原因；仍只写 Attention；缺片：Inbox/Feed 拆插件切片 3；后续：切片 3 计划 | `slice` | FD/Cutover；Inbox/Feed 拆插件切片 3；`specs/archive/function-scene-action-scope/spec.md` | 内置插件：@yijunw0212 |
 | `plugins/native/coding` | Coding App（`app`）：会话、轮次、计划、报告、变更集、协同与委派 | Plugin Runtime 托管；执行经 Agent Host/Prologue；执行报告进成果库（`coding.report.v1`），计划、变更集、图与目标上下文是 Coding 自己的过程项；19 项 `coding.*` 动作（16 项业务动作，另有对象读取、搜索与成果预览） | `production` | `specs/coding-plugin/spec.md` 第 0 节；后续 `next-requirements.md` | 内置插件：@yijunw0212、@jingxusandra-gif |
-| `plugins/native/files` | 工作区文件树与阅读：取有界文本快照与选区（`app`，Coding 家族） | Runtime 托管；目录与文件由 Host 经项目工作区设置能力读取，插件把结果变成树、预览和过程项（集合描述、`before`/`after` 文本快照、用户选中的文字） | `production` | `specs/archive/coding-workbench-repair/spec.md` | 内置插件：@yijunw0212 |
-| `plugins/native/git` | Git 工作区变更与提交草稿（`app`，Coding 家族） | Runtime 托管；`git` 由平台的工作区 Git 服务运行（宿主的 `workspace-git*.ts`，只给插件调的动作 `projects.workspace.git.*`、`projects.workspace.writers.*`），插件经 SDK 解析 porcelain v1、把每处改动发布为可对比的变更集。接受一次 Coding Run 的改动不经 Git：主工作区里的每次写入先由人审查，并行子任务的成果经 Coding 的整合审查（`review:git-integration`）回到主工作区 | `production` | `specs/archive/coding-workbench-repair/spec.md` | 内置插件：@yijunw0212 |
+| `plugins/native/files` | 工作区文件树与阅读：取有界文本快照与选区（`app`，Coding 家族） | Runtime 托管；看哪个文件夹由项目的目录（`projects.directories.get`）定，不指定时是输出目录，目录与文件由 Host 读取，插件把结果变成树、预览和过程项（集合描述、`before`/`after` 文本快照、用户选中的文字） | `production` | `specs/archive/coding-workbench-repair/spec.md` | 内置插件：@yijunw0212 |
+| `plugins/native/git` | Git 工作区变更与提交草稿（`app`，Coding 家族） | Runtime 托管；`git` 由平台的工作区 Git 服务运行（宿主的 `workspace-git*.ts`，只给插件调的动作 `projects.workspace.git.*`、`projects.workspace.writers.*`），插件经 SDK 解析 porcelain v1、把每处改动发布为可对比的变更集。不指定文件夹时 Git 看输出目录，写（暂存、提交）只在输出目录里，只作输入的目录写不进（`projects.directory_input_only`）。接受一次 Coding Run 的改动不经 Git：主工作区里的每次写入先由人审查，并行子任务的成果经 Coding 的整合审查（`review:git-integration`）回到主工作区 | `production` | `specs/archive/coding-workbench-repair/spec.md` | 内置插件：@yijunw0212 |
 | `plugins/native/diff` | 对比界面：同一处理三种输入（`app`，Coding 家族） | Runtime 托管；输入是 Files 的两个快照、Coding Run 准备的变更集、Git 工作区里的改动；变更集过程项类型 `diff.changeset.v1` 按这个消费者定义 | `production` | `specs/archive/coding-workbench-repair/spec.md` | 内置插件：@yijunw0212、@jingxusandra-gif |
 | `plugins/native/text-stats` | 对已取得的文件快照数字符、UTF-8 字节和行（`app`，Coding 家族） | Runtime 托管；消费一个文件快照输入；两个查询动作（`text-stats.state` 读取已固定快照的统计，`text-stats.count` 统计给定文本），没有输出端口、事件和存储 | `production` | `specs/archive/coding-workbench-repair/spec.md` | 内置插件：@yijunw0212 |
 | `plugins/native/issues` | 个人问题的原始描述、类型、上下文与版本 | Home Runtime 托管；业务表 `{home}/issues/issues.db`；页面、助理、MCP 共用 `issues.*`，项目切换不分库；连接和授权由 Host 提供 | `production` | `specs/archive/issue-home-v0/spec.md` | 内置插件：@yijunw0212 |
@@ -209,7 +209,7 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 | 装进项目的 Skill（界面叫「方法」） | `horizontal/agent-host` | Prologue Runtime 的存储，kind `molis-coding-method`；宿主能力 `agent.skills.*` |
 | 写后检查器：每个项目、每个已授权工作区一份，带版本 | `horizontal/agent-host` | Prologue Runtime 的存储，kind `molis-write-checkers`；动作 `agent.write_checkers.list`、`agent.write_checkers.save`，受众只有人（`specs/prologue-adoption/spec.md` §6.0p.2） |
 
-三类都由人保存，`agent-host` 只经 Prologue 的存储读写，不建自己的表。工作区授权本身归 Home 的项目目录（读法是 `projects.settings.workspaces.read`），这里只引用它。
+三类都由人保存，`agent-host` 只经 Prologue 的存储读写，不建自己的表。工作区授权本身归 Home 的项目目录（读法是 `projects.directories.get`），这里只引用它。
 
 ## 图片生成插件
 

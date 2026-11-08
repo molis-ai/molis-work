@@ -11,7 +11,6 @@ export const GIT_EN: Record<string, string> = {
   "目录可能被移动或删除了，重新选一次": "The folder may have moved or been deleted. Choose it again.",
   "重试一次，或者先在终端里看看 git status": "Try again, or look at git status in a terminal first",
   "Git 状态不可读": "Git's state can't be read",
-  "请在项目设置的工作目录中选择可用浏览目录": "Choose a folder to browse in the project's working folder settings",
   "工作目录已改变，请刷新 Git": "The working folder changed. Refresh Git.",
   "工作目录已改变，请重新读取结果": "The working folder changed. Read the results again.",
   "工作目录已改变，请重新读取操作记录": "The working folder changed. Read the operation record again.",

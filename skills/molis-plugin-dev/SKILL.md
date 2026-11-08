@@ -105,7 +105,7 @@ description: The single standard for building Molis Work plugins, hand-written o
 | 一级入口（底栏插件切换 / Dock） | `ui.views` slot `navigator` + plugin-stage | 第二栏 dashboard、自绘壳、全局侧栏 |
 | 不进插件切换的工具面 | slot `stage` | 硬塞进导航 |
 | 底栏右侧的个人常驻入口（岛） | slot `island` | 当成普通插件条 |
-| 当前项目关联目录 / 浏览目录 | `projectSettingsCapabilities`，Manifest 按项 consumes | 读其他插件 storage、Workspace ports、传 project_id |
+| 当前项目的输入目录与输出目录 | `projectDirectoryActions.get`（`projects.directories.get`），Manifest 按项 consumes | 读其他插件 storage、Workspace ports、传 project_id |
 | 本机偏好 | `settings-page` → `workbench.settings` | 把 Feed 账号做成全局设置 |
 | 属于人、说明 AI 怎么做事的配置页（提示词一类；角色是宿主自己的一节设置，不是插件） | `settings` view 带 `order`（宿主分类 10–90，跟随前一个宿主分类的分组）；页面由运行中的插件渲染时声明为 `stage` view，根元素标 `data-settings-page` | 放进插件切换器；在宿主里按插件名排位置 |
 | 点按钮改数据 | HTTP + 已有 Module API 或私人库 | 抢 Module 的业务表 |

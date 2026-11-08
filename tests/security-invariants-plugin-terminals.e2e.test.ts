@@ -7,6 +7,7 @@ import { openCharacters } from "@molis-ai/molis-work-module-characters";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
+import { setProjectOutputFolder } from "./fixtures/project-directories-http.js";
 
 test("SYS-15 integration preserves the CHR-1 Host terminal output, keyboard input and reattachment without relaunch", { timeout: 90_000 }, async t => {
   const browser = await openGoalBrowser(t, true); if (!browser) return;
@@ -16,9 +17,8 @@ test("SYS-15 integration preserves the CHR-1 Host terminal output, keyboard inpu
   await writeFile(join(bin, "codex"), "#!/bin/sh\nprintf 'ISOLATED_TERMINAL_READY\\n'\nexec /bin/cat\n", { mode: 0o700 });
   const priorPath = process.env.PATH; process.env.PATH = bin + ":" + priorPath;
   t.after(() => { if (priorPath === undefined) delete process.env.PATH; else process.env.PATH = priorPath; });
-  const { workspace } = await browser.web.post<{ workspace: { workspace_id: string } }>(`/projects/${browser.projectId}/api/workspaces`, {
-    workspace_path: config, user_confirmed: true,
-  });
+  // A Character runs only in the project's output, set in its settings as the person does (SSC-15).
+  const workspace = await setProjectOutputFolder(browser.web, browser.projectId, config);
   const characters = openCharacters(browser.homeDirectory, "web-user");
   const { draft } = characters.service.import({ runtime_id: "codex", config_root: config, captured_at: new Date().toISOString(),
     rules: [{ path: join(config, "AGENTS.md"), scope: "global", content: "Use only this isolated fixture." }], skills: [] },

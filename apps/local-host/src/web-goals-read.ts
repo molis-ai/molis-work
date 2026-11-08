@@ -148,7 +148,7 @@ export function createLocalGoalsReadHttp(ports: {
     }));
     if (renderedGoalsRead) {
       if ("error" in renderedGoalsRead) {
-        sendJson(response, renderedGoalsRead.status, { error: renderedGoalsRead.error });
+        sendJson(response, renderedGoalsRead.status, { error: renderedGoalsRead.error, ...(renderedGoalsRead.code ? { code: renderedGoalsRead.code } : {}) });
         return true;
       }
       response.writeHead(200, {

@@ -4,6 +4,7 @@ import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { readProjectDirectories, setProjectOutputFolder } from "./fixtures/project-directories-http.js";
 
 // Files open inside the workbench (specs/artifact-positioning S5): a Shelf file in the side panel's file tab, a project
 // reference in the workbench's overlay. Neither opens a new browser page.
@@ -17,7 +18,8 @@ test("a Shelf file and a project reference open inside the workbench, not in a n
 
   // Shelf is the side panel's first tab; its rows live in the tab's frame.
   const shelf = "document";
-  await click("[data-side-toggle]");
+  // 07-1 S4b: the bar's side button is gone; the side opens from its current glyph in the titlebar.
+  await click("[data-side-tabs] [data-side-tab][aria-selected=true]");
   await child.waitFor(`[...(${shelf}?.querySelectorAll('[data-shelf-list=materials] [data-shelf-item]') ?? [])].some(row => row.dataset.shelfName === '试用示例.pdf')`, 10_000);
   const address = await evaluate<string>("location.href");
   // A double click on the row (the first click opens the row's preview and moves the layout, so dispatch it on the row).
@@ -57,19 +59,17 @@ test("RAC-84 PG-060 side-panel open selects the exact Files object on cold and a
     await mkdir(join(directory, target.path[0]), { recursive: true });
     await writeFile(join(directory, ...target.path), target.text);
   }
-  await web.post(`${prefix}/api/workspaces`, { workspace_path: directory, user_confirmed: true });
-  const { workspaces } = await web.get<{ workspaces: Array<{ workspace_id: string }> }>(`${prefix}/api/project-settings/workspaces`);
-  assert.equal(workspaces.length, 1);
-  const workspaceId = workspaces[0].workspace_id;
-  await web.post(`${prefix}/api/project-settings/workspaces`, { workspace_id: workspaceId });
+  // The folder is the project's output, set in its settings as the person does: the side panel lists the output's files (SSC-17).
+  const workspaceId = (await setProjectOutputFolder(web, projectId, directory)).workspace_id;
+  assert.equal((await readProjectDirectories(web, projectId)).directories.length, 1, "the output is the project's one folder");
   const filesState = () => web.get<{ position: { workspace_id: string; path: string[] } | null }>(`${prefix}/api/plugins/io.molis.work.files/state`);
   assert.equal((await filesState()).position, null);
 
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + prefix + "/" }, sessionId));
-  await click("[data-side-toggle]");
+  await click("[data-side-tabs] [data-side-tab][aria-selected=true]");
   await click("[data-side-tab=files]");
-  // Only the selected browsing workspace is legal. Equal basenames at distinct paths must retain their full IDs.
+  // Only the output, which Files browses when the page names no folder, is listed. Equal basenames at distinct paths must retain their full IDs.
   // Files has never been opened in this page; the second iteration uses the Files view the first one opened.
   for (const [index, target] of targets.entries()) {
     t.diagnostic(index === 0 ? "cold Files object open" : "already open Files changes to another same-name object");

@@ -23,7 +23,7 @@ import {
 } from "./repository.js";
 import type { ProjectsSqliteDatabase } from "./sqlite.js";
 import { normalizeProjectWorkspace, ProjectWorkspaceService } from "./workspace.js";
-import { PROJECT_OUTPUT_PATH_PREFIX, prepareProjectOutputDirectory } from "./project-output.js";
+import { PROJECT_OUTPUT_PATH_PREFIX, prepareProjectOutputDirectory, projectOutputId } from "./project-output.js";
 import { ProjectDeletionSteps } from "./deletion-steps.js";
 
 export interface ProjectsModuleOptions {
@@ -123,6 +123,7 @@ export class ProjectsModule implements ProjectsApplicationApi {
       listWorkspaceDirectory: (projectId) => this.workspaces.listDirectory(projectId),
       projectDirectories: (projectId) => this.workspaces.directories(projectId),
       outputDirectory: (projectId) => this.workspaces.outputDirectory(projectId),
+      defaultOutputDirectoryId: (projectId) => projectOutputId(repository.db, this.records.get(projectId).project_id),
       workspaceProjectSelections: (workspaceId) => repository.workspaces.workspaceProjectSelections(workspaceId),
       listProjectDeletions: () => this.records.listDeletions().map(receipt => ({ ...receipt, owner_steps: this.deletionSteps.list(receipt.deletion_id) })),
     };

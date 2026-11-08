@@ -1,5 +1,5 @@
 import type { PluginDevelopmentInput, PluginDevelopmentResult } from "@molis-ai/molis-work-contracts/platform/tooling";
-import { type PluginManifest, type PluginRuntimeRepository } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginManifest, PluginRuntimeRepository } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { inspectLocaleSet } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { loadDevelopmentLocalePacks, loadDevelopmentPlugin, PluginRuntime, refuseLocaleProblems, UNSIGNED_TRUST, type PluginLocaleReader } from "@molis-ai/molis-work-plugin-runtime";

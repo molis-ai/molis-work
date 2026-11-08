@@ -70,7 +70,7 @@ export function assertPluginLocales(manifest: PluginLocaleManifest, read: Plugin
   return problems;
 }
 
-/** Refuses the package over the `blocking` problems, naming every file and what to do; the one wording of that refusal for install, `validate`, `pack` and `dev`. */
+/** Refuses the package over the `blocking` problems, naming every file and what to do; the one wording of that refusal for `validate`, `pack` (through `assertPluginLocales`) and `dev`. */
 export function refuseLocaleProblems(problems: readonly LocaleSetProblem[]): void {
   const blocking = problems.filter((problem) => problem.blocking);
   if (blocking.length > 0) throw pluginErrors.package_invalid(`语言文件有问题：${blocking.map(({ file, key, reason, fix }) => `${file}${key === null ? "" : ` ${key}`}：${reason}；${fix}`).join("。")}`);

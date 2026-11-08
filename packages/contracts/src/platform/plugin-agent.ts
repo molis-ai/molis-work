@@ -178,9 +178,10 @@ export interface AgentManifest {
    *
    * Optional, and normally absent: the working directory is a **Host fact**.
    * The Host authorizes it, verifies its realpath, and passes it on the start
-   * request; a Plugin reads it through `projects.workspace.read`, not
-   * through a port. Declaring it here does not make the Host believe it —
-   * start authority checks the directory either way.
+   * request; with none named, a run goes in the project's one output directory.
+   * A Plugin reads the project's inputs and output through
+   * `projects.directories.get`, not through a port. Declaring it here does not
+   * make the Host believe it — start authority checks the directory either way.
    */
   directory_input_port?: string;
   text_sources?: AgentTextSourceDeclaration[];

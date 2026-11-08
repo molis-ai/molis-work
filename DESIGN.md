@@ -580,7 +580,7 @@ Goal record forms use a fixed compact heading, a scrolling field region and a se
 ### Partial saves and connection recovery
 When a multi-step save completes only its first step, name the saved part and the unfinished part in the same feedback area. Retrying must preserve identity and avoid duplicate records. Goal type/requirement saves follow this rule. Planning methods distinguish mandatory steps, coverage questions and dependency rules from optional advanced guidance; validation opens and focuses the missing group. Pending planning saves disable both local return and cancel links. Connector authorization failures point to the current Feed task settings → Manage account connection, while retaining provider diagnostics in history.
 
-Project Workspaces settings replace the standalone Workspace navigator. Show associated paths and one explicit Files/Git browsing selection; Coding keeps its session execution choice. The same settings category works embedded and standalone, with empty, unavailable, saving, and error states. See [settings ownership](docs/platform/PROJECT-SETTINGS.md).
+Project Workspaces settings replace the standalone Workspace navigator. Show the project's folders by role: any number of read-only inputs (called 参考 in the UI) and the one output, where Agents, Git and the terminal write and run, which is the default output directory until another is chosen. Which folder a page looks at is that page's own state, never a project setting. Coding runs in the output, or in a worktree the Host made for the session. The same settings category works embedded and standalone, with empty, unavailable, saving, and error states. See [settings ownership](docs/platform/PROJECT-SETTINGS.md).
 
 ## Do's and Don'ts
 

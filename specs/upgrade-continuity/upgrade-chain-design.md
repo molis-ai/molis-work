@@ -160,10 +160,10 @@ readonly upgrades?: readonly { readonly from: number; readonly sql: string; read
   - 插件升 `collection.schema_version`：`pluginSyncNamespace` 的哈希含它和发布者签名（`plugin-sync-database.ts:8-13`），一升技术表和触发器全部换名，第 3 层比不过，这个插件回滚并停用。
 
   三者都等第一次真要这样做时再定。
-- **第 2 层以后改用原生授权（结论）。** `nativeSqliteOwnerBoundary`（`node:sqlite` 的 `setAuthorizer`，S-112）现在只用在 Home 插件库；项目库在 `better-sqlite3` 上，它没有把 SQLite 的授权回调接出来（`src/` 里没有 `sqlite3_set_authorizer`）。跑法和范围检查对所有插件同一份（用户 2026-11-06 定），所以**不能 Home 库先用授权、项目库继续按词读**。逐层的结论：
+- **第 2 层以后改用原生授权（结论）。** `nativeSqliteOwnerBoundary`（`node:sqlite` 的 `setAuthorizer`，S-112）现在只用在 Home 插件库。写这一节时项目库还在 `better-sqlite3` 上，它没有把 SQLite 的授权回调接出来；2026-11-08 起项目库也在 `node:sqlite` 上（[SQLite 第二步](../sqlite-driver-switch/spec.md)，#1959），连接里有 `setAuthorizer`，只是窄接口 `SqliteDatabase` 还没把它交出来，接的时候在 `packages/storage` 加。跑法和范围检查对所有插件同一份（用户 2026-11-06 定），所以**不能 Home 库先用授权、项目库继续按词读**，两边要一起换。逐层的结论：
   - **第 1 层留。** 声明时、安装时没有连接；第 2 层也靠它分清这句是结构语句还是增删改。
   - **第 3 层留。** 授权只管一句碰了什么，不知道段跑完之后对象集合和结构对不对。这是 UPG-03 判断放不放回的依据，和防越权无关也要有。
-  - **第 2 层该换，等 SQLD-d 把项目库换到 `node:sqlite` 之后一次换所有插件，U4 打开开关之前必须换完（统筹 11-07 定）。** 可以等的理由正好决定了期限：U4 之前只有内置的段，按词读即使有漏洞也没有对手。换掉的是「按词读目标」和结构语句的核对，增删改接 `nativeSqliteOwnerBoundary`，替掉 `pluginStatementGuard`。名字由解析器给，NBSP、注释夹层、`main . other` 这类问题不再存在；也不用再按 SQLite 版本钉步骤清单：没见过的回调一律拒绝，新版本多了内部函数只会误拒合法的段，UPG1-14 在 CI 里看得到。
+  - **第 2 层该换，等 SQLD-d 把项目库换到 `node:sqlite` 之后（随 #1959 做完）一次换所有插件，U4 打开开关之前必须换完（统筹 11-07 定）。** 可以等的理由正好决定了期限：U4 之前只有内置的段，按词读即使有漏洞也没有对手。换掉的是「按词读目标」和结构语句的核对，增删改接 `nativeSqliteOwnerBoundary`，替掉 `pluginStatementGuard`。名字由解析器给，NBSP、注释夹层、`main . other` 这类问题不再存在；也不用再按 SQLite 版本钉步骤清单：没见过的回调一律拒绝，新版本多了内部函数只会误拒合法的段，UPG1-14 在 CI 里看得到。
   - **实测只在这一个版本上做过**（Node 24.22.2、SQLite 3.54.1，同上面的 4212 种写法，不读词、只靠回调）：没有一种动到别人的表；加列、回填、改列名、删列、新表拷贝、删旧表、改名、建索引、删索引这一串合法的段全部走通。`nativeSqliteOwnerBoundary` 拒绝全部结构语句，不能直接用，要加一个结构模式，有三个坑：
     - 内部改写要读写 `sqlite_master`、`sqlite_temp_master`，要调 `sqlite_rename_*`、`sqlite_drop_column`，这些回调的 `origin` 都是 null，和用户写的分不开。结构模式下 `INSERT INTO mine SELECT sql FROM sqlite_master` 也能过（实测），所以只有第 1 层认定是结构语句的才进结构模式，增删改走普通模式。
     - `ALTER_TABLE` 回调第三个参数在 `DROP COLUMN` 时是列名，不是库名。
@@ -304,7 +304,7 @@ acquireUpgradedHomeOwner(home, beforeAcquire?, expected?)  // 放 home-storage-l
 
 `bootstrapSpace` 是 #1877 新加的启动点，根 Home 和账号 Home 都走它，顺序是：只读的 `preflightMemoryHome`、取锁、再查一次、`ensureStorageSpace`、`prepareMemoryHome`（这里才开记忆库）、打开调用方要的东西。升级要排在 `prepareMemoryHome` 之前，否则低版本的记忆库在这里就被拒了；`acquireUpgradedHomeOwner(directory, preflightMemoryHome, expected)` 正好接在取锁这一步，先比身份再升，否则别人的目录放在这个名字下时是先升后拒。单库失败不算这里出错（§5.2），只有取不到锁、记录坏了这类整体问题才抛。
 
-全部操作是同步的（`node:sqlite`、`better-sqlite3`、`copyFileSync`、`snapshotFileDigest`），放得进同步的 `createMolisWorkWebServer`。`copySnapshotFile`（异步）和 SQLite `backup` 进不来，也用不着（§5）。
+全部操作是同步的（`node:sqlite`，项目库的连接也是它；`copyFileSync`、`snapshotFileDigest`），放得进同步的 `createMolisWorkWebServer`。`copySnapshotFile`（异步）和 SQLite `backup` 进不来，也用不着（§5）。
 
 新 Home 的关系：没有库，升级零动作，接着照旧 `prepareMemoryHome`。
 

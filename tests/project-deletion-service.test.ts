@@ -257,7 +257,7 @@ test("the MCP tool asks the resident Host: a live terminal stops it (409), and o
   withCatalog = localHost.ensureWebCatalog(home, openMolisWorkProjectCatalog).withCatalog;
   // The terminal's own work context is an alias of it; deleting the project takes the alias with it (RAC-2568).
   const aliases = () => {
-    // The catalog's own SQLite (better-sqlite3), as the Host in this process opens it.
+    // The catalog's own connection, as the Host in this process opens it.
     const db = openTestSqlite(join(home, "projects", "catalog.db"), { readonly: true });
     try { return Number((db.prepare("SELECT COUNT(*) AS count FROM plugin_terminal_panel_aliases WHERE panel_id = ?").get(panelId) as { count: number }).count); }
     finally { db.close(); }

@@ -5,7 +5,7 @@ import { pathToFileURL } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 
-/** What a baseline needs from a connection: `node:sqlite` and better-sqlite3 both fit. */
+/** What a baseline needs from a connection: `node:sqlite` itself and the project connection both fit. */
 export interface SqliteBaselineDatabase {
   exec(sql: string): unknown;
   prepare(sql: string): { get(...params: unknown[]): unknown; all(...params: unknown[]): unknown[] };

@@ -625,7 +625,7 @@ test("RAC-2565 S-103 a session a runtime reports or a record holds reaches the r
     }
     // A record that holds one anyway (written past the service here) is checked again on the way out, and starts a new session.
     assert.equal(await start("recorded-option"), "[]");
-    // The catalog's own SQLite (better-sqlite3): a second SQLite copy in this process would drop the Host's file locks when it closes.
+    // The Host's own kind of connection: a second SQLite library in this process would drop the Host's file locks when it closes.
     const db = openTestSqlite(join(f.home, "projects", "catalog.db"), { timeout: 5000 });
     try {
       db.prepare("UPDATE plugin_terminal_panels SET host_session_id = ? WHERE panel_id = ?").run("--dangerously-bypass-approvals-and-sandbox", panelId("recorded-option"));
@@ -738,7 +738,7 @@ test("TERM-CATALOG-01 TERM-CATALOG-02 TERM-CATALOG-03 terminal list hides a real
   assert.equal(logged.length, 1);
   const warning = logged[0]!;
   assert.equal(warning.level, "warn"); assert.equal(warning.area, "terminal"); assert.equal(warning.event, "catalog_unreadable");
-  assert.deepEqual(warning.error, { name: "SqliteError", code: "SQLITE_ERROR" });
+  assert.deepEqual(warning.error, { name: "Error", code: "SQLITE_ERROR" });
   assert.equal(warning.fields, undefined);
   assert.doesNotMatch(JSON.stringify(warning), /catalog\.db|actor_id|home-runtime-|\/(?:Users|private|var)\//u);
   assert.deepEqual(await list(), before, "the same plugin action reads its unchanged row after recovery");

@@ -5,12 +5,13 @@ import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import type { TestContext } from "node:test";
 import { createHomeSnapshot } from "@molis-ai/molis-work-app-local-host";
+import { sqliteErrorName } from "@molis-ai/molis-work-storage";
 
 /** Capture the driver's error as the independent reference for snapshot and restore assertions. */
 export function captureSqliteError(operation: () => unknown, code: string): Error {
   try { operation(); } catch (error) {
-    assert.ok(error instanceof Error && "code" in error);
-    assert.equal(error.code, code);
+    assert.ok(error instanceof Error);
+    assert.equal(sqliteErrorName(error), code);
     return error;
   }
   assert.fail(`SQLite should have rejected the operation with ${code}`);

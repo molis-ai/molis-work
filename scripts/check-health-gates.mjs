@@ -56,6 +56,7 @@ import { inventoryProblems, loadRegistry } from "./gates/package-inventory.mjs";
 import { structureMetrics, structureWantsText } from "./gates/structure.mjs";
 import { tableOwnerProblems } from "./gates/table-owners.mjs";
 import { storeVersionProblems } from "./gates/store-versions.mjs";
+import { storeSchemaProblems } from "./gates/store-schemas.mjs";
 import { registeredUpgradeChains, versionOriginProblems } from "./gates/initial-versions.mjs";
 import { measureSchemaPatches, schemaPatchesWantText } from "./gates/schema-patches.mjs";
 import { specCoverageLine } from "./gates/spec-coverage.mjs";
@@ -505,6 +506,9 @@ const storeVersions = () => {
     throw error;
   }
 };
+// A library whose creation statements changed under the same version, against the merge-base's tooling/gates/schemas/stores.tsv (UPG-01,
+// scripts/gates/store-schemas.mjs); that the file is what the product creates is checked in `pnpm test:contracts`, which builds.
+const storeSchemas = () => storeSchemaProblems(workingTree(), mergeBase ? (file) => gitMaybe(["cat-file", "blob", `${mergeBase}:${file}`]) || null : undefined);
 // The half of the unified-origin check that needs no build (scripts/gates/initial-versions.mjs, user 2026-11-07): not a number, every version is 1 or has its chain.
 const versionOrigin = () => versionOriginProblems(workingTree(), { chains: registeredUpgradeChains(workingTree()), readBase: mergeBase ? (file) => gitMaybe(["cat-file", "blob", `${mergeBase}:${file}`]) : undefined });
 const against = mergeBase ? `merge-base ${mergeBase.slice(0, 8)} (${options.base})` : "the local Git health baseline";
@@ -550,7 +554,7 @@ if (update) {
 
 // ---- the verdict -----------------------------------------------------------------------------------------------------
 const api = apiSnapshots();
-const errors = [...growth(), ...limitErrors(), ...absolute(), ...storeVersions(), ...versionOrigin(), ...api.errors];
+const errors = [...growth(), ...limitErrors(), ...absolute(), ...storeVersions(), ...storeSchemas(), ...versionOrigin(), ...api.errors];
 if (errors.length) {
   console.error(`Health gates failed against ${against}:\n- ` + errors.join("\n- "));
   process.exit(1);

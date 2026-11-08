@@ -564,7 +564,7 @@ apps/desktop/launchers/web/server.ts：
 
 ### 11.5 交接
 
-U2-d 的 `tooling/gates/schemas/`（基线结构哈希）补上「改了建库语句却没升版本」这一半，见 [U2 设计](golden-replay-design.md) §5。U1-i 只管「升版本这条路走得通」。
+U2-d 的 `tooling/gates/schemas/stores.tsv`（基线结构哈希，`scripts/gates/store-schemas.mjs`）补上「改了建库语句却没升版本」这一半，见 [U2 设计](golden-replay-design.md) §5。U1-i 只管「升版本这条路走得通」。
 
 ## 12. 要写进「当前保留机制」的一行（成稿，用户 2026-11-06 同意）
 

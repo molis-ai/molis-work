@@ -12,6 +12,7 @@
 | `limits.json` | 巨大单元与 vendored SDK 的阈值，以及 `docs/` 下一个 `.json` 最多多少字节（`docsJsonBytes`，依据见 `scripts/gates/README.md`「文档里的原始数据」），只许收紧 | 人，过评审 |
 | `api/<包>/<subpath>.txt` | contracts 每个 subpath、插件 SDK 的公开 API 快照 | `pnpm api:update`（见下） |
 | `actions/*.tsv` | 内置 Manifest 声明的动作与消费场景、宿主另外登记的动作与消费场景的合同快照（提供方、宿主登记用的提供方 id、谁能调、输入输出 schema 的哈希） | `pnpm actions:update`（见「动作合同快照」） |
+| `schemas/stores.tsv` | 这个构建会建的每个库的结构快照（位置、主人、版本、结构哈希、升级段的 `from`） | `pnpm schemas:update`（见「库的结构快照」） |
 | `secret-allowlist.txt` | 密钥扫描的已知测试值 | 人，过评审 |
 | `table-owners.json` | `shared`：几个包有意共用的表（今天没有；`events`、`idempotency_records` 原先在里面，PG-094 S9-1 后已删）的 owner、用到它的包、理由；`same_name`：两个包各建一张的同名表（今天是 `workspaces`、`jobs`，不同库）的包与理由；`areas`：包里自己当 owner 的目录（今天是 Feed 的 `src/store`，BL-802）与理由；其余的表只许 owner 包读写（`scripts/gates/table-owners.mjs`，说明在 `scripts/gates/README.md`） | 人，过评审；门禁两头核对，登记的包不再用就要删 |
 | `error-owners.json` | 错误码的主人表：`platform.prefixes`（平台自己的前缀，今天是 `actions`、`placement`、`search`、`files`）和 `owners.<名字>`（主人名、它名下的目录、glob 或文件、理由）。每个错误码以所在文件的主人名开头，平台码（`ACTION_ERROR_KINDS` 里有行的）除外；`plugins/native/<目录>/` 下的文件不用登记，主人就是目录名（连字符变下划线）。表自己的规则没有基线，表只许变严（`scripts/gates/error-owners.mjs`，口径见下面「错误模型」） | 人，过评审；新增一个包或区域要先加一条 |
@@ -97,6 +98,21 @@
 | 可重建的库 | `search/search.db` 不进链（设计 §2.3），U1-d 之后 Alchemist 的 `search.sqlite` 也一样，但这道规则同样管它们：升到 2 不写指针、写文字、写指针没有段都失败，统一起点的版本检查也过不了。**第一次要升时不要写假的 `upgrades` 来过门禁，先问用户。** 重建型的库怎么升，第一次要升时再定，现在不加例外 |
 
 验证：`node scripts/run-tests.mjs tests/health-gates-store-versions.test.ts`。在临时仓库里：版本升了、降了却没有那一行就失败；有对的那一行就通过；数字不对、库不对、只写在正文里、写在登记节之外，都不算；检查清单第 3 节之后的表不算第 3 节；新库和去掉的库不用登记；没有标题、缺列、版本不是数字、文件被删、没有登记节标题、没有清单开头那一行、清单里的行写法不对，以及 merge-base 上的检查清单没有标题，都以退出码 2 结束。真实数据的用例：这个仓库现在的表和清单直接通过；表里每一个版本是 1 的库，升到 2 带段、带指针就过，缺指针、缺段、版本降都失败；这条用的是合成的段，只证明规则读得懂每一行，不是说这些库都该这样升（上面「可重建的库」）。统一起点的用例：未登记时版本照旧能升能降；登记后版本降、「维护」一格还是文字、指向别的定义处、箭头数字对不上、基线字面量里没有 `from: 旧`、别的基线有但这个没有、跨两版缺中间一段、`upgrades` 写成读不懂的名字（没声明、`let`、名字指向名字、声明两次）或展开、登记后改回未登记都失败；写对就通过，写成本文件 `const` 数组的名字也通过；普通版本常量看文件里的 `upgrades`。
+
+## 库的结构快照（`scripts/gates/store-schemas.mjs`、`store-schema-snapshot.mjs`，UPG-01）
+
+统一起点之后，改了库的建库语句就要升版本、带升级段（[升级后持续可用](../../specs/upgrade-continuity/spec.md) UPG-01）：正在用的 Home 留着旧结构，打开时只比表，同版本的库也不会就地修补。`schemas/stores.tsv` 把这个构建会建的每个库写下来，一行一个：项目目录库、项目库、宿主库登记表（`homeStores()`）里的每个 Home 库（含内置插件的 `databases.home`）、每个内置插件的项目表（`projects/*/molis-work.db#<plugin_id>`）和旧炼金术士的两个库。装上的插件的库是发布者的，不在这里。
+
+**一行写什么。** `store`（位置，分项目的用 `*`）、`owner`、`version`、`structure`、`upgrades`（升级段的 `from`，没有写 `-`）。`structure` 是 sha256 前 16 位：建库语句在内存 SQLite 里跑完，`describeSqliteSchema` 报的表、列、检查、外键、索引（打开 Home 时比的那一份），加上每个触发器和视图的语句（空白归一）。只改排版和触发器外的注释不算，改触发器算：正在用的 Home 留着旧触发器。
+
+**两半。** 文件和构建出的产品一致，由 `pnpm test:contracts` 的 `tests/store-schema-snapshot.test.ts` 看住（要构建，CI「Action and plugin contracts」步骤），不一致就跑 `pnpm schemas:update` 再提交。和 merge-base 比的规则在 `pnpm health:check`，不用构建：
+
+- 同一个库版本没变、结构哈希变了：失败（UPG-01）。
+- 版本降了：失败。
+- 版本升了：每个 `from`（旧版本到新版本减 1）都要有升级段；还要有一份金样（`tests/fixtures/golden-homes/<版本>/manifest.json`）存着这个库的旧版本，账号 Home 里的也算。回放本身过没过由挡合并的 `golden-replay` 作业管。
+- 新库、删掉的库这里不管。merge-base 有文件、头上没了，失败；两边都没有（别的门禁测试的草稿仓库）不查。
+
+**读不到的。** 金样清单记的是 `PRAGMA user_version`：目录库的版本在 `catalog_meta`，插件项目表的版本在项目库里，清单都还没记，所以这两类升版本现在一律失败，提示里写明原因。带版本的文件没有建库语句，不在这里，版本连续归下一节。某个库能不能升到 1 以上、维护清单那一行，分别归 `initial-versions.mjs` 与 `store-versions.mjs`，这里不重复。
 
 ## 统一起点的版本检查（`scripts/gates/initial-versions.mjs`，N41）
 

@@ -110,7 +110,7 @@ node scripts/replay-golden-homes.mjs [--latest N | --all] [--json]
 | --- | --- | --- |
 | 金样回放（挡合并） | 第一份金样入库即开 | 最近 3 份金样有任何一份回放不过。U1 之前这已经能拦住「同版本改了结构」，因为打开时的结构检查会拒绝。平台改同步技术表也归这一条（U1 设计 §2.4） |
 | 金样回放（定时） | 同上 | 全部金样，每天一次；失败开 issue，不挡合并 |
-| 建库语句与版本（UPG-01） | U1 合入后 | 每个库的基线结构算一个哈希，入库在 `tooling/gates/schemas/`（与动作合同快照同一种做法，`pnpm schemas:update` 刷新）。哈希变了而版本没升，失败；版本升了却没有对应的升级段，失败；升了版本却没有新的中间金样或回放没过，失败。`tests/fixtures/home-store-schemas/`（#1877 加的各库冻结结构，配 `tests/home-store-baselines.test.ts`）只比当前结构，没有这三条，不代替它；它的历史样本（`sync-v2`～`v5` 等）可以当 U1 用例的真实输入 |
+| 建库语句与版本（UPG-01） | U1 合入后（U2-d 已做） | 每个库的基线结构算一个哈希，入库在 `tooling/gates/schemas/stores.tsv`（与动作合同快照同一种做法，`pnpm schemas:update` 刷新；文件与构建出的产品一致由 `pnpm test:contracts` 的 `tests/store-schema-snapshot.test.ts` 看住，和 merge-base 比的三条在 `pnpm health:check`，`scripts/gates/store-schemas.mjs`）。哈希变了而版本没升，失败；版本升了却没有对应的升级段，失败；升了版本却没有新的中间金样或回放没过，失败。哈希是 SQLite 跑完建库语句后报的结构（`describeSqliteSchema`，加上触发器和视图的语句，空白归一），所以只改排版不算，改触发器算。「中间金样」读金样清单里这个库的 `schema_version`：要有一份金样存着旧版本；「回放没过」由挡合并的 `golden-replay` 作业管。目录库的版本在 `catalog_meta`、插件的项目表版本在项目库里，金样清单都还没记，这两类升版本现在过不了，等金样记下它们再说。带版本的文件没有建库语句，不在这一条里，版本连续归 `initial-versions.mjs`。`tests/fixtures/home-store-schemas/`（#1877 加的各库冻结结构，配 `tests/home-store-baselines.test.ts`）只比当前结构，没有这三条，不代替它；它的历史样本（`sync-v2`～`v5` 等）可以当 U1 用例的真实输入 |
 | 覆盖面 | 第一份金样入库即开 | `HOME-DATA.md` 里登记的每个「必备份」库和带版本的文件，在最新一份金样里都存在；少一项就失败。新库在登记表里加一行，就要在同一个 PR 里让金样也有它。开工时先把 `HOME-DATA.md` 缺的 `feed-content/feed-content.db`、`computer/` 补上（核账第二节），否则覆盖面本身有洞。登记成不进快照、却是用户数据的（`spaces`、`sync`、`plugin-packages`、`storage-space.json`）也算，不只看「必备份」 |
 | 换 Prologue 包（UPG-11） | 第一份金样入库即开 | 改了 `vendor/prologue-sdk/` 的 PR 回放全部金样，不只最近 3 份 |
 
@@ -154,7 +154,7 @@ node scripts/replay-golden-homes.mjs [--latest N | --all] [--json]
 | U2-a 生成脚本 | `scripts/golden-home.mjs`、§2 的目录形状、清单格式；先在当前版本上跑通，但不入库 | 可以在第 02 批进行中写，只要不入库金样，也不碰 02 在改的文件（`packages/storage/src/snapshot-sqlite.ts`、`sqlite-baseline.ts`、`home-store-snapshot.ts` 等，清单见核账第二节）。转储器放新文件 |
 | U2-b 回放脚本 | `scripts/replay-golden-homes.mjs`；把 `probe` 抽成公共函数；按 §4 第 6 步的约定在 `tests/golden-writes/` 放各主人的最小写入用例（不改合同，第三方用语料的 `write`） | U2-a |
 | U2-c 第一份金样与挡合并作业 | 生成 `0.1.0`，入库，开 `golden-replay` 任务和覆盖面门禁；相同代码只存一份的压缩（§6）；macOS 作业和它的路径清单（§5） | 第 02 批重建、版本回到 1；开任务与门禁用户已同意 |
-| U2-d 建库语句门禁 | `tooling/gates/schemas/`、`pnpm schemas:update`、UPG-01 | U1 合入；门禁用户已同意 |
+| U2-d 建库语句门禁（已做） | `tooling/gates/schemas/stores.tsv`、`pnpm schemas:update`、UPG-01（§5） | U1 合入；门禁用户已同意 |
 | U2-e 发布步骤 | 发布检查单加「生成本版金样」，定时作业回放全部；定时作业跑在 macOS，否则第三方这段每天也跑不到（`scripts/replay-golden-homes.mjs` 在 Linux 上报 `unsupported`） | U2-c；定时作业用户已同意 |
 
 按[决定 26](../post-anticorruption-roadmap/reference/decisions.md#decision-26)，本批由主会话派子代理，轨道只管独占文件；`scripts/golden-home.mjs`、`tests/` 不归 C1 独占。U2-a、U2-b 和 U1 串着写，理由是两边读同一份快照枚举、都要往 `packages/storage` 加东西，不是因为同轨；文件不重叠，开工时看 U1 进度，错开也行（[U1 设计](upgrade-chain-design.md) §15.1）。U2-e 是 F 轨。

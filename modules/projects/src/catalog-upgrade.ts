@@ -29,7 +29,51 @@ ${WORKSPACE_SOURCE_LINKS_SQL}
 const UPGRADE_ACTOR = "molis-work-upgrade";
 
 /** The upgrade step's connection (`SqliteBaselineDatabase`), as far as these functions use it. */
-interface CatalogUpgradeDatabase { prepare(sql: string): { get(...params: unknown[]): unknown; all(...params: unknown[]): unknown[]; run(...params: unknown[]): unknown } }
+interface CatalogUpgradeDatabase {
+  exec(sql: string): unknown;
+  prepare(sql: string): { get(...params: unknown[]): unknown; all(...params: unknown[]): unknown[]; run(...params: unknown[]): unknown };
+}
+
+/**
+ * Whether `path` is a worktree the Host made for a writer of one of `others`, the other folders linked to the same project. The Host's
+ * own rule (where it makes them), so the catalog never guesses one from a name.
+ */
+export type HostWorktreeTest = (path: string, others: readonly string[]) => boolean;
+
+/**
+ * The step from version 1 to 2, in order. First the links a Host before version 2 made for writers' worktrees go: they are not folders
+ * the person linked (a worktree is now named by its own id and never linked, plan A, coordinator 2026-11-08), and left in they would make
+ * a project that works in one folder count as several, and show inputs nobody added. Then the roles (`PROJECTS_CATALOG_UPGRADE_1_SQL`),
+ * then every project's default output.
+ */
+export function upgradeProjectsCatalog1(isHostWorktree: HostWorktreeTest): (db: CatalogUpgradeDatabase) => void {
+  return db => {
+    dropHostWorktreeLinks(db, isHostWorktree);
+    db.exec(PROJECTS_CATALOG_UPGRADE_1_SQL);
+    fillProjectOutputs(db);
+  };
+}
+
+/**
+ * Removes, from a version-1 catalog, each link whose folder the Host recognises as a writer's worktree of another folder of the same
+ * project, and the folder's row when no project links it any more (as unlinking does). Every other link stays as it was.
+ */
+export function dropHostWorktreeLinks(db: CatalogUpgradeDatabase, isHostWorktree: HostWorktreeTest): void {
+  const links = db.prepare(`SELECT memberships.membership_id, memberships.project_id, memberships.workspace_id, workspaces.canonical_path
+    FROM workspace_project_memberships AS memberships JOIN workspaces ON workspaces.workspace_id = memberships.workspace_id
+    ORDER BY memberships.project_id, memberships.membership_id`).all() as Row[];
+  const byProject = new Map<string, Row[]>();
+  for (const link of links) byProject.set(String(link.project_id), [...byProject.get(String(link.project_id)) ?? [], link]);
+  for (const project of byProject.values()) {
+    const paths = project.map(link => String(link.canonical_path));
+    for (const link of project) {
+      const path = String(link.canonical_path);
+      if (!isHostWorktree(path, paths.filter(other => other !== path))) continue;
+      db.prepare("DELETE FROM workspace_project_memberships WHERE membership_id = ?").run(link.membership_id);
+      db.prepare("DELETE FROM workspaces WHERE workspace_id = ? AND NOT EXISTS (SELECT 1 FROM workspace_project_memberships WHERE workspace_id = ?)").run(link.workspace_id, link.workspace_id);
+    }
+  }
+}
 
 /**
  * Every project with no output yet gets its default output directory: a row and a membership, from the project's id and its earliest event,

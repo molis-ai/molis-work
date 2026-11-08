@@ -73,10 +73,13 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
   const gone = new Set();
   const BEAT = 15000, LONGEST = 120000;
   let beat = 0, wait = BEAT;
-  const schedule = () => { clearTimeout(beat); if (!document.hidden && !gone.has(route("/api/attention"))) beat = setTimeout(read, wait); };
+  // The beat keeps going past a gone address: the chooser's route may follow another project by the next beat (N54).
+  const schedule = () => { clearTimeout(beat); if (!document.hidden) beat = setTimeout(read, wait); };
   const read = async () => {
-    if (document.hidden || gone.has(route("/api/attention"))) { clearTimeout(beat); return; }
+    if (document.hidden) { clearTimeout(beat); return; }
+    if (gone.has(route("/api/attention"))) { schedule(); return; }
     if (reading) { again = true; return; }
+    clearTimeout(beat);
     reading = true; again = false;
     const started = performance.now();
     try {

@@ -76,6 +76,41 @@ test("07-2a N54: after a 404 (the project is gone) the page stops reading what w
   assert.equal(await evaluate<number>("window.__attention"), after, "no read after the 404");
 });
 
+test("07-2a N54: on the chooser a project that answered 404 is not asked again, and the next project chosen is read on the next beat", { timeout: 150_000 }, async t => {
+  const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
+  const { command, sessionId, navigate, waitFor, evaluate, click, origin, projectId } = browser;
+  const other = (await createProject(browser.web, "第二个项目")).project_id;
+  // The page's own fetch counts /api/attention by project, and answers the gone one with a 404 once the test says so.
+  await command("Page.addScriptToEvaluateOnNewDocument", { source: `(() => {
+    const real = window.fetch.bind(window); window.__reads = {}; window.__goneId = "";
+    window.fetch = (input, init) => {
+      const url = String(input?.url ?? input), at = /\\/projects\\/([^/]+)\\/api\\/attention/.exec(url);
+      if (!at) return real(input, init);
+      const id = decodeURIComponent(at[1]); window.__reads[id] = (window.__reads[id] || 0) + 1;
+      return id === window.__goneId ? Promise.resolve(new Response(JSON.stringify({ error: "项目不在了" }), { status: 404, headers: { "content-type": "application/json" } })) : real(input, init);
+    };
+  })()` }, sessionId);
+  await navigate(() => command("Page.navigate", { url: `${origin}/` }, sessionId));
+  await waitFor(`Boolean(document.querySelector('.chooser .mw-dir-row[data-id="${projectId}"]')) && Boolean(document.querySelector('.chooser .mw-dir-row[data-id="${other}"]'))`, 20_000);
+  const reads = (id: string) => evaluate<number>(`window.__reads[${JSON.stringify(id)}] || 0`);
+  await click(`.chooser .mw-dir-row[data-id="${projectId}"]`);
+  await waitFor(`document.querySelector('.chooser').dataset.selected === ${JSON.stringify(projectId)}`, 5_000);
+  // The chosen project goes: the next read of it answers 404.
+  const was = await reads(projectId);
+  await evaluate(`window.__goneId = ${JSON.stringify(projectId)}; document.dispatchEvent(new CustomEvent('molis-work:attention-refresh'))`);
+  await waitFor(`(window.__reads[${JSON.stringify(projectId)}] || 0) > ${was}`, 5_000);
+  await new Promise(resolve => setTimeout(resolve, 500));
+  const goneReads = await reads(projectId), before = await reads(other);
+  // Another project is chosen: the beat that kept going past the gone address reads it, within one beat.
+  await click(`.chooser .mw-dir-row[data-id="${other}"]`);
+  await waitFor(`document.querySelector('.chooser').dataset.selected === ${JSON.stringify(other)}`, 5_000);
+  await waitFor(`(window.__reads[${JSON.stringify(other)}] || 0) > ${before}`, 16_000);
+  // Back on the gone one for a beat and more: it is never asked again.
+  await click(`.chooser .mw-dir-row[data-id="${projectId}"]`);
+  await new Promise(resolve => setTimeout(resolve, 17_000));
+  assert.equal(await reads(projectId), goneReads, "the project that answered 404 is not asked again");
+});
+
 test("07-2a N54: a read of what waits on the person that fails waits longer before the next, instead of every 15 seconds", { timeout: 120_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
   const { command, sessionId, navigate, waitFor, evaluate, origin, projectId } = browser;

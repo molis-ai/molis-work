@@ -29,9 +29,12 @@ export declare function presentationFormFields(object: PresentationObject, form:
 
 export declare function presentationOverviewProblems(declaration: PresentationOverviewDeclaration, overview: PresentationOverview): string[];
 
+export declare function presentationText(object: OwnedPresentationObject, item: PresentationValueItem, locale: string | null): string;
+
 export declare function presentationValuesProblems(input: PresentationValuesInput, values: PresentationValues): string[];
 
 export declare function validatePresentationDeclaration(manifest: {
     readonly presentation?: unknown;
     readonly actions?: unknown;
+    readonly plugin_id?: unknown;
 }, catalog?: PresentationCatalog): string[];

@@ -9,7 +9,7 @@ const storageErrors = defineErrorCodes("goals.storage", {
   async_body: "internal",
 });
 
-/** What the two modules' repositories call a statement: the platform handle's `get`/`all`/`run`, in the shape `better-sqlite3` gave them. */
+/** What the two modules' repositories call a statement: the platform handle's `get`/`all`/`run`, in the shape of the project connection's statements. */
 interface PluginSqliteStatement {
   all(...parameters: unknown[]): unknown[];
   get(...parameters: unknown[]): unknown;

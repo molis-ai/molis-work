@@ -4,11 +4,12 @@ import { applyStudioBaseline } from "../../src/studio/server/db/schema.js";
 import { SqliteJobRunner } from "../../src/studio/server/jobs/sqlite-job-runner.js";
 import { LocalWorker, type JobHandlerControl } from "../../src/studio/server/jobs/local-worker.js";
 import { jobAuthority } from "../fixtures/job-authority.js";
+import { createTempDatabase } from "../db/helpers/temp-database.js";
 
-const databases: ReturnType<typeof openDatabase>[] = [];
-afterEach(() => { for (const db of databases.splice(0)) db.close(); vi.useRealTimers(); });
+const opened: { db: ReturnType<typeof openDatabase>; temp: ReturnType<typeof createTempDatabase> }[] = [];
+afterEach(() => { for (const { db, temp } of opened.splice(0)) { db.close(); temp.cleanup(); } vi.useRealTimers(); });
 function fixture() {
-  const db = openDatabase(":memory:"); databases.push(db); applyStudioBaseline(db, ":memory:");
+  const temp = createTempDatabase(), db = openDatabase(temp.path); opened.push({ db, temp }); applyStudioBaseline(db, ":memory:");
   let id = 0;
   const jobs = new SqliteJobRunner(db, { workerId: "current", clock: { now: () => new Date().toISOString() },
     idFactory: { next: prefix => `${prefix}-${++id}` }, leaseMs: 300 });

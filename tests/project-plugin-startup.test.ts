@@ -178,7 +178,8 @@ test("RAC-1453 RAC-1922 a project plugin whose install record the Runtime cannot
       const present = store.db.prepare("SELECT 1 FROM plugin_runtime_installs WHERE install_id = ?").get(saved.install_id);
       if (present) return;
       const columns = Object.keys(saved);
-      store.db.prepare(`INSERT INTO plugin_runtime_installs (${columns.join(", ")}) VALUES (${columns.map(column => `@${column}`).join(", ")})`).run(saved);
+      store.db.prepare(`INSERT INTO plugin_runtime_installs (${columns.join(", ")}) VALUES (${columns.map(() => "?").join(", ")})`)
+        .run(...columns.map(column => saved![column]));
     }];
     const live = platform;
     if (live) for (const plugin of running) cleanup.push(async () => {
@@ -244,7 +245,8 @@ test("RAC-1453 RAC-1922 RAC-1923 another installation's unreadable record fails 
     }, () => {
       if (!saved || store.db.prepare("SELECT 1 FROM plugin_runtime_installs WHERE install_id = ?").get(saved.install_id)) return;
       const columns = Object.keys(saved);
-      store.db.prepare(`INSERT INTO plugin_runtime_installs (${columns.join(", ")}) VALUES (${columns.map(column => `@${column}`).join(", ")})`).run(saved);
+      store.db.prepare(`INSERT INTO plugin_runtime_installs (${columns.join(", ")}) VALUES (${columns.map(() => "?").join(", ")})`)
+        .run(...columns.map(column => saved![column]));
     }];
     const live = platform;
     if (live) for (const plugin of running) cleanup.push(async () => {

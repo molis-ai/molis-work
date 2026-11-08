@@ -9,7 +9,7 @@ import { assertPluginActionCurrent, type PluginInstance } from "@molis-ai/molis-
 import type { ProjectJournalBinding } from "./plugin-project-journal.js";
 import { assertReadStatement, assertWriteStatement } from "./project-statement-protocol.js";
 
-/** One SQLite connection as both drivers show it: node:sqlite's `DatabaseSync` (a library in the Home), better-sqlite3's `Database` (the project's). */
+/** One SQLite connection: node:sqlite's `DatabaseSync` (a library in the Home), or the storage package's connection over it (the project's). */
 export interface PluginDatabaseConnection {
   exec(sql: string): unknown;
   prepare(sql: string): {
@@ -23,7 +23,7 @@ export interface PluginDatabaseConnections<Connection extends PluginDatabaseConn
   /** Opened read-only: SQLite itself refuses a write through it. */
   readonly reader: Connection;
   readonly writer: Connection;
-  /** Whether the writer is inside a transaction (`isTransaction` in node:sqlite, `inTransaction` in better-sqlite3). */
+  /** Whether the writer is inside a transaction (`isTransaction` on a `DatabaseSync`, `inTransaction` on the storage package's connection). */
   inTransaction(): boolean;
   /** Asked first on every read and write: a library partitioned by project says why that project's library is gone. */
   refuse?(): void;

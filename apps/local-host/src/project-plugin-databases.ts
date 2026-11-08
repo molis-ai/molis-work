@@ -4,7 +4,7 @@ import { PLATFORM_PLUGIN_REGISTRATIONS, runsOnlyInHome } from "./plugin-registry
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { openPluginProjectDatabase, type PluginProjectDatabaseRecord, type PluginProjectSchemaInspector, type PluginRuntimeDatabase } from "@molis-ai/molis-work-plugin-runtime";
-import { describeSqliteSchema, listSqliteObjects, LocalSqliteStorage } from "@molis-ai/molis-work-storage";
+import { describeSqliteSchema, listSqliteObjects, LocalSqliteStorage, sqliteErrorName } from "@molis-ai/molis-work-storage";
 import { hostLog } from "./host-log.js";
 
 // Plugins' own tables in a project's library (PG-020, specs/archive/plugin-project-database L1b). When the Host opens a library, every
@@ -86,10 +86,10 @@ export function isProjectPluginDatabaseRefusal(error: unknown): error is ActionE
   return error instanceof ActionError && error.code.startsWith(PROJECT_DATABASE_REFUSAL_PREFIX);
 }
 
-/** Whether SQLite asked us to try again later (another writer, a lock), rather than answering the declaration. */
-const TRANSIENT_DATABASE_ERROR = /SQLITE_BUSY|SQLITE_LOCKED|database (?:table )?is locked/i;
+/** Whether SQLite asked us to try again later (another writer, a lock), rather than answering the declaration: by its result code, not its wording. */
 export function isTransientProjectDatabaseError(error: unknown): boolean {
-  return error instanceof Error && TRANSIENT_DATABASE_ERROR.test(error.message);
+  const name = sqliteErrorName(error);
+  return name === "SQLITE_BUSY" || name === "SQLITE_LOCKED";
 }
 
 /** The refusal recorded for this plugin when the library opened, if any. */

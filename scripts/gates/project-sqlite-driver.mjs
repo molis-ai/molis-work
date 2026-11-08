@@ -1,4 +1,4 @@
-// The project database uses exactly the driver that owns its lock. Alchemist has its own approved private driver.
+// better-sqlite3 is Alchemist's own, until it is rebuilt (BL-377). Everything else is on node:sqlite through packages/storage: two SQLite libraries on one file in one process drop each other's locks (S-46).
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import ts from "typescript";
@@ -14,7 +14,7 @@ const SHELL_FLAG = /^-l?c$/, SHELL_CALL = /^(?:exec|spawn)(?:Sync)?$/;
 const RUNS_ITS_ARGUMENT = new Set(["eval", "Function", "Script", "compileFunction", "SourceTextModule", "runInThisContext", "runInNewContext", "runInContext"]);
 
 const isDriver = (name) => name === "better-sqlite3" || name.startsWith("better-sqlite3/");
-const ownsDriver = (file) => file.startsWith("packages/storage/") || file.startsWith("plugins/native/alchemist/");
+const ownsDriver = (file) => file.startsWith("plugins/native/alchemist/");
 const nameOf = (node) => ts.isIdentifier(node) ? node.text : ts.isPropertyAccessExpression(node) ? node.name.text : undefined;
 const isCreateRequire = (node) => ts.isCallExpression(node) && nameOf(node.expression) === "createRequire";
 

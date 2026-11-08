@@ -163,24 +163,29 @@ for(const personal of [false,true]) for (const { change, sql, code } of cases) {
   });
 }
 
-test("PLIB-14: only the platform's own refusal stops one plugin; a temporary SQLite error surfaces instead of being recorded as a refusal", () => {
+test("PLIB-14 SQLD-04: only the platform's own refusal stops one plugin; a temporary SQLite error surfaces instead of being recorded as a refusal, and it is told by SQLite's result code", () => {
+  // As node:sqlite raises it: every failure is ERR_SQLITE_ERROR, and SQLite's own code (5, busy) is beside it.
+  const busy = () => Object.assign(new Error("database is locked"), { code: "ERR_SQLITE_ERROR", errcode: 5 });
   const db: PluginRuntimeDatabase = { exec: () => undefined, prepare: () => ({ get: () => undefined, all: () => [], run: () => undefined }) };
   const record: PluginProjectDatabaseRecord = { plugin_id: GOALS_PLUGIN_ID, publisher_signature: goalsManifest.publisher.signature, store_name: "goals", version: 1, objects: [], created_at: "2026-10-23T00:00:00.000Z" };
   const refused = openProjectPluginDatabases(db, "/tmp/probe.db", [goalsManifest], () => { throw new ActionError("plugin.project_database.version_mismatch", "another version"); });
   const refusal = refused.get(GOALS_PLUGIN_ID);
   assert.ok(refusal && "error" in refusal, "the declaration's own refusal is recorded against that plugin only");
-  assert.throws(() => openProjectPluginDatabases(db, "/tmp/probe.db", [goalsManifest], () => { throw new Error("SQLITE_BUSY: database is locked"); }), /SQLITE_BUSY/, "a temporary SQLite error that stays is thrown, not turned into a plugin refusal");
+  assert.throws(() => openProjectPluginDatabases(db, "/tmp/probe.db", [goalsManifest], () => { throw busy(); }), /database is locked/, "a temporary SQLite error that stays is thrown, not turned into a plugin refusal");
   assert.throws(() => openProjectPluginDatabases(db, "/tmp/probe.db", [goalsManifest], () => { throw new TypeError("bad open"); }), /bad open/, "so is a programming error");
   let attempts = 0;
   const retried = openProjectPluginDatabases(db, "/tmp/probe.db", [goalsManifest], () => {
     attempts += 1;
-    if (attempts < 3) throw new Error("SQLITE_BUSY: database is locked");
+    if (attempts < 3) throw busy();
     return record;
   }).get(GOALS_PLUGIN_ID);
   assert.ok(retried && "record" in retried, "a moment of SQLite contention is retried and the plugin opens, as the library would on the next attempt");
   assert.equal(attempts, 3, "two transient answers were tried again before the third opened it");
+  attempts = 0;
+  assert.throws(() => openProjectPluginDatabases(db, "/tmp/probe.db", [goalsManifest], () => { attempts += 1; throw new Error("SQLITE_BUSY: database is locked"); }), /SQLITE_BUSY/);
+  assert.equal(attempts, 1, "an error that only says busy in its words is not SQLite's answer, and is not tried again");
   const opened = openProjectPluginDatabases(db, "/tmp/probe.db", [goalsManifest], () => record).get(GOALS_PLUGIN_ID);
   assert.ok(opened && "record" in opened, "an open plugin keeps its record");
   assert.equal(isProjectPluginDatabaseRefusal(new ActionError("plugin.project_database.version_mismatch", "x")), true, "the platform's refusal prefix is recognized");
-  assert.equal(isProjectPluginDatabaseRefusal(new Error("SQLITE_BUSY: database is locked")), false, "anything else is not");
+  assert.equal(isProjectPluginDatabaseRefusal(busy()), false, "anything else is not");
 });

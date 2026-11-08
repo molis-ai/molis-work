@@ -701,8 +701,10 @@ for (const scheme of ["light", "dark"] as const) {
     // widths below were written for, and at 390px it holds every pin, so no "+N" button would be drawn and the checks that hold it
     // next to 项目首页 on the widest row would pass over nothing. The Dock keeps what a person pinned in the page's storage, so the
     // test pins one more plugin and the row is as long as it was; the assertions below are the ones that were written for it.
+    // Todo is the person's own now, kept in the tray at the bar's right end, not on the Dock, and the bar's side switch has left
+    // the Dock more room (07-1 S4b): the test pins Pages, 灵光 and Workflows instead, so the row at 390px still folds into "+N".
     await w.open(390, 844, HOME[1], HOME[2]);
-    await w.evaluate(`localStorage.setItem('molis-work:dock-pins', JSON.stringify(['goals', 'inbox', 'feed', 'todo']))`);
+    await w.evaluate(`localStorage.setItem('molis-work:dock-pins', JSON.stringify(['goals', 'inbox', 'feed', 'pages', 'lingguang', 'workflows']))`);
     for (const [width, height] of [[390, 844], [375, 667], [360, 740], [350, 640], [320, 568]] as const) {
       for (const [name, path, ready] of [HOME, PLUGIN, SETTINGS]) {
         const controls = await w.open(width, height, path, ready);
@@ -739,7 +741,7 @@ for (const scheme of ["light", "dark"] as const) {
     assert.deepEqual(folded.listed, folded.hidden, `320px home: the "+N" list holds exactly the pins the row folded (${JSON.stringify(folded)})`);
     assert.deepEqual([...folded.pins.filter(pin => !folded.hidden.includes(pin)), ...folded.listed].sort(), folded.pins,
       `320px home: the pins on the row plus the pins in the list are the whole set, none lost and none twice (${JSON.stringify(folded)})`);
-    for (const pin of ["home", "goals", "inbox", "feed", "todo"]) assert.ok(folded.pins.includes(pin), `320px home: the Dock drew ${pin} (${JSON.stringify(folded)})`);
+    for (const pin of ["home", "goals", "inbox", "feed", "pages"]) assert.ok(folded.pins.includes(pin), `320px home: the Dock drew ${pin} (${JSON.stringify(folded)})`);
     const dockList = (await w.popovers(44))["the Dock's list"];
     assert.ok(dockList, "320px home: the \"+N\" button is there to open the Dock's list");
     assert.equal(dockList.shown, true, "320px home: the Dock's list opens");
@@ -879,10 +881,12 @@ for (const scheme of ["light", "dark"] as const) {
       "667 a work with a notice and a Character": "", "667 a Coding work with a notice": "",
     }, "the steps the island takes at 390, 360 and 667px");
     // A 640×360 window: with the bar's end down to one button, a bare current work folds nothing and the fullest line only the
-    // choosers (it folded the mark, and the chips, while the end held three). The mark still folds first at 320px.
+    // choosers (it folded the mark, and the chips, while the end held three). Since the side switch left the bar and the end holds
+    // only the project and whatever of the person's own is pinned (none here), the fullest line folds nothing at 640px either
+    // (07-1 S4b). The mark still folds first at 320px.
     assert.deepEqual(Object.fromEntries(Object.entries(stages).filter(([key]) => key.startsWith("640 "))), {
       "640 a current work": "", "640 a current work with a notice": "", "640 a Coding work": "",
-      "640 a work with a notice and a Character": "choosers", "640 a Coding work with a notice": "choosers",
+      "640 a work with a notice and a Character": "", "640 a Coding work with a notice": "",
     }, "the steps the island takes in a 640×360 window");
     assert.equal(stages["320 a current work with a notice"], "mark", "at 320px a current work with a notice folds the mark and nothing else");
 

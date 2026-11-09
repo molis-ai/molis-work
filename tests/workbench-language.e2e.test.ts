@@ -5,6 +5,7 @@ import { format } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { deferred } from "./fixtures/home-runtime.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
+import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 
 test("FSS-20 FSS-34 FSS-39 the settings language changes in place; rejected and late preparations leave the current document intact", { timeout: 120_000 }, async t => {
   const b = await openGoalBrowser(t, "empty", undefined, null); if (!b) return;
@@ -117,10 +118,52 @@ async function chooseEnglishInSettings(t: TestContext, b: LanguageBrowser) {
     })()`), true);
     assert.deepEqual(navigations, opened, "the click was handled in the Settings document");
   } catch (error) {
-    t.diagnostic(JSON.stringify({ settingsNavigations: navigations }));
+    const status = await evaluate("[document.documentElement.lang, document.querySelector('[data-ui-language-status]')?.textContent ?? null]").catch(() => null);
+    t.diagnostic(JSON.stringify({ settingsNavigations: navigations, status }));
     throw error;
   }
 }
+
+test("FSS-35 a Pages editor retitles its controls in place without rewriting the document or moving selection", { timeout: 120_000 }, async t => {
+  const b = await openGoalBrowser(t, "seeded", undefined, null); if (!b?.projectId) return;
+  const projectId = b.projectId, title = "保留原文 · Draft", original = "复制代码 — 这句话属于用户。";
+  const paragraph = (value: string) => ({ type: "paragraph", content: [{ type: "text", text: value }] });
+  const store = openPagesStore(b.homeDirectory);
+  const record = (() => { try {
+    return store.create({ project_id: projectId, title, body: { type: "doc", content: [
+      { type: "heading", attrs: { level: 1 }, content: [{ type: "text", text: "目录（用户正文）" }] },
+      paragraph(original), { type: "toc" }, { type: "calendar" }, { type: "code_block" },
+      ...Array.from({ length: 55 }, (_, index) => paragraph("Original paragraph " + (index + 1))),
+    ] } });
+  } finally { store.close(); } })();
+  const child = await pluginFrameBrowser(t, b, "pages");
+  const path = `/projects/${projectId}/?openPlugin=pages&openItem=${record.id}`;
+  await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/locale?lang=zh&next=" + encodeURIComponent(path) }, b.sessionId));
+  await child.waitFor("document.querySelector('.pages-code-copy')?.title === '复制代码' && !!document.querySelector('.pages-calendar header')", 15000);
+  const snapshot = `[document.body===originalBody, editor===document.querySelector('[data-pages-editor] .ProseMirror'),
+    codeCopy===editor.querySelector('.pages-code-copy'), contents===editor.querySelector('[data-pages-toc]'),
+    calendar===editor.querySelector('.pages-calendar header'), editor.getAttribute('aria-label'), codeCopy.title,
+    contents.querySelector('.pages-toc-label').textContent, contents.querySelector('button').textContent,
+    !!calendar.textContent.match(/年/u), document.activeElement===editor, getSelection().anchorNode===originalText,
+    getSelection().anchorOffset, getSelection().focusOffset, originalText.data, scrollHost.scrollTop === scrollOffset,
+    document.querySelector('[data-pages-title]').value]`;
+  await child.evaluate(`(() => { window.originalBody=document.body; window.editor=document.querySelector('[data-pages-editor] .ProseMirror');
+    window.codeCopy=editor.querySelector('.pages-code-copy'); window.contents=editor.querySelector('[data-pages-toc]');
+    window.calendar=editor.querySelector('.pages-calendar header'); window.originalText=editor.querySelector(':scope > p').firstChild;
+    window.scrollHost=[editor.closest('.pages-workspace'),editor.closest('[data-pages-stage-workspace]')].find(node=>node.scrollHeight>node.clientHeight);
+    editor.focus(); getSelection().setBaseAndExtent(originalText,6,originalText,1); document.dispatchEvent(new Event('selectionchange'));
+    scrollHost.scrollTop=140; window.scrollOffset=scrollHost.scrollTop;
+    if (!scrollOffset) throw new Error('Fixture did not scroll');
+  })()`);
+  const expected = (en: boolean) => [true, true, true, true, true, en ? "Document body" : "文档正文", en ? "Copy code" : "复制代码",
+    en ? "Table of contents" : "目录", "目录（用户正文）", !en, true, true, 6, 1, original, true, title];
+  assert.deepEqual(await child.evaluate(snapshot), expected(false));
+  await chooseEnglishInSettings(t, b);
+  await child.waitFor("codeCopy.title === 'Copy code' && contents.querySelector('.pages-toc-label')?.textContent === 'Table of contents'");
+  assert.deepEqual(await child.evaluate(snapshot), expected(true));
+  const persisted = openPagesStore(b.homeDirectory);
+  try { assert.deepEqual(persisted.get(record.id, projectId), record); } finally { persisted.close(); }
+});
 
 function holdIssueOpening(t: TestContext, b: LanguageBrowser) {
   const authority = pluginPagesFor(b.homeDirectory), open = authority.open.bind(authority);

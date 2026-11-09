@@ -193,7 +193,7 @@ import {
   renderMolisWorkWorkbenchClientScript,
   type MolisWorkWebView,
 } from "./workbench-renderer-fixture.js";
-import { PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, builtinMarketDirectory } from "@molis-ai/molis-work-app-local-host";
+import { PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, builtinMarketDirectory, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import { withHostPluginFacts } from "./fixtures/host-plugin-facts.js";
 
 const PROJECT = "project-pages";
@@ -557,13 +557,13 @@ test("Pages 是个人插件，不进项目启用名单", () => {
   const entry = rail.find((item) => item.id === "pages");
   assert.equal(entry?.label, "Pages");
   assert.equal(entry?.glyph, "note");
-  const market = pluginMarketCards({}, builtinMarketDirectory()).find((card) => card.id === "pages");
+  const market = runWithLocale("zh", () => pluginMarketCards({}, builtinMarketDirectory()).find((card) => card.id === "pages"));
   assert.equal(market?.personal, true);
   assert.equal(market?.copy, "写文档，可导出 Markdown / PDF。");
 });
 
 test("工作台 HTML 挂上 Pages 舞台和编辑器内核脚本", () => {
-  const owner = renderMolisWorkWeb(withHostPluginFacts(emptyView()));
+  const owner = runWithLocale("zh", () => renderMolisWorkWeb(withHostPluginFacts(emptyView())));
   const html = owner + pluginDocuments(owner).join("\n");
   assert.match(html, /data-plugin-id="pages"/);
   assert.match(html, /data-pages="workbench"/);

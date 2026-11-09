@@ -111,6 +111,8 @@
     "pages.editor.edit": "Edit",
     "pages.editor.enter-a-valid-link-such-as-https-example-com": "Enter a valid link, such as https://example.com",
     "pages.editor.event": "Event",
+    "pages.editor.event-date": "{date}",
+    "pages.editor.task-status-date": "{status} · {date}",
     "pages.editor.event-card": "Event card",
     "pages.editor.events-in-this-page": "Events in this page",
     "pages.editor.find-in-the-text": "Find in the text",

@@ -5,7 +5,7 @@ import { closePagesPopover, pagesPopoverAnchor } from "./editor-transient.js";
 import { placeOverlay } from "@molis-ai/molis-work-plugin-sdk/browser";
 import type { PagesEditorMountOptions, Translate } from "./editor-types.js";
 import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { t, dsIcon, overlayRoot, field, actions } from "./editor-view-ui.js";
+import { bindEditorWords, t, dsIcon, overlayRoot, field, actions } from "./editor-view-ui.js";
 
 
 const CARD_LOOK = { ref: ["link", "pages.editor.choose-a-page"], task: ["clipboard", "pages.editor.task"], event: ["calendar", "pages.editor.event"] } as const;
@@ -13,15 +13,26 @@ const CARD_LOOK = { ref: ["link", "pages.editor.choose-a-page"], task: ["clipboa
 export function cardNodeView(kind: "ref" | "task" | "event", node: Node, view: EditorView, getPos: () => number | undefined, options: PagesEditorMountOptions) {
   const translate = options.translate;
   const dom = document.createElement("article");
+  const words = () => {
+    const { title, status, due, at } = node.attrs;
+    const key = kind === "ref" ? "pages.editor.page-mention" : "pages.editor.no-date";
+    const task = kind === "task" ? statusLabel(String(status), translate) : null;
+    const subtitle = task && due ? t(translate, "pages.editor.task-status-date", { status: task, date: { kind: "date", at: String(due), style: "date" } })
+      : task ?? (kind === "event" && at ? t(translate, "pages.editor.event-date", { date: { kind: "date", at: String(at), style: "date" } }) : t(translate, key));
+    const heading = dom.querySelector("strong"), line = dom.querySelector(".pages-card-body > span");
+    if (heading && !title) heading.textContent = t(translate, CARD_LOOK[kind][1]);
+    if (line) line.textContent = subtitle;
+  };
   const paint = (current: Node) => {
     node = current;
-    const { title, status, due, description, at } = current.attrs;
+    const { title, status, description } = current.attrs;
     // One card for all three: the mark, the title (or what to fill in), and one line under it; a task adds its note.
-    const sub = kind === "ref" ? t(translate, "pages.editor.page-mention") : kind === "task" ? statusLabel(String(status), translate) + (due ? " · " + due : "") : String(at || t(translate, "pages.editor.no-date"));
     dom.className = "pages-card pages-card--" + kind + (kind === "task" ? " is-" + String(status || "todo") : "");
-    dom.innerHTML = `<span class="pages-card-mark">${dsIcon(CARD_LOOK[kind][0])}</span><span class="pages-card-body"><strong class="${title ? "" : "is-placeholder"}">${escapeHtml(String(title || t(translate, CARD_LOOK[kind][1])))}</strong><span>${escapeHtml(sub)}</span>${kind === "task" && description ? `<p>${escapeHtml(String(description))}</p>` : ""}</span>`;
+    dom.innerHTML = `<span class="pages-card-mark">${dsIcon(CARD_LOOK[kind][0])}</span><span class="pages-card-body"><strong class="${title ? "" : "is-placeholder"}">${escapeHtml(String(title || ""))}</strong><span></span>${kind === "task" && description ? `<p>${escapeHtml(String(description))}</p>` : ""}</span>`;
+    words();
   };
   paint(node);
+  bindEditorWords(dom, words);
   dom.addEventListener("mousedown", (event) => {
     event.preventDefault();
     const pos = getPos();

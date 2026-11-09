@@ -19,7 +19,7 @@ import { highlightRanges } from "./code-highlight.js";
 import { PAGES_CODE_LANGUAGES, safePagesLanguage } from "./code-language.js";
 import { pagesSchema } from "./schema.js";
 import type { Translate } from "./editor-types.js";
-import { t, dsIcon, keepFocus, keepOut } from "./editor-view-ui.js";
+import { bindEditorWords, t, dsIcon, keepFocus, keepOut } from "./editor-view-ui.js";
 import { SIZE_KEYS, sizeHandle } from "./editor-size-keys.js";
 
 const codeHighlightKey = new PluginKey<DecorationSet>("pages-code-highlight");
@@ -34,7 +34,6 @@ export function bookmarkNodeView(node: Node, view: EditorView, getPos: () => num
   titleInput.type = "text";
   titleInput.className = "pages-bookmark-title";
   titleInput.maxLength = 120;
-  titleInput.placeholder = t(translate, "pages.editor.name");
   const titleText = document.createElement("strong");
   const url = document.createElement("a");
   url.target = "_blank";
@@ -43,13 +42,18 @@ export function bookmarkNodeView(node: Node, view: EditorView, getPos: () => num
     const href = safePagesHref(current.attrs.href);
     return safePagesBookmarkTitle(current.attrs.title) || bookmarkLabel(href) || t(translate, "pages.editor.link");
   };
+  const paintWords = () => {
+    titleInput.placeholder = t(translate, "pages.editor.name");
+    const title = shownTitle(), target = safePagesHref(current.attrs.href) || title;
+    if (titleText.textContent !== title) titleText.textContent = title;
+    if (url.textContent !== target) url.textContent = target;
+  };
   const paint = () => {
     const href = safePagesHref(current.attrs.href);
-    titleText.textContent = shownTitle();
+    paintWords();
     titleInput.hidden = !selected;
     titleText.hidden = selected;
     if (document.activeElement !== titleInput) titleInput.value = shownTitle();
-    url.textContent = href || shownTitle();
     if (href) url.href = href;
     else url.removeAttribute("href");
   };
@@ -81,6 +85,7 @@ export function bookmarkNodeView(node: Node, view: EditorView, getPos: () => num
   });
   frame.append(titleInput, titleText, url);
   paint();
+  bindEditorWords(frame, paintWords);
   return {
     dom: frame,
     ignoreMutation: () => true,
@@ -113,7 +118,6 @@ export function imageNodeView(node: Node, view: EditorView, getPos: () => number
   const handle = document.createElement("button");
   handle.type = "button";
   handle.className = "pages-image-resize";
-  handle.setAttribute("aria-label", t(translate, "pages.editor.resize-width"));
   handle.setAttribute("aria-keyshortcuts", SIZE_KEYS);
   const value = sizeHandle(handle, view, getPos, (key, args) => t(translate, key, args), (at) => NodeSelection.create(view.state.doc, at));
   // An image without its own width fills its line, and says so.
@@ -123,10 +127,14 @@ export function imageNodeView(node: Node, view: EditorView, getPos: () => number
       n ? t(translate, "pages.editor-size-keys.width-n-px", { n }) : t(translate, "pages.editor-size-keys.full-width"));
   };
   handle.addEventListener("focus", read);
+  bindEditorWords(handle, () => {
+    handle.setAttribute("aria-label", t(translate, "pages.editor.resize-width"));
+    read();
+  });
   const caption = document.createElement("input");
   caption.type = "text";
   caption.className = "pages-image-caption";
-  caption.placeholder = t(translate, "pages.editor.caption");
+  bindEditorWords(caption, () => { caption.placeholder = t(translate, "pages.editor.caption"); });
   caption.maxLength = 200;
   caption.addEventListener("mousedown", keepOut);
   caption.addEventListener("keydown", (event) => {
@@ -152,20 +160,22 @@ export function imageNodeView(node: Node, view: EditorView, getPos: () => number
   };
   const paint = () => {
     const src = safePagesImageSrc(current.attrs.src);
-    const alt = String(current.attrs.alt || imageAlt(src) || "图片");
+    const alt = current.attrs.alt || imageAlt(src);
     const width = safePagesImageWidth(current.attrs.width);
     frame.style.width = width ? width + "px" : "";
     media.replaceChildren();
     if (!src) {
       const broken = document.createElement("div");
       broken.className = "pages-image is-broken";
-      broken.textContent = alt;
+      if (alt) broken.textContent = String(alt);
+      else bindEditorWords(broken, () => { broken.textContent = t(translate, "pages.editor.image"); });
       media.append(broken);
     } else {
       const img = document.createElement("img");
       img.className = "pages-image";
       img.src = src;
-      img.alt = alt;
+      if (alt) img.alt = String(alt);
+      else bindEditorWords(img, () => { img.alt = t(translate, "pages.editor.image"); });
       img.dataset.pagesImage = "1";
       media.append(img);
     }
@@ -229,11 +239,12 @@ export function codeNodeView(node: Node, view: EditorView, getPos: () => number 
 
   const select = document.createElement("select");
   select.className = "pages-code-language";
-  select.setAttribute("aria-label", t(translate, "pages.editor.code-language"));
+  bindEditorWords(select, () => select.setAttribute("aria-label", t(translate, "pages.editor.code-language")));
   PAGES_CODE_LANGUAGES.forEach((language) => {
     const option = document.createElement("option");
     option.value = language.id;
-    option.textContent = "textKey" in language ? t(translate, language.textKey) : language.label;
+    if ("textKey" in language) bindEditorWords(option, () => { option.textContent = t(translate, language.textKey); });
+    else option.textContent = language.label;
     select.append(option);
   });
   select.value = safePagesLanguage(node.attrs.language);
@@ -241,15 +252,18 @@ export function codeNodeView(node: Node, view: EditorView, getPos: () => number 
   const copy = document.createElement("button");
   copy.type = "button";
   copy.className = "pages-code-copy";
-  const copyLabel = t(translate, "pages.editor.copy-code");
-  copy.setAttribute("aria-label", copyLabel);
-  copy.title = copyLabel;
+  bindEditorWords(copy, () => {
+    const label = t(translate, "pages.editor.copy-code");
+    copy.setAttribute("aria-label", label); copy.title = label;
+  });
   copy.innerHTML = dsIcon("copy");
 
   bar.append(select, copy);
   const pre = document.createElement("pre");
   pre.className = "pages-code";
   const code = document.createElement("code");
+  const placeholder = () => { if (code.classList.contains("is-empty")) code.dataset.placeholder = t(translate, "pages.editor.code"); };
+  bindEditorWords(code, placeholder);
   pre.append(code);
   dom.append(bar, pre);
 
@@ -278,8 +292,8 @@ export function codeNodeView(node: Node, view: EditorView, getPos: () => number 
     pre.dataset.language = language;
     dom.dataset.language = language;
     if (next.content.size === 0) {
-      code.dataset.placeholder = t(translate, "pages.editor.code");
       code.classList.add("is-empty");
+      placeholder();
     } else {
       delete code.dataset.placeholder;
       code.classList.remove("is-empty");
@@ -297,6 +311,8 @@ export function codeNodeView(node: Node, view: EditorView, getPos: () => number 
     },
     ignoreMutation(mutation: ViewMutationRecord) {
       if (mutation.type === "selection") return false;
+      // This attribute is the code block's chrome; a new placeholder is not a document edit.
+      if (mutation.type === "attributes" && mutation.target === code && mutation.attributeName === "data-placeholder") return true;
       return !code.contains(mutation.target as globalThis.Node);
     },
   };

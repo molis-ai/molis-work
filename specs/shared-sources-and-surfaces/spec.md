@@ -577,7 +577,7 @@ interface SurfaceItem {
 已经定下的取值规则：
 
 - `presentationFormFields` 返回 `{ form, fields }`：没声明的形态按 `chip → row → card → peek` 往简单的一侧降，降到有声明的为止；一个都没有时返回 `null`，平台画兜底（IUI-02）。声明了 `status` 的，它的字段跟着每种形态一起取，因为每种形态都显示状态和提醒标记。
-- `OwnedPresentationObject = PresentationObject & { owner }`，`owner` 由平台按可信目录填，声明里没有。`renderPresentationForm(object: OwnedPresentationObject, form, values): string` 不加工具和主人参数；平台画（挂载位、MLN-23）和插件预览是同一个函数。它和 `presentationText(object, item, locale)` 对值里的引用做不抛的绑定（`tryOwnedTextRef`），`locale` 必填，可以是 `null`（A 段 §2.4 第 3 条、§5.2）。插件页面不画别人的对象：挂载位的内容由平台在服务端画好放进插件文档（A 段 §8.3 的 (a)）。
+- `OwnedPresentationObject = PresentationObject & { readonly owner: string }`，`owner` 由平台按可信目录填，声明里没有。`renderPresentationForm(object: OwnedPresentationObject, form: FormKind, values: PresentationFormValues): string` 保留三个参数；第三参包含显示所需的值、语言及已绑定控件，准确边界见下方第 15 批交接。平台画（挂载位、MLN-23）和插件预览是同一个函数。它和 `presentationText(object, item, locale)` 对值里的引用做不抛的绑定（`tryOwnedTextRef`），`locale` 必填，可以是 `null`（A 段 §2.4 第 3 条、§5.2）。插件页面不画别人的对象：挂载位的内容由平台在服务端画好放进插件文档（A 段 §8.3 的 (a)）。
 - `catalog` 对每个动作引用答三种：有、没有、不知道（统筹 2026-11-08 定）。`parsePluginManifest` 里只拿本 Manifest 自己的动作当目录：引用本插件的动作必须存在、版本对；引用别的提供方的答「不知道」，不拦。安装时对着整份动作目录查的那一步归第 15 批 S-1。
 - 概况动作返回的 `start` 必须是声明里 `overview.start` 的子集，每个只出现一次；`presentationOverviewProblems` 查，组合服务和作者的测试用同一个函数。
 
@@ -603,6 +603,20 @@ interface SurfaceItem {
 上表以 D 轨核对为准。
 
 SDK 只依赖 contracts，不依赖也不转出私有包。改 SDK 算动共享核心，照规矩跑全量。
+
+### 第 15 批渲染入口交接（2026-11-08）
+
+本节把原三参数签名与必填 locale 的缺口补全，不改变 Manifest、values 或 `SurfaceItem` 的线协议。设计依据是 S-1 `ccfd93200936` 和方案 B 实件标本 `49beab1c55`；以下仍待公共 API 合审和实际实现验证。
+
+`PresentationFormValues` 是一次渲染的显示投影：必填 `locale: string | null`、`ownerDisplay: { name: string; icon?: PluginIconName; hue?: UiViewHue }`、`read`（`PresentationValueItem` 的 state／values／read_at，或明确的 `{ state: "unreadable" }`），可选 `actions` 与 `notices`。控件为 `{ key: string; label: string; primary?: boolean; consequence?: readonly SurfaceConsequence[] }`；notice 为 `{ reason: OwnedTextRef; next?: 控件 }`。`key` 只是一处位置自己绑定的局部 DOM 句柄，不能充当 provider、ref、prepared_input、执行权或自造 URL；renderer 不执行、不取数据、不注册动作。
+
+`ownerDisplay` 来自现有可信插件目录和确切 Manifest，不从插件 id 猜名字或颜色，也不新建 SDK 主人登记表；缺图标或颜色用既有 package／中性表达。字段按现有 role 与 `presentationFormFields` 画一份内容；TextRef 经 `tryOwnedTextRef`、`say`，日期和数值复用 `format` 的原实现及相同文字环境。locale 为 null 时用 owner 默认语言，所需文字环境读取留私有。投影中的已译按钮字只用于当前 DOM，不存回业务事实。
+
+平台把实际 `SurfaceItem.actions`／`notices` 和当时可用的精确目录行绑定到控件，点击时经网关重核授权、重取当前输入。独立 MLN-23 读取同一声明和值，沿用其原菜单与切换动作；插件预览只画自己对象，无绑定时只显示。`stale` 必须有主人真实 read_at；仍可保留按组合服务 §6.4 核实可用的操作，禁止的是失效操作，不是所有操作。首次失败、撤权、删除与未声明分别处理；撤权和删除不能在隐藏 DOM 留正文或操作。挂载位由平台渲染，插件文档内跨插件执行通过父文档现有授权路径。
+
+最小迁移范围是 `renderPreviewCard`、`renderPopover`、`renderSheet` 及形态实际使用的 `renderMenu`／`renderMenuItem`：将原实现移到 SDK 的一个 UI 叶子，design-system 原入口同源重导，普通消费者签名与 HTML 保持；不复制第二套实现。其它 dialog、drawer、菜单组及客户端 tooltip、焦点、浮层工具保留原 owner。形态内容只画一次，位置层选择 popover 或窄屏 Sheet；`mw-tag`／`mw-item` 复用原样式。样式叶子只用语义变量和环境继承，消费第 16 批 font roles 的 size／lineheight，不建第二份字体、皮肤状态或缓存。`UiSpecFile.components` 只登记元数据，实际 kind 渲染与允许操作仍由实现负责。
+
+文件边界：SDK `src/ui/presentation-form.ts` 与最小 primitive 叶子、design-system `src/styles/presentation.ts`、同 renderer 的组件板样张。SDK `/ui` 导出及私有文字接线、API 快照、design-system overlay 重导和样式入口、组件板装配、语言键与页面消费者按第 10／16 批实际窗口串行；第 16 批 C 切换之前不接新稳定键或页面入口。不得提交只有签名或无人消费的永久空壳。SSC-14 验不经 compose 的行与组合行相同；IUI-03／07／08／10／26 分别验跨位置事实、绑定与后果、异常泄露和三宽双语双主题及键盘；原标本的局部浏览器结果不替代产品验收。
 
 ## 8. 存量数据
 

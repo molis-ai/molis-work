@@ -253,7 +253,10 @@ test("UPG2-03 the Golden HTTP client keeps a failed request, body, or decode dis
       });
       assert.equal(requests, 1);
     }
-    globalThis.fetch = async () => new Response('{"saved":true}', { headers: { "content-type": "application/json" } });
+    globalThis.fetch = async (_input, init) => {
+      assert.equal(new Headers(init?.headers).get("connection"), "close");
+      return new Response('{"saved":true}', { headers: { "content-type": "application/json" } });
+    };
     assert.deepEqual(await session.http(route), { saved: true });
   } finally {
     globalThis.fetch = originalFetch;
@@ -268,6 +271,33 @@ test("UPG2-03 the Golden HTTP client keeps a failed request, body, or decode dis
 });
 
 describe("what the scripts refuse without generating anything", () => {
+  test("UPG2-03 the CI wrapper reports a damaged golden once without printing its contents", t => {
+    const directory = scratch(t), golden = path.join(directory, VERSION);
+    const summaryFile = path.join(directory, "summary.md"), launches = path.join(directory, "launches");
+    const privateText = "private-ci";
+    mkdirSync(golden);
+    writeFileSync(path.join(golden, "manifest.json"), `[${privateText}]`);
+    const countReplay = `
+      import { appendFileSync } from "node:fs";
+      import { basename } from "node:path";
+      if (basename(process.argv[1] ?? "") === "replay-golden-homes.mjs") appendFileSync(${JSON.stringify(launches)}, "replay\\n");`;
+    const preload = `data:text/javascript;base64,${Buffer.from(countReplay).toString("base64")}`;
+    const replay = spawnSync(process.execPath, [path.join(root, "scripts/ci-golden-replay.mjs"), "--dir", directory], {
+      cwd: root, encoding: "utf8", env: { ...process.env, NODE_OPTIONS: `--import=${preload}`, GITHUB_STEP_SUMMARY: summaryFile },
+    });
+    assert.equal(replay.status, 1);
+    const summary = readFileSync(summaryFile, "utf8");
+    const output = `${replay.stdout}\n${replay.stderr}\n${summary}`;
+    assert.deepEqual({
+      launches: readFileSync(launches, "utf8"),
+      printedPrivateDetails: output.includes(privateText) || /SyntaxError|readManifest/u.test(output),
+      printedDebugReplay: output.includes("--debug"),
+    }, { launches: "replay\n", printedPrivateDetails: false, printedDebugReplay: false });
+    const failure = `FAIL ${VERSION} restore - golden.unexpected_error`;
+    assert.equal(replay.stdout.trim(), failure);
+    assert.ok(summary.includes(`Failed.\n\n\`\`\`text\n${failure}\n`));
+  });
+
   test("UPG2-01: the real Home and anything outside the temporary directory are refused", t => {
     const refused = (home: string) => assert.throws(() => assertTemporaryHome(home), (error: { code?: string }) => error.code === "golden.real_home_refused");
     refused(homedir());

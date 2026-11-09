@@ -237,7 +237,7 @@ export const externalTool = <Id extends ExternalToolId>(id: Id): Extract<(typeof
 - **矩阵的入口名不等于显示名。** 第 3 节「产品入口」一列是入口的名字，`display_name` 是界面上写的字。前六行沿用今天的显示名（`codex` 写 `Codex`，不写「Codex CLI」），界面文字不变。
 - **顺序是合同。** 登记表把这六家排在最前：`codex`、`claude-code`、`cursor`、`opencode`、`pi-agent`、`grok-build`。这样三份名单的成员和顺序都和今天一样，界面排序不变，PR 里写「成员不变，对调用方无影响」。
 - **`cursor` 这个 id 留给 Agent CLI 一行。** 它今天只用于角色导入，配置根目录 `~/.cursor` 由 CLI 和编辑器共用；编辑器是另一行 `cursor-editor`，不带 `character_import`。
-- **命令名不够认人。** 本机 `agent` 是指向 grok 的链接，而 Cursor 的命令也叫 `agent`。`character-import-discovery.ts` 现在已按真实路径核（命令名是 `agent` 时匹配 `.cursor` 或 `grok`，注释写明光看文件名不够），换成 `detect` 时**这个检查要保住**，写成 `real_path_pattern`。顺序是先看路径，路径不符不运行；过了才跑 `version_argv` 匹配 `version_pattern`，不符就当没装，不把输出交给这家的解析器。比现在多运行一次本机程序，所以写进 S-115。`version_argv` 的运行随 S-115 在第 34 批接，C-1 只把它写进登记表：角色导入不运行它，`real_path_pattern` 也只保今天的检查，即几家共用的命令名（现在是 `agent`）才核真实路径，`grok`、`cursor-agent` 这些自己的命令名不核。
+- **命令名不够认人。** 本机 `agent` 是指向 grok 的链接，而 Cursor 的命令也叫 `agent`。`character-import-discovery.ts` 现在已按真实路径核（命令名是 `agent` 时匹配 `.cursor` 或 `grok`，注释写明光看文件名不够），换成 `detect` 时**这个检查要保住**，写成 `real_path_pattern`。顺序是先看路径，路径不符不运行；过了才跑 `version_argv` 匹配 `version_pattern`，不符就当没装，不把输出交给这家的解析器。比现在多运行一次本机程序，所以写进 S-sessions-read-only-commands。`version_argv` 的运行随 S-sessions-read-only-commands 在第 34 批接，C-1 只把它写进登记表：角色导入不运行它，`real_path_pattern` 也只保今天的检查，即几家共用的命令名（现在是 `agent`）才核真实路径，`grok`、`cursor-agent` 这些自己的命令名不核。
 
 会话 ID 的规则只留一份：`plugin-terminal-runtimes.ts` 的 `TERMINAL_SESSION` 正则搬到 `external-tools.ts`，导出 `EXTERNAL_SESSION_NATIVE_ID_PATTERN`。`isTerminalSessionId` 留在原处用它，行为不变，S-103 的代码位置一格不用改。[核查 §3.2](source-contract-checks-2026-11.md#32-合成一份的做法) 写的「不动」指行为，这里只搬定义，理由是服务包也要同一条规则，不写第二份。
 
@@ -409,7 +409,7 @@ export type ExternalSessionRowSummary = Omit<ExternalSessionRow, "identity" | "r
 - `view: "project"` 没有当前项目时报 `sessions.project_required`。
 - 每次都按当前读取范围过滤，范围外的行不返回（第 7 节）。`user` 以外的调用者另按第 7.4 节核许可。
 - 打开列表不等发现。来源过期（默认 5 分钟）且调用者是 `user` 时，服务去重后在后台排一次发现，不阻塞这次返回。Agent、MCP 调用不触发，防止循环调用变成频繁起子进程；带 `query_only` 的调用（首页聚合这样调）也不触发。
-- 非本人调用不漏全局信息：`unfiled_count` 是 `null`；`sources` 只留当前项目有会话的来源，`session_count` 是这个项目里 `confirmed`、`automatic` 的数，`skipped_count`、`progress`、`location_key` 不给，所以类型是 `ExternalSessionSourceSummary`：写成 `0` 或 `null` 都会说假话，`location_key: null` 本来的意思是云端还没选连接。行是 `ExternalSessionRowSummary`：没有 `identity`，整个响应里找不到 `location_key` 和 `native_id`（第 5.1 节）；`return_target` 是 `null`，`label` 写的是怎样回到原会话，给出去信息就从这里漏回去，留下 `kind` 也没有用。schema 是一个对象，`identity` 不在 `required` 里，所以两种行都合；分受众靠处理器，S-118 测。用户接了哪些工具、别的项目和待归类有多少，都看不到。`title` 过 SDK 的密钥脱敏，理由同第 6.3 节。
+- 非本人调用不漏全局信息：`unfiled_count` 是 `null`；`sources` 只留当前项目有会话的来源，`session_count` 是这个项目里 `confirmed`、`automatic` 的数，`skipped_count`、`progress`、`location_key` 不给，所以类型是 `ExternalSessionSourceSummary`：写成 `0` 或 `null` 都会说假话，`location_key: null` 本来的意思是云端还没选连接。行是 `ExternalSessionRowSummary`：没有 `identity`，整个响应里找不到 `location_key` 和 `native_id`（第 5.1 节）；`return_target` 是 `null`，`label` 写的是怎样回到原会话，给出去信息就从这里漏回去，留下 `kind` 也没有用。schema 是一个对象，`identity` 不在 `required` 里，所以两种行都合；分受众靠处理器，S-sessions-person-decides 测。用户接了哪些工具、别的项目和待归类有多少，都看不到。`title` 过 SDK 的密钥脱敏，理由同第 6.3 节。
 - 页面不用第二个请求：`sources`、`unfiled_count` 都在这一个响应里。
 
 ### 6.2 来源状态
@@ -514,7 +514,7 @@ export interface ExternalSessionEntry {
 
 全文索引不做，原文不进任何索引。以后要做另议，做的话是本人开启。
 
-`sessions.tool.search@1` 输入 `{ entry_id, location_key, query, limit }`，输出 `{ sessions: ExternalSessionRow[]; skipped_count: number; trust: "untrusted" }`。`trust` 和列表一样：行里的标题来自外部工具。只返回索引里有、当前范围内的会话，返回前按第 7.3 节尾检；工具报出的其他结果和尾检去掉的行只计入 `skipped_count`。`location_key` 指本人看得到的一个来源，只收第 5.1 节那三种写法，路径和原生 ID 进不来。`query` 以 `{query}` 占一个 `argv` 元素，不许以 `-` 开头（S-115），schema 就拦，前面带空白也一样。工具的 `search` 是缺口时报 `sessions.source_unsupported`。
+`sessions.tool.search@1` 输入 `{ entry_id, location_key, query, limit }`，输出 `{ sessions: ExternalSessionRow[]; skipped_count: number; trust: "untrusted" }`。`trust` 和列表一样：行里的标题来自外部工具。只返回索引里有、当前范围内的会话，返回前按第 7.3 节尾检；工具报出的其他结果和尾检去掉的行只计入 `skipped_count`。`location_key` 指本人看得到的一个来源，只收第 5.1 节那三种写法，路径和原生 ID 进不来。`query` 以 `{query}` 占一个 `argv` 元素，不许以 `-` 开头（S-sessions-read-only-commands），schema 就拦，前面带空白也一样。工具的 `search` 是缺口时报 `sessions.source_unsupported`。
 
 **搜索结果里没有身份（第 5.1 节的做法延续到这里）。** 跨会话的搜索只给 `user`，直接以别的受众调用时拿不到结果；会话内搜索走 `sessions.history.read@1`，受众规则在第 7.4 节。只写 `user` 不是整条边界，宿主代办的三条路见下面：
 
@@ -837,7 +837,7 @@ export interface MolisWorkRuntimeContextUnbindResult {
 
 `realpath_verified` 为假的关联不进候选。上面的「已关联目录」只算 `person_project_ids` 里的项目；只被工具带进来的走第 7 行。
 
-**认仓库，只读文件，绝不跑 git（S-119）。** `repository_key` 是公共 git 目录真实路径的 SHA-256 前 24 位。规则只有一种写法：
+**认仓库，只读文件，绝不跑 git（S-sessions-git-files-only）。** `repository_key` 是公共 git 目录真实路径的 SHA-256 前 24 位。规则只有一种写法：
 
 - 从目录往上找 `.git`，到用户主目录或根目录停。
 - `.git` 是目录：它就是公共 git 目录，这是主工作树。
@@ -893,8 +893,8 @@ export interface ExternalSessionAttributionInput {
 }
 ```
 
-- 只给 `user`：AI 不能确认归属，这是拒绝测试的内容（S-118）。
-- `decision.project_id` 是归到哪里，不是谁在调用，所以不算 S-118 说的身份字段；输入顶层的 `project_id` 照样不认。
+- 只给 `user`：AI 不能确认归属，这是拒绝测试的内容（S-sessions-person-decides）。
+- `decision.project_id` 是归到哪里，不是谁在调用，所以不算 S-sessions-person-decides 说的身份字段；输入顶层的 `project_id` 照样不认。
 - `suggestion_accepted` 只有 `kind: "project"` 时能为真，schema 就拦。
 - `expected_revision` 取行上的 `attribution_revision`，只给本人，从没决定过时是 0；不符报 `sessions.attribution_conflict`。原来的类型里没有地方拿到这个数，C-3 加在行上。
 - 输出这一行的 `ExternalSessionRow`，`attribution_revision` 已是新值。
@@ -932,7 +932,7 @@ interface SuggestDraft {
 ```
 
 - 走法同 `knowledge.locate`：宿主注入 `SessionAttributionSuggester`，内部用 `hostTextGeneration` 和结构化输出，提示词 `sessions.attribution.suggest` 登记在 `apps/local-host/src/agent-definitions/system-prompts.ts`。模型调用不出 `horizontal/agent-host`，服务包不碰 SDK。没配模型时端口是 `null`，状态 `failed`，会话照常待归类、照常能看。
-- 输入是一行 JSON，放在代码固定的「不可信」声明之后（S-13、S-117）。
+- 输入是一行 JSON，放在代码固定的「不可信」声明之后（S-13、S-sessions-untrusted-text）。
 - 回来的编号必须在给出的范围内，否则丢弃这一项。项目名由服务查回，不用模型写的。
 - `reason`、`evidence` 按文本转义显示。
 - 建议不写归属。晚到的建议只更新建议表，事务里不碰决定表。
@@ -1039,16 +1039,16 @@ export const sessionsErrors = defineErrorCodes("sessions", {
 
 ### 9.4 安全不变量
 
-编号暂写 S-114～S-119（表里到 S-108，S-109～S-113 已被别的稿子占用），由公共合同台定。测试放 `tests/security-invariants-external-sessions.test.ts`，`test:security` 的通配会带上。
+用语义名，不用连续编号：`docs/system/security-invariants/` 现在一条一个文件，新增的写 `S-<语义名称>.md`（见 `docs/system/SECURITY-INVARIANTS.md` 第 1 节）。原来暂写的 `S-sessions-*` 已被别的不变量占用，2026-11-09 改成下表的名字，测试名和注释照名字写。测试放 `tests/security-invariants-external-sessions.test.ts`，`test:security` 的通配会带上。
 
 | 编号 | 不变量（拒绝什么） | 拒绝测试要断言的 |
 | --- | --- | --- |
-| S-114 | 只读获准来源的数据根目录：`..`、绝对路径、指向根外的符号链接一律拒，沿 S-11 和角色导入的做法 | 根内放指向根外的链接，读被拒、内容不返回；未允许的来源不被扫描，读目录次数为 0 |
-| S-115 | 子进程只跑登记表写明的只读命令：不经 shell，`argv` 来自登记表，只有 `{session_id}`、`{query}` 被替换；前者过 `EXTERNAL_SESSION_NATIVE_ID_PATTERN`，后者占一个元素、不以 `-` 开头；有时限、输出上限、最小环境；`detect` 不符不跑解析。列表、历史、搜索不启动 `resume`、`exec`、`delete`、`queue` 一类命令。`detect` 要运行本机程序：先过 `real_path_pattern`，不过不运行；运行时只带 `version_argv`，同样有时限、无 shell、最小环境 | 原生 ID 写成 `--dangerously…`、带分号或空格时不起进程；搜索词以 `-` 开头时不起进程；`version_pattern` 不符时不解析；走一遍列表、历史、搜索后，假工具记录下的调用里没有写命令（SRB-12）；`agent` 的真实路径不符时假工具一次都没被运行 |
-| S-116 | 外部读取返回前再核范围：收窄、停止、撤连接、关掉项目的 AI 读取许可后，在途的读取不返回内容、发现不写库、建议不写表 | 假适配在等待中收窄范围、关掉许可、解除项目目录（`linked_projects` 下，`revision` 没变），各断言 `sessions.scope_changed`、响应里没有原文、索引行数不变；`sessions.tool.search@1` 在等待中收窄，范围外的行不返回；取消后来源进度不更新；连接失效时云端来源不返回内容；`cli` 连接的程序在读取前或等待中换了账号，不返回内容，来源是 `account_changed` |
-| S-117 | 外部会话的标题、原文、工具输出都是不可信数据：给模型时走 S-13 的 JSON 围栏，给 Agent 的输出带 `trust: "untrusted"` 并脱敏，不进系统提示和工具定义 | 标题里写伪造的结束标记和角色，留在 JSON 字符串里；原文里的密钥样式在 `agent` 受众下被脱敏；模型回了列表外的项目编号，这一项被丢弃 |
-| S-118 | 读取范围、项目的 AI 读取许可与单条决定只有本人能定：Agent、MCP、工作流、插件调 `sessions.scope.set@1`、`sessions.project_ai_read.set@1`、`sessions.attribution.set@1` 被拒；`actor_id`、`project_id` 等身份字段在输入里不认。工具能做的只有报绑定：它得到 `reported`，排在本人决定和本人目录关系之后，不改读取范围，不产生 `automatic`，不进项目 AI 的可读范围。项目 AI 的读取要许可开着（本人明确动作给的内容不算，见第 6.4 节），且只到当前项目的 `confirmed`、`automatic` 会话；待归类与 `view: "all"` 只有本人；归属不授予读取或控制权 | 四种受众逐个被拒且决定表没写；非本人调 `sessions.scope.read@1` 被拒，拿不到各项目的计数；`context_bind` 与终端面板把目录带进项目后，`linked_projects` 的范围不变，这个目录下没有绑定的会话是 `tool_linked`，绑定的那个会话是 `reported`，都不是 `automatic`；工具绑定不覆盖本人的目录来源和单条决定；`context_unbind` 解除不了本人建的目录关系，回 `changed: false`、`unbound_project: null` 和 `kept`，不说成已解除；`bound_by` 不是本人 id 的行（含旧的 `<客户端>:<会话>`）不算本人建的；本人目录下的会话，工具绑到别的项目：仍是 `automatic`、归本人目录的项目，项目 AI 的范围不变，`reported` 计数不变，本人的行带 `tool_reported_other`，非本人的输出没有这个字段；读取范围是「所有目录」时，没有本人目录关系的 Runtime 绑定显示 `reported` 不是 `confirmed`；许可开着时，`reported` 的会话不出现在 `agent`、`workflow`、`plugin`、`mcp` 的列表里，读原文报 `sessions.not_found`，本人确认后才可读；许可默认关时 `agent`、`workflow`、`plugin`、`mcp` 读列表和原文都报 `sessions.project_ai_read_off`；许可开着时读别的项目的会话报 `sessions.not_found`，用 `unfiled`、`all` 报 `actions.forbidden`；MCP 客户端有许可、没有 S-08 授权时被拒；未允许的来源里，归了项目或有 Runtime 绑定的会话照样读不到；自动归入的会话许可关时被拒、开时可读；非本人的 `sessions.list@1` 输出里 `unfiled_count` 是 `null`，`sources` 没有别的项目的来源和数量；行里没有 `identity`，`return_target` 是 `null`，整个响应里找不到 `location_key` 和 `native_id`；非本人的 `search.query` 不返回 `external_session`，调 `sessions.tool.search@1` 被拒；`projectReferenceKinds`、`pluginReferenceKinds` 的结果里没有 `external_session`；持 `knowledge:read` 的插件用 `session_key` 调 `knowledge.read`、`outline`、`grep`，许可开着和关着都拿不到标题和目录；本人用「@」选外部会话，或点选把选区、当前对象加进这一轮：这一轮的材料里有内容且标不可信，下一轮的材料和这项工作的对象里没有；用「@」时这一轮的材料里只有标题、目录和工具名，没有对话原文；没有明确动作时（选了文字没点、开着页面没选、标签页回退推出的对象）这一轮没有它；一轮还在跑时补充带外部会话内容被拒，下一轮的模型历史里没有它 |
-| S-119 | 认仓库只读文件，不跑 git：只读 `.git`、`commondir`、`gitdir` 三个文件，各不超过 4 KB，内容只留哈希，不读 `config` 与 hooks；到用户主目录或根目录停止往上找；`.git` 文件必须和仓库里的 `gitdir` 互相指着才算 worktree，否则 `repository_key` 为空 | `PATH` 上放假 `git` 并记录调用，发现、归属、范围判断之后调用次数为 0；任意目录放 `.git` 文件写 `gitdir: <已关联仓库>/.git/worktrees/x`，而仓库那边没有指回：`repository_key` 为空，不进范围，不自动归入；`gitdir:` 指向不相干的目录、没有 `commondir`、超长、含 NUL 时 `repository_key` 都为空且不报错；仓库 `config` 里写 `core.fsmonitor` 也不执行；三个文件之外的读取次数为 0 |
+| S-sessions-read-roots | 只读获准来源的数据根目录：`..`、绝对路径、指向根外的符号链接一律拒，沿 S-11 和角色导入的做法 | 根内放指向根外的链接，读被拒、内容不返回；未允许的来源不被扫描，读目录次数为 0 |
+| S-sessions-read-only-commands | 子进程只跑登记表写明的只读命令：不经 shell，`argv` 来自登记表，只有 `{session_id}`、`{query}` 被替换；前者过 `EXTERNAL_SESSION_NATIVE_ID_PATTERN`，后者占一个元素、不以 `-` 开头；有时限、输出上限、最小环境；`detect` 不符不跑解析。列表、历史、搜索不启动 `resume`、`exec`、`delete`、`queue` 一类命令。`detect` 要运行本机程序：先过 `real_path_pattern`，不过不运行；运行时只带 `version_argv`，同样有时限、无 shell、最小环境 | 原生 ID 写成 `--dangerously…`、带分号或空格时不起进程；搜索词以 `-` 开头时不起进程；`version_pattern` 不符时不解析；走一遍列表、历史、搜索后，假工具记录下的调用里没有写命令（SRB-12）；`agent` 的真实路径不符时假工具一次都没被运行 |
+| S-sessions-recheck-before-return | 外部读取返回前再核范围：收窄、停止、撤连接、关掉项目的 AI 读取许可后，在途的读取不返回内容、发现不写库、建议不写表 | 假适配在等待中收窄范围、关掉许可、解除项目目录（`linked_projects` 下，`revision` 没变），各断言 `sessions.scope_changed`、响应里没有原文、索引行数不变；`sessions.tool.search@1` 在等待中收窄，范围外的行不返回；取消后来源进度不更新；连接失效时云端来源不返回内容；`cli` 连接的程序在读取前或等待中换了账号，不返回内容，来源是 `account_changed` |
+| S-sessions-untrusted-text | 外部会话的标题、原文、工具输出都是不可信数据：给模型时走 S-13 的 JSON 围栏，给 Agent 的输出带 `trust: "untrusted"` 并脱敏，不进系统提示和工具定义 | 标题里写伪造的结束标记和角色，留在 JSON 字符串里；原文里的密钥样式在 `agent` 受众下被脱敏；模型回了列表外的项目编号，这一项被丢弃 |
+| S-sessions-person-decides | 读取范围、项目的 AI 读取许可与单条决定只有本人能定：Agent、MCP、工作流、插件调 `sessions.scope.set@1`、`sessions.project_ai_read.set@1`、`sessions.attribution.set@1` 被拒；`actor_id`、`project_id` 等身份字段在输入里不认。工具能做的只有报绑定：它得到 `reported`，排在本人决定和本人目录关系之后，不改读取范围，不产生 `automatic`，不进项目 AI 的可读范围。项目 AI 的读取要许可开着（本人明确动作给的内容不算，见第 6.4 节），且只到当前项目的 `confirmed`、`automatic` 会话；待归类与 `view: "all"` 只有本人；归属不授予读取或控制权 | 四种受众逐个被拒且决定表没写；非本人调 `sessions.scope.read@1` 被拒，拿不到各项目的计数；`context_bind` 与终端面板把目录带进项目后，`linked_projects` 的范围不变，这个目录下没有绑定的会话是 `tool_linked`，绑定的那个会话是 `reported`，都不是 `automatic`；工具绑定不覆盖本人的目录来源和单条决定；`context_unbind` 解除不了本人建的目录关系，回 `changed: false`、`unbound_project: null` 和 `kept`，不说成已解除；`bound_by` 不是本人 id 的行（含旧的 `<客户端>:<会话>`）不算本人建的；本人目录下的会话，工具绑到别的项目：仍是 `automatic`、归本人目录的项目，项目 AI 的范围不变，`reported` 计数不变，本人的行带 `tool_reported_other`，非本人的输出没有这个字段；读取范围是「所有目录」时，没有本人目录关系的 Runtime 绑定显示 `reported` 不是 `confirmed`；许可开着时，`reported` 的会话不出现在 `agent`、`workflow`、`plugin`、`mcp` 的列表里，读原文报 `sessions.not_found`，本人确认后才可读；许可默认关时 `agent`、`workflow`、`plugin`、`mcp` 读列表和原文都报 `sessions.project_ai_read_off`；许可开着时读别的项目的会话报 `sessions.not_found`，用 `unfiled`、`all` 报 `actions.forbidden`；MCP 客户端有许可、没有 S-08 授权时被拒；未允许的来源里，归了项目或有 Runtime 绑定的会话照样读不到；自动归入的会话许可关时被拒、开时可读；非本人的 `sessions.list@1` 输出里 `unfiled_count` 是 `null`，`sources` 没有别的项目的来源和数量；行里没有 `identity`，`return_target` 是 `null`，整个响应里找不到 `location_key` 和 `native_id`；非本人的 `search.query` 不返回 `external_session`，调 `sessions.tool.search@1` 被拒；`projectReferenceKinds`、`pluginReferenceKinds` 的结果里没有 `external_session`；持 `knowledge:read` 的插件用 `session_key` 调 `knowledge.read`、`outline`、`grep`，许可开着和关着都拿不到标题和目录；本人用「@」选外部会话，或点选把选区、当前对象加进这一轮：这一轮的材料里有内容且标不可信，下一轮的材料和这项工作的对象里没有；用「@」时这一轮的材料里只有标题、目录和工具名，没有对话原文；没有明确动作时（选了文字没点、开着页面没选、标签页回退推出的对象）这一轮没有它；一轮还在跑时补充带外部会话内容被拒，下一轮的模型历史里没有它 |
+| S-sessions-git-files-only | 认仓库只读文件，不跑 git：只读 `.git`、`commondir`、`gitdir` 三个文件，各不超过 4 KB，内容只留哈希，不读 `config` 与 hooks；到用户主目录或根目录停止往上找；`.git` 文件必须和仓库里的 `gitdir` 互相指着才算 worktree，否则 `repository_key` 为空 | `PATH` 上放假 `git` 并记录调用，发现、归属、范围判断之后调用次数为 0；任意目录放 `.git` 文件写 `gitdir: <已关联仓库>/.git/worktrees/x`，而仓库那边没有指回：`repository_key` 为空，不进范围，不自动归入；`gitdir:` 指向不相干的目录、没有 `commondir`、超长、含 NUL 时 `repository_key` 都为空且不报错；仓库 `config` 里写 `core.fsmonitor` 也不执行；三个文件之外的读取次数为 0 |
 
 SRB-11 的「读取不推导控制」等第 59 批加控制动作时补进新行。
 
@@ -1112,14 +1112,14 @@ C-2、C-3 只有定义，宿主还没登记，所以不动 `tooling/gates/action
 
 | 片 | 内容 |
 | --- | --- |
-| S-1 | 包、库、表、动作登记（`sessions.subject.read@1` 和 `sessions.search.entries@1` 除外，留到 S-4：没有读取器时这个来源搜不到，又会让 `surfaceKinds` 从标签页推出对象）、S-114～119 的测试、一个假工具适配 |
+| S-1 | 包、库、表、动作登记（`sessions.subject.read@1` 和 `sessions.search.entries@1` 除外，留到 S-4：没有读取器时这个来源搜不到，又会让 `surfaceKinds` 从标签页推出对象）、六条 `S-sessions-*` 的测试、一个假工具适配 |
 | S-2 | A 组适配，逐家在实装版本上复核，改登记表的 `checked` 和实际接入方式 |
 | S-3 | 归属与建议 |
 | S-4 | 搜索来源；登记 `sessions.search.entries@1` 和 `sessions.subject.read@1`，前置条件见下 |
 | S-5 | 工作台界面（入口随第 03 批；「外部会话原文」先由 D 轨补标本）；上线前提见下（第 12 节第 42、44 行）；读取范围 Sheet 两页；`project-ai-read` 路由；`open_project_ai_read` 的浮层；项目设置里本人连的目录和工具带进来的目录分开显示，后者给确认入口 |
 | S-6 | B 组适配；D 组保持缺口 |
 
-**S-4 登记 `sessions.subject.read@1`（连同 `sessions.search.entries@1`）的前置条件。** 第 6.4 节的前两条路堵住、第三条按用户 2026-11-07 的决定做到才登记，登记时 S-118 的对应测试要过。没有读取器时这三条路都不通（外壳取的选区和标签页对象不在其中，见下一段），所以把它留到最后；搜索要等它，这一片的来源也一起等。
+**S-4 登记 `sessions.subject.read@1`（连同 `sessions.search.entries@1`）的前置条件。** 第 6.4 节的前两条路堵住、第三条按用户 2026-11-07 的决定做到才登记，登记时 S-sessions-person-decides 的对应测试要过。没有读取器时这三条路都不通（外壳取的选区和标签页对象不在其中，见下一段），所以把它留到最后；搜索要等它，这一片的来源也一起等。
 
 | 条件 | 候选做法（S-4 定） | 改到谁 |
 | --- | --- | --- |
@@ -1171,17 +1171,17 @@ C-2、C-3 只有定义，宿主还没登记，所以不动 `tooling/gates/action
 | SRB-03 | 登记恢复方式；工作终端配方派生 | 59 |
 | SRB-04 | 登记发送方式；不定动作 | 59 |
 | SRB-05 | 不涉及 | 59 |
-| SRB-06 | 范围、项目 AI 读取许可、再核、受众、不变量 S-114、S-116、S-118 | 34 实现与拒绝测试；发送部分 59 |
+| SRB-06 | 范围、项目 AI 读取许可、再核、受众、不变量 S-sessions-read-roots、S-sessions-recheck-before-return、S-sessions-person-decides | 34 实现与拒绝测试；发送部分 59 |
 | SRB-07 | 入口分行、地区分行、`shares_sessions_with` 必须实测 | 34、59 逐入口验 |
 | SRB-08 | 列表与历史合同按定样写 | 34 高保真与实操，本人验收 |
 | SRB-09 | 只给读取能力，导入整理不在这里 | 35（Onboarding）；写入按各主人流程 |
 | SRB-10 | 第 10.3 节的分界与 `position` | 28 接入，59 持续跟进 |
 | SRB-11 | 读取权限单独声明，控制动作不提前加 | 59 |
-| SRB-12 | 范围、自动发现、S-115 的「看不等于跑」；不能按时间限定是能力缺口（D7） | 34 |
+| SRB-12 | 范围、自动发现、S-sessions-read-only-commands 的「看不等于跑」；不能按时间限定是能力缺口（D7） | 34 |
 | SRB-13 | 身份、去重、七个状态、进度 | 34 用真实来源制造中断 |
-| SRB-14 | 第 8.1、8.2 节，含子目录、worktree、同仓库两项目、单仓多包、伪造 worktree、工具带进来的目录的反例；S-119 | P-1；34 |
+| SRB-14 | 第 8.1、8.2 节，含子目录、worktree、同仓库两项目、单仓多包、伪造 worktree、工具带进来的目录的反例；S-sessions-git-files-only | P-1；34 |
 | SRB-15 | 第 8.4 节 | 34 |
-| SRB-16 | 第 8.5 节、第 7.4 节、S-118。授权来自项目许可，归属只定范围；所以许可开着时，本人给项目新连目录会让 AI 可读的会话变多。工具做不到这一点：工具带进来的目录不算，工具报的绑定不进 AI 的可读范围 | P-1；34 |
+| SRB-16 | 第 8.5 节、第 7.4 节、S-sessions-person-decides。授权来自项目许可，归属只定范围；所以许可开着时，本人给项目新连目录会让 AI 可读的会话变多。工具做不到这一点：工具带进来的目录不算，工具报的绑定不进 AI 的可读范围 | P-1；34 |
 | SRB-17 | 登记停止方式；`activity` 三态是它的前提 | 59 |
 | SRB-18 | 不涉及 | 59 |
 
@@ -1212,8 +1212,8 @@ C-2、C-3 只有定义，宿主还没登记，所以不动 `tooling/gates/action
 | 19 | 路线书决策表第 11 项 | 记着 Sessions 技术方案待定 | 统筹的跨批文件，不改 |
 | 20 | 许可开关定样方案 A | 用户选 A | 全局 Sheet 改别的项目做得到，`sessions.scope.read@1` 带回全部项目（第 7.4 节），动作总数不变。`sessions.scope.read@1` 同时带回每个项目的计数。定样分支 `claude/roadmap-22-permit-sample-31916b` 还没合入，它的 README 里「行里的数字没有合同来源」和「这些目录下的会话进待归类」（后者要加「选所有目录时」，见第 7.1 节）两句待改。关掉时那句「已经写进回答的内容不会收回」用户已定，写在第 7.4 节 |
 | 21 | `bound_by` 存量 | 片 P-1 之前终端面板写下的目录关系，`bound_by` 是本人的 id，会算成本人建的；`context_bind` 的旧行不是本人 id，白名单下自动不算 | 真实 Home 重建在 P-1 之后就没有；否则维护窗口要核一次，交主会话排 |
-| 22 | 已定裁定之间 | 第一版让 `reported` 进项目 AI 的可读范围，和 P4 的本意有张力 | 已定（2026-11-06）：收紧，`reported` 不进，本人确认后才算（第 7.4 节、S-118） |
-| 23 | 绑定指向另一个项目 | 会话在本人连的 A 目录下，工具绑到 B | 已定（2026-11-06）：仍 `automatic` 归 A，行上标「工具另报」，打开后写「工具报的是另一个项目」，写在第 8.2 节、S-118 |
+| 22 | 已定裁定之间 | 第一版让 `reported` 进项目 AI 的可读范围，和 P4 的本意有张力 | 已定（2026-11-06）：收紧，`reported` 不进，本人确认后才算（第 7.4 节、S-sessions-person-decides） |
+| 23 | 绑定指向另一个项目 | 会话在本人连的 A 目录下，工具绑到 B | 已定（2026-11-06）：仍 `automatic` 归 A，行上标「工具另报」，打开后写「工具报的是另一个项目」，写在第 8.2 节、S-sessions-person-decides |
 | 24 | 项目设置 | 工具带进来的目录和本人连的看起来一样，「本人再连一次」没有入口 | **要进定样**：两种目录分开显示，后者给确认入口；实现列在片 S-5 |
 | 25 | 需求 §2「开放工具同走公共接入合同」 | 登记表在合同里、适配在服务包里，第三方插件现在贡献不了来源适配 | 本批不做；要开放成扩展点在第 59 批之后另议 |
 | 26 | 第 5.1 节云端的 `location_key`（公共合同台合审） | `copilot-coding-agent` 走 `gh`，账号在 `gh` 里，这一行原来写的 `connection:` + `connection_id` 取不到 | 已答（C-2）：走 `auth_method: "cli"` 的连接，不另立规则，规则和类型的改动写在第 5.1 节 |
@@ -1226,12 +1226,12 @@ C-2、C-3 只有定义，宿主还没登记，所以不动 `tooling/gates/action
 | 33 | `return_target.label`（S-1） | 不能写进原生 ID 或账号 | 非本人已是 `null`（第 6.1 节）；给本人的写法服务片定 |
 | 34 | 本人的权限（S-1） | 三个 `sessions:*` 不在 `LOCAL_OWNER_PERMISSIONS` 里，动作调不了 | 服务片加 |
 | 35 | 第 9.5 节（S-1） | 少两处：`cli` 连接每次读多跑两次进程（读前读后核指纹）；`sessions.scope.read@1` 要读一遍连接表 | 服务片补进调用次数 |
-| 36 | S-115 与 `cli` 连接（S-1） | S-115 要求最小环境，`cliEnvironment` 在没有受管安装时传整份 `process.env` | 走 `connections.command` 时定按哪条，要改 S-115 的写法就同步改表 |
+| 36 | S-sessions-read-only-commands 与 `cli` 连接（S-1） | S-sessions-read-only-commands 要求最小环境，`cliEnvironment` 在没有受管安装时传整份 `process.env` | 走 `connections.command` 时定按哪条，要改 S-sessions-read-only-commands 的写法就同步改表 |
 | 37 | 动作总数 | 批次文件、需求 §7 第 3 项都写 10 个；对象读取器没算，第 6.4 节要它 | 合同里现在是 11 个，加第 30 行是 12 个。批次文件和需求由主会话改 |
 | 38 | `sessions.suggestion_unavailable` | 第 9.3 节声明了，但第 8.4 节写模型没配或失败时逐条 `status: "failed"`，现在没有路径抛它 | C-3 照第 9.3 节声明。片 S-3 定：有整次调用失败的情形就用，没有就删 |
 | 39 | 搜索结果的打开位置 | `search_source` 和 `open` 要写一个界面位置，入口随第 03 批，还没定 | 先写 `sessions`，片 S-5 定了入口后改；改它要 `pnpm api:update` |
-| 40 | 插件经 Knowledge 读到外部会话（S-4） | `knowledge.search` 只留当前项目的结果，外部会话进不来；但 `knowledge.read`、`outline`、`grep` 没有这道过滤，以本人身份代插件读，能到 `sessions.subject.read@1`（第 6.4 节） | **读取器登记之前必须堵住**，前置条件和候选做法在第 10.2 节，改 Knowledge 的部分交它的主人；拒绝测试在 S-118 |
-| 41 | 引用种类（S-4） | `projectReferenceKinds`、`pluginReferenceKinds` 会把 `external_session` 自动列进引用种类，不用谁新加入口（第 6.4 节） | **读取器登记之前必须堵住**，前置条件和候选做法在第 10.2 节；拒绝测试在 S-118 |
+| 40 | 插件经 Knowledge 读到外部会话（S-4） | `knowledge.search` 只留当前项目的结果，外部会话进不来；但 `knowledge.read`、`outline`、`grep` 没有这道过滤，以本人身份代插件读，能到 `sessions.subject.read@1`（第 6.4 节） | **读取器登记之前必须堵住**，前置条件和候选做法在第 10.2 节，改 Knowledge 的部分交它的主人；拒绝测试在 S-sessions-person-decides |
+| 41 | 引用种类（S-4） | `projectReferenceKinds`、`pluginReferenceKinds` 会把 `external_session` 自动列进引用种类，不用谁新加入口（第 6.4 节） | **读取器登记之前必须堵住**，前置条件和候选做法在第 10.2 节；拒绝测试在 S-sessions-person-decides |
 | 42 | 本人亲手给的算不算 AI 读 | 第 7.4 节原来没写这种情况。`readReferences` 的注释写本人亲手选就放行，这和第 7.4 节的许可有张力 | **已定（用户 2026-11-07）：** 本人明确动作给的内容放行，不看许可，带三个限制，写在第 6.4 节。张力这样解：许可管项目的 AI 自己去读，本人亲手给的是本人的意思，所以 `readReferences` 放行不违反许可。但现行代码放行之后还会记成工作对象、后面的轮次一直带着，这一段要按第三个限制改，光放行不够 |
 | 43 | `sessions.tool.search@1` 的 `query` 前导空白 | schema 放过前导空白，只拦空白之后的 `-` | 服务片定去不去掉，别让一个空白改变工具的结果 |
 | 44 | 外壳取的选区和标签页对象（S-5） | 第 6.4 节「不经读取器的一条」：选区和标签页回退由外壳做，页面不声明也会发生，选区带的是原文，默认带上。不靠读取器，S-1 除开读取器挡不住 | **已定（用户 2026-11-07）：** 这个页面选区不自动带、对象要本人点选。靠外壳，页面做不到，候选和上线前提在第 10.2 节。要进定样：点选的样子、「只进这一轮」怎样让人看懂、「@」没带对话内容、一轮还在跑时为什么不能加 |
@@ -1244,14 +1244,14 @@ C-2、C-3 只有定义，宿主还没登记，所以不动 `tooling/gates/action
 | 项 | 决定 | 落在 |
 | --- | --- | --- |
 | D1 | Sessions 自己存单条决定；已有 Runtime 绑定只读进来作归属依据，不回写，不带任何读取权；显示成工具报的，不写成本人确认（P4） | 第 8.1、8.2 节 |
-| D2 | 子目录和 git worktree 都算；同一仓库连两个项目算不唯一；只读 `.git`、`commondir`、`gitdir`，互相指着才算 worktree（P3），绝不跑 git；`linked_projects` 和自动归入只认本人建的目录关系，工具带进来的目录下的会话进待归类（P4）；`linked_projects` 含 worktree；已删、认不出的不算进 `linked_projects`，选「所有目录」时才看得到并走 AI 建议 | 第 7.1、8.2 节，S-119 |
+| D2 | 子目录和 git worktree 都算；同一仓库连两个项目算不唯一；只读 `.git`、`commondir`、`gitdir`，互相指着才算 worktree（P3），绝不跑 git；`linked_projects` 和自动归入只认本人建的目录关系，工具带进来的目录下的会话进待归类（P4）；`linked_projects` 含 worktree；已删、认不出的不算进 `linked_projects`，选「所有目录」时才看得到并走 AI 建议 | 第 7.1、8.2 节，S-sessions-git-files-only |
 | D3 | 跨会话只搜标题、目录、工具名；内容进单个会话搜；工具自带搜索的加「在这个工具里搜」；全文索引不做 | 第 6.4 节，SRB-02 |
-| D4 | 读取权与归属分开：每个项目一个 AI 读取许可，默认关，只有本人能改；`agent`、`workflow`、`plugin` 要它，且只到当前项目的 `confirmed`、`automatic` 会话，工具报的不算；MCP 另需 S-08；待归类和全部只有本人；团队项目先不开放 | 第 6.5、7.4 节，S-118 |
+| D4 | 读取权与归属分开：每个项目一个 AI 读取许可，默认关，只有本人能改；`agent`、`workflow`、`plugin` 要它，且只到当前项目的 `confirmed`、`automatic` 会话，工具报的不算；MCP 另需 S-08；待归类和全部只有本人；团队项目先不开放 | 第 6.5、7.4 节，S-sessions-person-decides |
 | D5 | 页面只在有来源在读且可见时询问，逐步拉长；隐藏即停、失败退避、读完即停 | 第 9.5 节 |
 | D6 | 读取范围归 Sessions，云端只存 `connection_id`，读取时另核连接有效 | 第 7.1、7.3 节 |
 | D7 | 时间窗不做，没有字段，记为能力缺口 | 第 7.1 节 |
 | 开关定样 | 方案 A：读取范围分「工具与目录」「项目的 AI」两页，全部项目一张表 | 第 7.4 节 |
-| 本人明确动作 | 用户 2026-11-07 定：本人用「@」选中，或点选把选区、当前对象加进这一轮，放行，不看项目 AI 读取许可；选区不自动带，内容标不可信，只进这一轮；AI 发起的引用和替插件代读仍挡 | 第 6.4、7.4、10.2 节，S-118 |
+| 本人明确动作 | 用户 2026-11-07 定：本人用「@」选中，或点选把选区、当前对象加进这一轮，放行，不看项目 AI 读取许可；选区不自动带，内容标不可信，只进这一轮；AI 发起的引用和替插件代读仍挡 | 第 6.4、7.4、10.2 节，S-sessions-person-decides |
 | D8 | 打开待归类才跑，同目录一起问，一次最多 20 组，往下翻再要；卡片先显示，建议随后到；界面写明发给模型的内容 | 第 8.4 节 |
 
 ## 14. 来源

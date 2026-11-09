@@ -10,14 +10,15 @@ import ts from "typescript";
 import { buildSync } from "esbuild";
 import { isMainScript } from "../script-paths.mjs";
 
-export const STABLE_KEY = /^[a-z][a-z0-9-]*(?:\.[a-z][a-z0-9_-]*){1,4}$/u;
 const HAN = /\p{Script=Han}/u;
 const PLATFORM_REGISTRY = "packages/design-system/resources/registry.json";
 const sdkRoot = fileURLToPath(new URL("../../packages/plugin-sdk/src/ui/", import.meta.url));
 const uiContract = fileURLToPath(new URL("../../packages/contracts/src/platform/ui.ts", import.meta.url));
-const sdkBundle = buildSync({ stdin: { contents: 'export { parseLocalePack, inspectLocaleSet } from "./locale-pack.ts"; export { parseUiLanguageCatalog } from "./language-catalog.ts";', resolveDir: sdkRoot },
+const sdkBundle = buildSync({ stdin: { contents: 'export { STABLE_KEY } from "./text-keys.ts"; export { parseLocalePack, inspectLocaleSet } from "./locale-pack.ts"; export { parseUiLanguageCatalog } from "./language-catalog.ts";', resolveDir: sdkRoot },
   alias: { "@molis-ai/molis-work-contracts/platform/ui": uiContract }, bundle: true, format: "esm", platform: "node", write: false, logLevel: "silent" });
-const { parseLocalePack, inspectLocaleSet, parseUiLanguageCatalog } = await import("data:text/javascript;base64," + Buffer.from(sdkBundle.outputFiles[0].contents).toString("base64"));
+const { STABLE_KEY, parseLocalePack, inspectLocaleSet, parseUiLanguageCatalog } = await import("data:text/javascript;base64," + Buffer.from(sdkBundle.outputFiles[0].contents).toString("base64"));
+
+export { STABLE_KEY };
 
 export const ownerOf = (file) => {
   const parts = file.split("/");
@@ -113,6 +114,24 @@ const argumentIndexes = (callee, wrappers, declared) => {
   const indexes = wrappers.get(callee) ?? wrappers.get(callee.startsWith("this.") ? callee.slice(5) : callee);
   return indexes ? [...indexes].sort((a, b) => a - b) : NO_ARGUMENTS;
 };
+// A const alias of the actual SDK/typed translator keeps its first argument, including an alias inside a browser script.
+function textAliases(tree, names) {
+  const aliases = [], declared = new Set(names);
+  const visit = node => {
+    if (ts.isVariableDeclaration(node) && node.parent.flags & ts.NodeFlags.Const && ts.isIdentifier(node.name) && node.initializer) {
+      const value = calleeText(unwrap(node.initializer));
+      if (value !== null) aliases.push([node.name.text, value]);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(tree);
+  for (let last = -1; last !== declared.size;) {
+    last = declared.size;
+    for (const [alias, value] of aliases) if (argumentIndexes(value, new Map(), declared).length) declared.add(alias);
+  }
+  return declared;
+}
+
 // Functions that hand parameters to a translator are translators within their file, by name (their callers carry the keys, so
 // the forwarding call itself is not a dynamic call). Every forwarded parameter counts, not only the first: a function that
 // translates a title and a hint has two keys at every call. `seed` is what the other files of the same browser program have
@@ -287,7 +306,7 @@ function declaredTranslators(source, readModule) {
 const title = (node, source) => source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1;
 const testCall = (name) => /^(?:globalThis\.)?(?:L|LF|LFor)$/u.test(name ?? "");
 const escapeRegExp = (text) => text.replace(/[.*+?^\${}()|[\]\\]/g, "\\$&");
-const scriptPattern = (names) => new RegExp(String.raw`(?:\bt(?:\.text)?|\buiText(?:\.text)?|\breadText|\bL(?:F|For)?${names?.size ? `|${[...names.keys()].map(escapeRegExp).join("|")}` : ""})\(`);
+const scriptPattern = (names) => new RegExp(String.raw`(?:\bglobalThis\.t(?:\.text)?\b|(?:\bt(?:\.text)?|\buiText(?:\.text)?|\breadText|\bL(?:F|For)?${names?.size ? `|${[...names.keys()].map(escapeRegExp).join("|")}` : ""})\()`);
 
 export function scanFile(file, text, shared, readModule) {
   const source = sourceOf(file, text), imports = new Set([...words(source), ...declaredTranslators(source, readModule)]);
@@ -295,7 +314,8 @@ export function scanFile(file, text, shared, readModule) {
     imports: source.statements.filter(node => (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier
       && ts.isStringLiteralLike(node.moduleSpecifier) && node.moduleSpecifier.text.startsWith(".")).map(node => node.moduleSpecifier.text) };
   function inspect(tree, first, embedded = false) {
-    const { wrappers, forwards } = discoverWrappers(tree, imports, embedded ? shared : undefined), tables = discoverTables(tree);
+    const declared = textAliases(tree, imports);
+    const { wrappers, forwards } = discoverWrappers(tree, declared, embedded ? shared : undefined), tables = discoverTables(tree);
     if (embedded) {
       result.scripts++;
       for (const [name, indexes] of wrappers) result.scriptWrappers.set(name, new Set([...(result.scriptWrappers.get(name) ?? []), ...indexes]));
@@ -305,11 +325,11 @@ export function scanFile(file, text, shared, readModule) {
       if (ts.isCallExpression(node)) {
         const callee = calleeText(node.expression);
         if (testCall(callee) || callee === "host.translate") result.retired.push({ file, line, callee });
-        for (const index of argumentIndexes(callee, wrappers, imports)) {
+        for (const index of argumentIndexes(callee, wrappers, declared)) {
           if (!node.arguments[index]) continue;
           const found = keysOf(node.arguments[index], tables);
           // An optional wrapper can use an empty label to omit the control's words. Direct SDK calls still require a key.
-          const direct = argumentIndexes(callee, new Map(), imports).length > 0;
+          const direct = argumentIndexes(callee, new Map(), declared).length > 0;
           for (const key of found.keys) if (key || direct) result.calls.push({ file, line, key, callee, embedded });
           if (found.dynamic && !forwards.has(unwrap(node.arguments[index]))) result.dynamic.push({ file, line, callee, prefix: found.prefix, embedded });
         }

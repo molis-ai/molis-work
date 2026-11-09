@@ -622,6 +622,37 @@ SDK 只依赖 contracts，不依赖也不转出私有包。改 SDK 算动共享�
 
 验收复用 IUI-07／08／10／13：同项目合法对象可显示；越权引用与空结果向子端给相同协议回执；未声明、跨贡献、伪安装和过量引用拒绝；外发 values 未被调用；脚本点击、pointerdown 后重绘、旧代次、遮盖和撤权期间均零写；真实父键盘点击只执行一次、回执和跨位置更新正确。公开 renderer 的合审不替代这些挂载位路径的验证。
 
+**surfaceSlot 实施合同补充（2026-11-09 前置合审）。** 对照 `c07dbad4a8`，现行 `UiPageView` 只有 `embed`；上面的 surfaceSlot 仍需实现，不能把声明当作已有能力。独立设计与只读合审未发现方向性 Blocker/P1，按下列约束进入第 15 批唯一 writer 实施；此结论不是产品、安全验证或最终公共合审通过。
+
+唯一新增公开 API：
+
+```ts
+surfaceSlot(element: Element, options: {
+  slot_id: string;
+  subjects: readonly ActionSubject[];
+}): { ready: Promise<void>; dispose(): void };
+```
+
+沿用现有 `ActionSubject`、slot 标识及对象数校验，允许空数组，超过 50 或含未知字段整次拒绝，再按组合服务原规则去重。同元素再次调用先释放旧挂载；更改引用用新调用，不增加 update API。dispose 幂等，元素离开 DOM 或 page scope 结束自动释放；待定 ready 在本地释放时以 AbortError 拒绝，已完成的 ready 不再变化。Host 拒绝向子端只映射固定 unavailable，不泄漏诊断。`UiSlotDescriptor`、`SurfaceRequest`、`SurfaceItem` 和 Manifest 不加字段；SDK 与 contracts 的实际导出、API 快照和作者文档随实现同步，不升已有版本。
+
+私有 MessagePort 上行只有 `surface-slot-open {id,slot_id,subjects}`、`surface-slot-layout {id,box}`、`surface-slot-close {id}`，下行只有 `surface-slot-ready {id,error?:"unavailable"}` 与 `surface-slot-size {id,height}`。沿现有 FrameBox；id 为端口内不重用的递增正 safe integer。重复 open 拒绝，关闭／替换后的消息与异步返回失效。没有子端 click、prepare、execute 或 peek 消息。ready 在声明预留校验结束后、任何业务查询之前答一次；height 只取声明预定形态档和盒宽，不能按值、数量、结果或错误测量。沿既有宽度分档、已批实件布局取固定高度，内部滚动；不足宽时为零。不回传焦点、存在标志或执行结果。
+
+父端在一页唯一 `pageFramedAreas` 中申请区域，与其他种类共享原四区配额，复用裁剪、相交隐藏、稳定期、真实 pointer／keyboard gate 和 childPlaces，不另建区域登记。可信 PageSelection 从实际选中的 owner contribution 记录私有 slot 来源：contribution、surface、target slot、producer、原贡献 slots 和准确 installation／scope／activation。预签发的签包页也须在实际选定贡献时绑定，不能凭 plugin_id 猜贡献；没有来源证明的 preview 或旧页不能申请 slot。Page 只提供按 slot_id 取得本页原声明的窄操作，不开放任意安装／贡献查询。
+
+父端新增工作台内部 `POST /api/contextual/surface-slot`，沿原 contextual header fence 和 page authority：只接受受保护的 `x-molis-context-page`，与当前项目／页面／贡献绑定；普通插件页头、双头、错项目和关闭页面均拒绝。插件 fetch 桥不得转发该头，Home 对 pluginPageRequest 的拒绝不变。HTTP 各意图闭合校验：reserve 收本地挂载 id、slot_id、subjects；read 收 page 内 slot 句柄；activate 收 slot／render／control；confirm 收 slot／render／preparation；cancel 收 slot／preparation；close 收 slot。不得传任意 actor、project、install、ref、input、subject 或 URL 到执行意图。
+
+reserve 只核页面、原贡献声明、输入和容量，零业务读取；父端取得当前 Page 内的随机句柄与固定高度档后先发 ready，再 read。Page 最多保存四个挂载记录，记录随原页关闭、撤权或 activation 更替清理，不是第二授权目录。read 只向父端返回当前 render 句柄、共用显示投影与可信控件标签／后果；实际动作及输入映射留在 Host。activate 只能选择本 render 返回过的 control，沿原对象打开／速览、offer 或 placement 服务；confirm 只消费本次准备的句柄，cancel／close 不执行业务动作。有限输入选择沿原受保护 picker，不开放 JSON 代理。并发／重复 confirm 对原准备只消费一次，未知或过期句柄拒绝。
+
+组合位置仍是原 `plugin-slot`。只在本次可信采样目录的 slots 投影中保留本页准确安装及原贡献声明；其余 presentation／对象来源保留，但不让同 plugin_id 的另一 scope 或同名贡献决定此处形态。投影前后检查原目录与页面，内置和签包同路。抽出首页已用的采样、显示与准确打开接点供真实消费者共用，一次 read 只做一次目录发现与 compose，显示字段继续按准确 ActionView 合批和对象自身形态裁剪。
+
+**两层寿命是合审的必要条件。** `PluginPageAuthority.bind` 在 HTTP finish 会中止请求，`localWebAuthority` 闭包也捕获创建时的 signal。因此 page／slot 长寿命 caller 必须从最初以 page／slot signal 创建 `openProjectPersonContext`，不能由短请求 caller spread 后换 signal；compose 用于保留目录的 context 也不能被 `bindActionClient` 控制参数合并回 HTTP signal。每次实际查询与交付另用短请求、slot signal 及 deadline 的读 guard；请求结束不留下写权限。只保留原登记、声明、候选绑定及其原 token guard，不保留已经结束请求的 effectGuard，不使用后台 authority 续命。后续真实点击重新创建当前人 request caller，并叠加原 page／slot／目录 token guard，再走原网关和 beforeEffect。
+
+非 Home compose 当前还没有首页的采样注入、catalogCurrent 和共享 deadline，实施时须一并推广到本次受保护位置；compose 与最后显示读取共用同一预算，compose 返回时不能提前 dispose。prepare／confirm 虽调用原服务，其 discover 也必须返回受原 guard 约束的同一目录，不能通过重新发现替换原 registration、reader 或 values。任意 read 开始先让旧 render 与 preparation 失效，成功才发布新绑定；隐藏标脏、清敏感 DOM 并取消读取，再显示时重读。切项目、关闭、停用、撤权和贡献变化先清绑定并中止请求，旧响应不能覆盖新状态；只有 owner 的真实 stale／read_at 可显示旧值。
+
+现有 `area.redraw` 不会清除 pointerdown，slot 层须额外保存 pointerdown 的 render 并在点击时比对；键盘绑定更换后重新计稳定期。真实父端按钮同时通过 isTrusted、area.gate、可见／无遮挡／非 busy 与当前 control 映射。准备／确认等待后重核当前人、页面、安装、贡献、对象、原读口、动作输入映射与 revision；提交后失权或断线只核实，不自动重做。刷新按逻辑对象／操作保焦，但不恢复旧 render key，也不在用户离开后抢焦点。
+
+调用数：首次 reserve 零业务读，再一次 read／compose 与有界显示合批；几何变化零 Host 调用；打开／速览一次 activate 及必要原读取；写操作沿原 prepare 和一次真实 confirm，不叠加另一套执行。验收除前述 IUI-07／08／10／13，还须实际覆盖同名不同贡献、双 scope、同版本换 digest／activation／registration、普通 fetch 头与未知字段拒绝；对子端比较合法／空／越权／删除／超时的相同 ready／size；证明首次 HTTP 结束后当前按钮仍可合法使用、撤权后不能凭页面寿命继续执行，及 pointerdown 后重绘／旧 preparation／并发确认零额外写。Goals 自身直接复用同形态 renderer，不伪造 slot；Inbox 在真实原件详情声明并使用 slot。最终仍须真实写入、跨位置回执与三宽中英深浅／键盘验收。
+
 最小迁移范围是 `renderPreviewCard`、`renderPopover`、`renderSheet` 及形态实际使用的 `renderMenu`／`renderMenuItem`：将原实现移到 SDK 的一个 UI 叶子，design-system 原入口同源重导，普通消费者签名与 HTML 保持；不复制第二套实现。其它 dialog、drawer、菜单组及客户端 tooltip、焦点、浮层工具保留原 owner。形态内容只画一次，位置层选择 popover 或窄屏 Sheet；`mw-tag`／`mw-item` 复用原样式。样式叶子只用语义变量和环境继承，消费第 16 批 font roles 的 size／lineheight，不建第二份字体、皮肤状态或缓存。`UiSpecFile.components` 只登记元数据，实际 kind 渲染与允许操作仍由实现负责。
 
 文件边界：SDK `src/ui/presentation-form.ts` 与最小 primitive 叶子、design-system `src/styles/presentation.ts`、同 renderer 的组件板样张。SDK `/ui` 导出及私有文字接线、API 快照、design-system overlay 重导和样式入口、组件板装配、语言键与页面消费者按第 10／16 批实际窗口串行；第 16 批 C 切换之前不接新稳定键或页面入口。不得提交只有签名或无人消费的永久空壳。SSC-14 验不经 compose 的行与组合行相同；IUI-03／07／08／10／26 分别验跨位置事实、绑定与后果、异常泄露和三宽双语双主题及键盘；原标本的局部浏览器结果不替代产品验收。

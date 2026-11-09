@@ -147,7 +147,11 @@ test("S-84 SCS-08 a project enable cancelled or replaced during real executor st
     .get(before.install_id, PACKAGE_PLUGIN_ID);
   const originalWords = remembered();
   assert.ok(originalWords, "the original signed method and role are remembered");
-  const offered = () => homeAgentDefinitions(h.home).methods().filter(method => method.owner_id === PACKAGE_PLUGIN_ID);
+  const agent = homeAgentDefinitions(h.home);
+  const offered = () => agent.methods().filter(method => method.owner_id === PACKAGE_PLUGIN_ID);
+  const editable = () => agent.registrations().find(registration => registration.owner_id === PACKAGE_PLUGIN_ID);
+  const disabled = editable();
+  assert.equal(disabled?.source.kind === "plugin" && disabled.source.state, "disabled");
   assert.deepEqual(offered(), []);
   const records = await h.host.withProject(h.reference, project => new SqlitePluginRuntimeRepository(project.store.db));
   const executor = Reflect.get(runtime, "executor") as PluginExecutor, start = executor.start;
@@ -173,7 +177,8 @@ test("S-84 SCS-08 a project enable cancelled or replaced during real executor st
       await assert.rejects(pending, { code: change === "cancel" ? "actions.cancelled" : "actions.provider_replaced" });
       assert.deepEqual(runtime.get(before.install_id), change === "cancel" ? before : replacement);
       assert.equal(runtime.contribution(before.install_id), null);
-      assert.deepEqual(offered(), [], "the stopped candidate leaves no live method");
+      assert.deepEqual(offered(), [], "the stopped candidate leaves no live material");
+      assert.deepEqual(editable(), disabled, "the disabled declaration stays editable");
       assert.deepEqual(remembered(), originalWords, "the rejected start does not write the remembered declaration");
       assert.equal(supervisor.generation(PACKAGE_PLUGIN_ID), undefined);
       assert.equal(await supervisor.ensureStarted(PACKAGE_PLUGIN_ID), undefined);
@@ -181,7 +186,10 @@ test("S-84 SCS-08 a project enable cancelled or replaced during real executor st
   }
   assert.equal(stop.mock.callCount(), 2, "both successful worker starts were released without a new crash or recovery write");
   assert.deepEqual(await h.control("enable", target), { ...target, state: "running" });
-  assert.equal(offered().length, 1, "the same real method is offered after a successful enable");
+  assert.deepEqual(offered().map(({ kind, name, install_id }) => ({ kind, name, install_id })), [
+    { kind: "role", name: "审稿", install_id: before.install_id },
+    { kind: "method", name: "校对", install_id: before.install_id },
+  ], "the real role and method are offered by the same installation after successful enable");
 });
 
 test("S-84 SCS-08 a committed start still closes after caller withdrawal and cannot undo a newer disable", mac, async t => {

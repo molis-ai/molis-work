@@ -9,7 +9,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, projectActionAvailability, runningProjectPlatform } from "@molis-ai/molis-work-app-local-host";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { sceneConfigurationActions } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -60,7 +60,7 @@ export async function serve(home: string, host: Partial<HostOptions> = {}) {
   const local = new MolisWorkLocalHost({ homeDirectory: home, completeText: null,
     workspacesFor: projectId => withCatalog({ homeDirectory: home }, catalog => catalog.listWorkspaceDirectory(projectId)),
     actionAvailability: projectActionAvailability((options, operation) => withCatalog(options, operation), home), ...host });
-  const withCatalog = local.configurePersonalPlanning(home, withMolisWorkProjectCatalog);
+  const withCatalog = local.configurePersonalPlanning(home, local.ensureWebCatalog(home, openMolisWorkProjectCatalog).withCatalog);
   const served = await serveTestHost(null, { home, host: local });
   return { ...served, host: local, async shut() { await served.close(); await local.close(); } };
 }
@@ -110,6 +110,7 @@ export async function walk(plugin: Shipped, host: Partial<HostOptions> = {}) {
   const build = BUILTIN_PLUGIN_CATALOG.find(item => item.manifest.plugin_id === plugin.plugin_id)!.manifest.version;
   const revoked = plugin.revoke ?? "storage:private", kept = plugin.kept ?? ["first"];
   let served = await serve(home, host);
+  let walkFailure: { error: unknown } | undefined;
   try {
     const project = await served.createProject("Lifecycle", plugin.joins ? [plugin.key] : []);
     const settings = `/api/settings/projects/${encodeURIComponent(project.project_id)}/plugins`;
@@ -210,8 +211,15 @@ export async function walk(plugin: Shipped, host: Partial<HostOptions> = {}) {
       const other = homeHalf.runtime.list().find(item => item.plugin_id === plugin.plugin_id);
       assert.ok(other && other.state === "running", `${plugin.key}: the Home half is another installation, still there`);
     } else if (plugin.dual) assert.ok((await at.callable("project")).length > 0, `${plugin.key}: the project's own half is another installation, still there`);
+  } catch (error) {
+    walkFailure = { error };
+    throw error;
   } finally {
-    await served.shut();
+    try { await served.shut(); }
+    catch (error) {
+      if (walkFailure) throw new AggregateError([walkFailure.error, error], "Plugin lifecycle and Host close both failed");
+      throw error;
+    }
     await rm(home, { recursive: true, force: true });
   }
 }

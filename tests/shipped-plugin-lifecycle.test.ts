@@ -8,7 +8,10 @@ import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { setImmediate as nextTurn } from "node:timers/promises";
 import test from "node:test";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { answer, declared, serve, titlesOf, viewOf, walk, type Shipped } from "./fixtures/shipped-lifecycle.js";
 
@@ -42,6 +45,46 @@ test("RAC-1032 W6-02 Pages on a project's supervisor: added, removed and added b
 test("RAC-1033 W6-02 灵光 on a project's supervisor: added, removed and added back, revoked, upgraded and uninstalled", { timeout: 180_000 }, () => walk(SHIPPED.lingguang!));
 
 test("RAC-1230 W6-02 Goals on a project's supervisor: 常开, the Home half is another installation, the data stays through the uninstall and the restart", { timeout: 180_000 }, () => walk(SHIPPED.goals!));
+
+test("SPC-C08 W6-02 lifecycle shutdown waits for a project Catalog policy read before the same Home can reopen", { timeout: 30_000 }, async t => {
+  const home = await mkdtemp(join(tmpdir(), "shipped-lifecycle-catalog-close-"));
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), closeReached = Promise.withResolvers<void>();
+  const configure = MolisWorkLocalHost.prototype.configurePersonalPlanning;
+  let captured = false, holdRead = false;
+  t.mock.method(MolisWorkLocalHost.prototype, "configurePersonalPlanning", function(this: MolisWorkLocalHost, path: string, runner: Parameters<typeof configure>[1]) {
+    if (captured) return configure.call(this, path, runner);
+    captured = true;
+    return configure.call(this, path, (options, operation) => runner(options, async catalog => {
+      if (holdRead) { holdRead = false; entered.resolve(); await release.promise; }
+      return operation(catalog);
+    }));
+  });
+  let served: Awaited<ReturnType<typeof serve>> | undefined, reading: Promise<unknown> | undefined, shutting: Promise<void> | undefined;
+  try {
+    served = await serve(home);
+    const project = await served.createProject("Catalog policy close");
+    const caller = await served.host.localPersonContext(project.reference);
+    const access = served.host.ensureWebCatalog(home, openMolisWorkProjectCatalog), close = access.close;
+    t.mock.method(access, "close", () => { const pending = close(); closeReached.resolve(); return pending; });
+    holdRead = true;
+    reading = Promise.resolve(served.host.actionClient(project.reference).discover(caller));
+    await Promise.race([entered.promise, reading.then(() => assert.fail("discovery finished before borrowing the Catalog"))]);
+    shutting = served.shut();
+    const settled = shutting.then(() => "closed", error => error);
+    await closeReached.promise;
+    assert.equal(await Promise.race([settled, nextTurn("waiting")]), "waiting", "the Host must keep its owner while the policy read is borrowed");
+    release.resolve();
+    await reading;
+    await shutting;
+    served = await serve(home);
+    assert.equal(served.host.lifecycle(), "running");
+  } finally {
+    release.resolve();
+    await Promise.allSettled([reading, shutting]);
+    await served?.shut();
+    await rm(home, { recursive: true, force: true });
+  }
+});
 
 test("RAC-1034 W6-02 BL-755 a project's supervisor keeps uninstall, restarts a legacy disabled personal plugin, and still refuses revoked grants", { timeout: 180_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "shipped-lifecycle-restart-"));

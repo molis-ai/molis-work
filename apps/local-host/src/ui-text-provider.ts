@@ -6,9 +6,9 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { BASELINE_REGISTRY } from "@molis-ai/molis-work-design-system";
 import { pluginLocaleReader, type PluginLocaleReader } from "@molis-ai/molis-work-plugin-runtime";
 import { installUiText, textKeyPrefix } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { installCatalogTextScope, pluginTextForOwner, pluginTextOwnerOfPrefix, registerPlatformText, type PluginTextReader } from "@molis-ai/molis-work-app-workbench";
+import { installCatalogTextScope, pluginTextForOwner, pluginTextOwnerOfPrefix, registerPlatformText, webLanguage, workbenchPlatformText, type PluginTextReader } from "@molis-ai/molis-work-app-workbench";
 import { hostLog } from "./host-log.js";
-import { runWithRegisteredText, textScope, WEB_LOCALES } from "./web-locale.js";
+import { runWithRegisteredText, textScope, DEFAULT_WEB_LOCALE } from "./web-locale.js";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { registeredPackageDirectory, registeredPluginLocaleFiles } from "./registered-plugin-files.js";
 
@@ -35,6 +35,7 @@ const readerFor = (owner: string) => {
 
 const provider: UiTextProvider = {
   locale: () => textScope().locale,
+  intlLocale: tag => webLanguage(tag)?.intl,
   noContext: () => textScope().noContext,
   ownerOfPrefix(prefix) {
     const { activation, registered } = textScope();
@@ -63,7 +64,7 @@ export function hostTextProblems(): readonly TextProblem[] {
 }
 
 /** A platform owner has no Manifest: the first web language is its default, the one a page with no choice shows. */
-const PLATFORM_DEFAULT_LOCALE = WEB_LOCALES[0];
+const PLATFORM_DEFAULT_LOCALE = DEFAULT_WEB_LOCALE;
 
 /**
  * A platform owner's language directory, a `locale` row of the resource registry (§1.2): adding an owner is a row, adding a language a file. Nothing is read
@@ -116,7 +117,7 @@ export function drawRegisteredText<T>(manifest: PluginManifest, draw: () => T): 
  */
 export function installHostUiText(): void {
   if (platformText === null) {
-    platformText = BASELINE_REGISTRY.resources.filter(row => row.kind === "locale").map(platformLocaleReader);
+    platformText = BASELINE_REGISTRY.resources.filter(row => row.kind === "locale").map(row => row.owner === workbenchPlatformText.owner ? workbenchPlatformText : platformLocaleReader(row));
     platformText.forEach(registerPlatformText);
     installCatalogTextScope(drawRegisteredText);
   }

@@ -22,7 +22,8 @@ export type { CapabilitiesView, CapabilitySection } from "./capabilities.js";
 export { renderMcpAccessRows, type McpAccessModel, type McpAccessEntry } from "./mcp-access.js";
 export type { MolisWorkWebView, PreparedStageView } from "./page-view.js";
 export type { PluginRestartOffer, UnavailablePluginStage } from "./unavailable-plugin-stage.js";
-export { createWorkbenchLocale, LOCALE_COOKIE, LOCALE_SWITCH_STYLES, WEB_LOCALES, type WebLocale, type WebLocalePreference } from "./i18n.js";
+export { createWorkbenchLocale, DEFAULT_WEB_LOCALE, LOCALE_COOKIE, LOCALE_SWITCH_STYLES, WEB_LOCALES, webLanguage, type WebLocale, type WebLocalePreference } from "./i18n.js";
+export { WORKBENCH_LANGUAGES, workbenchPlatformText } from "./platform-languages.js";
 export { renderLanguageHead, workbenchLanguageResource } from "./language-resource.js";
 // The words this process holds for the text tools (specs/font-and-skin-system/a-section-contract.md §8.3): the Host registers and reads them.
 export { pluginTextForOwner, pluginTextOwnerOfPrefix, pluginTextReader, drawCatalogText, installCatalogTextScope, registerPlatformText, registerPluginText, type PluginTextReader } from "./plugin-text.js";

@@ -131,7 +131,7 @@ test('two builds\' code agents on one Home Runtime never hold up each other\'s t
   } finally { for (const { agent } of agents) await agent.close(); await adapter.close(); await rm(root, { recursive: true, force: true }); }
 });
 
-test('the plugin development Skill reaches the model through Prologue, as an exact version, for the stage that mounts it', { timeout: 30_000 }, async t => {
+test('FSS-74 the plugin development Skill reaches the model through Prologue, as an exact version, for the stage that mounts it', { timeout: 30_000 }, async t => {
   const { builderSkills } = await import('../apps/local-host/src/plugin-builder/skill.js');
   const design = builderSkills('design'), english = builderSkills('design', undefined, 'en');
   const [experience] = builderSkills('experience'), [ui] = builderSkills('ui'), [review] = builderSkills('review'), [code] = builderSkills('code');

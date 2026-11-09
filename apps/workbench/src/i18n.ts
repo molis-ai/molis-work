@@ -1,5 +1,6 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { UI_LANGUAGES, type UiLanguageTag } from "@molis-ai/molis-work-contracts/platform/ui";
+import { preferredUiLanguage, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import type { UiLanguageTag } from "@molis-ai/molis-work-contracts/platform/ui";
+import { WORKBENCH_LANGUAGES } from "./platform-languages.js";
 import { pluginTabTitles } from "./plugin-catalog.js";
 
 export type WebLocale = UiLanguageTag;
@@ -8,13 +9,14 @@ export type WebLocalePreference = WebLocale | "system";
 
 export const LOCALE_COOKIE = "molis_work_locale";
 
-export const WEB_LOCALES = [UI_LANGUAGES[0].tag, ...UI_LANGUAGES.slice(1).map(language => language.tag)] as const;
+export const DEFAULT_WEB_LOCALE = WORKBENCH_LANGUAGES.default;
+export const WEB_LOCALES = Object.freeze([DEFAULT_WEB_LOCALE, ...WORKBENCH_LANGUAGES.languages.map(language => language.tag).filter(tag => tag !== DEFAULT_WEB_LOCALE)]);
 
 export function isWebLocale(value: unknown): value is WebLocale {
-  return UI_LANGUAGES.some(language => language.tag === value);
+  return WEB_LOCALES.some(tag => tag === value);
 }
 
-export const webLanguage = (tag: WebLocale) => UI_LANGUAGES.find(language => language.tag === tag)!;
+export const webLanguage = (tag: WebLocale) => WORKBENCH_LANGUAGES.languages.find(language => language.tag === tag);
 
 
 export const LOCALE_SWITCH_STYLES = `
@@ -32,15 +34,15 @@ export const LOCALE_SWITCH_STYLES = `
 export function createWorkbenchLocale(currentLocale: () => WebLocale) {
 
 function htmlLang(locale: WebLocale = currentLocale()): string {
-  return webLanguage(locale).html_lang;
+  return (webLanguage(locale) ?? webLanguage(DEFAULT_WEB_LOCALE)!).html_lang;
 }
 
 function dateTimeLocale(locale: WebLocale = currentLocale()): string {
-  return webLanguage(locale).intl;
+  return (webLanguage(locale) ?? webLanguage(DEFAULT_WEB_LOCALE)!).intl;
 }
 
 function listJoin(values: readonly string[], locale: WebLocale = currentLocale()): string {
-  return values.join(locale === "en" ? ", " : "、");
+  return new Intl.ListFormat(dateTimeLocale(locale), { style: "short", type: "unit" }).format(values);
 }
 
 
@@ -64,12 +66,12 @@ function resolveWebLocaleChoice(
 
   const accept = Array.isArray(acceptLanguage) ? acceptLanguage.join(",") : acceptLanguage;
   const preferred = String(accept ?? "").split(",").flatMap(part => {
-    const [name, weight] = part.trim().toLowerCase().split(";");
-    const tag = name?.split("-")[0], q = weight === undefined ? 1 : Number(weight.trim().replace(/^q=/u, ""));
-    return isWebLocale(tag) && q > 0 && q <= 1 ? [{ tag, q }] : [];
+    const [tag, weight] = part.trim().toLowerCase().split(";");
+    const q = weight === undefined ? 1 : Number(weight.trim().replace(/^q=/u, ""));
+    return tag && q > 0 && q <= 1 ? [{ tag, q }] : [];
   }).sort((a, b) => b.q - a.q);
-  const match = preferred[0]?.tag;
-  return match ? { tag: match, source: "system" } : { tag: UI_LANGUAGES[0].tag, source: "default" };
+  const match = preferredUiLanguage(WORKBENCH_LANGUAGES, preferred.map(({ tag }) => tag));
+  return match ? { tag: match.tag, source: "system" } : { tag: DEFAULT_WEB_LOCALE, source: "default" };
 }
 
 const resolveWebLocale = (...args: Parameters<typeof resolveWebLocaleChoice>): WebLocale => resolveWebLocaleChoice(...args).tag;
@@ -104,7 +106,7 @@ function localeSwitchHref(locale: WebLocalePreference, nextPath: string): string
 function renderLocaleSwitch(nextPath: string): string {
   const locale = currentLocale();
   return `<nav class="locale-switch" aria-label="${escapeAttr(uiText.text("workbench.i18n.language"))}">
-    ${UI_LANGUAGES.map(language => `<a href="${localeSwitchHref(language.tag, nextPath)}" hreflang="${language.html_lang}" lang="${language.html_lang}" data-ui-language="${language.tag}"${locale === language.tag ? ' aria-current="true"' : ""}>${language.name}</a>`).join("")}
+    ${WORKBENCH_LANGUAGES.languages.map(language => `<a href="${localeSwitchHref(language.tag, nextPath)}" hreflang="${language.html_lang}" lang="${language.html_lang}" data-ui-language="${language.tag}"${locale === language.tag ? ' aria-current="true"' : ""}>${escapeAttr(language.name)}</a>`).join("")}
   </nav>`;
 }
 

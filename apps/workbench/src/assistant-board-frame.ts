@@ -11,6 +11,7 @@ import { UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "./scripts/client/assistant-island.js";
 import { ATTENTION_FACTORY_SCRIPT } from "./scripts/client/attention.js";
 import { renderWorkbenchBar } from "./immersive-shell.js";
+import { WEB_LOCALES, type WebLocale } from "./i18n.js";
 import { renderLanguageHead } from "./language-resource.js";
 
 /**
@@ -23,7 +24,7 @@ import { renderLanguageHead } from "./language-resource.js";
  * frame never reaches a real work or changes what the workbench remembers on this computer.
  */
 export interface AssistantFrameOptions {
-  lang: "zh" | "en";
+  lang: WebLocale;
   /** The works' own words (the person's, the model's and what the Host and plugins wrote): Chinese, English or mixed. */
   text: "zh" | "en" | "mixed";
   /** What the stand-in Host does with a questionnaire's answer: takes it, or refuses it as the Runtime would (simulated). */
@@ -43,7 +44,7 @@ const pick = <T extends string>(value: string | null, allowed: readonly T[]): T 
 
 /** Only known values are read; anything else is the first value, so the page never reflects what the query said. */
 export function parseAssistantFrame(query: URLSearchParams): AssistantFrameOptions {
-  return { lang: pick(query.get("lang"), ["zh", "en"] as const), text: pick(query.get("text"), ["zh", "en", "mixed"] as const),
+  return { lang: pick(query.get("lang"), WEB_LOCALES), text: pick(query.get("text"), ["zh", "en", "mixed"] as const),
     work: pick(query.get("work"), ["plan", "coding", "check", "limited", "new"] as const), answer: pick(query.get("answer"), ["ok", "refused"] as const) };
 }
 

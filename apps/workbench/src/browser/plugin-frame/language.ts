@@ -1,16 +1,17 @@
-import { UI_LANGUAGES, type UiLocalePack } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { UiFrameLanguage, UiLocalePack } from "@molis-ai/molis-work-contracts/platform/ui";
+import { frameUiLanguage, isFrameUiLanguage } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { createProducedLog, planLocaleText } from "../locale-switch.js";
 import { frameDocumentMarkup, renderedFrameText } from "./document.js";
 import type { FrameScope } from "./types.js";
 
 export interface FrameLanguage {
-  readonly locale: string;
+  readonly language: UiFrameLanguage;
   readonly owner: string;
   readonly packs: readonly UiLocalePack[];
   readonly opening?: { readonly before: string; readonly after: string };
 }
 interface BatchResult {
-  readonly locale: string;
+  readonly language: UiFrameLanguage;
   readonly shared: readonly UiLocalePack[];
   readonly owners: readonly { owner: string; pages: readonly string[]; embedded: readonly string[]; packs: readonly UiLocalePack[] }[];
 }
@@ -29,20 +30,28 @@ const pending = new Map<string, Pending[]>();
 const connected = new Map<string, FrameMount>();
 const displayedTemplates = new WeakMap<HTMLElement, { locale: string; markup: string }>();
 let revision = 0;
-export const pageLanguage = () => UI_LANGUAGES.find(value => value.html_lang === document.documentElement.lang)?.tag ?? UI_LANGUAGES[0].tag;
+export const pageLanguage = () => document.documentElement.dataset.uiLanguageTag;
+const sameLanguage = (a: UiFrameLanguage, b: UiFrameLanguage) => a.tag === b.tag && a.html_lang === b.html_lang && a.intl === b.intl && a.direction === b.direction;
 
-export async function batchFrameLanguages(route: string, locale: string, mounts: readonly Mounted[], signal?: AbortSignal): Promise<ReadonlyMap<string, FrameLanguage>> {
+function displayedLanguage(): UiFrameLanguage {
+  const language = globalThis.molisWorkLanguageCatalog?.().languages.find(row => row.tag === pageLanguage());
+  if (!language) throw new Error("The workbench language is not ready");
+  return frameUiLanguage(language);
+}
+
+export async function batchFrameLanguages(route: string, language: UiFrameLanguage, mounts: readonly Mounted[], signal?: AbortSignal): Promise<ReadonlyMap<string, FrameLanguage>> {
   if (!mounts.length) return new Map();
-  const parameters = new URLSearchParams({ locale });
+  const parameters = new URLSearchParams({ locale: language.tag });
   mounts.forEach(mount => parameters.append("page", mount.id));
   const result = await molisWorkRequest<BatchResult>(route + "/api/ui/locales?" + parameters, { control: true, signal });
-  if (result.locale !== locale || result.shared.some(pack => pack.owner !== "workbench" || Object.keys(pack.messages).some(key => !key.startsWith("common.")))) throw new Error("Invalid shared frame language");
+  if (!isFrameUiLanguage(result.language) || !sameLanguage(result.language, language)
+    || result.shared.some(pack => pack.owner !== "workbench" || Object.keys(pack.messages).some(key => !key.startsWith("common.")))) throw new Error("Invalid shared frame language");
   return new Map(mounts.map(mount => {
     const source = result.owners.filter(candidate => candidate.pages.includes(mount.id));
     if (source.length !== 1 || source[0]?.owner !== mount.owner || source[0].packs.some(pack => pack.owner !== mount.owner)) throw new Error("Invalid frame language owner");
     const embedded = result.owners.filter(candidate => candidate.embedded.includes(mount.id));
     if (embedded.some(item => item.owner === mount.owner || item.packs.some(pack => pack.owner !== item.owner))) throw new Error("Invalid embedded frame language owner");
-    return [mount.id, { locale, owner: mount.owner, packs: [...result.shared, ...source[0].packs, ...embedded.flatMap(item => item.packs)] }];
+    return [mount.id, { language, owner: mount.owner, packs: [...result.shared, ...source[0].packs, ...embedded.flatMap(item => item.packs)] }];
   }));
 }
 
@@ -57,9 +66,11 @@ async function flush(route: string, group: readonly Pending[]): Promise<void> {
   try {
     if (!mounts.length) return;
     const signal = AbortSignal.any(mounts.map(({ entry }) => entry.scope.signal));
-    let locale = pageLanguage(), result = await batchFrameLanguages(route, locale, mounts, signal);
+    let language = displayedLanguage(), result = await batchFrameLanguages(route, language, mounts, signal);
     // A mount that was pending during a switch receives the language actually committed, not its initial request.
-    while (locale !== pageLanguage()) { locale = pageLanguage(); result = await batchFrameLanguages(route, locale, mounts, signal); }
+    while (!sameLanguage(language, displayedLanguage())) {
+      language = displayedLanguage(); result = await batchFrameLanguages(route, language, mounts, signal);
+    }
     for (const { entry, id } of mounts) {
       try { entry.scope.assertCurrent(); entry.accept(result.get(id)!); } catch (error) { entry.refuse(error); }
     }
@@ -97,9 +108,9 @@ export function openingFrameTemplate(root: HTMLElement) {
 }
 
 export function forOpeningFrame(root: HTMLElement, original: ReturnType<typeof openingFrameTemplate>, text: FrameLanguage): FrameLanguage {
-  if (original.locale === text.locale) return text;
+  if (original.locale === text.language.tag) return text;
   const current = displayedTemplates.get(root);
-  if (!current || current.locale !== text.locale || current.markup !== frameDocumentMarkup(root)) throw new Error("View language changed while opening");
+  if (!current || current.locale !== text.language.tag || current.markup !== frameDocumentMarkup(root)) throw new Error("View language changed while opening");
   return { ...text, opening: { before: original.markup, after: current.markup } };
 }
 
@@ -135,7 +146,7 @@ function prepareChild(mount: FrameMount, message: Extract<FrameLanguageUpdate, {
 }
 
 /** Before the shell saves a preference, prepare the actual mounted documents and their exact owner packs. */
-export async function prepareFrameLanguages(locale: string, signal: AbortSignal, before: ParentNode, after: ParentNode) {
+export async function prepareFrameLanguages(language: UiFrameLanguage, signal: AbortSignal, before: ParentNode, after: ParentNode) {
   const turn = ++revision, mounts = current();
   const byRoute = new Map<string, FrameMount[]>();
   for (const mount of mounts) {
@@ -149,7 +160,7 @@ export async function prepareFrameLanguages(locale: string, signal: AbortSignal,
   signal.addEventListener("abort", () => { if (!applied) send("discard"); }, { once: true });
   await Promise.all([...byRoute].map(async ([route, pages]) => {
     pages.forEach(page => page.scope.assertCurrent(signal));
-    const packs = await batchFrameLanguages(route, locale, pages, signal);
+    const packs = await batchFrameLanguages(route, language, pages, signal);
     await Promise.all(pages.map(mount => {
       if (!mount.scope.alive || !mount.root.isConnected) return;
       const html = representation(mount.root, before, after);
@@ -181,7 +192,7 @@ export async function prepareFrameLanguages(locale: string, signal: AbortSignal,
       applied = true;
       for (const { root, script, original, replacement, markup } of templates) if (script.textContent === original) {
         if (replacement !== original) script.textContent = replacement;
-        displayedTemplates.set(root, { locale, markup });
+        displayedTemplates.set(root, { locale: language.tag, markup });
       }
       send("apply");
     },

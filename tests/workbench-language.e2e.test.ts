@@ -6,7 +6,7 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { deferred } from "./fixtures/home-runtime.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 
-test("FSS-20 FSS-39 the settings language changes in place; rejected and late preparations leave the current document intact", { timeout: 120_000 }, async t => {
+test("FSS-20 FSS-34 FSS-39 the settings language changes in place; rejected and late preparations leave the current document intact", { timeout: 120_000 }, async t => {
   const b = await openGoalBrowser(t, "empty", undefined, null); if (!b) return;
   const { command, sessionId, origin, waitFor, evaluate } = b;
   await command("Emulation.setTimezoneOverride", { timezoneId: "Asia/Shanghai" }, sessionId);
@@ -28,6 +28,10 @@ test("FSS-20 FSS-39 the settings language changes in place; rejected and late pr
       if (preview === 'en' && languageMode === 'deny') return Promise.resolve(new Response('Unavailable', { status: 503 }));
       if (preview === 'en' && languageMode === 'hold') return new Promise(resolve => {
         window.releaseOldLanguage = () => { resolve(new Response('Late response', { status: 503 })); };
+      });
+      if (preview === 'en' && languageMode === 'wrong-asset') return fetch(url, init).then(async response => {
+        const body = (await response.text()).replace(/workbench\\.en\\.[a-f0-9]{24}\\.js/, 'workbench.en.000000000000000000000000.js');
+        return new Response(body, { status: response.status, headers: response.headers });
       });
       return transport?.(url, init);
     };
@@ -57,6 +61,17 @@ test("FSS-20 FSS-39 the settings language changes in place; rejected and late pr
     assert.match(browser[0]!, /^1:59\sAM$/u); assert.match(browser[1]!, /^3:00\sAM$/u);
     assert.notEqual(await evaluate("format.date('2026-03-08T10:00:00Z','time')"), runWithLocale("en", () => format.date("2026-03-08T10:00:00Z", "time")));
   } finally { if (zone === undefined) delete process.env.TZ; else process.env.TZ = zone; }
+
+  // English has already been cached. A different resource named by the new render still has to load.
+  await select("zh");
+  await waitFor("document.documentElement.lang === 'zh-CN' && languageAttempts.length === 3");
+  await evaluate("languageMode = 'wrong-asset'");
+  await select("en");
+  await waitFor("document.querySelector('[data-ui-language-status] button')");
+  assert.deepEqual(await evaluate("[document.documentElement.lang, originalDocument === document.body, languageDraft.value, languageAttempts]"),
+    ["zh-CN", true, "Draft 原文 保存", ["zh", "en", "zh"]]);
+  await evaluate("languageMode = 'ready'; document.querySelector('[data-ui-language-status] button').click()");
+  await waitFor("document.documentElement.lang === 'en' && !document.querySelector('[data-ui-language-status]')");
 });
 
 const ISSUE_OWNER = "io.molis.work.issues";
@@ -116,7 +131,7 @@ function holdIssueOpening(t: TestContext, b: LanguageBrowser) {
   return { entered, finish };
 }
 
-test("FSS-09 FSS-20 FSS-37 the live Issue frame reuses its own authorized projection and retains the draft", { timeout: 120_000 }, async t => {
+test("FSS-09 FSS-20 FSS-34 FSS-37 the live Issue frame reuses its own authorized projection and retains the draft", { timeout: 120_000 }, async t => {
   const b = await openGoalBrowser(t, "empty", undefined, null); if (!b) return;
   const child = await pluginFrameBrowser(t, b, "issues");
   await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/locale?lang=zh&next=%2Fplugins%2Fissues" }, b.sessionId));
@@ -127,21 +142,52 @@ test("FSS-09 FSS-20 FSS-37 the live Issue frame reuses its own authorized projec
     issuedDraft.dispatchEvent(new Event('input', {bubbles:true}));
   })()`);
   assert.match(await child.evaluate<string>("issuedDraft.placeholder"), /遇到什么问题/u);
+  // A trusted fixture uses HTML en and German Intl conventions. The current frame grant and the rest of the words are real.
+  const described = Promise.withResolvers<void>();
+  void described.promise.catch(() => undefined);
+  await b.command("Fetch.enable", { patterns: [{ urlPattern: "*/assets/locale/workbench.en.*.js", requestStage: "Response" }] }, b.sessionId);
+  t.after(b.on("Fetch.requestPaused", (event, session) => {
+    if (session !== b.sessionId) return;
+    void (async () => {
+      const requestId = String(event.requestId);
+      const result = await b.command<{ body: string; base64Encoded: boolean }>("Fetch.getResponseBody", { requestId }, session);
+      const source = result.base64Encoded ? Buffer.from(result.body, "base64").toString("utf8") : result.body;
+      const marker = "\nglobalThis.molisWorkLanguageAsset(", start = source.lastIndexOf(marker) + marker.length;
+      assert.ok(start >= marker.length);
+      const asset = JSON.parse(source.slice(start, source.lastIndexOf(");")));
+      asset.catalog.languages.find((row: { tag: string }) => row.tag === "en").intl = "de-DE";
+      const body = source.slice(0, start) + JSON.stringify(asset).replaceAll("<", "\\u003c") + ");";
+      await b.command("Fetch.fulfillRequest", { requestId, responseCode: 200, responseHeaders: [{ name: "content-type", value: "text/javascript; charset=utf-8" }],
+        body: Buffer.from(body).toString("base64") }, session);
+      described.resolve();
+    })().catch(described.reject);
+  }));
   await b.evaluate(`(() => {
     window.liveIssueFrame = document.querySelector('iframe[data-plugin-frame=issues]'); window.wordsRequests = [];
     const transport = window.molisWorkUiTransport;
     window.molisWorkUiTransport = (url, init) => {
       const path = new URL(url);
-      if (path.pathname === '/api/ui/locales') wordsRequests.push([path.searchParams.get('locale'), path.searchParams.getAll('page').length]);
+      if (path.pathname === '/api/ui/locales') {
+        wordsRequests.push([path.searchParams.get('locale'), path.searchParams.getAll('page').length]);
+        if (path.searchParams.get('locale') === 'en') return fetch(url, init).then(async response => {
+          if (!response.ok) return response;
+          const body = await response.json(); body.language.intl = 'de-DE';
+          return new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } });
+        });
+      }
       return transport?.(url, init);
     };
   })()`);
   await chooseEnglishInSettings(t, b);
   await b.waitFor("document.documentElement.lang === 'en'", 25000);
+  await described.promise;
   await child.waitFor("document.documentElement.lang === 'en' && issuedDraft.placeholder.startsWith('What went wrong')", 10000);
   assert.deepEqual(await b.evaluate("[liveIssueFrame === document.querySelector('iframe[data-plugin-frame=issues]'), wordsRequests]"), [true, [["en", 1]]]);
   assert.deepEqual(await child.evaluate("[issuedDraft === document.querySelector('[data-issue-composer] textarea'), document.activeElement === issuedDraft, issuedDraft.value, issuedDraft.selectionStart, issuedDraft.selectionEnd, issuedDraft.selectionDirection]"), [true, true, "Issue draft 原文", 1, 5, "backward"]);
   assert.deepEqual(await child.evaluate("[t.text('issues.when.minutes-ago',{count:1}),t.text('issues.when.minutes-ago',{count:3})]"), ["1 minute ago", "3 minutes ago"]);
+  const numbers = "[format.date('2026-05-09T14:30:00Z','time',{time_zone:'UTC'}),format.number(1234.5)]";
+  assert.deepEqual(await b.evaluate(numbers), ["14:30", "1.234,5"]);
+  assert.deepEqual(await child.evaluate(numbers), ["14:30", "1.234,5"], "FSS-39: the child formats with Intl, not the HTML language");
 });
 
 test("S-ui-text-page FSS-08 stopping the real plugin during the opening locale batch denies frame config", { timeout: 120_000 }, async t => {
@@ -244,7 +290,7 @@ test("FSS-20 FSS-37 the Workbench and its inline Goals share a language change w
   assert.deepEqual([...new Set(hostTextProblems().filter(problem => !problemsBefore.has(problem)).map(problem => problem.key ?? problem.code))], [], "the real Host rendered every visible owner without missing text");
 });
 
-test("FSS-20 FSS-37 the catalog and capsule switch their existing documents without saving a Home preference", { timeout: 120_000 }, async t => {
+test("FSS-20 FSS-34 FSS-37 the catalog and capsule switch their existing documents without saving a Home preference", { timeout: 120_000 }, async t => {
   const problemsBefore = new Set(hostTextProblems());
   const b = await openGoalBrowser(t, "seeded", undefined, null); if (!b) return;
   const { command, sessionId, origin, waitFor, evaluate } = b;
@@ -259,12 +305,13 @@ test("FSS-20 FSS-37 the catalog and capsule switch their existing documents with
   assert.match(await evaluate<string>("document.cookie"), /molis_work_locale=zh/u);
 
   await b.navigate(() => command("Page.navigate", { url: origin + "/desktop/capsule?locale=zh" }, sessionId));
-  await waitFor("typeof molisWorkSelectLocalLanguage === 'function' && document.querySelector('[data-capsule-open-board]')");
+  await waitFor("typeof molisWorkSelectCapsuleLanguage === 'function' && document.querySelector('[data-capsule-open-board]')");
   await evaluate(`(() => {
     window.capsuleButton = document.querySelector('[data-capsule-open-board]');
     window.capsuleProject = document.querySelector('[data-capsule-project]').value;
-    molisWorkSelectLocalLanguage('en', 2);
-    molisWorkSelectLocalLanguage('zh', 1);
+    molisWorkSelectCapsuleLanguage({ tag: 'en', html_lang: 'zh-CN', direction: 'ltr' }, 99);
+    molisWorkSelectCapsuleLanguage({ tag: 'en', html_lang: 'en', direction: 'ltr' }, 2);
+    molisWorkSelectCapsuleLanguage({ tag: 'zh', html_lang: 'zh-CN', direction: 'ltr' }, 1);
   })()`);
   await waitFor("document.documentElement.lang === 'en' && document.documentElement.dataset.uiNativeLanguageRevision === '2'");
   assert.deepEqual(await evaluate("[capsuleButton === document.querySelector('[data-capsule-open-board]'), capsuleButton.textContent.trim(), capsuleProject === document.querySelector('[data-capsule-project]').value]"),

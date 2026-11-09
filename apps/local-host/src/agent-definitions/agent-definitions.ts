@@ -255,17 +255,19 @@ export class AgentDefinitions {
   }
 
   /** A direct model call's instructions, as registered and as the person left them. */
-  instruction(ownerId: string, promptId: string, caller: string, locale?: string): { body: string; version: number; user_revision: number | null } {
+  instruction(ownerId: string, promptId: string, caller: string, locale?: string, deferUse?: (record: () => void) => void): { body: string; version: number; user_revision: number | null } {
     const { prompt } = this.registered(keyOf(ownerId, promptId));
-    return this.instructionForDeclaration(ownerId, prompt, caller, locale);
+    return this.instructionForDeclaration(ownerId, prompt, caller, locale, deferUse);
   }
 
   /** Host-selected release declaration, never a prompt body supplied by a model action's business input. */
-  instructionForDeclaration(ownerId: string, prompt: Pick<AgentPromptRegistration, "prompt_id" | "version" | "kind" | "body" | "body_by_locale">, caller: string, locale?: string): { body: string; version: number; user_revision: number | null } {
+  instructionForDeclaration(ownerId: string, prompt: Pick<AgentPromptRegistration, "prompt_id" | "version" | "kind" | "body" | "body_by_locale">, caller: string, locale?: string, deferUse?: (record: () => void) => void): { body: string; version: number; user_revision: number | null } {
     if (prompt.kind !== "instruction") throw agentDefinitionsErrors.invalid("这段 Prompt 不是模型调用的指令");
     const key = keyOf(ownerId, prompt.prompt_id), edited = this.override(key);
-    this.recordUse({ key, version: prompt.version, user_revision: edited?.revision ?? null, caller, at: this.now().toISOString() });
-    return { body: edited?.body ?? agentBodyIn(prompt, locale), version: prompt.version, user_revision: edited?.revision ?? null };
+    const selected = { body: edited?.body ?? agentBodyIn(prompt, locale), version: prompt.version, user_revision: edited?.revision ?? null };
+    const record = () => this.recordUse({ key, version: selected.version, user_revision: selected.user_revision, caller, at: this.now().toISOString() });
+    if (deferUse) deferUse(record); else record();
+    return selected;
   }
 
   /** What each owner registered and what of it is not in effect, for developers; plus calls known to bypass the register. */

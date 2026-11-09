@@ -243,8 +243,11 @@ export const CAPSULE_CLIENT_SCRIPT = `
     if (invoke) invoke("capsule_open_main", { path }).catch(() => { location.href = path; });
     else location.href = path;
   };
-  const capsuleLocale = () => document.documentElement.lang.toLowerCase().startsWith("en") ? "en" : "zh";
-  const capsuleRequestPath = (path) => path + (path.includes("?") ? "&" : "?") + "locale=" + capsuleLocale();
+  const capsuleRequestPath = (path) => {
+    const url = new URL(path, location.href), locale = document.documentElement.dataset.uiLanguageTag;
+    if (locale) url.searchParams.set("locale", locale);
+    return url.pathname + url.search;
+  };
   const appendFact = (list, label, value, emphasized = false) => {
     const row = element("div", "capsule__fact" + (emphasized ? " capsule__fact--next" : ""));
     row.append(element("dt", "", label), element("dd", "", value || "—"));

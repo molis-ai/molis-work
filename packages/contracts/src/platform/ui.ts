@@ -5,7 +5,7 @@ import type { AgentInputImpact, AgentInputKind, AgentInputQuestion, AgentInputTa
 import type { UiConnectionNeedOutcome, UiConnectionNeedTarget, UiConnectionSlotChoice, UiConnectionSlotRequest } from "./ui-connections.js";
 export * from "./ui-connections.js";
 import type { UiPageDrafts, UiPageReturns } from "./ui-returns.js";
-import type { TextRef } from "./ui-text.js";
+import type { TextRef, UiLanguageTag } from "./ui-text.js";
 import type { UiSlotDescriptor } from "./ui-slots.js";
 export * from "./ui-returns.js";
 export * from "./ui-environment.js";
@@ -320,7 +320,7 @@ export interface StageTerminalPaneModel {
 /** Existing shell drawing services, bound to this stage's owner and the current page. No execution authority. */
 export interface StagePageDrawing {
   mount: (contributionId: string, surface: string, model: unknown) => string;
-  currentLocale: () => "zh" | "en";
+  currentLocale: () => UiLanguageTag;
   listJoin: (values: readonly string[]) => string;
   formatDocumentDate: (value: string | null | undefined) => string;
   renderList: (values: string[], empty: string) => string;

@@ -8,6 +8,13 @@ export function resolveInstructionPrompt(homeDirectory: string, ownerId: string,
   return agentDefinitionsFor(homeDirectory, builtinRegistrations).instruction(ownerId, promptId, caller, modelRoundLocale(homeDirectory)).body;
 }
 
+/** Freeze the selected body before an authorization wait; only an admitted draft records the use of that exact body. */
+export function prepareInstructionPrompt(home: string, owner: string, promptId: string, locale: string) {
+  let used: (() => void) | undefined;
+  const { body } = agentDefinitionsFor(home, builtinRegistrations).instruction(owner, promptId, owner, locale, record => { used = record; });
+  return { body, recordUse: () => used?.() };
+}
+
 /**
  * The text a model call sends: registered instructions as the person left them (their version, or the default),
  * then the call's data. A plain string passes through; the prompt-registration check keeps new ones from appearing.

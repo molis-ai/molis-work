@@ -1,3 +1,5 @@
+import { WORKBENCH_LANGUAGES } from "./platform-languages.js";
+import { DEFAULT_WEB_LOCALE, type WebLocale } from "./i18n.js";
 import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { boardFrameParam, type BoardFrameParam } from "./condition-specimens.js";
 
@@ -10,14 +12,14 @@ import { boardFrameParam, type BoardFrameParam } from "./condition-specimens.js"
 type Say = (text: string, values?: Record<string, string | number>) => string;
 
 const PARAMS: readonly BoardFrameParam[] = [
-  ["lang", "workbench.context-onboarding.language-2", [["zh", "中文"], ["en", "English"]]],
+  ["lang", "workbench.context-onboarding.language-2", WORKBENCH_LANGUAGES.languages.map(row => [row.tag, row.name] as const)],
   ["text", "workbench.assistant-board-specimens.body-language", [["zh", "中文"], ["en", "English"], ["mixed", "workbench.assistant-board-specimens.mixed"]]],
   ["work", "workbench.assistant-dock.open-work", [["plan", "workbench.assistant-board-specimens.non-programming-waiting-for-you-to-confirm"], ["coding", "workbench.assistant-board-specimens.programming-running"], ["check", "workbench.assistant-board-specimens.interrupted-to-be-checked"], ["limited", "workbench.assistant-board-specimens.rate-limited-waiting-to-retry"], ["new", "workbench.assistant-dock.new-work"]]],
   ["answer", "workbench.assistant-board-specimens.answering-the-questionnaire", [["ok", "workbench.assistant-board-specimens.taken"], ["refused", "workbench.assistant-board-specimens.refused-simulated"]]],
   ["width", "workbench.assistant-board-specimens.container", [["1280", "workbench.assistant-board-specimens.wide-window"], ["760", "workbench.assistant-board-specimens.one-split-pane"], ["390", "workbench.account-management.phone"]]],
 ];
 
-export function renderAssistantBoardSection(say: Say, lang: "zh" | "en" = "zh"): string {
+export function renderAssistantBoardSection(say: Say, lang: WebLocale = DEFAULT_WEB_LOCALE): string {
   return `<section class="mw-catalog__section" id="assistant" data-primitive="assistant"><h2>${escapeHtml(say("workbench.primitive-catalog.assistant-information-works"))}</h2>
     <div class="mw-cond-params" data-asst-params>${PARAMS.map((one) => boardFrameParam(say, one, one[0] === "lang" ? lang : undefined)).join("")}</div>
     <div class="mw-asst-stage"><iframe class="mw-asst-frame" data-asst-frame src="/__ui/catalog/assistant?lang=${lang}&amp;text=zh&amp;work=plan&amp;answer=ok" title="${escapeHtml(say("workbench.assistant-board-frame.assistant-specimen"))}" style="width:1280px" loading="lazy"></iframe></div>

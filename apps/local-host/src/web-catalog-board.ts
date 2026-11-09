@@ -7,7 +7,7 @@ import {
 } from "@molis-ai/molis-work-app-workbench";
 import { drawAssistantReply } from "./assistant/assistant-view-html.js";
 import { questionErrors } from "./agent-question-card.js";
-import { readText, pluginTitleScript, currentLocale, htmlLang, isWebLocale, runWithLocale, type WebLocale } from "./web-locale.js";
+import { readText, pluginTitleScript, currentLocale, htmlLang, isWebLocale, runWithLocale, WEB_LOCALES, type WebLocale } from "./web-locale.js";
 
 /**
  * The component board's pages (a development tool, not in the person's navigation): the board, the bottom bar in its own
@@ -39,7 +39,7 @@ export function handleComponentBoardHttp(request: IncomingMessage, response: Ser
  * page switches between them in place; the section itself in the page's language.
  */
 function environmentSection(locale: WebLocale): string {
-  const renders = { zh: runWithLocale("zh", () => renderEnvironmentSpecimen("zh")), en: runWithLocale("en", () => renderEnvironmentSpecimen("en")) };
+  const renders = Object.fromEntries(WEB_LOCALES.map(tag => [tag, runWithLocale(tag, () => renderEnvironmentSpecimen(tag))]));
   return runWithLocale(locale, () => renderEnvironmentSection(renders, locale));
 }
 

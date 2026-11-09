@@ -1,3 +1,4 @@
+import type { WebLocale } from "./i18n.js";
 import { readFileSync } from "node:fs";
 import { t as uiText, escapeHtml, icon, renderButton, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import {
@@ -290,7 +291,7 @@ html body.mw-navs-page .workbench-bar .mw-navs__fold{display:none}
 @media (max-width:760px){.mw-navs__history{display:none}.mw-navs__titlebar{position:relative;display:grid;grid-template-columns:1fr auto auto;grid-template-rows:44px 52px;gap:4px;height:auto;padding:0}.mw-navs__main{display:contents}.mw-navs__main>.tab-strip{grid-area:2/1/3/4}.mw-navs__main>.mw-navs__anchor:not(.mw-navs__anchor--all){grid-area:1/2;z-index:1}.mw-navs__titlebar>.mw-navs__anchor--end{grid-area:1/3;z-index:1}body.mw-navs-page .mw-navs__titlebar>.tab-glyph-row{display:none}.mw-navs .workbench-bar{height:auto}.mw-navs__titlebar .mw-navs__anchor{position:static}.mw-navs__titlebar .mw-navs__anchor>[data-nav-popover]{left:0;right:0;width:auto}body.mw-navs-page .mw-navs .bar-composer>.mw-btn{width:44px;min-width:44px;height:44px;min-height:44px}html body.mw-navs-page .workbench-bar [data-fold]{display:none}html body.mw-navs-page .workbench-bar .mw-navs__fold{display:inline-grid}}`;
 
 /** The board's section: the frame above, in the board's language, at a fixed height that scrolls inside, like the board's other specimen frames. */
-export function renderNavigationSection(_L: Say, lang: "zh" | "en"): string {
+export function renderNavigationSection(_L: Say, lang: WebLocale): string {
   return `<section class="mw-catalog__section" id="navigation" data-primitive="navigation"><h2>${escapeHtml(uiText.text("workbench.navigation-specimens.workbench-navigation"))}</h2>`
     + `<p class="mw-nav-section__note">${escapeHtml(uiText.text("workbench.navigation-specimens.what-07-1-layout-adds-board-parts-tab"))}</p>`
     + `<iframe class="mw-nav-frame" data-nav-frame src="/__ui/catalog/navigation?lang=${lang}" title="${escapeHtml(uiText.text("workbench.navigation-specimens.workbench-navigation-specimen"))}" loading="lazy"></iframe>`

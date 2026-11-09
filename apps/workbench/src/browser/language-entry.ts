@@ -1,21 +1,21 @@
-import { UI_LANGUAGES, type UiLanguageTag, type UiLocalePack, type UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
-import { createTextReader, t } from "@molis-ai/molis-work-plugin-sdk/ui";
+import type { UiLanguageCatalog, UiLanguageTag, UiLocalePack, UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
+import { createTextReader, frameUiLanguage, preferredUiLanguage, t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { createLocaleSwitch } from "./locale-switch.js";
 import { installLanguageText } from "./language-text.js";
+import { assetOf, installLanguageAssets } from "./language-asset.js";
+import { nativeLanguagePublisher, type NativeDocumentLanguage } from "./native-language.js";
 import type {} from "./plugin-frame/types.js";
 
 type Preference = UiLanguageTag | "system";
 interface EntryLanguage { preference: Preference; tag: UiLanguageTag; source: string }
-interface Request { preference: Preference; tag: UiLanguageTag; save: boolean; nativeRevision?: number }
+interface Request { preference: Preference; tag: UiLanguageTag; save: boolean; native?: { readonly revision: number; readonly language: NativeDocumentLanguage } }
 
 declare global {
   var molisWorkRequest: UiRequest;
-  var molisWorkSelectLocalLanguage: ((tag: UiLanguageTag, nativeRevision?: number) => void) | undefined;
-  var molisWorkLanguageAsset: ((pack: UiLocalePack) => void) | undefined;
+  var molisWorkSelectLocalLanguage: ((tag: UiLanguageTag) => void) | undefined;
+  var molisWorkSelectCapsuleLanguage: ((language: NativeDocumentLanguage, revision: number) => void) | undefined;
 }
 
-const matches = (value: string | undefined | null): value is UiLanguageTag => UI_LANGUAGES.some(language => language.tag === value);
-const assetOf = (page: ParentNode) => page.querySelector<HTMLScriptElement>("script[data-ui-language-resource]")?.getAttribute("src") ?? null;
 const localLanguageQuery = () => location.pathname === "/desktop/capsule" ? "locale"
   : /^\/__ui\/catalog(?:\/(?:conditions|assistant|navigation|bar))?$/u.test(location.pathname) ? "lang" : null;
 const languagePath = (locale?: string): string => {
@@ -32,11 +32,27 @@ const viewPacks = (page: ParentNode): readonly InlinePageText[] => {
 };
 
 
-function documentLanguage(initial: UiLocalePack) {
-  const packs = new Map([[initial.locale, initial]]);
-  let inline = viewPacks(document);
+const intlLocale = (catalog: UiLanguageCatalog) => (tag: string) => catalog.languages.find(row => row.tag === tag)?.intl;
+type LoadAsset = NonNullable<ReturnType<typeof installLanguageAssets>>;
+type LanguageAsset = Awaited<ReturnType<LoadAsset>>;
+
+function documentLanguage(initial: LanguageAsset, load: LoadAsset) {
+  let displayed = initial, inline = viewPacks(document);
+  const matches = (value: string | undefined | null): value is UiLanguageTag => displayed.catalog.languages.some(row => row.tag === value);
   const packsFor = (pack: UiLocalePack, pages: readonly InlinePageText[]) => [pack, ...pages.flatMap(page => page.packs)];
-  const text = installLanguageText(initial.locale, packsFor(initial, inline));
+  const text = installLanguageText(initial.pack.locale, packsFor(initial.pack, inline), intlLocale(initial.catalog));
+  const showLanguage = (asset: LanguageAsset) => {
+    const { html_lang, direction, tag } = asset.catalog.languages.find(row => row.tag === asset.pack.locale)!;
+    document.documentElement.lang = html_lang;
+    document.documentElement.dir = direction;
+    document.documentElement.dataset.uiLanguageTag = tag;
+  };
+  showLanguage(initial);
+  globalThis.molisWorkLanguageCatalog = () => displayed.catalog;
+  const publishNative = nativeLanguagePublisher(() => {
+    const { tag, html_lang, direction } = displayed.catalog.languages.find(row => row.tag === displayed.pack.locale)!;
+    return { tag, html_lang, direction };
+  });
   const local = localLanguageQuery();
   const broadcast = !local && typeof BroadcastChannel === "function" ? new BroadcastChannel("molis-work-ui-language") : null;
   let intent: Request | undefined, lastSaved: Request | undefined, failure: HTMLElement | undefined;
@@ -48,29 +64,6 @@ function documentLanguage(initial: UiLocalePack) {
     if (!result.ok || result.redirected || !result.headers.get("content-type")?.startsWith("text/html")) return null;
     return new DOMParser().parseFromString(await result.text(), "text/html");
   };
-  async function loadPack(locale: string, expected: ParentNode | null, signal: AbortSignal): Promise<UiLocalePack> {
-    const source = expected ? assetOf(expected) : null;
-    const loaded = packs.get(locale);
-    if (loaded) return loaded;
-    if (!source || !/^\/assets\/locale\/workbench\.[a-z]+\.[a-f0-9]{24}\.js$/u.test(source)) throw new Error(t.text("workbench.language.load-failed"));
-    await new Promise<void>((resolve, reject) => {
-      const script = document.createElement("script"); script.src = source;
-      const end = (error?: unknown) => {
-        script.remove(); clearTimeout(deadline); signal.removeEventListener("abort", abort);
-        if (error === undefined) resolve(); else reject(error);
-      };
-      const fail = () => end(new Error(t.text("workbench.language.load-failed")));
-      const abort = () => end(signal.reason);
-      const deadline = setTimeout(fail, 10_000);
-      script.onload = () => end(); script.onerror = fail;
-      signal.addEventListener("abort", abort, { once: true });
-      if (signal.aborted) { abort(); return; }
-      document.head.append(script);
-    });
-    const answer = packs.get(locale);
-    if (!answer) throw new Error(t.text("workbench.language.load-failed"));
-    return answer;
-  }
   const switcher = createLocaleSwitch({
     root: document, render, produced: text.produced,
     async prepare(locale, signal, next, previous) {
@@ -80,11 +73,14 @@ function documentLanguage(initial: UiLocalePack) {
       if (inline.length !== projected.length || inline.some(current => !projected.some(page => page.slot === current.slot && page.producer === current.producer))) {
         throw new Error(t.text("workbench.language.window-failed"));
       }
-      const [pack, frames] = await Promise.all([
-        loadPack(locale, next, signal),
-        previous && next ? globalThis.molisPluginFrames?.prepareLanguage(locale, signal, previous, next) : undefined,
-      ]);
-      return { pack, choice, frames, inline: projected, reader: createTextReader({ packs: packsFor(pack, projected), locale }) };
+      const asset = next ? await load(locale, assetOf(next), signal) : displayed;
+      const language = asset.catalog.languages.find(row => row.tag === locale);
+      if (!language || asset.pack.locale !== locale) throw new Error(t.text("workbench.language.load-failed"));
+      if (choice.native && (choice.native.language.html_lang !== language.html_lang || choice.native.language.direction !== language.direction)) {
+        throw new Error(t.text("workbench.language.load-failed"));
+      }
+      const frames = previous && next ? await globalThis.molisPluginFrames?.prepareLanguage(frameUiLanguage(language), signal, previous, next) : undefined;
+      return { asset, choice, frames, inline: projected, reader: createTextReader({ packs: packsFor(asset.pack, projected), locale, intlLocale: intlLocale(asset.catalog) }) };
     },
     async persist(_locale, prepared) {
       const { choice } = prepared;
@@ -101,17 +97,15 @@ function documentLanguage(initial: UiLocalePack) {
       broadcast?.postMessage(null);
     },
     use(locale, prepared) {
-      const pack = prepared?.pack ?? packs.get(locale), language = UI_LANGUAGES.find(row => row.tag === locale);
-      if (!pack || !language) throw new Error(t.text("workbench.language.load-failed"));
+      const asset = prepared?.asset ?? displayed, projected = prepared?.inline ?? inline;
       prepared?.frames?.assertCurrent();
-      inline = prepared?.inline ?? inline;
-      text.select(locale, packsFor(pack, inline));
-      document.documentElement.lang = language.html_lang;
-      document.documentElement.dir = language.direction;
+      text.select(locale, packsFor(asset.pack, projected), intlLocale(asset.catalog));
+      showLanguage(asset);
       prepared?.frames?.apply();
+      displayed = asset; inline = projected;
     },
     retext(ref, _locale, prepared) { return prepared?.reader.text(ref) ?? ""; },
-  }, initial.locale);
+  }, initial.pack.locale);
 
   function retry(choice: Request, anchor?: Element) {
     failure?.remove();
@@ -138,12 +132,13 @@ function documentLanguage(initial: UiLocalePack) {
         control.classList.toggle("is-current", active);
         if (active) control.setAttribute("aria-current", "true"); else control.removeAttribute("aria-current");
       }
-      const revisionChanged = choice.nativeRevision !== undefined && String(choice.nativeRevision) !== document.documentElement.dataset.uiNativeLanguageRevision;
-      if (revisionChanged) document.documentElement.dataset.uiNativeLanguageRevision = String(choice.nativeRevision);
+      const revisionChanged = choice.native !== undefined && String(choice.native.revision) !== document.documentElement.dataset.uiNativeLanguageRevision;
+      if (revisionChanged) document.documentElement.dataset.uiNativeLanguageRevision = String(choice.native?.revision);
       if (local && (changed || revisionChanged)) {
         history.replaceState(history.state, "", languagePath(choice.tag) + location.hash);
         document.dispatchEvent(new CustomEvent("molis-work:language-changed", { detail: { tag: choice.tag } }));
       }
+      if (!local && changed) publishNative();
       if (changed) for (const surface of document.querySelectorAll("[data-work-surface]:not([hidden])")) surface.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: { invalidate: true } }));
     } catch { if (intent === choice) retry(choice, anchor); }
   }
@@ -154,13 +149,16 @@ function documentLanguage(initial: UiLocalePack) {
     }).catch(() => undefined);
   };
   let nativeWanted = -1;
-  if (local) globalThis.molisWorkSelectLocalLanguage = (tag, nativeRevision) => {
-    if (!matches(tag)) return;
-    if (local === "locale") {
-      if (nativeRevision === undefined || !Number.isSafeInteger(nativeRevision) || nativeRevision < 0 || nativeRevision < nativeWanted) return;
-      nativeWanted = nativeRevision;
-    } else if (nativeRevision !== undefined) return;
-    void choose({ preference: tag, tag, save: false, nativeRevision });
+  if (local === "locale") globalThis.molisWorkSelectCapsuleLanguage = (language, revision) => {
+    if (!language || typeof language !== "object" || Object.keys(language).length !== 3
+      || !matches(language.tag) || !Number.isSafeInteger(revision) || revision < 0 || revision <= nativeWanted) return;
+    const known = displayed.catalog.languages.find(row => row.tag === language.tag);
+    if (!known || known.html_lang !== language.html_lang || known.direction !== language.direction) return;
+    nativeWanted = revision;
+    void choose({ preference: language.tag, tag: language.tag, save: false, native: { language, revision } });
+  };
+  if (local === "lang") globalThis.molisWorkSelectLocalLanguage = tag => {
+    if (matches(tag)) void choose({ preference: tag, tag, save: false });
   };
   broadcast?.addEventListener("message", readCurrent);
   addEventListener("pagehide", event => { if (!event.persisted) broadcast?.close(); });
@@ -179,15 +177,10 @@ function documentLanguage(initial: UiLocalePack) {
     if (!link || !matches(preference) && preference !== "system") return;
     event.preventDefault();
     const tag = preference === "system"
-      ? navigator.languages.map(language => language.toLowerCase().split("-")[0]).find(matches) ?? UI_LANGUAGES[0].tag
+      ? preferredUiLanguage(displayed.catalog, navigator.languages)?.tag ?? displayed.catalog.default
       : preference;
     void choose({ preference, tag, save: true }, link);
   });
-  return (pack: UiLocalePack) => { if (pack.owner === "workbench" && matches(pack.locale)) packs.set(pack.locale, pack); };
 }
 
-globalThis.molisWorkLanguageAsset ??= pack => {
-  if (pack.owner !== "workbench" || !matches(pack.locale)) return;
-  document.documentElement.dir = UI_LANGUAGES.find(row => row.tag === pack.locale)!.direction;
-  globalThis.molisWorkLanguageAsset = documentLanguage(pack);
-};
+const loadLanguageAsset = installLanguageAssets(asset => documentLanguage(asset, loadLanguageAsset!));

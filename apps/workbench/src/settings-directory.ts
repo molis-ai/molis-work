@@ -1,3 +1,4 @@
+import { WORKBENCH_LANGUAGES } from "./platform-languages.js";
 import { t as uiText, renderDirectoryPanel, renderDirectoryRow, renderReturnBar, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderAppearanceSettingsDocument, type AppearanceSettingsModel } from "./settings-appearance.js";
 import { createProjectSettingsFolds, type ProjectSettingsFoldProject } from "./project-settings-folds.js";
@@ -98,7 +99,7 @@ function returnBarTemplate(_L: SettingsDirectoryPrimitives["readText"]): string 
 /** Settings inside a project. `nextPath` is where switching the language lands: this project with Settings open on the same page (VUX-40). */
 export function renderSettingsWorkSurface(primitives: SettingsDirectoryPrimitives, nextPath: string, model?: AppearanceSettingsModel): string {
   const { readText, htmlLang } = primitives;
-  const locale = htmlLang().toLowerCase().startsWith("en") ? "en" : "zh";
+  const locale = WORKBENCH_LANGUAGES.languages.find(row => row.html_lang === htmlLang())?.tag ?? WORKBENCH_LANGUAGES.default;
   const appearance = renderAppearanceSettingsDocument({
     readText,
     currentLocale: () => locale,

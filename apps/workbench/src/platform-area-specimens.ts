@@ -1,3 +1,4 @@
+import type { WebLocale } from "./i18n.js";
 import { readFileSync } from "node:fs";
 import { t as uiText, escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { PLATFORM_AREA_STYLES } from "./styles/platform-area.js";
@@ -15,7 +16,7 @@ const figure = (caption: string, name: string, note?: string) =>
   `<figure class="mw-catalog__specimen"><figcaption>${escapeHtml(caption)}${note ? `<small>${escapeHtml(note)}</small>` : ""}</figcaption><div class="mw-pa-board__stage" data-platform-area-specimen="${name}"></div></figure>`;
 
 /** The section the board places after 服务连接. The area's words go to the program as it would get them from the shell. */
-export function renderPlatformAreaSection(_L: Say, _lang: "zh" | "en"): string {
+export function renderPlatformAreaSection(_L: Say, _lang: WebLocale): string {
   return `<section class="mw-catalog__section" id="platform-area" data-primitive="platform-area"><h2>${escapeHtml(uiText.text("workbench.platform-area-specimens.platform-area"))}</h2>
     <div class="mw-catalog__specimens">
       ${figure(uiText.text("workbench.platform-area-specimens.frame-header-wide-step-480px"), "wide", uiText.text("workbench.platform-area-specimens.one-row-per-state-off-reads-more-now"))}

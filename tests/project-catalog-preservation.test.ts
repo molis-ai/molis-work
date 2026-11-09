@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { openTestSqlite, type SqliteDatabase } from "@molis-ai/molis-work-test-kit/sqlite";
-import { acquireStorageOwner } from "@molis-ai/molis-work-storage";
+import { acquireStorageOwner, sqliteErrorName } from "@molis-ai/molis-work-storage";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import type { ProjectRecord } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -34,7 +34,7 @@ function mark(project: ProjectRecord) {
 }
 function createdEvents(database: string, id: string) {
   const db = openTestSqlite(database, { readonly: true });
-  try { return db.prepare("SELECT count(*) FROM project_events WHERE project_id=? AND type='project.created'").pluck().get(id); }
+  try { return db.prepare<unknown[], { value: unknown }>("SELECT count(*) AS value FROM project_events WHERE project_id=? AND type='project.created'").get(id)?.value; }
   finally { db.close(); }
 }
 
@@ -89,7 +89,7 @@ test("a stable project commit timeout retains the promoted database and a retry 
     const writer = openTestSqlite(catalog.databasePath); writer.exec("BEGIN IMMEDIATE");
     const id = `project-onboarding-${randomUUID()}`, input = { project_id: id, display_name: "超时后恢复", actor_id: "user" };
     try {
-      await assert.rejects(catalog.createProject(input), { code: "SQLITE_BUSY" });
+      await assert.rejects(catalog.createProject(input), error => sqliteErrorName(error) === "SQLITE_BUSY");
       assert.equal(catalog.listProjects().length, 0);
       assert.ok((await fs.stat(join(home, "projects", id, "molis-work.db"))).isFile());
       writer.exec("ROLLBACK");
@@ -110,7 +110,7 @@ test("demo reset lock timeout restores the original body and catalog record, and
       const project = (await catalog.ensureDemoProject({ actor_id: "user", user_confirmed: true })).project;
       const before = mark(project);
       writer = openTestSqlite(catalog.databasePath); writer.exec("BEGIN IMMEDIATE");
-      await assert.rejects(catalog.resetDemoProject({ actor_id: "user", user_confirmed: true }), { code: "SQLITE_BUSY" });
+      await assert.rejects(catalog.resetDemoProject({ actor_id: "user", user_confirmed: true }), error => sqliteErrorName(error) === "SQLITE_BUSY");
       assert.deepEqual(catalog.getProject(project.project_id), project);
       assert.deepEqual(snapshot(project), before);
       writer.exec("ROLLBACK");
@@ -132,7 +132,7 @@ test("PG-026-S4-04 a failure in demo post-initialization restores the previous d
       const rename = fs.rename;
       const countReceipts = () => {
         const db = openTestSqlite(catalog.databasePath, { readonly: true });
-        try { return db.prepare("SELECT count(*) FROM project_events WHERE type='project.demo_reset'").pluck().get(); } finally { db.close(); }
+        try { return db.prepare<unknown[], { value: unknown }>("SELECT count(*) AS value FROM project_events WHERE type='project.demo_reset'").get()?.value; } finally { db.close(); }
       };
       let backupDirectory: string | undefined, atPromotion: { official: unknown; aside: unknown; record: unknown; plugins: unknown; receipts: unknown } | undefined;
       t.mock.method(fs, "rename", async (...args: Parameters<typeof fs.rename>) => {
@@ -162,7 +162,7 @@ test("PG-026-S4-04 a failure in demo post-initialization restores the previous d
       assert.deepEqual(snapshot(project), before);
       assert.deepEqual(catalog.listProjectPlugins(project.project_id), plugins);
       const db = openTestSqlite(catalog.databasePath, { readonly: true });
-      try { assert.equal(db.prepare("SELECT count(*) FROM project_events WHERE type='project.demo_reset'").pluck().get(), 0); }
+      try { assert.equal(db.prepare<unknown[], { value: unknown }>("SELECT count(*) AS value FROM project_events WHERE type='project.demo_reset'").get()?.value, 0); }
       finally { db.close(); }
     } finally { catalog.close(); }
   });

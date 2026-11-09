@@ -10,7 +10,7 @@ import {replicaRecovery} from './replica-recovery.js';
 import {replicaSerialization} from './replica-serialization.js';
 import type { SyncMutation, SyncEvent, SyncReplicaAdapter } from '@molis-ai/molis-work-contracts/platform/sync-transport';
 
-/** Common borrowed connection surface for node:sqlite and better-sqlite3 owners. */
+/** Common borrowed connection surface for every owner's SQLite connection. */
 export type {ReplicaDatabase} from '@molis-ai/molis-work-contracts/platform/plugin-registration';
 import type {ReplicaDatabase} from '@molis-ai/molis-work-contracts/platform/plugin-registration';
 /** Read-only technical history, including a locally deleted target whose body is now absent. */

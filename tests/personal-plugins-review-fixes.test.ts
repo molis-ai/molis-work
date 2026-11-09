@@ -95,13 +95,14 @@ async function listenDispatcher(
 
 // W4-11: the Home's one store registry. The pinned list is what a Home holds today; a new store is added here on purpose.
 // Clean Home retires the offline Sessions reader and its store declaration; every current owner remains pinned.
+// Batch 05: each project's default output folder lives under the Home's `outputs/` (owner modules/projects, kept out of snapshots).
 test("Home 存储登记列出全部个人库、讨论库 server/ 和 Home 里的其余数据", () => {
   assert.ok(homeStores().get("config/native-session-token")?.snapshot.omit, "本机账号桥接凭据必须排除在离线快照之外");
-  assert.deepEqual(homeStores().stores.map(store => store.path).sort(), ["spaces", "storage-space.json", "config/native-session-token", "sync", "projects", "logs", "backups", "shelf", "plugin-runtime", "plugin-libraries", "plugin-packages", "assistant",
+  assert.deepEqual(homeStores().stores.map(store => store.path).sort(), ["spaces", "storage-space.json", "config/native-session-token", "config/mcp-client-credentials", "sync", "projects", "outputs", "logs", "backups", "shelf", "plugin-runtime", "plugin-libraries", "plugin-packages", "assistant",
     "placement", "agent-definitions", "agent-declarations", "connectors", "runtime", "context-onboarding", "alchemist", "plugin-originals", "plugin-directories", "functions", "characters", "memory", "search", "knowledge", "feed", "feed-content", "server",
     "issues", "goals", "cognia", "images", "jelly", "lingguang", "todo", "pages", "form", "dataset", "ppt", "workflows", "artifacts", "agent-runtime", "runtime-config-backups",
     "runtime-integrations", "runtime-integration-attempts", "browser", "plugin-builder", "plugin-files", "cache", "git-operation-details.json", "config/onboarding.json", "config/plugin-publisher.json",
-    "config/project-arrival.json", "config/mcp-tools.json", "config/external-mcp-tools.json", "config/connector-mcp-tools.json", "config/external-mcp-actions.json", "config/connector-mcp-actions.json", "computer", "directory-access", "upgrade"].sort());
+    "config/project-arrival.json", "config/ui-locale.json", "config/mcp-tools.json", "config/external-mcp-tools.json", "config/connector-mcp-tools.json", "config/external-mcp-actions.json", "config/connector-mcp-actions.json", "computer", "directory-access", "upgrade"].sort());
 });
 
 test("uninstall --purge 会把登记的每个 Home 存储列入删除并真正删掉", async () => {

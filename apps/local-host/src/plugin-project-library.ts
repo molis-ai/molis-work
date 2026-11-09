@@ -13,7 +13,7 @@ import { isolatedProjectStatements } from "./plugin-project-isolation.js";
 import { openPluginTables } from "./project-plugin-databases.js";
 import { ProjectStatementProcess, type StatementLimits } from "./project-statement-process.js";
 
-/** The Host's own connection to a project's library (better-sqlite3), and the file it is. */
+/** The Host's own connection to a project's library, and the file it is. */
 export interface ProjectLibrary {
   readonly db: PluginDatabaseConnection & { readonly inTransaction?: boolean };
   readonly path: string;
@@ -31,8 +31,8 @@ export interface ProjectLibrary {
  * the client's, the same as in the Home (`pluginDatabaseClient`).
  *
  * One SQLite library per file (PLIB-08): writes go through the Host's own connection, which a synchronous write body cannot
- * interleave with, and reads through a second, read-only connection of the same library. node:sqlite is never opened on the file:
- * two SQLite libraries in one process release each other's POSIX locks when either closes a connection.
+ * interleave with, and reads through a second, read-only connection of the same library. No other SQLite library opens the file:
+ * two in one process release each other's POSIX locks when either closes a connection (Alchemist's own opens only `studio.sqlite`).
  *
  * The client also carries the project's journal (`journal`): the events and idempotency records the storage package owns, which a
  * statement cannot reach. It is asked the same questions as a statement, and the plugin needs `PROJECT_JOURNAL_PERMISSION` for it.

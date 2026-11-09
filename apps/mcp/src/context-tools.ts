@@ -91,7 +91,7 @@ export const CONTEXT_TOOLS: McpToolDefinition[] = [
   {
     name: "molis_work_v1_project_delete",
     description:
-      "在当前对话获得独立删除确认后，删除一个 Molis Work 托管项目：移除它的 Session 绑定、工作目录关联和项目目录（含数据库），以及各插件为它保存的数据（文稿、问卷与回答、待办、记忆、助理工作等），并留下删除回执；同一请求键重试返回原回执；个人空间不能删除。项目里还有正在运行的终端时拒绝（code=catalog.project_terminal_live），先请用户关闭终端再删。Molis Work 正在运行时，删除由它执行并释放项目的运行环境。回执逐项记录各数据所有者的清理：某一步（例如记忆：这个入口不运行 Agent 执行服务）未完成会保持 pending，由有该服务的进程（运行中的 Molis Work）接着做。",
+      "在当前对话获得独立删除确认后，删除一个 Molis Work 托管项目：移除它的 Session 绑定、工作目录关联和项目目录（含数据库），以及各插件为它保存的数据（文稿、问卷与回答、待办、记忆、助理工作等），并留下删除回执；项目默认输出目录里的文件留在原处，这个入口不删它们，有文件留下时结果的 kept_output_directory 写明位置；同一请求键重试返回原回执；个人空间不能删除。项目里还有正在运行的终端时拒绝（code=catalog.project_terminal_live），先请用户关闭终端再删。Molis Work 正在运行时，删除由它执行并释放项目的运行环境。回执逐项记录各数据所有者的清理：某一步（例如记忆：这个入口不运行 Agent 执行服务）未完成会保持 pending，由有该服务的进程（运行中的 Molis Work）接着做。",
     inputSchema: {
       type: "object",
       properties: {

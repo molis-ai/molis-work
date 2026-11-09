@@ -1,3 +1,4 @@
+import { changeMcpClientCredential } from "@molis-ai/molis-work-app-local-host";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { access } from "node:fs/promises";
@@ -17,6 +18,7 @@ test("production MCP reads persisted scoped grants on every list/call, shares re
   const a = await testHome.createProject("授权项目 A"), b = await testHome.createProject("授权项目 B");
   const diagnostics = new Map<Client, () => string>();
   const connect = async (project: { project_id: string; database_path: string }, actor: string) => {
+    changeMcpClientCredential(home, `runtime:${actor}`, "connect");
     const client = new Client({ name: "untrusted-client-name", version: "1" }); clients.push(client);
     const transport = new StdioClientTransport({ command: process.execPath, args: ["--import", "tsx", fileURLToPath(new URL("./fixtures/production-action-mcp-server.ts", import.meta.url)),
       home, project.project_id, actor, project.database_path, testHome.origin], stderr: "pipe" });

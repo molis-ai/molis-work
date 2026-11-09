@@ -30,7 +30,7 @@ const PROGRAMS: ReadonlyArray<readonly [string, string]> = [
 
 const read = (file: string): string => readFileSync(new URL(SOURCES + file, import.meta.url), "utf8");
 const ownRequest = (source: string) => /(?<![.\w])fetch\(/.test(source);
-const ownHeaders = (source: string) => /molisWorkControlHeaders|x-molis-work-control-token|x-molis-work-idempotency-key|molis-work-control-token/.test(source);
+const ownHeaders = (source: string) => /molisWorkControlHeaders|x-molis-work-control-token|x-molis-work-idempotency-key|molis-work-page-session/.test(source);
 const ownCaching = (source: string) => /cache:\s*["']no-store["']/.test(source);
 
 for (const [name, file] of PROGRAMS) {

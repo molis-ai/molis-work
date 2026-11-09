@@ -1,3 +1,4 @@
+import { sqliteErrorName } from "@molis-ai/molis-work-storage";
 import { assertPassiveProjectAvailable } from './passive-sync-execution.js';
 import { resolveConfiguredHome } from "./product-home.js";
 import type { MolisWorkProjectCatalog, MolisWorkProjectCatalogOptions } from "./project-catalog.js";
@@ -21,7 +22,7 @@ export function createWebCatalogAccess(
   }).catch(error => {
     opening = undefined;
     // Retry only an unstarted preparation, never the business operation that borrowed it.
-    if (!closing && !retry && error.code === "SQLITE_BUSY") {
+    if (!closing && !retry && sqliteErrorName(error) === "SQLITE_BUSY") {
       retry = setTimeout(() => {
         retry = undefined;
         if (!closing) void withCatalog({ homeDirectory }, () => undefined).catch(() => undefined);

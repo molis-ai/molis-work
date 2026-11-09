@@ -1,5 +1,6 @@
 import { platformErrorKind } from "@molis-ai/molis-work-contracts/platform/actions";
 import { currentCallId } from "@molis-ai/molis-work-kernel";
+import { sqliteErrorName } from "@molis-ai/molis-work-storage";
 
 /**
  * The Host's log (W5-13), its one implementation: one JSON line per entry on stderr, which the resident Web service's
@@ -46,7 +47,8 @@ const keyed = (value: unknown): HostLogField => typeof value === "number" || typ
 const keyedName = (name: string): string => KEY.test(name) ? name : OMITTED;
 
 const describe = (error: unknown): NonNullable<HostLogEntry["error"]> => {
-  const code = (error as { code?: unknown } | null)?.code;
+  // node:sqlite says ERR_SQLITE_ERROR for every failure; SQLite's own name is what tells busy from corrupt in a log.
+  const code = sqliteErrorName(error) ?? (error as { code?: unknown } | null)?.code;
   const name = error instanceof Error ? error.name : typeof error;
   return { name: KEY.test(name) ? name : OMITTED, ...(typeof code === "string" && KEY.test(code) ? { code } : {}) };
 };

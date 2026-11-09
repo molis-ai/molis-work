@@ -9,7 +9,7 @@ const GROUP = `${WORKBENCH} .tab-strip ${GROUP_IN}`;
 
 export const TAB_GROUP_STYLES = `
   ${WORKBENCH} .tab-strip .tab-scroll { gap: 6px; }
-  ${WORKBENCH} .tab-strip .tab-item:is([data-tab-kind="home"], [data-tab-kind="plugin"]):not([data-pinned]) { width: max-content; flex-shrink: 0; }
+  ${WORKBENCH} .tab-strip .tab-item[data-tab-kind="plugin"]:not([data-pinned]) { width: max-content; flex-shrink: 0; }
   ${GROUP} {
     --group-wash: color-mix(in srgb, var(--group-color) 10%, transparent);
     height: 28px; gap: 2px; padding: 2px; border-radius: var(--r-row, 10px); background: var(--group-wash);
@@ -35,6 +35,7 @@ export const TAB_GROUP_STYLES = `
     border-radius: var(--r-tag, 6px); background: var(--group-color); color: var(--paper); font-size: 11px; font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums;
   }
   ${GROUP}[data-collapsed="true"] .tab-item[data-tab-kind="plugin"] { display: inline-flex; }
+  ${GROUP}[data-collapsed="true"] .tab-group-sep { display: none; }
 
   /* Where a dragged tab or group will land: inside a group the slot is a tab of that group; a whole group's slot is the group. */
   ${GROUP} [data-tab-reorder-slot] { height: 24px; border-radius: 8px; background: color-mix(in srgb, var(--group-color) 22%, transparent); box-shadow: none; }

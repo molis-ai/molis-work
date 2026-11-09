@@ -80,11 +80,12 @@ export async function releaseProjectPlugins(store: LocalProjectDatabase, project
   const record = await opening.ready;
   record.stopObservers?.();
   if (!record.platform) return;
-  await stopProjectPlugins(record.platform);
+  await stopProjectPlugins(record.platform, projectId);
 }
 
-async function stopProjectPlugins(platform: PluginPlatform): Promise<void> {
+async function stopProjectPlugins(platform: PluginPlatform, projectId: string): Promise<void> {
   const failures: unknown[] = [];
+  await platform.stopProjectJobs(projectId);
   await platform.closeCoordination();
   // Closing the project is not switching the plugin off (see closePlugin): the next start runs it, and only a plugin list keeps a
   // project plugin off; stored disabled records are restarted, with grants still checked (BL-755, choice A).
@@ -163,7 +164,7 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
   } catch (error) {
     record.stopObservers?.();
     if (record.platform) {
-      try { await stopProjectPlugins(record.platform); }
+      try { await stopProjectPlugins(record.platform, ports.projectId); }
       catch (cleanupError) { error = new AggregateError([error, cleanupError], "项目插件启动及清理失败"); }
       record.platform = null;
     }

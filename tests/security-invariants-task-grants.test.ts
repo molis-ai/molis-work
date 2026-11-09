@@ -611,7 +611,7 @@ test("S-task-grant-subjects S-08 a task's subject is no client of 对外接入 a
   await a.set("daily", [a.group]);
   const subject = a.subject("daily");
   await assert.rejects(readMcpActionAccess(w.served.web, { clientId: subject, projectId: a.project.project_id }), (error: unknown) => isLocalHostHttpError(error) && error.code === "mcp.grant_invalid");
-  await assert.rejects(w.served.mcp(subject, a.project.project_id), { code: "actions.input_invalid" });
+  await assert.rejects(w.served.mcp(subject, a.project.project_id), { code: "actions.forbidden" });
   assert.equal(w.reader.handled.length, 0);
   assert.equal((await w.records(subject)).length, 1, "its grant stays the task's");
 });

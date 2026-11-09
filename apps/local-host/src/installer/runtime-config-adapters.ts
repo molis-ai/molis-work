@@ -131,6 +131,7 @@ function desiredCodexFamily(desired: DesiredConnection): string {
     `MOLIS_WORK_HOME = ${tomlString(desired.molisWorkHome)}`,
     `MOLIS_WORK_MCP_AUDIENCE = ${tomlString("runtime")}`,
     `MOLIS_WORK_RUNTIME_ID = ${tomlString(desired.runtimeId)}`,
+    `MOLIS_WORK_CLIENT_AUTH = ${tomlString("independent")}`,
   ].join("\n");
 }
 
@@ -169,6 +170,7 @@ function desiredClaudeEntry(desired: DesiredConnection): Record<string, unknown>
       MOLIS_WORK_HOME: desired.molisWorkHome,
       MOLIS_WORK_MCP_AUDIENCE: "runtime",
       MOLIS_WORK_RUNTIME_ID: desired.runtimeId,
+      MOLIS_WORK_CLIENT_AUTH: "independent",
     },
   };
 }
@@ -214,6 +216,7 @@ function desiredOpenCodeEntry(desired: DesiredConnection): Record<string, unknow
       MOLIS_WORK_HOME: desired.molisWorkHome,
       MOLIS_WORK_MCP_AUDIENCE: "runtime",
       MOLIS_WORK_RUNTIME_ID: desired.runtimeId,
+      MOLIS_WORK_CLIENT_AUTH: "independent",
     },
   };
 }
@@ -260,6 +263,7 @@ function desiredPiEntry(desired: DesiredConnection): Record<string, unknown> {
       MOLIS_WORK_HOME: desired.molisWorkHome,
       MOLIS_WORK_MCP_AUDIENCE: "runtime",
       MOLIS_WORK_RUNTIME_ID: desired.runtimeId,
+      MOLIS_WORK_CLIENT_AUTH: "independent",
     },
     lifecycle: "eager",
   };

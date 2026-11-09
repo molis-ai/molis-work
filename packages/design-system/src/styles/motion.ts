@@ -27,7 +27,7 @@ export const MOTION_STYLES = `
 /** The menus whose closing plays back (the Assistant's composer, also in DROPDOWN, keeps its own motion). */
 const MENU_EXIT = ".mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tree-filter, .feed-filter-panel, .tui-menu";
 const DETAILS_MENU = `:is(${MENU_EXIT}):not([popover])`;
-export const DROPDOWN = ":is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tree-filter, .feed-filter-panel, .source-filter-menu > .source-filter-row, .tui-menu, .assistant-composer)";
+export const DROPDOWN = ":is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tree-filter, .feed-filter-panel, .source-filter-menu > .source-filter-row, .tui-menu)";
 
 /** Menu entry and exit share one motion owner; the final layer supplies its existing page scope and insertion point. */
 export function renderMenuMotion(pages: string): string {

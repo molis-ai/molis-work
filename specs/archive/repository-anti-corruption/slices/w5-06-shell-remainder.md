@@ -70,7 +70,7 @@ PG-060 其余在工作台里仍按名字的行，核过，**不归本线**：`re
 | RAC-608 | `creatableKinds`、`homeStarts` 对运行时装的插件生效（接第 1 片） | 同上 |
 | RAC-609 | 停用、卸载、被拒绝的插件，目录里没有；已打开的页面在下一次读时没有入口 | `tests/plugin-directory.test.ts` 保留撤销启用并补 RAC-609-BLOCK-01；`tests/installed-plugin-host.test.ts` 的 RAC-609-UNINSTALL-01 经真实 Host 卸载路径验证，见 §3.2 |
 | RAC-610 | `skills/molis-plugin-dev/ui.md` 的说法与行为一致 | `pnpm health:check` 文档引用组 + 文字核对 |
-| RAC-619 | 宿主标记：`personal`/`always_on` 只认 `true`，`companions` 逐项过 `KEY`、去重、至多 32 项，`chosen` 为 false 的条目不带；`data-plugin-directory` 里没有这三项 | `tests/plugin-directory.test.ts`，RAC-619-CLIENT-03 继续核仅两字段，见 §3.3 |
+| RAC-619 | 宿主标记：`personal`/`always_on` 只认 `true`，`companions` 逐项过 `KEY`、去重、至多 32 项，`chosen` 为 false 的条目不带；`data-plugin-directory` 里没有这三项（07-S2 改，#1867：`personal` 下发，「＋」按它分出「个人 · 所有项目共用」；`always_on`、`companions` 仍不下发） | `tests/plugin-directory.test.ts`，RAC-619-CLIENT-03 核路由字段加 `personal`，见 §3.3 |
 | RAC-611 | 页面资源：脚本里去掉名单字面量、加一次读取，预期不增；增长按 §7 的页面资源一条 | `pnpm page-assets:check` |
 
 与 `ac-registry` 对齐（统筹 10-25）：它的 B1 把平台事实搬进 `apps/local-host/src/plugin-registry.ts`，工作台需要的平台事实经渲染端口下发——本片的 `plugin_directory` 就是那条端口，它复用、不另开。`web-goals-read.ts`、`plugin-catalog.ts`、`immersive-shell.ts` 两边都会碰：谁后到谁重基，同时在评审就照 `MERGE-QUEUE.md` §1a 同批落。
@@ -115,7 +115,7 @@ health 对照 `origin/main` 的 merge-base `3817f875`、正式 boundary（70 包
 
 - **RAC-606-CLIENT-01**：直接投影和真实页面 `data-plugin-directory` 的每条记录恰为 `id/accepts_objects`，不含 `name`；对象接收标记和内置/运行时键不变，唯一脚本消费者仍按该标记取 id。
 - **RAC-605-CLIENT-02**：恶意名称/标题仍在服务端 rail/home 以原文显示且仅作文本，URL/SVG 图标仍拒绝。移出 JSON 的名称不再用来冒充序列化攻击输入；保留并直接调用现有公开 `scriptJson` 验 `<`、`>`、`&`、U+2028、U+2029 全部转义且可还原，无新 API、无删安全断言。
-- **RAC-619-CLIENT-03**：原标记精确值/清洗断言不变；实际目录 JSON 对标记条目仍只有两字段，宿主标记与服务端显示字段均不下发。
+- **RAC-619-CLIENT-03**：原标记精确值/清洗断言不变；实际目录 JSON 对标记条目只有路由字段，宿主标记与服务端显示字段均不下发。07-S2 改（#1867）：「＋」要读的两项随路由字段下发——插件在插件栏上的位置 `order`（数字，只在项目提供位置的插件上）与 `personal`（只会是 true）；`always_on`、`companions` 与显示字段仍不下发。
 
 只改 `apps/workbench/src/plugin-directory.ts`、`tests/plugin-directory.test.ts` 和本 slice 的对应合同/证明。先在冻结基线构建上运行新断言留真实字段不符的红，再改投影；保前片 KEY、RAC609 和作者 §4/§5。先核生产源码与原成功构建一致，可预热原 dist 与现有增量构建记录，仍由官方构建重新核输入/输出签名，任何不符照常重建；源码改后按整机 FIFO 跑一次整体 `pnpm build`，不用旧 manifest 冒新源码。
 

@@ -108,17 +108,28 @@ export async function pluginFrameBrowser(t: TestContext, browser: Browser, surfa
     const hostState = await browser.evaluate(`(()=>{${owner}const root=doc.querySelector('[data-work-surface='+${JSON.stringify(JSON.stringify(surface))}+']');return {surface:document.body.dataset.desktopSurface,root:root?{...root.dataset}:null,hidden:root?.hidden,parent:root?.parentElement?.className,text:root?.innerText?.slice(-400),frames:[...doc.querySelectorAll('iframe[data-plugin-frame]')].map(frame=>frame.dataset.pluginFrame)}})()`).catch(() => null);
     throw new Error(expression + " " + JSON.stringify(hostState), { cause: failure });
   }
-  async function withPoint<T>(target: string, consume: (position: {x:number; y:number}, delivered: () => Promise<boolean>) => Promise<T>): Promise<T> {
-    const deadline = Date.now() + 10000;
-    const remaining = () => Math.max(1, deadline - Date.now());
-    await waitFor(`document.querySelector(${JSON.stringify(target)})`, remaining());
-    // As the owner's own click waits (#150): while the frame's surface is still mounting it is inert, and the selection it was
-    // opened with is delivered only when the mount settles. A menu opened before then would be closed by that selection.
+  /**
+   * Wait until the frame's client is connected. While the owner surface is "loading" (on CI up to a second after a reload),
+   * the child holds only its server-rendered document, which can still be hidden, and no plugin listeners; the owner is
+   * inert, so real input cannot reach it. A DOM read then measures 0, and a click dispatched with `evaluate` is silently
+   * dropped, which puts every later toggle out of step. As the owner's own click waits (#150), the selection the frame was
+   * opened with is delivered only when the mount settles.
+   */
+  async function clientReady(timeoutMs = 10000, target = selector): Promise<void> {
+    const deadline = Date.now() + timeoutMs;
     const settled = `(()=>{${owner}const frame=doc.querySelector(${JSON.stringify(selector)});return Boolean(frame)&&!frame.closest('[data-ui-client-state="loading"]');})()`;
     while (!await browser.evaluate<boolean>(settled)) {
       if (Date.now() >= deadline) throw new Error("Plugin frame surface is still loading its client: " + target);
       await new Promise(resolve => setTimeout(resolve, 40));
     }
+  }
+  async function withPoint<T>(target: string, consume: (position: {x:number; y:number}, delivered: () => Promise<boolean>) => Promise<T>): Promise<T> {
+    const deadline = Date.now() + 10000;
+    const remaining = () => Math.max(1, deadline - Date.now());
+    // The page's own wait for a hittable target ends this much before the protocol call's, so its reason is reported.
+    const pageMargin = 500;
+    await waitFor(`document.querySelector(${JSON.stringify(target)})`, remaining());
+    await clientReady(remaining(), target);
     const current = await context();
     // The DOM hit can be ready before Chromium routes input to the opaque child. Keep the receipt in a
     // temporary remote object, never on window; a previous move or another document cannot satisfy it.
@@ -198,7 +209,7 @@ export async function pluginFrameBrowser(t: TestContext, browser: Browser, surfa
       }
       let covered: unknown;
       while (Date.now() < deadline) {
-        const point = await evaluate<{ x: number; y: number }>(`(async()=>{const deadline=Date.now()+${remaining()};let last='Missing target';
+        const point = await evaluate<{ x: number; y: number }>(`(async()=>{const deadline=Date.now()+${Math.max(1, remaining() - pageMargin)};let last='Missing target';
           while(Date.now()<deadline){const element=[...document.querySelectorAll(${JSON.stringify(target)})].find(node=>node.getClientRects().length);
             if(element){element.scrollIntoView({block:'center',behavior:'instant'});
               await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
@@ -233,7 +244,8 @@ export async function pluginFrameBrowser(t: TestContext, browser: Browser, surfa
       }
       throw new Error("Input was not delivered to plugin frame: " + target + "; covered=" + JSON.stringify(covered) + inputDeliveryDetails(await inputDeliveryValues(browser)));
     } catch (error) {
-      const failure = Date.now() >= deadline ? new Error("Input was not delivered to plugin frame within 10000ms: " + target + inputDeliveryDetails(await inputDeliveryValues(browser)), {cause:error}) : error;
+      // Within the margin the budget is spent; the page's reason ("hidden, disabled or covered: …") stays as the cause.
+      const failure = Date.now() >= deadline - pageMargin ? new Error("Input was not delivered to plugin frame within 10000ms: " + target + inputDeliveryDetails(await inputDeliveryValues(browser)), {cause:error}) : error;
       failures.push(failure);
       throw failure;
     } finally {
@@ -279,5 +291,5 @@ export async function pluginFrameBrowser(t: TestContext, browser: Browser, surfa
     try { await browser.command("DOM.setFileInputFiles", { objectId: result.objectId, files }, current.session); }
     finally { await browser.command("Runtime.releaseObject", { objectId: result.objectId }, current.session); }
   }
-  return { evaluate, waitFor, click, point, setFiles, frameCommand: command, frameId: async () => (await context()).frameId };
+  return { evaluate, waitFor, clientReady, click, point, setFiles, frameCommand: command, frameId: async () => (await context()).frameId };
 }

@@ -125,7 +125,7 @@ export function pluginSourcePullFor(definition: PluginDefinition, context: Plugi
   });
 }
 
-/** The project's library as the search records need it: better-sqlite3's connection, not the narrow view a plugin's statements go through. */
+/** The project's library as the search records need it: the Host's connection, not the narrow view a plugin's statements go through. */
 function isSqliteDatabase(db: PluginDatabaseConnection): db is SqliteDatabase {
   const candidate: Partial<Record<keyof SqliteDatabase, unknown>> = db as Partial<Record<keyof SqliteDatabase, unknown>>;
   return typeof candidate.transaction === "function" && typeof candidate.pragma === "function";

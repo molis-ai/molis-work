@@ -1,7 +1,7 @@
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createHash } from "node:crypto";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
-import type { PluginDefinition, PluginInstanceRecord, PluginManifest, PluginRuntimeRepository } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginDefinition, PluginDeployment, PluginInstanceRecord, PluginManifest, PluginRuntimeRepository } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ACTION_ERROR_CODE } from "@molis-ai/molis-work-contracts/platform/actions";
 
 
@@ -21,6 +21,23 @@ export function validateManifest(manifest: PluginManifest): void {
   } catch (error) {
     throw pluginErrors.manifest_invalid(error instanceof Error ? error.message : "Plugin Manifest 不合法");
   }
+}
+
+/**
+ * A plugin with only declarations (`kind: "content"`, specs/skill-packs/contract-design.md §3) is declared, not started: it is installed,
+ * enabled, disabled, uninstalled and taken back from a revoked publisher like any other, and has no entrypoint, so nothing of it is ever
+ * started: no process, no sandbox instance, no routes, no actions. What it declares (its Skills) the Host reads from its verified package.
+ */
+export function declaresOnly(manifest: PluginManifest): boolean {
+  return manifest.kind === "content";
+}
+
+/** The entrypoint an installation runs: the Manifest's for the deployment, none for a plugin with only declarations. */
+export function selectedEntrypoint(manifest: PluginManifest, deployment: PluginDeployment): string {
+  if (declaresOnly(manifest)) return "";
+  const entrypoint = manifest.entrypoints.find(candidate => candidate.deployment === deployment);
+  if (!entrypoint) throw pluginErrors.entrypoint_missing("Plugin 没有当前部署环境的 entrypoint");
+  return entrypoint.entrypoint;
 }
 
 export function safeErrorMessage(error: unknown): string {

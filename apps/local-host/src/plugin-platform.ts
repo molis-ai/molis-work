@@ -61,9 +61,9 @@ import { hostReservedRuleKeys } from "./scene-rule-admission.js";
 export type PluginPlatformDatabase = PluginEventsDatabase & PluginWiringDatabase & {
   exec(sql: string): unknown;
   readonly inTransaction?: boolean;
-  /** The file the connection is (better-sqlite3's `name`): the project's library, which plugins' own tables live in. */
+  /** The file the connection is: the project's library, which plugins' own tables live in. */
   readonly name?: string;
-  /** better-sqlite3's `open`: false once the connection is closed. */
+  /** False once the connection is closed. */
   readonly open?: boolean;
 };
 
@@ -135,6 +135,8 @@ export interface PluginPlatform {
   viewRevision(pluginId: string): string;
   /** Stop input refresh/delivery and events before stopping plugins or closing storage. */
   closeCoordination(): Promise<void>;
+  /** Cancel this project's activation jobs and wait for their actual cleanup before storage is released. */
+  stopProjectJobs(projectId: string): Promise<void>;
   /**
    * The consent ledger this platform installs against and reads defaults from (a default wiring binds only on a standing agreement),
    * or `null` when it has none: then nothing is agreed to and no default binds.
@@ -142,9 +144,9 @@ export interface PluginPlatform {
   readonly consents: PluginConsentLedger | null;
   /** Built after `start`, from the Manifests that actually activated. */
   router(): PluginRouteRouter;
-  start(entries: readonly PluginPlatformEntry[]): Promise<PluginSupervisorReport>;
+  start(entries: readonly PluginPlatformEntry[], control?: { assertCurrent?: () => void }): Promise<PluginSupervisorReport>;
   upgradeCandidates(): PluginUpgradeCandidate[];
-  upgrade(pluginId: string, definition?: PluginDefinition, options?: { grants?: string[] }): Promise<ReturnType<PluginSupervisor["state"]>>;
+  upgrade(pluginId: string, definition?: PluginDefinition, options?: { grants?: string[]; assertCurrent?: () => void }): Promise<ReturnType<PluginSupervisor["state"]>>;
   rollback(pluginId: string, definition: PluginDefinition): Promise<ReturnType<PluginSupervisor["state"]>>;
 }
 
@@ -263,6 +265,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     wiring,
     invalidateView,
     viewRevision(pluginId) { return `${viewEpoch}:${viewRevisions.get(pluginId) ?? 0}`; },
+    stopProjectJobs: projectId => executor.stopProjectJobs(projectId),
     async closeCoordination() {
       closed = true; installations.dispose(); unwatchArtifacts(); unbindArtifacts();
       stopArtifactRefresh?.();
@@ -285,7 +288,8 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     upgradeCandidates: () => supervisor.upgradeCandidates(),
     upgrade: (pluginId, definition, options) => supervisor.upgrade(pluginId, definition, options),
     rollback: (pluginId, definition) => supervisor.rollback(pluginId, definition),
-    async start(entries) {
+    async start(entries, control) {
+      control?.assertCurrent?.();
       // The supervisor keeps one entry per plugin id and would let a later one silently replace an earlier one.
       const listed = new Set<string>();
       for (const { definition } of entries) {
@@ -295,7 +299,8 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
       assertDatabaseEntries(entries, options.home, "project");
       assertOwnerFilesEntries(homeOwnerFilesEntries(options.home?.directory ?? null), entries, options.home);
       identity.remember(entries);
-      const report = await supervisor.start(entries.map(entry => rememberingRestored(entry, identity.remember)));
+      const report = await supervisor.start(entries.map(entry => rememberingRestored(entry, identity.remember)), control);
+      control?.assertCurrent?.();
       // Deliver whatever was already bound and published before this process.
       wiring.evaluateAll();
       await events.resume(options.project_id);
@@ -319,7 +324,7 @@ function rememberingRestored(entry: PluginPlatformEntry, remember: (entries: rea
 }
 
 /**
- * The project's library, when the platform runs on the Host's own connection to its file (better-sqlite3, which says its file
+ * The project's library, when the platform runs on the Host's own connection to its file (which says its file
  * and whether it is in a transaction); otherwise none, and a plugin that declares tables there does not start.
  */
 function projectLibraryOf(options: PluginPlatformOptions): ProjectLibrary | null {

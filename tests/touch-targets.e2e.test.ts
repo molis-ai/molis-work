@@ -11,71 +11,57 @@ import { agentQuestionHtml } from "@molis-ai/molis-work-app-local-host";
 // tablet) or the window is a phone's width, and the desktop window's chrome (the title bar's tab strip and the bottom bar) keeps
 // one written, scoped exception for fine-pointer windows. This measures both sides on the real shell. Touch windows, 390×844,
 // 852×393 and 1024×768: every control of the strip and of the bar is 44px on its short side, the bar and the strip lay out
-// cleanly with them. The Assistant line stays inside its pill in the states the seeded project does not start in (a current
-// work with its chip and the chip's mark, the chips that come and go beside the input, and the crowd of them all) at the widths
-// where it is tight: 320, 360 and 390px phones and the 640, 667, 740 and 852px sideways phones. A line that cannot hold them at
-// 44px folds in steps (the choosers, then the work chip's mark, then the notice into the "+" menu); each step is taken only when
-// the one before it still overflowed, and nothing it folds is lost. The states are the ones the island can show (a Character
-// belongs to a work that is not Coding and the mode to one that is), and a tap into the input and away again (the phone hides the
-// chips while typing) leaves the steps where they were. What the next Send carries is the strip above the line (context-program
-// §21.2 point 1), measured with what the bar opens.
+// cleanly with them. The Assistant's input is the platform's unified composer (unified-input K3): its receiver row (「发给：…」,
+// with the mark that starts a new work instead), its bottom row (＋, the scene controls, send) and the bell stay 44px targets and
+// inside the composer in the states the seeded project does not start in (a current work, with a notice; a new work a plugin
+// carries, with who does it and its mode) at the widths where it is tight: 320, 360 and 390px phones and the 640, 667, 740 and
+// 852px sideways phones. A narrow composer folds its scene controls behind 更多 (its own sheet); nothing is taken off the line
+// otherwise, and a tap into the input and away leaves it as it was. What the next Send carries is the strip above the composer
+// (context-program §21.2 point 1), measured with what the bar opens.
 // A fine-pointer window of 1280px keeps the sizes the exception names and does not sink below its floor, also in a short window
-// and at 700px, where a crowded line squeezes its chips narrower but never shorter.
+// and at 700px and 620px.
 
 type Control = { kind: string; area: "strip" | "bar"; label: string; w: number; h: number };
 type Part = { name: string; left: number; right: number };
-type LineFit = { overflow: number; left: number; right: number; vw: number; stage: string; fit: string; input: number; touchRules: boolean; parts: Part[] };
+type LineFit = { overflow: number; left: number; right: number; vw: number; folded: boolean; input: number; touchRules: boolean; parts: Part[] };
 
 const KINDS: Record<string, string> = {
-  "[data-assistant-input]": "assistant input",
-  "[data-assistant-attach]": "assistant attach",
-  "[data-assistant-send]": "assistant send",
+  "[data-assistant-composer] .mw-composer__input": "assistant input",
+  "[data-assistant-composer] [data-composer-add]": "assistant attach",
+  "[data-assistant-composer] [data-composer-send]": "assistant send",
+  "[data-assistant-composer] [data-composer-receiver]": "assistant receiver",
   "[data-plugin-picker-toggle]": "plugin switcher",
   ".dock-pin": "dock",
-  ".bar-chat": "side panel",
+  // 07-1 S4b: the bar's side button and the titlebar's Home tools are gone; the side's glyphs (Issue's among them) are tabs.
   ".navigator-project-selector": "project",
-  "[data-home-plugin-open]": "home plugin", // ISSUE-30: the declared Home tools remain visible in the titlebar.
   ".immersive-show-directory, .navigator-directory-toggle": "directory toggle",
   ".workspace-history-button": "history",
   ".tab-item-trigger": "tab",
   ".tab-item-close": "tab close",
   ".tab-add-button": "open plugin",
-  ".tab-split-button": "layout",
-  "[data-home-plugin-open]": "home tool",
+  // 07-1 S3: at 760px and under the strip leads with 主区｜右侧 and always shows 全部标签, in the one row it paints first.
+  ".tab-pane-switch > .mw-toggle": "main or side",
+  "[data-tab-all]": "all tabs",
+  "[data-layout-open]": "layout", // 07-S2: the titlebar's one layout button replaces each strip's
   ".tab-view-chip-close": "cover close",
-  ".assistant-target-main": "work chip",
-  ".assistant-target-clear": "work chip clear",
+  "[data-assistant-composer] .mw-composer__to [data-tag-remove]": "work chip clear",
   ".assistant-strip-act, .assistant-strip-chip.is-work": "strip chip",
   ".assistant-attention": "attention chip",
-  "[data-assistant-executor]": "executor chip",
-  "[data-assistant-character]": "character chip",
-  "[data-assistant-mode]": "mode chip",
+  "[data-assistant-composer] [data-composer-more]": "composer more",
+  // A select control is drawn by the platform's select picker: the native select is hidden and its trigger is what is pressed.
+  "[data-assistant-composer] .mw-composer__controls :is([data-composer-control], .mw-select-picker__trigger)": "composer control",
+  "[data-assistant-composer] [data-compose-menu-toggle]": "delivery toggle",
+  "[data-assistant-composer] [data-composer-stop]": "stop",
 };
-/** The chips of the Assistant line that exist only in some states; the base screens do not show them. */
-const LINE_KINDS = ["work chip", "work chip clear", "strip chip", "attention chip", "executor chip", "character chip", "mode chip"];
+/** The parts of the Assistant's composer that exist only in some states; the base screens do not show them. */
+const LINE_KINDS = ["work chip clear", "strip chip", "attention chip", "composer more", "composer control", "delivery toggle", "stop"];
 
-/** What each step of the island's fold takes off a line that is still over its pill's edge, in order; a step includes the ones before it. */
-const FOLD_STEPS: Array<[string, string[]]> = [
-  ["choosers", ["executor chip", "character chip", "mode chip"]],
-  ["mark", ["work chip clear"]],
-  ["chips", ["attention chip"]],
-];
-const foldedAt = (stage: string) => {
-  const reached = FOLD_STEPS.findIndex(([name]) => name === stage);
-  return reached < 0 ? [] : FOLD_STEPS.slice(0, reached + 1).flatMap(([, kinds]) => kinds);
-};
-
-/** Shows chips of the Assistant line as the island paints them when they have something to say (it hides them otherwise). */
-const OPTIONAL_CHIPS = ["[data-assistant-attention]", "[data-assistant-executor]", "[data-assistant-character]", "[data-assistant-mode]"];
+/** Shows the bell of the Assistant's composer as the island paints it when a notice waits (it hides it otherwise). */
+const OPTIONAL_CHIPS = ["[data-assistant-attention]"];
 const showChips = (selectors: string[]) => `(() => {
-  for (const selector of ${JSON.stringify(OPTIONAL_CHIPS)}) { const chip = document.querySelector(selector); chip.hidden = true; chip.removeAttribute("data-chosen"); }
-  const words = { "[data-assistant-attention-count]": "3", "[data-assistant-mode-label]": "方式：执行", "[data-assistant-character-label]": "角色：评审" };
-  for (const selector of ${JSON.stringify(selectors)}) {
-    const chip = document.querySelector(selector);
-    chip.hidden = false;
-    if (/executor|character/.test(selector)) chip.setAttribute("data-chosen", "");
-  }
-  for (const [selector, text] of Object.entries(words)) { const span = document.querySelector(selector); if (span && !span.closest("[hidden]")) span.textContent = text; }
+  for (const selector of ${JSON.stringify(OPTIONAL_CHIPS)}) document.querySelector(selector).hidden = true;
+  for (const selector of ${JSON.stringify(selectors)}) document.querySelector(selector).hidden = false;
+  const count = document.querySelector("[data-assistant-attention-count]"); if (count && !count.closest("[hidden]")) count.textContent = "3";
 })()`;
 /** A page object on show, with a passage of it selected: the strip above the line offers the object as a dashed chip with + and
  * carries the passage as a chip with ×, so both of its buttons are measured. */
@@ -100,31 +86,35 @@ const SHELL_CONTROLS = `(() => {
   const out = [];
   const roots = [["bar", ".workbench-bar"], ["strip", "nav.tab-strip"], ["strip", ".immersive-titlebar"]];
   for (const [area, root] of roots) {
-    for (const el of document.querySelectorAll(root + " :is(button, summary, input, textarea, [role=tab])")) {
-      if (!el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) || el.closest("[hidden], [inert], .assistant-panel, .assistant-popover, .plugin-picker-popover, [data-dock-overflow], .navigator-project-menu-popover")) continue;
+    for (const el of document.querySelectorAll(root + " :is(button, summary, input, textarea, select, [role=tab])")) {
+      if (!el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) || el.closest("[hidden], [inert], .assistant-panel, .assistant-popover, .plugin-picker-popover, [data-dock-overflow], .navigator-project-menu-popover, [data-compose-menu]")) continue;
       const box = el.getBoundingClientRect();
       if (box.width < 2 || box.height < 2) continue;
       const kind = Object.entries(kinds).find(([selector]) => el.matches(selector))?.[1];
-      out.push({ kind: kind ?? "unlisted " + el.tagName.toLowerCase() + "." + String(el.className).split(" ")[0], area, label: el.getAttribute("aria-label") || el.textContent.trim().slice(0, 20), w: Math.round(box.width * 10) / 10, h: Math.round(box.height * 10) / 10 });
+      // What a finger can press: the box, or the empty, absolutely placed ::after a target reaches past its drawn line with (the bell).
+      const after = getComputedStyle(el, "::after"), px = (value) => parseFloat(value) || 0, reach = after.content === '""' && after.position === "absolute" && after.pointerEvents !== "none";
+      const w = reach ? Math.max(box.width, box.width - px(after.left) - px(after.right)) : box.width, h = reach ? Math.max(box.height, box.height - px(after.top) - px(after.bottom)) : box.height;
+      out.push({ kind: kind ?? "unlisted " + el.tagName.toLowerCase() + "." + String(el.className).split(" ")[0], area, label: el.getAttribute("aria-label") || el.textContent.trim().slice(0, 20), w: Math.round(w * 10) / 10, h: Math.round(h * 10) / 10 });
     }
   }
   return out;
 })()`;
 
-/** Where the parts of the Assistant line sit against its pill and the window: nothing may run past either. */
+/** Where the parts of the Assistant's composer sit against its box and the window: nothing may run past either. Folded is whether its
+ * scene controls are behind 更多 (the composer's own sheet, on a box narrower than 480px). */
 const LINE_FIT = `(() => {
-  const composer = document.querySelector("[data-assistant-composer]");
-  const pill = composer.getBoundingClientRect();
+  const composer = document.querySelector("[data-assistant-composer]"), box = composer.querySelector(".mw-composer__box"), pill = box.getBoundingClientRect();
   const parts = [];
-  for (const el of composer.children) {
-    if (!el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })) continue;
-    const box = el.getBoundingClientRect();
-    if (box.width < 2 || box.height < 2) continue;
-    parts.push({ name: String(el.className).split(" ")[0] || el.tagName.toLowerCase(), left: Math.round(box.left * 10) / 10, right: Math.round(box.right * 10) / 10 });
+  for (const el of composer.querySelectorAll(".mw-composer__to > *, .mw-composer__foot :is(button, select), .assistant-attention")) {
+    if (!el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) || el.closest("[data-compose-menu], .mw-composer__controls:not(:has(> *:first-child:not([hidden])))")) continue;
+    const b = el.getBoundingClientRect();
+    if (b.width < 2 || b.height < 2) continue;
+    parts.push({ name: el.getAttribute("data-composer-control") || el.closest(".mw-select-picker")?.querySelector("select")?.dataset.composerControl || String(el.className).split(" ")[0] || el.tagName.toLowerCase(), left: Math.round(b.left * 10) / 10, right: Math.round(b.right * 10) / 10 });
   }
-  return { overflow: composer.scrollWidth - composer.clientWidth, left: Math.round(pill.left * 10) / 10, right: Math.round(pill.right * 10) / 10, vw: document.documentElement.clientWidth,
-    stage: composer.dataset.crowded ?? "", fit: composer.dataset.fit ?? "", touchRules: matchMedia("(max-width: 600px), (pointer: coarse)").matches,
-    input: Math.round(document.querySelector("[data-assistant-input]").getBoundingClientRect().width * 10) / 10, parts };
+  const more = composer.querySelector("[data-composer-more]");
+  return { overflow: Math.max(box.scrollWidth - box.clientWidth, composer.scrollWidth - composer.clientWidth), left: Math.round(pill.left * 10) / 10, right: Math.round(pill.right * 10) / 10, vw: document.documentElement.clientWidth,
+    folded: Boolean(more && more.checkVisibility()), touchRules: matchMedia("(max-width: 600px), (pointer: coarse)").matches,
+    input: Math.round(composer.querySelector(".mw-composer__input").getBoundingClientRect().width * 10) / 10, parts };
 })()`;
 
 /** The phone bar's second row (the switcher and the Dock at the start; the residents, a directory button and the project at the end),
@@ -172,11 +162,9 @@ const DOCK_FOLD = `(async () => {
  * fed by an answer to its read of them; the strip has a page object to offer. `present` names what must be in the list, so a
  * list that did not open (or lost its buttons) cannot pass by having nothing to measure. */
 const POPOVER_CONTENTS: Array<[string, string, string, string[]]> = [
-  ["the + menu", "[data-assistant-attach]", "[data-assistant-more]", [".assistant-more-item"]],
-  ["who does it", "[data-assistant-executor]", "[data-assistant-executors]", [".assistant-starter"]],
-  ["the mode", "[data-assistant-mode]", "[data-assistant-modes]", [".assistant-starter"]],
-  ["the Character", "[data-assistant-character]", "[data-assistant-characters]", [".assistant-starter"]],
-  ["the strip", "[data-assistant-input]", "[data-assistant-context-strip]", [".assistant-strip-act[aria-label^='加入']", ".assistant-strip-act[aria-label^='不带上']"]],
+  // K3: who does it, the mode and the Character are the composer's selects now (measured on the bar); the ＋ menu lists files and the `/` commands.
+  ["the + menu", "[data-assistant-composer] [data-composer-add]", "[data-assistant-composer] .mw-composer__start [data-compose-menu]", ["[data-composer-files]", "[data-composer-command]"]],
+  ["the strip", "[data-assistant-composer] .mw-composer__input", "[data-assistant-context-strip]", [".assistant-strip-act[aria-label^='加入']", ".assistant-strip-act[aria-label^='不带上']"]],
   ["the notices", "[data-assistant-attention]", "[data-assistant-notices]", ["[data-notice-action=open]", "[data-notice-action=dismiss]", "summary"]],
   ["the plugin switcher", "[data-plugin-picker-toggle]", "[data-plugin-picker-popover]", ["[data-dock-choice]", "[data-plugin-toggle]"]],
   ["the project menu", ".navigator-project-selector", ".navigator-project-menu-popover", [".navigator-project-option", ".navigator-project-manage"]],
@@ -185,18 +173,21 @@ const POPOVER_CONTENTS: Array<[string, string, string, string[]]> = [
 ];
 /** What a list holds for a touch pointer that a fine pointer shows only under the cursor or on focus. */
 const HOVER_ONLY = ["[data-dock-choice]", "[data-plugin-toggle]"];
-/** Who carries the next new work, chosen the way a person chooses it: the plugin in the "who does it" list, or the Assistant (its first row). The mode and
- * the list itself belong to a work a plugin carries, so a list that is measured for them is measured in that state. */
-const PICK_EXECUTOR = `const pickExecutor = async (plugin) => {
-  const chooser = document.querySelector("[data-assistant-executor]");
-  chooser.hidden = false; chooser.click(); await new Promise((resolve) => setTimeout(resolve, 300));
-  const rows = [...document.querySelectorAll("[data-assistant-executors] .assistant-starter")];
-  (plugin ? rows.find((row) => /Coding/.test(row.textContent)) : rows[0])?.click();
-  await new Promise((resolve) => setTimeout(resolve, 300));
-};`;
+/** A new work a plugin carries, chosen the way a person chooses it: in the opened panel's 「谁来做」 (a new work's who and mode are
+ * chosen there), Coding. The composer then shows who does it and the mode beside ＋; the panel is closed again, so the bar is what
+ * is measured. */
+const CARRIED_BY_CODING = `(async () => {
+  const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  document.dispatchEvent(new CustomEvent("molis:assistant-open", { detail: { new: true } }));
+  let group = null;
+  for (let i = 0; i < 50 && !group; i++) { await wait(100); group = document.querySelector('[data-assistant-panel] .assistant-segmented[aria-label="由谁来做"]'); }
+  [...(group?.querySelectorAll(".assistant-segment") || [])].find((one) => /Coding/.test(one.textContent))?.click();
+  await wait(300);
+  const close = document.querySelector("[data-assistant-panel-close]"); if (close && close.checkVisibility()) close.click();
+  await wait(300);
+})()`;
 const popoversScript = (floor: number) => `(async () => {
   const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-  ${PICK_EXECUTOR}
   const notices = [
     { notice_id: "t1", kind: "needs-decision", text: "需要你决定发布时间", work_id: "w1" },
     { notice_id: "t2", kind: "reminder", text: "下午三点的评审", work_id: "w2", open: { surface: "todo", id: "x", title: "评审" } },
@@ -215,8 +206,6 @@ const popoversScript = (floor: number) => `(async () => {
     // A suggestion has no button: a plugin's page hands one over and it waits above the bar.
     const opener = button ? document.querySelector(button) : { isConnected: true, click() {}, hidden: false };
     if (!opener || !opener.isConnected) { out[name] = null; continue; }
-    // The mode is the plugin's: a work the Assistant carries has none. So a person first picks the plugin in "who does it", and the mode is there.
-    if (name === "the mode") await pickExecutor(true);
     opener.hidden = false;
     // The strip shows while the input has focus.
     if (button) { if (opener.matches("input, textarea")) opener.focus(); else opener.click(); }
@@ -232,21 +221,17 @@ const popoversScript = (floor: number) => `(async () => {
     };
     if (!pop.hidden && button) { if (opener.matches("input, textarea")) opener.blur(); else opener.click(); }
     await wait(120);
-    if (name === "the mode") await pickExecutor(false);
   }
   window.fetch = real;
   return out;
 })()`;
 
-/** The mark on the "+" that points to what the island folded into its menu. */
-const DOT = `(() => { const style = getComputedStyle(document.querySelector("[data-assistant-attach]"), "::after"); return { content: style.content, background: style.backgroundColor, size: style.width + " " + style.height }; })()`;
-
-/** The line as a person sees it around typing: whether the chips the phone hides while the input has focus are on it, and where it ends. */
+/** The composer as a person sees it around typing: where it ends, and whether its controls are folded. */
 const TYPING = `(() => {
-  const composer = document.querySelector("[data-assistant-composer]"), pill = composer.getBoundingClientRect(), send = document.querySelector("[data-assistant-send]").getBoundingClientRect();
-  return { stage: composer.dataset.crowded ?? "", fit: composer.dataset.fit ?? "", overflow: composer.scrollWidth - composer.clientWidth, sendRight: Math.round(send.right), pillRight: Math.round(pill.right),
-    focused: document.activeElement?.matches("[data-assistant-input]") === true,
-    chips: [...composer.querySelectorAll(".assistant-target, .assistant-executor, .assistant-attention")].filter(el => el.checkVisibility()).map(el => String(el.className).split(" ")[0]) };
+  const composer = document.querySelector("[data-assistant-composer]"), pill = composer.querySelector(".mw-composer__box").getBoundingClientRect(), send = composer.querySelector("[data-composer-send]").getBoundingClientRect();
+  const more = composer.querySelector("[data-composer-more]");
+  return { folded: Boolean(more && more.checkVisibility()), overflow: composer.scrollWidth - composer.clientWidth, sendRight: Math.round(send.right), pillRight: Math.round(pill.right),
+    focused: document.activeElement?.matches("[data-assistant-composer] .mw-composer__input") === true };
 })()`;
 
 /** The menus the strip opens, as a person opens them: the "+" of the strip (open a plugin), the layout button, a right-click on a tab (it makes
@@ -256,13 +241,14 @@ type SwitcherOps = { floor: number; tileHeight: number; textRoom: number; button
 type StripMenu = { shown: boolean; missing: string[]; rows: number[]; parts: Array<{ label: string; w: number; h: number; dot?: number }> };
 const STRIP_MENUS = `(async () => {
   const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-  const tabMenu = document.querySelector("[data-workspace-tab-menu]"), layout = document.querySelector("[data-workspace-layout]");
-  const close = async () => { for (const menu of [tabMenu, layout]) if (menu.matches(":popover-open")) menu.hidePopover(); await wait(100); };
+  const tabMenu = document.querySelector("[data-workspace-tab-menu]"), layout = document.querySelector("[data-workspace-layout]"), plus = document.querySelector("[data-workspace-open-menu]");
+  const close = async () => { for (const menu of [tabMenu, layout, plus]) if (menu.matches(":popover-open")) menu.hidePopover(); await wait(100); };
   const read = (menu, present) => {
     const shown = menu.matches(":popover-open");
     const controls = shown ? [...menu.querySelectorAll("button, summary, a[href], input")].filter(el => el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })) : [];
     // A colour swatch is a target with a dot drawn inside it (::before): the dot is what a person sees, the box is what answers to a finger.
-    const size = (el) => { const box = el.getBoundingClientRect(), swatch = (el.dataset.tabMenuAction || "").startsWith("color-");
+    // A field in a group (＋'s search, 07-S2) answers to the whole group, its label: that box is its target.
+    const size = (el) => { const box = (el.closest(".mw-input-group") || el).getBoundingClientRect(), swatch = (el.dataset.tabMenuAction || "").startsWith("color-");
       return { label: el.dataset.tabMenuAction || el.dataset.layoutSplit || el.dataset.layoutAction || el.tagName.toLowerCase(), w: Math.round(box.width), h: Math.round(box.height),
         dot: swatch ? Math.round(parseFloat(getComputedStyle(el, "::before").width)) : undefined }; };
     const isRow = (el) => el.matches("[data-layout-split], [data-layout-action], [data-tab-menu-action]:not([data-tab-menu-action^=color-])");
@@ -270,8 +256,9 @@ const STRIP_MENUS = `(async () => {
   };
   const out = {};
   document.querySelector(".tab-add-button").click(); await wait(300);
-  out["the open-plugin menu"] = read(tabMenu, ["[data-tab-menu-action=open-home]"]); await close();
-  document.querySelector(".tab-split-button").click(); await wait(300);
+  // 07-S2: ＋ has a menu of its own that only opens plugins; the project home is the Dock's, not one of its rows.
+  out["the open-plugin menu"] = read(plus, ["[data-tab-menu-action^=open-]", "input"]); await close();
+  document.querySelector("[data-layout-open]").click(); await wait(300);
   out["the layout menu"] = read(layout, ["[data-layout-split=right]", "[data-layout-action=equal]"]); await close();
   document.querySelector(".tab-item-trigger").dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true })); await wait(300);
   out["a tab's menu"] = read(tabMenu, ["[data-tab-menu-action=pin]", "[data-tab-menu-action=new-group]", "[data-tab-menu-action=close]"]);
@@ -281,11 +268,11 @@ const STRIP_MENUS = `(async () => {
   return out;
 })()`;
 
-/** The tab bar of the opened Assistant panel, opened from the work's chip (a current work is the state that has one). */
+/** The tab bar of the opened Assistant panel, opened from the receiver's name on the composer (a current work is the state that has one). */
 type PanelHeader = { shown: boolean; height: number; title: number; controls: Array<{ label: string; w: number; h: number; inside: boolean }> };
 const PANEL_HEADER = `(async () => {
   const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-  document.querySelector(".assistant-target-main")?.click(); await wait(800);
+  document.querySelector("[data-assistant-composer] [data-composer-receiver]")?.click(); await wait(800);
   const panel = document.querySelector("[data-assistant-panel]"), bar = panel.querySelector(".assistant-tabbar"), box = panel.getBoundingClientRect();
   const controls = [...bar.querySelectorAll("button, [role=tab]")].filter(el => el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })).map(el => {
     const b = el.getBoundingClientRect();
@@ -323,7 +310,7 @@ const PANEL_HOST_CONTROLS = assistantTextHtml('[link](https://example.test) 「�
   options: [{ value: 'one', label: '继续整理' }], allows_free_text: true }, text => text);
 const PANEL_BODY = `(async () => {
   const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-  document.querySelector(".assistant-target-main")?.click(); await wait(800);
+  document.querySelector("[data-assistant-composer] [data-composer-receiver]")?.click(); await wait(800);
   const panel = document.querySelector("[data-assistant-panel]");
   const sizes = (root) => [...root.querySelectorAll("button, summary, a[href], input, select, textarea, [role=tab]")]
     .filter(el => el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) && !el.closest("[data-test-made]"))
@@ -398,15 +385,20 @@ const IN_SHELL = /bar-composer|assistant-composer|dock-pin|bar-side|bar-chat|plu
 
 type Browser = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;
 
-/** ISSUE-30: declared Home tools stay inside the viewport, and the visible target can actually be reached. */
+/**
+ * ISSUE-30: declared Home tools stay inside the viewport, and the visible target can actually be reached, without scrolling
+ * anything to it. Since 07-1 S4b a Home tool with a chord (Issue) is reached by its glyph on the right side of the titlebar, no
+ * longer a titlebar button of its own; on a phone the glyph row scrolls, and the Home tool leads it there, so it is in view as the
+ * page draws (the always-there entry the person kept at the top right, 10-12).
+ */
 async function assertHomeToolsReachable(browser: Browser): Promise<void> {
   const report = await browser.evaluate<{ count: number; blocked: string[] }>(`(() => {
-    const nodes = [...document.querySelectorAll('[data-home-plugin-open]')];
+    const nodes = [...document.querySelectorAll('[data-side-tabs] [data-side-keys]')];
     const blocked = nodes.filter(el => {
       const r = el.getBoundingClientRect(), x = r.left + r.width / 2;
       const inside = r.width > 0 && r.height > 0 && r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight;
       return !inside || ![r.top + 2, r.top + r.height / 2, r.bottom - 2].every(y => el.contains(document.elementFromPoint(x, y)));
-    }).map(el => el.textContent.trim());
+    }).map(el => el.textContent.trim() || el.getAttribute('aria-label') || el.parentElement.title);
     return { count: nodes.length, blocked };
   })()`);
   assert.ok(report.count > 0, "the current Home tools are present");
@@ -441,49 +433,13 @@ function windowsOf(browser: Browser, scheme: "light" | "dark", touch: boolean) {
   // whatever the control sizes are; it is not what is measured here.
   const shellFindings = async () => (await layoutFindings(evaluate)).filter(finding => IN_SHELL.test(`${finding.a ?? ""} ${finding.b ?? ""}`) && !/tree-resizer/.test(`${finding.a ?? ""} ${finding.b ?? ""}`));
 
-  /** Whether the line, one step less folded than the island left it, would run over its pill: a step is taken only when it must be. */
-  const FOLD_ORDER = JSON.stringify(["", ...FOLD_STEPS.map(([name]) => name)]);
-  const stepBefore = `(() => {
-    const composer = document.querySelector("[data-assistant-composer]");
-    const order = ${FOLD_ORDER}, here = composer.dataset.crowded ?? "", before = order[order.indexOf(here) - 1];
-    if (before === undefined) return null;
-    if (before) composer.dataset.crowded = before; else delete composer.dataset.crowded;
-    const over = composer.scrollWidth > composer.clientWidth + 1;
-    if (here) composer.dataset.crowded = here;
-    return over;
-  })()`;
-
-  /** The "+" menu with the chips a crowded line folded into it: what it lists, how tall its rows are, whether each row opens the list its chip
-   * would, and whether Escape and a click elsewhere put that list away (focus then goes to the "+", the chip is not there to take it). */
-  const MORE_MENU = `(async () => {
-    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-    const attach = document.querySelector("[data-assistant-attach]"), more = document.querySelector("[data-assistant-more]");
-    attach.click(); await wait(120);
-    const first = [...more.querySelectorAll(".assistant-more-item")];
-    const out = { open: !more.hidden, labels: first.map((row) => row.querySelector(".assistant-more-label").textContent), heights: first.map((row) => Math.round(row.getBoundingClientRect().height)), opens: {}, closes: {} };
-    for (const [key, label, list, how] of [["notices", "需要你看看", "[data-assistant-notices]", "Escape"]]) {
-      if (more.hidden) { attach.click(); await wait(120); }
-      const row = [...more.querySelectorAll(".assistant-more-item")].find((candidate) => candidate.querySelector(".assistant-more-label").textContent === label);
-      if (!row) continue;
-      row.click(); await wait(120);
-      const pop = document.querySelector(list);
-      out.opens[key] = !pop.hidden && more.hidden;
-      if (how === "Escape") pop.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
-      else document.body.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
-      await wait(60);
-      out.closes[key] = pop.hidden && (how !== "Escape" || document.activeElement === attach);
-    }
-    if (!more.hidden) attach.click();
-    return out;
-  })()`;
-
-  /** The Assistant line with some chips shown: they are the ones the island shows beside the input in that state. A crowded line takes
-   * chips off in steps (the island marks which), so what must be on it is `present` less what that step folds; what is folded is not lost:
-   * the work chip's mark is the panel's own "new work", the choosers are in the side pane, the notice is in the "+" menu. */
+  /** The Assistant's composer with the bell shown or not: what must be on the bar is `present`, except that a narrow composer folds its
+   * scene controls behind 更多 (then 更多 is there instead, and what it opens is measured too). Nothing runs past the composer's box or the window. */
   const line = async (name: string, chips: string[], present: string[], floor: number, chipWidthFree = false, insidePill = true) => {
-    if (present.includes("work chip")) await waitFor("document.querySelector('[data-assistant-target-wrap]')?.getClientRects().length > 0", 10_000);
+    if (present.includes("work chip clear")) await waitFor("Boolean(document.querySelector('[data-assistant-composer] .mw-composer__to [data-tag-remove]'))", 10_000);
+    if (present.includes("composer control")) await waitFor("Boolean(document.querySelector('[data-assistant-composer] [data-composer-control]'))", 10_000);
     await evaluate(lookAtPage(false));
-    // The island repaints its chips when its first answers come back and would hide what was shown; show them again until they stay.
+    // The island repaints the bell when its first answers come back and would hide what was shown; show it again until it stays.
     let bar: Control[] = [];
     let kinds = new Set<string>();
     let fit = await evaluate<LineFit>(LINE_FIT);
@@ -494,63 +450,56 @@ function windowsOf(browser: Browser, scheme: "light" | "dark", touch: boolean) {
       bar = (await evaluate<Control[]>(SHELL_CONTROLS)).filter(control => control.area === "bar");
       kinds = new Set(bar.map(control => control.kind));
       fit = await evaluate<LineFit>(LINE_FIT);
-      expected = fit.touchRules ? present.filter(kind => !foldedAt(fit.stage).includes(kind)) : present;
+      expected = fit.folded ? [...present.filter(kind => kind !== "composer control"), ...(present.includes("composer control") ? ["composer more"] : [])] : present;
       if (expected.every(kind => kinds.has(kind)) && (!chips.length || await evaluate<boolean>(chipsShown(chips)))) break;
     }
-    assert.deepEqual(expected.filter(kind => !kinds.has(kind)), [], `${name}: every chip of the state that the line keeps is there to measure (stage "${fit.stage}")`);
-    assert.deepEqual(present.filter(kind => !expected.includes(kind) && kinds.has(kind)), [], `${name}: the chips that step aside from a crowded line are not on it (stage "${fit.stage}")`);
+    assert.deepEqual(expected.filter(kind => !kinds.has(kind)), [], `${name}: every part of the state is there to measure (folded: ${fit.folded})`);
     const small = (control: Control) => (chipWidthFree && LINE_KINDS.includes(control.kind) ? control.h : short(control)) < floor;
     assert.deepEqual(bar.filter(small).map(control => `${control.kind} 「${control.label}」 ${control.w}×${control.h}`), [], `${name}: no control of the bar is under ${floor}px`);
     assert.deepEqual(bar.filter(control => control.kind.startsWith("unlisted")).map(control => control.kind), [], `${name}: every control is a known one`);
     if (insidePill) {
-      assert.ok(fit.overflow <= 1, `${name}: the line does not overflow its pill (by ${fit.overflow}px; ${JSON.stringify(fit)})`);
+      assert.ok(fit.overflow <= 1, `${name}: the composer does not overflow (by ${fit.overflow}px; ${JSON.stringify(fit)})`);
       assert.deepEqual(fit.parts.filter(part => part.left < fit.left - 1 || part.right > fit.right + 1 || part.right > fit.vw).map(part => `${part.name} ${part.left}–${part.right}`), [],
-        `${name}: every part of the line is inside its pill (${fit.left}–${fit.right}) and the window (${fit.vw})`);
+        `${name}: every part of the composer is inside its box (${fit.left}–${fit.right}) and the window (${fit.vw})`);
     }
     assert.ok(fit.input >= (floor >= 44 ? 44 : 28), `${name}: the input keeps its box (${fit.input}px)`);
-    // Taking chips off is the last resort: the step the island took was needed, and with none taken the line fits as it is.
-    if (fit.stage) assert.equal(await evaluate<boolean | null>(stepBefore), true, `${name}: one step less folded than "${fit.stage}" would run over the pill, so the fold was needed`);
-    // A dot on the "+" says the notice is in its menu: it is there when it is folded into it, and not otherwise.
-    const dot = await evaluate<{ content: string; background: string; size: string }>(DOT);
-    if (fit.stage === "chips" && fit.touchRules) {
-      assert.notEqual(dot.content, "none", `${name}: the "+" carries a dot while its menu holds the folded chips`);
-      assert.equal(dot.size, "8px 8px", `${name}: an 8px dot`);
-      assert.notEqual(dot.background, "rgba(0, 0, 0, 0)", `${name}: and it is painted, not an empty box`);
-    } else assert.equal(dot.content, "none", `${name}: the "+" has no dot while nothing is folded into it (stage "${fit.stage}")`);
-    // What a crowded line folded into the "+" menu is there, as tall as a touch target, and opens the same list the chip did.
-    const aside = present.filter(kind => kind === "attention chip" && !expected.includes(kind));
-    if (aside.length) {
-      const menu = await evaluate<{ open: boolean; labels: string[]; heights: number[]; opens: Record<string, boolean>; closes: Record<string, boolean> }>(MORE_MENU);
-      assert.equal(menu.open, true, `${name}: the "+" button opens its menu`);
-      if (aside.includes("attention chip")) { assert.ok(menu.labels.includes("需要你看看"), `${name}: the "+" menu lists the folded notice (${menu.labels})`); assert.equal(menu.opens.notices, true, `${name}: and opens the notices`); assert.equal(menu.closes.notices, true, `${name}: which Escape puts away, focus going back to the "+"`); }
-      assert.deepEqual(menu.heights.filter(height => height < 44), [], `${name}: and its rows are 44px on touch (${menu.heights})`);
+    // Folded controls are not lost: 更多 opens them, each as tall as a target, inside the window.
+    if (fit.folded && present.includes("composer control")) {
+      const opened = await evaluate<{ shown: boolean; small: string[]; outside: string[] }>(`(async () => {
+        const more = document.querySelector("[data-assistant-composer] [data-composer-more]"); more.click(); await new Promise((resolve) => setTimeout(resolve, 150));
+        const controls = [...document.querySelectorAll("[data-assistant-composer] .mw-composer__controls :is([data-composer-control], .mw-select-picker__trigger)")].filter((el) => el.checkVisibility());
+        const name = (el) => el.dataset.composerControl || el.closest(".mw-select-picker")?.querySelector("select")?.dataset.composerControl || "?";
+        const out = { shown: controls.length > 0, small: controls.filter((el) => Math.min(el.getBoundingClientRect().width, el.getBoundingClientRect().height) < ${floor}).map(name),
+          outside: controls.filter((el) => { const b = el.getBoundingClientRect(); return b.left < 0 || b.right > document.documentElement.clientWidth + 1 || b.top < 0; }).map(name) };
+        more.click(); await new Promise((resolve) => setTimeout(resolve, 100));
+        return out;
+      })()`);
+      assert.equal(opened.shown, true, `${name}: 更多 opens the folded controls`);
+      assert.deepEqual(opened.small, [], `${name}: and they are ${floor}px targets`);
+      assert.deepEqual(opened.outside, [], `${name}: inside the window`);
     }
     return { fit, expected };
   };
 
-  /** A tap into the input and away again, as a person does to type and dismiss the keyboard. The phone hides the chips while the input has
-   * focus; the line must come back as it was, the same steps and inside its pill (it is measured
-   * with its chips on it, whether or not typing hides them). */
-  const typeAndLeave = async (name: string, before: LineFit, phoneWidth: boolean) => {
-    type Typing = { stage: string; fit: string; overflow: number; sendRight: number; pillRight: number; focused: boolean; chips: string[] };
-    await evaluate(`document.querySelector("[data-assistant-input]").focus()`);
+  /** A tap into the input and away again, as a person does to type and dismiss the keyboard: the composer comes back as it was,
+   * folded or not as before and inside its box. */
+  const typeAndLeave = async (name: string, before: LineFit) => {
+    type Typing = { folded: boolean; overflow: number; sendRight: number; pillRight: number; focused: boolean };
+    await evaluate(`document.querySelector("[data-assistant-composer] .mw-composer__input").focus()`);
     await settle();
     const typing = await evaluate<Typing>(TYPING);
-    await evaluate(`document.querySelector("[data-assistant-input]").blur()`);
+    await evaluate(`document.querySelector("[data-assistant-composer] .mw-composer__input").blur()`);
     await settle();
     const after = await evaluate<Typing>(TYPING);
     assert.equal(typing.focused, true, `${name}: the input has focus while typing`);
-    if (phoneWidth) assert.deepEqual(typing.chips, [], `${name}: the phone hides the chips while the input has focus, so this is the case that used to lose the steps`);
-    assert.deepEqual([typing.stage, typing.fit], [before.stage, before.fit], `${name}: the steps do not depend on the input's focus (typing: ${JSON.stringify(typing)})`);
-    assert.deepEqual([after.stage, after.fit], [before.stage, before.fit], `${name}: after the input lets go the line has the steps it had (${JSON.stringify(after)})`);
-    assert.ok(after.overflow <= 1, `${name}: and it does not overflow its pill (by ${after.overflow}px)`);
-    assert.ok(after.sendRight <= after.pillRight + 1, `${name}: send ends inside the pill (${after.sendRight} of ${after.pillRight})`);
+    assert.deepEqual([typing.folded, after.folded], [before.folded, before.folded], `${name}: the fold does not depend on the input's focus (typing: ${JSON.stringify(typing)})`);
+    assert.ok(after.overflow <= 1, `${name}: and it does not overflow (by ${after.overflow}px)`);
+    assert.ok(after.sendRight <= after.pillRight + 1, `${name}: send ends inside the box (${after.sendRight} of ${after.pillRight})`);
   };
 
-  /** Opens what a button of the Assistant line opens, presses Escape in it, and says whether it closed and where focus went: back to the
-   * button, or to the "+" when the island has taken that chip off the line (the chip is not there to take focus back). */
+  /** Opens what a button of the Assistant's composer opens, presses Escape in it, and says whether it closed and where focus went: back to the button. */
   const escapeReturns = (button: string, popover: string) => evaluate<{ opened: boolean; closed: boolean; focus: boolean; onButton: boolean }>(`(async () => {
-    const button = document.querySelector(${JSON.stringify(button)}), popover = document.querySelector(${JSON.stringify(popover)}), attach = document.querySelector("[data-assistant-attach]");
+    const button = document.querySelector(${JSON.stringify(button)}), popover = document.querySelector(${JSON.stringify(popover)}), attach = document.querySelector("[data-assistant-composer] [data-composer-add]");
     button.click(); await new Promise((resolve) => setTimeout(resolve, 250));
     const opened = !popover.hidden;
     popover.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
@@ -558,7 +507,7 @@ function windowsOf(browser: Browser, scheme: "light" | "dark", touch: boolean) {
     return { opened, closed: popover.hidden, focus: document.activeElement === (button.checkVisibility() ? button : attach), onButton: document.activeElement === button };
   })()`);
 
-  const chooseExecutor = (plugin: boolean) => evaluate(`(async () => { ${PICK_EXECUTOR} await pickExecutor(${plugin}); })()`);
+  const carriedByCoding = () => evaluate(CARRIED_BY_CODING);
 
   /** A send without a model keeps the work, which is all the chip needs; the island remembers it as this viewer's current work. */
   const makeCurrentWork = () => evaluate(`(async () => {
@@ -571,9 +520,9 @@ function windowsOf(browser: Browser, scheme: "light" | "dark", touch: boolean) {
 
   /** The rows of the "+" menu, as a person who opens it sees them. */
   const moreLabels = () => evaluate<string[]>(`(async () => {
-    const attach = document.querySelector("[data-assistant-attach]"), more = document.querySelector("[data-assistant-more]");
-    attach.click(); await new Promise((resolve) => setTimeout(resolve, 120));
-    const labels = [...more.querySelectorAll(".assistant-more-item")].map((row) => row.querySelector(".assistant-more-label").textContent);
+    const attach = document.querySelector("[data-assistant-composer] [data-composer-add]"), more = document.querySelector("[data-assistant-composer] .mw-composer__start [data-compose-menu]");
+    attach.click(); await new Promise((resolve) => setTimeout(resolve, 300));
+    const labels = [...more.querySelectorAll("[role=menuitem]")].map((row) => (row.querySelector("[id$='-label']") || row.querySelector("[data-slot=menu-item-label]")).textContent);
     attach.click();
     return labels;
   })()`);
@@ -646,24 +595,18 @@ function windowsOf(browser: Browser, scheme: "light" | "dark", touch: boolean) {
     })`);
   };
 
-  return { start, open, short, settle, shellFindings, rowFit, dockFold, popovers, switcherOps, stripMenus, panelHeader, panelBody, menuRows, line, typeAndLeave, moreLabels, makeCurrentWork, chooseExecutor, escapeReturns, evaluate, waitFor };
+  return { start, open, short, settle, shellFindings, rowFit, dockFold, popovers, switcherOps, stripMenus, panelHeader, panelBody, menuRows, line, typeAndLeave, moreLabels, makeCurrentWork, carriedByCoding, escapeReturns, evaluate, waitFor };
 }
 
-const NEW_WORK = ["[data-assistant-executor]", "[data-assistant-attention]", "[data-assistant-mode]"];
-const NEW_WORK_KINDS = ["executor chip", "attention chip", "mode chip"];
-/** What a work's line can show at most: the island shows a Character only on a work that is not Coding and the mode only on a Coding one. */
-const WITH_CHARACTER = ["[data-assistant-attention]", "[data-assistant-character]"];
-const WITH_MODE = ["[data-assistant-attention]", "[data-assistant-mode]"];
-const BASE = ["work chip", "work chip clear", "attention chip"];
-/** The windows where a phone's Assistant line is tight: 320 and 360 are the narrow phones, 390 the common one, and 640, 667 and
- * 740 are phones held sideways (the Dock and residents trays leave the line 214, 241 and 314px), 852 the one that has room. */
+/** A new work a plugin carries: who does it and its mode are the composer's controls (K3, UIV-12). */
+const NEW_WORK_KINDS = ["composer control"];
+const BASE = ["work chip clear", "attention chip"];
+/** The windows where a phone's Assistant composer is tight: 320 and 360 are the narrow phones, 390 the common one, and 640, 667 and
+ * 740 are phones held sideways (the Dock and residents trays leave the composer 214, 241 and 314px), 852 the one that has room. */
 const LINE_WINDOWS = [[320, 568], [360, 740], [390, 844], [640, 360], [667, 375], [740, 360], [852, 393]] as const;
 const LINE_STATES = [
-  ["a current work", [], ["work chip", "work chip clear"]],
+  ["a current work", [], ["work chip clear"]],
   ["a current work with a notice", ["[data-assistant-attention]"], BASE],
-  ["a Coding work", ["[data-assistant-mode]"], ["work chip", "work chip clear", "mode chip"]],
-  ["a work with a notice and a Character", WITH_CHARACTER, [...BASE, "character chip"]],
-  ["a Coding work with a notice", WITH_MODE, [...BASE, "mode chip"]],
 ] as const;
 
 for (const scheme of ["light", "dark"] as const) {
@@ -688,8 +631,10 @@ for (const scheme of ["light", "dark"] as const) {
     // widths below were written for, and at 390px it holds every pin, so no "+N" button would be drawn and the checks that hold it
     // next to 项目首页 on the widest row would pass over nothing. The Dock keeps what a person pinned in the page's storage, so the
     // test pins one more plugin and the row is as long as it was; the assertions below are the ones that were written for it.
+    // Todo is the person's own now, kept in the tray at the bar's right end, not on the Dock, and the bar's side switch has left
+    // the Dock more room (07-1 S4b): the test pins Pages, 灵光 and Workflows instead, so the row at 390px still folds into "+N".
     await w.open(390, 844, HOME[1], HOME[2]);
-    await w.evaluate(`localStorage.setItem('molis-work:dock-pins', JSON.stringify(['goals', 'inbox', 'feed', 'todo']))`);
+    await w.evaluate(`localStorage.setItem('molis-work:dock-pins', JSON.stringify(['goals', 'inbox', 'feed', 'pages', 'lingguang', 'workflows']))`);
     for (const [width, height] of [[390, 844], [375, 667], [360, 740], [350, 640], [320, 568]] as const) {
       for (const [name, path, ready] of [HOME, PLUGIN, SETTINGS]) {
         const controls = await w.open(width, height, path, ready);
@@ -726,7 +671,7 @@ for (const scheme of ["light", "dark"] as const) {
     assert.deepEqual(folded.listed, folded.hidden, `320px home: the "+N" list holds exactly the pins the row folded (${JSON.stringify(folded)})`);
     assert.deepEqual([...folded.pins.filter(pin => !folded.hidden.includes(pin)), ...folded.listed].sort(), folded.pins,
       `320px home: the pins on the row plus the pins in the list are the whole set, none lost and none twice (${JSON.stringify(folded)})`);
-    for (const pin of ["home", "goals", "inbox", "feed", "todo"]) assert.ok(folded.pins.includes(pin), `320px home: the Dock drew ${pin} (${JSON.stringify(folded)})`);
+    for (const pin of ["home", "goals", "inbox", "feed", "pages"]) assert.ok(folded.pins.includes(pin), `320px home: the Dock drew ${pin} (${JSON.stringify(folded)})`);
     const dockList = (await w.popovers(44))["the Dock's list"];
     assert.ok(dockList, "320px home: the \"+N\" button is there to open the Dock's list");
     assert.equal(dockList.shown, true, "320px home: the Dock's list opens");
@@ -738,10 +683,10 @@ for (const scheme of ["light", "dark"] as const) {
     t.diagnostic(`the Dock's "+N" list at 320px held ${dockList.items.length} items (${dockList.items.map(item => `${item.pin} ${item.h}px`).join(", ")}) beside ${folded.pins.length - folded.hidden.length} pins on the row`);
     assert.deepEqual(Object.values(KINDS).filter(kind => !LINE_KINDS.includes(kind) && !seen.has(kind)), [], "the three screens showed every kind of control, so none went unmeasured");
 
-    // The Assistant line stays a 44px input with room to type, and its attach and send keep their size while typing.
-    await w.evaluate(`(() => { const input = document.querySelector('[data-assistant-input]'); input.focus(); input.value = '整理一下本周的待办'; input.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+    // The Assistant's composer stays a 44px input with room to type, and its ＋ and send keep their size while typing.
+    await w.evaluate(`(() => { const input = document.querySelector('[data-assistant-composer] .mw-composer__input'); input.focus(); input.value = '整理一下本周的待办'; input.dispatchEvent(new Event('input', { bubbles: true })); })()`);
     const typing = (await w.evaluate<Control[]>(SHELL_CONTROLS)).filter(control => control.kind.startsWith("assistant"));
-    assert.equal(typing.length, 3, "input, attach and send are all there while typing");
+    assert.deepEqual(typing.map(control => control.kind).sort(), ["assistant attach", "assistant input", "assistant receiver", "assistant send"], "B10-R6: input, attach, receiver and send are all there while typing");
     assert.deepEqual(typing.filter(control => w.short(control) < 44), [], "and are still 44px");
     assert.ok(typing.find(control => control.kind === "assistant input")!.w >= 120, "the input keeps room to type");
 
@@ -757,10 +702,8 @@ for (const scheme of ["light", "dark"] as const) {
       }
     }
 
-    // What the bar opens is a 44px target too: the lists of the Assistant's line (the "+" menu, who does it, the mode, the Character,
-    // the notices with their buttons, the strip's add and remove buttons), the plugin switcher with its pin and add buttons,
-    // the Dock's "+N" list and the project menu. The folding steps above send people into these lists, so a row that is smaller
-    // than a finger is a step that does not work.
+    // What the bar opens is a 44px target too: the lists of the Assistant's composer (the "+" menu, the notices with their buttons,
+    // the strip's add and remove buttons), the plugin switcher with its pin and add buttons, the Dock's "+N" list and the project menu.
     for (const [name, width, height] of [["a phone", 390, 844], ["a narrow phone", 360, 740], ["a tablet", 1024, 768]] as const) {
       await w.open(width, height, "", "true");
       const lists = await w.popovers(44);
@@ -802,14 +745,14 @@ for (const scheme of ["light", "dark"] as const) {
       assert.deepEqual(describedRows.filter(row => !row.descriptionFits), [], `descriptions fit their touch targets at ${width}`);
     }
 
-    // The Assistant line in the states the seeded project does not start in. The chips of a state are the ones the island shows
-    // beside the input then (it hides them otherwise); what is measured is their box on the real bar. A new work whose carrier
-    // was chosen, with the chips that wait beside the input, comes first; then a current work, whose chip stands in front of the
-    // input with a mark to start a new work instead. Phones of 360 and 390px and sideways phones of 640, 667, 740 and 852px.
+    // The Assistant's composer in the states the seeded project does not start in, measured on the real bar: first a new work a plugin
+    // carries (who does it and its mode beside ＋, folded behind 更多 where the composer is narrow), then a current work, whose receiver
+    // row has a mark to start a new work instead.
     for (const [width, height] of [[390, 844], [852, 393]] as const) {
       await w.open(width, height, "", "true");
-      await w.line(`a new work · ${width}`, NEW_WORK, NEW_WORK_KINDS, 44);
-      assert.deepEqual(await w.shellFindings(), [], `a new work · ${width}: the bar lays out cleanly with 44px chips`);
+      await w.carriedByCoding();
+      await w.line(`a new work Coding carries · ${width}`, [], NEW_WORK_KINDS, 44);
+      assert.deepEqual(await w.shellFindings(), [], `a new work · ${width}: the bar lays out cleanly with 44px controls`);
     }
     await w.makeCurrentWork();
     // The opened Assistant panel's tab bar (the work's tab and its close mark, new work, all works, details, minimize) is a row of 44px
@@ -817,7 +760,7 @@ for (const scheme of ["light", "dark"] as const) {
     for (const [width, height] of [[320, 568], [360, 740], [390, 844], [852, 393], [1024, 768]] as const) {
       await w.open(width, height, "", "true");
       const header = await w.panelHeader();
-      assert.equal(header.shown, true, `the panel opens from the work's chip at ${width}`);
+      assert.equal(header.shown, true, `the panel opens from the receiver's name at ${width}`);
       assert.ok(header.controls.length >= 5, `the panel's tab bar has its tab, close mark and four buttons at ${width} (${JSON.stringify(header.controls)})`);
       assert.deepEqual(header.controls.filter(control => Math.min(control.w, control.h) < 44).map(control => `${control.label} ${control.w}×${control.h}`), [], `panel header · ${width}: every control is a 44px target`);
       assert.deepEqual(header.controls.filter(control => !control.inside).map(control => control.label), [], `panel header · ${width}: and none leaves the panel`);
@@ -841,43 +784,25 @@ for (const scheme of ["light", "dark"] as const) {
       assert.deepEqual(body.made.filter(item => /assistant-inline-object/.test(item.cls) && !(item.hit && item.w >= 44)).map(item => `${item.cls} ${item.w}×${item.h}`), [], `panel body · ${width}: an object chip in a sentence answers to a finger 44px above and below it`);
       assert.ok(body.overflow <= 1, `panel body · ${width}: and they do not push the thread sideways (${body.overflow}px)`);
     }
-    const stages: Record<string, string> = {};
+    const folds: Record<string, boolean> = {};
     for (const [width, height] of LINE_WINDOWS) {
       await w.open(width, height, "", "true");
       for (const [name, chips, kinds] of LINE_STATES) {
         const { fit } = await w.line(`${name} · ${width}`, [...chips], [...kinds], 44);
-        stages[`${width} ${name}`] = fit.stage;
-        await w.typeAndLeave(`${name} · ${width}`, fit, width <= 600);
-        assert.deepEqual(await w.shellFindings(), [], `${name} · ${width}: the bar lays out cleanly with 44px chips`);
-        assert.ok(fit.input >= (width <= 600 ? 64 : 44), `${name} · ${width}: the input keeps its floor beside the chips (${fit.input}px)`);
+        folds[`${width} ${name}`] = fit.folded;
+        await w.typeAndLeave(`${name} · ${width}`, fit);
+        assert.deepEqual(await w.shellFindings(), [], `${name} · ${width}: the bar lays out cleanly with 44px targets`);
+        assert.ok(fit.input >= (width <= 600 ? 64 : 44), `${name} · ${width}: the input keeps its floor (${fit.input}px)`);
       }
     }
-    // The steps, window by window: a line that fits folds nothing, and the narrower the window the more it folds, never a chip it
-    // could keep. These are the stages the island reaches at 44px targets; a change here is a change in what a phone's line shows.
-    // With the materials chip gone from the line (it is the strip above it now, §21.2 point 1), 390px folds nothing and 360px
-    // folds one step less than it did. With one button at the bar's end instead of three (side-shelf §3.1), 667px, where the
-    // trays leave the line least room, folds nothing either.
-    assert.deepEqual(Object.fromEntries(Object.entries(stages).filter(([key]) => /^(390|360|667) /.test(key))), {
-      "390 a current work": "", "390 a current work with a notice": "", "390 a Coding work": "",
-      "390 a work with a notice and a Character": "", "390 a Coding work with a notice": "",
-      "360 a current work": "", "360 a current work with a notice": "", "360 a Coding work": "",
-      "360 a work with a notice and a Character": "choosers", "360 a Coding work with a notice": "choosers",
-      "667 a current work": "", "667 a current work with a notice": "", "667 a Coding work": "",
-      "667 a work with a notice and a Character": "", "667 a Coding work with a notice": "",
-    }, "the steps the island takes at 390, 360 and 667px");
-    // A 640×360 window: with the bar's end down to one button, a bare current work folds nothing and the fullest line only the
-    // choosers (it folded the mark, and the chips, while the end held three). The mark still folds first at 320px.
-    assert.deepEqual(Object.fromEntries(Object.entries(stages).filter(([key]) => key.startsWith("640 "))), {
-      "640 a current work": "", "640 a current work with a notice": "", "640 a Coding work": "",
-      "640 a work with a notice and a Character": "choosers", "640 a Coding work with a notice": "choosers",
-    }, "the steps the island takes in a 640×360 window");
-    assert.equal(stages["320 a current work with a notice"], "mark", "at 320px a current work with a notice folds the mark and nothing else");
+    // A current work has no scene controls, so nothing is folded at any of these widths; a composer with controls folds them on a box
+    // narrower than 480px, which is checked with the new work above.
+    assert.deepEqual(Object.entries(folds).filter(([, folded]) => folded).map(([key]) => key), [], "a current work's composer folds nothing");
 
-    // A tablet's line, with every chip a work can show.
+    // A tablet's composer, with every part a current work shows.
     await w.open(1024, 768, "", "true");
-    await w.line("a work with a Coding mode and every chip · 1024", WITH_MODE, [...BASE, "mode chip"], 44);
-    await w.line("a work with a Character and every chip · 1024", WITH_CHARACTER, [...BASE, "character chip"], 44);
-    assert.deepEqual(await w.shellFindings(), [], "a work with every chip · 1024: the bar lays out cleanly");
+    await w.line("a current work with a notice · 1024", ["[data-assistant-attention]"], BASE, 44);
+    assert.deepEqual(await w.shellFindings(), [], "a current work with a notice · 1024: the bar lays out cleanly");
   });
 
   test(`a fine-pointer window keeps the desktop bar's written sizes and its floor · ${scheme}`, { timeout: 300_000 }, async t => {
@@ -893,11 +818,11 @@ for (const scheme of ["light", "dark"] as const) {
       ["the project's settings", "settings", "!!document.querySelector('.tab-view-chip-close')"],
     ] as const) {
       const controls = await w.open(1280, 800, path, ready);
-      assert.deepEqual(controls.filter(control => w.short(control) < (control.kind === "home plugin" ? 32 : floors[control.area])).map(control => `${control.kind} ${control.w}×${control.h}`), [],
+      assert.deepEqual(controls.filter(control => w.short(control) < floors[control.area]).map(control => `${control.kind} ${control.w}×${control.h}`), [],
         `${name} · 1280: nothing in the strip is under ${floors.strip}px or in the bar under ${floors.bar}px`);
       assert.deepEqual(controls.filter(control => control.kind.startsWith("unlisted")).map(control => control.kind), [], `${name} · 1280: every control is a known one`);
       const input = controls.find(control => control.kind === "assistant input");
-      assert.ok(input && input.h <= 32, "the desktop Assistant line stays the 28px line the exception describes, not a phone's 44px");
+      assert.ok(input && input.h <= 46, "the desktop Assistant input is the composer's two lines (44px) to start, not grown");
       assert.ok(controls.some(control => w.short(control) < 44), `${name} · 1280: the desktop chrome is denser than 44px, as the exception says`);
     }
 
@@ -952,29 +877,25 @@ for (const scheme of ["light", "dark"] as const) {
 
     // A short window: DESIGN.md writes the Dock, resident and switcher buttons as 34px there, and the floors still hold.
     const shortWindow = await w.open(1280, 500, "", "true");
-    assert.deepEqual(shortWindow.filter(control => w.short(control) < (control.kind === "home plugin" ? 32 : floors[control.area])).map(control => `${control.kind} ${control.w}×${control.h}`), [],
+    assert.deepEqual(shortWindow.filter(control => w.short(control) < floors[control.area]).map(control => `${control.kind} ${control.w}×${control.h}`), [],
       "a short window · 1280×500: nothing in the strip is under 20px or in the bar under 28px");
     assert.deepEqual(shortWindow.filter(control => ["dock", "resident", "plugin switcher"].includes(control.kind) && control.area === "bar").map(control => control.h).filter(h => h !== 34), [],
       "a short window · 1280×500: the Dock, resident and switcher buttons are the 34px DESIGN.md writes");
 
-    // The Assistant line in the states the seeded project does not start in, on the desktop bar's 28px floor.
+    // The Assistant's composer in the states the seeded project does not start in, on the desktop bar's 28px floor.
     await w.open(1280, 800, "", "true");
-    await w.line("a new work · 1280", NEW_WORK, NEW_WORK_KINDS, floors.bar);
-    // Escape puts away what a button of the line opened and gives it focus back: the "+" menu and the choosers' lists.
-    // The "who does it" button and the mode are on the line once a plugin is chosen to carry the work: a person chooses it, and then they are there.
-    await w.chooseExecutor(true);
-    for (const [name, button, popover] of [["the + menu", "[data-assistant-attach]", "[data-assistant-more]"], ["who does it", "[data-assistant-executor]", "[data-assistant-executors]"],
-      ["the mode", "[data-assistant-mode]", "[data-assistant-modes]"], ["the notices", "[data-assistant-attention]", "[data-assistant-notices]"]] as const) {
+    await w.carriedByCoding();
+    await w.line("a new work Coding carries · 1280", [], NEW_WORK_KINDS, floors.bar);
+    // Escape puts away what a button of the composer opened and gives it focus back: the "+" menu and the notices.
+    for (const [name, button, popover] of [["the + menu", "[data-assistant-composer] [data-composer-add]", "[data-assistant-composer] .mw-composer__start [data-compose-menu]"],
+      ["the notices", "[data-assistant-attention]", "[data-assistant-notices]"]] as const) {
+      if (name === "the notices") await w.evaluate(showChips(["[data-assistant-attention]"]));
       assert.deepEqual(await w.escapeReturns(button, popover), { opened: true, closed: true, focus: true, onButton: true }, `${name} · 1280: Escape closes it and focus goes back to its button`);
     }
-    await w.chooseExecutor(false);
     await w.makeCurrentWork();
     await w.open(1280, 800, "", "true");
-    await w.line("a current work · 1280", [], ["work chip", "work chip clear"], floors.bar);
-    await w.line("a Coding work with every chip · 1280", WITH_MODE, [...BASE, "mode chip"], floors.bar);
-    await w.line("a work with a Character and every chip · 1280", WITH_CHARACTER, [...BASE, "character chip"], floors.bar);
-    const character = await w.escapeReturns("[data-assistant-character]", "[data-assistant-characters]");
-    assert.deepEqual([character.opened, character.closed, character.focus], [true, true, true], `the Character · 1280: Escape closes its list and focus goes to the control that opened it, or the "+" (${JSON.stringify(character)})`);
+    await w.line("a current work · 1280", [], ["work chip clear"], floors.bar);
+    await w.line("a current work with a notice · 1280", ["[data-assistant-attention]"], BASE, floors.bar);
     // The opened panel's body is where the touch rules end: with a fine pointer its details and conversation controls keep the denser
     // sizes they have on a desktop (the 22–28px ones are the known gap BL-127), and what is long or wide enough to read is not stretched.
     const panel = await w.panelBody();
@@ -982,26 +903,25 @@ for (const scheme of ["light", "dark"] as const) {
     assert.deepEqual(panel.made.filter(item => /assistant-(copy|segment|side-action|code-copy)\b/.test(item.cls) && item.h >= 44).map(item => `${item.cls} ${item.w}×${item.h}`), [], "1280: and so do the conversation's own small buttons");
     assert.ok(panel.real["all works"].filter(item => /assistant-works-new/.test(item.cls)).every(item => item.h < 44), "1280: the list of all works keeps its desktop rows (the one-line row is not 44px)");
     await w.open(1280, 500, "", "true");
-    await w.line("a current work · short window 1280×500", [], ["work chip", "work chip clear"], floors.bar);
+    await w.line("a current work · short window 1280×500", [], ["work chip clear"], floors.bar);
 
-    // A narrow desktop window (700px, where the Assistant's column is 302px): a crowded line squeezes its chips narrower than 28px
-    // but never shorter, stays inside its pill, and keeps its input, attach and send at their sizes. Nothing is folded away here.
+    // A narrow desktop window (700px, where the Assistant's column is 302px): the composer stays inside its box and keeps its input,
+    // ＋ and send at their sizes; its scene controls fold behind 更多 by its own sheet, as everywhere.
     await w.open(700, 800, "", "true");
     for (const [name, chips, kinds] of LINE_STATES) {
       const { fit } = await w.line(`${name} · 700`, [...chips], [...kinds], floors.bar, true);
       assert.equal(fit.touchRules, false, "a fine-pointer window of 700px does not take the phone's rules");
     }
 
-    // Just wider than a phone (620px, fine pointer) the line is not a touch window either: the island's steps are made for 44px targets
-    // and the stylesheet applies them only there, so the island takes none and puts nothing into the "+" menu while the chips are on the
-    // line, however crowded it is. (A crowded line this narrow still runs past its pill, as it did before this branch; not measured here.)
+    // Just wider than a phone (620px, fine pointer) the bar is not a touch window either, and the "+" menu lists its usual rows.
     await w.open(620, 800, "", "true");
     for (const [name, chips, kinds] of LINE_STATES) {
       const { fit } = await w.line(`${name} · 620`, [...chips], [...kinds], floors.bar, true, false);
       assert.equal(fit.touchRules, false, "a fine-pointer window of 620px does not take the phone's rules");
-      assert.equal(fit.stage, "", `${name} · 620: so the island marks no step`);
-      // In a project the menu also offers the project-knowledge picker (PMAT-17; specs/project-knowledge/spec.md §9 and §14).
-      assert.deepEqual(await w.moreLabels(), ["添加文件或图片…", "选择项目资料…", "引用项目里的内容", "用一个能力或方法"], `${name} · 620: and the "+" menu lists its usual rows, not the chips that are still on the line`);
+      // In a project the menu also offers the project-knowledge picker (PMAT-17; specs/project-knowledge/spec.md §9 and §14), as a `/` command.
+      const labels = await w.moreLabels();
+      assert.equal(labels[0], "添加文件或图片…", `${name} · 620: the "+" menu starts with files (${labels})`);
+      assert.ok(labels.includes("/资料 选择项目资料…"), `${name} · 620: and offers the project's material (${labels})`);
     }
   });
 }

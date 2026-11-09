@@ -19,12 +19,12 @@ function writeOutput(text: string): void {
 const {values,positionals}=parseArgs({allowPositionals:true,options:{state:{type:"string"},config:{type:"string"},"host-home":{type:"string"},"host-url":{type:"string"},port:{type:"string"},hostname:{type:"string"},origin:{type:"string"},cert:{type:"string"},key:{type:"string"},bundle:{type:"string"},destination:{type:"string"},project:{type:"string"},name:{type:"string"},member:{type:"string"},"control-token-file":{type:"string"},revoke:{type:"boolean"}}});
 const command=positionals[0] ?? "help";
 if(command === "authorize") {
-  if(!values.state || !values.member || !values.project || !values["control-token-file"])throw Error("authorize requires --state, --member, --project and --control-token-file");
+  if(!values.state || !values.member || !values.project || !values["control-token-file"] || !values["host-home"])throw Error("authorize requires --state, --member, --project, --host-home and --control-token-file");
   const storage=openServerDatabase(resolve(values.state));
   try {
     const role=new Identity(storage.db).roleOf(values.project,values.member);
     if(!values.revoke && !role)throw Error("Member has no access to this project");
-    writeOutput(JSON.stringify(await configureMemberActions({hostUrl:values["host-url"] ?? "http://127.0.0.1:4173",controlTokenFile:resolve(values["control-token-file"]),memberId:values.member,projectId:values.project,role:values.revoke?"revoked":role!}),null,2) + "\n");
+    writeOutput(JSON.stringify(await configureMemberActions({hostUrl:values["host-url"] ?? "http://127.0.0.1:4173",homeDirectory:resolve(values["host-home"]),controlTokenFile:resolve(values["control-token-file"]),memberId:values.member,projectId:values.project,role:values.revoke?"revoked":role!}),null,2) + "\n");
   } finally {storage.close();}
 } else if(command === "members") {
   if(!values.state)throw Error("members requires --state");
@@ -77,4 +77,4 @@ if(command === "authorize") {
     process.exit(exitCode);
   };
   process.on("SIGINT", () => close("SIGINT")); process.on("SIGTERM", () => close("SIGTERM"));
-} else writeOutput("serve --state DIR --config FILE --host-home DIR [--host-url http://127.0.0.1:4173] [--port 4187]\nFor LAN add --hostname ADDRESS --origin https://ADDRESS:PORT --cert FILE --key FILE\nauthorize --state DIR --member ID --project ID --control-token-file FILE [--host-url URL] [--revoke]\nmembers --state DIR\nrestore --bundle FILE --destination DIR\nread-assets --destination DIR --project SOURCE_PROJECT_ID\n");
+} else writeOutput("serve --state DIR --config FILE --host-home DIR [--host-url http://127.0.0.1:4173] [--port 4187]\nFor LAN add --hostname ADDRESS --origin https://ADDRESS:PORT --cert FILE --key FILE\nauthorize --state DIR --member ID --project ID --host-home DIR --control-token-file FILE [--host-url URL] [--revoke]\nmembers --state DIR\nrestore --bundle FILE --destination DIR\nread-assets --destination DIR --project SOURCE_PROJECT_ID\n");

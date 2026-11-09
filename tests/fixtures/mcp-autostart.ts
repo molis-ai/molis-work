@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { TestContext } from "node:test";
-import { installMolisWorkHome } from "@molis-ai/molis-work-app-local-host";
+import { changeMcpClientCredential, installMolisWorkHome } from "@molis-ai/molis-work-app-local-host";
 import { isolatedMcpResident, waitUntil } from "./isolated-mcp-resident.js";
 import { installedAccountAuth } from "./installed-account.js";
 
@@ -30,6 +30,7 @@ export async function installedMcpHome(t: TestContext, install = installMolisWor
   const installed = await (installation = install({ homeDirectory: home, sourceDirectory: fileURLToPath(new URL("../../", import.meta.url)),
     beforeStep: step => { t.signal.throwIfAborted(); t.diagnostic(`Real installer phase: ${step}`); } }));
   t.signal.throwIfAborted();
+  changeMcpClientCredential(home, "runtime:codex", "connect");
   t.diagnostic("Real install complete; beginning process scenarios");
   const { origin, health, stopHost } = await isolatedMcpResident(home);
   cleanupHost = stopHost;

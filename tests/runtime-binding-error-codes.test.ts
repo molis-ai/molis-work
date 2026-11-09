@@ -4,6 +4,7 @@ import type { MolisWorkProjectCatalog, RuntimeWorkContext } from "@molis-ai/moli
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import assert from "node:assert/strict";
+import { realpathSync } from "node:fs";
 import { mkdir, mkdtemp, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -21,6 +22,9 @@ const scope = { kind: "personal", id: "private-work-context" } as const;
 const access = { actor_id: "binding-code-test", scope };
 
 const session = (id: string): RuntimeWorkContext => ({ runtime_id: "codex", stable_work_context_id: id, host_declares_stable: true });
+// SSC-22: a Runtime context carries a folder's path only; the folder's row is found by that path, and its id is not made from it.
+const rowAt = (catalog: MolisWorkProjectCatalog, canonicalPath: string) =>
+  catalog.listWorkspaceDirectory().find((record) => record.canonical_path === canonicalPath)!.workspace_id;
 
 async function withCatalog<T>(run: (catalog: MolisWorkProjectCatalog, directory: string) => Promise<T>): Promise<T> {
   const directory = await mkdtemp(join(tmpdir(), "molis-work-binding-errors-"));
@@ -156,7 +160,7 @@ test("RAC-1650 removing a membership the workspace really has: the membership go
     const noSession: RuntimeWorkContext = { runtime_id: "codex", stable_work_context_id: null, host_declares_stable: false, workspace };
     // Binding a Session that carries a workspace also records the workspace as Alpha's member (bindRuntimeContextInTransaction).
     const bound = catalog.bindRuntimeContext({ context: member, project_id: alpha.project_id, actor_id: "runtime-codex", user_confirmed: true });
-    const workspaceId = bound.context.workspace!.workspace_id;
+    const workspaceId = rowAt(catalog, bound.context.workspace!.canonical_path);
     const members = () => catalog.listWorkspaceMemberships().filter((membership) => membership.workspace_id === workspaceId)
       .map((membership) => membership.project_id);
     const directoryRecord = () => catalog.listWorkspaceDirectory().find((record) => record.workspace_id === workspaceId);
@@ -220,7 +224,8 @@ test("SRB-16 context_unbind leaves the person's directory relation in place and 
     assert.deepEqual(record(own.workspace_id)?.person_project_ids, [alpha.project_id]);
     // (d) what a tool brought in, a tool can take back, and that answer has no kept.
     const brought: RuntimeWorkContext = { ...session("tool-relation"), workspace: { canonical_path: broughtPath, realpath_verified: false } };
-    const workspaceId = catalog.bindRuntimeContext({ context: brought, project_id: alpha.project_id, actor_id: "runtime-codex", user_confirmed: true }).context.workspace!.workspace_id;
+    catalog.bindRuntimeContext({ context: brought, project_id: alpha.project_id, actor_id: "runtime-codex", user_confirmed: true });
+    const workspaceId = catalog.listWorkspaceDirectory().find((row) => row.canonical_path === realpathSync(broughtPath))!.workspace_id;
     assert.deepEqual(record(workspaceId)?.person_project_ids, []);
     const removed = unbind(brought, "runtime-codex");
     assert.equal(removed.changed, true);
@@ -231,7 +236,8 @@ test("SRB-16 context_unbind leaves the person's directory relation in place and 
     assert.equal(absent.changed, false);
     assert.equal(Object.hasOwn(absent, "kept"), false);
     // (f) control: the person undoes it from the project's settings.
-    catalog.removeWorkspaceMembership({ workspace_id: own.workspace_id, project_id: alpha.project_id, actor_id: LOCAL_PERSON_ACTOR_ID, user_confirmed: true });
+    catalog.changeDirectories({ project_id: alpha.project_id, actor_id: LOCAL_PERSON_ACTOR_ID, change: { kind: "remove_input", workspace_id: own.workspace_id },
+      expected_revision: catalog.projectDirectories(alpha.project_id).revision });
     assert.equal(record(own.workspace_id), undefined);
   });
 });
@@ -242,10 +248,12 @@ test("RAC-1813 binding from a Runtime with neither a Session id nor a project di
     const nowhere: RuntimeWorkContext = { runtime_id: "codex", stable_work_context_id: null, host_declares_stable: false };
     const bind = (context: RuntimeWorkContext) => catalog.bindRuntimeContext({ context, project_id: alpha.project_id,
       actor_id: "runtime-codex", user_confirmed: true });
-    // (a)(b)(c) nothing to key the choice on: refused, no Session binding and no workspace membership recorded.
+    // (a)(b)(c) nothing to key the choice on: refused, no Session binding and no workspace membership recorded (Alpha's own output stays its only one).
+    const memberships = catalog.listWorkspaceMemberships();
+    assert.deepEqual(memberships.map((membership) => membership.roles), [["output"]]);
     assert.throws(() => bind(nowhere), refused("work.context.stable_identity_required"));
     assert.deepEqual(catalog.listRuntimeContextBindings(), []);
-    assert.deepEqual(catalog.listWorkspaceMemberships(), []);
+    assert.deepEqual(catalog.listWorkspaceMemberships(), memberships);
     // (d)(e) control: the same call from a Session binds.
     assert.equal(bind(session("neither-control")).status, "bound");
     assert.equal(catalog.listRuntimeContextBindings().length, 1);
@@ -264,7 +272,11 @@ test("RAC-1814 create-and-bind from a Runtime with only a project directory make
     const created = await create();
     assert.equal(created.status, "bound");
     const projectId = created.connection!.project_id;
-    assert.deepEqual(catalog.listWorkspaceMemberships().map((membership) => membership.project_id), [projectId]);
+    // The new project's own default output directory is its member too (SSC-17); the Runtime's directory joins as an input.
+    assert.deepEqual(catalog.listWorkspaceMemberships().map((membership) => [membership.project_id, membership.roles[0]]).sort(),
+      [[projectId, "input"], [projectId, "output"]]);
+    assert.deepEqual(catalog.listWorkspaceMemberships().find((membership) => membership.roles.includes("input"))?.workspace_id,
+      rowAt(catalog, created.context.workspace!.canonical_path));
     assert.deepEqual(catalog.listRuntimeContextBindings(), []);
     // (d)(e) the same key again returns that project and creates nothing.
     const replay = await create();
@@ -282,7 +294,7 @@ test("RAC-2241 unlinking one of two projects from a workspace keeps the workspac
     const workspace = { canonical_path: workspacePath, realpath_verified: false };
     const member = (id: string): RuntimeWorkContext => ({ ...session(id), workspace });
     const first = catalog.bindRuntimeContext({ context: member("shared-first"), project_id: alpha.project_id, actor_id: "runtime-codex", user_confirmed: true });
-    const workspaceId = first.context.workspace!.workspace_id;
+    const workspaceId = rowAt(catalog, first.context.workspace!.canonical_path);
     catalog.bindRuntimeContext({ context: member("shared-second"), project_id: beta.project_id, actor_id: "runtime-codex", user_confirmed: true });
     const directoryRecord = () => catalog.listWorkspaceDirectory().find((record) => record.workspace_id === workspaceId);
     assert.deepEqual(directoryRecord()?.project_ids.slice().sort(), [alpha.project_id, beta.project_id].sort());

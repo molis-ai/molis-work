@@ -11,10 +11,15 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { isRuntimeContextMcpTool, molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { newCallId, recordedCallId, withCallId } from "@molis-ai/molis-work-kernel";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
-import { LocalMcpServer, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
+import { changeMcpClientCredential, createMcpClientProof, LocalMcpServer, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { LocalActionGatewayClient, ACTION_GATEWAY_PATH, actionGatewayHomeId } from "../apps/local-host/dist/action-gateway.js";
 import type { ActionCallContext, ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { serveTestHost } from "./fixtures/test-home.js";
+
+function proofFor(home: string, clientId: string, body: unknown): string {
+  const instance: unknown = body && typeof body === "object" ? Reflect.get(body, "instance_id") : null;
+  return createMcpClientProof(home, clientId, home, typeof instance === "string" ? instance : null);
+}
 
 const save: ActionDefinition<{ text: string }, { saved: number }> = { capability_id: "unknown.gateway.save", version: 1, operation: "command", action: {
   title: "Save note", description: "Persistent fixture note", kind: "operation", scope: "project", audiences: ["mcp"], permissions: ["notes:write"], subject_kinds: [],
@@ -28,6 +33,7 @@ test("official MCP process uses the shared Host registry and durable writes with
   const project = await served.createProject("Gateway");
   const reference = project.reference;
   const caller: ActionCallContext = { actor_id: "runtime:gateway", project_id: project.project_id, audience: "mcp", permissions: [] };
+  changeMcpClientCredential(home, caller.actor_id, "connect");
   let enter: (() => void) | undefined, release: (() => void) | undefined, barrier: Promise<void> | undefined;
   let cancelled: (() => void) | undefined, finished: (() => void) | undefined;
   await host.withProject(reference, runtime => {
@@ -77,6 +83,14 @@ test("official MCP process uses the shared Host registry and durable writes with
     await assert.rejects(gateway.invoke({ ...caller, permissions: ["notes:write"] }, view, { text: "cannot self grant" }));
     assert.equal((await rows()).length, 1);
     await served.grant(caller.actor_id, caller.project_id, [view]);
+    // D0071-06: removing a connection refuses the old in-flight call at its real write checkpoint.
+    const credentialEntered = Promise.withResolvers<void>(); enter = () => credentialEntered.resolve();
+    barrier = new Promise<void>(resolve => { release = resolve; });
+    const removedCall = assert.rejects(gateway.invoke(caller, view, { text: "removed connection" }), { code: "actions.forbidden" });
+    await credentialEntered.promise; changeMcpClientCredential(home, caller.actor_id, "remove"); release!(); await removedCall;
+    barrier = undefined; assert.equal((await rows()).length, 1);
+    changeMcpClientCredential(home, caller.actor_id, "connect");
+    await gateway.discover(caller);
     const controller = new AbortController();
     const cancellationEntered = new Promise<void>(resolve => { enter = resolve; });
     const remoteCancelled = new Promise<void>(resolve => { cancelled = resolve; });
@@ -100,6 +114,7 @@ test("official MCP process uses the shared Host registry and durable writes with
     await scopeCancelled; release!(); await Promise.all([scopedCall, scopeFinished]);
     barrier = undefined; finished = undefined; await formal.close();
     assert.equal((await rows()).length, 1, "changing the MCP project cancels remote writes at their checkpoint");
+    changeMcpClientCredential(home, "runtime:stranger", "connect");
     const stranger = new LocalActionGatewayClient({ url: origin, homeDirectory: home, clientId: "runtime:stranger", projectId: project.project_id });
     const otherCaller = { ...caller, actor_id: "runtime:stranger", permissions: ["notes:write"] };
     assert.equal((await stranger.discover(otherCaller)).some(row => row.capability_id === save.capability_id), false);
@@ -111,10 +126,10 @@ test("official MCP process uses the shared Host registry and durable writes with
     await assert.rejects(otherGateway.invoke(otherScope, view, { text: "different project" }));
     assert.equal((await rows()).length, 1);
     const token = (await readFile(join(home, "config/web-control-token"), "utf8")).trim();
-    const wrongHome = new LocalActionGatewayClient({ url: origin, homeDirectory: home + "-other", controlToken: token, clientId: caller.actor_id, projectId: project.project_id });
+    const wrongHome = new LocalActionGatewayClient({ url: origin, homeDirectory: home + "-other", credentialHomeDirectory: home, controlToken: token, clientId: caller.actor_id, projectId: project.project_id });
     await assert.rejects(wrongHome.discover(caller), { code: "actions.home_mismatch" });
-    const send = (body: unknown, authorized = true) => fetch(origin + ACTION_GATEWAY_PATH, { method: "POST", headers: { origin, "content-type": "application/json", "x-molis-work-idempotency-key": randomUUID(), ...(authorized ? { "x-molis-work-control-token": token } : {}) }, body: JSON.stringify(body) });
-    const envelope = { home_id: actionGatewayHomeId(home), client_id: caller.actor_id, project_id: project.project_id };
+    const send = (body: unknown, authorized = true) => fetch(origin + ACTION_GATEWAY_PATH, { method: "POST", headers: { origin, "content-type": "application/json", "x-molis-work-idempotency-key": randomUUID(), ...(authorized ? { "x-molis-work-control-token": token, "x-molis-work-client-proof": proofFor(home, caller.actor_id, body) } : {}) }, body: JSON.stringify(body) });
+    const envelope = { home_id: actionGatewayHomeId(home), project_id: project.project_id };
     assert.equal((await send({ ...envelope, operation: "discover" }, false)).status, 403);
     assert.equal((await send({ ...envelope, operation: "discover", permissions: ["notes:write"] })).status, 400);
     assert.equal((await send({ ...envelope, operation: "discover", audit_actor_id: "web-user" })).status, 400);
@@ -134,6 +149,8 @@ test("official MCP process uses the shared Host registry and durable writes with
 });
 
 test("gateway never retries an uncertain invocation or follows a credential-bearing redirect", { timeout: 15_000 }, async () => {
+  const credentialHome = await mkdtemp(join(tmpdir(), "gateway-proof-"));
+  changeMcpClientCredential(credentialHome, "fixture", "connect");
   let invocations = 0, redirected = 0, redirect = false;
   const target = http.createServer((_request, response) => { redirected++; response.end("unexpected"); });
   await new Promise<void>(resolve => target.listen(0, "127.0.0.1", resolve));
@@ -147,7 +164,7 @@ test("gateway never retries an uncertain invocation or follows a credential-bear
   });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address === "object");
-  const client = new LocalActionGatewayClient({ url: `http://127.0.0.1:${address.port}`, homeDirectory: "/fixture", controlToken: "fixture-token", clientId: "fixture", projectId: null });
+  const client = new LocalActionGatewayClient({ url: `http://127.0.0.1:${address.port}`, homeDirectory: "/fixture", credentialHomeDirectory: credentialHome, controlToken: "fixture-token", clientId: "fixture", projectId: null });
   const caller: ActionCallContext = { actor_id: "fixture", project_id: null, audience: "mcp", permissions: [] };
   try {
     await client.discover(caller);
@@ -156,11 +173,13 @@ test("gateway never retries an uncertain invocation or follows a credential-bear
     redirect = true;
     await assert.rejects(client.discover(caller), { code: "actions.service_unavailable" });
     assert.equal(redirected, 0);
-  } finally { await Promise.all([server, target].map(server => new Promise<void>(resolve => server.close(() => resolve())))); }
+  } finally { await Promise.all([server, target].map(server => new Promise<void>(resolve => server.close(() => resolve())))); await rm(credentialHome, { recursive: true, force: true }); }
 });
 
 /** A service of the gateway's shape on a loopback port, answering as `mode` says; it records what each request carried. */
 async function fixtureService() {
+  const credentialHome = await mkdtemp(join(tmpdir(), "gateway-proof-"));
+  changeMcpClientCredential(credentialHome, "fixture", "connect");
   const seen: Array<{ method?: string; url?: string; headers: http.IncomingHttpHeaders; body: Record<string, unknown> }> = [];
   /** `echo`: whether the reply to an invocation names the number it was sent (the Host left a row), another number, or none. */
   const state: { mode: "ok" | "garbled" | "array"; echo: "none" | "same" | "other"; denied: boolean } = { mode: "ok", echo: "none", denied: false };
@@ -178,10 +197,11 @@ async function fixtureService() {
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address === "object");
   const origin = `http://127.0.0.1:${address.port}`;
-  const stop = async () => { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); };
-  const client = new LocalActionGatewayClient({ url: origin, homeDirectory: "/fixture", controlToken: "fixture-token", clientId: "fixture", projectId: null });
+  const disconnect = async () => { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); };
+  const stop = async () => { await disconnect(); await rm(credentialHome, { recursive: true, force: true }); };
+  const client = new LocalActionGatewayClient({ url: origin, homeDirectory: "/fixture", credentialHomeDirectory: credentialHome, controlToken: "fixture-token", clientId: "fixture", projectId: null });
   const caller: ActionCallContext = { actor_id: "fixture", project_id: null, audience: "mcp", permissions: [] };
-  return { seen, state, origin, stop, client, caller };
+  return { seen, state, origin, disconnect, stop, client, caller };
 }
 
 test("gateway sends every call as the one request to the resident Host: its origin, the Home's token, a fresh one-time key", { timeout: 15_000 }, async () => {
@@ -198,6 +218,9 @@ test("gateway sends every call as the one request to the resident Host: its orig
       assert.equal(request.headers["content-type"], "application/json");
       assert.equal(request.headers["x-molis-work-home-id"], actionGatewayHomeId("/fixture"), "personal-space routing retains the exact Home identity");
       assert.equal(request.body.home_id, actionGatewayHomeId("/fixture"));
+      assert.equal(request.body.client_id, undefined);
+      const proof = String(request.headers["x-molis-work-client-proof"]).split(".");
+      assert.equal(JSON.parse(Buffer.from(proof[1]!, "base64url").toString()).client_id, "fixture");
     }
     assert.equal(new Set(seen.map(request => request.headers["x-molis-work-idempotency-key"])).size, 3, "a fresh one-time key for every request");
   } finally { await stop(); }
@@ -243,17 +266,18 @@ test("gateway: an input that cannot be serialized was never sent, so it is the c
 });
 
 test("gateway: no control token in the Home sends nothing, and a service that is gone was not delivered to, for an invocation too", { timeout: 15_000 }, async () => {
-  const { seen, origin, stop, client, caller } = await fixtureService();
+  const { seen, origin, disconnect, stop, client, caller } = await fixtureService();
   const home = await mkdtemp(join(tmpdir(), "action-gateway-request-"));
   try {
     await client.discover(caller);
+    changeMcpClientCredential(home, "fixture", "connect");
     const tokenless = new LocalActionGatewayClient({ url: origin, homeDirectory: home, clientId: "fixture", projectId: null });
     const before = seen.length;
     await assert.rejects(tokenless.discover(caller), { code: "actions.service_unavailable" });
     assert.equal(seen.length, before, "nothing was sent");
 
     // Nothing listens any more: the connection is refused before the request leaves, so the invocation was not delivered.
-    await stop();
+    await disconnect();
     await assert.rejects(client.discover(caller), { code: "actions.service_unavailable" });
     await assert.rejects(client.invoke(caller, save, { text: "e" }), { code: "actions.service_unavailable" });
   } finally { await stop(); await rm(home, { recursive: true, force: true }); }
@@ -354,8 +378,8 @@ async function residentCallIdFixture() {
   const gateway = new LocalActionGatewayClient({ url: origin, homeDirectory: home, clientId: caller.actor_id, projectId: project.project_id });
   const token = served.controlToken;
   const send = (body: unknown) => fetch(origin + ACTION_GATEWAY_PATH, { method: "POST", body: JSON.stringify(body), headers: {
-    origin, "content-type": "application/json", "x-molis-work-idempotency-key": randomUUID(), "x-molis-work-control-token": token } });
-  const envelope = { home_id: actionGatewayHomeId(home), client_id: caller.actor_id, project_id: project.project_id };
+    origin, "content-type": "application/json", "x-molis-work-idempotency-key": randomUUID(), "x-molis-work-control-token": token, "x-molis-work-client-proof": proofFor(home, caller.actor_id, body) } });
+  const envelope = { home_id: actionGatewayHomeId(home), project_id: project.project_id };
   const stop = async () => { await served.close(); await host.close(); await rm(home, { recursive: true, force: true }); };
   return { host, caller, gateway, saveView, lookView, send, envelope, stop, ran: () => ran };
 }

@@ -22,7 +22,7 @@ test("Feed source navigation, independent nested panes, resize and restore", { t
   await addProjectPlugin(browser.web, projectId!, "feed");
   await browser.setViewport(1440, 960);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item')");
+  await waitFor("document.querySelector('[data-titlebar-tabs] .tab-add-button')");
   await click('[data-plugin-id="feed"]');
   await waitFor("document.body.dataset.desktopSurface === 'feed' && document.querySelector('[data-work-surface=feed]')?.dataset.uiClientState==='ready' && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
   // Soft Workbench: one timeline; each row names its source and the source menu scope it belongs to.
@@ -49,7 +49,7 @@ test("Feed source navigation, independent nested panes, resize and restore", { t
   assert.equal(new Set(bounds).size, bounds.length, "messages must not overlap");
   const widths = await evaluate<number[]>("[...document.querySelectorAll('[data-titlebar-tabs] .tab-item:not([data-pinned])')].map(x=>Math.round(x.getBoundingClientRect().width))");
   assert.ok(widths.length >= 1 && widths.every((width) => width > 0 && width <= 172), "unpinned tabs hug or share at or below 172px: " + JSON.stringify(widths));
-  await click('[data-titlebar-tabs] [data-tab-split]');
+  await click('[data-layout-open]');
   await click('[data-layout-split=right]');
   await waitFor("document.querySelectorAll('iframe.tab-content-frame').length === 2 && [...document.querySelectorAll('iframe.tab-content-frame')].every(f=>f.contentDocument?.body?.dataset.desktopSurface==='feed')");
   // RAC-2687: a source choice belongs to its actual iframe, even after focus moved to its neighbour.
@@ -74,7 +74,7 @@ test("Feed source navigation, independent nested panes, resize and restore", { t
   await firstPane.evaluate(`{ const field = document.querySelector('[data-feed-search]'); field.value = 'not found in this source'; field.dispatchEvent(new Event('input',{bubbles:true})); }`);
   assert.equal(await firstPane.evaluate(`document.querySelector('[data-feed-result-count]').textContent`), "0 条消息");
   assert.equal(await secondPane.evaluate("document.querySelector('[data-feed-result-count]').textContent"), unfilteredCount);
-  await click('.tab-pane.is-focused [data-tab-split]');
+  await click('[data-layout-open]');
   await click('[data-layout-split=bottom]');
   await waitFor("document.querySelectorAll('[data-tab-pane]').length===3 && document.querySelector('[data-direction=column]')");
   assert.equal(await firstPane.evaluate(`document.querySelector('[data-feed-search]').value`), "not found in this source", "splitting a neighbour must preserve existing content state");
@@ -122,7 +122,7 @@ test("Feed source navigation, independent nested panes, resize and restore", { t
   assert.equal(await evaluate("document.querySelector('[data-direction=row] [data-tab-sash]').getAttribute('aria-valuenow')"), ratio);
   await browser.setViewport(390, 844);
   assert.equal(await evaluate("[...document.querySelectorAll('[data-tab-pane]')].filter(p=>p.getBoundingClientRect().width>0).length"), 1);
-  await click('.tab-pane.is-focused [data-tab-split]');
+  await click('[data-layout-open]');
   await click('[data-focus-pane]');
   assert.equal(await evaluate("document.querySelector('.tab-pane.is-focused').dataset.tabPane===document.querySelector('[data-focus-pane]').dataset.focusPane"), true);
 });
@@ -141,8 +141,8 @@ test("merging a Feed overview pane preserves its unfinished inline source form",
   await addProjectPlugin(browser.web, projectId!, "feed");
   await browser.setViewport(1440, 960);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item')");
-  await click('[data-titlebar-tabs] [data-tab-split]');
+  await waitFor("document.querySelector('[data-titlebar-tabs] .tab-add-button')");
+  await click('[data-layout-open]');
   await click('[data-layout-split=right]');
   await click('[data-plugin-id="feed"]');
   await waitFor("[...document.querySelectorAll('iframe.tab-content-frame:not([hidden])')].some(f=>f.contentDocument?.body?.dataset.desktopSurface==='feed')");
@@ -204,12 +204,12 @@ test("opening a related Goal inside a pane leaves the original Goal tab intact",
   };
   await browser.setViewport(1440, 960);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item')");
+  await waitFor("document.querySelector('[data-titlebar-tabs] .tab-add-button')");
   await click('[data-plugin-id="goals"]');
   await openGoalFrame('.tree-node[data-select-goal="CORE"]');
   await click('[data-frame-goal-work]');
   await waitFor("document.querySelector('[data-goal-view]')?.dataset.goalView==='CORE'");
-  await click('[data-titlebar-tabs] [data-tab-split]');
+  await click('[data-layout-open]');
   await click('[data-layout-split=right]');
   // Each pane is a page of its own: both load the whole workbench (about five seconds on a development Mac, over twice that on the
   // Linux CI runner, whose busy main thread also delays the page's own deadline) before showing the Goal.
@@ -263,10 +263,10 @@ test("a background refresh keeps the titlebar tabs hidden while panes are split,
   };
   await browser.setViewport(1440, 960);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item')");
+  await waitFor("document.querySelector('[data-titlebar-tabs] .tab-add-button')");
   await click('[data-plugin-id="feed"]');
   await waitFor("document.body.dataset.desktopSurface === 'feed' && document.querySelector('[data-work-surface=feed]')?.dataset.uiClientState==='ready'");
-  await click('[data-titlebar-tabs] [data-tab-split]');
+  await click('[data-layout-open]');
   await click('[data-layout-split=right]');
   await waitFor("document.querySelectorAll('iframe.tab-content-frame').length === 2 && [...document.querySelectorAll('iframe.tab-content-frame')].every(f=>f.contentDocument?.body?.dataset.desktopSurface==='feed')");
   await refreshAfterWrite("background-refresh-split", "分屏之后的后台刷新");

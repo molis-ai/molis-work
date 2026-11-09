@@ -1,7 +1,9 @@
+import { MCP_CLIENT_CREDENTIAL_DIRECTORY } from "./mcp-client-credentials.js";
 import { join } from "node:path";
 import { readStorageSpace } from "@molis-ai/molis-work-storage";
 import { installedSnapshotOptions } from "./installed-library-snapshot.js";
 import { NATIVE_SESSION_FILE } from "./personal-native-session.js";
+import { UI_LOCALE_RELATIVE_PATH } from "./ui-locale-memory.js";
 import { pluginSyncDatabaseDeclaration } from './plugin-sync-database.js';
 import { ARTIFACTS_HOME_STORE } from "@molis-ai/molis-work-module-artifacts";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
@@ -48,6 +50,9 @@ export const platformModelPreferences = (): readonly { readonly owner: string; r
 export function homeStores(homeDirectory?: string): HomeSnapshotStoreRegistry {
   const registered = registry ??= Object.assign(homeStoreRegistry([
     ...owned("apps/local-host", { path: "projects", snapshot: projectSnapshot }, { path: "logs", snapshot: omittedSnapshot("Diagnostic logs", "preserve") }),
+    // Each project's default output directory, `outputs/<project_id>/` (specs/shared-sources-and-surfaces §3): the person's own files, made
+    // the first time something writes or runs there. A snapshot carries none of it and a restore leaves it as it is (SSC-23); purge clears it.
+    ...owned("modules/projects", { path: "outputs", snapshot: omittedSnapshot("Files in each project's default output directory stay where they are", "preserve") }),
     ...owned("apps/local-host", { path: UPGRADE_DIRECTORY, snapshot: omittedSnapshot("Upgrade snapshots and progress", "reset") }),
     ...owned("apps/local-host",
       { path: "spaces", snapshot: omittedSnapshot("Each account space has its own Home and storage authority", "preserve") },
@@ -77,14 +82,17 @@ export function homeStores(homeDirectory?: string): HomeSnapshotStoreRegistry {
       return [
         ...entry.home_store ? [{ ...entry.home_store, owner: entry.manifest.plugin_id, snapshot }] : [],
         ...library ? [{ path: library.store_name, owner: entry.manifest.plugin_id, snapshot,
-          library: { baseline: { version: library.version, schema: library.schema }, ...library.partition ? { partition: library.partition } : {} } }] : [],
+          // The plugin's steps go with its library: the upgrade process runs them through the plugin's checks (platform-upgrade-stores.ts).
+          library: { baseline: { version: library.version, schema: library.schema, ...library.upgrades ? { upgrades: library.upgrades } : {} },
+            ...library.partition ? { partition: library.partition } : {} } }] : [],
       ];
     }),
     ...owned("horizontal/agent-host", { path: "agent-runtime", snapshot: agentSnapshot }),
     ...owned("apps/local-host/src/installer", { path: "runtime-config-backups", snapshot: runtimeBackupSnapshot }, ...at("runtime-integrations", "runtime-integration-attempts")),
     ...owned("apps/local-host", { path: "browser", snapshot: browserSnapshot }, { path: "plugin-builder", snapshot: builderSnapshot },
       { path: "cache", snapshot: omittedSnapshot("Rebuildable cache", "reset") }, ...at("computer", "plugin-files", "git-operation-details.json", "config/onboarding.json",
-      "config/project-arrival.json", "config/mcp-tools.json", "config/external-mcp-tools.json", "config/connector-mcp-tools.json", "config/external-mcp-actions.json", "config/connector-mcp-actions.json", "config/plugin-publisher.json")),
+      "config/project-arrival.json", UI_LOCALE_RELATIVE_PATH, "config/mcp-tools.json", "config/external-mcp-tools.json", "config/connector-mcp-tools.json", "config/external-mcp-actions.json", "config/connector-mcp-actions.json", "config/plugin-publisher.json")),
+    ...owned("apps/local-host", { path: MCP_CLIENT_CREDENTIAL_DIRECTORY, snapshot: omittedSnapshot("Independent MCP client keys require explicit reconnection; never exported", "preserve") }),
     ...owned("apps/desktop", { path: "directory-access", snapshot: directoryAccessSnapshot }),
   ]), { snapshotExclusions: [
     { path: "bin", reason: "Reinstallable launchers" }, { path: "releases", reason: "Reinstallable application releases" },

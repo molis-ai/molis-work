@@ -39,7 +39,7 @@ export interface ResidentHostAnswer {
  * a BigInt, a throwing `toJSON`) throws that error as it is: nothing left, so there is nothing to check afterwards.
  */
 export async function postToResidentHost(options: {
-  origin: string; homeDirectory: string; controlToken?: string; nativeSession?: string; homeId?: string; path: string; body: Record<string, unknown>; retryHint: string; signal?: AbortSignal;
+  origin: string; homeDirectory: string; controlToken?: string; nativeSession?: string; clientProof?: string; homeId?: string; path: string; body: Record<string, unknown>; retryHint: string; signal?: AbortSignal;
 }): Promise<ResidentHostAnswer | null> {
   let token: string;
   try { token = options.controlToken ?? (await readFile(path.join(options.homeDirectory, WEB_CONTROL_TOKEN_RELATIVE_PATH), "utf8")).trim(); }
@@ -50,6 +50,7 @@ export async function postToResidentHost(options: {
     response = await fetch(options.origin + options.path, { method: "POST", redirect: "error", signal: options.signal,
       headers: { origin: options.origin, "content-type": "application/json", "x-molis-work-control-token": token, "x-molis-work-idempotency-key": randomUUID(),
         ...(options.homeId === undefined ? {} : { "x-molis-work-home-id": options.homeId }),
+        ...(options.clientProof === undefined ? {} : { "x-molis-work-client-proof": options.clientProof }),
         ...(options.nativeSession === undefined ? {} : { [NATIVE_SESSION_HEADER]: options.nativeSession }) },
       body: payload });
   } catch (error) {

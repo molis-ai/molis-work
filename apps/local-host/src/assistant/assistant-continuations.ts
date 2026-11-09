@@ -50,13 +50,13 @@ export class AssistantContinuations {
       : view?.continuation && ["blocked", "needs-reconciliation"].includes(view.continuation.state) ? "needs-check" : fallback;
   }
   /** A user Send invalidates a start being prepared, even before its first await. Its SDK wait is withdrawn separately. */
-  begin(work: StoredWork, text: string) {
+  begin(work: StoredWork, text: string, writeDraft = true) {
     const token = Symbol(); this.inputs.set(work.work_id, token);
     this.enter(work.work_id);
     const current = () => this.inputs.get(work.work_id) === token;
     const end = () => { if (current()) this.inputs.delete(work.work_id); this.end(work.work_id); };
     try {
-      const updated = this.ports.store.update(this.ports.actorId, work.work_id, null, { draft: text, continuation_hold: "input" }, false);
+      const updated = this.ports.store.update(this.ports.actorId, work.work_id, null, { ...(writeDraft ? { draft: text } : {}), continuation_hold: "input" }, false);
       if (updated.session_id) this.ports.holdSetups?.(updated.session_id, String(updated.revision));
       return { work: updated, current, accept: () => {
         if (current() && this.ports.store.get(this.ports.actorId, work.work_id).continuation_hold === "input")

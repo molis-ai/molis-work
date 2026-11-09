@@ -2,7 +2,9 @@
 // The component board's own behaviour (`/__ui/catalog`): opening the overlay specimens, the motion and craft demos, the
 // composition menus, and the small toggles that make a specimen feel real. Presentation only; nothing here is a product control.
 import { wireCatalogKeepEdits } from "./catalog-keep-edits.js";
+import { wireCatalogAppearance } from "./catalog-appearance.js";
 import { wireCatalogPatterns } from "./catalog-patterns.js";
+import { wireCatalogSplit } from "./catalog-skill-packs.js";
 type Craft = { land(element: Element): void; celebrate(element: Element): void };
 const craft = () => (globalThis as typeof globalThis & { molisCraft?: Craft }).molisCraft;
 const all = <T extends Element = HTMLElement>(selector: string, scope: ParentNode = document) => [...scope.querySelectorAll<T>(selector)];
@@ -91,7 +93,7 @@ all("[data-compose-split]").forEach((split) => {
   });
 });
 const closeMenus = (except: Element | null) => all("[data-compose-menu]").forEach((menu) => {
-  if (menu === except) return;
+  if (menu === except || menu.hasAttribute("data-menu-held")) return; // a held menu is a specimen of the open state: only its own button closes it
   menu.hidden = true;
   menu.parentElement?.querySelector("[data-compose-menu-toggle]")?.setAttribute("aria-expanded", "false");
 });
@@ -111,7 +113,7 @@ document.addEventListener("click", (event) => {
 });
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") return;
-  const open = all("[data-compose-menu]").find((menu) => !menu.hidden);
+  const open = all("[data-compose-menu]").find((menu) => !menu.hidden && !menu.hasAttribute("data-menu-held"));
   if (!open) return;
   event.preventDefault();
   closeMenus(null);
@@ -187,3 +189,5 @@ all(".mw-catalog .is-yield [data-slot=directory-row]").forEach((row) => {
 });
 wireCatalogPatterns();
 wireCatalogKeepEdits();
+wireCatalogAppearance();
+wireCatalogSplit();

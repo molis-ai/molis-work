@@ -1,3 +1,4 @@
+import { changeMcpClientCredential } from "@molis-ai/molis-work-app-local-host";
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { mkdtempSync, rmSync, readFileSync, cpSync, mkdirSync, writeFileSync, existsSync } from 'node:fs';
@@ -143,7 +144,7 @@ test('ASR-02/03 real Web routing isolates A/B, retains root data behind login, r
   const login=async(name:string)=>{
     const prepared=await prepare('switch');user=name;assert.equal((await post('/api/personal/'+(prepared?'switch':'login')+'?returnTo=%2F'+prepared)).status,200);
     assert.equal((await request('/account/callback?code=synthetic&state='+transaction.state,{redirect:'manual'})).status,303);
-    const state=await(await request('/api/personal/status')).json();token=state.viewToken;
+    const state=await(await request('/api/personal/status')).json();token=readFileSync(join(home,"spaces",personalStorageSpace(remote,state.identity.applicationId,state.identity.userId).spaceId,"config/web-control-token"),"utf8").trim();
   };
   try {
     assert.equal((await request('/api/settings/projects')).status,401,'an installation without an account never opens root business data');
@@ -153,7 +154,7 @@ test('ASR-02/03 real Web routing isolates A/B, retains root data behind login, r
     assert.equal((await post('/api/personal/space?kind=team')).status,400);
     assert.equal((await post('/api/personal/space?kind=personal&userId=bob')).status,200);
     const a=(await scopes()).current;assert.equal(a.ownerUserId,'alice');assert.equal(a.kind,'personal');
-    token=(await(await request('/api/personal/status')).json()).viewToken;
+    token=readFileSync(join(home,'spaces',a.spaceId,'config/web-control-token'),'utf8').trim();
     const aToken=token;
     assert.notEqual(token,rootToken);
     assert.notEqual((await request('/projects/'+localProject.project_id)).status,200);
@@ -165,7 +166,8 @@ test('ASR-02/03 real Web routing isolates A/B, retains root data behind login, r
     const projectDb=openTestSqlite(join(aHome,'projects',aProject.project_id,'molis-work.db'),{readonly:true,fileMustExist:true});
     try { assert.deepEqual(readDatabaseSpace(projectDb),a); } finally { projectDb.close(); }
     assert.equal((await request('/projects/'+aProject.project_id)).status,200);
-    const gateway=new LocalActionGatewayClient({url:origin,homeDirectory:aHome,clientId:'runtime:space-test',projectId:aProject.project_id});
+    changeMcpClientCredential(home, "runtime:space-test", "connect");
+    const gateway=new LocalActionGatewayClient({url:origin,homeDirectory:aHome,credentialHomeDirectory:home,clientId:'runtime:space-test',projectId:aProject.project_id});
     const caller={actor_id:'runtime:space-test',project_id:aProject.project_id,audience:'mcp' as const,permissions:[]};
     assert.ok(Array.isArray(await gateway.discover(caller)),'active personal MCP routes to the same scoped Host');
     assert.doesNotMatch(await(await request('/')).text(),/Local retained project/);
@@ -182,7 +184,7 @@ test('ASR-02/03 real Web routing isolates A/B, retains root data behind login, r
     await login('alice');assert.equal((await scopes()).current.spaceId,a.spaceId);
     await installation(1);assert.equal(existsSync(join(aHome,'config','installation.json')),false);
     await assert.rejects(gateway.discover(caller),{code:'host.request_refused'},'ASR-03 the original A client cannot adopt the new A credential');
-    const reconnected=new LocalActionGatewayClient({url:origin,homeDirectory:aHome,clientId:'runtime:space-test',projectId:aProject.project_id});
+    const reconnected=new LocalActionGatewayClient({url:origin,homeDirectory:aHome,credentialHomeDirectory:home,clientId:'runtime:space-test',projectId:aProject.project_id});
     assert.ok(Array.isArray(await reconnected.discover(caller)),'an explicit new A connection reads the current personal credential');
     assert.equal((await request('/projects/'+aProject.project_id)).status,200);
     assert.equal((await request('/',{headers:{'x-molis-work-control-token':bToken}})).status,409);

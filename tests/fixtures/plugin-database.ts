@@ -7,8 +7,7 @@ import type { PluginDatabase, PluginDatabaseTransaction, PluginSqlRow, PluginSql
  * It keeps the contract's order and nothing else of the Host's: `beforeEffect()` is awaited first, then one synchronous transaction
  * (an async body is refused and rolled back), a throw rolls back, and a refusal from `beforeEffect()` writes nothing. It does not
  * model the Host's grants, statement guard or action scope; a test that needs those goes through the real service
- * (`openPluginProjectLibrary`, tests/fixtures/coding-sessions.ts). It is built on `node:sqlite`, so it never opens a file that
- * better-sqlite3 has open.
+ * (`openPluginProjectLibrary`, tests/fixtures/coding-sessions.ts).
  */
 export interface MemoryPluginDatabase extends PluginDatabase {
   /** The raw handle, for a test's own set-up and for reading what is really in the tables. */

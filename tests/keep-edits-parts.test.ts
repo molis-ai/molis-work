@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { fillMessage } from "@molis-ai/molis-work-plugin-sdk";
 import { renderAlert, renderKept, renderStepDot } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { KEEP_EDITS_BOARD_EN, KEEP_EDITS_STYLES, renderPrimitiveCatalog } from "@molis-ai/molis-work-design-system";
+import { KEEP_EDITS_BOARD_EN, SKILL_PACK_BOARD_EN, KEEP_EDITS_STYLES, renderPrimitiveCatalog } from "@molis-ai/molis-work-design-system";
 import { renderMolisWorkArrivalStylesheet, renderMolisWorkSettingsStylesheet, renderMolisWorkWorkbenchStylesheet } from "./workbench-renderer-fixture.js";
 
 // The parts for keeping someone's edits (docs/design/rule-stale-reload/README.md「组件板新增」): the alert's action slot, the kept
@@ -91,7 +92,8 @@ test("RAC-551: every class these parts write has a rule in the host's sheets, th
 });
 
 test("the board's words all have English, and the motion takes only tokens", () => {
-  const english = renderPrimitiveCatalog({ say: (text, values = {}) => (KEEP_EDITS_BOARD_EN[text] ?? text).replace(/\{(\w+)\}/gu, (whole, name: string) => String(values[name] ?? whole)) });
+  const messages = { ...KEEP_EDITS_BOARD_EN, ...SKILL_PACK_BOARD_EN };
+  const english = renderPrimitiveCatalog({ say: (text, values = {}) => fillMessage(messages[text] ?? text, values) });
   const start = english.indexOf('id="alert-actions"');
   const sections = english.slice(start, english.indexOf("</section>", english.indexOf('id="field-wash"')));
   assert.deepEqual(sections.match(/[㐀-鿿]+/gu) ?? [], [], "no Chinese is left in English");

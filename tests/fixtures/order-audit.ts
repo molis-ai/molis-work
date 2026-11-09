@@ -1,7 +1,7 @@
 // Left out, each with why it is not one row of peers or one line of words.
 export const ORDER_SKIP = [
   ".dock-pins > :first-child",          // 项目首页 stands apart from the pinned plugins: the wider gap is the divider between them
-  ".bar-composer [type=submit]",        // the bar's send is its one large target, a step above the bar's other buttons
+  "[data-assistant-composer] [data-composer-send]", // the bar's send is its one large target, a step above the bar's other buttons
   ".mw-catalog__sizes",                 // the board's size specimen shows sm, md and lg side by side
   ".mw-icon-inventory",                 // the board's icon list: an icon beside its name and code, centred on both lines
   ".mw-catalog__specimens .mw-empty",   // the board's empty block on its own: centring and the header's create are the stage's

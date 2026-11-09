@@ -22,7 +22,7 @@ import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
 import { preflightMemoryHome, prepareMemoryHome } from "./memory/memory-initialization.js";
 
 const owners = new WeakMap<MolisWorkLocalHost, { withCatalog?: LocalWebCatalogRunner; home: string; release?: () => void }>();
-type WorkspacePorts = Pick<AgentHostCompositionOptions, "workspacesFor"> & Partial<Pick<AgentHostCompositionOptions, "workspaceFor">>;
+type WorkspacePorts = Pick<AgentHostCompositionOptions, "workspacesFor" | "directoriesFor" | "prepareDirectory"> & Partial<Pick<AgentHostCompositionOptions, "workspaceFor">>;
 
 /** Bind once without opening runtime storage or resolving credentials. Web/MCP may supply their Catalog owner later. */
 export function ensureSystemAgentService(localHost: MolisWorkLocalHost, homeDirectory: string, withCatalog?: LocalWebCatalogRunner, workspaces: WorkspacePorts = {}) {
@@ -48,16 +48,19 @@ export function ensureSystemAgentService(localHost: MolisWorkLocalHost, homeDire
         });
       },
       prompts: agentDefinitionsFor(storageHome, builtinRegistrations),
-      authorizeWriterDirectory: async (projectId, canonicalPath) => {
-        if (!owner.withCatalog) throw new Error("项目目录授权服务尚未装配");
-        await owner.withCatalog({ homeDirectory: storageHome }, catalog => catalog.commit(() => catalog.addWorkspaceProject({ canonical_path: canonicalPath, project_id: projectId, actor_id: LOCAL_PERSON_ACTOR_ID, user_confirmed: true })));
-      },
       workspacesFor: projectId => owner.withCatalog
         ? owner.withCatalog({ homeDirectory: storageHome }, catalog => catalog.listWorkspaceDirectory(projectId))
         : workspaces.workspacesFor?.(projectId) ?? Promise.resolve(workspaces.workspaceFor?.(projectId)).then(row => row ? [row] : []),
       workspaceFor: projectId => owner.withCatalog
         ? owner.withCatalog({ homeDirectory: storageHome }, catalog => workspaceRefFor(catalog, projectId))
         : workspaces.workspaceFor?.(projectId) ?? null,
+      directoriesFor: projectId => owner.withCatalog
+        ? owner.withCatalog({ homeDirectory: storageHome }, catalog => catalog.projectDirectories(projectId))
+        : workspaces.directoriesFor?.(projectId),
+      // A default output directory is made the first time a round, a session or a stdio MCP server starts there (§3 「碰磁盘的调用方」).
+      prepareDirectory: (projectId, workspaceId, mode) => owner.withCatalog
+        ? owner.withCatalog({ homeDirectory: storageHome }, catalog => catalog.prepareWorkspaceDirectory(projectId, workspaceId, mode))
+        : workspaces.prepareDirectory?.(projectId, workspaceId, mode) ?? { exists: true },
       prologue: {
         storageRoot: agentRuntimeDirectory(storageHome),
         memory: memoryRuntime(localHost, storageHome, () => service.agentHost.adapter("prologue"), async projectId => owner.withCatalog

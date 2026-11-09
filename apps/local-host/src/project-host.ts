@@ -1,3 +1,4 @@
+import { skillCatalogProviderFor } from "./agent-definitions/skill-catalog-host.js";
 import { accountActionProvider } from "@molis-ai/molis-work-service-account";
 import { accountSessionForHost } from "./account-host.js";
 import { projectSyncAccess } from './project-sync-access.js';
@@ -43,10 +44,10 @@ import { resolveConfiguredHome } from "./product-home.js";
 import { LocalHost, type HostCapabilityHandler, type LocalHostOptions } from "./local-host.js";
 import { openProjectVersionStores, type ProjectVersionStores } from "./project-version-stores.js";
 import { LocalProjectDatabase } from "./project-database.js";
-import { registerProjectCapabilities } from "./project-capabilities.js";
+import { registerProjectCapabilities, type PrepareProjectDirectory } from "./project-capabilities.js";
 import { releaseProjectPlugins } from "./project-plugins.js";
 import type { LocalHostProjectClient, LocalHostProjectReference, LocalHostStatus } from "@molis-ai/molis-work-contracts/platform/app-host";
-import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
+import type { ProjectDirectories, ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionProviderRegistration, type ActionRegistryPort, type ActionSceneClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentHostComposition } from "./agent-host-composition.js";
 import { createSearchHost, type SearchHost } from "./search-actions.js";
@@ -89,6 +90,11 @@ export interface MolisWorkLocalHostOptions {
    * Runtime admits exactly those objects to the process (S-75 ⑥). No production code passes `pluginFixtures` (RAC-995).
    */
   pluginFixtures?: { project?: readonly PluginFixture[]; home?: readonly PluginFixture[]; installed?: ReadonlySet<PluginDefinition> };
+  /**
+   * The folder of the packages the release ships uninstalled. Left out, the release's own (`bundledPackagesDirectory`, beside the Host's
+   * code); only a test gives another, and no production code passes one (S-bundled-packages).
+   */
+  bundledPluginsDirectory?: string;
   sceneAvailability?: LocalHostOptions<MolisWorkProjectRuntime>["sceneAvailability"];
   actionAvailability?: LocalHostOptions<MolisWorkProjectRuntime>["actionAvailability"];
   onRuntimeOpen?: (reference: LocalHostProjectReference) => void;
@@ -104,7 +110,15 @@ export interface MolisWorkLocalHostOptions {
    * workspace", which would not be.
    */
   workspacesFor?: (projectId: string) => readonly ProjectWorkspaceRef[] | Promise<readonly ProjectWorkspaceRef[]>;
+  /** The project's output directory: where what names no folder reads, writes and runs (SSC-17). */
   workspaceFor?: (projectId: string) => ProjectWorkspaceRef | null | Promise<ProjectWorkspaceRef | null>;
+  /** The project's folders with their roles (`projects.directories.get@1`): only the output is written or run in (SSC-15, user 2026-11-08). */
+  directoriesFor?: (projectId: string) => ProjectDirectories | Promise<ProjectDirectories>;
+  /**
+   * Before a folder of the project is touched on disk (specs/shared-sources-and-surfaces §3 「碰磁盘的调用方」): `write` for what writes or
+   * starts a process there, `read` for what only reads. It checks a default output directory and, for `write`, makes it.
+   */
+  prepareDirectory?: PrepareProjectDirectory;
   /** The native terminal a Character launch starts in; the web entry owns it and supplies it once it is up. */
   characterSpawn?: (request: PtySpawnRequest) => PtySpawnResult;
 }
@@ -175,7 +189,12 @@ export class MolisWorkLocalHost {
             const scenes = this.sceneClient(reference);
             const providers: ActionProviderRegistration[] = [], add = (provider: ActionProviderRegistration) => { providers.push(provider); };
             add(projectWorkspaceActionProvider(reference.project_id, () => this.personalPlanningHome && this.catalogRunner ? { home: this.personalPlanningHome, run: this.catalogRunner } : undefined,
-              workspaceId => announceWorkspaceSettingsChange(store, reference.project_id, workspaceId)));
+              workspaceId => announceWorkspaceSettingsChange(store, reference.project_id, workspaceId), {
+                client: this.actionClient(reference), db: store.db, now: clock,
+                versionKept: pin => (pin.mode === "fixed" ? runtime.artifacts.query : runtime.processItems.query)
+                  .getArtifactVersion(reference.project_id, pin.version)?.availability === "available",
+                imported: version => runtime.artifacts.query.getArtifactVersion(reference.project_id, version)?.origin.kind === "imported",
+              }, options.directoriesFor));
             add(artifactActionProvider(runtime, options, this.actionClient(reference)));
             if (options.homeDirectory) add(informationActionProvider(options.homeDirectory, reference.project_id, this.actionClient(reference), options.completeText));
             if (options.homeDirectory) add(charactersActionProvider(runtime, { ...options, homeDirectory: options.homeDirectory }, () => this.agents?.service.charactersCatalog(runtime)));
@@ -220,7 +239,7 @@ export class MolisWorkLocalHost {
         if (caller.project_id && !project) throw new ActionError("actions.scope_mismatch", "使用位置查询缺少当前项目运行环境");
         return project ? this.actionClient(project) : this.homeActionClient();
       }, options.homeDirectory),
-      ...(options.homeDirectory ? [taskGrantActionProvider(taskGrantHostPorts(options.homeDirectory, this)), pluginConsentProvider(new HomeConsentLedger(options.homeDirectory), () => this.homePlugins!.projectReachConsents(),
+      ...(options.homeDirectory ? [skillCatalogProviderFor(options.homeDirectory, { host: this.host, options: this.options, agents: () => this.agents?.service, homePlugins: () => this.homePlugins }), taskGrantActionProvider(taskGrantHostPorts(options.homeDirectory, this)), pluginConsentProvider(new HomeConsentLedger(options.homeDirectory), () => this.homePlugins!.projectReachConsents(),
         projectId => projectReachDetails(projectId, options.homeDirectory, this.catalogRunner, this, this.host, molisWorkHostProjectReference)), pluginInstallProviderFor(options.homeDirectory, { host: this.host, options: this.options, agents: () => this.agents?.service, homePlugins: () => this.homePlugins }), connectorAccountActionProvider(options.homeDirectory, (...args) => this.connectorMcp!.remember(...args), { library: async () => this.agents?.service.mcpLibrary(), refresh: async owner => { if (!this.agents) throw new Error("项目 MCP 运行服务未装配"); await this.agents.service.refreshExternalMcp(owner); } }, caller => this.inspectActions(caller, this.host.projects().find(project => project.project_id === caller.project_id)), caller => caller.project_id ? this.actionClient(this.host.projects().find(project => project.project_id === caller.project_id)!) : this.homeActionClient(), (caller, installId, pluginId) => installedConnectionSlots(installId, pluginId, this.homePlugins, reference => this.withProject(reference, runtime => installedPluginManifest(runtime.store.db, installId)), this.host.projects().find(project => project.project_id === caller.project_id)))] : []),
     ];
     registerHostPlatformProviders(this.host.actionRegistry(), platform);
@@ -231,7 +250,7 @@ export class MolisWorkLocalHost {
     }
     registerProjectCapabilities(
       this.host,
-      { workspaceFor: options.workspaceFor, workspacesFor: options.workspacesFor },
+      { workspaceFor: options.workspaceFor, workspacesFor: options.workspacesFor, prepareDirectory: options.prepareDirectory },
     );
     if (options.homeDirectory) bindHomeSide(this, options.homeDirectory, options);
     if (options.homeDirectory) {
@@ -480,7 +499,7 @@ async function registerProviders(registry: ActionRegistryPort, providers: readon
  * would leave its instances and the SQLite handle alive for good. The failures are reported once everything ran. The Home
  * instances' jobs kept in the project stop with it (PG-038); the project's own instances stop with their whole activation.
  */
-async function closeProjectRuntime(runtime: MolisWorkProjectRuntime, closed: () => void, stopSchedules: () => Promise<void>, stopHomeJobs: () => void): Promise<void> {
+async function closeProjectRuntime(runtime: MolisWorkProjectRuntime, closed: () => void, stopSchedules: () => Promise<void>, stopHomeJobs: () => Promise<void> | void): Promise<void> {
   const failures: unknown[] = [];
   const attempt = async (step: () => unknown) => { try { await step(); } catch (error) { failures.push(error); } };
   await attempt(stopSchedules);

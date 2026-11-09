@@ -12,7 +12,6 @@ import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { bindActionClient, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { feedItemActions } from "@molis-ai/molis-work-plugin-feed";
-import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 
 const controlToken = "home-isolation-test-control-token-0123456789";
@@ -254,10 +253,9 @@ test("W3-01 C a plugin's route the door let through, whose call is refused befor
     assert.equal(feedRows[0]!.project_id, projectId);
     assert.equal(feedRows[0]!.refused, true, "marked as not run");
     assert.equal(feedRows[0]!.code, "actions.input_invalid");
-    // A plugin route also has the Host read the folder the project browses (BL-521, `announceProjectOpened`), under the same request;
-    // this bare Host has no project settings, so that read is missing, leaves its own row and is tried again on the next route.
-    assert.deepEqual(rows.filter(row => !feedRows.includes(row)).map(row => [row.capability_id, row.code]),
-      rows.length === 1 ? [] : [[projectSettingsCapabilities.browsingWorkspace.capability_id, "actions.missing"]]);
+    // A plugin route also has the Host read the project's folders (BL-521, `announceProjectOpened`, `projects.directories.get@1`) under
+    // the same request; they come from the Home catalog, so that read succeeds and, succeeding, leaves no row of its own.
+    assert.deepEqual(rows.filter(row => !feedRows.includes(row)).map(row => [row.capability_id, row.code]), []);
   }, ["feed", "inbox"]);
 });
 

@@ -59,10 +59,6 @@ export interface CharacterPublication {
   artifact_id: string; version: number; lifecycle_state: string; availability: string; payload: PublicationPayload;
 }
 
-export const RUNTIME_NAMES: Record<string, string> = {
-  codex: "Codex", "claude-code": "Claude Code", cursor: "Cursor", opencode: "OpenCode", "grok-build": "Grok Build",
-};
-
 /** What a failure says: the message of whatever was thrown, empty when it has none. */
 export function messageOf(error: unknown): string {
   if (typeof error === "object" && error !== null && "message" in error && typeof error.message === "string") return error.message;

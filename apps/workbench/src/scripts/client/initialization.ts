@@ -67,6 +67,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       setExclusive: (surface) => tabWorkspace?.setExclusive(surface),
       setDirectory: (...args) => setDesktopDirectory(...args),
       leavePlugin: (plugin) => tabWorkspace?.leavePlugin?.(plugin) === true,
+      open: (plugin, origin) => openSurfaceEntry(plugin, origin),
       shownPlugin: () => tabWorkspace?.shownPlugin?.() || null,
       registerCover: (kind, open) => tabWorkspace?.registerCover?.(kind, open),
     });
@@ -82,13 +83,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       route, headers: () => molisWorkControlHeaders(), projectId: state.project?.project_id || document.body.dataset.projectId || "",
       openPluginRecord: (plugin, id) => tabWorkspace?.openPluginRecord(plugin, id),
       openPlugin: (plugin) => tabWorkspace?.openPlugin(plugin),
-      askAssistant: (words) => {
-        const input = document.querySelector("[data-assistant-input]");
-        const composer = document.querySelector("[data-assistant-composer]");
-        if (!input || !composer) return;
-        input.value = words; input.dispatchEvent(new Event("input", { bubbles: true }));
-        composer.requestSubmit();
-      },
+      askAssistant: (words) => assistantIsland?.ask(words),
       setDirectory: (...args) => setDesktopDirectory(...args),
       setWorkSurface: (...args) => setDesktopWorkSurface(...args),
       selectGoal: (...args) => selectGoal(...args),
@@ -126,7 +121,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       openPlugin: (...args) => tabWorkspace?.openPlugin(...args), hideDirectory: () => immersiveNavigation?.hideDirectory(), showToast,
     });
     ${pluginWorkbenchClientBootstrap(undefined, true)}
-    (${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ translate: L, showToast, route, headers: () => molisWorkControlHeaders(), interaction, receipts,
+    assistantIsland = (${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ translate: L, showToast, route, headers: () => molisWorkControlHeaders(), interaction, receipts,
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title), pluginTitle: (plugin) => tabWorkspace?.pluginTitle(plugin),
       project: { id: state.project?.project_id || state.snapshot.board.project_id, title: state.project?.display_name || "" },
     });
@@ -341,7 +336,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     const askedSurface = new URLSearchParams(location.search).get("openSurface");
     if (askedSurface && /^app-[a-f0-9-]{36}$/.test(askedSurface)) {
       const cleaned = new URL(location.href); cleaned.searchParams.delete("openSurface"); history.replaceState(history.state, "", cleaned);
-      setTimeout(() => [...document.querySelectorAll("[data-work-surface-open]")].find((el) => el.dataset.workSurfaceOpen === askedSurface)?.click(), 0);
+      setTimeout(() => { const entry = [...document.querySelectorAll("[data-work-surface-open]")].find((el) => el.dataset.workSurfaceOpen === askedSurface); if (entry) openSurfaceEntry(askedSurface, entry); }, 0);
     }
     const missingPage = new URLSearchParams(location.search).get("missing");
     if (missingPage) {
@@ -393,6 +388,10 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     }
     // Off the Goal stage the board cursor comes with the attention read (W4-10).
     const goalStageShown = () => (document.body.dataset.desktopSurface || "goals") === "goals";
+    // The page was drawn at its snapshot's cursor (the Goals log's end: the same journal, never past the platform's), so the
+    // first poll redraws only what came after it. Without it the first poll always redrew the board and forced the relation
+    // graph that had just loaded to load again, replacing the node that had focus.
+    if (goalData && goalData.boardCursor === undefined && typeof state.snapshot?.cursor === "number") goalData.boardCursor = state.snapshot.cursor;
     boardLifetime.poll(async signal => {
       boardVisibleSignal = signal;
       if (goalData && goalStageShown()) await refreshBoard(false, signal);

@@ -1,0 +1,4 @@
+# A golden Home is compared byte by byte (specs/upgrade-continuity/golden-replay-design.md §3): nothing rewrites its line endings. Generated, so GitHub folds it in a pull
+# request unless someone opens it; the compressed copies have no text to show.
+* -text linguist-generated=true
+*.br binary

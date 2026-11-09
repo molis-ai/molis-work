@@ -39,11 +39,11 @@ test("no model → settings → template → a failing check saves nothing → a
     field.value = ${JSON.stringify(value)}; field.dispatchEvent(new Event('input', { bubbles: true })); })()`);
 
   // 1. Ask with no model: the Assistant keeps the question and points at the model settings.
-  await setValue("[data-assistant-input]", "帮我总结一下这个项目目前的进展");
-  await click("[data-assistant-send]");
+  await setValue("[data-assistant-composer] .mw-composer__input", "帮我总结一下这个项目目前的进展");
+  await click("[data-assistant-composer] [data-composer-send]");
   await waitFor("/模型/.test(document.querySelector('[data-assistant-thread] .assistant-problem')?.textContent || '')", 10_000);
   const asked = await evaluate<{ surface: string; input: string; work: string }>(`({ surface: document.body.dataset.desktopSurface,
-    input: document.querySelector('[data-assistant-input]').value, work: document.querySelector('[data-assistant-work-title]')?.textContent || '' })`);
+    input: document.querySelector('[data-assistant-composer] .mw-composer__input').value, work: document.querySelector('[data-assistant-work-title]')?.textContent || '' })`);
   assert.equal(asked.input, "帮我总结一下这个项目目前的进展", "the question stays in the input");
 
   // 2. The pointer leads to the model settings, which open over the page. With no provider they offer one-click templates.
@@ -96,7 +96,7 @@ test("no model → settings → template → a failing check saves nothing → a
   await click("[data-model-save]");
   await waitFor("!document.querySelector('[data-cover-chip]')", 15_000);
   const back = await evaluate<{ surface: string; input: string; work: string; toast: string; leaked: boolean }>(`({ surface: document.body.dataset.desktopSurface,
-    input: document.querySelector('[data-assistant-input]').value, work: document.querySelector('[data-assistant-work-title]')?.textContent || '',
+    input: document.querySelector('[data-assistant-composer] .mw-composer__input').value, work: document.querySelector('[data-assistant-work-title]')?.textContent || '',
     toast: document.querySelector('[data-toast]')?.textContent || '', leaked: document.documentElement.outerHTML.includes(${JSON.stringify(goodKey)}) })`);
   assert.deepEqual({ surface: back.surface, input: back.input, work: back.work }, asked, "the page shows what it showed before settings opened");
   assert.match(back.toast, /模型已连接/);
@@ -172,7 +172,7 @@ test("Cognia in a pane beside the page: its settings link opens the settings ove
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?desktop=1&openPlugin=cognia` }, sessionId));
   await child.waitFor("document.querySelector('[data-cognia-action=model-settings]') && !document.querySelector('[data-cognia-action=model-settings]').hidden");
-  await click("[data-titlebar-tabs]:not([hidden]) [data-tab-split], .tab-pane.is-focused [data-tab-split]");
+  await click("[data-layout-open]");
   await click("[data-layout-split=right]");
   await paneView.waitFor("document.querySelector('[data-cognia-action=model-settings]') && !document.querySelector('[data-cognia-action=model-settings]').hidden",20_000);
   const hidden = async () => ({page:await child.evaluate<boolean>("document.querySelector('[data-cognia-action=model-settings]').hidden"),pane:await paneView.evaluate<boolean>("document.querySelector('[data-cognia-action=model-settings]').hidden")});

@@ -240,7 +240,7 @@ load 之前的传输（不含这个文档和其他载入后的请求）是这样
 
 「第一屏资源都要登记」这个决定不变，但分两处放。一处管随产品分发的文件，一处管门禁要算的第一屏。放不到一起的理由有三条：账按页面和语言算，产品登记表没有这两个字段；隐藏文档、内联块、`/api/...` 没有包路径，放不进必须有 `package`、`path` 的表；每个加启动请求的 PR 都要改设计系统包里的同一个文件，正是并行 PR 冲突的来源。
 
-**产品资源登记表** `packages/design-system/resources/registry.json`。只放随产品分发、有包路径的东西：字体、皮肤、字体方案、共同规格、平台语言目录。字段以 A 段合同设计稿第 3.6 节（#1918，`a-section-contract.md`，未合入）为准，本文不重新定义，也不存字节：
+**产品资源登记表** `packages/design-system/resources/registry.json`。只放随产品分发、有包路径的东西：字体、皮肤、字体方案、共同规格、平台语言目录。字段以 A 段合同设计稿第 3.6 节（`a-section-contract.md`）为准，本文不重新定义，也不存字节：
 
 | 字段 | 含义 |
 | --- | --- |
@@ -276,7 +276,7 @@ load 之前的传输（不含这个文档和其他载入后的请求）是这样
 | `font.inter-latin-variable` | font | `design-system` | `fonts/` 下现有文件，route `/assets/inter-latin-variable.woff2` | 48,256 | 48,249 | 实测 | OFL 1.1；fontsource，The Inter Project Authors | `fallback` |
 | `font.noto-sans-sc-400` | font | `design-system` | `fonts/` 下现有文件，route `/assets/noto-sans-sc-400.woff2` | 1,141,536 | 1,141,904 | 实测 | OFL 1.1；fontsource，The Noto Project Authors | `fallback` |
 | `font.rounded-latin` | font | `design-system` | 待定 | 39,128 | 文件已是 woff2 | 实测：Nunito 拉丁、直立、可变 wght 200～1000，和 Inter 相同 `unicode-range` | OFL 1.1；`@fontsource-variable/nunito` 5.3.0，The Nunito Project Authors，许可和字体内没有保留字名 | `on-select` |
-| `font.rounded-cjk` | font | `design-system` | 待定 | 每字重 14 片共 1,290,556（Regular）／1,292,508（Medium），最大片 108,748；样式 46,950／字重 | 文件已是 woff2 | 实测：Resource Han Rounded CN v0.990 裁剪，覆盖 GB2312 全部 6,763 字加 481 个符号（裁法未定，见第 6.3 节） | SIL OFL 1.1，上游思源黑体带保留字名 Source；有未确认的点，见第 6.4 节 | `on-select` |
+| `font.rounded-cjk` | font | `design-system` | 待定 | 每字重 14 片共 1,290,556（Regular）／1,292,508（Medium），最大片 108,748；样式 46,950／字重 | 文件已是 woff2 | 实测：Resource Han Rounded CN v0.990 裁剪，覆盖 GB2312 全部 6,763 字加 481 个符号（裁法未定，见第 6.3 节）。用户 2026-11-08 改选 v1.910 转 TrueType（第 6.4 节、第 8 节），这一行第 16 批按它重算 | SIL OFL 1.1，上游思源黑体带保留字名 Source；有未确认的点，见第 6.4 节 | `on-select` |
 | `skin.soft-workbench` | skin | `design-system` | `resources/skins/soft-workbench.json` | 约 9,059（压缩写法）／11,368（缩进） | 约 2,266 | 估算：127 个浅色、127 个深色、31 个形状令牌 | 自有 | `startup` |
 | `skin.folio` | skin | `design-system` | `resources/skins/folio.json` | 约 9,000（同形状类比） | 约 2,300 | 粗估，第 16 批才有 | 自有 | `on-select` |
 | `font-scheme.system-sans` | font-scheme | `design-system` | `resources/fonts/system-sans.json` | 约 1,000 | 未算 | 粗估，字族表 362 B 加角色 | 自有 | `startup` |
@@ -284,6 +284,8 @@ load 之前的传输（不含这个文档和其他载入后的请求）是这样
 | `locale.workbench` | locale | `workbench` | `resources/locales/`（语言目录） | 英文 589,113，中文 0 | 英文 205,652 | 实算，今天中文作键的形状；中文第一屏今天不用工作台文件，第 16 批换稳定键后才有，估算见第 4.2 节 | 自有 | `first-screen` |
 
 皮肤文件由 Host 读后编译成 CSS，浏览器看到的是样式表和展示快照，所以登记里的 `path` 和线上字节要分开核对。
+
+**落地之后（第 14 批 T6、T8）。** 登记表现在有 6 行：`spec.molis-interface`、`skin.soft-workbench`、`font-scheme.system-sans`、`locale.workbench` 和两款字体。和上表不同的两处：规格的 id 是 `spec.molis-interface`；`locale.workbench` 的 `load` 是 `tool`，因为 A 段的工作台语言目录只有组件板「语言与文字」一节的词（中英各约 2 KB），第 16 批换稳定键、进第一屏时再改。两款圆润字体和 Folio 第 16 批才有，不在表里。每行的字节和 sha256 不存，现算：`node scripts/first-screen-report.mjs --resources`（要先 `pnpm build`；只读文件，不起宿主，不失败）。
 
 **插件语言文件**（不进上表，只在 Manifest 声明）今天的形状：英文 21 个共 364,220 B（gzip 120,987），中文 19 个共 214,777 B（gzip 72,124）。
 
@@ -375,7 +377,7 @@ load 之前的传输（不含这个文档和其他载入后的请求）是这样
 **发布情况。** 不是 2018 年后就没发布：
 
 - v0.990（2018-12-23）是最后一个静态 TTF 发行版，也是这次量的版本。
-- **v1.910（2022-04-23）标为预发布**，只有 OpenType/CFF2 可变字体，`RHR-CFF2-CN-1.910.7z` 16,255,241 B。不在批准的下载范围内，**没有下载、没有量**。
+- **v1.910（2022-04-23）标为预发布**，只有 OpenType/CFF2 可变字体，`RHR-CFF2-CN-1.910.7z` 16,255,241 B。最初不在批准的下载范围内；用户 2026-11-07 选「再比一轮再定」，批准下载这个测试版和一两款别的开源圆润中文字体（只放本机临时目录）。下载后切成静态字重、转成 TrueType 轮廓量过（字体对比页的第三列）：400／500／600 每个字重覆盖 GB2312 加 481 个符号约 1,392,820～1,407,112 B，切 14 片共 1,639,960～1,664,632 B、最大片 139,940～141,636 B；700 的字节没量，第 16 批再量。用户 11-08 选了它，见第 8 节。
 - 仓库最后一次提交是 2022-05-06，之后没有更新；未归档。
 
 **未确认：**
@@ -383,7 +385,7 @@ load 之前的传输（不含这个文档和其他载入后的请求）是这样
 - 「Resource Han Rounded」这个名字里含有字母序列 source，它是否算用了 Adobe 的保留字名 'Source'。作者用这个名字发布至今，但我没有找到 Adobe 对此的说法，未确认。
 - 产品里裁剪后继续叫这个名字是否合适，取决于上一条；Cyano Hao 没有声明保留字名这一点，只能说明不会因他的声明而要改名。
 - v0.990 字体内的版权行不含保留字名，以仓库 `LICENSE.txt` 为准是否足够，未确认。
-- 字形质量：圆角是脚本批量处理的（name 表写 round all glyphs），只量了字节，没看过实际效果。
+- 字形质量：圆角是脚本批量处理的（name 表写 round all glyphs），v0.990 和 v1.910 都在字体对比页上看过（用户看着它选的），还没接进产品页面。
 
 ## 7. 预算规则
 
@@ -521,13 +523,17 @@ load 之前的传输（不含这个文档和其他载入后的请求）是这样
 
 ## 8. 已定的事和待办
 
-预算方案和语言目录不留待定。Folio 的中文字体还没定（用哪一款、裁法、标题字重 600 怎么办、要不要再量 v1.910、名字问题，见第 6.3、6.4 节）：它属[决策第 23 项](../post-anticorruption-roadmap/reference/decisions.md#decision-23)，不挡本批，第 16 批开工前问用户。
+预算方案和语言目录不留待定。Folio 的中文字体用户 2026-11-08 已选（见下面第 4 条）；还没定的是名字问题（第 6.4 节）和裁法、切片：它们属[决策第 23 项](../post-anticorruption-roadmap/reference/decisions.md#decision-23)，不挡本批，第 16 批落地时定。
 
 **已定（用户 2026-11-07）：**
 
 1. 预算方案选方案二，不设绝对上限；合入后的那次实测作起点，只比较变化。
 2. 语言目录「工作台一份，插件按需」；第 16 批带实测按类一次批准，不逐个问。
 3. 候选圆润字体批准下载实测，范围只限 `@fontsource-variable/nunito` 5.3.0、`RHR-CN-0.990.7z` 和临时工具，不进仓库。已做完，见第 6.3、6.4 节。
+
+**已定（用户 2026-11-08）：**
+
+4. 圆润字体选字体对比页的第三列：中文用 Resource Han Rounded v1.910，从 CFF2 可变字体切成静态字重、转成 TrueType 轮廓，400／500／600／700 都是真的字重（700 的字节第 16 批再量）；拉丁用 Nunito。v1.910 标为预发布，名字里的 source 是否算用了保留字名仍未确认（第 6.4 节），发行前要有结论。字体文件、登记表行和转换步骤第 16 批做，本批不进仓库。
 
 **第 16 批的前置待办：**
 
@@ -559,8 +565,8 @@ load 之前的传输（不含这个文档和其他载入后的请求）是这样
 | 门禁在 CI 上的时长、基点隔离构建的时长、防漏作业的时长 | 只量了本机一边约 7～8 秒 |
 | 合理增长要写许可的频率 | 没有回放历史 PR |
 | 安装包大小 | 不在这本账里 |
-| Resource Han Rounded v1.910（可变字体） | 不在批准的下载范围内 |
-| 圆润字体在浏览器里的实际渲染、字形质量和时间 | 只裁剪量了字节，没有接进页面 |
+| Resource Han Rounded v1.910 转 TrueType 的 700 字重 | 对比页用到了，字节没量，第 16 批再量 |
+| 圆润字体在产品页面里的渲染和加载时间 | 字体对比页上看过字形，还没接进产品页面 |
 | 分片、Bold、中文第一屏用到几片的真实下载 | 片数是从静态文字估算的；Bold 只量了一级字单文件 |
 | 深色、窄屏 | 字节不受影响，未单独量 |
 | 第 4 节替换之后的真实表现 | 只是算出来的；令牌去重未在浏览器里逐像素比对 |

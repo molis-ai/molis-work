@@ -9,11 +9,11 @@ import { bindingErrors, personRelationKept } from "./binding-errors.js";
 import { projectCatalogErrors } from "@molis-ai/molis-work-contracts/modules/projects";
 
 export interface RuntimeProjectBindingPorts {
-  query: Pick<ProjectsQueryApi, "getProject" | "listWorkspaceMemberships">;
+  query: Pick<ProjectsQueryApi, "getProject" | "listWorkspaceMemberships" | "workspaceIdAt">;
   lifecycle: {
     upsertWorkspaceMembership(workspace: NormalizedRuntimeWorkspaceContext, projectId: string, actorId: string): void;
-    /** False when the relation stays: the person made it, and only they can undo it. */
-    unlinkWorkspaceMembership(workspaceId: string, projectId: string, actorId: string): boolean;
+    /** Only `unlinked` changed anything; the output stays (SSC-17), and so does a relation the person made, which Projects judges. */
+    unlinkWorkspaceMembership(workspaceId: string, projectId: string, actorId: string): "unlinked" | "absent" | "output_kept" | "person_kept";
     appendEvent(projectId: string, type: string, actorId: string, payload: Record<string, string | null>): void;
   };
 }
@@ -120,25 +120,15 @@ export class RuntimeProjectBindingCommands {
           );
         }
         const projectId = this.validation.requiredProjectId(input.project_id ?? "");
-        const membership = this.records.findWorkspaceMembershipByIds(normalized.workspace.workspace_id, projectId);
-        if (!membership) {
+        const membership = this.records.findWorkspaceMembershipAt(normalized.workspace.canonical_path, projectId);
+        // The project's output folder keeps offering it (SSC-17), and a relation the person made stays theirs: nothing is unlinked there.
+        const outcome = membership ? this.projects.lifecycle.unlinkWorkspaceMembership(membership.workspace_id, projectId, actorId) : "absent";
+        if (outcome !== "unlinked") {
           return {
             resolution: this.resolveRuntimeContext(input.context),
             unbound_project: null,
             changed: false,
-          };
-        }
-        const unlinked = this.projects.lifecycle.unlinkWorkspaceMembership(
-          normalized.workspace.workspace_id,
-          projectId,
-          actorId,
-        );
-        if (!unlinked) {
-          return {
-            resolution: this.resolveRuntimeContext(input.context),
-            unbound_project: null,
-            changed: false,
-            kept: personRelationKept(),
+            ...(outcome === "person_kept" ? { kept: personRelationKept() } : {}),
           };
         }
         const project = this.projects.query.getProject(projectId);

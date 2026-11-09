@@ -6,8 +6,7 @@ import { renderPluginEventRecovery } from "./plugin-event-recovery.js";
 import { DIRECT_WORK_SURFACE_IDS, RELOAD_ON_MEMBERSHIP_IDS, builtinPluginDirectory, dockDefaultPins, extendPluginIds, islandEntries, pluginLabel, pluginMarketCards, railEntries, pluginStageSummaries, type PluginMarketOptions } from "./plugin-catalog.js";
 import type { PluginDirectory } from "./plugin-directory.js";
 import { renderAssistantDock } from "./assistant-dock.js";
-import { renderSidePanel, type SidePanelPluginTab } from "./side-panel.js";
-import { renderHomePluginNavigation, type HomePluginNavigationEntry } from "./home-plugin-navigation.js";
+import { renderSidePanel, renderSideStrip, type SidePanelPluginTab } from "./side-panel.js";
 import { ARTIFACT_NAVIGATION } from "./artifacts/navigation.js";
 
 export interface ImmersiveShellPrimitives {
@@ -116,9 +115,9 @@ function dependentPlugins(id: string, members: ReadonlySet<string> | readonly st
 /**
  * Host chrome, not a view slot. The rail answers one question per zone, top to bottom:
  * where the work lives (the project home, then the backbone plugins), and which tools this
- * project uses, in the group each plugin's view names (`group`, W5-06 2b): 灵光 leads the
- * personal group, and one that names no group, including one added later, lands in 更多, so
- * adding a Plugin never edits the shell.
+ * project uses, in the group each plugin's view names (`group`, W5-06 2b), except 个人, which holds the person's own plugins
+ * by the one rule ＋ and the bar's right tray use (`isPersonalPlugin`, 07-1 S4b); one that names no group, including one added
+ * later, lands in 更多, so adding a Plugin never edits the shell. An island leads the group it is in.
  *
  * Not every tool stays on screen. The tools zone shows the ones used lately and the current one;
  * 全部插件 opens the rest in place, grouped, and the ways to extend them are rendered separately
@@ -178,7 +177,7 @@ export function renderPluginRail(
   };
   // At rest the end of the tile shows only a small pin when the plugin is kept; looked at, the buttons replace it.
   const mark = `<i class="plugin-rail-mark" aria-hidden="true">${icon("pin")}</i><small class="plugin-rail-confirm" aria-hidden="true"></small>`;
-  const tile = (plugin: { id: string; surface: string; label: string; glyph: PluginIconName; chosen?: boolean }, zone: string) => {
+  const tile = (plugin: { id: string; surface: string; label: string; glyph: PluginIconName; chosen?: boolean; group?: string | null }, zone: string) => {
     // A plugin installed at run time is in the project because it runs there; taking it out is whoever installed it, not this list.
     const installed = plugin.chosen === false;
     const owned = installed || have.has(plugin.id);
@@ -188,12 +187,13 @@ export function renderPluginRail(
     const hint = hints[plugin.id] ? `<small class="plugin-rail-hint">${hints[plugin.id]}</small>` : "";
     const main = owned ? link(plugin, zone, mark)
       : `<button class="immersive-plugin-link plugin-rail-item" type="button" data-rail-zone="${zone}" aria-disabled="true" tabindex="-1" aria-label="${say(L, "{name}（未添加）", { name: label })}">${icon(plugin.glyph)}<span>${label}</span>${hint}${mark}</button>`;
-    return `<div class="plugin-rail-tile${owned ? "" : " is-available"}${kept ? " is-kept" : ""}" data-plugin-tile="${plugin.id}"${along.length ? ` data-along="${escapeHtml(named(along))}"` : ""}${dependents.length ? ` data-dependents="${escapeHtml(named(dependents))}"` : ""}>${main}<span class="plugin-rail-ops" role="group" aria-label="${label}">${pinButton(plugin, owned)}${installed ? "" : toggleButton(plugin, owned, along)}</span></div>`;
+    // The group goes on the tile so the bar can put a kept 个人 plugin in the right tray (07-1 S4b).
+    return `<div class="plugin-rail-tile${owned ? "" : " is-available"}${kept ? " is-kept" : ""}" data-plugin-tile="${plugin.id}"${plugin.group ? ` data-rail-group="${plugin.group}"` : ""}${along.length ? ` data-along="${escapeHtml(named(along))}"` : ""}${dependents.length ? ` data-dependents="${escapeHtml(named(dependents))}"` : ""}>${main}<span class="plugin-rail-ops" role="group" aria-label="${label}">${pinButton(plugin, owned)}${installed ? "" : toggleButton(plugin, owned, along)}</span></div>`;
   };
   const subgroup = (label: string, buttons: string) => buttons ? `<p class="plugin-rail-subgroup" data-rail-zone="more">${label}</p>${buttons}` : "";
   const home = link({ id: "home", surface: "home", label: L("项目首页"), glyph: "home", hint: L(RAIL_HOME_HINT) }, "core");
   const core = entries.filter(plugin => plugin.rail === "core").map(plugin => tile(plugin, "core")).join("");
-  // 灵光 is a plugin like any other: an island leads the group its view names (个人).
+  // 灵光 is a plugin like any other: an island leads the group it is in.
   const tools = [...islands, ...entries].filter(plugin => plugin.rail === null);
   const grouped = UI_VIEW_GROUPS.map((group, index) => {
     const links = tools.filter(plugin => plugin.group === group).map(plugin => tile(plugin, "tool")).join("");
@@ -226,12 +226,14 @@ export function renderPickerExtend(primitives: ImmersiveShellPrimitives, enabled
 }
 
 /**
- * The bottom bar replaces the rail. Left, where you go: the switcher — it names where you are (one chip per pane
- * when split) and opens, under search and the two buttons that get more plugins (the market, the plugin studio), every
- * plugin, each with the button that keeps it in the Dock — then the plugins chosen to stay; the two sit in one tray.
- * Centre: the resident Assistant, only an input. Right: the side panel's button (Shelf, 灵光, files, the browser, the
- * computer and the project's discussion beside the work, specs/side-shelf §3.1) in its tray, then the project as a round button
- * whose menu holds the project and the person — switching, search, settings, capabilities.
+ * The bottom bar in three zones (07-1 S4b; docs/design/workbench-navigation, zoning 1). Left, where you go: the switcher as
+ * its glyph alone (its name says where you are; the tab strip above already shows it), which opens, under search and the two
+ * buttons that get more plugins (the market, the plugin studio), every plugin, each with the button that keeps it in the Dock;
+ * then, after a hairline, the Dock: 项目首页 and the project's plugins chosen to stay. Centre: the resident Assistant, only an
+ * input. Right, the person's own: the personal plugins chosen to stay (the built-in Home plugins and the packages installed in
+ * the Home, `personal` in the directory), in a tray of the same buttons, then the project as a round button whose menu holds
+ * the project and the person — switching, search, settings, capabilities. The right side opens from its glyphs in the title
+ * bar and ⌘\; the bar has no switch for it.
  */
 export function renderWorkbenchBar(
   primitives: ImmersiveShellPrimitives,
@@ -241,7 +243,7 @@ export function renderWorkbenchBar(
   return `<div class="workbench-bar" data-dock aria-label="${L("底栏")}">
     <div class="bar-start">
       <div class="plugin-picker" data-plugin-picker>
-        <button class="plugin-picker-trigger" type="button" data-plugin-picker-toggle aria-expanded="false" aria-haspopup="true" aria-label="${L("全部插件与 Dock")}" title="${L("全部插件与 Dock")}"><span class="plugin-picker-all" aria-hidden="true">${icon("grid")}</span><span class="plugin-picker-current" data-plugin-picker-current>${icon("home")}<span>${L("项目首页")}</span></span>${icon("chevron-up")}</button>
+        <button class="plugin-picker-trigger" type="button" data-plugin-picker-toggle aria-expanded="false" aria-haspopup="true" aria-label="${L("切换插件")}" title="${L("切换插件")} ⌘K"><span class="plugin-picker-all" aria-hidden="true">${icon("grid")}</span><span class="plugin-picker-current" data-plugin-picker-current>${icon("home")}<span>${L("项目首页")}</span></span>${icon("chevron-up")}</button>
         <div class="plugin-picker-popover" data-plugin-picker-popover hidden>
           <div class="plugin-picker-head">
             <button class="plugin-picker-search" type="button" data-global-search-open aria-label="${L("打开搜索")}" title="${L("打开搜索")}">${icon("search")}<span>${L("搜索")}</span><kbd>⌘K</kbd></button>
@@ -254,8 +256,8 @@ export function renderWorkbenchBar(
     </div>
     ${renderAssistantDock(primitives)}
     <div class="bar-end">
-      <div class="bar-side"><button class="bar-chat" type="button" data-side-toggle aria-expanded="false" aria-controls="side-panel" data-craft-tip="${L("侧栏：Shelf、灵光、资料、浏览器、电脑与讨论")}" aria-label="${L("侧栏：Shelf、灵光、资料、浏览器、电脑与讨论")}">${icon("sidebar")}</button></div>
-      ${renderSidePanel(primitives, parts.sideTabs ?? [])}
+      <div class="bar-side bar-own" data-bar-own role="toolbar" aria-label="${L("你自己的")}"></div>
+      ${renderSidePanel(primitives, parts.sideTabs ?? [], { tasks: true })}
       ${renderSyncIndicator(primitives)}${parts.projectChrome}
     </div>
   </div>`;
@@ -287,7 +289,11 @@ export function renderDirectoryPluginSections(
   return `${plugins}${settingsSection}`;
 }
 
-export function renderImmersiveHeader(primitives: ImmersiveShellPrimitives, desktop: boolean, homePlugins: readonly HomePluginNavigationEntry[] = []): string {
+/**
+ * The title bar: the way back, the work area's tabs, the right side's tabs (side-panel.ts) and, at its right end, the one layout
+ * button (07-S2, 口径 6). It has no place for the person's own tools: those are in the switcher and the bar's right tray (07-1 S4b, 口径 9).
+ */
+export function renderImmersiveHeader(primitives: ImmersiveShellPrimitives, desktop: boolean, sideTabs: readonly SidePanelPluginTab[] = []): string {
   const { L, icon } = primitives;
   return `<header class="workbench-header immersive-titlebar"${desktop ? ' data-tauri-drag-region="deep"' : ""}>
     <div class="mw-group workspace-history">
@@ -299,8 +305,8 @@ export function renderImmersiveHeader(primitives: ImmersiveShellPrimitives, desk
     <nav class="tab-strip tab-strip--chrome" data-titlebar-tabs aria-label="${L("工作区标签")}"></nav>
     <nav class="container-tabs" data-container-tabs data-overflow-fade aria-label="${L("工作区标签")}" hidden></nav>
     <div class="desktop-titlebar-drag"${desktop ? " data-tauri-drag-region" : ""} aria-hidden="true"></div>
-    ${renderHomePluginNavigation(undefined, homePlugins)}
-    <button class="mw-btn mw-btn--ghost background-tasks-button" type="button" data-background-tasks aria-label="${L("后台任务")}" title="${L("后台任务")}" hidden>${icon("activity")}<span data-background-tasks-count>0</span></button>
+    ${renderSideStrip(primitives, sideTabs, { tasks: true })}
+    <span class="titlebar-layout">${renderButton({ label: L("布局"), icon: "columns", variant: "ghost", size: "sm", iconOnly: true, attrs: { "data-layout-open": true, "aria-haspopup": "menu", "aria-expanded": "false", title: L("布局") } })}</span>
   </header>`;
 }
 

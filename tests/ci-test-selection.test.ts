@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test, { after } from "node:test";
 import { fileURLToPath } from "node:url";
-import { decideJob, decideNative, FULL_WHEN, NATIVE_RUN_WHEN, outputLines, securityList } from "../scripts/ci-test-selection.mjs";
+import { decideGoldenHistory, decideGoldenThirdParty, decideJob, decideNative, FULL_WHEN, GOLDEN_THIRD_PARTY_RUN_WHEN, NATIVE_RUN_WHEN, outputLines, securityList } from "../scripts/ci-test-selection.mjs";
 import { decideChecks } from "../scripts/ci-check-selection.mjs";
 import { blockingJobs, blockingTestRuns, evaluateExpression, jobBlock, workflow } from "./fixtures/ci-workflow.js";
 
@@ -184,7 +184,7 @@ test("RAC-1763 end to end: a document skips both jobs, a plugin change runs its 
   commit("docs");
   const docs = select(root);
   assert.equal(docs.code, 0, docs.text);
-  assert.deepEqual(docs.outputs, { security_mode: "none", security_shards: "[1]", product_mode: "none", product_shards: "[1]", security_files: "", product_only: "", native_mode: "none", documentation_mode: "only", gate_rules_mode: "none", shell_mode: "none" }, docs.text);
+  assert.deepEqual(docs.outputs, { security_mode: "none", security_shards: "[1]", product_mode: "none", product_shards: "[1]", security_files: "", product_only: "", native_mode: "none", documentation_mode: "only", gate_rules_mode: "none", shell_mode: "none", golden_third_party_mode: "none", golden_history_mode: "latest" }, docs.text);
 
   put("plugins/native/demo/src/thing.ts", "export function demoThingCount() { return 3; }\n");
   commit("demo");
@@ -275,7 +275,7 @@ test("RAC-1764 ci.yml: only a successful none skips a PR job; whole and untruste
   assert.doesNotMatch(selection, /pnpm install/, "no dependencies: it starts at once");
   assert.ok(!blockingJobs().includes("test-selection"), "the selector is an auxiliary Verify dependency, not a required test result");
   assert.match(jobBlock("verify"), /^    needs: \[.*test-selection\]$/m, "Verify directly receives the selection result and modes");
-  assert.deepEqual(blockingJobs(), ["gates", "health-gate-rules", "architecture-boundaries", "action-contracts", "secret-scan", "native-checks", "shell-checks", "security-invariants", "product-subset"], "the blocking jobs are the ones of today, the two that read the selection among them (decision #14, 2026-10-31)");
+  assert.deepEqual(blockingJobs(), ["gates", "health-gate-rules", "architecture-boundaries", "action-contracts", "secret-scan", "native-checks", "shell-checks", "security-invariants", "product-subset", "golden-replay", "golden-replay-third-party"], "the blocking jobs are the ones of today, the two that read the selection among them (decision #14, 2026-10-31)");
   assert.match(jobBlock("verify"), /^    name: Verify$/m, "the required check keeps its name");
 
   for (const [name, key] of [["security-invariants", "security"], ["product-subset", "product"]] as const) {
@@ -356,7 +356,7 @@ function evaluate(expression: string, scope: { event: string; result: string; ou
 
 test("RAC-1765 ci.yml: every output the script writes is passed on by the job, and the jobs read only those", () => {
   const security = decideJob({ job: "security", list: LIST, affected: null });
-  const written = outputLines({ security, product: security, native: decideNative({ affected: null }), ...decideChecks({ affected: null }) }).map((line: string) => line.split("=")[0]).sort();
+  const written = outputLines({ security, product: security, native: decideNative({ affected: null }), golden_third_party: decideGoldenThirdParty({ affected: null }), golden_history: decideGoldenHistory({ affected: null }), ...decideChecks({ affected: null }) }).map((line: string) => line.split("=")[0]).sort();
   const selection = jobBlock("test-selection");
   const passed = [...selection.matchAll(/^      ([a-z_]+): \$\{\{ steps\.select\.outputs\.([a-z_]+) \}\}$/gm)].map((match) => { assert.equal(match[1], match[2]); return match[1]!; }).sort();
   assert.deepEqual(passed, written);
@@ -396,4 +396,45 @@ test("RAC-1766 the Rust and Swift checks run when a changed file is one they rea
   // The outputs name the mode and nothing else: no shards, no files.
   assert.deepEqual(outputLines({ security: decideJob({ job: "security", list: LIST, affected: null }), product: decideJob({ job: "product", list: LIST, affected: null }), native: none }).filter((line: string) => line.startsWith("native")), ["native_mode=none"]);
   assert.ok(NATIVE_RUN_WHEN.extensions.includes(".rs") && NATIVE_RUN_WHEN.extensions.includes(".swift"));
+});
+
+test("UPG2-07 the golden replay of the signed samples runs when a changed file is on its list and every other way out, and a new Prologue package takes every golden", () => {
+  const change = (...paths: string[]) => decideGoldenThirdParty({ affected: affected({ changes: paths.map((file) => ({ path: file })) }) });
+  // Written out here, one file for each entry, so that dropping one of them from the script is seen.
+  const LISTED = [
+    "packages/plugin-runtime/src/supervisor.ts", "packages/plugin-sandbox/src/x.ts", "packages/plugin-sdk/src/x.ts", "packages/storage/src/x.ts", "packages/contracts/src/x.ts",
+    "apps/local-host/src/plugin-executor.ts", "apps/local-host/src/sandbox-package.ts", "apps/local-host/src/installed-plugin-libraries.ts", "apps/local-host/src/home-plugins.ts", "apps/local-host/src/home-installed-plugins.ts",
+    "apps/local-host/src/home-stores.ts", "apps/local-host/src/project-plugins.ts", "apps/local-host/src/project-database.ts", "apps/local-host/src/project-statement-process.ts",
+    "apps/desktop/launchers/cli/main.ts", "tooling/plugin-cli/src/install.ts", "apps/local-host/src/resident-host-request.ts", "apps/desktop/src/web-host.ts",
+    "tests/fixtures/golden-homes/0.1.0/manifest.json", "tests/fixtures/golden-home-library/v1.json", "tests/fixtures/replay-plugins/corpus.json", "tests/golden-writes/todo.ts", "scripts/golden/layout.mjs", "scripts/replay-plugins/signed-session.mjs",
+    "vendor/prologue-sdk/README.md", ".github/workflows/ci.yml", "scripts/golden-home.mjs", "scripts/replay-golden-homes.mjs", "scripts/ci-golden-replay.mjs", "scripts/replay-plugins.mjs", "scripts/ci-test-selection.mjs", "scripts/ci-check-selection.mjs", "tests/golden-home.test.ts",
+    ".nvmrc", "package.json", "pnpm-lock.yaml",
+  ];
+  for (const file of LISTED) assert.equal(change("docs/guide.md", file).mode, "whole", file);
+  assert.equal(GOLDEN_THIRD_PARTY_RUN_WHEN.prefixes.length + GOLDEN_THIRD_PARTY_RUN_WHEN.files.length + 3, LISTED.length, "a new entry is written out above too");
+  assert.equal(decideGoldenThirdParty({ affected: affected({ changes: [{ path: "docs/old.md", from: "packages/storage/src/old.ts", status: "R" }] }) }).mode, "whole", "a rename is read by both names");
+  assert.equal(change("docs/system/ARCHITECTURE.md", "plugins/native/todo/src/store.ts", "apps/workbench/src/primitive-catalog.ts", "README.md", "tests/board-overflow.e2e.test.ts").mode, "none");
+  for (const input of [{ affected: null, failure: "boom" }, { affected: null }, { affected: { tests: [], full: [], uncovered: [] } }, { affected: { changes: "docs/guide.md" } }]) {
+    assert.equal(decideGoldenThirdParty(input as Parameters<typeof decideGoldenThirdParty>[0]).mode, "whole", JSON.stringify(input));
+    assert.equal(decideGoldenHistory(input as Parameters<typeof decideGoldenHistory>[0]).mode, "all", JSON.stringify(input));
+  }
+  const history = (...paths: string[]) => decideGoldenHistory({ affected: affected({ changes: paths.map((file) => ({ path: file })) }) }).mode;
+  assert.equal(history("vendor/prologue-sdk/prologue-sdk-1.tgz"), "all", "UPG-11");
+  assert.equal(history("packages/storage/src/x.ts"), "latest");
+});
+
+test("UPG2-07 ci.yml: both golden replays say what they took and report through the script that shows what did not run, and a failed selection never narrows them", () => {
+  for (const name of ["golden-replay", "golden-replay-third-party"]) {
+    const job = jobBlock(name);
+    assert.match(job, /run: \|\n\s+set --\n\s+if \[ "\$HISTORY" != "latest" \]; then set -- --all; fi\n\s+node scripts\/ci-golden-replay\.mjs "\$@"/);
+    const history = /HISTORY: \$\{\{ (.*) \}\}/.exec(job)![1]!;
+    assert.equal(evaluateExpression(history, { "needs.test-selection.result": "success", "needs.test-selection.outputs.golden_history_mode": "latest" }), "latest");
+    for (const result of ["failure", "cancelled", "skipped"]) assert.equal(evaluateExpression(history, { "needs.test-selection.result": result, "needs.test-selection.outputs.golden_history_mode": "latest" }), "all", result);
+  }
+  assert.match(jobBlock("golden-replay"), /^    runs-on: ubuntu-latest$/m);
+  assert.match(jobBlock("golden-replay-third-party"), /^    runs-on: macos-latest$/m);
+  const nightly = readFileSync(path.join(repoRoot, ".github/workflows/golden-replay-nightly.yml"), "utf8");
+  assert.match(nightly, /runs-on: macos-latest/, "the daily run is the one place the signed samples always run");
+  assert.match(nightly, /node scripts\/ci-golden-replay\.mjs --all/);
+  assert.match(nightly, /issues: write/);
 });

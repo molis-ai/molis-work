@@ -87,10 +87,10 @@ export function contextDeclarationProblems(key: string, operation: unknown, acti
   return [...intakeProblems(key, operation, action), ...attachProblems(key, operation, action), ...choicePlaceProblems(key, action)];
 }
 
-/** The kinds this Manifest reads objects of: each has a reader in its own actions. Entries that are not shaped like actions read as none. */
-function ownKinds(manifest: Pick<PluginManifest, "actions">): ReadonlySet<string> {
+/** The kinds a group of definitions reads objects of: each has a reader among them. Entries that are not shaped like actions read as none. */
+export function readerKinds(definitions: unknown): ReadonlySet<string> {
   const kinds = new Set<string>();
-  for (const definition of Array.isArray(manifest.actions) ? manifest.actions : []) {
+  for (const definition of Array.isArray(definitions) ? definitions as unknown[] : []) {
     if (!isRecord(definition) || !isRecord(definition.action) || !isSubjectReader(definition.action) || !Array.isArray(definition.action.subject_kinds)) continue;
     for (const kind of definition.action.subject_kinds) if (typeof kind === "string") kinds.add(kind);
   }
@@ -101,7 +101,7 @@ function ownKinds(manifest: Pick<PluginManifest, "actions">): ReadonlySet<string
 export function inspectContextDeclarations(manifest: Pick<PluginManifest, "actions"> & { readonly ui: Pick<PluginManifest["ui"], "views"> }): string[] {
   const problems: string[] = [];
   const definitions = Array.isArray(manifest.actions) ? manifest.actions : [];
-  const kinds = ownKinds(manifest);
+  const kinds = readerKinds(manifest.actions);
   const seen = { intake: new Set<string>(), attach: new Set<string>() };
   for (const definition of definitions) {
     if (!isRecord(definition) || !isRecord(definition.action)) continue;

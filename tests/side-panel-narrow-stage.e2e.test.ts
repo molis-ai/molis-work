@@ -32,7 +32,8 @@ test("an open record keeps a readable width when the side panel narrows the stag
   assert.equal(wide.list, true, "without the side panel the list stays beside the document");
   assert.equal(wide.overflow, false);
 
-  await click("[data-side-toggle]");
+  // 07-1 S4b: the bar's side button is gone; the side opens from its current glyph in the titlebar.
+  await click("[data-side-tabs] [data-side-tab][aria-selected=true]");
   await waitFor("document.body.dataset.sideOpen === 'true' && document.querySelector('section.side-panel').getBoundingClientRect().width >= 360");
   await child.waitFor("document.querySelector('[data-pages=workbench] .plugin-stage-list').getClientRects().length === 0");
   // RING-07: the existing iframe status protocol paints and clears the shared ring.
@@ -49,7 +50,8 @@ test("an open record keeps a readable width when the side panel narrows the stag
   // The way back to the list is still there.
   assert.ok(await child.evaluate("Boolean(document.querySelector('[data-pages=workbench] .plugin-stage-detail-bar')?.getClientRects().length)"));
 
-  await click("[data-side-toggle]");
+  // It closes from the layout menu at the titlebar's end (收起右侧), the bar's side button being gone (07-1 S4b).
+  await click("[data-layout-open]"); await click("[data-layout-action=side]");
   await waitFor("document.body.dataset.sideOpen !== 'true'");
   await child.waitFor("document.querySelector('[data-pages=workbench] .plugin-stage-list').getClientRects().length > 0");
 });

@@ -13,7 +13,7 @@ Workbench 不直接访问 SQLite、Module implementation、Node-only API 或 Tau
 
 产品控件、色板、图标、字体的用法和文件表在 [`packages/design-system/README.md`](../../packages/design-system/README.md)。视觉规范是 [`DESIGN.md`](../../DESIGN.md) 的 Soft Workbench：珍珠灰桌面上一张连续白色工作面，石墨主操作，铜色焦点与链接，字重 400/500/600，动效约 130/250/420ms。开发预览组件板是 `/__ui/catalog`（真实底栏标本在 `/__ui/catalog/bar`）。改共享控件、状态或微动效**要**对照这块板；达标标本**要**补进 Catalog。不准把系统下拉、系统色盘、系统确认框当产品控件。动效、图标色是切片内工作。过程说明见 [CLI 与开发](../cli-and-development.md#前端与控件板) 与 [ui-craft-floor](../../specs/ui-craft-floor/spec.md)。
 
-合同是 HTML Slot：部件由 Plugin SDK 公开，插件从 `@molis-ai/molis-work-plugin-sdk/ui` 导入 `render*` / `icon`（宿主一侧同样直接取它，design-system 不转出），产出 `mw-*` + `data-slot`。不迁 React，不另起 class 填充。颜色、圆角、高度和时长只取 `palette.ts` 的共享 token，不写 hex、不用 `!important` 或按插件覆盖去压前面的层。壳层选中走 `--nav-*`；石墨 `--action` 只给主操作和选中的选项；铜色 `--accent`（`--blue*` / `--focus` 的实际值）给焦点、链接和进行中；插件没有身份色。
+合同是 HTML Slot：部件由 Plugin SDK 公开，插件从 `@molis-ai/molis-work-plugin-sdk/ui` 导入 `render*` / `icon`（宿主一侧同样直接取它，design-system 不转出），产出 `mw-*` + `data-slot`。不迁 React，不另起 class 填充。颜色、圆角、高度和时长只取共享 token（值只在 `packages/design-system/resources/` 的基线文件里，`palette.ts` 把它们写成 CSS），不写 hex、不用 `!important` 或按插件覆盖去压前面的层。壳层选中走 `--nav-*`；石墨 `--action` 只给主操作和选中的选项；铜色 `--accent`（`--blue*` / `--focus` 的实际值）给焦点、链接和进行中；插件没有身份色。
 
 ### 全局导航
 
@@ -64,7 +64,7 @@ Workbench 不直接访问 SQLite、Module implementation、Node-only API 或 Tau
 
 工作台客户端的片段文件共用一个函数作用域，片段之间可以直接读变量、直接调函数，绕过事件。把登记和代码对照后，已知没有守住「别的模块不碰主人的状态」的有两处（文件都在 `apps/workbench/src/scripts/client/`）。它们不是批准的例外，是待清的差距，清的时候把状态收进主人的文件、改成发 request 或听 announcement：
 
-- `navigation-feed`：选中的 Feed 任务 `selectedFeedTask` 声明在 `bootstrap.ts`，读它的有 `documents-state.ts`；`setFeedTask` 定义在 `navigation-feed.ts`，却被 `events-primary.ts`、`events-secondary.ts` 直接调用，`events-primary.ts` 还直接给 `selectedFeedTask` 赋值，`tab-workspace.ts` 拿到的也是这个函数。
+- `navigation-surfaces`（原 `navigation-feed`，07-1 改名）：选中的 Feed 任务 `selectedFeedTask` 声明在 `bootstrap.ts`，读它的有 `documents-state.ts`；`setFeedTask` 定义在 `navigation-surfaces.ts`，却被 `events-primary.ts`、`events-secondary.ts` 直接调用，`events-primary.ts` 还直接给 `selectedFeedTask` 赋值，`tab-workspace.ts` 拿到的也是这个函数。
 - `goal-selection`：选中的 Goal `selected` 声明在 `bootstrap.ts`（不在主人的文件里），`documents-state.ts`、`editing-graph.ts` 直接读它，`immersive-navigation.ts` 经 `getSelected` 回调读它。
 
 其余的主人没有逐一核对过：登记写的是谁应该持有，不是已经证明只有它碰。
@@ -147,6 +147,27 @@ revision 由插件自己推动：服务端在改了页面显示的内容以后�
 
 页面要在自己的布局里展示另一个已启用插件的对象，使用 `host.view.embed(element, { surface, itemId, title? })`，得到 `ready` 与 `dispose()`。它只提交对象身份和区域坐标；宿主在该区域显示同项目的独立页面，内容 DOM、页面凭据和任意地址均不交给调用插件。区域受父页边界裁切，隐藏随父页隐藏，移除占位元素或关闭父页即释放；创建时复核父页授权，目标交互继续由目标页自己的授权处理。
 
-`host.workspaces.add(path)` 在宿主显示插件、项目与路径，真实确认后关联；`host.workspaces.select(id)` 只切换当前项目已经授权的浏览目录。页面须有 `workspace:read`，不能通过普通请求伪造确认、项目或通用设置权限；隐藏取消尚未完成的关联。
+`host.workspaces.add(path)` 在宿主显示插件、项目与路径，真实确认后关联为输入目录；`host.workspaces.setOutput(id)` 在宿主显示插件、项目与这个目录的名字（宿主自己读，不用页面给的），真实确认后把当前项目已有的这个目录设为输出目录，用在「只作输入，设为输出后才能写」的拒绝旁边。页面看哪个目录是页面自己的状态，项目不再记浏览目录，没有 `select`（[shared-sources-and-surfaces](../../specs/shared-sources-and-surfaces/spec.md) §3）。页面须有 `workspace:read`，不能通过普通请求伪造确认、项目或通用设置权限；隐藏取消尚未完成的关联或设置。
 
 页面收尾用 `host.view.onClosing({ reference, input })` 在页面活跃时登记，`null` 取消登记。宿主离开文档时以 keepalive 发送一次，先取消该页普通在途请求，再在同一激活、项目和权限下运行它自己声明的动作，最后撤销页面；消费别的插件动作不能登记为收尾。空白新建项使用原有带版本约束的撤销动作，任何待保存或非空输入都会取消登记。keepalive 仅保持浏览器传输，不延长撤权或项目删除后的写权限。
+
+## 5. 界面文字、语言与外观
+
+插件作者的写法（`t`、`format`、`locales/<语言>.json`、语义变量，今天能做什么、哪些第 16 批起）在 [`skills/molis-plugin-dev/text-and-appearance.md`](../../skills/molis-plugin-dev/text-and-appearance.md)。这里写平台一侧谁做什么。规则的来由见[字体、皮肤与语言设计稿](../../specs/font-and-skin-system/a-section-contract.md)第 5、8 节。
+
+**今天谁在用：** `molis-work plugin dev` 跑的插件、组件板的「语言与文字」一节（`/__ui/catalog#environment`）和两包样例。工作台、宿主和内置插件的页面照旧用 `L`、`p.text`（[`apps/workbench/README.md`](../../apps/workbench/README.md)「界面文字」），第 16 批一起换。
+
+| 件 | 在哪 | 做什么 |
+| --- | --- | --- |
+| 文字工具 | SDK `/ui`：`t`、`say`、`format`，语言文件的 `parseLocalePack`、`inspectLocaleSet`，外观文件的解析器 | 业务代码只调它们。工具不存语言和译文，每次从进程的文字上下文取（`Symbol.for("molis.work.ui-text.v1")`），所以打进插件包里的那份 SDK 读到的也是同一个 |
+| 文字上下文 | `apps/local-host/src/ui-text-provider.ts` 的 `installHostUiText` | 每个进程装一次：应用宿主启动时，开发入口运行插件之前。查不到词、没有语言都记一条问题（宿主日志 `ui-text` 一行，`fields` 带 `owner`、`key`、`locale`，键名只进日志、不上页面；`hostTextProblems` 留最近 200 条） |
+| 语言范围 | `apps/local-host/src/web-locale.ts` | 页面请求在 `runWithLocale` 里；没有页面的平台工作用 `runBackgroundWork(locale, fn)`，语言由入口每次开始时读最后用的语言；开发路径用 `runDevelopmentText`。范围结束，语言就作废：请求里起的定时器在请求结束后读不到那次的语言。没有语言时开发路径和测试抛 `ui.text_no_context`，正式运行用主人的默认语言、不抛 |
+| 各主人的词 | `apps/workbench/src/plugin-text.ts` | 每个主人一张表，不合成一张。插件的会话打开时登记自己的语言读取器、释放时撤回（按次计数，升级不留旧词）。`t` 按键的第一段找主人，两个主人最后一段相同就拒绝（`ui.text_owner_conflict`）；`say` 按完整 `plugin_id` 找 |
+| 平台自己的词 | 资源登记表 `packages/design-system/resources/registry.json` 的 `locale` 行，现在只有工作台（`apps/workbench/resources/locales/`） | 加一个平台主人、给平台主人加一种语言今天各要动几处（登记表、语言目录、`WEB_LOCALES`、`package.json` 的 `files`、`tests/ui-resources.test.ts` 钉住的名单），见 [A 段设计稿](../../specs/font-and-skin-system/a-section-contract.md#14-日常改动各动几处)第 1.4 节；默认语言是 `WEB_LOCALES` 的第一个（`zh`）。A 段里面只有组件板的词 |
+| 外观的值 | `packages/design-system/resources/` 的基线文件，`src/baseline.ts` 经 SDK 的解析器读一次 | `palette.ts`、`typeface.ts` 和样式里的令牌块只把它们写成 CSS，不另存数值 |
+
+**切语言时原地换字（组件板上的标本，第 16 批在真实首屏验收）：** 服务端把同一块内容按旧、新两种语言各画一遍，两份不同的就是要改的字；`apps/workbench/src/browser/locale-switch.ts` 只写 `Text.data` 和 `setAttribute`，不删节点、不用 `innerHTML`，所以事件监听、焦点、输入框里的字和选区、滚动、展开的部分都留着。`textarea`、可编辑内容、输入框的 `value` 和 `translate="no"` 里的字不碰（它们是用户的），按钮类 `input` 的 `value` 算界面字；两份形状不同的一块整块不动并记一条问题。浏览器自己画的字按 `t`、`say` 的产出记录重算。业务代码什么都不用做。
+
+**整页换外观要写到 `html > body`：** 页面各层在 `body.settings-page` 等上又写了一遍壳的令牌，只给 `<html>` 写，页面不会变。组件板的外观标本（`#look-card`、`#look-proof`、`#look-fade`）因此同时给 `html > body` 写；第 16 批的产品代码照这样做（[定样记录](../design/appearance-selection/README.md)）。
+
+改了这几处加跑：`node scripts/run-tests.mjs tests/host-ui-text.test.ts tests/ui-resources.test.ts tests/ui-baseline.test.ts`；浏览器的（要本机 Chrome）`tests/board-locale-switch.e2e.test.ts`、`tests/board-appearance.e2e.test.ts`。

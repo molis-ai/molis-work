@@ -25,7 +25,7 @@ import { assertCurrentCatalog, assertOwnedCatalog, inspectCurrentCatalogSnapshot
 import { PluginTerminalPanels } from "./plugin-terminal-panels.js";
 import { catalogErrors } from "./project-catalog-contract.js";
 export { catalogSchemaCompatibilityError } from "./project-catalog-contract.js";
-import { promises as fs } from "node:fs";
+import { promises as fs, realpathSync } from "node:fs";
 import path from "node:path";
 import { resolveConfiguredHome } from "./product-home.js";
 import { LocalSqliteStorage, type SqliteDatabase } from "@molis-ai/molis-work-storage";
@@ -38,16 +38,18 @@ import type {
   ProjectPluginRegistry,
   RemoveProjectPluginInput,
   AddWorkspaceProjectInput,
-  ChangeWorkspaceProjectInput,
+  ChangeDirectoriesInput,
   DeleteProjectInput,
   ProjectDeletionRecord,
   ProjectDeletionResult,
   ProjectRecord,
   ProjectSelection,
   ProjectWorkspaceDirectoryRecord,
+  ProjectDirectories,
   ProjectWorkspaceMembership,
-  RepairWorkspaceProjectInput,
+  ProjectWorkspaceRef,
 } from "@molis-ai/molis-work-contracts/modules/projects";
+import { directoryInputOnly, projectDirectoryErrors } from "@molis-ai/molis-work-contracts/modules/projects";
 import {
   normalizeProjectWorkspace,
   ProjectsModule,
@@ -93,7 +95,7 @@ export type MolisWorkProjectBindingScope = import("@molis-ai/molis-work-contract
 
 export type MolisWorkWorkspaceMembership = ProjectWorkspaceMembership;
 export type MolisWorkWorkspaceDirectoryRecord = ProjectWorkspaceDirectoryRecord;
-export type { AddWorkspaceProjectInput, RepairWorkspaceProjectInput, ChangeWorkspaceProjectInput };
+export type { AddWorkspaceProjectInput, ChangeDirectoriesInput };
 export type MolisWorkProjectSelection = ProjectSelection;
 
 /**
@@ -207,9 +209,14 @@ export class MolisWorkProjectCatalog {
     this.homeDirectory = homeDirectory;
     this.projectsDirectory = path.join(homeDirectory, "projects");
     this.databasePath = path.join(this.projectsDirectory, "catalog.db");
+    // `outputs` is derived from the trusted Home each time the catalog opens, never stored: a copied Home reads its own (S-102).
+    const space = ensureStorageSpace(homeDirectory), realHome = realpathSync.native(homeDirectory), outputsDirectory = path.join(realHome, "outputs");
     this.projects = new ProjectsModule({
-      spaceId: ensureStorageSpace(homeDirectory).spaceId,
+      spaceId: space.spaceId,
       db, projects_directory: this.projectsDirectory,
+      outputs_directory: outputsDirectory,
+      // An account Home is `<root>/spaces/<space_id>`: a folder named for another device's directory stays out of the whole root (SSC-27).
+      root_home_directory: space.kind === "local" ? realHome : path.dirname(path.dirname(realHome)),
       plugins: homeProjectPlugins(homeDirectory, () => this.projectPluginDirectory?.() ?? alwaysOnProjectPlugins(homeDirectory)),
     });
     this.runtimeContexts = createRuntimeContextModule({
@@ -224,7 +231,7 @@ export class MolisWorkProjectCatalog {
     this.projectDeletion = new ManagedProjectDeletion(this.projects, this.projectsDirectory, {
       removeBindings: (projectId, actorId, at) => this.runtimeContexts.removeProjectFacts(projectId, actorId, at),
       removePanels: projectId => this.terminalPanels.deleteForProject(projectId),
-    }, contextBindingValidation, this.commit, projectDeletedHooksFor(homeDirectory));
+    }, contextBindingValidation, this.commit, projectDeletedHooksFor(homeDirectory), outputsDirectory);
     this.demoProjects = new DemoProjectLifecycle(
       this.projects,
       this.projectsDirectory,
@@ -359,8 +366,31 @@ export class MolisWorkProjectCatalog {
   ): MolisWorkRuntimeContextBindingEvent[] { return this.runtimeContexts.records.listRuntimeContextBindingEvents(context); }
   listRuntimeContextBindings(): MolisWorkRuntimeContextBinding[] { return this.runtimeContexts.records.listRuntimeContextBindings(); }
 
-  preferredWorkspacePath(projectId: string): string | null {
-    return this.projects.query.preferredWorkspacePath(projectId);
+  /** The project's inputs and output, a folder's state looked at now (`projects.directories.get@1`). */
+  projectDirectories(projectId: string): ProjectDirectories {
+    return this.projects.query.projectDirectories(projectId);
+  }
+
+  /** Where a read, a write or a run that names no folder goes (SSC-17). */
+  outputDirectory(projectId: string): ProjectWorkspaceRef {
+    return this.projects.query.outputDirectory(projectId);
+  }
+
+  /** The id of this project's default output directory, whether or not it is the output now. */
+  defaultOutputDirectoryId(projectId: string): string {
+    return this.projects.query.defaultOutputDirectoryId(projectId);
+  }
+
+  /**
+   * Before a folder of the project is touched on disk. Only this project's folders: an id from elsewhere is refused before anything
+   * looks at the disk. `write` (a write, a terminal, a Character or an Agent run in it) needs the output role — an input folder is only
+   * read (SSC-15, user 2026-11-08) — and makes a default output directory that is not there yet (§3, SSC-24).
+   */
+  prepareWorkspaceDirectory(projectId: string, workspaceId: string, mode: "read" | "write"): { path: string; exists: boolean } {
+    const folder = this.projects.query.projectDirectories(projectId).directories.find(item => item.workspace_id === workspaceId);
+    if (!folder) throw projectDirectoryErrors.directory_revoked("这个文件夹已经不是当前项目的目录");
+    if (mode === "write" && !folder.roles.includes("output")) throw directoryInputOnly(workspaceId);
+    return this.projects.lifecycle.prepareWorkspaceDirectory(workspaceId, mode);
   }
 
   /** Safe Web/settings view: deliberately omits the canonical filesystem path. */
@@ -377,16 +407,9 @@ export class MolisWorkProjectCatalog {
     return this.projects.commands.addWorkspaceProject(input);
   }
 
-  repairWorkspaceProject(input: RepairWorkspaceProjectInput): MolisWorkWorkspaceDirectoryRecord {
-    return this.projects.commands.repairWorkspaceProject(input);
-  }
-
-  setWorkspaceDefault(input: ChangeWorkspaceProjectInput): MolisWorkWorkspaceMembership[] {
-    return this.projects.commands.setWorkspaceDefault(input);
-  }
-
-  removeWorkspaceMembership(input: ChangeWorkspaceProjectInput): MolisWorkWorkspaceMembership[] {
-    return this.projects.commands.removeWorkspaceMembership(input);
+  /** One change of `projects.directories.*`, from the revision the person read. */
+  changeDirectories(input: ChangeDirectoriesInput): ProjectDirectories {
+    return this.projects.commands.changeDirectories(input);
   }
   async createProject(input: CreateMolisWorkProjectInput): Promise<MolisWorkProjectRecord> { return this.projectFiles.createProject(input); }
   /** The personal space exists once it is first used; creating it again returns the same one. */

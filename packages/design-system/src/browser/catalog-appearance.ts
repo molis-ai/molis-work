@@ -1,0 +1,72 @@
+/// <reference lib="dom" />
+// The board's look parts made to feel real (primitives/catalog-appearance.ts): choosing a look card, the card's menu letting go, and the fade when the whole
+// page changes look. Presentation only; nothing here is a product control, and nothing is stored: a reload is Soft Workbench again.
+
+const all = <T extends Element = HTMLElement>(selector: string, scope: ParentNode = document) => [...scope.querySelectorAll<T>(selector)];
+
+/** Picking a card says which look the specimen shows: one card is pressed, and unless it is the look in use it wears the "in the specimen" badge. */
+function wireCards(): void {
+  for (const group of all("[data-look-cards]")) {
+    group.addEventListener("click", (event) => {
+      const target = event.target as Element;
+      const pick = target.closest<HTMLElement>(".mw-look-card__pick");
+      if (pick) {
+        for (const other of all(".mw-look-card__pick", group)) {
+          const pressed = other === pick;
+          other.setAttribute("aria-pressed", String(pressed));
+          const trial = other.querySelector<HTMLElement>(".mw-look-card__trial");
+          if (trial) trial.hidden = !pressed || other.hasAttribute("data-look-in-use");
+        }
+        return;
+      }
+      // Choosing from a card's menu closes it and gives the focus back to the button that opened it.
+      const item = target.closest<HTMLButtonElement>(".mw-look-card .mw-menu__item");
+      if (!item || item.disabled) return;
+      const menu = item.closest<HTMLElement>("[data-compose-menu]");
+      const toggle = menu?.parentElement?.querySelector<HTMLElement>("[data-compose-menu-toggle]");
+      if (!menu || !toggle || menu.hasAttribute("data-menu-held")) return;
+      menu.hidden = true;
+      toggle.setAttribute("aria-expanded", "false");
+      toggle.focus();
+    });
+  }
+}
+
+/**
+ * The fade. The whole page wears the look (`<html data-look>`), and the change is a View Transition: the old picture gives way to the new over `--dur-move` on
+ * `--ease-quint` (the board's rule), and the words, the buttons and the page change together inside it. A page that asks for less motion, a page under
+ * automation (`html[data-craft-still]`, the finish layer's own sign, set when the browser says it is driven), a hidden tab and a browser without the API
+ * change at once.
+ */
+function wireFade(): void {
+  const stage = document.querySelector<HTMLElement>("[data-look-fade]");
+  const now = stage?.querySelector<HTMLElement>("[data-look-fade-now]");
+  const to = stage?.querySelector<HTMLButtonElement>("[data-look-fade-to]");
+  const back = stage?.querySelector<HTMLButtonElement>("[data-look-fade-back]");
+  const look = stage?.dataset.lookFadeLook;
+  if (!stage || !now || !to || !back || !look) return;
+  const root = document.documentElement;
+  let running: ViewTransition | undefined;
+  const show = (worn: boolean) => {
+    if (worn) root.dataset.look = look;
+    else delete root.dataset.look;
+    now.textContent = (worn ? stage.dataset.nowLook : stage.dataset.nowSoft) ?? "";
+    to.disabled = worn;
+    back.disabled = !worn;
+    (worn ? back : to).focus();
+  };
+  const change = (worn: boolean) => {
+    const fades = typeof document.startViewTransition === "function" && !document.hidden && !root.hasAttribute("data-craft-still") && !matchMedia("(prefers-reduced-motion: reduce)").matches;
+    running?.skipTransition();
+    stage.dataset.fade = fades ? "fade" : "direct";
+    running = fades ? document.startViewTransition(() => show(worn)) : undefined;
+    if (!fades) show(worn);
+  };
+  to.addEventListener("click", () => change(true));
+  back.addEventListener("click", () => change(false));
+}
+
+export function wireCatalogAppearance(): void {
+  wireCards();
+  wireFade();
+}

@@ -15,14 +15,15 @@ async function fixture() {
   for (const [name, text] of Object.entries({ "modify.txt": "original\n", "remove.txt": "remove\n", "no-lf.txt": "old without LF", "mode.sh": "echo ok\n" })) await writeFile(path.join(root, name), text);
   await git(["add", "."]); await git(["commit", "-qm", "base"]);
   const tree = await createGitWorktreePort(root).create("child"), child = path.resolve(root, tree.directory);
-  let grants = [{ workspace_id: "parent", canonical_path: root, realpath_verified: true, display_name: "Parent" }, { workspace_id: "child", canonical_path: child, realpath_verified: true, display_name: "Child" }];
-  const selection = { workspace_id: "parent", writer_workspace_id: "child" }, current = async () => grants;
+  // The child is the Host's worktree, named by its id, never a folder of the project (plan A): the project has only its output.
+  let grants = [{ workspace_id: "parent", canonical_path: root, realpath_verified: true, display_name: "Parent" }];
+  const selection = { workspace_id: "parent", worktree_id: tree.worktree_id }, current = async () => grants;
   const read = () => readWriterIntegration(selection, current);
   const prepare = async (names: string[]) => {
     const view = await read();
     return prepareWriterIntegration({ ...selection, files: names.map(name => { const f = view.files.find(f => f.path.join("/") === name)!; return { path: f.path, revision: f.revision! }; }) }, current);
   };
-  return { home, root, child, tree, git, selection, current, read, prepare, revoke: () => { grants = grants.slice(0, 1); }, close: () => rm(home, { recursive: true, force: true }) };
+  return { home, root, child, tree, git, selection, current, read, prepare, revoke: () => { grants = []; }, close: () => rm(home, { recursive: true, force: true }) };
 }
 
 test("selected child changes integrate exact text, modes and deletions while preserving index, unrelated edits and child work", async () => {
@@ -81,6 +82,6 @@ test("content conversion is refused before filters can run, and other worktree p
   await writeFile(path.join(f.child,"modify.txt"),"child\n");
   const view=await f.read();assert.equal(view.files[0]!.selectable,false);assert.match(view.files[0]!.reason!,/转换/);
   await assert.rejects(readFile(marker),{code:"ENOENT"});
-  await assert.rejects(readWriterIntegration({workspace_id:"child",writer_workspace_id:"parent"},f.current),/不属于/);
+  await assert.rejects(readWriterIntegration({workspace_id:"parent",worktree_id:"forged"},f.current),/不属于/);
  }finally{await f.close();}
 });

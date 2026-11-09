@@ -119,7 +119,7 @@ test("Workbench routes call only the selected owner with exact inputs and retain
     assert.deepEqual(calls, [{ owner: name, args }]);
   }
   assert.deepEqual(renderGoalsReadRoute({ kind: "refresh", collection: "current" }, { ...renderers, refresh: () => "" }), { status: 200, html: "" });
-  assert.deepEqual(renderGoalsReadRoute({ kind: "document", collection: "current", goal_id: "missing" }, { ...renderers, document: () => "" }), { status: 404, error: "找不到这个 Goal: missing" });
+  assert.deepEqual(renderGoalsReadRoute({ kind: "document", collection: "current", goal_id: "missing" }, { ...renderers, document: () => "" }), { status: 404, error: "找不到这个 Goal: missing", code: "goals.not_found" });
 });
 
 test("Goal document HTTP routes retain bad-encoding, collection, offset, missing-content and response-header behavior", async t => {
@@ -133,14 +133,15 @@ test("Goal document HTTP routes retain bad-encoding, collection, offset, missing
   // Every request this test makes belongs to the project: its pages and its Runtime plugin routes are served under the project prefix.
   const projectOrigin = `${origin}/projects/${encodeURIComponent(DEMO_PROJECT_ID)}`;
   const fetchProject = (path: string, init?: RequestInit) => globalThis.fetch(path.startsWith(origin) ? projectOrigin + path.slice(origin.length) : path, init);
-  const cases: [string, number, string | null][] = [
+  // A missing Goal's document answers Goals' own code, so the page tells it apart from other 404s (PG094-09).
+  const cases: [string, number, string | { error: string; code: string } | null][] = [
     ["/api/board/refresh", 200, null], ["/api/board/momentum", 200, null],
     ["/api/board/refresh?view=bad", 400, "Goal 正文集合无效"],
     ["/api/board/momentum?view=trash", 400, "Goal 推进态势集合无效"],
     ["/api/goals/V1/document", 200, null],
     ["/api/goals/%/document?view=bad", 404, "Goal 内容不存在"],
     ["/api/goals/V1/document?view=", 400, "Goal 正文集合无效"],
-    ["/api/goals/missing/document", 404, "找不到这个 Goal: missing"],
+    ["/api/goals/missing/document", 404, { error: "找不到这个 Goal: missing", code: "goals.not_found" }],
     ["/api/goals/V1/document?offset=-1", 200, null],
     ["/api/plugins/io.molis.work.goals/goals/V1/records", 404, "插件没有这个入口"],
     ["/api/plugins/io.molis.work.goals/goals/V1/quick-record", 404, "插件没有这个入口"],
@@ -151,7 +152,7 @@ test("Goal document HTTP routes retain bad-encoding, collection, offset, missing
   for (const [path, expected, error] of cases) {
     const response = await fetchProject(origin + path);
     assert.equal(response.status, expected, path);
-    if (error) assert.deepEqual(await response.json(), { error }, path);
+    if (error) assert.deepEqual(await response.json(), typeof error === "string" ? { error } : error, path);
     else {
       assert.match(response.headers.get("content-type") ?? "", /text\/html/);
       assert.equal(response.headers.get("cache-control"), "no-store");

@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { createServer } from "node:http";
 import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, handleProjectPluginHttp, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { agentHostCapabilities as agent, type AgentSessionMessage } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { projectSettingsCapabilities, projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import { projectDirectoryActions, projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { writerIntegrationCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 import { seedConfiguredModels } from "./fixtures/configured-models.js";
@@ -37,9 +37,7 @@ test("however many pages poll the Coding directory at once, one read runs and at
         : session_id === "sdk-b" ? { session_id, latest_phase: null, recovery: false, checkpoint_busy: true } : { session_id, error: "读不到" }) as Output;
     }
     if (definition.capability_id === agent.listSkills.capability_id) return [] as Output;
-    if (definition.capability_id === projectSettingsCapabilities.browsingWorkspace.capability_id) return null as Output;
-    if (definition.capability_id === projectsCapabilities.readWorkspace.capability_id) return null as Output;
-    if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return [] as Output;
+    if (definition.capability_id === projectDirectoryActions.get.capability_id) return [] as Output;
     if (definition.capability_id === agent.availableRoles.capability_id) return [{ role_id: "builder", available: true }] as Output;
     if (definition.capability_id === agent.listActions.capability_id) return [] as Output;
     throw new Error(`Unexpected capability ${definition.capability_id}`);
@@ -103,7 +101,7 @@ async function harness(initial: Entry[]) {
   // Reading a child's result is the Host's action (PG-035): it answers an empty view, and the call is recorded with the others.
   const actions = fakeWriterActions(pluginActions(store, DEMO_PROJECT_ID), definition => {
     if (definition.capability_id !== writerIntegrationCapabilities.read.capability_id) throw new Error(`Unexpected action ${definition.capability_id}`);
-    return { workspace_id: "work", writer_workspace_id: "child", source_path: root + "-child", target_path: root, branch: "writer/child", base_commit: "abc123", files: [] };
+    return { workspace_id: "work", worktree_id: "child", source_path: root + "-child", target_path: root, branch: "writer/child", base_commit: "abc123", files: [] };
   }, calls);
   const letter = (input: Wording, state: AgentSessionMessage["state"]): AgentSessionMessage => ({ message_id: "m1", audience: "people", kind: "request",
     from_session: input.from_session, to_session: input.to_session, from_title: "发起", to_title: "委派", body: input.body, state, sent_at_ms: Date.now(), history: [], attachments: [] });
@@ -131,9 +129,7 @@ async function harness(initial: Entry[]) {
     if (id === agent.actOnPeopleMessage.capability_id) return letter({ from_session: "rt-1", to_session: "rt-2", body: JSON.stringify({ title: "t", task: "task" }) }, "delivered") as Output;
     if (id === agent.readSessionStatuses.capability_id) return (input[1] as string[]).map(session_id => ({ session_id, latest_phase: "completed", recovery: false, checkpoint_busy: false })) as Output;
     if (id === agent.availableRoles.capability_id) return [{ role_id: "builder", available: true }] as Output;
-    if (id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: root, realpath_verified: true }] as Output;
-    if (id === projectSettingsCapabilities.browsingWorkspace.capability_id) return null as Output;
-    if (id === projectsCapabilities.readWorkspace.capability_id) return null as Output;
+    if (id === projectDirectoryActions.get.capability_id) return [{ workspace_id: "work", canonical_path: root }] as Output;
     throw new Error(`Unexpected capability ${id}`);
   } };
   const host = () => withFakeAgentHost({ store, ...openProjectVersionStores(store), homeDirectory: root, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user",

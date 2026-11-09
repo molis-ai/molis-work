@@ -1,9 +1,13 @@
 // The versioned files of a restored golden Home, each read through its owner's own entry (specs/upgrade-continuity/golden-replay-design.md §4 step 3).
 // A library says what is wrong when it is opened; a file says it only to whoever reads it, and a reader may fall back to defaults and say nothing. So
 // each reader here has to give back something the generation wrote. A versioned file with no reader in this table fails: adding one means one line here.
+// A file no page or action reads back may be read by a read function its owner's package exports, on the replayed Home's directory, when that is the
+// very function the owner reads it with at run time (not a second parser written for this table).
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { goldenFailure } from "./failure.mjs";
+
+const { readUiLocale } = await import("@molis-ai/molis-work-app-local-host");
 
 const GET = { method: "GET" };
 
@@ -13,6 +17,10 @@ const READERS = new Map([
   ["config/mcp-tools.json", [({ http, projectId }) => http(`/api/settings/mcp/actions?client_id=agent%3Aprologue&project_id=${encodeURIComponent(projectId)}`, GET), "goals.create"]],
   ["config/onboarding.json", [({ http }) => http("/api/onboarding/status", GET), "dismissed"]],
   ["config/project-arrival.json", [({ http }) => http("/", GET), "2026-01-15"]],
+  // Read only when the Host starts a round with no page (a timed or continued one); the Host reads it with this function. Only `readUiLocale` proves the
+  // file was read: "zh" is also the default language, so a reader that falls back to the default when the file is missing or unreadable
+  // (`lastUsedLocale`, say) would pass here without reading anything.
+  ["config/ui-locale.json", [({ home }) => readUiLocale(home), "zh"]],
   ["feed/secrets.json", [({ http }) => http("/api/settings/models", GET), "present"]],
   ["jelly/preferences.json", [({ call }) => call("jelly.model.settings"), "golden-model-seed"]],
   ["shelf/catalog.json", [({ call }) => call("shelf.snapshot"), "金样"]],

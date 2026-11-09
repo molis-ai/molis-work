@@ -74,8 +74,8 @@ export const PRIMITIVE_STYLES = `
     color: var(--action-ink);
     box-shadow: var(--lift-1);
   }
-  .mw-btn--primary:active:not(:disabled) {
-    background: color-mix(in srgb, var(--action) 82%, var(--action-ink));
+  .mw-btn--primary:is(:active, [aria-expanded="true"]):not(:disabled) {
+    background: var(--action-hover, var(--action)); border-color: var(--action-hover, var(--action));
   }
   /* Secondary is the soft button: a wash on whatever surface it sits on, no outline. Its size is the button's own
      (.mw-btn and --sm, --md, --lg), so a small secondary stands as tall as the small primary and ghost beside it. */
@@ -459,6 +459,13 @@ export const PRIMITIVE_STYLES = `
   .mw-menu__shortcut { flex: none; margin-left: 16px; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
   .mw-menu__item:disabled { background: transparent; color: var(--faint); cursor: default; }
   .mw-menu__item:disabled :is(svg, .mw-menu__shortcut) { color: var(--faint); }
+  /* Glyph, name and shortcut on the first row; the description takes the whole width under them, the shortcut's column too. */
+  .mw-menu__item--described { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: baseline; gap: 2px 8px; padding-block: 8px; }
+  .mw-menu__item--described > :is(svg, .mw-menu__check) { grid-area: 1 / 1; align-self: center; }
+  .mw-menu__item--described > [data-slot="menu-item-label"] { display: contents; overflow: visible; }
+  .mw-menu__item--described > [data-slot="menu-item-label"] > span { grid-area: 1 / 2; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mw-menu__item--described .mw-menu__shortcut { grid-area: 1 / 3; }
+  .mw-menu__desc { grid-column: 2 / -1; color: var(--muted); font-size: 12px; font-weight: var(--weight-body, 400); line-height: 18px; text-wrap: pretty; overflow-wrap: anywhere; }
   .mw-menu__label { padding: 4px 12px 2px; color: var(--muted); font-size: 11px; font-weight: var(--weight-control, 500); line-height: 20px; }
   .mw-menu__group + .mw-menu__group::before { content: ""; display: block; margin: 4px 8px; border-top: 1px solid var(--line); }
   .mw-tooltip {

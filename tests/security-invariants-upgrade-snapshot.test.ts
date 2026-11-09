@@ -224,7 +224,7 @@ async function liveWriter(t: TestContext, file: string, synchronous = "FULL") {
 }
 
 test("S-upgrade-journal-removal: a live writer's journal has a killed one's bytes, and it is not removed: the lock tells them apart", async t => {
-  for (const [driver, open] of Object.entries({ "node:sqlite": openNode, "better-sqlite3": (path: string) => openSqliteConnection(path, { fileMustExist: true, timeout: 0 }) })) {
+  for (const [driver, open] of Object.entries({ "node:sqlite": openNode, "project connection": (path: string) => openSqliteConnection(path, { fileMustExist: true, timeout: 0 }) })) {
     await t.test(driver, async t => {
       const { area, file, unit, run } = upgradeHome(t, { journal: "DELETE" });
       const writer = await liveWriter(t, file), journal = `${file}-journal`;

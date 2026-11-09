@@ -1,4 +1,3 @@
-import { stageContributionId, type HomePluginNavigationEntry } from "@molis-ai/molis-work-app-workbench";
 import { renderHomePackageDocument } from "./plugin-builder/agent-surface.js";
 import { ActionError, type ActionCallContext, type ActionClient, type ActionRegistryPort, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginInstallRecords } from "./plugin-install-records.js";
@@ -117,11 +116,12 @@ export class HomePluginHost {
    * Installs a release read from a signed package in the Home, for the person who confirmed it (`PluginInstallService`). It runs in the
    * sandbox, under the pin that confirmation made, and appears among the personal plugins every project reaches (#679).
    */
-  async installPackage(release: InstalledRelease): Promise<void> {
+  async installPackage(release: InstalledRelease, assertCurrent?: () => void): Promise<void> {
     await this.ready();
     const installed = this.installed;
     if (!installed || this.closed) throw new ActionError("actions.plugin_unavailable", "Home 插件宿主已关闭");
-    await installed.installPackage(release, { consent: true });
+    assertCurrent?.();
+    await installed.installPackage(release, { consent: true, assertCurrent });
     await installed.refreshPublicActions();
   }
   /** Switches an installed package off or on, or removes it (keeping its data or not): the install lifecycle a project's packages have. */
@@ -139,30 +139,6 @@ export class HomePluginHost {
   async reconcilePublishers(): Promise<void> { await this.installed?.reconcilePublishers(); }
   /** Refresh installed definitions after activation replacement and before public directory/dispatch reads them. */
   async refreshPublicActions(): Promise<void> { if (!this.closed) await this.installed?.refreshPublicActions(); }
-  /**
-   * The signed packages installed in the Home, as the tool bar offers them: those that run and those that were running and did not come
-   * back (their page says why), by name. A Home that did not start offers none, nor one whose library cannot be read now.
-   */
-  async navigation(): Promise<HomePluginNavigationEntry[]> {
-    let pages: { key: string; manifest: PluginManifest }[], platform: HomePluginPlatform;
-    try { platform = await this.ready(); pages = this.installed?.pages() ?? []; }
-    catch { return []; /* A Home that did not start, or whose library broke since, has no packages to offer. */ }
-    // A dual instance offers a Home tool only when that actual half supplies the Manifest's stage.
-    const dual = this.registered().flatMap(entry => {
-      const stage = this.dualInstance(entry.manifest.plugin_id) && entry.manifest.ui?.views?.find(view => view.slot === "stage");
-      if (!stage) return [];
-      const contribution = platform.supervisor.contribution(entry.manifest.plugin_id), id = stageContributionId(entry.manifest);
-      const view = contribution?.kind === "app" && contribution.views?.find(view => view.descriptor.contribution_id === id
-        && view.descriptor.surfaces?.some(surface => surface.surface_id === "workbench" && surface.target_slot_id === "workbench.main"));
-      if (!view) return [];
-      const icon = entry.manifest.ui?.views?.find(view => view.slot === "navigator")?.icon;
-      return [{ plugin_id: entry.key, name: entry.manifest.name, ...icon ? { icon } : {}, surface: stage.view_id }];
-    });
-    return [...dual, ...pages.map(({ key, manifest }) => {
-      const icon = manifest.ui?.views?.find(view => view.slot === "stage")?.icon;
-      return { plugin_id: key, name: manifest.name, ...icon ? { icon } : {}, surface: this.packageSurface(key) ?? key };
-    }).sort((a, b) => a.name.localeCompare(b.name))];
-  }
   /**
    * The id of a running installed package's stage in the workbench: its plugin id, which is also the key the Home registered it under, so the
    * switcher and the tab strip find the plugin's name and icon by the stage's id as they do for every other Home plugin. None for what is not
@@ -220,8 +196,8 @@ export class HomePluginHost {
     if (record) this.platform?.invalidateView(record.plugin_id);
   }
   /** A project closed: the Home instances' jobs kept in it stop (PG-038). Their bounded executions keep their call's authority and go on. */
-  stopProjectJobs(projectId: string): void {
-    this.executor?.stopProjectJobs(projectId);
+  async stopProjectJobs(projectId: string): Promise<void> {
+    await this.executor?.stopProjectJobs(projectId);
   }
   close(): Promise<void> {
     this.closed = true;
@@ -315,14 +291,15 @@ export class HomePluginHost {
       // An integration package's sources go to the Home's one registry, the one every project's Feed binds through (BL-530).
       integrations: { registry: () => homeIntegrationRegistry(this.options.home), connections: createCallConnectionsPort(this.options.home) },
       platform: { runtime, supervisor, router: platform.router, consents: ledger, upgrade: platform.upgrade, rollback: (pluginId, definition) => supervisor.rollback(pluginId, definition),
-        start: async started => {
+        start: async (started, control) => {
+          control?.assertCurrent?.();
           const listed = new Set<string>();
           for (const { definition, trust } of started) {
             if (definition.execution !== "sandbox" || trust?.level !== "pinned") throw pluginErrors.home_scope_unavailable("Home 里只有来自已固定发布者的沙箱包才能这样启动");
             if (listed.has(definition.manifest.plugin_id) || ids.has(definition.manifest.plugin_id)) throw new Error("Home 插件标识重复");
             listed.add(definition.manifest.plugin_id);
           }
-          return supervisor.start(started);
+          return supervisor.start(started, control);
         } } });
     return platform;
   }

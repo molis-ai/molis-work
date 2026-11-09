@@ -1,8 +1,8 @@
 import { ACCOUNT_CLIENT_SCRIPT } from "../scripts/account.js";
 import { escapeHtml, icon, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderCaption, renderIconSprite, renderWordmark, THEME_BOOTSTRAP_SCRIPT } from "@molis-ai/molis-work-design-system";
-import { homePluginSideTabs, renderHomePluginNavigation, type HomePluginNavigationEntry } from "../home-plugin-navigation.js";
-import { renderSidePanel, SIDE_PANEL_SCRIPT, SIDE_PANEL_STYLES } from "../side-panel.js";
+import { homePluginSideTabs } from "../home-plugin-navigation.js";
+import { renderSidePanel, renderSideStrip, SIDE_PANEL_SCRIPT, SIDE_PANEL_STYLES } from "../side-panel.js";
 import { ACCOUNT_REGISTRATION_BODY, NO_FAVICON_LINK, renderWorkbenchDocument } from "../document-shell.js";
 import { createWorkbenchLocale } from "../i18n.js";
 import { CONTROL_CLIENT_SCRIPT } from "../scripts/control.js";
@@ -38,12 +38,12 @@ interface ArrivalTitlebarOptions {
   account?: boolean;
   /** The AI caption sits beside the wordmark on the chooser only. */
   caption?: boolean;
-  /** Background tasks, capabilities and settings; the opening has none of them. */
+  /** The account, capabilities, settings and the right side's tabs; the opening has none of them. */
   tools?: boolean;
+  /** The background tasks as a tab of the right side, where the screen reads them (the chooser). */
+  tasks?: boolean;
   /** Welcome's way to switch the theme before anything else is set. */
   theme?: boolean;
-  /** The packages installed in the Home, beside its built-in tools. */
-  home_plugins?: readonly HomePluginNavigationEntry[];
 }
 
 interface ArrivalDocumentOptions {
@@ -72,11 +72,12 @@ export function createArrivalShell(p: ArrivalShellPrimitives) {
   function tools(desktopShell: boolean, options: ArrivalTitlebarOptions): string {
     const link = (path: string, glyph: PluginIconName, label: string, aria: string) =>
       `<a class="mw-btn mw-btn--ghost mw-btn--md" data-slot="button" href="${href(desktopShell, path)}" aria-label="${escapeHtml(aria)}">${icon(glyph)}<span data-slot="button-label">${escapeHtml(label)}</span></a>`;
-    const background = `<span class="arrival-bg"><button class="mw-btn mw-btn--ghost mw-btn--md background-tasks-button" data-slot="button" type="button" data-background-tasks aria-label="${L("后台任务")}" title="${L("后台任务")}" hidden>${icon("activity")}<span data-slot="button-label">${L("后台任务")}</span></button><span data-background-tasks-count hidden>0</span></span>`;
     const theme = options.theme
       ? `<span class="arrival-theme"><button class="mw-btn mw-btn--ghost mw-btn--md" data-slot="button" type="button" id="cx-theme" aria-label="${L("切换主题")}">${icon("switch")}<span data-slot="button-label">${L("切换主题")}</span></button></span>` : "";
+    // The right side's tabs end the bar, as on a project page: the Home's side views, and the background tasks where they are read.
+    const side = renderSideStrip(p, homePluginSideTabs(), { projectTools: false, tasks: options.tasks === true });
     const unifiedAccount = options.account ? `<button class="mw-btn mw-btn--ghost mw-btn--md" type="button" data-slot="button" data-unified-account-link aria-label="${L("Molis 账号")}">${icon("user")}<span data-slot="button-label" data-unified-account-name>${L("Molis 账号")}</span></button>` : "";
-    const global = options.tools === false ? "" : `<span class="arrival-global">${renderHomePluginNavigation(path => href(desktopShell, path), options.home_plugins)}${background}${unifiedAccount}${link("/capabilities/library", "sparkles", L("能力"), L("打开能力服务"))}${link("/settings/appearance", "settings", L("设置"), L("打开系统设置"))}</span>`;
+    const global = options.tools === false ? "" : `<span class="arrival-global">${unifiedAccount}${link("/capabilities/library", "sparkles", L("能力"), L("打开能力服务"))}${link("/settings/appearance", "settings", L("设置"), L("打开系统设置"))}${side.includes("data-side-tab=") ? side : ""}</span>`;
     const account = options.account ? `<button class="mw-btn mw-btn--ghost mw-btn--md" data-slot="button" type="button" data-account-link aria-label="${L("账号管理")}">${icon("user")}<span data-slot="button-label" data-personal-name>${L("未登录")}</span></button>` : "";
     return `<nav class="arrival-tools" aria-label="${L("全局")}">${theme}${account}${global}</nav>`;
   }
@@ -93,7 +94,7 @@ export function createArrivalShell(p: ArrivalShellPrimitives) {
   }
 
   function document(options: ArrivalDocumentOptions): string {
-    const side = options.titlebar.includes("data-side-plugin-open") ? renderSidePanel(p, homePluginSideTabs(), false) : "";
+    const side = options.titlebar.includes("data-side-tab=") ? renderSidePanel(p, homePluginSideTabs(), { projectTools: false, tasks: options.titlebar.includes('data-side-tab="tasks"') }) : "";
     return `<!doctype html>
 <html lang="${p.htmlLang()}">
 <head>
@@ -129,7 +130,7 @@ export function renderPersonalAccountEntry(controlToken: string, desktop: boolea
   const { L } = locale;
   return renderWorkbenchDocument({lang: locale.htmlLang(), title: "Molis Work",
     body_attributes: {class: "arrival-page immersive-workbench", "data-arrival": "welcome", "data-account-entry": true, "data-native-desktop": desktop ? "true" : null},
-    head_html: `<meta name="molis-work-control-token" content="${escapeHtml(controlToken)}"><script>${THEME_BOOTSTRAP_SCRIPT}${desktop ? nativeBootstrap : ""}</script><link rel="stylesheet" href="/assets/molis-work-arrival.css">`,
+    head_html: `<meta name="molis-work-page-session" content="${escapeHtml(controlToken)}"><script>${THEME_BOOTSTRAP_SCRIPT}${desktop ? nativeBootstrap : ""}</script><link rel="stylesheet" href="/assets/molis-work-arrival.css">`,
     body_html: `${renderIconSprite()}<div class="arrival" data-screen="welcome"><header class="arrival-titlebar"${desktop ? ' data-tauri-drag-region="deep"' : ""}><span class="arrival-brand">${icon("brand")}${renderWordmark()}</span></header>
       <main class="arrival-stage"><section class="mw-empty"><h1>${escapeHtml(L("登录 / 注册 molis AI"))}</h1><p>${escapeHtml(L("登录后可管理你的 molis 账号"))}</p>
       <button class="mw-btn mw-btn--primary" type="button" data-account-link aria-label="${escapeHtml(L("账号管理"))}">${icon("user")}<span data-personal-name>${escapeHtml(L("未登录"))}</span></button>

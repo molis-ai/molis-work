@@ -384,7 +384,7 @@ interface HomePageVersion {
 | 顺序 | 片 | 动到的快照 |
 | --- | --- | --- |
 | 1 | 05② C-1 | `modules/projects`、新的 `platform/project-materials` |
-| 2 | 08 C-1 | `plugin-manifest`（`kind: "content"`）、`plugin-agent` |
+| 2 | 08 C-1 | `plugin-manifest`（`kind: "content"`）、`plugin-agent`、`plugin-package`（`CONTENT_PACKAGE_FILES`） |
 | 2′ | 08 C-3（不等 P-3b／P-3c；和 3、4 同一份快照，先准备好的先落） | `plugin-package`（沙箱方法写法） |
 | 3 | 05② C-2 | `plugin-manifest`（`presentation`）、`platform/presentation` |
 | 4 | P-1 设置 | `plugin-manifest`（`settings_entries`）、新的 `platform/settings` |
@@ -395,8 +395,9 @@ interface HomePageVersion {
 | 8 | P-3b、P-3c | `plugin-manifest`（`adopts`）、新的 `platform/blueprints`、`services/blueprints`、`host-actions` |
 | 9 | P-4 | 新的 `services/home`、`platform/actions`（页面主体，排在 #1791 K0 之后）、`host-actions` |
 
+- `BlueprintProposal` 的 `kind: "content"` 与 `PluginKind` 的 `"content"`（只有声明的插件）只是重名，不是一回事；区分见 [GLOSSARY](../../docs/system/GLOSSARY.md) 里「只有声明的插件（content）」一行。
 - 快照文件名：`plugin-manifest.ts`、`plugin-package.ts` 没有自己的子路径，经 `platform/plugin` 导出，所以它们的改动都落在 api 快照 `contracts/platform/plugin.txt` 上；表里按源文件写，排序时视为同一份快照。
-- 按快照看：`plugin-manifest` 是 08 C-1 → 05② C-2 → P-1 → P-3b，08 C-3 插在 08 C-1 之后、P-3b 之前，和 05② C-2、P-1 先准备好的先落（共用 `platform/plugin.txt`，见下一条）；`modules/projects` 是 05② C-1 → P-3a；`plugin-package` 只有 08 C-3（本稿不动）；`platform/actions` 是 #1791 K0 → P-4；`host-actions.tsv` 按上表依次落，同一时间只有一片在途。
+- 按快照看：`plugin-manifest` 是 08 C-1 → 05② C-2 → P-1 → P-3b，08 C-3 插在 08 C-1 之后、P-3b 之前，和 05② C-2、P-1 先准备好的先落（共用 `platform/plugin.txt`，见下一条）；`modules/projects` 是 05② C-1 → P-3a；`plugin-package` 是 08 C-1（#1936 已落，加了 `CONTENT_PACKAGE_FILES`）和 08 C-3（沙箱方法写法），本稿不动；`platform/actions` 是 #1791 K0 → P-4；`host-actions.tsv` 按上表依次落，同一时间只有一片在途。
 - 全部在 M1 之前落，按 N35 一个 PR 改完所有消费者，不留兼容期。
 - 错误码用 `defineErrorCodes`：`blueprints.part_unsupported`（主人没声明）、`blueprints.step_conflict`（主人的 revision 变了）、`blueprints.dependency_unmet`、`blueprints.preview_expired`；设置的拒绝由主人给 `<主人>.setting_invalid`、`<主人>.setting_conflict`，SDK 的 bind 帮主人按主人名生成，不新增平台码。P-1 落时按 `tooling/gates/error-owners.json` 核主人名。
 

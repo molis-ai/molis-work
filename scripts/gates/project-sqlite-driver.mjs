@@ -1,5 +1,9 @@
-// The project database uses exactly the driver that owns its lock. Alchemist has its own approved private driver.
+// better-sqlite3 is Alchemist's own, until it is rebuilt (BL-377). Everything else is on node:sqlite through packages/storage:
+// two SQLite libraries on one file in one process drop each other's locks (S-46). Which directories may import better-sqlite3 is
+// data, not code: tooling/gates/sqlite-driver-owners.json. A missing or malformed file fails the boundary check closed, so
+// widening the exception is a reviewed data change rather than an edit hidden in this script.
 import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import path from "node:path";
 import ts from "typescript";
 import { extractImportSpecifiers } from "@molis-ai/molis-work-test-kit";
@@ -14,7 +18,37 @@ const SHELL_FLAG = /^-l?c$/, SHELL_CALL = /^(?:exec|spawn)(?:Sync)?$/;
 const RUNS_ITS_ARGUMENT = new Set(["eval", "Function", "Script", "compileFunction", "SourceTextModule", "runInThisContext", "runInNewContext", "runInContext"]);
 
 const isDriver = (name) => name === "better-sqlite3" || name.startsWith("better-sqlite3/");
-const ownsDriver = (file) => file.startsWith("packages/storage/") || file.startsWith("plugins/native/alchemist/");
+const OWNERS_FILE = fileURLToPath(new URL("../../tooling/gates/sqlite-driver-owners.json", import.meta.url));
+
+/** The directories allowed to import the driver, read from the reviewed data file; anything else fails closed. */
+function driverOwners() {
+  let data;
+  try { data = JSON.parse(readFileSync(OWNERS_FILE, "utf8")); } catch (cause) {
+    throw new Error(`tooling/gates/sqlite-driver-owners.json is missing or is not JSON: ${cause instanceof Error ? cause.message : String(cause)}`);
+  }
+  const problems = [];
+  if (!data || typeof data !== "object" || Array.isArray(data)) problems.push("the file must hold an object");
+  else {
+    for (const key of Object.keys(data)) if (key !== "format" && key !== "owners") problems.push(`unknown key ${key}`);
+    if (data.format !== 1) problems.push("format must be 1");
+    if (!Array.isArray(data.owners) || data.owners.length === 0) problems.push("owners must be a non-empty array");
+    else data.owners.forEach((entry, index) => {
+      if (!entry || typeof entry !== "object" || Array.isArray(entry)) { problems.push(`owners[${index}] must be an object`); return; }
+      for (const key of Object.keys(entry)) if (key !== "prefix" && key !== "reason") problems.push(`owners[${index}].${key} is not allowed`);
+      if (typeof entry.prefix !== "string" || !entry.prefix.endsWith("/") || entry.prefix.length < 2) problems.push(`owners[${index}].prefix must be a directory path ending in /`);
+      if (typeof entry.reason !== "string" || entry.reason.trim().length < 20) problems.push(`owners[${index}].reason must say why in at least 20 characters`);
+    });
+    if (problems.length === 0) {
+      const prefixes = data.owners.map(entry => entry.prefix);
+      if (new Set(prefixes).size !== prefixes.length) problems.push("owners repeat a prefix");
+    }
+  }
+  if (problems.length > 0) throw new Error(`tooling/gates/sqlite-driver-owners.json: ${problems.join("; ")}`);
+  return data.owners.map(entry => entry.prefix);
+}
+
+const DRIVER_OWNERS = driverOwners();
+const ownsDriver = (file) => DRIVER_OWNERS.some(prefix => file.startsWith(prefix));
 const nameOf = (node) => ts.isIdentifier(node) ? node.text : ts.isPropertyAccessExpression(node) ? node.name.text : undefined;
 const isCreateRequire = (node) => ts.isCallExpression(node) && nameOf(node.expression) === "createRequire";
 

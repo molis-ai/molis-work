@@ -12,7 +12,8 @@ import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { ASSISTANT_INSTALL_ID, type AssistantHandover, type AssistantPageCardInput, type AssistantSendInput } from "@molis-ai/molis-work-contracts/services/assistant";
 import { dispatchNativePluginJsonHttp, type NativePluginJsonResult, writeNativePluginJsonResponse } from "../native-plugin-http.js";
-import { L } from "../web-locale.js";
+import { L, pageLocale, type WebLocale } from "../web-locale.js";
+import { lastUsedLocale, rememberUiLocale } from "../ui-locale-memory.js";
 import { bindLocalWebActions, localWebActionContext } from "../local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "../local-owner-permissions.js";
 import type { MolisWorkLocalHost } from "../project-host.js";
@@ -62,6 +63,18 @@ export interface AssistantHttpPorts {
   projectReference?(projectId: string): Promise<LocalHostProjectReference>;
   /** The page ids installed in this Home's projects, which an attention rule may name (PG-036). */
   pages(): Promise<readonly string[]>;
+}
+
+/**
+ * The language of a round the page itself starts (a message, an answer, a card prepared again): the page's own, whatever
+ * the record says, and using it moves the record (FSS-71). A request with no page language leaves the round to the record. It is read
+ * here at the entry and carried down as a parameter, so nothing below looks at the request again.
+ */
+function pageRoundLanguage(ports: Pick<AssistantHttpPorts, "homeDirectory">): { reply_locale?: WebLocale } {
+  const reply_locale = pageLocale();
+  if (!reply_locale) return {};
+  rememberUiLocale(ports.homeDirectory, reply_locale);
+  return { reply_locale };
 }
 
 /** Half-written answers to a work's questions, kept with the work. */
@@ -119,6 +132,7 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
   };
   let threads: AssistantThreads;
   const servicePorts: AssistantServicePorts = {
+    lastLocale: () => lastUsedLocale(ports.homeDirectory),
     cancelSetups: sessionId => cancelConnectorAuthorizationsForSession(ports.homeDirectory, sessionId, WEB_ACTOR),
     retainSetups: sessionId => retainConnectorSetupsForSession(ports.homeDirectory, sessionId, WEB_ACTOR, (...args) => ports.localHost.connectorMcp!.remember(...args)),
     holdSetups: (sessionId, revision) => holdConnectorAuthorizationsForSession(ports.homeDirectory, sessionId, WEB_ACTOR, revision),
@@ -261,20 +275,13 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
         return { status: 200, body: await service.offers.offerFromPage(body as unknown as AssistantPageCardInput, ports.projectRef ? { project_ref: ports.projectRef } : {}) };
       }
       if (method === "POST" && parts.length === 1 && parts[0] === "send") {
-        // A page marks the words it wrote itself ("page"); the marks of the Host's and the Assistant's own rounds are set in code and cannot be claimed from outside.
-        if (body.written_by !== undefined && body.written_by !== "page") throw assistantErrors.invalid("written_by 只能是 page");
-        if (body.target !== undefined && body.target !== "answer" && body.target !== "steer") throw assistantErrors.invalid("target 只能是 answer 或 steer");
-        // A re-ask names a closed question of an existing work, and is not an answer: refused before any work is made or touched.
-        if (body.reask !== undefined && (!body.work_id || body.target === "answer" || body.about !== undefined)) throw assistantErrors.invalid("重新问只能用在已有的工作上，不能同时作为回答或指向一条输入");
-        // A correction names the input it corrects, in a work that has one; it is a supplement, never an answer. Only the id's
-        // shape is checked: the runtime keeps `about` as a pointer without looking it up (D34), so an id that is not one of this
-        // session's inputs names nothing, and the receipt shows 「更早的一条」.
-        if (body.about !== undefined && (typeof body.about !== "string" || !body.about || body.about.length > 200 || !body.work_id || body.target === "answer")) throw assistantErrors.invalid("about 要写一条输入的 id，只能用在已有的工作里，且不能用于回答");
-        return { status: 200, body: await service.send(body as unknown as AssistantSendInput, { ...(ports.projectRef ? { project_ref: ports.projectRef } : {}),
+        checkSendRequest(body);
+        return { status: 200, body: await service.send(body as unknown as AssistantSendInput, { ...pageRoundLanguage(ports), ...(ports.projectRef ? { project_ref: ports.projectRef } : {}),
           ...(!body.written_by && body.reask === undefined && typeof body.text === "string" && typeof body.request_id === "string" ? { original_input: {
             input_id: body.request_id, text: body.text, written_by: "person" as const, occurred_at: new Date().toISOString(), install_id: ASSISTANT_INSTALL_ID,
           } } : {}) }) };
       }
+      if (method === "GET" && parts.length === 2 && parts[0] === "requests") return { status: 200, body: store.requests.read(WEB_ACTOR, parts[1]!) };
       // What the Assistant may use here, and what the person switched off for it.
       if (method === "GET" && parts.length === 1 && parts[0] === "capabilities") {
         const off = store.disabledActions(WEB_ACTOR), confirm = store.confirmAlways(WEB_ACTOR);
@@ -361,7 +368,7 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
       const threadWork = await threadWorkRoute(workId, parts, body, ports);
       if (threadWork) return threadWork;
       if (parts.length === 3 && parts[2] === "control") return { status: 200, body: await service.control(workId, body as never) };
-      const interaction = await interactionRoute(workId, parts, body, service, store, ports.projectRef);
+      const interaction = await interactionRoute(workId, parts, body, service, store, ports);
       if (interaction) return interaction;
       if (parts.length === 3 && parts[2] === "draft") return { status: 200, body: { work: service.saveDraft(workId, body.draft as string) } };
       if (parts.length === 3 && parts[2] === "rename") return { status: 200, body: { work: await service.rename(workId, Number(body.revision), String(body.title ?? "")) } };
@@ -420,15 +427,15 @@ function writeDrawn(ports: AssistantHttpPorts, response: ServerResponse, result:
  * fields hold it, a half-written answer kept with the work, a card run, set aside or asked to be prepared again.
  */
 async function interactionRoute(workId: string, parts: string[], body: Record<string, unknown>, service: AssistantService, store: AssistantStore,
-  projectRef: LocalHostProjectReference | undefined): Promise<NativePluginJsonResult | null> {
-  const drafts = questionDrafts(store);
+  ports: AssistantHttpPorts & { projectRef?: LocalHostProjectReference }): Promise<NativePluginJsonResult | null> {
+  const drafts = questionDrafts(store), projectRef = ports.projectRef;
   // The card sends what its fields hold; it becomes the Runtime's answer here, and its draft goes once the answer is taken.
   if (parts.length === 3 && parts[2] === "answer") {
     const answer = body.values === undefined ? {} : questionAnswer(body.values);
     if (!answer) throw assistantErrors.invalid("请先回答再提交");
     const view = await service.outcomes.answer(workId, { run_id: String(body.run_id ?? ""), pending_id: String(body.pending_id ?? ""),
       ...(body.pending_revision !== undefined ? { pending_revision: Number(body.pending_revision) } : {}), ...(typeof body.text === "string" ? { text: body.text } : {}),
-      ...(Array.isArray(body.answers) ? { answers: body.answers as never } : {}), ...answer }, projectRef ? { project_ref: projectRef } : {}).catch(async (error: { code?: string; message?: string; problems?: unknown }) => {
+      ...(Array.isArray(body.answers) ? { answers: body.answers as never } : {}), ...answer }, { ...pageRoundLanguage(ports), ...(projectRef ? { project_ref: projectRef } : {}) }).catch(async (error: { code?: string; message?: string; problems?: unknown }) => {
       // A questionnaire answer the Runtime refused: each question's reason goes beside its own field.
       if (error?.code !== "agent.answer_invalid") throw error;
       // Read back with the questions it answered, so each line can name the limit it crossed.
@@ -441,7 +448,7 @@ async function interactionRoute(workId: string, parts: string[], body: Record<st
     drafts.drop(workId, String(body.pending_id ?? ""));
     return { status: 200, body: view };
   }
-  if (parts.length === 3 && parts[2] === "question-draft") { drafts.save(workId, String(body.pending_id ?? ""), body.values); return { status: 200, body: { ok: true } }; }
+  if (parts.length === 3 && parts[2] === "question-draft") { return { status: 200, body: { ok: true, ...drafts.save(workId, String(body.pending_id ?? ""), body.values, body.draft_revision) } }; }
   if (parts.length !== 5 || parts[2] !== "cards") return null;
   if (parts[4] === "run") return { status: 200, body: await service.offers.runCard(workId, parts[3]!, { revision: Number(body.revision), values: body.values }) };
   if (parts[4] === "dismiss") return { status: 200, body: service.offers.dismissCard(workId, parts[3]!) };
@@ -449,5 +456,18 @@ async function interactionRoute(workId: string, parts: string[], body: Record<st
   if (parts[4] !== "redo") return null;
   const card = service.offers.card(workId, parts[3]!);
   return { status: 200, body: await service.send({ work_id: workId, request_id: randomUUID(), text: L("建议「{title}」没有执行：{why}。请读取最新状态，按现在的情况重新准备这一项的操作卡。",
-    { title: card.title, why: card.outcome || L("数据在建议之后变化了") }) }, projectRef ? { project_ref: projectRef } : {}, "page") };
+    { title: card.title, why: card.outcome || L("数据在建议之后变化了") }) }, { ...pageRoundLanguage(ports), ...(projectRef ? { project_ref: projectRef } : {}) }, "page") };
+}
+
+/** The Send HTTP input, before invoking its owner. */
+function checkSendRequest(body: Record<string, unknown>): void {
+        // A page marks the words it wrote itself ("page"); the marks of the Host's and the Assistant's own rounds are set in code and cannot be claimed from outside.
+        if (body.written_by !== undefined && body.written_by !== "page") throw assistantErrors.invalid("written_by 只能是 page");
+        if (body.target !== undefined && body.target !== "answer" && body.target !== "steer") throw assistantErrors.invalid("target 只能是 answer 或 steer");
+        // A re-ask names a closed question of an existing work, and is not an answer: refused before any work is made or touched.
+        if (body.reask !== undefined && (!body.work_id || body.target === "answer" || body.about !== undefined)) throw assistantErrors.invalid("重新问只能用在已有的工作上，不能同时作为回答或指向一条输入");
+        // A correction names the input it corrects, in a work that has one; it is a supplement, never an answer. Only the id's
+        // shape is checked: the runtime keeps `about` as a pointer without looking it up (D34), so an id that is not one of this
+        // session's inputs names nothing, and the receipt shows 「更早的一条」.
+        if (body.about !== undefined && (typeof body.about !== "string" || !body.about || body.about.length > 200 || !body.work_id || body.target === "answer")) throw assistantErrors.invalid("about 要写一条输入的 id，只能用在已有的工作里，且不能用于回答");
 }

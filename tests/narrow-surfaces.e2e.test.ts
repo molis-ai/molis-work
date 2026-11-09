@@ -28,7 +28,7 @@ test("VUX-30: the project page and every plugin fit a split pane, a narrow windo
       await waitFor("document.readyState === 'complete'", 20_000);
       // The split made here stays: the narrower widths after it are a split window's narrow layout, with its pane controls.
       if (size.split && await evaluate("document.querySelectorAll('[data-tab-pane]').length < 2")) {
-        await click(".tab-pane.is-focused [data-tab-split], [data-titlebar-tabs] [data-tab-split]");
+        await click("[data-layout-open]");
         await click("[data-layout-split=right]");
         await waitFor("document.querySelectorAll('[data-tab-pane]').length === 2");
       }

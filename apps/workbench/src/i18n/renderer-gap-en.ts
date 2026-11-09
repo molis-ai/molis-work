@@ -289,8 +289,6 @@ export const RENDERER_GAP_EN: Record<string, string> = {
   "服务重启前没有结束，打开后核对": "Didn't finish before the service restarted; check it when you open it",
   "本轮已结束": "This turn has ended",
   "后台命令": "Background command",
-  // apps/workbench/src/scripts/client/events-primary.ts
-  "任务已创建，拉取计划未保存。请重试，不会重复创建任务。": "The task was created, but its fetch schedule wasn't saved. Retry; the task won't be created twice.",
   "重试保存计划": "Retry saving the schedule",
   // apps/workbench/src/scripts/client/feed-rule-authoring.ts
   "原判断能力不可用，请重新选择": "The original judgment capability is unavailable. Choose again",

@@ -10,6 +10,10 @@ import { pluginFrameBrowser, pluginFrameInitScript } from "./fixtures/plugin-fra
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
 type Browser = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;
+const ADD = "[data-feed-column] [data-feed-add-toggle]";
+const FORM = "[data-feed-add-form]";
+const REGISTER = "[data-feed-source-register]";
+const ALERTS = "[data-feed-add-error],[data-feed-source-error]";
 const toastSelector = "[data-toast]";
 
 async function openFeed(t: TestContext, b: Browser) {
@@ -159,4 +163,91 @@ test("B27-FF01 B27-FF02 Feed tells a refused, malformed, and interrupted pull ap
   assert.doesNotMatch(observations[3]!.copy, /拒绝.*访问/);
   assert.doesNotMatch(rendered.map(run => run.copy).join(" "), /protocol_invalid|feed_unavailable|provider_interrupted/);
   assert.ok(rendered.some(run => run.state === "error" && run.ring === "interrupted" && /重试/.test(run.copy) && !/新增/.test(run.copy)));
+});
+
+test("B27-FF02 B27-FF03 Feed keeps form errors local and retries just the missing plan", { timeout: 90000 }, async t => {
+  const b = await openGoalBrowser(t, "user", undefined, null);
+  if (!b) return;
+  const { projectId, store } = b;
+  assert.ok(projectId);
+  await addProjectPlugin(b.web, projectId, "feed");
+  const child = await openFeed(t, b);
+  await b.evaluate(`(() => {
+    const fetchOriginal = window.fetch;
+    window.feedWrites = [];
+    window.planFailure = "refused";
+    window.fetch = (input, init) => {
+      const url = new URL(input instanceof Request ? input.url : input, location.href);
+      if (url.origin !== location.origin || !url.pathname.includes("/api/plugins/io.molis.work.feed/sources")) return fetchOriginal(input, init);
+      if (url.pathname.endsWith("/sources") && init?.method === "POST") feedWrites.push("register");
+      if (url.pathname.endsWith("/schedule") && init?.method === "PUT") {
+        feedWrites.push("schedule");
+        if (planFailure === "refused") return Promise.resolve(Response.json({ error: "拉取计划服务暂不可用。" }, { status: 503 }));
+        if (planFailure === "unknown") return Promise.reject(new TypeError("fixture: schedule connection lost"));
+      }
+      return fetchOriginal(input, init);
+    };
+  })()`);
+  await child.click(ADD);
+  await child.click('[data-feed-choose-kind="custom_rss"]');
+  const field = '[data-feed-source-value="custom_rss"]';
+  const set = (selector: string, value: string) => child.evaluate(`(() => {
+    const control = document.querySelector(${JSON.stringify(selector)});
+    control.value = ${JSON.stringify(value)};
+    control.dispatchEvent(new Event("input", { bubbles: true }));
+    control.dispatchEvent(new Event("change", { bubbles: true }));
+  })()`);
+  await set(field, "http://127.0.0.1/test-rss");
+  await child.click(REGISTER);
+  const visibleErrors = `[...document.querySelectorAll(${JSON.stringify(ALERTS)})].filter(node => node.checkVisibility() && node.textContent.trim())`;
+  await child.waitFor(visibleErrors + ".length > 0");
+  const firstErrors = await child.evaluate<string[]>(visibleErrors + ".map(node => node.textContent)");
+  const initialCount = firstErrors.length;
+  assert.deepEqual(await child.evaluate("feedback.toasts"), [], "the rejected form has just its existing inline feedback");
+  await shot(b, "add-refused");
+  await child.click("[data-feed-setup-back]");
+  await child.click('[data-feed-choose-kind="rss"]');
+  const switchedErrors = await child.evaluate<string[]>(visibleErrors + ".map(node => node.textContent)");
+  const defaultChoice = await child.evaluate<string>("document.querySelector('[data-feed-rss-definition]').value");
+  const catalogFirst = await child.evaluate<string>("document.querySelector('[data-feed-rss-definition]').options[0].value");
+  assert.match(await child.evaluate<string>(`document.querySelector(${JSON.stringify(REGISTER)}).textContent`), /添加来源|创建来源/);
+  await child.click("[data-feed-setup-back]");
+  await child.click('[data-feed-choose-kind="custom_rss"]');
+  assert.equal(await child.evaluate(`document.querySelector(${JSON.stringify(field)}).value`), "http://127.0.0.1/test-rss");
+  await set(field, "https://example.com/feed.xml");
+  await set("[data-feed-add-name]", "Plan retry source");
+  await set("[data-feed-create-frequency]", "60");
+  await child.click(REGISTER);
+  await child.waitFor(`document.querySelector(${JSON.stringify(FORM)}).dataset.createdSourceId && ${visibleErrors}.some(node => node.textContent.includes("未保存"))`);
+  const partial = await child.evaluate<string>(visibleErrors + "[0].textContent");
+  const read = () => createLocalFeedApplication(store.db).snapshot(projectId).sources.filter(row => row.name === "Plan retry source");
+  const created = read();
+  assert.equal(created.length, 1);
+  assert.equal(created[0]!.schedule.mode, "manual");
+  await b.setViewport(390, 844);
+  await b.evaluate("document.documentElement.dataset.theme='dark'; document.documentElement.dataset.resolvedTheme='dark'");
+  await child.waitFor("document.documentElement.dataset.resolvedTheme === 'dark'");
+  assert.equal(await child.evaluate(`document.querySelector(${JSON.stringify(REGISTER)}).textContent`), "保存拉取计划");
+  await shot(b, "add-plan-retry-dark-390");
+  await b.evaluate('window.planFailure = "unknown"');
+  await child.click(REGISTER);
+  await child.waitFor(visibleErrors + '.some(node => node.textContent.includes("不知道这次操作"))');
+  const unknown = await child.evaluate<string>(visibleErrors + "[0].textContent");
+  assert.match(unknown, /来源已添加.*不知道这次操作/);
+  assert.doesNotMatch(unknown, /计划未保存/);
+  assert.deepEqual(read(), created, "a lost response in this case still leaves only the registered source");
+  await b.evaluate("window.planFailure = null");
+  await child.click(REGISTER);
+  await child.waitFor("document.querySelector('[data-feed-sources-dialog]').hidden");
+  const recovered = read();
+  assert.equal(recovered.length, 1);
+  assert.equal(recovered[0]!.source_id, created[0]!.source_id);
+  assert.equal(recovered[0]!.schedule.mode, "interval");
+  assert.deepEqual(await b.evaluate("window.feedWrites"), ["register", "register", "schedule", "schedule", "schedule"]);
+  t.diagnostic(JSON.stringify({ firstErrors, switchedErrors, defaultChoice, catalogFirst, partial, unknown, writes: await b.evaluate("window.feedWrites") }));
+  assert.equal(initialCount, 1);
+  assert.deepEqual(switchedErrors, []);
+  assert.notEqual(defaultChoice, "36kr");
+  assert.equal(catalogFirst, "36kr", "choosing a different default does not reorder the catalog");
+  assert.match(partial, /来源已添加.*拉取计划未保存/);
 });

@@ -90,6 +90,8 @@ export const FEED_EN: Record<string, string> = {
   "无法保存账号，请重试。": "Could not save the account. Please retry.",
   "创建来源": "Create source",
   "无法创建来源，请重试。": "Could not create the source. Please retry.",
+  "来源已添加。": "The source was added.",
+  "来源已添加，拉取计划未保存。": "The source was added. Its pull schedule wasn't saved.",
   "拉取失败。{reason}": "Pull failed. {reason}",
   "已有内容仍在，请稍后重试。": "Your existing items are still there. Try again in a moment.",
   "来源网站拒绝了访问。请检查订阅地址，或换一个来源。": "The source website refused access. Check the subscription URL or try another source.",

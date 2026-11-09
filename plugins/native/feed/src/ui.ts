@@ -463,7 +463,9 @@ export function renderFeedOverlays(_model: FeedUiModel): string { return ""; }
 
 function renderFeedSetupPanel(model: FeedUiModel): string {
   const p = model.primitives;
-  const catalogOptions = model.source_catalog.map((source) => `<option value="${p.escape(source.id)}">${p.escape(`${source.category_label} · ${source.name}`)}</option>`).join("");
+  // The catalog documents access restrictions for 36kr. Keep it available for an explicit choice.
+  const defaultSource = model.source_catalog.find((source) => source.id !== "36kr");
+  const catalogOptions = (defaultSource ? "" : `<option value="" disabled selected>${p.text("选择订阅")}</option>`) + model.source_catalog.map((source) => `<option value="${p.escape(source.id)}"${source === defaultSource ? " selected" : ""}>${p.escape(`${source.category_label} · ${source.name}`)}</option>`).join("");
   const connectorLabel = (status: FeedUiConnectorStatus, kind: "github" | "gmail") => status.bound
     ? p.text(kind === "gmail" ? "凭据已保存" : "已连接") : p.text("未连接");
   const choices = [
@@ -485,7 +487,7 @@ function renderFeedSetupPanel(model: FeedUiModel): string {
         <form id="feed-add-task-form" data-feed-add-form hidden><label><span>${p.text("来源名称")} <small>${p.text("可选")}</small></span><input data-feed-add-name maxlength="80" placeholder="${p.text("例如：产品观察")}"></label>
           <div data-feed-setup-kind="research_library" hidden><label><span>${p.text("GitHub 仓库")}</span><input data-feed-source-value="research_library" value="molis-ai/research-library" required></label><label><span>${p.text("研究来源 id")}</span><input data-feed-research-source value="twitter-ai-observation" required></label><small>${p.text("读取已发布研究，保留原始链接、版本和使用限制。私有仓库使用本机 Git 登录。")}</small></div>
           <label data-feed-setup-kind="custom_rss" hidden><span>${p.text("订阅地址")}</span><input data-feed-source-value="custom_rss" type="url" placeholder="https://example.com/feed.xml" required><small>${p.text("填写网站提供的 RSS 或 Atom 地址。")}</small></label>
-          <label data-feed-setup-kind="rss" hidden><span>${p.text("选择订阅")}</span><select data-feed-rss-definition>${catalogOptions}</select></label>
+          <label data-feed-setup-kind="rss" hidden><span>${p.text("选择订阅")}</span><select data-feed-rss-definition required>${catalogOptions}</select></label>
           <label data-feed-setup-kind="web_query" hidden><span>${p.text("你想追踪什么？")}</span><input data-feed-source-value="web_query" placeholder="${p.text("例如：AI 产品设计")}" required></label>
           <label data-feed-setup-kind="youtube_channel" hidden><span>${p.text("YouTube 频道 ID")}</span><input data-feed-source-value="youtube_channel" placeholder="UC…" required><small>${p.text("在 YouTube 频道的高级信息中复制频道 ID。")}</small></label>
           <label><span>${p.text("拉取频率")}</span><select data-feed-create-frequency><option value="0">${p.text("手动拉取")}</option><option value="60">${p.text("每小时")}</option><option value="360">${p.text("每 6 小时")}</option><option value="1440">${p.text("每天")}</option></select><small>${p.text("定时拉取需要 Molis Work 本地服务保持运行。")}</small></label>

@@ -119,7 +119,12 @@ function showSourcePanel(page: FeedPage, view: string, kind: string): HTMLElemen
   const back = q("[data-feed-setup-back]", dialog); if (back) back.hidden = Boolean(draft?.dataset.createdSourceId);
   all("[data-feed-setup-kind]", dialog).forEach(panel => { panel.hidden = !setup || panel.dataset.feedSetupKind !== kind; all<HTMLInputElement | HTMLSelectElement>("input,select", panel).forEach(input => input.disabled = panel.hidden || Boolean(draft?.dataset.createdSourceId)); });
   if (draft) draft.hidden = !setup || kind === "github" || kind === "gmail";
-  const create = q<HTMLButtonElement>(REGISTER, dialog); if (create) { create.hidden = Boolean(draft?.hidden); create.dataset.feedSourceRegister = kind; }
+  const create = q<HTMLButtonElement>(REGISTER, dialog);
+  if (create) {
+    create.hidden = Boolean(draft?.hidden);
+    create.dataset.feedSourceRegister = kind;
+    create.textContent = L(draft?.dataset.createdSourceId ? "保存拉取计划" : "添加来源");
+  }
   const save = q<HTMLButtonElement>("[data-feed-config-submit]", dialog); if (save) { save.hidden = !config || view === "rules"; save.dataset.sourceId = page.selection; }
   reflectSourceBusy(page, dialog);
   all("[data-feed-footer-kind]", dialog).forEach(node => node.hidden = !setup || node.dataset.feedFooterKind !== kind);
@@ -217,7 +222,13 @@ export function feedSources(page: FeedPage) {
       if (!id) { const result = await page.api<SourceAnswer>(account ? "/sources/accounts" : "/sources", "POST", body); id = result.source.source_id; form.dataset.createdSourceId = id; if (account) added(id); else show("setup", kind); }
       const minutes = Number(field(form, "[data-feed-create-frequency]"));
       if (minutes) try { await page.api("/sources/" + encodeURIComponent(id) + "/schedule", "PUT", { mode: "interval", enabled: true, interval_minutes: minutes }); }
-      catch (error) { check(); status(form, L("任务已创建，拉取计划未保存。请重试，不会重复创建任务。") + " " + molisWorkRequest.text(error)); return; }
+      catch (error) {
+        check();
+        const code = error && typeof error === "object" && "code" in error ? error.code : null;
+        const uncertain = code === "actions.outcome_unknown" || code === "ui_host.outcome_unknown" || code === "ui_host.invalid_response";
+        status(form, error)?.prepend(L(uncertain ? "来源已添加。" : "来源已添加，拉取计划未保存。"), " ");
+        return;
+      }
       host.invalidateView(); await page.refresh(); page.select(id, "open", account ? "settings" : "messages");
       host.openView({ surface: "workbench", id, panel: account ? "settings" : "messages", intent: "open" });
       form.reset(); delete form.dataset.createdSourceId;

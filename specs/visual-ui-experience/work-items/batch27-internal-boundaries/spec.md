@@ -45,7 +45,7 @@
 
 子分支先离线安装，在公共 build 槽中运行整体 `pnpm build`，再做基点对照探针、`node scripts/check-health-gates.mjs --base origin/main` 和 `git diff --check`。已有行为用例覆盖本片路径；如有实际需要新增或调整的用例，在公共 browser 槽用 `node scripts/run-tests.mjs --jobs 1 <具体文件>` 单独验证。
 
-整批最终头保留原有回归。[审查卡 PA-29 等](../../../../tests/agent-review-surface.test.ts)验证坏 note 及残缺预览的拒绝、合法 note 的转义和各阶段按钮，[审查 HTTP](../../../../tests/agent-review-http.test.ts)、[写后检查](../../../../tests/coding-diagnose-after-write.test.ts)、[Checker 拒绝](../../../../tests/security-invariants-checkers.test.ts)验证 Host 投影、重放、越权及撤权。[Goal HTTP](../../../../tests/goal-event-http.test.ts)、[MCP 状态](../../../../tests/mcp-goal-events-state.test.ts)、[状态命令](../../../../tests/goal-events-state.test.ts)和[合同归属](../../../../tests/goals-contract-ownership.test.ts)验证公开写入、读回、幂等、拒绝与门面。两包 README 的必跑用例、边界、页面资源、批次评审及 CI Full 随整批进行。
+整批最终头保留原有回归。[审查卡 PA-29 等](../../../../tests/agent-review-surface.test.ts)验证坏 note 及残缺预览的拒绝、合法 note 的转义和各阶段按钮，[审查 HTTP](../../../../tests/agent-review-http.test.ts)、[写后检查](../../../../tests/coding-diagnose-after-write.test.ts)、[Checker 拒绝](../../../../tests/security-invariants-checkers.test.ts)验证 Host 投影、重放、越权及撤权。[Goal HTTP](../../../../tests/goal-event-http.test.ts)、[MCP 状态](../../../../tests/mcp-goal-events-state.test.ts)、[状态命令](../../../../tests/goal-events-state.test.ts)和[合同归属](../../../../tests/goals-contract-ownership.test.ts)验证公开写入、读回、幂等、拒绝与门面。[状态写入规则](../../../../tests/goal-event-write-rules.test.ts)从公开应用验证取消状态下拒绝修改约定，以及先检查幂等回执再检查取消状态的顺序。两包 README 的必跑用例、边界、页面资源、批次评审及 CI Full 随整批进行。
 
 ## 子分支证据
 

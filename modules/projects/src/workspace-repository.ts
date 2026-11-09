@@ -51,6 +51,11 @@ function resolveThroughExistingParent(absolute: string): string {
  */
 export const toolBoundBy = (actorId: string): string => `binding:${actorId}`;
 
+/** Whether the person made any of the project's links, by the same allow-list; for the catalog upgrade, which has its own connection. */
+export function projectHasPersonMembership(db: { prepare(sql: string): { get(...params: unknown[]): unknown } }, projectId: string): boolean {
+  return db.prepare("SELECT 1 FROM workspace_project_memberships WHERE project_id = ? AND bound_by = ? LIMIT 1").get(projectId, LOCAL_PERSON_ACTOR_ID) !== undefined;
+}
+
 const role = (row: Row): DirectoryRole[] => [...(booleanInt(row.role_input) ? ["input" as const] : []), ...(booleanInt(row.role_output) ? ["output" as const] : [])];
 
 /**

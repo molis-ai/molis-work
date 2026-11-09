@@ -198,12 +198,13 @@ function renderRow(row: AgentReviewRow, p: AgentReviewPrimitives): string {
   const mark = phase === "done" && row.request.kind === "command"
     ? { ...PHASE_MARK.done, label: "已执行" }
     : phase === "failed" && row.receipt?.reconciliation ? { ...PHASE_MARK.failed, label: "已核对：原操作未发生" } : PHASE_MARK[phase];
-  const decidable = isDecidable(row);
   const history = ["done", "rejected", "cancelled", "expired"].includes(phase);
   const document = row.request.document;
+  const documentReadable = readable(document);
+  const decidable = phase === "pending" && documentReadable;
   // The heading names the thing itself, so a history list reads without opening every row.
   const label = document.kind === "text-edit" ? document.target_path
-    : document.kind === "command" && readable(document) ? [document.command, ...document.args].map(shellWord).join(" ")
+    : document.kind === "command" && documentReadable ? [document.command, ...document.args].map(shellWord).join(" ")
     : document.kind === "git-index" ? (document.action === "stage" ? "暂存文件" : "取消暂存")
     : document.kind === "git-integration" ? "整合子任务成果"
     : document.kind === "rewind" ? "文件回退" : row.request.kind === "command" ? "命令执行"
@@ -219,7 +220,7 @@ function renderRow(row: AgentReviewRow, p: AgentReviewPrimitives): string {
       <span class="${labelClass}">${p.escape(label)}</span><span class="agent-review-plugin">${p.escape(row.request.plugin_id)}</span>
       <time>${p.escape(p.formatDate(row.request.requested_at))}</time>
     </header>${history ? "</summary>" : ""}
-    ${renderDocument(row.request.document, p)}
+    ${documentReadable ? renderDocument(document, p) : `<div class="agent-review-doc" data-agent-review-kind="${p.escape(document.kind)}"><p>${p.escape("审查内容不完整，暂不能批准；原操作仍需核对。")}</p></div>`}
     ${renderFooter(row, decidable, p)}${history ? "</details>" : ""}
   </article>`;
 }
@@ -274,7 +275,6 @@ export function renderAgentReviewRecovery(view: AgentReviewRecoveryView, escape:
 }
 
 function renderDocument(document: AgentReviewDocument, p: AgentReviewPrimitives): string {
-  if (!readable(document)) return `<div class="agent-review-doc" data-agent-review-kind="${p.escape(document.kind)}"><p>${p.escape("审查内容不完整，暂不能批准；原操作仍需核对。")}</p></div>`;
   switch (document.kind) {
     case "git-integration": return `<div class="agent-review-doc" data-agent-review-kind="git-integration">
       <p>整合选定成果到主工作区</p><dl><dt>来源目录</dt><dd>${p.escape(document.source.directory)}</dd><dt>目标目录</dt><dd>${p.escape(document.target_directory)}</dd><dt>来源分支与基线</dt><dd>${p.escape(document.source.branch)} · ${p.escape(document.source.base_commit)}</dd></dl>

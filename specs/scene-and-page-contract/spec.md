@@ -1,6 +1,6 @@
 # 场景与生成页面公共合同（路线书 20 第 1、2 项）
 
-状态：第 20 批唯一草稿 [PR #2000](https://github.com/molis-ai/molis-work/pull/2000) 已建立，产品代码 `7aa4ba3a56` 已修复成员队列互等、Skill 在途撤销及成员保存意外打开项目三处回归。核心、安全、macOS、三宽双语双主题实操及修后 31 文件回归有通过记录，两路增量审查通过。正式视觉两处圆角差异已获用户仅本批豁免，原失败及零阈值门禁保留；最终头绑定、普通 CI、Full 与合并队列尚未完成。当前证据及执行安排见[第 20 批整批验证记录](../post-anticorruption-roadmap/reference/batches/20.md#batch-20-validation)。第 08 批 #1984、第 36 批提前合同 #1995 均已合入并消费。按用户 2026-11-08 确定的分工，第 20 批交公共合同、SDK 共用校验及必要现有接入。第 36 批接角色服务，第 37 批接页面运行与真实安全验收，第 44 批接引导采用与另存，第 51 批接场景成品。签名沙箱设置执行及本人体验分别见 [BL-settings-sandbox-execution](../backlog/BL-settings-sandbox-execution.md)、[BL-batch20-membership-acceptance](../backlog/BL-batch20-membership-acceptance.md)。
+状态：第 20 批唯一草稿 [PR #2000](https://github.com/molis-ai/molis-work/pull/2000) 尚未合入。产品与三处回归修复已有本机验证及两路审查；金样安全诊断和删除 CI 自动 debug 重跑已按用户授权完成，`39c444c039` 的相关回归、macOS 金样回放及 12 组合实操通过。完整金样生成测试首败仍记 41/42，固定主线复现同类既有缺口、候选一次配对通过，未修根因或豁免最终检查。`16dcfdb212` 的精确资源许可经原门禁通过；新视觉两处差异超出旧豁免，待用户决定。当前整合头 `a64d9958a3` 已合入主线 `02d2443f1b` 的独立 Sessions 合同，16 文件 465 项补验及两侧全部 52 个资源响应等价核对通过；最终文档头绑定、普通 CI、Full 和合并队列待完成。证据及执行安排见[第 20 批整批验证记录](../post-anticorruption-roadmap/reference/batches/20.md#batch-20-validation)。第 08 批 #1984、第 36 批提前合同 #1995 均已合入并消费。按用户 2026-11-08 确定的分工，第 20 批交公共合同、SDK 共用校验及必要现有接入。第 36 批接角色服务，第 37 批接页面运行与真实安全验收，第 44 批接引导采用与另存，第 51 批接场景成品。签名沙箱设置执行及本人体验分别见 [BL-settings-sandbox-execution](../backlog/BL-settings-sandbox-execution.md)、[BL-batch20-membership-acceptance](../backlog/BL-batch20-membership-acceptance.md)。
 
 ## 0. 这份稿子做什么
 

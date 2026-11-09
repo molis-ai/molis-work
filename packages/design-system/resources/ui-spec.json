@@ -269,6 +269,8 @@
     {"kind": "progress", "catalog": "Progress", "name": {"literal": "进度条"}, "description": {"literal": "分类合计等占比的条形"}, "group": "展示", "use": "inside", "intents": [], "data": "none", "icon": "activity"},
     {"kind": "avatar", "catalog": "Avatar", "name": {"literal": "头像"}, "description": {"literal": "人的首字头像"}, "group": "展示", "use": "catalog", "intents": [], "data": "none", "icon": "user"},
     {"kind": "kbd", "catalog": "Kbd", "name": {"literal": "按键"}, "description": {"literal": "快捷键提示"}, "group": "展示", "use": "catalog", "intents": [], "data": "none", "icon": "key"},
+    {"kind": "look-card", "catalog": "Look Card", "name": {"literal": "外观卡"}, "description": {"literal": "皮肤的预览、名称、推荐字体与状态"}, "group": "展示", "use": "catalog", "intents": [], "data": "none", "icon": "image"},
+    {"kind": "look-proof", "catalog": "Look Specimen", "name": {"literal": "样张卡"}, "description": {"literal": "在局部样张里试用皮肤和字体"}, "group": "展示", "use": "catalog", "intents": [], "data": "none", "icon": "frame"},
     {"kind": "form", "catalog": "Form", "name": {"literal": "表单"}, "description": {"literal": "在页面上直接填写并提交；一个短字段时是一行快速添加"}, "group": "录入", "use": "part", "intents": ["input"], "data": "none", "icon": "edit"},
     {"kind": "field", "catalog": "Field", "name": {"literal": "字段"}, "description": {"literal": "一个带名称和提示的填写项"}, "group": "录入", "use": "inside", "intents": [], "data": "none", "icon": "input"},
     {"kind": "input", "catalog": "Input", "name": {"literal": "输入框"}, "description": {"literal": "一行文字、链接"}, "group": "录入", "use": "inside", "intents": [], "data": "none", "icon": "input"},
@@ -305,6 +307,7 @@
     {"kind": "preview-card", "catalog": "Preview Card", "name": {"literal": "预览卡"}, "description": {"literal": "悬停预览"}, "group": "浮层", "use": "catalog", "intents": [], "data": "none", "icon": "eye"},
     {"kind": "alert", "catalog": "Alert", "name": {"literal": "提示条"}, "description": {"literal": "一段结果或需要注意的状态"}, "group": "反馈", "use": "part", "intents": ["feedback", "description"], "data": "value", "icon": "alert"},
     {"kind": "toast", "catalog": "Toast", "name": {"literal": "轻提示"}, "description": {"literal": "操作完成后的短提示"}, "group": "反馈", "use": "catalog", "intents": [], "data": "none", "icon": "bell"},
+    {"kind": "look-fade", "catalog": "Look Fade", "name": {"literal": "外观淡入"}, "description": {"literal": "应用、撤销或恢复外观时的过渡"}, "group": "反馈", "use": "catalog", "intents": [], "data": "none", "icon": "switch"},
     {"kind": "empty", "catalog": "Empty", "name": {"literal": "空状态"}, "description": {"literal": "还没有记录时的说明"}, "group": "反馈", "use": "inside", "intents": [], "data": "none", "icon": "inbox"},
     {"kind": "skeleton", "catalog": "Skeleton", "name": {"literal": "骨架"}, "description": {"literal": "内容加载前的占位"}, "group": "反馈", "use": "inside", "intents": [], "data": "none", "icon": "rows"},
     {"kind": "spinner", "catalog": "Spinner", "name": {"literal": "加载中"}, "description": {"literal": "按钮在等待结果"}, "group": "反馈", "use": "inside", "intents": [], "data": "none", "icon": "refresh"}

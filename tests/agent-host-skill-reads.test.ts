@@ -41,19 +41,21 @@ function countingCatalog(tools: (skill: SkillRef) => string[] = () => ["read-fil
 function recordingAdapter() {
   const seen: AgentStartRequest[] = [];
   const capabilities = emptyCapabilityMatrix(); capabilities.skills = "supported";
-  const adapter = {
+  const unused = () => { throw new Error("Not used by this fixture"); };
+  const adapter: AgentRuntimeAdapter = {
     descriptor: { runtime_id: "probe", display_name: "probe", provider_version: "1.0.0", capabilities },
     async health() { return { ok: true, status: "ready", message: "就绪" }; },
-    async readSession(session: AgentStartRequest["session"]) {
+    createSession: unused, read: unused, observe: unused, control: unused, readCommandOutput: unused,
+    async readSession(session) {
       return { session, owner: { project_id: "project", plugin_id: PLUGIN, install_id: "install-1", actor_id: "tester" }, title: "读", runs: [], latest_run: null };
     },
     async start(request: AgentStartRequest): Promise<AgentRunHandle> {
       seen.push(request);
       return { ref: { run_id: "run-1", session_id: request.session.session_id }, frozen: { role_id: "reader", role_version: 1, execution: "read-only", model_id: "m",
         prompts: [], skills: (request.role?.skills ?? []).map(({ body: _body, ...skill }) => skill), mcp_tools: [], host_tools: [...(request.role?.host_tools ?? [])],
-        text_materials: [], budget: null, directory: request.directory, ...(request.role?.reply_locale ? { reply_locale: request.role.reply_locale } : {}) } } as AgentRunHandle;
+        text_materials: [], budget: null, directory: { canonical_path: DIRECTORY, realpath_verified: true }, ...(request.role?.reply_locale ? { reply_locale: request.role.reply_locale } : {}) } };
     },
-  } as unknown as AgentRuntimeAdapter;
+  };
   return { adapter, seen };
 }
 
@@ -142,7 +144,7 @@ test("SKC-13: the Prologue registration of a catalog Skill names only the role's
     resolveCredential: () => "fixture-only" });
   t.after(async () => { await adapter.close(); await rm(home, { recursive: true, force: true }); });
   const owner = { project_id: "skills", plugin_id: "io.molis.work.test", install_id: "test", actor_id: "person" };
-  const session = await adapter.createSession({ ...owner, workspace: "business", title: "Skills" });
+  const session = await adapter.createSession({ ...owner, workspace: "business", role_id: "helper", title: "Skills" });
   const skill = { ref: ref(1), origin: "catalog" as const, name: "Write a weekly review", tools: ["ask-user", "change-capability"], named: false, body: "Use the review template." };
   const role = { role_id: "helper", version: 1, workspace: "business" as const, execution: "operate" as const, prompts: [], host_tools: ["ask-user"], skills: [skill] };
   // Before 9-5 the registration carried the Skill's own tools and the SDK refused it (SKILL_PERMISSION_ESCALATION): the round never started.

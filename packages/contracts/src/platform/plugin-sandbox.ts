@@ -1,5 +1,5 @@
-import type { ActionSchema } from './actions.js';
-import type { PresentationDeclaration } from './presentation.js';
+import type { ActionSchema } from './action-schema.js';
+import type { PresentationDeclaration } from './presentation-declaration.js';
 
 /** JSON-only contract shared by generated plugins and the trusted host. */
 export type SandboxJson = null | boolean | number | string | SandboxJson[] | { [key: string]: SandboxJson };

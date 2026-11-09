@@ -1,8 +1,9 @@
 import { pluginInteraction } from "./plugin-interaction.js";
-import { pluginPagesFor } from "./plugin-page-authority.js";
+import { installedPageRelease, pluginPagesFor } from "./plugin-page-authority.js";
+import { installedComponentSubmit } from "./installed-action-registration.js";
 import { pluginPageActions } from "./plugin-page-actions.js";
 import { pluginPageFiles } from "./plugin-page-files.js";
-import { ActionError, type ActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionClient, type ActionRegistryPort } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginErrors, type HomePluginDatabaseDeclaration, type PluginDefinition, type PluginExecutor, type PluginInstanceRecord, type PluginStartContext, type PluginUpgradeContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createPluginOwnerFilesClient, StoppedServiceCalls, type SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
 import { UiHost, createPluginUiClient } from "@molis-ai/molis-work-ui-host";
@@ -52,7 +53,7 @@ export class HomePluginExecutor implements PluginExecutor {
   /** Service calls each instance's code made after it stopped, each doing nothing (BL-411). */
   private readonly stoppedCalls = new StoppedServiceCalls();
   constructor(private readonly options: {
-    home: string; actorId: string; client: ActionClient;
+    home: string; actorId: string; client: ActionClient; registry: ActionRegistryPort;
     database(definition: PluginDefinition): HomePluginDatabaseDeclaration | undefined;
     ownerFiles(definition: PluginDefinition): PluginOwnerFilesBinding | undefined;
     modelConfiguration(definition: PluginDefinition): import("@molis-ai/molis-work-contracts/platform/plugin").PluginModelConfigurationDeclaration | undefined;
@@ -80,7 +81,7 @@ export class HomePluginExecutor implements PluginExecutor {
       throw pluginErrors.state_invalid("Home 级插件不给项目成果、端口和事件：需要它们的插件作双实例，由项目那一半拿这些服务（specs/archive/dual-instance-plugins）");
     }
     let active = true, stopped = false;
-    const generation = this.options.record(context.install_id)?.installation_generation;
+    const record = this.options.record(context.install_id), generation = record?.installation_generation;
     const activeRecord = () => {
       // Check lifetime before touching the repository: shutdown may already have closed its connection.
       if (!active || !this.options.active()) throw new ActionError("actions.forbidden", "插件实例已停止或安装已变化");
@@ -169,9 +170,11 @@ export class HomePluginExecutor implements PluginExecutor {
       }) });
       // What a connection card binds an image target under (§13.5 C2): the namespace this instance's own image service binds under, nothing when it has none.
       const image_generation = !imageGeneration ? undefined : definition.execution === "sandbox" ? sandboxImageDeclaration(context.install_id) : manifest.image_generation;
+      const submit = installedComponentSubmit(definition, { registry: this.options.registry, project_id: null }, () => this.options.record(context.install_id));
       withdrawPages = pluginPagesFor(this.options.home).connect({ manifest, install_id: context.install_id, project_id: null, actor_id: this.options.actorId, image_generation,
+        release: record && submit ? installedPageRelease(record) : undefined,
         resolveFiles: owned ? pluginPageFiles(this.options.home, owned.declaration, authorize) : undefined,
-        invoke: pluginPageActions(manifest, authorized, { client: this.options.client, actions: hosted.services?.actions, caller, provider: this.options.providerFor(definition, context.install_id) }),
+        invoke: pluginPageActions(manifest, authorized, { client: this.options.client, actions: hosted.services?.actions, caller, provider: this.options.providerFor(definition, context.install_id), submit }),
         assertCurrent: permission => permission ? authorize(permission) : assertActive() });
       const given = servicesUntilStopped(hosted, () => stopped, this.stoppedCalls);
       const contribution = await (background ? background.starting(() => definition.start(given)) : definition.start(given));

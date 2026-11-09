@@ -4,7 +4,7 @@ import type { PluginPlatform } from './plugin-platform.js';
 import { exposeInstalledPlugin, type InstalledPluginActions } from './plugin-builder/exposed-actions.js';
 import { installedVersion, type InstalledRelease } from './installed-release.js';
 import { withProjectReachInvocation } from './plugin-project-reach-subject.js';
-import { followInstalledActions } from './installed-action-registration.js';
+import { followInstalledActions, rememberInstalledExposure } from './installed-action-registration.js';
 
 interface ExposurePorts {
   actions: Parameters<typeof exposeInstalledPlugin>[0]; platform: Pick<PluginPlatform, 'runtime' | 'supervisor' | 'router'>;
@@ -27,7 +27,7 @@ export function installedPluginExposure(c: ExposurePorts) {
         && now.version === record.version && now.manifest_digest === record.manifest_digest && now.state === 'running';
     };
     try {
-      const registered = followInstalledActions(c.actions.registry, record, release);
+      const registered = followInstalledActions(c.actions, record, release);
       if (!registered && release.design.contract.operations.some(operation => operation.effects.background?.length)) throw new ActionError('actions.provider_replaced', '后台动作的 Runtime 注册尚未就绪');
       exposure = registered ?? exposeInstalledPlugin(c.actions, release, async (id, operation, input, context) => {
         const execution = { signal: context.signal, beforeEffect: context.beforeEffect, page_context: context.page_context, locale: context.locale, assert_authority_current: context.assert_authority_current };
@@ -40,6 +40,7 @@ export function installedPluginExposure(c: ExposurePorts) {
       await c.catalog();
       exposure.assertReady();
       if (!current()) throw new ActionError('actions.provider_replaced', '原插件曝光已失效，不能采用旧目录结果');
+      if (!registered) rememberInstalledExposure(c.actions, record, exposure);
     } catch (error) {
       if (current()) {
         c.recoveryErrors.set(pluginId, error instanceof Error ? error.message : String(error));

@@ -2,7 +2,7 @@ import { withPassiveSyncExecution } from '../passive-sync-execution.js';
 import { prepareStudioAction } from "./storage.js";
 import { publicBuild, publicRelease } from './authoring-view.js';
 import { renderPluginDocumentShell, type PluginDirectoryEntry } from "@molis-ai/molis-work-app-workbench";
-import { pluginPagesFor, pluginPageRequest } from "../plugin-page-authority.js";
+import { installedPageSelection, pluginPagesFor, pluginPageRequest } from "../plugin-page-authority.js";
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { join } from 'node:path';
 import { agentDefinitionsFor } from '../agent-definitions/agent-definitions.js';
@@ -19,7 +19,7 @@ import { AgentBuilderWorkflow, inDesignOrder, BUILDER_PLUGIN_ID, builderManifest
 import type { LocalProjectDatabase } from '../project-database.js';
 import { selectionPorts } from '../plugin-builder-surface.js';
 import { installedStageSection, installedStageSurface } from '../installed-stage-section.js';
-import type { InstalledRelease } from '../installed-release.js';
+import { installedVersion, type InstalledRelease } from '../installed-release.js';
 import { readLocalWebBody, sendLocalWebJson } from '../web-http.js';
 import { ensureInstalledPlugins, INSTALLED_MODEL_KEY } from '../installed-plugin-host.js';
 import { generatedPluginManifest } from './installed.js';
@@ -129,7 +129,8 @@ async function openStudio(options: AgentStudioOptions): Promise<Studio> {
   return studio;
 }
 
-function page(title: string, body: string, configuration: Record<string, unknown>, options: AgentStudioOptions, controlToken: string) {
+function page(title: string, body: string, configuration: Record<string, unknown>, options: AgentStudioOptions, controlToken: string,
+  selected?: ReturnType<typeof installedPageSelection>) {
   if (!options.homeDirectory) throw new Error('插件页面需要 Home');
   const installed = configuration.mode === 'installed', pluginId = installed ? String(configuration.plugin_id) : BUILDER_PLUGIN_ID;
   const active = studios.get(options.store)?.get(options.projectId), buildPath = '/api/plugin-builder/studio/builds/' + configuration.build;
@@ -137,7 +138,7 @@ function page(title: string, body: string, configuration: Record<string, unknown
     manifest: builderManifest, install_id: null, project_id: options.projectId, actor_id: options.actorId ?? 'web-user',
     assertCurrent() { if (!active || studios.get(options.store)?.get(options.projectId) !== active) throw new Error('试用页面已关闭'); },
     requestAllowed: (method, path) => method === 'GET' && path === buildPath || method === 'POST' && path === buildPath + '/call',
-  });
+  }, selected);
   return renderPluginDocumentShell({ id: installed ? pluginId : 'plugin-builder-preview', plugin_id: pluginId, bundle: 'plugin-builder',
     title, html: body, accountRegistration:options.accountRegistration, project_id: options.projectId, route_prefix: options.routePrefix ?? '', page: configuration, control_token: controlToken, authorization });
 }
@@ -169,7 +170,7 @@ export async function installedPluginStages(options: AgentStudioOptions): Promis
  * renderer a project's installed plugin uses, with every call going to the package's own sandboxed process through the Home's
  * route. The page keeps the Home activation; a verified project entrance additionally binds its triggering project (S-15, S-107).
  */
-export function renderHomePackageDocument(input: { home: string; actorId: string; release: InstalledRelease; controlToken: string; accountRegistration?:boolean; projectId?: string | null; assertProject?(): Promise<void> }): string {
+export function renderHomePackageDocument(input: { home: string; actorId: string; release: InstalledRelease; controlToken: string; accountRegistration?:boolean; projectId?: string | null; selection: ReturnType<typeof installedPageSelection>; assertProject?(): Promise<void> }): string {
   const { release } = input, pluginId = release.pluginId;
   const projectId = input.projectId ?? null, prefix = projectId ? '/projects/' + encodeURIComponent(projectId) : '';
   const view = { contract: release.design.contract, nodes: inDesignOrder(release.design, release.nodes), presentation: release.design.presentation,
@@ -177,17 +178,17 @@ export function renderHomePackageDocument(input: { home: string; actorId: string
   return renderPluginDocumentShell({ id: pluginId, plugin_id: pluginId, bundle: 'plugin-builder', title: release.design.title, accountRegistration:input.accountRegistration,
     html: '<main class="as-preview-page" data-installed-plugin="' + escapeHtml(pluginId) + '"></main>', project_id: projectId ?? '', route_prefix: prefix, control_token: input.controlToken,
     page: { mode: 'installed', plugin_id: pluginId, call: prefix + '/api/plugins/' + pluginId + '/call', view },
-    authorization: pluginPagesFor(input.home).open(pluginId, projectId, input.actorId, input.assertProject) });
+    authorization: pluginPagesFor(input.home).open(pluginId, projectId, input.actorId, input.assertProject, undefined, input.selection) });
 }
 
 /** The agent-built plugin studio. All mutations reach this dispatcher after the shared local HTTP control guard. */
 export async function handleAgentStudioHttp(request: IncomingMessage, response: ServerResponse, url: URL, options: AgentStudioOptions, controlToken: string): Promise<boolean> {
   const preview = /^\/plugin-builder\/studio\/preview\/([a-f0-9-]{36})$/u.exec(url.pathname);
   const api = /^\/api\/plugin-builder\/studio(\/.*)?$/u.exec(url.pathname);
-  const installedPage = /^\/plugins\/(io\.molis\.work\.generated\.[a-f0-9-]{36})$/u.exec(url.pathname);
-  const installedCall = /^\/api\/plugins\/(io\.molis\.work\.generated\.[a-f0-9-]{36})\/call$/u.exec(url.pathname);
-  if (!preview && !api && !installedPage && !installedCall) return false;
   const method = request.method ?? 'GET', prefix = options.routePrefix ?? '';
+  const installedPage = method === 'GET' ? /^\/plugins\/(io\.molis\.work\.[a-z0-9][a-z0-9.-]*)$/u.exec(url.pathname) : null;
+  const installedCall = method === 'POST' ? /^\/api\/plugins\/(io\.molis\.work\.[a-z0-9][a-z0-9.-]*)\/call$/u.exec(url.pathname) : null;
+  if (!preview && !api && !installedPage && !installedCall) return false;
   // These pages are frame documents: the studio's trial or the host's own acceptance run asks for them with the frame
   // marker. Opened directly, they open the workbench at their surface instead (specs/artifact-positioning S3). The studio
   // itself is drawn in the workbench's stage (S4) and has no page of its own.
@@ -200,24 +201,26 @@ export async function handleAgentStudioHttp(request: IncomingMessage, response: 
   const signal = pageAuthority ? AbortSignal.any([pageAuthority.signal, disconnected.signal]) : disconnected.signal;
   const assertCurrent = () => { signal.throwIfAborted(); pageAuthority?.assertCurrent(); };
   // A native workbench request has already passed the shared local control guard; its live request owns this execution.
-  const execution: PluginExecutionControl = { signal, beforeEffect: async () => { assertCurrent(); }, assert_authority_current: assertCurrent };
+  const execution: PluginExecutionControl = { signal, beforeEffect: async () => { assertCurrent(); await pageAuthority?.beforeEffect(); assertCurrent(); },
+    assert_authority_current: assertCurrent };
   try {
     if (installedPage || installedCall) {
-      if (!options.homeDirectory) throw new Error('安装插件需要本机数据目录');
+      if (!options.homeDirectory) return false;
       const installed = await ensureInstalledPlugins({ ...options, homeDirectory: options.homeDirectory });
       const pluginId = (installedPage ?? installedCall)![1]!;
-      const record = installed.records().find(item => item.plugin_id === pluginId);
-      // Plugins the earlier builder generated share this address space; leave those to it.
+      const current = () => installed.records().find(item => item.plugin_id === pluginId);
+      const record = current();
+      // Only the actual installed-project owner takes over this address space.
       if (!record) return false;
-      if (installedCall && method === 'POST') {
+      if (installedCall) {
         const result = await installed.platform.router().dispatch({ method: 'POST', pathname: '/api/plugins/' + pluginId + '/call', actor_id: options.actorId ?? 'web-user', query: {}, execution, body: await readLocalWebBody(request) });
         if (!result) { sendLocalWebJson(response, 409, { error: '这个插件当前没有运行，请在创作台里启用' }); return true; }
         sendLocalWebJson(response, result.status, result.body); return true;
       }
-      if (installedPage && method === 'GET') {
+      if (installedPage) {
         const release = installed.releaseFor(pluginId);
-        if (!release) { sendLocalWebJson(response, 404, { error: '找不到这个插件的已安装版本' }); return true; }
-        if (!framed) return openWorkbench('openSurface=' + encodeURIComponent('app-' + release.buildId));
+        if (!release || installedVersion(release) !== record.version) { sendLocalWebJson(response, 404, { error: '找不到这个插件的已安装版本' }); return true; }
+        if (!framed) return openWorkbench('openSurface=' + encodeURIComponent(installedStageSurface(release)));
         const recoveryError = installed.recoveryErrors.get(pluginId);
         if (recoveryError) {
           html(response, '<main class="as-preview-page"><h1>插件暂时无法运行</h1><p role="alert">' + escapeHtml(recoveryError)
@@ -226,7 +229,8 @@ export async function handleAgentStudioHttp(request: IncomingMessage, response: 
         const view = { contract: release.design.contract, nodes: inDesignOrder(release.design, release.nodes), presentation: release.design.presentation, connected: release.design.contract.operations.map(item => item.id) };
         // Only the plugin: its name, version and the way back to the studio are the workbench's (tab and stage), not the frame's.
         const body = '<main class="as-preview-page" data-installed-plugin="' + escapeHtml(pluginId) + '"></main>';
-        html(response, page(release.design.title, body, { mode: 'installed', plugin_id: pluginId, call: prefix + '/api/plugins/' + pluginId + '/call', view }, options, controlToken));
+        html(response, page(release.design.title, body, { mode: 'installed', plugin_id: pluginId, call: prefix + '/api/plugins/' + pluginId + '/call', view }, options, controlToken,
+          installedPageSelection(record, options.projectId, current)));
         return true;
       }
     }

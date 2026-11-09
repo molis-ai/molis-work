@@ -15,6 +15,7 @@ export interface InstalledDefinitionPorts {
   network: NonNullable<SandboxServices['network']>;
   /** Throws when the installation this identity names is no longer the running one. */
   assertInstalled(identity: Readonly<SandboxIdentity>): void;
+  grantedCapabilities(identity: Readonly<SandboxIdentity>): readonly string[];
   /** The earlier versions of a studio release a later one is compatible with; none for a package. */
   earlier(release: InstalledRelease): readonly number[];
   /** A project package's executor has no Home services; hold only its verified Agent declarations while this definition runs. */
@@ -47,7 +48,7 @@ export function installedDefinitions(ports: InstalledDefinitionPorts) {
         await context.beforeEffect?.(); context.signal.throwIfAborted(); ports.assertInstalled(context.identity);
       } });
       const sandbox = sandboxedPluginDefinition(release, release.permissions, [...ports.earlier(release)], {
-        capabilities: ports.callCatalog ?? ports.catalog, assertLive: ports.assertInstalled,
+        capabilities: ports.callCatalog ?? ports.catalog, assertLive: ports.assertInstalled, grantedCapabilities: ports.grantedCapabilities,
         capability: { async call(context, id, input) { const guarded = guard(context); await guarded.beforeEffect(); return capability.call(guarded, id, input); } },
         network: { async request(context, input, authorization) { const guarded = guard(context); await guarded.beforeEffect(); return ports.network.request(guarded, input, authorization); } },
       }, release.packaged?.manifest);
@@ -63,7 +64,7 @@ export function installedDefinitions(ports: InstalledDefinitionPorts) {
           try { await sandbox.stop?.(context); } finally { held?.(); }
         },
       } : sandbox;
-      if (value !== sandbox) rememberInstalledActionSource(value, release);
+      if (value !== sandbox) rememberInstalledActionSource(value, release, ports.grantedCapabilities);
       definitions.set(keyOf(release), { pluginId: release.pluginId, value });
       return value;
     },

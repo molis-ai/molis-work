@@ -7,7 +7,8 @@ import { pluginInstallationsFor } from "./plugin-installation-directory.js";
 import { pluginProjectsFor } from "./plugin-projects-service.js";
 import { pluginAgentsFor } from "./plugin-agent-service.js";
 import { pluginSchedulerFor } from "./plugin-scheduler-service.js";
-import { pluginPagesFor } from "./plugin-page-authority.js";
+import { installedPageRelease, pluginPagesFor } from "./plugin-page-authority.js";
+import { installedComponentSubmit } from "./installed-action-registration.js";
 import { pluginPageActions } from "./plugin-page-actions.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
@@ -122,8 +123,12 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
         { ...(options.sourcePullFetch ? { fetch: options.sourcePullFetch } : {}), ...(options.sourcePullGit ? { git: options.sourcePullGit } : {}), ...(options.sourcePullIntegrations ? { integrations: options.sourcePullIntegrations } : {}), ...(options.home ? { home: options.home.directory } : {}) }),
       background: background?.client, directory: directory?.client, terminal: terminal?.client,
       projects: pluginProjectsFor(definition, context, options.home?.directory, assertActive, options.projects) });
+    const readRecord = () => options.record?.(context.install_id);
+    const submit = installedComponentSubmit(definition, options.actions, readRecord);
+    const record = submit && readRecord();
     withdrawPages = options.home ? pluginPagesFor(options.home.directory).connect({ manifest, install_id: context.install_id, project_id: options.project_id, actor_id: options.actor_id,
-      invoke: pluginPageActions(manifest, context, { client: options.actions.client, actions: hosted.services?.actions, caller: pluginCaller, provider: providerId }),
+      release: record ? installedPageRelease(record) : undefined,
+      invoke: pluginPageActions(manifest, context, { client: options.actions.client, actions: hosted.services?.actions, caller: pluginCaller, provider: providerId, submit }),
       assertCurrent: permission => { assertActive(); if (permission) context.requireGrant(permission); } }) : undefined;
     return { context: servicesUntilStopped(hosted, () => stopped, stoppedCalls), starting: run => background ? background.starting(run) : run(),
       stopProjectJobs: async projectId => { await background?.stopProjectJobs(projectId); },

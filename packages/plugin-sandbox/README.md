@@ -179,6 +179,9 @@ answers and validates every resulting address; it does not change production def
 
 ## 开发要求
 
+创作台沙箱的 TypeScript SDK 只复制 `SANDBOX_SDK_CONTRACT_DECLARATIONS` 中当前类型需要的声明。固定读取协议复用动作 schema 和呈现数据形状，这些声明不带动作运行入口，开发者的代码仍走原 G1 和 G2 检查。
+
+
 - 负责：生成插件的 macOS 进程隔离与异步宿主中介（网络、存储、项目库、能力调用、经平台的服务账号发请求、读自己手上的文件），以及宿主给这次激活建出来的服务哪些经 broker 送进沙箱（`sandboxServicesFor`），和沙箱不给的服务的启动期拒绝（`assertSandboxDeclarations`）。
 - 不负责：插件产品状态、模型执行、安装流程与构建门禁。
 - 公开入口：`@molis-ai/molis-work-plugin-sandbox`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin-sandbox`。

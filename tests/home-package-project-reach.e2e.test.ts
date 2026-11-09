@@ -8,6 +8,7 @@ import { ChromeHarness } from "@molis-ai/molis-work-test-kit/browser";
 import { HomeConsentLedger, pluginInstallActions, PLUGIN_CONSENT_PERMISSIONS } from "@molis-ai/molis-work-app-local-host";
 import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { goalPluginActions, type GoalEventWorkStateView } from "@molis-ai/molis-work-plugin-goals/contract";
+import { PluginRouteRouter } from "@molis-ai/molis-work-plugin-runtime";
 import { newPublisher } from "./fixtures/sandbox-package.js";
 import { projectReachPackage, REACH_PLUGIN_ID, REACH_GOAL_ID } from "./fixtures/home-project-reach-package.js";
 import { deferred, serveHomeRuntime } from "./fixtures/home-runtime.js";
@@ -267,19 +268,33 @@ test("RAC-2647 S-107 copying a real page invocation control does not copy its pr
   const f = await fixture(t), listed = await f.settings(f.a, "list");
   const selection = (await listed.json() as { plugins: Array<{ plugin_id: string; snapshot: string }> }).plugins.find(row => row.plugin_id === REACH_PLUGIN_ID)!;
   assert.equal((await f.settings(f.a, "grant", { plugin_id: selection.plugin_id, snapshot: selection.snapshot })).status, 200);
-  const platform = await f.host.homePlugins!.ready(), original = platform.router, before = await f.state(f.a);
-  const headers = await packagePageHeaders(f);
-  let copied = false;
-  platform.router = function () {
-    const router = original.call(this), dispatch = router.dispatch.bind(router);
-    router.dispatch = request => { copied = true; return dispatch({ ...request, execution: request.execution && { ...request.execution } }); };
-    return router;
-  };
-  const call = () => f.request(`/projects/${f.a.project_id}/api/plugins/${REACH_PLUGIN_ID}/call`, { method: "POST", headers, body: { componentId: "editor", binding: "submit", payload: { form: { text: "actual page control" } } } });
+  const before = await f.state(f.a);
+  const headers = await packagePageHeaders(f), prefix = "/projects/" + f.a.project_id;
+  for (const body of [
+    { componentId: "editor", binding: "submit", payload: { form: { text: "retired submit" } } },
+    { operation: "reach.submit", input: { text: "raw operation" } },
+  ]) {
+    const retired = await f.request(prefix + "/api/plugins/" + REACH_PLUGIN_ID + "/call", { method: "POST", headers, body });
+    assert.equal(retired.status, 403, await retired.clone().text());
+    assert.equal((await retired.json()).code, "actions.forbidden");
+  }
+  assert.deepEqual(await f.state(f.a), before);
+  let copied = 0;
+  const dispatch = PluginRouteRouter.prototype.dispatch;
+  const copy = t.mock.method(PluginRouteRouter.prototype, "dispatch", function (this: PluginRouteRouter, request: Parameters<typeof dispatch>[0]) {
+    if (request.pathname !== "/api/plugins/" + REACH_PLUGIN_ID + "/call" || !request.execution) return dispatch.call(this, request);
+    copied++;
+    return dispatch.call(this, { ...request, execution: { ...request.execution } });
+  });
+  const call = () => f.request(prefix + "/api/host/plugin-page-actions", { method: "POST", headers,
+    body: { mode: "component_submit", component_id: "editor", payload: { form: { text: "actual page control" } } } });
   try {
-    const refused = await call(); assert.equal(copied, true); assert.equal(refused.status, 400, await refused.clone().text());
+    const refused = await call(); assert.equal(copied, 1, await refused.clone().text()); assert.equal(refused.ok, false, await refused.clone().text());
     assert.match(await refused.text(), /不可用/u); assert.deepEqual(await f.state(f.a), before);
-  } finally { platform.router = original; }
-  const fresh = await call(); assert.equal(fresh.status, 200, await fresh.text());
-  assert.equal((await f.state(f.a)).progress_summary!.summary, "actual page control");
+  } finally { copy.mock.restore(); }
+  const fresh = await call(); assert.equal(fresh.status, 200, await fresh.clone().text());
+  assert.equal(await fresh.json(), true);
+  const after = await f.state(f.a);
+  assert.equal(after.progress_summary!.summary, "actual page control");
+  assert.equal(after.goal_event_cursor, before.goal_event_cursor + 1);
 });

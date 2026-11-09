@@ -6,17 +6,45 @@ import { readStorageSpace } from "@molis-ai/molis-work-storage";
 import { resolve } from "node:path";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { ActionError, type ActionReference, isSubjectReader } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginImageGenerationDeclaration, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginImageGenerationDeclaration, PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { PLUGIN_CONNECTIONS_PERMISSION } from "@molis-ai/molis-work-contracts/platform/plugin-connections";
 import { pluginRouteMatcher } from "@molis-ai/molis-work-plugin-runtime";
 import { projectDeletedHooksFor } from "./project-deleted-hooks.js";
 import type { PageActionRequest } from "./plugin-page-actions.js";
+
+type PageRelease = Readonly<Pick<PluginInstanceRecord, "install_id" | "installation_generation" | "version" | "manifest_digest">>;
+
+interface PageSelection {
+  install_id: string;
+  project_id: string | null;
+  project_key?: string;
+  release?: PageRelease;
+  objectPresentation?: { surfaces: readonly string[]; permissions: readonly string[] };
+  assertCurrent(): void;
+}
+
+export function installedPageRelease(record: PluginInstanceRecord): PageRelease {
+  const { install_id, installation_generation, version, manifest_digest } = record;
+  return Object.freeze({ install_id, installation_generation, version, manifest_digest });
+}
+function sameRelease(expected: PageRelease, actual: PageRelease | null | undefined): boolean {
+  return actual?.install_id === expected.install_id && actual.installation_generation === expected.installation_generation
+    && actual.version === expected.version && actual.manifest_digest === expected.manifest_digest;
+}
+export function installedPageSelection(record: PluginInstanceRecord, project_id: string | null, current: () => PluginInstanceRecord | null | undefined): PageSelection {
+  const release = installedPageRelease(record);
+  return { install_id: release.install_id, project_id, release, assertCurrent() {
+    const now = current();
+    if (now?.state !== "running" || !sameRelease(release, now)) throw refused();
+  } };
+}
 
 interface Activation {
   readonly manifest: PluginManifest;
   readonly install_id: string | null;
   readonly project_id: string | null;
   readonly actor_id: string;
+  readonly release?: PageRelease;
   /** The image connections this instance was given (`services.imageGeneration`): its Manifest's, or the one a sandboxed package's effects derive. */
   readonly image_generation?: PluginImageGenerationDeclaration;
   assertCurrent(permission?: string): void;
@@ -33,7 +61,7 @@ interface Page {
   sessionCurrent(): void;
   closing?: boolean;
   assertScope?(): Promise<void>;
-  selection?: { project_key?: string; objectPresentation?: { surfaces: readonly string[]; permissions: readonly string[] }; assertCurrent(): void };
+  selection?: PageSelection;
 }
 const refused = () => new ActionError("actions.forbidden", "插件页面权限已失效或未声明此入口");
 const cancelled = () => new ActionError("actions.cancelled", "插件页面已关闭，这次请求已结束");
@@ -67,9 +95,10 @@ export class PluginPageAuthority {
   }
 
   open(pluginId: string, projectId: string | null, actorId: string, assertScope?: () => Promise<void>, registered?: Activation,
-    selected?: { install_id: string; project_id: string | null; project_key?: string; objectPresentation?: { surfaces: readonly string[]; permissions: readonly string[] }; assertCurrent(): void }): { page_id: string; storage_scope: string } {
+    selected?: PageSelection): { page_id: string; storage_scope: string } {
     const candidates = [...this.activations].filter(item => item.install_id && item.manifest.plugin_id === pluginId && item.actor_id === actorId);
-    const activation = selected ? candidates.find(item => item.install_id === selected.install_id && item.project_id === selected.project_id)
+    const activation = selected ? candidates.find(item => item.install_id === selected.install_id && item.project_id === selected.project_id
+      && (!selected.release || sameRelease(selected.release, item.release)))
       : candidates.find(item => item.project_id === null && item.resolveFiles)
         ?? candidates.find(item => item.project_id === projectId) ?? candidates.find(item => item.project_id === null) ?? registered;
     if (!activation) throw refused();
@@ -254,7 +283,11 @@ export function pluginPageRequest(request: IncomingMessage) {
       for (const permission of reader.action.permissions) authority.page.activation.assertCurrent(permission);
       return {kind: object.kind, id: object.id, project_id};
     },
-    invoke(request: PageActionRequest) { if (!authority.page.activation.invoke) throw refused(); return authority.page.activation.invoke(request); },
+    invoke(request: PageActionRequest) {
+      authority.check();
+      if (!authority.page.activation.invoke || request.mode === "component_submit" && !authority.page.selection?.release) throw refused();
+      return authority.page.activation.invoke(request);
+    },
     async resolveFiles(paths: readonly string[]) {
       await authority.page.assertScope?.(); authority.check();
       const resolveFiles = authority.page.activation.resolveFiles;

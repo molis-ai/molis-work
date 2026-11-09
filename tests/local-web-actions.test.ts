@@ -39,6 +39,7 @@ test("SPC-C08 S-15 the Web Catalog caller refuses foreign providers, missing rou
   let lookups = 0;
   const resolveProject = async () => { lookups++; return project.reference; };
 
+  await assert.rejects(async () => f.host.projectCatalogActions.client(project.reference).discover(caller), { code: "actions.forbidden" });
   await assert.rejects(invokeLocalWebCatalogAction(f.host, resolveProject, { ...membership, provider_id: "test.other-owner" }, input, authority), { code: "actions.forbidden" });
   const missingPermission = { ...membership, action: { ...membership.action, permissions: [] } };
   await assert.rejects(invokeLocalWebCatalogAction(f.host, resolveProject, missingPermission, input, authority), { code: "actions.forbidden" });

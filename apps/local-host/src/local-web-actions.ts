@@ -208,14 +208,15 @@ export async function invokeLocalWebCatalogAction<Input, Output>(host: MolisWork
   const assertSession = () => { authority.sessionCurrent(); authority.signal.throwIfAborted(); authority.accountCurrent?.(); };
   assertSession();
   const definition = { ...action }, ownerCap = [...definition.action.permissions];
-  const registration = host.projectCatalogActionDescriptor(definition), provider = registration?.action_provider;
+  const catalog = host.projectCatalogActions;
+  const registration = catalog.descriptor(definition), provider = registration?.action_provider;
   const metadata = registration?.action;
   if (!provider || provider.provider_id !== definition.provider_id || !metadata?.audiences.includes("user")
     || !ownerReaches(provider, metadata.permissions, ownerCap)) throw localAuthorityRefused();
   const permissions = metadata.permissions;
   const assertAuthority = (target: ActionReference = definition, required: readonly string[] = permissions) => {
     assertSession();
-    if (host.projectCatalogActionDescriptor(definition) !== registration) throw new ActionError("actions.provider_changed", "能力已重新加载，不能继续原副作用");
+    if (catalog.descriptor(definition) !== registration) throw new ActionError("actions.provider_changed", "能力已重新加载，不能继续原副作用");
     if (target.capability_id !== definition.capability_id || target.version !== definition.version || target.provider_id !== definition.provider_id
       || !required.every(permission => permissions.includes(permission))) {
       throw localAuthorityRefused();
@@ -223,7 +224,7 @@ export async function invokeLocalWebCatalogAction<Input, Output>(host: MolisWork
   };
   const reference = await resolveProject();
   assertAuthority();
-  return invokeWithLocalWebAuthority(host.actionClient(reference, "project-catalog"), {
+  return invokeWithLocalWebAuthority(catalog.client(reference), {
     ...localPersonCaller(reference, permissions, authority.signal), allowed_actions: [definition],
     validate_authority: async target => { assertAuthority(target); }, assert_authority_current: assertAuthority,
   }, definition, input);

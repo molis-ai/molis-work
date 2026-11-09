@@ -54,42 +54,44 @@ function atRest(c: Composer) {
 }
 
 const SETTLE = "mw-composer-settle";
-const PARTS = [".mw-composer__to", ".mw-composer__text", ".mw-composer__start", ".mw-composer__end"];
+const PARTS = [".mw-composer__to", ".mw-composer__input", ".mw-composer__start", ".mw-composer__end"];
 const token = (name: string, fallback: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
 
 /**
  * Rest ↔ rows (composer-styles.ts `composerRestRules`, only where the page sheet lays rest out as one row): the box eases to its
  * new height and each part from where it was seen (First, Last, Invert, Play, with the board's `--dur-move` and `--ease-quint`).
- * Nothing changes element for the input, so focus and the caret stay. Positions are taken against the box's top, which is where
- * the box starts whether its page grows it up (the bar) or down; a change while one is moving starts from where things are seen.
+ * Nothing changes element for the input, so focus and the caret stay. Each part's start is measured with the box already held at
+ * its old height, so whichever way the page grows the box (the bar grows it up) every part starts exactly where it was seen; a
+ * change while one is moving starts from where things are seen.
  */
 function settle(c: Composer, change: () => void) {
   const { shell, box } = c;
   if (document.documentElement.hasAttribute("data-craft-still") || matchMedia("(prefers-reduced-motion: reduce)").matches || !shell.isConnected) {
     change(); window.molisFit?.(c.field); return;
   }
-  const seen = () => new Map(PARTS.map((query) => [query, shell.querySelector<HTMLElement>(query)?.getBoundingClientRect()]));
+  const parts = () => PARTS.map((query) => shell.querySelector<HTMLElement>(query));
+  const seen = () => parts().map((node) => node?.getBoundingClientRect());
   const was = seen(), from = box.getBoundingClientRect();
   change();
   window.molisFit?.(c.field);
-  for (const node of [box, ...PARTS.map((query) => shell.querySelector<HTMLElement>(query))]) for (const motion of node?.getAnimations() ?? []) if (motion.id === SETTLE) motion.cancel();
-  const now = seen(), to = box.getBoundingClientRect();
-  if (Math.abs(from.height - to.height) < 1 && [...now].every(([query, rect]) => rect?.left === was.get(query)?.left && rect?.top === was.get(query)?.top)) return;
+  for (const node of [box, ...parts()]) for (const motion of node?.getAnimations() ?? []) if (motion.id === SETTLE) motion.cancel();
+  const to = box.getBoundingClientRect();
+  if (Math.abs(from.height - to.height) < 1 && seen().every((rect, index) => rect?.left === was[index]?.left && rect?.top === was[index]?.top)) return;
   const duration = parseFloat(token("--dur-move", "250ms")) || 250, easing = token("--ease-quint", "cubic-bezier(.22, 1, .36, 1)");
   box.dataset.settling = "";
   const height = box.animate([{ height: `${from.height}px` }, { height: `${to.height}px` }], { duration, easing, id: SETTLE });
   const done = () => { if (!box.getAnimations().some((motion) => motion.id === SETTLE && motion.playState === "running")) delete box.dataset.settling; };
   height.onfinish = done; height.oncancel = done;
-  // Where the box starts now (a page that grows it down moves it by the receiver row): it eases from where it was seen too.
-  const start = box.getBoundingClientRect().top, lift = from.top - start;
-  if (lift) box.animate([{ translate: `0 ${lift}px` }, { translate: "0 0" }], { duration, easing, id: SETTLE });
-  for (const query of PARTS) {
-    const node = shell.querySelector<HTMLElement>(query), before = was.get(query), after = now.get(query);
-    if (!node || !before || !after) continue;
-    // The parts inside the box move with it; the receiver row is outside it, so it takes the box's own move as well.
-    const x = before.left - from.left - (after.left - to.left), y = before.top - from.top - (after.top - to.top) + (box.contains(node) ? 0 : lift);
-    if (x || y) node.animate([{ translate: `${x}px ${y}px` }, { translate: "0 0" }], { duration, easing, id: SETTLE });
-  }
+  // Where things are with the box at its old height: the box eases from where it was seen, and each part from where it was.
+  const start = box.getBoundingClientRect(), held = seen(), lift = { x: from.left - start.left, y: from.top - start.top };
+  if (lift.x || lift.y) box.animate([{ translate: `${lift.x}px ${lift.y}px` }, { translate: "0 0" }], { duration, easing, id: SETTLE });
+  parts().forEach((node, index) => {
+    const before = was[index], now = held[index];
+    if (!node || !before || !now) return;
+    // A part inside the box moves with it already; the receiver row is outside it.
+    const inside = box.contains(node), x = before.left - now.left - (inside ? lift.x : 0), y = before.top - now.top - (inside ? lift.y : 0);
+    if (Math.abs(x) >= 0.5 || Math.abs(y) >= 0.5) node.animate([{ translate: `${x}px ${y}px` }, { translate: "0 0" }], { duration, easing, id: SETTLE });
+  });
 }
 
 function draw(c: Composer, controls: boolean) {
@@ -104,7 +106,8 @@ function draw(c: Composer, controls: boolean) {
   const was = shell.querySelector(".mw-composer__status"), line = next.querySelector(".mw-composer__status");
   if (line) was ? was.replaceWith(line) : shell.querySelector(".mw-composer__text")!.after(line); else was?.remove();
   const to = next.querySelector(".mw-composer__to"), had = shell.querySelector(".mw-composer__to");
-  if (to) had ? had.replaceWith(to) : shell.prepend(to); else had?.remove();
+  // Kept when it reads the same, so a part that is easing between one row and rows keeps its motion.
+  if (to) { if (!had) shell.prepend(to); else if (had.outerHTML !== to.outerHTML) had.replaceWith(to); } else had?.remove();
   const end = next.querySelector<HTMLElement>(".mw-composer__end")!;
   for (const button of end.querySelectorAll<HTMLButtonElement>("[data-composer-send]")) button.disabled = !sendable(c);
   end.querySelector<HTMLButtonElement>("[data-composer-stop]")?.toggleAttribute("disabled", c.stopping);

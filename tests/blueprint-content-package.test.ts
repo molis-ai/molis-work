@@ -187,7 +187,6 @@ test("SPC-C04/SPC-C05: a real signed Blueprint-only package installs with unavai
   const [installed] = await records();
   assert.deepEqual([installed?.state, installed?.selected_entrypoint, installed?.publisher_trust, installed?.grants], ["running", "", "pinned", []]);
   assert.deepEqual(homeAgentDefinitions(h.home).methods().filter(method => method.owner_id === CONTENT_PLUGIN_ID), []);
-  const { pkg } = new SandboxPackageStore(h.home).load(CONTENT_PLUGIN_ID, publisher.identity, "1.0.0");
-  assert.ok("blueprint" in pkg);
-  assert.deepEqual(pkg.blueprint, { default: blueprint(), others: [{ locale: "en", blueprint: blueprint("en") }] });
+  const { packaged } = new SandboxPackageStore(h.home).load(CONTENT_PLUGIN_ID, publisher.identity, "1.0.0");
+  assert.deepEqual(packaged?.blueprint, { default: blueprint(), others: [{ locale: "en", blueprint: blueprint("en") }] });
 });

@@ -1,7 +1,10 @@
+import { CHARACTER_IMPORT_RUNTIMES } from "@molis-ai/molis-work-contracts/modules/characters";
+import { externalTool } from "@molis-ai/molis-work-contracts/platform/external-tools";
 import { SKILL_PACK_BOARD_EN } from "@molis-ai/molis-work-design-system";
 /** Skills occupy the existing settings shell; the catalog owns every displayed state. */
 export function renderSkillSettings({ L, projectId, lang }: { L(text: string): string; projectId: string | null; lang: string }): string {
   return `<section class="settings-document skill-settings" data-skill-settings data-sk-retracted="${lang === "en" ? SKILL_PACK_BOARD_EN["已撤销"] : "已撤销"}" data-project="${projectId ?? ""}" aria-labelledby="skills-heading">
+  <template data-sk-import-sources>${CHARACTER_IMPORT_RUNTIMES.map(id => `<option value="${id}">${externalTool(id).display_name}</option>`).join("")}</template>
   <header class="settings-page-heading"><h1 id="skills-heading">${L("技能")}</h1><p>${L(projectId ? "选择这个项目里可以使用的做法。" : "选择个人空间里可以使用的做法。")}</p></header>
   <div class="skill-toolbar"><input class="mw-input" type="search" data-sk-search placeholder="${L("搜索技能")}" aria-label="${L("搜索技能")}"><select class="mw-select" data-sk-filter aria-label="${L("筛选技能")}"><option value="all">${L("全部")}</option><option value="on">${L("在用")}</option><option value="off">${L("没启用")}</option><option value="unavailable">${L("用不了")}</option></select><button class="mw-btn mw-btn--secondary" data-sk-import>${L("从本机导入")}</button><button class="mw-btn mw-btn--ghost" data-sk-refresh>${L("刷新")}</button></div>
   <p class="settings-muted" data-sk-count role="status"></p><div data-sk-notice role="status" hidden></div><div data-sk-error role="alert" hidden></div><div data-sk-import-panel hidden></div>
@@ -54,7 +57,7 @@ const footer = el("div", "skill-toolbar"); footer.append(button("以后再说", 
 };
 const importPanel = (panel, project, reload) => {
 panel.hidden = false; panel.replaceChildren(el("h2", "", L("从本机导入")));
-const source = el("select", "mw-select"); source.setAttribute("aria-label", L("来源")); for (const [id, name] of [["claude-code","Claude Code"],["codex","Codex"],["cursor","Cursor"],["opencode","OpenCode"],["grok-build","Grok Build"]]) { const o = el("option", "", name); o.value = id; source.append(o); }
+const source = el("select", "mw-select"); source.setAttribute("aria-label", L("来源")); source.append(panel.closest("[data-skill-settings]").querySelector("[data-sk-import-sources]").content.cloneNode(true));
 const stage = el("div"), fail = el("div"); fail.hidden = true;
 const close = () => { panel.hidden = true; panel.replaceChildren(); };
 const scan = button("读取技能", async () => { scan.disabled = true; fail.hidden = true;

@@ -9,6 +9,7 @@
  * Who a Skill is for (`applies_to`) is its SKILL.md's when it writes one, kept and never overridden; otherwise the person's, chosen at
  * the confirmation, the preview only pre-selecting it from the source (spec §9, 2026-11-08 用户定). The Host never fills it in itself.
  */
+import { externalTool } from '@molis-ai/molis-work-contracts/platform/external-tools';
 import { createHash, randomUUID } from 'node:crypto';
 import { lstatSync } from 'node:fs';
 import { ActionError, type ActionExecutionContext } from '@molis-ai/molis-work-contracts/platform/actions';
@@ -28,13 +29,9 @@ const PUBLISHER_ID = 'molis-home';
 /** The name this Home's publisher is pinned under the first time the person confirms an import. */
 const PIN_LABEL = '这台电脑';
 const PREVIEW_TTL_MS = 30 * 60 * 1000;
-const LABELS: Record<CharacterImportRuntimeId, string> = { codex: 'Codex', 'claude-code': 'Claude Code', cursor: 'Cursor', opencode: 'OpenCode', 'grok-build': 'Grok Build' };
-/** Each local Runtime's 「给谁用」 pre-selection: all of them today are coding tools, so their Skills folders suggest `coding`. */
-const RUNTIME_APPLIES_TO: Record<CharacterImportRuntimeId, SkillAppliesTo> = { codex: 'coding', 'claude-code': 'coding', cursor: 'coding', opencode: 'coding', 'grok-build': 'coding' };
-
 /** The 「给谁用」 an import pre-selects from its source: a coding tool's Skills folder suggests `coding`, any other source `both`. Only a suggestion. */
 export function suggestedAppliesTo(source: SkillImportSource): SkillAppliesTo {
-  return source.kind === 'runtime' ? RUNTIME_APPLIES_TO[source.runtime_id] : 'both';
+  return source.kind === 'runtime' ? 'coding' : 'both';
 }
 
 export interface SkillImportPorts {
@@ -107,7 +104,7 @@ export class SkillImportService {
   async preview(input: SkillImportPreviewRequest, who: Who): Promise<SkillImportPreview> {
     if (input.source.kind !== 'runtime') throw skillErrors.import_source_unavailable('还不能从项目目录导入技能：请从本机 Agent 的技能目录导入');
     const runtime = input.source.runtime_id, found = this.ports.scan(runtime);
-    if (!found) throw skillErrors.import_source_unavailable(`这台电脑上没有 ${LABELS[runtime]} 的技能目录`);
+    if (!found) throw skillErrors.import_source_unavailable(`这台电脑上没有 ${externalTool(runtime).display_name} 的技能目录`);
     // The source's kind and root name the plugin, so importing the same source again is its upgrade.
     const plugin_id = `io.molis.work.imported-skills.${runtime}-${createHash('sha256').update(`runtime\0${runtime}\0${found.root}`).digest('hex').slice(0, 12)}`;
     const installed = await this.ports.installed(plugin_id, 'project', who.project_id) ?? await this.ports.installed(plugin_id, 'home', who.project_id);
@@ -125,7 +122,7 @@ export class SkillImportService {
         change: installed?.manifest.methods?.some(method => method.skill_id === id) ? 'upgrade' : 'new' });
     }
     const preview_id = randomUUID();
-    this.held.set(preview_id, { who, plugin_id, name: `从 ${LABELS[runtime]} 导入的技能`, skills, expires: this.now() + PREVIEW_TTL_MS });
+    this.held.set(preview_id, { who, plugin_id, name: `从 ${externalTool(runtime).display_name} 导入的技能`, skills, expires: this.now() + PREVIEW_TTL_MS });
     return { preview_id, package: { plugin_id, version: nextVersion(this.ports.retained(plugin_id)), installed_version: installed?.manifest.version ?? null }, applies_to, candidates };
   }
 

@@ -52,6 +52,10 @@ test("SKP-01 SKP-08 SKP-10: Skill installation and settings work through the act
   assert.match(await catalog.text(), /meeting-notes/, "HTTP catalog includes installed Skill");
   await go(`/projects/${project.project_id}/settings/skills`);
   await page.wait("[...document.querySelectorAll('[data-sk-list] button')].some(node => node.textContent.includes('meeting-notes'))", { describe: "JSON.stringify({url:location.href,text:document.body.innerText,api:typeof molisSkillUI})" });
+  await page.click("[data-sk-import]");
+  await page.wait("document.querySelector('[data-sk-import-panel] select option[value=codex]')?.textContent === 'Codex'");
+  assert.equal(await page.evaluate("document.querySelector('[data-sk-import-panel] select option[value=claude-code]')?.textContent"), "Claude Code", "the actual import picker receives host-rendered registered tools");
+  await page.evaluate("[...document.querySelectorAll('[data-sk-import-panel] button')].find(node => node.textContent === '取消').click()");
   await page.evaluate("[...document.querySelectorAll('[data-sk-list] button')].find(node => node.textContent.includes('meeting-notes')).click()");
   await page.wait("document.querySelector('[data-sk-detail] input[value=manual]')?.checked", { describe: "document.querySelector('[data-sk-error]')?.innerText" });
   await page.click('[data-sk-body]');

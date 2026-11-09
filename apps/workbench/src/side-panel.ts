@@ -152,10 +152,12 @@ body.is-side-resizing{cursor:col-resize;user-select:none}
 @media(max-width:600px){
  html body.immersive-workbench:not(.arrival-page) .immersive-titlebar>.side-strip{order:1;flex:1 1 0;margin-block:-2px}
  html body.immersive-workbench:not(.arrival-page) .immersive-titlebar:has(>.titlebar-layout)>.desktop-titlebar-drag{display:none}
- /* A Home tool with a chord is the always-there entry (ISSUE-30, decided 10-12): it stays at the row's edge when the row
-    scrolls to reveal a later glyph (07-AUDIT). The strip's edge fade masks the whole row including it, so on a phone the
-    side strip keeps its glyphs legible in place of that one fade. */
- .side-strip>.tab-item:has(>[data-side-keys]){order:-1;position:sticky;inset-inline-start:0;z-index:1;background:var(--nav-bg)}
+ /* A Home tool with a chord is the always-there entry (ISSUE-30, decided 10-12): it leads the glyphs. On the project page's
+    phone titlebar the row scrolls to reveal a later glyph (07-AUDIT), so there it also sticks to the row's edge; the strip's
+    edge fade masks the whole row including it, so on a phone the side strip keeps its glyphs legible in place of that one
+    fade. The way-in page draws the same glyphs without that row, so it keeps only the order. */
+ .side-strip>.tab-item:has(>[data-side-keys]){order:-1}
+ html body.immersive-workbench:not(.arrival-page) .immersive-titlebar>.side-strip>.tab-item:has(>[data-side-keys]){position:sticky;inset-inline-start:0;z-index:1;background:var(--nav-bg)}
  html body.immersive-workbench:not(.arrival-page) .immersive-titlebar>.side-strip[data-more]{mask-image:none}
 }
 /* Between 601 and 760 the strip is the title bar's second row, so the bar's grid row grows with it (over craft-finish's fixed

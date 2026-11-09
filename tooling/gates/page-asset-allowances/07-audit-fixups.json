@@ -1,8 +1,8 @@
 {
-  "reason": "第 07 批合后独立审计的修复（2026-11-08）：molis-work:record-gone 从分屏/右侧窗格页上报给外层标签条（pane-messages 的 recordGone + tab-workspace 的 workbench-pane-record-gone 转发与接收 + side-panel 的窗格标签已不在标记），和手机（≤600）带快捷键的 Home 工具在右侧字形行滚出视野后仍固定在行首（position:sticky，同时去掉该行会把它一起淡掉的左缘 fade）；另删了两条无用翻译键、补了窗格标签的已不在样式。workbench.js +879 B、workbench.css +407 B，都是这个修复的最小实现，没有新增资源。",
+  "reason": "第 07 批合后独立审计的修复（2026-11-08）：molis-work:record-gone 从分屏/右侧窗格页上报给外层标签条（pane-messages 的 recordGone + tab-workspace 的 workbench-pane-record-gone 转发与接收 + side-panel 的窗格标签已不在标记），和手机（≤600）带快捷键的 Home 工具在右侧字形行滚出视野后仍固定在行首（position:sticky，同时去掉该行会把它一起淡掉的左缘 fade）；另删了两条无用翻译键、补了窗格标签的已不在样式。workbench.js +879 B、workbench.css +515 B，都是这个修复的最小实现，没有新增资源。",
   "review": "待本修复 PR 的评审台审；合入前改成审过评论链接",
   "assets": {
     "/assets/molis-work-workbench.js": 879,
-    "/assets/molis-work-workbench.css": 407
+    "/assets/molis-work-workbench.css": 515
   }
 }

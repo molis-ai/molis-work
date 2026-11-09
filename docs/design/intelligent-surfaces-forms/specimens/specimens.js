@@ -106,7 +106,11 @@
   }
   function openPeek(trigger,focus=false) {
     if(suppressPeek || restricted(object()))return;
-    if(peekTrigger===trigger&&document.querySelector('#live-peek'))return;
+    const existing=document.querySelector('#live-peek');
+    if(peekTrigger===trigger&&existing){
+      if(focus)existing.querySelector('button')?.focus();
+      return;
+    }
     closePeek(false);suppressPeek=false;peekTrigger=trigger;trigger.setAttribute('aria-expanded','true');
     const o=object(), mobile=matchMedia('(max-width:650px)').matches;
     const html=mobile?K.renderSheet({labelledBy:'peek-title',title:t('peek'),body:peekBody(o),footer:'',closeLabel:t('close'),className:'spec-sheet',attrs:{id:'live-peek'}}):K.renderPopover({body:peekBody(o,true),className:'peek-live',attrs:{id:'live-peek',role:'dialog','aria-label':t('peek')}});

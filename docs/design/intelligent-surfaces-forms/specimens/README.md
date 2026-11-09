@@ -59,6 +59,8 @@ node scripts/machine-slot.mjs run browser --label 'batch15 static specimens' -- 
 - IUI-26：真实键盘方向键菜单、第一层 Esc 关菜单、第二层 Esc 关速览并回焦点；单行长标题共享 tooltip；悬停速览；触屏打开底部 Sheet；减少动效时状态环几何不变。
 - IUI-03／08 的设计局部：四位置同值；本页定位及返回；查看操作预备不会产生状态变化。没有验证网关、幂等、跨页面事实更新或持久化。
 
+新增键盘入口回归用 `check.mjs --focus-entry-only` 单跑：从页面起点实际 Tab 到名字片，聚焦自动打开速览后，Enter 将焦点移进已打开的速览，下一次 Tab 到速览内操作，Esc 返回原名字片。此检查不重跑上面的 12 组合、菜单两级 Esc 或动效证据；输出 `focus-entry-report.json` 和 `focus-entry-in-peek.png`，本地执行日志另外保存。
+
 输出在已忽略 `.impeccable/qa/review/batch15-presentation/`，包含 `report.json`、12 组合、状态、悬停和手机 Sheet 截图。未进行真实读屏软件或原生安装包验证。用户 2026-11-08 在第 15 批会话确认「按这版继续」产品接入；这是本标本的定样确认，最终产品验收仍待真实接线。
 
 ## 产品 writer 仍需落实

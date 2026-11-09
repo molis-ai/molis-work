@@ -349,19 +349,18 @@ test("UPG1-i-verify-02: the upgrade entry takes what a descriptor carries, not a
   failsWith(run(), "apps/alpha/src/upgrade.ts: runSqliteUpgrade is called without a baseline");
 });
 
-test("UPG1-i-verify-03: the two aggregate copy openers take a declared baseline like the other entries, their own file aside", () => {
-  for (const opener of ["openOwnerCopyStore", "openAggregateCopyOwner"]) {
-    put("apps/alpha/src/copy.ts", `${opener}(home, "alpha", nobody, context);\n`);
-    failsWith(run(), `apps/alpha/src/copy.ts: ${opener} is called with nobody, which no package declares as a SqliteBaseline`);
-    put("apps/alpha/src/copy.ts", `${opener}(home, "alpha", { version: 1, schema: "" }, context);\n`);
-    failsWith(run(), `apps/alpha/src/copy.ts: ${opener} is called with an inline baseline`);
-    put("apps/alpha/src/copy.ts", `${opener}(home, "alpha", store.baseline, context);\n`);
-    failsWith(run(), `apps/alpha/src/copy.ts: ${opener} is called with an inline baseline`);
+// specs/upgrade-continuity/upgrade-chain-design.md §2.5: the two aggregate copy openers were deleted with U1-d
+// (BL-storage-copy-owner-unused), so the rule has no entry for them and exempts no file for them. What is left to check is that
+// the dead spellings do not come back into the rule (an entry the build cannot call is a branch no mutation can reach), and that
+// the entries that remain still catch a baseline written at a call.
+test("UPG1-i-verify-03: the deleted copy store openers are no entries of the baseline rule, and a baseline written at a call still counts", () => {
+  const source = readFileSync(script, "utf8");
+  for (const gone of ["aggregate-copy-store", "openOwnerCopyStore", "openAggregateCopyOwner"]) {
+    assert.ok(!source.includes(gone), `${gone} is not a baseline entry any more: the file and the openers were deleted with U1-d`);
   }
-  rmSync(path.join(root, "apps/alpha/src/copy.ts"));
-  put("packages/storage/src/aggregate-copy-store.ts", "export function openAggregateCopyOwner(home: string, name: string, baseline: SqliteBaseline) { return openOwnerCopyStore(home, name, baseline); }\n");
-  assert.equal(run().code, 0, run().out);
-  rmSync(path.join(root, "packages/storage/src/aggregate-copy-store.ts"));
+  put("apps/alpha/src/copy.ts", "applySqliteBaseline(db, path, { version: 1, schema: `` });\n");
+  failsWith(run(), "apps/alpha/src/copy.ts: applySqliteBaseline is called with an inline baseline");
+  rmSync(path.join(root, "apps/alpha/src/copy.ts"), { force: true });
 });
 
 test("UPG1-i-verify-04: a typed baseline inside a function is still a baseline the table has to list", () => {

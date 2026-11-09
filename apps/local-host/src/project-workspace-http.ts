@@ -1,5 +1,5 @@
 import type { ActionDefinition, BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { projectDirectoryActions, type ProjectDirectories } from "@molis-ai/molis-work-contracts/modules/projects";
+import { projectDirectoryActions, type ProjectDirectories, type ProjectDirectoryPage, type SourceKind } from "@molis-ai/molis-work-contracts/modules/projects";
 import { isProjectOutputWorkspaceId } from "@molis-ai/molis-work-module-projects";
 import type { pickLocalDirectory } from "./directory-picker.js";
 import { respondLocalWebRefusal } from "./web-http.js";
@@ -14,19 +14,16 @@ export interface ProjectWorkspaceHttpContext {
   respond(status: number, body: unknown): void;
   /** Opens the system folder window on the computer running this host. */
   pickDirectory(): ReturnType<typeof pickLocalDirectory>;
-  /** What the page draws besides the directories: the project's default output directory and whether it is made yet (`directoryPage`). */
-  defaultOutput(): Promise<{ workspace_id: string; made: boolean }>;
+  /** What the page draws besides the directories: the project's default output directory and whether it is made yet (`directoryPage`), from the directories already read for this request. */
+  defaultOutput(read: ProjectDirectories): Promise<{ workspace_id: string; made: boolean }>;
 }
-
-/** What a source link's folder was, for naming it without a path: the project's own earlier default output, another one, or a folder. */
-export type SourceKind = "folder" | "former_default_output" | "other_default_output";
 
 /**
  * What the settings page draws besides `projects.directories.get@1`: which folder is the default output directory (shown by that name,
  * and offered to set back), whether it is made yet (it is made the first time it is used, SSC-24), and what each source link's folder was.
  * Read for the page only; nothing here is a fact the page could change.
  */
-export function directoryPage(directories: ProjectDirectories, defaultOutput: { workspace_id: string; made: boolean }) {
+export function directoryPage(directories: ProjectDirectories, defaultOutput: { workspace_id: string; made: boolean }): ProjectDirectoryPage {
   const kind = (source: string): SourceKind => source === defaultOutput.workspace_id ? "former_default_output" : isProjectOutputWorkspaceId(source) ? "other_default_output" : "folder";
   return { default_output_id: defaultOutput.workspace_id, default_output_made: defaultOutput.made,
     source_kinds: Object.fromEntries(directories.source_links.map(link => [link.source_workspace_id, kind(link.source_workspace_id)])) };
@@ -61,7 +58,7 @@ async function pickWorkspace(context: ProjectWorkspaceHttpContext) {
  * `expected_revision`). Both answer the directories as the action does, with `page` for drawing them (`directoryPage`).
  */
 async function directories(context: ProjectWorkspaceHttpContext) {
-  const answer = async (read: ProjectDirectories) => ({ ...read, page: directoryPage(read, await context.defaultOutput()) });
+  const answer = async (read: ProjectDirectories) => ({ ...read, page: directoryPage(read, await context.defaultOutput(read)) });
   try {
     if (context.method === "GET") { context.respond(200, await answer(await context.actions.invoke(projectDirectoryActions.get, {}))); return; }
     const body = await context.readBody();

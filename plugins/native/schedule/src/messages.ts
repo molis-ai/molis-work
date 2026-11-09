@@ -18,7 +18,7 @@ export const SCHEDULE_MESSAGES = {
   "schedule.hint.model": { zh: "还没有配置文字模型：到点时 Agent 跑不起来。仍可以创建，稍后再配置。", en: "No text model is configured, so the agent can’t run when the task is due. You can still create it and set one up later." },
   "schedule.hint.model-link": { zh: "打开模型设置", en: "Open model settings" },
   "schedule.hint.workspace": { zh: "这个项目还没有绑定工作区：到点时只读 Agent 无法启动。仍可以创建，稍后再绑定。", en: "This project has no workspace bound, so the read-only agent can’t start when the task is due. You can still create it and bind a workspace later." },
-  "schedule.hint.workspace-link": { zh: "打开工作目录设置", en: "Open workspace settings" },
+  "schedule.hint.workspace-link": { zh: "打开输入与输出设置", en: "Open inputs and output settings" },
   "schedule.action.cancel": { zh: "取消", en: "Cancel" },
   "schedule.action.create": { zh: "创建", en: "Create" },
   "schedule.status.updated": { zh: "有更新", en: "Updated" },

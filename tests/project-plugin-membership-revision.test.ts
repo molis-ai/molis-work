@@ -153,6 +153,30 @@ test("SPC-C08 set follows always-on, companion and personal hiding rules", t => 
   ]);
 });
 
+test("SPC-C08 enabling an always-on personal plugin preserves its stored exclusion", t => {
+  const f = fixture(t);
+  let personalAlwaysOn = false;
+  const { get, set, projects } = f.open({
+    ...registry,
+    alwaysOn: () => personalAlwaysOn ? ["goals", "personal"] : ["goals"],
+  });
+  const hidden = set("personal", false, get().revision);
+  assert.deepEqual(hidden.hidden, ["personal"]);
+  const events = f.events();
+
+  personalAlwaysOn = true;
+  const alwaysOn = get();
+  assert.deepEqual(alwaysOn.hidden, []);
+  assert.throws(() => set("personal", true, hidden.revision), { code: "actions.conflict" });
+  assert.deepEqual(set("personal", true, alwaysOn.revision), alwaysOn);
+  assert.deepEqual(get(), alwaysOn);
+  assert.deepEqual(projects.query.storedProjectPluginMembership(projectId), { plugins: [], hidden: ["personal"] });
+  assert.deepEqual(f.events(), events);
+
+  personalAlwaysOn = false;
+  assert.deepEqual(get().hidden, ["personal"]);
+});
+
 test("SPC-C08 earlier clocks and decreasing event ids cannot hide a membership ABA after reopening", t => {
   const f = fixture(t);
   const before = f.set("pages", true, f.get().revision);

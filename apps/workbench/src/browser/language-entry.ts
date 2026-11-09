@@ -2,6 +2,7 @@ import { UI_LANGUAGES, type UiLanguageTag, type UiLocalePack, type UiRequest } f
 import { createTextReader, t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { createLocaleSwitch } from "./locale-switch.js";
 import { installLanguageText } from "./language-text.js";
+import type {} from "./plugin-frame/types.js";
 
 type Preference = UiLanguageTag | "system";
 interface EntryLanguage { preference: Preference; tag: UiLanguageTag; source: string }
@@ -52,14 +53,18 @@ function documentLanguage(initial: UiLocalePack) {
   }
   const switcher = createLocaleSwitch({
     root: document, render, produced: text.produced,
-    async prepare(locale, signal, next) {
+    async prepare(locale, signal, next, previous) {
       const choice = intent;
       if (!choice || choice.tag !== locale) throw new Error(t.text("workbench.language.load-failed"));
-      const pack = await loadPack(locale, next, signal);
-      return { pack, choice, reader: createTextReader({ packs: [pack], locale }) };
+      const [pack, frames] = await Promise.all([
+        loadPack(locale, next, signal),
+        previous && next ? globalThis.molisPluginFrames?.prepareLanguage(locale, signal, previous, next) : undefined,
+      ]);
+      return { pack, choice, frames, reader: createTextReader({ packs: [pack], locale }) };
     },
     async persist(_locale, prepared) {
       const { choice } = prepared;
+      prepared.frames?.assertCurrent();
       const saved = (value: EntryLanguage) => value.preference === choice.preference && value.tag === choice.tag;
       try {
         const reply = await molisWorkRequest<EntryLanguage>("/api/ui/locale", { body: { preference: choice.preference } });
@@ -74,9 +79,11 @@ function documentLanguage(initial: UiLocalePack) {
     use(locale, prepared) {
       const pack = prepared?.pack ?? packs.get(locale), language = UI_LANGUAGES.find(row => row.tag === locale);
       if (!pack || !language) throw new Error(t.text("workbench.language.load-failed"));
+      prepared?.frames?.assertCurrent();
       text.select(locale, [pack]);
       document.documentElement.lang = language.html_lang;
       document.documentElement.dir = language.direction;
+      prepared?.frames?.apply();
     },
     retext(ref, _locale, prepared) { return prepared?.reader.text(ref) ?? ""; },
   }, initial.locale);

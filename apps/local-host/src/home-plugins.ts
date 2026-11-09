@@ -11,7 +11,7 @@ import { installedArtifacts, supervisedArtifacts } from "./artifact-type-registr
 import { declarationOwnersFor } from "./declaration-owners.js";
 import { HOST_BUILD_TRUST, leaveRefusal, PluginRouteRouter, PluginRuntime, PluginSupervisor, SqlitePluginConsentLedger, SqlitePluginRuntimeReleaseArtifactRepository, type PluginProjectReach } from "@molis-ai/molis-work-plugin-runtime";
 import { HomePluginExecutor } from "./home-plugin-executor.js";
-import { nativePluginReleaseArtifact } from "./native-plugin-release-artifact.js";
+import { registeredNativePlugin } from "./native-plugin-release-artifact.js";
 import { pluginEntryIdentity } from "./plugin-entry-identity.js";
 import { registerInstalledActions } from './installed-action-registration.js';
 import { assertDatabaseEntries } from "./plugin-database-entries.js";
@@ -227,14 +227,9 @@ export class HomePluginHost {
   private async start(): Promise<HomePluginPlatform> {
     const identity = pluginEntryIdentity();
     const shipped = this.options.entries.map(entry => {
-      const definition = entry.create();
-      return { definition, trust: HOST_BUILD_TRUST, project_data: entry.project_data, dual_instance: entry.dual_instance,
-        releaseArtifact: nativePluginReleaseArtifact<() => PluginDefinition>(entry.package_name, entry.factory_export, factory => {
-          const released = factory();
-          identity.remember([{ definition: released, trust: HOST_BUILD_TRUST, project_data: identity.projectDataFor(definition),
-            dual_instance: entry.dual_instance }]);
-          return released;
-        }) };
+      const binding = { trust: HOST_BUILD_TRUST, project_data: entry.project_data, dual_instance: entry.dual_instance };
+      const loaded: ReturnType<typeof registeredNativePlugin> = registeredNativePlugin(entry, definition => identity.remember([{ ...binding, definition, localePacks: loaded.localePacks }]));
+      return { ...loaded, ...binding };
     });
     const entries = [...shipped, ...pluginFixtureEntries(this.options.fixtures ?? [])];
     const ids = new Set<string>();
@@ -255,7 +250,7 @@ export class HomePluginHost {
     const executor = this.executor = new HomePluginExecutor({ ...this.options, storage, active: () => !this.closed, record: id => repository.get(id),
       invalidateView: pluginId => this.platform?.invalidateView(pluginId), installations: () => this.installationDirectory?.client, database: identity.databaseFor,
       modelConfiguration: identity.modelConfigurationFor, imageGeneration: identity.imageGenerationFor, ownerFiles: identity.ownerFilesFor,
-      providerFor: identity.providerFor, dualInstance: identity.dualInstance });
+      providerFor: identity.providerFor, dualInstance: identity.dualInstance, localePacks: identity.localePacks });
     // The Home half of a dual-instance plugin offers only its share, and no project reaches it: its ports and events are the project half's.
     const ledger = new SqlitePluginConsentLedger(db);
     recordHostAlwaysOnAgreements(ledger, new Set(entries.map(entry => entry.definition.manifest.plugin_id)), new Date().toISOString());

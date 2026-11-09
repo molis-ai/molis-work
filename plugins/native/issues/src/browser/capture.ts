@@ -1,6 +1,8 @@
+import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { codeOf, isAbort, statusOf } from "./dom.js";
-import type { Issue, IssuesHost, IssuesPage, PageReport, Pending, QuestionResult, SavedResult, Translate } from "./types.js";
+import { issueNote, type IssueNote } from "./note.js";
+import type { Issue, IssuesHost, IssuesPage, PageReport, Pending, QuestionResult, SavedResult } from "./types.js";
 
 const UNSENT = "molis:issue-unsent";
 /** Beside the model's own limit: still waiting after this long, the draft is retired first so a late answer cannot save beside one made by hand. */
@@ -28,11 +30,11 @@ const stored = (): Stored[] => {
 // Why naming did not work, as the person reads it on the row; the words and pictures are kept either way. A refusal with
 // its own reason (a picture over the limit, too many unsaved captures, a model reply Issue cannot use) says it in its own
 // words; a failure with no code of ours, an internal one, or a model answer that was not JSON has no wording worth showing.
-const failureText = (L: Translate, error: unknown) => {
+const failureText = (error: unknown) => {
   const code = codeOf(error);
-  if (code && MODEL_DOWN.includes(code)) return L("issues.capture.model-down");
-  if (code === "actions.timeout") return L("issues.capture.timed-out");
-  return code && !NO_WORDS_OF_OURS.includes(code) ? messageOf(error) : L("issues.capture.failed");
+  if (code && MODEL_DOWN.includes(code)) return issueNote("issues.capture.model-down", { models: true });
+  if (code === "actions.timeout") return issueNote("issues.capture.timed-out");
+  return code && !NO_WORDS_OF_OURS.includes(code) ? messageOf(error) : issueNote("issues.capture.failed");
 };
 
 /**
@@ -42,14 +44,14 @@ const failureText = (L: Translate, error: unknown) => {
  * (a question, a failure, no model) stays as a row that opens into the editor with nothing lost.
  */
 export function installCapture(page: IssuesPage): void {
-  const { el, state, L, scope, host } = page;
+  const { el, state, scope, host } = page;
   page.remember = () => remembered(() => {
     const others = stored().filter((entry) => !state.held.has(entry.id));
     state.held = new Set(state.pending.map((item) => item.id));
     localStorage.setItem(UNSENT, JSON.stringify([...others, ...state.pending.map(({ images, state: _state, ...entry }) => ({ ...entry, shots: images.length }))]));
   });
   // The row is the one place to continue (more words, a failure): opening it shows the words and pictures as they were.
-  const attention = (item: Pending, note: string, kind: "failed" | "question" = "failed") => {
+  const attention = (item: Pending, note: IssueNote, kind: "failed" | "question" = "failed") => {
     item.state = "attention";
     item.note = note;
     item.kind = kind;
@@ -72,15 +74,15 @@ export function installCapture(page: IssuesPage): void {
       page.paint();
       page.fit(el.desc);
       el.desc.focus();
-      page.toast(L("issues.capture.undone-restored"));
+      page.toast(t.text("issues.capture.undone-restored"));
       await restored;
-    } else page.toast(L("issues.capture.undone"));
+    } else page.toast(t.text("issues.capture.undone"));
   };
   const saved = (item: Pending, issue: Issue) => {
     drop(item);
     add(issue);
     page.render();
-    page.toast(L("issues.capture.recorded", { title: issue.title }), L("issues.capture.undo"), () => undo(issue, item));
+    page.toast(t.text("issues.capture.recorded", { title: issue.title }), t.text("issues.capture.undo"), () => undo(issue, item));
   };
   // Retires an unfinished draft. It may have been saved meanwhile: then that record is the result.
   const release = async (item: Pending) => {
@@ -92,7 +94,7 @@ export function installCapture(page: IssuesPage): void {
   };
   const organize = async (item: Pending) => {
     item.state = "organizing";
-    item.note = "";
+    delete item.note;
     item.at = Date.now();
     page.render();
     let over = false;
@@ -101,7 +103,7 @@ export function installCapture(page: IssuesPage): void {
       if (!live()) return;
       if (Date.now() - item.at <= ORGANIZE_LIMIT_MS) { scope.timeout(overdue, 1000); return; }
       over = true;
-      release(item).then((already) => { if (already) saved(item, already); else attention(item, L("issues.capture.timed-out")); }, (error: unknown) => attention(item, messageOf(error)));
+      release(item).then((already) => { if (already) saved(item, already); else attention(item, issueNote("issues.capture.timed-out")); }, (error: unknown) => attention(item, messageOf(error)));
     };
     overdue();
     try {
@@ -109,7 +111,7 @@ export function installCapture(page: IssuesPage): void {
       const result = await page.api<SavedResult | QuestionResult>("name-draft", { draft_id: item.id });
       if (!live()) return;
       if (result.status === "saved") saved(item, result.issue);
-      else attention(item, L("issues.capture.need-more", { question: L(result.question) }), "question");
+      else attention(item, issueNote("issues.capture.need-more", { question: result.question }), "question");
     } catch (error) {
       if (isAbort(error) || !live()) return;
       // The answer was lost on the way back: the record may be there already.
@@ -117,7 +119,7 @@ export function installCapture(page: IssuesPage): void {
         const already = await page.read(item.id).catch(() => null);
         if (already) { saved(item, already); return; }
       }
-      attention(item, failureText(L, error));
+      attention(item, failureText(error));
     }
   };
   page.submit = async () => {
@@ -139,7 +141,7 @@ export function installCapture(page: IssuesPage): void {
     state.current = null;
     state.editing = false;
     await page.back();
-    page.toast(L("issues.capture.recorded", { title: issue.title }), original ? L("issues.capture.undo") : "", original ? () => undo(issue, original) : null);
+    page.toast(t.text("issues.capture.recorded", { title: issue.title }), original ? t.text("issues.capture.undo") : "", original ? () => undo(issue, original) : null);
   };
   page.keep = async (item, data) => {
     const already = await release(item);
@@ -155,7 +157,7 @@ export function installCapture(page: IssuesPage): void {
   };
   page.redo = async (item) => {
     const text = el.detailInput.value, shot = state.edits;
-    if (!text.trim() && !shot.length) { page.flag(L("issues.composer.need-words")); return; }
+    if (!text.trim() && !shot.length) { page.flag(t.text("issues.composer.need-words")); return; }
     const already = await release(item);
     if (already) return settled(item, already);
     const next: Pending = { id: crypto.randomUUID(), text, images: shot, page: item.page, at: Date.now() };
@@ -166,18 +168,18 @@ export function installCapture(page: IssuesPage): void {
     await organize(next);
   };
   page.abandon = async (item) => {
-    if (!await page.confirm(L("issues.capture.abandon-title"), L("issues.capture.abandon-text"), L("issues.editor.discard"))) return;
+    if (!await page.confirm(t.text("issues.capture.abandon-title"), t.text("issues.capture.abandon-text"), t.text("issues.editor.discard"))) return;
     const already = await release(item);
     if (already) return settled(item, already);
     drop(item);
     state.current = null;
     state.editing = false;
     await page.back();
-    page.toast(L("issues.capture.abandoned"));
+    page.toast(t.text("issues.capture.abandoned"));
   };
   for (const entry of stored()) {
     state.held.add(entry.id);
     state.pending.push({ ...entry, images: [], restored: true, state: "attention", kind: entry.kind || "failed",
-      note: (entry.note || L("issues.capture.unfinished")) + (entry.shots ? L("issues.capture.unfinished-shots") : "") });
+      note: entry.note || issueNote("issues.capture.unfinished"), missingShots: entry.missingShots || Boolean(entry.shots) });
   }
 }

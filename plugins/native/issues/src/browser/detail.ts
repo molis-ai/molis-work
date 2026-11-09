@@ -1,14 +1,15 @@
+import { dateArg, t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { statusOf } from "./dom.js";
 import { KIND_KEYS } from "./list.js";
 import { isPending } from "./page.js";
+import { issueNoteModels, issueNoteText } from "./note.js";
 import type { Issue, IssuesPage } from "./types.js";
 
 const VIA_KEYS: Record<string, string> = { assistant: "issues.via.assistant", manual: "issues.via.manual", mcp: "issues.via.mcp" };
 
 /** One record, or one capture that needs the person: reading it, editing it, saving it, and going back to the list. */
 export function installDetail(page: IssuesPage): void {
-  const { el, state, L, $ } = page;
-  const full = (iso: string) => new Date(iso).toLocaleString([], { year: "numeric", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  const { el, state, $ } = page;
 
   page.fill = (data) => {
     el.titleInput.value = data.title || "";
@@ -22,7 +23,7 @@ export function installDetail(page: IssuesPage): void {
     el.editor.hidden = !state.editing;
     $("edit").hidden = $("delete").hidden = state.editing;
     $("redo").hidden = false;
-    $("cancel").textContent = page.draft() ? L("issues.editor.discard") : L("issues.editor.cancel");
+    $("cancel").textContent = page.draft() ? t.text("issues.editor.discard") : t.text("issues.editor.cancel");
     if (!page.draft()) { page.primary("save"); page.primary("redo", false); }
     if (state.editing) page.scope.frame(() => page.fit(el.detailInput));
   };
@@ -34,14 +35,14 @@ export function installDetail(page: IssuesPage): void {
     el.home.hidden = true;
     el.detail.hidden = false;
     el.gone.hidden = true;
-    $("type").textContent = L(KIND_KEYS[issue.type] ?? issue.type);
-    $("when").textContent = full(issue.created_at);
+    $("type").textContent = KIND_KEYS[issue.type] ? t.text(KIND_KEYS[issue.type]!) : issue.type;
+    $("when").textContent = t.text("issues.detail.date", { time: dateArg(issue.created_at, "datetime") });
     $("title").textContent = issue.title;
     $("text").textContent = issue.description;
     $("view-shots").innerHTML = page.shots(issue.images, false);
     const recordedOn = issue.context?.page?.title;
-    $("source").textContent = [recordedOn && L("issues.detail.recorded-on", { page: recordedOn }), L(VIA_KEYS[issue.entered_via] ?? issue.entered_via),
-      issue.version > 1 && L("issues.detail.edited-on", { time: full(issue.updated_at) })].filter(Boolean).join(" · ");
+    $("source").textContent = [recordedOn && t.text("issues.detail.recorded-on", { page: recordedOn }), VIA_KEYS[issue.entered_via] ? t.text(VIA_KEYS[issue.entered_via]!) : issue.entered_via,
+      issue.version > 1 && t.text("issues.detail.edited-on", { time: dateArg(issue.updated_at, "datetime") })].filter(Boolean).join(" · ");
     page.mode();
     $("page").scrollTop = 0;
     $("back").focus();
@@ -51,11 +52,11 @@ export function installDetail(page: IssuesPage): void {
     await page.stopReview();
     const item = state.pending.find((entry) => entry.id === id);
     if (item) {
-      if (item.state === "organizing") { page.toast(L("issues.detail.still-organizing")); return; }
+      if (item.state === "organizing") { page.toast(t.text("issues.detail.still-organizing")); return; }
       state.current = item;
       state.editing = true;
       page.fill(item.card ? { ...item, ...item.card } : item);
-      page.flag(item.note);
+      page.flag(issueNoteText(item.note, item.missingShots), issueNoteModels(item.note));
       el.home.hidden = true;
       el.detail.hidden = false;
       page.mode();
@@ -76,7 +77,7 @@ export function installDetail(page: IssuesPage): void {
       current.text = el.detailInput.value;
       current.images = state.edits;
       current.card = { title: el.titleInput.value, type: el.editor.dataset.type ?? "" };
-    } else if (state.editing && Object.keys(page.changed()).length && !await page.confirm(L("issues.editor.leave-title"), L("issues.editor.leave-text"), L("issues.editor.leave-ok"))) return;
+    } else if (state.editing && Object.keys(page.changed()).length && !await page.confirm(t.text("issues.editor.leave-title"), t.text("issues.editor.leave-text"), t.text("issues.editor.leave-ok"))) return;
     void page.stopReview();
     const id = current?.id;
     ++state.readEpoch;
@@ -92,7 +93,7 @@ export function installDetail(page: IssuesPage): void {
     await page.stopReview();
     const data = page.values(), focus = document.activeElement as HTMLElement | null;
     if (!data.title || !data.type) {
-      page.flag(L("issues.editor.need-title-type"));
+      page.flag(t.text("issues.editor.need-title-type"));
       (data.title ? el.editor.querySelector<HTMLElement>("[data-type]") : el.titleInput)?.focus();
       return;
     }
@@ -108,14 +109,14 @@ export function installDetail(page: IssuesPage): void {
         const issue = await page.api<Issue>("update", { id: target.id, expected_version: target.version, ...patch });
         state.rows = state.rows.map((row) => (row.id === issue.id ? issue : row));
         page.show(issue);
-        page.toast(L("issues.editor.saved"));
+        page.toast(t.text("issues.editor.saved"));
       } catch (error) {
         if (statusOf(error) !== 409) throw error;
         // Someone else saved first: their fields stay, this person's edits go on top, and nothing is written until they save again.
         const latest = await page.read(target.id);
         state.current = latest;
         page.fill({ ...latest, ...patch });
-        page.flag(L("issues.editor.merged"));
+        page.flag(t.text("issues.editor.merged"));
       }
     } finally {
       state.saving = el.editor.inert = saveButton.disabled = false;

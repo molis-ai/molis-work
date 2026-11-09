@@ -1,35 +1,36 @@
-import { scanTree, workingTreeSnapshot, isProductSource } from "../scripts/gates/translations.mjs";
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 
-import { ISSUES_CLIENT_FACTORY_SCRIPT, ISSUES_MESSAGES, renderIssuesWorkbench } from "@molis-ai/molis-work-plugin-issues";
+import { ISSUES_CLIENT_FACTORY_SCRIPT, renderIssuesWorkbench } from "@molis-ai/molis-work-plugin-issues";
+import { inspectLocaleSet, installTextForTest, parseLocalePack } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 const SRC = "plugins/native/issues/src";
 const BROWSER = join(SRC, "browser");
 const browserFiles = () => readdirSync(BROWSER).map(file => join(BROWSER, file));
 
 test("RAC-138 every word the Issue page says has a stable key with both languages, and none is a Chinese key", () => {
-  const scan = scanTree(workingTreeSnapshot(process.cwd()), isProductSource);
-  const calls = scan.calls.filter(call => call.file === join(SRC, "ui.ts") || call.file.startsWith(BROWSER + "/"));
-  assert.deepEqual(calls.filter(call => /\p{Script=Han}/u.test(call.key)), [], "the real scanner covers the UI and browser translation entry points");
-  assert.ok(calls.some(call => call.file === join(SRC, "ui.ts") && call.callee === "L"), "the view-model L translator is included");
-  const used = new Set<string>(calls.map(call => call.key));
+  const used = new Set<string>();
   for (const file of [join(SRC, "ui.ts"), ...browserFiles()]) {
     const source = readFileSync(file, "utf8");
-    assert.doesNotMatch(source, /data-issue-i18n/u, `${file} still marks static controls for runtime translation`);
+    assert.doesNotMatch(source, /data-issue-i18n|\bt(?:\.text)?\(["'][^"']*\p{Script=Han}/u, `${file} must draw with stable keys`);
+    for (const match of source.matchAll(/"(issues\.[a-z][\w.-]+)"/gu)) used.add(match[1]!);
   }
-  assert.deepEqual([...used].filter(key => !(key in ISSUES_MESSAGES)), [], "every key the page asks for is defined");
-  assert.deepEqual(Object.keys(ISSUES_MESSAGES).filter(key => !used.has(key)), [], "every defined key is asked for");
-  const names = (value: string) => [...new Set([...value.matchAll(/\{([a-z]+)[|}]/gu)].map(match => match[1]))].sort();
-  for (const [key, text] of Object.entries(ISSUES_MESSAGES)) {
-    assert.ok(text.zh && text.en, `${key} has Chinese and English`);
-    assert.deepEqual(names(text.zh), names(text.en), `${key} uses the same placeholders in both languages`);
-  }
-  const html = renderIssuesWorkbench({ primitives: { text: key => `«${key}»` } });
-  assert.match(html, /placeholder="«issues\.composer\.placeholder»"/u, "the server-drawn page speaks through the translator");
-  assert.doesNotMatch(html, /[一-鿿]/u, "no Chinese is drawn into the page directly");
+  const packs = ["zh", "en"].map(locale => {
+    const read = parseLocalePack(readFileSync(join(SRC, "..", "locales", locale + ".json"), "utf8"));
+    assert.ok(read.value, JSON.stringify(read.problems));
+    return read.value;
+  });
+  assert.deepEqual(inspectLocaleSet(packs, { default: "zh" }), []);
+  assert.deepEqual([...used].filter(key => !Object.hasOwn(packs[0]!.messages, key)), [], "every key the page asks for is defined");
+  assert.deepEqual(Object.keys(packs[0]!.messages).filter(key => !used.has(key)), [], "every defined key is asked for");
+  const withdraw = installTextForTest({ packs, locale: "en" });
+  try {
+    const html = renderIssuesWorkbench();
+    assert.match(html, /placeholder="What went wrong\?/u, "the server-drawn page reads its English words");
+    assert.doesNotMatch(html, /[一-鿿]/u, "no Chinese is drawn into the English page");
+  } finally { withdraw(); }
 });
 
 test("RAC-139 the Issue page's client is typed browser code bundled with its style sheet, and asks the Host only through the shared request helper", () => {

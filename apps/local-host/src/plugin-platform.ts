@@ -71,7 +71,9 @@ export type PluginPlatformDatabase = PluginEventsDatabase & PluginWiringDatabase
  * One entry of the Host's own start list. A plugin on it is given the library in the Home its Manifest declares
  * (`databases.home`, as `services.database`); `assertDatabaseEntries` says what a list may declare.
  */
-export interface PluginPlatformEntry extends PluginSupervisorEntry, Pick<PluginOwnerFilesEntry, "dual_instance"> {}
+export interface PluginPlatformEntry extends PluginSupervisorEntry, Pick<PluginOwnerFilesEntry, "dual_instance"> {
+  readonly localePacks?: PluginHostExecutorOptions["localePacks"];
+}
 
 export interface PluginPlatformOptions {
   project_id: string;
@@ -176,7 +178,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     installations: installations.client,
     record: installId => records.get(installId),
     invalidateView,
-    providerFor,
+    providerFor, localePacks: identity.localePacks,
     databaseFor: identity.databaseFor,
     dualInstance: identity.dualInstance,
     projectLibrary: projectLibraryOf(options), scheduler: options.scheduler,

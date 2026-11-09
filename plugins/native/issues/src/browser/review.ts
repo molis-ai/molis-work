@@ -1,3 +1,4 @@
+import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { codeOf, isAbort } from "./dom.js";
 import type { IssuesPage, NamedResult, QuestionResult, ReviewJob } from "./types.js";
 
@@ -11,7 +12,7 @@ const MODEL_DOWN = ["actions.connection_required", "plugin.model_failed"];
  * person stopped, left, opened another record, changed the words or waited past two minutes, is dropped (ISSUE-49).
  */
 export function installReview(page: IssuesPage): void {
-  const { state, L, scope, $ } = page;
+  const { state, scope, $ } = page;
   page.stopReview = async () => {
     state.review = null;
     $<HTMLButtonElement>("redo").disabled = false;
@@ -19,19 +20,19 @@ export function installReview(page: IssuesPage): void {
   page.reviewIssue = async () => {
     if (state.review || state.importing) return;
     const data = page.values();
-    if (!data.description.trim() && !data.images.length) { page.flag(L("issues.composer.need-words")); return; }
+    if (!data.description.trim() && !data.images.length) { page.flag(t.text("issues.composer.need-words")); return; }
     const record = state.current;
     const job: ReviewJob = { target: record, data, at: Date.now() };
     const reported = record && "context" in record ? record.context.page : null;
     state.review = job;
     $<HTMLButtonElement>("redo").disabled = true;
-    page.flag(L("issues.review.working"));
+    page.flag(t.text("issues.review.working"));
     const active = () => state.review === job && state.current === job.target && state.editing && scope.alive;
     const overdue = () => {
       if (!active()) return;
       if (Date.now() - job.at <= REVIEW_LIMIT_MS) { scope.timeout(overdue, 1000); return; }
       void page.stopReview();
-      page.flag(L("issues.review.failed"));
+      page.flag(t.text("issues.review.failed"));
     };
     overdue();
     let result: NamedResult | QuestionResult;
@@ -41,13 +42,14 @@ export function installReview(page: IssuesPage): void {
       if (isAbort(error) || !active()) return;
       await page.stopReview();
       const code = codeOf(error);
-      page.flag(code && MODEL_DOWN.includes(code) ? L("issues.review.model-down") : L("issues.review.failed"));
+      const models = Boolean(code && MODEL_DOWN.includes(code));
+      page.flag(t.text(models ? "issues.review.model-down" : "issues.review.failed"), models);
       return;
     }
     if (!active()) return;
     await page.stopReview();
-    if (JSON.stringify(page.values()) !== JSON.stringify(data) || state.importing) { page.flag(L("issues.review.changed")); return; }
-    if (result.status === "named") { page.fill({ ...data, title: result.title, type: result.type }); page.flag(L("issues.review.done")); }
-    else page.flag(L("issues.review.need-more", { question: L(result.question) }));
+    if (JSON.stringify(page.values()) !== JSON.stringify(data) || state.importing) { page.flag(t.text("issues.review.changed")); return; }
+    if (result.status === "named") { page.fill({ ...data, title: result.title, type: result.type }); page.flag(t.text("issues.review.done")); }
+    else page.flag(t.text("issues.review.need-more", { question: result.question }));
   };
 }

@@ -4,7 +4,6 @@ import { issuesSkills } from "./skills.js";
 import { ISSUES_DATABASE } from "./database.js";
 import { issuesSync } from './replication.js';
 
-import { ISSUES_MESSAGES } from "./messages.js";
 export const ISSUES_PLUGIN_ID = "io.molis.work.issues";
 export const ISSUES_UI_CONTRIBUTION_ID = "io.molis.work.native.issues.ui.v1";
 export const issuesManifest: PluginManifest = {
@@ -34,7 +33,7 @@ export const issuesManifest: PluginManifest = {
     { route_id: "issues.update", method: "POST", path: "/update", permission: "issues:write" },
     { route_id: "issues.delete", method: "POST", path: "/delete", permission: "issues:write" },
   ],
-  ui: { messages: ISSUES_MESSAGES, contributions: [ISSUES_UI_CONTRIBUTION_ID], views: [
+  ui: { locales: { default: "zh", available: ["zh", "en"] }, contributions: [ISSUES_UI_CONTRIBUTION_ID], views: [
     { view_id: "directory", slot: "navigator", title: "Issue", contribution_id: ISSUES_UI_CONTRIBUTION_ID, icon: "circle-alert", order: 57 },
     { view_id: "issues", slot: "stage", title: "Issue", contribution_id: ISSUES_UI_CONTRIBUTION_ID },
     { view_id: "capture", slot: "side", title: "Issue", contribution_id: ISSUES_UI_CONTRIBUTION_ID, icon: "circle-alert" },

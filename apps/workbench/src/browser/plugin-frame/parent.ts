@@ -29,6 +29,7 @@ import { pageWorkspaces } from "./workspaces.js";
 import { pageFrameAssets } from "./frame-assets.js";
 import type { FrameConfig, FrameHost, FramePack, FrameScope, FrameUp } from "./types.js";
 import { frameEnvironment } from "./appearance.js";
+import { forOpeningFrame, openingFrameLanguage, openingFrameTemplate, pageLanguage, trackFrameLanguage } from "./language.js";
 
 function stored(prefix: string): FrameConfig["storage"] {
   const storage: FrameConfig["storage"] = { localStorage: {}, sessionStorage: {} };
@@ -84,27 +85,26 @@ function ownItemTab(root: HTMLElement, pack: FramePack): FrameConfig["itemTab"] 
 }
 
 /** A WindowProxy can survive navigation. Only the document that knows this mount and holds its hello port gets the business channel. */
-function bindFrameDocument(frame: HTMLIFrameElement, scope: FrameScope, documentFor: (challenge: string) => string,
-  port: MessagePort, config: () => FrameConfig, fail: (error: Error) => void): void {
+function bindFrameDocument(frame: HTMLIFrameElement, root: HTMLElement, scope: FrameScope, documentFor: (challenge: string) => string,
+  port: MessagePort, config: () => Promise<FrameConfig>, fail: (error: Error) => void): void {
   let loaded = false;
   const reject = (error: Error) => { fail(error); scope.dispose(); };
   frame.onload = () => {
     if (loaded) { reject(new Error("Plugin page navigated")); return; }
     loaded = true;
   };
-  const challenge = crypto.randomUUID();
+  const challenge = crypto.randomUUID(), original = openingFrameTemplate(root);
   const unlisten = scope.listen(window, "message", incoming => {
     const event = incoming as MessageEvent<{ type?: string; challenge?: string }>;
     if (!event.isTrusted || event.source !== frame.contentWindow || event.origin !== "null" || event.data?.type !== "molis:plugin-mount"
       || event.data.challenge !== challenge || event.ports.length !== 1) return;
     unlisten();
     const reply = event.ports[0]!;
-    try {
+    void config().then(prepared => {
       scope.assertCurrent();
-      if (!frame.isConnected) throw new Error("View closed");
-      reply.postMessage({ type: "molis:plugin-connect", config: config() }, [port]);
-    } catch (error) { reject(error instanceof Error ? error : new Error(String(error))); }
-    finally { reply.close(); }
+      if (!frame.isConnected || prepared.text.locale !== pageLanguage()) throw new Error("View closed or language changed");
+      reply.postMessage({ type: "molis:plugin-connect", config: { ...prepared, text: forOpeningFrame(root, original, prepared.text) } }, [port]);
+    }).catch(error => reject(error instanceof Error ? error : new Error(String(error)))).finally(() => reply.close());
   });
   frame.srcdoc = documentFor(challenge);
 }
@@ -316,7 +316,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
     if (root.dataset.expanded === "false" && childExpanded !== "false") port.postMessage({ type: "collapse" });
   }), root, { attributes: true, attributeFilter: ["data-expanded"] });
   scope.listen(document, "molis-work:model-ready", () => { state(); port.postMessage({ type: "model-ready" }); });
-  bindFrameDocument(frame, businessScope, challenge => frameDocument(root, pack, challenge, environment.initial), channel.port2, () => ({
+  bindFrameDocument(frame, root, businessScope, challenge => frameDocument(root, pack, challenge, environment.initial), channel.port2, async () => ({
     mount, subjectSurfaces: surfaces, search: location.search, origin: location.origin,
     pluginId: pack.plugin_id, bundle: pack.bundle, assets: pack.assets, surface: pack.id,
     searchRow: pack.searchRow, recordRow: pack.recordRow, itemTab: ownItemTab(root, pack),
@@ -324,7 +324,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
       title: getComputedStyle(root).getPropertyValue("--stage-title") || JSON.stringify(host.translate(root.dataset.workSurfaceLabel ?? pack.id)),
       description: getComputedStyle(root).getPropertyValue("--stage-desc"),
     },
-    nativeFiles: Boolean(nativeFileInvoke()), shortcuts: navigation.shortcuts, appearance: environment.initial,
+    nativeFiles: Boolean(nativeFileInvoke()), shortcuts: navigation.shortcuts, appearance: environment.initial, text: await openingFrameLanguage(route(""), grant, pack.plugin_id, businessScope).then(text => trackFrameLanguage({ route: route(""), id: grant.page_id, owner: pack.plugin_id, root, port, scope: businessScope }, text)),
     projectId: host.projectId?.() ?? "", projectTitle: host.projectTitle?.() ?? "", routePrefix: route(""), side: Boolean(host.side), page: host.page?.() ?? null,
     messages: { ...globalThis.MOLIS_WORK_PLUGIN_WORDS?.[pack.plugin_id], ...globalThis.MOLIS_WORK_MESSAGES }, titles: globalThis.MOLIS_WORK_PLUGIN_TITLES ?? {}, storage,
   }), fail);

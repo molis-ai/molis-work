@@ -19,8 +19,8 @@ const catalog: SurfacePlugin = { plugin_id: pluginId, install_id: pluginId, scop
 const request = { slot: { kind: "discussion" }, subjects: Array.from({ length: 7 }, (_, index) => note(index)) } as const;
 
 function ports(changes: Partial<SurfaceComposePorts>): SurfaceComposePorts {
-  return { caller: { actor_id: "local-person", audience: "user", project_id: "project" }, catalog: () => [catalog], discover: () => [...readers, ...values],
-    beforeEffect: async () => undefined, current: () => undefined, retain: () => () => undefined,
+  return { caller: { actor_id: "local-person", audience: "user", project_id: "project" }, catalog: () => [catalog],
+    discover: () => ({ views: [...readers, ...values], retain: () => () => undefined }), beforeEffect: async () => undefined, current: () => undefined,
     values: async () => ({ items: [] }), attention: () => [], relations: () => [],
     corrections: { read: () => ({ revision: "0", corrections: [] }), correct: async () => { throw new Error("read only"); } }, ...changes };
 }
@@ -69,7 +69,8 @@ test("S-surface-composition SCS-04 revoked authority prevents a completed value 
   let authorized = true;
   const service = new SurfaceCompositionService();
   const compose = service.compose({ ...request, subjects: [note(0)] }, ports({ values: () => { began.resolve(); return held.promise; },
-    retain: () => () => { if (!authorized) throw new ActionError("actions.forbidden", "Owner authority changed"); },
+    discover: () => ({ views: [...readers, ...values],
+      retain: () => () => { if (!authorized) throw new ActionError("actions.forbidden", "Owner authority changed"); } }),
   }));
   await began.promise;
   authorized = false;
@@ -82,7 +83,7 @@ test("S-surface-composition SCS-09 an external values action is never dispatched
   const external = { ...values[0]!, action: { ...values[0]!.action, external: true as const } };
   let reads = 0;
   const result = await service.compose({ ...request, subjects: [note(0)] }, ports({
-    discover: () => [readers[0]!, external],
+    discover: () => ({ views: [readers[0]!, external], retain: () => () => undefined }),
     values: async () => { reads++; return { items: [{ subject: note(0), state: "ok", revision: "1", values: {} }] }; },
   }));
   assert.equal(reads, 0);
@@ -104,7 +105,7 @@ test("S-surface-composition SCS-07 SCS-17 only disabled owners contribute dedupl
   const service = new SurfaceCompositionService();
   const compose = (audience: SurfaceComposePorts["caller"]["audience"]) => service.compose({ slot: { kind: "attention" } }, ports({
     caller: { actor_id: "local-person", audience, project_id: "project" },
-    catalog: () => [disabled, crashed, other], attention, discover: () => [],
+    catalog: () => [disabled, crashed, other], attention, discover: () => ({ views: [], retain: () => () => undefined }),
     values: async () => assert.fail("disabled owner must not be read"),
     relations: () => assert.fail("excluded Attention facts must not enter relation lookups"),
   }));

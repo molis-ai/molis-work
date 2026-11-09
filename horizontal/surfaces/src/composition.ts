@@ -6,7 +6,7 @@ import { assertSurfaceDescription } from "@molis-ai/molis-work-plugin-sdk/presen
 import type { SurfaceCorrectionsSnapshot } from "./corrections.js";
 import { surfaceErrors } from "./errors.js";
 import { composeHome } from "./home.js";
-import { composeObjects, groupState, readAttention, type ObjectSource } from "./objects.js";
+import { composeObjects, groupState, readAttention, retainDisplayedOperations, type ObjectSource } from "./objects.js";
 import { checkCurrent, type SurfaceComposePorts, type SurfaceCorrectPorts, type SurfacePlugin } from "./ports.js";
 import { deliveredSubjects, positionFor, type Position } from "./position.js";
 import { startDeadline } from "./values.js";
@@ -21,7 +21,6 @@ export interface ComposeRead {
   corrections: SurfaceCorrectionsSnapshot;
   deadline: ReturnType<typeof startDeadline>;
   current(): void;
-  capture(views: readonly ActionView[]): void;
   retain(views: readonly ActionView[]): void;
 }
 
@@ -57,31 +56,10 @@ export class SurfaceCompositionService {
       if (!catalog) throw surfaceErrors.compose_failed("暂时读不到插件目录");
       const plugins = home ? catalog.filter(plugin => plugin.home && plugin.state !== "uninstalled") : catalog;
       const guards = new Set(home ? [home.retainCatalog(plugins)] : []);
-      const captured = new Map<ActionView, () => void>();
       const retained = new Set<ActionView>();
       const current = () => {
         checkCurrent(ports);
         for (const guard of guards) requireSynchronous(guard());
-      };
-      const capture = (views: readonly ActionView[]) => {
-        for (const view of views) {
-          if (view.availability.available && !captured.has(view)) captured.set(view, ports.retain([view]));
-        }
-      };
-      const retain = (views: readonly ActionView[]) => {
-        const available = [...new Set(views)].filter(view => view.availability.available && !retained.has(view));
-        const uncaptured: ActionView[] = [];
-        for (const view of available) {
-          const original = captured.get(view);
-          if (original) guards.add(original);
-          else uncaptured.push(view);
-          retained.add(view);
-        }
-        if (uncaptured.length) {
-          if (home) throw surfaceErrors.compose_failed("首页动作未从原目录保留");
-          guards.add(ports.retain(uncaptured));
-        }
-        current();
       };
       const position = positionFor(request.slot, plugins);
       const delivered = deliveredSubjects(request);
@@ -90,9 +68,17 @@ export class SurfaceCompositionService {
       const discovered = await deadline.wait(Promise.resolve(ports.discover()));
       current();
       if (!discovered) throw surfaceErrors.compose_failed("暂时读不到动作目录");
-      const views = home ? discovered.filter(view => view.provider.project_id === undefined || view.provider.project_id === ports.caller.project_id) : discovered;
+      const views = home ? discovered.views.filter(view => view.provider.project_id === undefined || view.provider.project_id === ports.caller.project_id) : discovered.views;
+      const retain = (selected: readonly ActionView[]) => {
+        const available = [...new Set(selected)].filter(view => view.availability.available && !retained.has(view));
+        if (available.length) {
+          guards.add(discovered.retain(available));
+          for (const view of available) retained.add(view);
+        }
+        current();
+      };
       const corrections = ports.corrections.read(request.slot);
-      const read = { request, ports, position, plugins, views, delivered, corrections, deadline, current, capture, retain };
+      const read = { request, ports, position, plugins, views, delivered, corrections, deadline, current, retain };
       const result = home ? await composeHome(read, home) : await composeGroup(read);
       current();
       const { actor_id, project_id, audience, plugin_install_id, calling_plugin_id } = ports.caller;
@@ -146,5 +132,5 @@ async function composeGroup(read: ComposeRead) {
   const group: SurfaceGroup = { kind: isAttention ? "attention" : "slot",
     ...groupState(shown, unreadable || objects.unreadable || objects.unproved || !deadline.active), items: shown.map(row => row.item),
     ...(overflow ? { overflow: { count: overflow } } : {}), ...(excluded ? { excluded } : {}) };
-  return { groups: [group], facts };
+  return { groups: [group], facts: { ...facts, operations: retainDisplayedOperations(read, shown) } };
 }

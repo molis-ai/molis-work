@@ -66,9 +66,12 @@ test("SSC-14: the real composition row and a direct owner values read use the sa
     caller: { actor_id: "local", project_id: "test", audience: "user" },
     catalog: () => [{ plugin_id: owner, install_id: "notes-install", revision: "1", state: "running", scope: "project",
       slots: [{ slot_id: "results", accepts: [], accepts_forms: ["row"], max: 1 }], presentation: { objects: [object] } }],
-    discover: () => [view(defineSubjectContextAction("notes.read", 1, subject.kind, "Read", [])), view(definePresentationValuesAction("notes.values", 1, [subject.kind], "Values", []))],
+    discover: () => ({
+      views: [view(defineSubjectContextAction("notes.read", 1, subject.kind, "Read", [])), view(definePresentationValuesAction("notes.values", 1, [subject.kind], "Values", []))],
+      retain: () => () => undefined,
+    }),
     values: async (_action, input) => ({ items: [{ ...current, values: Object.fromEntries(input.fields.map(key => [key, values[key as keyof typeof values]])) }] }),
-    attention: () => [], relations: () => [], current: () => undefined, beforeEffect: async () => undefined, retain: () => () => undefined,
+    attention: () => [], relations: () => [], current: () => undefined, beforeEffect: async () => undefined,
     corrections: { read: () => ({ revision: "0", corrections: [] }), correct: async () => { throw new Error("Unexpected write"); } },
   });
   const item = result.groups[0]?.items[0];

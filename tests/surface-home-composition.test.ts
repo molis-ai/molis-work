@@ -66,10 +66,10 @@ function harness(plugins: SurfacePlugin[], views: ActionView[], changes: Partial
   const calls: Array<{ ref: string; input: PresentationValuesInput }> = [];
   const { attention, relations, ...control } = changes;
   const ports: SurfaceComposePorts = {
-    caller: person, current: () => undefined, retain: () => () => undefined,
+    caller: person, current: () => undefined,
     beforeEffect: async () => { counts.admission++; },
     catalog: () => { counts.catalog++; return plugins; },
-    discover: () => { counts.directory++; return views; },
+    discover: () => { counts.directory++; return { views, retain: () => () => undefined }; },
     corrections: { read: () => { counts.corrections++; return { corrections: [], revision: "0" }; },
       correct: async () => { throw new Error("unexpected write"); } },
     attention: () => { counts.attention++; return attention?.() ?? []; },
@@ -403,7 +403,7 @@ test("SCS-09 SCS-17 cancellation, retained overview authority, and catalog repla
     const begun = Promise.withResolvers<void>(), held = Promise.withResolvers<PresentationValues>();
     const error = new ActionError(revoked === "action" ? "actions.forbidden" : "actions.provider_changed", "Home authority changed");
     const next = harness([notes], views, {
-      retain: views => () => { if (!current && revoked === "action" && views.includes(read)) throw error; },
+      discover: () => ({ views, retain: selected => () => { if (!current && revoked === "action" && selected.includes(read)) throw error; } }),
       values: () => { begun.resolve(); return held.promise; },
     }, {
       retainCatalog: () => () => { if (!current && revoked === "catalog") throw error; },
@@ -424,11 +424,11 @@ test("SCS-09 SCS-17 replacing the values registration during overview cannot att
   const began = Promise.withResolvers<void>(), held = Promise.withResolvers<PresentationOverview>();
   let registration = 1;
   const h = harness([notes], [read, reader!, values!], {
-    retain: actions => {
+    discover: () => {
       const original = registration;
-      return () => {
+      return { views: [read, reader!, values!], retain: actions => () => {
         if (actions.includes(values!) && registration !== original) throw new ActionError("actions.provider_changed", "Registration replaced");
-      };
+      } };
     },
   }, { overview: () => { began.resolve(); return held.promise; } });
   const result = h.compose();
@@ -437,4 +437,47 @@ test("SCS-09 SCS-17 replacing the values registration during overview cannot att
   held.resolve({ summary: { key: "notes.home.summary" }, subjects: [a], start: [] });
   await assert.rejects(result, { code: "actions.provider_changed" });
   assert.deepEqual(h.calls, []);
+});
+
+test("SCS-08 SCS-09 SCS-17 failed first row reads mark only their overview card unreadable and keep its current summary and start", { timeout: 10_000 }, async t => {
+  const notes = installation("notes", 0), empty = installation("empty", 1), waiting = installation("waiting", 2);
+  const a = subject("note", "a"), b = subject("note", "b");
+  const start = ownedView(notes, command("notes.start"));
+  const notesOverview = overview("notes", notes, [object("note")], { start: [target(start)] });
+  const emptyOverview = overview("empty", empty), waitingOverview = overview("waiting", waiting);
+  const pending = Promise.withResolvers<PresentationOverview>();
+  t.after(() => pending.resolve({ summary: { key: "waiting.home.summary" }, subjects: [], start: [] }));
+
+  for (const mode of ["error", "deadline", "denied"] as const) {
+    const includeWaiting = mode === "deadline";
+    let valuesReads = 0, aborted: AbortSignal | undefined;
+    const h = harness(includeWaiting ? [notes, empty, waiting] : [notes, empty],
+      [notesOverview, emptyOverview, ...readers(notes, "note"), start, ...(includeWaiting ? [waitingOverview] : [])], {
+        values: async (_view, input) => {
+          valuesReads++;
+          if (mode === "error") throw new Error("First read failed");
+          assert.equal(mode, "denied", "the common deadline was already spent waiting for overview");
+          return { items: input.subjects.map((item): PresentationValueItem => ({ subject: item, state: item.id === "a" ? "forbidden" : "deleted", revision: "not-visible" })) };
+        },
+      }, { overview: async (view, signal) => {
+        if (view === waitingOverview) { aborted = signal; return pending.promise; }
+        return view === notesOverview ? { summary: { key: "notes.home.summary" }, subjects: [a, b], start: [target(start)] }
+          : { summary: { key: "empty.home.summary" }, subjects: [], start: [] };
+      } });
+    const result = await h.compose();
+    const group = card(result, notes);
+    assert.equal(group.state, mode === "denied" ? "ok" : "unreadable");
+    assert.equal(group.read_at, undefined);
+    assert.deepEqual(group.items, []);
+    assert.equal(group.hidden_above, undefined);
+    assert.deepEqual(group.plugin_card?.summary, { owner: notes.plugin_id, key: "notes.home.summary" });
+    assert.deepEqual(group.plugin_card?.start?.map(({ kind, action }) => [kind, action.ref]), [["invoke", "notes.start@1"]]);
+    assert.equal(card(result, empty).state, "ok");
+    assert.equal(valuesReads, mode === "deadline" ? 0 : 1);
+    if (mode === "deadline") {
+      assert.ok(aborted?.aborted);
+      assert.equal(card(result, waiting).state, "unreadable");
+      assert.equal(card(result, waiting).plugin_card?.summary, undefined);
+    }
+  }
 });

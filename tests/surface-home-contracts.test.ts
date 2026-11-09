@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ActionService, compileActionSchema } from "@molis-ai/molis-work-kernel";
-import { bindActionClient, bindActionHandler, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import { definePresentationOverviewAction, type PresentationOverviewDeclaration } from "@molis-ai/molis-work-contracts/platform/presentation";
+import { ActionService, compileActionSchema, sampleRetainedActionDirectory, type RetainedActionDirectory } from "@molis-ai/molis-work-kernel";
+import { bindActionClient, bindActionHandler, defineSubjectContextAction, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { definePresentationOverviewAction, definePresentationValuesAction, type PresentationOverviewDeclaration, type PresentationValues, type PresentationValuesInput } from "@molis-ai/molis-work-contracts/platform/presentation";
+import { PLACEMENT_PROVIDER_ID, placementActions } from "@molis-ai/molis-work-contracts/services/placement";
 import { SURFACE_HOME_ORDER_LIMIT, SURFACES_PROVIDER_ID, surfaceCompositionActions, type SurfaceDescription, type SurfaceGroup, type SurfaceInstallationRef, type SurfacePluginCard } from "@molis-ai/molis-work-contracts/services/surface-composition";
 import { assertSurfaceDescription, isPresentationOverviewReader, validatePresentationDeclaration } from "@molis-ai/molis-work-plugin-sdk/presentation";
 import { SurfaceCompositionService, type SurfacePlugin } from "@molis-ai/molis-work-service-surfaces";
@@ -104,62 +105,156 @@ test("SCS-12 SSC-18 the SDK retains the candidate card facts and rejects rewritt
   assert.throws(() => assertSurfaceDescription({ ...picked, groups: [{ ...attention, plugin_card: null }, group] }, candidate), { code: "actions.output_invalid" });
   const forged = description([{ ...group, plugin_card: { ...card, summary: { owner: "other", key: "notes.home.empty" } } }]);
   assert.throws(() => assertSurfaceDescription(forged, forged), { code: "actions.output_invalid" });
-  const failed = description([{ ...group, state: "unreadable" }]);
-  assert.throws(() => assertSurfaceDescription(failed, failed), { code: "actions.output_invalid" });
+  const unreadableRows = description([{ ...group, state: "unreadable" }]);
+  assert.deepEqual(assertSurfaceDescription(unreadableRows, unreadableRows).description, unreadableRows);
+  const failedOverview = description([{ ...group, state: "unreadable", plugin_card: { ...card, summary: undefined } }]);
+  assert.throws(() => assertSurfaceDescription(failedOverview, failedOverview), { code: "actions.output_invalid" });
 });
 
-test("SCS-09 SCS-17 the Kernel's original start registration is checked after overview, only when the card offers that start", { timeout: 10_000 }, async () => {
+const project = "project";
+const common = { project_id: project, plugin_id: owner, plugin_install_id: release.install_id, kind: "plugin", title: "Notes" } as const;
+const caller: ActionCallContext = { actor_id: "local-person", audience: "user", project_id: project, permissions: [] };
+const compose = surfaceCompositionActions.compose;
+
+function registerComposer(actions: ActionService, plugin: SurfacePlugin, afterSample?: (sample: RetainedActionDirectory) => void, form?: "card") {
+  const service = new SurfaceCompositionService();
+  return actions.registerProvider({ provider: { provider_id: SURFACES_PROVIDER_ID, title: "Surfaces", kind: "system", project_id: project }, definitions: [compose],
+    handlers: [bindActionHandler(compose, (input, context) => {
+      const readers = bindActionClient(actions, () => ({ ...context, query_only: true, read_only_effects: true }));
+      return service.compose(input, {
+        caller: context, signal: context.signal, beforeEffect: context.beforeEffect, current: () => context.signal?.throwIfAborted(),
+        catalog: () => [plugin],
+        discover: () => {
+          const directory = sampleRetainedActionDirectory(observe => actions.discover(context, observe), context.retainAuthority!);
+          afterSample?.(directory);
+          return directory;
+        },
+        values: (view, input, signal, assertCurrent) => readers.invoke<PresentationValuesInput, PresentationValues>(
+          { ...view, provider_id: view.provider.provider_id }, input, { ...context, signal, assert_authority_current: assertCurrent }),
+        attention: () => [], relations: () => [],
+        corrections: { read: () => ({ revision: "0", corrections: form ? [{ correction: "form", form, position: null }] : [] }),
+          correct: async () => { throw new Error("unexpected correction"); } },
+        home: {
+          overview: (view, signal, assertCurrent) => readers.invoke({ ...overview, provider_id: view.provider.provider_id }, {},
+            { ...context, signal, assert_authority_current: assertCurrent }),
+          acceptsEmptyInput: view => compileActionSchema(view.action.input_schema)({}) === true,
+          retainCatalog: () => () => undefined, hiddenAboveLabel: () => { throw new Error("unexpected count"); },
+        },
+      });
+    })] });
+}
+
+test("SCS-09 SCS-17 the Kernel binds the original directory row across a same-ref replacement immediately after discovery", { timeout: 10_000 }, async () => {
   const start = { ...formAction, action: { ...formAction.action, input_schema: { type: "object", properties: {}, additionalProperties: false } } } satisfies ActionDefinition;
   const capability = { capability_id: start.capability_id, version: start.version };
-  const project = "project", startProvider = "notes-start", overviewProvider = "notes-overview";
-  const common = { project_id: project, plugin_id: owner, plugin_install_id: release.install_id, kind: "plugin", title: "Notes" } as const;
+  const startProvider = "notes-start", overviewProvider = "notes-overview";
   const plugin: SurfacePlugin = { plugin_id: owner, install_id: release.install_id, scope: release.scope, revision: "release-r1", state: "running", slots: [],
     presentation: { objects: [], overview: { ...declaration, start: [capability] } },
     home: { installation_generation: release.installation_generation, version: release.version, manifest_digest: release.manifest_digest, order: 0 } };
-  const caller: ActionCallContext = { actor_id: "local-person", audience: "user", project_id: project, permissions: [] };
-  const compose = surfaceCompositionActions.compose;
   for (const selected of [true, false]) {
-    const actions = new ActionService(), service = new SurfaceCompositionService();
-    const entered = Promise.withResolvers<void>(), releaseOverview = Promise.withResolvers<void>();
-    let writes = 0;
+    const actions = new ActionService();
+    const replaced = Promise.withResolvers<void>();
+    let writes = 0, summaries = 0;
     const registerStart = (definition: ActionDefinition) => actions.registerProvider({ provider: { ...common, provider_id: startProvider },
       definitions: [definition], handlers: [{ ...capability, handle: () => { writes++; } }] });
     const stopStart = registerStart(start);
     const stopOverview = actions.registerProvider({ provider: { ...common, provider_id: overviewProvider }, definitions: [overview],
-      handlers: [bindActionHandler(overview, async () => {
-        entered.resolve();
-        await releaseOverview.promise;
+      handlers: [bindActionHandler(overview, () => {
+        summaries++;
         return { summary: { key: "notes.home.empty" }, subjects: [], start: selected ? [capability] : [] };
       })] });
-    const stopService = actions.registerProvider({ provider: { provider_id: SURFACES_PROVIDER_ID, title: "Surfaces", kind: "system", project_id: project }, definitions: [compose],
-      handlers: [bindActionHandler(compose, (input, context) => service.compose(input, {
-        caller: context, signal: context.signal, beforeEffect: context.beforeEffect, current: () => context.signal?.throwIfAborted(),
-        catalog: () => [plugin], discover: () => actions.discover(context),
-        retain: views => context.retainAuthority!(views.map(view => ({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }))).assertCurrent,
-        values: async () => ({ items: [] }), attention: () => [], relations: () => [],
-        corrections: { read: () => ({ revision: "0", corrections: [] }), correct: async () => { throw new Error("unexpected correction"); } },
-        home: {
-          overview: (view, signal) => bindActionClient(actions, () => context).invoke({ ...overview, provider_id: view.provider.provider_id }, {}, { ...context, signal }),
-          acceptsEmptyInput: view => compileActionSchema(view.action.input_schema)({}) === true,
-          retainCatalog: () => () => undefined, hiddenAboveLabel: () => { throw new Error("unexpected count"); },
-        },
-      }))] });
     let stopReplacement: (() => void) | undefined;
+    const stopService = registerComposer(actions, plugin, directory => {
+      const original = directory.views.find(view => view.capability_id === capability.capability_id)!;
+      assert.throws(() => directory.retain([{ ...original }]), { code: "actions.forbidden" });
+      queueMicrotask(() => {
+        try {
+          stopStart();
+          stopReplacement = registerStart(formAction);
+          replaced.resolve();
+        } catch (error) { replaced.reject(error); }
+      });
+    });
     try {
       const pending = actions.invoke(caller, compose, { slot: { kind: "home" } });
-      await Promise.race([entered.promise, pending.then(() => { throw new Error("overview did not wait"); })]);
-      stopStart();
-      stopReplacement = registerStart(formAction);
       const result = selected ? assert.rejects(pending, { code: "actions.provider_changed" })
         : pending.then(value => assert.deepEqual((value as SurfaceDescription).groups[1]?.plugin_card, { summary: { owner, key: "notes.home.empty" } }));
-      releaseOverview.resolve();
+      await replaced.promise;
       await result;
+      assert.equal(summaries, 1);
       assert.equal(writes, 0);
     } finally {
-      releaseOverview.resolve();
       stopReplacement?.();
       stopStart();
       stopOverview();
+      stopService();
+    }
+  }
+});
+
+test("SCS-09 SCS-17 only displayed object operations retain registrations after overview, including the selected placement action", { timeout: 10_000 }, async () => {
+  const note = { kind: "note", id: "note-1" };
+  const reader = defineSubjectContextAction("notes.read", 1, "note", "Notes", []);
+  const values = definePresentationValuesAction("notes.values", 1, ["note"], "Note values", []);
+  const conversation = { ...formAction, capability_id: "notes.conversation" };
+  const draft = { ...formAction, capability_id: "notes.draft" };
+  const accepted = { ...formAction, capability_id: "notes.accept" };
+  const noteDeclaration = {
+    kind: "note",
+    fields: [{ key: "title", role: "title" }, { key: "stage", role: "status" }],
+    status: { field: "stage", map: { ready: { ring: "ready" }, draft: { ring: "draft" } } },
+    forms: { row: { fields: ["title"] }, card: { fields: ["title"] } },
+    actions: [
+      { ref: "notes.conversation@1", when: { slots: ["conversation"] } },
+      { ref: "notes.draft@1", when: { status: ["draft"] } },
+      { ref: "notes.accept@1", when: { status: ["ready"] } },
+    ],
+  } as const;
+  const plugin: SurfacePlugin = { plugin_id: owner, install_id: release.install_id, scope: release.scope, revision: "release-r1", state: "running", slots: [],
+    presentation: { objects: [noteDeclaration], overview: { capability_id: overview.capability_id, version: overview.version } },
+    home: { installation_generation: release.installation_generation, version: release.version, manifest_digest: release.manifest_digest, order: 0 } };
+  const operations = [conversation, draft, accepted, placementActions.link];
+  for (const scenario of [
+    { replace: placementActions.link, rejects: false }, { replace: conversation, rejects: false }, { replace: draft, rejects: false },
+    { replace: accepted, rejects: true }, { replace: placementActions.link, form: "card", rejects: true },
+  ] as const) {
+    const actions = new ActionService();
+    const entered = Promise.withResolvers<void>(), releaseOverview = Promise.withResolvers<void>();
+    let valuesReads = 0;
+    const stopRead = actions.registerProvider({ provider: { ...common, provider_id: "notes-reader" }, definitions: [overview, reader, values],
+      handlers: [bindActionHandler(overview, async () => {
+        entered.resolve();
+        await releaseOverview.promise;
+        return { summary: { key: "notes.home.summary" }, subjects: [note], start: [] };
+      }), bindActionHandler(reader, () => assert.fail("rule values never read a subject body")),
+      bindActionHandler(values, () => { valuesReads++; return { items: [{ subject: note, revision: "r1", state: "ok", values: { stage: "ready" } }] }; })] });
+    const register = (definition: ActionDefinition) => actions.registerProvider({
+      provider: definition === placementActions.link ? { provider_id: PLACEMENT_PROVIDER_ID, title: "Placement", kind: "system" }
+        : { ...common, provider_id: definition.capability_id },
+      definitions: [definition], handlers: [{ ...definition, handle: () => assert.fail("compose never executes a displayed operation") }],
+    });
+    const registrations = new Map<ActionDefinition, () => void>(operations.map(definition => [definition, register(definition)]));
+    const stopService = registerComposer(actions, plugin, directory => {
+      assert.equal(directory.views.find(view => view.capability_id === scenario.replace.capability_id)?.availability.available, true);
+    }, "form" in scenario ? scenario.form : undefined);
+    try {
+      const pending = actions.invoke({ ...caller, permissions: placementActions.link.action.permissions }, compose, { slot: { kind: "home" } });
+      await Promise.race([entered.promise, pending.then(() => { throw new Error("overview did not wait"); })]);
+      registrations.get(scenario.replace)!();
+      registrations.set(scenario.replace, register(scenario.replace));
+      const result = scenario.rejects ? assert.rejects(pending, { code: "actions.provider_changed" })
+        : pending.then(value => {
+          const row = (value as SurfaceDescription).groups[1]?.items[0];
+          assert.equal(row?.form, "row");
+          assert.deepEqual(row?.actions.map(action => action.ref), ["notes.accept@1", "open", "peek"]);
+        });
+      releaseOverview.resolve();
+      await result;
+      assert.equal(valuesReads, 1);
+    } finally {
+      releaseOverview.resolve();
+      for (const stop of registrations.values()) stop();
+      stopRead();
       stopService();
     }
   }

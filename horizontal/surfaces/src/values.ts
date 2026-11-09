@@ -78,7 +78,7 @@ function makeBatches(candidates: readonly ValueCandidate[]): Batch[] {
 export async function readRuleValues(candidates: readonly ValueCandidate[], ports: SurfaceComposePorts, deadline: ReturnType<typeof startDeadline>, current: () => void) {
   const batches = makeBatches(candidates).map(({ action, subjects, fields }) => ({ action, input: { subjects, fields: [...fields].sort() } satisfies PresentationValuesInput }));
   const answers = new Map<string, ValueAnswer>();
-  await deadline.read(batches, current, ({ action, input }, signal) => ports.values(action, input, signal), ({ action, input }, result) => {
+  await deadline.read(batches, current, ({ action, input }, signal) => ports.values(action, input, signal, current), ({ action, input }, result) => {
     if ("value" in result && !presentationValuesProblems(input, result.value).length) {
       for (const item of result.value.items) answers.set(subjectKey(item.subject), { item });
     } else if ("error" in result && actionErrorKind(result.error) === "forbidden") {

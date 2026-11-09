@@ -33,11 +33,17 @@ export interface SurfaceHomePlugin extends Omit<SurfaceInstallationRef, "scope" 
 }
 
 export interface SurfaceHomePorts {
-  overview(action: ActionView, signal: AbortSignal): Promise<PresentationOverview>;
+  overview(action: ActionView, signal: AbortSignal, assertCurrent: () => void): Promise<PresentationOverview>;
   acceptsEmptyInput(action: ActionView): boolean;
   /** Synchronous recheck of the original visible directory, release identities, routes and member revision. */
   retainCatalog(plugins: readonly SurfacePlugin[]): () => void;
   hiddenAboveLabel(count: number): OwnedTextRef;
+}
+
+export interface SurfaceActionDirectory {
+  readonly views: readonly ActionView[];
+  /** Only these exact rows, proved against their original registrations during discovery. */
+  retain(views: readonly ActionView[]): () => void;
 }
 
 export interface SurfaceRelation {
@@ -58,9 +64,8 @@ export interface SurfaceComposePorts extends SurfaceCallPorts {
   readonly caller: Pick<ActionCallContext, "actor_id" | "project_id" | "audience" | "plugin_install_id" | "calling_plugin_id">;
   readonly signal?: AbortSignal;
   readonly home?: SurfaceHomePorts;
-  discover(): readonly ActionView[] | Promise<readonly ActionView[]>;
-  retain(actions: readonly ActionView[]): () => void;
-  values(action: ActionView, input: PresentationValuesInput, signal: AbortSignal): Promise<PresentationValues>;
+  discover(): SurfaceActionDirectory | Promise<SurfaceActionDirectory>;
+  values(action: ActionView, input: PresentationValuesInput, signal: AbortSignal, assertCurrent: () => void): Promise<PresentationValues>;
   attention(): readonly AttentionSurfaceEntry[];
   relations(candidates: readonly PlacedObject[]): readonly SurfaceRelation[];
   diagnostic?(event: "values_unavailable" | "overview_unavailable" | "action_missing", details: { plugin_id?: string; provider_id?: string; ref?: string }): void;

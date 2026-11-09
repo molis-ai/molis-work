@@ -158,7 +158,7 @@ Web 目录连接归每个服务实例及固定 Home 所有；传入外部 LocalH
 - 公开入口：`@molis-ai/molis-work-app-local-host`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/app-host`。
 - 依赖：组合根：按 `package.json` 装配已登记的包，只做装配与 IO，不写业务规则。方向见[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节。
 - 不变量：
-  - 项目组合动作沿用当前项目的动作目录和授权；本人纠正保存在项目库。安装、换版在真实范围内复用完整呈现声明校验，Home 签名确认、启用和卸载共用专用安装线，出队重查调用控制。范围与失败恢复见[呈现组合 §14](../../specs/surface-composition/spec.md#14-开工前检查)。回归：`tests/security-invariants-surface-composition.test.ts`、`tests/security-invariants-surface-installation.test.ts`。
+  - 项目组合动作沿用当前项目的动作目录和授权。Kernel 原登记证明随同一批目录行经过宿主的异步可用性投影，读取派发继续复核已采用的原登记。本人纠正保存在项目库。安装、换版在真实范围内复用完整呈现声明校验，Home 签名确认、启用和卸载共用专用安装线，出队重查调用控制。范围与失败恢复见[呈现组合 §14](../../specs/surface-composition/spec.md#14-开工前检查)。回归：`tests/security-invariants-surface-composition.test.ts`、`tests/security-invariants-surface-installation.test.ts`。
   - Home 包读写项目以触发调用的真实项目与该项目设置里的本人同意为准；Host 在预检、目录等待之后、目标效果之前及结果交付时复核安装、当前声明与原 consent_id。撤回再授不能复活旧调用，Home/后台无触发项目仍拒绝；删除项目与卸载从同一 ledger 清理。回归：`tests/home-package-project-reach.test.ts`、`tests/home-package-project-reach.e2e.test.ts`。
   - 签名包的角色资料与方法共用完整 `pluginAgentRegistration`，安装、启停、多项目持有与失败恢复不另写 prompts-only 登记。AgentDefinitions 在原覆盖、history、uses 中保存准确来源；新取材和最后 handoff 检查安装世代、范围、发布者、包版本和用户修订，接受后才记使用。后续撤销不抹掉已接受历史，也不放行新的读取或交付。正文及元数据只作为不可信 JSON 材料，原消费者授权检查保持。
   - 沙箱项目库（S-59）：SQL 只在子进程的 Worker 中运行，子进程控制器独立执行截止时间、进程总 RSS 上限与宿主断线终止；宿主逐句复查授权并固定事务所属进程。`get`/`all` 的字节上限在 Worker 中拒绝，事务外写也拒绝；提交中断保持结果未知。回归：`tests/security-invariants-sandbox-project-database-limits.test.ts`，包括宿主同步写等锁与父宿主被杀的真实进程路径。

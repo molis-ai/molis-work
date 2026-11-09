@@ -6,7 +6,7 @@ import { compareCodeUnits } from "@molis-ai/molis-work-plugin-sdk";
 import { isPresentationOverviewReader, presentationOverviewProblems } from "@molis-ai/molis-work-plugin-sdk/presentation";
 import { tryOwnedTextRef } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { ComposeRead } from "./composition.js";
-import { composeObjects, groupState, objectRoutes, possibleHomeObjectViews, readAttention, type ObjectSource } from "./objects.js";
+import { composeObjects, groupState, readAttention, retainDisplayedOperations, type ObjectSource } from "./objects.js";
 import { directoryAction, ownsView } from "./operations.js";
 import { subjectKey, viewKey, viewRef, viewRevision, type SurfaceHomePlugin, type SurfaceHomePorts, type SurfacePlugin } from "./ports.js";
 
@@ -39,8 +39,8 @@ function scopedViews(views: readonly ActionView[], plugin: HomePlugin, ref: stri
   return views.filter(view => viewRef(view) === ref && view.action.scope === plugin.scope && ownsView(plugin, view));
 }
 
-function authorizedView(matches: readonly ActionView[], considered?: Set<ActionView>): ActionView | undefined {
-  for (const view of matches) considered?.add(view);
+function authorizedView(matches: readonly ActionView[], considered: Set<ActionView>): ActionView | undefined {
+  for (const view of matches) considered.add(view);
   return matches.length === 1 && usable(matches[0]!) ? matches[0] : undefined;
 }
 
@@ -55,8 +55,7 @@ function groupInstallations(plugins: readonly SurfacePlugin[]) {
   return groups;
 }
 
-async function readOverviews(read: ComposeRead, home: SurfaceHomePorts, groups: ReadonlyMap<string, HomePlugin[]>, considered: Set<ActionView>,
-  attention: readonly ObjectSource[], routeFor: ReturnType<typeof objectRoutes>) {
+async function readOverviews(read: ComposeRead, home: SurfaceHomePorts, groups: ReadonlyMap<string, HomePlugin[]>, considered: Set<ActionView>) {
   const jobs = [...groups.values()].flatMap(entries => {
     const matches: OverviewJob[] = [];
     for (const plugin of entries) {
@@ -69,18 +68,9 @@ async function readOverviews(read: ComposeRead, home: SurfaceHomePorts, groups: 
     }
     return matches.length === 1 ? matches : [];
   });
-  const dependencies = jobs.flatMap(({ plugin, declaration }) => (declaration.start ?? []).flatMap(target => {
-    const start = authorizedView(scopedViews(read.views, plugin, refOf(target)));
-    return start ? [start] : [];
-  }));
-  for (const entries of groups.values()) {
-    if (entries.every(plugin => plugin.state === "disabled")) enableFor(entries, read, dependencies);
-  }
-  // Remember possible targets in this directory. Only the routes the result actually uses become active guards.
-  read.capture([...jobs.map(job => job.view), ...dependencies, ...possibleHomeObjectViews(read, routeFor, attention, jobs.map(job => job.plugin))]);
   read.retain(jobs.map(job => job.view));
   const overviews = new Map<string, OverviewAnswer>();
-  await read.deadline.read(jobs, read.current, ({ view }, signal) => home.overview(view, signal), (job, result) => {
+  await read.deadline.read(jobs, read.current, ({ view }, signal) => home.overview(view, signal, read.current), (job, result) => {
     const owner = job.plugin.plugin_id;
     if ("value" in result) {
       const answer = result.value;
@@ -126,7 +116,7 @@ function startsFor(overview: OverviewAnswer, read: ComposeRead, home: SurfaceHom
   return starts;
 }
 
-function enableFor(entries: readonly HomePlugin[], read: ComposeRead, used: ActionView[], considered?: Set<ActionView>): SurfaceHomeEnable | undefined {
+function enableFor(entries: readonly HomePlugin[], read: ComposeRead, used: ActionView[], considered: Set<ActionView>): SurfaceHomeEnable | undefined {
   const candidates = entries.filter(plugin => plugin.home.enable);
   if (candidates.length !== 1) return undefined;
   const plugin = candidates[0]!, enable = plugin.home.enable!;
@@ -177,15 +167,14 @@ export async function composeHome(read: ComposeRead, home: SurfaceHomePorts) {
   const attention = readAttention(read);
   const groups = groupInstallations(read.plugins);
   const considered = new Set<ActionView>();
-  const routeFor = objectRoutes(read);
-  const overviews = await readOverviews(read, home, groups, considered, attention.sources, routeFor);
+  const overviews = await readOverviews(read, home, groups, considered);
   const cards = cardPlans(read, home, groups, overviews, considered);
   // The completion order of parallel overview reads must not order objects or revisions.
   const sources = [...groups.keys()].flatMap(owner => {
     const overview = overviews.get(owner);
     return overview?.answer.subjects.map(subject => ({ subject, kind: "overview", plugin: overview.job.plugin } satisfies ObjectSource)) ?? [];
   });
-  const objects = await composeObjects(read, [...attention.sources, ...sources], routeFor);
+  const objects = await composeObjects(read, [...attention.sources, ...sources]);
   const attentionRows = objects.visible.filter(row => row.attention);
   const above = new Set(attentionRows.flatMap(({ item }) => [subjectKey(item.subject), ...(item.merged ?? []).map(entry => subjectKey(entry.subject))]));
   const attended = new Set(objects.readable.filter(row => row.attention).map(row => row.item.owner_plugin_id));
@@ -195,14 +184,16 @@ export async function composeHome(read: ComposeRead, home: SurfaceHomePorts) {
     || rank(a.owner) - rank(b.owner) || a.order - b.order || compareCodeUnits(a.owner, b.owner));
   const attentionGroup: SurfaceGroup = { kind: "attention", ...groupState(attentionRows, attention.unreadable || objects.unreadableAttention),
     items: attentionRows.map(row => row.item), ...(objects.excluded ? { excluded: objects.excluded } : {}) };
+  const displayed = [...attentionRows];
   const pluginGroups = cards.map(({ owner, state, card }): SurfaceGroup => {
     const rows = objects.visible.filter(row => !row.attention && row.inOverview && row.item.owner_plugin_id === owner);
+    displayed.push(...rows);
     const count = objects.readable.filter(row => row.inOverview && row.item.owner_plugin_id === owner && above.has(subjectKey(row.item.subject))).length;
-    return { kind: "plugin", owner_plugin_id: owner, ...(state === "ok" ? groupState(rows, false) : { state }),
+    return { kind: "plugin", owner_plugin_id: owner, ...(state === "ok" ? groupState(rows, objects.unreadableOwners.has(owner)) : { state }),
       items: rows.map(row => row.item), plugin_card: card, ...(count ? { hidden_above: { count, label: home.hiddenAboveLabel(count) } } : {}) };
   });
   const catalog = read.plugins.map(plugin => [plugin.plugin_id, plugin.scope, plugin.install_id, plugin.state, plugin.revision, plugin.home])
     .sort((a, b) => compareCodeUnits(JSON.stringify(a), JSON.stringify(b)));
   const cardAuthority = [...considered].sort((a, b) => compareCodeUnits(viewKey(a), viewKey(b))).map(viewRevision);
-  return { groups: [attentionGroup, ...pluginGroups], facts: { ...objects.facts, catalog, cardAuthority } };
+  return { groups: [attentionGroup, ...pluginGroups], facts: { ...objects.facts, catalog, cardAuthority, operations: retainDisplayedOperations(read, displayed) } };
 }

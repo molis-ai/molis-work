@@ -45,23 +45,21 @@ function safeNext(declaration: PresentationObjectAction, view: ActionView): bool
   return read && (!Array.isArray(required) || required.every(key => typeof key === "string" && Object.hasOwn(declaration.input_from ?? {}, key)));
 }
 
-function genericOperations(form: FormKind, views: readonly ActionView[]): SurfaceItemAction[] {
+function genericOperations(form: FormKind, views: readonly ActionView[], dependencies: ActionView[]): SurfaceItemAction[] {
   const actions: SurfaceItemAction[] = [{ ref: "open", primary: false }];
   if (form === "chip" || form === "row") actions.push({ ref: "peek", primary: false });
   if (form === "card") {
-    const available = (definition: { capability_id: string; version: number }) => views.some(view => view.availability.available
+    const available = (definition: { capability_id: string; version: number }) => views.find(view => view.availability.available
       && view.capability_id === definition.capability_id && view.version === definition.version && view.provider.provider_id === PLACEMENT_PROVIDER_ID);
-    if (available(placementActions.link)) actions.push({ ref: "place", primary: false });
-    if (available(placementActions.convert)) actions.push({ ref: "hand_off", primary: false });
+    const link = available(placementActions.link), convert = available(placementActions.convert);
+    if (link) { actions.push({ ref: "place", primary: false }); dependencies.push(link); }
+    if (convert) { actions.push({ ref: "hand_off", primary: false }); dependencies.push(convert); }
   }
   return actions;
 }
 
-export const isPlacementOperation = (view: ActionView) => view.provider.provider_id === PLACEMENT_PROVIDER_ID
-  && [placementActions.link, placementActions.convert].some(definition => view.capability_id === definition.capability_id && view.version === definition.version);
-
 export function operationsFor(object: PresentationObject, owner: SurfacePlugin, form: FormKind, slot: SurfaceSlot, status: string | undefined,
-  views: readonly ActionView[], diagnose: SurfaceComposePorts["diagnostic"]): Pick<SurfaceItem, "actions" | "notices"> {
+  views: readonly ActionView[], diagnose: SurfaceComposePorts["diagnostic"]): Pick<SurfaceItem, "actions" | "notices"> & { dependencies: readonly ActionView[] } {
   const matched = (object.actions ?? []).flatMap(declaration => {
     const when = declaration.when;
     if (when?.slots && !when.slots.includes(slot.kind)) return [];
@@ -73,6 +71,7 @@ export function operationsFor(object: PresentationObject, owner: SurfacePlugin, 
   const usable = matched.filter(item => item.view.availability.available && !item.notice);
   const primary = usable.find(item => item.declaration.primary);
   const actions = usable.map(item => actionFor(item.declaration, item.view, item === primary));
+  const dependencies = usable.map(item => item.view);
   const notices: SurfaceItemNotice[] = [];
   for (const item of matched) {
     const notice = item.declaration.unavailable;
@@ -80,6 +79,7 @@ export function operationsFor(object: PresentationObject, owner: SurfacePlugin, 
     const next = usable.find(candidate => candidate.declaration.ref === notice.next && safeNext(candidate.declaration, candidate.view));
     notices.push({ reason: ownedTextRef(notice.reason, owner.plugin_id), ...(next ? { next: actionFor(next.declaration, next.view, false) } : {}) });
   }
-  actions.push(...genericOperations(form, views));
-  return { actions, ...(notices.length ? { notices } : {}) };
+  // A notice's next action is drawn from these same usable operations.
+  actions.push(...genericOperations(form, views, dependencies));
+  return { actions, dependencies, ...(notices.length ? { notices } : {}) };
 }

@@ -201,7 +201,8 @@ function checkCardEnable(value: unknown, at: string): void {
 function checkedPluginCard(value: SurfacePluginCard, owner: string | undefined, state: SurfaceGroup["state"], at: string): SurfacePluginCard {
   if (!owner) throw malformed(at);
   const card = closed(value, at, ["summary", "note", "start", "open", "enable"]);
-  if (state !== "ok" && state !== "stale" && (card.summary !== undefined || card.start !== undefined)) throw malformed(at);
+  if ((state === "disabled" || state === "undeclared") && (card.summary !== undefined || card.start !== undefined)) throw malformed(at);
+  if (card.start !== undefined && card.summary === undefined) throw malformed(at);
   if (card.summary !== undefined) cardWord(card.summary, owner, `${at}.summary`, true);
   if (card.note !== undefined) cardWord(card.note, owner, `${at}.note`, false);
   if (card.start !== undefined) checkCardStarts(card.start, `${at}.start`);

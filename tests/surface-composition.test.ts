@@ -32,7 +32,7 @@ function harness(changes: Partial<SurfaceComposePorts> = {}) {
   const ports: SurfaceComposePorts = {
     caller: scope,
     catalog: () => { counts.catalog++; return [plugin(object)]; },
-    discover: () => { counts.directory++; return [reader(), values()]; },
+    discover: () => { counts.directory++; return { views: [reader(), values()], retain: () => () => undefined }; },
     values: async (_action, input) => {
       calls.push(input);
       return { items: input.subjects.map(subject => subject.id === "7" ? { subject, state: "forbidden", revision: "withheld" }
@@ -43,7 +43,6 @@ function harness(changes: Partial<SurfaceComposePorts> = {}) {
     corrections: { read: () => { counts.corrections++; return snapshot; }, correct: async () => { throw new Error("read test"); } },
     beforeEffect: async () => undefined,
     current: () => undefined,
-    retain: () => () => undefined,
     ...changes,
   };
   const service = new SurfaceCompositionService();
@@ -108,8 +107,8 @@ test("SCS-03 SCS-12 SCS-15 resolves exact providers, replaces the locked operati
   const locked: ActionAvailability = { available: false, code: "notes.locked", reason: "internal reason is never displayed" };
   let own: ActionAvailability | undefined = locked, next: ActionAvailability = active;
   let detailsDefinition = details;
-  const h = harness({ catalog: () => [plugin(display)], discover: () => [reader(), values(), view(edit, "other-a"), view(edit, "other-b"),
-    ...(own ? [view(edit, pluginId, own)] : []), view(detailsDefinition, pluginId, next), view(remove), view(purge)] });
+  const h = harness({ catalog: () => [plugin(display)], discover: () => ({ views: [reader(), values(), view(edit, "other-a"), view(edit, "other-b"),
+    ...(own ? [view(edit, pluginId, own)] : []), view(detailsDefinition, pluginId, next), view(remove), view(purge)], retain: () => () => undefined }) });
   const request = { slot: { kind: "discussion" }, subjects: [note("a")] } as const;
   const blocked = await h.compose(request);
   const first = group(blocked).items[0]!;
@@ -140,7 +139,9 @@ test("SCS-03 SCS-12 SCS-15 resolves exact providers, replaces the locked operati
 test("SCS-11 SCS-13 the declaration follows the same directory's unique reader and never borrows another plugin's values", async () => {
   const other = { ...plugin(), plugin_id: "other-owner", install_id: "other-owner" };
   let first: ActionView | undefined = undefined;
-  const h = harness({ catalog: () => [plugin(object), other], discover: () => [reader("note", other.install_id), values(), ...(first ? [first] : [])] });
+  const h = harness({ catalog: () => [plugin(object), other], discover: () => ({
+    views: [reader("note", other.install_id), values(), ...(first ? [first] : [])], retain: () => () => undefined,
+  }) });
   const request = { slot: { kind: "discussion" }, subjects: [note("a")] } as const;
   const fallback = group(await h.compose(request)).items[0]!;
   assert.deepEqual([fallback.owner_plugin_id, fallback.fields, fallback.actions], [other.plugin_id, [], [open]]);

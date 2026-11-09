@@ -5,7 +5,7 @@ import type { SurfaceGroup, SurfaceItem } from "@molis-ai/molis-work-contracts/s
 import { actionErrorKind, compareCodeUnits } from "@molis-ai/molis-work-plugin-sdk";
 import { isPresentationValuesReader } from "@molis-ai/molis-work-plugin-sdk/presentation";
 import type { ComposeRead } from "./composition.js";
-import { declaredAction, isPlacementOperation, operationsFor, ownsView } from "./operations.js";
+import { operationsFor, ownsView } from "./operations.js";
 import { subjectKey, viewKey, viewRevision, type SurfacePlugin } from "./ports.js";
 import { formAt } from "./position.js";
 import { mergeRelated } from "./relations.js";
@@ -28,11 +28,11 @@ interface Candidate {
 }
 
 type ObjectRoute = Pick<Candidate, "reader" | "object" | "values"> & { plugin?: SurfacePlugin };
-type RegisteredRoute = ObjectRoute & { plugin: SurfacePlugin };
 
 interface Projected {
   item: SurfaceItem;
   value?: PresentationValueItem;
+  dependencies: readonly ActionView[];
   attention?: { entry: AttentionSurfaceEntry; rank: number };
   inOverview: boolean;
   pin: number;
@@ -53,7 +53,7 @@ function eligibleSources(read: ComposeRead, sources: readonly ObjectSource[]) {
   return subjects;
 }
 
-export function objectRoutes(read: ComposeRead) {
+function objectRoutes(read: ComposeRead) {
   const { plugins, views } = read;
   const routes = new Map<string, ObjectRoute>();
   const values = views.filter(view => view.availability.available && isPresentationValuesReader(view));
@@ -154,13 +154,13 @@ function renderCandidate(candidate: Candidate, answer: RuleAnswer | undefined, r
   const status = object?.status ? value?.values?.[object.status.field] : undefined;
   const ruleStatus = typeof status === "string" ? status : undefined;
   const fallbackOpen = !object && candidate.reader.found === "one";
-  const { actions, notices } = readable && object && display.fields.length ? operationsFor(object, plugin, display.form, request.slot, ruleStatus, views, ports.diagnostic)
-    : { actions: readable || fallbackOpen ? [{ ref: "open", primary: false }] : [], notices: undefined };
+  const { actions, notices, dependencies } = readable && object && display.fields.length ? operationsFor(object, plugin, display.form, request.slot, ruleStatus, views, ports.diagnostic)
+    : { actions: readable || fallbackOpen ? [{ ref: "open", primary: false }] : [], notices: undefined, dependencies: [] };
   const attention = candidate.entries.map(entry => ({ entry, rank: attentionRank(entry, object, ruleStatus) })).sort(compareAttention)[0];
   const item: SurfaceItem = { subject, owner_plugin_id: plugin.plugin_id, state, ...display,
     actions: request.slot.kind === "home" && !attention ? actions.map(action => ({ ...action, primary: false })) : actions,
     ...(notices ? { notices } : {}), ...(state === "stale" && value?.read_at ? { read_at: value.read_at } : {}) };
-  return { item, ...(readable ? { value } : {}), attention, inOverview: candidate.inOverview,
+  return { item, ...(readable ? { value } : {}), attention, inOverview: candidate.inOverview, dependencies,
     pin: choices.find(choice => choice.correction === "pin")?.position ?? PRESENTATION_LIMITS.values_subjects,
     projectId: candidate.values?.action.scope === "home" ? null : ports.caller.project_id };
 }
@@ -185,43 +185,31 @@ export function readAttention(read: ComposeRead) {
   }
 }
 
-function relevantViews(candidates: readonly RegisteredRoute[], views: readonly ActionView[]): ActionView[] {
-  const keys = new Set(candidates.flatMap(candidate => candidate.reader.found === "one"
-    ? [viewKey(candidate.reader.view), ...(candidate.values ? [viewKey(candidate.values)] : [])] : []));
-  for (const candidate of candidates) for (const action of candidate.object?.actions ?? []) {
-    const view = declaredAction(action.ref, candidate.plugin, views);
-    if (view) keys.add(viewKey(view));
-  }
-  return views.filter(view => keys.has(viewKey(view)) || (candidates.length > 0 && isPlacementOperation(view)));
+function readViews(candidates: readonly Candidate[]): ActionView[] {
+  return candidates.flatMap(({ reader, values }) => reader.found === "one" ? [reader.view, ...(values ? [values] : [])] : []);
 }
 
-/** Capture the original registrations before the overview reveals which of its declared object kinds it selected. */
-export function possibleHomeObjectViews(read: ComposeRead, routeFor: ReturnType<typeof objectRoutes>, attention: readonly ObjectSource[], overviews: readonly SurfacePlugin[]) {
-  const eligible = new Map<string, RegisteredRoute>();
-  const add = (kind: string, sameOwner: (plugin: SurfacePlugin) => boolean) => {
-    const route = routeFor(kind);
-    if (route.plugin && route.values && sameOwner(route.plugin)) eligible.set(kind, { ...route, plugin: route.plugin });
-  };
-  for (const offers of eligibleSources(read, attention).values()) for (const source of offers) {
-    if (source.kind === "attention") add(source.subject.kind, plugin => plugin.plugin_id === source.entry.owner_plugin_id);
-  }
-  for (const plugin of overviews) for (const object of plugin.presentation?.objects ?? []) add(object.kind, owner => owner === plugin);
-  return relevantViews([...eligible.values()], read.views);
+export function retainDisplayedOperations(read: ComposeRead, rows: readonly Projected[]) {
+  const selected = [...new Set(rows.flatMap(row => row.dependencies))];
+  read.retain(selected);
+  return selected.sort((a, b) => compareCodeUnits(viewKey(a), viewKey(b))).map(viewRevision);
 }
 
-export async function composeObjects(read: ComposeRead, sources: readonly ObjectSource[], routeFor = objectRoutes(read)) {
-  const { ports, views, request, plugins, deadline, current, retain } = read;
-  const { candidates, disabled, unproved } = pickCandidates(read, sources, routeFor);
-  const relevant = relevantViews(request.slot.kind === "home" ? candidates.filter(candidate => candidate.values) : candidates, views);
-  retain(relevant);
+export async function composeObjects(read: ComposeRead, sources: readonly ObjectSource[]) {
+  const { ports, request, plugins, deadline, current, retain } = read;
+  const { candidates, disabled, unproved } = pickCandidates(read, sources, objectRoutes(read));
+  const readers = request.slot.kind === "home" ? candidates.filter(candidate => candidate.values) : candidates;
+  retain(readViews(readers));
   const answers = await readRuleValues(candidates.flatMap(candidate => candidate.values && candidate.object
     ? [{ subject: candidate.subject, action: candidate.values, object: candidate.object }] : []), ports, deadline, current);
   let unreadable = false, unreadableAttention = false;
+  const unreadableOwners = new Set<string>();
   const rendered = candidates.flatMap(candidate => {
     const answer = answers.get(subjectKey(candidate.subject));
     if (stateFor(candidate, answer) === "stale" && !answer?.item?.read_at) {
       unreadable = true;
       if (candidate.entries.length) unreadableAttention = true;
+      if (candidate.inOverview && candidate.values) unreadableOwners.add(candidate.plugin.plugin_id);
     }
     const projection = renderCandidate(candidate, answer, read);
     return projection ? [projection] : [];
@@ -243,9 +231,9 @@ export async function composeObjects(read: ComposeRead, sources: readonly Object
   const declarations = plugins.filter(plugin => owners.has(plugin.plugin_id)).map(plugin => [plugin.scope, plugin.install_id, plugin.revision])
     .sort((a, b) => compareCodeUnits(JSON.stringify(a), JSON.stringify(b)));
   const renderedKeys = new Set(rendered.map(row => subjectKey(row.item.subject)));
-  const exposed = request.slot.kind === "attention" || request.slot.kind === "home"
-    ? relevantViews(candidates.filter(candidate => renderedKeys.has(subjectKey(candidate.subject))), views) : relevant;
+  const exposed = readViews(request.slot.kind === "attention" || request.slot.kind === "home"
+    ? readers.filter(candidate => renderedKeys.has(subjectKey(candidate.subject))) : readers);
   const facts = { declarations, authority: exposed.sort((a, b) => compareCodeUnits(viewKey(a), viewKey(b))).map(viewRevision),
     values: readable.map(row => [row.item.subject, row.value?.revision, row.attention?.entry]), relations: used };
-  return { visible, readable, excluded, unreadable, unreadableAttention, unproved, facts };
+  return { visible, readable, excluded, unreadable, unreadableAttention, unreadableOwners, unproved, facts };
 }

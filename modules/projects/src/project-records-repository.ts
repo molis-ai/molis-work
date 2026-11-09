@@ -73,6 +73,16 @@ export class ProjectRecordsRepository {
       .run(projectId, pluginId).changes) > 0;
   }
 
+  latestPluginMembershipEventId(projectId: string): string | null {
+    // The append order is independent of the supplied clock and event id.
+    const row = this.db.prepare(`
+      SELECT event_id FROM project_events
+      WHERE project_id = ? AND type IN ('project.plugin_added', 'project.plugin_removed')
+      ORDER BY rowid DESC LIMIT 1
+    `).get(projectId) as { event_id: string } | undefined;
+    return row?.event_id ?? null;
+  }
+
   renameProject(projectId: string, displayName: string, updatedAt: string): void {
     this.db.prepare("UPDATE projects SET display_name = ?, updated_at = ? WHERE project_id = ?")
       .run(displayName, updatedAt, projectId);

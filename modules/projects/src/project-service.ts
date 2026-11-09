@@ -99,8 +99,7 @@ export class ProjectService {
   }
 
   /** One synchronous reach judgement uses the same current registry answer for both membership and hidden marks. */
-  pluginMembership(projectId: string): ProjectPluginMembership {
-    const alwaysOn = this.plugins.alwaysOn?.() ?? [];
+  pluginMembership(projectId: string, alwaysOn: readonly ProjectPluginId[] = this.plugins.alwaysOn?.() ?? []): ProjectPluginMembership {
     const hidden = this.listHidden(projectId, alwaysOn);
     return { plugins: this.listPlugins(projectId, alwaysOn), hidden };
   }
@@ -111,7 +110,7 @@ export class ProjectService {
 
   }
 
-  addPlugin(input: AddProjectPluginInput): ProjectPluginId[] {
+  addPlugin(input: AddProjectPluginInput, observedAlwaysOn?: readonly ProjectPluginId[]): ProjectPluginId[] {
     const project = this.get(input.project_id);
     const actor = this.requiredActorId(input.actor_id);
     if (this.plugins.isPersonal?.(input.plugin_id) === true) {
@@ -119,12 +118,14 @@ export class ProjectService {
         if (this.repository.projects.showProjectPlugin(project.project_id, input.plugin_id)) {
           this.appendEvent(project.project_id, "project.plugin_added", actor, { plugin_id: input.plugin_id });
         }
-        return this.listPlugins(project.project_id);
+        return this.listPlugins(project.project_id, observedAlwaysOn);
       });
     }
     if (!this.plugins.has(input.plugin_id)) {
       throw catalogErrors.plugin_not_found("找不到这个插件");
     }
+    // A versioned enable of a derived member has no membership to add.
+    if (observedAlwaysOn?.includes(input.plugin_id)) return this.listPlugins(project.project_id, observedAlwaysOn);
     return this.repository.transaction(() => {
       const at = this.now();
       for (const pluginId of [input.plugin_id, ...this.plugins.companions(input.plugin_id)]) {
@@ -132,14 +133,14 @@ export class ProjectService {
           this.appendEvent(project.project_id, "project.plugin_added", actor, { plugin_id: pluginId });
         }
       }
-      return this.listPlugins(project.project_id);
+      return this.listPlugins(project.project_id, observedAlwaysOn);
     });
   }
 
-  removePlugin(input: RemoveProjectPluginInput): ProjectPluginMembership {
+  removePlugin(input: RemoveProjectPluginInput, observedAlwaysOn?: readonly ProjectPluginId[]): ProjectPluginMembership {
     const project = this.get(input.project_id);
     const actor = this.requiredActorId(input.actor_id);
-    const alwaysOn = this.plugins.alwaysOn?.() ?? [];
+    const alwaysOn = observedAlwaysOn ?? this.plugins.alwaysOn?.() ?? [];
     if (alwaysOn.includes(input.plugin_id)) throw catalogErrors.plugin_always_on("常开插件不能从项目里移除");
     const personal = this.plugins.isPersonal?.(input.plugin_id) === true;
     if (!personal && !this.plugins.has(input.plugin_id)) {

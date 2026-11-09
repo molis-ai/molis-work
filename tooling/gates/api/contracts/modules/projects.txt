@@ -183,6 +183,7 @@ export interface ProjectsApplicationApi {
 export interface ProjectsCommandApi {
     addProjectPlugin(input: AddProjectPluginInput): ProjectPluginId[];
     removeProjectPlugin(input: RemoveProjectPluginInput): ProjectPluginMembership;
+    setProjectPlugin(projectId: string, actorId: string, input: SetProjectPluginInput): VersionedProjectPluginMembership;
     renameProject(projectId: string, displayName: string, actorId: string, expectedDisplayName: string): ProjectRecord;
     addWorkspaceProject(input: AddWorkspaceProjectInput): ProjectWorkspaceDirectoryRecord;
     changeDirectories(input: ChangeDirectoriesInput): ProjectDirectories;
@@ -192,6 +193,7 @@ export interface ProjectsQueryApi {
     wasProjectPluginRemoved(projectId: string, pluginId: ProjectPluginId): boolean;
     storedProjectPluginMembership(projectId: string): ProjectPluginMembership;
     projectPluginMembership(projectId: string): ProjectPluginMembership;
+    projectPluginMembershipWithRevision(projectId: string): VersionedProjectPluginMembership;
     listProjectPlugins(projectId: string): ProjectPluginId[];
     listHiddenPlugins(projectId: string): ProjectPluginId[];
     listProjects(): ProjectRecord[];
@@ -223,6 +225,16 @@ export interface RunDirectories {
         kind: "worktree";
         worktree_id: string;
     };
+}
+
+export interface SetProjectPluginInput {
+    plugin_id: ProjectPluginId;
+    enabled: boolean;
+    expected_revision: string;
+}
+
+export interface VersionedProjectPluginMembership extends ProjectPluginMembership {
+    revision: string;
 }
 
 export declare const directoryInputOnly: (workspaceId: string) => import("platform/action-errors").ActionError;
@@ -304,6 +316,11 @@ export declare const projectDirectoryErrors: import("platform/action-errors").Er
     readonly directory_unmapped: "not_found";
     readonly directory_input_only: "forbidden";
 }>;
+
+export declare const projectPluginActions: {
+    readonly get: ActionDefinition<Record<string, never>, VersionedProjectPluginMembership>;
+    readonly set: ActionDefinition<SetProjectPluginInput, VersionedProjectPluginMembership>;
+};
 
 export declare const projectSettingsCapabilities: {
     readonly runtime: ActionDefinition<[], string | null>;

@@ -6,8 +6,8 @@ import { signPluginPackage } from "@molis-ai/molis-work-plugin-runtime";
 import { sandboxActionId, sandboxPackageBuildId, sandboxPluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { newPublisher, packageContract, packageFiles, payloadOf } from "./sandbox-package.js";
 
-export function presentingPackage(scope: "project" | "home", delegated: readonly ActionDefinition[], options: { editorDialog?: boolean; distinctForms?: boolean } = {}) {
-  const { editorDialog, distinctForms } = options;
+export function presentingPackage(scope: "project" | "home", delegated: readonly ActionDefinition[], options: { editorDialog?: boolean; distinctForms?: boolean; objectCard?: boolean } = {}) {
+  const { editorDialog, distinctForms, objectCard } = options;
   const publisher = newPublisher(), contract = packageContract(), build = sandboxPackageBuildId(contract.pluginId, publisher.identity);
   const kind = "sandbox-home-note", subject = { kind, id: "1" };
   const secondKind = "sandbox-home-appendix";
@@ -44,7 +44,7 @@ export function presentingPackage(scope: "project" | "home", delegated: readonly
           output: subjectContext({ subject: object, revision: "1", title: "Appendix", content: "A note" }) }] });
     }
   }
-  contract.presentation = { objects: editorDialog ? [{ kind, fields: [{ key: "title", role: "title" }], forms: { row: { fields: ["title"] } } }] : [], overview: { capability_id: overview.capability_id, version: overview.version,
+  contract.presentation = { objects: editorDialog ? [{ kind, fields: [{ key: "title", role: "title" }], forms: { row: { fields: ["title"] }, ...(objectCard ? { card: { fields: ["title"] } } : {}) } }] : [], overview: { capability_id: overview.capability_id, version: overview.version,
     start: [{ ...start("notes.add"), open: { view_id: "app", panel: "editor" } },
       ...(alternate ? [{ ...start("notes.alternate"), open: { view_id: "app", panel: "alternate-editor" } }] : [])] } };
   if (distinctForms) contract.presentation = { ...contract.presentation, objects: [...contract.presentation.objects,

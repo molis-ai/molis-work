@@ -7,10 +7,13 @@ import { projectRoutePrefix, type ProjectRequestContext } from "./web-project-co
 import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
 import type { SurfaceSlotRecord } from "./surface-slot-state.js";
 import { slotOperation, surfaceSlotLabels, type RetainedSlotControls, type SlotPreparation } from "./surface-slot-controls.js";
+import { positionCorrection, positionRecovery } from "./surface-position-correction.js";
 
 type Intent = { intent: "reserve"; mount_id: number; slot_id: string; subjects: ActionSubject[] }
-  | { intent: "read" | "close"; slot: string }
+  | { intent: "read"; slot: string; recovery?: ActionSubject }
+  | { intent: "close"; slot: string }
   | { intent: "activate"; slot: string; render: string; control: string }
+  | { intent: "correct"; slot: string; render: string; correction: NonNullable<ReturnType<typeof positionCorrection>> }
   | { intent: "confirm"; slot: string; render: string; preparation: string }
   | { intent: "cancel"; slot: string; preparation: string };
 
@@ -37,8 +40,14 @@ function intentOf(body: Record<string, unknown>): Intent {
     return { intent, mount_id, slot_id, subjects: checked };
   }
   if (name(slot)) {
-    if ((intent === "read" || intent === "close") && closed(body, "intent", "slot")) return { intent, slot };
+    if (intent === "close" && closed(body, "intent", "slot")) return { intent, slot };
+    if (intent === "read" && (closed(body, "intent", "slot") || closed(body, "intent", "slot", "recovery")))
+      return { intent, slot, recovery: positionRecovery(body.recovery) };
     if (intent === "activate" && closed(body, "intent", "slot", "render", "control") && name(render) && name(control)) return { intent, slot, render, control };
+    if (intent === "correct" && closed(body, "intent", "slot", "render", "correct") && name(render)) {
+      const correction = positionCorrection(body.correct);
+      if (correction) return { intent, slot, render, correction };
+    }
     if (intent === "confirm" && closed(body, "intent", "slot", "render", "preparation") && name(render) && name(preparation)) return { intent, slot, render, preparation };
     if (intent === "cancel" && closed(body, "intent", "slot", "preparation") && name(preparation)) return { intent, slot, preparation };
   }
@@ -56,7 +65,7 @@ function heights(slot: SurfaceSlotRecord) {
 }
 
 async function readSlot({ localHost, hostReference, options }: ProjectRequestContext, slot: SurfaceSlotRecord, signal: AbortSignal,
-  current: () => void, deliver: (value: unknown) => void) {
+  current: () => void, deliver: (value: unknown) => void, recovery?: ActionSubject) {
   slot.read?.abort(expired());
   slot.render = undefined;
   const read = slot.read = new AbortController();
@@ -65,7 +74,7 @@ async function readSlot({ localHost, hostReference, options }: ProjectRequestCon
   try {
     return await localHost.surfacePosition(hostReference, { slot: { kind: "plugin-slot", plugin_id: slot.pluginId, slot_id: slot.slot.slot_id }, subjects: [...slot.subjects] },
       projectRoutePrefix(options), live, assertReading, async position => {
-        const display = await position.display(), binding = position.captureSlot(display), id = randomUUID();
+        const display = await position.display(recovery), binding = position.captureSlot(display), id = randomUUID();
         position.current(); assertReading(); binding.assertCurrent();
         slot.render = { id, binding };
         const groups = display.groups.map(group => ({ ...group, items: group.items.map(item => ({
@@ -94,7 +103,7 @@ export async function handleSurfaceSlotHttp(context: ProjectRequestContext): Pro
     const slot = state.require(input.slot);
     if (input.intent === "close") { state.close(slot.id); deliver({ closed: true }); return true; }
     if (input.intent === "read") {
-      if (!await readSlot(context, slot, page.signal, page.assertCurrent, deliver)) throw expired();
+      if (!await readSlot(context, slot, page.signal, page.assertCurrent, deliver, input.recovery)) throw expired();
       return true;
     }
     const render = slot.render;
@@ -109,13 +118,23 @@ export async function handleSurfaceSlotHttp(context: ProjectRequestContext): Pro
     render.prepared = undefined; // This handle can be consumed once, even if a later recheck refuses.
     try {
       const live = AbortSignal.any([page.signal, slot.signal]);
+      if (input.intent === "correct") {
+        const updated = await localHost.surfacePosition(hostReference, { slot: { kind: "plugin-slot", plugin_id: slot.pluginId, slot_id: slot.slot.slot_id }, subjects: [...slot.subjects] },
+          projectRoutePrefix(options), live, () => { assertRender(); render.binding.assertCurrent(); }, async position => {
+            const result = await position.correct(input.correction);
+            position.current(); deliver(result); return true;
+          }, undefined, slot);
+        if (!updated) throw expired();
+        return true;
+      }
       if (!await localHost.surfaceOperation(hostReference, live, assertRender, async context => {
         const operation = slotOperation(context, render.binding, projectRoutePrefix(options), assertRender);
         if (input.intent === "confirm") {
           if (!prepared || prepared.id !== input.preparation) throw expired();
-          await operation.confirm(prepared.value);
-          operation.current();
-          deliver({ result: { kind: "invoked", label: prepared.value.target.label } });
+          const result = await operation.confirm(prepared.value);
+          if (prepared.value.target.kind !== "placement-choice") operation.current();
+          deliver({ result: { kind: "invoked", label: prepared.value.target.label,
+            ...(prepared.value.target.kind === "placement-choice" ? { receipt: result } : {}) } });
         } else {
           const control = render.binding.controls.get(input.control);
           if (!control) throw expired();
@@ -124,7 +143,7 @@ export async function handleSurfaceSlotHttp(context: ProjectRequestContext): Pro
           if (result.preparation) {
             const id = randomUUID();
             render.prepared = { id, value: result.preparation };
-            deliver({ preparation: id, label: result.preparation.offer?.title ?? control.label, consequence: control.warning ?? [] });
+            deliver({ preparation: id, label: control.label, consequence: control.warning ?? [] });
           } else deliver(result);
         }
         return true;

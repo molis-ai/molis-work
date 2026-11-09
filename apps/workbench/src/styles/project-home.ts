@@ -32,6 +32,14 @@ export const PROJECT_HOME_STYLES = PRESENTATION_FORM_STYLES + `
   .home-row .mw-presentation__row-title[aria-haspopup] { cursor: pointer; }
   .home-row .mw-presentation__more { z-index: 1; }
   .home-row .mw-presentation__more[open] { z-index: 2; }
+  .home-row:has(>.surface-correction-menu) { position: relative; }
+  .surface-correction-menu { position: absolute; inset-block-start: .3rem; inset-inline-end: .35rem; }
+  .home-row:has(>.surface-correction-menu) .mw-presentation__band,
+  .home-row:has(>.surface-correction-menu) .mw-presentation--chip { padding-inline-end: 2.75rem; }
+  .surface-correction-reason { display: flex; flex-wrap: wrap; gap: .35rem .65rem; align-items: center; justify-content: space-between; color: var(--muted); min-inline-size: 0; }
+  .surface-correction-reason p { margin: 0; overflow-wrap: anywhere; }
+  .surface-correction-recovery { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; }
+  .discussion-display-defaults { display: flex; justify-content: flex-end; padding-inline: .5rem; }
   .home-peek { inline-size: min(100% - 2rem, 30rem); max-block-size: min(85dvh, 32rem); padding: 1rem; }
   .home-offers-controls { display: flex; flex-wrap: wrap; gap: .45em; }
   .home-offers-note { color: var(--muted); }

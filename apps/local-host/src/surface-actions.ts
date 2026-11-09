@@ -80,12 +80,17 @@ export function surfaceActionProvider(ports: SurfaceHostPorts): ActionProviderRe
       caller, current, beforeEffect: caller.beforeEffect, signal: sample?.request?.signal ?? caller.signal,
       catalog: home?.catalog ?? (() => sample?.catalog.plugins ?? surfacePlugins(ports, current)),
       ...(sample && !home ? { deadline: sample.deadline, retainCatalog: (plugins: readonly SurfacePlugin[]) => retainCatalog(sample.catalog, plugins, sample) } : {}),
+      ...(sample ? { keepPosition: (forms: NonNullable<typeof sample.rules>["forms"], pin: boolean) => { sample.rules = { forms, pin }; } } : {}),
       ...(sample?.discussion ? { discussion: sample.discussion } : {}),
       ...(home ? { home: home.ports } : {}),
       discover: async () => retainSurfaceDirectory(await client.discoverRetained(caller), sample),
       values: read<PresentationValuesInput, PresentationValues>,
       corrections: createSurfaceCorrections(store.db, caller), now: () => ports.now().toISOString(),
-      attention: () => attention.listSurfaceEntries(projectId),
+      attention: () => {
+        const entries = attention.listSurfaceEntries(projectId);
+        if (sample) sample.attention = entries;
+        return entries;
+      },
       relations: candidates => (ports.placement()?.relationsFor(projectId, candidates) ?? []).flatMap(edge => {
         const { source, target, type, revision } = edge;
         if (!source.object_type || !target.object_type || (type !== CONTEXT_RELATION_TYPES.derived_from && type !== CONTEXT_RELATION_TYPES.copied_from)) return [];
@@ -99,7 +104,7 @@ export function surfaceActionProvider(ports: SurfaceHostPorts): ActionProviderRe
     definitions: Object.values(surfaceCompositionActions),
     handlers: [
       bindActionHandler(surfaceCompositionActions.compose, (input, caller) => service.compose(input, forCall(caller, input.slot.kind))),
-      bindActionHandler(surfaceCompositionActions.correct, (input, caller) => service.correct(input, forCall(caller))),
+      bindActionHandler(surfaceCompositionActions.correct, (input, caller) => service.correct(input, forCall(caller, input.slot.kind))),
     ],
   };
 }

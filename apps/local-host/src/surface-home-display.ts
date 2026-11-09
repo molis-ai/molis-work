@@ -5,12 +5,13 @@ import type { SurfaceDescription, SurfaceGroup, SurfaceItem } from "@molis-ai/mo
 import { isPresentationValuesReader, presentationFormFields } from "@molis-ai/molis-work-plugin-sdk/presentation";
 import { readSurfaceValues } from "@molis-ai/molis-work-service-surfaces";
 import type { HomeDirectoryEntry } from "./surface-home-directory.js";
+import { availableSurfaceReceiver } from "./surface-placement.js";
 import type { withSurfaceSample } from "./surface-read-sample.js";
 
 export type HomeReadSample = Awaited<ReturnType<typeof withSurfaceSample<SurfaceDescription>>>;
 type ReadValues = (view: ActionView, input: PresentationValuesInput, signal: AbortSignal) => Promise<PresentationValues>;
 const key = ({ kind, id }: ActionSubject) => JSON.stringify([kind, id]);
-export const homeReference = (view: ActionView) => ({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id });
+export const homeReference = (view: Pick<ActionView, "capability_id" | "version" | "provider">) => ({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id });
 export const homeChanged = () => new ActionError("actions.provider_changed", "原首页内容已变化，请重新读取");
 
 export function homeOwnsView(entry: HomeDirectoryEntry, view: ActionView) {
@@ -65,6 +66,11 @@ async function displayRows(sample: HomeReadSample, items: readonly SurfaceItem[]
   });
 }
 
+function surfaceActionGroups(sample: HomeReadSample, groups: readonly SurfaceGroup[]) {
+  if (!groups.some(group => group.items.some(item => item.actions.some(action => action.ref === "hand_off"))) || availableSurfaceReceiver(sample)) return groups;
+  return groups.map(group => ({ ...group, items: group.items.map(item => ({ ...item, actions: item.actions.filter(action => action.ref !== "hand_off") })) }));
+}
+
 export async function projectHomeDisplay(sample: HomeReadSample, signal: AbortSignal, invoke: ReadValues): Promise<SurfaceHomeDisplay> {
   const { description, catalog } = sample;
   const ids = new Set(description.groups.flatMap(group => [...(group.owner_plugin_id ? [group.owner_plugin_id] : []),
@@ -72,7 +78,7 @@ export async function projectHomeDisplay(sample: HomeReadSample, signal: AbortSi
   const owners = Object.fromEntries(catalog.entries.filter(entry => ids.has(entry.plugin.plugin_id))
     .map(entry => [entry.plugin.plugin_id, entry.display]));
   const rows = await displayRows(sample, description.groups.flatMap(group => group.items), signal, invoke);
-  return { ...description, display: { owners, rows } };
+  return { ...description, groups: [...surfaceActionGroups(sample, description.groups)], ...(sample.position ? { position: sample.position } : {}), display: { owners, rows } };
 }
 
 /** Keep private unreadable subjects out of the response, including disabled counts and stale handles. */
@@ -86,7 +92,7 @@ export async function projectPositionDisplay(sample: HomeReadSample, groups: rea
     .flatMap(item => [item.owner_plugin_id, ...item.merged?.map(merge => merge.owner_plugin_id) ?? []])));
   const owners = Object.fromEntries(sample.catalog.entries.filter(entry => ids.has(entry.plugin.plugin_id))
     .map(entry => [entry.plugin.plugin_id, entry.display]));
-  return { ...sample.description, groups: shown.map(group => ({ ...group, items: group.items.filter(item => available.has(key(item.subject))) })),
+  return { ...sample.description, ...(sample.position ? { position: sample.position } : {}), groups: surfaceActionGroups(sample, shown).map(group => ({ ...group, items: group.items.filter(item => available.has(key(item.subject))) })),
     display: { owners, rows } };
 }
 

@@ -6,6 +6,7 @@ import { assertStageInstallation, installedStagePath } from "./installed-stage-i
 import { homeChanged, homeReference, ownerReader, type HomeReadSample } from "./surface-home-display.js";
 import type { HomeDirectoryEntry } from "./surface-home-directory.js";
 import type { pluginRouteControl } from "./plugin-route-control.js";
+import { isPlacementKind } from "./surface-placement.js";
 
 type Target = NonNullable<SurfacePluginCard["open"]> | Extract<NonNullable<SurfacePluginCard["start"]>[number], { kind: "form" }>;
 type ObjectNavigation = { id: string; title: string; surface: string };
@@ -22,9 +23,13 @@ export function stageNavigation(entry: HomeDirectoryEntry, target: Target, prefi
 
 /** A click can only name an object and the exact release shown on the page; never a reader, provider, surface or URL. */
 export function homeObjectClick(target: Record<string, unknown>, owner: string, sample: HomeReadSample, groups: readonly SurfaceGroup[] = sample.description.groups) {
-  if (target.kind !== "object" && target.kind !== "open_result" && target.kind !== "peek") return undefined;
+  const kind = target.kind;
+  const placement = isPlacementKind(kind);
+  if (!placement && kind !== "object" && kind !== "open_result" && kind !== "peek") return undefined;
+  const revision = typeof target.revision === "string" ? target.revision : undefined;
   const subject = target.subject;
-  if (Object.keys(target).length !== 3 || !isRecord(subject) || Object.keys(subject).length !== 2
+  if (Object.keys(target).length !== (placement ? 4 : 3) || placement && (!revision || revision.length > 200)
+    || !placement && Object.hasOwn(target, "revision") || !isRecord(subject) || Object.keys(subject).length !== 2
     || typeof subject.id !== "string" || !subject.id.length || subject.id.length > 1000
     || typeof subject.kind !== "string" || !subject.kind.length || subject.kind.length > 200) throw new ActionError("actions.input_invalid", "首页对象无效");
   const entry = sample.catalog.entries.find(entry => entry.plugin.plugin_id === owner && entry.record.state === "running"
@@ -33,9 +38,9 @@ export function homeObjectClick(target: Record<string, unknown>, owner: string, 
   const selected: ActionSubject = { kind: subject.kind, id: subject.id };
   const item = groups.flatMap(group => group.items).find(item => item.owner_plugin_id === owner
     && item.subject.kind === selected.kind && item.subject.id === selected.id && (item.state === "ok" || item.state === "stale")
-    && item.actions.some(action => action.ref === (target.kind === "peek" ? "peek" : "open")));
+    && item.actions.some(action => action.ref === (placement || kind === "peek" ? kind : "open")));
   if (target.kind !== "open_result" && !item) throw homeChanged();
-  return { kind: target.kind, entry, subject: selected, item };
+  return { kind, entry, subject: selected, item, revision };
 }
 
 export function assertHomeDisplayReader(sample: HomeReadSample, entry: HomeDirectoryEntry, item: SurfaceItem) {

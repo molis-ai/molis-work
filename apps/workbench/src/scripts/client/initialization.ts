@@ -107,6 +107,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       offers: positionOffers,
       projectKey: state.project?.project_id || "",
       translate: L,
+      receipt: showToast, changed: () => positionChanged(),
       offerApi: (path, method, body, signal) => molisWorkRequest(route(path), { method, body, signal }),
     });
     const positionChanged = () => {
@@ -126,9 +127,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     if (state.project) {
       projectPositions = globalThis.molisWorkHomeView?.createPositionViews({
         navigationFrom: source => tabWorkspace?.positionNavigationFrom(source) ?? (() => false),
-        offerApi: (path, method, body, signal) => molisWorkRequest(route(path), { method, body, signal }),
-        projectKey: state.project.project_id, translate: L, offers: positionOffers,
-        changed: positionChanged,
+        translate: L, changed: positionChanged, receipt: showToast,
       });
       document.addEventListener("molis-work:plugins-changed", () => projectPositions?.invalidate());
       window.addEventListener("molis:assistant-effect", () => projectPositions?.invalidate());

@@ -1,57 +1,59 @@
-import type { SurfaceHomeDisplay, SurfaceHomeRowDisplay } from "../surface-home-display.js";
-import { homeButton, homeWord, renderHomePeek, renderPositionGroup, type HomeControl } from "./project-home-render.js";
+import type { SurfaceHomeDisplay } from "../surface-home-display.js";
+import { homeButton, isPlacementControl, renderPositionGroup, type HomeControl } from "./project-home-render.js";
 import { reconcileSurfaceRows } from "./project-home.js";
 import { mountDiscussionObjects } from "./project-position-discussion.js";
+import { createPositionPeek } from "./project-position-peek.js";
+import { createPositionCorrections } from "./project-position-corrections.js";
+import { positionMenuKey } from "./project-position-menu.js";
 
 export type PositionView = {
-  paint(data: SurfaceHomeDisplay, index?: number): void; clear(): void; destroy(): void; expanded(): boolean;
+  paint(data: SurfaceHomeDisplay, index?: number): void; clear(): void; destroy(): void; expanded(): boolean; suspend(): void;
+  recovery(): ReturnType<ReturnType<typeof createPositionCorrections>["recovery"]>; update(): Promise<void>;
 };
-type PositionOptions = { source(): Record<string, unknown>; group?: number; batched?: boolean; onNavigate?(): void };
-export type PositionMount = (root: HTMLElement, read: Read, options: PositionOptions) => PositionView;
-type Read = <Result>(body: Record<string, unknown>, signal: AbortSignal) => Promise<Result>;
-type Offers = (options: {
-  root: HTMLElement; current: () => { subject: SurfaceHomeRowDisplay["subject"] } | null;
-  api: (path: string, method: string, body: unknown) => Promise<unknown>; projectKey: string;
-  translate: PositionHost["translate"]; refresh: () => Promise<void>; confirm: true;
-}) => { refresh(): void; clear(): void };
+type PositionOptions = { source(): Record<string, unknown>; group?: number; batched?: boolean; defaults?: boolean; headerOnly?: boolean; onNavigate?(): void };
+export type ReadPosition = <Result>(body: Record<string, unknown>, signal: AbortSignal) => Promise<Result>;
+export type PositionMount = (root: HTMLElement, read: ReadPosition, options: PositionOptions) => PositionView;
 export interface PositionHost {
   navigationFrom(source: HTMLElement): (result: unknown) => boolean;
-  offerApi(path: string, method: string, body: unknown, signal: AbortSignal): Promise<unknown>;
-  offers: Offers;
   translate(text: string, values?: Record<string, string | number>): string;
-  projectKey: string;
   changed(): void;
+  receipt(message: string): void;
 }
-type ClickResult = { kind: "peek"; row: SurfaceHomeRowDisplay } | { kind: "stage" };
 
 export function createPositionViews(host: PositionHost) {
   const visible = (root: HTMLElement) => root.isConnected && !root.ownerDocument.hidden && !root.closest("[hidden]")
     && (!root.ownerDocument.defaultView?.frameElement || !root.ownerDocument.defaultView.frameElement.closest("[hidden]"));
   const mounts = new Set<ReturnType<typeof mount>>();
   let discussionObjects: ReturnType<typeof mountDiscussionObjects> | undefined;
-  function mount(root: HTMLElement, read: Read, options: PositionOptions) {
+  function mount(root: HTMLElement, read: ReadPosition, options: PositionOptions) {
     const { source, group = 0 } = options, doc = root.ownerDocument;
     const markup = new WeakMap<Element, string>(), controls = new Map<string, HomeControl>();
     let reading: AbortController | undefined, clicking: AbortController | undefined, data: SurfaceHomeDisplay | undefined;
     let expanded = false, dirty = true, destroyed = false;
-    let details: HTMLDialogElement | undefined, selected: SurfaceHomeRowDisplay | null = null, returnTo: HTMLElement | null = null;
-    let offers: ReturnType<Offers> | undefined, inspect: AbortController | undefined;
+    const peek = createPositionPeek(root, read, host, { source, expanded: () => expanded, visible: () => visible(root),
+      displayed: () => data, lookup: key => controls.get(key), navigate: open });
+    const corrections = createPositionCorrections(root, { defaults: options.defaults, headerOnly: options.headerOnly, translate: host.translate,
+      send: (correct, signal) => read({ ...source(), correct, ...(expanded ? { expanded: true } : {}) }, signal), changed: host.changed, note: host.receipt });
+    const suspend = () => { peek.scrub(); corrections.suspend(); };
     const paint = (value: SurfaceHomeDisplay, index = group) => {
+      suspend();
       data = value; controls.clear();
-      const { html, overflow } = renderPositionGroup(value, index, controls);
+      const { html, overflow } = renderPositionGroup(value, index, controls, undefined, corrections.rendering(value));
       reconcileSurfaceRows(root, html + (overflow ? homeButton("expand", host.translate("另有 {count} 件", { count: overflow })) : ""), markup);
+      corrections.afterPaint();
+      void peek.refresh();
     };
-    const close = () => { offers?.clear(); selected = null; inspect?.abort(); if (details?.open) details.close(); };
     const clear = () => {
       reading?.abort(); clicking?.abort(); reading = clicking = undefined;
-      close(); controls.clear(); data = undefined; root.replaceChildren(); dirty = true;
+      controls.clear(); data = undefined; corrections.clear(); root.replaceChildren(); dirty = true; peek.close();
     };
     const update = async (force = true) => {
       if (destroyed || !visible(root) || (!force && (!dirty || reading))) return;
-      reading?.abort();
+      reading?.abort(); suspend();
       const task = reading = new AbortController();
       try {
-        const value = await read<SurfaceHomeDisplay>({ ...source(), ...(expanded ? { expanded: true } : {}) }, task.signal);
+        const recovery = corrections.recovery();
+        const value = await read<SurfaceHomeDisplay>({ ...source(), ...(expanded ? { expanded: true } : {}), ...(recovery ? { recovery } : {}) }, task.signal);
         if (task.signal.aborted || reading !== task || !visible(root)) return;
         const expand = root.querySelector<HTMLElement>('[data-home-control="expand"]');
         const following = expand === doc.activeElement ? root.querySelectorAll("[data-home-row]").length : -1;
@@ -62,41 +64,14 @@ export function createPositionViews(host: PositionHost) {
         clear();
       } finally { if (reading === task) reading = undefined; }
     };
-    const showPeek = (row: SurfaceHomeRowDisplay, focus: HTMLElement) => {
-      if (!data) return;
-      if (!details) {
-        const dialog = details = doc.createElement("dialog");
-        dialog.className = "mw-dialog home-peek"; dialog.setAttribute("aria-label", homeWord("open"));
-        dialog.innerHTML = '<div class="mw-dialog__shell">' + homeButton("close", host.translate("关闭")) + '<div data-position-peek></div><div data-home-offers></div></div>';
-        doc.body.append(dialog);
-        dialog.addEventListener("close", () => { close(); if (returnTo?.isConnected) returnTo.focus({ preventScroll: true }); returnTo = null; });
-        dialog.addEventListener("click", event => {
-          if ((event.target as Element)?.closest('[data-home-control="close"]')) { close(); return; }
-          const button = (event.target as Element)?.closest<HTMLElement>("[data-presentation-action]");
-          if (button) void activate(button.dataset.presentationAction ?? "", button);
-        });
-        offers = host.offers({ root: dialog, current: () => selected, projectKey: host.projectKey, translate: host.translate, confirm: true,
-          api: (path, method, body) => inspect ? host.offerApi(path, method, body, inspect.signal) : Promise.reject(new DOMException("View closed", "AbortError")),
-          async refresh() { await update(); host.changed(); } });
-      }
-      selected = row; inspect?.abort(); inspect = new AbortController(); returnTo = focus;
-      details.querySelector("[data-position-peek]")!.innerHTML = renderHomePeek(data, row, controls);
-      if (!details.open) details.showModal();
-      details.querySelector<HTMLElement>("button")?.focus();
-      offers?.refresh();
-    };
-    async function activate(key: string, focus: HTMLElement) {
+    async function open(click: HomeControl, focus: HTMLElement) {
       if (clicking || !visible(root)) return;
-      if (key === "expand") { expanded = true; await update(); return; }
-      const click = controls.get(key);
-      if (!click) return;
       const task = clicking = new AbortController(), navigate = host.navigationFrom(root);
       focus.setAttribute("aria-busy", "true");
       try {
-        const result = await read<ClickResult>({ ...source(), click, ...(expanded ? { expanded: true } : {}) }, task.signal);
+        const result = await read({ ...source(), click, ...(expanded ? { expanded: true } : {}) }, task.signal);
         if (task.signal.aborted || clicking !== task || !visible(root)) return;
-        if (result.kind === "peek") showPeek(result.row, focus);
-        else if (navigate(result)) { close(); options.onNavigate?.(); }
+        if (navigate(result)) { peek.close(false); options.onNavigate?.(); }
       } catch {
         if (!task.signal.aborted && clicking === task) await update();
       } finally { focus.removeAttribute("aria-busy"); if (clicking === task) clicking = undefined; }
@@ -105,16 +80,23 @@ export function createPositionViews(host: PositionHost) {
       const hit = (event.target as Element)?.closest<HTMLElement>("[data-home-control],[data-presentation-action],.mw-presentation__row-title[aria-haspopup]");
       if (!hit || !root.contains(hit)) return;
       const key = hit.dataset.homeControl ?? hit.dataset.presentationAction ?? hit.closest<HTMLElement>("[data-home-row-peek]")?.dataset.homeRowPeek;
-      if (key) { hit.closest("details")?.removeAttribute("open"); void activate(key, hit); }
+      if (!key) return;
+      if (corrections.handle(key, hit, event)) return;
+      hit.closest("details")?.removeAttribute("open");
+      if (key === "expand") { expanded = true; void update(); return; }
+      const click = controls.get(key);
+      if (click && (click.target.kind === "peek" || isPlacementControl(click.target.kind))) peek.open(key, hit);
+      else if (click) void open(click, hit);
     };
     const keydown = (event: KeyboardEvent) => {
+      positionMenuKey(event);
       if ((event.key === "Enter" || event.key === " ") && (event.target as Element)?.matches(".mw-presentation__row-title[aria-haspopup]")) {
         event.preventDefault(); onClick(event);
       }
     };
     root.addEventListener("click", onClick); root.addEventListener("keydown", keydown);
-    const entry = { paint, update, clear, expanded: () => expanded, invalidate() { dirty = true; if (visible(root)) void update(); else clear(); },
-      destroy() { destroyed = true; clear(); details?.remove(); root.removeEventListener("click", onClick); root.removeEventListener("keydown", keydown); mounts.delete(entry); } };
+    const entry = { paint, update, clear, recovery: corrections.recovery, expanded: () => expanded, suspend, invalidate() { dirty = true; if (visible(root)) void update(); else clear(); },
+      destroy() { destroyed = true; clear(); peek.destroy(); root.removeEventListener("click", onClick); root.removeEventListener("keydown", keydown); mounts.delete(entry); } };
     if (!options.batched) mounts.add(entry);
     return entry;
   }

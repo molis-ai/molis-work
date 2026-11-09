@@ -8,15 +8,15 @@ export const ASSISTANT_NOTICES_PART = String.raw`  /* ─── What deserves th
   noticePop?.append(el("p", "assistant-popover-title", L("等你处理")), objectList, noticeList);
   const attentionRead = (body, signal) => host.positionRead("/api/host/surface-attention", body, signal);
   const attentionObjects = noticePop && host.positions?.mount(objectList, attentionRead, { source: () => ({}), onNavigate: () => setNotices(false) });
-  let attentionObjectsCount = 0, badgeRead = null, badgeAt = null;
+  let attentionObjectsCount = 0, canRestoreAttention = false, badgeRead = null, badgeAt = null;
   const readBadge = (cursor) => {
     if (!attentionObjects || document.hidden || cursor !== undefined && cursor === badgeAt) return;
     badgeAt = cursor; badgeRead?.abort();
     const pending = badgeRead = new AbortController();
     attentionRead({ count: true }, pending.signal).then(result => {
-      if (!pending.signal.aborted && pending === badgeRead) { attentionObjectsCount = result.count; paintAttention(); }
+      if (!pending.signal.aborted && pending === badgeRead) { attentionObjectsCount = result.count; canRestoreAttention = result.can_restore === true; paintAttention(); }
     }, () => {
-      if (!pending.signal.aborted && pending === badgeRead) { badgeAt = null; attentionObjectsCount = 0; paintAttention(); }
+      if (!pending.signal.aborted && pending === badgeRead) { badgeAt = null; attentionObjectsCount = 0; canRestoreAttention = false; paintAttention(); }
     });
   };
   let notices = [];
@@ -108,9 +108,9 @@ export const ASSISTANT_NOTICES_PART = String.raw`  /* ─── What deserves th
     if (noticeBtn) {
       if (urgent > lastUrgent) { noticeBtn.removeAttribute("data-bump"); void noticeBtn.offsetWidth; noticeBtn.setAttribute("data-bump", ""); }
       lastUrgent = urgent;
-      noticeBtn.hidden = !urgent;
+      noticeBtn.hidden = !urgent && !canRestoreAttention;
       if (attentionCount) attentionCount.textContent = urgent ? L("等你") + " " + urgent : "";
-      noticeBtn.setAttribute("aria-label", L("等你处理") + " · " + urgent);
+      noticeBtn.setAttribute("aria-label", L("等你处理") + (urgent ? " · " + urgent : ""));
     }
     unreadWorks = new Set(open.filter((notice) => notice.work_id && !URGENT.has(notice.kind)).map((notice) => notice.work_id));
     urgentWorks = new Set(open.filter((notice) => notice.work_id && URGENT.has(notice.kind)).map((notice) => notice.work_id));
@@ -124,7 +124,11 @@ export const ASSISTANT_NOTICES_PART = String.raw`  /* ─── What deserves th
     if (open) {
       paintNotices(true); noticePop.querySelector("button")?.focus();
       void attentionObjects?.update().then(() => {
-        if (!noticePop.hidden && document.activeElement === noticeBtn) objectList.querySelector("button,[tabindex]")?.focus();
+        if (!noticePop.hidden && document.activeElement === noticeBtn) {
+          const first = [...objectList.querySelectorAll("[data-home-row] [tabindex], [data-home-row] button, .surface-correction-default summary")]
+            .find(node => node.closest("[data-home-row]") && node.checkVisibility() && !node.disabled);
+          (first || objectList.querySelector(".surface-correction-default summary"))?.focus();
+        }
       });
     }
     else attentionObjects?.clear();

@@ -140,7 +140,7 @@ function renderLocaleSwitch(nextPath: string): string {
 function catalogJson(locale: WebLocale): string {
   const messages = Object.fromEntries(Object.entries(pluginMessages.messages()).map(([key, text]) => [key, text[locale]]));
   const home = Object.fromEntries(Object.entries(pluginTextPack("workbench", locale)?.messages ?? {}).filter(([key]) =>
-    key.startsWith("common.presentation.") || key.startsWith("workbench.home.") || key === "common.text.unavailable"));
+    key.startsWith("common.presentation.") || key.startsWith("workbench.home.") || key.startsWith("workbench.surfaces.") || key === "common.text.unavailable"));
   return JSON.stringify({ ...(locale === "en" ? EN : {}), ...messages, ...home }).replaceAll("<", "\\u003c");
 }
 

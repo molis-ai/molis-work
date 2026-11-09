@@ -14,6 +14,7 @@ import {
 import { inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
 import { CONTEXT_RELATION_TYPES } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import { createContextLedger, type ContextLedgerDatabase } from "@molis-ai/molis-work-module-context-ledger";
+import type { PlacedObject } from "@molis-ai/molis-work-contracts/services/placement";
 import { PlacementService, PLACEMENT_LEDGER_ACCESS, placementRelationsFor } from "@molis-ai/molis-work-service-placement";
 import { pagesManifest } from "@molis-ai/molis-work-plugin-pages";
 import { pptManifest, buildPptx, slidesFromMarkdown } from "@molis-ai/molis-work-plugin-ppt";
@@ -107,6 +108,7 @@ function fixture(projects = ["personal", "q4", "interview"], hooks?: {
   homeCatalog?: boolean;
   /** Once the lease throws, opening a partition throws too, as the Host's call ports do. Undo uses `revert`, which does not. */
   deadLease?: boolean;
+  surfaceSource?: PlacedObject;
 }) {
   const actions = new ActionService();
   const notes = new Map<string, Note>();
@@ -148,14 +150,14 @@ function fixture(projects = ["personal", "q4", "interview"], hooks?: {
     return { client, caller };
   };
   const service = new PlacementService({
-    ledger,
+    ledger, surfaceSource: hooks?.surfaceSource,
     beforeEffect: async () => { try { await hooks?.beforeEffect?.(); } catch (error) { dead = true; throw error; } },
     spaces: async () => projects.filter(id => !removed.has(id)).map(id => ({ project_id: id, title: id === "personal" ? "个人空间" : id === "q4" ? "Q4 新版发布" : "客户访谈计划", kind: id === "personal" ? "personal" as const : "project" as const })),
     scope: async projectId => { if (hooks?.deadLease && dead) throw new Error("这一轮被取消"); return open(projectId); },
     ...(hooks?.deadLease ? { revert: (projectId: string | null) => open(projectId) } : {}),
     titles: { get: (kind, id) => titles.get(kind + ":" + id) ?? null, set: (kind, id, title) => { titles.set(kind + ":" + id, title); } },
   });
-  return { actions, notes, service, ledger, removeProject: (id: string) => removed.add(id), deleteClip: (id: string) => { clips = new Map([...clips].filter(([key]) => key !== id)); } };
+  return { actions, notes, service, ledger, titles, removeProject: (id: string) => removed.add(id), deleteClip: (id: string) => { clips = new Map([...clips].filter(([key]) => key !== id)); } };
 }
 
 test("placement protocol: shipped plugins declare move and copy for the person only", () => {
@@ -169,6 +171,18 @@ test("placement protocol: shipped plugins declare move and copy for the person o
   assert.match(inspectActionDeclarations([{ ...mover, action: { ...mover.action, audiences: ["user", "agent"] } }], undefined).join(), /放置协议/);
   // Copies stay in partitions; only a mover may be Home-scoped (for plugins that keep their objects at Home).
   assert.match(inspectActionDeclarations([{ ...copier, action: { ...copier.action, scope: "home" } }], undefined).join(), /放置协议/);
+});
+
+test("IUI-08: preparing a Home object for placement records neither its title nor its belonging", async () => {
+  const clip = { kind: "clip", id: "clip-1", project_id: null };
+  const protectedRead = fixture(undefined, { surfaceSource: clip });
+  assert.equal((await protectedRead.service.describe(clip)).state, "ok");
+  assert.equal(protectedRead.titles.size, 0);
+  assert.equal(protectedRead.ledger.query.get(PLACEMENT_LEDGER_ACCESS, JSON.stringify(["belongs_to", clip.kind, clip.id])), null);
+  const normal = fixture();
+  assert.equal((await normal.service.describe(clip)).state, "ok");
+  assert.equal(normal.titles.get("clip:clip-1"), "竞品定价表");
+  assert.ok(normal.ledger.query.get(PLACEMENT_LEDGER_ACCESS, JSON.stringify(["belongs_to", clip.kind, clip.id])));
 });
 
 test("describe says where an object is and who can see it; deleted and unreadable stay different", async () => {

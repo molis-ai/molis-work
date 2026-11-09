@@ -1,22 +1,24 @@
 import { randomUUID } from "node:crypto";
-import { ActionError, actionEffect, bindActionClient, requireSynchronous, type ActionReference, type ActionSubject, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient, requireSynchronous, type ActionSubject, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { SurfaceItem, SurfaceItemAction } from "@molis-ai/molis-work-contracts/services/surface-composition";
 import type { PresentationValues, PresentationValuesInput } from "@molis-ai/molis-work-contracts/platform/presentation";
-import { compileActionSchema, subjectOfferChoices, type SubjectOfferChoiceView } from "@molis-ai/molis-work-kernel";
+import { compileActionSchema } from "@molis-ai/molis-work-kernel";
 import { canonicalJsonText } from "@molis-ai/molis-work-plugin-sdk";
 import { presentationFormFields, presentationValuesProblems } from "@molis-ai/molis-work-plugin-sdk/presentation";
 import type { SurfaceHomeDisplay, SurfaceHomeRowDisplay } from "@molis-ai/molis-work-app-workbench";
-import { confirmSubjectOffer, prepareSubjectOffers, sameReference, type PreparedSubjectOffer } from "./contextual/contextual-service.js";
 import { displayedRoute, homeChanged, homeOwnsView, homeReference as reference, surfaceRow, type HomeReadSample } from "./surface-home-display.js";
 import { openHomeObject } from "./surface-home-open.js";
 import type { SurfaceProjectContext } from "./surface-project-read.js";
+import { offerConsequences, surfaceOfferOperation, surfaceOfferSources, type HeldSurfaceOffer } from "./surface-offer-operation.js";
+import { bindSurfacePlacement, isPlacementKind, prepareSurfacePlacement, type SurfacePlacementTarget } from "./surface-placement.js";
+import type { PositionChoice } from "./surface-position-offers.js";
 
 type Route = NonNullable<ReturnType<typeof displayedRoute>>;
-type Choice = { source: ActionView; action: ActionView; choice: SubjectOfferChoiceView };
 type Intent = { label: string; primary: boolean; warning?: SurfaceItemAction["consequence"] }
   & ({ kind: "open" | "peek" } | { kind: "action"; action: ActionView; mapping: Readonly<Record<string, string>> }
-    | { kind: "offers"; choices: readonly Choice[] }
-    | { kind: "offer"; selected: Choice; offer: PreparedSubjectOffer; request: string });
+    | { kind: "offers"; choices: ReturnType<typeof surfaceOfferSources> }
+    | { kind: "offer"; held: HeldSurfaceOffer } | { kind: "placement"; bound: SurfacePlacementTarget }
+    | { kind: "placement-choice"; choice: PositionChoice });
 type Target = { route: Route; item: SurfaceItem; fields: readonly string[]; revision: string; key: string } & Intent;
 
 export interface RetainedSlotControls {
@@ -24,19 +26,12 @@ export interface RetainedSlotControls {
   readonly catalog: HomeReadSample["catalog"];
   assertCurrent(): void;
 }
-export type SlotPreparation = { target: Target; request: string; input: unknown; offer?: PreparedSubjectOffer };
+export type SlotPreparation = { target: Target; input: unknown };
 const key = (subject: ActionSubject) => JSON.stringify([subject.kind, subject.id]);
-const safeRead = (view: ActionView) => view.operation === "query" && view.action.external !== true
-  && view.action.execution?.cost !== "metered" && !view.action.permissions.includes("model:invoke")
-  && (view.action.effect === undefined || view.action.effect === "read");
-const consequences = (view: ActionView): SurfaceItemAction["consequence"] => [
-  ...(view.action.external ? ["external" as const] : []),
-  ...(view.action.execution?.cost === "metered" ? ["cost" as const] : []),
-  ...(actionEffect(view.action, view.capability_id) === "irreversible" ? ["irreversible" as const] : []),
-];
 
 /** Keep only the exact controls, associated readers and their original tokens, with no HTTP request or old result values. */
-export function captureSurfaceSlot(display: SurfaceHomeDisplay, sample: HomeReadSample): RetainedSlotControls {
+export function captureSurfaceSlot(display: SurfaceHomeDisplay, sample: HomeReadSample, project: string,
+  metadata: SurfaceProjectContext["metadata"]): RetainedSlotControls {
   const controls = new Map<string, Target>();
   const rows = new Map(display.display.rows.map(row => [key(row.subject), row]));
   for (const item of display.groups.flatMap(group => group.items)) {
@@ -47,12 +42,7 @@ export function captureSurfaceSlot(display: SurfaceHomeDisplay, sample: HomeRead
       const token = randomUUID();
       controls.set(token, { ...target, key: token, route, item, revision, fields: row.declaration.fields.map(field => field.key) });
     };
-    const viewFor = (ref: ActionReference) => sample.directory.find(view => view.availability.available && sameReference(ref, reference(view)));
-    const offers = row.read.state === "ok" ? subjectOfferChoices(sample.directory, item.subject.kind).flatMap(choice => {
-      const source = viewFor(choice.source), action = viewFor(choice.action);
-      return choice.availability.available && source && action && safeRead(source) && homeOwnsView(route.entry, source) && homeOwnsView(route.entry, action)
-        ? [{ choice, source, action }] : [];
-    }) : [];
+    const offers = row.read.state === "ok" ? surfaceOfferSources(sample.directory, item.subject.kind, view => homeOwnsView(route.entry, view)) : [];
     if (offers.length) {
       sample.retain(offers.flatMap(({ source, action }) => [source, action]));
       capture({ kind: "offers", choices: offers, label: "更多操作", primary: false });
@@ -62,7 +52,13 @@ export function captureSurfaceSlot(display: SurfaceHomeDisplay, sample: HomeRead
         capture({ kind: operation.ref, label: operation.ref === "open" ? "打开" : "速览", primary: operation.primary });
         continue;
       }
-      if (row.read.state !== "ok" || !operation.provider_id) continue;
+      if (row.read.state !== "ok") continue;
+      if (isPlacementKind(operation.ref)) {
+        const bound = bindSurfacePlacement(sample, route, item, operation.ref, revision, project, metadata);
+        if (bound) capture({ kind: "placement", bound, label: operation.ref === "place" ? "用于项目" : "交给", primary: false });
+        continue;
+      }
+      if (!operation.provider_id) continue;
       const view = [...sample.views].find(view => view.availability.available && `${view.capability_id}@${view.version}` === operation.ref
         && view.provider.provider_id === operation.provider_id);
       if (!view || offers.some(offer => offer.action === view)) continue;
@@ -76,7 +72,7 @@ export function captureSurfaceSlot(display: SurfaceHomeDisplay, sample: HomeRead
 }
 
 export function surfaceSlotLabels(binding: RetainedSlotControls) {
-  return [...binding.controls.values()].filter(target => target.kind !== "offer").map(slotLabel);
+  return [...binding.controls.values()].filter(target => target.kind !== "offer" && target.kind !== "placement-choice").map(slotLabel);
 }
 const slotLabel = ({ key, item, kind, label, primary, warning }: Target) =>
   ({ key, subject: item.subject, owner: item.owner_plugin_id, kind, label, primary, ...(warning?.length ? { consequence: warning } : {}) });
@@ -87,6 +83,7 @@ export function slotOperation(context: SurfaceProjectContext, binding: RetainedS
     assertRender(); requireSynchronous(transport.assert_authority_current?.()); binding.assertCurrent();
   };
   const control = { ...transport, assert_authority_current: current, async beforeEffect() { await transport.beforeEffect(); current(); } };
+  const offers = surfaceOfferOperation(context, current);
   const readonly = bindActionClient(client, () => ({ ...caller, query_only: true, read_only_effects: true }));
   const values = async ({ route, item }: Target, fields: readonly string[]) => {
     current();
@@ -105,32 +102,15 @@ export function slotOperation(context: SurfaceProjectContext, binding: RetainedS
     if (compileActionSchema(target.action.action.input_schema)(input) !== true) throw homeChanged();
     return input;
   };
-  const offerDirectory = (source: ActionView, actions: readonly ActionView[]) => ({
-    async discover() { current(); return [source, ...new Set(actions)]; },
-    invoke(ref: ActionReference, input: unknown) {
-      current();
-      if (!sameReference(ref, reference(source))) throw homeChanged();
-      return readonly.invoke({ ...source, ...reference(source) }, input, control);
-    },
-  });
   async function offerChoices(target: Extract<Target, { kind: "offers" }>) {
-    const value = await values(target, target.fields);
-    if (value.state !== "ok" || value.revision !== target.revision) throw homeChanged();
-    const request = randomUUID(), choices = new Map<ActionView, Choice[]>();
-    for (const choice of target.choices) choices.set(choice.source, [...choices.get(choice.source) ?? [], choice]);
-    const prepared: Target[] = [];
-    for (const [source, declarations] of choices) {
-      const result = await prepareSubjectOffers(offerDirectory(source, declarations.map(choice => choice.action)),
-        { subject: target.item.subject, request_id: request }, reference(source));
-      for (const offer of result.offers) {
-        const selected = declarations.find(({ action, choice }) => choice.offer_id === offer.offer_id && sameReference(offer.action, reference(action)));
-        if (selected && offer.availability.available) prepared.push({ route: target.route, item: target.item, fields: target.fields, revision: target.revision,
-          key: randomUUID(), kind: "offer", offer, selected, request, label: offer.title, primary: false, warning: consequences(selected.action) });
-      }
-    }
-    current();
-    for (const [key, previous] of binding.controls) if (previous.kind === "offer") binding.controls.delete(key);
-    for (const offer of prepared) binding.controls.set(offer.key, offer);
+    const { item, route, revision, fields } = target;
+    const prepared: Target[] = (await offers.prepare({ subject: item.subject, values: route.action, fields, revision }, target.choices)).map(held =>
+      ({ route, item, fields, revision, key: held.key, kind: "offer", held, label: held.offer.title, primary: false, warning: offerConsequences(held.choice.action) }));
+    return selectChoices(prepared);
+  }
+  function selectChoices(prepared: readonly Target[]) {
+    for (const [key, previous] of binding.controls) if (previous.kind === "offer" || previous.kind === "placement-choice") binding.controls.delete(key);
+    for (const target of prepared) binding.controls.set(target.key, target);
     return prepared.map(slotLabel);
   }
   async function execute(view: ActionView, input: unknown) {
@@ -161,24 +141,28 @@ export function slotOperation(context: SurfaceProjectContext, binding: RetainedS
         return { result: { kind: "peek", row, owner: route.entry.display } };
       }
       if (target.kind === "offers") return { choices: await offerChoices(target) };
+      if (target.kind === "placement") {
+        const prepared = await prepareSurfacePlacement(context, target.bound, current);
+        const choices = selectChoices(prepared.choices.map(choice => ({ ...target, key: choice.key, kind: "placement-choice",
+          label: choice.label, warning: choice.consequence, choice })));
+        return { choices, description: prepared.description };
+      }
+      if (target.kind === "placement-choice") {
+        binding.controls.delete(target.key);
+        return { preparation: { target, input: undefined } satisfies SlotPreparation };
+      }
       if (target.kind === "offer") {
-        const value = await values(target, target.fields);
-        if (value.state !== "ok" || value.revision !== target.revision) throw homeChanged();
-        return { preparation: { target, request: target.request, input: target.offer.input, offer: target.offer } satisfies SlotPreparation };
+        await offers.version(target.held.target);
+        return { preparation: { target, input: target.held.offer.input } satisfies SlotPreparation };
       }
       if (target.kind !== "action") throw homeChanged();
       const input = await prepareInput(target);
-      return target.action.operation === "command" ? { preparation: { target, request: randomUUID(), input } satisfies SlotPreparation }
+      return target.action.operation === "command" ? { preparation: { target, input } satisfies SlotPreparation }
         : { result: await execute(target.action, input) };
     },
-    async confirm({ target, request, input, offer }: SlotPreparation) {
-      if (target.kind === "offer" && offer) {
-        const value = await values(target, target.fields);
-        if (value.state !== "ok" || value.revision !== target.revision) throw homeChanged();
-        const { source, action } = target.selected;
-        const proof = await confirmSubjectOffer(offerDirectory(source, [action]), { subject: target.item.subject, request_id: request, offer });
-        return execute(action, proof.input);
-      }
+    async confirm({ target, input }: SlotPreparation) {
+      if (target.kind === "placement-choice") return target.choice.confirm(context, current);
+      if (target.kind === "offer") return offers.confirm(target.held);
       if (target.kind !== "action" || target.action.operation !== "command") throw homeChanged();
       const checked = await prepareInput(target);
       if (canonicalJsonText(checked) !== canonicalJsonText(input)) throw homeChanged();

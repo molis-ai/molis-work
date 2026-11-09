@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
+import { mkdir, writeFile } from "node:fs/promises";
 import test from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openWork, sendBrowser, waitWork } from "./fixtures/assistant-send-journey.js";
+import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 import type { AssistantSendResult } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { SurfaceHomeDisplay } from "@molis-ai/molis-work-app-workbench";
 
@@ -57,13 +59,49 @@ test("IUI-03 IUI-07 IUI-08 IUI-13: the original Inbox and 等你 display current
     await b.click('[data-slot-test-control]');
   };
   const stored = () => feed.getFeedItem(projectId, material.item_id);
+  const activations: string[] = [];
+  await b.command("Network.enable", {}, b.sessionId);
+  t.after(b.on("Network.requestWillBeSent", params => {
+    const request = params.request as { url: string; postData?: string };
+    if (request.url.endsWith("/api/contextual/surface-slot") && request.postData) {
+      const body = JSON.parse(request.postData) as { intent: string };
+      if (body.intent === "activate" || body.intent === "confirm") activations.push(body.intent);
+    }
+  }));
+  const frames = () => b.evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true))))");
+  const blocked = async (reason: string, click: () => Promise<unknown>) => {
+    const before = activations.length;
+    await click(); await frames();
+    assert.equal(activations.length, before, reason + " does not send an activation");
+    assert.equal(stored().revision, material.revision, reason + " cannot write the original item");
+  };
   await choose("更多操作");
   await b.waitFor(`!!${action("保存为资料")}`);
   assert.equal(await b.evaluate(`!!${action("加入 Inbox")}`), false);
   await show("保存为资料");
-  await b.evaluate(`${action("保存为资料")}.click()`);
+  await blocked("a scripted click", () => b.evaluate(`${action("保存为资料")}.click()`));
   assert.equal(await b.evaluate(`!!document.querySelector(${quoted(area + ' [data-framed-control="confirm"]')})`), false);
-  assert.equal(stored().revision, material.revision);
+
+  await b.waitFor(`!document.querySelector(${quoted(area)}).parentElement.hasAttribute('data-unready')`);
+  assert.equal(await b.evaluate(`(() => { const head = document.querySelector(${quoted(area + ' [data-framed-area-head]')}).getBoundingClientRect();
+    const x = head.left + head.width / 2, y = head.top + head.height / 2, cover = document.createElement('div');
+    cover.id = 'slot-test-cover'; cover.style.cssText = 'position:fixed;z-index:2147483647;width:12px;height:8px;left:' + (x - 6) + 'px;top:' + (y - 4) + 'px;';
+    document.body.append(cover);
+    const control = document.querySelector('[data-slot-test-control]'), box = control.getBoundingClientRect();
+    return document.elementFromPoint(x, y) === cover && control.contains(document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2)); })()`), true,
+  "only the area's header is covered; the actual button can still receive a trusted press");
+  await blocked("a trusted press with a covered header", () => b.click("[data-slot-test-control]"));
+  await b.evaluate("document.getElementById('slot-test-cover').remove()");
+
+  const held = await b.evaluate<{ x: number; y: number }>(`(() => { const box = document.querySelector('[data-slot-test-control]').getBoundingClientRect();
+    return { x: box.left + box.width / 2, y: box.top + box.height / 2 }; })()`);
+  await blocked("a press whose render is replaced before release", async () => {
+    await b.command("Input.dispatchMouseEvent", { type: "mousePressed", button: "left", clickCount: 1, ...held }, b.sessionId);
+    await b.evaluate("document.dispatchEvent(new CustomEvent('molis-work:plugins-changed'))");
+    await b.waitFor(`!${action("保存为资料")} && !!${action("更多操作")}`);
+    await b.command("Input.dispatchMouseEvent", { type: "mouseReleased", button: "left", clickCount: 1, ...held }, b.sessionId);
+  });
+  await choose("更多操作");
   await choose("保存为资料");
   await b.waitFor(visible(area + ' [data-framed-control="confirm"]'));
   await b.click(area + ' [data-framed-control="cancel"]');
@@ -77,11 +115,12 @@ test("IUI-03 IUI-07 IUI-08 IUI-13: the original Inbox and 等你 display current
   assert.equal(stored().revision, material.revision + 1);
 });
 
-test("IUI-03 IUI-21 IUI-26: the real discussion composer picks a Goal, sends only a reference, and keeps it when quoted", { timeout: 90_000 }, async t => {
+test("IUI-03 IUI-06 IUI-21 IUI-26: discussion picks and quotes a Goal and applies its form preference to both actual references", { timeout: 90_000 }, async t => {
   const b = await openGoalBrowser(t, "seeded", undefined, null);
   if (!b) return;
   const prefix = "/projects/" + b.projectId, title = "Searchable discussion object";
   await b.setViewport(1440, 900);
+  await b.command("Network.setCookie", { name: "molis_work_locale", value: "zh", url: b.origin }, b.sessionId);
   await b.navigate(() => b.command("Page.navigate", { url: b.origin + prefix + "/" }, b.sessionId));
   const { goal } = await b.web.post<{ goal: { goal_id: string } }>(prefix + "/api/plugins/io.molis.work.goals/goals", { title, outcome: "Same object's actual outcome", idempotency_key: randomUUID() });
   await b.waitFor(visible('[data-side-tabs] [data-side-tab][aria-selected=true]'));
@@ -122,7 +161,43 @@ test("IUI-03 IUI-21 IUI-26: the real discussion composer picks a Goal, sends onl
   await b.waitFor(`${query('#im-group-input')}?.matches(':focus') && !${query('[data-quote="group"]')}.hidden`);
   await b.command("Input.insertText", { text: "Discuss this reference" }, b.sessionId);
   await imClick(composer + ' [type="submit"]');
-  await b.waitFor(`${query('[data-im-object-part="quote"] [data-home-subject-id="' + goal.goal_id + '"]')}?.innerText.includes(${quoted(title)})`, 15_000);
+  const quotedObject = '[data-im-object-part="quote"] [data-home-subject-id="' + goal.goal_id + '"]';
+  await b.waitFor(`${query(quotedObject)}?.innerText.includes(${quoted(title)})`, 15_000);
+  const menu = quotedObject + " .mw-presentation__more summary", chip = quotedObject + " .mw-presentation--chip";
+  const choose = async (label: string) => {
+    await b.evaluate(`${query(menu)}.scrollIntoView({block: "center"})`);
+    await imClick(menu);
+    const options = quotedObject + ' [role="menuitem"]';
+    await b.evaluate(`[...${doc}.querySelectorAll(${quoted(options)})].find(item => item.textContent.trim() === ${quoted(label)}).dataset.testPreference = ""`);
+    await imClick("[data-test-preference]");
+  };
+  const quoteId = await b.evaluate<string>(`${query(quotedObject)}.closest('[data-message]').dataset.message`);
+  const reveal = (id: string) => b.evaluate(`${query('[data-message="' + id + '"]')}.scrollIntoView({block: "center"})`);
+  await choose("改成名字片");
+  await b.waitFor(`!!${query(chip)}`);
+  await reveal(message);
+  await b.waitFor(`!!${query(card + " .mw-presentation--chip")}`);
+  await reveal(quoteId);
+  await b.waitFor(`!!${query(chip)}`);
+  const decisions = new Map<string, { body: unknown; status?: number }>();
+  await b.command("Network.enable", {}, b.sessionId);
+  t.after(b.on("Network.requestWillBeSent", params => {
+    const request = params.request as { url: string; postData?: string };
+    if (/\/im\/api\/rooms\/[^/]+\/surfaces$/u.test(new URL(request.url).pathname) && request.postData)
+      decisions.set(String(params.requestId), { body: JSON.parse(request.postData) });
+  }));
+  t.after(b.on("Network.responseReceived", params => {
+    const request = decisions.get(String(params.requestId));
+    if (request) request.status = (params.response as { status: number }).status;
+  }));
+  await choose("恢复默认显示");
+  try { await b.waitFor(`!!${query(quotedObject + " .mw-presentation--card")}`, 4000); }
+  catch (cause) {
+    const state = await b.evaluate(`({ focus: ${doc}.activeElement?.outerHTML.slice(0, 200), row: ${query(quotedObject)}?.innerText, toast: document.querySelector('[data-toast]').textContent })`);
+    throw new Error(JSON.stringify({ decisions: [...decisions.values()], state }), { cause });
+  }
+  await reveal(message);
+  await b.waitFor(`!!${query(card + " .mw-presentation--card")}`);
 });
 
 test("IUI-21: changing an actual owner's displayed values replaces the Home row and preserves its logical focus", { timeout: 70_000 }, async t => {
@@ -168,6 +243,8 @@ test("IUI-03 SSC-14: an actual Assistant material is composed from its owner whi
   const id = sent.work.work_id;
   const work = await waitWork(b, id, view => view.work.state === "completed");
   assert.deepEqual(work.rounds.flatMap(round => round.materials.flatMap(material => material.object ? [{ kind: material.object.kind, id: material.object.id }] : [])), [object]);
+  const saved = await b.web.post<{ work: { draft: string } }>(prefix + "/api/assistant/works/" + id + "/draft", { draft: "A draft stays on the original work" });
+  assert.equal(saved.work.draft, "A draft stays on the original work");
   const display = await b.web.post<SurfaceHomeDisplay>(prefix + "/api/assistant/works/" + id + "/surfaces", {});
   assert.ok(display.groups.some(group => group.items.some(item => item.subject.id === goal.goal_id && item.form === "chip")));
   const responses: number[] = [];
@@ -191,4 +268,268 @@ test("IUI-03 SSC-14: an actual Assistant material is composed from its owner whi
   assert.ok(await b.evaluate(`[...document.querySelectorAll('.assistant-attachments')].every(node => !node.innerText.includes("A draft label"))`));
   await b.click(chip + ' [data-presentation-action$=":open"]');
   await b.waitFor(`[...document.querySelectorAll('[data-tab-id]')].some(tab => tab.dataset.itemId === ${quoted(goal.goal_id)})`);
+});
+
+test("IUI-07 IUI-08: the original offers execute Inbox done and dismiss with the owner revision and receipt", { timeout: 75_000 }, async t => {
+  const b = await openGoalBrowser(t, "seeded", undefined, null);
+  if (!b) return;
+  const { projectId, store } = b;
+  assert.ok(projectId);
+  const feed = createLocalFeedApplication(store.db), sources = createLocalFeedSourceService(store.db, projectId);
+  const source = sources.register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "inbox-owner-offer" }).source;
+  const outcomes = [{ status: "done", label: "做完了" }, { status: "dismissed", label: "忽略" }] as const;
+  const cases = outcomes.map(({ status, label }) => {
+    const { item } = feed.ingestItem({ source, externalId: status, title: "Inbox original offer " + status,
+      summary: "This is the original owner's item", occurredAt: new Date().toISOString(), attention: false });
+    return { status, label, entry: feed.ensureInboxEntryForFeedItem(projectId, item.item_id, "manual").entry };
+  });
+  const prefix = "/projects/" + projectId, path = prefix + "/api/home/actions/";
+  const inbox = await pluginFrameBrowser(t, b, "inbox");
+  await b.setViewport(1440, 900);
+  await b.command("Network.setCookie", { name: "molis_work_locale", value: "zh", url: b.origin }, b.sessionId);
+  await b.navigate(() => b.command("Page.navigate", { url: b.origin + prefix + "/" }, b.sessionId));
+  await b.waitFor('typeof molisWorkRequest === "function"');
+  const post = <Result>(operation: "prepare" | "execute", body: unknown) =>
+    b.evaluate<Result>(`molisWorkRequest(${quoted(path + operation)}, { method: "POST", body: ${JSON.stringify(body)} })`);
+  for (const { status, label, entry } of cases) {
+    const subject = { kind: "inbox_entry", id: entry.entry_id }, request_id = randomUUID();
+    const prepared = await post<{ offers: { title: string; availability: { available: boolean }; input: unknown }[] }>("prepare", { subject, request_id });
+    const selected = prepared.offers.find(offer => offer.title === label);
+    assert.ok(selected?.availability.available);
+    const { availability: _availability, ...offer } = selected;
+    assert.deepEqual(offer.input, { entry_id: entry.entry_id, status, expected_revision: entry.revision });
+    assert.equal(feed.getInboxEntry(projectId, entry.entry_id).revision, entry.revision, "preparing the original offer does not write");
+    const answer = await post<{ title: string; result: { entry: { status: string; revision: number } } }>("execute", { subject, request_id, offer });
+    assert.equal(answer.title, label);
+    assert.deepEqual([answer.result.entry.status, answer.result.entry.revision], [status, entry.revision + 1]);
+    assert.deepEqual([feed.getInboxEntry(projectId, entry.entry_id).status, feed.getInboxEntry(projectId, entry.entry_id).revision], [status, entry.revision + 1]);
+  }
+  await b.click('[data-plugin-strip] [data-plugin-id="inbox"]');
+  for (const { status, entry } of cases) {
+    await inbox.waitFor(`document.querySelector(${quoted('[data-inbox-row][data-inbox-entry-id="' + entry.entry_id + '"][data-inbox-status="' + status + '"]')})?.dataset.inboxEntryRevision === "${entry.revision + 1}"`);
+  }
+});
+
+test("IUI-06 IUI-21 IUI-26: the real attention popover, correction menu and quick look at twelve settings", { timeout: 180_000 }, async t => {
+  const b = await openGoalBrowser(t, "seeded", undefined, null);
+  if (!b) return;
+  const { projectId, store } = b;
+  assert.ok(projectId);
+  const feed = createLocalFeedApplication(store.db), sources = createLocalFeedSourceService(store.db, projectId);
+  const source = sources.register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "attention-matrix" }).source;
+  const title = "A long source title for the original attention item · " + "Owner values remain readable at narrow widths. ".repeat(3);
+  const { item } = feed.ingestItem({ source, externalId: "attention-matrix", title, summary: "Read this at its source",
+    occurredAt: new Date().toISOString(), attention: false });
+  feed.ensureInboxEntryForFeedItem(projectId, item.item_id, "manual");
+  const panel = "[data-assistant-notices]", button = "[data-assistant-attention]";
+  const itemSelector = panel + ' [data-home-subject-id="' + item.item_id + '"]', row = itemSelector + " .mw-presentation__row-title";
+  const peek = "dialog:has([data-position-peek])", close = peek + ' [data-home-control="close"]';
+  const dom = (selector: string) => `document.querySelector(${quoted(selector)})`;
+  const key = async (name: string, code: number) => {
+    await b.command("Input.dispatchKeyEvent", { type: "keyDown", key: name, code: name, windowsVirtualKeyCode: code, ...(name === "Enter" ? { text: "\r" } : {}) }, b.sessionId);
+    await b.command("Input.dispatchKeyEvent", { type: "keyUp", key: name, code: name, windowsVirtualKeyCode: code }, b.sessionId);
+  };
+  const shots = reviewEvidenceUrl("surface-cross-consumers/");
+  await mkdir(shots, { recursive: true });
+  for (const width of [1440, 1024, 390]) for (const lang of ["zh", "en"]) for (const theme of ["light", "dark"]) {
+    const setting = `${width}/${lang}/${theme}`;
+    await b.setViewport(width, 900, width === 390);
+    await b.command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: theme }] }, b.sessionId);
+    await b.command("Network.setCookie", { name: "molis_work_locale", value: lang, url: b.origin }, b.sessionId);
+    await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/projects/" + projectId + "/" }, b.sessionId));
+    await b.waitFor(visible(button), 15_000);
+    await b.click(button);
+    await b.waitFor(visible(row), 12_000);
+    const shown = await b.evaluate<{ title: string; heading: string; status: string; overflow: boolean; theme: string }>(`(() => {
+      const panel = ${dom(panel)}, row = ${dom(row)};
+      return { title: row.textContent.trim(), heading: panel.querySelector('.assistant-popover-title').textContent,
+        status: ${dom(itemSelector)}.querySelector('.mw-status')?.textContent || '',
+        overflow: panel.scrollWidth > panel.clientWidth + 1, theme: document.documentElement.dataset.resolvedTheme }; })()`);
+    assert.equal(shown.title, title.trim(), setting);
+    assert.equal(shown.heading, lang === "zh" ? "等你处理" : "Waiting for you", setting);
+    assert.match(shown.status, lang === "zh" ? /未读/u : /Unread/u, setting);
+    assert.equal(shown.theme, theme, setting);
+    assert.equal(shown.overflow, false, setting);
+    if (width === 1440 && lang === "zh" && theme === "light") {
+      await b.waitFor(`document.activeElement === ${dom(row)}`);
+      await key("Enter", 13);
+      await b.waitFor(`${dom(peek)}?.open && document.activeElement === ${dom(close)}`);
+      await key("Tab", 9);
+      assert.equal(await b.evaluate(`document.activeElement.closest(${quoted(peek)})?.open`), true);
+      await key("Escape", 27);
+      await b.waitFor(`!${dom(peek)}?.open && document.activeElement === ${dom(row)}`);
+    }
+    if (width === 1440 && lang === "zh" && theme === "light" || width === 390 && lang === "en" && theme === "dark") {
+      if (width === 390) {
+        await b.click(row); await b.waitFor(`${dom(peek)}?.open`);
+        assert.equal(await b.evaluate(`Math.abs(${dom(peek)}.getBoundingClientRect().bottom - innerHeight) < 1`), true, "phone quick look opens as a bottom sheet");
+      }
+      const shot = await b.command<{ data: string }>("Page.captureScreenshot", { format: "png", captureBeyondViewport: false }, b.sessionId);
+      await writeFile(new URL(`attention-${width}-${lang}-${theme}.png`, shots), Buffer.from(shot.data, "base64"));
+      if (width === 390) await b.click(close);
+    }
+    const menu = itemSelector + " .mw-presentation__more summary", opened = itemSelector + " .mw-presentation__more[open]";
+    await b.click(menu);
+    await b.waitFor(visible(opened));
+    const label = lang === "zh" ? "从这里移走" : "Remove from here";
+    const options = await b.evaluate<string[]>(`[...${dom(opened)}.querySelectorAll('[role="menuitem"]')].map(item => item.textContent.trim())`);
+    assert.ok(options.includes(label), setting + " shows the original remove control in the chosen language");
+    assert.ok(options.every(word => !/固定|改成|Pin|Show as/u.test(word)), setting);
+    assert.equal(await b.evaluate(`(() => { const box = ${dom(opened)}.querySelector('[role="menu"]').getBoundingClientRect(); return box.left >= 0 && box.right <= innerWidth + 1; })()`), true, setting + " menu fits");
+    if (width === 1440 && lang === "zh" && theme === "light" || width === 390 && lang === "en" && theme === "dark") {
+      const shot = await b.command<{ data: string }>("Page.captureScreenshot", { format: "png", captureBeyondViewport: false }, b.sessionId);
+      await writeFile(new URL(`iui06-menu-${width}-${lang}-${theme}.png`, shots), Buffer.from(shot.data, "base64"));
+    }
+    await b.evaluate(`[...${dom(opened)}.querySelectorAll('[role="menuitem"]')].find(item => item.textContent.trim() === ${quoted(label)}).dataset.testMatrixRemove = ""`);
+    await b.click("[data-test-matrix-remove]");
+    const restore = panel + ' [data-presentation-action="surface-correction:restore"]';
+    await b.waitFor(`${visible(restore)} && !${dom(itemSelector)}`);
+    assert.equal(await b.evaluate(`${dom(panel)}.textContent.includes(${quoted(title.trim())})`), false, setting + " restoration does not expose a hidden title");
+    assert.match(await b.evaluate<string>(`${dom(restore)}.textContent`), lang === "zh" ? /恢复默认显示/u : /Restore default display/u, setting);
+    await b.click(restore);
+    await b.waitFor(visible(row));
+  }
+});
+
+test("IUI-07 IUI-08 IUI-10: an Attention peek clears old content on close and a successful empty refresh, and confirms at its own endpoint", { timeout: 90_000 }, async t => {
+  const b = await openGoalBrowser(t, "seeded", undefined, null);
+  if (!b) return;
+  const { projectId, store } = b;
+  assert.ok(projectId);
+  const prefix = "/projects/" + projectId, feed = createLocalFeedApplication(store.db), sources = createLocalFeedSourceService(store.db, projectId);
+  const source = sources.register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "protected-peek" }).source;
+  const samples = ["Filter a live original after refresh", "Actually confirm an original offer"].map((title, index) => {
+    const { item } = feed.ingestItem({ source, externalId: "peek-" + index, title, summary: "Only the current owner projection",
+      occurredAt: new Date().toISOString(), attention: false });
+    return { item, entry: feed.ensureInboxEntryForFeedItem(projectId, item.item_id, "manual").entry };
+  });
+  const attention = "[data-assistant-attention]", panel = "[data-assistant-notices]";
+  const dialog = "dialog:has([data-position-peek])", close = dialog + ' [data-home-control="close"]';
+  const q = (selector: string) => `document.querySelector(${quoted(selector)})`;
+  const scrubbed = `!${q(dialog)}?.open && ${q("[data-position-peek]")}.childElementCount === 0 && ${q("[data-position-offers]")}.childElementCount === 0`;
+  const endpoint = prefix + "/api/host/surface-attention", requests = new Map<string, { endpoint: string; mode?: string; status: number }>();
+  const errors: string[] = [];
+  await b.setViewport(1440, 900);
+  await b.command("Network.setCookie", { name: "molis_work_locale", value: "zh", url: b.origin }, b.sessionId);
+  await b.command("Network.enable", {}, b.sessionId);
+  await b.command("Runtime.enable", {}, b.sessionId);
+  t.after(b.on("Runtime.exceptionThrown", params => {
+    const detail = params.exceptionDetails as { text?: string; exception?: { description?: string } };
+    errors.push(detail.exception?.description?.slice(0, 450) ?? detail.text ?? "uncaught exception");
+  }));
+  t.after(b.on("Network.requestWillBeSent", params => {
+    const request = params.request as { url: string; postData?: string };
+    const path = new URL(request.url).pathname;
+    if (path !== endpoint && !path.includes("/api/home/actions/")) return;
+    const body = request.postData ? JSON.parse(request.postData) : undefined;
+    requests.set(String(params.requestId), { endpoint: path, mode: body?.offer?.intent ?? (body?.click ? "peek" : "read"), status: 0 });
+  }));
+  t.after(b.on("Network.responseReceived", params => {
+    const found = requests.get(String(params.requestId));
+    if (found) found.status = (params.response as { status: number }).status;
+  }));
+  await b.navigate(() => b.command("Page.navigate", { url: b.origin + prefix + "/" }, b.sessionId));
+  const itemSelector = (id: string) => panel + ' [data-home-subject-id="' + id + '"]';
+  const peek = async (index: number) => {
+    if (!await b.evaluate(visible(panel))) await b.click(attention);
+    const { item } = samples[index]!;
+    const row = itemSelector(item.item_id) + " .mw-presentation__row-title";
+    await b.waitFor(visible(row)); await b.click(row);
+    await b.waitFor(`${q(dialog)}?.open && ${q("[data-position-peek]")}?.textContent.includes(${quoted(item.title)})
+      && !!${q("[data-position-offer]")}`);
+  };
+  await peek(0);
+  await b.click(close);
+  await b.waitFor(scrubbed);
+  await peek(0);
+  const beforeRefresh = requests.size, gone = samples[0]!.item;
+  feed.setDisposition(projectId, gone.item_id, "saved", gone.revision);
+  const immediately = await b.evaluate(`(() => { document.dispatchEvent(new CustomEvent("molis-work:plugins-changed"));
+    return [${q("[data-position-peek]")}.childElementCount, ${q("[data-position-offers]")}.childElementCount]; })()`);
+  assert.deepEqual(immediately, [0, 0], "the in-flight list refresh already removed old details and actions");
+  await b.waitFor(`${scrubbed} && !${q(itemSelector(gone.item_id))}`);
+  assert.ok([...requests.values()].slice(beforeRefresh).some(item => item.endpoint === endpoint && item.mode === "read" && item.status === 200),
+    "the source response succeeded with the former object filtered out");
+
+  await peek(1);
+  const choose = `[...document.querySelectorAll("[data-position-offer]")].find(button => button.textContent.trim() === "保存为资料")`;
+  await b.evaluate(`${choose}.setAttribute('data-tested-position-save', '')`);
+  await b.click("[data-tested-position-save]");
+  const { item, entry } = samples[1]!;
+  assert.equal(feed.getFeedItem(projectId, item.item_id).revision, item.revision);
+  const confirm = dialog + ' [data-position-offer="confirm"]';
+  try { await b.waitFor(visible(confirm), 3_000); }
+  catch (cause) {
+    const state = await b.evaluate(`({ open: ${q(dialog)}?.open, panel: ${q(panel)}?.hidden,
+      choices: ${q("[data-position-offers]")}?.innerText, active: document.activeElement?.outerHTML.slice(0, 220) })`);
+    throw new Error(JSON.stringify({ state, errors, requests: [...requests.values()].slice(-15) }), { cause });
+  }
+  await b.click(confirm);
+  await b.waitFor(`document.querySelector('[data-toast]').textContent.includes('已完成') && ${scrubbed} && !${q(itemSelector(item.item_id))}`);
+  assert.equal(feed.getFeedItem(projectId, item.item_id).revision, item.revision + 1);
+  assert.deepEqual([feed.getInboxEntry(projectId, entry.entry_id).status, feed.getInboxEntry(projectId, entry.entry_id).revision], ["done", entry.revision + 1]);
+  assert.ok([...requests.values()].every(item => item.endpoint === endpoint));
+  assert.equal([...requests.values()].filter(item => item.mode === "confirm" && item.status === 200).length, 1);
+});
+
+test("IUI-06: the original Attention more menu explains, removes and restores a known readable object", { timeout: 90_000 }, async t => {
+  const b = await openGoalBrowser(t, "seeded", undefined, null);
+  if (!b) return;
+  const { projectId, store } = b;
+  assert.ok(projectId);
+  const feed = createLocalFeedApplication(store.db), sources = createLocalFeedSourceService(store.db, projectId);
+  const source = sources.register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "attention-corrections" }).source;
+  const title = "Return to the original attention object";
+  const { item } = feed.ingestItem({ source, externalId: "attention-corrections", title, summary: "Still available in Feed",
+    occurredAt: new Date().toISOString(), attention: false });
+  const original = feed.ensureInboxEntryForFeedItem(projectId, item.item_id, "manual").entry;
+  const panel = "[data-assistant-notices]", bell = "[data-assistant-attention]", endpoint = "/projects/" + projectId + "/api/host/surface-attention";
+  const row = panel + ' [data-home-subject-id="' + item.item_id + '"]', menu = row + " .mw-presentation__more summary";
+  const reason = panel + " [data-surface-correction-reason]", recovery = panel + ' [data-presentation-action="surface-correction:restore"]';
+  const defaults = panel + " .surface-correction-default summary", reset = panel + ' [data-presentation-action="surface-correction:restore-position"]';
+  const confirm = 'dialog[open] [data-position-reset="confirm"]', cancel = 'dialog[open] [data-position-reset="cancel"]';
+  const q = (selector: string) => `document.querySelector(${quoted(selector)})`;
+  const focus = (selector: string) => `${q(selector)} && document.activeElement === ${q(selector)}`;
+  const press = async (key: string, code: number) => {
+    await b.command("Input.dispatchKeyEvent", { type: "keyDown", key, code: key, windowsVirtualKeyCode: code, ...(key === "Enter" ? { text: "\r" } : {}) }, b.sessionId);
+    await b.command("Input.dispatchKeyEvent", { type: "keyUp", key, code: key, windowsVirtualKeyCode: code }, b.sessionId);
+  };
+  const read = () => b.evaluate<SurfaceHomeDisplay>(`molisWorkRequest(${quoted(endpoint)}, { method: "POST", body: {} })`);
+  await b.setViewport(1440, 900);
+  await b.command("Network.setCookie", { name: "molis_work_locale", value: "zh", url: b.origin }, b.sessionId);
+  await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/projects/" + projectId + "/" }, b.sessionId));
+  await b.waitFor(visible(bell));
+  await b.click(bell); await b.waitFor(visible(menu));
+  assert.match(await b.evaluate<string>(`${q(reason)}.textContent`), /等你处理/u);
+  assert.ok(await b.evaluate(`!!${q(reason + " p")}?.textContent.trim()`), "the actual composition supplies its reason");
+  const revision = (await read()).corrections_revision;
+  await b.click(menu); await press("End", 35);
+  const active = await b.evaluate<{ text: string; options: string[] }>(`({ text: document.activeElement.textContent.trim(),
+    options: [...document.querySelectorAll(${quoted(row + ' [role="menuitem"]')})].map(button => button.textContent.trim()) })`);
+  assert.equal(active.text, "从这里移走");
+  assert.ok(active.options.includes("从这里移走"));
+  assert.ok(active.options.every(label => !/固定|改成/u.test(label)), "Attention does not claim to support those preferences");
+  await press("Escape", 27); await b.waitFor(focus(menu));
+  await b.click(menu); await press("End", 35); await press("Enter", 13);
+  try { await b.waitFor(`${focus(recovery)} && !${q(row)}`, 4000); }
+  catch (cause) {
+    const after = await read(), state = await b.evaluate(`({ open: ${q(panel)}?.hidden === false,
+      recovery: ${q(recovery)}?.outerHTML, focus: document.activeElement?.outerHTML.slice(0, 200), toast: ${q("[data-toast]")}?.textContent })`);
+    throw new Error(JSON.stringify({ before: revision, after: after.corrections_revision, state }), { cause });
+  }
+  assert.doesNotMatch(await b.evaluate<string>(`${q(panel)}.textContent`), new RegExp(title, "u"));
+  const removed = (await read()).corrections_revision;
+  assert.notEqual(removed, revision);
+  assert.deepEqual([feed.getInboxEntry(projectId, original.entry_id).status, feed.getInboxEntry(projectId, original.entry_id).revision], ["open", original.revision]);
+  await b.click(defaults); await b.click(reset); await b.waitFor(visible(confirm));
+  await b.click(cancel);
+  assert.equal((await read()).corrections_revision, removed, "cancelling the position restore does not write");
+  await b.click(recovery);
+  await b.waitFor(`${visible(row)} && !${q(recovery)}`);
+  const restored = (await read()).corrections_revision;
+  assert.notEqual(restored, removed);
+  await b.click(defaults); await b.click(reset); await b.click(confirm);
+  await b.waitFor(`${focus(defaults)} && !${q(confirm)}`);
+  assert.notEqual((await read()).corrections_revision, restored);
+  assert.equal(feed.getFeedItem(projectId, item.item_id).revision, item.revision);
 });

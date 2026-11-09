@@ -9,7 +9,7 @@ import { CONTEXT_LEDGER_SCHEMA, createContextLedger } from "@molis-ai/molis-work
 import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase, type SqliteBaseline, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 import { isPersonalSpace, PERSONAL_SPACE_PROJECT_ID } from "./personal-space.js";
 import { L } from "./web-locale.js";
-import { placementCallPorts } from "./placement-call.js";
+import { surfacePlacementCallPorts } from "./placement-surface-call.js";
 
 
 /** The one catalog record a partition needs to be opened. */
@@ -80,7 +80,7 @@ export function createPlacementHost(ports: PlacementHostPorts): PlacementHost {
   };
   let closed = false;
   const service = new PlacementService(servicePorts);
-  const forCall = (caller: Parameters<ActionHandlerBinding["handle"]>[0]) => new PlacementService(placementCallPorts(servicePorts, caller, () => !closed));
+  const forCall = (caller: Parameters<ActionHandlerBinding["handle"]>[0]) => new PlacementService(surfacePlacementCallPorts(servicePorts, caller, () => !closed));
   const handlers: ActionHandlerBinding[] = [
     { ...placementActions.describe, handle: (caller, input) => forCall(caller).describe((input as { object: PlacedObject }).object) },
     { ...placementActions.spaces, handle: async (caller) => ({ spaces: await forCall(caller).spaces() }) },

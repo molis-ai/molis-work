@@ -41,10 +41,9 @@ const revisionFor = (data: unknown) => createHash("sha256").update(canonicalJson
 const CACHE_LIMIT = 64;
 const reasonKeys = { home: "home", attention: "attention", conversation: "conversation", discussion: "discussion", "plugin-slot": "plugin-slot" } as const;
 
-function compositionReason(read: ComposeRead, simpler: boolean): SurfaceDescription["reason"] {
+function compositionReason(read: ComposeRead, simpler: boolean, adjusted: boolean): SurfaceDescription["reason"] {
   const position = reasonKeys[read.request.slot.kind as keyof typeof reasonKeys];
   if (!position || !read.position.forms.length) return undefined;
-  const adjusted = read.corrections.corrections.length > 0;
   return { owner: "workbench", key: "workbench.surfaces.reason." + (simpler ? adjusted ? "adjusted-simpler" : "simpler" : adjusted ? "adjusted" : position) };
 }
 
@@ -73,6 +72,7 @@ export class SurfaceCompositionService {
         requireSynchronous(catalogCurrent?.());
       };
       const position = positionFor(request.slot, plugins);
+      ports.keepPosition?.(position.forms, request.slot.kind !== "attention");
       const delivered = deliveredSubjects(request);
       current();
       if (!deadline.active) throw surfaceErrors.compose_failed("暂时读不到动作目录");
@@ -92,7 +92,7 @@ export class SurfaceCompositionService {
       const read = { request, ports, position, plugins, views, delivered, corrections, deadline, current, retain };
       const result = home ? await composeHome(read, home) : await composeGroup(read);
       current();
-      const reason = compositionReason(read, result.simpler);
+      const reason = compositionReason(read, result.simpler, result.adjusted);
       const { actor_id, project_id, audience, plugin_install_id, calling_plugin_id } = ports.caller;
       const subjects = !home && request.slot.kind !== "attention" ? request.subjects : undefined;
       const revision = revisionFor([[actor_id, project_id, audience, plugin_install_id, calling_plugin_id], request.slot, request.expanded,
@@ -146,14 +146,18 @@ async function composeGroup(read: ComposeRead) {
     ...(overflow ? { overflow: { count: overflow } } : {}), ...(excluded ? { excluded } : {}) };
   if (request.slot.kind === "discussion" && read.ports.discussion) {
     const { views, keep } = read.ports.discussion;
-    keep(views.map(({ subjects, expanded }): SurfaceGroup => {
+    const reasons: Array<SurfaceDescription["reason"]> = [];
+    const groups = views.map(({ subjects, expanded }): SurfaceGroup => {
       const rows = objects.forDiscussion(subjects);
       const selected = expanded ? rows : rows.slice(0, position.max);
       const remaining = rows.length - selected.length;
       retainDisplayedOperations(read, selected);
+      reasons.push(compositionReason(read, selected.some(row => row.simpler), selected.some(row => row.adjusted)));
       return { kind: "slot", ...groupState(selected, !deadline.active), items: selected.map(row => row.item),
         ...(remaining ? { overflow: { count: remaining } } : {}) };
-    }));
+    });
+    keep(groups, reasons);
   }
-  return { groups: [group], simpler: shown.some(row => row.simpler), facts: { ...facts, operations: retainDisplayedOperations(read, shown) } };
+  return { groups: [group], simpler: shown.some(row => row.simpler), adjusted: shown.some(row => row.adjusted),
+    facts: { ...facts, operations: retainDisplayedOperations(read, shown) } };
 }

@@ -10,10 +10,13 @@ export function mountDiscussionObjects(frame: HTMLIFrameElement,
   type Part = "message" | "quote" | "share";
   const entries = new Map<HTMLElement, { part: Part; id: string; root: HTMLElement; view: PositionView; read: boolean }[]>();
   let room = "", stream: HTMLElement | null = null, frameId = 0, task: AbortController | undefined;
+  type Defaults = { root: HTMLElement; view: PositionView; source?: { id: string; part: Part } };
+  let defaults: Defaults | undefined;
   const path = (id: string) => "/im/api/rooms/" + encodeURIComponent(id) + "/surfaces";
   const clear = () => {
     task?.abort(); cancelAnimationFrame(frameId); frameId = 0;
     for (const parts of entries.values()) for (const entry of parts) { entry.view.destroy(); entry.root.remove(); }
+    defaults?.view.destroy(); defaults?.root.remove(); defaults = undefined;
     entries.clear(); stream = null;
   };
   const inViewport = (row: HTMLElement) => {
@@ -43,7 +46,7 @@ export function mountDiscussionObjects(frame: HTMLIFrameElement,
           const at = room;
           const view = mount(root, ({ expanded, ...input }, signal) => api(path(at),
             { ...input, views: [{ message_id: id, part, ...(expanded ? { expanded: true } : {}) }] }, signal),
-            { source: () => ({}), batched: true });
+            { source: () => ({}), batched: true, defaults: false });
           parts.push({ part, id, root, view, read: false });
         }
         entries.set(row, parts);
@@ -60,10 +63,31 @@ export function mountDiscussionObjects(frame: HTMLIFrameElement,
           const data = await api<SurfaceHomeDisplay>(path(at), { views: batch.map(({ entry: { id, part, view } }) =>
             ({ message_id: id, part, ...(view.expanded() ? { expanded: true } : {}) })) }, request.signal);
           if (task !== request || request.signal.aborted || at !== room) return;
-          batch.forEach(({ row, entry }, index) => { if (visible(entry.root) && inViewport(row)) { entry.view.paint(data, index); entry.read = true; } });
+          if (offset === 0 && stream) {
+            const original = batch[0]!.entry;
+            if (!defaults) {
+              const root = stream.ownerDocument.createElement("div");
+              root.className = "discussion-display-defaults";
+              (stream.closest("[data-scroll]") ?? stream).before(root);
+              const entry: Defaults = { root, view: mount(root, (input, signal) => {
+                const source = entry.source;
+                return source ? api(path(at), { ...input, views: [{ message_id: source.id, part: source.part }] }, signal)
+                  : Promise.reject(new DOMException("Message changed", "AbortError"));
+              }, { source: () => ({}), batched: true, headerOnly: true }) };
+              defaults = entry;
+            }
+            defaults.source = original;
+            defaults.view.paint(data, 0);
+          }
+          batch.forEach(({ row, entry }, index) => {
+            if (!visible(entry.root) || !inViewport(row)) return;
+            entry.view.paint(data, index); entry.read = true;
+            if (entry.view.recovery()) void entry.view.update();
+          });
         } catch {
           if (request.signal.aborted || task !== request) return;
           for (const parts of entries.values()) for (const entry of parts) { entry.view.clear(); entry.read = false; }
+          defaults?.view.clear();
           return;
         }
       }
@@ -85,5 +109,13 @@ export function mountDiscussionObjects(frame: HTMLIFrameElement,
     clear,
     translate,
   };
-  return { bridge, clear, invalidate() { for (const parts of entries.values()) parts.forEach(entry => { entry.read = false; }); refresh(); } };
+  return { bridge, clear, invalidate() {
+    defaults?.view.suspend();
+    for (const [row, parts] of entries) for (const entry of parts) {
+      if (inViewport(row)) entry.view.suspend();
+      else entry.view.clear();
+      entry.read = false;
+    }
+    refresh();
+  } };
 }

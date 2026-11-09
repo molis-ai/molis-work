@@ -11,6 +11,7 @@ import type { SandboxEffects } from "@molis-ai/molis-work-contracts/platform/plu
 import type { SurfaceDescription, SurfaceInstallationRef, SurfacePluginCard } from "@molis-ai/molis-work-contracts/services/surface-composition";
 import type { SurfaceHomeDisplay } from "@molis-ai/molis-work-app-workbench";
 import { SqlitePluginPrivateStorage, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
+import { homeSqlitePath } from "@molis-ai/molis-work-storage";
 import { deferred, serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { APPROVED, person, ref } from "./fixtures/home-sandbox.js";
 import { PACKAGE_PLUGIN_ID } from "./fixtures/sandbox-package.js";
@@ -28,7 +29,7 @@ async function body<T>(response: Response, status = 200): Promise<T> {
 
 type Navigation = { kind: "stage"; installation: SurfaceInstallationRef; frame_path: string; shell_key: string; selection: { surface: string; id: string; panel?: string; intent: "open" } };
 
-async function fixture(t: TestContext, scope: "project" | "home", delegated: readonly ActionDefinition[] = [], distinctForms = false) {
+async function fixture(t: TestContext, scope: "project" | "home", delegated: readonly ActionDefinition[] = [], distinctForms = false, objectCard = false) {
   const available = { available: true } as const;
   let hold: { action: string; entered: ReturnType<typeof deferred>; release: ReturnType<typeof deferred> } | undefined;
   const f = await serveHomeRuntime(t, { actionAvailability: (_caller, view) => {
@@ -54,7 +55,7 @@ async function fixture(t: TestContext, scope: "project" | "home", delegated: rea
     await f.host.inspectActions({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: project.project_id, audience: "user", permissions: [] }, project.reference);
   };
   const client = f.host.actionClient(project.reference), caller = person(project.project_id);
-  const bundle: PluginPackageBundle = presentingPackage(scope, delegated, distinctForms ? { editorDialog: true, distinctForms } : {});
+  const bundle: PluginPackageBundle = presentingPackage(scope, delegated, { editorDialog: distinctForms || objectCard, distinctForms, objectCard });
   const install = async () => {
     const preview = await client.invoke(caller, ref(pluginInstallActions.preview), { bundle }) as { preview_id: string; runtime_scope: string };
     assert.equal(preview.runtime_scope, scope);
@@ -291,4 +292,41 @@ test("S-surface-composition SCS-11 a real delegated form opens with its componen
   assert.deepEqual(f.delegatedCalls, [delegated.capability_id]);
   assert.deepEqual(await f.read(page), [{ id: "1", text: "approved once" }]);
   await body(await f.close(page));
+});
+
+test("S-protected-position-commands IUI-08: preparing and cancelling a real signed Home card does not write title or belonging", mac, async t => {
+  const f = await fixture(t, "home", [], false, true);
+  const start = (await f.card()).start?.[0];
+  assert.ok(start);
+  const page = await f.open(await body<Navigation>(await f.click(start)));
+  await body(await f.confirm(page, "Real signed Home note"));
+  await body(await f.close(page));
+  const bootstrap = await f.request(f.prefix + "/", { authorized: false });
+  assert.equal(bootstrap.status, 200);
+  const cookie = bootstrap.headers.getSetCookie().find(value => value.startsWith("molis-work-web-"))?.split(";")[0];
+  const token = /<meta name="molis-work-page-session" content="([^"]+)"/u.exec(await bootstrap.text())?.[1];
+  assert.ok(cookie && token);
+  const post = (suffix: string, value: unknown) => f.request(f.prefix + endpoint + suffix, { authorized: false, method: "POST", body: value,
+    headers: { cookie, "x-molis-work-page-session": token, connection: "close" } });
+  const display = await body<SurfaceHomeDisplay>(await post("", {}));
+  const original = display.display.rows.find(row => row.owner === owner);
+  assert.ok(original?.read.state === "ok" && original.installation.scope === "home");
+  await body(await post("", { correct: { correction: "form", form: "card", subject: original.subject, expected_revision: display.corrections_revision } }));
+  const changed = await body<SurfaceHomeDisplay>(await post("", {})), row = changed.display.rows.find(row => row.owner === owner);
+  assert.equal(changed.groups.find(group => group.owner_plugin_id === owner)?.items[0]?.form, "card");
+  assert.ok(row?.read.state === "ok" && "revision" in row.read);
+  const db = new DatabaseSync(homeSqlitePath(f.home, "placement"), { readOnly: true });
+  t.after(() => db.close());
+  const placement = () => ({ titles: db.prepare("SELECT kind,id,title,seen_at FROM placement_titles").all(),
+    belonging: db.prepare("SELECT edge_key,revision FROM context_edges WHERE relation_type = 'placement.belongs_to'").all() });
+  const initial = placement();
+  assert.deepEqual(initial, { titles: [], belonging: [] });
+  const prepared = await body<{ kind: string; offers: { prepared: string; choices: { key: string }[] } }>(await post("/click", { owner_plugin_id: owner,
+    target: { kind: "place", subject: row.subject, revision: row.read.revision, installation: row.installation } }));
+  assert.equal(prepared.kind, "placement");
+  assert.ok(prepared.offers.choices.length > 0, "the original Home reader reached a real current project choice");
+  assert.deepEqual(placement(), initial);
+  await body(await post("", { offer: { intent: "cancel", prepared: prepared.offers.prepared } }));
+  await body(await post("", { offer: { intent: "confirm", prepared: prepared.offers.prepared, choice: prepared.offers.choices[0]!.key } }), 409);
+  assert.deepEqual(placement(), initial);
 });

@@ -83,6 +83,7 @@ export const PLACEMENT_EN: Record<string, string> = {
   "它仍然放在 {place}，只是和项目建立关联。": "It stays in {place}; the project only gets a link to it.",
   "原来的位置": "its current location",
   "用于项目": "Use in project",
+  "交给": "Hand off",
   "已用于项目「{project}」": "Used in project “{project}”",
   "项目首页的“关联资料”可以打开": "Open it from “Linked materials” on the project home",
   "去项目看看": "Go to the project",

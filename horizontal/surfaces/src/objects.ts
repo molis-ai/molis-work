@@ -38,6 +38,7 @@ interface Projected {
   pin: number;
   projectId: string | null;
   simpler: boolean;
+  adjusted: boolean;
 }
 
 function eligibleSources(read: ComposeRead, sources: readonly ObjectSource[]) {
@@ -150,8 +151,9 @@ function renderCandidate(candidate: Candidate, answer: RuleAnswer | undefined, r
   if (!candidate.requested && !readable) return undefined;
   const base: FormKind = request.slot.kind === "conversation" ? delivered.has(key) ? "card" : "chip"
     : request.slot.kind === "home" ? "row" : position.forms.at(-1)!;
-  const chosenForm = [choices.find(choice => choice.correction === "form")?.form,
-    corrections.corrections.find(choice => choice.correction === "form" && !choice.subject)?.form].find(form => form && position.forms.includes(form)) ?? base;
+  const preference = [choices.find(choice => choice.correction === "form")?.form,
+    corrections.corrections.find(choice => choice.correction === "form" && !choice.subject)?.form].find(form => form && position.forms.includes(form));
+  const chosenForm = preference ?? base;
   const display = formAt(position, chosenForm, readable ? object : undefined);
   const status = object?.status ? value?.values?.[object.status.field] : undefined;
   const ruleStatus = typeof status === "string" ? status : undefined;
@@ -159,11 +161,12 @@ function renderCandidate(candidate: Candidate, answer: RuleAnswer | undefined, r
   const { actions, notices, dependencies } = readable && object && display.fields.length ? operationsFor(object, plugin, display.form, request.slot, ruleStatus, views, ports.diagnostic)
     : { actions: readable || fallbackOpen ? [{ ref: "open", primary: false }] : [], notices: undefined, dependencies: [] };
   const attention = candidate.entries.map(entry => ({ entry, rank: attentionRank(entry, object, ruleStatus) })).sort(compareAttention)[0];
+  const pin = choices.find(choice => choice.correction === "pin")?.position;
   const item: SurfaceItem = { subject, owner_plugin_id: plugin.plugin_id, state, ...display,
     actions: request.slot.kind === "home" && !attention ? actions.map(action => ({ ...action, primary: false })) : actions,
     ...(notices ? { notices } : {}), ...(state === "stale" && value?.read_at ? { read_at: value.read_at } : {}) };
   return { item, ...(readable ? { value } : {}), attention, inOverview: candidate.inOverview, dependencies,
-    pin: choices.find(choice => choice.correction === "pin")?.position ?? PRESENTATION_LIMITS.values_subjects,
+    pin: pin ?? PRESENTATION_LIMITS.values_subjects, adjusted: Boolean(readable && (preference || !attention && pin !== undefined)),
     projectId: candidate.values?.action.scope === "home" ? null : ports.caller.project_id, simpler: Boolean(readable && display.form !== chosenForm) };
 }
 

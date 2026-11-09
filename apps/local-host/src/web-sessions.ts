@@ -101,7 +101,7 @@ export class WebSessions {
     const context = requestSessions.get(request);
     return context?.owner === this && context.session && this.valid(context.session) ? context.session.proof : "";
   }
-  accepts(context: RequestSession, proof: unknown, statusRead = false): boolean {
+  accepts(context: Pick<RequestSession, "session" | "expected">, proof: unknown, statusRead = false): boolean {
     const session = context.session;
     return !!session && this.valid(session) && (statusRead || session.scope === webPageScope(context.expected)) && controlTokenMatches(session.proof, proof);
   }
@@ -157,12 +157,20 @@ export function revokeWebSession(request: IncomingMessage): void { requestSessio
 
 export function withWebSessionRequest<T>(request: IncomingMessage, operation: () => T): T { return currentRequest.run(request, operation); }
 
+/** Prepared workbench actions belong to an actual page session, never the bare control credential. */
+export function webSurfaceSession(): AbortSignal | undefined {
+  const request = currentRequest.getStore(), context = request ? requestSessions.get(request) : undefined;
+  if (context?.session && context.owner.accepts(context, request?.headers[WEB_PAGE_SESSION_HEADER])) return context.session.abort.signal;
+  return undefined;
+}
+
 /** Capture before any await; later effects never borrow a new session or a new account. */
 export function captureWebSessionAuthority(): () => void {
   const request = currentRequest.getStore(), context = request ? requestSessions.get(request) : undefined;
   if (!context?.session) return () => {};
-  const proof = request?.headers[WEB_PAGE_SESSION_HEADER] ?? context.session.proof;
+  const { owner, session, expected } = context, original = { session, expected };
+  const proof = request?.headers[WEB_PAGE_SESSION_HEADER] ?? session.proof;
   return () => {
-    if (!context.owner.accepts(context, proof)) throw new ActionError("actions.forbidden", "页面会话已失效，请刷新页面后重试");
+    if (!owner.accepts(original, proof)) throw new ActionError("actions.forbidden", "页面会话已失效，请刷新页面后重试");
   };
 }

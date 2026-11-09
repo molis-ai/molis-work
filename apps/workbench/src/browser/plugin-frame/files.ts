@@ -36,7 +36,9 @@ export function pageFiles(port: MessagePort, scope: FrameScope, request: UiReque
 export function printPageDocument(html: string, scope: FrameScope): void {
   scope.assertCurrent();
   const frame = document.createElement("iframe");
-  // The trusted parent needs same-origin access only to focus/print this scriptless child (never the plugin execution frame).
+  // This is a scriptless print document, not the plugin execution frame. Same-origin lets the trusted parent
+  // call focus()/print(); allow-modals permits printing. Keep scripts disabled and the restrictive CSP below:
+  // plugin-supplied HTML must never execute with the parent's origin. The plugin frame stays opaque (parent.ts).
   frame.setAttribute("sandbox", "allow-same-origin allow-modals"); frame.setAttribute("aria-hidden", "true");
   frame.style.cssText = "position:fixed;width:0;height:0;border:0;right:0;bottom:0";
   let timer: ReturnType<typeof setTimeout>;

@@ -359,7 +359,14 @@ const MANIFEST_RULES: ReadonlyArray<{ rule: string; manifest: Record<string, unk
 ];
 
 function method(over: Part = {}): Part {
-  return { skill_id: "summarize", version: 1, name: "Summarize", summary: "Summarizes what the person selected", tools: ["find-capabilities"], ...over };
+  // C-3: `description` and `applies_to` are required in Manifest methods (SKP-08).
+  return { skill_id: "summarize", version: 1, name: "Summarize", summary: "Summarizes what the person selected", tools: ["find-capabilities"],
+    description: "When the person asks to summarize what they selected", applies_to: "assistant", ...over };
+}
+/** A plugin's own Agent's Skill: the same declaration without what only `methods` write. */
+function agentSkill(over: Part = {}): Part {
+  const { description: _description, applies_to: _appliesTo, ...skill } = method();
+  return { ...skill, ...over };
 }
 function view(over: Part = {}): Part { return { view_id: "main", slot: "stage", title: "Main", ...over }; }
 function uiOf(over: Part = {}): Part {
@@ -424,8 +431,8 @@ const AGENT_RULES: ReadonlyArray<{ rule: string; agent: Part; ports?: Part; expe
   { rule: "a compaction prompt that is not declared", agent: agentOf({ compaction: { prompt_id: "nowhere", above_tokens: 1000 } }), expected: "Agent 压缩 Prompt nowhere 未声明" },
   { rule: "a compaction threshold of 0", agent: agentOf({ compaction: { prompt_id: "reader", above_tokens: 0 } }), expected: "Agent 压缩阈值无效" },
   { rule: "a skill with a bad id", agent: agentOf({ skills: [{ skill_id: "Bad", version: 1, name: "Bad", summary: "x", tools: ["t"] }] }), expected: "Agent 方法声明不合法" },
-  { rule: "a skill twice", agent: agentOf({ skills: [method(), method()] }), expected: "Agent 方法重复：summarize" },
-  { rule: "a skill without tools", agent: agentOf({ skills: [method({ tools: [] })] }), expected: "Agent 方法 summarize 必须声明可用工具" },
+  { rule: "a skill twice", agent: agentOf({ skills: [agentSkill(), agentSkill()] }), expected: "Agent 方法重复：summarize" },
+  { rule: "a skill without tools", agent: agentOf({ skills: [agentSkill({ tools: [] })] }), expected: "Agent 方法 summarize 必须声明可用工具" },
   { rule: "a sub-Agent parent that is not a declared role", agent: withChild({}, { subagents: { parent_role_ids: ["nowhere"], roles: [] } }), expected: "子 Agent 父角色 nowhere 未声明" },
   { rule: "a sub-Agent role with a bad id", agent: withChild({ role_id: "Bad" }), expected: "子 Agent 角色声明不合法" },
   { rule: "a sub-Agent role twice", agent: agentOf({ prompts: [readerPrompt, { prompt_id: "child", version: 1 }], subagents: { parent_role_ids: ["reader"], roles: [TASK_DELEGATE, TASK_DELEGATE] } }), expected: "子 Agent 角色重复：child" },
@@ -452,7 +459,7 @@ test("Agent declarations: a block that breaks every segment reports them in the 
     roles: [{ ...reader, prompts: ["nowhere"], workspace: "none", execution: "text-edit" }, { role_id: "Bad2", version: 1, name: "Bad" }, reader],
     characters: { selection: "any", scope: "project-owner", role_ids: ["reader"] },
     compaction: { prompt_id: "nowhere", above_tokens: 0 },
-    skills: [method({ skill_id: "tooling", tools: [] })],
+    skills: [agentSkill({ skill_id: "tooling", tools: [] })],
     subagents: { parent_role_ids: ["nowhere"], roles: [{ ...TASK_DELEGATE, parent_role_ids: ["other"] }] },
   };
   assert.equal(manifestProblems(declarationManifest({ agent })), [

@@ -146,10 +146,12 @@ export { modelProviderSwitch } from "./model-provider-switch.js";
 export { PLUGIN_CONSENT_PERMISSIONS, pluginConsentActions, pluginConsentProvider } from "./installed-plugin-consent-actions.js";
 export { publisherStanding } from "./installed-publisher-standing.js";
 export { PLUGIN_INSTALL_PERMISSIONS, pluginControlActions, pluginInstallActions } from "./plugin-install-actions.js";
-export { PluginInstallService } from "./plugin-install-service.js";
+export { PluginInstallService, type BundledPluginList } from "./plugin-install-service.js";
+export { bundledPackagesDirectory } from "./bundled-packages.js";
 export { installedPluginViews } from "./plugin-installed-view.js";
 export { runLocalPluginInstall, type LocalPluginInstallInput } from "./plugin-install-client.js";
 export { pluginInstallProvider } from "./plugin-trust-actions.js";
+export { SkillImportService, localSkillScan, suggestedAppliesTo, type SkillImportPorts } from "./skill-import.js";
 export { readSandboxPackage, readSandboxIntegrationPackage } from "./sandbox-package.js";
 export { sandboxedIntegrationDefinition, sandboxIntegrationContribution } from "./sandbox-integration.js";
 
@@ -398,3 +400,6 @@ export { verifySyncPluginDistribution } from "./sync-distribution.js";
 export {connectResidentAccount,ACCOUNT_CONNECT_PATH,type ResidentAccountConnection} from "./resident-account-connection.js";
 
 export { WebSessions } from "./web-sessions.js";
+
+export { withSkillSelection, type SkillSelection } from "./agent-definitions/skill-selection.js";
+export { SkillCatalog, type CatalogSkill, type SkillCatalogPorts } from "./agent-definitions/skill-catalog.js";

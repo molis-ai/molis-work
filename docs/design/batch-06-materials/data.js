@@ -41,6 +41,7 @@ export const folderTrees = {
 };
 
 export const defaultRecent = ["guide", "hero", "brief"];
+export const worktreeName = "website-copy";
 export const logLines = 2400;
 export const logPreviewLines = 120;
 
@@ -149,7 +150,12 @@ export function documentFor(id, revision) {
     ]]) };
 }
 
-export function codeFor(id, count) {
+export function codeFor(id, count, origin) {
+  if (id === "hero" && origin === worktreeName) {
+    const lines = [...code.hero];
+    lines[9] = line("          预约参观");
+    return lines;
+  }
   if (id !== "build") return code[id];
   const routes = ["/", "/visit", "/about", "/access", "/calendar", "/news"];
   return Array.from({ length: count }, (_, index) => line(

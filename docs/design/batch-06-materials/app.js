@@ -1,6 +1,6 @@
 import {
   assistantReply, codeFor, defaultRecent, documentFor, fileName, files,
-  folderTrees, logLines, logPreviewLines, sources, taskDraft, taskTitle,
+  folderTrees, logLines, logPreviewLines, sources, taskDraft, taskTitle, worktreeName,
 } from "./data.js";
 
 const K = window.mwKit;
@@ -121,7 +121,7 @@ function emptyProject() { return S.scenario === "empty" && S.extras.length === 0
 function localVisible() { return !["empty", "writing"].includes(S.scenario) || S.extras.includes("brand"); }
 function workingName() { return S.output === "default" ? "website-refresh" : sources[S.output].name; }
 function actualName() {
-  if (S.scenario === "worktree") return "website-copy";
+  if (S.scenario === "worktree") return worktreeName;
   if (S.scenario === "frozen") return "website";
   return workingName();
 }
@@ -291,7 +291,7 @@ function readerBody(r) {
     return `<div class="reading-page quote-page"><blockquote>${E(r.quote.text)}</blockquote></div>`;
   }
   if (isCode(r.id)) {
-    const lines = codeFor(r.id, r.count);
+    const lines = codeFor(r.id, r.count, r.origin);
     return `<div class="reading-page code-page"><div class="code-block" role="region" aria-label="${E(L("代码内容", "Code content"))}">${lines.map((parts, index) => {
       const line = index + 1;
       const marked = r.quote && line >= r.quote.from && line <= r.quote.to;
@@ -324,7 +324,7 @@ function outdated(r) {
   return r.id === "guide" && S.scenario === "changed" && r.revision === 1 && !r.historical;
 }
 function excerptMenu(r, place) {
-  const entries = isCode(r.id) ? codeFor(r.id, r.count) : textParts(r.id, r.revision);
+  const entries = isCode(r.id) ? codeFor(r.id, r.count, r.origin) : textParts(r.id, r.revision);
   const ranges = r.id === "build" ? [[1, 8], [Math.max(9, entries.length - 7), entries.length]]
     : isCode(r.id) ? [[1, 4], [5, Math.min(12, entries.length)], [9, Math.min(11, entries.length)]]
     : entries.map((_, index) => [index + 1, index + 1]);
@@ -664,13 +664,12 @@ function render({ target, controls = false } = {}) {
   save();
 }
 
-function readObject(id, scope, anchor, revision) {
+function readObject(id, scope, anchor, { origin, revision } = {}) {
   const place = scope === "picker" ? "picker"
     : scope === "main" || S.scheme === "b" ? "main" : "side";
   if (scope === "coding") S.codingFiles = false;
   S.focus[scope] = anchor?.startsWith(`row-${scope}-`) ? anchor.slice(`row-${scope}-`.length) : id;
   const previous = S.readers[place];
-  const origin = scope === "coding" && files[id].root === "website" ? actualName() : undefined;
   const standalone = place === "main" && (scope !== "main" || S.scheme === "b");
   const next = previous?.id === id && previous.origin === origin && !previous.historical ? previous : {
     id, count: id === "build" ? logPreviewLines : 0, revision: revision ?? (id === "guide" && S.scenario === "changed" ? 2 : 1), quote: null, snapshot: false,
@@ -687,7 +686,7 @@ function readObject(id, scope, anchor, revision) {
     S.side = true;
     if (narrow()) S.mobileSide = true;
   }
-  S.recent = [id, ...S.recent.filter((old) => old !== id)].slice(0, 5);
+  if (!origin) S.recent = [id, ...S.recent.filter((old) => old !== id)].slice(0, 5);
   return `title-${place}`;
 }
 function backReader(place) {
@@ -713,6 +712,7 @@ function backReader(place) {
   S.main = previous.returnTo === "reader" ? "coding" : previous.returnTo;
   if (previous.from === "side" && narrow()) S.mobileSide = true;
   if (previous.from === "coding" && narrow() && previous.anchor?.startsWith("row-coding-")) S.codingFiles = true;
+  if (previous.anchor === "promote" && (S.scheme !== "a" || !(S.side || S.mobileSide))) return "toggle-side";
   return previous.anchor || (previous.from === "main" ? "search-main" : "tab-coding");
 }
 
@@ -734,7 +734,7 @@ function captureSelection() {
 }
 function quoteRange(place, from, to) {
   const r = S.readers[place];
-  const entries = isCode(r.id) ? codeFor(r.id, r.count).map(plainCode) : textParts(r.id, r.revision).map((part) => part.text);
+  const entries = isCode(r.id) ? codeFor(r.id, r.count, r.origin).map(plainCode) : textParts(r.id, r.revision).map((part) => part.text);
   return { from, to, text: entries.slice(from - 1, to).join(isCode(r.id) ? "\n" : "\n\n") };
 }
 function chooseQuote(place, quote) {
@@ -781,7 +781,7 @@ function removeReference(key) {
 }
 function openReference(key, anchor) {
   const ref = S.refs.find((candidate) => candidate.key === key);
-  if (ref.mode === "current") return readObject(ref.id, "coding", anchor);
+  if (ref.mode === "current") return readObject(ref.id, "coding", anchor, { origin: ref.origin });
   S.readers.main = {
     id: ref.id, origin: ref.origin, revision: ref.revision, count: ref.count, historical: true, quote: ref.quote, snapshot: !ref.quote,
     from: "coding", anchor, standalone: true, returnTo: "coding",
@@ -836,7 +836,7 @@ function activateScenario(value) {
     S.output = value === "frozen" ? "next" : "website";
     if (["changed", "missing", "revoked", "large"].includes(value)) {
       const id = value === "large" ? "build" : "guide";
-      return readObject(id, "side", `row-side-recent-${id}`, 1);
+      return readObject(id, "side", `row-side-recent-${id}`, { revision: 1 });
     }
     if (["frozen", "worktree", "outputMissing"].includes(value)) {
       S.main = "coding";
@@ -908,12 +908,13 @@ const acts = {
   "clear-search": ({ place }) => { S.query[place] = ""; return `search-${place}`; },
   read: ({ arg, place }, node) => {
     nativeSelections.clear();
-    return readObject(arg, place, node.dataset.focus);
+    const fromWorktree = place === "coding" && files[arg].root === "website" && S.scenario === "worktree";
+    return readObject(arg, place, node.dataset.focus, { origin: fromWorktree ? worktreeName : undefined });
   },
   "back-reader": ({ place }) => backReader(place),
-  promote: () => {
+  promote: (_, node) => {
     const r = S.readers.side;
-    S.readers.main = { ...r, standalone: true, from: "side", returnTo: S.main };
+    S.readers.main = { ...r, standalone: true, from: "side", anchor: node.dataset.focus, returnTo: S.main };
     S.scroll[`read-main-${r.id}`] = S.scroll[`read-side-${r.id}`];
     S.main = "reader";
     S.mobileSide = false;
@@ -930,14 +931,23 @@ const acts = {
     delete S.readers.picker;
     return anchor;
   },
-  manage: ({ arg }, node) => { manage = { anchor: node.dataset.focus, root: arg }; return arg === "add" ? "add-brand" : "close-settings"; },
+  manage: ({ arg }, node) => {
+    const anchor = node.dataset.focus;
+    const reader = node.closest("[data-reader]")?.dataset.reader;
+    const list = node.closest("[data-list]")?.dataset.list;
+    const afterRecovery = reader ? `title-${reader}`
+      : list === "coding" ? "coding-folder-menu"
+      : list ? `branch-${list}-${arg}` : anchor;
+    manage = { anchor, afterRecovery };
+    return arg === "add" ? "add-brand" : "close-settings";
+  },
   "close-settings": () => { const anchor = manage.anchor; manage = null; return anchor; },
   recover: ({ arg }) => {
     S.recovered[arg] = true;
-    const anchor = manage.anchor;
+    const { afterRecovery } = manage;
     manage = null;
     say(L("已恢复读取", "Read access restored"));
-    return anchor?.startsWith("alert-") ? `title-${picker.open ? "picker" : S.main === "reader" ? "main" : "side"}` : anchor;
+    return afterRecovery;
   },
   "add-brand": () => {
     S.extras = [...new Set([...S.extras, "brand"])];

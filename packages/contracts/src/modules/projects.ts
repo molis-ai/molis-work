@@ -182,6 +182,22 @@ export interface ProjectDirectories {
   revision: string;
 }
 
+/** What a source link's folder was, for naming it without a path: the project's own earlier default output, another one, or a folder. */
+export type SourceKind = "folder" | "former_default_output" | "other_default_output";
+
+/**
+ * What the settings page's route adds to `projects.directories.get@1` for drawing it (`apps/local-host/src/project-workspace-http.ts`):
+ * which folder is the default output directory (shown by that name, and offered to set back), whether it is made yet (it is made the
+ * first time it is used, SSC-24), and what each source link's folder was. Page-only: not part of the action contract and not versioned.
+ */
+export interface ProjectDirectoryPage {
+  default_output_id: string;
+  /** False only when the default output directory is the output and is not made yet. */
+  default_output_made: boolean;
+  /** What each folder of a source link was (spec §3 「另一台设备上的引用」). */
+  source_kinds: Record<string, SourceKind>;
+}
+
 /**
  * Where a run works, frozen when it starts: this says where, never whether. Every read, write and execution still checks the current
  * roles and grants, so a revoked or removed folder is refused at once. Not `placement`, which names the project partition an object is in.

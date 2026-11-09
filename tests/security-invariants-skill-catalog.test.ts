@@ -45,8 +45,8 @@ test("SKC-12: rejected, cancelled and stale acceptance receipts record no uses; 
     let current = true;
     const skill: CatalogSkill = { ref: { source: { kind: "plugin", plugin_id: "example.skills", plugin_version: "1.0.0", publisher_signature: "signature" }, install_id: "install", installation_generation: "generation-1", skill_id: "review", version: 1 },
       declaration: { skill_id: "review", version: 1, name: "Review v1", summary: "Review", description: "Review a document", applies_to: "both", tools: [] }, body: "Read it", pack: { plugin_id: "example.skills", title: "Reviews", version: "1.0.0", publisher_label: "Example", trust: "pinned", scope: "project" }, availability: { available: true },
-      assertCurrent: () => { if (!current) throw new Error("Installation changed"); } };
-    const catalog = new SkillCatalog({ definitions, skills: async () => [skill], resource: () => new Uint8Array() });
+      assertCurrent: () => { if (!current) throw new Error("Installation changed"); }, assertPublisher: () => undefined };
+    const catalog = new SkillCatalog({ definitions, skills: async () => [skill], resource: () => new Uint8Array(), publishers: () => new Map() });
     definitions.skills.set("project-a", "install", "review", "manual", 0, "person");
     const caller: ActionExecutionContext = { actor_id: "person", project_id: "project-a", audience: "user", permissions: SKILLS_PERMISSIONS,
       signal: controller.signal, beforeEffect: async () => { controller.signal.throwIfAborted(); } };
@@ -57,6 +57,12 @@ test("SKC-12: rejected, cancelled and stale acceptance receipts record no uses; 
     current = false; await accept(); assert.deepEqual(definitions.skills.uses("install", "review"), []);
     current = true; await accept(); assert.equal(definitions.skills.uses("install", "review").length, 1, "one receipt does not duplicate a repeated reference");
     assert.equal((await catalog.list(caller, {})).skills[0]?.last_used?.run_ref, "run-1");
+    // The person's protected page click names one Skill to read (no consumer): a manual Skill opens, and the view records no use.
+    const pageSelection = { actor_id: "person", project_id: "project-a", named: [skill.ref] };
+    const pageRead = await withSkillSelection(pageSelection, () => catalog.readBodies(caller, [skill.ref]));
+    assert.equal(pageRead.results[0]!.ok, true, "the page view may show a manual Skill it named");
+    await withSkillSelection(pageSelection, () => catalog.recordAcceptedUses(caller, { accepted: true, refs: [skill.ref], run_ref: "page" }));
+    assert.equal(definitions.skills.uses("install", "review").length, 1, "a page view is not a round and records no use");
     controller.abort(); await assert.rejects(accept()); assert.equal(definitions.skills.uses("install", "review").length, 1);
     definitions.skills.forget("project-a", "install");
     assert.equal(definitions.skills.uses("install", "review")[0]?.name, "Review v1");

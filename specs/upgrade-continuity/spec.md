@@ -1,6 +1,6 @@
 # 升级后持续可用
 
-状态：设计稿已齐（U1 [升级链](upgrade-chain-design.md)、U2 [金样回放](golden-replay-design.md)，2026-11-06），保留机制与门禁用户 2026-11-06 已同意，尚未实现。需求 2026-11-02 整理。用户装上新版本后，旧的 Home、库、插件和保存的引用都接着能用，只感觉到功能变多了。代码照样会迭代、会有不兼容的改动，但不兼容由平台在升级时消化掉，不交给用户。排进[路线书](../post-anticorruption-roadmap/reference/requirements.md#section-3-5)。
+状态：已实现（2026-11-06 设计）。U1 [升级链](upgrade-chain-design.md) 与 U2 [金样回放](golden-replay-design.md) 已随路线书第 05 批合入 main：U1 的 #1958、U2 的 #1912/#1942 等分片先行，其余分片与全批收尾随 #1979 于 2026-11-08 合入 `500d868df3`；第一份金样 `tests/fixtures/golden-homes/0.1.0` 已入库，`golden-replay` 与覆盖面、建库语句两道门禁已接进挡合并的 CI，每天另有全量回放作业。真实基线已开始走升级：目录库 `projects/catalog.db` 与项目库 `projects/<project_id>/molis-work.db` 都是第 2 版（见 [U1 设计](upgrade-chain-design.md) §14）。保留机制与门禁用户 2026-11-06 已同意；U3～U7（显示、插件升级、合同过渡、副本演练与回退、导出导入）仍按路线书在后续批次。需求 2026-11-02 整理。用户装上新版本后，旧的 Home、库、插件和保存的引用都接着能用，只感觉到功能变多了。代码照样会迭代、会有不兼容的改动，但不兼容由平台在升级时消化掉，不交给用户。排进[路线书](../post-anticorruption-roadmap/reference/requirements.md#section-3-5)。
 
 验收编号见 §9，前缀 `UPG`；U1、U2 设计新增的检查前缀 `UPG1`、`UPG2`，在各自设计里。
 

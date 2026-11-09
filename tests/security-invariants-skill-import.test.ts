@@ -101,7 +101,7 @@ async function harness(hooks: { installed?(): Promise<void>; committing?(): Prom
 }
 
 test("08-8 S-skill-import a frontmatter key this reading takes is read only as the declaration spells it: argument-hint is refused with argument_hint, a key it does not take is left alone", () => {
-  for (const [key, spelled] of [["argument-hint", "argument_hint"], ["user-invocable", "user_invocable"], ["when-to-use", "when_to_use"], ["applies-to", "applies_to"]]) {
+  for (const [key, spelled] of [["argument-hint", "argument_hint"], ["user-invocable", "user_invocable"], ["when-to-use", "when_to_use"], ["when-not-to-use", "when_not_to_use"], ["applies-to", "applies_to"], ["connector-categories", "connector_categories"]]) {
     assert.throws(() => skillDeclarationFromFrontmatter(skillMd(["name: notes", "description: 整理时用。", "applies_to: both", `${key}: x`])),
       (error: unknown) => refused("plugin.declaration_invalid")(error) && reasons(error).some(reason => reason.includes(`${key} 要写成 ${spelled}`)), key);
   }

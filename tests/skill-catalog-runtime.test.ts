@@ -3,7 +3,7 @@ import test from "node:test";
 import { PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SKILLS_PERMISSIONS, skillCatalogActions, type SkillCatalogEntry, type SkillBodyReadResult, type SkillResourceContent } from "@molis-ai/molis-work-contracts/services/skills";
-import { homeAgentDefinitions, withSkillSelection, pluginInstallActions } from "@molis-ai/molis-work-app-local-host";
+import { HomeConsentLedger, homeAgentDefinitions, withSkillSelection, pluginInstallActions } from "@molis-ai/molis-work-app-local-host";
 import { installedPackageHost } from "./fixtures/signed-package-host.js";
 import { newPublisher } from "./fixtures/sandbox-package.js";
 import { CONTENT_PLUGIN_ID, MEETING_NOTES, signedContentPackage } from "./fixtures/content-package.js";
@@ -122,4 +122,26 @@ test("SKC-10 cancellation after Runtime committed but before Supervisor returned
     await h.reopen();
     assert.deepEqual((await list())[0]!.ref, old.ref, "the restored version survives reopening");
   } finally { PluginRuntime.prototype.upgrade = original; await h.close(); }
+});
+
+test("SKC-09 N42–N44: a body read of many references reads the publisher ledger once, not once per reference", { timeout: 90_000 }, async () => {
+  const h = await installedPackageHost();
+  try {
+    const publisher = newPublisher(), person = { ...h.person, permissions: [...h.person.permissions, ...SKILLS_PERMISSIONS] };
+    const many = Array.from({ length: 20 }, (_, index) => ({ id: `skill-${String(index).padStart(2, "0")}` }));
+    await h.install(signedContentPackage(publisher, { skills: many }));
+    const listed = (await h.client.invoke(person, ref(skillCatalogActions.list), {}) as { skills: SkillCatalogEntry[] }).skills
+      .filter(row => row.ref.source.plugin_id === CONTENT_PLUGIN_ID);
+    assert.equal(listed.length, 20);
+    const use = Object.getOwnPropertyDescriptor(HomeConsentLedger.prototype, "use");
+    assert.ok(use, "the ledger's per-call open is on the prototype, so this test can count it");
+    let opens = 0;
+    Object.defineProperty(HomeConsentLedger.prototype, "use", { configurable: true,
+      value(this: unknown, ...args: unknown[]) { opens += 1; return (use.value as ((this: unknown, ...inner: unknown[]) => unknown)).apply(this, args); } });
+    try {
+      const read = await h.client.invoke(person, ref(skillCatalogActions.readBodies), { refs: listed.map(row => row.ref) }) as { results: SkillBodyReadResult[] };
+      assert.equal(read.results.length, 20);
+      assert.equal(opens, 1, "one snapshot read the ledger once; a read path must not reopen it per reference");
+    } finally { Object.defineProperty(HomeConsentLedger.prototype, "use", use); }
+  } finally { await h.close(); }
 });

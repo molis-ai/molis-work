@@ -25,7 +25,7 @@ function definition(name: string, key: string, options: {
       publisher: { publisher_id: "admission", signature: "settings-fixture" }, entrypoints: [{ deployment: "local", entrypoint: "index.js" }],
       permissions: [], capabilities: { provides: [], consumes: [] }, ui: { contributions: [] },
       artifacts: { produces: [], consumes: [], ...(options.link ? { links: [{ kind: options.link, role: "output" as const }] } : {}) },
-      actions: [read, write], settings_entries: { entries: [{ key, title: { literal: key }, layers: ["project"], schema: { type: "string" } }],
+      actions: [read, write], settings_entries: { entries: [{ key, title: { key: `${name}.settings.title` }, layers: ["project"], schema: { type: "string" } }],
         read: { capability_id: read.capability_id, version: read.version }, write: { capability_id: write.capability_id, version: write.version } },
       ...(options.next ? { upgrade_compatibility: { compatible_from_versions: ["1.0.0"] } } : {}),
     },

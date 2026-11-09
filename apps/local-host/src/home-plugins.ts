@@ -4,7 +4,7 @@ import { pluginInstallRecords } from "./plugin-install-records.js";
 import { openHomeInstalledPlugins, type HomeInstalledPlugins } from "./home-installed-plugins.js";
 import type { InstalledRelease } from "./installed-release.js";
 import { pluginErrors, type PluginDefinition, type PluginInstanceRecord, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { PLUGIN_PRESENTATION_CAPABILITY } from "@molis-ai/molis-work-contracts/platform/ui";
+import { PLUGIN_PRESENTATION_CAPABILITY, type UiSlotDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
 import { randomUUID } from "node:crypto";
 import { installedArtifacts, supervisedArtifacts } from "./artifact-type-registry.js";
 import { declarationOwnersFor } from "./declaration-owners.js";
@@ -157,7 +157,15 @@ export class HomePluginHost {
   }
   /** Why an installed package is not running, when it was not started or stopped itself; none when nothing is wrong with it. */
   packageError(pluginId: string): string | undefined { return this.installed?.recoveryErrors.get(pluginId); }
-  installations(): PluginInstanceRecord[] { return this.platform?.runtime.list() ?? []; }
+  installations(includeSurfaceSlots = false): Array<PluginInstanceRecord & { surface_slots?: readonly UiSlotDescriptor[] }> {
+    const records = this.platform?.runtime.list() ?? [];
+    if (!includeSurfaceSlots) return records;
+    return records.map(record => {
+      const contribution = this.platform?.supervisor.contribution(record.plugin_id);
+      const slots = contribution?.kind === "app" ? contribution.views?.flatMap(view => view.descriptor.slots) ?? [] : [];
+      return { ...record, surface_slots: slots };
+    });
+  }
   manifest(pluginId: string): PluginManifest | undefined {
     return this.platform?.supervisor.manifest(pluginId)
       ?? this.options.entries.find(entry => entry.manifest.plugin_id === pluginId)?.manifest

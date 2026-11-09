@@ -59,7 +59,7 @@
 | D8 | 第三方插件最终是否强制申报？ | **将来也强制** | 阶段一/过渡期先提示；第三方安装正式对外开放后的阶段二，未申报的第三方插件不能上架/安装；合同、validate 与文档同批收紧（见 §9、SMP-21） |
 | D9 | 状态机编号怎么定？ | **插件 id 开头** | `machine_id` 以 `<plugin_id>.` 开头；`platform.*` 保留给平台；安装时检查前缀归属 |
 | D10 | 先拿哪两个真实场景做样板？ | **一个简单状态 + 一个两段提交** | 简单样板选 Form 收集状态（审计 T3-14）；两段提交样板选成果固定（审计 T3-04），后者放批 3 与流水账一起 |
-| D11 | 界面状态分几类？ | **照搬现有 21 类** | contracts 的 `StateFamily` 就是现有 `STATE_RING_FAMILIES` 的 21 个键；不改视觉表、不新增映射；两份键集合用穷尽测试互相对照 |
+| D11 | 界面状态分几类？ | **照搬现有 21 类** | contracts 的 `StateRingFamily`（`STATE_RING_FAMILIES` 的 21 个键）已经是这一份；不改视觉表、不新增映射；两份键集合用穷尽测试互相对照 |
 | D12 | 现在开工吗？ | **先评审一轮方案再开工** | 本 spec 先评审；评审通过后再开批 0。评审不改代码 |
 
 尚未定死的只有内部技术节奏（Manifest schema 是否在阶段一升版），按 [CONTRACT-CHANGES.md](../../docs/system/CONTRACT-CHANGES.md) 与发布检查单决定，不需要用户拍板。
@@ -78,7 +78,7 @@
 
 新增 `packages/contracts/src/platform/state-vocabulary.ts`（新 subpath `./platform/state-vocabulary`，合同变更）：
 
-- `StateFamily`：**平台闭合的语义家族**，照搬现有 `STATE_RING_FAMILIES` 的 21 个键（idle、connected、running、done、waiting、answer、paused、blocked、syncing、retrying、failed、partial、interrupted、verify、stale、disconnected、unsaved、unread、read、archived、trashed）。contracts 不能反向依赖 SDK，所以键集合以数据形式放在 contracts，SDK 的视觉表保留并**用一条穷尽测试互相对照**（任何一边增删都失败）；见 §4.5。
+- `StateRingFamily`／`STATE_RING_FAMILIES`：**平台闭合的语义家族**，已随 #1979 落在 `platform/ui-state-rings.ts`（由 `platform/ui.ts` 转出），就是现有 `STATE_RING_FAMILIES` 的 21 个键（idle、connected、running、done、waiting、answer、paused、blocked、syncing、retrying、failed、partial、interrupted、verify、stale、disconnected、unsaved、unread、read、archived、trashed）。contracts 不能反向依赖 SDK，所以键集合以数据形式放在 contracts，SDK 的视觉表保留并**用一条穷尽测试互相对照**（任何一边增删都失败）；见 §4.5。
 - `STATE_VOCABULARIES`：**纯数据表**，每个平台能力一段：`owner`、`states`（状态 → 家族）、`public`（是否对外可见）。**不放转换表、不放函数**——转换属于实现（§4.7）。
 - 现有 31 个命名状态类型改成从表派生（`export type X = keyof typeof VOCAB.states`），**类型仍留在原文件**并 re-export，避免 25 个文件与 177 个 `PluginManifest` 级联改动；38 个内联联合按“公开且被界面/接口消费的”逐个升级成命名类型，其余留在原处并记入基线（§8）。
 - contracts 的纯度门禁（`scripts/gates/contracts-purity.mjs`）只数副作用、可变状态和 ≥20 行函数：本表是 `as const` 数据，不加函数；helper 一律放 SDK。
@@ -141,7 +141,7 @@ Manifest 字段是**可选**的：没声明就不登记、不展示，不破坏�
 
 ### 4.5 界面家族
 
-- contracts 定义**21 个语义家族**（与现有 `STATE_RING_FAMILIES` 的键一一对应）；SDK/设计系统把家族映射到现有视觉：状态环、图标、文案（`STATE_RING_FAMILIES`、`STATE_RING_LABELS`、`MwStatusTone` 的既有消费方保持不变）。不新增第三套颜色表，不重命名现有视觉 API。
+- contracts 已有**21 个语义家族**（`platform/ui-state-rings.ts`，与 `STATE_RING_FAMILIES` 的键一一对应）；SDK/设计系统把家族映射到现有视觉：状态环、图标、文案（`STATE_RING_FAMILIES`、`STATE_RING_LABELS`、`MwStatusTone` 的既有消费方保持不变）。不新增第三套颜色表，不重命名现有视觉 API。
 - 现有 `StateRingState`/`stateRingFamily` 保留兼容；新增安全映射：未知状态 → 中性家族，**不再 `.find(...)!.key` 崩溃**（当前实现会崩，见复查记录）。
 - 插件自己的状态文案可选：第三方用 `ui.messages`/`ui.locales` 的静态键；内置插件在第 16 批语言改造前继续用现有 `L`/`p.text`，**本 spec 不要求内置插件新增 `ui.locales`**（否则会被 `tests/ui-text-locale-files.test.ts` 拦）。
 - 家族标签是平台界面文字：沿用现有 21 类的文案，不改既有中文/英文；只补“未知状态回退中性”的文案，并过翻译门禁。
@@ -386,7 +386,7 @@ SDK 提供 `defineOperation` / `createStateLedger` 模板：状态事件 + 当�
 
 | 去处 | 加什么 | 为什么在这里 |
 | --- | --- | --- |
-| **第 26 批第 7 项（26-7）**（M1 发行准备与升级 U4～U6） | 合同与基础：Manifest `state_machines` 字段、SDK 状态机子路径、contracts 公开词表首片、错误码、api／versions 快照；**只读动作的定义与注册不在这批**；**21 类家族不在这里新造**，用 D 轨状态环取值下沉（05② 的前置片）到 `platform/ui.ts` 的那一份（见下方前置） | 26-5 已在改插件升级 U4／U5 与合同过渡；第 46 批已依赖 26；合同必须赶在第 56 批（M1 第一个外部版本）前定死，否则阶段二要升版本、带读取兼容 |
+| **第 26 批第 7 项（26-7）**（M1 发行准备与升级 U4～U6） | 合同与基础：Manifest `state_machines` 字段、SDK 状态机子路径、contracts 公开词表首片、错误码、api／versions 快照；**只读动作的定义与注册不在这批**；**21 类家族不在这里新造**，用已随 #1979 合入的 `packages/contracts/src/platform/ui-state-rings.ts`（由 `platform/ui.ts` 转出）那一份（见下方前置） | 26-5 已在改插件升级 U4／U5 与合同过渡；第 46 批已依赖 26；合同必须赶在第 56 批（M1 第一个外部版本）前定死，否则阶段二要升版本、带读取兼容 |
 | **第 27 批第 6 项（27-6）**（宿主出口、文档门禁与各包清理） | 新门禁（先只报告、后只减）、生成的 `STATE-VOCABULARY.md`、插件开发 Skill 新章、`AGENTS.md`／手册／术语表／包 README | 27 正是门禁与文档清理批；第 46 批已依赖 27；新检查按仓库习惯先报告再挡合并 |
 | **第 46 批第 2 项（46-2）**（正式插件交付的平台前置） | Runtime 兑现与登记投影、`system.state-machines` 只读动作的**定义、注册与动作快照**、平台样板选**插件生命周期**（plugin-runtime；Run 相位属 agent-host，不在这批，留独立片）、生成插件设计合同与校验、3 条安全不变量与拒绝测试 | 46 是把创作台与生成插件搬上普通插件通路；47 紧接着安装预演；状态声明是“安装前看得见”的前置，正好在这一批消费 |
 | **第 47 批第 5 项（47-5）**（新插件创作试用路径） | 安装预演与插件目录里的状态展示、交互定样（**D 轨独占文件，由 D 轨落**；市场展示不在本路径） | 47-1／47-3 消费 46 的登记；界面排在 16 的一次切换之后，避开窗口冻结 |
@@ -400,11 +400,11 @@ SDK 提供 `defineOperation` / `createStateLedger` 模板：状态事件 + 当�
 - **第 46 批**：与 C1／C3／D／E 协作；改 `project-host.ts` 等热文件按轨道规则 4 一起落；创作台章节与提示词改动要跑 `pnpm studio:replay` 和隔离冒烟；新增只读动作的定义、注册与快照都在这批，避免在 26 就出现“声明了动作但没人注册”的半截快照。46 是 C1 轨道且原本只有一条大交付、全批一个 PR，再加登记／只读会明显变重；**只加最小片**。若 46 排不下，按用户 2026-11-08 定：登记片拆成独立片放到 46 之后，不并进 47。
 - **第 47 批**：新增“安装预演显示状态”的界面要求，组件板先定样。
 - **第 16／70 批**：界面家族与未知回退排在 16 的一次切换之后；家族沿用现有 21 类、不新增文案，语言按 16 后的格式。
-- **D 轨状态环取值下沉（05② 的前置片；硬前置）**：状态环取值下沉仍列为「D 轨还没做」（[共同设计](../shared-sources-and-surfaces/spec.md) §8、§9：`platform/ui.ts` 归 D 轨，SDK 从 contracts 取）。26 的家族部分**必须等这一步合入**（不需要等 05② 的整份呈现合同），并直接使用 `platform/ui.ts` 里的 `StateRingFamily`，不再在 `platform/state-vocabulary.ts` 另抄一份 21 类；如果 D 轨下沉晚于 26，26 只能先做 Manifest/SDK 工具、家族部分顺延成第二个合同小 PR，否则 16 切换后会出现两份词表。这条目前是**未完成的前置**：D 轨已在分支 `claude/d-ring-states-contract` 的提交 `15dfbb3456` 里把 21 类下沉到 `platform/ui.ts`，但 PR 未开、未合入 main；26-7 要等它合入后引用，不另写一份。
+- **D 轨状态环取值下沉（已合入）**：21 类状态环取值已随 #1979 合入 main，落在 `packages/contracts/src/platform/ui-state-rings.ts`，并由 `platform/ui.ts` 转出；SDK 的 `/ui` 从 contracts 取。26-7 直接引用这份 `StateRingFamily`/取值，不再在 `platform/state-vocabulary.ts` 另抄一份 21 类，否则 16 切换后会出现两份词表。原先的硬前置已解除，只剩与 26-5 的 U5 同快照这个时点要求。
 - **26 与 26-5（U5）**：U5「合同过渡与保存引用改写」在 M1 当天生效；`state_machines` 必须和 U5 放在同一份 M1 前合同形状里一起定，不能等 26 之后另开一次合同变更——否则它会变成 U5 过渡之后的新增合同面，按阶段二规则处理。
 - **门禁已批「先只报告」**：本方案的两个新检查（词表检查、声明检查）用户 2026-11-08 已批「先只报告、不挡合并」，后续是否挡合并另议；`AGENTS.md` 与开发流程文字仍先给用户看。
 - **27 的容量与「去热点」目标**：27-5 本身就是「文档和门禁去热点 + 各包清理」，再加一个新门禁、一份生成文档和 Skill 新章，与这批「降热点」的方向相反；要么压到最小（只门禁+生成表，Skill 新章另放），要么单独切一条。需要统筹定。
-- **D 轨与 E 轨的文件归属**：`platform/ui.ts`、`packages/plugin-sdk/src/ui*`、design-system 是 D 轨独占；`skills/`、`apps/local-host/src/plugin-builder/skill.ts`、`plugins/native/plugin-builder/src/agent-prompts.ts` 跨 E/统筹。26/46 是 C1 轨道，不能顺手改 D 的文件；这些改动要作为 D/E 的交付行排进去，不能只写在 C1 的批次里。
+- **D 轨与 E 轨的文件归属**：`platform/ui-state-rings.ts`／`platform/ui.ts`、`packages/plugin-sdk/src/ui*`、design-system 是 D 轨独占；`skills/`、`apps/local-host/src/plugin-builder/skill.ts`、`plugins/native/plugin-builder/src/agent-prompts.ts` 跨 E/统筹。26/46 是 C1 轨道，不能顺手改 D 的文件；这些改动要作为 D/E 的交付行排进去，不能只写在 C1 的批次里。
 - **第 56 批**：合同必须在 M1 外部版本前落；晚于它就要按阶段二升版本、带读取兼容，工作量明显更大。26 加合同可能挤压 M1 准备，46 加实现可能推迟阶段 2 出口，这两处要统筹按容量决定先做多少。
 - **服务端批**：若把同步状态纳入公开词表，与 SRV-1 的同步合同协调；不作为 01～89 的前置。
 - **第三方市场**：插件市场与第三方安装（BL-058、BL-167）在暂缓项里，46／47 只做现有安装预览／插件目录；市场展示等市场开放时沿用同一投影，不在本路径排批。
@@ -413,11 +413,11 @@ SDK 提供 `defineOperation` / `createStateLedger` 模板：状态事件 + 当�
 **复查更正一（2026-11-08，批次顺序）：**初版建议把迁移挂到 06-2／12／13／18／25，复查发现这些批次都早于 26，合同和工具那时还没落地，会把同一段工作做两遍；已改成只挂 26 之后的批次或独立迁移片。初版把“市场展示”写进 46／47，但市场本身在暂缓项里，已收窄为“安装预览／插件目录”。
 
 **复查更正二（2026-11-08，第二轮）：**
-- 21 类家族的来源不是“照搬 SDK 现有表”这么简单：D 轨还在把状态环取值下沉到 `platform/ui.ts`，[共同设计](../shared-sources-and-surfaces/spec.md)写明这一步「还没做」。所以 26 的家族部分有**硬前置**（先下沉、再引用）；不能各写一份。
+- 21 类家族的来源不是“照搬 SDK 现有表”这么简单：D 轨把状态环取值下沉到 contracts 的事后来已随 #1979 合入（`platform/ui-state-rings.ts`，由 `platform/ui.ts` 转出），26 的家族部分直接引用，不能再另写一份。
 - 26-5 的 U5 在 M1 当天生效，`state_machines` 必须进 U5 之前的同一份合同形状，不能事后补。
 - 门禁是红线：两个新检查要单独得到用户批准，27 原任务也是「去热点」，不是天然能塞新门禁。
 - 46 原本只有一条大交付、且全批一个 PR，再加登记/只读可能超载；平台样板改选插件生命周期（plugin-runtime），Run 相位归 agent-host（C2），留独立片。
-- D 轨独占的文件（`platform/ui.ts`、`plugin-sdk/src/ui*`、design-system）和跨 E/统筹的 Skill 文件，不能由 C1 顺手改，必须作为 D/E 交付行排。
+- D 轨独占的文件（`platform/ui-state-rings.ts`／`platform/ui.ts`、`plugin-sdk/src/ui*`、design-system）和跨 E/统筹的 Skill 文件，不能由 C1 顺手改，必须作为 D/E 交付行排。
 
 该退路没有采用：用户 2026-11-08 已确认按上表并入。若执行中发现 26 排不下，仍按决定 31 用只改合同的小 PR 在 46 前先合，但不改变批次归属。
 

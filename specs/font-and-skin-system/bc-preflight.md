@@ -100,6 +100,8 @@ Ready 后经 Studio 发布并下载原始签包，从同一隔离项目的插件
 
 正式启动前核成品 `Info.plist`、签名标识及权限满足上述前提，两窗均连接本次隔离 Home 的同一固定地址。临时 Home 先用包内安装命令预装同版本 payload，核该 Home 的安装版本和两个可执行启动器，避免 App 走自动安装受管服务的分支。启动按 QA `.app` 的绝对路径交给 LaunchServices，并明确传入该 Home 与文件密钥后端；不使用普通安装脚本打开日用 App。公开 WebKit 标签不是本机精确补丁源码，上述证据支持准备方案，尚非本机候选实跑结果。
 
+启动参数已按本机命令和当前代码核对：`open -n -a` 可按 QA 成品绝对路径启动，使用它的 `--env` 分别传入 `MOLIS_WORK_HOME` 与 `MOLIS_WORK_SECRET_BACKEND=file`，不依赖调用 shell 的环境被 LaunchServices 继承。Tauri 构建的 `--config` 可合并 QA 名称和标识，其余窗口配置沿用原文件。启动前必须确认隔离 Home 的安装版本等于包内版本，且两个启动器均已存在：当前桌面代码会在包内版本较新或未安装时进入安装分支，其中升级分支会尝试注册受管服务，不能把它当成无副作用的首次启动。以上仅核对参数与调用链，尚未构建或启动最终 QA 成品。
+
 当前桌面启动会装配剪贴板监听。根据 [Apple 的按应用预览开关](https://developer.apple.com/documentation/updates/appkit)，可只给 QA bundle 启用剪贴板访问确认；正式启动获批后，由用户亲自先复制合成测试文本，QA 启动后再复制一次以触发提示，首次即拒绝，并核实该 QA 应用为 [Always Deny](https://developer.apple.com/documentation/appkit/nspasteboard/accessbehavior-swift.enum/alwaysdeny)。提示未出现、归到其他应用或合成首启条件无法保证时，不继续此路径；测试中不主动粘贴，因系统仍允许本人发起的粘贴。上述权限与剪贴板动作均尚未执行。
 
 这份 QA 包用于原生主窗、胶囊、启动失败反馈、菜单恢复，以及同窗口配置下的语言共享与重启实操。只在 QA Host 观察 `molis_work_locale` 这一项 Cookie，核主窗切换后胶囊的新请求及 App 完全退出重启后的首请求；胶囊还有 URL 语言参数和原生转发，不能只看它显示英文就宣称 Cookie 共享。所有结果仍待执行，界面实操不代替用户认可。完成 QA 后先退出该 App，再停本次 Host，最后恢复原服务；只清理本次 QA 目录和已确认属于 QA 身份的数据，不读取或清理日用 WebKit 数据。

@@ -25,7 +25,7 @@ export function pluginInstallProviderFor(home: string, source: ProjectPluginHost
     },
     assertIntegrationsFree: async manifest => (await homeIntegrationRegistry(home)).assertFree(manifest),
     installed: projectId => installedPluginsInProject(source, projectId),
-    control: (projectId, pluginId, action, input) => controlPackageInProject(source, projectId, pluginId, action, input),
+    control: (projectId, input) => controlPackageInProject(source, projectId, input),
     regrant: (projectId, installId, permission, granted, expected) => regrantPluginInProject(source, projectId, installId, permission, granted, expected),
     homeInstalled: () => installedHomePlugins(source.homePlugins()), homeRegrant: (installId, permission, granted, expected) => regrantHomePlugin(source.homePlugins(), installId, permission, granted, expected),
     homeControl: (pluginId, action, input, caller) => controlHomePackage(source.homePlugins(), pluginId, action, input, caller) }));

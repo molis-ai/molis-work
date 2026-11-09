@@ -8,8 +8,9 @@
 import { randomUUID } from 'node:crypto';
 import { ActionError, requireSynchronous, type ActionExecutionContext } from '@molis-ai/molis-work-contracts/platform/actions';
 import { pluginErrors, type PluginPackageBundle, type SandboxAgentBody } from '@molis-ai/molis-work-contracts/platform/plugin';
+import type { SurfaceInstallationRef } from '@molis-ai/molis-work-contracts/services/surface-composition';
 import type { SandboxEffects } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
-import type { PluginInstalledPermissionView, PluginInstalledView, PluginInstallPreview, PluginPublisherPin } from '@molis-ai/molis-work-contracts/platform/plugin-trust';
+import type { PluginInstalledPermissionView, PluginInstalledView, PluginInstallPreview, PluginPublisherPin, ProjectPluginInstalledView } from '@molis-ai/molis-work-contracts/platform/plugin-trust';
 import { declarationsNeedingConsent, verifyPluginPackageSignature, type PluginConsentLedger } from '@molis-ai/molis-work-plugin-runtime';
 import type { InstalledRelease } from './installed-release.js';
 import { consentsChanged } from './consent-revision.js';
@@ -28,6 +29,11 @@ import { assertSurfacePresentation, withSurfacePresentationCheck, type SurfaceIn
 const PREVIEW_TTL_MS = 15 * 60_000;
 const MAX_PREVIEWS = 16;
 
+export type ProjectPackageControl = { plugin_id: string } & (
+  | { action: 'enable'; expected_installation: SurfaceInstallationRef & { scope: 'project' }; caller: ActionExecutionContext }
+  | { action: 'disable' | 'uninstall'; keep_data: boolean }
+);
+
 export interface PluginInstallPorts {
   ledger: PluginConsentLedger;
   packages: SandboxPackageStore;
@@ -45,7 +51,7 @@ export interface PluginInstallPorts {
   /** The plugins installed in the project, each with the Manifest it was installed with. */
   installed(projectId: string): Promise<InstalledPluginEntry[]>;
   /** Switches one installation of a signed package off or on, or takes it off; answers the state it is in afterwards. */
-  control(projectId: string, pluginId: string, action: 'disable' | 'enable' | 'uninstall', input: { keep_data: boolean }): Promise<string>;
+  control(projectId: string, input: ProjectPackageControl): Promise<string>;
   /** Switches one optional permission of an installation in the project and restarts it on the new grants (`PluginRuntime.regrant`); a Host that cannot leaves it out. */
   regrant?(projectId: string, installId: string, permission: string, granted: boolean, expected?: PermissionSwitchTarget): Promise<void>;
   /** The same two for the plugins that run as the Home's own instance (BL-700); a Host without a Home leaves them out. */
@@ -230,8 +236,8 @@ export class PluginInstallService {
   }
 
   /** Switches a signed-package installation of the project off or on, or takes it off (BL-623); a plugin that did not come from a signed package is not touched here. */
-  async control(action: 'disable' | 'enable' | 'uninstall', input: { plugin_id: string; keep_data: boolean }, who: { project_id: string }): Promise<string> {
-    return this.ports.control(who.project_id, input.plugin_id, action, { keep_data: input.keep_data });
+  async control(input: ProjectPackageControl, who: { project_id: string }): Promise<string> {
+    return this.ports.control(who.project_id, input);
   }
 
   /** The same for a signed package installed in the Home, from the Host settings door (BL-715). */
@@ -308,5 +314,11 @@ export class PluginInstallService {
   }
 
   /** The project's installed plugins as their detail page shows them: trust, permissions, jobs and the person's agreements. */
-  async installed(projectId: string): Promise<PluginInstalledView[]> { return this.views(await this.ports.installed(projectId)); }
+  async installed(projectId: string): Promise<ProjectPluginInstalledView[]> {
+    const entries = await this.ports.installed(projectId);
+    return this.views(entries).map((view, index) => {
+      const { installation_generation, manifest_digest } = entries[index]!.record;
+      return { ...view, installation_generation, manifest_digest };
+    });
+  }
 }

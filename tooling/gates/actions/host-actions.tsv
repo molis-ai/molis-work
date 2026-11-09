@@ -250,8 +250,8 @@ plugins.home.permissions.set	1	plugin-install	command	operation	home	write	-	use
 plugins.install.confirm	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	1ac5b8aa902d	d14b3d6b0630	-
 plugins.install.preview	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	da2e9ff3ba28	3a47a0187dbc	-
 plugins.installed.disable	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	52c1f91a2943	ed1bbfdbc8a1	-
-plugins.installed.enable	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	52c1f91a2943	ed1bbfdbc8a1	-
-plugins.installed.list	1	plugin-install	query	query	project	read	-	user	plugin-install:read	-	-	-	99334726611c	ac7a1ab2b686	-
+plugins.installed.enable	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	f97bfdcc54f1	ed1bbfdbc8a1	-
+plugins.installed.list	1	plugin-install	query	query	project	read	-	user	plugin-install:read	-	-	-	99334726611c	762d35caf71f	-
 plugins.installed.uninstall	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	58f4e0ac86dd	ed1bbfdbc8a1	-
 plugins.permissions.set	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	a84e21e82492	5f69cd6b08ba	-
 plugins.project_reach.grant	1	plugin-consents	command	operation	project	write	-	user	plugin-consents:write	-	-	-	5fcc8f8605f2	91acffc20284	-
@@ -421,5 +421,5 @@ search.query	1	system.search	query	query	home	read	concurrent	agent,mcp,plugin,u
 search.rebuild	1	system.search	command	operation	home	write	concurrent	user	search:manage	-	-	-	95b7741253bf	b11c9beb88b3	-
 search.references	1	system.search	query	query	home	read	concurrent	plugin,user	search:read	-	-	-	b97ecba7506e	d300be37db51	-
 search.status	1	system.search	query	query	home	read	concurrent	agent,mcp,plugin,user,workflow	search:read	-	-	-	95b7741253bf	67fb0130cd9a	-
-surfaces.compose	1	system.surfaces	query	query	project	read	concurrent	plugin,user	-	-	-	surfaces.description	2d7687bdeeeb	da0f757d5937	-
+surfaces.compose	1	system.surfaces	query	query	project	read	concurrent	plugin,user	-	-	-	surfaces.description	ccf3f4c7b906	54be99d3709f	-
 surfaces.correct	1	system.surfaces	command	operation	project	write	-	user	-	-	-	-	2a50168ddd5a	e2b416124e26	-

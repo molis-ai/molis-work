@@ -1,4 +1,4 @@
-import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, LOCAL_PERSON_ACTOR_ID, requireSynchronous, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { AgentHostComposition } from "./agent-host-composition.js";
@@ -12,6 +12,7 @@ import type { MolisWorkLocalHostOptions, MolisWorkProjectRuntime } from "./proje
 import { ensureProjectPlugins, runningProjectPlatform } from "./project-plugins.js";
 import { hostDependencyCheck } from "./plugin-actions-client.js";
 import type { HomePluginHost } from "./home-plugins.js";
+import type { ProjectPackageControl } from "./plugin-install-service.js";
 import type { SurfaceInstallCatalog } from "./surface-installation.js";
 
 /**
@@ -50,6 +51,9 @@ function installedPluginsOf(source: ProjectPluginHost, reference: LocalHostProje
       inspect: caller => host.inspectActions(caller, reference) } });
 }
 
+const projectScopeOpen = (source: ProjectPluginHost, projectId: string) => !source.ownerClosing?.() && source.host.lifecycle() === "running"
+  && source.host.projects().some(row => row.project_id === projectId && row.state !== "closing");
+
 /** Installs a release read from a signed package in the project the person is in; the project's installed plugins are the ones that run it. */
 export async function installPackageInProject(source: ProjectPluginHost, projectId: string, release: InstalledRelease, assertCurrent?: () => void): Promise<void> {
   const reference = source.host.projects().find(row => row.project_id === projectId);
@@ -57,8 +61,7 @@ export async function installPackageInProject(source: ProjectPluginHost, project
   await source.host.withRuntime(reference, async runtime => {
     const installed = await installedPluginsOf(source, reference, runtime);
     assertCurrent?.();
-    const scopeOpen = () => !source.ownerClosing?.() && source.host.lifecycle() === "running"
-      && source.host.projects().some(row => row.project_id === projectId && row.state !== "closing");
+    const scopeOpen = () => projectScopeOpen(source, projectId);
     await installed.installPackage(release, { consent: true, assertCurrent, scopeOpen });
     await installed.refreshPublicActions();
   });
@@ -69,16 +72,37 @@ export async function installPackageInProject(source: ProjectPluginHost, project
  * is reached here; the package is read back without asking whether its publisher is still trusted, so a publisher taken back does not stop the
  * person from taking its plugin off. Answers the state the installation is in afterwards.
  */
-export async function controlPackageInProject(source: ProjectPluginHost, projectId: string, pluginId: string, action: "disable" | "enable" | "uninstall", input: { keep_data: boolean }): Promise<string> {
+export async function controlPackageInProject(source: ProjectPluginHost, projectId: string, input: ProjectPackageControl): Promise<string> {
   const reference = source.host.projects().find(row => row.project_id === projectId);
   if (!reference || !source.options.homeDirectory) throw new ActionError("actions.scope_mismatch", "需要一个打开的项目");
   return await source.host.withRuntime(reference, async runtime => {
-    const installed = await installedPluginsOf(source, reference, runtime);
+    const installed = await installedPluginsOf(source, reference, runtime), { plugin_id: pluginId, action } = input;
+    const read = () => installed.records().find(item => item.plugin_id === pluginId);
+    if (action === "enable") {
+      const { caller, expected_installation: expected } = input;
+      const current = () => {
+        caller.signal?.throwIfAborted();
+        requireSynchronous(caller.assert_authority_current?.());
+        if (!projectScopeOpen(source, projectId)) throw new ActionError("actions.host_closed", "项目运行环境已关闭");
+        const record = read();
+        if (expected.scope !== "project" || !record || record.publisher_trust !== "pinned" || record.install_id !== expected.install_id
+          || record.installation_generation !== expected.installation_generation || record.version !== expected.version
+          || record.manifest_digest !== expected.manifest_digest)
+          throw new ActionError("actions.provider_replaced", "原项目插件安装已变化，请重新查看");
+        return record;
+      };
+      await caller.beforeEffect();
+      const installation = current(), release = installed.packageOf(pluginId);
+      if (!release) throw pluginErrors.state_invalid("这个项目里没有从签名的包装进来的这个插件");
+      await installed.lifecycle(action, release, { enable: { installation, beforeEffect: caller.beforeEffect, assertCurrent: current } });
+      if (current().state !== "running") throw new ActionError("actions.provider_replaced", "原插件已退出运行，请重新查看");
+      return "running";
+    }
     const release = installed.packageOf(pluginId);
     if (!release) throw pluginErrors.state_invalid("这个项目里没有从签名的包装进来的这个插件");
     await installed.lifecycle(action, release, action === "uninstall" ? { keepData: input.keep_data } : {});
     await installed.refreshPublicActions();
-    return installed.records().find(item => item.plugin_id === pluginId)?.state ?? "uninstalled";
+    return read()?.state ?? "uninstalled";
   });
 }
 

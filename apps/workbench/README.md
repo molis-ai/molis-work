@@ -132,6 +132,7 @@ Images 首片迁移 `ui.ts` 的 46 处服务端调用与 `client.ts` 的 61 处�
 - 公开入口：`@molis-ai/molis-work-app-workbench`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/app-host`。
 - 依赖：组合根：按 `package.json` 装配已登记的包，只做装配与 IO，不写业务规则。方向见[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节。
 - 不变量：
+  - 项目设置的签名插件启用提交该按钮渲染时的安装编号、代次、版本和摘要。过期响应由原请求报告，按钮不换用更新的安装重试。个人空间的启用沿现有宿主设置动作。
   - Home 包的项目同意显示在当前项目设置的插件行；确认只提交当前选择快照，取消不发修改请求，失败重读真实状态。声明增加要重新确认，旧列表回执不能覆盖新状态；实际工作台导航和刷新都保留 iframe 的项目绑定，Home 打开则没有项目。回归：`tests/home-package-project-reach.e2e.test.ts`。
   - 窄屏仍显示完整内容（`DESIGN.md` Layout、VUX-40）：放置完成卡的长项目名在卡内换行，移动与关闭按钮留在视口内；Home 日期条为「今天」与事件点统一预留底部空间，日期数字不与状态字相叠，各日期仍对齐。手机沿用现有 70px 高度，比原来的 64px 多出 6px 容纳三层字形及后备字体，列宽仍为 49px。不改文字与日期行为，不加截断与审计例外。回归 `tests/chinese-completion-layout.e2e.test.ts`、原 `tests/chinese-layers.e2e.test.ts` 与 `tests/placement-card-clearance.e2e.test.ts`。
   - Home 工具（目录项 `runtime.keys`，现在是 Issue 的 `Mod+Shift+I`）是开关：按钮或组合键打开它的侧栏视图并把键盘送进视图文档，从视图里再按一次收起。组合键在同源框架里（侧栏视图、嵌入窗格，以及本机 Host 发的讨论页）由 `homeToolKeysScript()` 转交给外壳；从视图里收起时键盘回到打开它的地方，打开前没有焦点就离开侧栏；带组合键的视图在页面空闲时预载，第一次按下就可用。视图可回报 `molis:side-status`（`busy` / `attention`），外壳在它的页签和按钮上标点，侧栏收起时也看得到。Home 插件侧栏始终只展示当前页。验证见 `tests/issue-global-navigation.e2e.test.ts`。

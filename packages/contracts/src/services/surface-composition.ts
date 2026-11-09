@@ -187,8 +187,8 @@ const EXCLUSION_SCHEMA = { type: "object", additionalProperties: false, required
   properties: { reason: { const: "disabled" }, count: { type: "integer", minimum: 1 }, owner_plugin_id: text(200) } };
 const REVISION = text(PRESENTATION_LIMITS.revision);
 const INSTALLATION = { type: "object", additionalProperties: false, required: ["scope", "install_id", "installation_generation", "version", "manifest_digest"],
-  properties: { scope: { enum: ["project", "home"] }, install_id: text(200), installation_generation: text(200), version: text(200), manifest_digest: text(200) } };
-const PROJECT_INSTALLATION = { ...INSTALLATION, properties: { ...INSTALLATION.properties, scope: { const: "project" } } };
+  properties: { scope: { enum: ["project", "home"] }, install_id: text(200), installation_generation: text(200), version: text(200), manifest_digest: text(200) } } as const;
+export const PROJECT_INSTALLATION = { ...INSTALLATION, properties: { ...INSTALLATION.properties, scope: { const: "project" } } } as const;
 const HOME_INSTALLATION = { ...INSTALLATION, properties: { ...INSTALLATION.properties, scope: { const: "home" } } };
 const CARD_ACTION = { type: "object", additionalProperties: false, required: ["ref", "provider_id", "primary"], properties: {
   ref: { ...ACTION_SCHEMA.properties.ref, ...ACTION_SCHEMA.else.properties.ref }, provider_id: ACTION_SCHEMA.properties.provider_id,

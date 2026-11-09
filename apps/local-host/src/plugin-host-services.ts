@@ -89,7 +89,7 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
   try {
     // Running in a sandbox is an install trust; what the package asks for that the sandbox is not given stops its start with a code (S-60).
     refuseUngivenSandboxServices(definition, context);
-    const manifest = definition.manifest;
+    const manifest = definition.manifest, readRecord = () => options.record?.(context.install_id);
     withdrawText = pluginTextFor(options, definition);
     const pluginCaller = hostPluginCaller(options, definition, context, assertActive);
     withdrawCaller = issuePluginCaller(pluginCaller, heldPermissions(manifest, context.grants), permission => {
@@ -104,7 +104,7 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
     library = openDeclaredLibrary(options, definition, context, assertActive);
     projectLibrary = openProjectTables(options, definition, context, assertActive);
     const ownerFiles = sandboxOwnerFilesFor(options, definition, context, assertActive);
-    withdrawAgentDefinitions = registerPluginAgentDefinitions(options.home, definition, context.install_id);
+    withdrawAgentDefinitions = registerPluginAgentDefinitions(options.home, definition, context.install_id, readRecord());
     background = pluginBackgroundFor(definition, context, assertActive, { actor_id: options.actor_id, project_id: options.project_id,
       ...(options.record ? { record: () => options.record!(context.install_id) } : {}) });
     directory = options.home && manifest.permissions.some(item => item.permission === DIRECTORY_READ_PERMISSION)
@@ -123,7 +123,6 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
         { ...(options.sourcePullFetch ? { fetch: options.sourcePullFetch } : {}), ...(options.sourcePullGit ? { git: options.sourcePullGit } : {}), ...(options.sourcePullIntegrations ? { integrations: options.sourcePullIntegrations } : {}), ...(options.home ? { home: options.home.directory } : {}) }),
       background: background?.client, directory: directory?.client, terminal: terminal?.client,
       projects: pluginProjectsFor(definition, context, options.home?.directory, assertActive, options.projects) });
-    const readRecord = () => options.record?.(context.install_id);
     const submit = installedComponentSubmit(definition, options.actions, readRecord);
     const record = submit && readRecord();
     withdrawPages = options.home ? pluginPagesFor(options.home.directory).connect({ manifest, install_id: context.install_id, project_id: options.project_id, actor_id: options.actor_id,

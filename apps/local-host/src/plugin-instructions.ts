@@ -1,6 +1,6 @@
 import path from "node:path";
 import type { AgentDefinitionRegistration, AgentDefinitionSource } from "@molis-ai/molis-work-contracts/services/agent-definitions";
-import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginDefinition, PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { comparePluginVersions } from "@molis-ai/molis-work-plugin-sdk";
 import { agentDeclarationsFor, agentDefinitionsFor, agentRegistration, declaredMethods } from "./agent-definitions/agent-definitions.js";
 import { notRunning } from "./agent-definitions/agent-declarations.js";
@@ -36,8 +36,11 @@ let hostOwners: ReadonlySet<string> | undefined;
  * definition. A definition for an owner the Host registers itself (the assistant, Plugin Builder, Alchemist) is refused, as is one
  * that names an owner other than itself.
  */
-export function registerPluginAgentDefinitions(home: PluginPlatformHome | null | undefined, definition: PluginDefinition, installId: string): (() => void) | undefined {
+export function registerPluginAgentDefinitions(home: PluginPlatformHome | null | undefined, definition: PluginDefinition, installId: string,
+  projectRecord?: PluginInstanceRecord | null): (() => void) | undefined {
   if (!home) return undefined;
+  // A stopped project package is still starting. Its successful enable owns the durable registration.
+  const remember = !(definition.execution === "sandbox" && projectRecord?.publisher_trust === "pinned" && projectRecord.state === "disabled");
   const instructions = definition.instructions ?? [], bodies = definition.methods ?? [], agent = definition.manifest.agent;
   const carries = instructions.length > 0 || bodies.length > 0 || agent !== undefined;
   const { plugin_id: owner, version } = definition.manifest;
@@ -60,10 +63,10 @@ export function registerPluginAgentDefinitions(home: PluginPlatformHome | null |
     const registration = pluginAgentRegistration(definition);
     if (registration) {
       registry.register(registration, installId);
-      declarations.remember(installId, registration);
+      if (remember) declarations.remember(installId, registration);
     } else {
       registry.unregister(owner, installId);
-      declarations.forgetOwner(installId, owner);
+      if (remember) declarations.forgetOwner(installId, owner);
     }
     current = { ...current, version, registration };
   }
@@ -82,7 +85,7 @@ export function registerPluginAgentDefinitions(home: PluginPlatformHome | null |
     if (!now.registration) return;
     // Kept as not running: the person still sees and edits its prompts; uninstalling forgets it.
     registry.register(notRunning(now.registration), installId);
-    declarations.remember(installId, now.registration);
+    if (remember) declarations.remember(installId, now.registration);
   };
 }
 

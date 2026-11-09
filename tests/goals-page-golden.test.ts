@@ -115,6 +115,11 @@ const pages: Record<string, Draw> = {
 // and compared token by token: the 20 records of the 8 project pages and settings-general(-embedded) differ in the label and the dialog,
 // the other 10 (5 settings and planning pages) in the label alone; no Goals markup or JSON changed. The 30 were then recorded with
 // MOLIS_WORK_GOLDEN_RECORD=1. The other 36 records did not change.
+// Batch 10 (unified input): the 16 page-* records carry the shell's bar, where the platform composer replaced the assistant's own
+// input (the inputs, attachment block and private @ went with it); that change was recorded on its merge with main 500d868df3. After
+// it, the composer at rest carries ` data-rest` (+10 characters in every page-*), and the English placeholder is 「Ask the assistant…」
+// (16 fewer than 「…to do something…」): zh +10, en −6 on all 16, checked against the drawn pages. No Goals markup or JSON changed;
+// the 16 were recorded with MOLIS_WORK_GOLDEN_RECORD=1 and the other 50 records did not change.
 const RECORDED = new URL("golden.json", GOLDEN);
 interface Recorded { sha256: string; length: number }
 const recorded: Record<string, Recorded> = record ? {} : JSON.parse(readFileSync(RECORDED, "utf8"));

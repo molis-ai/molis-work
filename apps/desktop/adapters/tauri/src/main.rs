@@ -1118,9 +1118,10 @@ fn main() {
 mod tests {
     use super::{
         anchored_capsule_position, capsule_menu_bar_icon, capsule_web_url, desktop_molis_work_url,
-        molis_work_reload_url, normalized_capsule_height, should_attempt_web_recovery,
-        should_keep_window_on_close, should_show_main_on_reopen, stop_owned_web_service,
-        validated_molis_work_path, waits_off_main_thread, CapsuleLocale, WebServiceState,
+        is_molis_work_web_url, molis_work_reload_url, normalized_capsule_height,
+        should_attempt_web_recovery, should_keep_window_on_close, should_show_main_on_reopen,
+        stop_owned_web_service, validated_molis_work_path, waits_off_main_thread, CapsuleLocale,
+        WebServiceState,
     };
     use crate::web_service::{desktop_owns_web_service, Started};
     use std::process::Command;

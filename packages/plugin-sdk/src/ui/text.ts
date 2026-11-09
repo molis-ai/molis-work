@@ -1,4 +1,4 @@
-import type { OwnedTextRef, TextArgs, TextDateStyle, TextNumberStyle, UiFormatTool, UiLocalePack, UiSayOptions, UiSayTool, UiTextProvider, UiTextTool } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { OwnedTextRef, TextArgs, TextDateOptions, TextDateStyle, TextNumberStyle, UiFormatTool, UiLocalePack, UiSayOptions, UiSayTool, UiTextProvider, UiTextTool } from "@molis-ai/molis-work-contracts/platform/ui";
 import { PLATFORM_TEXT_OWNER, SHARED_OWNER } from "../message-declarations.js";
 import { escapeHtml } from "./html.js";
 import { formatDate, formatNumber } from "./message-format.js";
@@ -75,7 +75,7 @@ function formatted(what: string, last: string, write: (locale: string | undefine
 
 /** Dates and numbers in the current language. The result goes into HTML like `t`'s. */
 export const format: UiFormatTool = {
-  date: (at: string, style: TextDateStyle) => formatted(`format.date("${at.slice(0, 40)}")`, at, (locale, problem) => formatDate(at, style, locale, { problem })),
+  date: (at: string, style: TextDateStyle, options?: TextDateOptions) => formatted(`format.date("${at.slice(0, 40)}")`, at, (locale, problem) => formatDate(at, style, locale, { ...options, problem })),
   number: (value: number, style?: TextNumberStyle) => formatted("format.number", String(value), (locale) => formatNumber(value, locale, style)),
 };
 

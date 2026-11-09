@@ -39,6 +39,7 @@ export function installedDefinitions(ports: InstalledDefinitionPorts) {
       if (release.packaged?.manifest.kind === 'integration') {
         if (!ports.integration) throw new Error('集成包只装进 Home');
         const value = ports.integration(release, release.permissions, ports.assertInstalled);
+        rememberInstalledActionSource(value, release);
         definitions.set(keyOf(release), { pluginId: release.pluginId, value });
         return value;
       }

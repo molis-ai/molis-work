@@ -21,7 +21,7 @@ export * from "./ui/layout.js";
 export * from "./ui/process-fold.js";
 export * from "./ui/text.js";
 export * from "./ui/text-ref.js";
-export * from "./ui/message-format.js";
+export { formatDate, formatMessage, formatNumber, type MessageFormatOptions } from "./ui/message-format.js";
 export * from "./ui/locale-pack.js";
 export * from "./ui/text-reader.js";
 export * from "./ui/strict-json.js";

@@ -3,13 +3,16 @@ import { lstatSync, mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, w
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
-import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { SANDBOX_PACKAGE_FILES, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { SandboxPluginContract } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
-import { readSandboxIntegrationPackage, readSandboxPackage } from "@molis-ai/molis-work-app-local-host";
-import { packPluginProject, runPluginCli, validatePluginManifestFile } from "@molis-ai/molis-work-plugin-cli";
-import { assertPluginLocales, inspectPluginLocales, loadDevelopmentLocalePacks, parsePluginPackage, pluginLocaleFilePaths, pluginLocaleReader } from "@molis-ai/molis-work-plugin-runtime";
+import { PLUGIN_INSTALL_PERMISSIONS, pluginInstallActions, readSandboxPackage } from "@molis-ai/molis-work-app-local-host";
+import { packPluginProject, packSandboxProject, runPluginCli, validatePluginManifestFile } from "@molis-ai/molis-work-plugin-cli";
+import { assertPluginLocales, inspectPluginLocales, loadDevelopmentLocalePacks, parsePluginPackage, pluginLocaleFilePaths, pluginLocaleReader, signPluginPackage, verifyPluginPackageSignature } from "@molis-ai/molis-work-plugin-runtime";
 import { createTextReader, tryOwnedTextRef } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { declarationManifest } from "./fixtures/declaration-manifest.js";
+import { newPublisher, packageFiles, payloadOf, signedPackage, type PackageFiles } from "./fixtures/sandbox-package.js";
+import { person, serveHomeRuntime } from "./fixtures/home-runtime.js";
 
 // A plugin's language files: one reading function for every source (specs/font-and-skin-system/a-section-contract.md §6.2). `T7` in §10.
 
@@ -204,17 +207,55 @@ test("FSS-53 a development project's language file that is a symbolic link out o
   assert.ok((await loadDevelopmentLocalePacks(project, manifestOf()))!.pack("zh"));
 }));
 
-test("FSS-53 FSS-70 a sandbox package that declares ui.locales is refused with its own reason, with or without language files, whatever its kind", () => {
-  const manifest = { ...manifestOf(), kind: "app" } as PluginManifest;
-  const file = (name: string, text: string) => ({ path: name, content_base64: Buffer.from(text).toString("base64") });
-  const bare = { schema_version: 1 as const, manifest, files: [file("manifest.json", JSON.stringify(manifest))] };
-  const withFiles = { ...bare, files: [...bare.files, file("locales/en.json", GOOD["locales/en.json"]!), file("locales/zh.json", packText("zh", { "notes.main.saved": "R&D <b> {count}" }))] };
-  const reason = /沙箱包：.*ui\.locales.*第 16 批.*molis-work plugin dev/u;
-  for (const payload of [bare, withFiles]) {
-    assert.throws(() => readSandboxPackage(payload), { code: "plugin.declaration_invalid", message: reason });
-    assert.throws(() => readSandboxPackage(payload), (error: Error) => !/ui\.messages/u.test(error.message));
-    const integration = { ...payload, manifest: { ...manifest, kind: "integration" } as PluginManifest };
-    assert.throws(() => readSandboxIntegrationPackage(integration), { code: "plugin.declaration_invalid", message: reason });
+function bilingualPackage(files: PackageFiles, manifest: PluginManifest): void {
+  const contract = JSON.parse(files[SANDBOX_PACKAGE_FILES.contract]!) as SandboxPluginContract;
+  files[SANDBOX_PACKAGE_FILES.contract] = JSON.stringify({ ...contract, ui: { locales: LOCALES } });
+  manifest.ui = { ...manifest.ui, locales: LOCALES };
+  Object.assign(files, GOOD);
+}
+
+test("FSS-53 FSS-70 pack-sandbox signs the declared words and the Host refuses mismatched, missing or out-of-package words", withProject(async directory => {
+  const publisher = newPublisher();
+  const { files, manifest } = packageFiles(publisher.identity, bilingualPackage, { pluginId: PLUGIN_ID });
+  mkdirSync(path.join(directory, "locales"));
+  for (const [name, body] of Object.entries(files)) writeFileSync(path.join(directory, name), body!);
+  const bundle = await packSandboxProject(directory, path.join(directory, "unsigned.json"), { name: manifest.name, version: manifest.version, publisherId: manifest.publisher.publisher_id, publisherKeyId: publisher.identity });
+  const signed = signPluginPackage(bundle, publisher.signer);
+  const read = readSandboxPackage(verifyPluginPackageSignature(signed).bundle.payload);
+  assert.equal(read.localePacks?.pack("en")?.messages["notes.main.saved"], "Saved {count}");
+  assert.equal(read.localePacks?.pack("zh")?.messages["notes.main.saved"], "已保存 {count}");
+  const tampered = structuredClone(signed);
+  tampered.payload.files.find(item => item.path === "locales/zh.json")!.content_base64 = Buffer.from("changed").toString("base64");
+  assert.throws(() => verifyPluginPackageSignature(tampered), { code: "plugin.signature_invalid" });
+  assert.throws(() => readSandboxPackage(payloadOf(manifest, { ...files, "locales/zh.json": undefined })), /locales\/zh\.json/u);
+  assert.throws(() => readSandboxPackage(payloadOf(manifest, { ...files, "locales/zh.json": packText("zh", { "todo.main.saved": "x" }, { owner: "io.molis.work.todo" }) })), /owner/u);
+  assert.throws(() => readSandboxPackage(payloadOf(manifest, { ...files, "locales/en.json": packText("en", { "notes.main.saved": "R&D" }) })), /不许有/u);
+  assert.throws(() => readSandboxPackage(payloadOf(manifest, { ...files, "../zh.json": "{}" })), /格式之外/u);
+  assert.throws(() => readSandboxPackage(payloadOf({ ...manifest, ui: { ...manifest.ui, locales: { ...LOCALES, default: "zh" } } }, files)), /清单不是沙箱插件/u);
+}));
+
+test("FSS-53 FSS-60 a real signed installation exposes its own words through an authorized shell grant", { skip: process.platform !== "darwin", timeout: 120_000 }, async t => {
+  const f = await serveHomeRuntime(t), project = await f.project("Signed bilingual package");
+  const prefix = `/projects/${project.project_id}`;
+  const bundle = signedPackage(newPublisher(), bilingualPackage, { pluginId: PLUGIN_ID });
+  const client = f.host.actionClient(project.reference);
+  const caller = { ...person(PLUGIN_INSTALL_PERMISSIONS, project.project_id), user_action: { source: "management" as const, conversation_ref: "locale:install", message_ref: "locale:confirm" } };
+  const preview = await client.invoke(caller, pluginInstallActions.preview, { bundle }) as { preview_id: string };
+  await client.invoke(caller, pluginInstallActions.confirm, { preview_id: preview.preview_id, consent: true, pin_label: "Locale test" });
+  const shell = await fetch(f.origin + prefix + "/");
+  const cookie = shell.headers.getSetCookie().find(value => value.startsWith("molis-work-web-"))?.split(";")[0];
+  const proof = /<meta name="molis-work-page-session" content="([^"]+)"/u.exec(await shell.text())?.[1];
+  assert.ok(cookie && proof);
+  const headers = { cookie, "x-molis-work-page-session": proof };
+  const mount = await f.request(prefix + "/api/host/plugin-pages", { authorized: false, headers, method: "POST", body: { plugin_id: PLUGIN_ID } });
+  assert.equal(mount.status, 200, await mount.clone().text());
+  const { page_id } = await mount.json() as { page_id: string };
+  for (const [locale, text] of [["en", "Saved {count}"], ["zh", "已保存 {count}"]]) {
+    const pack = await f.request(prefix + "/api/ui/locales?" + new URLSearchParams({ locale: locale!, page: page_id }), { authorized: false, headers });
+    assert.equal(pack.status, 200, await pack.clone().text());
+    const response = await pack.json();
+    assert.equal(response.owners[0].owner, PLUGIN_ID);
+    assert.equal(response.owners[0].packs.find((item: { locale: string }) => item.locale === locale).messages["notes.main.saved"], text);
   }
 });
 

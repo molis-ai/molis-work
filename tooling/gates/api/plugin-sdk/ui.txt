@@ -227,7 +227,7 @@ export declare function createTextReader(input: TextReaderInput): UiSayTool;
 
 export declare function cx(...parts: Array<string | false | null | undefined>): string;
 
-export declare const dateArg: (at: string, style: TextDateStyle) => TextArgValue;
+export declare const dateArg: (at: string, style: TextDateStyle, options?: TextDateOptions) => TextArgValue;
 
 export declare const disclosureHeight: (details: string, body: string) => string;
 
@@ -239,7 +239,7 @@ export declare function fontTokenDeclarations(font: UiResolvedFont, names?: read
 
 export declare const format: UiFormatTool;
 
-export declare function formatDate(at: string, style: TextDateStyle, locale: Locale, options?: MessageFormatOptions): string;
+export declare function formatDate(at: string, style: TextDateStyle, locale: Locale, options?: MessageFormatOptions & TextDateOptions): string;
 
 export declare function formatMessage(message: UiMessage, args?: readonly TextArg[], locale?: string, options?: MessageFormatOptions): string;
 

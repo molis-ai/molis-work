@@ -1,3 +1,5 @@
+import type { PluginLocalesDeclaration } from './ui-text.js';
+
 /** JSON-only contract shared by generated plugins and the trusted host. */
 export type SandboxJson = null | boolean | number | string | SandboxJson[] | { [key: string]: SandboxJson };
 
@@ -110,6 +112,8 @@ export interface SandboxPluginContract {
   version: /* @version format.sandbox.contract */ 1;
   pluginId: string;
   revision: string;
+  /** The signed Manifest projects this declaration; each language is a file in the package's locales/ directory. */
+  ui?: { readonly locales: PluginLocalesDeclaration };
   operations: SandboxOperationContract[];
   entities: Array<{ id: string; schema: SandboxSchema; description?: string }>;
   pages: Array<{

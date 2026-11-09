@@ -3,7 +3,7 @@ import type { SandboxPluginContract } from '@molis-ai/molis-work-contracts/platf
 import { effectsFromContract, parsePluginPackageManifest, sandboxPluginManifest } from '@molis-ai/molis-work-plugin-sdk';
 import { PLUGIN_ICON_NAMES, type PluginIconName } from '@molis-ai/molis-work-plugin-sdk/ui';
 import { parsePluginPackage } from '@molis-ai/molis-work-plugin-runtime';
-import { packageFileReader, writePluginPackageFile } from './package-files.js';
+import { packDeclaredLocales, packageFileReader, writePluginPackageFile } from './package-files.js';
 
 export interface PackSandboxOptions {
   name: string;
@@ -60,7 +60,7 @@ export async function packSandboxProject(directory: string, output: string, opti
   });
   void projectedAgent; void projectedMethods;
   const manifest: SandboxPackageManifest = { ...fixed, ...(options.agent !== undefined ? { agent: options.agent } : {}), ...(options.methods !== undefined ? { methods: options.methods } : {}) };
-  parsePluginPackageManifest(manifest);
+  await packDeclaredLocales(parsePluginPackageManifest(manifest), files, read);
   for (const name of new Set([...(manifest.agent ?? []), ...(manifest.methods ?? [])].map(item => item.body))) {
     const bytes = await read(name, 32_000);
     files.push({ path: name, content_base64: bytes.toString('base64') });

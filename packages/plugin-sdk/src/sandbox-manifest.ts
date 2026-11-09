@@ -13,6 +13,7 @@ import { databaseDeclarationProblems } from './database-declarations.js';
 import { connectionDeclarationProblems } from './connection-declarations.js';
 import { ownerFilesDeclarationProblems } from './owner-files-declaration.js';
 import { sandboxOperationActions, sandboxPackageBuildId } from './sandbox-actions.js';
+import { sandboxLocaleProblems } from './locale-declarations.js';
 
 /** The names of a sandboxed package's image permissions: the Host's own, in the Manifest only as rows derived from `effects.imageGeneration` (BL-491). */
 export const SANDBOX_IMAGE_PERMISSIONS = Object.freeze({ read: 'image-api:read', write: 'image-api:write', generate: 'image-api:generate' });
@@ -123,6 +124,13 @@ function sandboxResources(input: SandboxManifestInput): Pick<PluginManifest, 'da
   return resources;
 }
 
+function localeFields(pluginId: string, contract?: SandboxPluginContract): Pick<PluginManifest['ui'], 'locales'> {
+  if (contract?.ui === undefined) return {};
+  const problems = sandboxLocaleProblems({ pluginId, ui: contract.ui });
+  if (problems.length) throw pluginErrors.declaration_invalid(problems.join('；'));
+  return { locales: contract.ui.locales };
+}
+
 export function sandboxPluginManifest(input: SandboxManifestInput): PluginManifest {
   if (input.contract) {
     if (input.contract.pluginId !== input.pluginId) throw pluginErrors.declaration_invalid('合同与 Manifest 的插件身份不一致');
@@ -146,7 +154,7 @@ export function sandboxPluginManifest(input: SandboxManifestInput): PluginManife
     capabilities: { provides: [], consumes: input.presentation ? [PLUGIN_PRESENTATION_CAPABILITY.capability_id] : [] }, artifacts: { produces: [], consumes: [] },
     ...(input.presentation ? { requires: [{ ...PLUGIN_PRESENTATION_CAPABILITY, reason: '此插件需要整页组合与详情渲染器 v1' }] } : {}),
     routes: [{ route_id: 'studio.call', method: 'POST', path: '/call' }],
-    ui: { contributions: [uiId], views: [{ view_id: 'app', slot: 'stage', title: input.name, contribution_id: uiId, ...(input.icon ? { icon: input.icon } : {}) }] },
+    ui: { ...localeFields(input.pluginId, input.contract), contributions: [uiId], views: [{ view_id: 'app', slot: 'stage', title: input.name, contribution_id: uiId, ...(input.icon ? { icon: input.icon } : {}) }] },
   };
 }
 
@@ -160,6 +168,8 @@ export interface SandboxIntegrationManifestInput {
   connection_services: NonNullable<PluginManifest['connection_services']>;
   integrations: NonNullable<PluginManifest['integrations']>;
   source_presentations?: NonNullable<PluginManifest['source_presentations']>;
+  /** The contract projects the producer's words; this does not give an integration a page. */
+  contract?: SandboxPluginContract;
 }
 
 /**
@@ -175,7 +185,7 @@ export function sandboxIntegrationManifest(input: SandboxIntegrationManifestInpu
     ...(input.upgradesFrom?.length ? { upgrade_compatibility: { compatible_from_versions: [...input.upgradesFrom] } } : {}),
     permissions: [{ permission: 'storage:private', required: true, reason: '保存这个插件自己的数据' }],
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] },
-    ui: { contributions: [] },
+    ui: { ...localeFields(input.pluginId, input.contract), contributions: [] },
     // An integration's sources are the Home's: one registry, which every project's Feed reads (BL-530).
     runtime: { scope: 'home' },
     connection_services: input.connection_services, integrations: input.integrations,

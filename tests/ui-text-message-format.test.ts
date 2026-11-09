@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { formatDate, formatMessage, formatNumber, numberArg, textArgs, type MessageFormatOptions } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { dateArg, formatDate, formatMessage, formatNumber, numberArg, ownedTextRef, textArgs, type MessageFormatOptions } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { fillMessage } from "@molis-ai/molis-work-plugin-sdk";
 import type { TextArgs, UiMessage } from "@molis-ai/molis-work-contracts/platform/ui";
 
@@ -122,4 +122,25 @@ test("FSS-70: numbers: decimal groups, the plain argument does not, and a long f
   assert.equal(formatNumber(0.25, "en", "percent"), "25%");
   assert.equal(fill("{n}", { n: 1234567 }), "1234567");
   assert.equal(fill("{n}", { n: 1.23456789 }), "1.23456789");
+});
+
+test("FSS-39 zoned dates preserve the original place through the DST boundary", () => {
+  const previous = process.env.TZ;
+  process.env.TZ = "Asia/Shanghai";
+  try {
+    const options = { time_zone: "America/Los_Angeles" };
+    const before = "2026-03-08T09:59:00Z", after = "2026-03-08T10:00:00Z";
+    assert.match(formatDate(before, "time", "en", options), /^1:59\sAM$/u);
+    assert.match(fill("Due at {at}", { at: dateArg(after, "time", options) }), /^Due at 3:00\sAM$/u);
+    assert.equal(formatDate("2026-03-08", "datetime", "en", options), "Mar 8, 2026");
+    assert.equal(formatDate(before, "relative", "en", { ...options, now: Date.parse(after) }), "1 minute ago");
+    const problems: string[] = [];
+    const invalid = { time_zone: "Unsupported/Place" };
+    assert.equal(formatDate(after, "time", "en", { ...invalid, problem: code => problems.push(code) }), after);
+    assert.deepEqual(problems, ["ui.text_bad_time_zone"]);
+    assert.throws(() => ownedTextRef({ key: "workbench.reminder.due", args: textArgs({ at: dateArg(after, "time", invalid) }) }, "workbench"), /time_zone/u);
+  } finally {
+    if (previous === undefined) delete process.env.TZ;
+    else process.env.TZ = previous;
+  }
 });

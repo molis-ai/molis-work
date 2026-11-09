@@ -389,6 +389,7 @@ export interface SandboxIntegrationManifestInput {
     connection_services: NonNullable<PluginManifest['connection_services']>;
     integrations: NonNullable<PluginManifest['integrations']>;
     source_presentations?: NonNullable<PluginManifest['source_presentations']>;
+    contract?: SandboxPluginContract;
 }
 
 export interface SandboxManifestInput {
@@ -787,6 +788,11 @@ export declare function sandboxBackgroundProblems(contract: SandboxPluginContrac
 export declare function sandboxDerivedPermissions(effects: DerivedEffects | undefined): NonNullable<PluginManifest['permissions']>;
 
 export declare function sandboxIntegrationManifest(input: SandboxIntegrationManifestInput): PluginManifest;
+
+export declare function sandboxLocaleProblems(contract: {
+    readonly pluginId: string;
+    readonly ui?: unknown;
+}): string[];
 
 export declare function sandboxOperationActions(input: {
     contract: SandboxPluginContract;

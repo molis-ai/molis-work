@@ -4,14 +4,18 @@ import { exposeInstalledPlugin, exposedActionId, type InstalledPluginActions } f
 import type { ProjectActions } from './plugin-builder/catalog.js';
 import { withProjectReachInvocation } from './plugin-project-reach-subject.js';
 import { definitionOrigin } from '@molis-ai/molis-work-plugin-runtime';
+import type { InstalledRelease } from './installed-release.js';
 
 // Only the Host's actual sandbox definition has a released contract (the Runtime's view of it counts as it). Nothing decoded from a
 // package supplies this port.
-type ActionRelease = InstalledPluginActions['release'];
+type ActionRelease = InstalledRelease;
 const sources = new WeakMap<PluginDefinition, ActionRelease>();
 const registrations = new WeakMap<ActionRegistryPort, Map<string, InstalledPluginActions>>();
 const registrationKey = (record: PluginInstanceRecord) => JSON.stringify([record.install_id, record.installation_generation, record.manifest_digest]);
 export function rememberInstalledActionSource(definition: PluginDefinition, release: ActionRelease): void { sources.set(definitionOrigin(definition), release); }
+
+/** The release already redeemed for this exact Runtime definition; never discover a producer by the plugin id. */
+export const installedLocalePacks = (definition: PluginDefinition) => sources.get(definitionOrigin(definition))?.packaged?.localePacks ?? null;
 
 /** Permission switches restart an activation without changing its release. Refresh follows that activation; old releases cannot withdraw a new one. */
 export function followInstalledActions(registry: ActionRegistryPort, record: PluginInstanceRecord, release: ActionRelease): InstalledPluginActions | undefined {

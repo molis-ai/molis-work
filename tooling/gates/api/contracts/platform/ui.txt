@@ -42,6 +42,11 @@ export declare const PLUGIN_PRESENTATION_CAPABILITY: {
     readonly version: 1;
 };
 
+export interface PluginLocalesDeclaration {
+    readonly default: string;
+    readonly available: readonly string[];
+}
+
 export declare const RECEIPT_WORDS: {
     FACT: {
         received: string;
@@ -352,6 +357,7 @@ export declare const TEXT_REF_LIMITS: {
     readonly arg_name: 64;
     readonly arg_text: 2000;
     readonly arg_at: 40;
+    readonly arg_time_zone: 64;
     readonly literal: 2000;
     readonly fallback: 2000;
     readonly owner: 200;
@@ -368,24 +374,28 @@ export type TextArg = {
     readonly kind: "number";
     readonly number: number;
     readonly style?: TextNumberStyle;
-} | {
+} | ({
     readonly name: string;
     readonly kind: "date";
     readonly at: string;
     readonly style: TextDateStyle;
-};
+} & TextDateOptions);
 
 export type TextArgValue = string | number | {
     readonly kind: "number";
     readonly number: number;
     readonly style?: TextNumberStyle;
-} | {
+} | ({
     readonly kind: "date";
     readonly at: string;
     readonly style: TextDateStyle;
-};
+} & TextDateOptions);
 
 export type TextArgs = Readonly<Record<string, TextArgValue>>;
+
+export interface TextDateOptions {
+    readonly time_zone?: string;
+}
 
 export type TextDateStyle = (typeof TEXT_DATE_STYLES)[number];
 
@@ -731,7 +741,7 @@ export interface UiFontSchemeFile {
 }
 
 export interface UiFormatTool {
-    date(at: string, style: TextDateStyle): string;
+    date(at: string, style: TextDateStyle, options?: TextDateOptions): string;
     number(value: number, style?: TextNumberStyle): string;
 }
 

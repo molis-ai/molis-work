@@ -140,7 +140,7 @@ server 库的表：`mw_server_identity`、`mw_members`、`mw_sessions`、`mw_pro
 当前个人版同步结构在主线平台／插件边界上维护空间归属与技术日志；业务字段和恢复校验仍归原 owner。旧格式不自动升级，本轮仅使用隔离测试 Home。
 
 
-基线是 15 段建表语句，来自 8 个目录（`apps/local-host/src/project-database-schema.ts` 的 `PROJECT_DATABASE_BASELINE`）；项目的身份是 `project_root` 的那一行，引用项目的外键指向它。Goals、governance 和 Feed（含 Sources、Signals、Listener Host）的表不在基线里（S8、FI-5），由各自插件的声明建（见下）：
+基线由各 owner 提供的建表语句组成（`apps/local-host/src/project-database-schema.ts` 的 `PROJECT_DATABASE_BASELINE`）；项目的身份是 `project_root` 的那一行，引用项目的外键指向它。Goals、governance 和 Feed（含 Sources、Signals、Listener Host）的表不在基线里（S8、FI-5），由各自插件的声明建（见下）：
 
 | owner | 段 | 表 |
 | --- | --- | --- |
@@ -159,6 +159,7 @@ server 库的表：`mw_server_identity`、`mw_members`、`mw_sessions`、`mw_pro
 | | `PLUGIN_PROJECT_DATABASES_SCHEMA_SQL` | `plugin_project_databases`（插件的表的账本：谁的、哪个发布者、第几版） |
 | `horizontal/scheduler` | `SCHEDULER_SCHEMA_SQL` | `schedule_jobs`、`schedule_wakeups`、`schedule_action_bindings` |
 | `modules/projects` | `MATERIAL_RECENT_USES_SCHEMA_SQL`（`src/material-recent.ts`） | `material_recent_uses`（每个调用方在这个项目里「最近用过」的资料引用，只记引用不记正文）。第 1 版的 `project_browsing_settings` 随项目库升到第 2 版删掉：项目不再记浏览目录 |
+| `horizontal/surfaces` | `SURFACE_CORRECTIONS_SCHEMA_SQL`（`src/schema.ts`） | `surface_corrections`（本人对位置中对象的形态、固定和移走选择，不存正文）。项目库 2→3 新建空表；按 actor 与位置隔离，随项目库备份、恢复和删除 |
 
 项目库的表由这份基线建。个别 owner 打开时还会执行 `IF NOT EXISTS`（见 BL-context-ledger-initialize-schema），在这里是空操作；改任何一段都要提高项目库的版本（`PROJECT_DATABASE_BASELINE.version`）。
 

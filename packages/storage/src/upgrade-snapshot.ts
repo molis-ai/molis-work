@@ -1,10 +1,11 @@
 import { createHash } from "node:crypto";
-import { chmodSync, closeSync, constants, copyFileSync, lstatSync, mkdirSync, openSync, readdirSync, readSync, realpathSync, renameSync, rmSync, statfsSync } from "node:fs";
+import { chmodSync, constants, copyFileSync, lstatSync, mkdirSync, readdirSync, realpathSync, renameSync, rmSync, statfsSync } from "node:fs";
 import { dirname, isAbsolute, join, normalize, relative, sep } from "node:path";
 import { atomicWriteFileSync, syncPath } from "./adapters/atomic-write.js";
 import { assertStorageOwner, type StorageOwner } from "./adapters/storage-owner.js";
 import { snapshotFileDigest, snapshotFileStat, readSnapshotFile } from "./snapshot-files.js";
 import { describeSqliteSchema, sqliteStoreLabel, storageErrors, type SqliteBaselineDatabase } from "./sqlite-baseline.js";
+import { removeUnflushedRollbackJournal } from "./sqlite-rollback-files.js";
 
 /** What an upgrade's connection has to offer here. Who opens it is the store's owner: the store's own driver, and never a path that writes first. */
 export interface UpgradeSqliteConnection extends SqliteBaselineDatabase {
@@ -174,33 +175,6 @@ function readManifest(paths: UnitPaths, runId: string): readonly UpgradeSnapshot
 const writeManifest = (paths: UnitPaths, runId: string, files: readonly UpgradeSnapshotEntry[]) =>
   atomicWriteFileSync(paths.manifest, `${JSON.stringify({ schema_version: MANIFEST_SCHEMA_VERSION, run_id: runId, files })}\n`, { mode: 0o600, durable: true });
 
-/** Empty, or a zero first byte: what SQLite itself takes as nothing to roll back. */
-function journalLooksUnflushed(journal: string): boolean {
-  const found = lstatSync(journal, { throwIfNoEntry: false });
-  if (!found?.isFile()) return false;
-  if (found.size === 0) return true;
-  const fd = openSync(journal, "r"), first = Buffer.alloc(1);
-  try { readSync(fd, first, 0, 1, 0); } finally { closeSync(fd); }
-  return first[0] === 0;
-}
-
-/**
- * A rollback-journal store whose write was killed before the journal's flush keeps a journal SQLite ignores on every read and removes only
- * at the next write, which would stop the snapshot; this brings that removal forward (S-upgrade-journal-removal). A live writer's journal
- * has the same bytes, and reads and the checkpoint do not notice it, so the exclusive lock is what tells them apart: it fails, and nothing
- * is removed, while a connection holds a lock on the file, in another process or in this copy of SQLite. An idle connection holds none and
- * does not stop it. Another copy of SQLite in this process (only Alchemist's `better-sqlite3`, on its own file, S-46) is not seen at all, because file locks
- * belong to the process: its writer loses the journal and its `COMMIT` fails, and only the caller's promise of no other connection on the
- * file protects it. A WAL store has no business with such a file, and it stays a refusal.
- */
-function removeUnflushedJournal(db: UpgradeSqliteConnection, file: string): void {
-  const journal = `${file}-journal`;
-  if (!journalLooksUnflushed(journal)) return;
-  db.exec("BEGIN EXCLUSIVE");
-  try { if (journalLooksUnflushed(journal)) rmSync(journal, { force: true }); }
-  finally { db.exec("ROLLBACK"); }
-}
-
 /** §2.2 step 2. Also how a store left by a kill recovers: opening replays a WAL, and a read rolls back a hot journal. */
 function checkpoint(paths: UnitPaths, open: (file: string) => UpgradeSqliteConnection): NonNullable<UpgradeSnapshotEntry["sqlite"]> {
   const sqlite = attempt("checkpoint_failed", paths.label, () => {
@@ -211,7 +185,7 @@ function checkpoint(paths: UnitPaths, open: (file: string) => UpgradeSqliteConne
       const { busy } = db.prepare("PRAGMA wal_checkpoint(TRUNCATE)").get() as { busy: number };
       if (busy !== 0) throw fail("checkpoint_failed", paths.label);
       const { journal_mode } = db.prepare("PRAGMA journal_mode").get() as { journal_mode: string };
-      if (journal_mode.toLowerCase() !== "wal") removeUnflushedJournal(db, paths.file);
+      if (journal_mode.toLowerCase() !== "wal") removeUnflushedRollbackJournal(db, paths.file);
       return { user_version: Number(user_version), schema_sha256 };
     } finally { db.close(); }
   });

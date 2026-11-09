@@ -519,6 +519,12 @@ Dock 的个人固定顺序目前只在浏览器，不在 Host 存储。首页请
 
 Goals 在自身声明中把 `goals.create@1` 指向 `stage/create-dialog`，自身页面消费选择并调用原 `openCreate()`。Host 不识别 Goals 名字：SDK 校验只接受本 Manifest 的主区与有界 panel，Host 匹配同贡献的实际浮层；签名包匹配其已签组件中绑定该动作的真实输入表单。签名页面只接受当前父 pane 的选择，复用组件已有打开和聚焦行为。原生与签名安装共用声明、权限与点击复核，不能以 Goals 专用分支绕过第三方同等待遇。
 
+**签名表单提交。** 源码核对发现，当前已装签名组件的 `submit` 仍把组件和表单值送到 `/call` 后直接执行，不能仅接通首页导航便宣称经过统一动作网关。本片让所有已安装签名页的表单提交共用现有 `/api/host/plugin-page-actions`，增加封闭模式 `{ mode: "component_submit", component_id, payload }`；不收客户端给的动作、提供方、安装或项目身份，不保留首页专用提交分支。普通组件读取及未安装的创作台预览仍走各自现有读取／试运行路径。
+
+项目与 Home 签名文档均通过现有 `PluginPageAuthority.open` 的 `selected` 绑定确切 scope、安装和发行物检查，Home 从项目打开时保持原 `assertProject`。Host 从原激活的可信 `definitionOrigin`／`rememberInstalledActionSource` 取已验证 node，复用 `resolvePluginComponentCall(node, "submit", payload)`，动作引用复用实际曝光投影：`exposedActionId`、发行物版本及 `plugin:<canonical>`，不能误用页面通用分支默认的 install id 提供方。现行合法签包没有 `Manifest.actions` 时也只取同一安装真实注册的曝光，不改写或重签包。提交继续用 `pluginActionView`、当前页与安装检查、现有 bound action client 及 `withPluginPermissionChecks`，在本人精确动作范围内执行，并核目录行的 `plugin_install_id` 与 scope。
+
+旧签名 `/call` 拒绝 `binding: "submit"` 和外部原始 `{ operation, input }`。内部动作桥只在 `currentPluginAction()` 与原激活、安装代次、实际提供方和动作 `local_id` 全部相符时进入原沙箱执行段；HTTP 同样有 `execution`，不能再以它存在作为内部调用证明。保留现有 `withProjectReachInvocation` 和生命周期 control，执行段不回调页面网关，避免递归。项目已装页 GET 和 `/call` 目前只匹配 `io.molis.work.generated.<uuid>`，须改为现行合法插件 id 后再核当前项目的确切签包／生成安装记录；未知、内置或 Home 仍沿原分流，不增页面或授权路由。
+
 打开、开始及启用都按原卡的完整安装引用比对当前记录；同名不同 scope、卸载重装、换代、同版本不同 digest 均拒绝旧卡。主区继续走既有 `dualStageOwner` 与挂载 producer，签名懒加载页取文档时再核原安装，不能先验旧记录、等待后打开新包。导航意图由可信 Host 适配为现有工作台选择，不把 `UiViewSelection` 当作已经具备跨 owner 权限的公开入口。
 
 原生项目插件的“启用”事实属于 Projects 的成员关系，不能伪装成只控制签名安装记录的 `plugins.installed.enable@1`。第 20 批在固定头 `3a8a3703ed`（合同与 owner 前置 `33cd1028c6`）已交 `projects.plugins.get@1`／`projects.plugins.set@1`，设置 HTTP、市场、选择器和 Coding 共用同一写口；本片直接复用，不新增 `projects.plugins.enable` 或第二份 HTTP 桥。`project_membership` 候选额外保留本次 compose 同一次可信 Catalog 读取的 `expected_revision`，该值进入组合 revision，点击原样交给 set，不能读一个新 revision 代用户重试。项目和操作者从调用上下文来，Host 按可信注册、发布者和当前安装把 canonical id 映射到 `ProjectPluginId`。
@@ -529,4 +535,8 @@ Goals 在自身声明中把 `goals.create@1` 指向 `stage/create-dialog`，自�
 
 **文件与验证。** contracts 的组合／呈现及签名安装动作，SDK 声明和描述校验，`horizontal/surfaces` 的首页编排及共用读取，Host 的 `surface-actions.ts`、主区／安装控制和薄适配，以及各自派生快照；生产页面、Dock 输入、Goals 选择消费、签名组件选择接线和插件声明由后续消费者片串行接入。复用现有 DOM 选择事件，无须另建事件。第 20 批的成员能力为依赖，保留 `33cd1028c6`、`37a5eb8b55` 的 owner／合同／常开语义，以及 `5b520337f9`、`295dd67801`、`3a8a3703ed` 的 Runtime 切换、本人入口和已保存回执，不复制该批其它消费者与测试迁移。该批已释放 Projects 合同／API、`project-workspace-actions.ts` 和 `project-plugin-ports.ts` 的窗口；Runtime `index.ts`／`install-rules.ts`、Host `declaration-owners.ts` 如需变动仍另协调。第 16 批的 `project-host.ts` 与宿主动作快照保持串行，不因本设计重占。
 
+签名提交接线增加的精确范围为 Host `plugin-page-http.ts`／`plugin-page-actions.ts`、项目与 Home 页面激活装配、`installed-action-registration.ts`、`plugin-builder/exposed-actions.ts`／`installed.ts`／`agent-surface.ts`，以及 Builder 的 `agent-studio.ts` 已装分支；按第 16 批页面环境切换窗口接续。页面凭据和 Runtime 控制沿用现有能力，相关页面身份安全不变量与拒绝测试同步更新，不新建凭据体系。
+
 SCS-07／08／09／11／12／17 验真实空 Goals 和已签安装包从首页打开表单，打开与取消零写、提交一次；Inbox 停用及恢复、双实例主区、同对象跨组扣除、概况返回后撤权、隐藏计数零泄露、首次失败与真实旧值恢复，以及冷路径实际调用次数。拒绝反例涵盖伪 panel、跨贡献、同名不同 scope、换代、同版本不同 digest、排队期间撤权，以及懒加载期间换包。原生启用分别制造排队期间成员变化和成员 revision 不变的安装换代，均零成员写入；真实提交后切换失败返回 503，重试只读。不改门禁算法、阈值或 CI，不用 Mock 的状态常量代替最终首页实操。2026-11-08 的两处设计 P1（Goals 必填输入无入口、旧卡缺安装绑定）按上述方案处理，仍须实现复核与公共合同合审后关闭。
+
+签名表单验收使用普通第三方 id 的真实签包，从首页和插件主区分别打开同一表单：正常提交经同一网关只写一次；提交前及写前撤权／换包、原页关闭、旧 `/call` 直接 submit、伪造 raw operation、跨项目复用页面均零写。现有 Home 项目可达性用例的合法提交迁到新入口，旧入口保留明确拒绝断言；未安装 preview 的有效验证保持。公共合同台新增的签名提交 P1 按此设计补齐，仍待定点合审与实现证据。

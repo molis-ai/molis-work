@@ -441,7 +441,7 @@ surface_corrections        项目库
 - **批量和截止。** SDK 允许一个主人不同 kind 使用不同 values 动作，旧“每 owner 一次”不能覆盖现行合法声明。按精确提供方和 values 动作合并最少批次，每批最多 50 对象、32 个规则字段，同一对象不重复读取；最多 4 个真实在途调用，整次 compose 共用 1 秒截止。截止停止派发并取消本轮子调用，不能把 Promise 超时当成底层已经结束后继续补槽。父取消或撤权直接传播，不能当作 stale 成功。动作必须符合现有 values schema、只读、不调模型且明确 `execution.cost: "none"`；省略、unknown 和 metered 均不能作为自动 values 读取，标准声明 helper 显式给 none；复用 `presentationValuesProblems`。发现型 Attention 条目尚未证明可读就不输出，也不进入 merged、overflow、hidden 或计数；有未完成读取时组给 unreadable，不伪装成空组。
 - **Attention 的事实与排序。** 由 `modules/attention-resumption` 的窄批量读取只投影活动持久条目的 owner、规范对象引用、reason、revision、进入时间，不带 detail。现有 subject_type 到 kind 的对应由这个事实 owner 维护，不在服务抄 Inbox 分支；null owner 不猜。goal_decision 是决定，source_fault/artifact_out_failed 是失败，其余已存在且可读的条目可以按主人状态分类，无分类排在三类之后。状态只影响排序，绝不产生条目（SSC-11）。当前 Coding/Goals 的其他待验收没有进入此表，不假造；新增生产者与生命周期另议。本片不接 `/api/attention` 的后台任务和 AssistantNotices 聚合。插件枚举继续服从现有 attention:read 和原调用人的对象权限。
 - **关系只读与身份。** Context Ledger owner 提供限定候选引用的 active latest 批量读取，复用原有 scope、namespace、引用和访问校验。Placement 在自己的 Home 分区批读复制／派生边，并核对当前位置；Host 一次逻辑端口合并主人结果，不跨包写 SQL。两端必须都是本轮已授权候选且位置、kind、身份一致；不向候选外扩图。当前没有可信 created_from 生产来源，不能仅凭插件可自写的 type/cause 把它认成平台关系。真实链用 placement.copy/convert 验证。
-- **安装目录。** Runtime 的安装、换版和外部确认 pin/save 前复用同一套 `validatePresentationDeclaration`、完整 `presentationCatalog`。Host 注入同作用域完整可信声明：已装（含停用和未授权）、待启动声明、系统定义、候选自身，去掉被替换旧版本；不能用 caller discover 代替完整目录，也不递归启动插件。这里只核引用存在；组合每次另用同一份 discover 和 `findSubjectReader` 判唯一 reader 与 owner。保留现成 `presentationFormFields` 及自查重复组拒绝，`assertSurfaceDescription(候选, 候选)` 必须无 dropped。
+- **安装目录。** Runtime 的安装、换版和外部确认 pin/save 前复用同一套 `validatePresentationDeclaration`、完整 `presentationCatalog`。Host 注入同作用域完整可信声明：已装（含停用和未授权）、待启动声明、系统定义、候选自身，去掉被替换旧版本；不能用 caller discover 代替完整目录，也不递归启动插件。Runtime 和安装 Service 遇到有呈现声明却没有可信校验端口时，按 `plugin.declaration_invalid` 拒绝。这里只核引用存在；组合每次另用同一份 discover 和 `findSubjectReader` 判唯一 reader 与 owner。保留现成 `presentationFormFields` 及自查重复组拒绝，`assertSurfaceDescription(候选, 候选)` 必须无 dropped。Home 串行、动态系统声明和同发行物重挂的边界见 §14.4。
 - **纠正写点。** slot 与 subject 使用无碰撞键，位置级 form 不依赖 NULL 唯一性。form、pin、remove 是独立偏好，remove 优先；换形态不丢 pin。actor 从上下文来，项目库隔离。user compose 按本人 actor 读纠正；plugin compose 给空纠正及 revision 0，不因共享 actor_id 读到本人的偏好。await `beforeEffect` 后，最后同步控制检查与同一事务里的 revision 比较、写入递增紧邻；关闭、取消、撤权和冲突都不留业务记录。
 
 文件边界：新服务包、contracts 的动作/呈现/组合与 Attention/Ledger 读取合同、SDK 共用声明/描述校验、事实 owner 的公开读取、Plugin Runtime 安装检查、Host 装配，以及相应 API/动作快照与拒绝用例。首页 S-2、页面、语言切换、DOM 事件、模型和生成页面均不在 S-1。每项必要扩展都为了补当前公开需求的接线，不新增持久事实或第二套权限目录；遇到无法通过现有端口闭合的信任边界须先向主台报告。
@@ -469,3 +469,17 @@ surface_corrections        项目库
 **文件与交接。** 写手可改 contracts 的 `plugin-sandbox.ts`、SDK `sandbox-actions.ts`／`sandbox-manifest.ts` 及专用协议工具、sandbox 的 schema／runner、正常包依赖登记与独立 `tests/security-invariants-sandbox-presentation.test.ts`。第 10、16 批均核实并释放了 design-system 的 `plugin-components.ts`／`plugin-component-records.ts`，只在普通组件绑定中排除固定读取协议，不改界面或样式。创作台 `build-checks.ts` 的 G5 合成测试壳只移除真实 query 的协议标记；生产声明、样例和 G6 的真实权限保持。#1984 正占用的 SDK 根导出与共享 API 快照、Host `sandbox-package.ts`、CLI、两包 README、`tests/sandbox-pack.test.ts` 及其公共 fixture 保持串行交接；可读取复用，不覆盖。本批独立代码不得绕开原入口来避开占用。
 
 **验证。** SCS-11／16：上述同包预览、安装、运行与重开均须保留呈现、values、reader 与 external；伪造投影、未知协议、普通操作中的开放 schema、协议写入／联网／计费 effects、坏输入输出与撤权都被拒。没有新增声明的旧包原样回放。服务测试与真实安装证据分开；未完成安装、运行和重开前，不宣称第三方同等待遇已实现。
+
+### 14.4 Home 安装的串行边界（2026-11-08）
+
+在 `b6a7274fd8ac` 上完成调用链核查与独立 `gpt-6-astra / high` 只读合审。以下是 SCS-16 的接线要求，尚未实现；不能把设计复核记为运行证据。现有确认动作只串行同一个项目，两个项目仍能同时改一个 Home 的安装目录，导致最终声明检查通过后、Runtime 复查前目录变化，在 pin/save 后才拒绝。
+
+**串行范围。** 唯一 `HomePluginHost` 复用现有 `HomeLine` 类，拥有一份专用实例。正常 `ready()` 完成后进入这条线，从最终版本、发布者与声明检查，经过 pin/save，持有到 Runtime 安装、换版及其内部启动或恢复结束。签名包的安装、换版、卸载与启用，包括直接 HTTP 入口，使用同一条线；内置 Home 插件的 enable 也必须进入，因为它可经 `recordToFollow` 跟随当前构建、改变目录。撤权和停用的立即失效不等待这条线。不能借用 LocalHost 全局 Home 动作队列：现有 Placement 会从 Home 等待项目动作，安装确认反向等待该队列会死锁。现有签名包启动只等沙箱 ready/stop；项目委托发生在业务 operation 内。曝光刷新用 Home caller 的原始 inspect，不启动或派发项目动作；实现改变此调用链时重新核对。
+
+**排队后的授权。** 可信调用 control 从动作入口传到确认临界段。出队并完成最后异步准备后重新 `beforeEffect()`，紧邻同步目录检查和 pin/save 再核取消、调用权限与 closed，随后同步复查发布者 pin。不能只沿用入队前的授权检查。关闭先标 closed，拒绝尚未写入的排队回调，排空在途安装操作后再释放库。声明不合法、排队期间取消或撤权均不留下本次 pin、留存包或安装记录。
+
+**系统声明取样。** 系统动作并非全是静态定义：已发布判断规则可重新登记，MCP 也可能有 system 身份。用现成 `isMcpToolCapability` 排除 MCP，并排除其它项目；在本次确认的最后检查复制系统能力 id/version 对，供该候选的预检及 Runtime 复查共用。取样只证明引用存在，不能保存调用权限；实际组合和执行继续现查。最小注入放在 Host 私有安装 helper 的调用上下文，绑定 scope、plugin id、版本、发布者签名及现有 `manifest_digest`，结束即失效。其它候选、下一次请求和普通 Runtime 入口重新读取。没有新增持久状态、摘要格式或 SDK 合同。
+
+**已装发行物与目录完整性。** 同一安装记录、严格身份和 `manifest_digest` 的现行发行物重挂、enable 或恢复，不重新当作接纳新声明；仍做形状、可信 hook 和身份检查，依赖后来卸载只影响组合时的可用性。首次安装、卸载后重装、`recordToFollow`、新声明和换版均须完整检查；跨版本 rollback 不能按同发行物重挂免验。同范围旧签名 app 的 Manifest 可能没有 actions，目录读取须用现有 `SandboxPackageStore.load(id, signature, version)` 严格读取留存原件，再复用真实曝光的 `sandboxOperationActions`，含停用项；不改写或重签原件。已装记录覆盖待启动同 id，候选整体替换旧版，目录 reader 本身不启动 Runtime。
+
+**SCS-16 验证。** 两个项目共用隔离 Home，制造真实确认与卸载／换版的交错，验证两种先后：确认持线时目录变更不能插入；目录先变更时确认引用旧动作被拒，pin、留存包、安装记录均不变。另覆盖出队前取消／撤权、关闭排队、内置 enable 跟随构建、取样后系统规则消失而下一次确认重新取样、缺可信端口拒绝、依赖卸载后同发行物恢复，以及 Placement Home→Project 与安装确认并行不死锁。已有 SCS-11 同签名包的真实安装测试接上 compose/correct 后再记完整链路通过。

@@ -15,7 +15,7 @@ const SHA256 = /^[0-9a-f]{64}$/;
 /** A Home with no `storage-space.json` yet: a fresh account Home, or one the first open has not reached. */
 const UNBOUND_HOME = "unbound";
 
-export type UpgradeUnitState = "planned" | "snapshotted" | "committed" | "restoring" | "failed" | "too_new";
+type UpgradeUnitState = "planned" | "snapshotted" | "committed" | "restoring" | "failed" | "too_new";
 const STATES: readonly string[] = ["planned", "snapshotted", "committed", "restoring", "failed", "too_new"] satisfies UpgradeUnitState[];
 
 /** Only the code and the fixed reason: what a step threw can quote the store's content, and stays on the error's `cause`. */
@@ -25,7 +25,8 @@ export interface UpgradeUnitError {
 }
 
 export interface UpgradeUnit {
-  readonly kind: "sqlite" | "file";
+  /** A SQLite file, a JSON file, or a plugin's tables inside a SQLite file of the platform's (§2.4). */
+  readonly kind: "sqlite" | "file" | "plugin_tables";
   readonly owner: string;
   /** Only names the unit, to match it with a descriptor. The real path is always worked out from the Home and the descriptor (S-upgrade-ledger-verified). */
   readonly relative_path: string;
@@ -76,7 +77,7 @@ const fingerprint = (value: unknown): value is string => typeof value === "strin
 function parseUnit(value: unknown): UpgradeUnit {
   const unit = object(value, ["kind", "owner", "relative_path", "group", "from", "to", "state", "error"]);
   const { kind, owner, relative_path, group, from, to, state } = unit;
-  if ((kind !== "sqlite" && kind !== "file") || typeof owner !== "string" || typeof relative_path !== "string" || (group !== null && typeof group !== "string")
+  if ((kind !== "sqlite" && kind !== "file" && kind !== "plugin_tables") || typeof owner !== "string" || typeof relative_path !== "string" || (group !== null && typeof group !== "string")
     || !count(from) || !count(to) || typeof state !== "string" || !STATES.includes(state)) throw refused();
   let error: UpgradeUnitError | null = null;
   if (unit.error !== null) {

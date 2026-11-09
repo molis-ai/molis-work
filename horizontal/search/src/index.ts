@@ -220,10 +220,10 @@ export class SearchService {
 
   /**
    * Called by the Host when a provider is registered or withdrawn (install, enable, upgrade, disable, uninstall).
-   * The next query re-checks that provider's sources and drops the ones that are gone; nothing runs now.
+   * Known sources refresh shortly after; the next query also re-checks them and drops the ones that are gone.
    */
   markRegistration(providerId: string, projectId: string | null): void {
-    this.announce(providerId, projectId);
+    if (this.announce(providerId, projectId)) this.scheduleRefresh(providerId, projectId);
   }
 
   private announce(providerId: string, projectId: string | null): boolean {
@@ -308,6 +308,15 @@ export class SearchService {
     }
     if (refusal !== null) return { state: "unavailable", hit_id, reason: refusal };
     return { state: "ok", hit_id, subject: entry.subject, open: entry.open ?? defaultOpen(source, hit.kind, hit.id), title: entry.title, revision: entry.revision };
+  }
+
+  /** Indexed material for a trusted consumer, retaining the original provider revision across its waits. */
+  indexedCatalog(access: SearchAccess) {
+    const revisions = new Map(this.changed);
+    return authorizedSearchCatalog(this.options.index, access, this.options.onError, source => {
+      const key = `${source.view.provider.project_id ?? ""}|${source.reference.provider_id}`, revision = revisions.get(key);
+      return () => { if (this.closed || this.changed.get(key) !== revision) throw new ActionError("actions.forbidden", "原资料来源已变化，请重新整理"); };
+    });
   }
 
   async status(access: SearchAccess, input: { scope?: SearchScope }): Promise<SearchStatusResponse> {
@@ -447,13 +456,14 @@ export class SearchService {
   /** Only sources already in the index are refreshed in the background; new ones are indexed when first searched. */
   private async refreshKnown(providerId: string, projectId: string | null): Promise<void> {
     if (this.closed) return;
-    const records = this.options.index.sources().filter(record => record.provider_id === providerId && (record.project_id === projectId || record.project_id === null));
+    const records = this.options.index.sources().filter(record => record.provider_id === providerId && (projectId === null || record.project_id === projectId || record.project_id === null));
     for (const scope of new Set(records.map(record => record.project_id))) {
       const owner = this.owner(scope);
       const { access, views } = await owner();
-      const sources = entrySources(views, access.caller)
-        .filter(source => source.project_id === scope && source.reference.provider_id === providerId && source.view.availability.available);
-      await Promise.allSettled(sources.map(source => this.sync(source, owner)));
+      const all = entrySources(views, access.caller).filter(source => source.project_id === scope && source.reference.provider_id === providerId);
+      await this.purgeDisabled(all);
+      await this.reconcile(scope);
+      await Promise.allSettled(all.filter(source => source.view.availability.available).map(source => this.sync(source, owner)));
     }
   }
 
@@ -476,6 +486,32 @@ export class SearchService {
 
 export { searchActions, SEARCH_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/search";
 export { confirmReferences, findReferenceCandidates, readReferences, type ReferenceAccess } from "./references.js";
+
+/** A project-only view of indexed material under the caller's original source and reader authority. */
+async function authorizedSearchCatalog(index: Pick<SearchIndexPort, "sources" | "documents">, access: SearchAccess,
+  onError: SearchServiceOptions["onError"], capture: (source: SourceView) => () => void) {
+  const project = access.caller.project_id;
+  if (!project) throw new ActionError("actions.scope_mismatch", "索引目录需要当前项目");
+  const views = await access.client.discover(access.caller);
+  const before = entrySources(views, access.caller).filter(source => source.project_id === project && source.view.availability.available);
+  const authority = queryAuthority(access.caller, before, views, null, undefined, (error, where) => onError?.(error, where));
+  const fences = before.map(capture);
+  const assertCurrent = () => { authority.assertCurrent(); for (const fence of fences) fence(); };
+  await authority.validate();
+  const currentViews = await access.client.discover(access.caller);
+  assertCurrent();
+  const current = entrySources(currentViews, access.caller).filter(source => source.project_id === project && source.view.availability.available
+    && before.some(original => original.key === source.key));
+  const sources = index.sources().filter(source => source.project_id === project && source.state === "ready" && !source.error
+    && source.collection_revision !== null && current.some(live => live.key === source.source_key));
+  const documents = index.documents(project).flatMap(document => {
+    const source = current.find(source => source.key === document.source_key);
+    if (!source || !sources.some(record => record.source_key === source.key) || !source.kinds.has(document.kind)) return [];
+    return [{ ...document, ...(authority.canRead(source, document.kind, currentViews) ? {} : { content: "", content_policy: "summary" as const }) }];
+  });
+  // Consumers keep this original fence while waiting; a new catalog never restores an old call's authority.
+  return { sources: () => { assertCurrent(); return sources; }, documents: (projectId: string) => { assertCurrent(); return projectId === project ? documents : []; }, assertCurrent };
+}
 
 function entrySources(views: readonly ActionView[], caller: ActionCallContext): SourceView[] {
   return views.filter(view => isSearchEntriesSource(view.action) && view.action.search_source?.kinds.length).map(view => {

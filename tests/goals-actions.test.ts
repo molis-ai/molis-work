@@ -1,3 +1,4 @@
+import { changeMcpClientCredential } from "@molis-ai/molis-work-app-local-host";
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -133,6 +134,7 @@ async function openGoalsMcp(t: TestContext) {
       MOLIS_WORK_WORK_CONTEXT_ID: "goals-actions-session", MOLIS_WORK_WORK_CONTEXT_STABLE: "true",
     }, stderr: "pipe" });
     let errors = ""; transport.stderr?.on("data", chunk => { errors += String(chunk); });
+    changeMcpClientCredential(home, caller.actor_id, "connect");
     await step("MCP initialize", () => sdk.connect(transport)).catch(error => { throw new Error(String(error) + errors); });
     const name = molisWorkActionToolName(goalsActions.create);
     assert.equal((await sdk.listTools()).tools.some(tool => tool.name === name), false);

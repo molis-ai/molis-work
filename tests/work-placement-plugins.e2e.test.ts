@@ -85,12 +85,12 @@ test("placement per plugin: Goal materials, Form to Dataset, Lingguang conversio
   const describe = (object: { kind: string; id: string; project_id: string | null }) => evaluate<Description>(`globalThis.molisPlacement.describe(${text(object)}, true)`);
   const post = (path: string, body: unknown = {}) => evaluate<Record<string, unknown>>(`fetch(${text(path)}, { method: 'POST', headers: molisWorkControlHeaders(), body: ${text(JSON.stringify(body))} })
     .then(async response => { const value = await response.json(); if (!response.ok) throw new Error(value.error || response.status); return value; })`);
-  // The project home is its own tab; a plugin tab restored from before may be in front of it.
+  // The project home is the Dock's first button (07-S2: not a tab); a plugin tab restored from before may be in front of it.
   const projectHome = async (project: string) => {
     await go(`/projects/${project}/`);
-    await waitFor("document.querySelector('.tab-item[data-tab-kind=home]')", 15_000);
-    if (!await evaluate<boolean>("Boolean(document.querySelector('.tab-item[data-tab-kind=home][aria-current]'))")) await click(".tab-item[data-tab-kind=home] .tab-item-trigger");
-    await waitFor("document.querySelector('.tab-item[data-tab-kind=home][aria-current]')", 15_000);
+    await waitFor("document.querySelector('[data-dock-pin=home]')", 15_000);
+    if (!await evaluate<boolean>("Boolean(document.body.dataset.desktopSurface === 'home' && !document.querySelector(':is([data-titlebar-tabs], [data-tab-strip]) .tab-item[aria-current]'))")) await click("[data-dock-pin=home]");
+    await waitFor("document.body.dataset.desktopSurface === 'home' && !document.querySelector(':is([data-titlebar-tabs], [data-tab-strip]) .tab-item[aria-current]')", 15_000);
   };
   const typeInto = (selector: string, value: string) => viewFor(selector).evaluate(`(() => { const input = ${visible(selector)}; input.focus(); input.value = ${text(value)}; input.dispatchEvent(new Event('input', { bubbles: true })); })()`);
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
@@ -172,7 +172,7 @@ test("placement per plugin: Goal materials, Form to Dataset, Lingguang conversio
   // Shelf is a 常开插件 living in the side panel (W2'-2): its tab is its own document, so the steps inside it run there, and
   // what it asks of the page (the shared dialog, the cards) reaches the page through the side panel.
   const shelfShows = async (id: string) => {
-    await waitFor("document.querySelector('#side-panel [role=tab][aria-selected=true]')?.dataset.sideTab === 'plugin:shelf/side'", 15_000);
+    await waitFor("document.querySelector('[data-side-tabs] [role=tab][aria-selected=true]')?.dataset.sideTab === 'plugin:shelf/side'", 15_000);
     await shelf.waitFor(`document.querySelector('[data-shelf-list=materials] [data-shelf-item="${id}"]')?.getAttribute('aria-selected') === 'true'`, 15_000);
   };
   // A row's actions show on hover; the first visible match, or else the first one.

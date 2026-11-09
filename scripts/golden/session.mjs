@@ -14,7 +14,7 @@ const SCRIPTED_MODEL_URL = "http://127.0.0.1:9/v1/chat/completions", SCRIPTED_AN
 /** What a case asks the scripted model; anything else is not this conversation. */
 const SCRIPTED_QUESTION = "金样对话";
 
-const { MolisWorkLocalHost, molisWorkHostProjectReference } = await import("@molis-ai/molis-work-app-local-host");
+const { MolisWorkLocalHost, molisWorkHostProjectReference, ensureSystemAgentService } = await import("@molis-ai/molis-work-app-local-host");
 const { withMolisWorkProjectCatalog } = await import("@molis-ai/molis-work-app-desktop");
 const { residentHost } = await import("../replay-plugins/signed-session.mjs");
 
@@ -82,8 +82,9 @@ export async function openGoldenHost(home, { web = true } = {}) {
   const real = enterHome(home), env = goldenEnvironment(real);
   if (!web) {
     const host = new MolisWorkLocalHost({ homeDirectory: real, completeText: null });
-    // The web surface does this when it starts; the Host's catalog-backed services wait for it.
-    host.configurePersonalPlanning(real, withMolisWorkProjectCatalog);
+    // The web surface does both when it starts: the Host's catalog-backed services wait for the first, and the Agent and Git services
+    // (their workspace and directory ports) read the same catalog only once the second has handed it over.
+    ensureSystemAgentService(host, real, host.configurePersonalPlanning(real, withMolisWorkProjectCatalog));
     return { host, home: real, close: () => host.close(), http: () => { throw goldenFailure("golden.web_surface_absent", "account"); } };
   }
   const resident = await residentHost(root, real, env);
@@ -92,8 +93,18 @@ export async function openGoldenHost(home, { web = true } = {}) {
   let cookie;
   const http = async (route, { method = "POST", body } = {}) => {
     const token = readFileSync(path.join(real, "config/web-control-token"), "utf8").trim();
-    const response = await fetch(origin + route, { method, headers: { origin, "content-type": "application/json", "x-molis-work-control-token": token, "x-molis-work-idempotency-key": crypto.randomUUID(), ...(cookie ? { cookie } : {}) },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+    // `Connection: close` on purpose (UPG2-01, 07 batch audit): this replay makes a handful of requests minutes apart to a Host that may
+    // close an idle keep-alive connection between them. Reusing that socket makes the next POST fail as a bare `fetch failed`
+    // (no code), which the replay can only report as `golden.unexpected_error`; one connection per request has no stale socket to
+    // reuse. A fetch that still fails is told apart from a Host answer, so CI logs say which happened.
+    let response;
+    try {
+      response = await fetch(origin + route, { method, headers: { origin, connection: "close", "content-type": "application/json", "x-molis-work-control-token": token, "x-molis-work-idempotency-key": crypto.randomUUID(), ...(cookie ? { cookie } : {}) },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+    } catch (error) {
+      const cause = error instanceof Error ? (error.cause && typeof error.cause === "object" && "code" in error.cause ? String(error.cause.code) : error.message) : String(error);
+      throw goldenFailure("golden.http_fetch_failed", `${method} ${route}: ${cause}`);
+    }
     cookie = response.headers.get("set-cookie")?.split(";")[0] ?? cookie;
     return respond(response, await response.text(), route);
   };
@@ -116,7 +127,7 @@ export function goldenActions(session, project, tag) {
     const home = view.action.scope === "home";
     return (home ? session.host.homeActionClient() : session.host.actionClient(ref)).invoke(home ? { ...caller, project_id: null } : caller, view, input);
   };
-  return { call, http: session.http, projectId: project.project_id, tag };
+  return { call, http: session.http, projectId: project.project_id, home: session.home, tag };
 }
 
 /** tests/golden-writes/<owner>.ts, found by location and not by any declaration (§4 step 6). */

@@ -7,7 +7,7 @@ import { createAccountMenuController, requiredElement } from './account-menu.js'
 import type { UiRequestPorts } from '@molis-ai/molis-work-ui-host';
 interface AccountIdentity { userId: string; applicationId?: string; displayName?: string; emails?: string[] }
 interface AccountStatus {
-  identity: AccountIdentity | null; space?: string; configured: boolean; viewToken?: string;
+  identity: AccountIdentity | null; space?: string; configured: boolean; viewScope?: string;
   browserSessionTicket?: string; loginCompleted?: boolean; offline?: boolean;
   accountGeneration?: number; accountChanged?: boolean; ready?: boolean; switching?: boolean; error?: string; loginPending?: boolean;
   preparation?: AccountPreparation | null;
@@ -147,8 +147,8 @@ const init = () => {
       if (registration.pending && !state.identity) { leaveOldPage(); return; }
       if (state.identity) {cohort.connect();if (preparationRevision === cohort.revision) cohort.observe(state.preparation);}
       if (document.body.hasAttribute('data-account-entry') && state.identity && state.ready) { location.replace(destination); return; }
-      const pageToken = document.querySelector<HTMLMetaElement>('meta[name="molis-work-control-token"]')?.content;
-      const changed = (state.viewToken && pageToken && state.viewToken !== pageToken) || (loaded && space !== (state.space || 'local'));
+      const pageToken = document.querySelector<HTMLMetaElement>('meta[name="molis-work-page-session"]')?.content;
+      const changed = (state.identity && state.viewScope && pageToken && state.viewScope !== pageToken.split(".")[1]) || (loaded && space !== (state.space || 'local'));
       identity = state.identity; space = state.space || 'local'; configured = state.configured; loaded = true; paint();
       if(!changed)void syncConsent.update(space);
       if (changed) {

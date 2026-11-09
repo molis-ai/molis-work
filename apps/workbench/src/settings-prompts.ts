@@ -5,7 +5,7 @@
 export function renderPromptSettings({ L }: { L(text: string): string }): string {
   return `<section class="settings-document prompt-settings" aria-labelledby="settings-title" data-prompt-settings>
     <header class="settings-heading"><div class="settings-heading-title"><h1 id="settings-title">${L("提示词")}</h1></div>
-      <p>${L("系统和插件交给模型的全部说明文字；角色由其中几段组成。修改从下一轮开始生效，正在进行的一轮不受影响；每一轮的记录会写明用的是默认版还是你的版本。")}</p></header>
+      <p>${L("系统和插件交给模型的说明文字；角色由其中几段组成。修改从下一轮开始生效，正在进行的一轮不受影响；每一轮的记录会写明用的是默认版还是你的版本。")}</p></header>
     <p class="prompt-settings-notice" role="note">${L("改这里的文字不会改变任何权限：能读写哪些目录、能调用哪些能力、哪些操作要你确认，都由系统在代码里执行，与文字写成什么无关。")}</p>
     <div class="prompt-settings-tools">
       <div class="mw-toggle-group settings-segmented" role="group" aria-label="${L("筛选")}">
@@ -45,9 +45,10 @@ globalThis.molisWorkBindPromptSettings = (container = document, context = null) 
   const KIND = { agent: "角色组成", instruction: "模型调用指令" };
   const LAYER = { base: "产品约束", role: "角色", project: "项目", task: "任务" };
   const EXECUTION = { "read-only": "只读", "text-edit": "可改文字", "workspace-write": "可改文件、运行命令", operate: "可调用业务能力" };
-  const signedVersion = (ref) => ref ? ref.source.plugin_id + " · " + ref.source.plugin_version + " · " + ref.source.publisher_signature : "";
+  const short = (signature) => String(signature).replace(/^ed25519:sha256:/, "").slice(0, 12);
+  const signedVersion = (ref) => ref ? ref.source.plugin_id + " · " + ref.source.plugin_version + (ref.source.publisher_signature ? " · " + short(ref.source.publisher_signature) : "") : "";
   const sourceTitle = (source) => source.kind === "system" ? L("系统") + " · " + L(source.title) : L("插件") + " · " + L(source.title) + (source.plugin_version ? " " + source.plugin_version : "")
-    + (source.publisher_signature ? " · " + source.publisher_signature : "")
+    + (source.publisher_signature ? " · " + short(source.publisher_signature) : "")
     + (source.origin === "generated" ? " · " + L("插件创作台生成") : "") + (source.state === "disabled" ? " · " + L("已停用，暂不会被调用") : "");
   const matches = (prompt) => {
     const role = focusedRole();
@@ -157,6 +158,28 @@ globalThis.molisWorkBindPromptSettings = (container = document, context = null) 
     owners.forEach((group, ownerId) => {
       const section = el("section", "settings-section prompt-group");
       section.append(el("h2", "prompt-group-title", sourceTitle(group.source)));
+      // The main line carries the short fingerprint (no publisher display name exists in the contract); the full signature is one expand away, copyable.
+      const signature = group.source.kind === "plugin" ? group.source.publisher_signature : undefined;
+      if (signature) {
+        const identity = el("details", "settings-data-disclosure prompt-source-identity");
+        const head = el("span", "setting-copy");
+        head.append(el("strong", "", L("发布者身份")), el("span", "", L("查看并复制完整签名")));
+        const summary = el("summary", "");
+        summary.append(head);
+        summary.insertAdjacentHTML("beforeend", '<svg aria-hidden="true"><use href="#icon-chevron-down"></use></svg>');
+        identity.append(summary);
+        const facts = el("dl", "settings-data-list");
+        const line = el("div");
+        const value = el("dd", "", signature);
+        const copy = el("button", "mw-btn mw-btn--secondary mw-btn--sm", L("复制"));
+        copy.type = "button";
+        copy.addEventListener("click", () => void window.molisCopy?.(copy, signature, { done: L("已复制"), failed: L("复制失败") }));
+        value.append(copy);
+        line.append(el("dt", "", L("发布者签名")), value);
+        facts.append(line);
+        identity.append(facts);
+        section.append(identity);
+      }
       const ownRoles = roles.filter((role) => role.owner_id === ownerId);
       if (ownRoles.length) {
         const list = el("ul", "prompt-roles");

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import test from "node:test";
+import type { PluginDefinition, PluginKeptJob } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { PROBE, later, partitionDirectory, partitionFile, partitionHome, probe, probeEntry, read, write } from "./fixtures/partition-probe.js";
 import { deferred } from "./fixtures/home-runtime.js";
 
@@ -10,6 +11,38 @@ import { deferred } from "./fixtures/home-runtime.js";
 /** SQLite removes the write-ahead log when the last connection to a library closes, so it shows whether the Host holds one open. */
 const open = (home: string, projectId: string) => existsSync(`${partitionFile(home, projectId)}-wal`);
 const code = (error: unknown) => (error as { code?: string }).code;
+
+test("D0039-03 S-52 a partition refuses new calls immediately but keeps its library until activation work exits", async t => {
+  const base = probeEntry(), entered = deferred(), release = deferred();
+  let kept: PluginKeptJob | undefined;
+  const keep = { ...write, capability_id: "partprobe.keep-cleanup", action: { ...write.action, input_schema: { type: "object", additionalProperties: false } } };
+  const manifest = { ...base.manifest, actions: [...base.manifest.actions!, keep],
+    background: { jobs: [{ job_id: "cleanup", reason: "等待真实收尾", permissions: write.action.permissions }] } };
+  const f = partitionHome(t, [probeEntry({ manifest, create: () => {
+    const definition = base.create!() as PluginDefinition;
+    return { ...definition, manifest, async start(context) {
+      const contribution = await definition.start(context);
+      if (contribution.kind !== "app") throw new Error("the partition probe is an app");
+      return { ...contribution, actions: [...contribution.actions!, { ...keep, async handle(caller) {
+        await caller.beforeEffect();
+        kept = context.services!.background!.keep("cleanup", async control => { entered.resolve(); await release.promise; await control.beforeEffect(); });
+        return "kept";
+      } }] };
+    } };
+  } })]);
+  await f.ready();
+  await f.invoke(write, { text: "gone" }, "p1");
+  await f.invoke(keep, {}, "p1"); await entered.promise;
+  const clearing = f.hooks.clear(PROBE, "p1");
+  try {
+    await assert.rejects(kept!.done, { code: "actions.cancelled" });
+    assert.equal(open(f.home, "p1"), true, "data stays open until the work is done");
+    await assert.rejects(f.invoke(read, {}, "p1"), { code: "actions.unavailable" }, "the same-turn fence refuses new reads during cleanup");
+    assert.equal(existsSync(partitionFile(f.home, "p1")), true);
+  } finally { release.resolve(); }
+  assert.equal(await clearing, true);
+  assert.equal(existsSync(partitionDirectory(f.home, "p1")), false);
+});
 
 test("PART-10 PG-038 deleting a project: the background work accepted in it stops, its library closes and its removal begins in one turn; calls begun before it are refused and rebuild nothing; the same id begun again starts empty", async t => {
   const f = partitionHome(t);

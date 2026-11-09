@@ -15,11 +15,11 @@ export interface AddWorkspaceProjectInput {
     user_confirmed: boolean;
 }
 
-export interface ChangeWorkspaceProjectInput {
-    workspace_id: string;
+export interface ChangeDirectoriesInput {
     project_id: string;
     actor_id: string;
-    user_confirmed: boolean;
+    change: DirectoryChange;
+    expected_revision: string;
 }
 
 export interface CreateProjectInput {
@@ -32,7 +32,30 @@ export interface DeleteProjectInput {
     actor_id: string;
     delete_confirmed: boolean;
     idempotency_key: string;
+    output_files?: "keep" | "delete";
 }
+
+export type DirectoryChange = {
+    kind: "add_input";
+    workspace_path: string;
+} | {
+    kind: "remove_input";
+    workspace_id: string;
+} | {
+    kind: "set_output";
+    target: DirectoryTarget;
+} | {
+    kind: "repair";
+    workspace_id: string;
+    workspace_path: string;
+} | {
+    kind: "map_source";
+    source_workspace_id: string;
+    target: DirectoryTarget;
+} | {
+    kind: "unmap_source";
+    source_workspace_id: string;
+};
 
 export type DirectoryRole = "input" | "output";
 
@@ -71,6 +94,7 @@ export interface ProjectDeletionRecord extends ProjectDeletionReceipt {
 export interface ProjectDeletionResult {
     deletion: ProjectDeletionRecord;
     replayed: boolean;
+    kept_output_directory?: string;
 }
 
 export interface ProjectDeletionStep {
@@ -93,6 +117,12 @@ export interface ProjectDirectories {
 export interface ProjectDirectory extends ProjectWorkspaceRef {
     roles: DirectoryRole[];
     state: "ok" | "missing";
+}
+
+export interface ProjectDirectoryPage {
+    default_output_id: string;
+    default_output_made: boolean;
+    source_kinds: Record<string, SourceKind>;
 }
 
 export type ProjectPluginId = string;
@@ -138,7 +168,7 @@ export interface ProjectWorkspaceMembership {
     workspace_name: string;
     realpath_verified: boolean;
     project_id: string;
-    is_default: boolean;
+    roles: DirectoryRole[];
     bound_by: string;
     created_at: string;
     updated_at: string;
@@ -161,9 +191,7 @@ export interface ProjectsCommandApi {
     removeProjectPlugin(input: RemoveProjectPluginInput): ProjectPluginMembership;
     renameProject(projectId: string, displayName: string, actorId: string, expectedDisplayName: string): ProjectRecord;
     addWorkspaceProject(input: AddWorkspaceProjectInput): ProjectWorkspaceDirectoryRecord;
-    repairWorkspaceProject(input: RepairWorkspaceProjectInput): ProjectWorkspaceDirectoryRecord;
-    setWorkspaceDefault(input: ChangeWorkspaceProjectInput): ProjectWorkspaceMembership[];
-    removeWorkspaceMembership(input: ChangeWorkspaceProjectInput): ProjectWorkspaceMembership[];
+    changeDirectories(input: ChangeDirectoriesInput): ProjectDirectories;
 }
 
 export interface ProjectsQueryApi {
@@ -177,7 +205,10 @@ export interface ProjectsQueryApi {
     selections(): ProjectSelection[];
     listWorkspaceMemberships(): ProjectWorkspaceMembership[];
     listWorkspaceDirectory(projectId?: string): ProjectWorkspaceDirectoryRecord[];
-    preferredWorkspacePath(projectId: string): string | null;
+    projectDirectories(projectId: string): ProjectDirectories;
+    outputDirectory(projectId: string): ProjectWorkspaceRef;
+    defaultOutputDirectoryId(projectId: string): string;
+    workspaceIdAt(canonicalPath: string): string | null;
     workspaceProjectSelections(workspaceId: string): ProjectSelection[];
     listProjectDeletions(): ProjectDeletionRecord[];
 }
@@ -186,10 +217,6 @@ export interface RemoveProjectPluginInput {
     project_id: string;
     plugin_id: ProjectPluginId;
     actor_id: string;
-}
-
-export interface RepairWorkspaceProjectInput extends AddWorkspaceProjectInput {
-    workspace_id: string;
 }
 
 export interface RunDirectories {
@@ -203,6 +230,18 @@ export interface RunDirectories {
         worktree_id: string;
     };
 }
+
+export type SourceKind = "folder" | "former_default_output" | "other_default_output";
+
+export declare const directoryInputOnly: (workspaceId: string) => import("platform/action-errors").ActionError;
+
+export declare const materialOriginActions: {
+    read: ActionDefinition<{
+        items: MaterialOriginQuery[];
+    }, {
+        items: MaterialOriginAnswer[];
+    }>;
+};
 
 export declare const materialRecentActions: {
     read: ActionDefinition<Record<string, never>, {
@@ -223,7 +262,6 @@ export declare const modulesProjectsContract: {
 
 export declare const projectCatalogErrors: {
     user_confirmation_required: (message: string, details?: Readonly<Record<string, unknown>>) => import("platform/action-errors").ActionError;
-    workspace_default_unsupported: (message: string, details?: Readonly<Record<string, unknown>>) => import("platform/action-errors").ActionError;
     workspace_membership_not_found: (message: string, details?: Readonly<Record<string, unknown>>) => import("platform/action-errors").ActionError;
     workspace_required: (message: string, details?: Readonly<Record<string, unknown>>) => import("platform/action-errors").ActionError;
     invalid_name: (message: string, details?: Readonly<Record<string, unknown>>) => import("platform/action-errors").ActionError;
@@ -271,38 +309,13 @@ export declare const projectDirectoryErrors: import("platform/action-errors").Er
     readonly directory_missing: "not_found";
     readonly directory_revoked: "forbidden";
     readonly directory_duplicate: "conflict";
+    readonly directory_unmapped: "not_found";
+    readonly directory_input_only: "forbidden";
 }>;
 
 export declare const projectSettingsCapabilities: {
-    readonly workspaces: ActionDefinition<[], readonly ProjectWorkspaceRef[]>;
-    readonly browsingWorkspace: ActionDefinition<[], ProjectWorkspaceRef | null>;
-    readonly selectBrowsingWorkspace: ActionDefinition<[workspaceId: string], ProjectWorkspaceRef>;
     readonly runtime: ActionDefinition<[], string | null>;
     readonly selectRuntime: ActionDefinition<[runtimeId: string | null], string | null>;
 };
 
-export declare const projectWorkspaceActions: {
-    add: ActionDefinition<{
-        workspace_path: string;
-    }, {
-        workspace: ProjectWorkspaceDirectoryRecord;
-    }>;
-    repair: ActionDefinition<{
-        workspace_id: string;
-        workspace_path: string;
-    }, {
-        workspace: ProjectWorkspaceDirectoryRecord;
-    }>;
-    unlink: ActionDefinition<{
-        workspace_id: string;
-    }, {
-        changed: boolean;
-    }>;
-};
-
 export declare function projectWorkspaceRef(value: ProjectWorkspaceRef): ProjectWorkspaceRef;
-
-export declare const projectsCapabilities: {
-    readonly listWorkspaces: ActionDefinition<[], readonly ProjectWorkspaceRef[]>;
-    readonly readWorkspace: ActionDefinition<[], ProjectWorkspaceRef | null>;
-};

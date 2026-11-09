@@ -3,6 +3,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { setTimeout } from "node:timers/promises";
 import test, { type TestContext } from "node:test";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -86,9 +87,10 @@ test("S-52 PG-038 a job stopped with its deleted project keeps no successor ther
   };
   const { home, actions } = await homeJobs(t, probe);
   await actions.invoke(person(probe.permissions, "p1"), probe.keep, { id: "p1" }); await entered.promise;
-  assert.equal(await projectDeletedHooksFor(home).clear(`plugin-background:${probe.id}`, "p1"), true);
+  const clearing = projectDeletedHooksFor(home).clear(`plugin-background:${probe.id}`, "p1");
   await assert.rejects(probe.kept[0]!.done, { code: "actions.cancelled" });
   release.resolve(); await tried.promise; await successor?.done.catch(() => undefined);
+  assert.equal(await clearing, true);
   assert.equal(successor, undefined, "the stopped job kept nothing");
   assert.equal((refusal as { code?: string } | undefined)?.code, "actions.cancelled");
   assert.equal(probe.stored("result.p1-next"), null);
@@ -204,10 +206,65 @@ test("S-52 PG-038 closing a project stops the jobs a Home plugin kept there, and
   }
   await entered.promise;
   const control = (projectId: string) => probe.controls.find(item => item.project_id === projectId)!;
-  assert.equal(await f.host.closeProject(closed.reference), true);
+  const closing = f.host.closeProject(closed.reference);
+  await assert.rejects(probe.kept[0]!.done, { code: "actions.cancelled" });
   assert.equal(control(closed.project_id).signal.aborted, true); assert.equal(control(open.project_id).signal.aborted, false);
   release.resolve(); await Promise.allSettled(probe.kept.map(job => job.done));
+  assert.equal(await closing, true);
   assert.equal(probe.stored(`result.${closed.project_id}`), null); assert.equal(probe.stored(`result.${open.project_id}`), "follow");
+});
+
+test("D0039-01 S-52 closing a project waits for the real job cleanup after its cancelled done settles", { timeout: 60_000 }, async t => {
+  const probe = jobProbe("jobclosewait", "project"), entered = deferred();
+  const { release, finished } = held(probe, () => entered.resolve());
+  const f = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } });
+  const project = await f.project("Await cleanup");
+  await f.host.actionClient(project.reference).invoke(person(probe.permissions, project.project_id), probe.keep, { id: "close" });
+  await entered.promise;
+  const closing = f.host.closeProject(project.reference);
+  try {
+    await assert.rejects(probe.kept[0]!.done, { code: "actions.cancelled" });
+    assert.equal(await Promise.race([closing.then(() => "closed"), setTimeout(200, "waiting")]), "waiting", "cancelled done is not proof that work exited");
+  } finally { release.resolve(); }
+  await finished.promise;
+  assert.equal(await closing, true);
+  assert.equal(probe.stored("result.close"), null, "the late work still cannot write");
+});
+
+test("D0039-02 S-52 deleting project data waits for actual job cleanup before returning", { timeout: 60_000 }, async t => {
+  const probe = jobProbe("jobdeletewait", "project"), entered = deferred();
+  const { release, finished } = held(probe, () => entered.resolve());
+  const { home, actions } = await homeJobs(t, probe);
+  await actions.invoke(person(probe.permissions, "p1"), probe.keep, { id: "delete" });
+  await entered.promise;
+  const clearing = projectDeletedHooksFor(home).clear(`plugin-background:${probe.id}`, "p1");
+  try {
+    await assert.rejects(probe.kept[0]!.done, { code: "actions.cancelled" });
+    assert.equal(await Promise.race([clearing.then(() => "cleared"), setTimeout(200, "waiting")]), "waiting", "deletion waits beyond the handle's cancellation");
+  } finally { release.resolve(); }
+  await finished.promise;
+  assert.equal(await clearing, true);
+  assert.equal(probe.stored("result.delete"), null);
+});
+
+test("D0039-04 S-52 project plugin activation jobs also finish before the project store closes", { timeout: 60_000 }, async t => {
+  const probe = jobProbe("projectjobcleanup", "project"), entered = deferred();
+  // This probe normally runs as a Home instance; the project executor reports its own grant refusal after revoke.
+  probe.definition.stop = context => {
+    assert.throws(() => context.services!.storage!.set("after-stop", "refused"), { code: "plugin.grant_denied" });
+  };
+  const { release, finished } = held(probe, () => entered.resolve());
+  const f = await serveHomeRuntime(t, { pluginFixtures: { project: [probe.definition] } });
+  const project = await f.project("Project activation cleanup");
+  await f.host.actionClient(project.reference).invoke(person(probe.permissions, project.project_id), probe.keep, { id: "project" });
+  await entered.promise;
+  const closing = f.host.closeProject(project.reference);
+  try {
+    await assert.rejects(probe.kept[0]!.done, { code: "actions.cancelled" });
+    assert.equal(await Promise.race([closing.then(() => "closed"), setTimeout(200, "waiting")]), "waiting");
+  } finally { release.resolve(); }
+  await finished.promise;
+  assert.equal(await closing, true);
 });
 
 test("S-52 PG-038 deleting a project stops the jobs kept there, and only those", async t => {
@@ -217,10 +274,12 @@ test("S-52 PG-038 deleting a project stops the jobs kept there, and only those",
   const { home, actions } = await homeJobs(t, probe);
   for (const project of ["p1", "p2"]) await actions.invoke(person(probe.permissions, project), probe.keep, { id: project });
   await entered.promise;
-  assert.equal(await projectDeletedHooksFor(home).clear(`plugin-background:${probe.id}`, "p1"), true);
+  const clearing = projectDeletedHooksFor(home).clear(`plugin-background:${probe.id}`, "p1");
+  await assert.rejects(probe.kept[0]!.done, { code: "actions.cancelled" });
   const control = (projectId: string) => probe.controls.find(item => item.project_id === projectId)!;
   assert.equal(control("p1").signal.aborted, true); assert.equal(control("p2").signal.aborted, false);
   release.resolve(); await Promise.allSettled(probe.kept.map(job => job.done));
+  assert.equal(await clearing, true);
   assert.equal(probe.stored("result.p1"), null); assert.equal(probe.stored("result.p2"), "follow");
 });
 

@@ -24,6 +24,12 @@ function readIdentity(file: string): Identity | null {
   return { secret_ref: REF, key_id: value.key_id, public_key_spki_base64: value.public_key_spki_base64 };
 }
 
+/** Read public metadata for a label; never creates or opens a signing secret. */
+export function localPublisherKeyId(home: string): string | null {
+  try { return readIdentity(join(home, "config", "plugin-publisher.json"))?.key_id ?? null; }
+  catch { return null; }
+}
+
 /** Only an explicit publication calls this. SecretStore owns the sealed key; no pin or project-owned secret is created. */
 export async function studioPublisherIdentity(home: string, control: { beforeEffect(): Promise<void>; assertCurrent(): void }): Promise<PluginPackageSigner & { assertCurrent(): void }> {
   await control.beforeEffect(); control.assertCurrent();

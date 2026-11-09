@@ -6,7 +6,7 @@ import test, { type TestContext } from "node:test";
 import { DEMO_PROJECT_ID, LocalHost, LocalProjectDatabase, MolisWorkLocalHost, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { agentHostCapabilities, type AgentDraftTextRequest, type AgentDraftTextResult } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { projectsCapabilities, projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { workspaceReadActions } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { callAs, callerPlugin, issuedCaller, registerProbe, startPlugin } from "./fixtures/plugin-callers.js";
 
@@ -140,10 +140,9 @@ test("PG035-06 one seam: the Host registers only actions, refuses a definition w
   const workspace = { workspace_id: "w", canonical_path: root, realpath_verified: true, display_name: "w" };
   const product = new MolisWorkLocalHost({ homeDirectory: join(root, "home"), completeText: null, workspacesFor: async () => [workspace], workspaceFor: async () => workspace });
   t.after(async () => { await product.close(); rmSync(root, { recursive: true, force: true }); });
-  // The reads and the browsing and Runtime choices the Host registers for every project are actions, on the action seam.
-  const ids = [workspaceReadActions.git, workspaceReadActions.file, projectsCapabilities.listWorkspaces, projectSettingsCapabilities.workspaces,
-    projectSettingsCapabilities.browsingWorkspace, projectSettingsCapabilities.selectBrowsingWorkspace, projectSettingsCapabilities.runtime, projectSettingsCapabilities.selectRuntime,
-    projectsCapabilities.readWorkspace].map(item => item.capability_id);
+  // The folder reads and the Runtime choice the Host registers for every project are actions, on the action seam. The project's
+  // folders themselves are the `projects.directories.*` provider's (tests/action-project-materials.test.ts); the browsing choice is page state.
+  const ids = [workspaceReadActions.git, workspaceReadActions.file, projectSettingsCapabilities.runtime, projectSettingsCapabilities.selectRuntime].map(item => item.capability_id);
   const rows = product.status().capabilities;
   for (const id of ids) assert.ok(rows.find(row => row.capability_id === id)?.action, `${id} is registered as an action`);
   assert.equal(Reflect.get(product, "registerCapability"), undefined, "nor on the product Host");

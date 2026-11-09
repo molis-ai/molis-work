@@ -100,3 +100,30 @@ test("real Plugin CLI validates in a clean directory without executing entrypoin
     assert.equal(existsSync(join(directory, "executed")), false);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
+
+// FSS-72: an author who ran dev on the standalone tool was told their Manifest was invalid.
+test("standalone Plugin CLI refuses dev and install with plugin.host_required and names the app's command", () => {
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-plugin-cli-host-"));
+  try {
+    writeFileSync(join(directory, "manifest.json"), JSON.stringify(manifest()));
+    const cli = fileURLToPath(new URL("../tooling/plugin-cli/bin/molis-work-plugin.mjs", import.meta.url));
+    const invoke = (...args: string[]) => spawnSync(process.execPath, [cli, ...args], { cwd: directory, encoding: "utf8" });
+    const state = join(directory, "state");
+    for (const run of [invoke("dev", directory, state, "ui:register", "--allow-unsigned-development"), invoke("dev", directory, state, "ui:register", "--allow-unsigned-development", "--locale", "en"), invoke("dev", directory, state, "ui:register", "--no-flag")]) {
+      assert.equal(run.status, 1, run.stderr);
+      const refusal = JSON.parse(run.stderr) as { code: string; message: string };
+      assert.equal(refusal.code, "plugin.host_required");
+      assert.match(refusal.message, /molis-work plugin dev/);
+      assert.equal(run.stdout, "");
+    }
+    assert.equal(existsSync(state), false, "the refusal comes before any state directory is made");
+    const install = invoke("install", join(directory, "manifest.json"), "project-1");
+    assert.equal(install.status, 1);
+    assert.equal(JSON.parse(install.stderr).code, "plugin.host_required");
+    const help = invoke("--help");
+    assert.equal(help.status, 0);
+    assert.match(help.stdout, /^  molis-work-plugin validate /m);
+    assert.match(help.stdout, /^  molis-work plugin dev /m);
+    assert.doesNotMatch(help.stdout, /molis-work-plugin (dev|install) /);
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});

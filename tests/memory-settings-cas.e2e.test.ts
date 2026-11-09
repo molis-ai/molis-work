@@ -144,6 +144,7 @@ test("Partial clear and unknown retry retain the original confirmation; only com
   await page.wait("!document.querySelector('[data-memory-error]').hidden");
   await page.click("[data-memory-clear-reset]"); await page.wait("document.querySelector('[data-memory-confirm-yes]')"); await page.click("[data-memory-confirm-yes]");
   await page.wait("document.querySelector('[data-memory-clear-reset]').hidden");
+  assert.equal(await page.evaluate("document.activeElement?.hasAttribute('data-memory-clear')"), true, "the hidden reset button hands focus to the visible clear button");
   assert.equal(previews, 2); assert.equal(clears, 4, "resetting does not perform any new deletion");
   await page.click("[data-memory-clear]"); await page.wait("document.querySelector('[data-memory-confirm-yes]')");
   assert.equal(previews, 3); assert.equal(clears, 4, "the new scope still waits for confirmation");
@@ -245,4 +246,76 @@ test("Import retry retains the selected package after the file input clears and 
   const status = await page.evaluate<string>("document.querySelector('[data-settings-toast]').textContent");
   assert.match(status, /导入 1/); assert.match(status, /跳过 1/); assert.match(status, /没有导入 1/);
   assert.doesNotMatch(status, /这次操作已完成/);
+});
+
+test("D0194/D0224 the confirm dialog returns focus: Escape to the row's more button, a gone trigger to the add button, and never stealing focus", { timeout: 90_000 }, async t => {
+  // Each confirmed delete's reply is held on the server. Both hold pairs are allocated before any request exists —
+  // the handler only resolves arrival on its own pair and opens its own gate — so the awaiting side never reads an
+  // unallocated slot, and a gate is released only after the request it pairs with is demonstrably on the server.
+  const hold = () => {
+    let arrived!: () => void, release!: () => void;
+    return {
+      onArrival: new Promise<void>(resolve => { arrived = resolve; }),
+      gate: new Promise<void>(resolve => { release = resolve; }),
+      arrived: () => arrived(),
+      release: () => release(),
+    };
+  };
+  const [first, second] = [hold(), hold()];
+  let deletions = 0;
+  const f = await open(t, async call => {
+    if (call.path.endsWith("/change") && call.body.action === "remove") {
+      const active = deletions === 0 ? first : second;
+      deletions += 1;
+      active.arrived();
+      await active.gate;
+      return { body: {} };
+    }
+    return { body: {} };
+  }); if (!f) return;
+  const { page } = f;
+  const pressEscape = async () => {
+    await page.command("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 });
+    await page.command("Input.dispatchKeyEvent", { type: "keyUp", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 });
+  };
+  const menuDelete = async (id: string) => {
+    await page.click(item(id) + " summary[aria-label^=更多操作]");
+    await page.evaluate(`document.querySelector('${item(id)} .memory-menu').querySelectorAll('button').forEach(button => { if (button.textContent === '删除') button.dataset.chosenDelete = '1'; })`);
+    await page.click("[data-chosen-delete]");
+    await page.wait("document.querySelector('[data-memory-confirm-yes]')");
+  };
+  const focusEvidence = "(() => { const node = document.activeElement; if (!node) return null; const fold = node.closest('details');"
+    + " return { tag: node.tagName, label: node.getAttribute?.('aria-label'), open: fold ? fold.open : null, rects: node.getClientRects?.().length ?? 0 }; })()";
+
+  // The delete ask names the memory inside one translated sentence (D0224), and Escape hands focus to the row's more
+  // button (D0194): the menu item it opened from is hidden once the menu closes, so the more button is what comes back.
+  await menuDelete("active");
+  assert.match(await page.evaluate<string>("document.querySelector('.memory-confirm header p').textContent"), /「记忆 active」/);
+  await pressEscape();
+  try {
+    await page.wait(`document.activeElement?.tagName === 'SUMMARY' && (document.activeElement.getAttribute('aria-label') || '').startsWith('更多操作')`);
+  } catch (error) {
+    const evidence = await page.evaluate<Record<string, unknown> | null>(focusEvidence);
+    throw new Error(`focus did not return to the row's more button, activeElement: ${JSON.stringify(evidence)}`, { cause: error });
+  }
+
+  // While the confirmed delete's repaint is still in flight, focus the person has already moved somewhere visible is never taken.
+  await menuDelete("active");
+  await page.click("[data-memory-confirm-yes]");
+  await page.wait("!document.querySelector('.memory-confirm')");
+  await first.onArrival;
+  await page.evaluate("document.querySelector('[data-memory-export]').focus()");
+  f.overview.items = f.overview.items.filter(one => one.memory_id !== "active");
+  first.release();
+  await page.wait("!document.querySelector('[data-memory-id=active]')");
+  assert.equal(await page.evaluate("document.activeElement?.hasAttribute('data-memory-export')"), true, "focus the person moved stays put");
+
+  // A confirmed delete repaints the list and takes the row's more button away: focus lands on the page's add button.
+  await menuDelete("disabled");
+  await page.click("[data-memory-confirm-yes]");
+  await page.wait("!document.querySelector('.memory-confirm')");
+  await second.onArrival;
+  f.overview.items = f.overview.items.filter(one => one.memory_id !== "disabled");
+  second.release();
+  await page.wait("document.activeElement?.hasAttribute('data-memory-add')");
 });

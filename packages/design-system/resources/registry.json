@@ -1,0 +1,59 @@
+{
+  "format_version": 1,
+  "resources": [
+    {
+      "id": "spec.molis-interface",
+      "kind": "spec",
+      "owner": "design-system",
+      "package": "@molis-ai/molis-work-design-system",
+      "path": "resources/ui-spec.json",
+      "load": "startup"
+    },
+    {
+      "id": "skin.soft-workbench",
+      "kind": "skin",
+      "owner": "design-system",
+      "package": "@molis-ai/molis-work-design-system",
+      "path": "resources/skins/soft-workbench.json",
+      "load": "startup"
+    },
+    {
+      "id": "font-scheme.system-sans",
+      "kind": "font-scheme",
+      "owner": "design-system",
+      "package": "@molis-ai/molis-work-design-system",
+      "path": "resources/fonts/system-sans.json",
+      "load": "startup"
+    },
+    {
+      "id": "locale.workbench",
+      "kind": "locale",
+      "owner": "workbench",
+      "package": "@molis-ai/molis-work-app-workbench",
+      "path": "resources/locales",
+      "load": "tool"
+    },
+    {
+      "id": "font.inter-latin-variable",
+      "kind": "font",
+      "owner": "design-system",
+      "package": "@molis-ai/molis-work-design-system",
+      "path": "fonts/inter-latin-variable.woff2",
+      "load": "fallback",
+      "route": "/assets/inter-latin-variable.woff2",
+      "sha256": "3100e775e8616cd2611beecfa23a4263d7037586789b43f035236a2e6fbd4c62",
+      "license": {"spdx": "OFL-1.1", "source": "https://fontsource.org/fonts/inter", "notice_path": "fonts/README.md"}
+    },
+    {
+      "id": "font.noto-sans-sc-400",
+      "kind": "font",
+      "owner": "design-system",
+      "package": "@molis-ai/molis-work-design-system",
+      "path": "fonts/noto-sans-sc-400.woff2",
+      "load": "fallback",
+      "route": "/assets/noto-sans-sc-400.woff2",
+      "sha256": "eb385eca10dd39caff881c38338aefccecfaec6b42cc016fbe81434e388d6c3a",
+      "license": {"spdx": "OFL-1.1", "source": "https://fontsource.org/fonts/noto-sans-sc", "notice_path": "fonts/README.md"}
+    }
+  ]
+}

@@ -1,3 +1,4 @@
+import { changeMcpClientCredential } from "@molis-ai/molis-work-app-local-host";
 import assert from "node:assert/strict";
 import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { grantMcpAction, orderGrantViews } from "@molis-ai/molis-work-test-kit/local-host-http";
@@ -7,6 +8,7 @@ import type { TestHostServer } from "./test-home.js";
 export function residentMcpGrants() {
   const granted = new WeakMap<TestHostServer, Set<string>>();
   return async (resident: TestHostServer, projectId: string | null, actor: string, prefix: string, permissions: readonly string[]) => {
+    changeMcpClientCredential(resident.home, actor, "connect");
     const key = JSON.stringify([projectId, actor]), scopes = granted.get(resident) ?? new Set<string>();
     if (scopes.has(key)) return;
     const catalog = await resident.inspect(actor, projectId);

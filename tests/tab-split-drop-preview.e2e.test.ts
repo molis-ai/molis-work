@@ -16,7 +16,10 @@ test("tab split drag preview matches the pane that will exist after drop", { tim
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
-  await waitFor("document.body.dataset.desktopSurface === 'home' && document.querySelector('.tab-item[data-tab-kind=home][aria-current]')");
+  await waitFor("document.body.dataset.desktopSurface === 'home' && !document.querySelector(':is([data-titlebar-tabs], [data-tab-strip]) .tab-item[aria-current]')");
+  // 07-S2 (口径 3): the project home is not a tab, so the tab dragged here is the Goals page's own.
+  await evaluate("document.querySelector('[data-plugin-strip] [data-plugin-id=goals]').click()");
+  await waitFor("document.body.dataset.desktopSurface === 'goals' && document.querySelector('[data-titlebar-tabs] .tab-item[data-tab-kind=plugin][data-plugin=goals][aria-current]')");
 
   const probes = await evaluate<{
     inner: { preview: string; overlay: { w: number; h: number; hidden: boolean }; paneW: number; paneH: number; slot: boolean };
@@ -25,7 +28,7 @@ test("tab split drag preview matches the pane that will exist after drop", { tim
     corner: { preview: string };
     top: { preview: string; overlay: { h: number }; paneH: number };
   }>(`(() => {
-    const tab = document.querySelector('[data-titlebar-tabs] .tab-item[data-tab-kind=home]');
+    const tab = document.querySelector('[data-titlebar-tabs] .tab-item[data-tab-kind=plugin][data-plugin=goals]');
     const body = document.querySelector('[data-tab-pane-body]');
     const pane = body.closest('[data-tab-pane]');
     const paneBox = pane.getBoundingClientRect();
@@ -58,7 +61,7 @@ test("tab split drag preview matches the pane that will exist after drop", { tim
 
   assert.equal(await evaluate("document.querySelectorAll('[data-tab-pane]').length"), 1);
   await evaluate(`(() => {
-    const tab = document.querySelector('[data-titlebar-tabs] .tab-item[data-tab-kind=home]');
+    const tab = document.querySelector('[data-titlebar-tabs] .tab-item[data-tab-kind=plugin][data-plugin=goals]');
     const transfer = new DataTransfer();
     tab.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: transfer }));
     const body = document.querySelector('[data-tab-pane-body]');
@@ -69,7 +72,7 @@ test("tab split drag preview matches the pane that will exist after drop", { tim
   assert.equal(await evaluate("document.querySelectorAll('[data-tab-pane]').length"), 1, "dropping in the content rest zone must not split");
 
   const before = await evaluate<{ previewWidth: number; originalWidth: number }>(`(() => {
-    const tab = document.querySelector('[data-titlebar-tabs] .tab-item[data-tab-kind=home]');
+    const tab = document.querySelector('[data-titlebar-tabs] .tab-item[data-tab-kind=plugin][data-plugin=goals]');
     const transfer = new DataTransfer();
     transfer.effectAllowed = 'copy';
     document.body.dataset.tabDragCopy = '1';
@@ -83,7 +86,7 @@ test("tab split drag preview matches the pane that will exist after drop", { tim
     return { previewWidth: ${overlayProbe}().w, originalWidth: pane.getBoundingClientRect().width };
   })()`);
   await evaluate(`(() => {
-    const tab = document.querySelector('[data-titlebar-tabs] .tab-item[data-tab-kind=home]');
+    const tab = document.querySelector('[data-titlebar-tabs] .tab-item[data-tab-kind=plugin][data-plugin=goals]');
     const transfer = new DataTransfer();
     transfer.effectAllowed = 'copy';
     document.body.dataset.tabDragCopy = '1';
@@ -107,7 +110,14 @@ test("already split panes keep later drags and previews on the hovered pane", { 
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
-  await waitFor("document.body.dataset.desktopSurface === 'home' && document.querySelector('.tab-item[data-tab-kind=home][aria-current]')");
+  await waitFor("document.body.dataset.desktopSurface === 'home' && !document.querySelector(':is([data-titlebar-tabs], [data-tab-strip]) .tab-item[aria-current]')");
+  // 07-S2 (口径 3): the project home is not a tab, so the tab dragged here is the Goals page's own.
+  await evaluate("document.querySelector('[data-plugin-strip] [data-plugin-id=goals]').click()");
+  await waitFor("document.body.dataset.desktopSurface === 'goals' && document.querySelector('[data-titlebar-tabs] .tab-item[data-tab-kind=plugin][data-plugin=goals][aria-current]')");
+  // The split copies the current tab (Inbox) to the right, so the Goals tab dragged below is one the right pane does not have
+  // yet: copying it there previews a slot. (The home tab used to be the one in both panes before 07-S2.)
+  await evaluate("document.querySelector('[data-plugin-strip] [data-plugin-id=inbox]').click()");
+  await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item[data-tab-kind=plugin][data-plugin=inbox][aria-current]')");
   await evaluate("document.querySelector('[data-tab-edge=right]').click()");
   await waitFor("document.querySelectorAll('[data-tab-pane]').length === 2");
 
@@ -173,6 +183,10 @@ test("already split panes keep later drags and previews on the hovered pane", { 
   assert.equal(probes.leftLeft.preview, "left");
   assert.deepEqual(probes.leftLeft.marked, ["left", null]);
 
+  // The left pane's Inbox goes first, so the Goals tab dragged below is that pane's last one, as the home tab was before 07-S2.
+  const leftPane = "[...document.querySelectorAll('[data-tab-pane]')].sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left)[0]";
+  await evaluate(`${leftPane}.querySelector('.tab-item[data-plugin=inbox] [data-tab-close]').click()`);
+  await waitFor(`${leftPane}.querySelectorAll('.tab-item[data-tab-id]').length === 1 && document.querySelectorAll('[data-tab-pane]').length === 2`);
   const moveLast = await evaluate<{ overlayW: number; overlayLeft: number; workspaceW: number; workspaceLeft: number; paneCount: number }>(`(() => {
     const panes = [...document.querySelectorAll('[data-tab-pane]')].sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left);
     const stage = document.querySelector('[data-tab-panes]').getBoundingClientRect();

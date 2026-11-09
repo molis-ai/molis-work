@@ -75,6 +75,20 @@ export function text(value: unknown, label: string, maximum = 200): string {
   return value.trim();
 }
 
+/**
+ * The separate worktree the session's rounds run in, when the person chose one (「用这个」): named by the Host's worktree id, the one
+ * thing a round is started with. Its path is kept only to show where; a round looks the worktree up again by id.
+ */
+export interface CodingWorktreeChoice { readonly worktree_id: string; readonly canonical_path: string }
+
+function worktreeChoice(value: unknown): CodingWorktreeChoice {
+  const tree = (value && typeof value === "object" && !Array.isArray(value) ? value : {}) as Record<string, unknown>;
+  if (Object.keys(tree).some(key => key !== "worktree_id" && key !== "canonical_path")
+    || typeof tree.worktree_id !== "string" || !tree.worktree_id || tree.worktree_id.length > 200
+    || typeof tree.canonical_path !== "string" || !tree.canonical_path.startsWith("/") || tree.canonical_path.length > 4096) throw codingFailure("coding.server.next-config");
+  return { worktree_id: tree.worktree_id, canonical_path: tree.canonical_path };
+}
+
 /** The next round's saved choices; an effort that is not quick, balanced or deep is dropped, not guessed. */
 export function nextConfiguration(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw codingFailure("coding.server.next-config");
@@ -87,7 +101,8 @@ export function nextConfiguration(value: unknown) {
   const effort = (AGENT_REASONING_EFFORTS as readonly unknown[]).includes(config.reasoning_effort) ? { reasoning_effort: config.reasoning_effort as AgentReasoningEffort } : {};
   return { intent: config.intent as string, provider_id: config.provider_id as string,
     model_id: config.model_id as string, workspace_id: config.workspace_id as string, ...effort,
-    ...(config.writer_assignments === undefined ? {} : { writer_assignments: codingWriterAssignments(config.writer_assignments) }) };
+    ...(config.writer_assignments === undefined ? {} : { writer_assignments: codingWriterAssignments(config.writer_assignments) }),
+    ...(config.worktree === undefined || config.worktree === null ? {} : { worktree: worktreeChoice(config.worktree) }) };
 }
 
 /** A saved budget is informational; validate it before any session fields are committed. */

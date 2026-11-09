@@ -39,7 +39,7 @@ function addGoal(project: { database_path: string; project_id: string }, goalId:
   } finally { store.close(); }
 }
 
-/** A Home with two projects, each with a linked folder; the first has a Goal, a parent Goal and its child. */
+/** A Home with two projects, each with a folder as its output; the first has a Goal, a parent Goal and its child. */
 async function served(t: TestContext) {
   const home = await realpath(await mkdtemp(join(tmpdir(), "goals-terminal-")));
   const folders: string[] = [];
@@ -49,7 +49,9 @@ async function served(t: TestContext) {
       const project = await catalog.createProject({ display_name: name, actor_id: "test-user" });
       const folder = await realpath(await mkdtemp(join(tmpdir(), "goals-terminal-workspace-")));
       folders.push(folder);
-      await catalog.commit(() => catalog.addWorkspaceProject({ canonical_path: folder, project_id: project.project_id, actor_id: "test-user", user_confirmed: true }));
+      // The folder is the project's output: a terminal opens in the output (batch 05), the "preferred workspace" of these tests.
+      await catalog.commit(() => catalog.changeDirectories({ project_id: project.project_id, actor_id: "test-user",
+        change: { kind: "set_output", target: { workspace_path: folder } }, expected_revision: catalog.projectDirectories(project.project_id).revision }));
       made.push({ ...project, workspace_id: catalog.listWorkspaceDirectory(project.project_id).find(record => record.canonical_path === folder)!.workspace_id });
     }
     return made;

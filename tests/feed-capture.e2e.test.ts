@@ -125,7 +125,7 @@ test("RAC-2910 the actual Feed page obeys its Home Functions switch while requir
 
   await switchHome(true); await selectRules();
   await child.click(section + " [data-feed-rule-preview-run]");
-  await child.waitFor(`document.querySelector('${status}')?.textContent.includes('预览完成') && !document.querySelector('${composer}').inert`);
+  await child.waitFor(`document.querySelector('${status}')?.textContent.includes('判断预览完成，模型调用可能产生费用') && !document.querySelector('${composer}').inert`);
   assert.equal(trials, 2, "a new sample trial works after Home enables the permission again");
   await child.click(section + " [data-feed-out-rule-create]");
   await child.waitFor(`document.querySelector('${section} [data-feed-out-rule-row]')?.textContent.includes('Optional Functions rule') && t403Reads.pending===0`);

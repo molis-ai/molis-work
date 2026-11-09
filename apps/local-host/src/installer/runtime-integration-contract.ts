@@ -22,7 +22,7 @@ export function isSupportedRuntimeId(value: string): value is SupportedRuntimeId
 export type RuntimeIntegrationAction = "connect" | "remove";
 
 export interface RuntimeIntegrationChange {
-  kind: "runtime_config" | "skill_link" | "ownership_receipt";
+  kind: "runtime_config" | "skill_link" | "ownership_receipt" | "client_credential";
   target_path: string;
   operation: "add" | "replace" | "remove";
   before: string;
@@ -128,6 +128,7 @@ export interface RuntimeSnapshot {
   configText: string | null;
   configHash: string | null;
   configInspection: ConfigInspection;
+  credentialPresent: boolean;
   skill: SkillSnapshot;
 }
 

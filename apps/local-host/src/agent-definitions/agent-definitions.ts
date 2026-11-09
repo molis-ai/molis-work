@@ -2,6 +2,7 @@ import path from "node:path";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { applySqliteBaseline, openBaselineHomeSqlite, openHomeSqliteDatabase, type SqliteBaseline, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 import { AgentDeclarations, notRunning } from "./agent-declarations.js";
+import { SKILL_TABLES_SQL, SkillSettingsStore } from "./skill-settings.js";
 import type { AgentManifest, AgentPromptText, AgentRoleExecution, AgentSkillDeclaration, AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import type { InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
@@ -19,8 +20,11 @@ type DatabaseSync = ReturnType<typeof openHomeSqliteDatabase>;
 const AGENT_DEFINITIONS_STORE = "agent-definitions";
 const USES_KEPT = 200;
 
-/** The agent definitions store's one current schema (repository-anti-corruption §4.1). */
-export const AGENT_DEFINITIONS_BASELINE: SqliteBaseline = { version: /* @version database.agent_definitions_baseline */ 1, schema: `
+/**
+ * The agent definitions store's one current schema (repository-anti-corruption §4.1), with the Skill settings and uses (specs/skill-packs/
+ * contract-design.md §7, §8). 1 → 2 only creates those two tables, empty (user 2026-11-06, spec §9 item 6).
+ */
+export const AGENT_DEFINITIONS_BASELINE: SqliteBaseline = { version: /* @version database.agent_definitions_baseline */ 2, schema: `
 CREATE TABLE prompt_overrides (
   key TEXT PRIMARY KEY, revision INTEGER NOT NULL, base_version INTEGER NOT NULL, body TEXT NOT NULL, updated_at TEXT NOT NULL, actor_id TEXT NOT NULL, default_ref TEXT
 );
@@ -31,7 +35,8 @@ CREATE TABLE prompt_history (
 CREATE TABLE prompt_uses (
   key TEXT NOT NULL, at TEXT NOT NULL, version INTEGER NOT NULL, user_revision INTEGER, caller TEXT NOT NULL, source_ref TEXT
 );
-CREATE INDEX prompt_uses_by_key ON prompt_uses(key, at);` };
+CREATE INDEX prompt_uses_by_key ON prompt_uses(key, at);${SKILL_TABLES_SQL}`,
+  upgrades: [{ from: 1, sql: SKILL_TABLES_SQL }] };
 
 const agentDefinitionsErrors = defineErrorCodes("agent_definitions", { not_found: "not_found", invalid: "invalid", conflict: "conflict" });
 
@@ -54,9 +59,12 @@ const sameRef = (left: SignedAgentReference | undefined, right: SignedAgentRefer
 export class AgentDefinitions {
   private readonly owners = new Map<string, AgentDefinitionRegistration>();
   private readonly scopes = new Map<string, Map<string, AgentDefinitionRegistration>>();
+  /** Each Skill's state in each scope and its uses: the catalog's two tables, in this store. */
+  readonly skills: SkillSettingsStore;
 
   constructor(private readonly db: DatabaseSync, private readonly now = () => new Date()) {
     applySqliteBaseline(db, AGENT_DEFINITIONS_STORE, AGENT_DEFINITIONS_BASELINE);
+    this.skills = new SkillSettingsStore(db, now);
   }
 
   /** Renew one declaration. Installed plugins supply a Host-owned scope so another installation cannot withdraw it. */
@@ -112,6 +120,12 @@ export class AgentDefinitions {
   hasPrompt(ownerId: string, promptId: string): boolean { return Boolean(this.owners.get(ownerId)?.prompts.some(prompt => prompt.prompt_id === promptId)); }
 
   registrations(): AgentDefinitionRegistration[] { return [...this.owners.values()].map(value => structuredClone(value)); }
+
+  /** What one installation registered, running or not, never the settings aggregation: the Skill catalog reads its bodies here. */
+  installation(ownerId: string, installId: string): AgentDefinitionRegistration | undefined {
+    const registration = this.scopes.get(ownerId)?.get(installId);
+    return registration && structuredClone(registration);
+  }
 
   private override(key: string): Override | null {
     return (this.db.prepare("SELECT * FROM prompt_overrides WHERE key = ?").get(key) as Override | undefined) ?? null;

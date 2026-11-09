@@ -48,12 +48,14 @@ import { DIRECTORY_READ_PERMISSION, directoryForHome, type DirectoryGrantService
 import { servicesUntilStopped } from "./plugin-stopped-services.js";
 import { refuseUngivenSandboxServices } from "./plugin-sandbox-start.js";
 import { pluginTerminalFor } from "./plugin-terminal-service.js";
+import { registerPluginText } from "@molis-ai/molis-work-app-workbench";
 
 /** What the executor keeps of one started Plugin until it stops. */
 export interface HostSession {
   readonly context: PluginStartContext;
   /** Runs the Plugin's `start()`: until it settles, the activation may keep its jobs outside every action (PG-038). */
   starting<T>(run: () => T): T;
+  stopProjectJobs(projectId: string): Promise<void>;
   revoke(): void;
   dispose(): void;
 }
@@ -80,12 +82,14 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
   let withdrawCaller: (() => void) | undefined, withdrawPages: (() => void) | undefined;
   let directory: ReturnType<DirectoryGrantService["connect"]> | undefined;
   let terminal: ReturnType<typeof pluginTerminalFor>;
-  const dispose = () => { active = false; stopped = true; try { terminal?.dispose(); } finally { withdrawPages?.(); directory?.dispose(); scheduler?.dispose(); agents?.dispose(); background?.close(); withdrawCaller?.(); disposeArtifacts(); library?.close(); projectLibrary?.close(); withdrawAgentDefinitions?.(); ui.dispose(); } };
+  let withdrawText: (() => void) | undefined;
+  const dispose = () => { active = false; stopped = true; try { terminal?.dispose(); } finally { try { withdrawPages?.(); directory?.dispose(); scheduler?.dispose(); agents?.dispose(); background?.close(); withdrawCaller?.(); disposeArtifacts(); library?.close(); projectLibrary?.close(); withdrawAgentDefinitions?.(); ui.dispose(); } finally { withdrawText?.(); } } };
   const assertActive = () => { if (!active) throw new ActionError("actions.forbidden", "此插件实例已停止，请重新打开"); };
   try {
     // Running in a sandbox is an install trust; what the package asks for that the sandbox is not given stops its start with a code (S-60).
     refuseUngivenSandboxServices(definition, context);
     const manifest = definition.manifest;
+    withdrawText = pluginTextFor(options, definition);
     const pluginCaller = hostPluginCaller(options, definition, context, assertActive);
     withdrawCaller = issuePluginCaller(pluginCaller, heldPermissions(manifest, context.grants), permission => {
       try { outsidePluginAction(() => context.requireGrant(permission)); return true; } catch { return false; }
@@ -122,11 +126,21 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
       invoke: pluginPageActions(manifest, context, { client: options.actions.client, actions: hosted.services?.actions, caller: pluginCaller, provider: providerId }),
       assertCurrent: permission => { assertActive(); if (permission) context.requireGrant(permission); } }) : undefined;
     return { context: servicesUntilStopped(hosted, () => stopped, stoppedCalls), starting: run => background ? background.starting(run) : run(),
+      stopProjectJobs: async projectId => { await background?.stopProjectJobs(projectId); },
       revoke: () => { active = false; try { terminal?.dispose(); } finally { withdrawPages?.(); directory?.dispose(); scheduler?.dispose(); agents?.dispose(); background?.close(); withdrawCaller?.(); } }, dispose };
   } catch (error) {
     dispose();
     throw error;
   }
+}
+
+/**
+ * The definition's words for the text tools while the session is open (specs/font-and-skin-system/a-section-contract.md §8.3): answers how to take them back.
+ * Only a plugin whose code runs in this process enters `t`'s index; a sandboxed one's `t` runs in its own process, and `say` still finds its words.
+ */
+export function pluginTextFor(options: Pick<PluginHostExecutorOptions, "localePacks">, definition: PluginDefinition): (() => void) | undefined {
+  const reader = options.localePacks?.(definition) ?? null;
+  return reader === null ? undefined : registerPluginText(reader, { t: definition.execution !== "sandbox" });
 }
 
 /**

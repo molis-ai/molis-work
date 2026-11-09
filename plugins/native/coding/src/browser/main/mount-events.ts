@@ -68,6 +68,7 @@ async function bringCharacter(page: Page, selected: CharacterCodingDetail) {
   await select(page, id);
   if (selected.workspace_id) {
     s.workspaceId = selected.workspace_id;
+    s.worktree = null;
     rememberConfiguration(page);
     await refs.draft.flush();
     await refreshState(page);

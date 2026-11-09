@@ -52,20 +52,17 @@ async function openHost(t: TestContext) {
   git("commit", "-q", "-m", "fixture");
   t.mock.method(globalThis, "fetch", async () => { throw new Error("this test sends nothing"); });
   const workspace = { workspace_id: "main", canonical_path: repo, display_name: "Fixture", realpath_verified: true };
-  const authorized: string[] = [];
   let reads = 0, revokeAt = 0, revoke = async () => {};
   const host = new MolisWorkLocalHost({ completeText: null });
   const reference = molisWorkHostProjectReference({ databasePath: join(root, "project.sqlite"), projectId: "project" });
   const composition = composeAgentHost({ localHost: host, homeDirectory: root, workspaceFor: () => workspace,
     workspacesFor: async () => { if (++reads === revokeAt) await revoke(); return [workspace]; },
-    authorizeWriterDirectory: async (_project, canonicalPath) => { authorized.push(canonicalPath); },
     prologue: { storageRoot: join(root, "runtime"), resolveCredential: () => "fixture-only",
       modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }) } });
   const plugins = reviewPlugins(host, reference, join(root, "plugins.sqlite"));
   return {
     runtime: plugins.runtime,
     reviews: composition.agentHost.reviews,
-    authorized,
     start(name: string, permissions: PluginManifest["permissions"], grants: string[], consumes: readonly string[] = [writerDirectoryCapabilities.prepare.capability_id]) {
       return plugins.start(pluginId(name), permissions, grants, consumes);
     },
@@ -173,7 +170,6 @@ test("S-50 PG-009 an installation that did not declare, was not granted or stopp
     await assert.rejects(host.prepare("holder", "operation-revoked"), refused);
     assert.deepEqual(host.reviews.list("project"), [], "no review is published for an installation that stopped holding its kind");
     assert.equal(host.worktrees(), 1);
-    assert.deepEqual(host.authorized, []);
     // The same path runs for an installation holding its kind once a person approves: the refusals above are the check, not the fixture.
     await host.runtime.start(holder);
     const prepared = await host.prepare("holder", "operation-held");
@@ -183,7 +179,9 @@ test("S-50 PG-009 an installation that did not declare, was not granted or stopp
     assert.equal(receipt.status, "approved");
     assert.equal(receipt.effect_error, null);
     assert.equal(host.worktrees(), 2);
-    assert.deepEqual(host.authorized, [prepared.directory.canonical_path]);
+    // The worktree is the Host's own, named by its id: it is not linked to the project as a folder (plan A, coordinator 2026-11-08).
+    assert.equal("workspace_id" in prepared.directory, false);
+    assert.match(prepared.directory.worktree_id, /^writer-[0-9a-f]{24}$/u);
   } finally {
     await host.close();
   }
@@ -214,7 +212,6 @@ test("S-50 PG-009 a review whose installation stopped, restarted or lost review:
     await assert.rejects(host.prepare("holder", "operation-after-withdrawal"), notHeld);
     assert.equal((await host.reviews.respond({ review_id: second.review_id, decision: "reject", actor_id: "web-user" })).status, "rejected");
     assert.equal(host.worktrees(), 1, "no worktree was created");
-    assert.deepEqual(host.authorized, [], "no directory was authorized");
   } finally {
     await host.close();
   }
@@ -242,20 +239,18 @@ async function openGitHost(t: TestContext, clean = false) {
   if (!clean) await writeFile(join(repo, "README.md"), "changed\n");
   t.mock.method(globalThis, "fetch", async () => { throw new Error("this test sends nothing"); });
   const workspace = { workspace_id: "main", canonical_path: repo, display_name: "Fixture", realpath_verified: true };
-  const authorized: string[] = [];
   let reads = 0, hookAt = 0, hook = async () => {};
   const workspacesFor = async () => { if (++reads === hookAt) await hook(); return [workspace]; };
   const host = new MolisWorkLocalHost({ completeText: null, workspacesFor, workspaceFor: () => workspace });
   const reference = molisWorkHostProjectReference({ databasePath: join(root, "project.sqlite"), projectId: "project" });
   const composition = composeAgentHost({ localHost: host, homeDirectory: root, workspaceFor: () => workspace, workspacesFor,
-    authorizeWriterDirectory: async (_project, canonicalPath) => { authorized.push(canonicalPath); },
     prologue: { storageRoot: join(root, "runtime"), resolveCredential: () => "fixture-only",
       modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }) } });
   const store = new LocalProjectDatabase(join(root, "plugins.sqlite"));
   const probe = registerProbe(host.actionRegistry(reference), "project");
   t.after(async () => { await composition.dispose(); await host.close(); store.close(); await rm(root, { recursive: true, force: true }); });
   return {
-    host, reference, probe, git, reviews: composition.agentHost.reviews, authorized,
+    host, reference, probe, git, reviews: composition.agentHost.reviews,
     worktrees: () => git("worktree", "list", "--porcelain").split("\n").filter(line => line.startsWith("worktree ")).length,
     async start(name: string, grants: readonly string[], consumes: readonly string[] = []) {
       const plugin = callerPlugin(name, "project", { [INDEX]: false, [OPERATION]: false, [REVIEW]: false, [INTEGRATION]: false, "workspace:read": true },
@@ -363,13 +358,13 @@ test("PG035-GIT-05 PG035-WRITER-05 a plugin's dependency check asks whether a Ho
   // Git lists the Host's actions as what its own actions depend on; a page shows them unavailable while the review backend is not there.
   // Whether the installation may call one is the call's question: the dependency check answers the same for the two plugins.
   const h = await openGitHost(t);
-  const consumes = [projectSettingsCapabilities.browsingWorkspace.capability_id, projectSettingsCapabilities.selectBrowsingWorkspace.capability_id];
+  const consumes = [workspaceReadActions.file.capability_id, projectSettingsCapabilities.selectRuntime.capability_id];
   const holder = await h.start("holder", [INDEX, OPERATION], consumes), lacking = await h.start("lacking", [], consumes);
   for (const plugin of [holder, lacking]) {
     for (const action of [...gitHostActions, ...writerHostActions]) assert.deepEqual(plugin.actions.availability(action), { available: true }, `${plugin.plugin.id} ${action.capability_id}`);
-    // An action offered to plugins with no permission reads as before; one offered to the person only is still not offered.
-    assert.deepEqual(plugin.actions.availability(projectSettingsCapabilities.browsingWorkspace), { available: true });
-    assert.equal(plugin.actions.availability(projectSettingsCapabilities.selectBrowsingWorkspace).available, false);
+    // A Host read a plugin consumes under a permission it holds reads as before; one offered to the person only is still not offered.
+    assert.deepEqual(plugin.actions.availability(workspaceReadActions.file), { available: true });
+    assert.equal(plugin.actions.availability(projectSettingsCapabilities.selectRuntime).available, false);
   }
   const revision = await h.revisions(holder.actions);
   await assert.rejects(lacking.actions.invoke(prepareGitIndexCapability, stage(revision.index, "index-ready-not-held")), { code: "plugin.grant_denied" });
@@ -401,7 +396,6 @@ test("S-50 S-15 PG035-WRITER-01 a writer's worktree or integration review is sta
   assert.equal(h.reviews.get(prepared.review_id)?.plugin_id, holder.plugin.id, "the review names the installation that asked");
   assert.equal(h.reviews.receipt(prepared.review_id)?.status, "pending");
   assert.equal(h.worktrees(), 1, "nothing is created before a person approves");
-  assert.deepEqual(h.authorized, []);
 });
 
 test("S-15 PG035-WRITER-02 the writers' Host actions are offered to plugins only and called as actions: not to the person, an Agent, a workflow or MCP, not through the typed client", { timeout: 60_000 }, async t => {
@@ -456,5 +450,4 @@ test("S-35 S-50 PG035-WRITER-04 a worktree review whose call is withdrawn, or wh
   await assert.rejects(holder.actions.invoke(writerDirectoryCapabilities.prepare, worktree("worktree-stopped")), { code: "actions.forbidden", message: /已停止/u });
   assert.deepEqual(h.reviews.list("project"), []);
   assert.equal(h.worktrees(), 1);
-  assert.deepEqual(h.authorized, []);
 });

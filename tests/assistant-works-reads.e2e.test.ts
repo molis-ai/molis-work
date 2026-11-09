@@ -20,7 +20,7 @@ test("N53: the Assistant reads its works once per page load and shares reads in 
   assert.equal(chooser.works, 1, "the chooser reads the works once");
 
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await waitFor("document.querySelector('[data-assistant-input]')");
+  await waitFor("document.querySelector('[data-assistant-composer] .mw-composer__input')");
   await settle();
   const project = { works: await reads("/api/assistant/works"), attention: await reads("/api/attention") };
   t.diagnostic(`project load: ${JSON.stringify(project)}`);

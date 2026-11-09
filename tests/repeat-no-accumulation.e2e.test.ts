@@ -17,7 +17,7 @@ test("VUX-36: splitting and closing, switching plugins, the side panel and the A
   const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
   const measure = () => domCounters(command, sessionId);
   const split = async () => {
-    await evaluate("document.querySelector('.tab-pane.is-focused [data-tab-split], [data-titlebar-tabs] [data-tab-split]').click()");
+    await evaluate("document.querySelector('[data-layout-open]').click()");
     await waitFor("document.querySelector('[data-layout-split=right]')", 10_000);
     await evaluate("document.querySelector('[data-layout-split=right]').click()");
     await waitFor("document.querySelectorAll('.tab-pane').length >= 2", 10_000);
@@ -34,8 +34,10 @@ test("VUX-36: splitting and closing, switching plugins, the side panel and the A
     }
   };
   const side = async () => {
-    await evaluate("document.querySelector('[data-side-toggle]').click()"); await waitFor("document.body.dataset.sideOpen === 'true'", 10_000); await pause(200);
-    await evaluate("document.querySelector('[data-side-close]').click()"); await waitFor("document.body.dataset.sideOpen !== 'true'", 10_000); await pause(150);
+    // 07-1 S4b: the bar has no side button; the side opens from its current glyph in the titlebar and, having no close button
+    // of its own since 07-S1, collapses from the layout menu (收起右侧) or ⌘\.
+    await evaluate("document.querySelector('[data-side-tabs] [data-side-tab][aria-selected=true]').click()"); await waitFor("document.body.dataset.sideOpen === 'true'", 10_000); await pause(200);
+    await evaluate("document.querySelector('[data-layout-open]').click()"); await evaluate("document.querySelector('[data-layout-action=side]').click()"); await waitFor("document.body.dataset.sideOpen !== 'true'", 10_000); await pause(150);
   };
   // The Assistant: its panel on a new work, the list of works, its side pane and the bell, each opened and closed.
   const shown = (selector: string) => `!!document.querySelector('${selector}')?.checkVisibility()`;

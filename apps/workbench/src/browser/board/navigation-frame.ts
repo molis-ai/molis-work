@@ -133,5 +133,4 @@ if (board) {
     const measure = () => button.toggleAttribute("data-nav-fits", scroll.scrollWidth <= scroll.clientWidth);
     new ResizeObserver(measure).observe(scroll);
   }
-  board.querySelector("[data-nav-composer]")?.addEventListener("submit", (event) => event.preventDefault());
 }

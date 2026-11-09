@@ -1,13 +1,15 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
 import type { PluginDatabase, PluginDatabaseDeclaration, PluginDefinition, PluginHostServices, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { SandboxEffects, SandboxOperationContract, SandboxPluginContract } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
 import { pluginSyncDatabaseDeclaration, pluginSyncNamespace, createPluginPlatform, DEMO_PROJECT_ID, LocalProjectDatabase, openPluginProjectLibrary, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
+import { createAlchemistStudioRuntime } from "@molis-ai/molis-work-plugin-alchemist";
+import { LocalSqliteStorage, sqliteErrorName } from "@molis-ai/molis-work-storage";
 import { PLUGIN_STATEMENT_SQLITE_VERSION, pluginStatementGuard, type PluginProjectDatabaseRecord } from "@molis-ai/molis-work-plugin-runtime";
 import { assertContract, createSandboxRunner, sandboxDatabase } from "@molis-ai/molis-work-plugin-sandbox";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
@@ -297,7 +299,7 @@ test("PLIB-06 a stopped plugin's client is refused, the same after it starts aga
 test("PLIB-06 the step list is read against one SQLite, the Host's", async t => {
   const { store } = await platform(t);
   assert.equal((store.db.prepare("SELECT sqlite_version() AS v").get() as { v: string }).v, PLUGIN_STATEMENT_SQLITE_VERSION,
-    "a new SQLite under better-sqlite3 means reading the step list again (project-database-statements.ts), then this pin");
+    "a new SQLite with a new Node means reading the step list again (project-database-statements.ts), then this pin");
 });
 
 test("PLIB-06 SQLD-06 a Host on another SQLite than the step list was read against refuses every statement; what the Host says at start does not change that", () => {
@@ -325,16 +327,40 @@ test("PLIB-06 the check reads the library's tables again once the schema changes
   guard("SELECT * FROM libprobe_later", [], "read");
 });
 
-test("PLIB-08 one SQLite library per file: reads go through a read-only connection of the Host's SQLite, writes through the Host's own connection", async t => {
+/** What another process gets from `BEGIN IMMEDIATE` on the file, right now: SQLite's result code, or 0 when it got the write lock. */
+const writeLockFromOutside = (file: string) => Number(execFileSync(process.execPath, ["--input-type=module", "-e", `
+  import { DatabaseSync } from "node:sqlite";
+  const db = new DatabaseSync(process.argv[1], { timeout: 0 });
+  try { db.exec("BEGIN IMMEDIATE; ROLLBACK"); process.stdout.write("0"); }
+  catch (error) { process.stdout.write(String(error.errcode)); }
+  finally { db.close(); }`, file], { encoding: "utf8" }));
+
+test("PLIB-08 SQLD-05 one SQLite library per file: the reader is read-only and the Host's own kind, and opening and closing it does not let go of the Host's write lock", async t => {
   const { store, file, mine, database } = await platform(t);
-  const library = openPluginProjectLibrary({ db: store.db, path: file }, mine.definition.manifest, () => {}, { install_id: "plib-08", installation_generation: "1" });
+  const openReader = () => openPluginProjectLibrary({ db: store.db, path: file }, mine.definition.manifest, () => {}, { install_id: "plib-08", installation_generation: "1" });
+  const library = openReader();
   try {
-    assert.equal(library.reader.constructor, store.db.constructor, "the reader is the Host's SQLite library, not node:sqlite");
-    assert.equal(library.reader instanceof DatabaseSync, false);
+    assert.equal(library.reader.constructor, store.db.constructor, "the reader is the same kind of connection as the Host's");
     assert.equal(Reflect.get(library.reader, "readonly"), true);
     assert.equal(Reflect.get(library.reader, "name"), file);
     assert.notEqual(library.reader, store.db);
+    assert.throws(() => library.reader.prepare("INSERT INTO libprobe_notes (project_id, text) VALUES (?, ?)").run(DEMO_PROJECT_ID, "经读连接"),
+      error => sqliteErrorName(error) === "SQLITE_READONLY", "SQLite itself refuses a write through it: the option took effect");
   } finally { library.close(); }
+  // Two SQLite libraries in one process drop each other's POSIX locks when either closes a connection on the file. The lock itself says.
+  assert.equal(writeLockFromOutside(file), 0, "free before the Host writes");
+  const second = openReader(); // Opening one starts with its own write transaction, so this one is opened first and closed under the Host's lock.
+  store.db.exec("BEGIN IMMEDIATE");
+  try {
+    assert.equal(writeLockFromOutside(file), 5, "the Host's transaction holds it");
+    assert.deepEqual(second.reader.prepare("SELECT count(*) AS n FROM libprobe_notes").get(), { n: 0 }, "the reader has touched the file");
+    second.close();
+    assert.equal(writeLockFromOutside(file), 5, "and still holds it after a reader closed");
+    const third = new LocalSqliteStorage(file, { readonly: true });
+    third.db.prepare("SELECT count(*) AS n FROM libprobe_notes").get();
+    third.close();
+    assert.equal(writeLockFromOutside(file), 5, "and after a reader opened and closed while it was held");
+  } finally { store.db.exec("ROLLBACK"); }
   let inside: boolean | undefined;
   await database(mine).transaction(async () => {}, tx => {
     tx.run("INSERT INTO libprobe_notes (project_id, text) VALUES (?, ?)", [DEMO_PROJECT_ID, "经宿主连接"]);
@@ -342,6 +368,18 @@ test("PLIB-08 one SQLite library per file: reads go through a read-only connecti
   });
   assert.equal(inside, true, "the write ran in a transaction on the Host's own connection");
   assert.throws(() => openPluginProjectLibrary({ db: store.db, path: ":memory:" }, mine.definition.manifest, () => {}, { install_id: "plib-08", installation_generation: "1" }), /不是文件/u);
+});
+
+test("SQLD-08 S-46 Alchemist's second SQLite opens only its own file: given the project's library, or any other name, it refuses and changes nothing", async t => {
+  const { file, count } = await platform(t);
+  const before = readFileSync(file);
+  const ai = {} as Parameters<typeof createAlchemistStudioRuntime>[0]["ai"];
+  for (const databasePath of [file, join(dirname(file), "catalog.db"), join(dirname(file), "studio.sqlite.bak"), ":memory:"]) {
+    assert.throws(() => createAlchemistStudioRuntime({ databasePath, ai, pulseSourceMode: "fixture" }), { code: "alchemist.sync_scope" }, databasePath);
+  }
+  assert.deepEqual(readFileSync(file), before);
+  assert.equal(count("libprobe_notes"), 0);
+  assert.equal(existsSync(join(dirname(file), "catalog.db")), false, "a refused name is not created");
 });
 
 /** One operation of the sandboxed stand-in: it takes its call as JSON text and answers with what it got back, or the code it was refused with. */

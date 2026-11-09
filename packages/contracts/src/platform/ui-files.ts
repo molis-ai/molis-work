@@ -18,8 +18,9 @@ export const UI_FORMAT_VERSIONS = {
 export const UI_FILE_LIMITS = { spec: 262_144, skin: 65_536, font: 65_536, locale: 1_048_576, registry: 65_536, depth: 12 } as const;
 
 /**
- * The shapes of strings the files hold, and the only place a parser takes them from. Most of these end up inside generated CSS, so each lists what it
- * allows rather than what it refuses: none lets through anything that leaves a CSS string or declaration (`;`, brackets, quotes, a line break, a backslash).
+ * The shapes of the strings that end up inside generated CSS, and the only place a parser takes them from. Each lists what it allows rather than what it
+ * refuses: none lets through anything that leaves a CSS string or declaration (`;`, brackets, quotes, a line break, a backslash). A shape is all they
+ * say: what a regular expression cannot (`inherit` as a font name, a code point past the end) and what never reaches CSS (`sha256`, a package path) are the SDK's parsers'.
  */
 export const UI_FILE_PATTERNS = {
   definition_id: /^[a-z][a-z0-9-]{0,63}$/,

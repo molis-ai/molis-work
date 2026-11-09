@@ -433,7 +433,7 @@ test("workbench settings directory and standalone settings list the same grouped
   // other plugin pages last; 能力 is four of the categories (specs/artifact-positioning S6b). 记忆 is the
   // person's own (specs/archive/memory-system §10.1).
   // 本机目录 (PG-049) is the platform's page of local-folder permissions, under 本机.
-  assert.deepEqual(sectionOrder, ["appearance", "directories", "memory", "sync", "models", "assistant", "characters", "prompts", "runtimes", "library", "connections", "access", "history", "diagnostics", "shelf", "planning"]);
+  assert.deepEqual(sectionOrder, ["appearance", "directories", "memory", "sync", "models", "assistant", "characters", "prompts", "skills", "runtimes", "library", "connections", "access", "history", "diagnostics", "shelf", "planning"]);
   assert.doesNotMatch(withGoals, /data-settings-cover/);
   assert.deepEqual([...withGoals.matchAll(/class="settings-directory-group"[^>]*>([^<]+)</g)].map((match) => match[1]), ["本机", "个人", "AI", "工具与接入", "系统", "插件"]);
   assert.match(withGoals, />Goals</);
@@ -466,7 +466,7 @@ test("workbench settings directory and standalone settings list the same grouped
   assert.match(appearance, /href="\/settings\/shelf"/);
   assert.match(appearance, /href="\/capabilities\/library"/);
   const standaloneOrder = [...appearance.matchAll(/href="\/settings\/([a-z-]+)"/g)].map((match) => match[1]);
-  assert.deepEqual(standaloneOrder, ["appearance", "directories", "memory", "sync", "models", "assistant", "characters", "prompts", "runtimes", "diagnostics", "shelf"]);
+  assert.deepEqual(standaloneOrder, ["appearance", "directories", "memory", "sync", "models", "assistant", "characters", "prompts", "skills", "runtimes", "diagnostics", "shelf"]);
   assert.doesNotMatch(appearance, /href="\/settings\/connectors"/);
   assert.match(appearance, /class="settings-document appearance-document"/);
   assert.doesNotMatch(appearance, /data-settings-panel="shelf"|name="drop_wheel_enabled"|class="shelf-settings-document"/);

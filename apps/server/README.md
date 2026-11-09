@@ -26,5 +26,6 @@ Migration: `goal-reorg-f2`
   - 对 `@molis-ai/molis-work-app-desktop` 的依赖只用于 `withMolisWorkProjectCatalog` 适配，不启动窗口或原生桥。
   - `server` 核心不依赖本包或 desktop，保持 local-host → core 的嵌入不成环。
   - 成果的 ID、版本、内容摘要与生产者由 Artifacts owner 校验，缺插件或来源凭据时保留提示。
+  - 资产包不提供执行身份或团队共享授权：恢复使用宿主固定 actor，原 owner 仅记来源 metadata；team_project 在目标创建前拒绝，不默改为个人范围（D0002）。
 - 改动后必跑：`node scripts/run-tests.mjs tests/cross-device-continuity.test.ts tests/cross-device-gateway.test.ts tests/server-cli.test.ts`
 - 相关手册：[docs/platform/STORAGE-AND-EXCHANGE.md](../../docs/platform/STORAGE-AND-EXCHANGE.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

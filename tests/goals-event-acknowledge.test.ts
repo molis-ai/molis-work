@@ -100,7 +100,7 @@ async function mcpRig(runtimeId: string, stable: string | null) {
   try {
     // The rig's Host is the Home's: the grants go through the access settings it serves.
     served = await serveTestHost(null, { home: homeDirectory, host });
-    await grantGoalsMcp({ web: served.web }, project, `runtime:${runtimeId}`);
+    await grantGoalsMcp(served, project, `runtime:${runtimeId}`);
     const ref = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
     const actions = host.actionClient(ref), project_id = project.project_id, person = managementGoals(actions, project_id);
     const running = new MolisWorkServer("runtime", { databasePath: project.database_path, projectId: project_id, webBaseUrl: "http://127.0.0.1:4173" },

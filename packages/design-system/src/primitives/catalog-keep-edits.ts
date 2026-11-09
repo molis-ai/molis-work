@@ -1,3 +1,4 @@
+import { skillAlertSpecimens } from "./catalog-skill-packs.js";
 // The board's parts for keeping someone's edits when what they were editing changed elsewhere (docs/design/rule-stale-reload/
 // README.md「组件板新增」, decided by the user 2026-11-06: plan A, caught in place): buttons inside an alert, the row that keeps what
 // you wrote under its field, the dot on a step, and a field's arrival wash. Their rules are KEEP_EDITS_STYLES in the served sheets,
@@ -42,6 +43,7 @@ function alertActionsSection(say: Say): string {
     ${specimen(say("被拦下时：轻跳一下，焦点到主按钮"), stack(`<div data-keep-nudge>${renderAlert({ tone: "warning", title: say("这条规则在别处改过"), body: say("你写的都还在，还没存。"), attrs: { tabindex: "-1" }, actions: [load()] })}</div><div class="mw-catalog__row">${renderButton({ label: say("发布 v1"), variant: "secondary", attrs: { "data-keep-press": "" } })}</div>`))}
     ${specimen(say("最挤：长标题、长正文、两个长按钮"), stack(renderAlert({ tone: "warning", title: say(LONG_TITLE), body: say(LONG_BODY), actions: [{ label: say("用我写的另起一条") }, { label: say("载入最新版，再放回"), variant: "primary" }] })))}
     ${specimen(say("最挤：按钮的字放不下时折行"), stack(renderAlert({ tone: "warning", title: say("这条规则在别处改过"), body: say("你写的都还在，还没存。"), actions: [{ label: say("存成新规则") }, { label: say(LONG_ACTION), variant: "primary", attrs: { "data-keep-long-label": "" } }] })))}
+    ${skillAlertSpecimens(say)}
   </div>`);
 }
 

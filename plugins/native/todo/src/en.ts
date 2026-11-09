@@ -5,6 +5,15 @@
  * Placeholders stay as written.
  */
 export const TODO_EN: Readonly<Record<string, string>> = {
+  "整理待办": "Organize todos",
+  "用户要从邮件、文件、会议记录、网页或当前页面里找出该做的事，或问“最近有没有遗漏的待办”“这封邮件会影响哪些安排”时用；结果先交给用户确认，不直接加进待办。": "Use when the user wants tasks extracted from mail, files, meeting notes, web pages or current content, asks about missed tasks, or asks how an email changes existing plans. Present proposed tasks for confirmation first.",
+  "手上有一份或一批材料，要从里面整理出待办；想查最近新来的材料里有没有漏掉的事；想知道一封邮件会改动哪些已有安排。": "There is material to turn into tasks, recent incoming material to check for omissions, or an email whose effect on plans needs review.",
+  "要推进、跟进或起草某一件已经在待办里的事（用“推进待办”）；只是想新记一条待办、看待办列表或改某条待办的状态。": "Do not use to advance an existing task; use Advance a todo. Do not use for simply recording, listing or changing the status of a todo.",
+  "推进待办": "Advance a todo",
+  "用户说“帮我推进这件事”“跟进一下”“这件怎么办”，或把一件待办交给助理处理时用；先弄清下一步和卡点，能做的先做成草稿，状态只提议、不擅自改。": "Use when the user asks to move a specific todo forward. Identify the next step and blockers, create useful drafts, and propose status changes without applying them unasked.",
+  "已经有一件具体的待办，用户想让助理帮着往前推：起草邮件或消息、整理要问的问题、写一页说明、安排时间或提醒。": "The user has a specific todo and wants help drafting messages, preparing questions, writing a brief, or arranging time and reminders.",
+  "要从一批材料里找出新的待办（用“整理待办”）；只想看待办列表或直接改状态。": "Do not use to extract new tasks from material; use Organize todos. Do not use merely to list todos or change their status.",
+
   "放在这个项目里的待办": "Todos placed in this project",
   "待办": "Todo",
   "待办事项、它们的日期与到期提醒": "To-dos, their dates and due reminders",

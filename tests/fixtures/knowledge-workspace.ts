@@ -3,7 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import type { ProjectDirectories } from "@molis-ai/molis-work-contracts/modules/projects";
+import { MolisWorkLocalHost, molisWorkHostProjectReference, type MolisWorkProjectCatalog } from "@molis-ai/molis-work-app-local-host";
 import { KnowledgeService } from "@molis-ai/molis-work-service-knowledge";
 import { openKnowledgeCards } from "@molis-ai/molis-work-storage";
 import { initializeBoard } from "./goals-board.js";
@@ -33,6 +34,14 @@ export async function knowledgeWorkspace(t: import("node:test").TestContext) {
   for (const projectId of ["a", "b"]) {
     await initializeBoard(host, reference(projectId), { actor_id: "web-user", idempotency_key: "init" });
   }
+  // The project's folders as the Home catalog answers `projects.directories.get@1` (specs/shared-sources-and-surfaces §3): a has the
+  // folder as its output, b has none. Only that read of the catalog is stood in for; the two projects are standalone ones the catalog
+  // has no plugin record of, as before (`catalog.project_not_found`, project-action-availability.ts).
+  const folders = (projectId: string): ProjectDirectories => ({ project_id: projectId, source_links: [], revision: "r1",
+    directories: projectId === "a" ? [{ ...workspace, roles: ["output"], state: "ok" }] : [] });
+  const catalog: Pick<MolisWorkProjectCatalog, "projectDirectories" | "projectPluginMembership"> = { projectDirectories: folders,
+    projectPluginMembership: () => { throw Object.assign(new Error("standalone project"), { code: "catalog.project_not_found" }); } };
+  host.configurePersonalPlanning(join(root, "home"), async (_options, operation) => operation(catalog as MolisWorkProjectCatalog));
   const cards = openKnowledgeCards({ homeDirectory: root });
   t.after(async () => { cards.close(); await host.close(); await rm(root, { recursive: true, force: true }); });
   const knowledge = new KnowledgeService({ search: async () => ({ status: "complete", hits: [] }) as never, cards });

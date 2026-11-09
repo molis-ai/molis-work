@@ -4,6 +4,7 @@ import { ARTIFACTS_PLUGIN_ID, ARTIFACTS_PROVIDER_ID, ARTIFACTS_PROVIDER_TITLE, A
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { artifactLinkKinds, artifactLinkSubjectActions, artifactTypeDeclarations } from "./artifact-type-registry.js";
 import { readProjectReference } from "./project-file-reference.js";
+import { hostErrors } from "./host-errors.js";
 import { runWithMolisWorkHome, resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { documentImportConnections, documentImportConnectionStatus, importLocalArtifactDocument } from "./artifact-document-import.js";
 import { artifactPluginInputs, bindArtifactPluginInput } from "./artifact-plugin-inputs.js";
@@ -27,7 +28,7 @@ export function artifactLinkSubjectsPort(client: ActionClient | undefined, decla
   };
 }
 
-export function artifactActionProvider(runtime: MolisWorkProjectRuntime, options: Pick<MolisWorkLocalHostOptions, "homeDirectory" | "workspaceFor">, client?: ActionClient): ActionProviderRegistration {
+export function artifactActionProvider(runtime: MolisWorkProjectRuntime, options: Pick<MolisWorkLocalHostOptions, "homeDirectory" | "workspaceFor" | "prepareDirectory">, client?: ActionClient): ActionProviderRegistration {
   const home = options.homeDirectory ?? resolveMolisWorkHome();
   // The platform's own provider (PG-077): no plugin id, so no plugin's enablement gates it; the id is the one it was called by as a plugin.
   const provider: ActionProviderRegistration["provider"] = { provider_id: ARTIFACTS_PROVIDER_ID, title: ARTIFACTS_PROVIDER_TITLE, kind: "system", project_id: runtime.project_id };
@@ -71,6 +72,10 @@ export function artifactActionProvider(runtime: MolisWorkProjectRuntime, options
       })),
       openProjectReference: async input => {
         const workspace = await options.workspaceFor?.(runtime.project_id);
+        // A default output directory not made yet holds no file to open; nothing makes it (§3 「碰磁盘的调用方」).
+        if (workspace && options.prepareDirectory && !(await options.prepareDirectory(runtime.project_id, workspace.workspace_id, "read")).exists) {
+          throw hostErrors.project_reference_not_found("项目内引用文件不存在");
+        }
         const opened = openArtifactProjectReference({ readProjectReference }, { reference: input.reference, projectRoot: workspace?.canonical_path });
         return { filename: opened.fileName, content_base64: Buffer.from(opened.content).toString("base64") };
       },

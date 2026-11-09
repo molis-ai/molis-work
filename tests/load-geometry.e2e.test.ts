@@ -63,10 +63,11 @@ test("VUX-31: switching between plugins inside the page moves nothing that stays
       const from = await evaluate<number>("window.__shifts.length");
       // FULL15: actual navigation is input; keep measuring any later load shifts after the same 1500ms window.
       if (id === "im") {
-        if (await evaluate("document.body.dataset.sideOpen!=='true'")) await click('[data-side-toggle]');
+        // 07-1 S4b: the bar's side button is gone; the side opens from its current glyph in the titlebar.
+        if (await evaluate("document.body.dataset.sideOpen!=='true'")) await click("[data-side-tabs] [data-side-tab][aria-selected=true]");
         await click('[data-side-tab="discussion"]');
         assert.equal(await evaluate("document.body.dataset.sideOpen==='true' && document.querySelector('[data-side-tab=discussion]')?.getAttribute('aria-selected')==='true'"), true);
-      } else await click(`[data-plugin-strip] [data-plugin-id="${id}"], [data-side-tab][data-side-plugin^="${id}/"]`);
+      } else await click(`[data-plugin-strip] [data-plugin-id="${id}"], [data-side-tab][data-side-plugin^="${id}/"]:not([data-side-context-owner])`); // a context tab (Pages' comments) shows only beside its plugin
       await pause(1_500);
       const shifts = (await evaluate<Array<{ value: number; moved: string[] }>>("window.__shifts")).slice(from), score = shifts.reduce((sum, shift) => sum + shift.value, 0);
       switches++;

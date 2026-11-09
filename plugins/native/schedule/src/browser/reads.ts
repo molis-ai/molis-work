@@ -50,7 +50,8 @@ function markDetail(detail: HTMLElement, section: HTMLElement, marks: Marks | nu
 
 /**
  * Says on each row and detail what its task reads, from one answer for the whole list. `known` is null when the platform's list could
- * not be read: the marks stay blank and each detail says so, with a retry; a task still runs on what was last confirmed.
+ * not be read: the marks stay blank and each detail says so, with a retry; the task re-checks when it is due, and
+ * fails that run if the grants still can't be read.
  */
 function apply(page: SchedulePage, known: ReadonlyMap<string, TaskReads> | null, ready: Readiness | undefined): void {
   const { L, list, workbench } = page;

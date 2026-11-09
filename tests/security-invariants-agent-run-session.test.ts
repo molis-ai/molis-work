@@ -21,6 +21,7 @@ import { actionDigest, emptyCapabilityMatrix } from "@molis-ai/molis-work-servic
 import { revokeMcpAction } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
 import { serveTestHost, type TestHostServer } from "./fixtures/test-home.js";
+import { setProjectOutputFolder } from "./fixtures/project-directories-http.js";
 
 const RUNTIME = "probe";
 /** The grant's client id: what the Host calls the Runtime. Constant across rounds and sessions; the session is a separate fact. */
@@ -73,8 +74,8 @@ async function world(t: TestContext) {
     workspaceFor: () => ({ workspace_id: "w", canonical_path: home, realpath_verified: true, display_name: "workspace" }) }));
   served = await serveTestHost(null, { home, host: localHost });
   const project = await served.createProject("Round sessions");
-  // The directory a round may work in is the project's authorized workspace, as a person adds it; the Host holds no other.
-  await served.web.post(`/projects/${project.project_id}/api/workspaces`, { workspace_path: home, user_confirmed: true });
+  // The directory a round may write in is the project's output, as a person sets it in the project's settings; the Host holds no other.
+  await setProjectOutputFolder(served.web, project.project_id, home);
   const handled: Array<{ actor_id: string; runtime_session_id: string | undefined; audit_actor_id: string | undefined }> = [];
   const rounds: Array<{ session_id: string; tools: AgentActionClient }> = [];
   /** Each round the Runtime started, with the suggestions its model made: what `read` answers for `agent.offers.run`. */
@@ -205,6 +206,16 @@ test("S-17 a tool input that names a session or an author (RCPT-393)", { timeout
   await assert.rejects(round.invoke(w.reference(note.capability_id), { runtime_session_id: "t" }), { code: "actions.input_invalid" });
   assert.deepEqual(w.handled, [], "the fixture action did not run");
   assert.deepEqual(await w.proposals(round), [], "no proposal was written");
+});
+
+test("S-ui-locale-memory a plugin's start of a round cannot name a reply language: the schema refuses it and no round starts (FSS-71)", { timeout: 180_000 }, async t => {
+  const w = await world(t);
+  for (const field of ["reply_locale", "reply_language", "locale"]) {
+    await assert.rejects(w.start("s", w.tools, { [field]: field === "reply_language" ? { prompt_id: "reply-language", version: 1, body: "Reply in French" } : "en" }), { code: "actions.input_invalid" }, field);
+  }
+  assert.equal(w.rounds.length, 0, "no round was started");
+  await w.start("s", w.tools);
+  assert.equal(w.rounds.length, 1, "the same start without it goes through, so the refusals were about the field");
 });
 
 test("S-17 a round's session grants nothing (RCPT-394)", { timeout: 180_000 }, async t => {

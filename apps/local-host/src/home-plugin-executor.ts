@@ -38,6 +38,7 @@ import { pluginTerminalFor } from "./plugin-terminal-service.js";
 import { openPluginOwnerFiles } from "./plugin-owner-files.js";
 import { syncActivation, copyActivation } from "./sync-activation.js";
 import { servicesUntilStopped } from "./plugin-stopped-services.js";
+import { pluginTextFor } from "./plugin-host-services.js";
 import { realpathSync } from "node:fs";
 import { join } from "node:path";
 import { withPluginWords } from "@molis-ai/molis-work-app-workbench";
@@ -66,6 +67,8 @@ export class HomePluginExecutor implements PluginExecutor {
     invalidateView(pluginId: string): void;
     /** The Home's own installation records, read when an instance starts; none before the platform has them. */
     installations(): InstallationDirectoryClient | undefined;
+    /** A definition's language files, registered while its instance runs (`pluginTextFor`); absent: none. */
+    localePacks?(definition: PluginDefinition): import("@molis-ai/molis-work-app-workbench").PluginTextReader | null;
   }) {}
 
   async start(definition: PluginDefinition, context: PluginStartContext) {
@@ -102,17 +105,19 @@ export class HomePluginExecutor implements PluginExecutor {
     let withdrawAgentDefinitions: (() => void) | undefined;
     let withdrawCaller: (() => void) | undefined, withdrawPages: (() => void) | undefined;
     let directory: ReturnType<DirectoryGrantService["connect"]> | undefined;
+    let withdrawText: (() => void) | undefined;
     const dispose = () => {
       active = false; stopped = true;
       const failures: unknown[] = [];
       try { terminal?.dispose(); } catch (error) { failures.push(error); }
       withdrawPages?.(); directory?.dispose(); background?.close(); withdrawCaller?.();
-      for (const release of [() => database?.close(), () => sandboxLibrary?.close(), () => partitions?.close(), () => withdrawAgentDefinitions?.(), () => ui.dispose()]) {
+      for (const release of [() => database?.close(), () => sandboxLibrary?.close(), () => partitions?.close(), () => withdrawAgentDefinitions?.(), () => ui.dispose(), () => withdrawText?.()]) {
         try { release(); } catch (error) { failures.push(error); }
       }
       if (failures.length) throw new AggregateError(failures, "Home 插件服务释放失败");
     };
     try {
+      withdrawText = pluginTextFor(this.options, definition);
       const home = pluginHomeFor(this.options.home);
       const library = homeLibraryFor(definition, this.options.database(definition), this.options.record(context.install_id));
       const declaration = library?.declaration;
@@ -195,13 +200,17 @@ export class HomePluginExecutor implements PluginExecutor {
   }
 
   /** The executor's first part of deleting a project: the running instance's background executions accepted in the project stop. */
-  stopProjectBackground(installId: string, projectId: string): void {
-    this.sessions.get(installId)?.background?.stopProject(projectId);
+  stopProjectBackground(installId: string, projectId: string): Promise<void> | undefined {
+    return this.sessions.get(installId)?.background?.stopProject(projectId);
+  }
+
+  blockProjectLibrary(installId: string, projectId: string): () => void {
+    return beginPartitionClearing(this.deletionsOf(installId), projectId);
   }
 
   /** A project closing: every running instance's jobs kept in that project stop (PG-038); its bounded executions go on. */
-  stopProjectJobs(projectId: string): void {
-    for (const session of this.sessions.values()) session.background?.stopProjectJobs(projectId);
+  async stopProjectJobs(projectId: string): Promise<void> {
+    await Promise.all([...this.sessions.values()].map(session => session.background?.stopProjectJobs(projectId)));
   }
 
   private deletionsOf(installId: string): PartitionDeletions {

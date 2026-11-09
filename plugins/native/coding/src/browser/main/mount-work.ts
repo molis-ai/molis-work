@@ -13,7 +13,6 @@ import { paintDiffs } from "./code.js";
 import { closeReport } from "./report.js";
 import { readCurrent } from "./read.js";
 import { api, sessionPath, status } from "./request.js";
-import { followWorkspace } from "./workspace.js";
 import type { Page } from "./page.js";
 
 /** The split of a directory into worktrees: who works where, and which directory the next round uses. */
@@ -37,15 +36,26 @@ function mountWriterDirectories(page: Page) {
         throw error;
       }
     },
-    select: async (owner, id) => {
-      if (owner !== s.current) throw new Error(L("coding.error.worktree-changed"));
-      s.workspaceId = id;
+    // The session's next rounds run in the Host's worktree of its folder; the folder, and what the embedded Files and Git show, stay as they are.
+    select: async (owner, parent, worktree) => {
+      if (owner !== s.current || parent !== s.workspaceId) throw new Error(L("coding.error.worktree-changed"));
+      const previous = s.worktree;
+      s.worktree = { worktree_id: worktree.worktree_id, canonical_path: worktree.canonical_path };
       rememberConfiguration(page);
-      await refs.draft.flush();
+      try {
+        await refs.draft.flush();
+      } catch (error) {
+        if (!lifetime.alive) return;
+        s.worktree = previous;
+        rememberConfiguration(page);
+        throw error;
+      }
       await refreshState(page);
-      await followWorkspace(page);
       status(page, L("coding.worktrees.used-next"));
     },
+    chosen: () => s.worktree?.worktree_id,
+    // Opened for the session it was asked on; the dialog reads where the session ran from the Host.
+    integrate: (owner, worktreeId) => { if (owner === s.current) void refs.integrations.openWorktree(owner, worktreeId); },
   });
 }
 
@@ -56,7 +66,7 @@ async function executePlan(page: Page, revision: number) {
   const id = s.current, [provider_id, model_id] = JSON.parse(q<HTMLSelectElement>("[data-coding-model]").value) as [string, string];
   const intent = q<HTMLSelectElement>("[data-coding-intent]").value === "parallel" ? "parallel" : "execute";
   const request = {
-    plan_revision: revision, intent, provider_id, model_id, ...refs.composerModels.effort(), workspace_id: s.workspaceId,
+    plan_revision: revision, intent, provider_id, model_id, ...refs.composerModels.effort(), workspace_id: s.workspaceId, ...(s.worktree ? { worktree_id: s.worktree.worktree_id } : {}),
     ...(intent === "parallel" ? { writer_assignments: structuredClone(s.configurations.get(id)?.writer_assignments || []) } : {}),
     methods: structuredClone(s.methodSelections.get(id) || []), materials: structuredClone(s.materialSelections.get(id) || []), character: structuredClone(s.characterSelections.get(id) ?? null),
     character_skill_ids: s.characterSkills.get(id), action_tools: structuredClone(s.actionSelections.get(id) || []), mcp_tools: structuredClone(s.mcpSelections.get(id) || []),

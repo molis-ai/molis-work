@@ -12,6 +12,14 @@ import { codingActions, codingActionControl } from "./route-entry.js";
 
 type RouteMaker = (a: CodingActivation) => PluginRouteBinding | PluginRouteBinding[];
 
+/** The files the person picked to bring back, each at the revision they reviewed, and a merge they resolved by hand. */
+function integrationChoice(body: Record<string, unknown>) {
+  if (!Array.isArray(body.files)) throw codingFailure("coding.server.pick-original-file");
+  const files = body.files.map(file => ({ path: parseFilePath(file.path), revision: text(file.revision, "coding.field.review-version"),
+    ...(typeof file.resolution === "string" ? { resolution: file.resolution.length <= 262_144 ? file.resolution : (() => { throw codingFailure("coding.server.merge-too-long"); })() } : {}) }));
+  return { operation_id: text(body.operation_id, "coding.field.operation", 80), files };
+}
+
 const ROUTES: RouteMaker[] = [
   // The writers' directories and integrating a child's result are the Host's actions, offered to plugins only (PG-035).
   (a) => {
@@ -34,11 +42,27 @@ const ROUTES: RouteMaker[] = [
       const source = { session_id: record.runtime_session_id, run_id: text(request.params.runId, "coding.field.original-run"), subagent_id: text(request.params.childId, "coding.field.subtask") };
       const actions = context.services!.actions!, control = codingActionControl(beforeWrite);
       if (!prepare) return actions.invoke(writerIntegrationCapabilities.read, source, control);
-      const body = bodyOf(request);
-      if (!Array.isArray(body.files)) throw codingFailure("coding.server.pick-original-file");
-      const files = body.files.map(file => ({ path: parseFilePath(file.path), revision: text(file.revision, "coding.field.review-version"),
-        ...(typeof file.resolution === "string" ? { resolution: file.resolution.length <= 262_144 ? file.resolution : (() => { throw codingFailure("coding.server.merge-too-long"); })() } : {}) }));
-      return actions.invoke(writerIntegrationCapabilities.prepare, { ...source, operation_id: text(body.operation_id, "coding.field.operation", 80), files }, control);
+      return actions.invoke(writerIntegrationCapabilities.prepare, { ...source, ...integrationChoice(bodyOf(request)) }, control);
+    }));
+  },
+  // A worktree the session ran in (「用于下一轮」) comes back the same way, from the session's latest round there: the Host reads the
+  // worktree from that round's frozen record, not from the page.
+  (a) => {
+    const { context, route } = a;
+    return [false, true].map(prepare => route(prepare ? "coding.prepare-worktree-integration" : "coding.read-worktree-integration", async (request, _api, execution, beforeWrite) => {
+      const record = selected(a, request, execution), worktreeId = text(request.params.worktreeId, "coding.field.worktree");
+      if (!record.runtime_session_id) throw codingFailure("coding.server.worktree-not-run");
+      const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id }, agents = codingActions(context, beforeWrite);
+      let runId: string | undefined;
+      for (const ref of [...(await agents.invoke(agent.readSession, [session])).runs].reverse()) {
+        const place = (await agents.invoke(agent.readRun, [session, ref])).frozen.directories?.execution;
+        if (place?.kind === "worktree" && place.worktree_id === worktreeId) { runId = ref.run_id; break; }
+      }
+      if (!runId) throw codingFailure("coding.server.worktree-not-run");
+      const source = { session_id: record.runtime_session_id, run_id: runId };
+      const actions = context.services!.actions!, control = codingActionControl(beforeWrite);
+      if (!prepare) return actions.invoke(writerIntegrationCapabilities.read, source, control);
+      return actions.invoke(writerIntegrationCapabilities.prepare, { ...source, ...integrationChoice(bodyOf(request)) }, control);
     }));
   },
   (a) => {

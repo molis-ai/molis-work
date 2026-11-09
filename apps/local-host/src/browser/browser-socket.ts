@@ -1,10 +1,10 @@
+import { webSocketAuthority } from "../web-sessions.js";
 import type http from "node:http";
 import type { IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
 import { WebSocketServer, type RawData, type WebSocket } from "ws";
 import { loopbackHost } from "@molis-ai/molis-work-contracts/platform/loopback";
 import { BROWSER_SOCKET_PATH, type BrowserClientMessage, type BrowserServerMessage } from "@molis-ai/molis-work-contracts/services/browser";
-import { controlTokenMatches } from "../web-control-token.js";
 import type { BrowserHost, BrowserListener, BrowserPage } from "./browser-host.js";
 
 /**
@@ -35,8 +35,17 @@ export function attachMolisWorkBrowserSocket(server: http.Server, controlToken: 
     wss.handleUpgrade(request, socket, head, ws => wss.emit("connection", ws, request));
   });
 
-  wss.on("connection", (ws: WebSocket) => {
+  wss.on("connection", (ws: WebSocket, request: IncomingMessage) => {
     let authed = false;
+    let authority: ReturnType<typeof webSocketAuthority>;
+    const bindAuthority = (proof: unknown) => {
+      authority = webSocketAuthority(request, controlToken, proof);
+      if (!authority) return false;
+      const close = () => ws.close();
+      authority.signal?.addEventListener("abort", close, { once: true });
+      ws.once("close", () => authority?.signal?.removeEventListener("abort", close));
+      return authority.valid();
+    };
     let page: BrowserPage | null = null;
     let detach: (() => void) | null = null;
     // A slow link must not queue frames without end: a frame waits only while fewer than two are in flight.
@@ -51,36 +60,47 @@ export function attachMolisWorkBrowserSocket(server: http.Server, controlToken: 
       copied: text => send(ws, { type: "copied", text }),
     };
     ws.on("close", () => { detach?.(); detach = null; });
+    // Binding the page (watch, attach) waits on the project check, and the panel sends what follows (visible, a queued
+    // navigate) right behind it: each message waits for the bindings sent before it, so none finds no page and is dropped.
+    let bound: Promise<void> = Promise.resolve();
+    const bind = async (message: Extract<BrowserClientMessage, { type: "watch" | "attach" }>) => {
+      if (typeof message.project_id !== "string" || !await options.projectExists(message.project_id)) { send(ws, { type: "error", message: "项目不存在" }); return; }
+      if (!authority?.valid()) { ws.close(); return; }
+      if (message.type === "watch") {
+        if (page) return;
+        page = browsers().page(message.project_id);
+        detach = page.watch(listener);
+        return;
+      }
+      detach?.();
+      page = browsers().page(message.project_id);
+      detach = page.attach(listener, message.viewport);
+    };
     ws.on("message", async (raw: RawData, binary: boolean) => {
+      if (authority && !authority.valid()) { ws.close(); return; }
       if (binary) return;
       let message: BrowserClientMessage;
       try { message = JSON.parse(String(raw)) as BrowserClientMessage; } catch { return; }
       try {
         if (!authed) {
-          if (message.type !== "auth" || !controlTokenMatches(controlToken, message.token)) { send(ws, { type: "error", message: "本地浏览器通道校验失败" }); ws.close(); return; }
+          if (message.type !== "auth" || !bindAuthority(message.token)) { send(ws, { type: "error", message: "本地浏览器通道校验失败" }); ws.close(); return; }
           authed = true; send(ws, { type: "ready" }); return;
         }
-        if (message.type === "watch") {
-          if (typeof message.project_id !== "string" || !await options.projectExists(message.project_id)) { send(ws, { type: "error", message: "项目不存在" }); return; }
-          if (page) return;
-          page = browsers().page(message.project_id);
-          detach = page.watch(listener);
+        if (message.type === "watch" || message.type === "attach") {
+          const binding = bound.then(() => bind(message));
+          bound = binding.catch(() => undefined);
+          await binding;
           return;
         }
-        if (message.type === "attach") {
-          if (typeof message.project_id !== "string" || !await options.projectExists(message.project_id)) { send(ws, { type: "error", message: "项目不存在" }); return; }
-          detach?.();
-          page = browsers().page(message.project_id);
-          detach = page.attach(listener, message.viewport);
-          return;
-        }
+        await bound;
+        if (!authority?.valid()) { ws.close(); return; }
         if (!page) return;
         switch (message.type) {
           case "visible": page.setVisible(listener, !!message.visible); return;
           case "resize": await page.resize(message.viewport); return;
-          case "navigate": await takeoverFirst(page); await page.navigate(String(message.input ?? "")); return;
-          case "history": await takeoverFirst(page); await page.history(message.delta === 1 ? 1 : -1); return;
-          case "reload": await takeoverFirst(page); await page.reload(); return;
+          case "navigate": await takeoverFirst(page); if (!authority?.valid()) { ws.close(); return; } await page.navigate(String(message.input ?? "")); return;
+          case "history": await takeoverFirst(page); if (!authority?.valid()) { ws.close(); return; } await page.history(message.delta === 1 ? 1 : -1); return;
+          case "reload": await takeoverFirst(page); if (!authority?.valid()) { ws.close(); return; } await page.reload(); return;
           case "stop": await page.stop(); return;
           case "restart": await browsers().restart(); return;
           case "popup-close": await page.closePopup(); return;
@@ -88,7 +108,7 @@ export function attachMolisWorkBrowserSocket(server: http.Server, controlToken: 
           case "handback": if (page.controlMode === "taken-over") page.setControl({ mode: "person", work_id: null, activity: null }); return;
           case "mouse": case "key": case "text": case "compose":
             if (message.type === "mouse" && message.event === "move" && page.controlMode === "assistant") return;
-            await takeoverFirst(page); await page.input(message); return;
+            await takeoverFirst(page); if (!authority?.valid()) { ws.close(); return; } await page.input(message); return;
           case "copy": listener.copied?.(await page.selectedText()); return;
           case "dialog": await page.answerDialog(String(message.id), !!message.accept, message.prompt_text); return;
           case "file-chooser-cancel": page.cancelFileChooser(String(message.id)); return;

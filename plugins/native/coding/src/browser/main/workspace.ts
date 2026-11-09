@@ -2,21 +2,23 @@ import { errorMessage } from "../dom.js";
 import { status } from "./request.js";
 import type { Page } from "./page.js";
 
-/** The project has one current directory: where the page's new rounds run and what Files and Git show (rounds the Assistant starts use the project's preferred directory, batch 12 item 1). Choosing it here sets it for the whole project (the same setting as in project settings), then the embedded Files and Git views re-read it. */
+/**
+ * The embedded Files and Git show the folder the page's new rounds run in. Which folder they show is this page's own state: the
+ * project keeps no browsing choice, and rounds the Assistant starts run in the project's output (SSC-17).
+ */
 export async function useProjectWorkspace(page: Page, id: string) {
-  const { L, host, lifetime, root } = page;
+  const { L, host, lifetime } = page;
   try {
     await host.selectWorkspace(id);
   } catch (error) {
     throw new Error(L("coding.workspace.switch-failed-why", { reason: errorMessage(error) }));
   }
   lifetime.assertCurrent();
-  root.querySelectorAll<HTMLElement>("[data-git-refresh],[data-files-refresh]").forEach(button => button.click());
 }
 
 /**
- * Opening a session, or pointing it at another directory, makes that directory the project's current one, so Files and Git always
- * show where the open session's next round runs. A directory that is no longer authorized is left alone.
+ * Opening a session, or pointing it at another directory, has the embedded Files and Git show that directory, so they always show
+ * where the open session's next round runs. A directory that is no longer authorized is left alone.
  */
 export async function followWorkspace(page: Page) {
   const { L } = page, { s } = page;

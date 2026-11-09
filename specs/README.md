@@ -39,12 +39,12 @@
 - [coding-harness-optimization](coding-harness-optimization/spec.md)：Coding 与平台性能；需求已整理，尚未实现。
 - [visual-ui-experience](visual-ui-experience/spec.md)：视觉细节、个人助理信息与 UI 性能；59 项验收与 21 组设计机制。原视觉工作实现中，输入框的低频设置与引用（VUX-16 其余、VUX-17）、VUX-33 其余与本人验收未做。2026-11-02 补全产品文案与按需帮助：减少常驻解释，名称、按钮和下一步易懂，与渐进式引导接续（VUX-51～59）；新增需求尚未实现或验收。负责人：Claude（2026-10-19 起接手实现）；本次需求维护：Codex。
 - [intelligent-surfaces](intelligent-surfaces/spec.md)：智能呈现与操作层（Intelligent UI）。插件声明对象的字段、形态、操作和允许别人放东西的挂载位；平台的确定组合加上助理在候选内的组合，把插件内容、平台内容、MCP 与 Skill 拼成此刻最合适的展示与操作面，注入插件内、插件之间、对话、项目讨论、首页、Shelf、等你等位置。2026-11-02 需求已整理，尚未实现；负责人未分配，轨道见正文（合同 C1、组合服务 C3、组件 D）。
-- [shared-sources-and-surfaces](shared-sources-and-surfaces/spec.md)：公共来源与呈现合同（路线书 05 ②）。资料身份、多个输入目录配一个输出目录、浏览与执行和撤权、智能呈现声明、组合服务的公开合同与 SDK 共用校验；设计稿，没有实现，合同归 C 轨、组件归 D 轨。
+- [shared-sources-and-surfaces](shared-sources-and-surfaces/spec.md)：公共来源与呈现合同（路线书 05 ②）。资料身份、多个输入目录配一个输出目录、浏览与执行和撤权、智能呈现声明、组合服务的公开合同与 SDK 共用校验；已在第 05 批合入（C-1 #1894；C-2、C-3 与 05② 目录实现随 #1979 于 2026-11-08），剩下组合服务实现与呈现组件归第 15 批；合同归 C 轨、组件归 D 轨。
 - [surface-composition](surface-composition/spec.md)：确定组合平台服务（路线书 15 ①）。新的 horizontal 包按调用方、位置和对象排出操作面描述（形态、字段、操作、分组），不调模型；宿主只装配；基础首页的三组怎样给。设计稿，没有实现；C3 写稿，合同缺口交 C 轨，首页一节请 D 轨共审。
 - [work-mainline](work-mainline/spec.md)：主线。事项是平台的轻量容器（可以只起名字，Goal、待办等可以变成事项），用户把手头的事项按自己的分组和顺序排好，从顶部切换器一下切到某件事，工作台状态、相关对象、助理范围与等你随之切换；插件对象的内容仍归插件。
 - [upgrade-continuity](upgrade-continuity/spec.md)：升级后持续可用。库的升级链从统一起点起算（先快照、再升级、失败回退、只影响主人），新程序先在副本上演练再替换，从 M1 起合同有过渡期、保存的引用自动接上，每个发布版本留金样 Home 回放；用户只感觉到功能升级。
-- [sqlite-driver-switch](sqlite-driver-switch/spec.md)：SQLite 第二步（路线书 05 ③）。项目库从 better-sqlite3 换到 node:sqlite，适配层保持语义，Alchemist 例外保留；Node 升到 24.15.x 并锁定（用户 2026-11-06 定）；实现中（分支 `claude/05-sqlite-switch`，四片一个 PR），桌面打包那半等 F 轨。
-- [action-input-contracts](action-input-contracts/spec.md)：动作的版本字段与输入类型（路线书 05 ④）。N14 判断规则改用 `expected_updated_at`，过期的提交就地接住；N22 全部处理器一次迁到从 schema 推导的类型（用户 2026-11-06 定），约 30 片；设计稿，没有实现。
+- [sqlite-driver-switch](sqlite-driver-switch/spec.md)：SQLite 第二步（路线书 05 ③）。项目库从 better-sqlite3 换到 node:sqlite，适配层保持语义，Alchemist 例外保留；Node 升到 24.15.x 并锁定（用户 2026-11-06 定）；已实现：SQLD-a～e 随第 05 批 #1979 于 2026-11-08 合入 main，桌面打包那半同 PR 改完、F 轨事后审。
+- [action-input-contracts](action-input-contracts/spec.md)：动作的版本字段与输入类型（路线书 05 ④）。N14 判断规则改用 `expected_updated_at`，过期的提交就地接住；N22 处理器迁到从 schema 推导的类型（用户 2026-11-06 定）：N14 两段（#1913、#1961）与 N22-01/02/04/06（#1909、#1939、#1923、#1893）、防回潮计数（#1951）已在第 05 批合入，N22 余片按决定 29 移到第 55 批第 3 项（第 56 批开工前全部合入，范围不变）。
 - [draft-and-return](draft-and-return/spec.md)：草稿与返回（路线书 12 第三项）。平台共用的「回程」：从哪里进的设置、配好后回到哪里、回来后只接着做依赖新配置的那一步；插件页面用 `host.returns`，普通链接自动得到回到原处，第 13 批⑤是第一个消费者。2026-11-07 设计稿，没有实现；五项待用户拍板（含返回条定样）。
 - [font-and-skin-system](font-and-skin-system/spec.md)：字体、皮肤与语言系统；需求已整理，尚未实现。
 - [assistant-service-connections](assistant-service-connections/spec.md)：助理统一服务接入；Codex 实施中，交互切片和连接侧首组回归已完成，37 项整体验收仍未完成；2026-10-18 补充内容层连接器占位符与未支持工具的接入路径（ASC-38–44，未验证）；2026-10-27 补服务连接页面的默认直接连接、技术配置收起及连接后可用要求（ASC-45～50，需求阶段）。

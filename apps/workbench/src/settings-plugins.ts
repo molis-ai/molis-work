@@ -64,7 +64,9 @@ const day = (iso) => String(iso || "").slice(0, 10);
 const short = (id) => String(id).replace(/^ed25519:sha256:/, "").slice(0, 12);
 const error = $("error");
 const board = () => document.querySelector("[data-settings-toast], [data-toast]");
-const fail = (failure) => { molisWorkRequest.show(error, failure); error.hidden = false; if (board()) molisWorkRequest.toast(board(), failure, undefined, { ms: 5000 }); };
+const fail = (failure, nothingInstalled = false) => { const shown = nothingInstalled && failure?.message ? new Error(L("什么都没装，原来的也没动。") + " " + failure.message) : failure; molisWorkRequest.show(error, shown); error.hidden = false; if (board()) molisWorkRequest.toast(board(), shown, undefined, { ms: 5000 }); };
+// A package the Host read and refused: nothing was pinned, kept or installed (SKP-08). Say so next to its problems.
+const badPackage = (failure) => failure && (failure.code === "plugin.declaration_invalid" || failure.code === "plugin.package_invalid");
 const toast = (text) => { const box = board(); if (!box) return; box.textContent = text; box.classList.remove("is-error"); box.classList.add("is-visible"); setTimeout(() => box.classList.remove("is-visible"), 2600); };
 const api = (path, payload) => molisWorkRequest(base + path, { body: payload });
 const homeApi = (name, payload = {}) => molisWorkRequest("/api/settings/plugin-permissions/" + name, { body: payload });
@@ -271,7 +273,7 @@ const name = label ? label.value.trim() : "";
 if (label && !name) { label.setAttribute("aria-invalid", "true"); label.focus(); return; }
 install.disabled = true; error.hidden = true;
 try { await api("/install/confirm", { preview_id: shown.preview_id, consent: true, ...(label ? { pin_label: name } : {}) }); toast(L("已安装")); await load(); await globalThis.molisSkillUI.enable(preview, root.dataset.project, view.plugin_id, close); }
-catch (failure) { fail(failure); install.disabled = false; }
+catch (failure) { fail(failure, badPackage(failure)); install.disabled = false; }
 });
 footer.append(cancel, install); panel.append(footer);
 preview.replaceChildren(panel); preview.hidden = false; panel.scrollIntoView?.({ block: "nearest" });
@@ -284,13 +286,13 @@ try {
 let bundle;
 try { bundle = JSON.parse(await file.text()); } catch { throw new Error(L("这个文件不是插件包")); }
 review(await api("/install/preview", { bundle }));
-} catch (failure) { fail(failure); }
+} catch (failure) { fail(failure, badPackage(failure)); }
 });
 api("/bundled/list", {}).then(data => {
 const box = $("bundled"); if (!data.plugins.length && !data.refused.length) return; box.hidden = false;
 box.append(el("h3", "", L("随安装包提供")));
 for (const item of data.plugins) { const pick = button(item.name + " · " + item.version, "mw-btn--secondary"); pick.disabled = item.publisher.revoked;
-pick.addEventListener("click", async () => { pick.disabled = true; try { review(await api("/install/preview", { bundled: { plugin_id: item.plugin_id, version: item.version } })); } catch (cause) { fail(cause); } finally { pick.disabled = item.publisher.revoked; } }); box.append(pick); }
+pick.addEventListener("click", async () => { pick.disabled = true; try { review(await api("/install/preview", { bundled: { plugin_id: item.plugin_id, version: item.version } })); } catch (cause) { fail(cause, badPackage(cause)); } finally { pick.disabled = item.publisher.revoked; } }); box.append(pick); }
 for (const item of data.refused) box.append(el("p", "settings-form-error", item.file + " · " + item.message));
 }).catch(fail);
 load().catch(fail);

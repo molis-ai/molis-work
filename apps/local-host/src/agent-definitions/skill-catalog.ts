@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import type { ActionCallContext, ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginMethodDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
+import type { PluginPublisherPin } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { SKILL_EXCERPT_CHARS, SKILL_SETTINGS_LOCKED_REASONS, skillErrors, type SkillAvailability, type SkillBodyReadResult,
   type SkillCatalogEntry, type SkillCatalogListRequest, type SkillReadRefusal, type SkillResourceContent, type SkillSettingsSetRequest } from "@molis-ai/molis-work-contracts/services/skills";
@@ -16,13 +17,18 @@ export interface CatalogSkill {
   body: string;
   pack: SkillCatalogEntry["pack"];
   availability: SkillAvailability;
+  /** The captured snapshot still holds (installation identity); no owner is reopened. */
   assertCurrent(): void;
+  /** Recheck the publisher against the pins one boundary read after an await, never per Skill. */
+  assertPublisher(live: ReadonlyMap<string, PluginPublisherPin>): void;
 }
 export interface SkillCatalogPorts {
   definitions: AgentDefinitions;
   /** One scope read per action, including all installations and their current grants. */
   skills(caller: ActionCallContext): Promise<CatalogSkill[]>;
   resource(skill: CatalogSkill, path: string): Uint8Array;
+  /** Read after an await, once per action: the ledger's current pins, for `assertPublisher`. */
+  publishers(): ReadonlyMap<string, PluginPublisherPin>;
 }
 
 const settingKey = (install: string, skill: string) => `${install}\0${skill}`;
@@ -100,17 +106,22 @@ export class SkillCatalog {
   async recordAcceptedUses(caller: ActionExecutionContext, receipt: { accepted: boolean; refs: readonly SkillRef[]; run_ref?: string }): Promise<void> {
     if (!receipt.accepted) return;
     const selection = currentSkillSelection(caller);
-    if (!selection) return;
+    // A round owner records its round's uses; a page view names a Skill for reading only and never records one.
+    if (!selection?.consumer) return;
     const { skills } = await this.snapshot(caller);
     await caller.beforeEffect();
     caller.assert_authority_current?.(); caller.signal?.throwIfAborted();
     const store = this.ports.definitions.skills, scope = scopeOf(caller), seen = new Set<string>();
+    // After the await: one settings read and one ledger read, reused for every reference (N42–N44), never one per Skill.
+    const settings = new Map(store.settings(scope).map(row => [settingKey(row.install_id, row.skill_id), row]));
+    const live = this.ports.publishers();
     for (const ref of receipt.refs) {
       const id = settingKey(ref.install_id, ref.skill_id);
       if (seen.has(id)) continue;
       seen.add(id);
       const skill = skills.find(value => isDeepStrictEqual(value.ref, ref));
-      if (this.refusal(skill, ref, caller, store.setting(scope, ref.install_id, ref.skill_id))) continue;
+      try { skill?.assertCurrent(); skill?.assertPublisher(live); } catch { continue; }
+      if (this.refusal(skill, ref, caller, settings.get(id))) continue;
       store.recordUse({ ref, name: skill!.declaration.name, scope_ref: scope, caller: selection.consumer,
         ...(receipt.run_ref ? { run_ref: receipt.run_ref } : {}), at: new Date().toISOString() });
     }
@@ -126,7 +137,9 @@ export class SkillCatalog {
     caller.signal?.throwIfAborted();
     const skill = skills.find(item => item.ref.install_id === input.install_id && item.ref.skill_id === input.skill_id);
     if (!skill) throw skillErrors.not_found("这个范围里没有这个技能");
+    const live = this.ports.publishers();
     skill.assertCurrent();
+    skill.assertPublisher(live);
     if (input.scope === "home" && skill.pack.scope !== "home") throw skillErrors.scope_mismatch("项目技能不能设到个人空间");
     const availability = skill.availability;
     if (!availability.available && SKILL_SETTINGS_LOCKED_REASONS.some(reason => reason === availability.reason))

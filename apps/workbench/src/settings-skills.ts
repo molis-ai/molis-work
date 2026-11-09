@@ -30,7 +30,7 @@ const label = el("label", "mw-check-row"), radio = el("input"); radio.type = "ra
 label.append(radio, el("span", "", L(STATES[state]))); if (!compact) label.append(el("small", "settings-muted", L(state === "off" ? "不使用这个技能" : state === "auto" ? "适用时由 AI 选择" : "只在你点名时使用")));
 radio.addEventListener("change", async () => { const was = skill.state; group.disabled = true;
 try { const next = await api(project, "set", { scope: project ? "project" : "home", install_id: skill.ref.install_id, skill_id: skill.ref.skill_id, state, expected_revision: skill.settings_revision }); Object.assign(skill, next); changed(next, was, true); }
-catch (cause) { radio.checked = false; group.querySelector('input[value="' + was + '"]').checked = true; failure(cause, async () => { if (cause.code === "skills.settings_conflict") { try { const current = (await api(project, "list")).skills.find(value => key(value) === key(skill)); if (!current) throw new Error(L("这个技能已移除，请刷新列表。")); Object.assign(skill, current); changed(current, was); } catch (refreshError) { failure(refreshError); } } else radio.click(); }); }
+catch (cause) { radio.checked = false; group.querySelector('input[value="' + was + '"]').checked = true; failure(new Error(L("什么都没改。") + (cause && cause.message ? " " + cause.message : "")), async () => { if (cause.code === "skills.settings_conflict") { try { const current = (await api(project, "list")).skills.find(value => key(value) === key(skill)); if (!current) throw new Error(L("这个技能已移除，请刷新列表。")); Object.assign(skill, current); changed(current, was); } catch (refreshError) { failure(refreshError); } } else radio.click(); }); }
 finally { group.disabled = !skill.availability.available && LOCKED.has(skill.availability.reason); }
 }); group.append(label);
 } return group;

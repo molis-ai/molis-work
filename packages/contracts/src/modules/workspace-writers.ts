@@ -72,7 +72,7 @@ export const writerIntegrationCapabilities = {
   read: {
     capability_id: "projects.workspace.writers.integration.read", version: /* @version action.projects.workspace.writers.integration.read */ 1, operation: "query",
     action: /* @__PURE__ */ gitHostAction("读取独立工作树里的成果", "读取本安装自己的会话里一个已结束子任务的独立工作树（不点名子任务时，是这一轮跑在其中的宿主独立工作树）相对主工作区的逐文件变更，每个文件能否整合、为什么；两边都改过的文本给出三方合并", "query", "workspace:read",
-      /* @__PURE__ */ object(writerSource, writerSourceRequired), writerIntegrationView),
+      /* @__PURE__ */ object(writerSource, [...writerSourceRequired]), writerIntegrationView),
   } as ActionDefinition<WriterIntegrationSource, WriterIntegrationView>,
   prepare: {
     capability_id: "projects.workspace.writers.integration.prepare", version: /* @version action.projects.workspace.writers.integration.prepare */ 1, operation: "command",

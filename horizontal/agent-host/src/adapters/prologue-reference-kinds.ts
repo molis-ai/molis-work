@@ -1,4 +1,5 @@
 import { QUESTIONNAIRE_LIMITS } from "@prologue/sdk";
+import { compareCodeUnits } from "@molis-ai/molis-work-plugin-sdk";
 
 /**
  * Which kinds of object a round's reference questions may ask for (BL-152, S-32). The Host lists what the round's project has
@@ -21,7 +22,6 @@ const KIND = /^[a-z][a-z0-9_.-]*$/u;
 // The SDK's one line counts only CR and LF; a control character or a Unicode line break would start another line too.
 const oneLine = (text: unknown, max: number): text is string =>
   typeof text === "string" && text.trim().length > 0 && text.length <= max && !/[\p{Cc}\u2028\u2029]/u.test(text);
-const byCodePoint = (a: string, b: string) => a < b ? -1 : a > b ? 1 : 0;
 const LIMITS: Record<ReferenceKindProblemReason, number> = {
   kind: QUESTIONNAIRE_LIMITS.maxRefKindChars, title: QUESTIONNAIRE_LIMITS.maxRefKindTitleChars, limit: QUESTIONNAIRE_LIMITS.maxAppRefKinds };
 
@@ -33,7 +33,7 @@ const LIMITS: Record<ReferenceKindProblemReason, number> = {
  * not use goes to the others. What is left out is a problem for its plugin.
  */
 export function boundReferenceKinds(candidates: readonly ReferenceKindCandidate[]): { kinds: Array<{ kind: string; title: string }>; problems: ReferenceKindProblem[] } {
-  const ordered = [...candidates].sort((a, b) => byCodePoint(a.plugin_id, b.plugin_id) || byCodePoint(a.installation, b.installation) || byCodePoint(a.kind, b.kind));
+  const ordered = [...candidates].sort((a, b) => compareCodeUnits(a.plugin_id, b.plugin_id) || compareCodeUnits(a.installation, b.installation) || compareCodeUnits(a.kind, b.kind));
   const named = new Set<string>(), offered = new Map<string, ReferenceKindCandidate[]>();
   const problems = new Map<string, { plugin_id: string; reason: ReferenceKindProblemReason; limit: number; kinds: string[] }>();
   const note = (entry: ReferenceKindCandidate, reason: ReferenceKindProblemReason) => {

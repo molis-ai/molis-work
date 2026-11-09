@@ -239,7 +239,7 @@ interface SkillInstallPreview {
 预览还另外给：
 
 - `requires`：每项依赖的 `capability_id@version`、是否必要、现在满不满足，以及不满足时影响哪一步；
-- `scope`：装进项目，还是装给个人空间（取自 `runtime`）。
+- `runtime_scope`：装进项目，还是装给个人空间（取自 `runtime`）。预览输出沿用这个既有字段名，合同类型不另加 `scope`。
 
 `agent_bodies` 只留角色资料。方法都改成在 `skills` 里列，app 包派生出来的方法也一样，所以「方法」只有一种列法。这一步按 N35 原地改形状，刷新动作快照。
 

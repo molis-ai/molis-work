@@ -1,6 +1,6 @@
 # U2 金样 Home 与回放：设计
 
-状态：现行设计（2026-11-03 起草，2026-11-08 第一份金样入库时按实际改过一轮）。U2-a 至 U2-e 已做：`tests/fixtures/golden-homes/0.1.0` 入库，`golden-replay`（Linux）、`golden-replay-third-party`（macOS，相关路径才跑）、每天的 `golden-replay-nightly`、覆盖面门禁和建库语句门禁（§5 UPG-01，`tooling/gates/schemas/stores.tsv`）都开了，发布检查单（`docs/releases/CHECKLIST.md` 第 2 节）有了「生成本版金样并入库」这一步。§5 的门禁与 CI 用户 2026-11-06 同意全开，第三方这段 2026-11-07 定，§6 的决定 2026-11-08 定。N41 的 `scripts/gates/initial-versions.mjs` 在 U1 首次接手持久化版本时由连续升级与回放接替，做法见 [U1 设计](upgrade-chain-design.md) §11.1。行为与验收以[升级后持续可用](spec.md) §6、§9 为准，本文只写怎么做。
+状态：现行设计（2026-11-03 起草，2026-11-08 第一份金样入库时按实际改过一轮）。U2-a 至 U2-e 已做，随路线书第 05 批合入 main：U2-a/U2-b（#1912）与 U2-c 前半（#1942）先行，其余与第一份金样随 #1979 于 2026-11-08 合入 `500d868df3`：`tests/fixtures/golden-homes/0.1.0` 入库，`golden-replay`（Linux）、`golden-replay-third-party`（macOS，相关路径才跑）、每天的 `golden-replay-nightly`、覆盖面门禁和建库语句门禁（§5 UPG-01，`tooling/gates/schemas/stores.tsv`）都开了，发布检查单（`docs/releases/CHECKLIST.md` 第 2 节）有了「生成本版金样并入库」这一步。§5 的门禁与 CI 用户 2026-11-06 同意全开，第三方这段 2026-11-07 定，§6 的决定 2026-11-08 定。N41 的 `scripts/gates/initial-versions.mjs` 在 U1 首次接手持久化版本时由连续升级与回放接替，做法见 [U1 设计](upgrade-chain-design.md) §11.1。行为与验收以[升级后持续可用](spec.md) §6、§9 为准，本文只写怎么做。
 
 验收编号沿用 `UPG-01`、`UPG-10`、`UPG-11`、`UPG-14`（§9）；本文新增的检查用 `UPG2-` 前缀，在 §7 列出。
 
@@ -18,7 +18,7 @@
 | 离线 Home 快照，带清单与摘要 | `apps/local-host/src/home-snapshot{,-capture,-contract,-inventory,-publication}.ts`、`home-store-snapshot.ts`，SQLite 备份在 `packages/storage/src/snapshot-sqlite.ts`；`molis-work home snapshot`（`docs/cli-and-development.md`「Home 离线快照」） | 金样走同一套店铺登记和分类（`homeStores()`、inventory），不另写枚举；出来的形状是 §2 的文本转储和自己的清单，不是快照的二进制和它的清单 |
 | 所有无参数读取跑一遍 | `tests/fixtures/parameterless-reads.ts` 的 `readEveryParameterlessAction`（从 `tests/action-read-compatibility.test.ts` 抽出来的） | 回放和那条用例共用，从「一个项目库」扩到「整份 Home、所有项目、Home 级与项目级的读取」 |
 | 插件回放 | `scripts/replay-plugins.mjs`、`tests/fixtures/replay-plugins/corpus.json` | 金样里装的第三方插件就取语料里的签名包样本（`scripts/replay-plugins/signed-session.mjs` 两边共用）；回放时对升级后的 Home 再跑一遍 |
-| 演示种子、历史 Goal 数据 | `seedDemoBoard`（`apps/local-host/src/demo-seed.ts:102`）、`tests/fixtures/goal-event-history/*.sql` 与加载器 `tests/goal-event-history-fixture.ts` | 生成金样时用它们填项目库，不另编一套 Goal 数据。这组文件是「当前基线加 Goal 场景」的冻结转储：main 上现在是 `user_version=17`，#1837 改回 1（头 `b977224cf` 上已核）。所以它只在版本等于当前基线时能用：生成脚本先比版本，不等就失败并提示刷新，不做转换。`seedDemoBoard` 是一个 538 行的函数，`docs/system/HUGE-CLASS-MIGRATION.md` 登记的拆分对象，只调用它，不依赖它的内部形状 |
+| 演示种子、历史 Goal 数据 | `seedDemoBoard`（`apps/local-host/src/demo-seed.ts:102`）、`tests/fixtures/goal-event-history/*.sql` 与加载器 `tests/goal-event-history-fixture.ts` | 生成金样时用它们填项目库，不另编一套 Goal 数据。这组文件是「当前基线加 Goal 场景」的冻结转储：统一第 1 版起是 1（#1837，头 `b977224cf` 上已核），第 05 批把项目库升到第 2 版时四个文件同步改成 2。所以它只在版本等于当前基线时能用：生成脚本按 `PROJECT_DATABASE_BASELINE.version` 先比（`scripts/golden/populate.mjs:42`），不等就失败并提示刷新，不做转换。`seedDemoBoard` 是一个 538 行的函数，`docs/system/HUGE-CLASS-MIGRATION.md` 登记的拆分对象，只调用它，不依赖它的内部形状 |
 | 各库版本表与代码一致 | `docs/releases/CHECKLIST.md` §3、`scripts/verify-release-versions.mjs` | 金样清单里记下的每库版本，与这张表同源 |
 
 ## 2. 一份金样里有什么
@@ -65,7 +65,7 @@ tests/fixtures/golden-homes/<版本>/
 
 | 知识卡片的编号（`knowledge_cards` 的 rowid） | 卡片由组织器的定时器写，跨项目，谁先谁后取决于这台机器有多快；无内容 FTS 又记住了这个编号，事后归一不了 | 生成结束时删掉 `knowledge/knowledge.db`，由主人按目录逐项目重建（§3 第 2 步），一轮只有一种顺序。不是注入，是绕开：编号本身在真实 Home 里仍然取决于定时器，只是金样里不再出现这个不确定。重建之后才跑的用例写成 `afterKnowledgeRebuild`（§4 第 6 步） |
 
-要归一的列写成转储器里的一张短表（表名模式、列、规则），不做通配。新出现的随机列会让 `UPG2-02` 失败，要么注入，要么进这张表，看得见。同一个提交生成两次，`manifest.json` 与所有转储逐字节相同（`UPG2-02`），比的是归一之后的转储。
+要归一的列写成转储器里的一张短表（表名模式、列、规则），不做通配。新出现的随机列会让 `UPG2-02` 失败，要么注入，要么进这张表，看得见。另有一处归一在 capture 层、不进转储器短表：签过名的第三方样本在沙箱里按真实时钟产出的 `plugin_private_values` 那一行（`sandbox:entries` 的编号与 `created_at`），由 `scripts/golden/layout.mjs` 的 `withFixedSandboxEntries` 固定成 `i20260115090000000-golden` 与 `2026-01-15T09:00:00.000Z`；样本进程无法注入，只能在写进金样之前这一层固定，别的行一律照常。以后改归一规则时，这两处都要想到。同一个提交生成两次，`manifest.json` 与所有转储逐字节相同（`UPG2-02`），比的是归一之后的转储。
 
 ## 3. 怎样生成
 
@@ -101,7 +101,7 @@ node scripts/golden-home.mjs check  --version <版本>     # 重新生成到临�
 node scripts/replay-golden-homes.mjs [--latest N | --all] [--json]
 ```
 
-对每一份金样，下面是脚本里的步骤名（失败时输出的就是它）依次是 `restore`、`upgrade`、`rows-after-upgrade`、`structure`、`versioned-files`、`read`、`rows`、`write`、`third-party`、`home-library`、`restart-structure`、`restart-read`。比下面的编号多的三步：`rows-after-upgrade` 在任何读取之前数一遍行，因为读取本身会让知识卡片回来（`BL-knowledge-restore-partial-catalog`），读完再数只能证明数字回来了，证明不了升级没丢；`versioned-files` 是第 3 步的后半，文件只对读它的人说错在哪，读者还可能退回默认值不吭声，所以每个带版本的文件要读回生成时写的东西，新的文件没有读者就失败；`home-library` 是第 7 步的第二个样本。
+对每一份金样，下面是脚本里的步骤名（失败时输出的就是它）依次是 `restore`、`recorded-versions`、`upgrade`、`rows-after-upgrade`、`structure`、`versioned-files`、`read`、`rows`、`write`、`third-party`、`home-library`、`restart-structure`、`restart-read`。比下面的编号多的四步：`recorded-versions` 在升级之前，先用生成时同一组读法把清单记下的库版本、插件表版本和持久化格式版本从还原出的 Home 里重读一遍，手改清单骗不过门禁（§5「建库语句与版本」末段）；`rows-after-upgrade` 在任何读取之前数一遍行，因为读取本身会让知识卡片回来（`BL-knowledge-restore-partial-catalog`），读完再数只能证明数字回来了，证明不了升级没丢；`versioned-files` 是第 3 步的后半，文件只对读它的人说错在哪，读者还可能退回默认值不吭声，所以每个带版本的文件要读回生成时写的东西，新的文件没有读者就失败；`home-library` 是第 7 步的第二个样本。
 
 1. **还原**：把转储和文件还原到一个新的临时 Home，路径、权限与原来一致，账号 Home 也还原到 `spaces/` 下。
 2. **升级**：用当前代码启动常驻宿主。U1 合入以前，各库版本必须与当前代码相同，打开时的结构检查就是唯一的检查；U1 合入以后，启动时的升级过程把每个库升到当前版本（[U1 设计](upgrade-chain-design.md) §3、§4）。还原时不写升级戳记，所以这一步必定全量扫，账号 Home 同样（U1 设计 §4.2）。
@@ -130,13 +130,13 @@ node scripts/replay-golden-homes.mjs [--latest N | --all] [--json]
 
 **第三方插件（用户 2026-11-07 定）：** 第三方插件的沙箱只有 macOS 有，Linux 上回放跳过这段：结果的 `steps.third_party`、`steps.home_library` 是 `"not-run"`（清单里没装样本才是 `"absent"`，跑过是 `"replayed"`），`not_run` 列出没跑的步骤。`ok: true` 只说跑了的都过了，`not_run` 不空就不算这段通过；CI 把它写进作业摘要和运行页的 notice（`scripts/ci-golden-replay.mjs`），不只留在日志里。所以 `golden-replay` 在 Linux 上跑第三方之外的全部，并在结果里写明第三方这段没跑，不算通过；改到插件运行、沙箱、存储这些相关部分时，另一个 macOS 作业加跑第三方插件，不过就合不进去；每天的定时作业在 macOS 上跑全部，兜住路径清单漏掉的。路径清单写在 `scripts/ci-test-selection.mjs` 的 `GOLDEN_THIRD_PARTY_RUN_WHEN`，和 `native-checks` 同一种做法，宁宽勿窄，选择器失败时照跑。定时作业是 `.github/workflows/golden-replay-nightly.yml`。
 
-**50 MB（用户 2026-11-08 定）：** `tests/fixtures/golden-homes/` 的工作树字节超过 50 MB，门禁失败并点名最老的一份。真正移到发布附件、回放按摘要下载，到那时再写，现在只有门禁（§6）。移走的只是数据段（`stores/`、`files/`），`manifest.json` 留在 `tests/fixtures/golden-homes/<版本>/` 里，所以 UPG-01 和统一起点版本检查照样看得到这个版本存着什么。
+**50 MiB（52,428,800 字节；用户 2026-11-08 定）：** `tests/fixtures/golden-homes/` 的工作树字节（已跟踪文件合计，含目录根的 `.gitattributes`；门禁的 `GOLDEN_BYTES_LIMIT` 在 `scripts/gates/golden-homes.mjs`）超过 50 MiB，门禁失败并点名最老的一份。真正移到发布附件、回放按摘要下载，到那时再写，现在只有门禁（§6）。移走的只是数据段（`stores/`、`files/`），`manifest.json` 留在 `tests/fixtures/golden-homes/<版本>/` 里，所以 UPG-01 和统一起点版本检查照样看得到这个版本存着什么。
 
 ## 6. 金样放在哪里（按推荐先定）
 
 | 方案 | 好处 | 代价 |
 | --- | --- | --- |
-| **A. 文本转储入库（推荐）** | CI 不用联网；改动能在 PR 里看 diff；与 `goal-event-history/*.sql` 的先例一致 | 仓库会慢慢变大。按每份 2～5 MB 估，一年十几份在可接受范围；`tests/fixtures/golden-homes/` 的工作树字节超过 50 MB 时，从最老的一份起移到发布附件，不看年龄（用户 2026-11-08 定），仓库里只留它们的 SHA-256 和下载地址。移走的只是数据段，`manifest.json` 留在原处，门禁照样看得到这个版本 |
+| **A. 文本转储入库（推荐）** | CI 不用联网；改动能在 PR 里看 diff；与 `goal-event-history/*.sql` 的先例一致 | 仓库会慢慢变大。按每份 2～5 MB 估，一年十几份在可接受范围；`tests/fixtures/golden-homes/` 的工作树字节超过 50 MiB（52,428,800 字节）时，从最老的一份起移到发布附件，不看年龄（用户 2026-11-08 定），仓库里只留它们的 SHA-256 和下载地址。移走的只是数据段，`manifest.json` 留在原处，门禁照样看得到这个版本 |
 | B. 只放发布附件 | 仓库不长 | CI 要联网下载；开发中的中间金样没有发布可挂；看不到 diff |
 | C. 另开一个仓库 | 主仓库不长，也能看 diff | 多一个仓库要维护权限和同步；PR 要跨仓库提交 |
 
@@ -146,7 +146,7 @@ node scripts/replay-golden-homes.mjs [--latest N | --all] [--json]
 
 **实测与改正（用户 2026-11-08 定）：** 代码只存一份并压缩后整份 15.3 MB，其中 `stores/` 13.5 MB，`plugin_runtime_release_artifacts` 占 11.18 MB，大头是每行都带的 `manifest`，代码压缩后只有 1.58 MB。重复的 Manifest 也只存一份（统筹定，做法同 `module_source`），整份约 4.47 MB（评审台实做量的，以第一份入库时的数字为准）。
 
-**第一份入库的实际数字（2026-11-08，`0.1.0`，Node 24.15.0，带两个签名样本）：** 工作树 4,459,450 字节，低于上面的 4.47 MB 估算（多了 Home 库样本，少了一点转储）。其中 `stores/` 2,385,791，`files/module-sources/` 24 份 1,582,387，`files/release-manifests/` 21 份 247,245，其余文件 98,448，`manifest.json` 145,037，README 542（第 05 批集成时在 main + SQLite + U1 + U1-f 上重新生成，2026-11-08）。离 50 MB 还能放十来份。覆盖面的缺口（必须备份、这份金样里没有的路径和原因）列在 `tooling/gates/golden-coverage.json` 的 `uncovered`；`feed-content/feed-content.db` 有结构没有业务行，原因在同一文件的 `writes`。
+**第一份入库的实际数字（2026-11-08，`0.1.0`，Node 24.15.0，带两个签名样本）：** `0.1.0` 目录 4,459,450 字节，门禁量的金样目录工作树字节是 4,459,745（多出目录根的 `tests/fixtures/golden-homes/.gitattributes` 295 字节），低于上面的 4.47 MB 估算（多了 Home 库样本，少了一点转储）。其中 `stores/` 2,385,791，`files/module-sources/` 24 份 1,582,387，`files/release-manifests/` 21 份 247,245，其余文件 98,448，`manifest.json` 145,037，README 542（第 05 批集成时在 main + SQLite + U1 + U1-f 上重新生成，2026-11-08）。离 50 MiB 还能放十来份。覆盖面的缺口（必须备份、这份金样里没有的路径和原因）列在 `tooling/gates/golden-coverage.json` 的 `uncovered`；`feed-content/feed-content.db` 有结构没有业务行，原因在同一文件的 `writes`。
 
 这里原来还写了一条理由，写错了：当时说不能只留校验值，因为「新版和已安装版本不兼容时，宿主要用存着的旧代码继续跑（`packages/plugin-runtime/src/supervisor.ts:500-532`），这条路回放要测」。用户 2026-10-08 已定内置插件一律跟当前构建（`packages/plugin-runtime/README.md:104`），这条路今天用不上。用户重新定：**回放不测这条路，代码照存**，这样金样才和真实 Home 的库一样。代价：这条路没人测，真要启用时再补。产品是否继续存这些代码登在 [`BL-plugin-release-module-source`](../backlog/BL-plugin-release-module-source.md)。
 
@@ -160,7 +160,7 @@ node scripts/replay-golden-homes.mjs [--latest N | --all] [--json]
 | UPG2-04 | 覆盖面门禁：`HOME-DATA.md` 里每个必备份的库和带版本的文件，在最新金样里都有 |
 | UPG2-05 | 升级后重启一次，结构检查和全部读取再过一遍 |
 | UPG2-07 | Linux 上第三方两段不算通过，结果和 CI 摘要都写明；相关路径改动 macOS 补跑，每天 macOS 跑全部；入库金样带样本、记 Node，默认目的地拒绝别的 Node |
-| UPG2-08 | `tests/fixtures/golden-homes/` 工作树字节不超过 50 MB，超了门禁点名最老的一份 |
+| UPG2-08 | `tests/fixtures/golden-homes/` 工作树字节不超过 50 MiB（52,428,800 字节），超了门禁点名最老的一份 |
 | UPG2-06 | 账号 Home 和根 Home 都被回放、都升到现行；金样里没有 `config/native-session-token`，生成和回放都不连云 |
 
 ## 8. 分片与顺序

@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import test from "node:test";
 import { type SqliteDatabase } from "@molis-ai/molis-work-test-kit/sqlite";
@@ -54,6 +54,12 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
     }
     for (const name of ["contracts", "plugin-sdk"]) {
       execFileSync("pnpm", ["--dir", join(root, "packages", name), "pack", "--pack-destination", directory, "--json"], { encoding: "utf8" });
+    }
+    // FSS-62: both the generated project and the repository sample carry their own language files in the author archive.
+    for (const authorDirectory of [project, join(root, "examples/plugin-sample")]) {
+      const packed = JSON.parse(execFileSync("pnpm", ["--dir", authorDirectory, "pack", "--pack-destination", directory, "--json"], { encoding: "utf8" })) as { filename: string };
+      const files = execFileSync("tar", ["-tf", resolve(directory, packed.filename)], { encoding: "utf8" }).split("\n");
+      for (const lang of ["zh", "en"]) assert.ok(files.includes("package/locales/" + lang + ".json"), files.join(", "));
     }
     execFileSync("npm", ["install", "--offline", "--ignore-scripts", "--no-audit", "--no-fund", "--cache", join(directory, "npm-cache"),
       join(directory, "molis-ai-molis-work-contracts-0.0.0.tgz"), join(directory, "molis-ai-molis-work-plugin-sdk-0.0.0.tgz")],

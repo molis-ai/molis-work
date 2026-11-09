@@ -1,19 +1,16 @@
-// Batch-09 prototype (piece 9-11): the capability pack catalog ("能力包", code `kit`) on the settings page.
-// Spec: specs/capability-pack/spec.md. The pack lists five kinds — skills, prompts, roles, tools, MCP — with where each comes from,
-// its version and upgrade difference, where it applies, whether it is on and how much it was used. Only skills can be switched here
-// (batch 08's three states, its list-and-detail part and its detail block, unchanged); the other four are read here and changed on
-// their owner's page. The three schemes differ only in how you reach an entry:
-//   A  one catalog: the list-and-detail part with a kind filter (all kinds in one list, grouped by kind)
-//   B  overview first: five kind cards that say what needs you, then one kind at a time in the list-and-detail part
-//   C  by source: the list grouped by the plugin, pack, connection or server each entry comes from, with a source detail
-// Every control is the board's (window.mwKit, ../kit/kit.css, ../kit/settings.css); pack.css only places them. Parts the kit has no
-// renderer for (empty state, input, skeleton, toast, item rows) are written with the SDK's own markup. Nothing is written anywhere.
+// Batch-09 prototype (piece 9-11): AI kits ("能力包", code `kit`) on the settings page. Spec: specs/capability-pack/spec.md.
+// The pack model the user set on 2026-11-09: a capability pack holds its skills, MCP servers and tools, and the roles that go with
+// it; each role carries its own prompts. The page opens on a list of packs. Only skills can be switched here (batch 08's three
+// states and its detail block, unchanged); the rest is read here and changed on its owner's page. Two schemes:
+//   A  the pack list beside one pack's detail (its state, roles with their prompts, skills, MCP, tools); an item opens in place
+//   B  pack cards; a pack opens as its own catalog — 08's list and detail, grouped, roles with their prompts under them
+// Every control is the board's (window.mwKit, ../kit/kit.css, ../kit/settings.css); pack.css only places them. Nothing is written.
 (() => {
   const K = window.mwKit;
   const D = window.KIT_DATA;
-  const KEY = "molis-proto.capability-pack.v1";
+  const KEY = "molis-proto.capability-pack.v2";
   const DEF = { s: "A", v: "normal", l: "zh", t: "light" };
-  const VIEWS = ["normal", "skill", "prompt", "role", "tool", "mcp", "gone", "partial", "fail", "empty", "many", "loading", "import", "export"];
+  const VIEWS = ["normal", "pack", "role", "prompt", "skill", "mcp", "tool", "disabled", "gone", "partial", "fail", "empty", "many", "loading", "import", "export"];
   const esc = K.escapeHtml;
   const clone = (x) => JSON.parse(JSON.stringify(x));
 
@@ -124,55 +121,100 @@
       diff_insert: "Added", diff_delete: "Removed", diff_same: "Unchanged",
     },
   };
+  // The pack model (user, 2026-11-09): a capability pack holds its skills, MCP servers and tools, and the roles that go with it;
+  // each role carries its own prompts. The page opens on a list of packs.
+  Object.assign(T.zh, {
+    protoTitle: "能力包 · 原型", sA: "A 列表＋包详情", sB: "B 包卡片＋包内目录", rec: "推荐 A",
+    v_normal: "能力包列表", v_pack: "一个包（Coding 开发）", v_role: "角色和它的提示词", v_prompt: "提示词详情", v_skill: "技能详情（08 原样）", v_mcp: "MCP 详情（三种「开」）", v_tool: "工具详情",
+    v_disabled: "插件停用了", v_gone: "包已卸载", v_partial: "MCP 没读到", v_fail: "整页读失败", v_empty: "只有自带的包", v_many: "包很多", v_loading: "正在读", v_import: "导入一个能力包", v_export: "导出这个包",
+    lead: "一个能力包把做一类事要用的放在一起：技能、MCP、工具，以及搭配的角色和角色的提示词。技能在这里开关；其余的在这里看，改去它自己的页面。",
+    pk_kind: "能力包", pk_search: "找能力包，或包里的技能、角色、提示词", pk_searchLabel: "找能力包", pk_summary: "{n} 个能力包　·　{na} 个有要处理的", pk_onlyNa: "只看这些", pk_match: "包含：{x}", pk_noMatch: "没有符合的能力包",
+    st_all: "全部", st_on: "在用", st_na: "有要处理的", st_off: "停用或已卸载",
+    c_role: "{n} 角色", c_skill: "{n} 技能", c_mcp: "{n} MCP", c_tool: "{n} 工具", c_prompt: "{n} 提示词",
+    s_roles: "角色和它的提示词", s_skills: "技能", s_mcp: "MCP", s_tools: "工具", s_upgrade: "上次升级",
+    none_roles: "没有搭配角色：包里的技能给哪个角色都能用。", none_skills: "这个包没有技能。", none_mcp: "这个包没有 MCP 服务器。", none_tools: "没有声明要用的工具。",
+    tools_note: "工具是系统的，几个包可以声明同一个。谁真正能用，由角色的工具名单决定，不在这里开关。",
+    r_prompts: "它的提示词", r_noPrompts: "没有自己的提示词", r_where: "生效：{x}", r_whereNone: "现在没有地方用它",
+    pk_on: "在用", pk_na: "{n} 项要处理", pk_off: "已停用", pk_gone: "已卸载",
+    pk_onB: "包里的东西都能用。", pk_naB: "{x}", pk_offB: "插件停用了：包里的技能、角色和提示词都不会被用到。启用后照原来的设置。", pk_goneB: "{owner}已在 {at} 卸载：包里的角色和提示词不再生效。下面是卸载前的用量，名称照当时。",
+    pk_export: "导出这个包", pk_manage: "在插件设置里管理", pk_editMine: "改这个包", pk_enable: "启用插件", pk_readd: "重新添加{owner}", pk_mine: "你自己组的",
+    crumb_all: "全部能力包", crumb_up: "回到「{p}」", in_packs: "在这些能力包里", in_role: "属于角色「{r}」",
+    exportOf: "导出「{p}」", ex_whole: "整个包", ex_wholeD: "技能包、角色的引用、你的提示词改写、工具和 MCP 的引用；导回时各部分走各自的路", ex_prompts: "只导出你的提示词改写", ex_promptsD: "存成你自己的数据文件，导回时逐条确认",
+    im_h: "导入一个能力包", im_pack: "文件里是能力包「{p}」",
+    ov_open: "打开「{p}」", ov_roles: "角色：{x}", ov_noRoles: "没有搭配角色",
+    empty_t: "还没有装别的能力包", empty_b: "下面这几个随应用自带。可以装一个能力包，或者把本机 Agent 里已有的技能导进来。",
+    loading: "正在读能力包…",
+  });
+  Object.assign(T.en, {
+    protoTitle: "AI kits · prototype", sA: "A List + pack detail", sB: "B Pack cards + pack catalog", rec: "Recommended: A",
+    v_normal: "Kit list", v_pack: "One kit (Coding)", v_role: "A role and its prompts", v_prompt: "Prompt detail", v_skill: "Skill detail (08 as is)", v_mcp: "MCP detail (three “on”s)", v_tool: "Tool detail",
+    v_disabled: "Plugin turned off", v_gone: "Kit uninstalled", v_partial: "MCP unread", v_fail: "Page failed to read", v_empty: "Built-in kits only", v_many: "Many kits", v_loading: "Loading", v_import: "Importing a kit", v_export: "Export this kit",
+    h1: "AI kits", n_kit: "AI kits",
+    lead: "An AI kit keeps what one kind of work needs together: skills, MCP servers and tools, plus the roles that go with them and each role's prompts. Skills are switched here; the rest is read here and changed on its own page.",
+    pk_kind: "AI kit", pk_search: "Find a kit, or a skill, role or prompt in one", pk_searchLabel: "Find a kit", pk_summary: "{n} kits  ·  {na} need a look", pk_onlyNa: "Show only these", pk_match: "Has: {x}", pk_noMatch: "No kits match",
+    st_all: "All", st_on: "In use", st_na: "Needs a look", st_off: "Off or uninstalled",
+    c_role: "{n} roles", c_skill: "{n} skills", c_mcp: "{n} MCP", c_tool: "{n} tools", c_prompt: "{n} prompts",
+    c1_role: "1 role", c1_skill: "1 skill", c1_mcp: "1 MCP", c1_tool: "1 tool", c1_prompt: "1 prompt",
+    s_roles: "Roles and their prompts", s_skills: "Skills", s_mcp: "MCP", s_tools: "Tools", s_upgrade: "Last upgrade",
+    none_roles: "No roles with it: its skills work with any role.", none_skills: "This kit has no skills.", none_mcp: "This kit has no MCP servers.", none_tools: "No tools declared.",
+    tools_note: "Tools belong to the system and several kits can declare the same one. Who can really use a tool follows the role's tool list; it isn't switched here.",
+    r_prompts: "Its prompts", r_noPrompts: "No prompts of its own", r_where: "Applies in: {x}", r_whereNone: "Nothing uses it now",
+    pk_on: "In use", pk_na: "{n} need a look", pk_off: "Turned off", pk_gone: "Uninstalled",
+    pk_onB: "Everything in it can be used.", pk_naB: "{x}", pk_offB: "The plugin is off: its skills, roles and prompts won't be used. Turning it on keeps the settings it had.", pk_goneB: "{owner} was uninstalled on {at}: its roles and prompts no longer apply. Below is their usage before, under the names they had then.",
+    pk_export: "Export this kit", pk_manage: "Manage in plugin settings", pk_editMine: "Edit this kit", pk_enable: "Turn plugin on", pk_readd: "Add {owner} again", pk_mine: "Put together by you",
+    crumb_all: "All kits", crumb_up: "Back to “{p}”", in_packs: "In these kits", in_role: "Belongs to the role “{r}”",
+    exportOf: "Export “{p}”", ex_whole: "The whole kit", ex_wholeD: "Skill packs, role references, your prompt rewrites, tool and MCP references; each part goes back its own way", ex_prompts: "Only your prompt rewrites", ex_promptsD: "Saved as your own data file; confirmed one by one when brought back",
+    im_h: "Import an AI kit", im_pack: "The file holds the kit “{p}”",
+    ov_open: "Open “{p}”", ov_roles: "Roles: {x}", ov_noRoles: "No roles with it",
+    empty_t: "No other kits yet", empty_b: "The ones below come with the app. Install a kit, or bring in skills your local agents already have.",
+    loading: "Reading AI kits…",
+  });
 
   /* ---------- state ---------- */
   const readHash = () => Object.fromEntries(new URLSearchParams(location.hash.slice(1)));
   let P = (() => { try { return Object.assign(clone(DEF), JSON.parse(localStorage.getItem(KEY) || "{}")); } catch { return clone(DEF); } })();
   const H = readHash();
   for (const k of ["s", "v", "l", "t"]) if (H[k]) P[k] = H[k];
+  if (!["A", "B"].includes(P.s)) P.s = "A";
+  if (!VIEWS.includes(P.v)) P.v = "normal";
   const shot = H.shot === "1";
   const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(P)); } catch { /* private window: memory only */ } };
   const t = (k, v) => (T[P.l][k] ?? T.zh[k] ?? k).replace(/\{(\w+)\}/g, (_, n) => (v && v[n] != null ? v[n] : ""));
   const L = (o) => (o && typeof o === "object" ? o[P.l] : o) ?? "";
 
-  // What each screen starts from: kind filter, state filter, selection, whether a narrow screen shows the detail, and the data.
+  // What each screen starts from: the pack, the item opened inside it (null = the pack itself), whether a narrow screen shows the
+  // right side, and for B whether the page is the pack cards.
   const PRESET = {
-    normal: { k: "all", f: "all", sel: "sk-weekly", detail: false },
-    skill: { k: "skill", f: "all", sel: "sk-weekly", detail: true },
-    prompt: { k: "prompt", f: "all", sel: "pr-split", detail: true },
-    role: { k: "role", f: "all", sel: "ro-research", detail: true },
-    tool: { k: "tool", f: "all", sel: "tl-write_file", detail: true },
-    mcp: { k: "mcp", f: "all", sel: "mc-molis", detail: true },
-    gone: { k: "all", f: "na", sel: "pr-clauses", detail: true },
-    partial: { k: "all", f: "all", sel: "sk-weekly", detail: false },
-    fail: { k: "all", f: "all", sel: null, detail: false },
-    empty: { k: "all", f: "all", sel: "pr-reply", detail: false },
-    many: { k: "all", f: "all", sel: "sk-weekly", detail: false },
-    loading: { k: "all", f: "all", sel: null, detail: false },
-    import: { k: "all", f: "all", sel: "sk-weekly", detail: false, importing: true },
-    export: { k: "all", f: "all", sel: "sk-weekly", detail: false, menu: true },
+    normal: { pack: "pk-writing", item: null, detail: false, cards: true },
+    pack: { pack: "pk-coding", item: null, detail: true },
+    role: { pack: "pk-coding", item: "ro-impl", detail: true },
+    prompt: { pack: "pk-goals", item: "pr-split", detail: true },
+    skill: { pack: "pk-writing", item: "sk-weekly", detail: true },
+    mcp: { pack: "pk-goals", item: "mc-molis", detail: true },
+    tool: { pack: "pk-coding", item: "tl-run_command", detail: true },
+    disabled: { pack: "pk-legal", item: null, detail: true },
+    gone: { pack: "pk-contracts", item: null, detail: true },
+    partial: { pack: "pk-coding", item: null, detail: true },
+    fail: { pack: null, item: null, detail: false, cards: true },
+    empty: { pack: "pk-assistant", item: null, detail: false, cards: true },
+    many: { pack: "pk-writing", item: null, detail: false, cards: true },
+    loading: { pack: null, item: null, detail: false, cards: true },
+    import: { pack: "pk-writing", item: null, detail: false, importing: true, cards: true },
+    export: { pack: "pk-writing", item: null, detail: true, menu: true },
   };
+  const entryById = (id) => D.entries.find((e) => e.id === id);
   const freshUi = () => {
     const p = PRESET[P.v] || PRESET.normal;
     const skillStates = {};
     for (const e of D.entries) if (e.skill) skillStates[e.id] = e.skill.state;
-    // B lands on its overview unless the screen is about one kind or one entry.
-    const page = P.s === "B" && ["normal", "partial", "fail", "empty", "many", "loading", "export"].includes(P.v) ? "overview" : "kind";
-    const bKind = p.k === "all" ? (p.sel ? entryById(p.sel)?.kind || "skill" : "skill") : p.k;
-    return { k: P.s === "B" ? bKind : p.k, f: p.f, q: "", sel: p.sel, detail: p.detail, menu: !!p.menu, importing: !!p.importing, page, cross: P.s === "B" && p.f === "na", skillStates, open: {}, srcSel: null,
-      picks: { i1: true }, last: null, anim: false };
+    // B shows the pack cards first; inside a pack it opens on the pack's first role (or first item) as 08 opens on its first entry.
+    return { pack: p.pack, item: p.item, detail: p.detail, cards: P.s === "B" && !!p.cards, menu: !!p.menu, importing: !!p.importing,
+      q: "", f: P.v === "gone" ? "off" : "all", skillStates, picks: { i1: true }, last: null, anim: false };
   };
-  const entryById = (id) => D.entries.find((e) => e.id === id);
   let ui = freshUi();
 
   /* ---------- data for the current screen ---------- */
-  function entries() {
-    let list = D.entries.slice();
-    if (P.v === "many") list = list.concat(D.many());
-    if (P.v === "empty") list = list.filter((e) => e.kind !== "skill" && e.kind !== "mcp");
-    if (P.v === "partial") list = list.filter((e) => e.kind !== "mcp");
-    return list;
-  }
+  const entries = () => (P.v === "partial" ? D.entries.filter((e) => e.kind !== "mcp") : D.entries.slice());
   const KINDS = ["skill", "prompt", "role", "tool", "mcp"];
   const KIND_ICON = { skill: "book", prompt: "text", role: "user", tool: "wand", mcp: "network" };
   const SRC_ICON = { system: "system", plugin: "package", pack: "package", local: "terminal", characters: "user", server: "network", connection: "link" };
@@ -211,16 +253,6 @@
     return K.renderStatusMark({ label: s.word, tone: s.tone, state: s.ring });
   };
 
-  const visible = (list) => {
-    const q = ui.q.trim().toLowerCase();
-    return list.filter((e) => {
-      if (ui.k !== "all" && e.kind !== ui.k) return false;
-      if (ui.f !== "all" && stateOf(e).group !== ui.f) return false;
-      return !q || (nameOf(e) + descOf(e) + L(srcOf(e).name) + (e.code || "")).toLowerCase().includes(q);
-    });
-  };
-  // Entries whose owner is gone sort last in their kind, so the list leads with what can be used.
-  const ordered = (list) => list.slice().sort((a, b) => (a.gone ? 1 : 0) - (b.gone ? 1 : 0));
 
   /* ---------- small parts (SDK markup where the kit has no renderer) ---------- */
   const ic = (n) => K.icon(n);
@@ -233,12 +265,6 @@
   const select = (id, label, opts, cur) => `<select class="mw-select" data-slot="select" id="${id}" aria-label="${esc(label)}">${opts.map(([v, w]) => `<option value="${v}"${v === cur ? " selected" : ""}>${esc(w)}</option>`).join("")}</select>`;
   const skeleton = (cls) => `<span class="mw-skeleton ${cls || ""}" data-slot="skeleton" aria-hidden="true"></span>`;
   const sec = (title, body, cls = "") => `<section class="kp-sec ${cls}"><h4>${esc(title)}</h4>${body}</section>`;
-  const counts = (list) => {
-    const c = { all: 0, na: 0 };
-    for (const k of KINDS) c[k] = 0;
-    for (const e of list) { if (e.gone) { c.gone = (c.gone || 0) + 1; continue; } c.all += 1; c[e.kind] += 1; if (stateOf(e).group === "na") c.na += 1; }
-    return c;
-  };
 
   /* ---------- the batch-08 skill block, as the product draws it (apps/workbench/src/settings-skills.ts) ---------- */
   function skillBlock(e) {
@@ -287,22 +313,25 @@
     return K.renderAlert({ title, body: t("gone_b"), tone: "warning", state: "blocked", actions, role: null });
   }
 
-  function promptDetail(e) {
-    const p = e.prompt, s = stateOf(e), src = srcOf(e);
+  function promptDetail(e, pk) {
+    const p = e.prompt, src = srcOf(e);
+    const owner = pk ? roleOfPrompt(pk, e.id) : null;
     const line = !p.mine ? t("p_default", { v: p.latest }) : p.latest !== p.base ? t("p_mineOld", { base: p.base, latest: p.latest }) : t("p_mine", { base: p.base });
-    const now = e.gone ? goneBlock(e) : `${statusLine(markOf(e), line)}<p class="kp-note">${esc(t("p_noBody"))}</p><div class="kp-actions">${p.mine && p.latest !== p.base ? goBtn(t("p_compare")) : ""}${goBtn(t("p_edit"))}</div>`;
+    const now = e.gone ? goneBlock(e) : `${owner ? `<p class="kp-line">${ic("user")}${esc(t("in_role", { r: nameOf(entryById(owner.id)) }))}</p>` : ""}${statusLine(markOf(e), line)}<p class="kp-note">${esc(t("p_noBody"))}</p><div class="kp-actions">${p.mine && p.latest !== p.base ? goBtn(t("p_compare")) : ""}${goBtn(t("p_edit"))}</div>`;
     const ver = `<p class="kp-line">${esc(t("p_ver", { v: p.latest || p.base, src: L(src.name) }))}</p>${p.mine && p.latest && p.latest !== p.base ? `<p class="kp-line kp-line--hold">${ic("git-compare")}${esc(t("p_verMine", { base: p.base, latest: p.latest }))}</p>` : ""}`;
     return `${header(e)}${sec(t("d_now"), now, "kp-now")}${sec(t("d_usage"), usageBlock(e))}${e.gone ? "" : sec(t("d_where"), whereBlock(e))}${sec(t("d_version"), ver)}`;
   }
 
-  function roleDetail(e) {
+  function roleDetail(e, p) {
     const r = e.role, src = srcOf(e);
+    const mine = p ? (p.roles.find((x) => x.id === e.id)?.prompts || []).map(entryById).filter(Boolean) : [];
+    const prompts = mine.length ? `<ul class="mw-items">${mine.map((x) => itemRow(x)).join("")}</ul>` : `<p class="kp-note">${esc(t("r_noPrompts"))}</p>`;
     const own = src.kind === "characters";
     const active = r.active.length ? `<ul class="kp-places">${r.active.map((w) => `<li>${ic("target")}<span>${esc(L(w))}</span></li>`).join("")}</ul>` : `<p class="kp-note">${esc(t(e.off ? "r_off" : "r_activeNone"))}</p>`;
-    const now = `${statusLine(markOf(e), t("r_active"))}${active}<p class="kp-note">${esc(t("r_scopeNote"))}</p><div class="kp-actions">${goBtn(own ? t("r_edit") : t("r_view"))}</div>`;
+    const now = e.gone ? goneBlock(e) : `${statusLine(markOf(e), t("r_active"))}${active}<p class="kp-note">${esc(t("r_scopeNote"))}</p><div class="kp-actions">${goBtn(own ? t("r_edit") : t("r_view"))}</div>`;
     const tools = `<p class="kp-chips">${r.tools.map((x) => `<code>${esc(x)}</code>`).join("")}</p><p class="kp-note">${esc(t("d_declaredNote"))}</p>`;
     const ver = `<p class="kp-line">${esc(t("r_ver", { v: L(e.version), decl: L(r.declared) }))}</p>${e.isNew ? `<p class="kp-line">${badge(t("r_new"), "success")}</p>` : ""}`;
-    return `${header(e)}${sec(t("d_now"), now, "kp-now")}${sec(t("d_declared"), tools)}${sec(t("d_usage"), usageBlock(e))}${sec(t("d_version"), ver)}`;
+    return `${header(e)}${sec(t("d_now"), now, "kp-now")}${sec(t("r_prompts") + "　" + mine.length, prompts)}${sec(t("d_declared"), tools)}${sec(t("d_usage"), usageBlock(e))}${sec(t("d_version"), ver)}`;
   }
 
   function toolDetail(e) {
@@ -310,7 +339,9 @@
     const roles = tl.roles.length ? `<p class="kp-chips">${tl.roles.map((r) => badge(r === "助理" && P.l === "en" ? "Assistant" : r)).join("")}</p>` : `<p class="kp-note">${esc(t("t_rolesNone"))}</p>`;
     const now = `<p class="mw-status-line">${markOf(e)}${esc(t("t_origin_" + tl.origin))}</p><p class="kp-note">${esc(t("t_note"))}</p>`;
     const ver = `<p class="kp-line">${esc(t("t_ver", { v: e.version }))}</p>${tl.added ? `<p class="kp-line">${badge(t("t_added"), "success")}</p>` : ""}`;
-    return `${header(e)}${sec(t("d_now"), now, "kp-now")}${sec(t("d_roles"), roles + `<div class="kp-actions">${goBtn(t("t_toRoles"))}</div>`)}${sec(t("d_usage"), usageBlock(e))}${sec(t("d_version"), ver)}`;
+    const inPacks = packsWith(e.id);
+    const packsHtml = `<p class="kp-chips">${inPacks.map((x) => `<button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-slot="button" data-act="pack" data-v="${x.id}">${ic("package")}<span data-slot="button-label">${esc(L(x.name))}</span></button>`).join("")}</p>`;
+    return `${header(e)}${sec(t("d_now"), now, "kp-now")}${sec(t("in_packs") + "　" + inPacks.length, packsHtml)}${sec(t("d_roles"), roles + `<div class="kp-actions">${goBtn(t("t_toRoles"))}</div>`)}${sec(t("d_usage"), usageBlock(e))}${sec(t("d_version"), ver)}`;
   }
 
   // MCP: the server running, outside clients allowed in, and its tools callable are three different "on"s; each row says which one
@@ -341,51 +372,148 @@
     return skillBlock(e) + outer;
   }
 
-  function detail(e) {
-    if (!e) return "";
-    const back = `<button type="button" class="mw-btn mw-btn--ghost mw-btn--sm mw-list-detail__back" data-slot="button" data-act="unsel">${ic("chevron-left")}<span data-slot="button-label">${esc(t("backAll"))}</span></button>`;
-    const body = { skill: skillDetail, prompt: promptDetail, role: roleDetail, tool: toolDetail, mcp: mcpDetail }[e.kind](e);
-    return `<section class="mw-list-detail__detail kp-detail${ui.anim ? " is-entering" : ""}" aria-label="${esc(t("detailLabel"))}"${e.skill && e.skill.unavailable ? " data-off" : ""}>${back}${body}</section>`;
+  /* ---------- packs ---------- */
+  function packs() {
+    let list = D.packs.slice();
+    if (P.v === "many") list = list.concat(D.manyPacks());
+    if (P.v === "empty") list = list.filter((p) => D.sources[p.src].trust?.zh === "随应用提供");
+    return list;
+  }
+  const packById = (id) => packs().find((p) => p.id === id) || D.packs.find((p) => p.id === id);
+  const mcpUnread = (p) => P.v === "partial" && p.id === "pk-coding";
+  // Everything a pack holds, in reading order: each role then its prompts, skills, MCP servers, tools.
+  function itemsOf(p) {
+    const out = [];
+    for (const r of p.roles) { out.push(entryById(r.id)); for (const x of r.prompts) out.push(entryById(x)); }
+    for (const x of p.skills) out.push(entryById(x));
+    if (!mcpUnread(p)) for (const x of p.mcp) out.push(entryById(x));
+    for (const x of p.tools) out.push(entryById(x));
+    return out.filter(Boolean);
+  }
+  const roleOfPrompt = (p, id) => p.roles.find((r) => r.prompts.includes(id));
+  const packsWith = (id) => packs().filter((p) => !p.sample && (p.skills.includes(id) || p.mcp.includes(id) || p.tools.includes(id) || p.roles.some((r) => r.id === id || r.prompts.includes(id))));
+  // A pack's state is read from what it holds and from its plugin; it has no switch of its own (spec §4.3: no new switches).
+  function packState(p) {
+    const s = D.sources[p.src];
+    if (s.gone) return { word: t("pk_gone"), tone: "blocked", ring: "blocked", group: "off" };
+    if (s.disabled) return { word: t("pk_off"), tone: "quiet", ring: "paused", group: "off" };
+    const na = itemsOf(p).filter((e) => e.kind !== "tool" && !e.gone && stateOf(e).group === "na");
+    const newer = itemsOf(p).filter((e) => e.kind === "prompt" && stateOf(e).tone === "attention");
+    if (na.length || mcpUnread(p)) return { word: t("pk_na", { n: na.length + (mcpUnread(p) ? 1 : 0) }), tone: "hold", ring: "unavailable", group: "na", na, newer };
+    if (newer.length) return { word: t("pk_na", { n: newer.length }), tone: "attention", ring: "stale", group: "na", na, newer };
+    return { word: t("pk_on"), tone: "idle", ring: "ready", group: "on", na, newer };
+  }
+  const packMark = (p) => { const s = packState(p); return K.renderStatusMark({ label: s.word, tone: s.tone, state: s.ring }); };
+  const cnt = (k, n) => (n === 1 && T[P.l]["c1_" + k] ? t("c1_" + k) : t("c_" + k, { n }));
+  const countsOf = (p) => [["role", p.roles.length], ["prompt", p.roles.reduce((n, r) => n + r.prompts.length, 0)], ["skill", p.skills.length], ["mcp", p.mcp.length], ["tool", p.tools.length]].filter(([, n]) => n);
+  const packCounts = (p) => countsOf(p).map(([k, n]) => cnt(k, n)).join(" · ");
+  // What a pack holds as small icon-and-number chips: fits a narrow row where the words would be cut.
+  const packChips = (p) => `<span class="kp-counts" aria-label="${esc(packCounts(p))}">${countsOf(p).map(([k, n]) => `<span class="kp-count" title="${esc(cnt(k, n))}">${ic(KIND_ICON[k])}${n}</span>`).join("")}</span>`;
+  const packSrcLine = (p) => { const s = D.sources[p.src]; return [p.mine ? t("pk_mine") : s.publisher || L(s.name), s.version ? L(s.version) : ""].filter(Boolean).join(" · "); };
+  function packMatch(p) {
+    const q = ui.q.trim().toLowerCase();
+    if (!q) return { ok: true };
+    if ((L(p.name) + L(p.desc) + packSrcLine(p)).toLowerCase().includes(q)) return { ok: true };
+    const hit = itemsOf(p).find((e) => (nameOf(e) + descOf(e) + (e.code || "")).toLowerCase().includes(q));
+    return hit ? { ok: true, hit } : { ok: false };
+  }
+  const visiblePacks = () => packs().filter((p) => packMatch(p).ok && (ui.f === "all" || packState(p).group === ui.f))
+    .sort((a, b) => (D.sources[a.src].gone ? 1 : 0) - (D.sources[b.src].gone ? 1 : 0));
+
+  /* ---------- one item's detail, under a way back to its pack ---------- */
+  function crumbs(p, e) {
+    const r = e.kind === "prompt" ? roleOfPrompt(p, e.id) : null;
+    const trail = [L(p.name), r ? nameOf(entryById(r.id)) : null, nameOf(e)].filter(Boolean).map(esc).join(`<span class="kp-dot">/</span>`);
+    return `<nav class="kp-crumbs" aria-label="${esc(t("pk_kind"))}"><button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-slot="button" data-act="up">${ic("chevron-left")}<span data-slot="button-label">${esc(t("crumb_up", { p: L(p.name) }))}</span></button><span class="kp-crumbs__trail">${trail}</span></nav>`;
+  }
+  function itemDetail(p, e) {
+    const body = { skill: skillDetail, prompt: promptDetail, role: roleDetail, tool: toolDetail, mcp: mcpDetail }[e.kind](e, p);
+    return `<section class="mw-list-detail__detail kp-detail${ui.anim ? " is-entering" : ""}" aria-label="${esc(t("detailLabel"))}">${P.s === "A" ? crumbs(p, e) : `<button type="button" class="mw-btn mw-btn--ghost mw-btn--sm mw-list-detail__back" data-slot="button" data-act="unsel">${ic("chevron-left")}<span data-slot="button-label">${esc(L(p.name))}</span></button>`}${body}</section>`;
   }
 
-  /* ---------- list rows ---------- */
-  function pickRow(e) {
-    const src = srcOf(e);
-    const sub = `${L(src.name)}${e.scope === "home" ? " · " + t("scope_home") : ""}`;
-    return `<li class="mw-item mw-item--pick"><button type="button" class="mw-item__pick" aria-current="${e.id === ui.sel ? "true" : "false"}" data-act="sel" data-v="${e.id}">${mark(KIND_ICON[e.kind])}<span><strong>${esc(nameOf(e))}</strong><small title="${esc(sub)}">${esc(sub)}</small></span><span class="mw-item__end">${markOf(e)}</span></button></li>`;
+  /* ---------- rows ---------- */
+  function itemRow(e, cls = "") {
+    const sub = e.kind === "mcp" ? mcpLine(e) : e.kind === "prompt" ? promptLine(e) : descOf(e);
+    return `<li class="mw-item mw-item--pick ${cls}"><button type="button" class="mw-item__pick" aria-current="${e.id === ui.item ? "true" : "false"}" data-act="item" data-v="${e.id}">${mark(KIND_ICON[e.kind])}<span><strong>${esc(nameOf(e))}${e.code ? ` <code class="kp-code">${esc(e.code)}</code>` : ""}</strong><small title="${esc(sub)}">${esc(sub)}</small></span><span class="mw-item__end">${markOf(e)}</span></button></li>`;
+  }
+  const promptLine = (e) => (e.gone ? L(e.gone.owner) : e.prompt.mine ? t("p_verMine", { base: e.prompt.base, latest: e.prompt.latest }).split(/[;；]/)[0] : t("p_ver", { v: e.prompt.latest, src: L(srcOf(e).name) }));
+  function mcpLine(e) {
+    const m = e.mcp;
+    const tools = m.tools.open === m.tools.total ? t("m_toolsAll", { total: m.tools.total }) : t("m_toolsN", { total: m.tools.total, open: m.tools.open });
+    return [m.outbound ? t("m_outN", { n: m.clients.length, list: m.clients.join("、") }) : L(srcOf(e).name), tools].join(" · ");
+  }
+  // A role and, under it, its own prompts: the pack's most particular pairing, so it reads as one card.
+  function roleCard(p, r) {
+    const e = entryById(r.id);
+    const prompts = r.prompts.map(entryById).filter(Boolean);
+    const where = e.role.active.length ? t("r_where", { x: e.role.active.map(L).join("、") }) : t(e.off ? "r_off" : "r_whereNone");
+    return `<li class="kp-role"><button type="button" class="kp-role__head" aria-current="${e.id === ui.item ? "true" : "false"}" data-act="item" data-v="${e.id}">${mark("user")}<span class="kp-role__text"><strong>${esc(nameOf(e))}</strong><small>${esc(descOf(e))}</small><small class="kp-role__where">${esc(where)}</small></span><span class="mw-item__end">${markOf(e)}</span></button>
+      <div class="kp-role__prompts"><span class="kp-role__label">${esc(t("r_prompts"))}</span>${prompts.length ? `<ul class="mw-items">${prompts.map((x) => itemRow(x, "kp-prompt")).join("")}</ul>` : `<p class="kp-inline-empty">${esc(t("r_noPrompts"))}</p>`}</div></li>`;
+  }
+  function toolGrid(list) {
+    return `<ul class="kp-toolgrid">${list.map((e) => `<li><button type="button" class="kp-tool" aria-current="${e.id === ui.item ? "true" : "false"}" data-act="item" data-v="${e.id}"><span class="kp-tool__name"><strong>${esc(nameOf(e))}</strong><code>${esc(e.code)}</code></span>${markOf(e)}</button></li>`).join("")}</ul>`;
+  }
+  const groupHead = (k, n) => `<h4 class="kp-group"><span>${esc(t("s_" + k))}</span><span class="kp-group__n">${n}</span></h4>`;
+
+  /* ---------- a pack: its state, what to do, and what it holds ---------- */
+  function packNow(p) {
+    const s = packState(p), src = D.sources[p.src];
+    let body, actions;
+    if (src.gone) {
+      body = t("pk_goneB", { owner: L(src.name), at: "11-05" });
+      actions = [btn(t("pk_readd", { owner: L(src.name) }), { icon: "arrow", attrs: act("sim", "go") })];
+    } else if (src.disabled) {
+      body = t("pk_offB");
+      actions = [btn(t("pk_enable"), { variant: "primary", attrs: act("sim", "go") })];
+    } else {
+      const parts = (s.na || []).map((e) => `${nameOf(e)}：${stateOf(e).word}`).concat((s.newer || []).map((e) => `${nameOf(e)}：${t("w_mineOld")}`));
+      if (mcpUnread(p)) parts.unshift(t("partial_t"));
+      body = parts.length ? parts.join("；") : t("pk_onB");
+      actions = [];
+    }
+    const exportBtn = src.gone ? "" : `<span class="kp-export">${btn(t("pk_export"), { icon: "download", attrs: Object.assign(act("menu"), { id: "kpExport", "aria-haspopup": "menu", "aria-expanded": ui.menu ? "true" : "false" }) })}${exportMenu(p)}</span>`;
+    const manage = src.gone ? "" : p.mine ? btn(t("pk_editMine"), { variant: "ghost", attrs: act("sim", "go") }) : src.manage === "plugins" && !src.disabled ? btn(t("pk_manage"), { variant: "ghost", icon: "arrow", attrs: act("sim", "go") }) : "";
+    return `<div class="kp-now kp-packnow"><p class="mw-status-line">${packMark(p)}<span>${esc(body)}</span></p><div class="kp-actions">${actions.join("")}${exportBtn}${manage}</div></div>`;
+  }
+  function packHeader(p, tag = "h3") {
+    const s = D.sources[p.src];
+    return `<header class="kp-packhead"><span class="kp-kind">${ic("package")}${esc(t("pk_kind"))}</span><${tag} tabindex="-1">${esc(L(p.name))}</${tag}><p>${esc(L(p.desc))}</p>
+      <p class="kp-source">${ic(SRC_ICON[s.kind] || "package")}<span>${esc(p.mine ? t("pk_mine") : L(s.name))}</span>${s.version ? `<span class="kp-dot">·</span><span>${esc(L(s.version))}</span>` : ""}${s.publisher ? `<span class="kp-dot">·</span><span>${esc(s.publisher)}</span>` : ""}<span class="kp-dot">·</span><span>${esc(L(s.trust))}</span></p></header>`;
+  }
+  function packContents(p) {
+    const roles = p.roles.length ? `<ul class="kp-roles">${p.roles.map((r) => roleCard(p, r)).join("")}</ul>` : `<p class="kp-inline-empty">${esc(t("none_roles"))}</p>`;
+    const skills = p.skills.length ? `<ul class="mw-items">${p.skills.map(entryById).map((e) => itemRow(e)).join("")}</ul>` : `<p class="kp-inline-empty">${esc(t("none_skills"))}</p>`;
+    const mcp = mcpUnread(p) ? partialAlert() : p.mcp.length ? `<ul class="mw-items">${p.mcp.map(entryById).map((e) => itemRow(e)).join("")}</ul>` : `<p class="kp-inline-empty">${esc(t("none_mcp"))}</p>`;
+    const tools = p.tools.length ? `${toolGrid(p.tools.map(entryById))}<p class="kp-note">${esc(t("tools_note"))}</p>` : `<p class="kp-inline-empty">${esc(t("none_tools"))}</p>`;
+    const diff = D.sources[p.src].diff;
+    return `${sec(t("s_roles") + "　" + p.roles.length, roles)}${sec(t("s_skills") + "　" + p.skills.length, skills)}${sec(t("s_mcp") + "　" + (mcpUnread(p) ? "—" : p.mcp.length), mcp)}${sec(t("s_tools") + "　" + p.tools.length, tools)}${diff ? sec(t("s_upgrade"), `<p class="kp-line">${ic("history")}${esc(L(diff))}</p>`) : ""}`;
+  }
+  function packDetail(p) {
+    const back = `<button type="button" class="mw-btn mw-btn--ghost mw-btn--sm mw-list-detail__back" data-slot="button" data-act="unsel">${ic("chevron-left")}<span data-slot="button-label">${esc(t("crumb_all"))}</span></button>`;
+    return `<section class="mw-list-detail__detail kp-detail kp-pack${ui.anim ? " is-entering" : ""}" aria-label="${esc(t("pk_kind"))}">${back}${packHeader(p)}${packNow(p)}${packContents(p)}</section>`;
   }
 
   /* ---------- toolbar, export menu, import panel ---------- */
-  function exportMenu() {
+  function exportMenu(p) {
     if (!ui.menu) return "";
-    const items = K.renderMenuGroup({ label: t("exportOf"), items: [
-      K.renderMenuItem({ label: t("ex_skill"), description: t("ex_skillD"), iconName: "book", attrs: act("export", "skill") }),
-      K.renderMenuItem({ label: t("ex_prompt"), description: t("ex_promptD"), iconName: "text", attrs: act("export", "prompt") }),
+    const mine = itemsOf(p).filter((e) => e.kind === "prompt" && e.prompt.mine).length;
+    const items = K.renderMenuGroup({ label: t("exportOf", { p: L(p.name) }), items: [
+      K.renderMenuItem({ label: t("ex_whole"), description: t("ex_wholeD"), iconName: "package", attrs: act("export", "whole") }),
+      ...(mine ? [K.renderMenuItem({ label: t("ex_prompts") + `（${mine}）`, description: t("ex_promptsD"), iconName: "text", attrs: act("export", "prompt") })] : []),
       K.renderMenuItem({ label: t("ex_refs"), description: t("ex_refsD"), iconName: "link", attrs: act("export", "refs") }),
     ] });
     return K.renderPopover({ body: K.renderMenu({ items, labelledBy: "kpExport" }), className: "kp-menu", preview: true });
   }
-  function ioButtons() {
-    return `<span class="kp-io">${btn(t("import"), { icon: "upload", attrs: act("import") })}<span class="kp-export">${btn(t("export"), { icon: "download", attrs: Object.assign(act("menu"), { id: "kpExport", "aria-haspopup": "menu", "aria-expanded": ui.menu ? "true" : "false" }) })}${exportMenu()}</span></span>`;
+  const importBtn = () => btn(t("import"), { icon: "upload", attrs: act("import") });
+  function searchBox() {
+    return `<span class="kp-search">${ic("search")}${input({ id: "kpQ", placeholder: t("pk_search"), label: t("pk_searchLabel"), value: ui.q })}</span>`;
   }
-  function kindFilter(list, withAll = true) {
-    const c = counts(list);
-    const err = P.v === "partial";
-    const items = (withAll ? ["all"] : []).concat(KINDS).map((k) => ({ value: k, label: `${t("k_" + k)} ${k === "mcp" && err ? "—" : c[k]}`, current: ui.k === k, attrs: act("kind", k) }));
-    const seg = K.renderToggleGroup({ label: t("kindLabel"), items, className: "kp-kinds" });
-    const sel = select("kpKindSel", t("kindLabel"), items.map((i) => [i.value, i.label]), ui.k);
-    return `<span class="kp-kinds-wrap">${seg}<span class="kp-kinds-narrow">${sel}</span></span>`;
+  const stateFilter = () => select("kpState", t("stLabel"), [["all", t("st_all")], ["on", t("st_on")], ["na", t("st_na")], ["off", t("st_off")]], ui.f);
+  function summaryLine() {
+    const all = packs(), na = all.filter((p) => packState(p).group === "na").length;
+    return `<p class="kp-summary" role="status">${esc(t("pk_summary", { n: all.length, na }))}${na && ui.f !== "na" ? `<button type="button" class="mw-btn mw-btn--link mw-btn--sm" data-slot="button" data-act="only-na"><span data-slot="button-label">${esc(t("pk_onlyNa"))}</span></button>` : ""}</p>`;
   }
-  function stateFilter() {
-    return select("kpState", t("stLabel"), [["all", t("st_all")], ["on", t("st_on")], ["off", t("st_off")], ["na", t("st_na")]], ui.f);
-  }
-  function searchBox(placeholder) {
-    return `<span class="kp-search">${ic("search")}${input({ id: "kpQ", placeholder: placeholder || t("search"), label: t("searchLabel"), value: ui.q })}</span>`;
-  }
-  function summaryLine(list) {
-    const c = counts(list);
-    return `<p class="kp-summary" role="status">${esc(t("summary", { n: c.all, na: c.na }))}${c.na && ui.f !== "na" ? `<button type="button" class="mw-btn mw-btn--link mw-btn--sm" data-slot="button" data-act="only-na"><span data-slot="button-label">${esc(t("onlyNa"))}</span></button>` : ""}</p>`;
-  }
+  const toolbar = () => `<div class="kp-toolbar">${searchBox()}${stateFilter()}<span class="kp-spacer"></span><span class="kp-io">${importBtn()}</span></div>`;
 
   function importPanel() {
     const f = D.importFile;
@@ -400,141 +528,67 @@
     const rrow = (x) => `<li class="kp-ref">${mark(KIND_ICON[x.kind])}<span class="kp-ref__name">${esc(L(x.name))}</span>${x.here ? K.renderStatusMark({ label: t("im_here"), tone: "idle", state: "ready" }) : `<span class="mw-status-line">${K.renderStatusMark({ label: t("im_notHere"), tone: "hold", state: "unavailable" })}<a class="mw-btn mw-btn--link" href="#" data-act="sim" data-v="go">${esc(L(x.fix))}</a></span>`}</li>`;
     const n = Object.values(ui.picks).filter(Boolean).length;
     return `<section class="kp-import" aria-labelledby="kpImH"><header class="kp-import__head"><h2 id="kpImH">${esc(t("im_h"))}</h2>
-        <div class="kp-file">${ic("file")}<span><strong>${esc(f.name)}</strong><small>${esc(L(f.from))}</small></span>${btn(t("im_repick"), { variant: "ghost", attrs: act("sim", "import") })}</div></header>
-      ${sec(t("im_prompts", { n: f.prompts.length }), `<p class="kp-note">${esc(t("im_promptsLead"))}</p><ul class="kp-cards">${f.prompts.map(prow).join("")}</ul>`)}
+        <div class="kp-file">${ic("package")}<span><strong>${esc(t("im_pack", { p: L(f.pack) }))}</strong><small>${esc(f.name)} · ${esc(L(f.from))}</small></span>${btn(t("im_repick"), { variant: "ghost", attrs: act("sim", "import") })}</div></header>
       ${sec(t("im_refs", { n: f.refs.length }), `<p class="kp-note">${esc(t("im_refsLead"))}</p><ul class="kp-refs">${f.refs.map(rrow).join("")}</ul>`)}
+      ${sec(t("im_prompts", { n: f.prompts.length }), `<p class="kp-note">${esc(t("im_promptsLead"))}</p><ul class="kp-cards">${f.prompts.map(prow).join("")}</ul>`)}
       ${sec(t("im_skills", { n: f.skills.packs }), `<p class="kp-line">${esc(L(f.skills.note))}</p><div class="kp-actions">${btn(t("im_skillsGo"), { icon: "arrow", attrs: act("sim", "go") })}</div>`)}
       <footer class="kp-import__foot">${btn(t("im_cancel"), { variant: "ghost", size: "md", attrs: act("import-cancel") })}${btn(n ? t("im_go", { n }) : t("im_none"), { variant: "primary", size: "md", disabled: !n, attrs: act("import-apply") })}</footer></section>`;
   }
 
-  /* ---------- the list-and-detail body for a set of entries ---------- */
-  function listDetail(listHtml, sel) {
-    return `<div class="mw-list-detail kp-ld"${ui.detail && sel ? " data-detail" : ""}><div class="mw-list-detail__body"><section class="mw-list-detail__list" aria-label="${esc(t("listLabel"))}">${listHtml}</section>${sel ? detail(sel) : `<section class="mw-list-detail__detail kp-detail" aria-label="${esc(t("detailLabel"))}"></section>`}</div></div>`;
-  }
-  const pickFirst = (rows) => {
-    if (!rows.length) return null;
-    if (!rows.some((e) => e.id === ui.sel)) ui.sel = rows[0].id;
-    return entryById(ui.sel) || D.many().find((e) => e.id === ui.sel) || rows[0];
-  };
-  const findEntry = (list, id) => list.find((e) => e.id === id);
-
   function loadingBody() {
-    const rows = Array.from({ length: 7 }, () => `<li class="mw-item mw-item--pick kp-skrow">${skeleton("kp-sk-mark")}${skeleton("kp-sk-line")}</li>`).join("");
-    return `<p class="kp-summary">${esc(t("loading"))}</p>${listDetail(`<ul class="mw-items">${rows}</ul>`, null)}`;
+    const rows = Array.from({ length: 6 }, () => `<li class="mw-item mw-item--pick kp-skrow">${skeleton("kp-sk-mark")}${skeleton("kp-sk-line")}</li>`).join("");
+    return `<p class="kp-summary">${esc(t("loading"))}</p><div class="mw-list-detail kp-ld"><div class="mw-list-detail__body"><section class="mw-list-detail__list" aria-label="${esc(t("pk_kind"))}"><ul class="mw-items">${rows}</ul></section><section class="mw-list-detail__detail kp-detail"></section></div></div>`;
   }
   const failBody = () => empty({ error: true, icon: "alert", title: t("fail_t"), body: t("fail_b"), action: `<div class="kp-actions kp-actions--center">${btn(t("retry"), { icon: "refresh", attrs: act("sim", "retry") })}</div>` });
   const partialAlert = () => K.renderAlert({ title: t("partial_t"), body: t("partial_b"), tone: "warning", state: "failed", actions: [{ label: t("retry"), icon: "refresh", attrs: act("sim", "retry") }], role: null, className: "kp-partial" });
-  const kindEmpty = (k) => k === "mcp"
-    ? empty({ icon: "network", title: t("empty_mcp"), body: t("empty_mcpB"), action: `<div class="kp-actions kp-actions--center">${btn(t("addInCoding"), { attrs: act("sim", "go") })}${btn(t("goConnections"), { attrs: act("sim", "go") })}</div>` })
-    : empty({ icon: "book", title: t("empty_skill"), body: t("empty_skillB"), action: `<div class="kp-actions kp-actions--center">${btn(t("importLocal"), { icon: "download", attrs: act("sim", "import") })}${btn(t("market"), { variant: "primary", attrs: act("sim", "go") })}</div>` });
+  const emptyNote = () => (P.v === "empty" ? K.renderAlert({ title: t("empty_t"), body: t("empty_b"), tone: "info", state: "idle", actions: [{ label: t("importLocal"), variant: "secondary", icon: "download", attrs: act("sim", "import") }, { label: t("market"), variant: "primary", attrs: act("sim", "go") }], role: null, className: "kp-emptynote" }) : "");
 
-  /* ---------- scheme A: one catalog, grouped by kind ---------- */
+  /* ---------- scheme A: the pack list beside one pack; an item opens in its place ---------- */
+  function packRow(p) {
+    const m = packMatch(p);
+    const sub = m.hit ? `<small>${esc(t("pk_match", { x: nameOf(m.hit) }))}</small>` : packChips(p);
+    return `<li class="mw-item mw-item--pick"><button type="button" class="mw-item__pick" aria-current="${p.id === ui.pack ? "true" : "false"}" data-act="pack" data-v="${p.id}" title="${esc(packSrcLine(p))}">${mark("package")}<span><strong>${esc(L(p.name))}</strong>${sub}</span><span class="mw-item__end">${packMark(p)}</span></button></li>`;
+  }
   function schemeA() {
-    const all = entries();
-    const toolbar = `<div class="kp-toolbar">${kindFilter(all)}<span class="kp-spacer"></span>${ioButtons()}</div><div class="kp-toolbar kp-toolbar--2">${searchBox()}${stateFilter()}</div>`;
-    if (P.v === "fail") return `${toolbar}${failBody()}`;
-    if (P.v === "loading") return `${toolbar}${loadingBody()}`;
-    // Importing takes the page's one focus: the list steps aside until it is applied or cancelled.
+    if (P.v === "fail") return `${toolbar()}${failBody()}`;
+    if (P.v === "loading") return `${toolbar()}${loadingBody()}`;
     if (ui.importing) return importPanel();
-    const rows = ordered(visible(all));
-    if (ui.k !== "all" && !rows.length && !ui.q && ui.f === "all") return `${toolbar}${summaryLine(all)}${kindEmpty(ui.k)}`;
-    const sel = pickFirst(rows) ? findEntry(all, ui.sel) : null;
-    let list;
-    if (ui.k === "all" && !ui.q) {
-      // Grouped by kind; each group shows its first few, with a way into the whole kind, so five kinds fit in one look.
-      const cap = 4;
-      list = KINDS.map((k) => {
-        const of = rows.filter((e) => e.kind === k);
-        const head = `<h4 class="kp-group"><span>${esc(kindWord(k))}</span><span class="kp-group__n">${P.v === "partial" && k === "mcp" ? "—" : of.filter((e) => !e.gone).length}</span></h4>`;
-        if (P.v === "partial" && k === "mcp") return head + partialAlert();
-        if (!of.length) return ui.f === "all" ? `${head}<p class="kp-inline-empty">${esc(t("empty_inline"))}<button type="button" class="mw-btn mw-btn--link mw-btn--sm" data-slot="button" data-act="kind" data-v="${k}"><span data-slot="button-label">${esc(k === "mcp" ? t("addInCoding") : t("importLocal"))}</span></button></p>` : "";
-        const shown = of.length > cap + 1 ? of.slice(0, cap) : of;
-        if (sel && sel.kind === k && !shown.includes(sel)) shown[shown.length - 1] = sel;
-        const more = of.length > shown.length ? `<li class="kp-more">${btn(t("moreOf", { n: of.length, k: kindWordLower(k) }), { variant: "ghost", attrs: act("kind", k) })}</li>` : "";
-        return `${head}<ul class="mw-items">${shown.map(pickRow).join("")}${more}</ul>`;
-      }).join("");
-    } else list = rows.length ? `<ul class="mw-items">${rows.map(pickRow).join("")}</ul>` : `<p class="kp-inline-empty">${esc(t("noMatch"))}</p>`;
-    return `${toolbar}${summaryLine(all)}${listDetail(list, sel)}`;
+    const rows = visiblePacks();
+    if (rows.length && !rows.some((p) => p.id === ui.pack)) { ui.pack = rows[0].id; ui.item = null; }
+    const p = rows.length ? packById(ui.pack) : null;
+    const e = p && ui.item ? entryById(ui.item) : null;
+    const list = rows.length ? `<ul class="mw-items">${rows.map(packRow).join("")}</ul>` : `<p class="kp-inline-empty">${esc(t("pk_noMatch"))}</p>`;
+    const right = p ? (e ? itemDetail(p, e) : packDetail(p)) : `<section class="mw-list-detail__detail kp-detail"></section>`;
+    return `${toolbar()}${summaryLine()}${emptyNote()}<div class="mw-list-detail kp-ld kp-ld--packs"${ui.detail && p ? " data-detail" : ""}><div class="mw-list-detail__body"><section class="mw-list-detail__list" aria-label="${esc(t("pk_kind"))}">${list}</section>${right}</div></div>`;
   }
 
-  /* ---------- scheme B: overview cards, then one kind at a time ---------- */
+  /* ---------- scheme B: pack cards; a pack opens as its own catalog (08's list and detail, grouped) ---------- */
+  function packCard(p) {
+    const roles = p.roles.map((r) => nameOf(entryById(r.id)));
+    const loading = P.v === "loading";
+    return `<li><button type="button" class="kp-kindcard kp-packcard" data-act="open-pack" data-v="${p.id}" aria-label="${esc(t("ov_open", { p: L(p.name) }))}"><span class="kp-kindcard__head">${mark("package")}<span class="kp-kindcard__name"><strong>${esc(L(p.name))}</strong><small>${esc(packSrcLine(p))}</small></span>${loading ? "" : packMark(p)}</span>
+      ${loading ? `${skeleton("kp-sk-line")}${skeleton("kp-sk-line kp-sk-short")}` : `<p class="kp-card__desc">${esc(L(p.desc))}</p><p class="kp-card__line">${esc(roles.length ? t("ov_roles", { x: roles.join("、") }) : t("ov_noRoles"))}</p>`}
+      <span class="kp-kindcard__foot">${loading ? "<span></span>" : packChips(p)}${ic("chevron-right")}</span></button></li>`;
+  }
   function schemeB() {
-    const all = entries();
-    if (P.v === "fail") return `<div class="kp-toolbar">${searchBox(t("ov_search"))}<span class="kp-spacer"></span>${ioButtons()}</div>${failBody()}`;
-    if (ui.page === "overview" && !ui.q) {
-      const c = counts(all);
-      const attn = c.na && P.v !== "loading" ? K.renderAlert({ title: t("ov_attn", { n: c.na }), body: t("ov_attnB"), tone: "warning", state: "unavailable", actions: [{ label: t("ov_only"), variant: "secondary", attrs: act("only-na") }], role: null, className: "kp-attn" }) : "";
-      const card = (k) => {
-        const of = all.filter((e) => e.kind === k && !e.gone);
-        const failed = P.v === "partial" && k === "mcp";
-        let stats = [];
-        if (k === "skill") stats = [K.renderStatusMark({ label: t("ov_inUse", { n: of.filter((e) => stateOf(e).group === "on").length }), tone: "idle", state: "ready" }), of.some((e) => stateOf(e).group === "na") ? K.renderStatusMark({ label: t("ov_na", { n: of.filter((e) => stateOf(e).group === "na").length }), tone: "hold", state: "unavailable" }) : ""];
-        if (k === "prompt") stats = [badge(t("ov_mine", { n: of.filter((e) => e.prompt.mine).length })), of.some((e) => stateOf(e).tone === "attention") ? K.renderStatusMark({ label: t("ov_newer", { n: of.filter((e) => stateOf(e).tone === "attention").length }), tone: "attention", state: "stale" }) : ""];
-        if (k === "role") stats = [K.renderStatusMark({ label: t("ov_inUse", { n: of.filter((e) => !e.off).length }), tone: "idle", state: "ready" })];
-        if (k === "tool") stats = [badge(t("ov_writes", { n: of.filter((e) => e.tool.writes).length }), "warning")];
-        if (k === "mcp") stats = [K.renderStatusMark({ label: t("ov_inUse", { n: of.filter((e) => stateOf(e).group === "on").length }), tone: "idle", state: "ready" }), of.some((e) => stateOf(e).group === "na") ? K.renderStatusMark({ label: t("ov_na", { n: of.filter((e) => stateOf(e).group === "na").length }), tone: "hold", state: "unavailable" }) : ""];
-        const recent = of.filter((e) => e.usage.last).sort((a, b) => (b.usage.n || 0) - (a.usage.n || 0))[0];
-        const body = P.v === "loading" ? `${skeleton("kp-sk-line")}${skeleton("kp-sk-line kp-sk-short")}`
-          : failed ? `<p class="mw-status-line">${K.renderStatusMark({ label: t("partial_t"), tone: "blocked", state: "failed" })}</p>`
-            : !of.length ? `<p class="kp-card__line">${esc(t("empty_inline"))}</p>`
-              : `<p class="kp-card__stats">${stats.join("")}</p>${recent ? `<p class="kp-card__line">${esc(t("ov_recent", { name: nameOf(recent), at: L(recent.usage.last.at) }))}</p>` : ""}`;
-        const n = failed ? "—" : P.v === "loading" ? "" : of.length;
-        return `<li><button type="button" class="kp-kindcard" data-act="open-kind" data-v="${k}" aria-label="${esc(t("ov_open", { k: kindWordLower(k) }))}"><span class="kp-kindcard__head">${mark(KIND_ICON[k])}<span class="kp-kindcard__name"><strong>${esc(kindWord(k))}</strong><small>${esc(t("one_" + k))}</small></span><span class="kp-kindcard__n">${n}</span></span>${body}<span class="kp-kindcard__foot">${esc(t("ov_change_" + k))}${ic("chevron-right")}</span></button></li>`;
-      };
-      return `<div class="kp-toolbar">${searchBox(t("ov_search"))}<span class="kp-spacer"></span>${ioButtons()}</div>${attn}<ul class="kp-kindcards">${KINDS.map(card).join("")}</ul>`;
+    if (P.v === "fail") return `${toolbar()}${failBody()}`;
+    if (ui.importing) return importPanel();
+    if (ui.cards) {
+      const rows = P.v === "loading" ? D.packs.slice(0, 6) : visiblePacks();
+      return `${toolbar()}${P.v === "loading" ? `<p class="kp-summary">${esc(t("loading"))}</p>` : summaryLine()}${emptyNote()}${rows.length ? `<ul class="kp-kindcards kp-packcards">${rows.map(packCard).join("")}</ul>` : `<p class="kp-inline-empty">${esc(t("pk_noMatch"))}</p>`}`;
     }
-    // One kind (or a search across all of them): tabs over the batch-08 list and detail.
-    const tabs = K.renderTabs({ label: t("kindLabel"), className: "kp-tabs", tabs: [{ id: "overview", label: t("ov_overview"), selected: false, attrs: act("overview") }, ...KINDS.map((k) => ({ id: k, label: `${kindWord(k)} ${P.v === "partial" && k === "mcp" ? "—" : counts(all)[k]}`, selected: ui.k === k && !ui.q && !ui.cross, attrs: act("kind", k) }))] });
-    const toolbar = `${tabs}<div class="kp-toolbar">${searchBox()}${stateFilter()}<span class="kp-spacer"></span>${ioButtons()}</div>`;
-    if (ui.importing) return importPanel();
-    const saveK = ui.k;
-    if (ui.q || ui.cross) ui.k = "all";
-    const rows = ordered(visible(all));
-    ui.k = saveK;
-    if (!rows.length && !ui.q && ui.f === "all") return `${toolbar}${P.v === "partial" && ui.k === "mcp" ? partialAlert() : kindEmpty(ui.k)}`;
-    const sel = pickFirst(rows) ? findEntry(all, ui.sel) : null;
-    const list = rows.length ? `<ul class="mw-items">${rows.map(pickRow).join("")}</ul>` : `<p class="kp-inline-empty">${esc(t("noMatch"))}</p>`;
-    return `${toolbar}${listDetail(list, sel)}`;
-  }
-
-  /* ---------- scheme C: grouped by where entries come from ---------- */
-  function sourceDetail(id, all) {
-    const s = D.sources[id];
-    const of = all.filter((e) => e.src === id);
-    const brings = KINDS.filter((k) => of.some((e) => e.kind === k)).map((k) => `<li>${mark(KIND_ICON[k])}<span>${esc(kindWord(k))}</span><span class="kp-group__n">${of.filter((e) => e.kind === k).length}</span></li>`).join("");
-    const back = `<button type="button" class="mw-btn mw-btn--ghost mw-btn--sm mw-list-detail__back" data-slot="button" data-act="unsel">${ic("chevron-left")}<span data-slot="button-label">${esc(t("backAll"))}</span></button>`;
-    const state = s.gone ? K.renderStatusMark({ label: t("w_uninstalled"), tone: "blocked", state: "blocked" }) : s.disabled ? K.renderStatusMark({ label: t("w_roleOff"), tone: "quiet", state: "paused" }) : "";
-    return `<section class="mw-list-detail__detail kp-detail${ui.anim ? " is-entering" : ""}" aria-label="${esc(t("src_detailOf"))}">${back}<header><span class="kp-kind">${ic(SRC_ICON[s.kind] || "package")}${esc(t("src_trust"))}</span><h3 tabindex="-1">${esc(L(s.name))}</h3>
-      <p class="kp-source">${s.version ? `<span>${esc(L(s.version))}</span><span class="kp-dot">·</span>` : ""}${s.publisher ? `<span>${esc(s.publisher)}</span><span class="kp-dot">·</span>` : ""}<span>${esc(L(s.trust))}</span>${state}</p></header>
-      ${sec(t("src_brings"), `<ul class="kp-brings">${brings}</ul>`)}
-      ${s.diff ? sec(t("src_diff"), `<p class="kp-line">${ic("history")}${esc(L(s.diff))}</p>`) : ""}
-      ${s.manage ? `<div class="kp-actions">${goBtn(t("src_manage"))}</div>` : ""}</section>`;
-  }
-  function schemeC() {
-    const all = entries();
-    const toolbar = `<div class="kp-toolbar">${kindFilter(all)}<span class="kp-spacer"></span>${ioButtons()}</div><div class="kp-toolbar kp-toolbar--2">${searchBox()}${stateFilter()}</div>`;
-    if (P.v === "fail") return `${toolbar}${failBody()}`;
-    if (P.v === "loading") return `${toolbar}${loadingBody()}`;
-    if (ui.importing) return importPanel();
-    const rows = ordered(visible(all));
-    if (ui.k !== "all" && !rows.length && !ui.q && ui.f === "all") return `${toolbar}${summaryLine(all)}${kindEmpty(ui.k)}`;
-    const ids = [...new Set(rows.map((e) => e.src))];
-    if (P.v === "partial" && (ui.k === "all" || ui.k === "mcp")) ids.push("__mcp_failed");
-    if (!ui.srcSel) pickFirst(rows);
-    // Every source is open unless the list is long; a long list opens only the source holding the selection.
-    const many = rows.length > 40;
-    const sel = ui.srcSel ? null : findEntry(all, ui.sel);
-    const list = ids.map((id) => {
-      if (id === "__mcp_failed") return `<div class="kp-src">${partialAlert()}</div>`;
-      const s = D.sources[id], of = rows.filter((e) => e.src === id);
-      const open = ui.open[id] ?? (!many || (sel && sel.src === id));
-      const kinds = KINDS.filter((k) => of.some((e) => e.kind === k)).map((k) => `${of.filter((e) => e.kind === k).length} ${kindWordLower(k)}`).join(" · ");
-      const head = `<div class="kp-src__head"><button type="button" class="kp-src__toggle" aria-expanded="${open ? "true" : "false"}" data-act="src-toggle" data-v="${id}" aria-label="${esc(L(s.name))}">${ic(open ? "chevron-down" : "chevron-right")}</button><button type="button" class="kp-src__pick" aria-current="${ui.srcSel === id ? "true" : "false"}" data-act="src-sel" data-v="${id}">${mark(SRC_ICON[s.kind] || "package")}<span><strong>${esc(L(s.name))}</strong><small>${esc((s.version ? L(s.version) + " · " : "") + kinds)}</small></span>${s.gone ? K.renderStatusMark({ label: t("w_uninstalled"), tone: "blocked", state: "blocked" }) : s.disabled ? K.renderStatusMark({ label: t("w_roleOff"), tone: "quiet", state: "paused" }) : ""}</button></div>`;
-      return `<div class="kp-src">${head}${open ? `<ul class="mw-items">${of.map(pickRow).join("")}</ul>` : ""}</div>`;
-    }).join("") || `<p class="kp-inline-empty">${esc(t("noMatch"))}</p>`;
-    const right = ui.srcSel ? sourceDetail(ui.srcSel, all) : sel ? detail(sel) : "";
-    const body = `<div class="mw-list-detail kp-ld"${ui.detail && (sel || ui.srcSel) ? " data-detail" : ""}><div class="mw-list-detail__body"><section class="mw-list-detail__list" aria-label="${esc(t("listLabel"))}">${list}</section>${right}</div></div>`;
-    return `${toolbar}${summaryLine(all)}${body}`;
+    const p = packById(ui.pack);
+    const items = itemsOf(p);
+    if (!ui.item || !items.some((e) => e.id === ui.item)) ui.item = items[0]?.id || null;
+    const e = ui.item ? entryById(ui.item) : null;
+    // The list: roles with their prompts indented under them, then skills, MCP and tools, each under its heading.
+    const roleRows = p.roles.map((r) => itemRow(entryById(r.id)) + r.prompts.map(entryById).map((x) => itemRow(x, "kp-indent")).join("")).join("");
+    const group = (k, list, none) => `${groupHead(k, k === "mcp" && mcpUnread(p) ? "—" : list.length)}${k === "mcp" && mcpUnread(p) ? partialAlert() : list.length ? `<ul class="mw-items">${list.map((x) => itemRow(entryById(x))).join("")}</ul>` : `<p class="kp-inline-empty">${esc(t(none))}</p>`}`;
+    const list = `${groupHead("roles", p.roles.length)}${p.roles.length ? `<ul class="mw-items">${roleRows}</ul>` : `<p class="kp-inline-empty">${esc(t("none_roles"))}</p>`}${group("skills", p.skills, "none_skills")}${group("mcp", p.mcp, "none_mcp")}${group("tools", p.tools, "none_tools")}`;
+    const back = `<button type="button" class="mw-btn mw-btn--ghost mw-btn--sm kp-backcards" data-slot="button" data-act="cards">${ic("chevron-left")}<span data-slot="button-label">${esc(t("crumb_all"))}</span></button>`;
+    const right = e ? itemDetail(p, e) : `<section class="mw-list-detail__detail kp-detail"></section>`;
+    return `<div class="kp-packpage${ui.anim && !ui.item ? " is-entering" : ""}">${back}${packHeader(p, "h2")}${packNow(p)}</div>
+      <div class="mw-list-detail kp-ld"${ui.detail && e ? " data-detail" : ""}><div class="mw-list-detail__body"><section class="mw-list-detail__list" aria-label="${esc(L(p.name))}">${list}</section>${right}</div></div>`;
   }
 
   /* ---------- page ---------- */
@@ -544,7 +598,7 @@
     return `<nav class="settings-navigation settings-navigation--codex" aria-label="${esc(t("chrome"))}"><a class="settings-nav-back" href="#" data-act="sim" data-v="go">${ic("arrow")} ${esc(t("back"))}</a><div class="settings-nav-body">${groups.map(([g, items]) => `<div class="settings-nav-group-label">${esc(t(g))}</div>${items.map((x) => { const [id, i] = x.split(":"); return `<a href="#"${id === "kit" ? ' aria-current="page"' : ""} data-act="${id === "kit" ? "home" : "sim"}" data-v="go">${ic(i)}${esc(t("n_" + id))}</a>`; }).join("")}`).join("")}</div></nav>`;
   }
   function page() {
-    const body = P.s === "B" ? schemeB() : P.s === "C" ? schemeC() : schemeA();
+    const body = P.s === "B" ? schemeB() : schemeA();
     return `<header class="project-preferences-chrome"><span>${esc(t("chrome"))}</span><a href="#" aria-label="${esc(t("close"))}" data-act="sim" data-v="go">${ic("x")}</a></header>
       <main class="settings-shell">${nav()}<div class="settings-content"><section class="settings-document kit-settings kp-scheme-${P.s}" aria-labelledby="kpH">
         <header class="settings-page-heading"><h1 id="kpH">${esc(t("h1"))}</h1><p>${esc(t("lead"))}</p></header>
@@ -557,7 +611,7 @@
     if (shot) { strip.hidden = true; return; }
     const tg = (label, key, values) => K.renderToggleGroup({ label, items: values.map(([v, text]) => ({ value: v, label: text, current: P[key] === v, attrs: { "data-set": key, "data-v": v } })) });
     strip.innerHTML = `<b>${esc(t("protoTitle"))}</b>${badge(t("rec"), "success")}
-      <span class="proto-field">${esc(t("scheme"))}${tg(t("scheme"), "s", [["A", t("sA")], ["B", t("sB")], ["C", t("sC")]])}</span>
+      <span class="proto-field">${esc(t("scheme"))}${tg(t("scheme"), "s", [["A", t("sA")], ["B", t("sB")]])}</span>
       <label class="proto-field">${esc(t("view"))}<select class="mw-select" data-slot="select" id="pView">${VIEWS.map((v) => `<option value="${v}"${P.v === v ? " selected" : ""}>${esc(t("v_" + v))}</option>`).join("")}</select></label>
       <span class="proto-field">${esc(t("lang"))}${tg(t("lang"), "l", [["zh", "中文"], ["en", "English"]])}</span>
       <span class="proto-field">${esc(t("theme"))}${tg(t("theme"), "t", [["light", t("light")], ["dark", t("dark")]])}</span>
@@ -580,7 +634,7 @@
     else if (back) {
       const same = document.querySelector(`#app ${back}`);
       if (same && same.offsetParent) same.focus();
-      else if (was.dataset.act === "sel" || was.dataset.act === "src-sel") document.querySelector("#app .kp-detail h3")?.focus();
+      else if (["item", "pack", "up", "open-pack"].includes(was.dataset.act)) document.querySelector("#app .kp-detail h3, #app .kp-packpage h2")?.focus();
     }
   }
   let timer;
@@ -602,16 +656,15 @@
     const a = b.dataset.act, v = b.dataset.v;
     if (a !== "menu" && a !== "export") ui.menu = false;
     switch (a) {
-      case "kind": ui.k = v; ui.page = "kind"; ui.q = ""; ui.cross = false; ui.srcSel = null; ui.detail = false; break;
-      case "open-kind": ui.k = v; ui.page = "kind"; ui.detail = false; ui.anim = true; break;
-      case "overview": ui.page = "overview"; ui.q = ""; ui.cross = false; ui.f = "all"; break;
-      case "only-na": ui.f = "na"; if (P.s === "B") { ui.page = "kind"; ui.cross = true; } break;
-      case "sel": ui.sel = v; ui.srcSel = null; ui.detail = true; ui.anim = true; break;
-      case "src-sel": ui.srcSel = v; ui.detail = true; ui.anim = true; break;
-      case "src-toggle": ui.open[v] = !(b.getAttribute("aria-expanded") === "true"); break;
+      case "pack": ui.pack = v; ui.item = null; ui.detail = true; ui.anim = true; ui.cards = false; break;
+      case "open-pack": ui.pack = v; ui.item = null; ui.cards = false; ui.detail = false; ui.anim = true; break;
+      case "cards": ui.cards = true; ui.item = null; break;
+      case "item": ui.item = v; ui.detail = true; ui.anim = true; break;
+      case "up": ui.item = null; ui.anim = true; break;
       case "unsel": ui.detail = false; break;
+      case "only-na": ui.f = "na"; break;
       case "menu": ui.menu = !ui.menu; break;
-      case "export": ui.menu = false; render(); return toast(t("t_exported", { x: b.querySelector("[data-slot=menu-item-label] span")?.textContent || "" }), "success");
+      case "export": ui.menu = false; render(); return toast(t("t_exported", { x: b.querySelector("[data-slot=menu-item-label] span")?.textContent || b.textContent.trim().split("\n")[0] }), "success");
       case "import": ui.importing = true; break;
       case "import-cancel": ui.importing = false; break;
       case "import-apply": { const n = Object.values(ui.picks).filter(Boolean).length; ui.importing = false; render(); return toast(t("t_applied", { n }), "success"); }
@@ -626,7 +679,6 @@
     const el = ev.target;
     if (el.id === "pView") { P.v = el.value; persist(); return reset(); }
     if (el.id === "kpState") { ui.f = el.value; return render(); }
-    if (el.id === "kpKindSel") { ui.k = el.value; ui.detail = false; return render(); }
     if (el.dataset.pick) { ui.picks[el.dataset.pick] = el.checked; return render(); }
     if (el.dataset.skill) {
       // A skill's state applies at once (batch 08), with undo in the toast.
@@ -636,7 +688,7 @@
       return toast(t("t_state", { n: nameOf(entryById(id)), s: t("w_" + el.value) }), "success", { label: t("undo"), act: "undo-skill" });
     }
   });
-  document.addEventListener("input", (ev) => { if (ev.target.id === "kpQ") { ui.q = ev.target.value; if (P.s === "B" && ui.q) ui.page = "kind"; render(); } });
+  document.addEventListener("input", (ev) => { if (ev.target.id === "kpQ") { ui.q = ev.target.value; if (P.s === "B") ui.cards = true; render(); } });
   document.addEventListener("keydown", (ev) => { if (ev.key === "Escape" && ui.menu) { ui.menu = false; render(); document.getElementById("kpExport")?.focus(); } });
 
   render();

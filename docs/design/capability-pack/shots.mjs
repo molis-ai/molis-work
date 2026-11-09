@@ -17,9 +17,9 @@ const onlyAt = args.indexOf("--only");
 const sheetsOnly = args.includes("--sheets");
 mkdirSync(out, { recursive: true });
 
-const SCHEMES = ["A", "B", "C"];
-const VIEWS = ["normal", "skill", "prompt", "role", "tool", "mcp", "gone", "partial", "fail", "empty", "many", "loading", "import", "export"];
-const DETAIL = ["skill", "prompt", "role", "tool", "mcp", "gone", "import"];
+const SCHEMES = ["A", "B"];
+const VIEWS = ["normal", "pack", "role", "prompt", "skill", "mcp", "tool", "disabled", "gone", "partial", "fail", "empty", "many", "loading", "import", "export"];
+const DETAIL = ["pack", "role", "prompt", "skill", "mcp", "tool", "gone", "import"];
 const SIZES = { 1440: [1440, 900], 1024: [1024, 768], 390: [390, 844] };
 const jobs = [];
 const add = (s, v, l, t, w, tall = false) => jobs.push({ s, v, l, t, w: Number(w), tall });
@@ -44,6 +44,7 @@ const CHECK = `(() => {
     if (b.getClientRects().length && b.scrollWidth > b.clientWidth + 1) out.push("button label cut: " + b.textContent);
   }
   const list = document.querySelector(".mw-list-detail__list");
+  for (const el of document.querySelectorAll(".kp-tool__name strong, .mw-item strong")) if (el.getClientRects().length && el.scrollWidth > el.clientWidth + 1 && getComputedStyle(el).textOverflow !== "ellipsis") out.push("name cut: " + el.textContent.slice(0, 30));
   if (list && list.scrollWidth > list.clientWidth + 1) out.push("list overflows " + list.scrollWidth + ">" + list.clientWidth);
   const det = document.querySelector(".kp-detail");
   if (det && det.getClientRects().length && det.scrollWidth > det.clientWidth + 1) out.push("detail overflows " + det.scrollWidth + ">" + det.clientWidth);

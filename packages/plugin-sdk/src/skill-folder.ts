@@ -1,6 +1,6 @@
 import { Buffer } from "node:buffer";
 import { createHash } from "node:crypto";
-import { CONTENT_PACKAGE_FILES, type PluginDeclarationProblem, type PluginManifest, type PluginPackagePayload } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { CONTENT_PACKAGE_FILES, type PluginDeclarationProblem, type PluginManifest, type PluginPackagePayload, type PluginTranslationsDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { SKILL_LIMITS, SKILL_RESOURCE_FOLDERS, type PluginMethodDeclaration, type SkillAppliesTo, type SkillResourceDeclaration, type SkillResourceRole } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { parseContentPackage } from "./content-package.js";
 import { refuseDeclarations } from "./declaration-problems.js";
@@ -67,6 +67,15 @@ export interface ContentPackageInput {
   plugin_id: string;
   version: string;
   name: string;
+  /** The name in the English interface (Manifest `name_en`). */
+  name_en?: string;
+  /** What the package is for, one line (Manifest `summary`). */
+  summary?: string;
+  /**
+   * The English of the package's own words, keyed by the Chinese (Manifest `ui.translations`): its summary and its Skills' descriptions,
+   * when to use and not, and argument hints. Checked as every Manifest's translations are.
+   */
+  translations?: PluginTranslationsDeclaration;
   publisher: PluginManifest["publisher"];
   /** `home`: installed for the person, not in a project (`runtime: { scope: "home" }`). */
   scope?: "home" | "project";
@@ -85,8 +94,10 @@ export function contentPackagePayload(input: ContentPackageInput): PluginPackage
     refuseDeclarations([{ reason: `一个包至多 ${SKILL_LIMITS.skillsPerPackage} 个技能，这里有 ${input.skills.length} 个：请分成几个包，或少选几个` }]);
   }
   const manifest = { schema_version: /* @version manifest.schema */ 1, host_api_version: /* @version host.api */ 1, plugin_id: input.plugin_id,
-    version: input.version, name: input.name, kind: "content", publisher: input.publisher, entrypoints: [], permissions: [],
-    capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
+    version: input.version, name: input.name, ...(input.name_en ? { name_en: input.name_en } : {}), ...(input.summary ? { summary: input.summary } : {}),
+    kind: "content", publisher: input.publisher, entrypoints: [], permissions: [],
+    capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] },
+    ui: { contributions: [], ...(input.translations ? { translations: { ...input.translations } } : {}) },
     methods: input.skills.map(skill => skill.declaration),
     ...(input.scope === "home" ? { runtime: { scope: "home" } } : {}),
     ...(input.compatible_from?.length ? { upgrade_compatibility: { compatible_from_versions: [...input.compatible_from] } } : {}) } as PluginManifest;

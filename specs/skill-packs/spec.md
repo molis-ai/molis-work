@@ -229,6 +229,15 @@ argument_hint: "<周期，可选>"
 - 一个包至多 128 个 Skill：确认的输入至多 128 项；打包函数对更多的明确拒绝（`plugin.declaration_invalid`，「请分成几个包，或少选几个」），不悄悄丢。
 - `project_directory` 来源不在本批（§9 2026-11-08 用户定 ②）：照旧以 `skills.import_source_unavailable` 拒绝，测试断言这一拒绝；后续见 [BL-skill-import-project-directory](../backlog/BL-skill-import-project-directory.md)。
 
+**08-10 的做法（子分支 `batch/08-content-pack`，2026-11-08）：**
+
+- 内容在 `plugins/content/design-accessibility/`：普通源目录，不是 workspace 包。`skills/` 下五个技能目录（`accessibility-review`、`design-critique`、`design-handoff`、`design-system`、`ux-copy`），每个 `SKILL.md` 都写明 `applies_to`；`pack-content.json` 是发布时的选择（插件 id、版本、名称与英文名、摘要、发布者、范围，以及 `ui.translations`），就是 `pack-content` 的参数写成文件，宿主不读它。正文是给 D 轨审与本人验收的稿，依据 DESIGN.md、craft 系列 spec 与公开的 WCAG 2.1 条文，用自己的话写。
+- 打包与签名：CLI `pack-bundled <包目录> <输出目录> --publisher-key <私钥>` 用与 `pack-content`、从本机导入同一个打包函数（SDK `skillFromFolder`、`contentPackagePayload`，本片给它加了 `name_en`、`summary`、`translations` 三个可选项），同一步签名（`signPluginPackage`）并自验，写到 `<输出目录>/<plugin_id>.json`。没有密钥就以 `plugin.publisher_key_missing` 拒绝、什么都不写。官方密钥与在发版构建里跑这一步归 26-1；本片不造、不取、不入库任何真实密钥，测试用测试里生成的密钥。
+- 位置：宿主包构建产物里的 `apps/local-host/dist/bundled-plugins/`（`bundledPackagesDirectory()`，按宿主代码自己的位置算），发版本来就拷 `dist`，不用改打包；没有设置、环境变量或动作输入能指向别处，只有测试经 `MolisWorkLocalHostOptions.bundledPluginsDirectory` 给一个临时目录。现在没有发版步骤往里放东西，所以真实安装包里还是空的：接上要改发版或 CI，按红线留给 26-1，由用户定。
+- `plugins.bundled.list@1`：插件安装服务的提供方（`plugin-install`）下，只给本人（`plugin-install:read`），只读；每次重新读目录、重新验签，列 `plugins`（ID、版本、名称、英文名、摘要、装到哪里、发布者与本人是否已固定或撤销它）与 `refused`（读不了、验签不过、不是只有声明的插件、文件名不对的，各带错误码与原因）。不列装没装：合同只要身份、名称、说明与签名，装没装看已装列表。
+- 安装：`plugins.install.preview` 的输入加了 `bundled: { plugin_id, version }`，与 `bundle` 二选一（原版本改，阶段一）；宿主按引用从同一个目录取包，之后验签、读法、预览、确认与别的包完全同一条路，发布者不预先固定。
+- 验收：「能装上、过校验」由 `tests/security-invariants-bundled-packages.test.ts` 与 `tests/design-accessibility-pack.test.ts` 证明（真实宿主里列出、装前不登记、预览加确认装上、改过即拒）；「进 Skill 目录」本片证明到启用时五个技能从已验证包登记（08-6 的路），目录本身的一侧等 08-7；「本人验收」与 D 轨对正文的审还没做。安全边界见 [S-bundled-packages](../../docs/system/security-invariants/S-bundled-packages.md)。
+
 **不在本批的验收编号：**
 
 - **消费方，在第 09 批**：助理的 `methods()` 改读目录，`SignedAgentReference` 的方法引用改用 `SkillRef`（9-2）；助理交活时带 `SkillRef`（9-3）；Coding 读目录并删旧路（9-4，SKC-11）；agent-host 按 `SkillRef` 冻结、`tools` 的两道检查（9-5，SKC-13）；真实验证（9-6，SKP-12 与 ADH-23）。SKP-02～07、SKP-10 的消费方一侧（`/` 点名、AI 自动选用，9-2／9-4）、SKC-07 的消费方部分，以及 SKC-06 委派之后仍成立的部分，都随 09 验。

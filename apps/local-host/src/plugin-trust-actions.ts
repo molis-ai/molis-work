@@ -8,6 +8,7 @@ import { PLUGIN_INSTALL_PROVIDER_ID, pluginInstallDefinitions, pluginInstallHand
 import { PluginInstallService } from "./plugin-install-service.js";
 import { studioPublisherIdentity } from "./plugin-builder/publisher-identity.js";
 import { SkillImportService, localSkillScan } from "./skill-import.js";
+import { bundledPackagesDirectory } from "./bundled-packages.js";
 
 /** The Host's own provider of installing a plugin from a signed package, and of importing Skills as one; it grants nothing to a plugin. */
 export function pluginInstallProvider(service: PluginInstallService, imports?: SkillImportService): ActionProviderRegistration {
@@ -48,5 +49,6 @@ function pluginInstallServiceFor(home: string, source: ProjectPluginHost): Plugi
     control: (projectId, pluginId, action, input) => controlPackageInProject(source, projectId, pluginId, action, input),
     regrant: (projectId, installId, permission, granted, expected) => regrantPluginInProject(source, projectId, installId, permission, granted, expected),
     homeInstalled: () => installedHomePlugins(source.homePlugins()), homeRegrant: (installId, permission, granted, expected) => regrantHomePlugin(source.homePlugins(), installId, permission, granted, expected),
-    homeControl: (pluginId, action, input) => controlHomePackage(source.homePlugins(), pluginId, action, input) });
+    homeControl: (pluginId, action, input) => controlHomePackage(source.homePlugins(), pluginId, action, input),
+    bundledDirectory: source.options.bundledPluginsDirectory ?? bundledPackagesDirectory() });
 }

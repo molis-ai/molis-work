@@ -3,7 +3,7 @@ import type { PluginInstalledPermissionView, PluginInstalledView, PluginPublishe
 import { SKILL_LIMITS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { SKILL_INSTALL_PREVIEW_SCHEMA, skillImportActions } from "@molis-ai/molis-work-contracts/services/skills";
 import { assertHomePluginPermissionSettingsEntry, assertPluginConsentSettingsEntry, assertPluginPermissionSettingsEntry } from "./plugin-consent-settings-entry.js";
-import type { PluginInstallPreviewResult, PluginInstallService } from "./plugin-install-service.js";
+import type { BundledPluginList, PluginInstallPreviewInput, PluginInstallPreviewResult, PluginInstallService } from "./plugin-install-service.js";
 import type { SkillImportService } from "./skill-import.js";
 
 // Installing a plugin from a signed package, as the person's own act (ac-trust T2, specs/archive/repository-anti-corruption/slices/ac-trust-install.md
@@ -53,9 +53,11 @@ const installedView = {
 
 export const pluginInstallActions = {
   preview: { capability_id: "plugins.install.preview", version: /* @version action.plugins.install.preview */ 1, operation: "command", action: { ...metadata, scope: "project",
-    title: "预览插件包的安装", description: "检查一个签名的插件包（沙箱包，或只有声明的插件的内容包）：签名、发布者、包的格式，并说明装上它意味着什么（它要的权限、它带的技能与依赖、升级时每个技能变了什么、发布者有没有被固定）；不安装、不固定发布者。包不合格在这里就被拒，什么也不写。",
+    title: "预览插件包的安装", description: "检查一个签名的插件包（沙箱包，或只有声明的插件的内容包）：签名、发布者、包的格式，并说明装上它意味着什么（它要的权限、它带的技能与依赖、升级时每个技能变了什么、发布者有没有被固定）；不安装、不固定发布者。包可以整个交进来（`bundle`），也可以是这个安装包随带的一个（`bundled`：plugins.bundled.list 列出的 ID 和版本），后者照样验签、照样预览。包不合格在这里就被拒，什么也不写。",
     kind: "operation", effect: "write", permissions: [PLUGIN_INSTALL_WRITE],
-    input_schema: { type: "object", properties: { bundle: { type: "object" } }, required: ["bundle"], additionalProperties: false },
+    input_schema: { type: "object", properties: { bundle: { type: "object" },
+      bundled: { type: "object", properties: { plugin_id: { type: "string", minLength: 1, maxLength: 200 }, version: { type: "string", minLength: 1, maxLength: 64 } }, required: ["plugin_id", "version"], additionalProperties: false } },
+    oneOf: [{ required: ["bundle"] }, { required: ["bundled"] }], additionalProperties: false },
     output_schema: { type: "object", additionalProperties: false, required: ["preview_id", "name", "runtime_scope", "preview", "effects", "publisher"], properties: {
       preview_id: text, name: text, runtime_scope: { enum: ["home", "project"] }, effects,
       publisher: { type: "object", additionalProperties: false, required: ["key_id", "pinned_label"], properties: { key_id: text, pinned_label: { type: ["string", "null"] } } },
@@ -70,7 +72,17 @@ export const pluginInstallActions = {
         plugin_id: text, version: text, trust: { enum: ["host", "pinned", "unsigned"] }, publisher_signature: text, publisher_pinned: { type: "boolean" },
         permissions: { type: "array", items: { type: "object", required: ["permission", "required", "requested", "reason", "meaning"], properties: { permission: text, required: { type: "boolean" }, requested: { type: "boolean" }, reason: text, meaning: { type: ["string", "null"] } }, additionalProperties: false } },
         jobs: { type: "array", items: { type: "object", required: ["job_id", "reason", "permissions"], properties: { job_id: text, reason: text, permissions: { type: "array", items: text } }, additionalProperties: false } },
-        declarations: { type: "array", items: { type: "object", required: ["kind", "subject", "summary"], properties: { kind: text, subject: text, summary: text }, additionalProperties: false } } } } } } } } as ActionDefinition<{ bundle: unknown }, PluginInstallPreviewResult>,
+        declarations: { type: "array", items: { type: "object", required: ["kind", "subject", "summary"], properties: { kind: text, subject: text, summary: text }, additionalProperties: false } } } } } } } } as ActionDefinition<PluginInstallPreviewInput, PluginInstallPreviewResult>,
+  bundled: { capability_id: "plugins.bundled.list", version: /* @version action.plugins.bundled.list */ 1, operation: "query", action: { ...metadata, scope: "home",
+    title: "查看随安装包带上的插件", description: "列出这个安装包随带的插件包（如官方技能包）：ID、版本、名称、说明、装到个人空间还是项目，以及签名它的发布者和本人是否已固定或撤销这个发布者。每次都重新读、重新验签；读不了或验签不过的单列出原因。只读：不安装、不固定发布者、不登记技能、不留设置；要装，就把 ID 和版本交给 plugins.install.preview 的 bundled，和别的包同一条预览、确认的路。装没装看 plugins.installed.list 与 plugins.home.installed.list。",
+    kind: "query", effect: "read", permissions: [PLUGIN_INSTALL_READ],
+    input_schema: { type: "object", properties: {}, additionalProperties: false },
+    output_schema: { type: "object", additionalProperties: false, required: ["plugins", "refused"], properties: {
+      plugins: { type: "array", items: { type: "object", additionalProperties: false, required: ["plugin_id", "version", "name", "name_en", "summary", "runtime_scope", "publisher"], properties: {
+        plugin_id: text, version: text, name: text, name_en: { type: ["string", "null"] }, summary: { type: ["string", "null"] }, runtime_scope: { enum: ["home", "project"] },
+        publisher: { type: "object", additionalProperties: false, required: ["publisher_id", "key_id", "pinned_label", "revoked"], properties: {
+          publisher_id: text, key_id: text, pinned_label: { type: ["string", "null"] }, revoked: { type: "boolean" } } } } } },
+      refused: { type: "array", items: { type: "object", additionalProperties: false, required: ["file", "code", "message"], properties: { file: text, code: text, message: text } } } } } } } as ActionDefinition<Record<string, never>, BundledPluginList>,
   confirm: { capability_id: "plugins.install.confirm", version: /* @version action.plugins.install.confirm */ 1, operation: "command", action: { ...metadata, scope: "project",
     title: "确认安装插件包", description: "安装一次预览里看过的包：确认它要的权限；这个发布者还没被固定时，给出名称才会固定它（固定是本人对这个发布者的信任，之后它签的包都按这个信任安装）。预览用过一次就作废。",
     kind: "operation", effect: "write", permissions: [PLUGIN_INSTALL_WRITE],
@@ -155,8 +167,9 @@ export function pluginInstallHandlers(service: PluginInstallService, imports?: S
   return [
     { capability_id: pluginInstallActions.preview.capability_id, version: pluginInstallActions.preview.version, handle: async (caller, input) => {
       const who = person(caller); await caller.beforeEffect();
-      return service.preview(input as { bundle: unknown }, who);
+      return service.preview(input as PluginInstallPreviewInput, who);
     } },
+    bindActionHandler(pluginInstallActions.bundled, () => service.bundled()),
     { capability_id: pluginInstallActions.confirm.capability_id, version: pluginInstallActions.confirm.version, handle: async (caller, input) => {
       const who = person(caller); await caller.beforeEffect();
       return await service.confirm(input as { preview_id: string; consent: boolean; pin_label?: string }, who);

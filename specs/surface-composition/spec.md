@@ -547,7 +547,7 @@ Goals 在自身声明中把 `goals.create@1` 指向 `stage/create-dialog`，自�
 
 项目签名插件仍走 `plugins.installed.enable@1` 与受保护页面入口，但其 `expected_installation` 改为必填，现有设置列表及按钮一并携带当时看到的代次和 digest；没有发现当前 CLI 消费者，实现前再以实际引用核对。比较在 ProjectLine 出队并取得实际记录后进行，沿既有生命周期 control 贯穿 Supervisor 等待和 Runtime 启动；首个写点要求仍为 disabled，本次成功启用后只核同发行物及当前授权，不再要求 disabled。写前继续 `beforeEffect` 和同步当前检查。Home 签名插件去现有设置入口完成 S94，不给首页或插件 frame 伪造设置凭据。服务只给候选，不启用插件；界面回执仅在真实成功后显示。
 
-当前基线的安装启用链尚未完整传递该 control：`plugin-install-actions.ts` 的调用须保留原 caller，经 `plugin-trust-actions.ts`、`project-plugin-ports.ts` 和 `installed-plugin-lifecycle.ts` 传到 `PluginSupervisor.enable`。Supervisor 的 gate 出队及 `restart`／激活路径继续传递原检查，最后交给已有支持 control 的 `runtime.start`；不能只在进入队列前检查一次。此处只补既定授权与安装身份的贯穿，不另建启用服务或状态记录。 启用未提交前不能先公开可被 `ensureStarted` 消费的新启用状态；被拒时只收回本次尝试的临时状态，不影响后来的合法启用。已核对的停用安装沿同一启动路径直接交给原 Runtime，不先按旧 entry 重建或替换安装；Runtime 真正提交 running 后再被撤权，只拒绝尚未发生的曝光、提示词登记与成功回执，如实保留已经提交的事实。
+当前基线的安装启用链尚未完整传递该 control：`plugin-install-actions.ts` 的调用须保留原 caller，经 `plugin-trust-actions.ts`、`project-plugin-ports.ts` 和 `installed-plugin-lifecycle.ts` 传到 `PluginSupervisor.enable`。Supervisor 的 gate 出队及 `restart`／激活路径继续传递原检查，最后交给已有支持 control 的 `runtime.start`；不能只在进入队列前检查一次。此处只补既定授权与安装身份的贯穿，不另建启用服务或状态记录。 启用未提交前不能先公开可被 `ensureStarted` 消费的新启用状态；被拒时只收回本次尝试的临时状态，不影响后来的合法启用。已核对的停用安装沿同一启动路径直接交给原 Runtime，不先按旧 entry 重建或替换安装；Runtime 真正提交 running 后再被撤权，只拒绝尚未发生的曝光、提示词登记与成功回执，如实保留已经提交的事实。 项目签包从原 disabled 安装启动时，Agent 定义的现有 hold／withdraw 只维护活实例的内存状态；声明的持久发布留给原启用成功后的 `registerPrompts`，被拒时保留原声明记录与更新时间。正常安装、恢复及 Home 路径不变，不把 `AgentDeclarations.remember` 改成全局幂等：现有恢复顺序及同 owner／同版本的后登记优先语义依赖注册时间。验证须使用真实签包方法／角色，并检查失败后的持久记录和内存可调用状态。
 
 **文件与验证。** contracts 的组合／呈现及签名安装动作，SDK 声明和描述校验，`horizontal/surfaces` 的首页编排及共用读取，Host 的 `surface-actions.ts`、主区／安装控制和薄适配，以及各自派生快照。生产页面、Dock 输入、Goals 选择消费、签名组件选择接线和插件声明由本批后续消费者片接入。复用现有 DOM 选择事件。第 20 批的成员能力为依赖，已知固定头 `33cd1028c6`、`37a5eb8b55` 定 owner／合同／常开语义，`5b520337f9`、`295dd67801`、`3a8a3703ed` 定 Runtime 切换、本人入口和已保存回执。生产接线使用实际合入的成员能力，最终只生成一次两批共用的宿主动作快照。
 
@@ -563,12 +563,16 @@ SCS-07／08／09／11／12／17 验真实空 Goals 和已签安装包从首页�
 
 **签名网关片证据（2026-11-09）。** 固定头 `e8626e303b`（含声明闭包修复 `3d4ea2f703`）经独立完整复核无剩余 Blocker/P1，于 `bfcc55bb43` 合回本批。真实第三方签包验证正常提交一次、旧 submit／raw 拒绝、伪身份／跨项目／关闭页拒绝、同版本不同 digest、仅提供方或仅 scope 更换、委托批准与自身服务 grant 在等待期间撤回均零写；Home 原项目撤回后同样零写。固定协议 3 项、旧原始调用拒绝 1 项、Home 可达性 RAC-2647、Studio 发布安装提交主流程、英文界面与真实 HTTPS 升级分别通过；Studio 测试复用真实 HTTP 核心并在后续同步检查前正常释放其 Home owner，最终主流程自然退出。Host 依赖构建、health 和 diff 检查通过，声明提取未改变公开 API 快照；真实 Host 51 条资源无遗漏，Builder 脚本 101,303 字节，对基点 101,339 字节减少 36。一次 Home 测试发生原因未明的 `ECONNRESET`，原断言单独复跑通过，未将断线当作拒绝证据，整批验证继续跟踪。最终统一检查仍须覆盖完整 Studio 与既有 agent-built-plugins-workflow 路径；本片不代表首页导航、启用、Feed、跨位置消费者或本人验收完成。
 
-### 14.6 首页取词来源的接线补充（2026-11-09，候选，待公共 C 合审）
+### 14.6 首页取词来源的接线补充（2026-11-09，公共 C 设计合审通过）
 
 SCS-12 要求语言切换不重新组合。实际首页概况可能由项目半部提供，主区却由 Home 半部承接；只按 `OwnedTextRef.owner` 或 `plugin_card.open.installation` 取词会把来源混掉。同一发行物重启也不会改变完整安装引用。第 16 批的现有页面取词只接受已签发的同项目 page id，不能用虚构插件页或新的主区页代替未挂载的原概况 activation。
 
-候选方案保持公共 `SurfaceDescription` 和纯服务的语言无关合同不变。在受保护首页响应中，由 Host 按本轮实际 reader、成功结果里要显示的文字键以及原工作台会话，返回仅供取词的 `surface_text` 不透明引用。授权仍由现有 `PluginPageAuthority` 管理；复用其原会话、项目、安装／activation 检查、关闭与释放机制，不能成为第二份授权目录。该引用只能用于既有 locale 读取入口，不能充当插件 page id、动作或表单提交凭据，也不能扩大原 reader 的权限。它只保留请求内已证明的来源绑定与有界文字键，不缓存概况、正文或业务取值；只返回所选语言和必要回退中的获准键，不下发整包。
+本方案保持公共 `SurfaceDescription` 和纯服务的语言无关合同不变。在受保护首页响应中，由 Host 按本轮实际 reader、成功结果里要显示的文字键以及原工作台会话，返回“具体显示位置 → 仅供取词的 `surface_text` 不透明引用”的映射。同一真实来源可以合并键集合，不能只按 canonical owner 合并；locale 返回也按引用关联，防止同 owner、同 key 的不同实例串词。授权仍由现有 `PluginPageAuthority` 管理；复用其原会话、项目、安装／activation 检查、关闭与释放机制，不能成为第二份授权目录。该引用只能用于既有 locale 读取入口，不能充当插件 page id、动作或表单提交凭据，也不能扩大原 reader 的权限。它只保留请求内已证明的来源绑定与有界文字键，不缓存概况、正文或业务取值；只返回所选语言和必要回退中的获准键，不下发整包。
 
 签发发生在本轮实际依赖和最终结果均复核之后；未成功的概况、最终未显示的内容不取得文字授权。后续用于显示的 values 返回若含插件 `TextRef`，沿同一来源绑定机制处理实际 values reader，不借概况或主区身份。语言切换沿现有工作台 locale 流程取齐词，再原地更新已有描述与 DOM；不重新 compose、overview 或 values，不另建语言缓存作为授权凭据。切换期间原会话、项目、安装、activation、所需权限或精确 reader 失效时拒绝旧引用；保留原页面与偏好，沿现有失败反馈恢复。
 
-公共 C 需核定：此仅取词的既有授权记录扩展是否足够，现有 locale 协议的最小输入增量及释放／有界规则，是否存在可直接复用且不会获得页面动作权限的接口。确认后写入本节唯一方案再实施，不先照候选扩建。验证用双实例使概况与主区来自不同半部，计数证明切换语言没有业务重读；同发行物重启、目录替换、会话关闭、撤权及等待后变化拒绝；伪造／跨项目／超出键集合的请求不能取词或调动作。当前签包启用片独立继续，不等待此设计合审。
+locale 输入只增加可重复的 `surface_text` 引用，与 `locale` 一次批量读取；保留现有页面取词分支。客户端不提交 owner、安装、reader 或任意 keys，授权键由服务器绑定。`PluginPageAuthority` 增加明确的仅取词记录分支，不调用普通 `open()` 造页；记录精确 activation、reader 身份及其当前权限检查，但不长期持有组合请求的 deadline 或取消上下文。每次读取在异步检查前后复核，最终投影与返回之间不留未经复核的异步间隙。
+
+复用现有 30 分钟失效和 256 条容量边界，页面与取词记录合计受限，每次批量请求也合计限额。首页结果替换、离开、会话关闭、项目清理和 activation 断开时释放并取消在途读取；旧响应的释放只影响其自身引用，不能关闭新响应。键集合只来自有界显示结果，复用既有文字与词包大小限制，不因持续取词无限续期。
+
+公共 C 在文档 `8b4d6ec842`（tree `8e331abe0a54bae8cbb918dd4a6f2581e3c2ea55`）上通过此设计，无阻断方向的 Blocker/P1，明确现有页面接口不能直接覆盖未挂载概况。以上为合审补充后的实施合同，不代表实现验收。验证用双实例使概况与主区来自不同半部，计数证明切换语言没有业务重读；同 owner、同 key、不同来源不串词；同发行物重启、目录替换、会话关闭、撤权及等待后变化拒绝；伪造、跨项目、超键集合和把引用用于 page/action/form 均拒绝；旧响应释放不影响新引用。实际第 16 批接口在最终统一同步时采用，不复制其 owner 实现，不新增跨批窗口。

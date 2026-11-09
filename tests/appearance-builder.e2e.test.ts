@@ -22,6 +22,19 @@ test("FSS-05 FSS-26 the Folio catalog and the Builder candidate board use the sa
   } })})`);
   assert.equal(applied.receipt.selection_revision, 1);
 
+  // The chosen sheet must be fetchable on the first paint, before any browser code runs.
+  for (const query of ["", "?desktop=1"]) {
+    const response = await fetch(`${b.origin}/projects/${b.projectId}/${query}`);
+    assert.equal(response.status, 200);
+    const html = await response.text();
+    const sheet = /<link rel="stylesheet" data-ui-appearance-sheet href="([^"]+)">/u.exec(html.slice(0, html.indexOf("</head>")))?.[1];
+    assert.equal(sheet, "/assets/ui-skin/folio-1.css");
+    const css = await fetch(b.origin + sheet);
+    assert.equal(css.status, 200);
+    assert.match(css.headers.get("content-type") ?? "", /^text\/css/u);
+    await css.arrayBuffer();
+  }
+
   await navigate("/__ui/catalog");
   assert.equal(await b.evaluate("document.documentElement.dataset.uiSkin"), "folio@1");
   assert.equal(await b.evaluate("Boolean(document.querySelector('[data-primitive=look-card]'))"), true);

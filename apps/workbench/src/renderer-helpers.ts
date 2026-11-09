@@ -36,10 +36,10 @@ export function createRendererHelpers(ports: {
   }
 
   function prefixLocalLinks(html: string, routePrefix: string, desktopShell = false): string {
-    // Global settings and the capability service live outside any project; a Plugin linking to them from the project page
-    // means the global page (project settings come in through the __PROJECT_SETTINGS__ tokens). Only href itself: data-*-href stays.
+    // Global assets, settings and capabilities keep their root URLs. Project settings use the __PROJECT_SETTINGS__ token.
+    // Only href itself is rewritten. Data attributes retain their own values.
     const prefixed = routePrefix
-      ? html.replace(/(\s)href="\/(?!locale(?:\?|")|projects\/|settings(?:[/?#"])|capabilities(?:[/?#"]))/g, `$1href="${routePrefix}/`)
+      ? html.replace(/(\s)href="\/(?!assets\/|locale(?:\?|")|projects\/|settings(?:[/?#"])|capabilities(?:[/?#"]))/g, `$1href="${routePrefix}/`)
       : html;
     const resolved = prefixed
       .replaceAll('href="__PROJECT_INDEX__"', 'href="/"')

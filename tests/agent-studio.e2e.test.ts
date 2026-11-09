@@ -1,12 +1,13 @@
 import { publishCheckedStudioFixture } from './fixtures/checked-studio-release.js';
 import { PluginInstallService, SandboxPackageStore, HomeConsentLedger } from '@molis-ai/molis-work-app-local-host';
 import { framedStudioPage, studioFrameAsset, isolatedStudioHarness } from "./fixtures/studio-framed-page.js";
-import { pluginPagesFor } from "@molis-ai/molis-work-app-local-host";
+import { pluginPagesFor, WebSessions } from "@molis-ai/molis-work-app-local-host";
 import { VISUAL_FOUNDATION_STYLES } from '@molis-ai/molis-work-design-system';
 import { createWorkbenchLocale } from '@molis-ai/molis-work-app-workbench';
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createServer, type Server } from 'node:http';
+import { createServer } from 'node:http';
+import { createSingleHomeTestWebServer } from './fixtures/local-web-core.js';
 import { mkdtemp, rm, readFile, writeFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import { createServer as createHttpsServer, Agent } from 'node:https';
@@ -35,15 +36,17 @@ import {proveAuthoringSync} from './fixtures/authoring-sync-proof.js';
 async function resumeTargetStudio(store:LocalProjectDatabase,homeDirectory:string,projectId:string,itemId:string){
   const token=randomUUID()+randomUUID(),mutations=new Map<string,LocalMutationState>();
   const options={store,homeDirectory,projectId,routePrefix:'/projects/'+projectId,...agentStudioFixture(0)};
+  const sessions=new WebSessions(homeDirectory);
   const server=createServer((request,response)=>{
     const url=new URL(request.url??'/','http://localhost');
     if(studioFrameAsset(response,url.pathname))return;
+    sessions.bind(request,token,response);
     if(url.pathname==='/assets/molis-work-settings.css'){response.writeHead(200,{'content-type':'text/css'});response.end(VISUAL_FOUNDATION_STYLES);return;}
     if(!authorizeLocalWebRequest(request,response,url,token,mutations))return;
     void pluginPagesFor(homeDirectory).bind(request,url).then(release=>{
       if(release)response.once('close',release);
       const local=new URL(url);if(local.pathname.startsWith(options.routePrefix+'/'))local.pathname=local.pathname.slice(options.routePrefix.length);
-      return handleAgentStudioHttp(request,response,local,options,token);
+      return handleAgentStudioHttp(request,response,local,options,sessions.pageToken(request));
     }).then(handled=>{if(!handled)sendLocalWebJson(response,404,{error:'not found'});}).catch(error=>sendLocalWebJson(response,403,{error:String(error.message)}));
   });
   await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));const origin='http://127.0.0.1:'+(server.address() as {port:number}).port;
@@ -58,7 +61,7 @@ async function resumeTargetStudio(store:LocalProjectDatabase,homeDirectory:strin
     assert.ok(current.build.history.length,'the real publication journey must retain history to verify explicit undo');await post('/builds/'+itemId+'/action',{action:'undo',revision:current.build.revision});
     current=await get();for(let i=0;i<600&&current.build.active;i++){await new Promise(resolve=>setTimeout(resolve,50));current=await get();}
     assert.equal(current.build.phase,'ready',current.build.error??'target history checks did not finish');assert.equal(current.build.active,null);
-  }finally{await releaseAgentStudio(store,projectId);await releaseInstalledPlugins(store,projectId);server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}
+  }finally{sessions.close();await releaseAgentStudio(store,projectId);await releaseInstalledPlugins(store,projectId);server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}
 }
 
 /**
@@ -80,15 +83,31 @@ test('studio: a request becomes a working, published plugin that the person can 
   const options = { store, projectId, homeDirectory: home, browserExecutable: dedicatedBuilderBrowser(), routePrefix: "/projects/" + projectId, ...fixture,
     generate: async (pluginId: string, input: { prompt?: string; instructions?: string; input: string }) => {if(modelHold){modelStarted();await modelHold;} await new Promise(resolve => setTimeout(resolve, modelDelay)); return fixture.generate(pluginId, input); } };
   let liveSubscriptions = 0, subscriptions = 0;
-  const server: Server = createServer((request, response) => {
+  const sessions = new WebSessions(home);
+  const gateway = createSingleHomeTestWebServer({ homeDirectory: home, controlToken: token, webSessions: sessions });
+  const [webRequest] = gateway.listeners('request'); assert.ok(webRequest);
+  await new Promise<void>(resolve => gateway.listen(0, '127.0.0.1', resolve));
+  let stopped: Promise<void> | undefined;
+  const stopGateway = () => stopped ??= new Promise<void>((resolve, reject) => {
+    gateway.close(error => error ? reject(error) : resolve());
+    gateway.closeAllConnections();
+  });
+  const server = createServer((request, response) => {
     if (request.url?.endsWith("/events")) { liveSubscriptions++; subscriptions++; response.on("close", () => { liveSubscriptions--; }); }
     const url = new URL(request.url ?? '/', 'http://localhost') /* as the product server does: no port in the base */;
+    // The generated page stays on the Studio fixture's original store and action client. Its submit uses the real Host HTTP fence.
+    if (url.pathname === options.routePrefix + '/api/host/plugin-page-actions') {
+      webRequest.call(gateway, request, response);
+      return;
+    }
     if (studioFrameAsset(response, url.pathname)) return;
+    sessions.bind(request, token, response);
+    const proof = sessions.pageToken(request);
     if (url.pathname === '/assets/molis-work-settings.css') { response.writeHead(200, { 'content-type': 'text/css' }); response.end(VISUAL_FOUNDATION_STYLES); return; }
     // The studio as the workbench mounts it in its stage (scripts/agent-studio-harness.mts): it has no page of its own.
-    if (url.pathname === STUDIO_HARNESS_PATH) { response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); response.end(isolatedStudioHarness(home, projectId, token)); return; }
+    if (url.pathname === STUDIO_HARNESS_PATH) { response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); response.end(isolatedStudioHarness(home, projectId, proof)); return; }
     if (!authorizeLocalWebRequest(request, response, url, token, mutations)) return;
-    void pluginPagesFor(home).bind(request, url).then(release => { if (release) response.once("close", release); const local = new URL(url); if (local.pathname.startsWith(options.routePrefix + "/")) local.pathname = local.pathname.slice(options.routePrefix.length); return handleAgentStudioHttp(request, response, local, options, token); }).then(handled => { if (!handled) sendLocalWebJson(response, 404, { error: 'not found' }); }).catch(error => sendLocalWebJson(response, 403, { error: String(error.message) }));
+    void pluginPagesFor(home).bind(request, url).then(release => { if (release) response.once("close", release); const local = new URL(url); if (local.pathname.startsWith(options.routePrefix + "/")) local.pathname = local.pathname.slice(options.routePrefix.length); return handleAgentStudioHttp(request, response, local, options, proof); }).then(handled => { if (!handled) sendLocalWebJson(response, 404, { error: 'not found' }); }).catch(error => sendLocalWebJson(response, 403, { error: String(error.message) }));
   });
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   const origin = 'http://127.0.0.1:' + (server.address() as { port: number }).port;
@@ -362,6 +381,8 @@ test('studio: a request becomes a working, published plugin that the person can 
     const revision=await fetch(origin+'/api/plugin-builder/studio/builds/'+buildId+'/action',{method:'POST',headers:{origin,'content-type':'application/json','x-molis-work-control-token':token,'x-molis-work-idempotency-key':randomUUID()},body:JSON.stringify({action:'visual',revision:saved.build.revision,message:'保存一份可以跨设备恢复的真实界面修订'})});assert.equal(revision.status,200,await revision.clone().text());
     let revised=await(await fetch(origin+'/api/plugin-builder/studio/builds/'+buildId)).json() as typeof saved;for(let i=0;i<600&&revised.build.active;i++){await new Promise(resolve=>setTimeout(resolve,50));revised=await(await fetch(origin+'/api/plugin-builder/studio/builds/'+buildId)).json() as typeof saved;}
     assert.equal(revised.build.phase,'ready',revised.build.error??'source revision did not finish');assert.ok(revised.build.history.length);
+    // The installed page is finished. The isolated sync check below opens the Home's catalog under its own owner.
+    await stopGateway();
     await proveAuthoringSync(t,{home,space,projectId,itemId:buildId,manifest:builderManifest,storage:installedOwner.storage,owner:directory=>builderPrivateValueReplicationOwner({home:directory,verifyDistribution:verifySyncPluginDistribution}),codec:createSyncJsonContent({spaceId:space.spaceId,authorize(){},...builderSyncProjection}),verifyTarget:resumeTargetStudio,call(){
       const started=new Promise<void>(resolve=>{modelStarted=resolve;});modelHold=new Promise<void>(resolve=>{releaseModel=resolve;});
       const settled=(async()=>{await post('editor','submit',{form:{text:'真实预览同步竞争'}});const rows=await post('notes','read',{});assert.ok(Array.isArray(rows)&&rows.length);const row=rows[0] as {id:string};await post('expand','submit',{selection:{notes:{id:row.id}}});})();
@@ -375,6 +396,7 @@ test('studio: a request becomes a working, published plugin that the person can 
     throw error;
   } finally {
     releaseModel();
+    await stopGateway();
     await releaseAgentStudio(store, projectId); await releaseInstalledPlugins(store, projectId);
     server.closeAllConnections();
     await new Promise<void>(resolve => server.close(() => resolve())); store.close();
@@ -395,16 +417,19 @@ test('studio in English: its controls, labels, phases and boards are English', {
   const fixture = agentStudioFixture(0);
   const options = { store, projectId: DEMO_PROJECT_ID, homeDirectory: home, browserExecutable: dedicatedBuilderBrowser(), routePrefix: '/projects/' + DEMO_PROJECT_ID, ...fixture };
   const locale = createWorkbenchLocale(() => 'en');
-  const server: Server = createServer((request, response) => {
+  const sessions = new WebSessions(home);
+  const server = createServer((request, response) => {
     const url = new URL(request.url ?? '/', 'http://localhost');
     if (studioFrameAsset(response, url.pathname)) return;
+    sessions.bind(request, token, response);
+    const proof = sessions.pageToken(request);
     if (url.pathname === '/assets/molis-work-settings.css') { response.writeHead(200, { 'content-type': 'text/css' }); response.end(VISUAL_FOUNDATION_STYLES); return; }
     if (url.pathname === STUDIO_HARNESS_PATH) {
       response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
-      response.end(isolatedStudioHarness(home, DEMO_PROJECT_ID, token, { lang: 'en', translate: locale.L, clientScript: locale.clientI18nScript() })); return;
+      response.end(isolatedStudioHarness(home, DEMO_PROJECT_ID, proof, { lang: 'en', translate: locale.L, clientScript: locale.clientI18nScript() })); return;
     }
     if (!authorizeLocalWebRequest(request, response, url, token, mutations)) return;
-    void pluginPagesFor(home).bind(request, url).then(release => { if (release) response.once("close", release); const local = new URL(url); if (local.pathname.startsWith(options.routePrefix + "/")) local.pathname = local.pathname.slice(options.routePrefix.length); return handleAgentStudioHttp(request, response, local, options, token); }).then(handled => { if (!handled) sendLocalWebJson(response, 404, { error: 'not found' }); }).catch(error => sendLocalWebJson(response, 403, { error: String(error.message) }));
+    void pluginPagesFor(home).bind(request, url).then(release => { if (release) response.once("close", release); const local = new URL(url); if (local.pathname.startsWith(options.routePrefix + "/")) local.pathname = local.pathname.slice(options.routePrefix.length); return handleAgentStudioHttp(request, response, local, options, proof); }).then(handled => { if (!handled) sendLocalWebJson(response, 404, { error: 'not found' }); }).catch(error => sendLocalWebJson(response, 403, { error: String(error.message) }));
   });
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   const origin = 'http://127.0.0.1:' + (server.address() as { port: number }).port;
@@ -482,6 +507,7 @@ test('studio in English: its controls, labels, phases and boards are English', {
     assert.deepEqual(await page.evaluate<string[]>(`[...document.querySelectorAll('[data-as-catalog-panel] .as-part')].map(b=>b.textContent+'|'+b.getAttribute('aria-label')).filter(x=>/\\p{Script=Han}/u.test(x))`), [], 'every catalog component, used or not');
     assert.deepEqual(await page.evaluate<string[]>(`(()=>{const out=[];for(const b of document.querySelectorAll('[data-as-catalog-panel] .as-part')){b.dispatchEvent(new PointerEvent('pointerover',{bubbles:true}));const tip=document.querySelector('[data-as-tip]');if(/\\p{Script=Han}/u.test(tip.innerText))out.push(tip.innerText);}return out;})()`), [], 'and its tip');
   } finally {
+    sessions.close();
     await browser.close();
     await releaseAgentStudio(store, DEMO_PROJECT_ID);
     server.closeAllConnections();
@@ -539,13 +565,17 @@ test('upgrade consent saves the new secret and the upgraded plugin uses it on it
   const nextBundle = join(home, 'v2.mjs'); await writeFile(nextBundle, 'export const operations={fetch:async(_,sdk)=>(await sdk.network.request({url:"https://api.weather.example/today",secretRefs:["weather"]})).body};');
   const next: AgentRelease = { ...first, version: 2, bundlePath: nextBundle, permissions, manifest: { version: 1, pluginId, revision: 'two', effects: permissions }, design: { ...first.design, contract: nextContract } };
   publishCheckedStudioFixture(installed.storage, next);
+  const sessions = new WebSessions(home);
+  cleanups.push(() => sessions.close());
   const server = createServer((request, response) => {
     const url = new URL(request.url ?? '/', 'http://localhost');
     if (studioFrameAsset(response, url.pathname)) return;
+    sessions.bind(request, token, response);
+    const proof = sessions.pageToken(request);
     if (url.pathname === '/assets/molis-work-settings.css') { response.writeHead(200, { 'content-type': 'text/css' }); response.end(VISUAL_FOUNDATION_STYLES); return; }
-    if (url.pathname === STUDIO_HARNESS_PATH) { response.writeHead(200, { 'content-type': 'text/html' }); response.end(isolatedStudioHarness(home, DEMO_PROJECT_ID, token)); return; }
+    if (url.pathname === STUDIO_HARNESS_PATH) { response.writeHead(200, { 'content-type': 'text/html' }); response.end(isolatedStudioHarness(home, DEMO_PROJECT_ID, proof)); return; }
     if (!authorizeLocalWebRequest(request, response, url, token, mutations)) return;
-    void pluginPagesFor(home).bind(request, url).then(release => { if (release) response.once("close", release); const local = new URL(url); if (local.pathname.startsWith(options.routePrefix + "/")) local.pathname = local.pathname.slice(options.routePrefix.length); return handleAgentStudioHttp(request, response, local, options, token); }).then(handled => { if (!handled) sendLocalWebJson(response, 404, {}); }).catch(error => sendLocalWebJson(response, 403, { error: String(error.message) }));
+    void pluginPagesFor(home).bind(request, url).then(release => { if (release) response.once("close", release); const local = new URL(url); if (local.pathname.startsWith(options.routePrefix + "/")) local.pathname = local.pathname.slice(options.routePrefix.length); return handleAgentStudioHttp(request, response, local, options, proof); }).then(handled => { if (!handled) sendLocalWebJson(response, 404, {}); }).catch(error => sendLocalWebJson(response, 403, { error: String(error.message) }));
   });
   cleanups.push(async () => { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); });
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve)); const address = server.address(); assert.ok(address && typeof address === 'object');
@@ -557,8 +587,11 @@ test('upgrade consent saves the new secret and the upgraded plugin uses it on it
   await page.fill('.as-dialog [data-secret-header]', 'Authorization'); await page.fill('.as-dialog [data-secret-value]', secretValue); await page.click('.as-dialog button[value=ok]');
   await page.wait(`document.querySelector('[data-as-feed]')?.innerText.includes('已安装 v2')||document.querySelector('[role=alert]')`);
   assert.equal(await page.evaluate(`document.querySelector('[role=alert]')?.innerText||''`), ''); assert.equal(installed.installations()[0]!.version, 2);
-  const called = await installed.platform.router().dispatch({ method: 'POST', pathname: '/api/plugins/' + pluginId + '/call', actor_id: 'web-user', execution: { beforeEffect: async () => {} }, body: { operation: 'fetch', input: null } });
-  assert.equal(called?.status, 200, JSON.stringify(called?.body)); assert.equal((called!.body as { value: string }).value, 'received'); assert.equal(await received.promise, secretValue);
+  const caller = { actor_id: 'web-user', project_id: DEMO_PROJECT_ID, audience: 'user' as const, permissions: [] };
+  const action = (await installed.actions.client.discover(caller)).find(view => view.provider.plugin_id === pluginId && view.action.local_id === 'fetch');
+  assert.ok(action);
+  const called = await installed.actions.client.invoke(caller, { capability_id: action.capability_id, version: action.version, provider_id: action.provider.provider_id }, null);
+  assert.equal(called, 'received'); assert.equal(await received.promise, secretValue);
   assert.equal(fixtureConnections, 1); assert.equal(checkedResolutions, 1, 'the new connection still ran the production DNS/address/authority checks');
   assert.ok(!JSON.stringify(installed.secrets.list(pluginId)).includes(secretValue)); assert.ok(!String(installed.storage.get('plugin-builder:agent-studio:approved:' + pluginId)).includes(secretValue));
 });

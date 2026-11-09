@@ -2,7 +2,8 @@ import { renderHomePackageDocument } from "./plugin-builder/agent-surface.js";
 import { ActionError, requireSynchronous, type ActionCallContext, type ActionClient, type ActionExecutionContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginInstallRecords } from "./plugin-install-records.js";
 import { openHomeInstalledPlugins, type HomeInstalledPlugins } from "./home-installed-plugins.js";
-import type { InstalledRelease } from "./installed-release.js";
+import { installedVersion, type InstalledRelease } from "./installed-release.js";
+import { installedPageSelection } from "./plugin-page-authority.js";
 import { pluginErrors, type PluginDefinition, type PluginInstanceRecord, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { PLUGIN_PRESENTATION_CAPABILITY, type UiSlotDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
 import { randomUUID } from "node:crypto";
@@ -173,8 +174,9 @@ export class HomePluginHost {
   }
   /** The page that stage frames (`?frame=workbench`), opened for the person under the package's Home activation. Throws when that is not open. */
   packageDocument(pluginId: string, controlToken: string, projectId: string | null = null, accountRegistration=false): string | undefined {
-    const release = this.packageSurface(pluginId) ? this.installed?.releaseFor(pluginId) : undefined;
-    return release ? renderHomePackageDocument({ home: this.options.home, actorId: this.options.actorId, release, controlToken, projectId, accountRegistration,
+    const release = this.packageSurface(pluginId) ? this.installed?.releaseFor(pluginId) : undefined, record = this.installation(pluginId);
+    return release && record?.version === installedVersion(release) ? renderHomePackageDocument({ home: this.options.home, actorId: this.options.actorId, release, controlToken, projectId, accountRegistration,
+      selection: installedPageSelection(record, null, () => this.installation(pluginId)),
       assertProject: projectId ? async () => {
         if (!this.options.projectActions) throw new ActionError("actions.forbidden", "Home 插件没有项目入口");
         await this.options.projectActions(projectId, pluginId);

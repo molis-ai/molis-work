@@ -3,15 +3,17 @@
  * uninstall; this definition only proxies to the plugin's sandboxed process. The plugin's code never runs in the
  * host process, and its interface is the host's component renderer, so no plugin script runs in the page either.
  */
-import { pluginErrors, type PluginAppContribution, type PluginDefinition, type PluginManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
+import { pluginErrors, type PluginAppContribution, type PluginDefinition, type PluginManifest, type PluginStartContext } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
+import { assertCapturedPluginActionCurrent, currentPluginAction, inPluginInstance } from '@molis-ai/molis-work-plugin-runtime';
+import { exposedActionReference } from './exposed-actions.js';
 import { rememberInstalledActionSource } from '../installed-action-registration.js';
 import type { SandboxEffects, SandboxIdentity, SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { createSandboxRunner, createBackgroundLane, SANDBOX_BACKGROUND_LIMITS, sandboxServicesFor, SandboxError, type SandboxBackgroundLane, type SandboxRunner, type SandboxServices, type SandboxServiceContext } from '@molis-ai/molis-work-plugin-sandbox';
 import { executionProjectReach } from '../plugin-project-reach-subject.js';
 import { resolvePluginComponentCall, validatePluginPresentation } from '@molis-ai/molis-work-design-system';
 import type { AgentRelease } from '@molis-ai/molis-work-plugin-builder';
-import { effectsFromContract, sandboxPluginManifest, sandboxUiContribution, sandboxOperationEffects } from '@molis-ai/molis-work-plugin-sdk';
+import { actionErrorResponse, effectsFromContract, isRecord, sandboxPluginManifest, sandboxUiContribution, sandboxOperationEffects } from '@molis-ai/molis-work-plugin-sdk';
 import { releaseInstructions } from './prompts.js';
 import { releaseVersion, type InstalledRelease } from '../installed-release.js';
 import { capabilityLimits, capabilityPolicyBinding, latestCapability, slowOperations, type Lane, type CapabilityExecution } from './capabilities.js';
@@ -21,6 +23,19 @@ export const installedSignature = (buildId: string) => 'agent-built:' + buildId;
 /** A sandbox error after which the process is not used again: the next call starts a new one. */
 export const GONE = new Set(['sandbox.process_exit', 'sandbox.stopped', 'sandbox.cancelled', 'sandbox.start_failed', 'sandbox.start_timeout', 'sandbox.operation_timeout', 'sandbox.memory_limit', 'sandbox.cpu_limit', 'sandbox.channel_limit', 'sandbox.channel_error', 'sandbox.protocol_error']);
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
+
+/** The Runtime bridge reaches the runner from the original exposed action. HTTP route control alone carries no such authority. */
+function installedOperation(release: InstalledRelease, context: PluginStartContext, operation: unknown) {
+  const scope = currentPluginAction(), called = scope?.caller.current_action;
+  if (typeof operation !== 'string' || !scope || !inPluginInstance(scope, context) || scope.definition.action.local_id !== operation)
+    throw new ActionError('actions.forbidden', '已安装插件的写入须经原页面或动作网关');
+  const expected = exposedActionReference(release, operation);
+  if (called?.capability_id !== expected.capability_id || called.version !== expected.version || called.provider_id !== expected.provider_id
+    || scope.definition.action.scope !== (context.project_id == null ? 'home' : 'project'))
+    throw new ActionError('actions.forbidden', '这次操作不属于原已安装动作');
+  assertCapturedPluginActionCurrent(scope, context);
+  return operation;
+}
 
 /**
  * What a generated plugin declares to the Host: a release's Manifest, or for a trial of a build that has none yet, the one it
@@ -35,7 +50,8 @@ export function generatedPluginManifest(release: Pick<AgentRelease, 'pluginId' |
 /** `host.capability` serves the platform capabilities the person approved; the broker still checks each call against them. */
 export function sandboxedPluginDefinition(release: InstalledRelease, approved: SandboxEffects, compatibleFrom: readonly number[], host: { capability?: SandboxServices['capability']; network?: SandboxServices['network']; capabilities?(context: SandboxServiceContext): Promise<readonly CapabilityExecution[]>;
     /** Throws when the installation (or the publisher behind it) is no longer one that may act; asked before every effect of every service, storage included. */
-    assertLive?(identity: Readonly<SandboxIdentity>): void } = {},
+    assertLive?(identity: Readonly<SandboxIdentity>): void;
+    grantedCapabilities?(identity: Readonly<SandboxIdentity>): readonly string[] } = {},
   /** What an installed package declared (already checked against `sandboxPluginManifest`); a generated plugin's is written from its release. */
   declared?: PluginManifest): PluginDefinition {
   if (release.design.presentation !== undefined) validatePluginPresentation(release.design.presentation, release.design.parts, release.design.contract);
@@ -96,12 +112,14 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
         routes: [{ route_id: 'studio.call', async handle(request) {
           let outcomeUnknown = false;
           try {
-            const body = (request.body ?? {}) as { componentId?: unknown; binding?: unknown; payload?: unknown; operation?: unknown; input?: unknown };
-            // The platform (its scheduler, or the action directory) runs an operation by id; people reach operations through parts.
-            const scheduled = !!request.execution && typeof body.operation === 'string' && release.design.contract.operations.some(item => item.id === body.operation);
-            const node = release.nodes.find(item => item.id === body.componentId);
-            if (!scheduled && (!node || (body.binding !== 'read' && body.binding !== 'submit'))) throw new Error('未知的组件操作');
-            const call = scheduled ? { operationId: body.operation as string, input: Object.hasOwn(body, 'input') ? body.input : {} } : resolvePluginComponentCall(node!, body.binding as 'read' | 'submit', body.payload ?? {});
+            const body = isRecord(request.body) ? request.body : {};
+            const raw = Object.hasOwn(body, 'operation');
+            if (body.binding === 'submit' || raw && (!request.execution || Object.keys(body).some(key => key !== 'operation' && key !== 'input')))
+              throw new ActionError('actions.forbidden', '已安装组件的提交须经原页面动作网关');
+            const node = raw ? undefined : release.nodes.find(item => item.id === body.componentId);
+            if (!raw && (!node || body.binding !== 'read')) throw new Error('未知的组件读取');
+            const call = raw ? { operationId: installedOperation(release, context, body.operation), input: Object.hasOwn(body, 'input') ? body.input : {} }
+              : resolvePluginComponentCall(node!, 'read', body.payload ?? {});
             await request.execution?.beforeEffect(); request.execution?.signal?.throwIfAborted();
             const operation = release.design.contract.operations.find(item => item.id === call.operationId)!;
             const effects = sandboxOperationEffects(release.design.contract, operation), dependencies = effects.capabilities ?? [];
@@ -129,7 +147,8 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
             await beforeEffect();
             const lane: Lane = slowOperations({ operations: [operation] }, capabilities).has(call.operationId) ? 'slow' : 'quick', pending = open(lane), active = await pending;
             try { return { status: 200, body: { value: await active.call(call.operationId, call.input as SandboxJson, {
-              signal: request.execution?.signal, beforeEffect, limits: capabilityLimits(operation.effects, capabilities), projectReach,
+              signal: request.execution?.signal, beforeEffect, assert_authority_current: request.execution?.assert_authority_current,
+              limits: capabilityLimits(operation.effects, capabilities), projectReach,
             }) } }; }
             catch (error) {
               // The worker may wrap a refused SDK call as sandbox.plugin_error; keep the trusted Host's reason.
@@ -143,7 +162,10 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
               if (gone) { outcomeUnknown = true; throw failure !== error ? failure : new Error('本次插件调用已停止，结果可能尚未确认；请先检查结果，再决定是否重新执行'); }
               throw failure;
             }
-          } catch (error) { return { status: 400, body: { error: message(error), ...(outcomeUnknown ? { outcome: 'unknown' } : {}) } }; }
+          } catch (error) {
+            if (error instanceof ActionError && !outcomeUnknown) return actionErrorResponse(error);
+            return { status: 400, body: { error: message(error), ...(outcomeUnknown ? { outcome: 'unknown' } : {}) } };
+          }
         } }],
         views: [{ descriptor: { contribution_id: uiId, kind: 'primary-page', label: release.design.title, slots: [] },
           render: () => '<main data-installed-plugin="' + release.pluginId + '"></main>' }],
@@ -165,6 +187,6 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
     async stop() { const current = [...lanes.values()], lane = background; lanes.clear(); background = undefined;
       await Promise.all([lane?.stop(), ...current.map(item => item.then(runner => runner.stop(), () => undefined))]); },
   };
-  rememberInstalledActionSource(definition, release);
+  rememberInstalledActionSource(definition, release, host.grantedCapabilities);
   return definition;
 }

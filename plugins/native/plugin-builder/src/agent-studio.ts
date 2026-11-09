@@ -171,12 +171,14 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const icon=n=>'<svg aria-hidden="true"><use href="#icon-'+n+'"/></svg>';
  const headers=m=>m==='GET'?{}:(globalThis.molisWorkControlHeaders?.()||{'content-type':'application/json'});
- async function api(path,method='GET',body,signal){
-  const r=await lifetime.fetch(host.api(path),{method,signal,cache:'no-store',headers:headers(method),...(body===undefined?{}:{body:JSON.stringify(body)})});
-  const v=await r.json().catch(()=>({}));lifetime.assertCurrent(signal);if(!r.ok)throw Object.assign(new Error(v.error||L('操作失败，内容已保留')),{status:r.status,code:v.code});return v;
+ async function request(url,method='GET',body,signal,fallback=L('操作失败，内容已保留')){
+  const r=await lifetime.fetch(url,{method,signal,cache:'no-store',headers:headers(method),...(body===undefined?{}:{body:JSON.stringify(body)})});
+  const v=await r.json().catch(()=>({}));lifetime.assertCurrent(signal);if(!r.ok)throw Object.assign(new Error(v?.error||fallback),{status:r.status,code:v?.code});return v;
  }
+ const api=(path,...args)=>request(host.api(path),...args);
  let pending=0;globalThis.__molisPluginPending=0;
- const pluginCall=id=>async(componentId,binding,payload)=>{pending++;globalThis.__molisPluginPending=pending;try{return (await api('/builds/'+id+'/call','POST',{componentId,binding,payload,...(host.acceptance?{acceptance:host.acceptance}:{})})).value}finally{pending--;if(lifetime.alive)globalThis.__molisPluginPending=pending}};
+ const pendingCall=async run=>{globalThis.__molisPluginPending=++pending;try{return await run()}finally{pending--;if(lifetime.alive)globalThis.__molisPluginPending=pending}};
+ const pluginCall=id=>(componentId,binding,payload)=>pendingCall(async()=>(await api('/builds/'+id+'/call','POST',{componentId,binding,payload,...(host.acceptance?{acceptance:host.acceptance}:{})})).value);
  if(host.mode==='preview'){
   const readings=new Map(),plugin=host.components({root,call:pluginCall(host.build),onRead:(id,result)=>readings.set(id,result)});
   lifetime.own(()=>plugin.destroy());
@@ -187,7 +189,12 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
  }
  if(host.mode==='installed'){
   if(parent!==window)root.dataset.framed='';
-  const call=async(componentId,binding,payload)=>{pending++;globalThis.__molisPluginPending=pending;try{const r=await lifetime.fetch(host.call,{method:'POST',cache:'no-store',headers:headers('POST'),body:JSON.stringify({componentId,binding,payload})});const v=await r.json().catch(()=>({}));lifetime.assertCurrent();if(!r.ok)throw new Error(v.error||L('操作失败，输入已保留'));return v.value;}finally{pending--;if(lifetime.alive)globalThis.__molisPluginPending=pending}};
+  const call=(componentId,binding,payload)=>pendingCall(async()=>{
+    const submit=binding==='submit',url=submit?host.route('/api/host/plugin-page-actions'):host.call;
+    const body=submit?{mode:'component_submit',component_id:componentId,payload}:{componentId,binding,payload};
+    const value=await request(url,'POST',body,undefined,L('操作失败，输入已保留'));
+    return submit?value:value.value;
+  });
   const plugin=host.components({root,call});lifetime.own(()=>plugin.destroy());plugin.update(host.view).then(()=>{if(lifetime.alive)globalThis.__molisPluginReady=true;}).catch(e=>{if(lifetime.alive)root.textContent=e.message;});
   return;
  }

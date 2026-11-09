@@ -14,7 +14,7 @@ export interface ModelGenerateInput { prompt: string; input: string }
 export type PluginModelCaller = Pick<ActionCallContext, 'project_id' | 'plugin_install_id'>;
 
 export interface CapabilityExecution {
-  id: string; version?: number; provider_id?: string; offered?: boolean; installed?: boolean;
+  id: string; version?: number; provider_id?: string; scope?: 'home' | 'project'; offered?: boolean; installed?: boolean;
   effect?: 'read' | 'write' | 'irreversible'; execution?: ActionExecutionPolicy;
   permissions?: readonly string[];
 }
@@ -23,7 +23,7 @@ export interface CapabilityExecution {
 export function capabilityPolicyBinding(effects: SandboxEffects, capabilities: readonly CapabilityExecution[]): string {
   return JSON.stringify([...(effects.capabilities ?? [])].sort().map(id => {
     const entry = latestCapability(capabilities, id), policy = entry?.execution;
-    return [id, entry?.provider_id ?? null, entry?.version ?? null, entry?.offered ?? null, entry?.installed ?? null, entry?.effect ?? null,
+    return [id, entry?.provider_id ?? null, entry?.version ?? null, entry?.scope ?? null, entry?.offered ?? null, entry?.installed ?? null, entry?.effect ?? null,
       policy?.timeout_ms ?? null, policy?.cost ?? 'unknown', policy?.max_calls_per_minute ?? null, [...(entry?.permissions ?? [])].sort()];
   }));
 }

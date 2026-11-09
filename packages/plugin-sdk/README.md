@@ -185,6 +185,8 @@ Home 判断前会读取原对象、准备其实际可用动作，并把当前选
 
 `validateAdoptsDeclaration` 用声明者的动作列表核对每种内容的采用、批读和可选撤销。正文 schema 由主人声明，外层输入、CAS 和回执用场景合同的公共形状。校验通过只表示声明可用，实际采用、保存回执及授权由主人兑现。
 
+`inspectHomePageDraft` 共用首页草稿正文 schema，并检查文件路径、HTML 入口、UTF-8 字节和精确动作引用。动作存在性、实际可批准的动作集合和隔离运行由首页服务与页面网关核对。
+
 ## 本地开发
 
 以下命令在**仓库根目录**执行，使用 Node.js 24+ 与仓库配置的 pnpm。首次准备运行 `pnpm install --frozen-lockfile` 和 `pnpm build`；之后可单独检查此包。

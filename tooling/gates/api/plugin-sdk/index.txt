@@ -750,6 +750,8 @@ export declare function inspectCharacterTemplateAdoption(input: CharacterTemplat
 
 export declare function inspectContentPlugin(manifest: Readonly<Record<string, unknown>>): PluginDeclarationProblem[];
 
+export declare function inspectHomePageDraft(value: unknown): readonly PluginDeclarationProblem[];
+
 export declare function inspectRoleTemplate(value: unknown, options: RoleTemplateInspectionOptions): readonly PluginDeclarationProblem[];
 
 export declare function instantIn(day: string, time: string, zone: string | undefined): string | null;

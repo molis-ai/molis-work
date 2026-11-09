@@ -166,6 +166,10 @@
       "types": "./dist/services/blueprints.d.ts",
       "import": "./dist/services/blueprints.js"
     },
+    "./services/home": {
+      "types": "./dist/services/home.d.ts",
+      "import": "./dist/services/home.js"
+    },
     "./services/contextual": {
       "types": "./dist/services/contextual.d.ts",
       "import": "./dist/services/contextual.js"

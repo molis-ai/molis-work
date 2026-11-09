@@ -74,6 +74,8 @@ node scripts/run-tests.mjs tests/plugin-authoring.test.ts
 
 `/services/blueprints` 的 `blueprintActions` 定义草稿、预览、应用、回读、撤销、移除和另存，供场景服务登记。通用内容采用从 `/platform/blueprints` 取来源、选择、批读和撤销合同，正文 schema 由声明的主人给出。按操作和请求键回读的是原回执，当前状态独立返回。
 
+`/services/home` 的 `homePageActions` 定义生成首页的版本、文件、试用、采用与恢复。草稿保存沿通用内容采用合同，不批准动作或切换首页；`home.read` 的批准回读用 `by: "approval_request"` 区分草稿采用回读。真实首页主人会接入权限、版本核对和文件送达。
+
 同步声明解析与依赖展开实现在 plugin-sdk；空间策略解析实现在 sync-replication。这里不定义同步 Error 子类，失败统一使用各 owner 声明的 ActionError。
 
 `SyncRoundSummary` 是现行格式 1 的只读轮次提示，包含策略、容量和每个所选 namespace 的普通变更 head；不是接收回执，不授予推进游标或确认上传的权力。Worker 与协调器同步更新，缺失或错误格式拒绝，不提供旧接口兜底。

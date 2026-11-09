@@ -429,12 +429,12 @@ interface HomePageVersion extends HomePageRef {
 
 | 动作 | 输入与回读 |
 | --- | --- |
-| `home.read` | `{}` → `{ selection, revision, versions }`，版本摘要含声明动作和该版 `approval`（未批准为 `null`），无文件正文。第 8 节的首页主人批读沿同一 `queries` 分支。批准回执查询为 `{ by: "request", operation: "adopt" \| "restore", request_id }`。核可信本人和项目后返回 `{ kind: "receipt", receipt, current }` 或 `{ kind: "missing", current }`。`current` 是独立的 `{ selection, revision }`，读失败仍待核对。 |
+| `home.read` | `{}` → `{ selection, revision, versions }`，版本摘要含声明动作和该版 `approval`（未批准为 `null`），无文件正文。第 8 节的首页主人批读沿同一 `queries` 分支。批准回执查询为 `{ by: "approval_request", operation: "adopt" \| "restore", request_id }`，与 `by: "request"` 的内容采用／撤销查询分开，可在同一批中并列。核可信本人和项目后返回 `{ kind: "receipt", receipt, current }` 或 `{ kind: "missing", current }`。`current` 是独立的 `{ selection, revision }`，读失败仍待核对。 |
 | `home.pages.drafts.save` | 直接新建传 `{ draft }`，追加版本传 `{ draft, page_id, expected_version, based_on? }`，输出 `{ version: HomePageVersion }`。采用分支沿第 8 节固定输入与回执，`body` 共用 `HomePageDraft`，回执同时给新草稿版本，供 `needs_approval` 使用。 |
 | `home.pages.preview`／`home.pages.files.read` | 均用 `HomePageRef`。试用返回 `{ page, page_session_id }`，文件读取返回 `{ version: HomePageVersion, files }`，`files` 带同版完整正文。 |
 | `home.pages.adopt`／`home.pages.restore` | `{ page_id, version, approved_actions, request_id, expected_revision }` → `HomePageApprovalReceipt`。批准动作须是该版声明且当前可批准的精确子集。恢复仍由本人再次确认，旧批准只供比较。 |
 | `home.select` | `{ kind: "basic", request_id, expected_revision }` → `{ selection, revision, approval: null }`。第 7 节退回基础首页按采用记录的 revision 比较，写回不重做业务动作。 |
-| `home.pages.diff` | `{ page_id, from_version, to_version }` → 两版的文件新增／修改／删除、入口和动作集合差异。文字对照复用 SDK `compareTexts`，结果用于本人查看。 |
+| `home.pages.diff` | `{ page_id, from_version, to_version }` → 同一组版本身份及 `{ files: [{ path, kind: "added" \| "modified" \| "deleted" }], entry: { before, after }, actions: { added, removed } }`。正文仍通过 `files.read` 取得，文字对照复用 SDK `compareTexts`。 |
 
 `HomePageApprovalReceipt` 为 `{ operation: "adopt" | "restore", request_id, selection, revision, approval }`。`selection` 是 `{ kind: "page", page_id, version }`，`revision` 是批准与选择同一提交写下的版本凭据。原回执由首页主人在该提交内保存。相同请求重放及按键回读均返回原回执，同键改变操作、页面版本或批准集合时拒绝。每次新的批准或页面切换提交推进选择 revision，切回同一版也有新 revision。
 

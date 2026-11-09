@@ -286,10 +286,19 @@ test("PFG-22 PFG-25 a tab moves to the right side and back, by counted requests;
   assert.equal(await evaluate(`document.querySelector('[data-side-tabs] [data-side-tab="${other}"]')?.hasAttribute('data-side-closed') ?? true`), true);
 });
 
-test("PFG-24 口径 8 ① Goals open in the other column is recalled there from the Dock, ＋ and a link: the focus moves, a toast says so, no second copy", { timeout: 150_000 }, async t => {
+test("PFG-24 07-AUDIT 口径 8 ① Goals open in the other column is recalled there from the switcher, the Dock, ＋ and a link: the focus moves, a toast says so, no second copy", { timeout: 150_000 }, async t => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { evaluate, waitFor, click, command, sessionId, navigate, origin, projectId } = browser;
+  // The recall routes below are counted apart: going to a view that is already open never loads the page (or its document) again.
+  const seen: Array<{ url: string; type: string }> = [];
+  const off = browser.on("Network.requestWillBeSent", params => {
+    const { request, type } = params as { request: { url: string }; type: string };
+    if (new URL(request.url).origin === origin) seen.push({ url: request.url, type });
+  });
+  t.after(off);
+  await command("Network.enable", {}, sessionId);
+  const since = () => { const start = seen.length; return () => seen.slice(start); };
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   const project = `${origin}/projects/${projectId}/`;
   await navigate(() => command("Page.navigate", { url: project }, sessionId));
@@ -319,10 +328,20 @@ test("PFG-24 口径 8 ① Goals open in the other column is recalled there from 
     assert.deepEqual(after, { goals: 1, second: { tabs: 0, view: null } }, `${route}: no second copy of Goals`);
   };
 
+  // The bar's switcher lists every plugin; choosing one that is open in the other column goes there, as the Dock does.
   await focusColumn(second!);
   await evaluate(WATCH_TOASTS);
-  await click(GOALS_ENTRY);
+  const viaSwitcher = since();
+  await click("[data-plugin-picker-popover] [data-plugin-id=goals]");
+  await recalled("the switcher");
+  assert.deepEqual(viaSwitcher().filter(entry => entry.type === "Document"), [], "recalling from the switcher loads no document");
+
+  await focusColumn(second!);
+  await evaluate("window.__toasts = []");
+  const viaDock = since();
+  await click("[data-dock-pin=goals]");
   await recalled("the Dock");
+  assert.deepEqual(viaDock().filter(entry => entry.type === "Document"), [], "recalling from the Dock loads no document");
 
   // Split, each column has its own strip and ＋ (the title bar's strip is the one column's only); the second column's.
   await focusColumn(second!);

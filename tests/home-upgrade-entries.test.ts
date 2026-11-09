@@ -16,7 +16,7 @@ import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.j
 import { assertSnapshotRefused, smallSnapshotHome, snapshotBusinessFingerprint } from "./fixtures/home-snapshot-small.js";
 import { storageOwnerProcesses } from "./fixtures/home-storage-owner.js";
 import {
-  ADD_TAG, catalogFile, catalogHome, catalogVersionOf, failingBaseline, homeIdentityOf, ledgerFile, notesDescriptor, onStore, present, raiseCatalogBaseline, raiseProjectBaseline, seedStore, sha256, stampFile, unitOf, upgradeTestHome, useDescriptors, V2, versionOf,
+  ADD_TAG, catalogFile, catalogHome, catalogVersionOf, failingBaseline, homeIdentityOf, ledgerFile, notesDescriptor, onStore, present, raiseCatalogBaseline, raiseProjectBaseline, REAL_CATALOG_VERSION, REAL_PROJECT_VERSION, seedStore, sha256, stampFile, unitOf, upgradeTestHome, useDescriptors, V2, versionOf,
 } from "./fixtures/home-upgrade-home.js";
 
 const CLOSED_PORT = "http://127.0.0.1:9";
@@ -51,7 +51,7 @@ test("UPG1-13: the CLI upgrades an older catalog in place, says so on one line o
   const output = captureLog(t), stderr = captureStderr(t);
   assert.equal(await runV1Cli(snapshotArgs(f.project.database_path, f.project.project_id), { homeDirectory: f.home, actionServiceUrl: CLOSED_PORT }), 0);
   assert.equal(JSON.parse(output.at(-1)!).board.project_id, f.project.project_id);
-  assert.equal(catalogVersionOf(f.catalog), 2);
+  assert.equal(catalogVersionOf(f.catalog), REAL_CATALOG_VERSION + 1);
   assert.equal(present(stampFile(f.home)), true);
   assert.equal(stderr.filter(line => line.includes("升级")).length, 1);
   assertLockFree(f.lock);
@@ -75,7 +75,7 @@ test("UPG1-13: a catalog newer than the program goes straight back through the C
     assert.equal(present(ledgerFile(f.home)), false);
   });
   await t.test("the baseline's number", async t => {
-    const f = await catalogHome(t, 3), before = sha256(f.catalog);
+    const f = await catalogHome(t, REAL_CATALOG_VERSION + 2), before = sha256(f.catalog);
     raiseCatalogBaseline(t);
     await withPeer(t, f.lock, () => assert.rejects(runV1Cli(snapshotArgs(f.project.database_path, f.project.project_id), { homeDirectory: f.home, actionServiceUrl: CLOSED_PORT }), { code: "storage.store_too_new" }));
     assert.equal(sha256(f.catalog), before);
@@ -113,11 +113,10 @@ test("UPG1-13: a project outside the Home with an older catalog still upgrades: 
   raiseCatalogBaseline(t);
   assert.equal(await runV1Cli(snapshotArgs(external, "external"), { homeDirectory: f.home, actionServiceUrl: CLOSED_PORT }), 0);
   assert.equal(JSON.parse(output.at(-1)!).board.project_id, "external");
-  assert.equal(catalogVersionOf(f.catalog), 2);
+  assert.equal(catalogVersionOf(f.catalog), REAL_CATALOG_VERSION + 1);
   assertLockFree(f.lock);
 });
 
-/** The project baseline has no `upgrades` of its own yet, so there is nothing for `t.mock.property` to replace. */
 test("UPG1-13: a project store outside this Home is not this Home's to upgrade: it is refused and left alone", async t => {
   const f = await catalogHome(t), external = join(f.outside, "project.db");
   captureLog(t);
@@ -126,8 +125,8 @@ test("UPG1-13: a project store outside this Home is not this Home's to upgrade: 
   const before = sha256(external);
   await assert.rejects(runV1Cli(snapshotArgs(external, "external"), { homeDirectory: f.home, actionServiceUrl: CLOSED_PORT }), { code: "storage.upgrade_pending" });
   assert.equal(sha256(external), before);
-  assert.equal(versionOf(external), 1);
-  assert.equal(versionOf(f.project.database_path), 1, "this command took no lock on the Home, so its own store waits for the next start");
+  assert.equal(versionOf(external), REAL_PROJECT_VERSION);
+  assert.equal(versionOf(f.project.database_path), REAL_PROJECT_VERSION, "this command took no lock on the Home, so its own store waits for the next start");
   assertLockFree(f.lock);
 });
 
@@ -141,10 +140,10 @@ test("UPG1-16: a project in the recycle bin is upgraded with the rest, and opens
   };
   await change("to-the-bin", true);
   raiseProjectBaseline(t);
-  assert.equal(versionOf(f.project.database_path), 1);
+  assert.equal(versionOf(f.project.database_path), REAL_PROJECT_VERSION);
   const report = runHomeUpgrade(f.home);
   assert.deepEqual(report.units.map(unit => [unit.relative_path, unit.state]), [[relative(f.home, f.project.database_path), "committed"]]);
-  assert.equal(versionOf(f.project.database_path), 2);
+  assert.equal(versionOf(f.project.database_path), REAL_PROJECT_VERSION + 1);
   await change("back-again", false);
   assert.equal(await runV1Cli(snapshotArgs(f.project.database_path, id), { homeDirectory: f.home, actionServiceUrl: CLOSED_PORT }), 0);
 });
@@ -156,7 +155,7 @@ test("UPG1-13: `demo` from cli-project-maintenance upgrades and finishes", async
   const options = { defaultSourceDirectory: () => f.outside, withCatalog: withMolisWorkProjectCatalog, runPlugin: () => Promise.reject(new Error("no plugin command here")) };
   assert.equal(await runLocalCli(["demo", "create", "--home", f.home, "--json"], options), 0);
   assert.equal(JSON.parse(output.at(-1)!).status, "ready");
-  assert.equal(catalogVersionOf(f.catalog), 2);
+  assert.equal(catalogVersionOf(f.catalog), REAL_CATALOG_VERSION + 1);
 });
 
 const mcpCall = (database_path: string, project_id: string) => ({ id: 1, method: "tools/call", params: { name: "molis_work_v1_initialize",
@@ -184,7 +183,7 @@ test("UPG1-13: the management MCP with nothing to start upgrades through its own
   raiseCatalogBaseline(t);
   const reply = await withMcp(f.home, mcp => mcp.handleMessage(mcpCall(f.project.database_path, f.project.project_id))) as { result: { isError?: boolean } };
   assert.notEqual(reply.result.isError, true, JSON.stringify(reply.result));
-  assert.equal(catalogVersionOf(f.catalog), 2);
+  assert.equal(catalogVersionOf(f.catalog), REAL_CATALOG_VERSION + 1);
   assert.equal(present(stampFile(f.home)), true);
 });
 
@@ -201,13 +200,13 @@ test("UPG1-13: the catalog entry upgrades before it opens, unless it was handed 
     const f = await catalogHome(t);
     raiseCatalogBaseline(t);
     assert.equal(await withMolisWorkProjectCatalog({ homeDirectory: f.home }, async catalog => catalog.listProjects().length), 1);
-    assert.equal(catalogVersionOf(f.catalog), 2);
+    assert.equal(catalogVersionOf(f.catalog), REAL_CATALOG_VERSION + 1);
   });
   await t.test("the open form", async t => {
     const f = await catalogHome(t);
     raiseCatalogBaseline(t);
     (await openMolisWorkProjectCatalog({ homeDirectory: f.home })).close();
-    assert.equal(catalogVersionOf(f.catalog), 2);
+    assert.equal(catalogVersionOf(f.catalog), REAL_CATALOG_VERSION + 1);
   });
   await t.test("a lock given: refused, not upgraded", async t => {
     const f = await catalogHome(t), before = sha256(f.catalog);
@@ -330,7 +329,7 @@ test("UPG1-15: signing in to an account whose Home is older opens it upgraded", 
     "x-molis-work-control-token": viewToken, "x-molis-work-idempotency-key": `upgrade-entry-${++sequence}` } });
   assert.equal((await post("/api/personal/login")).status, 200);
   assert.equal((await request(`/account/callback?code=synthetic&state=${transaction.state}`, { redirect: "manual" })).status, 303);
-  viewToken = (await (await request("/api/personal/status")).json() as { viewToken: string }).viewToken;
+  viewToken = readFileSync(join(directory, "config/web-control-token"), "utf8").trim();
   // Since #1932 signing in prepares the account's Home at once; whatever opens it, it is opened upgraded, before any business store.
   assert.equal(versionOf(notes), 2, "the account's Home was opened by signing in, so it is already upgraded");
   assert.equal(present(stampFile(directory)), true);

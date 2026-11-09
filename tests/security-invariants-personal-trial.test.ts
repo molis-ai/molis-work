@@ -50,7 +50,7 @@ test('ASR-02 PTR-01 S-124 authenticated personal cleanup refuses while complete 
  const json=async(path:string,body?:unknown)=>{const response=await request(path,body),value=await response.json();assert.ok(response.status<400,JSON.stringify({path,status:response.status,value}));return value;};
  try{
   await json('/api/personal/login',{});assert.equal((await request('/account/callback?code=synthetic&state='+state)).status,303);
-  token=(await json('/api/personal/status')).viewToken;
+  const current=(await json('/api/spaces')).current;token=readFileSync(join(home,'spaces',current.spaceId,'config/web-control-token'),'utf8').trim();
   const project=(await json('/api/settings/projects',{display_name:'唯一原件的个人项目',user_confirmed:true})).project,prefix='/projects/'+project.project_id;
   await json('/api/settings/projects/'+project.project_id+'/plugins',{plugin_id:'pages'});
   const markdown='唯一正文🌲\r\n'+('原件不可被清理\n'.repeat(1300));

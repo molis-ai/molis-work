@@ -36,7 +36,7 @@ export function renderHomePluginPage(entry: Pick<PluginRegistration, "project_pl
   const route = project ? `/projects/${encodeURIComponent(project.project_id)}` : "";
   return renderWorkbenchDocument({ lang: htmlLang(), title: `${entry.manifest.name} · Molis Work`,
     body_attributes: { class: "immersive-workbench home-plugin-page", "data-home-side": side ? "true" : null, "data-side-view": side ? id : null, "data-project-id": project?.project_id ?? null, "data-route-prefix": route, ...(locale.accountRegistration ? {inert:true,'data-account-registering':true}:{}) },
-    head_html: `<meta name="molis-work-control-token" content="${escapeHtml(controlToken)}">
+    head_html: `<meta name="molis-work-page-session" content="${escapeHtml(controlToken)}">
     <script>${THEME_BOOTSTRAP_SCRIPT}</script><link rel="stylesheet" href="/assets/molis-work-workbench.css"><style>
     .home-plugin-page{height:100dvh;display:flex;flex-direction:column;background:var(--desk);color:var(--ink)}
     .home-plugin-page>header{display:flex;align-items:center;gap:16px;padding:12px 24px;flex:none}.home-plugin-page>header>strong{flex:1}

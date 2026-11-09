@@ -1,9 +1,9 @@
+import { webPageScope } from "./web-sessions.js";
 import { createPersonalPageHttp } from './personal-page-http.js';
 import { AccountRefreshPages } from './account-refresh-pages.js';
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { randomUUID, randomBytes } from "node:crypto";
-import { createFileSecretStore } from "@molis-ai/molis-work-storage";
-import { personalCloudConfig, PersonalAuth, type PersonalAccountLease } from "./personal-auth.js";
+import { fileAccountSecrets, personalCloudConfig, PersonalAuth, type PersonalAccountLease } from "./personal-auth.js";
 import { sendLocalWebJson } from "./web-http.js";
 import { PersonalWebSessions, type AccountNavigation, type WebAccountSession, WEB_ACCOUNT_COOKIE } from './personal-web-sessions.js';
 
@@ -24,7 +24,7 @@ function loadPersonalAuth():{auth:PersonalAuth|null;error:string} {
   let config;
   try{config=personalCloudConfig();}
   catch{return {auth:null,error:'账号服务配置不完整，请检查配置。'};}
-  try{return {auth:config?new PersonalAuth(config,createFileSecretStore()):null,error:''};}
+  try{return {auth:config?new PersonalAuth(config,fileAccountSecrets()):null,error:''};}
   catch{return {auth:null,error:'客户端安全凭据存储不可用，请检查本机凭据存储权限。'};}
 }
 
@@ -75,7 +75,7 @@ function browserStatusFence(desktop:boolean,session:WebAccountSession|null,respo
 
 interface PersonalAccountEnvironment {
   ready(retry?:boolean):Promise<void>;
-  status():{ready:boolean;switching:boolean;error?:string;viewToken?:string};
+  status():{ready:boolean;switching:boolean;error?:string;viewScope?:string};
 }
 
 async function respondPersonalStatus({desktop,session,response,service,setupError,url,refreshPages,environment,nativeAttachment,navigation,setMode,controlToken}:{
@@ -113,7 +113,7 @@ async function respondPersonalStatus({desktop,session,response,service,setupErro
     configured:!!service,identity,syncEnabled:false,...(offline?{offline:true}:{}),
     accountGeneration:service?.accountGeneration(),loginPending:service?.loginPending()??false,
     preparation:lease?refreshPages.snapshot(lease):null,...status,
-    space:(nativeSession??session)?.space??'local',viewToken:status.viewToken??controlToken,
+    space:(nativeSession??session)?.space??'local',viewScope:status.viewScope??controlToken.split(".")[1]??webPageScope(controlToken),
     ...(browserSessionTicket?{browserSessionTicket}:{}),
     ...(completed?{loginCompleted:true,returnTo:navigation!.returnTo}:{}),
   });

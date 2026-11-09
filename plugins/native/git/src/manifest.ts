@@ -1,6 +1,6 @@
 import { GIT_ACTIONS } from "./action-definitions.js";
 import { HOST_REVIEW_SETTLED_EVENT, HOST_WORKSPACE_CHANGED_EVENT, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import { projectDirectoryActions } from "@molis-ai/molis-work-contracts/modules/projects";
 import {
   CODING_CHANGESET_TYPE,
   CODING_RUN_UPDATED_EVENT,
@@ -64,7 +64,7 @@ export const gitManifest: PluginManifest = {
   ],
   capabilities: {
     provides: [],
-    consumes: [projectSettingsCapabilities.browsingWorkspace.capability_id, workspaceReadActions.git.capability_id, prepareGitIndexCapability.capability_id, readGitResultsCapability.capability_id,
+    consumes: [projectDirectoryActions.get.capability_id, workspaceReadActions.git.capability_id, prepareGitIndexCapability.capability_id, readGitResultsCapability.capability_id,
       prepareGitOperationCapability.capability_id, readGitOperationsCapability.capability_id, "diff.state"],
   },
   actions: GIT_ACTIONS,

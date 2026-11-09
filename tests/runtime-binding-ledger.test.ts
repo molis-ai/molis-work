@@ -97,7 +97,8 @@ test("binding changes and deletion atomically preserve metadata, events, Ledger 
     bind(data.first.project_id);
     const deletion = await catalog.deleteProject({ project_id: data.first.project_id, actor_id: "changing-user",
       delete_confirmed: true, idempotency_key: "delete-success" });
-    assert.equal(deletion.deletion.deleted_binding_count, 1);
+    // The Session binding and the project's own default output membership (every project has one, SSC-20).
+    assert.equal(deletion.deletion.deleted_binding_count, 2);
     assert.equal(catalog.resolveRuntimeContext(context("second")).project?.project_id, data.second.project_id);
     assert.deepEqual(catalog.listRuntimeContextBindings(), data.bindings.filter((binding) => binding.stable_work_context_id === "second"));
     assert.equal(ledger.query.list(access, { type: "work.binding_project" }).length, 1);

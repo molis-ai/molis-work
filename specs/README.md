@@ -6,6 +6,8 @@
 
 ## 在做的
 
+- [daily-quality-d0038](daily-quality-d0038/spec.md)：用户已选择 D 方案，工作台改用可撤销会话，宿主控制凭据不进入页面；执行中。
+
 - [state-machine-platform](state-machine-platform/spec.md)：状态与状态机的平台能力——平台能力状态统一登记、插件声明状态与迁移、启动兑现、只读登记、统一家族显示、可选的插件自管流水账；内置先强制、第三方先提示、对外开放后的阶段二第三方也强制，创作台生成必须申报，公开家族照搬现有 21 类。2026-11-08 需求已整理、用户就十二项方向拍板，并确认按 §13 并入路线书 26-7／27-6／46-2／47-5、迁移进统一待办；尚未实现。
 
 - [daily-quality-d0002](daily-quality-d0002/spec.md)：工作资产恢复使用宿主身份，不从资产包继承团队共享授权；2026-11-08 获批，实施中。
@@ -41,7 +43,7 @@
 - [surface-composition](surface-composition/spec.md)：确定组合平台服务（路线书 15 ①）。新的 horizontal 包按调用方、位置和对象排出操作面描述（形态、字段、操作、分组），不调模型；宿主只装配；基础首页的三组怎样给。设计稿，没有实现；C3 写稿，合同缺口交 C 轨，首页一节请 D 轨共审。
 - [work-mainline](work-mainline/spec.md)：主线。事项是平台的轻量容器（可以只起名字，Goal、待办等可以变成事项），用户把手头的事项按自己的分组和顺序排好，从顶部切换器一下切到某件事，工作台状态、相关对象、助理范围与等你随之切换；插件对象的内容仍归插件。
 - [upgrade-continuity](upgrade-continuity/spec.md)：升级后持续可用。库的升级链从统一起点起算（先快照、再升级、失败回退、只影响主人），新程序先在副本上演练再替换，从 M1 起合同有过渡期、保存的引用自动接上，每个发布版本留金样 Home 回放；用户只感觉到功能升级。
-- [sqlite-driver-switch](sqlite-driver-switch/spec.md)：SQLite 第二步（路线书 05 ③）。项目库从 better-sqlite3 换到 node:sqlite，适配层保持语义，Alchemist 例外保留；Node 升到 24.15.x 并锁定（用户 2026-11-06 定）；设计稿，没有实现。
+- [sqlite-driver-switch](sqlite-driver-switch/spec.md)：SQLite 第二步（路线书 05 ③）。项目库从 better-sqlite3 换到 node:sqlite，适配层保持语义，Alchemist 例外保留；Node 升到 24.15.x 并锁定（用户 2026-11-06 定）；实现中（分支 `claude/05-sqlite-switch`，四片一个 PR），桌面打包那半等 F 轨。
 - [action-input-contracts](action-input-contracts/spec.md)：动作的版本字段与输入类型（路线书 05 ④）。N14 判断规则改用 `expected_updated_at`，过期的提交就地接住；N22 全部处理器一次迁到从 schema 推导的类型（用户 2026-11-06 定），约 30 片；设计稿，没有实现。
 - [draft-and-return](draft-and-return/spec.md)：草稿与返回（路线书 12 第三项）。平台共用的「回程」：从哪里进的设置、配好后回到哪里、回来后只接着做依赖新配置的那一步；插件页面用 `host.returns`，普通链接自动得到回到原处，第 13 批⑤是第一个消费者。2026-11-07 设计稿，没有实现；五项待用户拍板（含返回条定样）。
 - [font-and-skin-system](font-and-skin-system/spec.md)：字体、皮肤与语言系统；需求已整理，尚未实现。

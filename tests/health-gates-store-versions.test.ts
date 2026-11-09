@@ -340,6 +340,20 @@ test("VG-27 a row that points at a field of a JSON file goes up by the `upgrades
   assert.match(inspect("SETTINGS_VERSION", `export const write = () => ({ SETTINGS_VERSION: 2 });\n${WITH_STEP}`).join("\n"), /has no one constant SETTINGS_VERSION/);
 });
 
+test("UPG1-i-store-13: a number `X_SCHEMA_VERSION` goes up by the `X_UPGRADES` array beside it, as initial-versions.mjs reads the chain", () => {
+  const FILE = "apps/x/src/catalog-contract.ts", PLACE = "`x/catalog.db`", NAME = "X_SCHEMA_VERSION";
+  const table = (version: number) => lines("## 3. 各库版本表", "", "| 库 | 位置 | 版本 | 记在 | 定义处 |", "| --- | --- | --- | --- | --- |",
+    `| X | ${PLACE} | ${version} | \`catalog_meta.schema_version\` | \`${FILE}#${NAME}\` |`, "", "## 4. 真实 Home", "", REGISTERED);
+  const inspect = (source: string) => storeVersionProblems({
+    read: (file: string) => file === CHECKLIST ? table(2) : file === SPEC ? spec([`| ${PLACE} | 1 → 2 | 本 PR | \`${FILE}#${NAME}#1→2\` |`]) : file === FILE ? source : null,
+    readBase: (file: string) => file === CHECKLIST ? table(1) : null,
+  }) as string[];
+  assert.deepEqual(inspect("export const X_SCHEMA_VERSION = 2;\nexport const X_UPGRADES: readonly Step[] = [{ from: 1, run: step }];\n"), []);
+  assert.match(inspect("export const X_SCHEMA_VERSION = 2;\n").join("\n"), /X_SCHEMA_VERSION has no upgrades/);
+  assert.match(inspect("export const X_SCHEMA_VERSION = 2;\nexport const X_UPGRADES = [{ from: 2, run: step }];\n").join("\n"), /no upgrade step with `from: 1`/);
+  assert.match(inspect("export const X_SCHEMA_VERSION = 2;\nexport const OTHER_UPGRADES = [{ from: 1, run: step }];\n").join("\n"), /has no upgrades/, "only the array named after the version");
+});
+
 // ---- the readers on text --------------------------------------------------------------------------------------------------
 test("the readers return the versions and the rows", () => {
   assert.deepEqual([...checklistVersions(checklist(2))], [["`projects/<project_id>/molis-work.db`", 7], ["`pages/pages.db`", 2]]);

@@ -14,7 +14,7 @@ export function renderPluginDocumentShell(input: {
   const literal = (value: unknown) => JSON.stringify(value).replaceAll("<", "\\u003c");
   const pack = { id: input.id, plugin_id: input.plugin_id, bundle: input.bundle, assets: [], authorization: input.authorization };
   return '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
-    + '<meta name="molis-work-control-token" content="' + escapeHtml(input.control_token) + '"><title>' + escapeHtml(input.title) + '</title>'
+    + '<meta name="molis-work-page-session" content="' + escapeHtml(input.control_token) + '"><title>' + escapeHtml(input.title) + '</title>'
     + '<script>' + THEME_BOOTSTRAP_SCRIPT + '</script><link rel="stylesheet" href="/assets/molis-work-workbench.css">'
     + '<style>html,body{margin:0;width:100%;height:100%;overflow:hidden}[data-work-surface]{position:relative;display:block;width:100%;height:100%}.icon-sprite{position:absolute;width:0;height:0;overflow:hidden}</style></head><body' + (input.accountRegistration ? ACCOUNT_REGISTRATION_BODY : '') + '>'
     + renderIconSprite() + renderPluginFrameSurface(input.html, input.id, input.title, false, false, input.bundle)

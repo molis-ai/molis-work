@@ -2,7 +2,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDatabaseReader, PluginDatabaseTransaction, PluginSqlValue } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 /**
- * What Feed's store reads and writes through. Synchronous, like both sides of it: a better-sqlite3 handle (`fromBetterSqlite`) and the
+ * What Feed's store reads and writes through. Synchronous, like both sides of it: a project connection (`fromBetterSqlite`, named for the driver it once was) and the
  * project-database transaction a Runtime plugin is given. Every statement is passed with its parameters, so nothing here can keep a
  * prepared statement or a connection in a field; a Module built over a `FeedSql` holds the reference and does no I/O when it is made.
  */
@@ -14,7 +14,7 @@ export interface FeedSql {
   transaction<T>(operation: () => T): T;
 }
 
-/** The part of a better-sqlite3 handle the adapter needs, written out so the store does not import the driver. */
+/** The part of a project connection the adapter needs, written out so the store does not import the storage package. */
 export interface SqliteHandle {
   prepare(sql: string): {
     get(...params: unknown[]): unknown;

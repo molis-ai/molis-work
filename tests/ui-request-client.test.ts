@@ -20,12 +20,12 @@ const CALL_ID = "3f9a2c1d-8b47-4e0a-9c55-0d1f6a7b2e90";
 
 test('PERSAF-04 scoped reads and native transport share UiRequest without replacing global fetch',async()=>{
   const original=globalThis.fetch,seen:UiFetchInit[]=[];let browserCalls=0;
-  const request=createUiRequest({origin:ORIGIN,token:()=> 'page-owner',readHeaders:()=>({'x-molis-work-control-token':'page-owner'}),newKey:()=> 'one-key',translate:text=>text,
+  const request=createUiRequest({origin:ORIGIN,token:()=> 'page-owner',readHeaders:()=>({'x-molis-work-page-session':'page-owner'}),newKey:()=> 'one-key',translate:text=>text,
     fetch:async()=>{browserCalls++;return Response.json({browser:true});},
     intercept:(input,init)=>{if(new URL(input).pathname!=='/api/personal/status')return null;seen.push(init);return Promise.resolve(Response.json({native:true}));},
   });
   assert.deepEqual(await request('/api/personal/status'),{native:true});
-  assert.equal(seen[0]?.headers['x-molis-work-control-token'],'page-owner');
+  assert.equal(seen[0]?.headers['x-molis-work-page-session'],'page-owner');
   assert.deepEqual(await request('/api/projects'),{browser:true});assert.equal(browserCalls,1);
   await assert.rejects(request('https://other.invalid/api/personal/status'));
   assert.equal(seen.length,1,'foreign requests never reach the native bridge');
@@ -78,9 +78,9 @@ test("a write carries the token, a fresh one-time key and the JSON type; a given
   assert.equal(seen[0]!.init.body, JSON.stringify({ a: 1 }), "the body is always JSON");
   assert.equal(seen[3]!.init.body, undefined, "no body, none sent");
   for (const entry of seen) {
-    assert.deepEqual(Object.keys(headersOf(entry)).sort(), ["content-type", "x-molis-work-control-token", "x-molis-work-idempotency-key"]);
+    assert.deepEqual(Object.keys(headersOf(entry)).sort(), ["content-type", "x-molis-work-idempotency-key", "x-molis-work-page-session"]);
     assert.equal(headersOf(entry)["content-type"], "application/json");
-    assert.equal(headersOf(entry)["x-molis-work-control-token"], "page-token");
+    assert.equal(headersOf(entry)["x-molis-work-page-session"], "page-token");
     assert.equal(entry.init.cache, "no-store");
   }
   const keys = seen.map(entry => headersOf(entry)["x-molis-work-idempotency-key"]);
@@ -90,10 +90,10 @@ test("a write carries the token, a fresh one-time key and the JSON type; a given
 
 test("a caller's headers cannot replace or add the control headers, in any letter case, on a read or a write", async () => {
   const { seen, request } = harness();
-  const spoof = { "X-Molis-Work-Control-Token": "stolen", "x-molis-work-idempotency-key": "forged-key", "Content-Type": "text/plain", "x-molis-work-fragment": "plugin" };
+  const spoof = { "X-Molis-Work-Control-Token": "stolen", "X-Molis-Work-Page-Session": "stolen-proof", "x-molis-work-idempotency-key": "forged-key", "Content-Type": "text/plain", "x-molis-work-fragment": "plugin" };
   await request("/api/things", { body: {}, headers: spoof });
   await request("/api/things", { headers: spoof });
-  assert.equal(headersOf(seen[0]!)["x-molis-work-control-token"], "page-token");
+  assert.equal(headersOf(seen[0]!)["x-molis-work-page-session"], "page-token");
   assert.equal(headersOf(seen[0]!)["x-molis-work-idempotency-key"], "key-00000001");
   assert.equal(headersOf(seen[0]!)["content-type"], "application/json");
   assert.equal(headersOf(seen[0]!)["x-molis-work-fragment"], "plugin", "any other header passes");
@@ -104,8 +104,8 @@ test("headers() and token() are the same headers and token the helper sends", as
   const { request } = harness();
   const first = request.headers();
   const second = request.headers();
-  assert.deepEqual(Object.keys(first).sort(), ["content-type", "x-molis-work-control-token", "x-molis-work-idempotency-key"]);
-  assert.equal(first["x-molis-work-control-token"], "page-token");
+  assert.deepEqual(Object.keys(first).sort(), ["content-type", "x-molis-work-idempotency-key", "x-molis-work-page-session"]);
+  assert.equal(first["x-molis-work-page-session"], "page-token");
   assert.notEqual(first["x-molis-work-idempotency-key"], second["x-molis-work-idempotency-key"]);
   assert.equal(request.headers("fixed-key-1")["x-molis-work-idempotency-key"], "fixed-key-1");
   assert.equal(request.token(), "page-token");
@@ -461,7 +461,7 @@ test("each factory runs on its own after toString(), with nothing from the modul
   const makeView = vm.runInContext(`(${createUiFailureView.toString()})`, context) as typeof createUiFailureView;
   const seen: string[] = [];
   const request = makeRequest({
-    fetch: async (input, init) => { seen.push(`${init.method} ${input}`); assert.deepEqual(Object.keys(init.headers).sort(), ["content-type", "x-molis-work-control-token", "x-molis-work-fragment", "x-molis-work-idempotency-key"]); assert.equal(init.headers["x-molis-work-control-token"], "t"); return json(200, { ok: true }); },
+    fetch: async (input, init) => { seen.push(`${init.method} ${input}`); assert.deepEqual(Object.keys(init.headers).sort(), ["content-type", "x-molis-work-fragment", "x-molis-work-idempotency-key", "x-molis-work-page-session"]); assert.equal(init.headers["x-molis-work-page-session"], "t"); return json(200, { ok: true }); },
     origin: ORIGIN, token: () => "t", newKey: () => "k-0000001", translate: fill,
   });
   // The page's context has its own Object, so a parsed answer is compared by value.
@@ -491,7 +491,7 @@ function pageContext(extra: Record<string, unknown> = {}): PageContext {
     navigator: { clipboard: { writeText: async () => {} } },
     document: {
       documentElement: { dataset: {} },
-      querySelector: (selector: string) => selector === 'meta[name="molis-work-control-token"]' ? meta : null,
+      querySelector: (selector: string) => selector === 'meta[name="molis-work-page-session"]' ? meta : null,
       createElement: () => new FakeNode(),
       addEventListener: (_type: string, listener: (event: { target: unknown }) => void) => { clicks.push(listener); },
     },
@@ -510,12 +510,12 @@ test("the page program installs molisWorkRequest and molisWorkControlHeaders, re
   assert.equal(run(page, "molisWorkRequest.token()"), "meta-token");
   const first = run(page, "molisWorkControlHeaders()") as Record<string, string>;
   const second = run(page, "molisWorkControlHeaders()") as Record<string, string>;
-  assert.deepEqual({ ...first, "x-molis-work-idempotency-key": "" }, { "content-type": "application/json", "x-molis-work-control-token": "meta-token", "x-molis-work-idempotency-key": "" });
+  assert.deepEqual({ ...first, "x-molis-work-idempotency-key": "" }, { "content-type": "application/json", "x-molis-work-page-session": "meta-token", "x-molis-work-idempotency-key": "" });
   assert.notEqual(first["x-molis-work-idempotency-key"], second["x-molis-work-idempotency-key"], "a fresh key each time, as before");
   assert.equal(page.clicks.length, 1, "the copy handler is installed with the program");
   assert.equal(JSON.stringify(await run(page, `molisWorkRequest("/api/things", { body: { a: 1 } })`)), JSON.stringify({ echoed: true }));
   assert.equal(page.fetched[0]!.input, `${ORIGIN}/api/things`);
-  assert.equal(page.fetched[0]!.init.headers["x-molis-work-control-token"], "meta-token");
+  assert.equal(page.fetched[0]!.init.headers["x-molis-work-page-session"], "meta-token");
 });
 
 test("the page program runs once per page and leaves an existing molisWorkControlHeaders alone", () => {
@@ -558,7 +558,7 @@ test("SYS-15-L4 a closing request keeps its transport alive while retaining the 
   await request("/api/host/plugin-pages/current", {method:"DELETE",body:{closing:{reference:{capability_id:"pages.discard",version:1},input:{id:"blank",expected_version:1}}},keepalive:true});
   assert.equal(seen[0]!.init.keepalive, true);
   assert.equal(seen[0]!.init.method, "DELETE");
-  assert.equal(headersOf(seen[0]!)["x-molis-work-control-token"], "page-token");
+  assert.equal(headersOf(seen[0]!)["x-molis-work-page-session"], "page-token");
   assert.ok(headersOf(seen[0]!)["x-molis-work-idempotency-key"]);
 });
 
@@ -567,8 +567,8 @@ test("protected GET sends the page control token only to its own origin", async 
   const seen: {url: string; init: UiFetchInit}[] = [];
   const request = createUiRequest({ origin: ORIGIN, token: () => "page-control", newKey: () => "unused", translate: value => value,
     fetch: async (url, init) => { seen.push({url, init}); return Response.json({}); } });
-  await request("/api/account/session", { control: true, headers: { "x-molis-work-control-token": "injected" } });
-  assert.deepEqual(seen[0]!.init.headers, { "x-molis-work-control-token": "page-control" });
+  await request("/api/account/session", { control: true, headers: { "x-molis-work-page-session": "injected" } });
+  assert.deepEqual(seen[0]!.init.headers, { "x-molis-work-page-session": "page-control" });
   await assert.rejects(request("https://outside.invalid/api/account/session", {control: true}));
   assert.equal(seen.length, 1);
 });

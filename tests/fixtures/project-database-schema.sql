@@ -357,9 +357,18 @@ CREATE TABLE IF NOT EXISTS schedule_action_bindings (
 );
 
 
-  CREATE TABLE IF NOT EXISTS project_browsing_settings (
-    project_id TEXT PRIMARY KEY, workspace_id TEXT
-  );
+CREATE TABLE IF NOT EXISTS material_recent_uses (
+  caller_kind TEXT NOT NULL CHECK (caller_kind IN ('user', 'plugin')),
+  caller_id TEXT NOT NULL,
+  subject_kind TEXT NOT NULL,
+  subject_id TEXT NOT NULL,
+  ref_json TEXT NOT NULL,
+  sequence INTEGER NOT NULL,
+  used_at TEXT NOT NULL,
+  PRIMARY KEY (caller_kind, caller_id, subject_kind, subject_id)
+);
+CREATE INDEX IF NOT EXISTS material_recent_uses_caller_idx
+  ON material_recent_uses(caller_kind, caller_id, sequence);
 
 
     CREATE TABLE IF NOT EXISTS artifacts_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);

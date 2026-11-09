@@ -1,7 +1,7 @@
 import type { GoalsSqliteDatabase, GovernanceSqliteDatabase } from "./goals-modules.js";
 
 /**
- * A connection `better-sqlite3` gives (the project library's own), as Governance meets it, for a test that composes the module by hand
+ * A project connection (the project library's own), as Governance meets it, for a test that composes the module by hand
  * over a library it opened itself. The plugin has no such adapter: its own window (`PluginSqlite`) lends the platform's handle, whose
  * savepoint is a platform primitive, so nothing in the plugin runs a free-form `exec` (RAC-285).
  */

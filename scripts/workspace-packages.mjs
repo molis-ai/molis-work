@@ -284,8 +284,7 @@ export const WORKSPACE_PACKAGES = [
     maturity: "production",
     extraWorkspaceDependencies: ["@molis-ai/molis-work-plugin-sdk"],
     extraDependencies: {
-      "@adeptify/search-evidence-layer": "file:../../vendor/search-evidence-layer/adeptify-search-evidence-layer-0.4.1.tgz",
-      "better-sqlite3": "12.8.0"
+      "@adeptify/search-evidence-layer": "file:../../vendor/search-evidence-layer/adeptify-search-evidence-layer-0.4.1.tgz"
     }
   }),
   entry("packages/ui-host", "@molis-ai/molis-work-contracts/platform/ui", {

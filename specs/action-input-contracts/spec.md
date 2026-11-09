@@ -241,7 +241,7 @@ type RepeatTuple<T, N extends number, Acc extends unknown[] = []> =
 
 | 写法 | 例子 | 推成 |
 | --- | --- | --- |
-| `maxItems: 0` | `projects.workspaces.list` | `[]` |
+| `maxItems: 0` | `projects.settings.runtime.read` | `[]` |
 | `items` 是数组 | `agent.run.control`；`minItems` 短于 `items` 时，后面的元素可选 | `[a, b]`、`[a, b?]` |
 | `items` 是一个 schema，`minItems` 等于 `maxItems` | `projects.settings.runtime.select` | `[a]`。超过 8 个退回数组 |
 

@@ -32,15 +32,42 @@ export interface MaterialOrigin {
   source: "directory" | "import" | "object";
   /** For display. The platform finds the owner through the action catalog and does not authorize by this. */
   owner: { kind: "plugin" | "system"; id: string; title: string };
-  /** Present when `source` is `directory` and `state` is not `unmapped`. */
+  /**
+   * With source "directory": always for ok, changed, truncated and unreadable; for missing and forbidden only when the platform could tell
+   * which directory; never for unmapped.
+   */
   directory?: { workspace_id: string; display_name: string; roles: DirectoryRole[] };
   /** `unmapped`: the id is not a directory of this project, and no folder has been named for it. Only with `source: "directory"`, and then without `directory`. */
   state: "ok" | "changed" | "missing" | "forbidden" | "truncated" | "unreadable" | "unmapped";
   note?: string;
 }
 
-/** One line of "recently used": the stored reference and its origin as read just now (§2.1). */
-export interface RecentMaterial { ref: MaterialRef; origin: MaterialOrigin }
+/**
+ * One line of "recently used": the stored reference and its origin as read just now (§2.1). `origin` is null only to the person, when
+ * no one owner can be found for it now (its plugin was uninstalled, or more than one declares its kind); a plugin is not given the line.
+ */
+export interface RecentMaterial { ref: MaterialRef; origin: MaterialOrigin | null }
+
+/**
+ * One item `materials.origins@1` reads: a full reference, or only its subject when no revision was kept (an old Goal input with no
+ * fingerprint). A subject alone is only looked for, never compared, and always says `unchecked`.
+ */
+export type MaterialOriginQuery = { ref: MaterialRef } | { subject: ActionSubject };
+/**
+ * The origin of one item, in the order asked. Null to a plugin for what it cannot read, what is gone, or what has no one owner now: it
+ * is not told which. Null to the person only for what has no one owner now (its plugin was uninstalled, or more than one declares its kind).
+ */
+export interface MaterialOriginAnswer { origin: MaterialOrigin | null }
+/** How many items one `materials.origins@1` call reads. */
+export const MATERIAL_ORIGINS_MAX = 20;
+/** How many `current` references one read compares by content; the rest are only looked for. */
+export const MATERIAL_ORIGINS_COMPARE = 5;
+/** The notes the platform writes into an origin (Chinese source text, translated where shown). */
+export const MATERIAL_ORIGIN_NOTES = {
+  unchecked: "内容没有核对",
+  former_default_output: "这个项目原来的默认输出目录",
+  other_default_output: "另一台设备的默认输出目录",
+} as const;
 
 export const MATERIAL_REF_LIMITS = {
   subject_kind: 200,
@@ -63,8 +90,9 @@ const version = closed({ artifact_id: text(MATERIAL_REF_LIMITS.artifact_id), ver
 const roles = ["input", "output"] satisfies DirectoryRole[];
 
 /** The JSON shape only. A workspace file id's path also has to stay inside its folder, and its `read_revision` has to be the sha256 of its bytes or `size:<bytes>`, so an owner runs `assertMaterialRef` on what it accepts. */
+const subject = closed({ kind: text(MATERIAL_REF_LIMITS.subject_kind), id: text(MATERIAL_REF_LIMITS.subject_id) });
 export const MATERIAL_REF_SCHEMA: ActionSchema = closed({
-  subject: closed({ kind: text(MATERIAL_REF_LIMITS.subject_kind), id: text(MATERIAL_REF_LIMITS.subject_id) }),
+  subject,
   pin: { oneOf: [
     closed({ mode: { const: "current" }, read_revision: text(MATERIAL_REF_LIMITS.revision) }),
     closed({ mode: { const: "fixed" }, version }),
@@ -86,7 +114,11 @@ export const MATERIAL_ORIGIN_SCHEMA: ActionSchema = {
   then: { properties: { source: { const: "directory" } }, not: { required: ["directory"] } },
   else: {
     if: { properties: { source: { const: "directory" } } },
-    then: { required: ["directory"] },
+    // A folder this project no longer has, or one the caller may not read, can leave its name and roles out.
+    then: { if: { properties: { state: { enum: ["missing", "forbidden"] } } }, then: true, else: { required: ["directory"] } },
     else: { not: { required: ["directory"] } },
   },
 };
+
+export const MATERIAL_ORIGIN_QUERY_SCHEMA: ActionSchema = { oneOf: [closed({ ref: MATERIAL_REF_SCHEMA }), closed({ subject })] };
+export const MATERIAL_ORIGIN_ANSWER_SCHEMA: ActionSchema = closed({ origin: { anyOf: [MATERIAL_ORIGIN_SCHEMA, { type: "null" }] } });

@@ -40,14 +40,14 @@ export function createFilesPlugin(): PluginDefinition {
           // Files keeps no timer or watcher that could call it once this
           // activation has stopped (BL-411).
           delivery.beforeEffect();
-          await folder.confirm(async () => delivery.beforeEffect());
+          await folder.confirm(async () => delivery.beforeEffect(), folder.last);
           delivery.beforeEffect();
           context.services?.ui.invalidate();
         },
       };
     },
     async health(): Promise<{ ok: boolean; message: string }> {
-      return { ok: true, message: "插件已启动；浏览目录按项目设置读取" };
+      return { ok: true, message: "插件已启动；目录按项目设置的输入与输出读取" };
     },
   };
 }

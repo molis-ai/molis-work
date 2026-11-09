@@ -28,6 +28,7 @@ export const GIT_STYLES = `
 .git-sc-form .mw-btn { justify-self:start; }
 .git-sc-note { margin:0; color:var(--muted); font-size:12px; overflow-wrap:anywhere; }
 .git-sc-note:empty { display:none; }
+.git-set-output { margin-inline-start:6px; vertical-align:baseline; }
 .git-sc-log { display:grid; gap:4px; margin:0; padding:0; list-style:none; font-size:12px; color:var(--muted); }
 .git-sc-log li { overflow-wrap:anywhere; }
 .git-sc-conflicts { display:grid; gap:8px; padding:8px 0; border-top:1px solid var(--line); }

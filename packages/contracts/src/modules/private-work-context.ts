@@ -28,8 +28,8 @@ export interface RuntimeWorkspaceContext {
   realpath_verified: boolean;
 }
 
+/** A runtime's folder as checked: its path resolved where it can be. It names no folder row; `ProjectsQueryApi.workspaceIdAt` finds one by the path. */
 export interface NormalizedRuntimeWorkspaceContext extends RuntimeWorkspaceContext {
-  workspace_id: string;
   display_name: string;
 }
 

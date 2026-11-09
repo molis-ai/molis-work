@@ -1,7 +1,6 @@
 import { ActionError, type ActionExecutionContext, type ActionHandlerBinding, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginHostServices } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
-import { projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import { projectDirectoryActions } from "@molis-ai/molis-work-contracts/modules/projects";
 import { createScheduleActionHandlers } from "./actions.js";
 import { createScheduleActionPorts } from "./service.js";
 import { createReminderActionHandlers } from "./reminder-actions.js";
@@ -37,11 +36,12 @@ export async function scheduleRuntimeActions(projectId: string, services: Plugin
     reminders: createScheduleReminderManagement({ db, projectId, schedule, currentInstallation: owners.reminder }),
     operations: createScheduledOperationManagement({ db, projectId, schedule, currentInstallation: owners.operation }),
     readiness: async () => {
-      const workspace = await services.actions!.invokeQuery<[], ProjectWorkspaceRef | null>(projectsCapabilities.readWorkspace, []).catch(error => {
-        // A project without workspace services is not ready. Refused or failed reads remain errors.
+      // A round runs in the project's output (SSC-17). A project without directory services is not ready; refused or failed reads remain errors.
+      const directories = await services.actions!.invoke(projectDirectoryActions.get, {}).catch(error => {
         if (error instanceof ActionError && error.code === "actions.dependency_missing") return null;
         throw error;
       });
+      const workspace = directories?.directories.find(item => item.roles.includes("output")) ?? null;
       return { model: services.model?.availability().available === true, workspace: workspace?.realpath_verified === true };
     },
     archived: taskId => grants.archived(taskId),

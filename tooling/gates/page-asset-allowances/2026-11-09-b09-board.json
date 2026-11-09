@@ -1,0 +1,7 @@
+{
+  "reason": "第 09 批组件板「详情贴顶」（CPK-01）要设置外壳给出可视高度 --settings-view-h：工作台客户端加一段 ResizeObserver 小脚本，源码 apps/workbench/src/browser/settings-view-height.ts，按包构建打包。不新增资源；锚定菜单脚本只在组件板页加载，不进工作台资产。额度只覆盖本次实测净增。",
+  "review": "b09/board 子分支，待统筹在第 09 批 PR 的资源评审里核对；定样依据 docs/design/capability-pack/README.md「组件板新增」第 8 项。",
+  "assets": {
+    "/assets/molis-work-workbench.js": 433
+  }
+}

@@ -100,6 +100,16 @@ export const CAPABILITY_PACK_BOARD_STYLES = `
   .mw-usage__text > strong { color: var(--ink); font-weight: var(--weight-control, 500); }
   .mw-usage__scope { margin: 0; max-width: 640px; color: var(--muted); font-size: 12px; line-height: 1.55; }
 
+  /* 8 · List and detail with the detail kept in view, only where a page asks (data-sticky-detail): it stays at the top of the
+     scrolling area and scrolls itself when taller; at its end the scroll goes on to the page (no overscroll containment). The
+     area's height comes from the settings shell (--settings-view-h); outside it, the window's. One side at a time, it is in flow. */
+  .mw-list-detail[data-sticky-detail] .mw-list-detail__detail { position: sticky; top: 16px; max-height: calc(var(--settings-view-h, 100dvh) - 32px); overflow-y: auto; }
+  @container mw-list-detail (max-width: 640px) { .mw-list-detail[data-sticky-detail] .mw-list-detail__detail { position: static; max-height: none; overflow: visible; } }
+  /* A titled group inside a detail (an entry's usage, a pack's roles), quiet heading over its body. */
+  .mw-list-detail__group { display: grid; gap: 8px; min-width: 0; }
+  .mw-list-detail__group > .mw-items { width: 100%; }
+  .mw-list-detail__group > h4 { margin: 0; color: var(--muted); font-size: 12px; font-weight: var(--weight-control, 500); }
+
   @media (prefers-reduced-motion: reduce) { :is(.mw-item-group__head, .mw-cell) { transition: none; } }
 
   .mw-catalog :is([data-primitive="now-block"], [data-primitive="item-group"], [data-primitive="cell-grid"], [data-primitive="detail-trail"], [data-primitive="icon-counts"], [data-primitive="state-rows"], [data-primitive="usage-figure"]) .mw-catalog__specimens { grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); align-items: start; }
@@ -303,6 +313,62 @@ export function usageSection(say: Say): string {
     ${specimen(say("近期次数：数字、最近一次、范围"), renderUsage({ figure: 12, head: say("近期 {n} 次", { n: 12 }), last: say("最近一次 昨天 17:40 · 助理"), scope: say("每个提示词只留最近 200 次记录，这里不是总数。") }))}
     ${specimen(say("只有最近一次：不出数字"), renderUsage({ head: say("只有最近一次"), last: say("最近一次 3 天前 · Coding"), scope: say("工具只记最近一次是什么时候。") }))}
     ${specimen(say("还没有使用记录"), renderUsage({ head: say("还没有使用记录") }))}
+  </div>`);
+}
+
+/* 8 · The composed specimen: the pack list beside one pack; an entry opens in place under the third-level trail. */
+function detailOf(key: string, title: string, body: string, inner: string, shown: boolean, back: string): string {
+  return `<section class="mw-list-detail__detail" data-list-panel="${key}" aria-labelledby="${key}-title"${shown ? "" : " hidden"}>${back}<header><h3 id="${key}-title" tabindex="-1">${
+    escapeHtml(title)}</h3><p>${escapeHtml(body)}</p></header>${inner}</section>`;
+}
+
+const sec = (title: string, body: string) => `<section class="mw-list-detail__group"><h4>${escapeHtml(title)}</h4>${body}</section>`;
+
+export function stickyDetailSection(say: Say): string {
+  const id = "sticky";
+  const back = renderButton({ label: say("全部能力包"), variant: "ghost", size: "sm", icon: "chevron-left", className: "mw-list-detail__back", attrs: { "data-list-back": "" } });
+  const open = (item: string) => ({ "data-list-open": `${id}-${item}` });
+  const roles = `<ul class="mw-item-groups">${renderItemGroup({ glyph: "user", name: say("写作编辑"), description: say("改稿、压缩篇幅、统一语气"), where: say("生效：助理、Pages"), end: inUse(say("在用")), label: say("它的提示词"),
+    attrs: open("editor"), children: [renderPickRow({ glyph: "text", name: say("写作编辑的说明"), sub: say("写作工具 · 默认第 2 版"), end: inUse(say("默认")), attrs: open("brief") })], empty: say("没有自己的提示词") })}</ul>`;
+  const skills = `<ul class="mw-items">${["写周度复盘", "会议纪要", "排日程"].map((name, index) => renderPickRow({ glyph: "book", name: say(name), sub: say("写作工具 · 2.0"),
+    end: index === 2 ? hold(say("暂时用不了")) : renderStatusMark({ label: say("自动"), tone: "idle", state: "ready" }), attrs: open(index === 2 ? "schedule" : `skill-${index}`) })).join("")}</ul>`;
+  const toolCells = renderCells([{ name: say("读文件"), code: "read_file", tag: renderBadge({ label: say("只读"), tone: "neutral" }), attrs: open("read") },
+    { name: say("写文件"), code: "write_file", tag: renderBadge({ label: say("会写"), tone: "warning" }), attrs: open("write") },
+    { name: say("搜索网页"), code: "web_search", tag: renderBadge({ label: say("只读"), tone: "neutral" }), attrs: open("search") }]);
+  const writing = renderNowBlock({ status: statusLine(hold(say("1 项要处理")), say("排日程：暂时用不了")), actions: renderButton({ label: say("在插件设置里管理"), variant: "ghost", size: "sm", icon: "arrow" }), menu: exportMenu(say, `${id}-export`) });
+  const packBody = `${writing}${sec(say("角色和它的提示词"), roles)}${sec(say("技能"), skills)}${sec(say("工具"), toolCells)}${sec(say("上次升级"), `<p class="mw-list-detail__used">${escapeHtml(say("1.4 → 2.0：新增「排日程」"))}</p>`)}`;
+  const trail = (name: string, middle?: string) => renderDetailTrail({ up: say("回到「{p}」", { p: say("写作工具") }), path: [say("写作工具"), ...(middle ? [say(middle)] : []), say(name)], label: say("所在位置") });
+  const item = (key: string, name: string, about: string, inner: string, middle?: string) =>
+    detailOf(`${id}-${key}`, say(name), say(about), inner, false, trail(name, middle)).replace(`data-list-panel="${id}-${key}"`, `data-list-panel="${id}-${key}" data-list-item`);
+  const usage = renderUsage({ figure: 12, head: say("近期 {n} 次", { n: 12 }), last: say("最近一次 昨天 17:40 · 助理"), scope: say("每个提示词只留最近 200 次记录，这里不是总数。") });
+  const items = [
+    item("brief", "写作编辑的说明", "写作编辑每次改稿前先读的要求", `${renderNowBlock({ status: statusLine(inUse(say("默认")), say("用的是默认版第 2 版。")), note: say("这里不显示正文。改写、对比和恢复默认都在「提示词」里，从下一轮生效。"), actions: go(say, "在提示词里改") })}${sec(say("用量"), usage)}`, "写作编辑"),
+    item("editor", "写作编辑", "改稿、压缩篇幅、统一语气", `${renderNowBlock({ status: statusLine(inUse(say("在用")), say("在这些地方生效")), actions: go(say, "去角色") })}${sec(say("用量"), usage)}`),
+    item("schedule", "排日程", "按大家的空闲时间提出会议时间", `${renderNowBlock({ status: statusLine(hold(say("暂时用不了")), say("还没有连接所需服务。")), actions: go(say, "管理连接") })}`),
+    ...["read", "write", "search"].map((tool) => item(tool, ({ read: "读文件", write: "写文件", search: "搜索网页" } as Record<string, string>)[tool]!, "Molis Work 自带的工具",
+      `${renderNowBlock({ status: statusLine(renderBadge({ label: say(tool === "write" ? "会写" : "只读"), tone: tool === "write" ? "warning" : "neutral" }), say("工具不能在这里开关。谁能用它，由角色的工具名单和动作授权决定。")) })}${sec(say("用量"), renderUsage({ head: say("只有最近一次"), last: say("最近一次 3 天前 · Coding"), scope: say("工具只记最近一次是什么时候。") }))}`)),
+    ...[0, 1].map((index) => item(`skill-${index}`, ["写周度复盘", "会议纪要"][index]!, "写作工具里的技能", sec(say("用量"), usage))),
+  ].join("");
+  // The list is longer than the frame, so scrolling it shows the detail staying in view.
+  const more: ReadonlyArray<readonly [string, string, string, Parameters<typeof packCounts>[1], "on" | "off"]> = [
+    ["coding", "Coding", "开发时用的角色、MCP 和工具", { role: 2, prompt: 2, skill: 0, mcp: 1, tool: 6 }, "on"],
+    ["feed", "Feed", "消息摘要与分类", { role: 0, prompt: 2, skill: 0, mcp: 0, tool: 1 }, "on"],
+    ["builtin", "Molis Work 自带", "个人助理、全部 Agent 工具和对外的 MCP", { role: 1, prompt: 1, skill: 1, mcp: 1, tool: 12 }, "on"],
+    ["roles", "你的角色", "你自己写的角色", { role: 2, prompt: 0, skill: 0, mcp: 0, tool: 4 }, "on"],
+    ["goals", "Goals", "规划与拆分目标", { role: 1, prompt: 3, skill: 0, mcp: 0, tool: 2 }, "on"],
+    ["legal", "法务审阅", "审合同、比对版本", { role: 1, prompt: 1, skill: 2, mcp: 0, tool: 1 }, "off"],
+    ["local", "本机导入 · Claude Code", "从本机 Agent 导进来的技能", { role: 0, prompt: 0, skill: 4, mcp: 0, tool: 0 }, "on"],
+  ];
+  const offMark = () => renderStatusMark({ label: say("已停用"), tone: "quiet", state: "paused" });
+  const others = more.map(([key, name, about, , state]) => detailOf(`${id}-${key}`, say(name), say(about), renderNowBlock({ status: state === "off"
+    ? statusLine(offMark(), say("插件停用了：包里的技能、角色和提示词都不会被用到。启用后照原来的设置。")) : statusLine(inUse(say("在用")), say("包里的东西都能用。")),
+    actions: state === "off" ? renderButton({ label: say("启用插件"), variant: "primary", size: "sm" }) : "" }), false, back)).join("");
+  const list = `<ul class="mw-items">${packRow(say, "写作工具", { role: 1, prompt: 1, skill: 3, mcp: 0, tool: 3 }, hold(say("1 项要处理")), true, { "data-list-pick": `${id}-writing` })}${
+    more.map(([key, name, , counts, state]) => packRow(say, name, counts, state === "off" ? offMark() : inUse(say("在用")), false, { "data-list-pick": `${id}-${key}` })).join("")}</ul>`;
+  const split = `<div class="mw-list-detail" data-list-detail data-sticky-detail><div class="mw-list-detail__body"><div class="mw-list-detail__list" role="region" aria-label="${escapeHtml(say("能力包列表"))}">${list}</div>${
+    detailOf(`${id}-writing`, say("写作工具"), say("写稿、改稿、排日程要用的都在一起"), packBody, true, back)}${others}${items}</div></div>`;
+  return section("sticky-detail", say("详情贴顶 / Sticky Detail"), `<div class="mw-catalog__specimens">
+    ${specimen(say("需要时才打开：详情贴在滚动区顶上，比它高时自己滚；点一条在原处打开，「回到」回到包"), `<div data-sticky-frame style="--settings-view-h: 400px"><p>${escapeHtml(say("这一框模拟设置页的滚动区：外壳给出 --settings-view-h。"))}</p>${split}</div>`)}
   </div>`);
 }
 

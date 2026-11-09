@@ -217,7 +217,7 @@ test("UPG2-03 a Golden HTTP write failure reports its owner and fixed transport 
   assert.equal(replay.status, 1);
   assert.match(replay.stdout.trim(), /^FAIL \S+ write root\/write\/context-onboarding golden\.http_request_socket_closed$/u);
   assert.doesNotMatch(replay.output, /golden-(?:cause-message|response-body|address|fetch-message)-sentinel/u);
-}, { timeout: 600_000 });
+});
 
 test("UPG2-03 the Golden HTTP client keeps a failed request, body, or decode distinct", async t => {
   const { openGoldenHost } = await import("../scripts/golden/session.mjs");
@@ -230,12 +230,14 @@ test("UPG2-03 the Golden HTTP client keeps a failed request, body, or decode dis
     const cause = Object.assign(new Error("golden-body-cause-sentinel"), { code: "ECONNRESET" });
     const bodyFailure = new TypeError("golden-body-error-sentinel", { cause });
     const unknown = new TypeError("golden-unknown-message-sentinel", { cause: { code: "golden-unknown-cause-sentinel" } });
+    const refused = new TypeError("golden-network-message-sentinel", { cause: { code: "golden.network_refused", where: "golden-network-host-sentinel" } });
     const cases = [
       { outcome: () => new Response(new ReadableStream({ start(controller) { controller.error(bodyFailure); } })),
         code: "golden.http_body_connection_reset", where: "http/body", original: bodyFailure },
       { outcome: () => new Response("golden-json-body-sentinel", { headers: { "content-type": "application/json" } }),
         code: "golden.http_json_invalid", where: "http/decode" },
       { outcome: () => { throw unknown; }, code: "golden.http_request_failed", where: "http/request", original: unknown },
+      { outcome: () => { throw refused; }, code: "golden.network_refused", where: "http/request", original: refused },
       { outcome: () => new Response("golden-400-body-sentinel", { status: 400 }), code: "golden.http_400", where: route },
     ];
     for (const { outcome, code, where, original } of cases) {

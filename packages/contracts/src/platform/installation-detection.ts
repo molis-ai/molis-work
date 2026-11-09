@@ -1,16 +1,12 @@
+import { externalTool, externalToolIdsWith } from "./external-tools.js";
+
 /** Read-only Local Host installation facts consumed by UI and entry adapters. */
-export const SUPPORTED_RUNTIME_IDS = ["codex", "claude-code", "opencode", "pi-agent", "grok-build"] as const;
+export const SUPPORTED_RUNTIME_IDS = externalToolIdsWith("mcp_integration");
 
 export type SupportedRuntimeId = (typeof SUPPORTED_RUNTIME_IDS)[number];
 
-/** What each supported Runtime is called wherever a person reads its name. One table, so a new Runtime id cannot be added without a name. */
-export const RUNTIME_DISPLAY_NAMES: Readonly<Record<SupportedRuntimeId, string>> = {
-  codex: "Codex",
-  "claude-code": "Claude Code",
-  opencode: "OpenCode",
-  "pi-agent": "Pi Agent",
-  "grok-build": "Grok Build",
-};
+/** What each supported Runtime is called wherever a person reads its name, read from the register. */
+export const RUNTIME_DISPLAY_NAMES = Object.fromEntries(SUPPORTED_RUNTIME_IDS.map(id => [id, externalTool(id).display_name])) as Readonly<Record<SupportedRuntimeId, string>>;
 
 export type RuntimeConnectionState =
   | "not_detected"

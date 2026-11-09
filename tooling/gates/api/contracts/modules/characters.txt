@@ -28,7 +28,7 @@ export declare const CHARACTER_IMPORT_LIMITS: {
     readonly totalBytes: number;
 };
 
-export declare const CHARACTER_IMPORT_RUNTIMES: readonly ["codex", "claude-code", "cursor", "opencode", "grok-build"];
+export declare const CHARACTER_IMPORT_RUNTIMES: readonly ("cursor" | "codex" | "claude-code" | "opencode" | "grok-build")[];
 
 export declare const CHARACTER_PLUGIN_ID = "io.molis.work.characters";
 

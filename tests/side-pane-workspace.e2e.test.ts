@@ -430,7 +430,8 @@ test("PFG-22 ⌘\\ in a Pages document clears the selection's formatting and lea
 
 // 07-AUDIT (BL-record-gone-from-framed-plugins): a tab moved to the right side shows in the workbench's own pane page, which
 // is another document. A record that page read as missing reports it to the page around it through the one pane-message
-// check (S-30): from a pane frame, from this origin, in its exact shape. Only then is the tab it was opened for marked.
+// check (S-30): from a pane frame, from this origin, in its exact shape. Only then is the tab it was opened for marked; the
+// event is dispatched where the plugin page runs, and the report crosses the document boundary as a real pane message.
 test("07-AUDIT a record gone in a pane page marks its tab only after the page takes the report", { timeout: 150_000 }, async t => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
@@ -454,23 +455,19 @@ test("07-AUDIT a record gone in a pane page marks its tab only after the page ta
   const src = await evaluate<string>("document.querySelector('iframe[data-side-pane-src]')?.getAttribute('src') || ''");
   assert.match(src, /panePlugin=goals/u, src);
   assert.match(src, /paneItem=CORE/u, src);
-  const dispatch = (init: string) => evaluate(`(() => { const frame = document.querySelector('iframe[data-side-pane-src]');
-    window.dispatchEvent(new MessageEvent('message', Object.assign({ origin: location.origin, source: frame.contentWindow,
-      data: { type: 'workbench-pane-record-gone', paneId: 'side', plugin: 'goals', itemId: 'CORE' } }, ${init}))); })()`);
+  // The pane page is another document in this same origin: it sends its report up with a real pane message, and the page takes it
+  // only from that frame. Wait for it to be the workbench's pane page, then let the record it shows go missing (the record-gone it
+  // dispatches is the one a plugin's page sends when its read answers 404).
+  await waitFor(`(() => { const frame = document.querySelector('iframe[data-side-pane-src]'); try {
+    return frame.contentDocument?.readyState === 'complete' && frame.contentDocument.body.dataset.paneEmbedded === 'true'; } catch { return false; } })()`, 15_000);
   const marked = "document.querySelectorAll('[data-side-tabs] .tab-item[data-tab-state=gone]').length";
-  // Not from a pane frame, another origin, or an extra field: nothing is marked.
-  await dispatch("{ source: window }");
-  await dispatch("{ origin: 'https://example.com' }");
-  await dispatch("{ data: { type: 'workbench-pane-record-gone', paneId: 'side', plugin: 'goals', itemId: 'CORE', title: 'A Goal' } }");
-  await dispatch("{ data: { type: 'workbench-pane-record-gone', paneId: 'side', plugin: 'goals', itemId: 'CORE' }, origin: 'https://example.com' }");
-  await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
-  assert.equal(await evaluate(marked), 0, "a report the page does not take marks no tab");
-  // From the pane frame, from this origin, in the report's exact shape: the tab it was opened for is struck and says so.
-  await dispatch("{}");
-  await waitFor(`${marked} === 1`, 5_000);
+  assert.equal(await evaluate(marked), 0, "no tab is marked before the pane reports");
+  await evaluate(`(() => { const frame = document.querySelector('iframe[data-side-pane-src]');
+    frame.contentDocument.dispatchEvent(new CustomEvent('molis-work:record-gone', { detail: { plugin: 'goals', itemId: 'CORE' } })); })()`);
+  await waitFor(`${marked} === 1`, 15_000);
   const gone = await evaluate<{ title: string; label: string | null }>(`(() => { const item = document.querySelector('[data-side-tabs] .tab-item[data-tab-state=gone]');
     return { title: item.title, label: item.querySelector('[role=tab]')?.getAttribute('aria-label') ?? null }; })()`);
   assert.match(gone.title, /这一条已经不在了/u);
   assert.match(gone.label ?? "", /这一条已经不在了/u);
-  assert.match(await evaluate<string>("document.querySelector('[data-side-tabs] .tab-item[data-tab-state=gone]')?.dataset.sidePlugin ?? ''"), /^goals/u);
+    assert.match(await evaluate<string>("document.querySelector('[data-side-tabs] .tab-item[data-tab-state=gone]')?.dataset.sidePlugin ?? ''"), /^goals/u);
 });

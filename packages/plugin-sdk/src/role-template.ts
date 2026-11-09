@@ -1,4 +1,4 @@
-import { ROLE_TEMPLATE_SCHEMA, parseCharacterTools } from "@molis-ai/molis-work-contracts/modules/characters";
+import { ROLE_TEMPLATE_SCHEMA, parseCharacterTools, type CharacterTemplateAdoptionInput } from "@molis-ai/molis-work-contracts/modules/characters";
 import { parseExactActionReferences } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginErrors, type PluginDeclarationProblem } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { TEXT_REF_LIMITS } from "@molis-ai/molis-work-contracts/platform/ui";
@@ -31,6 +31,16 @@ export function inspectRoleTemplate(value: unknown, options: RoleTemplateInspect
   problems.push(...inspectTools(host_tools, "$.host_tools", parseCharacterTools));
   problems.push(...inspectActionTools(action_tools));
   return [...problems, ...inspectSkills(skills), ...inspectCollaborators(works_with)];
+}
+
+/** Check a creation after action input validation and localization. The owner still verifies the confirmed choice and scope. */
+export function inspectCharacterTemplateAdoption(input: CharacterTemplateAdoptionInput): readonly PluginDeclarationProblem[] {
+  if (!("template" in input)) return [];
+  const problems = inspectRoleTemplate(input.template, { source: "draft" });
+  if (problems.length > 0) return problems.map(problem => ({ ...problem, path: `$.template${problem.path?.slice(1) ?? ""}` }));
+  const title = input.template.title;
+  if ("literal" in title && title.literal.trim().length > 0 && title.literal.length <= 120) return [];
+  return [{ path: "$.template.title", reason: "角色标题不能为空，最长 120 个 UTF-16 单位" }];
 }
 
 export function isPluginId(value: unknown): value is string {

@@ -1,8 +1,16 @@
 import { defineArtifactPreviewAction, parseExactActionReferences, type ActionDefinition, type ActionSchema, type ExactActionReference } from "../platform/actions.js";
 import { ACTION_REFERENCE_SCHEMA } from "../platform/action-offers.js";
+import { inputSchemaFor, type InferActionInput } from "../platform/action-input.js";
+import { BLUEPRINT_PART_ORIGIN_SCHEMA, type BlueprintPartOrigin } from "../platform/blueprint-source.js";
+import { closedObjectSchema } from "../platform/closed-object-schema.js";
 import { TEXT_REF_LIMITS, TEXT_REF_SCHEMA, type TextRef } from "../platform/ui-text.js";
 import type { ArtifactReference } from "./artifacts.js";
 import { parseCharacterImportSnapshot, type CharacterImportSnapshot } from "./character-import.js";
+import {
+  CHARACTER_ROLE_READ_INPUT_SCHEMA, CHARACTER_ROLE_READ_OUTPUT_SCHEMA, CHARACTER_TEMPLATE_ADOPTION_RESULT_SCHEMA,
+  personalVersion, projectRef, type CharacterRoleReadInput, type CharacterRoleReadOutput, type CharacterTemplateAdoptionResult,
+  type PersonalCharacterVersionRef, type ProjectCharacterMemberRef,
+} from "./character-role-scope.js";
 export * from "./character-import.js";
 export {
   BLUEPRINT_PART_ORIGIN_SCHEMA,
@@ -107,6 +115,54 @@ export const ROLE_TEMPLATE_SCHEMA = {
   required: ["title", "instructions"],
   additionalProperties: false,
 } as const satisfies ActionSchema;
+
+type CharacterTemplateSelection<Template> =
+  | { layer: "personal" | "project"; selection: { kind: "create" }; template: Template }
+  | { layer: "personal"; selection: { kind: "reuse"; role: PersonalCharacterVersionRef } }
+  | { layer: "project"; selection: { kind: "reuse"; role: ProjectCharacterMemberRef; expected_revision: string; expected_original_version: number } };
+
+type CharacterTemplateRequest = { origin: BlueprintPartOrigin; request_id: string };
+
+/** Origin is provenance. The owner resolves the layer and references in the caller's trusted scope. */
+export type CharacterTemplateAdoptionInput = CharacterTemplateRequest & CharacterTemplateSelection<RoleTemplate>;
+
+const observation = { type: "string", pattern: "\\S" } as const;
+const templateRequest = { origin: BLUEPRINT_PART_ORIGIN_SCHEMA, request_id: observation };
+// TextRef's combinations are checked by the SDK after the gateway checks the wire envelope.
+type CharacterTemplateAdoptionEnvelope = CharacterTemplateRequest & CharacterTemplateSelection<InferActionInput<typeof ROLE_TEMPLATE_SCHEMA>>;
+export const CHARACTER_TEMPLATE_ADOPTION_INPUT_SCHEMA = inputSchemaFor<CharacterTemplateAdoptionEnvelope>()({ oneOf: [
+  closedObjectSchema({
+    ...templateRequest, layer: { enum: ["personal", "project"] }, selection: closedObjectSchema({ kind: { const: "create" } }),
+    template: ROLE_TEMPLATE_SCHEMA,
+  }),
+  closedObjectSchema({
+    ...templateRequest, layer: { const: "personal" }, selection: closedObjectSchema({ kind: { const: "reuse" }, role: personalVersion }),
+  }),
+  closedObjectSchema({
+    ...templateRequest, layer: { const: "project" }, selection: closedObjectSchema({
+      kind: { const: "reuse" }, role: projectRef, expected_revision: observation, expected_original_version: personalVersion.properties.version,
+    }),
+  }),
+] });
+
+/** Declaration only. Characters binds both actions when the role hierarchy has a real owner. */
+export const characterRoleActions: {
+  fromTemplate: ActionDefinition<CharacterTemplateAdoptionInput, CharacterTemplateAdoptionResult>;
+  read: ActionDefinition<CharacterRoleReadInput, CharacterRoleReadOutput>;
+} = {
+  fromTemplate: {
+    capability_id: "characters.from_template", version: /* @version action.characters.from_template */ 1, operation: "command",
+    action: { title: "采用角色模板", description: "按已确认的选择创建或复用角色", kind: "operation", effect: "write",
+      scope: "home", audiences: ["user"], permissions: [], subject_kinds: ["character"],
+      input_schema: CHARACTER_TEMPLATE_ADOPTION_INPUT_SCHEMA, output_schema: CHARACTER_TEMPLATE_ADOPTION_RESULT_SCHEMA },
+  },
+  read: {
+    capability_id: "characters.roles.read", version: /* @version action.characters.roles.read */ 1, operation: "query",
+    action: { title: "批读角色与采用回执", description: "按角色引用或采用请求读取角色及回执", kind: "query", effect: "read",
+      scope: "home", audiences: ["user"], permissions: [], subject_kinds: ["character"],
+      input_schema: CHARACTER_ROLE_READ_INPUT_SCHEMA, output_schema: CHARACTER_ROLE_READ_OUTPUT_SCHEMA },
+  },
+};
 
 /** A personal draft. Its revision is NOT an Artifact publication version. */
 export interface CharacterDraft {

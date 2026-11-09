@@ -435,14 +435,16 @@ interface HomePageVersion extends HomePageRef {
 
 | 动作 | 输入与回读 |
 | --- | --- |
-| `home.read` | `{}` → `{ selection, revision, versions }`，版本摘要含声明动作和该版 `approval`（未批准为 `null`），无文件正文。第 8 节的首页主人批读沿同一 `queries` 分支。批准回执查询为 `{ by: "request", operation: "adopt" \| "restore", request_id }`。核可信本人和项目后返回 `{ kind: "receipt", receipt, current }` 或 `{ kind: "missing", current }`。`current` 是独立的 `{ selection, revision }`，读失败仍待核对。 |
-| `home.pages.drafts.save` | 直接新建传 `{ draft }`，追加版本传 `{ draft, page_id, expected_version, based_on? }`，输出 `{ version: HomePageVersion }`。采用分支沿第 8 节固定输入与回执，`body` 共用 `HomePageDraft`，回执同时给新草稿版本，供 `needs_approval` 使用。 |
+| `home.read` | `{}` → `{ selection, revision, versions }`，版本摘要含声明动作和该版 `approval`（未批准为 `null`），无文件正文。第 8 节的首页主人批读沿同一 `queries` 分支。批准回执查询为 `{ by: "approval_request", operation: "adopt" \| "restore", request_id }`，与 `by: "request"` 的内容采用／撤销查询分开，可在同一批中并列。核可信本人和项目后返回 `{ kind: "receipt", receipt, current }` 或 `{ kind: "missing", current }`。`current` 是独立的 `{ selection, revision }`，读失败仍待核对。 |
+| `home.pages.drafts.save` | 直接新建传 `{ draft }`，追加版本传 `{ draft, page_id, expected_version, based_on? }`，输出 `{ version: HomePageVersion }`。采用分支沿第 8 节固定输入与回执，`body` 共用 `HomePageDraft`。原回执的 `subject` 是 `{ kind: "home-page", id: page_id }`，`revision` 是这次保存的正整数页面版本；两项给出 `needs_approval` 的固定页面版本。 |
 | `home.pages.preview`／`home.pages.files.read` | 均用 `HomePageRef`。试用返回 `{ page, page_session_id }`，文件读取返回 `{ version: HomePageVersion, files }`，`files` 带同版完整正文。 |
 | `home.pages.adopt`／`home.pages.restore` | `{ page_id, version, approved_actions, request_id, expected_revision }` → `HomePageApprovalReceipt`。批准动作须是该版声明且当前可批准的精确子集。恢复仍由本人再次确认，旧批准只供比较。 |
 | `home.select` | `{ kind: "basic", request_id, expected_revision }` → `{ selection, revision, approval: null }`。第 7 节退回基础首页按采用记录的 revision 比较，写回不重做业务动作。 |
-| `home.pages.diff` | `{ page_id, from_version, to_version }` → 两版的文件新增／修改／删除、入口和动作集合差异。文字对照复用 SDK `compareTexts`，结果用于本人查看。 |
+| `home.pages.diff` | `{ page_id, from_version, to_version }` → 同一组版本身份及 `{ files: [{ path, kind: "added" \| "modified" \| "deleted" }], entry: { before, after }, actions: { added, removed } }`。正文仍通过 `files.read` 取得，文字对照复用 SDK `compareTexts`。 |
 
 `HomePageApprovalReceipt` 为 `{ operation: "adopt" | "restore", request_id, selection, revision, approval }`。`selection` 是 `{ kind: "page", page_id, version }`，`revision` 是批准与选择同一提交写下的版本凭据。原回执由首页主人在该提交内保存。相同请求重放及按键回读均返回原回执，同键改变操作、页面版本或批准集合时拒绝。每次新的批准或页面切换提交推进选择 revision，切回同一版也有新 revision。
+
+草稿采用的复用按读到的页面版本比较，在同一主人提交中为同一页追加一版正文不变的草稿，保存原回执；同键重放只回原版，不再追加。草稿主人按页面版本核对数字 CAS，不转换字符串。场景消费者核实原回执的主体种类和正安全整数版本，按原回执推进；`current` 只补充现态，不能用它的版本替换原版本。保存和复用均不批准或切换首页。
 
 SDK 根入口 `inspectHomePageDraft(value: unknown)` 返回带字段路径的声明问题。正文形状由一份可作 §8 `body` 的 `HOME_PAGE_DRAFT_SCHEMA` 配合现有 SDK `assertMatches` 检查。复用 `packagePathProblem` 核相对路径，检查重复路径、入口唯一且是 `text/html`、允许的媒体类型，以及 64 文件、单个 1 MiB、合计 4 MiB 的实际 UTF-8 字节。闭合引用形状后调用 `parseExactActionReferences`。这一步检查文件和声明数据。保存／批准时的动作存在性、提供方、项目及当前权限由真实 owner 和动作目录核实。页面引用须显式有 `plugin` 受众，普通 `actionReachesAudience` 的 agent 转 plugin 路径不满足这一条件。文件读取不复用会截断正文的 `fileContentOf`。
 
@@ -548,17 +550,19 @@ type ContentAdoptionCurrent<Value> =
   | { state: "present"; value: Value; revision: string | number; origin: BlueprintPartOrigin | null }
   | { state: "missing" }
   | { state: "unavailable"; reason: string };
-type ContentAdoptionReadResult<Value, AdoptReceipt, RevertReceipt> =
+type ContentAdoptionReadResult<Value> =
   | { kind: "proposal"; candidates: Array<{ subject: ActionSubject; current: ContentAdoptionCurrent<Value> }> }
   | { kind: "subject"; current: ContentAdoptionCurrent<Value> }
-  | { kind: "receipt"; operation: "adopt"; request_id: string; receipt: AdoptReceipt; current: ContentAdoptionCurrent<Value> }
-  | { kind: "receipt"; operation: "revert"; request_id: string; receipt: RevertReceipt; current: ContentAdoptionCurrent<Value> }
+  | { kind: "receipt"; operation: "adopt"; request_id: string; receipt: ContentAdoptionResult; current: ContentAdoptionCurrent<Value> }
+  | { kind: "receipt"; operation: "revert"; request_id: string; receipt: ContentAdoptionRevertResult; current: ContentAdoptionCurrent<Value> }
   | { kind: "missing"; operation: "adopt" | "revert"; request_id: string };
 // revert 的实际写结果：
 // { outcome: "restored" | "detached"; subject: ActionSubject; revision: string | number }
 ```
 
-`AdoptReceipt` 与 `RevertReceipt` 分别是该请求最初的采用回执、撤销回执，不能用当前值的凭据替换。`current` 始终独立；在批读里，`missing` 只确认该操作、该请求键没有原回执，不能代替读取失败。撤销已提交但应答丢失时，按撤销请求键回读原来的 `restored`／`detached`，不能仅凭当前 revision 变化推断成功；原采用凭据仍保留在 `apply_steps`，不被撤销回执覆盖。候选由调用的确切主人查询给出，`subject` 是该主人中的对象引用，调用方仍须保留真实动作提供方。SDK 通过定义列表、正确定版、读写效果与同一 scope 核声明，采用分支不能和另一个编辑分支重叠。SPC-C07 定向用例还覆盖缺 CAS、声明的正文 schema 与动作不一致、错引用版本、随包候选冒充已安装、两种原回执与当前状态并列，以及升级三方中的新增、删除和保留用户改动。
+`ContentAdoptionResult` 与 `ContentAdoptionRevertResult` 分别是该请求最初的采用回执、撤销回执，不能用当前值的凭据替换。`current` 始终独立；在批读里，`missing` 只确认该操作、该请求键没有原回执，不能代替读取失败。撤销已提交但应答丢失时，按撤销请求键回读原来的 `restored`／`detached`，不能仅凭当前 revision 变化推断成功；原采用凭据仍保留在 `apply_steps`，不被撤销回执覆盖。候选由调用的确切主人查询给出，`subject` 是该主人中的对象引用，调用方仍须保留真实动作提供方。SDK 通过定义列表、正确定版、读写效果与同一 scope 核声明，采用分支不能和另一个编辑分支重叠。
+
+通用采用写入和回执的 schema 固定，批读外层、数组边界及每个通用查询和回读分支也固定。同一批可以增加主人自己使用的查询和结果；新增分支须闭合且可证明与其他分支不重叠，例如首页的 `approval_request`。通用回读的原回执必须与写入合同完全一致。SPC-C07 定向用例覆盖实际首页声明通过、缺 CAS、改写回执、放宽字段、其他分支吞通用请求、错引用版本、两种原回执与当前状态并列，以及升级三方中的新增、删除和保留用户改动。
 
 ## 9. 调用次数
 
@@ -612,6 +616,7 @@ SPC-C06 经公开 `services/home` 和 Kernel `compileActionSchema` 验精确页�
 
 SPC-C06／C07 用公开 schema 验批准请求键、按请求返回原回执、另列当前 revision 及回执缺失的形状。真实接入验 A 批准后切回基础首页，再独立批准同一页同一版。A 续做仍读 A 的原 revision，撤销不能改动后一次选择。缺少匹配回执时即使当前页相同，也不能证明 A 生效。真实写入与续做由 37／44 按已有首页主人事务和场景步骤实现。
 
+**声明版本和运行快照。** P-2b、P-3c 和 P-4 的 18 个动作版本在 `tooling/versions.json` 维护，按现有格式在 `tooling/gates/version-exceptions.json` 逐项记录暂未真实登记的原因。36、44、37 的主人实际登记时，运行快照出现对应行，版本检查同时要求删掉对应的记录。合同声明本身不写入 `host-actions.tsv`。只给本人和助理的场景草稿读写、首页草稿保存显式拒绝插件受众；首页概览仍可由插件读取，批准回执由实际主人另核可信本人和项目。
 
 ### 10.1 P-3a 项目插件成员的最小接入（20-1）
 

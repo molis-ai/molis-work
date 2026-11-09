@@ -15,7 +15,7 @@ import { fileURLToPath } from "node:url";
 import { brotliCompressSync, constants } from "node:zlib";
 import { CATALOG_VERSION_ACCESS, countSqliteRows, dumpSqliteText } from "@molis-ai/molis-work-storage";
 import { CATALOG_SCHEMA_VERSION } from "@molis-ai/molis-work-app-local-host";
-import { assertTemporaryHome, compareGoldens, filePayload, restoreGolden, withFixedSandboxEntries } from "../scripts/golden/layout.mjs";
+import { assertTemporaryHome, compareGoldens, filePayload, goldenEnvironment, restoreGolden, withFixedSandboxEntries } from "../scripts/golden/layout.mjs";
 import { MODULE_SOURCES_DIRECTORY, RELEASE_MANIFESTS_DIRECTORY, releasePayloadReader, withoutReleasePayloads, withReleasePayloads, writeReleasePayloads } from "../scripts/golden/release-payloads.mjs";
 import { assertRecordedVersions, PERSISTENT_FORMAT_LOCATIONS } from "../scripts/golden/formats.mjs";
 
@@ -199,6 +199,70 @@ describe("what a dump holds in place of what cannot stay in it", () => {
     assert.equal(fixed[0], row("sandbox:entries").replaceAll("i20261107130700936-t4wkwf", "i20260115090000000-golden").replace("2026-11-07T13:07:00.936Z", "2026-01-15T09:00:00.000Z"));
     assert.equal(fixed[1], row("other"));
   });
+});
+
+test("UPG2-03 a Golden HTTP write failure reports its owner and fixed transport code without its contents", () => {
+  const preload = `
+    const real = globalThis.fetch;
+    globalThis.fetch = async (input, init) => {
+      const url = new URL(String(input?.url ?? input));
+      if (url.hostname !== "127.0.0.1" || url.pathname !== "/api/onboarding/context" || init?.method !== "POST") return real(input, init);
+      const cause = Object.assign(new Error("golden-cause-message-sentinel"), {
+        code: "UND_ERR_SOCKET", body: "golden-response-body-sentinel", address: "golden-address-sentinel",
+      });
+      throw new TypeError("golden-fetch-message-sentinel", { cause });
+    };`;
+  const injected = `data:text/javascript;base64,${Buffer.from(preload).toString("base64")}`;
+  const replay = runWith(["--import", injected], REPLAY_SCRIPT, "--latest", "1");
+  assert.equal(replay.status, 1);
+  assert.match(replay.stdout.trim(), /^FAIL \S+ write root\/write\/context-onboarding golden\.http_request_socket_closed$/u);
+  assert.doesNotMatch(replay.output, /golden-(?:cause-message|response-body|address|fetch-message)-sentinel/u);
+}, { timeout: 600_000 });
+
+test("UPG2-03 the Golden HTTP client keeps a failed request, body, or decode distinct", async t => {
+  const { openGoldenHost } = await import("../scripts/golden/session.mjs");
+  const home = scratch(t), originalFetch = globalThis.fetch;
+  const savedEnvironment = Object.keys(goldenEnvironment(home)).map(name => [name, process.env[name]] as const);
+  let session: Awaited<ReturnType<typeof openGoldenHost>> | undefined;
+  try {
+    session = await openGoldenHost(home);
+    const route = "/api/onboarding/context";
+    const cause = Object.assign(new Error("golden-body-cause-sentinel"), { code: "ECONNRESET" });
+    const bodyFailure = new TypeError("golden-body-error-sentinel", { cause });
+    const unknown = new TypeError("golden-unknown-message-sentinel", { cause: { code: "golden-unknown-cause-sentinel" } });
+    const cases = [
+      { outcome: () => new Response(new ReadableStream({ start(controller) { controller.error(bodyFailure); } })),
+        code: "golden.http_body_connection_reset", where: "http/body", original: bodyFailure },
+      { outcome: () => new Response("golden-json-body-sentinel", { headers: { "content-type": "application/json" } }),
+        code: "golden.http_json_invalid", where: "http/decode" },
+      { outcome: () => { throw unknown; }, code: "golden.http_request_failed", where: "http/request", original: unknown },
+      { outcome: () => new Response("golden-400-body-sentinel", { status: 400 }), code: "golden.http_400", where: route },
+    ];
+    for (const { outcome, code, where, original } of cases) {
+      let requests = 0;
+      globalThis.fetch = async () => { requests++; return outcome(); };
+      await assert.rejects(session.http(route), (error: { code?: string; where?: string; cause?: unknown }) => {
+        assert.equal(error.code, code);
+        assert.equal(error.where, where);
+        if (original) assert.equal(error.cause, original);
+        if (code === "golden.http_json_invalid") assert.ok(error.cause instanceof SyntaxError);
+        assert.doesNotMatch(JSON.stringify(error), /-sentinel/u);
+        return true;
+      });
+      assert.equal(requests, 1);
+    }
+    globalThis.fetch = async () => new Response('{"saved":true}', { headers: { "content-type": "application/json" } });
+    assert.deepEqual(await session.http(route), { saved: true });
+  } finally {
+    globalThis.fetch = originalFetch;
+    try { await session?.close(); }
+    finally {
+      for (const [name, value] of savedEnvironment) {
+        if (value === undefined) delete process.env[name];
+        else process.env[name] = value;
+      }
+    }
+  }
 });
 
 describe("what the scripts refuse without generating anything", () => {

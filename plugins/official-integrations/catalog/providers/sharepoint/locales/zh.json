@@ -1,0 +1,20 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.sharepoint",
+  "locale": "zh",
+  "messages": {
+    "sharepoint.connection.auth-help": "使用 Microsoft Graph 令牌。优先拉已关注站点；没有关注时可能为空。",
+    "sharepoint.connection.inbound": "项目资料可读站点文档",
+    "sharepoint.connection.summary": "站点与文档库。",
+    "sharepoint.connection.token-label": "Microsoft Graph 访问令牌（Sites.Read.All）",
+    "sharepoint.guide.cli-link": "查看 Microsoft Graph PowerShell",
+    "sharepoint.guide.cli-note": "可用 Connect-MgGraph 登录并调用 Graph；Molis Work 不读取 PowerShell 会话。",
+    "sharepoint.guide.mcp-link": "Microsoft Work IQ MCP",
+    "sharepoint.guide.mcp-note": "需要租户管理员启用 Work IQ 预览、Copilot 许可和 Entra 应用权限。",
+    "sharepoint.guide.oauth-link": "注册 Microsoft Entra 应用",
+    "sharepoint.guide.token-note": "Graph Explorer 可获取用于测试的用户令牌；长期使用需自己注册应用。",
+    "sharepoint.oauth.tenant": "租户 ID（个人账号或多租户应用可留空）",
+    "sharepoint.setup.get-a-token-in-graph-explorer": "在 Graph Explorer 拿令牌",
+    "sharepoint.setup.register-azure-app": "注册 Azure 应用"
+  }
+}

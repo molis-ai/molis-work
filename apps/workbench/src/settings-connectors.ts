@@ -26,13 +26,13 @@ interface ConnectorsSettingsPrimitives {
 
 /** The page's groups, by what a service is for; the directory's groups are the contract's and stay as they are. */
 const DISPLAY_GROUPS: ReadonlyArray<{ id: string; title: string; directory: readonly ConnectorDirectoryGroupId[] }> = [
-  { id: "models", title: "模型", directory: [] },
-  { id: "code", title: "代码与项目", directory: ["code", "work"] },
-  { id: "mail", title: "邮件与日程", directory: ["mail"] },
-  { id: "docs", title: "文档与笔记", directory: ["files"] },
-  { id: "chat", title: "消息", directory: ["chat", "social"] },
-  { id: "design", title: "设计", directory: ["design"] },
-  { id: "crm", title: "客户与销售", directory: ["crm"] },
+  { id: "models", title: "workbench.settings-connectors.models", directory: [] },
+  { id: "code", title: "workbench.settings-connectors.code-projects", directory: ["code", "work"] },
+  { id: "mail", title: "workbench.settings-connectors.mail-calendar", directory: ["mail"] },
+  { id: "docs", title: "workbench.settings-connectors.documents-notes", directory: ["files"] },
+  { id: "chat", title: "workbench.settings-connectors.messages", directory: ["chat", "social"] },
+  { id: "design", title: "workbench.settings-connectors.design", directory: ["design"] },
+  { id: "crm", title: "workbench.settings-connectors.customers-sales", directory: ["crm"] },
 ];
 const MODEL_SERVICES: readonly string[] = ["model-api", "image-api"];
 
@@ -121,7 +121,7 @@ export function renderConnectorsSettings(
   };
   const groups = DISPLAY_GROUPS.map(group => {
     const rows = cards.filter(card => displayGroup(card) === group.id).map((card, index) => ({ card, index })).sort((a, b) => rank(a.card) - rank(b.card) || a.index - b.index);
-    return rows.length ? `<section class="settings-connector-subgroup" data-connector-subgroup="${group.id}"><h3>${uiText.text(group.title)}</h3>${rows.map(row => item(row.card)).join("")}</section>` : "";
+    return rows.length ? `<section class="settings-connector-subgroup" data-connector-subgroup="${group.id}"><h3>${uiText(group.title)}</h3>${rows.map(row => item(row.card)).join("")}</section>` : "";
   }).join("");
   // A connection whose service is no longer declared (its package was removed) has no way to connect left: its row opens on the account
   // and what can still be done with it.
@@ -156,8 +156,8 @@ export function renderConnectorsSettings(
  */
 function CLIENT_TEMPLATES(p: ConnectorsSettingsPrimitives): string {
   const progress = (steps: readonly string[]) => renderConnectionProgress({ steps: steps.map(step => uiText.text(step)), at: 0, state: "running" }, p.readText);
-  return `<template data-connector-template="progress-login">${progress(["在浏览器登录", "看能做什么", "能用了"])}</template>
-    <template data-connector-template="progress-key">${progress(["填密钥", "验证密钥", "能用了"])}</template>
+  return `<template data-connector-template="progress-login">${progress(["workbench.settings-connectors.step-sign-in", "workbench.settings-connectors.step-review-access", "workbench.settings-connectors.step-ready"])}</template>
+    <template data-connector-template="progress-key">${progress(["workbench.settings-connectors.step-enter-key", "workbench.settings-connectors.step-check-key", "workbench.settings-connectors.step-ready"])}</template>
     <template data-connector-template="running">${renderStatusMark({ label: uiText.text("workbench.settings-connectors.connecting"), state: "running", tone: "progress", plain: true })}</template>
     <template data-connector-template="switching">${renderStatusMark({ label: uiText.text("workbench.settings-connectors.switch-account"), state: "answer", tone: "attention", plain: true })}</template>
     <template data-connector-template="reach-connected">${renderStatusMark({ label: uiText.text("workbench.settings-connectors.reachable-checked-time"), state: "connected", tone: "done", plain: true })}</template>

@@ -1,0 +1,18 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.vercel",
+  "locale": "zh",
+  "messages": {
+    "vercel.connection.auth-help": "Vercel 账户 Token。只读部署列表。",
+    "vercel.connection.inbound": "Feed 拉部署与预览",
+    "vercel.connection.summary": "部署与预览。",
+    "vercel.connection.token-label": "Vercel Token",
+    "vercel.guide.cli-link": "查看 Vercel CLI",
+    "vercel.guide.mcp-connected-note": "官方 MCP 处于 Beta，客户端可能需获准。",
+    "vercel.guide.mcp-link": "查看 Vercel 官方 MCP",
+    "vercel.guide.mcp-note": "官方 MCP 处于 Beta，客户端可能需获准；Molis Work 尚未接入。",
+    "vercel.guide.oauth-link": "查看 Vercel OAuth 集成",
+    "vercel.oauth.note": "使用 Vercel REST Integration；在后台配置固定回调和读取权限。",
+    "vercel.setup.create-vercel-token": "创建 Vercel Token"
+  }
+}

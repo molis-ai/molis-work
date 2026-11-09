@@ -67,8 +67,8 @@ export interface OAuthKeepDeclaration {
 
 export interface OAuthSettingDeclaration {
     readonly key: string;
-    readonly label: string;
-    readonly placeholder?: string;
+    readonly label: PluginConnectionWord;
+    readonly placeholder?: PluginConnectionWord;
     readonly required?: boolean;
     readonly default?: string;
     readonly use: OAuthSettingUse;
@@ -90,27 +90,31 @@ export type OAuthValueSource = `identity:/${string}` | `context:${string}` | `li
 
 export type PluginAuthMethodDeclaration = {
     readonly kind: "token";
-    readonly label: string;
-    readonly placeholder?: string;
+    readonly label: PluginConnectionWord;
+    readonly placeholder?: PluginConnectionWord;
 } | PluginOAuthMethodDeclaration | PluginMcpMethodDeclaration | {
     readonly kind: "cli" | "mcp";
 };
 
+export type PluginConnectionLink = WithConnectionLabel<ConnectorSetupLink>;
+
 export interface PluginConnectionServiceDeclaration {
     readonly service_id: string;
-    readonly title: string;
+    readonly title: PluginConnectionWord;
     readonly group_id: ConnectorDirectoryGroupId;
-    readonly summary: string;
+    readonly summary: PluginConnectionWord;
     readonly auth_kind: ConnectorAuthKind;
     readonly auth: {
         readonly methods: readonly PluginAuthMethodDeclaration[];
     };
-    readonly auth_help?: string;
-    readonly capabilities: readonly ConnectorCapability[];
-    readonly outbound_note?: string;
-    readonly setup_links?: readonly ConnectorSetupLink[];
+    readonly auth_help?: PluginConnectionWord;
+    readonly capabilities: readonly WithConnectionLabel<ConnectorCapability>[];
+    readonly outbound_note?: PluginConnectionWord;
+    readonly setup_links?: readonly PluginConnectionLink[];
     readonly origins?: readonly string[];
 }
+
+export type PluginConnectionWord = string | TextRef;
 
 export interface PluginIntegrationDeclaration {
     readonly integration_id: string;
@@ -157,7 +161,7 @@ export interface PluginOAuthMethodDeclaration {
         readonly omit_token_params?: readonly ("grant_type" | "redirect_uri")[];
         readonly expiry?: "jwt_exp";
     };
-    readonly note?: string;
+    readonly note?: PluginConnectionWord;
 }
 
 export interface SourcePresentation {
@@ -172,3 +176,9 @@ export interface SourcePresentation {
 export interface SourcePresentationInput {
     readonly cursor?: unknown;
 }
+
+// Declarations the exports above refer to, which no entry exports itself:
+
+type WithConnectionLabel<T> = Omit<T, "label"> & {
+    readonly label: PluginConnectionWord;
+};

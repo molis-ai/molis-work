@@ -1,0 +1,17 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.x",
+  "locale": "en",
+  "messages": {
+    "x.connection.auth-help": "Do not paste an App-Only Bearer from the developer dashboard: /users/me returns 403. Use an OAuth 2.0 User Access Token (PKCE) or another user-context token with tweet.read and users.read. The public API charges by plan and your developer account needs the appropriate API access.",
+    "x.connection.inbound": "Feed retrieves posts and accounts",
+    "x.connection.summary": "Posts and accounts.",
+    "x.connection.token-label": "X Bearer / User Token",
+    "x.guide.cli-link": "X xurl",
+    "x.guide.mcp-link": "Official X MCP",
+    "x.guide.oauth-link": "View X OAuth 2.0 PKCE",
+    "x.guide.oauth-note": "User context and tweet.read and users.read permissions are required. Molis Work does not yet handle the callback.",
+    "x.guide.token-note": "Use an OAuth user access token. An app-only bearer token cannot access the current identity endpoint.",
+    "x.setup.open-x-developer-portal": "Open X Developer Portal"
+  }
+}

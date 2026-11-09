@@ -511,3 +511,98 @@ test("FSS-20 FSS-74 the Studio canvas switches the current and previous design's
   await child.waitFor("studioCanvas.querySelector('h1')?.textContent === 'Reading notes'");
   assert.deepEqual(await child.evaluate("[studioCanvas.inert,studioCanvasField.value]"), [false,"Canvas 草稿"]);
 });
+
+
+test("FSS-35 FSS-36 connection guides translate with the same OAuth form and keep a hidden settings draft", { timeout: 120_000 }, async t => {
+  const b = await openGoalBrowser(t, "seeded", undefined, null); if (!b?.projectId) return;
+  const { command, sessionId, origin, waitFor, evaluate } = b;
+
+  // Use the real accessible control state without waiting on the collapsible's decorative transition.
+  await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
+  const path = `/projects/${b.projectId}/?settings=connections`;
+  await b.navigate(() => command("Page.navigate", { url: origin + "/locale?lang=zh&next=" + encodeURIComponent(path) }, sessionId));
+  const row = "[data-connector-item=jira]", input = row + " [data-protocol=oauth] [data-protocol-field='setting:site_url']";
+  const get = (selector: string) => `document.querySelector(${JSON.stringify(selector)})`;
+  await waitFor(`${get("[data-connectors-settings]")} || ${get("[data-settings-loading][role=alert]")}`, 20_000);
+  const shown = await evaluate(`({ url: location.href, title: ${get("[data-settings-title], #settings-title")}?.textContent,
+    page: ${get("[data-settings-stage-body]")}?.innerText.slice(0, 320), fields: [...document.querySelectorAll(${JSON.stringify(row + " [data-protocol-field]")})].map(node => node.dataset.protocolField),
+    bound: ${get("[data-connectors-settings]")}?.dataset.connectorsBound })`);
+  if (!await evaluate(`!!${get(input)}`)) {
+    t.diagnostic(JSON.stringify(await evaluate(`(async () => {
+      const source = '/capabilities/connections?project=' + encodeURIComponent(${JSON.stringify(b.projectId)});
+      const hits = performance.getEntriesByType('resource').filter(row => row.name.includes('/capabilities/') || row.name.includes('capabilities.js')).map(row => [row.name, row.responseStatus]);
+      try { const response = await molisWorkRequest(source, { as: 'response' }); const body = await response.text();
+        return [hits, response.status, response.headers.get('content-type'), body.includes('setting:site_url'), body.includes('data-connectors-settings')]; }
+      catch (error) { return [hits, String(error), error.status, error.code]; }
+    })()`)));
+  }
+  assert.equal(await evaluate(`!!${get(input)}`), true, JSON.stringify(shown));
+  assert.equal(await evaluate(`${get("[data-connectors-settings]")}?.dataset.connectorsBound`), "1", JSON.stringify(shown));
+  await b.click(row + " [data-connection-toggle]");
+  await waitFor(`${get(row)}.dataset.open === 'true'`);
+  await b.click(row + " [data-connector-advanced] > summary");
+  await waitFor(`${get(row + " [data-connector-advanced]")}.open`);
+  await b.click(row + " [data-method-choice=oauth] > summary");
+  await waitFor(`${get(row + " [data-method-choice=oauth]")}.open && ${get(input)}.getClientRects().length > 0`);
+  const start = await evaluate(`(() => {
+    const field = window.jiraDraft = ${get(input)};
+    window.jiraSettings = field.closest('[data-connectors-settings]'); window.jiraOriginalBody = document.body;
+    const link = ${get(row + " [data-protocol=oauth] [data-connector-method-link]")};
+    const transport = window.molisWorkUiTransport;
+    window.settingsPreviews = []; window.blockEnglishPanel = true; window.holdEnglishPanel = false;
+    window.molisWorkUiTransport = (url, init) => {
+      const address = new URL(url), tag = init.headers['x-molis-work-ui-locale'];
+      if (tag && address.pathname === '/capabilities/connections') {
+        settingsPreviews.push([tag, address.searchParams.get('project')]);
+        if (tag === 'en' && blockEnglishPanel) return Promise.resolve(new Response('Unavailable', { status: 503 }));
+        if (tag === 'en' && holdEnglishPanel) {
+          const actual = transport?.(url, init) ?? fetch(url, init);
+          return new Promise((resolve, reject) => { window.releasePanelPreparation = () => actual.then(resolve, reject); });
+        }
+      }
+      return transport?.(url, init) ?? fetch(url, init);
+    };
+    window.connectionFocusChanges = [];
+    for (const kind of ['focusin', 'focusout']) document.addEventListener(kind, event => connectionFocusChanges.push([kind, event.target.dataset.protocolField || event.target.tagName, event.relatedTarget?.tagName]));
+    field.value = 'https://draft-only.atlassian.net'; field.focus(); field.setSelectionRange(8, 18, 'backward');
+    return [field.previousElementSibling.textContent, link.textContent.trim(), link.href, document.activeElement === field];
+  })()`);
+  assert.deepEqual(start, ["Atlassian 站点", "查看 Atlassian OAuth 2.0", "https://developer.atlassian.com/cloud/jira/platform/oauth-2-3lo-apps/", true]);
+  // Another real settings document commits English. This document rejects only its panel's preparation and must preserve the full old display.
+  await chooseEnglishInSettings(t, b);
+  await waitFor("!!document.querySelector('[data-ui-language-status] button')");
+  assert.deepEqual(await evaluate(`[document.documentElement.lang, jiraOriginalBody === document.body, document.activeElement === jiraDraft, jiraDraft.value, jiraDraft.selectionStart, jiraDraft.selectionEnd, jiraDraft.selectionDirection]`),
+    ["zh-CN", true, true, "https://draft-only.atlassian.net", 8, 18, "backward"], JSON.stringify(await evaluate("connectionFocusChanges")));
+  await evaluate("window.blockEnglishPanel = false; document.querySelector('[data-ui-language-status] button').click()");
+  await waitFor(`document.documentElement.lang === 'en' && ${get(input)}?.previousElementSibling.textContent === 'Atlassian site'`, 20_000);
+  assert.deepEqual(await evaluate(`[jiraDraft === ${get(input)}, jiraOriginalBody === document.body, document.activeElement === jiraDraft, jiraDraft.value, jiraDraft.selectionStart, jiraDraft.selectionEnd,
+    jiraDraft.selectionDirection, ${get(row + " [data-method-choice=oauth]")}.open, ${get(row + " .settings-connection-row__identity small")}.textContent,
+    ${get(row + " [data-protocol=oauth] [data-connector-method-link]")}.textContent.trim(), settingsPreviews.map(([tag, project]) => tag + ':' + project).sort()]`),
+    [true, true, true, "https://draft-only.atlassian.net", 8, 18, "backward", true, "Issues and projects.", "View Atlassian OAuth 2.0", ["en", "en", "zh", "zh"].map(tag => tag + ":" + b.projectId)]);
+  // Switch while the existing pane is detached, then reopen the same cached form.
+  await evaluate(`${get("[data-directory-panel=settings] [data-settings-section=appearance]")}.click()`);
+  await waitFor(`!jiraSettings.isConnected && !!${get("a[data-ui-language=zh]")}`);
+  await evaluate(`${get("a[data-ui-language=zh]")}.click()`);
+  await waitFor("document.documentElement.lang === 'zh-CN'");
+  await evaluate(`${get("[data-directory-panel=settings] [data-settings-section=connections]")}.click()`);
+  await waitFor("jiraSettings.isConnected");
+  assert.deepEqual(await evaluate(`[jiraDraft === ${get(input)}, jiraDraft.previousElementSibling.textContent, jiraDraft.value, jiraDraft.selectionStart, jiraDraft.selectionEnd]`),
+    [true, "Atlassian 站点", "https://draft-only.atlassian.net", 8, 18]);
+
+  await evaluate(`${get("[data-directory-panel=settings] [data-settings-section=appearance]")}.click()`);
+  await waitFor(`!jiraSettings.isConnected && !!${get("a[data-ui-language=en]")}`);
+  await evaluate(`window.holdEnglishPanel = true; ${get("a[data-ui-language=en]")}.click()`);
+  await waitFor("typeof releasePanelPreparation === 'function'");
+  await evaluate(`(() => {
+    const link = document.createElement('a');
+    link.href = '/capabilities/connections?connector=cloudflare&project=' + encodeURIComponent(${JSON.stringify(b.projectId)});
+    document.querySelector('[data-settings-stage-body]').append(link); link.click(); link.remove();
+  })()`);
+  await waitFor("!jiraSettings.isConnected && document.querySelector('[data-connector-item=cloudflare][data-open=true]')");
+  await evaluate("window.holdEnglishPanel = false; releasePanelPreparation()");
+  await waitFor("!!document.querySelector('[data-ui-language-status] button')");
+  assert.deepEqual(await evaluate(`[document.documentElement.lang, document.body === jiraOriginalBody, jiraSettings.isConnected, ${get(row + " .settings-connection-row__identity small")}.textContent]`),
+    ["zh-CN", true, false, "Issue 与项目。"], "a prepared response cannot retitle a replaced settings pane");
+  await evaluate("document.querySelector('[data-ui-language-status] button').click()");
+  await waitFor(`document.documentElement.lang === 'en' && ${get(row + " .settings-connection-row__identity small")}.textContent === 'Issues and projects.'`);
+});

@@ -1,0 +1,20 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.outlook",
+  "locale": "en",
+  "messages": {
+    "outlook.connection.auth-help": "Use a delegated Microsoft Graph token with Mail.Read. Outlook, OneDrive, Teams and SharePoint can share the Graph token if it has the scopes for each service.",
+    "outlook.connection.inbound": "Feed reads mail",
+    "outlook.connection.summary": "Mail and calendars.",
+    "outlook.connection.token-label": "Microsoft Graph access token (Mail.Read)",
+    "outlook.guide.cli-link": "View Microsoft Graph PowerShell",
+    "outlook.guide.cli-note": "Use Connect-MgGraph to sign in and call Graph. Molis Work does not read the PowerShell session.",
+    "outlook.guide.mcp-link": "Microsoft Work IQ MCP",
+    "outlook.guide.mcp-note": "A tenant administrator must enable the Work IQ preview, a Copilot license and Entra app permissions.",
+    "outlook.guide.oauth-link": "Register Microsoft Entra app",
+    "outlook.guide.token-note": "Use Graph Explorer to get a user token for testing. Register your own app for ongoing use.",
+    "outlook.oauth.tenant": "Tenant ID (leave blank for personal accounts or multitenant apps)",
+    "outlook.setup.get-a-token-in-graph-explorer": "Get a token in Graph Explorer",
+    "outlook.setup.register-azure-app": "Register Azure app"
+  }
+}

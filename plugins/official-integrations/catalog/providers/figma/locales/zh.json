@@ -1,0 +1,15 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.figma",
+  "locale": "zh",
+  "messages": {
+    "figma.connection.auth-help": "使用 Figma Personal Access Token 验证账号。需要读取设计内容时，请连接官方 MCP。",
+    "figma.connection.inbound": "API 验证身份；MCP 读取设计内容",
+    "figma.connection.summary": "设计稿与标注。",
+    "figma.connection.token-label": "Figma Personal Access Token",
+    "figma.guide.mcp-link": "查看 Figma 官方 MCP",
+    "figma.guide.mcp-note": "本机桌面 MCP 需在 Figma 中启用；云端 MCP 仅限获准的客户端。",
+    "figma.guide.oauth-link": "查看 Figma OAuth 应用",
+    "figma.setup.open-figma-account-settings": "打开 Figma 账号设置"
+  }
+}

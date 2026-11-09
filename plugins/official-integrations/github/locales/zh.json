@@ -1,0 +1,17 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.github",
+  "locale": "zh",
+  "messages": {
+    "github.connection.inbound": "Feed 拉未读通知",
+    "github.connection.outbound": "连接设置可检查当前 GitHub 账号。Agent 可用能力以能力库为准。",
+    "github.connection.summary": "本机账号。Feed 拉未读通知，可在连接设置中检查账号。",
+    "github.guide.cli-link": "查看 GitHub CLI 登录方式",
+    "github.guide.mcp-link": "查看 GitHub 官方 MCP",
+    "github.guide.oauth-link": "注册 GitHub OAuth App",
+    "github.guide.oauth-note": "应用内支持 Device Flow；首次使用需配置自己的 OAuth App Client ID。",
+    "github.guide.token-note": "创建有 notifications 和 read:user 权限的 PAT 后，可在此粘贴。",
+    "github.setup.create-a-personal-access-token": "创建 Personal Access Token",
+    "github.setup.register-an-oauth-app": "注册 OAuth App"
+  }
+}

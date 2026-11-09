@@ -402,6 +402,52 @@ function declaredIdentity(node, source, snapshot, known, seen = new Set()) {
   return null;
 }
 
+const OFFICIAL_PLUGINS = "plugins/official-integrations/";
+const CATALOG_PLUGIN = OFFICIAL_PLUGINS + "catalog/";
+
+function addConnectorOwner(owners, problems, directory, owner, locales) {
+  const { default: fallback, available } = locales ?? {};
+  if (typeof owner !== "string" || !owner || !Array.isArray(available) || !available.includes(fallback)
+    || available.some(tag => typeof tag !== "string" || !tag) || new Set(available).size !== available.length
+    || [...owners.values()].some(entry => entry.owner === owner || entry.directory === directory)) {
+    problems.push(directory + ": invalid or duplicate connector locale declaration");
+    return;
+  }
+  owners.set(directory, { owner, directory, languages: available, default: fallback });
+}
+
+function addOfficialConnectorOwners(snapshot, owners, problems) {
+  for (const file of snapshot.files.filter(file => /^plugins\/official-integrations\/[^/]+\/manifest\.json$/u.test(file))) {
+    const manifest = readJson(snapshot, file, problems);
+    if (manifest?.ui?.messages || manifest?.ui?.translations) problems.push(file + ": retired ui text fields");
+    if (manifest?.ui?.locales) addConnectorOwner(owners, problems, path.posix.dirname(file) + "/locales", manifest.plugin_id, manifest.ui.locales);
+  }
+  const model = CATALOG_PLUGIN + "src/catalog.ts", factory = CATALOG_PLUGIN + "src/index.ts";
+  const factorySource = sourceOf(factory, snapshot.read(factory) ?? "");
+  const manifest = factorySource.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === "catalogIntegrationManifest");
+  const body = manifest?.body?.statements.find(ts.isReturnStatement)?.expression;
+  const ui = body && ts.isObjectLiteralExpression(body) ? recordAt(body, "ui") : null;
+  const declaration = unwrap(byKey(ui, "locales"));
+  if (!declaration) return;
+  const variable = (source, name) => source.statements.filter(ts.isVariableStatement).flatMap(statement => [...statement.declarationList.declarations])
+    .find(item => ts.isIdentifier(item.name) && item.name.text === name)?.initializer;
+  const catalog = unwrap(variable(sourceOf(model, snapshot.read(model) ?? ""), "CATALOG"));
+  const language = unwrap(ts.isIdentifier(declaration) ? variable(factorySource, declaration.text) : declaration);
+  const pluginId = body && ts.isObjectLiteralExpression(body) ? unwrap(byKey(body, "plugin_id")) : null;
+  if (!catalog || !ts.isArrayLiteralExpression(catalog) || !language || !ts.isObjectLiteralExpression(language) || !pluginId
+    || !ts.isTemplateExpression(pluginId) || pluginId.templateSpans.length !== 1 || pluginId.templateSpans[0].expression.getText(factorySource) !== "connectorId") {
+    problems.push(factory + ": cannot read the connector locale declarations");
+    return;
+  }
+  const fallback = literalText(byKey(language, "default")), available = unwrap(byKey(language, "available"));
+  const locales = { default: fallback, available: available && ts.isArrayLiteralExpression(available) ? available.elements.map(literalText) : [] };
+  for (const row of catalog.elements) {
+    const id = ts.isCallExpression(row) && literalText(row.arguments[0]);
+    if (!id || !/^[a-z][a-z0-9-]*$/u.test(id)) { problems.push(model + ": invalid locale owner in catalog entry"); continue; }
+    addConnectorOwner(owners, problems, CATALOG_PLUGIN + "providers/" + id + "/locales", pluginId.head.text + id + pluginId.templateSpans[0].literal.text, locales);
+  }
+}
+
 function declaredOwners(snapshot, problems) {
   const owners = new Map(), known = new Set(snapshot.files), hasRegistry = known.has(PLATFORM_REGISTRY);
   if (hasRegistry) {
@@ -444,6 +490,7 @@ function declaredOwners(snapshot, problems) {
     if (!plugin) { problems.push(`${file}: cannot read the locale owner from its Manifest plugin_id`); continue; }
     owners.set(owner, { owner: plugin, directory: `plugins/native/${owner}/locales`, languages, default: def });
   }
+  addOfficialConnectorOwners(snapshot, owners, problems);
   return owners;
 }
 
@@ -480,7 +527,7 @@ function inspectPacks(snapshot, problems) {
       all.set(key, { prefix });
     }
   }
-  for (const file of snapshot.files) if (/^(?:plugins\/native\/[^/]+\/locales|apps\/workbench\/resources\/locales)\/[^/]+\.json$/u.test(file)
+  for (const file of snapshot.files) if (/^(?:plugins\/native\/[^/]+|plugins\/official-integrations\/[^/]+(?:\/providers\/[^/]+)?|apps\/workbench\/resources)\/locales\/[^/]+\.json$/u.test(file)
     && !files.has(file)) problems.push(`${file}: no locale declaration reaches this file`);
   return { all, files };
 }

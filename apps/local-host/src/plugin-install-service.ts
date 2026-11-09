@@ -21,6 +21,7 @@ import { assertUpgradeOf, upgradeRefusal } from './package-upgrade.js';
 import { installedPluginViews, jobViews, permissionViews, type InstalledPluginEntry } from './plugin-installed-view.js';
 import type { PermissionSwitchTarget } from './plugin-installed-view.js';
 import { sandboxRequestedPermissions } from '@molis-ai/molis-work-plugin-sdk';
+import { assertConnectorText, connectorWords } from "./connector-words.js";
 import { validateSandboxHomeSchema } from './plugin-sandbox-home-library.js';
 
 /** A preview waits this long for its confirmation, and at most this many wait at once. */
@@ -115,6 +116,7 @@ export class PluginInstallService {
     if (runtime_scope === 'home') assertHomePackageAllowed(manifest);
     if (manifest.databases?.home) await validateSandboxHomeSchema(manifest.databases.home);
     this.assertScopeKept(manifest, message => pluginErrors.declaration_invalid(message));
+    if (manifest.kind === "integration") assertConnectorText(manifest, { reader: pkg.localePacks });
     await this.assertIntegrationsFree(manifest);
     assertNotHostId(manifest.plugin_id);
     for (const [id, entry] of this.held) if (entry.expires <= Date.now()) this.held.delete(id);
@@ -130,13 +132,14 @@ export class PluginInstallService {
       return previewBody(body, old === undefined ? undefined : !previous ? 'added' : previous.body !== body.body ? 'changed' : undefined);
     });
     for (const body of old ?? []) if (!bodies.some(item => item.kind === body.kind && item.entry_id === body.entry_id)) agent_bodies.push(previewBody(body, 'removed'));
+    const word = connectorWords(manifest.plugin_id, pkg.localePacks);
     const preview_id = randomUUID();
     this.held.set(preview_id, { bundle, pkg, runtime_scope, key_id, spki: public_key_spki_base64, project_id: who.project_id, actor_id: who.actor_id, expires: Date.now() + PREVIEW_TTL_MS });
     return { preview_id, name: manifest.name, runtime_scope, ...(agent_bodies.length ? { agent_bodies } : {}), effects: pkg.permissions, publisher: { key_id, pinned_label: pin?.label ?? null },
       preview: { plugin_id: manifest.plugin_id, version: manifest.version, trust: 'pinned', publisher_signature: manifest.publisher.signature, publisher_pinned: pin !== undefined,
         permissions: permissionViews(manifest, manifest.kind === 'app' ? sandboxRequestedPermissions(pkg.permissions) : undefined), declarations: declarationsNeedingConsent(manifest, () => undefined), jobs: jobViews(manifest) },
       ...manifest.kind === 'integration' ? { origins: (manifest.connection_services ?? []).flatMap(service => service.origins
-        ? [{ service_id: service.service_id, title: service.title, origins: [...service.origins] }] : []) } : {} };
+        ? [{ service_id: service.service_id, title: word(service.title), origins: [...service.origins] }] : []) } : {} };
   }
 
   private async assertIntegrationsFree(manifest: KeptSandboxPackage['manifest']): Promise<void> {

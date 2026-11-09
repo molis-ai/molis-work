@@ -1,5 +1,6 @@
 import type { ConnectorDirectoryGroupId } from "@molis-ai/molis-work-contracts/services/connector-host";
 import type { IntegrationProviderItem } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginConnectionWord } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import { asList, asRecord, bearer, CatalogLiveError, nestedText, splitParts, text, tokenContext, USER_AGENT } from "./http.js";
 import { setupLinksFor } from "./setup-links.js";
 import { atlassianBase, catalogCloudOrigin } from "./targets.js";
@@ -45,9 +46,9 @@ function spec(
   id: string,
   title: string,
   group_id: ConnectorDirectoryGroupId,
-  summary: string,
-  inbound: string,
-  rest: Omit<CatalogConnectorDraft, "id" | "title" | "group_id" | "summary" | "inbound" | "outbound">,
+  summary: PluginConnectionWord,
+  inbound: PluginConnectionWord,
+  rest: Omit<CatalogConnectorDraft, "id" | "title" | "group_id" | "summary" | "inbound">,
 ): CatalogConnectorDraft {
   return {
     id,
@@ -55,7 +56,6 @@ function spec(
     group_id,
     summary,
     inbound,
-    outbound: `Functions 可勾查看当前账号（${id}.whoami）`,
     ...rest,
   };
 }
@@ -69,10 +69,10 @@ function graphHeaders(ctx: CatalogAuthContext): Record<string, string> {
 }
 
 const CATALOG: CatalogConnectorDraft[] = [
-  spec("google-calendar", "Google Calendar", "mail", "日程与会议。", "Feed 拉日程与会议", {
-    token_label: "Google 访问令牌（calendar.readonly）",
+  spec("google-calendar", "Google Calendar", "mail", { key: "google-calendar.connection.summary" }, { key: "google-calendar.connection.inbound" }, {
+    token_label: { key: "google-calendar.connection.token-label" },
     token_placeholder: "ya29.…",
-    auth_help: "使用带 calendar.readonly 的 Google 访问令牌。可与 Gmail 同一 OAuth 客户端，但 scope 要包含日历。",
+    auth_help: { key: "google-calendar.connection.auth-help" },
     permission_host: "googleapis.com",
     identity: {
       request: (ctx) => get("https://www.googleapis.com/calendar/v3/calendars/primary", googleBearer(ctx)),
@@ -91,10 +91,10 @@ const CATALOG: CatalogConnectorDraft[] = [
       })),
     },
   }),
-  spec("outlook", "Outlook", "mail", "邮件与日历。", "Feed 读取邮件", {
-    token_label: "Microsoft Graph 访问令牌（Mail.Read）",
+  spec("outlook", "Outlook", "mail", { key: "outlook.connection.summary" }, { key: "outlook.connection.inbound" }, {
+    token_label: { key: "outlook.connection.token-label" },
     token_placeholder: "EwB…",
-    auth_help: "使用 Microsoft Graph 委托令牌，需要 Mail.Read。Outlook / OneDrive / Teams / SharePoint 可共用同一 Graph 令牌（需对应 scope）。",
+    auth_help: { key: "outlook.connection.auth-help" },
     permission_host: "graph.microsoft.com",
     identity: {
       request: (ctx) => get("https://graph.microsoft.com/v1.0/me", graphHeaders(ctx)),
@@ -113,10 +113,10 @@ const CATALOG: CatalogConnectorDraft[] = [
       })),
     },
   }),
-  spec("google-drive", "Google Drive", "files", "Drive、Docs、Sheets、Slides。", "项目资料可读 Drive 文件", {
-    token_label: "Google 访问令牌（drive.readonly）",
+  spec("google-drive", "Google Drive", "files", { key: "google-drive.connection.summary" }, { key: "google-drive.connection.inbound" }, {
+    token_label: { key: "google-drive.connection.token-label" },
     token_placeholder: "ya29.…",
-    auth_help: "查看列表可使用 drive.metadata.readonly；导入 Google Docs 正文需要 drive.readonly 或 drive.file。",
+    auth_help: { key: "google-drive.connection.auth-help" },
     permission_host: "googleapis.com",
     identity: {
       request: (ctx) => get("https://www.googleapis.com/drive/v3/about?fields=user", googleBearer(ctx)),
@@ -134,10 +134,10 @@ const CATALOG: CatalogConnectorDraft[] = [
       })),
     },
   }),
-  spec("onedrive", "OneDrive", "files", "个人与共享文件。", "项目资料可读 OneDrive 文件", {
-    token_label: "Microsoft Graph 访问令牌（Files.Read）",
+  spec("onedrive", "OneDrive", "files", { key: "onedrive.connection.summary" }, { key: "onedrive.connection.inbound" }, {
+    token_label: { key: "onedrive.connection.token-label" },
     token_placeholder: "EwB…",
-    auth_help: "使用 Microsoft Graph 令牌，需要 Files.Read。",
+    auth_help: { key: "onedrive.connection.auth-help" },
     permission_host: "graph.microsoft.com",
     identity: {
       request: (ctx) => get("https://graph.microsoft.com/v1.0/me", graphHeaders(ctx)),
@@ -154,10 +154,10 @@ const CATALOG: CatalogConnectorDraft[] = [
       })),
     },
   }),
-  spec("sharepoint", "SharePoint", "files", "站点与文档库。", "项目资料可读站点文档", {
-    token_label: "Microsoft Graph 访问令牌（Sites.Read.All）",
+  spec("sharepoint", "SharePoint", "files", { key: "sharepoint.connection.summary" }, { key: "sharepoint.connection.inbound" }, {
+    token_label: { key: "sharepoint.connection.token-label" },
     token_placeholder: "EwB…",
-    auth_help: "使用 Microsoft Graph 令牌。优先拉已关注站点；没有关注时可能为空。",
+    auth_help: { key: "sharepoint.connection.auth-help" },
     permission_host: "graph.microsoft.com",
     identity: {
       request: (ctx) => get("https://graph.microsoft.com/v1.0/me", graphHeaders(ctx)),
@@ -172,10 +172,10 @@ const CATALOG: CatalogConnectorDraft[] = [
       })),
     },
   }),
-  spec("dropbox", "Dropbox", "files", "云盘文件。", "项目资料可读 Dropbox 文件", {
-    token_label: "Dropbox 访问令牌",
+  spec("dropbox", "Dropbox", "files", { key: "dropbox.connection.summary" }, { key: "dropbox.connection.inbound" }, {
+    token_label: { key: "dropbox.connection.token-label" },
     token_placeholder: "sl.…",
-    auth_help: "Dropbox App 生成的 access token。只读列出根目录。",
+    auth_help: { key: "dropbox.connection.auth-help" },
     permission_host: "api.dropboxapi.com",
     identity: {
       request: (ctx) => post("https://api.dropboxapi.com/2/users/get_current_account", bearer(ctx), null),
@@ -191,10 +191,10 @@ const CATALOG: CatalogConnectorDraft[] = [
       })),
     },
   }),
-  spec("box", "Box", "files", "云盘文件。", "项目资料可读 Box 文件", {
-    token_label: "Box 访问令牌",
+  spec("box", "Box", "files", { key: "box.connection.summary" }, { key: "box.connection.inbound" }, {
+    token_label: { key: "box.connection.token-label" },
     token_placeholder: "E…",
-    auth_help: "Box 开发者令牌或 OAuth access token。",
+    auth_help: { key: "box.connection.auth-help" },
     permission_host: "api.box.com",
     identity: {
       request: (ctx) => get("https://api.box.com/2.0/users/me", bearer(ctx)),
@@ -211,10 +211,10 @@ const CATALOG: CatalogConnectorDraft[] = [
       })),
     },
   }),
-  spec("notion", "Notion", "files", "页面与数据库。", "Feed 拉页面与数据库更新", {
-    token_label: "Notion Internal Integration Token",
+  spec("notion", "Notion", "files", { key: "notion.connection.summary" }, { key: "notion.connection.inbound" }, {
+    token_label: { key: "notion.connection.token-label" },
     token_placeholder: "ntn_… 或 secret_…",
-    auth_help: "Notion 内部集成令牌。集成必须被分享到要读取的页面。",
+    auth_help: { key: "notion.connection.auth-help" },
     permission_host: "api.notion.com",
     identity: {
       request: (ctx) => get("https://api.notion.com/v1/users/me", bearer(ctx, { "Notion-Version": "2022-06-28" })),
@@ -242,10 +242,10 @@ const CATALOG: CatalogConnectorDraft[] = [
       }),
     },
   }),
-  spec("slack", "Slack", "chat", "频道、消息与 Canvas。", "Feed 读取频道列表", {
-    token_label: "Slack Bot Token",
+  spec("slack", "Slack", "chat", { key: "slack.connection.summary" }, { key: "slack.connection.inbound" }, {
+    token_label: { key: "slack.connection.token-label" },
     token_placeholder: "xoxb-…",
-    auth_help: "Slack Bot User OAuth Token。需要 channels:read 或 groups:read。",
+    auth_help: { key: "slack.connection.auth-help" },
     permission_host: "slack.com",
     identity: {
       request: (ctx) => get("https://slack.com/api/auth.test", bearer(ctx)),
@@ -261,10 +261,10 @@ const CATALOG: CatalogConnectorDraft[] = [
       })),
     },
   }),
-  spec("teams", "Microsoft Teams", "chat", "消息、频道与聊天。", "Feed 读取聊天列表", {
-    token_label: "Microsoft Graph 访问令牌（Chat.Read）",
+  spec("teams", "Microsoft Teams", "chat", { key: "teams.connection.summary" }, { key: "teams.connection.inbound" }, {
+    token_label: { key: "teams.connection.token-label" },
     token_placeholder: "EwB…",
-    auth_help: "使用 Microsoft Graph 令牌，需要 Chat.Read。",
+    auth_help: { key: "teams.connection.auth-help" },
     permission_host: "graph.microsoft.com",
     identity: {
       request: (ctx) => get("https://graph.microsoft.com/v1.0/me", graphHeaders(ctx)),
@@ -281,10 +281,10 @@ const CATALOG: CatalogConnectorDraft[] = [
       })),
     },
   }),
-  spec("discord", "Discord", "chat", "服务器与频道。", "Feed 读取服务器列表", {
-    token_label: "Discord Bot Token",
+  spec("discord", "Discord", "chat", { key: "discord.connection.summary" }, { key: "discord.connection.inbound" }, {
+    token_label: { key: "discord.connection.token-label" },
     token_placeholder: "MTIz…",
-    auth_help: "Discord Bot Token。本机用 Bot 前缀调用；Bot 必须在要读的服务器里。",
+    auth_help: { key: "discord.connection.auth-help" },
     permission_host: "discord.com",
     identity: {
       request: (ctx) => get("https://discord.com/api/v10/users/@me", discordHeaders(ctx)),
@@ -299,10 +299,10 @@ const CATALOG: CatalogConnectorDraft[] = [
       })),
     },
   }),
-  spec("feishu", "飞书", "chat", "消息、文档与日历。", "Feed 读取会话列表；成果导入文档", {
-    token_label: "飞书应用凭证",
+  spec("feishu", "飞书", "chat", { key: "feishu.connection.summary" }, { key: "feishu.connection.inbound" }, {
+    token_label: { key: "feishu.connection.token-label" },
     token_placeholder: "cli_…:app_secret",
-    auth_help: "企业自建应用，格式 app_id:app_secret。导入正文需文档只读权限，并将文档共享给应用；知识库链接还需知识库读取权限。Feed 拉会话另需 im 权限。",
+    auth_help: { key: "feishu.connection.auth-help" },
     permission_host: "open.feishu.cn",
     parseToken: (raw) => raw === "lark-cli" ? tokenContext(raw) : splitParts(raw, ":", 2, ["app_id", "app_secret"]),
     async prepare(ctx, http) {
@@ -335,10 +335,10 @@ const CATALOG: CatalogConnectorDraft[] = [
       })),
     },
   }),
-  spec("lark", "Lark", "chat", "国际版 Lark 的消息与文档。", "Feed 拉会话；成果导入文档", {
-    token_label: "Lark 应用凭证",
+  spec("lark", "Lark", "chat", { key: "lark.connection.summary" }, { key: "lark.connection.inbound" }, {
+    token_label: { key: "lark.connection.token-label" },
     token_placeholder: "cli_…:app_secret",
-    auth_help: "Lark 国际版自建应用，格式 app_id:app_secret，与飞书凭据分开保存。导入正文需文档只读权限及文档共享，知识库链接还需知识库读取权限。Feed 拉会话另需 im 权限。",
+    auth_help: { key: "lark.connection.auth-help" },
     permission_host: "open.larksuite.com",
     parseToken: (raw) => splitParts(raw, ":", 2, ["app_id", "app_secret"]),
     async prepare(ctx, http) {
@@ -370,10 +370,10 @@ const CATALOG: CatalogConnectorDraft[] = [
       })),
     },
   }),
-  spec("wechat", "微信", "chat", "企业微信消息。", "Feed 拉企业微信通讯录", {
-    token_label: "企业微信 CorpID 与 Secret",
+  spec("wechat", "微信", "chat", { key: "wechat.connection.summary" }, { key: "wechat.connection.inbound" }, {
+    token_label: { key: "wechat.connection.token-label" },
     token_placeholder: "ww…:secret",
-    auth_help: "微信个人号没有稳定官方接口。这里连的是企业微信自建应用，格式 corpid:corpsecret。",
+    auth_help: { key: "wechat.connection.auth-help" },
     permission_host: "qyapi.weixin.qq.com",
     parseToken: (raw) => splitParts(raw, ":", 2, ["corpid", "corpsecret"]),
     async prepare(ctx, http) {
@@ -398,10 +398,10 @@ const CATALOG: CatalogConnectorDraft[] = [
       })),
     },
   }),
-  spec("zoom", "Zoom", "chat", "会议与录制。", "Feed 拉会议与录制", {
-    token_label: "Zoom 访问令牌",
+  spec("zoom", "Zoom", "chat", { key: "zoom.connection.summary" }, { key: "zoom.connection.inbound" }, {
+    token_label: { key: "zoom.connection.token-label" },
     token_placeholder: "eyJ…",
-    auth_help: "Zoom OAuth 用户访问令牌，identity 打 /v2/users/me。Server-to-Server 账号令牌没有 /users/me，会 live 失败；请改用用户上下文令牌。",
+    auth_help: { key: "zoom.connection.auth-help" },
     permission_host: "api.zoom.us",
     identity: {
       request: (ctx) => get("https://api.zoom.us/v2/users/me", bearer(ctx)),
@@ -417,10 +417,10 @@ const CATALOG: CatalogConnectorDraft[] = [
       })),
     },
   }),
-  spec("gitlab", "GitLab", "code", "仓库、Issue 与 MR。", "Feed 拉 Issue 与 MR", {
-    token_label: "GitLab Personal Access Token",
+  spec("gitlab", "GitLab", "code", { key: "gitlab.connection.summary" }, { key: "gitlab.connection.inbound" }, {
+    token_label: { key: "gitlab.connection.token-label" },
     token_placeholder: "glpat-…",
-    auth_help: "GitLab PAT，需要 read_api 或 read_user。默认 gitlab.com。",
+    auth_help: { key: "gitlab.connection.auth-help" },
     permission_host: "gitlab.com",
     identity: {
       request: (ctx) => get("https://gitlab.com/api/v4/user", ctx.extra.auth_method === "oauth" ? bearer(ctx) : { "PRIVATE-TOKEN": ctx.accessToken, Accept: "application/json", "User-Agent": USER_AGENT }),
@@ -438,10 +438,10 @@ const CATALOG: CatalogConnectorDraft[] = [
       })),
     },
   }),
-  spec("bitbucket", "Bitbucket", "code", "仓库与 PR。", "Feed 拉仓库与 PR", {
-    token_label: "Bitbucket 令牌",
+  spec("bitbucket", "Bitbucket", "code", { key: "bitbucket.connection.summary" }, { key: "bitbucket.connection.inbound" }, {
+    token_label: { key: "bitbucket.connection.token-label" },
     token_placeholder: "email:api-token 或 OAuth 访问令牌",
-    auth_help: "Bitbucket App Password 已停用。API Token 用 Atlassian 邮箱:api-token；OAuth 用户访问令牌可直接粘贴。",
+    auth_help: { key: "bitbucket.connection.auth-help" },
     permission_host: "api.bitbucket.org",
     parseToken: parseBitbucketToken,
     identity: {
@@ -458,10 +458,10 @@ const CATALOG: CatalogConnectorDraft[] = [
       })),
     },
   }),
-  spec("vercel", "Vercel", "code", "部署与预览。", "Feed 拉部署与预览", {
-    token_label: "Vercel Token",
+  spec("vercel", "Vercel", "code", { key: "vercel.connection.summary" }, { key: "vercel.connection.inbound" }, {
+    token_label: { key: "vercel.connection.token-label" },
     token_placeholder: "vercel_…",
-    auth_help: "Vercel 账户 Token。只读部署列表。",
+    auth_help: { key: "vercel.connection.auth-help" },
     permission_host: "api.vercel.com",
     identity: {
       request: (ctx) => get(vercelUrl("/v2/user", ctx), bearer(ctx)),
@@ -478,10 +478,10 @@ const CATALOG: CatalogConnectorDraft[] = [
       })),
     },
   }),
-  spec("cloudflare", "Cloudflare", "code", "Workers、Pages 与 DNS。", "Feed 读取域名列表", {
-    token_label: "Cloudflare API Token",
+  spec("cloudflare", "Cloudflare", "code", { key: "cloudflare.connection.summary" }, { key: "cloudflare.connection.inbound" }, {
+    token_label: { key: "cloudflare.connection.token-label" },
     token_placeholder: "…",
-    auth_help: "Cloudflare API Token。identity 打官方 /user/tokens/verify；不要用 Global API Key 的邮箱头。拉域名还需要 Zone.Read。",
+    auth_help: { key: "cloudflare.connection.auth-help" },
     permission_host: "api.cloudflare.com", additional_permission_hosts: ["dash.cloudflare.com"],
     identity: {
       request: (ctx) => get(ctx.extra.auth_method === "oauth" ? "https://dash.cloudflare.com/oauth2/userinfo" : "https://api.cloudflare.com/client/v4/user/tokens/verify", bearer(ctx)),
@@ -501,10 +501,10 @@ const CATALOG: CatalogConnectorDraft[] = [
       })),
     },
   }),
-  spec("huggingface", "Hugging Face", "code", "模型、数据集与 Spaces。", "Feed 读取账号模型列表", {
-    token_label: "Hugging Face Access Token",
+  spec("huggingface", "Hugging Face", "code", { key: "huggingface.connection.summary" }, { key: "huggingface.connection.inbound" }, {
+    token_label: { key: "huggingface.connection.token-label" },
     token_placeholder: "hf_…",
-    auth_help: "Hugging Face access token。用 whoami 后拉该用户模型。",
+    auth_help: { key: "huggingface.connection.auth-help" },
     permission_host: "huggingface.co",
     identity: {
       request: (ctx) => get(ctx.extra.auth_method === "oauth" ? "https://huggingface.co/oauth/userinfo" : "https://huggingface.co/api/whoami-v2", bearer(ctx)),
@@ -524,10 +524,10 @@ const CATALOG: CatalogConnectorDraft[] = [
       })),
     },
   }),
-  spec("sentry", "Sentry", "code", "错误与性能。", "Feed 读取错误列表", {
-    token_label: "Sentry Auth Token",
+  spec("sentry", "Sentry", "code", { key: "sentry.connection.summary" }, { key: "sentry.connection.inbound" }, {
+    token_label: { key: "sentry.connection.token-label" },
     token_placeholder: "sntrys_…",
-    auth_help: "Sentry User/Org Auth Token，需要 event:read、org:read。",
+    auth_help: { key: "sentry.connection.auth-help" },
     permission_host: "sentry.io",
     identity: {
       request: (ctx) => get("https://sentry.io/api/0/organizations/", bearer(ctx)),
@@ -553,10 +553,10 @@ const CATALOG: CatalogConnectorDraft[] = [
       })),
     },
   }),
-  spec("supabase", "Supabase", "code", "数据库、认证与存储。", "Feed 读取项目列表", {
-    token_label: "Supabase Access Token",
+  spec("supabase", "Supabase", "code", { key: "supabase.connection.summary" }, { key: "supabase.connection.inbound" }, {
+    token_label: { key: "supabase.connection.token-label" },
     token_placeholder: "sbp_…",
-    auth_help: "Supabase Management API access token。拉项目列表。",
+    auth_help: { key: "supabase.connection.auth-help" },
     permission_host: "api.supabase.com",
     identity: {
       request: (ctx) => get("https://api.supabase.com/v1/profile", bearer(ctx)),
@@ -572,10 +572,10 @@ const CATALOG: CatalogConnectorDraft[] = [
       })),
     },
   }),
-  spec("linear", "Linear", "work", "Issue、项目与周期。", "Feed 读取 Issue", {
-    token_label: "Linear API Key",
+  spec("linear", "Linear", "work", { key: "linear.connection.summary" }, { key: "linear.connection.inbound" }, {
+    token_label: { key: "linear.connection.token-label" },
     token_placeholder: "lin_api_…",
-    auth_help: "Linear Personal API key。只读 viewer 与最近 Issue。",
+    auth_help: { key: "linear.connection.auth-help" },
     permission_host: "api.linear.app",
     identity: {
       request: (ctx) => post("https://api.linear.app/graphql", linearHeaders(ctx), { query: "{ viewer { id name email } }" }),
@@ -595,10 +595,10 @@ const CATALOG: CatalogConnectorDraft[] = [
       })),
     },
   }),
-  spec("jira", "Jira", "work", "Issue 与项目。", "Feed 拉 Issue 与项目", {
-    token_label: "Jira 站点、邮箱与 API token",
+  spec("jira", "Jira", "work", { key: "jira.connection.summary" }, { key: "jira.connection.inbound" }, {
+    token_label: { key: "jira.connection.token-label" },
     token_placeholder: "your-site.atlassian.net|you@email|api-token",
-    auth_help: "Atlassian API token，格式 站点|邮箱|token。Cloud 站点不要带 https://。",
+    auth_help: { key: "jira.connection.auth-help" },
     permission_host: "atlassian.net", additional_permission_hosts: ["api.atlassian.com"],
     parseToken: (raw) => splitParts(raw, "|", 3, ["site", "email", "token"]),
     identity: {
@@ -619,10 +619,10 @@ const CATALOG: CatalogConnectorDraft[] = [
       }),
     },
   }),
-  spec("confluence", "Confluence", "work", "知识库与页面。", "Feed 拉知识库页面", {
-    token_label: "Confluence 站点、邮箱与 API token",
+  spec("confluence", "Confluence", "work", { key: "confluence.connection.summary" }, { key: "confluence.connection.inbound" }, {
+    token_label: { key: "confluence.connection.token-label" },
     token_placeholder: "your-site.atlassian.net|you@email|api-token",
-    auth_help: "与 Jira 相同的 Atlassian API token，格式 站点|邮箱|token。",
+    auth_help: { key: "confluence.connection.auth-help" },
     permission_host: "atlassian.net", additional_permission_hosts: ["api.atlassian.com"],
     parseToken: (raw) => splitParts(raw, "|", 3, ["site", "email", "token"]),
     identity: {
@@ -642,10 +642,10 @@ const CATALOG: CatalogConnectorDraft[] = [
       }),
     },
   }),
-  spec("asana", "Asana", "work", "任务与项目。", "Feed 拉任务与项目", {
-    token_label: "Asana Personal Access Token",
+  spec("asana", "Asana", "work", { key: "asana.connection.summary" }, { key: "asana.connection.inbound" }, {
+    token_label: { key: "asana.connection.token-label" },
     token_placeholder: "2/…",
-    auth_help: "Asana PAT。拉指派给当前用户且未完成的任务。",
+    auth_help: { key: "asana.connection.auth-help" },
     permission_host: "app.asana.com",
     identity: {
       request: (ctx) => get("https://app.asana.com/api/1.0/users/me", bearer(ctx)),
@@ -670,10 +670,10 @@ const CATALOG: CatalogConnectorDraft[] = [
       },
     },
   }),
-  spec("clickup", "ClickUp", "work", "任务与文档。", "Feed 拉任务与文档", {
-    token_label: "ClickUp API Token",
+  spec("clickup", "ClickUp", "work", { key: "clickup.connection.summary" }, { key: "clickup.connection.inbound" }, {
+    token_label: { key: "clickup.connection.token-label" },
     token_placeholder: "pk_…",
-    auth_help: "ClickUp Settings → Apps 里的 API token。请求头是 Authorization，不加 Bearer。",
+    auth_help: { key: "clickup.connection.auth-help" },
     permission_host: "api.clickup.com",
     identity: {
       request: (ctx) => get("https://api.clickup.com/api/v2/user", clickupHeaders(ctx)),
@@ -697,10 +697,10 @@ const CATALOG: CatalogConnectorDraft[] = [
       },
     },
   }),
-  spec("monday", "monday.com", "work", "看板与工作流。", "Feed 拉看板与工作流", {
-    token_label: "monday.com API Token",
+  spec("monday", "monday.com", "work", { key: "monday.connection.summary" }, { key: "monday.connection.inbound" }, {
+    token_label: { key: "monday.connection.token-label" },
     token_placeholder: "eyJ…",
-    auth_help: "monday.com 个人 API token。官方要求 Authorization 头直接放 token，不要加 Bearer。",
+    auth_help: { key: "monday.connection.auth-help" },
     permission_host: "api.monday.com",
     identity: {
       request: (ctx) => post("https://api.monday.com/v2", mondayHeaders(ctx), { query: "{ me { id name email account { id } } }" }),
@@ -716,10 +716,10 @@ const CATALOG: CatalogConnectorDraft[] = [
       })),
     },
   }),
-  spec("airtable", "Airtable", "work", "表格与记录。", "Feed 拉表格与记录", {
-    token_label: "Airtable Personal Access Token",
+  spec("airtable", "Airtable", "work", { key: "airtable.connection.summary" }, { key: "airtable.connection.inbound" }, {
+    token_label: { key: "airtable.connection.token-label" },
     token_placeholder: "pat…",
-    auth_help: "Airtable PAT，需要 schema.bases:read。",
+    auth_help: { key: "airtable.connection.auth-help" },
     permission_host: "api.airtable.com",
     identity: {
       request: (ctx) => get("https://api.airtable.com/v0/meta/whoami", bearer(ctx)),
@@ -734,16 +734,16 @@ const CATALOG: CatalogConnectorDraft[] = [
       })),
     },
   }),
-  spec("loom", "Loom", "work", "通过 Atlassian Rovo MCP 读取关联站点的录像。", "MCP 读取录像与评论", {
-    token_label: "", token_placeholder: "", auth_help: "Loom 没有公开 REST API；请使用官方 Rovo MCP。",
+  spec("loom", "Loom", "work", { key: "loom.connection.summary" }, { key: "loom.connection.inbound" }, {
+    token_label: "", token_placeholder: "", auth_help: { key: "loom.connection.auth-help" },
     permission_host: "mcp.atlassian.com", feed_available: false,
     identity: { request() { throw new CatalogLiveError("configuration", undefined, "请通过官方 Rovo MCP 连接 Loom"); }, read() { return ""; } },
     feed: { async collect() { return []; } },
   }),
-  spec("figma", "Figma", "design", "设计稿与标注。", "API 验证身份；MCP 读取设计内容", {
-    token_label: "Figma Personal Access Token",
+  spec("figma", "Figma", "design", { key: "figma.connection.summary" }, { key: "figma.connection.inbound" }, {
+    token_label: { key: "figma.connection.token-label" },
     token_placeholder: "figu_… 或 figd_…",
-    auth_help: "使用 Figma Personal Access Token 验证账号。需要读取设计内容时，请连接官方 MCP。",
+    auth_help: { key: "figma.connection.auth-help" },
     permission_host: "api.figma.com",
     identity: {
       request: (ctx) => get("https://api.figma.com/v1/me", ctx.extra.auth_method === "oauth" ? bearer(ctx) : { "X-Figma-Token": ctx.accessToken, "User-Agent": USER_AGENT }),
@@ -752,10 +752,10 @@ const CATALOG: CatalogConnectorDraft[] = [
     feed_available: false,
     feed: { async collect() { return []; } },
   }),
-  spec("canva", "Canva", "design", "设计与导出。", "Feed 读取设计列表", {
-    token_label: "Canva 访问令牌",
+  spec("canva", "Canva", "design", { key: "canva.connection.summary" }, { key: "canva.connection.inbound" }, {
+    token_label: { key: "canva.connection.token-label" },
     token_placeholder: "…",
-    auth_help: "Canva 没有 PAT。推荐在上方使用自己的 Connect App 完成 OAuth；已有访问令牌也可粘贴，到期后需要更新。",
+    auth_help: { key: "canva.connection.auth-help" },
     permission_host: "api.canva.com",
     identity: {
       request: (ctx) => get("https://api.canva.com/rest/v1/users/me", bearer(ctx)),
@@ -771,10 +771,10 @@ const CATALOG: CatalogConnectorDraft[] = [
       })),
     },
   }),
-  spec("adobe", "Adobe", "design", "创意工具。", "API 验证 Adobe IMS 身份", {
-    token_label: "Adobe IMS 访问令牌",
+  spec("adobe", "Adobe", "design", { key: "adobe.connection.summary" }, { key: "adobe.connection.inbound" }, {
+    token_label: { key: "adobe.connection.token-label" },
     token_placeholder: "api-key|access-token 或 access-token",
-    auth_help: "Adobe IMS access token。官方 UserInfo 要带 client_id：填 api-key|access-token。只贴 access token 时也可能通，但多数情况会 401。",
+    auth_help: { key: "adobe.connection.auth-help" },
     permission_host: "adobelogin.com",
     parseToken: parseAdobeToken,
     identity: {
@@ -784,10 +784,10 @@ const CATALOG: CatalogConnectorDraft[] = [
     feed_available: false,
     feed: { async collect() { return []; } },
   }),
-  spec("salesforce", "Salesforce", "crm", "CRM 对象与记录。", "Feed 拉 CRM 记录", {
-    token_label: "Salesforce 实例与访问令牌",
+  spec("salesforce", "Salesforce", "crm", { key: "salesforce.connection.summary" }, { key: "salesforce.connection.inbound" }, {
+    token_label: { key: "salesforce.connection.token-label" },
     token_placeholder: "https://your.my.salesforce.com|00D…",
-    auth_help: "格式 instanceUrl|accessToken。instance 用 https://yourorg.my.salesforce.com；漏写 https:// 也会补上。",
+    auth_help: { key: "salesforce.connection.auth-help" },
     permission_host: "salesforce.com",
     parseToken: (raw) => splitParts(raw, "|", 2, ["instance", "token"]),
     identity: {
@@ -803,10 +803,10 @@ const CATALOG: CatalogConnectorDraft[] = [
       })),
     },
   }),
-  spec("hubspot", "HubSpot", "crm", "CRM 与营销。", "Feed 读取联系人", {
-    token_label: "HubSpot Service Key / 既有 Private App Token",
+  spec("hubspot", "HubSpot", "crm", { key: "hubspot.connection.summary" }, { key: "hubspot.connection.inbound" }, {
+    token_label: { key: "hubspot.connection.token-label" },
     token_placeholder: "Service Key 或 pat-na1-…",
-    auth_help: "新建连接建议用 HubSpot Service Key，赋予 crm.objects.contacts.read；已有 Private App Token 仍可使用。",
+    auth_help: { key: "hubspot.connection.auth-help" },
     permission_host: "api.hubapi.com",
     identity: {
       request: (ctx) => get("https://api.hubapi.com/integrations/v1/me", bearer(ctx)),
@@ -826,10 +826,10 @@ const CATALOG: CatalogConnectorDraft[] = [
       }),
     },
   }),
-  spec("intercom", "Intercom", "crm", "客户对话。", "Feed 拉客户对话", {
-    token_label: "Intercom Access Token",
+  spec("intercom", "Intercom", "crm", { key: "intercom.connection.summary" }, { key: "intercom.connection.inbound" }, {
+    token_label: { key: "intercom.connection.token-label" },
     token_placeholder: "dG9r…",
-    auth_help: "Intercom access token。只读 me 与会话。",
+    auth_help: { key: "intercom.connection.auth-help" },
     permission_host: "api.intercom.io",
     identity: {
       request: (ctx) => get("https://api.intercom.io/me", bearer(ctx, { Accept: "application/json", "Intercom-Version": "2.13" })),
@@ -845,10 +845,10 @@ const CATALOG: CatalogConnectorDraft[] = [
       })),
     },
   }),
-  spec("stripe", "Stripe", "crm", "支付与客户。", "Feed 读取支付事件", {
-    token_label: "Stripe Secret Key",
+  spec("stripe", "Stripe", "crm", { key: "stripe.connection.summary" }, { key: "stripe.connection.inbound" }, {
+    token_label: { key: "stripe.connection.token-label" },
     token_placeholder: "sk_live_… 或 sk_test_…",
-    auth_help: "Stripe secret key。只读 account 与 events。不要把密钥提交到 Git。",
+    auth_help: { key: "stripe.connection.auth-help" },
     permission_host: "api.stripe.com",
     identity: {
       request: (ctx) => get("https://api.stripe.com/v1/account", bearer(ctx)),
@@ -863,10 +863,10 @@ const CATALOG: CatalogConnectorDraft[] = [
       })),
     },
   }),
-  spec("x", "X", "social", "帖子与账号。", "Feed 拉帖子与账号", {
-    token_label: "X Bearer / User Token",
+  spec("x", "X", "social", { key: "x.connection.summary" }, { key: "x.connection.inbound" }, {
+    token_label: { key: "x.connection.token-label" },
     token_placeholder: "AAAA…",
-    auth_help: "不要贴开发者后台的 App-Only Bearer（/users/me 会 403）。需要 OAuth 2.0 User Access Token（PKCE）或用户上下文令牌，权限 tweet.read、users.read。开放接口按套餐计费，需要开发者账号具备相应 API 访问资格。",
+    auth_help: { key: "x.connection.auth-help" },
     permission_host: "api.x.com",
     identity: {
       request: (ctx) => get("https://api.x.com/2/users/me", bearer(ctx)),
@@ -888,10 +888,10 @@ const CATALOG: CatalogConnectorDraft[] = [
       })),
     },
   }),
-  spec("linkedin", "LinkedIn", "social", "职业社交。", "API 读取 OpenID 会员资料", {
-    token_label: "LinkedIn 访问令牌",
+  spec("linkedin", "LinkedIn", "social", { key: "linkedin.connection.summary" }, { key: "linkedin.connection.inbound" }, {
+    token_label: { key: "linkedin.connection.token-label" },
     token_placeholder: "AQX…",
-    auth_help: "LinkedIn OpenID 会员令牌（openid profile）。identity 打官方 /v2/userinfo。帖子列表要 Community Management 权限，多数开发者应用会 403，连接仍以 userinfo 成功为准。",
+    auth_help: { key: "linkedin.connection.auth-help" },
     permission_host: "api.linkedin.com",
     identity: {
       request: (ctx) => get("https://api.linkedin.com/v2/userinfo", bearer(ctx)),

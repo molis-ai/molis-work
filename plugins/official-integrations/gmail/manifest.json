@@ -19,13 +19,13 @@
     "consumes": ["connector.host.v1", "listener.host.v1", "signals.command.v1"]
   },
   "artifacts": { "produces": [], "consumes": [] },
-  "ui": { "contributions": ["settings.integration.gmail"] },
+  "ui": { "contributions": ["settings.integration.gmail"], "locales": { "default": "zh", "available": ["zh", "en"] } },
   "connection_services": [
     {
       "service_id": "gmail",
       "title": "Gmail",
       "group_id": "mail",
-      "summary": "本机账号。Feed 只读收信。",
+      "summary": { "key": "gmail.connection.summary" },
       "auth_kind": "oauth",
       "auth": {
         "methods": [
@@ -48,26 +48,26 @@
       },
       "capabilities": [
         {
-          "label": "Feed 只读收信",
+          "label": { "key": "gmail.connection.inbound" },
           "fulfillment": "live"
         },
         {
-          "label": "发送邮件",
+          "label": { "key": "gmail.connection.send-mail" },
           "fulfillment": "unfulfilled"
         }
       ],
-      "outbound_note": "出站动作未兑现：当前只读收信，不发送邮件。",
+      "outbound_note": { "key": "gmail.connection.outbound" },
       "setup_links": [
         {
-          "label": "启用 Gmail API",
+          "label": { "key": "gmail.setup.enable-the-gmail-api" },
           "url": "https://console.cloud.google.com/apis/library/gmail.googleapis.com"
         },
         {
-          "label": "创建 OAuth 客户端",
+          "label": { "key": "gmail.setup.create-oauth-client" },
           "url": "https://console.cloud.google.com/apis/credentials"
         },
         {
-          "label": "在 OAuth Playground 拿令牌",
+          "label": { "key": "gmail.setup.get-a-token-in-oauth-playground" },
           "url": "https://developers.google.com/oauthplayground"
         }
       ]

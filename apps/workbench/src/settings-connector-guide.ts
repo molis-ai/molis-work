@@ -80,21 +80,21 @@ export function officialLinks(links: readonly ConnectorSetupLink[], p: Connector
 }
 
 const COMPOSITE: Record<string, { separator: string; fields: readonly [string, string, string?][] }> = {
-  feishu: { separator: ":", fields: [["应用 ID", "text", "cli_…"], ["应用密钥", "password"]] },
-  lark: { separator: ":", fields: [["应用 ID", "text", "cli_…"], ["应用密钥", "password"]] },
-  wechat: { separator: ":", fields: [["企业 ID（CorpID）", "text", "ww…"], ["应用 Secret", "password"]] },
-  bitbucket: { separator: ":", fields: [["Atlassian 邮箱", "email"], ["API Token", "password"]] },
-  jira: { separator: "|", fields: [["站点域名", "text", "your-site.atlassian.net"], ["Atlassian 邮箱", "email"], ["API Token", "password"]] },
-  confluence: { separator: "|", fields: [["站点域名", "text", "your-site.atlassian.net"], ["Atlassian 邮箱", "email"], ["API Token", "password"]] },
-  salesforce: { separator: "|", fields: [["实例地址", "url", "https://your.my.salesforce.com"], ["访问令牌", "password"]] },
-  adobe: { separator: "|", fields: [["API Key / Client ID", "text"], ["访问令牌", "password"]] },
+  feishu: { separator: ":", fields: [["workbench.connector-credential.app-id", "text", "cli_…"], ["workbench.connector-credential.app-secret", "password"]] },
+  lark: { separator: ":", fields: [["workbench.connector-credential.app-id", "text", "cli_…"], ["workbench.connector-credential.app-secret", "password"]] },
+  wechat: { separator: ":", fields: [["workbench.connector-credential.corp-id", "text", "ww…"], ["workbench.connector-credential.corp-secret", "password"]] },
+  bitbucket: { separator: ":", fields: [["workbench.connector-credential.atlassian-email", "email"], ["workbench.connector-credential.api-token", "password"]] },
+  jira: { separator: "|", fields: [["workbench.connector-credential.site-domain", "text", "your-site.atlassian.net"], ["workbench.connector-credential.atlassian-email", "email"], ["workbench.connector-credential.api-token", "password"]] },
+  confluence: { separator: "|", fields: [["workbench.connector-credential.site-domain", "text", "your-site.atlassian.net"], ["workbench.connector-credential.atlassian-email", "email"], ["workbench.connector-credential.api-token", "password"]] },
+  salesforce: { separator: "|", fields: [["workbench.connector-credential.instance-url", "url", "https://your.my.salesforce.com"], ["workbench.connector-credential.access-token", "password"]] },
+  adobe: { separator: "|", fields: [["workbench.connector-credential.client-key", "text"], ["workbench.connector-credential.access-token", "password"]] },
 };
 
 export function credentialInputs(card: ConnectorSettingsCardView, p: ConnectorPrimitives): { fields: string; separator?: string } {
   const { escapeHtml: e } = p;
   const composite = Object.hasOwn(COMPOSITE, card.connector_id) ? COMPOSITE[card.connector_id] : undefined;
-  const fields = composite ? composite.fields.map(([label, type, placeholder]) => `<label class="settings-connector-field"><span>${e(label)}</span><input class="mw-input" data-credential-part type="${type}" autocomplete="off" placeholder="${e(placeholder ?? "")}" required></label>`).join("")
-    : `<label class="settings-connector-field"><span>${e(uiText.text(card.token_label || "workbench.settings-connector-guide.api-key-access-token"))}</span><input class="mw-input" type="password" autocomplete="off" data-connector-token="${e(card.connector_id)}" placeholder="${e(card.token_placeholder || "")}" required></label>`;
+  const fields = composite ? composite.fields.map(([label, type, placeholder]) => `<label class="settings-connector-field"><span>${uiText(label)}</span><input class="mw-input" data-credential-part type="${type}" autocomplete="off" placeholder="${e(placeholder ?? "")}" required></label>`).join("")
+    : `<label class="settings-connector-field"><span>${card.token_label ? e(card.token_label) : uiText("workbench.settings-connector-guide.api-key-access-token")}</span><input class="mw-input" type="password" autocomplete="off" data-connector-token="${e(card.connector_id)}" placeholder="${e(card.token_placeholder || "")}" required></label>`;
   return { fields, separator: composite?.separator };
 }
 
@@ -119,8 +119,8 @@ export type MethodGuideVariant = "full" | "main" | "own";
 
 export function renderMethodGuide(card: ConnectorSettingsCardView, option: ConnectorMethodOption, p: ConnectorPrimitives, setup?: ConnectorSetupView["setup"], cliJob?: string, variant: MethodGuideVariant = "full"): string {
   const { escapeHtml: e } = p;
-  const field = (key: string, label: string, value = "", secret = false, placeholder = "", required = false) => `<label class="settings-connector-field"><span>${e(uiText.text(label))}</span><input class="mw-input" data-protocol-field="${e(key)}" type="${secret ? "password" : "text"}" autocomplete="off" value="${e(value)}" placeholder="${e(placeholder)}"${required ? " required" : ""}></label>`;
-  const manualReturn = `<div data-oauth-return hidden>${field("returned_url", "workbench.settings-connector-guide.full-return-address-browser", "", true)}<button class="mw-btn mw-btn--secondary" type="button" data-oauth-complete>${uiText("workbench.settings-connector-guide.confirm-authorization-result")}</button></div>`;
+  const field = (key: string, label: string, value = "", secret = false, placeholder = "", required = false) => `<label class="settings-connector-field"><span>${e(label)}</span><input class="mw-input" data-protocol-field="${e(key)}" type="${secret ? "password" : "text"}" autocomplete="off" value="${e(value)}" placeholder="${e(placeholder)}"${required ? " required" : ""}></label>`;
+  const manualReturn = `<div data-oauth-return hidden>${field("returned_url", uiText.text("workbench.settings-connector-guide.full-return-address-browser"), "", true)}<button class="mw-btn mw-btn--secondary" type="button" data-oauth-complete>${uiText("workbench.settings-connector-guide.confirm-authorization-result")}</button></div>`;
   const primary = (attrs: string, label: string) => `<button class="mw-btn mw-btn--primary" type="button" ${attrs}>${e(label)}</button>`;
   let body = "";
   if (option.kind === "token" && option.support === "paste") body = tokenGuide(card, option, p);
@@ -135,9 +135,9 @@ export function renderMethodGuide(card: ConnectorSettingsCardView, option: Conne
       ${option.oauth.note ? `<p>${e(option.oauth.note)}</p>` : ""}${start(uiText.text("workbench.settings-connector-guide.connect-name", { name: card.title }))}${manualReturn}`;
     else body = `<ol class="settings-connector-steps"><li><strong>${uiText("workbench.settings-connector-guide.open-official-console-prepare-app")}</strong>${officialLinks(option.links, p)}<p>${uiText("workbench.settings-connector-guide.if-don-t-have-developer-access-ask-app")}</p></li>
       <li><strong>${uiText("workbench.settings-connector-guide.register-callback-url")}</strong><p>${uiText("workbench.settings-connector-guide.add-address-below-app-s-allowed-callback-urls")}</p><div class="settings-connector-copy"><code data-oauth-callback${option.oauth.callback_path ? ` data-callback-path="${e(option.oauth.callback_path)}"` : ""}${option.oauth.callback_host ? ` data-callback-host="${e(option.oauth.callback_host)}"` : ""}${ready ? ` data-account-callback="${e(card.connector_id)}"` : ""}></code><button type="button" class="mw-btn mw-btn--ghost" data-copy-callback>${uiText("common.control.copy")}</button></div></li>
-      <li><strong>${uiText("workbench.settings-connector-guide.enter-app-details")}</strong>${field("client_id", "workbench.settings-connector-guide.app-client-id", "", false, "", own)}${field("client_secret", option.oauth.client_secret_required ? "workbench.settings-connector-guide.app-client-secret" : "workbench.settings-connector-guide.client-secret-optional", "", true, "", own && option.oauth.client_secret_required)}${option.oauth.fields.map(f => field(`setting:${f.key}`, f.label, "", false, f.placeholder, own && f.required)).join("")}</li></ol>
+      <li><strong>${uiText("workbench.settings-connector-guide.enter-app-details")}</strong>${field("client_id", uiText.text("workbench.settings-connector-guide.app-client-id"), "", false, "", own)}${field("client_secret", uiText.text(option.oauth.client_secret_required ? "workbench.settings-connector-guide.app-client-secret" : "workbench.settings-connector-guide.client-secret-optional"), "", true, "", own && option.oauth.client_secret_required)}${option.oauth.fields.map(f => field(`setting:${f.key}`, f.label, "", false, f.placeholder, own && f.required)).join("")}</li></ol>
       ${option.oauth.note ? `<p>${e(option.oauth.note)}</p>` : ""}
-      ${field("redirect_uri", "workbench.settings-connector-guide.https-callback-url-optional")}<p>${uiText("workbench.settings-connector-guide.use-only-when-service-doesn-t-accept-local")}</p>
+      ${field("redirect_uri", uiText.text("workbench.settings-connector-guide.https-callback-url-optional"))}<p>${uiText("workbench.settings-connector-guide.use-only-when-service-doesn-t-accept-local")}</p>
       ${start(uiText.text("workbench.settings-connector-guide.sign-app"))}${manualReturn}`;
   } else if (option.mcp) {
     const custom = card.connector_id === "mcp-bearer";
@@ -149,17 +149,17 @@ export function renderMethodGuide(card: ConnectorSettingsCardView, option: Conne
     if (variant === "main" && !manual) body = `<p>${uiText("workbench.settings-connector-guide.after-connecting-can-view-use-tools-provider-offers")}</p><input type="hidden" data-protocol-field="endpoint" value="${e(option.mcp.endpoint)}">${fixed}${start}${manualReturn}`;
     else body = `<p>${e(option.note)}</p>${officialLinks(option.links, p)}
       ${manual ? `<p>${uiText("workbench.settings-connector-guide.service-needs-app-organization-configuration-before-authorizatio")}</p>` : ""}
-      ${field("endpoint", "workbench.settings-connector-guide.official-tool-service-address", option.mcp.endpoint)}${custom ? select("authentication", "workbench.settings-connector-guide.authentication", [["oauth", "OAuth"], ["none", "无需鉴权"], ["bearer", "Bearer Token"]], setup?.authentication) + select("transport", "workbench.settings-connector-guide.transport", [["http", "Streamable HTTP"], ["sse", "SSE"]], setup?.transport) : fixed}${field("client_id", "workbench.settings-connector-guide.app-client-id-app-id-enter-if-service")}${field("client_secret", "workbench.settings-connector-guide.client-secret-app-secret-enter-if-service-requires", "", true)}${field("token", "workbench.settings-connector-guide.access-token-optional-if-service-supports", "", true)}<div class="settings-connector-copy"><code data-mcp-callback></code><button type="button" class="mw-btn mw-btn--ghost" data-copy-callback>${uiText("workbench.settings-connector-guide.copy-callback")}</button></div>${field("redirect_uri", "workbench.settings-connector-guide.registered-https-callback-optional")}
+      ${field("endpoint", uiText.text("workbench.settings-connector-guide.official-tool-service-address"), option.mcp.endpoint)}${custom ? select("authentication", "workbench.settings-connector-guide.authentication", [["oauth", "OAuth"], ["none", uiText.text("workbench.settings-connector-guide.no-authentication")], ["bearer", "Bearer Token"]], setup?.authentication) + select("transport", "workbench.settings-connector-guide.transport", [["http", "Streamable HTTP"], ["sse", "SSE"]], setup?.transport) : fixed}${field("client_id", uiText.text("workbench.settings-connector-guide.app-client-id-app-id-enter-if-service"))}${field("client_secret", uiText.text("workbench.settings-connector-guide.client-secret-app-secret-enter-if-service-requires"), "", true)}${field("token", uiText.text("workbench.settings-connector-guide.access-token-optional-if-service-supports"), "", true)}<div class="settings-connector-copy"><code data-mcp-callback></code><button type="button" class="mw-btn mw-btn--ghost" data-copy-callback>${uiText("workbench.settings-connector-guide.copy-callback")}</button></div>${field("redirect_uri", uiText.text("workbench.settings-connector-guide.registered-https-callback-optional"))}
       ${variant === "own" ? primary('data-protocol-start="mcp"', uiText.text("workbench.settings-connector-guide.connect-these-settings")) : start}${manualReturn}`;
   } else if (option.cli) {
     body = `<p>${e(uiText.text(card.connector_id === "feishu" ? "workbench.settings-connector-guide.sign-user-account-local-client-connection-checked-automatically" : "workbench.settings-connector-guide.sign-installed-official-client-check-account-connection-can"))}</p>
       <p data-cli-availability>${e(option.cli.binary)} · ${uiText(option.cli.installed ? "workbench.settings-connector-guide.installed" : "workbench.settings-connector-guide.not-installed")}</p>
-      ${officialLinks([{ label: "打开官方安装说明", url: option.cli.install_url }], p)}
+      ${officialLinks([{ label: uiText.text("workbench.settings-connector-guide.official-installation"), url: option.cli.install_url }], p)}
       ${(option.cli.environment_fields ?? []).map(input => field(`setting:${input.name}`, input.label, "", input.secret)).join("")}
       <div class="settings-connector-actions"><button class="mw-btn mw-btn--primary" type="button" data-cli-login${option.cli.installed ? "" : " disabled"}>${uiText("workbench.settings-connector-guide.sign-connect")}</button><button class="mw-btn mw-btn--secondary" type="button" data-cli-connect${option.cli.installed ? "" : " disabled"}>${uiText("workbench.settings-connector-guide.connect-signed-account")}</button><button class="mw-btn mw-btn--ghost" type="button" data-cli-detect>${uiText("workbench.settings-connector-guide.detect-installation-again")}</button></div>
       ${option.cli.note ? `<details class="settings-connector-help"><summary>${uiText("workbench.settings-connector-guide.client-instructions")}</summary><p>${e(option.cli.note)}</p>${officialLinks(option.links, p)}</details>` : ""}
       ${option.cli.setup_available ? `<button type="button" class="mw-btn mw-btn--secondary" data-cli-configure${option.cli.installed ? "" : " disabled"}>${uiText("workbench.settings-connector-guide.configure-client")}</button>` : ""}
-      <div data-cli-session hidden><p>${uiText("workbench.settings-connector-guide.follow-client-s-prompts-finish-signing-some-clients")}</p><pre class="settings-connection-output" data-cli-output aria-live="polite"></pre>${field("cli_input", "workbench.settings-connector-guide.client-input-sends-enter-if-left-blank", "", true)}<div class="settings-connector-actions"><button type="button" class="mw-btn mw-btn--secondary" data-cli-input>${uiText("workbench.settings-connector-guide.send")}</button><button type="button" class="mw-btn mw-btn--ghost" data-cli-cancel>${uiText("workbench.settings-connector-guide.end-operation")}</button></div></div>`;
+      <div data-cli-session hidden><p>${uiText("workbench.settings-connector-guide.follow-client-s-prompts-finish-signing-some-clients")}</p><pre class="settings-connection-output" data-cli-output aria-live="polite"></pre>${field("cli_input", uiText.text("workbench.settings-connector-guide.client-input-sends-enter-if-left-blank"), "", true)}<div class="settings-connector-actions"><button type="button" class="mw-btn mw-btn--secondary" data-cli-input>${uiText("workbench.settings-connector-guide.send")}</button><button type="button" class="mw-btn mw-btn--ghost" data-cli-cancel>${uiText("workbench.settings-connector-guide.end-operation")}</button></div></div>`;
   } else body = `<p>${e(option.note)}</p>${officialLinks(option.links, p)}`;
   return `<section class="settings-connector-method" data-connector-method="${option.kind}" data-method-support="${option.support}"><div data-protocol="${option.kind}" data-protocol-service="${e(card.connector_id)}"${cliJob ? ` data-cli-job="${e(cliJob)}"` : ""} class="settings-connector-flow">${body}${option.kind === "token" ? "" : '<div data-protocol-result role="status" aria-live="polite" hidden></div>'}</div></section>`;
 }
@@ -178,13 +178,13 @@ const WAY: Record<string, string> = { oauth: "workbench.settings-connector-guide
  */
 export function renderConnectorConnect(card: ConnectorSettingsCardView, p: ConnectorPrimitives): string {
   const { escapeHtml: e } = p;
-  if (card.availability === "placeholder") return `<div class="settings-connector-pending"><p>${e(uiText.text(card.unavailable_reason || "workbench.settings-connector-guide.service-isn-t-integrated-yet-can-read-official"))}</p>${officialLinks(card.setup_links ?? [], p)}</div>`;
+  if (card.availability === "placeholder") return `<div class="settings-connector-pending"><p>${e(card.unavailable_reason || uiText.text("workbench.settings-connector-guide.service-isn-t-integrated-yet-can-read-official"))}</p>${officialLinks(card.setup_links ?? [], p)}</div>`;
   const recommended = recommendedMethod(card);
   if (recommended) return `${renderCapabilities(card, p)}${renderMethodGuide(card, recommended, p, undefined, undefined, "main")}`;
   const provider = card.connector_id === "gmail" ? "Google" : card.title;
   const ways = [...new Set((card.method_options ?? []).map(m => m.kind))].filter(kind => Object.hasOwn(WAY, kind)).map(kind => uiText.text(WAY[kind]!, { provider }));
   return `<div class="settings-connector-pending"><p>${e(uiText.text("workbench.settings-connector-guide.not-one-click-yet-molis-work-hasn-t", { name: card.title }))}</p>
-    <p>${e(ways.length ? uiText.text("workbench.settings-connector-guide.what-works-now-ways-all-under-advanced-below", { ways: ways.join("；") }) : uiText.text("workbench.settings-connector-guide.there-no-other-way-yet-can-connect-another"))}</p></div>
+    <p>${e(ways.length ? uiText.text("workbench.settings-connector-guide.what-works-now-ways-all-under-advanced-below", { ways: ways.join(uiText.text("common.list.separator")) }) : uiText.text("workbench.settings-connector-guide.there-no-other-way-yet-can-connect-another"))}</p></div>
     ${renderCapabilities(card, p)}${ways.length ? `<button class="mw-btn mw-btn--secondary" type="button" data-connector-advanced-open>${uiText("workbench.settings-connector-guide.see-other-ways-connect")}</button>` : ""}`;
 }
 

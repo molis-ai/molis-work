@@ -1,3 +1,5 @@
+import { existsSync, readFileSync } from "node:fs";
+import { connectionGuide, connectionLinks } from "./connection-guide.js";
 import type {
   IntegrationProviderPort,
   PluginDefinition,
@@ -41,12 +43,12 @@ export const gmailIntegrationManifest = {
     consumes: [/* @version type.connector.host "connector.host.v{version}" */ "connector.host.v1", /* @version type.listener.host "listener.host.v{version}" */ "listener.host.v1", /* @version type.signals.command "signals.command.v{version}" */ "signals.command.v1"],
   },
   artifacts: { produces: [], consumes: [] },
-  ui: { contributions: ["settings.integration.gmail"] },
+  ui: { contributions: ["settings.integration.gmail"], locales: { default: "zh", available: ["zh", "en"] } },
   connection_services: [{
     service_id: "gmail",
     title: "Gmail",
     group_id: "mail",
-    summary: "本机账号。Feed 只读收信。",
+    summary: { key: "gmail.connection.summary" },
     auth_kind: "oauth",
     auth: { methods: [{
       kind: "oauth", grant: "authorization_code", authorize_url: "https://accounts.google.com/o/oauth2/v2/auth",
@@ -55,16 +57,11 @@ export const gmailIntegrationManifest = {
       identity: { url: "{account}/v1/userinfo", account_id: [["identity:/sub"]], label: ["identity:/email", "identity:/name", "identity:/sub"] },
     }, { kind: "mcp", endpoint: "https://gmailmcp.googleapis.com/mcp/v1", auth: "either", registration: "manual" }] },
     capabilities: [
-      { label: "Feed 只读收信", fulfillment: "live" },
-      { label: "发送邮件", fulfillment: "unfulfilled" },
+      { label: { key: "gmail.connection.inbound" }, fulfillment: "live" },
+      { label: { key: "gmail.connection.send-mail" }, fulfillment: "unfulfilled" },
     ],
-    outbound_note: "出站动作未兑现：当前只读收信，不发送邮件。",
-    // The catalog package keeps the same links for its connection methods until those move into the plugins (W5-11).
-    setup_links: [
-      { label: "启用 Gmail API", url: "https://console.cloud.google.com/apis/library/gmail.googleapis.com" },
-      { label: "创建 OAuth 客户端", url: "https://console.cloud.google.com/apis/credentials" },
-      { label: "在 OAuth Playground 拿令牌", url: "https://developers.google.com/oauthplayground" },
-    ],
+    outbound_note: { key: "gmail.connection.outbound" },
+    setup_links: connectionLinks,
   }],
   integrations: [{ integration_id: "gmail", kind: "source", service_id: "gmail" }],
 } as const satisfies PluginManifest;
@@ -73,8 +70,8 @@ export function createGmailIntegrationPlugin(input: {
   /** The provider for one source's binding; the Host decides where the credential comes from. */
   providerFor(binding: IntegrationBinding): IntegrationProviderPort;
   now?: () => Date;
-}): PluginDefinition {
-  return definePollingIntegrationPlugin({
+}) {
+  const definition: PluginDefinition = definePollingIntegrationPlugin({
     manifest: gmailIntegrationManifest,
     createProvider(context, binding) {
       context.requireGrant("network:googleapis.com");
@@ -85,4 +82,8 @@ export function createGmailIntegrationPlugin(input: {
     presentSource: gmailSourcePresentation,
     now: input.now,
   });
+  return { ...definition, connectionText: { readLocale(path: string) {
+    const url = new URL("../" + path, import.meta.url);
+    return existsSync(url) ? readFileSync(url, "utf8") : null;
+  }, guides: { gmail: connectionGuide } } };
 }

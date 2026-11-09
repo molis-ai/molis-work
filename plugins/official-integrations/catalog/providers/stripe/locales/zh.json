@@ -1,0 +1,18 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.stripe",
+  "locale": "zh",
+  "messages": {
+    "stripe.connection.auth-help": "Stripe secret key。只读 account 与 events。不要把密钥提交到 Git。",
+    "stripe.connection.inbound": "Feed 读取支付事件",
+    "stripe.connection.summary": "支付与客户。",
+    "stripe.connection.token-label": "Stripe Secret Key",
+    "stripe.guide.cli-link": "查看 Stripe CLI",
+    "stripe.guide.mcp-link": "查看 Stripe 官方 MCP",
+    "stripe.guide.oauth-link": "查看 Stripe Connect OAuth",
+    "stripe.guide.token-note": "优先创建权限受限的 API Key；不要粘贴 Publishable Key。",
+    "stripe.oauth.note": "Client Secret 填平台 Secret Key。普通 Connect 的 read_write 会授予写权限；Molis Work 的 API 预览仍只读。",
+    "stripe.oauth.stripe-scope": "应用授权范围：Extension 填 read_only，普通 Connect 填 read_write",
+    "stripe.setup.open-stripe-api-keys": "打开 Stripe API keys"
+  }
+}

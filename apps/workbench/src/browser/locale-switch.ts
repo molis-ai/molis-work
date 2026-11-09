@@ -33,7 +33,7 @@ export interface LocaleMerge {
 }
 
 /** These change with what a person does, not with the language. */
-const TEXT_ATTRIBUTES = new Set(["title", "placeholder", "aria-label", "aria-description", "aria-valuetext", "alt", "label", "data-placeholder", "data-work-surface-label", "data-work-surface-description", "data-home-starts"]);
+const TEXT_ATTRIBUTES = new Set(["title", "placeholder", "aria-label", "aria-description", "aria-valuetext", "alt", "label", "data-placeholder", "data-work-surface-label", "data-work-surface-description", "data-home-starts", "data-connector-search", "data-steps", "data-caption", "data-words"]);
 /**
  * A button-type input's label is its value. Every other `value` is data: a field's is the person's, and an `<option>`'s or a `<button>`'s goes with
  * the form when it is sent (a `<button>`'s label is the text inside it), so it is never merged.
@@ -57,11 +57,11 @@ const groupOf = (element: Element, group: string) => element.id ? `#${element.id
 const childrenOf = (node: Node): readonly Node[] => [...(node instanceof HTMLTemplateElement ? node.content : node).childNodes];
 
 /** The words of a region in document order. Blank text is not a word: two words with only space between them are next to each other. */
-function wordsOf(node: Node, group: string, into: Word[]): Word[] {
+function wordsOf(node: Node, group: string, into: Word[], skip?: ReadonlySet<ParentNode>): Word[] {
   for (const child of childrenOf(node)) {
     if (child instanceof Text) {
       if (child.data.trim() !== "") into.push({ group, key: `t:${child.data}`, value: child.data, read: () => child.data, set: (value) => { child.data = value; } });
-    } else if (child instanceof Element) {
+    } else if (child instanceof Element && !skip?.has(child)) {
       const inner = groupOf(child, group);
       for (const name of wordAttributes(child)) {
         const value = child.getAttribute(name)!;
@@ -70,7 +70,7 @@ function wordsOf(node: Node, group: string, into: Word[]): Word[] {
       if (child.localName === "script" || child.localName === "style") {
         const text = child.firstChild;
         if (child.hasAttribute("data-ui-language-model") && child.getAttribute("type") === "application/json" && text instanceof Text) into.push({ group: inner, key: `s:${text.data}`, value: text.data, read: () => text.data, set: (value) => { text.data = value; } });
-      } else if (!keepsChildren(child)) wordsOf(child, inner, into);
+      } else if (!keepsChildren(child)) wordsOf(child, inner, into, skip);
     }
   }
   return into;
@@ -139,22 +139,24 @@ function mergeRun(old: Run<Word & { readonly to: string | null }>, live: Run<Wor
   return changed;
 }
 
-export interface LocaleMergeInput {
+interface LocaleRegion {
   /** The region on the page. */
   readonly root: ParentNode;
   /** The same region as drawn in the language on show, and in the new one. */
   readonly old: ParentNode;
   readonly next: ParentNode;
+}
+
+export interface LocaleMergeInput extends LocaleRegion {
+  readonly regions?: readonly LocaleRegion[];
   readonly produced: ProducedLog;
   /** A produced sentence in the new language. */
   retext(ref: OwnedTextRef): string;
 }
 
-/** Prepare the replacement words without mutating the page or its context. */
-export function planLocaleText(input: LocaleMergeInput) {
+function collectRegion(input: LocaleMergeInput, region: LocaleRegion, changes: WordChange[], skip?: ReadonlySet<ParentNode>) {
   const problems: string[] = [];
-  const changes: WordChange[] = [];
-  const expected = expectedWords(input.old, input.next, problems), live = wordsOf(input.root, "", []);
+  const expected = expectedWords(region.old, region.next, problems), live = wordsOf(region.root, "", [], skip);
   const unmatched = new Set<Word>(live);
   let changed = 0, redrawn = 0;
   for (const group of new Set([...expected, ...live].map((word) => word.group))) {
@@ -171,6 +173,17 @@ export function planLocaleText(input: LocaleMergeInput) {
     const text = input.retext(ref);
     if (text !== word.value) { changes.push({ word, to: text }); redrawn += 1; }
   }
+  return { changed, redrawn, problems };
+}
+
+/** Prepare all rendered regions before mutating the page or its context. */
+export function planLocaleText(input: LocaleMergeInput) {
+  const changes: WordChange[] = [], regions = input.regions ?? [];
+  const plans = [collectRegion(input, input, changes, new Set(regions.map(region => region.root))),
+    ...regions.map(region => collectRegion(input, region, changes))];
+  const { changed, redrawn, problems } = plans.reduce((all, region) => ({
+    changed: all.changed + region.changed, redrawn: all.redrawn + region.redrawn, problems: [...all.problems, ...region.problems],
+  }));
   return { result: { changed, redrawn, problems }, apply(use: () => void, restore: () => void) {
     const wrote: Word[] = [];
     try {
@@ -202,6 +215,8 @@ export interface LocaleSwitchOptions<Prepared = undefined> {
   render(locale: string, signal: AbortSignal): Promise<ParentNode | null>;
   /** Load resources without changing the current language. */
   prepare?(locale: string, signal: AbortSignal, document: ParentNode | null, previous: ParentNode | null): Promise<Prepared>;
+  /** Extra rendered settings regions owned by this document. */
+  regions?(prepared: Prepared | undefined): readonly LocaleRegion[];
   /** Save the prepared preference, or read back its actual result if the reply is lost. Never cancelled once sent. */
   persist?(locale: string, prepared: Prepared): Promise<void>;
   /** The browser commits its prepared context synchronously, or restores the previous one if any update failed. */
@@ -242,7 +257,7 @@ export function createLocaleSwitch<Prepared>(options: LocaleSwitchOptions<Prepar
         const prepared = options.prepare ? await waitForLocalePreparation(signal, options.prepare(target, signal, next, old)) : undefined;
         if (preparing === abort) preparing = undefined;
         if (request !== wanted) continue;
-        const plan = old && next && planLocaleText({ root: options.root, old, next, produced: options.produced,
+        const plan = old && next && planLocaleText({ root: options.root, old, next, produced: options.produced, regions: options.regions?.(prepared),
           retext: ref => options.retext(ref, target, prepared) });
         if (request.save && options.persist && (request.force || target !== persisted)) {
           await options.persist(target, prepared as Prepared);

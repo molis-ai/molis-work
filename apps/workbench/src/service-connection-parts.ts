@@ -68,7 +68,7 @@ export interface ConnectionItemView {
 export function renderConnectionItem(view: ConnectionItemView, _L: Say): string {
   const id = escapeHtml(view.id), open = view.open === true;
   const toggle = renderButton({ label: uiText.text("workbench.service-connection-parts.name-details", { name: view.name }), variant: "ghost", icon: "chevron-down", iconOnly: true, className: "settings-connection-item__toggle", attrs: { "data-connection-toggle": "", "aria-expanded": String(open), "aria-controls": `${view.id}-body` } });
-  return `<div class="settings-connection-item" data-connection-item data-open="${open}"${renderAttrs(view.attrs)}>
+  return `<div class="settings-connection-item" id="${id}" data-connection-item data-open="${open}"${renderAttrs(view.attrs)}>
     <div class="settings-connection-row">${view.mark}<div class="settings-connection-row__identity"><strong id="${id}-name">${escapeHtml(view.name)}</strong><small>${escapeHtml(view.caption)}</small></div>${view.state}${toggle}</div>
     <div class="settings-connection-item__fold" id="${id}-body" role="region" aria-labelledby="${id}-name"><div class="settings-connection-item__clip"><div class="settings-connection-item__body settings-connector-flow">${view.body}</div></div></div>
   </div>`;

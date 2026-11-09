@@ -35,6 +35,8 @@ import {
   SETTINGS_ADDRESS_HASHES,
 } from "../../settings-address-params.js";
 
+import { settingsContentOf } from "../../settings-content.js";
+
 export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
   const { translate: readText, setDirectory, setExclusive, hideDirectory } = host;
   const projectId = host.projectId || (() => {
@@ -109,7 +111,14 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     try { await returns?.saved("model", ready === true); } finally { if (first) modelReady(); }
   };
   const bindEmbed = (root) => {
-    const page = { ...pageOf(root), saved: (kind) => returns?.saved(kind) };
+    let owner = root;
+    const page = {
+      address: () => pageOf(owner).address(), replace: next => pageOf(owner).replace(next), saved: kind => returns?.saved(kind),
+      replaced: (before, after) => {
+        for (const panel of [globalSettings, projectSettings]) panel?.replaceRoot(before, after);
+        if (owner === before) owner = after;
+      },
+    };
     globalThis.molisWorkBindPromptSettings?.(root, { search: root.dataset.settingsSearch || "", hash: root.dataset.settingsHash || "" });
     globalThis.molisWorkBindAssistantSettings?.(root);
     globalThis.molisWorkBindLocalDirectorySettings?.(root, { search: root.dataset.settingsSearch || "" });
@@ -128,10 +137,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     globalThis.molisWorkBindFunctionsRules?.(root, page);
     document.dispatchEvent(new CustomEvent("molis-work:settings-embed", { detail: { root } }));
   };
-  const extractContent = (html) => {
-    const doc = new DOMParser().parseFromString(html, "text/html");
-    return doc.querySelector(".settings-content") || doc.querySelector(".settings-document") || doc.querySelector(".project-settings-page") || doc.querySelector(".guidance-document") || doc.querySelector(".work-planning") || doc.body;
-  };
+  const extractContent = html => (${settingsContentOf.toString()})(new DOMParser().parseFromString(html, "text/html"));
   const modifiedClick = (event) => event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button === 1;
   const bindPanel = (navRoot, bodyRoot, options) => {
     if (!navRoot || !bodyRoot) return null;
@@ -173,17 +179,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
       requestAnimationFrame(resetScroll);
     };
     const loadFromHtml = (section, html, fetchPath) => {
-      const content = extractContent(html);
-      if (!content) return;
-      let wrap;
-      if (content.classList?.contains("settings-content") || content === content.ownerDocument.body) {
-        const elements = [...content.children];
-        if (elements.length === 1) wrap = elements[0];
-        else {
-          wrap = document.createElement("div");
-          wrap.replaceChildren(...elements);
-        }
-      } else wrap = content;
+      const wrap = extractContent(html);
       wrap.dataset.settingsPanel = section;
       wrap.dataset.settingsSource = fetchPath || options.sectionPath(section);
       if (fetchPath) {
@@ -230,11 +226,17 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
       showNode(status);
       try {
         const path = fetchPath || options.sectionPath(section);
-        const html = await molisWorkRequest(path, { as: "text", headers: { Accept: "text/html" }, fallback: globalThis.t.text("workbench.settings-directory.try-again-moment") });
-        await ensureCapabilityScripts(html);
-        await ensureStyleSheets(html);
-        if (loading !== request) return;
-        loadFromHtml(section, html, fetchPath);
+        while (loading === request) {
+          const locale = document.documentElement.dataset.uiLanguageTag;
+          const html = await molisWorkRequest(path, { as: "text", headers: { Accept: "text/html" }, fallback: globalThis.t.text("workbench.settings-directory.try-again-moment") });
+          await ensureCapabilityScripts(html);
+          await ensureStyleSheets(html);
+          if (loading !== request) return;
+          if (locale === document.documentElement.dataset.uiLanguageTag) {
+            loadFromHtml(section, html, fetchPath);
+            return;
+          }
+        }
       } catch (error) {
         if (loading !== request) return;
         const failed = document.createElement("div");
@@ -259,7 +261,15 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
       void loadSection(button.dataset.settingsSection || options.preset);
       if (matchMedia("(max-width: 600px)").matches) hideDirectory?.();
     });
-    return { loadSection, loadFromHtml, getActive: () => active, caches };
+    const replaceRoot = (before, after) => {
+      const section = before.dataset.settingsPanel;
+      if (caches.get(section) !== before) return;
+      for (const key of ['settingsPanel', 'settingsSource', 'settingsAddress', 'settingsSearch', 'settingsHash']) {
+        if (before.dataset[key] !== undefined) after.dataset[key] = before.dataset[key];
+      }
+      caches.set(section, after);
+    };
+    return { loadSection, loadFromHtml, getActive: () => active, caches, replaceRoot };
   };
   const bindGlobal = () => bindPanel(
     document.querySelector("[data-directory-panel=settings]"),
@@ -458,6 +468,8 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     url.search = new URLSearchParams([...new FormData(form, event.submitter)].map(([key, value]) => [key, String(value)])).toString();
     if (openProjectSettingsFromUrl(url.href) || openGlobalSettingsFromUrl(url.href)) event.preventDefault();
   });
+  globalThis.molisWorkSettingsLanguageRoots = () => [globalSettings, projectSettings]
+    .flatMap(panel => panel ? [...panel.caches.values()] : []).filter(root => root.dataset.settingsSource);
   const leave = (section) => {
     for (const [panel, first] of [[globalSettings, "appearance"], [projectSettings, "general"]]) {
       if (!panel) continue;

@@ -38,7 +38,7 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
       const remember = (key, value) => { try { value ? sessionStorage.setItem(key, JSON.stringify(value)) : sessionStorage.removeItem(key); } catch {} };
       const recalled = key => { try { return JSON.parse(sessionStorage.getItem(key) || 'null'); } catch { return null; } };
       // Sentences the page puts side by side: Chinese runs them on, other languages leave a space; the dictionary's words carry none.
-      const glue = (...parts) => parts.filter(Boolean).join(/^zh/i.test(document.documentElement.lang || 'zh') ? '' : ' ');
+      const glue = (...parts) => parts.filter(Boolean).reduce((first, second) => first ? globalThis.t.text("workbench.connectors-settings.sentence-pair", { first, second }) : second, "");
       const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
       // Small helpers the page uses often: bring a part into view, the service a node is in, and a new element.
       const reveal = node => node?.scrollIntoView({ block: 'center', behavior: reduced() ? 'auto' : 'smooth' });
@@ -120,7 +120,7 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
         if (!node) { node = template('progress-' + kind); if (!node) return; (area.querySelector('[data-protocol-result]') || area.lastElementChild).before(node); }
         parts?.progress(node, { at, state });
       };
-      const checkTime = at => { const date = new Date(at), two = value => String(value).padStart(2, '0'); return two(date.getMonth() + 1) + '-' + two(date.getDate()) + ' ' + two(date.getHours()) + ':' + two(date.getMinutes()); };
+      const checkTime = at => at ? globalThis.format.date(at, 'datetime') : '';
       const recheck = node => {
         const at = Date.parse(node.dataset.connectionRetryAt || ''), button = node.closest('[data-connection-row]')?.querySelector('[data-connection-check]');
         if (!button || !(at > Date.now())) return;
@@ -136,12 +136,17 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
       const reload = async (id, notice) => {
         stopWaiting();
         if (notice) { remember(noticeKey, { service: id, ...notice }); remember(draftKey(id), null); }
-        const html = await molisWorkRequest(pageUrl(id), {as:'text', headers:{Accept:'text/html'}, signal:AbortSignal.timeout(45000), fallback:globalThis.t.text("workbench.connectors-settings.connection-was-updated-but-page-couldn-t-refresh")});
-        if (!box.isConnected) return;
+        let locale, html;
+        do {
+          locale = document.documentElement.dataset.uiLanguageTag;
+          html = await molisWorkRequest(pageUrl(id), {as:'text', headers:{Accept:'text/html'}, signal:AbortSignal.timeout(45000), fallback:globalThis.t.text("workbench.connectors-settings.connection-was-updated-but-page-couldn-t-refresh")});
+          if (!box.isConnected) return;
+        } while (locale !== document.documentElement.dataset.uiLanguageTag);
         const doc = new DOMParser().parseFromString(html, 'text/html');
         const next = doc.querySelector('[data-connectors-settings]');
         if (!next) throw new Error(globalThis.t.text("workbench.connectors-settings.page-couldn-t-refresh-reopen-service-connections"));
         next.dataset.openConnector = id;
+        page.replaced?.(box, next);
         box.replaceWith(next); bind(next, page);
       };
       const completed = (result, service, message, replaces) => reload(service, result.awaiting_intent ? undefined : { id: result.connection?.connection_id || result.connectionId || result.connection_id, message, ...(replaces ? { replaces } : {}) });
@@ -332,7 +337,7 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
         }
         if (error.code === 'connector.check.rate_limited') {
           const at = Date.parse(error.body?.details?.retry_at || '');
-          const time = at > Date.now() ? new Date(at).toLocaleTimeString(document.documentElement.lang || undefined, { hour: '2-digit', minute: '2-digit' }) : '';
+          const time = at > Date.now() ? globalThis.format.date(new Date(at).toISOString(), 'time') : '';
           output(result, glue(time ? globalThis.t.text("workbench.connectors-settings.name-says-there-too-many-requests-that-s", { name, time })
             : globalThis.t.text("workbench.connectors-settings.name-says-there-too-many-requests-that-s-2", { name }), kept), true);
           if (time) form.molisRetry = setTimeout(() => { if (form.isConnected && !form.querySelector('button[type=submit]')?.disabled) form.requestSubmit(); }, Math.min(at - Date.now(), 3600000) + 500);
@@ -398,7 +403,7 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
         return [...(read.issues || []).map(issue => globalThis.t.text("workbench.connectors-settings.couldn-t-check-issue", { issue })), ...(unseen ? [globalThis.t.text("workbench.connectors-settings.count-count-using-did-not-switch-may-still", { count: unseen })] : [])];
       };
       const switchOutcome = (outcome, total, notes = []) => {
-        const lines = [...outcome.left.map(entry => readText("workbench.connectors-settings.title-reason", { title: entry.title, reason: switchReasons[entry.code] || globalThis.t.text("workbench.connectors-settings.can-t-be-switched-one-step-yet-choose") })), ...notes];
+        const lines = [...outcome.left.map(entry => globalThis.t.text("workbench.connectors-settings.title-reason", { title: entry.title, reason: switchReasons[entry.code] || globalThis.t.text("workbench.connectors-settings.can-t-be-switched-one-step-yet-choose") })), ...notes];
         if (outcome.left.length) return [globalThis.t.text("workbench.connectors-settings.moved-switched-count-not-moved", { switched: outcome.switched, count: outcome.left.length }), lines];
         if (notes.length) return [globalThis.t.text("workbench.connectors-settings.moved-count-not-everything-could-be-checked-moved", { count: outcome.switched }), lines];
         return [total || outcome.switched ? globalThis.t.text("workbench.connectors-settings.all-moved-count", { count: outcome.switched }) : globalThis.t.text("workbench.connectors-settings.nothing-was-found-using-so-there-nothing-switch"), []];
@@ -476,7 +481,7 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
           // A name told apart from the old one's where only names show (Coding's MCP settings), within a name's 100 characters.
           const named = panel.querySelector('[data-connector-new-name]');
           if (named && !named.value.trim()) {
-            const label = globalThis.t.text("workbench.connectors-settings.name-logged-again-date", { name: old.dataset.connectionName || '', date: new Date().toLocaleDateString(document.documentElement.lang || undefined, { month: 'short', day: 'numeric' }) });
+            const label = globalThis.t.text("workbench.connectors-settings.name-logged-again-date", { name: old.dataset.connectionName || '', date: globalThis.format.date(new Date().toISOString(), 'month-day') });
             expand(named); named.value = named.dataset.prefilled = [...label].slice(0, 100).join('');
           }
         }

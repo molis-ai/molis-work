@@ -1,0 +1,17 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.dropbox",
+  "locale": "en",
+  "messages": {
+    "dropbox.connection.auth-help": "Use an access token from a Dropbox app. The integration lists the root folder without modifying it.",
+    "dropbox.connection.inbound": "Project sources can read Dropbox files",
+    "dropbox.connection.summary": "Cloud files.",
+    "dropbox.connection.token-label": "Dropbox access token",
+    "dropbox.guide.mcp-connected-note": "The official remote Dropbox MCP service is in beta.",
+    "dropbox.guide.mcp-link": "View the official Dropbox MCP (beta)",
+    "dropbox.guide.mcp-note": "The official remote Dropbox MCP service is in beta. Molis Work has not integrated it.",
+    "dropbox.guide.oauth-link": "View Dropbox OAuth guide",
+    "dropbox.guide.token-note": "Create an app in the Dropbox App Console and paste its access token here.",
+    "dropbox.setup.open-dropbox-app-console": "Open Dropbox App Console"
+  }
+}

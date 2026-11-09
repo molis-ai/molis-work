@@ -1,6 +1,7 @@
 import type { UiLanguageCatalog, UiLanguageTag, UiLocalePack, UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import { createTextReader, frameUiLanguage, preferredUiLanguage, t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { createLocaleSwitch } from "./locale-switch.js";
+import { settingsContentOf } from "../settings-content.js";
 import { installLanguageText } from "./language-text.js";
 import { assetOf, installLanguageAssets } from "./language-asset.js";
 import { nativeLanguagePublisher, type NativeDocumentLanguage } from "./native-language.js";
@@ -12,6 +13,7 @@ interface Request { preference: Preference; tag: UiLanguageTag; save: boolean; n
 
 declare global {
   var molisWorkRequest: UiRequest;
+  var molisWorkSettingsLanguageRoots: (() => readonly HTMLElement[]) | undefined;
   var molisWorkSelectLocalLanguage: ((tag: UiLanguageTag) => void) | undefined;
   var molisWorkSelectCapsuleLanguage: ((language: NativeDocumentLanguage, revision: number) => void) | undefined;
 }
@@ -57,12 +59,51 @@ function documentLanguage(initial: LanguageAsset, load: LoadAsset) {
   const broadcast = !local && typeof BroadcastChannel === "function" ? new BroadcastChannel("molis-work-ui-language") : null;
   let intent: Request | undefined, lastSaved: Request | undefined, failure: HTMLElement | undefined;
   const readPreference = () => molisWorkRequest<EntryLanguage>("/api/ui/locale", { control: true });
-  const render = async (locale: string, signal: AbortSignal): Promise<Document | null> => {
+  const render = async (locale: string, signal: AbortSignal, path = languagePath()): Promise<Document | null> => {
     const result = local
       ? await fetch(languagePath(locale), { cache: "no-store", signal })
-      : await molisWorkRequest<Response>(languagePath(), { as: "response", control: true, signal, headers: { "x-molis-work-ui-locale": locale, accept: "text/html" } });
+      : await molisWorkRequest<Response>(path, { as: "response", control: true, signal, headers: { "x-molis-work-ui-locale": locale, accept: "text/html" } });
     if (!result.ok || result.redirected || !result.headers.get("content-type")?.startsWith("text/html")) return null;
     return new DOMParser().parseFromString(await result.text(), "text/html");
+  };
+  // The Settings owner keeps these real nodes in its existing cache, including detached panels with an unsaved draft.
+  const settingsRoots = () => (globalThis.molisWorkSettingsLanguageRoots?.() ?? []).flatMap(root => {
+    const address = new URL(root.dataset.settingsSource ?? "", location.href);
+    if (address.origin !== location.origin || !/^\/(?:projects\/[^/]+\/)?(?:settings|capabilities)(?:\/|$)/u.test(address.pathname)) {
+      throw new Error(t.text("workbench.language.window-failed"));
+    }
+    return [{ root, path: address.pathname + address.search }];
+  });
+  const prepareSettings = async (prior: string, target: string, signal: AbortSignal) => {
+    const mounted = settingsRoots();
+    const assertCurrent = () => {
+      const current = settingsRoots();
+      if (mounted.length !== current.length || mounted.some(({ root, path }) => !current.some(panel => panel.root === root && panel.path === path))) {
+        throw new Error(t.text("workbench.language.window-failed"));
+      }
+    };
+    const documents = new Map<string, Promise<readonly [Element, Element]>>();
+    const byPath = (path: string) => {
+      const existing = documents.get(path);
+      if (existing) return existing;
+      const panel = async (tag: string) => {
+        const page = await render(tag, signal, path);
+        if (!page) throw new Error(t.text("workbench.language.window-failed"));
+        return settingsContentOf(page);
+      };
+      const read = Promise.all([panel(prior), panel(target)] as const);
+      documents.set(path, read);
+      return read;
+    };
+    const regions = await Promise.all(mounted.map(async ({ root, path }) => {
+      const [old, next] = await byPath(path);
+      if (old.localName !== root.localName || next.localName !== root.localName) {
+        throw new Error(t.text("workbench.language.window-failed"));
+      }
+      return { root, old, next };
+    }));
+    assertCurrent();
+    return { regions, assertCurrent };
   };
   const switcher = createLocaleSwitch({
     root: document, render, produced: text.produced,
@@ -79,12 +120,17 @@ function documentLanguage(initial: LanguageAsset, load: LoadAsset) {
       if (choice.native && (choice.native.language.html_lang !== language.html_lang || choice.native.language.direction !== language.direction)) {
         throw new Error(t.text("workbench.language.load-failed"));
       }
-      const frames = previous && next ? await globalThis.molisPluginFrames?.prepareLanguage(frameUiLanguage(language), signal, previous, next) : undefined;
-      return { asset, choice, frames, inline: projected, reader: createTextReader({ packs: packsFor(asset.pack, projected), locale, intlLocale: intlLocale(asset.catalog) }) };
+      const [frames, settings] = previous && next ? await Promise.all([
+        globalThis.molisPluginFrames?.prepareLanguage(frameUiLanguage(language), signal, previous, next),
+        prepareSettings(displayed.pack.locale, locale, signal),
+      ]) : [];
+      return { asset, choice, frames, settings, inline: projected, reader: createTextReader({ packs: packsFor(asset.pack, projected), locale, intlLocale: intlLocale(asset.catalog) }) };
     },
+    regions: prepared => prepared?.settings?.regions ?? [],
     async persist(_locale, prepared) {
       const { choice } = prepared;
       prepared.frames?.assertCurrent();
+      prepared.settings?.assertCurrent();
       const saved = (value: EntryLanguage) => value.preference === choice.preference && value.tag === choice.tag;
       try {
         const reply = await molisWorkRequest<EntryLanguage>("/api/ui/locale", { body: { preference: choice.preference } });
@@ -99,6 +145,7 @@ function documentLanguage(initial: LanguageAsset, load: LoadAsset) {
     use(locale, prepared) {
       const asset = prepared?.asset ?? displayed, projected = prepared?.inline ?? inline;
       prepared?.frames?.assertCurrent();
+      prepared?.settings?.assertCurrent();
       text.select(locale, packsFor(asset.pack, projected), intlLocale(asset.catalog));
       showLanguage(asset);
       prepared?.frames?.apply();
@@ -116,7 +163,7 @@ function documentLanguage(initial: LanguageAsset, load: LoadAsset) {
     button.textContent = t.text("workbench.language.retry"); button.onclick = () => { if (saved) readCurrent(); else void choose(choice, anchor); };
     note.append(button);
     const toolbar = anchor?.closest(".locale-switch, [data-ui-language-options], .mw-catalog-top__tools");
-    if (toolbar) toolbar.after(note); else document.body.append(note);
+    if (toolbar?.isConnected) toolbar.after(note); else document.body.append(note);
   }
   async function choose(choice: Request, anchor?: Element) {
     const changed = choice.tag !== switcher.current();

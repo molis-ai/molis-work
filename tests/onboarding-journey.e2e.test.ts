@@ -348,7 +348,10 @@ test("ONB-FOLDER-01 folder places are a vertical list and more than one can be i
         return grant;
       }
       if (command === 'context_directory_forget') { delete grants[args.id]; return { id: args.id, name: args.id, state: 'unconnected' }; }
-      if (command === 'context_directory_preview') return { files: [{ path: args.id + '/笔记.md', size: 20, modified_ms: 1, identity: 'desktop' }], skipped: 0, truncated: false };
+      if (command === 'context_directory_preview') {
+        (window.scannedRanges ||= []).push([args.id, args.days]);
+        return { files: [{ path: args.id + '/笔记.md', size: 20, modified_ms: 1, identity: 'desktop' }], skipped: 0, truncated: false };
+      }
       throw new Error('unexpected ' + command);
     } } };
   })();` }, sessionId);
@@ -368,6 +371,17 @@ test("ONB-FOLDER-01 folder places are a vertical list and more than one can be i
   assert.deepEqual(await evaluate<string[]>("[...document.querySelectorAll('.ob-picks [aria-pressed=true]')].map(node => node.dataset.pick)"), ["downloads", "documents"]);
   await click("[data-pick=downloads]");
   await waitFor("document.querySelector('[data-pick=downloads]')?.getAttribute('aria-pressed') === 'false' && document.querySelector('[data-pick=documents]')?.getAttribute('aria-pressed') === 'true'");
+  // FSS-37: the real confirmation page draws ranges for metadata from the existing native bridge.
+  await click("[data-action=prepare]");
+  await waitFor(`${obView("model")} && !!document.querySelector('[data-action=model-back]')`);
+  await click("[data-action=model-back]");
+  await waitFor(`${obView("preview")} && document.querySelectorAll('[data-range=documents]').length === 4`);
+  assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-range=documents]')].map(button => [button.dataset.days, button.textContent.trim()])"),
+    [["7", "7 天"], ["30", "30 天"], ["90", "90 天"], ["0", "全部时间"]]);
+  await click("[data-range=documents][data-days='90']");
+  await waitFor("document.querySelector('[data-range=documents][data-days=\"90\"]')?.getAttribute('aria-pressed') === 'true'");
+  assert.deepEqual(await evaluate("scannedRanges.at(-1)"), ["documents", 90]);
+  assert.match(await evaluate<string>("document.querySelector('[data-group=documents]').textContent"), /笔记.md/);
 });
 
 // While organizing (user 2026-10-22): reading goes by bytes, the summary by its calls, and once a call has finished the page says how

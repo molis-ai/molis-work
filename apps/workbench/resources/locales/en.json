@@ -2389,6 +2389,7 @@
     "workbench.context-onboarding.that-s-lot-material-read-one-file-time": "That’s a lot of material, read one file at a time. You can leave this page and pick up where it left off.",
     "workbench.context-onboarding.theme": "Theme",
     "workbench.context-onboarding.ticked-ones-become-todos-new-project-rest-wait": "Ticked ones become todos in the new project; the rest wait in Todo → Waiting for you, to decide later.",
+    "workbench.context-onboarding.source-time-range": "Time range for {source}",
     "workbench.context-onboarding.time-range": "Time range",
     "workbench.context-onboarding.time-range-2": "Time range",
     "workbench.context-onboarding.todo-drafts": "Draft to-dos",

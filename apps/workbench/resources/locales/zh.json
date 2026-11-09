@@ -2199,6 +2199,7 @@
     "workbench.context-onboarding.that-s-lot-material-read-one-file-time": "材料较多，排队逐份读取；可以离开此页，回来时从断点继续。",
     "workbench.context-onboarding.theme": "主题",
     "workbench.context-onboarding.ticked-ones-become-todos-new-project-rest-wait": "勾选的会加入新项目的待办；没勾的留在“待办 → 待你确认”，之后再决定。",
+    "workbench.context-onboarding.source-time-range": "{source}的时间范围",
     "workbench.context-onboarding.time-range": "时间范围",
     "workbench.context-onboarding.time-range-2": "读取时间",
     "workbench.context-onboarding.todo-drafts": "待办草稿",

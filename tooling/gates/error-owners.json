@@ -51,9 +51,10 @@
     },
     "agent_definitions": {
       "paths": [
-        "apps/local-host/src/agent-definitions/"
+        "apps/local-host/src/agent-definitions/",
+        "packages/contracts/src/services/agent-definitions.ts"
       ],
-      "reason": "The Host's registry of Agent definitions and its HTTP edge: its codes already start with agent_definitions."
+      "reason": "The Host's registry of Agent definitions, its HTTP edge, and its contract, where the refusals callers outside the Host see are declared (specs/capability-pack/contract-design.md §4.11): its codes already start with agent_definitions."
     },
     "alchemist": {
       "paths": [
@@ -135,6 +136,12 @@
       ],
       "reason": "The desktop computer helper, its driver and the operation records in the file list. Its codes start with computer."
     },
+    "composer": {
+      "paths": [
+        "packages/contracts/src/platform/composer.ts"
+      ],
+      "reason": "The unified input's public contract (specs/unified-input-voice/implementation-plan.md §6 answer 13): a source that went away, a pick the target cannot read at send time and a mount page's missing required field are the composer's own refusals, declared once here for the mount pages and the client (slice K2) that raise them."
+    },
     "connector": {
       "paths": [
         "horizontal/connector-host/",
@@ -215,6 +222,13 @@
         "packages/kernel/"
       ],
       "reason": "The action kernel: kernel.* for its own failures (the runtime-identity code mcp.runtime_identity_missing becomes kernel.runtime_identity_missing)."
+    },
+    "kit": {
+      "paths": [
+        "packages/contracts/src/platform/kit-report.ts",
+        "packages/contracts/src/services/kit.ts"
+      ],
+      "reason": "The AI kit (specs/capability-pack/contract-design.md §4, D-4): the report protocol and the kit.catalog.list contract; its codes are kit.* like its action ids. The gatherer (horizontal/kit/) and its Host wiring (apps/local-host/src/kit-actions.ts) join this entry when they are written."
     },
     "knowledge": {
       "paths": [
@@ -323,6 +337,12 @@
         "apps/local-host/src/search-*"
       ],
       "reason": "The search horizontal and its Host actions and HTTP edge; search.entry_duplicate is also a platform protocol code."
+    },
+    "sessions": {
+      "paths": [
+        "packages/contracts/src/services/sessions.ts"
+      ],
+      "reason": "The Sessions service contract declares sessions.* once, so the shell and callers can tell the refusals apart; horizontal/sessions/ joins when the service package is created."
     },
     "shelf": {
       "paths": [

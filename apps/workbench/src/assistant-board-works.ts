@@ -19,7 +19,7 @@ export const round = (at: Iso, run_id: string, minutesAgo: number, more: Partial
 });
 export const boardWork = (at: Iso, work_id: string, title: string, state: AssistantWork["state"], minutesAgo: number, more: Partial<AssistantWork> = {}): AssistantWork => ({
   work_id, executor: { kind: "assistant" }, revision: 3, title, scope: SCOPE, scope_title: BOARD_PROJECT.title, origin: { surface: "home", title: "项目首页" },
-  state, session_id: "session-" + work_id, draft: "", created_at: at(minutesAgo + 60), updated_at: at(minutesAgo), archived: false, ...more,
+  state, session_id: "session-" + work_id, draft: "", draft_revision: 1, created_at: at(minutesAgo + 60), updated_at: at(minutesAgo), archived: false, ...more,
 });
 export const boardView = (work: AssistantWork, rounds: AssistantRound[], more: Partial<AssistantWorkView> = {}): AssistantWorkView =>
   ({ work, rounds, reviews: [], cards: [], objects: [], ...more });

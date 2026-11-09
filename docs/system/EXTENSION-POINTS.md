@@ -101,7 +101,7 @@ Text Stats 原来的 12 个文件是：上表的 `scripts/workspace-packages.mjs
 | 形状 | 例子 | 现在 | 文件 |
 | --- | --- | --- | --- |
 | token 型目录连接器 | Linear、Slack、Jira 等 | 1（另可选 1 个图标） | `plugins/official-integrations/catalog/src/catalog.ts` 加一条 `spec(...)`；每个连接器的 Manifest 带自己的 `connection_services` 与 `integrations`，服务连接目录由已装插件的声明汇成（`apps/local-host/src/connector-directory.ts`、`integration-registry.ts`）；图标在 `apps/workbench/src/connector-icons.ts`，缺图标时 `connectorIconSvg` 返回 `undefined`，界面不报错 |
-| 公开来源型 | RSS、YouTube | 5–7 | 3 处包登记（`scripts/workspace-packages.mjs`、`package.json`、`apps/local-host/package.json`，RSS 另有 `apps/workbench/package.json`）+ `apps/local-host/src/source-pull-runtime.ts`、`feed-source-service.ts`（RSS 还有 `apps/workbench/src/feed-projection-ui.ts`） |
+| 公开来源型 | RSS、YouTube | 5–7 | 3 处包登记（`scripts/workspace-packages.mjs`、`package.json`、`apps/local-host/package.json`，RSS 另有 `apps/workbench/package.json`）+ `apps/local-host/src/source-pull-runtime.ts`、`feed-source-service.ts`（RSS 的 Feed 页面随 #1725 迁回 Feed 插件，工作台不再有 `feed-projection-ui.ts`） |
 | 自带 OAuth 或专属协议型 | GitHub、Gmail | 11 | 包登记 3（`scripts/workspace-packages.mjs`、`package.json`、`apps/local-host/package.json`）；宿主新文件 2（`<id>-connector.ts`、`<id>-oauth.ts`）；宿主分支 4（`builtin-integrations.ts` 的内置清单，它同时给每种内置集成接自己种类的提供方、`web-connectors-settings.ts`、`feed-connector-sync.ts`、`connector-account-actions.ts`）；`packages/contracts/src/services/connector-host.ts` 的 `ConnectorAuthKind`；`scripts/check-package-boundaries.mjs` 里按服务列出的禁用主机 |
 
 **目标：1。** 集成包声明鉴权方法，平台通用流程执行；回调与连接库仍归平台，不要求每个 provider 新写授权执行代码。按两类样本结算：

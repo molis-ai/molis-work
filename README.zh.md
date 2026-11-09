@@ -182,7 +182,7 @@ pnpm desktop:install:macos
 pnpm desktop:start:macos
 ```
 
-每个架构单独打包，是因为 Molis Work 的 SQLite 与 PTY native addon 必须和 Node、Mac CPU 架构一致。发布 workflow 目前只能手动触发（自动 `v*` tag 触发已暂停），它分别构建 Apple Silicon 与 Intel DMG；只有签名和公证成功才会发布公开 Release，凭据只从 GitHub Secrets 读取，不进入仓库。
+每个架构单独打包，是因为 Molis Work 的 PTY 与 Alchemist 的 SQLite native addon 必须和 Node、Mac CPU 架构一致（项目库的 SQLite 已随 Node 内置，不再是原生模块）。发布 workflow 目前只能手动触发（自动 `v*` tag 触发已暂停），它分别构建 Apple Silicon 与 Intel DMG；只有签名和公证成功才会发布公开 Release，凭据只从 GitHub Secrets 读取，不进入仓库。
 
 ## 产品边界
 

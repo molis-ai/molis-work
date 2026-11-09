@@ -53,8 +53,8 @@ export const writerDirectory = object({ worktree_id: id, branch: text, base_comm
  * `subagent_id`, a round that ran in one of the Host's worktrees of the output.
  */
 export const writerSource = { session_id: id, run_id: id, subagent_id: id };
-/** What a source must name: the session and its run; the child only for a parallel-writers round. */
-export const writerSourceRequired = ["session_id", "run_id"];
+/** What a source must name: the session and its run; the child only for a parallel-writers round. The tuple is readonly so the definition says exactly these two are required. */
+export const writerSourceRequired = ["session_id", "run_id"] as const;
 /** One file a child changed, and whether it can be brought back as it is (`WriterIntegrationFile`). */
 export const writerIntegrationFile = object({ path: { type: "array", items: text }, target: { enum: ["added", "modified", "deleted"] }, selectable: boolean, reason: text, revision: text,
   before_text: nullable(text), after_text: nullable(text), before_mode: nullable(fileMode), after_mode: nullable(fileMode),

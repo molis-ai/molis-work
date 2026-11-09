@@ -14,6 +14,7 @@ export * from "./action-offers.js";
 export * from "./action-usages.js";
 export * from "./action-subjects.js";
 import type { HostCapabilityDescriptor } from "./app-host.js";
+export * from "./action-named-skills.js";
 import type { WorkflowContentStation } from "./workflow-content.js";
 import type { PlacementRelationDeclaration } from "./placement.js";
 export * from "./workflow-content.js";
@@ -24,6 +25,7 @@ export * from "./action-fragments.js";
 import type { ActionAttach, ActionIntake } from "./item-intake.js";
 export * from "./item-intake.js";
 import type { FileSourceDeclaration } from "./file-sources.js";
+import type { ComposerSourceDeclaration } from "./composer.js";
 export * from "./file-sources.js";
 export * from "./artifact-pins.js";
 export * from "./local-person.js";
@@ -118,11 +120,25 @@ export interface ActionCallContext extends ActionCallOrigin {
   /** Optional page evidence supplied by a protected entry adapter, never business/model input. */
   readonly page_context?: { readonly url: string | null; readonly title: string | null; readonly provenance: "host_snapshot" | "client_reported" };
   /**
-   * The language of the page the call came from, which the Host resolves from the request (the page's language cookie, else
-   * Accept-Language). It only picks the words a handler sends back to be shown; it grants nothing and is never read from
-   * business input. Absent when no page asked (a model's tool call, a timer): the handler uses its own default.
+   * The language of the page the call came from (the Host resolves it from the request: the page's language cookie, else
+   * Accept-Language), or the one the Host settled for a delegation it hands on (the delegating round's). It only picks the words a
+   * handler sends back to be shown and a round's reply language; it grants nothing and is never read from business input. Absent when
+   * neither applies (a model's tool call, a timer): the handler uses its own default.
    */
   readonly locale?: ActionLocale;
+  /**
+   * Set only by the Host, in two places: the routed naming envelope (bound, as `original_input` is, to the first own action the route
+   * calls) and the Host's call to a work executor's `run.start` (bound to that executor's installation and action). It is not carried
+   * by the handler's nested calls nor by a round's gateway tool calls into a plugin's action; the Host's round composition reads it only
+   * to freeze that round's reads of `system.skills`. A `SkillRef` in any action's input names nothing. Never business input.
+   */
+  readonly named_skills?: import("./action-named-skills.js").ActionNamedSkills;
+  /**
+   * Who a round's Skill reads are for, written by the Host's round composition only on the calls it makes to `system.skills` for that
+   * round (its start and the round's own tool calls to `system.skills`): `consumer` decides which Skills apply, `named` is the round's
+   * frozen named list, `engine: "local"` lets a `native_only` Skill be read. A plugin's handler never sees it. Never business input.
+   */
+  readonly skill_round?: import("./action-named-skills.js").ActionSkillRound;
   /** Optional historical author supplied by a trusted adapter; grants still belong to actor_id. Never business input. */
   readonly audit_actor_id?: string;
   /**
@@ -267,6 +283,8 @@ export interface ActionMetadata {
   readonly search_source?: SearchSourceDeclaration;
   /** A side panel file source: the file kinds it lists (or previews) and where each opens (specs/archive/side-panel §3.3). */
   readonly file_source?: FileSourceDeclaration;
+  /** A source in the unified input's `+` menu: what it is called, the kinds it picks and which composers list it (specs/unified-input-voice/implementation-plan.md §3.3). */
+  readonly composer_source?: ComposerSourceDeclaration;
   /** Common owner protocol for reading a discussion and committing its fixed reply destination. */
   readonly thread_source?: { readonly role: "context" | "reply"; readonly subject_kind: string };
   /**

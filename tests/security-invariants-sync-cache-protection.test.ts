@@ -2,11 +2,13 @@ import { syncRoundResponse } from './fixtures/sync-round.js';
 import assert from 'node:assert/strict';
 import test,{type TestContext} from 'node:test';
 import {mkdtempSync,readFileSync,existsSync,rmSync} from 'node:fs';
+import {mkdirSync,writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createHash} from 'node:crypto';
+import {DatabaseSync} from 'node:sqlite';
 import {PersonalSync,syncNamespace,SYNC_STORE_BASELINE,hasProtectedSyncPayloads,type SyncRegistration} from '@molis-ai/molis-work-module-sync-replication';
-import {ensureStorageSpace,personalStorageSpace,createLazyFileSecretStore,createLocalPayloadProtection,openBaselineHomeSqlite} from '@molis-ai/molis-work-storage';
+import {ensureStorageSpace,personalStorageSpace,createLazyFileSecretStore,createLocalPayloadProtection,openBaselineHomeSqlite,homeSqlitePath} from '@molis-ai/molis-work-storage';
 import type {SyncLocalProtection} from '@molis-ai/molis-work-contracts/platform/sync-transport';
 
 function fixture(t:TestContext,two=false){
@@ -103,4 +105,34 @@ test('S-110 PCSYNC-01 transplanted deferred event ciphertext cannot be replayed 
 test('S-110 PCSYNC-23 the protected-data predicate is read-only and does not initialize a new Home',t=>{
   const home=mkdtempSync(join(tmpdir(),'sync-protection-predicate-'));t.after(()=>rmSync(home,{recursive:true,force:true}));
   assert.equal(hasProtectedSyncPayloads(home,'private'),false);assert.equal(existsSync(join(home,'sync')),false);
+});
+
+test('S-110 PCSYNC-23 the protected-data predicate classifies the store the way every open path does: an unmarked store, a newer one and a changed shape are refused, and nothing on disk is touched',t=>{
+  const home=mkdtempSync(join(tmpdir(),'sync-protection-version-'));t.after(()=>rmSync(home,{recursive:true,force:true}));
+  ensureStorageSpace(home,personalStorageSpace('https://auth.example.test','work','alice'));
+  const path=homeSqlitePath(home,'sync'),store=openBaselineHomeSqlite(home,'sync',SYNC_STORE_BASELINE);
+  try{
+    store.prepare('INSERT INTO sync_payload_modes VALUES (?,?)').run('private',1);
+    store.prepare('INSERT INTO sync_blob_parts VALUES (?,?,?,?,?)').run('private','digest',0,'checksum',new Uint8Array([1]));
+  }finally{store.close();}
+  const version=(value:number)=>{const db=new DatabaseSync(path);try{db.exec(`PRAGMA user_version = ${value}`);}finally{db.close();}};
+  const bytes=readFileSync(path);
+  assert.equal(hasProtectedSyncPayloads(home,'private'),true,'a store at the current version is read');
+  assert.deepEqual(readFileSync(path),bytes,'read-only: the file was not written');
+  for(const side of ['-wal','-shm','-journal'])assert.equal(existsSync(path+side),false,`no ${side} side file`);
+  version(0);
+  assert.throws(()=>hasProtectedSyncPayloads(home,'private'),{code:'storage.schema_version_mismatch'},'tables without a version are refused by version, not repaired');
+  version(SYNC_STORE_BASELINE.version+1);
+  const newer=readFileSync(path);
+  assert.throws(()=>hasProtectedSyncPayloads(home,'private'),{code:'storage.store_too_new'},'a newer store is neither read nor written');
+  assert.deepEqual(readFileSync(path),newer,'the newer store is left as it is');
+  version(SYNC_STORE_BASELINE.version);
+  const broken=new DatabaseSync(path);try{broken.exec('DROP TABLE sync_failures');}finally{broken.close();}
+  assert.throws(()=>hasProtectedSyncPayloads(home,'private'),{code:'storage.schema_structure_mismatch'},'a changed baseline shape at the current version is refused, not repaired');
+});
+
+test('S-110 PCSYNC-23 an empty library file is the creation path, not a version refusal: the predicate answers no protected data',t=>{
+  const home=mkdtempSync(join(tmpdir(),'sync-protection-empty-'));t.after(()=>rmSync(home,{recursive:true,force:true}));
+  mkdirSync(join(home,'sync'));writeFileSync(homeSqlitePath(home,'sync'),'');
+  assert.equal(hasProtectedSyncPayloads(home,'private'),false);
 });

@@ -11,9 +11,10 @@ const ORIGIN = "http://127.0.0.1:4173";
 interface Panes {
   from(event: unknown): unknown;
   fromParent(event: unknown): boolean;
+  recordAsk(event: unknown): { plugin: string; itemId: string; quiet: boolean } | null;
+  recordGone(event: unknown): { plugin: string; itemId: string } | null;
   keep(token: string, frame: unknown, value: unknown): void;
   take(token: string, frame: unknown): unknown;
-  recordAsk(event: unknown): { plugin: string; itemId: string; quiet: boolean } | null;
 }
 
 /** The page around the panes: two pane frames, and a frame that is not a pane. */
@@ -142,6 +143,36 @@ test("S-30 a pane passes on the page's ask for a record only from the page aroun
     ["an extra intent", { ...ask, intent: "open" }],
   ];
   for (const [why, data] of cases) assert.equal(panes.recordAsk({ origin: ORIGIN, source: around, data }), null, why);
+});
+
+test("S-30 a pane's gone-record report is taken only from a pane frame, in its exact shape", () => {
+  const { paneA, paneB, stray, panes } = page();
+  const gone = { type: "workbench-pane-record-gone", paneId: "pane-a", plugin: "goals", itemId: "goal-1" };
+  // Copied out of the script's realm so the comparison is of the fields alone.
+  assert.deepEqual({ ...panes.recordGone({ origin: ORIGIN, source: paneA.contentWindow, data: gone }) }, { plugin: "goals", itemId: "goal-1" });
+  assert.deepEqual({ ...panes.recordGone({ origin: ORIGIN, source: paneB.contentWindow, data: { type: gone.type, plugin: gone.plugin, itemId: gone.itemId } }) }, { plugin: "goals", itemId: "goal-1" }, "paneId is optional");
+  // Not from a pane frame or not from this origin: nothing is marked.
+  assert.equal(panes.recordGone({ origin: ORIGIN, source: stray.contentWindow, data: gone }), null, "a frame that is not a pane");
+  assert.equal(panes.recordGone({ origin: ORIGIN, source: { name: "a popup" }, data: gone }), null, "a window that is not a frame here");
+  for (const origin of ["http://127.0.0.1:4174", "http://localhost:4173", "https://example.com", "null", ""]) {
+    assert.equal(panes.recordGone({ origin, source: paneA.contentWindow, data: gone }), null, `from ${JSON.stringify(origin)}`);
+  }
+  // From a pane, but not in the report's shape: nothing is marked.
+  const cases: Array<[string, unknown]> = [
+    ["another message type", { ...gone, type: "workbench-pane-open" }],
+    ["plugin not a string", { ...gone, plugin: 7 }],
+    ["plugin empty", { ...gone, plugin: "" }],
+    ["plugin over 1000 characters", { ...gone, plugin: "p".repeat(1001) }],
+    ["plugin missing", { type: gone.type, itemId: gone.itemId }],
+    ["itemId not a string", { ...gone, itemId: null }],
+    ["itemId empty", { ...gone, itemId: "" }],
+    ["itemId over 1000 characters", { ...gone, itemId: "r".repeat(1001) }],
+    ["itemId missing", { type: gone.type, plugin: gone.plugin }],
+    ["paneId not a string", { ...gone, paneId: 9 }],
+    ["paneId empty", { ...gone, paneId: "" }],
+    ["an extra field", { ...gone, title: "A Goal" }],
+  ];
+  for (const [why, data] of cases) assert.equal(panes.recordGone({ origin: ORIGIN, source: paneA.contentWindow, data }), null, why);
 });
 
 test("S-30 a token handed to one pane is taken back only by that pane's frame, and only once", () => {

@@ -316,6 +316,20 @@ test("a plugin's own Agent may not write applies_to, user_invocable or argument_
   parsePluginManifest(declarationManifest({ agent: { ...agent, skills: [{ skill_id: "draft", version: 1, name: "Draft", summary: "Draft it", tools: ["read"] }] } }));
 });
 
+test("SKC-03 SKC-06: a plugin's own Agent Skill and a method it offers other Agents may not share one id (capability-pack contract-design §2.2)", () => {
+  // A plugin's own round reads its own Skills without the catalog's three states: under a shared id it would read, as its own, a method
+  // the person keeps off or manual in the catalog. So the Manifest is refused, pointing at that id.
+  const agent = { roles: [{ role_id: "writer", version: 1, name: "Writer", workspace: "none" }], prompts: [{ prompt_id: "writer", version: 1 }],
+    skills: [{ skill_id: "draft", version: 1, name: "Draft", summary: "Draft it", tools: ["read"] }] };
+  const method = { skill_id: "draft", version: 1, name: "Draft", summary: "Draft it", tools: [], description: "要起草时用。", applies_to: "both" };
+  const problems = refused(() => parsePluginManifest(declarationManifest({ agent, methods: [method] })));
+  assert.deepEqual(problems, [{ skill_id: "draft", reason: "Agent 方法 draft 与 methods 里的方法同名：自己的方法和给别的 Agent 的方法不能用同一个 skill_id" }]);
+  // Named once however often it repeats, and only the shared id: the other method is fine.
+  const again = refused(() => parsePluginManifest(declarationManifest({ agent, methods: [method, { ...method, skill_id: "outline" }] })));
+  assert.deepEqual(again.map(problem => problem.skill_id), ["draft"]);
+  parsePluginManifest(declarationManifest({ agent, methods: [{ ...method, skill_id: "outline" }] }));
+});
+
 test("SKP-08 SKC-03: a method in Manifest methods must say when to pick it and which built-in Agent may", () => {
   const plain = { skill_id: "plain", version: 1, name: "Plain", summary: "Plain method", tools: [] };
   const problems = refused(() => parsePluginManifest(declarationManifest({ methods: [plain] })));

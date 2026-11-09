@@ -2,6 +2,7 @@ import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/pl
 import { createHash } from "node:crypto";
 import { lstat, mkdir, realpath } from "node:fs/promises";
 import path from "node:path";
+import { compareCodeUnits } from "@molis-ai/molis-work-plugin-sdk";
 import { runWorkspaceGit } from "./workspace-git.js";
 
 import type { WriterFileTarget, WriterWorktree } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
@@ -202,7 +203,7 @@ export function createGitWorktreePort(workspacePath: string): GitWorktreePort {
       for (const file of (await git(directory, ["ls-files", "--others", "--exclude-standard", "-z"])).split("\0")) {
         if (file) changes.set(file, "added");
       }
-      return [...changes].sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
+      return [...changes].sort(([left], [right]) => compareCodeUnits(left, right))
         .map(([file, target]) => ({ path: file.split("/"), target }));
     },
     async remove(worktree) {

@@ -268,7 +268,7 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
   html[data-resolved-theme="dark"] .trash-restore-row,
   html[data-resolved-theme="dark"] .relation-copy .relation-path,
   html[data-resolved-theme="dark"] .relation-authority small { color: var(--ink-soft); }
-  html[data-resolved-theme="dark"] input:not([type="range"]):not([type="checkbox"]):not([type="radio"]):not(.mw-slider, .mw-input):not(.global-search-query):not(.assistant-composer-input):not([data-feed-search]):not([data-inline-title]),
+  html[data-resolved-theme="dark"] input:not([type="range"]):not([type="checkbox"]):not([type="radio"]):not(.mw-slider, .mw-input):not(.global-search-query):not([data-feed-search]):not([data-inline-title]),
   html[data-resolved-theme="dark"] textarea:not(.mw-textarea),
   html[data-resolved-theme="dark"] select,
   html[data-resolved-theme="dark"] .tree-filter,

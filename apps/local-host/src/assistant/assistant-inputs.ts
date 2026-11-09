@@ -19,7 +19,7 @@ type RoundInputOutcome = "answered" | "steered" | "queued";
  * the person's (a page or the Host wrote them), so the runtime records them as the Host's. `about`: the earlier input
  * these words correct (D34); the runtime keeps the link, the words say what changes.
  */
-export interface SendIntent { id?: string; target?: AssistantSendInput["target"]; delivery?: AgentSteerMode; byHost?: boolean; about?: string; original_input?: Omit<HostOfferedOriginalInput, "action">; continued_from?: AgentRunRef; reply_locale?: WebLocale }
+export interface SendIntent { id?: string; target?: AssistantSendInput["target"]; delivery?: AgentSteerMode; byHost?: boolean; about?: string; original_input?: Omit<HostOfferedOriginalInput, "action">; continued_from?: AgentRunRef; reply_locale?: WebLocale; draftCurrent?: () => boolean }
 
 /** Source identities point into the Runtime's immutable originals; run_id is only the route used to re-read them. */
 export interface AssistantMemorySourceRef { run_id: string; input_id: string | null; /** @record-revision Initial revision of immutable source input. */ version: "1"; original?: AgentOriginalInputRef }

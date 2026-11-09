@@ -43,10 +43,10 @@ test("W3-A3b PICK-01, PICK-05, FLASH-01, FLASH-02, FLASH-03: a result picked up 
   await child.waitFor("document.querySelector('[data-pages-title]')?.value === '发布计划'");
 
   // A work, and the document it made handed back to it as its result.
-  await click("[data-assistant-input]");
+  await click("[data-assistant-composer] .mw-composer__input");
   await command("Input.insertText", { text: "把访谈整理成纪要" }, sessionId);
-  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
-  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
   await waitFor("document.querySelector('.assistant-msg--assistant')?.textContent.includes('访谈纪要')", 20_000);
   const api = `/projects/${projectId}/api/assistant/works`;
   const workId = await evaluate<string>(`fetch(${JSON.stringify(api)}).then((r) => r.json()).then((body) => body.works[0].work_id)`);
@@ -181,10 +181,10 @@ test("PRR-21 QA-017 opens the side panel; W3-A3b PICK-02 on the real result card
   await child.waitFor("document.querySelector('[data-pages-title]')?.value === '发布计划'");
 
   // A work, and the document it made handed back to it as its result (as the first test does).
-  await click("[data-assistant-input]");
+  await click("[data-assistant-composer] .mw-composer__input");
   await command("Input.insertText", { text: "把访谈整理成纪要" }, sessionId);
-  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
-  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
   await waitFor("document.querySelector('.assistant-msg--assistant')?.textContent.includes('访谈纪要')", 20_000);
   const api = `/projects/${projectId}/api/assistant/works`;
   const workId = await evaluate<string>(`fetch(${JSON.stringify(api)}).then((r) => r.json()).then((body) => body.works[0].work_id)`);

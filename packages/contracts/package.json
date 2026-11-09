@@ -102,6 +102,10 @@
       "types": "./dist/platform/model-prompts.d.ts",
       "import": "./dist/platform/model-prompts.js"
     },
+    "./platform/kit-report": {
+      "types": "./dist/platform/kit-report.d.ts",
+      "import": "./dist/platform/kit-report.js"
+    },
     "./platform/plugin-events": {
       "types": "./dist/platform/plugin-events.d.ts",
       "import": "./dist/platform/plugin-events.js"
@@ -202,6 +206,10 @@
       "types": "./dist/services/knowledge.d.ts",
       "import": "./dist/services/knowledge.js"
     },
+    "./services/sessions": {
+      "types": "./dist/services/sessions.d.ts",
+      "import": "./dist/services/sessions.js"
+    },
     "./services/search": {
       "types": "./dist/services/search.d.ts",
       "import": "./dist/services/search.js"
@@ -221,6 +229,10 @@
     "./services/skills": {
       "types": "./dist/services/skills.d.ts",
       "import": "./dist/services/skills.js"
+    },
+    "./services/kit": {
+      "types": "./dist/services/kit.d.ts",
+      "import": "./dist/services/kit.js"
     },
     "./modules/characters": {
       "types": "./dist/modules/characters.d.ts",
@@ -261,6 +273,10 @@
     "./platform/project-materials": {
       "types": "./dist/platform/project-materials.d.ts",
       "import": "./dist/platform/project-materials.js"
+    },
+    "./platform/composer": {
+      "types": "./dist/platform/composer.d.ts",
+      "import": "./dist/platform/composer.js"
     },
     "./platform/presentation": {
       "types": "./dist/platform/presentation.d.ts",

@@ -27,39 +27,49 @@ export const ITEM_ROW_STYLES = `
   .mw-item small { flex: 1 1 0; min-width: 0; margin: 0; overflow: hidden; color: var(--muted); font-size: 12px; line-height: 1.5; text-overflow: ellipsis; white-space: nowrap; }
   .mw-item__end { display: flex; align-items: center; gap: 8px; flex: none; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }`;
 
-/** The glyph square at an item row's start (`mw-mark`). */
+/** The glyph square at an item row's start (`mw-mark`): in the composer's patterns and, alone, in the design kit. */
 export const MARK_STYLES = `
   .mw-mark { display: inline-grid; place-items: center; width: 32px; height: 32px; flex: none; border-radius: var(--sk-r-slot, 8px); background: var(--sk-raised, var(--paper)); box-shadow: inset 0 0 0 1px var(--line); color: var(--ink-soft); }
   .mw-mark svg { width: 16px; height: 16px; }`;
 
-export const CATALOG_PATTERN_STYLES = `
-  .mw-catalog .mw-popover .mw-catalog__row { flex-wrap: nowrap; }
-  .mw-catalog .mw-popover .mw-input { flex: 1; min-width: 220px; }
-${MARK_STYLES}
-
+/**
+ * The patterns the unified input's shell is built from (implementation-plan.md §3.6, K2): the button group's joined corners, the
+ * tag, the mark and the upload rows. Served in the workbench sheet with the composer (`COMPOSER_STYLES`); the board reads them too.
+ */
+export const COMPOSER_PATTERN_STYLES = `${MARK_STYLES}
   .mw-btn-group { display: inline-flex; gap: 1px; }
   ${joined()} { border-radius: 0; }
   ${joined(":first-child")} { border-start-start-radius: ${RADIUS}; border-end-start-radius: ${RADIUS}; }
   ${joined(":last-child")} { border-start-end-radius: ${RADIUS}; border-end-end-radius: ${RADIUS}; }
   .mw-btn-group > :focus-visible, .mw-btn-group > * > :focus-visible { position: relative; z-index: 1; }
   .mw-btn-group .mw-compose__menu { left: auto; right: 0; }
-  .mw-btn-group__count { display: inline-flex; align-items: center; padding: 0 12px; border-radius: 0 ${RADIUS} ${RADIUS} 0; background: var(--sk-b2-bg, var(--control-fill)); box-shadow: inset 0 0 0 1px var(--sk-b2-edge, transparent); color: var(--ink-soft); font-size: 13px; font-variant-numeric: tabular-nums; }
-  /* Tray's keys carry their own edge: a secondary group shares one line between keys instead of a seam. */
-  :root[data-skin="tray"] .mw-btn-group > :not(:first-child):is(.mw-btn--secondary, .mw-btn-group__count),
-  :root[data-skin="tray"] .mw-btn-group > :not(:first-child) > .mw-btn--secondary { margin-left: -2px; }
-
-  .mw-tags.mw-input-group { flex-wrap: wrap; gap: 6px; width: min(420px, 100%); height: auto; padding-block: 4px; cursor: text; }
-  :root body .mw-tags.mw-input-group:not(#mw-joined) { border-radius: min(${RADIUS}, 18px); }
-  .mw-tags .mw-input { flex: 1 0 96px; width: auto; min-height: 24px; }
   .mw-tag { display: inline-flex; align-items: center; gap: 2px; height: 24px; padding: 0 3px 0 8px; border: 0; border-radius: var(--sk-r-slot, 6px); background: var(--sk-raised, var(--paper)); box-shadow: 0 0 0 1px var(--line), var(--lift-1); color: var(--ink); font: inherit; font-size: 12px; font-weight: var(--weight-control, 500); white-space: nowrap; }
   .mw-tag button { display: inline-grid; place-items: center; width: 18px; height: 18px; padding: 0; border: 0; border-radius: var(--sk-r-slot, 4px); background: none; color: var(--muted); cursor: pointer; }
   .mw-tag button:is(:hover, :focus-visible) { background: var(--nav-hover); color: var(--ink); }
   .mw-tag button:focus-visible { outline: var(--focus-stroke, 2px solid var(--accent)); outline-offset: 0; }
   .mw-tag svg { width: 12px; height: 12px; }
-  .mw-tags__suggest { display: flex; flex-wrap: wrap; gap: 8px; }
+  .mw-uploads { display: grid; gap: 2px; width: min(440px, 100%); margin: 0; padding: 0; list-style: none; }
+  .mw-upload { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 6px 4px 6px 8px; border-radius: var(--sk-r-item, 8px); }
+  .mw-upload > span:nth-child(2) { display: grid; gap: 6px; flex: 1; min-width: 0; font-size: 13px; color: var(--ink); }
+  .mw-upload small { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .mw-upload small.is-failed { color: var(--red); }`;
+
+export const CATALOG_PATTERN_STYLES = `
+  .mw-btn-group__count { display: inline-flex; align-items: center; padding: 0 12px; border-radius: 0 ${RADIUS} ${RADIUS} 0; background: var(--sk-b2-bg, var(--control-fill)); box-shadow: inset 0 0 0 1px var(--sk-b2-edge, transparent); color: var(--ink-soft); font-size: 13px; font-variant-numeric: tabular-nums; }
+  /* Tray's keys carry their own edge: a secondary group shares one line between keys instead of a seam. */
+  :root[data-skin="tray"] .mw-btn-group > :not(:first-child):is(.mw-btn--secondary, .mw-btn-group__count),
+  :root[data-skin="tray"] .mw-btn-group > :not(:first-child) > .mw-btn--secondary { margin-left: -2px; }
   .mw-tag--add { gap: 4px; padding: 0 8px 0 6px; background: none; box-shadow: inset 0 0 0 1px var(--line); color: var(--ink-soft); cursor: pointer; }
   .mw-tag--add:is(:hover, :focus-visible) { background: var(--nav-hover); color: var(--ink); }
   .mw-tag--add:focus-visible { outline: var(--focus-stroke, 2px solid var(--accent)); outline-offset: 1px; }
+  .mw-catalog .mw-popover .mw-catalog__row { flex-wrap: nowrap; }
+  .mw-catalog .mw-popover .mw-input { flex: 1; min-width: 220px; }
+
+
+  .mw-tags.mw-input-group { flex-wrap: wrap; gap: 6px; width: min(420px, 100%); height: auto; padding-block: 4px; cursor: text; }
+  :root body .mw-tags.mw-input-group:not(#mw-joined) { border-radius: min(${RADIUS}, 18px); }
+  .mw-tags .mw-input { flex: 1 0 96px; width: auto; min-height: 24px; }
+  .mw-tags__suggest { display: flex; flex-wrap: wrap; gap: 8px; }
 
   .mw-drop { display: grid; justify-items: center; gap: 4px; width: min(440px, 100%); padding: 28px 20px; border: 1px dashed var(--line-strong); border-radius: var(--sk-r-card, 12px); background: color-mix(in srgb, var(--ink) 2%, transparent); text-align: center; transition: border-color var(--dur-hover, 130ms) var(--ease-quint), background-color var(--dur-hover, 130ms) var(--ease-quint); }
   .mw-drop .mw-mark { margin-bottom: 8px; transition: transform var(--dur-move, 250ms) var(--ease-quint), color var(--dur-hover, 130ms); }
@@ -73,11 +83,6 @@ ${MARK_STYLES}
   .mw-drop--compact { grid-template-columns: auto minmax(0, 1fr); justify-items: start; gap: 0 12px; width: min(280px, 100%); padding: 12px 14px; text-align: left; }
   .mw-drop--compact .mw-mark { grid-row: span 2; margin: 0; }
   .mw-drop--compact[data-dropping] .mw-mark { transform: none; }
-  .mw-uploads { display: grid; gap: 2px; width: min(440px, 100%); margin: 0; padding: 0; list-style: none; }
-  .mw-upload { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 6px 4px 6px 8px; border-radius: var(--sk-r-item, 8px); }
-  .mw-upload > span:nth-child(2) { display: grid; gap: 6px; flex: 1; min-width: 0; font-size: 13px; color: var(--ink); }
-  .mw-upload small { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
-  .mw-upload small.is-failed { color: var(--red); }
 
   .mw-stats { width: min(880px, 100%); container-type: inline-size; }
   .mw-stats > div { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }

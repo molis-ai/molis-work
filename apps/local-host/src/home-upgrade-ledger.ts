@@ -15,7 +15,7 @@ const SHA256 = /^[0-9a-f]{64}$/;
 /** A Home with no `storage-space.json` yet: a fresh account Home, or one the first open has not reached. */
 const UNBOUND_HOME = "unbound";
 
-export type UpgradeUnitState = "planned" | "snapshotted" | "committed" | "restoring" | "failed" | "too_new";
+type UpgradeUnitState = "planned" | "snapshotted" | "committed" | "restoring" | "failed" | "too_new";
 const STATES: readonly string[] = ["planned", "snapshotted", "committed", "restoring", "failed", "too_new"] satisfies UpgradeUnitState[];
 
 /** Only the code and the fixed reason: what a step threw can quote the store's content, and stays on the error's `cause`. */

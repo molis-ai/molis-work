@@ -205,7 +205,8 @@ export class PluginInstallService {
     const installed = current && !upgradeRefusal(manifest, current.record.version) ? this.ports.packages.load(manifest.plugin_id, manifest.publisher.signature, current.record.version).packaged : undefined;
     const skills = skillInstallPreviews(pkg, installed), agent_bodies = rolePreviews('agentBodies' in pkg ? pkg.agentBodies : [], installed && (installed.agentBodies ?? []));
     if (current) {
-      const states = this.ports.skillStates?.(who.project_id, current.record.install_id);
+      // A pack's Skills keep their state in the scope the pack installs into: the personal space for a home pack, this project otherwise.
+      const states = this.ports.skillStates?.(runtime_scope === "home" ? "home" : who.project_id, current.record.install_id);
       for (const skill of skills) skill.state = states?.get(skill.skill_id) ?? "off";
     }
     const requires = (manifest.requires ?? []).map(({ capability_id, version, optional, reason }) => ({ capability_id, version, optional: optional === true, reason,

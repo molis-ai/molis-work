@@ -76,17 +76,20 @@ test("RAC-2636/2640/2641/2643 signed File preview and real picker preserve bound
   const own = list.methods.filter(item => item.plugin_id === PACKAGE_PLUGIN_ID);
   for (const name of names) assert.ok(own.some(item => item.name === name && item.default_ref?.source.plugin_version === "1.2.0"));
   assert.ok(list.methods.filter(item => item.name === names[0]).length >= 2);
+  // K3: "/" on an empty line opens the unified composer's menu, which lists the methods and Character material by name.
+  const slash = "(() => {const input=document.querySelector('[data-assistant-composer] .mw-composer__input');input.focus();input.value='/';input.setSelectionRange(1,1);input.dispatchEvent(new InputEvent('input',{bubbles:true,data:'/',inputType:'insertText'}));})()";
+  const commands = "[...document.querySelectorAll('[data-assistant-composer] [data-compose-menu] [data-composer-command]')]";
   for (const name of names.slice(0, 3)) {
-    await browser.evaluate(`(() => {const input=document.querySelector('[data-assistant-input]');input.value=${JSON.stringify("/" + name)};input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
-    await browser.waitFor(`Array.from(document.querySelectorAll('[data-assistant-starters] button')).some(node=>node.textContent.includes(${JSON.stringify(name)}))`);
-    const label = await browser.evaluate<string>(`(() => {const button=[...document.querySelectorAll('[data-assistant-starters] button')].find(node=>node.textContent.includes(${JSON.stringify(name)}));const text=button.textContent;button.click();return text;})()`);
+    await browser.evaluate(slash);
+    await browser.waitFor(`${commands}.some(node=>node.textContent.includes(${JSON.stringify(name)}))`);
+    const label = await browser.evaluate<string>(`(() => {const button=${commands}.find(node=>node.textContent.includes(${JSON.stringify(name)}));const text=button.textContent;button.click();return text;})()`);
     assert.ok(label.includes(name));
   }
-  await browser.evaluate(`(() => {const input=document.querySelector('[data-assistant-input]');input.value=${JSON.stringify("/" + names[0])};input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
-  await browser.waitFor(`Array.from(document.querySelectorAll('[data-assistant-starters] button')).some(node=>node.textContent.startsWith('方法：')&&node.textContent.includes(${JSON.stringify(names[0])}))`);
-  await browser.evaluate(`Array.from(document.querySelectorAll('[data-assistant-starters] button')).find(node=>node.textContent.startsWith('方法：')&&node.textContent.includes(${JSON.stringify(names[0])})).click()`);
-  await browser.evaluate("(() => {const input=document.querySelector('[data-assistant-input]');input.value='用所选资料审稿';input.dispatchEvent(new Event('input',{bubbles:true}));})()");
-  await browser.click("[data-assistant-send]");
+  await browser.evaluate(slash);
+  await browser.waitFor(`${commands}.some(node=>node.textContent.startsWith('/方法 ')&&node.textContent.includes(${JSON.stringify(names[0])}))`);
+  await browser.evaluate(`${commands}.find(node=>node.textContent.startsWith('/方法 ')&&node.textContent.includes(${JSON.stringify(names[0])})).click()`);
+  await browser.evaluate("(() => {const input=document.querySelector('[data-assistant-composer] .mw-composer__input');input.value='用所选资料审稿';input.dispatchEvent(new Event('input',{bubbles:true}));})()");
+  await browser.click("[data-assistant-composer] [data-composer-send]");
   await browser.waitFor(`!!${CURRENT_WORK}`);
   const workId = await browser.evaluate<string>(CURRENT_WORK);
   const view: AssistantWorkView = await waitWork(browser, workId, value => value.work.state === "completed");

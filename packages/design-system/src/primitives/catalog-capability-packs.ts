@@ -59,6 +59,14 @@ export const CAPABILITY_PACK_BOARD_STYLES = `
   .mw-cell__name > code { color: var(--muted); font-size: 11px; }
   .mw-cell > .mw-badge { flex: none; white-space: nowrap; }
 
+  /* 4 · List and detail, third level: back to the entry it came from (the same button as 08's __back), then the path. */
+  .mw-list-detail__trail { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; min-width: 0; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+  .mw-list-detail__trail > .mw-btn { max-width: calc(100% + 8px); height: auto; margin-left: -8px; white-space: normal; text-align: start; overflow-wrap: anywhere; }
+  .mw-list-detail__path { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; min-width: 0; margin: 0; padding: 0; list-style: none; color: var(--muted); font-size: 12px; }
+  .mw-list-detail__path > li { min-width: 0; overflow-wrap: anywhere; }
+  .mw-list-detail__path > li + li::before { content: "/"; margin-right: 6px; color: var(--faint); }
+  .mw-list-detail__path > [aria-current] { color: var(--ink-soft); }
+
   @media (prefers-reduced-motion: reduce) { :is(.mw-item-group__head, .mw-cell) { transition: none; } }
 
   .mw-catalog :is([data-primitive="now-block"], [data-primitive="item-group"], [data-primitive="cell-grid"], [data-primitive="detail-trail"], [data-primitive="icon-counts"], [data-primitive="state-rows"], [data-primitive="usage-figure"]) .mw-catalog__specimens { grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); align-items: start; }
@@ -126,6 +134,13 @@ export function renderCells(cells: ReadonlyArray<{ name: string; code: string; t
     renderAttrs(cell.attrs)}><span class="mw-cell__name"><strong>${escapeHtml(cell.name)}</strong><code>${escapeHtml(cell.code)}</code></span>${cell.tag}</button></li>`).join("")}</ul></div>`;
 }
 
+/** 4 · The third level's way back and its path; the button is 08's `__back`, the last step of the path is where the person is. */
+export function renderDetailTrail(options: { up: string; path: readonly string[]; label: string; attrs?: Record<string, AttrValue> }): string {
+  const up = renderButton({ label: options.up, variant: "ghost", size: "sm", icon: "chevron-left", className: "mw-list-detail__up", attrs: { "data-list-up": true, ...options.attrs } });
+  const steps = options.path.map((step, index) => `<li${index === options.path.length - 1 ? ' aria-current="page"' : ""}>${escapeHtml(step)}</li>`).join("");
+  return `<nav class="mw-list-detail__trail" aria-label="${escapeHtml(options.label)}">${up}<ol class="mw-list-detail__path">${steps}</ol></nav>`;
+}
+
 /* ---------- the board's specimens (made up; nothing is read from a Home). Every text is still Chinese: `say` turns it. ---------- */
 
 const hold = (word: string) => renderStatusMark({ label: word, tone: "hold", state: "unavailable" });
@@ -183,6 +198,14 @@ export function cellGridSection(say: Say): string {
   return section("cell-grid", say("紧凑条目格 / Compact Cells"), `<div class="mw-catalog__specimens">
     ${specimen(say("整格是按钮：名称、代码名、只读或会写"), tools(say, "run_command"))}
     ${specimen(say("窄处两列，长名字截断、悬停看全称"), `<div style="width: min(340px, 100%)">${tools(say)}</div>`)}
+  </div>`);
+}
+
+export function detailTrailSection(say: Say): string {
+  const head = (title: string, body: string) => `<header><h3 tabindex="-1">${escapeHtml(say(title))}</h3><p>${escapeHtml(say(body))}</p></header>`;
+  return section("detail-trail", say("第三层返回与路径 / Third-Level Trail"), `<div class="mw-catalog__specimens">
+    ${specimen(say("包 / 角色 / 这一条"), `<div class="mw-list-detail__detail">${renderDetailTrail({ up: say("回到「{p}」", { p: say("写作工具") }), path: [say("写作工具"), say("写作编辑"), say("写作编辑的说明")], label: say("所在位置") })}${head("写作编辑的说明", "写作编辑每次改稿前先读的要求")}</div>`)}
+    ${specimen(say("长路径换行，不截断"), `<div class="mw-list-detail__detail">${renderDetailTrail({ up: say("回到「{p}」", { p: say("本机导入 · Claude Code") }), path: [say("本机导入 · Claude Code"), say("把会议录音整理成带行动项的纪要")], label: say("所在位置") })}${head("把会议录音整理成带行动项的纪要", "会后把录音转写整理成纪要")}</div>`)}
   </div>`);
 }
 

@@ -1,6 +1,6 @@
 # 能力包：AI 能力的统一声明与目录
 
-状态：需求已整理，尚未实现（2026-11-08 用户提出并定范围；排在[第 09 批](../post-anticorruption-roadmap/reference/batches/09.md)，在第 08 批技能包之上扩展）。合同设计稿由第 09 批合同台出（9-8），界面先定样（9-11）。名称（「能力包」与界面上已叫「能力库」的动作目录怎样并存）待用户确认，见 §9 待决 1。
+状态：需求已整理，尚未实现（2026-11-08 用户提出并定范围；排在[第 09 批](../post-anticorruption-roadmap/reference/batches/09.md)，在第 08 批技能包之上扩展）。合同设计稿由第 09 批合同台出（9-8），界面先定样（9-11）。名称已定（2026-11-08）：界面叫「能力包」，代码与动作 id 用 `kit`（§9）。
 
 ## 1. 问题
 
@@ -112,7 +112,7 @@
 
 ## 9. 待决
 
-1. **名称**：界面已把动作目录叫「能力」「能力库」（GLOSSARY U1），Onboarding §3.8 的「能力包」指场景里的能力组合，代码里 capability 指动作。能力包的界面名、英文名与代码前缀要用户定（第 09 批开工前一起问）。
+1. ~~名称~~ 已定（用户 2026-11-08）：界面叫「能力包」；代码、类型与动作 id 用 `kit`（如 `kit.catalog.list@1`、`KitEntry`），避开指动作的 capability；GLOSSARY 写清「能力包」与「能力库」（动作目录）的分别（9-7）；Onboarding §3.8 原来的「能力包」改称「能力组合」。英文界面名随 9-11 定样一起定。
 2. 设置里哪些页并进能力包、哪些只留链接：随 9-11 定样一起定。
 
 ## 10. 验收标准
@@ -134,6 +134,7 @@
 ## 11. 决策记录
 
 - **2026-11-08 用户定**：第 09 批从「助理与 Coding 接点」扩成能力包：五类能力（技能、提示词、角色／方法、工具、MCP）的声明与元数据收进同一个能力包统一管理；执行仍走原机制；第 08 批的结论和内容不改；散落、重复、过时的同类东西一起收口；检查后续依赖批次是否要跟着改。用户给了 R1～R8 八条诉求（本 spec §4～§8、§10 按它们展开）和收与不收的边界（§3）。
+- **2026-11-08 用户定（名称）**：界面叫「能力包」，代码与动作 id 用 `kit`；Onboarding §3.8 的「能力包」改称「能力组合」。否掉的：界面改叫「AI 能力」（和用户的叫法不一致）；把动作目录的「能力库」改回「动作库」、代码用 `capability_pack`（推翻 U1 的建议方向，改动大，代码里 capability 仍指动作）。
 
 ## 12. 关联
 
@@ -141,4 +142,4 @@
 - [第 09 批](../post-anticorruption-roadmap/reference/batches/09.md)
 - [action-architecture](../action-architecture/spec.md) §3（动作目录、MCP 工具是动作的呈现）
 - [Prologue Skill](../prologue-skill-strategy/spec.md)、[Tool](../prologue-tool-strategy/spec.md)、[MCP](../prologue-mcp-strategy/spec.md) 策略（第 61 批收口）
-- [Onboarding §3.8 场景与能力包](../onboarding-coverage/spec.md#38-场景与能力包)（第 20 批）
+- [Onboarding §3.8 场景与能力组合](../onboarding-coverage/spec.md#38-场景与能力组合)（第 20 批）

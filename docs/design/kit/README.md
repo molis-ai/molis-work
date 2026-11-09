@@ -6,10 +6,12 @@
 | --- | --- |
 | `kit.css` | design-system 的 `VISUAL_FOUNDATION_STYLES`（色板、阴影层级、圆角、时长与曲线、`mw-*` 控件、状态环、提示条）与 `CRAFT_FINISH_STYLES`（动效：四种进场、落定底色；触控尺寸；工艺底），加页面常放的部件：差异视图、过程折叠（plugin-sdk `processFold` 按 `.pf-group`／`.pf-step` 生成）、展开、交互卡、输入回执、看图放大、复制反馈、溢出渐隐、等宽数字；最后是色板 `renderPaletteTokens`（`--hue-*` 与建在它上面的状态色别名），浅色写在 `html`、深色写在 `html[data-resolved-theme="dark"]`。生成文件，不手改 |
 | `settings.css` | 工作台设置页自己的样式表 `renderMolisWorkSettingsStylesheet()`（apps/workbench），画在设置页上的原型（如 13、21）引用它。它是整页样式、约 890 KB，所以单独一份，别的原型不加载。生成文件，不手改 |
-| `kit.js` | 主题启动脚本；真实渲染函数挂在 `window.mwKit`；图标表 `window.mwKitSprite`；客户端脚本字符串 `window.mwKitClient`（视觉基础：按下回弹、分段滑块、状态环动画、主题切换，并且已经包含工艺底、看图放大、复制反馈、溢出渐隐）和 `window.mwKitClients`（只有 `dropZone`；其余几个已在 `mwKitClient` 里，再挂一份会重复绑定）。生成文件，不手改 |
+| `kit.js` | 主题启动脚本；真实渲染函数挂在 `window.mwKit`；图标表 `window.mwKitSprite`；客户端脚本字符串 `window.mwKitClient`（视觉基础：按下回弹、分段滑块、状态环动画、主题切换，并且已经包含工艺底、看图放大、复制反馈、溢出渐隐）和 `window.mwKitClients`（`dropZone` 和 `anchoredMenu`；其余几个已在 `mwKitClient` 里，再挂一份会重复绑定）。生成文件，不手改 |
 | `build.mjs` | 生成上面三份的脚本 |
 
-`window.mwKit` 现有：`renderButton`、`renderStatusMark`、`renderBadge`、`renderAlert`、`renderStateRing`、`icon`、`escapeHtml`（plugin-sdk `ui`）；`renderDiff`、`compareChange`、`diffViewText`（plugin-sdk `diff-view`）；`renderMenu`、`renderMenuItem`、`renderMenuGroup`、`renderPopover`、`renderTooltip`（design-system `primitives/overlay`）；`renderToggleGroup`、`renderTabs`（`primitives/navigation`）；`renderFileKind`、`renderFileRow`、`renderFileGroup`、`renderBarStatus`、`renderSteps`（`primitives/arrival`）。
+`window.mwKit` 现有：`renderButton`、`renderStatusMark`、`renderBadge`、`renderAlert`、`renderStateRing`、`icon`、`escapeHtml`（plugin-sdk `ui`）；`renderDiff`、`compareChange`、`diffViewText`（plugin-sdk `diff-view`）；`renderMenu`、`renderMenuItem`、`renderMenuGroup`、`renderPopover`、`renderTooltip`（design-system `primitives/overlay`）；`renderToggleGroup`、`renderTabs`、`renderCollapsible`（`primitives/navigation`）；`renderFileKind`、`renderFileRow`、`renderFileGroup`、`renderBarStatus`、`renderSteps`（`primitives/arrival`）；`renderEmpty`、`renderInput`、`renderSkeleton`、`renderToast`、`renderRadioGroup`（plugin-sdk `ui`）；第 09 批能力包的组件板部件 `renderNowBlock`（状态与去处块，带锚在按钮下沿的菜单）、`renderPickRow`、`renderItemGroup`（条目组）、`renderCells`（紧凑条目格）、`renderDetailTrail`（第三层返回与路径）、`renderIconCounts`（图标计数）、`renderStateRows`（分项状态行）、`renderUsage`（用量）（design-system `primitives/catalog-capability-packs`）。
+
+`kit.css` 另带条目行规则（`ITEM_ROW_STYLES`、`.mw-mark` 的 `MARK_STYLES`）和列表＋详情一组部件（第 08 批 `SKILL_PACK_BOARD_STYLES`、第 09 批 `CAPABILITY_PACK_BOARD_STYLES`，含「详情贴顶」修饰 `data-sticky-detail`）。`window.mwKitClients.anchoredMenu` 是状态与去处块里那个菜单的放置脚本（按钮写 `data-anchored-menu` 与 `popovertarget`）。
 
 ## 重新生成
 
@@ -48,7 +50,7 @@ node docs/design/kit/build.mjs
 </script>
 ```
 
-看图放大、复制反馈、溢出渐隐和工艺底随 `mwKitClient` 一起生效，不用另挂；需要拖放区时，再把 `window.mwKitClients.dropZone` 作为脚本文本挂上。原型自己的样式只管布局，颜色、阴影、时长、曲线一律引用 `kit.css` 里的变量。
+看图放大、复制反馈、溢出渐隐和工艺底随 `mwKitClient` 一起生效，不用另挂；需要拖放区时，再把 `window.mwKitClients.dropZone` 作为脚本文本挂上；用到锚在按钮下沿的菜单时，同样挂上 `window.mwKitClients.anchoredMenu`。原型自己的样式只管布局，颜色、阴影、时长、曲线一律引用 `kit.css` 里的变量。
 
 从 `docs/design` 起服务，`../kit/` 才找得到：
 

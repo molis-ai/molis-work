@@ -48,7 +48,21 @@ export { renderPrimitiveCatalog, PRIMITIVE_CATALOG_IDS, type CatalogPluginIcon }
 export { COMPOSER_BOARD_EN } from "./catalog-composer-en.js";
 export { KEEP_EDITS_BOARD_EN } from "./catalog-keep-edits-en.js";
 export { LOOK_BOARD_EN } from "./catalog-appearance-en.js";
-export { ITEM_ROW_STYLES } from "./catalog-patterns.js";
+export { ITEM_ROW_STYLES, MARK_STYLES } from "./catalog-patterns.js";
 export { SKILL_PACK_BOARD_EN } from "./catalog-skill-packs-en.js";
 
 export { SKILL_PACK_BOARD_STYLES } from "./catalog-skill-packs.js";
+export { CAPABILITY_PACK_BOARD_EN } from "./catalog-capability-packs-en.js";
+export {
+  CAPABILITY_PACK_BOARD_STYLES,
+  renderNowBlock,
+  renderPickRow,
+  renderItemGroup,
+  renderCells,
+  renderDetailTrail,
+  renderIconCounts,
+  renderStateRows,
+  renderUsage,
+  type NowMenu,
+  type PickRow,
+} from "./catalog-capability-packs.js";

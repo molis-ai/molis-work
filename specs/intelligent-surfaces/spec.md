@@ -251,6 +251,40 @@ flowchart LR
 | 平台：连接与 MCP | 连接、工具 | 新能力卡、连接状态行 | 试一下、断开 |
 | 以后的插件（风险、Work Brief、Sessions 重做） | 各自的对象 | 照本节先声明再开工 | — |
 
+### 9.1 第 15 批接入前核查（2026-11-08）
+
+核查固定头 `c1cf6b5d18` 的源码；[Host 登记](../../apps/local-host/src/plugin-registry.generated.ts)与[工作台登记](../../apps/workbench/src/builtin-plugins.ts)一致，共 23 个内置插件。此时全部缺 `Manifest.presentation`、呈现 values 和 overview；17 个插件已有 22 个 subject reader。下表只记录现有读口和缺口去处，不代表已运行、已接页面或本人验收。第 16 批 C 切换后，接入片再核当前目录和安装身份；后续批次归属来自现行路线书，不在此另行认领。
+
+| 插件 | 已实现的 subject kind（源码读口） | 呈现缺口去处 |
+| --- | --- | --- |
+| Goals | [`goal`](../../plugins/native/goals/src/actions.ts)；要求、证据与验收尚无独立 reader | 15 首片；完整证据链与验收卡归 52 |
+| Inbox | [`inbox_entry`](../../plugins/native/inbox/src/content-actions.ts)；读取关联对象时仍经原主人核权 | 15 首片；事项壳不能代替 Feed／Goals 的对象主人 |
+| Coding | [`coding_session`](../../plugins/native/coding/src/routes-sessions.ts)；报告、变更集有读动作，尚无独立 reader | 15 首片；活卡与完整交回归 52 等后续片 |
+| Feed | [`feed_item`、`source`](../../plugins/native/feed/src/content-actions.ts) | 15/S-2 的归属与计数必须补两种对象的最小声明、values 和概况；完整插件呈现归 52 |
+| Todo | [`todo_item`](../../plugins/native/todo/src/search.ts)、[`todo_batch`](../../plugins/native/todo/src/organize-actions.ts)；清单无独立 reader | 52，核定清单粒度 |
+| Pages | [`pages_document`](../../plugins/native/pages/src/actions.ts)；节、段无独立 reader | 52，核定节、段定位 |
+| Dataset | [`dataset`](../../plugins/native/dataset/src/search.ts)；行、汇总无独立 reader | 52 |
+| Workflows | [`workflow`](../../plugins/native/workflows/src/search.ts)；运行、检查结果无独立 reader | 52 |
+| Form | [`form`](../../plugins/native/form/src/search.ts)；答卷有查询，单份答卷无独立 reader | 63 其余声明 |
+| PPT | [`presentation`](../../plugins/native/ppt/src/search.ts)；单页无独立 reader | 63，核定单页定位 |
+| Images | [`image_job`](../../plugins/native/images/src/search.ts)；单图无独立 reader | 63 |
+| Jelly | [`jelly_item`、`jelly_note`](../../plugins/native/jelly/src/search.ts) | 63 |
+| 灵光 | [`lingguang_spark`](../../plugins/native/lingguang/src/search.ts) | 63 |
+| Cognia | [`cognia_material`](../../plugins/native/cognia/src/search.ts)；问答无独立 reader | 63 |
+| Issues | 无；[现有列表和详情](../../plugins/native/issues/src/actions.ts)有提交者，未见负责人和处理状态 | 63，不以提交者代负责人 |
+| Diff | 无；[现有 state/compare](../../plugins/native/diff/src/actions.ts)读取固定输入或计算差异 | 63，核定固定变更与计算结果的对象身份 |
+| Git | 无；[现有动作](../../plugins/native/git/src/actions.ts)读仓库、分支及暂存状态 | 63，核定提交、分支的对象粒度 |
+| Schedule | [`schedule_task`](../../plugins/native/schedule/src/search.ts) | 63 |
+| Shelf | [`shelf_item`](../../plugins/native/shelf/src/search.ts)，当前 reader 不开放 plugin audience | 52 接挂载；Shelf 自有声明归 63 |
+| Files | 无；[现有目录和内容协议](../../plugins/native/files/src/actions.ts)不等于 subject reader | 06-1 退役交 knowledge 与平台资料服务，不给旧包新增呈现 |
+| 插件创作台 | 无；[自身页面](../../plugins/native/plugin-builder/src/registration.ts)读取构建和设计；生成设计的 `presentation` 是页面布局 | 67-4，不能把生成页面布局当创作台对象声明 |
+| Alchemist | [`alchemist-direction`、`alchemist-idea`、`alchemist-playbook`](../../plugins/native/alchemist/src/studio/server/services/workspace-operations.ts)，仍走现存 Host 特例 | 63 总清单列缺口；场景与产出身份随 BL-377 核定，具体实施批次待定 |
+| 文本统计 | 无；[现有 state/count](../../plugins/native/text-stats/src/actions.ts)读固定快照或计算输入文本 | 63 核定独立身份；15 首页按无概况处理 |
+
+排期依据：[52](../post-anticorruption-roadmap/reference/batches/52.md)、[63](../post-anticorruption-roadmap/reference/batches/63.md)、[67](../post-anticorruption-roadmap/reference/batches/67.md)、[06](../post-anticorruption-roadmap/reference/batches/06.md)。平台成果库的 `artifact` reader、角色的 `character` reader 不属于这 23 个插件；Skill、连接和 MCP 的列表／读取动作也不等于通用 subject reader。跨 Skill/MCP 操作面归 61／63，平台对象的具体呈现接点仍待核定。风险、Work Brief 和 Sessions 重做不在现行登记中，按各自批次声明，不补占位插件。
+
+现有组件板使用同一份 `inbox_item` 示例切换三个主人，证明共用 renderer 的显示与交互，不能冒充真实 `inbox_entry`、`goal`、`coding_session` 的登记或消费。生产接入时按可信登记表列出所有内置插件，缺声明的直接标缺口与去处，不在产品里再维护第二份静态插件名单。IUI-24 的这次源码核查不替代 IUI-21 的真实组件板或 IUI-26 的本人验收。
+
 ## 10. 与现有需求的分工
 
 | 需求 | 那边负责的 | 本书负责的 |
@@ -413,6 +447,8 @@ Feed 的归属已有事实来源，不新增个人订阅结构：`SourceRecord.p
 构建时发现创作台把固定读取协议当作普通操作 schema。修复固定头 `89e6b03ffd`。设计器展开时明确拒绝生成固定协议，已成形设计仍经沙箱校验并保留合法协议。页面绑定只读取普通操作的 schema。定向四项通过，创作台离线回放和隔离 Home 的 smoke 留主批统一核验。[创作台定向用例](../../tests/plugin-builder-read-protocol.test.ts)
 
 消费片还要处理两点。业务状态标记为 `attention: "stale"` 时补足本地化状态说明，读取过期仍只依据真实 `read_at`。纯展示行仅在需要键盘查看截断内容或有可操作控件时提供 Tab 落点。
+
+公共 D 在 `e5217ac45f` 的真实板发现身份图标对比不足 P1，以及默认圆角、宽卡片正文两处定样偏差；修复后在 `771cc4f9ad` 定向复核通过，三项关闭且无新增 Blocker/P1。本轮复用 12 组合与两项键盘用例，另补看桌面／手机的浅深色四组及速览／Sheet 焦点。最低图标对比度为浅色 4.21:1、深色 6.91:1；圆角和正文宽度按真实 computed 值核实，皮肤变量注入只证明继承，不代表菜单皮肤实操。该结论仍不包含生产消费者、读屏和本人验收。
 
 ## 附录 A：Molis-Club 演示里可参考的组件
 

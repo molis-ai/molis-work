@@ -24,15 +24,15 @@ export function bindGitRecovery({ runtime, queue, saveReconciliation, live, reco
   const inspect = async (observe: () => Promise<AgentGitIndexObservation>): Promise<AgentReviewRecoveryView> => {
     const current = runtime.effects.get(effect.ref), dispatch = await runtime.effects.inspectDispatch(effect.ref);
     let observation: AgentGitIndexObservation | null = null;
-    let message = "当前内容只能用于人工核对，不能证明原操作由谁执行。无法确认时请保留未知。";
-    try { observation = await observe(); } catch (error) { message = error instanceof Error ? error.message : "当前暂存区不可读取"; }
+    let message: AgentReviewRecoveryView["message"] = { owner: "workbench", key: "workbench.agent-review.recovery-manual-evidence" };
+    try { observation = await observe(); } catch (error) { message = error instanceof Error ? error.message : { owner: "workbench", key: "workbench.agent-review.recovery-index-unreadable" }; }
     const idle = !live.has(effect.ref.id) && !closed();
     const uncertain = current?.state === "reconcile-required" && dispatch.state === "unknown";
-    if (!idle) message = "原执行方仍在处理或应用正在关闭，暂不能收口。";
-    else if (!uncertain) message = "执行记录已有确定结果；重新核对回执可刷新操作记录。";
-    else if (observation?.matches_after) message = "当前暂存区与拟执行结果一致，但这不能证明原操作已经完成；仍需原执行回执，不会重复执行。";
-    else if (observation && !observation.matches_before) message = "当前暂存区已与操作前内容不同，不能据此确认未发生；请继续核对外部改动。";
-    else if (observation) message = "当前暂存区与操作前一致。仅凭内容相同仍不能排除曾执行后又被改回；只有另有可靠依据确认未发生时才能收口。";
+    if (!idle) message = { owner: "workbench", key: "workbench.agent-review.recovery-still-busy" };
+    else if (!uncertain) message = { owner: "workbench", key: "workbench.agent-review.recovery-settled" };
+    else if (observation?.matches_after) message = { owner: "workbench", key: "workbench.agent-review.recovery-matches-after" };
+    else if (observation && !observation.matches_before) message = { owner: "workbench", key: "workbench.agent-review.recovery-different-index" };
+    else if (observation) message = { owner: "workbench", key: "workbench.agent-review.recovery-matches-before" };
     return { review_id: request.review_id, receipt: queue.receipt(request.review_id)!, observation,
       can_confirm_not_happened: idle && uncertain && observation?.matches_before === true && observation.matches_after === false, message };
   };

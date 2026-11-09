@@ -1,4 +1,4 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { format, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { errorMessage } from "../dom.js";
 import { refreshState } from "./configuration.js";
 import { terminal } from "./composer-state.js";
@@ -13,7 +13,7 @@ import type { ContinuationRead, RecoveryReport, RoundSelection, StartedRound } f
 function digestNote(page: Page, started: StartedRound | null) {
   const digest = started?.digest;
   if (!digest) return;
-  const tokens = digest.usage ? (digest.usage.input + digest.usage.output).toLocaleString() : "";
+  const tokens = digest.usage ? format.number(digest.usage.input + digest.usage.output) : "";
   const note = digest.source !== "model" ? uiText.text("coding.digest.host", { reason: digest.problem || "" }) : digest.usage ? uiText.text("coding.digest.model-usage", { tokens }) : uiText.text("coding.digest.model", { tokens });
   status(page, note, digest.source !== "model");
 }

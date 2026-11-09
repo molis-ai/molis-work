@@ -29,7 +29,7 @@ import { HomeConsentLedger } from './home-plugin-store.js';
 import { PUBLISHER_REVOKED_MESSAGE, publisherStanding, publisherStops } from './installed-publisher-standing.js';
 import { exposedOperationPolicies, type InstalledPluginActions } from './plugin-builder/exposed-actions.js';
 import type { CapabilityImplementations } from './plugin-builder/capabilities.js';
-import { capabilityCatalog, catalogCapabilities, registerPlatformCapabilities, type CatalogCapability, type ProjectActions } from './plugin-builder/catalog.js';
+import { capabilityCatalog, catalogCapabilities, installedCapabilityCatalog, registerPlatformCapabilities, type CatalogCapability, type ProjectActions } from './plugin-builder/catalog.js';
 import { hostNetwork } from './plugin-builder/network.js';
 import { pluginSecrets } from './plugin-builder/secrets.js';
 import { createPluginModelGeneration } from './plugin-builder/model.js';
@@ -93,24 +93,20 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
   const { store, projectId, homeDirectory } = options, storage = studioStorage(store.db, projectId), releases = new AgentBuilderStore(storage);
   const actions = options.actions ?? (() => { const service = new ActionService(); return { registry: service, client: service, scenes: service, project_id: projectId }; })();
   const readCatalog = () => capabilityCatalog(actions, options.actorId ?? 'web-user');
-  let catalogPending: Promise<CatalogCapability[]> | undefined, exposureRevision = 0;
-  const catalog = (): Promise<CatalogCapability[]> => {
-    if (catalogPending) return catalogPending;
-    catalogPending = (async () => {
-      // Re-read after an install/upgrade/withdraw during asynchronous Host inspection.
-      let snapshot: CatalogCapability[], revision: number;
-      for (;;) {
-        revision = exposureRevision; snapshot = await readCatalog();
-        if (closed) return [];
-        if (revision !== exposureRevision) continue;
-        const costs = exposedOperationPolicies([...exposed.values()].map(entry => entry.release), snapshot);
-        let changed = false;
-        for (const [pluginId, entry] of exposed) changed = entry.refresh(costs.get(pluginId)!) || changed;
-        if (!changed) return snapshot;
-      }
-    })().finally(() => { catalogPending = undefined; });
-    return catalogPending;
-  };
+  let exposureRevision = 0;
+  const catalog = installedCapabilityCatalog(homeDirectory, async () => {
+    // Re-read after an install/upgrade/withdraw during asynchronous Host inspection.
+    let snapshot: CatalogCapability[], revision: number;
+    for (;;) {
+      revision = exposureRevision; snapshot = await readCatalog();
+      if (closed) return [];
+      if (revision !== exposureRevision) continue;
+      const costs = exposedOperationPolicies([...exposed.values()].map(entry => entry.release), snapshot);
+      let changed = false;
+      for (const [pluginId, entry] of exposed) changed = entry.refresh(costs.get(pluginId)!) || changed;
+      if (!changed) return snapshot;
+    }
+  });
   const privateStorage = new SqlitePluginPrivateStorage(store.db);
   const ledger = new HomeConsentLedger(homeDirectory), standing = publisherStanding(ledger);
   const platform = createPluginPlatform({ project_id: projectId, actor_id: options.actorId ?? 'web-user', db: store.db, journal: store, actions, ui: new UiHost(), home: pluginHomeFor(homeDirectory), projects: pluginProjectsPort(homeDirectory), inProcess: { admit: new Set() },

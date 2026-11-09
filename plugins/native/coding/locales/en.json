@@ -706,8 +706,20 @@
     "coding.goal.title": "Goal for the next turn",
     "coding.goal.why": "Why",
     "coding.home-background.in-progress": "In progress",
-    "coding.home-background.n-steps-with-subtasks": "{n} steps with subtasks",
-    "coding.home-background.n-steps-with-you": "{n} steps with you",
+    "coding.home-background.n-steps-with-subtasks": {
+      "plural_arg": "n",
+      "forms": {
+        "one": "{n} step with subtasks",
+        "other": "{n} steps with subtasks"
+      }
+    },
+    "coding.home-background.n-steps-with-you": {
+      "plural_arg": "n",
+      "forms": {
+        "one": "{n} step with you",
+        "other": "{n} steps with you"
+      }
+    },
     "coding.home-background.n-unclaimed-steps": "{n} unclaimed steps",
     "coding.home-background.needs-checking": "Needs checking",
     "coding.home-background.paused": "Paused",

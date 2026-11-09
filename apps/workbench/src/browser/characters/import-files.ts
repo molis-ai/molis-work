@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { el, messageOf, type ArtifactVersionRef, type CharacterRequest, type ImportSnapshot, type SnapshotFile, type SnapshotSkill } from "./common.js";
 
 /** Whose files are read: a scanned candidate, a published version, or a saved draft. */
@@ -20,15 +21,16 @@ function filePath(owner: FileOwner): string {
 
 /** One skill file: read from the Host when the person opens it, once. */
 export function filePreview(request: CharacterRequest, file: SnapshotFile, skill: SnapshotSkill, owner: FileOwner): HTMLDetailsElement {
-  const box = detail(file.path + " · " + (file.bytes ?? 0) + " 字节", "展开读取文件");
+  const box = detail(uiText.text("workbench.characters.attachment-size", { path: file.path, bytes: file.bytes ?? 0 }), uiText.text("workbench.characters.read-file"));
   let loaded = false;
   box.addEventListener("toggle", async () => {
     const pre = box.querySelector("pre");
     if (!box.open || loaded || !pre) return;
-    loaded = true; pre.textContent = "正在读取…";
+    loaded = true; pre.textContent = uiText.text("workbench.characters.loading");
     try {
       const result = await request<FileResult>("POST", filePath(owner), { ...owner, skill_id: skill.id, path: file.path });
-      pre.textContent = result.encoding === "utf8" ? result.content : "二进制附件已完整保存（" + result.bytes + " 字节），原生执行时保留原文件。";
+      pre.translate = result.encoding !== "utf8";
+      pre.textContent = result.encoding === "utf8" ? result.content : uiText.text("workbench.characters.binary-kept", { bytes: result.bytes });
     } catch (error) {
       pre.textContent = messageOf(error); loaded = false;
     }
@@ -38,10 +40,10 @@ export function filePreview(request: CharacterRequest, file: SnapshotFile, skill
 
 /** A snapshot's rules and skills, each readable on its own. */
 export function files(request: CharacterRequest, target: HTMLElement, snapshot: ImportSnapshot, owner: FileOwner): void {
-  for (const rule of snapshot.rules) target.append(detail((rule.scope === "project" ? "项目" : "全局") + " · " + rule.path + (rule.condition ? " · 条件规则" : ""), rule.content));
+  for (const rule of snapshot.rules) target.append(detail(uiText.text(rule.scope === "project" ? (rule.condition ? "workbench.characters.conditional-project" : "workbench.characters.project-path") : (rule.condition ? "workbench.characters.conditional-global" : "workbench.characters.global-path"), { path: rule.path }), rule.content));
   for (const skill of snapshot.skills) {
     const box = el("details");
-    box.append(el("summary", skill.name + " · " + skill.files.length + " 个文件 · " + (skill.compatibility === "portable" ? "可供内置引擎使用" : "依赖原生环境")));
+    box.append(el("summary", uiText.text(skill.compatibility === "portable" ? "workbench.characters.portable-file-count" : "workbench.characters.native-file-count", { name: skill.name, count: skill.files.length })));
     for (const file of skill.files) box.append(filePreview(request, file, skill, owner));
     target.append(box);
   }
@@ -51,8 +53,8 @@ export function files(request: CharacterRequest, target: HTMLElement, snapshot: 
 export function diff(before: ImportSnapshot | undefined, after: ImportSnapshot): string {
   if (!before) return "";
   const rows = (snapshot: ImportSnapshot): Map<string, string> => new Map<string, string>([
-    ...snapshot.rules.map((rule): [string, string] => ["规则 " + rule.path, rule.content]),
-    ...snapshot.skills.map((skill): [string, string] => ["技能 " + skill.path, JSON.stringify(skill.files)]),
+    ...snapshot.rules.map((rule): [string, string] => ["rule:" + rule.path, rule.content]),
+    ...snapshot.skills.map((skill): [string, string] => ["skill:" + skill.path, JSON.stringify(skill.files)]),
   ]);
   const a = rows(before), b = rows(after);
   let added = 0, changed = 0, removed = 0;
@@ -61,5 +63,5 @@ export function diff(before: ImportSnapshot | undefined, after: ImportSnapshot):
     else if (a.get(name) !== value) changed++;
   }
   for (const name of a.keys()) if (!b.has(name)) removed++;
-  return "来源差异：新增 " + added + "，变更 " + changed + "，移除 " + removed + "。保存的名称和补充指令会保留。";
+  return uiText.text("workbench.characters.source-changes", { added, changed, removed });
 }

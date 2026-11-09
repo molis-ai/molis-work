@@ -1,11 +1,14 @@
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 import { hostTextProblems, pluginPagesFor, runWithLocale } from "@molis-ai/molis-work-app-local-host";
-import { format } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { escapeHtml, format, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { deferred } from "./fixtures/home-runtime.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openPagesStore } from "./fixtures/plugin-home-stores.js";
+import { renderAgentReviewRecovery, renderAgentReviewSurface } from "@molis-ai/molis-work-app-workbench";
+import type { AgentReviewRecoveryView, AgentReviewRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host";
 
 test("FSS-20 FSS-34 FSS-39 the settings language changes in place; rejected and late preparations leave the current document intact", { timeout: 120_000 }, async t => {
   const b = await openGoalBrowser(t, "empty", undefined, null); if (!b) return;
@@ -161,8 +164,73 @@ test("FSS-35 a Pages editor retitles its controls in place without rewriting the
   await chooseEnglishInSettings(t, b);
   await child.waitFor("codeCopy.title === 'Copy code' && contents.querySelector('.pages-toc-label')?.textContent === 'Table of contents'");
   assert.deepEqual(await child.evaluate(snapshot), expected(true));
-  const persisted = openPagesStore(b.homeDirectory);
-  try { assert.deepEqual(persisted.get(record.id, projectId), record); } finally { persisted.close(); }
+  const read = () => {
+    const persisted = openPagesStore(b.homeDirectory);
+    try { return persisted.get(record.id, projectId); } finally { persisted.close(); }
+  };
+  await new Promise(resolve => setTimeout(resolve, 550)); // The editor schedules saves after 400ms.
+  assert.deepEqual(read(), record, "the language switch did not queue an autosave");
+  const addition = " + continued typing";
+  assert.equal(await child.evaluate(`(() => {
+    getSelection().collapse(originalText, originalText.length);
+    return document.execCommand("insertText", false, ${JSON.stringify(addition)});
+  })()`), true);
+  const deadline = Date.now() + 5000;
+  while (!JSON.stringify(read()).includes(original + addition) && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 50));
+  assert.ok(JSON.stringify(read()).includes(original + addition), "editing and autosave still work in the same editor");
+  assert.deepEqual(await child.evaluate("[editor===document.querySelector('[data-pages-editor] .ProseMirror'), codeCopy.title, contents.querySelector('button').textContent]"),
+    [true, "Copy code", "目录（用户正文）"]);
+});
+
+test("FSS-35 FSS-36 an opened Git review retitles the retained view without another inspection", { timeout: 120_000 }, async t => {
+  const b = await openGoalBrowser(t, "empty", undefined, null); if (!b) return;
+  await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/locale?lang=zh&next=%2Fsettings%2Fappearance" }, b.sessionId));
+  await b.waitFor("typeof molisWorkRequest === 'function' && typeof molisWorkRetitleRegion === 'function'");
+  const date = "2026-11-09T12:34:00Z", raw = "回执保持原样", original = "<git> 文件原文";
+  const request: AgentReviewRequest = { review_id: "known", project_id: "fixture", plugin_id: "io.molis.work.git", kind: "git-index",
+    run: null, requested_at: date, expires_at: null, operation: { kind: "git-index", workspace_id: "review-ws", operation_id: "review-op" },
+    document: { kind: "git-index", action: "stage", workspace_name: "Review fixture", files: [{ path: "原路径", before_text: "before", after_text: original, before_mode: "100644", after_mode: "100644" }] } };
+  const view: AgentReviewRecoveryView = { review_id: request.review_id, message: { owner: "workbench", key: "workbench.agent-review.recovery-matches-before" },
+    receipt: { review_id: request.review_id, status: "approved", decided_by: "tester", decided_at: date, note: null, effect_settled: false, effect_error: null, effect_uncertain: raw },
+    observation: { revision: "exact", observed_at: date, files: [{ path: "原路径", text: original, mode: "100644" }], matches_before: true, matches_after: false }, can_confirm_not_happened: true };
+  const rows = [{ request, receipt: view.receipt }];
+  const payload = (locale: string) => runWithLocale(locale, () => ({ reviews: rows,
+    html: renderAgentReviewSurface({ rows, primitives: { escape: escapeHtml, icon, formatDate: at => format.date(at, "datetime") } }),
+    recovery: renderAgentReviewRecovery(view, escapeHtml), omitted: 0 }));
+  const zh = payload("zh"), en = payload("en");
+  await b.evaluate(`(async () => {
+    if(typeof molisFrameReviews !== "function") await new Promise((resolve,reject)=>{ const script=document.createElement('script');
+      script.src='/assets/molis-work-plugin-frame.js';script.onload=resolve;script.onerror=reject;document.head.append(script); });
+    window.reviewRequests=[]; const responses={zh:${JSON.stringify(zh)},en:${JSON.stringify(en)}}, previous=window.molisWorkUiTransport;
+    window.molisWorkUiTransport=(url,options)=> {
+      const path=new URL(url).pathname;
+      if(!path.startsWith('/api/agent/reviews')) return previous?.(url,options);
+      const response=responses[document.documentElement.dataset.uiLanguageTag];
+      reviewRequests.push((options.method||'GET')+' '+path);
+      return Promise.resolve(Response.json(path.endsWith('/recovery')?{view:${JSON.stringify(view)},html:response.recovery}:response));
+    };
+    const owner=document.createElement('div'),holder=document.createElement('div');holder.dataset.reviewFixture='';owner.append(holder);document.querySelector('.settings-content').append(owner);
+    const mount=(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})(); const lifetime=mount(owner);
+    const show=molisFrameReviews({mountPluginClient:mount,route:path=>path});
+    await show(holder,[],null,'review-ws',{}, {lifetime,signal:lifetime.signal});
+  })()`);
+  await b.click("[data-review-fixture] [data-agent-review-inspect]");
+  await b.waitFor("document.querySelector('[data-review-recovery-view] [role=status]')?.textContent.includes('当前暂存区与操作前一致')");
+  await b.evaluate(`(() => {
+    window.reviewPanel=document.querySelector('[data-review-recovery-view]');window.reviewInput=reviewPanel.querySelector('textarea');
+    window.reviewDetail=reviewPanel.querySelector('details');reviewDetail.open=true;
+    reviewPanel.querySelector('input[type=checkbox]').click();
+    reviewInput.value='  核对依据 · exact  ';reviewInput.dispatchEvent(new Event('input',{bubbles:true}));
+    reviewInput.focus();reviewInput.setSelectionRange(2,8,'backward');
+  })()`);
+  await chooseEnglishInSettings(t,b);
+  await b.waitFor("reviewPanel.querySelector('[role=status]').textContent.startsWith('The current Git index matches its state before')");
+  assert.deepEqual(await b.evaluate(`[reviewPanel===document.querySelector('[data-review-recovery-view]'),
+    reviewInput===reviewPanel.querySelector('textarea'), document.activeElement===reviewInput,reviewInput.value,
+    reviewInput.selectionStart,reviewInput.selectionEnd,reviewInput.selectionDirection,reviewDetail.open,
+    reviewPanel.querySelector('input[type=checkbox]').checked, reviewPanel.querySelector('pre').textContent,
+    reviewRequests.filter(request=>request.includes('/recovery')), reviewRequests.filter(request=>request.startsWith('POST '))]`),
+    [true,true,true,"  核对依据 · exact  ",2,8,"backward",true,true,original,["GET /api/agent/reviews/recovery"],[]]);
 });
 
 function holdIssueOpening(t: TestContext, b: LanguageBrowser) {

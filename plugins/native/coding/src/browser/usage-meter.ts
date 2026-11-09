@@ -1,4 +1,4 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { format, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { errorMessage } from "./dom.js";
 import type { PagePorts } from "./types.js";
 
@@ -44,8 +44,8 @@ const el = <Tag extends keyof HTMLElementTagNameMap>(tag: Tag, cls?: string, tex
   if (text !== undefined) node.textContent = text;
   return node;
 };
-const n = (value: unknown) => Number(value).toLocaleString("zh-CN");
-const short = (value: number) => new Intl.NumberFormat(document.documentElement.lang || "zh-CN", { notation: "compact", maximumFractionDigits: 1 }).format(value);
+const n = (value: unknown) => format.number(Number(value));
+const short = (value: number) => format.number(value, "compact");
 
 const contextOf = (run: MeterRun | null | undefined) => {
   const windowTokens = run?.frozen?.model_context?.window_tokens, used = run?.usage?.context?.tokens;

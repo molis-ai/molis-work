@@ -342,8 +342,8 @@ function homeUnavailableStage(host: HomePluginHost, platform: HomePluginPlatform
   entry: { project_plugin_id: string; manifest: PluginManifest }): UnavailablePluginStage {
   const install = host.installation(entry.manifest.plugin_id);
   return { surface: entry.project_plugin_id, label: entry.manifest.name, scope: "home",
-    reason: uiText.text(failure ?? host.packageError(entry.manifest.plugin_id) ?? platform?.supervisor.state(entry.manifest.plugin_id)?.message
-      ?? (install?.state === "running" ? "workbench.home-plugin-http.plugin-page-not-registered" : "workbench.home-plugin-http.plugin-disabled")) };
+    reason: failure ?? host.packageError(entry.manifest.plugin_id) ?? platform?.supervisor.state(entry.manifest.plugin_id)?.message
+      ?? uiText.text(install?.state === "running" ? "workbench.home-plugin-http.plugin-page-not-registered" : "workbench.home-plugin-http.plugin-disabled") };
 }
 
 /** The running Home instance's view of this stage: the contribution the Manifest names, with its `workbench` surface. */

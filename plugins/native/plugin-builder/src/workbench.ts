@@ -1,16 +1,17 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { UiContribution } from '@molis-ai/molis-work-contracts/platform/ui';
 import { BUILDER_UI_ID } from './manifest.js';
 import { renderAgentStudio } from './agent-studio.js';
 
 /** The studio's stage in the workbench (specs/artifact-positioning S4); its client comes with the plugin's workbench pack. */
-export function renderStudioStage(text: Parameters<typeof renderAgentStudio>[0] = zh => zh): string {
+export function renderStudioStage(text?: Parameters<typeof renderAgentStudio>[0]): string {
+  const words = text ?? uiText;
   // The workbench copies the label into the pane's aria-label while the studio is open, so it is in the interface language.
-  return '<section class="desktop-work-surface pb-surface" data-work-surface="plugin-builder" data-work-surface-label="' + text("plugin-builder.workbench.plugin-studio") + '" hidden>' + renderAgentStudio(text) + '</section>';
+  return '<section class="desktop-work-surface pb-surface" data-work-surface="plugin-builder" data-work-surface-label="' + words("plugin-builder.workbench.plugin-studio") + '" hidden>' + renderAgentStudio(words) + '</section>';
 }
 
 /**
- * What a Host passes when it renders the studio through the UI contribution, as the other native plugins' models do: its
- * translator. Without one (a developer fixture renders with no model) the studio is the Chinese text.
+ * The composition may give the contribution a word reader. With no override, the SDK uses the active Studio context.
  */
 export interface BuilderUiModel { readonly primitives?: { text(value: string, values?: Record<string, string | number>): string } }
 
@@ -20,6 +21,6 @@ export const builderUiContribution: UiContribution<BuilderUiModel | null> = {
     surfaces: [{ surface_id: 'directory', target_slot_id: 'workbench.directory', format: 'declarative-html' }, { surface_id: 'workbench', target_slot_id: 'workbench.main', format: 'declarative-html' }], slots: [] },
   render: request => {
     const primitives = request.model?.primitives;
-    return request.surface === 'directory' ? '' : renderStudioStage(primitives && ((zh, values) => primitives.text(zh, values)));
+    return request.surface === 'directory' ? '' : renderStudioStage(primitives && ((key, values) => primitives.text(key, values)));
   },
 };

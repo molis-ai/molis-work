@@ -1,11 +1,12 @@
 import type { UiFormatTool, UiLocalePack, UiSayTool, UiTextTool } from "@molis-ai/molis-work-contracts/platform/ui";
-import { format, installUiText, refuseSharedTextPrefix, say, t, textKeyPrefix } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { createProducedLog } from "./locale-switch.js";
+import { createTextReader, format, installUiText, refuseSharedTextPrefix, say, t, textKeyPrefix } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { createProducedLog, mergeLocaleText } from "./locale-switch.js";
 
 declare global {
   var t: UiTextTool;
   var say: UiSayTool;
   var format: UiFormatTool;
+  var molisWorkRetitleRegion: ((root: ParentNode, before: string, after: string) => void) | undefined;
 }
 
 /** A document answers only from the packs the Host projected into this realm. Switching the projection does not replace the SDK tools. */
@@ -36,5 +37,10 @@ export function installLanguageText(initial: string, initialPacks: readonly UiLo
     produced: produced.record,
   });
   Object.assign(globalThis, { t, say, format });
+  globalThis.molisWorkRetitleRegion = (root, before, after) => {
+    const region = (html: string) => new DOMParser().parseFromString(html, "text/html").body;
+    const reader = createTextReader({ packs, locale, intlLocale });
+    mergeLocaleText({ root, old: region(before), next: region(after), produced, retext: ref => reader.text(ref) });
+  };
   return { select, produced, locale: () => locale };
 }

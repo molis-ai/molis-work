@@ -4,6 +4,10 @@
   "locale": "en",
   "messages": {
     "ppt.directory.summary": "Write an outline, present slides, or export to PowerPoint.",
+    "ppt.actions.model-unavailable-permission": "This caller is not allowed to use AI to organize an outline.",
+    "ppt.actions.configure-model-first": "Set up a text model first.",
+    "ppt.actions.pages-unavailable": "Pages is unavailable.",
+    "ppt.actions.pages-unreadable": "Could not read the Pages documents.",
     "ppt.action.delete": "Delete",
     "ppt.action.new": "New deck",
     "ppt.action.reload": "Reload",

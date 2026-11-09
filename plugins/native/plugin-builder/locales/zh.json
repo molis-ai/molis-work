@@ -3,9 +3,6 @@
   "owner": "io.molis.work.plugin-builder",
   "locale": "zh",
   "messages": {
-    "plugin-builder.directory.summary": "用自然语言设计、构建并使用自己的插件。",
-    "plugin-builder.directory.name": "插件创作工作台",
-    "plugin-builder.directory.view-directory": "插件创作工作台",
     "plugin-builder.agent-studio.active": "启用",
     "plugin-builder.agent-studio.add-request": "补充你的需求",
     "plugin-builder.agent-studio.added": "你补充了",
@@ -92,6 +89,12 @@
     "plugin-builder.agent-studio.first-release-fixes-scope-create-new-draft-publish": "首次发布后范围固定；要换范围，请创建新草稿。",
     "plugin-builder.agent-studio.fix-round-n": "修正第 {n} 轮",
     "plugin-builder.agent-studio.go-try": "去试用",
+    "plugin-builder.agent-studio.group-action": "操作",
+    "plugin-builder.agent-studio.group-display": "展示",
+    "plugin-builder.agent-studio.group-feedback": "反馈",
+    "plugin-builder.agent-studio.group-input": "录入",
+    "plugin-builder.agent-studio.group-layout": "版面",
+    "plugin-builder.agent-studio.group-overlay": "浮层",
     "plugin-builder.agent-studio.group-sign-up-sheet": "小组报名表",
     "plugin-builder.agent-studio.host-check": "宿主检查",
     "plugin-builder.agent-studio.how-title-used": "{title} 的使用路径",
@@ -214,6 +217,7 @@
     "plugin-builder.agent-studio.there-no-draft-yet": "还没有草稿",
     "plugin-builder.agent-studio.tidied-host-notes": "宿主整理：{notes}",
     "plugin-builder.agent-studio.try": "试用",
+    "plugin-builder.agent-studio.ui-agent": "界面 Agent",
     "plugin-builder.agent-studio.ui-agent-code-agent-working-together": "UI Agent 与代码 Agent 正在协作",
     "plugin-builder.agent-studio.ui-agent-picking-first-component-spec-board": "UI Agent 正在从规格板里挑第一个组件…",
     "plugin-builder.agent-studio.ui-catalog-generated-plugins-do-not-use-yet": "UI 目录里有，生成的插件暂未用到",
@@ -256,6 +260,9 @@
     "plugin-builder.agent-studio.writing": "编写中",
     "plugin-builder.agent-studio.writing-id": "编写 {id}",
     "plugin-builder.agent-studio.writing-n-n-once": "同时在写 {n} 项功能",
+    "plugin-builder.directory.name": "插件创作工作台",
+    "plugin-builder.directory.summary": "用自然语言设计、构建并使用自己的插件。",
+    "plugin-builder.directory.view-directory": "插件创作工作台",
     "plugin-builder.workbench.plugin-studio": "插件创作工作台"
   }
 }

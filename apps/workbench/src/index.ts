@@ -52,11 +52,11 @@ export { clientPluginDirectory, isPersonalPlugin, projectDirectoryWords, renderP
 export { declaredStageContributionId, stageContributionId, stageDataAction, stageObjectAction, stageSurfaceDescriptors, stageDataInput, renderStagePage, withoutPagePublisher, type RenderedStagePage } from "./declared-stages.js";
 export { pluginWorkbenchPacks, pluginWorkbenchStyles } from "./plugin-workbench.js";
 export type { BuiltinPluginWorkbenchPack } from "./plugin-workbench.js";
+export { renderAgentReviewRecovery } from "./agent-review-recovery.js";
 export {
   isDecidable,
   leakedMarkup,
   renderAgentReviewSurface,
-  renderAgentReviewRecovery,
   reviewPhase,
   type AgentReviewPrimitives,
   type AgentReviewRow,

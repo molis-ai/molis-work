@@ -10,7 +10,7 @@ export interface TenantPanel {
   load(): Promise<void>;
   cleanup(run: () => void): void;
 }
-export const tenantRoleLabels = { OWNER: "所有者", ADMIN: "管理员", MEMBER: "成员" };
+export const tenantRoleLabels = { OWNER: "workbench.account.owner", ADMIN: "workbench.account.admin", MEMBER: "workbench.account.member" };
 export const tenantPath = (id: string) => '/tenants/' + encodeURIComponent(id);
 export function createTenantPanel(ui: AccountUi, load: () => Promise<void>) {
   let generation = 0, active = true, cleanup = () => {};

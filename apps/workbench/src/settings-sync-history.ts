@@ -20,7 +20,7 @@ export const SYNC_CLOUD_HISTORY_SCRIPT=String.raw`
       const keys=historyList("workbench.settings-sync-history.cloud-history",after=>request('/history/keys'+query+(after===undefined?'':'&after='+encodeURIComponent(after))),item=>{
         const entry=node('div','settings-setting-row');entry.append(historyKey(item.key,true),button("workbench.settings-sync-history.view-versions",()=>{
           const versions=historyList("workbench.settings-sync-history.cloud-history",before=>request('/history'+query+'&key='+encodeURIComponent(item.key)+(before===undefined?'':'&before='+before)),version=>{
-            const row=node('div','settings-setting-row'),label=globalThis.t.text("workbench.settings-sync-history.version")+' '+version.revision+' · '+new Date(version.createdAt).toLocaleString()+(version.current?' · '+globalThis.t.text("workbench.settings-sync-history.current-version"):'');
+            const row=node('div','settings-setting-row'),label=globalThis.t.text(version.current ? "workbench.settings-sync-history.current-version-at" : "workbench.settings-sync-history.version-at", { revision: version.revision, date: { kind: "date", at: version.createdAt, style: "datetime" } });
             row.append(node('span','',label),button("workbench.settings-sync-history.details",async()=>{
               try{
               const view=await request('/history/version'+query+'&key='+encodeURIComponent(item.key)+'&revision='+version.revision);
@@ -29,7 +29,7 @@ export const SYNC_CLOUD_HISTORY_SCRIPT=String.raw`
               const value={namespace:ns,key:view.key,sourceRevision:view.revision,revision:view.currentRevision},operationId=crypto.randomUUID();
               const close=()=>{versions.close();keys.close();requestAnimationFrame(()=>{if(root.isConnected&&!document.querySelector('[data-sync-dialog][open]'))root.querySelector('[data-sync-run]')?.focus();});};
               body.append(node('p','settings-muted',globalThis.t.text("workbench.settings-sync-history.permanent-cleanup-not-available-yet-retained-content-still")));
-              const actions=view.revision===view.currentRevision?[]:[['恢复为当前版本',async()=>{await act(()=>request('/history/restore',{...value,operationId},'POST'),false,true);close();}]];
+              const actions=view.revision===view.currentRevision?[]:[["workbench.settings-sync-history.restore-current",async()=>{await act(()=>request('/history/restore',{...value,operationId},'POST'),false,true);close();}]];
               const preview=sheet("workbench.settings-sync-history.cloud-history",body,actions);if(actions.length)preview.querySelector('footer button').classList.replace('mw-btn--secondary','mw-btn--primary');
               }catch(failure){if(versions.isConnected){const problem=versions.querySelector('[data-sync-history-problem]');problem.hidden=false;problem.textContent=failure.message;}}
             }));return row;

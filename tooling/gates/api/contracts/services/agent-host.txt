@@ -1221,7 +1221,7 @@ export interface AgentReviewRecoveryView {
     receipt: AgentReviewReceipt;
     observation: AgentGitIndexObservation | null;
     can_confirm_not_happened: boolean;
-    message: string;
+    message: OwnedTextRef | string;
 }
 
 export interface AgentReviewRequest {

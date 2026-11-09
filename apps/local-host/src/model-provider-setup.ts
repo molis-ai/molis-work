@@ -5,7 +5,7 @@ import type { ModelProviderRecord } from "@molis-ai/molis-work-contracts/modules
 import { withConnectorConnections } from "./connector-connection-store.js";
 import type { ModelProviderInput } from "./model-provider-store.js";
 import type { ModelSettingsModel } from "@molis-ai/molis-work-app-workbench";
-import { modelProviderTemplate, modelTemplateChoices } from "./model-provider-templates.js";
+import { modelProviderTemplate, modelTemplateChoices, modelTemplateName } from "./model-provider-templates.js";
 import { testConfiguredModel } from "./model-provider-test.js";
 import { modelCheckReason, modelProviderCheckErrors } from "./model-provider-checks.js";
 import type { MolisWorkProjectCatalog } from "./project-catalog.js";
@@ -25,7 +25,7 @@ function modelProviderDraft(templateId: string | null | undefined): { provider: 
     template_id: template?.template_id ?? null,
     provider: {
       provider_id: template ? `${template.template_id}-${randomUUID().slice(0, 8)}` : `custom-${randomUUID()}`,
-      display_name: uiText.text(template?.display_name ?? "workbench.model-provider-setup.new-provider"), base_url: template?.base_url ?? "",
+      display_name: template ? modelTemplateName(template) : uiText.text("workbench.model-provider-setup.new-provider"), base_url: template?.base_url ?? "",
       api_format: template?.api_format ?? "anthropic-messages", credential_ref: "", enabled: true, prompt_cache: "off",
       models: template && models.length === 0 ? [{ model_id: "", enabled: true }] : models, created_at: "", updated_at: "",
     },

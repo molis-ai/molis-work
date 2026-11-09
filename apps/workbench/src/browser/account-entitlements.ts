@@ -1,4 +1,4 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { dateArg, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { Feature, EntitlementCheckResult, EntitlementDecision, Subscription, PlanVersion, TenantView } from "@molis-ai/molis-work-contracts/services/account";
 import type { TenantPanel } from "./account-tenant-panel.js";
 import { tenantPath } from "./account-tenant-panel.js";
@@ -7,8 +7,8 @@ import { planName, seatName } from "./account-billing-fields.js";
 /** Display-only snapshot. Every action queries Auth again; this view never grants a local permission. */
 export async function renderEntitlements(panel: TenantPanel, tenant: TenantView | undefined, back: () => Promise<void>) {
   const { ui, list } = panel, { form, node, button, perform, request } = ui;
-  const current = panel.begin('当前权益'), reload = () => renderEntitlements(panel, tenant, back);
-  button('返回订阅与席位', () => perform(back)); button('刷新权益', () => perform(reload));
+  const current = panel.begin('workbench.account.current-entitlements'), reload = () => renderEntitlements(panel, tenant, back);
+  button('workbench.account.back-subscriptions-seats', () => perform(back)); button('workbench.account.refresh-entitlements', () => perform(reload));
   form.append(node('p', tenant?.name ?? uiText.text("workbench.account-entitlements.personal-space")));
   const content = node('div'); content.setAttribute('aria-live', 'polite'); form.append(content);
   const unknown = () => { if (current()) content.replaceChildren(node('p', uiText.text("workbench.account-entitlements.entitlements-cannot-be-confirmed-reconnect-refresh"))); };
@@ -43,7 +43,7 @@ export async function renderEntitlements(panel: TenantPanel, tenant: TenantView 
       }
       content.append(row);
     }
-    content.append(node('p', uiText.text("workbench.account-entitlements.valid-until") + ' ' + new Date(deadline).toLocaleString()));
+    content.append(node('p', uiText.text("workbench.account.valid-until", { end: dateArg(new Date(deadline).toISOString(), "datetime") })));
     timer = setTimeout(expire, Math.max(1, deadline - Date.now()));
   } catch { unknown(); }
 }

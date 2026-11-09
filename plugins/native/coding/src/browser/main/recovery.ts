@@ -1,4 +1,4 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { format, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { el, errorMessage } from "../dom.js";
 import { controls } from "./controls.js";
 import type { Page } from "./page.js";
@@ -64,7 +64,7 @@ export async function readRecovery(page: Page) {
 function checkpointMeta(page: Page, item: Checkpoint): string {
   const { s } = page, round = s.allRuns.findIndex(run => run.ref.run_id === item.origin_run_id);
   const origin = item.origin_run_id ? " · " + (round >= 0 ? uiText.text("coding.turn.number", { number: round + 1 }) : uiText.text("coding.checkpoints.origin", { run: item.origin_run_id })) : "";
-  return new Date(item.created_at).toLocaleString() + origin + (item.directory ? " · " + item.directory.canonical_path : "");
+  return format.date(item.created_at, "datetime") + origin + (item.directory ? " · " + item.directory.canonical_path : "");
 }
 
 /** One checkpoint: its label, where it was made, and the button that previews rewinding to it. */
@@ -75,7 +75,7 @@ function checkpointRow(page: Page, item: Checkpoint): HTMLElement {
   button.setAttribute("aria-label", button.textContent + " " + item.label + " " + item.checkpoint_id);
   row.append(el("p", item.label), el("small", checkpointMeta(page, item)));
   // Already rewound here: say when, so the list does not read as untouched; the files may have changed since.
-  if (item.rewound_at) row.append(el("small", uiText.text("coding.checkpoints.rewound", { at: new Date(item.rewound_at).toLocaleString() }), "coding-checkpoint-done"));
+  if (item.rewound_at) row.append(el("small", uiText.text("coding.checkpoints.rewound", { at: format.date(item.rewound_at, "datetime") }), "coding-checkpoint-done"));
   row.append(button);
   return row;
 }

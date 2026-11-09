@@ -1,6 +1,6 @@
 # 第 27 批 Jelly 工作区读写成本
 
-状态：本片工程验证通过（2026-11-09，负责人 Codex），待统筹合回批次分支并验证最终集成。
+状态：本片已合回批次分支，工程验证通过（2026-11-09，负责人：Codex 第 27 批统筹），待最终集成验证；性能证据限于下述合成工作区与存储调用，不代表真实用户规模或页面体验验收。
 
 [第 27 批第 5 项](../../../post-anticorruption-roadmap/reference/batches/27.md#batch-27-item-5)承接 [N25](../../../../docs/reviews/adversarial-review-2026-11-01.md)，性能实测同时对应[第 2 项](../../../post-anticorruption-roadmap/reference/batches/27.md#batch-27-item-2)。普通操作从动作处理器进入 Jelly Home Runtime 的数据库事务。现状是一次命令调用 `initialize()` 和 `read()`，两次取同一行并完整解码。命令暂存复制整库，日历再复制一次并校验，保存前和 SQLite 回读再校验，返回时又复制。每次普通写还会两次为全部笔记写版本记录。
 

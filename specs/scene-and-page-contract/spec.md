@@ -328,7 +328,7 @@ interface RoleTemplate {
 
 ### 6.2 插件注册卡片
 
-插件不另声明「首页卡片」。卡片就是 05② 呈现声明里的对象与形态，加上第 15 批要 C 轨补进 C-2 的插件级概况声明（[#1798](https://github.com/molis-ai/molis-work/pull/1798) 第 12 节第 1 条，C 轨已同意）。首页按 `surfaces.compose@1`、`slot: { kind: "home" }` 取组合好的描述，值由页面另用 `PresentationValues` 取。能力只注册一次：同一份声明，基础首页、生成页面、侧栏、搜索都用。
+插件不另声明「首页卡片」。卡片用 05② 的呈现声明和插件级概况。首页按 `surfaces.compose@1`、`slot: { kind: "home" }` 取描述，值另用 `PresentationValues` 取。同一份声明供基础首页、生成页面、侧栏、搜索使用。基点 `13cba9962f` 的 `platform/presentation` 已公开 `home`、概况和 values，SDK `/presentation` 已有声明、取值及描述检查。`services/surface-composition` 已声明 `surfaces.compose@1`，动作目录尚无 `system.surfaces` 绑定。组合提供方和 `renderPresentationForm` 分别由第 15 批第 1、2 项交付。P-4 可以先消费这些公共形状，真实卡片组合和渲染随相应提供方接通。
 
 - 基础首页：首页服务直接画 `surfaces.compose` 给的描述（第 15 批 S-2 的内容）。
 - 生成页面：页面要放插件卡片时，同样经页面网关调 `surfaces.compose@1` 与各主人的 values 动作，这两个也要在页面声明、本人批准的动作里；页面拿到的只是描述和值，渲染用 SDK 的 `renderPresentationForm`。
@@ -338,12 +338,12 @@ interface RoleTemplate {
 
 ```ts
 // packages/contracts/src/services/home.ts（新子路径）
-interface HomePageVersion {
-  page_id: string; version: number;          // 版本只增
+interface HomePageRef { page_id: string; version: number }
+interface HomePageVersion extends HomePageRef {
   title: string;
   files: Array<{ path: string; media_type: "text/html" | "text/javascript" | "text/css"; bytes: number; sha256: string }>;
   entry: string;                             // 入口 html 的 path
-  actions: Array<Pick<ActionReference, "capability_id" | "version">>;   // 页面要用的动作，声明不等于获准
+  actions: ExactActionReference[];           // capability_id、version 和 provider_id 固定
   author: "assistant" | "person";
   based_on?: number;                         // 从哪一版改来，差异按它比
   created_at: string;
@@ -403,6 +403,21 @@ interface HomePageVersion {
 - 本人在首页服务自己的批准界面（第 6.4 节）点 `home.pages.adopt@1`。
 - 批准后本人用同一个 `request_id` 再调 `apply`；`home.read` 读到首页已是这一版，才标「已生效」。
 - `adopt`、`restore` 只认没有上一层的本人调用：`apply`、`revert`、`remove` 嵌套调它们一律被拒（S-113）。
+
+**P-4 公共合同与静态校验。** `services/home` 导出 `HomePageRef`、`HomePageVersion`、`HomePageDraft`、`HomeSelection`、`HomePageApproval` 和上述八个动作的闭合输入输出 schema。`HomePageDraft` 包含 `title`、`entry`、`actions` 和 `{ path, media_type, text }` 文件列表。`HomePageVersion` 的 `bytes` 和 `sha256` 由主人按文件原文的 UTF-8 字节生成，`sha256` 为 64 个小写十六进制字符。版本是正安全整数，`based_on` 指同页已存在的旧版本。动作复用 `ACTION_REFERENCE_SCHEMA` 并要求 `provider_id`，保留 `parseExactActionReferences` 的身份、版本、数量及去重规则。批准回读 `{ page: HomePageRef, approved_actions: ExactActionReference[], approved_at }`，操作者从可信入口取并由主人记录。项目当前选择的 `revision` 是主人比较写入的凭据，与页面 `version` 分开。
+
+| 动作 | 输入与回读 |
+| --- | --- |
+| `home.read` | `{}` → `{ selection, revision, versions }`，版本摘要含声明动作和该版 `approval`（未批准为 `null`），无文件正文。第 8 节的首页主人批读复用同一查询定义的 `queries` 分支，只在实际入口核实采用者和项目范围后返回回执。 |
+| `home.pages.drafts.save` | 直接新建传 `{ draft }`，追加版本传 `{ draft, page_id, expected_version, based_on? }`，输出 `{ version: HomePageVersion }`。采用分支沿第 8 节固定输入与回执，`body` 共用 `HomePageDraft`，回执同时给新草稿版本，供 `needs_approval` 使用。 |
+| `home.pages.preview`／`home.pages.files.read` | 均用 `HomePageRef`。试用返回 `{ page, page_session_id }`，文件读取返回 `{ version: HomePageVersion, files }`，`files` 带同版完整正文。 |
+| `home.pages.adopt`／`home.pages.restore` | `{ page_id, version, approved_actions, request_id, expected_revision }` → `{ selection, revision, approval }`。批准动作须是该版声明且当前可批准的精确子集。恢复仍由本人再次确认，旧批准只供比较。 |
+| `home.select` | `{ kind: "basic", request_id, expected_revision }` → `{ selection, revision, approval: null }`。第 7 节退回基础首页按采用记录的 revision 比较，写回不重做业务动作。 |
+| `home.pages.diff` | `{ page_id, from_version, to_version }` → 两版的文件新增／修改／删除、入口和动作集合差异。文字对照复用 SDK `compareTexts`，结果用于本人查看。 |
+
+SDK 根入口 `inspectHomePageDraft(value: unknown)` 返回带字段路径的声明问题。正文形状由一份可作 §8 `body` 的 `HOME_PAGE_DRAFT_SCHEMA` 配合现有 SDK `assertMatches` 检查。复用 `packagePathProblem` 核相对路径，检查重复路径、入口唯一且是 `text/html`、允许的媒体类型，以及 64 文件、单个 1 MiB、合计 4 MiB 的实际 UTF-8 字节。闭合引用形状后调用 `parseExactActionReferences`。这一步检查文件和声明数据。保存／批准时的动作存在性、提供方、项目及当前权限由真实 owner 和动作目录核实。页面引用须显式有 `plugin` 受众，普通 `actionReachesAudience` 的 agent 转 plugin 路径不满足这一条件。文件读取不复用会截断正文的 `fileContentOf`。
+
+`platform/actions` 导出区分 `home-page`／`home-page-preview` 的可信主体类型，含项目和固定页面版本。动作仍按 `plugin` 受众核对，试用沿现有 `query_only`。本片不接受主体字段进入动作业务输入，也不把主体接进现有调用链。`files.read` 仅供可信外壳调用，`adopt`／`restore` 还要求本人的直接确认。`audiences: ["user"]` 只表达受众。外壳来源、嵌套拒绝、有效版本、运行期摘要核对与 CSP 内联后的实际哈希均由第 37 批接入和验收。
 
 ### 6.6 平台签名入口（只给内容包）
 
@@ -505,7 +520,7 @@ interface HomePageVersion {
 | P-3a 项目插件成员 | `projects.plugins.set@1` 按 `expected_revision` 把插件加进或撤出项目，受众为 `user`。`projects.plugins.get@1` 返回版本化成员。两个动作复用 Projects 的常开、随行、隐藏和原子 revision 规则。项目设置 HTTP 的写走 set，全项目 GET 复用 get 的 owner 读法，保持被动读取（第 10.1、10.2 节） | `modules/projects.ts` | api：`contracts/modules/projects`；动作：`host-actions.tsv` | 05② 的 C-1（同一快照） |
 | P-3b 场景定义 | `Blueprint`、`BlueprintSource`、`BlueprintPart`、`BlueprintProposal`、Manifest 的 `blueprint`／`adopts`；SDK 的 `inspectBlueprint`（静态）、`inspectBlueprintLocales`、内容包文件校验与 `validateAdoptsDeclaration`；GLOSSARY 加「场景包（blueprint）」一行（第 3.5 节） | `platform/blueprints.ts`（新）、`platform/plugin-manifest.ts` | api：`contracts/platform/blueprints`（新）、`contracts/platform/plugin`、`plugin-sdk/index` | 形状和检查复用 P-2a，设置与主人声明接 P-1。来源转出复用 36 提前合同，公开接线与包读取等 08 交接。不依赖 P-2b 或 36 的服务实现 |
 | P-3c 采用动作与签名入口 | 第 7.1 节八个动作的公开声明与类型，第 8 节固定内容采用输入，第 6.6 节签名入口与安装预览来源类型。实际接入边界随接线验证，完整服务与 S-110 处理器真实拒绝归第 44 批 | `services/blueprints.ts`（新）、`platform/plugin-trust.ts` | api：`contracts/services/blueprints`（新）、`contracts/platform/plugin-trust`；`host-actions.tsv` 只收真实登记 | 合同复用 P-3b 与 36 来源形状。P-3a、08 C-2 和主人读写是实际接入前置 |
-| P-4 首页与生成页面 | `services/home.ts`：首页选择、`HomePageVersion`、第 6.5 节八个动作；页面主体与试用主体这两种调用主体（`platform/actions.ts` 里的调用方种类）；S-111～S-113 三条边界的公共合同。本批交 schema、SDK 校验及必要接入，并验证实际接入边界的真实拒绝；文件送达、页面主体网关、执行隔离、撤权／换版与真实浏览器拒绝归第 37 批（第 6.4 节）。SPC-10／11 留给第 37 批真实验收，不记第 20 批通过（用户 2026-11-08 PST 裁定） | `services/home.ts`（新）、`platform/actions.ts` | api：`contracts/services/home`（新）、`contracts/platform/actions`；动作：`host-actions.tsv`（`system.home`） | 05② 的 C-2、C-3（卡片与 `home` 组合位置）；#1791 K0（同动 `platform/actions`）；P-3b（`adopts`） |
+| P-4 首页与生成页面 | 第 6.5 节八个动作、选择／版本／批准和页面主体公开形状，SDK 静态校验及公共入口接线。已接入的真实边界当批验拒绝。运行、SPC-10／11 与 S-111～S-113 的页面实操归第 37 批 | `services/home.ts`（新）、`platform/actions.ts` | api：`contracts/services/home`（新）、`contracts/platform/actions`、`plugin-sdk/index`。`host-actions.tsv` 只收真实登记 | 05② C-2／C-3 公共形状已在。实际卡片用第 15 批提供方。P-3b／P-3c 共用采用形状，`platform/actions` 排 #1791 K0 后 |
 
 **先后**（合同台 2026-11-04 排，[#1806 评论](https://github.com/molis-ai/molis-work/pull/1806#issuecomment-6638722432)；08 C-3 的位置由用户 2026-11-07 改，见[技能包需求第 9 节](../skill-packs/spec.md#9-决策记录)；以下是依赖与接力顺序，不是拆 PR 的清单；第 20 批一个 PR，同一份快照一次一个写手，全部在 02 交接之后）：
 
@@ -531,6 +546,10 @@ interface HomePageVersion {
 **P-3c 文件与验收。** 先准备 `packages/contracts/src/services/blueprints.ts` 和 `tests/blueprint-adoption-contract.test.ts`，等 #1984 和同批出口交接再接 `contracts/package.json`、`platform/plugin-trust.ts`、SDK 的声明检查与相关 API 快照。动作版本只首次登记。八个场景动作当前没有 `system.blueprints` provider 或处理器，交给第 44 批真实登记。签名仍归 `plugin-install`，输入沿现有内容包 `{ manifest, files }`，输出复用普通安装预览 `{ preview_id }`。`platform/plugin-trust` 的预览来源只收 `ai_generated`／`imported`／`saved`。真实签名接线排在 08 C-2 和内容包安装入口之后。基点的 `plugins.install.preview@1` 只认项目上下文，签名动作尚无登记。个人另存若缺普通预览上下文，由接线片解决。现有签包解析只保留 Manifest 与文件，随包来源须走经评审的签名覆盖路径。未核实前不改包格式、密钥或真实 Home。
 
 SPC-C07 经公开 `services/blueprints` 与 Kernel `compileActionSchema` 验八项动作的输入输出，覆盖三方差异、无安装身份的随包候选、跳过原因、未知结果、安装与批准状态及伪造身份拒绝。第 8 节通过公开 Manifest／SDK 验固定 `selection` 缺 CAS、错分支及错动作版本被拒。以上证明合同形状。基点 `pluginInstallHandlers` 只核可信 `user_action`，Kernel 允许嵌套调用原样继承，尚无供处理器消费的公开上一层引用。签名来源、直接批准拒绝与上一层审计须接真实可信调用链验证。没有该链和实际处理器时保留 SPC-14／15、S-110 及 S-113 的对应运行验收。
+
+**P-4 文件与验收。** 先准备 `packages/contracts/src/services/home.ts`、`packages/plugin-sdk/src/home-page.ts` 和 `tests/home-page-contract.test.ts`。`contracts/package.json`、SDK `index.ts`、共享 API 快照等 #1984 交接后串行接入，`platform/actions` 按上表等 #1791 K0。独占文件未接公开出口时只是待接候选。现行 `apps/local-host/src/home-actions.ts` 已用 `system.home`，新八个页面动作尚无处理器，第 37 批接同一提供方。此处必要接入是公开合同、SDK 及共用声明校验，范围不含新运行服务、数据库、iframe、网关或批准流程。
+
+SPC-C06 经公开 `services/home` 和 Kernel `compileActionSchema` 验精确页面与动作版本、摘要形状、批准回读／恢复输入、身份字段拒绝和 user-only 声明。经公开 SDK 验路径穿越／重名、错误入口与类型、单文件和合计 UTF-8 字节超限、引用缺 provider 或重复。可用 `surfaceCompositionActions.compose` 公开 schema 验 `{ slot: { kind: "home" } }`，以 `/presentation` 检查真实 values 形状。没有真实页面执行入口时，以上只记合同和静态证据。
 
 
 ### 10.1 P-3a 项目插件成员的最小接入（20-1）

@@ -76,7 +76,7 @@ test("UI audit fixes hold in an isolated workbench", { timeout: 120_000 }, async
   assert.match(stylesheet, /\[data-inbox-workbench\]\s*\.inbox-reference-detail\s*>\s*\.feed-detail-header h1\s*\{\s*width:\s*100%;\s*max-width:\s*none;?\s*\}/);
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await waitFor("document.body.dataset.desktopSurface === 'goals'");
-  await click("[data-tab-split]");
+  await click("[data-layout-open]");
   await click('[data-layout-split="right"]');
   await waitFor("document.querySelectorAll('iframe.tab-content-frame').length === 2", 15_000);
   let paneState = "";
@@ -102,7 +102,7 @@ test("UI audit fixes hold in an isolated workbench", { timeout: 120_000 }, async
   assert.deepEqual(panes.map((pane) => pane.surface), ["goals", "goals"]);
   assert.ok(panes.every((pane) => pane.homeHidden !== false));
   await shot("01-goals-split-1280x800.png");
-  await click("[data-tab-split]");
+  await click("[data-layout-open]");
   await click('[data-layout-action="close"]');
   await waitFor("document.querySelectorAll('[data-tab-pane]').length === 1", 10_000);
   const afterClose = await evaluate<{ surface: string; frameSurfaces: string[] }>(`({
@@ -115,7 +115,7 @@ test("UI audit fixes hold in an isolated workbench", { timeout: 120_000 }, async
   const splitPlugin = async (plugin: string, surface: string, file: string) => {
     await click(`[data-plugin-strip] [data-plugin-id="${plugin}"]`);
     await waitFor(`document.body.dataset.desktopSurface === ${JSON.stringify(surface)}`, 10_000);
-    await click("[data-tab-split]");
+    await click("[data-layout-open]");
     await click('[data-layout-split="right"]');
     await waitFor("document.querySelectorAll('iframe.tab-content-frame').length === 2", 15_000);
     let state = "";
@@ -135,7 +135,7 @@ test("UI audit fixes hold in an isolated workbench", { timeout: 120_000 }, async
     assert.deepEqual(frames.map((frame) => frame.surface), [surface, surface], state);
     assert.ok(frames.every((frame) => frame.homeHidden !== false), state);
     await shot(file);
-    await click("[data-tab-split]");
+    await click("[data-layout-open]");
     await click('[data-layout-action="close"]');
     await waitFor("document.querySelectorAll('[data-tab-pane]').length === 1", 10_000);
   };
@@ -143,7 +143,7 @@ test("UI audit fixes hold in an isolated workbench", { timeout: 120_000 }, async
   await splitPlugin("inbox", "inbox", "01-inbox-split-1280x800.png");
 
   await size(1024, 340);
-  await click("[data-tab-split]");
+  await click("[data-layout-open]");
   await waitFor("document.querySelector('[data-workspace-layout]')?.matches(':popover-open')");
   const menu = await evaluate<{ top: number; bottom: number; client: number; scroll: number; maxHeight: string }>(`(() => {
     const node = document.querySelector('[data-workspace-layout]');

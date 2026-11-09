@@ -171,7 +171,7 @@ test("SYS-15-U14 S-47 object placement uses the owner's declared scope and rejec
 test("SYS-15 S-47 an opaque frame cannot navigate into owner HTML to recover a token", async t => {
   const f = await serveHomeRuntime(t);
   const refused = await f.request("/", { authorized: false, headers: { "sec-fetch-dest": "iframe", "sec-fetch-site": "cross-site", "sec-fetch-mode": "navigate" } });
-  assert.equal(refused.status, 403); assert.doesNotMatch(await refused.text(), /molis-work-control-token/);
+  assert.equal(refused.status, 403); assert.doesNotMatch(await refused.text(), /molis-work-page-session/);
   const owner = await f.request("/", { headers: { "sec-fetch-dest": "iframe", "sec-fetch-site": "same-origin", "sec-fetch-mode": "navigate" } });
   assert.equal(owner.status, 200, "the shell's trusted panes keep their navigation");
 });

@@ -133,14 +133,17 @@ test("PRR-12 工作台挂上灵光空态、确认框和快记区，工作面由 
   const html = owner + pluginDocuments(owner).join("\n");
   assert.match(html, /data-plugin-id="lingguang"/);
   // Unified bottom bar: the plugin switcher (every entry of the project) at the left, the assistant in the middle, the
-  // side panel's one button beside the project button (side-shelf §3.1). 灵光 is a tab of the side panel, right after Shelf,
-  // the 常开插件, and still opens as a full stage from the switcher.
+  // person's own tray beside the project button (07-1 S4b; the bar's side button is gone). 灵光 is a tab of the side panel,
+  // right after Shelf, the 常开插件, and still opens as a full stage from the switcher.
   const stack = html.slice(html.indexOf('class="workbench-bar"'), html.indexOf('id="goal-tree-pane"'));
   const stripAt = stack.indexOf("data-plugin-strip"), assistantAt = stack.indexOf("data-assistant-island");
-  const sideAt = stack.indexOf("data-side-toggle"), projectAt = stack.indexOf("data-project-island");
-  assert.ok(stripAt >= 0 && assistantAt > stripAt && sideAt > assistantAt && projectAt > sideAt, "底栏：插件切换在最左、助手居中、侧栏按钮紧贴项目圆钮");
+  const ownAt = stack.indexOf("data-bar-own"), projectAt = stack.indexOf("data-project-island");
+  assert.ok(stripAt >= 0 && assistantAt > stripAt && ownAt > assistantAt && projectAt > ownAt, "底栏：插件切换在最左、助手居中、你自己的托盘紧贴项目圆钮");
+  assert.doesNotMatch(stack, /data-side-toggle/);
   assert.doesNotMatch(stack, /data-bar-resident/);
-  const tabs = [...stack.matchAll(/data-side-tab="([^"]+)"/g)].map(match => match[1]);
+  // The side's tabs sit at the right end of the title bar since 07-S1, not in the bar.
+  const strip = html.slice(html.indexOf("data-side-tabs"), html.indexOf("</div></div>", html.indexOf("data-side-tabs")));
+  const tabs = [...strip.matchAll(/data-side-tab="([^"]+)"/g)].map(match => match[1]);
   assert.deepEqual(tabs.slice(0, 6), ["plugin:shelf/side", "plugin:lingguang/side", "files", "browser", "computer", "discussion"], "侧栏的格按 order 排：Shelf（常开插件）、灵光、文件、浏览器、电脑、讨论，没写 order 的插件格排在后面");
   assert.match(stack.slice(stripAt, assistantAt), /data-plugin-id="lingguang"/, "插件切换列表是项目的全部入口，灵光也在其中");
   assert.match(stack, /data-assistant-island/);

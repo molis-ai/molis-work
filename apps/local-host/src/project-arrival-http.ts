@@ -165,8 +165,8 @@ export function createProjectArrivalHttp(ports: ProjectArrivalHttpPorts) {
       cache.set(key, { at: Date.now(), value: brief });
       if (cache.size > 64) cache.delete(cache.keys().next().value!);
       sendJson(response, 200, brief);
-    } catch (error) {
-      sendJson(response, 500, { error: error instanceof Error ? error.message : L("项目简介暂时读不到") });
+    } catch {
+      sendJson(response, 500, { error: L("项目简介暂时读不到") });
     }
     return true;
   };

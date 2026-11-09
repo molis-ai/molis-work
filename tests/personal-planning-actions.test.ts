@@ -1,3 +1,4 @@
+import { changeMcpClientCredential } from "@molis-ai/molis-work-app-local-host";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -194,6 +195,7 @@ test("Home Web and official unbound MCP consume the same planning actions and li
     const view = (await host.inspectActions(caller)).find(v => v.capability_id === personalPlanningActions.list.capability_id)!;
     const name = molisWorkActionToolName(view);
     const env = Object.fromEntries(Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined));
+    changeMcpClientCredential(home, caller.actor_id, "connect");
     await sdk.connect(new StdioClientTransport({ command: process.execPath, args: ["--import", "tsx", fileURLToPath(new URL("../apps/desktop/launchers/mcp/server.ts", import.meta.url))],
       env: { ...env, MOLIS_WORK_HOME: home, MOLIS_WORK_WEB_URL: origin, MOLIS_WORK_RUNTIME_ID: "personal-planning", MOLIS_WORK_WORK_CONTEXT_ID: "", MOLIS_WORK_WORK_CONTEXT_STABLE: "false" }, stderr: "pipe" }));
     assert.equal((await sdk.listTools()).tools.some(t => t.name === name), false);

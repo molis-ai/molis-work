@@ -1,3 +1,4 @@
+import { changeMcpClientCredential } from "@molis-ai/molis-work-app-local-host";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
@@ -63,6 +64,7 @@ test("local management discovers an unknown plugin, authorizes its exact contrac
     const page = await fetch(`${origin}/capabilities/access?client=${input.client_id}&project=${input.project_id}`);
     assert.equal(page.status, 200);
     assert.match(await page.text(), /runtime:external/);
+    changeMcpClientCredential(home, "runtime:external", "connect");
     const external = new LocalMcpServer(withMolisWorkProjectCatalog, "runtime", { projectId: project.project_id,
       databasePath: project.database_path, webBaseUrl: origin }, { homeDirectory: home,
       runtimeContext: { runtime_id: "external", stable_work_context_id: null, host_declares_stable: false } }, host);

@@ -64,14 +64,6 @@ export const COMPOSER_BOARD_STYLES = `
     .mw-composer__foot .mw-btn--icon-only { width: 44px; min-width: 44px; }
   }
 
-  /* Glyph, name and shortcut on the first row; the description takes the whole width under them, the shortcut's column too. */
-  .mw-menu__item--described { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: baseline; gap: 2px 8px; padding-block: 8px; }
-  .mw-menu__item--described > :is(svg, .mw-menu__check) { grid-area: 1 / 1; align-self: center; }
-  .mw-menu__item--described > [data-slot="menu-item-label"] { display: contents; }
-  .mw-menu__item--described > [data-slot="menu-item-label"] > span { grid-area: 1 / 2; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .mw-menu__item--described .mw-menu__shortcut { grid-area: 1 / 3; }
-  .mw-menu__desc { grid-column: 2 / -1; color: var(--muted); font-size: 12px; font-weight: var(--weight-body, 400); line-height: 18px; text-wrap: pretty; word-break: keep-all; overflow-wrap: anywhere; }
-
   .mw-catalog :is([data-primitive="composer"], [data-primitive="menu-desc"]) .mw-catalog__specimen { margin: 0; }
   .mw-catalog [data-primitive="composer"] .mw-catalog__specimens { grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); align-items: start; }
   /* The specimen whose ▾ menu is open keeps room above itself for it, so the menu stays inside its own cell. */

@@ -1,3 +1,4 @@
+import { WebSessions, webRequestAuthenticated, webPageToken, webPageScope, withWebSessionRequest, revokeWebSession } from "./web-sessions.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { awaitWebServerShutdown } from "./web-server-close.js";
 import { WEB_ACCOUNT_COOKIE, type WebAccountSession } from "./personal-web-sessions.js";
@@ -91,7 +92,7 @@ function createSpaceContext(options:WebServerOptions,createCore:(options:WebServ
   let initializationFailure:import('./home-storage-lifetime.js').HomeInitializationFailure|undefined;
   const account=runWithMolisWorkHome(home,()=>createPersonalAccountHttp(native,{ready:retry=>settleAccount(retry),status:()=>{
     let ready=false;try{activeLease?.assertCurrent();ready=!!activeLease&&!transition&&!transitionError;}catch{ /* Revocation is immediate, before asynchronous cleanup. */ }
-    return {ready,switching:!!transition,...(activeSpaceId&&surfaces.get(activeSpaceId)?{viewToken:surfaces.get(activeSpaceId)!.token}:{}),...(transitionError?{error:transitionError}:{})};
+    return {ready,switching:!!transition,...(activeSpaceId&&surfaces.get(activeSpaceId)?{viewScope:webPageScope(surfaces.get(activeSpaceId)!.token)}:{}),...(transitionError?{error:transitionError}:{})};
   }}));
   const mutations=new Map<string,LocalMutationState>();
   const surfaces=new Map<string,Surface>();
@@ -192,7 +193,7 @@ function createSpaceContext(options:WebServerOptions,createCore:(options:WebServ
     const initialLease=personalSurfaceLease(space,selected.session);
     const coreOptions=space.kind==='local'?{...options,homeDirectory:directory}:{homeDirectory:directory};
     const token=tokenFor(selected);
-    const core=runWithMolisWorkHome(directory,()=>createCore({...coreOptions,controlToken:token,accountRegistration:true,runtimeIntegrationService:options.runtimeIntegrationService,webServiceManager:options.webServiceManager,installationDiagnostics:options.installationDiagnostics,...(initialLease?{isNativeAccountRequest:request=>!!account.context(request,true),assertAccountCurrent:()=>{if(stopping)throw new ActionError("actions.unavailable","服务正在关闭。");initialLease.assertCurrent();}}:{})}));
+    const core=runWithMolisWorkHome(directory,()=>createCore({...coreOptions,controlToken:token,webSessions:options.webSessions,accountRegistration:true,mcpCredentialHomeDirectory:home,runtimeIntegrationService:options.runtimeIntegrationService,webServiceManager:options.webServiceManager,installationDiagnostics:options.installationDiagnostics,...(initialLease?{isNativeAccountRequest:request=>!!account.context(request,true),assertAccountCurrent:()=>{if(stopping)throw new ActionError("actions.unavailable","服务正在关闭。");initialLease.assertCurrent();}}:{})}));
     core.address=address;
     result={home:directory,space,token,server:core,users:new Map(),connections:new Map(),responses:new Map()};
     if(space.kind==='personal'){
@@ -213,6 +214,7 @@ function createSpaceContext(options:WebServerOptions,createCore:(options:WebServ
     for(const socket of entry.connections.keys())socket.destroy();
   };
   const retire=(entry:Surface,graceful=false)=>{
+    options.webSessions?.revokeScope(entry.token);
     entry.releaseAuthority?.();
     surfaces.delete(entry.space.spaceId);
     disconnect(entry,graceful);
@@ -277,11 +279,13 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
   asset(request:IncomingMessage,response:ServerResponse,url:URL):boolean;
 }):http.Server {
   let server:http.Server;
+  const sessions = new WebSessions(resolveConfiguredHome(options.homeDirectory));
+  options = { ...options, webSessions: sessions };
   const {home,native,account,rootToken,tokenFor,mutations,surface,selection,attach,sweep,syncFor,resume,surfaces,stop,settleAccount,releaseRetired,isAccountReady,activeSurface,isStopping}=createSpaceContext(options,createCore,withCatalog,()=>server?.address()??null);
   let timer:ReturnType<typeof setInterval>|undefined, shutdown:(()=>Promise<void>)|undefined;
   try {
     server=trackHostListener(http.createServer((request,response)=>{
-    void runWithMolisWorkHome(home,async()=>{
+    void withWebSessionRequest(request, () => runWithMolisWorkHome(home,async()=>{
       try {
         if(isStopping()){sendLocalWebJson(response,503,{error:'服务正在关闭。'});return;}
         const url=new URL(request.url??'/','http://localhost');
@@ -322,6 +326,7 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
         }
         const selected=selection(request);
         let token=selected.space.kind==='local'?rootToken:tokenFor(selected);
+        sessions.bind(request, token, response);
         const callback=url.pathname==='/account/callback';
         // Protocol markers only route the request; the selected Home verifies the pending attempt.
         const unifiedCallback=callback&&(url.searchParams.has('transactionId')||url.searchParams.has('result'));
@@ -332,14 +337,15 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
         if(url.pathname.startsWith('/api/sync')){
           const expectedSpace=request.headers['x-molis-sync-space'];
           if(expectedSpace&&expectedSpace!==selected.space.spaceId){sendLocalWebJson(response,409,{error:'空间已切换，请刷新页面。'});return;}
-          if(request.headers['x-molis-work-control-token']!==token){sendLocalWebJson(response,403,{error:'空间已切换，请刷新页面。'});return;}
+          if(!webRequestAuthenticated(request,token)){sendLocalWebJson(response,403,{error:'空间已切换，请刷新页面。'});return;}
           if(!authorizeLocalWebRequest(request,response,url,token,mutations))return;
           await serveSpaceSync({request,response,url,local:selected.space.kind==='local',service:()=>syncFor(selected,request)});
           return;
         }
         if(accountPath){
           if(!authorizeLocalWebRequest(request,response,url,native(request)||request.headers['x-molis-work-control-token']===rootToken?rootToken:token,mutations))return;
-          if(!await account(request,response,url,origin,token,''))sendLocalWebJson(response,404,{error:'接口不存在。'});
+          if(!await account(request,response,url,origin,webPageToken(request),''))sendLocalWebJson(response,404,{error:'接口不存在。'});
+          if (url.pathname === '/api/personal/logout' && response.statusCode === 200) revokeWebSession(request);
           sweep();await resume(request);return;
         }
         if(selected.space.kind==='local'){
@@ -348,7 +354,7 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
             if(entry&&!account.preparing()&&dispatchNativeAccountCallback(request,response,url,entry,()=>isAccountReady(entry.space.spaceId)))return;
             refuseLocalWebRequest(response);return;
           }
-          if(request.method==='GET'&&!url.pathname.startsWith('/api/')&&accountEntry){response.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-frame-options':'DENY'});response.end(accountEntry.render(rootToken,request,url));}
+          if(request.method==='GET'&&!url.pathname.startsWith('/api/')&&accountEntry){response.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-frame-options':'DENY'});response.end(accountEntry.render(webPageToken(request),request,url));}
           else sendLocalWebJson(response,401,{error:'请先登录当前安装的账号。'});
           return;
         }
@@ -382,12 +388,12 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
         void resume(request);
       }catch(error){
         if(!response.headersSent){
-          if(request.method==='GET'&&!(request.url??'/').startsWith('/api/')&&accountEntry){response.writeHead(503,{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-frame-options':'DENY'});response.end(accountEntry.render(rootToken,request,new URL(request.url??'/','http://localhost'),'账号环境尚未就绪，请重试。'));}
+          if(request.method==='GET'&&!(request.url??'/').startsWith('/api/')&&accountEntry){response.writeHead(503,{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-frame-options':'DENY'});response.end(accountEntry.render(webPageToken(request),request,new URL(request.url??'/','http://localhost'),'账号环境尚未就绪，请重试。'));}
           else sendLocalWebJson(response,503,{code:'space.unavailable',error:'账号环境尚未就绪，请重试。'});
         }
         else response.destroy();
       }
-    });
+    }));
   }));
   server.on('upgrade',(request,socket,head)=>{
     void (async()=>{try{
@@ -396,6 +402,7 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
         socket.destroy();return;
       }
       const entry=await surface(selection(request));
+      sessions.bind(request, entry.token);
       const valid=attach(entry,request);
       if(!valid())throw new Error('SPACE_CHANGED');
       entry.connections.set(socket,valid);socket.once('close',()=>entry.connections.delete(socket));
@@ -403,7 +410,7 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
     }catch{socket.destroy();}})();
   });
   timer=setInterval(sweep,1000);timer.unref();
-  shutdown=awaitWebServerShutdown(server,()=>{clearInterval(timer);stop();},
+  shutdown=awaitWebServerShutdown(server,()=>{clearInterval(timer);sessions.close();stop();},
     ()=>releaseRetired(true));
   return server;
   } catch(error){

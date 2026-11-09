@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
+import { sqliteErrorName } from "@molis-ai/molis-work-storage";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { inspectMolisWorkProjectCatalogSnapshot, openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createHomeSnapshot, restoreHomeSnapshot } from "@molis-ai/molis-work-app-local-host";
@@ -140,9 +141,9 @@ test("RAC-2915: the restore SQLite reader preserves original version, I/O, busy 
       try {
         locker.exec("BEGIN EXCLUSIVE");
         assert.throws(() => inspectSnapshotSqlite(f.file), error => {
-          assert.ok(error instanceof Error && "code" in error);
+          assert.ok(error instanceof Error);
           assert.equal(Object.getPrototypeOf(error), Object.getPrototypeOf(nativeError));
-          assert.equal(error.code, "SQLITE_BUSY");
+          assert.equal(sqliteErrorName(error), "SQLITE_BUSY");
           assert.equal(error instanceof ActionError, false);
           return true;
         });

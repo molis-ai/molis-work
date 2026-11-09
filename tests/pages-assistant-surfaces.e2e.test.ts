@@ -304,7 +304,11 @@ test("PAS-01 PAS-02 PAS-06 PAS-07: real Pages sidebar follows the active documen
   }
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setTouchEmulationEnabled", { enabled: false }, sessionId);
-  await click('[data-side-toggle]');
+  // The side is still open from the comments above; the bar's side button that shut it is gone (07-1 S4b), so it closes from
+  // the layout menu, the way a person shuts it now.
+  await click("[data-layout-open]");
+  await click("[data-layout-action=side]");
+  await waitFor("document.body.dataset.sideOpen !== 'true'");
   await click('[data-assistant-input]');
   await command("Input.insertText", { text: "新工作：保留这份助理草稿" }, sessionId);
   await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);

@@ -4,24 +4,26 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
-import { CATALOG_BASELINE, homeStores, homeUpgradeDescriptors, PROJECT_DATABASE_BASELINE, upgradeFingerprint, type HomeUpgradeDescriptor } from "@molis-ai/molis-work-app-local-host";
+import { CATALOG_BASELINE, homeStores, homeUpgradeDescriptors, PROJECT_DATABASE_BASELINE, upgradeFingerprint, upgradeTarget, type HomeUpgradeDescriptor } from "@molis-ai/molis-work-app-local-host";
 import { upgradeStepProblems } from "../scripts/gates/initial-versions.mjs";
 
-const stepsOf = (descriptor: HomeUpgradeDescriptor) => "file" in descriptor ? descriptor.file.upgrades : descriptor.baseline.upgrades ?? [];
-const versionOf = (descriptor: HomeUpgradeDescriptor) => "file" in descriptor ? descriptor.file.version : descriptor.baseline.version;
+/** A plugin's tables keep their steps in the plugin's declaration; the descriptor says which version has none (U1-f). */
+const stepsOf = (descriptor: HomeUpgradeDescriptor) => "file" in descriptor ? descriptor.file.upgrades.map(step => step.from)
+  : "tables" in descriptor ? Array.from({ length: descriptor.tables.version - 1 }, (_, index) => index + 1).filter(from => descriptor.tables.problem(from) === undefined)
+  : (descriptor.baseline.upgrades ?? []).map(step => step.from);
 
-/** What the checklist says upgrades, on its own line. The tables inside a project store are plugin tables (U1-f), and an account Home holds the same stores as any other. */
+/** What the checklist says upgrades, on its own line, a plugin's tables in a project store (`…#<store>`) among them; an account Home holds the same stores as any other. */
 const checklistUpgrades = () => readFileSync(new URL("../docs/releases/CHECKLIST.md", import.meta.url), "utf8").split("\n")
   .filter(line => line.startsWith("| ") && /低版本升级/.test(line))
-  .map(line => /^\| [^|]+\| `([^`]+)`/.exec(line)?.[1]).filter((place): place is string => place !== undefined && !place.includes("#"))
+  .map(line => /^\| [^|]+\| `([^`]+)`/.exec(line)?.[1]).filter((place): place is string => place !== undefined)
   .map(place => place.replace(/^spaces\/<spaceId>\//, "").replace(/<[^>]+>/g, "*"));
 
 test("UPG1-12: every registered store and file has its steps in a row: `from` runs from 1 to version - 1, each once", () => {
   const descriptors = homeUpgradeDescriptors();
   assert.ok(descriptors.length > 20, "the platform's stores are registered as soon as the Host's package is loaded");
   for (const descriptor of descriptors) {
-    assert.deepEqual(upgradeStepProblems(versionOf(descriptor), stepsOf(descriptor).map(step => step.from)), [], descriptor.pattern);
-    if (!("file" in descriptor)) assert.ok(descriptor.baseline.schema.length > 0, `${descriptor.pattern} has something to compare an upgraded store with`);
+    assert.deepEqual(upgradeStepProblems(upgradeTarget(descriptor), stepsOf(descriptor)), [], descriptor.pattern);
+    if ("baseline" in descriptor) assert.ok(descriptor.baseline.schema.length > 0, `${descriptor.pattern} has something to compare an upgraded store with`);
   }
 });
 
@@ -32,6 +34,9 @@ test("UPG1-12: the process looks after everything the checklist says upgrades, a
   assert.equal(first.pattern, join("projects", "catalog.db"));
   assert.ok("baseline" in first && first.baseline === CATALOG_BASELINE);
   assert.ok("baseline" in second && second.baseline === PROJECT_DATABASE_BASELINE);
+  const tables = descriptors.filter(descriptor => "tables" in descriptor), after = descriptors.indexOf(second);
+  assert.ok(tables.length > 0 && tables.every(descriptor => descriptor.pattern.startsWith(`${second.pattern}#`) && descriptors.indexOf(descriptor) > after),
+    "each plugin's tables come after the file they are in");
   for (const store of homeStores().stores) if (store.library) assert.ok(descriptors.some(descriptor => "baseline" in descriptor && descriptor.baseline === store.library!.baseline), store.path);
 });
 

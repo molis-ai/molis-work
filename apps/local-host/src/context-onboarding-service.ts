@@ -11,7 +11,7 @@ import { configuredTextPort, type TextModelPort } from "./configured-text-port.j
 import { prepareContextDocument } from "./context-onboarding-documents.js";
 import { ARTIFACTS_PLUGIN_ID, artifactsActions } from "@molis-ai/molis-work-module-artifacts";
 import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
-import { completeMolisWorkOnboarding } from "./onboarding.js";
+import { assertOnboardingWritable, completeMolisWorkOnboarding } from "./onboarding.js";
 import { descriptionFromSummary, setProjectDescription } from "./project-arrival.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -449,6 +449,9 @@ export async function adoptContextJourney(home: string, id: string, input: Recor
   const title = journey.adoption?.title ?? (typeof input.title === "string" ? input.title.trim() : "");
   const body = journey.adoption?.body ?? (input.blank === true ? "" : typeof input.body === "string" ? input.body.trim() : journey.summary?.body ?? "");
   if (!title || [...title].length > 120 || body.length > 100_000) throw new Error("请输入 1–120 字的项目名称，摘要最多 100,000 字符");
+  // The round ends by writing down that onboarding is done. A record this build may not replace refuses here, before the accepted text is
+  // kept or anything is made: the person stays where they were, with no project left behind (upgrade-chain-design §2.6).
+  assertOnboardingWritable(home);
   // Persist the accepted text before creating anything. A retry cannot overwrite
   // edits made later in Pages or change the adopted material set.
   // Only drafts this round made can be kept, however many batches there were.

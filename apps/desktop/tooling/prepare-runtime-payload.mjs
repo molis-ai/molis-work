@@ -20,9 +20,23 @@ try {
   await createMolisWorkRuntimePayload({ sourceDirectory, destinationDirectory: staged, nodeExecutablePath });
   const node = path.join(staged, "runtime", "node");
   // Resolve from the payload, never the checkout's node_modules. No install scripts or network here.
+  // Project libraries run on the bundled Node's own SQLite, and every plugin statement is refused unless it is the version the statement
+  // list was reviewed against (S-46). So a payload whose Node brings another SQLite fails here, not on the user's machine. The version is
+  // read from the payload's plugin runtime, the same constant the Host compares at run time. The storage package must not bring a second
+  // SQLite back: only Alchemist keeps its own driver (specs/sqlite-driver-switch §6, §7).
   execFileSync(node, ["--input-type=module", "-e", `
+    const { readFileSync } = await import('node:fs');
     const { openSqliteConnection } = await import('@molis-ai/molis-work-storage');
-    const db = openSqliteConnection(':memory:'); db.exec('SELECT 1'); db.close();
+    const { PLUGIN_STATEMENT_SQLITE_VERSION } = await import('@molis-ai/molis-work-plugin-runtime');
+    const db = openSqliteConnection(':memory:'); db.exec('SELECT 1');
+    const running = db.prepare('SELECT sqlite_version() AS version').get().version;
+    db.close();
+    if (running !== PLUGIN_STATEMENT_SQLITE_VERSION || process.versions.sqlite !== PLUGIN_STATEMENT_SQLITE_VERSION) {
+      throw new Error('Bundled Node ' + process.version + ' has SQLite ' + running + '; plugin statements are reviewed against ' + PLUGIN_STATEMENT_SQLITE_VERSION + '. Use the Node in .nvmrc.');
+    }
+    const storage = JSON.parse(readFileSync('node_modules/@molis-ai/molis-work-storage/package.json', 'utf8'));
+    const drivers = Object.keys({ ...storage.dependencies, ...storage.optionalDependencies }).filter(name => /sqlite/.test(name));
+    if (drivers.length > 0) throw new Error('The storage package brings its own SQLite driver: ' + drivers.join(', '));
     await import('node-pty'); await import('ws');
     await import('@molis-ai/molis-work-app-local-host');
   `], { cwd: staged, stdio: "pipe" });

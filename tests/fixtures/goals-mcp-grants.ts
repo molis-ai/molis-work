@@ -1,3 +1,4 @@
+import { changeMcpClientCredential } from "@molis-ai/molis-work-app-local-host";
 import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import {
@@ -13,7 +14,7 @@ import { serveTestHost } from "./test-home.js";
  * `agent.inference.home_in_use`. Or the test's own served Host (`serveTestHost`, `openTestHome`): needed when the Host is bound to the
  * Home, or when the actions to grant live on that Host (a provider the test registered on it).
  */
-export type GoalsGrantTarget = string | { readonly web: LocalHostHttpClient };
+export type GoalsGrantTarget = string | { readonly web: LocalHostHttpClient; readonly home: string };
 
 /** What the access settings save in one request: the action and up to 16 others, checked as one set (`with`, in the same scope). */
 const SAVED_TOGETHER = 17;
@@ -34,6 +35,7 @@ export async function grantGoalsMcp(where: GoalsGrantTarget, project: { project_
   also: ReadonlyArray<{ capability_id: string }> = []): Promise<McpActionGrantRow[]> {
   const served = typeof where === "string" ? await serveTestHost(null, { home: where }) : null;
   try {
+  if (!clientId.startsWith("agent:")) changeMcpClientCredential(typeof where === "string" ? where : where.home, clientId, "connect");
     const web = served?.web ?? (where as { web: LocalHostHttpClient }).web;
     const scopes = [project.project_id, null];
     // The project's actions and the Home's: the access page lists a scope at a time.

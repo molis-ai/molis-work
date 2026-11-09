@@ -25,19 +25,20 @@ test("project workbench adds tabs without replacing existing ones and keeps spli
   await browser.setViewport(1440, 1000);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
-  await waitFor("document.body.dataset.desktopSurface === 'home' && document.querySelector('.tab-item[data-tab-kind=home][aria-current]')");
+  await waitFor("document.body.dataset.desktopSurface === 'home' && !document.querySelector(':is([data-titlebar-tabs], [data-tab-strip]) .tab-item[aria-current]')");
   assert.equal(await evaluate("document.querySelector('[data-workspace-history=back]')?.disabled"), true);
   assert.equal(await evaluate("document.querySelector('[data-workspace-history=forward]')?.disabled"), true);
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await waitFor("document.body.dataset.desktopSurface === 'goals' && document.querySelector('.tab-item[aria-current]')?.dataset.tabKind === 'plugin' && !document.querySelector('.tab-item[data-tab-kind=mother]') && document.querySelector('[data-workspace-history=back]')?.disabled === false");
   await click("[data-workspace-history=back]");
-  await waitFor("document.querySelector('.tab-item[data-tab-kind=home][aria-current]')");
+  await waitFor("document.body.dataset.desktopSurface === 'home' && !document.querySelector(':is([data-titlebar-tabs], [data-tab-strip]) .tab-item[aria-current]')");
   assert.equal(await evaluate("document.querySelector('[data-workspace-history=forward]')?.disabled"), false);
   await click("[data-workspace-history=forward]");
   await waitFor("document.body.dataset.desktopSurface === 'goals' && document.querySelector('.tab-item[aria-current]')?.dataset.tabKind === 'plugin'");
-  await click(".tab-item[data-tab-kind=home] .tab-item-trigger");
-  await waitFor("document.querySelector('.tab-item[data-tab-kind=home][aria-current]')");
-  assert.equal(await evaluate("(() => { const home = document.querySelector('.tab-item[data-tab-kind=home][aria-current]')?.getBoundingClientRect(); const hist = document.querySelector('.workspace-history')?.getBoundingClientRect(); const scroll = document.querySelector('[data-titlebar-tabs] [data-tab-scroll]')?.getBoundingClientRect(); return Boolean(home && hist && scroll && home.left + 1 >= scroll.left && home.left + 1 >= hist.right - 1); })()"), true, "home tab stays fully to the right of history buttons");
+  await click("[data-dock-pin=home]");
+  await waitFor("document.body.dataset.desktopSurface === 'home' && !document.querySelector(':is([data-titlebar-tabs], [data-tab-strip]) .tab-item[aria-current]')");
+  // 07-S2: the project home left the tabs for the Dock; the strip's ＋ stays fully right of the history buttons.
+  assert.equal(await evaluate("(() => { const add = document.querySelector('[data-titlebar-tabs] .tab-add-button')?.getBoundingClientRect(); const hist = document.querySelector('.workspace-history')?.getBoundingClientRect(); return Boolean(add && hist && add.left + 1 >= hist.right - 1); })()"), true, "the strip's ＋ stays fully to the right of history buttons");
   assert.equal(await evaluate("document.querySelector('.tab-item[data-tab-kind=mother]')"), null);
   assert.equal(await evaluate("document.querySelectorAll('[data-tab-pane]').length"), 1);
   assert.equal(await evaluate("document.querySelector('[data-work-surface=home]')?.hidden"), false);
@@ -49,9 +50,9 @@ test("project workbench adds tabs without replacing existing ones and keeps spli
   assert.equal(await evaluate("document.querySelector('.tab-group[data-tab-group]')"), null);
   assert.equal(await evaluate("document.querySelector('[data-board-view-tab=kanban]') != null"), true);
   assert.equal(await evaluate("document.querySelector('[data-container-tabs]')?.hidden"), true);
-  assert.equal(await evaluate("document.querySelector('.immersive-titlebar [data-titlebar-tabs] .tab-item[data-tab-kind=home]') != null"), true);
+  assert.equal(await evaluate("document.querySelector('.immersive-titlebar [data-titlebar-tabs] .tab-item[data-plugin=goals][data-tab-kind=plugin]') != null"), true);
   assert.equal(await evaluate("document.querySelector('[data-tab-pane] [data-tab-strip]')?.hidden"), true);
-  assert.equal(await evaluate("document.querySelector('.tab-item[data-tab-kind=home]') != null"), true);
+  assert.equal(await evaluate("document.querySelector('.tab-item[data-tab-kind=home]')"), null, "口径 3: the project home is the Dock's, not a tab");
   await openGoalFrame('.tree-node[data-select-goal="CORE"]');
   await waitFor("document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal === 'CORE' && document.querySelector('.tab-item[aria-current][data-plugin=goals][data-tab-kind=item][data-item-id=CORE]')");
   // RAC-2687: the same Goal tab changes view, then returns to its absent/default Frame view.
@@ -141,10 +142,12 @@ test("project workbench adds tabs without replacing existing ones and keeps spli
   assert.equal(await evaluate("document.querySelector('.tab-item[data-plugin=goals][data-item-id=CORE]') != null"), true);
   await browser.setViewport(1440, 1000);
   await evaluate(`(() => { for (let i = 0; i < 32; i += 1) document.querySelector("[data-tab-close]")?.click(); })()`);
-  // Closing every tab, plugin tabs included, leaves the project's home.
-  await waitFor("document.querySelectorAll('.tab-item').length === 1 && document.querySelector('.tab-item[data-tab-kind=home]')");
+  // Closing every tab, plugin tabs included, leaves the project's home, which is no tab (07-S2). The work's tabs only: 07-S1 put
+  // the right side's glyph tabs (also .tab-item) in the title bar, outside the work's strips, so they are not counted.
+  const workTabs = "document.querySelectorAll(':is([data-titlebar-tabs], [data-tab-strip]) .tab-item:not([data-side-tabs] .tab-item)').length";
+  await waitFor(`${workTabs} === 0`);
   await click('[data-plugin-strip] [data-plugin-id="home"]');
-  await waitFor("document.querySelectorAll('.tab-item').length === 1 && document.querySelector('.tab-item[data-tab-kind=home][aria-current]')");
+  await waitFor(`${workTabs} === 0 && document.body.dataset.desktopSurface === 'home' && !document.querySelector(':is([data-titlebar-tabs], [data-tab-strip]) .tab-item[aria-current]')`);
   assert.equal(await evaluate("document.body.dataset.desktopSurface"), "home");
 });
 

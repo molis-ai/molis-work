@@ -27,6 +27,7 @@ export async function startRound(page: Page, id: string, task: string | undefine
     ...(selection.action_tools === undefined ? {} : { action_tools: selection.action_tools }),
     mcp_tools: selection.mcp_tools, mcp_sources: selection.mcp_sources, materials: selection.materials, character: selection.character,
     character_skill_ids: s.characterSkills.get(id), ...(intent === "parallel" ? { writer_assignments: selection.writer_assignments } : {}),
+    ...(selection.worktree_id ? { worktree_id: selection.worktree_id } : {}),
   });
   if (task !== undefined) page.refs.inputEditor.accepted(id, started?.cleared_input_revision, task);
   if (id === s.current) digestNote(page, started);
@@ -36,7 +37,7 @@ export async function startRound(page: Page, id: string, task: string | undefine
 export function currentSelection(page: Page, id: string): RoundSelection {
   const { s } = page;
   return {
-    workspace_id: s.workspaceId, methods: structuredClone(s.methodSelections.get(id) || []), mcp_tools: structuredClone(s.mcpSelections.get(id) || []),
+    workspace_id: s.workspaceId, ...(s.worktree ? { worktree_id: s.worktree.worktree_id } : {}), methods: structuredClone(s.methodSelections.get(id) || []), mcp_tools: structuredClone(s.mcpSelections.get(id) || []),
     mcp_sources: structuredClone(s.mcpSourceSelections.get(id) || []), materials: structuredClone(s.materialSelections.get(id) || []),
     character: structuredClone(s.characterSelections.get(id) ?? null), writer_assignments: [],
   };

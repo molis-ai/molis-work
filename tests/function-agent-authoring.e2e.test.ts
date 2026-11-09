@@ -1,3 +1,4 @@
+import { changeMcpClientCredential } from "@molis-ai/molis-work-app-local-host";
 import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
@@ -123,6 +124,7 @@ test("Agent authoring discovers runtime capabilities, preserves exact references
     await revoke(write);
     await writeMcpActionGrant(homeDirectory, createMcpActionGrant(caller.actor_id, null, viewOf(judgment), true));
     await grant(read, functionsActions.invoke);
+    changeMcpClientCredential(homeDirectory, caller.actor_id, "connect");
     external = new LocalMcpServer(withMolisWorkProjectCatalog, "runtime", { projectId, databasePath: browser.databasePath, webBaseUrl: origin },
       { homeDirectory: homeDirectory, runtimeContext: { runtime_id: "agent-notes", stable_work_context_id: null, host_declares_stable: false } }, localHost);
     let request = 0;

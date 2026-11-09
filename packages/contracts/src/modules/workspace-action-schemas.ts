@@ -12,7 +12,9 @@ export const fileResult = { oneOf: [
   object({ outcome: { const: "directory" }, entries: { type: "array", items: object({ name: text, path, kind: { enum: ["file", "directory", "other"] } }) }, truncated: boolean }),
   object({ outcome: { const: "text" }, text, fingerprint: id, mode: fileMode }, ["outcome", "text", "fingerprint"]),
   object({ outcome: { const: "too-large" }, bytes: integer, limit: integer }),
-  object({ outcome: { enum: ["binary", "unsupported", "missing", "denied", "changed"] } }),
+  // Content that was read but cannot be shown as text carries its fingerprint, so a reference can be written from it (`WorkspaceFileResult`).
+  object({ outcome: { enum: ["binary", "unsupported"] }, fingerprint: id }),
+  object({ outcome: { enum: ["unsupported", "missing", "denied", "changed"] } }),
 ] };
 /** Full Artifact envelope remains owned/versioned by Artifacts; consumers need this fixed identity and origin. */
 export const publication = object({ artifact: { type: "object", required: ["artifact_id", "version", "owner_actor_id", "created_by", "created_at", "payload"],
@@ -44,16 +46,21 @@ export const gitReviewedResult = object({ workspace_id: id, operation_id: id, ou
     reconciliation: object({ actor_id: id, at: text, reason: text }) }, ["review_id", "action", "paths", "requested_at", "decided_by", "decided_at"]) });
 // Parallel writers' wire shapes (PG-035): the Host actions Coding calls for a writer's own worktree and to bring a child's result back.
 /** A writer's directory under the main workspace (`PreparedWriterDirectory`). */
-export const writerDirectory = object({ worktree_id: id, branch: text, base_commit: text, canonical_path: id, workspace_id: nullable(id), problem: text },
-  ["worktree_id", "branch", "base_commit", "canonical_path", "workspace_id"]);
-/** Whose child, in which run of which session (`WriterIntegrationSource`). */
+export const writerDirectory = object({ worktree_id: id, branch: text, base_commit: text, canonical_path: id, problem: text },
+  ["worktree_id", "branch", "base_commit", "canonical_path"]);
+/**
+ * Whose result, in which run of which session (`WriterIntegrationSource`): a child of a parallel-writers round, or, without
+ * `subagent_id`, a round that ran in one of the Host's worktrees of the output.
+ */
 export const writerSource = { session_id: id, run_id: id, subagent_id: id };
+/** What a source must name: the session and its run; the child only for a parallel-writers round. */
+export const writerSourceRequired = ["session_id", "run_id"];
 /** One file a child changed, and whether it can be brought back as it is (`WriterIntegrationFile`). */
 export const writerIntegrationFile = object({ path: { type: "array", items: text }, target: { enum: ["added", "modified", "deleted"] }, selectable: boolean, reason: text, revision: text,
   before_text: nullable(text), after_text: nullable(text), before_mode: nullable(fileMode), after_mode: nullable(fileMode),
   conflict: object({ base_text: nullable(text), merged_text: text, clean: boolean, markers: integer }) }, ["path", "target", "selectable"]);
 /** What a child's worktree would bring back to the main workspace (`WriterIntegrationView`). */
-export const writerIntegrationView = object({ workspace_id: id, writer_workspace_id: id, source_path: id, target_path: id, branch: text, base_commit: text,
+export const writerIntegrationView = object({ workspace_id: id, worktree_id: id, source_path: id, target_path: id, branch: text, base_commit: text,
   files: { type: "array", items: writerIntegrationFile } });
 /** The files a person chose, each at the revision they saw; `resolution` is their finished three-way merge, at most 256 KiB. */
 export const writerIntegrationChoice = object({ path, revision: id, resolution: limited(262_144) }, ["path", "revision"]);

@@ -6,7 +6,8 @@ import { join } from "node:path";
 import { LocalHost, LocalMcpServer, LocalProjectDatabase, MolisWorkLocalHost, molisWorkHostProjectReference, type LocalHostOptions } from "@molis-ai/molis-work-app-local-host";
 import { createActionMcpPorts, actionMcpToolName, handleMcpMessage } from "@molis-ai/molis-work-app-mcp";
 import type { ActionAvailability, ActionCallContext, ActionDefinition, ActionSceneBinding, ActionSceneDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import { projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import { projectDirectoryActions, type ProjectDirectories } from "@molis-ai/molis-work-contracts/modules/projects";
+import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { callAs, callerPlugin, issuedCaller, registerProbe, startPlugin } from "./fixtures/plugin-callers.js";
 
 const counter: ActionDefinition<{ amount: number }, number> = { capability_id: "host.counter.add", version: 1, operation: "command",
@@ -90,29 +91,37 @@ test("same Plugin identity can run in two projects and closing one withdraws onl
 
 test("existing project workspace capability is discoverable and executable through the same Host's MCP adapter", async () => {
   const directory = await mkdtemp(join(tmpdir(), "host-actions-"));
-  const workspace = { workspace_id: "a-root", canonical_path: "/authorized/a", realpath_verified: true, display_name: "A" };
-  const host = new MolisWorkLocalHost({ workspacesFor: id => id === "a" ? [workspace] : [] });
-  const project = molisWorkHostProjectReference({ databasePath: join(directory, "a.sqlite"), projectId: "a" });
-  const c = context("a");
+  // The project's folders are the Home catalog's (`projects.directories.get@1`, specs/shared-sources-and-surfaces §3).
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: directory });
+  const created = await catalog.createProject({ display_name: "A", actor_id: "alice" });
+  catalog.close();
+  const host = new MolisWorkLocalHost({ homeDirectory: directory, completeText: null });
+  host.configurePersonalPlanning(directory, withMolisWorkProjectCatalog);
+  const project = molisWorkHostProjectReference({ databasePath: created.database_path, projectId: created.project_id });
+  const c = context(created.project_id);
   try {
     const service = host.actionClient(project);
+    const folders = await service.invoke(c, projectDirectoryActions.get, {}) as ProjectDirectories;
+    assert.equal(folders.project_id, created.project_id);
+    assert.deepEqual(folders.directories.map(row => row.roles), [["output"]], "a new project has its one output");
     const ports = createActionMcpPorts({ service, context: () => c, serverInfo: { name: "local-host", version: "1" } });
-    const name = actionMcpToolName(projectsCapabilities.listWorkspaces);
+    const name = actionMcpToolName(projectDirectoryActions.get);
     assert.ok((await ports.tools).some(tool => tool.name === name));
-    const response = await handleMcpMessage({ id: 1, method: "tools/call", params: { name, arguments: { input: [] } } }, ports);
-    assert.deepEqual((response!.result as { structuredContent: unknown }).structuredContent, { result: [workspace] });
-    assert.deepEqual(await host.client(project).invoke(projectsCapabilities.listWorkspaces, []), [workspace]);
-    await assert.rejects(service.invoke({ ...c, project_id: "b" }, projectsCapabilities.listWorkspaces, []), { code: "actions.scope_mismatch" });
+    // An object input and output travel as they are, not wrapped in `input` and `result`.
+    const response = await handleMcpMessage({ id: 1, method: "tools/call", params: { name, arguments: {} } }, ports);
+    assert.deepEqual((response!.result as { structuredContent: unknown }).structuredContent, folders);
+    assert.deepEqual(await host.client(project).invoke(projectDirectoryActions.get, {}), folders);
+    await assert.rejects(service.invoke({ ...c, project_id: "b" }, projectDirectoryActions.get, {}), { code: "actions.scope_mismatch" });
     // The production server discovers common actions too; there is no private Session here.
     const server = new LocalMcpServer(async () => { throw new Error("Unbound catalog should not be accessed"); }, "runtime",
       { databasePath: project.storage_key, projectId: project.project_id, webBaseUrl: "http://localhost" }, null, host);
-    const publicName = actionMcpToolName({ ...projectsCapabilities.listWorkspaces,
-      capability_id: `molis_work_v1_action_${projectsCapabilities.listWorkspaces.capability_id}` });
+    const publicName = actionMcpToolName({ ...projectDirectoryActions.get,
+      capability_id: `molis_work_v1_action_${projectDirectoryActions.get.capability_id}` });
     const list = () => server.handleMessage({ id: 2, method: "tools/list" });
     assert.ok(((await list())!.result as { tools: { name: string }[] }).tools.some(tool => tool.name === publicName));
-    const actual = await server.handleMessage({ id: 3, method: "tools/call", params: { name: publicName, arguments: { input: [] } } });
-    assert.deepEqual((actual!.result as { structuredContent: unknown }).structuredContent, { result: [workspace] });
-    const invalid = await server.handleMessage({ id: 31, method: "tools/call", params: { name: publicName, arguments: { input: ["another-project"] } } });
+    const actual = await server.handleMessage({ id: 3, method: "tools/call", params: { name: publicName, arguments: {} } });
+    assert.deepEqual((actual!.result as { structuredContent: unknown }).structuredContent, folders);
+    const invalid = await server.handleMessage({ id: 31, method: "tools/call", params: { name: publicName, arguments: { project_id: "another-project" } } });
     assert.match(JSON.stringify(invalid!.result), /actions.input_invalid/u);
     const dispose = host.actionRegistry(project).registerProvider({ provider: { provider_id: "dynamic", kind: "system", title: "Dynamic" },
       definitions: [counter], handlers: [{ ...counter, handle: () => 42 }] });

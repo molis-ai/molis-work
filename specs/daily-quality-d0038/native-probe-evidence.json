@@ -1,0 +1,51 @@
+{
+  "date": "2026-11-08",
+  "source_commit": "6424e5b2318c86ed735f4ef66f035a4dbbc7e7b5",
+  "application": "Tauri debug build; isolated application identifier and temporary Home; no real account login",
+  "scope": "Actual WebView at anonymous entry; same opaque sandbox settings as plugin frames; not full S5 coverage of all native commands",
+  "passed": true,
+  "owner": {
+    "native": true,
+    "controlMetaAbsent": true,
+    "sessionCookieInvisible": true,
+    "authorizedStatus": 400,
+    "noCookieStatus": 403,
+    "wrongProofStatus": 403,
+    "nativeStatus": 200,
+    "nativeBodyHasViewToken": false,
+    "foreignTargetRefused": true,
+    "child": {
+      "parentDom": "SecurityError",
+      "topDom": "SecurityError",
+      "nativeApi": "undefined",
+      "internalApi": "undefined",
+      "nativeCall": "unavailable"
+    }
+  },
+  "html": [
+    {
+      "controlAbsent": true,
+      "nativeAbsent": true
+    },
+    {
+      "controlAbsent": true,
+      "nativeAbsent": true
+    },
+    {
+      "controlAbsent": true,
+      "nativeAbsent": true
+    }
+  ],
+  "credentials_absent_from_report": true,
+  "native_credential_observed_only_on_native_http": true,
+  "page_http_uses_cookie_and_csrf_without_control_token": true,
+  "capsule": {
+    "surface": "capsule",
+    "controlMetaAbsent": true,
+    "sessionCookieInvisible": true,
+    "authorizedStatus": 400,
+    "noCookieStatus": 403,
+    "wrongProofStatus": 403
+  },
+  "capsule_passed": true
+}

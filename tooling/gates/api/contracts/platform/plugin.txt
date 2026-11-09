@@ -881,9 +881,18 @@ export interface AgentSkillDeclaration {
     name: string;
     summary: string;
     tools: string[];
+    description?: string;
+    when_to_use?: string;
+    when_not_to_use?: string;
+    applies_to?: SkillAppliesTo;
+    user_invocable?: boolean;
+    argument_hint?: string;
+    body?: string;
+    resources?: SkillResourceDeclaration[];
+    connector_categories?: string[];
 }
 
-export interface AgentSkillDefinition extends AgentSkillDeclaration {
+export interface AgentSkillDefinition extends Omit<AgentSkillDeclaration, "body"> {
     body: string;
 }
 
@@ -1002,6 +1011,12 @@ export interface BoundActionClient {
     discover(): Promise<readonly ActionView[]>;
     invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "locale" | "assert_authority_current" | "retainBackgroundAuthority" | "query_only">, transport?: ActionInvokeTransport): Promise<Output>;
 }
+
+export declare const CONTENT_PACKAGE_FILES: {
+    readonly manifest: "manifest.json";
+    readonly skills: "skills";
+    readonly body: "SKILL.md";
+};
 
 export declare const DUE_REMINDERS_INPUT_TYPE = "molis.reminders.window.v1";
 
@@ -2295,6 +2310,16 @@ export interface HomePluginDatabaseDeclaration extends PluginDatabaseDeclaration
     readonly project_rows?: PluginProjectRowsDeclaration;
 }
 
+export interface HomeStoreBaseline {
+    readonly version: number;
+    readonly schema: string;
+    readonly upgrades?: readonly {
+        readonly from: number;
+        readonly sql?: string;
+        readonly reduces_rows?: readonly string[];
+    }[];
+}
+
 export interface HomeStoreDeclaration {
     readonly replication?: (home: string, ownerId: string) => {
         close(): void;
@@ -2302,10 +2327,7 @@ export interface HomeStoreDeclaration {
     };
     readonly path: string;
     readonly library?: {
-        readonly baseline: {
-            readonly version: number;
-            readonly schema: string;
-        };
+        readonly baseline: HomeStoreBaseline;
         readonly file?: string;
         readonly partition?: "project";
     };
@@ -2460,6 +2482,8 @@ export type IntegrationProviderSyncResult = {
 export type ItemAttachPosition = (typeof ITEM_ATTACH_POSITIONS)[number];
 
 export declare const LOCAL_PERSON_ACTOR_ID = "web-user";
+
+export declare const MAX_SKILL_BODY_CHARS = 20000;
 
 export interface MaterialSourceContent {
     text: string;
@@ -2814,6 +2838,7 @@ export interface PluginDatabaseDeclaration {
     readonly schema: string;
     readonly read_permission: string;
     readonly write_permission: string;
+    readonly upgrades?: readonly PluginDatabaseUpgradeStep[];
 }
 
 export interface PluginDatabaseReader {
@@ -2829,6 +2854,18 @@ export interface PluginDatabaseTransaction extends PluginDatabaseReader {
         readonly keep: boolean;
         readonly value: T;
     }): T;
+}
+
+export interface PluginDatabaseUpgradeStep {
+    readonly from: number;
+    readonly sql: string;
+    readonly reduces_rows?: readonly string[];
+}
+
+export interface PluginDeclarationProblem {
+    skill_id?: string;
+    path?: string;
+    reason: string;
 }
 
 export interface PluginDefinition {
@@ -3390,7 +3427,7 @@ export interface PluginKeptJob {
     cancel(): void;
 }
 
-export type PluginKind = "native" | "integration" | "app";
+export type PluginKind = "native" | "integration" | "app" | "content";
 
 export interface PluginLifecycleReceipt {
     receipt_id: string;
@@ -3532,6 +3569,7 @@ export interface PluginManifest {
     action_scenes?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneDefinition[];
     read_groups?: readonly import("platform/plugin-read-groups").PluginReadGroupDeclaration[];
     task_subjects?: import("platform/plugin-task-subjects").PluginTaskSubjectsDeclaration;
+    presentation?: import("@molis-ai/molis-work-contracts/platform/presentation").PresentationDeclaration;
 }
 
 export interface PluginManifestDatabases {
@@ -4607,6 +4645,27 @@ export declare const SEARCH_OPEN_TARGET_SCHEMA: {
 
 export declare const SEARCH_SOURCE_AUDIENCES: readonly ActionAudience[];
 
+export declare const SKILL_APPLIES_TO: readonly ["assistant", "coding", "both"];
+
+export declare const SKILL_LIMITS: {
+    readonly descriptionChars: 1024;
+    readonly whenChars: 500;
+    readonly argumentHintChars: 80;
+    readonly bodyLines: 500;
+    readonly bodyChars: 20000;
+    readonly resourcesPerSkill: 300;
+    readonly skillsPerPackage: 128;
+    readonly filesPerPackage: 4000;
+    readonly fileBytes: number;
+    readonly packageBytes: number;
+};
+
+export declare const SKILL_RESOURCE_FOLDERS: {
+    readonly reference: "references";
+    readonly script: "scripts";
+    readonly asset: "assets";
+};
+
 export declare const SKILL_TOOLS: readonly ["find-capabilities", "read-capability", "change-capability", "suggest-action", "ask-user", "update-todo", "find-tools", "context-remaining", "board-wait", "acknowledge-inputs"];
 
 export declare const SUBJECT_CONTEXT_INPUT_SCHEMA: {
@@ -5009,6 +5068,18 @@ export interface SearchSourceKind {
     surface: string;
 }
 
+export type SkillAppliesTo = (typeof SKILL_APPLIES_TO)[number];
+
+export interface SkillResourceDeclaration {
+    path: string;
+    role: SkillResourceRole;
+    media_type: string;
+    bytes: number;
+    sha256: string;
+}
+
+export type SkillResourceRole = keyof typeof SKILL_RESOURCE_FOLDERS;
+
 export interface StageSceneMetadataAuthority {
     readonly actor_id: string;
     readonly audience: ActionAudience;
@@ -5051,6 +5122,18 @@ export interface SubjectOffersInput {
     subject: ActionSubject;
     request_id: string;
 }
+
+export type SubjectReaderLookup = {
+    found: "one";
+    view: ActionView;
+} | {
+    found: "unavailable";
+    view: ActionView;
+} | {
+    found: "ambiguous";
+} | {
+    found: "none";
+};
 
 export interface SyncActionClient {
     invokeSync(context: ActionCallContext, reference: ActionReference, input: unknown): unknown;
@@ -5560,6 +5643,8 @@ export declare function fileContentOf(input: {
 }): FileContent;
 
 export declare function fileEntriesPage(entries: readonly FileEntry[], input: FileEntriesInput): FileEntriesPage;
+
+export declare function findSubjectReader(views: readonly ActionView[], kind: string): SubjectReaderLookup;
 
 export declare function hostEventType(eventTypeId: string, typeVersion: number): HostEventType | undefined;
 

@@ -1,6 +1,6 @@
 # U1 升级链：设计
 
-状态：实现中（2026-11-06 设计，路线书第 05 批第 1 项）；U1-a（[#1908](https://github.com/molis-ai/molis-work/pull/1908)）、U1-b（[#1916](https://github.com/molis-ai/molis-work/pull/1916)）、U1-i（[#1926](https://github.com/molis-ai/molis-work/pull/1926)）已合入；U1-c、U1-d、U1-e、U1-g、U1-j 这一组同一个 PR 做完（同一条用户路径，用户 2026-11-08 定合在一起）；U1-f、U1-h 未做，U1-f 走公共合同队列，U1-h 归 F 轨。真实基线的版本都还是 1。用户 2026-11-06 定：升级链写进「当前保留机制」（§12）、四份门禁按 §11 改；真实 Home 重建不等 05② C-1，第一批真实升级段见 §14。行为与验收以[升级后持续可用](spec.md) §4、§9 和 §10 决策记录为准，本文只写怎么做。依据是 main `242d75d03` 和 #1790 头 `3585974c5`、#1837 头 `6feebb2ae`（只读），另有几条本机实测，都在正文里写明。2026-11-07 按合入 main 的 #1877（`35f808286`）勘误一轮：取锁点、账号子 Home、空间表、同步技术对象和不变量改号。
+状态：实现中（2026-11-06 设计，路线书第 05 批第 1 项）；U1-a（[#1908](https://github.com/molis-ai/molis-work/pull/1908)）、U1-b（[#1916](https://github.com/molis-ai/molis-work/pull/1916)）、U1-i（[#1926](https://github.com/molis-ai/molis-work/pull/1926)）已合入；U1-c、U1-d、U1-e、U1-g、U1-j 这一组同一个 PR 做完（同一条用户路径，用户 2026-11-08 定合在一起）；U1-h 和 U1 之后的复查修复在第 05 批分支 `claude/05-u1-too-new-writes` 上做完（F 轨的文件，用户 2026-11-08 同意由第 05 批写手做、F 轨事后审）；U1-f 在第 05 批的分支 `claude/05-u1f-plugin-upgrades` 上写完（授权版，没写按词读，和实现不一样的地方写在 §2.4 末段）；两片随本批的大 PR 合入。真实基线的版本都还是 1。用户 2026-11-06 定：升级链写进「当前保留机制」（§12）、四份门禁按 §11 改；真实 Home 重建不等 05② C-1，第一批真实升级段见 §14。行为与验收以[升级后持续可用](spec.md) §4、§9 和 §10 决策记录为准，本文只写怎么做。依据是 main `242d75d03` 和 #1790 头 `3585974c5`、#1837 头 `6feebb2ae`（只读），另有几条本机实测，都在正文里写明。2026-11-07 按合入 main 的 #1877（`35f808286`）勘误一轮：取锁点、账号子 Home、空间表、同步技术对象和不变量改号。
 
 **版本起点。** 各库已回到统一第 1 版：#1837 把它们归一，真实 Home 按检查单重建，统一起点登记在 `docs/releases/CHECKLIST.md` 第 4 节（#1914，2026-11-07）。#1837 把自有版本的维护入口收到 `tooling/versions.json`：代码里还是数字字面量，旁边一条 `/* @version <条目> */` 标记，由 `pnpm versions:generate` 改写，没有生成的常量文件。所以 §2.1 的写法不变；升版本是改表再生成，手改数字会被核对拦下；新基线同时加条目和标记。段的 `from` 不是版本声明，不用标记（`version-declarations.mjs` 的字段名单不含它）。
 
@@ -160,10 +160,10 @@ readonly upgrades?: readonly { readonly from: number; readonly sql: string; read
   - 插件升 `collection.schema_version`：`pluginSyncNamespace` 的哈希含它和发布者签名（`plugin-sync-database.ts:8-13`），一升技术表和触发器全部换名，第 3 层比不过，这个插件回滚并停用。
 
   三者都等第一次真要这样做时再定。
-- **第 2 层以后改用原生授权（结论）。** `nativeSqliteOwnerBoundary`（`node:sqlite` 的 `setAuthorizer`，S-112）现在只用在 Home 插件库；项目库在 `better-sqlite3` 上，它没有把 SQLite 的授权回调接出来（`src/` 里没有 `sqlite3_set_authorizer`）。跑法和范围检查对所有插件同一份（用户 2026-11-06 定），所以**不能 Home 库先用授权、项目库继续按词读**。逐层的结论：
+- **第 2 层以后改用原生授权（结论）。** `nativeSqliteOwnerBoundary`（`node:sqlite` 的 `setAuthorizer`，S-112）现在只用在 Home 插件库。写这一节时项目库还在 `better-sqlite3` 上，它没有把 SQLite 的授权回调接出来；2026-11-08 起项目库也在 `node:sqlite` 上（[SQLite 第二步](../sqlite-driver-switch/spec.md)，#1959），连接里有 `setAuthorizer`，只是窄接口 `SqliteDatabase` 还没把它交出来，接的时候在 `packages/storage` 加。跑法和范围检查对所有插件同一份（用户 2026-11-06 定），所以**不能 Home 库先用授权、项目库继续按词读**，两边要一起换。逐层的结论：
   - **第 1 层留。** 声明时、安装时没有连接；第 2 层也靠它分清这句是结构语句还是增删改。
   - **第 3 层留。** 授权只管一句碰了什么，不知道段跑完之后对象集合和结构对不对。这是 UPG-03 判断放不放回的依据，和防越权无关也要有。
-  - **第 2 层该换，等 SQLD-d 把项目库换到 `node:sqlite` 之后一次换所有插件，U4 打开开关之前必须换完（统筹 11-07 定）。** 可以等的理由正好决定了期限：U4 之前只有内置的段，按词读即使有漏洞也没有对手。换掉的是「按词读目标」和结构语句的核对，增删改接 `nativeSqliteOwnerBoundary`，替掉 `pluginStatementGuard`。名字由解析器给，NBSP、注释夹层、`main . other` 这类问题不再存在；也不用再按 SQLite 版本钉步骤清单：没见过的回调一律拒绝，新版本多了内部函数只会误拒合法的段，UPG1-14 在 CI 里看得到。
+  - **第 2 层该换，等 SQLD-d 把项目库换到 `node:sqlite` 之后（随 #1959 做完）一次换所有插件，U4 打开开关之前必须换完（统筹 11-07 定）。** 可以等的理由正好决定了期限：U4 之前只有内置的段，按词读即使有漏洞也没有对手。换掉的是「按词读目标」和结构语句的核对，增删改接 `nativeSqliteOwnerBoundary`，替掉 `pluginStatementGuard`。名字由解析器给，NBSP、注释夹层、`main . other` 这类问题不再存在；也不用再按 SQLite 版本钉步骤清单：没见过的回调一律拒绝，新版本多了内部函数只会误拒合法的段，UPG1-14 在 CI 里看得到。
   - **实测只在这一个版本上做过**（Node 24.22.2、SQLite 3.54.1，同上面的 4212 种写法，不读词、只靠回调）：没有一种动到别人的表；加列、回填、改列名、删列、新表拷贝、删旧表、改名、建索引、删索引这一串合法的段全部走通。`nativeSqliteOwnerBoundary` 拒绝全部结构语句，不能直接用，要加一个结构模式，有三个坑：
     - 内部改写要读写 `sqlite_master`、`sqlite_temp_master`，要调 `sqlite_rename_*`、`sqlite_drop_column`，这些回调的 `origin` 都是 null，和用户写的分不开。结构模式下 `INSERT INTO mine SELECT sql FROM sqlite_master` 也能过（实测），所以只有第 1 层认定是结构语句的才进结构模式，增删改走普通模式。
     - `ALTER_TABLE` 回调第三个参数在 `DROP COLUMN` 时是列名，不是库名。
@@ -171,11 +171,20 @@ readonly upgrades?: readonly { readonly from: number; readonly sql: string; read
     - 确定性那一步（第 5 条）继续看 `EXPLAIN`，不改看 `SQLITE_FUNCTION` 回调：表上有 `DEFAULT CURRENT_TIMESTAMP` 时，`UPDATE t SET a=upper(a)` 和全列拷贝都会回调它，语句其实不用它，按回调会误拒合法的重建（评审台实测，`node:sqlite`、3.54.1）。`EXPLAIN` 在 `node:sqlite` 上读到的一样。
   - **换实现那一片先在锁定版本 24.15.0（SQLite 3.51.3）上重跑。** `setAuthorizer` 这个接口 CI 的 24.14.0 已经由 S-112 用着，但 `ALTER_TABLE` 第三个参数、`sqlite_rename_*` 这些内部回调没有在 3.51.3 上看过。失败方向是误拒合法的段，UPG1-14 看得到，所以不挡现在。那 4212 种写法进 S-147 的测试，换实现时拿它对照。
   - **对 U1-f 的影响。** 开工时 SQLD-d 没合，就按上面的按词读写；已合，直接写授权版，不写按词读。两种都对所有插件同一份。S-147 的拒绝测试只断言结果，换实现时不动。换实现是单独一片，不算 U1 的范围，去处见 [SQLite 第二步](../sqlite-driver-switch/spec.md) §3.7。
+  - **U1-f 的实际写法（2026-11-08）。** #1959 先合进了 U1-f 的分支，所以直接写授权版。和上面的设计不一样或多出来的：
+    - `packages/storage` 的窄接口加了 `setAuthorizer`，结构模式是新函数 `nativeSqliteSchemaBoundary`（`sqlite-owner-boundary.ts`）；增删改走 `nativeSqliteOwnerBoundary`，不再过 `pluginStatementGuard`。范围每句之后重算，起点照第 2 条。
+    - 被授权回调拒绝的函数，SQLite 报 `SQLITE_ERROR`（1），不是 `SQLITE_AUTH`（23），从错误码分不出是不是被拒。所以确定性那一步的 `EXPLAIN` 在挂回调之前、不带回调跑；一句不带回调能编译、带回调准备失败的，算范围错误。不然 `CURRENT_TIMESTAMP` 的回填报的是范围错误，不是 `upgrade_nondeterministic`。
+    - 第 1 层先把整段按词读一遍，再用 `statements()` 分句：`statements()` 按 JS 的 `trim` 去掉句子两头的空白，会把句末的 U+00A0 当空白去掉，而 SQLite 把它当名字的一部分，`DROP TABLE probe_notes<U+00A0>` 就成了删另一张表。4212 种写法的用例是这样查出来的。
+    - 第 3 层的 `AUTOINCREMENT` 只查最终范围里的表，平台的技术表不算。
+    - 段删掉一张表算行数变少，要写进 `reduces_rows`；一句里正好少一张表、多一张新名字的表（改名），行数跟着新名字走。
+    - 多了一个码 `plugin.project_database.upgrade_failed`（internal）：段跑完结构对不上声明，或 SQLite 中途报错；九种原因见 §9.1 的码表。
+    - 在锁定版本 24.15.0（SQLite 3.51.3）上跑了 4212 种写法：1280 种不拦就会动别人的表，全部在执行前被拒；400 种过了全部三层，都只动了自己的表；平台和别的插件的表一行没变。UPG1-14 的合法段全部走通。
 - **插件的段一律 `foreign_keys=OFF`。** 段不写 PRAGMA，平台在事务外设。**恢复也在事务外：** `COMMIT` 或 `ROLLBACK` 之后再设 `ON`，读回来确认是 1，不是 1 就关掉这条连接、记 failed，成功和失败两条路都走这一步。事务里设 `ON` 是空操作（实测：设完读到 0，回滚后还是 0）；项目库的插件表是在长连接上打开的（`apps/local-host/src/project-database.ts:23`），写反了这个项目之后的外键都不再生效，而且什么都不报。最后一段之后，**范围里**的每张表跑 `PRAGMA foreign_key_check(t)`，有违反就回滚。按范围不按账本：段删过的表会报 `no such table`，新建的表账本里还没有。不用给插件的段加 `rebuilds_tables`。不能用 `defer_foreign_keys=ON`：外键还开着，`DROP TABLE` 的隐式删除照样触发外键动作。实测重建 `ON DELETE SET NULL` 子表的父表，子表的列全变 NULL，行数不变，`foreign_key_check` 还是空，什么都比不出。真实的表就有这种：Goals 的 `goal_tree_proposals.root_goal_id`（`plugins/native/goals/src/project-database-governance.ts:10`）。关掉之后 `CASCADE` 和 `SET NULL` 都不跑，子表原值都在。真要依赖级联删除的段，留下的孤儿行由 `foreign_key_check` 挡下回滚，失败是安全的。
 - **Home 库走同一份。** 库文件只归这个插件，第 3 层没有别人的行可比，第 1、2 层照旧，`ATTACH` 这类一样拒绝。**这一步的连接用 `openSqliteConnection`（合同台定）：** `pluginStatementGuard` 要求 3.51.3（`project-database-statements.ts:130`），`home-sqlite.ts` 用的 `node:sqlite` 在 CI 的 24.14.0 上是 3.51.2，走它 Home 库的增删改段全被拒。这样 U1-f 不等 SQLD-b，SQLD-d 之后两边一起换。开它之前这个文件上别的连接都已关闭，这是 [SQLite 第二步](../sqlite-driver-switch/spec.md) §4 的不变量（同一个进程里，同一个文件不同时被两份 SQLite 开着），U1-f 带用例。
 - **U4 要做的不只是打开开关。** 打开之前第 2 层必须已经换成原生授权（上面）。装上的插件的 SQL 要放进专属子进程的 Worker（S-59）才有超时和内存上限，内置的在升级过程里直接跑。所以这三层写成只收一个连接的函数，U4 把它放进 Worker，并和 `upgrade_compatibility` 合流。**U4 还要另定升级用的限额：** S-59 的限额是给日常语句定的（写句 2 秒，`BEGIN` 到 `COMMIT` 共 3 秒，超了整个进程结束），重建或回填一张大表一定超。
 - 所以「首次改任何插件表的结构」要等 U1-f，不只是等机制。
 - 项目库里的插件表：每个插件自己一个 `BEGIN IMMEDIATE`，做升级、更新 `plugin_project_databases` 的 `version` 和 `tables_json`、查结构。失败只回滚这一个事务，这个插件走现有的 `plugin.project_database.*` 停用路径，项目库其余照常（`project-plugin-databases.ts` 已是这样）。**这里做不到文件级逐字节**：同一个文件里平台段已经提交了。保证的是这个插件的表内容和结构与升级前相同：升级前后比这个插件每张表的内容摘要（按主键顺序）和结构摘要，只比行数查不出内容被改。决策记录有一行，spec §9 UPG-03 旁有脚注。
+- **同步分区变了的版本，不能只靠升级段升上去（U1-f 评审，2026-11-08）。** 声明了同步分区（`sync.collections[].sections`）的插件，平台替它在共用的平台表上建了触发器：`apps/local-host/src/plugin-sync-sections.ts` 的 `sectionsPlatformSchema` 按分区生成，建在 `context_edges`、`events` 和注意力那几张表上，名字带这个插件的命名空间前缀。这些表不归插件，所以这些触发器不在段的范围里：段跑之前不删，跑完也不按新声明重建。第 3 层对它们比两次：挂在平台表上的对象要和开始时逐字相同，这个插件的触发器又要逐字等于新声明生成的样子。一个版本改了分区，两样就不可能同时成立，升级只能失败（`plugin.project_database.upgrade_failed` 的 `structure`，或 `upgrade_out_of_scope`），这个插件回滚并停用。数据不会坏，现在也没有插件这样改。插件作者遇到时：先别改已经发出去的插件的同步分区；真要改，先提出来，由平台定怎样把这些触发器换过去，和上面「插件升 `collection.schema_version`」那条一样，等第一次真要这样做时再定。
 
 ### 2.5 手写版本检查收到哪里
 
@@ -210,17 +219,17 @@ export function readVersionedFile<T>(file, path, home?): { status: "absent" } | 
 
 文件定义里没有路径：路径写在描述符上（`computer/records/<id>/record.json` 一个定义对应很多文件）。`unreadable` 是解析不了、没有能起步的版本，或主人的 `parse` 不接受；它和 `too_new`、`upgrade_pending` 一样不是可以覆盖的理由。
 
-升级过程：拷快照 → 按段变换 → `parse` 检查 → 写临时文件、fsync、rename、fsync 目录 → 记录 committed。读取路径不做变换。描述符可以写同一个 `group`：组里任何一个失败，整组放回（§8.2）。写之前调 `assertVersionedFileWritable`，见到这三种状态就拒绝，不写。
+升级过程：拷快照 → 按段变换 → `parse` 检查 → 写临时文件、fsync、rename、fsync 目录 → 记录 committed。读取路径不做变换。描述符可以写同一个 `group`：组里任何一个失败，整组放回（§8.2）。写之前调 `assertVersionedFileWritable`，见到这三种状态就拒绝，不写。**而且在这次写要做的别的事之前调**（2026-11-08 补，U1 之后的复查）：被拒的保存不能先建了东西、定了别的状态再拒；内存里的值也等写成了再改。一件事最后才写文件、前面要建东西的（引导建项目），在建之前先查同一条，查和写之间只有本宿主写这个文件，比它新的构建在它占着 Home 时打不开，所以查过的到写时仍可写；查后文件在磁盘上坏了，写时照样拒，那一次按别的失败处理。删除也算写：程序不读的文件不由它删（`computer/records/<id>/`）。
 
 | 文件 | 处理 | 片 |
 | --- | --- | --- |
-| `config/mcp-tools.json`、`shelf/catalog.json`、`jelly/preferences.json` | 进链，现有严格解析作 `parse`。`shelf/catalog.json` 的主人是 `modules/shelf`，升级过程用 Shelf 导出的文件定义，不把写权拿到宿主外（现在写走 `saveCatalog(writer, …)`，开工时核这条路在升级过程里怎么给 writer） | U1-e |
+| `config/mcp-tools.json`、`shelf/catalog.json`、`jelly/preferences.json` | 进链，现有严格解析作 `parse`。`shelf/catalog.json` 的主人是 `modules/shelf`，升级过程用 Shelf 导出的文件定义，不把写权拿到宿主外（现在写走 `saveCatalog(writer, …)`，开工时核这条路在升级过程里怎么给 writer）。前两个的写都先用同一份严格解析读原文件，读不过不写；`jelly/preferences.json` 的保存原来不看原文件就整份替换，2026-11-08 改成一开头先 `assertVersionedFileWritable`（装进来的插件那份 `plugin-files/<install_id>/.model-settings/preference.json` 走同一处） | U1-e |
 | `browser/sites.json` | **吞错要修**：`browser-surfaces.ts:65-72` 不看版本、`catch` 全吞成默认值，下次保存就覆盖。高版本文件被读成默认再写回，直接违反 UPG-05。改成：没有文件才是默认；版本高或读不了时用内存默认、**拒绝写**，并记诊断 | U1-e |
-| `computer/settings.json`、`config/onboarding.json`、`config/project-arrival.json` | 读时不看版本或只整形，同样的问题，同样改 | U1-e |
+| `computer/settings.json`、`config/onboarding.json`、`config/project-arrival.json` | 读时不看版本或只整形，同样的问题，同样改。`config/onboarding.json` 是引导最后才写的：采用整理、「空白开始」、`/api/onboarding/initialize` 三个入口先调 `assertOnboardingWritable` 再建项目或个人空间（2026-11-08 补） | U1-e |
 | `computer/records/<id>/record.json` | 进链，按目录枚举 | U1-e |
 | `feed/secrets.json` | 只有文件的版本 `format.secret-store.map` 进链，规则见 §8.2；`format.secret-store.envelope`、`format.secret-store.home-payload` 留在 1（用户 2026-11-08 定） | U1-e |
 | `config/installation.json`、`releases/*/release.json` | **同一接口，不同时机**：安装器读它们时程序还没有进宿主，所以由安装器（`installer/home-files.ts`）在读的地方调同一个升级函数（`upgradeVersionedFileInPlace`）；不在快照内（已在 `snapshotExclusions`）。**不留副本（2026-11-08 勘误，原写「备份放在同目录」）：** `config/` 多一个文件，`home snapshot` 按未登记配置报 `unknown_data`（`home-snapshot-inventory.ts:59`）；登记成排除项，恢复要求排除清单和快照逐条相等（`home-restore-stores.ts:101`），旧快照就恢复不了。写入是整份替换，失败时原文件不变。回退要旧内容时放哪里归 U6 | U1-e |
-| `config/web-service.json`、`config/uninstall.json`、`runtime-integrations/*.json`、`runtime-config-backups` | 机器收据或可再生成，版本不符时现状是拒绝。版本升了之前不用段；第一次要升时按同接口加 | 不做 |
+| `config/web-service.json`、`config/uninstall.json`、`runtime-integrations/*.json`、`runtime-config-backups` | 机器收据或可再生成。`runtime-integrations/*.json`、`runtime-config-backups` 版本不符时现状是拒绝；`config/web-service.json` 读时不看版本，只认 `owner`、`label` 与 plist 的哈希（plist 不在时重装会重写收据），`config/uninstall.json` 不按内容读（只算进卸载计划的哈希），每次卸载整份写（2026-11-08 复查时照实改，原写「版本不符时现状是拒绝」）。版本升了之前不用段；第一次要升时按同接口加，这两个那时补上版本检查 | 不做 |
 | `config/external-mcp-actions.json`、`config/connector-mcp-actions.json` | 无版本字段，现在不是带版本文件；要改结构先加版本。它们不在 `homeStores()` 里，见 §15.2 | 不做 |
 
 ## 3. 什么时候升：启动时一次做
@@ -304,7 +313,7 @@ acquireUpgradedHomeOwner(home, beforeAcquire?, expected?)  // 放 home-storage-l
 
 `bootstrapSpace` 是 #1877 新加的启动点，根 Home 和账号 Home 都走它，顺序是：只读的 `preflightMemoryHome`、取锁、再查一次、`ensureStorageSpace`、`prepareMemoryHome`（这里才开记忆库）、打开调用方要的东西。升级要排在 `prepareMemoryHome` 之前，否则低版本的记忆库在这里就被拒了；`acquireUpgradedHomeOwner(directory, preflightMemoryHome, expected)` 正好接在取锁这一步，先比身份再升，否则别人的目录放在这个名字下时是先升后拒。单库失败不算这里出错（§5.2），只有取不到锁、记录坏了这类整体问题才抛。
 
-全部操作是同步的（`node:sqlite`、`better-sqlite3`、`copyFileSync`、`snapshotFileDigest`），放得进同步的 `createMolisWorkWebServer`。`copySnapshotFile`（异步）和 SQLite `backup` 进不来，也用不着（§5）。
+全部操作是同步的（`node:sqlite`，项目库的连接也是它；`copyFileSync`、`snapshotFileDigest`），放得进同步的 `createMolisWorkWebServer`。`copySnapshotFile`（异步）和 SQLite `backup` 进不来，也用不着（§5）。
 
 新 Home 的关系：没有库，升级零动作，接着照旧 `prepareMemoryHome`。
 
@@ -379,7 +388,7 @@ apps/desktop/launchers/web/server.ts：
 
 | 入口 | 现在 | 升级中 |
 | --- | --- | --- |
-| 桌面 Tauri（`web_service.rs:253`） | 等 8 秒后杀服务，报启动失败 | **要改，F 轨文件**：`web_identity` 能验证 503 的 `upgrading`，见到就继续等、不算超时；没有 `upgrading` 仍按 8 秒。启动画面读 `upgrade` 显示进度归 U3（U1-h） |
+| 桌面 Tauri（`web_service.rs` 的 `wait_for_web`） | 等 8 秒后杀服务，报启动失败 | **已改（U1-h，F 轨文件）**：`web_identity` 的 `answer` 认 `HTTP/1.1 503 Service Unavailable`、证明可验、`status` 为 `upgrading`，和 MCP、托管服务认的是同一个形状；见到就继续等，8 秒从最后一次 `upgrading` 重新算，上限 30 分钟（和托管服务的 `UPGRADE_WAIT_MILLISECONDS` 相同）；没有 `upgrading`、或证明不过的 503 仍按 8 秒。已经在升级的宿主不再另起一个、也不替换它。后台请求（`authenticate`）只发给 `ok` 的服务。桌面在 Tauri 的 `setup` 里、也就是主线程上启动，所以启动（`start_molis_work_web`）见到第一次 `upgrading` 就把等待交出来，剩下的在自己的线程里等（`wait_for_upgrading_web`），等完经 `run_on_main_thread` 回主线程导航，健康巡检排在它之后；窗口和托盘（含退出）这期间照常响应。没有 `upgrading` 时主线程照旧至多等 8 秒。启动画面读 `upgrade` 显示进度归 U3 |
 | 托管服务（`web-service-platform.ts:129`） | 1 秒一探，要 `ok`，25 次后失败 | 进程带证明说 `upgrading` 时不消耗次数，继续等，上限 30 分钟（`UPGRADE_WAIT_MILLISECONDS`，防一个永远说升级中的进程）；不再说了就回到 25 次 |
 | 设置页（`settings-web-service.ts:32`） | 读 `/health` | 不会在升级中加载 |
 
@@ -494,8 +503,9 @@ apps/desktop/launchers/web/server.ts：
 | `storage.upgrade_failed` | internal | 这个库升级失败，已放回 |
 | `storage.upgrade_no_space` | unavailable | 磁盘不够，没动 |
 | `storage.store_too_new` | unavailable | 比程序新 |
+| `plugin.project_database.upgrade_failed` | internal | 插件的段没有升成（声明在 `packages/plugin-runtime`，U1-f）：这个插件的事务整个回滚，只停它。`details` 是 `{ reason, from, to, step? }`，`reason` 九种：`missing_step`（缺从这一版起的段）、`version_changed`（途中版本变了）、`begin_failed`（拿不到写事务）、`foreign_keys_state`（外键开关没切到要的状态）、`step_failed`（SQLite 执行某一句时报错）、`transaction_ended`（段自己结束了事务）、`foreign_keys`（`foreign_key_check` 没过）、`structure`（升完的表、索引或触发器与声明不同）、`rows_reduced`（没声明的表行数变少）。消息按原因固定，只带库的标签和两个版本号，不带 SQL 和行内容；SQLite 的原话只放在不可枚举、不序列化的 `cause` 里。其中 `missing_step`、`structure`、`rows_reduced`、`transaction_ended`、`foreign_keys` 严格说是作者写错，该算 invalid；仍归 internal，因为用户看到的都是「这个插件停用了」，作者看 `details.reason` 分辨（合同台 2026-11-08 认可） |
 
-插件的段另有三个码，声明在 `packages/plugin-runtime`：`plugin.project_database.upgrade_out_of_scope`（段碰了不该碰的，§2.4）；`plugin.project_database.upgrade_nondeterministic`（段用了不确定的函数，§2.4）；`plugin.upgrade_steps_unsupported`（装上的插件写了段，U4 移除）。
+插件的段另有三个码，声明在 `packages/plugin-runtime`：`plugin.project_database.upgrade_out_of_scope`（段碰了不该碰的，§2.4）；`plugin.project_database.upgrade_nondeterministic`（段用了不确定的函数，§2.4）；`plugin.upgrade_steps_unsupported`（装上的插件写了段，U4 移除）。段的其余失败是表里的 `plugin.project_database.upgrade_failed`。
 
 ### 9.2 `SqliteSchemaVersionError`
 
@@ -511,7 +521,7 @@ apps/desktop/launchers/web/server.ts：
 
 ## 10. 安全不变量
 
-下表的暂定号是设计时写的；合入时按 `docs/system/SECURITY-INVARIANTS.md` 的新规矩用语义 ID：S-141 → `S-upgrade-lock-only`，S-142 → `S-upgrade-too-new-untouched`，S-143 → `S-upgrade-snapshot-confinement`，S-144 → `S-upgrade-ledger-verified`，S-145 → `S-upgrade-restore-verified`，S-146 → `S-upgrade-maintenance-listener`，另有 `S-upgrade-journal-removal`（§2.2 第 2 步的例外）。S-147 随 U1-f。
+下表的暂定号是设计时写的；合入时按 `docs/system/SECURITY-INVARIANTS.md` 的新规矩用语义 ID：S-141 → `S-upgrade-lock-only`，S-142 → `S-upgrade-too-new-untouched`，S-143 → `S-upgrade-snapshot-confinement`，S-144 → `S-upgrade-ledger-verified`，S-145 → `S-upgrade-restore-verified`，S-146 → `S-upgrade-maintenance-listener`，另有 `S-upgrade-journal-removal`（§2.2 第 2 步的例外）。S-147 → `S-upgrade-plugin-steps-scope`（U1-f）。
 
 写法上的两处勘误：记录里单元的 `to` 不是这个程序要升到的版本才算无效；记录整体的 `to` 不同是另一个构建的记录，不算伪造，按 §6 处理。没绑身份的 Home（`storage-space.json` 还没有）记 `unbound`，绑定之后还认。
 
@@ -535,7 +545,7 @@ apps/desktop/launchers/web/server.ts：
 
 现在没接进 `pnpm health:check`，只有单测；不查基线的 `version:`。改法：
 
-- 源码和持久化格式条目这半接进 `pnpm health:check` 的绝对规则（不用构建；用户 2026-11-07 同意，U1-i）；提示词和方法不进 CI，用户说的是「数据文件」，提示词还有 `tests/prompt-registration.test.ts` 管版本。`chains` 那半由 U1-d 接上（`registeredUpgradeChains`，读定义处自己的文件，不用构建）：`initial-versions.mjs` 的 `check()` 和 `check-health-gates.mjs` 调 `versionOriginProblems` 的地方，两处都接了；只接前一处，第一次真升版本 CI 就红。常量的段写在同一文件里、名字把 `_VERSION` 换成 `_UPGRADES`（`CATALOG_SCHEMA_VERSION` 配 `CATALOG_UPGRADES`），基线对象的段写在它的 `upgrades`；读不准的（展开、算出来的 `from`）算没有链，一律不放行。`replay_passed` 现在恒为 false，U2 的回放接上之前，版本大于 1 照旧失败。真实登记表上的 `from` 连续由 `tests/upgrade-chain-registry.test.ts` 看住（UPG1-12）。
+- 源码和持久化格式条目这半接进 `pnpm health:check` 的绝对规则（不用构建；用户 2026-11-07 同意，U1-i）；提示词和方法不进 CI，用户说的是「数据文件」，提示词还有 `tests/prompt-registration.test.ts` 管版本。`chains` 那半由 U1-d 接上（`registeredUpgradeChains`，读定义处自己的文件，不用构建）：`initial-versions.mjs` 的 `check()` 和 `check-health-gates.mjs` 调 `versionOriginProblems` 的地方，两处都接了；只接前一处，第一次真升版本 CI 就红。常量的段写在同一文件里、名字把 `_VERSION` 换成 `_UPGRADES`（`CATALOG_SCHEMA_VERSION` 配 `CATALOG_UPGRADES`），基线对象的段写在它的 `upgrades`；读不准的（展开、算出来的 `from`）算没有链，一律不放行。`replay_passed` 由 U2-d 接上：金样清单的 `formats` 按 `tooling/versions.json` 的条目名记每个持久化格式的版本（位置在 `scripts/golden/formats.mjs`），从 1 到链的版本减 1 每个都有一份金样存着，才算真；回放本身是 `golden-replay` 作业，`Verify` 要它过，所以它挡合并。`pnpm health:check` 只证明有东西可回放，不证明回放过了。安装记录 `config/installation.json` 和可重建的 `search/` 金样存不了，`computer/` 的两个文件第一份金样还没有（BL-golden-computer-settings），它们大于 1 现在都过不了。真实登记表上的 `from` 连续由 `tests/upgrade-chain-registry.test.ts` 看住（UPG1-12）。
 
 - `sourceVersionProblems` 里的常量分两类。持久化格式（`CATALOG_SCHEMA_VERSION`、`FORMAT_VERSION`、`MCP_TOOL_PREFERENCE_VERSION`、`CATALOG_VERSION`、`home-contract` 的 `SCHEMA_VERSION`、`text-search` 的 `SCHEMA_VERSION`、账本、Jelly 的 `schema_version`，以及用户 2026-11-07 同意补上的 `config/onboarding.json`、`config/project-arrival.json`、`browser/sites.json`、`computer/settings.json`、`computer/records`、`jelly/preferences.json` 这六项（§2.6 说它们进链））：大于 1 只在升级链登记了连续段、并且回放通过时放行。U1-e 接这六项时把它们列进 `docs/releases/CHECKLIST.md` 第 3 节，并把字面量收成 `*_VERSION` 常量。
 - 动作、Manifest、提示词、角色：继续全 1，不动（`initialVersionProblems`）。
@@ -564,7 +574,7 @@ apps/desktop/launchers/web/server.ts：
 
 ### 11.5 交接
 
-U2-d 的 `tooling/gates/schemas/`（基线结构哈希）补上「改了建库语句却没升版本」这一半，见 [U2 设计](golden-replay-design.md) §5。U1-i 只管「升版本这条路走得通」。
+U2-d 的 `tooling/gates/schemas/stores.tsv`（基线结构哈希，`scripts/gates/store-schemas.mjs`）补上「改了建库语句却没升版本」这一半，见 [U2 设计](golden-replay-design.md) §5。U1-i 只管「升版本这条路走得通」。
 
 ## 12. 要写进「当前保留机制」的一行（成稿，用户 2026-11-06 同意）
 
@@ -645,9 +655,9 @@ U2-d 的 `tooling/gates/schemas/`（基线结构哈希）补上「改了建库�
 | U1-c 过程、记录、戳记、入口 | `runHomeUpgrade`、`ensureHomeUpgraded`、`acquireUpgradedHomeOwner`、记录、戳记及自愈（§3.3）、`upgrade/` 登记；§4.3 四个取锁点和 CLI、MCP `:65` 的包装 | 新 `apps/local-host/src/home-upgrade*.ts`、`home-storage-lifetime.ts`、`project-catalog.ts`、`space-web-server.ts`、`installer/{uninstall-owner,uninstall}.ts`、`cli-project.ts`、`mcp-v1-tool.ts`、`management-action-client.ts`、`home-stores.ts`、`docs/system/HOME-DATA.md`；`packages/storage` 的 `onUpgradePending` | UPG1-03、04、05、08、13（CLI、maintenance、purge、snapshot 部分）、15（`bootstrapSpace` 那一半）、17；S-141、S-142、S-144 | Opus | U1-b；**宿主启动是规则 4 枢纽，认领板预警** |
 | U1-d 平台库接入 | 全部描述符；目录库适配；项目库；Alchemist 不接（用户 2026-11-08 定，§2.3）；收 §2.5 的手写检查；把 `chains` 接进 `initial-versions.mjs` 和 `check-health-gates.mjs` 两处（§11.1）；约 55 行测试改断言 | `scripts/gates/initial-versions.mjs`、`scripts/check-health-gates.mjs`、`apps/local-host/src/{platform-upgrade-stores,catalog-schema,project-catalog-contract,installed-plugin-libraries,home-plugin-store,home-storage-lifetime}.ts`、`packages/storage/src/{catalog-metadata,sqlite-baseline,sqlite-upgrade,upgrade-inspection}.ts`、删 `packages/storage/src/aggregate-copy-store.ts`、`memory-ledger.ts`、`tests/` | UPG1-12、16；§13.2 末段；[SQLite 第二步](../sqlite-driver-switch/spec.md) §4 的两份 SQLite 不变量 | Opus 5.5 high | U1-c；**02 收尾**（#1837 还在改 `home-store-snapshot.ts`） |
 | U1-e 带版本文件 | `VersionedFile`、§2.6 的文件；修四个吞错的读路径；密钥段规则与测试；§11.1 那六项列进 CHECKLIST 第 3 节，字面量收成 `*_VERSION` 常量，从 `PERSISTENT_ENTRIES` 搬到 `PERSISTENT_CONSTANTS`，`UPG1-i-initial-11` 的 `CHAIN_FILES` 跟着改 | `packages/storage/src/{versioned-file,upgrade-snapshot}.ts`、`adapters/file-secret-store.ts`、`modules/shelf/src/{catalog-shape,files-catalog,index}.ts`、`apps/local-host/src/{mcp-settings-store,model-configuration,onboarding,project-arrival,versioned-file-read,browser/browser-surfaces,computer/computer-settings,computer/computer-records,home-upgrade,home-upgrade-ledger,home-upgrade-stores,platform-upgrade-stores}.ts`、`installer/{home-contract,home-files}.ts`、`docs/releases/CHECKLIST.md`、`scripts/gates/initial-versions.mjs` 和用例 | UPG1-06、07 | Opus 5.5 high | U1-c；Shelf 属 E 轨，Jelly 文件在宿主；预警 |
-| U1-f 插件表合同与范围检查 | `PluginDatabaseDeclaration.upgrades`、`HomeStoreDeclaration` 的段；§2.4 的三层检查和跑法，对所有插件同一份；装上的插件写了就拒绝（唯一的开关）；记进「2026-10-18 改」清单 | `packages/contracts/src/platform/plugin-database.ts`；`tooling/gates/api/contracts/platform/{plugin,plugin-registration}.txt`、`plugin-sdk/index.txt`；`packages/plugin-runtime/src/project-database.ts`、新 `plugin-upgrade-steps.ts`、`apps/local-host/src/{project-plugin-databases,plugin-sync-database,home-stores}.ts`；`docs/system/SECURITY-INVARIANTS.md`（S-46、S-147）；`specs/archive/repository-anti-corruption/spec.md` §1 | UPG1-10、14；S-147 | Opus 5.5 high | U1-c；**公共合同队列**（§15.1）；用户 2026-11-06 已定 |
+| U1-f 插件表合同与范围检查 | `PluginDatabaseDeclaration.upgrades`、`HomeStoreDeclaration` 的段；§2.4 的三层检查和跑法，对所有插件同一份；装上的插件写了就拒绝（唯一的开关）；记进「2026-10-18 改」清单。**已写**（第 05 批分支，授权版，实际写法见 §2.4 末段） | `packages/contracts/src/platform/plugin-database.ts`；`tooling/gates/api/contracts/platform/plugin.txt`（`plugin-registration.txt`、`plugin-sdk/index.txt` 实际没变）；`packages/plugin-sdk/src/database-declarations.ts`；`packages/storage/src/{sqlite-connection,sqlite-owner-boundary,index}.ts`；`packages/plugin-runtime/src/{project-database,index,public-api}.ts`、新 `plugin-upgrade-steps.ts`；`apps/local-host/src/{project-plugin-databases,home-stores,home-upgrade,home-upgrade-ledger,home-upgrade-stores,platform-upgrade-stores,index}.ts`（`plugin-sync-database.ts` 不用改）；`docs/system/security-invariants/{S-46,S-upgrade-plugin-steps-scope}.md`；`specs/archive/repository-anti-corruption/spec.md` §1 | UPG1-10、14；S-147（`S-upgrade-plugin-steps-scope`） | Opus 5.5 high | U1-c；**公共合同队列**（§15.1）；用户 2026-11-06 已定 |
 | U1-g 维护态 | `planHomeUpgrade`（含枚举账号 Home）、`runUpgradeMaintenance`、Worker、`/health` 新状态、MCP 映射 | `apps/desktop/launchers/web/server.ts`、新 `apps/local-host/src/{upgrade-maintenance,upgrade-maintenance-worker}.ts`、`home-upgrade.ts`、`mcp-resident-health.ts`、`mcp-resident-start.ts`、`installer/{web-service-contract,web-service-platform,web-service-process}.ts` | UPG1-11、13（MCP 生产路径）、15；S-146 | Opus | U1-c |
-| U1-h 桌面等待 | `web_identity` 验证 503 的 `upgrading`，`web_service.rs` 见到就不算超时 | `apps/desktop/adapters/tauri/src/{web_identity,web_service}.rs` | Rust 单测：`upgrading` 不被杀，无 `upgrading` 仍 8 秒 | Sonnet | U1-g；**F 轨独占**，由 F 落 |
+| U1-h 桌面等待 | `web_identity` 验证 503 的 `upgrading`，`web_service.rs` 见到就不算超时 | `apps/desktop/adapters/tauri/src/{web_identity,web_service}.rs`；`tests/security-invariants-upgrade-maintenance.test.ts` 钉住宿主那边的字节 | UPG-19；Rust 单测：`upgrading` 不被杀，无 `upgrading` 仍 8 秒，证明不过的 503 不算（`upg19_…`） | Sonnet | **已做**，和 U1 复查修复同一个 PR；**F 轨独占**，用户 2026-11-08 同意由第 05 批写手做、F 轨事后审 |
 | U1-i 门禁 | §11 四份 | `scripts/gates/{initial-versions,store-versions}.mjs`、`scripts/verify-release-versions.mjs`、`scripts/check-health-gates.mjs`、`docs/releases/CHECKLIST.md`、`tooling/gates/README.md` | 变异用例 | Opus | U1-a；用户 2026-11-06 同意四份，2026-11-07 同意把 `initial-versions.mjs` 的源码和持久化格式条目这半接进 `pnpm health:check`；在第一段真实升级之前 |
 | U1-j 结构比较记忆 | §3.2 | `packages/storage/src/sqlite-baseline.ts` | 文件变了就重比的拒绝测试；N56 预算 | Sonnet | U1-d |
 

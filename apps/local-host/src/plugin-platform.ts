@@ -61,9 +61,9 @@ import { hostReservedRuleKeys } from "./scene-rule-admission.js";
 export type PluginPlatformDatabase = PluginEventsDatabase & PluginWiringDatabase & {
   exec(sql: string): unknown;
   readonly inTransaction?: boolean;
-  /** The file the connection is (better-sqlite3's `name`): the project's library, which plugins' own tables live in. */
+  /** The file the connection is: the project's library, which plugins' own tables live in. */
   readonly name?: string;
-  /** better-sqlite3's `open`: false once the connection is closed. */
+  /** False once the connection is closed. */
   readonly open?: boolean;
 };
 
@@ -135,6 +135,8 @@ export interface PluginPlatform {
   viewRevision(pluginId: string): string;
   /** Stop input refresh/delivery and events before stopping plugins or closing storage. */
   closeCoordination(): Promise<void>;
+  /** Cancel this project's activation jobs and wait for their actual cleanup before storage is released. */
+  stopProjectJobs(projectId: string): Promise<void>;
   /**
    * The consent ledger this platform installs against and reads defaults from (a default wiring binds only on a standing agreement),
    * or `null` when it has none: then nothing is agreed to and no default binds.
@@ -263,6 +265,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     wiring,
     invalidateView,
     viewRevision(pluginId) { return `${viewEpoch}:${viewRevisions.get(pluginId) ?? 0}`; },
+    stopProjectJobs: projectId => executor.stopProjectJobs(projectId),
     async closeCoordination() {
       closed = true; installations.dispose(); unwatchArtifacts(); unbindArtifacts();
       stopArtifactRefresh?.();
@@ -319,7 +322,7 @@ function rememberingRestored(entry: PluginPlatformEntry, remember: (entries: rea
 }
 
 /**
- * The project's library, when the platform runs on the Host's own connection to its file (better-sqlite3, which says its file
+ * The project's library, when the platform runs on the Host's own connection to its file (which says its file
  * and whether it is in a transaction); otherwise none, and a plugin that declares tables there does not start.
  */
 function projectLibraryOf(options: PluginPlatformOptions): ProjectLibrary | null {

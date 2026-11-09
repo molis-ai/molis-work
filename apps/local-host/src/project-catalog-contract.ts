@@ -1,10 +1,22 @@
 import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { projectCatalogErrors } from "@molis-ai/molis-work-contracts/modules/projects";
 import { storageErrors, type SqliteUpgradeStep } from "@molis-ai/molis-work-storage";
+import { upgradeProjectsCatalog1, verifyProjectOutputs } from "@molis-ai/molis-work-module-projects";
+import { isHostWriterWorktree } from "./workspace-git-worktrees.js";
 
-export const CATALOG_SCHEMA_VERSION = /* @version database.home.catalog */ 1;
-/** Each step takes the catalog from `from` to `from + 1`. They sit beside the version, which is what they answer to; none yet. */
-export const CATALOG_UPGRADES: readonly SqliteUpgradeStep[] = [];
+export const CATALOG_SCHEMA_VERSION = /* @version database.home.catalog */ 2;
+/**
+ * Each step takes the catalog from `from` to `from + 1`. They sit beside the version, which is what they answer to.
+ *
+ * 1 → 2 (specs/shared-sources-and-surfaces §3, §8): the links earlier Hosts made for writers' worktrees go (which those are is the Host's
+ * rule, `isHostWriterWorktree`), a project's folders get input and output roles, every project its default output directory, and
+ * `workspace_source_links` starts empty. The Projects tables' part is `modules/projects`' own; it rebuilds the memberships table and
+ * touches no file of the Home.
+ */
+export const CATALOG_UPGRADES: readonly SqliteUpgradeStep[] = [
+  { from: 1, run: upgradeProjectsCatalog1(isHostWriterWorktree), verify: verifyProjectOutputs, rebuilds_tables: true,
+    reduces_rows: ["workspace_project_memberships", "workspaces"] },
+];
 export const CATALOG_OWNER = /* @version type.molis-work-project-catalog "molis-work-project-catalog-v{version}" */ "molis-work-project-catalog-v1";
 
 export function isOwnedCatalogOwner(owner: string | null | undefined): boolean {

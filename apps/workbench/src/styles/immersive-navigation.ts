@@ -1,4 +1,3 @@
-import { BACKGROUND_TASKS_MENU_STYLES } from "./background-tasks.js";
 /** Approved project/plugin chrome. Scoped to the workbench, so settings retain their own layout. */
 export const IMMERSIVE_NAVIGATION_STYLES = `
 .mw-dialog.account-dialog{width:min(420px,calc(100vw - 32px));padding:24px;max-height:calc(100dvh - 32px);overflow:auto}.account-dialog>button{position:absolute;right:16px;top:16px}.account-form,.account-form .mw-field{display:grid;gap:8px}.account-form{gap:16px;margin-top:20px}.account-modes{display:flex;flex-wrap:wrap;gap:4px;margin-top:20px}.account-message{min-height:1.5em;line-height:1.6;margin-top:16px}.account-dialog h2{padding-right:56px}
@@ -264,11 +263,6 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   body.immersive-workbench .workspace-history-button:hover:not(:disabled) { background: var(--nav-active); color: var(--ink); }
   body.immersive-workbench .immersive-titlebar [data-titlebar-tabs] { order: 2; flex: 1; min-width: 0; z-index: 0; overflow: hidden; }
   body.immersive-workbench .immersive-titlebar .desktop-titlebar-drag { order: 3; }
-  body.immersive-workbench .immersive-titlebar .background-tasks-button { order: 4; flex: none; margin-left: auto; gap: 4px; height: var(--desktop-titlebar-control-height); padding: 0 8px; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
-  body.immersive-workbench .immersive-titlebar .background-tasks-button svg { width: 14px; height: 14px; }
-  body.immersive-workbench .immersive-titlebar .background-tasks-button[data-background-tasks-waiting="true"] { color: var(--ink); }
-  body.immersive-workbench .immersive-titlebar .background-tasks-button[data-background-tasks-waiting="true"]::after { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--accent, currentColor); }
-  ${BACKGROUND_TASKS_MENU_STYLES}
   body.immersive-workbench .immersive-titlebar [data-titlebar-tabs]:not([hidden]) ~ .desktop-titlebar-drag { flex: 0 0 0; min-width: 0; width: 0; overflow: hidden; }
   html[data-native-desktop="true"] body.immersive-workbench .immersive-titlebar,
   body.immersive-workbench[data-native-desktop="true"] .immersive-titlebar {
@@ -471,7 +465,7 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
     body.immersive-workbench .immersive-workspace.is-directory-drawer-open > .tree-pane { display: flex; }
     body.immersive-workbench .immersive-workspace.is-directory-drawer-open.is-plugin-directory-empty > .tree-pane { display: none; }
     body.immersive-workbench .immersive-sidebar-scrim:not([hidden]) { display: block; position: fixed; inset: calc(var(--desktop-titlebar-height) + var(--tab-strip-h) + var(--assistant-island-row) + var(--workspace-chrome-height)) 0 0; z-index: 35; border: 0; padding: 0; background: var(--scrim); }
-    body.immersive-workbench .immersive-titlebar {--home-tools-order:1;height:auto;min-height:calc(var(--desktop-titlebar-height) + var(--tab-strip-h));padding:0 12px;gap:8px;flex-wrap:wrap}
+    body.immersive-workbench .immersive-titlebar {height:auto;min-height:calc(var(--desktop-titlebar-height) + var(--tab-strip-h));padding:0 12px;gap:8px;flex-wrap:wrap}
     body.immersive-workbench .workspace-chrome.project-island {
       grid-column: 1 / -1; grid-row: 3; justify-self: stretch; width: auto; max-width: none; margin: 0;
       padding: 8px 12px; height: auto; min-height: var(--workspace-chrome-height); border: 0; background: var(--nav-bg); pointer-events: auto;

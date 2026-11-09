@@ -7,6 +7,7 @@ import { controlAssistantWork } from "./assistant-work-control.js";
 import { AssistantFollowUps } from "./assistant-followups.js";
 import type { AgentDelegation } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { runBackgroundWork } from "../web-locale.js";
 import { waitForAssistantWork } from "./assistant-wait.js";
 import { AssistantDelegations } from "./assistant-delegation.js";
 import { cardView } from "./assistant-card-view.js";
@@ -78,7 +79,7 @@ export class AssistantService {
   constructor(private readonly store: AssistantStore, private readonly ports: AssistantServicePorts, private readonly actorId: string,
     private readonly now = () => new Date()) {
     this.continuations = new AssistantContinuations({ store, actorId, host: () => ports.host(), holdSetups: ports.holdSetups,
-      start: (work, text, current, continued_from) => this.dispatcher.dispatch(work, text, [], null, undefined, "host", current, undefined, undefined, { byHost: true, continued_from }),
+      start: (work, text, current, continued_from) => this.hostStarted(() => this.dispatcher.dispatch(work, text, [], null, undefined, "host", current, undefined, undefined, { byHost: true, continued_from })),
       changed: async (work, alive) => { const current = store.get(actorId, work.work_id), state = await this.reads.stateSafely(current); if (alive() && store.get(actorId, work.work_id).revision === current.revision) this.notices.notice(current, state); } });
     this.jobs = new AssistantJobs({ store, actorId, host: () => ports.host(), actions: async work => (await ports.authority(work)).actions?.(RUNTIME) });
     this.offers = new AssistantOffers({ store, actorId, now: () => this.now(), ...(ports.timeZone ? { timeZone: ports.timeZone } : {}),
@@ -92,7 +93,7 @@ export class AssistantService {
       ...(ports.homeActions ? { homeActions: async () => { const actions = await withinTime(ports.homeActions!());
         return { discover: () => withinTime(actions.discover()), invoke: (reference, input) => withinTime(actions.invoke(reference, input)) }; } } : {}),
       host: () => ports.host(), state: (host, work) => this.reads.stateFor(host, work), schedule: () => this.notices.schedule(),
-      send: (work, text, request_id, stillCurrent) => this.send({ work_id: work.work_id, text, request_id }, {}, "host", stillCurrent) });
+      send: (work, text, request_id, stillCurrent) => this.hostStarted(() => this.send({ work_id: work.work_id, text, request_id }, {}, "host", stillCurrent)) });
     this.delegations = new AssistantDelegations({ store, actorId, host: () => ports.host(), ...(ports.characters ? { characters: project => ports.characters!(project) } : {}),
       stateOf: (host, work) => this.reads.stateFor(host, work), latestRun: (host, work) => this.reads.latestRun(host, work), chooseCharacter: (work, choice) => this.chooseCharacter(work, choice),
       lastReply: async work => [...((await this.reads.assistantPart(work)).rounds.at(-1)?.turns ?? [])].reverse().find(turn => turn.kind === "assistant" && turn.text?.trim())?.text?.trim(),
@@ -102,7 +103,7 @@ export class AssistantService {
       dispatch: async (work, text, materials, writtenBy, request, stillCurrent) => {
         assertSendCurrent(stillCurrent);
         if (request && !store.claimRequest(actorId, request).claimed) return;
-        try { const result = await this.dispatcher.dispatch(work, text, materials, null, undefined, writtenBy, stillCurrent, undefined, undefined, { byHost: Boolean(writtenBy) }); if (request) store.finishRequest(actorId, request, result); return result; }
+        try { const result = await this.hostStarted(() => this.dispatcher.dispatch(work, text, materials, null, undefined, writtenBy, stillCurrent, undefined, undefined, { byHost: Boolean(writtenBy) })); if (request) store.finishRequest(actorId, request, result); return result; }
         catch (error) { if (request) store.releaseRequest(actorId, request); throw error; }
       } });
     this.reads = new AssistantWorkReads(store, ports, actorId, now, { capabilityTitles: (...a) => this.outcomes.capabilityTitles(...a), rememberTitle: (...a) => this.outcomes.rememberTitle(...a), rememberedTitle: (...a) => this.outcomes.rememberedTitle(...a), executorOf: (...a) => this.dispatcher.executorOf(...a), holdsImage: (...a) => this.materials.holdsImage(...a), continuations: this.continuations, delegations: this.delegations });
@@ -163,6 +164,15 @@ export class AssistantService {
   }
 
   /**
+   * Work the Host starts by itself runs in a language scope of its own, the one last used as of now, so it does not keep the language of the
+   * page whose request its async chain happened to begin in (FSS-69).
+   */
+  private hostStarted<T>(fn: () => T): T {
+    const locale = this.ports.lastLocale?.();
+    return locale ? runBackgroundWork(locale, fn) : fn();
+  }
+
+  /**
    * One press of Send. It starts a round when the work is idle, reaches the running round when one is under way, and
    * answers the round's open question when that is what the round is waiting for. A repeated press returns the first
    * outcome and does nothing more. A round whose words the person did not write is marked (`writtenBy` for Host code, `input.written_by` from a page).
@@ -202,7 +212,7 @@ export class AssistantService {
       if (input.reask !== undefined) materials = [...materials, await reaskMaterial(work, input.reask, this.store.rounds(work.work_id), (await this.ports.host()).adapter(RUNTIME))];
       assertSendCurrent(stillCurrent);
       linkSent(this.store.relations, work, materials, created ? context : null);
-      const result = await this.dispatcher.dispatch(work, text, materials, context, input.work_id ? undefined : input.mode, writtenBy ?? input.written_by, stillCurrent, caller.beforeStart, caller.assertBeforeStart, { id: input.request_id, target: input.target, delivery: input.delivery, byHost: Boolean(writtenBy ?? input.written_by) || input.reask !== undefined || !original_input, about: input.about, original_input }, { assertCurrent: () => { for (const item of handoffs) item.assertCurrent(); }, accepted: () => { for (const item of handoffs) item.accepted(); } });
+      const result = await this.dispatcher.dispatch(work, text, materials, context, input.work_id ? undefined : input.mode, writtenBy ?? input.written_by, stillCurrent, caller.beforeStart, caller.assertBeforeStart, { id: input.request_id, target: input.target, delivery: input.delivery, byHost: Boolean(writtenBy ?? input.written_by) || input.reask !== undefined || !original_input, about: input.about, original_input, reply_locale: caller.reply_locale }, { assertCurrent: () => { for (const item of handoffs) item.assertCurrent(); }, accepted: () => { for (const item of handoffs) item.accepted(); } });
       if (inputHold) { inputHold.accept(); const current = this.store.get(this.actorId, work.work_id); result.work = this.reads.publicWork(current, await this.reads.stateSafely(current)); }
       this.store.finishRequest(this.actorId, input.request_id, result);
       return result;

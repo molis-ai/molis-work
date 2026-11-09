@@ -10,9 +10,13 @@ export type PluginDeployment = "local" | "server";
 /**
  * `app` is a v2 Plugin that contributes views, commands, routes, ports and
  * events. `native` stays the v1 first-party entry; `integration` stays the
- * Provider shape. The kind selects the contribution, never the trust level.
+ * Provider shape. `content` is a plugin with only declarations (「只有声明的插件」,
+ * specs/skill-packs/contract-design.md §3): no entrypoint, permission, capability,
+ * 成果 type or UI contribution, only the keys the SDK's `inspectContentPlugin`
+ * allows; it is installed from a signed content package and never started.
+ * The kind selects the contribution, never the trust level.
  */
-export type PluginKind = "native" | "integration" | "app";
+export type PluginKind = "native" | "integration" | "app" | "content";
 
 export interface PluginPermissionDeclaration {
   permission: string;
@@ -261,4 +265,9 @@ export interface PluginManifest {
   read_groups?: readonly import("./plugin-read-groups.js").PluginReadGroupDeclaration[];
   /** What this plugin's background tasks are, by its own object kind (`plugin-task-subjects.ts`). */
   task_subjects?: import("./plugin-task-subjects.js").PluginTaskSubjectsDeclaration;
+  /**
+   * How its objects are shown in the four basic forms and how the plugin is summed up (`platform/presentation`, specs/shared-sources-and-surfaces §5).
+   * `parsePluginManifest` checks it with the SDK's `validatePresentationDeclaration`.
+   */
+  presentation?: import("./presentation.js").PresentationDeclaration;
 }

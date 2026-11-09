@@ -12,6 +12,8 @@
 
 这里的合同是别人（别的包、别的进程、外部插件、用户的数据）依赖的形状：
 
+2026-11-08 D0071：动作网关移除请求体 `client_id`，使用独立注册凭据签发的短时证明取得身份；原接入不自动换凭据，用户重新确认 Runtime 接入。新私有文件格式 `format.mcp.client.credential` 从第 1 版开始，凭据不进入快照。动作 id/schema、MCP 工具名与公开 contracts/SDK 形状不变；实验 Server 管理员授权必须指定本机安装 Home。
+
 | 合同 | 在哪里 | 版本记在哪 |
 | --- | --- | --- |
 | `packages/contracts` 的公开子路径 | `packages/contracts/package.json` 的 `exports` | 没有版本号；形状记在公开 API 快照 `tooling/gates/api/contracts/<子路径>.txt`，`pnpm health:check` 对照源码，有任何不同就失败，有意改用 `pnpm api:update`（第 3 节第 6 条）。新子路径不能只导出一个没人用的 `ContractDescriptor` 占位，`pnpm health:check` 的占位子路径规则（`scripts/gates/contract-placeholders.mjs`）直接失败 |
@@ -21,6 +23,8 @@
 | MCP 工具名与参数 | `apps/mcp`；`docs/mcp.md`；`skills/goal-advance` | 工具名即身份；Skill 与手册随它改 |
 | 对外合同 id | 现在没有（Casebook 的 `molis-work.casebook.*` 已于 2026-10-10 删除；以后出现新的对外合同 id，就在这里登记） | 合同 id 里的版本 |
 | Home 里存的数据 | 项目库、目录库等，清单与版本方案见 `docs/system/HOME-DATA.md` | 库的结构版本（`PRAGMA user_version` 或自带的 meta 表），经 `packages/storage/src/sqlite-baseline.ts` 的 `applySqliteBaseline` 建库，版本不符就拒绝 |
+
+2026-11-08 D0244：Search 的仓库内部公开服务新增 `SearchService.indexedCatalog`，提供受当前来源/读取器权限约束的同项目快照及原来源同步检查，Host 同片接入 Knowledge 整理。没有动作 id/schema、Manifest、MCP 工具名或公开 contracts/SDK 形状变化，也不改持久化格式；旧业务缓存保留，失效来源或失败缓存不用于新模型整理。
 
 ## 2. 版本号的编号方案
 
@@ -37,7 +41,7 @@
 5. **外部已经在用的名字**（Runtime 用的 MCP 工具名）：改动是产品决定，先问用户，在 spec §1 记一行，PR 里列新旧名，外部插件同步。
 6. **门禁守着**：源码里的兼容标记（`legacy`、`compat`、`@deprecated`、`backfill`）按文件计数，只许减少，新文件从零（`pnpm health:check`，`AGENTS.md` 健康门禁一条）。就地补表、测试引用包内部同样只许减少。
 
-   **统一起点版本检查（N41）。** 分两半。不用构建的一半是产品代码中自有的 `*VERSION` 常量和 `tooling/versions.json` 里持久化格式的条目：它是 `pnpm health:check` 的绝对规则（用户 2026-11-07 定），CI 里跑。另一半只有 `node scripts/gates/initial-versions.mjs` 查：它在临时 Home 检查内置 Manifest 与宿主登记的动作，再读内置提示词、主角色和子角色的登记和提示词、方法的版本条目，并把前一半再查一遍。这一半只在有人跑时才查，现在是重建窗口手跑，复核当前构建。外部服务的协议号、SQLite 引擎版本、产品 SemVer 与匹配 SemVer 的正则分别由各自的主人检查。任何一项未复位都会指出名字并返回失败。窗口已于 2026-11-07 执行，结果记在发布检查单第 4 节；现在合并时就查不用构建的一半。之后，公开合同、提示词与角色沿阶段一规则；持久化库或文件的结构版本依第 3 节第 4 条升级。持久化格式的名单在 `scripts/gates/initial-versions.mjs`，大于 1 时要有登记的连续升级链且回放通过。这份登记（`chains`）由 U1-d 接，脚本和 `pnpm health:check` 两处都要接；接上之前，它们大于 1 一律失败。U1 首次接入这类版本时，须在同一变更中以主人的升级链及回放验收接替该项初始值检查，不能直接删检查来放行高版本。
+   **统一起点版本检查（N41）。** 分两半。不用构建的一半是产品代码中自有的 `*VERSION` 常量和 `tooling/versions.json` 里持久化格式的条目：它是 `pnpm health:check` 的绝对规则（用户 2026-11-07 定），CI 里跑。另一半只有 `node scripts/gates/initial-versions.mjs` 查：它在临时 Home 检查内置 Manifest 与宿主登记的动作，再读内置提示词、主角色和子角色的登记和提示词、方法的版本条目，并把前一半再查一遍。这一半只在有人跑时才查，现在是重建窗口手跑，复核当前构建。外部服务的协议号、SQLite 引擎版本、产品 SemVer 与匹配 SemVer 的正则分别由各自的主人检查。任何一项未复位都会指出名字并返回失败。窗口已于 2026-11-07 执行，结果记在发布检查单第 4 节；现在合并时就查不用构建的一半。之后，公开合同、提示词与角色沿阶段一规则；持久化库或文件的结构版本依第 3 节第 4 条升级。持久化格式的名单在 `scripts/gates/initial-versions.mjs`，大于 1 时要有登记的连续升级链且回放通过。这份登记（`chains`）由 U1-d 接，脚本和 `pnpm health:check` 两处都接了；「回放通过」由 U2-d 接到金样：金样清单要存着这个格式从 1 到新版本减 1 的每个版本，回放本身由挡合并的 `golden-replay` 作业跑。U1 首次接入这类版本时，须在同一变更中以主人的升级链及回放验收接替该项初始值检查，不能直接删检查来放行高版本。
 
    **公开 API 快照门禁**（`scripts/gates/api-snapshot.mjs`，口径在 `tooling/gates/README.md`「公开 API 快照」）：`packages/contracts` 每个子路径和 `packages/plugin-sdk` 的公开 API 由编译器的声明输出生成（名字加签名，去注释），入库在 `tooling/gates/api/`。`pnpm health:check` 把源码生成的内容和入库的快照比，有任何不同就失败：加、删、改签名、新子路径没有快照、已删子路径的快照还在、快照被手改。它是一份不许静默变化的清单，不是只许减少的数字，所以 `--update` 和改基线都碰不到它。有意改 API 的 PR：先改代码，再跑 `pnpm api:update`，提交 `tooling/gates/api/` 的变化，并在 PR「公开合同与 API 影响」一栏写这个变化对插件和调用方的影响（`.github/pull_request_template.md`）；`--base` 时门禁日志还会列出相对 merge-base 的 API 变化，评审读它。它只管形状：函数体、注释、语义变化看不到，各插件 Manifest 里的动作声明与 schema 也不在里面（那是路线图 W2-15 的动作合同快照），所以第 3 条的版本字段和评审照旧要做。
 
@@ -65,6 +69,8 @@
 ### 存储版本变更登记
 
 当前版本的唯一清单是 [CHECKLIST.md 第 3 节](../releases/CHECKLIST.md#3-各库版本表)，本表只登记版本变化及其来源、取消或未验证状态。2026-10-30 已取消的旧维护不因搬迁复活；真实重建、Memory 与旧 Home 的授权和 HOLD 仍按原决定。表内的 `slices/` 路径均相对原 `specs/archive/repository-anti-corruption/` 目录。
+
+**2026-11-08 审计更正：** 下表「维护」列里写「真实重建未开始／尚未重建／真实Home未操作」的行，都是统一起点登记（2026-11-07）之前的旧状态；记录中的真实 Home 已于 2026-11-07 在记录里的那台开发机按[发布检查单第 4 节](../releases/CHECKLIST.md#4-真实-home搬开后干净重建)重建并登记统一起点。本次审计／维修所在的机器不是那台机器，本机无法核验（见[第 02 批记录](../../specs/post-anticorruption-roadmap/reference/batches/02.md#batch-02)）。行文保留历史原文，不逐行改写。
 
 **库版本维护清单**（门禁 `scripts/gates/store-versions.mjs` 只认这张表；统一起点登记之后还读升级段所在的代码文件）：检查清单第 3 节表里某个库的版本，和 merge-base 比变了（升或降），同一个 PR 就要在这里加一行，不然 `pnpm health:check` 失败。写法固定：「位置」一格是检查清单第 3 节同一行的位置，原样加反引号；「版本」一格写 `旧 → 新`，两边是数字，箭头是 `→`；后两格写哪个提交或 PR 改的版本、怎样维护和做没做。别处正文里写的不算。
 
@@ -144,6 +150,8 @@
 | `workflows/workflows.db` | 1 → 3 | 2026-11-04 personal/main 集成（personal `e33e1ade4`、main `8de0b0740`；本次合并提交） | 将个人同步技术表合入现行 owner 完整基线，版本取两分支已用编号以上；只验证隔离新 Home 和旧库拒绝，未维护真实 Home。旧 Home 不自动升级，安装前须另行明确维护或新建方案；本轮只合代码，不更换运行中的应用。 |
 | `alchemist/projects/<编码后的 project_id>/studio.sqlite` | 1 → 3 | 2026-11-04 personal/main 集成（personal `e33e1ade4`、main `8de0b0740`；本次合并提交） | 将个人同步技术表合入现行 owner 完整基线，版本取两分支已用编号以上；只验证隔离新 Home 和旧库拒绝，未维护真实 Home。旧 Home 不自动升级，安装前须另行明确维护或新建方案；本轮只合代码，不更换运行中的应用。 |
 | `characters/characters.sqlite` | 1 → 4 | 2026-11-04 personal/main 集成（personal `e33e1ade4`、main `8de0b0740`；本次合并提交） | 将个人同步技术表合入现行 owner 完整基线，版本取两分支已用编号以上；只验证隔离新 Home 和旧库拒绝，未维护真实 Home。旧 Home 不自动升级，安装前须另行明确维护或新建方案；本轮只合代码，不更换运行中的应用。 |
+| `projects/<project_id>/molis-work.db` | 1 → 2 | 第 05 批 #1979（项目目录合同：去掉浏览目录设置、加材料最近使用） | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE#1→2` |
+| `projects/catalog.db` | 1 → 2 | 第 05 批 #1979（项目目录合同：工作目录的输入、输出两种角色取代 `is_default`，加来源链接表） | `apps/local-host/src/project-catalog-contract.ts#CATALOG_SCHEMA_VERSION#1→2` |
 
 ## 4. 阶段二：起点之后，读取兼容
 
@@ -190,6 +198,8 @@ Casebook 已于 2026-10-10 按用户决定删除，不再有对外合同 id；�
 
 ## 8. 阶段一已做、对插件作者有影响的合同改动
 
+- 2026-11-08，D0038（用户选择 D）：工作台页面改为 `molis-work-page-session` meta 与 `x-molis-work-page-session` 请求头，只传 HttpOnly 会话配对的 CSRF 证明；账号状态从返回 `viewToken` 改为非授权的 `viewScope` 修订标识。页面不得依赖宿主控制令牌或把证明当作进程凭据；共用 UI 请求助手及 socket 消费者同期更新，旧页面须刷新。不新增读取兼容。CLI/MCP 的私有控制认证、独立客户端证明和原生身份保持各自检查；动作 id/schema、Manifest 与持久库版本不变。见 [实施及验收](../../specs/daily-quality-d0038/spec.md)。
+
 只记插件作者要知道的改动（不是兼容窗口，阶段一不留兼容期）；新的写在最后。
 
 - **`PluginDatabaseTransaction.savepoint(body)`**（PG-094 S10/S11，S-67 暂定号，落地时重编）：事务句柄多一个**必需**方法，让插件撤销事务的一部分而不结束事务。`body` 同步返回 `{ keep, value }`，`keep: false` 或抛错就撤销这一点之后的写入（含项目日志里的事件与提交后效果），嵌套的点只撤销自己。点的名字由平台生成，插件不发 SQL。对既有插件：用平台给的事务句柄的不受影响；**自己实现 `PluginDatabaseTransaction` 的**（把自己的库包成这个类型，如 Jelly 的商店、测试替身）要补这个方法，`tests/fixtures/plugin-database.ts` 的 `memoryPluginDatabase` 已补。沙箱插件的语句通道（`project_statements`）没有它。
@@ -218,3 +228,18 @@ Casebook 已于 2026-10-10 按用户决定删除，不再有对外合同 id；�
   - `functions.authoring.get` 的受众加了 `plugin`，权限和 `list` 一样是 `functions:manage`。插件收到 `draft_stale` 后用它读回最新记录，就地接住（Feed 的规则页就是这样做的，界面写法见 `docs/design/rule-stale-reload/README.md`）。
   - `updated_at` 只随定义内容变化，试跑、样例、发布不推它。
   - 都在原版本上改（§3 第 3 条），MCP 工具名不变。动作合同快照里 6 行的输入哈希、`get` 一行的「谁能调」随之变。
+- **`projects.directories.*` 取代 `projects.workspaces.*`、`projects.workspace.read` 和浏览目录设置；`is_default` 改 `roles`**（第 05 批 #1979，路线书 05 ②，`specs/shared-sources-and-surfaces/spec.md` §3、§8）：项目的文件夹分成输入（只读，可多个）和输出（唯一，可写），都在原版本 @1 上改，旧名不留（§3 第 3 条）。
+  - **删掉的动作：** `projects.workspaces.add@1`、`projects.workspaces.repair@1`、`projects.workspaces.unlink@1`、`projects.workspaces.list@1`、`projects.workspace.read@1`（首选工作区，没有替身：要输出目录就取 `roles` 含 `output` 的那一项）、`projects.settings.workspaces.read@1`、`projects.settings.browsing-workspace.read@1`、`projects.settings.browsing-workspace.select@1`；项目库的表 `project_browsing_settings` 也删了（项目库升到第 2 版）。
+  - **删掉的导出（contracts `modules/projects`）：** `projectWorkspaceActions`、`projectsCapabilities`（`listWorkspaces`、`readWorkspace`）；`projectSettingsCapabilities` 的 `workspaces`、`browsingWorkspace`、`selectBrowsingWorkspace`（只剩 `runtime`、`selectRuntime`）；类型 `ChangeWorkspaceProjectInput`、`RepairWorkspaceProjectInput`；`ProjectsCommandApi` 的 `repairWorkspaceProject`、`setWorkspaceDefault`、`removeWorkspaceMembership`；`ProjectsQueryApi.preferredWorkspacePath`；错误码 `catalog.context.workspace_default_unsupported`。
+  - **新增：** `projectDirectoryActions`：`projects.directories.get@1`（读；受众 `user`、`plugin`、`agent`、`mcp`、`workflow`；输入是空对象；输出 `ProjectDirectories`，即 `{ project_id, directories: [{ workspace_id, canonical_path, realpath_verified, display_name, roles, state }], source_links, revision }`，恰好一项带 `output`）与 `add_input`、`remove_input`、`set_output`、`repair`、`map_source`、`unmap_source`（只给 `user`，权限 `projects:settings`，输入都带必填的 `expected_revision`，过期以 `actions.conflict` 拒绝；`set_output`、`map_source` 的目标三选一：`workspace_id`、`workspace_path`、`default_output: true`）。类型 `DirectoryRole`、`DirectoryTarget`、`DirectoryChange`、`ChangeDirectoriesInput`、`ProjectDirectory`、`ProjectDirectories`、`RunDirectories`；`ProjectsQueryApi` 多 `projectDirectories`、`outputDirectory`、`defaultOutputDirectoryId`、`workspaceIdAt`，`ProjectsCommandApi` 多 `changeDirectories`；错误码 `projects.directory_unmapped`、`projects.directory_input_only`（`directoryInputOnly`）。
+  - **`is_default` → `roles`：** `ProjectWorkspaceMembership.is_default: boolean` 改成 `roles: ("input" | "output")[]`（同一个文件夹既是输入又是输出时两项都有）；目录库的 `workspace_project_memberships` 用 `role_input`、`role_output` 两列，另有新表 `workspace_source_links`（另一台设备的目录对应到本机的哪个文件夹，只在本机）。存量按上面第 3 节登记的 `projects/catalog.db` 1 → 2 升级：关联过恰好一个文件夹的项目，它成为输出（仍是输入），关联过几个的每个都是输入，没有输出的项目补上默认输出目录。
+  - **默认输出目录：** 没选过输出的项目，输出是 Home 的 `outputs/<project_id>/`，目录库里是真实的一行（`canonical_path` 记为 `project-output:<project_id>`，不存路径）；文件夹第一次在里面写或运行时才建，`directories` 里照样列出，`state` 是 `ok`。`default_output: true` 把输出设回它。
+  - **Git 默认在输出目录里写，输入只读：** Agent 的会话和轮次、原生 Character、终端、本机进程的 MCP、Git 的写在只作输入的目录里开会被拒（`projects.directory_input_only`）；Git 的读取在 `workspace_id` 缺省时看输出目录（见下一条）。
+  - **宿主路由：** `POST /api/workspaces`、`PATCH /api/workspaces/:id/path`、`POST /api/workspaces/:id/unlink`、`GET|POST /api/project-settings/workspaces` 删掉；新增 `GET|POST /api/project-settings/directories`（POST 带 `{ change, input }`，`change` 是 `add_input`、`remove_input`、`set_output`、`repair`、`map_source`、`unmap_source` 之一，其余键 400）；`POST /api/workspaces/pick` 不变。
+  - **对调用方：** Manifest `capabilities.consumes`、工作流程步骤与绑定、Skill 里写旧 id 的都要改成 `projects.directories.get`（入参 `{}`，原来是 `[]`）；MCP 工具 `molis_work_v1_action_projects.workspace.read__v1` 没有了，新增 `molis_work_v1_action_projects.directories.get__v1`（改目录的动作只给本人，MCP 调不到）。动作合同快照里，原有的 `projects.workspace.read`、`projects.workspaces.add`、`repair`、`unlink` 四行删去，新增七行 `projects.directories.*`；公开 API 快照 `modules/projects` 随之变。
+- **`UiPageWorkspaces.select` 改 `setOutput`；`files.state` 与 `git.*` 的读取按页面说的文件夹**（第 05 批 #1979）：
+  - `UiPluginClientHost.workspaces`（`UiPageWorkspaces`）：`select(workspaceId)`（切换当前浏览目录）删掉，项目不再记浏览目录；换成 `setOutput(workspaceId)`——宿主显示插件、项目和这个目录的名字（宿主自己读，不用页面给的），人确认后把项目已有的目录设为输出，用在「只作输入，设为输出后才能写」的拒绝旁边。`add(path)` 不变，现在加的是输入目录。页面看哪个文件夹是页面自己的状态。
+  - 在原版本 @1 上改：`files.state` 的输入从 `{}` 变成 `{ workspace_id?: string }`，输出多一个必有字段 `resolved`（`string | null`，页面说的 id 在本机对应哪个文件夹）；`git.state`、`git.summary`、`git.operations`、`git.results`、`git.pr-support` 的输入从 `{}` 变成 `{ workspace_id?: string }`，`git.conflict` 的输入多可选的 `workspace_id`。`workspace_id` 缺省就是项目的输出目录，原来是项目设置里选的浏览目录；说的 id 已不在项目里时，`files.state` 与 `git.state` 退回输出目录，别的读取被拒。动作合同快照里 `files.state` 与六个 `git.*` 的输入哈希随之变，`files.state` 的输出哈希也变。
+  - contracts `modules/workspace-artifacts` 多导出 `resolveWorkspaceFileSubject`、`resolveWorkspaceId`、`WorkspaceIdMapping`（读另一台设备的引用时，把它的目录 id 换算成本机对应的文件夹）；`WorkspaceFileResult` 的 `binary` 结果多带 `fingerprint`。并行写手的 `worktree_id` 等改动见 CHANGELOG 的 05 ② 一条。
+- **同版本下形状变了的其他动作**（第 05 批 #1979，都在原版本 @1 上改，仓库里没有工作流、场景或绑定固定它们）：`files.open`、`files.directory` 的输出里 `binary` 必带 `fingerprint`、`unsupported` 可带（读到但解不出来；不带的是「不是普通文件」），按 `outcome` 分支的调用方不受影响，严格按输出 schema 校验的调用方要接受 `fingerprint`；`git.conflict` 输入多可选 `workspace_id`；`agent.run.start` 输入 `subagent_workspaces[].workspace_id` 改 `worktree_id`；`agent.run.read`、`agent.run.wait`、`agent.session.read` 输出多可选 `directories`（开轮时冻结的输出、输入和执行位置）；`projects.workspace.writers.{list, prepare, integration.read, integration.prepare}` 的写手工作树改用 `worktree_id`、`subagent_id` 可选；`coding.runs.start` 输入多可选 `worktree_id`。上面「新增」里的 `projectDirectoryActions` 及其类型此前已在合同里声明，本 PR 起由宿主登记（动作快照多 7 行）；真正新增的导出是 `DirectoryChange`、`ChangeDirectoriesInput`、`directoryInputOnly`。
+- **`materials.recent`、`materials.recent.record`、`materials.origins`：最近用过的资料与引用的出处**（第 05 批 #1979，`specs/shared-sources-and-surfaces/spec.md` §2）：由宿主在提供方 `system.project-workspaces` 上登记（动作合同快照 `host-actions.tsv` 多三行），受众 `user`、`plugin`。`materials.recent@1` 返回 `{ items: [{ ref, origin }] }`，新的在前，每个调用方在每个项目里最多 20 份；给插件时只返回它此刻读得了的，读不了的不说是哪一个，也不数；`materials.recent.record@1` 输入 `{ refs }`（1 到 10 个 `MaterialRef`），读不了的引用静默不记；`materials.origins@1` 输入 `{ items }`（1 到 20 项，每项 `{ ref }` 或只有 `{ subject }`），按给的顺序返回 `{ items: [{ origin }] }`，读不了的 `origin` 为 null、不说原因。三个都声明 `scheduling: "concurrent"`（要等各主人答出处），`materials.recent.record` 在 `beforeEffect()` 之后提交。contracts `platform/project-materials` 多导出 `MaterialOriginQuery`、`MaterialOriginAnswer`、`MATERIAL_ORIGINS_MAX`、`MATERIAL_ORIGINS_COMPARE`、`MATERIAL_ORIGIN_NOTES`、`MATERIAL_ORIGIN_QUERY_SCHEMA`、`MATERIAL_ORIGIN_ANSWER_SCHEMA`，`modules/projects` 多导出 `materialOriginActions`；`RecentMaterial.origin` 从 `MaterialOrigin` 变成 `MaterialOrigin | null`（给本人时找不到唯一的主人就是 null）。项目库的表 `material_recent_uses`（`modules/projects` 独占）随项目库升到第 2 版新增，从空开始。

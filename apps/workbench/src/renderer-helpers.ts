@@ -5,7 +5,7 @@ import type { createWorkbenchLocale, WebLocale } from "./i18n.js";
 export type RendererLocale = Pick<ReturnType<typeof createWorkbenchLocale>, "L" | "htmlLang" | "dateTimeLocale" | "listJoin" | "localeSwitchHref" | "clientI18nScript"> & { currentLocale(): WebLocale };
 
 export function controlTokenMeta(controlToken: string): string {
-  return `<meta name="molis-work-control-token" content="${escapeHtml(controlToken)}">`;
+  return `<meta name="molis-work-page-session" content="${escapeHtml(controlToken)}">`;
 }
 
 /** The small string helpers every page of the workbench shares: a date in the request's locale, an empty-aware list, and the page's local links. */

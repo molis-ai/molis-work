@@ -61,7 +61,7 @@ export interface PageStateOwner {
 export const PAGE_STATE_OWNERS = {
   "side-panel": {
     files: ["apps/workbench/src/side-panel-context.ts", "apps/workbench/src/side-panel.ts", "apps/workbench/src/side-panel-browser.ts", "apps/workbench/src/side-panel-files.ts"],
-    state: "Whether the right-hand panel is open, which tab it shows and what that tab was asked to show (a file, a web page, the browser held by the person or by a Work). The last tab is kept in localStorage as molis:side-tab.",
+    state: "The right side's views, their documents and what each was asked to show (a file, a web page, the browser held by the person or by a Work). Whether it is open, its tabs, the current one and its width are the tab workspace's state, not this owner's.",
   },
   assistant: {
     files: ["apps/workbench/src/scripts/client/assistant-island.ts", "apps/workbench/src/scripts/client/assistant-choosers.ts", "apps/workbench/src/scripts/client/assistant-browser-handback.ts", "apps/workbench/src/scripts/client/assistant-conversation.ts", "apps/workbench/src/scripts/client/assistant-page-messages.ts", "apps/workbench/src/scripts/client/assistant-send.ts", "apps/workbench/src/scripts/client/assistant-stage.ts", "apps/workbench/src/scripts/client/assistant-work-objects.ts", "apps/workbench/src/browser/plugin-frame/context-child.ts"],
@@ -81,7 +81,7 @@ export const PAGE_STATE_OWNERS = {
   },
   "tab-workspace": {
     files: ["apps/workbench/src/scripts/client/tab-workspace.ts", "apps/workbench/src/scripts/client/tab-workspace-panes.ts", "apps/workbench/src/scripts/client/tab-workspace-places.ts", "apps/workbench/src/scripts/client/tab-workspace-plugins.ts", "apps/workbench/src/scripts/client/system-tabs.ts", "apps/workbench/src/side-view-document.ts", "apps/workbench/src/browser/plugin-frame/view.ts"],
-    state: "The open tabs and panes of the work area, the current place, and which item each plugin surface has been asked to show (a plugin's side tab is its own document, which asks its one surface the same way).",
+    state: "The open tabs and panes of the work area and of the right side (whether it is open, its tabs, the current one and its width: `side`, per project), the current place, and which item each plugin surface has been asked to show (a plugin's side tab is its own document, which asks its one surface the same way).",
   },
   "settings-directory": {
     files: ["apps/workbench/src/scripts/client/settings-directory.ts", "apps/workbench/src/scripts/home-model-settings.ts", "apps/workbench/src/browser/plugin-frame/child.ts"],
@@ -93,7 +93,7 @@ export const PAGE_STATE_OWNERS = {
   },
   attention: {
     files: ["apps/workbench/src/scripts/client/attention.ts"],
-    state: "What waits on the person, read once for the whole page (W4-10): the background tasks the title bar lists, the Assistant's notices for the plugin in front, the plugin deliveries waiting in the market and, on a project page, the board's event cursor.",
+    state: "What waits on the person, read once for the whole page (W4-10): the background tasks the right side's background-tasks tab counts and lists, the Assistant's notices for the plugin in front, the plugin deliveries waiting in the market and, on a project page, the board's event cursor.",
   },
   "plugin-notifications": {
     files: ["apps/workbench/src/scripts/client/plugin-notifications.ts"],
@@ -306,6 +306,11 @@ export const DOM_EVENTS = [
     summary: "The project's plugins changed in place; plugins whose pages fill when the project has them fill them from next.",
   },
   {
+    name: "molis-work:record-gone", kind: "request", owner: "tab-workspace", on: "document",
+    detail: "{ plugin, itemId }",
+    summary: "A record a tab opens is no longer there: strike its tab through and say so in its pane, with a way to close it. Sent by a plugin's page when its read of the record answers 404 (Goals' document read first).",
+  },
+  {
     name: "molis-work:return-claim", kind: "request", owner: "settings-return", on: "document",
     detail: "{ return_id?, origin?: { scope, surface, place }, drop?, answer? }; the owner sets answer synchronously: { status, carry } (handed over and removed), { open: return_id } (still open, wait), or null",
     summary: "A plugin frame's host claims the outcome of a trip a page opened with host.returns.go, for this installation scope, surface and place as it is now; drop ends the trip as not ready. Only on the outer document.",
@@ -442,11 +447,6 @@ export const DOM_EVENTS = [
     name: "molis:side-browser-control", kind: "announcement", owner: "side-panel", on: "document",
     detail: "{ action: takeover | handback, project_id, session_id }",
     summary: "The person took the side panel's browser over from a Work, or handed it back; the Assistant tells the Work.",
-  },
-  {
-    name: "molis:side-close", kind: "request", owner: "side-panel", on: "document",
-    detail: "none",
-    summary: "Close the side panel.",
   },
   {
     name: "molis:side-context-command", kind: "announcement", owner: "side-panel", on: "document",

@@ -5,7 +5,6 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { MolisWorkLocalHost, seedDemoBoard, DEMO_PROJECT_ID, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { ensureProjectPlugins, releaseProjectPlugins } from "../apps/local-host/dist/project-plugins.js";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -21,9 +20,8 @@ test("background startup shares its instance with later UI execution adapters an
   // call to one is refused as a call to any action nobody provides is.
   let agentCalls = 0, capabilityCalls = 0;
   const ports = { store, ...openProjectVersionStores(store), projectId: DEMO_PROJECT_ID, actorId: "web-user", homeDirectory: home, actions,
-    capabilities: { async invoke<I, O>(definition: { capability_id: string }, _input: I): Promise<O> {
+    capabilities: { async invoke<I, O>(_definition: { capability_id: string }, _input: I): Promise<O> {
       capabilityCalls++;
-      if (definition.capability_id === projectsCapabilities.readWorkspace.capability_id) return null as O;
       return { workspaces: [], selected: null } as O;
     } },
   };
@@ -178,7 +176,8 @@ test("RAC-1453 RAC-1922 a project plugin whose install record the Runtime cannot
       const present = store.db.prepare("SELECT 1 FROM plugin_runtime_installs WHERE install_id = ?").get(saved.install_id);
       if (present) return;
       const columns = Object.keys(saved);
-      store.db.prepare(`INSERT INTO plugin_runtime_installs (${columns.join(", ")}) VALUES (${columns.map(column => `@${column}`).join(", ")})`).run(saved);
+      store.db.prepare(`INSERT INTO plugin_runtime_installs (${columns.join(", ")}) VALUES (${columns.map(() => "?").join(", ")})`)
+        .run(...columns.map(column => saved![column]));
     }];
     const live = platform;
     if (live) for (const plugin of running) cleanup.push(async () => {
@@ -244,7 +243,8 @@ test("RAC-1453 RAC-1922 RAC-1923 another installation's unreadable record fails 
     }, () => {
       if (!saved || store.db.prepare("SELECT 1 FROM plugin_runtime_installs WHERE install_id = ?").get(saved.install_id)) return;
       const columns = Object.keys(saved);
-      store.db.prepare(`INSERT INTO plugin_runtime_installs (${columns.join(", ")}) VALUES (${columns.map(column => `@${column}`).join(", ")})`).run(saved);
+      store.db.prepare(`INSERT INTO plugin_runtime_installs (${columns.join(", ")}) VALUES (${columns.map(() => "?").join(", ")})`)
+        .run(...columns.map(column => saved![column]));
     }];
     const live = platform;
     if (live) for (const plugin of running) cleanup.push(async () => {

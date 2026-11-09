@@ -8,7 +8,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createSingleHomeTestWebServer } from "./local-web-core.js";
-import { MolisWorkLocalHost, resolveWebControlToken } from "@molis-ai/molis-work-app-local-host";
+import { changeMcpClientCredential, MolisWorkLocalHost, resolveWebControlToken } from "@molis-ai/molis-work-app-local-host";
 
 export async function homeContextHost(t: TestContext) {
   const home = await mkdtemp(join(tmpdir(), "home-context-resident-"));
@@ -23,6 +23,7 @@ export async function homeContextHost(t: TestContext) {
   server = createSingleHomeTestWebServer({ homeDirectory: home, localHost: host });
   await new Promise<void>(resolve => server!.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address === "object");
+  changeMcpClientCredential(home, "runtime:codex", "connect");
   const access = host.ensureWebCatalog(home, openMolisWorkProjectCatalog);
   await access.warm();
   return { home, host, server, origin: `http://127.0.0.1:${address.port}`, token: resolveWebControlToken({ homeDirectory: home }),

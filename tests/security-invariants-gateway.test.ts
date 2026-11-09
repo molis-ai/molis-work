@@ -5,15 +5,15 @@
 // Every test asserts the REFUSAL itself (status, code, the project still there, no receipt written, no request made).
 // The tests import public entries only (tests/*.test.ts may not reach into package sources: pnpm health:check).
 import assert from "node:assert/strict";
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, createHmac, randomUUID } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import http from "node:http";
 import { tmpdir } from "node:os";
 import { join, resolve as resolvePath } from "node:path";
 import test, { type TestContext } from "node:test";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { LocalActionGatewayClient } from "@molis-ai/molis-work-app-local-host";
+import { changeMcpClientCredential, createMcpClientProof, LocalActionGatewayClient, mcpClientCredentialPath } from "@molis-ai/molis-work-app-local-host";
 import { main as runCli } from "../apps/desktop/launchers/cli/main.js";
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 
@@ -32,10 +32,44 @@ async function startResidentHost(t: TestContext): Promise<{ home: string; origin
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address();
   assert.ok(address && typeof address === "object");
+  changeMcpClientCredential(home, "runtime:codex", "connect");
   return { home, origin: `http://127.0.0.1:${address.port}`, port: address.port };
 }
 
 const homeId = (home: string) => createHash("sha256").update(resolvePath(home)).digest("hex");
+
+test("D0071-01 S-07 a Home control token and a body client_id cannot establish an MCP identity", async t => {
+  const { home, origin } = await startResidentHost(t);
+  const answer = await fetch(`${origin}/api/internal/action-service`, { method: "POST", headers: {
+    origin, "content-type": "application/json", "x-molis-work-control-token": TOKEN, "x-molis-work-idempotency-key": randomUUID(),
+  }, body: JSON.stringify({ operation: "discover", home_id: homeId(home), client_id: "runtime:codex", project_id: null }) });
+  assert.equal(answer.status, 403, "the administrative transport token does not prove which MCP client is calling");
+  assert.equal(existsSync(join(home, "logs", "action-calls.jsonl")), false, "no action or input was recorded");
+});
+
+test("D0071-02 S-07 client proofs reject body identities, forged claims, foreign Homes, expired proofs and revoked registrations", async t => {
+  const { home, origin } = await startResidentHost(t), clientId = "runtime:codex";
+  const post = (proof: string, extra: Record<string, unknown> = {}) => fetch(`${origin}/api/internal/action-service`, { method: "POST", headers: {
+    origin, "content-type": "application/json", "x-molis-work-control-token": TOKEN, "x-molis-work-idempotency-key": randomUUID(), "x-molis-work-client-proof": proof,
+  }, body: JSON.stringify({ operation: "discover", home_id: homeId(home), project_id: null, ...extra }) });
+  const proof = createMcpClientProof(home, clientId, home, null);
+  assert.equal((await post(proof)).status, 200, "a registered client discovers its own directory");
+  assert.equal((await post(proof, { client_id: "runtime:someone-else" })).status, 400, "even a valid client cannot name another identity in the body");
+  const parts = proof.split("."), claims = JSON.parse(Buffer.from(parts[1]!, "base64url").toString()) as Record<string, unknown>;
+  const forged = Buffer.from(JSON.stringify({ ...claims, client_id: "runtime:someone-else" })).toString("base64url");
+  assert.equal((await post(`mcp1.${forged}.${parts[2]}`)).status, 403);
+  assert.equal((await post(createMcpClientProof(home, clientId, home + "-other", null))).status, 403);
+  const credential = JSON.parse(readFileSync(mcpClientCredentialPath(home, clientId), "utf8")) as { secret: string };
+  const expired = Buffer.from(JSON.stringify({ ...claims, expires_at: Date.now() - 1 })).toString("base64url");
+  const signature = createHmac("sha256", Buffer.from(credential.secret, "hex")).update(expired).digest("hex");
+  assert.equal((await post(`mcp1.${expired}.${signature}`)).status, 403, "a correctly signed expired proof is refused");
+  assert.equal((await post(createMcpClientProof(home, clientId, home, "previous-host-instance"))).status, 409, "D0071-06 a proof for the previous Host is refused");
+  changeMcpClientCredential(home, clientId, "remove");
+  assert.equal((await post(proof)).status, 403, "removal revokes an already issued proof");
+  assert.throws(() => createMcpClientProof(home, clientId, home, null), { code: "actions.connection_required" });
+  assert.throws(() => changeMcpClientCredential(home, "agent:prologue", "connect"), { code: "actions.forbidden" });
+  assert.equal(existsSync(join(home, "logs", "action-calls.jsonl")), false);
+});
 
 test("S-07 a process that forwards to the resident Host asks a numeric loopback HTTP address only, and sends the Home's control token nowhere else", { timeout: 60_000 }, async t => {
   const directory = await mkdtemp(join(tmpdir(), "security-invariants-forward-"));
@@ -84,10 +118,11 @@ test("S-07 a process that forwards to the resident Host asks a numeric loopback 
 
 test("S-07 the action gateway takes the number of an operation only on an invocation and only as the UUID the forwarding process made, and does nothing otherwise", { timeout: 60_000 }, async t => {
   const { home, origin } = await startResidentHost(t);
-  const post = (body: unknown) => fetch(`${origin}/api/internal/action-service`, { method: "POST", body: JSON.stringify(body), headers: {
-    origin, "content-type": "application/json", "x-molis-work-control-token": TOKEN, "x-molis-work-idempotency-key": randomUUID() } });
+  const post = (body: Record<string, unknown>, clientId = "runtime:codex") => fetch(`${origin}/api/internal/action-service`, { method: "POST", body: JSON.stringify(body), headers: {
+    origin, "content-type": "application/json", "x-molis-work-control-token": TOKEN, "x-molis-work-idempotency-key": randomUUID(),
+    "x-molis-work-client-proof": createMcpClientProof(home, clientId, home, typeof body.instance_id === "string" ? body.instance_id : null) } });
   const log = () => { try { return readFileSync(join(home, "logs", "action-calls.jsonl"), "utf8"); } catch { return ""; } };
-  const envelope = { home_id: homeId(home), client_id: "runtime:codex", project_id: null };
+  const envelope = { home_id: homeId(home), project_id: null };
   const instance = (await (await post({ ...envelope, operation: "discover" })).json() as { instance_id: string }).instance_id;
   const invoke = { ...envelope, operation: "invoke", instance_id: instance, capability: { capability_id: "nobody.provides.this", version: 1 }, input: {} };
   assert.equal(log(), "", "nothing was recorded so far");
@@ -114,17 +149,18 @@ test("S-07 the action gateway takes the number of an operation only on an invoca
   const rows = log().trim().split("\n").map(line => JSON.parse(line) as { call_id: string; code?: string; refused?: boolean });
   assert.deepEqual(rows.map(row => [row.call_id, row.code, row.refused]), [[id, "actions.missing", true]]);
   const stranger = await fetch(`${origin}/api/internal/action-service`, { method: "POST", body: JSON.stringify({ ...invoke, call_id: randomUUID() }), headers: {
-    origin, "content-type": "application/json", "x-molis-work-call-id": id, "x-molis-work-control-token": TOKEN, "x-molis-work-idempotency-key": randomUUID() } });
+    origin, "content-type": "application/json", "x-molis-work-call-id": id, "x-molis-work-client-proof": createMcpClientProof(home, "runtime:codex", home, instance), "x-molis-work-control-token": TOKEN, "x-molis-work-idempotency-key": randomUUID() } });
   assert.notEqual(stranger.headers.get("x-molis-work-call-id"), id, "a number in a request header is not read");
 });
 
 test("S-08 the action gateway refuses a forwarding process that names itself as one of the Host's own Agents, and records nothing", { timeout: 60_000 }, async t => {
   const { home, origin } = await startResidentHost(t);
-  const post = (body: unknown) => fetch(`${origin}/api/internal/action-service`, { method: "POST", body: JSON.stringify(body), headers: {
-    origin, "content-type": "application/json", "x-molis-work-control-token": TOKEN, "x-molis-work-idempotency-key": randomUUID() } });
+  const post = (body: Record<string, unknown>, clientId = "runtime:codex") => fetch(`${origin}/api/internal/action-service`, { method: "POST", body: JSON.stringify(body), headers: {
+    origin, "content-type": "application/json", "x-molis-work-control-token": TOKEN, "x-molis-work-idempotency-key": randomUUID(),
+    "x-molis-work-client-proof": createMcpClientProof(home, clientId, home, typeof body.instance_id === "string" ? body.instance_id : null) } });
   const log = () => { try { return readFileSync(join(home, "logs", "action-calls.jsonl"), "utf8"); } catch { return ""; } };
   const envelope = { home_id: homeId(home), project_id: null };
-  const instance = (await (await post({ ...envelope, client_id: "runtime:codex", operation: "discover" })).json() as { instance_id: string }).instance_id;
+  const instance = (await (await post({ ...envelope, operation: "discover" })).json() as { instance_id: string }).instance_id;
   // The built-in Agent's id, and the shape a task's grant subject takes (specs/proactive-assistant/schedule-task-reads.md §3.1).
   for (const client_id of ["agent:prologue", "agent:task:project:install:task", "agent:"]) {
     for (const body of [{ ...envelope, client_id, operation: "discover" },
@@ -136,5 +172,25 @@ test("S-08 the action gateway refuses a forwarding process that names itself as 
   }
   assert.equal(log(), "", "a refused identity made no call, so no row was written");
   // A Runtime and a cross-device member still reach the Host.
-  for (const client_id of ["runtime:codex", "runtime:cross-device:member"]) assert.equal((await post({ ...envelope, client_id, operation: "discover" })).status, 200, client_id);
+  for (const client_id of ["runtime:codex", "runtime:cross-device:member"]) {
+    changeMcpClientCredential(home, client_id, "connect");
+    assert.equal((await post({ ...envelope, operation: "discover" }, client_id)).status, 200, client_id);
+  }
+});
+
+// D0071-03: no malformed registration becomes an identity, and reads do not repair it.
+test("D0071-03 S-07 credential reads refuse links, wide permissions, wrong versions and invalid client names", async t => {
+  const { home } = await startResidentHost(t), client = "runtime:codex", file = mcpClientCredentialPath(home, client);
+  const original = readFileSync(file, "utf8");
+  await chmod(file, 0o644);
+  assert.throws(() => createMcpClientProof(home, client, home, null), { code: "actions.forbidden" });
+  assert.equal(readFileSync(file, "utf8"), original);
+  await chmod(file, 0o600);
+  await writeFile(file, JSON.stringify({ ...JSON.parse(original), schema_version: 2 }));
+  assert.throws(() => createMcpClientProof(home, client, home, null), { code: "actions.forbidden" });
+  await rm(file); const other = join(home, "target-private.json"); await writeFile(other, original, { mode: 0o600 }); await symlink(other, file);
+  assert.throws(() => createMcpClientProof(home, client, home, null), { code: "actions.forbidden" });
+  assert.throws(() => changeMcpClientCredential(home, client, "connect"), { code: "actions.forbidden" });
+  assert.equal(readFileSync(other, "utf8"), original);
+  assert.throws(() => mcpClientCredentialPath(home, "runtime:\ud800"), { code: "actions.forbidden" });
 });

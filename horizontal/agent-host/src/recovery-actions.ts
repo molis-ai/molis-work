@@ -1,6 +1,17 @@
 import { agentErrors } from "./errors.js";
 import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentCallPorts, Call, Register } from "./capability-ports.js";
+import type { AgentStartAuthority } from "./index.js";
+
+/**
+ * The directories a checkpoint may be in: the output, and the Host's worktrees of it when a checkpoint is elsewhere (a writing child's).
+ * Read once per call, and only when needed: reading the worktrees runs Git.
+ */
+function checkpointPlaces(authority: AgentStartAuthority): (path: string) => Promise<boolean> {
+  let trees: Promise<readonly string[]> | undefined;
+  return async path => authority.authorizedDirectories.includes(path)
+    || (await (trees ??= authority.worktrees ? authority.worktrees().then(list => list.map(tree => tree.canonical_path)) : Promise.resolve([]))).includes(path);
+}
 
 /** What a session's rounds left behind: command receipts, interrupted rounds, checkpoints to rewind to, and their reviews. */
 export function registerRecoveryActions<C extends Call>(register: Register<C>, ports: AgentCallPorts<C>): Array<() => void> {
@@ -37,7 +48,9 @@ export function registerRecoveryActions<C extends Call>(register: Register<C>, p
       const authority = await ports.authority(context);
       const checkpoints = ports.agentHost(context).adapter(session.runtime_id).checkpoints;
       if (!checkpoints) throw agentErrors.capability_unavailable("当前运行时未接通检查点");
-      return (await checkpoints.list(session)).filter(item => item.directory?.realpath_verified && authority.authorizedDirectories.includes(item.directory.canonical_path));
+      const allowed = checkpointPlaces(authority), listed = await checkpoints.list(session);
+      const kept = await Promise.all(listed.map(async item => Boolean(item.directory?.realpath_verified && await allowed(item.directory.canonical_path))));
+      return listed.filter((_item, index) => kept[index]);
     }),
     register(agentHostCapabilities.prepareRewind, async (context, [session, checkpointId, roleId]) => {
       await readScopedSession(context, session);
@@ -47,7 +60,7 @@ export function registerRecoveryActions<C extends Call>(register: Register<C>, p
       const checkpoints = ports.agentHost(context).adapter(session.runtime_id).checkpoints;
       if (!checkpoints) throw agentErrors.capability_unavailable("当前运行时未接通检查点回退");
       const checkpoint = (await checkpoints.list(session)).find(item => item.checkpoint_id === checkpointId);
-      if (!checkpoint?.directory?.realpath_verified || !authority.authorizedDirectories.includes(checkpoint.directory.canonical_path)) throw agentErrors.directory_unauthorized("检查点不属于当前授权工作区");
+      if (!checkpoint?.directory?.realpath_verified || !await checkpointPlaces(authority)(checkpoint.directory.canonical_path)) throw agentErrors.directory_unauthorized("检查点不属于当前授权工作区");
       await context.invocation.beforeEffect(); context.invocation.assertAuthorityCurrent();
       return checkpoints.prepareRewind(session, checkpointId);
     }),

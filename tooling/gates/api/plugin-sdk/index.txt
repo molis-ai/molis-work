@@ -116,6 +116,17 @@ export interface CardStore<Card extends ActionCard = ActionCard> {
     update(card: Card, expected: number, patch: Partial<ActionCard>): Card;
 }
 
+export interface ContentPackage {
+    manifest: PluginManifest;
+    skills: ContentPackageSkill[];
+}
+
+export interface ContentPackageSkill {
+    skill_id: string;
+    version: number;
+    body: string;
+}
+
 export declare const DIFF_STEP_BUDGET = 200000;
 
 export interface DeclaredPageRouteMatch extends PageRouteMatch {
@@ -249,6 +260,8 @@ export declare const PLUGIN_ROUTE_STREAM_LIMITS: Readonly<{
     progress_bytes: 1048576;
 }>;
 
+export { PRESENTATION_VALUES_AUDIENCES } from "@molis-ai/molis-work-contracts/platform/presentation";
+
 export interface PageRouteMatch {
     readonly route_id: string;
     readonly params: Readonly<Record<string, string>>;
@@ -329,6 +342,10 @@ export interface PorcelainInput {
     truncated?: boolean;
 }
 
+export type { PresentationOverview } from "@molis-ai/molis-work-contracts/platform/presentation";
+export type { PresentationValueItem } from "@molis-ai/molis-work-contracts/platform/presentation";
+export type { PresentationValues } from "@molis-ai/molis-work-contracts/platform/presentation";
+export type { PresentationValuesInput } from "@molis-ai/molis-work-contracts/platform/presentation";
 export type { ProjectCopyAsset } from "@molis-ai/molis-work-contracts/services/placement";
 export type { ProjectCopyIdentity } from "@molis-ai/molis-work-contracts/services/placement";
 export type { ProjectCopyOwner } from "@molis-ai/molis-work-contracts/services/placement";
@@ -400,6 +417,12 @@ export type { SearchEntriesPage } from "@molis-ai/molis-work-contracts/platform/
 export type { SearchEntry } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SearchOpenTarget } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SearchSourceKind } from "@molis-ai/molis-work-contracts/platform/actions";
+
+export interface SkillFrontmatterOptions {
+    version?: number;
+    resources?: SkillResourceDeclaration[];
+}
+
 export type { SubjectActionOffer } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SubjectOfferChoice } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SubjectOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -528,6 +551,7 @@ export declare function bindOwnerPluginAction<Input, Output>(context: PluginStar
 
 export declare function bindPluginActionRoute<Input, Output>(context: PluginStartContext, definition: ActionDefinition<Input, Output>, input: (request: PluginRouteRequest) => Input, route_id?: string): PluginRouteBinding;
 
+export { bindPresentationValuesHandler } from "@molis-ai/molis-work-contracts/platform/presentation";
 export { bindSearchEntriesHandler } from "@molis-ai/molis-work-contracts/platform/actions";
 export { bindWorkflowContentHandlers } from "@molis-ai/molis-work-contracts/platform/actions";
 
@@ -606,6 +630,8 @@ export declare function definePollingIntegrationPlugin(input: {
     now?: () => Date;
 }): PluginDefinition;
 
+export { definePresentationOverviewAction } from "@molis-ai/molis-work-contracts/platform/presentation";
+export { definePresentationValuesAction } from "@molis-ai/molis-work-contracts/platform/presentation";
 export { defineSearchEntriesAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineSubjectContextAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineSubjectOffersAction } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -632,6 +658,8 @@ export declare function inspectActionCrossReferences(definitions: unknown): stri
 
 export declare function inspectActionDeclarations(definitions: unknown, scenes: unknown): string[];
 
+export declare function inspectContentPlugin(manifest: Readonly<Record<string, unknown>>): PluginDeclarationProblem[];
+
 export declare function instantIn(day: string, time: string, zone: string | undefined): string | null;
 
 export { instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
@@ -642,6 +670,8 @@ export declare function isHomeAggregateQuery(definition: {
     readonly operation: string;
     readonly action: object;
 }): boolean;
+
+export { isPresentationValuesAction } from "@molis-ai/molis-work-contracts/platform/presentation";
 
 export declare function isRecord(value: unknown): value is Record<string, unknown>;
 
@@ -678,6 +708,8 @@ export declare function objectSchema<const P extends Readonly<Record<string, unk
 };
 
 export declare function pageRouteProblems(manifest: PluginManifest): string[];
+
+export declare function parseContentPackage(payload: unknown): ContentPackage;
 
 export declare function parsePluginManifest(input: unknown): PluginManifest;
 
@@ -780,6 +812,8 @@ export { sceneConfigurationActions } from "@molis-ai/molis-work-contracts/platfo
 export { searchEntriesPage } from "@molis-ai/molis-work-contracts/platform/actions";
 export { searchRevisionOf } from "@molis-ai/molis-work-contracts/platform/actions";
 export { searchText } from "@molis-ai/molis-work-contracts/platform/actions";
+
+export declare function skillDeclarationFromFrontmatter(markdown: string, options?: SkillFrontmatterOptions): AgentSkillDeclaration;
 
 export declare function splitLines(text: string): DiffLine[];
 

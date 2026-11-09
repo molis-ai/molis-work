@@ -8,13 +8,14 @@
 // for something else to settle, and what it records must not depend on which step it landed in. The id stream is keyed by the step and by the line asking, not by a global counter: anything in
 // the background may take an id any number of times, and that must not shift what other code gets. A step does not start until the last one has
 // gone quiet, so what a step started in the background lands in that step.
+import childProcess from "node:child_process";
 import crypto, { createHash } from "node:crypto";
 import { syncBuiltinESMExports } from "node:module";
 import path from "node:path";
 import timers from "node:timers";
 import { fileURLToPath } from "node:url";
+import { freezeDate, GENERATION_START } from "./generation-clock.mjs";
 
-const START = Date.parse("2026-01-15T09:00:00.000Z");
 const QUIET_MILLISECONDS = 150;
 /** A period this long never comes due. The longest one that has to run for a generation to work is 2 seconds, and the shortest of the Host's rounds is 20. */
 const LONG_PERIOD_MILLISECONDS = 10_000;
@@ -28,20 +29,10 @@ function callerKey() {
 }
 
 export function installDeterminism(seed) {
-  const RealDate = Date;
-  const realNow = RealDate.now;
-  const clock = START;
+  const realNow = Date.now;
   let label = "start", counters = new Map(), lastUse = realNow();
 
-  function FixedDate(...args) {
-    if (!new.target) return new RealDate(clock).toString();
-    return new RealDate(...(args.length ? args : [clock]));
-  }
-  FixedDate.prototype = RealDate.prototype;
-  FixedDate.now = () => clock;
-  FixedDate.parse = RealDate.parse;
-  FixedDate.UTC = RealDate.UTC;
-  globalThis.Date = FixedDate;
+  freezeDate(GENERATION_START);
 
   // Still a real timer, so whoever holds it can unref and clear it as usual. Only its callback is gone.
   const realInterval = globalThis.setInterval;
@@ -50,6 +41,10 @@ export function installDeterminism(seed) {
     : realInterval(callback, period, ...rest);
   globalThis.setInterval = standingInterval;
   timers.setInterval = standingInterval;
+
+  // A forked process runs on the same clock: the statement process enforces the deadlines this one gives it (scripts/golden/frozen-clock.mjs).
+  const realFork = childProcess.fork;
+  childProcess.fork = (module, args, options) => realFork(module, args, { ...options, execArgv: [...(options?.execArgv ?? []), "--import", new URL("./frozen-clock.mjs", import.meta.url).href] });
 
   const fill = (target, offset = 0, size = target.length - offset) => {
     lastUse = realNow();

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { readVersionedFile, type VersionedFile, type VersionedFileStep } from "@molis-ai/molis-work-storage";
+import { assertVersionedFileWritable, readVersionedFile, type VersionedFile, type VersionedFileStep } from "@molis-ai/molis-work-storage";
 import { hostLog } from "../host-log.js";
 
 /**
@@ -135,9 +135,11 @@ export class ComputerRecords {
     try { return fs.readFileSync(path.join(this.folder(id), name)); } catch { return null; }
   }
 
+  /** A record too new for this build, not yet upgraded or unreadable is not shown, and not this build's to remove either: refused, kept (§2.6). */
   remove(id: string): boolean {
     const folder = this.folder(id);
     if (!fs.existsSync(folder)) return false;
+    assertVersionedFileWritable(COMPUTER_RECORD_FILE, path.join(folder, "record.json"));
     fs.rmSync(folder, { recursive: true, force: true });
     return true;
   }

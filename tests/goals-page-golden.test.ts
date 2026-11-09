@@ -97,6 +97,24 @@ const pages: Record<string, Draw> = {
 // bar's template (`<template data-settings-return-bar-template>`, the SDK's renderReturnBar; 546 / 568 characters in zh / en), so the
 // 16 records of the 8 project pages grew by 1092 / 1136. Each of those 16, drawn with only the two templates taken out, had its old hash
 // and length exactly; they were then recorded with MOLIS_WORK_GOLDEN_RECORD=1. The other 50 records did not change.
+// 07-1 S3–S5 (product-flow-governance §4.6.2; on main 6f39755f00, where S1+S2 landed as #1853): the shell's bar and titlebar changed, and
+// only they. All 66 pages were drawn on an independently built 6f39755f00 (each matched its record there) and on this branch, and compared token by token: the
+// 16 records of the 8 project pages differ in 22 distinct shell hunks and nothing else — the titlebar's personal-tool slot gone
+// (`data-home-plugin-open`), the Issue side glyph's title and `aria-keyshortcuts`, `data-rail-group` on the switcher's tiles, the
+// switcher's name (切换插件 ⌘K), the bar's side button replaced by the person's own tray (`data-bar-own`), and the 个人 group of the
+// switcher emptied here (this view has no Host directory, so no plugin carries the Host's personal and home marks that 个人 now reads;
+// 灵光, 待办, Jelly and Cognia list under 更多). No Goals markup or JSON changed; the 16 were then recorded with
+// MOLIS_WORK_GOLDEN_RECORD=1. The other 50 records did not change.
+// D0038: independently built main cee9bb122 reproduced all 66 original hashes. The 34 changed expectations were
+// derived only by renaming the complete meta name molis-work-control-token to molis-work-page-session in those draws.
+// Candidate normalized markup matched each derived page byte for byte; the other 32 records remained exact.
+// Candidate RECORD mode was not used; executable scripts remain covered by the existing page-asset checks.
+// Batch 05 (#1979, shared sources and surfaces): the shell's project settings section 工作目录 / its English is now 输入与输出 / its English
+// (the directory row and settings link), and the shell's project-delete dialog carries the default-output choice, the busy alert and the
+// kept-folder view. All 66 pages were drawn on an independently built main 481e3d7500 (with D0038) (each matched its record there) and on this branch merged with it,
+// and compared token by token: the 20 records of the 8 project pages and settings-general(-embedded) differ in the label and the dialog,
+// the other 10 (5 settings and planning pages) in the label alone; no Goals markup or JSON changed. The 30 were then recorded with
+// MOLIS_WORK_GOLDEN_RECORD=1. The other 36 records did not change.
 const RECORDED = new URL("golden.json", GOLDEN);
 interface Recorded { sha256: string; length: number }
 const recorded: Record<string, Recorded> = record ? {} : JSON.parse(readFileSync(RECORDED, "utf8"));

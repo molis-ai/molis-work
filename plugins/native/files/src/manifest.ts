@@ -1,6 +1,6 @@
 import { FILES_ACTIONS } from "./actions.js";
 import { HOST_WORKSPACE_CHANGED_EVENT, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import { projectDirectoryActions } from "@molis-ai/molis-work-contracts/modules/projects";
 import {
   CODING_RUN_UPDATED_EVENT,
   GIT_OPERATION_UPDATED_EVENT,
@@ -61,7 +61,7 @@ export const filesManifest: PluginManifest = {
   ],
   capabilities: {
     provides: [],
-    consumes: [projectSettingsCapabilities.browsingWorkspace.capability_id, workspaceReadActions.file.capability_id, "diff.state", "text-stats.state"],
+    consumes: [projectDirectoryActions.get.capability_id, workspaceReadActions.file.capability_id, "diff.state", "text-stats.state"],
   },
   actions: FILES_ACTIONS,
   artifacts: { produces: [], consumes: [] },

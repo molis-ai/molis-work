@@ -27,7 +27,10 @@ export class RuntimeBindingRecords {
     return this.workContexts.list();
   }
 
-  findWorkspaceMembershipByIds(workspaceId: string, projectId: string): MolisWorkWorkspaceMembership | null {
+  /** The project's link to the folder at this path: its row is found by the path (§3 「路径到行」), and a path with no row has none. */
+  findWorkspaceMembershipAt(canonicalPath: string, projectId: string): MolisWorkWorkspaceMembership | null {
+    const workspaceId = this.projects.query.workspaceIdAt(canonicalPath);
+    if (!workspaceId) return null;
     return this.projects.query.listWorkspaceMemberships().find(
       (membership) => membership.workspace_id === workspaceId && membership.project_id === projectId,
     ) ?? null;

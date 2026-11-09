@@ -3,7 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { TestContext } from "node:test";
 import { LocalHost, LocalProjectDatabase, createPluginPlatform, homeStores, seedDemoBoard, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
-import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import { projectDirectoryActions } from "@molis-ai/molis-work-contracts/modules/projects";
+import { projectDirectories } from "./plugin-actions.js";
 import { parseArtifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -33,7 +34,7 @@ export async function codingSdkRuntime(t: TestContext, options: { modelEndpoint?
   registerAgentHostCapabilities({ register: (definition, handler) => local.registerAction(definition, handler) }, {
     agentHost: () => agentHost, projectId: () => DEMO_PROJECT_ID, authority: () => ({ manifest: codingAgentManifest, prompts: codingPrompts, authorizedDirectories: [home], skill_owner: { project_id: DEMO_PROJECT_ID, plugin_id: "io.molis.work.coding" } }),
   });
-  local.registerAction(projectSettingsCapabilities.workspaces, () => [{ workspace_id: "work", canonical_path: home, display_name: "Fixture", realpath_verified: true }]);
+  local.registerAction(projectDirectoryActions.get, () => projectDirectories(DEMO_PROJECT_ID, [{ workspace_id: "work", canonical_path: home, display_name: "Fixture" }]));
   const privateStorage = new SqlitePluginPrivateStorage(store.db), artifacts = new ArtifactsModule({ db: store.db, homeOwner: "web-user", appendEvent: event => store.appendEvent(event), eventCursor: id => store.eventCursor(id) });
   const processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: id => store.eventCursor(id) });
   // Coding reads what the person brought through project knowledge (specs/project-knowledge PMAT-18); here its stand-in answers

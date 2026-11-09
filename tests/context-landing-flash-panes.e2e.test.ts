@@ -26,7 +26,7 @@ test("PANE-FLASH-01, PANE-FLASH-02, MENU-FLASH-01 (W3-A3c, S-30): hovering 「�
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${left.id}` }, sessionId));
   await child.waitFor("document.querySelector('[data-pages-title]')?.value === '发布计划'");
-  await click("[data-titlebar-tabs] [data-tab-split]");
+  await click("[data-layout-open]");
   await click("[data-layout-split=right]");
   await paneView.waitFor(`${paneText}.includes('先完成核心体验')`, 20_000);
 

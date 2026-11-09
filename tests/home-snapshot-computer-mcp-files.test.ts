@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
-import { ComputerRecords, ComputerSettings, createHomeSnapshot, homeStores, type HomeSnapshotManifest } from "@molis-ai/molis-work-app-local-host";
+import { changeMcpClientCredential, mcpClientCredentialPath, ComputerRecords, ComputerSettings, createHomeSnapshot, homeStores, type HomeSnapshotManifest } from "@molis-ai/molis-work-app-local-host";
 import { smallSnapshotHome } from "./fixtures/home-snapshot-small.js";
 
 test("a Home with computer records and MCP action versions can be snapshotted, and the snapshot carries their bytes", async t => {
@@ -31,4 +31,14 @@ test("a top-level entry nobody registered is still refused as unknown", async t 
   const f = await smallSnapshotHome(t);
   await f.file("nobody-registered-this/file.json");
   await assert.rejects(createHomeSnapshot({ homeDirectory: f.home, destination: f.snapshot }), { code: "host.home_snapshot.unknown_data" });
+});
+
+test("D0071-05 a Home snapshot excludes independent MCP credentials and keeps the source registration intact", async t => {
+  const f = await smallSnapshotHome(t);
+  changeMcpClientCredential(f.home, "runtime:codex", "connect");
+  const file = mcpClientCredentialPath(f.home, "runtime:codex"), before = await readFile(file, "utf8");
+  assert.equal((await createHomeSnapshot({ homeDirectory: f.home, destination: f.snapshot })).status, "created");
+  const manifest: HomeSnapshotManifest = JSON.parse(await readFile(join(f.snapshot, "manifest.json"), "utf8"));
+  assert.equal(manifest.stores.flatMap(store => store.entries).some(entry => entry.path.startsWith("config/mcp-client-credentials")), false);
+  assert.equal(await readFile(file, "utf8"), before);
 });

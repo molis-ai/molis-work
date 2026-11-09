@@ -1,3 +1,4 @@
+import { changeMcpClientCredential } from "@molis-ai/molis-work-app-local-host";
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -124,6 +125,7 @@ test("W3-07-7-03 an authorized management action tool still executes through the
   const reference = { capability_id: action.capability_id, version: 1, provider_id: "management-routing" };
   await grantMcpAction(web, { clientId: actor, projectId: env.project.project_id, action: reference });
   const opened: string[] = [], fallbackHost = createMolisWorkLocalHost({ onRuntimeOpen: ref => opened.push(ref.storage_key) });
+  changeMcpClientCredential(env.home, actor, "connect");
   const mcp = new LocalMcpServer(withMolisWorkProjectCatalog, "management", { projectId: env.project.project_id,
     databasePath: env.project.database_path, webBaseUrl: env.origin }, { homeDirectory: env.home, runtimeContext: context }, fallbackHost, env.origin);
   t.after(async () => { await mcp.close(); await fallbackHost.close(); });

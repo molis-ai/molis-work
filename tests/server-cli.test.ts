@@ -14,7 +14,7 @@ const fixture = fileURLToPath(new URL("./fixtures/server-cli-close.mjs", import.
 const stdoutFixture = fileURLToPath(new URL("./fixtures/server-cli-stdout.mjs", import.meta.url));
 const help = "serve --state DIR --config FILE --host-home DIR [--host-url http://127.0.0.1:4173] [--port 4187]\n"
   + "For LAN add --hostname ADDRESS --origin https://ADDRESS:PORT --cert FILE --key FILE\n"
-  + "authorize --state DIR --member ID --project ID --control-token-file FILE [--host-url URL] [--revoke]\n"
+  + "authorize --state DIR --member ID --project ID --host-home DIR --control-token-file FILE [--host-url URL] [--revoke]\n"
   + "members --state DIR\nrestore --bundle FILE --destination DIR\nread-assets --destination DIR --project SOURCE_PROJECT_ID\n";
 
 function home(t: TestContext): string {

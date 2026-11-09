@@ -11,89 +11,66 @@ import { DatabaseSync } from "node:sqlite";
 import { LocalProjectDatabase, MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { filesManifest } from "@molis-ai/molis-work-plugin-files";
 import { codingManifest } from "@molis-ai/molis-work-plugin-coding";
-import { projectSettingsCapabilities as settings, projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import { projectDirectoryActions, projectSettingsCapabilities as settings } from "@molis-ai/molis-work-contracts/modules/projects";
+import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { PROJECT_BROWSING_SETTINGS_SCHEMA_SQL, ProjectBrowsingSettings } from "../apps/local-host/dist/project-browsing-settings.js";
 import { callerPlugin, startPlugin } from "./fixtures/plugin-callers.js";
 
 const workspace = (id: string) => ({ workspace_id: id, canonical_path: "/test/" + id, realpath_verified: true, display_name: id });
 
-test("Manifest gates individual settings; host scopes and projects records, rejects injected selectors", async () => {
+// SSC-05: the browsing position is in no contract — its actions and table are gone; a plugin reads the project's folders with
+// `projects.directories.get@1`, declared in its Manifest, for the project of its call only.
+test("Manifest gates the project's directories; host scopes them to the call's project, rejects injected selectors, and keeps no browsing choice", async () => {
   const home = await mkdtemp(join(tmpdir(), "project-settings-"));
-  const host = new MolisWorkLocalHost({ workspacesFor: id => [{ ...workspace(id), project_ids: [id, "secret-project"], created_at: "private" }] });
-  const reference = (projectId: string) => molisWorkHostProjectReference({ databasePath: join(home, projectId + ".db"), projectId: projectId });
-  const client = (projectId: string) => host.client(reference(projectId));
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+  const [projectA, projectB] = [await catalog.createProject({ display_name: "A", actor_id: "user" }), await catalog.createProject({ display_name: "B", actor_id: "user" })];
+  catalog.close();
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  host.configurePersonalPlanning(home, withMolisWorkProjectCatalog);
+  const references = new Map([projectA, projectB].map(row => [row.project_id, molisWorkHostProjectReference({ databasePath: row.database_path, projectId: row.project_id })]));
+  const reference = (projectId: string) => references.get(projectId)!;
+  const a = projectA.project_id, b = projectB.project_id;
   const store = new LocalProjectDatabase(join(home, "plugins.db"));
   // A plugin consuming `consumes`, started through the Host's plugin executor; its `services.actions` is what a plugin calls.
-  const consumer = async (name: string, consumes: readonly string[]) => {
+  const consumer = async (name: string, consumes: readonly string[], projectId = a) => {
     const plugin = callerPlugin(name, "project", {}, consumes);
-    await startPlugin(host, reference("a"), store, plugin);
-    return plugin.actions("a");
+    await startPlugin(host, reference(projectId), store, plugin);
+    return plugin.actions(projectId);
   };
   const control = { beforeEffect: async () => {} };
+  const get = projectDirectoryActions.get;
   try {
-    const a = client("a"), b = client("b");
-    await a.invoke(projectsCapabilities.listWorkspaces, []);
-    // N29: check registration independently of the caller's audience. The selector is restricted to the person.
+    const person = host.client(reference(a));
+    const own = await person.invoke(get, {});
+    assert.equal(own.project_id, a);
+    assert.equal(own.directories.filter(item => item.roles.includes("output")).length, 1);
     const registered = host.status().capabilities;
-    for (const id of ["projects.workspaces.list", "projects.settings.workspaces.read",
-      "projects.settings.browsing-workspace.read", "projects.settings.browsing-workspace.select"]) {
-      assert.ok(registered.some(row => row.capability_id === id && row.version === 1 && row.action), id);
-      assert.ok(!registered.some(row => row.capability_id === id + ".v1"), id + ".v1");
+    assert.ok(registered.some(row => row.capability_id === get.capability_id && row.version === 1 && row.action));
+    for (const id of ["projects.workspaces.list", "projects.settings.workspaces.read", "projects.settings.browsing-workspace.read", "projects.settings.browsing-workspace.select"]) {
+      assert.ok(!registered.some(row => row.capability_id === id || row.capability_id === id + ".v1"), `${id} is not registered`);
     }
-    // Files reads the current directory only; Coding reads the current directory (one directory for new rounds, Files and Git) as well as the list.
-    assert.deepEqual([settings.workspaces, settings.browsingWorkspace].map(item => filesManifest.capabilities.consumes.includes(item.capability_id)), [false, true]);
-    assert.deepEqual([settings.workspaces, settings.browsingWorkspace].map(item => codingManifest.capabilities.consumes.includes(item.capability_id)), [true, true]);
+    // Files and Coding read the folders with their roles; neither declares a browsing setting.
+    for (const manifest of [filesManifest, codingManifest]) {
+      assert.ok(manifest.capabilities.consumes.includes(get.capability_id), manifest.plugin_id);
+      assert.ok(!manifest.capabilities.consumes.some(id => id.startsWith("projects.settings.workspaces") || id.startsWith("projects.settings.browsing-workspace")), manifest.plugin_id);
+    }
     const none = await consumer("none", []);
-    await assert.rejects(none.invoke(settings.workspaces, [], control), /没有声明/);
-    await assert.rejects(none.invoke(settings.browsingWorkspace, [], control), /没有声明/);
-    const files = await consumer("files", [settings.browsingWorkspace.capability_id]);
-    assert.deepEqual(await files.invoke(settings.browsingWorkspace, [], control), workspace("a"));
-    await assert.rejects(files.invoke(settings.workspaces, [], control), /没有声明/);
-    const coding = await consumer("coding", [settings.workspaces.capability_id, settings.browsingWorkspace.capability_id]);
-    assert.deepEqual(await coding.invoke(settings.workspaces, [], control), [workspace("a")]);
-    assert.deepEqual(await coding.invoke(settings.browsingWorkspace, [], control), workspace("a"));
-    // Each setting is gated on its own: declaring the list does not grant the current directory.
-    const listOnly = await consumer("listonly", [settings.workspaces.capability_id]);
-    assert.deepEqual(await listOnly.invoke(settings.workspaces, [], control), [workspace("a")]);
-    await assert.rejects(listOnly.invoke(settings.browsingWorkspace, [], control), /没有声明/);
-    assert.deepEqual(await b.invoke(settings.workspaces, []), [workspace("b")]);
-    assert.deepEqual(await a.invoke(projectsCapabilities.listWorkspaces, []), [workspace("a")]);
-    await assert.rejects(a.invoke(settings.workspaces, { project_id: "b" } as never), { code: "actions.input_invalid" });
-    await assert.rejects(a.invoke(settings.browsingWorkspace, ["b"] as never), { code: "actions.input_invalid" });
+    await assert.rejects(none.invoke(get, {}, control), /没有声明/);
+    const files = await consumer("files", [get.capability_id]);
+    assert.deepEqual(await files.invoke(get, {}, control), own);
+    const ofB = await consumer("files-b", [get.capability_id], b);
+    const theirs = await ofB.invoke(get, {}, control);
+    assert.equal(theirs.project_id, b);
+    assert.equal(theirs.directories.some(item => own.directories.some(mine => mine.workspace_id === item.workspace_id)), false, "another project's folders are not offered");
+    await assert.rejects(files.invoke(get, { project_id: b } as never, control), { code: "actions.input_invalid" });
+    await assert.rejects(person.invoke(get, { project_id: b } as never), { code: "actions.input_invalid" });
+    // Reading keeps no browsing choice in the project's database.
+    const database = new DatabaseSync(projectA.database_path, { readOnly: true });
+    try { assert.deepEqual(database.prepare("SELECT name FROM sqlite_master WHERE name = 'project_browsing_settings'").all(), []); } finally { database.close(); }
     const unavailable = new MolisWorkLocalHost();
-    try { await assert.rejects(unavailable.client(a.project).invoke(settings.workspaces, [])); }
+    try { await assert.rejects(unavailable.client(reference(a)).invoke(get, {}), { code: "actions.service_unavailable" }); }
     finally { await unavailable.close(); }
   } finally { store.close(); await host.close(); await rm(home, { recursive: true, force: true }); }
-});
-
-test("browsing choice persists; membership remains authoritative across restart and revocation", () => {
-  const db = openTestSqlite(":memory:");
-  try {
-    db.exec(PROJECT_BROWSING_SETTINGS_SCHEMA_SQL);
-    const workspaces = [workspace("one"), workspace("two")];
-    const preferences = new ProjectBrowsingSettings(db);
-    assert.equal(preferences.read("a", workspaces), null, "nothing is chosen for the person among two");
-    assert.deepEqual(preferences.read("a", [workspace("two")]), workspace("two"), "the one linked workspace needs no choice");
-    preferences.select("a", "one", workspaces);
-    assert.deepEqual(new ProjectBrowsingSettings(db).read("a", workspaces), workspace("one"));
-    assert.throws(() => preferences.select("a", "foreign", workspaces), /当前项目/);
-    assert.equal(preferences.read("a", [workspace("two")]), null);
-    assert.equal(preferences.read("a", [{ ...workspace("one"), realpath_verified: false }]), null);
-    assert.deepEqual(preferences.read("a", workspaces), workspace("one"));
-    assert.deepEqual(db.prepare("SELECT * FROM project_browsing_settings").all(), [{ project_id: "a", workspace_id: "one" }]);
-  } finally { db.close(); }
-});
-
-test("empty and multi-directory settings do not invent a selection", () => {
-  const db = openTestSqlite(":memory:");
-  try {
-    db.exec(PROJECT_BROWSING_SETTINGS_SCHEMA_SQL);
-    const settings = new ProjectBrowsingSettings(db);
-    assert.equal(settings.read("a", []), null);
-    assert.equal(settings.read("a", [workspace("one"), workspace("two")]), null);
-    assert.deepEqual(settings.read("a", [workspace("one")]), workspace("one"));
-  } finally { db.close(); }
 });
 
 test("RAC-454 the project's Runtime pick is the person's own setting: Coding reads it by its declaration, nothing else picks it, a project that never picked has no table, and another project does not see it", async () => {
@@ -139,7 +116,6 @@ test("B4: composing project repositories cannot repair a database outside its ba
   try {
     db.exec("PRAGMA user_version = 9");
     new AttentionModule(db, { exists: () => false });
-    new ProjectBrowsingSettings(db);
     new SqlitePluginEventsRepository(db);
     new SqlitePluginPrivateStorage(db);
     new SqlitePluginRuntimeReleaseArtifactRepository(db);

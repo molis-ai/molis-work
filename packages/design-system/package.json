@@ -18,6 +18,7 @@
   "files": [
     "dist",
     "fonts",
+    "resources",
     "README.md"
   ],
   "scripts": {

@@ -1,3 +1,4 @@
+import { changeMcpClientCredential } from "@molis-ai/molis-work-app-local-host";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -62,6 +63,7 @@ test("Goals MCP action tools use client grants and the shared Host, and record t
     }, stderr: "pipe" });
     let errors = ""; transport.stderr?.on("data", chunk => { errors += String(chunk); });
     await sdk.connect(transport).catch(error => { throw new Error(String(error) + errors); });
+    changeMcpClientCredential(home, clientId, "connect");
     const names = async () => (await sdk.listTools()).tools.map(tool => tool.name);
     for (const alias of Object.values(aliases)) assert.equal((await names()).includes(alias), false);
     assert.equal((await sdk.callTool({ name: aliases.create, arguments: input })).isError, true, "a project binding grants no writes");
@@ -154,6 +156,7 @@ test("Goals MCP action tools use client grants and the shared Host, and record t
     assert.equal((await sdk.callTool({ name: molisWorkActionToolName(goalsActions.state), arguments: { goal_id: input.goal_id } })).isError, true);
     assert.ok(withoutState.includes(aliases.event), "revoking state does not revoke a separately granted event query");
     // In production these are separate processes on the same resident service; in one process they share its Host (one Runtime owner per Home).
+    changeMcpClientCredential(home, "runtime:stranger", "connect");
     const other = new LocalMcpServer(withCatalog, "runtime", { projectId: project.project_id, databasePath: project.database_path,
       webBaseUrl: origin }, { homeDirectory: home, runtimeContext: { ...context, runtime_id: "stranger" } }, host, origin);
     try { await assert.rejects(other.callTool(aliases.list, {}), { code: "mcp.tool_unknown" }, "a client without grants is not shown the action"); } finally { await other.close(); }

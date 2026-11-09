@@ -2,6 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { PluginPrivateStorage, PluginExecutionControl } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import { pluginComponentChoices } from '@molis-ai/molis-work-design-system';
 import { createStudioPublisher } from '@molis-ai/molis-work-app-local-host';
 import { AgentBuilderWorkflow, type AgentBuilderPorts, type AgentBuild, type AgentRelease, type AgentDesign } from '@molis-ai/molis-work-plugin-builder';
 import { packageFiles } from './sandbox-package.js';
@@ -24,7 +25,7 @@ export function publicationPorts(home: string, root: string): AgentBuilderPorts 
 }
 
 /** A previously checked fixed source, for publication boundary tests; real checking/browser coverage is separate. */
-export function readyPublication(home: string, project: string, scope: 'project' | 'home' = 'home') {
+export function readyPublication(home: string, project: string, scope: 'project' | 'home' = 'home', designFor?: (design: AgentDesign) => AgentDesign) {
   const root = join(home, 'plugin-builder', project); mkdirSync(root, { recursive: true });
   const statePath = join(root, 'fixture-state.json'); writeFileSync(statePath, '{}');
   const storage = publicationStorage(statePath), ports = publicationPorts(home, root), workflow = new AgentBuilderWorkflow(storage, ports), initial = workflow.store.create('Fixed notes publication');
@@ -36,9 +37,11 @@ export function readyPublication(home: string, project: string, scope: 'project'
   const directory = join(root, 'builds', initial.id, 'one'), bundlePath = join(directory, 'build', 'plugin.mjs');
   mkdirSync(join(directory, 'build'), { recursive: true }); mkdirSync(join(directory, 'src'), { recursive: true });
   writeFileSync(bundlePath, files['plugin.mjs']!, { mode: 0o400 });
+  const candidate: AgentDesign = { id: 'notes', title: 'Fixed notes', description: 'A fixed publication fixture', rationale: 'Test the real publisher', journey: ['Add', 'Read'], contract, parts: surface.parts, acceptance: [] };
+  const design = designFor?.(candidate) ?? candidate;
+  const nodes = designFor ? design.parts.map(part => ({ ...part, kind: pluginComponentChoices(part, design.contract)[0]!.kind })) : surface.nodes;
   const build = workflow.store.update(initial.id, initial.revision, value => Object.assign(value, {
-    design: { id: 'notes', title: 'Fixed notes', description: 'A fixed publication fixture', rationale: 'Test the real publisher', journey: ['Add', 'Read'], contract, parts: surface.parts, acceptance: [] },
-    title: 'Fixed notes', directory, nodes: surface.nodes, connected: ['notes.list', 'notes.add'], runtimeScope: scope === 'home' ? 'home' : undefined,
+    design, title: design.title, directory, nodes, connected: ['notes.list', 'notes.add'], runtimeScope: scope === 'home' ? 'home' : undefined,
     checksScope: scope === 'home' ? 'home' : undefined, checks: { global: { passed: true, bundlePath, gates: [] } },
     browserResult: { passed: true, cases: [], at: '2026-11-01T00:00:00Z' }, phase: 'ready',
   }));

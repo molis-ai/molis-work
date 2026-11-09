@@ -28,7 +28,7 @@ export function bindLanding(page: PagesPage) {
     if (!sel) return;
     const documentId = sel.id;
     void editor.runCommand("", undefined, { ...(whole ? { scope: "object" as const } : { localId: focusNow!.local_id }), title: chosen.title,
-      mode: chosen.apply === "replace" ? "replace" : "insert_after", okLabel: chosen.apply === "replace" ? uiText.text("pages.landing.replace") : uiText.text("pages.landing.insert-after"),
+      mode: chosen.apply === "replace" ? "replace" : "insert_after", okLabel: chosen.apply === "replace" ? "pages.landing.replace" : "pages.landing.insert-after",
       prepare: async () => {
         const prepared = await chosen.prepare();
         const input = (prepared && prepared.input ? prepared.input : {}) as { id?: unknown; command?: unknown; style?: unknown; text?: unknown };

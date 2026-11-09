@@ -1,3 +1,4 @@
+import { pageText } from "./fixtures/page-text.js";
 import { pluginDocuments } from "./fixtures/plugin-documents.js";
 import { pagesTestPorts } from "./fixtures/pages-actions.js";
 import assert from "node:assert/strict";
@@ -273,6 +274,11 @@ async function withHome<T>(run: (home: string) => Promise<T>): Promise<T> {
 }
 
 // W5-10-PGC-01/02, W5-10-PGV-01/02: public imports and the built editor exercise the split commands and node views.
+const pagesWords = pageText("zh", "pages");
+function placeholderText(pos: Parameters<typeof blockPlaceholder>[0]): string {
+  const key = blockPlaceholder(pos); return key ? pagesWords(key) : "";
+}
+
 test("标题里按回车落到正文开头", () => {
   const blank = pagesSchema.node("doc", null, [pagesSchema.node("paragraph")]);
   assert.equal(docStart(blank), 1);
@@ -1594,7 +1600,7 @@ test("敲 > 空格变成引用，连续的引用行粘在同一块里", () => {
   const holder = pagesSchema.node("doc", null, [
     pagesSchema.node("blockquote", null, [pagesSchema.node("paragraph")]),
   ]);
-  assert.equal(blockPlaceholder(holder.resolve(2)), "引用");
+  assert.equal(placeholderText(holder.resolve(2)), "引用");
   const rendered = pagesSchema.nodes.blockquote.spec.toDOM?.(holder.child(0));
   assert.equal(Array.isArray(rendered) ? rendered[0] : "", "blockquote");
   assert.equal(Array.isArray(rendered) ? (rendered[1] as { class?: string }).class : "", "pages-quote");
@@ -3644,7 +3650,7 @@ test("分栏并排两栏，可以再加一栏，取消后正文按顺序留下",
   assert.equal(opened.doc.child(0).type.name, "column_list");
   assert.equal(opened.doc.child(0).childCount, 2);
   assert.equal(opened.doc.child(0).child(0).type.name, "column");
-  assert.equal(blockPlaceholder(opened.selection.$from), "这一栏");
+  assert.equal(placeholderText(opened.selection.$from), "这一栏");
 
   const wider = opened.apply(addColumn(opened, 0)!);
   assert.equal(wider.doc.child(0).childCount, 3);
@@ -4929,13 +4935,13 @@ test("占位按块型和它的容器给词，写了字就不再提示", () => {
     const state = pagesState(pagesSchema.node("doc", null, [block]));
     // Land the caret in the first text position, which is where a typing user sits.
     const caret = TextSelection.near(state.doc.resolve(1));
-    assert.equal(blockPlaceholder(caret.$from), expected, name);
+    assert.equal(placeholderText(caret.$from), expected, name);
   }
 
   const written = pagesState(pagesSchema.node("doc", null, [
     pagesSchema.node("paragraph", null, [pagesSchema.text("已经写了字")]),
   ]));
-  assert.equal(blockPlaceholder(written.doc.resolve(1)), "", "有内容的块不该出现占位");
+  assert.equal(placeholderText(written.doc.resolve(1)), "", "有内容的块不该出现占位");
 
   const cell = pagesState(pagesSchema.node("doc", null, [
     pagesSchema.node("table", null, [
@@ -4945,7 +4951,7 @@ test("占位按块型和它的容器给词，写了字就不再提示", () => {
       ]),
     ]),
   ]));
-  assert.equal(blockPlaceholder(TextSelection.near(cell.doc.resolve(1)).$from), "", "表格单元格不给占位");
+  assert.equal(placeholderText(TextSelection.near(cell.doc.resolve(1)).$from), "", "表格单元格不给占位");
 });
 
 test("Mod-A 先圈住当前块，再按才铺到整篇", () => {

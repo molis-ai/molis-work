@@ -19,16 +19,16 @@ export function columnNodeView(node: Node, view: EditorView, getPos: () => numbe
   const handle = document.createElement("button");
   handle.type = "button";
   handle.className = "pages-column-resize";
-  handle.setAttribute("aria-label", t(translate, "调整栏宽"));
+  handle.setAttribute("aria-label", t(translate, "pages.editor.resize-column"));
   handle.setAttribute("aria-keyshortcuts", SIZE_KEYS);
-  const value = sizeHandle(handle, view, getPos, (text) => t(translate, text));
+  const value = sizeHandle(handle, view, getPos, (key, args) => t(translate, key, args));
   const paint = () => {
     const pos = getPos(), own = safePagesColumnShare(current.attrs.width);
     let all = 0;
     if (pos != null) view.state.doc.resolve(pos).parent.forEach((column) => { all += safePagesColumnShare(column.attrs.width); });
     const n = all ? Math.round(own / all * 100) : 100;
     dom.dataset.pagesColumnShare = String(own);
-    value(n, 0, 100, t(translate, "栏宽 {n}%").replace("{n}", String(n)));
+    value(n, 0, 100, t(translate, "pages.editor-size-keys.column-n", { n }));
   };
   handle.addEventListener("mousedown", keepFocus);
   handle.addEventListener("pointerdown", (event) => {
@@ -90,13 +90,13 @@ export function cellNodeView(node: Node, view: EditorView, getPos: () => number 
   const handle = document.createElement("button");
   handle.type = "button";
   handle.className = "pages-col-resize";
-  handle.setAttribute("aria-label", t(translate, "调整列宽"));
+  handle.setAttribute("aria-label", t(translate, "pages.editor.resize-column-width"));
   handle.setAttribute("aria-keyshortcuts", SIZE_KEYS);
-  const value = sizeHandle(handle, view, getPos, (text) => t(translate, text));
+  const value = sizeHandle(handle, view, getPos, (key, args) => t(translate, key, args));
   // Without its own width a column is as wide as it is drawn, read again when the handle is reached.
   const read = () => {
     const n = safePagesColumnWidth(current.attrs.colwidth) || Math.round(dom.getBoundingClientRect().width);
-    value(n, safePagesColumnWidth(1), safePagesColumnWidth(1e9), t(translate, "列宽 {n} 像素").replace("{n}", String(n)));
+    value(n, safePagesColumnWidth(1), safePagesColumnWidth(1e9), t(translate, "pages.editor-size-keys.column-width-n-px", { n }));
   };
   handle.addEventListener("focus", read);
   const paint = () => {
@@ -224,7 +224,7 @@ export function calloutNodeView(
   mark.type = "button";
   mark.className = "pages-callout-mark";
   mark.dataset.pagesCalloutPick = "1";
-  const pickLabel = t(translate, "换图标或颜色");
+  const pickLabel = t(translate, "pages.editor.change-icon-or-colour");
   mark.setAttribute("aria-label", pickLabel);
   mark.title = pickLabel;
   mark.addEventListener("mousedown", keepFocus);

@@ -1,3 +1,4 @@
+import type { UiLocalePack } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { PluginComponentNode, PluginComponentPlan, PluginPresentation } from '@molis-ai/molis-work-design-system';
 import type { SandboxEffects, SandboxJson, SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { BuildManifest, BuildCheckResult } from '@molis-ai/molis-work-contracts/platform/plugin-builder';
@@ -15,6 +16,7 @@ export interface BrowserAcceptance {
     /** A record is chosen by its stable id or, since ids are made at run time, by text it shows. */
     | { action: 'select'; componentId: string; recordId?: string; text?: string }
     | { action: 'expect'; componentId: string; text: string }
+    | { action: 'expectWord'; componentId: string; word: 'title' | 'description' | 'submitLabel' | 'emptyText' | 'requiredText' }
     | { action: 'expectAbsent'; componentId: string; text: string }
     | { action: 'expectValue'; componentId: string; field: string; value: string | boolean }
     /** The texts appear in this order within the component, e.g. the newest record first. */
@@ -32,6 +34,7 @@ export interface AgentDesign {
   journey: string[];
   contract: SandboxPluginContract;
   parts: PluginComponentPlan[];
+  localePacks?: readonly UiLocalePack[];
   acceptance: BrowserAcceptance[];
   presentation?: PluginPresentation;
   /** The pre-freeze UI decision and representative content; advisory context, not executable acceptance. */

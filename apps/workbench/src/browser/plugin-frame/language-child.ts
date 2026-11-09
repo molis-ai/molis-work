@@ -16,6 +16,7 @@ export function frameLanguage(initial: FrameLanguage) {
     context.select(language.tag, next.packs, intl(next));
     document.documentElement.lang = language.html_lang;
     document.documentElement.dir = language.direction;
+    document.documentElement.dataset.uiLanguageTag = language.tag;
   };
   if (initial.opening) {
     const { before, after } = initial.opening;
@@ -42,6 +43,7 @@ export function frameLanguage(initial: FrameLanguage) {
       prepared = { turn: message.turn, use() {
         plan.apply(() => select(message.text), () => select(displayed));
         displayed = message.text;
+        document.dispatchEvent(new CustomEvent("molis-work:language-changed", { detail: { tag: displayed.language.tag } }));
       } };
       reply.postMessage(true);
     } catch { reply.postMessage(false); }

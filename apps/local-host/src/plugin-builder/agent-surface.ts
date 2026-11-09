@@ -1,3 +1,7 @@
+import { sandboxPluginManifest, effectsFromContract } from "@molis-ai/molis-work-plugin-sdk";
+import { studioWordReader } from "./studio-words.js";
+import { installedPluginName, installedPluginPage } from "./installed-page.js";
+import { shellPageRead } from "../web-sessions.js";
 import { modelRoundLocale } from "../reply-language.js";
 import { htmlLang } from "../web-locale.js";
 import { registeredBuiltinText } from "../ui-text-provider.js";
@@ -21,9 +25,8 @@ import { PLUGIN_COMPONENTS } from '@molis-ai/molis-work-design-system';
 import { AgentBuilderWorkflow, inDesignOrder, BUILDER_PLUGIN_ID, BUILDER_PROMPTS, builderManifest, builderPromptVersion, type AgentBuild, type AgentBuilderPorts, type AgentRelease, type AgentPublicationControl } from '@molis-ai/molis-work-plugin-builder';
 import type { LocalProjectDatabase } from '../project-database.js';
 import { selectionPorts } from '../plugin-builder-surface.js';
-import { installedStageSection, installedStageSurface } from '../installed-stage-section.js';
-import type { InstalledRelease } from '../installed-release.js';
-import { readLocalWebBody, sendLocalWebJson } from '../web-http.js';
+import { installedPluginBody, installedStageSection, installedStageSurface } from '../installed-stage-section.js';
+import { readLocalWebBody, refuseLocalWebRequest, requestHost, sendLocalWebJson } from '../web-http.js';
 import { ensureInstalledPlugins, INSTALLED_MODEL_KEY } from '../installed-plugin-host.js';
 import { generatedPluginManifest } from './installed.js';
 import { capabilityCatalog, type CatalogCapability, type ProjectActions } from './catalog.js';
@@ -132,14 +135,19 @@ async function openStudio(options: AgentStudioOptions): Promise<Studio> {
   return studio;
 }
 
-function page(title: string, body: string, configuration: Record<string, unknown>, options: AgentStudioOptions, controlToken: string) {
+function page(title: string, body: string, configuration: Record<string, unknown>, options: AgentStudioOptions, controlToken: string, draft?: { build: AgentBuild; workflow: AgentBuilderWorkflow }) {
   if (!options.homeDirectory) throw new Error('插件页面需要 Home');
-  const installed = configuration.mode === 'installed', pluginId = installed ? String(configuration.plugin_id) : BUILDER_PLUGIN_ID;
+  const installed = configuration.mode === 'installed', design = draft?.build.design, pluginId = installed ? String(configuration.plugin_id) : design?.localePacks ? design.contract.pluginId : BUILDER_PLUGIN_ID;
+  const manifest = design?.localePacks ? sandboxPluginManifest({ pluginId, name: design.title, version: '0.0.0',
+    publisher: { publisher_id: 'molis-studio', signature: 'agent-built:' + draft!.build.id }, presentation: design.presentation !== undefined, effects: effectsFromContract(design.contract), contract: design.contract }) : builderManifest;
   const active = studios.get(options.store)?.get(options.projectId), buildPath = '/api/plugin-builder/studio/builds/' + configuration.build;
   const authorization = pluginPagesFor(options.homeDirectory).open(pluginId, options.projectId, options.actorId ?? 'web-user', undefined, installed ? undefined : {
-    manifest: builderManifest, registeredText: registeredBuiltinText(builderManifest) ?? undefined, install_id: null, project_id: options.projectId, actor_id: options.actorId ?? 'web-user',
-    assertCurrent() { if (!active || studios.get(options.store)?.get(options.projectId) !== active) throw new Error('试用页面已关闭'); },
-    requestAllowed: (method, path) => method === 'GET' && path === buildPath || method === 'POST' && path === buildPath + '/call',
+    manifest, ...(design?.localePacks ? { exact: true } : {}), registeredText: (design?.localePacks ? studioWordReader(design, manifest) : registeredBuiltinText(builderManifest)) ?? undefined, install_id: null, project_id: options.projectId, actor_id: options.actorId ?? 'web-user',
+    assertCurrent() {
+      if (!active || studios.get(options.store)?.get(options.projectId) !== active || draft && draft.workflow.store.get(draft.build.id)?.design?.contract.revision !== design?.contract.revision)
+        throw new Error('试用页面已关闭');
+    },
+    requestAllowed: (method, path) => method === 'POST' && path === buildPath + '/call',
   });
   return renderPluginDocumentShell({ id: installed ? pluginId : 'plugin-builder-preview', plugin_id: pluginId, bundle: 'plugin-builder', lang: htmlLang(),
     title, html: body, accountRegistration:options.accountRegistration, project_id: options.projectId, route_prefix: options.routePrefix ?? '', page: configuration, control_token: controlToken, authorization });
@@ -161,7 +169,7 @@ export async function installedPluginStages(options: AgentStudioOptions): Promis
   return installed.records().filter(item => item.state === 'running' && !installed.recoveryErrors.has(item.plugin_id)).flatMap(item => {
     const release = installed.releaseFor(item.plugin_id);
     if (!release) return [];
-    const surface = installedStageSurface(release), label = release.design.title;
+    const surface = installedStageSurface(release), label = installedPluginName(release);
     const directory: PluginDirectoryEntry = { id: surface, plugin_id: item.plugin_id, name: label, chosen: false, ui: { views: generatedPluginManifest(release).ui.views ?? [] } };
     return [{ pluginId: item.plugin_id, surface, label, directory, stage: installedStageSection({ pluginId: item.plugin_id, surface, label, prefix }) }];
   });
@@ -172,29 +180,31 @@ export async function installedPluginStages(options: AgentStudioOptions): Promis
  * renderer a project's installed plugin uses, with every call going to the package's own sandboxed process through the Home's
  * route. The page keeps the Home activation; a verified project entrance additionally binds its triggering project (S-15, S-107).
  */
-export function renderHomePackageDocument(input: { home: string; actorId: string; release: InstalledRelease; controlToken: string; accountRegistration?:boolean; projectId?: string | null; assertProject?(): Promise<void> }): string {
-  const { release } = input, pluginId = release.pluginId;
-  const projectId = input.projectId ?? null, prefix = projectId ? '/projects/' + encodeURIComponent(projectId) : '';
-  const view = { contract: release.design.contract, nodes: inDesignOrder(release.design, release.nodes), presentation: release.design.presentation,
-    connected: release.design.contract.operations.map(item => item.id) };
-  return renderPluginDocumentShell({ id: pluginId, plugin_id: pluginId, bundle: 'plugin-builder', lang: htmlLang(), title: release.design.title, accountRegistration:input.accountRegistration,
-    html: '<main class="as-preview-page" data-installed-plugin="' + escapeHtml(pluginId) + '"></main>', project_id: projectId ?? '', route_prefix: prefix, control_token: input.controlToken,
-    page: { mode: 'installed', plugin_id: pluginId, call: prefix + '/api/plugins/' + pluginId + '/call', view },
-    authorization: pluginPagesFor(input.home).open(pluginId, projectId, input.actorId, input.assertProject) });
+export function renderHomePackageDocument(input: Omit<Parameters<typeof installedPluginPage>[0], 'prefix' | 'scope'> & {
+  controlToken: string; accountRegistration?: boolean; projection?: boolean;
+}) {
+  const { release, projectId } = input, pluginId = release.pluginId;
+  const prefix = projectId ? '/projects/' + encodeURIComponent(projectId) : '';
+  const document = installedPluginPage({ ...input, scope: 'home', prefix });
+  return input.projection ? document : renderPluginDocumentShell({ id: pluginId, plugin_id: pluginId, bundle: 'plugin-builder', lang: htmlLang(),
+    title: installedPluginName(release), accountRegistration: input.accountRegistration, html: installedPluginBody(pluginId), project_id: projectId ?? '',
+    route_prefix: prefix, control_token: input.controlToken, ...document });
 }
 
 /** The agent-built plugin studio. All mutations reach this dispatcher after the shared local HTTP control guard. */
 export async function handleAgentStudioHttp(request: IncomingMessage, response: ServerResponse, url: URL, options: AgentStudioOptions, controlToken: string): Promise<boolean> {
   const preview = /^\/plugin-builder\/studio\/preview\/([a-f0-9-]{36})$/u.exec(url.pathname);
   const api = /^\/api\/plugin-builder\/studio(\/.*)?$/u.exec(url.pathname);
-  const installedPage = /^\/plugins\/(io\.molis\.work\.generated\.[a-f0-9-]{36})$/u.exec(url.pathname);
-  const installedCall = /^\/api\/plugins\/(io\.molis\.work\.generated\.[a-f0-9-]{36})\/call$/u.exec(url.pathname);
+  const installedPage = /^\/plugins\/(io\.molis\.work\.[a-z0-9][a-z0-9.-]{0,185})$/u.exec(url.pathname);
+  const installedCall = /^\/api\/plugins\/(io\.molis\.work\.[a-z0-9][a-z0-9.-]{0,185})\/call$/u.exec(url.pathname);
   if (!preview && !api && !installedPage && !installedCall) return false;
   const method = request.method ?? 'GET', prefix = options.routePrefix ?? '';
   // These pages are frame documents: the studio's trial or the host's own acceptance run asks for them with the frame
   // marker. Opened directly, they open the workbench at their surface instead (specs/artifact-positioning S3). The studio
   // itself is drawn in the workbench's stage (S4) and has no page of its own.
   const framed = url.searchParams.get('frame') === 'workbench';
+  const projection = installedPage && framed && request.headers.accept === 'application/json';
+  if (projection && (method !== 'GET' || !shellPageRead(request, 'http://' + requestHost(request)))) { refuseLocalWebRequest(response); return true; }
   const openWorkbench = (query: string) => { response.writeHead(302, { location: prefix + '/?' + query, 'cache-control': 'no-store' }); response.end(); return true; };
   if (preview && method === 'GET' && !framed) return openWorkbench('openPlugin=plugin-builder');
   const pageAuthority = pluginPageRequest(request), disconnected = new AbortController();
@@ -220,16 +230,18 @@ export async function handleAgentStudioHttp(request: IncomingMessage, response: 
       if (installedPage && method === 'GET') {
         const release = installed.releaseFor(pluginId);
         if (!release) { sendLocalWebJson(response, 404, { error: '找不到这个插件的已安装版本' }); return true; }
-        if (!framed) return openWorkbench('openSurface=' + encodeURIComponent('app-' + release.buildId));
+        if (!framed) return openWorkbench('openSurface=' + encodeURIComponent(installedStageSurface(release)));
         const recoveryError = installed.recoveryErrors.get(pluginId);
         if (recoveryError) {
           html(response, '<main class="as-preview-page"><h1>插件暂时无法运行</h1><p role="alert">' + escapeHtml(recoveryError)
             + '</p><p>请在插件创作工作台里检查安装。</p></main>'); return true;
         }
-        const view = { contract: release.design.contract, nodes: inDesignOrder(release.design, release.nodes), presentation: release.design.presentation, connected: release.design.contract.operations.map(item => item.id) };
-        // Only the plugin: its name, version and the way back to the studio are the workbench's (tab and stage), not the frame's.
-        const body = '<main class="as-preview-page" data-installed-plugin="' + escapeHtml(pluginId) + '"></main>';
-        html(response, page(release.design.title, body, { mode: 'installed', plugin_id: pluginId, call: prefix + '/api/plugins/' + pluginId + '/call', view }, options, controlToken));
+        const document = installedPluginPage({ home: options.homeDirectory, actorId: options.actorId ?? 'web-user', projectId: options.projectId,
+          prefix, release, scope: 'project', running: () => installed.records().find(item => item.plugin_id === pluginId) });
+        if (projection) sendLocalWebJson(response, 200, document);
+        else html(response, renderPluginDocumentShell({ id: pluginId, plugin_id: pluginId, bundle: 'plugin-builder', lang: htmlLang(),
+          title: installedPluginName(release), html: installedPluginBody(pluginId), project_id: options.projectId, route_prefix: prefix, control_token: controlToken,
+          accountRegistration: options.accountRegistration, ...document }));
         return true;
       }
     }
@@ -239,8 +251,10 @@ export async function handleAgentStudioHttp(request: IncomingMessage, response: 
     if (served && /:\d{1,5}$/.test(served)) studio.origin = 'http://' + served;
     else if (url.port) studio.origin = url.origin;
     if (preview && method === 'GET') {
-      const build = workflow.store.require(preview[1]!);
-      html(response, page(build.title, '<main class="as-preview-page" data-studio-preview="' + escapeHtml(build.id) + '"></main>', { mode: 'preview', acceptance: url.searchParams.get('acceptance'), build: build.id }, options, controlToken));
+      const build = workflow.store.require(preview[1]!), design = build.design;
+      const view = design && { contract: design.contract, nodes: inDesignOrder(design, build.nodes), connected: build.connected, presentation: design.presentation,
+        deriveFieldWords: design.localePacks !== undefined };
+      html(response, page(build.title, '<main class="as-preview-page" data-studio-preview="' + escapeHtml(build.id) + '"></main>', { mode: 'preview', acceptance: url.searchParams.get('acceptance'), build: build.id, view }, options, controlToken, { build, workflow }));
       return true;
     }
     const route = api![1] ?? '', build = /^\/builds\/([a-f0-9-]{36})(\/[a-z]+)?$/u.exec(route), mockup = /^\/builds\/([a-f0-9-]{36})\/mockups\/([a-z0-9-]{1,64})$/u.exec(route);

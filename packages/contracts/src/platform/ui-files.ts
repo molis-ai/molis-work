@@ -15,6 +15,24 @@ export const UI_FORMAT_VERSIONS = {
   registry: /* @version format.ui.registry */ 1,
 } as const;
 
+/** Selected language metadata, as validated from the platform's registered resource. */
+export interface UiLanguageDescriptor {
+  readonly tag: string;
+  readonly html_lang: string;
+  readonly direction: "ltr" | "rtl";
+  readonly intl: string;
+  readonly name: string;
+}
+
+export interface UiLanguageCatalog {
+  readonly format_version: typeof UI_FORMAT_VERSIONS.languages;
+  readonly default: string;
+  readonly languages: readonly UiLanguageDescriptor[];
+}
+
+/** The metadata a granted frame needs; the platform's whole language catalog stays in the parent. */
+export type UiFrameLanguage = Pick<UiLanguageDescriptor, "tag" | "html_lang" | "intl" | "direction">;
+
 /** Bytes per file (256 KiB, 64 KiB, 1 MiB), compared before parsing, and the deepest nesting a file may have. Plain numbers so the API snapshot shows them. */
 export const UI_FILE_LIMITS = { spec: 262_144, skin: 65_536, font: 65_536, locale: 1_048_576, registry: 65_536, depth: 12 } as const;
 

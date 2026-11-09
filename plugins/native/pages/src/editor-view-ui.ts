@@ -1,8 +1,10 @@
 // Small DOM helpers shared by editor overlays and node views.
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import type { TextArgs } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { Translate } from "./editor-types.js";
 import { scrollChildIntoView } from "./floating.js";
 
-export const t = (translate: Translate | undefined, value: string): string => translate ? translate(value) : value;
+export const t = (translate: Translate | undefined, key: string, args?: TextArgs): string => (translate ?? uiText.text)(key, args);
 
 export const dsIcon = (name: string): string => `<svg aria-hidden="true"><use href="#icon-${name}"></use></svg>`;
 
@@ -23,13 +25,13 @@ export function field(translate: Translate | undefined, label: string, value: st
   return { label: wrap, input };
 }
 
-export function actions(translate: Translate | undefined, ok: () => void, cancel: () => void, okLabel = "确定"): HTMLElement {
+export function actions(translate: Translate | undefined, ok: () => void, cancel: () => void, okLabel = "pages.editor.ok"): HTMLElement {
   const row = document.createElement("div");
   row.className = "pages-pop-actions";
   const dismiss = document.createElement("button");
   dismiss.type = "button";
   dismiss.className = "mw-btn mw-btn--ghost";
-  dismiss.textContent = t(translate, "取消");
+  dismiss.textContent = t(translate, "pages.action.cancel");
   dismiss.addEventListener("click", cancel);
   const save = document.createElement("button");
   save.type = "button";

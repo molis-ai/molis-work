@@ -378,10 +378,10 @@ export interface SandboxPluginContract {
     }>;
     pages: Array<{
         id: string;
-        title: string;
+        title: SandboxVisibleText;
         regions: Array<{
             id: string;
-            title: string;
+            title: SandboxVisibleText;
             description?: string;
             operationIds: string[];
         }>;
@@ -525,6 +525,8 @@ export interface SandboxSqlStatement {
 }
 
 export type SandboxSqlValue = null | number | string;
+
+export type SandboxVisibleText = string | TextRef;
 
 export type SandboxWorkerMessage = {
     type: 'ready';

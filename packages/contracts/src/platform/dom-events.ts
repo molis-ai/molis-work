@@ -60,7 +60,7 @@ export interface PageStateOwner {
 // The Host frame adapters relay these owners' announcements into an isolated document; they own no second copy of the state.
 export const PAGE_STATE_OWNERS = {
   "document-language": {
-    files: ["apps/workbench/src/browser/language-entry.ts"],
+    files: ["apps/workbench/src/browser/language-entry.ts", "apps/workbench/src/browser/plugin-frame/language-child.ts"],
     state: "The displayed words and language of one document.",
   },
   "side-panel": {
@@ -196,7 +196,7 @@ export const DOM_EVENTS = [
   {
     name: "molis-work:language-changed", kind: "announcement", owner: "document-language", on: "document",
     detail: "{ tag: UiLanguageTag }",
-    summary: "A local preview or capsule has applied a new language in place; its existing child views can refresh their words.",
+    summary: "This document has applied a new language in place; its existing views can refresh compound words.",
   },
   {
     name: "molis-shelf-notice", kind: "request", owner: "shelf", on: "window",

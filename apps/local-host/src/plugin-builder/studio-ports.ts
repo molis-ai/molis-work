@@ -1,3 +1,4 @@
+import { WORKBENCH_LANGUAGES } from "@molis-ai/molis-work-app-workbench";
 import { sandboxPluginManifest } from '@molis-ai/molis-work-plugin-sdk';
 import { assertHomePackageAllowed } from '../home-package-admission.js';
 import { createStudioPublisher } from './studio-release.js';
@@ -62,6 +63,7 @@ export function builderPorts(inputs: {
       return builderAgentInLanguage(await create({ buildRoot, storageRoot: join(studio.root, 'runs', build.id), ...access(selection) }), modelRoundLocale(home));
     },
     validateContract: contract => assertContract(contract),
+    designLanguages: () => ({ current: modelRoundLocale(home), available: WORKBENCH_LANGUAGES.languages }),
     runInLanguage: (run, recovered) => runBackgroundWork(recovered ? lastUsedLocale(home) : modelRoundLocale(home), run),
     skills: stage => builderSkills(stage, undefined, modelRoundLocale(home)),
     prompt: inputs.prompt, instruction: inputs.instruction,

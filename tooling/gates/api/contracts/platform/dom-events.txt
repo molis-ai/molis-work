@@ -8,7 +8,7 @@ export declare const DOM_EVENTS: readonly [{
     readonly owner: "document-language";
     readonly on: "document";
     readonly detail: "{ tag: UiLanguageTag }";
-    readonly summary: "A local preview or capsule has applied a new language in place; its existing child views can refresh their words.";
+    readonly summary: "This document has applied a new language in place; its existing views can refresh compound words.";
 }, {
     readonly name: "molis-shelf-notice";
     readonly kind: "request";
@@ -492,7 +492,7 @@ export type DomEventTarget = "window" | "document" | "element";
 
 export declare const PAGE_STATE_OWNERS: {
     readonly "document-language": {
-        readonly files: readonly ["apps/workbench/src/browser/language-entry.ts"];
+        readonly files: readonly ["apps/workbench/src/browser/language-entry.ts", "apps/workbench/src/browser/plugin-frame/language-child.ts"];
         readonly state: "The displayed words and language of one document.";
     };
     readonly "side-panel": {

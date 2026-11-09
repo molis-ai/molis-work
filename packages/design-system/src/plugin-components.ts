@@ -1,6 +1,7 @@
-import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
-import type { SandboxJson, SandboxPluginContract, SandboxSchema } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import { t, tryOwnedTextRef } from "@molis-ai/molis-work-plugin-sdk/ui";
+import type { SandboxJson, SandboxPluginContract, SandboxSchema, SandboxVisibleText } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { TextRef, UiComponentIntent, UiComponentSpec } from '@molis-ai/molis-work-contracts/platform/ui';
+import { isDestructivePluginOperation, literalPluginWord } from './plugin-surface-text.js';
 import { BASELINE_SPEC } from './baseline.js';
 import { PLUGIN_PRESENTATION_STYLES } from './plugin-presentation-client.js';
 
@@ -8,17 +9,18 @@ import { PLUGIN_PRESENTATION_STYLES } from './plugin-presentation-client.js';
 export type PluginComponentKind = string;
 export type PluginComponentIntent = UiComponentIntent;
 export const PLUGIN_COMPONENT_PROP_KEYS = ['title', 'description', 'submitLabel', 'requiredText', 'emptyText', 'idField', 'titleField', 'textField', 'roleField', 'hintLevelField', 'citationsField', 'columns'] as const;
+export const PLUGIN_COMPONENT_WORD_KEYS = ['title', 'description', 'submitLabel', 'requiredText', 'emptyText'] as const;
 export type PluginInputValue = { source: 'literal'; value: SandboxJson }
   | { source: 'form'; field: string; prefill?: { componentId: string; field: string } }
   | { source: 'selection'; componentId: string; field: string };
 export interface PluginOperationBinding { operationId: string; input: Record<string, PluginInputValue>; outputPath?: string }
 export interface PluginComponentProps {
-  title?: string;
-  description?: string;
-  submitLabel?: string;
+  title?: SandboxVisibleText;
+  description?: SandboxVisibleText;
+  submitLabel?: SandboxVisibleText;
   /** Visible feedback when a required form field is missing; native validation remains authoritative. */
-  requiredText?: string;
-  emptyText?: string;
+  requiredText?: SandboxVisibleText;
+  emptyText?: SandboxVisibleText;
   idField?: string;
   titleField?: string;
   textField?: string;
@@ -26,7 +28,7 @@ export interface PluginComponentProps {
   hintLevelField?: string;
   citationsField?: string;
   /** `values` names how a field's values read, e.g. { "true": "已打卡", "false": "未打卡" }. */
-  columns?: Array<{ field: string; label: string; values?: Record<string, string> }>;
+  columns?: Array<{ field: string; label: SandboxVisibleText; values?: Record<string, SandboxVisibleText> }>;
 }
 export interface PluginComponentPlan {
   id: string;
@@ -137,9 +139,14 @@ export function validatePluginComponentPlans(value: unknown, contract: SandboxPl
     if (!plain(part.props)) fail('props 必须是对象');
     const unknown = Object.keys(part.props).filter(key => !(PLUGIN_COMPONENT_PROP_KEYS as readonly string[]).includes(key));
     if (unknown.length) fail('不支持 props 属性：' + unknown.join('、') + '；可用：' + PLUGIN_COMPONENT_PROP_KEYS.join('、'));
-    for (const [key, val] of Object.entries(part.props)) if (key !== 'columns' && (typeof val !== 'string' || val.length > 2000)) fail('零件文本配置无效');
-    if (part.props.columns !== undefined && (!Array.isArray(part.props.columns) || part.props.columns.length > 24 || part.props.columns.some(column => !plain(column) || Object.keys(column).some(key => !['field', 'label', 'values'].includes(key)) || !FIELD.test(column.field) || typeof column.label !== 'string' || column.label.length > 120
-      || column.values !== undefined && (!plain(column.values) || Object.keys(column.values).length > 24 || Object.values(column.values).some(value => typeof value !== 'string' || value.length > 60))))) fail('表格列配置无效');
+    for (const [key, val] of Object.entries(part.props)) {
+      if (key === 'columns') continue;
+      const invalid = (PLUGIN_COMPONENT_WORD_KEYS as readonly string[]).includes(key)
+        ? (typeof val !== "string" && tryOwnedTextRef(val, contract.pluginId) === null || literalPluginWord(val as SandboxVisibleText).length > 2000) : typeof val !== 'string' || val.length > 2000;
+      if (invalid) fail('零件文本配置无效：' + key);
+    }
+    if (part.props.columns !== undefined && (!Array.isArray(part.props.columns) || part.props.columns.length > 24 || part.props.columns.some(column => !plain(column) || Object.keys(column).some(key => !['field', 'label', 'values'].includes(key)) || !FIELD.test(column.field) || typeof column.label !== "string" && tryOwnedTextRef(column.label, contract.pluginId) === null || literalPluginWord(column.label).length > 120
+      || column.values !== undefined && (!plain(column.values) || Object.keys(column.values).length > 24 || Object.values(column.values).some(value => typeof value !== "string" && tryOwnedTextRef(value, contract.pluginId) === null || literalPluginWord(value).length > 60))))) fail('表格列配置无效');
     const allowed = contract.pages.find(page => page.id === part.pageId)!.regions.find(region => region.id === part.regionId)!.operationIds;
     for (const binding of [part.read, part.submit]) if (binding && !allowed.includes(binding.operationId)) fail('操作不属于这个区域');
     if (part.read) checkBinding(part.read, contract, true);
@@ -165,7 +172,8 @@ export function pluginComponentChoices(part: PluginComponentPlan, contract: Sand
   const items = output?.type === 'array' ? output.items : undefined;
   // A calendar needs records that carry a date; a confirmation fits an action that cannot be undone.
   const dated = items?.type === 'object' && Object.entries(items.properties ?? {}).some(([name, spec]) => spec.type === 'string' && (spec.format === 'date' || spec.format === 'date-time' || /date|day|日期/i.test(name)));
-  const destructive = /删除|移除|清空|撤销|丢弃/u.test((part.props.submitLabel ?? '') + (part.props.title ?? '') + part.purpose);
+  const destructive = isDestructivePluginOperation(part.submit?.operationId)
+    || /删除|移除|清空|撤销|丢弃/u.test(literalPluginWord(part.props.submitLabel) + literalPluginWord(part.props.title) + part.purpose);
   return PREFERENCE[part.intent].map(kind => componentsByKind.get(kind)!).filter(item => {
     if (!item.intents.includes(part.intent)) return false;
     if (item.data === 'array' && output?.type !== 'array') return false;

@@ -15,7 +15,7 @@ export const verifySyncPluginDistribution: PluginDistributionVerifier = (release
   if(!isDeepStrictEqual(signedPackage,bundle) || key_id!==release.publisherKeyId || manifest.plugin_id!==release.pluginId || manifest.version!==releaseVersion(release.version)
     || manifest.publisher.publisher_id!=='molis-studio' || (manifest.runtime?.scope??'project')!==release.runtimeScope)throw invalid();
   if(release.runtimeScope==='home')assertHomePackageAllowed(manifest);
-  const required=new Set<string>(Object.values(SANDBOX_PACKAGE_FILES));
+  const required=new Set<string>([...Object.values(SANDBOX_PACKAGE_FILES), ...(manifest.ui.locales?.available.map(tag => `locales/${tag}.json`) ?? [])]);
   if(files.size!==required.size || bundle.payload.files.length!==required.size)throw invalid();
   for(const member of bundle.payload.files){
     const original=files.get(member.path);

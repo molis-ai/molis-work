@@ -15,7 +15,8 @@ import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/p
 import type { PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { localWebActionContext } from "./local-web-actions.js";
-import { readLocalWebBody, requestHost, sendLocalWebJson } from "./web-http.js";
+import { shellPageRead } from "./web-sessions.js";
+import { readLocalWebBody, refuseLocalWebRequest, requestHost, sendLocalWebJson } from "./web-http.js";
 import { captureRuntimeStageOwner, type HomeStageHalves } from "./project-plugin-stages.js";
 import { dispatchRuntimePluginRoute, PLUGIN_MANAGEMENT_OPERATIONS } from "./plugin-route-operations.js";
 import { projectRouteControl } from "./plugin-actions-client.js";
@@ -103,14 +104,16 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
     if (request.method !== "GET") { sendLocalWebJson(response, 405, { error: "请通过 GET 打开页面" }); return true; }
     // A signed package installed in the Home draws its stage with a page of its own, framed by the workbench or by the Home's page around it.
     if (host.homePlugins.hasPackage(pluginId)) {
-      const surface = host.homePlugins.packageSurface(pluginId);
+      const surface = host.homePlugins.packageSurface(pluginId), framed = url.searchParams.get("frame") === "workbench";
+      const projection = framed && request.headers.accept === "application/json";
+      if (projection && !shellPageRead(request, "http://" + requestHost(request))) { refuseLocalWebRequest(response); return true; }
       try {
-        const body = surface && url.searchParams.get("frame") === "workbench" ? host.homePlugins.packageDocument(pluginId, controlToken, project?.project_id ?? null,accountRegistration)!
+        const body = surface && framed ? host.homePlugins.packageDocument(pluginId, controlToken, project?.project_id ?? null, accountRegistration, projection)!
           : renderHomePluginPage(pageEntry(entry), null, host.homePlugins.packageError(pluginId) ?? platform.supervisor.state(pluginId)?.message ?? null, controlToken,
             // A package that did not come back is not switched off, so "enable" would not mend it: its page says why and offers no switch.
             pageLocale(), false, false, project, surface ? `${project ? `/projects/${encodeURIComponent(project.project_id)}` : ""}/plugins/${encodeURIComponent(pluginId)}?${FRAME_QUERY}` : undefined, Boolean(surface));
-        response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": csp });
-        response.end(body);
+        if (typeof body !== "string") sendLocalWebJson(response, 200, body);
+        else { response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": csp }); response.end(body); }
       } catch (error) { const refused = actionErrorResponse(error); sendLocalWebJson(response, refused.status, refused.body); }
       return true;
     }
@@ -317,7 +320,7 @@ export async function renderHomePluginStages(host?: HomePluginHost, options?: { 
     if (options?.views && !Object.hasOwn(options.views, key)) continue;
     if (host.hasPackage(pluginId)) {
       const surface = host.packageSurface(pluginId);
-      if (surface) html.push(installedStageSection({ pluginId, surface, label: entry.manifest.name, icon: entry.manifest.ui?.views?.find(view => view.slot === "stage")?.icon, prefix: options?.project_id ? `/projects/${encodeURIComponent(options.project_id)}` : "" }));
+      if (surface) html.push(installedStageSection({ pluginId, surface, label: host.packageLabel(pluginId) ?? entry.manifest.name, icon: entry.manifest.ui?.views?.find(view => view.slot === "stage")?.icon, prefix: options?.project_id ? `/projects/${encodeURIComponent(options.project_id)}` : "" }));
       else unavailable.push(homeUnavailableStage(host, platform, failure, entry));
       continue;
     }

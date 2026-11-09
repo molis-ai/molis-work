@@ -1,3 +1,5 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import type { Translate } from "./editor-types.js";
 // The keyboard's way to size what a pointer sizes by its handle (specs/visual-ui-experience VUX-06, VUX-23): with the caret
 // in it, Mod-Alt-Shift-← and → narrow and widen a selected image, else the table column or layout column the caret is in,
 // the innermost first. The same commands as the handles; the handles name these keys (`aria-keyshortcuts`). The new width is
@@ -14,7 +16,7 @@ const STEP = 32;
 const box = (el: unknown) => (el instanceof Element ? el.getBoundingClientRect().width : 0);
 
 /** One press: 32 px for an image or a table column, a twentieth of the pair for a layout column. Says the new width. */
-const sizeHere = (dir: number, t: (text: string) => string): Command => (state, _dispatch, view) => {
+const sizeHere = (dir: number, t: Translate): Command => (state, _dispatch, view) => {
   if (!view) return false;
   const { selection: sel } = state, $ = sel.$from, n = pagesSchema.nodes;
   const done = (tr: Transaction | null, said: () => string) => { if (tr) view.dispatch(tr); window.molisAnnounce?.(said()); return true; };
@@ -24,7 +26,7 @@ const sizeHere = (dir: number, t: (text: string) => string): Command => (state, 
     // As with the handle, an image that reaches the line goes back to filling it.
     return done(setImageWidth(state, sel.from, line && raw >= line - 24 ? 0 : raw), () => {
       const width = safePagesImageWidth(view.state.doc.nodeAt(sel.from)?.attrs.width);
-      return width ? t("pages.editor-size-keys.width-n-px").replace("{n}", String(width)) : t("pages.editor-size-keys.full-width");
+      return width ? t("pages.editor-size-keys.width-n-px", { n: width }) : t("pages.editor-size-keys.full-width");
     });
   }
   let d = $.depth;
@@ -33,19 +35,19 @@ const sizeHere = (dir: number, t: (text: string) => string): Command => (state, 
   if ($.node(d).type !== n.column) {
     const width = safePagesColumnWidth($.node(d).attrs.colwidth) || box(view.nodeDOM($.before(d)));
     return done(setColumnWidth(state, $.before(d - 2), $.index(d - 1), width + dir * STEP),
-      () => t("pages.editor-size-keys.column-width-n-px").replace("{n}", String(safePagesColumnWidth(view.state.selection.$from.node(d).attrs.colwidth) || Math.round(width))));
+      () => t("pages.editor-size-keys.column-width-n-px", { n: safePagesColumnWidth(view.state.selection.$from.node(d).attrs.colwidth) || Math.round(width) }));
   }
   // A column moves its right edge; the last one moves its left edge, the other way.
   const list = $.node(d - 1), i = $.index(d - 1), pair = Math.min(i, list.childCount - 2), share = (k: number, of = list) => safePagesColumnShare(of.child(k).attrs.width);
   return done(nudgeColumnShare(state, $.before(d - 1), pair, (pair === i ? dir : -dir) * (share(pair) + share(pair + 1)) / 20), () => {
     const now = view.state.selection.$from.node(d - 1);
     let total = 0; now.forEach((column) => { total += safePagesColumnShare(column.attrs.width); });
-    return t("pages.editor-size-keys.column-n").replace("{n}", String(Math.round(share(i, now) / total * 100)));
+    return t("pages.editor-size-keys.column-n", { n: Math.round(share(i, now) / total * 100) });
   });
 };
 
-export const sizeKeys = (translate?: (text: string) => string): Record<string, Command> => {
-  const t = translate ?? ((text: string) => text);
+export const sizeKeys = (translate?: Translate): Record<string, Command> => {
+  const t = translate ?? uiText.text;
   return { "Mod-Alt-Shift-ArrowLeft": sizeHere(-1, t), "Mod-Alt-Shift-ArrowRight": sizeHere(1, t) };
 };
 
@@ -57,7 +59,7 @@ export const SIZE_KEYS = ["Left", "Right"].map((side) => `${typeof navigator !==
  * the focused handle size what it holds with the same command as the keys, the caret moved there first (`place`; by default
  * into the node at `pos()`). Returns the painter of its value: now, its bounds and the words the keys say.
  */
-export function sizeHandle(h: HTMLElement, view: EditorView, pos: () => number | undefined, t?: (text: string) => string, place?: (at: number) => Selection) {
+export function sizeHandle(h: HTMLElement, view: EditorView, pos: () => number | undefined, t?: Translate, place?: (at: number) => Selection) {
   h.setAttribute("role", "separator");
   h.setAttribute("aria-orientation", "vertical");
   h.addEventListener("keydown", (e) => {
@@ -66,7 +68,7 @@ export function sizeHandle(h: HTMLElement, view: EditorView, pos: () => number |
     e.preventDefault();
     e.stopPropagation();
     view.dispatch(view.state.tr.setSelection(place ? place(at) : TextSelection.near(view.state.doc.resolve(at + 1))));
-    sizeHere(dir, t ?? ((text: string) => text))(view.state, view.dispatch, view);
+    sizeHere(dir, t ?? uiText.text)(view.state, view.dispatch, view);
     h.focus({ preventScroll: true });
   });
   return (now: number, min: number, max: number, text: string) => {

@@ -13,10 +13,10 @@ import { CONNECTOR_REQUEST_SERVICES } from '@molis-ai/molis-work-contracts/servi
 import { parsePluginManifest, parsePluginPackageManifest } from '@molis-ai/molis-work-plugin-sdk';
 import { PLUGIN_ICON_NAMES } from '@molis-ai/molis-work-plugin-sdk/ui';
 import { assertContract } from '@molis-ai/molis-work-plugin-sandbox';
-import { validatePluginComponentNodes, validatePluginComponentPlans, validatePluginPresentation,
+import { sandboxUiTextRefs, usesPluginFieldWords, validatePluginComponentNodes, validatePluginComponentPlans, validatePluginPresentation,
   type PluginComponentNode, type PluginComponentPlan, type PluginPresentation } from '@molis-ai/molis-work-design-system';
 import { readSandboxAgentBodies } from './sandbox-agent-bodies.js';
-import { assertPluginHomeSchema, assertPluginLocales, pluginLocaleFilePaths, pluginLocaleReader, type PluginLocaleReader } from '@molis-ai/molis-work-plugin-runtime';
+import { assertPluginHomeSchema, assertPluginLocales, pluginLocaleFilePaths, pluginLocaleReader, type PluginLocaleManifest, type PluginLocaleReader } from '@molis-ai/molis-work-plugin-runtime';
 import { UI_FILE_LIMITS } from '@molis-ai/molis-work-contracts/platform/ui';
 
 
@@ -61,7 +61,7 @@ function validated<T>(what: string, check: () => T): T {
 }
 
 /** Words come from the signed payload, never the extracted code directory or a caller. The running reader parses a language on first use. */
-function signedLocalePacks(manifest: PluginManifest, files: ReadonlyMap<string, Uint8Array>): PluginLocaleReader | null {
+function signedLocalePacks(manifest: PluginLocaleManifest, files: ReadonlyMap<string, Uint8Array>): PluginLocaleReader | null {
   const sources = new Map<string, string>();
   for (const path of pluginLocaleFilePaths(manifest)) {
     const bytes = files.get(path);
@@ -125,6 +125,9 @@ export function readSandboxPackage(payload: PluginPackagePayload): SandboxPackag
   // and the icon of its page, a name of the platform's set. This reads the Manifest itself (the install path has, but this is exported and takes any payload),
   // so a name outside the set is refused here and `icon` below is one of the set.
   const agentBodies = readSandboxAgentBodies(manifest, files);
+  const localePacks = signedLocalePacks(manifest, files), fallback = localePacks?.pack(localePacks.default);
+  for (const ref of sandboxUiTextRefs(contract, parts, usesPluginFieldWords(contract, fallback))) if (typeof ref !== 'string' && 'key' in ref && ref.key && !ref.key.startsWith('common.') && !Object.hasOwn(fallback?.messages ?? {}, ref.key))
+    refuse('界面引用缺少主人默认词：' + ref.key);
   const named = manifest.ui.views?.[0]?.icon;
   const icon = PLUGIN_ICON_NAMES.find(name => name === named);
   const expected = sandboxPluginManifest({ pluginId: manifest.plugin_id, version: manifest.version, name: manifest.name, publisher: manifest.publisher,
@@ -137,7 +140,7 @@ export function readSandboxPackage(payload: PluginPackagePayload): SandboxPackag
   if (!isDeepStrictEqual(JSON.parse(JSON.stringify(fixed)), JSON.parse(JSON.stringify(expectedFixed)))) refuse('清单不是沙箱插件的形状：入口、权限、路由、界面声明要与包的其他文件一致，不能自带别的');
   validated('清单', () => parsePluginManifest(expected));
   if (expected.databases?.home) validated('Home 库', () => assertPluginHomeSchema(expected.databases!.home!.schema));
-  return { manifest: expected, localePacks: signedLocalePacks(expected, files), agentBodies, contract, parts, nodes, ...(presentation ? { presentation } : {}), acceptance, prompts, entrypoint, permissions };
+  return { manifest: expected, localePacks, agentBodies, contract, parts, nodes, ...(presentation ? { presentation } : {}), acceptance, prompts, entrypoint, permissions };
 }
 
 /** A package the Host keeps and runs: an app's (`readSandboxPackage`) or an integration's (`readSandboxIntegrationPackage`), by its Manifest's kind. */

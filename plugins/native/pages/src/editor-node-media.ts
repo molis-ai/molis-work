@@ -34,14 +34,14 @@ export function bookmarkNodeView(node: Node, view: EditorView, getPos: () => num
   titleInput.type = "text";
   titleInput.className = "pages-bookmark-title";
   titleInput.maxLength = 120;
-  titleInput.placeholder = t(translate, "名称");
+  titleInput.placeholder = t(translate, "pages.editor.name");
   const titleText = document.createElement("strong");
   const url = document.createElement("a");
   url.target = "_blank";
   url.rel = "noreferrer noopener";
   const shownTitle = () => {
     const href = safePagesHref(current.attrs.href);
-    return safePagesBookmarkTitle(current.attrs.title) || bookmarkLabel(href) || t(translate, "链接");
+    return safePagesBookmarkTitle(current.attrs.title) || bookmarkLabel(href) || t(translate, "pages.editor.link");
   };
   const paint = () => {
     const href = safePagesHref(current.attrs.href);
@@ -113,20 +113,20 @@ export function imageNodeView(node: Node, view: EditorView, getPos: () => number
   const handle = document.createElement("button");
   handle.type = "button";
   handle.className = "pages-image-resize";
-  handle.setAttribute("aria-label", t(translate, "调整宽度"));
+  handle.setAttribute("aria-label", t(translate, "pages.editor.resize-width"));
   handle.setAttribute("aria-keyshortcuts", SIZE_KEYS);
-  const value = sizeHandle(handle, view, getPos, (text) => t(translate, text), (at) => NodeSelection.create(view.state.doc, at));
+  const value = sizeHandle(handle, view, getPos, (key, args) => t(translate, key, args), (at) => NodeSelection.create(view.state.doc, at));
   // An image without its own width fills its line, and says so.
   const read = () => {
     const n = safePagesImageWidth(current.attrs.width);
     value(n || (media.querySelector("img") ?? frame).getBoundingClientRect().width, safePagesImageWidth(1), safePagesImageWidth(1e9),
-      n ? t(translate, "宽度 {n} 像素").replace("{n}", String(n)) : t(translate, "占满一行"));
+      n ? t(translate, "pages.editor-size-keys.width-n-px", { n }) : t(translate, "pages.editor-size-keys.full-width"));
   };
   handle.addEventListener("focus", read);
   const caption = document.createElement("input");
   caption.type = "text";
   caption.className = "pages-image-caption";
-  caption.placeholder = t(translate, "说明");
+  caption.placeholder = t(translate, "pages.editor.caption");
   caption.maxLength = 200;
   caption.addEventListener("mousedown", keepOut);
   caption.addEventListener("keydown", (event) => {
@@ -229,11 +229,11 @@ export function codeNodeView(node: Node, view: EditorView, getPos: () => number 
 
   const select = document.createElement("select");
   select.className = "pages-code-language";
-  select.setAttribute("aria-label", t(translate, "代码语言"));
+  select.setAttribute("aria-label", t(translate, "pages.editor.code-language"));
   PAGES_CODE_LANGUAGES.forEach((language) => {
     const option = document.createElement("option");
     option.value = language.id;
-    option.textContent = t(translate, language.label);
+    option.textContent = "textKey" in language ? t(translate, language.textKey) : language.label;
     select.append(option);
   });
   select.value = safePagesLanguage(node.attrs.language);
@@ -241,7 +241,7 @@ export function codeNodeView(node: Node, view: EditorView, getPos: () => number 
   const copy = document.createElement("button");
   copy.type = "button";
   copy.className = "pages-code-copy";
-  const copyLabel = t(translate, "复制代码");
+  const copyLabel = t(translate, "pages.editor.copy-code");
   copy.setAttribute("aria-label", copyLabel);
   copy.title = copyLabel;
   copy.innerHTML = dsIcon("copy");
@@ -268,7 +268,7 @@ export function codeNodeView(node: Node, view: EditorView, getPos: () => number 
   copy.addEventListener("click", () => {
     const pos = getPos();
     const current = pos === undefined ? null : view.state.doc.nodeAt(pos);
-    const labels: CopyLabels = { done: t(translate, "已复制"), failed: t(translate, "复制失败") };
+    const labels: CopyLabels = { done: t(translate, "pages.editor.copied"), failed: t(translate, "pages.editor.copy-failed") };
     void window.molisCopy?.(copy, current?.textContent ?? "", labels);
   });
 
@@ -278,7 +278,7 @@ export function codeNodeView(node: Node, view: EditorView, getPos: () => number 
     pre.dataset.language = language;
     dom.dataset.language = language;
     if (next.content.size === 0) {
-      code.dataset.placeholder = t(translate, "写代码");
+      code.dataset.placeholder = t(translate, "pages.editor.code");
       code.classList.add("is-empty");
     } else {
       delete code.dataset.placeholder;

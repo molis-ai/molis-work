@@ -511,7 +511,7 @@ Dock 的个人固定顺序目前只在浏览器，不在 Host 存储。首页请
 
 **一次读取。** 保持一次目录、一次 discover、一次纠正和至多一次 Attention 读取。每个已启用且合格的概况最多调用一次；现行 `definePresentationOverviewAction` 补明确 `execution.cost: "none"`，SDK 声明校验和运行前检查都要求 query、read、无模型、非 external，与 values 相同。概况与规则 values 共用四个真实在途槽和整次一秒截止，截止后不补派。概况失败只影响本卡；父取消、撤权直接传播。保留本轮所有实际依赖的精确路由授权，并在等待后及结果交付前重新检查。
 
-动作目录的元数据和原注册身份须在同一次同步目录取样中绑定，再跨异步边界交给组合服务；不能 `await discover()` 后仅凭 ref/provider 重新保留当前注册，让旧 schema 配上新注册的授权。注册身份仍由 Kernel 的现有登记表拥有，Host 只转发同次取得的保留能力，不比较元数据冒充身份、不另存代次。潜在候选可先捕获，但取值前只激活真实 reader／values 依赖；状态和形态选定后再激活实际返回的操作、notice 去处和通用操作依赖。未命中 `when` 的声明操作、未展示的 placement 操作不能因变化而拒绝整页。
+动作目录的元数据和原注册身份须在同一次同步目录取样中绑定，再跨异步边界交给组合服务；不能 `await discover()` 后仅凭 ref/provider 重新保留当前注册，让旧 schema 配上新注册的授权。注册身份仍由 Kernel 的现有登记表拥有，Host 只转发同次取得的保留能力，不比较元数据冒充身份、不另存代次。潜在候选可先捕获，但取值前只激活真实 reader／values 依赖；状态和形态选定后再激活实际返回的操作、notice 去处和通用操作依赖。未命中 `when` 的声明操作、未展示的 placement 操作不能因变化而拒绝整页。 同次目录分批激活的依赖共用一次当前性检查：先执行所有已激活依赖的授权回调，再对它们的原注册作不执行回调的同步尾检，防止后一个授权回调替换前一个刚核过的注册。
 
 合并 Attention 与各概况给出的对象后，先按真实 reader 和来源 owner 核对，再对同一个对象去重；规则 values 按既有精确 provider／动作、50 个对象、32 个字段合最少批次。对象全部有当前读取结果后仅批查一次关系，两端可读才合并。先产出「等你」，插件卡再扣掉上方已经表示的对象，`hidden_above` 只计本次可读对象。工作记录还没有交付，本片省略「接着做」。页面一次 compose 后只补显示字段的合批 values，不再读一次概况。
 
@@ -529,7 +529,7 @@ Goals 在自身声明中把 `goals.create@1` 指向 `stage/create-dialog`，自�
 
 **签名表单提交。** 源码核对发现，当前已装签名组件的 `submit` 仍把组件和表单值送到 `/call` 后直接执行，不能仅接通首页导航便宣称经过统一动作网关。本片让所有已安装签名页的表单提交共用现有 `/api/host/plugin-page-actions`，增加封闭模式 `{ mode: "component_submit", component_id, payload }`；不收客户端给的动作、提供方、安装或项目身份，不保留首页专用提交分支。普通组件读取及未安装的创作台预览仍走各自现有读取／试运行路径。
 
-项目与 Home 签名文档均通过现有 `PluginPageAuthority.open` 的 `selected` 绑定确切 scope、安装和发行物检查，Home 从项目打开时保持原 `assertProject`。Host 从原激活的可信 `definitionOrigin`／`rememberInstalledActionSource` 取已验证 node，复用 `resolvePluginComponentCall(node, "submit", payload)`，动作引用复用实际曝光投影：`exposedActionId`、发行物版本及 `plugin:<canonical>`，不能误用页面通用分支默认的 install id 提供方。现行合法签包没有 `Manifest.actions` 时也只取同一安装真实注册的曝光，不改写或重签包。提交继续用 `pluginActionView`、当前页与安装检查、现有 bound action client 及 `withPluginPermissionChecks`，在本人精确动作范围内执行，并核目录行的 `plugin_install_id` 与 scope。
+项目与 Home 签名文档均通过现有 `PluginPageAuthority.open` 的 `selected` 绑定确切 scope、安装和发行物检查，Home 从项目打开时保持原 `assertProject`。Host 从原激活的可信 `definitionOrigin`／`rememberInstalledActionSource` 取已验证 node，复用 `resolvePluginComponentCall(node, "submit", payload)`，动作引用复用实际曝光投影：`exposedActionId`、曝光动作的数值版本（不是安装记录的版本字符串）及 `plugin:<canonical>`，不能误用页面通用分支默认的 install id 提供方。现行合法签包没有 `Manifest.actions` 时也只取同一安装真实注册的曝光，不改写或重签包。提交继续用 `pluginActionView`、当前页与安装检查、现有 bound action client 及 `withPluginPermissionChecks`，在本人精确动作范围内执行，并核目录行的 `plugin_install_id` 与 scope。
 
 原文档的异步写前检查也必须保留：`pluginPageRequest(request).beforeEffect()` 含 Home `packageDocument` 捕获的项目可达性检查，不能用仅查 `page.assertCurrent` 和动作可见性的闭包替换。网关把原文档检查与同步的页／安装检查组合后，经现有 `withProjectReachInvocation` 传入实际执行 control，每次写前仍检查原项目。
 

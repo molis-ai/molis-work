@@ -12,7 +12,7 @@
 4. **把目录挪出 HTML 是最大的一笔节省。** 再次打开时，英文工作台从 2,573,362 B 降到 667,040 B（少 74%），中文从 1,093,174 B 降到 663,986 B（少 39%）。第一次打开也少：英文少 1,248,732 B，中文少 424,918 B。这些都是算出来的，前提有两个：插件词的请求带 ETag；中文继续用原文作键。**中文第一次打开的节省只到第 16 批换稳定键之前**：换键后中文也要下载工作台的词文件（估算 46～62 万字节），工作台第一次打开约 3.85～4.0 MB，和今天差不多甚至略多。再次打开和英文的节省不受影响（第 4.2 节）。
 5. **令牌去重加删 tray／pill，每张样式表只少 17,443 B（gzip 约 4 KB），也只在第一次打开时省。** 值得做，但不解决预算问题。
 6. **现有字体的代价目前看不到。** 这台 Mac 上中文后备字体一次都没下载，因为系统字体够用；Noto Sans SC 只有在缺系统字体时才会多出 1,141,536 B，这种情况没量（第 3.6 节）。
-7. **圆润字体已实测（第 6.3 节）。** Nunito 拉丁可变 39,128 B，比 Inter 还小。Resource Han Rounded 简中 Regular：GB2312 一级字单文件 622,512 B，整个 GB2312 单文件 1,113,428 B，按 500 字分 14 片时最大片 108,748 B，中文第一屏估计用 2～3 片。许可是 SIL OFL 1.1，但发行物里没有带许可文件，还有未确认的点（第 6.4 节）。
+7. **Folio 生产字体裁法已实测，待批准（第 6.5 节）。** 推荐 Resource Han Rounded v1.910 每字重分常用、尾片两份，加一份 Nunito 拉丁可变字体，共 9 个文件、5,823,484 B。已确认配色的中文工作台样张冷打开，实际请求 6 个字体和一张 32,911 B 的字体样式表，共 3,198,595 B 响应体。第 6.3、6.4 节保留早期 v0.990 比较与许可调查。
 
 ## 2. 测量方法
 
@@ -276,7 +276,7 @@ load 之前的传输（不含这个文档和其他载入后的请求）是这样
 | `font.inter-latin-variable` | font | `design-system` | `fonts/` 下现有文件，route `/assets/inter-latin-variable.woff2` | 48,256 | 48,249 | 实测 | OFL 1.1；fontsource，The Inter Project Authors | `fallback` |
 | `font.noto-sans-sc-400` | font | `design-system` | `fonts/` 下现有文件，route `/assets/noto-sans-sc-400.woff2` | 1,141,536 | 1,141,904 | 实测 | OFL 1.1；fontsource，The Noto Project Authors | `fallback` |
 | `font.rounded-latin` | font | `design-system` | 待定 | 39,128 | 文件已是 woff2 | 实测：Nunito 拉丁、直立、可变 wght 200～1000，和 Inter 相同 `unicode-range` | OFL 1.1；`@fontsource-variable/nunito` 5.3.0，The Nunito Project Authors，许可和字体内没有保留字名 | `on-select` |
-| `font.rounded-cjk` | font | `design-system` | 待定 | 每字重 14 片共 1,290,556（Regular）／1,292,508（Medium），最大片 108,748；样式 46,950／字重 | 文件已是 woff2 | 实测：Resource Han Rounded CN v0.990 裁剪，覆盖 GB2312 全部 6,763 字加 481 个符号（裁法未定，见第 6.3 节）。用户 2026-11-08 改选 v1.910 转 TrueType（第 6.4 节、第 8 节），这一行第 16 批按它重算 | SIL OFL 1.1，上游思源黑体带保留字名 Source；有未确认的点，见第 6.4 节 | `on-select` |
+| `font.rounded-cjk` | font | `design-system` | 待定 | 第 14 批 v0.990：每字重 14 片共 1,290,556（Regular）／1,292,508（Medium），最大片 108,748；样式 46,950／字重 | 文件已是 woff2 | 用户 2026-11-08 改选 Resource Han Rounded v1.910 转 TrueType。第 16 批三个裁法、四个字重与实际样张用量见第 6.5 节 | SIL OFL 1.1，生产候选使用新内部名称并随包携带原许可，见第 6.5 节 | `on-select` |
 | `skin.soft-workbench` | skin | `design-system` | `resources/skins/soft-workbench.json` | 约 9,059（压缩写法）／11,368（缩进） | 约 2,266 | 估算：127 个浅色、127 个深色、31 个形状令牌 | 自有 | `startup` |
 | `skin.folio` | skin | `design-system` | `resources/skins/folio.json` | 约 9,000（同形状类比） | 约 2,300 | 粗估，第 16 批才有 | 自有 | `on-select` |
 | `font-scheme.system-sans` | font-scheme | `design-system` | `resources/fonts/system-sans.json` | 约 1,000 | 未算 | 粗估，字族表 362 B 加角色 | 自有 | `startup` |
@@ -358,6 +358,8 @@ load 之前的传输（不含这个文档和其他载入后的请求）是这样
 
 ### 6.4 许可核对
 
+本节保留第 14 批核对。第 16 批 v1.910 生产候选用新的内部名字，见第 6.5 节。
+
 原文读的是 npm 包里的 `LICENSE`、字体文件的 name 表，以及 GitHub 仓库的许可文件。下面是读到的事实，不是法律结论。
 
 | 项 | Nunito | Resource Han Rounded |
@@ -386,6 +388,68 @@ load 之前的传输（不含这个文档和其他载入后的请求）是这样
 - 产品里裁剪后继续叫这个名字是否合适，取决于上一条；Cyano Hao 没有声明保留字名这一点，只能说明不会因他的声明而要改名。
 - v0.990 字体内的版权行不含保留字名，以仓库 `LICENSE.txt` 为准是否足够，未确认。
 - 字形质量：圆角是脚本批量处理的（name 表写 round all glyphs），v0.990 和 v1.910 都在字体对比页上看过（用户看着它选的），还没接进产品页面。
+
+### 6.5 第 16 批 Folio 生产字体候选（2026-11-08）
+
+以下比较沿用用户已选的「杏纸与常青」和 Resource Han Rounded v1.910 + Nunito。样张来自 [Folio 配色定样](../../docs/design/folio-baseline/README.md)。测量基点 `63c6edfdd6`，仅用于批准生产裁法、分发名字和新增资源。原型与真实工作台及插件组合的 FSS-02 验收分开。
+
+**共同字符范围与字重。** 四个中文文件组均覆盖 GB2312 的 6,763 个汉字，以及 `U+2E80-2EFF, U+3000-303F, U+31C0-31EF, U+FE10-FE1F, U+FE30-FE4F, U+FF00-FFEF` 内上游有的 481 个标点与符号，共 7,244 个 `cmap` 码位。定样另带 566 个 GB2312 非汉字码位，生产候选裁掉这部分。用既有转换工具按原 glyph order 规范化 OpenType Coverage，`ROND=100`，分别实例化真实 `wght` 400／500／600／700，经 `Cu2QuPen` 转 TrueType 后再裁出候选。所有文件保留 `GPOS`、`GSUB`，有 `glyf`，静态中文各片 `OS/2.usWeightClass` 与声明字重一致，粗体的 `fsSelection`、`head.macStyle` 已核。四份中文 `发布国` 的轮廓不同，同重在三种裁法里相同。
+
+**Nunito**直接用 `@fontsource-variable/nunito` 5.3.0 的 `nunito-latin-wght-normal.woff2`，39,128 B。CSS 沿用 Inter 的 19 段拉丁范围，与字体 `cmap` 相交后覆盖 224 个码位。一个文件有 `fvar`、`gvar` 及 `wght` 200～1000，比定样的四份静态（65,584 B）少 26,456 B。独立实例化时 `Aa19` 在四个字重的轮廓均不同。浏览器禁用合成，逐重实际渲染并比较固定裁图，中文与 Nunito 各得到四种不同的像素结果，CDP 同时报告相应的 PostScript 字重。Nunito 的 legacy family 字段显示 `Nunito ExtraLight`，用轮廓、像素与实际实例交叉确认。
+
+**三个裁法。** 甲每个字重一份中文。乙每个字重将常用片与一个尾片分开。丙将乙的尾片按码位再均分三片，分别声明 `U+4E00-676A`、`U+676B-8238`、`U+8239-9FFF`，每片 1,913 字。乙、丙的常用片相同，取基点工作台 `i18n`、中文词表及各内置插件 `src/messages.ts` 共 47 份源文件的前 1,024 个汉字，按出现次数降序，同频按码位升序，另加全部 481 个标点与符号。冻结该码位表后可复建，样张内容独立于排序语料。三个裁法在同一字重内的各文件 `cmap` 互不重叠，合计覆盖相同。乙、丙的 CSS 将尾片宽范围放在前、常用片的精确范围放在后，CSS 按声明顺序优先命中后写的常用片。现行 SDK 的 `parseFontScheme`、`resolveFontScheme`、`fontFaceRules` 已用实际候选验证，方案文件均低于 65,536 B。 [CSS Fonts 4 的 `unicode-range` 规则](https://www.w3.org/TR/css-fonts-4/#unicode-range-desc)
+
+| 裁法 | 字体文件数（含拉丁） | WOFF2 合计 | 最大 WOFF2 | 字体 CSS 响应体 | 方案 JSON |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 甲 · 每重一份 | 5 | 5,652,112 B | 1,412,428 B | 1,615 B | 2,092 B |
+| 乙 · 每重常用＋一尾 | 9 | 5,823,484 B | 1,210,728 B | 32,911 B | 36,572 B |
+| 丙 · 每重常用＋三尾 | 17 | 6,097,676 B | 463,624 B | 34,807 B | 37,908 B |
+
+两份 OFL 原文另占 9,014 B。乙的字体与许可原文合计 **5,832,498 B**，字体方案、登记和可能生成的样式另计。这里的包体数字是原文件大小，最终 npm、Desktop 安装包的压缩增量待集成后测量。
+
+**样张冷打开实际请求。** 本机 macOS 26.3.1、HeadlessChrome 153.0.8010.12，1440×1000，使用独立浏览器资料目录并关闭缓存。只读使用确认的 grove 样张生成页，临时副本把定样的八份强制 `FontFace.load()` 换成 SDK 实际渲染的 CSS，按原样张内容、字体族与字重触发请求。通过 `ResourceTiming.encodedBodySize` 和回环 HTTP 服务日志核对实际成功响应。表中数字包括一个字体样式表的响应体，括号给出命中的字体文件数，覆盖样张打开到 `document.fonts.ready` 的整个渲染文档。
+
+| 样张 | 甲 · 字节（片数） | 乙 · 字节（片数） | 丙 · 字节（片数） |
+| --- | ---: | ---: | ---: |
+| 中文工作台 | 4,241,299（3 中＋1 拉丁） | **3,198,595（5 中＋1 拉丁）** | 2,961,295（8 中＋1 拉丁） |
+| 中文设置 | 4,241,299（3 中＋1 拉丁） | **3,194,687（5 中＋1 拉丁）** | 3,330,291（9 中＋1 拉丁） |
+| 英文工作台 | 2,834,975（2 中＋1 拉丁） | **555,963（2 中＋1 拉丁）** | 557,859（2 中＋1 拉丁） |
+
+乙的中文工作台命中 400、500、600 的常用片及 400、600 的尾片。中文设置命中相同的三张常用片及 400、500 尾片。英文工作台仍显示「中文」切换按钮和中文便笺，实际命中 400、500 的常用片。样张的 700 正常文字只有拉丁，700 中文另外按上述字重探针验证。Soft Workbench 工作台对 Folio 样式和字体均发出 0 个请求。
+
+**离线与缺字。** 所有片和许可随软件打包，由本机 Host 路由提供，部署后浏览器只须连本机。样张 CSP 限同源，记录的全部请求均在回环。方案在 Nunito、圆体之后按现有系统和随包字体后备，代码、终端按 `code` 角色使用等宽字体。宽声明范围内缺字可能先触发相应尾片，后备仍按实际 `cmap` 选择。额外探针的 `㐀喆` 在本机落到苹方。向中文 600 常用片返回真实 404 后，样张标题也实际落到苹方。生产里的准备、失败反馈和重试由 B2 按 FSS-03 验证。产品安装包、缺系统中文字体的环境、真实工作台与插件页面还有待实测。
+
+**首屏 HTTP 总账。** `scripts/first-screen/http.mjs` 递归读取 HTML 中同源 `link`/`script`，CSS `url(...)` 须作为选用场景的路径显式传入才会进入全量采样。临时服务分别跑空字体路径和传入全部 URL，前者选用页只自动发现 CSS，后者逐条取得字体 200/304。表中是 CSS 与全部字体 URL 的实测响应头及响应体之和。
+
+| 裁法 | 路径（CSS＋字体） | 回环样张 HTTP 冷轮 | 回环样张 HTTP 热轮 |
+| --- | ---: | ---: | ---: |
+| 甲 | 6 | 5,655,085 B | 1,104 B |
+| 乙 | 10 | 5,858,650 B | 1,840 B |
+| 丙 | 18 | 6,136,526 B | 3,312 B |
+
+默认首屏按默认页面和清单采样。Folio 选用账须覆盖实际下发的 Folio 样式及全部字体路径，包括样张没用到的字重、尾片和英文界面可以遇到的中文内容。浏览器报告另记各页面实际命中的片数。既有 `page-assets` 门禁对每个新路由算响应体，首屏 `pages` 许可按集成后真实 Host 冷、热测量另定。上表只是同一测量器对隔离样张的结果。
+
+**分发许可与命名。** v1.910 发版的 CN 存档仅含 `ResourceHanRoundedCN-VF.otf`，文件 `name` 版权行与上游 OFL 文本均标有 Cyano Hao 2018–2022、Adobe 部分 2014–2021 及 RFN `Source`。建议以修改版 **Molis Folio Rounded SC** 分发，CSS 与字体排印族用此名，内部全名与 PostScript 名区分字重和分片，如 `MolisFolioRoundedSC-SemiBold-Common`。候选已重写公开命名字段，保留版权、作者、许可与来源字段。Nunito 原包原文件保留内部名字，包内许可与上游 Nunito 的 OFL 未列 RFN。两款字体随软件分发并继续采用 OFL 1.1，保留版权与完整许可原文。建议将两份原文随包放在现有 `fonts/README.md`，用各字体登记的 `notice_path` 指到该文件；发包时实查该路径和本机字体路由。 [Resource Han Rounded v1.910 发布](https://github.com/CyanoHao/Resource-Han-Rounded/releases/tag/v1.910)、[上游字体 OFL](https://github.com/CyanoHao/Resource-Han-Rounded/blob/master/OFL-License.txt)、[Nunito 上游 OFL](https://github.com/google/fonts/blob/main/ofl/nunito/OFL.txt)、[SIL OFL FAQ §3、§5](https://openfontlicense.org/ofl-faq/)
+
+**待批准的推荐。** 乙在两个中文样张各比甲少约 1.04 MB，英文工作台少约 2.28 MB。相对乙，丙在中文工作台再省 237,300 B，中文设置多 135,604 B，新增 8 个文件。推荐批准乙的 9 份字体、专用 CSS 及上述分发名。乙的文件名和已测响应体增量如下，产品 CSS 若合入更多外观规则，按实际响应另核。批准后 B2 直接采用乙的已测字体和范围。
+
+| 字重 | 中文常用片 | 中文尾片 |
+| --- | --- | --- |
+| 400 | `folio-rounded-400-common.woff2` · 241,172 B | `folio-rounded-400-tail.woff2` · 1,192,592 B |
+| 500 | `folio-rounded-500-common.woff2` · 242,752 B | `folio-rounded-500-tail.woff2` · 1,201,384 B |
+| 600 | `folio-rounded-600-common.woff2` · 244,748 B | `folio-rounded-600-tail.woff2` · 1,205,292 B |
+| 700 | `folio-rounded-700-common.woff2` · 245,688 B | `folio-rounded-700-tail.woff2` · 1,210,728 B |
+
+拉丁 `folio-nunito-latin.woff2`（200～1000，39,128 B），样式 `folio-rounded.css`（32,911 B）。乙的生产候选目录为 `/private/tmp/folio16-budget.sY7iPx/b-two/`，其中 `folio-rounded.json` 给出逐文件字重和完整 `unicode_range`，`registry-fixture.json` 给出逐文件 URL、来源及摘要；许可原文在上一级 `OFL-RHR.txt` 和 `OFL-Nunito.txt`。同级 `a-all/`、`c-four/` 是另外两个候选。`candidates.json` 有码位数、轮廓摘要与每个文件的准确大小，`measurement.json` 有逐样张请求及逐路径 HTTP 字节。
+
+从本工作树根目录复现（读取原定样输入和已生成页面，只在本次独立临时目录写结果）。如需从上游重建中间字体，按[定样的转换步骤](../../docs/design/folio-baseline/README.md#临时字体与复现)将 `FOLIO_FONT_DIR` 指向另一独立目录，再用 `--source` 传给候选脚本。
+
+```sh
+folio_budget_dir=/private/tmp/folio16-budget.sY7iPx
+/private/tmp/folio16-fonts/venv/bin/python "$folio_budget_dir/prepare-candidates.py" --repo "$PWD"
+FOLIO_DESIGN=/Users/yijunwang/code/goalboard-batch-16-design \
+  node scripts/machine-slot.mjs run browser --label '16 Folio font budget' -- node "$folio_budget_dir/measure.mjs"
+```
 
 ## 7. 预算规则
 
@@ -500,6 +564,8 @@ load 之前的传输（不含这个文档和其他载入后的请求）是这样
 
 不进默认皮肤的首屏总账，单列一本「选用总账」：`选用总账 = 默认总账 + 该方案的字体和字体样式`。同样不设上限，只比较变化。门禁或定期报告核对：**没选这个方案时，第一屏一个字节都不能下载它**，`@font-face` 也不能进基础样式表。
 
+第 16 批所选 v1.910 的全部路径与浏览器命中分别见第 6.5 节。以下保留第 14 批用 v0.990 作的历史估算。
+
 用实测数字重算（工作台·新项目，已按分法乙并算上第一屏的插件词，换稳定键之前；换键后中文各行第一次打开再加第 4.2 节那份文件；Regular＋Medium，加 Nunito；响应头按 358 B、再次打开按 326 B 估算；皮肤文件和皮肤差异未计入）：
 
 | 中文页的裁法 | 文件数 | 第一次打开增加 | 第一次打开总数 | 再次打开总数 |
@@ -523,7 +589,7 @@ load 之前的传输（不含这个文档和其他载入后的请求）是这样
 
 ## 8. 已定的事和待办
 
-预算方案和语言目录不留待定。Folio 的中文字体用户 2026-11-08 已选（见下面第 4 条）；还没定的是名字问题（第 6.4 节）和裁法、切片：它们属[决策第 23 项](../post-anticorruption-roadmap/reference/decisions.md#decision-23)，不挡本批，第 16 批落地时定。
+预算方案和语言目录已定。Folio 的字体与配色已定，生产裁法、分发名和新增资源增长待第 16 批按第 6.5 节报批，归[决策第 23 项](../post-anticorruption-roadmap/reference/decisions.md#decision-23)。
 
 **已定（用户 2026-11-07）：**
 
@@ -533,13 +599,14 @@ load 之前的传输（不含这个文档和其他载入后的请求）是这样
 
 **已定（用户 2026-11-08）：**
 
-4. 圆润字体选字体对比页的第三列：中文用 Resource Han Rounded v1.910，从 CFF2 可变字体切成静态字重、转成 TrueType 轮廓，400／500／600／700 都是真的字重（700 的字节第 16 批再量）；拉丁用 Nunito。v1.910 标为预发布，名字里的 source 是否算用了保留字名仍未确认（第 6.4 节），发行前要有结论。字体文件、登记表行和转换步骤第 16 批做，本批不进仓库。
+4. 圆润字体选字体对比页的第三列。中文用 Resource Han Rounded v1.910（上游预发布），从 CFF2 可变字体切成静态字重、转成 TrueType 轮廓，400／500／600／700 都来自原字重，拉丁用 Nunito。Folio 正式配色已选「杏纸与常青」。四个字重的生产候选及许可依据见第 6.5 节。
 
 **第 16 批的前置待办：**
 
 - 首屏检查在本批先实现、单独提交，随第 16 批唯一 PR；落地第 7 节规则和第 6.1 节第一屏清单，同一测量器比较基点和候选（用户 2026-11-08，取代先独立合入的要求）。
 - 防漏报告每批本机经测试槽运行，不加夜间作业（用户 2026-11-08 选乙）。
 - Goals 的词怎样同步拿到（第 4.2 节），第 16 批实现时定。
+- 批准 Folio 裁法、分发名及新增资源后，B2 才把选中的 WOFF2、登记及许可接到生产。实际 Host 核对默认/选用冷、热总账和逐路径资产增长，按 [开发手册](../../docs/cli-and-development.md#首屏字节)写适用的许可；最终安装包验证字体与许可可读，真实页面完成 FSS-02、FSS-03 验收。
 
 **建议另登的待办（不属于本批）：**
 
@@ -565,9 +632,7 @@ load 之前的传输（不含这个文档和其他载入后的请求）是这样
 | 门禁在 CI 上的时长、基点隔离构建的时长、防漏作业的时长 | 只量了本机一边约 7～8 秒 |
 | 合理增长要写许可的频率 | 没有回放历史 PR |
 | 安装包大小 | 不在这本账里 |
-| Resource Han Rounded v1.910 转 TrueType 的 700 字重 | 对比页用到了，字节没量，第 16 批再量 |
-| 圆润字体在产品页面里的渲染和加载时间 | 字体对比页上看过字形，还没接进产品页面 |
-| 分片、Bold、中文第一屏用到几片的真实下载 | 片数是从静态文字估算的；Bold 只量了一级字单文件 |
+| 圆润字体在实际产品页面里的渲染和加载时间 | 第 6.5 节已量定样页面的真实请求及四个字重，真实 Host 工作台、插件、安装物待 B2 实测 |
 | 深色、窄屏 | 字节不受影响，未单独量 |
 | 第 4 节替换之后的真实表现 | 只是算出来的；令牌去重未在浏览器里逐像素比对 |
 

@@ -10,11 +10,10 @@ import type {
   DatasetVersionRecord,
 } from "./contract.js";
 import { datasetErrors } from "./error.js";
-import type { DatasetPublicationIntent, DatasetPublicationSnapshot } from "./promote.js";
 import { DATASET_DATABASE } from "./database.js";
 export { DATASET_DATABASE };
 
-interface DatasetRowDb {
+type DatasetRowDb = {
   id: string;
   project_id: string;
   title: string;
@@ -28,7 +27,7 @@ interface DatasetRowDb {
   artifact_id?: string;
   artifact_version?: number;
   publication_pending_json?: string | null;
-}
+};
 
 const COLUMN_TYPES: readonly DatasetColumnType[] = ["text", "number", "date"];
 
@@ -99,7 +98,7 @@ export class DatasetStore {
     expected_version?: number;
   }, projectId?: string): DatasetRecord {
     const current = this.get(id, projectId);
-    this.assertVersion(current, patch.expected_version);
+    assertDatasetVersion(current, patch.expected_version);
     const columns = patch.columns !== undefined ? normalizeColumns(patch.columns) : current.columns;
     const rows = normalizeRows(patch.rows !== undefined ? patch.rows : current.rows, columns);
     const next: DatasetRecord = {
@@ -159,7 +158,7 @@ export class DatasetStore {
 
   delete(id: string, projectId?: string, expectedVersion?: number): void {
     this.atomically(() => {
-      const current = this.get(id, projectId); this.assertVersion(current, expectedVersion);
+      const current = this.get(id, projectId); assertDatasetVersion(current, expectedVersion);
       if (current.publication_pending) throw datasetErrors.publication_pending("请先恢复上次发布，再删除数据表");
       this.db.run("DELETE FROM dataset_versions WHERE dataset_id = ?", [id]);
       this.db.run("DELETE FROM datasets WHERE id = ?", [id]);
@@ -188,7 +187,7 @@ export class DatasetStore {
   saveVersion(id: string, note?: string, projectId?: string, expectedVersion?: number): DatasetVersionRecord {
     return this.atomically(() => {
     const snapshot = this.get(id, projectId);
-    this.assertVersion(snapshot, expectedVersion);
+    assertDatasetVersion(snapshot, expectedVersion);
     const record: DatasetVersionRecord = {
       id: crypto.randomUUID(),
       dataset_id: id,
@@ -227,40 +226,6 @@ export class DatasetStore {
     }, projectId);
   }
 
-  beginPublication(id: string, projectId: string, actorId: string, expectedVersion?: number, existing?: DatasetPublicationSnapshot, version?: number): DatasetPublicationIntent {
-    return this.atomically(() => {
-      const current = this.get(id, projectId); this.assertVersion(current, expectedVersion);
-      const pending = this.publicationIntent(id);
-      if (pending) {
-        if (pending.actor_id !== actorId) throw datasetErrors.publication_owner("请由上次发布的发起者恢复，原快照已保留");
-        return pending;
-      }
-      const intent: DatasetPublicationIntent = { content: existing ?? { title: current.title, description: current.description, columns: current.columns, rows: current.rows },
-        version: version ?? current.artifact_version + 1, source_version: current.version, actor_id: actorId };
-      this.db.run("UPDATE datasets SET publication_pending_json = ? WHERE id = ?", [JSON.stringify(intent), id]);
-      return intent;
-    });
-  }
-
-  completePublication(id: string, projectId: string, intent: DatasetPublicationIntent, artifact: { artifact_id: string; version: number }): DatasetRecord {
-    return this.atomically(() => {
-      const current = this.get(id, projectId);
-      if (current.artifact_id === artifact.artifact_id && current.artifact_version >= intent.version) return current;
-      if (JSON.stringify(this.publicationIntent(id)) !== JSON.stringify(intent)) throw datasetErrors.publication_conflict("发布记录已改变，请重新读取数据表");
-      this.db.run("UPDATE datasets SET artifact_id = ?, artifact_version = ?, updated_at = ?, version = version + 1, publication_pending_json = NULL WHERE id = ?",
-        [artifact.artifact_id, artifact.version, new Date().toISOString(), id]);
-      return this.get(id, projectId);
-    });
-  }
-
-  private publicationIntent(id: string): DatasetPublicationIntent | null {
-    const row = this.db.get("SELECT publication_pending_json FROM datasets WHERE id = ?", [id]);
-    const pending = row?.publication_pending_json;
-    return typeof pending === "string" && pending ? JSON.parse(pending) as DatasetPublicationIntent : null;
-  }
-  private assertVersion(current: DatasetRecord, expectedVersion?: number): void {
-    if (expectedVersion !== undefined && expectedVersion !== current.version) throw datasetErrors.conflict("数据表已被其他窗口修改，请重新读取；当前草稿未覆盖服务器内容");
-  }
   /** The one cast from the SQL rows to this store's row shape: the columns are the schema's. */
   private rows(sql: string, parameters?: readonly DatasetSqlValue[]): DatasetRowDb[] {
     return this.db.all(sql, parameters) as unknown as DatasetRowDb[];
@@ -353,8 +318,12 @@ function csvRecords(text: string): string[][] {
   return records;
 }
 
-function fromRow(row: DatasetRowDb): DatasetRecord {
-  const pending = row.publication_pending_json ? JSON.parse(row.publication_pending_json) as DatasetPublicationIntent : null;
+export function assertDatasetVersion(current: DatasetRecord, expectedVersion?: number): void {
+  if (expectedVersion !== undefined && expectedVersion !== current.version) throw datasetErrors.conflict("数据表已被其他窗口修改，请重新读取；当前草稿未覆盖服务器内容");
+}
+
+export function fromRow(row: DatasetRowDb): DatasetRecord {
+  const pending = row.publication_pending_json ? JSON.parse(row.publication_pending_json) as NonNullable<DatasetRecord["publication_pending"]> : null;
   return {
     id: row.id,
     project_id: row.project_id ?? "",

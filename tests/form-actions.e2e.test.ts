@@ -7,7 +7,7 @@ import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
-for (const width of [1440,390]) test(`Form ${width}px: author, preview, historical answers, conflicts and fixed Artifact recovery`, {timeout:100_000}, async t => {
+for (const width of [1440,390]) test(`Form ${width}px: author, preview, historical answers, conflicts and retrying a fixed Artifact`, {timeout:100_000}, async t => {
   let modelCalls=0;
   // specs/ai-interaction-experience AC-26: 「AI 生成题目」 asks first in the shared question card, then drafts with the answer.
   const browser=await openGoalBrowser(t,true,undefined,async prompt=>{modelCalls++;assert.match(prompt,/常用工具/);return JSON.stringify(/内部同事/.test(prompt)
@@ -143,17 +143,21 @@ for (const width of [1440,390]) test(`Form ${width}px: author, preview, historic
   const db=openHomeSqliteDatabase(homeDirectory,'form');
   try{
     db.exec("CREATE TRIGGER fail_form_ui BEFORE UPDATE OF artifact_version ON forms WHEN NEW.artifact_version > OLD.artifact_version BEGIN SELECT RAISE(ABORT, 'fixture association failed'); END");
-    await click('[data-form-artifact-bar]');await idle();assert.equal(read().forms[0]!.publication_pending!.version,1);
+    await click('[data-form-artifact-bar]');await idle();assert.equal(read().forms[0]!.publication_pending,undefined);assert.equal(read().forms[0]!.artifact_version,0);
     db.exec('DROP TRIGGER fail_form_ui');
     // An answer keeps the questions as they were: one removed from the form since still shows under its own title.
     db.prepare('INSERT INTO submissions (id,form_id,answers_json,submitted_at,form_version,questions_json,source) VALUES (?,?,?,?,?,?,?)').run('old-answer',id,
       JSON.stringify({'removed-question':'历史回答'}),'2025-01-01T00:00:00Z',1,JSON.stringify([{id:'removed-question',type:'text',title:'已删掉的题',required:false,order:0}]),'preview');
   }finally{db.close();}
-  assert.equal(await evaluate("document.querySelector('[data-form-artifact-bar]').textContent"),'继续保存上次固定版本');
+  assert.equal(await evaluate("document.querySelector('[data-form-artifact-bar]').textContent"),'存为固定版本');
+  const failedPinNote = "document.querySelector('[data-form-note].is-error:not([hidden])')?.textContent";
+  const error = await evaluate<string>(failedPinNote);
+  assert.ok(error, 'the editor shows the fixed-version failure');
   await input('[data-form-description]','发布后继续编辑');await saved();await screenshot('recovery');
-  assert.equal(await evaluate("document.querySelector('[data-form-note]').hidden"),true);
-  assert.equal(await evaluate("document.querySelector('[data-form-publication-note]').hidden"),false);
+  assert.equal(await evaluate(failedPinNote),error);
+  assert.equal(await evaluate("document.querySelector('[data-form-publication-note]').hidden"),true);
   await click('[data-form-artifact-bar]');await idle();assert.equal(read().forms[0]!.artifact_version,1);assert.equal(read().forms[0]!.publication_pending,undefined);
+  assert.equal(await evaluate("document.querySelector('[data-form-note]').hidden"),true, 'a successful fixed version clears its own failure');
   assert.equal(read().forms[0]!.description,'发布后继续编辑');assert.equal(read().forms[0]!.share_id,share);
   const denied=await evaluate<number>(`fetch('/projects/${projectId}/api/plugins/io.molis.work.form/forms?project_id=${projectId}',{method:'POST',headers:molisWorkControlHeaders(),body:JSON.stringify({project_id:'wrong',title:'denied'})}).then(r=>r.status)`);
   assert.equal(denied,403);assert.equal(read().forms.length,1);

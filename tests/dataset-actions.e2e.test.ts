@@ -108,18 +108,17 @@ for (const width of [1440, 390]) test(`W5-01-DATASET-03: Dataset ${width}px: edi
   await moreClick('[data-dataset-reload]'); await waitFor("document.querySelector('[data-dataset-confirm]').open");
   await click('[data-dataset-confirm] [data-confirm-ok]'); await idle();
   assert.equal(await evaluate("document.querySelector('[data-dataset-title]').value"), '另一客户端修改');
-  // Interrupted Artifact association is visible and can be resumed after fresh reading.
+  // A failed fixed version leaves the draft unchanged and can be retried after editing.
   const db = openHomeSqliteDatabase(homeDirectory, 'dataset');
   try {
     db.exec("CREATE TRIGGER fail_dataset_ui_publication BEFORE UPDATE OF artifact_version ON datasets WHEN NEW.artifact_version > OLD.artifact_version BEGIN SELECT RAISE(ABORT, 'fixture association failed'); END");
-    await click('[data-dataset-artifact-bar]'); await idle(); assert.equal(read()[0]!.publication_pending!.version, 1);
-    assert.equal(await evaluate("document.querySelector('[data-dataset-artifact-bar]').textContent"), '继续保存上次固定版本');
+    await click('[data-dataset-artifact-bar]'); await idle(); assert.equal(read()[0]!.publication_pending, undefined); assert.equal(read()[0]!.artifact_version, 0);
+    assert.equal(await evaluate("document.querySelector('[data-dataset-artifact-bar]').textContent"), '存为固定版本');
     db.exec('DROP TRIGGER fail_dataset_ui_publication');
   } finally { db.close(); }
   await moreClick('[data-dataset-reload]'); await idle();
-  assert.equal(await evaluate("document.querySelector('[data-dataset-artifact-bar]').textContent"), '继续保存上次固定版本');
+  assert.equal(await evaluate("document.querySelector('[data-dataset-artifact-bar]').textContent"), '存为固定版本');
   await input('[data-dataset-description]', '发布中继续编辑'); await saved();
-  await evaluate("document.querySelector('[data-dataset-publication-note]').scrollIntoView({block:'nearest'})");
   assert.equal(await evaluate("document.querySelector('[data-dataset-title]').value"), '另一客户端修改');
   assert.equal(await evaluate("document.querySelector('[data-dataset-description]').value"), '发布中继续编辑');
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");

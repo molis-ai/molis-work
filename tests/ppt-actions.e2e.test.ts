@@ -98,9 +98,9 @@ for(const width of [1440,390])test(`PPT ${width}px: slides, colors, download, sa
   assert.equal(await evaluate("document.querySelector('[data-ppt-description]').value"),'远端修改');
   const db=openHomeSqliteDatabase(homeDirectory,'ppt');
   try{db.exec("CREATE TRIGGER fail_ppt_ui BEFORE UPDATE OF artifact_version ON presentations WHEN NEW.artifact_version > OLD.artifact_version BEGIN SELECT RAISE(ABORT, 'fixture association failed'); END");
-    await click('[data-ppt-artifact-bar]');await idle();assert.equal(read()[0]!.publication_pending!.version,1);db.exec('DROP TRIGGER fail_ppt_ui');
+    await click('[data-ppt-artifact-bar]');await idle();assert.equal(read()[0]!.publication_pending,undefined);assert.equal(read()[0]!.artifact_version,0);db.exec('DROP TRIGGER fail_ppt_ui');
   }finally{db.close();}
-  await input('[data-ppt-description]','继续编辑保留');await saved();assert.equal(await evaluate("document.querySelector('[data-ppt-artifact-bar]').textContent"),'继续保存上次固定版本');await screenshot('recovery');
+  await input('[data-ppt-description]','继续编辑保留');await saved();assert.equal(await evaluate("document.querySelector('[data-ppt-artifact-bar]').textContent"),'存为固定版本');await screenshot('recovery');
   // The presentation being edited comes back by itself (specs/archive/page-interaction-flow: a plugin's page reopens the record that was open in it after a reload).
   await reloadPage();await open();await waitFor("document.querySelector('[data-ppt-title]')?.getClientRects().length > 0");await idle();
   await click('[data-ppt-artifact-bar]');await idle();assert.equal(read()[0]!.artifact_version,1);assert.equal(read()[0]!.publication_pending,undefined);assert.equal(read()[0]!.description,'继续编辑保留');

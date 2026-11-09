@@ -5,7 +5,7 @@ import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contract
 import { slidesFromMarkdown } from "./content-actions.js";
 import { PPT_DRAFT_OUTLINE } from "./prompts.js";
 import { PPT_ARTIFACT_TYPE_ID, PPT_PLUGIN_ID, PPT_PROJECT_PLUGIN_ID, type PptRecord, type PptSlideInput, PPT_SUBJECT_KIND } from "./contract.js";
-import { promotePpt, type PptLineHeadPort, type PptPublishArtifactPort, type PptReadArtifactPort } from "./promote.js";
+import type { promotePpt } from "./promote.js";
 import type { PptStore, PptStores } from "./store.js";
 import type { PluginModelResult } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createPptSearchHandlers, pptSearchActions } from "./search.js";
@@ -27,13 +27,15 @@ type OutlineInput = Identity & { text?: string; page_id?: string; replace?: bool
 type Edit = Identity & { title?: string; description?: string; color_primary?: string; color_background?: string; color_text?: string; slides?: readonly PptSlideInput[] };
 function define<I, O>(name: string, version: number, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema, permissions: readonly string[] = operation === "query" ? read : write, execution?: ActionDefinition["action"]["execution"]): ActionDefinition<I, O> {
   // An action that waits on a model discloses the cost and runs beside the serial queue, like Forms' AI drafting.
-  return createActionDefinition<I, O>(`ppt.${name}`, operation, { title, description, ...(execution ? { execution } : {}), audiences: ["user", "workflow", "agent", "mcp"], subject_kinds: [PPT_SUBJECT_KIND], input_schema: input, output_schema: output, permissions, ...(name === "outline_ai" ? { scheduling: "concurrent" as const } : {}) }, version);
+  return createActionDefinition<I, O>(`ppt.${name}`, operation, { title, description, ...(execution ? { execution } : {}), audiences: ["user", "workflow", "agent", "mcp"], subject_kinds: [PPT_SUBJECT_KIND], input_schema: input, output_schema: output, permissions, ...(name === "outline_ai" || name === "promote" ? { scheduling: "concurrent" as const } : {}) }, version);
 }
+const artifactPin = defineArtifactPinAction("ppt.artifacts.pin", /* @version action.ppt.artifacts.pin */ 1, PPT_SUBJECT_KIND, "演示稿", [...write, "artifact:write"]);
+
 export const pptActions = {
   /** A pinned version as the 成果库 and side panel show it (artifact-positioning A4). */
   artifactPreview: pptArtifactPreview,
   /** Pins the current revision on the spot, for a Goal handing it in (A5); the same publication as `promote`. */
-  artifactPin: defineArtifactPinAction("ppt.artifacts.pin", /* @version action.ppt.artifacts.pin */ 1, PPT_SUBJECT_KIND, "演示稿", [...write, "artifact:write"]),
+  artifactPin: { ...artifactPin, action: { ...artifactPin.action, scheduling: "concurrent" as const } },
   /** Whether a pinned version still matches the ppt object it came from (A4b, 「原文已改」); compares content, not revisions. */
   artifactCompare: defineArtifactCompareAction("ppt.artifacts.compare", /* @version action.ppt.artifacts.compare */ 1, "演示稿", read),
   /** 「从这一版继续」 (A4b): a new 演示稿 with the content of a pinned version; the version itself is unchanged. */
@@ -46,7 +48,7 @@ export const pptActions = {
     slides: { ...array(object(slideFields, [])), minItems: 1, maxItems: 40 } }, ["id"]), changed),
   delete: define<Identity, { ok: true }>("delete", /* @version action.ppt.delete */ 1, "删除演示稿", "删除当前项目演示稿，待恢复的成果发布需先完成", "command", object(identity, ["id"]), object({ ok: { const: true } })),
   export: define<Identity, { filename: string; mime_type: "application/json"; content: string }>("export", /* @version action.ppt.export */ 1, "导出演示稿 JSON", "返回已保存演示稿的完整 JSON、文件名和 MIME 类型；不是 PPTX", "query", object(identity, ["id"]), object({ filename: text, mime_type: { const: "application/json" }, content: text })),
-  promote: define<Identity, { presentation: PptRecord; artifact: { artifact_id: string; version: number }; recovered: boolean }>("promote", /* @version action.ppt.promote */ 1, "演示稿存为成果", "发布固定幻灯片与配色或恢复原发布；后续编辑保留", "command", object(identity, ["id"]), object({ presentation: record, artifact: object({ artifact_id: id, version }), recovered: { type: "boolean" } }), [...write, "artifact:write"]),
+  promote: define<Identity, { presentation: PptRecord; artifact: { artifact_id: string; version: number }; recovered: boolean }>("promote", /* @version action.ppt.promote */ 1, "演示稿存为成果", "将当前幻灯片与配色固定为成果，演示稿仍可编辑", "command", object(identity, ["id"]), object({ presentation: record, artifact: object({ artifact_id: id, version }), recovered: { type: "boolean" } }), [...write, "artifact:write"]),
   pptx: define<Identity, { filename: string; mime_type: typeof PPTX_MIME_TYPE; content_base64: string; slide_count: number }>("pptx", /* @version action.ppt.pptx */ 1, "导出 PowerPoint 文件",
     "按已保存的版本生成 .pptx（每页标题、要点、讲者备注与配色），PowerPoint、Keynote、WPS 可直接打开和放映；不含图片与图表", "query", object(identity, ["id"]),
     object({ filename: text, mime_type: { const: PPTX_MIME_TYPE }, content_base64: text, slide_count: { type: "integer", minimum: 1 } })),
@@ -71,15 +73,10 @@ export interface PptActionPorts extends PptStores {
   modelAvailability?(): ActionAvailability;
   /** The full result, so the synchronous `validateResult()` can run inside the write transaction. */
   complete?(prompt: InstructedPrompt, options: { signal?: AbortSignal; beforeDispatch?: () => Promise<void> }): Promise<PluginModelResult>;
-  /** Publication has two commits (intent, then completion); a facade keeps a failed artifact write recoverable. */
-  promote?(caller: ActionExecutionContext, id: string, projectId: string, expectedVersion: number | undefined,
-    publishArtifact: PptPublishArtifactPort): ReturnType<typeof promotePpt>;
   /** Pages documents through Pages' public content actions, with the caller's own authority; absent when Pages is not reachable. */
   listPages?(caller: ActionCallContext): Promise<Array<{ id: string; title: string; updated_at: string | null }>>;
   readPage?(pageId: string, caller: ActionCallContext): Promise<{ title: string; body: string }>;
-  publishArtifact?: (input: Parameters<PptPublishArtifactPort>[0], caller: ActionCallContext) => ReturnType<PptPublishArtifactPort>;
-  readArtifact?: (input: Parameters<PptReadArtifactPort>[0], caller: ActionCallContext) => ReturnType<PptReadArtifactPort>;
-  lineHead?: PptLineHeadPort;
+  promote?(id: string, expectedVersion?: number): ReturnType<typeof promotePpt>;
 }
 /** A deck is at most this many pages. */
 const SLIDE_LIMIT = 40;
@@ -115,13 +112,11 @@ export function createPptActionHandlers(ports: PptActionPorts): ActionHandlerBin
   const modelAvailability = (): ActionAvailability => ports.modelAvailability ? ports.modelAvailability() : { available: false, code: "actions.connection_required", reason: "请先配置可用的文字模型" };
   const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding => ({ capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, retainActionAuthority(caller, { capability_id: definition.capability_id, version: definition.version, provider_id: PPT_PLUGIN_ID }, caller.beforeEffect)), ...(availability ? { availability } : {}) });
   const promote = (id: string, caller: ActionExecutionContext, expectedVersion?: number) => {
-    const publish = (value: Parameters<PptPublishArtifactPort>[0]) => ports.publishArtifact!(value, caller);
-    // A published line commits its intent before the artifact is written; a failure keeps that intent for recovery.
-    if (ports.promote) return ports.promote(caller, id, project(caller), expectedVersion, publish);
-    const options = { actorId: caller.actor_id, expectedVersion, readArtifact: ports.readArtifact ? (value: Parameters<PptReadArtifactPort>[0]) => ports.readArtifact!(value, caller) : undefined, lineHead: ports.lineHead };
-    return ports.write(caller, store => promotePpt(store, id, project(caller), publish, options));
+    project(caller);
+    if (!ports.promote) throw pptErrors.unavailable("当前环境不能发出成果");
+    return ports.promote(id, expectedVersion);
   };
-  const publishable = () => ports.publishArtifact ? { available: true as const } : { available: false as const, code: "ppt.unavailable", kind: "conflict" as const, reason: "当前环境不能发出成果" };
+  const publishable = () => ports.promote ? { available: true as const } : { available: false as const, code: "ppt.unavailable", kind: "conflict" as const, reason: "当前环境不能发出成果" };
   return [
     pptArtifactPreviewHandler,
     bind(pptActions.list, (_, caller) => {

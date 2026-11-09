@@ -38,7 +38,10 @@ const PAGES_SCHEMA = `
  * What goes when a project is deleted, which the platform deletes from this library itself (PG-024): its documents and folders go
  * (their comments with them), with the generation and import receipts and the edits that could still be taken back.
  */
-const PAGES_PROJECT_ROWS: PluginProjectRowsDeclaration = { label: "Pages 文稿与文件夹", order: 10, tables: [
+const PAGES_PROJECT_ROWS: PluginProjectRowsDeclaration = { label: "Pages 文稿与文件夹", order: 10,
+  artifact_join: { table: "pages", id_column: "id", version_column: "version", artifact_id_column: "artifact_id",
+    artifact_version_column: "artifact_version", write_columns: ["updated_at", "goal_id"], pending_column: "publication_pending_json" },
+  tables: [
   { table: "page_changes", column: "page_id", parent: "pages" },
   { table: "pages_editor_versions", column: "id", parent: "pages" },
   { table: "pages", column: "project_id" },

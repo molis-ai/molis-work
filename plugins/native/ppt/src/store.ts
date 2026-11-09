@@ -1,12 +1,11 @@
 import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HomeStoreDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PptRecord, PptSlide, PptSlideInput } from "./contract.js";
-import type { PptPublicationIntent, PptPublicationSnapshot } from "./promote.js";
 import { pptErrors } from "./error.js";
 import { PPT_DATABASE } from "./database.js";
 export { PPT_DATABASE };
 
-interface PptRow {
+type PptRow = {
   id: string;
   project_id: string;
   title: string;
@@ -21,7 +20,7 @@ interface PptRow {
   artifact_id?: string;
   artifact_version?: number;
   publication_pending_json?: string | null;
-}
+};
 
 const DEFAULT_PRIMARY = "#5e6ad2";
 const DEFAULT_BACKGROUND = "#FCFCFB";
@@ -97,7 +96,7 @@ export class PptStore {
     expected_version?: number;
   }, projectId?: string): PptRecord {
     const current = this.get(id, projectId);
-    this.assertVersion(current, patch.expected_version);
+    assertPptVersion(current, patch.expected_version);
     const next: PptRecord = {
       ...current,
       title: patch.title !== undefined ? normalizeTitle(patch.title) : current.title,
@@ -115,7 +114,7 @@ export class PptStore {
 
   delete(id: string, projectId?: string, expectedVersion?: number): void {
     this.atomically(() => {
-      const current = this.get(id, projectId); this.assertVersion(current, expectedVersion);
+      const current = this.get(id, projectId); assertPptVersion(current, expectedVersion);
       if (current.publication_pending) throw pptErrors.publication_pending("请先恢复上次成果发布，再删除演示稿");
       this.db.run("DELETE FROM presentations WHERE id = ?", [id]);
     });
@@ -164,40 +163,6 @@ export class PptStore {
     });
   }
 
-  beginPublication(id: string, projectId: string, actorId: string, expectedVersion?: number, existing?: PptPublicationSnapshot, version?: number): PptPublicationIntent {
-    return this.atomically(() => {
-      const current = this.get(id, projectId); this.assertVersion(current, expectedVersion);
-      const pending = this.publicationIntent(id);
-      if (pending) {
-        if (pending.actor_id !== actorId) throw pptErrors.publication_owner("请由上次发布的发起者恢复，原快照已保留");
-        return pending;
-      }
-      const intent: PptPublicationIntent = { content: existing ?? { title: current.title, description: current.description, color_primary: current.color_primary, color_background: current.color_background, color_text: current.color_text, slides: current.slides },
-        version: version ?? current.artifact_version + 1, source_version: current.version, actor_id: actorId };
-      this.db.run("UPDATE presentations SET publication_pending_json = ? WHERE id = ?", [JSON.stringify(intent), id]);
-      return intent;
-    });
-  }
-
-  completePublication(id: string, projectId: string, intent: PptPublicationIntent, artifact: { artifact_id: string; version: number }): PptRecord {
-    return this.atomically(() => {
-      const current = this.get(id, projectId);
-      if (current.artifact_id === artifact.artifact_id && current.artifact_version >= intent.version) return current;
-      if (JSON.stringify(this.publicationIntent(id)) !== JSON.stringify(intent)) throw pptErrors.publication_conflict("发布记录已改变，请重新读取演示稿");
-      this.db.run("UPDATE presentations SET artifact_id = ?, artifact_version = ?, updated_at = ?, version = version + 1, publication_pending_json = NULL WHERE id = ?",
-        [artifact.artifact_id, artifact.version, new Date().toISOString(), id]);
-      return this.get(id, projectId);
-    });
-  }
-
-  private publicationIntent(id: string): PptPublicationIntent | null {
-    const row = this.db.get("SELECT publication_pending_json FROM presentations WHERE id = ?", [id]);
-    const pending = row?.publication_pending_json;
-    return typeof pending === "string" && pending ? JSON.parse(pending) as PptPublicationIntent : null;
-  }
-  private assertVersion(current: PptRecord, expectedVersion?: number): void {
-    if (expectedVersion !== undefined && expectedVersion !== current.version) throw pptErrors.conflict("演示稿已被其他窗口修改，请重新读取；当前草稿未覆盖服务器内容");
-  }
   /** The one cast from the SQL rows to this store's row shape: the columns are the schema's. */
   private rows(sql: string, parameters?: readonly PptSqlValue[]): PptRow[] {
     return this.db.all(sql, parameters) as unknown as PptRow[];
@@ -218,7 +183,12 @@ export class PptStore {
 }
 
 
-function fromRow(row: PptRow): PptRecord {
+export function assertPptVersion(current: PptRecord, expectedVersion?: number): void {
+  if (expectedVersion !== undefined && expectedVersion !== current.version) throw pptErrors.conflict("演示稿已被其他窗口修改，请重新读取；当前草稿未覆盖服务器内容");
+}
+
+export function fromRow(row: PptRow): PptRecord {
+  const pending = row.publication_pending_json ? JSON.parse(row.publication_pending_json) as NonNullable<PptRecord["publication_pending"]> : null;
   return {
     id: row.id,
     project_id: row.project_id ?? "",
@@ -233,7 +203,7 @@ function fromRow(row: PptRow): PptRecord {
     version: row.version,
     artifact_id: row.artifact_id ?? "",
     artifact_version: Number(row.artifact_version) || 0,
-    ...(row.publication_pending_json ? { publication_pending: ((intent: PptPublicationIntent) => ({ version: intent.version, source_version: intent.source_version }))(JSON.parse(row.publication_pending_json)) } : {}),
+    ...(pending ? { publication_pending: { version: pending.version, source_version: pending.source_version } } : {}),
   };
 }
 

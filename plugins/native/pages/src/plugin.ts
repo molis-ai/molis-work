@@ -1,18 +1,16 @@
 import { syncBindings } from "./sync-binding.js";
 import { bindPluginActionRoute, projectRouteFields } from "@molis-ai/molis-work-plugin-sdk";
-import { ActionError, requireSynchronous, type ActionAvailability, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginArtifactClient, PluginDefinition, PluginMaterialsClient, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { PAGES_ARTIFACT_SCHEMA_VERSION, PAGES_ARTIFACT_TYPE_ID } from "./contract.js";
+import { ActionError, type ActionAvailability, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { PluginDefinition, PluginMaterialsClient, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { pagesManifest } from "./manifest.js";
-import { createPagesActionHandlers, pagesActions, PAGES_SUBJECT_KIND, type PagesActionPorts } from "./actions.js";
+import { createPagesActionHandlers, pagesActions, type PagesActionPorts } from "./actions.js";
 import { pagesCommentActions } from "./comment-actions.js";
 import { createPagesContentHandlers } from "./content-actions.js";
-import { parsePagesBody } from "./document.js";
 import { pagesErrors } from "./error.js";
 import { preparePagesImport, type PagesImportFile, type PreparedPagesImport } from "./import-files.js";
 import { PagesStore, type PagesSql, type PagesStores } from "./store.js";
 import { pagesUiContribution } from "./ui.js";
-import { promotePagesDocument, type PagesLineHeadPort, type PagesPromoteStore, type PagesPublishArtifactPort, type PagesReadArtifactPort } from "./promote.js";
+import { promotePagesDocument } from "./promote.js";
 import { pagesSkills } from "./skills.js";
 import { PAGES_INSTRUCTIONS } from "./prompts.js";
 
@@ -36,27 +34,14 @@ export function createPagesPlugin(): PluginDefinition {
       write: (caller, run) => database.transaction(() => caller.beforeEffect(), transaction => run(new PagesStore(transaction, attempts))),
     };
     const model = context.services?.model;
-    const artifactPorts = pagesArtifactPorts(context, artifacts);
-    const ports: PagesActionPorts = { ...stores, ...artifactPorts,
+    const ports: PagesActionPorts = { ...stores,
+      ...(database.transactionProjectRow && artifacts.join ? {
+        promote: (id: string, expectedVersion?: number, goalId?: string) => promotePagesDocument(database, artifacts, id, expectedVersion, goalId),
+      } : {}),
       modelAvailability: (): ActionAvailability => model?.availability() ?? { available: false, code: "actions.connection_required", reason: "请先配置可用的文字模型，再使用写作助手" },
       ...(model ? { complete: async (prompt, options) => { await options.beforeDispatch?.(); return model.complete(prompt, { signal: options.signal }); } } : {}),
       prepareImport: (files, caller) => prepareImport(context.services?.materials, files, caller),
-      promote: async (caller, id, projectId, goalId, expectedVersion, publishArtifact) => {
-        const current = () => { caller.signal?.throwIfAborted(); requireSynchronous(caller.assert_authority_current?.(), "最终授权检查必须同步完成"); };
-        await caller.beforeEffect();
-        const facade: PagesPromoteStore = {
-          get: (recordId, project) => stores.read(store => store.get(recordId, project)),
-          beginPublication: (...args) => database.transaction(() => caller.beforeEffect(), transaction => {
-            current(); return new PagesStore(transaction, attempts).beginPublication(...args);
-          }),
-          completePublication: (...args) => database.transaction(() => caller.beforeEffect(), transaction => {
-            current(); return new PagesStore(transaction, attempts).completePublication(...args);
-          }),
-        };
-        return promotePagesDocument(facade, id, projectId, value => { current(); return publishArtifact(value); }, goalId,
-          { actorId: caller.actor_id, expectedVersion, readArtifact: artifactPorts.readArtifact ? value => artifactPorts.readArtifact!(value, caller) : undefined, lineHead: artifactPorts.lineHead,
-            beforePublish: async () => { await caller.beforeEffect(); current(); } });
-      } };
+    };
     return { kind: "app", sync: syncBindings(context), views: [pagesUiContribution],
       actions: [...createPagesActionHandlers(ports), ...createPagesContentHandlers(actions)],
       routes: pagesRoutes(context) };
@@ -77,45 +62,6 @@ async function prepareImport(materials: PluginMaterialsClient | undefined, files
     if (error instanceof Error && typeof code === "string" && code.startsWith("material.")) throw pagesErrors.invalid(error.message);
     throw error;
   }
-}
-
-/** What this plugin pins is `pages-<id>` in the project's 成果库, a JSON snapshot of the document at the revision it pins. */
-function pagesArtifactPorts(context: PluginStartContext, artifacts: PluginArtifactClient): Pick<PagesActionPorts, "publishArtifact" | "readArtifact" | "lineHead"> {
-  const here = (projectId: string) => { if (projectId !== context.project_id) throw pagesErrors.invalid("文档项目与当前项目不一致"); };
-  const ours = <T>(read: () => T): T => {
-    try { return read(); }
-    catch (error) {
-      if ((error as { code?: string }).code === "artifacts.plugin_denied") throw pagesErrors.publication_conflict("成果的来源或类型不匹配，原记录已保留");
-      throw error;
-    }
-  };
-  const publishArtifact: PagesPublishArtifactPort = input => {
-    here(input.project_id);
-    const { artifact } = artifacts.publish({ artifact_id: "pages-" + input.page_id, version: input.version,
-      artifact_type_id: PAGES_ARTIFACT_TYPE_ID, schema_version: PAGES_ARTIFACT_SCHEMA_VERSION,
-      content: { kind: "inline", payload: JSON.parse(JSON.stringify({ title: input.title, page_id: input.page_id, goal_id: input.goal_id, body: input.body })) },
-      metadata: { page_id: input.page_id, goal_id: input.goal_id, title: input.title },
-      // A pinned revision of the document (artifact-positioning A1).
-      origin: { kind: "pinned", subject: { kind: PAGES_SUBJECT_KIND, id: input.page_id }, revision: String(input.source_version) },
-      title: input.title, media_type: "application/json",
-      supersedes_version: input.version > 1 ? input.version - 1 : null });
-    return { artifact_id: artifact.artifact_id, version: artifact.version };
-  };
-  // Recovery reads the immutable version already written; a pinned version belongs to the person whoever pinned it.
-  const readArtifact: PagesReadArtifactPort = input => {
-    here(input.project_id);
-    const artifact = ours(() => artifacts.readOwn({ artifact_id: "pages-" + input.page_id, version: input.version }));
-    if (!artifact) return null;
-    if (artifact.artifact_type_id !== PAGES_ARTIFACT_TYPE_ID || artifact.schema_version !== PAGES_ARTIFACT_SCHEMA_VERSION
-      || artifact.producer_binding_signature !== pagesManifest.publisher.signature || artifact.content_kind !== "inline")
-      throw pagesErrors.publication_conflict("成果的来源或类型不匹配，原记录已保留");
-    const payload = artifact.payload as Record<string, unknown> | null;
-    if (!payload || payload.page_id !== input.page_id || typeof payload.title !== "string" || typeof payload.goal_id !== "string" || !payload.body)
-      throw pagesErrors.publication_conflict("成果的文稿内容不完整，原记录已保留");
-    return { title: payload.title, body: parsePagesBody(payload.body), goal_id: payload.goal_id };
-  };
-  const lineHead: PagesLineHeadPort = input => { here(input.project_id); return ours(() => artifacts.head("pages-" + input.page_id)); };
-  return { publishArtifact, readArtifact, lineHead };
 }
 
 /** The routes only map the request to an action; a `project_id` the page sends must be this project's. */

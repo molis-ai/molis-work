@@ -151,7 +151,6 @@ export {
 export { extractFromPagesBody } from "./extract.js";
 export { PAGES_AI_COMMANDS } from "./ai.js";
 export { runPagesAi } from "./ai-run.js";
-export type { PagesLineHeadPort, PagesPublishArtifactPort, PagesReadArtifactPort } from "./promote.js";
 
 export { pagesContentActions, createPagesContentHandlers } from "./content-actions.js";
 

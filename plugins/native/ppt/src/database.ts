@@ -27,7 +27,10 @@ const PPT_SCHEMA = `
  * What goes when a project is deleted, which the platform deletes from this library itself (PG-024): its presentations go with the
  * receipts of copies made into it.
  */
-const PPT_PROJECT_ROWS: PluginProjectRowsDeclaration = { label: "PPT 演示稿", order: 40, tables: [
+const PPT_PROJECT_ROWS: PluginProjectRowsDeclaration = { label: "PPT 演示稿", order: 40,
+  artifact_join: { table: "presentations", id_column: "id", version_column: "version", artifact_id_column: "artifact_id",
+    artifact_version_column: "artifact_version", write_columns: ["updated_at"], pending_column: "publication_pending_json" },
+  tables: [
   { table: "presentations", column: "project_id" },
   { table: "presentation_copies", column: "project_id" },
 ] };

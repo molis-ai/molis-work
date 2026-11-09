@@ -71,11 +71,13 @@
 |  | [本机日志、崩溃恢复与诊断包](reference/batches/26.md#batch-26-item-4) |
 |  | [插件升级 U4 与合同过渡 U5](reference/batches/26.md#batch-26-item-5) |
 |  | [副本演练与回退 U6](reference/batches/26.md#batch-26-item-6) |
+|  | [状态与状态机合同与词表](reference/batches/26.md#batch-26-item-7) |
 | [27](reference/batches/27.md) | [基础交互体验债](reference/batches/27.md#batch-27-item-1) |
 |  | [代码／Diff 及性能余项](reference/batches/27.md#batch-27-item-2) |
 |  | [首批文案与帮助](reference/batches/27.md#batch-27-item-3) |
 |  | [Runtime、Goals 与沙箱余项](reference/batches/27.md#batch-27-item-4) |
 |  | [宿主出口、文档门禁与各包清理](reference/batches/27.md#batch-27-item-5) |
+|  | [状态词汇门禁与文档](reference/batches/27.md#batch-27-item-6) |
 | [28](reference/batches/28.md) | [采集事实接入](reference/batches/28.md#batch-28-item-1) |
 | [29](reference/batches/29.md) | [历史查询与记录管理](reference/batches/29.md#batch-29-item-1) |
 | [30](reference/batches/30.md) | [最小真实评测路径](reference/batches/30.md#batch-30-item-1) |
@@ -104,10 +106,12 @@
 | [45](reference/batches/45.md) | [情境 W4 创建与准备声明](reference/batches/45.md#batch-45-item-1) |
 |  | [通用任务引导与场景复用](reference/batches/45.md#batch-45-item-2) |
 | [46](reference/batches/46.md) | [正式插件交付的平台前置](reference/batches/46.md#batch-46-item-1) |
+|  | [状态机登记与只读查询](reference/batches/46.md#batch-46-item-2) |
 | [47](reference/batches/47.md) | [新插件创建、隔离试用与安装预演](reference/batches/47.md#batch-47-item-1) |
 |  | [成果、搜索与工作流内容站声明](reference/batches/47.md#batch-47-item-2) |
 |  | [依赖、来源与权限可见](reference/batches/47.md#batch-47-item-3) |
 |  | [首次可用率与返修评测样本](reference/batches/47.md#batch-47-item-4) |
+|  | [安装预演与插件目录的状态展示](reference/batches/47.md#batch-47-item-5) |
 | [48](reference/batches/48.md) | [个人同步核心 → SRV-2](reference/batches/48.md#batch-48-item-1) |
 | [49](reference/batches/49.md) | [团队关键协作 → SRV-3](reference/batches/49.md#batch-49-item-1) |
 | [50](reference/batches/50.md) | [双身份协作实证 → SRV-3](reference/batches/50.md#batch-50-item-1) |

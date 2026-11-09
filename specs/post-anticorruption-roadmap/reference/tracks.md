@@ -44,7 +44,7 @@ C1 管合同与快照，C2 管 AI 运行时与换包，C3 管独立平台服务�
 
 ### 批次与轨道对照
 
-认领前查这里：一项占哪条轨道，决定它要不要等别人。下面三张表覆盖全部 87 批、199 个交付项，由批次详情与需求记录推导，用户 2026-11-04 确认。[全景图](https://molis-ai.github.io/molis-work/)按它算「可领」。执行目录增删或改名交付行时，同一个改动里改这里。
+认领前查这里：一项占哪条轨道，决定它要不要等别人。下面三张表覆盖全部 87 批、203 个交付项，由批次详情与需求记录推导，用户 2026-11-04 确认；2026-11-08 随状态机能力并入 26-7／27-6／46-2／47-5，交付项增到 203。[全景图](https://molis-ai.github.io/molis-work/)按它算「可领」。执行目录增删或改名交付行时，同一个改动里改这里。
 
 怎样算占用：
 
@@ -64,7 +64,7 @@ C1 管合同与快照，C2 管 AI 运行时与换包，C3 管独立平台服务�
 | C3 平台新服务 | [28](batches/28.md)、[29](batches/29.md)、[30](batches/30.md)、[34](batches/34.md)、[59](batches/59.md)、[62](batches/62.md) | — |
 | C（同批细分不同或未细分） | [22](batches/22.md)、[24](batches/24.md)、[36](batches/36.md)、[39](batches/39.md)、[42](batches/42.md)、[60](batches/60.md)、[61](batches/61.md) | [24-1](batches/24.md#batch-24-item-1)、[24-3](batches/24.md#batch-24-item-3)、[60-3](batches/60.md#batch-60-item-3) |
 | D 外观与语言 | [07](batches/07.md)、[13](batches/13.md)、[14](batches/14.md)、[16](batches/16.md)、[40](batches/40.md)、[70](batches/70.md) | — |
-| E 插件 | [17](batches/17.md)、[18](batches/18.md)、[19](batches/19.md)、[38](batches/38.md)、[47](batches/47.md)、[54](batches/54.md)、[67](batches/67.md)、[68](batches/68.md)、[69](batches/69.md)、[76](batches/76.md)、[77](batches/77.md)、[81](batches/81.md) | [47-4](batches/47.md#batch-47-item-4)、[54-3](batches/54.md#batch-54-item-3)、[54-8](batches/54.md#batch-54-item-8)、[67-3](batches/67.md#batch-67-item-3)、[67-6](batches/67.md#batch-67-item-6) |
+| E 插件 | [17](batches/17.md)、[18](batches/18.md)、[19](batches/19.md)、[38](batches/38.md)、[54](batches/54.md)、[67](batches/67.md)、[68](batches/68.md)、[69](batches/69.md)、[76](batches/76.md)、[77](batches/77.md)、[81](batches/81.md) | [54-3](batches/54.md#batch-54-item-3)、[54-8](batches/54.md#batch-54-item-8)、[67-3](batches/67.md#batch-67-item-3)、[67-6](batches/67.md#batch-67-item-6) |
 | F 场景引导与发布 | [44](batches/44.md)、[74](batches/74.md) | — |
 | G 服务端 | [SRV-2](batches/srv-2.md)、[SRV-5](batches/srv-5.md)、[SRV-6](batches/srv-6.md)、[SRV-7](batches/srv-7.md) | [SRV-5-3](batches/srv-5.md#srv-5-item-3)、[SRV-5-4](batches/srv-5.md#srv-5-item-4)、[SRV-5-5](batches/srv-5.md#srv-5-item-5) |
 
@@ -110,11 +110,13 @@ C1 管合同与快照，C2 管 AI 运行时与换包，C3 管独立平台服务�
 | [26-4](batches/26.md#batch-26-item-4) | 本机日志、崩溃恢复与诊断包 | F | 是 | D |
 | [26-5](batches/26.md#batch-26-item-5) | 插件升级 U4 与合同过渡 U5 | C1 | 是 | A、E |
 | [26-6](batches/26.md#batch-26-item-6) | 副本演练与回退 U6 | F | 是 | — |
+| [26-7](batches/26.md#batch-26-item-7) | 状态与状态机合同与词表 | C1 | 是 | D |
 | [27-1](batches/27.md#batch-27-item-1) | 基础交互体验债 | E | 是 | A、D |
 | [27-2](batches/27.md#batch-27-item-2) | 代码／Diff 及性能余项 | D | 是 | B |
 | [27-3](batches/27.md#batch-27-item-3) | 首批文案与帮助 | D | 是 | A、B、E |
 | [27-4](batches/27.md#batch-27-item-4) | Runtime、Goals 与沙箱余项 | C1 | 是 | E |
 | [27-5](batches/27.md#batch-27-item-5) | 宿主出口、文档门禁与各包清理 | 统筹 | 否 | — |
+| [27-6](batches/27.md#batch-27-item-6) | 状态词汇门禁与文档 | 统筹 | 否 | C1、D、E |
 | [33-1](batches/33.md#batch-33-item-1) | Coding 任务与环境恢复 | B | 是 | — |
 | [33-2](batches/33.md#batch-33-item-2) | 材料、大清单与重启接续 | F | 是 | — |
 | [35-1](batches/35.md#batch-35-item-1) | 引导接入已有 Sessions | F | 是 | C3 |
@@ -125,6 +127,11 @@ C1 管合同与快照，C2 管 AI 运行时与换包，C3 管独立平台服务�
 | [43-2](batches/43.md#batch-43-item-2) | Dataset 汇总、追加与规模性能 | E | 是 | — |
 | [45-1](batches/45.md#batch-45-item-1) | 情境 W4 创建与准备声明 | E | 是 | C1、F |
 | [45-2](batches/45.md#batch-45-item-2) | 通用任务引导与场景复用 | F | 是 | A、E |
+| [47-1](batches/47.md#batch-47-item-1) | 新插件创建、隔离试用与安装预演 | E | 是 | —
+| [47-2](batches/47.md#batch-47-item-2) | 成果、搜索与工作流内容站声明 | E | 是 | —
+| [47-3](batches/47.md#batch-47-item-3) | 依赖、来源与权限可见 | E | 是 | D
+| [47-4](batches/47.md#batch-47-item-4) | 首次可用率与返修评测样本 | E | 否 | —
+| [47-5](batches/47.md#batch-47-item-5) | 安装预演与插件目录的状态展示 | D | 是 | E
 | [52-1](batches/52.md#batch-52-item-1) | 回执与交互余项 | A | 是 | B、C2、E |
 | [52-2](batches/52.md#batch-52-item-2) | 智能呈现第二片 | D | 是 | A、C1、C3、E |
 | [52-3](batches/52.md#batch-52-item-3) | 主线第二片 | A | 是 | D、E |

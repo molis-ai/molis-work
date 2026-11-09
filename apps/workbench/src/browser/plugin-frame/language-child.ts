@@ -16,7 +16,12 @@ export function frameLanguage(initial: FrameLanguage) {
     document.documentElement.lang = language.html_lang;
     document.documentElement.dir = language.direction;
   };
-  select(initial);
+  if (initial.opening) {
+    const { before, after } = initial.opening;
+    const plan = planLocaleText({ root: document.body, old: frameTextFragment(before).content, next: frameTextFragment(after).content,
+      produced: context.produced, retext: () => "" });
+    plan.apply(() => select(initial), () => {});
+  } else select(initial);
   return (message: FrameLanguageUpdate, reply?: MessagePort) => {
     if (message.language !== "prepare") {
       if (!prepared || prepared.turn !== message.turn) return;

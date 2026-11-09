@@ -2,6 +2,11 @@ import { escapeHtml as escape } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { FramePack } from "./types.js";
 import { appearanceRef, type AppearanceProjection } from "../appearance-view.js";
 
+export function frameDocumentMarkup(root: HTMLElement): string | null {
+  const html: unknown = JSON.parse(root.querySelector(":scope > script[data-plugin-document]")?.textContent ?? "null");
+  return typeof html === "string" ? html : null;
+}
+
 /** Match the actual surface and producer already bound to this root in either representation of the same shell. */
 export function renderedFrameText(page: ParentNode, root: HTMLElement): string | null {
   const selectors = root.dataset.pluginContribution ? "[data-plugin-contribution]" : "[data-work-surface], [data-directory-panel]";
@@ -11,8 +16,7 @@ export function renderedFrameText(page: ParentNode, root: HTMLElement): string |
   const matches = [...page.querySelectorAll<HTMLElement>(selectors)].filter(candidate =>
     keys.every(key => candidate.dataset[key] === root.dataset[key]) && candidate.querySelector(":scope > script[data-plugin-document]"));
   if (matches.length !== 1) return null;
-  const html: unknown = JSON.parse(matches[0]!.querySelector("script[data-plugin-document]")!.textContent ?? "null");
-  return typeof html === "string" ? html : null;
+  return frameDocumentMarkup(matches[0]!);
 }
 
 /** The CSP names only the registered bundle and its declared static dependencies. No child network or nested frame. */
@@ -21,8 +25,8 @@ export function frameDocument(root: HTMLElement, pack: FramePack, challenge: str
   const sources = [script, origin + "/desktop/pty-client.js", origin + "/assets/molis-work-plugins/" + encodeURIComponent(pack.bundle) + ".js", ...pack.assets.map(path => new URL(path, origin).href)];
   const policy = "default-src 'none'; script-src " + sources.join(" ") + "; style-src 'unsafe-inline' " + origin + "/assets/; font-src " + origin
     + "/assets/; img-src data: blob: " + origin + "/assets/; connect-src 'none'; frame-src blob:; object-src 'none'; base-uri 'none'; form-action 'none'";
-  const content: unknown = JSON.parse(root.querySelector("[data-plugin-document]")?.textContent ?? "null");
-  if (typeof content !== "string") throw new Error("Missing plugin document");
+  const content = frameDocumentMarkup(root);
+  if (content === null) throw new Error("Missing plugin document");
   const dataset = document.documentElement.dataset;
   const device = [["theme", dataset.theme], ["resolved-theme", dataset.resolvedTheme], ["density", dataset.density],
     ["terminal-theme", dataset.terminalTheme], ["resolved-terminal-theme", dataset.resolvedTerminalTheme]];

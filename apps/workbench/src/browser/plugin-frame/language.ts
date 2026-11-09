@@ -1,9 +1,14 @@
 import { UI_LANGUAGES, type UiLocalePack } from "@molis-ai/molis-work-contracts/platform/ui";
 import { createProducedLog, planLocaleText } from "../locale-switch.js";
-import { renderedFrameText } from "./document.js";
+import { frameDocumentMarkup, renderedFrameText } from "./document.js";
 import type { FrameScope } from "./types.js";
 
-export interface FrameLanguage { readonly locale: string; readonly owner: string; readonly packs: readonly UiLocalePack[] }
+export interface FrameLanguage {
+  readonly locale: string;
+  readonly owner: string;
+  readonly packs: readonly UiLocalePack[];
+  readonly opening?: { readonly before: string; readonly after: string };
+}
 interface BatchResult {
   readonly locale: string;
   readonly shared: readonly UiLocalePack[];
@@ -22,6 +27,7 @@ interface Pending {
 }
 const pending = new Map<string, Pending[]>();
 const connected = new Map<string, FrameMount>();
+const displayedTemplates = new WeakMap<HTMLElement, { locale: string; markup: string }>();
 let revision = 0;
 export const pageLanguage = () => UI_LANGUAGES.find(value => value.html_lang === document.documentElement.lang)?.tag ?? UI_LANGUAGES[0].tag;
 
@@ -81,6 +87,20 @@ export function trackFrameLanguage(mount: FrameMount, text: FrameLanguage): Fram
 
 const current = () => [...connected.values()].filter(mount => mount.root.isConnected && mount.scope.alive);
 
+/** Read exactly what will be assigned to srcdoc, before the asynchronous hello and its language read. */
+export function openingFrameTemplate(root: HTMLElement) {
+  const markup = frameDocumentMarkup(root);
+  if (markup === null) throw new Error("Missing plugin document");
+  return { locale: pageLanguage(), markup };
+}
+
+export function forOpeningFrame(root: HTMLElement, original: ReturnType<typeof openingFrameTemplate>, text: FrameLanguage): FrameLanguage {
+  if (original.locale === text.locale) return text;
+  const current = displayedTemplates.get(root);
+  if (!current || current.locale !== text.locale || current.markup !== frameDocumentMarkup(root)) throw new Error("View language changed while opening");
+  return { ...text, opening: { before: original.markup, after: current.markup } };
+}
+
 function representation(root: HTMLElement, before: ParentNode, after: ParentNode) {
   const old = renderedFrameText(before, root), next = renderedFrameText(after, root);
   return old !== null && next !== null ? { before: old, after: next } : null;
@@ -138,16 +158,16 @@ export async function prepareFrameLanguages(locale: string, signal: AbortSignal,
   // Keep the opening template of a hidden/unmounted surface in the same language as the document, using the same merge rules.
   const templates = [...document.querySelectorAll<HTMLScriptElement>("script[data-plugin-document]")].flatMap(script => {
     const root = script.parentElement, original = script.textContent;
-    const html = root && representation(root, before, after);
-    if (!html || html.before === html.after || original === null) return [];
-    const raw: unknown = JSON.parse(original);
-    if (typeof raw !== "string") return [];
+    if (!root || original === null) return [];
+    const html = representation(root, before, after), raw = frameDocumentMarkup(root);
+    if (!html || raw === null) return [];
+    if (html.before === html.after) return [{ root, script, original, replacement: original, markup: raw }];
     const live = frameTextFragment(raw);
     const merge = planLocaleText({ root: live.content, old: frameTextFragment(html.before).content, next: frameTextFragment(html.after).content,
       produced: createProducedLog(0), retext: () => "" });
     merge.apply(() => {}, () => {});
-    const replacement = JSON.stringify(live.innerHTML).replaceAll("<", "\\u003c");
-    return [{ script, original, replacement }];
+    const markup = live.innerHTML, replacement = JSON.stringify(markup).replaceAll("<", "\\u003c");
+    return [{ root, script, original, replacement, markup }];
   });
   return {
     assertCurrent() {
@@ -157,7 +177,10 @@ export async function prepareFrameLanguages(locale: string, signal: AbortSignal,
     },
     apply() {
       applied = true;
-      for (const { script, original, replacement } of templates) if (script.textContent === original) script.textContent = replacement;
+      for (const { root, script, original, replacement, markup } of templates) if (script.textContent === original) {
+        if (replacement !== original) script.textContent = replacement;
+        displayedTemplates.set(root, { locale, markup });
+      }
       send("apply");
     },
   };

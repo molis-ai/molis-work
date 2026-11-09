@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { type TestContext } from "node:test";
 import { pluginPagesFor, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import { format } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
@@ -59,6 +59,37 @@ test("FSS-20 FSS-39 the settings language changes in place; rejected and late pr
   } finally { if (zone === undefined) delete process.env.TZ; else process.env.TZ = zone; }
 });
 
+const ISSUE_OWNER = "io.molis.work.issues";
+
+type LanguageBrowser = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;
+
+async function chooseEnglishInSettings(t: TestContext, b: LanguageBrowser) {
+  const { targetId } = await b.command<{ targetId: string }>("Target.createTarget", { url: b.origin + "/settings/appearance", background: true });
+  t.after(async () => { await b.command("Target.closeTarget", { targetId }).catch(() => undefined); });
+  const { sessionId } = await b.command<{ sessionId: string }>("Target.attachToTarget", { targetId, flatten: true });
+  const clicked = await b.command<{ result: { value?: boolean }; exceptionDetails?: unknown }>("Runtime.evaluate", {
+    expression: `(async () => {
+      const stop = Date.now() + 15000;
+      while (Date.now() < stop) {
+        const link = document.querySelector('a[data-ui-language=en]');
+        if (link && typeof molisWorkRequest === 'function' && typeof t === 'function') { link.click(); return true; }
+        await new Promise(resolve => setTimeout(resolve, 40));
+      }
+      return false;
+    })()`, awaitPromise: true, returnByValue: true,
+  }, sessionId, 16000);
+  assert.equal(clicked.result.value, true, JSON.stringify(clicked.exceptionDetails));
+}
+
+function holdIssueOpening(t: TestContext, b: LanguageBrowser) {
+  const authority = pluginPagesFor(b.homeDirectory), open = authority.open.bind(authority);
+  const entered = deferred(), finish = deferred();
+  t.after(finish.resolve);
+  t.mock.method(authority, "open", (...[plugin, project, actor, scope, ...options]: Parameters<typeof open>) =>
+    open(plugin, project, actor, plugin === ISSUE_OWNER ? async () => { await scope?.(); entered.resolve(); await finish.promise; } : scope, ...options));
+  return { entered, finish };
+}
+
 test("FSS-09 FSS-20 FSS-37 the live Issue frame reuses its own authorized projection and retains the draft", { timeout: 120_000 }, async t => {
   const b = await openGoalBrowser(t, "empty", undefined, null); if (!b) return;
   const child = await pluginFrameBrowser(t, b, "issues");
@@ -79,21 +110,7 @@ test("FSS-09 FSS-20 FSS-37 the live Issue frame reuses its own authorized projec
       return transport?.(url, init);
     };
   })()`);
-  const { targetId } = await b.command<{ targetId: string }>("Target.createTarget", { url: b.origin + "/settings/appearance", background: true });
-  t.after(async () => { await b.command("Target.closeTarget", { targetId }).catch(() => undefined); });
-  const { sessionId } = await b.command<{ sessionId: string }>("Target.attachToTarget", { targetId, flatten: true });
-  const clicked = await b.command<{ result: { value?: boolean }; exceptionDetails?: unknown }>("Runtime.evaluate", {
-    expression: `(async () => {
-      const stop = Date.now() + 15000;
-      while (Date.now() < stop) {
-        const link = document.querySelector('a[data-ui-language=en]');
-        if (link && typeof molisWorkRequest === 'function' && typeof t === 'function') { link.click(); return true; }
-        await new Promise(resolve => setTimeout(resolve, 40));
-      }
-      return false;
-    })()`, awaitPromise: true, returnByValue: true,
-  }, sessionId, 16000);
-  assert.equal(clicked.result.value, true, JSON.stringify(clicked.exceptionDetails));
+  await chooseEnglishInSettings(t, b);
   await b.waitFor("document.documentElement.lang === 'en'", 25000);
   await child.waitFor("document.documentElement.lang === 'en' && issuedDraft.placeholder.startsWith('What went wrong')", 10000);
   assert.deepEqual(await b.evaluate("[liveIssueFrame === document.querySelector('iframe[data-plugin-frame=issues]'), wordsRequests]"), [true, [["en", 1]]]);
@@ -103,18 +120,43 @@ test("FSS-09 FSS-20 FSS-37 the live Issue frame reuses its own authorized projec
 
 test("S-ui-text-page FSS-08 stopping the real plugin during the opening locale batch denies frame config", { timeout: 120_000 }, async t => {
   const b = await openGoalBrowser(t, "empty", undefined, null); if (!b) return;
-  const owner = "io.molis.work.issues", authority = pluginPagesFor(b.homeDirectory), open = authority.open.bind(authority);
-  const entered = deferred(), finish = deferred();
-  t.after(finish.resolve);
-  t.mock.method(authority, "open", (...[plugin, project, actor, scope, ...options]: Parameters<typeof open>) =>
-    open(plugin, project, actor, plugin === owner ? async () => { await scope?.(); entered.resolve(); await finish.promise; } : scope, ...options));
+  const { entered, finish } = holdIssueOpening(t, b);
   const child = await pluginFrameBrowser(t, b, "issues");
   await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/plugins/issues" }, b.sessionId));
   await entered.promise;
   await child.waitFor("document.querySelector('meta[name=molis-work-frame-mount]') && typeof t === 'undefined'");
   // The actual Home Plugin Supervisor withdraws the running installation while the actual HTTP scope check is waiting.
-  await b.web.post("/api/plugins/" + owner + "/disable", {});
+  await b.web.post("/api/plugins/" + ISSUE_OWNER + "/disable", {});
   finish.resolve();
   await b.waitFor("!document.querySelector('iframe[data-plugin-frame=issues]') && !document.querySelector('[data-home-status]').hidden", 15000);
   assert.equal(await b.evaluate("document.querySelector('[data-work-surface=issues]').dataset.uiClientState"), "failed");
+});
+
+test("FSS-20 FSS-37 a frame still opening when Settings changes the language draws all its words before running the plugin", { timeout: 120_000 }, async t => {
+  const b = await openGoalBrowser(t, "empty", undefined, null); if (!b) return;
+  const child = await pluginFrameBrowser(t, b, "issues");
+  await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/locale?lang=zh&next=%2Fplugins%2Fissues" }, b.sessionId));
+  await child.waitFor("document.querySelector('[data-issues=workbench]')?.dataset.ready === 'true'");
+  await child.evaluate(`(() => {
+    const draft = document.querySelector('[data-issue-composer] textarea');
+    draft.value = '原文 from a previous opening'; draft.dispatchEvent(new Event('input', {bubbles:true}));
+  })()`);
+  await b.waitFor("Object.values(localStorage).includes('原文 from a previous opening')");
+  const { entered, finish } = holdIssueOpening(t, b);
+  await b.reloadPage();
+  await entered.promise;
+  await child.waitFor("document.documentElement.lang === 'zh-CN' && typeof t === 'undefined'");
+  assert.match(await child.evaluate<string>("document.querySelector('[data-issue-composer] textarea').placeholder"), /遇到什么问题/u);
+  await chooseEnglishInSettings(t, b);
+  await b.waitFor("document.documentElement.lang === 'en'", 25000);
+  assert.equal(await child.evaluate("typeof t"), "undefined", "the first srcdoc still waits for its own authorized response");
+  finish.resolve();
+  await child.waitFor("document.querySelector('[data-issues=workbench]')?.dataset.ready === 'true'");
+  const result = await child.evaluate<string[]>(`[
+    document.documentElement.lang,
+    document.querySelector('[data-issue-composer] textarea').placeholder,
+    document.querySelector('[data-issue-composer] textarea').value,
+    t.text('issues.when.minutes-ago', {count:3})
+  ]`);
+  assert.deepEqual(result, ["en", "What went wrong? Write it here, or paste a screenshot", "原文 from a previous opening", "3 minutes ago"]);
 });

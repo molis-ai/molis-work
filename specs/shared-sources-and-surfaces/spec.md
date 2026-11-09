@@ -665,6 +665,11 @@ SDK 以唯一校验／派生入口生成完整贡献声明：id 沿 `sandboxUiCo
 
 版本边界已核实：interface 没有独立版本，但新增的 design／part／node 结构进入 `format.builder.saved-state` 与 `format.builder.portable`，当前均为 1。一骏明确批准仅这两种格式本次保持 1：允许可选 `ui.slots`、组件 `surfaceSlot` 引用及 `surface-slot` kind；旧的无挂载位数据继续是现行格式的合法子集，不改写原数据、历史发行物或签名包，不新增升级或读时转换。未知字段、非法引用／组件、签名不符和错误版本仍严格拒绝，拒绝不改变原内容，不触碰真实 Home。本次例外独立登记在[合同变更规则](../../docs/system/CONTRACT-CHANGES.md#当前保留机制)，不借用 IM 例外、不扩到其他格式或后续变化。最终验收包含真实外部 pack→签名→安装→原舞台父组件正向，项目／Home 双路径、发布／保存／同步／停启重开往返，以及未知字段、跨贡献、篡改、旧代次和子端回流拒绝；不以测试注入 descriptor 代替实际生产路径。项目与 Home 签包分别使用不同插件 ID 验证真实安装与挂载。同一 canonical ID 的签包改换范围，仍由现行 BL-628 的 `assertScopeKept`／`SandboxPackageStore.scopeOf` 拒绝（包括不同版本或签名），验证拒装且零变更，不为此验收放宽安装合同。同 ID 双 scope 的准确页面绑定与隔离正向使用现有原生路径证明，签包另验原页面 scope 错绑拒绝；两类证据分别记录。
 
+签包候选 `07799208cbc7fc9aa18ccacbda39d45f0843a353` 已完成上述生产接线，独立限定复核无 Blocker/P1，尚未合回本批。实际整体构建及两份定向文件 3/3 通过：外部 CLI 打包、签名、project／Home 两范围真实安装和原直接地址，浏览器各显示唯一原载体，原 query 经可信 reserve/read 在父组件呈现，子页面没有原件标题或按钮；Inbox 做完／忽略各使原记录 revision 仅增加一次并出现真实回执。普通子传输、跨贡献、签名篡改和同 ID 换范围被拒。Studio 发布采用同一 `builderReleaseInterface`，v1 草稿重开与 portable 恢复保留 ui／组件引用及原签名字节，非法写入和错误版本在副作用前拒绝。已修复原页面启动误认 UUID 长度和 Studio 发布漏传 ui；首轮回执断言也未通过，不把首轮失败计为通过。
+
+这轮证据仍不包含签包停启重开、侧栏真实点击及旧页面代次拒绝；已有原生用例不能替代它们。Studio 离线答卷回放已执行，替身模型 smoke 3/3 只证明接线，真实模型对 Skill／提示词变化的 smoke 仍待。最终健康、资源、中英深浅多宽实操及全批公共合审另验。测试入口为 `tests/security-invariants-signed-surface-slots.e2e.test.ts` 与 `tests/signed-surface-slot-authoring.test.ts`，目前在上述子分支候选，合回时同步进入本批。
+
+
 最小迁移范围是 `renderPreviewCard`、`renderPopover`、`renderSheet` 及形态实际使用的 `renderMenu`／`renderMenuItem`：将原实现移到 SDK 的一个 UI 叶子，design-system 原入口同源重导，普通消费者签名与 HTML 保持；不复制第二套实现。其它 dialog、drawer、菜单组及客户端 tooltip、焦点、浮层工具保留原 owner。形态内容只画一次，位置层选择 popover 或窄屏 Sheet；`mw-tag`／`mw-item` 复用原样式。样式叶子只用语义变量和环境继承，消费第 16 批 font roles 的 size／lineheight，不建第二份字体、皮肤状态或缓存。`UiSpecFile.components` 只登记元数据，实际 kind 渲染与允许操作仍由实现负责。
 
 文件边界：SDK `src/ui/presentation-form.ts` 与最小 primitive 叶子、design-system `src/styles/presentation.ts`、同 renderer 的组件板样张。SDK `/ui` 导出及私有文字接线、API 快照、design-system overlay 重导和样式入口、组件板装配、语言键与页面消费者按第 10／16 批实际窗口串行；第 16 批 C 切换之前不接新稳定键或页面入口。不得提交只有签名或无人消费的永久空壳。SSC-14 验不经 compose 的行与组合行相同；IUI-03／07／08／10／26 分别验跨位置事实、绑定与后果、异常泄露和三宽双语双主题及键盘；原标本的局部浏览器结果不替代产品验收。

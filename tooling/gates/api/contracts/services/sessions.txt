@@ -421,6 +421,7 @@ export declare const sessionsActions: {
             workflow_content?: import("platform/workflow-content").WorkflowContentStation;
             search_source?: import("platform/search-sources").SearchSourceDeclaration;
             file_source?: import("platform/file-sources").FileSourceDeclaration;
+            composer_source?: import("@molis-ai/molis-work-contracts/platform/composer").ComposerSourceDeclaration;
             thread_source?: {
                 readonly role: "context" | "reply";
                 readonly subject_kind: string;

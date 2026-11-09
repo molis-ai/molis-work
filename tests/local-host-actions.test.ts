@@ -62,6 +62,46 @@ test("the Host's project client and action callers use one registration, one que
   await assert.rejects(client.invoke(context("a"), counter, { amount: 10 }), { code: "host.closed" });
 });
 
+test("SPC-C08 Catalog dispatch follows its registered instance and a replacement Runtime action opens the project", { timeout: 5_000 }, async () => {
+  const { rows, actionSettled } = settlements();
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  let holdAdmission = false, opens = 0, replacementCalls = 0;
+  const host = new LocalHost({
+    runtimeFactory: { open: () => { opens++; return {}; }, close: () => {} }, actionSettled,
+    async actionAvailability(_caller, view) {
+      if (holdAdmission) { entered.resolve(); await release.promise; }
+      return view.availability;
+    },
+  });
+  const registration = (handle: () => number) => ({ provider: { provider_id: "test.catalog", title: "Catalog", kind: "system" as const },
+    definitions: [counter], handlers: [{ ...counter, handle }] });
+  const project = ref("catalog"), caller = context(project.project_id), client = host.actionClient(project);
+  try {
+    const catalog = host.actionRegistry(undefined, "project-catalog"), member = registration(() => 1);
+    const homeAction = { ...counter, action: { ...counter.action, scope: "home" as const } };
+    assert.throws(() => host.actionRegistry(project, "project-catalog"), { code: "actions.scope_mismatch" });
+    assert.throws(() => catalog.registerProvider({ ...member, provider: { ...member.provider, kind: "plugin", plugin_id: "test.plugin" } }), { code: "actions.scope_mismatch" });
+    assert.throws(() => catalog.registerProvider({ ...member, definitions: [homeAction] }), { code: "actions.scope_mismatch" });
+    assert.deepEqual(host.status().capabilities, []);
+    const retire = catalog.registerProvider(member);
+    assert.equal(await client.invoke(caller, counter, { amount: 1 }), 1);
+    assert.equal(opens, 0);
+    holdAdmission = true;
+    const refused = assert.rejects(client.invoke(caller, counter, { amount: 1 }), { code: "actions.provider_changed" });
+    await entered.promise;
+    retire();
+    host.actionRegistry().registerProvider(registration(() => ++replacementCalls));
+    holdAdmission = false;
+    release.resolve();
+    await refused;
+    assert.equal(replacementCalls, 0);
+    assert.equal(opens, 0);
+    assert.deepEqual(rows.map(row => [row.ok, row.code]), [[true, undefined], [false, "actions.provider_changed"]]);
+    assert.equal(await client.invoke(caller, counter, { amount: 1 }), 1);
+    assert.equal(opens, 1);
+  } finally { release.resolve(); await host.close(); }
+});
+
 test("same Plugin identity can run in two projects and closing one withdraws only that activation", async () => {
   const host = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
   const registryA = host.actionRegistry(ref("a")), registryB = host.actionRegistry(ref("b"));

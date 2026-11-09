@@ -83,6 +83,7 @@ test("SPC-C08 public membership actions and HTTP use the same observation and re
   assert.equal(enabled.status, 200, await enabled.clone().text());
   const current = await read();
   assert.deepEqual(await enabled.json(), { project_id: project.project_id, ...current });
+  assert.deepEqual(opened, [], "the membership actions and HTTP saves keep unopened projects out of the Host's runtime set");
   assert.equal(await f.host.withProject(project.reference, runtime => runningProjectPlatform(runtime.store, project.project_id)), null,
     "saving project settings does not start a plugin platform");
   assert.deepEqual(current.plugins, observed.plugins);
@@ -119,6 +120,29 @@ test("SPC-C08 the final synchronous fence refuses a membership write whose autho
       { plugin_id: "schedule", enabled: false, expected_revision: observed.revision }), { code: "actions.forbidden" });
   } finally { blocker.close(); }
   assert.equal(checks, 2);
+  assert.deepEqual(await fromIndex(f, project.project_id), observed);
+  assert.deepEqual(membershipEvents(f.home, project.project_id), []);
+});
+
+test("SPC-C08 closing the project's existing runtime cancels a pending membership write", { timeout: 30_000 }, async t => {
+  const f = await serveHomeRuntime(t), project = await f.project("Closing during a membership write");
+  const observed = await fromIndex(f, project.project_id);
+  await f.host.withProject(project.reference, () => undefined);
+  const catalog = await f.host.ensureWebCatalog(f.home, openMolisWorkProjectCatalog).withCatalog({ homeDirectory: f.home }, value => value);
+  const entered = deferred(), release = deferred(), commit = catalog.commit;
+  t.mock.method(catalog, "commit", async <T>(write: () => T, check?: () => Promise<void>) => {
+    entered.resolve();
+    await release.promise;
+    return commit(write, check);
+  });
+  const caller = person(["projects:settings"], project.project_id);
+  const refused = assert.rejects(f.host.actionClient(project.reference, false).invoke(caller, setMembership,
+    { plugin_id: "schedule", enabled: false, expected_revision: observed.revision }), { code: "host.project_closing" });
+  try {
+    await entered.promise;
+    assert.equal(await f.host.closeProject(project.reference), true);
+  } finally { release.resolve(); }
+  await refused;
   assert.deepEqual(await fromIndex(f, project.project_id), observed);
   assert.deepEqual(membershipEvents(f.home, project.project_id), []);
 });

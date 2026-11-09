@@ -13,7 +13,7 @@ import { homeActionProvider } from "./home-actions.js";
 import { openProjectSchedulers, closeProjectSchedulers } from "./project-schedulers.js";
 import { precompileActionSchemas, refuseCall, type CallSettled } from "@molis-ai/molis-work-kernel";
 import { createConnectorMcpDirectory, type ConnectorMcpDirectory } from "./connector-mcp-actions.js";
-import { projectWorkspaceActionProvider } from "./project-workspace-actions.js";
+import { projectPluginMembershipActionProvider, projectWorkspaceActionProvider, type ProjectCatalogOwner } from "./project-workspace-actions.js";
 import { announceWorkspaceSettingsChange } from "./workspace-settings-events.js";
 import type { PtySpawnRequest, PtySpawnResult } from "@molis-ai/molis-work-contracts/services/runtime-host";
 import { artifactActionProvider } from "./artifact-actions.js";
@@ -163,6 +163,7 @@ export class MolisWorkLocalHost {
     prepareHostMemoryHome(this, options.homeDirectory);
     try {
     this.personalPlanningHome = options.homeDirectory ? resolveConfiguredHome(options.homeDirectory) : undefined;
+    const catalogOwner = () => this.personalPlanningHome && this.catalogRunner ? { home: this.personalPlanningHome, run: this.catalogRunner } : undefined;
     if (options.homeDirectory) this.callLog = new ActionCallLog(options.homeDirectory);
     this.host = new LocalHost({
       instanceId: options.instanceId,
@@ -187,20 +188,19 @@ export class MolisWorkLocalHost {
           const clock = options.clock ?? (() => new Date());
           const runtime: MolisWorkProjectRuntime = { store, ...openProjectVersionStores(store, clock), project_id: reference.project_id };
           try {
-            const scenes = this.sceneClient(reference);
             const providers: ActionProviderRegistration[] = [], add = (provider: ActionProviderRegistration) => { providers.push(provider); };
-            add(projectWorkspaceActionProvider(reference.project_id, () => this.personalPlanningHome && this.catalogRunner ? { home: this.personalPlanningHome, run: this.catalogRunner } : undefined,
+            add(projectWorkspaceActionProvider(reference.project_id, catalogOwner,
               workspaceId => announceWorkspaceSettingsChange(store, reference.project_id, workspaceId), {
                 client: this.actionClient(reference), db: store.db, now: clock,
                 versionKept: pin => (pin.mode === "fixed" ? runtime.artifacts.query : runtime.processItems.query)
                   .getArtifactVersion(reference.project_id, pin.version)?.availability === "available",
                 imported: version => runtime.artifacts.query.getArtifactVersion(reference.project_id, version)?.origin.kind === "imported",
-              }, () => this.host.withExistingRuntime(reference, current => refreshRunningProjectPlugins(current.store, current.project_id)), options.directoriesFor));
+              }, options.directoriesFor));
             add(artifactActionProvider(runtime, options, this.actionClient(reference)));
             if (options.homeDirectory) add(informationActionProvider(options.homeDirectory, reference.project_id, this.actionClient(reference), options.completeText));
             if (options.homeDirectory) add(charactersActionProvider(runtime, { ...options, homeDirectory: options.homeDirectory }, () => this.agents?.service.charactersCatalog(runtime)));
             if (options.homeDirectory) add(homeActionProvider(options.homeDirectory, reference.project_id,
-              { actions: this.actionClient(reference), scenes, functions: options.functions, readFunctions: this.systemFunctions?.read,
+              { actions: this.actionClient(reference), scenes: this.sceneClient(reference), functions: options.functions, readFunctions: this.systemFunctions?.read,
                 projectPlugins: projectId => this.projectPluginReach(projectId) }, (judgment, caller) => {
                 new LocalSqliteJournal(store.db).appendEvent({ eventId: `event-${randomUUID()}`, projectId: reference.project_id, actorId: caller.actor_id,
                   objectType: "judgment", objectId: judgment.judgment_id, type: "judgment_completed", reason: judgment.outcome,
@@ -244,7 +244,7 @@ export class MolisWorkLocalHost {
       ...(options.homeDirectory ? [skillCatalogProviderFor(options.homeDirectory, { host: this.host, options: this.options, agents: () => this.agents?.service, homePlugins: () => this.homePlugins }), taskGrantActionProvider(taskGrantHostPorts(options.homeDirectory, this)), pluginConsentProvider(new HomeConsentLedger(options.homeDirectory), () => this.homePlugins!.projectReachConsents(),
         projectId => projectReachDetails(projectId, options.homeDirectory, this.catalogRunner, this, this.host, molisWorkHostProjectReference)), pluginInstallProviderFor(options.homeDirectory, { host: this.host, options: this.options, agents: () => this.agents?.service, homePlugins: () => this.homePlugins }), connectorAccountActionProvider(options.homeDirectory, (...args) => this.connectorMcp!.remember(...args), { library: async () => this.agents?.service.mcpLibrary(), refresh: async owner => { if (!this.agents) throw new Error("项目 MCP 运行服务未装配"); await this.agents.service.refreshExternalMcp(owner); } }, caller => this.inspectActions(caller, this.host.projects().find(project => project.project_id === caller.project_id)), caller => caller.project_id ? this.actionClient(this.host.projects().find(project => project.project_id === caller.project_id)!) : this.homeActionClient(), (caller, installId, pluginId) => installedConnectionSlots(installId, pluginId, this.homePlugins, reference => this.withProject(reference, runtime => installedPluginManifest(runtime.store.db, installId)), this.host.projects().find(project => project.project_id === caller.project_id)))] : []),
     ];
-    registerHostPlatformProviders(this.host.actionRegistry(), platform);
+    registerHostPlatformProviders(this.host, platform, catalogOwner);
     if (options.homeDirectory) {
       // Remote MCP servers connected in 服务连接: what each last offered is back in the directory at start.
       this.connectorMcp = createConnectorMcpDirectory({ localHost: this, homeDirectory: options.homeDirectory });
@@ -331,7 +331,7 @@ export class MolisWorkLocalHost {
     return this.host.client(reference);
   }
 
-  /** `preparePlugins: false` skips project Runtime preparation and external MCP restoration; project Runtime actions may not be registered. Home actions are still prepared. */
+  /** `preparePlugins: false` skips project plugin preparation and external MCP restoration. The registered action decides whether it needs a project runtime. */
   actionClient(reference: LocalHostProjectReference, preparePlugins = true): ActionClient {
     return withPreparedActions(this.host.actionClient(reference), async caller => {
       if (preparePlugins) await this.prepareProjectPlugins(reference, caller);
@@ -478,9 +478,15 @@ function hostCallSettled(host: Pick<MolisWorkLocalHost, "callLog" | "search" | "
 }
 
 /** The Host's own providers are `system` and belong to no plugin; this is not a way to hand-register a plugin's actions. */
-function registerHostPlatformProviders(registry: ActionRegistryPort, providers: readonly ActionProviderRegistration[]): void {
-  for (const registration of providers) {
+function registerHostPlatformProviders(host: LocalHost<MolisWorkProjectRuntime>, providers: readonly ActionProviderRegistration[], catalogOwner: ProjectCatalogOwner): void {
+  const systemRegistry = host.actionRegistry(), catalogRegistry = host.actionRegistry(undefined, "project-catalog");
+  const membership = projectPluginMembershipActionProvider(catalogOwner, async projectId => {
+    const reference = host.projects().find(project => project.project_id === projectId);
+    return reference ? host.withExistingRuntime(reference, current => refreshRunningProjectPlugins(current.store, projectId)) : null;
+  });
+  for (const registration of [...providers, membership]) {
     if (registration.provider.kind !== "system" || registration.provider.plugin_id) throw new Error("Host 平台动作只登记 system 提供方：" + registration.provider.provider_id);
+    const registry = registration === membership ? catalogRegistry : systemRegistry;
     registry.registerProvider(registration);
   }
 }

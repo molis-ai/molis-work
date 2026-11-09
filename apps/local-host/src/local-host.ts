@@ -3,6 +3,7 @@ import { withSceneConfigurationActions } from "./scene-configuration-actions.js"
 import { HomeLine } from "./home-line.js";
 import { randomUUID } from "node:crypto";
 import type {
+  HostCapabilityDescriptor,
   HostCapabilityCallOptions,
   LocalHostProjectClient,
   LocalHostProjectReference,
@@ -14,7 +15,7 @@ import { ActionError, requireSynchronous, type SyncActionClient, type ActionCall
   type ActionRegistryPort, type ActionProviderRegistration, type ActionView, type ActionSceneClient, type ActionSceneDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { dependencyCaller, verifiedCaller } from "./plugin-callers.js";
 import { HostAvailability } from "./local-host-availability.js";
-import { callSignal, snapshotCaller } from "./local-host-caller.js";
+import { callSignal, hostAuthorityContext, snapshotCaller } from "./local-host-caller.js";
 import { ProjectLine, normalizeReference } from "./local-host-project-line.js";
 import { createSceneClient, type SceneHost } from "./local-host-scenes.js";
 import { createSyncActionClient, type SyncClientHost } from "./local-host-sync-client.js";
@@ -44,6 +45,7 @@ export class LocalHost<Runtime> {
   private readonly syncHost: SyncClientHost<Runtime>;
   private readonly homeLine = new HomeLine();
   private readonly globalActionDisposers = new Set<() => void>();
+  private readonly catalogProjectActions = new WeakSet<HostCapabilityDescriptor>();
   private state: "running" | "closing" | "closed" = "running";
 
   constructor(private readonly options: LocalHostOptions<Runtime>) {
@@ -83,9 +85,10 @@ export class LocalHost<Runtime> {
     });
   }
 
-  /** Composition-only registration. Project authority comes from the owner, never the Plugin. */
-  actionRegistry(reference?: LocalHostProjectReference): ActionRegistryPort {
+  /** Composition-only registration. Project Catalog actions keep project scope while the Home owns their lifetime. */
+  actionRegistry(reference?: LocalHostProjectReference, routing?: "project-catalog"): ActionRegistryPort {
     const project = reference ? normalizeReference(reference) : undefined;
+    if (project && routing) throw new ActionError("actions.scope_mismatch", "项目目录动作由 Home 登记");
     const entry = project ? this.line.ensureEntry(project) : undefined;
     return { registerProvider: (registration: ActionProviderRegistration) => {
       this.assertRunning();
@@ -95,6 +98,10 @@ export class LocalHost<Runtime> {
       if (registration.provider.project_id && registration.provider.project_id !== project?.project_id) {
         throw new ActionError("actions.scope_mismatch", "能力来源不能注册到其他项目");
       }
+      if (routing && (registration.provider.kind !== "system" || registration.provider.plugin_id || registration.scenes?.length
+        || registration.definitions.some(definition => definition.action.scope !== "project"))) {
+        throw new ActionError("actions.scope_mismatch", "目录登记只接受系统提供的项目动作");
+      }
       const bound = { ...registration.provider, ...(project ? { project_id: project.project_id } : {}) };
       this.options.admitActionProvider?.(bound, registration.scenes);
       const remove = this.actionService.registerProvider({ ...withSceneConfigurationActions(registration, this.sceneClient(project)),
@@ -103,6 +110,9 @@ export class LocalHost<Runtime> {
           ? { available: false, code: "actions.host_closed", reason: "能力所在运行环境已关闭" }
           : registration.availability?.(caller) ?? { available: true },
       });
+      if (routing) {
+        for (const definition of registration.definitions) this.catalogProjectActions.add(this.capabilities.descriptor(definition)!);
+      }
       const owner = entry?.actionDisposers ?? this.globalActionDisposers;
       const announce = (scenes?: readonly ActionSceneDefinition[]) => { try { this.options.actionProvidersChanged?.(bound, scenes); } catch { /* An observer never changes registration. */ } };
       const dispose = () => { remove(); owner.delete(dispose); announce(); };
@@ -186,8 +196,21 @@ export class LocalHost<Runtime> {
       },
       invoke: async (caller, capability, input) => {
         let bound = caller, dispatched = false;
-        try { bound = callerFor(caller); await this.withRuntime(project, () => undefined); caller.signal?.throwIfAborted(); this.assertRunning(); }
-        catch (error) { return refuseCall(this.settled, bound, capability, error); }
+        try {
+          bound = callerFor(caller);
+          const catalog = this.capabilities.descriptor(capability);
+          if (catalog && this.catalogProjectActions.has(catalog)) {
+            const signal = callSignal(catalog, () => this.line.existingObservation(project), bound.signal);
+            const context = hostAuthorityContext({ ...bound, ...signal }, () => {
+              if (this.capabilities.descriptor(capability) !== catalog) throw new ActionError("actions.provider_changed", "能力已重新加载，不能继续原副作用");
+              return this.state === "running" && !this.line.isClosing(project.storage_key);
+            });
+            return this.homeLine.run(() => this.actionService.invoke(context, capability, input), catalog.action?.scheduling === "concurrent" ? "concurrent" : step ? "step" : "serial");
+          }
+          await this.withRuntime(project, () => undefined);
+          caller.signal?.throwIfAborted();
+          this.assertRunning();
+        } catch (error) { return refuseCall(this.settled, bound, capability, error); }
         const descriptor = this.capabilities.descriptor(capability, bound.project_id);
         if (!descriptor) return refuseCall(this.settled, bound, capability, new ActionError("actions.missing", "能力未注册或版本已失效"));
         bound = { ...bound, ...callSignal(descriptor, () => this.line.ensureEntry(project), bound.signal) };

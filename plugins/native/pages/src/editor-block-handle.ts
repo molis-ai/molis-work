@@ -14,8 +14,8 @@ function handleWidget(translate: Translate | undefined): HTMLElement {
   const wrap = document.createElement("div");
   wrap.className = "pages-block-handle";
   wrap.innerHTML = `
-  <button type="button" data-pages-plus aria-label="${escapeHtml(t(translate, "插入块"))}">${dsIcon("plus")}</button>
-  <button type="button" data-pages-grip aria-label="${escapeHtml(t(translate, "拖动以排序或缩进"))}">${dsIcon("grip")}</button>`;
+  <button type="button" data-pages-plus aria-label="${escapeHtml(t(translate, "pages.editor.insert-block"))}">${dsIcon("plus")}</button>
+  <button type="button" data-pages-grip aria-label="${escapeHtml(t(translate, "pages.editor.drag-to-reorder-or-nest"))}">${dsIcon("grip")}</button>`;
   return wrap;
 }
 

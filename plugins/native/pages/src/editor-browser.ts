@@ -111,11 +111,11 @@ function refreshToc(view: EditorView, translate?: Translate): void {
     nav.replaceChildren();
     const lead = document.createElement("p");
     lead.className = "pages-toc-label";
-    lead.textContent = t(translate, "目录");
+    lead.textContent = t(translate, "pages.editor.table-of-contents");
     nav.append(lead);
     if (!headings.length) {
       const empty = document.createElement("p");
-      empty.textContent = t(translate, "还没有标题");
+      empty.textContent = t(translate, "pages.editor.no-headings-yet");
       nav.append(empty);
       return;
     }
@@ -126,7 +126,7 @@ function refreshToc(view: EditorView, translate?: Translate): void {
       const button = document.createElement("button");
       button.type = "button";
       button.className = "pages-toc-jump" + (index === current ? " is-on" : "");
-      button.textContent = item.text || t(translate, "无标题");
+      button.textContent = item.text || t(translate, "pages.doc.untitled");
       button.addEventListener("mousedown", keepFocus);
       button.addEventListener("click", () => {
         const tr = revealHeading(view.state, index);
@@ -194,7 +194,7 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
   };
 
   view = new EditorView(host, {
-    attributes: { role: "textbox", "aria-multiline": "true", "aria-label": t(options.translate, "文档正文") },
+    attributes: { role: "textbox", "aria-multiline": "true", "aria-label": t(options.translate, "pages.editor.document-body") },
     state: EditorState.create({
       doc: nodeFromUnknown(options.doc),
       plugins,

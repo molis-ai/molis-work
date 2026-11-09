@@ -1,14 +1,14 @@
 /** Writing tones, each backed by a design-system hue so both themes stay correct. */
 export const PAGES_TONES = [
-  { id: "gray", label: "灰" },
-  { id: "brown", label: "棕" },
-  { id: "orange", label: "橙" },
-  { id: "yellow", label: "黄" },
-  { id: "green", label: "绿" },
-  { id: "blue", label: "蓝" },
-  { id: "purple", label: "紫" },
-  { id: "pink", label: "粉" },
-  { id: "red", label: "红" },
+  { id: "gray", label: "pages.editor.gray" },
+  { id: "brown", label: "pages.editor.brown" },
+  { id: "orange", label: "pages.editor.orange" },
+  { id: "yellow", label: "pages.editor.yellow" },
+  { id: "green", label: "pages.editor.green" },
+  { id: "blue", label: "pages.editor.blue" },
+  { id: "purple", label: "pages.editor.purple" },
+  { id: "pink", label: "pages.editor.pink" },
+  { id: "red", label: "pages.editor.red" },
 ] as const;
 
 const TONE_IDS = new Set<string>(PAGES_TONES.map((tone) => tone.id));

@@ -3,6 +3,7 @@
   "owner": "io.molis.work.schedule",
   "locale": "en",
   "messages": {
+    "schedule.directory.summary": "Schedule conversations and receive plugin reminders on time.",
     "schedule.action.archive": "Archive",
     "schedule.action.back": "Back to scheduled tasks",
     "schedule.action.cancel": "Cancel",

@@ -3,6 +3,7 @@
   "owner": "io.molis.work.shelf",
   "locale": "en",
   "messages": {
+    "shelf.directory.summary": "Work on copies of your files and keep the originals intact.",
     "shelf.admit.could-not-add-material": "Could not add material",
     "shelf.admit.done-added-count-could-not": "{done} added, {count} could not be added: {list}",
     "shelf.admit.this-folder-is-over-32": "This folder is over 32 MB. Split it into a few smaller folders and add those instead.",

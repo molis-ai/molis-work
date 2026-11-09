@@ -3,6 +3,7 @@
   "owner": "io.molis.work.schedule",
   "locale": "zh",
   "messages": {
+    "schedule.directory.summary": "定时跑对话任务，也替插件准时提醒。",
     "schedule.action.archive": "归档",
     "schedule.action.back": "返回定时任务列表",
     "schedule.action.cancel": "取消",

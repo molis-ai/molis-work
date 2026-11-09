@@ -17,8 +17,10 @@ interface BatchResult {
 }
 interface Mounted { readonly id: string; readonly owner: string }
 interface FrameMount extends Mounted { readonly route: string; readonly root: HTMLElement; readonly port: MessagePort; readonly scope: FrameScope }
+export interface FrameStageWords { readonly title: string; readonly description: string }
 export type FrameLanguageUpdate = { type: "environment"; language: "prepare"; turn: number; text: FrameLanguage; before: string; after: string }
-  | { type: "environment"; language: "apply" | "discard"; turn: number };
+  | { type: "environment"; language: "apply"; turn: number; stage: FrameStageWords }
+  | { type: "environment"; language: "discard"; turn: number };
 interface Pending {
   grant: { page_id: string };
   owner: string;
@@ -32,6 +34,14 @@ const displayedTemplates = new WeakMap<HTMLElement, { locale: string; markup: st
 let revision = 0;
 export const pageLanguage = () => document.documentElement.dataset.uiLanguageTag;
 const sameLanguage = (a: UiFrameLanguage, b: UiFrameLanguage) => a.tag === b.tag && a.html_lang === b.html_lang && a.intl === b.intl && a.direction === b.direction;
+
+/** Only this surface's already projected title and description go to the child. */
+export function frameStageWords(root: HTMLElement, fallback = root.dataset.workSurface ?? root.dataset.directoryPanel ?? ""): FrameStageWords {
+  const title = root.dataset.workSurfaceLabel ?? fallback;
+  const frame = root.querySelector<HTMLIFrameElement>(":scope > iframe[data-plugin-frame]");
+  if (frame && frame.title !== title) frame.title = title;
+  return { title: JSON.stringify(title), description: JSON.stringify(root.dataset.workSurfaceDescription ?? "") };
+}
 
 function displayedLanguage(): UiFrameLanguage {
   const language = globalThis.molisWorkLanguageCatalog?.().languages.find(row => row.tag === pageLanguage());
@@ -155,7 +165,11 @@ export async function prepareFrameLanguages(language: UiFrameLanguage, signal: A
   }
   let applied = false;
   const send = (language: "apply" | "discard") => {
-    for (const mount of mounts) if (mount.scope.alive) mount.port.postMessage({ type: "environment", language, turn } satisfies FrameLanguageUpdate);
+    for (const mount of mounts) if (mount.scope.alive) {
+      const message: FrameLanguageUpdate = language === "apply" ? { type: "environment", language, turn, stage: frameStageWords(mount.root) }
+        : { type: "environment", language, turn };
+      mount.port.postMessage(message);
+    }
   };
   signal.addEventListener("abort", () => { if (!applied) send("discard"); }, { once: true });
   await Promise.all([...byRoute].map(async ([route, pages]) => {

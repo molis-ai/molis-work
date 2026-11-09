@@ -22,7 +22,7 @@ export const datasetManifest: PluginManifest = {
   sync: datasetSync,
   version: /* @version product.release */ "0.1.0",
   name: "Dataset",
-  summary: "做表格，导入 CSV，可回到旧版。",
+  summary: "做表格，导入 CSV，可回到旧版。", summary_text: { key: "dataset.directory.summary" },
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-dataset-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],

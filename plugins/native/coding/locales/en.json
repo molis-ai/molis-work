@@ -3,6 +3,7 @@
   "owner": "io.molis.work.coding",
   "locale": "en",
   "messages": {
+    "coding.directory.summary": "Write code with an agent and keep a record of each round.",
     "coding.actions.gone": "The original capability, version or authorization isn’t available; the reference is kept, so remove it or restore its source.",
     "coding.actions.label": "Choose abilities",
     "coding.actions.manage-access": "Manage the built-in Agent’s access",

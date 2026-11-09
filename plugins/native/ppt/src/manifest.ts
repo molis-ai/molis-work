@@ -22,7 +22,7 @@ export const pptManifest: PluginManifest = {
   sync: pptSync,
   version: /* @version product.release */ "0.1.0",
   name: "PPT",
-  summary: "写大纲，放映或导出 PowerPoint。",
+  summary: "写大纲，放映或导出 PowerPoint。", summary_text: { key: "ppt.directory.summary" },
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-ppt-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],

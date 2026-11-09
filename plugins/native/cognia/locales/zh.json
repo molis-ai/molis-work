@@ -3,6 +3,7 @@
   "owner": "io.molis.work.cognia",
   "locale": "zh",
   "messages": {
+    "cognia.directory.summary": "导入本地知识，带来源检索问答。",
     "cognia.action.add": "添加材料",
     "cognia.action.drafts": "审阅草稿",
     "cognia.action.edit": "编辑",

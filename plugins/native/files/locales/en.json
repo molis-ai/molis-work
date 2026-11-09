@@ -3,6 +3,7 @@
   "owner": "io.molis.work.files",
   "locale": "en",
   "messages": {
+    "files.directory.summary": "Browse workspace files and saved content.",
     "files.directory.back": "Back to files",
     "files.directory.choose-workspace": "Choose a workspace",
     "files.directory.empty": "This folder is empty",

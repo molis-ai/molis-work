@@ -29,8 +29,8 @@ const SIDE_PAGE_SCRIPT = String.raw`() => {
 
 /** A Home plugin can be opened before any project exists. The same contribution and client also mount in Workbench. */
 export function renderHomePluginPage(entry: Pick<PluginRegistration, "project_plugin_id"> & { readonly manifest: Pick<PluginManifest, "name" | "plugin_id"> }, html: string | null, message: string | null, controlToken: string,
-  locale: Pick<WorkbenchRendererPorts["locale"], "readText" | "htmlLang" | "pluginTitleScript"> & Pick<WorkbenchRendererPorts, "accountRegistration"> & { appearance?: WorkbenchAppearance }, retry = false, side = false, project?: { project_id: string; display_name?: string }, frame?: string, lifecycle = true): string {
-  const { readText, htmlLang, pluginTitleScript, appearance } = locale;
+  locale: Pick<WorkbenchRendererPorts["locale"], "readText" | "htmlLang"> & Pick<WorkbenchRendererPorts, "accountRegistration"> & { appearance?: WorkbenchAppearance }, retry = false, side = false, project?: { project_id: string; display_name?: string }, frame?: string, lifecycle = true): string {
+  const { readText, htmlLang, appearance } = locale;
   const name = escapeHtml(entry.manifest.name), id = entry.project_plugin_id;
   // A page drawn by a document of its own (a signed package's) is framed whole; any other is the plugin's HTML in the common opaque frame.
   const live = Boolean(frame || html);
@@ -61,7 +61,7 @@ export function renderHomePluginPage(entry: Pick<PluginRegistration, "project_pl
         <div class="mw-form__body"><p role="status" data-home-model-status></p><button class="mw-btn mw-btn--secondary" type="button" data-home-model-retry hidden>${escapeHtml(uiText.text("common.control.retry"))}</button><div data-home-model-content></div></div>
       </div>
     </dialog>${renderAppearanceRecovery(readText, appearance)}
-    <script>${pluginTitleScript()}${UI_REQUEST_CLIENT_SCRIPT}${appearance ? DEVICE_PREFERENCES_CLIENT_SCRIPT : ""}</script>${appearanceClientTag(appearance)}<script src="/assets/molis-work-plugin-frame.js"></script><script>
+    <script>${UI_REQUEST_CLIENT_SCRIPT}${appearance ? DEVICE_PREFERENCES_CLIENT_SCRIPT : ""}</script>${appearanceClientTag(appearance)}<script src="/assets/molis-work-plugin-frame.js"></script><script>
     ${`if(window===top) globalThis.molisPlacement = (${PLACEMENT_FACTORY_SCRIPT})({translate:globalThis.t.text,route:path=>${JSON.stringify(route)}+path,headers:()=>molisWorkControlHeaders(),projectTitle:${JSON.stringify(project?.display_name ?? "")},openItem:(plugin,id)=>location.assign(${JSON.stringify(route)}+'/?openPlugin='+encodeURIComponent(plugin)+'&openItem='+encodeURIComponent(id)),openPluginRecord:(plugin,id)=>location.assign(${JSON.stringify(route)}+'/?openPlugin='+encodeURIComponent(plugin)+'&openItem='+encodeURIComponent(id))});`}
     const root = document.querySelector('[data-deferred-surface]');
     if(root) void molisPluginFrames.mount(root,{side:${side},mountPluginClient:(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})(),route:path=>${JSON.stringify(route)}+path,projectId:()=>${JSON.stringify(project?.project_id ?? "")},projectTitle:()=>${JSON.stringify(project?.display_name ?? "")}${side ? `,page:(${SIDE_PAGE_SCRIPT}),status:status=>parent.postMessage({type:'molis:side-status',status},location.origin)` : ""}},{id:${JSON.stringify(id)},plugin_id:${JSON.stringify(entry.manifest.plugin_id)},bundle:${JSON.stringify(client?.bundle ?? id)},assets:${JSON.stringify(client?.assets ?? [])},searchRow:${JSON.stringify(client?.searchRow)}}).catch(error=>{const note=document.querySelector('[data-home-status]');molisWorkRequest.show(note,error);note.hidden=false;});

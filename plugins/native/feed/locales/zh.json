@@ -3,6 +3,7 @@
   "owner": "io.molis.work.feed",
   "locale": "zh",
   "messages": {
+    "feed.directory.summary": "订阅来源，读消息，留下值得留的。",
     "feed.add-source.channel-id": "频道 ID",
     "feed.add-source.existing-feed": "选现成源",
     "feed.add-source.feed-directory": "目录订阅",

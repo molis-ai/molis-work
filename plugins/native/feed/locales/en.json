@@ -3,6 +3,7 @@
   "owner": "io.molis.work.feed",
   "locale": "en",
   "messages": {
+    "feed.directory.summary": "Follow sources, read updates, and save what matters.",
     "feed.add-source.channel-id": "Channel ID",
     "feed.add-source.existing-feed": "Choose an existing source",
     "feed.add-source.feed-directory": "Feed directory",

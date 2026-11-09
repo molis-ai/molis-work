@@ -5,8 +5,8 @@ import type { UiLocalePack, UiResourceRow, UiTextProvider } from "@molis-ai/moli
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { BASELINE_REGISTRY } from "@molis-ai/molis-work-design-system";
 import { pluginLocaleReader, type PluginLocaleReader } from "@molis-ai/molis-work-plugin-runtime";
-import { installUiText, textKeyPrefix } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { installCatalogTextScope, pluginTextForOwner, pluginTextOwnerOfPrefix, registerPlatformText, webLanguage, workbenchPlatformText, type PluginTextReader } from "@molis-ai/molis-work-app-workbench";
+import { installUiText, localeMessageArguments, say, textKeyPrefix } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { installCatalogTextScope, pluginTextForOwner, pluginTextOwnerOfPrefix, registerPlatformText, webLanguage, workbenchPlatformText, type DirectoryWordResolver, type PluginTextReader } from "@molis-ai/molis-work-app-workbench";
 import { hostLog } from "./host-log.js";
 import { runWithRegisteredText, textScope, DEFAULT_WEB_LOCALE } from "./web-locale.js";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
@@ -106,9 +106,30 @@ export function registeredBuiltinText(manifest: PluginManifest): PluginLocaleRea
   return reader;
 }
 
-export function drawRegisteredText<T>(manifest: PluginManifest, draw: () => T): T {
+/** A directory may draw an exact live owner, or use the same field's raw original if it no longer has that source. */
+export function directoryWordResolver(reader: PluginTextReader | null): DirectoryWordResolver {
+  return (ref, original) => {
+    if (ref.key.startsWith("common.")) {
+      const locale = textScope().locale ?? DEFAULT_WEB_LOCALE, common = workbenchPlatformText;
+      const value = common.pack(locale)?.messages[ref.key] ?? common.pack(common.default)?.messages[ref.key];
+      if (value !== undefined && localeMessageArguments(value).length) {
+        provider.problem?.({ code: "ui.text_missing", owner: common.owner, key: ref.key, locale });
+        return original;
+      }
+      return say.text({ ...ref, fallback: original });
+    }
+    if (reader?.owner !== ref.owner) {
+      provider.problem?.({ code: "ui.text_missing", owner: ref.owner, key: ref.key, locale: textScope().locale ?? DEFAULT_WEB_LOCALE });
+      return original;
+    }
+    return runWithRegisteredText(reader, () => say.text({ ...ref, fallback: original }));
+  };
+}
+
+export function drawRegisteredText<T>(manifest: PluginManifest, draw: (resolve?: DirectoryWordResolver) => T): T {
   const reader = registeredBuiltinText(manifest);
-  return reader ? runWithRegisteredText(reader, draw) : draw();
+  const resolve = directoryWordResolver(reader);
+  return reader ? runWithRegisteredText(reader, () => draw(resolve)) : draw(resolve);
 }
 
 /**

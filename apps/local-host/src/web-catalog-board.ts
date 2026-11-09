@@ -7,7 +7,7 @@ import {
 } from "@molis-ai/molis-work-app-workbench";
 import { drawAssistantReply } from "./assistant/assistant-view-html.js";
 import { questionErrors } from "./agent-question-card.js";
-import { readText, pluginTitleScript, currentLocale, htmlLang, isWebLocale, runWithLocale, WEB_LOCALES, type WebLocale } from "./web-locale.js";
+import { readText, currentLocale, htmlLang, isWebLocale, runWithLocale, WEB_LOCALES, type WebLocale } from "./web-locale.js";
 
 /**
  * The component board's pages (a development tool, not in the person's navigation): the board, the bottom bar in its own
@@ -23,10 +23,10 @@ export function handleComponentBoardHttp(request: IncomingMessage, response: Ser
       : url.pathname === "/__ui/catalog/navigation" ? () => runWithLocale(isWebLocale(lang) ? lang : currentLocale(), () => renderMolisWorkNavigationSpecimen(t, htmlLang(), url.searchParams.get("sheet") === "arrival" ? "arrival" : "workbench"))
       : url.pathname === "/__ui/catalog/conditions" ? () => {
         const options = parseConditionFrame(url.searchParams);
-        return runWithLocale(options.lang, () => renderMolisWorkConditionsSpecimen(options, { readText, htmlLang, pluginTitleScript }));
+        return runWithLocale(options.lang, () => renderMolisWorkConditionsSpecimen(options, { readText, htmlLang }));
       } : url.pathname === "/__ui/catalog/assistant" ? () => {
         const options = parseAssistantFrame(url.searchParams);
-        return runWithLocale(options.lang, () => renderMolisWorkAssistantSpecimen(options, { readText, htmlLang, pluginTitleScript, samples: drawnSamples(options.text) }));
+        return runWithLocale(options.lang, () => renderMolisWorkAssistantSpecimen(options, { readText, htmlLang, samples: drawnSamples(options.text) }));
       } : null;
   if (!page) return false;
   response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": pageCsp });

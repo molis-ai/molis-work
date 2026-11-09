@@ -35,7 +35,6 @@ export interface AssistantFrameOptions {
 export interface AssistantFramePorts {
   readText(text: string, values?: Record<string, string | number>): string;
   htmlLang(): string;
-  pluginTitleScript(): string;
   /** The samples as the Host drew them (`drawAssistantReply`), as JSON. */
   samples: string;
 }
@@ -57,7 +56,7 @@ const FRAME_STYLES = `body.mw-asst-page{display:flex;flex-direction:column;margi
 
 export function renderMolisWorkAssistantSpecimen(options: AssistantFrameOptions, ports: AssistantFramePorts): string {
   const { readText } = ports;
-  const bar = renderWorkbenchBar({ readText, escapeHtml, icon, htmlLang: ports.htmlLang }, { rail: "", projectChrome: "", enabled: [] });
+  const bar = renderWorkbenchBar({ readText, escapeHtml, icon }, { rail: "", projectChrome: "", enabled: [] });
   const data = `{"samples":${ports.samples.replaceAll("<", "\\u003c")},"current":${JSON.stringify(WORK_IDS[options.work])},"answer":"${options.answer}"}`;
   return `<!doctype html>
 <html lang="${ports.htmlLang()}">
@@ -83,7 +82,7 @@ export function renderMolisWorkAssistantSpecimen(options: AssistantFrameOptions,
   ${bar}
   <div class="mw-toast toast" data-toast role="status" aria-live="polite"></div>
   <script type="application/json" id="mw-asst-data">${data}</script>
-  <script>${ports.pluginTitleScript()}${UI_REQUEST_CLIENT_SCRIPT}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>
+  <script>${UI_REQUEST_CLIENT_SCRIPT}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>
   <script>${ASSISTANT_FRAME_SCRIPT}</script>
   <script>(board => board.start((${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ translate: globalThis.t.text, route: board.route, headers: () => ({}), project: board.project,
     showToast: board.toast, openItem: board.openItem, pluginTitle: (plugin) => plugin, receipts: (${INPUT_RECEIPTS_CLIENT_SCRIPT})(globalThis.t.text),

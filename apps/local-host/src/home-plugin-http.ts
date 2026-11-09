@@ -21,7 +21,7 @@ import { captureRuntimeStageOwner, type HomeStageHalves } from "./project-plugin
 import { dispatchRuntimePluginRoute, PLUGIN_MANAGEMENT_OPERATIONS } from "./plugin-route-operations.js";
 import { projectRouteControl } from "./plugin-actions-client.js";
 import { pluginRouteControl } from "./plugin-route-control.js";
-import { readText, htmlLang, pluginTitleScript } from "./web-locale.js";
+import { readText, htmlLang } from "./web-locale.js";
 import { randomUUID } from "node:crypto";
 import { installedStageSection } from "./installed-stage-section.js";
 import { FRAME_QUERY } from "./plugin-builder-surface.js";
@@ -43,7 +43,7 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
   const page = sidePage ?? /^\/plugins\/([a-z0-9][a-z0-9.-]*)$/u.exec(url.pathname);
   const route = /^\/api\/plugins\/([^/]+)\//u.exec(url.pathname);
   if (!page && !route || !host.homePlugins) return false;
-  const pageLocale = () => ({ readText, htmlLang, pluginTitleScript, accountRegistration, appearance: appearance?.current() });
+  const pageLocale = () => ({ readText, htmlLang, accountRegistration, appearance: appearance?.current() });
   // The Home's own registration names its pages and owns its routes, a plugin the build does not ship included (#679, S-31).
   const entry = page ? await registeredPage(host.homePlugins, page[1]!) : undefined;
   if (page && !entry) return false;

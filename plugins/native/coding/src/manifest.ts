@@ -51,7 +51,7 @@ export const codingManifest: PluginManifest = {
   version: /* @version product.release */ "0.1.0",
   name: "Coding",
   sync: codingSync,
-  summary: "和 Agent 一起写代码，留每轮记录。",
+  summary: "和 Agent 一起写代码，留每轮记录。", summary_text: { key: "coding.directory.summary" },
   kind: "app",
   // Both development lines (1.30–1.32 on main, 1.31–1.44 on the Coding goal branch) continue here without migration.
   publisher: { publisher_id: "molis", signature: "official-coding-binding" },

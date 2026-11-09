@@ -1,16 +1,15 @@
-import { pluginErrors, type PluginLocalesDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { UiFileProblem, UiLocalePack } from "@molis-ai/molis-work-contracts/platform/ui";
 import { inspectLocaleSet, parseLocalePack, type LocaleSetProblem } from "./locale-pack.js";
+import { directoryPackProblems, type DirectoryWordManifest } from "./directory-words.js";
 
 // A plugin's language files, one set of rules whoever supplies the bytes (specs/font-and-skin-system/a-section-contract.md §6.2): a package's files, a project
 // directory in development. A plugin's code cannot read them itself: a built-in plugin is one module and a sandbox package only holds the files of its format, so
 // the platform does. `read` answers a package path's text, or `null` when there is no such file.
 
 /** What these rules read of a Manifest: an installed one or a package's, which have different shapes around these fields. */
-export interface PluginLocaleManifest {
-  readonly plugin_id: string;
+export interface PluginLocaleManifest extends DirectoryWordManifest {
   readonly kind: string;
-  readonly ui?: { readonly locales?: PluginLocalesDeclaration };
 }
 
 /** Reads a file of the plugin. `null` when it is not there. */
@@ -46,6 +45,7 @@ function readLocaleFile(manifest: PluginLocaleManifest, locale: string, read: Pl
   const problems = [
     ...(parsed.value.locale === locale ? [] : [blocked("ui.locale_file_mismatch", `文件名是 ${locale}，文件里写的 locale 是 ${parsed.value.locale}`, `把 locale 改成 ${locale}`)]),
     ...(parsed.value.owner === manifest.plugin_id ? [] : [blocked("ui.locale_owner", `owner 是 ${parsed.value.owner}，Manifest 的 plugin_id 是 ${manifest.plugin_id}`, `把 owner 改成 ${manifest.plugin_id}`)]),
+    ...directoryPackProblems(manifest, parsed.value, file),
   ];
   return { pack: problems.length > 0 ? null : parsed.value, problems };
 }

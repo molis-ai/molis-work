@@ -254,6 +254,7 @@ export interface StagePageDrawing {
     creatableKinds: readonly {
         readonly station: string;
         readonly title: string;
+        readonly label?: string;
         readonly plugin_id: string;
     }[];
     renderTerminalPane: (model: StageTerminalPaneModel) => string;
@@ -271,7 +272,6 @@ export interface StagePageDrawing {
     document?: {
         readonly lang: string;
         readonly navigation_html: string;
-        readonly client_i18n: string;
         readonly request_client: string;
         readonly foundation_client: string;
         render(request: WorkbenchDocumentRenderRequest): string;
@@ -1302,7 +1302,7 @@ export interface UiViewDeclaration {
     readonly view_id: string;
     readonly slot: UiViewSlot;
     readonly title: string;
-    readonly title_en?: string;
+    readonly title_text?: TextRef;
     readonly contribution_id?: string;
     readonly icon?: string;
     readonly accepts_objects?: boolean;
@@ -1339,7 +1339,9 @@ export type UiViewSlot = (typeof UI_VIEW_SLOTS)[number];
 
 export interface UiViewStartEntry {
     readonly title: string;
+    readonly title_text?: TextRef;
     readonly hint: string;
+    readonly hint_text?: TextRef;
     readonly icon?: string;
 }
 

@@ -7,7 +7,7 @@ import { createHash } from 'node:crypto';
 import { PLUGIN_PROJECTS_EXIST_PERMISSION, pluginErrors, type HomePluginDatabaseDeclaration, type PluginManifest, type PluginOwnerFileEntry, type SandboxPackageManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { sandboxAgentDeclarations } from './sandbox-agent-declarations.js';
 import type { SandboxEffects, SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
-import { PLUGIN_PRESENTATION_CAPABILITY } from '@molis-ai/molis-work-contracts/platform/ui';
+import { PLUGIN_PRESENTATION_CAPABILITY, type TextRef } from '@molis-ai/molis-work-contracts/platform/ui';
 import type { PluginIconName } from './ui/icon.js';
 import { databaseDeclarationProblems } from './database-declarations.js';
 import { connectionDeclarationProblems } from './connection-declarations.js';
@@ -93,7 +93,8 @@ export interface SandboxManifestInput {
   /** A studio release already has a build identity and integer action version; distributed packages use their publisher identity. */
   actionIdentity?: { buildId: string; version: number };
   /** Validated wire text declarations, projected once by the public SDK. */
-  textDeclarations?: SandboxPackageManifest;
+  textDeclarations?: Pick<SandboxPackageManifest, 'plugin_id' | 'agent' | 'methods' | 'name_text' | 'summary' | 'summary_text'>;
+  stageTitleText?: TextRef;
   /** The author chooses only version/schema; the store and read/write names are deterministic platform output. */
   homeDatabase?: Pick<HomePluginDatabaseDeclaration, 'version' | 'schema'>;
   connections?: PluginManifest['connections'];
@@ -131,6 +132,14 @@ function localeFields(pluginId: string, contract?: SandboxPluginContract): Pick<
   return { locales: contract.ui.locales };
 }
 
+function directoryFields(input?: Pick<PluginManifest, 'name_text' | 'summary' | 'summary_text'>) {
+  return {
+    ...(input?.name_text === undefined ? {} : { name_text: input.name_text }),
+    ...(input?.summary === undefined ? {} : { summary: input.summary }),
+    ...(input?.summary_text === undefined ? {} : { summary_text: input.summary_text }),
+  };
+}
+
 export function sandboxPluginManifest(input: SandboxManifestInput): PluginManifest {
   if (input.contract) {
     if (input.contract.pluginId !== input.pluginId) throw pluginErrors.declaration_invalid('合同与 Manifest 的插件身份不一致');
@@ -145,6 +154,7 @@ export function sandboxPluginManifest(input: SandboxManifestInput): PluginManife
     schema_version: /* @version manifest.schema */ 1, host_api_version: /* @version host.api */ 1, plugin_id: input.pluginId, version: input.version, name: input.name, kind: 'app',
     publisher: input.publisher,
     ...(actions ? { actions } : {}),
+    ...directoryFields(input.textDeclarations),
     ...(input.textDeclarations ? sandboxAgentDeclarations(input.textDeclarations) : {}),
     entrypoints: [{ deployment: 'local', entrypoint: './plugin.mjs' }],
     ...(input.upgradesFrom?.length ? { upgrade_compatibility: { compatible_from_versions: [...input.upgradesFrom] } } : {}),
@@ -154,7 +164,8 @@ export function sandboxPluginManifest(input: SandboxManifestInput): PluginManife
     capabilities: { provides: [], consumes: input.presentation ? [PLUGIN_PRESENTATION_CAPABILITY.capability_id] : [] }, artifacts: { produces: [], consumes: [] },
     ...(input.presentation ? { requires: [{ ...PLUGIN_PRESENTATION_CAPABILITY, reason: '此插件需要整页组合与详情渲染器 v1' }] } : {}),
     routes: [{ route_id: 'studio.call', method: 'POST', path: '/call' }],
-    ui: { ...localeFields(input.pluginId, input.contract), contributions: [uiId], views: [{ view_id: 'app', slot: 'stage', title: input.name, contribution_id: uiId, ...(input.icon ? { icon: input.icon } : {}) }] },
+    ui: { ...localeFields(input.pluginId, input.contract), contributions: [uiId], views: [{ view_id: 'app', slot: 'stage', title: input.name,
+      ...(input.stageTitleText === undefined ? {} : { title_text: input.stageTitleText }), contribution_id: uiId, ...(input.icon ? { icon: input.icon } : {}) }] },
   };
 }
 
@@ -170,6 +181,7 @@ export interface SandboxIntegrationManifestInput {
   source_presentations?: NonNullable<PluginManifest['source_presentations']>;
   /** The contract projects the producer's words; this does not give an integration a page. */
   contract?: SandboxPluginContract;
+  textDeclarations?: Pick<PluginManifest, 'name_text' | 'summary' | 'summary_text'>;
 }
 
 /**
@@ -180,6 +192,7 @@ export interface SandboxIntegrationManifestInput {
 export function sandboxIntegrationManifest(input: SandboxIntegrationManifestInput): PluginManifest {
   return {
     schema_version: /* @version manifest.schema */ 1, host_api_version: /* @version host.api */ 1, plugin_id: input.pluginId, version: input.version, name: input.name, kind: 'integration',
+    ...directoryFields(input.textDeclarations),
     publisher: input.publisher,
     entrypoints: [{ deployment: 'local', entrypoint: './plugin.mjs' }],
     ...(input.upgradesFrom?.length ? { upgrade_compatibility: { compatible_from_versions: [...input.upgradesFrom] } } : {}),

@@ -3,6 +3,9 @@
   "owner": "io.molis.work.goals",
   "locale": "zh",
   "messages": {
+    "goals.directory.summary": "确定目标，推进工作，留下结果。",
+    "goals.directory.start-title": "推进一个目标",
+    "goals.directory.start-hint": "明确要做成什么，接着往下走。",
     "goals.action-presentation.blocked": "受阻",
     "goals.action-presentation.completed": "已完成",
     "goals.action-presentation.continue": "可继续",

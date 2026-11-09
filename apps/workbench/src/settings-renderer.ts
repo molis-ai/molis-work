@@ -37,7 +37,6 @@ export interface SettingsRenderPrimitives {
   localeSwitchHref(locale: import("./i18n.js").WebLocalePreference, nextPath: string): string;
   htmlLang(): string;
   controlTokenMeta(token: string): string;
-  pluginTitleScript(): string;
   renderIconSprite(): string;
   withDesktopQuery(path: string): string;
   themeBootstrapScript: string;
@@ -47,7 +46,7 @@ export interface SettingsRenderPrimitives {
   appearance?: WorkbenchAppearancePorts;
 }
 export function createWorkbenchSettingsRenderer(primitives: SettingsRenderPrimitives) {
-  const { readText, escapeHtml, icon, currentLocale, localeSwitchHref, htmlLang, controlTokenMeta, pluginTitleScript, renderIconSprite,
+  const { readText, escapeHtml, icon, currentLocale, localeSwitchHref, htmlLang, controlTokenMeta, renderIconSprite,
     withDesktopQuery, settingsContextHref, renderSettingsNavigation,
     themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT, visualFoundationClientScript: VISUAL_FOUNDATION_CLIENT_SCRIPT } = primitives;
 function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "", desktopShell = false): string {
@@ -114,7 +113,7 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
   </main>
   ${renderRuntimePlanDialog({ readText, icon })}
   <div class="mw-toast toast" data-settings-toast role="status" aria-live="polite"></div>${renderAppearanceRecovery(readText, appearance)}
-  ${renderLanguageHead(htmlLang())}<script>${pluginTitleScript()}${UI_REQUEST_CLIENT_SCRIPT}${SETTINGS_CLIENT_SCRIPT}${view.capabilities?.rules ? FUNCTIONS_SYSTEM_CLIENT_SCRIPT : ""}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>${appearanceClientTag(appearance)}
+  ${renderLanguageHead(htmlLang())}<script>${UI_REQUEST_CLIENT_SCRIPT}${SETTINGS_CLIENT_SCRIPT}${view.capabilities?.rules ? FUNCTIONS_SYSTEM_CLIENT_SCRIPT : ""}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>${appearanceClientTag(appearance)}
 </body></html>`;
 }
 

@@ -19,9 +19,10 @@ const SAMPLE_WORDS: Readonly<Record<string, Readonly<Record<string, string | { p
 };
 
 export async function createPluginProject(input: CreatePluginProjectInput): Promise<{ directory: string; plugin_id: string }> {
+  const owner = textKeyPrefix(input.plugin_id);
   const manifest = parsePluginManifest({
     schema_version: /* @version manifest.schema */ 1, host_api_version: /* @version host.api */ 1, plugin_id: input.plugin_id, version: "2.0.0",
-    name: "Local Plugin Sample", kind: "integration",
+    name: "Local Plugin Sample", name_text: { key: owner + ".main.title" }, kind: "integration",
     publisher: { publisher_id: input.publisher_id, signature: input.binding_signature },
     entrypoints: [{ deployment: "local", entrypoint: "./index.mjs" }],
     permissions: ["storage:private", "artifact:write", "artifact:read", "ui:register"].map(permission => ({
@@ -37,7 +38,6 @@ export async function createPluginProject(input: CreatePluginProjectInput): Prom
   await mkdir(directory);
   await mkdir(join(directory, "locales"));
   // A key starts with the last segment of the plugin_id, so the sample's keys follow the id it was made with.
-  const owner = textKeyPrefix(input.plugin_id);
   const files: Record<string, string> = {
     "manifest.json": JSON.stringify(manifest, null, 2) + "\n",
     "index.mjs": samplePluginSource.replaceAll('t("notes.', `t("${owner}.`),

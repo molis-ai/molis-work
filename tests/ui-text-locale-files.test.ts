@@ -217,11 +217,16 @@ function bilingualPackage(files: PackageFiles, manifest: PluginManifest): void {
 test("FSS-53 FSS-70 pack-sandbox signs the declared words and the Host refuses mismatched, missing or out-of-package words", withProject(async directory => {
   const publisher = newPublisher();
   const { files, manifest } = packageFiles(publisher.identity, bilingualPackage, { pluginId: PLUGIN_ID });
+  files["locales/en.json"] = packText("en", { "notes.main.saved": "Saved {count}", "notes.main.title": "Notes" });
+  files["locales/zh.json"] = packText("zh", { "notes.main.saved": "已保存 {count}", "notes.main.title": "笔记" });
   mkdirSync(path.join(directory, "locales"));
   for (const [name, body] of Object.entries(files)) writeFileSync(path.join(directory, name), body!);
-  const bundle = await packSandboxProject(directory, path.join(directory, "unsigned.json"), { name: manifest.name, version: manifest.version, publisherId: manifest.publisher.publisher_id, publisherKeyId: publisher.identity });
+  const packOptions = { name: manifest.name, version: manifest.version, publisherId: manifest.publisher.publisher_id, publisherKeyId: publisher.identity };
+  await assert.rejects(packSandboxProject(directory, path.join(directory, "wrong-name.json"), { ...packOptions, nameText: { key: "notes.main.saved" } }), /无参短句/u);
+  const bundle = await packSandboxProject(directory, path.join(directory, "unsigned.json"), { ...packOptions, nameText: { key: "notes.main.title" } });
   const signed = signPluginPackage(bundle, publisher.signer);
   const read = readSandboxPackage(verifyPluginPackageSignature(signed).bundle.payload);
+  assert.deepEqual(read.manifest.name_text, { key: "notes.main.title" });
   assert.equal(read.localePacks?.pack("en")?.messages["notes.main.saved"], "Saved {count}");
   assert.equal(read.localePacks?.pack("zh")?.messages["notes.main.saved"], "已保存 {count}");
   const tampered = structuredClone(signed);

@@ -3,6 +3,7 @@
   "owner": "io.molis.work.issues",
   "locale": "en",
   "messages": {
+    "issues.directory.summary": "Record, review, and organize your issues.",
     "issues.capture.abandon-text": "What you wrote and the screenshots will not be saved.",
     "issues.capture.abandon-title": "Discard this capture?",
     "issues.capture.abandoned": "Capture discarded",

@@ -134,8 +134,8 @@ function documentLanguage(initial: LanguageAsset, load: LoadAsset) {
       }
       const revisionChanged = choice.native !== undefined && String(choice.native.revision) !== document.documentElement.dataset.uiNativeLanguageRevision;
       if (revisionChanged) document.documentElement.dataset.uiNativeLanguageRevision = String(choice.native?.revision);
-      if (local && (changed || revisionChanged)) {
-        history.replaceState(history.state, "", languagePath(choice.tag) + location.hash);
+      if (changed || revisionChanged) {
+        if (local) history.replaceState(history.state, "", languagePath(choice.tag) + location.hash);
         document.dispatchEvent(new CustomEvent("molis-work:language-changed", { detail: { tag: choice.tag } }));
       }
       if (!local && changed) publishNative();

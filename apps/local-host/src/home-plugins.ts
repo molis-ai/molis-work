@@ -1,5 +1,5 @@
 import { inLanguagePreview, languagePreviewUnavailable } from "./web-locale.js";
-import { installedPluginName } from "./plugin-builder/installed-page.js";
+import { installedPluginWords } from "./plugin-builder/installed-page.js";
 import { renderHomePackageDocument } from "./plugin-builder/agent-surface.js";
 import { ActionError, type ActionCallContext, type ActionClient, type ActionRegistryPort, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginInstallRecords } from "./plugin-install-records.js";
@@ -152,7 +152,7 @@ export class HomePluginHost {
   /** The page that stage frames (`?frame=workbench`), opened for the person under the package's Home activation. Throws when that is not open. */
   packageLabel(pluginId: string): string | undefined {
     const release = this.installed?.releaseFor(pluginId);
-    return release && installedPluginName(release);
+    return release && installedPluginWords(release).name;
   }
   packageDocument(pluginId: string, controlToken: string, projectId: string | null = null, accountRegistration=false, projection=false) {
     const release = this.packageSurface(pluginId) ? this.installed?.releaseFor(pluginId) : undefined;

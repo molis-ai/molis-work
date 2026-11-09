@@ -3,6 +3,7 @@
   "owner": "io.molis.work.text-stats",
   "locale": "zh",
   "messages": {
+    "text-stats.directory.summary": "统计文件快照的字数、字节与行数。",
     "text-stats.count.bytes": "UTF-8 字节",
     "text-stats.count.characters": "字符",
     "text-stats.count.lines": "行",

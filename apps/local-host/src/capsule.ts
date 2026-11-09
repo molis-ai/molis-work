@@ -1,12 +1,12 @@
 import { createCapsuleWorkbench, type CapsuleRendererPorts, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
 import { createGoalsCapsuleProjection } from "@molis-ai/molis-work-plugin-goals/page";
-import { readText, htmlLang, pluginTitleScript } from "./web-locale.js";
+import { readText, htmlLang } from "./web-locale.js";
 
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { drawRegisteredText } from "./ui-text-provider.js";
 
 export function createLocalHostCapsule(renderDesktopShell: CapsuleRendererPorts["renderDesktopShell"]) {
-  const shell = createCapsuleWorkbench({ locale: { readText, htmlLang, pluginTitleScript }, renderDesktopShell });
+  const shell = createCapsuleWorkbench({ locale: { readText, htmlLang }, renderDesktopShell });
   const { buildCapsuleSnapshot } = createGoalsCapsuleProjection();
   const registered = PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.project_plugin_id === "goals")?.manifest;
   return { ...shell, buildCapsuleSnapshot(view: Parameters<typeof buildCapsuleSnapshot>[0] & MolisWorkWebView, directory: { goal_id: string }[]) {

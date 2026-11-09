@@ -15,6 +15,7 @@ import { releaseVersion } from '../installed-release.js';
 import { buildSources, readPluginPrompts } from './prompts.js';
 import { readBuildFile } from './build-project.js';
 import { studioPublisherIdentity } from './publisher-identity.js';
+import { studioManifestWords } from './studio-words.js';
 
 const SIGNED = 'signed-package.json';
 const RELEASE_FILES = new Set<string>([...Object.values(SANDBOX_PACKAGE_FILES), SIGNED]);
@@ -88,6 +89,7 @@ export function createStudioPublisher(home: string, root: string): AgentBuilderP
       };
       const candidate = (identity: string, compatible: string[] = []) => {
         const distributed = sandboxPluginManifest({ pluginId: design.contract.pluginId, name: design.title, version: releaseVersion(version),
+          textDeclarations: studioManifestWords(design),
           publisher: { publisher_id: 'molis-studio', signature: identity }, presentation: design.presentation !== undefined,
           effects: manifest.effects, contract: design.contract, upgradesFrom: compatible, ...(scope === 'home' ? { runtime: { scope: 'home' } } : {}) });
         const files = Object.entries({ ...originalFiles, ...studioLocaleFiles(design.localePacks), 'manifest.json': JSON.stringify(distributed) }).map(([path, content]) => ({ path, content_base64: Buffer.from(content).toString('base64') }));

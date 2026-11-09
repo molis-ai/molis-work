@@ -4,18 +4,18 @@ import type { WebProjectNavigation } from "./settings-navigation.js";
 import type { WorkbenchRendererPorts } from "./renderer.js";
 
 export interface CapsuleRendererPorts {
-  locale: Pick<WorkbenchRendererPorts["locale"], "readText" | "htmlLang" | "pluginTitleScript">;
+  locale: Pick<WorkbenchRendererPorts["locale"], "readText" | "htmlLang">;
   renderDesktopShell(projects: WebProjectNavigation[], environment: {
-    translate(message: string): string; htmlLang: string; pluginTitleScript: string; languageHead: string; themeBootstrapScript: string;
+    translate(message: string): string; htmlLang: string; languageHead: string; themeBootstrapScript: string;
   }): string;
 }
 
 export function createCapsuleWorkbench(ports: CapsuleRendererPorts) {
-  const { readText, htmlLang, pluginTitleScript } = ports.locale;
+  const { readText, htmlLang } = ports.locale;
 
   function renderCapsuleShell(projects: WebProjectNavigation[]): string {
     const html = ports.renderDesktopShell(projects, {
-      translate: readText, htmlLang: htmlLang(), pluginTitleScript: pluginTitleScript(), languageHead: renderLanguageHead(htmlLang()),
+      translate: readText, htmlLang: htmlLang(), languageHead: renderLanguageHead(htmlLang()),
       themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT,
     });
     return html.replace("</style>", `${TYPEFACE_STYLES}</style>`);

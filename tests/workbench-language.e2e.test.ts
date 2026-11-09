@@ -321,6 +321,7 @@ test("FSS-20 FSS-34 FSS-37 the catalog and capsule switch their existing documen
 });
 
 test("FSS-20 FSS-38 FSS-74 a signed Studio installation switches its words in the same frame and keeps draft and record data", { timeout: 120_000, skip: process.platform !== "darwin" }, async t => {
+  const problemsBefore = new Set(hostTextProblems());
   const { mkdtemp, rm } = await import("node:fs/promises"), { tmpdir } = await import("node:os"), { join } = await import("node:path");
   const { readyPublication } = await import("./fixtures/studio-publishing.js"), { studioBilingualLiteralNotes, literalStudioExcerpt } = await import("./fixtures/studio-bilingual.js");
   const { readStudioDistribution } = await import("@molis-ai/molis-work-app-local-host");
@@ -369,6 +370,12 @@ test("FSS-20 FSS-38 FSS-74 a signed Studio installation switches its words in th
     field.focus();field.setSelectionRange(1,6,'backward');})()`);
   const opened = await b.evaluate<string>(`document.querySelector(${JSON.stringify(frame)}).parentElement.dataset.pluginPage`);
   assert.ok(opened);
+  const tab = `.tab-item[data-tab-kind=plugin][data-plugin=${JSON.stringify(surface)}]`;
+  await b.waitFor(`document.querySelector(${JSON.stringify(tab)})?.querySelector('.tab-item-name')?.textContent === '读书摘记'`);
+  assert.deepEqual(await b.evaluate(`[window.originalInstalledTitle = document.querySelector(${JSON.stringify(tab)}), window.originalMarketTitle = document.querySelector('[data-market-plugin=todo] h2'),
+    JSON.parse(document.querySelector('#workbench-plugin-titles').textContent)[${JSON.stringify(surface)}], originalMarketTitle.textContent].slice(2)`), ["读书摘记", "待办"]);
+  const goalsStart = `JSON.parse(document.querySelector('[data-home-starts]').dataset.homeStarts).find(start=>start.id==='goals')`;
+  assert.deepEqual(await b.evaluate(`[${goalsStart}.title,${goalsStart}.hint]`), ["推进一个目标", "明确要做成什么，接着往下走。"]);
   await chooseEnglishInSettings(t, b);
   await child.waitFor("document.documentElement.lang === 'en' && document.querySelector('h1').textContent === 'Reading notes'");
   assert.deepEqual(await child.evaluate(`[savedStudioBody===document.body,savedStudioField===document.querySelector('[data-field=text]'),document.activeElement===savedStudioField,
@@ -380,6 +387,13 @@ test("FSS-20 FSS-38 FSS-74 a signed Studio installation switches its words in th
   assert.deepEqual(await child.evaluate(`[savedStudioDetail===document.querySelector('[data-detail-open] .pc-detail-pane'),
     savedStudioDetailWord===savedStudioDetail.querySelector('.pc-detail-meta span'),savedStudioDetailWord.textContent,savedStudioDetail.querySelector('h2').textContent]`),
   [true, true, "Visibility · Personal", "保存摘记"]);
+  assert.deepEqual(await b.evaluate(`[originalInstalledTitle===document.querySelector(${JSON.stringify(tab)}),
+    originalInstalledTitle.querySelector('.tab-item-name').textContent, originalMarketTitle===document.querySelector('[data-market-plugin=todo] h2'),
+    originalMarketTitle.textContent, originalMarketTitle.nextElementSibling.textContent, JSON.parse(document.querySelector('#workbench-plugin-titles').textContent)[${JSON.stringify(surface)}]]`),
+  [true, "Reading notes", true, "Todo", "Write down what needs doing, what is for today, and who you are waiting for.", "Reading notes"]);
+  assert.deepEqual([...new Set(hostTextProblems().filter(problem => !problemsBefore.has(problem)).map(problem => problem.key ?? problem.code))], [], "a viewless Home half and the installed release used their actual owners");
+  assert.deepEqual(await b.evaluate(`[${goalsStart}.title,${goalsStart}.hint,document.querySelector(${JSON.stringify(frame)}).title]`),
+    ["Move a goal forward", "Decide what you want to achieve, then take the next step.", "Reading notes"]);
   assert.equal(await b.evaluate(`document.querySelector(${JSON.stringify(frame)}).parentElement.dataset.pluginPage`), opened);
   assert.deepEqual(requests, [source], "language preparation did not mint or re-open a release");
   const beforeLook = await child.evaluate<string[]>("['--page','--font'].map(name=>getComputedStyle(document.documentElement).getPropertyValue(name).trim())");

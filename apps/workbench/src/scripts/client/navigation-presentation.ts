@@ -1,20 +1,17 @@
-import { dockDefaultPins, pluginStageSummaries } from "../../plugin-catalog.js";
+import { dockDefaultPins } from "../../plugin-catalog.js";
 import { UNAVAILABLE_STAGE } from "../../unavailable-plugin-stage.js";
 /** Menus of the bottom bar and the stage: presentation only; opening one never selects or starts a tool. */
 export const NAVIGATION_PRESENTATION_SCRIPT = `(readText) => {
   // Plugin list pages draw their heading from the surface's own label (craft-finish, "Plugin list pages").
   // The label is set once on the shell, so a plugin that re-renders its list keeps the heading.
-  // [the Plugin's id, its summary] by work surface.
-  const STAGE_SUMMARIES = ${JSON.stringify(Object.fromEntries(Object.entries(pluginStageSummaries()).map(([id, { plugin_id, summary }]) => [id, [plugin_id, summary]])))};
   const titleStages = () => document.querySelectorAll('.plugin-stage-shell[data-work-surface-label]').forEach((shell) => {
     const title = JSON.stringify((shell.dataset.workSurfaceLabel || ''));
     if (shell.style.getPropertyValue('--stage-title') !== title) shell.style.setProperty('--stage-title', title);
-    const summary = STAGE_SUMMARIES[shell.dataset.workSurface || ''];
-    // The summary is the Plugin's own text: English from its own words.
-    const desc = JSON.stringify(summary ? summary[1] : '');
+    const desc = JSON.stringify(shell.dataset.workSurfaceDescription || '');
     if (shell.style.getPropertyValue('--stage-desc') !== desc) shell.style.setProperty('--stage-desc', desc);
   });
   titleStages();
+  document.addEventListener("molis-work:language-changed", titleStages);
   const stageHost = document.querySelector('.immersive-plugin-stage');
   if (stageHost) new MutationObserver(titleStages).observe(stageHost, { childList: true });
   const dismiss = (event) => {

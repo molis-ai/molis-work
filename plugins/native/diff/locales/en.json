@@ -3,6 +3,7 @@
   "owner": "io.molis.work.diff",
   "locale": "en",
   "messages": {
+    "diff.directory.summary": "Compare fixed versions and read each change.",
     "diff.board.files": "A turn’s file rows · lines added and removed, long paths",
     "diff.error.unreadable": "Couldn’t read the file workspace",
     "diff.fold.reveal": "Show {count} unchanged lines",

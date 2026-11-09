@@ -36,7 +36,7 @@ export const inboxManifest: PluginManifest = {
   plugin_id: INBOX_PLUGIN_ID,
   version: /* @version product.release */ "0.1.0",
   name: "Inbox",
-  summary: "只看需要你介入的事项。",
+  summary: "只看需要你介入的事项。", summary_text: { key: "inbox.directory.summary" },
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-inbox-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],

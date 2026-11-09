@@ -73,7 +73,7 @@ test("SKC-01: a plugin with only declarations parses, without entrypoints, and t
   assert.deepEqual(manifest.entrypoints, []);
   assert.deepEqual(inspectContentPlugin(contentManifest()), []);
   // Identity, words in both languages, the Home scope and upgrade sources are all on the list.
-  parsePluginManifest(contentManifest({ name_en: "Meeting skills", summary: "会议用的技能", developer: true, runtime: { scope: "home" },
+  parsePluginManifest(contentManifest({ name_text: { literal: "Meeting skills" }, summary: "会议用的技能", developer: true, runtime: { scope: "home" },
     upgrade_compatibility: { compatible_from_versions: ["1.0.0"] }, ui: { contributions: [], locales: { default: "zh", available: ["zh", "en"] } } }));
   const read = parseContentPackage(contentPackage());
   assert.deepEqual(read.skills, [{ skill_id: SKILL, version: 1, body: BODY }]);

@@ -3,6 +3,7 @@
   "owner": "io.molis.work.form",
   "locale": "en",
   "messages": {
+    "form.directory.summary": "Create forms, collect responses, and see a summary for each question.",
     "form.action.delete": "Delete",
     "form.action.new": "New form",
     "form.action.reload": "Reload",
@@ -20,7 +21,7 @@
     "form.collect.start": "Start collecting",
     "form.collect.stop": "Stop collecting",
     "form.collect.stopped": "Collection stopped",
-    "form.create.kind-title": "Questionnaire",
+    "form.create.kind-title": "Form",
     "form.dataset.hint": "Turn the current responses into an editable dataset; new responses won’t be added automatically",
     "form.dataset.save": "Save as dataset",
     "form.dialog.cancel": "Cancel",

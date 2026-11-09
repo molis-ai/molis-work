@@ -3,6 +3,7 @@
   "owner": "io.molis.work.git",
   "locale": "zh",
   "messages": {
+    "git.directory.summary": "查看工作区的版本与变更。",
     "git.action.stage": "暂存",
     "git.action.unstage": "取消暂存",
     "git.branch.checkout": "建好后切换过去",

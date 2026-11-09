@@ -27,7 +27,7 @@ export interface ConditionFrameOptions {
   /** `rows`: the plugins' own rows (board-plugin-rows.ts) instead of the reply, for the board's 插件行视图 section. */
   part: "reply" | "rows";
 }
-export interface ConditionFramePorts { readText(text: string, values?: Record<string, string | number>): string; htmlLang(): string; pluginTitleScript(): string }
+export interface ConditionFramePorts { readText(text: string, values?: Record<string, string | number>): string; htmlLang(): string; }
 
 const pick = <T extends string>(value: string | null, allowed: readonly T[]): T => (allowed as readonly string[]).includes(value ?? "") ? value as T : allowed[0]!;
 
@@ -95,7 +95,7 @@ export function renderMolisWorkConditionsSpecimen(options: ConditionFrameOptions
   ${renderIconSprite()}
   ${rows ? `<main class="mw-cond" data-cond-frame-page data-part="rows">${renderBoardPluginRows(readText, options.text)}</main>` : frameBody(options, readText, sample)}
   ${renderLanguageHead(ports.htmlLang())}
-  <script>${ports.pluginTitleScript()}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>
+  <script>${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>
   ${rows ? "" : `<script type="application/json" id="mw-cond-data">${data}</script>
   <script>globalThis.molisBoardCodeGrow = ${createAssistantCodeGrow.toString()};</script>
   <script>${CONDITIONS_FRAME_SCRIPT}</script>`}

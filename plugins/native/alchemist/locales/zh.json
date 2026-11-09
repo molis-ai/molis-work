@@ -3,6 +3,9 @@
   "owner": "io.molis.work.alchemist",
   "locale": "zh",
   "messages": {
+    "alchemist.directory.summary": "写下方向，炼成可比较的卡再决定。",
+    "alchemist.directory.name": "炼金术士",
+    "alchemist.directory.view-directory": "炼金术士",
     "alchemist.client-flows.add-preference": "添加判断偏好",
     "alchemist.client-flows.annotations": "注释",
     "alchemist.client-flows.applies": "适用范围",

@@ -47,7 +47,7 @@ export const gitManifest: PluginManifest = {
   plugin_id: GIT_PLUGIN_ID,
   version: /* @version product.release */ "0.1.0",
   name: "Git",
-  summary: "查看工作区的版本与变更。",
+  summary: "查看工作区的版本与变更。", summary_text: { key: "git.directory.summary" },
   kind: "app",
   publisher: { publisher_id: "molis", signature: "official-git-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],

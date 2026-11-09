@@ -29,7 +29,6 @@ export interface ProjectSettingsPagePorts {
   icon(name: PluginIconName): string;
   htmlLang(): string;
   controlTokenMeta(token: string): string;
-  pluginTitleScript(): string;
   renderIconSprite(): string;
   withDesktopQuery(path: string): string;
   themeBootstrapScript: string;
@@ -43,7 +42,7 @@ const GOALS_SETTINGS_SECTIONS: ReadonlySet<ProjectSettingsFoldId> = new Set(["gu
 
 /** Settings page composition consumes canonical Goals facts and platform presentation ports. */
 export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePorts) {
-  const { readText, escapeHtml, icon, htmlLang, controlTokenMeta, pluginTitleScript, renderIconSprite, withDesktopQuery, renderSettingsContent } = ports;
+  const { readText, escapeHtml, icon, htmlLang, controlTokenMeta, renderIconSprite, withDesktopQuery, renderSettingsContent } = ports;
   const { renderProjectSettingsNavigation, renderSettingsNavigation } = ports.navigation;
   const THEME_BOOTSTRAP_SCRIPT = ports.themeBootstrapScript;
   const VISUAL_FOUNDATION_CLIENT_SCRIPT = ports.visualFoundationClientScript;
@@ -56,7 +55,7 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
 
   function planningDocument(controlToken: string, desktopShell: boolean, navigation: string): NonNullable<StagePageDrawing["document"]> {
     const appearance = ports.appearance?.current();
-    return { lang: htmlLang(), navigation_html: navigation, client_i18n: pluginTitleScript(), request_client: UI_REQUEST_CLIENT_SCRIPT,
+    return { lang: htmlLang(), navigation_html: navigation, request_client: UI_REQUEST_CLIENT_SCRIPT,
       foundation_client: VISUAL_FOUNDATION_CLIENT_SCRIPT,
       render: (document: WorkbenchDocumentRenderRequest) => `<!doctype html>${document.preamble_html ?? ""}<html lang="${document.lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${NO_FAVICON_LINK}${controlTokenMeta(controlToken)}<title>${escapeHtml(document.title)}</title><script>${THEME_BOOTSTRAP_SCRIPT}</script><link rel="stylesheet" href="/assets/molis-work-settings.css">${appearanceHead(appearance)}</head><body${ports.accountRegistration ? ACCOUNT_REGISTRATION_BODY : ''} class="settings-page planning-page project-preferences-page" data-desktop-shell="false"${desktopShell ? ' data-native-desktop="true"' : ""}>${renderIconSprite()}${document.body_html}${renderAppearanceRecovery(readText, appearance)}${appearanceClientTag(appearance)}</body></html>`,
     };
@@ -110,7 +109,7 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
     <div class="settings-content" id="settings-content">${page}</div>
   </main>
   <div class="mw-toast toast" data-settings-toast role="status" aria-live="polite"></div>${renderAppearanceRecovery(readText, appearance)}
-  <script>${pluginTitleScript()}${UI_REQUEST_CLIENT_SCRIPT}${WRITE_CHECKERS_CLIENT_SCRIPT}${PROJECT_DIRECTORIES_CLIENT_SCRIPT}${PROJECT_SETTINGS_CLIENT_SCRIPT}${PROJECT_GUIDANCE_CLIENT_SCRIPT}${MEMORY_SETTINGS_CLIENT_SCRIPT}${PLUGIN_TRUST_SETTINGS_CLIENT_SCRIPT}${TASK_GRANTS_SETTINGS_CLIENT_SCRIPT}${pluginSettingsClients()}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>${appearanceClientTag(appearance)}${knowledgeClientTag()}
+  <script>${UI_REQUEST_CLIENT_SCRIPT}${WRITE_CHECKERS_CLIENT_SCRIPT}${PROJECT_DIRECTORIES_CLIENT_SCRIPT}${PROJECT_SETTINGS_CLIENT_SCRIPT}${PROJECT_GUIDANCE_CLIENT_SCRIPT}${MEMORY_SETTINGS_CLIENT_SCRIPT}${PLUGIN_TRUST_SETTINGS_CLIENT_SCRIPT}${TASK_GRANTS_SETTINGS_CLIENT_SCRIPT}${pluginSettingsClients()}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>${appearanceClientTag(appearance)}${knowledgeClientTag()}
 </body></html>`;
   }
 

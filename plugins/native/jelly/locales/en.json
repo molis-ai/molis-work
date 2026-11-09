@@ -3,6 +3,7 @@
   "owner": "io.molis.work.jelly",
   "locale": "en",
   "messages": {
+    "jelly.directory.summary": "A calendar and notebook for planning each day.",
     "jelly.action.add": "Add",
     "jelly.action.apply": "Apply",
     "jelly.action.archive": "Archive",

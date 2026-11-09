@@ -97,7 +97,7 @@ export const pageLocale = (): WebLocale | undefined => localeStore.getStore()?.t
 export const appearanceLocale = (): WebLocaleChoice => localeStore.getStore() ?? { tag: DEFAULT_WEB_LOCALE, source: "default" };
 const workbenchLocale = createWorkbenchLocale(() => pageLocale() ?? DEFAULT_WEB_LOCALE);
 export const isWebLocale: (value: unknown) => value is WebLocale = workbenchLocale.isWebLocale;
-export const { currentLocale, htmlLang, dateTimeLocale, listJoin, resolveWebLocale, resolveWebLocaleChoice, safeNextPath, localePreference, localeSetCookie, localeSwitchHref, renderLocaleSwitch, pluginTitleScript } = workbenchLocale;
+export const { currentLocale, htmlLang, dateTimeLocale, listJoin, resolveWebLocale, resolveWebLocaleChoice, safeNextPath, localePreference, localeSetCookie, localeSwitchHref, renderLocaleSwitch } = workbenchLocale;
 
 /** A plain word for platform renderers that escape it at the HTML boundary. */
 export const readText = t.text;

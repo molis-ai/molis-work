@@ -3,6 +3,7 @@
   "owner": "io.molis.work.form",
   "locale": "zh",
   "messages": {
+    "form.directory.summary": "建问卷，收答卷，看逐题汇总。",
     "form.action.delete": "删除",
     "form.action.new": "新建问卷",
     "form.action.reload": "重新读取",

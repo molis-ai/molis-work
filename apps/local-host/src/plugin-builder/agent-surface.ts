@@ -1,6 +1,6 @@
 import { sandboxPluginManifest, effectsFromContract } from "@molis-ai/molis-work-plugin-sdk";
-import { studioWordReader } from "./studio-words.js";
-import { installedPluginName, installedPluginPage } from "./installed-page.js";
+import { studioManifestWords, studioWordReader } from "./studio-words.js";
+import { installedPluginWords, installedPluginPage } from "./installed-page.js";
 import { shellPageRead } from "../web-sessions.js";
 import { modelRoundLocale } from "../reply-language.js";
 import { htmlLang } from "../web-locale.js";
@@ -28,7 +28,6 @@ import { selectionPorts } from '../plugin-builder-surface.js';
 import { installedPluginBody, installedStageSection, installedStageSurface } from '../installed-stage-section.js';
 import { readLocalWebBody, refuseLocalWebRequest, requestHost, sendLocalWebJson } from '../web-http.js';
 import { ensureInstalledPlugins, INSTALLED_MODEL_KEY } from '../installed-plugin-host.js';
-import { generatedPluginManifest } from './installed.js';
 import { capabilityCatalog, type CatalogCapability, type ProjectActions } from './catalog.js';
 import { loopbackHost } from '@molis-ai/molis-work-contracts/platform/loopback';
 import { hostLog } from "../host-log.js";
@@ -138,7 +137,7 @@ async function openStudio(options: AgentStudioOptions): Promise<Studio> {
 function page(title: string, body: string, configuration: Record<string, unknown>, options: AgentStudioOptions, controlToken: string, draft?: { build: AgentBuild; workflow: AgentBuilderWorkflow }) {
   if (!options.homeDirectory) throw new Error('插件页面需要 Home');
   const installed = configuration.mode === 'installed', design = draft?.build.design, pluginId = installed ? String(configuration.plugin_id) : design?.localePacks ? design.contract.pluginId : BUILDER_PLUGIN_ID;
-  const manifest = design?.localePacks ? sandboxPluginManifest({ pluginId, name: design.title, version: '0.0.0',
+  const manifest = design?.localePacks ? sandboxPluginManifest({ pluginId, name: design.title, version: '0.0.0', textDeclarations: studioManifestWords(design),
     publisher: { publisher_id: 'molis-studio', signature: 'agent-built:' + draft!.build.id }, presentation: design.presentation !== undefined, effects: effectsFromContract(design.contract), contract: design.contract }) : builderManifest;
   const active = studios.get(options.store)?.get(options.projectId), buildPath = '/api/plugin-builder/studio/builds/' + configuration.build;
   const authorization = pluginPagesFor(options.homeDirectory).open(pluginId, options.projectId, options.actorId ?? 'web-user', undefined, installed ? undefined : {
@@ -169,8 +168,8 @@ export async function installedPluginStages(options: AgentStudioOptions): Promis
   return installed.records().filter(item => item.state === 'running' && !installed.recoveryErrors.has(item.plugin_id)).flatMap(item => {
     const release = installed.releaseFor(item.plugin_id);
     if (!release) return [];
-    const surface = installedStageSurface(release), label = installedPluginName(release);
-    const directory: PluginDirectoryEntry = { id: surface, plugin_id: item.plugin_id, name: label, chosen: false, ui: { views: generatedPluginManifest(release).ui.views ?? [] } };
+    const surface = installedStageSurface(release), words = installedPluginWords(release), label = words.name;
+    const directory: PluginDirectoryEntry = { id: surface, plugin_id: item.plugin_id, chosen: false, ...words };
     return [{ pluginId: item.plugin_id, surface, label, directory, stage: installedStageSection({ pluginId: item.plugin_id, surface, label, prefix }) }];
   });
 }
@@ -187,7 +186,7 @@ export function renderHomePackageDocument(input: Omit<Parameters<typeof installe
   const prefix = projectId ? '/projects/' + encodeURIComponent(projectId) : '';
   const document = installedPluginPage({ ...input, scope: 'home', prefix });
   return input.projection ? document : renderPluginDocumentShell({ id: pluginId, plugin_id: pluginId, bundle: 'plugin-builder', lang: htmlLang(),
-    title: installedPluginName(release), accountRegistration: input.accountRegistration, html: installedPluginBody(pluginId), project_id: projectId ?? '',
+    title: installedPluginWords(release).name, accountRegistration: input.accountRegistration, html: installedPluginBody(pluginId), project_id: projectId ?? '',
     route_prefix: prefix, control_token: input.controlToken, ...document });
 }
 
@@ -240,7 +239,7 @@ export async function handleAgentStudioHttp(request: IncomingMessage, response: 
           prefix, release, scope: 'project', running: () => installed.records().find(item => item.plugin_id === pluginId) });
         if (projection) sendLocalWebJson(response, 200, document);
         else html(response, renderPluginDocumentShell({ id: pluginId, plugin_id: pluginId, bundle: 'plugin-builder', lang: htmlLang(),
-          title: installedPluginName(release), html: installedPluginBody(pluginId), project_id: options.projectId, route_prefix: prefix, control_token: controlToken,
+          title: installedPluginWords(release).name, html: installedPluginBody(pluginId), project_id: options.projectId, route_prefix: prefix, control_token: controlToken,
           accountRegistration: options.accountRegistration, ...document }));
         return true;
       }

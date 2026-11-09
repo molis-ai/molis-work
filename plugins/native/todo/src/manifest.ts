@@ -17,8 +17,8 @@ export const todoManifest: PluginManifest = {
   plugin_id: TODO_PLUGIN_ID,
   version: /* @version product.release */ "0.1.0",
   name: "待办",
-  name_en: "Todo",
-  summary: "记下要做的事，分清今天、在等谁。",
+  name_text: { key: "todo.directory.name" },
+  summary: "记下要做的事，分清今天、在等谁。", summary_text: { key: "todo.directory.summary" },
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-todo-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
@@ -60,7 +60,7 @@ export const todoManifest: PluginManifest = {
   ui: { locales: { default: "zh", available: ["zh", "en"] },
     contributions: [TODO_UI_CONTRIBUTION_ID],
     views: [
-      { view_id: "todo", slot: "navigator", title: "待办", title_en: "Todo", contribution_id: TODO_UI_CONTRIBUTION_ID, icon: "list", hue: "green", order: 25, group: "personal" },
+      { view_id: "todo", slot: "navigator", title: "待办", title_text: { key: "todo.directory.view-todo" }, contribution_id: TODO_UI_CONTRIBUTION_ID, icon: "list", hue: "green", order: 25, group: "personal" },
     ],
   },
 };

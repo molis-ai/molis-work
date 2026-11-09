@@ -43,7 +43,7 @@ export function sandboxAgentBodyIdentity(pluginId: string, kind: "role" | "metho
 }
 
 /** The sole text-only runtime projection. Numeric versions do not represent the signed package's SemVer. */
-export function sandboxAgentDeclarations(manifest: SandboxPackageManifest): Pick<PluginManifest, "agent" | "methods"> {
+export function sandboxAgentDeclarations(manifest: Pick<SandboxPackageManifest, "plugin_id" | "agent" | "methods">): Pick<PluginManifest, "agent" | "methods"> {
   const seen = new Set<string>();
   const identity = (kind: "role" | "method", name: string) => {
     const ids = sandboxAgentBodyIdentity(manifest.plugin_id, kind, name);

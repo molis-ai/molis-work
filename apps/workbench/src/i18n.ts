@@ -1,7 +1,6 @@
 import { preferredUiLanguage, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { UiLanguageTag } from "@molis-ai/molis-work-contracts/platform/ui";
 import { WORKBENCH_LANGUAGES } from "./platform-languages.js";
-import { pluginTabTitles } from "./plugin-catalog.js";
 
 export type WebLocale = UiLanguageTag;
 export type WebLocalePreference = WebLocale | "system";
@@ -110,12 +109,6 @@ function renderLocaleSwitch(nextPath: string): string {
   </nav>`;
 }
 
-/** A projection of the registered tab names, separate from the words owned by a language file. */
-function pluginTitleScript(): string {
-  const titles = JSON.stringify(pluginTabTitles(currentLocale() === "en")).replaceAll("<", "\\u003c");
-  return `globalThis.MOLIS_WORK_PLUGIN_TITLES = ${titles};`;
-}
-
 function escapeAttr(value: string): string {
   return value
     .replaceAll("&", "&amp;")
@@ -124,5 +117,5 @@ function escapeAttr(value: string): string {
     .replaceAll('"', "&quot;");
 }
 
-  return { currentLocale, isWebLocale, htmlLang, dateTimeLocale, listJoin, resolveWebLocale, resolveWebLocaleChoice, safeNextPath, localePreference, localeSetCookie, localeSwitchHref, renderLocaleSwitch, pluginTitleScript };
+  return { currentLocale, isWebLocale, htmlLang, dateTimeLocale, listJoin, resolveWebLocale, resolveWebLocaleChoice, safeNextPath, localePreference, localeSetCookie, localeSwitchHref, renderLocaleSwitch };
 }

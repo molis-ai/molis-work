@@ -17,7 +17,6 @@ export interface OnboardingRenderPrimitives {
   controlTokenMeta(token: string): string;
   withDesktopQuery(target: string): string;
   nativeDesktopBootstrapScript: string;
-  pluginTitleScript(): string;
   icon(name: OnboardingIcon): string;
   renderIconSprite(): string;
 }
@@ -37,7 +36,7 @@ function miniWorkbench(icon: (name: OnboardingIcon) => string): string {
 }
 
 export function createWorkbenchOnboardingRenderer(primitives: OnboardingRenderPrimitives) {
-  const { escapeHtml, withDesktopQuery, pluginTitleScript } = primitives;
+  const { escapeHtml, withDesktopQuery } = primitives;
   return function renderMolisWorkOnboarding(options: MolisWorkOnboardingRenderOptions): string {
   const desktopShell = Boolean(options.desktopShell);
   const href = (target: string) => desktopShell ? withDesktopQuery(target) : target;
@@ -58,7 +57,7 @@ export function createWorkbenchOnboardingRenderer(primitives: OnboardingRenderPr
     return shell.document({
       title: uiText.text("workbench.onboarding-renderer.molis-work-has-been-updated"), screen: "update", desktopShell, controlToken: options.controlToken ?? "",
       bodyAttrs: ` data-onboarding-mode="update"`, titlebar: shell.titlebar(desktopShell, { tools: false }), stage, bar,
-      scripts: `${pluginTitleScript()}${UI_REQUEST_CLIENT_SCRIPT}${VISUAL_FOUNDATION_CLIENT_SCRIPT}${ARRIVAL_MOTION_CLIENT_SCRIPT}${ONBOARDING_DISMISS_CLIENT_SCRIPT}
+      scripts: `${UI_REQUEST_CLIENT_SCRIPT}${VISUAL_FOUNDATION_CLIENT_SCRIPT}${ARRIVAL_MOTION_CLIENT_SCRIPT}${ONBOARDING_DISMISS_CLIENT_SCRIPT}
 (() => { const mark = document.querySelector('.arrival-titlebar [data-wordmark]'); window.molisArrival?.settleWordmark(mark); })();`,
     });
   }

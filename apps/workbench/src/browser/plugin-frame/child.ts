@@ -29,6 +29,7 @@ import { createFrameFetch } from "./fetch.js";
 import { childContext } from "./context-child.js";
 import { frameAppearance } from "./appearance.js";
 import { frameLanguage } from "./language-child.js";
+import type { FrameStageWords } from "./language.js";
 import type { FrameConfig, FrameDown, FrameUp } from "./types.js";
 
 function bindStorage(port: MessagePort, config: FrameConfig): void {
@@ -50,9 +51,11 @@ function bindStorage(port: MessagePort, config: FrameConfig): void {
 export async function startChild(port: MessagePort, config: FrameConfig): Promise<void> {
   const send = (message: FrameUp) => port.postMessage(message), fetchThroughPort = createFrameFetch(port, config.origin);
   if (config.text.owner !== config.pluginId) throw new Error("View text owner does not match");
-  const updateLanguage = frameLanguage(config.text);
+  const showStageWords = ({ title, description }: FrameStageWords) => {
+    root.style.setProperty("--stage-title", title); root.style.setProperty("--stage-desc", description);
+  };
+  const updateLanguage = frameLanguage(config.text, showStageWords);
   globalThis.fetch = fetchThroughPort;
-  globalThis.MOLIS_WORK_PLUGIN_TITLES = config.titles;
   bindStorage(port, config);
   const call = createUiRequest({ fetch: fetchThroughPort, origin: config.origin, token: () => "", newKey: () => crypto.randomUUID(), readText: uiText.text });
   const view = createUiFailureView({ createElement: tag => document.createElement(tag), readText: uiText.text,
@@ -63,7 +66,7 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
   const ownRoots = config.mount ? [...document.querySelectorAll<HTMLElement>("[data-ui-client-root]")] : [];
   if (config.mount && ownRoots.length !== 1) throw new Error("View unavailable");
   const root = ownRoots[0] ?? document.querySelector<HTMLElement>("[data-work-surface]") ?? document.body;
-  root.style.setProperty("--stage-title", config.stage.title); root.style.setProperty("--stage-desc", config.stage.description);
+  showStageWords(config.stage);
   root.hidden = false; document.body.dataset.projectId = config.projectId; document.body.dataset.routePrefix = config.routePrefix;
   const route = (path: string) => config.routePrefix + path;
   const ui = globalThis.molisFrameUi(), scope = ui.mountPluginClient(document.body);

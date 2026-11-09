@@ -90,7 +90,7 @@ export function parseLocalePack(source: string, options: LocalePackOptions = {})
 const textsOf = (message: UiMessage): readonly string[] => (typeof message === "string" ? [message] : Object.values(message.forms));
 
 /** Every argument a message reads. */
-function argsOf(message: UiMessage): readonly string[] {
+export function localeMessageArguments(message: UiMessage): readonly string[] {
   const names = textsOf(message).flatMap((text) => [...text.matchAll(BRACED)].map(([, name]) => name!));
   return [...new Set(typeof message === "string" ? names : [message.plural_arg, ...names])].sort();
 }
@@ -145,7 +145,7 @@ export function inspectLocaleSet(packs: readonly UiLocalePack[], options: Locale
       const original = Object.hasOwn(base.messages, key) ? base.messages[key] : undefined;
       if (original === undefined) add(key, { code: "ui.locale_extra_key", reason: `默认语言 ${base.locale} 没有这个键`, fix: `在 ${file(base.locale)} 加上它，或删掉这一行`, blocking: true });
       // Either side can be the mistake, so the reason names both files and which is the default; the problem sits on the other language's file.
-      else if (argsOf(original).join() !== argsOf(message).join()) add(key, { code: "ui.locale_args", reason: `参数和默认语言不一样：${file(pack.locale)} 用 ${argsOf(message).join("、") || "没有参数"}，默认语言 ${base.locale} 的 ${file(base.locale)} 用 ${argsOf(original).join("、") || "没有参数"}`, fix: `两个文件写一样的参数，改写错的那一边；代码里 t 传的参数名以默认语言 ${file(base.locale)} 为准`, blocking: true });
+      else if (localeMessageArguments(original).join() !== localeMessageArguments(message).join()) add(key, { code: "ui.locale_args", reason: `参数和默认语言不一样：${file(pack.locale)} 用 ${localeMessageArguments(message).join("、") || "没有参数"}，默认语言 ${base.locale} 的 ${file(base.locale)} 用 ${localeMessageArguments(original).join("、") || "没有参数"}`, fix: `两个文件写一样的参数，改写错的那一边；代码里 t 传的参数名以默认语言 ${file(base.locale)} 为准`, blocking: true });
     }
     if (base === undefined || pack === base) continue;
     for (const key of Object.keys(base.messages)) {

@@ -3,6 +3,13 @@
   "owner": "io.molis.work.lingguang",
   "locale": "zh",
   "messages": {
+    "lingguang.directory.summary": "先记下想法，再决定留下或丢掉。",
+    "lingguang.directory.name": "灵光",
+    "lingguang.directory.view-workbench": "灵光",
+    "lingguang.directory.view-island": "灵光",
+    "lingguang.directory.view-side": "灵光",
+    "lingguang.directory.start-title": "记下一点灵感",
+    "lingguang.directory.start-hint": "还没想清楚，也可以先留下。",
     "lingguang.action.brainstorm": "头脑风暴",
     "lingguang.action.capture": "记下",
     "lingguang.action.clear": "清空",

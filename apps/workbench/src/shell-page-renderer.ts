@@ -1,5 +1,5 @@
 import type { PreparedStageView } from "./page-view.js";
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { escapeHtml, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderPluginFrameSurface } from "./plugin-frame.js";
 import { renderUnavailablePluginStage, type UnavailablePluginStage } from "./unavailable-plugin-stage.js";
 import { pluginSurfaceClients, deferredSurfaceClients } from "./plugin-workbench.js";
@@ -11,9 +11,9 @@ import type { PluginIconName as PageIcon } from "@molis-ai/molis-work-plugin-sdk
 import { renderDialog } from "@molis-ai/molis-work-design-system";
 import { directoryPanelIdentity, renderDirectoryPluginSections, renderImmersiveHeader, renderWorkbenchBar, renderPluginRail, renderProjectHome, renderPluginMarket, renderGlobalSearchOverlay, renderWorkspaceChrome } from "./immersive-shell.js";
 import { directoryWidthPreferenceScript } from "./directory-width.js";
-import { homeStarts, islandEntries, pluginDirectoryFor, railEntries, sideEntries, sideOpenedPlugins } from "./plugin-catalog.js";
+import { homeStarts, islandEntries, pluginDirectoryFor, pluginStageSummaries, pluginTabTitles, railEntries, sideEntries, sideOpenedPlugins } from "./plugin-catalog.js";
 import { shownPagePlugins } from "./page-plugin-visibility.js";
-import { renderPluginDirectoryData, type PluginDirectory } from "./plugin-directory.js";
+import { renderPluginDirectoryData, renderPluginTabTitlesData, type PluginDirectory } from "./plugin-directory.js";
 import { renderDeclaredStages, type RenderedStagePage } from "./declared-stages.js";
 import { homeToolKeysScript, homePluginSideTabs } from "./home-plugin-navigation.js";
 import { renderPersonalMenuItems, renderProjectSettingsDirectorySection, renderProjectSettingsWorkSurface, renderSettingsDirectorySection, renderSettingsWorkSurface } from "./settings-directory.js";
@@ -21,9 +21,9 @@ import { renderAppearanceRecovery, renderRuntimePlanDialog } from "./settings-ap
 import { appearanceHead, type WorkbenchAppearancePorts } from "./appearance-document.js";
 import { knowledgeClientTag } from "./settings-knowledge.js";
 type Translate = (text: string, values?: Record<string, string | number>) => string;
-function projectSideTabs(enabled: readonly string[], routePrefix: string) {
-  const home = homePluginSideTabs(routePrefix);
-  return [...home, ...sideEntries(enabled).filter(side => !home.some(tab => tab.key === `${side.project_plugin_id}/${side.view_id}`))
+function projectSideTabs(enabled: readonly string[], routePrefix: string, directory: PluginDirectory) {
+  const home = homePluginSideTabs(routePrefix, directory);
+  return [...home, ...sideEntries(enabled, directory).filter(side => !home.some(tab => tab.key === `${side.project_plugin_id}/${side.view_id}`))
     .map(side => ({ key: `${side.project_plugin_id}/${side.view_id}`, title: side.title, ...(side.context_binding ? { contextOwner: side.plugin_id, contextSurface: side.project_plugin_id } : {}), icon: (side.icon ?? "package") as PageIcon, order: side.order,
       src: `${routePrefix}/side/${encodeURIComponent(side.project_plugin_id)}/${encodeURIComponent(side.view_id)}` }))];
 }
@@ -42,10 +42,11 @@ function projectedPageText(view: WorkbenchShellPageView): string {
   return '<script type="application/json" data-ui-page-text>' + JSON.stringify(pages).replaceAll("<", "\\u003c") + '</script>';
 }
 
-function deferredSurfaces(_readText: Translate, enabledPlugins: readonly string[], view: WorkbenchShellPageView) {
+function deferredSurfaces(enabledPlugins: readonly string[], view: WorkbenchShellPageView, directory: PluginDirectory) {
   const deferredIds = new Set(deferredSurfaceClients().map(client => client.id));
   const isolatedIds = new Set(pluginSurfaceClients().map(client => client.id));
-  return (html: string): string => {
+  const summaries = pluginStageSummaries(directory), titles = pluginTabTitles(directory);
+  const defer = (html: string): string => {
     if (html.includes("data-plugin-client=")) return html;
     const match = html.match(/^(\s*<([a-z][a-z0-9-]*)\b[^>]*data-work-surface="([^"]+)"[^>]*>)([\s\S]*)(<\/\2>\s*)$/);
     if (!match || !deferredIds.has(match[3]!)) return html;
@@ -53,8 +54,10 @@ function deferredSurfaces(_readText: Translate, enabledPlugins: readonly string[
     if (!isolatedIds.has(match[3]!)) return match[1]!.replace(/>$/, ' data-deferred-surface>') + '<template data-deferred-content>' + match[4] + '</template>' + match[5];
     const id = match[3]!, entry = BUILTIN_PLUGIN_CATALOG.find(plugin => plugin.project_plugin_id === id);
     const source = stagedFrameSource(view, id), settings = listPluginSettingsNavItems(enabledPlugins).some(item => item.section_id === id);
-    return renderPluginFrameSurface(html, id, (entry?.manifest.name ?? id), true, settings, id, source?.mount, entry?.manifest.plugin_id, source?.producer, Boolean(source));
+    return renderPluginFrameSurface(html, id, (titles[id] ?? entry?.manifest.name ?? id), true, settings, id, source?.mount, entry?.manifest.plugin_id, source?.producer, Boolean(source));
   };
+  return (html: string): string => defer(html).replace(/^(\s*<[a-z][^>]*\bdata-work-surface="([^"]+)"[^>]*)(>)/u,
+    (tag, start: string, id: string, close: string) => Object.hasOwn(summaries, id) ? `${start} data-work-surface-description="${escapeHtml(summaries[id]!.summary)}"${close}` : tag);
 }
 
 /** The project a page is drawn for: what the shell's title bar and project switcher need. */
@@ -115,7 +118,6 @@ export interface WorkbenchShellPageOwners<TView extends WorkbenchShellPageView> 
   controlTokenMeta(token: string): string;
   themeBootstrapScript: string;
   renderIconSprite(): string;
-  pluginTitleScript(): string;
   prefixLocalLinks(html: string, prefix: string, desktopShell?: boolean): string;
   renderWorkbenchDocument(request: WorkbenchDocumentRenderRequest): string;
   renderDesktopProjectChrome(project: ShellProject | null, projects: readonly ShellProject[],
@@ -141,7 +143,7 @@ export function createWorkbenchGoalsPageRenderer<TView extends WorkbenchShellPag
   owners: WorkbenchShellPageOwners<TView>,
 ) {
   const { readText, escapeHtml, icon, htmlLang, controlTokenMeta, themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT,
-    renderIconSprite, pluginTitleScript, prefixLocalLinks, renderWorkbenchDocument,
+    renderIconSprite, prefixLocalLinks, renderWorkbenchDocument,
     renderDesktopProjectChrome,
     stageModel } = owners;
 
@@ -180,10 +182,10 @@ function renderMolisWorkWeb(
   const settingsDirectory = `${renderSettingsDirectorySection(primitives, enabledPlugins)}${view.project ? renderProjectSettingsDirectorySection(primitives, goalsEnabled) : ""}`;
   const settingsSurfaces = `${renderSettingsWorkSurface(primitives, `${view.route_prefix || ""}/?settings=appearance`,
     appearance && owners.appearance ? { current: appearance, choices: owners.appearance.choices() } : undefined)}${view.project ? renderProjectSettingsWorkSurface(primitives, view.project, desktopShell) : ""}`;
-  const defer = deferredSurfaces(readText, enabledPlugins, view);
+  const defer = deferredSurfaces(enabledPlugins, view, directory);
   const projectTitlebarChrome = renderDesktopProjectChrome(view.project ?? null, projectOptions, desktopShell, view.project ? "__PROJECT_SETTINGS__" : null, { switcherClass: "desktop-project-switcher", manageHref: "__PROJECT_INDEX__", directoryToggle: true, globalSearch: true });
   const directoryEmpty = initialDesktopDirectory === "root";
-  const sideTabs = projectSideTabs(enabledPlugins, view.route_prefix);
+  const sideTabs = projectSideTabs(enabledPlugins, view.route_prefix, directory);
   const collection = parts?.body_attributes?.["data-board-view"];
   const widthPreference = directoryWidthPreferenceScript(view.project?.project_id ?? "", collection === "archive" || collection === "trash" ? collection : "current", view.pane_plugin !== undefined);
 
@@ -213,6 +215,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
     body_html: `
   ${renderIconSprite()}
   ${renderPluginDirectoryData(directory, offered.map(entry => entry.id))}
+  ${renderPluginTabTitlesData(pluginTabTitles(directory))}
   <div class="app">
     <main class="immersive-workspace${parts?.workspace_classes?.length ? ` ${escapeHtml(parts.workspace_classes.join(" "))}` : ""}${directoryEmpty ? " is-plugin-directory-empty" : ""}" data-workspace data-mobile-view="document" data-workspace-mode="graph">
       ${renderImmersiveHeader(primitives, desktopShell, sideTabs)}
@@ -236,7 +239,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
           <div class="tab-workspace-pool" data-surface-pool hidden>
             ${renderProjectHome(view.project?.display_name || title, primitives, homeStarts(enabledPlugins, directory))}
             ${page?.html ?? ""}
-            <section class="desktop-work-surface immersive-artifact-surface plugin-stage-shell" data-work-surface="artifacts" data-work-surface-label="成果" data-artifact-stage-shell data-expanded="false" hidden><div class="plugin-stage-list feed-stage-tree" data-artifact-directory></div><div class="plugin-stage-workspace" data-artifact-stage-workspace hidden><div data-artifact-detail></div></div></section>
+            <section class="desktop-work-surface immersive-artifact-surface plugin-stage-shell" data-work-surface="artifacts" data-work-surface-label="${uiText("workbench.artifacts.navigation-name")}" data-artifact-stage-shell data-expanded="false" hidden><div class="plugin-stage-list feed-stage-tree" data-artifact-directory></div><div class="plugin-stage-workspace" data-artifact-stage-workspace hidden><div data-artifact-detail></div></div></section>
             <section class="desktop-work-surface immersive-market" data-work-surface="market" data-work-surface-label="${uiText("workbench.shell-page-renderer.plugin-market")}" hidden>${renderPluginMarket(primitives, { developerMode: view.developer_mode, marksFromHost: Boolean(view.plugin_directory) }, directory)}</section>
             ${settingsSurfaces}
             ${(view.unavailable_plugin_stages ?? []).map(stage => renderUnavailablePluginStage(stage, readText)).join("")}${(view.plugin_stages ?? []).map(defer).join("")}
@@ -253,7 +256,6 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
   ${page?.after_global_search ?? ""}
   <div class="mw-toast toast" data-toast data-settings-toast role="status" aria-live="polite"></div>${renderProjectReferenceDialog(readText)}${renderAppearanceRecovery(readText, appearance)}
   ${bootstrap ? `<script id="${escapeHtml(bootstrap.id)}" type="application/json">${JSON.stringify(bootstrap.value).replaceAll("<", "\\u003c")}</script>` : ""}
-  <script>${pluginTitleScript()}</script>
   <script src="/assets/molis-work-workbench.js"></script>${knowledgeClientTag()}
   ${parts?.terminal_client ? '<script src="/desktop/pty-client.js"></script>' : ""}`,
   });

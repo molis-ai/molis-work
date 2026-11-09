@@ -3,6 +3,7 @@
   "owner": "io.molis.work.jelly",
   "locale": "zh",
   "messages": {
+    "jelly.directory.summary": "日历与笔记，按天安排。",
     "jelly.action.add": "添加",
     "jelly.action.apply": "应用",
     "jelly.action.archive": "归档",

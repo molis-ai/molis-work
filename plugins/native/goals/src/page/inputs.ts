@@ -24,6 +24,7 @@ interface GoalInputsPrimitives {
 export interface GoalInputsCreatableKind {
   readonly station: string;
   readonly title: string;
+  readonly label?: string;
   /** The plugin that declared the create station. */
   readonly plugin_id: string;
 }
@@ -53,7 +54,7 @@ export function renderGoalInputsHtml(item: GoalInputsItem, { escapeHtml, renderR
   });
   const rows = [...live, ...fixed].join("");
   // The button carries the declared title; the placement client names a new object and its card from it, so no table by plugin lives there.
-  const create = creatable.map(({ station, title }) => `<button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-placement-create="${escapeHtml(station)}" data-placement-create-title="${escapeHtml(title)}" data-goal-id="${goalId}">${escapeHtml(title)}</button>`).join("");
+  const create = creatable.map(({ station, title, label }) => `<button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-placement-create="${escapeHtml(station)}" data-placement-create-title="${escapeHtml(title)}" data-goal-id="${goalId}">${escapeHtml(label ?? title)}</button>`).join("");
   return `<section class="placement-goal-materials" data-placement-goal-materials data-goal-inputs data-goal-id="${goalId}"><h3>${uiText("goals.inputs.inputs")}</h3>
     <div class="placement-goal-create"><button type="button" class="mw-btn mw-btn--primary mw-btn--sm" data-goal-input-add data-goal-id="${goalId}">${uiText("goals.inputs.add-input")}</button><span>${uiText("goals.inputs.create-goal")}</span>${create}</div>
     ${rows ? `<div class="bound-list">${rows}</div>` : `<p class="empty-row">${uiText("goals.inputs.no-inputs-yet")}</p>`}

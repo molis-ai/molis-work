@@ -271,9 +271,9 @@ export declare const CONTENT_ADOPTION_REVERT_RESULT_SCHEMA: {
     readonly additionalProperties: false;
 };
 
-export type ContentAdoptionCurrent<Value = SandboxJson> = {
+export type ContentAdoptionCurrent<TValue = SandboxJson> = {
     state: "present";
-    value: Value;
+    value: TValue;
     revision: AdoptionRevision;
     origin: BlueprintPartOrigin | null;
 } | {
@@ -308,31 +308,31 @@ export interface ContentAdoptionReadInput<Body = SandboxJson> {
     queries: ContentAdoptionQuery<Body>[];
 }
 
-export interface ContentAdoptionReadOutput<Value = SandboxJson> {
-    results: ContentAdoptionReadResult<Value>[];
+export interface ContentAdoptionReadOutput<TValue = SandboxJson> {
+    results: ContentAdoptionReadResult<TValue>[];
 }
 
-export type ContentAdoptionReadResult<Value = SandboxJson> = {
+export type ContentAdoptionReadResult<TValue = SandboxJson> = {
     kind: "proposal";
     candidates: Array<{
         subject: ActionSubject;
-        current: ContentAdoptionCurrent<Value>;
+        current: ContentAdoptionCurrent<TValue>;
     }>;
 } | {
     kind: "subject";
-    current: ContentAdoptionCurrent<Value>;
+    current: ContentAdoptionCurrent<TValue>;
 } | {
     kind: "receipt";
     operation: "adopt";
     request_id: string;
     receipt: ContentAdoptionResult;
-    current: ContentAdoptionCurrent<Value>;
+    current: ContentAdoptionCurrent<TValue>;
 } | {
     kind: "receipt";
     operation: "revert";
     request_id: string;
     receipt: ContentAdoptionRevertResult;
-    current: ContentAdoptionCurrent<Value>;
+    current: ContentAdoptionCurrent<TValue>;
 } | {
     kind: "missing";
     operation: "adopt" | "revert";

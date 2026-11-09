@@ -76,20 +76,20 @@ export type ContentAdoptionQuery<Body = SandboxJson> =
 
 export interface ContentAdoptionReadInput<Body = SandboxJson> { queries: ContentAdoptionQuery<Body>[] }
 
-export type ContentAdoptionCurrent<Value = SandboxJson> =
-  | { state: "present"; value: Value; revision: AdoptionRevision; origin: BlueprintPartOrigin | null }
+export type ContentAdoptionCurrent<TValue = SandboxJson> =
+  | { state: "present"; value: TValue; revision: AdoptionRevision; origin: BlueprintPartOrigin | null }
   | { state: "missing" }
   | { state: "unavailable"; reason: string };
 
-export type ContentAdoptionReadResult<Value = SandboxJson> =
-  | { kind: "proposal"; candidates: Array<{ subject: ActionSubject; current: ContentAdoptionCurrent<Value> }> }
-  | { kind: "subject"; current: ContentAdoptionCurrent<Value> }
-  | { kind: "receipt"; operation: "adopt"; request_id: string; receipt: ContentAdoptionResult; current: ContentAdoptionCurrent<Value> }
-  | { kind: "receipt"; operation: "revert"; request_id: string; receipt: ContentAdoptionRevertResult; current: ContentAdoptionCurrent<Value> }
+export type ContentAdoptionReadResult<TValue = SandboxJson> =
+  | { kind: "proposal"; candidates: Array<{ subject: ActionSubject; current: ContentAdoptionCurrent<TValue> }> }
+  | { kind: "subject"; current: ContentAdoptionCurrent<TValue> }
+  | { kind: "receipt"; operation: "adopt"; request_id: string; receipt: ContentAdoptionResult; current: ContentAdoptionCurrent<TValue> }
+  | { kind: "receipt"; operation: "revert"; request_id: string; receipt: ContentAdoptionRevertResult; current: ContentAdoptionCurrent<TValue> }
   | { kind: "missing"; operation: "adopt" | "revert"; request_id: string };
 
-export interface ContentAdoptionReadOutput<Value = SandboxJson> {
-  results: ContentAdoptionReadResult<Value>[];
+export interface ContentAdoptionReadOutput<TValue = SandboxJson> {
+  results: ContentAdoptionReadResult<TValue>[];
 }
 
 export interface ContentAdoptionRevertInput {

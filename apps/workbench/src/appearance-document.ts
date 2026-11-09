@@ -36,9 +36,10 @@ export function appearanceHead(current: WorkbenchAppearance | undefined): string
     + (current.stylesheet ? `<link rel="stylesheet" data-ui-appearance-sheet href="${escapeHtml(current.stylesheet)}">` : "");
 }
 
-let browserScript: string | undefined;
+const APPEARANCE_CLIENT_SCRIPT = LOOK_FADE_CLIENT_SCRIPT + readFileSync(new URL("../dist/appearance-client.js", import.meta.url), "utf8");
+
 export function appearanceClientSource(): string {
-  return browserScript ??= LOOK_FADE_CLIENT_SCRIPT + readFileSync(new URL("./appearance-client.js", import.meta.url), "utf8");
+  return APPEARANCE_CLIENT_SCRIPT;
 }
 
-export const appearanceClientTag = (current: WorkbenchAppearance | undefined): string => current ? `<script>${appearanceClientSource()}</script>` : "";
+export const appearanceClientTag = (current: WorkbenchAppearance | undefined): string => current ? `<script>${APPEARANCE_CLIENT_SCRIPT}</script>` : "";

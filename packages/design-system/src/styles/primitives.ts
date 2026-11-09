@@ -30,7 +30,6 @@ export const PRIMITIVE_STYLES = `
     background: var(--control-fill);
     color: var(--ink);
     font: inherit;
-    font-family: var(--type-control-font, var(--font));
     font-size: var(--type-control-size, 13px);
     font-weight: var(--weight-control, 500);
     line-height: var(--type-control-line-height, 1);

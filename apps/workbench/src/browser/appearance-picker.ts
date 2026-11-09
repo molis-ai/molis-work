@@ -13,6 +13,36 @@ function same(one: UiAppearanceSelection, two: UiAppearanceSelection): boolean {
       : two.font.policy === "pinned" && appearanceRef(one.font.scheme) === appearanceRef(two.font.scheme));
 }
 
+const skinChoice = (choices: WorkbenchAppearanceChoices, id: string) => choices.skins.find(skin => skin.ref.id === id);
+
+function candidateProjection(current: WorkbenchAppearance, choices: WorkbenchAppearanceChoices, selection: UiAppearanceSelection): AppearanceProjection {
+  const scheme = selection.font.policy === "pinned" ? selection.font.scheme : skinChoice(choices, selection.skin.id)!.recommended_font;
+  const mono = selection.mono ?? scheme;
+  const optional = appearanceRef(selection.skin) !== appearanceRef(choices.baseline.skin)
+    || appearanceRef(scheme) !== appearanceRef(choices.baseline.font) || appearanceRef(mono) !== appearanceRef(choices.baseline.font);
+  return { snapshot: { ...current.snapshot, skin: selection.skin, font: { scheme, mono, policy: selection.font.policy } },
+    stylesheet: optional ? choices.stylesheet : null };
+}
+
+/** Reflect the applied and candidate choices in the same cards and font controls. */
+function drawPickerChoices(root: HTMLElement, current: WorkbenchAppearance, draft: UiAppearanceSelection | undefined): void {
+  for (const card of root.querySelectorAll<HTMLElement>("[data-look-card]")) {
+    const inUse = card.dataset.lookCard === current.snapshot.skin.id;
+    const picked = Boolean(draft && card.dataset.lookCard === draft.skin.id);
+    card.querySelector<HTMLElement>(".mw-look-card__current")!.hidden = !inUse;
+    card.querySelector<HTMLElement>(".mw-look-card__trial")!.hidden = !picked || inUse;
+    const button = card.querySelector("button")!;
+    button.setAttribute("aria-pressed", String(picked));
+    button.toggleAttribute("data-look-in-use", inUse);
+  }
+  const selection = draft ?? current.selection;
+  const fontId = selection.font.policy === "pinned" ? selection.font.scheme.id : "follow";
+  for (const button of root.querySelectorAll<HTMLElement>("[data-appearance-font], [data-appearance-mono]")) {
+    const selected = button.dataset.appearanceFont !== undefined ? fontId === button.dataset.appearanceFont : (selection.mono?.id ?? "") === button.dataset.appearanceMono;
+    button.setAttribute("aria-pressed", String(selected));
+  }
+}
+
 export function mountAppearancePicker(root: HTMLElement, initial: WorkbenchAppearance, sync: Sync, L: AppearanceText) {
   const choices = JSON.parse(root.querySelector("[data-appearance-choices]")!.textContent!) as WorkbenchAppearanceChoices;
   const proof = root.querySelector<HTMLElement>(".mw-look-proof")!, canvas = proof.querySelector<HTMLElement>(".mw-look-proof__canvas")!;
@@ -23,44 +53,21 @@ export function mountAppearancePicker(root: HTMLElement, initial: WorkbenchAppea
   const badge = proof.querySelector<HTMLElement>(".mw-card__header [data-slot=badge]")!, title = proof.querySelector<HTMLElement>(".mw-card__description")!;
   const reopen = root.querySelector<HTMLButtonElement>("[data-appearance-preview]")!;
   const useSheet = () => getComputedStyle(root).getPropertyValue("--appearance-use-sheet").trim() === "1";
-  const skin = (id: string) => choices.skins.find(skin => skin.ref.id === id);
   const font = (id: string) => choices.fonts.find(font => font.ref.id === id);
   let current = initial, draft: UiAppearanceSelection | undefined, expected = initial.selection_revision;
   let phase: Phase = "idle", preparing = 0, writing = false, refused = false, ownsPending = false;
   let trigger: HTMLElement | undefined;
 
-  function projection(selection: UiAppearanceSelection): AppearanceProjection {
-    const scheme = selection.font.policy === "pinned" ? selection.font.scheme : skin(selection.skin.id)!.recommended_font;
-    const mono = selection.mono ?? scheme;
-    const optional = appearanceRef(selection.skin) !== appearanceRef(choices.baseline.skin)
-      || appearanceRef(scheme) !== appearanceRef(choices.baseline.font) || appearanceRef(mono) !== appearanceRef(choices.baseline.font);
-    return { snapshot: { ...current.snapshot, skin: selection.skin, font: { scheme, mono, policy: selection.font.policy } },
-      stylesheet: optional ? choices.stylesheet : null };
-  }
-
   function name(selection: UiAppearanceSelection): string {
-    const selected = projection(selection).snapshot;
-    return [skin(selected.skin.id)?.name, font(selected.font.scheme.id)?.name, selection.mono && font(selection.mono.id)?.name].filter(Boolean).join(" · ");
+    const selected = candidateProjection(current, choices, selection).snapshot;
+    return [skinChoice(choices, selected.skin.id)?.name, font(selected.font.scheme.id)?.name, selection.mono && font(selection.mono.id)?.name].filter(Boolean).join(" · ");
   }
 
   function draw(): void {
     const selection = draft ?? current.selection, conflict = Boolean(draft && expected !== current.selection_revision);
     const resuming = ownsPending && sync.canContinue;
     const blocked = !sync.available || current.selection_revision === null || (sync.uncertain && !resuming);
-    for (const card of root.querySelectorAll<HTMLElement>("[data-look-card]")) {
-      const inUse = card.dataset.lookCard === current.snapshot.skin.id;
-      const picked = Boolean(draft && card.dataset.lookCard === draft.skin.id);
-      card.querySelector<HTMLElement>(".mw-look-card__current")!.hidden = !inUse;
-      card.querySelector<HTMLElement>(".mw-look-card__trial")!.hidden = !picked || inUse;
-      const button = card.querySelector("button")!;
-      button.setAttribute("aria-pressed", String(picked));
-      button.toggleAttribute("data-look-in-use", inUse);
-    }
-    const fontId = selection.font.policy === "pinned" ? selection.font.scheme.id : "follow";
-    for (const button of root.querySelectorAll<HTMLElement>("[data-appearance-font], [data-appearance-mono]")) {
-      const selected = button.dataset.appearanceFont !== undefined ? fontId === button.dataset.appearanceFont : (selection.mono?.id ?? "") === button.dataset.appearanceMono;
-      button.setAttribute("aria-pressed", String(selected));
-    }
+    drawPickerChoices(root, current, draft);
     reopen.hidden = !draft;
     proof.dataset.state = phase === "ready" && conflict ? "conflict" : phase;
     const label = name(selection);
@@ -124,7 +131,7 @@ export function mountAppearancePicker(root: HTMLElement, initial: WorkbenchAppea
     const token = ++preparing;
     phase = "loading";
     draw();
-    void prepareAppearance(projection(selection), canvas).then(() => {
+    void prepareAppearance(candidateProjection(current, choices, selection), canvas).then(() => {
       if (token !== preparing) return;
       phase = "ready"; draw();
     }, () => {
@@ -146,7 +153,7 @@ export function mountAppearancePicker(root: HTMLElement, initial: WorkbenchAppea
     if (!button) return;
     const base = draft ?? current.selection;
     const skinId = button.closest<HTMLElement>("[data-look-card]")?.dataset.lookCard;
-    if (skinId) choose({ ...base, skin: skin(skinId)!.ref }, button);
+    if (skinId) choose({ ...base, skin: skinChoice(choices, skinId)!.ref }, button);
     if (button.dataset.appearanceFont !== undefined) choose({ ...base, font: button.dataset.appearanceFont === "follow"
       ? { policy: "follow-skin" } : { policy: "pinned", scheme: font(button.dataset.appearanceFont)!.ref } }, button);
     if (button.dataset.appearanceMono !== undefined) choose({ ...base, mono: button.dataset.appearanceMono ? font(button.dataset.appearanceMono)!.ref : null }, button);

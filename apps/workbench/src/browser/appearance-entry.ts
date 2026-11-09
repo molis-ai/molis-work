@@ -2,7 +2,7 @@ import type { UiAppearanceReceipt, UiRequestFailure } from "@molis-ai/molis-work
 import type { WorkbenchAppearance } from "../appearance-document.js";
 import { mountAppearancePicker } from "./appearance-picker.js";
 import { createAppearanceSync } from "./appearance-sync.js";
-import { announceAppearance, prepareAppearance, readDocumentAppearance, setAppearanceScope, withDocumentDevice } from "./appearance-view.js";
+import { mountDocumentAppearance, readDocumentAppearance } from "./appearance-view.js";
 
 declare global {
   var molisWorkLookFade: (commit: () => void) => boolean;
@@ -11,7 +11,6 @@ declare global {
 
 function mount(initial: WorkbenchAppearance): void {
   const L = globalThis.L ?? ((text: string) => text);
-  const data = document.getElementById("ui-environment")!;
   const notice = document.querySelector<HTMLElement>("[data-appearance-notice]")!;
   const message = notice.querySelector("[data-appearance-message]")!;
   const undo = notice.querySelector<HTMLButtonElement>("[data-appearance-undo]")!, reread = notice.querySelector<HTMLButtonElement>("[data-appearance-read]")!;
@@ -20,15 +19,7 @@ function mount(initial: WorkbenchAppearance): void {
   const recoveryButton = recovery.querySelector<HTMLButtonElement>("[data-appearance-recover]")!;
   const recoveryStatus = recovery.querySelector<HTMLElement>("[data-appearance-recovery-status]")!;
   const settings = document.querySelector<HTMLElement>("[data-appearance-settings]");
-  let current = initial, rendered = { ...initial, snapshot: withDocumentDevice(initial.snapshot) }, generation = 0;
-  data.textContent = JSON.stringify(rendered.snapshot);
-  const deviceChanged = () => {
-    rendered = { ...rendered, snapshot: withDocumentDevice(rendered.snapshot) };
-    data.textContent = JSON.stringify(rendered.snapshot);
-  };
-  new MutationObserver(deviceChanged).observe(document.documentElement, { attributes: true,
-    attributeFilter: ["data-theme", "data-resolved-theme", "data-density", "data-terminal-theme", "data-resolved-terminal-theme"] });
-  matchMedia("(prefers-reduced-motion: reduce)").addEventListener("change", deviceChanged);
+  let current = initial;
   let picker: ReturnType<typeof mountAppearancePicker> | undefined;
   let receipt: UiAppearanceReceipt | undefined, feedback = "", readError = "", renderError = "";
   let recovering = false, recoveryWrite = false, recoveryRevision = initial.selection_revision;
@@ -42,33 +33,6 @@ function mount(initial: WorkbenchAppearance): void {
     undo.hidden = !sync.available || sync.uncertain || !receipt || current.selection_revision !== receipt.selection_revision;
     reread.hidden = !sync.available || !(renderError || readError || pending);
     resume.hidden = !sync.canContinue;
-  }
-
-  function display(next: WorkbenchAppearance): void {
-    const turn = ++generation;
-    const commit = () => {
-      if (turn !== generation) return;
-      const snapshot = withDocumentDevice(next.snapshot);
-      setAppearanceScope(document.documentElement, snapshot);
-      data.textContent = JSON.stringify(snapshot);
-      data.dataset.stylesheet = next.stylesheet ?? "";
-      data.dataset.selection = JSON.stringify(next.selection);
-      data.dataset.selectionRevision = String(next.selection_revision ?? "");
-      const previous = rendered.snapshot;
-      rendered = { ...next, snapshot };
-      announceAppearance(snapshot, previous);
-      renderError = next.snapshot.problems.length ? L("部分外观设置不可用，已使用可用的组合。") : "";
-      drawNotice();
-    };
-    if (rendered.snapshot.revision === next.snapshot.revision && !renderError) { commit(); return; }
-    void prepareAppearance(next).then(() => {
-      if (turn !== generation) return;
-      globalThis.molisWorkLookFade(commit);
-    }, () => {
-      if (turn !== generation) return;
-      renderError = L("此窗口未能加载新外观，保留了可用的样式。");
-      drawNotice();
-    });
   }
 
   function updateRecovery(text = ""): void {
@@ -85,7 +49,7 @@ function mount(initial: WorkbenchAppearance): void {
       current = next;
       readError = "";
       picker?.present(next);
-      display(next);
+      page.present(next);
       if (recovery.open && recoveryRevision !== next.selection_revision) {
         recoveryRevision = next.selection_revision;
         updateRecovery(recoveryRevision === null ? L("当前外观设置无法读取，暂时无法保存。") : L("另一个窗口已更新外观，请重新确认。"));
@@ -121,6 +85,11 @@ function mount(initial: WorkbenchAppearance): void {
     },
   });
   if (settings) picker = mountAppearancePicker(settings, initial, sync, L);
+  const page = mountDocumentAppearance(initial, problem => {
+    renderError = problem === "partial" ? L("部分外观设置不可用，已使用可用的组合。")
+      : problem === "loading-failed" ? L("此窗口未能加载新外观，保留了可用的样式。") : "";
+    drawNotice();
+  });
   const open = () => {
     if (recovery.open || document.body.inert) return;
     recoveryRevision = current.selection_revision;
@@ -161,17 +130,8 @@ function mount(initial: WorkbenchAppearance): void {
   resume.addEventListener("click", () => { void sync.continue().catch(() => { /* The common operation feedback owns the message. */ }); });
   recovery.querySelector("[data-appearance-check]")?.addEventListener("click", sync.retry);
   notice.querySelector("[data-appearance-dismiss]")?.addEventListener("click", () => {
-    readError = ""; renderError = ""; feedback = ""; drawNotice();
+    readError = ""; feedback = ""; page.dismissProblem();
   });
-  if (initial.stylesheet) {
-    const turn = generation;
-    void prepareAppearance(initial).catch(() => {
-      if (turn !== generation) return;
-      renderError = L("此窗口未能加载新外观，保留了可用的样式。");
-      drawNotice();
-    });
-  }
-  if (initial.snapshot.problems.length) renderError = L("部分外观设置不可用，已使用可用的组合。");
   drawNotice();
 }
 

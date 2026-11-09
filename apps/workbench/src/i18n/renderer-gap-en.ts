@@ -1,6 +1,32 @@
+import { LOOK_BOARD_EN } from "@molis-ai/molis-work-design-system";
 import { PLUGIN_SLOTS_EN } from "./plugin-slots-en.js";
 /** English for workbench renderer labels that had no entry (connectors, MCP developer tools, Home, Feed judgment, Shelf). */
 export const RENDERER_GAP_EN: Record<string, string> = {
+  ...LOOK_BOARD_EN,
+  "主题、密度和终端配色保存在当前设备。": "Theme, density and terminal colors are saved on this device.",
+  "界面字体": "Interface font",
+  "跟随皮肤推荐": "Use the skin’s recommendation",
+  "等宽字体": "Monospace font",
+  "系统等宽": "System mono",
+  "恢复内置外观": "Restore built-in appearance",
+  "换回 Soft Workbench、系统字体和系统等宽。此 Home 的窗口会一起更新。": "Switch to Soft Workbench and the system fonts in every window of this Home.",
+  "看样张": "View specimen",
+  "先回去挑": "Back to the choices",
+  "正在保存外观…": "Saving appearance…",
+  "继续这次操作": "Continue this change",
+  "还无法确认外观是否已保存，请再查一次。": "The change is unconfirmed. Check again.",
+  "当前外观设置无法读取，暂时无法保存。": "The current appearance settings can’t be read. Changes can’t be saved right now.",
+  "外观未保存，可以再试一次。": "Appearance wasn’t saved. You can try again.",
+  "部分外观设置不可用，已使用可用的组合。": "Some appearance settings are unavailable. Showing the available combination.",
+  "此窗口未能加载新外观，保留了可用的样式。": "This window couldn’t load the new appearance. It is keeping the current look.",
+  "另一个窗口已更新外观，请重新确认。": "Another window updated the appearance. Confirm again.",
+  "此页面的会话已结束。": "This page’s session has ended.",
+  "暂时无法读取外观，请再试一次。": "Appearance couldn’t be read. Try again.",
+  "外观已保存": "Appearance saved",
+  "已撤销外观变更": "Appearance change undone",
+  "上次外观变更未保存。": "The last appearance change wasn’t saved.",
+  "外观已更新，无法撤销这次变更。": "Appearance has changed since then. This change can no longer be undone.",
+
   '草稿删除暂未开放，完整创作及文件已保留':'Draft deletion is not available yet; the full creation and files are retained',
   '永久清理暂未开放，保留内容仍计入云端容量。':'Permanent cleanup is not available yet. Retained content still counts toward cloud storage.',
   '变化字段':'Changed fields',

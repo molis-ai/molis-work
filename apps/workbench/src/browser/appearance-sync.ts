@@ -21,31 +21,94 @@ const auth = (status: unknown) => status === 401 || status === 403;
 const revision = (view: WorkbenchAppearance) => view.selection_revision ?? -1;
 const commandId = (command: CommandInput) => command.kind === "apply" ? command.body.request_id : command.body.applied_request_id;
 
-function takeHandoff(scope: string | undefined): Command | undefined {
-  if (!scope) return;
-  try {
-    const raw = sessionStorage.getItem(handoffKey);
-    sessionStorage.removeItem(handoffKey);
-    if (!raw) return;
-    const handoff = JSON.parse(raw) as { scope: string; command: CommandInput } | null;
-    if (!handoff || handoff.scope !== scope) return;
-    const { command } = handoff;
-    if (command?.kind !== "apply" && command?.kind !== "undo") return;
-    if (!Number.isSafeInteger(command.body?.expected_revision) || command.body.expected_revision < 0
-      || !/^[0-9a-f-]{36}$/u.test(commandId(command))) return;
-    return { ...command, checked: false };
-  } catch { return undefined; }
+function documentAppearanceHandoff() {
+  // The second segment of the page proof is the public view scope. The proof itself never enters the handoff.
+  const scope = window === top ? document.querySelector<HTMLMetaElement>('meta[name="molis-work-page-session"]')?.content.split(".")[1] : undefined;
+  return {
+    take(): Command | undefined {
+      if (!scope) return;
+      try {
+        const raw = sessionStorage.getItem(handoffKey);
+        sessionStorage.removeItem(handoffKey);
+        if (!raw) return;
+        const handoff = JSON.parse(raw) as { scope: string; command: CommandInput } | null;
+        if (!handoff || handoff.scope !== scope) return;
+        const { command } = handoff;
+        if (command?.kind !== "apply" && command?.kind !== "undo") return;
+        if (!Number.isSafeInteger(command.body?.expected_revision) || command.body.expected_revision < 0
+          || !/^[0-9a-f-]{36}$/u.test(commandId(command))) return;
+        return { ...command, checked: false };
+      } catch { return undefined; }
+    },
+    save(command: Command | undefined): void {
+      if (!scope || !command) return;
+      const { kind, body } = command;
+      try { sessionStorage.setItem(handoffKey, JSON.stringify({ scope, command: { kind, body } })); }
+      catch { /* If storage is unavailable the original page retains its command in memory. */ }
+    },
+  };
+}
+
+interface InvalidationListener {
+  active(): boolean;
+  synchronize(force?: boolean): void;
+  disconnected(): void;
+  revision(revision: number): void;
+  denied(status: number, signal: AbortSignal): void;
+}
+
+/** Keep the existing document authority and backoff on a single stream. The caller owns authoritative reads. */
+function appearanceInvalidations(request: UiRequestCall, listener: InvalidationListener) {
+  let stream: AbortController | undefined, retry: ReturnType<typeof setTimeout> | undefined, delay = 1000;
+
+  async function connect(): Promise<void> {
+    if (stream || !listener.active()) return;
+    const connection = new AbortController();
+    stream = connection;
+    try {
+      const reply = await request<Response>(`${path}/events`, { method: "GET", control: true, as: "response",
+        signal: connection.signal, headers: { accept: "text/event-stream" } });
+      if (auth(reply.status)) { listener.denied(reply.status, connection.signal); return; }
+      if (reply.status !== 200 || !reply.headers.get("content-type")?.startsWith("text/event-stream") || !reply.body) return;
+      listener.synchronize();
+      await readEventStream(reply.body, {
+        message(data) {
+          const { selection_revision: seen } = JSON.parse(data) as { selection_revision: number };
+          if (!Number.isSafeInteger(seen) || seen < 0) return;
+          delay = 1000;
+          listener.revision(seen);
+        },
+      });
+    } catch { /* The next authorized connection rereads the Home. */ }
+    finally {
+      if (stream === connection) stream = undefined;
+      if (!connection.signal.aborted && listener.active()) {
+        listener.disconnected();
+        retry = setTimeout(() => { void connect(); }, delay);
+        delay = Math.min(15_000, delay * 2);
+      }
+    }
+  }
+
+  function stop() {
+    clearTimeout(retry);
+    stream?.abort();
+    stream = undefined;
+  }
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) { stop(); listener.disconnected(); }
+    else { listener.synchronize(true); void connect(); }
+  });
+  return { connect, stop };
 }
 
 /** One document, one original page proof and one invalidation stream. The server remains the only selection owner. */
 export function createAppearanceSync(initial: WorkbenchAppearance, request: UiRequestCall, view: SyncView) {
   let current = initial, invalidated = revision(initial);
-  let stream: AbortController | undefined, retry: ReturnType<typeof setTimeout> | undefined, delay = 1000;
   let lifetime = new AbortController(), refused = false;
   let reading = false, writing = false, forceRead = false, scheduled: ReturnType<typeof setTimeout> | undefined;
-  // The second segment of the page proof is the public view scope. The proof itself never enters the handoff.
-  const viewScope = window === top ? document.querySelector<HTMLMetaElement>('meta[name="molis-work-page-session"]')?.content.split(".")[1] : undefined;
-  let unconfirmed = takeHandoff(viewScope);
+  const handoff = documentAppearanceHandoff();
+  let unconfirmed = handoff.take();
 
   function accept(next: WorkbenchAppearance): void {
     if (next.selection_revision !== null && revision(next) < revision(current)) return;
@@ -65,7 +128,7 @@ export function createAppearanceSync(initial: WorkbenchAppearance, request: UiRe
     if (signal.aborted) return;
     if (auth((error as Partial<UiRequestFailure> | null)?.status)) {
       refused = true;
-      stream?.abort();
+      stream.stop();
     }
     view.failed(error);
   }
@@ -88,65 +151,32 @@ export function createAppearanceSync(initial: WorkbenchAppearance, request: UiRe
     }, 0);
   }
 
-  async function connect(): Promise<void> {
-    if (stream || refused || lifetime.signal.aborted || document.hidden) return;
-    const connection = new AbortController();
-    stream = connection;
-    try {
-      const reply = await request<Response>(`${path}/events`, { method: "GET", control: true, as: "response",
-        signal: connection.signal, headers: { accept: "text/event-stream" } });
-      if (auth(reply.status)) { readFailed({ status: reply.status }, connection.signal); return; }
-      if (reply.status !== 200 || !reply.headers.get("content-type")?.startsWith("text/event-stream") || !reply.body) return;
+  const stream = appearanceInvalidations(request, {
+    active: () => !refused && !lifetime.signal.aborted && !document.hidden,
+    synchronize: queueRead,
+    disconnected() { forceRead = true; },
+    revision(seen) {
+      invalidated = Math.max(invalidated, seen);
       queueRead();
-      await readEventStream(reply.body, {
-        message(data) {
-          const { selection_revision: seen } = JSON.parse(data) as { selection_revision: number };
-          if (!Number.isSafeInteger(seen) || seen < 0) return;
-          delay = 1000;
-          invalidated = Math.max(invalidated, seen);
-          queueRead();
-        },
-      });
-    } catch { /* The next authorized connection rereads the Home. */ }
-    finally {
-      if (stream === connection) stream = undefined;
-      if (!connection.signal.aborted && !refused && !lifetime.signal.aborted && !document.hidden) {
-        forceRead = true;
-        retry = setTimeout(() => { void connect(); }, delay);
-        delay = Math.min(15_000, delay * 2);
-      }
-    }
-  }
-
-  function stopStream() {
-    clearTimeout(retry);
-    stream?.abort();
-    stream = undefined;
-  }
-  document.addEventListener("visibilitychange", () => {
-    if (document.hidden) { stopStream(); forceRead = true; }
-    else { queueRead(true); void connect(); }
+    },
+    denied(status, signal) { readFailed({ status }, signal); },
   });
   window.addEventListener("pagehide", () => {
-    stopStream();
-    if (!lifetime.signal.aborted && viewScope && unconfirmed) {
-      const { kind, body } = unconfirmed;
-      try { sessionStorage.setItem(handoffKey, JSON.stringify({ scope: viewScope, command: { kind, body } })); }
-      catch { /* If storage is unavailable the original page retains its command in memory. */ }
-    }
+    stream.stop();
+    if (!lifetime.signal.aborted) handoff.save(unconfirmed);
     lifetime.abort();
   });
   window.addEventListener("pageshow", event => {
     // Account isolation can discard a cached document. The replacement can verify only a handoff for its own scope.
     if (!event.persisted || globalThis.molisWorkAccountTransition?.preparing) return;
     lifetime = new AbortController();
-    unconfirmed = takeHandoff(viewScope) ?? unconfirmed;
+    unconfirmed = handoff.take() ?? unconfirmed;
     if (unconfirmed) unconfirmed.checked = false;
     queueRead(true);
-    void connect();
+    void stream.connect();
   });
   if (unconfirmed) queueRead(true);
-  void connect();
+  void stream.connect();
 
   async function verify(command: Command): Promise<UiAppearanceReceipt | null> {
     const { current: latest, recovery, recovery_revision: checked } = await read(command);

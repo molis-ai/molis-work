@@ -32,6 +32,60 @@ export function documentDevice(): UiDevicePreferences {
 export const withDocumentDevice = (snapshot: UiEnvironmentSnapshot): UiEnvironmentSnapshot =>
   withDevicePreferences(snapshot, documentDevice());
 
+type DocumentAppearanceProblem = "partial" | "loading-failed";
+
+/** Keep the visible projection and its device preferences in the document's existing snapshot element. */
+export function mountDocumentAppearance(initial: WorkbenchAppearance, report: (problem: DocumentAppearanceProblem | null) => void) {
+  const data = document.getElementById("ui-environment")!;
+  let rendered = withDocumentDevice(initial.snapshot), generation = 0;
+  let problem: DocumentAppearanceProblem | null = null;
+  const status = (next: DocumentAppearanceProblem | null) => {
+    problem = next;
+    report(next);
+  };
+  const deviceChanged = () => {
+    rendered = withDocumentDevice(rendered);
+    data.textContent = JSON.stringify(rendered);
+  };
+  data.textContent = JSON.stringify(rendered);
+  new MutationObserver(deviceChanged).observe(document.documentElement, { attributes: true,
+    attributeFilter: ["data-theme", "data-resolved-theme", "data-density", "data-terminal-theme", "data-resolved-terminal-theme"] });
+  matchMedia("(prefers-reduced-motion: reduce)").addEventListener("change", deviceChanged);
+
+  const failed = (turn: number) => {
+    if (turn === generation) status("loading-failed");
+  };
+  if (initial.stylesheet) {
+    const turn = generation;
+    void prepareAppearance(initial).catch(() => failed(turn));
+  }
+  if (initial.snapshot.problems.length) status("partial");
+
+  return {
+    present(next: WorkbenchAppearance) {
+      const turn = ++generation;
+      const commit = () => {
+        if (turn !== generation) return;
+        const snapshot = withDocumentDevice(next.snapshot);
+        setAppearanceScope(document.documentElement, snapshot);
+        data.textContent = JSON.stringify(snapshot);
+        data.dataset.stylesheet = next.stylesheet ?? "";
+        data.dataset.selection = JSON.stringify(next.selection);
+        data.dataset.selectionRevision = String(next.selection_revision ?? "");
+        const previous = rendered;
+        rendered = snapshot;
+        announceAppearance(snapshot, previous);
+        status(next.snapshot.problems.length ? "partial" : null);
+      };
+      if (rendered.revision === next.snapshot.revision && !problem) { commit(); return; }
+      void prepareAppearance(next).then(() => {
+        if (turn === generation) globalThis.molisWorkLookFade(commit);
+      }, () => failed(turn));
+    },
+    dismissProblem() { status(null); },
+  };
+}
+
 export function announceAppearance(snapshot: UiEnvironmentSnapshot, previous: UiEnvironmentSnapshot): void {
   const changed: AppearanceDimension[] = [];
   if (appearanceRef(snapshot.skin) !== appearanceRef(previous.skin)) changed.push("skin");

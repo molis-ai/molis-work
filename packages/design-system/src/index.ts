@@ -71,7 +71,7 @@ export { BASELINE_FONT, BASELINE_REGISTRY, BASELINE_SKIN, BASELINE_SPEC, baselin
 export { renderSkinScope, renderFontScope, renderMonoScope } from "./appearance-tokens.js";
 export { renderLookCard, renderLookGroup, renderLookProof } from "./primitives/catalog-appearance.js";
 export { APPEARANCE_PARTS_STYLES } from "./primitives/catalog-appearance-styles.js";
-export { LOOK_FADE_CLIENT_SCRIPT } from "./look-fade.js";
+export { LOOK_FADE_CLIENT_SCRIPT } from "./page-clients.js";
 export * from "./primitives/index.js";
 export * from './plugin-components.js';
 export * from './plugin-component-client.js';

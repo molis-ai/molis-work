@@ -1,6 +1,5 @@
 import {writeFileSync} from 'node:fs';
-import {buildSync,transformSync} from 'esbuild';
-import {fileURLToPath} from 'node:url';
+import {transformSync} from 'esbuild';
 import {UI_REQUEST_CLIENT_SCRIPT} from '@molis-ai/molis-work-ui-host';
 import {workbenchClientSource} from '../dist/page-assets.js';
 import {ACCOUNT_CLIENT_SCRIPT} from '../dist/scripts/account.js';
@@ -8,9 +7,6 @@ import {poolClientLiterals} from './client-literals.mjs';
 
 // Keep the request bootstrap byte-for-byte first. Local bindings and equivalent syntax may be shortened;
 // property names, public globals, event names and literal contents stay intact.
-buildSync({entryPoints:[fileURLToPath(new URL('../src/browser/appearance-entry.ts',import.meta.url))],
-  outfile:fileURLToPath(new URL('../dist/appearance-client.js',import.meta.url)),bundle:true,format:'iife',
-  platform:'browser',target:'es2022',charset:'utf8',minify:true,legalComments:'none'});
 const source=workbenchClientSource();
 if(!source.startsWith(UI_REQUEST_CLIENT_SCRIPT))throw new Error('Workbench request bootstrap must be first');
 const compact=(script, pooling)=>transformSync(poolClientLiterals(script,pooling),{

@@ -1,5 +1,48 @@
-import { announceAppearance, prepareAppearance, setAppearanceScope, withDocumentDevice, type AppearanceProjection } from "../appearance-view.js";
+import { announceAppearance, prepareAppearance, readDocumentAppearance, setAppearanceScope, withDocumentDevice, type AppearanceProjection } from "../appearance-view.js";
 import type { FrameScope, Translate } from "./types.js";
+
+function projectedAppearance(): AppearanceProjection | undefined {
+  const current = readDocumentAppearance();
+  return current ? { snapshot: current.snapshot, stylesheet: current.stylesheet } : undefined;
+}
+
+/** The trusted parent supplies the initial and current appearance over the existing port. */
+export function frameEnvironment(port: MessagePort, scope: FrameScope, root: HTMLElement, frame: HTMLIFrameElement) {
+  let sentRevision: string | undefined;
+  const visible = () => {
+    if (frame.hidden) return false;
+    for (let node: Element | null = root; node; node = node.ownerDocument.defaultView?.frameElement ?? null) {
+      if (!node.checkVisibility({ visibilityProperty: true })) return false;
+    }
+    return scope.visible;
+  };
+  const publish = (shown: boolean) => {
+    if (!shown) { sentRevision = undefined; return; }
+    const projected = projectedAppearance();
+    if (!projected || projected.snapshot.revision === sentRevision) return;
+    sentRevision = projected.snapshot.revision;
+    port.postMessage({ type: "environment", snapshot: projected.snapshot, skin_href: projected.stylesheet });
+  };
+  scope.listen(window, "molis-work:ui-environment-changed", () => publish(visible()));
+
+  return {
+    initial: projectedAppearance(),
+    visible,
+    reset() { sentRevision = undefined; },
+    publishState(shown: boolean) {
+      const theme = Object.fromEntries(["theme", "resolvedTheme", "density", "terminalTheme", "resolvedTerminalTheme"]
+        .map(key => [key, document.documentElement.dataset[key] ?? ""]));
+      port.postMessage({ type: "state", visible: shown, theme });
+      publish(shown);
+    },
+    observeState(state: () => void) {
+      scope.observe(new MutationObserver(state), document.documentElement, { attributes: true,
+        attributeFilter: ["data-theme", "data-resolved-theme", "data-density", "data-terminal-theme", "data-resolved-terminal-theme"] });
+      scope.observe(new MutationObserver(state), document.body, { subtree: true, attributes: true, attributeFilter: ["data-exclusive"] });
+      scope.observe(new MutationObserver(state), frame, { attributes: true, attributeFilter: ["hidden"] });
+    },
+  };
+}
 
 /** An opaque child reads the parent's bound projection. It keeps its own last successfully rendered scope. */
 export function frameAppearance(origin: string, initial: AppearanceProjection | undefined, scope: FrameScope, translate: Translate) {

@@ -44,6 +44,7 @@ ${BASELINE_FONT_FACES}
   :where(h1, h2, h3, h4, h5, h6) { font-family: var(--type-title-font); font-weight: var(--weight-title); letter-spacing: var(--tracking-title); }
   :where(h1) { letter-spacing: var(--tracking-display); }
   :where(strong, b, th, dt) { font-weight: var(--weight-control); }
+  .mw-btn { font-family: var(--type-control-font, var(--font)); }
   :where(input, textarea, select, option) { font-weight: var(--weight-body); }
   :where(code, kbd, samp, pre) { font-family: var(--font-mono); letter-spacing: 0; }
   :where(.mw-reading-text, .mw-look-proof__read) { font-family: var(--type-reading-font); font-size: var(--type-reading-size); line-height: var(--type-reading-line-height); font-weight: var(--type-reading-weight); letter-spacing: var(--type-reading-tracking); }

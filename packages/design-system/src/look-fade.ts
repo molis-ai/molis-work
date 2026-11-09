@@ -12,5 +12,3 @@ export function createLookFade(): (commit: () => void) => boolean {
     return fades;
   };
 }
-
-export const LOOK_FADE_CLIENT_SCRIPT = `globalThis.molisWorkLookFade=(${createLookFade.toString()})();`;

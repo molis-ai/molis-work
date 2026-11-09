@@ -509,7 +509,9 @@ Inbox 的 done／dismiss 继续用原 offer 准备、确认及 `inbox.entry.stat
 
 列表与开放速览共用读代次：失效时立即取消旧读取和准备、清除浮层正文与控件，再按原受保护来源读当前 peek；仍可读才恢复并保留逻辑焦点，缺失／撤权／删除则关闭去敏。成功返回空组也要处理，不能只在异常分支清理，更不能关闭后仍把敏感正文留在 DOM。定向反例须覆盖 IM 另一会话／原关系改变、等待中和写前撤权、并发确认一次、取消零写、已提交后失权不重写、Attention 正常办结真实回执，以及开放速览在成功刷新过滤对象和关闭后的去敏。方案前审不替代这些实际证据。
 
-**卡片的放进／交给（2026-11-09 缺口核查及窄前审通过）。** 当前跨位置 renderer 过滤了组合服务已经声明的 `place`／`hand_off`，须补齐消费，不给卡片增加未声明的 peek。原位置受保护 click 核对当前形态、原 reader／values 及读取 revision，复用上述短寿命准备句柄和原来源双权限；不走缺少来源约束的通用 Placement HTTP。放进复用 `placement.describe`／`placement.spaces` 选择有效的其他项目，再调 `placement.link` 建立用途关联，不能描述成移动或复制；交给只选择本项目当前目录唯一可用的 `workflow_content.role=receive` station，再调原 `placement.convert`，保留原转换结果和派生关系。界面复用既有项目用途选择、简短目标确认与真实转换回执；不新增公开动作、业务表或另一套放置服务。
+**卡片的放进／交给（2026-11-09 缺口核查及窄前审通过）。** 当前跨位置 renderer 过滤了组合服务已经声明的 `place`／`hand_off`，须补齐消费，不给卡片增加未声明的 peek。原位置受保护 click 核对当前形态、原 reader／values 及读取 revision，复用上述短寿命准备句柄和原来源双权限；不走缺少来源约束的通用 Placement HTTP。放进复用 `placement.describe`／`placement.spaces` 选择有效的其他项目，再调 `placement.link` 建立用途关联，不能描述成移动或复制；交给在本项目当前目录按 `workflow_content.role=receive` 的 station 分组，分别列出具有唯一准确接收动作、原项目安装和同提供方准确 reader 的合法目标，再按所选目标调原 `placement.convert`，保留原转换结果和派生关系。不同 station 可同时存在并供选择，同一 station 有多个提供方时不猜选；不能要求整个项目只安装一个接收插件。界面复用同一准备窗口的目标选项、既有项目用途选择与真实转换回执；不新增公开动作、业务表或另一套放置服务。
+
+实现候选 `815887105c` 的独立复核揭示上版方案“目录唯一 station”会在默认多插件项目隐藏交接入口，主台据原 §4.3“交给某个插件”的目标修正该收窄。每个选项分别绑定其原 receiver／reader／安装／登记和真实后果，只提交不透明 choice；选中一个目标只执行一次该目标。验证保留默认项目的多个合法接收插件，实际选择 Pages 并核原对象保留、新对象、派生关系和回执，同时覆盖同 station 歧义／替换的拒绝；通过删掉其他合法插件才成立的单目标夹具不能代替此正常路径。
 
 `describe` 现会写 `placement_titles`，Home 对象还会记 `belongs_to`。本次准备使用原 PlacementPorts 的私有只读投影，禁用这两类读期记账并复用同一描述逻辑，准备和取消均零写。来源必须固定同一次目录取得的 scope、安装、reader、ref 和原注册 guard；不得让 `readers.find` 另选读者或让 locate 自动跟随已移到其他分区的对象。接收方也保留唯一 station、准确 ref、原登记身份、安装、权限及真实后果；同 ref 原地换 handler 仍须拒绝，guard 贯穿嵌套 receive 的最终写前检查。返回值校验原输出 schema，`item.plugin` 须等于所选 station，新对象种类与该 receiver 同 provider 的准确 reader 声明相合；不能猜 station 作种类或另找 reader 拼回执。
 

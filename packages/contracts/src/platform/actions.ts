@@ -14,6 +14,7 @@ export * from "./action-offers.js";
 export * from "./action-usages.js";
 export * from "./action-subjects.js";
 import type { HostCapabilityDescriptor } from "./app-host.js";
+import type { SkillRef } from "../services/agent-definitions.js";
 import type { WorkflowContentStation } from "./workflow-content.js";
 import type { PlacementRelationDeclaration } from "./placement.js";
 export * from "./workflow-content.js";
@@ -79,6 +80,25 @@ export interface HostOfferedOriginalInput {
 /** The languages a page is shown in; the words a handler sends back follow the caller's. */
 export type ActionLocale = "zh" | "en";
 
+/** Skills the person named, bound to the one action call the Host delivered them to (specs/capability-pack/contract-design.md §2.3). */
+export interface ActionNamedSkills {
+  /** The installation and the exact own action the Host bound them to; any other call never sees them. */
+  readonly install_id: string;
+  readonly action: ExactActionReference;
+  /** `page`: the installation's own page named them in the route's envelope; `host`: the Host's delegation call handed them on. */
+  readonly from: "page" | "host";
+  readonly refs: readonly SkillRef[];
+}
+
+/** Who a round's Skill reads are for (`ActionCallContext.skill_round`); see there. */
+export interface ActionSkillRound {
+  readonly consumer: "assistant" | "coding" | "agent";
+  /** The round's frozen list of Skills the person named: a `manual` Skill outside it is `not_named`. */
+  readonly named: readonly SkillRef[];
+  /** `local`: a local Agent engine runs the round, so a `native_only` Skill may be read. */
+  readonly engine?: "builtin" | "local";
+}
+
 /**
  * Which protected entry a person's operation came through, and where to find it: audit locators that grant nothing on their own (PG-029).
  * Only the entry gives it (a page route: `web`; a management command: `management`). A call made inside a running handler carries the one
@@ -118,11 +138,25 @@ export interface ActionCallContext extends ActionCallOrigin {
   /** Optional page evidence supplied by a protected entry adapter, never business/model input. */
   readonly page_context?: { readonly url: string | null; readonly title: string | null; readonly provenance: "host_snapshot" | "client_reported" };
   /**
-   * The language of the page the call came from, which the Host resolves from the request (the page's language cookie, else
-   * Accept-Language). It only picks the words a handler sends back to be shown; it grants nothing and is never read from
-   * business input. Absent when no page asked (a model's tool call, a timer): the handler uses its own default.
+   * The language of the page the call came from (the Host resolves it from the request: the page's language cookie, else
+   * Accept-Language), or the one the Host settled for a delegation it hands on (the delegating round's). It only picks the words a
+   * handler sends back to be shown and a round's reply language; it grants nothing and is never read from business input. Absent when
+   * neither applies (a model's tool call, a timer): the handler uses its own default.
    */
   readonly locale?: ActionLocale;
+  /**
+   * Set only by the Host, in two places: the routed naming envelope (bound, as `original_input` is, to the first own action the route
+   * calls) and the Host's call to a work executor's `run.start` (bound to that executor's installation and action). It is not carried
+   * by the handler's nested calls nor by a round's gateway tool calls into a plugin's action; the Host's round composition reads it only
+   * to freeze that round's reads of `system.skills`. A `SkillRef` in any action's input names nothing. Never business input.
+   */
+  readonly named_skills?: ActionNamedSkills;
+  /**
+   * Who a round's Skill reads are for, written by the Host's round composition only on the calls it makes to `system.skills` for that
+   * round (its start and the round's own tool calls to `system.skills`): `consumer` decides which Skills apply, `named` is the round's
+   * frozen named list, `engine: "local"` lets a `native_only` Skill be read. A plugin's handler never sees it. Never business input.
+   */
+  readonly skill_round?: ActionSkillRound;
   /** Optional historical author supplied by a trusted adapter; grants still belong to actor_id. Never business input. */
   readonly audit_actor_id?: string;
   /**

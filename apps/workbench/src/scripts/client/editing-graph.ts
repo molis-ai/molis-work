@@ -200,6 +200,7 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
       tabWorkspace = (${TAB_WORKSPACE_FACTORY_SCRIPT})({
         prepareSurface: (surface, intent) => deferredClients?.prepare(surface, intent),
         refreshHome: () => projectHome?.sync(),
+        discussionObjects: frame => projectPositions?.discussion(frame, (path, body, signal) => molisWorkRequest(path, { body, signal })),
         showToast, paneMessages,
         showGoalFrame: (id) => frameContainer?.showGoalFrame(id),
         translate: L,

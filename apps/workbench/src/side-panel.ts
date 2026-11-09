@@ -189,7 +189,7 @@ body.is-side-resizing{cursor:col-resize;user-select:none}
  * A tab widens after a rest or on keyboard focus; a press never moves the tabs under the pointer (it cancels a pending widening,
  * and focus from a click leaves the widths as they are).
  */
-export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=null,undoChip=()=>null,menu=null,removed=()=>false,L=globalThis.L,paneSrc=null,glyph=()=>'',toMain=null})=>{
+export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=null,undoChip=()=>null,menu=null,removed=()=>false,L=globalThis.L,paneSrc=null,glyph=()=>'',toMain=null,discussionObjects=null})=>{
   const panel=document.querySelector('[data-side-panel]'),strip=document.querySelector('[data-side-tabs]'),stage=document.querySelector('[data-plugin-stage],.arrival-stage');
   if(!panel||!strip||!stage)return null;
   stage.setAttribute('data-plugin-stage','');
@@ -400,7 +400,8 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
     if(event.data?.type==='molis:im-ready')imVisible();
     if(event.data?.type==='molis:im-connect'&&projectId){
       const answer=(error)=>frame.contentWindow.postMessage({type:'molis:im-connected',requestId:event.data.requestId,error},location.origin);
-      try{await molisWorkRequest('/projects/'+encodeURIComponent(projectId)+'/api/im/connect',{body:{}});answer(null);}
+      const page=frame.contentDocument;
+      try{await molisWorkRequest('/projects/'+encodeURIComponent(projectId)+'/api/im/connect',{body:{}});if(page===frame.contentDocument){frame.contentWindow.molisDiscussionObjects??=discussionObjects?.(frame);answer(null);}}
       catch(error){answer(molisWorkRequest.text(error,L('项目连接失败')));}
     }
   });

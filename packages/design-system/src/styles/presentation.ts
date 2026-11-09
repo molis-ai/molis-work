@@ -1,11 +1,4 @@
-import { UI_VIEW_HUES, type UiViewHue } from "@molis-ai/molis-work-contracts/platform/ui";
-
-/** The same canonical plugin id picks the same semantic hue in every install. */
-export function presentationOwnerHue(pluginId: string): UiViewHue {
-  let hash = 0;
-  for (const char of pluginId) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
-  return UI_VIEW_HUES[hash % UI_VIEW_HUES.length]!;
-}
+export { presentationOwnerHue } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 export const PRESENTATION_FORM_STYLES = `
   .mw-presentation { min-inline-size: 0; color: var(--ink); }

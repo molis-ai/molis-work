@@ -45,7 +45,8 @@ export class SurfaceCompositionService {
 
   async compose(request: SurfaceRequest, ports: SurfaceComposePorts): Promise<SurfaceDescription> {
     const home = homeFor(request, ports);
-    const deadline = home?.deadline ?? startDeadline(ports.signal);
+    const retainedDeadline = ports.deadline ?? home?.deadline;
+    const deadline = retainedDeadline ?? startDeadline(ports.signal);
     try {
       checkCurrent(ports);
       const checked = await deadline.wait(ports.beforeEffect().then(() => true));
@@ -55,7 +56,7 @@ export class SurfaceCompositionService {
       checkCurrent(ports);
       if (!catalog) throw surfaceErrors.compose_failed("暂时读不到插件目录");
       const plugins = home ? catalog.filter(plugin => plugin.home && plugin.state !== "uninstalled") : catalog;
-      const catalogCurrent = home?.retainCatalog(plugins);
+      const catalogCurrent = home?.retainCatalog(plugins) ?? ports.retainCatalog?.(plugins);
       const guards = new Set<() => void>();
       const retained = new Set<ActionView>();
       const current = () => {
@@ -91,7 +92,7 @@ export class SurfaceCompositionService {
       if (cached) return structuredClone(cached);
       const candidate: SurfaceDescription = { composed_by: "rules", revision, corrections_revision: corrections.revision, groups: result.groups };
       return this.checked(candidate);
-    } finally { if (!home?.deadline) deadline.dispose(); }
+    } finally { if (!retainedDeadline) deadline.dispose(); }
   }
 
   async correct(input: SurfaceCorrectionInput, ports: SurfaceCorrectPorts) {
@@ -134,5 +135,16 @@ async function composeGroup(read: ComposeRead) {
   const group: SurfaceGroup = { kind: isAttention ? "attention" : "slot",
     ...groupState(shown, unreadable || objects.unreadable || objects.unproved || !deadline.active), items: shown.map(row => row.item),
     ...(overflow ? { overflow: { count: overflow } } : {}), ...(excluded ? { excluded } : {}) };
+  if (request.slot.kind === "discussion" && read.ports.discussion) {
+    const { views, keep } = read.ports.discussion;
+    keep(views.map(({ subjects, expanded }): SurfaceGroup => {
+      const rows = objects.forDiscussion(subjects);
+      const selected = expanded ? rows : rows.slice(0, position.max);
+      const remaining = rows.length - selected.length;
+      retainDisplayedOperations(read, selected);
+      return { kind: "slot", ...groupState(selected, !deadline.active), items: selected.map(row => row.item),
+        ...(remaining ? { overflow: { count: remaining } } : {}) };
+    }));
+  }
   return { groups: [group], facts: { ...facts, operations: retainDisplayedOperations(read, shown) } };
 }

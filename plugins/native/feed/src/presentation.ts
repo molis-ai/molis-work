@@ -10,7 +10,8 @@ export const feedPresentationActions = [values, overview];
 
 const fields = [{ key: "title", role: "title" }, { key: "status", role: "status" }, { key: "updated_at", role: "updated_at" },
   { key: "origin", role: "origin" }, { key: "held_in", role: "held_in" }] as const;
-const forms = { row: { fields: ["title", "status", "updated_at", "origin", "held_in"] } } as const;
+const displayFields = ["title", "status", "updated_at", "origin", "held_in"] as const;
+const forms = { chip: { fields: ["title"] }, row: { fields: displayFields }, card: { fields: displayFields } } as const;
 export const feedPresentation = {
   objects: [
     { kind: "feed_item", fields, forms, status: { field: "status", map: { read: { ring: "read" }, unread: { ring: "unread" } } } },

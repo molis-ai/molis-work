@@ -18,8 +18,13 @@ interface HomeHost {
 type ClickResult = { kind: "stage" | "settings" } | { kind: "peek"; row: SurfaceHomeRowDisplay }
   | { kind: "invoked"; stage?: unknown; retry_open?: HomeControl["target"] } | { kind: "enabled" };
 
-function reconcile(root: HTMLElement, html: string, rowMarkup: WeakMap<Element, string>) {
-  const template = document.createElement("template");
+export function reconcileSurfaceRows(root: HTMLElement, html: string, rowMarkup: WeakMap<Element, string>) {
+  const doc = root.ownerDocument, focus = doc.activeElement;
+  const focused = focus && root.contains(focus) ? focus.closest("[data-home-row]") : null;
+  const rowKey = focused?.getAttribute("data-home-row");
+  const action = focus?.getAttribute("data-presentation-action");
+  const title = focus?.matches(".mw-presentation__row-title");
+  const template = doc.createElement("template");
   template.innerHTML = html;
   template.content.querySelectorAll("[data-home-row-peek] .mw-presentation__row-title").forEach(node => {
     node.setAttribute("aria-haspopup", "dialog");
@@ -51,7 +56,19 @@ function reconcile(root: HTMLElement, html: string, rowMarkup: WeakMap<Element, 
     while (next) { const stale = next; next = next.nextElementSibling; stale.remove(); }
   }
   patch(root, template.content.children);
+  if (rowKey && doc.activeElement === doc.body) {
+    if (focus?.isConnected && "focus" in focus) (focus as HTMLElement).focus({ preventScroll: true });
+    else {
+      const row = root.querySelector<HTMLElement>('[data-home-row="' + CSS.escape(rowKey) + '"]');
+      const replacement = action ? row?.querySelector<HTMLElement>('[data-presentation-action="' + CSS.escape(action) + '"]')
+        : title ? row?.querySelector<HTMLElement>(".mw-presentation__row-title") : undefined;
+      (replacement ?? row?.querySelector<HTMLElement>("button,summary,[tabindex]"))?.focus({ preventScroll: true });
+    }
+  }
 }
+
+export { createPositionViews } from "./project-position.js";
+export { presentationWord, renderHomePeek, renderPositionGroup } from "./project-home-render.js";
 
 function bindHomeControls(root: HTMLElement, peek: HTMLDialogElement, act: (key: string, focus: HTMLElement) => Promise<void>, closePeek: () => void, onClose: () => void) {
   root.addEventListener("click", event => {
@@ -123,7 +140,6 @@ export function mountHome(host: HomeHost) {
     try {
       const result = await host.read<SurfaceHomeDisplay>("", { home_order: host.order() }, request.signal);
       if (request.signal.aborted || reading !== request || !visible()) return;
-      const oldFocus = document.activeElement instanceof HTMLElement && groups.contains(document.activeElement) ? document.activeElement : null;
       const before = display && JSON.stringify(display) === JSON.stringify(result);
       if (inspected) {
         const key = subjectKey(inspected.owner, inspected.subject);
@@ -134,8 +150,7 @@ export function mountHome(host: HomeHost) {
       display = result; needsRead = false;
       if (!before) {
         const html = renderHome(result, controls);
-        reconcile(groups, html, rowMarkup);
-        if (oldFocus?.isConnected && document.activeElement === document.body) oldFocus.focus({ preventScroll: true });
+        reconcileSurfaceRows(groups, html, rowMarkup);
       }
       if (inspected?.read.state === "ok") offers.refresh();
       caption(receipt ? "open-failed" : undefined, receipt ? "open-result" : undefined);

@@ -1,6 +1,6 @@
-import { ActionError, bindActionClient, type ActionCallContext, type ActionClient, type ActionSubject, type ActionSubjectContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient, requireSynchronous, type ActionCallContext, type ActionClient, type ActionSubject, type ActionSubjectContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { UiViewSelection } from "@molis-ai/molis-work-contracts/platform/ui";
-import type { SurfaceInstallationRef, SurfaceItem, SurfacePluginCard } from "@molis-ai/molis-work-contracts/services/surface-composition";
+import type { SurfaceGroup, SurfaceInstallationRef, SurfaceItem, SurfacePluginCard } from "@molis-ai/molis-work-contracts/services/surface-composition";
 import { canonicalJsonText, isRecord } from "@molis-ai/molis-work-plugin-sdk";
 import { assertStageInstallation, installedStagePath } from "./installed-stage-identity.js";
 import { homeChanged, homeReference, ownerReader, type HomeReadSample } from "./surface-home-display.js";
@@ -21,7 +21,7 @@ export function stageNavigation(entry: HomeDirectoryEntry, target: Target, prefi
 }
 
 /** A click can only name an object and the exact release shown on the page; never a reader, provider, surface or URL. */
-export function homeObjectClick(target: Record<string, unknown>, owner: string, sample: HomeReadSample) {
+export function homeObjectClick(target: Record<string, unknown>, owner: string, sample: HomeReadSample, groups: readonly SurfaceGroup[] = sample.description.groups) {
   if (target.kind !== "object" && target.kind !== "open_result" && target.kind !== "peek") return undefined;
   const subject = target.subject;
   if (Object.keys(target).length !== 3 || !isRecord(subject) || Object.keys(subject).length !== 2
@@ -31,7 +31,7 @@ export function homeObjectClick(target: Record<string, unknown>, owner: string, 
     && canonicalJsonText(entry.installation, "null") === canonicalJsonText(target.installation, "null"));
   if (!entry) throw homeChanged();
   const selected: ActionSubject = { kind: subject.kind, id: subject.id };
-  const item = sample.description.groups.flatMap(group => group.items).find(item => item.owner_plugin_id === owner
+  const item = groups.flatMap(group => group.items).find(item => item.owner_plugin_id === owner
     && item.subject.kind === selected.kind && item.subject.id === selected.id && (item.state === "ok" || item.state === "stale")
     && item.actions.some(action => action.ref === (target.kind === "peek" ? "peek" : "open")));
   if (target.kind !== "open_result" && !item) throw homeChanged();
@@ -43,10 +43,10 @@ export function assertHomeDisplayReader(sample: HomeReadSample, entry: HomeDirec
   if (!view || !sample.views.has(view) || !entry.plugin.presentation?.objects.some(object => object.kind === item.subject.kind)) throw homeChanged();
 }
 
-export async function openHomeObject(sample: HomeReadSample, entry: HomeDirectoryEntry, reader: ActionView, subject: ActionSubject,
+export async function openHomeObject(sample: Pick<HomeReadSample, "catalog" | "retain" | "assertCurrent">, entry: HomeDirectoryEntry, reader: ActionView, subject: ActionSubject,
   client: ActionClient, caller: ActionCallContext, transport: ReturnType<typeof pluginRouteControl>, prefix: string) {
   sample.retain([reader]);
-  const current = () => { transport.signal?.throwIfAborted(); sample.assertCurrent(); };
+  const current = () => { requireSynchronous(transport.assert_authority_current?.()); sample.assertCurrent(); };
   current();
   const read = bindActionClient(client, () => ({ ...caller, query_only: true, read_only_effects: true }));
   const result = await read.invoke<{ subject_id: string }, ActionSubjectContext>({ ...reader, ...homeReference(reader) }, { subject_id: subject.id },

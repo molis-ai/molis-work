@@ -7,6 +7,7 @@ import type { SurfaceHomeDisplay, SurfaceHomeRowDisplay } from "../surface-home-
 type ObjectTarget = { kind: "object" | "peek" | "open_result"; subject: SurfaceItem["subject"]; installation: SurfaceHomeRowDisplay["installation"] };
 type CardTarget = SurfaceHomeStart | SurfaceHomeEnable | NonNullable<SurfacePluginCard["open"]>;
 export type HomeControl = { owner_plugin_id: string; target: CardTarget | ObjectTarget };
+export type FramedSurfaceControl = { owner: string; subject: SurfaceItem["subject"]; kind: string } & NonNullable<PresentationFormValues["actions"]>[number];
 export const subjectKey = (owner: string, subject: SurfaceItem["subject"]) => JSON.stringify([owner, subject.kind, subject.id]);
 const locale = () => document.documentElement.lang.startsWith("en") ? "en" : "zh";
 
@@ -36,6 +37,7 @@ const controlKey = (owner: string, suffix: string) => owner + ":" + suffix;
 export const homeButton = (key: string, label: string, primary = false) =>
   renderButton({ label, variant: primary ? "primary" : "secondary", attrs: { "data-home-control": key } });
 export const homeWord = (key: string) => inHomeWords(() => home(key));
+export const presentationWord = (key: string) => inHomeWords(() => common(key));
 
 function ownerOf(data: SurfaceHomeDisplay, owner: string): PresentationFormValues["ownerDisplay"] {
   return { ...data.display.owners[owner], name: data.display.owners[owner]?.name ?? owner, hue: data.display.owners[owner]?.hue ?? "gray" };
@@ -45,9 +47,9 @@ function objectControl(row: SurfaceHomeRowDisplay, action: "open" | "peek"): Hom
   return { owner_plugin_id: row.owner, target: { kind: action === "open" ? "object" : "peek", installation: row.installation, subject: row.subject } };
 }
 
-function rowHtml(row: SurfaceHomeRowDisplay, item: SurfaceItem, data: SurfaceHomeDisplay, controls: Map<string, HomeControl>, mixed: boolean, primary: boolean) {
+function rowHtml(row: SurfaceHomeRowDisplay, item: SurfaceItem, data: SurfaceHomeDisplay, controls: Map<string, HomeControl>, mixed: boolean, primary: boolean, framed?: readonly FramedSurfaceControl[]) {
   const key = subjectKey(row.owner, row.subject);
-  const actions = item.actions.flatMap(action => {
+  const actions = framed?.filter(action => subjectKey(action.owner, action.subject) === key) ?? item.actions.flatMap(action => {
     if (action.ref !== "open" && action.ref !== "peek") return [];
     const id = controlKey(key, action.ref);
     controls.set(id, objectControl(row, action.ref));
@@ -56,11 +58,12 @@ function rowHtml(row: SurfaceHomeRowDisplay, item: SurfaceItem, data: SurfaceHom
   const read = "values" in row.read && !mixed ? { ...row.read, values: Object.fromEntries(Object.entries(row.read.values ?? {}).filter(([key]) =>
     row.declaration.fields.find(field => field.key === key)?.role !== "held_in")) } : row.read;
   return `<div class="home-row" data-home-row="${e(key)}" data-home-subject-kind="${e(row.subject.kind)}" data-home-subject-id="${e(row.subject.id)}"${actions.some(action => action.key.endsWith(":peek")) && (read.state === "ok" || read.state === "stale") ? ` data-home-row-peek="${e(controlKey(key, "peek"))}"` : ""}>
-    ${renderPresentationForm(row.declaration, item.form, { locale: locale(), ownerDisplay: ownerOf(data, row.owner), read, actions })}
+    ${renderPresentationForm(row.declaration, item.form, { locale: locale(), ownerDisplay: ownerOf(data, row.owner), read, actions,
+      notices: item.notices?.map(({ reason }) => ({ reason })) })}
     ${item.merged?.length ? renderBadge({ label: home("same") + " · " + item.merged.map(merge => ownerOf(data, merge.owner_plugin_id).name).join(" · ") }) : ""}</div>`;
 }
 
-function rowList(data: SurfaceHomeDisplay, group: SurfaceGroup, controls: Map<string, HomeControl>, byKey: ReadonlyMap<string, SurfaceHomeRowDisplay>) {
+function rowList(data: SurfaceHomeDisplay, group: SurfaceGroup, controls: Map<string, HomeControl>, byKey: ReadonlyMap<string, SurfaceHomeRowDisplay>, framed?: readonly FramedSurfaceControl[]) {
   const items = group.items.flatMap(item => {
     const row = byKey.get(subjectKey(item.owner_plugin_id, item.subject));
     return row ? [{ item, row }] : [];
@@ -68,7 +71,7 @@ function rowList(data: SurfaceHomeDisplay, group: SurfaceGroup, controls: Map<st
   const places = new Set(items.flatMap(({ row }) => row.declaration.fields.filter(field => field.role === "held_in")
     .map(field => "values" in row.read ? row.read.values?.[field.key] : undefined)));
   const mixed = places.has("project") && places.has("personal");
-  return { html: items.map(({ item, row }) => rowHtml(row, item, data, controls, mixed, group.kind === "attention")).join(""),
+  return { html: items.map(({ item, row }) => rowHtml(row, item, data, controls, mixed, group.kind === "attention", framed)).join(""),
     count: items.filter(({ row }) => row.read.state === "ok" || row.read.state === "stale").length,
     unreadable: items.some(({ row }) => row.read.state === "unreadable") };
 }
@@ -123,9 +126,19 @@ export function renderHome(data: SurfaceHomeDisplay, controls: Map<string, HomeC
   });
 }
 
-export function renderHomePeek(data: SurfaceHomeDisplay, row: SurfaceHomeRowDisplay, controls: Map<string, HomeControl>) {
+export function renderHomePeek(data: SurfaceHomeDisplay, row: SurfaceHomeRowDisplay, controls: Map<string, HomeControl>, framed?: readonly FramedSurfaceControl[]) {
   const id = controlKey(subjectKey(row.owner, row.subject), "peek-open");
   controls.set(id, objectControl(row, "open"));
   return inHomeWords(() => renderPresentationForm(row.declaration, "peek", { locale: locale(), ownerDisplay: ownerOf(data, row.owner), read: row.read,
-    actions: [{ key: id, label: home("open"), primary: true }] }));
+    actions: framed ?? [{ key: id, label: home("open"), primary: true }] }));
+}
+
+/** Other positions select their own group; the form, owner words, fields and row controls are the same as Home. */
+export function renderPositionGroup(data: SurfaceHomeDisplay, index: number, controls: Map<string, HomeControl>, framed?: readonly FramedSurfaceControl[]) {
+  return inHomeWords(() => {
+    const group = data.groups[index];
+    if (!group) return { html: "", count: 0 };
+    const rows = rowList(data, group, controls, new Map(data.display.rows.map(row => [subjectKey(row.owner, row.subject), row])), framed);
+    return { html: rows.html, count: rows.count, overflow: group.overflow?.count };
+  });
 }

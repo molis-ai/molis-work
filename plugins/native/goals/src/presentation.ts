@@ -4,6 +4,8 @@ import { bindPresentationValuesHandler, definePresentationOverviewAction, define
 import { goalEntryActions } from "./contract/goal-actions.js";
 import type { GoalRecord, GoalsQueryApi } from "./contract/goals.js";
 import type { GoalEventApplication } from "./goal-event-application.js";
+import type { GoalEventStateView } from "./contract/goal-events.js";
+import { goalEventWorkStatuses } from "./contract/goal-event-state.js";
 
 const values = definePresentationValuesAction("goals.presentation.values", /* @version action.goals.presentation.values */ 1, ["goal"], "目标显示字段", ["goals:read"]);
 const overview = definePresentationOverviewAction("goals.presentation.overview", /* @version action.goals.presentation.overview */ 1, "目标首页概况", ["goals:read"]);
@@ -25,6 +27,12 @@ export const goalsPresentation = {
 } as const satisfies PresentationDeclaration;
 
 const currentGoal = (goal: GoalRecord | null | undefined): goal is GoalRecord => !!goal && !goal.trashed_at && !goal.archived_at;
+export const goalPresentationStates = [...goalEventWorkStatuses, "pending_decision", "pending_acceptance"] as const;
+export type GoalPresentationStatus = typeof goalPresentationStates[number];
+export type CaptureGoalPresentationStatus = (goalId: string, status: GoalPresentationStatus) => void;
+export const goalPresentationStatus = (state: Pick<GoalEventStateView, "work_status" | "pending_decisions">): GoalPresentationStatus =>
+  state.pending_decisions.some(decision => decision.purpose === "requirement_acceptance") ? "pending_acceptance"
+    : state.pending_decisions.length ? "pending_decision" : state.work_status;
 
 export function createGoalsPresentationHandlers(projectId: string, query: Pick<GoalsQueryApi, "getGoal" | "listGoals">,
   events: Pick<GoalEventApplication, "readState">, read: <T>(body: () => T) => T, ready: Promise<void>) {
@@ -36,10 +44,8 @@ export function createGoalsPresentationHandlers(projectId: string, query: Pick<G
         const goal = query.getGoal(projectId, subject.id);
         if (!currentGoal(goal)) return { subject, revision: "0", state: "deleted" };
         const state = events.readState(projectId, goal.goal_id);
-        const status = state.pending_decisions.some(decision => decision.purpose === "requirement_acceptance") ? "pending_acceptance"
-          : state.pending_decisions.length ? "pending_decision" : state.work_status;
         return { subject, revision: `${goal.updated_at}:${state.goal_event_cursor}`, state: "ok",
-          values: { title: goal.title, status, updated_at: goal.updated_at, summary: state.progress_summary?.summary || goal.outcome } };
+          values: { title: goal.title, status: goalPresentationStatus(state), updated_at: goal.updated_at, summary: state.progress_summary?.summary || goal.outcome } };
       }) }));
     }),
     bindActionHandler(overview, async (_input, caller) => {

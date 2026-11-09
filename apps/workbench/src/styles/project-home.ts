@@ -1,6 +1,17 @@
 import { PRESENTATION_FORM_STYLES } from "@molis-ai/molis-work-design-system";
 
 export const PROJECT_HOME_STYLES = PRESENTATION_FORM_STYLES + `
+.surface-slot-body{height:100%;display:grid;grid-template-rows:auto minmax(0,1fr) auto;background:var(--paper);color:var(--ink)}
+.surface-slot-body>[data-framed-scroll]{overflow:auto;display:grid;align-content:start;gap:6px;padding-inline:4px}
+.surface-slot-edge{display:flex;align-items:center;gap:6px;min-height:8px;padding-inline:4px}
+.surface-slot-edge:not(:empty){padding-block:4px}
+.assistant-attention-objects,.assistant-conversation-objects{display:grid;gap:6px;min-width:0}
+.assistant-attention-objects:empty,.assistant-conversation-objects:empty{display:none}
+.tree-presentation-name{display:grid;align-items:center;flex:1;min-inline-size:0}
+.tree-presentation-name>*{grid-area:1/1;min-inline-size:0}
+.tree-presentation-name .mw-presentation{pointer-events:none}
+.tree-presentation-name .mw-presentation__tag{background:none;border-color:transparent}
+.inbox-object-title .mw-presentation__tag{font-size:var(--type-title-size,1rem)}
   .tab-pane-body > .immersive-home { container-type: inline-size; padding: 0; min-block-size: 0; block-size: 100%; overflow: auto; overscroll-behavior: contain; }
   .immersive-home .home-scroll { max-inline-size: 74rem; margin-inline: auto; padding: clamp(1rem, 4cqi, 3.5rem); }
   .immersive-home .home-heading h1 { margin: 0; font-size: clamp(1.6rem, 4cqi, 2.2rem); line-height: 1.2; }

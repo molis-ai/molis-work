@@ -39,6 +39,9 @@ async function stagePageSelection(context: WebRequestContext, project: LocalHost
     throw new ActionError("actions.provider_changed", "原舞台实例已变化，请重新读取");
   const reader = stageObjectAction(owner.entry.manifest);
   return { project_key: owner.entry.project_plugin_id, install_id: owner.install_id, project_id: owner.scope === "home" ? null : project?.project_id ?? null, assertCurrent: owner.assertCurrent,
+    ...(typeof surface === "string" && typeof target_slot_id === "string" && owner.view.descriptor.slots.some(slot => slot.accepts_forms?.length)
+      ? { surfaceSlotSource: { contribution_id: owner.view.descriptor.contribution_id, surface, target_slot_id, producer: owner.producer,
+        slots: owner.view.descriptor.slots, installation: owner.installation } } : {}),
     ...(reader ? { objectPresentation: { permissions: [...reader.action.permissions], surfaces: (owner.view.descriptor.surfaces ?? []).filter(item => item.target_slot_id === "workbench.main" && item.format === "declarative-html").map(item => item.surface_id) } } : {}) };
 }
 

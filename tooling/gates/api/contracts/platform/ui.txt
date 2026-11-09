@@ -791,6 +791,13 @@ export interface UiPageView<Element = unknown> {
         ready: Promise<void>;
         dispose(): void;
     };
+    surfaceSlot(element: Element, options: {
+        slot_id: string;
+        subjects: readonly ActionSubject[];
+    }): {
+        ready: Promise<void>;
+        dispose(): void;
+    };
 }
 
 export interface UiPageWorkspaces {

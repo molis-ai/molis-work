@@ -13,7 +13,7 @@ export * from "./ui/plugin-stage-shell.js";
 export * from "./ui/button.js";
 export * from "./ui/feedback.js";
 export { renderMenu, renderMenuItem, renderPopover, renderPreviewCard, renderSheet } from "./ui/overlay.js";
-export { renderPresentationForm, type PresentationFormValues } from "./ui/presentation-form.js";
+export { presentationOwnerHue, renderPresentationForm, type PresentationFormValues } from "./ui/presentation-form.js";
 export * from "./ui/return-trip.js";
 export * from "./ui/resume-prompt.js";
 export * from "./ui/field.js";

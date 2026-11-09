@@ -10,7 +10,7 @@ Goals 是每个项目都带的内置插件，是 Goal 的产品 owner；Goal 事
 
 Host 注入各 Module 的公开端口，Goals 用 `createGoalsApplication` 在包内组装自己的应用（内部类不从 `index.ts` 导出）。其中 `goalEvents` 连接创建、普通笔记、类型与要求、上报、决定、收尾和明确继续；`goalQueries` 提供项目指导和历史读取。提案的提交与决定写完后各自结算对应 Goal 的决定提醒（Inbox 只读这条引用）；项目打开时 `projectOpened` 补对一次，页面请求与 Inbox 列表不再对账。HTTP handler 与 UI contribution 将同一当前事实交给各 App，目录和正文无需重建旧 Claim/Run 动作状态。
 
-项目 Runtime 的首页概况和呈现字段经同一 Goals 读窗读取原记录及事件状态；仅真实验收待决显示为等你验收。开始入口选择原画布的创建表单，提交仍走原 Goals 创建动作。
+项目 Runtime 的首页概况和呈现字段经同一 Goals 读窗读取原记录及事件状态；仅真实验收待决显示为等你验收。舞台沿同次集合读窗收集当前目标的呈现状态，树用 SDK 的 `chip` 显示同一标题和状态；归档和回收保留原历史展示。原树状态列、选择、折叠、拖动与关系保留。开始入口选择原画布的创建表单，提交仍走原 Goals 创建动作。
 
 ## 从哪里读代码
 

@@ -11,6 +11,7 @@ export function createImComposer(base: ImBaseCtx, context: () => ImCtx): Pick<Im
     c.status(kind, '');
     c.syncComposer(kind);
     c.resizeInput(kind);
+    c.refreshObjects?.();
   }
   function readDraft(kind: StreamKind) {
     const c = context();
@@ -24,6 +25,7 @@ export function createImComposer(base: ImBaseCtx, context: () => ImCtx): Pick<Im
   }
   function render(kind: StreamKind, mode: 'preserve' | 'latest' | 'older' = 'preserve') {
     v.stream(kind, kind === 'group' ? s.groupMessages : s.threadMessages, kind === 'group' ? s.groupPage : s.threadPage, s.roomState?.threads || [], s.threadId, mode, s.threadDraft?.source_message_id || '', s.member?.id);
+    context().refreshObjects?.();
     scheduleRead();
   }
   function updateHeader() {

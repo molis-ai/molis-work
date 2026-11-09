@@ -7,6 +7,8 @@ import { ImWrites } from "./writes.js";
 import { ImInvites, invitationTokenHash } from "./invites.js";
 import { ensureProjectRoom } from './project.js';
 import { messageSubjects } from "./subjects.js";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { DiscussionMessagePart } from "./reads.js";
 
 export type { ImDomainOptions, ImSession, ImIdentity, ImEvents, ImRequest, ImDatabase } from "./types.js";
 export { ImError } from "./errors.js";
@@ -62,16 +64,16 @@ export function createImDomain({ db, identity, events }: ImDomainOptions) {
           let assertObjects: (() => void) | undefined;
           if (subjects.length) {
             if (get || (!createsThread && !messages)) throw new ImError("im.invalid_subjects", "只能在消息中引用对象");
-            const projectId = reads.room(roomId).project_id;
-            if (!projectId || !authorizeSubjects) throw new ImError("im.subjects_forbidden", "请从本机工作台的项目讨论引用对象", 403);
+            if (!authorizeSubjects) throw new ImError("im.subjects_forbidden", "请从本机工作台的项目讨论引用对象", 403);
+            const projectId = reads.discussionProject(roomId, member.id);
             const assertRoom = () => {
               identity.requireMember(current);
-              reads.assertMember(roomId, member.id);
-              if (reads.room(roomId).project_id !== projectId) throw new ImError("im.forbidden", "讨论不再属于当前项目", 403);
+              if (reads.discussionProject(roomId, member.id) !== projectId) throw new ImError("im.forbidden", "讨论不再属于当前项目", 403);
               if (threadId) reads.thread(roomId, threadId);
             };
             assertRoom();
-            assertObjects = await authorizeSubjects(projectId, current, subjects, assertRoom);
+            const assertAuthorized = await authorizeSubjects(projectId, current, subjects, assertRoom);
+            assertObjects = () => { assertRoom(); assertAuthorized(); };
             body.subjects = subjects;
             assertObjects();
           }
@@ -103,13 +105,21 @@ export function createImDomain({ db, identity, events }: ImDomainOptions) {
     return true;
   }
 
+  const discussionProject = (roomId: string, memberId: string) => {
+    try { return reads.discussionProject(roomId, memberId); }
+    catch (error) {
+      if (error instanceof ImError) throw new ActionError("actions.forbidden", "讨论已不可读");
+      throw error;
+    }
+  };
   return {
     handleImRequest,
     assertRoomMember: (roomId: string, memberId: string): void => reads.assertMember(roomId, memberId),
-    discussionReferences(projectId: string, roomId: string, memberId: string, messageId: string, part: "message" | "quote" | "share") {
-      reads.assertMember(roomId, memberId);
-      if (reads.room(roomId).project_id !== projectId) throw new ImError("im.forbidden", "讨论不属于当前项目", 403);
-      return reads.objectReferences(roomId, messageId, part);
+    discussionProject,
+    discussionReferences(projectId: string, roomId: string, session: ImSession, views: readonly DiscussionMessagePart[]) {
+      const member = identity.requireMember(requireSession(session));
+      if (discussionProject(roomId, member.id) !== projectId) throw new ActionError("actions.forbidden", "讨论不属于当前项目");
+      return reads.objectReferences(roomId, views);
     },
   };
 }

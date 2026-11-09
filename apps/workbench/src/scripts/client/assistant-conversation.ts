@@ -178,8 +178,14 @@ export const ASSISTANT_CONVERSATION_PART = String.raw`  /* ─── Showing a t
     let carried = null;
     if (round.materials && round.materials.length) {
       carried = keyed(node, "data-entry", "materials", () => el("div", "assistant-attachments"));
-      const signature = JSON.stringify(round.materials.map((material) => [material.material_id, material.title, material.draft]));
-      if (carried.dataset.signature !== signature) { carried.dataset.signature = signature; carried.replaceChildren(...round.materials.map(attachmentChip)); }
+      const compositionHere = host.positions && work.scope.kind === "project" && work.scope.project_id === project?.id;
+      const shown = round.materials.filter(material => !material.object || !compositionHere
+        || surfaceWork === work.work_id && presentedMaterialKinds && !presentedMaterialKinds.includes(material.object.kind));
+      const signature = JSON.stringify(shown.map((material) => [material.material_id, material.title, material.draft]));
+      if (carried.dataset.signature !== signature) {
+        carried.dataset.signature = signature;
+        carried.replaceChildren(...shown.map(attachmentChip));
+      }
     }
     if (!round.turns.some((turn) => turn.kind === "user")) {
       const own = keyed(node, "data-entry", "task", () => el("div", "assistant-msg assistant-msg--user"));

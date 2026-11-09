@@ -288,6 +288,8 @@ export declare function parseStrictJson(source: string, options?: StrictJsonOpti
 
 export declare function parseUiSpecFile(source: string, options?: UiFileOptions): UiFileResult<UiSpecFile>;
 
+export declare function presentationOwnerHue(pluginId: string): UiViewHue;
+
 export declare const processFold: (scope: string, { group, groupBody, step, stepBody }: {
     group: string;
     groupBody: string;

@@ -304,6 +304,7 @@ ${TAB_WORKSPACE_DRAG_PART}
     return url.href;
   };
   const sidePane = embedded ? null : (${SIDE_PANE_FACTORY})({ ops, getState: () => state, save: persist, remember: pluginGroups.keep, undoChip: pluginGroups.undoChip, menu: (tab, entries) => openSideTabMenu(tab, entries), removed: removedPlugin, L,
+    discussionObjects: host.discussionObjects,
     paneSrc: (tab) => paneUrl("side", tab.plugin, tab.item, tab.title, tab.view), glyph: iconMarkup, toMain: (id) => moveToMain(id) });
   // A plugin taken out or added back in place: its tabs are drawn again, marked removed or working (removedPlugin).
   document.addEventListener("molis-work:plugins-changed", (event) => { if (event.detail?.next) directory = readDirectory(event.detail.next); apply(); });
@@ -575,6 +576,11 @@ ${TAB_WORKSPACE_DRAG_PART}
       if (homePane && frame.dataset.paneKey === "plugin:home" && !frame.hidden) openHomeNavigation(event.data.result, homePane);
       return;
     }
+    if (frame && event.data.type === "workbench-position-navigation") {
+      const pane = paneById(frame.dataset.paneOwner);
+      if (pane && !frame.hidden) openHomeNavigation(event.data.result, pane, false);
+      return;
+    }
     if (frame && event.data.type === "workbench-open-settings") {
       // A return trip's source is the pane this frame is (specs/draft-and-return §2.3, returnRelay in return-trips.ts), never the one it names.
       const paneId = frame.dataset.paneOwner || "";
@@ -655,7 +661,7 @@ ${TAB_WORKSPACE_DRAG_PART}
     apply(); persist();
     if (loadingGoalId === goalId) loadingGoalId = loading;
   });
-  return { apply, readView, writeView, openView, homeOrder, homeNavigationFrom, invalidateView, openPlugin, openPluginRecord, openItem, openBeside, openBehind: pluginGroups.openBehind, openGoalWork, closeItem, setExclusive, restore, landAtProjectRoot,
+  return { apply, readView, writeView, openView, homeOrder, homeNavigationFrom, positionNavigationFrom, invalidateView, openPlugin, openPluginRecord, openItem, openBeside, openBehind: pluginGroups.openBehind, openGoalWork, closeItem, setExclusive, restore, landAtProjectRoot,
     pluginTitle: ops.pluginTitle, leavePlugin, closeCover, openCover, registerCover, noteCover, coverPlace: restoredCoverPlace, goHistory,
     shownPlugin: () => state.exclusive ? null : ops.shownPlugin(ops.focused(state)),
     exclusive: () => state.exclusive, isExclusive: () => Boolean(state.exclusive), isEmbedded: () => embedded, state: () => state };

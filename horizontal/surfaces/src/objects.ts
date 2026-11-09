@@ -62,7 +62,7 @@ function objectRoutes(read: ComposeRead) {
     if (existing) return existing;
     const reader = findSubjectReader(views, kind);
     const view = reader.found === "one" || reader.found === "unavailable" ? reader.view : undefined;
-    const plugin = view ? plugins.find(plugin => ownsView(plugin, view) && (read.request.slot.kind !== "home" || plugin.scope === view.action.scope)) : undefined;
+    const plugin = view ? plugins.find(plugin => ownsView(plugin, view) && plugin.scope === view.action.scope) : undefined;
     const object = reader.found === "one" && plugin?.state === "running" && !plugin.home?.unavailable ? plugin.presentation?.objects.find(entry => entry.kind === kind) : undefined;
     const ownedValues = object && plugin ? values.filter(action => ownsView(plugin, action) && action.action.scope === view?.action.scope
       && action.action.subject_kinds.includes(kind)) : [];
@@ -216,15 +216,19 @@ export async function composeObjects(read: ComposeRead, sources: readonly Object
     return projection ? [projection] : [];
   }).sort(compareProjected);
   const readable = rendered.filter(row => row.value);
-  const preferred = new Set(readable.filter(row => row.attention).map(row => subjectKey(row.item.subject)));
   current();
   const relations = readable.length > 1 && deadline.active ? ports.relations(readable.map(row => ({ ...row.item.subject, project_id: row.projectId }))) : [];
-  const { representatives, used } = mergeRelated(readable.map(row => row.item), relations, preferred);
-  const visible = rendered.flatMap(row => {
-    if (!row.value) return [row];
-    const item = representatives.get(subjectKey(row.item.subject));
-    return item ? [{ ...row, item }] : [];
-  });
+  const merge = (rows: readonly Projected[]) => {
+    const proved = rows.filter(row => row.value);
+    const preferred = new Set(proved.filter(row => row.attention).map(row => subjectKey(row.item.subject)));
+    const { representatives, used } = mergeRelated(proved.map(row => row.item), relations, preferred);
+    return { used, visible: rows.flatMap(row => {
+      if (!row.value) return [row];
+      const item = representatives.get(subjectKey(row.item.subject));
+      return item ? [{ ...row, item }] : [];
+    }) };
+  };
+  const { visible, used } = merge(rendered);
   const excluded: SurfaceGroup["excluded"] = disabled.size ? ports.caller.audience === "user"
     ? [...disabled].map(([owner_plugin_id, count]) => ({ reason: "disabled", owner_plugin_id, count })) : [{ reason: "disabled" }] : undefined;
   const owners = new Set(rendered.map(row => row.item.owner_plugin_id));
@@ -236,5 +240,12 @@ export async function composeObjects(read: ComposeRead, sources: readonly Object
     ? readers.filter(candidate => renderedKeys.has(subjectKey(candidate.subject))) : readers);
   const facts = { declarations, authority: exposed.sort((a, b) => compareCodeUnits(viewKey(a), viewKey(b))).map(viewRevision),
     values: readable.map(row => [row.item.subject, row.value?.revision, row.attention?.entry]), relations: used };
-  return { visible, readable, excluded, unreadable, unreadableAttention, unreadableOwners, unproved, facts };
+  return { visible, readable, excluded, unreadable, unreadableAttention, unreadableOwners, unproved, facts,
+    forDiscussion(subjects: readonly ActionSubject[]) {
+      const bySubject = new Map(readable.map(row => [subjectKey(row.item.subject), row]));
+      return merge(subjects.flatMap(subject => {
+        const row = bySubject.get(subjectKey(subject));
+        return row ? [row] : [];
+      }).sort(compareProjected)).visible;
+    } };
 }

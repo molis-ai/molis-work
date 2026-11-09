@@ -1,23 +1,21 @@
 import { randomUUID } from "node:crypto";
 import { ActionError, actionResultSubject, bindActionClient, requireSynchronous, type ActionCallContext, type ActionClient, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
-import type { PresentationValues, PresentationValuesInput } from "@molis-ai/molis-work-contracts/platform/presentation";
-import { surfaceCompositionActions, SURFACE_HOME_ORDER_LIMIT, SURFACES_PROVIDER_ID, type SurfaceHomeEnable, type SurfacePluginCard } from "@molis-ai/molis-work-contracts/services/surface-composition";
+import { SURFACE_HOME_ORDER_LIMIT, type SurfaceHomeEnable, type SurfacePluginCard } from "@molis-ai/molis-work-contracts/services/surface-composition";
 import { actionErrorResponse, canonicalJsonText, isRecord } from "@molis-ai/molis-work-plugin-sdk";
 import { startSurfaceRead } from "@molis-ai/molis-work-service-surfaces";
 import { assertStageInstallation, sameInstalledRelease } from "./installed-stage-identity.js";
 import type { LocalHost } from "./local-host.js";
-import { openProjectPersonContext } from "./local-web-actions.js";
 import { pluginControlActions } from "./plugin-install-actions.js";
 import { pluginInstallRecords } from "./plugin-install-records.js";
 import { pluginPageRequest } from "./plugin-page-authority.js";
 import { pluginRouteControl } from "./plugin-route-control.js";
 import type { MolisWorkLocalHost, MolisWorkProjectRuntime } from "./project-host.js";
-import { surfaceHomeDirectory, type HomeDirectoryEntry, type SurfaceHomeCatalogReader } from "./surface-home-directory.js";
+import type { HomeDirectoryEntry, SurfaceHomeCatalogReader } from "./surface-home-directory.js";
 import { homeReference as reference, ownerReader, projectHomeDisplay, projectHomePeek, type HomeReadSample } from "./surface-home-display.js";
 import { assertHomeDisplayReader, homeObjectClick, openHomeObject, stageNavigation } from "./surface-home-open.js";
 import { homeFormDiscovery } from "./surface-home-form-authority.js";
-import { withHomeSample } from "./surface-home-sample.js";
+import { composeSurface, displayValues, projectSurfaceContext } from "./surface-project-read.js";
 import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
 import { projectRoutePrefix, type ProjectRequestContext } from "./web-project-context.js";
 
@@ -78,13 +76,7 @@ async function enablePackage(client: ActionClient, caller: ActionCallContext, ru
   deliver({ kind: "enabled" });
 }
 
-function displayValues(sample: HomeReadSample, client: ActionClient, caller: ActionCallContext, transport: ReturnType<typeof pluginRouteControl>) {
-  const read = bindActionClient(client, () => ({ ...caller, query_only: true, read_only_effects: true }));
-  return (view: ActionView, input: PresentationValuesInput, signal: AbortSignal) => read.invoke<PresentationValuesInput, PresentationValues>(
-    { ...view, ...reference(view) }, input, { ...transport, signal, assert_authority_current: sample.assertCurrent });
-}
-
-async function clickHomeCard(intent: Extract<Intent, { kind: "click" }>, sample: Awaited<ReturnType<typeof composeHome>>,
+async function clickHomeCard(intent: Extract<Intent, { kind: "click" }>, sample: HomeReadSample,
   runtime: MolisWorkProjectRuntime, caller: ActionCallContext, client: ActionClient, prefix: string, transport: ReturnType<typeof pluginRouteControl>,
   deliver: (value: unknown) => void) {
   const object = homeObjectClick(intent.target, intent.owner, sample);
@@ -151,29 +143,17 @@ async function clickHomeCard(intent: Extract<Intent, { kind: "click" }>, sample:
   deliver({ kind: "invoked", result, ...(stage ? { stage } : {}), retry_open });
 }
 
-function composeHome(runtime: MolisWorkProjectRuntime, client: ActionClient, discovery: ReturnType<typeof homeFormDiscovery>, catalog: ReturnType<typeof surfaceHomeDirectory>,
-  transport: ReturnType<typeof pluginRouteControl>, intent: Intent, deadline: HomeReadSample["deadline"]) {
-  const home_order = intent.kind === "read" ? intent.home_order : undefined;
-  return withHomeSample(runtime.store, catalog, discovery.formOnly, deadline, () => bindActionClient(client, () => discovery.caller).invoke({ ...surfaceCompositionActions.compose, provider_id: SURFACES_PROVIDER_ID },
-    { slot: { kind: "home" }, ...(home_order ? { home_order } : {}) }, transport));
-}
-
 /** Use the inner client only while the project is already open; even metadata must not prepare its plugins. */
 export function projectSurfaceHome(host: LocalHost<MolisWorkProjectRuntime>, owner: MolisWorkLocalHost, homeDirectory: string | undefined, readCatalog: SurfaceHomeCatalogReader) {
+  const project = projectSurfaceContext(host, owner, homeDirectory, readCatalog);
   return (reference: LocalHostProjectReference, intent: Intent, prefix: string, signal: AbortSignal, deliver: (value: unknown) => void) => {
-    const transport = pluginRouteControl(signal, () => {
-      if (owner.lifecycle() !== "running") throw new ActionError("actions.host_closed", "宿主已关闭");
-    });
-    return host.withExistingRuntime(reference, async runtime => {
-      requireSynchronous(transport.assert_authority_current?.());
-      if (!homeDirectory) throw new ActionError("actions.unavailable", "首页需要 Home 目录");
-      const catalog = surfaceHomeDirectory({ store: runtime.store, reference, homeDirectory, home: owner.homePlugins, readCatalog });
-      const { caller, metadata } = openProjectPersonContext(owner, reference, runtime.store, signal);
+    return project(reference, signal, undefined, async context => {
+      const { runtime, transport, caller, metadata, catalog, client } = context;
       const discovery = homeFormDiscovery(caller, metadata, catalog.entries);
-      const client = host.actionClient(reference);
       const deadline = intent.kind === "read" || intent.target.kind === "peek" ? startSurfaceRead(signal) : undefined;
       try {
-        const sample = await composeHome(runtime, client, discovery, catalog, transport, intent, deadline);
+        const home_order = intent.kind === "read" ? intent.home_order : undefined;
+        const sample = await composeSurface({ ...context, caller: discovery.caller }, { slot: { kind: "home" }, ...(home_order ? { home_order } : {}) }, deadline, discovery.formOnly);
         requireSynchronous(transport.assert_authority_current?.());
         const deliverCurrent = (result: unknown) => { requireSynchronous(transport.assert_authority_current?.()); deliver(result); };
         if (intent.kind === "read") {

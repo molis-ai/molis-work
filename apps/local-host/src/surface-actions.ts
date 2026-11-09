@@ -6,7 +6,7 @@ import type { PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-
 import type { PresentationOverview, PresentationValues, PresentationValuesInput } from "@molis-ai/molis-work-contracts/platform/presentation";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { UiSlotDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
-import { surfaceCompositionActions, SURFACES_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/surface-composition";
+import { surfaceCompositionActions, SURFACES_PROVIDER_ID, type SurfaceSlot } from "@molis-ai/molis-work-contracts/services/surface-composition";
 import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
 import { createSurfaceCorrections, SurfaceCompositionService, type SurfaceComposePorts, type SurfaceCorrectPorts, type SurfacePlugin } from "@molis-ai/molis-work-service-surfaces";
 import type { HomePluginHost } from "./home-plugins.js";
@@ -17,7 +17,7 @@ import { installedPluginEntries } from "./plugin-installation-directory.js";
 import type { LocalProjectDatabase } from "./project-database.js";
 import { runningProjectPlatform } from "./project-plugins.js";
 import { surfaceHomeDirectory, type SurfaceHomeCatalogReader } from "./surface-home-directory.js";
-import { homeSampleFor, retainHomeDirectory } from "./surface-home-sample.js";
+import { surfaceSampleFor, retainSurfaceDirectory } from "./surface-read-sample.js";
 
 interface SurfaceHostPorts {
   store: LocalProjectDatabase;
@@ -59,10 +59,11 @@ export function surfaceActionProvider(ports: SurfaceHostPorts): ActionProviderRe
   const { reference: { project_id: projectId }, store, client } = ports;
   const service = new SurfaceCompositionService();
   const attention = new AttentionModule(store.db, { exists: () => true });
-  const forCall = (caller: ActionExecutionContext, slot?: "attention" | "home"): SurfaceComposePorts & SurfaceCorrectPorts => {
+  const forCall = (caller: ActionExecutionContext, slot?: SurfaceSlot["kind"]): SurfaceComposePorts & SurfaceCorrectPorts => {
     const needsAttention = slot === "attention" && caller.audience === "plugin";
-    const sample = slot === "home" && caller.audience === "user" ? homeSampleFor(store) : undefined;
+    const sample = slot && caller.audience === "user" ? surfaceSampleFor(store, slot) : undefined;
     const current = () => {
+      sample?.request?.assertCurrent();
       if (caller.project_id !== projectId) throw new ActionError("actions.scope_mismatch", "调用上下文与项目不一致");
       if (!store.db.open) throw new ActionError("actions.host_closed", "项目运行环境已关闭");
       caller.signal?.throwIfAborted();
@@ -76,10 +77,12 @@ export function surfaceActionProvider(ports: SurfaceHostPorts): ActionProviderRe
       reader.invoke<Input, Output>({ ...view, ...exact(view) }, input, { ...caller, signal, assert_authority_current: assertCurrent });
     const home = ports.homeDirectory && slot === "home" ? homePorts(ports, ports.homeDirectory, sample, read) : undefined;
     return {
-      caller, current, beforeEffect: caller.beforeEffect, signal: caller.signal,
-      catalog: home?.catalog ?? (() => surfacePlugins(ports, current)),
+      caller, current, beforeEffect: caller.beforeEffect, signal: sample?.request?.signal ?? caller.signal,
+      catalog: home?.catalog ?? (() => sample?.catalog.plugins ?? surfacePlugins(ports, current)),
+      ...(sample && !home ? { deadline: sample.deadline, retainCatalog: (plugins: readonly SurfacePlugin[]) => retainCatalog(sample.catalog, plugins, sample) } : {}),
+      ...(sample?.discussion ? { discussion: sample.discussion } : {}),
       ...(home ? { home: home.ports } : {}),
-      discover: async () => retainHomeDirectory(await client.discoverRetained(caller), sample),
+      discover: async () => retainSurfaceDirectory(await client.discoverRetained(caller), sample),
       values: read<PresentationValuesInput, PresentationValues>,
       corrections: createSurfaceCorrections(store.db, caller), now: () => ports.now().toISOString(),
       attention: () => attention.listSurfaceEntries(projectId),
@@ -95,13 +98,20 @@ export function surfaceActionProvider(ports: SurfaceHostPorts): ActionProviderRe
     provider: { provider_id: SURFACES_PROVIDER_ID, kind: "system", title: "操作面组合", project_id: projectId },
     definitions: Object.values(surfaceCompositionActions),
     handlers: [
-      bindActionHandler(surfaceCompositionActions.compose, (input, caller) => service.compose(input, forCall(caller, input.slot.kind === "attention" || input.slot.kind === "home" ? input.slot.kind : undefined))),
+      bindActionHandler(surfaceCompositionActions.compose, (input, caller) => service.compose(input, forCall(caller, input.slot.kind))),
       bindActionHandler(surfaceCompositionActions.correct, (input, caller) => service.correct(input, forCall(caller))),
     ],
   };
 }
 
-function homePorts(host: SurfaceHostPorts, homeDirectory: string, sample: ReturnType<typeof homeSampleFor>,
+function retainCatalog(original: ReturnType<typeof surfaceHomeDirectory> | undefined, plugins: readonly SurfacePlugin[], sample: ReturnType<typeof surfaceSampleFor>) {
+  if (!original || original.plugins.length !== plugins.length || !plugins.every((plugin, index) => original.plugins[index] === plugin))
+    throw new ActionError("actions.provider_changed", "没有本次呈现的插件目录");
+  if (sample) sample.catalogRetained = true;
+  return original.assertCurrent;
+}
+
+function homePorts(host: SurfaceHostPorts, homeDirectory: string, sample: ReturnType<typeof surfaceSampleFor>,
   read: (view: ActionView, input: Record<string, never>, signal: AbortSignal, assertCurrent: () => void) => Promise<PresentationOverview>) {
   let catalog: ReturnType<typeof surfaceHomeDirectory> | undefined;
   const ports: NonNullable<SurfaceComposePorts["home"]> = {
@@ -110,13 +120,7 @@ function homePorts(host: SurfaceHostPorts, homeDirectory: string, sample: Return
     hiddenAboveLabel: count => ({ owner: "workbench", key: "workbench.home.hidden-above", args: [{ name: "count", kind: "number", number: count }] }),
     ...(sample ? { formOnly: sample.formOnly } : {}),
     ...(sample?.deadline ? { deadline: sample.deadline } : {}),
-    retainCatalog: plugins => {
-      const original = catalog;
-      if (!original || original.plugins.length !== plugins.length || !plugins.every((plugin, index) => original.plugins[index] === plugin))
-        throw new ActionError("actions.provider_changed", "没有本轮首页插件目录");
-      if (sample) sample.catalogRetained = true;
-      return original.assertCurrent;
-    },
+    retainCatalog: plugins => retainCatalog(catalog, plugins, sample),
   };
   return { ports, catalog() {
     catalog = sample?.catalog ?? surfaceHomeDirectory({ ...host, homeDirectory, home: host.home() });

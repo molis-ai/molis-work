@@ -11,6 +11,7 @@ import { homeActionProvider } from "./home-actions.js";
 import { surfaceActionProvider } from "./surface-actions.js";
 import type { SurfaceHomeCatalogReader } from "./surface-home-directory.js";
 import { projectSurfaceHome } from "./surface-home-http.js";
+import { projectSurfaceContext, projectSurfacePosition, projectSurfaceSearch } from "./surface-project-read.js";
 import type { SurfaceInstallRegistry } from "./surface-installation.js";
 import { openProjectSchedulers, closeProjectSchedulers } from "./project-schedulers.js";
 import { precompileActionSchemas, refuseCall, type CallSettled } from "@molis-ai/molis-work-kernel";
@@ -139,6 +140,9 @@ export class MolisWorkLocalHost {
   private readonly host: LocalHost<MolisWorkProjectRuntime>;
   readonly synchronization: ReturnType<typeof projectSyncAccess>;
   readonly surfaceHome: ReturnType<typeof projectSurfaceHome>;
+  readonly surfacePosition: ReturnType<typeof projectSurfacePosition>;
+  readonly surfaceSearch: ReturnType<typeof projectSurfaceSearch>;
+  readonly surfaceOperation: ReturnType<typeof projectSurfaceContext>;
   private personalPlanningHome?: string;
   /** Tools of remote MCP connections in 服务连接, as Home actions; absent without a Home. */
   readonly connectorMcp?: ConnectorMcpDirectory;
@@ -221,6 +225,10 @@ export class MolisWorkLocalHost {
     });
     this.synchronization = projectSyncAccess(this.host);
     this.surfaceHome = projectSurfaceHome(this.host, this, options.homeDirectory, readCatalog);
+    const position = projectSurfaceContext(this.host, this, options.homeDirectory, readCatalog);
+    this.surfaceOperation = position;
+    this.surfacePosition = projectSurfacePosition(position);
+    this.surfaceSearch = projectSurfaceSearch(position);
     if (options.homeDirectory) this.homePlugins = new HomePluginHost({ home: options.homeDirectory, actorId: LOCAL_PERSON_ACTOR_ID,
       registry: this.host.actionRegistry(), client: homePluginActions(this.host), ownerClosing: () => !!this.closing.started, inspect: caller => this.host.inspectActions(caller), entries: homePluginEntries(), fixtures: options.pluginFixtures?.home, installed: options.pluginFixtures?.installed, projectReach: homeProjectReach(options.homeDirectory, () => this.host.projects()),
       projectActions: (projectId, pluginId) => homePackageProjectActions(projectId, pluginId, options.homeDirectory, this.catalogRunner,

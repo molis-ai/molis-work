@@ -459,6 +459,30 @@ ${ASSISTANT_STRIP_PART}
   };
 
 ${ASSISTANT_TABS_PART}
+  const objectSurface = el("div", "assistant-conversation-objects"); objectSurface.dataset.assistantObjectSurface = "";
+  let surfaceWork = null, conversationObjects = null, conversationRevision = "", presentedMaterialKinds = null;
+  const conversationSurface = (work, rounds, put) => {
+    const id = host.positions && work?.scope.kind === "project" && work.scope.project_id === project?.id ? work.work_id : null;
+    if (id !== surfaceWork) {
+      conversationObjects?.destroy(); conversationObjects = null; surfaceWork = id; conversationRevision = ""; presentedMaterialKinds = null;
+      if (id) {
+        const path = "/api/assistant/works/" + encodeURIComponent(id) + "/surfaces";
+        conversationObjects = host.positions.mount(objectSurface, async (body, signal) => {
+          const result = await host.positionRead(path, body, signal);
+          if (surfaceWork === id && !signal.aborted && result.declared_kinds && JSON.stringify(result.declared_kinds) !== JSON.stringify(presentedMaterialKinds)) {
+            presentedMaterialKinds = result.declared_kinds; queueMicrotask(render);
+          }
+          return result;
+        }, { source: () => ({}) });
+      }
+    }
+    if (!conversationObjects) { objectSurface.remove(); return; }
+    const signature = JSON.stringify([(view.objects || []).map(object => [object.subject, object.relation, object.current_revision]),
+      rounds.map(round => [round.run_id, (round.materials || []).filter(material => material.object).map(material => material.material_id)])]);
+    put(objectSurface);
+    if (signature !== conversationRevision) { conversationRevision = signature; void conversationObjects.update(); }
+    else void conversationObjects.update(false);
+  };
   const render = () => {
     const stick = nearBottom(), before = thread.scrollHeight;
     const work = view && view.work.work_id === curId ? view.work : null;
@@ -483,6 +507,7 @@ ${ASSISTANT_TABS_PART}
     };
     rounds.forEach((round) => { putPageCards(round.started_at); put(renderRound(work, round)); });
     putPageCards(null);
+    conversationSurface(work, rounds, put);
     receipts.after(thread, put, work && view);
     const reviews = work ? view.reviews : [];
     [...thread.children].forEach((card) => { if (card.dataset.review && !reviews.some((r) => r.review_id === card.dataset.review)) card.remove(); });
@@ -734,7 +759,12 @@ ${ASSISTANT_PAGE_MESSAGES_PART}
     if (Number.isFinite(at) && Date.now() - at > RESTING_MS) void switchTo(null);
   };
   // Opening the panel shows the conversation first; a narrow panel's drawer waits to be asked for.
-  if (panel && "MutationObserver" in window) new MutationObserver(() => { if (!panel.hidden && !spacious()) drawerOpen = false; paintLayout(); if (panel.hidden) { setWorks(false); restIfStale(); } else { drawTabs(); paintJump(); } }).observe(panel, { attributes: true, attributeFilter: ["hidden"] });
+  if (panel && "MutationObserver" in window) new MutationObserver(() => {
+    if (!panel.hidden && !spacious()) drawerOpen = false;
+    paintLayout();
+    if (panel.hidden) { conversationObjects?.clear(); setWorks(false); restIfStale(); }
+    else { void conversationObjects?.update(false); drawTabs(); paintJump(); }
+  }).observe(panel, { attributes: true, attributeFilter: ["hidden"] });
   // The list of works is a dropdown under the tabs: a click anywhere else in the panel puts it away.
   panel?.addEventListener("pointerdown", (event) => {
     if (workNav && !workNav.hidden && event.target?.nodeType === 1 && !workNav.contains(event.target) && !worksToggle?.contains(event.target)) setWorks(false);

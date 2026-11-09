@@ -50,6 +50,7 @@ export const PLUGIN_TRUST_EN: Record<string, string> = {
   "你还没有信任这个发布者。给它起个名字，才会固定它；固定后它之后签的包都会按这份信任安装。": "You have not trusted this publisher yet. Give it a name to pin it; packages it signs later are then installed under that trust.",
   "同意这些权限并安装": "Agree and install",
   "这个文件不是插件包": "This file is not a plugin package",
+  "沙箱插件不能打开终端，因为终端会在沙箱外以你的系统权限运行。": "Sandboxed plugins can't open a terminal because it would run outside the sandbox with your system permissions.",
   "宿主随带": "Shipped with Molis Work",
   "你固定的发布者": "A publisher you pinned",
   "没有签名": "Not signed",

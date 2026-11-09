@@ -42,6 +42,14 @@ export interface SandboxPackage {
 }
 
 const refuse = (detail: string): never => { throw pluginErrors.declaration_invalid('沙箱包：' + detail); };
+
+function refuseManifestShape(permissions: PluginManifest['permissions'], detail: string): never {
+  if (permissions.some(item => item.permission === 'terminal:run')) {
+    throw pluginErrors.declaration_invalid('沙箱插件不能打开终端，因为终端会在沙箱外以你的系统权限运行。');
+  }
+  return refuse(detail);
+}
+
 /**
  * Before the file and shape checks, whose own refusals would tell an author nothing about why (FSS-53). The way in comes with batch 16
  * (specs/font-and-skin-system/a-section-contract.md §6.3), which reads a package's languages through `inspectPluginLocales`: strict, as this is not a content pack.
@@ -128,7 +136,9 @@ export function readSandboxPackage(payload: PluginPackagePayload): SandboxPackag
   const { agent: wireAgent, methods: wireMethods, ...fixed } = manifest;
   const { agent: projectedAgent, methods: projectedMethods, ...expectedFixed } = expected;
   void wireAgent; void wireMethods; void projectedAgent; void projectedMethods;
-  if (!isDeepStrictEqual(JSON.parse(JSON.stringify(fixed)), JSON.parse(JSON.stringify(expectedFixed)))) refuse('清单不是沙箱插件的形状：入口、权限、路由、界面声明要与包的其他文件一致，不能自带别的');
+  if (!isDeepStrictEqual(JSON.parse(JSON.stringify(fixed)), JSON.parse(JSON.stringify(expectedFixed)))) {
+    refuseManifestShape(fixed.permissions, '清单不是沙箱插件的形状：入口、权限、路由、界面声明要与包的其他文件一致，不能自带别的');
+  }
   validated('清单', () => parsePluginManifest(expected));
   if (expected.databases?.home) validated('Home 库', () => assertPluginHomeSchema(expected.databases!.home!.schema));
   return { manifest: expected, agentBodies, contract, parts, nodes, ...(presentation ? { presentation } : {}), acceptance, prompts, entrypoint, permissions };
@@ -205,7 +215,9 @@ export function readSandboxIntegrationPackage(payload: PluginPackagePayload): Sa
   }
   const expected = sandboxIntegrationManifest({ pluginId: manifest.plugin_id, version: manifest.version, name: manifest.name, publisher: manifest.publisher,
     upgradesFrom: manifest.upgrade_compatibility?.compatible_from_versions, connection_services: services, integrations, source_presentations: manifest.source_presentations });
-  if (!isDeepStrictEqual(JSON.parse(JSON.stringify(manifest)), JSON.parse(JSON.stringify(expected)))) refuse('清单不是沙箱集成的形状：入口、权限要是平台的，运行范围是 Home，不能有路由或界面');
+  if (!isDeepStrictEqual(JSON.parse(JSON.stringify(manifest)), JSON.parse(JSON.stringify(expected)))) {
+    refuseManifestShape(manifest.permissions, '清单不是沙箱集成的形状：入口、权限要是平台的，运行范围是 Home，不能有路由或界面');
+  }
 
   const contract = validated('contract.json', () => { const raw = jsonFile(files, SANDBOX_PACKAGE_FILES.contract); assertContract(raw); return raw; });
   if (contract.pluginId !== manifest.plugin_id) refuse('contract.json 的 pluginId 与清单的 plugin_id 不一致');

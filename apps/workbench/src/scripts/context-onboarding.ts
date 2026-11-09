@@ -1,3 +1,5 @@
+import { CONTEXT_ONBOARDING_BLANK_NAME_PART } from "./context-onboarding-blank-name.js";
+
 /**
  * The way in for a new person and for a new project, in the browser (specs/archive/project-arrival-flow): the opening, two
  * Welcome questions, and the journey that turns existing materials into a project — sources, scope, reading, naming.
@@ -362,15 +364,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
       right:briefPreview(journey.adoption.title, journey.adoption.body || '', {title:'接下来', body:'<p class="mw-brief__quiet">' + L(saving?'正在保存…':'等待继续保存') + '</p>'}, L('刚刚')),
       bar:{start:exitButton() + stepsBar('开始'), center:barStatus({spin:saving, glyph:'folder', title:L(saving?'正在保存项目与资料':'项目内容已经确认'), caption:L('请稍候')}), end:primary(saving?'正在保存…':'继续保存项目','adopt',{disabled:busy||saving})}};
   }
-  function blankForm() {
-    const preview = briefPreview(blankName.trim() || L('新项目'), '', {title:'接下来', body:'<p class="mw-brief__quiet">' + L('各插件有要推进或等你确认的事时，会出现在这里。') + '</p>'}, L('刚刚') + ' · ' + L(materialsOnly ? '带入已读取的资料' : '空白项目'));
-    const left = question(L('给新项目一个名字'), L(materialsOnly?'已导入的资料会带入项目，摘要可以稍后整理。':'先建一个空间，资料和下一步可以慢慢补充。'))
-      + '<form id="cx-blank-form" class="ob-name"><label class="ob-label" for="cx-blank-name">' + L('项目名称') + '</label><input class="mw-input ob-name__input" id="cx-blank-name" required autocomplete="off" data-plain-field placeholder="' + esc(L('例如：秋季内容计划')) + '" value="' + esc(blankName) + '"><p class="cx-error ob-error" role="alert">' + esc(failureText(error)) + '</p></form>'
-      + (materialsOnly ? '' : '<p class="ob-quiet">' + L('还没想好是什么项目？') + ' ' + btn({variant:'link', size:'sm', label:L('先在个人空间开始'), attrs:{'data-action':'personal', disabled:busy}}) + '</p>');
-    return {kind:'onboard', view:'blank', step:'来源', left, right:preview,
-      bar:{start:exitButton() + steps(stepLabels().length, -1), center:barStatus({glyph:'plus', title:L(materialsOnly ? '带入已读取的资料' : '空白项目'), caption:blankName.trim() ? L('将创建「{name}」', {name:blankName.trim()}) : L('写下名字就可以开始')}),
-        end:secondary(materialsOnly ? '返回' : '带入材料','back') + btn({variant:'primary', size:'lg', type:'submit', label:L(busy ? '正在创建…' : '创建项目'), key:'↵', cls:'ob-continue', disabled:busy, attrs:{form:'cx-blank-form', 'aria-keyshortcuts':'Enter'}})}};
-  }
+${CONTEXT_ONBOARDING_BLANK_NAME_PART}
 
   /* ───────── Which screen ───────── */
   let loadError = '';
@@ -655,7 +649,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
     // 项目名称封顶 120 个字（码点）：maxlength 按 UTF-16 单元数，含两单元字的名称只能写到 60 个字。
     if(e.target.id==='cx-project-title'||e.target.id==='cx-blank-name'){const chars=[...e.target.value];if(chars.length>120)e.target.value=chars.slice(0,120).join('');}
     if(e.target.id==='cx-project-title'||e.target.id==='cx-summary-editor'){preserveEdits();const preview=app.querySelector('.ob-project-name');if(preview&&e.target.id==='cx-project-title')preview.textContent=e.target.value.trim()||L('新项目');return;}
-    if(e.target.id==='cx-blank-name'){blankName=e.target.value;const typed=blankName.trim();const preview=app.querySelector('.ob-project-name');if(preview)preview.textContent=typed||L('新项目');const status=bar.querySelector('.mw-bar-status__text small');if(status)status.textContent=typed?L('将创建「{name}」',{name:typed}):L('写下名字就可以开始');return;}
+    if(e.target.id==='cx-blank-name'){updateBlankName(e.target);return;}
     if(e.target.dataset.field&&e.target.tagName!=='SELECT'){
       const s=source(e.target.dataset.kind);if(s[e.target.dataset.field]!==e.target.value)invalidateSource(s);
       s[e.target.dataset.field]=e.target.value;if(s.kind==='browser'&&e.target.dataset.field==='text')s.selected=Boolean(s.text?.trim());refreshSelection();clearTimeout(inputTimer);inputTimer=setTimeout(()=>save().catch(e=>{error=keepFailure(e);render();}),400);
@@ -663,7 +657,8 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   });
   root.addEventListener('change',async e=>{
     const el=e.target;
-    if(!(el instanceof HTMLElement)||!app.contains(el))return;
+    // The name is kept by input. Redrawing here after an error would replace the form before it can submit again.
+    if(!(el instanceof HTMLElement)||!app.contains(el)||el.id==='cx-blank-name')return;
     // Only what changes the selection is saved; leaving the name field, say, must not touch it (a journey already read refuses).
     let changed=false;
     try {
@@ -681,7 +676,8 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
       if(changed)await save();
     }catch(e){error=keepFailure(e);}finally{busy=false;counting=null;if(changed||error)render(el.id);}
   });
-  root.addEventListener('submit',async e=>{if(e.target.id!=='cx-blank-form')return;e.preventDefault();busy=true;try{await adopt(true);}catch(e){error=keepFailure(e);}finally{busy=false;render();}});
+  root.addEventListener('invalid',showMissingBlankName,true);
+  root.addEventListener('submit',submitBlankName);
   root.addEventListener('click',async e=>{
     const link=e.target.closest('a[href^="/locale"]');
     if(link){return;}

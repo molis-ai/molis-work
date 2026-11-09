@@ -7,7 +7,7 @@ import { issueModel } from "./fixtures/issue-model.js";
 // specs/unified-input-voice K3 (UIV-12, UIV-17, UIC-06, UIC-09, RC-03): the bottom bar's Assistant is the platform's unified
 // composer. Its receiver row says who the next Send goes to (「发给：…」); Enter is a new line and ⌘↵ (Ctrl+↵) sends, with a
 // one-time tip the first time Enter could have been meant as Send; a work's draft is the Assistant's own (the Host keeps it, the
-// browser keeps no copy); while a turn runs the Send is 补充, interrupting takes two steps (▾, then 打断并改向) and the next Send
+// browser keeps no copy); while a turn runs the Send is 补充, interrupting selects 打断并改向 before a separate Send and the next Send
 // is 补充 again; ⌘⇧↵ is 下一轮再做, and with nothing running it retains the draft and explains why it cannot queue. Each Send's body is read as the page made it.
 test("UIV-12 UIV-17 UIC-06 UIC-09 RC-03: the Assistant's composer names its receiver, sends on ⌘↵, keeps the work's draft on the Host and offers the three deliveries while a turn runs", { timeout: 150_000 }, async (t) => {
   let release!: () => void;
@@ -72,7 +72,7 @@ test("UIV-12 UIV-17 UIC-06 UIC-09 RC-03: the Assistant's composer names its rece
     return { send: c.querySelector('[data-composer-send]').textContent.trim(), stop: Boolean(c.querySelector('[data-composer-stop]')) }; })()`);
   assert.deepEqual(running, { send: "补充", stop: true }, "RC-03: the running Send is 补充, and Stop is there");
 
-  // UIC-09: interrupting is two steps. ▾ only opens the menu (nothing is sent); choosing 打断并改向 sends.
+  // UIC-09 B10-R6: selecting interrupt only changes the pending delivery; the user confirms with Send.
   await evaluate("document.querySelector('[data-assistant-composer] [data-compose-menu-toggle]').click()");
   await waitFor("Boolean(document.querySelector('[data-assistant-composer] [data-composer-delivery=interrupt]'))");
   const menu = await evaluate<Array<{ mode: string; label: string; disabled: boolean }>>(`[...document.querySelectorAll('[data-assistant-composer] [data-composer-delivery]')]
@@ -80,6 +80,9 @@ test("UIV-12 UIV-17 UIC-06 UIC-09 RC-03: the Assistant's composer names its rece
   assert.deepEqual(menu, [{ mode: "next-boundary", label: "补充", disabled: false }, { mode: "interrupt", label: "打断并改向", disabled: false }, { mode: "after-run", label: "下一轮再做", disabled: false }]);
   assert.equal((await sent()).length, 1, "opening ▾ sends nothing");
   await evaluate("document.querySelector('[data-assistant-composer] [data-composer-delivery=interrupt]').click()");
+  assert.equal((await sent()).length, 1, "choosing interrupt leaves the draft unsent");
+  assert.equal(await evaluate("document.querySelector('[data-assistant-composer] [data-composer-send]').textContent.trim()"), "打断并改向");
+  await browser.click("[data-assistant-composer] [data-composer-send]");
   await waitFor("window.__sent.length === 2", 10_000);
   assert.deepEqual([(await sent())[1].text, (await sent())[1].delivery], ["先把标题改短", "interrupt"]);
   await waitFor(settled, 15_000);

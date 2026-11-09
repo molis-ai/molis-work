@@ -132,7 +132,7 @@ export type MwComposerOptions = {
   attrs?: Record<string, AttrValue>;
 } & (
   | { kind: "plain"; labels: MwComposerLabels; state?: "sending" | "failed" | "unknown" }
-  | { kind: "ai"; labels: MwComposerAiLabels; receiver?: { label: string; resetLabel?: string }; state?: "sending" | "running" | "failed" | "unknown" }
+  | { kind: "ai"; labels: MwComposerAiLabels; delivery?: AgentSteerMode; receiver?: { label: string; open?: boolean; resetLabel?: string }; state?: "sending" | "running" | "failed" | "unknown" }
 );
 
 type ShellState = "sending" | "running" | "failed" | "unknown" | "disabled";
@@ -145,11 +145,13 @@ const STATE_LOOK: Record<ShellState, { tone: MwStatusTone; ring: StateRingState 
   disabled: { tone: "hold", ring: "unavailable" },
 };
 
-function receiverRow(labels: MwComposerAiLabels, receiver: { label: string; resetLabel?: string }): string {
+function receiverRow(labels: MwComposerAiLabels, receiver: { label: string; open?: boolean; resetLabel?: string }): string {
   const reset = receiver.resetLabel
     ? `<button type="button" data-tag-remove aria-label="${escapeHtml(receiver.resetLabel)}" title="${escapeHtml(receiver.resetLabel)}">${icon("x")}</button>`
     : "";
-  return `<div class="mw-composer__to"><span>${escapeHtml(labels.to)}</span><span class="mw-tag"><span>${escapeHtml(receiver.label)}</span>${reset}</span></div>`;
+  const name = escapeHtml(receiver.label);
+  const target = receiver.open ? `<button type="button" data-composer-receiver>${name}</button>` : `<span>${name}</span>`;
+  return `<div class="mw-composer__to"><span>${escapeHtml(labels.to)}</span><span class="mw-tag">${target}${reset}</span></div>`;
 }
 
 function statusRow(status: MwComposerStatus | undefined, state: ShellState | undefined): string {
@@ -184,18 +186,18 @@ function startGroup(options: MwComposerOptions, disabled: boolean): string {
 
 /** Send, or while a turn runs the split button: 补充 and the ▾ whose menu the client fills when it opens. */
 function sendControl(options: MwComposerOptions, state: ShellState | undefined, empty: boolean): string {
-  if (options.kind === "ai" && state === "running") {
+  const busy = state === "sending" || state === "unknown" || state === "disabled";
+  if (options.kind === "ai" && !busy && (state === "running" || options.delivery && options.delivery !== "next-boundary")) {
     const { labels } = options;
     const toggle = renderButton({
       label: labels.delivery, variant: "primary", size: "icon", icon: "chevron-down", iconOnly: true,
       attrs: { title: labels.delivery, "data-compose-menu-toggle": "", "aria-expanded": "false", "aria-haspopup": "menu" },
     });
-    const supplement = labels.modes["next-boundary"];
+    const supplement = labels.modes[options.delivery ?? "next-boundary"];
     return `<div class="mw-btn-group" role="group" aria-label="${escapeHtml(labels.deliveryGroup)}">${
       renderButton({ label: supplement.name, variant: "primary", size: "sm", disabled: empty, attrs: { title: supplement.title, "data-composer-send": "" } })
     }<div class="mw-compose__anchor">${toggle}<div class="mw-compose__menu" data-compose-menu hidden></div></div></div>`;
   }
-  const busy = state === "sending" || state === "unknown" || state === "disabled";
   return renderButton({ label: options.labels.send, variant: "primary", size: "icon", icon: "send", iconOnly: true, loading: state === "sending", disabled: empty || busy, attrs: { title: options.labels.sendTitle, "data-composer-send": "" } });
 }
 

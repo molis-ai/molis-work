@@ -236,7 +236,7 @@ test("S-composer-source-call B10-R4: duplicate owners never receive near, even w
   const project = await f.project("近处对象不能泄漏");
   const post = async (path: string, body: unknown) => {
     const response = await f.request(`/projects/${project.project_id}${path}`, { method: "POST", body });
-    assert.equal(response.status, 200, await response.clone().text());
+    assert.equal(response.status, path.endsWith("/pick") ? 503 : 200, await response.clone().text());
     return response.json() as Promise<{ sources: Array<{ capability_id: string; version: number; provider_id: string }> }>;
   };
   const { sources } = await post("/api/composer/sources", { layer: "ai" });
@@ -277,4 +277,19 @@ test("S-composer-source-call B10-R4: a missing page owner does not turn a visibl
     near: { kind: NOTE_KIND, id: "private-id", plugin_id: "io.molis.work.example.composernotes" } } });
   assert.equal(result.status, 200, await result.text());
   assert.deepEqual(pretender.seen.at(-1), { query: "", limit: 5 });
+});
+
+
+test("S-composer-source-call B10-R4: a source cannot return another kind among its own valid picks", async t => {
+  const { source, post } = await composerHome(t);
+  const entry = ((await post("/api/composer/sources", { layer: "ai" })).body.sources as Array<{ capability_id: string }>).find(one => one.capability_id === "composernotes.pick")!;
+  const own = { ref: { subject: { kind: NOTE_KIND, id: "n1" }, pin: { mode: "current" as const, read_revision: "r1" } }, title: "来源自己的笔记" };
+  source.picking({ items: [own, { ...own, ref: { ...own.ref, subject: { kind: "goal", id: "foreign-goal" } } }] });
+  const refused = await post("/api/composer/pick", { ...entry, query: "", limit: 5 });
+  assert.equal(refused.status, 503);
+  assert.equal(refused.body.code, "composer.source_unavailable");
+  assert.equal(refused.body.items, undefined, "no partial list escapes a source's declaration");
+  source.picking({ items: [own] });
+  const valid = await post("/api/composer/pick", { ...entry, query: "", limit: 5 });
+  assert.equal(valid.status, 200); assert.deepEqual(valid.body.items, [own]);
 });

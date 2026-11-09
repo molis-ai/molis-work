@@ -2,7 +2,7 @@ import type { ComposerDraftAdapter } from "@molis-ai/molis-work-plugin-sdk/page-
 import { composerDraftKey } from "../composer-rules.js";
 import type { Composer, Item } from "./composer-state.js";
 
-type Kept = Pick<Composer, "items" | "phase" | "failure" | "check" | "requestId"> & { revision: number; submitted?: { text: string; items: readonly Item[]; revision: number }; current?: Composer };
+type Kept = Pick<Composer, "delivery" | "items" | "phase" | "failure" | "check" | "requestId"> & { revision: number; submitted?: { text: string; items: readonly Item[]; revision: number }; current?: Composer };
 const roots = new WeakMap<HTMLElement, Map<string | ComposerDraftAdapter, Kept>>();
 /** Same-document selections belong to their draft. No File or owner reference is copied into persistent storage. */
 export function retainComposer(c: Composer) {
@@ -12,12 +12,11 @@ export function retainComposer(c: Composer) {
     install: c.root.closest<HTMLElement>("[data-plugin-owner]")?.dataset.pluginOwner || document.body.dataset.pluginId || "workbench",
     entry: c.options.entry, conversation: c.options.draft.conversation });
   let kept = draftsHere.get(key);
-  if (!kept) draftsHere.set(key, kept = { items: [], phase: "", failure: "", check: null, requestId: "", revision: 0 });
+  if (!kept) draftsHere.set(key, kept = { delivery: "next-boundary", items: [], phase: "", failure: "", check: null, requestId: "", revision: 0 });
   const state = kept;
   state.current = c;
-  for (const name of ["items", "phase", "failure", "check", "requestId"] as const) {
-    Object.defineProperty(c, name, { get: () => state[name], set: value => { state[name] = value; } });
-  }
+  const retain = <Key extends keyof Kept>(name: Key) => Object.defineProperty(c, name, { get: () => state[name], set: (value: Kept[Key]) => { state[name] = value; } });
+  for (const name of ["delivery", "items", "phase", "failure", "check", "requestId"] as const) retain(name);
   return {
     current: () => state.current,
     submitted: () => state.submitted ?? { text: "", items: [], revision: 0 },

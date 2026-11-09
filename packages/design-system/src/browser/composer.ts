@@ -92,7 +92,7 @@ function wire(c: Composer, { drafts, menus, sender }: Parts, files: HTMLInputEle
     const data = target.dataset;
     if (data.composerAdd !== undefined) { c.typed = ""; return menus.openAdd(true, true); }
     if (data.composeMenuToggle !== undefined) return menus.toggleDelivery(target);
-    if (data.composerDelivery) { c.close(); field.focus(); return void sender.send(data.composerDelivery as AgentSteerMode); }
+    if (data.composerDelivery) { c.delivery = data.composerDelivery as AgentSteerMode; c.close(); field.focus(); return c.paint(); }
     if (data.composerSend !== undefined || data.composerStatusAction === "retry") return void sender.send();
     if (data.composerStatusAction === "check") return void sender.confirm();
     if (data.composerStatusAction === "hint") { c.note = undefined; enterHint.done(); return c.paint(); }
@@ -127,6 +127,7 @@ function wire(c: Composer, { drafts, menus, sender }: Parts, files: HTMLInputEle
       if (control?.kind === "toggle") { const on = target.getAttribute("aria-pressed") !== "true"; target.setAttribute("aria-pressed", String(on)); control.change?.(on); }
       if (control?.kind === "button") control.run();
     }
+    if (data.composerReceiver !== undefined) c.ai?.receiver?.()?.open?.();
     if (data.tagRemove !== undefined) c.ai?.receiver?.()?.reset?.();
   }, { signal });
   shell.addEventListener("change", (event) => {

@@ -637,10 +637,12 @@ export interface AssistantSendInput extends Pick<AgentInputSend, "about"> {
     target?: "answer" | "steer";
     delivery?: AgentSteerMode;
     reask?: AgentQuestionReask;
+    submission_id?: string;
     request_id: string;
 }
 
 export interface AssistantSendResult {
+    submission_id?: string;
     work: AssistantWork;
     outcome: "started" | "steered" | "queued" | "answered" | "repeated";
     run_id?: string;

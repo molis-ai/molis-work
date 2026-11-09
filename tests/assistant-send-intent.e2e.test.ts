@@ -312,3 +312,119 @@ test("B10-R3: after reload a new work changed to personal cannot replay the proj
     assert.deepEqual((await readWork(browser, current)).work.scope, { kind: "personal" });
   } finally { await barrier.close(); }
 });
+
+
+for (const stage of ["Request", "Response"]) test(`B10-R3: after reload a lost ${stage} is checked before sending newly attached material`, { timeout: 90_000 }, async t => {
+  const browser = await sendBrowser(t); if (!browser) return;
+  await putInput(browser, "刷新后仍在框里的文字");
+  let barrier = await sendBarrier(browser, [{ urlPattern: "*/api/assistant/send", requestStage: stage }]);
+  try {
+    await browser.click("[data-assistant-composer] [data-composer-send]");
+    const first = await barrier.next(), original = JSON.parse(first.request.postData!);
+    if (stage === "Response") assert.equal(first.responseStatusCode, 200);
+    await barrier.drop(first);
+    await browser.waitFor("document.querySelector('[data-composer-status-action=check]')");
+    await barrier.close();
+    await browser.reloadPage();
+    await browser.waitFor("document.querySelector('[data-assistant-composer] textarea').value === '刷新后仍在框里的文字'");
+    await browser.evaluate(`(() => { const data = new DataTransfer(); data.items.add(new File(["刷新后新加的正文"], "new-after-reload.txt", { type: "text/plain" }));
+      document.querySelector('[data-assistant-composer] textarea').dispatchEvent(new ClipboardEvent('paste', { bubbles: true, clipboardData: data })); })()`);
+    await browser.waitFor("document.querySelector('[data-assistant-composer] .mw-upload:not(.is-reading)')");
+    barrier = await sendBarrier(browser, [{ urlPattern: "*/api/assistant/requests/*", requestStage: "Response" }, { urlPattern: "*/api/assistant/send", requestStage: "Response" }]);
+    await browser.click("[data-assistant-composer] [data-composer-send]");
+    const check = await barrier.next();
+    assert.ok(check.request.url.endsWith("/requests/" + original.request_id), "read the old outcome before arbitrating another content attempt");
+    await barrier.release(check);
+    if (stage === "Response") {
+      await browser.waitFor("document.querySelector('[data-assistant-composer] .mw-composer[data-state=failed]')");
+      assert.equal(await browser.evaluate("document.querySelector('[data-assistant-composer] textarea').value"), "刷新后仍在框里的文字");
+      assert.match(await browser.evaluate<string>("document.querySelector('[data-assistant-composer] .mw-upload').textContent"), /new-after-reload.txt/);
+      const old = await browser.evaluate<Array<{ work_id: string }>>("fetch('/api/assistant/works').then(r => r.json()).then(b => b.works)");
+      assert.equal(old.length, 1); assert.equal((await readWork(browser, old[0]!.work_id)).rounds.length, 1);
+      await browser.click("[data-assistant-composer] [data-composer-send]");
+    }
+    const sent = await barrier.next(), body = JSON.parse(sent.request.postData!);
+    assert.ok(sent.request.url.endsWith("/send"));
+    assert.equal(body.request_id === original.request_id, stage === "Request", "no record yet still uses the old key for atomic arbitration");
+    assert.notEqual(body.submission_id, original.submission_id);
+    assert.equal(body.materials[0].title, "new-after-reload.txt");
+    if (stage === "Request") {
+      // The old request arrives only after GET saw no ledger and the new content won the atomic claim.
+      await browser.evaluate(`void fetch(${JSON.stringify(first.request.url)}, { method: 'POST', headers: molisWorkControlHeaders(), body: ${JSON.stringify(first.request.postData!)} }).then(r => r.json()).then(result => { globalThis.lateOriginal = result; })`);
+      const late = await barrier.next(); await barrier.release(late);
+      await browser.waitFor("Boolean(globalThis.lateOriginal)");
+      assert.deepEqual(await browser.evaluate("[globalThis.lateOriginal.outcome, globalThis.lateOriginal.submission_id]"), ["repeated", body.submission_id]);
+    }
+    await barrier.release(sent);
+    await browser.waitFor("document.querySelector('[data-assistant-composer] textarea').value === ''");
+    assert.equal(await browser.evaluate("document.querySelectorAll('[data-assistant-composer] .mw-upload').length"), 0);
+    const work = await waitWork(browser, await browser.evaluate<string>(CURRENT_WORK), view => view.work.state === "completed");
+    assert.equal(work.rounds.length, 1); assert.equal(work.rounds[0]!.materials?.[0]?.title, "new-after-reload.txt");
+    assert.match(JSON.stringify(browser.model!.requests.at(-1)), /刷新后新加的正文/, "the submitted attachment reaches the actual model request");
+  } finally { await barrier.close(); }
+});
+
+
+test("B10-R6: the receiver opens by keyboard with a draft present and does not send it", { timeout: 90_000 }, async t => {
+  const browser = await sendBrowser(t); if (!browser) return;
+  const work = await seedWork(browser, "键盘打开的工作"); await openWork(browser, work); await putInput(browser, "还没有发送的草稿");
+  await browser.click('[data-assistant-panel-close]');
+  await browser.evaluate("document.querySelector('[data-assistant-composer] textarea').focus()");
+  const press = async (key: string, code: number, modifiers = 0) => {
+    const params = { key, code: key, windowsVirtualKeyCode: code, nativeVirtualKeyCode: code, modifiers };
+    await browser.command('Input.dispatchKeyEvent', { type: 'keyDown', ...params, ...(key === 'Enter' ? { text: '\r' } : {}) }, browser.sessionId);
+    await browser.command('Input.dispatchKeyEvent', { type: 'keyUp', ...params }, browser.sessionId);
+  };
+  await press('Tab', 9, 8); await press('Tab', 9, 8);
+  assert.equal(await browser.evaluate("document.activeElement?.matches('[data-composer-receiver]')"), true, "the receiver name is a Tab stop before reset and input");
+  await press('Enter', 13);
+  await browser.waitFor("!document.querySelector('[data-assistant-panel]').hidden");
+  assert.equal(await browser.evaluate("document.querySelector('[data-assistant-composer] textarea').value"), "还没有发送的草稿");
+  assert.equal((await readWork(browser, work)).rounds.length, 1);
+});
+
+
+test("B10-R3: a late old request winning after the lookup never consumes the changed draft or newly chosen material", { timeout: 90_000 }, async t => {
+  const browser = await sendBrowser(t); if (!browser) return; await putInput(browser, "只执行其中一份内容");
+  let barrier = await sendBarrier(browser, [{ urlPattern: "*/api/assistant/send", requestStage: "Request" }]);
+  try {
+    await browser.click('[data-assistant-composer] [data-composer-send]'); const old = await barrier.next(), original = JSON.parse(old.request.postData!);
+    await barrier.drop(old); await browser.waitFor("document.querySelector('[data-composer-status-action=check]')");
+    await putInput(browser, '改过的下一份内容', '仍待发送的资料');
+    await browser.click('[data-composer-status-action=check]'); await browser.waitFor("!document.querySelector('[data-composer-status-action=check]')"); await barrier.close();
+    barrier = await sendBarrier(browser, [{ urlPattern: '*/api/assistant/requests/*', requestStage: 'Response' }, { urlPattern: '*/api/assistant/send', requestStage: 'Response' }]);
+    await browser.click('[data-assistant-composer] [data-composer-send]'); const check = await barrier.next();
+    assert.ok(check.request.url.endsWith('/requests/' + original.request_id));
+    // GET has already read no row. The original HTTP body arrives before the new content's POST.
+    await browser.evaluate(`void fetch(${JSON.stringify(old.request.url)}, { method: 'POST', headers: molisWorkControlHeaders(), body: ${JSON.stringify(old.request.postData!)} }).then(r => r.json()).then(result => { globalThis.oldWinner = result; })`);
+    const late = await barrier.next(); assert.equal(late.responseStatusCode, 200); await barrier.release(late);
+    await browser.waitFor('Boolean(globalThis.oldWinner)'); await barrier.release(check);
+    const recovery = await barrier.next(), body = JSON.parse(recovery.request.postData!);
+    assert.equal(body.request_id, original.request_id); assert.notEqual(body.submission_id, original.submission_id);
+    await barrier.release(recovery); await browser.waitFor("document.querySelector('[data-assistant-composer] .mw-composer[data-state=failed]')");
+    assert.equal(await browser.evaluate("document.querySelector('[data-assistant-composer] textarea').value"), '改过的下一份内容');
+    assert.match(await browser.evaluate<string>("document.querySelector('[data-assistant-context-strip]:not([hidden])').textContent"), /仍待发送的资料/);
+    const works = await browser.evaluate<Array<{ work_id: string }>>("fetch('/api/assistant/works').then(r => r.json()).then(b => b.works)");
+    assert.equal(works.length, 1); const work = await waitWork(browser, works[0]!.work_id, view => view.work.state === 'completed');
+    assert.equal(work.rounds.length, 1); assert.equal(work.rounds[0]!.materials?.length ?? 0, 0);
+    assert.equal(browser.model!.requests.length, 1);
+  } finally { await barrier.close(); }
+});
+
+test("B10-R3: reading a historical send receipt cannot replace an existing work's newer draft", { timeout: 90_000 }, async t => {
+  const browser = await sendBrowser(t); if (!browser) return;
+  const a = await seedWork(browser, '历史回执 A'), b = await seedWork(browser, '空白 B'); await openWork(browser, a);
+  let barrier = await sendBarrier(browser, [{ urlPattern: '*/api/assistant/send', requestStage: 'Response' }]);
+  try {
+    await putInput(browser, 'A 已经送到的内容'); await browser.click('[data-assistant-composer] [data-composer-send]');
+    const sent = await barrier.next(); await barrier.drop(sent); await browser.waitFor("document.querySelector('[data-composer-status-action=check]')"); await barrier.close();
+    await browser.reloadPage(); await browser.waitFor("document.querySelector('[data-assistant-composer] textarea')"); await openWork(browser, a);
+    await putInput(browser, 'A 从宿主恢复的新草稿'); await waitWork(browser, a, view => view.work.draft === 'A 从宿主恢复的新草稿');
+    barrier = await sendBarrier(browser, [{ urlPattern: '*/api/assistant/requests/*', requestStage: 'Response' }]);
+    await browser.click('[data-assistant-composer] [data-composer-send]'); const check = await barrier.next();
+    await openWork(browser, b); await barrier.release(check);
+    await browser.evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+    await openWork(browser, a); await browser.waitFor("document.querySelector('[data-assistant-composer] textarea').value === 'A 从宿主恢复的新草稿'");
+    assert.equal((await readWork(browser, a)).work.draft, 'A 从宿主恢复的新草稿'); assert.equal((await readWork(browser, a)).rounds.length, 2);
+  } finally { await barrier.close(); }
+});

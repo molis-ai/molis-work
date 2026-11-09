@@ -16,6 +16,7 @@ export const COMPOSER_STYLES = `${COMPOSER_PATTERN_STYLES}
   .mw-composer { position: relative; display: grid; gap: 6px; width: min(640px, 100%); min-width: 0; container: mw-composer / inline-size; }
   .mw-composer__to { display: flex; align-items: center; gap: 6px; min-width: 0; padding-inline: 4px; color: var(--muted); font-size: 12px; white-space: nowrap; }
   .mw-composer__to .mw-tag { min-width: 0; max-width: min(100%, 320px); }
+  .mw-composer__to [data-composer-receiver] { display: block; width: auto; height: auto; min-width: 0; min-height: 28px; color: inherit; font: inherit; overflow: hidden; text-overflow: ellipsis; }
   .mw-composer__to .mw-tag > span { overflow: hidden; text-overflow: ellipsis; }
   /* The receiver's reset (start a new one instead) is a real target, 28px, in the tag's own place: the margins take back what the row would grow by. */
   .mw-composer__to [data-tag-remove] { width: 28px; height: 28px; margin: -2px -5px -2px -3px; }
@@ -49,6 +50,8 @@ export const COMPOSER_STYLES = `${COMPOSER_PATTERN_STYLES}
   .mw-composer .mw-compose__menu { top: auto; right: 0; bottom: calc(100% + 6px); left: auto; width: min(340px, 100%); }
   .mw-composer__start .mw-compose__menu { right: auto; left: 0; }
   .mw-composer .mw-compose__menu .mw-menu { width: 100%; min-width: 0; max-height: min(360px, 60vh, var(--mw-composer-menu-room, 60vh)); overflow-y: auto; animation-name: craft-rise-from-bar; }
+  /* A refusal still explains itself: only the disabled name and icon are faint, never the reason beneath. */
+  .mw-composer .mw-menu__item:disabled:has(.mw-menu__desc) { opacity: 1; }
   .mw-composer__query { padding: 4px 4px 6px; }
   .mw-composer__query > .mw-input { width: 100%; }
   .mw-composer__line { margin: 0; padding: 6px 10px; color: var(--muted); font-size: 12px; line-height: 18px; }
@@ -70,7 +73,11 @@ export const COMPOSER_STYLES = `${COMPOSER_PATTERN_STYLES}
     .mw-composer__text > .mw-composer__input:not(#mw-composer) { font-size: 16px; line-height: 22px; }
     .mw-composer__foot .mw-btn--sm, .mw-composer__foot .mw-btn--icon { min-height: 44px; }
     .mw-composer__foot .mw-btn--icon-only { width: 44px; min-width: 44px; }
+    .mw-composer__status .mw-btn--link, .mw-composer__restore .mw-btn--link { min-height: 44px; min-width: 44px; }
     .mw-composer__to { gap: 12px; }
+    .mw-composer__to .mw-tag:has([data-composer-receiver]) { height: 44px; padding: 0; gap: 0; }
+    .mw-composer__to [data-composer-receiver] { min-height: 44px; min-width: 44px; padding-inline: 8px; }
+    .mw-composer__to .mw-tag:has([data-composer-receiver]) [data-tag-remove] { flex: none; margin: 0; }
     .mw-composer__to [data-tag-remove] { width: 44px; height: 44px; margin: -10px -13px -10px -11px; }
   }
   @media (max-width: 600px), (max-height: 560px) {${composerRestRules(".mw-composer[data-rest]")}

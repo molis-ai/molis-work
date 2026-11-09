@@ -30,6 +30,7 @@ export function composerSourcePlugin(prefix = "composernotes") {
       composer_source: { title: "测试笔记", layers: ["ai", "plain"] } } };
   const notes = [{ id: "n1", title: "访谈记录" }, { id: "n2", title: "访谈提纲" }, { id: "n3", title: "周报" }];
   const seen: unknown[] = [];
+  let picked: ComposerPickOutput | undefined;
   let available = true, readable = true, gate: Promise<void> | null = null;
   /** Each held pick's signal, as its handler got it: a pick the page let go of sees its abort here. */
   const held: AbortSignal[] = [];
@@ -40,7 +41,7 @@ export function composerSourcePlugin(prefix = "composernotes") {
         seen.push(structuredClone(input));
         if (gate) { held.push(caller.signal!); await Promise.race([gate, new Promise((resolve) => caller.signal?.addEventListener("abort", resolve, { once: true }))]); caller.signal?.throwIfAborted(); }
         const { query, limit } = input as ComposerPickInput;
-        return { items: notes.filter((note) => note.title.includes(query)).slice(0, limit)
+        return picked ?? { items: notes.filter((note) => note.title.includes(query)).slice(0, limit)
           .map((note) => ({ ref: { subject: { kind: NOTE_KIND, id: note.id }, pin: { mode: "current" as const, read_revision: "r1" } }, title: note.title, hint: "测试笔记" })) };
       } },
       { ...reader, availability, handle: (_caller, input) => {
@@ -52,7 +53,7 @@ export function composerSourcePlugin(prefix = "composernotes") {
     ] };
   } };
   let release = () => {};
-  return { id, definition, pick, reader, seen, held, off: () => { available = false; }, on: () => { available = true; }, reading: (can: boolean) => { readable = can; },
+  return { id, definition, pick, reader, seen, held, picking: (result: ComposerPickOutput) => { picked = result; }, off: () => { available = false; }, on: () => { available = true; }, reading: (can: boolean) => { readable = can; },
     /** Picks wait until `release()` (or their abort) from now on. */
     hold: () => { gate = new Promise((resolve) => { release = () => { gate = null; resolve(); }; }); }, release: () => release() };
 }

@@ -38,7 +38,10 @@ export async function handleComposerSourcesHttp(request: IncomingMessage, respon
     const near = sourceNear(view, body.near, directory);
     const input: ComposerPickInput = { query: typeof body.query === "string" ? body.query : "", limit: typeof body.limit === "number" ? body.limit : 20, ...(near ? { near } : {}) };
     const definition = { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id, operation: view.operation, action: view.action };
-    sendJson(response, 200, await client.invoke<ComposerPickInput, ComposerPickOutput>(definition, input));
+    const picked = await client.invoke<ComposerPickInput, ComposerPickOutput>(definition, input);
+    if (picked.items.some(item => !sourceOwns(view, item.ref.subject.kind, directory)))
+      throw composerErrors.source_unavailable("这个来源返回了不属于自己的资料");
+    sendJson(response, 200, picked);
   } catch (error) {
     const failure = actionErrorResponse(error);
     if (!response.destroyed) sendJson(response, failure.status, failure.body);
@@ -90,8 +93,13 @@ function sourceNear(view: ActionView, near: unknown, directory: readonly ActionV
   if (!near || typeof near !== "object") return undefined;
   const subject = near as ActionSubject & { plugin_id?: unknown };
   if (typeof subject.plugin_id !== "string" || subject.plugin_id !== view.provider.plugin_id) return undefined;
-  const readers = directory.filter(one => isSubjectReader(one.action) && one.action.subject_kinds.includes(subject.kind));
+  return typeof subject.kind === "string" && sourceOwns(view, subject.kind, directory) ? { kind: subject.kind, id: subject.id } : undefined;
+}
+
+/** The same directory proves ownership for both the page's near object and each returned pick. */
+function sourceOwns(view: ActionView, kind: string, directory: readonly ActionView[]): boolean {
+  if (!view.action.subject_kinds.includes(kind)) return false;
+  const readers = directory.filter(one => isSubjectReader(one.action) && one.action.subject_kinds.includes(kind));
   const owners = new Set(readers.map(one => one.provider.provider_id));
-  return typeof subject.kind === "string" && view.action.subject_kinds.includes(subject.kind) && owners.size === 1
-    && owners.has(view.provider.provider_id) && readers.some(one => one.availability.available) ? { kind: subject.kind, id: subject.id } : undefined;
+  return owners.size === 1 && owners.has(view.provider.provider_id) && readers.some(one => one.availability.available);
 }

@@ -518,12 +518,16 @@ export interface AssistantSendInput extends Pick<AgentInputSend, "about"> {
    */
   delivery?: AgentSteerMode;
   reask?: AgentQuestionReask;
+  /** Identifies the content of this attempt when recovering a lost Send with the same request_id. Echoed only for the attempt that claimed it. */
+  submission_id?: string;
   /** One per press of Send. A repeat returns the first outcome and starts nothing. */
   request_id: string;
 }
 
 /** What one Send did: started a round, reached a running one, waits for the next (its round had just ended), or answered its question. */
 export interface AssistantSendResult {
+  /** The content attempt that won request_id, when the caller supplied one; replays and read-only checks preserve it. */
+  submission_id?: string;
   work: AssistantWork;
   outcome: "started" | "steered" | "queued" | "answered" | "repeated";
   run_id?: string;

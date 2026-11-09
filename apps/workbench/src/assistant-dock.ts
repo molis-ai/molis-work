@@ -77,7 +77,7 @@ export function renderAssistantDock(primitives: { L(value: string): string; icon
       <div class="assistant-next-row" data-assistant-next-row hidden></div>
       <div class="assistant-popover assistant-notices" id="assistant-notices" data-assistant-notices role="group" aria-label="${L("需要你看看")}" hidden></div>
       <div class="assistant-composer" data-assistant-composer data-composer-next="${escapeHtml(add)}">
-        ${renderComposer({ kind: "ai", labels: assistantComposerLabels(L, true, add), placeholder: L("让助理做点什么…"), receiver: { label: L("助理") } })}
+        ${renderComposer({ kind: "ai", labels: assistantComposerLabels(L, true, add), placeholder: L("让助理做点什么…"), receiver: { label: L("助理"), open: true } })}
         <button class="assistant-attention" type="button" data-assistant-attention aria-haspopup="true" aria-expanded="false" aria-controls="assistant-notices" title="${L("需要你看看")}" hidden>${icon("bell")}<span data-assistant-attention-count></span></button>
       </div>
     </div>`;

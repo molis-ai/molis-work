@@ -76,7 +76,10 @@ export function composerMenus(c: Composer): ComposerMenus {
     toggleDelivery(toggle) {
       const menu = toggle.parentElement!.querySelector<HTMLElement>("[data-compose-menu]")!;
       if (c.open === menu || !c.ai) return c.close(true);
-      show(menu, renderComposerDeliveryMenu(c.id, c.ai.labels, composerDeliveries(c.running, c.ai.delivery?.(), c.ai.labels.unsupported), mac));
+      const choices = composerDeliveries(c.running, c.ai.delivery?.(), c.ai.labels.unsupported);
+      const labels = c.running ? c.ai.labels : { ...c.ai.labels, modes: { ...c.ai.labels.modes,
+        "next-boundary": { name: c.labels.send, title: c.labels.sendTitle, description: "" } } };
+      show(menu, renderComposerDeliveryMenu(c.id, labels, c.running ? choices : { ...choices, "next-boundary": { available: true } }, mac));
     },
     pick(source) {
       c.picking = { source, query: "" };

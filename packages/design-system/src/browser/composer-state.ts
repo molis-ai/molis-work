@@ -1,3 +1,4 @@
+import type { AgentSteerMode } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 import type { ComposerMaterial, ComposerPickItem } from "@molis-ai/molis-work-contracts/platform/composer";
 import type { SearchHit } from "@molis-ai/molis-work-contracts/services/search";
 import type { ComposerOptions } from "@molis-ai/molis-work-plugin-sdk/page-globals";
@@ -33,7 +34,7 @@ export interface Composer {
   readonly options: ComposerOptions; readonly labels: MwComposerLabels; readonly ai: AiOptions | null;
   readonly signal: AbortSignal; readonly queries: ReturnType<typeof composerGenerations>; readonly fill: Fill; readonly lang: string | undefined;
   readonly offersSources: boolean;
-  running: boolean; phase: "" | "sending" | "failed" | "unknown"; failure: string; check: Check | null; requestId: string;
+  delivery: AgentSteerMode; running: boolean; phase: "" | "sending" | "failed" | "unknown"; failure: string; check: Check | null; requestId: string;
   items: Item[]; note: Status; unsaved: boolean; restored: string; stopping: boolean;
   sources: Source[] | "unavailable" | undefined; picking: { source: Source; query: string; found?: ComposerPickItem[] | string } | null;
   /** `@` typed at `at` in the text: the system search's hits for the words after it. */
@@ -66,7 +67,7 @@ export function composerState(basics: ComposerBasics, root: HTMLElement, signal:
   return {
     ...basics, root, shell, box: shell.querySelector<HTMLElement>(".mw-composer__box")!, field: shell.querySelector<HTMLTextAreaElement>(".mw-composer__input")!, id,
     signal, queries: composerGenerations(),
-    running: false, phase: "", failure: "", check: null, requestId: "", items: [], note: undefined, unsaved: false, restored: "", stopping: false,
+    delivery: "next-boundary", running: false, phase: "", failure: "", check: null, requestId: "", items: [], note: undefined, unsaved: false, restored: "", stopping: false,
     sources: undefined, picking: null, mention: null, typed: "", open: null, painted: "",
     paint: () => undefined, close: () => undefined,
   };

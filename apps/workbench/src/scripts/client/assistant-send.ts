@@ -1,7 +1,7 @@
 /**
  * One Send to the Host, whoever made it (the composer, a page's delegated words, search's 问助理), inside the resident Assistant's
  * client scope: the request, then what the page keeps of it. A Send whose outcome is unknown keeps its words and key across a
- * refresh, so the same words go again under the same key and the Host starts nothing twice (§7). What the composer shows of the
+ * refresh, when the old key is read before anything new is sent (§7). What the composer shows of the
  * outcome is the composer's; the thread shows a problem only when it carries a way out (a link to settings, a cap to raise).
  * `extra` is the composer's key, delivery and materials (and `before`, the work's draft write the Send waits for), or a delegated
  * message's own key (`named`) and `written_by`.
@@ -41,19 +41,39 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
       // A lost Send that went again from another receiver went where it was first sent: the words in the box now are not its.
       return visible ? res : { ...res, elsewhere: true };
   }
+  const recoveredWork = work => { if (!works.some(one => one.work_id === work.work_id)) retainSent(work); };
+  const ownsReceipt = (res, intent) => res.submission_id === intent.body.submission_id;
   async function checkSent(intent, consumed) {
     const route = intent.route.replace(/\/send$/, "/requests/" + encodeURIComponent(intent.body.request_id));
     const result = await api("", "GET", undefined, route);
-    if (result.state === "sent") await acceptSent(result.result, intent);
-    else if (result.state === "not-sent") forgetIntent(intent);
+    if (result.state === "sent") {
+      if (!ownsReceipt(result.result, intent)) { forgetIntent(intent); recoveredWork(result.result.work); return "not-sent"; }
+      await acceptSent(result.result, intent);
+    }
     return result.state === "sent" && !consumed ? "not-sent" : result.state;
+  }
+  // After refresh only the old key survived, not its attachment snapshot. Reading it never consumes the current draft.
+  async function recoverSend(kept, unsentKey) {
+    const check = async () => {
+      const result = await api("", "GET", undefined, kept.route.replace(/\/send$/, "/requests/" + encodeURIComponent(kept.id)));
+      if (result.state === "sent") recoveredWork(result.result.work);
+      if (result.state === "sent") forgetIntent({ body: { request_id: kept.id }, unsentKey });
+      return result.state;
+    };
+    let state;
+    try { state = await check(); } catch { state = "unknown"; }
+    if (state === "unknown") throw Object.assign(new Error(L("没确认送到：再按一次，同一条不会重复。")), {
+      code: "ui_host.outcome_unknown", checkSend: () => check().then(state => state === "unknown" ? "unknown" : "not-sent") });
+    return state === "sent";
   }
   async function post(text, extra = {}) {
     const target = sendTarget(), route = host.route("/api/assistant/send"), unsentKey = scoped("unsent") + ":" + encodeURIComponent(curId || "new"), kept = unsent(unsentKey);
     const pending = [...lostSends.values()].filter(one => one.body.text === text);
-    const again = extra.named ? undefined : pending.find(one => one.target === target && one.route === route)
-      || (!curId ? pending.find(one => !one.work) : undefined);
-    const body = { text, request_id: extra.named || (kept.work === (curId || null) && kept.text === text && kept.target === target && kept.route === route ? kept.id : extra.request_id || crypto.randomUUID()),
+    const again = extra.named ? undefined : pending.find(one => one.target === target && one.route === route && one.body.submission_id === extra.request_id)
+      || (!curId ? pending.find(one => !one.work && (one.target !== target || one.route !== route)) : undefined);
+    const submission = extra.named || extra.request_id || crypto.randomUUID();
+    const recovering = !again && !extra.named && kept.id && kept.work === (curId || null) && kept.target === target && kept.route === route;
+    const body = { text, request_id: recovering ? kept.id : submission, submission_id: submission,
       context: pageContext(), materials: [...sendMaterials(), ...(extra.materials || [])], ...(extra.written_by ? { written_by: extra.written_by } : {}) };
     const character = curId ? pendingChar : nextChar || undefined;
     if (character !== undefined && allowsCharacter()) body.character = character ? { artifact_id: character.artifact_id, version: character.version } : null;
@@ -70,6 +90,11 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
     } else body.scope = nextScope === "project" && project ? { kind: "project", project_id: project.id } : { kind: "personal" };
     const intent = again?.body.text === text ? again
       : { body, unsentKey, work: curId, target, route, character, files: files.slice(), selection: sel, removed: [...removed], joined: [...joined] };
+    if (recovering) {
+      if (await recoverSend(kept, unsentKey)) return { consumed: false };
+      // The person may have changed receivers during the lookup; this click must not send to that new receiver.
+      if (sendTarget() !== target || host.route("/api/assistant/send") !== route) return { consumed: false };
+    }
     const consumed = intent.target === target && intent.route === route;
     const here = () => sendTarget() === intent.target && host.route("/api/assistant/send") === intent.route;
     // The work a new work's Send made is where the words are now: the composer moves to it without writing them anywhere else.
@@ -81,6 +106,7 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
       // Everything the Send is for was read above; it goes once the work's draft write before it has been answered.
       if (extra.before) await extra.before.catch(() => undefined);
       const res = await api("/send", "POST", intent.body, intent.route);
+      if (!ownsReceipt(res, intent)) { forgetIntent(intent); recoveredWork(res.work); return { consumed: false }; }
       return { ...await acceptSent(res, intent), consumed };
     } catch (error) {
       error.checkSend = () => checkSent(intent, consumed);

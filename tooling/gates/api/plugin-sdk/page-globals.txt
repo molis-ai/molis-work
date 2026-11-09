@@ -97,6 +97,7 @@ export type ComposerOptions = ComposerCommonOptions & ({
     labels: MwComposerAiLabels;
     receiver?: () => {
         label: string;
+        open?: () => void;
         reset?: () => void;
         resetLabel?: string;
     } | null;

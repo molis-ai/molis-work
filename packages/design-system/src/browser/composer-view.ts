@@ -14,7 +14,7 @@ export function firstScreen(c: ComposerBasics, text: string): MwComposerOptions 
     ...(options.voice ? { voice: options.voice } : {}) };
   if (!ai) return { kind: "plain", labels, ...common };
   const receiver = ai.receiver?.();
-  return { kind: "ai", labels: ai.labels, ...common, ...(receiver ? { receiver: { label: receiver.label, ...(receiver.reset ? { resetLabel: receiver.resetLabel ?? c.fill(labels.remove, { name: receiver.label }) } : {}) } } : {}) };
+  return { kind: "ai", labels: ai.labels, ...common, ...(receiver ? { receiver: { label: receiver.label, ...(receiver.open ? { open: true } : {}), ...(receiver.reset ? { resetLabel: receiver.resetLabel ?? c.fill(labels.remove, { name: receiver.label }) } : {}) } } : {}) };
 }
 
 /** The one status line: what is under way first, then what stops a send, then notes, then the turn running. */
@@ -50,7 +50,7 @@ function shownState(c: Composer) {
 
 /** At rest: nothing written, attached or brought back, nothing to say and no state (the SDK's first screen marks it the same way). */
 function atRest(c: Composer) {
-  return !c.field.value && !c.field.disabled && !c.items.length && !c.restored && !shownState(c) && !status(c);
+  return c.delivery === "next-boundary" && !c.field.value && !c.field.disabled && !c.items.length && !c.restored && !shownState(c) && !status(c);
 }
 
 const SETTLE = "mw-composer-settle";
@@ -97,7 +97,7 @@ function settle(c: Composer, change: () => void) {
 function draw(c: Composer, controls: boolean) {
   const { shell } = c;
   const state = shownState(c);
-  const now = status(c), drawn = { ...firstScreen(c, c.field.value), ...(state ? { state } : {}), ...(now ? { status: now } : {}) } as MwComposerOptions;
+  const now = status(c), drawn = { ...firstScreen(c, c.field.value), ...(state ? { state } : {}), ...(c.ai ? { delivery: c.delivery } : {}), ...(now ? { status: now } : {}) } as MwComposerOptions;
   const fresh = document.createElement("template");
   fresh.innerHTML = renderComposer(drawn);
   const next = fresh.content.firstElementChild as HTMLElement;
@@ -109,7 +109,7 @@ function draw(c: Composer, controls: boolean) {
   // Kept when it reads the same, so a part that is easing between one row and rows keeps its motion.
   if (to) { if (!had) shell.prepend(to); else if (had.outerHTML !== to.outerHTML) had.replaceWith(to); } else had?.remove();
   const end = next.querySelector<HTMLElement>(".mw-composer__end")!;
-  if (!c.ai?.stop) end.querySelector("[data-composer-stop]")?.remove();
+  if (!c.running || !c.ai?.stop) end.querySelector("[data-composer-stop]")?.remove();
   for (const button of end.querySelectorAll<HTMLButtonElement>("[data-composer-send]")) button.disabled = !sendable(c);
   end.querySelector<HTMLButtonElement>("[data-composer-stop]")?.toggleAttribute("disabled", c.stopping);
   if (end.outerHTML !== c.painted) {

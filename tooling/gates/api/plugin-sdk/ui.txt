@@ -172,8 +172,10 @@ export type MwComposerOptions = {
 } | {
     kind: "ai";
     labels: MwComposerAiLabels;
+    delivery?: AgentSteerMode;
     receiver?: {
         label: string;
+        open?: boolean;
         resetLabel?: string;
     };
     state?: "sending" | "running" | "failed" | "unknown";

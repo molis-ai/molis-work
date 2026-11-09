@@ -192,6 +192,7 @@ export class AssistantService {
     }
     if (input.delivery !== undefined && !(AGENT_STEER_MODES as readonly unknown[]).includes(input.delivery)) throw assistantErrors.invalid("delivery 只能是 next-boundary、interrupt 或 after-run");
     if (input.delivery !== undefined && (!input.work_id || input.target === "answer")) throw assistantErrors.invalid("送达方式只用在已有工作的补充上，新工作和回答问题都不带");
+    if (input.submission_id !== undefined && (typeof input.submission_id !== "string" || !/^[A-Za-z0-9-]{8,80}$/.test(input.submission_id))) throw assistantErrors.invalid("提交内容标识无效");
     const claim = this.store.requests.claimRequest(this.actorId, String(input.request_id ?? ""));
     if (!claim.claimed) return claim.result;
     let work: StoredWork | undefined, inputHold: ReturnType<AssistantContinuations["begin"]> | undefined;
@@ -218,6 +219,7 @@ export class AssistantService {
       linkSent(this.store.relations, work, materials, created ? context : null);
       const result = await this.dispatcher.dispatch(work, text, materials, context, input.work_id ? undefined : input.mode, writtenBy ?? input.written_by, stillCurrent, caller.beforeStart, caller.assertBeforeStart, { id: input.request_id, target: input.target, delivery: input.delivery, byHost: Boolean(writtenBy ?? input.written_by) || input.reask !== undefined || !original_input, about: input.about, original_input, reply_locale: caller.reply_locale }, { assertCurrent: () => { for (const item of handoffs) item.assertCurrent(); }, accepted: () => { for (const item of handoffs) item.accepted(); } });
       if (inputHold) { inputHold.accept(); const current = this.store.get(this.actorId, work.work_id); result.work = this.reads.publicWork(current, await this.reads.stateSafely(current)); }
+      if (input.submission_id !== undefined) result.submission_id = input.submission_id;
       this.store.requests.finishRequest(this.actorId, input.request_id, result);
       return result;
     } catch (error) {

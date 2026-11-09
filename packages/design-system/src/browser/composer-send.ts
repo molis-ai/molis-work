@@ -37,7 +37,7 @@ export function composerSender(c: Composer, drafts: ComposerDrafts, sentByKey: (
     }
     if (outcome.state === "sent") {
       letGo(c.items.filter((item) => went.items.includes(item)));
-      c.items = c.items.filter((item) => !went.items.includes(item)); c.requestId = "";
+      c.items = c.items.filter((item) => !went.items.includes(item)); c.requestId = ""; c.delivery = "next-boundary";
       const cleared = drafts.sent(went.revision);
       if (cleared && current?.field.value === went.text) { current.field.value = ""; window.molisFit?.(current.field); }
       const receipt = outcome.receipt, ai = c.ai;
@@ -62,8 +62,8 @@ export function composerSender(c: Composer, drafts: ComposerDrafts, sentByKey: (
       const missing = options.required?.();
       if (missing) { c.note = { caption: labels.notice, text: missing, tone: "attention" }; return c.paint(); }
       let delivery: AgentSteerMode | undefined;
-      if (c.ai && (c.running || mode)) {
-        const chosen = pickComposerDelivery(mode ?? "next-boundary", composerDeliveries(c.running, c.ai.delivery?.(), c.ai.labels.unsupported));
+      if (c.ai && (c.running || mode || c.delivery !== "next-boundary")) {
+        const chosen = pickComposerDelivery(mode ?? c.delivery, composerDeliveries(c.running, c.ai.delivery?.(), c.ai.labels.unsupported));
         if ("refused" in chosen) { c.note = { caption: labels.notice, text: chosen.refused, tone: "attention" }; return c.paint(); }
         delivery = chosen.mode;
       }
@@ -83,7 +83,7 @@ export function composerSender(c: Composer, drafts: ComposerDrafts, sentByKey: (
       let answer: "sent" | "not-sent" | "unknown";
       try { answer = await asked(); } catch { answer = "unknown"; }
       if (answer === "sent") settle({ state: "sent" });
-      else if (answer === "not-sent") { c.phase = ""; c.check = null; const current = retained.current(); if (current) { current.note = { caption: labels.notice, text: labels.notSent }; current.paint(); } }
+      else if (answer === "not-sent") { c.phase = ""; c.check = null; c.requestId = ""; const current = retained.current(); if (current) { current.note = { caption: labels.notice, text: labels.notSent }; current.paint(); } }
       else { c.phase = "unknown"; c.check = asked; retained.current()?.paint(); }
     },
     async upload(files) {

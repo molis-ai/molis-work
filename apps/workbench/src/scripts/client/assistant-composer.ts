@@ -119,9 +119,9 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
   /** Who the next Send goes to: the work in front, named by its place first when that is not this page (#1919); else a new work. */
   const receiverNow = () => {
     const work = getWork();
-    if (!work) return { label: nextExec !== "assistant" && executorOffer(nextExec) ? executorOffer(nextExec).title : L("助理") };
+    if (!work) return { open: openConversation, label: nextExec !== "assistant" && executorOffer(nextExec) ? executorOffer(nextExec).title : L("助理") };
     const where = work.scope?.project_id !== project?.id ? scopeLabel(work.scope, work.scope_title) : "";
-    return { label: work.reply_target ? L("原评论：{title}", { title: work.reply_target.title }) : (where ? where + " · " : "") + work.title,
+    return { open: openConversation, label: work.reply_target ? L("原评论：{title}", { title: work.reply_target.title }) : (where ? where + " · " : "") + work.title,
       reset: () => { void switchTo(null); input.focus(); }, resetLabel: L("改为开始新工作") };
   };
   /* The choices that are the next Send's, in the bar only once they differ from the default and while the side pane, where they
@@ -267,9 +267,6 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
     if (works.length) { setPanel(true); setWorks(true); return true; }
     return false;
   };
-  compose.addEventListener("click", (event) => {
-    if (event.target.closest(".mw-composer__to .mw-tag") && !event.target.closest("[data-tag-remove]")) openConversation();
-  });
   compose.addEventListener("keydown", (event) => {
     if (event.key !== "Enter" || !(event.metaKey || event.ctrlKey) || event.shiftKey || event.isComposing || event.keyCode === 229) return;
     if (!event.target.matches?.(".mw-composer__input") || String(event.target.value || "").trim() || compose.querySelector(".mw-composer__files")) return;

@@ -286,6 +286,9 @@ test("UIV-04 UIV-14 UIV-15 VUX-17 VUX-18 UIC-07 UIC-10 UIC-11 S-composer-source-
   await c.load();
   await c.mountPlain();
   await page.wait("document.querySelector('.mw-composer__restore')");
+  await page.viewport(390, 844, true);
+  assert.ok(await page.evaluate("document.querySelector('[data-composer-clear]').getBoundingClientRect().height >= 44"), "B10-R6: clearing a restored draft has a phone-sized target");
+  await page.viewport(1440, 900);
   assert.equal((await state()).text, "写到一半的评论", "the reloaded page's composer has the draft back");
   await page.click("[data-composer-clear]");
   assert.equal((await state()).text, "");
@@ -581,6 +584,7 @@ for (const locale of ["zh", "en"] as const) {
       named: document.getElementById(item.getAttribute("aria-labelledby")).textContent, desc: document.getElementById(item.getAttribute("aria-describedby")).textContent }))`);
     assert.deepEqual(items.map((item) => [item.mode, item.disabled, item.named]), [["next-boundary", false, words.labels.modes["next-boundary"].name],
       ["interrupt", true, words.labels.modes.interrupt.name], ["after-run", false, words.labels.modes["after-run"].name]]);
+    assert.equal(await page.evaluate("getComputedStyle(document.querySelector('[data-composer-delivery=interrupt]')).opacity"), "1", "B10-R6: the unavailable reason is never faded with the button");
     assert.equal(items[1]!.desc, words.refused, "the receiver's own reason, not a generic one");
     assert.match(items[0]!.labelled, /^mw-composer-\d+-delivery-next-boundary-label$/, "item hooks carry the composer's own id");
     assert.equal(await page.evaluate("document.querySelector('[data-composer-delivery]:not(:disabled)') === document.activeElement"), true, "the menu takes focus on its first choosable item");
@@ -603,6 +607,19 @@ for (const locale of ["zh", "en"] as const) {
     await page.viewport(1440, 900);
     // UIV-17: the menu's choice is this send's only: 下一轮再做 goes as after-run and its receipt says it waits; the next ⌘↵ is 补充 again.
     await page.click("[data-composer-delivery=after-run]");
+    assert.equal(await page.evaluate("globalThis.aiSent.length"), 0, "B10-R6: choosing delivery never submits the draft");
+    assert.equal(await page.evaluate("document.querySelector('[data-composer-send]').textContent.trim()"), words.labels.modes["after-run"].name);
+    await page.evaluate("globalThis.aiHandle.setRunning(false)");
+    await page.click("[data-composer-send]");
+    assert.equal(await page.evaluate("globalThis.aiSent.length"), 0, "B10-R6: a turn ending cannot downgrade the selected delivery");
+    assert.equal(await page.evaluate("document.querySelector('[data-composer-send]').textContent.trim()"), words.labels.modes["after-run"].name);
+    await page.click("[data-compose-menu-toggle]");
+    assert.equal(await page.evaluate("document.querySelector('[data-composer-delivery=next-boundary]').disabled"), false, "the person can explicitly switch back to ordinary Send");
+    await page.click("[data-composer-delivery=next-boundary]");
+    assert.equal(await page.evaluate("globalThis.aiSent.length"), 0);
+    await page.evaluate("globalThis.aiHandle.setRunning(true)");
+    await page.click("[data-compose-menu-toggle]"); await page.click("[data-composer-delivery=after-run]");
+    await page.click("[data-composer-send]");
     await page.wait("globalThis.aiSent.length === 1");
     assert.equal(await page.evaluate("globalThis.aiSent[0].delivery"), "after-run");
     assert.match(await page.evaluate<string>("document.querySelector('.mw-composer__status').textContent"), words.queued, "a queued receipt says so");
@@ -633,3 +650,22 @@ for (const locale of ["zh", "en"] as const) {
     await page.screenshot(join(EVIDENCE, `ai-more-${locale}-390-light.png`));
   });
 }
+
+
+test("B10-R6: unknown and failed sends keep recovery actions reachable on a phone", { timeout: 120_000 }, async t => {
+  const c = await open(t); if (!c) return; await c.mountPlain(); await c.page.viewport(390, 844, true);
+  for (const state of ["unknown", "failed"]) {
+    await c.page.evaluate(`globalThis.composerHandle = window.molisComposer(document.getElementById('composer-probe'), {
+      kind: 'plain', entry: 'touch-${state}', draft: { conversation: '${state}' }, labels: ${JSON.stringify(COMPOSER_PLAIN_LABELS)},
+      submit: async () => ({ state: '${state}', message: '这次没发出', check: async () => 'not-sent' }) });
+      document.querySelector('#composer-probe textarea').value = '保留输入'; document.querySelector('#composer-probe textarea').dispatchEvent(new Event('input', { bubbles: true }));`);
+    await c.page.click('#composer-probe [data-composer-send]');
+    await c.page.wait(`document.querySelector('#composer-probe .mw-composer[data-state=${state}]')`);
+    const hit = await c.page.evaluate<{ height: number; width: number; overlaps: boolean }>(`(() => {
+      const action = document.querySelector('#composer-probe [data-composer-status-action]').getBoundingClientRect();
+      const send = document.querySelector('#composer-probe [data-composer-send]').getBoundingClientRect();
+      return { height: action.height, width: action.width, overlaps: action.left < send.right && action.right > send.left && action.top < send.bottom && action.bottom > send.top }; })()`);
+    assert.ok(hit.height >= 44 && hit.width >= 44, JSON.stringify(hit)); assert.equal(hit.overlaps, false);
+    if (state === 'unknown') { await c.page.click('[data-composer-status-action=check]'); await c.page.wait("!document.querySelector('[data-composer-status-action=check]')"); }
+  }
+});

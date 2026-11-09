@@ -16,12 +16,37 @@ const url=process.env.SPECIMEN_URL||'http://127.0.0.1:4418/intelligent-surfaces-
 const browser=await ChromeHarness.start(temp,{executable:process.env.MOLIS_WORK_TEST_CHROME||resolve(process.env.HOME,'.local/bin/molis-test-browser')});assert(browser);
 const page=await browser.page();const errors=[];browser.on('Runtime.exceptionThrown',x=>errors.push(x.exceptionDetails.text));await page.command('Runtime.enable');
 const results=[];
+const focusOnly=process.argv.includes('--focus-entry-only');
 const motionOnly=process.argv.includes('--motion-only');
 const evidenceOnly=motionOnly||process.argv.includes('--evidence-only');
 const testedHead=execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).trim();
-const key=async name=>{await page.command('Input.dispatchKeyEvent',{type:'keyDown',key:name,code:name,windowsVirtualKeyCode:{Escape:27,ArrowDown:40,Home:36,End:35,Tab:9}[name]});await page.command('Input.dispatchKeyEvent',{type:'keyUp',key:name,code:name});};
+const key=async name=>{await page.command('Input.dispatchKeyEvent',{type:'keyDown',key:name,code:name,text:name==='Enter'?'\r':undefined,windowsVirtualKeyCode:{Enter:13,Escape:27,ArrowDown:40,Home:36,End:35,Tab:9}[name]});await page.command('Input.dispatchKeyEvent',{type:'keyUp',key:name,code:name});};
 const navigate=async query=>{await page.command('Page.navigate',{url:url+query});await page.wait('document.querySelector(".forms .name-chip") && document.querySelector("[data-ring-segments]")');};
+async function checkFocusEntry() {
+ await page.viewport(1440,1000);await navigate('?lang=en');
+ // IUI-26: reach the original name chip only by real Tab events, then activate it with Enter.
+ let tabCount=0;
+ while(!await page.evaluate(`document.activeElement===document.querySelector('.forms [data-peek]')`)){
+  assert(tabCount++<40,'Name chip must be reachable by Tab');await key('Tab');
+ }
+ await page.wait(`document.querySelector('#live-peek:popover-open')`);
+ await page.evaluate('window.specimenOriginalChip=document.activeElement');
+ await key('Enter');
+ assert(await page.evaluate(`document.activeElement===document.querySelector('#live-peek [data-close-peek]')`),'Enter must move focus into an already-open peek: '+await page.evaluate(`JSON.stringify({active:document.activeElement?.textContent,peek:!!document.querySelector('#live-peek:popover-open')})`));
+ await key('Tab');
+ assert(await page.evaluate(`document.activeElement===document.querySelector('#live-peek [data-prepare]')`),'Tab after Enter must stay in the peek and reach its first action');
+ await page.screenshot(resolve(out,'focus-entry-in-peek.png'));
+ await key('Escape');await page.wait(`!document.querySelector('#live-peek')`);
+ assert(await page.evaluate('document.activeElement===window.specimenOriginalChip'),'Escape must restore the original name chip');
+ return {tabCount,openedOnFocus:true,enterMovesIntoExistingPeek:true,tabReachesPeekAction:true,escapeRestoresOriginalChip:true};
+}
 try {
+ const focus=focusOnly||!evidenceOnly?await checkFocusEntry():undefined;
+ if(focusOnly){
+  assert.deepEqual(errors,[]);
+  const report={scope:'Static specimen keyboard entry only; previous matrix/menu/motion evidence not rerun',testedHead,script:'docs/design/intelligent-surfaces-forms/specimens/check.mjs',mode:'focus-entry-only',focus,errors};
+  await writeFile(resolve(out,'focus-entry-report.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));
+ }else{
  if(!motionOnly)for(const width of [1440,1024,390])for(const lang of ['zh','en'])for(const theme of ['light','dark']){
   await page.viewport(width,1000,width===390);await navigate(`?lang=${lang}&theme=${theme}&long=1`);
   if(evidenceOnly){
@@ -84,6 +109,7 @@ try {
  const stopped=await page.evaluate(`document.querySelector(${JSON.stringify(ringSelector)}).innerHTML`)===reducedBefore;assert(stopped,'Running ring must stop with reduce');
  const motion={state:'running',noPreferenceMatches,animated,reduceMatches,stopped,observationMs:400};
  assert.deepEqual(errors,[]);
- const report={scope:'Static specimen only; no Home/actions/persistence/product acceptance',testedHead,script:'docs/design/intelligent-surfaces-forms/specimens/check.mjs',mode:motionOnly?'running-motion-only':evidenceOnly?'theme-and-running-motion-only':'full-specimen-probe',previousEvidence:evidenceOnly?'report-before-evidence-correction.json; prior reduced-motion assertion withdrawn, other previous coverage not rerun':undefined,combinations:motionOnly?undefined:results,motion,checks:motionOnly?['running ring animates with explicit no-preference','same running ring stops with explicit reduce']:evidenceOnly?['requested and observed theme match','running ring animates with explicit no-preference','same running ring stops with explicit reduce']:['12-segment rings','long title and consequences','keyboard peek','menu arrows','nested Escape and focus return','exact local destination and return','prepared action leaves state unchanged','all read/error states','four placements','touch sheet','reduced motion'],errors};
+ const report={scope:'Static specimen only; no Home/actions/persistence/product acceptance',testedHead,script:'docs/design/intelligent-surfaces-forms/specimens/check.mjs',mode:motionOnly?'running-motion-only':evidenceOnly?'theme-and-running-motion-only':'full-specimen-probe',previousEvidence:evidenceOnly?'report-before-evidence-correction.json; prior reduced-motion assertion withdrawn, other previous coverage not rerun':undefined,combinations:motionOnly?undefined:results,motion,focus,checks:motionOnly?['running ring animates with explicit no-preference','same running ring stops with explicit reduce']:evidenceOnly?['requested and observed theme match','running ring animates with explicit no-preference','same running ring stops with explicit reduce']:['12-segment rings','long title and consequences','keyboard peek','menu arrows','nested Escape and focus return','exact local destination and return','prepared action leaves state unchanged','all read/error states','four placements','touch sheet','reduced motion'],errors};
  await writeFile(resolve(out,'report.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));
+ }
 } finally {await browser.close();await rm(temp,{recursive:true,force:true});}

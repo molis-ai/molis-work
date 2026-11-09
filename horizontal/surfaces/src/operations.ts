@@ -1,7 +1,7 @@
 import { actionEffect, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FormKind, PresentationObject, PresentationObjectAction } from "@molis-ai/molis-work-contracts/platform/presentation";
 import { PLACEMENT_PROVIDER_ID, placementActions } from "@molis-ai/molis-work-contracts/services/placement";
-import type { SurfaceConsequence, SurfaceItem, SurfaceItemAction, SurfaceItemNotice, SurfaceSlot } from "@molis-ai/molis-work-contracts/services/surface-composition";
+import type { SurfaceCardAction, SurfaceConsequence, SurfaceItem, SurfaceItemAction, SurfaceItemNotice, SurfaceSlot } from "@molis-ai/molis-work-contracts/services/surface-composition";
 import { ownedTextRef } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { viewRef, type SurfaceComposePorts, type SurfacePlugin } from "./ports.js";
 
@@ -17,13 +17,16 @@ export function declaredAction(ref: string, owner: SurfacePlugin, views: readonl
   return choices.length === 1 ? choices[0] : undefined;
 }
 
-function actionFor(declaration: PresentationObjectAction, view: ActionView, primary: boolean): SurfaceItemAction {
+export function directoryAction(view: ActionView, primary: boolean): SurfaceCardAction {
   const consequence: SurfaceConsequence[] = [];
   if (view.action.external) consequence.push("external");
   if (view.action.execution?.cost === "metered") consequence.push("cost");
   if (actionEffect(view.action, view.capability_id) === "irreversible") consequence.push("irreversible");
-  return { ref: declaration.ref, provider_id: view.provider.provider_id, primary,
-    ...(declaration.input_from ? { prepared_input: { ...declaration.input_from } } : {}), ...(consequence.length ? { consequence } : {}) };
+  return { ref: viewRef(view), provider_id: view.provider.provider_id, primary, ...(consequence.length ? { consequence } : {}) };
+}
+
+function actionFor(declaration: PresentationObjectAction, view: ActionView, primary: boolean): SurfaceItemAction {
+  return { ...directoryAction(view, primary), ...(declaration.input_from ? { prepared_input: { ...declaration.input_from } } : {}) };
 }
 
 function noticeApplies(declaration: PresentationObjectAction, status: string | undefined, view: ActionView): boolean {

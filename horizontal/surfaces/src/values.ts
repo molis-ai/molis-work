@@ -2,10 +2,11 @@ import type { ActionSubject, ActionView } from "@molis-ai/molis-work-contracts/p
 import { PRESENTATION_LIMITS, type PresentationObject, type PresentationValueItem, type PresentationValuesInput } from "@molis-ai/molis-work-contracts/platform/presentation";
 import { actionErrorKind } from "@molis-ai/molis-work-plugin-sdk";
 import { presentationValuesProblems } from "@molis-ai/molis-work-plugin-sdk/presentation";
-import { checkCurrent, subjectKey, viewKey, viewRef, type SurfaceComposePorts } from "./ports.js";
+import { subjectKey, viewKey, viewRef, type SurfaceComposePorts } from "./ports.js";
 
 const DEADLINE_MS = 1_000;
 const PARALLEL_READS = 4;
+type ReadResult<T> = { value: T } | { error: unknown };
 
 export function startDeadline(parent: AbortSignal | undefined) {
   const expires = new AbortController();
@@ -17,13 +18,36 @@ export function startDeadline(parent: AbortSignal | undefined) {
     stopped = () => resolve(undefined);
     signal.addEventListener("abort", stopped, { once: true });
   });
+  let closedSlots = 0;
+  const active = () => {
+    if (performance.now() >= at) expires.abort();
+    return !signal.aborted;
+  };
+  const wait = <T>(pending: Promise<T>) => Promise.race([untilStopped, pending]);
   return {
-    signal,
-    get active() {
-      if (performance.now() >= at) expires.abort();
-      return !signal.aborted;
+    get active() { return active(); },
+    wait,
+    async read<Job, Output>(jobs: readonly Job[], current: () => void, invoke: (job: Job, signal: AbortSignal) => Promise<Output>,
+      receive: (job: Job, result: ReadResult<Output>) => void) {
+      let cursor = 0;
+      const worker = async () => {
+        while (active() && cursor < jobs.length) {
+          current();
+          if (!active()) return;
+          const job = jobs[cursor++]!;
+          let result: ReadResult<Output>;
+          try { result = { value: await invoke(job, signal) }; } catch (error) { result = { error }; }
+          current();
+          if (!active()) return;
+          receive(job, result);
+          const kind = "error" in result ? actionErrorKind(result.error) : undefined;
+          // A gateway timeout can settle before the provider stops, including in the overview phase.
+          if (kind === "timeout" || kind === "cancelled") { closedSlots++; return; }
+        }
+      };
+      await wait(Promise.all(Array.from({ length: Math.min(jobs.length, PARALLEL_READS - closedSlots) }, worker)));
+      current();
     },
-    wait: <T>(pending: Promise<T>) => Promise.race([untilStopped, pending]),
     dispose() { clearTimeout(timer); signal.removeEventListener("abort", stopped); expires.abort(); },
   };
 }
@@ -51,36 +75,17 @@ function makeBatches(candidates: readonly ValueCandidate[]): Batch[] {
   return [...byAction.values()].flat();
 }
 
-export async function readRuleValues(candidates: readonly ValueCandidate[], ports: SurfaceComposePorts, deadline: ReturnType<typeof startDeadline>) {
-  const batches = makeBatches(candidates);
+export async function readRuleValues(candidates: readonly ValueCandidate[], ports: SurfaceComposePorts, deadline: ReturnType<typeof startDeadline>, current: () => void) {
+  const batches = makeBatches(candidates).map(({ action, subjects, fields }) => ({ action, input: { subjects, fields: [...fields].sort() } satisfies PresentationValuesInput }));
   const answers = new Map<string, ValueAnswer>();
-  let cursor = 0;
-  const worker = async () => {
-    while (deadline.active && cursor < batches.length) {
-      checkCurrent(ports);
-      const { action, subjects, fields } = batches[cursor++]!;
-      const input: PresentationValuesInput = { subjects, fields: [...fields].sort() };
-      try {
-        const output = await ports.values(action, input, deadline.signal);
-        checkCurrent(ports);
-        if (!deadline.active) return;
-        if (presentationValuesProblems(input, output).length) {
-          ports.diagnostic?.("values_unavailable", { provider_id: action.provider.provider_id, ref: viewRef(action) });
-          continue;
-        }
-        for (const item of output.items) answers.set(subjectKey(item.subject), { item });
-      } catch (error) {
-        checkCurrent(ports);
-        if (!deadline.active) return;
-        const kind = actionErrorKind(error);
-        if (kind === "forbidden") for (const subject of subjects) answers.set(subjectKey(subject), { denied: true });
-        else ports.diagnostic?.("values_unavailable", { provider_id: action.provider.provider_id, ref: viewRef(action) });
-        // A gateway timeout can settle before the provider stops. This worker must keep its slot closed.
-        if (kind === "timeout" || kind === "cancelled") return;
-      }
+  await deadline.read(batches, current, ({ action, input }, signal) => ports.values(action, input, signal), ({ action, input }, result) => {
+    if ("value" in result && !presentationValuesProblems(input, result.value).length) {
+      for (const item of result.value.items) answers.set(subjectKey(item.subject), { item });
+    } else if ("error" in result && actionErrorKind(result.error) === "forbidden") {
+      for (const subject of input.subjects) answers.set(subjectKey(subject), { denied: true });
+    } else {
+      ports.diagnostic?.("values_unavailable", { provider_id: action.provider.provider_id, ref: viewRef(action) });
     }
-  };
-  await deadline.wait(Promise.all(Array.from({ length: Math.min(batches.length, PARALLEL_READS) }, worker)));
-  checkCurrent(ports);
+  });
   return answers;
 }

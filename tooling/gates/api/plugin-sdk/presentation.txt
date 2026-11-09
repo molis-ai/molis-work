@@ -20,6 +20,8 @@ export declare function assertMaterialRef(value: unknown): asserts value is Mate
 
 export declare function assertSurfaceDescription(value: unknown, candidates: SurfaceDescription): CheckedSurfaceDescription;
 
+export declare function isPresentationOverviewReader(action: unknown): boolean;
+
 export declare function isPresentationValuesReader(action: unknown): boolean;
 
 export declare function presentationCatalog(actions: unknown, complete?: boolean): PresentationCatalog;
@@ -41,6 +43,7 @@ export declare function validatePresentationDeclaration(manifest: {
     readonly presentation?: unknown;
     readonly actions?: unknown;
     readonly plugin_id?: unknown;
+    readonly ui?: unknown;
 }, catalog?: PresentationCatalog): string[];
 
 // Declarations the exports above refer to, which no entry exports itself:

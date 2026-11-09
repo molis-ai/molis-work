@@ -511,6 +511,8 @@ Dock 的个人固定顺序目前只在浏览器，不在 Host 存储。首页请
 
 **一次读取。** 保持一次目录、一次 discover、一次纠正和至多一次 Attention 读取。每个已启用且合格的概况最多调用一次；现行 `definePresentationOverviewAction` 补明确 `execution.cost: "none"`，SDK 声明校验和运行前检查都要求 query、read、无模型、非 external，与 values 相同。概况与规则 values 共用四个真实在途槽和整次一秒截止，截止后不补派。概况失败只影响本卡；父取消、撤权直接传播。保留本轮所有实际依赖的精确路由授权，并在等待后及结果交付前重新检查。
 
+动作目录的元数据和原注册身份须在同一次同步目录取样中绑定，再跨异步边界交给组合服务；不能 `await discover()` 后仅凭 ref/provider 重新保留当前注册，让旧 schema 配上新注册的授权。注册身份仍由 Kernel 的现有登记表拥有，Host 只转发同次取得的保留能力，不比较元数据冒充身份、不另存代次。潜在候选可先捕获，但取值前只激活真实 reader／values 依赖；状态和形态选定后再激活实际返回的操作、notice 去处和通用操作依赖。未命中 `when` 的声明操作、未展示的 placement 操作不能因变化而拒绝整页。
+
 合并 Attention 与各概况给出的对象后，先按真实 reader 和来源 owner 核对，再对同一个对象去重；规则 values 按既有精确 provider／动作、50 个对象、32 个字段合最少批次。对象全部有当前读取结果后仅批查一次关系，两端可读才合并。先产出「等你」，插件卡再扣掉上方已经表示的对象，`hidden_above` 只计本次可读对象。工作记录还没有交付，本片省略「接着做」。页面一次 compose 后只补显示字段的合批 values，不再读一次概况。
 
 **Feed 的本批最小接入。** 真实 Attention 记录保留 Feed owner，条目和来源故障分别指向 `feed_item`、`source`；Inbox 的 `inbox_entry` 只是事项壳，不能代读。S-1 先匹配同主人声明再选同 scope 的唯一 values，因此只补 values 仍不会进入可读候选。本片在 Feed 项目 Runtime 同时声明这两种对象的行形态、实际使用的标题／状态／时间／来源／归属字段及一支共用只读 values，复用现有两支 subject reader；概况按固定协议提供本轮文字引用、至多五个可读对象和现有打开入口。无真实开始动作或表单绑定时不给 start；可选建议只读已有有效结果，不为首页启动模型或同步。第 52 批仍负责完整 Feed 卡片、跨位置挂载和研究呈现。
@@ -518,6 +520,8 @@ Dock 的个人固定顺序目前只在浏览器，不在 Host 存储。首页请
 归属按授权分区内的条目 `source_id` 读取来源原记录，以 `SourceRecord.project_id` 与 `PERSONAL_SPACE_PROJECT_ID` 判定；来源对象用自己的项目，空来源或无法核实就省略，不能按 Gmail／RSS 类型猜。个人分区走同一个项目 Runtime；Feed 的 Home 实例是证据账本，不能借它跨分区聚合。只在同一可读组确有本项目／个人混合值时显示归属标签。Feed Item 的 `read_at` 是用户阅读时间，不能当作旧值的上次成功读取时间。同步材料不自动产生 Attention 或工作计数；同一可读对象在「等你」和概况之间去重，撤权后不留隐藏计数。WBR-24 验同项目 Gmail 与 RSS 同属项目、个人分区、缺源不猜、无 Attention 的同步资料不计工作、现有条目／来源故障可读与去重，以及撤权拒绝。
 
 **空态与旧值。** 新项目从插件真实空结果给概况与开始；没有声明只给插件名字和可达的打开；停用只给保留内容的说明及真实可用恢复入口。概况失败／超时给 unreadable，不带其动态 summary、候选和开始操作，其余卡仍可用。概况成功而某行只能读到旧值时，只用主人在本次授权读取下返回的旧字段及原 `read_at`；卡内全是旧行才沿 S-1 最早真实时间标 stale，新旧混合逐行标。不得把旧首页内存或描述缓存当作当前授权证明。Goals 若实现上次成功行投影，只能由 Goals Runtime 有界保留并在基础读口再次核存在性及当前权限后返回；删除、撤权和切项目均不能返回旧行。
+
+概况成功但其对象首次取值失败或共用截止耗尽，也须把该插件组标为 unreadable，不能因不可读行省略后变成 `ok` 的空组。失败只归实际受影响的 owner；forbidden／deleted 对象不作为失败计数或恢复旧值的依据。已成功读取的本轮概况与已核可用的独立开始入口不因此伪装为旧值，也不把其它插件的成功卡降级。
 
 **点击。** 开始动作必须同时属于 Manifest 的 start 白名单和本轮概况返回，固定同一 owner／install／provider，当前可用。声明项增加可选 `open: { view_id, panel }`，概况仍只选择动作引用，不另回路由。无 `open` 时，空输入须通过实际 schema 才可生成 `invoke`；有必填业务字段的动作不假造输入。有 `open` 时只生成 `form`，点击复核当前安装、声明、概况选择、动作权限与实际表单后，沿已有 `UiViewSelection.panel` 和 `molis-work:select-item` 导航；仅打开和取消均零业务写入，用户填表并提交后才走既有动作网关。
 
@@ -534,6 +538,8 @@ Goals 在自身声明中把 `goals.create@1` 指向 `stage/create-dialog`，自�
 打开、开始及启用都按原卡的完整安装引用比对当前记录；同名不同 scope、卸载重装、换代、同版本不同 digest 均拒绝旧卡。主区继续走既有 `dualStageOwner` 与挂载 producer，签名懒加载页取文档时再核原安装，不能先验旧记录、等待后打开新包。导航意图由可信 Host 适配为现有工作台选择，不把 `UiViewSelection` 当作已经具备跨 owner 权限的公开入口。
 
 原生项目插件的“启用”事实属于 Projects 的成员关系，不能伪装成只控制签名安装记录的 `plugins.installed.enable@1`。第 20 批在固定头 `3a8a3703ed`（合同与 owner 前置 `33cd1028c6`）已交 `projects.plugins.get@1`／`projects.plugins.set@1`，设置 HTTP、市场、选择器和 Coding 共用同一写口；本片直接复用，不新增 `projects.plugins.enable` 或第二份 HTTP 桥。`project_membership` 候选额外保留本次 compose 同一次可信 Catalog 读取的 `expected_revision`，该值进入组合 revision，点击原样交给 set，不能读一个新 revision 代用户重试。项目和操作者从调用上下文来，Host 按可信注册、发布者和当前安装把 canonical id 映射到 `ProjectPluginId`。
+
+普通卡的可见性沿 Projects 的实际成员／隐藏计算，不拿包含嵌入依赖的运行可达集合代替。原生项目插件被移除时会退出成员列表，因此在普通可见卡之外补恢复卡：须未被主动隐藏、已有成员移除事实、当前已非成员且不再因嵌入而应运行，同时可信的原安装确为 disabled。移除事实在同一次 Catalog 取样里复用既有 `wasProjectPluginRemoved`，不另存状态；只有嵌入运行经历的安装不能因此冒出首页卡。恢复卡不授予主区或概况读取，只保留原安装与本次成员 revision。从未安装、已卸载、仍应运行却未启动、crashed／quarantined／blocked 和切换未完成均不冒充已停用。常开与有效隐藏规则仍由 Projects 计算。
 
 成员 revision 不含安装代次或 digest，所以旧卡仍须独立核原安装。受保护首页入口复用第 20 批 `projectPluginSetter`，把当前页面检查与仅限本请求的确切安装检查合成可信 `assert_authority_current`：从已打开项目的现有 `pluginInstallRecords` 同步比较 scope、owner、host trust、install id、generation、version、digest 与仍可启用，再进同一个动作网关。`project-workspace-actions.ts` 已在 `catalog.commit` 出队、最后 await 后、调用 `setProjectPlugin` 前同步执行该检查，随后 Projects 在自己的事务内核成员 revision。无需改变公共 set schema、Projects owner 或 Runtime 枢纽。提交后的 Runtime 切换和 503 沿用第 20 批语义：成员选择已经保存，重试只读、重开项目恢复；不能误报未保存，也不能在本次合法启用后仍要求 disabled。
 

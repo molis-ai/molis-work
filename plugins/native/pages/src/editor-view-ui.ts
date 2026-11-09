@@ -6,6 +6,19 @@ import { scrollChildIntoView } from "./floating.js";
 
 export const t = (translate: Translate | undefined, key: string, args?: TextArgs): string => (translate ?? uiText.text)(key, args);
 
+const editorWords = new WeakMap<Element, () => void>();
+
+/** Only chrome the editor created is rebound inside its editable tree. Document text is never scanned for translations. */
+export function bindEditorWords(element: HTMLElement, paint: () => void): void {
+  editorWords.set(element, paint);
+  element.dataset.pagesEditorWords = "";
+  paint();
+}
+
+export function refreshEditorWords(root: HTMLElement): void {
+  for (const element of root.querySelectorAll("[data-pages-editor-words]")) editorWords.get(element)?.();
+}
+
 export const dsIcon = (name: string): string => `<svg aria-hidden="true"><use href="#icon-${name}"></use></svg>`;
 
 export function overlayRoot(): HTMLElement {

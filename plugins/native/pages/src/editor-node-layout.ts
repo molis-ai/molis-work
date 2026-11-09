@@ -6,7 +6,7 @@ import { calloutIconFor, safePagesCalloutTone } from "./callout.js";
 import { setColumnWidth } from "./table-edit.js";
 import { pagesSchema, safePagesColumnShare, safePagesColumnWidth } from "./schema.js";
 import type { Translate, PagesEditorMountOptions } from "./editor-types.js";
-import { t, dsIcon, keepFocus } from "./editor-view-ui.js";
+import { bindEditorWords, t, dsIcon, keepFocus } from "./editor-view-ui.js";
 import { SIZE_KEYS, sizeHandle } from "./editor-size-keys.js";
 
 
@@ -19,7 +19,6 @@ export function columnNodeView(node: Node, view: EditorView, getPos: () => numbe
   const handle = document.createElement("button");
   handle.type = "button";
   handle.className = "pages-column-resize";
-  handle.setAttribute("aria-label", t(translate, "pages.editor.resize-column"));
   handle.setAttribute("aria-keyshortcuts", SIZE_KEYS);
   const value = sizeHandle(handle, view, getPos, (key, args) => t(translate, key, args));
   const paint = () => {
@@ -68,7 +67,10 @@ export function columnNodeView(node: Node, view: EditorView, getPos: () => numbe
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
   });
-  paint();
+  bindEditorWords(handle, () => {
+    handle.setAttribute("aria-label", t(translate, "pages.editor.resize-column"));
+    paint();
+  });
   dom.append(content, handle);
   return {
     dom,
@@ -90,7 +92,6 @@ export function cellNodeView(node: Node, view: EditorView, getPos: () => number 
   const handle = document.createElement("button");
   handle.type = "button";
   handle.className = "pages-col-resize";
-  handle.setAttribute("aria-label", t(translate, "pages.editor.resize-column-width"));
   handle.setAttribute("aria-keyshortcuts", SIZE_KEYS);
   const value = sizeHandle(handle, view, getPos, (key, args) => t(translate, key, args));
   // Without its own width a column is as wide as it is drawn, read again when the handle is reached.
@@ -99,6 +100,10 @@ export function cellNodeView(node: Node, view: EditorView, getPos: () => number 
     value(n, safePagesColumnWidth(1), safePagesColumnWidth(1e9), t(translate, "pages.editor-size-keys.column-width-n-px", { n }));
   };
   handle.addEventListener("focus", read);
+  bindEditorWords(handle, () => {
+    handle.setAttribute("aria-label", t(translate, "pages.editor.resize-column-width"));
+    read();
+  });
   const paint = () => {
     const width = safePagesColumnWidth(current.attrs.colwidth);
     if (width) {
@@ -224,9 +229,10 @@ export function calloutNodeView(
   mark.type = "button";
   mark.className = "pages-callout-mark";
   mark.dataset.pagesCalloutPick = "1";
-  const pickLabel = t(translate, "pages.editor.change-icon-or-colour");
-  mark.setAttribute("aria-label", pickLabel);
-  mark.title = pickLabel;
+  bindEditorWords(mark, () => {
+    const label = t(translate, "pages.editor.change-icon-or-colour");
+    mark.setAttribute("aria-label", label); mark.title = label;
+  });
   mark.addEventListener("mousedown", keepFocus);
   mark.addEventListener("click", (event) => {
     event.preventDefault();

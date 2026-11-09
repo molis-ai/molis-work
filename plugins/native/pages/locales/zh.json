@@ -111,6 +111,8 @@
     "pages.editor.edit": "编辑",
     "pages.editor.enter-a-valid-link-such-as-https-example-com": "请输入有效链接，例如 https://example.com",
     "pages.editor.event": "日程",
+    "pages.editor.event-date": "{date}",
+    "pages.editor.task-status-date": "{status} · {date}",
     "pages.editor.event-card": "日程卡",
     "pages.editor.events-in-this-page": "本篇事件",
     "pages.editor.find-in-the-text": "在文中查找",

@@ -1,6 +1,6 @@
 # 场景与生成页面公共合同（路线书 20 第 1、2 项）
 
-状态：第 20 批代码已完成，整批验证中，尚未开 PR 或合入。2026-11-09 的代码头 `aaa2e4c81b` 已通过整合预审、公共合同合审、核心回归、三宽双语双主题矩阵、正式视觉与页面资源检查；完整安全组及 macOS 补验尚未完成，最终 CI Full 与 PR 评审绑定待完成。当前证据与执行安排见[第 20 批整批验证记录](../post-anticorruption-roadmap/reference/batches/20.md#batch-20-validation)。第 08 批 #1984、第 36 批提前合同 #1995 均已合入并消费，合同前置已解除。用户 2026-11-08 确定的分工不变：20 交公共合同、SDK 共用校验及必要现有接入；36 接角色服务，37 接页面运行与真实安全验收，44 接引导采用与另存，51 接场景成品。不能用本批静态校验代替后续运行验收；签名沙箱设置执行及本人体验分别见 [BL-settings-sandbox-execution](../backlog/BL-settings-sandbox-execution.md)、[BL-batch20-membership-acceptance](../backlog/BL-batch20-membership-acceptance.md)。
+状态：第 20 批整批验证中，安全回归发现成员控制动作与在途查询的队列互等，正在修复，尚未开 PR 或合入。2026-11-09 的代码头 `aaa2e4c81b` 已通过整合预审、公共合同合审、核心回归、三宽双语双主题矩阵、正式视觉与页面资源检查；完整安全组及 macOS 补验尚未完成，修复后的影响验证、最终 CI Full 与 PR 评审绑定待完成。当前证据与执行安排见[第 20 批整批验证记录](../post-anticorruption-roadmap/reference/batches/20.md#batch-20-validation)。第 08 批 #1984、第 36 批提前合同 #1995 均已合入并消费，合同前置已解除。用户 2026-11-08 确定的分工不变：20 交公共合同、SDK 共用校验及必要现有接入；36 接角色服务，37 接页面运行与真实安全验收，44 接引导采用与另存，51 接场景成品。不能用本批静态校验代替后续运行验收；签名沙箱设置执行及本人体验分别见 [BL-settings-sandbox-execution](../backlog/BL-settings-sandbox-execution.md)、[BL-batch20-membership-acceptance](../backlog/BL-batch20-membership-acceptance.md)。
 
 ## 0. 这份稿子做什么
 
@@ -640,6 +640,8 @@ SPC-C06／C07 用公开 schema 验批准请求键、按请求返回原回执、�
 ### 10.2 P-3a 宿主、页面与运行恢复设计
 
 **目录提供方与 Web 授权。** `apps/local-host/src/project-workspace-actions.ts` 的 `projectWorkspaceActionProvider` 在现有 `PROJECT_WORKSPACE_PROVIDER_ID` 下绑定两个动作。`project-catalog.ts` 只委托 `ProjectsModule` 的 `projectPluginMembershipWithRevision`、`setProjectPlugin`。写走 `catalog.commit`，把 `caller.beforeEffect` 交给等待写锁的检查，进入同步事务时用 `requireSynchronous(caller.assert_authority_current?.())` 与 `caller.signal?.throwIfAborted()` 做最终复核。项目 ID 和 actor 用可信调用上下文。运行刷新在 Catalog 提交后进行。
+
+**在途控制不得等待被控制的查询。** `projects.plugins.set@1` 声明 `scheduling: "concurrent"`，使本人能在同项目长查询尚未结束时隐藏或撤出插件；提交后的 Runtime 切换也不能把成员控制放到该查询持有的项目串行队列后面。并发调度不改变 Catalog 的写锁、owner 同步事务中的 revision 比较与授权尾检。SPC-C08／AQD-04 以真实 HTTP 交错证明：查询进入后仍被持有，隐藏请求先返回，随后才释放查询，并拒绝迟到结果；不能提前释放查询或只改夹具目标的调度来掩盖控制路径阻塞。
 
 `web-catalog-routes.ts` 按 URL 项目从 Catalog 解析 Host reference。`web-project-settings.ts` 的 POST／DELETE 请求体仅收 `plugin_id` 和 `expected_revision`，HTTP 方法映射为 `enabled`。入口只绑定固定目录提供方的 `projects.plugins.set@1`。本机用户身份沿 `local-web-actions.ts` 的取法，首次等待前用 `captureWebSessionAuthority` 固定请求会话，用 `localOwnerPermissionsOver` 对精确动作引用检查 `projects:settings`。用现有 `actionClient(reference, false)` 跳过项目插件准备，仍经宿主动作网关。普通 `bindLocalWebActions` 构造上下文会先准备插件，因此这里需要固定动作的窄绑定。全项目 GET `/api/settings/project-plugins` 从 Catalog 用同一版本化 owner 读取，独立于项目 Runtime，保留 `web-home-plugin-recovery.ts` 的展示回退。回退行只供展示，没有可提交的 revision。
 

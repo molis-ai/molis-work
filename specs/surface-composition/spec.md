@@ -448,7 +448,13 @@ surface_corrections        项目库
 
 验证用 SCS-09、14～17 覆盖混排及原处展开、同名 provider 不重指向、说明和去处的输入复用、跨 kind 批次与真实在途上限、整体截止及撤权、隐藏项零泄露、跨项目和伪造关系拒绝、停用依赖的安装与换版旧动作剔除。其余保持 §14.1；`0.1.1-dev.1` v2 金样已从相同基线产品代码生成并重复检查逐字节一致（4,467,044 bytes，官方 Node v24.15.0，签名插件和 Home 库样本齐备），候选 v3 回放尚未运行。
 
-### 14.3 签名插件的同一路径（2026-11-08，实施设计待独立复核）
+### 14.3 签名插件的同一路径（2026-11-08）
+
+本节设计在 `4b4c51c058` 经独立 `gpt-6-astra / high` 只读复核，无阻塞或 P1；以下实施条件一并纳入，尚未验证真实安装链。
+
+- 协议查询用一份明确的本地只读 effects 白名单。普通 query 现有的联网能力不能沿用；`resources`、`capabilities` 等间接调用入口也必须拒绝。真实 runner 还须拒绝未声明的服务调用。
+- 版本方案的直接依据是[合同变更 §3 第 3 条及当前保留机制](../../docs/system/CONTRACT-CHANGES.md#3-阶段一现在不留兼容期)：阶段一动作和 Manifest 按现行版本扩展，发行物留存属于现行产品功能。复核确认本方案无须新增审批；若实现须改变持久业务格式、重写旧包或增加历史读取分支，仍先回到红线确认。
+- 同一个真实插件完成预览、打包签名、严格读取、确认安装、三个读取协议调用及 compose；关 Host 后从留存签名包重新启动，再验 discover、三个协议与 compose。另用现有旧金样原件完成候选回放，不重新生成旧包替代。
 
 **真实缺口。** 现行签名包从 `contract.json` 经 SDK 的唯一动作投影生成 Manifest，再由 Host 比对投影后安装；运行时再次使用这份投影。目前投影没有呈现声明和三个读取协议的语义字段，普通 `SandboxSchema` 也不接受这些协议已有的开放映射等结构。仅给 Runtime 测试注册一个第三方 Manifest 不能证明签名插件能用；SCS-11 必须补真实打包、读取与运行证据。
 
@@ -458,8 +464,8 @@ surface_corrections        项目库
 
 `sandboxPluginManifest` 在声明协议、外发或呈现时启用同一静态动作投影，并保留 contract 的呈现声明；旧 `interface.presentation` 是插件自身页面布局开关，语义不变。Host 的签名验证、原有完整投影比对和 `parsePluginManifest` 保持；CLI 继续原样传 contract，不加第二个呈现入口。运行 definition 保留静态协议字段，原动态授权、身份与 effects 检查不能被声明覆盖；Home 概况不因此得到额外项目范围。
 
-**版本边界。** 本方案按阶段一公开分发合同在现行 v1 增加可选作者声明，不改持久业务格式、不提供双版本读取、不改写或重签已安装发行物。依据是 [Home 数据 §1](../../docs/system/HOME-DATA.md#1-怎么读) 把 `plugin-packages/` 定为原样保留的软件发行物，[金样 §2](../upgrade-continuity/golden-replay-design.md#2-一份金样里有什么) 单列已签字节，且它不在现行持久格式升级名单。没有新增声明的现有签名包须得到逐字相同的 Manifest 投影并原样回放。独立复核若认为此分类不能覆盖，先交用户决定版本方案，不能自行升版、迁移或改门禁。
+**版本边界。** 本方案按阶段一公开分发合同在现行 v1 增加可选作者声明，不改持久业务格式、不提供双版本读取、不改写或重签已安装发行物。[Home 数据 §1](../../docs/system/HOME-DATA.md#1-怎么读) 把 `plugin-packages/` 定为原样保留的软件发行物，[金样 §2](../upgrade-continuity/golden-replay-design.md#2-一份金样里有什么) 单列已签字节，且它不在现行持久格式升级名单。没有新增声明的现有签名包须得到逐字相同的 Manifest 投影并原样回放；这是上述阶段一规则的适用范围，不是新增历史兼容许可。
 
 **文件与交接。** 写手可改 contracts 的 `plugin-sandbox.ts`、SDK `sandbox-actions.ts`／`sandbox-manifest.ts` 及专用协议工具、sandbox 的 schema／runner、正常包依赖登记与独立 `tests/sandbox-presentation.test.ts`。#1984 正占用的 SDK 根导出与共享 API 快照、Host `sandbox-package.ts`、CLI、两包 README、`tests/sandbox-pack.test.ts` 及其公共 fixture 保持串行交接；可读取复用，不覆盖。本批独立代码不得绕开原入口来避开占用。
 
-**验证。** SCS-11／16：真实签名包经过打包、原严格读取和 Runtime 后保留呈现、values、reader 与 external；伪造投影、未知协议、普通操作中的开放 schema、协议写入／联网／计费 effects、坏输入输出与撤权都被拒。没有新增声明的旧包原样回放。服务测试与真实安装证据分开；未完成安装与运行前，不宣称第三方同等待遇已实现。
+**验证。** SCS-11／16：上述同包预览、安装、运行与重开均须保留呈现、values、reader 与 external；伪造投影、未知协议、普通操作中的开放 schema、协议写入／联网／计费 effects、坏输入输出与撤权都被拒。没有新增声明的旧包原样回放。服务测试与真实安装证据分开；未完成安装、运行和重开前，不宣称第三方同等待遇已实现。

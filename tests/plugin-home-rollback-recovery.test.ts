@@ -7,8 +7,7 @@ import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { acquireStorageOwner, ensureStorageSpace, openSqliteConnection, type StorageOwner } from "@molis-ai/molis-work-storage";
-import { recoverSqliteRollbackJournals, type RollbackLibrary } from "../packages/storage/dist/rollback-journal.js";
+import { acquireStorageOwner, ensureStorageSpace, openSqliteConnection, recoverSqliteRollbackJournals, type RollbackLibrary, type StorageOwner } from "@molis-ai/molis-work-storage";
 
 const childEntry = fileURLToPath(new URL("./fixtures/plugin-home-rollback-child.mjs", import.meta.url));
 
@@ -167,10 +166,12 @@ test("BSH-03 · an older preimage needs its continuous upgrade chain and compact
   const f = fixture(t, 1, "trusted", true);
   await stopDuringWrite(t, f.file, 2, "trusted");
   assert.equal(readFileSync(f.journal)[0], 0xd9);
-  const before = readFileSync(f.file);
-  assert.throws(() => recoverSqliteRollbackJournals(f.lock, f.libraries, [f.journal]), { code: "actions.conflict" });
-  assert.deepEqual(readFileSync(f.file), before);
-  const project = { ...f.libraries[0]!, baseline: { version: 2, schema: "", upgrades: [{ from: 1, sql: "ALTER TABLE facts ADD COLUMN note TEXT;" }] } };
+  const before = [f.file, f.journal].map(path => readFileSync(path));
+  const baseline = { version: 2, schema: "CREATE TABLE facts (id INTEGER PRIMARY KEY, owner TEXT NOT NULL, value TEXT NOT NULL, note TEXT);" };
+  const noSteps = { ...f.libraries[0]!, baseline: { ...baseline, upgrades: [] } };
+  assert.throws(() => recoverSqliteRollbackJournals(f.lock, [noSteps, f.libraries[1]!], [f.journal]), { code: "actions.conflict" });
+  assert.deepEqual([f.file, f.journal].map(path => readFileSync(path)), before);
+  const project = { ...f.libraries[0]!, baseline: { ...baseline, upgrades: [{ from: 1, sql: "ALTER TABLE facts ADD COLUMN note TEXT;" }] } };
   recoverSqliteRollbackJournals(f.lock, [project, f.libraries[1]!], [f.journal]);
   assert.equal(existsSync(f.journal), false);
   assert.deepEqual(dirtyFacts(f.file), { user_version: 1, owner: "trusted", value: "original" });

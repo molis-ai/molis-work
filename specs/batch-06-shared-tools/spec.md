@@ -128,6 +128,8 @@ readonly artifact_join?: {
 
 隔离平台验收已执行 `tests/plugin-home-artifact-join.test.ts` 的 5 项和 `tests/plugin-home-rollback-recovery.test.ts` 的 7 项。权限、精确行、CAS、成果、事件和两库日志走真实 SQLite 与成果 owner。恢复测试含双回指 COMMIT 内 SIGKILL、用同一恢复函数回放主库后再次 SIGKILL，再次启动保留两库旧值并清理侧车。另在已正常提交的同一对文件上放回原生 child 残留，模拟 super 已删除后的清理阶段，两库新值保留。单独 Unicode 探针命中只有一份 child 已写回指、主库原始文件已有新值的实际中断窗口。上述证据尚未替代产品 Host 的已盖 stamp 启动、升级及离线备份验收。
 
+旧构建的 Dataset 实际 HTTP 固定响应含 400 行、658,249 字节。对同一返回值做 41 次独立 `structuredClone`，末次与原响应深值相等，耗时中位 0.350 ms、p95 为 0.507 ms。这个探针只量复制，不量本轮 Host 事务。产品接线、改后请求次数与四家返回值待枢纽接力后验证。
+
 ## 3. Files 退役的系统产生者合同
 
 ### 注册、写入和读回

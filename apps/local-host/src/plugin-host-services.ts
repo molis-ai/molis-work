@@ -1,3 +1,4 @@
+import { realpathSync } from "node:fs";
 import { combinePluginSyncLibraries } from './plugin-sync-library.js';
 import { savedHistoryFor } from "./saved-history-host.js";
 import { PROLOGUE_RUNTIME_ID, savedAgentHistoryView, readSavedAgentHistory } from "@molis-ai/molis-work-service-agent-host";
@@ -33,6 +34,9 @@ import { openInstalledPluginLibrary } from "./installed-plugin-libraries.js";
 import { openPluginProjectLibrary } from "./plugin-project-library.js";
 import { pluginAttentionFor, pluginContextLedgerFor } from "./plugin-attention-service.js";
 import { withArtifactJoin } from "./plugin-artifact-join.js";
+import { artifactRootStore } from "./plugin-artifact-row-library.js";
+import { withArtifactRootStore } from "./plugin-artifact-row-transaction.js";
+import { pluginCatalogFor } from "./home-side.js";
 import { pluginScenesFor } from "./plugin-scene-service.js";
 import { pluginJudgmentsFor } from "./plugin-judgments-service.js";
 import type { PluginHostExecutorOptions } from "./plugin-executor.js";
@@ -116,7 +120,7 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
     terminal = options.home ? pluginTerminalFor({ home: options.home.directory, manifest, context, ownerFiles: undefined, assertActive }) : undefined;
     const hosted = hostedContext(options, manifest, context, { pluginCaller, providerId, artifactService, ui, assertActive, isActive: () => active,
       scheduler: scheduler?.client, agents: agents?.client, sync: combinePluginSyncLibraries(manifest, library?.sync, projectLibrary?.sync),
-      database: library?.client, ownerFiles: ownerFiles?.client, project_database: projectLibrary?.client, project_statements: definition.execution === "sandbox" ? projectLibrary?.statements : undefined, model: pluginModelFor(options.home, definition, context, assertActive),
+      database: library?.client, artifactRows: library?.artifactRows, ownerFiles: ownerFiles?.client, project_database: projectLibrary?.client, project_statements: definition.execution === "sandbox" ? projectLibrary?.statements : undefined, model: pluginModelFor(options.home, definition, context, assertActive),
       materials: pluginMaterialsFor(options.home, definition, context, assertActive, options.project_id), connections: pluginConnectionsFor(options.home, definition, context, assertActive),
       sourcePull: pluginSourcePullFor(definition, context, assertActive, options.projectLibrary?.db,
         { ...(options.sourcePullFetch ? { fetch: options.sourcePullFetch } : {}), ...(options.sourcePullGit ? { git: options.sourcePullGit } : {}), ...(options.sourcePullIntegrations ? { integrations: options.sourcePullIntegrations } : {}), ...(options.home ? { home: options.home.directory } : {}) }),
@@ -215,6 +219,7 @@ interface SessionParts {
   readonly isActive: () => boolean;
   /** The library the Host's start list declared for this plugin, if any (`openDeclaredLibrary`). */
   readonly database: PluginDatabase | undefined;
+  readonly artifactRows: NonNullable<ReturnType<typeof openPluginDatabase>>["artifactRows"];
   readonly sync: import('@molis-ai/molis-work-contracts/platform/plugin-sync').PluginSyncClient | undefined;
   /** A sandboxed plugin's declared files, in the project's directory (`sandboxOwnerFilesFor`, S-64); none for any other plugin. */
   readonly ownerFiles: import("@molis-ai/molis-work-contracts/platform/plugin").PluginOwnerFilesClient | undefined;
@@ -240,12 +245,31 @@ interface SessionParts {
   readonly projects: import("@molis-ai/molis-work-contracts/platform/plugin").PluginProjectsClient | undefined;
 }
 
+function artifactDatabaseServices(options: PluginHostExecutorOptions, context: PluginStartContext, parts: SessionParts) {
+  const { artifactService, assertActive, database, artifactRows } = parts, { project_id: projectId, projectLibrary, home } = options;
+  const record = () => options.record?.(context.install_id) ?? null;
+  const artifacts = withArtifactJoin(artifactService.client, artifactService.writer, parts.project_database, context, projectId, assertActive, record);
+  if (!database || !artifactRows || !projectLibrary || !home?.assertStorageOwner) return { database, artifacts };
+  const store = artifactRootStore(projectLibrary, artifactRows, projectId), catalog = pluginCatalogFor(home.directory);
+  if (!store || !catalog) return { database, artifacts };
+  return withArtifactRootStore(database, artifacts, artifactService.writer, store, {
+    context, projectId, assertActive, record, assertOwner: home.assertStorageOwner,
+    assertProject: () => catalog({ homeDirectory: home.directory }, owner => {
+      const project = owner.getProject(projectId);
+      if (owner.recycle.isRecycled(projectId) || realpathSync(project.database_path) !== realpathSync(projectLibrary.path)) {
+        throw new ActionError("actions.forbidden", "当前项目库已移动或不再属于这个 Home");
+      }
+    }),
+  });
+}
+
 /** The context the Plugin's `start` receives: its identity plus the services below. */
 function hostedContext(options: PluginHostExecutorOptions, manifest: PluginManifest, context: PluginStartContext, parts: SessionParts): PluginStartContext {
   const { pluginCaller, providerId, artifactService, ui, assertActive } = parts;
   const actions = pluginHostActions(context, manifest, { ...options.actions, actor_id: options.actor_id, assertActive, pluginCaller, providerId,
     ...(options.dependencyCheck ? { dependencyCheck: options.dependencyCheck } : {}) });
   const wiring = options.wiring;
+  const { database, artifacts } = artifactDatabaseServices(options, context, parts);
   return Object.freeze({ ...context,
     project_id: options.project_id,
     actor_id: options.actor_id,
@@ -272,13 +296,12 @@ function hostedContext(options: PluginHostExecutorOptions, manifest: PluginManif
       ...sceneServices(options, manifest, context, assertActive),
       storage: manifest.permissions.some(item => item.permission === "storage:private")
         ? options.privateStorageFor(context, manifest) : undefined,
-      artifacts: withArtifactJoin(artifactService.client, artifactService.writer, parts.project_database, context, options.project_id, assertActive,
-        () => options.record?.(context.install_id) ?? null),
+      artifacts,
       ...((manifest.process_items?.produces ?? []).length > 0 ? { processItems: artifactService.process } : {}),
       ui: ui.client,
       interaction: pluginInteraction,
       ...(parts.sync === undefined ? {} : {sync: parts.sync}),
-      ...(parts.database === undefined ? {} : { database: parts.database }),
+      ...(database === undefined ? {} : { database }),
       ...(parts.ownerFiles === undefined ? {} : { ownerFiles: parts.ownerFiles }),
       ...(parts.project_statements !== undefined ? { project_statements: parts.project_statements } : parts.project_database === undefined ? {} : { project_database: parts.project_database }),
       ...(parts.scheduler === undefined ? {} : { scheduler: parts.scheduler }),

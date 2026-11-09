@@ -3,8 +3,8 @@ import { readdirSync } from "node:fs";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { pluginProjectTablesVersion } from "@molis-ai/molis-work-plugin-runtime";
 import {
-  CATALOG_VERSION_ACCESS, catalogOwner, entryAt, openHomeSqliteFile, openSqliteConnection, readUpgradeStore, SECRET_STORE_FILE, upgradeFailedRefusal, upgradeStepsProblem,
-  USER_VERSION_ACCESS, type HomeStore,
+  CATALOG_VERSION_ACCESS, catalogOwner, entryAt, openHomeSqliteFile, openSqliteConnection, readDatabaseSpace, readUpgradeStore, SECRET_STORE_FILE,
+  snapshotFileStat, upgradeFailedRefusal, upgradeStepsProblem, USER_VERSION_ACCESS, type HomeStore, type StorageSpace,
 } from "@molis-ai/molis-work-storage";
 import { SHELF_CATALOG_FILE } from "@molis-ai/molis-work-module-shelf";
 import { BROWSER_SITES_FILE } from "./browser/browser-surfaces.js";
@@ -29,12 +29,16 @@ const CATALOG = join("projects", "catalog.db"), PROJECT_LIBRARY = join("projects
  * catalog is, because this runs before the catalog is upgraded, and without leaving side files on a closed one, because this also runs with no lock.
  * A catalog too new for this build is not read any further: it reports itself. Nothing here reads a path from the catalog: each is worked out from the project's id.
  */
-function projectDatabases(home: string): readonly string[] {
+export function projectDatabases(home: string, space?: StorageSpace): readonly string[] {
   const file = join(home, CATALOG);
   if (!entryAt(file)) return [];
+  if (space) snapshotFileStat(file);
   return readUpgradeStore(file, db => {
     if (CATALOG_VERSION_ACCESS.read(db) > CATALOG_BASELINE.version) return [];
     assertCatalogOwner(catalogOwner(db), file);
+    if (space && JSON.stringify(readDatabaseSpace(db)) !== JSON.stringify(space)) {
+      throw upgradeFailedRefusal(CATALOG, "invalid_path", "目录库的空间与当前 Home 不一致");
+    }
     return listProjectDatabasePaths(db, join(home, "projects")).map(database => relative(home, database));
   });
 }

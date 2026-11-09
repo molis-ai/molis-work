@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { recoverHomeArtifactRows } from "./home-artifact-recovery.js";
 import { lstatSync, realpathSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative } from "node:path";
 import {
@@ -355,6 +356,7 @@ export function ensureHomeUpgraded(home: string, owner: StorageOwner, options: {
   const lockDirectory = agentRuntimeDirectory(home);
   assertStorageOwner(lockDirectory, owner);
   const root = realpathSync(home), descriptors = homeUpgradeDescriptors();
+  recoverHomeArtifactRows(root, owner, options.expectedSpace);
   const fingerprint = upgradeFingerprint(descriptors), identity = homeIdentity(root), stamp = readUpgradeStamp(root, identity);
   if (stamp === fingerprint) return NOTHING;
   const previous = readUpgradeLedger(root);

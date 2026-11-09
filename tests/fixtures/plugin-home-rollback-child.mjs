@@ -6,8 +6,7 @@ const [file, version, owner, mode, peer, root] = process.argv.slice(2);
 if (mode === "replay") {
   const { dirname, join } = await import("node:path");
   const { readdirSync } = await import("node:fs");
-  const { acquireStorageOwner } = await import("@molis-ai/molis-work-storage");
-  const { recoverSqliteRollbackJournals } = await import("../../packages/storage/dist/rollback-journal.js");
+  const { acquireStorageOwner, recoverSqliteRollbackJournals } = await import("@molis-ai/molis-work-storage");
   const lockDirectory = join(root, "agent-runtime"), lease = acquireStorageOwner(lockDirectory);
   const marker = readdirSync(dirname(file)).find(name => name.includes("-mj"));
   const inspect = db => {

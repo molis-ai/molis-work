@@ -11,11 +11,11 @@ export const PRESENTATION_FORM_STYLES = `
   .mw-presentation { min-inline-size: 0; color: var(--ink); }
   .mw-presentation__owner {
     display: inline-grid; place-items: center; flex: none; inline-size: 2em; block-size: 2em;
-    border-radius: var(--sk-r-slot); background: var(--presentation-fill); color: var(--presentation-hue);
+    border-radius: var(--sk-r-slot, var(--r-control)); background: var(--presentation-soft); color: var(--presentation-hue);
   }
   .mw-presentation__owner svg { inline-size: 1em; block-size: 1em; }
   .mw-presentation__tag { max-inline-size: 100%; gap: .5em; padding-inline: .25em .6em; }
-  .mw-presentation__tag .mw-presentation__owner { inline-size: 1.5em; block-size: 1.5em; }
+  .mw-presentation__tag .mw-presentation__owner { inline-size: 1.5em; block-size: 1.5em; border-radius: var(--sk-r-slot, var(--r-tag)); }
   .mw-presentation__tag > strong { overflow: hidden; text-overflow: ellipsis; font-weight: var(--weight-control); }
   .mw-presentation__tag .mw-status { flex: none; }
   .mw-presentation__tag .mw-status:has(.mw-state-ring) > span {
@@ -46,7 +46,7 @@ export const PRESENTATION_FORM_STYLES = `
   .mw-presentation__field[data-presentation-role=excerpt] { flex: 1 1 100%; white-space: pre-wrap; }
   .mw-presentation--row .mw-presentation__field :is(time, span, small) { font-size: inherit; white-space: normal; }
   .mw-presentation:is(.mw-presentation--card, .mw-presentation--peek) {
-    display: grid; gap: .6em; border: 1px solid var(--line); border-radius: var(--sk-r-card); background: var(--paper);
+    display: grid; gap: .6em; border: 1px solid var(--line); border-radius: var(--sk-r-card, var(--r-card)); background: var(--paper);
   }
   .mw-presentation__band {
     display: flex; align-items: center; flex-wrap: wrap; gap: .6em; min-inline-size: 0; overflow-wrap: anywhere; padding: .6em .8em;
@@ -57,7 +57,7 @@ export const PRESENTATION_FORM_STYLES = `
   .mw-presentation__band .mw-presentation__field { color: var(--muted); }
   .mw-presentation__band .mw-status { margin-inline-start: auto; }
   .mw-presentation :is(.mw-preview-card, .mw-presentation__notice, .mw-presentation__stale, .mw-presentation__unavailable) { overflow-wrap: anywhere; }
-  .mw-presentation .mw-preview-card { min-inline-size: 0; max-inline-size: none; padding: 0; border: 0; box-shadow: none; background: none; }
+  .mw-presentation .mw-preview-card { inline-size: auto; min-inline-size: 0; max-inline-size: none; padding: 0; border: 0; box-shadow: none; background: none; }
   .mw-presentation:is(.mw-presentation--card, .mw-presentation--peek) > :not(.mw-presentation__band) { margin-inline: .8em; }
   .mw-presentation:is(.mw-presentation--card, .mw-presentation--peek) > :last-child { margin-block-end: .8em; }
   .mw-presentation__fields:empty, .mw-presentation .mw-preview-card p:empty { display: none; }

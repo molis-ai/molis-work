@@ -84,7 +84,7 @@ export function presentationSection(locale: string): string {
 export const PRESENTATION_BOARD_STYLES = `
   .mw-presentation-board { display: grid; grid-template-columns: minmax(0, 1fr); gap: .7em; min-inline-size: 0; max-inline-size: 50rem; }
   .mw-presentation-board__chip { position: relative; justify-self: start; max-inline-size: 100%; }
-  .mw-presentation-board__trigger.mw-btn { position: absolute; inset: 0; inline-size: 100%; block-size: 100%; border-radius: var(--sk-r-slot); }
+  .mw-presentation-board__trigger.mw-btn { position: absolute; inset: 0; inline-size: 100%; block-size: 100%; border-radius: var(--sk-r-slot, var(--r-tag)); }
   .mw-presentation-board__trigger.mw-btn:is(:hover, :focus-visible, :active) { background: transparent; }
   @media (max-width: 650px), (pointer: coarse) {
     .mw-presentation-board__chip { display: grid; grid-template-columns: minmax(0, 1fr); align-items: center; min-block-size: var(--control-h, 44px); }
@@ -100,7 +100,7 @@ export const PRESENTATION_BOARD_STYLES = `
   dialog.mw-presentation-board__sheet:not([open]) { display: none; }
   dialog.mw-presentation-board__sheet {
     inset: auto 0 0; inline-size: 100%; block-size: auto; max-block-size: 90dvh;
-    border-radius: var(--sk-r-card) var(--sk-r-card) 0 0;
+    border-radius: var(--sk-r-card, var(--r-sheet)) var(--sk-r-card, var(--r-sheet)) 0 0;
   }
   .mw-presentation-board__sheet .mw-form__body { overflow: auto; overscroll-behavior: contain; }
   .mw-presentation-board__sheet .mw-form__footer:empty { display: none; }

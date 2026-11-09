@@ -49,7 +49,7 @@ function ownerTile(owner: PresentationFormValues["ownerDisplay"], labelled: bool
 
 function formStart(form: FormKind, state: PresentationFormValues["read"]["state"], hue: UiViewHue | undefined): string {
   const color = hue && UI_VIEW_HUES.includes(hue) ? hue : "gray";
-  return `<div class="mw-presentation mw-presentation--${escapeHtml(form)}" data-presentation-read="${escapeHtml(state)}" style="--presentation-hue:var(--hue-${color});--presentation-fill:var(--hue-${color}-fill);--presentation-soft:var(--hue-${color}-soft)">`;
+  return `<div class="mw-presentation mw-presentation--${escapeHtml(form)}" data-presentation-read="${escapeHtml(state)}" style="--presentation-hue:var(--hue-${color});--presentation-soft:var(--hue-${color}-soft)">`;
 }
 
 function unavailable(form: FormKind, read: ReadUnavailable, values: PresentationFormValues): string {

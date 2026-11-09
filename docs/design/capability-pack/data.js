@@ -10,7 +10,8 @@ window.KIT_DATA = (() => {
   const sources = {
     system: { kind: "system", name: z("系统 · Agent Host", "System · Agent Host"), version: "Prologue SDK 0.38.2", trust: z("随应用提供", "Built in"), manage: null,
       diff: z("上次换包 0.37 → 0.38：新增 2 个系统工具（list_dir、fetch_url），没有移除", "Last SDK change 0.37 → 0.38: 2 system tools added (list_dir, fetch_url), none removed") },
-    assistant: { kind: "plugin", name: z("助理", "Assistant"), version: "v12", trust: z("随应用提供", "Built in"), manage: "assistant" },
+    builtin: { kind: "system", name: z("Molis Work 自带", "Built into Molis Work"), version: "v12", trust: z("随应用提供", "Built in"), manage: "assistant" },
+    assistant: { kind: "system", name: z("Molis Work 自带", "Built into Molis Work"), version: "v12", trust: z("随应用提供", "Built in"), manage: "assistant" },
     goals: { kind: "plugin", name: z("Goals 插件", "Goals plugin"), version: "4.2.0", trust: z("随应用提供", "Built in"), manage: "plugins",
       diff: z("4.1 → 4.2：提示词「拆分子目标」默认更新到 v4", "4.1 → 4.2: prompt “Split into sub-goals” default updated to v4") },
     coding: { kind: "plugin", name: z("Coding 插件", "Coding plugin"), version: "3.2.0", trust: z("随应用提供", "Built in"), manage: "plugins",
@@ -24,7 +25,7 @@ window.KIT_DATA = (() => {
     projectMcp: { kind: "server", name: z("这个项目的 MCP 服务器", "This project's MCP servers"), version: null, trust: z("你加的", "Added by you"), manage: "coding-mcp" },
     connections: { kind: "connection", name: z("服务连接", "Service connections"), version: null, trust: z("你连的", "Connected by you"), manage: "connections" },
     molis: { kind: "server", name: z("Molis Work（对外）", "Molis Work (outbound)"), version: "MCP 1.6", trust: z("随应用提供", "Built in"), manage: "access" },
-    contracts: { kind: "plugin", name: z("合同助手", "Contract helper"), version: "0.9.0", trust: z("已卸载", "Uninstalled"), manage: "plugins", gone: true },
+    contracts: { kind: "plugin", name: z("合同助手", "Contract helper"), version: "0.9.0", trust: z("第三方", "Third party"), manage: "plugins", gone: { at: z("11-05", "Nov 5") } },
   };
 
   const by = { assistant: z("助理", "the assistant"), coding: z("Coding", "Coding") };
@@ -66,7 +67,7 @@ window.KIT_DATA = (() => {
         tools: ["read_file", "run_command"], resources: [], excerpt: z("先读描述，再看测试……", "Read the description first, then the tests…") } },
 
     // ---------- prompts: name, owner, version, where it is called; never the text (§4.2) ----------
-    { id: "pr-reply", kind: "prompt", src: "assistant", scope: "home", version: "v12", name: z("回复的基本要求", "How to reply"), desc: z("助理每次回复前读的说明：语气、长度、什么时候先问。", "What the assistant reads before every reply: tone, length, when to ask first."),
+    { id: "pr-reply", kind: "prompt", src: "builtin", scope: "home", version: "v12", name: z("回复的基本要求", "How to reply"), desc: z("助理每次回复前读的说明：语气、长度、什么时候先问。", "What the assistant reads before every reply: tone, length, when to ask first."),
       prompt: { mine: false, base: null, latest: "v12" }, usage: { range: "recent", n: 48, last: { at: z("今天 10:20", "today 10:20"), by: by.assistant } },
       where: [z("助理的每一轮", "Every assistant turn")] },
     { id: "pr-split", kind: "prompt", src: "goals", scope: "project", version: "v4", name: z("拆分子目标", "Split into sub-goals"), desc: z("把一个 Goal 拆成可以各自完成的子目标。", "Breaks a Goal into sub-goals that can each be finished."),
@@ -78,13 +79,14 @@ window.KIT_DATA = (() => {
     { id: "pr-plan", kind: "prompt", src: "coding", scope: "project", version: "v7", name: z("计划步骤", "Plan the steps"), desc: z("Coding 开工前先写出要做的几步。", "Coding writes out its steps before starting."),
       prompt: { mine: false, base: null, latest: "v7" }, usage: { range: "recent", n: 22, last: { at: z("今天 09:30", "today 09:30"), by: by.coding } },
       where: [z("Coding：每个任务开始时", "Coding: at the start of every task")] },
-    { id: "pr-clauses", kind: "prompt", src: "contracts", scope: "project", version: "v2", name: z("条款核对", "Clause check"), desc: z("合同助手核对条款时用的说明。", "What Contract helper used to check clauses."),
-      prompt: { mine: true, base: "v2", latest: null }, gone: { owner: z("合同助手", "Contract helper"), at: z("11-05", "Nov 5") },
-      usage: { range: "history", n: 5, last: { at: z("11-04 11:20", "Nov 4 11:20"), by: by.assistant } }, where: [] },
-
     // ---------- roles: declaration and source; scope and inheritance come from batch 36's read ----------
+    { id: "ro-research", kind: "role", src: "characters", scope: "home", version: z("修订 5", "revision 5"), name: z("研究员", "Researcher"), desc: z("先查资料再下结论，每个结论写出处。", "Looks things up before concluding; every conclusion cites a source."),
+      role: { declared: z("你写的角色", "A role you wrote"), active: [z("「季度发布」的项目默认", "Project default in “Quarterly launch”"), z("你的默认", "Your default")], tools: ["read_file", "web_search", "fetch_url"] },
+      usage: { range: "recent", n: 3, last: { at: z("今天 08:55", "today 08:55"), by: by.assistant } }, where: [] },
+    { id: "ro-editor", kind: "role", src: "characters", scope: "home", version: z("修订 2", "revision 2"), name: z("审稿人", "Editor"), desc: z("只挑问题不改原文，按轻重排。", "Points out problems without rewriting, ordered by weight."),
+      role: { declared: z("你写的角色", "A role you wrote"), active: [], tools: ["read_file"] }, off: true, usage: { range: "none" }, where: [] },
     { id: "ro-impl", kind: "role", src: "coding", scope: "project", version: "v3", name: z("实现者", "Implementer"), desc: z("Coding 写代码时的身份：先复现，改完跑相关检查。", "Coding's identity when writing code: reproduce first, run the checks after."),
-      role: { declared: z("Coding 插件声明", "Declared by the Coding plugin"), active: [z("Coding 的每个任务", "Every Coding task")], tools: ["read_file", "write_file", "run_command", "delegate"] },
+      role: { declared: z("Coding 插件声明", "Declared by the Coding plugin"), active: [z("Coding 的每个任务", "Every Coding task")], tools: ["read_file", "write_file", "run_command", "list_dir", "delegate", "plan_step"] },
       usage: { range: "recent", n: 22, last: { at: z("今天 09:30", "today 09:30"), by: by.coding } }, where: [z("Coding：默认角色", "Coding: default role")] },
     { id: "ro-tester", kind: "role", src: "coding", scope: "project", version: "v1", name: z("测试员", "Tester"), desc: z("实现者交出去的子代理：只跑测试、报结果。", "A sub-agent the implementer hands off to: runs tests, reports back."),
       role: { declared: z("Coding 插件声明的子代理", "Sub-agent declared by Coding"), active: [z("实现者交给它时", "When the implementer hands off")], tools: ["read_file", "run_command"] },
@@ -104,8 +106,8 @@ window.KIT_DATA = (() => {
       ["plan_step", z("计划步骤", "Plan step"), z("记下或更新这一轮要做的几步。", "Records or updates this turn's steps."), false, "plan", 2, z("今天 09:30", "today 09:30")],
     ].map(([id, name, desc, writes, origin, roles, last]) => ({
       id: "tl-" + id, kind: "tool", src: "system", scope: "home", version: "0.38.2", code: id, name, desc,
-      tool: { writes, origin, roles: ["个人助理", "实现者", "测试员", "写作编辑"].slice(0, roles), added: id === "list_dir" || id === "fetch_url" },
-      usage: last ? { range: "last_only", last: { at: last } } : { range: "none" }, where: [],
+      tool: { writes, origin, roles: [], added: id === "list_dir" || id === "fetch_url" },
+      usage: last ? { range: "last_only", last: { at: last } } : { range: "not_counted" }, where: [],
     })),
 
     // ---------- MCP: three different "on"s, each said separately (§4.3) ----------
@@ -118,10 +120,6 @@ window.KIT_DATA = (() => {
     { id: "mc-linear", kind: "mcp", src: "connections", scope: "home", version: z("清单 11-01", "list of Nov 1"), name: z("Linear", "Linear"), desc: z("服务连接带的 MCP：议题与周期。", "MCP from a service connection: issues and cycles."),
       mcp: { outbound: false, server: "broken", tools: { total: 9, open: 0 } },
       usage: { range: "recent", n: 2, last: { at: z("11-06 14:10", "Nov 6 14:10"), by: by.assistant } }, where: [] },
-    { id: "mc-figma", kind: "mcp", src: "projectMcp", scope: "project", version: z("清单 10-28", "list of Oct 28"), name: z("Figma", "Figma"), desc: z("读设计稿的图层与标注。", "Reads layers and notes from design files."),
-      mcp: { outbound: false, server: "gone", tools: { total: 6, open: 0 } }, gone: { owner: z("Figma 服务器", "the Figma server"), at: z("11-04", "Nov 4") },
-      usage: { range: "history", n: 7, last: { at: z("11-03 16:22", "Nov 3 16:22"), by: by.coding } }, where: [] },
-
     // ---------- added for the pack model: every role carries its own prompts ----------
     { id: "ro-writer", kind: "role", src: "writing", scope: "project", version: "2.0.0", name: z("写作编辑", "Writing editor"), desc: z("按团队的文风写和改：先结论，短句，不堆形容词。", "Writes and edits in the team's style: conclusion first, short sentences, few adjectives."),
       role: { declared: z("写作工具声明", "Declared by Writing kit"), active: [z("助理：写东西的时候", "Assistant: when writing")], tools: ["read_file", "write_file", "web_search"] },
@@ -129,20 +127,18 @@ window.KIT_DATA = (() => {
     { id: "ro-planner", kind: "role", src: "goals", scope: "project", version: "v4", name: z("规划师", "Planner"), desc: z("把目标拆成能各自完成的几步，并说清怎样算完成。", "Breaks a goal into steps that can each be finished, and says what counts as done."),
       role: { declared: z("Goals 插件声明", "Declared by the Goals plugin"), active: [z("Goals：新建 Goal 时的「帮我拆」", "Goals: “Help me split” on a new Goal"), z("助理：规划", "Assistant: planning")], tools: ["call_action", "change-reversible"] },
       usage: { range: "recent", n: 9, last: { at: z("昨天 18:40", "yesterday 18:40"), by: by.assistant } }, where: [] },
-    { id: "ro-assistant", kind: "role", src: "assistant", scope: "home", version: "v12", name: z("个人助理", "Personal assistant"), desc: z("你在每个项目里对话的那一位：先听懂再动手，动手前说清要做什么。", "The one you talk to in every project: understands first, says what it will do before doing it."),
+    { id: "ro-assistant", kind: "role", src: "builtin", scope: "home", version: "v12", name: z("个人助理", "Personal assistant"), desc: z("你在每个项目里对话的那一位：先听懂再动手，动手前说清要做什么。", "The one you talk to in every project: understands first, says what it will do before doing it."),
       role: { declared: z("随应用提供", "Built in"), active: [z("助理的每一轮", "Every assistant turn")], tools: ["web_search", "fetch_url", "call_action"] },
       usage: { range: "recent", n: 48, last: { at: z("今天 10:20", "today 10:20"), by: by.assistant } }, where: [] },
     { id: "ro-reviewer", kind: "role", src: "legal", scope: "home", version: "1.3.0", name: z("合同审阅员", "Contract reviewer"), desc: z("逐条读合同，只指出风险和出处，不替你下结论。", "Reads a contract clause by clause; points out risks and where they are, never decides for you."),
       role: { declared: z("法务审阅声明", "Declared by Legal review"), active: [], tools: ["read_file"] },
       usage: { range: "recent", n: 2, last: { at: z("11-03 15:40", "Nov 3 15:40"), by: by.assistant } }, where: [] },
-    { id: "ro-clause", kind: "role", src: "contracts", scope: "project", version: "0.9.0", name: z("条款核对员", "Clause checker"), desc: z("合同助手带来的角色。", "The role Contract helper brought."),
-      role: { declared: z("合同助手声明", "Declared by Contract helper"), active: [], tools: ["read_file"] }, gone: { owner: z("合同助手", "Contract helper"), at: z("11-05", "Nov 5") },
-      usage: { range: "history", n: 5, last: { at: z("11-04 11:20", "Nov 4 11:20"), by: by.assistant } }, where: [] },
     ...[
       ["pr-write", "writing", "project", z("写作编辑的说明", "Writing editor's brief"), z("文风、段落长度和什么时候先给提纲。", "Style, paragraph length, and when to outline first."), { mine: false, latest: "v2" }, 12],
       ["pr-goalcheck", "goals", "project", z("怎样算完成", "What counts as done"), z("给每一步写一句能检查的完成条件。", "Writes one checkable condition for each step."), { mine: false, latest: "v2" }, 9],
       ["pr-impl", "coding", "project", z("实现者的说明", "Implementer's brief"), z("先复现、小步改、改完跑相关检查。", "Reproduce first, change in small steps, run the related checks after."), { mine: false, latest: "v3" }, 22],
       ["pr-test", "coding", "project", z("测试员的说明", "Tester's brief"), z("只跑测试、照实报结果，不改代码。", "Runs tests and reports honestly; never changes code."), { mine: false, latest: "v1" }, 4],
+      ["pr-outline", "writing", "project", z("提纲要求", "Outline first"), z("长文先给三到五行提纲，等你点头再写。", "For long pieces, give a 3–5 line outline and wait for a nod."), { mine: true, base: "v1", latest: "v1" }, 5],
       ["pr-sort", "feed", "project", z("消息分类", "Sort messages"), z("给新消息分到「要回」「看看」「存档」。", "Sorts new messages into reply, read and archive."), { mine: false, latest: "v1" }, 31],
       ["pr-legal", "legal", "home", z("审阅口径", "Review standard"), z("付款、责任、终止三类条款各看什么。", "What to check in payment, liability and termination clauses."), { mine: false, latest: "v2" }, 2],
     ].map(([id, src, scope, name, desc, prompt, n]) => ({ id, kind: "prompt", src, scope, version: prompt.latest, name, desc, prompt: Object.assign({ base: null }, prompt),
@@ -169,47 +165,60 @@ window.KIT_DATA = (() => {
   };
 
 
-  // Capability packs: what a pack brings (skills, MCP servers, tools) and the roles that go with it; each role carries its own
-  // prompts. Tools are the system's and can sit in several packs. `owner` is where the pack is managed.
+  // Which roles open each tool is read from the roles (contract §4.3), not written by hand.
+  for (const tl of entries.filter((e) => e.kind === "tool")) tl.tool.roles = entries.filter((e) => e.kind === "role" && e.role.tools.includes(tl.code)).map((e) => e.id);
+
+  // Capability packs as the contract computes them (contract-design §4.1–4.4), never stored:
+  //   one per plugin installation (app plugins and batch-08 content packages alike: what it holds is what its Manifest declares),
+  //   「Molis Work 自带」 (the personal assistant and its prompts, every Agent tool, the outbound MCP, platform-driver MCP), and
+  //   「你的角色」 (the Characters you wrote). A plugin pack's tools are the names its roles' host_tools give. Prompts with no role
+  //   of their own hang under a 「个人助理」 row (`ref`) that points at the built-in assistant; nothing is copied.
+  const byId = Object.fromEntries(entries.map((e) => [e.id, e]));
+  const toolsOf = (roles) => [...new Set(roles.filter((r) => !r.ref).flatMap((r) => byId[r.id].role.tools))].map((x) => "tl-" + x);
+  const pack = (p) => Object.assign({ skills: [], mcp: [] }, p, { tools: p.tools || toolsOf(p.roles) });
   const packs = [
-    { id: "pk-writing", src: "writing", name: z("写作工具", "Writing kit"), desc: z("写周报、会议纪要和日程的一套做法，带一位写作编辑。", "A set of ways to write weekly reviews, meeting notes and plans, with a writing editor."),
-      roles: [{ id: "ro-writer", prompts: ["pr-write"] }], skills: ["sk-weekly", "sk-notes", "sk-schedule"], mcp: [], tools: ["tl-read_file", "tl-write_file", "tl-web_search"] },
-    { id: "pk-coding", src: "coding", name: z("Coding 开发", "Coding"), desc: z("写代码、跑测试、提交的一整套：实现者带着测试员干活。", "Everything for writing code, running tests and committing: the implementer works with a tester."),
-      roles: [{ id: "ro-impl", prompts: ["pr-impl", "pr-plan"] }, { id: "ro-tester", prompts: ["pr-test"] }], skills: [], mcp: ["mc-github", "mc-figma"], tools: ["tl-read_file", "tl-write_file", "tl-run_command", "tl-list_dir", "tl-delegate", "tl-plan_step"] },
-    { id: "pk-goals", src: "goals", name: z("目标推进", "Goal planning"), desc: z("拆目标、写完成条件，并把 Goal 开给外部 AI 工具推进。", "Split goals, write what counts as done, and open Goals to outside AI tools."),
-      roles: [{ id: "ro-planner", prompts: ["pr-split", "pr-goalcheck"] }], skills: [], mcp: ["mc-molis"], tools: ["tl-call_action", "tl-change-reversible"] },
-    { id: "pk-assistant", src: "assistant", name: z("日常助理", "Everyday assistant"), desc: z("你每天对话的助理：怎样回复、怎样摘要，连着你的议题服务。没有归属角色的提示词也挂在个人助理下面。", "The assistant you talk to daily: how it replies and summarizes, connected to your issue tracker. Prompts with no role of their own also sit under the personal assistant."),
-      roles: [{ id: "ro-assistant", prompts: ["pr-reply", "pr-digest", "pr-sort"], loose: ["pr-digest", "pr-sort"] }], skills: [], mcp: ["mc-linear"], tools: ["tl-web_search", "tl-fetch_url", "tl-call_action"] },
-    { id: "pk-local", src: "local", name: z("本机导入 · Claude Code", "Imported · Claude Code"), desc: z("从这台电脑上的 Claude Code 拷进来的技能。", "Skills copied in from Claude Code on this computer."),
-      roles: [], skills: ["sk-commit", "sk-review"], mcp: [], tools: ["tl-run_command", "tl-read_file"] },
-    { id: "pk-legal", src: "legal", name: z("法务审阅", "Legal review"), desc: z("审合同的做法和一位合同审阅员。", "A way to review contracts, with a contract reviewer."),
-      roles: [{ id: "ro-reviewer", prompts: ["pr-legal"] }], skills: ["sk-contract"], mcp: [], tools: ["tl-read_file"] },
-    { id: "pk-contracts", src: "contracts", name: z("合同助手", "Contract helper"), desc: z("核对合同条款。", "Checks contract clauses."),
-      roles: [{ id: "ro-clause", prompts: ["pr-clauses"] }], skills: [], mcp: [], tools: [] },
+    pack({ id: "pk-builtin", kind: "builtin", src: "builtin", name: z("Molis Work 自带", "Built into Molis Work"), desc: z("个人助理和它的提示词、全部 Agent 工具、对外的 Molis Work MCP，以及平台自己的连接带的 MCP。", "The personal assistant and its prompts, every Agent tool, the outbound Molis Work MCP, and MCP from the platform's own connections."),
+      roles: [{ id: "ro-assistant", prompts: ["pr-reply"] }], mcp: ["mc-molis", "mc-linear"], tools: entries.filter((e) => e.kind === "tool").map((e) => e.id) }),
+    pack({ id: "pk-characters", kind: "characters", src: "characters", name: z("你的角色", "Your roles"), desc: z("你自己写的角色，各带自己声明的工具。", "The roles you wrote, each with the tools it declares."),
+      roles: [{ id: "ro-research", prompts: [] }, { id: "ro-editor", prompts: [] }] }),
+    pack({ id: "pk-writing", kind: "plugin", content: true, src: "writing", name: z("写作工具", "Writing kit"), desc: z("写周报、会议纪要和日程的一套做法，带一位写作编辑。", "A set of ways to write weekly reviews, meeting notes and plans, with a writing editor."),
+      roles: [{ id: "ro-writer", prompts: ["pr-write"] }, { id: "ro-assistant", ref: true, prompts: ["pr-outline"] }], skills: ["sk-weekly", "sk-notes", "sk-schedule"] }),
+    pack({ id: "pk-coding", kind: "plugin", src: "coding", name: z("Coding", "Coding"), desc: z("写代码、跑测试、提交：实现者带着测试员干活。", "Writing code, running tests and committing: the implementer works with a tester."),
+      roles: [{ id: "ro-impl", prompts: ["pr-impl", "pr-plan"] }, { id: "ro-tester", prompts: ["pr-test"] }], mcp: ["mc-github"] }),
+    pack({ id: "pk-goals", kind: "plugin", src: "goals", name: z("Goals", "Goals"), desc: z("拆目标、写怎样算完成。", "Splits goals and writes what counts as done."),
+      roles: [{ id: "ro-planner", prompts: ["pr-split", "pr-goalcheck"] }] }),
+    pack({ id: "pk-feed", kind: "plugin", src: "feed", name: z("Feed", "Feed"), desc: z("新消息的摘要与分类。它没有自己的角色，提示词由个人助理执行。", "Digests and sorts new messages. It has no role of its own; the personal assistant runs its prompts."),
+      roles: [{ id: "ro-assistant", ref: true, prompts: ["pr-digest", "pr-sort"] }] }),
+    pack({ id: "pk-local", kind: "plugin", content: true, src: "local", name: z("本机导入 · Claude Code", "Imported · Claude Code"), desc: z("从这台电脑上的 Claude Code 拷进来的技能。", "Skills copied in from Claude Code on this computer."),
+      roles: [], skills: ["sk-commit", "sk-review"] }),
+    pack({ id: "pk-legal", kind: "plugin", content: true, src: "legal", name: z("法务审阅", "Legal review"), desc: z("审合同的做法和一位合同审阅员。", "A way to review contracts, with a contract reviewer."),
+      roles: [{ id: "ro-reviewer", prompts: ["pr-legal"] }], skills: ["sk-contract"] }),
+    // Uninstalled: only the header is given (contract §4.4); what it used to hold is not listed.
+    pack({ id: "pk-contracts", kind: "plugin", content: true, src: "contracts", name: z("合同助手", "Contract helper"), desc: z("核对合同条款。", "Checks contract clauses."), roles: [], tools: [] }),
   ];
   // Many packs: the same shapes, many more of them.
-  const manyPacks = () => Array.from({ length: 26 }, (_, i) => ({ id: "pk-x" + (i + 1), src: ["writing", "local", "coding", "characters"][i % 4], sample: true,
+  const manyPacks = () => Array.from({ length: 26 }, (_, i) => pack({ id: "pk-x" + (i + 1), kind: "plugin", content: i % 2 === 0, src: ["writing", "local", "coding", "feed"][i % 4], sample: true,
     name: z("能力包 " + (i + 1), "Pack " + (i + 1)), desc: z("示例能力包，用来看包很多时的样子。", "A sample pack, to see the page with many packs."),
-    roles: i % 3 ? [{ id: "ro-writer", prompts: ["pr-write"] }] : [], skills: i % 2 ? ["sk-weekly"] : [], mcp: i % 5 === 0 ? ["mc-github"] : [], tools: ["tl-read_file"] }));
+    roles: i % 3 ? [{ id: "ro-writer", prompts: ["pr-write"] }] : [], skills: i % 2 ? ["sk-weekly"] : [], mcp: i % 5 === 0 ? ["mc-github"] : [] }));
 
   // A file picked for import (§5): prompt rewrites are confirmed one by one; references only say whether they exist here.
+  // A file picked for import: 「导出这个包」 of the writing kit on another computer (contract §4.9) — the content package as it was
+  // signed, your prompt edits (confirmed one by one), and references that only say whether they exist here.
   const importFile = {
-    name: "日常助理.molis-kit.json",
-    pack: z("日常助理", "Everyday assistant"),
+    name: "写作工具.molis-kit.json",
+    pack: z("写作工具", "Writing kit"),
     from: z("另一台电脑上的 Molis Work · 11-08 导出", "Molis Work on another computer · exported Nov 8"),
     prompts: [
-      { id: "i1", owner: z("角色「个人助理」", "Role “Personal assistant”"), name: z("回复的基本要求", "How to reply"), base: "v12", here: "v12", ok: true,
-        before: "先听懂再动手。\n回复不超过三段。", after: "先听懂再动手。\n回复不超过三段，先给结论。\n不确定时先问一句。" },
-      { id: "i2", owner: z("Feed 插件 · 归个人助理", "Feed plugin · under Personal assistant"), name: z("消息摘要", "Message digest"), base: "v1", here: "v2", ok: false },
-      { id: "i3", owner: z("日报插件", "Daily report plugin"), name: z("日报口吻", "Daily report tone"), base: "v3", here: null, ok: false, missing: true },
+      { id: "i1", owner: z("写作工具 · 角色「写作编辑」", "Writing kit · role “Writing editor”"), name: z("写作编辑的说明", "Writing editor's brief"), base: "v2", here: "v2", ok: true,
+        before: "先结论，后理由。\n一段不超过四句。", after: "先结论，后理由。\n一段不超过四句，不用形容词堆砌。\n引用要写出处。" },
+      { id: "i2", owner: z("写作工具 · 归个人助理", "Writing kit · under Personal assistant"), name: z("提纲要求", "Outline first"), base: "v1", here: "v2", ok: false },
     ],
     refs: [
-      { kind: "role", name: z("个人助理 · v12", "Personal assistant · v12"), here: true },
-      { kind: "tool", name: z("web_search · fetch_url · call_action", "web_search · fetch_url · call_action"), here: true },
-      { kind: "mcp", name: z("Linear（服务连接）", "Linear (service connection)"), here: true },
+      { kind: "role", name: z("写作编辑 · 写作工具 2.0.0", "Writing editor · Writing kit 2.0.0"), here: true },
+      { kind: "tool", name: z("read_file · write_file · web_search", "read_file · write_file · web_search"), here: true },
       { kind: "mcp", name: z("Notion（需要 Notion 连接）", "Notion (needs a Notion connection)"), here: false, fix: z("去连接", "Connect") },
     ],
-    skills: { packs: 0 },
+    skills: { packs: 1, note: z("内容包「写作工具 2.0.0」原样带着发布者的签名，走插件的安装确认（照第 08 批）", "The content package “Writing kit 2.0.0” keeps its publisher's signature and goes through the plugin install review (as in batch 08)") },
   };
 
   return { project, sources, entries, many, packs, manyPacks, importFile };

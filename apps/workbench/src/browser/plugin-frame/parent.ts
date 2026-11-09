@@ -27,7 +27,7 @@ import { pageConnectionSlot } from "./connection-slot.js";
 import { pageFilePicker } from "./file-picker.js";
 import { pageWorkspaces } from "./workspaces.js";
 import { pageFrameAssets } from "./frame-assets.js";
-import type { FrameConfig, FrameHost, FramePack, FrameUp } from "./types.js";
+import type { FrameConfig, FrameHost, FramePack, FrameScope, FrameUp } from "./types.js";
 import { frameEnvironment } from "./appearance.js";
 
 function stored(prefix: string): FrameConfig["storage"] {
@@ -81,6 +81,32 @@ function ownItemTab(root: HTMLElement, pack: FramePack): FrameConfig["itemTab"] 
   const tab = strip?.querySelector<HTMLElement>('[data-tab-id][aria-current="page"]');
   return tab?.dataset.tabKind === "item" && tab.dataset.plugin === pack.id && tab.dataset.tabId && tab.dataset.itemId
     ? { tabId: tab.dataset.tabId, itemId: tab.dataset.itemId } : null;
+}
+
+/** A WindowProxy can survive navigation. Only the document that knows this mount and holds its hello port gets the business channel. */
+function bindFrameDocument(frame: HTMLIFrameElement, scope: FrameScope, documentFor: (challenge: string) => string,
+  port: MessagePort, config: () => FrameConfig, fail: (error: Error) => void): void {
+  let loaded = false;
+  const reject = (error: Error) => { fail(error); scope.dispose(); };
+  frame.onload = () => {
+    if (loaded) { reject(new Error("Plugin page navigated")); return; }
+    loaded = true;
+  };
+  const challenge = crypto.randomUUID();
+  const unlisten = scope.listen(window, "message", incoming => {
+    const event = incoming as MessageEvent<{ type?: string; challenge?: string }>;
+    if (!event.isTrusted || event.source !== frame.contentWindow || event.origin !== "null" || event.data?.type !== "molis:plugin-mount"
+      || event.data.challenge !== challenge || event.ports.length !== 1) return;
+    unlisten();
+    const reply = event.ports[0]!;
+    try {
+      scope.assertCurrent();
+      if (!frame.isConnected) throw new Error("View closed");
+      reply.postMessage({ type: "molis:plugin-connect", config: config() }, [port]);
+    } catch (error) { reject(error instanceof Error ? error : new Error(String(error))); }
+    finally { reply.close(); }
+  });
+  frame.srcdoc = documentFor(challenge);
 }
 
 /** The trusted shell binds a real frame, channel and server authorization; child-supplied identity never selects them. */
@@ -290,18 +316,18 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
     if (root.dataset.expanded === "false" && childExpanded !== "false") port.postMessage({ type: "collapse" });
   }), root, { attributes: true, attributeFilter: ["data-expanded"] });
   scope.listen(document, "molis-work:model-ready", () => { state(); port.postMessage({ type: "model-ready" }); });
-  let loaded = false;
-  frame.onload = () => {
-    if (loaded) { fail(new Error("Plugin page navigated")); scope.dispose(); return; }
-    loaded = true;
-    const config: FrameConfig = { mount, subjectSurfaces: surfaces, search: location.search, origin: location.origin, pluginId: pack.plugin_id, bundle: pack.bundle, assets: pack.assets, searchRow: pack.searchRow, recordRow: pack.recordRow, itemTab: ownItemTab(root, pack), surface: pack.id,
-      stage: { title: getComputedStyle(root).getPropertyValue("--stage-title") || JSON.stringify(host.translate(root.dataset.workSurfaceLabel ?? pack.id)), description: getComputedStyle(root).getPropertyValue("--stage-desc") },
-      nativeFiles: Boolean(nativeFileInvoke()), shortcuts: navigation.shortcuts, appearance: environment.initial,
-      projectId: host.projectId?.() ?? "", projectTitle: host.projectTitle?.() ?? "", routePrefix: route(""), side: Boolean(host.side), page: host.page?.() ?? null,
-      messages: { ...globalThis.MOLIS_WORK_PLUGIN_WORDS?.[pack.plugin_id], ...globalThis.MOLIS_WORK_MESSAGES }, titles: globalThis.MOLIS_WORK_PLUGIN_TITLES ?? {}, storage };
-    frame.contentWindow?.postMessage({ type: "molis:plugin-connect", config }, "*", [channel.port2]);
-  };
-  frame.srcdoc = frameDocument(root, pack, environment.initial);
+  bindFrameDocument(frame, businessScope, challenge => frameDocument(root, pack, challenge, environment.initial), channel.port2, () => ({
+    mount, subjectSurfaces: surfaces, search: location.search, origin: location.origin,
+    pluginId: pack.plugin_id, bundle: pack.bundle, assets: pack.assets, surface: pack.id,
+    searchRow: pack.searchRow, recordRow: pack.recordRow, itemTab: ownItemTab(root, pack),
+    stage: {
+      title: getComputedStyle(root).getPropertyValue("--stage-title") || JSON.stringify(host.translate(root.dataset.workSurfaceLabel ?? pack.id)),
+      description: getComputedStyle(root).getPropertyValue("--stage-desc"),
+    },
+    nativeFiles: Boolean(nativeFileInvoke()), shortcuts: navigation.shortcuts, appearance: environment.initial,
+    projectId: host.projectId?.() ?? "", projectTitle: host.projectTitle?.() ?? "", routePrefix: route(""), side: Boolean(host.side), page: host.page?.() ?? null,
+    messages: { ...globalThis.MOLIS_WORK_PLUGIN_WORDS?.[pack.plugin_id], ...globalThis.MOLIS_WORK_MESSAGES }, titles: globalThis.MOLIS_WORK_PLUGIN_TITLES ?? {}, storage,
+  }), fail);
   own = root.dataset.uiClientState !== "loading";
   if (own) { root.inert = true; root.setAttribute("aria-busy", "true"); root.dataset.uiClientState = "loading"; }
   frame.hidden = Boolean(root.dataset.previewTab);

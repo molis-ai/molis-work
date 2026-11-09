@@ -138,6 +138,12 @@ Dataset 用 `mountPluginClient` 给页面请求提供作用域，取消的结果
 
 定向验证沿 BSH-09／10，覆盖 SDK 公共入口、Dataset 浏览器、文档路由、助理提醒／用量和操作卡；每次公开导出生成对应的 API 快照。收尾运行 `pnpm build`、定向 `node scripts/run-tests.mjs --jobs 1` 与 `node scripts/check-health-gates.mjs --base origin/main`，构建和测试分别占本机槽位。共享核心的 Full 由本批最终头的 CI 提供。N12 的 `join`、复制协议、Files 切换和真实 Home 仍依 §2／3 独立处理。
 
+**S3 实测（2026-11-09）。** BSH-09 归并了 14 份必需节点查询、4 份提示单元格、7 个客户端的共同请求处理，以及五个服务端文档路由的项目字段校验。纯辅助文件从 18 个 `dom.ts` 减到 16 个，16 个请求文件保有各自的路由适配。Images 支持 DELETE，Coding 自己控制可见时的读取信号与多种请求方法。Dataset 的实际浏览器先验证 403 拒绝与重试，然后验证传输中断、响应正文通过传输尾检后卸载，以及重读等待取消中的保存。后两种交错在初版候选分别写了脱离页面的目录和确认框，消费点复查后测试通过。
+
+时区读法覆盖 h23、DST 两侧的短偏移、秒和毫秒。短日期已接 Dataset、Form、PPT，Pages 的调用点与第 16 批语言接线协同。BSH-10 在同一基点上把直接切片拼省略号从 21 处降到 5 处。余下三处带完整说明的截断归各自上下文和编辑预览，另两处是内联收据脚本和测试诊断。门禁用真实 Git 基点证明新文件、已有文件增长都被拒，普通切片通过。
+
+候选的完整构建、包边界及与 `origin/main` 比较的健康门禁通过。25 个定向文件共 277 项通过，含真实 Dataset 浏览器、五家 Runtime 路由、日期及省略号边界。文档路由测试在构建结束后独立复跑 22 项，公开 SDK 的离线打包样例也通过。公开 API 快照仅涉及 SDK 根入口、`/browser` 与 `/whole-units`。最终真实 Host 页面资源和 CI Full 随本批集成头验证。
+
 **N47 的 Runtime 主人已独立裁定 GO（06-4）。** 在实际交给插件的最终 callback view 装惰性 `allowed_actions`。首次读取才克隆数组和每条引用，同一回调内保持同一个可改副本，其他回调和原权限快照各自隔离。保留缺省字段与空数组的区别、可枚举、赋值和序列化语义。Host ingress 继续立即取得独立权限快照，首次读取依据同一可信来源。检查 [action-provider](../../packages/plugin-runtime/src/action-provider.ts) 和 [scene-provider](../../packages/plugin-runtime/src/scene-provider.ts) 构造视图时的对象 spread，它会过早触发 getter。最终 view 安装 getter，或在转交时保留描述符。普通回调、availability 和场景入口各测未读、首次读、重复读与改值，再测嵌套调用及序列化。
 
 独立合成探针走生产回调函数，1,502 次各 164 条引用共复制 246,328 个引用对象，即使回调完全不读。该值是探针证据，真实 brief 请求的前后成本由 06-4 单独测。

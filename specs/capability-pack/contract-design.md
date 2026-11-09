@@ -1,6 +1,6 @@
 # 能力包与委派带技能的合同设计（路线书 09）
 
-状态：设计稿第 4 稿，2026-11-09。
+状态：设计稿第 4 稿，2026-11-09，公共合同台合审已过（`0eb704f6fe`）；随后补进合审的三条小意见（会话键清理、`unknown.issues` 的含义、系统提供方报到插件包的核对），本稿冻结。
 - 第 3 稿（`e3ed862d06`）按用户当天的决定把能力包改成「包 → 条目」；公共合同台复审时，B1～B6 与读取次数已过。
 - 本稿改复审退回的三处阻塞（`role_id` 的校验位置、`KitRoleRef` 与第 36 批对齐、插件上报者不能报工具），以及主会话定的六条非阻塞处理。
 
@@ -245,6 +245,7 @@ Coding 页面的「本轮方法」，与助理看委派过去的一轮，都读�
   - 会话里的技能选择**换一个新存储键** `skills:<会话>`，值是 `SkillRef[]`；旧键 `methods:<会话>` 从此不读、不写、不删。
   - 不写认旧形状 `{ skill_id, version }[]` 的分支，不做迁移，不加专门的错误码（第 2 稿的 `coding.server.method-stale` 删掉）。
   - 换键的作用：页面每轮把会话选择放进信封重发（第 2.3 节）；要是沿用旧键，存着旧形状的会话每轮都会被拒、卡住。换了键，旧会话读出来就是「没有选择」，照常能用，本人再选就存新键。这不是兼容代码：没有任何读旧值的路径。
+  - 清理：删 Coding 会话时，新键 `skills:<会话>` 跟着一起删。今天 Coding 只有归档、没有删会话的路，也没有按会话前缀统一清理的地方：别的按会话存的键（`budget:`、`goal-context:`、`compact-next:`）同样留着。所以 9-4 不为它另造删除路；以后加删会话的路时，把 `skills:<会话>` 与这些键一起清。旧键 `methods:<会话>` 不读也不删，记为已知遗留。9-4 的 PR 里写一句。
   - 删掉 `molis-coding-method` 的存储与读取、`agent.skills.discover`／`install`、`routes-setup.ts` 的三个路由和方法页（SKC-11）。
 - **助理历史材料**：已存的轮次材料里 `kind: "method"` 的 `method`（`AssistantMaterial.method`）同理，只认第 2.2 节的新形状，不写旧形状的读取分支。
 - **不动的东西**：`docs/system/CONTRACT-CHANGES.md` 不加保留机制，不动兼容计数、升级段与金样。
@@ -426,13 +427,14 @@ skillCatalog?: {
 export type KitPackState =
   | { kind: "uninstalled" }   // the installation is kept as uninstalled, its data kept for a reinstall
   | { kind: "disabled" }      // the plugin is disabled: nothing in the pack is used; the way out is enabling the plugin
-  | { kind: "unknown"; issues: number[] }   // a reporter whose entries could be in this pack failed: indexes into the result's `issues`
+  | { kind: "unknown"; issues: number[] }   // a reporter whose entries could be in this pack failed: 0-based indexes into the same `kit.catalog.list` result's `issues`
   | { kind: "attention"; items: Array<{ entry: KitEntryKey; reason: string }> }   // one or more entries cannot be used now
   | { kind: "active" };
 ```
 
 - `uninstalled`、`disabled` 来自插件安装记录（第 4.6 节的包头上报）。
 - `unknown`：某个上报者失败了，而它的条目可能在这个包里（第 4.7 节）。这时说不准包里有没有用不了的东西，不报「在用」，带上对应的 `issues`。
+  - `issues` 是同一份 `kit.catalog.list@1` 返回里 `issues` 数组的下标，从 0 起，不跨请求有效。schema 写成 `{ type: "array", items: { type: "integer", minimum: 0 }, minItems: 1 }`，汇总处保证每个下标都在那份数组的范围内。
 - `attention` 来自包里条目的 `availability`，逐项写出。工具没有可用与否，不算。
 - 自带包与「你的角色」只有 `unknown`／`attention`／`active`。
 - **已卸载的包只给包头**：名称、版本、「重新添加」的去处。
@@ -655,7 +657,7 @@ export function defineKitReportAction(capabilityId: string, version: number, tit
 | 插件安装服务 | 只报 `packs` | — | — |
 
 - `skill` 类只认 `system.skills`，`tool` 类只认工具上报者，`packs` 只认插件安装服务。
-- 系统提供方报到 `plugin:<install_id>` 的条目，汇总处还核两件事：这个 `install_id` 在插件安装服务的包头里；它的插件 id 等于条目 `source.plugin_id`。不合的丢掉这一条，进 `issues`。
+- **所有**系统提供方报到 `plugin:<install_id>` 的条目，汇总处都核两件事：这个 `install_id` 在插件安装服务的包头里；它的插件 id 等于条目 `source.plugin_id`。不只 `system.agent-definitions`，`system.skills`、Agent Host 的 MCP 库上报者与连接器也一样。不合的丢掉这一条，进 `issues`。
 - 这张表是信任边界，不是能力名单：上报者照样按合同类型发现，表只管「谁可以替别人说来源、说属于哪个包」。
 
 **怎样拼成包**：
@@ -844,7 +846,7 @@ export interface PromptOverridesFile {
 4. 插件上报者在条目里自称 `source: { kind: "system" }`、别的插件，或 `pack: "system:builtin"`：汇总后的 `source` 与 `pack` 是它自己的安装。
 5. 插件上报者报 `kind: "skill"`、`kind: "tool"`（比如自称系统工具 `run-command`）或 `packs`：丢掉，进 `issues`；工具条目仍只有工具上报者的那一份。
 6. 插件上报者把提示词挂到别的插件的角色：这一条丢掉，进 `issues`。
-7. 非点名的系统提供方报 `runtime`／`outbound` 来源，或报不在它表里的包：丢掉，进 `issues`。`system.agent-definitions` 报到 `plugin:<install_id>` 的条目，而那个安装的插件 id 与条目来源的插件 id 不同：丢掉，进 `issues`。
+7. 非点名的系统提供方报 `runtime`／`outbound` 来源，或报不在它表里的包：丢掉，进 `issues`。任一系统提供方（`system.skills`、`system.agent-definitions`、Agent Host 的 MCP 库上报者、连接器）报到 `plugin:<install_id>` 的条目，而那个安装不在包头里，或它的插件 id 与条目来源的插件 id 不同：丢掉，进 `issues`。四个提供方各一个用例。
 8. 插件上报者的 `manage.href` 指向别的插件页面、宿主设置页或外站：`manage` 被去掉。
 9. 列一份有项目 MCP 与连接 MCP 的能力包：`AgentMcpLibrary.control`／`call` 与连接器刷新的调用次数都是 0。
 10. Agent 调 `plugins.package.export@1` 与三个提示词改写动作被拒。没有 `user_action` 的确认被拒。插件页面请求下载路由被拒。

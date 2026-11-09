@@ -1,8 +1,13 @@
+import { CHARACTER_IMPORT_RUNTIMES } from "@molis-ai/molis-work-contracts/modules/characters";
+import { externalTool } from "@molis-ai/molis-work-contracts/platform/external-tools";
+
+const RUNTIME_OPTIONS = CHARACTER_IMPORT_RUNTIMES.map(id => `<option value="${id}">${externalTool(id).display_name}</option>`).join("");
+
 export const CHARACTER_IMPORT_HTML = `
   <dialog class="mw-dialog mw-dialog--form characters-dialog characters-import-dialog" data-character-import-dialog aria-labelledby="character-import-heading">
     <div class="mw-form mw-dialog__shell"><header class="mw-form__header"><h2 id="character-import-heading">从本机导入角色</h2><p>把 Codex、Claude Code 等 Agent 已有的规则、Skills 和附件带进来，成为你的角色。原配置不会被修改。</p></header>
     <section class="mw-form__body">
-      <details class="characters-location"><summary>指定位置或加入项目规则</summary><label>Agent<select class="mw-input" data-character-import-runtime><option value="">自动发现</option><option value="codex">Codex</option><option value="claude-code">Claude Code</option><option value="cursor">Cursor</option><option value="opencode">OpenCode</option><option value="grok-build">Grok Build</option></select></label><label>配置目录（可选）<input class="mw-input" data-character-import-config placeholder="例如 /Users/you/.claude"></label><label>项目目录（可选）<input class="mw-input" data-character-import-project placeholder="仅在该项目下使用这些规则"></label></details>
+      <details class="characters-location"><summary>指定位置或加入项目规则</summary><label>Agent<select class="mw-input" data-character-import-runtime><option value="">自动发现</option>${RUNTIME_OPTIONS}</select></label><label>配置目录（可选）<input class="mw-input" data-character-import-config placeholder="例如 /Users/you/.claude"></label><label>项目目录（可选）<input class="mw-input" data-character-import-project placeholder="仅在该项目下使用这些规则"></label></details>
       <button class="mw-btn mw-btn--secondary" type="button" data-character-scan>重新扫描</button>
       <div class="characters-sources" data-character-sources aria-label="发现的本地 Agent"></div>
       <div data-character-import-preview></div><p class="characters-hint" role="status" data-character-import-notice></p>

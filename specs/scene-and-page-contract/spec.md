@@ -458,13 +458,13 @@ interface HomePageVersion {
 
 - `ProjectPluginMembership` 增 `revision: string`，是调用方只保存和回传的不透明值。`projects.plugins.get@1` 输入 `{}`，输出该 membership；`projects.plugins.set@1` 输入 `{ plugin_id: string; enabled: boolean; expected_revision: string }`，输出修改后的同形 membership。读取受众为 user／plugin／agent，写仅 user。项目、actor 取调用上下文，输入不收它们；不提供整表替换或另一个成员名单。
 - revision 由目录主人根据当前实际成员、hidden 和最近一条成员增删事件的 `event_id` 得到，读时同一个事务快照；集合排序稳定，最近事件按已有库的实际写入顺序取，不能用时间字符串排序猜最后一条。事件类型为 `project.plugin_added`／`project.plugin_removed`，包含个人插件 hide／show。值变回原样但发生过增删时 revision 仍变化，防止 ABA；不拿 `projects.updated_at` 当 revision，不加表、列或持久化格式版本。
-- set 在 owner 同一事务里读 revision 并核对，随后调用原 `addPlugin`／`removePlugin` 和原事件写入，再返回最新 membership；旧 revision 拒绝且无成员／hidden／事件副作用。常开插件不能移除、移除依赖导致随行移除、个人插件只隐藏等原规则照旧。相同 revision 的两个并发写只允许先提交者成功；幂等无变更操作不增事件。这里不新增 request_id 回执表，场景服务续做仍先回读真实结果。
-- 合同动作沿 `projects.directories.get` 等现有目录动作的声明／授权／提供方路径注册一次，Host 只装配与做运行时刷新。`beforeEffect()` 之后进入同步 owner 事务；成员提交后复用 `refreshOpenProjectPlugins`，刷新失败如实反馈，已提交事实可回读，不能靠再写一遍掩盖。
+- set 在 owner 同一事务里读 revision 并核对，随后调用原 `addPlugin`／`removePlugin` 和原事件写入，再返回最新 membership；旧 revision 拒绝且无成员／hidden／事件副作用。常开插件不能移除、移除依赖导致随行移除、个人插件只隐藏等原规则照旧。两个携带相同 revision、确实会改变成员的交错写入，只允许先提交者成功。旧 revision 即使目标状态已经达到也拒绝，不能当成无变化成功绕过冲突检查；只有 revision 正确且目标无变化时才返回当前 membership、不增事件。这里不新增 request_id 回执表，场景服务续做仍先回读真实结果。
+- 合同动作沿 `projects.directories.get` 等现有目录动作的声明／授权／提供方路径注册一次，Host 只装配与做运行时刷新。`beforeEffect()` 之后进入同步 owner 事务；成员提交后复用 `refreshOpenProjectPlugins`，刷新失败明确反馈「成员已保存，运行状态尚未同步」，响应或结构化错误提供最新 membership／revision（也可由公开 get 立即读取）。UI 用这份实际成员与 revision 更新状态，不能假回滚到旧成员，也不能继续拿旧 revision 提交。恢复只重试运行状态刷新，不重复提交成员写入；不能靠再写一遍掩盖。
 - 现有项目设置 HTTP 的读取返回 revision，页面保存这次真正读到的值，提交携带它；不能在 POST 时重读并填入新 revision。保存成功更新页面持有值；冲突沿现有错误反馈要求重新读取，保留用户本次操作，不新设计布局。API 外的 owner 级写入口继续复用同一规则与事件，使它们的变更也会令旧 revision 失效。
 
 允许实现路径：`packages/contracts/src/modules/projects.ts`、`modules/projects/src/` 的主人读写与现有合同装配、Host 的目录动作／项目设置 HTTP、现有项目设置页面保存载荷和对应测试。`modules/projects` API 快照可独立更新；`host-actions.tsv` 等 #1984 释放后由本批主会话最终刷新。这里只复用已有事件，无新增版本／升级；若现存事件不足以给出稳定读写顺序，暂停该实现并交回具体缺口，不自行加库结构。
 
-**SPC-C08**：从公开 get 取得 revision 后 set 成功，回读和 HTTP／页面保存一致；旧 revision、两写交错、增后删回原值的 ABA 均拒绝且不多事件；常开／随行／个人 hide-show 规则保持；重开目录仍能识别旧 revision；上下文项目／actor 不可由输入覆盖。关联 SPC-03、07、14，只证明项目成员接入，不代替整个场景采用或安装授权验收。
+**SPC-C08**：从公开 get 取得 revision 后 set 成功，回读和 HTTP／页面保存一致；旧 revision（包括目标已达到）、两个同 revision 且实际改变成员的写入交错、增后删回原值的 ABA 均按冲突规则拒绝且不多事件；正确 revision 的无变化提交成功且不添事件。故障注入成员提交后的 Runtime 刷新失败，断言成员／事件只写一次，错误可取得最新 membership／revision，UI 不假回滚，恢复只刷新而不重复写成员；常开／随行／个人 hide-show 规则保持；重开目录仍能识别旧 revision；上下文项目／actor 不可由输入覆盖。关联 SPC-03、07、14，只证明项目成员接入，不代替整个场景采用或安装授权验收。
 
 ## 11. 存量数据
 

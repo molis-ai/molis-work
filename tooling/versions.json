@@ -968,6 +968,7 @@
     "event.io.molis.work.git.file-changed": 1,
     "event.io.molis.work.git.operation-updated": 1,
     "format.account.session": 1,
+    "format.agent-definitions.prompt-overrides": 1,
     "format.aggregate.copy": 1,
     "format.aggregate.replica": 1,
     "format.alchemist.portable": 1,

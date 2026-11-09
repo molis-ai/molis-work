@@ -50,12 +50,9 @@ body.project-preferences-page .settings-content > .settings-document.kit-setting
 .kp-summary { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; margin: 12px 0 0; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 .kp-summary .mw-btn--link { min-height: 0; padding: 0; }
 
-/* 列表＋详情：第 08 批的部件；这里只给分组标题留位置 */
+/* 列表＋详情：第 08 批的部件 */
 .kp-ld { margin-top: 12px; }
 .kp-ld .mw-list-detail__list { display: grid; gap: 6px; align-content: start; }
-.kp-ld .mw-list-detail__list > .mw-items + .kp-group, .kp-ld .mw-list-detail__list > .kp-inline-empty + .kp-group, .kp-ld .mw-list-detail__list > .mw-alert + .kp-group { margin-top: 12px; }
-.kp-group { display: flex; align-items: baseline; gap: 6px; margin: 0; padding: 0 4px; color: var(--faint); font-size: 11px; font-weight: 500; letter-spacing: .02em; }
-.kp-group__n { color: var(--faint); font-size: 11px; font-variant-numeric: tabular-nums; }
 .kp-inline-empty { display: flex; align-items: center; gap: 8px; margin: 0; padding: 10px 12px; border-radius: 12px; background: var(--surface-soft); color: var(--muted); font-size: 12px; }
 .kp-inline-empty .mw-btn--link { min-height: 0; padding: 0; }
 .kp-ld .mw-item__end .mw-status { white-space: nowrap; }
@@ -154,24 +151,6 @@ body.project-preferences-page .settings-content > .settings-document.kit-setting
 .kp-ref .mw-status-line { flex: none; }
 .kp-import__foot { display: flex; justify-content: flex-end; gap: 8px; padding-top: 4px; border-top: 1px solid var(--line); padding-block-start: 14px; }
 
-/* B：能力包卡片。一张卡是一个按钮：包名与来源、状态、一句说明、搭配的角色、带了什么 */
-.kp-attn { margin-top: 16px; }
-.kp-kindcards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; margin: 16px 0 0; padding: 0; list-style: none; }
-.kp-kindcard { appearance: none; display: grid; gap: 10px; align-content: start; width: 100%; height: 100%; margin: 0; padding: 14px 14px 12px; border: 0; border-radius: 14px; background: var(--paper); box-shadow: var(--lift-1); color: inherit; font: inherit; text-align: start; cursor: pointer;
-  transition: box-shadow var(--dur-hover) var(--ease-quint), background-color var(--dur-hover) var(--ease-quint); }
-.kp-kindcard:hover { box-shadow: var(--lift-2); }
-.kp-kindcard:active { background: var(--nav-hover); }
-.kp-kindcard:focus-visible { outline: var(--focus-stroke); outline-offset: 2px; }
-.kp-kindcard__head { display: flex; align-items: flex-start; gap: 10px; }
-.kp-kindcard__name { display: grid; gap: 2px; flex: 1 1 auto; min-width: 0; }
-.kp-kindcard__name strong { font-size: 14px; font-weight: var(--weight-title, 600); color: var(--ink); }
-.kp-kindcard__name small { color: var(--muted); font-size: 12px; line-height: 1.45; }
-.kp-kindcard__n { color: var(--ink); font-size: 22px; font-weight: var(--weight-title, 600); line-height: 1; font-variant-numeric: tabular-nums; }
-.kp-card__stats, .kp-kindcard .kp-card__stats { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; }
-.kp-card__line { margin: 0; color: var(--ink-soft); font-size: 12px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.kp-kindcard__foot { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding-top: 8px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
-.kp-kindcard__foot svg { width: 14px; height: 14px; }
-
 /* [组件板新增] 包的状态与去处：状态一句话（要处理的逐项写出），导出、管理在同一块 */
 .kp-packhead { display: grid; gap: 6px; }
 .kp-packhead h2 { margin: 0; font-size: 20px; font-weight: var(--weight-title, 600); }
@@ -201,9 +180,6 @@ body.project-preferences-page .settings-content > .settings-document.kit-setting
 .kp-role__label { padding: 0 4px; color: var(--faint); font-size: 11px; font-weight: 500; }
 .kit-settings .kp-role__prompts .mw-items { padding: 0; box-shadow: none; background: transparent; }
 .kp-role__prompts .kp-inline-empty { background: transparent; padding: 4px; }
-/* B 的包内目录：提示词缩进在它的角色下面 */
-.kit-settings .mw-item.kp-indent { margin-left: 28px; }
-.kit-settings .mw-item.kp-indent .mw-mark { width: 28px; height: 28px; }
 
 /* [组件板新增] 工具格：每个是一个按钮，名称、代码名和「只读／会写」；没有开关 */
 .kp-toolgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 6px; margin: 0; padding: 0; list-style: none; }
@@ -229,15 +205,6 @@ body.project-preferences-page .settings-content > .settings-document.kit-setting
 
 /* A：包详情里的各节之间多留一点空 */
 .kp-pack { gap: 22px; }
-/* B：包页顶上是包本身（回到全部、包名、状态与去处），下面是它的目录 */
-.kp-packpage { display: grid; gap: 12px; margin-top: 16px; }
-.kp-packpage.is-entering { animation: craft-rise var(--dur-move) var(--ease-quint); }
-@media (prefers-reduced-motion: reduce) { .kp-packpage.is-entering { animation: none; } }
-.kp-backcards { justify-self: start; margin-left: -8px; }
-.kp-packcards { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
-.kp-packcard .mw-status { flex: none; white-space: nowrap; }
-.kp-card__desc { margin: 0; color: var(--ink-soft); font-size: 13px; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.kp-kindcard__foot > span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
 .kp-emptynote { margin-top: 12px; }
 
 /* 正在读：组件板的静态骨架 */
@@ -245,7 +212,6 @@ body.project-preferences-page .settings-content > .settings-document.kit-setting
 .kp-sk-mark { width: 32px; height: 32px; border-radius: 8px; flex: none; }
 .kp-sk-line { height: 12px; flex: 1 1 auto; border-radius: 6px; max-width: 220px; }
 .kp-sk-short { max-width: 120px; }
-.kp-kindcard .mw-skeleton { display: block; }
 
 .kp-partial { margin: 0; }
 
@@ -253,7 +219,6 @@ body.project-preferences-page .settings-content > .settings-document.kit-setting
   .kp-role__prompts { margin-left: 0; }
   .kp-toolbar { gap: 8px; }
   .kp-search { flex-basis: 100%; max-width: none; }
-  .kp-kindcards { grid-template-columns: minmax(0, 1fr); }
   .kp-import { padding: 14px; }
   .kp-card__meta, .kp-apply, .kp-fold { margin-left: 0; padding-left: 0; }
 }

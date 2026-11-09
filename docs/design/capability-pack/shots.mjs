@@ -17,7 +17,7 @@ const onlyAt = args.indexOf("--only");
 const sheetsOnly = args.includes("--sheets");
 mkdirSync(out, { recursive: true });
 
-const SCHEMES = ["A", "B"];
+const SCHEMES = ["A"];
 const VIEWS = ["normal", "pack", "role", "prompt", "skill", "mcp", "tool", "disabled", "gone", "partial", "fail", "empty", "many", "loading", "import", "export"];
 const DETAIL = ["pack", "role", "prompt", "skill", "mcp", "tool", "gone", "import"];
 const SIZES = { 1440: [1440, 900], 1024: [1024, 768], 390: [390, 844] };
@@ -60,7 +60,7 @@ let n = 0;
 for (const job of jobs) {
   const [width, height] = SIZES[job.w];
   await page.viewport(width, job.tall ? 2400 : height, width < 600);
-  const hash = `#s=${job.s}&v=${job.v}&l=${job.l}&t=${job.t}&shot=1`;
+  const hash = `#v=${job.v}&l=${job.l}&t=${job.t}&shot=1`;
   // A fresh load each time (the hash alone would not re-run the page): blank first, then the screen.
   await page.evaluate(`location.href = "about:blank"`);
   await new Promise((done) => setTimeout(done, 150));

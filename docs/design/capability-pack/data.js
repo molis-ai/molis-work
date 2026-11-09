@@ -83,12 +83,6 @@ window.KIT_DATA = (() => {
       usage: { range: "history", n: 5, last: { at: z("11-04 11:20", "Nov 4 11:20"), by: by.assistant } }, where: [] },
 
     // ---------- roles: declaration and source; scope and inheritance come from batch 36's read ----------
-    { id: "ro-research", kind: "role", src: "characters", scope: "home", version: z("修订 5", "revision 5"), name: z("研究员", "Researcher"), desc: z("先查资料再下结论，每个结论写出处。", "Looks things up before concluding; every conclusion cites a source."),
-      role: { declared: z("你写的角色", "A role you wrote"), active: [z("「季度发布」的项目默认", "Project default in “Quarterly launch”"), z("你的默认", "Your default")], tools: ["read_file", "web_search", "fetch_url"] },
-      usage: { range: "recent", n: 3, last: { at: z("今天 08:55", "today 08:55"), by: by.assistant } }, where: [z("助理：「季度发布」里的新任务", "Assistant: new tasks in “Quarterly launch”")] },
-    { id: "ro-editor", kind: "role", src: "characters", scope: "home", version: z("修订 2", "revision 2"), name: z("审稿人", "Editor"), desc: z("只挑问题不改原文，按轻重排。", "Points out problems without rewriting, ordered by weight."),
-      role: { declared: z("你写的角色", "A role you wrote"), active: [], tools: ["read_file"] }, off: true,
-      usage: { range: "none" }, where: [] },
     { id: "ro-impl", kind: "role", src: "coding", scope: "project", version: "v3", name: z("实现者", "Implementer"), desc: z("Coding 写代码时的身份：先复现，改完跑相关检查。", "Coding's identity when writing code: reproduce first, run the checks after."),
       role: { declared: z("Coding 插件声明", "Declared by the Coding plugin"), active: [z("Coding 的每个任务", "Every Coding task")], tools: ["read_file", "write_file", "run_command", "delegate"] },
       usage: { range: "recent", n: 22, last: { at: z("今天 09:30", "today 09:30"), by: by.coding } }, where: [z("Coding：默认角色", "Coding: default role")] },
@@ -110,7 +104,7 @@ window.KIT_DATA = (() => {
       ["plan_step", z("计划步骤", "Plan step"), z("记下或更新这一轮要做的几步。", "Records or updates this turn's steps."), false, "plan", 2, z("今天 09:30", "today 09:30")],
     ].map(([id, name, desc, writes, origin, roles, last]) => ({
       id: "tl-" + id, kind: "tool", src: "system", scope: "home", version: "0.38.2", code: id, name, desc,
-      tool: { writes, origin, roles: ["研究员", "实现者", "测试员", "助理"].slice(0, roles), added: id === "list_dir" || id === "fetch_url" },
+      tool: { writes, origin, roles: ["个人助理", "实现者", "测试员", "写作编辑"].slice(0, roles), added: id === "list_dir" || id === "fetch_url" },
       usage: last ? { range: "last_only", last: { at: last } } : { range: "none" }, where: [],
     })),
 
@@ -149,8 +143,7 @@ window.KIT_DATA = (() => {
       ["pr-goalcheck", "goals", "project", z("怎样算完成", "What counts as done"), z("给每一步写一句能检查的完成条件。", "Writes one checkable condition for each step."), { mine: false, latest: "v2" }, 9],
       ["pr-impl", "coding", "project", z("实现者的说明", "Implementer's brief"), z("先复现、小步改、改完跑相关检查。", "Reproduce first, change in small steps, run the related checks after."), { mine: false, latest: "v3" }, 22],
       ["pr-test", "coding", "project", z("测试员的说明", "Tester's brief"), z("只跑测试、照实报结果，不改代码。", "Runs tests and reports honestly; never changes code."), { mine: false, latest: "v1" }, 4],
-      ["pr-research", "characters", "home", z("研究员的做事方式", "How the researcher works"), z("先查资料再下结论，每个结论写出处。", "Look things up before concluding; cite every conclusion."), { mine: true, base: "v5", latest: "v5" }, 3],
-      ["pr-edit", "characters", "home", z("审稿口径", "Editing standard"), z("只挑问题不改原文，按轻重排。", "Point out problems without rewriting, ordered by weight."), { mine: true, base: "v2", latest: "v2" }, 0],
+      ["pr-sort", "feed", "project", z("消息分类", "Sort messages"), z("给新消息分到「要回」「看看」「存档」。", "Sorts new messages into reply, read and archive."), { mine: false, latest: "v1" }, 31],
       ["pr-legal", "legal", "home", z("审阅口径", "Review standard"), z("付款、责任、终止三类条款各看什么。", "What to check in payment, liability and termination clauses."), { mine: false, latest: "v2" }, 2],
     ].map(([id, src, scope, name, desc, prompt, n]) => ({ id, kind: "prompt", src, scope, version: prompt.latest, name, desc, prompt: Object.assign({ base: null }, prompt),
       usage: n ? { range: "recent", n, last: { at: z("今天 09:30", "today 09:30"), by: src === "coding" ? by.coding : by.assistant } } : { range: "none" }, where: [] })),
@@ -185,10 +178,8 @@ window.KIT_DATA = (() => {
       roles: [{ id: "ro-impl", prompts: ["pr-impl", "pr-plan"] }, { id: "ro-tester", prompts: ["pr-test"] }], skills: [], mcp: ["mc-github", "mc-figma"], tools: ["tl-read_file", "tl-write_file", "tl-run_command", "tl-list_dir", "tl-delegate", "tl-plan_step"] },
     { id: "pk-goals", src: "goals", name: z("目标推进", "Goal planning"), desc: z("拆目标、写完成条件，并把 Goal 开给外部 AI 工具推进。", "Split goals, write what counts as done, and open Goals to outside AI tools."),
       roles: [{ id: "ro-planner", prompts: ["pr-split", "pr-goalcheck"] }], skills: [], mcp: ["mc-molis"], tools: ["tl-call_action", "tl-change-reversible"] },
-    { id: "pk-assistant", src: "assistant", name: z("日常助理", "Everyday assistant"), desc: z("你每天对话的助理：怎样回复、怎样摘要，连着你的议题服务。", "The assistant you talk to daily: how it replies and summarizes, connected to your issue tracker."),
-      roles: [{ id: "ro-assistant", prompts: ["pr-reply", "pr-digest"] }], skills: [], mcp: ["mc-linear"], tools: ["tl-web_search", "tl-fetch_url", "tl-call_action"] },
-    { id: "pk-research", src: "characters", name: z("我的研究", "My research"), desc: z("你自己组的：研究员查资料，审稿人挑问题。", "One you put together: a researcher looks things up, an editor finds problems."), mine: true,
-      roles: [{ id: "ro-research", prompts: ["pr-research"] }, { id: "ro-editor", prompts: ["pr-edit"] }], skills: [], mcp: [], tools: ["tl-web_search", "tl-fetch_url", "tl-read_file"] },
+    { id: "pk-assistant", src: "assistant", name: z("日常助理", "Everyday assistant"), desc: z("你每天对话的助理：怎样回复、怎样摘要，连着你的议题服务。没有归属角色的提示词也挂在个人助理下面。", "The assistant you talk to daily: how it replies and summarizes, connected to your issue tracker. Prompts with no role of their own also sit under the personal assistant."),
+      roles: [{ id: "ro-assistant", prompts: ["pr-reply", "pr-digest", "pr-sort"], loose: ["pr-digest", "pr-sort"] }], skills: [], mcp: ["mc-linear"], tools: ["tl-web_search", "tl-fetch_url", "tl-call_action"] },
     { id: "pk-local", src: "local", name: z("本机导入 · Claude Code", "Imported · Claude Code"), desc: z("从这台电脑上的 Claude Code 拷进来的技能。", "Skills copied in from Claude Code on this computer."),
       roles: [], skills: ["sk-commit", "sk-review"], mcp: [], tools: ["tl-run_command", "tl-read_file"] },
     { id: "pk-legal", src: "legal", name: z("法务审阅", "Legal review"), desc: z("审合同的做法和一位合同审阅员。", "A way to review contracts, with a contract reviewer."),
@@ -199,26 +190,26 @@ window.KIT_DATA = (() => {
   // Many packs: the same shapes, many more of them.
   const manyPacks = () => Array.from({ length: 26 }, (_, i) => ({ id: "pk-x" + (i + 1), src: ["writing", "local", "coding", "characters"][i % 4], sample: true,
     name: z("能力包 " + (i + 1), "Pack " + (i + 1)), desc: z("示例能力包，用来看包很多时的样子。", "A sample pack, to see the page with many packs."),
-    roles: i % 3 ? [{ id: "ro-research", prompts: ["pr-research"] }] : [], skills: i % 2 ? ["sk-weekly"] : [], mcp: i % 5 === 0 ? ["mc-github"] : [], tools: ["tl-read_file"] }));
+    roles: i % 3 ? [{ id: "ro-writer", prompts: ["pr-write"] }] : [], skills: i % 2 ? ["sk-weekly"] : [], mcp: i % 5 === 0 ? ["mc-github"] : [], tools: ["tl-read_file"] }));
 
   // A file picked for import (§5): prompt rewrites are confirmed one by one; references only say whether they exist here.
   const importFile = {
-    name: "我的研究.molis-kit.json",
-    pack: z("我的研究", "My research"),
+    name: "日常助理.molis-kit.json",
+    pack: z("日常助理", "Everyday assistant"),
     from: z("另一台电脑上的 Molis Work · 11-08 导出", "Molis Work on another computer · exported Nov 8"),
     prompts: [
-      { id: "i1", owner: z("角色「研究员」", "Role “Researcher”"), name: z("研究员的做事方式", "How the researcher works"), base: "v5", here: "v5", ok: true,
-        before: "先查资料再下结论。\n每个结论写出处。", after: "先查资料再下结论。\n每个结论写出处，出处要能点开。\n查不到就直说查不到。" },
-      { id: "i2", owner: z("角色「审稿人」", "Role “Editor”"), name: z("审稿口径", "Editing standard"), base: "v1", here: "v2", ok: false },
-      { id: "i3", owner: z("合同助手", "Contract helper"), name: z("条款核对", "Clause check"), base: "v2", here: null, ok: false, missing: true },
+      { id: "i1", owner: z("角色「个人助理」", "Role “Personal assistant”"), name: z("回复的基本要求", "How to reply"), base: "v12", here: "v12", ok: true,
+        before: "先听懂再动手。\n回复不超过三段。", after: "先听懂再动手。\n回复不超过三段，先给结论。\n不确定时先问一句。" },
+      { id: "i2", owner: z("Feed 插件 · 归个人助理", "Feed plugin · under Personal assistant"), name: z("消息摘要", "Message digest"), base: "v1", here: "v2", ok: false },
+      { id: "i3", owner: z("日报插件", "Daily report plugin"), name: z("日报口吻", "Daily report tone"), base: "v3", here: null, ok: false, missing: true },
     ],
     refs: [
-      { kind: "role", name: z("研究员 · 修订 5", "Researcher · revision 5"), here: true },
-      { kind: "role", name: z("审稿人 · 修订 2", "Editor · revision 2"), here: true },
-      { kind: "tool", name: z("web_search · fetch_url", "web_search · fetch_url"), here: true },
+      { kind: "role", name: z("个人助理 · v12", "Personal assistant · v12"), here: true },
+      { kind: "tool", name: z("web_search · fetch_url · call_action", "web_search · fetch_url · call_action"), here: true },
+      { kind: "mcp", name: z("Linear（服务连接）", "Linear (service connection)"), here: true },
       { kind: "mcp", name: z("Notion（需要 Notion 连接）", "Notion (needs a Notion connection)"), here: false, fix: z("去连接", "Connect") },
     ],
-    skills: { packs: 1, note: z("1 个技能包走插件的安装确认（照第 08 批）", "1 skill pack goes through the plugin install review (as in batch 08)") },
+    skills: { packs: 0 },
   };
 
   return { project, sources, entries, many, packs, manyPacks, importFile };

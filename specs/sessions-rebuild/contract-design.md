@@ -774,6 +774,8 @@ export interface ProjectWorkspaceDirectoryRecord extends ProjectWorkspaceRef {
 | 工作树目录授权（`system-agent-service.ts` 的 `authorizeWriterDirectory`，经本人审查通过） | 算 |
 | `context_bind`（`project-binding-commands.ts` 的两处 `upsertWorkspaceMembership`） | 不算 |
 | 终端面板绑定时带的 `cwd`（走同一段代码） | 不算 |
+| 新建项目时建的默认输出目录 | 算：建项目的是本人 |
+| 目录库从第 1 版升到第 2 版时补出的默认输出目录 | 和新建项目一样：项目原有的关系里只要有一条是本人建的就算，否则不算（用户 2026-11-09 定） |
 
 不加列：沿用 `bound_by`，所以 `projects/catalog.db` 版本不变，不碰真实 Home 的库。规则：
 
@@ -794,7 +796,7 @@ export interface MolisWorkRuntimeContextUnbindResult {
 
 `person_project_ids` 由 Projects 算，判法只在 Projects 一处。
 
-代价：片 P-1 之前 `context_bind` 写下的行不是本人的 id，自动不算；但终端面板写下的行 `bound_by` 是本人的 id，分不出来，会算成本人建的。真实 Home 如果在 P-1 之后才重建，这些行就没有了；否则要在维护窗口核一次，这一步见第 12 节。
+存量：片 P-1 之前 `context_bind` 写下的行不是本人的 id，自动不算；终端面板写下的行 `bound_by` 是本人的 id，分不出来，算本人建的。用户 2026-11-09 定接受，不修存量：不加维护逻辑，不写合同变更登记。影响范围见第 12 节第 21 行。
 
 ### 8.2 归属怎样算
 
@@ -1211,7 +1213,7 @@ C-2、C-3 只有定义，宿主还没登记，所以不动 `tooling/gates/action
 | 18 | 团队批 | 「团队项目先不开放」现在无从判断，项目没有这个标记 | 团队批接入时，`sessions.project_ai_read.set@1` 对共享项目拒绝并加测试 |
 | 19 | 路线书决策表第 11 项 | 记着 Sessions 技术方案待定 | 统筹的跨批文件，不改 |
 | 20 | 许可开关定样方案 A | 用户选 A | 全局 Sheet 改别的项目做得到，`sessions.scope.read@1` 带回全部项目（第 7.4 节），动作总数不变。`sessions.scope.read@1` 同时带回每个项目的计数。定样分支 `claude/roadmap-22-permit-sample-31916b` 还没合入，它的 README 里「行里的数字没有合同来源」和「这些目录下的会话进待归类」（后者要加「选所有目录时」，见第 7.1 节）两句待改。关掉时那句「已经写进回答的内容不会收回」用户已定，写在第 7.4 节 |
-| 21 | `bound_by` 存量 | 片 P-1 之前终端面板写下的目录关系，`bound_by` 是本人的 id，会算成本人建的；`context_bind` 的旧行不是本人 id，白名单下自动不算 | 真实 Home 重建在 P-1 之后就没有；否则维护窗口要核一次，交主会话排 |
+| 21 | `bound_by` 存量 | 两种存量行：P-1 之前终端面板带 `cwd` 写下的目录关系，`bound_by` 是本人的 id，按白名单算本人建的；目录库 1→2 升级补出的默认输出目录，原来记 `molis-work-upgrade`。`context_bind` 的旧行不是本人 id，白名单下自动不算 | 已定（用户 2026-11-09）：终端旧关系接受、不修存量，不加维护逻辑，也不写 `docs/system/CONTRACT-CHANGES.md`；只影响 2026-10-31 以后在终端面板带过 `cwd` 的开发机 Home，这些目录会被当成本人连的，进「只读项目连着的目录」和自动归入。默认输出目录和新建项目一样处理：项目原有关系里有一条本人建的就记本人（#2001 的 `c398e173a`） |
 | 22 | 已定裁定之间 | 第一版让 `reported` 进项目 AI 的可读范围，和 P4 的本意有张力 | 已定（2026-11-06）：收紧，`reported` 不进，本人确认后才算（第 7.4 节、S-sessions-person-decides） |
 | 23 | 绑定指向另一个项目 | 会话在本人连的 A 目录下，工具绑到 B | 已定（2026-11-06）：仍 `automatic` 归 A，行上标「工具另报」，打开后写「工具报的是另一个项目」，写在第 8.2 节、S-sessions-person-decides |
 | 24 | 项目设置 | 工具带进来的目录和本人连的看起来一样，「本人再连一次」没有入口 | **要进定样**：两种目录分开显示，后者给确认入口；实现列在片 S-5 |

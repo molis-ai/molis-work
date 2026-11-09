@@ -1,11 +1,8 @@
-import { say, tryOwnedTextRef } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { PluginActiveInstance } from "@molis-ai/molis-work-plugin-runtime";
-import { pluginViewText } from "./plugin-host-services.js";
-import { drawRegisteredText } from "./ui-text-provider.js";
-import { runWithRegisteredText } from "./web-locale.js";
-import type { PluginDirectory, PluginDirectoryEntry } from "@molis-ai/molis-work-app-workbench";
+import { pluginTextReader } from "@molis-ai/molis-work-app-workbench";
+import { directoryWordResolver, drawRegisteredText } from "./ui-text-provider.js";
+import { projectDirectoryWords, type DirectoryWordSource, type PluginDirectory, type PluginDirectoryEntry } from "@molis-ai/molis-work-app-workbench";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
-import type { UiViewDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
 import { hostLog } from "./host-log.js";
 import type { HomePluginHost } from "./home-plugins.js";
 import { readOnlyAlwaysOnProjectPlugins } from "./always-on-plugins.js";
@@ -16,13 +13,7 @@ export interface DirectorySource {
   enabledPluginIds(): readonly string[];
   activeInstance?(pluginId: string): PluginActiveInstance | undefined;
   state(pluginId: string): { readonly status: string } | null;
-  manifest(pluginId: string): {
-    readonly plugin_id: string;
-    readonly name: string;
-    readonly name_en?: string;
-    readonly publisher: { readonly signature: string };
-    readonly ui: { readonly views?: readonly UiViewDeclaration[] };
-  } | undefined;
+  manifest(pluginId: string): (DirectoryWordSource & { readonly publisher: { readonly signature: string } }) | undefined;
 }
 
 /**
@@ -40,25 +31,14 @@ export interface DirectorySource {
 export function runningPluginDirectory(source: DirectorySource, home?: string): PluginDirectoryEntry[] {
   const alwaysOn = home ? readOnlyAlwaysOnProjectPlugins(home) : [];
   return source.enabledPluginIds().flatMap(pluginId => {
-    const manifest = source.manifest(pluginId), state = source.state(pluginId);
+    const state = source.state(pluginId), running = source.activeInstance?.(pluginId)?.source?.();
+    const producer = running?.manifest.plugin_id === pluginId ? running : null;
+    const manifest = producer ? producer.manifest : source.manifest(pluginId);
     if (!manifest || !state || state.status === "blocked") return [];
     const builtin = PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.manifest.plugin_id === manifest.plugin_id
       && entry.manifest.publisher.signature === manifest.publisher.signature);
-    const active = source.activeInstance?.(pluginId);
-    const reader = active?.active() && active.contribution.views?.map(pluginViewText).find(reader => reader?.owner === manifest.plugin_id);
-    const views = manifest.ui.views ?? [];
-    return [{ id: builtin?.project_plugin_id ?? manifest.plugin_id, plugin_id: manifest.plugin_id, name: manifest.name, ...(manifest.name_en !== undefined ? { name_en: manifest.name_en } : {}),
-      chosen: builtin !== undefined, ...(builtin ? builtinMarks(builtin, alwaysOn) : {}), ui: { views: reader ? runWithRegisteredText(reader, () => projectViewWords(manifest.plugin_id, views)) : views } }];
-  });
-}
-
-/** A producer's fixed words are projected while its original activation or registered release is in scope. */
-function projectViewWords(owner: string, views: readonly UiViewDeclaration[]): UiViewDeclaration[] {
-  return views.map(view => {
-    if (!view.creates?.title_text) return view;
-    const ref = tryOwnedTextRef(view.creates.title_text, owner);
-    if (!ref) return view;
-    return { ...view, creates: { station: view.creates.station, title: say.text({ ...ref, ...("key" in ref ? { fallback: ref.fallback ?? view.creates.title } : {}) }) } };
+    return [{ id: builtin?.project_plugin_id ?? manifest.plugin_id, plugin_id: manifest.plugin_id,
+      chosen: builtin !== undefined, ...(builtin ? builtinMarks(builtin, alwaysOn) : {}), ...projectDirectoryWords(manifest, directoryWordResolver(producer ? pluginTextReader(producer.activation) : null)) }];
   });
 }
 
@@ -74,8 +54,8 @@ function builtinMarks(builtin: PluginRegistration, alwaysOn: readonly string[]):
  */
 export function builtinMarketDirectory(home?: string): PluginDirectoryEntry[] {
   const alwaysOn = home ? readOnlyAlwaysOnProjectPlugins(home) : [];
-  return PLATFORM_PLUGIN_REGISTRATIONS.map(entry => ({ id: entry.project_plugin_id, plugin_id: entry.manifest.plugin_id, name: entry.manifest.name, ...(entry.manifest.name_en !== undefined ? { name_en: entry.manifest.name_en } : {}),
-    chosen: true, ...builtinMarks(entry, alwaysOn), ui: { views: drawRegisteredText(entry.manifest, () => projectViewWords(entry.manifest.plugin_id, entry.manifest.ui.views ?? [])) } }));
+  return PLATFORM_PLUGIN_REGISTRATIONS.map(entry => ({ id: entry.project_plugin_id, plugin_id: entry.manifest.plugin_id,
+    chosen: true, ...builtinMarks(entry, alwaysOn), ...drawRegisteredText(entry.manifest, resolve => projectDirectoryWords(entry.manifest, resolve)) }));
 }
 
 /**
@@ -95,8 +75,8 @@ export async function homePluginDirectory(host?: HomePluginHost, home?: string):
     let installed: ReturnType<HomePluginHost["registered"]> = [];
     try { installed = host.registered(); } catch { /* A library that cannot be read now has no stalled package to add; the running ones stay. */ }
     const stalled = installed.filter(({ manifest }) => !present.has(manifest.plugin_id) && host.packageError(manifest.plugin_id) !== undefined)
-      .map(({ key, manifest }): PluginDirectoryEntry => ({ id: key, plugin_id: manifest.plugin_id, name: manifest.name, ...(manifest.name_en !== undefined ? { name_en: manifest.name_en } : {}),
-        chosen: false, personal: true, home: true, ui: { views: manifest.ui.views ?? [] } }));
+      .map(({ key, manifest }): PluginDirectoryEntry => ({ id: key, plugin_id: manifest.plugin_id,
+        chosen: false, personal: true, home: true, ...projectDirectoryWords(manifest) }));
     return [...running, ...stalled];
   }
   catch (error) { hostLog.warn("plugins", "home_directory_unavailable", error); return []; }

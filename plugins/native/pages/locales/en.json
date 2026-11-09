@@ -3,6 +3,10 @@
   "owner": "io.molis.work.pages",
   "locale": "en",
   "messages": {
+    "pages.directory.summary": "Write documents and export them to Markdown or PDF.",
+    "pages.directory.view-comments": "Comments and notes",
+    "pages.directory.start-title": "Write a document",
+    "pages.directory.start-hint": "Put your thoughts down and shape them into a finished piece.",
     "pages.action.cancel": "Cancel",
     "pages.action.delete": "Delete",
     "pages.action.extract": "Extract",

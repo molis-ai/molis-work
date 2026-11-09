@@ -3,6 +3,9 @@
   "owner": "io.molis.work.todo",
   "locale": "en",
   "messages": {
+    "todo.directory.summary": "Write down what needs doing, what is for today, and who you are waiting for.",
+    "todo.directory.name": "Todo",
+    "todo.directory.view-todo": "Todo",
     "todo.action.archive": "Archive",
     "todo.action.cancel": "Cancel",
     "todo.action.complete": "Completed",

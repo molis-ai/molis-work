@@ -326,7 +326,7 @@ export interface StagePageDrawing {
   renderList: (values: string[], empty: string) => string;
   prefixLocalLinks: (html: string, routePrefix: string, desktopShell?: boolean) => string;
   renderReference: (value: string, label?: string) => string;
-  creatableKinds: readonly { readonly station: string; readonly title: string; readonly plugin_id: string }[];
+  creatableKinds: readonly { readonly station: string; readonly title: string; readonly label?: string; readonly plugin_id: string }[];
   renderTerminalPane: (model: StageTerminalPaneModel) => string;
   renderHint: (options: { id: string; label: string; text?: string; html?: string; iconName?: string }) => string;
   withDesktopQuery: (path: string) => string;
@@ -335,7 +335,6 @@ export interface StagePageDrawing {
   document?: {
     readonly lang: string;
     readonly navigation_html: string;
-    readonly client_i18n: string;
     readonly request_client: string;
     readonly foundation_client: string;
     render(request: WorkbenchDocumentRenderRequest): string;
@@ -419,8 +418,10 @@ export interface UiViewCreateEntry {
 /** One way to start something from the project home on an empty day; choosing it opens the view's plugin. */
 export interface UiViewStartEntry {
   readonly title: string;
+  readonly title_text?: TextRef;
   /** One sentence, shown as the entry's hint. */
   readonly hint: string;
+  readonly hint_text?: TextRef;
   /** Icon name from the Host's catalog, as for the view's own `icon`; omitted means the view's icon. */
   readonly icon?: string;
 }
@@ -430,12 +431,8 @@ export interface UiViewDeclaration {
   readonly view_id: string;
   readonly slot: UiViewSlot;
   readonly title: string;
-  /**
-   * `navigator` and `island` views only: the title in the English interface (BL-636), one line of English of at most 80 characters.
-   * Left out, the English interface shows `title`; the Chinese interface always does. A view that opens nothing from the rail has
-   * no title the shell draws, so a `side`, `settings` or `stage` view that declares it is refused.
-   */
-  readonly title_en?: string;
+  /** The view's own title, never filled from the Manifest name. Without usable words, show `title`. */
+  readonly title_text?: TextRef;
   /** Contribution that renders this view. Defaults to `<plugin_id>.<view_id>`. */
   readonly contribution_id?: string;
   /**

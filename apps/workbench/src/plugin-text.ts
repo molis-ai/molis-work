@@ -1,6 +1,7 @@
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { UiLocalePack } from "@molis-ai/molis-work-contracts/platform/ui";
 import { refuseSharedTextPrefix, textKeyPrefix } from "@molis-ai/molis-work-plugin-sdk/ui";
+import type { DirectoryWordResolver } from "./plugin-directory.js";
 
 /** A language reader whose owner came from the resource registry or the redeemed Manifest. */
 export interface PluginTextReader {
@@ -61,7 +62,7 @@ export function pluginTextOwnerOfPrefix(prefix: string, activation?: object): st
   return owner && platform.has(owner) ? owner : null;
 }
 
-type CatalogTextScope = <T>(manifest: PluginManifest, draw: () => T) => T;
+type CatalogTextScope = <T>(manifest: PluginManifest, draw: (resolve?: DirectoryWordResolver) => T) => T;
 let catalogTextScope: CatalogTextScope | undefined;
 
 /** The host binds static, registered catalog contributions to their own packaged source. */
@@ -70,6 +71,6 @@ export function installCatalogTextScope(scope: CatalogTextScope): void {
   catalogTextScope = scope;
 }
 
-export function drawCatalogText<T>(manifest: PluginManifest, draw: () => T): T {
+export function drawCatalogText<T>(manifest: PluginManifest, draw: (resolve?: DirectoryWordResolver) => T): T {
   return catalogTextScope ? catalogTextScope(manifest, draw) : draw();
 }

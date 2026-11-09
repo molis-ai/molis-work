@@ -3,6 +3,7 @@
   "owner": "io.molis.work.issues",
   "locale": "zh",
   "messages": {
+    "issues.directory.summary": "记录、查看和整理自己的问题。",
     "issues.capture.abandon-text": "写下的内容和截图都不会保存。",
     "issues.capture.abandon-title": "放弃这条记录？",
     "issues.capture.abandoned": "已放弃这条记录",

@@ -9,7 +9,6 @@ export interface CapsuleProjectNavigation {
 export interface CapsuleShellEnvironment {
   translate(message: string): string;
   htmlLang: string;
-  pluginTitleScript: string;
   languageHead: string;
   themeBootstrapScript: string;
 }
@@ -614,6 +613,6 @@ export function renderDesktopCapsuleShell(
       <footer class="capsule__actions"><p class="capsule__hint">Esc ${uiText("common.control.close")}</p><div class="capsule__buttons"><button class="capsule__button" type="button" data-capsule-open-board>${uiText("workbench.capsule-shell.open-molis-work")}</button></div></footer>
       <div class="capsule__error" data-capsule-error role="alert"><strong>${uiText("workbench.capsule-shell.latest-status-unavailable")}</strong><span data-capsule-error-detail>${uiText("workbench.capsule-shell.molis-work-reconnecting-automatically-until-recovers-old-status")}</span><button class="capsule__retry" type="button" data-capsule-retry>${uiText("workbench.capsule-shell.retry-now")}</button></div>
     </section>
-  </main><script id="capsule-projects" type="application/json">${safeJson(projects)}</script><script>${environment.pluginTitleScript}${SELECT_MENU_CLIENT_SCRIPT}${CAPSULE_CLIENT_SCRIPT}</script></body></html>`;
+  </main><script id="capsule-projects" type="application/json">${safeJson(projects)}</script><script>${SELECT_MENU_CLIENT_SCRIPT}${CAPSULE_CLIENT_SCRIPT}</script></body></html>`;
 }
 

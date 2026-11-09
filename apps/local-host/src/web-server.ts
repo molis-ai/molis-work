@@ -32,7 +32,7 @@ import type { MolisWorkWebViewCache } from "./web-view.js";
 import { startDemoSeed } from "./demo-seed.js";
 import { attachMolisWorkPtySocket } from "./pty-socket.js";
 import { bindPluginTerminalHost } from "./plugin-terminal-service.js";
-import { htmlLang, pluginTitleScript, isWebLocale, localeSetCookie, resolveWebLocale, runWithLocale, safeNextPath } from "./web-locale.js";
+import { htmlLang, isWebLocale, localeSetCookie, resolveWebLocale, runWithLocale, safeNextPath } from "./web-locale.js";
 import { appearanceForHome } from "./ui-locale-memory.js";
 import { createAppearanceHttp, createWorkbenchAppearancePorts } from "./web-appearance.js";
 import { installHostUiText } from "./ui-text-provider.js";
@@ -254,7 +254,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
       installationDiagnostics:options.installationDiagnostics??(projectCount=>installationDiagnostics(homeDirectory,projectCount)),
     };
     return createSpaceWebServer(installation, createMolisWorkWebServer, platform.withCatalog,{
-    render:(token,request,url,message)=>runWithLocale(resolveWebLocale(request.headers.cookie,request.headers['accept-language']),()=>renderPersonalAccountEntry(token,platform.isDesktopShellRequest(request,url),message,{htmlLang,pluginTitleScript},platform.nativeDesktopBootstrapScript)),
+    render:(token,request,url,message)=>runWithLocale(resolveWebLocale(request.headers.cookie,request.headers['accept-language']),()=>renderPersonalAccountEntry(token,platform.isDesktopShellRequest(request,url),message,{htmlLang},platform.nativeDesktopBootstrapScript)),
     asset:(request,response,url)=>runWithLocale(resolveWebLocale(request.headers.cookie,request.headers['accept-language']),()=>entryAssets.serveWorkbenchAsset(request,response,url.pathname)),
     });
   };

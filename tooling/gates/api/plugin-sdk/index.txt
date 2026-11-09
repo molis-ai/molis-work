@@ -384,6 +384,7 @@ export interface SandboxIntegrationManifestInput {
     integrations: NonNullable<PluginManifest['integrations']>;
     source_presentations?: NonNullable<PluginManifest['source_presentations']>;
     contract?: SandboxPluginContract;
+    textDeclarations?: Pick<PluginManifest, 'name_text' | 'summary' | 'summary_text'>;
 }
 
 export interface SandboxManifestInput {
@@ -401,7 +402,8 @@ export interface SandboxManifestInput {
         buildId: string;
         version: number;
     };
-    textDeclarations?: SandboxPackageManifest;
+    textDeclarations?: Pick<SandboxPackageManifest, 'plugin_id' | 'agent' | 'methods' | 'name_text' | 'summary' | 'summary_text'>;
+    stageTitleText?: TextRef;
     homeDatabase?: Pick<HomePluginDatabaseDeclaration, 'version' | 'schema'>;
     connections?: PluginManifest['connections'];
     ownerFiles?: readonly PluginOwnerFileEntry[];
@@ -775,7 +777,7 @@ export declare function sandboxAgentBodyIdentity(pluginId: string, kind: "role" 
     prompt_id: string;
 };
 
-export declare function sandboxAgentDeclarations(manifest: SandboxPackageManifest): Pick<PluginManifest, "agent" | "methods">;
+export declare function sandboxAgentDeclarations(manifest: Pick<SandboxPackageManifest, "plugin_id" | "agent" | "methods">): Pick<PluginManifest, "agent" | "methods">;
 
 export declare function sandboxBackgroundProblems(contract: SandboxPluginContract): string[];
 

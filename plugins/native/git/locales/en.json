@@ -3,6 +3,7 @@
   "owner": "io.molis.work.git",
   "locale": "en",
   "messages": {
+    "git.directory.summary": "See the workspace’s versions and changes.",
     "git.action.stage": "Stage",
     "git.action.unstage": "Unstage",
     "git.branch.checkout": "Switch to it once created",

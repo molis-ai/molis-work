@@ -3,6 +3,9 @@
   "owner": "io.molis.work.plugin-builder",
   "locale": "en",
   "messages": {
+    "plugin-builder.directory.summary": "Design, build, and use your own plugins in plain language.",
+    "plugin-builder.directory.name": "Plugin Studio",
+    "plugin-builder.directory.view-directory": "Plugin Studio",
     "plugin-builder.agent-studio.active": "Active",
     "plugin-builder.agent-studio.add-request": "Add to your request",
     "plugin-builder.agent-studio.added": "You added",

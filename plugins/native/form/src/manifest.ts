@@ -23,7 +23,7 @@ export const formManifest: PluginManifest = {
   sync: formSync,
   version: /* @version product.release */ "0.1.0",
   name: "Forms",
-  summary: "建问卷，收答卷，看逐题汇总。",
+  summary: "建问卷，收答卷，看逐题汇总。", summary_text: { key: "form.directory.summary" },
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-form-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],

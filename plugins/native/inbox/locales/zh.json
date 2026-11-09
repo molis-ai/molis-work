@@ -3,6 +3,7 @@
   "owner": "io.molis.work.inbox",
   "locale": "zh",
   "messages": {
+    "inbox.directory.summary": "只看需要你介入的事项。",
     "inbox.client.could-not-refresh-inbox-list": "无法更新 Inbox 列表",
     "inbox.client.draft-saved-can-keep-editing-retry": "草稿已保留，可继续编辑或重试。",
     "inbox.client.generated": "已生成",

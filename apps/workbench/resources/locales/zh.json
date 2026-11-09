@@ -564,6 +564,7 @@
     "workbench.appearance-picker.use-2": "用上",
     "workbench.appearance-picker.use-mine-anyway": "仍然用上",
     "workbench.appearance-picker.use-name": "现在用的：{name}",
+    "workbench.artifacts.navigation-name": "成果",
     "workbench.artifacts.navigation-hint": "项目的固定成果，各版本可回看。",
     "workbench.assistant-attachments.can-t-read-file": "读不了这个文件",
     "workbench.assistant-attachments.file-over-8-mb-bring-only-part-need": "文件超过 8 MB，请只带需要的部分",

@@ -3,6 +3,7 @@
   "owner": "io.molis.work.ppt",
   "locale": "en",
   "messages": {
+    "ppt.directory.summary": "Write an outline, present slides, or export to PowerPoint.",
     "ppt.action.delete": "Delete",
     "ppt.action.new": "New deck",
     "ppt.action.reload": "Reload",

@@ -3,6 +3,13 @@
   "owner": "io.molis.work.lingguang",
   "locale": "en",
   "messages": {
+    "lingguang.directory.summary": "Capture an idea before deciding whether to keep it.",
+    "lingguang.directory.name": "Lingguang",
+    "lingguang.directory.view-workbench": "Lingguang",
+    "lingguang.directory.view-island": "Lingguang",
+    "lingguang.directory.view-side": "Lingguang",
+    "lingguang.directory.start-title": "Capture an idea",
+    "lingguang.directory.start-hint": "Save it now, even if you are still thinking it through.",
     "lingguang.action.brainstorm": "Brainstorm",
     "lingguang.action.capture": "Save",
     "lingguang.action.clear": "Clear selection",

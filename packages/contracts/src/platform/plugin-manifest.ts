@@ -2,7 +2,7 @@ import type { UiPageRouteDeclaration, UiViewDeclaration } from "./ui.js";
 import type { PluginEventsDeclaration } from "./plugin-events.js";
 import type { PluginPortsDeclaration } from "./plugin-wiring.js";
 import type { AgentManifest } from "./plugin-agent.js";
-import type { PluginLocalesDeclaration } from "./ui-text.js";
+import type { PluginLocalesDeclaration, TextRef } from "./ui-text.js";
 export type { PluginLocalesDeclaration } from "./ui-text.js";
 
 /** The permission a Plugin declares to name the websites it uses in the side panel browser (specs/archive/side-panel D16). */
@@ -121,12 +121,8 @@ export interface PluginManifest {
   plugin_id: string;
   version: string;
   name: string;
-  /**
-   * the plugin's name in the English interface (BL-636), one line of English of at most 80 characters. The shell draws it where it
-   * draws the Manifest `name` itself (a plugin that has a stage and no navigator or island view); a navigator or island view's name is
-   * its own `title_en`, so one is never read for the other. Left out, the English interface shows `name`.
-   */
-  name_en?: string;
+  /** The displayed Manifest name. Each view's own title is independent. Without usable words, show `name`. */
+  name_text?: TextRef;
   kind: PluginKind;
   publisher: {
     publisher_id: string;
@@ -142,6 +138,8 @@ export interface PluginManifest {
   always_on?: boolean;
   /** One sentence for the plugin market and the page heading, at most 120 characters once trimmed. Without one the market lists the plugin by its name. */
   summary?: string;
+  /** The displayed summary, independent of the Manifest name and view title. */
+  summary_text?: TextRef;
   /** Kept out of the plugin list (switcher and market) unless the Host is in developer mode; still installable, and shown where already added. Only `true`. */
   developer?: true;
   entrypoints: PluginEntrypointManifest[];

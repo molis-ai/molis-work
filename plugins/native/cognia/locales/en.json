@@ -3,6 +3,7 @@
   "owner": "io.molis.work.cognia",
   "locale": "en",
   "messages": {
+    "cognia.directory.summary": "Import local knowledge and ask questions with sources.",
     "cognia.action.add": "Add material",
     "cognia.action.drafts": "Review drafts",
     "cognia.action.edit": "Edit",

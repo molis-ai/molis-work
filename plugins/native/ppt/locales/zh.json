@@ -3,6 +3,7 @@
   "owner": "io.molis.work.ppt",
   "locale": "zh",
   "messages": {
+    "ppt.directory.summary": "写大纲，放映或导出 PowerPoint。",
     "ppt.action.delete": "删除",
     "ppt.action.new": "新建演示稿",
     "ppt.action.reload": "重新读取",

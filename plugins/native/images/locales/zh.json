@@ -3,6 +3,9 @@
   "owner": "io.molis.work.images",
   "locale": "zh",
   "messages": {
+    "images.directory.summary": "连接生图服务，按描述生成图片。",
+    "images.directory.name": "图片",
+    "images.directory.view-directory": "图片",
     "images.account.anonymous": "本机无鉴权服务",
     "images.account.keep": "保留当前连接",
     "images.account.key-help": "密钥在 Connectors 中管理。",

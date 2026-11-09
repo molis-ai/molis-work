@@ -22,6 +22,7 @@ import { assertRecoverableState, assertRequiredGrants, cloneRecord, definitionKe
 import { createActivationContext, releaseUnrecorded } from "./activation-context.js";
 import { regrantInstall } from "./regrant.js";
 import { assertPluginUpgradeStepsAdmitted } from "./plugin-upgrade-steps.js";
+import type { PluginContributionSource } from "./lifecycle.js";
 
 export * from "./public-api.js";
 
@@ -634,8 +635,8 @@ export class PluginRuntime implements PluginRuntimeApi {
     return this.repository.list();
   }
 
-  contribution(installId: string): PluginContribution | null {
-    return this.contributions.get(installId) ?? null;
+  contribution(installId: string, source?: (source: PluginContributionSource) => void): PluginContribution | null {
+    return this.contributions.get(installId, source) ?? null;
   }
 
   /** A started Plugin must deliver exactly what its Manifest declared (a partial half: nothing beyond it), or it does not run. */

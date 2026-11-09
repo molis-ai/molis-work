@@ -1,9 +1,10 @@
 import { OWN_DIRECTORY_SURFACES } from "../../plugin-catalog.js";
+import { readClientPluginTitles } from "../../plugin-directory.js";
 
 /** Coordinates application chrome; content and Runtime behavior stay with their Plugin owners. */
 export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
   const OWN_DIRECTORY_SURFACES = ${JSON.stringify([...OWN_DIRECTORY_SURFACES])};
-  const PLUGIN_TAB_TITLES = { sources: "Feed", ...globalThis.MOLIS_WORK_PLUGIN_TITLES };
+  const readTitles = ${readClientPluginTitles.toString()};
   const { workspace, treePane, documentPane, getSelected, getState, getSurface, translate: readText,
     setDirectoryCollapsed, setWorkspaceMode, setMobileView, saveUiState } = host;
   if (!document.body.classList.contains("immersive-workbench")) return null;
@@ -134,6 +135,14 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
     if (!goalId || (modes[goalId] || {}).view || frame.dataset.viewMode !== "document") return;
     if (hasTerminalSession() && Date.now() - viewChosenAt < 2500) setView("work");
   }).observe(emptyState, { attributes: true, attributeFilter: ["hidden"] });
+  const retitle = () => {
+    const surface = getSurface(), titles = readTitles(document), label = Object.hasOwn(titles, surface) ? titles[surface] : undefined;
+    const labels = { sources: "Feed", home: document.body.dataset.projectId === "personal" ? globalThis.t.text("workbench.immersive-navigation.personal-home") : globalThis.t.text("workbench.immersive-navigation.project-home"),
+      market: globalThis.t.text("workbench.immersive-navigation.plugin-market"), "project-settings": globalThis.t.text("workbench.immersive-navigation.project-settings") };
+    const title = document.querySelector("[data-immersive-plugin-title]");
+    if (title) { title.hidden = true; title.textContent = label || labels[surface] || surface; }
+  };
+  document.addEventListener("molis-work:language-changed", retitle);
   const sync = () => {
     const plugin = currentPlugin();
     if (heading) heading.hidden = false;
@@ -158,13 +167,7 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
         projectGear.setAttribute("aria-label", globalThis.t.text("workbench.immersive-navigation.open-current-project-settings"));
       }
     }
-    const surface = getSurface();
-    const labels = { home: document.body.dataset.projectId === "personal" ? globalThis.t.text("workbench.immersive-navigation.personal-home") : globalThis.t.text("workbench.immersive-navigation.project-home"), market: globalThis.t.text("workbench.immersive-navigation.plugin-market"), "project-settings": globalThis.t.text("workbench.immersive-navigation.project-settings"), ...PLUGIN_TAB_TITLES };
-    const pluginTitle = document.querySelector("[data-immersive-plugin-title]");
-    if (pluginTitle) {
-      pluginTitle.hidden = true;
-      pluginTitle.textContent = labels[surface] || surface;
-    }
+    retitle();
     const goalTools = document.querySelector("[data-immersive-goal-tools]");
     if (goalTools) goalTools.hidden = true;
     document.querySelector("[data-directory-show]")?.setAttribute("aria-expanded", String(!narrow() && !workspace.classList.contains("is-directory-collapsed")));

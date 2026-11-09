@@ -2,7 +2,7 @@ import {renderSyncIndicator} from './sync-indicator.js';
 import { UI_VIEW_GROUPS, type UiViewGroup } from "@molis-ai/molis-work-contracts/platform/ui";
 import { t as uiText, icon as glyph, renderButton, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderPluginEventRecovery } from "./plugin-event-recovery.js";
-import { DIRECT_WORK_SURFACE_IDS, RELOAD_ON_MEMBERSHIP_IDS, builtinPluginDirectory, dockDefaultPins, extendPluginIds, islandEntries, pluginLabel, pluginMarketCards, railEntries, pluginStageSummaries, type PluginMarketOptions } from "./plugin-catalog.js";
+import { DIRECT_WORK_SURFACE_IDS, RELOAD_ON_MEMBERSHIP_IDS, builtinPluginDirectory, dockDefaultPins, extendPluginIds, islandEntries, pluginMarketCards, railEntries, pluginStageSummaries, type PluginMarketOptions } from "./plugin-catalog.js";
 import type { PluginDirectory } from "./plugin-directory.js";
 import { renderAssistantDock } from "./assistant-dock.js";
 import { renderSidePanel, renderSideStrip, type SidePanelPluginTab } from "./side-panel.js";
@@ -12,16 +12,7 @@ export interface ImmersiveShellPrimitives {
   readText(value: string): string;
   escapeHtml(value: unknown): string;
   icon(name: PluginIconName): string;
-  /** The page's language ("en" for English); plugin names and lists follow it. */
-  htmlLang?(): string;
 }
-
-/** Whether these primitives render the English interface. */
-const english = (primitives: ImmersiveShellPrimitives): boolean => primitives.htmlLang?.() === "en";
-
-/** A translated sentence with its `{names}` filled in here, so any translator works (the shell's own stand-ins included). */
-const say = (_L: ImmersiveShellPrimitives["readText"], template: string, values: Readonly<Record<string, string>>): string =>
-  Object.entries(values).reduce((text, [key, value]) => text.split(`{${key}}`).join(value), uiText.text(template));
 
 /**
  * Navigation comes from the Plugin catalog's Manifests, not from a list kept
@@ -29,11 +20,11 @@ const say = (_L: ImmersiveShellPrimitives["readText"], template: string, values:
  * surface is its id, Goals' too (T-114).
  */
 
-function directoryPlugins(directory: PluginDirectory, enabled: readonly string[], inEnglish = false) {
+function directoryPlugins(directory: PluginDirectory, enabled: readonly string[]) {
   return railEntries(enabled, directory).map(entry => ({
     id: entry.id,
     surface: entry.surface,
-    label: pluginLabel(entry, inEnglish),
+    label: entry.label,
     glyph: entry.glyph as PluginIconName,
     group: entry.group,
     rail: entry.rail,
@@ -42,7 +33,7 @@ function directoryPlugins(directory: PluginDirectory, enabled: readonly string[]
 }
 
 function pluginLink(
-  { readText, icon, escapeHtml }: ImmersiveShellPrimitives,
+  { icon, escapeHtml }: ImmersiveShellPrimitives,
   rawPlugin: { id: string; surface: string; label: string; glyph: PluginIconName; hint?: string; chosen?: boolean },
   extraClass = "",
   suffix = "",
@@ -54,10 +45,10 @@ function pluginLink(
   const feedPreset = plugin.id === "feed" ? ' data-feed-preset="feed"' : "";
   const aria = plugin.id === "home"
     ? ` aria-label="${plugin.label}"`
-    : ` aria-label="${say(readText, "workbench.immersive-shell.switch-plugin-name", { name: plugin.label })}"`;
+    : ` aria-label="${uiText("workbench.immersive-shell.switch-plugin-name", { name: rawPlugin.label })}"`;
   const className = extraClass ? `immersive-plugin-link ${extraClass}` : "immersive-plugin-link";
   // One line under the name says what the person gets there (the switcher shows it; the Dock does not).
-  const hint = plugin.hint ? `<small class="plugin-rail-hint">${plugin.hint}</small>` : "";
+  const hint = plugin.hint ? `<small class="plugin-rail-hint">${escapeHtml(plugin.hint)}</small>` : "";
   return `<button class="${className}" type="button" data-plugin-id="${plugin.id}"${directory} data-work-surface-open="${plugin.surface}"${feedPreset}${aria} title="${plugin.label}">${icon(plugin.glyph)}<span>${plugin.label}</span>${hint}${suffix}</button>`;
 }
 
@@ -67,11 +58,11 @@ function currentListPlugin(directory: string): string {
   return directory;
 }
 
-function islandPlugins(directory: PluginDirectory, enabled: readonly string[], inEnglish = false) {
+function islandPlugins(directory: PluginDirectory, enabled: readonly string[]) {
   return islandEntries(enabled, directory).map(entry => ({
     id: entry.id,
     surface: entry.surface,
-    label: pluginLabel(entry, inEnglish),
+    label: entry.label,
     glyph: entry.glyph as PluginIconName,
     group: entry.group,
     rail: entry.rail,
@@ -129,16 +120,16 @@ export function renderPluginRail(
   directory: PluginDirectory = builtinPluginDirectory(),
   options: PluginMarketOptions = {},
 ): string {
-  const { readText, icon, escapeHtml } = primitives;
+  const { icon, escapeHtml } = primitives;
   const have = new Set(enabled);
   const extendIds = extendPluginIds(directory), pinned = new Set(dockDefaultPins(directory));
   const cards = pluginMarketCards(options, directory);
   const addable = cards.map(card => card.id).filter(id => !have.has(id) && !extendIds.has(id));
   const everyone = [...enabled, ...addable];
-  const entries = directoryPlugins(directory, everyone, english(primitives));
-  const islands = islandPlugins(directory, everyone, english(primitives));
+  const entries = directoryPlugins(directory, everyone);
+  const islands = islandPlugins(directory, everyone);
   const join = (values: readonly string[]) => values.join(uiText.text("common.list.separator"));
-  const summaries = pluginStageSummaries();
+  const summaries = pluginStageSummaries(directory);
   // A summary is the Plugin's own text, so it is English in that Plugin's own words and nobody else's.
   const hints: Record<string, string> = { ...Object.fromEntries(Object.entries(summaries).map(([id, { summary }]) => [id, summary])), [ARTIFACT_NAVIGATION.id]: uiText.text(ARTIFACT_NAVIGATION.hint) };
   const names = new Map<string, string>([...entries, ...islands].map(plugin => [plugin.id, plugin.label]));
@@ -157,21 +148,21 @@ export function renderPluginRail(
   const pinButton = (plugin: { id: string; label: string }, owned: boolean) => {
     const kept = owned && pinned.has(plugin.id);
     return renderButton({ variant: kept ? "primary" : "secondary", size: "sm", icon: "pin", iconOnly: true, className: "dock-keep", disabled: !owned,
-      label: say(readText, "workbench.immersive-shell.keep-dock-name", { name: plugin.label }), attrs: { "data-dock-choice": plugin.id, "aria-pressed": String(kept), title: uiText.text("workbench.immersive-shell.keep-dock") } });
+      label: uiText.text("workbench.immersive-shell.keep-dock-name", { name: plugin.label }), attrs: { "data-dock-choice": plugin.id, "aria-pressed": String(kept), title: uiText.text("workbench.immersive-shell.keep-dock") } });
   };
   // One button, two states: a plus while the plugin is not in the project, a red trash can once it is. Both glyphs are in the
   // button, so a change of state is the tile's class and nothing more; the stylesheet shows the one that fits. A 常开 plugin stays.
   const toggleButton = (plugin: { id: string; label: string }, owned: boolean, along: readonly string[]) => {
     const locked = owned && marks.get(plugin.id)?.always_on === true;
     const sites = sitesOf.get(plugin.id) ?? [];
-    const alongNote = along.length ? say(readText, "workbench.immersive-shell.adding-also-adds-list", { list: join(along.map(id => names.get(id) ?? id)) }) : "";
+    const alongNote = along.length ? uiText.text("workbench.immersive-shell.adding-also-adds-list", { list: join(along.map(id => names.get(id) ?? id)) }) : "";
     // What adding it will not bring although it depends on it: an addable plugin cannot add them for it (RAC-1315).
     const needed = owned ? [] : addable.filter(id => id !== plugin.id && companionsOf(id).includes(plugin.id));
-    const dependNote = needed.length ? say(readText, "workbench.immersive-shell.plugins-that-depend-not-added-list", { list: join(needed.map(id => names.get(id) ?? id)) }) : "";
+    const dependNote = needed.length ? uiText.text("workbench.immersive-shell.plugins-that-depend-not-added-list", { list: join(needed.map(id => names.get(id) ?? id)) }) : "";
     const button = renderButton({ variant: owned ? "secondary" : "primary", size: "sm", icon: "plus", iconOnly: true, className: "plugin-toggle", disabled: locked,
-      label: say(readText, owned ? "workbench.immersive-shell.remove-name" : "workbench.immersive-shell.add-name", { name: plugin.label }),
+      label: uiText.text(owned ? "workbench.immersive-shell.remove-name" : "workbench.immersive-shell.add-name", { name: plugin.label }),
       attrs: { "data-plugin-toggle": plugin.id, "data-state": owned ? "added" : "available",
-        title: locked ? uiText.text("workbench.immersive-shell.always-plugin-cannot-be-removed-project") : owned ? uiText.text("workbench.immersive-shell.turn-off-project-its-data-stays-comes-back") : `${uiText.text("workbench.immersive-shell.add-project")}${alongNote}${dependNote}${sites.length ? say(readText, "workbench.immersive-shell.uses-side-panel-browser-sites", { sites: join(sites) }) : ""}` } });
+        title: locked ? uiText.text("workbench.immersive-shell.always-plugin-cannot-be-removed-project") : owned ? uiText.text("workbench.immersive-shell.turn-off-project-its-data-stays-comes-back") : `${uiText.text("workbench.immersive-shell.add-project")}${alongNote}${dependNote}${sites.length ? uiText.text("workbench.immersive-shell.uses-side-panel-browser-sites", { sites: join(sites) }) : ""}` } });
     return button.replace(glyph("plus"), glyph("plus", "plugin-toggle-add") + glyph("trash", "plugin-toggle-remove"));
   };
   // At rest the end of the tile shows only a small pin when the plugin is kept; looked at, the buttons replace it.
@@ -183,9 +174,9 @@ export function renderPluginRail(
     const label = escapeHtml(plugin.label);
     const kept = owned && pinned.has(plugin.id);
     const along = owned ? [] : alongWith(plugin.id), dependents = owned ? dependentsOf(plugin.id) : [];
-    const hint = hints[plugin.id] ? `<small class="plugin-rail-hint">${hints[plugin.id]}</small>` : "";
+    const hint = hints[plugin.id] ? `<small class="plugin-rail-hint">${escapeHtml(hints[plugin.id])}</small>` : "";
     const main = owned ? link(plugin, zone, mark)
-      : `<button class="immersive-plugin-link plugin-rail-item" type="button" data-rail-zone="${zone}" aria-disabled="true" tabindex="-1" aria-label="${say(readText, "workbench.immersive-shell.name-not-added", { name: label })}">${icon(plugin.glyph)}<span>${label}</span>${hint}${mark}</button>`;
+      : `<button class="immersive-plugin-link plugin-rail-item" type="button" data-rail-zone="${zone}" aria-disabled="true" tabindex="-1" aria-label="${uiText("workbench.immersive-shell.name-not-added", { name: plugin.label })}">${icon(plugin.glyph)}<span>${label}</span>${hint}${mark}</button>`;
     // The group goes on the tile so the bar can put a kept 个人 plugin in the right tray (07-1 S4b).
     return `<div class="plugin-rail-tile${owned ? "" : " is-available"}${kept ? " is-kept" : ""}" data-plugin-tile="${plugin.id}"${plugin.group ? ` data-rail-group="${plugin.group}"` : ""}${along.length ? ` data-along="${escapeHtml(named(along))}"` : ""}${dependents.length ? ` data-dependents="${escapeHtml(named(dependents))}"` : ""}>${main}<span class="plugin-rail-ops" role="group" aria-label="${label}">${pinButton(plugin, owned)}${installed ? "" : toggleButton(plugin, owned, along)}</span></div>`;
   };
@@ -211,13 +202,13 @@ export function renderPluginRail(
  * beside search (not rows among the plugins: they are things to do, not places). The group keeps `data-global-menu`, which
  * the client finds them by.
  */
-export function renderPickerExtend(primitives: ImmersiveShellPrimitives, enabled: readonly string[]): string {
+export function renderPickerExtend(_primitives: ImmersiveShellPrimitives, enabled: readonly string[]): string {
   const button = (plugin: { id: string; surface: string; label: string; glyph: PluginIconName }, suffix = "") => {
     const html = renderButton({ variant: "secondary", size: "sm", icon: plugin.glyph, label: plugin.label, className: "plugin-picker-extend-btn",
       attrs: { "data-plugin-id": plugin.id, ...(DIRECT_WORK_SURFACE_IDS.has(plugin.id) ? {} : { "data-directory-open": plugin.id }), "data-work-surface-open": plugin.surface, title: plugin.label } });
     return html.replace(/<\/button>$/, `${suffix}</button>`);
   };
-  const builder = directoryPlugins(builtinPluginDirectory(), enabled, english(primitives)).filter(plugin => plugin.rail === "extend").map(plugin => button(plugin)).join("");
+  const builder = directoryPlugins(builtinPluginDirectory(), enabled).filter(plugin => plugin.rail === "extend").map(plugin => button(plugin)).join("");
   const market = button({ id: "market", surface: "market", label: uiText.text("workbench.immersive-shell.plugin-market"), glyph: "grid" },
     `<b class="plugin-rail-update-count" data-market-update-count hidden aria-live="polite"></b>`);
   return `<div class="plugin-picker-extend" data-global-menu role="group" aria-label="${uiText("workbench.immersive-shell.get-build-plugins")}">${market}${builder}</div>`;
@@ -277,7 +268,7 @@ export function renderDirectoryPluginSections(
   settingsSection = "",
 ): string {
   const current = currentListPlugin(activeDirectory);
-  const plugins = directoryPlugins(directory, enabled, english(primitives)).flatMap((plugin) => {
+  const plugins = directoryPlugins(directory, enabled).flatMap((plugin) => {
     const panel = panels[plugin.id] || "";
     if (!panel) return [];
     const identity = directoryPanelIdentity(plugin.id, panel);
@@ -334,13 +325,13 @@ export function renderPluginMarket(primitives: ImmersiveShellPrimitives, options
   const join = (values: readonly string[]) => values.join(uiText.text("common.list.separator"));
   // Sites a Plugin says it uses in the side panel browser are read before it is added (specs/archive/side-panel D16).
   const sites = (plugin: { sites: readonly string[] }) => plugin.sites.length
-    ? `<small class="plugin-market-sites" data-market-sites>${say(readText, "workbench.immersive-shell.uses-side-panel-browser-sites-2", { sites: join(plugin.sites.map(site => escapeHtml(site))) })}</small>` : "";
+    ? `<small class="plugin-market-sites" data-market-sites>${uiText("workbench.immersive-shell.uses-side-panel-browser-sites-2", { sites: join(plugin.sites) })}</small>` : "";
   // What adding one brings, and what removing one takes, in the same words the Projects service applies (W5-02 B1 marks, RAC-1310).
   const cards = pluginMarketCards(options, directory), cardIds = new Set(cards.map(card => card.id));
   const marks = new Map(directory.map(entry => [entry.id, entry]));
   const companionsOf = (id: string): readonly string[] => marks.get(id)?.companions ?? [];
   const related = (ids: readonly string[]) => ids.filter(id => cardIds.has(id));
-  const rows = cards.map(card => ({ ...card, label: pluginLabel(card, english(primitives)) })).map(plugin => {
+  const rows = cards.map(plugin => {
     const needs = related(companionsOf(plugin.id).filter(id => id !== plugin.id));
     const neededBy = dependentPlugins(plugin.id, cardIds, companionsOf);
     return `<article class="mw-card" data-market-plugin="${plugin.id}" data-market-runtime-id="${plugin.runtime_id}"${plugin.personal ? " data-market-personal" : ""}${needs.length ? ` data-market-needs="${needs.join(" ")}"` : ""}${neededBy.length ? ` data-market-needed-by="${neededBy.join(" ")}"` : ""}><div class="plugin-market-icon">${icon(plugin.glyph as PluginIconName)}</div><div class="plugin-market-copy"><h2>${escapeHtml(plugin.label)}</h2><p>${escapeHtml(plugin.copy)}</p>${sites(plugin)}<small class="plugin-market-version" data-market-version hidden></small></div><button class="mw-btn mw-btn--secondary" type="button" data-market-upgrade hidden disabled>${uiText("workbench.immersive-shell.upgrade")}</button><button class="mw-btn mw-btn--secondary" type="button" data-market-open="${plugin.id}" hidden>${uiText("common.control.open")}</button><button class="mw-btn mw-btn--secondary" type="button" data-market-add="${plugin.id}" disabled>${uiText("workbench.immersive-shell.add")}</button></article>`;

@@ -47,7 +47,7 @@ export const filesManifest: PluginManifest = {
   plugin_id: FILES_PLUGIN_ID,
   version: /* @version product.release */ "0.1.0",
   name: "Files",
-  summary: "查看工作区文件与保留的内容。",
+  summary: "查看工作区文件与保留的内容。", summary_text: { key: "files.directory.summary" },
   kind: "app",
   publisher: { publisher_id: "molis", signature: "official-files-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],

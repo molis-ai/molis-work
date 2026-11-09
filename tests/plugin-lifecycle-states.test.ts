@@ -227,6 +227,41 @@ async function code(operation: Promise<unknown> | (() => unknown)): Promise<stri
   catch (error) { return (error as { code?: string }).code; }
 }
 
+test("FSS-38 a viewless Runtime offer loses its exact text source before a replacement starts", async () => {
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  const executor = Object.assign(new NativePluginExecutor(), {
+    async stop(definition: PluginDefinition) {
+      if (definition.manifest.version === "1.0.0") { entered.resolve(); await release.promise; }
+    },
+  });
+  const runtime = new PluginRuntime(undefined, executor, { hostIds: ISOLATED_HOST_IDS }), supervisor = new PluginSupervisor(runtime);
+  const viewless = (version: string, compatible?: string[]): PluginDefinition => {
+    const definition = probe(version, { compatible, sandbox: true });
+    return { ...definition, manifest: { ...definition.manifest, name: "Viewless " + version, ui: { contributions: [] } },
+      start: async () => ({ kind: "app" }) };
+  };
+  const started = await supervisor.start([{ definition: viewless("1.0.0"), grants: [] }]);
+  assert.deepEqual(started.failed, []);
+  const previous = supervisor.activeInstance(ID)!;
+  assert.equal(previous.contribution.views, undefined);
+  const before = previous.source!()!;
+  assert.equal(before.manifest.name, "Viewless 1.0.0");
+  const upgrading = supervisor.upgrade(ID, viewless("2.0.0", ["1.0.0"]));
+  try {
+    await entered.promise;
+    assert.equal(previous.source!(), undefined, "the retained cleanup context is unavailable as a producer");
+  } finally { release.resolve(); }
+  assert.equal((await upgrading).status, "running");
+  const next = supervisor.activeInstance(ID)!, current = next.source!()!;
+  assert.equal(next.install_id, previous.install_id);
+  assert.equal(current.manifest.name, "Viewless 2.0.0");
+  assert.notEqual(current.activation, before.activation);
+  assert.equal(previous.source!(), undefined, "a stable install id cannot rebind an earlier offer");
+  supervisor.revoke(ID);
+  assert.equal(next.source!(), undefined);
+  await runtime.stop(next.install_id);
+});
+
 test("upgrading or rolling back a disabled install switches the code and leaves it disabled", async () => {
   const starts: string[] = [];
   const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS });

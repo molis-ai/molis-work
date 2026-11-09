@@ -30,7 +30,7 @@ import { pageWorkspaces } from "./workspaces.js";
 import { pageFrameAssets } from "./frame-assets.js";
 import type { FrameConfig, FrameHost, FramePack, FrameScope, FrameUp } from "./types.js";
 import { frameEnvironment } from "./appearance.js";
-import { forOpeningFrame, openingFrameLanguage, openingFrameTemplate, pageLanguage, trackFrameLanguage } from "./language.js";
+import { forOpeningFrame, frameStageWords, openingFrameLanguage, openingFrameTemplate, pageLanguage, trackFrameLanguage } from "./language.js";
 
 function stored(prefix: string): FrameConfig["storage"] {
   const storage: FrameConfig["storage"] = { localStorage: {}, sessionStorage: {} };
@@ -335,13 +335,10 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
     mount: clientMount, subjectSurfaces: surfaces, search: location.search, origin: location.origin,
     pluginId: pack.plugin_id, bundle: pack.bundle, assets: pack.assets, surface: pack.id,
     searchRow: pack.searchRow, recordRow: pack.recordRow, itemTab: ownItemTab(root, pack),
-    stage: {
-      title: getComputedStyle(root).getPropertyValue("--stage-title") || JSON.stringify(root.dataset.workSurfaceLabel ?? pack.id),
-      description: getComputedStyle(root).getPropertyValue("--stage-desc"),
-    },
     nativeFiles: Boolean(nativeFileInvoke()), shortcuts: navigation.shortcuts, appearance: environment.initial, text: await openingFrameLanguage(route(""), grant, pack.plugin_id, businessScope).then(text => trackFrameLanguage({ route: route(""), id: grant.page_id, owner: pack.plugin_id, root, port, scope: businessScope }, text)),
+    stage: frameStageWords(root, pack.id),
     projectId: host.projectId?.() ?? "", projectTitle: host.projectTitle?.() ?? "", routePrefix: route(""), side: Boolean(host.side), page: page ?? host.page?.() ?? null,
-    titles: globalThis.MOLIS_WORK_PLUGIN_TITLES ?? {}, storage,
+    storage,
   }), fail);
   own = root.dataset.uiClientState !== "loading";
   if (own) { root.inert = true; root.setAttribute("aria-busy", "true"); root.dataset.uiClientState = "loading"; }

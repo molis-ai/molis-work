@@ -3,6 +3,9 @@
   "owner": "io.molis.work.alchemist",
   "locale": "en",
   "messages": {
+    "alchemist.directory.summary": "Turn early ideas into cards you can compare before deciding.",
+    "alchemist.directory.name": "Alchemist",
+    "alchemist.directory.view-directory": "Alchemist",
     "alchemist.client-flows.add-preference": "Add a preference",
     "alchemist.client-flows.annotations": "Annotations",
     "alchemist.client-flows.applies": "Applies to",

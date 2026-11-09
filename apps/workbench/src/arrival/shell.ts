@@ -23,7 +23,6 @@ export interface ArrivalShellPrimitives {
   htmlLang(): string;
   renderIconSprite(): string;
   controlTokenMeta(token: string): string;
-  pluginTitleScript(): string;
   /** The theme preference, and the native window's safe insets. Runs before the first paint. */
   themeBootstrapScript: string;
   visualFoundationClientScript: string;
@@ -132,7 +131,7 @@ export function createArrivalShell(p: ArrivalShellPrimitives) {
 
 /** The same workbench document and account controls, without opening an anonymous business Home. */
 export function renderPersonalAccountEntry(controlToken: string, desktop: boolean, message?: string,
-  locale: Pick<ReturnType<typeof createWorkbenchLocale>, "htmlLang" | "pluginTitleScript"> = createWorkbenchLocale(() => "zh"), nativeBootstrap = ""): string {
+  locale: Pick<ReturnType<typeof createWorkbenchLocale>, "htmlLang"> = createWorkbenchLocale(() => "zh"), nativeBootstrap = ""): string {
   return renderWorkbenchDocument({lang: locale.htmlLang(), title: "Molis Work",
     body_attributes: {class: "arrival-page immersive-workbench", "data-arrival": "welcome", "data-account-entry": true, "data-native-desktop": desktop ? "true" : null},
     head_html: `<meta name="molis-work-page-session" content="${escapeHtml(controlToken)}"><script>${THEME_BOOTSTRAP_SCRIPT}${desktop ? nativeBootstrap : ""}</script><link rel="stylesheet" href="/assets/molis-work-arrival.css">`,
@@ -140,5 +139,5 @@ export function renderPersonalAccountEntry(controlToken: string, desktop: boolea
       <main class="arrival-stage"><section class="mw-empty"><h1>${escapeHtml(uiText.text("workbench.shell.sign-sign-up-molis-ai"))}</h1><p>${escapeHtml(uiText.text("workbench.shell.sign-manage-molis-account"))}</p>
       <button class="mw-btn mw-btn--primary" type="button" data-account-link aria-label="${escapeHtml(uiText.text("workbench.shell.account"))}">${icon("user")}<span data-personal-name>${escapeHtml(uiText.text("workbench.shell.not-signed"))}</span></button>
       <p role="status" data-account-entry-status>${escapeHtml(message ?? "")}</p><button class="mw-btn mw-btn--secondary" type="button" data-personal-action="retry"${message ? "" : " hidden"}>${escapeHtml(uiText.text("common.control.retry"))}</button></section></main></div>
-      <script>${locale.pluginTitleScript()}${CONTROL_CLIENT_SCRIPT}</script>`});
+      <script>${CONTROL_CLIENT_SCRIPT}</script>`});
 }

@@ -3,6 +3,9 @@
   "owner": "io.molis.work.plugin-builder",
   "locale": "zh",
   "messages": {
+    "plugin-builder.directory.summary": "用自然语言设计、构建并使用自己的插件。",
+    "plugin-builder.directory.name": "插件创作工作台",
+    "plugin-builder.directory.view-directory": "插件创作工作台",
     "plugin-builder.agent-studio.active": "启用",
     "plugin-builder.agent-studio.add-request": "补充你的需求",
     "plugin-builder.agent-studio.added": "你补充了",

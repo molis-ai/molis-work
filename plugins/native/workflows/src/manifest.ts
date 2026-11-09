@@ -15,8 +15,8 @@ export const workflowsManifest: PluginManifest = {
   sync: workflowsSync,
   version: /* @version product.release */ "0.1.0",
   name: "工作流程",
-  name_en: "Workflows",
-  summary: "把插件串成流程，一步步做完。",
+  name_text: { key: "workflows.directory.name" },
+  summary: "把插件串成流程，一步步做完。", summary_text: { key: "workflows.directory.summary" },
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-workflows-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
@@ -49,7 +49,7 @@ export const workflowsManifest: PluginManifest = {
   ui: { locales: { default: "zh", available: ["zh", "en"] },
     contributions: [WORKFLOWS_UI_CONTRIBUTION_ID],
     views: [
-      { view_id: "directory", slot: "navigator", title: "工作流程", title_en: "Workflows", contribution_id: WORKFLOWS_UI_CONTRIBUTION_ID, icon: "workflow", hue: "orange", order: 25, group: "advance", accepts_objects: true },
+      { view_id: "directory", slot: "navigator", title: "工作流程", title_text: { key: "workflows.directory.view-directory" }, contribution_id: WORKFLOWS_UI_CONTRIBUTION_ID, icon: "workflow", hue: "orange", order: 25, group: "advance", accepts_objects: true },
     ],
   },
 };

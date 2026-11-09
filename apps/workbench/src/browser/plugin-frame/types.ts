@@ -54,7 +54,7 @@ export interface FrameConfig {
   shortcuts: string[];
   search?: string;
   origin: string; bundle: string; assets: string[]; projectId: string; projectTitle: string; routePrefix: string; side: boolean; page: unknown;
-  titles: Record<string, string>; storage: Record<"localStorage" | "sessionStorage", Record<string, string>>;
+  storage: Record<"localStorage" | "sessionStorage", Record<string, string>>;
 }
 export interface FrameFetch {
   type: "fetch"; id: number; url: string; method: string; headers: [string, string][]; body: ArrayBuffer | null;
@@ -158,7 +158,6 @@ declare global {
   var molisFrameReviews: HostReviewFactory;
   var molisPageTerminal: UiPageTerminal;
   var molisWorkControlHeaders: UiRequest["headers"];
-  var MOLIS_WORK_PLUGIN_TITLES: Record<string, string>;
   var molisWorkbenchPluginFactories: Record<string, (host: UiPluginClientHost<HTMLElement, HTMLDialogElement, HTMLImageElement | HTMLIFrameElement>) => void>;
   var molisPluginFrames: { assets: typeof frameAssets; prepareLanguage: typeof prepareFrameLanguages; mount(root: HTMLElement, host: FrameHost, pack: FramePack): Promise<{ frame: HTMLIFrameElement; scope: FrameScope }> };
   var molisFrameUi: () => {

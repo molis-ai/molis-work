@@ -10,8 +10,7 @@ import type { PluginHomeStart } from "./plugin-catalog.js";
  */
 export function renderProjectHome(name: string, { escapeHtml: e, icon }: ImmersiveShellPrimitives, starts: readonly PluginHomeStart[]): string {
   // Each start is its plugin's own text, so it is worded in the page's language with that plugin's words before the page gets it.
-  const worded = starts;
-  return `<section class="desktop-work-surface immersive-home" data-work-surface="home" data-home-starts="${e(JSON.stringify(worded))}" data-work-surface-label="${uiText("workbench.project-home.project-home")}" data-event="off" data-dock="closed" aria-label="${e(name)} · ${uiText("workbench.project-home.project-home")}" hidden>
+  return `<section id="project-home-surface" class="desktop-work-surface immersive-home" data-work-surface="home" data-home-starts="${e(JSON.stringify(starts))}" data-work-surface-label="${uiText("workbench.project-home.project-home")}" data-event="off" data-dock="closed" aria-label="${e(name)} · ${uiText("workbench.project-home.project-home")}" hidden>
     <div class="home-scroll" data-home-scroll>
       <header class="home-heading home-hero" data-home-hero>
         <time data-home-date></time>

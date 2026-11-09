@@ -14,7 +14,7 @@ import { persistReleaseArtifact, startInstallInput } from "./supervisor-releases
 import { directlyUsable } from "./install-rules.js";
 import { UNSIGNED_TRUST, isHostTrust } from "./trust-rules.js";
 import type { PluginTrust } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
-import type { PluginActiveInstance, PluginHostLifecycle } from "./lifecycle.js";
+import type { PluginActiveInstance, PluginContributionSource, PluginHostLifecycle } from "./lifecycle.js";
 import {
   type PluginRuntimeReleaseArtifactRepository,
 } from "./release-artifacts.js";
@@ -105,8 +105,12 @@ function codedError(code: string, message: string): Error & { code: string } {
   return Object.assign(new Error(message), { code });
 }
 
+type SupervisorRuntime = PluginRuntimeApi & {
+  contribution(installId: string, source?: (source: PluginContributionSource) => void): PluginContribution | null;
+};
+
 export class PluginSupervisor implements PluginHostLifecycle {
-  readonly #runtime: PluginRuntimeApi;
+  readonly #runtime: SupervisorRuntime;
   readonly #hostCapabilities: readonly PluginCapabilityProvider[];
   readonly #releaseArtifacts?: PluginRuntimeReleaseArtifactRepository;
   /** Candidate definitions remain available for manual upgrade. */
@@ -128,7 +132,7 @@ export class PluginSupervisor implements PluginHostLifecycle {
   #generation = 0;
 
   constructor(
-    runtime: PluginRuntimeApi,
+    runtime: SupervisorRuntime,
     options: {
       hostCapabilities?: readonly PluginCapabilityProvider[];
       releaseArtifacts?: PluginRuntimeReleaseArtifactRepository;
@@ -442,7 +446,7 @@ export class PluginSupervisor implements PluginHostLifecycle {
 
   activeInstance(pluginId: string): PluginActiveInstance | undefined {
     return currentPluginInstance({pluginId, enabled:()=>this.#isEnabled(pluginId), state:()=>this.#states.get(pluginId),
-      tokens:this.#tokens, contribution:id=>this.#runtime.contribution(id)});
+      tokens:this.#tokens, contribution:(id, source)=>this.#runtime.contribution(id, source)});
   }
 
   async #restart(pluginId: string, releaseQuarantine = false): Promise<PluginSupervisorState> {

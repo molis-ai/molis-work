@@ -572,6 +572,7 @@
     "workbench.appearance-picker.use-2": "Use it",
     "workbench.appearance-picker.use-mine-anyway": "Use mine anyway",
     "workbench.appearance-picker.use-name": "In use: {name}",
+    "workbench.artifacts.navigation-name": "Artifacts",
     "workbench.artifacts.navigation-hint": "Kept project artifacts and their versions.",
     "workbench.assistant-attachments.can-t-read-file": "Can’t read this file",
     "workbench.assistant-attachments.file-over-8-mb-bring-only-part-need": "The file is over 8 MB; bring only the part you need",

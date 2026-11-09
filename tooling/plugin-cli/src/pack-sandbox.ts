@@ -7,6 +7,10 @@ import { packDeclaredLocales, packageFileReader, writePluginPackageFile } from '
 
 export interface PackSandboxOptions {
   name: string;
+  nameText?: SandboxPackageManifest['name_text'];
+  stageTitleText?: SandboxPackageManifest['name_text'];
+  summary?: string;
+  summaryText?: SandboxPackageManifest['summary_text'];
   version: string;
   publisherId: string;
   publisherKeyId: string;
@@ -54,6 +58,8 @@ export async function packSandboxProject(directory: string, output: string, opti
   const { agent: projectedAgent, methods: projectedMethods, ...fixed } = sandboxPluginManifest({
     pluginId: contract.pluginId, name: options.name, version: options.version, contract,
     publisher: { publisher_id: options.publisherId, signature: options.publisherKeyId },
+    textDeclarations: { plugin_id: contract.pluginId, name_text: options.nameText, summary: options.summary, summary_text: options.summaryText },
+    stageTitleText: options.stageTitleText,
     presentation: surface.presentation !== undefined, effects: effectsFromContract(contract),
     ...(options.scope === 'home' ? { runtime: { scope: 'home' } } : {}),
     ...(options.icon ? { icon: options.icon } : {}), upgradesFrom: options.upgradesFrom,
@@ -73,7 +79,7 @@ export async function packSandboxProject(directory: string, output: string, opti
 
 /** Explicit publishing choices, never a user-supplied Manifest or derived permission list. */
 export function sandboxPackOptions(args: readonly string[]): PackSandboxOptions {
-  const allowed = new Set(['name', 'version', 'publisher-id', 'publisher-key-id', 'scope', 'icon', 'compatible-from', 'agent', 'methods']);
+  const allowed = new Set(['name', 'name-text', 'view-title-text', 'summary', 'summary-text', 'version', 'publisher-id', 'publisher-key-id', 'scope', 'icon', 'compatible-from', 'agent', 'methods']);
   const fields = new Map<string, string>();
   for (let i = 0; i < args.length; i += 2) {
     const key = args[i]?.slice(2), value = args[i + 1];
@@ -86,6 +92,10 @@ export function sandboxPackOptions(args: readonly string[]): PackSandboxOptions 
   if (icon && !PLUGIN_ICON_NAMES.some(value => value === icon)) invalid('icon 必须是 SDK 图标名');
   const json = (key: string): unknown => { try { return JSON.parse(fields.get(key)!); } catch { return invalid('--' + key + ' 必须是 JSON'); } };
   return { name: need('name'), version: need('version'), publisherId: need('publisher-id'), publisherKeyId: need('publisher-key-id'), scope,
+    ...(fields.has('name-text') ? { nameText: json('name-text') as SandboxPackageManifest['name_text'] } : {}),
+    ...(fields.has('view-title-text') ? { stageTitleText: json('view-title-text') as SandboxPackageManifest['name_text'] } : {}),
+    ...(fields.has('summary') ? { summary: need('summary') } : {}),
+    ...(fields.has('summary-text') ? { summaryText: json('summary-text') as SandboxPackageManifest['summary_text'] } : {}),
     ...(icon ? { icon: icon as PluginIconName } : {}), ...(fields.has('compatible-from') ? { upgradesFrom: fields.get('compatible-from')!.split(',') } : {}),
     ...(fields.has('agent') ? { agent: json('agent') as SandboxPackageManifest['agent'] } : {}), ...(fields.has('methods') ? { methods: json('methods') as SandboxPackageManifest['methods'] } : {}) };
 }

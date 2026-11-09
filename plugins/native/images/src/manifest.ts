@@ -27,8 +27,8 @@ export const imagesManifest: PluginManifest = {
   version: /* @version product.release */ "0.1.0",
   name: "图片",
   sync: imagesSync,
-  name_en: "Images",
-  summary: "连接生图服务，按描述生成图片。",
+  name_text: { key: "images.directory.name" },
+  summary: "连接生图服务，按描述生成图片。", summary_text: { key: "images.directory.summary" },
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-images-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
@@ -49,6 +49,6 @@ export const imagesManifest: PluginManifest = {
   artifacts: { produces: [], consumes: [] },
   ui: { locales: { default: "zh", available: ["zh", "en"] },
     contributions: [IMAGES_UI_CONTRIBUTION_ID],
-    views: [{ view_id: "directory", slot: "navigator", title: "图片", title_en: "Images", contribution_id: IMAGES_UI_CONTRIBUTION_ID, icon: "image", hue: "pink", order: 60, group: "make" }],
+    views: [{ view_id: "directory", slot: "navigator", title: "图片", title_text: { key: "images.directory.view-directory" }, contribution_id: IMAGES_UI_CONTRIBUTION_ID, icon: "image", hue: "pink", order: 60, group: "make" }],
   },
 };

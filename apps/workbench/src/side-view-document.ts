@@ -38,7 +38,6 @@ export interface SideViewDocumentInput {
   readonly enabled: readonly ProjectPluginId[];
   readonly lang: string;
   readonly headHtml: string;
-  readonly pluginTitleScript: string;
   readonly themeBootstrapScript: string;
   readonly translate: (value: string, values?: Record<string, string | number>) => string;
   readonly appearance?: WorkbenchAppearance;
@@ -77,7 +76,7 @@ ${ROVING_FOCUS_CLIENT_SCRIPT}
 ${FLOATING_DETAILS_CLIENT_SCRIPT}
 ${TIP_CLIENT_SCRIPT}
 </script>
-    <script>${input.pluginTitleScript}${UI_REQUEST_CLIENT_SCRIPT}${input.appearance ? DEVICE_PREFERENCES_CLIENT_SCRIPT : ""}</script>${appearanceClientTag(input.appearance)}
+    <script>${UI_REQUEST_CLIENT_SCRIPT}${input.appearance ? DEVICE_PREFERENCES_CLIENT_SCRIPT : ""}</script>${appearanceClientTag(input.appearance)}
     <script>${SIDE_LINKS_SCRIPT}${homeToolKeysScript()}
       const readText = globalThis.t.text;
       // This document is the view's host: the work surface a plugin reuses here waits, hidden, for its host to show it

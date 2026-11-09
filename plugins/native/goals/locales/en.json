@@ -3,6 +3,9 @@
   "owner": "io.molis.work.goals",
   "locale": "en",
   "messages": {
+    "goals.directory.summary": "Set goals, move work forward, and keep the results.",
+    "goals.directory.start-title": "Move a goal forward",
+    "goals.directory.start-hint": "Decide what you want to achieve, then take the next step.",
     "goals.action-presentation.blocked": "Blocked",
     "goals.action-presentation.completed": "Completed",
     "goals.action-presentation.continue": "Continue",

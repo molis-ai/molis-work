@@ -3,6 +3,10 @@
   "owner": "io.molis.work.pages",
   "locale": "zh",
   "messages": {
+    "pages.directory.summary": "写文档，可导出 Markdown / PDF。",
+    "pages.directory.view-comments": "评论与备注",
+    "pages.directory.start-title": "写一份文档",
+    "pages.directory.start-hint": "把思路写下来，逐步整理成作品。",
     "pages.action.cancel": "取消",
     "pages.action.delete": "删除",
     "pages.action.extract": "抽取",

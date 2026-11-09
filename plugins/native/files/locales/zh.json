@@ -3,6 +3,7 @@
   "owner": "io.molis.work.files",
   "locale": "zh",
   "messages": {
+    "files.directory.summary": "查看工作区文件与保留的内容。",
     "files.directory.back": "返回文件列表",
     "files.directory.choose-workspace": "请选择工作区",
     "files.directory.empty": "这个目录是空的",

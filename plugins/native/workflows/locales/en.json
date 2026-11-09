@@ -3,6 +3,9 @@
   "owner": "io.molis.work.native.workflows",
   "locale": "en",
   "messages": {
+    "workflows.directory.summary": "Connect plugins into a workflow and finish one step at a time.",
+    "workflows.directory.name": "Workflows",
+    "workflows.directory.view-directory": "Workflows",
     "workflows.action.check-first": "Check in {place} first; run it again only if it did not take effect.",
     "workflows.action.last-failed": "Last run of “{action}” failed: {error}",
     "workflows.action.last-unconfirmed": "Last run of “{action}” was never confirmed",

@@ -110,12 +110,8 @@ export declare const PLUGIN_ICON_NAMES: readonly ["presentation", "flask", "stat
 
 export type PluginIconName = typeof PLUGIN_ICON_NAMES[number];
 
-export interface PluginLocaleManifest {
-    readonly plugin_id: string;
+export interface PluginLocaleManifest extends DirectoryWordManifest {
     readonly kind: string;
-    readonly ui?: {
-        readonly locales?: PluginLocalesDeclaration;
-    };
 }
 
 export type PluginLocaleRead = (path: string) => string | null;
@@ -279,6 +275,8 @@ export declare function installTextForTest(input: TextForTest): () => void;
 export declare function installUiText(provider: UiTextProvider): () => void;
 
 export declare function isFrameUiLanguage(value: unknown): value is UiFrameLanguage;
+
+export declare function localeMessageArguments(message: UiMessage): readonly string[];
 
 export declare function matchLocale(requested: string | null, available: readonly string[], fallback: string): string;
 
@@ -703,6 +701,10 @@ export declare function withDevicePreferences(snapshot: UiEnvironmentSnapshot, d
 
 // Declarations the exports above refer to, which no entry exports itself:
 
+type DirectoryWordManifest = NameFields & {
+    readonly ui?: Pick<PluginManifest["ui"], "locales" | "views">;
+};
+
 type Locale = string | undefined;
 
 type MwControlSize = "sm" | "md" | "lg";
@@ -721,6 +723,8 @@ interface MwInputOptions {
     className?: string;
     attrs?: Record<string, AttrValue>;
 }
+
+type NameFields = Pick<PluginManifest, "plugin_id" | "name_text" | "summary_text">;
 
 interface RingSegment {
     points: number[][];

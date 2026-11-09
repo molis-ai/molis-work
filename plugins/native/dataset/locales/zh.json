@@ -3,6 +3,7 @@
   "owner": "io.molis.work.dataset",
   "locale": "zh",
   "messages": {
+    "dataset.directory.summary": "做表格，导入 CSV，可回到旧版。",
     "dataset.action.delete": "删除",
     "dataset.action.export-csv": "导出 CSV",
     "dataset.action.export-json": "导出 JSON",

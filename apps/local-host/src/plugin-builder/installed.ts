@@ -15,7 +15,7 @@ import { effectsFromContract, sandboxPluginManifest, sandboxUiContribution, sand
 import { releaseInstructions } from './prompts.js';
 import { releaseVersion, type InstalledRelease } from '../installed-release.js';
 import { activeLocale } from '../web-locale.js';
-import { studioWordReader } from './studio-words.js';
+import { studioManifestWords, studioWordReader } from './studio-words.js';
 import { sandboxTextPacks } from '../ui-text-provider.js';
 import { capabilityLimits, capabilityPolicyBinding, latestCapability, slowOperations, type Lane, type CapabilityExecution } from './capabilities.js';
 
@@ -31,6 +31,7 @@ const message = (error: unknown) => error instanceof Error ? error.message : Str
  */
 export function generatedPluginManifest(release: Pick<AgentRelease, 'pluginId' | 'version' | 'buildId' | 'design'>, earlierVersions: readonly number[] = []): PluginManifest {
   return sandboxPluginManifest({ pluginId: release.pluginId, version: releaseVersion(release.version), name: release.design.title,
+    textDeclarations: studioManifestWords(release.design),
     publisher: { publisher_id: 'molis-studio', signature: installedSignature(release.buildId) }, presentation: !!release.design.presentation, upgradesFrom: earlierVersions.map(releaseVersion), effects: effectsFromContract(release.design.contract),
     contract: release.design.contract, actionIdentity: { buildId: release.buildId, version: release.version } });
 }

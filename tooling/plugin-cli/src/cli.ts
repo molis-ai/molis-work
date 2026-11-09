@@ -12,7 +12,7 @@ const COMMANDS: readonly { line: string; host?: true }[] = [
   { line: "validate <manifest.json>" },
   { line: "create <directory> <plugin-id> <publisher-id> <binding-signature>" },
   { line: "pack <directory> <output.json>" },
-  { line: "pack-sandbox <directory> <output.json> --name <name> --version <version> --publisher-id <id> --publisher-key-id <fingerprint> [--scope project|home] [--icon <icon>] [--compatible-from <versions>] [--agent <JSON>] [--methods <JSON>]" },
+  { line: "pack-sandbox <directory> <output.json> --name <name> --version <version> --publisher-id <id> --publisher-key-id <fingerprint> [--name-text <JSON>] [--view-title-text <JSON>] [--summary <text>] [--summary-text <JSON>] [--scope project|home] [--icon <icon>] [--compatible-from <versions>] [--agent <JSON>] [--methods <JSON>]" },
   { line: "identity <public-key.pem>" },
   { line: "sign <input.json> <private-key.pem> <output.json>" },
   { line: "verify <input.json> <trusted-public-key.pem>" },

@@ -3,6 +3,9 @@
   "owner": "io.molis.work.images",
   "locale": "en",
   "messages": {
+    "images.directory.summary": "Connect an image service and generate images from descriptions.",
+    "images.directory.name": "Images",
+    "images.directory.view-directory": "Images",
     "images.account.anonymous": "Local service without authentication",
     "images.account.keep": "Keep the current connection",
     "images.account.key-help": "The key is managed in Connectors.",

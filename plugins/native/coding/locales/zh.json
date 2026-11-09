@@ -3,6 +3,7 @@
   "owner": "io.molis.work.coding",
   "locale": "zh",
   "messages": {
+    "coding.directory.summary": "和 Agent 一起写代码，留每轮记录。",
     "coding.actions.gone": "原能力、版本或授权不可用；引用保留，请明确移除或恢复来源。",
     "coding.actions.label": "选择动作能力",
     "coding.actions.manage-access": "管理内置 Agent 授权",

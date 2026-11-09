@@ -1,4 +1,4 @@
-import { tryOwnedTextRef } from "./ui/text-ref.js";
+import { directoryWordProblems } from "./ui/directory-words.js";
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { parsePluginSyncDeclaration } from "./plugin-sync.js";
 import { SURFACE_BROWSER_PERMISSION, type PluginDeclarationProblem, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -26,7 +26,7 @@ import { inspectContextDeclarations } from "./context-declarations.js";
 import { localeDeclarationProblems } from "./locale-declarations.js";
 import { inspectEventDeclarations, inspectPortDeclarations } from "./wiring-declarations.js";
 import { pageRouteProblems } from "./page-routes.js";
-import { createStations, englishNameProblem, settingsReadActions, stageDataPlacementProblems, viewPlacementProblems } from "./view-placement-declarations.js";
+import { createStations, settingsReadActions, stageDataPlacementProblems, viewPlacementProblems } from "./view-placement-declarations.js";
 import { PLUGIN_ID } from "./plugin-id.js";
 
 
@@ -134,11 +134,8 @@ export function parsePluginManifest(input: unknown): PluginManifest {
 
   const parsed = input as PluginManifest;
   assertDeclarations(parsed, ui);
-  for (const view of parsed.ui.views ?? []) {
-    const ref = view.creates?.title_text;
-    if (ref !== undefined && (!parsed.ui.locales || !tryOwnedTextRef(ref, parsed.plugin_id)))
-      throw pluginErrors.declaration_invalid("视图的 creates.title_text 须声明 ui.locales 并引用本插件的键或通用词");
-  }
+  const directory = directoryWordProblems(parsed);
+  if (directory.length) throw pluginErrors.declaration_invalid(directory.join("；"));
   return parsed;
 }
 
@@ -155,8 +152,7 @@ function inspectPresentation(manifest: Record<string, unknown>): void {
   const summary = typeof manifest.summary === "string" ? manifest.summary.trim() : null;
   if (manifest.summary !== undefined && (!summary || [...summary].length > SUMMARY_LIMIT)) invalid(`summary 必须是不超过 ${SUMMARY_LIMIT} 字的非空文字`);
   if (manifest.developer !== undefined && manifest.developer !== true) invalid("developer 只能写 true，不是开发者插件就不写");
-  const english = manifest.name_en === undefined ? null : englishNameProblem(manifest.name_en, "name_en");
-  if (english) invalid(english);
+  if (Object.hasOwn(manifest, "name_en")) invalid("Manifest 不接收 name_en：请声明 name_text 并在语言文件中写词");
 }
 
 function inspectUpgradeCompatibility(manifest: Record<string, unknown>): void {

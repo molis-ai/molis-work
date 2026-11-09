@@ -21,7 +21,7 @@ export const pagesManifest: PluginManifest = {
   sync: pagesSyncDeclaration,
   version: /* @version product.release */ "0.1.0",
   name: "Pages",
-  summary: "写文档，可导出 Markdown / PDF。",
+  summary: "写文档，可导出 Markdown / PDF。", summary_text: { key: "pages.directory.summary" },
   // Offered to other Agents for business work; bodies in ./skills.ts.
   methods: pagesSkills.map(({ body: _body, ...declared }) => ({ ...declared, tools: [...declared.tools] })),
   kind: "native",
@@ -68,9 +68,9 @@ export const pagesManifest: PluginManifest = {
   ui: { locales: { default: "zh", available: ["zh", "en"] },
     contributions: [PAGES_UI_CONTRIBUTION_ID],
     views: [
-      { view_id: "comments", slot: "side", context_binding: "focused-object", title: "评论与备注", contribution_id: PAGES_UI_CONTRIBUTION_ID, icon: "message" },
+      { view_id: "comments", slot: "side", context_binding: "focused-object", title: "评论与备注", title_text: { key: "pages.directory.view-comments" }, contribution_id: PAGES_UI_CONTRIBUTION_ID, icon: "message" },
       { view_id: "directory", slot: "navigator", title: "Pages", contribution_id: PAGES_UI_CONTRIBUTION_ID, icon: "note", hue: "cyan", order: 56, group: "make", accepts_objects: true,
-        creates: { station: "pages", title: "文档", title_text: { key: "pages.create.kind-title" } }, start: { title: "写一份文档", hint: "把思路写下来，逐步整理成作品。", icon: "file" } },
+        creates: { station: "pages", title: "文档", title_text: { key: "pages.create.kind-title" } }, start: { title: "写一份文档", hint: "把思路写下来，逐步整理成作品。", icon: "file" , title_text: { key: "pages.directory.start-title" }, hint_text: { key: "pages.directory.start-hint" } } },
     ],
   },
 };

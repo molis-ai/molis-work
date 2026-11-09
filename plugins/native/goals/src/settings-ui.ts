@@ -27,7 +27,7 @@ function planningRenderer(model: StagePageModel<GoalsSettingsData>, ports: Retur
     settingsContextHref: model.drawing!.settingsContextHref, withDesktopQuery: model.drawing!.withDesktopQuery,
     renderPage: page => document ? document.render({ lang: document.lang, title: `${page.title} · Molis Work`,
       preamble_html: page.documentComment,
-      body_html: `<header class="project-preferences-chrome"${desktop ? ' data-tauri-drag-region="deep"' : ""}><span>${document.navigation_html.includes("project-settings-navigation") ? uiText("goals.settings-ui.project-settings") : uiText("goals.settings-ui.global-settings")}</span><a href="${page.returnHref}" aria-label="${uiText("goals.settings-ui.back-workbench")}">${icon("x")}</a></header><main class="settings-shell">${document.navigation_html}<div class="settings-content">${page.body}</div></main><script>${document.client_i18n}${page.requiresControl ? document.request_client : ""}${page.clientScript}${document.foundation_client}</script>`,
+      body_html: `<header class="project-preferences-chrome"${desktop ? ' data-tauri-drag-region="deep"' : ""}><span>${document.navigation_html.includes("project-settings-navigation") ? uiText("goals.settings-ui.project-settings") : uiText("goals.settings-ui.global-settings")}</span><a href="${page.returnHref}" aria-label="${uiText("goals.settings-ui.back-workbench")}">${icon("x")}</a></header><main class="settings-shell">${document.navigation_html}<div class="settings-content">${page.body}</div></main><script>${page.requiresControl ? document.request_client : ""}${page.clientScript}${document.foundation_client}</script>`,
     }) : page.body,
   };
   return createGoalsRendererFactories(ports.mount).planning(primitives);

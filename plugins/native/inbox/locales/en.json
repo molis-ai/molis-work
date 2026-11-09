@@ -3,6 +3,7 @@
   "owner": "io.molis.work.inbox",
   "locale": "en",
   "messages": {
+    "inbox.directory.summary": "See only what needs your attention.",
     "inbox.client.could-not-refresh-inbox-list": "Could not refresh the Inbox list",
     "inbox.client.draft-saved-can-keep-editing-retry": "Your draft is saved. You can keep editing or retry.",
     "inbox.client.generated": "Generated",

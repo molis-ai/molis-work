@@ -1,12 +1,12 @@
 import { createTextReader, isFrameUiLanguage } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { installLanguageText } from "../language-text.js";
 import { planLocaleText } from "../locale-switch.js";
-import { frameTextFragment, type FrameLanguage, type FrameLanguageUpdate } from "./language.js";
+import { frameTextFragment, type FrameLanguage, type FrameLanguageUpdate, type FrameStageWords } from "./language.js";
 
 /** The frame prepares from the two parent representations. Its live controls and storage never enter the parent or get replaced. */
-export function frameLanguage(initial: FrameLanguage) {
+export function frameLanguage(initial: FrameLanguage, stage: (words: FrameStageWords) => void) {
   let displayed = initial, latest = 0;
-  let prepared: { turn: number; use(): void } | undefined;
+  let prepared: { turn: number; use(words: FrameStageWords): void } | undefined;
   if (!isFrameUiLanguage(initial.language)) throw new Error("View language is invalid");
   const intl = (text: FrameLanguage) => (tag: string) => tag === text.language.tag ? text.language.intl : undefined;
   const context = installLanguageText(initial.language.tag, initial.packs, intl(initial));
@@ -28,7 +28,7 @@ export function frameLanguage(initial: FrameLanguage) {
     if (message.language !== "prepare") {
       if (!prepared || prepared.turn !== message.turn) return;
       const update = prepared; prepared = undefined;
-      if (message.language === "apply") update.use();
+      if (message.language === "apply") update.use(message.stage);
       return;
     }
     if (!reply) return;
@@ -40,8 +40,9 @@ export function frameLanguage(initial: FrameLanguage) {
       const old = frameTextFragment(message.before), next = frameTextFragment(message.after);
       const reader = createTextReader({ locale: message.text.language.tag, packs: message.text.packs, intlLocale: intl(message.text) });
       const plan = planLocaleText({ root: document.body, old: old.content, next: next.content, produced: context.produced, retext: reader.text });
-      prepared = { turn: message.turn, use() {
+      prepared = { turn: message.turn, use(words) {
         plan.apply(() => select(message.text), () => select(displayed));
+        stage(words);
         displayed = message.text;
         document.dispatchEvent(new CustomEvent("molis-work:language-changed", { detail: { tag: displayed.language.tag } }));
       } };

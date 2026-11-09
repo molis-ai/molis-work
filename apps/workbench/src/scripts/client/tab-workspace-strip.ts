@@ -27,6 +27,16 @@ export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth
     return group;
   };
   const tabLabel = (tab) => tab.kind === "plugin" ? ops.pluginTitle(tab.plugin) : tab.title;
+  const retitlePluginTab = (node, label) => {
+    const trigger = node.querySelector(".tab-item-trigger"), name = node.querySelector(".tab-item-name");
+    if (!trigger || !name) return;
+    if (name.textContent !== label) name.textContent = label;
+    const state = node.hasAttribute("data-tab-removed") ? globalThis.t.text("workbench.tab-workspace-strip.removed")
+      : node.dataset.tabState === "failed" ? globalThis.t.text("workbench.tab-workspace-strip.didn-t-start") : "";
+    node.title = trigger.ariaLabel = state ? label + " · " + state : label;
+    const close = node.querySelector("[data-tab-close]");
+    if (close) { close.ariaLabel = globalThis.t.text("workbench.tab-workspace-strip.close-tab-group"); close.title = close.ariaLabel + "·" + label; }
+  };
   const tabIcon = (plugin) => PLUGIN_TAB_ICON[plugin] || "frame";
   const iconMarkup = (plugin) => '<svg class="tab-item-icon" aria-hidden="true"><use href="#icon-' + tabIcon(plugin) + '"></use></svg>';
   const appendTab = (parent, pane, tab) => {

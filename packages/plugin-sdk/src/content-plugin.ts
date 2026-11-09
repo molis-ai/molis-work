@@ -10,7 +10,7 @@ import { isRecord } from "./json-value.js";
 
 /** The top-level keys a plugin with only declarations may write; any other is refused by name. */
 const CONTENT_KEYS = new Set([
-  "schema_version", "plugin_id", "version", "name", "name_en", "summary", "publisher", "host_api_version", "developer", "kind",
+  "schema_version", "plugin_id", "version", "name", "name_text", "summary", "summary_text", "publisher", "host_api_version", "developer", "kind",
   "entrypoints", "permissions", "capabilities", "artifacts", "ui",
   "methods", "requires", "upgrade_compatibility", "runtime",
 ]);

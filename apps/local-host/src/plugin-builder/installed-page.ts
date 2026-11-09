@@ -1,25 +1,23 @@
 import type { PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { pluginTextSlot, pluginTextSlotKey, pluginSurfaceWord, usesPluginFieldWords } from "@molis-ai/molis-work-design-system";
+import { usesPluginFieldWords } from "@molis-ai/molis-work-design-system";
+import { projectDirectoryWords } from "@molis-ai/molis-work-app-workbench";
 import type { InstalledRelease } from "../installed-release.js";
 import { installedVersion } from "../installed-release.js";
 import { pluginPagesFor } from "../plugin-page-authority.js";
-import { runWithRegisteredText } from "../web-locale.js";
+import { directoryWordResolver } from "../ui-text-provider.js";
 import { inDesignOrder } from "@molis-ai/molis-work-plugin-builder";
 import { studioWordReader } from "./studio-words.js";
+import { generatedPluginManifest } from "./installed.js";
 
 /** The signed or local release already selected by this instance, never a catalog lookup by name. */
 function installedWords(release: InstalledRelease) {
   const { pluginId, design, packaged } = release;
-  return packaged ? packaged.localePacks : studioWordReader(design, { plugin_id: pluginId, kind: "app", ui: design.contract.ui ?? {} });
+  return packaged ? packaged.localePacks ?? null : studioWordReader(design, { plugin_id: pluginId, kind: "app", ui: design.contract.ui ?? {} });
 }
 
-export function installedPluginName(release: InstalledRelease): string {
-  const { pluginId, design } = release, words = installedWords(release);
-  const key = pluginTextSlotKey(pluginId, pluginTextSlot("plugin", "name"));
-  return words && Object.hasOwn(words.pack(words.default)?.messages ?? {}, key)
-    ? runWithRegisteredText(words, () => pluginSurfaceWord(pluginId, { key }))
-    : design.title;
+export function installedPluginWords(release: InstalledRelease) {
+  return projectDirectoryWords(release.packaged?.manifest ?? generatedPluginManifest(release), directoryWordResolver(installedWords(release)));
 }
 
 /** Both the lazy workbench mount and the standalone carrier use the same proof, immutable view and call route. */

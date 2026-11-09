@@ -3,6 +3,7 @@
   "owner": "io.molis.work.dataset",
   "locale": "en",
   "messages": {
+    "dataset.directory.summary": "Work with tables, import CSV, and restore earlier versions.",
     "dataset.action.delete": "Delete",
     "dataset.action.export-csv": "Export CSV",
     "dataset.action.export-json": "Export JSON",

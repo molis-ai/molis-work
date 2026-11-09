@@ -2,7 +2,8 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginContribution, PluginManifest, PluginRouteBinding, PluginRouteRequest, PluginRouteResponse, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { actionErrorResponse, isCodedFailure } from "@molis-ai/molis-work-plugin-sdk";
 
-import { currentPluginInvocation, endPluginRoute, runInPluginRoute, type PluginRouteCall } from "./action-scope.js";
+import { currentPluginInvocation, endPluginRoute, pluginActivationOpen, runInPluginRoute, type PluginRouteCall } from "./action-scope.js";
+import type { PluginContributionSource } from "./lifecycle.js";
 
 /**
  * What each running activation offers, keyed by installation. A route an activation offers runs as a call of its own (BL-403,
@@ -15,11 +16,13 @@ import { currentPluginInvocation, endPluginRoute, runInPluginRoute, type PluginR
  * answers it with its generic sentence and keeps the raw message out of the answer.
  */
 export class OfferedContributions {
-  readonly #offered = new Map<string, Offer>();
+  readonly #offered = new Map<string, Offer & { source?: PluginContributionSource }>();
   constructor(private readonly context: (installId: string) => PluginStartContext | undefined) {}
 
-  get(installId: string): PluginContribution | undefined {
-    return this.#offered.get(installId)?.contribution;
+  get(installId: string, readSource?: (source: PluginContributionSource) => void): PluginContribution | undefined {
+    const offered = this.#offered.get(installId);
+    if (readSource && offered?.source && pluginActivationOpen(offered.source.activation)) readSource(offered.source);
+    return offered?.contribution;
   }
 
   has(installId: string): boolean {
@@ -29,7 +32,8 @@ export class OfferedContributions {
   /** `manifest` is the one the activation was redeemed against: it says which routes stream. */
   set(installId: string, contribution: PluginContribution, manifest: PluginManifest): void {
     this.delete(installId);
-    this.#offered.set(installId, offer(contribution, manifest, this.context(installId)));
+    const activation = this.context(installId);
+    this.#offered.set(installId, { ...offer(contribution, manifest, activation), source: activation && { manifest, activation } });
   }
 
   delete(installId: string): void {

@@ -153,6 +153,17 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
   };
   let arrivedAs = null, paintedRows = null;
   const parkDetail = () => { if (detailNode.parentElement !== detailHolder) detailHolder.append(detailNode); };
+  const readStarts = () => {
+    try { const list = JSON.parse(home.dataset.homeStarts || '[]'); return Array.isArray(list) ? list : []; }
+    catch (error) { return []; }
+  };
+  document.addEventListener("molis-work:language-changed", () => {
+    for (const { id, title, hint } of readStarts()) {
+      const action = home.querySelector('[data-home-start="' + CSS.escape(id) + '"]'), label = action?.querySelector('span');
+      if (action && hint) action.title = hint;
+      if (label && label.textContent !== title) label.textContent = title;
+    }
+  });
   const renderList = () => {
     const list = listOf();
     const rows = $("[data-home-list]");
@@ -181,18 +192,15 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
       // An empty day keeps the ways to start something; another day also offers the way back to today.
       const otherDay = !day?.today;
       // The plugins the project shows say how to start with them (the start of their views); the page carries the list in order.
-      const starts = (() => {
-        try { const list = JSON.parse(home.dataset.homeStarts || '[]'); return Array.isArray(list) ? list : []; }
-        catch (error) { return []; }
-      })();
+      const starts = readStarts();
       // The ways to start are one row of small buttons; the sentence of each is its hint.
-      const chip = (attrs, glyph, label, hint) => '<button type="button" class="home-start-action" ' + attrs + (hint ? ' title="' + esc(globalThis.t.text(hint)) + '"' : '') + '>' + ico(glyph) + '<span>' + esc(globalThis.t.text(label)) + '</span></button>';
+      const chip = (attrs, glyph, label, hint) => '<button type="button" class="home-start-action" ' + attrs + (hint ? ' title="' + esc(hint) + '"' : '') + '>' + ico(glyph) + '<span>' + esc(label) + '</span></button>';
       paint('<div class="home-start"><p class="home-start__lead">' + (otherDay
           ? '<b>' + globalThis.t.text("workbench.project-home.nothing-happened-day") + '</b>' + globalThis.t.text("workbench.project-home.work-still-here-continue-current-goal-start-something")
           : globalThis.t.text("workbench.project-home.start-something-new-pick-up-where-left-off")) + '</p><div class="home-start-actions">' +
-        (otherDay ? chip('data-home-today', 'back', "workbench.project-home.back-today") : '') +
+        (otherDay ? chip('data-home-today', 'back', globalThis.t.text("workbench.project-home.back-today")) : '') +
         starts.map(item => chip('data-home-start="' + esc(item.id) + '"', item.glyph, item.title, item.hint)).join('') +
-        chip('data-home-start="market"', 'grid', "workbench.project-home.explore-more-tools") + '</div></div>');
+        chip('data-home-start="market"', 'grid', globalThis.t.text("workbench.project-home.explore-more-tools")) + '</div></div>');
       return;
     }
     const nowAt = Date.now();

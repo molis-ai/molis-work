@@ -21,7 +21,7 @@ export const shelfManifest: PluginManifest = {
   plugin_id: SHELF_PLUGIN_ID,
   version: /* @version product.release */ "0.1.0",
   name: "Shelf",
-  summary: "把文件放上来处理副本，原件不动。",
+  summary: "把文件放上来处理副本，原件不动。", summary_text: { key: "shelf.directory.summary" },
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-shelf-binding" },
   // 常开插件 (specs/side-shelf §3.2): on in every project, never in the plugin list, the market, the Dock or a project's

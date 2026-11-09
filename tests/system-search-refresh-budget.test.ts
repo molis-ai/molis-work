@@ -12,7 +12,7 @@ import { openTextSearchIndex } from "@molis-ai/molis-work-storage";
 import { openTestHome } from "./fixtures/test-home.js";
 
 const plugins = [PAGES_PLUGIN_ID, FORM_PLUGIN_ID, GOALS_PLUGIN_ID];
-const document = (text: string) => ({ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text }] }] });
+const document = (text: string) => ({ type: "doc" as const, content: [{ type: "paragraph", content: [{ type: "text", text }] }] });
 
 test("BRC-04 · one background search directory refreshes the two changed sources", { timeout: 60_000 }, async t => {
   t.mock.timers.enable({ apis: ["Date", "setTimeout", "setInterval"], now: Date.parse("2026-11-09T18:00:00Z") });

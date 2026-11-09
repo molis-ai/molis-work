@@ -58,4 +58,6 @@ begin、finish 用单条状态变更及其触发器，或用失败会 **ABORT �
 
 设计时本机缺固定 Worker 工具链；2026-11-09 已在临时目录安装 Rust 1.96.0／wasm32、worker-build 0.8.6、wasm-bindgen 0.2.128、该构建器指定的 esbuild 0.28.2，以及仓库锁定的 Miniflare/workerd。保留 Node 24.15.0，未改锁文件或全局工具。`00367bef9` 的现行 Rust/WASM 基线构建通过，`apps/sync-worker/cloud.test.mjs` 7/7 通过，使用 synthetic Auth 和临时 D1；独立工具冒烟实际写读临时 D1/R2 后关闭。Miniflare 首次直用旧构造选项被拒，按仓库已有 `convertV4MiniflareOptions` 后通过，没有修改产品或夹具。
 
-这些结果只证明当前 v6 Worker 与测试环境可用，未覆盖本稿新增的预留、跨 namespace 附件防护、v6→v7 或旧设备接管。上一 Host 探针也只用模拟运输和现行 Rust SQL。Rust 原生 CI 覆盖两 crate 的 wasm32 编译检查，Worker 测试另用 `cloudFixture`、D1/R2 不持久化，机器 slot 各一份，Node `--test-concurrency=1`。仅本地迁移使用 `--local --persist-to <tmp>`。
+随后在 `9e8583022` 整体构建 Host，通过 `apps/sync-worker/process-items.test.mjs`（1/1、零跳过）：两个临时 Home 使用真实 Host collection、Rust/WASM、D1/R2，完整传输大正文和后续固定版本，归档状态一致、无上传回声，接收不启动 Coding。使用合成 Auth，不涉及真实账号或云端。构建只使用临时编译缓存及 ad hoc helper 签名，保留既有 xterm 构建警告。
+
+这些结果只证明当前 v6 Worker 与双 Home 测试环境可用，未覆盖本稿新增的预留、跨 namespace 附件防护、v6→v7 或旧设备接管。更早的 Files 专项 Host 探针只用模拟运输和现行 Rust SQL，不能与上述现行版本基线合并宣称新协议通过。Rust 原生 CI 覆盖两 crate 的 wasm32 编译检查，Worker 测试另用 `cloudFixture`、D1/R2 不持久化，机器 slot 各一份，Node `--test-concurrency=1`。仅本地迁移使用 `--local --persist-to <tmp>`。

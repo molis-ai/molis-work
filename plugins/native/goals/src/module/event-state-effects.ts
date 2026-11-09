@@ -1,12 +1,9 @@
 import { goalErrors } from "./errors.js";
 import { randomUUID } from "node:crypto";
 import type {
-  ApplyGoalConcernInput,
   CiteGoalDecisionInput,
-  GoalEventAgreementResult,
   GoalEventAppliedDecisionView,
   GoalEventClosureResult,
-  GoalEventConcernResult,
   GoalEventDecisionCommitment,
   GoalEventDecisionOption,
   GoalEventDecisionRequestResult,
@@ -30,7 +27,6 @@ import {
   requiredVersion,
   toWireChange,
 } from "./event-agreement-change.js";
-import { GoalEventStateAgreement } from "./event-state-agreement.js";
 import { requiredText } from "./event-facts-validation.js";
 import type { GoalEventStateRepository } from "./event-state-repository.js";
 import { agreementView } from "./event-state-owner-records.js";
@@ -38,8 +34,6 @@ import { emptyScope, scopeIsSubset } from "./event-state-scope.js";
 import { listDecisionsByRound } from "./event-state-decision-records.js";
 import type { GoalEventStateCore, GoalEventStateHost } from "./event-state-host.js";
 import type { GoalsCommandContext } from "./command-support.js";
-import type { GoalEventFactsRepository } from "./event-facts-repository.js";
-import { GoalEventConcerns } from "./event-state-concerns.js";
 import {
   agreementChangeCommitmentCurrent,
   laterComparableDecision,
@@ -52,25 +46,12 @@ import {
 import { completionUnmetReasons, reopenCompletion, syncClosedState } from "./event-state-completion.js";
 
 export class GoalEventStateEffects {
-  private readonly concerns: GoalEventConcerns;
-  private readonly agreement: GoalEventStateAgreement;
-
   constructor(
     private readonly context: GoalsCommandContext,
-    facts: GoalEventFactsRepository,
     private readonly records: GoalEventStateRepository,
     private readonly host: GoalEventStateHost,
     private readonly core: GoalEventStateCore,
-  ) {
-    this.concerns = new GoalEventConcerns(facts, records, core, (goal, cited) => {
-      this.assertReusable(goal, cited, cited.scope);
-    });
-    this.agreement = new GoalEventStateAgreement(context, records, host, core);
-  }
-
-  applyConcern(input: ApplyGoalConcernInput): GoalEventConcernResult {
-    return this.concerns.applyConcern(input);
-  }
+  ) {}
 
   requestDecision(input: RequestGoalDecisionInput): GoalEventDecisionRequestResult {
     const hash = requestHash({
@@ -337,11 +318,6 @@ export class GoalEventStateEffects {
       return { ...outcomeResult, replayed: false };
     });
   }
-
-  setAgreement(input: Parameters<GoalEventStateAgreement["setAgreement"]>[0]): GoalEventAgreementResult {
-    return this.agreement.setAgreement(input);
-  }
-
 
   submitClosure(input: SubmitGoalEventClosureInput): GoalEventClosureResult {
     const kind = requiredClosureKind(input.kind);

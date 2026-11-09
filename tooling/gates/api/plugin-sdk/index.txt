@@ -372,6 +372,13 @@ export declare const QUESTION_REASK: Readonly<{
     maxTextChars: 8000;
 }>;
 
+export type RoleTemplateInspectionOptions = {
+    readonly source: "draft";
+} | {
+    readonly source: "package";
+    readonly owner: string;
+};
+
 export declare const SANDBOX_IMAGE_PERMISSIONS: Readonly<{
     read: "image-api:read";
     write: "image-api:write";
@@ -411,6 +418,8 @@ export interface SandboxManifestInput {
     connections?: PluginManifest['connections'];
     ownerFiles?: readonly PluginOwnerFileEntry[];
 }
+
+export type SandboxSchemaFailure = (kind: "invalid_json" | "invalid_schema" | "schema_mismatch", reason: string) => never;
 
 export type { SearchEntriesInput } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SearchEntriesPage } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -538,6 +547,15 @@ export declare function assertManifest(manifest: PluginManifest): void;
 
 export declare function assertSandboxAgentDefinition(definition: Pick<PluginDefinition, "manifest" | "agent_prompts" | "agent_prompt_names" | "agent_skills" | "methods">): void;
 
+export declare function assertJson(value: unknown, fail: SandboxSchemaFailure): asserts value is SandboxJson;
+// exported from this entry as "assertSandboxJson"
+
+export declare function assertMatches(schema: SandboxSchema, value: unknown, fail: SandboxSchemaFailure, path?: string): asserts value is SandboxJson;
+// exported from this entry as "assertSandboxMatches"
+
+export declare function assertSchema(schema: unknown, fail: SandboxSchemaFailure): asserts schema is SandboxSchema;
+// exported from this entry as "assertSandboxSchema"
+
 export { bindActionHandler } from "@molis-ai/molis-work-contracts/platform/actions";
 export { bindArtifactCompare } from "@molis-ai/molis-work-contracts/platform/actions";
 export { bindArtifactContinue } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -659,6 +677,8 @@ export declare function inspectActionCrossReferences(definitions: unknown): stri
 export declare function inspectActionDeclarations(definitions: unknown, scenes: unknown): string[];
 
 export declare function inspectContentPlugin(manifest: Readonly<Record<string, unknown>>): PluginDeclarationProblem[];
+
+export declare function inspectRoleTemplate(value: unknown, options: RoleTemplateInspectionOptions): readonly PluginDeclarationProblem[];
 
 export declare function instantIn(day: string, time: string, zone: string | undefined): string | null;
 

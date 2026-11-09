@@ -11,9 +11,11 @@ import { parsePluginManifest } from "./manifest.js";
 
 export { sandboxPluginManifest, sandboxIntegrationManifest, sandboxUiContribution, sandboxDerivedPermissions, sandboxRequestedPermissions, sandboxOperationPermissions, SANDBOX_IMAGE_PERMISSIONS, effectsFromContract, type SandboxManifestInput, type SandboxIntegrationManifestInput } from "./sandbox-manifest.js";
 export { sandboxOperationActions, sandboxActionId, sandboxPackageBuildId, sandboxOperationEffects, sandboxBackgroundProblems } from "./sandbox-actions.js";
+export { assertJson as assertSandboxJson, assertSchema as assertSandboxSchema, assertMatches as assertSandboxMatches, type SandboxSchemaFailure } from "./sandbox-schema.js";
 export { parsePluginManifest, comparePluginVersions } from "./manifest.js";
 export { inspectContentPlugin } from "./content-plugin.js";
 export { parseContentPackage, type ContentPackage, type ContentPackageSkill } from "./content-package.js";
+export { inspectRoleTemplate, type RoleTemplateInspectionOptions } from "./role-template.js";
 export { skillDeclarationFromFrontmatter, type SkillFrontmatterOptions } from "./skill-frontmatter.js";
 export { parsePluginSyncDeclaration, expandPluginSyncSelection } from "./plugin-sync.js";
 export { createSyncJsonContent, type SyncJsonContentOptions } from './sync-content.js';

@@ -1,6 +1,6 @@
 # 第 27 批安全不变量测试证据
 
-状态：实施中，第一阶段补证据已验证，第二阶段补齐剩余引用并启用门禁（2026-11-09）。
+状态：实施中，N3 补录与门禁已通过本片验证，待整批集成（2026-11-09）。
 
 [27-5](../../../post-anticorruption-roadmap/reference/batches/27.md#batch-27-item-5) 的 [N3 决定](../../../post-anticorruption-roadmap/reference/decisions.md#policy-n3)已批准：安全表的 CI 和本机两列，每一个测试文件引用都附对应的测试名，缺名时 CI 失败。目标是让人能在文件里直接找到验证该不变量的用例，让现有门禁拦下遗漏或失效的引用。基点 `0f2b97911` 的 [门禁](../../../../docs/system/SECURITY-INVARIANTS.md)逐行读取两列，核验文件存在、每个已写片段可找到、CI 列文件由 CI 运行；若某个文件后没有片段，匹配得出空数组，现行规则不报错。同口径核得 26 份记录共 86 个无名引用。
 
@@ -35,10 +35,14 @@
 1. **NSEC-01** [人工] 第一阶段逐一核对 24 份记录的无名引用，以及六份记录中的七个旧片段，确认实际测试标题和行为。用现行 `references` 口径读取 `node scripts/gates/security-invariants.mjs --report` 输出，确认在已核实的引用上缺名归零，原文件、正确的既有标题和两列位置保持；剩余缺名按记录列出。以 `git diff --check` 和 `node scripts/machine-slot.mjs run build --label "27-5 N3 health" -- node scripts/check-health-gates.mjs --base origin/main` 验证证据补录。
 2. **NSEC-02** 第二阶段同一行每个文件都要有可用片段。在 CI 列或本机列分别删掉一个文件的片段、另留一个合法引用，调用现行 `tests/security-invariants-doc.test.ts` 的 `altered`／`row` 快照路径，都应报出列、路径和记录；无内容或全空白的引号不能满足要求。未列测试的可空列仍允许。
 3. **NSEC-03** 保持对已改名或删除的测试片段的拒绝。用真实测试标题的片段通过，一文件的连续多个片段均被查证；改错其中一个即拒绝。保留文件缺失、CI 没有运行、ID 和未登记不变量测试等现行拒绝。
-4. **NSEC-04** [人工] 两份文档交接后重跑现行报告，真实仓库不再有缺名引用。规则经独立证据用例和整批健康门禁验证；现行健康门禁通过不代表 N3 规则已经上线。
+4. **NSEC-04** [人工] 两份文档交接后重跑现行报告，真实仓库不再有缺名引用。规则经独立证据用例和本片健康门禁验证，整批集成后再核双方证据与最终健康门禁。
 
 第二阶段沿现有逐列、逐文件循环查空片段，诊断指出记录行号、列和测试路径。至少有一个 `trim()` 后非空白的片段，所有已有片段仍按文件内容校验；不引入第二套测试标题解析，标题与断言的关系由评审核对。正例用 `security-invariants-local-entry.test.ts` 已有的「a mutation without the Origin, the token or the one-time key is refused before any handler runs」；「CI 没跑」反例给现有的独立假文件填一个真实测试调用和对应片段，使它只坏在 CI 调度。缺名反例使用存在的文件，在 CI 和本机列分别测试，旁边保留一个合法引用。先用原门禁跑新增负例，确认会漏拒绝；改门禁后先整体 `pnpm build`，再定向运行 `node scripts/machine-slot.mjs run browser --label "27-5 N3 tests" -- node scripts/run-tests.mjs --jobs 1 tests/security-invariants-doc.test.ts` 和 NSEC-01 的健康门禁。第一阶段不跑产品构建或产品用例。
 
 第一阶段证据（2026-11-09）：NSEC-01 通过。现行报告的 175 条记录、605 个文件引用与基点逐列比较，补齐 71 个文件引用（CI 54、本机 17），另修正 7 个旧片段；未发现本片引用错指或缺少对应行为断言。报告只剩 S-15 的 11 处和 S-47 的 4 处。新增片段逐个定位到真实标题，现有文件、列、正确片段及不变量正文保留。健康门禁通过（比较点 `54a12642`），`git diff --check` 通过；当前证据门禁用例通过（机器测试槽内 `node --test --test-concurrency=1 tests/security-invariants-doc.test.ts`；通用运行器的回环端口探测在当前沙箱被拒，本用例无需网络）。
 
-第二阶段补录（2026-11-09）：S-15／S-47 的 15 个缺名引用已补齐。逐项核对真实测试标题与断言，涵盖 Runtime 委托、HTTP 和 MCP 授权、Agent 取消、查询和通知拒绝、沙箱依赖策略，以及页面、终端和文件交付的限制。前后报告逐列比较，175 条记录、605 个引用的文件及列位置、原有标题和正文均一致，缺名从 15 归零。NSEC-04 的规则验证随独立门禁提交。
+2026-11-09，第二阶段已补齐 S-15／S-47 的 15 个缺名引用。逐项核对真实测试标题与断言，涵盖 Runtime 委托、HTTP 和 MCP 授权、Agent 取消、查询和通知拒绝、沙箱依赖策略，以及页面、终端和文件交付的限制。前后报告逐列比较，175 条记录、605 个引用的文件及列位置、原有标题和正文均一致，缺名从 15 归零。
+
+NSEC-02 的四个新增拒绝用例在旧规则下都因返回空诊断而失败。新规则接入后整体 `pnpm build` 通过，NSEC-02、NSEC-03 和现行 S-20 文档门禁测试全部通过。通用运行器的回环端口探测在沙箱被拒，本文件无需网络，在原机器测试槽用 `node --test --test-concurrency=1 tests/security-invariants-doc.test.ts` 执行。
+
+NSEC-04 在本片通过。健康门禁对照 `origin/main` 的合并基点 `54a12642` 通过，`git diff --check` 通过。整批集成后按上面的交接要求核对合并后的证据并验证最终提交。

@@ -26,10 +26,10 @@
 }
 ```
 
-- 每种语言一个文件 `locales/<语言>.json`，路径由约定得出，不写；`pack` 自动带上，不用写进 `package.json` 的 `files`。
+- 每种语言一个文件 `locales/<语言>.json`，路径由约定得出，不写；`molis-work-plugin pack` 自动带上；用 npm 或 pnpm 发布项目时，把 `locales` 放进 `package.json` 的 `files`。
 - 语言标记写 `zh`、`en`、`zh-Hant`、`pt-BR` 这样的；`default` 在 `available` 里，不重复，最多 32 种；`ui.locales` 只有这两个键。
 - 同一个 Manifest 不能再写 `ui.messages` 或 `ui.translations`。
-- `plugin_id` 的最后一段就是键的第一段（上例是 `greeting`），所以它要以小写字母开头、只含小写字母、数字和连字符，不是 `common`（[elements.md](elements.md#身份)）。也别用 `workbench`：平台自己的词用这个名字，开发路径会报 `ui.text_owner_conflict`。
+- `plugin_id` 的最后一段就是键的第一段（上例是 `greeting`），所以它要以小写字母或数字开头、只含小写字母、数字和连字符，不是 `common`（[elements.md](elements.md#身份)）。也别用 `workbench`：平台自己的词用这个名字，开发路径会报 `ui.text_owner_conflict`。
 
 **2. 每种语言一个文件。** `locales/en.json`：
 

@@ -68,6 +68,17 @@ test("FSS-53 a browser program's forwarded title and hint count, independently o
   assert.ok(result.calls.some(call => call.file === view && call.key === "alpha.page.open" && call.embedded));
 });
 
+test("FSS-53 SDK translator aliases cannot hide a missing or source-language key", () => {
+  const files = core();
+  const result = read({ ...files, [UI]: files[UI] + '\n' + [
+    'export const renderPage = () => { const words = sayOwn; return `<p>${words("原句")}</p>`; };',
+    'export const program = String.raw`const words = globalThis.t; const draw = words.text; draw("alpha.page.missing");`;',
+  ].join('\n') });
+  assert.ok(result.problems.some(problem => problem.includes('expected a stable text key at words: "原句"')));
+  assert.ok(result.calls.some(call => call.embedded && call.key === "alpha.page.missing"));
+  assert.ok(result.problems.some(problem => problem.includes('no registered default word for alpha.page.missing')));
+});
+
 test("FSS-53 only platform common words cross a plugin owner boundary", () => {
   const registry = "packages/design-system/resources/registry.json", owner = "apps/workbench/resources/locales/";
   const file = core()[UI] + '\nsayOwn("workbench.control.private"); sayOwn("common.control.save");';

@@ -1,7 +1,7 @@
 import { TEXT_REF_LIMITS } from "@molis-ai/molis-work-contracts/platform/ui";
 
 /** `owner.area.name`: lower-case segments, 2 to 5 of them. */
-export const STABLE_KEY = /^[a-z][a-z0-9-]*(?:\.[a-z][a-z0-9_-]*){1,4}$/u;
+export const STABLE_KEY = /^[a-z0-9][a-z0-9-]*(?:\.[a-z][a-z0-9_-]*){1,4}$/u;
 /** The owner segment shared words use (`common.save`); no Plugin takes it. */
 export const SHARED_OWNER = "common";
 
@@ -21,6 +21,6 @@ export function keyOwnerProblem(owner: string): string | null {
   const name = messageOwnerOf(owner);
   if (name === SHARED_OWNER) return `plugin_id ${owner.slice(0, 80)} 最后一段是 ${SHARED_OWNER}，键会以 ${SHARED_OWNER} 开头，而 ${SHARED_OWNER} 留给通用词；把最后一段换一个名字`;
   if (name.length > LONGEST_KEY_OWNER) return `plugin_id 最后一段长 ${name.length} 个字符，超过 ${LONGEST_KEY_OWNER}：键最长 ${TEXT_REF_LIMITS.key} 个字符，写不下；把最后一段改短`;
-  if (!STABLE_KEY.test(`${name}.x`)) return `主人 ${owner.slice(0, 80)} 的最后一段 ${name.slice(0, 40)} 不能当键的第一段：要以小写字母开头，只含小写字母、数字和连字符`;
+  if (!STABLE_KEY.test(`${name}.x`)) return `主人 ${owner.slice(0, 80)} 的最后一段 ${name.slice(0, 40)} 不能当键的第一段：要以小写字母或数字开头，只含小写字母、数字和连字符`;
   return null;
 }

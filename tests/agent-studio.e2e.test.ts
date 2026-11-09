@@ -239,12 +239,14 @@ test('studio: a request becomes a working, published plugin that the person can 
     const stages = await installedPluginStages(options);
     assert.deepEqual(stages.map(item => [item.label, item.surface.startsWith('app-')]), [['笔记墙', true]]);
     assert.match(stages[0]!.stage, new RegExp('data-work-surface="' + stages[0]!.surface + '"[^>]*hidden><iframe src="' + pluginHref.replaceAll('.', '\\.') + '\\?frame=workbench&amp;installation='));
+    const framedStagePath = /<iframe src="([^"]+)"/u.exec(stages[0]!.stage)?.[1]?.replaceAll('&amp;', '&');
+    assert.ok(framedStagePath, 'SCS-11: use the real installed stage address with its edition');
     // Its address opened directly (a link in a notice, say) opens the workbench on that plugin's stage, not a page of its own.
     const directPlugin = await fetch(origin + pluginHref, { redirect: 'manual' });
     assert.equal(directPlugin.status, 302); assert.equal(directPlugin.headers.get('location'), options.routePrefix + '/?openSurface=' + encodeURIComponent(stages[0]!.surface)); await directPlugin.text();
     const installedPage = await framedStudioPage(t, browser, await browser.page());
     await installedPage.command('Page.enable');
-    await installedPage.command('Page.navigate', { url: origin + pluginHref + '?frame=workbench' });
+    await installedPage.command('Page.navigate', { url: origin + framedStagePath });
     await installedPage.wait('globalThis.__molisPluginReady===true');
     // SYS-15: a generated plugin is equally isolated and cannot call the authoring or another plugin API.
     assert.deepEqual(await installedPage.evaluate(`(async()=>{let parentDenied=false;try{void parent.document.body}catch{parentDenied=true}const denied=[];for(const path of ['/api/plugin-builder/studio/state','/api/plugins/io.molis.work.schedule/tasks']){try{const r=await fetch('${options.routePrefix}'+path);denied.push(r.status)}catch{denied.push(403)}}return {parentDenied,token:document.querySelector('meta[name=molis-work-page-session]')?.content??null,denied};})()`), {parentDenied:true,token:null,denied:[403,403]});
@@ -252,6 +254,10 @@ test('studio: a request becomes a working, published plugin that the person can 
     await installedPage.wait(`globalThis.__molisPluginReady===true&&document.querySelector('[data-component-id="notes"] .pc-output')?.innerText.includes('还没有笔记')`);
     const oldCallStatus = await installedPage.evaluate<number>(`(async()=>{const r=await fetch(${JSON.stringify(origin + pluginHref.replace('/plugins/', '/api/plugin-builder/installed/') + '/call')},{method:'POST',headers:globalThis.molisWorkControlHeaders(),body:JSON.stringify({componentId:'notes',binding:'read',payload:{}})});await r.text();return r.status})()`);
     assert.equal(oldCallStatus, 403, 'SYS-15: the installed page cannot POST its component-read body to the retired private alias');
+    await installedPage.click('[data-pc-open="editor"]');
+    await installedPage.fill('[data-component-id="editor"] [data-field]', '取消这条未提交的内容');
+    await installedPage.click('[data-component-id="editor"] dialog[open] .mw-form__footer button[type=button]');
+    await installedPage.wait(`!document.querySelector('[data-component-id="editor"] dialog[open]') && document.querySelector('[data-component-id="notes"] .pc-output')?.innerText.includes('还没有笔记')`);
     await installedPage.click('[data-pc-open="editor"]');
     await installedPage.fill('[data-component-id="editor"] [data-field]', '正式使用的第一条');
     await installedPage.click('[data-component-id="editor"] [type=submit]');

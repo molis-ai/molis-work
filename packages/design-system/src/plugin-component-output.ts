@@ -1,7 +1,7 @@
 /// <reference lib="dom" />
 /// <reference lib="dom.iterable" />
 import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { isDestructivePluginOperation, literalPluginWord, pluginMessageNames, pluginTemplateBindings } from './plugin-surface-text.js';
+import { isDestructivePluginOperation, pluginMessageNames, pluginTemplateBindings } from './plugin-surface-text.js';
 import type { Column, Ctl, Det, Kit, Out, Part, Rec, Rel, State } from './plugin-component-types.js';
 
 export function pcOutput(c: State & Kit & Rel & Rec & Det) {
@@ -11,7 +11,7 @@ export function pcOutput(c: State & Kit & Rel & Rec & Det) {
     const listing = binding === 'read' && Array.isArray(value);
     if (part.tools) { part.tools.hidden = !listing || !(value as unknown[]).length; part.tools.querySelector<HTMLElement>('.pc-count')!.dataset.count = listing ? String((value as unknown[]).length) : ''; }
     // A sentence the design wrote around the result ("今天已经喝了 {{count}} 杯") is filled from it and shown instead of figures.
-    const template = [node.props.description, node.props.title].map(literalPluginWord).find(item => item && TEMPLATE.test(item));
+    const template = [node.props.description, node.props.title].find((item): item is string => typeof item === 'string' && TEMPLATE.test(item));
     const generated = binding === 'read' && [node.props.description, node.props.title].find(ref => ref && typeof ref !== 'string' && 'key' in ref && pluginMessageNames(word(ref)).length > 0);
     const schema = generated ? pluginSchemaOf(node.read?.operationId, node.read?.outputPath) : undefined;
     if (generated && schema && value && typeof value === 'object' && !Array.isArray(value)) {

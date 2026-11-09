@@ -135,7 +135,8 @@ async function executeStep(browser: BuilderBrowser, step: BrowserAcceptance['ste
   }
   const root = component(step.componentId);
   if (step.action === 'expectWord') {
-    const ref = tryOwnedTextRef(build.nodes.find(node => node.id === step.componentId)?.props[step.word], build.design!.contract.pluginId);
+    const word = build.nodes.find(node => node.id === step.componentId)?.props[step.word];
+    const ref = tryOwnedTextRef(typeof word === 'string' ? { literal: word } : word, build.design!.contract.pluginId);
     if (!ref) throw new Error('验收的界面文字没有可用引用');
     const selectors = { title: '[data-pc-title]', description: '[data-pc-description]', submitLabel: '[type=submit]', emptyText: '[data-slot=empty] p', requiredText: '[data-pc-feedback]' };
     const label = `(${root})?.querySelector(${literal(selectors[step.word])})`;

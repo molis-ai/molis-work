@@ -11,7 +11,8 @@ import { createLazyFileSecretStore } from '@molis-ai/molis-work-storage';
 import { builderPrivateValueReplicationOwner, freezeStudioUi, parseModelJson, type AgentBuild, type AgentRelease } from '@molis-ai/molis-work-plugin-builder';
 import { verifyPluginPackageSignature } from '@molis-ai/molis-work-plugin-runtime';
 import { readyPublication, publicationAuthority } from './fixtures/studio-publishing.js';
-import { prepareStudioNoteWords, studioBilingualAnswer, studioBilingualNotes, studioTestLanguages } from './fixtures/studio-bilingual.js';
+import { prepareStudioNoteWords, studioBilingualAnswer, studioBilingualNotes, studioBilingualLiteralNotes, literalStudioExcerpt, studioTestLanguages } from './fixtures/studio-bilingual.js';
+import { pluginTextSlot, pluginTextSlotKey } from '@molis-ai/molis-work-design-system';
 import { fixture, mac, operate, operationsOf, person, ref, refused } from './fixtures/home-sandbox.js';
 
 const identityPath = (home: string) => join(home, 'config', 'plugin-publisher.json');
@@ -90,7 +91,7 @@ test('FSS-20 FSS-74 Studio freezes only complete, bound locale files and preserv
 
 test('FSS-38 FSS-74 Studio downloads the complete original signing payload and rejects mismatched synchronized words', async t => {
   const home = await mkdtemp(join(tmpdir(), 'molis-studio-word-release-'));
-  const h = readyPublication(home, 'author', 'project', studioBilingualNotes);
+  const h = readyPublication(home, 'author', 'project', studioBilingualLiteralNotes);
   t.after(async () => { await h.workflow.close(); await rm(home, { recursive: true, force: true }); });
   const release = await h.publish(), bundle = await readStudioDistribution(h.root, release);
   assert.equal(verifyPluginPackageSignature(bundle).key_id, release.distribution!.publisher_key_id);
@@ -103,9 +104,16 @@ test('FSS-38 FSS-74 Studio downloads the complete original signing payload and r
   const portable = owner.project(saved, 'author', h.build.id) as { format: number; builds: AgentBuild[]; releases: AgentRelease[] };
   assert.equal(portable.format, 1);
   owner.validate(portable, 'author', h.build.id);
+  assert.deepEqual(saved.builds[0].design.contract.pages[0].title, { literal: literalStudioExcerpt });
+  assert.deepEqual(portable.builds[0]!.design!.parts.find(part => part.id === 'title')!.props.description, { literal: literalStudioExcerpt });
+  assert.deepEqual(portable.releases[0]!.design.contract.pages[0]!.regions[0]!.title, { literal: literalStudioExcerpt });
+  assert.ok(!JSON.stringify(portable.builds[0]!.design!.localePacks).includes(literalStudioExcerpt), 'literal is not copied to either pack');
   const missing = structuredClone(portable);
   delete missing.builds[0]!.design!.localePacks;
   assert.throws(() => owner.validate(missing, 'author', h.build.id), { code: 'plugin_builder.sync_invalid' });
+  const unlabelled = structuredClone(portable), fieldKey = pluginTextSlotKey(release.pluginId, pluginTextSlot('field', 'notes.add', 'text', 'label'));
+  for (const pack of unlabelled.builds[0]!.design!.localePacks!) Reflect.deleteProperty(pack.messages, fieldKey);
+  assert.throws(() => owner.validate(unlabelled, 'author', h.build.id), { code: 'plugin_builder.sync_invalid' });
   const unbound = structuredClone(portable);
   const unboundTitle = unbound.builds[0]!.design!.parts.find(part => part.id === 'title')!.props.title!;
   assert.ok(typeof unboundTitle !== 'string' && 'key' in unboundTitle);

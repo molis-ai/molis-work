@@ -1,6 +1,6 @@
 import type { PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { pluginTextSlot, pluginTextSlotKey, pluginSurfaceWord } from "@molis-ai/molis-work-design-system";
+import { pluginTextSlot, pluginTextSlotKey, pluginSurfaceWord, usesPluginFieldWords } from "@molis-ai/molis-work-design-system";
 import type { InstalledRelease } from "../installed-release.js";
 import { installedVersion } from "../installed-release.js";
 import { pluginPagesFor } from "../plugin-page-authority.js";
@@ -9,9 +9,13 @@ import { inDesignOrder } from "@molis-ai/molis-work-plugin-builder";
 import { studioWordReader } from "./studio-words.js";
 
 /** The signed or local release already selected by this instance, never a catalog lookup by name. */
-export function installedPluginName(release: InstalledRelease): string {
+function installedWords(release: InstalledRelease) {
   const { pluginId, design, packaged } = release;
-  const words = packaged ? packaged.localePacks : studioWordReader(design, { plugin_id: pluginId, kind: "app", ui: design.contract.ui ?? {} });
+  return packaged ? packaged.localePacks : studioWordReader(design, { plugin_id: pluginId, kind: "app", ui: design.contract.ui ?? {} });
+}
+
+export function installedPluginName(release: InstalledRelease): string {
+  const { pluginId, design } = release, words = installedWords(release);
   const key = pluginTextSlotKey(pluginId, pluginTextSlot("plugin", "name"));
   return words && Object.hasOwn(words.pack(words.default)?.messages ?? {}, key)
     ? runWithRegisteredText(words, () => pluginSurfaceWord(pluginId, { key }))
@@ -34,8 +38,8 @@ export function installedPluginPage(input: { home: string; actorId: string; proj
         || current.installation_generation !== installation_generation || current.manifest_digest !== manifest_digest) throw unavailable();
     },
   });
-  const { design } = release;
+  const { design } = release, words = installedWords(release);
   const view = { contract: design.contract, nodes: inDesignOrder(design, release.nodes), presentation: design.presentation,
-    connected: design.contract.operations.map(item => item.id) };
+    connected: design.contract.operations.map(item => item.id), deriveFieldWords: usesPluginFieldWords(design.contract, words?.pack(words.default)) };
   return { authorization, page: { mode: "installed", plugin_id: release.pluginId, call: prefix + "/api/plugins/" + release.pluginId + "/call", view } };
 }

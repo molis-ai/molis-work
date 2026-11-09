@@ -1,11 +1,12 @@
 import { isRecord as object } from "@molis-ai/molis-work-plugin-sdk";
+import { textRefProblems } from "@molis-ai/molis-work-plugin-sdk/ui";
 /**
  * The designer writes a compact, forgiving authoring format; the host expands it into the strict contract,
  * component plans and browser acceptance that everything downstream checks. Normalization only maps known
  * variants of the same meaning and records what it dropped; it never invents behavior. The expanded result
  * still goes through the strict validators (`validateAgentDesign`, `assertContract`).
  */
-import type { SandboxEffects, SandboxJson, SandboxOperationContract, SandboxPluginContract, SandboxSchema } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import type { SandboxEffects, SandboxJson, SandboxOperationContract, SandboxPluginContract, SandboxSchema, SandboxVisibleText } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { PLUGIN_COMPONENT_PROP_KEYS, PLUGIN_COMPONENT_WORD_KEYS, literalPluginWord, pluginTemplatePaths, pluginSchemaAt, type PluginComponentIntent, type PluginComponentPlan, type PluginInputValue, type PluginOperationBinding } from '@molis-ai/molis-work-design-system';
 import type { AgentDesign, AgentProposal, BrowserAcceptance } from './agent-model.js';
 import type { CatalogEntry } from './agent-catalog.js';
@@ -357,6 +358,15 @@ function binding(raw: unknown, mode: 'read' | 'submit', operations: SandboxOpera
   const path = text(pick(spec as Json, 'show', 'path', 'outputPath'));
   return { operationId, input, ...(path ? { outputPath: path } : {}) };
 }
+/** A draft string becomes an owned word at freeze; an explicit literal keeps its exact value. */
+function authoredWord(value: unknown, where: string, limit = 2000): SandboxVisibleText | undefined {
+  if (typeof value === 'string') return value.trim() ? value.slice(0, limit) : undefined;
+  if (!object(value)) return undefined;
+  const problems = textRefProblems(value, { key: false });
+  if (typeof value.literal !== 'string' || problems.length) return fail(where, problems.join('；') || '应为短句或显式 literal');
+  if (value.literal.length > limit) return fail(where, 'literal 太长，不能截断原文');
+  return { literal: value.literal };
+}
 function normalizePart(raw: unknown, pageId: string, operations: SandboxOperationContract[], dropped: string[], sketch: boolean): PluginComponentPlan {
   if (!object(raw)) return fail(`页面 ${pageId}`, '组件写成对象');
   const id = slug(pick(raw, 'id', 'componentId'), `页面 ${pageId} 的组件`), where = `组件 ${id}`;
@@ -364,9 +374,19 @@ function normalizePart(raw: unknown, pageId: string, operations: SandboxOperatio
   const props: Json = {};
   for (const [key, value] of Object.entries(object(raw.props) ? raw.props : {})) {
     if (!(PROPS as readonly string[]).includes(key)) { dropped.push(`${where} 的 ${key}`); continue; }
-    if (key === 'requiredText' && typeof value !== 'string') return fail(where, 'requiredText 必须是文字');
-    if (key === 'columns') props.columns = (Array.isArray(value) ? value : []).map(column => typeof column === 'string' ? { field: column, label: { literal: column } } : object(column) ? { field: text(column.field), label: { literal: text(column.label) || text(column.field) }, ...(object(column.values) ? { values: Object.fromEntries(Object.entries(column.values).map(([key, value]) => [key, { literal: text(value).slice(0, 60) }])) } : {}) } : null).filter(Boolean);
-    else if (typeof value === 'string' && value.trim()) props[key] = (PLUGIN_COMPONENT_WORD_KEYS as readonly string[]).includes(key) ? { literal: value.slice(0, 2000) } : value.slice(0, 2000);
+    if (key === 'columns') props.columns = (Array.isArray(value) ? value : []).flatMap(column => {
+      if (typeof column === 'string') return [{ field: column, label: column }];
+      if (!object(column)) return [];
+      const field = text(column.field), place = where + ' 的列 ' + field;
+      const label = authoredWord(column.label, place, 120) ?? field;
+      return [{ field, label, ...(object(column.values) ? { values: Object.fromEntries(Object.entries(column.values).map(([value, label]) =>
+        [value, authoredWord(label, place + '/' + value, 60) ?? value])) } : {}) }];
+    });
+    else if ((PLUGIN_COMPONENT_WORD_KEYS as readonly string[]).includes(key)) {
+      const copy = authoredWord(value, where + ' 的 ' + key);
+      if (key === 'requiredText' && copy === undefined && typeof value !== 'string') return fail(where, 'requiredText 必须是文字');
+      if (copy !== undefined) props[key] = copy;
+    } else if (typeof value === 'string' && value.trim()) props[key] = value.slice(0, 2000);
   }
   for (const key of Object.keys(raw)) if (!['id', 'componentId', 'intent', 'kind', 'type', 'purpose', 'label', 'props', 'read', 'submit', 'uses', 'page', 'pageId', 'region', 'regionId', 'submitShow', 'show'].includes(key)) dropped.push(`${where} 的 ${key}`);
   const uses = sketch ? text(raw.uses) : '';
@@ -435,8 +455,9 @@ function normalizePages(raw: unknown, operations: SandboxOperationContract[], dr
       part.id = name;
     }
     parts.push(...pageParts);
-    const regions = [...new Set(pageParts.map(part => part.regionId))].map(regionId => ({ id: regionId, title: { literal: regionId === 'main' ? text((page as Json).title) || id : regionId }, operationIds: [...new Set(pageParts.filter(part => part.regionId === regionId).flatMap(part => [part.read?.operationId, part.submit?.operationId]).filter((value): value is string => !!value))] }));
-    pages.push({ id, title: { literal: text((page as Json).title) || id }, regions });
+    const rawTitle = (page as Json).title, title = authoredWord(typeof rawTitle === 'string' ? rawTitle.trim() : rawTitle, '页面 ' + id) ?? id;
+    const regions = [...new Set(pageParts.map(part => part.regionId))].map(regionId => ({ id: regionId, title: regionId === 'main' ? title : regionId, operationIds: [...new Set(pageParts.filter(part => part.regionId === regionId).flatMap(part => [part.read?.operationId, part.submit?.operationId]).filter((value): value is string => !!value))] }));
+    pages.push({ id, title, regions });
   }
   if (new Set(parts.map(part => part.id)).size !== parts.length) fail('界面', '组件标识重复');
   return { pages, parts };
@@ -708,7 +729,7 @@ export function expandDesign(raw: unknown, base: { id: string; title: string; de
   }
   // "显示最新一次的三条" written as "{{task1}}" over a list query: a sentence fills from one object, not a list of records.
   // When a command on the page returns those fields, the sentence meant that command's result (the rule below).
-  const templateFields = (part: PluginComponentPlan) => [part.props.title, part.props.description].flatMap(word => pluginTemplatePaths(literalPluginWord(word)));
+  const templateFields = (part: PluginComponentPlan) => [part.props.title, part.props.description].flatMap(word => typeof word === 'string' ? pluginTemplatePaths(word) : []);
   for (const part of parts) {
     const fields = templateFields(part), read = part.read && operations.find(op => op.id === part.read!.operationId);
     if (!fields.length || !read || part.submit || part.read!.outputPath || read.output.type !== 'array') continue;
@@ -721,14 +742,14 @@ export function expandDesign(raw: unknown, base: { id: string; title: string; de
   for (const part of parts) {
     if (part.read) continue;
     for (const key of ['title', 'description'] as const) {
-      const words = literalPluginWord(part.props[key]);
+      const words = part.props[key];
       if (typeof words !== 'string' || !/\{\{\s*[\w.]+\s*\}\}/.test(words)) continue;
       // One field shows alone; several ("{{title}}：1. {{task1}}…") show as the whole result, each with its label.
       const fields = [...new Set([...words.matchAll(/\{\{\s*([\w.]+)\s*\}\}/g)].map(match => match[1]!))];
       const runner = parts.find(item => item.submit && fields.some(field => operations.find(op => op.id === item.submit!.operationId)?.output.properties?.[field]));
       if (runner && !runner.submit!.outputPath && fields.length === 1) runner.submit!.outputPath = fields[0]!;
       const plain = words.replace(/\{\{\s*[\w.]+\s*\}\}/g, '').replace(/\s{2,}/g, ' ').trim();
-      part.props[key] = { literal: plain || part.purpose };
+      part.props[key] = plain || part.purpose;
       dropped.push(`组件 ${part.id} 不读取任何查询，文字里的 {{…}} 改为显示在执行命令的组件上`);
     }
   }

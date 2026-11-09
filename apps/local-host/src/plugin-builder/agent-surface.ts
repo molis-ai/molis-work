@@ -252,7 +252,8 @@ export async function handleAgentStudioHttp(request: IncomingMessage, response: 
     else if (url.port) studio.origin = url.origin;
     if (preview && method === 'GET') {
       const build = workflow.store.require(preview[1]!), design = build.design;
-      const view = design && { contract: design.contract, nodes: inDesignOrder(design, build.nodes), connected: build.connected, presentation: design.presentation };
+      const view = design && { contract: design.contract, nodes: inDesignOrder(design, build.nodes), connected: build.connected, presentation: design.presentation,
+        deriveFieldWords: design.localePacks !== undefined };
       html(response, page(build.title, '<main class="as-preview-page" data-studio-preview="' + escapeHtml(build.id) + '"></main>', { mode: 'preview', acceptance: url.searchParams.get('acceptance'), build: build.id, view }, options, controlToken, { build, workflow }));
       return true;
     }

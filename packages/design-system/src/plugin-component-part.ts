@@ -2,8 +2,8 @@
 /// <reference lib="dom.iterable" />
 import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { Ctl, Det, Kit, Out, Part, Qry, Rec, Rel, State, Sub } from './plugin-component-types.js';
-import type { SandboxSchema } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
-import { pluginFieldWords, pluginMessageNames, usesPluginFieldWords } from './plugin-surface-text.js';
+import type { SandboxSchema, SandboxVisibleText } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import { pluginFieldWords, pluginMessageNames } from './plugin-surface-text.js';
 import type { PluginComponentNode } from './plugin-components.js';
 
 export function pcSubmit(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry) {
@@ -59,12 +59,12 @@ export function pcPart(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry & Sub)
   const { options, make, word, words: wordElement, bindWord, glyph, button, MARKS, TEMPLATE, headingOf, operation, collections, rowLabel, composer, signature, exportRows, vocabulary, control, overlay, query, report, onSubmit } = c;
   function createPart(node: PluginComponentNode): Part {
     const kind = node.kind, element = make('section', undefined, 'pc-node pc-kind-' + kind); element.dataset.componentId = node.id; element.setAttribute('aria-label', word(node.props.title) || node.purpose);
-    const descriptionText = word(node.props.description);
-    const template = (value: string) => TEMPLATE.test(value) || !!node.read && pluginMessageNames(value).length > 0;
-    const description = make('p', template(descriptionText) ? '' : descriptionText, 'pc-part-description');
-    const title = make(node.intent === 'heading' ? 'h1' : 'h2', node.intent === 'heading' ? headingOf(node) : word(node.props.title), node.intent === 'heading' ? undefined : 'pc-part-title'); title.dataset.pcTitle = ''; title.hidden = !title.textContent;
+    const visibleWord = (ref: SandboxVisibleText | undefined, value = word(ref)) => (typeof ref === 'string' ? TEMPLATE.test(ref)
+      : ref && 'key' in ref && !!node.read && pluginMessageNames(value).length > 0) ? '' : value;
+    const heading = (part: PluginComponentNode) => visibleWord(part.props.title, part.intent === 'heading' ? headingOf(part) : word(part.props.title));
+    const description = make('p', visibleWord(node.props.description), 'pc-part-description');
+    const title = make(node.intent === 'heading' ? 'h1' : 'h2', heading(node), node.intent === 'heading' ? undefined : 'pc-part-title'); title.dataset.pcTitle = ''; title.hidden = !title.textContent;
     description.dataset.pcDescription = ''; description.hidden = !description.textContent;
-    if (template(title.textContent ?? '')) { title.textContent = ''; title.hidden = true; }
     if (node.intent === 'heading' && kind === 'frame') {
       // The plugin's own header, as the catalog's frame header: a mark that says what it is about, its name, one line on
       // what it is for, and on the right, where the page's "new" buttons go.
@@ -78,10 +78,10 @@ export function pcPart(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry & Sub)
     if (options.inspect) { const inspect = make('button', options.inspectLabel || t.text("common.generated.inspect"), 'pc-inspect'); inspect.type = 'button'; inspect.addEventListener('click', () => options.inspect?.(node.id)); element.append(inspect); }
     const content = make('div', undefined, 'pc-output'), feedback = make('div'); feedback.dataset.pcFeedback = node.id; feedback.setAttribute('role', 'status'); feedback.setAttribute('aria-live', 'polite');
     const part: Part = { node, root: element, output: content, feedback, busy: false, query: 0, draft: 0, signature: signature(node), prefilled: new Map() };
-    const visibleWord = (value: string) => template(value) ? '' : value;
-    bindWord(element, 'aria-label', () => visibleWord(word(part.node.props.title)) || word(part.node.props.submitLabel) || part.node.purpose);
-    bindWord(title, '', () => visibleWord(part.node.intent === 'heading' ? headingOf(part.node) : word(part.node.props.title)));
-    bindWord(description, '', () => visibleWord(word(part.node.props.description)));
+    bindWord(element, 'aria-label', () => visibleWord(part.node.props.title) || word(part.node.props.submitLabel) || part.node.purpose);
+    bindWord(title, '', () => heading(part.node));
+    bindWord(description, '', () => visibleWord(part.node.props.description));
+    const derived = c.view!.deriveFieldWords || c.view!.authoringWords !== undefined;
     const filtered = node.read && Object.entries(node.read.input).filter(([, source]) => source.source === 'form');
     // The collection's toolbar: its filters, how many records show, and a way to take them out as a spreadsheet.
     const toolbar = make('div', undefined, 'mw-toolbar pc-toolbar'); toolbar.dataset.slot = 'toolbar';
@@ -89,7 +89,7 @@ export function pcPart(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry & Sub)
       const schema = operation(node.read!.operationId)!.input, filter = make('div', undefined, 'pc-filter'); filter.setAttribute('role', 'search');
       for (const [field, source] of filtered) {
         const spec = schema.properties![field]!, required = schema.required?.includes(field) ?? false, words = vocabulary(node.pageId, field);
-        const labels = pluginFieldWords(c.view!.contract, node.read!.operationId, field, spec), labelRef = spec.description || usesPluginFieldWords(c.view!.contract) ? labels.label : words.label ?? labels.label, label = () => word(labelRef);
+        const labels = pluginFieldWords(c.view!.contract, node.read!.operationId, field, spec, derived), labelRef = spec.description || derived ? labels.label : words.label ?? labels.label, label = () => word(labelRef);
         const made = control(spec, (source as { field: string }).field, field, label, required, true, words.values);
         if ('group' in made && made.group) { const box = make('div', undefined, 'pc-filter-item'); box.append(wordElement('span', label, 'pc-filter-label'), made.group); filter.append(box); made.input.addEventListener('change', () => { void query(part); }); continue; }
         const input = made.input!, wrap = make('label', undefined, 'pc-filter-item');
@@ -117,8 +117,8 @@ export function pcPart(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry & Sub)
       const typed = Object.values(node.submit.input).filter(source => source.source === 'form').length;
       for (const [field, source] of Object.entries(node.submit.input)) if (source.source === 'form') {
         const spec = schema.properties![field]!, words = vocabulary(node.pageId, field);
-        const labels = pluginFieldWords(c.view!.contract, node.submit.operationId, field, spec);
-        const labelRef = spec.description || usesPluginFieldWords(c.view!.contract) ? labels.label : words.label ?? labels.label, label = () => word(labelRef);
+        const labels = pluginFieldWords(c.view!.contract, node.submit.operationId, field, spec, derived);
+        const labelRef = spec.description || derived ? labels.label : words.label ?? labels.label, label = () => word(labelRef);
         const made = control(spec, source.field, field, label, schema.required?.includes(field) ?? false, false, words.values, typed === 1 && composer(node) && kind === 'form', operation(node.submit.operationId)?.kind === 'query');
         if ('group' in made && made.group) { const box = make('div', undefined, 'mw-field pc-field-choice'); box.append(wordElement('span', label, 'mw-field__label'), made.group); if ((spec.enum?.length ?? 0) > 5) box.classList.add('pc-field-wide'); fields.append(box); continue; }
         const input = made.input!;

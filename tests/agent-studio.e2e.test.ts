@@ -28,6 +28,9 @@ import {ensureStorageSpace,personalStorageSpace} from '@molis-ai/molis-work-stor
 import {withMolisWorkProjectCatalog} from '@molis-ai/molis-work-app-desktop';
 import {createSyncJsonContent} from '@molis-ai/molis-work-plugin-sdk';
 import {proveAuthoringSync} from './fixtures/authoring-sync-proof.js';
+import { literalStudioExcerpt } from './fixtures/studio-bilingual.js';
+import { pluginTextSlot, pluginTextSlotKey } from '@molis-ai/molis-work-design-system';
+import { readSandboxPackage } from '@molis-ai/molis-work-app-local-host';
 
 function studioServer(options: Parameters<typeof handleAgentStudioHttp>[3] & { homeDirectory: string }, token: string, mutations: Map<string, LocalMutationState>, setup?: {
   observe?(request: IncomingMessage, response: import('node:http').ServerResponse): void; locale?: 'zh' | 'en'; page?: boolean;
@@ -79,7 +82,22 @@ test('FSS-74 a frozen English design reaches G7 in its own frame and publishes t
   seedDemoBoard(databasePath);
   const store = new LocalProjectDatabase(databasePath), token = randomUUID() + randomUUID();
   const projectId = DEMO_PROJECT_ID, routePrefix = '/projects/' + projectId;
-  const options = { store, homeDirectory: home, projectId, routePrefix, browserExecutable, ...agentStudioFixture(0) };
+  const fixture = agentStudioFixture(0);
+  const options = { store, homeDirectory: home, projectId, routePrefix, browserExecutable, ...fixture, async agents(build: Parameters<typeof fixture.agents>[0]) {
+    const runtime = await fixture.agents(build);
+    return { ...runtime, async run(request: Parameters<typeof runtime.run>[0]) {
+      const answer = await runtime.run(request);
+      if (request.role !== 'designer' || JSON.parse(request.task).mode !== 'detail') return answer;
+      const wire = JSON.parse(answer.output), { design } = wire, page = design.pages[0];
+      page.title = { literal: literalStudioExcerpt };
+      page.parts.find((part: { id: string }) => part.id === 'title').props.description = { literal: literalStudioExcerpt };
+      page.parts.find((part: { id: string }) => part.id === 'notes').props.columns[0].label = { literal: '  原文栏目 <ref>  ' };
+      for (const pack of Object.values(design.uiText.locales)) for (const key of ['page/home/title', 'region/home/main/title', 'part/title/description', 'column/notes/expansion/label'])
+        Reflect.deleteProperty(pack as object, key);
+      design.acceptance[1].steps.push({ action: 'expectWord', componentId: 'title', word: 'description' });
+      return { ...answer, output: JSON.stringify(wire) };
+    } };
+  } };
   const previewLanguages = new Set<string>(), childDesignReads: string[] = [];
   const server = studioServer(options, token, new Map(), { observe(request) {
     if (request.url?.includes('/studio/preview/') && request.url.includes('acceptance=')) previewLanguages.add(request.headers['accept-language'] ?? '');
@@ -115,6 +133,8 @@ test('FSS-74 a frozen English design reaches G7 in its own frame and publishes t
   const ready = await stopped();
   assert.equal(ready.phase, 'ready', ready.error ?? JSON.stringify(ready.browserResult));
   assert.equal(ready.design?.contract.ui?.locales.default, 'en');
+  assert.deepEqual(ready.design?.contract.pages[0]?.title, { literal: literalStudioExcerpt });
+  assert.deepEqual(ready.design?.parts.find(part => part.id === 'notes')?.props.columns?.[0]?.label, { literal: '  原文栏目 <ref>  ' });
   assert.ok(ready.browserResult?.passed); assert.ok(ready.browserResult.cases.some(item => item.id === 'empty' && item.passed));
   assert.deepEqual([...previewLanguages], ['en']);
   assert.deepEqual(childDesignReads, [], 'the granted preview receives only its view and current words');
@@ -122,6 +142,17 @@ test('FSS-74 a frozen English design reaches G7 in its own frame and publishes t
   const bundle = await send<import('@molis-ai/molis-work-contracts/platform/plugin').PluginPackageBundle>('/builds/' + ready.id + '/download?version=1');
   assert.deepEqual(bundle.payload.manifest.ui.locales, { default: 'en', available: ['zh', 'en'] });
   assert.deepEqual(bundle.payload.files.filter(file => file.path.startsWith('locales/')).map(file => file.path).sort(), ['locales/en.json', 'locales/zh.json']);
+  const kept = readSandboxPackage(bundle.payload);
+  assert.deepEqual(kept.contract.pages[0]?.regions[0]?.title, { literal: literalStudioExcerpt });
+  const field = pluginTextSlotKey(kept.contract.pluginId, pluginTextSlot('field', 'notes.add', 'text', 'label'));
+  assert.equal(kept.localePacks?.pack('en')?.messages[field], 'Note');
+  const missing = structuredClone(bundle.payload);
+  for (const file of missing.files.filter(file => file.path.startsWith('locales/'))) {
+    const words = JSON.parse(Buffer.from(file.content_base64, 'base64').toString('utf8'));
+    Reflect.deleteProperty(words.messages, field);
+    Object.assign(file, { content_base64: Buffer.from(JSON.stringify(words)).toString('base64') });
+  }
+  assert.throws(() => readSandboxPackage(missing), /界面引用缺少主人默认词/);
 });
 
 /**

@@ -1,5 +1,5 @@
 import type { SandboxPluginContract, SandboxSchema, SandboxVisibleText } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
-import type { TextArgs, TextRef } from '@molis-ai/molis-work-contracts/platform/ui';
+import type { TextArgs, TextRef, UiLocalePack } from '@molis-ai/molis-work-contracts/platform/ui';
 import { ownedTextRef, say, textArgs, textKeyPrefix } from '@molis-ai/molis-work-plugin-sdk/ui';
 
 /** Paths are language independent; an id containing a separator must still identify exactly one slot. */
@@ -17,14 +17,15 @@ export const literalPluginWord = (word: SandboxVisibleText | undefined): string 
 export const pluginSurfaceWord = (owner: string, word?: SandboxVisibleText, args?: TextArgs): string => typeof word === 'string' ? word : word
   ? say.text(ownedTextRef(word, owner), args ? { extra: textArgs(args) } : undefined) : '';
 
-/** A signed interface only takes the derived field names when it actually declared its page in this slot scheme. */
-export const usesPluginFieldWords = (contract: SandboxPluginContract): boolean => !!contract.ui?.locales && contract.pages.some(page =>
-  typeof page.title !== 'string' && 'key' in page.title && page.title.key === pluginTextSlotKey(contract.pluginId, pluginTextSlot('page', page.id, 'title')));
+/** The interface uses derived field names when its own default pack carries the frozen name slot. */
+export const usesPluginFieldWords = (contract: SandboxPluginContract, pack?: UiLocalePack | null): boolean => !!pack
+  && pack.owner === contract.pluginId && pack.locale === contract.ui?.locales.default
+  && Object.hasOwn(pack.messages, pluginTextSlotKey(contract.pluginId, pluginTextSlot('plugin', 'name')));
 
-export function pluginFieldWords(contract: SandboxPluginContract, operation: string, field: string, schema: SandboxSchema) {
+export function pluginFieldWords(contract: SandboxPluginContract, operation: string, field: string, schema: SandboxSchema, derive = false) {
   const [name, ...rest] = (schema.description || field).split('，');
   const label = name!.trim() || field, hint = rest.join('，').trim();
-  const ref = (kind: 'label' | 'hint', fallback: string): TextRef => usesPluginFieldWords(contract)
+  const ref = (kind: 'label' | 'hint', fallback: string): TextRef => derive
     ? { key: pluginTextSlotKey(contract.pluginId, pluginTextSlot('field', operation, field, kind)) } : { literal: fallback };
   return { label: ref('label', label), ...(hint ? { hint: ref('hint', hint) } : {}) };
 }
@@ -33,15 +34,15 @@ export const pluginTemplatePaths = (text: string): string[] => [...new Set([...t
 export const pluginTemplateName = (path: string): string => path.replaceAll('.', '_');
 
 /** Keys that a sandbox's visible interface promises to draw. The package reader checks them against its actual default file. */
-export function sandboxUiTextRefs(contract: SandboxPluginContract, parts: readonly Pick<import('./plugin-components.js').PluginComponentPlan, 'props' | 'read' | 'submit'>[]): SandboxVisibleText[] {
+export function sandboxUiTextRefs(contract: SandboxPluginContract, parts: readonly Pick<import('./plugin-components.js').PluginComponentPlan, 'props' | 'read' | 'submit'>[], deriveFieldWords = false): SandboxVisibleText[] {
   const refs = contract.pages.flatMap(page => [page.title, ...page.regions.map(region => region.title)]);
   for (const { props, read, submit } of parts) {
     for (const text of [props.title, props.description, props.submitLabel, props.emptyText, props.requiredText]) if (text) refs.push(text);
     for (const column of props.columns ?? []) refs.push(column.label, ...Object.values(column.values ?? {}));
-    if (usesPluginFieldWords(contract)) for (const binding of [read, submit]) for (const [field, input] of Object.entries(binding?.input ?? {})) {
+    if (deriveFieldWords) for (const binding of [read, submit]) for (const [field, input] of Object.entries(binding?.input ?? {})) {
       if (input.source !== 'form') continue;
       const operation = contract.operations.find(row => row.id === binding!.operationId)!;
-      refs.push(...Object.values(pluginFieldWords(contract, operation.id, field, operation.input.properties![field]!)));
+      refs.push(...Object.values(pluginFieldWords(contract, operation.id, field, operation.input.properties![field]!, true)));
     }
   }
   return refs;

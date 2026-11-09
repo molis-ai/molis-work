@@ -13,7 +13,7 @@ import { pcRecords, pcRelations } from './plugin-component-records.js';
 import { pcControls, pcDetail } from './plugin-component-controls.js';
 import { pcOutput, pcQuery } from './plugin-component-output.js';
 import { pcPart, pcSubmit } from './plugin-component-part.js';
-export interface PluginComponentView { contract: SandboxPluginContract; nodes: PluginComponentNode[]; connected: string[]; presentation?: PluginPresentation; authoringWords?: readonly UiLocalePack[] }
+export interface PluginComponentView { contract: SandboxPluginContract; nodes: PluginComponentNode[]; connected: string[]; presentation?: PluginPresentation; authoringWords?: readonly UiLocalePack[]; deriveFieldWords?: boolean }
 export interface PluginComponentClientOptions { root: HTMLElement; call(nodeId: string, binding: 'read' | 'submit', payload: unknown): Promise<unknown>; inspect?(nodeId: string): void;
   /** The inspect button's label (the studio passes it translated). */
   inspectLabel?: string;

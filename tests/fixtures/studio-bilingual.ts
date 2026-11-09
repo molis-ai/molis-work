@@ -29,3 +29,16 @@ export function prepareStudioNoteWords(design: AgentDesign): AgentDesign {
 }
 
 export const studioBilingualNotes = (design: AgentDesign) => freezeStudioUi(prepareStudioNoteWords(design), studioBilingualAnswer(), studioTestLanguages);
+
+export const literalStudioExcerpt = '  原文 {{reference}} <保留>  ';
+export function studioBilingualLiteralNotes(design: AgentDesign): AgentDesign {
+  prepareStudioNoteWords(design);
+  const page = design.contract.pages[0]!;
+  page.title = page.regions[0]!.title = { literal: literalStudioExcerpt };
+  design.parts.find(part => part.id === 'title')!.props.description = { literal: literalStudioExcerpt };
+  const answer = studioBilingualAnswer();
+  for (const locale of Object.values(answer.locales)) {
+    Reflect.deleteProperty(locale, 'page/home/title'); Reflect.deleteProperty(locale, 'region/home/main/title');
+  }
+  return freezeStudioUi(design, answer, studioTestLanguages);
+}

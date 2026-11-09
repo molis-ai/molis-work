@@ -322,11 +322,11 @@ test("FSS-20 FSS-34 FSS-37 the catalog and capsule switch their existing documen
 
 test("FSS-20 FSS-38 FSS-74 a signed Studio installation switches its words in the same frame and keeps draft and record data", { timeout: 120_000, skip: process.platform !== "darwin" }, async t => {
   const { mkdtemp, rm } = await import("node:fs/promises"), { tmpdir } = await import("node:os"), { join } = await import("node:path");
-  const { readyPublication } = await import("./fixtures/studio-publishing.js"), { studioBilingualNotes } = await import("./fixtures/studio-bilingual.js");
+  const { readyPublication } = await import("./fixtures/studio-publishing.js"), { studioBilingualLiteralNotes, literalStudioExcerpt } = await import("./fixtures/studio-bilingual.js");
   const { readStudioDistribution } = await import("@molis-ai/molis-work-app-local-host");
   const { sandboxPackageBuildId } = await import("@molis-ai/molis-work-plugin-sdk");
   const author = await mkdtemp(join(tmpdir(), "molis-studio-browser-author-")), h = readyPublication(author, "author", "project", candidate => {
-    const design = studioBilingualNotes(candidate);
+    const design = studioBilingualLiteralNotes(candidate);
     design.presentation = { version: 1, pages: [{ pageId: "home", layout: { layout: "stack", children: design.parts.map(part => ({ part: part.id })) } }],
       parts: { notes: { detail: true } } };
     return design;
@@ -354,8 +354,9 @@ test("FSS-20 FSS-38 FSS-74 a signed Studio installation switches its words in th
   await b.waitFor(`!!document.querySelector(${JSON.stringify(frame)})`, 15000);
   await child.waitFor("globalThis.__molisPluginReady === true");
   assert.deepEqual(await child.evaluate(`[document.querySelector("h1").textContent,document.querySelector(".pc-region").getAttribute("aria-label"),
+    document.querySelector('[data-pc-description]').textContent, document.querySelector('[data-field=text]').closest('label').querySelector('.mw-field__label').textContent,
     document.querySelector('[data-field=text]').placeholder,document.querySelector('[type=submit]').textContent,document.querySelector('[data-pc-value=personal]').textContent]`),
-  ["读书摘记", "摘记工作区", "保留引文", "保存摘记", "个人"]);
+  ["读书摘记", literalStudioExcerpt, literalStudioExcerpt, "摘录正文", "保留引文", "保存摘记", "个人"]);
   await child.evaluate(`(() => { const field=document.querySelector('[data-field=text]');field.value='保存摘记';field.dispatchEvent(new Event('input',{bubbles:true}));
     document.querySelector('[data-pc-value=personal]').click();field.form.requestSubmit(); })()`);
   await child.waitFor("document.querySelector('[data-record-id]')?.innerText.includes('保存摘记')");
@@ -363,6 +364,7 @@ test("FSS-20 FSS-38 FSS-74 a signed Studio installation switches its words in th
   await child.waitFor("document.querySelector('[data-detail-open] .pc-detail-meta span')?.textContent === '可见范围 · 个人'");
   await child.evaluate(`(() => {const field=window.savedStudioField=document.querySelector('[data-field=text]');window.savedStudioBody=document.body;
     window.savedStudioDetail=document.querySelector('[data-detail-open] .pc-detail-pane');window.savedStudioDetailWord=savedStudioDetail.querySelector('.pc-detail-meta span');
+    window.savedStudioExcerpt=document.querySelector('[data-pc-description]');
     field.value='unfinished 摘录';field.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('[data-pc-value=team]').click();
     field.focus();field.setSelectionRange(1,6,'backward');})()`);
   const opened = await b.evaluate<string>(`document.querySelector(${JSON.stringify(frame)}).parentElement.dataset.pluginPage`);
@@ -371,9 +373,10 @@ test("FSS-20 FSS-38 FSS-74 a signed Studio installation switches its words in th
   await child.waitFor("document.documentElement.lang === 'en' && document.querySelector('h1').textContent === 'Reading notes'");
   assert.deepEqual(await child.evaluate(`[savedStudioBody===document.body,savedStudioField===document.querySelector('[data-field=text]'),document.activeElement===savedStudioField,
     savedStudioField.value,savedStudioField.selectionStart,savedStudioField.selectionEnd,savedStudioField.selectionDirection,document.querySelector('[data-field=access]').value,
-    document.querySelector(".pc-region").getAttribute("aria-label"),savedStudioField.placeholder,document.querySelector('[type=submit]').textContent,
+    document.querySelector(".pc-region").getAttribute("aria-label"),savedStudioExcerpt===document.querySelector('[data-pc-description]'),savedStudioExcerpt.textContent,
+    savedStudioField.closest('label').querySelector('.mw-field__label').textContent,savedStudioField.placeholder,document.querySelector('[type=submit]').textContent,
     document.querySelector('[data-pc-value=personal]').textContent,document.querySelector('[data-record-id]').innerText.includes('保存摘记')]`),
-  [true, true, true, "unfinished 摘录", 1, 6, "backward", "team", "Notes workspace", "Keep the quotation", "Save excerpt", "Personal", true]);
+  [true, true, true, "unfinished 摘录", 1, 6, "backward", "team", literalStudioExcerpt, true, literalStudioExcerpt, "Excerpt text", "Keep the quotation", "Save excerpt", "Personal", true]);
   assert.deepEqual(await child.evaluate(`[savedStudioDetail===document.querySelector('[data-detail-open] .pc-detail-pane'),
     savedStudioDetailWord===savedStudioDetail.querySelector('.pc-detail-meta span'),savedStudioDetailWord.textContent,savedStudioDetail.querySelector('h2').textContent]`),
   [true, true, "Visibility · Personal", "保存摘记"]);

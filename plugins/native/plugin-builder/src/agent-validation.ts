@@ -1,6 +1,6 @@
 import { validateFrozenStudioWords } from "./agent-ui-text.js";
 import { isRecord as object } from "@molis-ai/molis-work-plugin-sdk";
-import { literalPluginWord, pluginSchemaAt, validatePluginComponentPlans, validatePluginPresentation } from '@molis-ai/molis-work-design-system';
+import { PLUGIN_COMPONENT_WORD_KEYS, pluginSchemaAt, validatePluginComponentPlans, validatePluginPresentation } from '@molis-ai/molis-work-design-system';
 import type { AgentDesign } from './agent-model.js';
 import { validateExperience } from './agent-experience.js';
 import type { SandboxSchema } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
@@ -47,7 +47,7 @@ export function validateAgentDesign(input: unknown, capabilities: readonly strin
   validateFrozenStudioWords(design);
   if (design.presentation !== undefined) design.presentation = validatePluginPresentation(design.presentation, design.parts, design.contract);
   // "今天已经喝了 {{count}} 杯": a sentence filled from the part's own query result, so the field must be in it.
-  for (const part of design.parts) for (const text of [part.props.title, part.props.description]) for (const [, field] of literalPluginWord(text).matchAll(/\{\{\s*([\w.]+)\s*\}\}/gu)) {
+  for (const part of design.parts) for (const text of [part.props.title, part.props.description]) for (const [, field] of (typeof text === 'string' ? text : '').matchAll(/\{\{\s*([\w.]+)\s*\}\}/gu)) {
     const query = part.read && design.contract.operations.find(item => item.id === part.read!.operationId), shown = query ? pluginSchemaAt(query.output, part.read!.outputPath) : undefined;
     if (!shown || shown.type !== 'object' || !pluginSchemaAt(shown, field!)) throw new Error('组件 ' + part.id + ' 的文字里用了 {{' + field + '}}，但它没有读取一个返回 ' + field + ' 的查询：给它 "read": 一个 output 含 ' + field + ' 的 query');
   }
@@ -83,7 +83,7 @@ export function validateAgentDesign(input: unknown, capabilities: readonly strin
       if (step.action === 'faultRead' || step.action === 'retry') {
         if (!part.read || design.contract.operations.find(operation => operation.id === part.read!.operationId)?.kind !== 'query') throw new Error(where + step.action + ' 需要组件绑定的 read query');
       }
-      if (step.action === 'expectWord' && (!part.props[step.word] || typeof part.props[step.word] !== 'object')) throw new Error(where + ' expectWord 要引用组件的显示文字');
+      if (step.action === 'expectWord' && (!PLUGIN_COMPONENT_WORD_KEYS.includes(step.word) || !part.props[step.word])) throw new Error(where + ' expectWord 要引用组件的显示文字');
       if (step.action === 'submitBlocked') {
         const operation = design.contract.operations.find(operation => operation.id === part.submit?.operationId);
         const field = Object.entries(part.submit?.input ?? {}).find(([name, source]) => source.source === 'form' && source.field === step.field && operation?.input.required?.includes(name) && operation.input.properties?.[name]?.type !== 'boolean');

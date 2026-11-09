@@ -2,7 +2,7 @@ import { BUTTON_STYLES, TOAST_STYLES, COPY_FEEDBACK_STYLES, FIELD_FIT_STYLES, FO
 
 /** Conversation on the Soft Workbench tokens: neutral typography, compact topic tags, no dashboard chrome. */
 export const IM_STYLES = String.raw`
-${BUTTON_STYLES}
+${BUTTON_STYLES.replace(/^ +/gm, "")}
 ${TOAST_STYLES}
 ${FOLLOW_STYLES}
 ${FIELD_FIT_STYLES}

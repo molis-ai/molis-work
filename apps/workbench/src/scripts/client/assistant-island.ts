@@ -525,7 +525,7 @@ ${ASSISTANT_TABS_PART}
       const res = await api("/works", "GET", undefined, at);
       if (generation !== worksGeneration || at !== worksAt || at !== host.route("/api/assistant/works") || !island.isConnected) return;
       const drafts = new Map(works.map((work) => [work.work_id, { draft: work.draft, draft_revision: work.draft_revision }]));
-      works = (res.works || []).map((work) => drafts.has(work.work_id) && (work.work_id === curId || work.work_id === activeSend?.work) ? Object.assign(work, drafts.get(work.work_id)) : work);
+      works = (res.works || []).map((work) => ({ ...work, ...((work.work_id === curId || work.work_id === activeSend?.work) ? drafts.get(work.work_id) : undefined) }));
       if (curId && !works.some((work) => work.work_id === curId)) { curId = null; remember(); view = null; }
       // A tab whose work is gone closes; the work in front always has one.
       const kept = tabs.filter((id) => works.some((work) => work.work_id === id));

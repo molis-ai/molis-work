@@ -1,6 +1,6 @@
-# 06 批插件回调与工作台视图成本
+# 06 批各包调用成本
 
-状态：实施中（2026-11-09，Codex）。对应 [06-4](../post-anticorruption-roadmap/reference/batches/06.md#batch-06-item-4) 的 N47、N51，目标为功能可用。测量起点 `6fec1200b`。
+状态：实施中（2026-11-09，Codex）。对应 [06-4](../post-anticorruption-roadmap/reference/batches/06.md#batch-06-item-4) 的 N47～51，目标为功能可用。N47、N51 的测量起点 `6fec1200b`；其余三项只有只读核查，尚未取得实测基线或实施。
 
 ## 范围与方案
 
@@ -33,6 +33,20 @@
 - **BRC-03**（N51）。同一组目录保留可见性、顺序、stage 回退、侧栏归属和命名，报告真实首页请求的注册表构造次数。
 
 使用 Node 24.15.0，按机器槽运行 `pnpm build`、`node scripts/run-tests.mjs --jobs 1` 点名本片回归，以及 `node scripts/check-health-gates.mjs --base origin/main`。
+
+## N48～50 的实施边界
+
+2026-11-09 独立只读核查基于 `654cf8f97`。下列是下一片的实现与量测方案；没有对应构建产物，不能把旧审查数字记作本片实测。产品 writer 在 N12 交接后串行采用，先补该片开工检查。
+
+**N48。** 搜索目前对每个提供方独立去抖，`refreshKnown` 与 `reconcile` 会各取目录。同一轮待刷新提供方按实际索引作用域归组，组内共用一次本人索引上下文与目录，只处理被标脏的提供方。保留 Home 来源扇出、注销清理、同 revision 短路、分页期间版本变化重试，以及每次动作实时授权。成功回执没有内容变更标记，实际变化仍由来源的 `collection_revision` 判定。改动留在 SearchService，不借此缓存执行授权。
+
+**N49。** Inbox 与 Feed 的候选展示需要一次只读批量投影：同一原调用共用动作目录和场景声明，内核仍逐个核精确引用、意图、schema 和推荐来源；Inbox 筛兼容项，Feed 继续展示可用性与原因。保留 `services.scenes` 声明过滤及前后授权检查，绑定、预览、执行各自核当前权限。公共批量入口须在 #1999 的内核目录、#2000 的场景合同交接后确定，不为避冲突复制第二份内核判断。
+
+**N50。** `platformDefinition` 已拥有 Runtime 自己深冻结的 Manifest 快照。摘要入口仅对通过现有 `isFrozenRegisteredManifest` 判定的对象用 WeakMap 复用原 SHA-256；外来对象及仓库解码内容仍重算，包括原地修改过的对象，保留发行物篡改校验。候选只涉及 `identity.ts` 和定向测试，不改 #2000 占用的安装、发行物或导出文件。
+
+- **BRC-04**（N48）。隔离项目经真实 `POST /api/search/query` 建三个来源的索引，在同一去抖窗口经实际动作修改其中两个。记录后台窗口的 indexer、全量 discover、各提供方列表及正文读取前后次数；两个修改能搜到，第三来源零列表读取，失败仍保留旧结果，停用后清理。沿 `system-search`、`system-search-host`、`system-search-lifecycle`、`system-search-authority` 验证。
+- **BRC-05**（N49）。真实 Inbox `judgment` 与 Feed `out-rules/judgments` HTTP 分别使用单个和多个候选，混入不兼容、不可用项。记录目录发现、场景枚举、绑定读取；候选增加不增加全量发现，返回内容及拒绝原因保持，发现后撤权仍拒。沿 `feed-inbox-scene-runtime`、`inbox-action-scenes`、`functions-scene-configuration`、`security-invariants-plugin-scene-client` 验证。
+- **BRC-06**（N50）。新隔离 Home 分别测首次 `GET /`、首开项目与一次重开，用测试侧钩子区分摘要入口、实际 canonical/hash 次数与可缓存对象数。自己持有的冻结对象重复调用省去摘要计算；同一外来对象改字段后摘要仍改变，发行物内容被改仍拒绝。沿 `platform-manifest-snapshot`、`plugin-release-artifact`、`plugin-upgrades` 验证。
 
 ## N47 实测与验证
 

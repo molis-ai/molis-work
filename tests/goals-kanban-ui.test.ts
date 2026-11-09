@@ -29,7 +29,7 @@ const columnBody = (html: string, status: string) => {
   return match?.[0] ?? "";
 };
 
-test("kanban keeps six visible-status columns, empty columns, and current-tree cards only", () => {
+test("kanban keeps all visible-status columns, empty columns, and current-tree cards only", () => {
   assert.ok(createWorkbenchUiHost().list().some(entry => entry.contribution_id === GOALS_MOMENTUM_UI_CONTRIBUTION_ID));
   const parent = item("ROOT", "Parent", "waiting");
   const child = item("APP", 'User "<title>', "in_progress");
@@ -87,7 +87,7 @@ test("Goal momentum canvas keeps each stable Goal id beside its node title", () 
   assert.doesNotMatch(goalIdRule, /display:\s*none/);
 });
 
-test("kanban CSS shares six columns on desktop and stacks groups when the pane is narrow", () => {
+test("kanban CSS shares status columns on desktop and stacks groups when the pane is narrow", () => {
   assert.match(GOAL_CANVAS_STYLES, /flex: 1 1 0/);
   assert.match(GOAL_CANVAS_STYLES, /container: goal-board \/ inline-size/);
   assert.match(GOAL_CANVAS_STYLES, /@container goal-board \(max-width: 839px\)/);

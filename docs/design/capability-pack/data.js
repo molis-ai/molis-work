@@ -8,7 +8,7 @@ window.KIT_DATA = (() => {
 
   // Where entries come from (scheme C groups by these; every scheme names them in the detail).
   const sources = {
-    system: { kind: "system", name: z("系统 · Agent Host", "System · Agent Host"), version: "Prologue SDK 0.38.2", trust: z("随应用提供", "Built in"), manage: null,
+    system: { kind: "system", name: z("Molis Work 自带", "Built into Molis Work"), version: null, trust: z("随应用提供", "Built in"), manage: null,
       diff: z("上次换包 0.37 → 0.38：新增 2 个系统工具（list_dir、fetch_url），没有移除", "Last SDK change 0.37 → 0.38: 2 system tools added (list_dir, fetch_url), none removed") },
     builtin: { kind: "system", name: z("Molis Work 自带", "Built into Molis Work"), version: "v12", trust: z("随应用提供", "Built in"), manage: "assistant" },
     assistant: { kind: "system", name: z("Molis Work 自带", "Built into Molis Work"), version: "v12", trust: z("随应用提供", "Built in"), manage: "assistant" },
@@ -205,7 +205,7 @@ window.KIT_DATA = (() => {
   // A file picked for import: 「导出这个包」 of the writing kit on another computer (contract §4.9) — the content package as it was
   // signed, your prompt edits (confirmed one by one), and references that only say whether they exist here.
   const importFile = {
-    name: "写作工具.molis-kit.json",
+    name: z("写作工具.molis-kit.json", "Writing kit.molis-kit.json"),
     pack: z("写作工具", "Writing kit"),
     from: z("另一台电脑上的 Molis Work · 11-08 导出", "Molis Work on another computer · exported Nov 8"),
     prompts: [
@@ -215,10 +215,12 @@ window.KIT_DATA = (() => {
     ],
     refs: [
       { kind: "role", name: z("写作编辑 · 写作工具 2.0.0", "Writing editor · Writing kit 2.0.0"), here: true },
-      { kind: "tool", name: z("read_file · write_file · web_search", "read_file · write_file · web_search"), here: true },
+      { kind: "tool", name: z("读文件 read_file", "Read a file · read_file"), here: true },
+      { kind: "tool", name: z("写文件 write_file", "Write a file · write_file"), here: true },
+      { kind: "tool", name: z("联网搜索 web_search", "Search the web · web_search"), here: true },
       { kind: "mcp", name: z("Notion（需要 Notion 连接）", "Notion (needs a Notion connection)"), here: false, fix: z("去连接", "Connect") },
     ],
-    skills: { packs: 1, note: z("内容包「写作工具 2.0.0」原样带着发布者的签名，走插件的安装确认（照第 08 批）", "The content package “Writing kit 2.0.0” keeps its publisher's signature and goes through the plugin install review (as in batch 08)") },
+    skills: { packs: 1, note: z("内容包「写作工具 2.0.0」原样带着发布者的签名，走插件的安装确认", "The content package “Writing kit 2.0.0” keeps its publisher's signature and goes through the plugin install review") },
   };
 
   return { project, sources, entries, many, packs, manyPacks, importFile };

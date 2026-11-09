@@ -34,14 +34,14 @@
       d_now: "现在", d_usage: "用量", d_where: "用在哪", d_version: "版本与升级", d_declared: "声明能用的工具", d_declaredNote: "只是说明，不是授权：真正能用什么，由角色的工具名单和动作授权决定。", d_roles: "开放给这些角色",
       d_kitOuter: "能力包另记的", whereNone: "还没有地方用到它",
       u_recent: "近期 {n} 次", u_last: "最近一次 {at}{by}", u_by: " · {by}", u_none: "还没有使用记录", u_lastOnly: "只有最近一次", u_history: "卸载前近期 {n} 次",
-      ur_skill: "按技能的使用记录算，只算保留下来的近期记录。", ur_prompt: "每个提示词只留最近 200 次记录，这里不是总数。", ur_role: "按角色运行记录和提示词记录算，只算近期。", ur_mcp: "按调用记录算，调用记录只保留近期。", ur_tool: "工具现在只记最近一次用在哪、什么时候。", ur_history: "名称照卸载前的样子保留。",
+      ur_skill: "按技能的使用记录算，只算保留下来的近期记录。", ur_prompt: "每个提示词只留最近 200 次记录，这里不是总数。", ur_role: "按角色运行记录和提示词记录算，只算近期。", ur_mcp: "按调用记录算，调用记录只保留近期。", ur_tool: "工具只记最近一次是什么时候。", ur_history: "名称照卸载前的样子保留。",
       // prompt
       p_default: "用的是默认版 {v}。", p_mine: "用的是你的版本，基于 {base}；默认也是 {base}。", p_mineOld: "用的是你的版本，基于 {base}；默认已更新到 {latest}。", p_noBody: "这里不显示正文。改写、对比和恢复默认都在「提示词」里，从下一轮生效。",
       p_edit: "在提示词里改", p_compare: "对比新的默认", p_ver: "默认 {v}（{src} 带来）", p_verMine: "你的版本基于 {base}；默认现在是 {latest}",
       // role
-      r_active: "在这些地方生效", r_activeNone: "现在没有地方用它", r_scopeNote: "生效范围和继承由角色设置给出（第 36 批）。", r_edit: "去角色", r_view: "在 Coding 设置里看", r_ver: "{v} · {decl}", r_new: "新增于 Coding 3.2", r_off: "停用了，不会被选用。",
+      r_active: "在这些地方生效", r_activeNone: "现在没有地方用它", r_scopeNote: "生效范围以后在角色设置里给出。", r_edit: "去角色", r_view: "在 Coding 设置里看", r_ver: "{v} · {decl}", r_new: "新增于 Coding 3.2", r_off: "停用了，不会被选用。",
       // tool
-      t_note: "工具不能在这里开关。谁能用它，由角色的工具名单和动作授权决定。", t_origin_system: "系统工具（Prologue SDK）", t_origin_gateway: "平台网关工具", t_origin_subagent: "子代理工具", t_origin_plan: "计划步骤工具", t_ver: "随 Prologue SDK {v}", t_added: "0.38 新增", t_rolesNone: "还没有角色开放它", t_toRoles: "去角色",
+      t_note: "工具不能在这里开关。谁能用它，由角色的工具名单和动作授权决定。", t_origin_system: "Molis Work 自带的工具", t_origin_gateway: "Molis Work 自带的工具：经平台调用动作", t_origin_subagent: "Molis Work 自带的工具：交给子代理", t_origin_plan: "Molis Work 自带的工具：记下这一轮的步骤", t_ver: "随 Molis Work 一起更新", t_added: "最近一次更新新增", t_rolesNone: "还没有角色开放它", t_toRoles: "去角色",
       // mcp
       m_title: "开没开：三件事，分开看", m_server: "服务器", m_serverWhat: "服务器有没有在跑、连不连得上", m_out: "给外部客户端", m_outWhat: "哪些外部 AI 工具能连它", m_tools: "工具可用", m_toolsWhat: "它的工具里，有几个登记成动作、能被调用",
       m_on: "开着", m_conn: "已连接", m_broken: "断开了", m_gone: "已删除", m_outN: "开给 {n} 个：{list}", m_outNa: "不适用：这是接进来的服务器", m_toolsN: "{total} 个里开放 {open} 个", m_toolsAll: "{total} 个都已登记", m_toolsNone: "{total} 个都用不了",
@@ -56,7 +56,7 @@
       sk_trust_host: "随应用提供", ap_assistant: "助理", ap_coding: "Coding", ap_both: "助理与 Coding", conn_calendar: "日历",
       // source (C)
       // states of the page
-      fail_t: "没能读出能力包", fail_b: "宿主没有回应，什么都没改。诊断编号 K-2F91。", retry: "重试", partial_t: "MCP 这一类没读到", partial_b: "Agent Host 的 MCP 库没有回应（诊断编号 K-7Q2F）。其余四类照常列出。",
+      fail_t: "没能读出能力包", fail_b: "宿主没有回应，什么都没改。诊断编号 K-2F91。", retry: "重试", partial_t: "MCP 这一类没读到", partial_b: "MCP 服务器的清单没有读到（诊断编号 K-7Q2F）。包里其余的照常列出。",
       importLocal: "从本机导入", market: "去插件市场", loading: "正在读能力包…",
       // overview (B)
       
@@ -86,11 +86,11 @@
       d_now: "Now", d_usage: "Usage", d_where: "Used in", d_version: "Version and upgrades", d_declared: "Tools it declares", d_declaredNote: "A note, not a permission: what it can really use follows the role's tool list and action grants.", d_roles: "Open to these roles",
       d_kitOuter: "What the AI kit adds", whereNone: "Nothing uses it yet",
       u_recent: "{n} recent uses", u_last: "Last used {at}{by}", u_by: " · {by}", u_none: "No use recorded", u_lastOnly: "Last use only", u_history: "{n} recent uses before it was uninstalled",
-      ur_skill: "From skill use records; only the recent records kept.", ur_prompt: "Each prompt keeps its last 200 uses, so this is not a total.", ur_role: "From role runs and prompt records; recent only.", ur_mcp: "From call records, which are kept for a short time.", ur_tool: "For tools, only the last use is recorded for now.", ur_history: "Names are kept as they were before uninstalling.",
+      ur_skill: "From skill use records; only the recent records kept.", ur_prompt: "Each prompt keeps its last 200 uses, so this is not a total.", ur_role: "From role runs and prompt records; recent only.", ur_mcp: "From call records, which are kept for a short time.", ur_tool: "For tools, only the time of the last use is kept.", ur_history: "Names are kept as they were before uninstalling.",
       p_default: "Using the default, {v}.", p_mine: "Using your version, based on {base}; the default is still {base}.", p_mineOld: "Using your version, based on {base}; the default is now {latest}.", p_noBody: "The text isn't shown here. Rewriting, comparing and restoring the default happen in Prompts and apply from the next turn.",
       p_edit: "Edit in Prompts", p_compare: "Compare with new default", p_ver: "Default {v} (from {src})", p_verMine: "Your version is based on {base}; the default is now {latest}",
-      r_active: "Applies in", r_activeNone: "Nothing uses it now", r_scopeNote: "Where it applies and what it inherits come from role settings (batch 36).", r_edit: "Go to Roles", r_view: "See in Coding settings", r_ver: "{v} · {decl}", r_new: "New in Coding 3.2", r_off: "Turned off; it won't be picked.",
-      t_note: "Tools aren't switched here. Who can use one follows the role's tool list and action grants.", t_origin_system: "System tool (Prologue SDK)", t_origin_gateway: "Platform gateway tool", t_origin_subagent: "Sub-agent tool", t_origin_plan: "Plan step tool", t_ver: "From Prologue SDK {v}", t_added: "New in 0.38", t_rolesNone: "No role opens it yet", t_toRoles: "Go to Roles",
+      r_active: "Applies in", r_activeNone: "Nothing uses it now", r_scopeNote: "Where it applies will be given in role settings.", r_edit: "Go to Roles", r_view: "See in Coding settings", r_ver: "{v} · {decl}", r_new: "New in Coding 3.2", r_off: "Turned off; it won't be picked.",
+      t_note: "Tools aren't switched here. Who can use one follows the role's tool list and action grants.", t_origin_system: "A tool built into Molis Work", t_origin_gateway: "Built into Molis Work: calls actions through the platform", t_origin_subagent: "Built into Molis Work: hands off to a sub-agent", t_origin_plan: "Built into Molis Work: records this turn's steps", t_ver: "Updated with Molis Work", t_added: "New in the latest update", t_rolesNone: "No role opens it yet", t_toRoles: "Go to Roles",
       m_title: "Is it on? Three separate things", m_server: "Server", m_serverWhat: "Whether the server runs and can be reached", m_out: "For outside clients", m_outWhat: "Which outside AI tools may connect to it", m_tools: "Tools available", m_toolsWhat: "How many of its tools are registered as actions and can be called",
       m_on: "On", m_conn: "Connected", m_broken: "Disconnected", m_gone: "Deleted", m_outN: "Open to {n}: {list}", m_outNa: "Doesn't apply: a server brought in", m_toolsN: "{open} of {total} open", m_toolsAll: "All {total} registered", m_toolsNone: "None of {total} usable",
       m_toAccess: "Outside access", m_toCodingMcp: "Coding MCP settings", m_toConn: "Service connections", m_toLibrary: "Capability library", m_reconnect: "Reconnect", m_skill: "Installed with it in outside AI tools", m_disc: "Changes found on the last list read", m_added: "Added", m_removed: "Removed",
@@ -100,7 +100,7 @@
       sk_how: "How to use", sk_offD: "Don't use this skill", sk_autoD: "AI picks it when it fits", sk_manualD: "Only when you name it", sk_open: "Open full text", sk_enabled: "Enabled", sk_used: "Last used", sk_manage: "Manage this pack", sk_enablePlugin: "Turn plugin on", sk_connect: "Manage connections",
       sk_why_plugin_disabled: "The plugin is off; the setting stays and comes back with it.", sk_why_connection_missing: "The service it needs isn't connected yet.", sk_change_body_changed: "Text changed in 2.0 (1.4 → 2.0)", sk_change_added: "New in 2.0", sk_change_none: "Not upgraded since installed",
       sk_trust_host: "Built in", ap_assistant: "Assistant", ap_coding: "Coding", ap_both: "Assistant and Coding", conn_calendar: "Calendar",
-      fail_t: "Couldn't read the AI kit", fail_b: "The host didn't answer; nothing changed. Diagnostic K-2F91.", retry: "Retry", partial_t: "MCP couldn't be read", partial_b: "Agent Host's MCP library didn't answer (diagnostic K-7Q2F). The other four kinds are listed as usual.",
+      fail_t: "Couldn't read the AI kit", fail_b: "The host didn't answer; nothing changed. Diagnostic K-2F91.", retry: "Retry", partial_t: "MCP couldn't be read", partial_b: "The list of MCP servers couldn't be read (diagnostic K-7Q2F). Everything else in the kit is listed as usual.",
       importLocal: "Import from this computer", market: "Open plugin market", loading: "Reading the AI kit…",
       
       im_h: "Import from a file", im_file: "{name}", im_from: "{from}", im_repick: "Choose another file", im_prompts: "Prompt rewrites ({n})", im_promptsLead: "Look at each before applying it. Applied rewrites take effect from the next turn, and Prompts can always restore the default. Installing a package never changes prompts; only your choice here does.",
@@ -169,6 +169,20 @@
     loading: "Reading AI kits…",
   });
 
+  // Review round 3 (2026-11-09): user words only — no batch numbers, no SDK names; tools are Molis Work's own.
+  Object.assign(T.zh, {
+    ver_n: "第 {n} 版",
+    pk_goneRow: "{at} 卸载", pk_noMatchT: "没有符合的能力包", pk_noMatchB: "换个词，或者清除搜索看全部。", clear_q: "清除搜索", clear_k: "看全部类别",
+    kLabel: "按类别看", k_all: "全部类别", pk_summaryK: "{n} 个能力包里有{k}",
+    im_done_t: "导入完成", im_done_b: "{n} 条提示词改写已套用，从下一轮生效。内容包「{p}」在插件的安装确认里等你看过再装。", im_done_b0: "没有套用提示词改写。内容包「{p}」在插件的安装确认里等你看过再装。", im_finish: "完成", im_review: "去看安装确认",
+  });
+  Object.assign(T.en, {
+    ver_n: "Version {n}",
+    pk_goneRow: "Uninstalled {at}", pk_noMatchT: "No kits match", pk_noMatchB: "Try another word, or clear the search to see them all.", clear_q: "Clear search", clear_k: "Show all kinds",
+    kLabel: "By kind", k_all: "All kinds", pk_summaryK: "{n} kits have {k}",
+    im_done_t: "Import finished", im_done_b: "{n} prompt rewrite(s) applied; they take effect next turn. The content package “{p}” waits in the plugin install review for you to look at before it's installed.", im_done_b0: "No prompt rewrites applied. The content package “{p}” waits in the plugin install review for you to look at before it's installed.", im_finish: "Done", im_review: "Open install review",
+  });
+
   /* ---------- state ---------- */
   const readHash = () => Object.fromEntries(new URLSearchParams(location.hash.slice(1)));
   let P = (() => { try { return Object.assign(clone(DEF), JSON.parse(localStorage.getItem(KEY) || "{}")); } catch { return clone(DEF); } })();
@@ -178,6 +192,8 @@
   const shot = H.shot === "1";
   const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(P)); } catch { /* private window: memory only */ } };
   const t = (k, v) => (T[P.l][k] ?? T.zh[k] ?? k).replace(/\{(\w+)\}/g, (_, n) => (v && v[n] != null ? v[n] : ""));
+  const en = () => P.l === "en";
+  const gap = () => (en() ? " " : "　"), list = () => (en() ? ", " : "、"), semi = () => (en() ? "; " : "；"), colon = () => (en() ? ": " : "："), paren = (n) => (en() ? ` (${n})` : `（${n}）`);
   const L = (o) => (o && typeof o === "object" ? o[P.l] : o) ?? "";
 
   // What each screen starts from: the pack, the item opened inside it (null = the pack itself), and whether a narrow screen shows
@@ -206,7 +222,7 @@
     const skillStates = {};
     for (const e of D.entries) if (e.skill) skillStates[e.id] = e.skill.state;
     return { pack: p.pack, item: p.item, detail: p.detail, menu: !!p.menu, importing: !!p.importing,
-      q: "", f: P.v === "gone" ? "off" : "all", skillStates, picks: { i1: true }, last: null, anim: false };
+      q: "", f: P.v === "gone" ? "off" : "all", k: "all", back: null, done: null, skillStates, picks: { i1: true }, last: null, anim: false };
   };
   let ui = freshUi();
 
@@ -272,7 +288,7 @@
     const why = u ? `<div class="mw-alert" data-slot="alert" role="status"><p>${esc(t("sk_why_" + u.reason))}</p>${u.reason === "connection_missing" ? `<a class="mw-btn mw-btn--link" href="#" data-act="sim" data-v="go">${esc(t("sk_connect"))}</a>` : ""}</div>` : "";
     const fact = (k, v) => (v ? `<dt>${esc(t(k))}</dt><dd>${esc(v)}</dd>` : "");
     const files = s.resources.map((r) => `${r.path} · ${r.bytes} B${r.role === "script" ? " · " + t("sk_runs") : ""}`).join("\n") || t("sk_noFiles");
-    const facts = `<dl class="mw-facts">${fact("sk_for", t("ap_" + s.applies))}${fact("sk_when", L(s.when))}${fact("sk_whenNot", L(s.whenNot))}${fact("sk_tools", s.tools.join("、") || t("sk_noTools"))}${fact("sk_conn", (s.connectors || []).map((c) => t("conn_" + c)).join("、"))}${fact("sk_files", files)}${fact("sk_excerpt", L(s.excerpt))}</dl>`;
+    const facts = `<dl class="mw-facts">${fact("sk_for", t("ap_" + s.applies))}${fact("sk_when", L(s.when))}${fact("sk_whenNot", L(s.whenNot))}${fact("sk_tools", s.tools.join(list()) || t("sk_noTools"))}${fact("sk_conn", (s.connectors || []).map((c) => t("conn_" + c)).join(list()))}${fact("sk_files", files)}${fact("sk_excerpt", L(s.excerpt))}</dl>`;
     const open = st !== "off" && !u ? `<button type="button" class="mw-btn mw-btn--link mw-btn--sm" data-slot="button" data-act="sim" data-v="body"><span data-slot="button-label">${esc(t("sk_open"))}</span></button>` : "";
     const enabled = s.enabled ? `<p class="settings-muted">${esc(t("sk_enabled"))} · ${esc(s.enabled.at)} · ${esc(L(s.enabled.by))} · ${esc(t(e.scope === "home" ? "scope_home" : "scope_project"))}</p>` : "";
     const used = e.usage.last ? `<p class="mw-list-detail__used">${esc(t("sk_used"))} · ${esc(L(e.usage.last.at))}${e.usage.last.by ? " · " + esc(L(e.usage.last.by)) : ""}</p>` : "";
@@ -282,8 +298,8 @@
   }
 
   /* ---------- the pack's own detail parts, shared by every kind ---------- */
-  function usageBlock(e) {
-    const u = e.usage;
+  function usageBlock(e, o = {}) {
+    const u = o.noLast ? Object.assign({}, e.usage, { last: null }) : e.usage;
     const by = u.last?.by ? t("u_by", { by: L(u.last.by) }) : "";
     const big = u.range === "recent" || u.range === "history" ? `<span class="kp-num">${u.n}</span>` : "";
     if (u.range === "not_counted") return "";
@@ -296,10 +312,11 @@
   const goBtn = (label, variant) => btn(label, { variant: variant || "secondary", icon: "arrow", attrs: act("sim", "go") });
   const statusLine = (markHtml, text, link) => `<p class="mw-status-line">${markHtml}${esc(text)}${link ? `<a class="mw-btn mw-btn--link" href="#" data-act="sim" data-v="go">${esc(link)}</a>` : ""}</p>`;
 
+  const verWord = (e) => { const v = L(e.version), m = e.kind === "prompt" && /^v(\d+)$/.exec(v); return m ? t("ver_n", { n: m[1] }) : v; };
   function header(e) {
     const src = srcOf(e);
     return `<header><span class="kp-kind">${ic(KIND_ICON[e.kind])}${esc(kindWord(e.kind))}</span><h3 tabindex="-1">${esc(nameOf(e))}${e.code ? ` <code class="kp-code">${esc(e.code)}</code>` : ""}</h3><p>${esc(descOf(e))}</p>
-      <p class="kp-source">${ic(SRC_ICON[src.kind] || "package")}<span>${esc(L(src.name))}</span>${e.version ? `<span class="kp-dot">·</span><span>${esc(L(e.version))}</span>` : ""}<span class="kp-dot">·</span>${badge(t(e.scope === "home" ? "scope_home" : "scope_project"), e.scope === "home" ? "info" : "neutral")}</p></header>`;
+      <p class="kp-source">${ic(SRC_ICON[src.kind] || "package")}<span>${esc(L(src.name))}</span>${e.version && e.kind !== "tool" ? `<span class="kp-dot">·</span><span>${esc(verWord(e))}</span>` : ""}<span class="kp-dot">·</span>${badge(t(e.scope === "home" ? "scope_home" : "scope_project"), e.scope === "home" ? "info" : "neutral")}</p></header>`;
   }
 
   function goneBlock(e) {
@@ -316,7 +333,7 @@
     const ownerLine = owner ? t(isLoose(pk, e.id) ? "loose_in" : "in_role", { r: nameOf(entryById(owner.id)) }) : "";
     const line = !p.mine ? t("p_default", { v: p.latest }) : p.latest !== p.base ? t("p_mineOld", { base: p.base, latest: p.latest }) : t("p_mine", { base: p.base });
     const now = e.gone ? goneBlock(e) : `${owner ? `<p class="kp-line">${ic("user")}${esc(ownerLine)}</p>` : ""}${statusLine(markOf(e), line)}<p class="kp-note">${esc(t("p_noBody"))}</p><div class="kp-actions">${p.mine && p.latest !== p.base ? goBtn(t("p_compare")) : ""}${goBtn(t("p_edit"))}</div>`;
-    const ver = `<p class="kp-line">${esc(t("p_ver", { v: p.latest || p.base, src: L(src.name) }))}</p>${p.mine && p.latest && p.latest !== p.base ? `<p class="kp-line kp-line--hold">${ic("git-compare")}${esc(t("p_verMine", { base: p.base, latest: p.latest }))}</p>` : ""}`;
+    const ver = `<p class="kp-line">${esc(t("p_ver", { v: p.latest || p.base, src: L(src.name) }))}</p>`;
     return `${header(e)}${sec(t("d_now"), now, "kp-now")}${sec(t("d_usage"), usageBlock(e))}${e.gone ? "" : sec(t("d_where"), whereBlock(e))}${sec(t("d_version"), ver)}`;
   }
 
@@ -327,9 +344,9 @@
     const own = src.kind === "characters";
     const active = r.active.length ? `<ul class="kp-places">${r.active.map((w) => `<li>${ic("target")}<span>${esc(L(w))}</span></li>`).join("")}</ul>` : `<p class="kp-note">${esc(t(e.off ? "r_off" : "r_activeNone"))}</p>`;
     const now = e.gone ? goneBlock(e) : `${statusLine(markOf(e), t("r_active"))}${active}<p class="kp-note">${esc(t("r_scopeNote"))}</p><div class="kp-actions">${goBtn(own ? t("r_edit") : t("r_view"))}</div>`;
-    const tools = `<p class="kp-chips">${r.tools.map((x) => `<code>${esc(x)}</code>`).join("")}</p><p class="kp-note">${esc(t("d_declaredNote"))}</p>`;
+    const tools = `<p class="kp-chips">${r.tools.map((x) => entryById("tl-" + x)).filter(Boolean).map((x) => `<button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-slot="button" data-act="item" data-v="${x.id}">${ic(KIND_ICON.tool)}<span data-slot="button-label">${esc(nameOf(x))}</span></button>`).join("")}</p><p class="kp-note">${esc(t("d_declaredNote"))}</p>`;
     const ver = `<p class="kp-line">${esc(t("r_ver", { v: L(e.version), decl: L(r.declared) }))}</p>${e.isNew ? `<p class="kp-line">${badge(t("r_new"), "success")}</p>` : ""}`;
-    return `${header(e)}${sec(t("d_now"), now, "kp-now")}${sec(t("r_prompts") + "　" + mine.length, prompts)}${sec(t("d_declared"), tools)}${sec(t("d_usage"), usageBlock(e))}${sec(t("d_version"), ver)}`;
+    return `${header(e)}${sec(t("d_now"), now, "kp-now")}${sec(t("r_prompts") + gap() + mine.length, prompts)}${sec(t("d_declared"), tools)}${sec(t("d_usage"), usageBlock(e))}${sec(t("d_version"), ver)}`;
   }
 
   function toolDetail(e) {
@@ -339,7 +356,7 @@
     const ver = `<p class="kp-line">${esc(t("t_ver", { v: e.version }))}</p>${tl.added ? `<p class="kp-line">${badge(t("t_added"), "success")}</p>` : ""}`;
     const inPacks = packsWith(e.id);
     const packsHtml = `<p class="kp-chips">${inPacks.map((x) => `<button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-slot="button" data-act="pack" data-v="${x.id}">${ic("package")}<span data-slot="button-label">${esc(L(x.name))}</span></button>`).join("")}</p>`;
-    return `${header(e)}${sec(t("d_now"), now, "kp-now")}${sec(t("in_packs") + "　" + inPacks.length, packsHtml)}${sec(t("d_roles"), roles + `<div class="kp-actions">${goBtn(t("t_toRoles"))}</div>`)}${e.usage.range === "not_counted" ? "" : sec(t("d_usage"), usageBlock(e))}${sec(t("d_version"), ver)}`;
+    return `${header(e)}${sec(t("d_now"), now, "kp-now")}${sec(t("in_packs") + gap() + inPacks.length, packsHtml)}${sec(t("d_roles"), roles + `<div class="kp-actions">${goBtn(t("t_toRoles"))}</div>`)}${e.usage.range === "not_counted" ? "" : sec(t("d_usage"), usageBlock(e))}${sec(t("d_version"), ver)}`;
   }
 
   // MCP: the server running, outside clients allowed in, and its tools callable are three different "on"s; each row says which one
@@ -352,13 +369,13 @@
       : m.server === "broken" ? K.renderStatusMark({ label: t("m_broken"), tone: "hold", state: "unavailable" })
         : K.renderStatusMark({ label: t(m.outbound ? "m_on" : "m_conn"), tone: "idle", state: "ready" });
     const serverLink = gone || m.outbound ? null : e.src === "connections" ? (m.server === "broken" ? t("m_reconnect") : t("m_toConn")) : t("m_toCodingMcp");
-    const outMark = m.outbound ? K.renderStatusMark({ label: t("m_outN", { n: m.clients.length, list: m.clients.join("、") }), tone: "idle", state: "ready" }) : K.renderStatusMark({ label: t("m_outNa"), tone: "quiet", state: "idle" });
+    const outMark = m.outbound ? K.renderStatusMark({ label: t("m_outN", { n: m.clients.length, list: m.clients.join(list()) }), tone: "idle", state: "ready" }) : K.renderStatusMark({ label: t("m_outNa"), tone: "quiet", state: "idle" });
     const toolsWord = m.tools.open === 0 ? t("m_toolsNone", { total: m.tools.total }) : m.tools.open === m.tools.total ? t("m_toolsAll", { total: m.tools.total }) : t("m_toolsN", { total: m.tools.total, open: m.tools.open });
     const toolsMark = K.renderStatusMark({ label: toolsWord, tone: m.tools.open === 0 ? (gone ? "blocked" : "hold") : "idle", state: m.tools.open === 0 ? (gone ? "blocked" : "unavailable") : "ready" });
     const ons = `<ul class="kp-ons">${row(t("m_server"), t("m_serverWhat"), serverMark, m.outbound ? t("m_withHost") : "", serverLink)}${row(t("m_out"), t("m_outWhat"), outMark, "", m.outbound ? t("m_toAccess") : null)}${row(t("m_tools"), t("m_toolsWhat"), toolsMark, "", gone ? null : t("m_toLibrary"))}</ul>`;
     const now = gone ? goneBlock(e) + ons : ons + `<p class="kp-note">${esc(t("m_noConnect"))}</p>`;
     const disc = m.discovered ? `<p class="kp-line">${esc(t("m_disc"))}</p><ul class="kp-diff">${m.discovered.added.map((x) => `<li>${badge(t("m_added"), "success")}<code>${esc(x)}</code></li>`).join("")}${m.discovered.removed.map((x) => `<li>${badge(t("m_removed"), "danger")}<code>${esc(x)}</code></li>`).join("")}</ul>` : "";
-    const skill = m.skill ? `<p class="kp-line">${ic("book")}${esc(t("m_skill"))}：${esc(L(m.skill))}</p>` : "";
+    const skill = m.skill ? `<p class="kp-line">${ic("book")}${esc(t("m_skill"))}${colon()}${esc(L(m.skill))}</p>` : "";
     const ver = `<p class="kp-line">${esc(t("m_ver", { v: L(e.version) }))}</p>${disc}${skill}`;
     return `${header(e)}${sec(t("m_title"), now, "kp-now")}${sec(t("d_usage"), usageBlock(e))}${e.where.length ? sec(t("d_where"), whereBlock(e)) : ""}${sec(t("d_version"), ver)}`;
   }
@@ -366,7 +383,7 @@
   function skillDetail(e) {
     // The batch-08 block exactly; the pack's own fields sit outside it, under a hairline.
     const s = e.skill, ch = s.change ? t("sk_change_" + s.change) : t("sk_change_none");
-    const outer = `<section class="kp-outer" aria-label="${esc(t("d_kitOuter"))}"><h4>${esc(t("d_kitOuter"))}</h4>${usageBlock(e)}<p class="kp-line">${ic("history")}${esc(ch)}</p>${e.where.length ? whereBlock(e) : ""}</section>`;
+    const outer = `<section class="kp-outer" aria-label="${esc(t("d_kitOuter"))}"><h4>${esc(t("d_kitOuter"))}</h4>${usageBlock(e, { noLast: true })}<p class="kp-line">${ic("history")}${esc(ch)}</p>${e.where.length ? whereBlock(e) : ""}</section>`;
     return skillBlock(e) + outer;
   }
 
@@ -394,19 +411,21 @@
   // A pack's state is read from what it holds and from its plugin; it has no switch of its own (spec §4.3: no new switches).
   function packState(p) {
     const s = D.sources[p.src];
-    if (s.gone) return { word: t("pk_gone"), tone: "blocked", ring: "blocked", group: "off" };
+    if (s.gone) return { word: t("pk_gone"), tone: "quiet", ring: "paused", group: "off" };
     if (s.disabled) return { word: t("pk_off"), tone: "quiet", ring: "paused", group: "off" };
     const na = itemsOf(p).filter((e) => e.kind !== "tool" && !e.gone && stateOf(e).group === "na");
     const newer = itemsOf(p).filter((e) => e.kind === "prompt" && stateOf(e).tone === "attention");
     // A reporter whose entries could be in this pack failed: the contract's `unknown` — never "in use" (contract §4.4).
     if (mcpUnread(p)) return { word: t("pk_unknown"), tone: "hold", ring: "unavailable", group: "na", na, newer };
     if (na.length) return { word: t("pk_na", { n: na.length }), tone: "hold", ring: "unavailable", group: "na", na, newer };
-    if (newer.length) return { word: t("pk_na", { n: newer.length }), tone: "attention", ring: "stale", group: "na", na, newer };
     return { word: t("pk_on"), tone: "idle", ring: "ready", group: "on", na, newer };
   }
   const packMark = (p) => { const s = packState(p); return K.renderStatusMark({ label: s.word, tone: s.tone, state: s.ring }); };
   const cnt = (k, n) => (n === 1 && T[P.l]["c1_" + k] ? t("c1_" + k) : t("c_" + k, { n }));
-  const countsOf = (p) => [["role", p.roles.filter((r) => !r.ref).length], ["prompt", p.roles.reduce((n, r) => n + r.prompts.length, 0)], ["skill", p.skills.length], ["mcp", p.mcp.length], ["tool", p.tools.length]].filter(([, n]) => n);
+  const kindCount = (p, k) => ({ role: p.roles.filter((r) => !r.ref).length, prompt: p.roles.reduce((n, r) => n + r.prompts.length, 0), skill: p.skills.length, mcp: p.mcp.length, tool: p.tools.length })[k];
+  // With MCP unread the count is "—", in the row as in the section (contract: `unknown`).
+  const countsOf = (p) => ["role", "prompt", "skill", "mcp", "tool"].filter((k) => ui.k === "all" || ui.k === k).map((k) => [k, k === "mcp" && mcpUnread(p) ? "—" : kindCount(p, k)]).filter(([, n]) => n);
+  const hasKind = (p) => ui.k === "all" || kindCount(p, ui.k) > 0;
   const packCounts = (p) => countsOf(p).map(([k, n]) => cnt(k, n)).join(" · ");
   // What a pack holds as small icon-and-number chips: fits a narrow row where the words would be cut.
   const packChips = (p) => `<span class="kp-counts" aria-label="${esc(packCounts(p))}">${countsOf(p).map(([k, n]) => `<span class="kp-count" title="${esc(cnt(k, n))}">${ic(KIND_ICON[k])}${n}</span>`).join("")}</span>`;
@@ -415,10 +434,10 @@
     const q = ui.q.trim().toLowerCase();
     if (!q) return { ok: true };
     if ((L(p.name) + L(p.desc) + packSrcLine(p)).toLowerCase().includes(q)) return { ok: true };
-    const hit = itemsOf(p).find((e) => (nameOf(e) + descOf(e) + (e.code || "")).toLowerCase().includes(q));
+    const hit = itemsOf(p).filter((e) => ui.k === "all" || e.kind === ui.k).find((e) => (nameOf(e) + descOf(e) + (e.code || "")).toLowerCase().includes(q));
     return hit ? { ok: true, hit } : { ok: false };
   }
-  const visiblePacks = () => packs().filter((p) => packMatch(p).ok && (ui.f === "all" || packState(p).group === ui.f))
+  const visiblePacks = () => packs().filter((p) => hasKind(p) && packMatch(p).ok && (ui.f === "all" || packState(p).group === ui.f))
     .sort((a, b) => (D.sources[a.src].gone ? 1 : 0) - (D.sources[b.src].gone ? 1 : 0));
 
   /* ---------- one item's detail, under a way back to its pack ---------- */
@@ -441,13 +460,13 @@
   function mcpLine(e) {
     const m = e.mcp;
     const tools = m.tools.open === m.tools.total ? t("m_toolsAll", { total: m.tools.total }) : t("m_toolsN", { total: m.tools.total, open: m.tools.open });
-    return [m.outbound ? t("m_outN", { n: m.clients.length, list: m.clients.join("、") }) : L(srcOf(e).name), tools].join(" · ");
+    return [m.outbound ? t("m_outN", { n: m.clients.length, list: m.clients.join(list()) }) : L(srcOf(e).name), tools].join(" · ");
   }
   // A role and, under it, its own prompts: the pack's most particular pairing, so it reads as one card.
   function roleCard(p, r) {
     const e = entryById(r.id);
     const prompts = r.prompts.map(entryById).filter(Boolean);
-    const where = r.ref ? t("ref_line") : e.role.active.length ? t("r_where", { x: e.role.active.map(L).join("、") }) : t(e.off ? "r_off" : "r_whereNone");
+    const where = r.ref ? t("ref_line") : e.role.active.length ? t("r_where", { x: e.role.active.map(L).join(list()) }) : t(e.off ? "r_off" : "r_whereNone");
     return `<li class="kp-role"><button type="button" class="kp-role__head" aria-current="${e.id === ui.item ? "true" : "false"}" data-act="item" data-v="${e.id}">${mark("user")}<span class="kp-role__text"><strong>${esc(nameOf(e))}</strong><small>${esc(descOf(e))}</small><small class="kp-role__where">${esc(where)}</small></span><span class="mw-item__end">${markOf(e)}</span></button>
       <div class="kp-role__prompts"><span class="kp-role__label">${esc(t("r_prompts"))}</span>${prompts.length ? `<ul class="mw-items">${prompts.map((x) => itemRow(x, "kp-prompt", p)).join("")}</ul>` : `<p class="kp-inline-empty">${esc(t("r_noPrompts"))}</p>`}</div></li>`;
   }
@@ -466,15 +485,15 @@
       body = t("pk_offB");
       actions = [btn(t("pk_enable"), { variant: "primary", attrs: act("sim", "go") })];
     } else {
-      const parts = (s.na || []).map((e) => `${nameOf(e)}：${stateOf(e).word}`).concat((s.newer || []).map((e) => `${nameOf(e)}：${t("w_mineOld")}`));
+      const parts = (s.na || []).map((e) => `${nameOf(e)}${colon()}${stateOf(e).word}`);
       if (mcpUnread(p)) parts.unshift(t("pk_unknownB"));
-      body = parts.length ? parts.join("；") : t("pk_onB");
+      body = parts.length ? parts.join(semi()) : t("pk_onB");
       actions = [];
     }
     const exportBtn = src.gone ? "" : `<span class="kp-export">${btn(t("pk_export"), { icon: "download", attrs: Object.assign(act("menu"), { id: "kpExport", "aria-haspopup": "menu", "aria-expanded": ui.menu ? "true" : "false" }) })}${exportMenu(p)}</span>`;
     const manageWord = { plugins: "pk_manage", assistant: "pk_manageAssistant", characters: "pk_manageChars" }[src.manage];
     const manage = src.gone || src.disabled || !manageWord ? "" : btn(t(manageWord), { variant: "ghost", icon: "arrow", attrs: act("sim", "go") });
-    return `<div class="kp-now kp-packnow"><p class="mw-status-line">${packMark(p)}<span>${esc(body)}</span></p><div class="kp-actions">${actions.join("")}${exportBtn}${manage}</div></div>`;
+    return `<div class="kp-now kp-packnow"><p class="mw-status-line">${packMark(p)}<span>${esc(body)}</span></p><div class="kp-actions">${actions.join("")}${manage}${exportBtn}</div></div>`;
   }
   function packHeader(p, tag = "h3") {
     const s = D.sources[p.src];
@@ -482,12 +501,14 @@
       <p class="kp-source">${ic(SRC_ICON[s.kind] || "package")}${L(s.name) === L(p.name) ? "" : `<span>${esc(L(s.name))}</span><span class="kp-dot">·</span>`}${s.version ? `<span>${esc(L(s.version))}</span><span class="kp-dot">·</span>` : ""}${s.publisher ? `<span>${esc(s.publisher)}</span><span class="kp-dot">·</span>` : ""}<span>${esc(L(s.trust))}</span></p></header>`;
   }
   function packContents(p) {
-    const roles = p.roles.length ? `<ul class="kp-roles">${p.roles.map((r) => roleCard(p, r)).join("")}</ul>` : `<p class="kp-inline-empty">${esc(t("none_roles"))}</p>`;
+    const cards = p.roles.filter((r) => (ui.k === "role" ? !r.ref : ui.k === "prompt" ? r.prompts.length : true));
+    const roles = cards.length ? `<ul class="kp-roles">${cards.map((r) => roleCard(p, r)).join("")}</ul>` : `<p class="kp-inline-empty">${esc(t("none_roles"))}</p>`;
     const skills = p.skills.length ? `<ul class="mw-items">${p.skills.map(entryById).map((e) => itemRow(e)).join("")}</ul>` : `<p class="kp-inline-empty">${esc(t("none_skills"))}</p>`;
     const mcp = mcpUnread(p) ? partialAlert() : p.mcp.length ? `<ul class="mw-items">${p.mcp.map(entryById).map((e) => itemRow(e)).join("")}</ul>` : `<p class="kp-inline-empty">${esc(t("none_mcp"))}</p>`;
     const tools = p.tools.length ? `${toolGrid(p.tools.map(entryById))}<p class="kp-note">${esc(t(p.kind === "builtin" ? "tools_noteB" : "tools_note"))}</p>` : `<p class="kp-inline-empty">${esc(t("none_tools"))}</p>`;
     const diff = D.sources[p.src].diff;
-    return `${sec(t("s_roles") + "　" + p.roles.length, roles)}${sec(t("s_skills") + "　" + p.skills.length, skills)}${sec(t("s_mcp") + "　" + (mcpUnread(p) ? "—" : p.mcp.length), mcp)}${sec(t("s_tools") + "　" + p.tools.length, tools)}${diff ? sec(t("s_upgrade"), `<p class="kp-line">${ic("history")}${esc(L(diff))}</p>`) : ""}`;
+    const show = (k) => ui.k === "all" || ui.k === k || (k === "role" && ui.k === "prompt");
+    return `${show("role") ? sec(t("s_roles") + gap() + cards.length, roles) : ""}${show("skill") ? sec(t("s_skills") + gap() + p.skills.length, skills) : ""}${show("mcp") ? sec(t("s_mcp") + gap() + (mcpUnread(p) ? "—" : p.mcp.length), mcp) : ""}${show("tool") ? sec(t("s_tools") + gap() + p.tools.length, tools) : ""}${diff && ui.k === "all" ? sec(t("s_upgrade"), `<p class="kp-line">${ic("history")}${esc(L(diff))}</p>`) : ""}`;
   }
   function packDetail(p) {
     const back = `<button type="button" class="mw-btn mw-btn--ghost mw-btn--sm mw-list-detail__back" data-slot="button" data-act="unsel">${ic("chevron-left")}<span data-slot="button-label">${esc(t("crumb_all"))}</span></button>`;
@@ -501,25 +522,34 @@
     // Only a batch-08 content package travels as a package; your own roles travel as references only (contract §4.9).
     const list = p.kind === "characters" ? [K.renderMenuItem({ label: t("ex_refs"), description: t("ex_refsOnlyD"), iconName: "link", attrs: act("export", "refs") })] : [
       K.renderMenuItem({ label: t("ex_whole"), description: t(p.content ? "ex_wholeD" : "ex_wholeAppD"), iconName: "package", attrs: act("export", "whole") }),
-      ...(mine ? [K.renderMenuItem({ label: t("ex_prompts") + `（${mine}）`, description: t("ex_promptsD"), iconName: "text", attrs: act("export", "prompt") })] : []),
+      ...(mine ? [K.renderMenuItem({ label: t("ex_prompts") + paren(mine), description: t("ex_promptsD"), iconName: "text", attrs: act("export", "prompt") })] : []),
       K.renderMenuItem({ label: t("ex_refs"), description: t("ex_refsD"), iconName: "link", attrs: act("export", "refs") }),
     ];
-    const items = K.renderMenuGroup({ label: t("exportOf", { p: L(p.name) }), items: list });
-    return K.renderPopover({ body: K.renderMenu({ items, labelledBy: "kpExport" }), className: "kp-menu", preview: true });
+    const items = K.renderMenuGroup({ label: t("exportOf", { p: L(p.name) }), items: list.join("") });
+    // One surface (the board's mw-menu, no popover frame around it), in the top layer so no scrolling box clips it.
+    return K.renderMenu({ items, labelledBy: "kpExport", className: "kp-menu" }).replace('data-slot="menu"', 'data-slot="menu" id="kpMenu" popover="manual"');
   }
   const importBtn = () => btn(t("import"), { icon: "upload", attrs: act("import") });
   function searchBox() {
     return `<span class="kp-search">${ic("search")}${input({ id: "kpQ", placeholder: t("pk_search"), label: t("pk_searchLabel"), value: ui.q })}</span>`;
   }
+  const kindFilter = () => select("kpKind", t("kLabel"), [["all", t("k_all")], ...KINDS.map((k) => [k, kindWord(k)])], ui.k);
   const stateFilter = () => select("kpState", t("stLabel"), [["all", t("st_all")], ["on", t("st_on")], ["na", t("st_na")], ["off", t("st_off")]], ui.f);
   function summaryLine() {
     const all = packs(), na = all.filter((p) => packState(p).group === "na").length;
-    return `<p class="kp-summary" role="status">${esc(t("pk_summary", { n: all.length, na }))}${na && ui.f !== "na" ? `<button type="button" class="mw-btn mw-btn--link mw-btn--sm" data-slot="button" data-act="only-na"><span data-slot="button-label">${esc(t("pk_onlyNa"))}</span></button>` : ""}</p>`;
+    const head = ui.k === "all" ? t("pk_summary", { n: all.length, na }) : t("pk_summaryK", { n: all.filter(hasKind).length, k: (!en() && /^[A-Za-z]/.test(kindWord(ui.k)) ? " " : "") + kindWordLower(ui.k) });
+    return `<p class="kp-summary" role="status">${esc(head)}${na && ui.f !== "na" ? `<button type="button" class="mw-btn mw-btn--link mw-btn--sm" data-slot="button" data-act="only-na"><span data-slot="button-label">${esc(t("pk_onlyNa"))}</span></button>` : ""}</p>`;
   }
-  const toolbar = () => `<div class="kp-toolbar">${searchBox()}${stateFilter()}<span class="kp-spacer"></span><span class="kp-io">${importBtn()}</span></div>`;
+  const toolbar = () => `<div class="kp-toolbar">${searchBox()}${kindFilter()}${stateFilter()}<span class="kp-spacer"></span><span class="kp-io">${importBtn()}</span></div>`;
 
   function importPanel() {
     const f = D.importFile;
+    if (ui.done != null) {
+      const body = t(ui.done ? "im_done_b" : "im_done_b0", { n: ui.done, p: L(f.pack) });
+      return `<section class="kp-import" aria-labelledby="kpImH"><header class="kp-import__head"><h2 id="kpImH" tabindex="-1">${esc(t("im_done_t"))}</h2></header>
+        ${K.renderAlert({ title: t("im_done_t"), body, tone: "success", state: "done", actions: [{ label: t("im_review"), variant: "secondary", icon: "arrow", attrs: act("sim", "go") }], role: "status" })}
+        <footer class="kp-import__foot">${btn(t("im_finish"), { variant: "primary", size: "md", attrs: act("import-finish") })}</footer></section>`;
+    }
     const words = Object.fromEntries(["insert", "delete", "same"].map((k) => [k, t("diff_" + k)]));
     const diff = (x) => K.renderDiff({ view: K.compareChange("import", { before: { workspace_id: "w", workspace_name: "", path: "", source_plugin_id: "", content_version: 1 }, after: { workspace_id: "w", workspace_name: "", path: "", source_plugin_id: "", content_version: 2 } }, { before: x.before, after: x.after }), primitives: { escape: esc, text: (k, v = {}) => String(words[k] || k || "").replace(/\{(\w+)\}/g, (_, n) => v[n] ?? ""), icon: K.icon }, labels: Object.fromEntries(["insert", "delete", "same", "reveal", "identical", "coarse", "partial", "mismatch", "created", "removed"].map((k) => [k, k])), sides: false });
     const prow = (x) => {
@@ -528,10 +558,10 @@
       const more = x.ok ? `<details class="mw-collapsible kp-fold" data-slot="collapsible"><summary>${esc(t("im_diff"))}</summary><div class="mw-collapsible__body">${diff(x)}</div></details>` : "";
       return `<li class="kp-card${x.ok ? "" : " is-muted"}"><div class="kp-card__head">${mark("text")}<span class="kp-card__text"><strong>${esc(L(x.name))}</strong><small>${esc(L(x.owner))}</small></span></div><div class="kp-card__meta">${status}</div>${pick}${more}</li>`;
     };
-    const rrow = (x) => `<li class="kp-ref">${mark(KIND_ICON[x.kind])}<span class="kp-ref__name">${esc(L(x.name))}</span>${x.here ? K.renderStatusMark({ label: t("im_here"), tone: "idle", state: "ready" }) : `<span class="mw-status-line">${K.renderStatusMark({ label: t("im_notHere"), tone: "hold", state: "unavailable" })}<a class="mw-btn mw-btn--link" href="#" data-act="sim" data-v="go">${esc(L(x.fix))}</a></span>`}</li>`;
+    const rrow = (x) => `<li class="kp-ref">${mark(KIND_ICON[x.kind])}<span class="kp-ref__name">${esc(L(x.name))}</span>${x.here ? `<span class="kp-ref__state">${K.renderStatusMark({ label: t("im_here"), tone: "idle", state: "ready" })}</span>` : `<span class="kp-ref__state">${K.renderStatusMark({ label: t("im_notHere"), tone: "hold", state: "unavailable" })}${btn(L(x.fix), { variant: "secondary", attrs: act("sim", "go") })}</span>`}</li>`;
     const n = Object.values(ui.picks).filter(Boolean).length;
     return `<section class="kp-import" aria-labelledby="kpImH"><header class="kp-import__head"><h2 id="kpImH">${esc(t("im_h"))}</h2>
-        <div class="kp-file">${ic("package")}<span><strong>${esc(t("im_pack", { p: L(f.pack) }))}</strong><small>${esc(f.name)} · ${esc(L(f.from))}</small></span>${btn(t("im_repick"), { variant: "ghost", attrs: act("sim", "import") })}</div></header>
+        <div class="kp-file">${ic("package")}<span><strong>${esc(t("im_pack", { p: L(f.pack) }))}</strong><small>${esc(L(f.name))} · ${esc(L(f.from))}</small></span>${btn(t("im_repick"), { variant: "ghost", attrs: act("sim", "import") })}</div></header>
       ${sec(t("im_refs", { n: f.refs.length }), `<p class="kp-note">${esc(t("im_refsLead"))}</p><ul class="kp-refs">${f.refs.map(rrow).join("")}</ul>`)}
       ${sec(t("im_prompts", { n: f.prompts.length }), `<p class="kp-note">${esc(t("im_promptsLead"))}</p><ul class="kp-cards">${f.prompts.map(prow).join("")}</ul>`)}
       ${f.skills.packs ? sec(t("im_skills", { n: f.skills.packs }), `<p class="kp-line">${esc(L(f.skills.note))}</p><div class="kp-actions">${btn(t("im_skillsGo"), { icon: "arrow", attrs: act("sim", "go") })}</div>`) : ""}
@@ -549,7 +579,7 @@
   /* ---------- the page: the pack list beside one pack; an item opens in its place ---------- */
   function packRow(p) {
     const m = packMatch(p);
-    const sub = m.hit ? `<small>${esc(t("pk_match", { x: nameOf(m.hit) }))}</small>` : countsOf(p).length ? packChips(p) : `<small>${esc(packSrcLine(p))}</small>`;
+    const sub = m.hit ? `<small>${esc(t("pk_match", { x: nameOf(m.hit) }))}</small>` : countsOf(p).length ? packChips(p) : `<small>${esc(D.sources[p.src].gone ? t("pk_goneRow", { at: L(D.sources[p.src].gone.at) }) : packSrcLine(p))}</small>`;
     return `<li class="mw-item mw-item--pick"><button type="button" class="mw-item__pick" aria-current="${p.id === ui.pack ? "true" : "false"}" data-act="pack" data-v="${p.id}" title="${esc(packSrcLine(p))}">${mark("package")}<span><strong>${esc(L(p.name))}</strong>${sub}</span><span class="mw-item__end">${packMark(p)}</span></button></li>`;
   }
   function catalog() {
@@ -560,9 +590,10 @@
     if (rows.length && !rows.some((p) => p.id === ui.pack)) { ui.pack = rows[0].id; ui.item = null; }
     const p = rows.length ? packById(ui.pack) : null;
     const e = p && ui.item ? entryById(ui.item) : null;
-    const list = rows.length ? `<ul class="mw-items">${rows.map(packRow).join("")}</ul>` : `<p class="kp-inline-empty">${esc(t("pk_noMatch"))}</p>`;
-    const right = p ? (e ? itemDetail(p, e) : packDetail(p)) : `<section class="mw-list-detail__detail kp-detail"></section>`;
-    return `${toolbar()}${summaryLine()}${emptyNote()}<div class="mw-list-detail kp-ld kp-ld--packs"${ui.detail && p ? " data-detail" : ""}><div class="mw-list-detail__body"><section class="mw-list-detail__list" aria-label="${esc(t("pk_kind"))}">${list}</section>${right}</div></div>`;
+    const clear = ui.q ? btn(t("clear_q"), { variant: "secondary", icon: "x", attrs: act("clear-q") }) : ui.k !== "all" ? btn(t("clear_k"), { variant: "secondary", attrs: act("clear-k") }) : "";
+    const list = rows.length ? `<ul class="mw-items">${rows.map(packRow).join("")}</ul>` : `<p class="kp-inline-empty">${esc(t("pk_noMatch"))}${clear}</p>`;
+    const right = p ? (e ? itemDetail(p, e) : packDetail(p)) : `<section class="mw-list-detail__detail kp-detail">${empty({ icon: "search", title: t("pk_noMatchT"), body: t("pk_noMatchB"), action: clear ? `<div class="kp-actions kp-actions--center">${clear}</div>` : "" })}</section>`;
+    return `${toolbar()}${summaryLine()}${emptyNote()}<div class="mw-list-detail kp-ld kp-ld--packs" data-sticky-detail${ui.detail && p ? " data-detail" : ""}><div class="mw-list-detail__body"><section class="mw-list-detail__list" aria-label="${esc(t("pk_kind"))}">${list}</section>${right}</div></div>`;
   }
 
   /* ---------- page ---------- */
@@ -603,13 +634,48 @@
     const back = was ? `[data-act="${was.dataset.act}"]${was.dataset.v ? `[data-v="${was.dataset.v}"]` : ""}` : null;
     document.getElementById("app").innerHTML = page();
     ui.anim = false;
+    viewHeight();
+    const menu = document.getElementById("kpMenu");
+    if (menu) { try { menu.showPopover(); } catch { /* no popover API: stays in place */ } placeMenu(); }
     if (qFocus != null) { const q = document.getElementById("kpQ"); q?.focus(); q?.setSelectionRange(qFocus, qFocus); }
+    else if (was?.dataset.act === "up" && ui.back) {
+      const row = document.querySelector(`#app .kp-detail [data-act="item"][data-v="${ui.back}"]`);
+      ui.back = null;
+      if (row) row.focus(); else document.querySelector("#app .kp-detail h3")?.focus();
+    }
     else if (back) {
       const same = document.querySelector(`#app ${back}`);
       if (same && same.offsetParent) same.focus();
       else if (["item", "pack", "up"].includes(was.dataset.act)) document.querySelector("#app .kp-detail h3")?.focus();
     }
   }
+  // [kit 缺] The settings shell gives no height for its scrolling area; the sticky detail needs one. The prototype measures it.
+  function viewHeight() {
+    const sc = document.querySelector(".settings-content");
+    if (sc) sc.style.setProperty("--settings-view-h", sc.clientHeight + "px");
+  }
+  // The menu opens from the button's lower edge, never over the button, and stays inside the window.
+  let placing = false;
+  function placeMenu() {
+    const menu = document.getElementById("kpMenu"), b = document.getElementById("kpExport");
+    if (!menu || !b) return;
+    menu.style.maxHeight = "";
+    let r = b.getBoundingClientRect();
+    const w = menu.offsetWidth, h = menu.offsetHeight;
+    // Not enough room under the button: bring the button up first (the page and the detail scroll), so the menu still opens downward.
+    const sc = document.querySelector(".settings-content");
+    const need = r.bottom + 6 + h - (innerHeight - 8);
+    if (need > 0 && sc && !placing) {
+      // Scroll the page only as far as needed, and never past the button reaching the top of the scrolling area.
+      placing = true; sc.scrollTop += Math.min(need, Math.max(0, r.top - sc.getBoundingClientRect().top - 8)); placing = false;
+      r = b.getBoundingClientRect();
+    }
+    menu.style.left = Math.max(16, Math.min(r.left, innerWidth - w - 16)) + "px";
+    menu.style.top = r.bottom + 6 + "px";
+    menu.style.maxHeight = Math.max(160, innerHeight - r.bottom - 14) + "px";
+  }
+  addEventListener("resize", () => { viewHeight(); placeMenu(); });
+  document.addEventListener("scroll", placeMenu, true);
   let timer;
   function toast(message, tone, action) {
     const box = document.getElementById("toasts");
@@ -631,14 +697,17 @@
     switch (a) {
       case "pack": ui.pack = v; ui.item = null; ui.detail = true; ui.anim = true; break;
       case "item": ui.item = v; ui.detail = true; ui.anim = true; break;
-      case "up": ui.item = null; ui.anim = true; break;
+      case "up": ui.back = ui.item; ui.item = null; ui.anim = true; break;
       case "unsel": ui.detail = false; break;
       case "only-na": ui.f = "na"; break;
+      case "clear-q": ui.q = ""; break;
+      case "clear-k": ui.k = "all"; break;
       case "menu": ui.menu = !ui.menu; break;
       case "export": ui.menu = false; render(); return toast(t("t_exported", { x: b.querySelector("[data-slot=menu-item-label] span")?.textContent || b.textContent.trim().split("\n")[0] }), "success");
       case "import": ui.importing = true; break;
       case "import-cancel": ui.importing = false; break;
-      case "import-apply": { const n = Object.values(ui.picks).filter(Boolean).length; ui.importing = false; render(); return toast(t("t_applied", { n }), "success"); }
+      case "import-apply": ui.done = Object.values(ui.picks).filter(Boolean).length; render(); document.getElementById("kpImH")?.focus(); return;
+      case "import-finish": ui.importing = false; ui.done = null; break;
       case "undo-skill": if (ui.last) { ui.skillStates[ui.last.id] = ui.last.prev; ui.last = null; document.getElementById("toasts").innerHTML = ""; } break;
       case "home": break;
       case "sim": return toast(t("t_sim", { x: t("sim_" + (v || "go")) }));
@@ -650,6 +719,7 @@
     const el = ev.target;
     if (el.id === "pView") { P.v = el.value; persist(); return reset(); }
     if (el.id === "kpState") { ui.f = el.value; return render(); }
+    if (el.id === "kpKind") { ui.k = el.value; ui.item = null; return render(); }
     if (el.dataset.pick) { ui.picks[el.dataset.pick] = el.checked; return render(); }
     if (el.dataset.skill) {
       // A skill's state applies at once (batch 08), with undo in the toast.

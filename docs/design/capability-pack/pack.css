@@ -44,8 +44,9 @@ body.project-preferences-page .settings-content > .settings-document.kit-setting
 .kit-settings .kp-toolbar .mw-select-picker__trigger { width: auto; }
 .kp-io { display: inline-flex; gap: 8px; flex: none; }
 .kp-export { position: relative; display: inline-flex; }
-/* 导出菜单：组件板的 mw-menu 放在 mw-popover 里，靠右对齐在按钮下面 */
-.kp-menu { position: absolute; top: calc(100% + 6px); right: 0; z-index: 20; width: 320px; max-width: calc(100vw - 32px); animation: craft-rise var(--dur-move) var(--ease-quint); }
+/* [组件板新增：状态与去处块的弹出菜单] 导出菜单：组件板的 mw-menu 一层面，放在顶层（popover），从「导出这个包」下沿展开、不盖按钮；
+   位置由脚本按按钮量，贴不下时翻到按钮上方，左右不出窗口 */
+.kp-menu[popover] { position: fixed; inset: auto; margin: 0; overflow-y: auto; width: 320px; max-width: calc(100vw - 32px); animation: craft-rise var(--dur-move) var(--ease-quint); }
 @media (prefers-reduced-motion: reduce) { .kp-menu { animation: none; } }
 .kp-summary { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; margin: 12px 0 0; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 .kp-summary .mw-btn--link { min-height: 0; padding: 0; }
@@ -53,15 +54,16 @@ body.project-preferences-page .settings-content > .settings-document.kit-setting
 /* 列表＋详情：第 08 批的部件 */
 .kp-ld { margin-top: 12px; }
 .kp-ld .mw-list-detail__list { display: grid; gap: 6px; align-content: start; }
-.kp-inline-empty { display: flex; align-items: center; gap: 8px; margin: 0; padding: 10px 12px; border-radius: 12px; background: var(--surface-soft); color: var(--muted); font-size: 12px; }
+.kp-inline-empty { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; padding: 10px 12px; border-radius: 12px; background: var(--surface-soft); color: var(--muted); font-size: 12px; }
 .kp-inline-empty .mw-btn--link { min-height: 0; padding: 0; }
 .kp-ld .mw-item__end .mw-status { white-space: nowrap; }
 .kp-ld .mw-item__end .mw-badge { white-space: nowrap; }
 
 /* 详情：一类一种「现在」，下面按同样的顺序分块（用量、用在哪、版本） */
-/* 详情跟着列表滚到哪都看得见：贴在滚动区顶上，自己太长时自己滚 */
-.kp-ld .kp-detail { position: sticky; top: 0; max-height: calc(100dvh - 72px); overflow-y: auto; overscroll-behavior: contain; }
-@container mw-list-detail (max-width: 640px) { .kp-ld .kp-detail { position: static; max-height: none; overflow: visible; } }
+/* [组件板新增：列表＋详情「详情贴顶」修饰] 页面要时才开（data-sticky-detail），默认不变，08 技能页不受影响。
+   详情贴在滚动区顶上，比滚动区高时自己滚；滚到头后滚动照常交给整页（不拦）。滚动区的高度应由外壳给（[kit 缺]：原型量出来写进 --settings-view-h） */
+.mw-list-detail[data-sticky-detail] .mw-list-detail__detail { position: sticky; top: 16px; max-height: calc(var(--settings-view-h, 100dvh) - 32px); overflow-y: auto; }
+@container mw-list-detail (max-width: 640px) { .mw-list-detail[data-sticky-detail] .mw-list-detail__detail { position: static; max-height: none; overflow: visible; } }
 .kp-detail > header { display: grid; gap: 6px; }
 .kp-kind { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
 .kp-kind svg { width: 14px; height: 14px; }
@@ -145,10 +147,12 @@ body.project-preferences-page .settings-content > .settings-document.kit-setting
 .kp-apply, .kp-fold { margin-left: 42px; }
 .kp-fold > summary { font-size: 12px; }
 .kp-refs { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
-.kp-ref { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 4px 10px 4px 6px; border-radius: 10px; background: var(--paper); box-shadow: inset 0 0 0 1px var(--line); }
+.kp-ref { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; min-height: 44px; padding: 6px 10px 6px 6px; border-radius: 10px; background: var(--paper); box-shadow: inset 0 0 0 1px var(--line); }
 .kp-ref .mw-mark { width: 28px; height: 28px; }
-.kp-ref__name { flex: 1 1 auto; min-width: 0; font-size: 13px; overflow-wrap: anywhere; }
-.kp-ref .mw-status-line { flex: none; }
+.kp-ref__name { flex: 1 1 140px; min-width: 0; font-size: 13px; overflow-wrap: anywhere; }
+/* 每个引用自己的状态，窄时整块换到下一行、靠右，不截断 */
+.kp-ref__state { display: inline-flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px 8px; margin-left: auto; }
+.kp-ref__state .mw-status { white-space: nowrap; }
 .kp-import__foot { display: flex; justify-content: flex-end; gap: 8px; padding-top: 4px; border-top: 1px solid var(--line); padding-block-start: 14px; }
 
 /* [组件板新增] 包的状态与去处：状态一句话（要处理的逐项写出），导出、管理在同一块 */
@@ -160,9 +164,6 @@ body.project-preferences-page .settings-content > .settings-document.kit-setting
 .kp-packnow .mw-status-line > span:last-child { min-width: 0; color: var(--ink-soft); line-height: 1.5; }
 .kp-packnow .kp-actions:empty { display: none; }
 /* 导出按钮在这一块的左边：菜单量这一块的宽度，从左缘展开，最宽 360px，窄栏里不越界 */
-.kp-packnow { position: relative; }
-.kp-packnow .kp-export { position: static; }
-.kp-packnow .kp-menu { top: auto; left: 14px; right: 14px; width: auto; max-width: 360px; margin-top: 6px; }
 
 /* [组件板新增] 角色卡：角色一行（可选中），下面缩进列出它自己的提示词 */
 .kp-roles { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
@@ -183,6 +184,7 @@ body.project-preferences-page .settings-content > .settings-document.kit-setting
 
 /* [组件板新增] 工具格：每个是一个按钮，名称、代码名和「只读／会写」；没有开关 */
 .kp-toolgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 6px; margin: 0; padding: 0; list-style: none; }
+@container mw-list-detail (max-width: 640px) { .kp-toolgrid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); } }
 .kp-tool { appearance: none; display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; margin: 0; padding: 6px 10px; border: 0; border-radius: 10px; background: var(--paper); box-shadow: inset 0 0 0 1px var(--line); color: inherit; font: inherit; text-align: start; cursor: pointer; transition: background-color var(--dur-hover) var(--ease-quint); }
 .kp-tool:hover { background: var(--nav-hover); }
 .kp-tool[aria-current="true"] { background: var(--nav-active); }

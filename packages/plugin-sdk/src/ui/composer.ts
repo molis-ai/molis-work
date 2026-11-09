@@ -56,7 +56,7 @@ export interface MwComposerLabels {
   searching: string;
   nothing: string;
   unavailable: string;
-  /** An attachment strip row: "{name} 读取中", "移除 {name}", and the name of its 重试 (shown as `retry`): "重试 {name}". */
+  /** An attachment strip row: "读取中" (after the row's own name), "移除 {name}", and the name of its 重试 (shown as `retry`): "重试 {name}". */
   reading: string;
   remove: string;
   retryFile: string;

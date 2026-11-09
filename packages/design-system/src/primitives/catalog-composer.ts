@@ -71,7 +71,7 @@ interface ShellOptions {
 const composerLabelsIn = (say: Say, to: string, add: string): MwComposerAiLabels => ({
   input: say("发给 {who} 的话", { who: to }), send: say("发送"), sendTitle: say("发送（⌘↵）"), add: say("添加文件与资料"), more: say("更多"),
   files: say("文件与图片"), filesHint: say("从这台电脑选，或直接拖进输入框"), dropRefused: say("这里只收文件"), commands: say("命令"),
-  searching: say("正在找…"), nothing: say("没有找到"), unavailable: say("{name} 现在用不了"), reading: say("{name} 读取中"), remove: say("移除 {name}"), retryFile: say("重试 {name}"),
+  searching: say("正在找…"), nothing: say("没有找到"), unavailable: say("{name} 现在用不了"), reading: say("读取中"), remove: say("移除 {name}"), retryFile: say("重试 {name}"),
   blocked: say("移除附不上的那一项再发"), restored: say("已恢复上次没发出的草稿 · {time}"), clear: say("清空草稿"), unsaved: say("草稿没能保存在本机；字还在，照常能发"),
   enterHint: say("回车已改为换行。要发送请按 {keys}"), enterHintDismiss: say("知道了"), notice: say("提示"), sending: say("发送中"), sendingText: say("正在发送…"),
   failed: say("没发出"), retry: say("重试"), unknown: say("待确认"), unknownText: say("没能确认是否送到；先别重复发"), check: say("查一下"),

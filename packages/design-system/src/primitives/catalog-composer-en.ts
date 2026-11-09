@@ -22,6 +22,7 @@ export const COMPOSER_BOARD_EN: Readonly<Record<string, string>> = {
   "移除 {name}": "Remove {name}",
   "重试 {name}": "Retry {name}",
   "{name} 读取中": "Reading {name}",
+  "读取中": "Reading",
   "太大（2.1 GB），附不上": "Too large (2.1 GB); cannot attach",
   "把第 3 步的测试补上": "Add the tests for step 3",
   "把第 3 步的测试补上：注册接口的失败路径要覆盖超时、重复提交和服务端拒绝三种情况，每种都要断言输入框里的字还在。":

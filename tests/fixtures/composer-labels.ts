@@ -6,7 +6,7 @@ import type { MwComposerAiLabels, MwComposerLabels } from "@molis-ai/molis-work-
 export const COMPOSER_PLAIN_LABELS: MwComposerLabels = {
   input: "评论", send: "发送", sendTitle: "发送（⌘↵）", add: "添加文件与资料", more: "更多",
   files: "文件与图片", filesHint: "从这台电脑选，或直接拖进输入框", dropRefused: "这里只收文件", commands: "命令",
-  searching: "正在找…", nothing: "没有找到", unavailable: "{name} 现在用不了", reading: "{name} 读取中", remove: "移除 {name}", retryFile: "重试 {name}",
+  searching: "正在找…", nothing: "没有找到", unavailable: "{name} 现在用不了", reading: "读取中", remove: "移除 {name}", retryFile: "重试 {name}",
   blocked: "移除附不上的那一项再发", restored: "已恢复上次没发出的草稿 · {time}", clear: "清空草稿", unsaved: "草稿没能保存在本机；字还在，照常能发",
   enterHint: "回车已改为换行。要发送请按 {keys}", enterHintDismiss: "知道了", notice: "提示", sending: "发送中", sendingText: "正在发送…",
   failed: "没发出", retry: "重试", unknown: "待确认", unknownText: "没能确认是否送到；先别重复发", check: "查一下", notSent: "核对过：没有送到。字还在，可以再发",

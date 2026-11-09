@@ -74,8 +74,11 @@ export const PRIMITIVE_STYLES = `
     color: var(--action-ink);
     box-shadow: var(--lift-1);
   }
+  /* Pressed, or holding its menu open: the action's own hover colour from the skin. Mixing in its ink went grey in dark mode,
+     where the action is light and its ink dark (the composer's ▾ at 390). */
   .mw-btn--primary:is(:active, [aria-expanded="true"]):not(:disabled) {
-    background: color-mix(in srgb, var(--action) 82%, var(--action-ink));
+    background: var(--action-hover, var(--action));
+    border-color: var(--action-hover, var(--action));
   }
   /* Secondary is the soft button: a wash on whatever surface it sits on, no outline. Its size is the button's own
      (.mw-btn and --sm, --md, --lg), so a small secondary stands as tall as the small primary and ghost beside it. */

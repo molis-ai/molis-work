@@ -59,7 +59,7 @@ test("VUX-18 UIV-12: an added file has its own row on the composer's strip while
   await waitFor("[...document.querySelectorAll('[data-assistant-composer] .mw-composer__files .mw-upload')].some((row) => row.querySelector(':scope > span:not(.mw-mark)').textContent === 'notes.txt')");
   assert.deepEqual((await rows()).map((row) => [row.text, row.failed]), [
     ["notes.txt", false],
-    ["shot.pngshot.png 读取中", false],
+    ["shot.png读取中", false],
     ["bundle.zip暂时只能读取文本文件、PDF 和图片", true],
   ], "each file has its row at once: read, being read, or why it cannot go");
   assert.deepEqual((await rows())[2]!.acts, ["移除 bundle.zip"], "trying an archive again would not help: only × is offered");
@@ -84,7 +84,7 @@ test("VUX-18 UIV-12: an added file has its own row on the composer's strip while
   // A file let go of while it is read stays gone when its late answer arrives.
   await evaluate(drop([["late.png", "image/png"]]));
   await waitFor("uploads.names().includes('late.png')");
-  assert.deepEqual((await rows()).at(-1), { text: "late.pnglate.png 读取中", failed: false, acts: ["移除 late.png"] });
+  assert.deepEqual((await rows()).at(-1), { text: "late.png读取中", failed: false, acts: ["移除 late.png"] });
   await remove("late.png");
   assert.equal(await sendDisabled(), false, "letting go of it frees the Send");
   await evaluate("uploads.answer('late.png', true)");
@@ -126,7 +126,7 @@ test("VUX-18: an added file has its own row while it is read, keeps its failure 
   // The composer's row says 读取中 after the name (its `reading` label), where the island's chip said 图片：.
   assert.deepEqual(now.map((chip) => [chip.text, chip.state, chip.busy]), [
     ["notes.txt", "", false],
-    ["shot.pngshot.png 读取中", "is-reading", true],
+    ["shot.png读取中", "is-reading", true],
     ["bundle.zip暂时只能读取文本文件、PDF 和图片", "is-failed", false],
   ], "each file has its row at once: read, being read, or why it cannot go");
   assert.deepEqual(now[2]!.acts, ["移除 bundle.zip"], "trying an archive again would not help: only × is offered");

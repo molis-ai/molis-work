@@ -667,7 +667,10 @@ SDK 以唯一校验／派生入口生成完整贡献声明：id 沿 `sandboxUiCo
 
 签包候选 `07799208cbc7fc9aa18ccacbda39d45f0843a353` 已完成上述生产接线，独立限定复核无 Blocker/P1，尚未合回本批。实际整体构建及两份定向文件 3/3 通过：外部 CLI 打包、签名、project／Home 两范围真实安装和原直接地址，浏览器各显示唯一原载体，原 query 经可信 reserve/read 在父组件呈现，子页面没有原件标题或按钮；Inbox 做完／忽略各使原记录 revision 仅增加一次并出现真实回执。普通子传输、跨贡献、签名篡改和同 ID 换范围被拒。Studio 发布采用同一 `builderReleaseInterface`，v1 草稿重开与 portable 恢复保留 ui／组件引用及原签名字节，非法写入和错误版本在副作用前拒绝。已修复原页面启动误认 UUID 长度和 Studio 发布漏传 ui；首轮回执断言也未通过，不把首轮失败计为通过。
 
-这轮证据仍不包含签包停启重开、侧栏真实点击及旧页面代次拒绝；已有原生用例不能替代它们。Studio 离线答卷回放已执行，替身模型 smoke 3/3 只证明接线，真实模型对 Skill／提示词变化的 smoke 仍待。最终健康、资源、中英深浅多宽实操及全批公共合审另验。测试入口为 `tests/security-invariants-signed-surface-slots.e2e.test.ts` 与 `tests/signed-surface-slot-authoring.test.ts`，目前在上述子分支候选，合回时同步进入本批。
+这轮证据仍不包含签包停启重开、侧栏真实点击及旧页面代次拒绝；已有原生用例不能替代它们。Studio 离线答卷回放已执行，替身模型 smoke 3/3 只证明接线；真实模型证据另记如下。最终健康、资源、中英深浅多宽实操及全批公共合审另验。测试入口为 `tests/security-invariants-signed-surface-slots.e2e.test.ts` 与 `tests/signed-surface-slot-authoring.test.ts`，目前在上述子分支候选，合回时同步进入本批。
+
+同一固定候选 `07799208cb` 在独立工作树整体构建后，完成真实 Studio smoke：笔记、阅读摘记、收支记录 3/3 均冻结为设计，详细设计首答接受 2/3，共 4 轮修复；只有收支记录全阶段首答接受。笔记的三轮修复为验收步骤语法，阅读摘记的一轮修复为体验方案漏掉已选新增入口，校验未被放宽。配置选择 `MiniMax-M3.1-Flash-Preview`，服务实际报告 `MiniMax-M3.1-Flash`，13 次设计者调用及修复答卷保留在本地评审材料。用户授权复用历史隔离 QA 的单项模型配置及凭据，在新临时 Home 中通过现行 owner 接口建立连接；原 QA 只读、真实 Home 未触碰，完成后临时凭据已清理。该命令只到设计冻结，不证明生成插件的构建、安装、运行或模型主动采用 surfaceSlot；本次 Node 24.14.0 构建和执行成功，但出现仓库要求 24.15.x 的引擎提示，不替代最终标准环境验证。
+
 
 
 最小迁移范围是 `renderPreviewCard`、`renderPopover`、`renderSheet` 及形态实际使用的 `renderMenu`／`renderMenuItem`：将原实现移到 SDK 的一个 UI 叶子，design-system 原入口同源重导，普通消费者签名与 HTML 保持；不复制第二套实现。其它 dialog、drawer、菜单组及客户端 tooltip、焦点、浮层工具保留原 owner。形态内容只画一次，位置层选择 popover 或窄屏 Sheet；`mw-tag`／`mw-item` 复用原样式。样式叶子只用语义变量和环境继承，消费第 16 批 font roles 的 size／lineheight，不建第二份字体、皮肤状态或缓存。`UiSpecFile.components` 只登记元数据，实际 kind 渲染与允许操作仍由实现负责。

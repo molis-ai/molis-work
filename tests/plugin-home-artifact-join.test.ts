@@ -1,14 +1,16 @@
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import test, { type TestContext } from "node:test";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginArtifactClient, PluginArtifactPublishInput, PluginArtifactWriter, PluginDatabase,
   PluginProjectRowTransaction } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { pluginSyncNamespace } from "@molis-ai/molis-work-app-local-host";
+import { molisWorkHostProjectReference, pluginSyncNamespace } from "@molis-ai/molis-work-app-local-host";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { ArtifactsModule } from "@molis-ai/molis-work-module-artifacts";
 import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { homeSqlitePath, openSqliteConnection } from "@molis-ai/molis-work-storage";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
-import { openTestHome } from "./fixtures/test-home.js";
+import { openTestHome, type TestHome } from "./fixtures/test-home.js";
 import { probeAction, registerProbe } from "./fixtures/plugin-home-artifact-probe.js";
 
 const id = "dataset-a", otherId = "dataset-b", at = "2026-11-09T18:00:00Z", otherAt = "2026-11-09T18:00:01Z";
@@ -18,9 +20,18 @@ const isolationSchema = (sql: string) => sql
   .replace("updated_at TEXT NOT NULL", "updated_at TEXT NOT NULL UNIQUE ON CONFLICT REPLACE")
   + "CREATE TABLE history (source TEXT REFERENCES DATASETS(ID) ON UPDATE CASCADE);";
 
-async function fixture(t: TestContext) {
+async function catalogProject(home: TestHome, projectId: string, title: string) {
+  const catalog = home.host.ensureWebCatalog(home.home, openMolisWorkProjectCatalog);
+  return catalog.withCatalog({ homeDirectory: home.home }, async owner => {
+    const project = await owner.createProject({ project_id: projectId, display_name: title, actor_id: "test" });
+    owner.addProjectPlugin({ project_id: project.project_id, plugin_id: "dataset", actor_id: "test" });
+    return { ...project, reference: molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path }) };
+  });
+}
+
+async function fixture(t: TestContext, projectIdentity?: string) {
   let body: (() => unknown) | undefined;
-  let services: { database: PluginDatabase; artifacts: PluginArtifactClient } | undefined;
+  let services: { database: PluginDatabase; artifacts: PluginArtifactClient; projectId?: string } | undefined;
   let insideAction = false;
   const manifest = registerProbe(t, async () => {
     assert.ok(body);
@@ -29,10 +40,13 @@ async function fixture(t: TestContext) {
   }, context => {
     const { database, artifacts } = context.services ?? {};
     assert.ok(database?.transactionProjectRow && artifacts?.join);
-    services = { database, artifacts };
+    services = { database, artifacts, projectId: context.project_id };
   }, isolationSchema);
   const home = await openTestHome(t);
-  const selected = await home.createProject("Artifact row fixture"), projectId = selected.project_id;
+  const selected = projectIdentity
+    ? await catalogProject(home, projectIdentity, "Artifact row fixture")
+    : await home.createProject("Artifact row fixture");
+  const projectId = selected.project_id;
   const person = await home.host.localPersonContext(selected.reference);
   assert.ok(services);
   const project = await home.host.withProject(selected.reference, runtime => runtime.store);
@@ -69,7 +83,8 @@ async function fixture(t: TestContext) {
     assert.ok(install);
     installs.save({ ...install, installation_generation: "replacement" });
   };
-  return { ...services, source, homeChanges, projectChanges, project, projectId, run, put, abort, replaceInstallation,
+  return { ...services, source, homeChanges, projectChanges, project, projectId, run, put, abort, replaceInstallation, home, sync,
+    latestActivation: () => services,
     version: (name: string) => artifacts.query.latestArtifactVersion(projectId, name), library };
 }
 
@@ -212,4 +227,56 @@ test("BSH-02 · a declared collation or unique conflict cannot write or delete a
   })), /UNIQUE constraint failed/u);
   assert.deepEqual(state(), conflict);
   assert.equal(f.version("replace-conflict"), null);
+});
+
+test("BSH-02 · a live Home row handle refuses a different project or another Home with the same project id", async t => {
+  const f = await fixture(t, "project-onboarding-" + randomUUID());
+  const sameHome = await f.home.createProject("Other project in this Home", ["dataset"]);
+  await f.home.host.localPersonContext(sameHome.reference);
+  const sameHomeActivation = f.latestActivation();
+  assert.equal(sameHomeActivation?.projectId, sameHome.project_id);
+
+  const remote = await openTestHome(t);
+  const otherHome = await catalogProject(remote, f.projectId, "Same project id in another Home");
+  assert.equal(otherHome.project_id, f.projectId);
+  await remote.host.localPersonContext(otherHome.reference);
+  const otherHomeActivation = f.latestActivation();
+  assert.equal(otherHomeActivation?.projectId, f.projectId);
+  const readOrigin = () => [f.source(), f.homeChanges(), f.projectChanges(), f.project.eventCursor(f.projectId)];
+
+  const probes = [
+    { name: "other-project", join: sameHomeActivation?.artifacts.join, owner: f.home, reference: sameHome.reference },
+    { name: "other-home", join: otherHomeActivation?.artifacts.join, owner: remote, reference: otherHome.reference },
+  ];
+  for (const { name, join, owner, reference } of probes) {
+    assert.ok(join);
+    assert.notEqual(join, f.artifacts.join);
+    const readPeer = () => owner.host.withProject(reference, ({ artifacts, store }) => {
+      const library = openSqliteConnection(homeSqlitePath(owner.home, "dataset"), { readonly: true });
+      try {
+        return [
+          artifacts.query.latestArtifactVersion(reference.project_id, name), store.eventCursor(reference.project_id),
+          store.db.prepare("SELECT count(*) AS n FROM artifacts_replica_changes").get()?.n,
+          library.prepare("SELECT id, artifact_id, artifact_version, version FROM datasets ORDER BY id").all(),
+          library.prepare(`SELECT count(*) AS n FROM ${f.sync}_replica_changes`).get()?.n,
+        ];
+      } finally { library.close(); }
+    });
+    const origin = readOrigin(), peer = await readPeer();
+    await assert.rejects(f.run(() => f.database.transactionProjectRow!(id, row => {
+      assert.equal(row.read()?.version, 1, "the source's handle is live and can read its row");
+      return join(row, () => assert.fail("a foreign write callback was reached"));
+    })), { code: "actions.forbidden" });
+    assert.deepEqual(readOrigin(), origin);
+    assert.deepEqual(await readPeer(), peer);
+    assert.equal(f.version(name), null);
+  }
+
+  const result = await f.run(() => f.database.transactionProjectRow!(id, row => {
+    f.artifacts.join!(row, writer => writer.publish(f.put("own-after-refusal")));
+    assert.equal(row.compareAndSet(1, {}), true);
+    return { ok: true };
+  }));
+  assert.deepEqual(result, { ok: true });
+  assert.equal(f.version("own-after-refusal")?.version, 1);
 });

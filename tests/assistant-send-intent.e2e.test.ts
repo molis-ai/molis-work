@@ -556,6 +556,34 @@ test("B10-R3: clearing and retyping the sent text while its receipt is held pres
   } finally { await barrier.close(); }
 });
 
+test("B10-R3: retyping the same text while Send is unknown survives the delayed request, Check and reload", { timeout: 90_000 }, async t => {
+  const browser = await sendBrowser(t); if (!browser) return;
+  const a = await seedWork(browser, "Unknown same text generation"); await openWork(browser, a);
+  await putInput(browser, "X"); const saved = await waitWork(browser, a, view => view.work.draft === "X");
+  let barrier = await sendBarrier(browser, [{ urlPattern: "*/api/assistant/send", requestStage: "Request" }]);
+  try {
+    await browser.click('[data-assistant-composer] [data-composer-send]'); const original = await barrier.next();
+    assert.equal(JSON.parse(original.request.postData!).draft_revision, saved.work.draft_revision);
+    await barrier.drop(original); await browser.waitFor("document.querySelector('[data-composer-status-action=check]')");
+    // One JS turn: the debounce cannot save the intermediate empty string.
+    await browser.evaluate("{ const field = document.querySelector('[data-assistant-composer] textarea'); for (const text of ['', 'X']) { field.value = text; field.dispatchEvent(new Event('input', { bubbles: true })); } }");
+    const newer = await waitWork(browser, a, view => view.work.draft === "X" && view.work.draft_revision > saved.work.draft_revision);
+    await barrier.close();
+    barrier = await sendBarrier(browser, [{ urlPattern: "*/api/assistant/send", requestStage: "Response" }]);
+    await browser.evaluate(`void fetch(${JSON.stringify(original.request.url)}, { method: 'POST', headers: molisWorkControlHeaders(), body: ${JSON.stringify(original.request.postData!)} }).then(r => r.json()).then(result => { globalThis.sameTextOld = result; })`);
+    const late = await barrier.next(); assert.equal(late.responseStatusCode, 200); await barrier.release(late);
+    await browser.waitFor("Boolean(globalThis.sameTextOld)");
+    assert.equal((await readWork(browser, a)).work.draft_revision, newer.work.draft_revision);
+    await browser.click('[data-composer-status-action=check]'); await browser.waitFor("!document.querySelector('[data-composer-status-action=check]')");
+    assert.equal(await browser.evaluate("document.querySelector('[data-assistant-composer] textarea').value"), "X");
+    const done = await waitWork(browser, a, view => view.work.state === "completed");
+    assert.equal(done.work.draft, "X"); assert.equal(done.work.draft_revision, newer.work.draft_revision);
+    assert.equal(done.rounds.length, 2); assert.equal(browser.model!.requests.length, 2, "one seed and exactly one delayed Send");
+    await barrier.close(); await browser.reloadPage(); await browser.waitFor("document.querySelector('[data-assistant-composer] textarea').value === 'X'");
+    assert.equal((await readWork(browser, a)).work.draft, "X");
+  } finally { await barrier.close(); }
+});
+
 test("B10-R3: switching work before the shared composer script arrives saves only the edited owner's text", { timeout: 90_000 }, async t => {
   const browser = await sendBrowser(t); if (!browser) return;
   const a = await seedWork(browser, "Early input A"), b = await seedWork(browser, "Early input B"); await openWork(browser, a);

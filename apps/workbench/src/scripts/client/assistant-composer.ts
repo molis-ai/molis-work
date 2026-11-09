@@ -181,11 +181,15 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
       // Host's draft is the Send's own words, or older ones, and is cleared when the Send lands.
       read: () => later.has(id) ? Promise.resolve(later.get(id)) : going.has(id) ? Promise.resolve("")
         : worksIn.then(() => writing.get(id)?.text ?? (works.find((work) => work.work_id === id) || {}).draft ?? ""),
+      // Sending reuses the saved generation; every real edit below creates a new one, including retyping the same words.
+      prepare(text) {
+        const pending = writing.get(id), work = works.find(row => row.work_id === id);
+        return pending?.text === text ? pending.promise : !pending && work?.draft === text && !unsaved
+          ? Promise.resolve(work.draft_revision) : this.write(text);
+      },
       write: (text) => {
         const editing = going.has(id), pending = writing.get(id), work = works.find((row) => row.work_id === id);
         if (editing) later.set(id, text);
-        if (!editing && pending?.text === text) return pending.promise;
-        if (!editing && !pending && work && work.draft === text && !unsaved) return Promise.resolve(work.draft_revision);
         unsaved = true;
         if (work) work.draft = text;
         const run = (pending?.promise || Promise.resolve()).catch(() => undefined).then(() => api("", "POST", { draft: text }, route)).then(({ work: saved }) => {
@@ -201,7 +205,7 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
   /** One Send from the composer: the work it is for is the one in front now, whatever the person opens while it is on its way. */
   const sendNow = async (sent) => {
     const id = curId, mine = { text: sent.text, mount: mountedFor };
-    const before = id ? draftFor(id).write(sent.text) : undefined;
+    const before = id ? draftFor(id).prepare(sent.text) : undefined;
     sending += 1; inFlight = mine; if (id) going.set(id, mine);
     try {
       const outcome = await submit(sent, before);

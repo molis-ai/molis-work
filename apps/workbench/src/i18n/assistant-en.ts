@@ -218,7 +218,7 @@ export const ASSISTANT_EN: Record<string, string> = {
   "到执行方的页面核对": "Check it on the executor's page",
   "个人工作助理，使用你已授权的能力": "Your personal assistant, using the capabilities you granted",
   "在这个项目里由它自己的 Agent 执行，补充和回答照常在这里发": "Carried out in this project by its own Agent; supplements and answers still go here",
-  "让 {name} 做点什么…": "Ask {name} to do something…",
+  "让 {name} 做点什么…": "Ask {name}…",
   "由 {name} 执行": "Carried by {name}",
   "执行方": "Executor",
   "打开 Coding": "Open Coding",

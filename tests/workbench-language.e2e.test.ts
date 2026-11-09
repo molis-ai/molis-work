@@ -391,3 +391,52 @@ test("FSS-20 FSS-38 FSS-74 a signed Studio installation switches its words in th
   const batch = `${prefix}/api/ui/locales?locale=en&page=${encodeURIComponent(opened)}`;
   await b.waitFor(`window.closedStudioGrant === true || (window.closedStudioGrant === undefined && (window.closedStudioGrant = false,molisWorkRequest(${JSON.stringify(batch)}, {control:true}).then(()=>window.closedStudioGrant=undefined,error=>window.closedStudioGrant=error.status===403),false))`);
 });
+
+test("FSS-20 FSS-74 the Studio canvas switches the current and previous design's own words in place", { timeout: 100_000 }, async t => {
+  const { mkdtemp, rm } = await import("node:fs/promises"), { tmpdir } = await import("node:os"), { join } = await import("node:path");
+  const { readyPublication } = await import("./fixtures/studio-publishing.js"), { studioBilingualNotes } = await import("./fixtures/studio-bilingual.js");
+  const author = await mkdtemp(join(tmpdir(), "molis-studio-history-author-")), h = readyPublication(author, "author", "project", studioBilingualNotes);
+  t.after(async () => { await h.workflow.close(); await rm(author, { recursive: true, force: true }); });
+  const { directory: _directory, ...build } = structuredClone(h.build);
+  const before = structuredClone(build.design!);
+  const heading = before.parts.find(part => part.id === "title")!.props.title!;
+  assert.ok(typeof heading !== "string" && "key" in heading);
+  const en = before.localePacks!.find(pack => pack.locale === "en")!;
+  Object.assign(en.messages, { [heading.key]: "Earlier reading notes" });
+  build.history.push({ design: before, nodes: build.nodes, connected: build.connected });
+  build.phase = "paused";
+  const b = await openGoalBrowser(t, "seeded", undefined, null); if (!b) return;
+  const prefix = "/projects/" + b.projectId + "/api/plugin-builder/studio";
+  await b.command("Page.addScriptToEvaluateOnNewDocument", { source: `{
+    const original = fetch.bind(window), prefix = ${JSON.stringify(prefix)}, build = ${JSON.stringify(build)};
+    window.fetch = async (input, options) => {
+      const url = new URL(input instanceof Request ? input.url : String(input), location.href);
+      if (url.origin !== location.origin || !url.pathname.startsWith(prefix)) return original(input, options);
+      const route = url.pathname.slice(prefix.length);
+      if (route === '/state') { const state = await (await original(input, options)).json(); return Response.json({...state,builds:[build]}); }
+      if (route === '/builds/' + build.id) return Response.json({build,versions:[]});
+      if (route === '/builds/' + build.id + '/events') return new Response(null,{status:204});
+      if (route === '/builds/' + build.id + '/call') return Response.json({value:[]});
+      return original(input, options);
+    };
+  }` }, b.sessionId);
+  const child = await pluginFrameBrowser(t, b, "plugin-builder");
+  await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/locale?lang=zh&next=" +
+    encodeURIComponent("/projects/" + b.projectId + "/?openPlugin=plugin-builder") }, b.sessionId));
+  await child.click(`[data-as-open="${build.id}"]`);
+  await child.waitFor("document.querySelector('[data-as-plugin] h1')?.textContent === '读书摘记'");
+  await child.evaluate(`(()=>{const root=window.studioCanvas=document.querySelector('[data-as-plugin]'),field=window.studioCanvasField=root.querySelector('[data-field=text]');
+    field.value='Canvas 草稿';field.dispatchEvent(new Event('input',{bubbles:true}));field.focus();field.setSelectionRange(1,5,'backward');})()`);
+  await chooseEnglishInSettings(t, b);
+  await child.waitFor("studioCanvas.querySelector('h1')?.textContent === 'Reading notes'");
+  assert.deepEqual(await child.evaluate(`[studioCanvas===document.querySelector('[data-as-plugin]'),studioCanvasField===studioCanvas.querySelector('[data-field=text]'),
+    studioCanvasField.value,studioCanvasField.selectionStart,studioCanvasField.selectionEnd,studioCanvasField.selectionDirection,document.activeElement===studioCanvasField,
+    studioCanvasField.placeholder,studioCanvas.querySelector('[type=submit]').textContent,studioCanvas.querySelector('[data-pc-value=personal]').textContent]`),
+  [true,true,"Canvas 草稿",1,5,"backward",true,"Keep the quotation","Save excerpt","Personal"]);
+  await child.click("[data-as-compare]");
+  await child.waitFor("studioCanvas.querySelector('h1')?.textContent === 'Earlier reading notes'");
+  assert.equal(await child.evaluate("studioCanvas.inert"), true);
+  await child.click("[data-as-compare]");
+  await child.waitFor("studioCanvas.querySelector('h1')?.textContent === 'Reading notes'");
+  assert.deepEqual(await child.evaluate("[studioCanvas.inert,studioCanvasField.value]"), [false,"Canvas 草稿"]);
+});

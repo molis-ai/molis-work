@@ -18,12 +18,17 @@ export function pcKit(word: (ref?: SandboxVisibleText) => string) {
   function refreshWords(root: HTMLElement) {
     for (const element of root.querySelectorAll<HTMLElement>('[data-pc-localized]')) {
       for (const [attribute, render] of compositeWords.get(element) ?? []) {
-        if (attribute) element.setAttribute(attribute, render()); else element.textContent = render();
+        const text = render();
+        if (attribute) { if (element.getAttribute(attribute) !== text) element.setAttribute(attribute, text); }
+        else if (element.textContent !== text) element.textContent = text;
       }
     }
   }
   const make = <K extends keyof HTMLElementTagNameMap>(tag: K, text?: string, cls?: string) => {
     const el = document.createElement(tag); if (text !== undefined) el.textContent = text; if (cls) el.className = cls; return el;
+  };
+  const words = <K extends keyof HTMLElementTagNameMap>(tag: K, read: () => string, cls?: string) => {
+    const element = make(tag, undefined, cls); bindWord(element, '', read); return element;
   };
   /** Data may spell the same words as a button. The document's language change must never change it. */
   const raw = <K extends keyof HTMLElementTagNameMap>(tag: K, words: string, cls?: string) => {
@@ -155,5 +160,5 @@ export function pcKit(word: (ref?: SandboxVisibleText) => string) {
     return list;
   }
   const skeleton = (idle: boolean) => { const block = make('div', undefined, 'pc-skeleton'); if (idle) block.dataset.idle = ''; block.setAttribute('aria-hidden', 'true'); for (let index = 0; index < (idle ? 2 : 3); index++) { const bone = make('span', undefined, 'mw-skeleton'); bone.dataset.slot = 'skeleton'; block.append(bone); } return block; };
-  return { make, raw, bindWord, clearBoundWord, refreshWords, glyph, button, text, statusWord, exactly, shown, prose, at, TONES, MARKS, MOMENT, TEMPLATE, DAY, moment, naming, picker, chipsFit, badge, typedValue, figures, skeleton };
+  return { make, words, raw, bindWord, clearBoundWord, refreshWords, glyph, button, text, statusWord, exactly, shown, prose, at, TONES, MARKS, MOMENT, TEMPLATE, DAY, moment, naming, picker, chipsFit, badge, typedValue, figures, skeleton };
 }

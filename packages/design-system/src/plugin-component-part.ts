@@ -56,7 +56,7 @@ export function pcSubmit(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry) {
 }
 
 export function pcPart(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry & Sub) {
-  const { options, make, word, bindWord, glyph, button, MARKS, TEMPLATE, headingOf, operation, collections, rowLabel, composer, signature, exportRows, vocabulary, control, overlay, query, report, onSubmit } = c;
+  const { options, make, word, words: wordElement, bindWord, glyph, button, MARKS, TEMPLATE, headingOf, operation, collections, rowLabel, composer, signature, exportRows, vocabulary, control, overlay, query, report, onSubmit } = c;
   function createPart(node: PluginComponentNode): Part {
     const kind = node.kind, element = make('section', undefined, 'pc-node pc-kind-' + kind); element.dataset.componentId = node.id; element.setAttribute('aria-label', word(node.props.title) || node.purpose);
     const descriptionText = word(node.props.description);
@@ -78,6 +78,10 @@ export function pcPart(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry & Sub)
     if (options.inspect) { const inspect = make('button', options.inspectLabel || t.text("common.generated.inspect"), 'pc-inspect'); inspect.type = 'button'; inspect.addEventListener('click', () => options.inspect?.(node.id)); element.append(inspect); }
     const content = make('div', undefined, 'pc-output'), feedback = make('div'); feedback.dataset.pcFeedback = node.id; feedback.setAttribute('role', 'status'); feedback.setAttribute('aria-live', 'polite');
     const part: Part = { node, root: element, output: content, feedback, busy: false, query: 0, draft: 0, signature: signature(node), prefilled: new Map() };
+    const visibleWord = (value: string) => template(value) ? '' : value;
+    bindWord(element, 'aria-label', () => visibleWord(word(part.node.props.title)) || word(part.node.props.submitLabel) || part.node.purpose);
+    bindWord(title, '', () => visibleWord(part.node.intent === 'heading' ? headingOf(part.node) : word(part.node.props.title)));
+    bindWord(description, '', () => visibleWord(word(part.node.props.description)));
     const filtered = node.read && Object.entries(node.read.input).filter(([, source]) => source.source === 'form');
     // The collection's toolbar: its filters, how many records show, and a way to take them out as a spreadsheet.
     const toolbar = make('div', undefined, 'mw-toolbar pc-toolbar'); toolbar.dataset.slot = 'toolbar';
@@ -85,15 +89,15 @@ export function pcPart(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry & Sub)
       const schema = operation(node.read!.operationId)!.input, filter = make('div', undefined, 'pc-filter'); filter.setAttribute('role', 'search');
       for (const [field, source] of filtered) {
         const spec = schema.properties![field]!, required = schema.required?.includes(field) ?? false, words = vocabulary(node.pageId, field);
-        const labels = pluginFieldWords(c.view!.contract, node.read!.operationId, field, spec), labelRef = spec.description || usesPluginFieldWords(c.view!.contract) ? labels.label : words.label ?? labels.label, label = word(labelRef);
+        const labels = pluginFieldWords(c.view!.contract, node.read!.operationId, field, spec), labelRef = spec.description || usesPluginFieldWords(c.view!.contract) ? labels.label : words.label ?? labels.label, label = () => word(labelRef);
         const made = control(spec, (source as { field: string }).field, field, label, required, true, words.values);
-        if ('group' in made && made.group) { const box = make('div', undefined, 'pc-filter-item'); box.append(make('span', label, 'pc-filter-label'), made.group); filter.append(box); made.input.addEventListener('change', () => { void query(part); }); continue; }
+        if ('group' in made && made.group) { const box = make('div', undefined, 'pc-filter-item'); box.append(wordElement('span', label, 'pc-filter-label'), made.group); filter.append(box); made.input.addEventListener('change', () => { void query(part); }); continue; }
         const input = made.input!, wrap = make('label', undefined, 'pc-filter-item');
         if (input instanceof HTMLInputElement && input.type === 'search') {
           // Search is the catalog's input group: the magnifier and the field as one control.
           const group = make('span', undefined, 'mw-input-group pc-search'); group.dataset.slot = 'input-group'; group.append(glyph('search'), input);
-          wrap.append(make('span', label, 'pc-sr'), group); bindWord(input, 'placeholder', () => t.text("common.generated.search-field", { label: word(labelRef) }));
-        } else wrap.append(make('span', label, 'pc-filter-label'), input);
+          wrap.append(wordElement('span', label, 'pc-sr'), group); bindWord(input, 'placeholder', () => t.text("common.generated.search-field", { label: label() }));
+        } else wrap.append(wordElement('span', label, 'pc-filter-label'), input);
         input.addEventListener('change', () => { clearTimeout(part.waiting); delete element.dataset.pcPending; void query(part); });
         if (input instanceof HTMLInputElement) input.addEventListener('input', () => { clearTimeout(part.waiting); element.dataset.pcPending = ''; part.waiting = setTimeout(() => { delete element.dataset.pcPending; void query(part); }, 300); });
         filter.append(wrap);
@@ -113,14 +117,15 @@ export function pcPart(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry & Sub)
       const typed = Object.values(node.submit.input).filter(source => source.source === 'form').length;
       for (const [field, source] of Object.entries(node.submit.input)) if (source.source === 'form') {
         const spec = schema.properties![field]!, words = vocabulary(node.pageId, field);
-        const labels = pluginFieldWords(c.view!.contract, node.submit.operationId, field, spec), label = word(spec.description || usesPluginFieldWords(c.view!.contract) ? labels.label : words.label ?? labels.label);
+        const labels = pluginFieldWords(c.view!.contract, node.submit.operationId, field, spec);
+        const labelRef = spec.description || usesPluginFieldWords(c.view!.contract) ? labels.label : words.label ?? labels.label, label = () => word(labelRef);
         const made = control(spec, source.field, field, label, schema.required?.includes(field) ?? false, false, words.values, typed === 1 && composer(node) && kind === 'form', operation(node.submit.operationId)?.kind === 'query');
-        if ('group' in made && made.group) { const box = make('div', undefined, 'mw-field pc-field-choice'); box.append(make('span', label, 'mw-field__label'), made.group); if ((spec.enum?.length ?? 0) > 5) box.classList.add('pc-field-wide'); fields.append(box); continue; }
+        if ('group' in made && made.group) { const box = make('div', undefined, 'mw-field pc-field-choice'); box.append(wordElement('span', label, 'mw-field__label'), made.group); if ((spec.enum?.length ?? 0) > 5) box.classList.add('pc-field-wide'); fields.append(box); continue; }
         const input = made.input!;
-        fieldWords.set(input, { ...labels, label: spec.description || usesPluginFieldWords(c.view!.contract) ? labels.label : words.label ?? labels.label });
-        if (labels.hint && 'placeholder' in input) input.placeholder = word(labels.hint);
-        if (input instanceof HTMLInputElement && input.type === 'checkbox') { const row = make('label', undefined, 'mw-check-row pc-field-check'); row.append(input, make('span', label)); fields.append(row); continue; }
-        const wrap = make('label', undefined, 'mw-field'); wrap.dataset.slot = 'field'; wrap.append(make('span', label, 'mw-field__label'), input);
+        fieldWords.set(input, { ...labels, label: labelRef });
+        if (labels.hint && 'placeholder' in input) bindWord(input, 'placeholder', () => word(labels.hint));
+        if (input instanceof HTMLInputElement && input.type === 'checkbox') { const row = make('label', undefined, 'mw-check-row pc-field-check'); row.append(input, wordElement('span', label)); fields.append(row); continue; }
+        const wrap = make('label', undefined, 'mw-field'); wrap.dataset.slot = 'field'; wrap.append(wordElement('span', label, 'mw-field__label'), input);
         if (input instanceof HTMLTextAreaElement) {
           wrap.classList.add('pc-field-wide');
           // A long answer grows with what is written (data-fit, the shared intrinsic sizing); ⌘/Ctrl+Enter sends it.
@@ -128,16 +133,20 @@ export function pcPart(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry & Sub)
         }
         fields.append(wrap);
       }
-      const submit = make('button', word(node.props.submitLabel) || t.text("common.generated.submit"), 'mw-btn mw-btn--primary mw-btn--md pc-submit'); submit.type = 'submit'; submit.dataset.slot = 'button';
+      const submit = wordElement('button', () => word(part.node.props.submitLabel) || t.text("common.generated.submit"), 'mw-btn mw-btn--primary mw-btn--md pc-submit'); submit.type = 'submit'; submit.dataset.slot = 'button';
       const visible = [...fields.children];
       let form: HTMLFormElement;
       if (kind === 'sheet' || kind === 'dialog') {
         // Filled in the catalog's sheet or dialog: a button opens it, and it closes once saved.
-        const shell = overlay(kind, word(node.props.title) || word(node.props.submitLabel) || t.text("common.generated.new"), word(node.props.description), node.id);
+        const overlayTitle = () => word(part.node.props.title) || word(part.node.props.submitLabel) || t.text("common.generated.new");
+        const shell = overlay(kind, overlayTitle(), word(node.props.description), node.id);
+        bindWord(shell.dialog.querySelector('h2')!, '', overlayTitle);
+        bindWord(shell.dialog.querySelector<HTMLElement>('[data-pc-overlay-description]')!, '', () => word(part.node.props.description));
         const cancel = button(t.text("common.generated.cancel"), 'secondary', 'md'); cancel.addEventListener('click', () => shell.dialog.close());
         const error = make('p', '', 'pc-dialog-error mw-field__error'); error.hidden = true;
         shell.body.append(fields); shell.footer.append(error, cancel, submit); form = shell.form; part.dialog = shell.dialog;
         const opener = button(word(node.props.title) || word(node.props.submitLabel) || t.text("common.generated.new"), 'primary', 'md', 'plus'); opener.dataset.pcOpen = node.id; opener.classList.add('pc-open');
+        bindWord(opener.querySelector<HTMLElement>('[data-slot=button-label]')!, '', overlayTitle);
         opener.addEventListener('click', () => { shell.dialog.showModal(); shell.form.querySelector<HTMLElement>('input:not([type=hidden]),textarea,select')?.focus(); });
         part.opener = opener; element.append(opener, shell.dialog);
       } else if (kind === 'alert-dialog') {
@@ -145,11 +154,13 @@ export function pcPart(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry & Sub)
         const shell = overlay('confirm', t.text("common.generated.confirm", { action: rowLabel(node) }), t.text("common.generated.irreversible"), node.id);
         bindWord(shell.dialog.querySelector('h2')!, '', () => t.text("common.generated.confirm", { action: rowLabel(part.node) }));
         const cancel = button(t.text("common.generated.cancel"), 'secondary', 'md'), yes = button(rowLabel(node), 'danger', 'md'); yes.dataset.pcConfirmYes = '';
+        bindWord(yes.querySelector<HTMLElement>('[data-slot=button-label]')!, '', () => rowLabel(part.node));
         cancel.addEventListener('click', () => shell.dialog.close()); shell.footer.append(cancel, yes); shell.dialog.dataset.pcConfirm = node.id; part.confirm = shell.dialog;
         form = make('form', undefined, 'pc-form pc-bare'); form.append(fields, submit);
         yes.addEventListener('click', event => { event.preventDefault(); shell.dialog.close(); form.requestSubmit(); });
         // Standing alone, the button opens the question; its own submit stays out of reach until confirmed.
         const opener = button(rowLabel(node), 'danger-outline', 'md'); opener.dataset.pcOpen = node.id; opener.addEventListener('click', () => shell.dialog.showModal()); part.opener = opener;
+        bindWord(opener.querySelector<HTMLElement>('[data-slot=button-label]')!, '', () => rowLabel(part.node));
         submit.hidden = true; element.append(opener, shell.dialog);
       } else {
         // On the page, the catalog's Form sits on a card (its own layout fills a sheet or a dialog).

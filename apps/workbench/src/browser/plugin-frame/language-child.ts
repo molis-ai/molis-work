@@ -16,6 +16,7 @@ export function frameLanguage(initial: FrameLanguage) {
     context.select(language.tag, next.packs, intl(next));
     document.documentElement.lang = language.html_lang;
     document.documentElement.dir = language.direction;
+    document.documentElement.dataset.uiLanguageTag = language.tag;
   };
   if (initial.opening) {
     const { before, after } = initial.opening;

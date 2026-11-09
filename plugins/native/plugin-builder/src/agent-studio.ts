@@ -350,7 +350,7 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
   const b=current;let view=null;
   if(b?.design)view={contract:b.design.contract,nodes:b.nodes,connected:b.connected,presentation:b.design.presentation,authoringWords:b.design.localePacks};
   else if(b?.candidates.length&&(b.phase==='choosing'||b.active?.stage==='detail')){const c=b.candidates.find(x=>x.id===(b.chosen||preview||b.candidates[0].id))||b.candidates[0];const kind=p=>(state.components.find(x=>x.use==='part'&&x.intents[0]===p.intent)||state.components.find(x=>x.use==='part'&&x.intents.includes(p.intent))||{}).kind||'card';view={contract:c.preview.contract,nodes:c.preview.parts.map(p=>({...p,kind:kind(p)})),connected:[]};}
-  if(comparePrevious&&previousVisual(b)){const before=previousVisual(b);view={contract:before.design.contract,nodes:before.nodes,connected:before.connected,presentation:before.design.presentation};}
+  if(comparePrevious&&previousVisual(b)){const before=previousVisual(b);view={contract:before.design.contract,nodes:before.nodes,connected:before.connected,presentation:before.design.presentation,authoringWords:before.design.localePacks};}
   pluginRoot.inert=comparePrevious;pluginRoot.setAttribute('aria-label',globalThis.t.text(comparePrevious?"plugin-builder.agent-studio.previous-interface-read-only-comparison":"plugin-builder.agent-studio.current-interface"));
   empty.hidden=!!view&&view.nodes.length>0;pluginRoot.hidden=!view||!view.nodes.length;
   if(!b)empty.innerHTML='<h2>'+globalThis.t.text("plugin-builder.agent-studio.plugin-will-appear-here")+'</h2><p>'+globalThis.t.text("plugin-builder.agent-studio.once-proposal-chosen-ui-agent-takes-components-one")+'</p>';

@@ -5,7 +5,7 @@ import { isDestructivePluginOperation, literalPluginWord, pluginMessageNames, pl
 import type { Column, Ctl, Det, Kit, Out, Part, Rec, Rel, State } from './plugin-component-types.js';
 
 export function pcOutput(c: State & Kit & Rel & Rec & Det) {
-  const { parts, make, word, bindWord, raw: rawText, glyph, button, text, shown, prose, at, TEMPLATE, DAY, badge, figures, pluginSchemaOf, detailEnabled, ready, rowHost, rowLabel, reading, selectable, selectPage, composerFor, describeField, fieldValue, recordColumns, dayOf, recordBody, showDetail, select } = c;
+  const { parts, make, words: wordElement, word, bindWord, raw: rawText, glyph, button, text, shown, prose, at, TEMPLATE, DAY, badge, figures, pluginSchemaOf, detailEnabled, ready, rowHost, rowLabel, reading, selectable, selectPage, composerFor, describeField, fieldValue, recordColumns, dayOf, recordBody, showDetail, select } = c;
   function output(part: Part, raw: unknown, binding: 'read' | 'submit') {
     const node = part.node, kind = node.kind, value = at(raw, node[binding]?.outputPath), fragment = document.createDocumentFragment();
     const listing = binding === 'read' && Array.isArray(value);
@@ -20,7 +20,7 @@ export function pcOutput(c: State & Kit & Rel & Rec & Det) {
         const field = at(value, path);
         return [name, typeof field === 'number' ? field : text(field)];
       }));
-      fragment.append(make('p', word(generated, args), 'pc-answer pc-filled'));
+      fragment.append(wordElement('p', () => word(generated, args), 'pc-answer pc-filled'));
     }
     else if (template && binding === 'read' && value && typeof value === 'object' && !Array.isArray(value)) {
       const sentence = make('p', undefined, 'pc-answer pc-filled');
@@ -37,11 +37,11 @@ export function pcOutput(c: State & Kit & Rel & Rec & Det) {
     }
     else if (!Array.isArray(value)) {
       // A single value: an alert, a badge, or a card holding the text, as the part was given.
-      if (kind === 'alert') { const alert = make('div', undefined, 'mw-alert mw-alert--info pc-answer'); alert.dataset.slot = 'alert'; alert.setAttribute('role', 'status'); if (node.props.title) alert.append(make('strong', word(node.props.title))); alert.append(prose('p', value)); fragment.append(alert); }
+      if (kind === 'alert') { const alert = make('div', undefined, 'mw-alert mw-alert--info pc-answer'); alert.dataset.slot = 'alert'; alert.setAttribute('role', 'status'); if (node.props.title) alert.append(wordElement('strong', () => word(part.node.props.title))); alert.append(prose('p', value)); fragment.append(alert); }
       else if (kind === 'badge') fragment.append(badge(text(shown(undefined, value)), 'neutral'));
       else { const card = make('article', undefined, 'mw-card pc-answer-card'), panel = make('div', undefined, 'mw-card__panel'); card.dataset.slot = 'card'; panel.append(prose('p', value, 'pc-answer')); card.append(panel); fragment.append(card); }
     }
-    else if (!value.length) { const empty = make('div', undefined, 'mw-empty pc-empty'), mark = make('span', undefined, 'mw-empty__mark'); empty.dataset.slot = 'empty'; mark.append(glyph('inbox')); empty.append(mark, make('p', word(node.props.emptyText) || t.text("common.generated.empty"))); fragment.append(empty); }
+    else if (!value.length) { const empty = make('div', undefined, 'mw-empty pc-empty'), mark = make('span', undefined, 'mw-empty__mark'); empty.dataset.slot = 'empty'; mark.append(glyph('inbox')); empty.append(mark, wordElement('p', () => word(part.node.props.emptyText) || t.text("common.generated.empty"))); fragment.append(empty); }
     else {
       const first = value[0], table = kind === 'table';
       // Without configured columns a table shows the record's own fields rather than an empty grid.
@@ -53,7 +53,7 @@ export function pcOutput(c: State & Kit & Rel & Rec & Det) {
       let container: HTMLElement, body: HTMLElement;
       if (table) {
         container = make('table', undefined, 'mw-table pc-table'); body = make('tbody');
-        const head = make('thead'), tr = make('tr'); for (const column of columns) tr.append(make('th', word(column.label))); if (actionable) tr.append(make('th', reading(node) || selectable(node.id) ? t.text("common.generated.choose") : '')); head.append(tr); container.append(head, body);
+        const head = make('thead'), tr = make('tr'); for (const column of columns) tr.append(wordElement('th', () => word(column.label))); if (actionable) tr.append(make('th', reading(node) || selectable(node.id) ? t.text("common.generated.choose") : '')); head.append(tr); container.append(head, body);
       } else { container = make('div', undefined, kind === 'card' ? 'pc-card-grid' : kind === 'accordion' ? 'mw-accordion pc-accordion' : kind === 'calendar' ? 'pc-agenda' : 'pc-directory'); body = container; }
       if (kind === 'accordion') container.dataset.slot = 'accordion';
       if (reading(node)) container.classList.add('pc-reading');
@@ -91,7 +91,9 @@ export function pcOutput(c: State & Kit & Rel & Rec & Det) {
         // An action on one record sits on that record.
         for (const action of c.view?.nodes.filter(other => rowHost(other) === node.id) ?? []) {
           const danger = action.kind === 'alert-dialog' || isDestructivePluginOperation(action.submit?.operationId), act = button(rowLabel(action), danger ? 'ghost' : 'secondary', 'sm');
-          act.classList.add('pc-row-action'); if (record.title) bindWord(act, 'aria-label', () => t.text("common.generated.row-action", { action: rowLabel(action), title: record.title })); act.dataset.pcAction = action.id; act.disabled = !ready(action.submit!.operationId); if (danger) act.dataset.danger = '';
+          act.classList.add('pc-row-action');
+          bindWord(act.querySelector<HTMLElement>('[data-slot=button-label]')!, '', () => rowLabel(parts.get(action.id)?.node ?? action));
+          if (record.title) bindWord(act, 'aria-label', () => t.text("common.generated.row-action", { action: rowLabel(action), title: record.title })); act.dataset.pcAction = action.id; act.disabled = !ready(action.submit!.operationId); if (danger) act.dataset.danger = '';
           act.addEventListener('click', event => { event.preventDefault(); choose(); const target = parts.get(action.id); if (target?.confirm) { target.confirm.dataset.pcRecord = item.dataset.recordId!; target.confirm.showModal(); } else target?.form?.requestSubmit(); }); actions.push(act);
         }
         const bar = make('div', undefined, 'pc-row-actions'); bar.append(...actions);

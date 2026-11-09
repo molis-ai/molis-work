@@ -1,8 +1,8 @@
-import type { SandboxVisibleText } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
+import type { SandboxSchema, SandboxVisibleText } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
 import { isRecord } from '@molis-ai/molis-work-plugin-sdk';
 import { inspectLocaleSet, parseLocalePack } from '@molis-ai/molis-work-plugin-sdk/ui';
 import { UI_FORMAT_VERSIONS, type PluginLocalesDeclaration, type TextRef, type UiLocalePack } from '@molis-ai/molis-work-contracts/platform/ui';
-import { literalPluginWord, PLUGIN_COMPONENT_WORD_KEYS, pluginFieldWords, pluginTemplateName, pluginTemplatePaths, pluginTemplateBindings, pluginMessageNames, pluginSchemaAt, pluginTextSlot, pluginTextSlotKey, sandboxUiTextRefs } from '@molis-ai/molis-work-design-system';
+import { literalPluginWord, PLUGIN_COMPONENT_WORD_KEYS, pluginFieldWords, pluginTemplateName, pluginTemplatePaths, pluginTemplateBindings, pluginMessageNames, pluginSchemaAt, pluginTextSlot, pluginTextSlotKey } from '@molis-ai/molis-work-design-system';
 import type { AgentDesign } from './agent-model.js';
 
 export interface StudioDesignLanguages {
@@ -10,16 +10,18 @@ export interface StudioDesignLanguages {
   readonly available: readonly { readonly tag: string; readonly name: string }[];
 }
 
-interface Slot { readonly name: string; readonly fields: readonly string[]; use(ref: TextRef): void }
+interface Slot { readonly name: string; readonly ref: SandboxVisibleText; readonly fields: readonly string[]; readonly schema?: SandboxSchema; use(ref: TextRef): void }
 
 /** Enumerates what the normalized design actually displays. Binding and stored data never become slots. */
 function studioSlots(design: AgentDesign): Slot[] {
-  const slots = new Map<string, Slot>(), add = (path: string[], fallback: SandboxVisibleText, use: Slot['use'] = () => {}) => {
+  const slots = new Map<string, Slot>(), add = (path: string[], ref: SandboxVisibleText, use: Slot['use'] = () => {}, schema?: SandboxSchema) => {
     const name = pluginTextSlot(...path);
     if (slots.has(name)) throw new Error(`UI slot is duplicated: ${name}`);
-    const fields = pluginTemplatePaths(literalPluginWord(fallback));
+    const fields = pluginTemplatePaths(literalPluginWord(ref));
     if (new Set(fields.map(pluginTemplateName)).size !== fields.length) throw new Error(`UI slot has ambiguous message parameters: ${name}`);
-    slots.set(name, { name, fields, use });
+    if (fields.length && (!schema || pluginTemplateBindings(schema, fields.map(pluginTemplateName)).size !== fields.length))
+      throw new Error(`UI slot ${name} has unbound parameters.`);
+    slots.set(name, { name, ref, fields, schema, use });
   };
   add(['plugin', 'name'], { literal: design.title });
   for (const page of design.contract.pages) {
@@ -30,13 +32,8 @@ function studioSlots(design: AgentDesign): Slot[] {
     for (const key of PLUGIN_COMPONENT_WORD_KEYS) {
       const words = part.props[key];
       if (!words) continue;
-      const paths = pluginTemplatePaths(literalPluginWord(words));
-      if (paths.length) {
-        const operation = design.contract.operations.find(row => row.id === part.read?.operationId);
-        const schema = operation && pluginSchemaAt(operation.output, part.read?.outputPath);
-        if (!schema || pluginTemplateBindings(schema, paths.map(pluginTemplateName)).size !== paths.length) throw new Error(`UI slot ${part.id}/${key} has unbound parameters.`);
-      }
-      add(['part', part.id, key], words, ref => { part.props[key] = ref; });
+      const operation = (key === 'title' || key === 'description') && design.contract.operations.find(row => row.id === part.read?.operationId);
+      add(['part', part.id, key], words, ref => { part.props[key] = ref; }, operation ? pluginSchemaAt(operation.output, part.read?.outputPath) : undefined);
     }
     for (const column of part.props.columns ?? []) {
       add(['column', part.id, column.field, 'label'], column.label, ref => { column.label = ref; });
@@ -58,7 +55,7 @@ function studioSlots(design: AgentDesign): Slot[] {
 export const studioUiAnswer = (languages: StudioDesignLanguages, existing?: PluginLocalesDeclaration) => ({
   default: existing?.default ?? languages.current,
   available: existing ? languages.available.filter(row => existing.available.includes(row.tag)) : languages.available,
-  format: 'Add design.uiText: {default,locales:{[languageTag]:{[visibleSlot]:"complete words"}}}. Give every requested language the same complete slots, no markup. The language requested by the user takes precedence for new work; on revision preserve default and available. Slots: plugin/name; page/<id>/title; region/<page>/<region>/title (main unless given another region); part/<id>/{title,description,submitLabel,requiredText,emptyText} for each prop written; column/<part>/<field>/label; column/<part>/<field>/value/<value> for each named enum value; field/<operation>/<field>/label for every form-bound field, plus /hint if its schema description has a label and hint. URL-encode each id or value in a path. Keep all original machine values, field names and operations. In words only, convert {{nested.field}} to {nested_field}; keep the same parameters in every language. Preserve any variant that the user did not ask to change. To assert a visible label, use {action:"expectWord",componentId,word:"title"} (or description, submitLabel, emptyText, requiredText); use expect/text only for exact record or business output.',
+  format: 'Add design.uiText: {default,locales:{[languageTag]:{[visibleSlot]:"complete words"}}}. Give every requested language the same complete slots, no markup. The language requested by the user takes precedence for new work; on revision preserve default and available. Slots: plugin/name; page/<id>/title; region/<page>/<region>/title (main unless given another region); part/<id>/{title,description,submitLabel,requiredText,emptyText} for each prop written; column/<part>/<field>/label; column/<part>/<field>/value/<value> for each named enum value; field/<operation>/<field>/label for every form-bound field, plus /hint if its schema description separates a label and hint with the contract’s fullwidth comma (，). URL-encode each id or value in a path. Keep all original machine values, field names and operations. In words only, convert {{nested.field}} to {nested_field}; keep the same parameters in every language. Preserve any variant that the user did not ask to change. To assert a visible label, use {action:"expectWord",componentId,word:"title"} (or description, submitLabel, emptyText, requiredText); use expect/text only for exact record or business output.',
 });
 
 export function freezeStudioUi(design: AgentDesign, supplied: unknown, languages: StudioDesignLanguages, existing?: PluginLocalesDeclaration): AgentDesign {
@@ -114,9 +111,22 @@ export function validateFrozenStudioWords(design: AgentDesign): void {
   const problems = inspectLocaleSet(packs, { default: declared.default });
   if (problems.length) throw new Error(problems.map(problem => `${problem.file} ${problem.key ?? ''}: ${problem.reason}`).join('\n'));
   const fallback = packs.find(pack => pack.locale === declared.default)!;
-  const name = fallback.messages[pluginTextSlotKey(design.contract.pluginId, pluginTextSlot('plugin', 'name'))];
-  if (typeof name !== 'string' || name !== design.title || pluginMessageNames(name).length > 0)
-    throw new Error('The frozen Studio name must match the default language file.');
-  for (const ref of sandboxUiTextRefs(design.contract, design.parts)) if (typeof ref !== 'string' && 'key' in ref && ref.key && !ref.key.startsWith('common.') && !Object.hasOwn(fallback.messages, ref.key))
-    throw new Error(`The frozen Studio default pack is missing ${ref.key}.`);
+  const used = new Set<string>(), nameSlot = pluginTextSlot('plugin', 'name');
+  for (const slot of studioSlots(design)) {
+    const { ref } = slot, key = pluginTextSlotKey(design.contract.pluginId, slot.name);
+    if (slot.name !== nameSlot && typeof ref !== 'string' && 'literal' in ref) continue;
+    if (used.has(key) || slot.name !== nameSlot && (typeof ref === 'string' || !('key' in ref) || ref.key !== key || Object.keys(ref).length !== 1))
+      throw new Error(`The frozen Studio key does not match its UI slot: ${slot.name}.`);
+    used.add(key);
+    const message = fallback.messages[key];
+    if (typeof message !== 'string' || packs.some(pack => typeof pack.messages[key] !== 'string'))
+      throw new Error(`The frozen Studio files are missing text for ${slot.name}.`);
+    const names = pluginMessageNames(message);
+    if (slot.name === nameSlot && (message !== design.title || names.length))
+      throw new Error('The frozen Studio name must match the default language file.');
+    if (names.length && (!slot.schema || pluginTemplateBindings(slot.schema, names).size !== names.length))
+      throw new Error(`The frozen Studio UI slot ${slot.name} has unbound parameters.`);
+  }
+  if (packs.some(pack => Object.keys(pack.messages).some(key => !used.has(key))))
+    throw new Error('The frozen Studio files contain words outside this design.');
 }

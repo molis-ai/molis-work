@@ -43,7 +43,7 @@ export function pcRelations(c: State & Kit) {
 }
 
 export function pcRecords(c: State & Kit & Rel) {
-  const { make, raw, word, text, statusWord, exactly, shown, prose, at, TONES, MOMENT, DAY, moment, badge, pluginSchemaOf } = c;
+  const { make, words: wordElement, raw, word, text, statusWord, exactly, shown, prose, at, TONES, MOMENT, DAY, moment, badge, pluginSchemaOf } = c;
   /** A record's fields, classed by how they read: a status as a badge, a moment as a time, a number as a figure. */
   function describeField(node: PluginComponentNode, column: Column, raw: unknown) {
     const items = pluginSchemaOf(node.read?.operationId, node.read?.outputPath), spec = (items?.type === 'array' ? items.items : undefined)?.properties?.[column.field];
@@ -59,9 +59,17 @@ export function pcRecords(c: State & Kit & Rel) {
   /** One value inside a record: the field's name stays readable to assistive technology even where only a badge shows. */
   function fieldValue(node: PluginComponentNode, column: Column, rawValue: unknown, labelled: boolean): HTMLElement {
     const described = describeField(node, column, rawValue), value = shown(column, rawValue);
-    if (described.kind === 'tag') { const tag = badge('', described.tone); tag.textContent = ''; if (labelled) tag.append(make('span', word(column.label), 'pc-sr'), ' '); tag.append(column.values && Object.hasOwn(column.values, text(rawValue)) || statusWord(column.field, rawValue) || typeof rawValue === 'boolean' ? text(value) : raw('span', text(value))); if (statusWord(column.field, rawValue)) tag.append(exactly(rawValue)); return tag; }
+    if (described.kind === 'tag') {
+      const tag = badge('', described.tone), key = text(rawValue);
+      if (labelled) tag.append(wordElement('span', () => word(column.label), 'pc-sr'), ' ');
+      tag.append(column.values && Object.hasOwn(column.values, key)
+        ? wordElement('span', () => word(column.values?.[key]))
+        : statusWord(column.field, rawValue) || typeof rawValue === 'boolean' ? text(value) : raw('span', text(value)));
+      if (statusWord(column.field, rawValue)) tag.append(exactly(rawValue));
+      return tag;
+    }
     const item = make('span', undefined, described.kind === 'long' ? 'pc-record-note' : 'pc-meta-item');
-    if (labelled) item.append(make('span', word(column.label), 'pc-meta-label'), ' ');
+    if (labelled) item.append(wordElement('span', () => word(column.label), 'pc-meta-label'), ' ');
     if (described.kind === 'time') item.append(moment(rawValue as string));
     else if (described.kind === 'number') item.append(make('span', t.text("common.generated.formatted", { value: numberArg(rawValue as number) }), 'pc-meta-number'));
     else item.append(described.kind === 'long' ? prose('span', value) : raw('span', text(value)));
@@ -119,7 +127,7 @@ export function pcRecords(c: State & Kit & Rel) {
     }
     if (node.props.hintLevelField) { const level = text(at(row, node.props.hintLevelField)); if (level) meta.append(make('span', t.text("common.generated.hint-level", { level }), 'pc-meta-item')); }
     const figure = lead ? make('span', undefined, 'pc-record-figure') : undefined;
-    if (lead && figure) figure.append(make('span', word(lead.label), 'pc-sr'), ' ', raw('span', text(shown(lead, at(row, lead.field)))));
+    if (lead && figure) figure.append(wordElement('span', () => word(lead.label), 'pc-sr'), ' ', raw('span', text(shown(lead, at(row, lead.field)))));
     return { title, body, notes, meta: meta.childNodes.length ? meta : undefined, fallback, figure };
   }
   return { describeField, fieldValue, exportRows, recordColumns, dayField, dayOf, recordBody };

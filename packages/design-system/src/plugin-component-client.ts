@@ -33,10 +33,19 @@ export function createPluginComponentClient(options: PluginComponentClientOption
     const owner = state.view!.contract.pluginId;
     return authored && typeof ref !== 'string' ? authored.text(ownedTextRef(ref, owner), args ? { extra: textArgs(args) } : undefined) : pluginSurfaceWord(owner, ref, args);
   };
+  const selectAuthoringWords = (view?: PluginComponentView) => {
+    const fallback = view?.contract.ui?.locales.default, packs = view?.authoringWords;
+    const shown = document.documentElement.dataset.uiLanguageTag;
+    authored = fallback && packs ? createTextReader({
+      locale: packs.some(pack => pack.locale === shown) ? shown! : fallback,
+      packs: [...packs.filter(pack => pack.locale === fallback), ...packs.filter(pack => pack.locale !== fallback)],
+    }) : undefined;
+  };
   const update = (view: PluginComponentView) => {
-    const locale = view.contract.ui?.locales.default, packs = view.authoringWords;
-    authored = locale && packs ? createTextReader({ locale, packs: [...packs.filter(pack => pack.locale === locale), ...packs.filter(pack => pack.locale !== locale)] }) : undefined;
-    return life.update(view);
+    selectAuthoringWords(view);
+    const updated = life.update(view);
+    if (authored) kit.refreshWords(root);
+    return updated;
   };
   const kit = pcKit(word), { make } = kit;
   const root = options.root; root.classList.add('pc-view');
@@ -46,14 +55,16 @@ export function createPluginComponentClient(options: PluginComponentClientOption
   // Each layer is a function of the state plus what the layers before it added.
   const c1 = Object.assign(state, kit, { word }), c2 = Object.assign(c1, pcRelations(c1)), c3 = Object.assign(c2, pcRecords(c2), pcDetail(c2), pcControls(c2));
   const c4 = Object.assign(c3, pcOutput(c3)), c5 = Object.assign(c4, pcQuery(c4)), c6 = Object.assign(c5, pcSubmit(c5)), c7 = Object.assign(c6, pcPart(c6));
-  const life = pcLifecycle(c7), localeChanged = () => kit.refreshWords(root);
+  const life = pcLifecycle(c7), localeChanged = () => {
+    selectAuthoringWords(state.view); kit.refreshWords(root);
+  };
   document.addEventListener("molis-work:language-changed", localeChanged);
   return { update, refresh: c7.refresh, destroy() {
     document.removeEventListener("molis-work:language-changed", localeChanged); life.destroy();
   } };
 }
 function pcLifecycle(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry & Sub & Prt) {
-  const { root, tabs, tabList, composition, selectionVersions, parts, pages, regions, details, make, word, headingOf, detailEnabled, ready, rowHost, rowLabel, signature, selectPage, showDetail, syncChoices, query, refresh, createPart } = c;
+  const { root, tabs, tabList, composition, selectionVersions, parts, pages, regions, details, make, words, word, bindWord, headingOf, detailEnabled, ready, rowHost, rowLabel, signature, selectPage, showDetail, syncChoices, query, refresh, createPart } = c;
   async function update(next: PluginComponentView) {
     if (c.disposed) return;
     const refreshNeeded = !c.view || JSON.stringify([c.view.contract.revision, c.view.nodes, c.view.connected]) !== JSON.stringify([next.contract.revision, next.nodes, next.connected]);
@@ -67,10 +78,11 @@ function pcLifecycle(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry & Sub & 
     for (const page of next.contract.pages) {
       pageIds.add(page.id); let element = pages.get(page.id);
       if (!element) { element = make('div', undefined, 'pc-page'); element.dataset.page = page.id; pages.set(page.id, element); root.append(element); }
-      const tab = make('button', word(page.title), 'mw-tabs__tab'); tab.type = 'button'; tab.dataset.page = page.id; tab.setAttribute('role', 'tab'); tab.addEventListener('click', () => { selectPage(page.id); void refresh(); }); tabList.append(tab);
+      const tab = words('button', () => word(page.title), 'mw-tabs__tab'); tab.type = 'button'; tab.dataset.page = page.id; tab.setAttribute('role', 'tab'); tab.addEventListener('click', () => { selectPage(page.id); void refresh(); }); tabList.append(tab);
       for (const region of page.regions) {
         const key = page.id + '/' + region.id; regionIds.add(key); let section = regions.get(key);
-        if (!section) { section = make('section', undefined, 'pc-region'); section.setAttribute('aria-label', word(region.title)); regions.set(key, section); element.append(section); }
+        if (!section) { section = make('section', undefined, 'pc-region'); regions.set(key, section); element.append(section); }
+        bindWord(section, 'aria-label', () => word(region.title));
         let previousPart: HTMLElement | undefined;
         for (const node of next.nodes.filter(item => item.pageId === page.id && item.regionId === region.id)) {
           partIds.add(node.id); let part = parts.get(node.id);

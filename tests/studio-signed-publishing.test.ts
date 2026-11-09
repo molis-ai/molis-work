@@ -72,6 +72,20 @@ test('FSS-20 FSS-74 Studio freezes only complete, bound locale files and preserv
   assert.equal(JSON.parse(raw).format, 1);
   assert.throws(() => h.workflow.store.update(current.id, current.revision, value => { delete value.history[0]!.design!.localePacks; }), { code: 'plugin_builder.store_invalid' });
   assert.equal(h.storage.get(key), raw, 'rejected history cannot reach CAS');
+  const invalidWords = (candidate: AgentBuild, history: boolean) => {
+    const design = (history ? candidate.history[0]!.design : candidate.design)!;
+    const ref = design.parts.find(part => part.id === 'title')!.props.title!;
+    assert.ok(typeof ref !== 'string' && 'key' in ref);
+    for (const pack of design.localePacks!) Object.assign(pack.messages, { [ref.key]: 'Same unbound {missing}' });
+  };
+  assert.throws(() => h.workflow.store.update(current.id, current.revision, candidate => invalidWords(candidate, false)), { code: 'plugin_builder.store_invalid' });
+  assert.throws(() => h.workflow.store.update(current.id, current.revision, candidate => invalidWords(candidate, true)), { code: 'plugin_builder.store_invalid' });
+  assert.throws(() => h.workflow.store.update(current.id, current.revision, candidate => {
+    const [heading, , editor] = candidate.design!.parts;
+    const label = editor!.props.submitLabel!;
+    heading!.props.title = label;
+  }), { code: 'plugin_builder.store_invalid' });
+  assert.equal(h.storage.get(key), raw, 'every refusal retains the original current design and history');
 });
 
 test('FSS-38 FSS-74 Studio downloads the complete original signing payload and rejects mismatched synchronized words', async t => {
@@ -92,6 +106,15 @@ test('FSS-38 FSS-74 Studio downloads the complete original signing payload and r
   const missing = structuredClone(portable);
   delete missing.builds[0]!.design!.localePacks;
   assert.throws(() => owner.validate(missing, 'author', h.build.id), { code: 'plugin_builder.sync_invalid' });
+  const unbound = structuredClone(portable);
+  const unboundTitle = unbound.builds[0]!.design!.parts.find(part => part.id === 'title')!.props.title!;
+  assert.ok(typeof unboundTitle !== 'string' && 'key' in unboundTitle);
+  for (const pack of unbound.builds[0]!.design!.localePacks!) Object.assign(pack.messages, { [unboundTitle.key]: 'Same unbound {missing}' });
+  assert.throws(() => owner.validate(unbound, 'author', h.build.id), { code: 'plugin_builder.sync_invalid' });
+  const swapped = structuredClone(portable);
+  const [heading, , editor] = swapped.builds[0]!.design!.parts;
+  heading!.props.title = editor!.props.submitLabel;
+  assert.throws(() => owner.validate(swapped, 'author', h.build.id), { code: 'plugin_builder.sync_invalid' });
   const wrong = structuredClone(portable);
   const en = wrong.releases[0]!.design.localePacks!.find(pack => pack.locale === 'en')!;
   const label = wrong.releases[0]!.design.parts.find(part => part.id === 'title')!.props.title!;

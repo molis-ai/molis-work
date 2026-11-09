@@ -109,6 +109,9 @@ ${TAB_WORKSPACE_DRAG_PART}
   const noteGone = (plugin, itemId) => {
     if (typeof plugin !== "string" || typeof itemId !== "string" || goneRecords.has(goneKey(plugin, itemId))) return;
     goneRecords.add(goneKey(plugin, itemId)); apply();
+    // A main tab moved to the right side is drawn by the side's own strip: its draw runs off the side's state too, not off this
+    // workspace's apply(), so mark that tab there as well (07-AUDIT: a pane page reports the record it shows is gone).
+    sidePane?.restore();
   };
   document.addEventListener("molis-work:record-gone", (event) => {
     const { plugin, itemId } = event.detail || {};

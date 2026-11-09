@@ -413,11 +413,15 @@ export class PluginRuntime implements PluginRuntimeApi {
     }
     const definition = requireDefinition(this.definitions, current);
     assertStartable(definition.manifest, current.grants, this.options.declarationOwners);
+    let startedContext: PluginStartContext | null = null;
     try {
       assertStartIdentity(current, definition, this.repository.list(), this.options.hostIds, this.options.scope, this.options.inProcess);
       if (current.state === "running" && this.hasLiveInstance(installId)) return this.receipt("start", current, true);
       const handle = declaresOnly(definition.manifest) ? undefined : await outsidePluginAction(() => this.executor.start(definition, this.activateContext(current, definition)));
-      if (handle) await this.redeem(definition, current, handle.contribution);
+      if (handle) {
+        await this.redeem(definition, current, handle.contribution);
+        startedContext = this.liveContext(installId);
+      }
       assertCurrent?.();
       const updated = {
         ...current,
@@ -432,7 +436,13 @@ export class PluginRuntime implements PluginRuntimeApi {
       // A stop revokes the context first and waits for the lock: a start it interrupted is cancelled, not crashed.
       const cancelled = !isIdentityFailure(error) && this.contexts.get(installId)?.revoked() === true;
       this.revokeContext(installId);
-      assertCurrent?.();
+      try { assertCurrent?.(); } catch (interrupted) {
+        // Redemption failures already stop their instance. A later cancellation must release the successful one
+        // before an upgrade can restore the old version under the same install id, without recording a crash.
+        try { if (startedContext) await outsidePluginAction(() => this.executor.stop(definition, startedContext!)); }
+        catch { /* Cleanup cannot replace the original cancellation. */ }
+        throw interrupted;
+      }
       if (cancelled) throw pluginErrors.state_invalid("启动被停用打断，没有记为崩溃");
       const updated = {
         ...current,

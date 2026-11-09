@@ -1,9 +1,11 @@
 import type { SandboxJson, SandboxPluginContract, SandboxSchema } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import type { TextRef, UiComponentIntent, UiComponentSpec } from '@molis-ai/molis-work-contracts/platform/ui';
+import { BASELINE_SPEC } from './baseline.js';
 import { PLUGIN_PRESENTATION_STYLES } from './plugin-presentation-client.js';
 
 /** A part's component: a UI catalog id (see PLUGIN_COMPONENTS), or a kind from before parts came from the catalog. */
 export type PluginComponentKind = string;
-export type PluginComponentIntent = 'heading' | 'description' | 'input' | 'action' | 'collection' | 'reading' | 'conversation' | 'evidence' | 'schedule' | 'feedback';
+export type PluginComponentIntent = UiComponentIntent;
 export const PLUGIN_COMPONENT_PROP_KEYS = ['title', 'description', 'submitLabel', 'requiredText', 'emptyText', 'idField', 'titleField', 'textField', 'roleField', 'hintLevelField', 'citationsField', 'columns'] as const;
 export type PluginInputValue = { source: 'literal'; value: SandboxJson }
   | { source: 'form'; field: string; prefill?: { componentId: string; field: string } }
@@ -36,85 +38,21 @@ export interface PluginComponentPlan {
   submit?: PluginOperationBinding;
 }
 export interface PluginComponentNode extends PluginComponentPlan { kind: PluginComponentKind }
-/** The UI catalog's groups, as the spec board shows them. */
-export type PluginCatalogGroup = '版面' | '展示' | '录入' | '操作' | '浮层' | '反馈';
-/**
- * One component of the UI catalog (`/__ui/catalog`, the product's own `mw-*` primitives). The spec board offers exactly
- * these. `use` says how a generated plugin uses it: chosen for a part (by Jev, a rule or the person), used by the renderer
- * inside parts (a field's control, a filter, a status tag), or in the catalog but not yet used by generated plugins.
- */
-export interface PluginComponentMetadata {
-  kind: string;
-  catalog: string;
-  name: string;
-  group: PluginCatalogGroup;
-  description: string;
-  use: 'part' | 'inside' | 'catalog';
-  /** For parts: the intents it can express, and whether it needs a list to show. */
-  intents: PluginComponentIntent[];
-  data: 'none' | 'value' | 'array';
-  icon: string;
+/** One catalog entry in the form consumed by the Builder and the standard board. */
+export type PluginComponentMetadata = Omit<UiComponentSpec, "name" | "description"> & {
+  readonly name: string;
+  readonly description: string;
+};
+export type PluginCatalogGroup = UiComponentSpec["group"];
+
+function sourceText(ref: TextRef): string {
+  if ("literal" in ref) return ref.literal;
+  throw new Error("组件板的名称和说明须有中文原文。");
 }
-const c = (kind: string, catalog: string, name: string, group: PluginCatalogGroup, icon: string, use: PluginComponentMetadata['use'], description: string, intents: PluginComponentIntent[] = [], data: PluginComponentMetadata['data'] = 'none'): PluginComponentMetadata =>
-  ({ kind, catalog, name, group, description, use, intents, data, icon });
-export const PLUGIN_COMPONENTS: readonly PluginComponentMetadata[] = [
-  c('frame', 'Frame', '页框', '版面', 'frame', 'part', '插件页面的标题区：名称、一句说明，新建入口放在右侧', ['heading']),
-  c('card', 'Card', '卡片', '版面', 'grid', 'part', '一张或一组卡片：数字卡片、卡片网格、一段结果', ['description', 'collection', 'reading', 'conversation'], 'value'),
-  c('tabs', 'Tabs', '标签页', '版面', 'columns', 'inside', '多个页面之间切换'),
-  c('accordion', 'Accordion', '折叠列表', '版面', 'rows', 'part', '一条一行，点开看详情；适合较长的内容', ['collection', 'reading', 'evidence'], 'array'),
-  c('collapsible', 'Collapsible', '折叠段', '版面', 'chevron-down', 'catalog', '收起一段次要内容'),
-  c('group', 'Group', '按钮组', '版面', 'grip', 'catalog', '成组的图标按钮'),
-  c('scroll-area', 'Scroll Area', '滚动区', '版面', 'panel', 'catalog', '固定高度内滚动'),
-  c('separator', 'Separator', '分隔线', '版面', 'minus', 'catalog', '分开两段内容'),
-  c('sidebar', 'Sidebar', '侧栏', '版面', 'sidebar', 'catalog', '侧边导航栏'),
-  c('directory', 'Directory', '条目列表', '展示', 'list', 'part', '一行一条记录：标题、说明、状态，操作在行尾', ['collection', 'schedule', 'conversation'], 'array'),
-  c('table', 'Table', '表格', '展示', 'columns', 'part', '多个字段并排比较', ['collection', 'evidence', 'schedule'], 'array'),
-  c('calendar', 'Calendar', '日历', '展示', 'calendar', 'part', '按日期排开带日期的记录', ['schedule', 'collection'], 'array'),
-  c('badge', 'Badge', '徽标', '展示', 'tag', 'part', '状态标签；也可单独显示一个短值', ['description'], 'value'),
-  c('meter', 'Meter', '量表', '展示', 'activity', 'catalog', '带上限的数值'),
-  c('progress', 'Progress', '进度条', '展示', 'activity', 'inside', '分类合计等占比的条形'),
-  c('avatar', 'Avatar', '头像', '展示', 'user', 'catalog', '人的首字头像'),
-  c('kbd', 'Kbd', '按键', '展示', 'key', 'catalog', '快捷键提示'),
-  c('form', 'Form', '表单', '录入', 'edit', 'part', '在页面上直接填写并提交；一个短字段时是一行快速添加', ['input']),
-  c('field', 'Field', '字段', '录入', 'input', 'inside', '一个带名称和提示的填写项'),
-  c('input', 'Input', '输入框', '录入', 'input', 'inside', '一行文字、链接'),
-  c('input-group', 'Input Group', '带图标的输入', '录入', 'search', 'inside', '搜索框'),
-  c('textarea', 'Textarea', '多行输入', '录入', 'text', 'inside', '一段较长的文字'),
-  c('number-field', 'Number Field', '数字输入', '录入', 'hash', 'catalog', '金额、数量'),
-  c('select', 'Select', '下拉选择', '录入', 'chevron-down', 'inside', '取值较多时选一个'),
-  c('toggle-group', 'Toggle Group', '选项组', '录入', 'tune', 'inside', '少量取值时并排选一个；筛选栏'),
-  c('checkbox', 'Checkbox', '复选框', '录入', 'check', 'inside', '是或否'),
-  c('date-picker', 'Date Picker', '日期选择', '录入', 'calendar', 'catalog', '日期、月份、时间'),
-  c('checkbox-group', 'Checkbox Group', '多选组', '录入', 'list-ordered', 'catalog', '从几项里选多个'),
-  c('radio-group', 'Radio Group', '单选组', '录入', 'circle', 'catalog', '从几项里选一个（竖排）'),
-  c('switch', 'Switch', '开关', '录入', 'switch', 'catalog', '打开或关闭一项设置'),
-  c('slider', 'Slider', '滑块', '录入', 'tune', 'catalog', '在范围内拖动取值'),
-  c('combobox', 'Combobox', '组合框', '录入', 'search', 'catalog', '可输入可选择'),
-  c('autocomplete', 'Autocomplete', '自动补全', '录入', 'sparkles', 'catalog', '输入时给出建议'),
-  c('otp-field', 'OTP Field', '验证码', '录入', 'lock', 'catalog', '逐位输入的验证码'),
-  c('fieldset', 'Fieldset', '字段组', '录入', 'frame', 'catalog', '把几个字段归成一组'),
-  c('label', 'Label', '标签文字', '录入', 'text', 'catalog', '字段名称'),
-  c('toggle', 'Toggle', '切换按钮', '录入', 'switch', 'catalog', '按下与弹起两态'),
-  c('button', 'Button', '按钮', '操作', 'zap', 'part', '执行一项操作；针对记录的操作放在每条记录上', ['action']),
-  c('toolbar', 'Toolbar', '工具栏', '操作', 'tune', 'inside', '列表上方的筛选、条数与导出'),
-  c('menu', 'Menu', '菜单', '操作', 'more', 'catalog', '下拉选择展开的选项'),
-  c('context-menu', 'Context Menu', '右键菜单', '操作', 'more', 'catalog', '右键出现的操作'),
-  c('command', 'Command', '命令面板', '操作', 'terminal', 'catalog', '搜索并执行命令'),
-  c('pagination', 'Pagination', '分页', '操作', 'chevron-right', 'catalog', '长列表分页'),
-  c('breadcrumb', 'Breadcrumb', '路径', '操作', 'chevron-right', 'catalog', '层级返回路径'),
-  c('sheet', 'Sheet', '侧边面板', '浮层', 'panel', 'part', '点新建按钮，在右侧面板里填写；字段较多时用', ['input']),
-  c('dialog', 'Dialog', '对话框', '浮层', 'maximize', 'part', '点按钮，在居中对话框里填写', ['input']),
-  c('alert-dialog', 'Alert Dialog', '确认对话框', '浮层', 'circle-alert', 'part', '删除等不可撤销的操作，先确认再执行', ['action']),
-  c('drawer', 'Drawer', '抽屉', '浮层', 'panel', 'catalog', '从边缘滑出的面板'),
-  c('popover', 'Popover', '弹出层', '浮层', 'message', 'catalog', '贴着按钮的小浮层'),
-  c('tooltip', 'Tooltip', '提示气泡', '浮层', 'info', 'catalog', '悬停出现的说明'),
-  c('preview-card', 'Preview Card', '预览卡', '浮层', 'eye', 'catalog', '悬停预览'),
-  c('alert', 'Alert', '提示条', '反馈', 'alert', 'part', '一段结果或需要注意的状态', ['feedback', 'description'], 'value'),
-  c('toast', 'Toast', '轻提示', '反馈', 'bell', 'catalog', '操作完成后的短提示'),
-  c('empty', 'Empty', '空状态', '反馈', 'inbox', 'inside', '还没有记录时的说明'),
-  c('skeleton', 'Skeleton', '骨架', '反馈', 'rows', 'inside', '内容加载前的占位'),
-  c('spinner', 'Spinner', '加载中', '反馈', 'refresh', 'inside', '按钮在等待结果'),
-];
+
+export const PLUGIN_COMPONENTS: readonly PluginComponentMetadata[] = BASELINE_SPEC.components.map(({ name, description, ...row }) => ({
+  ...row, name: sourceText(name), description: sourceText(description),
+}));
 /**
  * English for the catalog's component names and descriptions, which the studio's spec board shows (the Chinese text is the
  * key; the studio looks each one up through its translator). A name that other owners already translate (卡片, 分隔线, 日历,
@@ -130,6 +68,7 @@ export const PLUGIN_COMPONENTS_EN: Readonly<Record<string, string>> = {
   "切换按钮": "Toggle button", "按钮": "Button", "工具栏": "Toolbar", "菜单": "Menu", "右键菜单": "Context menu", "命令面板": "Command palette", "分页": "Pagination",
   "侧边面板": "Side sheet", "对话框": "Dialog", "确认对话框": "Confirm dialog", "抽屉": "Drawer", "弹出层": "Popover", "提示气泡": "Tooltip", "预览卡": "Preview card",
   "提示条": "Alert", "轻提示": "Toast", "空状态": "Empty state", "骨架": "Skeleton", "加载中": "Loading spinner",
+  "外观卡": "Look card", "样张卡": "Look specimen", "外观淡入": "Look fade",
   "插件页面的标题区：名称、一句说明，新建入口放在右侧": "The title area of a plugin page: its name and a one-line description, with the create button on the right",
   "一张或一组卡片：数字卡片、卡片网格、一段结果": "One card or a set of cards: number cards, a card grid, a block of results",
   "多个页面之间切换": "Switch between several pages",
@@ -147,6 +86,8 @@ export const PLUGIN_COMPONENTS_EN: Readonly<Record<string, string>> = {
   "分类合计等占比的条形": "A bar for shares such as category totals",
   "人的首字头像": "An avatar showing a person's first character",
   "快捷键提示": "A keyboard shortcut hint",
+  "皮肤的预览、名称、推荐字体与状态": "A skin's preview, name, recommended font and status",
+  "在局部样张里试用皮肤和字体": "Try a skin and font in a specimen",
   "在页面上直接填写并提交；一个短字段时是一行快速添加": "Fill in and submit right on the page; with one short field it is a one-line quick add",
   "一个带名称和提示的填写项": "One entry with a name and a hint",
   "一行文字、链接": "A line of text or a link",
@@ -183,6 +124,7 @@ export const PLUGIN_COMPONENTS_EN: Readonly<Record<string, string>> = {
   "悬停预览": "A preview on hover",
   "一段结果或需要注意的状态": "A result or a state that needs attention",
   "操作完成后的短提示": "A short message after an action finishes",
+  "应用、撤销或恢复外观时的过渡": "The transition when applying, undoing or restoring a look",
   "还没有记录时的说明": "What to show when there are no records yet",
   "内容加载前的占位": "A placeholder before content loads",
   "按钮在等待结果": "A button waiting for its result",
@@ -195,6 +137,14 @@ const PREFERENCE: Record<PluginComponentIntent, string[]> = {
   collection: ['directory', 'card', 'table', 'accordion', 'calendar'], reading: ['accordion', 'card'], conversation: ['directory', 'card'],
   evidence: ['table', 'accordion'], schedule: ['calendar', 'table', 'directory'], feedback: ['alert'],
 };
+const componentsByKind = new Map(PLUGIN_COMPONENTS.map(component => [component.kind, component]));
+const implementedParts = new Set(Object.values(PREFERENCE).flat());
+for (const component of PLUGIN_COMPONENTS) {
+  if ((component.use === 'part') !== implementedParts.has(component.kind)) throw new Error('组件装配登记与实际实现不符：' + component.kind);
+}
+for (const kind of implementedParts) {
+  if (!componentsByKind.has(kind)) throw new Error('实际装配的组件未登记：' + kind);
+}
 const IDENTIFIER = /^[a-z][a-z0-9_.-]{0,99}$/;
 const FIELD = /^[a-zA-Z_][a-zA-Z0-9_.-]{0,99}$/;
 const forbidden = new Set(['__proto__', 'prototype', 'constructor']);
@@ -286,7 +236,8 @@ export function pluginComponentChoices(part: PluginComponentPlan, contract: Sand
   // A calendar needs records that carry a date; a confirmation fits an action that cannot be undone.
   const dated = items?.type === 'object' && Object.entries(items.properties ?? {}).some(([name, spec]) => spec.type === 'string' && (spec.format === 'date' || spec.format === 'date-time' || /date|day|日期/i.test(name)));
   const destructive = /删除|移除|清空|撤销|丢弃/u.test((part.props.submitLabel ?? '') + (part.props.title ?? '') + part.purpose);
-  return PREFERENCE[part.intent].map(kind => PLUGIN_COMPONENTS.find(item => item.kind === kind)!).filter(item => {
+  return PREFERENCE[part.intent].map(kind => componentsByKind.get(kind)!).filter(item => {
+    if (!item.intents.includes(part.intent)) return false;
     if (item.data === 'array' && output?.type !== 'array') return false;
     if (item.kind === 'calendar' && !dated) return false;
     if (item.kind === 'alert-dialog' && !destructive) return false;

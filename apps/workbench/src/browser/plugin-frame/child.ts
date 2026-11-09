@@ -26,6 +26,7 @@ import { childNativeFiles } from "./native-files.js";
 import { pageEventSource } from "./events.js";
 import { createFrameFetch } from "./fetch.js";
 import { childContext } from "./context-child.js";
+import { frameAppearance } from "./appearance.js";
 import type { FrameConfig, FrameDown, FrameUp, Translate } from "./types.js";
 
 function bindStorage(port: MessagePort, config: FrameConfig): void {
@@ -66,6 +67,7 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
   const route = (path: string) => config.routePrefix + path;
   const ui = globalThis.molisFrameUi(L), scope = ui.mountPluginClient(document.body);
   if (!scope) throw new Error("Cannot mount plugin document");
+  const updateAppearance = frameAppearance(config.origin, config.appearance, scope, L);
   childIntake(port, scope);
   childContext(port, scope, root); ui.surfaceFocus({ translate: L, surfaceOnly: true });
   globalThis.EventSource = pageEventSource(scope, config.origin);
@@ -114,7 +116,9 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
       const prior = document.documentElement.dataset.resolvedTerminalTheme;
       document.body.hidden = !message.visible; Object.assign(document.documentElement.dataset, message.theme);
       if (prior !== document.documentElement.dataset.resolvedTerminalTheme) dispatchEvent(new CustomEvent("molis-work:terminal-theme-change"));
+      if (!message.visible) updateAppearance(undefined);
     }
+    else if (message.type === "environment") updateAppearance({ snapshot: message.snapshot, stylesheet: message.skin_href });
     else if (message.type === "focus") scope.frame(() => { if (scope.visible) dispatchEvent(new Event("focus")); });
     else if (message.type === "select") { itemTab = message.itemTab; select(message.detail); }
     else if (message.type === "collapse") collapsePage(root);

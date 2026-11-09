@@ -1,24 +1,32 @@
 import { isDeepStrictEqual } from "node:util";
 import { ActionError, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { UiAppearanceApplyInput, UiAppearanceReceipt, UiAppearanceSelection, UiAppearanceUndoInput, UiAppearanceView, UiEnvironmentProblem, UiSkinFile } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { UiAppearanceApplyInput, UiAppearanceReceipt, UiAppearanceSelection, UiAppearanceUndoInput, UiAppearanceView, UiEnvironmentProblem } from "@molis-ai/molis-work-contracts/platform/ui";
 import { BASELINE_SPEC } from "@molis-ai/molis-work-design-system";
 import { resolveUiEnvironment, type UiEnvironmentInput } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { atomicWriteFileSync } from "@molis-ai/molis-work-storage";
-import { builtinAppearance } from "./builtins.js";
+import { builtinAppearance, type ResolvedAppearance } from "./builtins.js";
 import { appearanceErrors } from "./errors.js";
 import { createStateFile, findApplication, type AppearanceState } from "./state.js";
 
-type Projection = { readonly selection: UiAppearanceSelection; readonly skin: UiSkinFile; readonly problems: readonly UiEnvironmentProblem[] };
+type Projection = { readonly selection: UiAppearanceSelection; readonly appearance: ResolvedAppearance; readonly problems: readonly UiEnvironmentProblem[] };
+type CurrentProjection = { readonly selection_revision: number | null; readonly projection: Projection };
 type Transition = { receipt: UiAppearanceReceipt; state?: AppearanceState; effect: "applied" | "undone" };
 
 function effective(state: AppearanceState, catalog: ReturnType<typeof builtinAppearance>): Projection {
   const chosen = catalog.resolve(state.selection);
-  if (chosen.skin && chosen.problems.length === 0) return { selection: state.selection, skin: chosen.skin, problems: catalog.problems };
+  if (chosen.appearance) return { selection: state.selection, appearance: chosen.appearance, problems: catalog.problems };
   const problems = [...catalog.problems, ...chosen.problems];
   const previous = catalog.resolve(state.last_recoverable);
-  return previous.skin && previous.problems.length === 0
-    ? { selection: state.last_recoverable, skin: previous.skin, problems }
-    : { selection: catalog.baselineSelection, skin: catalog.baselineSkin, problems };
+  return previous.appearance
+    ? { selection: state.last_recoverable, appearance: previous.appearance, problems }
+    : { selection: catalog.baselineSelection, appearance: catalog.baseline, problems };
+}
+
+function display({ selection, appearance: { definition, skin, font, mono }, problems }: Projection, locale: UiEnvironmentInput["locale"]) {
+  const snapshot = resolveUiEnvironment({ spec: BASELINE_SPEC, skin: definition, locale, problems,
+    ...(selection.font.policy === "pinned" ? { font: font.ref } : {}),
+    ...(selection.mono ? { mono: mono.ref } : {}) });
+  return { snapshot, skin, font, mono } as const;
 }
 
 function nextRevision(state: AppearanceState, expected: number): number {
@@ -34,6 +42,7 @@ function requireAvailable(catalog: ReturnType<typeof builtinAppearance>, selecti
 
 export function createSelection(home: string, assertOpen: () => void, changed: (revision: number) => void) {
   let stateFile: ReturnType<typeof createStateFile> | undefined;
+  let cached: CurrentProjection | undefined;
   const file = () => stateFile ??= createStateFile(home, builtinAppearance().baselineSelection);
 
   function read() {
@@ -44,8 +53,20 @@ export function createSelection(home: string, assertOpen: () => void, changed: (
       return { state, projection: effective(state, catalog) };
     }
     const reason = seen.status === "unreadable" ? undefined : String(seen.found);
-    return { state: null, projection: { selection: catalog.baselineSelection, skin: catalog.baselineSkin,
+    return { state: null, projection: { selection: catalog.baselineSelection, appearance: catalog.baseline,
       problems: [...catalog.problems, { code: `appearance.state_${seen.status}`, subject: "interface/state.json", ...(reason ? { detail: reason } : {}) }] } };
+  }
+
+  function refresh() {
+    const { state, projection } = read();
+    cached = { selection_revision: state?.selection_revision ?? null, projection };
+    return { state, ...cached };
+  }
+
+  function current(locale: UiEnvironmentInput["locale"]) {
+    assertOpen();
+    const { selection_revision, projection } = cached ?? refresh();
+    return { selection_revision, selection: projection.selection, ...display(projection, locale) } as const;
   }
 
   async function commit(caller: ActionExecutionContext, update: (state: AppearanceState, catalog: ReturnType<typeof builtinAppearance>) => Transition): Promise<UiAppearanceReceipt> {
@@ -60,6 +81,7 @@ export function createSelection(home: string, assertOpen: () => void, changed: (
     const before = stateFile.read();
     const { receipt, state, effect } = update(stateFile.writable(before), catalog);
     if (!state) return structuredClone(receipt);
+    cached = undefined;
     try { atomicWriteFileSync(stateFile.path, `${JSON.stringify(state, null, 2)}\n`, { mode: 0o600, durable: true }); }
     catch {
       // The error can be after rename. The exact actor, request and effect must have its receipt in the formal file.
@@ -72,26 +94,30 @@ export function createSelection(home: string, assertOpen: () => void, changed: (
         throw new ActionError("actions.outcome_unknown", "无法确认外观是否已保存，请按原请求查询。", { details });
       }
     }
+    cached = { selection_revision: receipt.selection_revision, projection: effective(state, catalog) };
     changed(receipt.selection_revision);
     return structuredClone(receipt);
   }
 
   return {
     get(actor?: string, requestId?: string): UiAppearanceView {
-      const { state, projection } = read();
+      const { state, selection_revision, projection } = refresh();
       const found = state && actor !== undefined && requestId !== undefined ? findApplication(state, actor, requestId) : undefined;
       return structuredClone({
-        selection: state?.selection ?? null, selection_revision: state?.selection_revision ?? null, effective_selection: projection.selection,
+        selection: state?.selection ?? null, selection_revision, effective_selection: projection.selection,
         builtins: builtinAppearance().builtins, problems: projection.problems,
         ...(found ? { recovery: { applied: found.applied, ...(found.undone ? { undone: found.undone } : {}) } } : {}),
       });
     },
 
-    snapshot(locale: UiEnvironmentInput["locale"]) {
-      const { projection: { selection, skin, problems } } = read();
-      return resolveUiEnvironment({ spec: BASELINE_SPEC, skin, locale, problems,
-        ...(selection.font.policy === "pinned" ? { font: selection.font.scheme } : {}),
-        ...(selection.mono ? { mono: selection.mono } : {}) });
+    current,
+    snapshot: (locale: UiEnvironmentInput["locale"]) => current(locale).snapshot,
+
+    preview(selection: UiAppearanceSelection, locale: UiEnvironmentInput["locale"]) {
+      assertOpen();
+      const catalog = builtinAppearance(), { appearance, problems } = catalog.resolve(selection);
+      if (!appearance) throw appearanceErrors.selection_unavailable("这个外观组合已不可用。", { problems });
+      return display({ selection, appearance, problems: catalog.problems }, locale);
     },
 
     apply(input: UiAppearanceApplyInput, caller: ActionExecutionContext): Promise<UiAppearanceReceipt> {

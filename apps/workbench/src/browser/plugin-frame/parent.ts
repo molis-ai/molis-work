@@ -28,6 +28,7 @@ import { pageFilePicker } from "./file-picker.js";
 import { pageWorkspaces } from "./workspaces.js";
 import { pageFrameAssets } from "./frame-assets.js";
 import type { FrameConfig, FrameHost, FramePack, FrameUp } from "./types.js";
+import { frameEnvironment } from "./appearance.js";
 
 function stored(prefix: string): FrameConfig["storage"] {
   const storage: FrameConfig["storage"] = { localStorage: {}, sessionStorage: {} };
@@ -146,21 +147,21 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
     void molisWorkRequest(route("/api/host/plugin-pages/" + encodeURIComponent(grant.page_id)), { method: "DELETE", body: closing ? { closing } : {}, keepalive: true }).catch(() => { /* Host shutdown already revokes the activation. */ });
   });
   let invalidated = false;
-  const visible = () => {
-    if (frame.hidden) return false;
-    for (let node: Element | null = root; node; node = node.ownerDocument.defaultView?.frameElement ?? null)
-      if (!node.checkVisibility({ visibilityProperty: true })) return false;
-    return scope.visible;
-  };
+  const environment = frameEnvironment(port, scope, root, frame);
+  const { visible } = environment;
   // One registry of framed areas a page: the reads area and the connection card share its four places, layer and checks (§13.5).
   const areas = pageFramedAreas(scope, root, frame, visible), owner = host.translate(frame.title);
   const taskGrants = pageTaskGrants(port, scope, areas, grant.page_id, route, host.translate, owner);
   const returns = pageReturns(port, scope, root, pack, grant.storage_scope, visible), connectionNeed = pageConnectionNeed(port, scope, areas, grant.page_id, route, host.translate, owner, returns.connection);
-  const state = () => { if (visible() && invalidated) { invalidated = false; port.postMessage({ type: "select", detail: { invalidate: true }, itemTab: ownItemTab(root, pack) }); } port.postMessage({ type: "state", visible: visible(),
-    theme: Object.fromEntries(["theme", "resolvedTheme", "density", "terminalTheme", "resolvedTerminalTheme"].map(key => [key, document.documentElement.dataset[key] ?? ""])) }); };
-  scope.observe(new MutationObserver(state), document.documentElement, { attributes: true, attributeFilter: ["data-theme", "data-resolved-theme", "data-density", "data-terminal-theme", "data-resolved-terminal-theme"] });
-  scope.observe(new MutationObserver(state), document.body, { subtree: true, attributes: true, attributeFilter: ["data-exclusive"] });
-  scope.observe(new MutationObserver(state), frame, { attributes: true, attributeFilter: ["hidden"] });
+  const state = () => {
+    const shown = visible();
+    if (shown && invalidated) {
+      invalidated = false;
+      port.postMessage({ type: "select", detail: { invalidate: true }, itemTab: ownItemTab(root, pack) });
+    }
+    environment.publishState(shown);
+  };
+  environment.observeState(state);
   scope.whenVisible(() => { state(); navigation.focus(); return state; });
   // Structured surfaces follow the Runtime's existing display revision; each read is cancelled on hiding.
   let revision: string | undefined;
@@ -255,7 +256,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
       else if (message.type === "ready") {
         clearTimeout(deadline);
         if (own) { root.inert = false; root.removeAttribute("aria-busy"); root.dataset.uiClientState = "ready"; }
-        root.removeAttribute("data-deferred-surface"); state(); navigation.focus(); readyResolve();
+        root.removeAttribute("data-deferred-surface"); environment.reset(); state(); navigation.focus(); readyResolve();
       }
       else if (message.type === "failed") fail(new Error(message.message));
       else if (message.type === "ui" && Array.isArray(message.args)) {
@@ -295,12 +296,12 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
     loaded = true;
     const config: FrameConfig = { mount, subjectSurfaces: surfaces, search: location.search, origin: location.origin, pluginId: pack.plugin_id, bundle: pack.bundle, assets: pack.assets, searchRow: pack.searchRow, recordRow: pack.recordRow, itemTab: ownItemTab(root, pack), surface: pack.id,
       stage: { title: getComputedStyle(root).getPropertyValue("--stage-title") || JSON.stringify(host.translate(root.dataset.workSurfaceLabel ?? pack.id)), description: getComputedStyle(root).getPropertyValue("--stage-desc") },
-      nativeFiles: Boolean(nativeFileInvoke()), shortcuts: navigation.shortcuts,
+      nativeFiles: Boolean(nativeFileInvoke()), shortcuts: navigation.shortcuts, appearance: environment.initial,
       projectId: host.projectId?.() ?? "", projectTitle: host.projectTitle?.() ?? "", routePrefix: route(""), side: Boolean(host.side), page: host.page?.() ?? null,
       messages: { ...globalThis.MOLIS_WORK_PLUGIN_WORDS?.[pack.plugin_id], ...globalThis.MOLIS_WORK_MESSAGES }, titles: globalThis.MOLIS_WORK_PLUGIN_TITLES ?? {}, storage };
     frame.contentWindow?.postMessage({ type: "molis:plugin-connect", config }, "*", [channel.port2]);
   };
-  frame.srcdoc = frameDocument(root, pack);
+  frame.srcdoc = frameDocument(root, pack, environment.initial);
   own = root.dataset.uiClientState !== "loading";
   if (own) { root.inert = true; root.setAttribute("aria-busy", "true"); root.dataset.uiClientState = "loading"; }
   frame.hidden = Boolean(root.dataset.previewTab);

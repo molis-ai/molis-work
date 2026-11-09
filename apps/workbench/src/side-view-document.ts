@@ -1,7 +1,7 @@
 import { renderPluginFrameSurface } from "./plugin-frame.js";
 import type { ProjectPluginId } from "@molis-ai/molis-work-contracts/modules/projects";
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host";
-import { COPY_FEEDBACK_CLIENT_SCRIPT, DROP_ZONE_CLIENT_SCRIPT, FIELD_FIT_CLIENT_SCRIPT, FLOATING_DETAILS_CLIENT_SCRIPT, OVERFLOW_FADE_CLIENT_SCRIPT, ROVING_FOCUS_CLIENT_SCRIPT, SCROLL_FOLLOW_CLIENT_SCRIPT, TIP_CLIENT_SCRIPT, renderIconSprite } from "@molis-ai/molis-work-design-system";
+import { COPY_FEEDBACK_CLIENT_SCRIPT, DEVICE_PREFERENCES_CLIENT_SCRIPT, DROP_ZONE_CLIENT_SCRIPT, FIELD_FIT_CLIENT_SCRIPT, FLOATING_DETAILS_CLIENT_SCRIPT, OVERFLOW_FADE_CLIENT_SCRIPT, ROVING_FOCUS_CLIENT_SCRIPT, SCROLL_FOLLOW_CLIENT_SCRIPT, TIP_CLIENT_SCRIPT, renderIconSprite } from "@molis-ai/molis-work-design-system";
 import { CONTROL_CLIENT_SCRIPT as UI_REQUEST_CLIENT_SCRIPT } from "./scripts/control.js";
 import { renderWorkbenchDocument, WORKBENCH_UI_SLOTS } from "./document-shell.js";
 import { pluginSurfaceClients } from "./plugin-workbench.js";
@@ -12,6 +12,8 @@ import { homeToolKeysScript } from "./home-plugin-navigation.js";
 import { PANE_MESSAGES_SCRIPT, SIDE_FORWARD_SCRIPT } from "./scripts/client/pane-messages.js";
 import { CONTEXT_PANE_FACTORY_SCRIPT } from "./scripts/client/context-actions.js";
 import { knowledgeClientTag } from "./settings-knowledge.js";
+import { appearanceClientTag, appearanceHead, type WorkbenchAppearance } from "./appearance-document.js";
+import { renderAppearanceRecovery } from "./settings-appearance.js";
 
 /**
  * One plugin tab of the side panel (specs/archive/side-panel D13): the Host serves the declared `side` view in its own
@@ -39,6 +41,7 @@ export interface SideViewDocumentInput {
   readonly clientI18nScript: string;
   readonly themeBootstrapScript: string;
   readonly translate: (value: string, values?: Record<string, string | number>) => string;
+  readonly appearance?: WorkbenchAppearance;
 }
 
 const uiHost = createWorkbenchUiHost();
@@ -61,9 +64,9 @@ export function renderSideViewDocument(input: SideViewDocumentInput): string | n
     lang: input.lang,
     title: `${view.title} · Molis Work`,
     // The workbench's own stylesheet (cached with the page), so a plugin's view looks here as it does on the stage.
-    head_html: `<script>${input.themeBootstrapScript}</script>${input.headHtml}<link rel="stylesheet" href="/assets/molis-work-workbench.css"><style>${SIDE_VIEW_STYLES}</style>`,
+    head_html: `<script>${input.themeBootstrapScript}</script>${input.headHtml}<link rel="stylesheet" href="/assets/molis-work-workbench.css">${appearanceHead(input.appearance)}<style>${SIDE_VIEW_STYLES}</style>`,
     body_attributes: { "data-project-id": input.projectId, "data-route-prefix": input.routePrefix, "data-side-view": `${input.projectPluginId}/${view.view_id}`, ...(input.accountRegistration ? {inert:true,'data-account-registering':true}:{}) },
-    body_html: `${renderIconSprite()}<main class="side-view" data-side-view-root>${surfaceClient ? renderPluginFrameSurface(html, input.projectPluginId, view.title, false) : html}</main>
+    body_html: `${renderIconSprite()}<main class="side-view" data-side-view-root>${surfaceClient ? renderPluginFrameSurface(html, input.projectPluginId, view.title, false) : html}</main>${renderAppearanceRecovery(input.translate, input.appearance)}
     <script src="/assets/molis-work-plugin-frame.js"></script>
     <script>${OVERFLOW_FADE_CLIENT_SCRIPT}
 ${COPY_FEEDBACK_CLIENT_SCRIPT}
@@ -74,7 +77,8 @@ ${ROVING_FOCUS_CLIENT_SCRIPT}
 ${FLOATING_DETAILS_CLIENT_SCRIPT}
 ${TIP_CLIENT_SCRIPT}
 </script>
-    <script>${input.clientI18nScript}${UI_REQUEST_CLIENT_SCRIPT}${SIDE_LINKS_SCRIPT}${homeToolKeysScript()}
+    <script>${input.clientI18nScript}${UI_REQUEST_CLIENT_SCRIPT}${input.appearance ? DEVICE_PREFERENCES_CLIENT_SCRIPT : ""}</script>${appearanceClientTag(input.appearance)}
+    <script>${SIDE_LINKS_SCRIPT}${homeToolKeysScript()}
       const L = globalThis.L;
       // This document is the view's host: the work surface a plugin reuses here waits, hidden, for its host to show it
       // (the workbench's surface manager does that on the stage), and its client only starts once it is visible.

@@ -108,10 +108,17 @@ impl CapsuleLocale {
             ),
         }
     }
+    fn restore_appearance_label(self) -> &'static str {
+        match self {
+            Self::Zh => "恢复内置外观",
+            Self::En => "Restore built-in appearance",
+        }
+    }
 }
 
 struct CapsuleTrayMenuItems {
     open_molis_work: MenuItem<tauri::Wry>,
+    restore_appearance: MenuItem<tauri::Wry>,
     quit_molis_work: MenuItem<tauri::Wry>,
 }
 
@@ -235,6 +242,10 @@ fn update_capsule_tray_menu(
         .set_text(open_current)
         .map_err(|error| error.to_string())?;
     items
+        .restore_appearance
+        .set_text(locale.restore_appearance_label())
+        .map_err(|error| error.to_string())?;
+    items
         .quit_molis_work
         .set_text(quit)
         .map_err(|error| error.to_string())
@@ -303,6 +314,15 @@ fn show_main_window(app: &tauri::AppHandle) {
     }
 }
 
+fn show_appearance_recovery(app: &tauri::AppHandle) {
+    show_main_window(app);
+    if let Some(main) = app.get_webview_window("main") {
+        if main.url().is_ok_and(|url| is_molis_work_web_url(&url)) {
+            let _ = main.eval("if(location.origin==='http://127.0.0.1:4173') globalThis.molisWorkRestoreAppearance?.()");
+        }
+    }
+}
+
 /// 点 Dock 图标（或在访达里再打开一次）时，主窗口没在显示就把它拿出来；
 /// 菜单栏的工作胶囊开着不算主窗口在显示。
 fn should_show_main_on_reopen(main_visible: bool) -> bool {
@@ -325,13 +345,15 @@ fn waits_off_main_thread(started: &Result<Started, String>) -> bool {
     matches!(started, Ok(Started::Upgrading))
 }
 
+fn is_molis_work_web_url(url: &Url) -> bool {
+    url.scheme() == "http"
+        && url.host_str() == Some("127.0.0.1")
+        && url.port_or_known_default() == Some(4173)
+}
+
 fn molis_work_reload_url(current: Option<Url>, fallback: &str) -> Option<Url> {
     let mut url = current
-        .filter(|url| {
-            url.scheme() == "http"
-                && url.host_str() == Some("127.0.0.1")
-                && url.port_or_known_default() == Some(4173)
-        })
+        .filter(is_molis_work_web_url)
         .or_else(|| Url::parse(fallback).ok())?;
     let query = url
         .query_pairs()
@@ -857,9 +879,24 @@ fn install_molis_work_tray(app: &tauri::App) -> tauri::Result<()> {
     let (open_current, quit) = locale.tray_actions(owns_host);
     let open_molis_work_item =
         MenuItem::with_id(app, "open_molis_work", open_current, true, None::<&str>)?;
+    let restore_appearance_item = MenuItem::with_id(
+        app,
+        "restore_builtin_appearance",
+        locale.restore_appearance_label(),
+        true,
+        None::<&str>,
+    )?;
     let separator = PredefinedMenuItem::separator(app)?;
     let quit_item = MenuItem::with_id(app, "quit_molis_work", quit, true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&open_molis_work_item, &separator, &quit_item])?;
+    let menu = Menu::with_items(
+        app,
+        &[
+            &open_molis_work_item,
+            &restore_appearance_item,
+            &separator,
+            &quit_item,
+        ],
+    )?;
     let (title, tooltip) = locale.default_status();
     TrayIconBuilder::with_id("molis-work-status")
         .icon(capsule_menu_bar_icon())
@@ -897,6 +934,7 @@ fn install_molis_work_tray(app: &tauri::App) -> tauri::Result<()> {
                     let _ = open_main_window(app, &path);
                 }
             }
+            "restore_builtin_appearance" => show_appearance_recovery(app),
             "quit_molis_work" => app.exit(0),
             _ => {}
         })
@@ -904,6 +942,7 @@ fn install_molis_work_tray(app: &tauri::App) -> tauri::Result<()> {
     if let Ok(mut menu_items) = state.menu_items.lock() {
         *menu_items = Some(CapsuleTrayMenuItems {
             open_molis_work: open_molis_work_item,
+            restore_appearance: restore_appearance_item,
             quit_molis_work: quit_item,
         });
     }
@@ -1079,9 +1118,10 @@ fn main() {
 mod tests {
     use super::{
         anchored_capsule_position, capsule_menu_bar_icon, capsule_web_url, desktop_molis_work_url,
-        molis_work_reload_url, normalized_capsule_height, should_attempt_web_recovery,
-        should_keep_window_on_close, should_show_main_on_reopen, stop_owned_web_service,
-        validated_molis_work_path, waits_off_main_thread, CapsuleLocale, WebServiceState,
+        is_molis_work_web_url, molis_work_reload_url, normalized_capsule_height,
+        should_attempt_web_recovery, should_keep_window_on_close, should_show_main_on_reopen,
+        stop_owned_web_service, validated_molis_work_path, waits_off_main_thread, CapsuleLocale,
+        WebServiceState,
     };
     use crate::web_service::{desktop_owns_web_service, Started};
     use std::process::Command;
@@ -1272,5 +1312,21 @@ mod tests {
         assert!(waits_off_main_thread(&Ok(Started::Upgrading)));
         assert!(!waits_off_main_thread(&Ok(Started::Ready)));
         assert!(!waits_off_main_thread(&refused));
+    }
+
+    #[test]
+    fn appearance_recovery_checks_the_main_webview_origin() {
+        assert!(is_molis_work_web_url(
+            &Url::parse("http://127.0.0.1:4173/projects/project-a/?settings=appearance").unwrap()
+        ));
+        for address in [
+            "http://127.0.0.1:4174/",
+            "http://localhost:4173/",
+            "https://127.0.0.1:4173/",
+            "http://example.test:4173/",
+            "tauri://localhost/",
+        ] {
+            assert!(!is_molis_work_web_url(&Url::parse(address).unwrap()));
+        }
     }
 }

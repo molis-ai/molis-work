@@ -40,7 +40,14 @@ export const UI_FILE_PATTERNS = {
 
 export const UI_ROLE_TYPES = ["color", "shadow", "length", "duration", "easing", "stroke", "number"] as const;
 export const UI_ROLE_VARIES_BY = ["theme", "none", "terminal"] as const;
-export const UI_FONT_ROLE_NAMES = ["body", "control", "title", "display", "code"] as const;
+export const UI_FONT_ROLE_NAMES = ["body", "control", "title", "display", "reading", "note", "code"] as const;
+export const UI_FONT_METRICS = { size_px: [10, 64], line_height: [1, 3] } as const;
+export const UI_COMPONENT_VALUES = {
+  groups: ["版面", "展示", "录入", "操作", "浮层", "反馈"],
+  uses: ["part", "inside", "catalog"],
+  intents: ["heading", "description", "input", "action", "collection", "reading", "conversation", "evidence", "schedule", "feedback"],
+  data: ["none", "value", "array"],
+} as const;
 /** Only files with a path inside a package that ship with the product: first-screen styles and scripts have their own list. */
 export const UI_RESOURCE_KINDS = ["spec", "skin", "font-scheme", "locale", "font", "asset"] as const;
 export const UI_RESOURCE_LOADS = [
@@ -108,7 +115,22 @@ export interface UiTokenGroup { readonly group: string; readonly roles: readonly
 export type UiFontRoleName = (typeof UI_FONT_ROLE_NAMES)[number];
 export interface UiFontRoleSpec {
   readonly name: UiFontRoleName;
-  readonly tokens: { readonly family?: string; readonly weight?: string; readonly tracking?: string };
+  readonly tokens: { readonly family?: string; readonly weight?: string; readonly tracking?: string; readonly size?: string; readonly line_height?: string };
+}
+
+export type UiComponentIntent = (typeof UI_COMPONENT_VALUES.intents)[number];
+
+/** Catalog metadata. The design system binds each kind to the component it actually implements. */
+export interface UiComponentSpec {
+  readonly kind: string;
+  readonly catalog: string;
+  readonly name: TextRef;
+  readonly description: TextRef;
+  readonly group: (typeof UI_COMPONENT_VALUES.groups)[number];
+  readonly use: (typeof UI_COMPONENT_VALUES.uses)[number];
+  readonly intents: readonly UiComponentIntent[];
+  readonly data: (typeof UI_COMPONENT_VALUES.data)[number];
+  readonly icon: string;
 }
 
 /** `resources/ui-spec.json`: every role, its type and what may vary. */
@@ -122,6 +144,7 @@ export interface UiSpecFile {
   /** The order here is the output order. */
   readonly groups: readonly UiTokenGroup[];
   readonly font_roles: readonly UiFontRoleSpec[];
+  readonly components: readonly UiComponentSpec[];
 }
 
 export interface UiSkinFile {
@@ -145,6 +168,8 @@ export interface UiFontRole {
   readonly families?: readonly UiFontFamily[];
   readonly weight?: number;
   readonly tracking_em?: number;
+  readonly size_px?: number;
+  readonly line_height?: number;
 }
 export interface UiFontFace {
   readonly family: string;

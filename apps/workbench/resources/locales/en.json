@@ -34,7 +34,11 @@
     "workbench.env.switch": "Language of this section",
     "workbench.env.title": "Language and text",
     "workbench.env.when": "When",
+    "workbench.font.folio-rounded": "Folio Rounded",
+    "workbench.font.relaxed-reading": "Relaxed Reading",
+    "workbench.font.system-menlo": "Menlo",
     "workbench.font.system-sans": "System Sans",
+    "workbench.skin.folio": "Folio",
     "workbench.skin.soft-workbench": "Soft Workbench"
   }
 }

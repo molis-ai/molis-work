@@ -11,6 +11,7 @@ export default async function ({ http, projectId, tag }: GoldenWriteContext) {
   const scope = `https://${tag}.golden.invalid`;
   readsBack(await http("/api/browser/sites", { body: { scope, decision: "allow" } }), scope);
   await http("/api/onboarding/dismiss", { body: { kind: "first_run", user_confirmed: true } });
+  await http("/locale?lang=en&next=/settings/appearance", { method: "GET" });
   await http(`/projects/${encodeURIComponent(projectId)}/`, { method: "GET" });
   readsBack(await http("/", { method: "GET" }), projectId);
 }

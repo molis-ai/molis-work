@@ -32,8 +32,9 @@ import type { MolisWorkWebViewCache } from "./web-view.js";
 import { startDemoSeed } from "./demo-seed.js";
 import { attachMolisWorkPtySocket } from "./pty-socket.js";
 import { bindPluginTerminalHost } from "./plugin-terminal-service.js";
-import { L, htmlLang, clientI18nScript, isWebLocale, localeSetCookie, resolveWebLocale, runWithLocale, safeNextPath } from "./web-locale.js";
+import { L, htmlLang, clientI18nScript, isWebLocale, localeSetCookie, resolveWebLocale, resolveWebLocaleChoice, runWithLocale, safeNextPath } from "./web-locale.js";
 import { appearanceForHome } from "./ui-locale-memory.js";
+import { createAppearanceHttp, createWorkbenchAppearancePorts } from "./web-appearance.js";
 import { installHostUiText } from "./ui-text-provider.js";
 import { fixtureWebBoardOptions } from "./web-routing.js";
 import { createLocalWebComposition, type LocalWebPlatform } from "./web-composition.js";
@@ -144,9 +145,11 @@ export function createLocalWebCoreFactory(platform: LocalWebPlatform) {
     const runtimeIntegrations = serverOptions.runtimeIntegrationService ?? new RuntimeIntegrationService({ homeDirectory: storageHome });
     const webService = serverOptions.webServiceManager ?? new MolisWorkWebServiceManager({ homeDirectory: storageHome });
     const agents = ensureSystemAgentService(localHost, storageHome, withCatalog);
-    const composition = createLocalWebComposition({ ...platform, withCatalog }, storageHome,serverOptions.accountRegistration??false,serverOptions.installationDiagnostics);
+    const composition = createLocalWebComposition({ ...platform, withCatalog }, storageHome, serverOptions.accountRegistration ?? false,
+      serverOptions.installationDiagnostics, createWorkbenchAppearancePorts(appearance));
     const { serveWorkbenchAsset } = composition;
     const controlToken = resolveWebControlToken(serverOptions);
+    const appearanceHttp = createAppearanceHttp(appearance, localHost, controlToken, serverOptions.assertAccountCurrent);
     const sessions = serverOptions.webSessions ?? new WebSessions(storageHome);
     const mutationKeys = new Map<string, LocalMutationState>();
     const webViewCache: MolisWorkWebViewCache = new Map();
@@ -170,12 +173,13 @@ export function createLocalWebCoreFactory(platform: LocalWebPlatform) {
           ? url.searchParams.get("locale")
           : null;
         const locale = isWebLocale(capsuleLocale)
-          ? capsuleLocale
-          : resolveWebLocale(request.headers.cookie, request.headers["accept-language"]);
-        await runWithLocale(locale, async () => {
+          ? { tag: capsuleLocale, source: "explicit" as const }
+          : resolveWebLocaleChoice(request.headers.cookie, request.headers["accept-language"]);
+        await runWithLocale(locale.tag, async () => {
           if (!authorizeLocalWebRequest(request, response, url, controlToken, mutationKeys)) return;
           if (localHost.lifecycle() !== "running") throw new Error("Local Host is closing");
           await pluginPagesFor(storageHome).bind(request, url, response);
+          if (await appearanceHttp.handle(request, response, url)) return;
           if (await handleAccountHttp(request, response, url, account, serverOptions.isNativeAccountRequest)) return;
           if (request.method === "GET" && url.pathname === "/health" && catalogAccess) {
             const ready = server.address() !== null && Boolean(pty.host) && (Boolean(fixture) || catalogAccess.ready);
@@ -211,14 +215,14 @@ export function createLocalWebCoreFactory(platform: LocalWebPlatform) {
             agents.agentHost,
             () => agents.ready,
           );
-        });
+        }, locale.source);
       } catch (error) {
         runWithLocale(resolveWebLocale(request.headers.cookie, request.headers["accept-language"]), () => sendUnhandledWebError(response, error, request));
       }
     })))));
     // SSE is an active HTTP response, so stop its streams before close waits. The side panel's browser is asked to quit
     // at once, not when the last connection ends: a shutdown that is cut short still leaves its sign-ins written.
-    shutdown = awaitWebServerShutdown(server, () => { im.stop(); sessions.revokeScope(controlToken); }, cleanup, async () => {
+    shutdown = awaitWebServerShutdown(server, () => { appearanceHttp.close(); im.stop(); sessions.revokeScope(controlToken); }, cleanup, async () => {
       releaseTransport?.();
       if (ownsLocalHost) await localHost.close();
     });

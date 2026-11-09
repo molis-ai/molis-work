@@ -1,4 +1,5 @@
 /// <reference lib="dom" />
+import { createLookFade } from "../look-fade.js";
 // The board's look parts made to feel real (primitives/catalog-appearance.ts): choosing a look card, the card's menu letting go, and the fade when the whole
 // page changes look. Presentation only; nothing here is a product control, and nothing is stored: a reload is Soft Workbench again.
 
@@ -46,7 +47,7 @@ function wireFade(): void {
   const look = stage?.dataset.lookFadeLook;
   if (!stage || !now || !to || !back || !look) return;
   const root = document.documentElement;
-  let running: ViewTransition | undefined;
+  const fade = createLookFade();
   const show = (worn: boolean) => {
     if (worn) root.dataset.look = look;
     else delete root.dataset.look;
@@ -56,11 +57,7 @@ function wireFade(): void {
     (worn ? back : to).focus();
   };
   const change = (worn: boolean) => {
-    const fades = typeof document.startViewTransition === "function" && !document.hidden && !root.hasAttribute("data-craft-still") && !matchMedia("(prefers-reduced-motion: reduce)").matches;
-    running?.skipTransition();
-    stage.dataset.fade = fades ? "fade" : "direct";
-    running = fades ? document.startViewTransition(() => show(worn)) : undefined;
-    if (!fades) show(worn);
+    stage.dataset.fade = fade(() => show(worn)) ? "fade" : "direct";
   };
   to.addEventListener("click", () => change(true));
   back.addEventListener("click", () => change(false));

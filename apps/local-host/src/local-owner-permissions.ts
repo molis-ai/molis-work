@@ -23,6 +23,7 @@ import { KNOWLEDGE_PERMISSIONS, KNOWLEDGE_PROVIDER_ID } from "@molis-ai/molis-wo
 import { ARTIFACT_ACTION_PERMISSIONS, ARTIFACTS_PROVIDER_ID } from "@molis-ai/molis-work-module-artifacts";
 import { agentTaskGrantActions } from "@molis-ai/molis-work-contracts/services/agent-task-grants";
 import { TASK_GRANTS_PROVIDER_ID } from "./task-grant-actions.js";
+import { APPEARANCE_PROVIDER_ID, APPEARANCE_READ_PERMISSION, APPEARANCE_WRITE_PERMISSION } from "@molis-ai/molis-work-contracts/platform/ui";
 
 const asks = (definitions: Iterable<{ readonly action?: { readonly permissions: readonly string[] } }>) =>
   [...definitions].flatMap(definition => definition.action?.permissions ?? []);
@@ -44,6 +45,7 @@ function ownerProviders(): ReadonlyMap<string, readonly string[]> {
     [ARTIFACTS_PROVIDER_ID, ARTIFACT_ACTION_PERMISSIONS],
     [HOME_PROVIDER_ID, HOME_ACTION_PERMISSIONS],
     [ACCOUNT_PROVIDER_ID, ACCOUNT_PERMISSIONS],
+    [APPEARANCE_PROVIDER_ID, [APPEARANCE_READ_PERMISSION, APPEARANCE_WRITE_PERMISSION]],
     [CONNECTOR_PROVIDER_ID, [...CONNECTOR_ACCOUNT_PERMISSIONS, CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE, ...connectorRecordActions.read.action.permissions]],
     [PLUGIN_CONSENT_PROVIDER_ID, PLUGIN_CONSENT_PERMISSIONS],
     [PLUGIN_INSTALL_PROVIDER_ID, PLUGIN_INSTALL_PERMISSIONS],

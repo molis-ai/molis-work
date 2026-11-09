@@ -1,5 +1,7 @@
-import { TEXT_REF_LIMITS, UI_FILE_LIMITS, UI_FILE_PATTERNS, UI_FONT_ROLE_NAMES, UI_FORMAT_VERSIONS, UI_RESOURCE_KINDS, UI_RESOURCE_LOADS, UI_ROLE_TYPES, UI_ROLE_VARIES_BY, type UiFileResult, type UiFontSchemeFile, type UiResourceRegistry, type UiRoleSpec, type UiSkinFile, type UiSpecFile } from "@molis-ai/molis-work-contracts/platform/ui";
-import { checkFormatVersion, childPath, finishFile, isObject, readObject, readStrictJson, type ProblemSink } from "./file-reader.js";
+import { TEXT_REF_LIMITS, UI_COMPONENT_VALUES, UI_FILE_LIMITS, UI_FILE_PATTERNS, UI_FONT_METRICS, UI_FONT_ROLE_NAMES, UI_FORMAT_VERSIONS, UI_RESOURCE_KINDS, UI_RESOURCE_LOADS, UI_ROLE_TYPES, UI_ROLE_VARIES_BY, type UiFileResult, type UiFontSchemeFile, type UiResourceRegistry, type UiRoleSpec, type UiSkinFile, type UiSpecFile } from "@molis-ai/molis-work-contracts/platform/ui";
+import { isRecord } from "../json-value.js";
+import { checkFormatVersion, childPath, finishFile, readObject, readStrictJson, type ProblemSink } from "./file-reader.js";
+import { PLUGIN_ICON_NAMES } from "./icon-names.js";
 import { textRefProblems } from "./text-ref.js";
 import { tokenValueProblem, tokenValueRefs } from "./token-values.js";
 
@@ -105,7 +107,7 @@ function readFontRoles(sink: ProblemSink, fontRoles: unknown, roles: ReadonlyMap
     if (!isOneOf(fontRole.name, UI_FONT_ROLE_NAMES)) sink.add(childPath(path, "name"), "ui.file_value", "字体角色不认识", `写 ${UI_FONT_ROLE_NAMES.join("、")} 之一`);
     if (named.has(fontRole.name)) sink.add(childPath(path, "name"), "ui.spec_repeated_role", `字体角色 ${String(fontRole.name)} 写了两次`, "只留一个");
     named.add(fontRole.name);
-    const declared = readObject(sink, fontRole.tokens, childPath(path, "tokens"), [], ["family", "weight", "tracking"]);
+    const declared = readObject(sink, fontRole.tokens, childPath(path, "tokens"), [], ["family", "weight", "tracking", "size", "line_height"]);
     for (const [field, token] of Object.entries(declared ?? {})) {
       const tokenPath = childPath(childPath(path, "tokens"), field);
       checkPattern(sink, tokenPath, token, UI_FILE_PATTERNS.role_name, "令牌名");
@@ -130,18 +132,50 @@ function checkLocked(sink: ProblemSink, roles: ReadonlyMap<string, { role: UiRol
   }
 }
 
+function checkComponents(sink: ProblemSink, components: unknown): void {
+  if (!Array.isArray(components) || !components.length) {
+    sink.add("$.components", "ui.file_wrong_type", "components 必须是不空的数组", "列出规格板实际实现的组件");
+    return;
+  }
+  const seen = new Set<string>();
+  const { groups, uses, intents, data } = UI_COMPONENT_VALUES;
+  const choices = { group: groups, use: uses, data, icon: PLUGIN_ICON_NAMES };
+  components.forEach((entry: unknown, index) => {
+    const path = `$.components[${index}]`;
+    const row = readObject(sink, entry, path, ["kind", "catalog", "name", "description", "group", "use", "intents", "data", "icon"]);
+    if (!row) return;
+    const kind = childPath(path, "kind");
+    checkPattern(sink, kind, row.kind, UI_FILE_PATTERNS.definition_id, "组件 kind ");
+    if (typeof row.kind === "string") {
+      if (seen.has(row.kind)) sink.add(kind, "ui.spec_repeated_component", `组件 ${row.kind} 写了两次`, "一个 kind 只登记一条");
+      seen.add(row.kind);
+    }
+    if (typeof row.catalog !== "string" || !row.catalog.trim() || row.catalog.length > 80) sink.add(childPath(path, "catalog"), "ui.file_value", "catalog 必须是 1 到 80 字符的组件名", "写对应原语的名称");
+    checkTextRef(sink, childPath(path, "name"), row.name);
+    checkTextRef(sink, childPath(path, "description"), row.description);
+    for (const [field, allowed] of Object.entries(choices)) {
+      if (!isOneOf<unknown>(row[field], allowed)) sink.add(childPath(path, field), "ui.file_value", `${field} 的取值不认识`, "使用共同规格允许的值");
+    }
+    if (!Array.isArray(row.intents) || row.intents.some(intent => !isOneOf(intent, intents)) || new Set(row.intents).size !== row.intents.length
+      || (row.use === "part" && !row.intents.length)) {
+      sink.add(childPath(path, "intents"), "ui.file_value", "intents 须列出互不重复的用途，可装入的组件至少有一种", "按组件能承担的用途填写");
+    }
+  });
+}
+
 /** `resources/ui-spec.json`: every role, its type and what may vary. */
 export function parseUiSpecFile(source: string, options: UiFileOptions = {}): UiFileResult<UiSpecFile> {
   const read = readStrictJson(source, options.file ?? "ui-spec.json", UI_FILE_LIMITS.spec);
   if (!read.ok) return read;
   const { sink, value } = read;
-  const spec = readObject(sink, value, "$", ["format_version", "id", "revision", "baseline_skin", "baseline_font", "groups", "font_roles"]);
+  const spec = readObject(sink, value, "$", ["format_version", "id", "revision", "baseline_skin", "baseline_font", "groups", "font_roles", "components"]);
   if (spec === null) return finishFile(sink, value);
   checkIdentity(sink, spec, UI_FORMAT_VERSIONS.spec);
   checkDefinitionRef(sink, "$.baseline_skin", spec.baseline_skin);
   checkDefinitionRef(sink, "$.baseline_font", spec.baseline_font);
   const roles = readRoles(sink, spec.groups);
   const tokens = readFontRoles(sink, spec.font_roles, roles);
+  checkComponents(sink, spec.components);
   checkFollows(sink, roles);
   checkLocked(sink, roles, tokens);
   return finishFile(sink, value);
@@ -182,13 +216,13 @@ export function parseSkinFile(source: string, spec: UiSpecFile, options: UiFileO
   checkDefinitionRef(sink, "$.spec", skin.spec);
   checkDefinitionRef(sink, "$.recommended_font", skin.recommended_font);
   checkTextRef(sink, "$.name", skin.name);
-  const named = isObject(skin.spec) ? skin.spec : {};
+  const named = isRecord(skin.spec) ? skin.spec : {};
   if (named.id !== spec.id || named.revision !== spec.revision) sink.add("$.spec", "ui.skin_spec_mismatch", `这款皮肤写给 ${String(named.id)} 第 ${String(named.revision)} 版，现在的规格是 ${spec.id} 第 ${spec.revision} 版`, "按现在的规格改好，再改 spec");
   const isBaseline = skin.id === spec.baseline_skin.id && skin.revision === spec.baseline_skin.revision;
   const roles = specRoles(spec);
   const tokens = specFontTokens(spec);
   const checkMap = (path: string, map: unknown, where: UiRoleSpec["varies_by"]) => {
-    for (const [name, token] of Object.entries(readObject(sink, map, path, [], Object.keys(isObject(map) ? map : {})) ?? {})) checkSkinRole(sink, childPath(path, name), name, token, where, roles, tokens, isBaseline);
+    for (const [name, token] of Object.entries(readObject(sink, map, path, [], Object.keys(isRecord(map) ? map : {})) ?? {})) checkSkinRole(sink, childPath(path, name), name, token, where, roles, tokens, isBaseline);
   };
   for (const theme of THEME_MAPS) checkMap(`$.${theme}`, skin[theme], "theme");
   checkMap("$.shared", skin.shared, "none");
@@ -203,10 +237,16 @@ function checkFontName(sink: ProblemSink, path: string, value: unknown): void {
 }
 
 function checkFontRole(sink: ProblemSink, path: string, value: unknown, faces: ReadonlySet<unknown>): void {
-  const role = readObject(sink, value, path, [], ["families", "weight", "tracking_em"]);
+  const role = readObject(sink, value, path, [], ["families", "weight", "tracking_em", "size_px", "line_height"]);
   if (role === null) return;
   if (role.weight !== undefined && !(Number.isInteger(role.weight) && (role.weight as number) >= 1 && (role.weight as number) <= 1000)) sink.add(childPath(path, "weight"), "ui.file_value", "weight 必须是 1 到 1000 的整数", "写 400、500 这样的数");
   if (role.tracking_em !== undefined && !(typeof role.tracking_em === "number" && Math.abs(role.tracking_em) <= 1)) sink.add(childPath(path, "tracking_em"), "ui.file_value", "tracking_em 必须是 -1 到 1 的数", "写 -0.011 这样的数");
+  for (const [field, [min, max]] of Object.entries(UI_FONT_METRICS)) {
+    const metric = role[field];
+    if (metric !== undefined && !(typeof metric === "number" && metric >= min && metric <= max)) {
+      sink.add(childPath(path, field), "ui.file_value", `${field} 必须是 ${min} 到 ${max} 的数`, `填写 ${min} 到 ${max} 之间的数`);
+    }
+  }
   if (role.families === undefined) return;
   if (!Array.isArray(role.families) || role.families.length === 0) {
     sink.add(childPath(path, "families"), "ui.file_wrong_type", "families 必须是不空的数组", "写成 [{ \"system\": … }, { \"face\": … }]");
@@ -254,7 +294,7 @@ export function parseFontScheme(source: string, options: UiFileOptions = {}): Ui
   const faces = Array.isArray(scheme.faces) ? scheme.faces : [];
   if (!Array.isArray(scheme.faces)) sink.add("$.faces", "ui.file_wrong_type", "faces 必须是数组", "没有自带字体就写 []");
   faces.forEach((face: unknown, index) => checkFontFace(sink, `$.faces[${index}]`, face));
-  const declared = new Set(faces.map((face: unknown) => (isObject(face) ? face.family : undefined)));
+  const declared = new Set(faces.map((face: unknown) => (isRecord(face) ? face.family : undefined)));
   const roles = readObject(sink, scheme.roles, "$.roles", UI_FONT_ROLE_NAMES);
   for (const name of UI_FONT_ROLE_NAMES) if (roles?.[name] !== undefined) checkFontRole(sink, `$.roles.${name}`, roles[name], declared);
   return finishFile(sink, value);
@@ -265,7 +305,7 @@ function checkPackagePath(sink: ProblemSink, path: string, value: unknown): void
 }
 
 function checkResourceRow(sink: ProblemSink, path: string, value: unknown, ids: Set<unknown>): void {
-  const binary = isObject(value) && (value.kind === "font" || value.kind === "asset");
+  const binary = isRecord(value) && (value.kind === "font" || value.kind === "asset");
   const row = readObject(sink, value, path, ["id", "owner", "package", "path", "load", "kind", ...(binary ? ["sha256", "license"] : [])], ["route"]);
   if (row === null) return;
   checkPattern(sink, childPath(path, "id"), row.id, UI_FILE_PATTERNS.resource_id, "资源 id ");

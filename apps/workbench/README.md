@@ -56,6 +56,12 @@ node scripts/run-tests.mjs tests/workbench-ui-platform.test.ts
 
 阅读测试中的输入与断言，可以看到接入方式、结果和错误分支。
 
+## Home 外观
+
+设置的候选只画在样张里。宽度随设置内容的容器变化，空间不足时同一张样张移入 Sheet。首次打开使用宿主提供的快照和样式引用。其后的外观选择变化沿本页证明订阅 Home 修订，插件隔离 frame 从已绑定的父页端口接收已准备的外观。终端按等宽字重测原会话。
+
+改动后用 `node scripts/run-tests.mjs --jobs 1 tests/appearance-settings.e2e.test.ts` 核对真实页面。外观及动作边界见 [B/C 运行合同](../../specs/font-and-skin-system/bc-runtime-contract.md)。
+
 ## 界面文字：翻译检查，与一个文件怎样迁到稳定键
 
 这一节是工作台、宿主和内置插件第 16 批之前的写法（`L`、`p.text`、`ui.messages`、`ui.translations`），到第 16 批一起换成 SDK 的 `t` 和每个主人自己的语言文件，那时这一节重写。新写的外部插件今天就用新写法，见 [文字与外观](../../skills/molis-plugin-dev/text-and-appearance.md)；平台一侧（文字上下文、各主人的词 [`src/plugin-text.ts`](src/plugin-text.ts)、工作台自己的语言目录 [`resources/locales/`](resources/locales/)、切语言时原地换字 [`src/browser/locale-switch.ts`](src/browser/locale-switch.ts)）见 [UI Platform 第 5 节](../../docs/platform/UI-PLATFORM.md#5-界面文字语言与外观)。

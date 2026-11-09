@@ -4,16 +4,41 @@ import fs from "node:fs";
 import { createRequire } from "node:module";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { WorkbenchRenderer } from "@molis-ai/molis-work-app-workbench";
-import { interVariableFontFilePath, notoSansScFontFilePath } from "@molis-ai/molis-work-design-system";
+import { BASELINE_REGISTRY, baselinePackageFile } from "@molis-ai/molis-work-design-system";
+import { appearanceSheet } from "./appearance-sheet.js";
 import { tightenServedJs, tightenServedCss } from "./served-page-text.js";
 import { sendLocalWebJson as sendJson } from "./web-http.js";
 import { currentLocale } from "./web-locale.js";
 
 const requireAsset = createRequire(import.meta.url);
 
-// Through the design system's own package, wherever that is: a release has no `packages/` beside Local Host.
-const INTER_VARIABLE_FONT_PATH = interVariableFontFilePath();
-const NOTO_SANS_SC_FONT_PATH = notoSansScFontFilePath();
+export const APPEARANCE_STYLESHEET_HREF = "/assets/ui-skin/folio-1.css";
+
+function bundledAppearanceFile(route: string): { body: string | Buffer; contentType: string } | null {
+  switch (route) {
+    case APPEARANCE_STYLESHEET_HREF: {
+      const body = appearanceSheet();
+      return body ? { body, contentType: "text/css; charset=utf-8" } : null;
+    }
+    case "/assets/inter-latin-variable.woff2":
+    case "/assets/noto-sans-sc-400.woff2":
+    case "/assets/folio-nunito-latin.woff2":
+    case "/assets/folio-rounded-400-common.woff2":
+    case "/assets/folio-rounded-400-tail.woff2":
+    case "/assets/folio-rounded-500-common.woff2":
+    case "/assets/folio-rounded-500-tail.woff2":
+    case "/assets/folio-rounded-600-common.woff2":
+    case "/assets/folio-rounded-600-tail.woff2":
+    case "/assets/folio-rounded-700-common.woff2":
+    case "/assets/folio-rounded-700-tail.woff2": {
+      const row = BASELINE_REGISTRY.resources.find(candidate => candidate.kind === "font" && candidate.route === route);
+      if (!row) return null;
+      const file = baselinePackageFile(row.id);
+      return fs.existsSync(file) ? { body: fs.readFileSync(file), contentType: "font/woff2" } : null;
+    }
+    default: return null;
+  }
+}
 
 export function createLocalWebAssets(ports: {
   ptyClientFilePath(): string;
@@ -52,7 +77,7 @@ export function createLocalWebAssets(ports: {
     pathname: string,
   ): boolean {
     if (request.method !== "GET" && request.method !== "HEAD") return false;
-    const key = currentLocale() + ":" + pathname;
+    const key = pathname.endsWith(".woff2") ? pathname : currentLocale() + ":" + pathname;
     let asset = workbenchAssets.get(key);
     if (!asset) {
       const plugin = pathname.match(/^\/assets\/molis-work-plugins\/([a-z0-9-]+)\.(js|css)$/);
@@ -77,11 +102,7 @@ export function createLocalWebAssets(ports: {
           ? { body: renderMolisWorkSettingsStylesheet(), contentType: "text/css; charset=utf-8" }
           : pathname === "/assets/molis-work-pages-editor.js"
             ? pagesEditorAsset()
-          : pathname === "/assets/inter-latin-variable.woff2" && fs.existsSync(INTER_VARIABLE_FONT_PATH)
-            ? { body: fs.readFileSync(INTER_VARIABLE_FONT_PATH), contentType: "font/woff2" }
-          : pathname === "/assets/noto-sans-sc-400.woff2" && fs.existsSync(NOTO_SANS_SC_FONT_PATH)
-            ? { body: fs.readFileSync(NOTO_SANS_SC_FONT_PATH), contentType: "font/woff2" }
-        : null;
+          : bundledAppearanceFile(pathname);
       if (!loaded) return false;
       const body = loaded.contentType.startsWith("text/javascript") ? tightenServedJs(loaded.body.toString())
         : loaded.contentType.startsWith("text/css") ? tightenServedCss(loaded.body.toString()) : loaded.body;

@@ -5,6 +5,7 @@ import type { ContextUp, ContextDown } from "./context.js";
 import type { PresentationMessage } from "./presentation.js";
 import type { UiClientMount, UiViewSelection, UiConnectionSlotChoice, UiFrameAssetReference } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { frameAssets } from "./frame-assets.js";
+import type { AppearanceProjection } from "../appearance-view.js";
 
 export type Translate = UiClientTranslate;
 export interface FrameScope extends UiClientScope {
@@ -38,6 +39,7 @@ export interface FramePack { id: string; plugin_id: string; bundle: string; asse
   authorization?: { page_id: string; storage_scope: string } }
 export interface FrameConfig {
   mount: UiClientMount | null;
+  appearance?: AppearanceProjection;
   searchRow?: FramePack["searchRow"];
   recordRow?: FramePack["recordRow"];
   itemTab: { tabId: string; itemId: string } | null;
@@ -134,6 +136,7 @@ export type FrameDown =
   | { type: "embedded"; id: number; error?: string }
   | TaskGrantsDown | ConnectionNeedDown | ReturnDown
   | { type: "focus" } | FrameAnswer | ContextDown | { type: "state"; visible: boolean; theme: Record<string, string> }
+  | { type: "environment"; snapshot: AppearanceProjection["snapshot"]; skin_href: string | null }
   | { type: "document"; id: number; html?: string; error?: string }
   | { type: "copied"; id: number; error?: string }
   | { type: "draft-result"; id: number; value?: string | null; error?: string }

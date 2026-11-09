@@ -17,11 +17,13 @@ import { createWorkbenchSettingsRenderer } from "./settings-renderer.js";
 import { createWorkbenchStageRenderers } from "./stage-renderers.js";
 import { createWorkbenchDocumentRenderer } from "./document-shell.js";
 import { renderSideViewDocument as renderSideView, type SideViewDocumentInput } from "./side-view-document.js";
+import type { WorkbenchAppearancePorts } from "./appearance-document.js";
 export interface WorkbenchRendererPorts {
   locale: RendererLocale;
   desktop: { appendDesktopQueryToLocalHrefs(html: string): string; withDesktopQuery(path: string): string; bootstrapScript: string };
   /** The installation account owner registers every editable page before it can receive input. */
   accountRegistration?: boolean;
+  appearance?: WorkbenchAppearancePorts;
 }
 
 /** Compose application pages from registered UI owners; request and desktop state belong to the Host. */
@@ -36,25 +38,25 @@ export function createWorkbenchRenderer(ports: WorkbenchRendererPorts) {
   const { settingsContextHref, renderProjectSwitcher, renderDesktopProjectChrome, renderSettingsNavigation, renderProjectSettingsNavigation } = createWorkbenchSettingsNavigation({ L, escapeHtml, icon, withDesktopQuery });
   const stages = createWorkbenchStageRenderers({ L, dateTimeLocale, currentLocale, listJoin, helpers, withDesktopQuery, settingsContextHref });
 
-  const projectChooserRenderer = createWorkbenchProjectChooserRenderer({ L, escapeHtml, icon, withDesktopQuery, htmlLang, renderIconSprite, controlTokenMeta, clientI18nScript, themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT, visualFoundationClientScript: VISUAL_FOUNDATION_CLIENT_SCRIPT, dateTimeLocale, accountRegistration });
+  const projectChooserRenderer = createWorkbenchProjectChooserRenderer({ L, escapeHtml, icon, withDesktopQuery, htmlLang, renderIconSprite, controlTokenMeta, clientI18nScript, themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT, visualFoundationClientScript: VISUAL_FOUNDATION_CLIENT_SCRIPT, dateTimeLocale, accountRegistration, appearance: ports.appearance });
 
   const { renderMolisWorkProjectIndex, renderProjectBrief: renderMolisWorkProjectBrief } = projectChooserRenderer;
 
   const renderMolisWorkSettings = createWorkbenchSettingsRenderer({
     L, escapeHtml, icon, currentLocale, localeSwitchHref, htmlLang, controlTokenMeta, clientI18nScript, renderIconSprite,
-    withDesktopQuery, settingsContextHref, renderSettingsNavigation, accountRegistration,
+    withDesktopQuery, settingsContextHref, renderSettingsNavigation, accountRegistration, appearance: ports.appearance,
     themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT, visualFoundationClientScript: VISUAL_FOUNDATION_CLIENT_SCRIPT,
   });
 
   const renderMolisWorkOnboarding = createWorkbenchOnboardingRenderer({
     L, escapeHtml, htmlLang, controlTokenMeta, withDesktopQuery, clientI18nScript, icon, renderIconSprite,
-    nativeDesktopBootstrapScript: NATIVE_DESKTOP_BOOTSTRAP_SCRIPT, accountRegistration,
+    nativeDesktopBootstrapScript: NATIVE_DESKTOP_BOOTSTRAP_SCRIPT, accountRegistration, appearance: ports.appearance,
   });
 
   const { renderMolisWorkProjectSettingsHub, renderMolisWorkProjectGeneralSettings, renderMolisWorkProjectSettings, renderMolisWorkProjectGuidanceSettings, renderMolisWorkPlanningLibrary, renderMolisWorkPlanningMethodPage, renderMolisWorkPlanningSettings } = createWorkbenchProjectSettingsPages({
     L, escapeHtml, icon, htmlLang, controlTokenMeta, clientI18nScript, renderIconSprite, withDesktopQuery, accountRegistration,
     themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT, visualFoundationClientScript: VISUAL_FOUNDATION_CLIENT_SCRIPT,
-    navigation: { renderProjectSettingsNavigation, renderSettingsNavigation }, renderSettingsContent: stages.declaredSettingsSurface,
+    navigation: { renderProjectSettingsNavigation, renderSettingsNavigation }, renderSettingsContent: stages.declaredSettingsSurface, appearance: ports.appearance,
   });
 
   const { renderMolisWorkWeb } =
@@ -62,7 +64,7 @@ export function createWorkbenchRenderer(ports: WorkbenchRendererPorts) {
       L, escapeHtml, icon, htmlLang, controlTokenMeta, themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT,
       renderIconSprite, clientI18nScript, prefixLocalLinks, renderWorkbenchDocument: createWorkbenchDocumentRenderer(accountRegistration),
       renderDesktopProjectChrome, renderProjectSwitcher,
-      stageModel: stages.declaredStageModel,
+      stageModel: stages.declaredStageModel, appearance: ports.appearance,
     });
   return {
     renderMolisWorkProjectIndex,
@@ -87,7 +89,7 @@ export function createWorkbenchRenderer(ports: WorkbenchRendererPorts) {
     declaredStageModel: stages.declaredStageModel,
     /** One plugin tab of the side panel, or null when that view is not declared by a plugin enabled here. */
     renderSideViewDocument: (input: Omit<SideViewDocumentInput, "lang" | "headHtml" | "clientI18nScript" | "themeBootstrapScript" | "translate"> & { controlToken: string }): string | null =>
-      renderSideView({ ...input, accountRegistration, lang: htmlLang(), headHtml: controlTokenMeta(input.controlToken), clientI18nScript: clientI18nScript(), themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT, translate: L }),
+      renderSideView({ ...input, accountRegistration, lang: htmlLang(), headHtml: controlTokenMeta(input.controlToken), clientI18nScript: clientI18nScript(), themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT, translate: L, appearance: ports.appearance?.current() }),
   };
 }
 

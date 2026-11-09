@@ -14,12 +14,15 @@ const LONG_FONT = "一款名字也很长的推荐字体";
 const PROBLEMS = ["深色下正文和底色的对比不够。", "推荐字体不在这台电脑上，也没有随方案带来。"];
 const LONG_PROBLEMS = [...PROBLEMS, "有一处颜色引用了规格里没有的角色，换成规格里有的，或者交给助理改好再试一次。"];
 
-interface CardState {
+export type AppearanceLook = Pick<BoardLook, "id" | "name" | "by"> & { readonly previewSkin?: string };
+
+export interface LookCardState {
   readonly inUse?: boolean;
   readonly trying?: boolean;
   readonly fails?: boolean;
   readonly pressed?: boolean;
   readonly menuOpen?: boolean;
+  readonly more?: boolean;
   readonly name?: string;
   readonly fontName?: string;
 }
@@ -28,71 +31,73 @@ interface CardState {
  * One look as a card: the picture the look draws of itself, its name and where it came from, the type it suggests, and what state it is in, said in
  * words. The whole card is one button; the more-actions button beside it is the card's other control, not inside the first.
  */
-function renderLookCard(say: Say, look: BoardLook, state: CardState = {}): string {
+export function renderLookCard(say: Say, look: AppearanceLook, state: LookCardState = {}): string {
   const t = (text: string, values?: Record<string, string | number>) => escapeHtml(say(text, values));
   const name = state.name ?? look.name;
   const badges = [
-    state.inUse ? renderBadge({ label: say("在用"), tone: "success" }) : "",
+    `<span class="mw-look-card__current"${state.inUse ? "" : " hidden"}>${renderBadge({ label: say("在用"), tone: "success" })}</span>`,
     `<span class="mw-look-card__trial"${state.trying ? "" : " hidden"}>${renderBadge({ label: say("样张里"), tone: "info" })}</span>`,
     state.fails ? renderBadge({ label: say("没通过检查"), tone: "warning" }) : "",
   ].join("");
-  const picture = `<span class="mw-look-card__view" data-look="${look.id}" aria-hidden="true"><span class="mw-look-card__sheet"><span class="mw-look-card__sample">Aa 你好 12</span><i class="mw-look-card__line"></i><i class="mw-look-card__line"></i><span class="mw-look-card__marks"><i class="mw-look-card__button"></i><i class="mw-look-card__dot"></i><i class="mw-look-card__dot"></i><i class="mw-look-card__dot"></i></span></span></span>`;
+  const picture = `<span class="mw-look-card__view" data-look="${escapeHtml(look.id)}"${look.previewSkin ? ` data-ui-skin="${escapeHtml(look.previewSkin)}"` : ""} aria-hidden="true"><span class="mw-look-card__sheet"><span class="mw-look-card__sample">Aa 你好 12</span><i class="mw-look-card__line"></i><i class="mw-look-card__line"></i><span class="mw-look-card__marks"><i class="mw-look-card__button"></i><i class="mw-look-card__dot"></i><i class="mw-look-card__dot"></i><i class="mw-look-card__dot"></i></span></span></span>`;
   const mine = look.by === "我的方案";
   const items = renderMenuItem({ label: say("复制为我的方案"), iconName: "copy" })
     + (mine ? renderMenuItem({ label: say("导出…"), iconName: "download" }) + renderMenuItem({ label: say("移除"), iconName: "trash", danger: true, disabled: state.inUse, ...(state.inUse ? { description: say("在用的外观不能移除") } : {}) }) : "");
   const more = renderButton({ label: say("更多操作：{name}", { name: say(name) }), variant: "ghost", size: "sm", icon: "more", iconOnly: true, attrs: { "aria-haspopup": "menu", "aria-expanded": String(Boolean(state.menuOpen)), "data-compose-menu-toggle": "" } });
-  return `<div class="mw-look-card" data-look-card="${look.id}">
+  return `<div class="mw-look-card" data-look-card="${escapeHtml(look.id)}">
     <button type="button" class="mw-look-card__pick" aria-pressed="${Boolean(state.pressed)}"${state.inUse ? " data-look-in-use" : ""}>
       ${picture}
       <span class="mw-look-card__text"><span class="mw-look-card__name">${t(name)}</span><span class="mw-look-card__meta">${t("{by} · 推荐「{font}」", { by: say(look.by), font: say(state.fontName ?? BASELINE_FONT_NAME) })}</span></span>
       <span class="mw-look-card__badges">${badges}</span>
     </button>
-    <div class="mw-look-card__more">${more}<div class="mw-compose__menu" data-compose-menu${state.menuOpen ? " data-menu-held" : " hidden"}>${renderMenu({ items })}</div></div>
+    ${state.more ? `<div class="mw-look-card__more">${more}<div class="mw-compose__menu" data-compose-menu${state.menuOpen ? " data-menu-held" : " hidden"}>${renderMenu({ items })}</div></div>` : ""}
   </div>`;
 }
 
-const lookGroup = (say: Say, cards: string, className = ""): string =>
+export const renderLookGroup = (say: Say, cards: string, className = ""): string =>
   `<div class="mw-look-grid${className}" role="group" aria-label="${escapeHtml(say("皮肤"))}" data-look-cards>${cards}</div>`;
 
 export function lookCardSection(say: Say): string {
+  const card = (look: BoardLook, state: LookCardState) => renderLookCard(say, look, { ...state, more: true });
   return section("look-card", say("外观卡 / Look Card"), `<div class="mw-catalog__specimens">
-    ${specimen(say("一排外观：在用、样张里、没通过检查"), lookGroup(say, renderLookCard(say, SOFT_LOOK, { inUse: true }) + renderLookCard(say, TEAL_LOOK, { pressed: true, trying: true }) + renderLookCard(say, WARM_LOOK, { fails: true })))}
-    ${specimen(say("最挤：名字很长，卡窄"), lookGroup(say, renderLookCard(say, WARM_LOOK, { fails: true, name: LONG_NAME, fontName: LONG_FONT }), " mw-look-grid--narrow"))}
-    ${specimen(say("更多操作：卡角的独立按钮"), lookGroup(say, renderLookCard(say, TEAL_LOOK, { inUse: true, menuOpen: true }), " mw-look-grid--narrow mw-look-grid--room"))}
+    ${specimen(say("一排外观：在用、样张里、没通过检查"), renderLookGroup(say, card(SOFT_LOOK, { inUse: true }) + card(TEAL_LOOK, { pressed: true, trying: true }) + card(WARM_LOOK, { fails: true })))}
+    ${specimen(say("最挤：名字很长，卡窄"), renderLookGroup(say, card(WARM_LOOK, { fails: true, name: LONG_NAME, fontName: LONG_FONT }), " mw-look-grid--narrow"))}
+    ${specimen(say("更多操作：卡角的独立按钮"), renderLookGroup(say, card(TEAL_LOOK, { inUse: true, menuOpen: true }), " mw-look-grid--narrow mw-look-grid--room"))}
   </div>`);
 }
 
 type ProofState = "idle" | "ready" | "loading" | "failed" | "invalid" | "conflict";
 
-interface ProofOptions {
-  readonly look: BoardLook;
+export interface LookProofOptions {
+  readonly look: AppearanceLook;
   readonly state: ProofState;
   /** Keeps the canvas in one theme whatever the page does; left out it wears the page's. */
   readonly theme?: LookTheme;
   readonly problems?: readonly string[];
   readonly name?: string;
+  readonly scopes?: { readonly skin: string; readonly font: string; readonly mono: string };
 }
 
 /** The picture of a look: the lists, forms, buttons, long text, numbers and code a look has to carry. A picture, not a form: inert, and named once as a whole. */
-function renderLookCanvas(say: Say, look: BoardLook, name: string, theme?: LookTheme): string {
+function renderLookCanvas(say: Say, look: AppearanceLook, name: string, theme?: LookTheme, scopes?: LookProofOptions["scopes"]): string {
   const t = (text: string) => escapeHtml(say(text));
   const row = (state: StateRingState, title: string, end: string) => `<li>${renderStateRing({ state })}<span>${t(title)}</span><span>${t(end)}</span></li>`;
   return `<div class="mw-look-proof__picture" role="img" aria-label="${escapeHtml(say("样张：{name}（示意，不可操作）", { name: say(name) }))}">
-    <div class="mw-look-proof__canvas" data-look="${look.id}"${theme ? ` data-look-theme="${theme}"` : ""} inert>
+    <div class="mw-look-proof__canvas" data-look="${escapeHtml(look.id)}"${theme ? ` data-look-theme="${theme}"` : ""}${scopes ? ` data-ui-skin="${escapeHtml(scopes.skin)}" data-ui-font="${escapeHtml(scopes.font)}" data-ui-mono="${escapeHtml(scopes.mono)}"` : ""} inert>
       <div class="mw-look-proof__sheet">
         <h4><span>${t("本周工作")}</span>${renderBadge({ label: say("3 项"), tone: "info" })}</h4>
         <ul class="mw-look-proof__rows">${row("done", "整理访谈记录", "09:41")}${row("running", "起草第四季度计划", "进行中")}${row("waiting", "等设计评审", "11/06")}</ul>
         ${renderField({ label: say("项目名称"), control: renderInput({ value: say("Molis 新版发布"), invalid: true }), error: say("已经有一个同名项目。") })}
         <div class="mw-look-proof__buttons">${renderButton({ label: say("保存"), variant: "primary" })}${renderButton({ label: say("取消"), variant: "secondary" })}${renderButton({ label: say("更多"), variant: "ghost", icon: "more" })}</div>
         <p class="mw-look-proof__read">${t("2026 年 11 月 4 日，完成 1,284 条整理，用时 3.5 秒。长一点的说明在阅读时更舒展，标点「，。」与 English words 混排也要对齐。")}</p>
-        <pre class="mw-look-proof__code">const look = "${look.id}";  // ${t("等宽")}</pre>
+        <pre class="mw-look-proof__code">const look = "<span data-look-code-name>${escapeHtml(look.id)}</span>";  // ${t("等宽")}</pre>
       </div>
     </div>
   </div>`;
 }
 
 /** What the card's foot says and offers in each state: loading, a failure, a failed check and a clash are said here, and the page underneath never changes. */
-function proofFoot(say: Say, { state, problems = PROBLEMS }: ProofOptions): { status: string; extra: string; disabled: boolean; primary: string } {
+function proofFoot(say: Say, { state, problems = PROBLEMS }: LookProofOptions): { status: string; extra: string; disabled: boolean; primary: string } {
   const t = (text: string, values?: Record<string, string | number>) => escapeHtml(say(text, values));
   const mark = (ring: StateRingState, text: string, values?: Record<string, string | number>) => renderStatusMark({ state: ring, label: say(text, values), plain: true });
   const ask = renderButton({ label: say("交给助理修改"), variant: "secondary", icon: "sparkles" });
@@ -100,8 +105,8 @@ function proofFoot(say: Say, { state, problems = PROBLEMS }: ProofOptions): { st
   switch (state) {
     case "idle": return { status: t("点一个皮肤或字体，样张先换，页面不变。"), extra: "", disabled: true, primary: use };
     case "ready": return { status: t("页面没变；用上之后这个 Home 的所有窗口一起换。"), extra: "", disabled: false, primary: use };
-    case "loading": return { status: mark("running", "字体加载中，样张先用后备字体"), extra: "", disabled: false, primary: use };
-    case "failed": return { status: mark("failed", "字体没加载上，样张先用后备字体；这个组合还不能用上"), extra: renderButton({ label: say("再试一次"), variant: "secondary" }), disabled: true, primary: use };
+    case "loading": return { status: mark("running", "字体加载中，样张先用后备字体"), extra: "", disabled: true, primary: use };
+    case "failed": return { status: mark("failed", "字体没加载上，样张先用后备字体；这个组合还不能用上"), extra: "", disabled: true, primary: use };
     case "invalid": return { status: `${mark("blocked", "有 {n} 个问题，修好之前不能用上", { n: problems.length })}<ul>${problems.map((problem) => `<li>${t(problem)}</li>`).join("")}</ul>`, extra: ask, disabled: true, primary: use };
     case "conflict": return { status: mark("conflict", "另一个窗口刚换成了「{name}」；用上会替换它", { name: say(SOFT_LOOK.name) }), extra: "", disabled: false, primary: say("仍然用上") };
   }
@@ -111,20 +116,20 @@ function proofFoot(say: Say, { state, problems = PROBLEMS }: ProofOptions): { st
  * The specimen card: the card is the page's, the canvas in it is drawn in `look`. In use, nothing to try, it shows the look in use and offers nothing;
  * otherwise "Use it" is the one primary and "Not this time" lets go.
  */
-function renderLookProof(say: Say, options: ProofOptions): string {
+export function renderLookProof(say: Say, options: LookProofOptions): string {
   const { look, state, theme } = options;
   const name = options.name ?? look.name;
   const trying = state !== "idle";
   const foot = proofFoot(say, options);
   return `<article class="mw-card mw-look-proof" data-slot="card" data-state="${state}">
     <header class="mw-card__header"><div><h3 class="mw-card__title">${escapeHtml(say("样张"))}</h3><p class="mw-card__description">${escapeHtml(say(trying ? "试：{name}" : "现在用的：{name}", { name: say(name) }))}</p></div>${renderBadge({ label: say(trying ? "没用上" : "在用"), tone: trying ? "info" : "success" })}</header>
-    <div class="mw-card__panel">${renderLookCanvas(say, look, name, theme)}</div>
-    <footer class="mw-card__footer"><div class="mw-look-proof__status" role="status" aria-live="polite">${foot.status}</div><div class="mw-look-proof__actions">${foot.extra}${renderButton({ label: say("这次不换"), variant: "secondary", disabled: !trying })}${renderButton({ label: foot.primary, variant: "primary", disabled: foot.disabled })}</div></footer>
+    <div class="mw-card__panel">${renderLookCanvas(say, look, name, theme, options.scopes)}</div>
+    <footer class="mw-card__footer"><div class="mw-look-proof__status" role="status" aria-live="polite">${foot.status}</div><div class="mw-look-proof__actions">${foot.extra}${renderButton({ label: say("再试一次"), variant: "secondary", attrs: { "data-look-retry": true, hidden: state !== "failed" } })}${renderButton({ label: say("这次不换"), variant: "secondary", disabled: !trying, attrs: { "data-look-cancel": true } })}${renderButton({ label: foot.primary, variant: "primary", disabled: foot.disabled, attrs: { "data-look-apply": true } })}</div></footer>
   </article>`;
 }
 
 export function lookProofSection(say: Say): string {
-  const card = (options: ProofOptions) => renderLookProof(say, options);
+  const card = (options: LookProofOptions) => renderLookProof(say, options);
   const side = (theme: LookTheme, caption: string) => `<figure><figcaption>${escapeHtml(say(caption))}</figcaption>${renderLookCanvas(say, TEAL_LOOK, TEAL_LOOK.name, theme)}</figure>`;
   return section("look-proof", say("样张卡 / Look Specimen"), `<div class="mw-catalog__specimens">
     ${specimen(say("试一套外观：页面不变，样张换样"), card({ look: TEAL_LOOK, state: "ready" }))}

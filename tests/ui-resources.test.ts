@@ -14,6 +14,8 @@ const PACKAGE_DIRECTORIES: Readonly<Record<string, string>> = { "@molis-ai/molis
 const NOT_REGISTERED = new Set(["packages/design-system/fonts/README.md", "packages/design-system/resources/registry.json"]);
 const directoryOf = (name: string) => PACKAGE_DIRECTORIES[name] ?? assert.fail(`登记表的包 ${name} 不认识，在 PACKAGE_DIRECTORIES 加上它`);
 const RESOURCES = BASELINE_REGISTRY.resources;
+const FOLIO_ASSET_IDS = ["font.folio-nunito-latin", ...[400, 500, 600, 700].flatMap(weight =>
+  [`font.folio-rounded-${weight}-common`, `font.folio-rounded-${weight}-tail`])];
 
 function filesBelow(directory: string): string[] {
   return readdirSync(path.join(ROOT, directory), { withFileTypes: true }).flatMap((entry) => (entry.isDirectory() ? filesBelow(`${directory}/${entry.name}`) : [`${directory}/${entry.name}`]));
@@ -30,7 +32,7 @@ test("FSS-58 every row's file or directory is there", () => {
 
 test("FSS-58 a third party's binary matches the digest in its row and has its licence", () => {
   const binaries = RESOURCES.filter((row) => row.kind === "font" || row.kind === "asset");
-  assert.deepEqual(binaries.map((row) => row.id).sort(), ["font.inter-latin-variable", "font.noto-sans-sc-400"]);
+  assert.deepEqual(binaries.map((row) => row.id).sort(), ["font.inter-latin-variable", "font.noto-sans-sc-400", ...FOLIO_ASSET_IDS].sort());
   for (const row of binaries) {
     if (row.kind !== "font" && row.kind !== "asset") continue;
     const directory = directoryOf(row.package);
@@ -42,7 +44,10 @@ test("FSS-58 a third party's binary matches the digest in its row and has its li
 
 test("FSS-58 nothing sits under resources/ or fonts/ without a row", () => {
   for (const directory of new Set(RESOURCES.map((row) => directoryOf(row.package)))) {
-    const registered = RESOURCES.filter((row) => directoryOf(row.package) === directory).map((row) => `${directory}/${row.path}`);
+    const registered = RESOURCES.filter((row) => directoryOf(row.package) === directory).flatMap(row => [
+      `${directory}/${row.path}`,
+      ...((row.kind === "font" || row.kind === "asset") && row.license.notice_path ? [`${directory}/${row.license.notice_path}`] : []),
+    ]);
     for (const file of ["resources", "fonts"].flatMap((name) => (existsSync(path.join(ROOT, directory, name)) ? filesBelow(`${directory}/${name}`) : []))) {
       if (NOT_REGISTERED.has(file)) continue;
       assert.ok(registered.some((entry) => file === entry || file.startsWith(`${entry}/`)), `${file} ships without a row in resources/registry.json`);
@@ -60,8 +65,9 @@ test("FSS-58 the package's files cover every row, so a release carries them", ()
 test("FSS-58 a row's route is the literal Local Host serves, which the page-asset gate reads", () => {
   const webAssets = readFileSync(path.join(ROOT, "apps/local-host/src/web-assets.ts"), "utf8");
   const routes = RESOURCES.flatMap((row) => row.route ?? []);
-  assert.deepEqual([...routes].sort(), [INTER_VARIABLE_ASSET_PATH, NOTO_SANS_SC_ASSET_PATH].sort());
-  for (const route of routes) assert.ok(webAssets.includes(`pathname === "${route}"`), route);
+  const folioRoutes = FOLIO_ASSET_IDS.map(id => `/assets/${id.slice("font.".length)}.woff2`);
+  assert.deepEqual([...routes].sort(), [INTER_VARIABLE_ASSET_PATH, NOTO_SANS_SC_ASSET_PATH, ...folioRoutes].sort());
+  for (const route of routes) assert.ok(webAssets.includes(`case "${route}":`), route);
 });
 
 test("FSS-58 the two font rows keep Local Host off the path the release does not have", () => {

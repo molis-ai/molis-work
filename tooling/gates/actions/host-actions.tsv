@@ -94,6 +94,9 @@ agent.task_grants.list	1	system.task-grants	query	query	project	read	-	plugin,us
 agent.task_grants.set	1	system.task-grants	command	operation	project	write	-	user	projects:settings	project	-	-	65c4dcc42cc6	84610c1025f6	-
 agent.write_checkers.list	1	platform	query	query	project	read	-	user	-	project	-	-	99334726611c	26cb7ff8df01	-
 agent.write_checkers.save	1	platform	command	operation	project	write	-	user	projects:settings	project	-	-	498e1a9ea182	20465c4fd1d3	-
+appearance.selection.apply	1	system.appearance	command	operation	home	write	-	user	appearance:write	-	-	-	483da920ab6f	57b94ef149dc	a4dfb41b6e2a
+appearance.selection.get	1	system.appearance	query	query	home	read	-	user	appearance:read	-	-	-	55a7aa1eabe7	e01935b6c9e3	-
+appearance.selection.undo	1	system.appearance	command	operation	home	write	-	user	appearance:write	-	-	-	689abff4c91b	57b94ef149dc	-
 artifacts.browse	1	io.molis.work.artifacts	query	query	project	read	-	agent,mcp,user,workflow	artifacts:read	artifact	-	-	0800de271471	424b2c25470d	-
 artifacts.content.list	1	io.molis.work.artifacts	query	query	project	read	-	agent,mcp,user,workflow	artifacts:read	artifact	molis.workflow.content.list.input.v1	molis.workflow.content.list.output.v1	d746974fa9af	4f4504a9e9ef	0b7810d4511b
 artifacts.content.read	1	io.molis.work.artifacts	query	query	project	read	-	agent,mcp,user,workflow	artifacts:read	artifact	molis.workflow.content.read.input.v1	molis.workflow.content.read.output.v1	340e9001c04b	a92de13478a1	a1666197f459

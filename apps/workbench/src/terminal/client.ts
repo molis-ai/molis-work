@@ -100,14 +100,16 @@ function listenPaneButtons(
 
 /** Keep the active screen sized to the pane and focused on a click; close the channel with the page. */
 function followTerminalHost(host: HTMLElement, screens: TerminalScreens, panelController: ReturnType<typeof createTerminalPanels>) {
-  new ResizeObserver(() => {
+  const fit = () => {
     const panelId = panelController.activeId;
     const session = panelId ? screens.get(panelId) : undefined;
     if (!panelId || !session) return;
     session.fit.fit();
     const size = session.fit.proposeDimensions();
     if (size) void panelController.send({ type: "resize", panelId, cols: size.cols, rows: size.rows }).catch(() => undefined);
-  }).observe(host);
+  };
+  new ResizeObserver(fit).observe(host);
+  window.addEventListener("molis-work:ui-environment-changed", () => { screens.remeasure(); fit(); });
 
   host.addEventListener("pointerdown", () => {
     const panelId = panelController.activeId;

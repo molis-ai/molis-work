@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import type { UiAppearanceSelection, UiAppearanceView, UiDefinitionRef, UiEnvironmentProblem, UiFileResult, UiResourceRow, UiSkinFile } from "@molis-ai/molis-work-contracts/platform/ui";
 import { BASELINE_FONT, BASELINE_REGISTRY, BASELINE_SKIN, BASELINE_SPEC, baselinePackageFile } from "@molis-ai/molis-work-design-system";
-import { fontFaceRules, parseFontScheme, parseSkinFile, resolveFontScheme, resolveSkin } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { fontFaceRules, parseFontScheme, parseSkinFile, resolveFontScheme, resolveSkin, type UiResolvedFont, type UiResolvedSkin } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { appearanceErrors } from "./errors.js";
 
 const refOf = ({ id, revision }: UiDefinitionRef): UiDefinitionRef => ({ id, revision });
@@ -11,6 +11,13 @@ const identity = ({ id, revision }: UiDefinitionRef): string => `${id}@${revisio
 const baselineSelection: UiAppearanceSelection = {
   skin: BASELINE_SKIN.ref, font: { policy: "follow-skin" }, mono: null,
 };
+
+export interface ResolvedAppearance {
+  readonly definition: UiSkinFile;
+  readonly skin: UiResolvedSkin;
+  readonly font: UiResolvedFont;
+  readonly mono: UiResolvedFont;
+}
 
 function recordProblems<T>(result: UiFileResult<T>, subject: string, problems: UiEnvironmentProblem[]): T | undefined {
   if (result.ok) return result.value;
@@ -72,30 +79,33 @@ function loadBuiltins() {
     return validateFontResources(resolved.faces.map(face => face.resource), verified, problems) ? [[key, resolved] as const] : [];
   }));
   const skins = new Map([...skinFiles].flatMap(([key, file]) => {
-    if (file !== baselineSkin && !recordProblems(resolveSkin(BASELINE_SPEC, baselineSkin, file), key, problems)) return [];
+    const resolved = file === baselineSkin ? BASELINE_SKIN : recordProblems(resolveSkin(BASELINE_SPEC, baselineSkin, file), key, problems);
+    if (!resolved) return [];
     if (!fonts.has(identity(file.recommended_font))) {
       problems.push({ code: "appearance.recommended_font_unavailable", subject: key, detail: identity(file.recommended_font) });
       return [];
     }
-    return [[key, file] as const];
+    return [[key, { definition: file, skin: resolved }] as const];
   }));
   const builtins: UiAppearanceView["builtins"] = {
-    skins: [...skins.values()].map(file => ({ ref: refOf(file), name: file.name, recommended_font: file.recommended_font })),
+    skins: [...skins.values()].map(({ definition }) => ({ ref: refOf(definition), name: definition.name, recommended_font: definition.recommended_font })),
     fonts: [...fonts.values()].map(({ ref, name }) => ({ ref, name })),
   };
+  const baseline: ResolvedAppearance = { definition: baselineSkin, skin: BASELINE_SKIN, font: BASELINE_FONT, mono: BASELINE_FONT };
 
   return {
-    baselineSelection, baselineSkin, builtins, problems,
-    resolve(selection: UiAppearanceSelection): { skin?: UiSkinFile; problems: UiEnvironmentProblem[] } {
-      const skin = skins.get(identity(selection.skin)), issues: UiEnvironmentProblem[] = [];
+    baselineSelection, baseline, builtins, problems,
+    resolve(selection: UiAppearanceSelection): { appearance?: ResolvedAppearance; problems: readonly UiEnvironmentProblem[] } {
+      const skin = skins.get(identity(selection.skin));
+      const fontRef = selection.font.policy === "pinned" ? selection.font.scheme : skin?.definition.recommended_font;
+      const font = fontRef && fonts.get(identity(fontRef));
+      const mono = selection.mono ? fonts.get(identity(selection.mono)) : font;
+      if (skin && font && mono) return { appearance: { ...skin, font, mono }, problems: [] };
+      const issues: UiEnvironmentProblem[] = [];
       if (!skin) issues.push({ code: "appearance.skin_unavailable", subject: identity(selection.skin) });
-      if (selection.font.policy === "pinned" && !fonts.has(identity(selection.font.scheme))) {
-        issues.push({ code: "appearance.font_unavailable", subject: identity(selection.font.scheme) });
-      }
-      if (selection.mono && !fonts.has(identity(selection.mono))) {
-        issues.push({ code: "appearance.mono_unavailable", subject: identity(selection.mono) });
-      }
-      return { skin, problems: issues };
+      if (!font && fontRef) issues.push({ code: "appearance.font_unavailable", subject: identity(fontRef) });
+      if (!mono && selection.mono) issues.push({ code: "appearance.mono_unavailable", subject: identity(selection.mono) });
+      return { problems: issues };
     },
   };
 }

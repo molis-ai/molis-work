@@ -95,7 +95,7 @@ export function isDesktopShellRequest(request: IncomingMessage, url: URL): boole
 }
 
 export function withDesktopQuery(href: string): string {
-  if (!href.startsWith("/") || href.startsWith("//")) return href;
+  if (!href.startsWith("/") || href.startsWith("//") || href.startsWith("/assets/")) return href;
   if (/(?:[?&])desktop=1(?:&|#|$)/.test(href)) return href;
   const hashIndex = href.indexOf("#");
   const beforeHash = hashIndex >= 0 ? href.slice(0, hashIndex) : href;

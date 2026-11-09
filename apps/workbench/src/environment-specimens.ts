@@ -24,7 +24,7 @@ const SAMPLE_AT = "2026-11-07T09:30:00.000Z";
 
 /** What the page computes again (`resolveUiEnvironment` reads only which definitions are in force), so the two can be compared. */
 const SPEC_IDENTITY: UiSpecFile = { format_version: BASELINE_SPEC.format_version, id: BASELINE_SPEC.id, revision: BASELINE_SPEC.revision,
-  baseline_skin: BASELINE_SPEC.baseline_skin, baseline_font: BASELINE_SPEC.baseline_font, groups: [], font_roles: [] };
+  baseline_skin: BASELINE_SPEC.baseline_skin, baseline_font: BASELINE_SPEC.baseline_font, groups: [], font_roles: [], components: [] };
 const SKIN_IDENTITY: UiSkinFile = { format_version: UI_FORMAT_VERSIONS.skin, id: BASELINE_SKIN.ref.id, revision: BASELINE_SKIN.ref.revision, spec: BASELINE_SKIN.spec,
   name: BASELINE_SKIN.name, recommended_font: BASELINE_SKIN.recommended_font, light: {}, dark: {}, shared: {}, terminal: {} };
 const LOCALES = ["zh", "en"] as const;

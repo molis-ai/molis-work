@@ -5,7 +5,8 @@ import { SETTINGS_CLIENT_SCRIPT } from "./browser-assets.js";
 import { CONTROL_CLIENT_SCRIPT as UI_REQUEST_CLIENT_SCRIPT } from "./scripts/control.js";
 import type { MolisWorkSettingsView } from "./settings-view.js";
 import type { createWorkbenchSettingsNavigation } from "./settings-navigation.js";
-import { renderAppearanceSettingsDocument, renderRuntimePlanDialog } from "./settings-appearance.js";
+import { renderAppearanceRecovery, renderAppearanceSettingsDocument, renderRuntimePlanDialog } from "./settings-appearance.js";
+import { appearanceClientTag, appearanceHead, type WorkbenchAppearancePorts } from "./appearance-document.js";
 import { findPluginSettingsNavItem } from "./plugin-settings-catalog.js";
 import { pluginSettingsStyleLinks } from "./plugin-workbench.js";
 import { renderConnectorsSettings } from "./settings-connectors.js";
@@ -42,16 +43,14 @@ export interface SettingsRenderPrimitives {
   visualFoundationClientScript: string;
   settingsContextHref: ReturnType<typeof createWorkbenchSettingsNavigation>["settingsContextHref"];
   renderSettingsNavigation: ReturnType<typeof createWorkbenchSettingsNavigation>["renderSettingsNavigation"];
+  appearance?: WorkbenchAppearancePorts;
 }
 export function createWorkbenchSettingsRenderer(primitives: SettingsRenderPrimitives) {
   const { L, escapeHtml, icon, currentLocale, localeSwitchHref, htmlLang, controlTokenMeta, clientI18nScript, renderIconSprite,
     withDesktopQuery, settingsContextHref, renderSettingsNavigation,
     themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT, visualFoundationClientScript: VISUAL_FOUNDATION_CLIENT_SCRIPT } = primitives;
-function renderAppearanceSettings(nextPath: string): string {
-  return renderAppearanceSettingsDocument({ L, currentLocale, localeSwitchHref }, nextPath);
-}
-
 function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "", desktopShell = false): string {
+  const appearance = primitives.appearance?.current();
   const capabilities = view.capabilities ? createCapabilitiesRenderer(primitives, view.capabilities, view.context_project ?? null, view.projects, desktopShell) : undefined;
   const pluginPage = findPluginSettingsNavItem(view.section);
   const title = view.section === "sync" ? L("同步") : capabilities ? L("能力") : view.section === "appearance"
@@ -83,7 +82,8 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
     ...view.model_settings, primitives: { L, escape: escapeHtml, icon: modelIcon },
   }) : view.plugin_settings_html)
     || (view.section === "sync" ? renderSyncSettings(L) : view.section === "appearance"
-      ? renderAppearanceSettings(settingsPath)
+      ? renderAppearanceSettingsDocument({ L, currentLocale, localeSwitchHref }, settingsPath,
+        appearance && primitives.appearance ? { current: appearance, choices: primitives.appearance.choices() } : undefined)
       : view.section === "runtimes"
         ? renderRuntimeSettings(view, primitives)
         : view.section === "assistant"
@@ -103,7 +103,7 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
             : "");
   return `<!doctype html>
 <html lang="${htmlLang()}">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${NO_FAVICON_LINK}${controlTokenMeta(controlToken)}<title>${title} · ${L("Molis Work 设置")}</title><script>${THEME_BOOTSTRAP_SCRIPT}</script><link rel="stylesheet" href="/assets/molis-work-settings.css">${pluginSettingsStyleLinks(pluginPage?.contribution_id ?? "")}</head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${NO_FAVICON_LINK}${controlTokenMeta(controlToken)}<title>${title} · ${L("Molis Work 设置")}</title><script>${THEME_BOOTSTRAP_SCRIPT}</script><link rel="stylesheet" href="/assets/molis-work-settings.css">${pluginSettingsStyleLinks(pluginPage?.contribution_id ?? "")}${appearanceHead(appearance)}</head>
 <body${primitives.accountRegistration ? ACCOUNT_REGISTRATION_BODY : ''} class="settings-page project-preferences-page global-preferences-page${capabilities ? " capabilities-page" : ""}" data-settings-section="${view.section}" data-desktop-shell="false"${desktopShell ? ' data-native-desktop="true"' : ""}>
   ${renderIconSprite()}
   <header class="project-preferences-chrome"${desktopShell ? ' data-tauri-drag-region="deep"' : ""}><span>${capabilities ? L("能力") : projectManager ? L("项目管理") : L("全局设置")}</span><a href="${returnHref}" aria-label="${L(capabilities ? "关闭能力服务" : "关闭全局设置")}">${icon("x")}</a></header>
@@ -112,8 +112,8 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
     <div class="settings-content">${content}</div>
   </main>
   ${renderRuntimePlanDialog({ L, icon })}
-  <div class="mw-toast toast" data-settings-toast role="status" aria-live="polite"></div>
-  <script>${clientI18nScript()}${UI_REQUEST_CLIENT_SCRIPT}${SETTINGS_CLIENT_SCRIPT}${view.capabilities?.rules ? FUNCTIONS_SYSTEM_CLIENT_SCRIPT : ""}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>
+  <div class="mw-toast toast" data-settings-toast role="status" aria-live="polite"></div>${renderAppearanceRecovery(L, appearance)}
+  <script>${clientI18nScript()}${UI_REQUEST_CLIENT_SCRIPT}${SETTINGS_CLIENT_SCRIPT}${view.capabilities?.rules ? FUNCTIONS_SYSTEM_CLIENT_SCRIPT : ""}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>${appearanceClientTag(appearance)}
 </body></html>`;
 }
 

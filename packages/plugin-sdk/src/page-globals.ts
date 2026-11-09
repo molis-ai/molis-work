@@ -170,18 +170,18 @@ export interface ComposerCommonOptions {
   sources?: boolean;
   /**
    * The object the page is on, handed to a source as `near` only when that source's own `subject_kinds` hold its kind: a source
-   * never learns which object of another owner the page shows (S-composer-source-call).
+   * never learns which object of another owner the page shows (S-composer-source-call). `plugin_id` narrows to the page object's owner; otherwise the mount root's owner is used. Missing ownership means no near. This hint never grants access.
    */
-  near?: () => ActionSubject | null;
+  near?: () => (ActionSubject & { plugin_id?: string }) | null;
   /** The microphone's name, for a page that takes voice (batch 53); the same option as `renderComposer`'s. */
   voice?: string;
   /** The page's own required check: what is missing, or null. */
   required?: () => string | null;
-  /** `signal` aborts when the instance is mounted again or let go; a late outcome is dropped. */
+  /** `signal` aborts when the instance is mounted again or let go; late outcomes settle only the original draft and sent selections. */
   submit(input: ComposerSubmission, signal: AbortSignal): Promise<ComposerOutcome>;
 }
 
-/** A draft its owner already keeps (the Assistant per work, Coding per session); the composer keeps no second copy. */
+/** A draft its owner already keeps (the Assistant per work, Coding per session); the composer keeps no second persistent copy. Reuse the adapter object for the same draft within this document to retain its selected attachments. */
 export interface ComposerDraftAdapter {
   read(signal: AbortSignal): Promise<string>;
   /** Throttled as the person writes; a rejection is told in the status line and the text stays. */

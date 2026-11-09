@@ -46,7 +46,7 @@ export function composerMenus(c: Composer): ComposerMenus {
   };
   let timer = 0;
   /** One query at a time: after `wait`, unless the menu it was for has gone; the next one aborts it. */
-  const later = (still: () => boolean, wait: number, run: () => void) => { clearTimeout(timer); timer = window.setTimeout(() => { if (still()) run(); }, wait); };
+  const later = (still: () => boolean, wait: number, run: () => void) => { c.queries.end(); clearTimeout(timer); timer = window.setTimeout(() => { if (still()) run(); }, wait); };
   const addMenu = () => shell.querySelector<HTMLElement>(".mw-composer__start [data-compose-menu]");
   function drawAdd(focus = true) {
     const menu = addMenu();
@@ -82,9 +82,9 @@ export function composerMenus(c: Composer): ComposerMenus {
       c.picking = { source, query: "" };
       drawAdd();
       const ask = (words: string, wait: number) => later(() => c.picking?.source === source, wait, () => void c.queries.latest(
-        (aborted) => http()!<{ items: ComposerPickItem[] }>(route("/api/composer/pick"), { signal: aborted, body: {
+        (aborted) => { const near = options.near?.(); return http()!<{ items: ComposerPickItem[] }>(route("/api/composer/pick"), { signal: aborted, body: {
           layer: options.kind, capability_id: source.capability_id, version: source.version, provider_id: source.provider_id, query: words, limit: 20,
-          ...(options.near?.() ? { near: options.near()! } : {}) } }),
+          ...(near ? { near: { ...near, plugin_id: near.plugin_id || c.root.closest<HTMLElement>("[data-plugin-owner]")?.dataset.pluginOwner || document.body.dataset.pluginId } } : {}) } }); },
         (found) => { if (c.picking?.source === source) { c.picking.found = found.items; redrawPick(source); } },
         () => { if (c.picking?.source === source) { c.picking.found = c.fill(labels.unavailable, { name: `${source.provider} · ${source.title}` }); redrawPick(source); } },
       ));

@@ -34,7 +34,9 @@ export interface ComposerCommonOptions {
     };
     onMaterials?(): void;
     sources?: boolean;
-    near?: () => ActionSubject | null;
+    near?: () => (ActionSubject & {
+        plugin_id?: string;
+    }) | null;
     voice?: string;
     required?: () => string | null;
     submit(input: ComposerSubmission, signal: AbortSignal): Promise<ComposerOutcome>;

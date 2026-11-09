@@ -109,6 +109,7 @@ function draw(c: Composer, controls: boolean) {
   // Kept when it reads the same, so a part that is easing between one row and rows keeps its motion.
   if (to) { if (!had) shell.prepend(to); else if (had.outerHTML !== to.outerHTML) had.replaceWith(to); } else had?.remove();
   const end = next.querySelector<HTMLElement>(".mw-composer__end")!;
+  if (!c.ai?.stop) end.querySelector("[data-composer-stop]")?.remove();
   for (const button of end.querySelectorAll<HTMLButtonElement>("[data-composer-send]")) button.disabled = !sendable(c);
   end.querySelector<HTMLButtonElement>("[data-composer-stop]")?.toggleAttribute("disabled", c.stopping);
   if (end.outerHTML !== c.painted) {

@@ -21,6 +21,172 @@ import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 const META = process.platform === "darwin" ? 4 : 2, SHIFT = 8;
 const EVIDENCE = resolve(".impeccable/qa/review/unified-input-k2");
 
+test("B10-R2: switching A to B to A restores selected files and references without leaking them into B", { timeout: 120_000 }, async (t) => {
+  const c = await open(t); if (!c) return;
+  await c.mountPlain();
+  await c.page.evaluate('globalThis.composerHandle.attach([new File(["正文"], "kept.txt")])');
+  await c.page.wait("document.querySelector('#composer-probe .mw-upload:not(.is-reading)')");
+  await c.page.click("[data-composer-add]");
+  await c.page.wait("document.querySelector('[data-composer-source]')");
+  await c.page.click("[data-composer-source]");
+  await c.page.wait("document.querySelector('[data-composer-pick]')");
+  await c.page.click("[data-composer-pick]");
+  const before = await c.page.evaluate("globalThis.composerHandle.materials()");
+  await c.page.evaluate(`globalThis.composerHandle = window.molisComposer(document.getElementById("composer-probe"), {
+    kind: "plain", labels: ${JSON.stringify(COMPOSER_PLAIN_LABELS)}, entry: "comment", draft: { conversation: "B" }, submit: async () => ({ state: "sent" }) })`);
+  assert.deepEqual(await c.page.evaluate("globalThis.composerHandle.materials()"), []);
+  await c.mountPlain();
+  assert.deepEqual(await c.page.evaluate("globalThis.composerHandle.materials()"), before);
+  assert.equal(await c.page.evaluate("document.querySelectorAll('#composer-probe .mw-upload').length"), 2);
+});
+
+test("B10-R2: a late successful Send clears its own local draft while another conversation is mounted", { timeout: 120_000 }, async (t) => {
+  const c = await open(t); if (!c) return; await c.mountPlain();
+  await c.page.evaluate(`(() => {
+    globalThis.mountAway = conversation => window.molisComposer(document.getElementById("composer-probe"), { kind: "plain", labels: ${JSON.stringify(COMPOSER_PLAIN_LABELS)},
+      entry: "sent-away", draft: { conversation }, submit: () => new Promise(resolve => { globalThis.finishAway = resolve; }) });
+    globalThis.composerHandle = mountAway("A");
+    const field = document.querySelector('#composer-probe textarea'); field.value = 'A 已发送'; field.dispatchEvent(new Event('input', { bubbles: true }));
+    field.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Enter', ctrlKey: true, shiftKey: true }));
+  })()`);
+  assert.equal(await c.page.evaluate("typeof globalThis.finishAway"), "undefined", "plain inputs cannot turn a queue shortcut into Send");
+  await c.page.click("[data-composer-send]");
+  await c.page.evaluate('globalThis.composerHandle = mountAway("B"); finishAway({ state: "sent" })');
+  assert.equal(await c.page.evaluate("document.querySelector('#composer-probe textarea').value"), "");
+  await c.page.evaluate('globalThis.composerHandle = mountAway("A")');
+  assert.equal(await c.page.evaluate("document.querySelector('#composer-probe textarea').value"), "", "the delivered text never reappears as a fresh draft");
+});
+
+test("B10-R2: a late successful Send cannot suppress the newer draft's delayed owner read", { timeout: 120_000 }, async (t) => {
+  const c = await open(t); if (!c) return; await c.mountPlain();
+  await c.page.evaluate(`(() => {
+    let reads = 0; globalThis.ownerText = '';
+    const adapter = { read: () => ++reads === 1 ? Promise.resolve('') : new Promise(resolve => { globalThis.finishOwnerRead = resolve; }), write: async text => { globalThis.ownerText = text; } };
+    globalThis.mountOwner = () => window.molisComposer(document.getElementById("composer-probe"), { kind: "plain", labels: ${JSON.stringify(COMPOSER_PLAIN_LABELS)},
+      entry: "sent-owner", draft: { adapter }, submit: () => new Promise(resolve => { globalThis.finishOwnerSend = resolve; }) });
+    globalThis.composerHandle = mountOwner();
+    const field = document.querySelector('#composer-probe textarea'); field.value = '发出的字'; field.dispatchEvent(new Event('input', { bubbles: true }));
+  })()`);
+  await c.page.click("[data-composer-send]");
+  await c.page.evaluate(`(() => { const field = document.querySelector('#composer-probe textarea'); field.value = '还没发出的新字'; field.dispatchEvent(new Event('input', { bubbles: true }));
+    globalThis.composerHandle.destroy(); globalThis.composerHandle = mountOwner(); finishOwnerSend({ state: 'sent' }); })()`);
+  await c.page.evaluate("finishOwnerRead('还没发出的新字')");
+  assert.equal(await c.page.evaluate("document.querySelector('#composer-probe textarea').value"), "还没发出的新字");
+  assert.equal(await c.page.evaluate("globalThis.ownerText"), "还没发出的新字");
+});
+
+test("UIV-04 UIC-07: an immediate conversation switch saves the final edit and never carries it into the next conversation", { timeout: 120_000 }, async (t) => {
+  const c = await open(t);
+  if (!c) return;
+  await c.mountPlain();
+  const result = await c.page.evaluate(`(() => {
+    const root = document.getElementById("composer-probe");
+    globalThis.composerHandle.destroy(); root.replaceChildren();
+    const mount = conversation => window.molisComposer(root, { kind: "plain", labels: ${JSON.stringify(COMPOSER_PLAIN_LABELS)}, entry: "switch",
+      draft: { conversation }, submit: async () => ({ state: "sent" }) });
+    mount("first");
+    const field = root.querySelector("textarea"); field.value = "刚输入，还没到保存时间"; field.dispatchEvent(new Event("input", { bubbles: true }));
+    globalThis.composerHandle = mount("second");
+    const key = "mw.composer.draft:" + [document.body.dataset.projectId, ${JSON.stringify("io.molis.work.example.composermount")}, "switch", "first"].map(encodeURIComponent).join(":");
+    return { next: root.querySelector("textarea").value, previous: JSON.parse(localStorage.getItem(key) || "null")?.text ?? null };
+  })()`);
+  assert.deepEqual(result, { next: "", previous: "刚输入，还没到保存时间" });
+});
+
+test("UIV-04 UIC-07: a late draft read cannot restore words the user has already cleared", { timeout: 120_000 }, async (t) => {
+  const c = await open(t);
+  if (!c) return;
+  await c.mountPlain();
+  await c.page.evaluate(`(() => {
+    const root = document.getElementById("composer-probe"); globalThis.composerHandle.destroy(); root.replaceChildren();
+    globalThis.composerHandle = window.molisComposer(root, { kind: "plain", labels: ${JSON.stringify(COMPOSER_PLAIN_LABELS)}, entry: "late-read",
+      draft: { adapter: { read: () => new Promise(resolve => { globalThis.finishDraftRead = resolve; }), write: async () => {} } }, submit: async () => ({ state: "sent" }) });
+    const field = root.querySelector("textarea");
+    field.value = "临时输入"; field.dispatchEvent(new Event("input", { bubbles: true }));
+    field.value = ""; field.dispatchEvent(new Event("input", { bubbles: true }));
+    globalThis.finishDraftRead("旧草稿");
+  })()`);
+  assert.equal(await c.page.evaluate("document.querySelector('#composer-probe textarea').value"), "");
+});
+
+test("UIV-04: leaving the page saves the pending local draft before the debounce fires", { timeout: 120_000 }, async (t) => {
+  const c = await open(t);
+  if (!c) return;
+  await c.mountPlain();
+  const saved = await c.page.evaluate(`(() => {
+    const field = document.querySelector('#composer-probe textarea');
+    field.value = "页面离开前最后输入"; field.dispatchEvent(new Event("input", { bubbles: true }));
+    window.dispatchEvent(new PageTransitionEvent("pagehide"));
+    const key = "mw.composer.draft:" + [document.body.dataset.projectId, ${JSON.stringify("io.molis.work.example.composermount")}, "comment", "c1"].map(encodeURIComponent).join(":");
+    return JSON.parse(localStorage.getItem(key) || "null")?.text ?? null;
+  })()`);
+  assert.equal(saved, "页面离开前最后输入");
+  await c.load();
+  await c.mountPlain();
+  assert.equal((await c.state()).text, "页面离开前最后输入");
+});
+
+test("UIC-07: changing a source query invalidates its answer before the next debounce fires", { timeout: 120_000 }, async (t) => {
+  const c = await open(t);
+  if (!c) return;
+  await c.mountPlain();
+  await c.page.evaluate(`(() => {
+    const request = window.molisWorkRequest;
+    window.molisWorkRequest = (url, input) => url.endsWith("/api/composer/pick") ? new Promise(resolve => {
+      globalThis.pickSignal = input.signal; globalThis.finishPick = resolve;
+    }) : request(url, input);
+  })()`);
+  await c.page.click("[data-composer-add]");
+  await c.page.wait("document.querySelector('[data-composer-source]')");
+  await c.page.click("[data-composer-source]");
+  await c.page.wait("typeof globalThis.finishPick === 'function'");
+  const result = await c.page.evaluate(`(async () => {
+    const query = document.querySelector('[data-composer-query]'), signal = globalThis.pickSignal;
+    query.value = "新的词"; query.dispatchEvent(new Event("input", { bubbles: true }));
+    globalThis.finishPick({ items: [{ title: "旧查询的结果", ref: { subject: { kind: ${JSON.stringify(NOTE_KIND)}, id: "n1" }, pin: { mode: "current", read_revision: "r1" } } }] });
+    await Promise.resolve(); await Promise.resolve();
+    return { aborted: signal.aborted, picks: document.querySelectorAll('[data-composer-pick]').length };
+  })()`);
+  assert.deepEqual(result, { aborted: true, picks: 0 });
+});
+
+test("UIV-15: unreadable indices identify the sent attachments after rows change while sending", { timeout: 120_000 }, async (t) => {
+  const c = await open(t);
+  if (!c) return;
+  await c.mountPlain();
+  await c.page.evaluate(`(() => {
+    const root = document.getElementById("composer-probe"); globalThis.composerHandle.destroy(); root.replaceChildren();
+    globalThis.composerHandle = window.molisComposer(root, { kind: "plain", labels: ${JSON.stringify(COMPOSER_PLAIN_LABELS)}, entry: "send-rows", draft: { conversation: "one" },
+      attachments: { upload: async file => ({ state: "attached", title: file.name, ref: file.name }) },
+      submit: () => new Promise(resolve => { globalThis.finishSend = resolve; }) });
+    globalThis.composerHandle.attach([new File(["a"], "a.txt"), new File(["b"], "b.txt")]);
+  })()`);
+  await c.page.wait("document.querySelectorAll('#composer-probe .mw-upload').length === 2 && !document.querySelector('#composer-probe .is-reading')");
+  await c.page.evaluate(`(() => {
+    const root = document.getElementById("composer-probe");
+    root.querySelector("[data-composer-send]").click();
+    root.querySelector("[data-composer-remove]").click();
+    globalThis.composerHandle.attach([new File(["c"], "c.txt")]);
+  })()`);
+  await c.page.wait("!document.querySelector('#composer-probe .is-reading')");
+  await c.page.evaluate('globalThis.finishSend({ state: "failed", message: "b is gone", unreadable: [{ index: 1, reason: "b is gone" }] })');
+  const rows = await c.page.evaluate("[...document.querySelectorAll('#composer-probe .mw-upload')].map(row => ({ name: row.querySelector('span:not(.mw-mark)').firstChild.textContent, failed: row.classList.contains('is-failed') }))");
+  assert.deepEqual(rows, [{ name: "b.txt", failed: true }, { name: "c.txt", failed: false }]);
+});
+
+test("UIC-08: an AI composer with no stop callback has no inert stop button", { timeout: 120_000 }, async (t) => {
+  const c = await open(t);
+  if (!c) return;
+  await c.mountPlain();
+  await c.page.evaluate(`(() => {
+    const root = document.getElementById("composer-probe"); globalThis.composerHandle.destroy(); root.replaceChildren();
+    globalThis.composerHandle = window.molisComposer(root, { kind: "ai", labels: ${JSON.stringify(COMPOSER_AI_LABELS)}, entry: "no-stop", draft: { conversation: "one" },
+      submit: async () => ({ state: "sent" }) });
+    globalThis.composerHandle.setRunning(true);
+  })()`);
+  assert.equal(await c.page.evaluate("Boolean(document.querySelector('#composer-probe [data-composer-stop]'))"), false);
+});
+
 async function open(t: TestContext, locale: "zh" | "en" = "zh") {
   // The browser first: `after` hooks run in the order they were added, so it lets go of the page before the Home closes.
   const directory = await mkdtemp(join(tmpdir(), "composer-e2e-"));
@@ -135,7 +301,7 @@ test("UIV-04 UIV-14 UIV-15 VUX-17 VUX-18 UIC-07 UIC-10 UIC-11 S-composer-source-
   await page.wait("document.querySelector('.mw-composer__input').value === ''");
   assert.equal(mount.sent.at(-1)!.text, "存不下也要能发");
   // VUX-17: ＋ lists the registered source by name; picking puts a reference in the strip, with where it came from.
-  await page.evaluate(`globalThis.composerNear = { kind: ${JSON.stringify(NOTE_KIND)}, id: "n3" }`);
+  await page.evaluate(`globalThis.composerNear = { kind: ${JSON.stringify(NOTE_KIND)}, id: "n3", plugin_id: ${JSON.stringify(source.id)} }`);
   await page.click("[data-composer-add]");
   await page.wait("document.querySelector('[data-composer-source]')");
   assert.match(await page.evaluate<string>("document.querySelector('[data-composer-source]').textContent"), /测试笔记/);
@@ -194,17 +360,20 @@ test("UIV-04 UIV-14 UIV-15 VUX-17 VUX-18 UIC-07 UIC-10 UIC-11 S-composer-source-
   await page.click("[data-composer-command='0']");
   assert.deepEqual(await page.evaluate("globalThis.composerCommands"), ["sum"]);
   assert.equal((await state()).text, "");
-  // UIC-07: an outcome for a mount that was replaced is dropped; the new mount's box is not touched.
+  // UIC-07 B10-R2: remounting retains the pending send; this adapter aborts on release, so its text stays for retry.
   await type("迟到的结果");
   await page.evaluate("globalThis.composerHold = new Promise(resolve => { globalThis.composerRelease = resolve; }); undefined");
   await page.click("[data-composer-send]");
   await page.wait("document.querySelector('.mw-composer')?.dataset.state === 'sending'");
+  const beforeAbort = mount.sent.length;
   await c.mountPlain();
-  assert.equal((await state()).state, "", "the new mount draws its own state");
+  assert.equal((await state()).state, "sending", "the same conversation retains its pending send");
+  assert.equal(await page.evaluate("document.querySelector('[data-composer-send]').disabled"), true, "remounting cannot submit a pending send twice");
   await page.evaluate("globalThis.composerHold = null; globalThis.composerRelease(); new Promise(resolve => setTimeout(resolve, 300))");
   const after = await state();
-  assert.equal(after.text, "迟到的结果", "the replaced mount's sent outcome did not clear the new box");
-  assert.equal(after.state, "");
+  assert.equal(after.text, "迟到的结果", "the aborted adapter has not delivered this text");
+  assert.equal(after.state, "failed");
+  assert.equal(mount.sent.length, beforeAbort, "the canceled request never reaches the plugin");
   // UIC-10: removing the plugin from the project leaves none of its drafts on this machine.
   await page.evaluate("globalThis.composerHandle.insert('！')");
   await page.wait(`localStorage.getItem(${JSON.stringify(draftKey)}) !== null`);
@@ -270,7 +439,8 @@ test("UIV-14 §3.3: `@` in the text is the system search inside the component; a
   await page.click("[data-composer-send]");
   await page.wait("document.querySelector('.mw-composer__input').value === ''");
   assert.deepEqual(mount.sent.at(-1)!.materials, [{ kind: "material", ref: { subject: { kind: NOTE_KIND, id: "n2" }, pin: { mode: "current", read_revision: "r7" } }, title: "访谈提纲",
-    source: { capability_id: "composernotes.search", version: 1, provider_id: "composernotes" } }], "the hit goes as a pinned reference, read again by its owner at send");
+    source: { capability_id: "composernotes.search", version: 1, provider_id: "composernotes" },
+    search: { hit_id: "n2", snippet: "访谈提纲", plugin_id: "io.molis.work.example.composernotes", plugin_title: "测试笔记" } }], "the hit goes as a pinned reference, read again by its owner at send");
 });
 
 test("§3.1: the program is one shared file fetched on the first mount; one that cannot load leaves the first screen and says so", { timeout: 120_000 }, async (t) => {
@@ -450,12 +620,11 @@ for (const locale of ["zh", "en"] as const) {
     await page.wait("globalThis.aiStopped === true");
     await page.evaluate("globalThis.aiHandle.setRunning(false)");
     assert.equal(await page.evaluate("document.querySelector('[data-composer-stop]')"), null, "stop is there only while a turn runs");
-    // Nothing running: the next turn is now, so ⌘⇧↵ is a plain send, with no delivery.
+    // B10-R1: an explicit queue request cannot turn into an ordinary Send while idle.
     await type("新的一轮");
     await key(META | SHIFT);
-    await page.wait("globalThis.aiSent.length === 4");
-    assert.equal(await page.evaluate("globalThis.aiSent[3].text"), "新的一轮");
-    assert.equal(await page.evaluate("'delivery' in globalThis.aiSent[3]"), false);
+    assert.equal(await page.evaluate("globalThis.aiSent.length"), 3);
+    assert.equal(await page.evaluate("document.querySelector('.mw-composer__input').value"), "新的一轮");
     // 390: the scene controls fold behind 更多 and open above it.
     await page.viewport(390, 844, true);
     assert.equal(await page.evaluate("getComputedStyle(document.querySelector('.mw-composer__controls')).display"), "none");

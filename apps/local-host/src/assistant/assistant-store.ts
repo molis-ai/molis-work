@@ -1,3 +1,4 @@
+import { AssistantRequests } from "./assistant-requests.js";
 import type { ActionResultPresentation } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AssistantThreadRound } from "./assistant-thread-types.js";
 import { randomUUID } from "node:crypto";
@@ -7,7 +8,7 @@ import { applySqliteBaseline, type openHomeSqliteDatabase, type SqliteBaseline, 
 import { CONTEXT_LEDGER_SCHEMA } from "@molis-ai/molis-work-module-context-ledger";
 import { AssistantRelations } from "./assistant-relations.js";
 import { AssistantUsageLedger } from "./assistant-usage-ledger.js";
-import type { AssistantCharacter, AssistantContextSnapshot, AssistantUnsettledChange, AssistantNotice, AssistantRule, AssistantWorkState, AssistantExecutor, AssistantMaterial, AssistantScope, AssistantSendResult, AssistantSurfaceRef, AssistantWork, AssistantUndoable } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { AssistantCharacter, AssistantContextSnapshot, AssistantUnsettledChange, AssistantNotice, AssistantRule, AssistantWorkState, AssistantExecutor, AssistantMaterial, AssistantScope, AssistantSurfaceRef, AssistantWork, AssistantUndoable } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { eachListener } from "../host-log.js";
 
@@ -160,6 +161,7 @@ export interface StoredCard {
 export class AssistantStore {
   /** What each work started from, used, produced and handed to: Context Ledger edges in this same database. */
   readonly relations: AssistantRelations;
+  readonly requests: AssistantRequests;
   /** Each finished round's reported usage. */
   readonly usage: AssistantUsageLedger;
   /** The person's timed rounds on their works (the follow-ups collaborator's table). */
@@ -171,6 +173,7 @@ export class AssistantStore {
   constructor(private readonly db: DatabaseSync, private readonly now = () => new Date()) {
     applySqliteBaseline(db, ASSISTANT_STORE_NAME, ASSISTANT_STORE_BASELINE);
     this.relations = new AssistantRelations(db, now);
+    this.requests = new AssistantRequests(db, now);
     this.usage = new AssistantUsageLedger(db);
     this.followUps = new AssistantFollowUpRecords(db, workId => this.#changed(workId));
   }
@@ -232,25 +235,6 @@ export class AssistantStore {
 
   rounds(workId: string): StoredRound[] {
     return this.db.prepare("SELECT body FROM assistant_rounds WHERE work_id=? ORDER BY position").all(workId).map(row => JSON.parse(String(row.body)) as StoredRound);
-  }
-
-  /**
-   * Claim one Send. A repeat of a finished Send returns its outcome; a repeat while the first is still in flight is
-   * refused rather than run twice. A Send that failed before it did anything is released so it can be tried again.
-   */
-  claimRequest(actorId: string, requestId: string): { claimed: true } | { claimed: false; result: AssistantSendResult } {
-    if (!/^[A-Za-z0-9-]{8,80}$/.test(requestId)) throw assistantErrors.conflict("发送标识无效，请重新发送");
-    const inserted = this.db.prepare("INSERT OR IGNORE INTO assistant_requests(actor_id,request_id,state,created_at) VALUES (?,?,'pending',?)")
-      .run(actorId, requestId, this.now().toISOString()).changes;
-    if (inserted) return { claimed: true };
-    const row = this.db.prepare("SELECT state, result FROM assistant_requests WHERE actor_id=? AND request_id=?").get(actorId, requestId) as { state: string; result: string | null };
-    if (row.state !== "done" || !row.result) throw assistantErrors.pending_request("这次发送还在处理，不会重复提交");
-    return { claimed: false, result: { ...(JSON.parse(row.result) as AssistantSendResult), outcome: "repeated" } };
-  }
-
-  finishRequest(actorId: string, requestId: string, result: AssistantSendResult): void {
-    this.db.prepare("UPDATE assistant_requests SET state='done', work_id=?, result=? WHERE actor_id=? AND request_id=?")
-      .run(result.work.work_id, JSON.stringify(result), actorId, requestId);
   }
 
   addCard(card: StoredCard): StoredCard {
@@ -430,9 +414,7 @@ export class AssistantStore {
     return this.list(actorId, { archived, limit: 500 }).filter(work => parent.graph_id !== undefined && work.delegated_by?.graph_id === parent.graph_id).sort((a, b) => a.created_at.localeCompare(b.created_at));
   }
 
-  releaseRequest(actorId: string, requestId: string): void {
-    this.db.prepare("DELETE FROM assistant_requests WHERE actor_id=? AND request_id=? AND state='pending'").run(actorId, requestId);
-  }
+
 }
 
 /** This store in the Home's store registry (W4-11). */

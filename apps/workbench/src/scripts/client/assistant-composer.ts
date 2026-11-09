@@ -166,7 +166,13 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
      (writing). The Host clears a work's draft when a Send lands, so words written after the Send are kept here and written once it
      has landed, and the Send itself goes only after the draft write before it (W2-18-SEND-01). */
   const going = new Map(), later = new Map(), writing = new Map();
+  const draftAdapters = new Map();
   const draftFor = (id) => {
+    const key = id || scoped("new-draft");
+    if (!draftAdapters.has(key)) draftAdapters.set(key, makeDraft(id));
+    return draftAdapters.get(key);
+  };
+  const makeDraft = (id) => {
     if (!id) { const key = scoped("new-draft"); return { read: async () => store.get(key) || "", write: async (text) => store.set(key, text || null) }; }
     const route = host.route("/api/assistant/works/" + encodeURIComponent(id) + "/draft");
     return {
@@ -191,18 +197,6 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
     sending += 1; inFlight = mine; if (id) going.set(id, mine);
     try {
       const outcome = await submit(sent, id ? writing.get(id) : undefined);
-      // The person came back to this work while the Send was on its way, so another composer shows it: a Send that did not go
-      // gives its words back to the empty box (the composer that sent them is gone and cannot).
-      if (id && outcome.state !== "sent" && mountedFor === id && !input.value) {
-        input.value = sent.text; window.molisFit?.(input);
-      }
-      // A new work's words, kept in this viewer's storage, went with it: they are not left there as a draft (the person may have
-      // opened another receiver meanwhile, so the composer that sent them does not settle it).
-      if (outcome.elsewhere) {
-        // It went again as it first went, to another receiver (W2-18-SEND-02): the same words written here stay here as a draft.
-        const here = draftHere, words = sent.text;
-        setTimeout(() => { if (draftHere === here && !input.value) { input.value = words; window.molisFit?.(input); void here.write(words).catch(() => undefined); composer?.refresh(); } }, 0);
-      } else if (!id && outcome.state === "sent" && store.get(scoped("new-draft")) === sent.text) store.set(scoped("new-draft"), null);
       return outcome;
     } finally {
       sending -= 1; if (inFlight === mine) inFlight = null;
@@ -219,7 +213,7 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
     composer = window.molisComposer(compose, { kind: "ai", entry: "assistant", labels: words, draft: { adapter: draftHere },
       receiver: receiverNow, delivery: deliveryNow, get controls() { return controlsNow(); }, get commands() { return commands(); },
       attachments: { accept: upload.accept, upload: (file) => upload.upload(file) }, onMaterials: () => paintMats(),
-      near: () => { const page = pageObject(); return page ? { kind: page.object.kind, id: page.object.id } : null; },
+      near: () => { const page = pageObject(); return page ? { kind: page.object.kind, id: page.object.id, plugin_id: page.context.plugin_id } : null; },
       required: () => getWork()?.reply_target ? L("请回到原评论继续回复") : !String(input.value || "").trim() ? L("写一句话再发") : null,
       stop: () => control("stop"),
       submit: sendNow });
@@ -245,16 +239,17 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
     const now = shown();
     if (now !== painted) { painted = now; composer.refresh(); }
   }
-  const asOutcome = (res, id) => ({ state: "sent", ...(res.elsewhere ? { elsewhere: true } : {}),...(res.outcome === "repeated" || res.outcome === "queued" ? { receipt: { input_id: "send." + id, replayed: res.outcome === "repeated", delivered: res.outcome === "queued" ? "queued" : "run" } } : {}) });
+  const asOutcome = (res, id) => res.consumed === false ? { state: "failed", message: L("已核对原发送；这里的草稿还没发出") } : ({ state: "sent", ...(res.elsewhere ? { elsewhere: true } : {}),...(res.outcome === "repeated" || res.outcome === "queued" ? { receipt: { input_id: "send." + id, replayed: res.outcome === "repeated", delivered: res.outcome === "queued" ? "queued" : "run" } } : {}) });
   async function submit(sent, before) {
     const text = sent.text.trim(), into = curId && receipts.into(), fill = into && fills.get(into.pending_id);
+    if (fill && sent.materials.length) return { state: "failed", message: L("问卷这里只能写文字；请移除附件，或改为补充这一轮") };
     if (fill) return fill(into.draft_from_composer, text).then(() => { host.showToast?.(L("已写进问卷；按「提交回答」才交回")); return { state: "sent" }; }, (error) => ({ state: "failed", message: error.message }));
-    const { materials, over } = upload.take(sent.materials);
+    const { materials, over, positions } = upload.take(sent.materials);
     if (over.length) return { state: "failed", message: over[0].reason, unreadable: over };
     const asked = { request_id: sent.request_id, delivery: sent.delivery, materials, ...(before ? { before } : {}) };
-    const outcome = (error) => error.code === "ui_host.outcome_unknown" ? { state: "unknown", check: () => { sending += 1;
-      return post(text, asked).then(() => "sent", (again) => again.code === "ui_host.outcome_unknown" ? "unknown" : "not-sent").finally(() => { sending -= 1; setTimeout(syncComposer, 0); }); } }
-      : { state: "failed", message: error.message };
+    const outcome = (error) => ["ui_host.outcome_unknown", "assistant.pending_request"].includes(error.code) ? { state: "unknown", check: () => { sending += 1;
+      return error.checkSend().finally(() => { sending -= 1; setTimeout(syncComposer, 0); }); } }
+      : { state: "failed", message: error.message, unreadable: (error.body?.details?.unreadable || []).flatMap(one => positions.has(one.material_id) ? [{ index: positions.get(one.material_id), reason: one.reason }] : []) };
     return post(text, asked).then((res) => asOutcome(res, sent.request_id), outcome);
   }
   /** Words sent for the person by a page or by search, not typed in the box: what the person is writing stays where it is. */

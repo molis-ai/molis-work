@@ -1,3 +1,4 @@
+import type { MaterialRef } from "../platform/project-materials.js";
 import type { SignedAgentReference, SignedAgentInstallation } from "./agent-definitions.js";
 import type { AssistantMemoryCandidate, AssistantRoundMemory } from "./assistant-memory.js";
 export type { AssistantMemory, AssistantMemoryCandidate, AssistantMemoryPrefs, AssistantRoundMemory } from "./assistant-memory.js";
@@ -219,7 +220,7 @@ export interface AssistantMaterial {
    * picker (specs/project-knowledge PMAT-17), the piece itself. Either is only a pointer: the Host checks it again with its
    * owner and reads the text itself before the round (a piece through `knowledge.read`, as the person).
    */
-  reference?: { hit_id: string } | { subject: { kind: string; id: string } };
+  reference?: { hit_id: string } | { subject: { kind: string; id: string } } | { material: MaterialRef };
   /** For `method`: the method the person chose with “/” for this round; the Host gives its registered body. */
   method?: AssistantMethodSelection & { name?: string; plugin_title?: string; effective?: "default" | "user"; user_revision?: number | null };
   /** For `image`: the picture the person added, taken in by the runtime (only a reference; the bytes stay there). */

@@ -25,6 +25,7 @@ import type { MemoryService } from "@molis-ai/molis-work-service-memory";
 import { assertRoundToAddress, inputsOf, withdrawInput } from "./assistant-inputs.js";
 import { checkLanding } from "./assistant-landing.js";
 import { reaskMaterial, reaskTask } from "./assistant-reask.js";
+import { readComposerMaterials, sendScope } from "./assistant-composer-materials.js";
 import { checkHeldImages, checkMaterials } from "./assistant-send-materials.js";
 import { RUNTIME, MAX_TEXT, sessionRef, checkText, assertSendCurrent, type AssistantServicePorts, type AssistantCaller } from "./assistant-service-shared.js";
 import { stateOf, titleFrom, recoveryView, type CapabilityTitles } from "./assistant-present.js";
@@ -102,9 +103,9 @@ export class AssistantService {
       // A start the Host writes happens once per key: a repeated settle finds it claimed.
       dispatch: async (work, text, materials, writtenBy, request, stillCurrent) => {
         assertSendCurrent(stillCurrent);
-        if (request && !store.claimRequest(actorId, request).claimed) return;
-        try { const result = await this.hostStarted(() => this.dispatcher.dispatch(work, text, materials, null, undefined, writtenBy, stillCurrent, undefined, undefined, { byHost: Boolean(writtenBy) })); if (request) store.finishRequest(actorId, request, result); return result; }
-        catch (error) { if (request) store.releaseRequest(actorId, request); throw error; }
+        if (request && !store.requests.claimRequest(actorId, request).claimed) return;
+        try { const result = await this.hostStarted(() => this.dispatcher.dispatch(work, text, materials, null, undefined, writtenBy, stillCurrent, undefined, undefined, { byHost: Boolean(writtenBy) })); if (request) store.requests.finishRequest(actorId, request, result); return result; }
+        catch (error) { if (request) store.requests.releaseRequest(actorId, request); throw error; }
       } });
     this.reads = new AssistantWorkReads(store, ports, actorId, now, { capabilityTitles: (...a) => this.outcomes.capabilityTitles(...a), rememberTitle: (...a) => this.outcomes.rememberTitle(...a), rememberedTitle: (...a) => this.outcomes.rememberedTitle(...a), executorOf: (...a) => this.dispatcher.executorOf(...a), holdsImage: (...a) => this.materials.holdsImage(...a), continuations: this.continuations, delegations: this.delegations });
     this.dispatcher = new AssistantDispatch(store, ports, actorId, now, this.starting, this.titles, this.recalled, this.chosenMemory, { assistantPart: (...a) => this.reads.assistantPart(...a), workObjects: (...a) => this.reads.workObjects(...a), stateSafely: (...a) => this.reads.stateSafely(...a), publicWork: (...a) => this.reads.publicWork(...a), readSubject: (...a) => this.materials.readSubject(...a), roundMaterials: (...a) => this.materials.roundMaterials(...a), assertBudget: (...a) => this.budget.assertBudget(...a), workUsage: (...a) => this.budget.workUsage(...a), memoryForRound: (...a) => this.memory.memoryForRound(...a), notice: (...a) => this.notices.notice(...a), read: (...a) => this.read(...a), continuations: this.continuations, delegations: this.delegations });
@@ -191,11 +192,14 @@ export class AssistantService {
     }
     if (input.delivery !== undefined && !(AGENT_STEER_MODES as readonly unknown[]).includes(input.delivery)) throw assistantErrors.invalid("delivery 只能是 next-boundary、interrupt 或 after-run");
     if (input.delivery !== undefined && (!input.work_id || input.target === "answer")) throw assistantErrors.invalid("送达方式只用在已有工作的补充上，新工作和回答问题都不带");
-    const claim = this.store.claimRequest(this.actorId, String(input.request_id ?? ""));
+    const claim = this.store.requests.claimRequest(this.actorId, String(input.request_id ?? ""));
     if (!claim.claimed) return claim.result;
     let work: StoredWork | undefined, inputHold: ReturnType<AssistantContinuations["begin"]> | undefined;
     try {
       const created = !input.work_id;
+      const scope = input.work_id ? this.store.get(this.actorId, input.work_id) : { project_ref: sendScope(input.scope, caller, choice).kind === "project" ? caller.project_ref : undefined };
+      materials = await readComposerMaterials(materials, scope, this.ports);
+      assertSendCurrent(stillCurrent);
       work = input.work_id ? this.store.get(this.actorId, input.work_id) : await this.createWork(text, input.scope, context, caller, choice);
       // Before the input hold and the material links: a work with no session yet has no round to interrupt or wait behind.
       if (!created) assertRoundToAddress(Boolean(work.executor.kind === "plugin" ? work.executor.session_id : work.session_id), input.delivery);
@@ -214,10 +218,10 @@ export class AssistantService {
       linkSent(this.store.relations, work, materials, created ? context : null);
       const result = await this.dispatcher.dispatch(work, text, materials, context, input.work_id ? undefined : input.mode, writtenBy ?? input.written_by, stillCurrent, caller.beforeStart, caller.assertBeforeStart, { id: input.request_id, target: input.target, delivery: input.delivery, byHost: Boolean(writtenBy ?? input.written_by) || input.reask !== undefined || !original_input, about: input.about, original_input, reply_locale: caller.reply_locale }, { assertCurrent: () => { for (const item of handoffs) item.assertCurrent(); }, accepted: () => { for (const item of handoffs) item.accepted(); } });
       if (inputHold) { inputHold.accept(); const current = this.store.get(this.actorId, work.work_id); result.work = this.reads.publicWork(current, await this.reads.stateSafely(current)); }
-      this.store.finishRequest(this.actorId, input.request_id, result);
+      this.store.requests.finishRequest(this.actorId, input.request_id, result);
       return result;
     } catch (error) {
-      this.store.releaseRequest(this.actorId, input.request_id);
+      this.store.requests.releaseRequest(this.actorId, input.request_id);
       if (stillCurrent && !stillCurrent()) throw error;
       // Nothing the person typed is lost: an unsent message stays as the work's draft (a re-ask's words are the Host's: the draft stays).
       if (work && !work.reply_target) {
@@ -266,11 +270,7 @@ export class AssistantService {
 
   private async createWork(text: string, scope: AssistantScope | undefined, context: AssistantContextSnapshot | null, caller: AssistantCaller,
     choice: AssistantSendInput["executor"]): Promise<StoredWork> {
-    const wanted: AssistantScope = scope ?? (caller.project_ref ? { kind: "project", project_id: caller.project_ref.project_id } : { kind: "personal" });
-    if (choice?.kind === "plugin" && wanted.kind !== "project") throw assistantErrors.scope("执行方插件在项目里工作；个人工作请交给助理");
-    if (wanted.kind === "project" && wanted.project_id !== caller.project_ref?.project_id) {
-      throw assistantErrors.scope("只能在当前打开的项目里为它新建工作；个人工作不需要项目");
-    }
+    const wanted = sendScope(scope, caller, choice);
     // Chosen only among the executors this project offers now, and kept by the plugin's id.
     const executor = choice?.kind === "plugin" ? await this.dispatcher.executorOf({ project_ref: caller.project_ref }, choice.plugin_id) : null;
     const scopeTitle = wanted.kind === "project" ? await this.ports.projectTitle?.(wanted.project_id).catch(() => null) : null;

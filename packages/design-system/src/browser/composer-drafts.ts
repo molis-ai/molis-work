@@ -1,3 +1,4 @@
+import type { ComposerRetained } from "./composer-retained.js";
 import { formatMessage } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { ENTER_HINT_KEY, composerDraft, composerDraftKey } from "../composer-rules.js";
 import { storage, type Composer } from "./composer-state.js";
@@ -8,44 +9,56 @@ import { storage, type Composer } from "./composer-state.js";
  * empty box, with a line saying when it was written; storage that refuses is said in the status line and the text stays.
  */
 
-export interface ComposerDrafts { load(): void; save(): void; clear(): void; stop(): void }
+export interface ComposerDrafts { load(): void; save(): void; clear(): void; stop(): void; sent(revision: number): boolean }
 
-export function composerDrafts(c: Composer): ComposerDrafts {
+export function composerDrafts(c: Composer, retained: ComposerRetained): ComposerDrafts {
   const { options, signal, field } = c;
   const key = "conversation" in options.draft ? composerDraftKey({ project: document.body.dataset.projectId || "home",
     install: c.root.closest<HTMLElement>("[data-plugin-owner]")?.dataset.pluginOwner || document.body.dataset.pluginId || "workbench",
     entry: options.entry, conversation: options.draft.conversation }) : "";
   const local = key ? composerDraft(storage, key) : null;
   const adapter = "adapter" in options.draft ? options.draft.adapter : null;
-  let timer = 0;
+  let timer = 0, edited = false, pending: string | undefined;
+  const loadedAt = retained.revision();
   const restore = (text: string, at?: string) => {
-    if (signal.aborted || !text.trim() || field.value.trim()) return;
+    if (signal.aborted || edited || retained.revision() !== loadedAt || !text.trim() || field.value.trim()) return;
     field.value = text;
     window.molisFit?.(field);
     c.restored = at ? formatMessage("{time}", [{ name: "time", kind: "date", at, style: "relative" }], c.lang) : "";
     c.paint();
   };
   const refused = (now: boolean) => { if (!signal.aborted && c.unsaved !== now) { c.unsaved = now; c.paint(); } };
+  // Capture the edit before the owner changes the field for another conversation. Leaving the page or mount flushes it too.
+  const flush = () => {
+    clearTimeout(timer);
+    if (pending === undefined) return;
+    const text = pending; pending = undefined;
+    if (local) refused(!local.write(text));
+    else adapter?.write(text).then(() => refused(false), () => refused(true));
+  };
+  window.addEventListener("pagehide", flush, { signal });
+  const clear = () => {
+    clearTimeout(timer); pending = undefined; edited = true; c.restored = ""; retained.edit();
+    if (local) refused(!local.write(""));
+    else void adapter?.write("").catch(() => refused(true));
+  };
   return {
     load() {
       if (local) { const draft = local.read(); if (draft === false) c.unsaved = true; else if (draft) restore(draft.text, draft.at); }
       else adapter?.read(signal).then((text) => restore(text), () => refused(true));
     },
     save() {
+      retained.edit(); edited = true; pending = field.value;
       clearTimeout(timer);
-      timer = window.setTimeout(() => {
-        if (signal.aborted) return;
-        if (local) refused(!local.write(field.value));
-        else adapter?.write(field.value).then(() => refused(false), () => refused(true));
-      }, 500);
+      timer = window.setTimeout(flush, 500);
     },
     /** The text was sent or thrown away: the draft goes too. */
-    clear() {
-      clearTimeout(timer); c.restored = "";
-      if (local) c.unsaved = !local.write("");
-      else void adapter?.write("").catch(() => undefined);
+    clear,
+    sent(revision) {
+      if (retained.revision() !== revision) return false;
+      clear(); return true;
     },
-    stop: () => clearTimeout(timer),
+    stop: flush,
   };
 }
 

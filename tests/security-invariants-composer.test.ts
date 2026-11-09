@@ -140,7 +140,7 @@ test("S-composer-source-call item 1 near: a source gets only query, limit and th
   const [entry] = listed.body.sources as Array<Record<string, unknown>>;
   assert.deepEqual(entry, { capability_id: "composernotes.pick", version: 1, provider_id: entry!.provider_id, provider: entry!.provider, title: "测试笔记" });
   const ask = (extra: Record<string, unknown>) => post("/api/composer/pick", { layer: "ai", capability_id: "composernotes.pick", version: 1, provider_id: entry!.provider_id, query: "访谈", limit: 5, ...extra });
-  const found = await ask({ near: { kind: NOTE_KIND, id: "n3" }, draft: "没发出的字", receiver: "Coding", materials: [{ kind: "attachment", ref: "x" }] });
+  const found = await ask({ near: { kind: NOTE_KIND, id: "n3", plugin_id: source.id }, draft: "没发出的字", receiver: "Coding", materials: [{ kind: "attachment", ref: "x" }] });
   assert.equal(found.status, 200, JSON.stringify(found.body));
   assert.deepEqual((found.body.items as Array<{ title: string }>).map((item) => item.title), ["访谈记录", "访谈提纲"]);
   assert.deepEqual(source.seen.at(-1), { query: "访谈", limit: 5, near: { kind: NOTE_KIND, id: "n3" } }, "no draft, receiver or other material reaches the source");
@@ -227,4 +227,54 @@ test("S-composer-source-call item 5: a plugin page has no way to the sources: li
     assert.equal(response.status, 403, `${path}: ${await response.text()}`);
   }
   assert.equal((await f.request("/api/composer/sources", { method: "POST", body: { layer: "ai" } })).status, 200, "the person's own page still lists them");
+});
+
+
+test("S-composer-source-call B10-R4: duplicate owners never receive near, even when one owner is unavailable", async (t) => {
+  const owner = composerSourcePlugin(), pretender = composerSourcePlugin("pretender");
+  const f = await serveHomeRuntime(t, { pluginFixtures: { project: [owner.definition, pretender.definition] } });
+  const project = await f.project("近处对象不能泄漏");
+  const post = async (path: string, body: unknown) => {
+    const response = await f.request(`/projects/${project.project_id}${path}`, { method: "POST", body });
+    assert.equal(response.status, 200, await response.clone().text());
+    return response.json() as Promise<{ sources: Array<{ capability_id: string; version: number; provider_id: string }> }>;
+  };
+  const { sources } = await post("/api/composer/sources", { layer: "ai" });
+  const source = sources.find(item => item.capability_id === "pretender.pick")!;
+  for (const unavailable of [false, true]) {
+    if (unavailable) owner.off();
+    await post("/api/composer/pick", { ...source, query: "", limit: 5, near: { kind: NOTE_KIND, id: "private-id", plugin_id: owner.id } });
+    assert.deepEqual(pretender.seen.at(-1), { query: "", limit: 5 });
+  }
+});
+
+test("S-composer-source-call B10-R5: Assistant refuses stale or missing picks before creating any work", async (t) => {
+  const { f, post } = await composerHome(t);
+  for (const [id, revision] of [["n1", "r0"], ["missing", "r1"]]) {
+    const result = await post("/api/assistant/send", { request_id: `refused-${id}`, text: "带上这份资料", materials: [{ material_id: "pick-a", kind: "object", title: "笔记", explicit: true,
+      object: { kind: NOTE_KIND, id }, reference: { material: { subject: { kind: NOTE_KIND, id }, pin: { mode: "current", read_revision: revision } } } }] });
+    assert.equal(result.status, 400, JSON.stringify(result.body));
+    assert.equal(result.body.code, "assistant.invalid");
+    assert.equal((result.body.details as { unreadable: Array<{ material_id: string }> }).unreadable[0]!.material_id, "pick-a");
+    assert.equal((result.body.details as { work?: unknown }).work, undefined, "no failure draft was created");
+  }
+  const works = await f.request("/api/assistant/works");
+  assert.deepEqual((await works.json() as { works: unknown[] }).works, []);
+  const check = await f.request("/api/assistant/requests/never-sent");
+  assert.deepEqual(await check.json(), { state: "not-sent" });
+  assert.deepEqual((await (await f.request("/api/assistant/works")).json() as { works: unknown[] }).works, []);
+});
+
+
+test("S-composer-source-call B10-R4: a missing page owner does not turn a visible pretender into the near owner", async t => {
+  const pretender = composerSourcePlugin("pretender");
+  const f = await serveHomeRuntime(t, { pluginFixtures: { project: [pretender.definition] } });
+  const project = await f.project("当前页主人已不在目录");
+  const base = `/projects/${project.project_id}/api/composer`;
+  const listed = await f.request(base + "/sources", { method: "POST", body: { layer: "ai" } });
+  const entry = (await listed.json() as { sources: Array<{ capability_id: string }> }).sources.find(item => item.capability_id === "pretender.pick")!;
+  const result = await f.request(base + "/pick", { method: "POST", body: { ...entry, query: "", limit: 5,
+    near: { kind: NOTE_KIND, id: "private-id", plugin_id: "io.molis.work.example.composernotes" } } });
+  assert.equal(result.status, 200, await result.text());
+  assert.deepEqual(pretender.seen.at(-1), { query: "", limit: 5 });
 });

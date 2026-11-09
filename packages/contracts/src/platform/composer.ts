@@ -53,7 +53,9 @@ export const COMPOSER_PICK_OUTPUT_SCHEMA: ActionSchema = closed({
 export type ComposerMaterial =
   | { kind: "attachment"; ref: string; title: string }
   /** `source` is for display only, as `AssistantMaterial.capability` is; the target authorizes by the reference's owner. */
-  | { kind: "material"; ref: MaterialRef; title: string; source: { capability_id: string; version: number; provider_id: string } };
+  | { kind: "material"; ref: MaterialRef; title: string; source: { capability_id: string; version: number; provider_id: string };
+      /** A system-search pick keeps its hit for search.open, including sources that offer only a snippet. */
+      search?: { hit_id: string; snippet: string; plugin_id: string; plugin_title: string } };
 
 /**
  * Reported by the composer client (`molisComposer`) to the person, never raised by a target: a target refuses with its own code (a

@@ -23,6 +23,12 @@ export type ComposerMaterial = {
         version: number;
         provider_id: string;
     };
+    search?: {
+        hit_id: string;
+        snippet: string;
+        plugin_id: string;
+        plugin_title: string;
+    };
 };
 
 export interface ComposerPickInput {

@@ -8,7 +8,7 @@ import { issueModel } from "./fixtures/issue-model.js";
 // composer. Its receiver row says who the next Send goes to (「发给：…」); Enter is a new line and ⌘↵ (Ctrl+↵) sends, with a
 // one-time tip the first time Enter could have been meant as Send; a work's draft is the Assistant's own (the Host keeps it, the
 // browser keeps no copy); while a turn runs the Send is 补充, interrupting takes two steps (▾, then 打断并改向) and the next Send
-// is 补充 again; ⌘⇧↵ is 下一轮再做, and with nothing running it simply sends. Each Send's body is read as the page made it.
+// is 补充 again; ⌘⇧↵ is 下一轮再做, and with nothing running it retains the draft and explains why it cannot queue. Each Send's body is read as the page made it.
 test("UIV-12 UIV-17 UIC-06 UIC-09 RC-03: the Assistant's composer names its receiver, sends on ⌘↵, keeps the work's draft on the Host and offers the three deliveries while a turn runs", { timeout: 150_000 }, async (t) => {
   let release!: () => void;
   const held = new Promise<void>((resolve) => { release = resolve; });
@@ -105,7 +105,7 @@ test("UIV-12 UIV-17 UIC-06 UIC-09 RC-03: the Assistant's composer names its rece
   assert.equal((await sent())[3].delivery, "after-run", "⌘⇧↵ while a turn runs is 下一轮再做");
   await waitFor(settled, 15_000);
 
-  // Stopped, nothing runs: ⌘⇧↵ sends as ⌘↵ does, with no delivery.
+  // B10-R1: stopped, nothing runs; the explicit queue shortcut never starts a round.
   await evaluate("document.querySelector('[data-assistant-composer] [data-composer-stop]').click()");
   release();
   await waitWork(browser, id, (view) => !["running", "queued"].includes(view.work.state) && view.rounds.at(-1)?.phase !== "running");
@@ -113,8 +113,8 @@ test("UIV-12 UIV-17 UIC-06 UIC-09 RC-03: the Assistant's composer names its rece
   await evaluate(`${field}.focus()`);
   await type("空闲时也能发");
   await key(CTRL | SHIFT);
-  await waitFor("window.__sent.length === 5", 10_000);
-  assert.equal((await sent())[4].delivery, undefined, "with nothing running ⌘⇧↵ simply sends");
+  assert.equal((await sent()).length, 4, "idle queue is refused");
+  assert.equal(await evaluate(`${field}.value`), "空闲时也能发", "the unsent draft remains");
   assert.equal((await readWork(browser, id)).work.work_id, id);
 });
 
@@ -160,4 +160,21 @@ test("UIV-12: the words after `/` narrow the Assistant's commands, methods and c
   await evaluate(`[...document.querySelectorAll(${JSON.stringify(ITEMS)})].at(-1).click()`);
   assert.ok(!(await evaluate<string>(`${field}.value`)).includes("/" + word), "the `/words` left the text (a starting point may put its own words in)");
   assert.equal(await evaluate("document.querySelector('[data-assistant-composer] .mw-compose__menu:not([hidden])')"), null, "the menu closed");
+});
+
+
+test("B10-R4: arrival source queries follow the selected project and then personal scope", { timeout: 90_000 }, async t => {
+  const browser = await openGoalBrowser(t, "user"); if (!browser) return;
+  const { command, sessionId, evaluate, waitFor, navigate, origin, projectId, click } = browser;
+  await navigate(() => command("Page.navigate", { url: origin + "/" }, sessionId));
+  await waitFor("document.querySelector('[data-assistant-composer] [data-composer-add]')");
+  await evaluate(`(() => { const real = window.fetch.bind(window); window.sourceRoutes = [];
+    window.fetch = (input, init) => { const url = String(input && input.url || input); if (url.endsWith('/api/composer/sources')) window.sourceRoutes.push(url); return real(input, init); }; })()`);
+  for (const [row, prefix] of [[`#row-${projectId}`, `/projects/${projectId}`], ["#row-personal", ""]] as const) {
+    await click(row);
+    await click("[data-assistant-composer] [data-composer-add]");
+    await waitFor(`window.sourceRoutes.at(-1)?.endsWith(${JSON.stringify(prefix + "/api/composer/sources")})`);
+    assert.equal(new URL(await evaluate<string>("window.sourceRoutes.at(-1)"), origin).pathname, prefix + "/api/composer/sources");
+    await evaluate("document.querySelector('[data-assistant-composer] textarea').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))");
+  }
 });

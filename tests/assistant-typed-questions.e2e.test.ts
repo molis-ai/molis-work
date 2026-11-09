@@ -312,3 +312,28 @@ test("AC-08: two tabs answer one question: one is taken, the other is refused wi
   assert.ok(results.includes("45") && !results.includes("77"), "it heard the answer that was taken, not the refused one");
   assert.deepEqual(await runtimeFiles(homeDirectory), taken.files, "the refused answer writes nothing: the session, its run and its queue are unchanged on disk");
 });
+
+
+test("B10-R1 B10-R2: questionnaire filling refuses attachments; switching to supplement preserves explicit queue delivery", { timeout: 120_000 }, async t => {
+  const asked = { why: "补充会议要求", questions: [{ id: "minutes", type: "number", prompt: "时长" }, { id: "notes", type: "text", prompt: "要求", required: false }] };
+  const page = await assistantAsking(t, asked, "已收到"); if (!page) return;
+  const { evaluate, waitFor, click, command, sessionId } = page;
+  await waitFor("document.querySelector('[data-assistant-composer] select[data-composer-control=answer]')", 20_000);
+  await evaluate(`(() => { const original = window.fetch.bind(window); window.queueSends = [];
+    window.fetch = (url, init) => { if (String(url).endsWith('/api/assistant/send')) window.queueSends.push(JSON.parse(init.body)); return original(url, init); };
+    const input = document.querySelector('[data-assistant-composer] textarea'); input.value = '下轮再整理'; input.dispatchEvent(new Event('input', { bubbles: true }));
+    const data = new DataTransfer(); data.items.add(new File(['附件正文'], 'question.txt', { type: 'text/plain' }));
+    input.dispatchEvent(new ClipboardEvent('paste', { bubbles: true, clipboardData: data })); })()`);
+  await waitFor("document.querySelector('[data-assistant-composer] .mw-upload:not(.is-reading)')");
+  await click("[data-assistant-composer] [data-composer-send]");
+  await waitFor("document.querySelector('[data-assistant-composer]').textContent.includes('问卷这里只能写文字')");
+  assert.equal(await evaluate("document.querySelector('[data-assistant-composer] textarea').value"), "下轮再整理");
+  assert.equal(await evaluate("document.querySelectorAll('[data-assistant-composer] .mw-upload').length"), 1);
+  assert.deepEqual(await evaluate("window.queueSends"), []);
+  await click("[data-assistant-composer] [data-composer-remove]");
+  await evaluate(`(() => { const select = document.querySelector('[data-assistant-composer] select[data-composer-control=answer]'); select.value = 'steer'; select.dispatchEvent(new Event('change', { bubbles: true })); document.querySelector('[data-assistant-composer] textarea').focus(); })()`);
+  await command("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 10 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 10 }, sessionId);
+  await waitFor("window.queueSends.length === 1");
+  assert.deepEqual(await evaluate("[window.queueSends[0].target, window.queueSends[0].delivery]"), ["steer", "after-run"]);
+});

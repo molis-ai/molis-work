@@ -3,6 +3,7 @@ import type { ComposerHandle, ComposerOptions } from "@molis-ai/molis-work-plugi
 import { renderComposer } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { composerKey, composing, wantsEnterHint } from "../composer-rules.js";
 import { composerDrafts, enterHint, type ComposerDrafts } from "./composer-drafts.js";
+import { retainComposer } from "./composer-retained.js";
 import { composerMenus, type ComposerMenus } from "./composer-menus.js";
 import { composerSender, type ComposerSender } from "./composer-send.js";
 import "./composer-program.js";
@@ -44,7 +45,7 @@ function mount(root: HTMLElement, options: ComposerOptions): ComposerHandle {
     const now = attached(c);
     if (now.length !== carried.length || now.some((one, index) => one !== carried[index])) { carried = now; options.onMaterials?.(); }
   };
-  const drafts = composerDrafts(c), menus = composerMenus(c), sender = composerSender(c, drafts, enterHint.done);
+  const retained = retainComposer(c), drafts = composerDrafts(c, retained), menus = composerMenus(c), sender = composerSender(c, drafts, enterHint.done, retained);
   drafts.load();
 
   const files = Object.assign(document.createElement("input"), { type: "file", multiple: true, hidden: true });
@@ -59,10 +60,10 @@ function mount(root: HTMLElement, options: ComposerOptions): ComposerHandle {
   }
   wire(c, { drafts, menus, sender }, files);
 
-  /** Lets go: every listener, the pending draft write, any open query; whatever comes back for this mount is dropped. */
+  /** Saves the last edit before letting go; the next conversation gets an empty field and none of this mount's late results. */
   function release() {
     if (c.signal.aborted) return;
-    c.close(); life.abort(); c.queries.end(); drafts.stop(); files.remove(); letGo(c.items); c.items = [];
+    drafts.stop(); c.close(); life.abort(); retained.release(); c.queries.end(); files.remove(); c.field.value = "";
     if (carried.length) { carried = []; options.onMaterials?.(); }
     if (instances.get(root) === release) instances.delete(root);
   }
@@ -116,7 +117,7 @@ function wire(c: Composer, { drafts, menus, sender }: Parts, files: HTMLInputEle
     if (data.composerMention) {
       const hit = menus.mentioned(Number(data.composerMention));
       if (hit) c.items = [...c.items, { key: itemKey(), title: hit.title, state: "attached", from: hit.plugin_title,
-        material: { kind: "material", ref: { subject: hit.subject, pin: { mode: "current", read_revision: hit.revision } }, title: hit.title, source: hit.source } }];
+        material: { kind: "material", ref: { subject: hit.subject, pin: { mode: "current", read_revision: hit.revision } }, title: hit.title, source: hit.source, search: { hit_id: hit.hit_id, snippet: hit.snippet, plugin_id: hit.plugin_id, plugin_title: hit.plugin_title } } }];
       c.requestId = ""; drafts.save(); field.focus(); return c.paint();
     }
     if (data.composerCommand) { const command = options.commands?.[Number(data.composerCommand)]; menus.untype(); c.close(); field.focus(); return command?.run(); }

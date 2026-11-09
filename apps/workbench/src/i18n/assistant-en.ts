@@ -2,6 +2,8 @@ import { INPUT_RECEIPTS_EN } from "@molis-ai/molis-work-design-system";
 
 /** The resident Assistant in the bottom bar, with the supplement receipt it shares with every plugin. */
 export const ASSISTANT_EN: Record<string, string> = {
+  "已核对原发送；这里的草稿还没发出": "The original send is confirmed. The draft here has not been sent.",
+  "问卷这里只能写文字；请移除附件，或改为补充这一轮": "This questionnaire field accepts text only. Remove the attachments or send a supplement to this turn.",
   "「{plugin}」读取了你授权的本机目录「{folder}」（{origin}）。可在设置「本机目录」查看记录或撤回。": '"{plugin}" read your authorized local folder "{folder}" ({origin}). View the record or revoke access in Settings > Local folders.',
   "「{plugin}」尝试读取你授权的本机目录「{folder}」，但被拒绝（{origin}）。可在设置「本机目录」查看记录或撤回。": '"{plugin}" tried to read your authorized local folder "{folder}", but access was denied ({origin}). View the record or revoke access in Settings > Local folders.',
   "「{plugin}」尝试读取你授权的本机目录「{folder}」，但未完成（{origin}）。可在设置「本机目录」查看记录或撤回。": '"{plugin}" tried to read your authorized local folder "{folder}", but the read did not complete ({origin}). View the record or revoke access in Settings > Local folders.',

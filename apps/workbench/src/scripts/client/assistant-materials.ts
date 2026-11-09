@@ -133,8 +133,9 @@ export const ASSISTANT_MATERIALS_PART = String.raw`  /* ─── Sending ──
     }
     return list;
   };
-  const takeMaterials = (sent) => {
+  const takeMaterials = (sent, sameTarget) => {
     files = files.filter(file => !sent.files.includes(file));
     if (sel === sent.selection) sel = null;
-    sent.removed.forEach(key => removed.delete(key)); sent.joined.forEach(key => joined.delete(key)); paintMats();
+    if (sameTarget) { sent.removed.forEach(key => removed.delete(key)); sent.joined.forEach(key => joined.delete(key)); }
+    paintMats();
   };`;

@@ -196,5 +196,119 @@ test("W2-18-SEND-02: chooser changes and a lost receipt retry the original scope
     assert.equal(persisted.rounds.length, 1, "two HTTP attempts produce one stored round");
     assert.equal(persisted.rounds[0]?.text, "项目 A 的新工作");
     assert.equal(browser.model!.requests.length, 2, "one seed round and one new round; retry does not run the model again");
+    // The retry never deposits A's request key into B's unsent cache. Sending B now starts B, with B's retained materials.
+    await browser.click("[data-assistant-composer] [data-composer-send]");
+    const personal = await barrier.next(), personalBody = JSON.parse(personal.request.postData!);
+    assert.notEqual(personalBody.request_id, body.request_id);
+    assert.equal(new URL(personal.request.url).pathname, "/api/assistant/send");
+    assert.deepEqual(personalBody.scope, { kind: "personal" });
+    assert.deepEqual(personalBody.materials.map((item: { title: string }) => item.title), ["后来选择的材料"]);
+    await barrier.release(personal);
+    await browser.waitFor("document.querySelector('[data-assistant-composer] textarea').value === ''");
+  } finally { await barrier.close(); }
+});
+
+
+for (const stage of ["Request", "Response"]) test(`B10-R3: checking a lost Send at ${stage} reads its outcome without submitting again`, { timeout: 90_000 }, async t => {
+  const browser = await sendBrowser(t); if (!browser) return;
+  const barrier = await sendBarrier(browser, [{ urlPattern: "*/api/assistant/send", requestStage: stage }]);
+  try {
+    await putInput(browser, "只发送这一次");
+    await browser.click("[data-assistant-composer] [data-composer-send]");
+    const sent = await barrier.next(), body = JSON.parse(sent.request.postData!);
+    await barrier.drop(sent);
+    await browser.waitFor("document.querySelector('[data-composer-status-action=check]')", 10_000);
+    // If Check POSTs again, this barrier holds it and the assertions time out. The actual GET remains free.
+    await browser.click("[data-composer-status-action=check]");
+    await browser.waitFor("!document.querySelector('[data-composer-status-action=check]') && !document.querySelector('[data-assistant-composer] .mw-composer[data-state=sending]')", 10_000);
+    const works = await browser.evaluate<Array<{ work_id: string }>>("fetch('/api/assistant/works').then(r => r.json()).then(b => b.works)");
+    assert.equal(works.length, stage === "Response" ? 1 : 0);
+    assert.equal(await browser.evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input').value"), stage === "Response" ? "" : "只发送这一次");
+    const checked = await browser.evaluate<{ state: string }>(`fetch('/api/assistant/requests/${body.request_id}').then(r => r.json())`);
+    assert.equal(checked.state, stage === "Response" ? "sent" : "not-sent");
+    if (works[0]) assert.equal((await readWork(browser, works[0].work_id)).rounds.length, 1);
+  } finally { await barrier.close(); }
+});
+
+test("B10-R2: the Assistant keeps each work's selected files across A to B to A", { timeout: 90_000 }, async t => {
+  const browser = await sendBrowser(t); if (!browser) return;
+  const a = await seedWork(browser, "附件工作 A"), b = await seedWork(browser, "附件工作 B");
+  await openWork(browser, a);
+  await putInput(browser, "A 的草稿");
+  await browser.evaluate(`(() => { const data = new DataTransfer(); data.items.add(new File(["A 的资料"], "A.txt", { type: "text/plain" }));
+    document.querySelector('[data-assistant-composer] textarea').dispatchEvent(new ClipboardEvent('paste', { bubbles: true, clipboardData: data })); })()`);
+  await browser.waitFor("document.querySelector('[data-assistant-composer] .mw-upload:not(.is-reading)')");
+  await openWork(browser, b);
+  assert.equal(await browser.evaluate("document.querySelectorAll('[data-assistant-composer] .mw-upload').length"), 0);
+  await openWork(browser, a);
+  await browser.waitFor("document.querySelector('[data-assistant-composer] textarea').value === 'A 的草稿'");
+  assert.match(await browser.evaluate<string>("document.querySelector('[data-assistant-composer] .mw-upload').textContent"), /A.txt/);
+});
+
+
+test("B10-R2: A's successful response never refills an empty B draft", { timeout: 90_000 }, async t => {
+  const browser = await sendBrowser(t); if (!browser) return;
+  const a = await seedWork(browser, "发送 A"), b = await seedWork(browser, "空草稿 B");
+  await openWork(browser, a);
+  const barrier = await sendBarrier(browser, [{ urlPattern: "*/api/assistant/send", requestStage: "Response" }]);
+  try {
+    await putInput(browser, "只能留在 A"); await browser.click("[data-assistant-composer] [data-composer-send]");
+    const sent = await barrier.next(); await openWork(browser, b); await barrier.release(sent);
+    await waitWork(browser, a, view => view.rounds.length === 2 && view.work.state === "completed");
+    await browser.evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+    assert.equal(await browser.evaluate("document.querySelector('[data-assistant-composer] textarea').value"), "");
+    assert.equal((await readWork(browser, b)).work.draft, "");
+  } finally { await barrier.close(); }
+});
+
+test("B10-R3: two new-work scopes keep independently checkable lost Send intents", { timeout: 90_000 }, async t => {
+  const browser = await sendBrowser(t); if (!browser) return;
+  const barrier = await sendBarrier(browser, [{ urlPattern: "*/api/assistant/send", requestStage: "Request" }]);
+  try {
+    for (const [row, text] of [[`#row-${browser.projectId}`, "项目的未知发送"], ["#row-personal", "个人的未知发送"]]) {
+      await browser.click(row); await putInput(browser, text); await browser.click("[data-assistant-composer] [data-composer-send]");
+      await barrier.drop(await barrier.next()); await browser.waitFor("document.querySelector('[data-composer-status-action=check]')");
+      await browser.click("[data-assistant-panel-close]");
+    }
+    await browser.click(`#row-${browser.projectId}`);
+    await browser.waitFor("document.querySelector('[data-composer-status-action=check]')");
+    await browser.click("[data-composer-status-action=check]");
+    await browser.waitFor("!document.querySelector('[data-composer-status-action=check]')");
+    assert.equal(await browser.evaluate("document.querySelector('[data-assistant-composer] textarea').value"), "项目的未知发送");
+    await browser.click("#row-personal");
+    await browser.waitFor("document.querySelector('[data-composer-status-action=check]')");
+    await browser.click("[data-composer-status-action=check]");
+    await browser.waitFor("!document.querySelector('[data-composer-status-action=check]')");
+    assert.equal(await browser.evaluate("document.querySelector('[data-assistant-composer] textarea').value"), "个人的未知发送");
+  } finally { await barrier.close(); }
+});
+
+
+test("B10-R3: after reload a new work changed to personal cannot replay the project's lost request", { timeout: 90_000 }, async t => {
+  const browser = await sendBrowser(t); if (!browser) return;
+  await browser.navigate(() => browser.command("Page.navigate", { url: browser.origin + "/projects/" + browser.projectId }, browser.sessionId));
+  await browser.waitFor("document.querySelector('[data-assistant-composer] textarea')");
+  await putInput(browser, "相同的字，不同的范围");
+  const barrier = await sendBarrier(browser, [{ urlPattern: "*/api/assistant/send", requestStage: "Response" }]);
+  try {
+    await browser.click("[data-assistant-composer] [data-composer-send]");
+    const first = await barrier.next(), original = JSON.parse(first.request.postData!);
+    assert.deepEqual(original.scope, { kind: "project", project_id: browser.projectId });
+    await barrier.drop(first);
+    await browser.waitFor("document.querySelector('[data-composer-status-action=check]')");
+    await browser.reloadPage();
+    await browser.waitFor("document.querySelector('[data-assistant-composer] textarea').value === '相同的字，不同的范围'");
+    await browser.evaluate("document.querySelector('[data-assistant-composer] textarea').focus()");
+    await browser.evaluate("document.querySelector('[data-assistant-side-toggle]')?.click()");
+    await browser.waitFor("document.querySelector('[aria-label=新工作放在] button:last-child')");
+    await browser.evaluate("document.querySelector('[aria-label=新工作放在] button:last-child').click()");
+    await browser.click("[data-assistant-composer] [data-composer-send]");
+    const next = await barrier.next(), body = JSON.parse(next.request.postData!);
+    assert.equal(next.request.url, first.request.url, "this regression changes scope on the same project page and route");
+    assert.deepEqual(body.scope, { kind: "personal" }); assert.notEqual(body.request_id, original.request_id);
+    await barrier.release(next);
+    await browser.waitFor("document.querySelector('[data-assistant-composer] textarea').value === ''");
+    const current = await browser.evaluate<string>(CURRENT_WORK);
+    assert.deepEqual((await readWork(browser, current)).work.scope, { kind: "personal" });
   } finally { await barrier.close(); }
 });

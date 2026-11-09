@@ -53,13 +53,15 @@ export const ASSISTANT_ATTACHMENTS_FACTORY_SCRIPT = String.raw`({ L, api }) => {
     /** The material read for an attachment's ref, or null: what the side pane's 待发送 names it as (a picture, a file). */
     material: (ref) => held.get(ref) || null,
     take(list) {
-      const materials = [], over = [];
+      const materials = [], over = [], positions = new Map();
       let count = 0, pictures = 0;
       list.forEach((item, index) => {
         if (item.kind === "material") {
           const { subject, pin } = item.ref;
-          materials.push({ material_id: "pick-" + crypto.randomUUID(), kind: "object", title: item.title, explicit: true, reference: { subject: { kind: subject.kind, id: subject.id } },
+          materials.push({ material_id: "pick-" + crypto.randomUUID(), kind: "object", title: item.title, explicit: true, reference: item.search ? { hit_id: item.search.hit_id } : { material: item.ref },
+            ...(item.search ? { text: item.search.snippet, source: { surface: item.search.plugin_id, plugin_id: item.search.plugin_id, title: item.search.plugin_title } } : {}),
             object: { kind: subject.kind, id: subject.id, title: item.title, ...(pin.mode === "current" ? { version: pin.read_revision } : {}) }, capability: { ...item.source, title: item.title } });
+          positions.set(materials.at(-1).material_id, index);
           return;
         }
         const material = held.get(item.ref);
@@ -67,9 +69,9 @@ export const ASSISTANT_ATTACHMENTS_FACTORY_SCRIPT = String.raw`({ L, api }) => {
         count += 1; if (material.kind === "image") pictures += 1;
         if (count > 5) over.push({ index, reason: L("一次最多带 5 个文件") });
         else if (material.kind === "image" && pictures > 4) over.push({ index, reason: L("一次最多带 4 张图片") });
-        else materials.push(material);
+        else { materials.push(material); positions.set(material.material_id, index); }
       });
-      return { materials, over };
+      return { materials, over, positions };
     },
   };
 }`;

@@ -62,6 +62,9 @@ export const CHOOSER_CLIENT_SCRIPT = String.raw`
   /* ───────── The Assistant in the bar speaks for the project being looked at ───────── */
   const assistant = globalThis.__ARRIVAL_ASSISTANT__ || null;
   const aboutSelection = () => {
+    const id = state.selected && state.selected !== PERSONAL ? state.selected : "";
+    document.body.dataset.routePrefix = id ? "/projects/" + encodeURIComponent(id) : "";
+    document.body.dataset.projectId = id;
     if (!state.selected || state.selected === PERSONAL) { assistant?.setProject(null); return; }
     assistant?.setProject({ id: state.selected, title: nameOf(state.selected) });
   };

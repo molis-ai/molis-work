@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { ActionError, type ActionSubject, type ActionView, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, isSubjectReader, type ActionSubject, type ActionView, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { COMPOSER_PICK_INPUT_TYPE, COMPOSER_PICK_OUTPUT_TYPE, composerErrors, type ComposerPickInput, type ComposerPickOutput } from "@molis-ai/molis-work-contracts/platform/composer";
 import { composerDraftInner, parseComposerDraftKey } from "@molis-ai/molis-work-design-system";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
@@ -27,7 +27,7 @@ export async function handleComposerSourcesHttp(request: IncomingMessage, respon
   try {
     const body = await readBody(request), client = actions(left.signal);
     const layer = body.layer === "plain" ? "plain" : "ai";
-    const listed = (await client.discover()).filter((view) => isSource(view, layer));
+    const directory = await client.discover(), listed = directory.filter((view) => isSource(view, layer));
     if (url.pathname === "/api/composer/sources") {
       sendJson(response, 200, { sources: listed.map((view) => ({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id,
         provider: view.provider.title, title: view.action.composer_source!.title })) });
@@ -35,7 +35,7 @@ export async function handleComposerSourcesHttp(request: IncomingMessage, respon
     }
     const view = listed.find((one) => one.capability_id === body.capability_id && one.version === body.version && one.provider.provider_id === body.provider_id);
     if (!view) throw composerErrors.source_unavailable("这个来源现在用不了：已停用、卸载或不再授权");
-    const near = sourceNear(view, body.near);
+    const near = sourceNear(view, body.near, directory);
     const input: ComposerPickInput = { query: typeof body.query === "string" ? body.query : "", limit: typeof body.limit === "number" ? body.limit : 20, ...(near ? { near } : {}) };
     const definition = { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id, operation: view.operation, action: view.action };
     sendJson(response, 200, await client.invoke<ComposerPickInput, ComposerPickOutput>(definition, input));
@@ -86,8 +86,12 @@ function isSource(view: ActionView, layer: "ai" | "plain"): boolean {
 }
 
 /** The page's object, only when its kind is the source's own: a source never learns which object of another owner the page shows. */
-function sourceNear(view: ActionView, near: unknown): ActionSubject | undefined {
+function sourceNear(view: ActionView, near: unknown, directory: readonly ActionView[]): ActionSubject | undefined {
   if (!near || typeof near !== "object") return undefined;
-  const subject = near as ActionSubject;
-  return typeof subject.kind === "string" && view.action.subject_kinds.includes(subject.kind) ? subject : undefined;
+  const subject = near as ActionSubject & { plugin_id?: unknown };
+  if (typeof subject.plugin_id !== "string" || subject.plugin_id !== view.provider.plugin_id) return undefined;
+  const readers = directory.filter(one => isSubjectReader(one.action) && one.action.subject_kinds.includes(subject.kind));
+  const owners = new Set(readers.map(one => one.provider.provider_id));
+  return typeof subject.kind === "string" && view.action.subject_kinds.includes(subject.kind) && owners.size === 1
+    && owners.has(view.provider.provider_id) && readers.some(one => one.availability.available) ? { kind: subject.kind, id: subject.id } : undefined;
 }

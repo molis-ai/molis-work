@@ -52,7 +52,11 @@
     "workbench.env.title": "Language and text",
     "workbench.env.when": "When",
     "workbench.font.system-sans": "System Sans",
+    "workbench.presentation.declared": "Declared",
+    "workbench.presentation.example": "Sample data",
     "workbench.presentation.forms": "Presentation forms",
+    "workbench.presentation.missing": "Missing object presentation",
+    "workbench.presentation.plugins": "Built-in plugin declarations",
     "workbench.presentation.retry": "Review retry details",
     "workbench.presentation.send": "Review message",
     "workbench.skin.soft-workbench": "Soft Workbench"

@@ -23,7 +23,7 @@ import { NAVIGATION_SECTION_STYLES, renderNavigationSection } from "./navigation
 import { ENVIRONMENT_SECTION_SCRIPT, ENVIRONMENT_SECTION_STYLES } from "./environment-specimens.js";
 import { renderPluginRail, renderWorkbenchBar, renderWorkspaceChrome } from "./immersive-shell.js";
 import { renderPersonalMenuItems } from "./settings-directory.js";
-import { builtinPluginDirectory, pluginTabGlyphs } from "./plugin-catalog.js";
+import { BUILTIN_PLUGIN_CATALOG, builtinPluginDirectory, pluginTabGlyphs } from "./plugin-catalog.js";
 import { ARTIFACT_NAVIGATION } from "./artifacts/navigation.js";
 
 /**
@@ -225,7 +225,17 @@ export function renderMolisWorkPrimitiveCatalog(say: (text: string, values?: Rec
       { value: "pill", label: "圆润", attrs: { "data-skin-option": "pill" } },
     ],
   });
-  const catalog = renderPrimitiveCatalog({ plugins: iconInventoryPlugins(), say, ...(environment ? { presentationLocale: lang } : {}) })
+  const catalog = renderPrimitiveCatalog({
+    plugins: iconInventoryPlugins(), say,
+    ...(environment ? {
+      presentationLocale: lang,
+      presentationPlugins: BUILTIN_PLUGIN_CATALOG.map(({ manifest }) => ({
+        id: manifest.plugin_id,
+        name: lang === "en" ? manifest.name_en ?? manifest.name : manifest.name,
+        declared: (manifest.presentation?.objects.length ?? 0) > 0,
+      })),
+    } : {}),
+  })
     .replace("</nav>", `<a href="#foundation" title="视觉机制">视觉机制</a><a href="#conditions" title="${say("条件与状态")}">${say("条件与状态")}</a><a href="#assistant" title="${say("助理信息与任务")}">${say("助理信息与任务")}</a><a href="#plugin-rows" title="${say("插件行视图")}">${say("插件行视图")}</a><a href="#service-connections" title="${say("服务连接")}">${say("服务连接")}</a><a href="#return-trips" title="${say("回到原处")}">${say("回到原处")}</a><a href="#platform-area" title="${say("平台区域")}">${say("平台区域")}</a><a href="#connection-need" title="${say("原处的连接卡 · 平台区域版")}">${say("原处的连接卡 · 平台区域版")}</a><a href="#bar" title="底栏与浮层">底栏与浮层</a><a href="#collab" title="${say("协作零件")}">${say("协作零件")}</a><a href="#navigation" title="${say("工作台导航")}">${say("工作台导航")}</a>${environment ? `<a href="#environment" title="${t("workbench.env.title")}">${t("workbench.env.title")}</a>` : ""}</nav>`)
     .replace("\n  </div>\n  <script>", `\n    ${renderFoundationSection()}\n    ${renderConditionsSection(say, lang)}\n    ${renderAssistantBoardSection(say, lang)}\n    ${renderPluginRowsSection(say, lang)}\n    ${renderServiceConnectionSection(say)}\n    ${renderReturnTripSection(say)}\n    ${renderPlatformAreaSection(say, lang)}\n    ${renderConnectionNeedSection(say)}\n    ${renderBarSection()}\n    ${renderCollabSection(say)}\n    ${renderNavigationSection(say, lang)}\n    ${environment}\n  </div>\n  <script>`);
   return `<!doctype html>

@@ -49,7 +49,7 @@
 
 ## 2. 现状
 
-**2026-11-08 本批基线 `226ce892a8`：** 下表保留 11-04 的历史问题定位，不再用作前置未合入的证据。当前源码已有 `PluginKind: "content"`、SDK `inspectContentPlugin` 与 `parseContentPackage`；但白名单尚未收 `blueprint`，内容包仍要求至少一个方法，文件读取尚无场景正文。05 的资料／呈现／组合合同与 14 的 `TextRef`、共用校验已存在。主会话核对 08 C-2／C-3 仍在 #1984（核对头 `cbbeb06cf19354a10bbf4109417cc535ee20ed77`），占 `platform/plugin.txt`、SDK index 与 `host-actions.tsv`，接入这些位置须等待交接。角色现有公开类型仍是 `CharacterDraft`／`CharacterContent`，36 的层次设计不等于已交付合同。开工前完整回答见 [Onboarding 第 11 节](../onboarding-coverage/spec.md#batch-20-preflight)。
+**2026-11-08 开工时核查（历史，现状见开头状态句）：** 本批基线 `226ce892a8`。 下表保留 11-04 的历史问题定位，不再用作前置未合入的证据。当前源码已有 `PluginKind: "content"`、SDK `inspectContentPlugin` 与 `parseContentPackage`；但白名单尚未收 `blueprint`，内容包仍要求至少一个方法，文件读取尚无场景正文。05 的资料／呈现／组合合同与 14 的 `TextRef`、共用校验已存在。主会话核对 08 C-2／C-3 仍在 #1984（核对头 `cbbeb06cf19354a10bbf4109417cc535ee20ed77`），占 `platform/plugin.txt`、SDK index 与 `host-actions.tsv`，接入这些位置须等待交接。角色现有公开类型仍是 `CharacterDraft`／`CharacterContent`，36 的层次设计不等于已交付合同。开工前完整回答见 [Onboarding 第 11 节](../onboarding-coverage/spec.md#batch-20-preflight)。
 
 **历史核查（2026-11-04，main `4fd250564`）：**
 
@@ -575,11 +575,11 @@ type ContentAdoptionReadResult<Value> =
 
 | 片 | 合同项 | contracts 子路径 | 影响的快照 | 前置 |
 | --- | --- | --- | --- | --- |
-| P-1 设置 | `SettingEntryDeclaration`、`SettingsDeclaration`、读写类型与类型 id、Manifest 的 `settings_entries`。SDK 共用读写定义、绑定与校验。Runtime 接入安装、换版和启用准入（第 4.1 节） | `platform/settings.ts`（新）、`platform/plugin-manifest.ts` | api：`contracts/platform/settings`（新）、`contracts/platform/plugin`、`plugin-sdk/index` | 02 交接，按 08、15 释放的共用文件串行接入 |
+| P-1 设置 | `SettingEntryDeclaration`、`SettingsDeclaration`、读写类型与类型 id、Manifest 的 `settings_entries`。SDK 共用读写定义、绑定与校验。Runtime 接入安装、换版和启用准入（第 4.1 节） | `platform/settings.ts`（新）、`platform/plugin-manifest.ts` | api：`contracts/platform/settings`（新）、`contracts/platform/plugin`、`plugin-sdk/index` | 已合入的 02／08 能力为基础，在本批工作树独立接入 |
 | P-2a 角色模板 | `RoleTemplate`、严格形状及静态校验；不建角色成员或持久化来源 | `modules/characters.ts` | api：`contracts/modules/characters`；SDK 的静态校验随既定公共出口接入 | 不依赖 36；复用现行 Character 内容与 TextRef |
 | P-2b 角色采用接口 | §5.2 的 `characters.from_template@1`、`characters.roles.read@1` 与角色成员、来源／回执合同 | `modules/characters.ts` | api：`contracts/modules/characters`。`host-actions.tsv` 随真实 owner 绑定 | P-2a 与 36 提前公开合同。真实 owner 归 36，场景消费归 44 |
 | P-3a 项目插件成员 | `projects.plugins.set@1` 按 `expected_revision` 把插件加进或撤出项目，受众为 `user`。`projects.plugins.get@1` 返回版本化成员。两个动作复用 Projects 的常开、随行、隐藏和原子 revision 规则。项目设置 HTTP 的写走 set，全项目 GET 复用 get 的 owner 读法，保持被动读取（第 10.1、10.2 节） | `modules/projects.ts` | api：`contracts/modules/projects`；动作：`host-actions.tsv` | 05② 的 C-1（同一快照） |
-| P-3b 场景定义 | `Blueprint`、`BlueprintSource`、`BlueprintPart`、`BlueprintProposal`、Manifest 的 `blueprint`／`adopts`；SDK 的 `inspectBlueprint`（静态）、`inspectBlueprintLocales`、内容包文件校验与 `validateAdoptsDeclaration`；GLOSSARY 加「场景包（blueprint）」一行（第 3.5 节） | `platform/blueprints.ts`（新）、`platform/plugin-manifest.ts` | api：`contracts/platform/blueprints`（新）、`contracts/platform/plugin`、`plugin-sdk/index` | 形状和检查复用 P-2a，设置与主人声明接 P-1。来源转出复用 36 提前合同，公开接线与包读取等 08 交接。不依赖 P-2b 或 36 的服务实现 |
+| P-3b 场景定义 | `Blueprint`、`BlueprintSource`、`BlueprintPart`、`BlueprintProposal`、Manifest 的 `blueprint`／`adopts`；SDK 的 `inspectBlueprint`（静态）、`inspectBlueprintLocales`、内容包文件校验与 `validateAdoptsDeclaration`；GLOSSARY 加「场景包（blueprint）」一行（第 3.5 节） | `platform/blueprints.ts`（新）、`platform/plugin-manifest.ts` | api：`contracts/platform/blueprints`（新）、`contracts/platform/plugin`、`plugin-sdk/index` | 形状和检查复用 P-2a，设置与主人声明接 P-1。来源转出复用 36 提前合同，公开接线与包读取复用已合入的 08 能力。不依赖 P-2b 或 36 的服务实现 |
 | P-3c 采用动作与签名入口 | 第 7.1 节八个动作的公开声明与类型，第 8 节固定内容采用输入，第 6.6 节内容包签名命令合同。08 导入先接真实签名。另存、完整采用与 S-blueprint-consent-context 的真实拒绝由第 44 批接入并实操验收 | `services/blueprints.ts`（新）、`platform/plugin-trust.ts`（签名命令） | api：`contracts/services/blueprints`（新）、`contracts/platform/plugin-trust`。`host-actions.tsv` 随真实动作登记更新 | 合同复用 P-3b 与 36 的采用出处形状。导入接 08 C-2、内容包安装与导入确认。场景采用依赖 P-3a 和主人读写 |
 | P-4 首页与生成页面 | 第 6.5 节八个动作、选择／版本／批准和页面主体公开形状，SDK 静态校验及公共入口接线。已接入的真实边界当批验拒绝。运行、SPC-10／11 与 S-home-page-files／S-home-page-authority／S-home-page-approval 的页面实操归第 37 批 | `services/home.ts`（新）、`platform/actions.ts` | api：`contracts/services/home`（新）、`contracts/platform/actions`、`plugin-sdk/index`。`host-actions.tsv` 只收真实登记 | 05② C-2／C-3 公共形状已在。实际卡片用第 15 批提供方。P-3b／P-3c 共用采用形状，页面主体类型基于现有公开动作合同独立实施 |
 

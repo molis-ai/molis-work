@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { showNote } from "./page.js";
 import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
@@ -14,10 +15,10 @@ export function openGeneric(page: JellyPage, title: string, html: string, ok: st
   previous?.();
   hooks.submit = submit;
   hooks.cleanup = cleanup ?? null;
-  page.$("[data-jelly-dialog-title]").textContent = page.L(title);
+  page.$("[data-jelly-dialog-title]").textContent = uiText.text(title);
   page.$("[data-jelly-dialog-body]").innerHTML = html;
   const button = page.$<HTMLButtonElement>("[data-jelly-dialog-ok]");
-  button.textContent = page.L(ok || "jelly.action.confirm");
+  button.textContent = uiText.text(ok || "jelly.action.confirm");
   button.hidden = !submit;
   button.disabled = false;
   page.$("[data-jelly-dialog-error]").hidden = true;

@@ -1,11 +1,12 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { isAbort, required, textCard } from "./dom.js";
 import type { ConversationPayload, LingguangPage, Message, Spark } from "./types.js";
 
 /** The brainstorm, the hand-over to the Assistant and the copy of what is picked. */
 export function installChat(page: LingguangPage): void {
-  const { host, L, el, s, request, api } = page;
-  const roleName = (message: Message) => message.role === "assistant" ? L("lingguang.page.title") : message.role === "stub" ? L("lingguang.chat.local-record") : L("lingguang.action.capture");
+  const { host, el, s, request, api } = page;
+  const roleName = (message: Message) => message.role === "assistant" ? uiText.text("lingguang.page.title") : message.role === "stub" ? uiText.text("lingguang.chat.local-record") : uiText.text("lingguang.action.capture");
   const renderMessages = (messages: readonly Message[] | undefined) => {
     s.shownMessages = [...(messages || [])];
     el.messagesEl.replaceChildren(...s.shownMessages.map((message) => textCard(roleName(message), message.body, "lingguang-message")));
@@ -23,16 +24,16 @@ export function installChat(page: LingguangPage): void {
     const open = s.selected;
     if (!open) return;
     const recent = s.shownMessages.filter((message) => message.role !== "stub").slice(-6);
-    const name = open.title || L("lingguang.page.title");
-    const materials = [{ title: L("lingguang.handover.material", { title: name }), text: (open.title || "") + (open.body ? "\n" + open.body : "") }];
+    const name = open.title || uiText.text("lingguang.page.title");
+    const materials = [{ title: uiText.text("lingguang.handover.material", { title: name }), text: (open.title || "") + (open.body ? "\n" + open.body : "") }];
     if (recent.length) {
       materials.push({
-        title: L("lingguang.handover.recent", { count: recent.length }),
-        text: recent.map((message) => L("lingguang.handover.line", { who: message.role === "assistant" ? L("lingguang.page.title") : L("lingguang.handover.me"), text: message.body })).join("\n"),
+        title: uiText.text("lingguang.handover.recent", { count: recent.length }),
+        text: recent.map((message) => uiText.text("lingguang.handover.line", { who: message.role === "assistant" ? uiText.text("lingguang.page.title") : uiText.text("lingguang.handover.me"), text: message.body })).join("\n"),
       });
     }
     window.dispatchEvent(new CustomEvent("molis:assistant-message", { detail: {
-      message_id: crypto.randomUUID(), purpose, source: { surface: "lingguang", title: L("lingguang.page.title") },
+      message_id: crypto.randomUUID(), purpose, source: { surface: "lingguang", title: uiText.text("lingguang.page.title") },
       object: { kind: "lingguang_spark", id: open.id, title: name, version: open.updated_at + ":" + (open.status || "inbox") },
       text, materials,
     } }));
@@ -53,7 +54,7 @@ export function installChat(page: LingguangPage): void {
 
   page.openBrainstorm = async () => {
     const ids = s.picks.size ? [...s.picks] : (s.selected ? [s.selected.id] : []);
-    if (!ids.length) throw new Error(L("lingguang.error.select-one"));
+    if (!ids.length) throw new Error(uiText.text("lingguang.error.select-one"));
     await page.save();
     ids.forEach((id) => s.fresh.delete(id));
     const payload = await request<ConversationPayload>("POST", `${api}/conversations`, { spark_ids: ids });
@@ -61,7 +62,7 @@ export function installChat(page: LingguangPage): void {
     el.workbench.setAttribute("data-expanded", "true");
     el.workspace.hidden = false;
     page.showChat(true);
-    el.titleEl.textContent = L("lingguang.action.brainstorm");
+    el.titleEl.textContent = uiText.text("lingguang.action.brainstorm");
     renderContext(payload.sparks);
     renderMessages(payload.messages);
     el.chatInput.value = "";
@@ -71,9 +72,9 @@ export function installChat(page: LingguangPage): void {
 
   page.copyDispatch = async (button) => {
     const picked = page.selectedRecords(), items = picked.length ? picked : (s.selected ? [s.selected] : []);
-    if (!items.length) throw new Error(L("lingguang.error.select-one"));
+    if (!items.length) throw new Error(uiText.text("lingguang.error.select-one"));
     const text = items.map((item) => item.title + (item.body ? "\n" + item.body : "")).join("\n\n");
-    if (!await window.molisCopy?.(button as HTMLElement, text, { done: L("lingguang.copy.done"), failed: L("lingguang.copy.failed") })) page.showNote(L("lingguang.copy.failed"), true);
+    if (!await window.molisCopy?.(button as HTMLElement, text, { done: uiText.text("lingguang.copy.done"), failed: uiText.text("lingguang.copy.failed") })) page.showNote(uiText.text("lingguang.copy.failed"), true);
   };
 
   /*
@@ -95,7 +96,7 @@ export function installChat(page: LingguangPage): void {
     draft.className = "lingguang-message is-draft";
     draft.dataset.lingguangDraft = "";
     draft.setAttribute("aria-busy", "true");
-    draftHead.textContent = L("lingguang.chat.draft-head");
+    draftHead.textContent = uiText.text("lingguang.chat.draft-head");
     draftBody.textContent = "";
     draft.append(draftHead, draftBody);
     el.messagesEl.append(draft);
@@ -106,7 +107,7 @@ export function installChat(page: LingguangPage): void {
         body: { body }, signal: controller.signal, scope: page.life,
         onProgress: (progress) => { if (typeof progress.text_delta === "string") draftBody.textContent += progress.text_delta; },
       });
-      if (!payload) throw new Error(L("lingguang.chat.not-saved"));
+      if (!payload) throw new Error(uiText.text("lingguang.chat.not-saved"));
       if (s.conversation?.id !== conversationId) return;
       s.conversation = payload.conversation;
       renderContext(payload.sparks);
@@ -114,7 +115,7 @@ export function installChat(page: LingguangPage): void {
       if (el.chatInput.value === body) { el.chatInput.value = ""; window.molisFit?.(el.chatInput); }
     } catch (error) {
       draft.remove();
-      if (s.conversation?.id === conversationId) page.showNote(isAbort(error) ? L("lingguang.chat.stopped") : messageOf(error) || L("lingguang.error.request"), !isAbort(error));
+      if (s.conversation?.id === conversationId) page.showNote(isAbort(error) ? uiText.text("lingguang.chat.stopped") : messageOf(error) || uiText.text("lingguang.error.request"), !isAbort(error));
     } finally {
       s.sending = false;
       controller = null;

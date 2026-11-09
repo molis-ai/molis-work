@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { WorkflowLink, WorkflowVerdict } from "../model.js";
 import { ruleKey } from "./chain.js";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
@@ -40,10 +41,9 @@ export function readyState(page: WorkflowsPage, link: WorkflowLink): Ready {
   return { ready: true, reason: "" };
 }
 
-export function ruleText(page: WorkflowsPage, verdict: WorkflowVerdict) {
-  const { L } = page;
-  return verdict.status === "needs_review" ? L("workflows.verdict.needs-review") : L("workflows.verdict.result", { choice: verdict.choice || L("workflows.verdict.none") })
-    + (verdict.confidence == null ? "" : " · " + L("workflows.verdict.confidence", { value: Math.round(verdict.confidence * 100) }));
+export function ruleText(verdict: WorkflowVerdict) {
+  return verdict.status === "needs_review" ? uiText.text("workflows.verdict.needs-review") : uiText.text("workflows.verdict.result", { choice: verdict.choice || uiText.text("workflows.verdict.none") })
+    + (verdict.confidence == null ? "" : " · " + uiText.text("workflows.verdict.confidence", { value: Math.round(verdict.confidence * 100) }));
 }
 
 /** The Choice rules a link can use, read once and again on demand. */

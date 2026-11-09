@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { openGeneric } from "./dialog.js";
 import { openItem } from "./item.js";
 import { flushEditor, openRecord, recordFor } from "./notes.js";
@@ -19,7 +20,7 @@ async function assistantChanged(page: JellyPage): Promise<void> {
   await page.mutationQueue.catch(() => undefined);
   await loadList(page);
   if (!page.selected) return;
-  if (page.dirty) { showNote(page, page.L("jelly.sync.assistant-changed"), true); return; }
+  if (page.dirty) { showNote(page, uiText.text("jelly.sync.assistant-changed"), true); return; }
   if (recordFor(page, page.selected.kind, page.selected.id)) openRecord(page, page.selected.kind, page.selected.id);
   else closeWorkspace(page);
 }
@@ -41,7 +42,7 @@ async function showItem(page: JellyPage, id: string, quiet: boolean): Promise<vo
   if (!item && !series && !note) {
     unreadable(page, id);
     await renderView(page);
-    if (!quiet) showNote(page, page.L("jelly.sync.gone"), true);
+    if (!quiet) showNote(page, uiText.text("jelly.sync.gone"), true);
     return;
   }
   closeWorkspace(page);
@@ -70,7 +71,7 @@ async function importWorkspaceFile(page: JellyPage, file: File | undefined): Pro
     await command(page, { type: "workspace.import", source, confirmation_token: preview.confirmation_token });
     closeWorkspace(page);
     await loadList(page);
-    showNote(page, page.L("jelly.import.done"));
+    showNote(page, uiText.text("jelly.import.done"));
   });
 }
 

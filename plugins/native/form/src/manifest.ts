@@ -11,8 +11,6 @@ import { formActions, FORM_ACTION_PERMISSIONS } from "./actions.js";
 import { formContentActions } from "./content-actions.js";
 import { FORM_DATABASE } from "./database.js";
 
-import { FORM_MESSAGES } from "./messages.js";
-import { FORM_EN } from "./en.js";
 export { FORM_PLUGIN_ID, FORM_PROJECT_PLUGIN_ID };
 
 /** What the page sends a route reads up to 1 MB, as the Host's Form edge did: answer files reach 400 000 characters each. */
@@ -63,9 +61,7 @@ export const formManifest: PluginManifest = {
       compare: { capability_id: "form.artifacts.compare", version: /* @version action.form.artifacts.compare */ 1 }, continue: { capability_id: "form.artifacts.continue", version: /* @version action.form.artifacts.continue */ 1 } }],
     consumes: [],
   },
-  ui: {
-    messages: FORM_MESSAGES,
-    translations: FORM_EN,
+  ui: { locales: { default: "zh", available: ["zh", "en"] },
     contributions: [FORM_UI_CONTRIBUTION_ID],
     views: [
       { view_id: "directory", slot: "navigator", title: "Forms", contribution_id: FORM_UI_CONTRIBUTION_ID, icon: "clipboard", hue: "orange", order: 57, group: "make",

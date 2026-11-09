@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { openGeneric } from "./dialog.js";
 import { flushEditor } from "./notes.js";
 import { run, showNote } from "./page.js";
@@ -39,39 +40,39 @@ function statusText(settings: ModelSettings, providers: ModelProvider[], custom:
 }
 
 function paint(page: JellyPage, settings: ModelSettings, providers: ModelProvider[], pick: Pick): void {
-  const { $, btn, L } = page;
+  const { $, btn } = page;
   const models = providers.find((entry) => keyOf(entry) === pick.providerId)?.models?.filter((model) => model.enabled !== false) || [];
-  $("[data-jelly-model-providers]").innerHTML = providers.map((entry) => btn(entry.name || entry.id || "", `data-jelly-provider="${esc(keyOf(entry))}" aria-pressed="${!pick.custom && keyOf(entry) === pick.providerId}"`)).join("")
+  $("[data-jelly-model-providers]").innerHTML = providers.map((entry) => btn({ original: entry.name || entry.id || "" }, `data-jelly-provider="${esc(keyOf(entry))}" aria-pressed="${!pick.custom && keyOf(entry) === pick.providerId}"`)).join("")
     + btn("jelly.model.custom", `data-jelly-provider="__custom" aria-pressed="${pick.custom}"`);
-  $("[data-jelly-model-options]").innerHTML = pick.custom ? "" : models.map((model) => btn(model.display_name || model.model_id, `data-jelly-model-choice="${esc(model.model_id)}" aria-pressed="${model.model_id === pick.modelId}"`)).join("");
+  $("[data-jelly-model-options]").innerHTML = pick.custom ? "" : models.map((model) => btn({ original: model.display_name || model.model_id }, `data-jelly-model-choice="${esc(model.model_id)}" aria-pressed="${model.model_id === pick.modelId}"`)).join("");
   $("[data-jelly-model-custom]").hidden = !pick.custom;
-  $("[data-jelly-model-api]").innerHTML = btn("OpenAI Chat Completions", `data-jelly-api-format="openai-chat-completions" aria-pressed="${pick.apiFormat === "openai-chat-completions"}"`)
-    + btn("Anthropic Messages", `data-jelly-api-format="anthropic-messages" aria-pressed="${pick.apiFormat === "anthropic-messages"}"`);
+  $("[data-jelly-model-api]").innerHTML = btn({ original: "OpenAI Chat Completions" }, `data-jelly-api-format="openai-chat-completions" aria-pressed="${pick.apiFormat === "openai-chat-completions"}"`)
+    + btn({ original: "Anthropic Messages" }, `data-jelly-api-format="anthropic-messages" aria-pressed="${pick.apiFormat === "anthropic-messages"}"`);
   const status = $("[data-jelly-model-status]");
-  status.replaceChildren(document.createTextNode(L(statusText(settings, providers, pick.custom))));
+  status.replaceChildren(document.createTextNode(uiText.text(statusText(settings, providers, pick.custom))));
   if (providers.length || pick.custom) return;
   status.append(document.createTextNode(" "));
   const link = document.createElement("a");
   link.href = "/settings/models";
-  link.textContent = L("jelly.model.open-settings");
+  link.textContent = uiText.text("jelly.model.open-settings");
   link.addEventListener("click", () => { page.leftForSettings = true; $<HTMLDialogElement>("[data-jelly-dialog]").close(); });
   status.append(link);
 }
 
 async function save(page: JellyPage, pick: Pick): Promise<void> {
-  const { $, L } = page;
+  const { $ } = page;
   let body: Record<string, string>;
   if (pick.custom) {
     const base = $<HTMLInputElement>("[data-jelly-model-base]").value.trim();
     const model = $<HTMLInputElement>("[data-jelly-model-id]").value.trim();
-    if (!base || !model) throw new Error(L("jelly.model.custom-required"));
+    if (!base || !model) throw new Error(uiText.text("jelly.model.custom-required"));
     body = { base_url: base, api_format: pick.apiFormat, model_id: model, connection_id: $<HTMLSelectElement>("[data-jelly-model-connection]").value };
   } else {
-    if (!pick.providerId || !pick.modelId) throw new Error(L("jelly.model.pick-required"));
+    if (!pick.providerId || !pick.modelId) throw new Error(uiText.text("jelly.model.pick-required"));
     body = { provider_id: pick.providerId, model_id: pick.modelId };
   }
   await page.request("POST", `${API}/model-settings`, body);
-  showNote(page, L("jelly.model.saved"));
+  showNote(page, uiText.text("jelly.model.saved"));
 }
 
 /** Configuration uses the Host's existing model providers and credential storage. */

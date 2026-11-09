@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { TodoItem } from "../contract.js";
 import { arrive, fromLocalInput, toLocalInput } from "./dom.js";
 import { installWorks, renderHistory, renderLinks, renderSources, renderWorks } from "./detail-panels.js";
@@ -10,19 +11,18 @@ declare global {
 
 /** The material the Assistant is handed with a todo: its words, dates, who it waits on, notes, sources and links. */
 function todoMaterial(page: TodoPage, item: TodoItem) {
-  const { L } = page;
   return {
-    title: `${L("todo.page.title")}「${item.title}」`,
+    title: `${uiText.text("todo.page.title")}「${item.title}」`,
     text: [
-      `${L("todo.field.what")}：${item.title}`,
-      `${L("todo.field.status")}：${page.statusName(item.status)}`,
-      item.due_date ? `${L("todo.field.due-date")}：${item.due_date}${item.due_time ? ` ${item.due_time}` : ""}` : "",
-      item.planned_date ? `${L("todo.field.planned-date-long")}：${item.planned_date}` : "",
-      item.waiting ? `${L("todo.field.waiting-who")}：${item.waiting.who}${item.waiting.what ? `，${item.waiting.what}` : ""}` : "",
-      item.notes ? `${L("todo.field.notes")}：${item.notes}` : "",
+      `${uiText.text("todo.field.what")}：${item.title}`,
+      `${uiText.text("todo.field.status")}：${page.statusName(item.status)}`,
+      item.due_date ? `${uiText.text("todo.field.due-date")}：${item.due_date}${item.due_time ? ` ${item.due_time}` : ""}` : "",
+      item.planned_date ? `${uiText.text("todo.field.planned-date-long")}：${item.planned_date}` : "",
+      item.waiting ? `${uiText.text("todo.field.waiting-who")}：${item.waiting.who}${item.waiting.what ? `，${item.waiting.what}` : ""}` : "",
+      item.notes ? `${uiText.text("todo.field.notes")}：${item.notes}` : "",
       ...item.sources.filter((source) => source.kind !== "manual").map((source) =>
-        `${L("todo.source.title")}：${source.title}${source.reason ? `（${source.reason}）` : ""}${source.excerpt ? `\n“${source.excerpt}”` : ""}`),
-      ...item.links.map((link) => `${L("todo.link.title")}：${link.title}`),
+        `${uiText.text("todo.source.title")}：${source.title}${source.reason ? `（${source.reason}）` : ""}${source.excerpt ? `\n“${source.excerpt}”` : ""}`),
+      ...item.links.map((link) => `${uiText.text("todo.link.title")}：${link.title}`),
     ].filter(Boolean).join("\n"),
   };
 }
@@ -42,12 +42,12 @@ function patchFromEditor(page: TodoPage): Record<string, unknown> {
 
 /** The open todo: its editor with saving, sources, works, links and history. */
 export function installDetail(page: TodoPage): void {
-  const { el, state, L } = page;
+  const { el, state } = page;
   installWorks(page);
 
   page.paintSave = () => {
     const { selected, saving, dirtyKeys } = state;
-    el.saveStatus.textContent = saving ? L("todo.save.saving") : dirtyKeys.size ? L("todo.save.unsaved") : selected ? page.statusName(selected.status) : "";
+    el.saveStatus.textContent = saving ? uiText.text("todo.save.saving") : dirtyKeys.size ? uiText.text("todo.save.unsaved") : selected ? page.statusName(selected.status) : "";
     const tone = saving || dirtyKeys.size ? "quiet" : selected && selected.status === "done" ? "done" : selected && selected.status === "doing" ? "progress" : "quiet";
     el.saveStatus.className = `mw-status mw-status--${tone}`;
     el.saveStatus.dataset.mwState = saving ? "saving" : dirtyKeys.size ? "unsaved" : selected?.status === "open" ? "idle" : selected?.status || "idle";
@@ -84,9 +84,9 @@ export function installDetail(page: TodoPage): void {
     });
     page.paintPlaces(page.$("[data-todo-placement-choices]"), item.placement === "project" && item.project_id !== page.projectId() ? "" : item.placement, "data-todo-placement");
     const archiveButton = page.$<HTMLButtonElement>("[data-todo-archive]");
-    archiveButton.textContent = item.archived_at ? L("todo.action.restore") : L("todo.action.archive");
+    archiveButton.textContent = item.archived_at ? uiText.text("todo.action.restore") : uiText.text("todo.action.archive");
     archiveButton.disabled = !item.archived_at && item.status !== "done" && item.status !== "cancelled";
-    archiveButton.title = archiveButton.disabled ? L("todo.archive.needs-closed") : "";
+    archiveButton.title = archiveButton.disabled ? uiText.text("todo.archive.needs-closed") : "";
     renderSources(page, item);
     renderLinks(page, item);
     renderHistory(page);
@@ -122,7 +122,7 @@ export function installDetail(page: TodoPage): void {
     const target = state.selected;
     if (!target || !state.dirtyKeys.size) return;
     if (state.dirtyKeys.has("title") && !page.field("title").value.trim()) {
-      const message = L("todo.error.title-empty");
+      const message = uiText.text("todo.error.title-empty");
       page.detailHint(message, true);
       throw new Error(message);
     }
@@ -144,7 +144,7 @@ export function installDetail(page: TodoPage): void {
         void page.load().catch(() => undefined);
       } catch (error) {
         for (const name of sent) state.dirtyKeys.add(name);
-        page.detailHint((error as { code?: string }).code === "todo.conflict" ? L("todo.error.conflict") : (error as Error).message, true);
+        page.detailHint((error as { code?: string }).code === "todo.conflict" ? uiText.text("todo.error.conflict") : (error as Error).message, true);
         throw error;
       }
     };
@@ -175,7 +175,7 @@ export function installDetail(page: TodoPage): void {
     await page.load();
     if (state.selected && state.selected.id === id) await page.openDetail(id, true);
     const title = payload.item.title;
-    page.showNote(status === "done" ? L("todo.note.completed", { title }) : status === "open" ? L("todo.note.reopened", { title }) : L("todo.note.status-now", { title }) + page.statusName(status), { undo: undoOf(payload) });
+    page.showNote(status === "done" ? uiText.text("todo.note.completed", { title }) : status === "open" ? uiText.text("todo.note.reopened", { title }) : uiText.text("todo.note.status-now", { title }) + page.statusName(status), { undo: undoOf(payload) });
     const row = el.rowsEl.querySelector<HTMLElement>(`[data-todo-row="${id}"]`);
     if (status === "done" && row && typeof window.molisCraft?.celebrate === "function") window.molisCraft.celebrate(row);
   };

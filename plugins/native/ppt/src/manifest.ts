@@ -11,8 +11,6 @@ import { pptContentActions } from "./content-actions.js";
 import { pptSync } from "./replication.js";
 import { PPT_DATABASE } from "./database.js";
 
-import { PPT_MESSAGES } from "./messages.js";
-import { PPT_EN } from "./en.js";
 export { PPT_PLUGIN_ID, PPT_PROJECT_PLUGIN_ID };
 
 const PPT_BODY_BYTES = 1_000_000;
@@ -57,9 +55,7 @@ export const pptManifest: PluginManifest = {
       compare: { capability_id: "ppt.artifacts.compare", version: /* @version action.ppt.artifacts.compare */ 1 }, continue: { capability_id: "ppt.artifacts.continue", version: /* @version action.ppt.artifacts.continue */ 1 } }],
     consumes: [],
   },
-  ui: {
-    messages: PPT_MESSAGES,
-    translations: PPT_EN,
+  ui: { locales: { default: "zh", available: ["zh", "en"] },
     contributions: [PPT_UI_CONTRIBUTION_ID],
     views: [
       { view_id: "directory", slot: "navigator", title: "PPT", contribution_id: PPT_UI_CONTRIBUTION_ID, icon: "presentation", hue: "red", order: 59, group: "make",

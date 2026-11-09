@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { required, settle, targetOf } from "./dom.js";
 import { filterPicks } from "./dialog.js";
@@ -12,12 +13,12 @@ const manualFields = (form: HTMLFormElement) => ({
 
 /** Typing, keys and the dialog's submit: everything the page does outside the popover and outside plain presses. */
 export function wireRoot(page: WorkflowsPage) {
-  const { root, pop, ui, view, dlg, formEl, L } = page;
+  const { root, pop, ui, view, dlg, formEl } = page;
 
   const saveName = (input: HTMLInputElement) => {
     flushSave(page);
     if (!ui.workflow) return;
-    const title = input.value.trim() || L("workflows.flow.new-title");
+    const title = input.value.trim() || uiText.text("workflows.flow.new-title");
     if (title !== ui.workflow.title) saveFlow(page, { title });
   };
 
@@ -25,7 +26,7 @@ export function wireRoot(page: WorkflowsPage) {
     const el = targetOf(event);
     if (!el || pop.contains(el)) return;
     const title = el.closest<HTMLInputElement>("[data-wf-title]");
-    if (title) { if (ui.workflow) debounce(page, ui.workflow, { title: title.value.trim() || L("workflows.flow.new-title") }, "title", 600); return; }
+    if (title) { if (ui.workflow) debounce(page, ui.workflow, { title: title.value.trim() || uiText.text("workflows.flow.new-title") }, "title", 600); return; }
     const filter = el.closest<HTMLInputElement>("[data-wf-pick-filter]");
     if (filter) { filterPicks(page, filter.value); return; }
     const manual = el.closest<HTMLFormElement>("[data-wf-manual]");

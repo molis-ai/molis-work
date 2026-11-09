@@ -6,8 +6,6 @@ import { TODO_UI_CONTRIBUTION_ID } from "./ui.js";
 import { todoAgentManifest, todoSkills } from "./roles.js";
 import { TODO_DATABASE } from "./database.js";
 
-import { TODO_MESSAGES } from "./messages.js";
-import { TODO_EN } from "./en.js";
 export { TODO_PLUGIN_ID, TODO_PROJECT_PLUGIN_ID };
 
 /** The most one request may carry, as on the Host's native path before W5-01. */
@@ -59,9 +57,7 @@ export const todoManifest: PluginManifest = {
   agent: todoAgentManifest,
   // Offered to other Agents for business work; bodies in ./roles.ts.
   methods: todoSkills.map(({ body: _body, ...declared }) => ({ ...declared, tools: [...declared.tools] })),
-  ui: {
-    messages: TODO_MESSAGES,
-    translations: TODO_EN,
+  ui: { locales: { default: "zh", available: ["zh", "en"] },
     contributions: [TODO_UI_CONTRIBUTION_ID],
     views: [
       { view_id: "todo", slot: "navigator", title: "待办", title_en: "Todo", contribution_id: TODO_UI_CONTRIBUTION_ID, icon: "list", hue: "green", order: 25, group: "personal" },

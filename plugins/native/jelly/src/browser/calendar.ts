@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { empty, keepListScroll, matches } from "./page.js";
 import { API } from "./request.js";
 import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
@@ -37,7 +38,7 @@ export const occurrenceKey = (item: JellyOccurrence): string => (item.series_id 
 export const findOccurrence = (page: JellyPage, key: string): JellyOccurrence | undefined => page.occurrences.find((item) => occurrenceKey(item) === key);
 
 export function occurrenceHtml(page: JellyPage, item: JellyOccurrence): string {
-  const done = item.completed_at ? ` · ${page.L("jelly.status.completed")}` : "";
+  const done = item.completed_at ? ` · ${uiText.text("jelly.status.completed")}` : "";
   const label = esc(`${item.title} · ${dateLabel(item.start_date)} ${clockLabel(item.start_time)}${done}`);
   const span = esc(item.title + ` · ${dateLabel(item.start_date)}` + (item.end_date !== item.start_date ? ` — ${dateLabel(item.end_date)}` : ""));
   return `<button type="button" aria-label="${label}" class="jelly-occurrence${item.completed_at ? " is-done" : ""}" draggable="true" data-jelly-occurrence="${esc(occurrenceKey(item))}" title="${span}">`
@@ -66,7 +67,7 @@ export function bulkBar(page: JellyPage): string {
   return `<div class="jelly-bulk-bar"><span class="jelly-muted" data-jelly-selection-count>${page.calendarSelected.size} ${page.tx("jelly.calendar.selected-count")}</span>${btn("jelly.calendar.move-selected", "data-jelly-move-selected", "calendar")}${review}${btn("jelly.calendar.clear-selection", "data-jelly-clear-selected")}</div>`;
 }
 
-const newItemLabel = (page: JellyPage, date: string): string => esc(`${dateLabel(date)} · ${page.L("jelly.item.new")}`);
+const newItemLabel = (_page: JellyPage, date: string): string => esc(`${dateLabel(date)} · ${uiText.text("jelly.item.new")}`);
 
 function weekColumn(page: JellyPage, date: string, items: JellyOccurrence[]): string {
   const dayItems = items.filter((item) => item.start_date <= date && item.end_date >= date);

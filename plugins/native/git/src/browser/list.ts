@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { open } from "./diff.js";
 import { active, inFolder, reading, request, rowOf, showReviews } from "./page.js";
@@ -23,11 +24,11 @@ function rowButton(page: GitPage, item: ListItem, side: string, key: string): HT
 
 /** Puts the three groups of changes in the list, keeping the rows and groups that are still there (and their focus). */
 function paint(page: GitPage, view: View): void {
-  const { L, list, result } = page;
+  const { list, result } = page;
   const entries: [string, readonly ListItem[], string, string][] = [
-    [L("git.group.conflicts"), view.conflicts, "worktree", "conflict"],
-    [L("git.group.staged"), view.staged, "index", "staged"],
-    [L("git.group.unstaged"), view.changes, "worktree", "unstaged"],
+    [uiText.text("git.group.conflicts"), view.conflicts, "worktree", "conflict"],
+    [uiText.text("git.group.staged"), view.staged, "index", "staged"],
+    [uiText.text("git.group.unstaged"), view.changes, "worktree", "unstaged"],
   ];
   const groups = new Map([...list.children].map((group): [string, HTMLElement] => [(group as HTMLElement).dataset.gitGroup ?? "", group as HTMLElement]));
   const rows = new Map([...list.querySelectorAll<HTMLElement>("[data-git-path]")].map((row): [string, HTMLElement] => [row.dataset.gitPath ?? "", row]));
@@ -50,7 +51,7 @@ function paint(page: GitPage, view: View): void {
       const name = button.querySelector("strong");
       if (name) name.textContent = item.label;
       button.title = `${label} · ${item.label}`;
-      button.setAttribute("aria-label", L("git.group.row-label", { group: label, name: item.label }));
+      button.setAttribute("aria-label", uiText.text("git.group.row-label", { group: label, name: item.label }));
       const shown = page.displayed && page.displayed.workspace_id === page.workspace && page.displayed.side === side && JSON.stringify(page.displayed.path) === JSON.stringify(item.path);
       button.classList.toggle("is-selected", Boolean(shown || (page.opener === button && result.getAttribute("aria-busy") === "true")));
       if (previous.nextElementSibling !== button) group.insertBefore(button, previous.nextElementSibling);
@@ -63,13 +64,13 @@ function paint(page: GitPage, view: View): void {
 
 /** Reads the workspace's changes and paints them, then the source-control block. */
 export async function refresh(page: GitPage): Promise<void> {
-  const { L, S, list, notice, reopen, history, result } = page;
+  const { S, list, notice, reopen, history, result } = page;
   if (!page.lifetime.visible) return;
   const epoch = ++page.generation;
   page.ticket++;
   result.setAttribute("aria-busy", "false");
   reading(page, true);
-  notice.textContent = L("git.list.reading");
+  notice.textContent = uiText.text("git.list.reading");
   reopen.hidden = true;
   history.disabled = true;
   try {

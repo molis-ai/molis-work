@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { API } from "./request.js";
 import { showNote } from "./page.js";
 import { renderView } from "./view.js";
@@ -23,7 +24,7 @@ export function command(page: JellyPage, value: JellyCommand): Promise<JellyWork
         const fresh = await page.request<{ state: JellyWorkspace }>("GET", `${API}/`);
         take(page, fresh.state);
         await renderView(page);
-        showNote(page, page.L("jelly.sync.other-window"), true);
+        showNote(page, uiText.text("jelly.sync.other-window"), true);
       }
       throw error;
     }

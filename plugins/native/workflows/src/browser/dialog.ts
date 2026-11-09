@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { ico, required, settle, when } from "./dom.js";
@@ -25,25 +26,25 @@ const skeletonPicks = () => '<div class="wf-picks" aria-busy="true">' + [62, 48,
 
 /** Asks where the run starts: one thing the first station holds, or a new one. */
 export async function startRun(page: WorkflowsPage) {
-  const { ui, dlg, formEl, L } = page;
+  const { ui, dlg, formEl } = page;
   const flow = ui.workflow!; flushSave(page); await page.queue;
   if (ui.workflow !== flow || page.edits.get(flow.workflow_id)?.error || flow.stations.length < 2) return;
   const first = flow.stations[0]!.plugin;
-  const hint = `<p class="wf-hint">${esc(L("workflows.run.starts-from", { plugin: label(page, first) }))}</p>`;
-  showForm(page, L("workflows.run.start"), hint + skeletonPicks(), L("workflows.run.started"), null);
+  const hint = `<p class="wf-hint">${esc(uiText.text("workflows.run.starts-from", { plugin: label(page, first) }))}</p>`;
+  showForm(page, uiText.text("workflows.run.start"), hint + skeletonPicks(), uiText.text("workflows.run.started"), null);
   try {
     const { items, can_start_blank: canBlank } = await page.api<PicksAnswer>("/stations/" + first + "/items");
-    const blank = canBlank ? `<label class="mw-check-row wf-pick wf-pick--blank"><input class="mw-radio" type="radio" name="start" value="" ${items.length ? "" : "checked"}><span><strong>${esc(L("workflows.run.create-new", { plugin: label(page, first) }))}</strong><input class="mw-input" name="blank_title" maxlength="120" placeholder="${esc(L("workflows.run.name"))}"></span></label>` : "";
-    const filter = items.length > 6 ? `<label class="wf-pick-filter">${ico("search")}<input class="mw-input" type="search" data-wf-pick-filter placeholder="${esc(L("workflows.run.filter"))}" aria-label="${esc(L("workflows.run.filter"))}"></label>` : "";
-    const list = items.length ? `<div class="wf-picks" role="radiogroup" aria-label="${esc(L("workflows.run.pick-first"))}">` + items.map((item, index) => `<label class="mw-check-row wf-pick" data-wf-pick-text="${esc((item.title + " " + item.caption).toLowerCase())}"><input class="mw-radio" type="radio" name="start" value="${esc(item.item_id)}"${index === 0 ? " checked" : ""}><span><strong>${esc(item.title)}</strong><small>${esc([item.caption, when(item.at)].filter(Boolean).join(" · "))}</small></span></label>`).join("") + `<p class="wf-muted wf-picks-none" data-wf-picks-none hidden>${esc(L("workflows.run.no-match"))}</p></div>`
-      : (blank ? "" : `<p class="wf-muted">${esc(L("workflows.run.nothing-to-start", { plugin: label(page, first) }))}</p>`);
+    const blank = canBlank ? `<label class="mw-check-row wf-pick wf-pick--blank"><input class="mw-radio" type="radio" name="start" value="" ${items.length ? "" : "checked"}><span><strong>${esc(uiText.text("workflows.run.create-new", { plugin: label(page, first) }))}</strong><input class="mw-input" name="blank_title" maxlength="120" placeholder="${esc(uiText.text("workflows.run.name"))}"></span></label>` : "";
+    const filter = items.length > 6 ? `<label class="wf-pick-filter">${ico("search")}<input class="mw-input" type="search" data-wf-pick-filter placeholder="${esc(uiText.text("workflows.run.filter"))}" aria-label="${esc(uiText.text("workflows.run.filter"))}"></label>` : "";
+    const list = items.length ? `<div class="wf-picks" role="radiogroup" aria-label="${esc(uiText.text("workflows.run.pick-first"))}">` + items.map((item, index) => `<label class="mw-check-row wf-pick" data-wf-pick-text="${esc((item.title + " " + item.caption).toLowerCase())}"><input class="mw-radio" type="radio" name="start" value="${esc(item.item_id)}"${index === 0 ? " checked" : ""}><span><strong>${esc(item.title)}</strong><small>${esc([item.caption, when(item.at)].filter(Boolean).join(" · "))}</small></span></label>`).join("") + `<p class="wf-muted wf-picks-none" data-wf-picks-none hidden>${esc(uiText.text("workflows.run.no-match"))}</p></div>`
+      : (blank ? "" : `<p class="wf-muted">${esc(uiText.text("workflows.run.nothing-to-start", { plugin: label(page, first) }))}</p>`);
     if (!dlg.open) return;
     const body = required(dlg, "[data-wf-dialog-body]");
     body.innerHTML = hint + filter + blank + list;
     settle(body.querySelector(".wf-picks") || body.lastElementChild);
     page.submitForm = async () => {
       const picked = formEl.querySelector<HTMLInputElement>("input[name=start]:checked");
-      if (!picked) throw new Error(L("workflows.run.pick-first"));
+      if (!picked) throw new Error(uiText.text("workflows.run.pick-first"));
       const request = picked.value ? { item_id: picked.value } : { title: formEl.querySelector<HTMLInputElement>("input[name=blank_title]")?.value || "" };
       const started = await page.api<InstanceAnswer>("/" + flow.workflow_id + "/instances", request);
       dlg.close();

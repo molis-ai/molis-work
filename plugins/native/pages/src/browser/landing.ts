@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { ContextActionChosen } from "@molis-ai/molis-work-contracts/services/contextual";
 import { loadList } from "./document.js";
 import type { PagesPage } from "./page.js";
@@ -27,11 +28,11 @@ export function bindLanding(page: PagesPage) {
     if (!sel) return;
     const documentId = sel.id;
     void editor.runCommand("", undefined, { ...(whole ? { scope: "object" as const } : { localId: focusNow!.local_id }), title: chosen.title,
-      mode: chosen.apply === "replace" ? "replace" : "insert_after", okLabel: chosen.apply === "replace" ? L("pages.landing.replace") : L("pages.landing.insert-after"),
+      mode: chosen.apply === "replace" ? "replace" : "insert_after", okLabel: chosen.apply === "replace" ? uiText.text("pages.landing.replace") : uiText.text("pages.landing.insert-after"),
       prepare: async () => {
         const prepared = await chosen.prepare();
         const input = (prepared && prepared.input ? prepared.input : {}) as { id?: unknown; command?: unknown; style?: unknown; text?: unknown };
-        if (input.id !== documentId || typeof input.command !== "string") throw new Error(L("pages.landing.cannot-prepare"));
+        if (input.id !== documentId || typeof input.command !== "string") throw new Error(uiText.text("pages.landing.cannot-prepare"));
         return { command: input.command, style: typeof input.style === "string" ? input.style : undefined, text: typeof input.text === "string" ? input.text : undefined };
       } });
   });

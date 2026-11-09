@@ -1,19 +1,20 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { active, inFolder, request } from "./page.js";
 import type { GitPage } from "./page.js";
 import type { ResultRow, ResultsAnswer, Translate } from "./types.js";
 
 /** How a review ended, or the word itself when it is one the page does not know. */
-export function outcomeLabel(L: Translate, outcome: string): string {
+export function outcomeLabel(_L: Translate, outcome: string): string {
   switch (outcome) {
-    case "succeeded": return L("git.outcome.succeeded");
-    case "failed": return L("git.outcome.failed");
-    case "denied": return L("git.outcome.denied");
-    case "cancelled": return L("git.outcome.cancelled");
-    case "expired": return L("git.outcome.expired");
-    case "pending": return L("git.outcome.pending");
-    case "running": return L("git.outcome.running");
-    case "unknown": return L("git.outcome.unknown");
+    case "succeeded": return uiText.text("git.outcome.succeeded");
+    case "failed": return uiText.text("git.outcome.failed");
+    case "denied": return uiText.text("git.outcome.denied");
+    case "cancelled": return uiText.text("git.outcome.cancelled");
+    case "expired": return uiText.text("git.outcome.expired");
+    case "pending": return uiText.text("git.outcome.pending");
+    case "running": return uiText.text("git.outcome.running");
+    case "unknown": return uiText.text("git.outcome.unknown");
     default: return outcome;
   }
 }
@@ -22,18 +23,18 @@ const chosen = (page: GitPage): ResultRow | undefined => page.resultRows.find((i
 
 /** Shows the chosen result: what it did, to which files, who decided it and whether it is kept in the project. */
 export function renderResult(page: GitPage): void {
-  const { L, S, when, q, resultSave, resultStatus } = page;
+  const { S, when, q, resultSave, resultStatus } = page;
   const row = chosen(page), item = row?.saved?.result || row?.result;
   resultSave.disabled = page.resultSaving || !row || Boolean(row.saved || row.unavailable);
   q("[data-git-result-summary]").textContent = S(item?.summary || "");
-  q("[data-git-result-paths]").textContent = item?.review.paths.join(L("git.list.joiner")) || "";
+  q("[data-git-result-paths]").textContent = item?.review.paths.join(uiText.text("git.list.joiner")) || "";
   const reconciliation = item?.review.reconciliation;
   q("[data-git-result-provenance]").textContent = item
-    ? L("git.result.decided", { who: item.review.decided_by || L("git.result.no-decider"), when: item.review.decided_at ? when(item.review.decided_at) : L("git.result.no-time") })
-      + (reconciliation ? L("git.result.checked", { who: reconciliation.actor_id, when: when(reconciliation.at), why: reconciliation.reason })
-        : item.review.failure_reason ? L("git.result.original", { why: S(item.review.failure_reason) }) : "")
+    ? uiText.text("git.result.decided", { who: item.review.decided_by || uiText.text("git.result.no-decider"), when: item.review.decided_at ? when(item.review.decided_at) : uiText.text("git.result.no-time") })
+      + (reconciliation ? uiText.text("git.result.checked", { who: reconciliation.actor_id, when: when(reconciliation.at), why: reconciliation.reason })
+        : item.review.failure_reason ? uiText.text("git.result.original", { why: S(item.review.failure_reason) }) : "")
     : "";
-  resultStatus.textContent = row?.unavailable ? S(row.unavailable) : row?.saved ? L("git.result.saved", { version: row.saved.reference.version }) : row ? L("git.result.unsaved") : L("git.result.none");
+  resultStatus.textContent = row?.unavailable ? S(row.unavailable) : row?.saved ? uiText.text("git.result.saved", { version: row.saved.reference.version }) : row ? uiText.text("git.result.unsaved") : uiText.text("git.result.none");
 }
 
 /** Forgets the results (another workspace, or none): the list is empty and says so. */
@@ -56,8 +57,8 @@ export async function loadResults(page: GitPage): Promise<void> {
     for (const row of page.resultRows) {
       const item = row.result, option = document.createElement("option");
       option.value = item.review.review_id;
-      const shown = item.review.reconciliation ? L("git.result.checked-none") : outcomeLabel(L, item.outcome);
-      option.textContent = `${item.review.action === "stage" ? L("git.action.stage") : L("git.action.unstage")} · ${shown} · ${item.review.paths.join(L("git.list.joiner"))} · ${when(item.review.requested_at)}`;
+      const shown = item.review.reconciliation ? uiText.text("git.result.checked-none") : outcomeLabel(L, item.outcome);
+      option.textContent = `${item.review.action === "stage" ? uiText.text("git.action.stage") : uiText.text("git.action.unstage")} · ${shown} · ${item.review.paths.join(uiText.text("git.list.joiner"))} · ${when(item.review.requested_at)}`;
       resultChoice.append(option);
     }
     if (page.resultRows.some((row) => row.result.review.review_id === selectedId)) resultChoice.value = selectedId;
@@ -76,13 +77,13 @@ export async function loadResults(page: GitPage): Promise<void> {
 
 /** Keeps the chosen result in the project when the person asks. */
 async function saveResult(page: GitPage): Promise<void> {
-  const { L, S, resultChoice, resultSave, resultStatus } = page;
+  const { S, resultChoice, resultSave, resultStatus } = page;
   const row = chosen(page);
   if (!row || page.resultSaving) return;
   const epoch = page.generation, id = page.workspace, reviewId = row.result.review.review_id;
   page.resultSaving = true;
   resultSave.disabled = true;
-  resultStatus.textContent = L("git.result.saving");
+  resultStatus.textContent = uiText.text("git.result.saving");
   try {
     const saved = await request<NonNullable<ResultRow["saved"]>>(page, "/results", "POST", { workspace_id: id, review_id: reviewId });
     if (!active(page, epoch) || id !== page.workspace) return;
@@ -90,7 +91,7 @@ async function saveResult(page: GitPage): Promise<void> {
     if (current) current.saved = saved;
     renderResult(page);
   } catch (error) {
-    if (active(page, epoch) && id === page.workspace) resultStatus.textContent = L("git.result.save-failed", { reason: S(messageOf(error)) });
+    if (active(page, epoch) && id === page.workspace) resultStatus.textContent = uiText.text("git.result.save-failed", { reason: S(messageOf(error)) });
   } finally {
     page.resultSaving = false;
     if (active(page, epoch) && id === page.workspace) resultSave.disabled = Boolean(page.resultRows.find((item) => item.result.review.review_id === resultChoice.value)?.saved);

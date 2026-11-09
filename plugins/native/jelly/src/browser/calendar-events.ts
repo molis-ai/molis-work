@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { findOccurrence } from "./calendar.js";
 import { itemField, openItem } from "./item.js";
 import { run, showNote } from "./page.js";
@@ -15,7 +16,7 @@ async function dropItem(page: JellyPage, dayKey: string, occurrenceKey: string):
     const shift = dayOffset(item.start_date, dayKey);
     await command(page, { type: "series.update", id: item.series_id, original_date: item.original_date, scope: "onlyThis", patch: { start_date: dayKey, end_date: addDays(item.end_date, shift) } });
   } else await command(page, { type: "item.move", id: item.id, date: dayKey });
-  showNote(page, page.L("jelly.item.moved"));
+  showNote(page, uiText.text("jelly.item.moved"));
 }
 
 /** Drag an occurrence onto another day, tick items for a bulk move, double-click the week grid to start an item there. */
@@ -34,7 +35,7 @@ export function installCalendarEvents(page: JellyPage): void {
     const id = node.dataset.jellySelectItem ?? "";
     if (node.checked) page.calendarSelected.add(id); else page.calendarSelected.delete(id);
     const count = content.querySelector("[data-jelly-selection-count]");
-    if (count) count.textContent = `${page.calendarSelected.size} ${page.L("jelly.calendar.selected-count")}`;
+    if (count) count.textContent = `${page.calendarSelected.size} ${uiText.text("jelly.calendar.selected-count")}`;
   });
   content.addEventListener("dblclick", (event) => {
     const timeline = above(event, "[data-jelly-week-time]");

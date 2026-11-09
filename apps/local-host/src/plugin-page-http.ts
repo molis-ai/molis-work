@@ -8,7 +8,7 @@ import { changePageWorkspace } from "./plugin-page-workspaces.js";
 import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
 import type { WebRequestContext } from "./web-route-table.js";
 import { runningProjectPlatform } from "./project-plugins.js";
-import { runtimeStageOwner } from "./project-plugin-stages.js";
+import { embeddedStageTextOwners, runtimeStageOwner } from "./project-plugin-stages.js";
 import { homeStageHalves } from "./home-plugin-http.js";
 import { pageConnectionSlot } from "./plugin-connection-slots-http.js";
 import { pageConnectionNeed } from "./plugin-connection-need-http.js";
@@ -40,7 +40,7 @@ async function stagePageSelection(context: WebRequestContext, project: LocalHost
     throw new ActionError("actions.provider_changed", "原舞台实例已变化，请重新读取");
   const reader = stageObjectAction(owner.entry.manifest);
   return { project_key: owner.entry.project_plugin_id, install_id: owner.install_id, installation_generation: owner.installation_generation,
-    project_id: owner.scope === "home" ? null : project?.project_id ?? null, assertCurrent: owner.assertCurrent,
+    project_id: owner.scope === "home" ? null : project?.project_id ?? null, assertCurrent: owner.assertCurrent, embedded: embeddedStageTextOwners(platform, owner),
     ...(reader ? { objectPresentation: { permissions: [...reader.action.permissions], surfaces: (owner.view.descriptor.surfaces ?? []).filter(item => item.target_slot_id === "workbench.main" && item.format === "declarative-html").map(item => item.surface_id) } } : {}) };
 }
 

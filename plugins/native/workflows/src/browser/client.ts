@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { wireClicks } from "./click.js";
 import { wireDrag } from "./drag.js";
@@ -15,7 +16,7 @@ import type { WorkflowsHost } from "./types.js";
 
 /** Opens what the shell asked for; a workflow the person cannot read leaves the list with a note saying so. */
 async function selectFlow(page: WorkflowsPage, id: string | null, revision: number) {
-  const { ui, root, L } = page;
+  const { ui, root } = page;
   if (id) {
     try { await showFlow(page, id, { revision }); }
     catch (error) {
@@ -25,7 +26,7 @@ async function selectFlow(page: WorkflowsPage, id: string | null, revision: numb
       root.dispatchEvent(new CustomEvent("molis-work:item-unreadable", { bubbles: true, detail: { itemId: id } }));
       ui.workflow = null; ui.instance = null; ui.returnTo = null; remember(page); setMode(page, "list"); drawList(page);
       const note = required(root, "[data-wf-gone]");
-      if (!page.pickedQuiet || status === 403) { note.textContent = status === 403 ? messageOf(error) : L("workflows.flow.gone"); note.hidden = false; }
+      if (!page.pickedQuiet || status === 403) { note.textContent = status === 403 ? messageOf(error) : uiText.text("workflows.flow.gone"); note.hidden = false; }
     }
     return;
   }

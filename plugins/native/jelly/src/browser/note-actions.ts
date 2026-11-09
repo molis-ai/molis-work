@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { rangesForSelection } from "./blocks.js";
 import { openGeneric } from "./dialog.js";
 import { extractMaterial } from "./material.js";
@@ -122,6 +123,6 @@ export async function importNoteFile(page: JellyPage, file: File | undefined): P
   openGeneric(page, "jelly.note.import-title", `<p class="jelly-muted">${esc(file.name)} · ${countCharacters(source)} ${page.tx("jelly.note.import-chars")}</p><label class="jelly-check"><input class="mw-check" type="checkbox" data-jelly-import-replace>${page.tx("jelly.note.import-replace")}</label><pre class="jelly-import-preview">${esc(source.slice(0, 8000))}</pre>`, "jelly.import.confirm", async () => {
     await command(page, { type: "note.import", id, source, format, mode: page.$<HTMLInputElement>("[data-jelly-import-replace]").checked ? "replace" : "append", expected_note_revision: page.editorRevision });
     openRecord(page, "note", id);
-    showNote(page, page.L("jelly.note.imported"));
+    showNote(page, uiText.text("jelly.note.imported"));
   });
 }

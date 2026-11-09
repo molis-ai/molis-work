@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type {} from "@molis-ai/molis-work-plugin-sdk";
 import type { UiSideContext, UiPageMessage } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { PagesCommentThread } from "./contract.js";
@@ -8,7 +9,7 @@ import { firstCharacters } from "./browser/dom.js";
 /** Side document client. Drafts and pending sends are keyed by project, document and thread. */
 export function mountComments(host: CommentSideHost): void {
   const root=document.querySelector<HTMLElement>('[data-pages-comments]');if(!root)return;
-  const L=host.translate, q=<K extends keyof CommentElements>(name: K)=>root.querySelector('[data-comment-'+name+']') as CommentElements[K];
+  const q=<K extends keyof CommentElements>(name: K)=>root.querySelector('[data-comment-'+name+']') as CommentElements[K];
   const project=typeof host.projectId==='function'?host.projectId():host.projectId;
   const key='molis.pages.comments:'+project;
   let saved: Record<string, unknown>={};try{saved=JSON.parse(localStorage.getItem(key)||'{}');}catch{/* A broken local draft does not replace server comments. */}
@@ -19,38 +20,38 @@ export function mountComments(host: CommentSideHost): void {
   const rememberActive=()=>{if(context){activePages[context.object_ref.id]=active;persist();}};
   const draftKey=()=>context?.object_ref.id+':'+active;
   const draft=(): CommentDraft=>savedDraft(draftKey()) ?? (saved[draftKey()]={body:'',ai:false,reply_to:null,request_id:crypto.randomUUID()});
-  const persist=()=>{try{localStorage.setItem(key,JSON.stringify(saved));}catch{error(L('pages.comments.draft-unsaved'));}};
+  const persist=()=>{try{localStorage.setItem(key,JSON.stringify(saved));}catch{error(uiText.text('pages.comments.draft-unsaved'));}};
   const error=(text: string)=>{q('error').textContent=text||'';q('error').hidden=!text;q('reload').hidden=!text;};
   const request=async<T>(address: string,body?: object): Promise<T>=>{
     const url=address+(address.includes('?')?'&':'?')+'project_id='+encodeURIComponent(project);
-    return molisWorkRequest<T>(url,{...(body===undefined?{}:{body}),fallback:L('pages.error.request')});
+    return molisWorkRequest<T>(url,{...(body===undefined?{}:{body}),fallback:uiText.text('pages.error.request')});
   };
   const pagePath=(id: string)=>host.pluginRoute('/pages/'+encodeURIComponent(id)+'/comments');
   const button=(label: string,fn: ()=>void)=>{const node=document.createElement('button');node.type='button';node.className='mw-btn mw-btn--ghost';node.textContent=label;node.addEventListener('click',fn);return node;};
   const needsSave=()=>!!context?.unsaved&&!(draft().ai&&draft().includeDraft&&draft().anchor?.kind!=='text');
   const paintDraft=()=>{
     const d=draft();q('draft').value=d.body;q('ai').setAttribute('aria-pressed',String(d.ai));
-    q('reply').hidden=!d.reply_to;q('reply').textContent=d.reply_to?L('pages.comments.reply-selected')+' · '+L('pages.action.cancel'):'';
+    q('reply').hidden=!d.reply_to;q('reply').textContent=d.reply_to?uiText.text('pages.comments.reply-selected')+' · '+uiText.text('pages.action.cancel'):'';
     q('form').hidden=mode!=='comments'||!context;
     q('scope').hidden=!d.ai;q('unsaved').hidden=!context?.unsaved||!d.ai||d.anchor?.kind==='text';q('include-draft').checked=!!d.includeDraft;
-    q('send').disabled=busy||needsSave()||!d.body.trim();q('send').textContent=L(needsSave()?'pages.comments.waiting-save':d.ai?'pages.comments.send-ask':'pages.comments.send');
+    q('send').disabled=busy||needsSave()||!d.body.trim();q('send').textContent=uiText.text(needsSave()?'pages.comments.waiting-save':d.ai?'pages.comments.send-ask':'pages.comments.send');
   };
   // The reply itself is the Assistant's: started from its panel by the person's press there (PG-057), followed, retried or stopped there.
   const paintRun=()=>{q('run').textContent=handed;};
   const paint=()=>{
     q('threads').replaceChildren();
-    for(const thread of threads){const node=button(firstCharacters((thread.anchor.kind==='text'?thread.anchor.excerpt:thread.messages.find(message=>message.author==='user')?.body)||'',36)||L('pages.comments.whole-doc'),()=>choose(thread.thread_id));node.setAttribute('aria-current',String(thread.thread_id===active));q('threads').append(node);}
+    for(const thread of threads){const node=button(firstCharacters((thread.anchor.kind==='text'?thread.anchor.excerpt:thread.messages.find(message=>message.author==='user')?.body)||'',36)||uiText.text('pages.comments.whole-doc'),()=>choose(thread.thread_id));node.setAttribute('aria-current',String(thread.thread_id===active));q('threads').append(node);}
     const thread=threads.find(t=>t.thread_id===active);
-    q('quote').hidden=!thread&&!draft().anchor;q('quote').textContent=thread?(thread.detached?L('pages.comments.detached')+'\n':'')+thread.anchor.excerpt:draft().excerpt||context?.object_ref.title||'';
+    q('quote').hidden=!thread&&!draft().anchor;q('quote').textContent=thread?(thread.detached?uiText.text('pages.comments.detached')+'\n':'')+thread.anchor.excerpt:draft().excerpt||context?.object_ref.title||'';
     q('locate').hidden=!thread?.anchor.mark_id||thread.detached;
     q('messages').replaceChildren();
     for(const message of thread?.messages||[]){
       const article=document.createElement('article'),head=document.createElement('div'),name=document.createElement('strong'),time=document.createElement('time'),body=document.createElement('p');
-      name.textContent=L(message.author==='assistant'?'pages.comments.assistant':message.author==='annotation'?'pages.comments.annotation':'pages.comments.me');
+      name.textContent=uiText.text(message.author==='assistant'?'pages.comments.assistant':message.author==='annotation'?'pages.comments.annotation':'pages.comments.me');
       time.textContent=new Date(message.created_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});time.dateTime=message.created_at;
-      body.textContent=message.body;head.append(name,time,button(L('pages.comments.reply'),()=>{draft().reply_to=message.message_id;persist();paintDraft();q('draft').focus();}));article.append(head,body);q('messages').append(article);
+      body.textContent=message.body;head.append(name,time,button(uiText.text('pages.comments.reply'),()=>{draft().reply_to=message.message_id;persist();paintDraft();q('draft').focus();}));article.append(head,body);q('messages').append(article);
     }
-    if(!thread){const hint=document.createElement('p');hint.textContent=L(loaded!==context?.object_ref.id?'pages.comments.loading':'pages.comments.hint');q('messages').append(hint);}
+    if(!thread){const hint=document.createElement('p');hint.textContent=uiText.text(loaded!==context?.object_ref.id?'pages.comments.loading':'pages.comments.hint');q('messages').append(hint);}
     paintDraft();paintRun();
   };
   const choose=(id: string)=>{active=id;rememberActive();handed='';paint();};
@@ -85,7 +86,7 @@ export function mountComments(host: CommentSideHost): void {
       const offer=d.ai?{message_id:crypto.randomUUID(),purpose:'suggest',source:{surface:'pages'},
         object:{kind:'pages_document',id,title},text:d.body,thread:{thread_id:threadId,message_id:d.message_id||'',...(snapshot?{draft:{text:snapshot.text,revision:String(snapshot.version)}}:{})}}:null;
       // Match the frame bridge's serialized-detail cap, including escaping. Before saving, the missing server id is a lower bound.
-      if(offer&&JSON.stringify(offer).length>100000)throw new Error(L(d.message_id?'pages.comments.saved-offer-too-long':'pages.comments.draft-too-long'));
+      if(offer&&JSON.stringify(offer).length>100000)throw new Error(uiText.text(d.message_id?'pages.comments.saved-offer-too-long':'pages.comments.draft-too-long'));
       if(!d.message_id){const data=await request<{thread: PagesCommentThread}>(pagePath(id),{thread_id:threadId,request_id:d.request_id,body:d.body,expected_version:version,
         ...(d.reply_to?{reply_to:d.reply_to}:{}),anchor:d.anchor||{kind:'document'}});
         d.message_id=data.thread.messages.find(m=>m.request_id===d.request_id)!.message_id;if(savedDraft(before)?.request_id===d.request_id)savedDraft(before)!.message_id=d.message_id;persist();
@@ -93,9 +94,9 @@ export function mountComments(host: CommentSideHost): void {
       // Handed to the Assistant, which offers 「让助理回复」; the page cannot start the reply itself (PG-057).
       if(offer){offer.thread.message_id=d.message_id;
         // The real id can cross the boundary. Keep both the saved id and pending draft so retry never saves the same comment twice.
-        if(JSON.stringify(offer).length>100000)throw new Error(L('pages.comments.saved-offer-too-long'));
+        if(JSON.stringify(offer).length>100000)throw new Error(uiText.text('pages.comments.saved-offer-too-long'));
         window.dispatchEvent(new CustomEvent('molis:assistant-message',{detail:offer}));
-        if(before===draftKey())handed=L('pages.comments.handed');}
+        if(before===draftKey())handed=uiText.text('pages.comments.handed');}
       if(savedDraft(before)?.request_id===d.request_id)delete saved[before];persist();if(before===draftKey()){await load();paintDraft();}
     }catch(e){if(before===draftKey()){error(commentErrorMessage(e));if(d.message_id)await load();}}
     finally{busy=false;if(context)paintDraft();}
@@ -104,16 +105,16 @@ export function mountComments(host: CommentSideHost): void {
   // Asked under the current context; one the page refused as asked under an older context (nothing ran) is asked again.
   const ask=(request_id: string,waiting: PendingCommentCommand)=>{waiting.stale=false;waiting.epoch=epoch;host.messages.send({type:'molis:side-context-command',context_epoch:epoch,command:{...waiting.value,request_id}});};
   const command=(value: object)=>new Promise<CommentCommandResult>((resolve,reject)=>{
-    const request_id=crypto.randomUUID(),timeout=window.setTimeout(()=>{commands.delete(request_id);reject(new Error(L('pages.comments.no-answer')));},10000);
+    const request_id=crypto.randomUUID(),timeout=window.setTimeout(()=>{commands.delete(request_id);reject(new Error(uiText.text('pages.comments.no-answer')));},10000);
     const waiting={resolve,reject,timeout,page:context!.object_ref.id,value,epoch};commands.set(request_id,waiting);ask(request_id,waiting);
   });
   q('locate').addEventListener('click',()=>{const thread=threads.find(t=>t.thread_id===active);if(thread)void command({kind:'focus-mark',mark_id:thread.anchor.mark_id}).catch(e=>error(commentErrorMessage(e)));});
   const notes=async()=>{
     const id=context?.object_ref.id,seq=++notesSeq;if(!id)return;
     try{const data=await command({kind:'notes'});if(seq!==notesSeq||context?.object_ref.id!==id)return;q('notes').replaceChildren();
-      if(!data.notes.length){const hint=document.createElement('p');hint.textContent=L('pages.comments.no-notes');q('notes').append(hint);}
-      for(const note of data.notes){const label=document.createElement('label'),title=document.createElement('span'),area=document.createElement('textarea');title.textContent=note.text||L('pages.comments.blank-block');area.className='mw-input';area.rows=2;const noteKey='note:'+id+':'+data.version+':'+note.index;area.value=(saved[noteKey] as string|undefined)??note.note;area.maxLength=20000;area.addEventListener('input',()=>{saved[noteKey]=area.value;persist();});
-        label.append(title,area,button(L('pages.comments.save-note'),()=>{void command({kind:'save-note',index:note.index,version:data.version,note:area.value}).then(()=>{delete saved[noteKey];persist();return notes();}).catch(e=>error(commentErrorMessage(e)));}),button(L('pages.comments.discuss'),()=>{void command({kind:'discuss-note',index:note.index,version:data.version}).catch(e=>error(commentErrorMessage(e)));}));q('notes').append(label);}
+      if(!data.notes.length){const hint=document.createElement('p');hint.textContent=uiText.text('pages.comments.no-notes');q('notes').append(hint);}
+      for(const note of data.notes){const label=document.createElement('label'),title=document.createElement('span'),area=document.createElement('textarea');title.textContent=note.text||uiText.text('pages.comments.blank-block');area.className='mw-input';area.rows=2;const noteKey='note:'+id+':'+data.version+':'+note.index;area.value=(saved[noteKey] as string|undefined)??note.note;area.maxLength=20000;area.addEventListener('input',()=>{saved[noteKey]=area.value;persist();});
+        label.append(title,area,button(uiText.text('pages.comments.save-note'),()=>{void command({kind:'save-note',index:note.index,version:data.version,note:area.value}).then(()=>{delete saved[noteKey];persist();return notes();}).catch(e=>error(commentErrorMessage(e)));}),button(uiText.text('pages.comments.discuss'),()=>{void command({kind:'discuss-note',index:note.index,version:data.version}).catch(e=>error(commentErrorMessage(e)));}));q('notes').append(label);}
     }catch(e){if(seq===notesSeq&&context?.object_ref.id===id)error(commentErrorMessage(e));}
   };
   const paintMode=()=>{for(const node of root.querySelectorAll<HTMLElement>('[data-comment-mode]'))node.setAttribute('aria-pressed',String(node.dataset.commentMode===mode));q('discussion').hidden=mode!=='comments';q('notes').hidden=mode!=='notes';q('form').hidden=mode!=='comments'||!context;};
@@ -123,7 +124,7 @@ export function mountComments(host: CommentSideHost): void {
     if(data?.type==='molis:side-context'){
       if(data.context_epoch<epoch)return;const id=context?.object_ref.id;context=data.context;epoch=data.context_epoch;
       if(context?.plugin_id!=='io.molis.work.pages')context=null;
-      q('title').textContent=context?.object_ref.title||L('pages.comments.pick-doc');q('notes').hidden=!context||mode!=='notes';q('discussion').hidden=!context||mode!=='comments';q('form').hidden=!context||mode!=='comments';
+      q('title').textContent=context?.object_ref.title||uiText.text('pages.comments.pick-doc');q('notes').hidden=!context||mode!=='notes';q('discussion').hidden=!context||mode!=='comments';q('form').hidden=!context||mode!=='comments';
       if(id!==context?.object_ref.id){notesSeq++;active=context?activePages[context.object_ref.id]||'':'';loaded=null;threads=[];handed='';error('');q('notes').replaceChildren();if(context){paint();void load();if(mode==='notes')void notes();}}
       else if(context){paintDraft();applyOpening();for(const [request_id,waiting] of commands)if(waiting.stale&&waiting.page===context.object_ref.id)ask(request_id,waiting);}
     }else if(data?.type==='molis:side-shown'&&data.target){opening=data.target;applyOpening();}

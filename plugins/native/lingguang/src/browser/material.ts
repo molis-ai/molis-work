@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { isAbort, required } from "./dom.js";
 import type { Failure, LingguangPage, Reading, Spark } from "./types.js";
@@ -6,17 +7,17 @@ const FILE_LIMIT = 25 * 1024 * 1024;
 
 /** Reading a file or a page into a spark: the progress dialog, the link question, the local-model question and the import. */
 export function installMaterial(page: LingguangPage): void {
-  const { L, el, s, request, api } = page;
+  const { el, s, request, api } = page;
   const stageText = (stage: string) => {
     switch (stage) {
-      case "extracting": return L("lingguang.reading.stage-extracting");
-      case "fetching": return L("lingguang.reading.stage-fetching");
-      case "downloading": case "model_download": return L("lingguang.reading.stage-downloading");
-      case "transcribing": return L("lingguang.reading.stage-transcribing");
-      case "loading": return L("lingguang.reading.stage-loading");
-      case "ocr": return L("lingguang.reading.stage-ocr");
-      case "frames": case "frame_ocr": return L("lingguang.reading.stage-frames");
-      default: return L("lingguang.reading.loading");
+      case "extracting": return uiText.text("lingguang.reading.stage-extracting");
+      case "fetching": return uiText.text("lingguang.reading.stage-fetching");
+      case "downloading": case "model_download": return uiText.text("lingguang.reading.stage-downloading");
+      case "transcribing": return uiText.text("lingguang.reading.stage-transcribing");
+      case "loading": return uiText.text("lingguang.reading.stage-loading");
+      case "ocr": return uiText.text("lingguang.reading.stage-ocr");
+      case "frames": case "frame_ocr": return uiText.text("lingguang.reading.stage-frames");
+      default: return uiText.text("lingguang.reading.loading");
     }
   };
 
@@ -25,7 +26,7 @@ export function installMaterial(page: LingguangPage): void {
     const controller = new AbortController();
     const dialog = el.readingDialog;
     const stage = required(dialog, "[data-lingguang-reading-text]"), bar = required<HTMLProgressElement>(dialog, "[data-lingguang-reading-progress]");
-    stage.textContent = L("lingguang.reading.loading");
+    stage.textContent = uiText.text("lingguang.reading.loading");
     bar.value = 0;
     const onClose = () => controller.abort();
     dialog.addEventListener("close", onClose);
@@ -36,16 +37,16 @@ export function installMaterial(page: LingguangPage): void {
         stage.textContent = stageText(event.stage);
         if (typeof event.progress === "number") bar.value = Math.max(0, Math.min(1, event.progress));
       } });
-      if (!result) throw new Error(L("lingguang.reading.empty"));
+      if (!result) throw new Error(uiText.text("lingguang.reading.empty"));
     } catch (error) { failure = error as Failure; }
     finally { dialog.removeEventListener("close", onClose); if (dialog.open) dialog.close(); }
     if (failure) {
-      if (isAbort(failure)) { page.showNote(L("lingguang.reading.stopped")); return null; }
+      if (isAbort(failure)) { page.showNote(uiText.text("lingguang.reading.stopped")); return null; }
       // Transcription needs a local speech model: downloaded only on the person's yes, then the reading starts again.
       if (failure.code === "material.model_required") {
         const bytes = Number(failure.body?.details?.approximate_bytes);
-        const question = bytes > 0 ? L("lingguang.reading.model-prompt-size", { mb: Math.round(bytes / 1024 / 1024) }) : L("lingguang.reading.model-prompt");
-        return await page.ask(question, L("lingguang.reading.model-ok")) ? page.readMaterial(path, { ...payload, allow_model_download: true }) : null;
+        const question = bytes > 0 ? uiText.text("lingguang.reading.model-prompt-size", { mb: Math.round(bytes / 1024 / 1024) }) : uiText.text("lingguang.reading.model-prompt");
+        return await page.ask(question, uiText.text("lingguang.reading.model-ok")) ? page.readMaterial(path, { ...payload, allow_model_download: true }) : null;
       }
       throw failure;
     }
@@ -70,7 +71,7 @@ export function installMaterial(page: LingguangPage): void {
   /** A reading becomes one spark, its origin and anything it could not read said in it. */
   page.keepReading = async (reading, fallbackTitle, origin) => {
     const issues = reading.partial && reading.issues && reading.issues.length
-      ? L("lingguang.reading.issues", { issues: reading.issues.join(L("lingguang.reading.issue-separator")) }) : "";
+      ? uiText.text("lingguang.reading.issues", { issues: reading.issues.join(uiText.text("lingguang.reading.issue-separator")) }) : "";
     const body = [reading.text, origin, issues].filter(Boolean).join("\n\n");
     // 80 characters, as lingguang.create counts a title: a cut by units could leave half of a two-unit character at the end.
     const payload = await request<{ spark: Spark }>("POST", api, { title: [...(reading.title || fallbackTitle)].slice(0, 80).join(""), body });
@@ -78,7 +79,7 @@ export function installMaterial(page: LingguangPage): void {
     await page.loadList();
     page.fillEditor(payload.spark);
     page.placed({ verb: "created", title: payload.spark.title, object: { kind: "lingguang_spark", id: payload.spark.id } });
-    if (reading.partial) page.showNote(L("lingguang.reading.partial"));
+    if (reading.partial) page.showNote(uiText.text("lingguang.reading.partial"));
   };
 
   el.fileInput.addEventListener("change", () => {
@@ -86,12 +87,12 @@ export function installMaterial(page: LingguangPage): void {
     el.fileInput.value = "";
     if (!file) return;
     void (async () => {
-      if (file.size > FILE_LIMIT) throw new Error(L("lingguang.reading.too-large"));
+      if (file.size > FILE_LIMIT) throw new Error(uiText.text("lingguang.reading.too-large"));
       const bytes = new Uint8Array(await file.arrayBuffer());
       let binary = "";
       for (let start = 0; start < bytes.length; start += 32768) binary += String.fromCharCode(...bytes.subarray(start, start + 32768));
       const reading = await page.readMaterial(`${api}/material`, { file_name: file.name, data_base64: btoa(binary) });
-      if (reading) await page.keepReading(reading, file.name.replace(/\.[^.]+$/, ""), L("lingguang.reading.origin-file", { name: file.name }));
+      if (reading) await page.keepReading(reading, file.name.replace(/\.[^.]+$/, ""), uiText.text("lingguang.reading.origin-file", { name: file.name }));
     })().catch((error: unknown) => page.showNote(messageOf(error), true));
   });
 }

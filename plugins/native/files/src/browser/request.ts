@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type {} from "@molis-ai/molis-work-plugin-sdk";
 import type { FilesFactoryHost, FilesHost } from "./types.js";
 
@@ -21,7 +22,7 @@ export function filesRequests(host: FilesFactoryHost, embedded: boolean): Pick<F
         : url.searchParams.get("workspace_id") ? { workspace_id: url.searchParams.get("workspace_id") } : {};
       return action(host, "files." + operation, input, signal);
     }
-    return molisWorkRequest(host.pluginRoute(path), { method, body: method === "GET" ? undefined : body ?? {}, signal, fallback: host.translate("files.error.workspace-unreadable") });
+    return molisWorkRequest(host.pluginRoute(path), { method, body: method === "GET" ? undefined : body ?? {}, signal, fallback: uiText.text("files.error.workspace-unreadable") });
   };
   return { request, companionState: (plugin, signal) => action(host, plugin + ".state", {}, signal) };
 }

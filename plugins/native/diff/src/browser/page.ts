@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type {} from "@molis-ai/molis-work-plugin-sdk";
 import { required } from "./dom.js";
 import type { Host, StateAnswer } from "./types.js";
@@ -11,7 +12,6 @@ export function diffPage(host: Host): void {
   if (!(root instanceof HTMLElement) || !root.matches("[data-companion]")) return;
   const lifetime = host.mountPluginClient(root);
   if (!lifetime) return;
-  const L = host.translate;
   const reload = required<HTMLButtonElement>(root, "[data-companion-refresh]"), body = required(root, "[data-companion-content]"), note = required(root, "[data-companion-status]");
   const spin = required(reload, ".mw-spinner");
   let read = 0, view: AbortSignal | undefined, index = 0;
@@ -19,15 +19,15 @@ export function diffPage(host: Host): void {
   const load = async () => {
     if (!lifetime.visible) return;
     const signal = view, id = ++read;
-    busy(true); note.textContent = L("diff.stage.reading");
+    busy(true); note.textContent = uiText.text("diff.stage.reading");
     try {
-      const state = await molisWorkRequest<StateAnswer>(host.pluginRoute(`/state?change_index=${index}`), { signal, fallback: L("diff.error.unreadable") });
+      const state = await molisWorkRequest<StateAnswer>(host.pluginRoute(`/state?change_index=${index}`), { signal, fallback: uiText.text("diff.error.unreadable") });
       lifetime.assertCurrent(signal);
       if (id !== read) return;
       body.innerHTML = state.html || ""; note.textContent = "";
       body.querySelectorAll<HTMLElement>("[data-change-index]").forEach(button => button.setAttribute("aria-pressed", String(Number(button.dataset.changeIndex) === index)));
     } catch (error) {
-      if (!signal?.aborted && lifetime.visible && id === read) { body.replaceChildren(); molisWorkRequest.show(note, error); note.append(document.createTextNode(L("diff.stage.retry"))); }
+      if (!signal?.aborted && lifetime.visible && id === read) { body.replaceChildren(); molisWorkRequest.show(note, error); note.append(document.createTextNode(uiText.text("diff.stage.retry"))); }
     } finally {
       if (lifetime.alive && id === read) busy(false);
     }

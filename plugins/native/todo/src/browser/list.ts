@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { iconSvg, isoDay, make } from "./dom.js";
 import { groupsFor, renderRow, summaryText } from "./list-rows.js";
 import type { ListPayload, TodoPage } from "./types.js";
@@ -16,16 +17,16 @@ const markView = (page: TodoPage) => (button: HTMLElement) => {
 
 /** The list: the views, their groups and rows, the one-line summary, and reading it from the Host. */
 export function installList(page: TodoPage): void {
-  const { el, state, L } = page;
+  const { el, state } = page;
   const mark = markView(page);
   const empties: Record<string, [string, string]> = {
-    today: [L("todo.empty.today-title"), L("todo.empty.today-text")],
-    waiting: [L("todo.empty.waiting-title"), L("todo.empty.waiting-text")],
-    unscheduled: [L("todo.empty.unscheduled-title"), L("todo.empty.unscheduled-text")],
-    upcoming: [L("todo.empty.upcoming-title"), L("todo.empty.upcoming-text")],
-    all: [L("todo.empty.all-title"), L("todo.empty.all-text")],
-    closed: [L("todo.empty.closed-title"), L("todo.empty.closed-text")],
-    search: [L("todo.empty.search-title"), L("todo.empty.search-text")],
+    today: [uiText.text("todo.empty.today-title"), uiText.text("todo.empty.today-text")],
+    waiting: [uiText.text("todo.empty.waiting-title"), uiText.text("todo.empty.waiting-text")],
+    unscheduled: [uiText.text("todo.empty.unscheduled-title"), uiText.text("todo.empty.unscheduled-text")],
+    upcoming: [uiText.text("todo.empty.upcoming-title"), uiText.text("todo.empty.upcoming-text")],
+    all: [uiText.text("todo.empty.all-title"), uiText.text("todo.empty.all-text")],
+    closed: [uiText.text("todo.empty.closed-title"), uiText.text("todo.empty.closed-text")],
+    search: [uiText.text("todo.empty.search-title"), uiText.text("todo.empty.search-text")],
   };
 
   page.renderList = () => {

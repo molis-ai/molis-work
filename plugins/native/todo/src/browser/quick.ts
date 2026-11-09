@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { parseTodoQuickText, type TodoQuickPart } from "../quick-parse.js";
 import { arrive, iconSvg, make } from "./dom.js";
 import { undoOf } from "./page.js";
@@ -17,7 +18,7 @@ function viewKeyFor(page: TodoPage, item: TodoRow | ItemPayload["item"]): string
 
 /** The quick entry: one line that reads its own dates, shown as chips the person can drop, written down on submit. */
 export function installQuick(page: TodoPage): void {
-  const { el, state, L } = page;
+  const { el, state } = page;
   const quickState = (): QuickState | null => {
     const text = el.quickInput.value.trim();
     if (!text) return null;
@@ -46,19 +47,19 @@ export function installQuick(page: TodoPage): void {
     if (!current) return;
     for (const part of current.parts) {
       const chip = make("span", `todo-chip todo-chip--${part.field}`);
-      const label = part.field === "due_date" ? L("todo.quick.due") : part.field === "planned_date" ? L("todo.quick.planned") : L("todo.quick.remind");
+      const label = part.field === "due_date" ? uiText.text("todo.quick.due") : part.field === "planned_date" ? uiText.text("todo.quick.planned") : uiText.text("todo.quick.remind");
       // A planned day has no time of its own; the time stays in the title as written.
       chip.append(make("span", "", `${label} ${page.dayLabel(part.date)}${part.time && part.field !== "planned_date" ? ` ${part.time}` : ""}`));
-      chip.title = L("todo.quick.original") + part.phrase;
+      chip.title = uiText.text("todo.quick.original") + part.phrase;
       const remove = make("button", "todo-chip-remove");
       remove.type = "button";
       remove.dataset.todoQuickDrop = part.phrase;
-      remove.setAttribute("aria-label", L("todo.quick.drop-date"));
+      remove.setAttribute("aria-label", uiText.text("todo.quick.drop-date"));
       remove.innerHTML = iconSvg("x");
       chip.append(remove);
       el.quickParts.append(chip);
     }
-    if (current.parts.some((part) => part.field === "remind_at")) el.quickParts.append(make("span", "todo-quick-hint", L("todo.quick.remind-hint")));
+    if (current.parts.some((part) => part.field === "remind_at")) el.quickParts.append(make("span", "todo-quick-hint", uiText.text("todo.quick.remind-hint")));
   };
 
   const viewNameFor = (item: ItemPayload["item"]) => page.$(`[data-todo-view="${viewKeyFor(page, item)}"]`).dataset.todoViewLabel ?? "";
@@ -83,11 +84,11 @@ export function installQuick(page: TodoPage): void {
       page.renderQuick();
       await page.load();
       const shown = state.items.some((entry) => entry.id === payload.item.id);
-      const where = shown ? "" : L("todo.note.in-view", { view: viewNameFor(payload.item) });
-      page.showNote(L("todo.note.added", { title: payload.item.title }) + where, { undo: undoOf(payload), ...(shown ? {} : { view: { key: viewKeyFor(page, payload.item), id: payload.item.id } }) });
+      const where = shown ? "" : uiText.text("todo.note.in-view", { view: viewNameFor(payload.item) });
+      page.showNote(uiText.text("todo.note.added", { title: payload.item.title }) + where, { undo: undoOf(payload), ...(shown ? {} : { view: { key: viewKeyFor(page, payload.item), id: payload.item.id } }) });
       arrive(el.rowsEl.querySelector<HTMLElement>(`[data-todo-row="${payload.item.id}"]`));
     } catch (error) {
-      page.showNote((error as Error).message || L("todo.note.not-added"), { error: true });
+      page.showNote((error as Error).message || uiText.text("todo.note.not-added"), { error: true });
     } finally { page.setBusy(false); el.quickInput.focus(); }
   };
 

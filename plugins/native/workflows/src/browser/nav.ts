@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { required } from "./dom.js";
 import { drawFlow } from "./flow.js";
@@ -23,11 +24,11 @@ export function recalled(page: WorkflowsPage): { workflow?: string | null; insta
 
 /** What the Assistant is told this page shows: the open workflow, or the one a run belongs to. */
 export function emitCtx(page: WorkflowsPage) {
-  const { root, ui, L } = page;
+  const { root, ui } = page;
   const mode = root.dataset.wfMode;
   const flow = mode === "workflow" ? ui.workflow : null;
   const runOf = mode === "instance" && ui.instance ? { id: ui.instance.workflow_id, title: ui.instanceWorkflowTitle } : null;
-  const context: { plugin_id: string; surface_title: string; object?: { kind: "workflow"; id: string; version?: string; title: string }; unsaved?: boolean } = { plugin_id: page.host.pluginId, surface_title: L("workflows.page.title") };
+  const context: { plugin_id: string; surface_title: string; object?: { kind: "workflow"; id: string; version?: string; title: string }; unsaved?: boolean } = { plugin_id: page.host.pluginId, surface_title: uiText.text("workflows.page.title") };
   if (flow) {
     context.object = { kind: "workflow", id: flow.workflow_id, version: String(flow.revision), title: flow.title };
     context.unsaved = Boolean(Object.keys(page.edits.get(flow.workflow_id)?.patch || {}).length);

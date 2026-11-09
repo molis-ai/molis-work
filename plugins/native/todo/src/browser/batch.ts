@@ -1,11 +1,12 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { ItemPayload, TodoPage } from "./types.js";
 
 /** The bar for the todos the person ticked: its count, and one change applied to all of them with one undo. */
 export function installBatch(page: TodoPage): void {
-  const { el, state, L } = page;
+  const { el, state } = page;
   page.renderBatch = () => {
     el.batchBar.hidden = state.picked.size === 0;
-    page.$("[data-todo-batch-count]").textContent = L("todo.batch.selected", { count: state.picked.size });
+    page.$("[data-todo-batch-count]").textContent = uiText.text("todo.batch.selected", { count: state.picked.size });
     page.$('[data-todo-batch-action="archive"]').hidden = state.view !== "closed";
     el.bench.setAttribute("data-todo-picking", state.picked.size ? "true" : "false");
   };

@@ -1,13 +1,14 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { PlacementDescription } from "@molis-ai/molis-work-contracts/services/placement";
 import { textCell } from "./dom.js";
 import type { LingguangPage, Spark } from "./types.js";
 
 /** The list: rows, selection, and where each spark went. */
 export function installList(page: LingguangPage): void {
-  const { L, el, s, request } = page;
+  const { el, s, request } = page;
   const previewOf = (record: Spark) => {
     const line = (record.body || "").trim().split(/\r?\n/)[0] || "";
-    return line && line !== record.title ? line : L("lingguang.list.no-body");
+    return line && line !== record.title ? line : uiText.text("lingguang.list.no-body");
   };
   const whenOf = (iso: string) => {
     if (!iso) return "";
@@ -29,7 +30,7 @@ export function installList(page: LingguangPage): void {
     // Where it went is named by whoever keeps the object (the placement service reads it from the owner); nothing here knows other plugins' kinds.
     const target = derived[derived.length - 1].target;
     const keeper = target.kind === "object" ? target.plugin : null;
-    return keeper ? L("lingguang.fate.into", { plugin: keeper.title }) : L("lingguang.fate.other");
+    return keeper ? uiText.text("lingguang.fate.into", { plugin: keeper.title }) : uiText.text("lingguang.fate.other");
   };
   const annotateFates = async (items: readonly Spark[]) => {
     const pending = items.filter((record) => !s.fates.has(record.id)).slice(0, 30);
@@ -100,7 +101,7 @@ export function installList(page: LingguangPage): void {
   page.syncSelectionBar = () => {
     const count = s.picks.size;
     el.selectionBar.hidden = count < 2;
-    el.selectedCountEl.textContent = count >= 2 ? L("lingguang.list.selected", { count }) : "";
+    el.selectedCountEl.textContent = count >= 2 ? uiText.text("lingguang.list.selected", { count }) : "";
   };
   page.remember = (record, base) => {
     const index = s.records.findIndex((item) => item.id === record.id);

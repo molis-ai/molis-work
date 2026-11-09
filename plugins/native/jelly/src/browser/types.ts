@@ -43,7 +43,6 @@ export interface DialogHooks {
 export interface JellyPage {
   readonly host: JellyHost;
   readonly root: HTMLElement;
-  readonly L: Translate;
   readonly request: Request;
   readonly stream: Stream;
   readonly list: HTMLElement;
@@ -92,7 +91,7 @@ export interface JellyPage {
   $<T extends Element = HTMLElement>(selector: string, scope?: ParentNode): T;
   $$<T extends Element = HTMLElement>(selector: string, scope?: ParentNode): T[];
   tx(key: string): string;
-  btn(label: string, attrs?: string, glyphName?: string, primary?: boolean): string;
+  btn(label: string | { original: string }, attrs?: string, glyphName?: string, primary?: boolean): string;
   categoryDot(id: string): string;
   catName(entry: { id: string; name: string }): string;
 }

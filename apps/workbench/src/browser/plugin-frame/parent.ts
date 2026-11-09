@@ -119,6 +119,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   try {
   const mount = root.dataset.pluginContribution && root.dataset.pluginSurface && root.dataset.pluginSlot
     ? { contribution_id: root.dataset.pluginContribution, surface: root.dataset.pluginSurface, target_slot_id: root.dataset.pluginSlot } : null;
+  const clientMount = root.hasAttribute("data-plugin-integrated") ? null : mount;
   if (mount && root.dataset.pluginOwner !== pack.plugin_id) throw new Error("View owner changed");
   directoryLayout(root);
   const grant = pack.authorization ?? await molisWorkRequest<{ page_id: string; storage_scope: string }>(route("/api/host/plugin-pages"), { body: { plugin_id: pack.plugin_id, ...(mount ? { mount, ...(root.dataset.pluginProducer ? { producer: root.dataset.pluginProducer } : {}) } : {}) }, scope });
@@ -191,7 +192,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   scope.whenVisible(() => { state(); navigation.focus(); return state; });
   // Structured surfaces follow the Runtime's existing display revision; each read is cancelled on hiding.
   let revision: string | undefined;
-  if (mount) scope.whenVisible(() => {
+  if (clientMount) scope.whenVisible(() => {
     const controller = new AbortController(); let timer: ReturnType<typeof setTimeout> | undefined;
     const read = async () => {
       try {
@@ -317,7 +318,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   }), root, { attributes: true, attributeFilter: ["data-expanded"] });
   scope.listen(document, "molis-work:model-ready", () => { state(); port.postMessage({ type: "model-ready" }); });
   bindFrameDocument(frame, root, businessScope, challenge => frameDocument(root, pack, challenge, environment.initial), channel.port2, async () => ({
-    mount, subjectSurfaces: surfaces, search: location.search, origin: location.origin,
+    mount: clientMount, subjectSurfaces: surfaces, search: location.search, origin: location.origin,
     pluginId: pack.plugin_id, bundle: pack.bundle, assets: pack.assets, surface: pack.id,
     searchRow: pack.searchRow, recordRow: pack.recordRow, itemTab: ownItemTab(root, pack),
     stage: {

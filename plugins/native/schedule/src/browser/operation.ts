@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { detailOf, required, showMessage } from "./dom.js";
 import type { SchedulePage } from "./page.js";
@@ -15,20 +16,19 @@ const lock = (page: SchedulePage, busy: boolean) => {
 };
 
 /** What the decision would do, in words the person reads before confirming. */
-function warning(page: SchedulePage, decision: string): string {
-  const { L } = page;
-  return decision === "retry" ? L("schedule.operation.warning-retry") : decision === "skip" ? L("schedule.operation.warning-skip") : L("schedule.operation.warning-resume");
+function warning(_page: SchedulePage, decision: string): string {
+  return decision === "retry" ? uiText.text("schedule.operation.warning-retry") : decision === "skip" ? uiText.text("schedule.operation.warning-skip") : uiText.text("schedule.operation.warning-resume");
 }
 
 /** Fills the dialog from the operation's detail: what it is, what it was given, and what the decision does. */
 function readOperation(page: SchedulePage, id: string, decision: string): void {
-  const { L, workbench, operationForm } = page, detail = detailOf(workbench, "operation:" + id);
+  const { workbench, operationForm } = page, detail = detailOf(workbench, "operation:" + id);
   const button = [...(detail?.querySelectorAll<HTMLElement>("[data-schedule-operation-decision]") ?? [])].find(item => item.dataset.scheduleOperationDecision === decision);
   page.operationReview = { id, decision, input: button ? { ...(JSON.parse(button.dataset.confirmation ?? "{}") as Record<string, string>), decision } : null };
   required(operationForm, "[data-operation-review-title]").textContent = detail?.querySelector("h1")?.textContent ?? "";
   required(operationForm, "[data-operation-review-target]").textContent = detail?.querySelector("[data-schedule-operation-target]")?.textContent ?? "";
   required(operationForm, "[data-operation-review-input]").textContent = detail?.querySelector("[data-schedule-operation-input]")?.textContent ?? "";
-  required(operationForm, "[data-operation-review-warning]").textContent = button ? warning(page, decision) : L("schedule.operation.changed");
+  required(operationForm, "[data-operation-review-warning]").textContent = button ? warning(page, decision) : uiText.text("schedule.operation.changed");
   lock(page, false);
 }
 
@@ -41,7 +41,7 @@ export function openOperation(page: SchedulePage, id: string, decision: string):
 }
 
 export function wireOperation(page: SchedulePage): void {
-  const { L, operationDialog, operationForm } = page;
+  const { operationDialog, operationForm } = page;
   operationForm.querySelectorAll("[data-schedule-operation-close]").forEach(button => button.addEventListener("click", () => { if (!page.operationBusy) operationDialog.close(); }));
   operationDialog.addEventListener("cancel", event => { if (page.operationBusy) event.preventDefault(); });
   operationForm.querySelector("[data-operation-review-refresh]")?.addEventListener("click", async () => {
@@ -58,11 +58,11 @@ export function wireOperation(page: SchedulePage): void {
     const { id, input } = page.operationReview;
     lock(page, true); showMessage(error(page), "");
     try {
-      await post(page.host, "/operations/" + encodeURIComponent(id) + "/recover", input, L("schedule.error.restore-operation"));
+      await post(page.host, "/operations/" + encodeURIComponent(id) + "/recover", input, uiText.text("schedule.error.restore-operation"));
       page.operationReview.input = null;
       await refreshStage(page, "operation:" + id, "job", true);
       operationDialog.close();
-    } catch (failure) { showMessage(error(page), messageOf(failure) || L("schedule.error.restore-operation")); }
+    } catch (failure) { showMessage(error(page), messageOf(failure) || uiText.text("schedule.error.restore-operation")); }
     finally { lock(page, false); }
   });
 }

@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { TodoBatch } from "../contract.js";
 import { arrive, make } from "./dom.js";
 import { renderBatchSection } from "./review-cards.js";
@@ -5,12 +6,12 @@ import type { TodoPage } from "./types.js";
 
 /** Organizing results waiting for the person: each candidate with its evidence, what applying it would do, and the choices to make. */
 export function installReview(page: TodoPage): void {
-  const { el, state, L } = page;
+  const { el, state } = page;
   page.renderReview = () => {
     el.reviewEl.replaceChildren();
     if (!state.batches.length) {
       const none = make("div", "mw-empty");
-      none.append(make("strong", "", L("todo.review.none-title")), make("p", "", L("todo.review.none-text")));
+      none.append(make("strong", "", uiText.text("todo.review.none-title")), make("p", "", uiText.text("todo.review.none-text")));
       el.reviewEl.append(none);
       return;
     }

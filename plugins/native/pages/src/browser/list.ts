@@ -1,19 +1,19 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { chosen } from "./context.js";
 import { ICON, formatTime, make } from "./dom.js";
 import { closeMove } from "./menus.js";
 import type { PagesPage } from "./page.js";
 import type { PagesRecord } from "./types.js";
 
-const fixedCell = (page: PagesPage, record: PagesRecord) => {
-  const { L } = page;
+const fixedCell = (_page: PagesPage, record: PagesRecord) => {
   if (!record.publication_pending && !(record.artifact_version > 0)) return null;
   const node = make("span", "mw-status mw-status--plain feed-entry-status " + (record.publication_pending ? "mw-status--attention" : "mw-status--done"));
-  node.dataset.mwState = record.publication_pending ? "unsaved" : "saved"; node.textContent = record.publication_pending ? L("pages.version.unfinished") : L("pages.version.pinned") + " v" + record.artifact_version;
+  node.dataset.mwState = record.publication_pending ? "unsaved" : "saved"; node.textContent = record.publication_pending ? uiText.text("pages.version.unfinished") : uiText.text("pages.version.pinned") + " v" + record.artifact_version;
   return node;
 };
 
 const renderRow = (page: PagesPage, record: PagesRecord) => {
-  const { L, folders } = page;
+  const { folders } = page;
   const item = make("article", "feed-stage-item pages-doc-row creative-artifact-row");
   item.setAttribute("role", "none");
   item.draggable = folders.length > 0;
@@ -45,8 +45,8 @@ const renderRow = (page: PagesPage, record: PagesRecord) => {
     move.type = "button";
     move.className = "pages-row-act";
     move.dataset.pagesMove = record.id;
-    move.setAttribute("aria-label", L("pages.folder.move"));
-    move.setAttribute("title", L("pages.folder.move"));
+    move.setAttribute("aria-label", uiText.text("pages.folder.move"));
+    move.setAttribute("title", uiText.text("pages.folder.move"));
     move.setAttribute("aria-haspopup", "true");
     move.setAttribute("aria-expanded", "false");
     move.innerHTML = ICON("folder");
@@ -56,7 +56,7 @@ const renderRow = (page: PagesPage, record: PagesRecord) => {
   star.type = "button";
   star.className = "pages-row-act pages-star" + (record.starred ? " is-on" : "");
   star.dataset.pagesStar = record.id;
-  star.setAttribute("aria-label", record.starred ? L("pages.star.remove") : L("pages.star.add"));
+  star.setAttribute("aria-label", record.starred ? uiText.text("pages.star.remove") : uiText.text("pages.star.add"));
   star.innerHTML = ICON("star");
   actions.append(star);
   item.append(row, actions);
@@ -81,14 +81,13 @@ const renderFold = (page: PagesPage, key: string, label: string, items: readonly
   fold.append(summary);
   if (!items.length) {
     const vacant = make("p", "goal-collection-empty");
-    vacant.textContent = page.L("pages.list.empty");
+    vacant.textContent = uiText.text("pages.list.empty");
     fold.append(vacant);
   } else items.forEach((record) => fold.append(renderRow(page, record)));
   return fold;
 };
 
-const folderActions = (page: PagesPage, folder: { readonly id: string }) => {
-  const { L } = page;
+const folderActions = (_page: PagesPage, folder: { readonly id: string }) => {
   const wrap = make("span", "pages-folder-actions");
   const button = (dataset: "pagesFolderNew" | "pagesFolderRename" | "pagesFolderDelete", label: string, icon: string) => {
     const node = document.createElement("button");
@@ -98,7 +97,7 @@ const folderActions = (page: PagesPage, folder: { readonly id: string }) => {
     node.innerHTML = ICON(icon);
     return node;
   };
-  wrap.append(button("pagesFolderNew", L("pages.folder.new-here"), "plus"), button("pagesFolderRename", L("pages.folder.rename"), "edit"), button("pagesFolderDelete", L("pages.folder.delete"), "x"));
+  wrap.append(button("pagesFolderNew", uiText.text("pages.folder.new-here"), "plus"), button("pagesFolderRename", uiText.text("pages.folder.rename"), "edit"), button("pagesFolderDelete", uiText.text("pages.folder.delete"), "x"));
   return wrap;
 };
 
@@ -116,7 +115,7 @@ export const renderList = (page: PagesPage) => {
 };
 
 const paintList = (page: PagesPage) => {
-  const { L, rowsEl, empty, searchEmpty } = page;
+  const { rowsEl, empty, searchEmpty } = page;
   closeMove(page);
   const shown = visibleRecords(page);
   const searching = Boolean(page.query.trim());
@@ -130,7 +129,7 @@ const paintList = (page: PagesPage) => {
     return;
   }
   const starred = shown.filter((record) => record.starred);
-  if (starred.length) rowsEl.append(renderFold(page, "starred", L("pages.star.add"), starred));
+  if (starred.length) rowsEl.append(renderFold(page, "starred", uiText.text("pages.star.add"), starred));
   page.folders.forEach((folder) => {
     const items = shown.filter((record) => record.folder_id === folder.id);
     const fold = renderFold(page, folder.id, folder.title, items, folderActions(page, folder));
@@ -138,26 +137,26 @@ const paintList = (page: PagesPage) => {
     rowsEl.append(fold);
   });
   const unfiled = shown.filter((record) => !record.folder_id);
-  if (unfiled.length) rowsEl.append(renderFold(page, "", L("pages.folder.unfiled"), unfiled));
+  if (unfiled.length) rowsEl.append(renderFold(page, "", uiText.text("pages.folder.unfiled"), unfiled));
 };
 
 /** The list could not be read: an error box with a retry in its place. */
 export function listFailed(page: PagesPage, error: { message?: string } | null | undefined, loadList: () => Promise<void>): void {
-  const { L, empty, rowsEl } = page;
+  const { empty, rowsEl } = page;
   empty.hidden = true;
   const box = document.createElement("div");
   box.className = "mw-empty mw-empty--error";
   box.setAttribute("role", "alert");
   box.innerHTML = `<span class="mw-empty__mark">${ICON("circle-alert")}</span><strong></strong><p></p><button class="mw-btn mw-btn--secondary" type="button"></button>`;
   const text = box.querySelector("p")!, retry = box.querySelector("button")!;
-  box.querySelector("strong")!.textContent = L("pages.list.unreadable");
-  text.textContent = error?.message || L("pages.list.try-later");
-  retry.textContent = L("pages.action.retry");
+  box.querySelector("strong")!.textContent = uiText.text("pages.list.unreadable");
+  text.textContent = error?.message || uiText.text("pages.list.try-later");
+  retry.textContent = uiText.text("pages.action.retry");
   retry.addEventListener("click", () => {
     retry.disabled = true;
     void loadList().then(() => box.remove(), (next: { message?: string } | null) => {
       retry.disabled = false;
-      text.textContent = next?.message || L("pages.list.try-later");
+      text.textContent = next?.message || uiText.text("pages.list.try-later");
     });
   });
   rowsEl.replaceChildren(box);

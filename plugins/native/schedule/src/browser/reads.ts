@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { UiTaskGrantsAreaState } from "@molis-ai/molis-work-contracts/platform/ui";
 import { detailOf } from "./dom.js";
 import type { SchedulePage } from "./page.js";
@@ -54,7 +55,7 @@ function markDetail(detail: HTMLElement, section: HTMLElement, marks: Marks | nu
  * fails that run if the grants still can't be read.
  */
 function apply(page: SchedulePage, known: ReadonlyMap<string, TaskReads> | null, ready: Readiness | undefined): void {
-  const { L, list, workbench } = page;
+  const { list, workbench } = page;
   list.querySelectorAll<HTMLElement>("[data-schedule-row][data-schedule-task-id]").forEach(row => {
     markRow(row, known ? marksOf(known.get(row.dataset.scheduleTaskId ?? "")) : null);
   });
@@ -67,7 +68,7 @@ function apply(page: SchedulePage, known: ReadonlyMap<string, TaskReads> | null,
     hide(section, '[data-schedule-reads-summary="files"]', !known || Boolean(reads));
     hide(section, '[data-schedule-reads-summary="data"]', !reads);
     const count = section.querySelector("[data-schedule-reads-count]");
-    if (count) count.textContent = reads ? L("schedule.reads.count", { count: reads.categories }) : "";
+    if (count) count.textContent = reads ? uiText.text("schedule.reads.count", { count: reads.categories }) : "";
   });
 }
 

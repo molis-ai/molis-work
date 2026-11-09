@@ -27,7 +27,7 @@ export interface MolisWorkWebView {
   /** Host-owned failures render as static text, without activating a plugin page. */
   unavailable_plugin_stages?: readonly UnavailablePluginStage[];
   /** Request-local views retain the actual running owner selected before its single data read. */
-  plugin_stage_views?: Readonly<Record<string, UiContribution | null>>;
+  plugin_stage_views?: Readonly<Record<string, (UiContribution & { readonly producer?: string }) | null>>;
   plugin_stage_surfaces?: ReadonlyArray<Pick<UiRenderRequest, "contribution_id" | "surface">>;
   plugin_overlays?: readonly string[];
   /**

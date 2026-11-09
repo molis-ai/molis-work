@@ -12,7 +12,7 @@ export interface FrameLanguage {
 interface BatchResult {
   readonly locale: string;
   readonly shared: readonly UiLocalePack[];
-  readonly owners: readonly { owner: string; pages: readonly string[]; packs: readonly UiLocalePack[] }[];
+  readonly owners: readonly { owner: string; pages: readonly string[]; embedded: readonly string[]; packs: readonly UiLocalePack[] }[];
 }
 interface Mounted { readonly id: string; readonly owner: string }
 interface FrameMount extends Mounted { readonly route: string; readonly root: HTMLElement; readonly port: MessagePort; readonly scope: FrameScope }
@@ -40,7 +40,9 @@ export async function batchFrameLanguages(route: string, locale: string, mounts:
   return new Map(mounts.map(mount => {
     const source = result.owners.filter(candidate => candidate.pages.includes(mount.id));
     if (source.length !== 1 || source[0]?.owner !== mount.owner || source[0].packs.some(pack => pack.owner !== mount.owner)) throw new Error("Invalid frame language owner");
-    return [mount.id, { locale, owner: mount.owner, packs: [...result.shared, ...source[0].packs] }];
+    const embedded = result.owners.filter(candidate => candidate.embedded.includes(mount.id));
+    if (embedded.some(item => item.owner === mount.owner || item.packs.some(pack => pack.owner !== item.owner))) throw new Error("Invalid embedded frame language owner");
+    return [mount.id, { locale, owner: mount.owner, packs: [...result.shared, ...source[0].packs, ...embedded.flatMap(item => item.packs)] }];
   }));
 }
 

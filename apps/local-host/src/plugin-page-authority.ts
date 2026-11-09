@@ -27,8 +27,24 @@ interface Activation {
   resolveFiles?(paths: readonly string[]): readonly string[];
   requestAllowed?(method: string, pathname: string): boolean;
 }
+interface PageSelection {
+  readonly install_id: string;
+  readonly installation_generation: string;
+  readonly project_id: string | null;
+  readonly project_key?: string;
+  readonly objectPresentation?: { surfaces: readonly string[]; permissions: readonly string[] };
+  readonly embedded?: readonly { plugin_id: string; install_id: string; installation_generation: string; assertCurrent(): void }[];
+  assertCurrent(): void;
+}
+interface PageTextSource {
+  readonly id: string;
+  readonly manifest: PluginManifest;
+  readonly reader: PluginTextReader | null;
+  readonly embedded: boolean;
+}
 interface Page {
   readonly activation: Activation;
+  readonly embedded: readonly Activation[];
   readonly project_id: string | null;
   readonly requests: Set<AbortController>;
   readonly match: ReturnType<typeof pluginRouteMatcher>;
@@ -36,12 +52,38 @@ interface Page {
   sessionCurrent(reader?: IncomingMessage): void;
   closing?: boolean;
   assertScope?(): Promise<void>;
-  selection?: { project_key?: string; objectPresentation?: { surfaces: readonly string[]; permissions: readonly string[] }; assertCurrent(): void };
+  selection?: PageSelection;
 }
 const refused = () => new ActionError("actions.forbidden", "插件页面权限已失效或未声明此入口");
 const cancelled = () => new ActionError("actions.cancelled", "插件页面已关闭，这次请求已结束");
 const homes = new Map<string, PluginPageAuthority>();
 const requests = new WeakMap<IncomingMessage, { page: Page; check(): void; signal: AbortSignal }>();
+
+/** The list can only come from the same stage selection as the original, actual nested render. */
+function capturedEmbedded(activations: ReadonlySet<Activation>, page: Activation, selection?: PageSelection): Activation[] {
+  return (selection?.embedded ?? []).map(selected => {
+    if (!page.manifest.ui.embedded_plugins?.includes(selected.plugin_id)) throw refused();
+    selected.assertCurrent();
+    const exact = [...activations].find(active => active.manifest.plugin_id === selected.plugin_id && active.actor_id === page.actor_id
+      && active.project_id === page.project_id && active.install_id === selected.install_id
+      && active.instance?.installation_generation === selected.installation_generation);
+    if (!exact) throw refused();
+    exact.assertCurrent();
+    return exact;
+  });
+}
+
+function assertTextSource(activation: Activation, connected: ReadonlySet<Activation>) {
+  if (!connected.has(activation) || (activation.instance && !pluginActivationOpen(activation.instance))) throw refused();
+  activation.assertCurrent();
+}
+
+function pageTextSources(id: string, page: Page): PageTextSource[] {
+  return [page.activation, ...page.embedded].map((activation, index) => ({
+    id, manifest: activation.manifest, reader: activation.instance ? pluginTextReader(activation.instance) : null, embedded: index > 0,
+  }));
+}
+
 
 /** Authority stays in the trusted outer document. The embedded document receives only a MessagePort. */
 export function pluginPagesFor(home: string): PluginPageAuthority {
@@ -70,7 +112,7 @@ export class PluginPageAuthority {
   }
 
   open(pluginId: string, projectId: string | null, actorId: string, assertScope?: () => Promise<void>, registered?: Activation,
-    selected?: { install_id: string; installation_generation: string; project_id: string | null; project_key?: string; objectPresentation?: { surfaces: readonly string[]; permissions: readonly string[] }; assertCurrent(): void }): { page_id: string; storage_scope: string } {
+    selected?: PageSelection): { page_id: string; storage_scope: string } {
     const candidates = [...this.activations].filter(item => item.install_id && item.manifest.plugin_id === pluginId && item.actor_id === actorId);
     const activation = selected ? candidates.find(item => item.install_id === selected.install_id && item.project_id === selected.project_id
       && item.instance?.installation_generation === selected.installation_generation)
@@ -79,11 +121,12 @@ export class PluginPageAuthority {
     if (!activation) throw refused();
     selected?.assertCurrent();
     activation.assertCurrent();
+    const embedded = capturedEmbedded(this.activations, activation, selected);
     if (activation === registered) this.activations.add(activation);
     for (const [id, page] of this.pages) if (page.expiresAt < Date.now()) this.close(id);
     if (this.pages.size >= 256) throw new ActionError("actions.unavailable", "打开的插件页面过多，请关闭不用的页面");
     const id = randomUUID();
-    this.pages.set(id, { activation, project_id: projectId, requests: new Set(), sessionCurrent: captureWebSessionAuthority(), expiresAt: Date.now() + 30 * 60_000,
+    this.pages.set(id, { activation, embedded, project_id: projectId, requests: new Set(), sessionCurrent: captureWebSessionAuthority(), expiresAt: Date.now() + 30 * 60_000,
       match: activation.install_id ? pluginRouteMatcher(activation.manifest) : () => null, assertScope, selection: selected });
     return { page_id: id, storage_scope: `${this.storageScope}:${activation.install_id ?? activation.manifest.plugin_id}:${activation.project_id ?? "home"}` };
   }
@@ -146,7 +189,7 @@ export class PluginPageAuthority {
 
   /** Capture the same grants already minted for this document, and read their exact owners only after the last asynchronous scope check. */
   async withPageText(request: IncomingMessage, ids: readonly string[], project: string | null, signal: AbortSignal,
-    read: (sources: ReadonlyArray<{ id: string; manifest: PluginManifest; reader: PluginTextReader | null }>) => void): Promise<void> {
+    read: (sources: readonly PageTextSource[]) => void): Promise<void> {
     const entries = ids.map(id => {
       const page = this.pages.get(id);
       if (!page || page.project_id !== project) throw refused();
@@ -155,17 +198,16 @@ export class PluginPageAuthority {
     const check = () => {
       signal.throwIfAborted();
       for (const { id, page } of entries) {
-        const activation = page.activation;
-        if (this.pages.get(id) !== page || page.closing || page.expiresAt < Date.now() || !this.activations.has(activation)
-          || (activation.instance && !pluginActivationOpen(activation.instance))) throw refused();
-        page.sessionCurrent(request); activation.assertCurrent(); page.selection?.assertCurrent();
+        if (this.pages.get(id) !== page || page.closing || page.expiresAt < Date.now()) throw refused();
+        page.sessionCurrent(request); page.selection?.assertCurrent();
+        assertTextSource(page.activation, this.activations);
+        for (const embedded of page.embedded) assertTextSource(embedded, this.activations);
       }
     };
     check();
     await Promise.all([...new Set(entries.map(({ page }) => page.assertScope))].map(scope => scope?.()));
     check();
-    read(entries.map(({ id, page }) => ({ id, manifest: page.activation.manifest,
-      reader: page.activation.instance ? pluginTextReader(page.activation.instance) : null })));
+    read(entries.flatMap(({ id, page }) => pageTextSources(id, page)));
   }
 
   /** A terminal transport keeps this closure, never a caller-supplied installation or project. */

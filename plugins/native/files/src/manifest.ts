@@ -18,8 +18,6 @@ import {
 import { FILES_PLUGIN_ID } from "./plugin-id.js";
 import { FILES_UI_CONTRIBUTION_ID } from "./ui.js";
 
-import { FILES_MESSAGES } from "./messages.js";
-import { FILES_EN } from "./en.js";
 export { FILES_PLUGIN_ID };
 /** Named, not imported: subscribing to a Plugin is not depending on its code. */
 const CODING_PLUGIN_ID = "io.molis.work.coding";
@@ -130,9 +128,7 @@ export const filesManifest: PluginManifest = {
     { route_id: "files.open", method: "POST", path: "/open" },
     { route_id: "files.capture", method: "POST", path: "/capture" },
   ],
-  ui: {
-    messages: FILES_MESSAGES,
-    translations: FILES_EN,
+  ui: { locales: { default: "zh", available: ["zh", "en"] },
     embedded_plugins: ["io.molis.work.diff", "io.molis.work.text-stats"],
     contributions: [FILES_UI_CONTRIBUTION_ID],
     views: [

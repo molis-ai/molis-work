@@ -93,15 +93,15 @@ test("RAC-443 S-62 the Assistant names no plugin: assistant-coding.ts is gone an
   assert.deepEqual(found, []);
 });
 
-test("B10-R3 RAC-444 RAC-2365 the Assistant store is version 2 and refuses old or newer stores without translating on read", () => {
-  assert.equal(ASSISTANT_STORE_BASELINE.version, 2);
-  for (const version of [1, 3]) {
+test("B10-R3 RAC-444 RAC-2365 the Assistant store stays at version 1 and refuses unversioned or newer stores without translating on read", () => {
+  assert.equal(ASSISTANT_STORE_BASELINE.version, 1);
+  for (const version of [0, 2]) {
     const db = new DatabaseSync(":memory:");
     try {
       db.exec(ASSISTANT_STORE_BASELINE.schema); db.exec(`PRAGMA user_version = ${version}`);
       assert.throws(() => new AssistantStore(db), error => error instanceof ActionError
-        && error.code === (version === 1 ? "storage.upgrade_pending" : "storage.store_too_new")
-        && error.details?.found === version && error.details?.expected === 2);
+        && error.code === (version === 0 ? "storage.schema_version_mismatch" : "storage.store_too_new")
+        && error.details?.found === version && error.details?.expected === 1);
       assert.equal(db.prepare("PRAGMA user_version").get()!.user_version, version);
     } finally { db.close(); }
   }

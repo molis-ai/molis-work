@@ -17,7 +17,7 @@ test("§12.1: each project keeps its own work in the bar, and a work opened from
   // K3: the composer's receiver row reads 「发给：」 before the work's name (#1919: its place first when it is not this page's); a new
   // work is the Assistant, with no mark to start one instead.
   const chip = () => evaluate<string | null>(`(() => { const wrap = document.querySelector('[data-assistant-composer] .mw-composer__to');
-    return !wrap || !wrap.querySelector('[data-tag-remove]') ? null : wrap.querySelector('.mw-tag > span').textContent; })()`);
+    return !wrap || !wrap.querySelector('[data-tag-remove]') ? null : wrap.querySelector('[data-composer-receiver]').textContent; })()`);
   const typed = () => evaluate<string>("document.querySelector('[data-assistant-composer] .mw-composer__input').value");
   const TITLE = "A 项目的工作";
 
@@ -46,7 +46,7 @@ test("§12.1: each project keeps its own work in the bar, and a work opened from
 
   // Back in A, the person is where they left it.
   await visit(projectId);
-  await waitFor(`${CURRENT_WORK} === ${JSON.stringify(work)} && document.querySelector('[data-assistant-composer] .mw-composer__to .mw-tag > span').textContent.includes(${JSON.stringify(TITLE)})`);
+  await waitFor(`${CURRENT_WORK} === ${JSON.stringify(work)} && document.querySelector('[data-assistant-composer] [data-composer-receiver]').textContent.includes(${JSON.stringify(TITLE)})`);
   assert.equal(await chip(), `${TITLE}`);
 
   // Opening A's work from B on purpose is allowed, and the bar says where the next line goes: before the title, which may be cut off.
@@ -54,7 +54,7 @@ test("§12.1: each project keeps its own work in the bar, and a work opened from
   await openWork(browser, work);
   const place = (await readWork(browser, work)).work.scope_title;
   assert.ok(place);
-  await waitFor(`document.querySelector('[data-assistant-composer] .mw-composer__to .mw-tag > span').textContent === ${JSON.stringify(`${place} · ${TITLE}`)}`);
+  await waitFor(`document.querySelector('[data-assistant-composer] [data-composer-receiver]').textContent === ${JSON.stringify(`${place} · ${TITLE}`)}`);
   await evaluate("document.querySelector('[data-assistant-composer] .mw-composer__to [data-tag-remove]').click()");
   await waitFor("!document.querySelector('[data-assistant-composer] .mw-composer__to [data-tag-remove]')");
 
@@ -73,7 +73,7 @@ test("§12.1: each project keeps its own work in the bar, and a work opened from
   await navigate(() => command("Page.navigate", { url: `${origin}/` }, sessionId));
   await waitFor("!!document.querySelector('.chooser')");
   await click(`#row-${projectId}`);
-  await waitFor(`document.querySelector('[data-assistant-composer] .mw-composer__to .mw-tag > span').textContent === ${JSON.stringify(`${TITLE}`)}`);
+  await waitFor(`document.querySelector('[data-assistant-composer] [data-composer-receiver]').textContent === ${JSON.stringify(`${TITLE}`)}`);
   await click(`#row-${other}`);
   await waitFor("!document.querySelector('[data-assistant-composer] .mw-composer__to [data-tag-remove]')");
   assert.equal(await chip(), null, "selecting another project takes A's work off the bar");
@@ -86,7 +86,7 @@ test("§12.1: a personal work started on a project page stays that project's, an
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}` }, sessionId));
   await waitFor("!!document.querySelector('[data-assistant-island]') && !!document.querySelector('.workbench-bar')", 20_000);
   await openWork(browser, work);
-  await waitFor(`document.querySelector('[data-assistant-composer] .mw-composer__to .mw-tag > span').textContent === '个人 · 我个人的一件事'`);
+  await waitFor(`document.querySelector('[data-assistant-composer] [data-composer-receiver]').textContent === '个人 · 我个人的一件事'`);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}` }, sessionId));
   await waitFor("!!document.querySelector('[data-assistant-island]')", 20_000);
   assert.equal(await evaluate(CURRENT_WORK), work, "a reload keeps it in front");

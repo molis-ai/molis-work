@@ -7,8 +7,6 @@ import { DatabaseSync } from "node:sqlite";
 import { createPrologueNodeAdapter, AgentHost, AgentReviewQueue } from "@molis-ai/molis-work-service-agent-host";
 import { ASSISTANT_STORE_BASELINE, AssistantService, AssistantStore } from "@molis-ai/molis-work-app-local-host";
 
-import { runSqliteUpgrade } from "@molis-ai/molis-work-storage";
-
 test("ASC-18: rejecting controls on an idle work changes neither its stored choice nor its setup requests", async () => {
   const db = new DatabaseSync(":memory:"), store = new AssistantStore(db);
   let cancellations = 0;
@@ -239,22 +237,35 @@ test("B10-R3: draft generations distinguish same-text rewrites from unrelated wo
   } finally { db.close(); }
 });
 
-test("B10-R3 UPG-01: assistant v1 works and saved send receipts upgrade together without changing content", async () => {
-  const db = new DatabaseSync(":memory:");
+test("B10-R3: current v1 works and saved send receipts survive a real database reopen without writes", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "assistant-v1-reopen-")), file = join(directory, "assistant.db");
+  let db = new DatabaseSync(file);
+  const store = new AssistantStore(db), host = new AgentHost({ reviews: new AgentReviewQueue() });
+  const service = new AssistantService(store, { pages: async () => ["home"], host: async () => host,
+    authority: async () => { throw new Error("This storage check starts no model"); } }, "user");
   try {
-    db.exec(await readFile(new URL("./fixtures/golden-homes/0.1.0/stores/assistant/assistant.db.sql", import.meta.url), "utf8"));
-    const works = db.prepare("SELECT actor_id, work_id, body FROM assistant_works").all();
-    const receipts = db.prepare("SELECT actor_id, request_id, result FROM assistant_requests WHERE state='done'").all();
-    assert.ok(works.length && receipts.length, "exercise stored work and an actual historical receipt");
-    assert.throws(() => new AssistantStore(db), /版本|version/);
-    runSqliteUpgrade(db, "assistant/assistant.db", ASSISTANT_STORE_BASELINE);
-    const store = new AssistantStore(db);
-    for (const row of works) assert.deepEqual(store.get(String(row.actor_id), String(row.work_id)), { ...JSON.parse(String(row.body)), draft_revision: 1 });
-    for (const row of receipts) {
-      const before = JSON.parse(String(row.result)), after = store.requests.read(String(row.actor_id), String(row.request_id));
-      assert.equal(after.state, "sent");
-      if (after.state === "sent") assert.deepEqual(after.result, { ...before, work: { ...before.work, draft_revision: 1 } });
-    }
-    assert.deepEqual(runSqliteUpgrade(db, "assistant/assistant.db", ASSISTANT_STORE_BASELINE), { from: 2, to: 2 });
-  } finally { db.close(); }
+    const work = store.create({ actor_id: "user", title: "Durable draft", scope: { kind: "personal" }, origin: null });
+    service.saveDraft(work.work_id, "Keep this draft");
+    service.saveDraft(work.work_id, "");
+    const view = service.saveDraft(work.work_id, "Keep this draft");
+    assert.equal(view.draft_revision, 4, "create plus three real draft edits, including the same-text new generation");
+    assert.deepEqual(store.requests.claimRequest("user", "v1-reopen-request"), { claimed: true });
+    const receipt = { work: view, outcome: "queued" as const, submission_id: "v1-reopen-content" };
+    store.requests.finishRequest("user", "v1-reopen-request", receipt);
+    const saved = store.get("user", work.work_id);
+    service.continuations.close(); db.close();
+    const bytes = await readFile(file);
+    db = new DatabaseSync(file);
+    assert.equal(ASSISTANT_STORE_BASELINE.version, 1);
+    assert.equal(ASSISTANT_STORE_BASELINE.upgrades, undefined, "the user requested the current first version without a migration");
+    const changes = db.prepare("SELECT total_changes() AS count").get()!.count;
+    const reopened = new AssistantStore(db);
+    assert.deepEqual(reopened.get("user", work.work_id), saved);
+    assert.equal(reopened.get("user", work.work_id).draft, "Keep this draft");
+    assert.equal(reopened.get("user", work.work_id).draft_revision, 4);
+    assert.deepEqual(reopened.requests.read("user", "v1-reopen-request"), { state: "sent", result: receipt });
+    assert.equal(db.prepare("SELECT total_changes() AS count").get()!.count, changes, "opening and reading do not rewrite stored facts");
+    assert.equal(db.prepare("PRAGMA user_version").get()!.user_version, 1);
+    assert.deepEqual(await readFile(file), bytes, "reopening current v1 does not rewrite its bytes");
+  } finally { service.continuations.close(); db.close(); await rm(directory, { recursive: true, force: true }); }
 });

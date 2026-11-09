@@ -88,10 +88,12 @@ test("VUX-17 UIV-14: the Assistant's @ list is always for the words typed now, s
   await waitFor(`${list}.textContent.includes('现在用不了')`);
   assert.equal((await shown()).hits.length, 0, "a failure leaves nothing to choose");
 
-  // The chosen reference goes with the Send, by its owner's object (read again by its owner when the round starts).
+  // B10-R5: preserve the selected search hit for the Host to verify with search; its object remains display metadata.
   await evaluate(`(() => { const f = ${field}; f.value = '看看这份'; f.dispatchEvent(new Event('input', { bubbles: true })); })()`);
   await evaluate("document.querySelector('[data-assistant-composer] [data-composer-send]').click()");
   await waitFor("window.__sent.length === 1", 10_000);
-  const sent = await evaluate<{ materials: Array<{ kind: string; reference?: { subject: { kind: string; id: string } }; object?: { title: string } }> }>("window.__sent[0]");
-  assert.ok(sent.materials.some((one) => one.kind === "object" && one.reference?.subject.id === "c" && one.object?.title === "发布计划 · 第二版"), JSON.stringify(sent.materials));
+  const sent = await evaluate<{ materials: Array<{ kind: string; reference?: { hit_id: string }; object?: { kind: string; id: string; title: string; version: string } }> }>("window.__sent[0]");
+  const picked = sent.materials.find(one => one.kind === "object" && one.object?.id === "c");
+  assert.deepEqual(picked?.reference, { hit_id: "h-c" }, "the exact chosen hit is sent for owner verification");
+  assert.deepEqual(picked?.object, { kind: "pages_document", id: "c", title: "发布计划 · 第二版", version: "r-c" });
 });

@@ -73,13 +73,14 @@
 
 **2026-11-08 审计更正：** 下表「维护」列里写「真实重建未开始／尚未重建／真实Home未操作」的行，都是统一起点登记（2026-11-07）之前的旧状态；记录中的真实 Home 已于 2026-11-07 在记录里的那台开发机按[发布检查单第 4 节](../releases/CHECKLIST.md#4-真实-home搬开后干净重建)重建并登记统一起点。本次审计／维修所在的机器不是那台机器，本机无法核验（见[第 02 批记录](../../specs/post-anticorruption-roadmap/reference/batches/02.md#batch-02)）。行文保留历史原文，不逐行改写。
 
+**助理库本次决定（用户 2026-11-08）：** 第 10 批的独立草稿版本与第 16 批的通知文字工作维持第 1 版；用户明确「版本号不升，其他照常，不用考虑迁移」。撤回 #1991 在途的 1→2 升级段，隔离金样直接使用当前结构，不新增读取兼容，不执行真实 Home 维护。此决定仅涉及这两批共享的助理库，不重置其他库。
+
 **库版本维护清单**（门禁 `scripts/gates/store-versions.mjs` 只认这张表；统一起点登记之后还读升级段所在的代码文件）：检查清单第 3 节表里某个库的版本，和 merge-base 比变了（升或降），同一个 PR 就要在这里加一行，不然 `pnpm health:check` 失败。写法固定：「位置」一格是检查清单第 3 节同一行的位置，原样加反引号；「版本」一格写 `旧 → 新`，两边是数字，箭头是 `→`；后两格写哪个提交或 PR 改的版本、怎样维护和做没做。别处正文里写的不算。
 
 统一起点已登记（检查清单第 4 节），之后这张表多三条规则：版本不许降，写了行也不行；升版本的行，「维护」一格固定写成 `定义处#旧→新`，整格用反引号包住，比如 `` `plugins/native/pages/src/database.ts#PAGES_DATABASE#1→2` ``，定义处和检查清单同一行的「定义处」完全相同，旧、新和「版本」一格的两个数字相同；这个定义的 `upgrades` 字面量里，要有从旧到新减一的每个 `from`。表里留着历史，同样数字的旧行写着文字不碍事，写成指针的每一行都要站得住。完整口径见 [tooling/gates/README.md](../../tooling/gates/README.md)。
 
 | 位置 | 版本 | 改版本的提交 | 维护 |
 | --- | --- | --- | --- |
-| `assistant/assistant.db` | 1 → 2 | 第 10 批 #1991；独立草稿版本，隔离金样回放 | `apps/local-host/src/assistant/assistant-store.ts#ASSISTANT_STORE_BASELINE#1→2` |
 | `agent-definitions/agent-definitions.db` | 1 → 2 | 第08批 #1984；2026-11-06 已授权新增空表 | `apps/local-host/src/agent-definitions/agent-definitions.ts#AGENT_DEFINITIONS_BASELINE#1→2` |
 | `projects/<project_id>/molis-work.db` | 17 → 1 | 第02批 #1837（`67d04ce981`，接 Personal 后复位） | 保留当前完整结构与同步表。2026-11-07 旧Home完整备份、搬开后新建，统一起点已登记（[发布检查单第 4 节](../releases/CHECKLIST.md#4-真实-home搬开后干净重建)）；错版和不符所属结构仍拒绝，不就地升级。 |
 | `projects/<project_id>/molis-work.db#coding` | 3 → 1 | 同上 | 同上 |

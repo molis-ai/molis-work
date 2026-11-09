@@ -16,7 +16,7 @@ export const COMPOSER_STYLES = `${COMPOSER_PATTERN_STYLES}
   .mw-composer { position: relative; display: grid; gap: 6px; width: min(640px, 100%); min-width: 0; container: mw-composer / inline-size; }
   .mw-composer__to { display: flex; align-items: center; gap: 6px; min-width: 0; padding-inline: 4px; color: var(--muted); font-size: 12px; white-space: nowrap; }
   .mw-composer__to .mw-tag { min-width: 0; max-width: min(100%, 320px); }
-  .mw-composer__to [data-composer-receiver] { display: block; width: auto; height: auto; min-width: 0; min-height: 28px; color: inherit; font: inherit; overflow: hidden; text-overflow: ellipsis; }
+  .mw-composer__to [data-composer-receiver] { display: block; width: auto; height: auto; min-width: 28px; min-height: 28px; color: inherit; font: inherit; overflow: hidden; text-overflow: ellipsis; }
   .mw-composer__to .mw-tag > span { overflow: hidden; text-overflow: ellipsis; }
   /* The receiver's reset (start a new one instead) is a real target, 28px, in the tag's own place: the margins take back what the row would grow by. */
   .mw-composer__to [data-tag-remove] { width: 28px; height: 28px; margin: -2px -5px -2px -3px; }

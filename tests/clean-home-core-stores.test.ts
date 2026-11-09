@@ -13,7 +13,7 @@ const cases = [
   { name: "functions", version: 1, file: "functions/functions.db", table: "function_scene_bindings",
     seed: "INSERT INTO function_scene_bindings VALUES ('scene', 'project', '{}', 'revision', 'time')",
     open: (home: string) => { const service = createFunctionsService({ home, credential: () => null }); return () => service.close(); } },
-  { name: "assistant", version: 2, file: "assistant/assistant.db", table: "assistant_settings",
+  { name: "assistant", version: 1, file: "assistant/assistant.db", table: "assistant_settings",
     seed: "INSERT INTO assistant_settings VALUES ('owner', 'setting', 1, 'retained')",
     open: (home: string) => { const db = openBaselineHomeSqlite(home, "assistant", ASSISTANT_STORE_BASELINE); try { new AssistantStore(db); return () => db.close(); } catch (error) { db.close(); throw error; } } },
   { name: "characters", version: 1, file: "characters/characters.sqlite", table: "character_drafts",

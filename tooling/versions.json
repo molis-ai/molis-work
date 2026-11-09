@@ -923,7 +923,7 @@
     "database.agent_definitions_baseline": 2,
     "database.alchemist_search_baseline": 1,
     "database.alchemist_studio_baseline": 1,
-    "database.assistant_store_baseline": 2,
+    "database.assistant_store_baseline": 1,
     "database.characters_store_baseline": 1,
     "database.coding_project_database": 1,
     "database.cognia_database": 1,

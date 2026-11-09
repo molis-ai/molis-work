@@ -26,7 +26,7 @@ export const ASSISTANT_STORE_NAME = "assistant";
  * The current schema retains the table and its stored work shape.
  * The current executor is `{ kind: "plugin", plugin_id, ... }`; other stored versions are refused, never translated on read.
  */
-export const ASSISTANT_STORE_BASELINE: SqliteBaseline = { version: /* @version database.assistant_store_baseline */ 2, schema: `
+export const ASSISTANT_STORE_BASELINE: SqliteBaseline = { version: /* @version database.assistant_store_baseline */ 1, schema: `
 CREATE TABLE assistant_works (
   work_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, revision INTEGER NOT NULL, updated_at TEXT NOT NULL,
   archived INTEGER NOT NULL DEFAULT 0, body TEXT NOT NULL
@@ -71,11 +71,7 @@ CREATE TABLE assistant_requests (
   actor_id TEXT NOT NULL, request_id TEXT NOT NULL, work_id TEXT, state TEXT NOT NULL, result TEXT, created_at TEXT NOT NULL,
   PRIMARY KEY(actor_id, request_id)
 );
-${CONTEXT_LEDGER_SCHEMA}`, upgrades: [{ from: 1, sql: `
-UPDATE assistant_works SET body=json_set(body, '$.draft_revision', 1);
-UPDATE assistant_requests SET result=json_set(result, '$.work.draft_revision', 1)
-  WHERE result IS NOT NULL AND json_type(result, '$.work')='object';
-` }] };
+${CONTEXT_LEDGER_SCHEMA}` };
 
 /** A work as stored: the public record plus the project reference its actions and sessions are bound to. */
 export interface StoredWork extends Omit<AssistantWork, "state" | "delegated_by"> {

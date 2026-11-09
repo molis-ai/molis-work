@@ -29,6 +29,7 @@ const KINDS: Record<string, string> = {
   "[data-assistant-composer] .mw-composer__input": "assistant input",
   "[data-assistant-composer] [data-composer-add]": "assistant attach",
   "[data-assistant-composer] [data-composer-send]": "assistant send",
+  "[data-assistant-composer] [data-composer-receiver]": "assistant receiver",
   "[data-plugin-picker-toggle]": "plugin switcher",
   ".dock-pin": "dock",
   // 07-1 S4b: the bar's side button and the titlebar's Home tools are gone; the side's glyphs (Issue's among them) are tabs.
@@ -271,7 +272,7 @@ const STRIP_MENUS = `(async () => {
 type PanelHeader = { shown: boolean; height: number; title: number; controls: Array<{ label: string; w: number; h: number; inside: boolean }> };
 const PANEL_HEADER = `(async () => {
   const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-  document.querySelector("[data-assistant-composer] .mw-composer__to .mw-tag > span")?.click(); await wait(800);
+  document.querySelector("[data-assistant-composer] [data-composer-receiver]")?.click(); await wait(800);
   const panel = document.querySelector("[data-assistant-panel]"), bar = panel.querySelector(".assistant-tabbar"), box = panel.getBoundingClientRect();
   const controls = [...bar.querySelectorAll("button, [role=tab]")].filter(el => el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })).map(el => {
     const b = el.getBoundingClientRect();
@@ -309,7 +310,7 @@ const PANEL_HOST_CONTROLS = assistantTextHtml('[link](https://example.test) 「�
   options: [{ value: 'one', label: '继续整理' }], allows_free_text: true }, text => text);
 const PANEL_BODY = `(async () => {
   const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-  document.querySelector("[data-assistant-composer] .mw-composer__to .mw-tag > span")?.click(); await wait(800);
+  document.querySelector("[data-assistant-composer] [data-composer-receiver]")?.click(); await wait(800);
   const panel = document.querySelector("[data-assistant-panel]");
   const sizes = (root) => [...root.querySelectorAll("button, summary, a[href], input, select, textarea, [role=tab]")]
     .filter(el => el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) && !el.closest("[data-test-made]"))
@@ -685,7 +686,7 @@ for (const scheme of ["light", "dark"] as const) {
     // The Assistant's composer stays a 44px input with room to type, and its ＋ and send keep their size while typing.
     await w.evaluate(`(() => { const input = document.querySelector('[data-assistant-composer] .mw-composer__input'); input.focus(); input.value = '整理一下本周的待办'; input.dispatchEvent(new Event('input', { bubbles: true })); })()`);
     const typing = (await w.evaluate<Control[]>(SHELL_CONTROLS)).filter(control => control.kind.startsWith("assistant"));
-    assert.equal(typing.length, 3, "input, attach and send are all there while typing");
+    assert.deepEqual(typing.map(control => control.kind).sort(), ["assistant attach", "assistant input", "assistant receiver", "assistant send"], "B10-R6: input, attach, receiver and send are all there while typing");
     assert.deepEqual(typing.filter(control => w.short(control) < 44), [], "and are still 44px");
     assert.ok(typing.find(control => control.kind === "assistant input")!.w >= 120, "the input keeps room to type");
 

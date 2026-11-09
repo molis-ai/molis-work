@@ -124,6 +124,9 @@ const pages: Record<string, Draw> = {
 // Skills navigation restores every old hash and length: 16 whole pages have two directory buttons (706 zh / 722 en characters),
 // six personal planning records one link (92 zh / 96 en), and twelve project planning/settings records one link with its line
 // (115 zh / 119 en). Only those 34 records changed; the other 32, Goals JSON, view fixture and golden Home fixtures stayed fixed.
+// Batch 10 closeout after main 416ee8cef0: each of the 16 whole pages independently reproduced its previous hash and
+// length after removing only the two Skills buttons and replacing the receiver button with the former span (+41).
+// All other records retained the accepted main records; no Goals markup, data or assertions changed.
 const RECORDED = new URL("golden.json", GOLDEN);
 interface Recorded { sha256: string; length: number }
 const recorded: Record<string, Recorded> = record ? {} : JSON.parse(readFileSync(RECORDED, "utf8"));

@@ -8,8 +8,8 @@ import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 import { CURRENT_WORK, UNSENT_WORDS } from "./fixtures/assistant-current-work.js";
 
 // specs/ai-input-receipts §3.3, §4.1, §4.2, §7, D14 (stage 1e): in the Assistant, the person picks where words go while a
-// question waits, each supplement carries the runtime's receipt, and a Send whose outcome was lost goes again after a
-// refresh under the same key. The model is a local fixture; the Assistant, its runtime and the Host are real.
+// question waits, each supplement carries the runtime's receipt, and after a refresh a Send whose outcome was lost is
+// checked under the same key before sending again. The model is a local fixture; the Assistant, its runtime and the Host are real.
 async function assistantPage(t: TestContext, behavior: IssueModelBehavior, storage = true) {
   const browser = await openGoalBrowser(t, "user", undefined, undefined, undefined, undefined, {
     prepareHome: async homeDirectory => { await issueModel(t, homeDirectory, behavior); },
@@ -102,7 +102,7 @@ test("RC-14/RC-15/RCPT-312: while a question waits the chip says what Send does,
   assert.equal((await readWork(browser, id)).rounds.length, rounds.length, "taking it back starts nothing either");
 });
 
-test("RC-16: a Send whose outcome was lost goes again after a refresh under the same key, and the Host keeps one round", { timeout: 120_000 }, async t => {
+test("RC-16 B10-R3: a Send whose outcome was lost is checked after a refresh under the same key, and the Host keeps one round", { timeout: 120_000 }, async t => {
   const browser = await assistantPage(t, { replyText: "收到本次发送。" }); if (!browser) return;
   await send(browser, "第一句");
   const id = await browser.evaluate<string>(CURRENT_WORK);
@@ -120,8 +120,23 @@ test("RC-16: a Send whose outcome was lost goes again after a refresh under the 
   assert.equal(kept.work, id); assert.equal(kept.text, "第二句");
   await browser.reloadPage();
   await browser.waitFor(`${CURRENT_WORK} === ${JSON.stringify(id)}`);
-  const again = await sendSeen(browser, "第二句");
-  assert.equal(again.request_id, kept.id, "the same words to the same work go under the same key");
+  await browser.command("Network.enable", {}, browser.sessionId);
+  const requests: Array<{ method: string; url: string }> = [];
+  const off = browser.on("Network.requestWillBeSent", (event, session) => {
+    if (session !== browser.sessionId) return;
+    const request = event.request as { method: string; url: string };
+    if (/\/api\/assistant\/(send$|requests\/)/.test(request.url)) requests.push({ method: request.method, url: request.url });
+  });
+  const check = await sendBarrier(browser, [{ urlPattern: "*/api/assistant/requests/*", requestStage: "Request" }]);
+  try {
+    await putInput(browser, "第二句"); await browser.click("[data-assistant-composer] [data-composer-send]");
+    const paused = await check.next();
+    assert.ok(paused.request.url.endsWith("/api/assistant/requests/" + encodeURIComponent(kept.id)), "refresh checks the original request key");
+    await check.release(paused);
+    await browser.waitFor("document.querySelector('[data-assistant-composer] .mw-composer__status').textContent.includes('已核对原发送')");
+    assert.deepEqual(requests, [{ method: "GET", url: paused.request.url }], "the network observer sees the original receipt lookup and no repeat Send");
+  } finally { off(); await check.close(); }
+  assert.equal(await browser.evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input').value"), "第二句", "reading the old receipt does not consume the present draft");
   await waitWork(browser, id, view => view.work.state === "completed");
   assert.deepEqual((await readWork(browser, id)).rounds.map(round => round.text), ["第一句", "第二句"], "the Host took the words once");
   assert.equal(await browser.evaluate(UNSENT_WORDS), null, "an answered Send leaves nothing to resend");

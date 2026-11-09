@@ -329,7 +329,7 @@ test("底栏：Assistant 常驻居中，回答在上方先写问题；插件从�
   // and no chooser nobody changed; “+” only adds (files, methods, capabilities) — who carries a new work and where it lives
   // are chosen in its tab.
   assert.ok(await evaluate(`(()=>{const shown=(sel)=>Boolean(document.querySelector(sel)?.getClientRects().length);
-    return document.querySelector('[data-assistant-composer] .mw-composer__to .mw-tag > span')?.textContent === '助理' && !shown('[data-assistant-composer] .mw-composer__to [data-tag-remove]') && !document.querySelector('[data-assistant-composer] [data-composer-control]');})()`), "a new work goes to the Assistant and shows no default chooser");
+    return document.querySelector('[data-assistant-composer] [data-composer-receiver]')?.textContent === '助理' && !shown('[data-assistant-composer] .mw-composer__to [data-tag-remove]') && !document.querySelector('[data-assistant-composer] [data-composer-control]');})()`), "a new work goes to the Assistant and shows no default chooser");
   await click("[data-assistant-composer] [data-composer-add]");
   await waitFor("!document.querySelector('[data-assistant-composer] [data-compose-menu]').hidden && /添加文件/.test(document.querySelector('[data-assistant-composer] [data-compose-menu]').textContent)");
   assert.ok(await evaluate("(()=>{const t=document.querySelector('[data-assistant-composer] [data-compose-menu]').textContent;return /用一个方法或能力/.test(t) && !/由谁来做|新工作放在/.test(t);})()"), "“+” adds things; it holds no choices about the work");
@@ -340,7 +340,7 @@ test("底栏：Assistant 常驻居中，回答在上方先写问题；插件从�
   // is the strip above the line now, context-program §21.2 point 1).
   const crowd = `(()=>{
     for (const [chip, count] of [['[data-assistant-attention]', '23']]) { const button = document.querySelector(chip); button.hidden = false; button.querySelector('span').textContent = count; }
-    document.querySelector('[data-assistant-composer] .mw-composer__to .mw-tag > span').textContent = '继续：给我一个按钮，在待办里记下准备复盘会的数据看板';
+    document.querySelector('[data-assistant-composer] [data-composer-receiver]').textContent = '继续：给我一个按钮，在待办里记下准备复盘会的数据看板';
   })()`;
   await evaluate(crowd);
   // The receiver row and the controls give way (they shrink to an ellipsis, or fold behind 更多); the input never does.

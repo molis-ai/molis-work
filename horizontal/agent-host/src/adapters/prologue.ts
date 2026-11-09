@@ -4,7 +4,6 @@ import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/acti
 import { isTerminalAgentPhase, parseAgentRunBudget } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentPendingQuestion } from "@molis-ai/molis-work-contracts/services/agent-interaction";
 import type {
-  AgentSkillLibrary,
   AgentMcpLibrary,
   AgentCommandOutput,
   AgentCommandOutputRef,
@@ -77,7 +76,6 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     }),
   };
   readonly descriptor: AgentRuntimeDescriptor;
-  readonly skillLibrary?: AgentSkillLibrary;
   readonly mcpLibrary?: AgentMcpLibrary;
   readonly recovery?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecoveryCapability;
   readonly schedule?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentScheduleCapability;
@@ -108,7 +106,6 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     if (runtime.subagents) this.subagents = guardedSubagents(runtime.subagents, run => this.read(run));
     if (runtime.recovery) this.recovery = guardedRecovery(this.#store, runtime, runtime.recovery);
     if (runtime.checkpoints) this.checkpoints = guardedCheckpoints(this.#store, runtime.checkpoints);
-    this.skillLibrary = runtime.skillLibrary;
     this.mcpLibrary = runtime.mcpLibrary;
     this.#answerPending = options.answerPending;
     this.#detachApprovalAnswers = options.approvals?.subscribeAnswered((run, pendingId) => {

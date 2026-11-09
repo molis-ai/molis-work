@@ -104,27 +104,6 @@ test("enabling Coding reloads the page, and a refusal offers the button again so
   assert.equal(page.location.reloads, 1);
 });
 
-// specs/visual-ui-experience VUX-40: the method library knew its first read had finished by its loading line being the Chinese
-// one the Host drew, so on an English page the line said "Reading project methods…" for good. It now knows by a mark the Host
-// puts on the line, whatever language the line is in.
-for (const [locale, loaded] of [["zh", "项目方法已读取。"], ["en", "Project methods loaded."]] as const) test(`VUX-40: the method library says the methods have loaded whatever language the Host drew its loading line in (${locale})`, async () => {
-  const library = new FakeElement(); library.dataset.prefix = "/projects/project-1/";
-  const line = library.part("[data-method-library-status]");
-  line.textContent = "Reading project methods…"; line.dataset.methodLibraryLoading = "";
-  const document = Object.assign(new FakeElement(), { createElement: () => new FakeElement() });
-  document.querySelector = (selector: string) => selector === "[data-coding-method-library]" ? library : null;
-  // RAC-2849: exercise the client the three consumers actually receive from the registration.
-  const client = codingRegistration.workbench.settingsClient;
-  assert.ok(client);
-  vm.runInNewContext(client, {
-    document, location: { origin: "http://127.0.0.1:1" }, URL, setInterval: () => 0, clearInterval: () => {}, L: pageText(locale),
-    molisWorkRequest: pageRequest(url => url.endsWith(STATE) ? answer(200, { workspaces: [{ workspace_id: "w", canonical_path: "/repo" }], methods: [] }) : answer(500, {})),
-  });
-  await new Promise<void>(resolve => setImmediate(resolve));
-  assert.equal(line.textContent, loaded);
-  assert.equal("methodLibraryLoading" in line.dataset, false);
-});
-
 // specs/visual-ui-experience VUX-40: on an English page the MCP settings say "Coding isn't enabled" and offer the button in English.
 test("VUX-40: the MCP settings speak the page's language when the project has not enabled Coding", async () => {
   const page = fixture(url => url.endsWith(STATE) ? NOT_ENABLED_ANSWER : answer(500, {}), "en");

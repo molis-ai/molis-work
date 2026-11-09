@@ -353,7 +353,7 @@ export { projectOrNull } from "./catalog-lookup.js";
 export { createProjectArrivalHttp } from "./project-arrival-http.js";
 export { markProjectOpened, PROJECT_ARRIVAL_FILE, readProjectArrival, setProjectDescription } from "./project-arrival.js";
 export { lastUsedLocale, readUiLocale, rememberUiLocale, UI_LOCALE_RELATIVE_PATH } from "./ui-locale-memory.js";
-export { replyLanguagePrompt } from "./reply-language.js";
+export { replyLanguage, replyLanguagePrompt } from "./reply-language.js";
 export { hostTextProblems, installHostUiText } from "./ui-text-provider.js";
 export { handleAttentionHttp, type AttentionSources } from "./attention-http.js";
 export { handleBrowserHttp } from "./browser/browser-http.js";
@@ -402,5 +402,5 @@ export {connectResidentAccount,ACCOUNT_CONNECT_PATH,type ResidentAccountConnecti
 
 export { WebSessions } from "./web-sessions.js";
 
-export { withSkillSelection, type SkillSelection } from "./agent-definitions/skill-selection.js";
+export { currentNamedSkills, roundSkillCatalog, type RoundSkillReaders } from "./agent-round-skills.js";
 export { SkillCatalog, type CatalogSkill, type SkillCatalogPorts } from "./agent-definitions/skill-catalog.js";

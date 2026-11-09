@@ -156,9 +156,7 @@ const USAGE = { tokens: { input: 0, output: 0 } };
 const RUN_VIEW = { ref: { session_id: "session", run_id: "run" }, phase: "completed", frozen: FROZEN, turns: [], activity: [], usage: USAGE, awaiting_input: [], started_at: "2026-01-01T00:00:00.000Z", ended_at: null };
 const SESSION_VIEW = { owner: { project_id: "project", plugin_id: "plugin", install_id: "install" }, session: { session_id: "session", runtime_id: "runtime" }, title: "", runs: [], latest_run: null };
 const RUNTIME = { display_name: "", provider_version: "", capabilities: {} };
-const SKILL_TEXT = { version: 1, name: "", summary: "", tools: [] }, SKILL = { ...SKILL_TEXT, source: "installed", enabled: true };
 const MCP_SERVER = { id: "server", version: 0, label: "", enabled: true, transport: "http", timeout_ms: 1000, credential: "none", health: "disconnected", tools: [], resources: [] };
-const CANDIDATE = { candidate_id: "candidate", name: "", summary: "", source_label: "", files: [], body: "" };
 const runView = (value: unknown) => isRecord(value)
   ? { ...RUN_VIEW, ...value, frozen: { ...FROZEN, ...(isRecord(value.frozen) ? value.frozen : {}) }, usage: { ...USAGE, ...(isRecord(value.usage) ? value.usage : {}) } } : value;
 const filled = (base: object) => (value: unknown) => isRecord(value) ? { ...base, ...value } : value;
@@ -174,10 +172,6 @@ function completeView(definition: ActionDefinition, value: unknown): unknown {
     case agentHostCapabilities.listSubagents.capability_id:
       return Array.isArray(value) ? value.map(child => isRecord(child) ? { role_id: "", task: "", state: "running", result: null, workspace_path: null, parent_run: RUN_VIEW.ref, ...child } : child) : value;
     case agentHostCapabilities.listRuntimes.capability_id: return eachFilled(RUNTIME)(value);
-    case agentHostCapabilities.listSkills.capability_id: return eachFilled(SKILL)(value);
-    case agentHostCapabilities.installSkill.capability_id: return filled(SKILL)(value);
-    case agentHostCapabilities.readSkill.capability_id: return filled({ ...SKILL_TEXT, body: "" })(value);
-    case agentHostCapabilities.discoverSkills.capability_id: return eachFilled(CANDIDATE)(value);
     case agentHostCapabilities.listMcp.capability_id: return eachFilled(MCP_SERVER)(value);
     case agentHostCapabilities.saveMcp.capability_id: return filled(MCP_SERVER)(value);
     default: return value;

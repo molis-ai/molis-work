@@ -25,7 +25,7 @@ import type { WriterDirectories } from "../writers.js";
 import type { WriterIntegration } from "../writer-integration.js";
 import type { CodingHost } from "./host.js";
 import type {
-  ArtifactRow, GoalChoice, GoalSummary, McpSourceRef, McpToolRef, MethodRef, ProgressView, ReportOutput, RunView, SessionConfiguration, SessionData, StateRead,
+  ArtifactRow, GoalChoice, GoalSummary, McpSourceRef, McpToolRef, ProgressView, SkillRef, ReportOutput, RunView, SessionConfiguration, SessionData, StateRead,
 } from "./shapes.js";
 
 /** Everything the page remembers between one event and the next. */
@@ -84,9 +84,8 @@ export interface State {
   mcpSelections: Map<string, readonly McpToolRef[]>;
   mcpSourceChoices: McpSourceRef[];
   mcpSourceSelections: Map<string, readonly McpSourceRef[]>;
-  methodChoices: MethodRef[];
-  methodDocumentTicket: number;
-  methodSelections: Map<string, readonly MethodRef[]>;
+  methodChoices: SkillRef[];
+  methodSelections: Map<string, readonly SkillRef[]>;
   offeredApprovals: Set<string>;
   offsets: Map<string, number>;
   olderPlanEntries: PlanEntry[];

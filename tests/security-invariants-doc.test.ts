@@ -19,6 +19,10 @@ const altered = (changes: Record<string, string | null>, extraFiles: string[] = 
   read: (file: string) => file in changes ? changes[file]! : read(file),
 });
 const packageJson = JSON.parse(read("package.json")!) as { scripts: Record<string, string> };
+const extra = `${SECURITY_RECORDS}S-extra.md`;
+const row = (cells: string) => altered({ [extra]: `| S-extra | ${cells} |\n` }, [extra]);
+const namedEntry = "`tests/security-invariants-local-entry.test.ts`「a mutation without the Origin, the token or the one-time key is refused before any handler runs」";
+const nobodyWrote = ["a", "title", "nobody", "wrote", "twice"].join(" ");
 
 test("S-20 the table is checked: each way it can stop being true is caught", () => {
   assert.deepEqual(securityInvariantProblems(real), [], "the repository as it is");
@@ -27,12 +31,9 @@ test("S-20 the table is checked: each way it can stop being true is caught", () 
     const problems = securityInvariantProblems(snapshot);
     assert.ok(problems.some(problem => pattern.test(problem)), `${what}: ${JSON.stringify(problems)}`);
   };
-  const extra = `${SECURITY_RECORDS}S-extra.md`;
-  const row = (cells: string) => altered({ [extra]: `| S-extra | ${cells} |\n` }, [extra]);
   expectProblem("the document is gone", altered({ [SECURITY_DOC]: null }), /is missing/);
   expectProblem("a row names no test", row("an invariant with nothing behind it | somewhere | |"), /S-extra names no test/);
   expectProblem("a row names a missing test", row("x | y | `tests/no-such-file.test.ts` |"), /tests\/no-such-file\.test\.ts, which does not exist/);
-  const nobodyWrote = ["a", "title", "nobody", "wrote", "twice"].join(" ");
   let count = 0;
   for (const file of records) {
     const text = read(file)!;
@@ -42,7 +43,12 @@ test("S-20 the table is checked: each way it can stop being true is caught", () 
     }
   }
   assert.ok(count >= 50, "all title fragments retain mutation coverage");
-  expectProblem("a CI test that CI does not run", altered({ [extra]: "| S-extra | x | y | `tests/rss-custom-feeds.test.ts` | |\n", "tests/rss-custom-feeds.test.ts": "" }, [extra, "tests/rss-custom-feeds.test.ts"]), /do not run it/);
+  const unscheduled = "tests/rss-custom-feeds.test.ts";
+  const unscheduledTitle = "this test exists in the snapshot";
+  expectProblem("a CI test that CI does not run", altered({
+    [extra]: `| S-extra | x | y | \`${unscheduled}\`「${unscheduledTitle}」 | |\n`,
+    [unscheduled]: `import test from "node:test";\ntest("${unscheduledTitle}", () => {});\n`,
+  }, [extra, unscheduled]), /do not run it/);
   const duplicate = `${SECURITY_RECORDS}S-duplicate.md`;
   expectProblem("an ID is used twice", altered({ [duplicate]: read(`${SECURITY_RECORDS}S-06.md`)! }, [duplicate]), /S-06 is on two rows/);
   expectProblem("filename and ID differ", altered({ [`${SECURITY_RECORDS}S-07.md`]: read(`${SECURITY_RECORDS}S-06.md`)! }), /must match its filename/);
@@ -50,6 +56,27 @@ test("S-20 the table is checked: each way it can stop being true is caught", () 
   expectProblem("an unmapped invariant test", altered({ "tests/security-invariants-extra.test.ts": "" }, ["tests/security-invariants-extra.test.ts"]), /security-invariants-extra\.test\.ts is named by no row/);
   const trimmed = { ...packageJson, scripts: { ...packageJson.scripts, "test:security": packageJson.scripts["test:security"]!.replace(" tests/memory-service.test.ts", "") } };
   expectProblem("a test removed from test:security", altered({ "package.json": JSON.stringify(trimmed) }), /tests\/memory-service\.test\.ts as run by CI/);
-  const independent = row("new boundary | code | `tests/security-invariants-local-entry.test.ts` |");
+  const independent = row(`new boundary | code | ${namedEntry} |`);
   assert.deepEqual(securityInvariantProblems(independent), [], "semantic IDs need no shared sequence");
+});
+
+const unnamed = `${namedEntry}; \`tests/memory-service.test.ts\``;
+for (const [label, column, ci, local] of [
+  ["a missing CI title", "CI", unnamed, ""],
+  ["a missing local title", "local", "", unnamed],
+  ["an empty title", "CI", `${unnamed}「」`, ""],
+  ["a title of only whitespace", "local", "", `${unnamed}「   」`],
+]) {
+  test(`NSEC-02 rejects ${label} beside a named test`, () => {
+    assert.deepEqual(securityInvariantProblems(row(`new boundary | code | ${ci} | ${local}`)), [
+      `${extra}:1: S-extra lists tests/memory-service.test.ts in the ${column} column without a non-blank test title fragment`,
+    ]);
+  });
+}
+
+test("NSEC-03 each title fragment in one reference must be present", () => {
+  assert.deepEqual(securityInvariantProblems(row(`new boundary | code | | ${namedEntry}「a refused mutation does not use up its key」`)), []);
+  assert.deepEqual(securityInvariantProblems(row(`new boundary | code | | ${namedEntry}「${nobodyWrote}」`)), [
+    `${extra}:1: S-extra names 「${nobodyWrote}」 in tests/security-invariants-local-entry.test.ts, which says nothing of the sort`,
+  ]);
 });

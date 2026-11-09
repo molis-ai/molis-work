@@ -4,8 +4,8 @@
 // tests that assert its refusal. A table of promises is only worth what is behind it, so this reads the table and checks that
 //   - stable numeric or semantic IDs are unique and match their independent filename;
 //   - every row names at least one test, and every test file it names exists;
-//   - every test named with title fragments (`tests/x.test.ts`「first」「second」…; a row may list several, none of them skipped)
-//     has each fragment in the file, so a renamed or deleted test cannot leave the row pointing at nothing;
+//   - each test file reference in either column has a non-blank title fragment (`tests/x.test.ts`「first」「second」…);
+//   - every title fragment occurs in its named file, so a renamed or deleted test cannot leave the row pointing at nothing;
 //   - the tests in the CI column are run by CI: the file is named (or matched by a glob) in the root package.json scripts
 //     `test:security` or `test:contracts`, or in .github/workflows/ci.yml;
 //   - every tests/security-invariants-*.test.ts file is named by some row, so a new invariant test cannot sit outside the table.
@@ -69,6 +69,7 @@ export function securityInvariantProblems(snapshot) {
       for (const { file, fragments } of list) {
         named.add(file);
         if (!files.has(file)) { problems.push(`${where}: ${id} names ${file}, which does not exist`); continue; }
+        if (!fragments.some(fragment => fragment.trim().length > 0)) problems.push(`${where}: ${id} lists ${file} in the ${column} column without a non-blank test title fragment`);
         if (!sources.has(file)) sources.set(file, snapshot.read(file) ?? "");
         const source = sources.get(file);
         for (const fragment of fragments) if (!source.includes(fragment)) problems.push(`${where}: ${id} names 「${fragment}」 in ${file}, which says nothing of the sort`);

@@ -427,3 +427,50 @@ test("PFG-22 ⌘\\ in a Pages document clears the selection's formatting and lea
   await evaluate("new Promise(resolve => setTimeout(() => requestAnimationFrame(() => requestAnimationFrame(resolve)), 50))");
   assert.equal(await evaluate("document.body.dataset.sideOpen"), side, "the side neither opened nor closed");
 });
+
+// 07-AUDIT (BL-record-gone-from-framed-plugins): a tab moved to the right side shows in the workbench's own pane page, which
+// is another document. A record that page read as missing reports it to the page around it through the one pane-message
+// check (S-30): from a pane frame, from this origin, in its exact shape. Only then is the tab it was opened for marked.
+test("07-AUDIT a record gone in a pane page marks its tab only after the page takes the report", { timeout: 150_000 }, async t => {
+  const browser = await openGoalBrowser(t, true);
+  if (!browser) return;
+  const { evaluate, waitFor, click, command, sessionId, navigate, origin, projectId } = browser;
+  const LAYOUT = "[data-workspace-layout]";
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
+  await waitFor("document.body.dataset.desktopSurface === 'home' && document.querySelector('[data-layout-open]')", 15_000);
+  // One Goal record, opened from its canvas as a tab.
+  await click('[data-plugin-strip] [data-plugin-id="goals"]');
+  await waitFor("document.body.dataset.desktopSurface === 'goals' && document.querySelector('[data-board-view-tab=canvas]')", 15_000);
+  await evaluate("document.querySelector('[data-board-view-tab=canvas]').click()");
+  await waitFor("document.querySelector('[data-graph-node][data-goal-id=CORE] [data-graph-frame]')", 15_000);
+  await evaluate("document.querySelector('[data-graph-node][data-goal-id=CORE] [data-graph-frame]').click()");
+  await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item[data-plugin=goals][data-item-id=CORE][aria-current]')", 15_000);
+  // Moved to the right side: its content is the workbench's pane page (another document) with no tab drawn there.
+  await click("[data-layout-open]");
+  await waitFor(`document.querySelector('${LAYOUT}')?.matches(':popover-open')`);
+  await click(`${LAYOUT} [data-layout-action=to-side]`);
+  await waitFor("document.querySelector('iframe[data-side-pane-src]')", 15_000);
+  const src = await evaluate<string>("document.querySelector('iframe[data-side-pane-src]')?.getAttribute('src') || ''");
+  assert.match(src, /panePlugin=goals/u, src);
+  assert.match(src, /paneItem=CORE/u, src);
+  const dispatch = (init: string) => evaluate(`(() => { const frame = document.querySelector('iframe[data-side-pane-src]');
+    window.dispatchEvent(new MessageEvent('message', Object.assign({ origin: location.origin, source: frame.contentWindow,
+      data: { type: 'workbench-pane-record-gone', paneId: 'side', plugin: 'goals', itemId: 'CORE' } }, ${init}))); })()`);
+  const marked = "document.querySelectorAll('[data-side-tabs] .tab-item[data-tab-state=gone]').length";
+  // Not from a pane frame, another origin, or an extra field: nothing is marked.
+  await dispatch("{ source: window }");
+  await dispatch("{ origin: 'https://example.com' }");
+  await dispatch("{ data: { type: 'workbench-pane-record-gone', paneId: 'side', plugin: 'goals', itemId: 'CORE', title: 'A Goal' } }");
+  await dispatch("{ data: { type: 'workbench-pane-record-gone', paneId: 'side', plugin: 'goals', itemId: 'CORE' }, origin: 'https://example.com' }");
+  await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+  assert.equal(await evaluate(marked), 0, "a report the page does not take marks no tab");
+  // From the pane frame, from this origin, in the report's exact shape: the tab it was opened for is struck and says so.
+  await dispatch("{}");
+  await waitFor(`${marked} === 1`, 5_000);
+  const gone = await evaluate<{ title: string; label: string | null }>(`(() => { const item = document.querySelector('[data-side-tabs] .tab-item[data-tab-state=gone]');
+    return { title: item.title, label: item.querySelector('[role=tab]')?.getAttribute('aria-label') ?? null }; })()`);
+  assert.match(gone.title, /这一条已经不在了/u);
+  assert.match(gone.label ?? "", /这一条已经不在了/u);
+  assert.match(await evaluate<string>("document.querySelector('[data-side-tabs] .tab-item[data-tab-state=gone]')?.dataset.sidePlugin ?? ''"), /^goals/u);
+});

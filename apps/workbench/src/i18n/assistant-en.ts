@@ -2,6 +2,8 @@ import { INPUT_RECEIPTS_EN } from "@molis-ai/molis-work-design-system";
 
 /** The resident Assistant in the bottom bar, with the supplement receipt it shares with every plugin. */
 export const ASSISTANT_EN: Record<string, string> = {
+  "已核对原发送；这里的草稿还没发出": "The original send is confirmed. The draft here has not been sent.",
+  "问卷这里只能写文字；请移除附件，或改为补充这一轮": "This questionnaire field accepts text only. Remove the attachments or send a supplement to this turn.",
   "「{plugin}」读取了你授权的本机目录「{folder}」（{origin}）。可在设置「本机目录」查看记录或撤回。": '"{plugin}" read your authorized local folder "{folder}" ({origin}). View the record or revoke access in Settings > Local folders.',
   "「{plugin}」尝试读取你授权的本机目录「{folder}」，但被拒绝（{origin}）。可在设置「本机目录」查看记录或撤回。": '"{plugin}" tried to read your authorized local folder "{folder}", but access was denied ({origin}). View the record or revoke access in Settings > Local folders.',
   "「{plugin}」尝试读取你授权的本机目录「{folder}」，但未完成（{origin}）。可在设置「本机目录」查看记录或撤回。": '"{plugin}" tried to read your authorized local folder "{folder}", but the read did not complete ({origin}). View the record or revoke access in Settings > Local folders.',
@@ -43,7 +45,7 @@ export const ASSISTANT_EN: Record<string, string> = {
   "你的个人工作助理": "Your personal work assistant",
   "说出要做的事：整理资料、起草、查询、安排后续……它会使用你已授权的能力推进，改动数据前先请你确认。": "Say what needs doing — organize material, draft, look things up, plan follow-ups. It works with the capabilities you have granted and asks you before changing any data.",
   "下一次发送给哪项工作": "Where your next message goes",
-  "让助理做点什么…": "Ask the assistant to do something…",
+  "让助理做点什么…": "Ask the assistant…",
   "发给助理": "Send to the assistant",
   "尚未开始": "Not started",
   "进行中": "In progress",
@@ -218,7 +220,7 @@ export const ASSISTANT_EN: Record<string, string> = {
   "到执行方的页面核对": "Check it on the executor's page",
   "个人工作助理，使用你已授权的能力": "Your personal assistant, using the capabilities you granted",
   "在这个项目里由它自己的 Agent 执行，补充和回答照常在这里发": "Carried out in this project by its own Agent; supplements and answers still go here",
-  "让 {name} 做点什么…": "Ask {name} to do something…",
+  "让 {name} 做点什么…": "Ask {name}…",
   "由 {name} 执行": "Carried by {name}",
   "执行方": "Executor",
   "打开 Coding": "Open Coding",
@@ -683,7 +685,6 @@ export const ASSISTANT_EN: Record<string, string> = {
   "{n} 行": "{n} {n|line|lines}",
   "展开全部 {n} 行": "Show all {n} {n|line|lines}",
   "回答后这一轮会接着做。": "Answering lets this turn go on.",
-  "写下回答，按回车发送": "Write an answer, press Enter to send",
   "允许只执行这一次；拒绝就不执行，助理会知道你拒绝了。": "Allowing runs it this once; declining means it will not run, and the assistant is told.",
   "可以执行": "Ready to run",
   "点了只读取，不改任何东西。": "Pressing it only reads; nothing changes.",
@@ -760,4 +761,11 @@ export const ASSISTANT_EN: Record<string, string> = {
   "服务里已没有这个工具": "The server no longer offers this tool",
   "自己的读写与命令，加上为这个会话选的 MCP 工具": "Its own file and command tools, plus the MCP tools chosen for this session",
   "自己的读写与命令；MCP 工具在执行方的页面里为会话选择": "Its own file and command tools; MCP tools are chosen for the session on the executor's page",
+  // The unified input in the Dock (K3).
+  "草稿没能保存；字还在，照常能发": "The draft could not be saved; your words are still here and can be sent",
+  "这项工作不收这种送达方式": "This work does not take that way of sending",
+  "原评论：{title}": "Original comment: {title}",
+  "这次发送": "This send",
+  "这次发送是回答上面的问题；改成「补充这一轮」才能选": "This send answers the question above; switch to “Add to this turn” to choose",
+  "写一句话再发": "Write something first",
 };

@@ -1,10 +1,17 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
+import { installTextForTest, parseLocalePack } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderPluginRail, renderWorkbenchBar } from "../apps/workbench/src/immersive-shell.ts";
 import { RELOAD_ON_MEMBERSHIP_IDS, builtinPluginDirectory, dockDefaultPins, extendPluginIds, pluginMarketCards } from "../apps/workbench/src/plugin-catalog.ts";
 
 // The switcher lists every plugin a project could have, once, as a tile that reads the same in both states, and each tile
 // carries the same two buttons (keep it in the Dock; add it to or remove it from the project) — specs/archive/plugin-picker-dock.
+
+// The bar's Assistant says stable keys (`t`) since K3 (unified input): the Workbench's own words, as the Host installs them when it starts.
+const workbenchWords = parseLocalePack(readFileSync(new URL("../apps/workbench/resources/locales/zh.json", import.meta.url), "utf8"));
+if (!workbenchWords.ok) throw new Error(`the Workbench's words do not read: ${JSON.stringify(workbenchWords.problems)}`);
+installTextForTest({ packs: [workbenchWords.value], locale: "zh" });
 
 const primitives = {
   L: (value: string) => value,

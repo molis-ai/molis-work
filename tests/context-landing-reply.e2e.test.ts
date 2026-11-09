@@ -36,10 +36,10 @@ test("BL-150 AC-S15: a passage selected in an Assistant reply is put at the curs
   await child.waitFor("document.querySelector('[data-pages-title]')?.value === '发布计划'");
 
   // A work whose reply has the words to put on the left.
-  await click("[data-assistant-input]");
+  await click("[data-assistant-composer] .mw-composer__input");
   await command("Input.insertText", { text: "把访谈里最要紧的一句话找出来" }, sessionId);
-  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
-  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
   await waitFor(`${reply}?.textContent.includes('离线也要能记下想法')`, 20_000);
 
   // The reply names itself by the ids the Host gave it (work, round, turn) and by the work's title; a reload gives the same.

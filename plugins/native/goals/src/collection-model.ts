@@ -17,11 +17,11 @@ type Translate = (text: string, values?: Record<string, string | number>) => str
 
 export function buildGoalCollectionModel<T extends GoalCollectionItem>(
   view: GoalCollectionView<T>, requestedGoalId: string | undefined,
-  archiveView: boolean, trashView: boolean, L: Translate,
+  archiveView: boolean, trashView: boolean, _readText: Translate,
 ) {
   const visibleGoals = trashView ? view.trashed_goals : archiveView ? view.archived_goals : view.goals;
   const collectionView = archiveView || trashView;
-  const collectionTitle = trashView ? uiText.text("goals.collection-model.trash") : archiveView ? uiText.text("goals.collection-model.archived") : L("Goal Tree");
+  const collectionTitle = trashView ? uiText.text("goals.collection-model.trash") : archiveView ? uiText.text("goals.collection-model.archived") : "Goal Tree";
   const collectionSuffix = trashView ? uiText.text("goals.collection-model.trash") : archiveView ? uiText.text("goals.collection-model.archive") : "";
   // Current Goals stay unselected until the user opens one or the Board has a real active Goal.
   // Archive and trash still land on the first item in that collection when none was requested.

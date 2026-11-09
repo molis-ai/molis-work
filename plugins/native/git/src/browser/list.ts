@@ -64,7 +64,7 @@ function paint(page: GitPage, view: View): void {
 
 /** Reads the workspace's changes and paints them, then the source-control block. */
 export async function refresh(page: GitPage): Promise<void> {
-  const { S, list, notice, reopen, history, result } = page;
+  const { list, notice, reopen, history, result } = page;
   if (!page.lifetime.visible) return;
   const epoch = ++page.generation;
   page.ticket++;
@@ -91,7 +91,7 @@ export async function refresh(page: GitPage): Promise<void> {
     await loadSource(page);
     if (!active(page, epoch)) return;
     const view = value.view;
-    notice.textContent = view.phase === "ready" ? [S(view.head), page.U(view.upstream), view.message && S(view.message)].filter(Boolean).join(" · ") : S(view.message);
+    notice.textContent = view.phase === "ready" ? [(view.head), page.U(view.upstream), view.message && (view.message)].filter(Boolean).join(" · ") : (view.message);
     paint(page, view);
     history.disabled = false;
   } catch (error) {
@@ -101,8 +101,8 @@ export async function refresh(page: GitPage): Promise<void> {
       page.selected = null;
       clearResults(page);
       history.disabled = true;
-      notice.textContent = S(messageOf(error));
-      if (!result.hidden) { page.q("[data-git-diff]").replaceChildren(); page.diffNotice.textContent = S(messageOf(error)); }
+      notice.textContent = (messageOf(error));
+      if (!result.hidden) { page.q("[data-git-diff]").replaceChildren(); page.diffNotice.textContent = (messageOf(error)); }
     }
   } finally {
     if (active(page, epoch)) reading(page, false);

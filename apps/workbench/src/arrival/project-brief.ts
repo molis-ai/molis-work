@@ -128,13 +128,13 @@ export function summarizeProjectBrief(model: ProjectBriefModel, events: readonly
 }
 
 interface ProjectBriefPrimitives {
-  L(text: string, values?: Record<string, string | number>): string;
+  readText(text: string, values?: Record<string, string | number>): string;
   escapeHtml(value: unknown): string;
   dateTimeLocale(): string;
 }
 
 /** The brief's two reading aids that depend on the clock: how long ago, and which day. */
-export function createBriefTime(primitives: Pick<ProjectBriefPrimitives, "L" | "dateTimeLocale">, nowIso: string) {
+export function createBriefTime(primitives: Pick<ProjectBriefPrimitives, "readText" | "dateTimeLocale">, nowIso: string) {
   const { dateTimeLocale } = primitives;
   const now = new Date(nowIso);
   const dayKey = (date: Date) => `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;

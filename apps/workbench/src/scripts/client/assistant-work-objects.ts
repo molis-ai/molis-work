@@ -20,7 +20,7 @@
  */
 
 /** Made once in the island's factory, with read-only views of its state: the panel, the current work's view, the strip's joined keys. */
-export const ASSISTANT_WORK_OBJECTS_FACTORY_SCRIPT = String.raw`({ api, joined, open, current, repaint, L }) => {
+export const ASSISTANT_WORK_OBJECTS_FACTORY_SCRIPT = String.raw`({ api, joined, open, current, repaint, readText }) => {
     const objectKey = (object) => object.kind + ":" + object.id;
     const belongsToWork = (object) => { const view = current(); return Boolean(view && (view.objects || []).some((item) => item.subject.kind === object.kind && item.subject.id === object.id)); };
     const holds = (object) => belongsToWork(object) || joined.has(objectKey(object));

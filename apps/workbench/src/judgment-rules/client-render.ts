@@ -1,5 +1,5 @@
 /** Functions workbench, part of FUNCTIONS_CLIENT_FACTORY_SCRIPT joined in place: the palette, the map, criteria, route, samples, preview and uses painters. */
-export const FUNCTIONS_CLIENT_RENDER_PART = `  const sourceLabel = (source) => source === "mcp" ? L("MCP") : source === "plugin" ? globalThis.t.text("workbench.client-render.plugin") : globalThis.t.text("workbench.client-render.system");
+export const FUNCTIONS_CLIENT_RENDER_PART = `  const sourceLabel = (source) => source === "mcp" ? "MCP" : source === "plugin" ? globalThis.t.text("workbench.client-render.plugin") : globalThis.t.text("workbench.client-render.system");
   const addPalette = (beh, parent) => {
     const row = document.createElement("div");
     row.className = "functions-palette-row";
@@ -9,7 +9,7 @@ export const FUNCTIONS_CLIENT_RENDER_PART = `  const sourceLabel = (source) => s
     const meta = document.createElement("small");
     const bits = [sourceLabel(beh.source)];
     if (beh.plugin_title && beh.source !== "system") bits.push(beh.plugin_title);
-    if (beh.hint) bits.push(L(beh.hint));
+    if (beh.hint) bits.push(beh.hint);
     meta.textContent = bits.join(" · ");
     body.append(title, meta);
     const effect = document.createElement("span");
@@ -174,8 +174,8 @@ export const FUNCTIONS_CLIENT_RENDER_PART = `  const sourceLabel = (source) => s
       btnEl.dataset.functionsDestination = destination.destination_id; btnEl.dataset.kind = destination.kind;
       if (destination.scene_version) btnEl.dataset.sceneVersion = String(destination.scene_version);
       if (destination.provider_id) btnEl.dataset.sceneProvider = destination.provider_id;
-      const title = document.createElement("strong"); title.textContent = L(destination.title) + (destination.scene_version ? " · v" + destination.scene_version : "");
-      const hint = document.createElement("small"); hint.textContent = destination.availability?.available === false ? L(destination.availability.reason) : L(destination.when || "");
+      const title = document.createElement("strong"); title.textContent = destination.title + (destination.scene_version ? " · v" + destination.scene_version : "");
+      const hint = document.createElement("small"); hint.textContent = destination.availability?.available === false ? destination.availability.reason : (destination.when || "");
       btnEl.append(title, hint); list.append(btnEl);
     });
     for (const kindId of kindSet) if (![...bench.querySelectorAll("[data-functions-source]")].some(node => node.dataset.functionsSource === kindId)) {
@@ -196,7 +196,7 @@ export const FUNCTIONS_CLIENT_RENDER_PART = `  const sourceLabel = (source) => s
       node.disabled = rec.status === "published" || dest?.availability?.available === false || (kind === "score" && dest && dest.kind === "event");
     });
     if (choiceOnlyHint) choiceOnlyHint.hidden = kind !== "score";
-    destinationHint.textContent = destOf(dst)?.availability?.available === false ? L(destOf(dst).availability.reason) : dst === "agent.mcp"
+    destinationHint.textContent = destOf(dst)?.availability?.available === false ? (destOf(dst).availability.reason) : dst === "agent.mcp"
       ? globalThis.t.text("workbench.client-render.returns-suggestion-agent-without-running-tools-calls-depend")
       : dst === "feed.capture" ? globalThis.t.text("workbench.client-render.after-publishing-select-function-feed-task-s-capture")
       : dst ? globalThis.t.text("workbench.client-render.results-suggest-page-actions-activate-project-after-publishing")
@@ -328,10 +328,10 @@ export const FUNCTIONS_CLIENT_RENDER_PART = `  const sourceLabel = (source) => s
         const state = own ? (active ? "workbench.client-render.enabled" : "workbench.client-render.switched-off") : aim.binding?.enabled ? "workbench.client-render.another-rule-use" : "workbench.client-render.check-not-enabled-yet";
         section.append(summary);
         const detail = document.createElement("p");
-        detail.textContent = destTitle({ scene_id: aim.scene_id, scene_version: aim.scene_version, scene_provider_id: aim.provider_id }) + " · " + L(state); section.append(detail);
+        detail.textContent = destTitle({ scene_id: aim.scene_id, scene_version: aim.scene_version, scene_provider_id: aim.provider_id }) + " · " + state; section.append(detail);
         const availability = active ? aim.configuration_availability : aim.availability;
         if (!aim.availability.available) {
-          const reason = document.createElement("p"); reason.textContent = L(aim.availability.reason); section.append(reason);
+          const reason = document.createElement("p"); reason.textContent = aim.availability.reason; section.append(reason);
         }
         const btnEl = document.createElement("button"); btnEl.type = "button"; btnEl.className = "mw-btn mw-btn--secondary";
         btnEl.textContent = globalThis.t.text(active ? "workbench.client-render.deactivate" : aim.binding && !own ? "workbench.client-render.use" : "workbench.client-render.enable-here");
@@ -348,7 +348,7 @@ export const FUNCTIONS_CLIENT_RENDER_PART = `  const sourceLabel = (source) => s
       usages.filter(row => !shown.has(targetKey(row))).forEach(row => {
         const summary = document.createElement("p"); title(summary, row);
         const state = row.availability?.available === false ? row.availability.reason : row.enabled === false ? "workbench.client-render.switched-off" : row.enabled === true ? "workbench.client-render.enabled" : "";
-        if (state) summary.append(document.createTextNode(" · " + L(state)));
+        if (state) summary.append(document.createTextNode(" · " + state));
         usagesEl.append(summary);
       });
       if (!targets.length && !usages.length) line(rec.scene_id === "agent.mcp"

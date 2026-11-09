@@ -4,8 +4,7 @@ import type { SyncDevicePreference } from '@molis-ai/molis-work-contracts/module
 /** Consent belongs to the local Host, not browser storage or the cloud policy. */
 export function createSyncConsent() {
   let checking=false,epoch=0,currentSpace='',dialog:HTMLDialogElement|null=null;
-  const L=globalThis.L||((text:string)=>text);
-  const update=async(space:string)=>{
+    const update=async(space:string)=>{
     if(space!==currentSpace){epoch++;currentSpace=space;dialog?.close();dialog?.remove();dialog=null;}
     if(space!=='account'||checking||dialog||document.hidden||document.querySelector('dialog[open]'))return;
     checking=true;const generation=epoch;
@@ -32,7 +31,7 @@ export function createSyncConsent() {
         finally{buttons.forEach(button=>button.disabled=false);}
       };
       for(const [automatic,label] of [[true,'开启自动同步'],[false,'暂不启用']] as const){
-        const button=document.createElement('button');button.type='button';button.className='mw-btn mw-btn--'+(automatic?'primary':'secondary');button.textContent=L(label);
+        const button=document.createElement('button');button.type='button';button.className='mw-btn mw-btn--'+(automatic?'primary':'secondary');button.textContent=label;
         button.addEventListener('click',()=>void choose(automatic));buttons.push(button);footer.append(button);
       }
       sheet.addEventListener('cancel',event=>{event.preventDefault();void choose(false);});

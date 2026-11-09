@@ -4,7 +4,7 @@ import { tenantPath, tenantRoleLabels, type TenantPanel } from "./account-tenant
 
 import { renderSubscriptions } from "./account-subscriptions.js";
 export async function renderTenantMembers(panel: TenantPanel, tenant: TenantView, userId: string) {
-  const { ui, begin, list, select, submit, change, load } = panel, { form, L, node, field, button, request, perform } = ui;
+  const { ui, begin, list, select, submit, change, load } = panel, { form, node, field, button, request, perform } = ui;
   const current = begin('正在读取成员…'), path = tenantPath(tenant.tenantId);
   button('返回空间选择', () => perform(load));
   if (tenant.status === 'DISABLED') { form.replaceChildren(node('p', uiText.text("workbench.account-tenant-members.tenant-disabled-contact-platform-administrator"))); button('返回空间选择', () => perform(load)); return; }
@@ -13,7 +13,7 @@ export async function renderTenantMembers(panel: TenantPanel, tenant: TenantView
   if (!current()) return;
   const [members, invitations] = await Promise.all([list<Membership>(path + '/members'), view.myRole === 'MEMBER' ? [] : list<Invitation>(path + '/invitations')]);
   if (!current()) return;
-  form.replaceChildren(node('h3', view.name), node('p', L(tenantRoleLabels[view.myRole])));
+  form.replaceChildren(node('h3', view.name), node('p', uiText.text(tenantRoleLabels[view.myRole])));
   button('返回空间选择', () => perform(load));
   button('订阅与席位', () => perform(() => renderSubscriptions(panel, view)));
   const manager = view.myRole !== 'MEMBER', owner = view.myRole === 'OWNER', active = members.filter(m => m.status === 'ACTIVE');
@@ -22,7 +22,7 @@ export async function renderTenantMembers(panel: TenantPanel, tenant: TenantView
     submit('保存租户资料', () => change(path, { name: name.value.trim(), expectedVersion: view.version }, '租户资料已保存。', true)); cancel(); });
   form.append(node('h4', uiText.text("workbench.account-tenant-members.member")));
   for (const member of active) {
-    const row = node('div', '', 'account-method'); row.append(node('strong', member.userId === userId ? uiText.text("workbench.account-tenant-members.me") : member.userId), node('p', L(tenantRoleLabels[member.role])));
+    const row = node('div', '', 'account-method'); row.append(node('strong', member.userId === userId ? uiText.text("workbench.account-tenant-members.me") : member.userId), node('p', uiText.text(tenantRoleLabels[member.role])));
     if (owner && member.role !== 'OWNER') button(member.role === 'ADMIN' ? '设为成员' : '设为管理员', () => perform(() => change(path + '/members/' + encodeURIComponent(member.membershipId) + '/role', { role: member.role === 'ADMIN' ? 'MEMBER' : 'ADMIN', expectedVersion: member.version }, '成员角色已更新。', true)), row);
     if (manager && member.userId !== userId && member.role !== 'OWNER' && (owner || member.role === 'MEMBER')) button('移除成员', () => {
       if (window.confirm(uiText.text("workbench.account-tenant-members.remove-member-release-their-seats-tenant"))) return perform(() => change(path + '/members/' + encodeURIComponent(member.membershipId) + '/remove', { expectedVersion: member.version }, '已移除成员并释放其租户席位。'));

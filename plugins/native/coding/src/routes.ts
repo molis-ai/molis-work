@@ -15,7 +15,7 @@ import { setupRoutes } from "./routes-setup.js";
 import { timelineRoutes } from "./routes-timeline.js";
 import { writersRoutes } from "./routes-writers.js";
 import type { CodingSessionStore } from "./store.js";
-import { codingZh } from "./words.js";
+import { codingText } from "./words.js";
 import { startCodingObservation } from "./observation-job.js";
 
 export { planContinuesAfterTalk } from "./routes-timeline.js";
@@ -49,7 +49,7 @@ const problemsOf = (error: unknown) => {
 const failure = (error: unknown) => {
   const code = (error as { code?: string }).code;
   return { status: isCodedFailure(error) ? actionHttpStatus(error) : 400,
-    body: { error: error instanceof Error ? error.message : codingZh("coding.server.failed"), ...(code ? { code } : {}), ...problemsOf(error) } };
+    body: { error: error instanceof Error ? error.message : codingText("coding.server.failed"), ...(code ? { code } : {}), ...problemsOf(error) } };
 };
 
 /**

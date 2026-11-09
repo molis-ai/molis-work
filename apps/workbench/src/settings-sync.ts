@@ -24,19 +24,19 @@ export const SYNC_SETTINGS_CLIENT_SCRIPT=String.raw`
     const root=scope.matches?.('[data-sync-settings]')?scope:scope.querySelector('[data-sync-settings]');
     if(!root)return;
     if(mounted.has(root)){mounted.get(root)();return;}
-    const L=globalThis.L||((text)=>text);
+    const readText=globalThis.t.text;
     const form=root.querySelector('[data-sync-form]'),fields=root.querySelector('[data-sync-fields]');
     const status=root.querySelector('[data-sync-status]'),error=root.querySelector('[data-sync-error]'),retry=root.querySelector('[data-sync-retry]');
     let state=null,busy=false,dirty=false;
     const node=(tag,cls,text)=>{const el=document.createElement(tag);el.className=cls;if(text)el.textContent=text;return el;};
     const namespace=(s)=>JSON.stringify([s.plugin_id,s.publisher_id,s.publisher_signature,s.collection_id,s.schema_version]);
     const request=(path,body,method,base='/api/sync')=>molisWorkRequest(base+path,{method:method||'GET',headers:state?.policy?.spaceId?{'x-molis-sync-space':state.policy.spaceId}:{},...(body===undefined?{}:{body}),fallback:globalThis.t.text("workbench.settings-sync.sync-temporarily-unavailable")});
-    const button=(label,run)=>{const el=node('button','mw-btn mw-btn--secondary',globalThis.t.text(label));el.type='button';el.addEventListener('click',()=>{if(!root.isConnected)return;try{Promise.resolve(run()).catch(failure=>{if(root.isConnected){error.hidden=false;error.textContent=L(failure.message);}});}catch(failure){error.hidden=false;error.textContent=L(failure.message);}});return el;};
+    const button=(label,run)=>{const el=node('button','mw-btn mw-btn--secondary',globalThis.t.text(label));el.type='button';el.addEventListener('click',()=>{if(!root.isConnected)return;try{Promise.resolve(run()).catch(failure=>{if(root.isConnected){error.hidden=false;error.textContent=failure.message;}});}catch(failure){error.hidden=false;error.textContent=failure.message;}});return el;};
     const sheet=(title,body,actions)=>{
       const spaceId=state?.policy?.spaceId;
       const dialog=node('dialog','mw-dialog mw-dialog--form'),shell=node('div','mw-form mw-dialog__shell'),header=node('header','mw-form__header');dialog.dataset.syncDialog='';
       header.append(node('h2','',globalThis.t.text(title)));const main=node('div','mw-form__body');main.append(body);const footer=node('footer','mw-form__footer'),problem=node('p','settings-form-error');problem.setAttribute('role','alert');problem.hidden=true;main.append(problem);
-      for(const [label,run] of actions)footer.append(button(label,async()=>{footer.querySelectorAll('button').forEach(el=>el.disabled=true);try{if(state?.policy?.spaceId!==spaceId)throw new Error(globalThis.t.text("workbench.settings-sync.account-has-changed-please-reopen-view"));await run();dialog.close();}catch(error){problem.textContent=L(error.message);problem.hidden=false;}finally{footer.querySelectorAll('button').forEach(el=>el.disabled=false);}}));
+      for(const [label,run] of actions)footer.append(button(label,async()=>{footer.querySelectorAll('button').forEach(el=>el.disabled=true);try{if(state?.policy?.spaceId!==spaceId)throw new Error(globalThis.t.text("workbench.settings-sync.account-has-changed-please-reopen-view"));await run();dialog.close();}catch(error){problem.textContent=error.message;problem.hidden=false;}finally{footer.querySelectorAll('button').forEach(el=>el.disabled=false);}}));
       const cancel=node('button','mw-btn mw-btn--secondary',globalThis.t.text("common.control.cancel"));cancel.type='button';cancel.addEventListener('click',()=>dialog.close());footer.append(cancel);shell.append(header,main,footer);dialog.append(shell);document.body.append(dialog);
       const observer=new MutationObserver(()=>{if(!root.isConnected)dialog.close();});observer.observe(document.body,{childList:true,subtree:true});dialog.addEventListener('close',()=>{observer.disconnect();dialog.remove();},{once:true});dialog.showModal();cancel.focus();return dialog;
     };
@@ -48,7 +48,7 @@ export const SYNC_SETTINGS_CLIENT_SCRIPT=String.raw`
         const body=comparison(view,collection);
         const choose=choice=>()=>act(()=>request(recovery?'/restore-recovery':'/resolve',{namespace:ns,key:item.key,id:item.id,choice,revision:view.revision,state:view.state},'POST'),false,true);
         sheet(recovery?"workbench.settings-sync.restore-retained-version":"workbench.settings-sync.compare-conflicting-versions",body,[['保留本机版本',choose('local')],['采用云端版本',choose('remote')]]);
-      }catch(failure){error.hidden=false;error.textContent=L(failure.message);}
+      }catch(failure){error.hidden=false;error.textContent=failure.message;}
     };
     ${SYNC_CLOUD_HISTORY_SCRIPT}
     ${SYNC_PROJECT_RECYCLE_SCRIPT}
@@ -56,7 +56,7 @@ export const SYNC_SETTINGS_CLIENT_SCRIPT=String.raw`
       if(state?.policy?.spaceId&&data.policy?.spaceId!==state.policy.spaceId)document.querySelectorAll('[data-sync-dialog]').forEach(dialog=>dialog.close());
       state=data;form.hidden=!data.available;status.classList.remove('mw-loading');
       root.querySelector('[data-sync-tools]').hidden=!data.available;root.querySelector('[data-sync-projects]').hidden=!data.available;
-      if(!data.available){status.textContent=L(data.reason);root.querySelector('[data-sync-conflicts]').replaceChildren();root.querySelector('[data-sync-history]').replaceChildren();return;}
+      if(!data.available){status.textContent=data.reason;root.querySelector('[data-sync-conflicts]').replaceChildren();root.querySelector('[data-sync-history]').replaceChildren();return;}
       root.querySelector('[data-sync-quota]').textContent=data.quota?globalThis.t.text("workbench.settings-sync.cloud-storage")+' '+(data.quota.usedBytes/1000000).toFixed(2)+' / '+(data.quota.limitBytes/1000000).toFixed(0)+' MB':'';
       root.querySelector('[data-sync-automatic]').checked=data.device.automatic===true;
       fields.replaceChildren(node('legend','',globalThis.t.text("workbench.settings-sync.content-sync")));
@@ -65,7 +65,7 @@ export const SYNC_SETTINGS_CLIENT_SCRIPT=String.raw`
         const checkbox=node('input','mw-check');checkbox.type='checkbox';checkbox.dataset.slot='checkbox';checkbox.dataset.collection=String(index);
         checkbox.checked=data.policy.selections.some(s=>namespace(s)===namespace(item.selection));
         const waiting=item.conflicts.filter(c=>c.waiting).length;
-        label.append(checkbox,node('span','',L(item.title)));row.append(label,node('span','settings-muted',globalThis.t.text("workbench.settings-sync.pending-upload")+' '+item.pending+' · '+globalThis.t.text("workbench.settings-sync.conflict")+' '+(item.conflicts.length-waiting)+(waiting?' · '+globalThis.t.text("workbench.settings-sync.waiting-linked-assets")+' '+waiting:'')));fields.append(row);
+        label.append(checkbox,node('span','',item.title));row.append(label,node('span','settings-muted',globalThis.t.text("workbench.settings-sync.pending-upload")+' '+item.pending+' · '+globalThis.t.text("workbench.settings-sync.conflict")+' '+(item.conflicts.length-waiting)+(waiting?' · '+globalThis.t.text("workbench.settings-sync.waiting-linked-assets")+' '+waiting:'')));fields.append(row);
       }
       const progress=data.progress;
       status.dataset.syncComplete=String(progress.complete);
@@ -75,7 +75,7 @@ export const SYNC_SETTINGS_CLIENT_SCRIPT=String.raw`
       if(data.lastSuccess)status.textContent+=' · '+globalThis.t.text("workbench.settings-sync.last-completed")+' '+new Date(data.lastSuccess).toLocaleString();
       const conflicts=root.querySelector('[data-sync-conflicts]');conflicts.replaceChildren();
       for(const collection of data.collections)for(const item of collection.conflicts){
-        const row=node('section','settings-section');row.append(node('h2','',globalThis.t.text(item.waiting?"workbench.settings-sync.waiting-linked-assets":"workbench.settings-sync.sync-conflict")),node('p','',L(item.reason)));
+        const row=node('section','settings-section');row.append(node('h2','',globalThis.t.text(item.waiting?"workbench.settings-sync.waiting-linked-assets":"workbench.settings-sync.sync-conflict")),node('p','',item.reason));
         const details=node('details','settings-data-disclosure');details.append(node('summary','',globalThis.t.text("workbench.settings-sync.asset-identity")),node('code','',item.key));row.append(details);
         if(item.waiting){
           const button=node('button','mw-btn mw-btn--secondary',globalThis.t.text("workbench.settings-sync.retry-sync"));button.type='button';
@@ -84,17 +84,17 @@ export const SYNC_SETTINGS_CLIENT_SCRIPT=String.raw`
         row.append(button("workbench.settings-sync.compare-versions",()=>compare(collection,item)));
         conflicts.append(row);
       }
-      for(const collection of data.collections)for(const item of collection.failures||[]){const row=node('section','settings-section');row.append(node('h2','',globalThis.t.text("workbench.settings-sync.items-needing-attention")),node('p','',L(item.reason)),node('code','',item.key),button("workbench.settings-sync.retry-item",()=>act(()=>request('/retry-item',{namespace:namespace(collection.selection),key:item.key,direction:item.direction},'POST'))));conflicts.append(row);}
+      for(const collection of data.collections)for(const item of collection.failures||[]){const row=node('section','settings-section');row.append(node('h2','',globalThis.t.text("workbench.settings-sync.items-needing-attention")),node('p','',item.reason),node('code','',item.key),button("workbench.settings-sync.retry-item",()=>act(()=>request('/retry-item',{namespace:namespace(collection.selection),key:item.key,direction:item.direction},'POST'))));conflicts.append(row);}
       const history=root.querySelector('[data-sync-history]');history.replaceChildren();
       const retained=node('details','settings-data-disclosure');retained.append(node('summary','',globalThis.t.text("workbench.settings-sync.retained-versions")));history.append(retained);
-      for(const collection of data.collections){const entry=node('div','settings-setting-row');entry.append(node('span','',L(collection.title)),button("workbench.settings-sync.cloud-history",()=>cloudHistory(collection)),button("workbench.settings-sync.local-history",async()=>{try{const response=await request('/recoveries?namespace='+encodeURIComponent(namespace(collection.selection)));const body=node('div','');if(!response.items.length)body.append(node('p','settings-muted',globalThis.t.text("workbench.settings-sync.no-retained-versions")));for(const item of response.items)body.append(node('p','',item.key),button("workbench.settings-sync.view-restore",()=>compare(collection,item,true)));sheet("workbench.settings-sync.local-history",body,[]);}catch(failure){error.hidden=false;error.textContent=L(failure.message);}}));retained.append(entry);}
-      error.hidden=!data.error;error.textContent=data.error?L(data.error):'';
+      for(const collection of data.collections){const entry=node('div','settings-setting-row');entry.append(node('span','',collection.title),button("workbench.settings-sync.cloud-history",()=>cloudHistory(collection)),button("workbench.settings-sync.local-history",async()=>{try{const response=await request('/recoveries?namespace='+encodeURIComponent(namespace(collection.selection)));const body=node('div','');if(!response.items.length)body.append(node('p','settings-muted',globalThis.t.text("workbench.settings-sync.no-retained-versions")));for(const item of response.items)body.append(node('p','',item.key),button("workbench.settings-sync.view-restore",()=>compare(collection,item,true)));sheet("workbench.settings-sync.local-history",body,[]);}catch(failure){error.hidden=false;error.textContent=failure.message;}}));retained.append(entry);}
+      error.hidden=!data.error;error.textContent=data.error?data.error:'';
     };
     const act=async(work,deviceOnly=false,propagate=false)=>{
       if(busy){if(propagate)throw new Error(globalThis.t.text("workbench.settings-sync.syncing"));return;}busy=true;error.hidden=true;retry.hidden=true;
       root.querySelectorAll('button,input').forEach(el=>el.disabled=true);
       try{const data=await work();if(!root.isConnected)return;if(deviceOnly){state.device=data.device;root.querySelector('[data-sync-automatic]').checked=data.device.automatic===true;}else{dirty=false;render(data);}}
-      catch(failure){if(root.isConnected){error.textContent=L(failure.message);error.hidden=false;retry.hidden=false;status.dataset.syncComplete='false';status.textContent=globalThis.t.text("workbench.settings-sync.sync-temporarily-unavailable");status.classList.remove('mw-loading');}if(propagate)throw failure;}
+      catch(failure){if(root.isConnected){error.textContent=failure.message;error.hidden=false;retry.hidden=false;status.dataset.syncComplete='false';status.textContent=globalThis.t.text("workbench.settings-sync.sync-temporarily-unavailable");status.classList.remove('mw-loading');}if(propagate)throw failure;}
       finally{busy=false;root.querySelectorAll('button,input').forEach(el=>el.disabled=false);}
     };
     const load=()=>{if(!dirty)void act(()=>request(''));};mounted.set(root,load);
@@ -118,7 +118,7 @@ export const SYNC_SETTINGS_CLIENT_SCRIPT=String.raw`
             row.append(button("workbench.settings-sync.restore",()=>act(()=>request('/restore-trash',{...item,operationId:crypto.randomUUID()},'POST'),false,true).then(()=>{row.remove();})),node('p','settings-muted',globalThis.t.text("workbench.settings-sync.permanent-cleanup-not-available-yet-retained-content-still")));body.append(row);}
           if(response.more){before=response.next;const more=button("workbench.settings-sync.load-more",()=>{more.remove();void load();});body.append(more);}
         };await load();
-      }catch(failure){error.hidden=false;error.textContent=L(failure.message);}
+      }catch(failure){error.hidden=false;error.textContent=failure.message;}
     });
     retry.addEventListener('click',()=>{if(dirty)form.requestSubmit();else load();});load();
     const timer=setInterval(()=>{if(!root.isConnected){clearInterval(timer);return;}if(!document.hidden&&root.getClientRects().length&&!busy&&!dirty&&!root.contains(document.activeElement))load();},5000);

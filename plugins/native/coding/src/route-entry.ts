@@ -73,7 +73,7 @@ export function codingRouteEntry(context: PluginStartContext, execution: CodingE
         const request = { ...action.toRequest(value), pathname: "", actor_id: context.actor_id! };
         const beforeWrite = check(caller, ownerCheck, action.definition.action.permissions), { api, execution } = await execute(request, beforeWrite, caller.locale);
         return handle(request, api, execution, beforeWrite);
-      }).handle(caller, input); } catch (error) { throw codingErrorIn(error, caller.locale); } } });
+      }).handle(caller, input); } catch (error) { throw codingErrorIn(error); } } });
     }
     return { route_id, async handle(request) {
       try {
@@ -85,7 +85,7 @@ export function codingRouteEntry(context: PluginStartContext, execution: CodingE
         }
         const beforeWrite = check(request.execution), { api, execution } = await execute(request, beforeWrite, request.execution?.locale);
         return { status: 200, body: await page(await handle(request, api, execution, beforeWrite), request, route_id, execution.locale) };
-      } catch (error) { return failure(codingErrorIn(error, request.execution?.locale)); }
+      } catch (error) { return failure(codingErrorIn(error)); }
     } };
   };
   /**

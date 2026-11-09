@@ -155,14 +155,14 @@ function depsChip(d: Drawing, node: StepNode) {
 
 /** When the step last moved, and who holds it: this session (its executor), a subtask, you, or no one. */
 function stepMeta(d: Drawing, node: StepNode) {
-  const L = d.ports.translate, holder = node.owner;
-  const name = !holder || holder.kind === "session" ? d.who : stepActorText(L, holder);
+  const readText = d.ports.translate, holder = node.owner;
+  const name = !holder || holder.kind === "session" ? d.who : stepActorText(readText, holder);
   const last = node.reports.at(-1);
   const meta = el("span", "", "coding-board-meta"), time = el("time", last?.at_ms !== undefined ? clock(last.at_ms) : "", "coding-board-time" + (node.reports.length ? "" : " is-empty"));
   const avatar = el("span", holder?.kind === "none" ? "" : Array.from(name)[0] ?? "", "coding-board-avatar" + (holder?.kind === "none" ? " is-unknown" : ""));
   if (holder?.kind === "none") avatar.innerHTML = svg("user");
   else avatar.style.setProperty("--board-avatar-hue", String(holder && holder.kind !== "session" ? hueOf(name) : hueOf(d.who)));
-  avatar.title = uiText.text("coding.board.holder", { holder: holder ? (holder.kind === "session" ? uiText.text("coding.board.this-session") + " · " + d.who : stepActorText(L, holder)) : d.who }) + (holder?.expired ? " · " + uiText.text("coding.board.expired") : "");
+  avatar.title = uiText.text("coding.board.holder", { holder: holder ? (holder.kind === "session" ? uiText.text("coding.board.this-session") + " · " + d.who : stepActorText(readText, holder)) : d.who }) + (holder?.expired ? " · " + uiText.text("coding.board.expired") : "");
   avatar.setAttribute("aria-label", avatar.title);
   meta.append(time, avatar);
   return meta;
@@ -256,9 +256,9 @@ function drawOffers(d: Drawing, list: HTMLElement, offers: ReturnType<typeof off
 
 /** The card of the running plan, in the conversation. */
 function drawCard(ports: ProgressPorts, card: HTMLElement, run: ProgressRun, entry: PlanEntry, board: Board, live: boolean, latest: boolean) {
-  const L = ports.translate;
+  const readText = ports.translate;
   card.replaceChildren();
-  drawHead(L, card, entry, board);
+  drawHead(readText, card, entry, board);
   // The latest round's unfinished graph stays open to change after the round ends: a blocked step is decided, a
   // step skipped or added, and "继续计划" carries on from the graph as changed.
   const editable = (live || latest) && !board.terminal, list = el("ul", "", "coding-board-tree coding-board--compact coding-plan-steps");

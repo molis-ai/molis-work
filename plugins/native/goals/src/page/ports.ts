@@ -38,7 +38,7 @@ export type MountSurface = (contributionId: string, surface: string, model: unkn
  */
 export interface GoalsPagePorts<TView> {
   mount: MountSurface;
-  L: GoalsTranslate;
+  readText: GoalsTranslate;
   /** The words of Goals itself (its Manifest dictionary), for what Goals draws. */
   goalsL: GoalsTranslate;
   currentLocale: () => "zh" | "en";
@@ -50,7 +50,6 @@ export interface GoalsPagePorts<TView> {
   renderReference: (value: string, label?: string) => string;
   /** The kinds a Goal's inputs offer to make new, from the plugins the page shows. */
   creatableKinds: (view: TView) => readonly GoalInputsCreatableKind[];
-  inPluginWords: <T>(pluginId: string, run: (translate: GoalsTranslate) => T) => T;
   renderTerminalPane: (model: GoalsTerminalPaneModel) => string;
   renderHint: (options: GoalsHintOptions) => string;
 }

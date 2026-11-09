@@ -6,7 +6,7 @@ import { settingRow } from "./settings-row.js";
 import type { SettingsRenderPrimitives } from "./settings-renderer.js";
 import type { MolisWorkSettingsView, WebPeriodicTask } from "./settings-view.js";
 
-type DiagnosticsPrimitives = Pick<SettingsRenderPrimitives, "L" | "escapeHtml" | "icon" | "withDesktopQuery">;
+type DiagnosticsPrimitives = Pick<SettingsRenderPrimitives, "readText" | "escapeHtml" | "icon" | "withDesktopQuery">;
 
 /** Where a row's project is, and the way to the call history of that project; a project deleted since has none to open. */
 function callPlace(row: CallRowView, view: MolisWorkSettingsView, p: DiagnosticsPrimitives, desktopShell: boolean): { label: string; href?: string } {
@@ -50,21 +50,21 @@ function renderCallLookup(view: MolisWorkSettingsView, p: DiagnosticsPrimitives,
 /** What the server does on a timer: how often, when it last finished, and the error of a run that failed. */
 function renderPeriodicTasks(tasks: readonly WebPeriodicTask[] | undefined, p: DiagnosticsPrimitives): string {
   if (!tasks?.length) return "";
-  const { L, escapeHtml } = p;
+  const { escapeHtml } = p;
   const every = (ms: number) => ms === 3_600_000 ? uiText.text("workbench.settings-call-diagnostics.hourly") : ms % 3_600_000 === 0 ? uiText.text("workbench.settings-call-diagnostics.every-count-count", { count: ms / 3_600_000 })
     : ms === 60_000 ? uiText.text("workbench.settings-call-diagnostics.every-minute") : ms % 60_000 === 0 ? uiText.text("workbench.settings-call-diagnostics.every-count-count-2", { count: ms / 60_000 }) : uiText.text("workbench.settings-call-diagnostics.every-count-count-3", { count: Math.round(ms / 1000) });
   const rows = tasks.map(task => {
     const last = task.running ? uiText.text("workbench.settings-call-diagnostics.running-now") : task.last_finished_at ? uiText.text("workbench.settings-call-diagnostics.last-time", { time: new Date(task.last_finished_at).toTimeString().slice(0, 5) }) : uiText.text("workbench.settings-call-diagnostics.not-run-yet");
     const state = task.last_error ? { tone: "danger", label: uiText.text("workbench.settings-call-diagnostics.last-run-failed") } : task.runs ? { tone: "success", label: uiText.text("workbench.settings-call-diagnostics.ok") } : { tone: "neutral", label: uiText.text("workbench.settings-call-diagnostics.waiting") };
     const description = [every(task.interval_ms), last].join(" · ") + (task.last_error ? `<br>${escapeHtml(task.last_error)}` : "");
-    return settingRow(escapeHtml(L(task.title)), description, `<span class="settings-state settings-state--${state.tone}">${state.label}</span>`);
+    return settingRow(escapeHtml(task.title), description, `<span class="settings-state settings-state--${state.tone}">${state.label}</span>`);
   }).join("");
   return `<section class="settings-section" aria-labelledby="periodic-tasks-title" data-periodic-tasks><h2 id="periodic-tasks-title">${uiText("workbench.settings-call-diagnostics.background-job")}</h2><p>${uiText("workbench.settings-call-diagnostics.what-service-does-timer-when-last-run-still")}</p>${rows}</section>`;
 }
 
 /** The diagnostics page: how to find a call by its 诊断编号, then the installation, the registries, the launchers and the resident service. */
 export function renderDiagnosticsSettings(view: MolisWorkSettingsView, p: DiagnosticsPrimitives, desktopShell: boolean): string {
-  const { L, escapeHtml, icon } = p;
+  const { readText, escapeHtml, icon } = p;
   const diagnostics = view.diagnostics;
   const service = view.web_service;
   const installation = diagnostics.installation_state === "ready"
@@ -87,7 +87,7 @@ export function renderDiagnosticsSettings(view: MolisWorkSettingsView, p: Diagno
           ? [["install", uiText.text("workbench.settings-call-diagnostics.repair-persistent-service")]]
         : [];
   const serviceButtons = serviceActions.map(([action, label]) => `<button class="mw-btn mw-btn--secondary" type="button" data-web-service-action="${action}">${label}</button>`).join("");
-  const serviceMessage = service.message ? escapeHtml(L(service.message)) : "";
+  const serviceMessage = service.message ? escapeHtml(service.message) : "";
   return `<section class="settings-document" aria-labelledby="settings-title">
     <header class="settings-heading"><div class="settings-heading-title"><h1 id="settings-title">${uiText("workbench.settings-call-diagnostics.diagnostics")}</h1>${renderHint({ id: "settings-hint-diagnostics", label: uiText.text("workbench.settings-call-diagnostics.how-applies"), html: `${escapeHtml(uiText.text("workbench.settings-call-diagnostics.if-install-incomplete-run-again-terminal"))}<code>molis-work install</code>${escapeHtml(uiText.text("workbench.settings-call-diagnostics.persistent-service-actions-show-preview-ask-confirmation-they"))}` })}</div><p>${uiText("workbench.settings-call-diagnostics.only-reads-molis-work-s-own-installation-state")}</p></header>
     ${renderCallLookup(view, p, desktopShell)}
@@ -100,7 +100,7 @@ export function renderDiagnosticsSettings(view: MolisWorkSettingsView, p: Diagno
     <section class="settings-section" aria-label="${uiText("workbench.settings-call-diagnostics.prompt-character-registry")}">
       ${settingRow(uiText.text("workbench.settings-call-diagnostics.prompt-character-registry"), uiText.text("workbench.settings-call-diagnostics.see-what-each-source-registered-what-not-effect"), `<a class="mw-btn mw-btn--secondary mw-btn--sm" href="/settings/prompts#diagnostics">${uiText("workbench.settings-call-diagnostics.developer-diagnostics")}</a>`)}
     </section>
-    ${renderAgentDiagnostics({ L })}
+    ${renderAgentDiagnostics({ readText })}
     ${renderPeriodicTasks(view.periodic_tasks, p)}
     <section class="settings-section" aria-labelledby="launcher-title"><h2 id="launcher-title">${uiText("workbench.settings-call-diagnostics.launchers")}</h2>${launchers}</section>
     <section class="settings-section settings-project-maintenance" aria-labelledby="web-service-title">

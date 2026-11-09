@@ -71,7 +71,7 @@ export const SIDE_COMPUTER_SCRIPT = String.raw`(() => {
   if(document.body.hasAttribute('data-pane-embedded'))return;
   const root=document.querySelector('[data-computer]');
   if(!root)return;
-  const L=globalThis.L||((text)=>text);
+  const readText=globalThis.t.text;
   const $=(selector)=>root.querySelector(selector);
   const view=$('[data-computer-view]'),canvas=$('[data-computer-canvas]'),cover=$('[data-computer-cover]'),marker=$('[data-computer-marker]');
   const strip=$('[data-computer-strip]'),appEl=$('[data-computer-app]'),activityEl=$('[data-computer-activity]'),controls=root.querySelectorAll('[data-computer-action]');
@@ -128,9 +128,9 @@ export const SIDE_COMPUTER_SCRIPT = String.raw`(() => {
       const names={accessibility:globalThis.t.text("workbench.side-panel-computer.accessibility"),screen_recording:globalThis.t.text("workbench.side-panel-computer.screen-recording"),input_monitoring:globalThis.t.text("workbench.side-panel-computer.input-monitoring")};
       statusHtml=box("workbench.side-panel-computer.system-permissions-needed",globalThis.t.text("workbench.side-panel-computer.system-settings-privacy-security-turn-these-molis-work"))+missing.map(k=>'<div class="side-computer-perm"><span>'+esc(names[k]||k)+'</span><button type="button" data-computer-grant="'+esc(k)+'" class="primary">'+esc(globalThis.t.text("workbench.side-panel-computer.grant"))+'</button></div>').join('');
     }else if(problem){
-      statusHtml=box("workbench.side-panel-computer.computer-helper-unavailable-right-now",L(problem.message));
+      statusHtml=box("workbench.side-panel-computer.computer-helper-unavailable-right-now",problem.message);
     }else if(state.presence?.locked||state.presence?.away){
-      statusHtml='<p>'+esc(state.presence.reason?globalThis.t.text("workbench.side-panel-computer.reason-assistant-not-using-computer-right-now",{reason:L(state.presence.reason)}):globalThis.t.text("workbench.side-panel-computer.assistant-not-using-computer-right-now"))+'</p>';
+      statusHtml='<p>'+esc(state.presence.reason?globalThis.t.text("workbench.side-panel-computer.reason-assistant-not-using-computer-right-now",{reason:state.presence.reason}):globalThis.t.text("workbench.side-panel-computer.assistant-not-using-computer-right-now"))+'</p>';
     }
     statusBox.innerHTML=statusHtml;statusBox.hidden=!statusHtml;
     // The doing strip and controls.
@@ -201,14 +201,14 @@ export const SIDE_COMPUTER_SCRIPT = String.raw`(() => {
       const result=await env.request(env.routePrefix+'/api/computer/records/'+encodeURIComponent(id));
       const record=result.record;if(!record)throw new Error(globalThis.t.text("workbench.side-panel-computer.could-not-add-shelf"));
       const outcome=record.outcome==='completed'?globalThis.t.text("common.control.done"):record.outcome==='failed'?globalThis.t.text("workbench.side-panel-computer.failed"):record.outcome==='stopped'?globalThis.t.text("workbench.side-panel-computer.stopped"):globalThis.t.text("workbench.side-panel-computer.progress");
-      const lines=[record.goal?globalThis.t.text("workbench.side-panel-computer.goal-goal",{goal:record.goal}):'',globalThis.t.text("workbench.side-panel-computer.result-outcome",{outcome}),record.conclusion?env.L(record.conclusion):'',
+      const lines=[record.goal?globalThis.t.text("workbench.side-panel-computer.goal-goal",{goal:record.goal}):'',globalThis.t.text("workbench.side-panel-computer.result-outcome",{outcome}),record.conclusion?record.conclusion:'',
         '',globalThis.t.text("workbench.side-panel-computer.steps-n",{n:record.steps.length}),...record.steps.slice(-40).map(step=>'- '+(step.app?('『'+step.app.name+'』'):'')+step.summary)].filter(Boolean);
       const title=(record.goal?record.goal.slice(0,40):globalThis.t.text("workbench.side-panel-computer.computer-operation"))+'（'+new Date(record.started_at).toLocaleString()+'）';
       await env.request(env.routePrefix+'/api/computer/records/'+encodeURIComponent(id)+'/shelf',{body:{title,text:lines.join('\n')},fallback:globalThis.t.text("workbench.side-panel-computer.could-not-add-shelf")});
       env.say(globalThis.t.text("workbench.side-panel-computer.added-shelf"));
     }catch(error){env.sayError(error,globalThis.t.text("workbench.side-panel-computer.could-not-add-shelf"));}
   };
-  const putOnShelf=()=>putComputerRecordOnShelf({request:molisWorkRequest,routePrefix,say,sayError,L,state});
+  const putOnShelf=()=>putComputerRecordOnShelf({request:molisWorkRequest,routePrefix,say,sayError,readText,state});
   root.addEventListener('click',event=>{
     const review=event.target.closest('[data-computer-review]');
     if(review){if(review.dataset.computerReview==='approve')decide('approve');else if(review.dataset.computerReview==='approve-round')decide('approve','app-this-round');else decide('reject');return;}

@@ -1,6 +1,6 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { announceAppearance, prepareAppearance, readDocumentAppearance, setAppearanceScope, withDocumentDevice, type AppearanceProjection } from "../appearance-view.js";
-import type { FrameScope, Translate } from "./types.js";
+import type { FrameScope } from "./types.js";
 
 function projectedAppearance(): AppearanceProjection | undefined {
   const current = readDocumentAppearance();
@@ -46,7 +46,7 @@ export function frameEnvironment(port: MessagePort, scope: FrameScope, root: HTM
 }
 
 /** An opaque child reads the parent's bound projection. It keeps its own last successfully rendered scope. */
-export function frameAppearance(origin: string, initial: AppearanceProjection | undefined, scope: FrameScope, _translate: Translate) {
+export function frameAppearance(origin: string, initial: AppearanceProjection | undefined, scope: FrameScope) {
   let desired = initial, displayed = initial;
   let verified = initial?.stylesheet ? "" : initial?.snapshot.revision;
   let preparing: string | undefined, generation = 0;

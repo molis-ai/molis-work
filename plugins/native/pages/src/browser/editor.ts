@@ -24,7 +24,7 @@ export function remember(page: PagesPage, record: PagesRecord, redraw?: boolean)
 }
 
 function ensureEditor(page: PagesPage, body: unknown) {
-  const { Editor, editorHost, L } = page;
+  const { Editor, editorHost, readText } = page;
   if (!editorHost) throw new Error(uiText.text("pages.error.editor-missing"));
   if (page.editor) {
     Editor.setDoc(page.editor, body);
@@ -38,7 +38,7 @@ function ensureEditor(page: PagesPage, body: unknown) {
     onTools: () => { publishTools(page); page.landing.report(); },
     onScreen: () => reportFocus(page),
     openPanel: (panel) => Boolean(page.focusShown || !panel.node) && sendPanel(page, panel),
-    translate: L,
+    translate: readText,
     pages: () => page.records.map((item) => ({ id: item.id, title: item.title })),
     onOpenPage: (id) => {
       const record = page.records.find((item) => item.id === id);

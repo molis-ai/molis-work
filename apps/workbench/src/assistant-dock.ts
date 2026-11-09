@@ -9,7 +9,7 @@ const ASSISTANT_GLYPHS: readonly PluginIconName[] = ["file", "note", "image", "z
  * The resident Assistant: its panel of works and the composer, which at rest is only the input, “+” and send. Where to
  * go lives at the bar's left and search in the project menu (and ⌘K); the project list uses the same composer.
  */
-export function renderAssistantDock(primitives: { L(value: string): string; icon(name: PluginIconName): string }): string {
+export function renderAssistantDock(primitives: { readText(value: string): string; icon(name: PluginIconName): string }): string {
   const { icon } = primitives;
   return `<div class="bar-center" data-assistant-island data-system-view-owner="assistant">
       <section class="assistant-panel" data-assistant-panel aria-label="${uiText("workbench.assistant-dock.assistant")}" hidden>

@@ -6,7 +6,7 @@ export const FUNCTIONS_SYSTEM_CLIENT_SCRIPT = `(() => {
   const bind = (root, page) => {
     const project = page.address().searchParams.get("project");
     const api = project ? (path, method, body) => molisWorkRequest("/projects/" + encodeURIComponent(project) + path, {method, body, fallback: globalThis.t.text("workbench.bootstrap.request-failed")}) : null;
-    (${FUNCTIONS_CLIENT_FACTORY_SCRIPT})({ translate: L, api, root, page });
+    (${FUNCTIONS_CLIENT_FACTORY_SCRIPT})({ translate: readText, api, root, page });
   };
   globalThis.molisWorkBindFunctionsRules = bind;
   bind(document, { address: () => new URL(location.href), replace: (next) => history.replaceState(null, "", next) });

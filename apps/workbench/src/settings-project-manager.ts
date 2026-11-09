@@ -4,10 +4,10 @@ import { createProjectSettingsFolds } from "./project-settings-folds.js";
 import type { SettingsRenderPrimitives } from "./settings-renderer.js";
 import type { MolisWorkSettingsView, WebSettingsProject } from "./settings-view.js";
 
-type ProjectManagerPrimitives = Pick<SettingsRenderPrimitives, "L" | "escapeHtml" | "icon" | "withDesktopQuery">;
+type ProjectManagerPrimitives = Pick<SettingsRenderPrimitives, "readText" | "escapeHtml" | "icon" | "withDesktopQuery">;
 type ProjectFolds = ReturnType<typeof createProjectSettingsFolds>;
 
-function projectKindShort(project: WebSettingsProject, _L: ProjectManagerPrimitives["L"]): string {
+function projectKindShort(project: WebSettingsProject, _L: ProjectManagerPrimitives["readText"]): string {
   if (project.data_class === "regenerable_demo") return uiText.text("workbench.settings-project-manager.demo-data");
   return uiText.text("workbench.settings-project-manager.local-project");
 }
@@ -26,14 +26,14 @@ function renderProjectDetail(project: WebSettingsProject, selected: boolean, des
 }
 
 export function renderProjectSettings(view: MolisWorkSettingsView, desktopShell: boolean, primitives: ProjectManagerPrimitives): string {
-  const { L, escapeHtml, icon, withDesktopQuery } = primitives;
-  const folds = createProjectSettingsFolds({ L, escapeHtml, icon, withDesktopQuery });
+  const { readText, escapeHtml, icon, withDesktopQuery } = primitives;
+  const folds = createProjectSettingsFolds({ readText, escapeHtml, icon, withDesktopQuery });
   const demo = view.projects.find((project) => project.data_class === "regenerable_demo");
   const selectedId = view.projects[0]?.project_id ?? "create";
   const rows = view.projects.map((project) => {
     const safe = escapeHtml(project.project_id);
     const checked = project.project_id === selectedId ? " checked" : "";
-    return `<label class="project-manager-row" data-project-row="${safe}"><input type="radio" name="project-focus" value="${safe}"${checked}><span><strong>${escapeHtml(project.display_name)}</strong><small>${projectKindShort(project, L)}</small></span></label>`;
+    return `<label class="project-manager-row" data-project-row="${safe}"><input type="radio" name="project-focus" value="${safe}"${checked}><span><strong>${escapeHtml(project.display_name)}</strong><small>${projectKindShort(project, readText)}</small></span></label>`;
   }).join("");
   const createChecked = selectedId === "create" ? " checked" : "";
   const details = view.projects.map((project) => renderProjectDetail(project, project.project_id === selectedId, desktopShell, primitives, folds)).join("");

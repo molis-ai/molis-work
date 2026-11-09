@@ -20,7 +20,7 @@ function goalSections(_page: Page, goal: Choice["snapshot"]["goal"]): [string, s
 
 /** The goal version a session's next round is fixed to, as the dialog previews it. */
 export function renderGoalPreview(page: Page) {
-  const { L, q } = page, { s } = page;
+  const { readText, q } = page, { s } = page;
   const region = q("[data-coding-goal-preview]");
   region.replaceChildren();
   const choice = s.goalChoice;
@@ -30,7 +30,7 @@ export function renderGoalPreview(page: Page) {
   }
   const goal = choice.snapshot.goal;
   region.append(el("h3", goal.title), el("p", choice.snapshot.state.agreement.outcome || goal.outcome),
-    el("p", codingGoalVersionLabel({ agreement_version: choice.snapshot.state.agreement.version }, L)));
+    el("p", codingGoalVersionLabel({ agreement_version: choice.snapshot.state.agreement.version }, readText)));
   const sections = goalSections(page, goal);
   for (const [title, value] of sections.filter(item => item[1])) {
     const content = el("p", value);

@@ -6,9 +6,9 @@ import type { SettingsRenderPrimitives } from "./settings-renderer.js";
 import { settingRow } from "./settings-row.js";
 import type { MolisWorkSettingsView } from "./settings-view.js";
 
-type RuntimePrimitives = Pick<SettingsRenderPrimitives, "L" | "escapeHtml" | "icon">;
+type RuntimePrimitives = Pick<SettingsRenderPrimitives, "readText" | "escapeHtml" | "icon">;
 
-function runtimeStatePresentation(state: RuntimeIntegrationDetection["connection_state"], _L: RuntimePrimitives["L"]): {
+function runtimeStatePresentation(state: RuntimeIntegrationDetection["connection_state"], _L: RuntimePrimitives["readText"]): {
   label: string;
   tone: "neutral" | "success" | "warning" | "danger";
   description: string;
@@ -22,9 +22,9 @@ function runtimeStatePresentation(state: RuntimeIntegrationDetection["connection
 }
 
 export function renderRuntimeSettings(view: MolisWorkSettingsView, primitives: RuntimePrimitives): string {
-  const { L, escapeHtml, icon } = primitives;
+  const { readText, escapeHtml, icon } = primitives;
   const rows = view.runtimes.map((runtime) => {
-    const state = runtimeStatePresentation(runtime.connection_state, L);
+    const state = runtimeStatePresentation(runtime.connection_state, readText);
     const unavailable = runtime.connection_state === "not_detected" || runtime.connection_state === "molis_work_unavailable";
     const action = runtime.connection_state === "connected" ? "remove" : "connect";
     const actionLabel = action === "remove" ? uiText.text("workbench.settings-runtimes.preview-removal") : runtime.connection_state === "needs_repair" ? uiText.text("workbench.settings-runtimes.preview-repair") : uiText.text("workbench.settings-runtimes.review-connect");
@@ -40,9 +40,9 @@ export function renderRuntimeSettings(view: MolisWorkSettingsView, primitives: R
 }
 
 export function renderMcpSettings(view: MolisWorkSettingsView, desktopShell: boolean, primitives: SettingsRenderPrimitives): string {
-  const { L, settingsContextHref } = primitives;
+  const { settingsContextHref } = primitives;
   return `<section class="settings-document" aria-labelledby="settings-title" data-mcp-settings>
-    <header class="settings-heading"><div class="settings-heading-title"><h1 id="settings-title">${L(view.capabilities ? "workbench.settings-runtimes.external-access" : "MCP")}</h1>${renderHint({ id: "settings-hint-mcp", label: uiText.text("workbench.settings-runtimes.how-applies"), text: uiText.text("workbench.settings-runtimes.grants-control-which-capabilities-client-can-discover-call") })}</div><p>${uiText("workbench.settings-runtimes.select-client-choose-what-can-read-do")}</p><p><a href="${settingsContextHref("/settings/runtimes", view.context_project ?? null, desktopShell)}">${uiText("workbench.settings-runtimes.connect-external-ai-tools")}</a></p></header>
+    <header class="settings-heading"><div class="settings-heading-title"><h1 id="settings-title">${(view.capabilities ? "workbench.settings-runtimes.external-access" : "MCP")}</h1>${renderHint({ id: "settings-hint-mcp", label: uiText.text("workbench.settings-runtimes.how-applies"), text: uiText.text("workbench.settings-runtimes.grants-control-which-capabilities-client-can-discover-call") })}</div><p>${uiText("workbench.settings-runtimes.select-client-choose-what-can-read-do")}</p><p><a href="${settingsContextHref("/settings/runtimes", view.context_project ?? null, desktopShell)}">${uiText("workbench.settings-runtimes.connect-external-ai-tools")}</a></p></header>
     ${view.mcp_access ? renderMcpAccess(view.mcp_access, view.projects, desktopShell, primitives) : ""}
     <p class="settings-form-error" data-mcp-settings-error role="alert" hidden></p>
   </section>`;

@@ -2,7 +2,7 @@ import { GOALS_MOMENTUM_VIEWPORT_FACTORY_SCRIPT } from "./momentum-viewport-clie
 
 /** Goals owns graph data/geometry. Workbench retains selected document and terminal ownership. */
 export const GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT = `(host) => {
-    const { workspace, documentCollection, route, getSelected, translate: L, queueSave, setWorkspaceMode, selectGoal } = host;
+    const { workspace, documentCollection, route, getSelected, translate: readText, queueSave, setWorkspaceMode, selectGoal } = host;
     const shell = workspace.querySelector("[data-goal-canvas-shell]");
     const frame = workspace.querySelector("[data-goal-node-workspace]");
     const graphElement = () => workspace.querySelector("[data-goal-momentum]");

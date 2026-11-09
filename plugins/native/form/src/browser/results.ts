@@ -50,15 +50,15 @@ const questionStat = (_L: Translate, question: FormQuestion, index: number, subm
 
 /** Each question at a glance, under a line that says where the answers came from. */
 const renderStats = (page: FormPage, questions: readonly FormQuestion[], submissions: readonly FormSubmissionRecord[]) => {
-  const { L, statsEl } = page;
+  const { readText, statsEl } = page;
   statsEl.replaceChildren();
   if (!submissions.length) return;
   const sources: Record<string, number> = {};
   submissions.forEach((submission) => { const key = submission.source || "preview"; sources[key] = (sources[key] || 0) + 1; });
   const origin = make("p", "form-stats-origin");
-  origin.textContent = Object.entries(sources).map(([key, count]) => sourceLabel(L, key) + " " + count).join(" · ");
+  origin.textContent = Object.entries(sources).map(([key, count]) => sourceLabel(readText, key) + " " + count).join(" · ");
   statsEl.append(origin);
-  questions.forEach((question, index) => statsEl.append(questionStat(L, question, index, submissions)));
+  questions.forEach((question, index) => statsEl.append(questionStat(readText, question, index, submissions)));
 };
 
 const submissionCard = (_L: Translate, submission: FormSubmissionRecord, index: number) => {
@@ -80,7 +80,7 @@ const submissionCard = (_L: Translate, submission: FormSubmissionRecord, index: 
 };
 
 export const loadResults = async (page: FormPage) => {
-  const { L, sel, summaryEl, resultListEl } = page;
+  const { readText, sel, summaryEl, resultListEl } = page;
   if (!sel) return;
   const id = sel.id;
   const seq = ++page.resultsSeq;
@@ -94,7 +94,7 @@ export const loadResults = async (page: FormPage) => {
   const count = payload.analysis?.submission_count || 0;
   summaryEl.textContent = count ? uiText.text("form.result.count", { count }) : uiText.text("form.result.none");
   resultListEl.replaceChildren();
-  (payload.submissions || []).forEach((submission, index) => resultListEl.append(submissionCard(L, submission, index)));
+  (payload.submissions || []).forEach((submission, index) => resultListEl.append(submissionCard(readText, submission, index)));
   renderStats(page, current.questions || [], payload.submissions || []);
 };
 

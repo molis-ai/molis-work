@@ -178,7 +178,7 @@ const GOALS_RELATION_SUBMIT_SCRIPT = `      const relationForm = submittedForm.c
 `;
 
 export const GOALS_RELATION_CLIENT_FACTORY_SCRIPT = `(host) => {
-    const { form, currentLocale, route, translate: L,
+    const { form, currentLocale, route, translate: readText,
       refreshBoard, requireFormFacts, requireDecisionText, showFactorReceipt, humanDecisionError } = host;
     // A write the Host never answered: the person's input is still in the form.
     const unreachable = (error) => error instanceof TypeError || error?.code === "ui_host.outcome_unknown";

@@ -20,7 +20,7 @@ const fixedCell = (_L: Translate, record: FormRecord) => {
 const artifactLabel = (_L: Translate, record: FormRecord | null) => record?.publication_pending ? uiText.text("form.fixed.resume") : record && record.artifact_version > 0 ? uiText.text("form.fixed.again") : uiText.text("form.fixed.save");
 
 const listRow = (page: FormPage, record: FormRecord) => {
-  const { L, sel } = page;
+  const { readText, sel } = page;
   const item = make("article", "feed-stage-item creative-artifact-row");
   const row = document.createElement("button");
   row.type = "button";
@@ -40,7 +40,7 @@ const listRow = (page: FormPage, record: FormRecord) => {
     textCell("plugin-stage-fact", uiText.text("form.list.question-count", { count: (record.questions || []).length })),
     textCell("plugin-stage-meta", firstLine(record.description, whenOf(record.updated_at))),
     status,
-    fixedCell(L, record),
+    fixedCell(readText, record),
   );
   item.append(row);
   return item;
@@ -53,7 +53,7 @@ const renderList = (page: FormPage) => {
   page.rowsEl.replaceChildren();
   page.records.forEach((record) => page.rowsEl.append(listRow(page, record)));
   const bar = page.one("[data-form-artifact-bar]");
-  if (bar) bar.textContent = artifactLabel(page.L, page.sel);
+  if (bar) bar.textContent = artifactLabel(page.readText, page.sel);
   if (page.list) page.list.scrollTop = top;
 };
 

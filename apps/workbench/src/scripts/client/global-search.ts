@@ -28,7 +28,7 @@ export function takeSearchHits(
 }
 
 export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
-  const { translate: L, setMobileView, noteSearchActivity, openTabItem, openPlugin, openPluginRecord, expandDirectory, askAssistant, route, headers, projectId, itemTabs: ITEM_TABS } = host;
+  const { translate: readText, setMobileView, noteSearchActivity, openTabItem, openPlugin, openPluginRecord, expandDirectory, askAssistant, route, headers, projectId, itemTabs: ITEM_TABS } = host;
   const dialog = document.querySelector("[data-global-search-dialog]");
   const form = document.querySelector("[data-global-search-form]");
   const input = document.querySelector("[data-global-search]");

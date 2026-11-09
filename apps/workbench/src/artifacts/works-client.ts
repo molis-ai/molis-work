@@ -1,7 +1,7 @@
 /**
  * 「被谁引用」's Assistant works in a 成果 version's detail (specs/artifact-positioning 五.1): the works that started from this
  * version, took it as material or produced it, read from the Assistant once the detail shows. Each opens in the Assistant.
- * Runs inside the workbench's 成果 client and shares its `route`, `L` and `detail`.
+ * Runs inside the workbench's 成果 client and shares its `route`, `readText` and `detail`.
  */
 export const ARTIFACT_WORKS_CLIENT_SCRIPT = String.raw`
   const WORK_RELATIONS = { origin: globalThis.t.text("workbench.works-client.started-version"), material: globalThis.t.text("workbench.works-client.material"), result: globalThis.t.text("workbench.works-client.work-result") };

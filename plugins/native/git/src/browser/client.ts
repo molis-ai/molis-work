@@ -1,5 +1,4 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
-import type { GitSentenceTable } from "../say.js";
 import { installDiff } from "./diff.js";
 import { refresh } from "./list.js";
 import { createPage, reading } from "./page.js";
@@ -8,8 +7,8 @@ import { afterDecision, installSource } from "./source.js";
 import type { GitBrowser, GitHost } from "./types.js";
 
 /** Reads through the plugin's declared routes; no Git process or approval lives in the browser. */
-export function gitClient(host: GitHost, sentences: GitSentenceTable): GitBrowser | null {
-  const page = createPage(host, sentences);
+export function gitClient(host: GitHost): GitBrowser | null {
+  const page = createPage(host);
   if (!page) return null;
   const { lifetime, refreshButton, notice, result, list } = page;
   installResults(page);

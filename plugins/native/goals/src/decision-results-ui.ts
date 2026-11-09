@@ -15,8 +15,8 @@ export const goalsDecisionResultsUiContribution: UiContribution<GoalsDecisionRes
     surfaces: [{ surface_id: "recent", target_slot_id: "workbench.main", format: "declarative-html" }], slots: [] },
   render({ surface, model }) {
     if (surface !== "recent") throw new Error("Unknown decision results surface");
-    const { translate: L, escapeHtml, icon, formatDate } = model.primitives;
-    const { recentDecisionResults } = createGoalsDecisionResults(L);
+    const { translate: readText, escapeHtml, icon, formatDate } = model.primitives;
+    const { recentDecisionResults } = createGoalsDecisionResults(readText);
 function renderRecentDecisionResults(view: GoalsDecisionView): string {
   const results = recentDecisionResults(view);
   if (!results.length) return "";

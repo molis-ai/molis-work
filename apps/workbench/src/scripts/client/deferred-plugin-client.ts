@@ -5,7 +5,7 @@ import { deferredSurfaceClients } from "../../plugin-workbench.js";
  * the owner loads the shared frame bridge and never executes a plugin bundle.
  */
 export const DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT = `(host) => {
-  const { translate: L } = host;
+  const { translate: readText } = host;
   const failure = () => globalThis.t.text("workbench.deferred-plugin-client.could-not-load-view-retry");
   const packs = ${JSON.stringify(deferredSurfaceClients().map(({ id, plugin_id, bundle, assets, searchRow, recordRow }) => [id, plugin_id, bundle, assets, searchRow, recordRow]))}.map(([id, plugin_id, bundle, assets, searchRow, recordRow]) => ({ id, plugin_id, bundle, assets, searchRow, recordRow }));
   const scripts = new Map(), mounting = new WeakMap(), selections = new WeakMap();

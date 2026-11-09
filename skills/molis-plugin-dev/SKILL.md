@@ -24,7 +24,7 @@ description: The single standard for building Molis Work plugins, hand-written o
 | 生成插件的代码怎么写 | [generated-code.md](generated-code.md) |
 | 字段词典 | [elements.md](elements.md) |
 | 画面、槽、客户端 | [ui.md](ui.md) |
-| 界面文字、语言文件、颜色和字体变量；给模型的内容用哪种语言 | [text-and-appearance.md](text-and-appearance.md)（今天能做什么、哪些第 16 批起） |
+| 界面文字、语言文件、颜色和字体变量；给模型的内容用哪种语言 | [text-and-appearance.md](text-and-appearance.md)（同一套语言文件和 SDK） |
 | 接到本仓库产品 | [host.md](host.md) |
 | SDK / CLI / 存储 / 测试 | [authoring.md](authoring.md) |
 | 个人空间同步集合、快照试点与后续增量边界 | [sync.md](sync.md) |

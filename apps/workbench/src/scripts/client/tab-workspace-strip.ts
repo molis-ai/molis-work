@@ -26,7 +26,7 @@ export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth
     });
     return group;
   };
-  const tabLabel = (tab) => tab.kind === "plugin" ? L(ops.pluginTitle(tab.plugin)) : tab.title;
+  const tabLabel = (tab) => tab.kind === "plugin" ? ops.pluginTitle(tab.plugin) : tab.title;
   const tabIcon = (plugin) => PLUGIN_TAB_ICON[plugin] || "frame";
   const iconMarkup = (plugin) => '<svg class="tab-item-icon" aria-hidden="true"><use href="#icon-' + tabIcon(plugin) + '"></use></svg>';
   const appendTab = (parent, pane, tab) => {

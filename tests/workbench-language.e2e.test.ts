@@ -64,21 +64,47 @@ const ISSUE_OWNER = "io.molis.work.issues";
 type LanguageBrowser = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;
 
 async function chooseEnglishInSettings(t: TestContext, b: LanguageBrowser) {
-  const { targetId } = await b.command<{ targetId: string }>("Target.createTarget", { url: b.origin + "/settings/appearance", background: true });
+  const { targetId } = await b.command<{ targetId: string }>("Target.createTarget", { url: "about:blank", background: true });
   t.after(async () => { await b.command("Target.closeTarget", { targetId }).catch(() => undefined); });
   const { sessionId } = await b.command<{ sessionId: string }>("Target.attachToTarget", { targetId, flatten: true });
-  const clicked = await b.command<{ result: { value?: boolean }; exceptionDetails?: unknown }>("Runtime.evaluate", {
-    expression: `(async () => {
+  const path = "/settings/appearance", navigations: string[] = [];
+  const stop = b.on("Page.frameNavigated", (event, session) => {
+    const frame = event.frame as { url?: string; parentId?: string };
+    if (session === sessionId && !frame.parentId && frame.url) navigations.push(frame.url);
+  });
+  t.after(stop);
+  await b.command("Page.enable", {}, sessionId);
+  await b.navigate(() => b.command("Page.navigate", { url: b.origin + path }, sessionId), sessionId);
+  const evaluate = async <T>(expression: string): Promise<T> => {
+    const answer = await b.command<{ result: { value: T }; exceptionDetails?: unknown }>("Runtime.evaluate", {
+      expression, awaitPromise: true, returnByValue: true,
+    }, sessionId, 16000);
+    assert.equal(answer.exceptionDetails, undefined, JSON.stringify(answer.exceptionDetails));
+    return answer.result.value;
+  };
+  const [address, request, text, settings] = await evaluate<[string, string, string, boolean]>(
+    "[location.href, typeof molisWorkRequest, typeof t, !!document.querySelector('a[data-ui-language=en]')]");
+  assert.equal(new URL(address).origin, b.origin);
+  assert.deepEqual([request, text, settings], ["function", "function", true]);
+  assert.ok(navigations.length > 0);
+  const location = new URL(address), navigation = new URL(navigations.at(-1)!);
+  assert.deepEqual([location.origin, location.pathname], [navigation.origin, navigation.pathname]);
+  const opened = navigations.slice(); // The project cover can set settingsPath with replaceState in this same document.
+  await evaluate("window.languageSettingsDocument = document.body; document.querySelector('a[data-ui-language=en]').click()");
+  try {
+    assert.equal(await evaluate(`(async () => {
       const stop = Date.now() + 15000;
       while (Date.now() < stop) {
-        const link = document.querySelector('a[data-ui-language=en]');
-        if (link && typeof molisWorkRequest === 'function' && typeof t === 'function') { link.click(); return true; }
+        if (document.documentElement.lang === 'en') return languageSettingsDocument === document.body;
         await new Promise(resolve => setTimeout(resolve, 40));
       }
       return false;
-    })()`, awaitPromise: true, returnByValue: true,
-  }, sessionId, 16000);
-  assert.equal(clicked.result.value, true, JSON.stringify(clicked.exceptionDetails));
+    })()`), true);
+    assert.deepEqual(navigations, opened, "the click was handled in the Settings document");
+  } catch (error) {
+    t.diagnostic(JSON.stringify({ settingsNavigations: navigations }));
+    throw error;
+  }
 }
 
 function holdIssueOpening(t: TestContext, b: LanguageBrowser) {
@@ -195,7 +221,7 @@ test("S-ui-text-page FSS-37 Coding receives only the words of its actual embedde
 
 test("FSS-20 FSS-37 the Workbench and its inline Goals share a language change without replacing a draft", { timeout: 120_000 }, async t => {
   const b = await openGoalBrowser(t, "seeded", undefined, null); if (!b) return;
-  const problemsBefore = hostTextProblems().length;
+  const problemsBefore = new Set(hostTextProblems());
   const route = "/projects/" + b.projectId + "/?openPlugin=goals";
   await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/locale?lang=zh&next=" + encodeURIComponent(route) }, b.sessionId));
   await b.waitFor("typeof t === 'function' && document.querySelector('[data-open-create] span')");
@@ -215,5 +241,34 @@ test("FSS-20 FSS-37 the Workbench and its inline Goals share a language change w
   await b.waitFor("document.documentElement.lang === 'en'", 25000);
   assert.deepEqual(await b.evaluate("[goalNewLabel.textContent.trim(), goalNewLabel === document.querySelector('[data-open-create] span'), goalDraft === document.activeElement, goalDraft.value, goalDraft.selectionStart, goalDraft.selectionEnd, goalDraft.selectionDirection, t.text('goals.tree-ui.new-goal')]"),
     ["New Goal", true, true, "Original 目标", 1, 5, "backward", "New Goal"]);
-  assert.deepEqual(hostTextProblems().slice(problemsBefore), [], "the real Host rendered every visible owner without missing text");
+  assert.deepEqual([...new Set(hostTextProblems().filter(problem => !problemsBefore.has(problem)).map(problem => problem.key ?? problem.code))], [], "the real Host rendered every visible owner without missing text");
+});
+
+test("FSS-20 FSS-37 the catalog and capsule switch their existing documents without saving a Home preference", { timeout: 120_000 }, async t => {
+  const problemsBefore = new Set(hostTextProblems());
+  const b = await openGoalBrowser(t, "seeded", undefined, null); if (!b) return;
+  const { command, sessionId, origin, waitFor, evaluate } = b;
+  await b.navigate(() => command("Page.navigate", { url: origin + "/locale?lang=zh&next=%2F__ui%2Fcatalog%3Flang%3Dzh" }, sessionId));
+  await waitFor("typeof molisWorkSelectLocalLanguage === 'function' && document.querySelector('[data-board-lang=en]')");
+  const first = await evaluate("document.documentElement.lang");
+  assert.equal(first, "zh-CN");
+  await evaluate("window.catalogHeading = document.querySelector('h1'); document.querySelector('[data-board-lang=en]').click()");
+  await waitFor("document.documentElement.lang === 'en'");
+  assert.deepEqual(await evaluate("[catalogHeading === document.querySelector('h1'), catalogHeading.textContent.trim(), document.querySelector('[data-board-lang=en]').getAttribute('aria-pressed')]"),
+    [true, "Molis Work Component catalog", "true"]);
+  assert.match(await evaluate<string>("document.cookie"), /molis_work_locale=zh/u);
+
+  await b.navigate(() => command("Page.navigate", { url: origin + "/desktop/capsule?locale=zh" }, sessionId));
+  await waitFor("typeof molisWorkSelectLocalLanguage === 'function' && document.querySelector('[data-capsule-open-board]')");
+  await evaluate(`(() => {
+    window.capsuleButton = document.querySelector('[data-capsule-open-board]');
+    window.capsuleProject = document.querySelector('[data-capsule-project]').value;
+    molisWorkSelectLocalLanguage('en', 2);
+    molisWorkSelectLocalLanguage('zh', 1);
+  })()`);
+  await waitFor("document.documentElement.lang === 'en' && document.documentElement.dataset.uiNativeLanguageRevision === '2'");
+  assert.deepEqual(await evaluate("[capsuleButton === document.querySelector('[data-capsule-open-board]'), capsuleButton.textContent.trim(), capsuleProject === document.querySelector('[data-capsule-project]').value]"),
+    [true, "Open Molis Work", true]);
+  assert.match(await evaluate<string>("document.cookie"), /molis_work_locale=zh/u);
+  assert.deepEqual([...new Set(hostTextProblems().filter(problem => !problemsBefore.has(problem)).map(problem => problem.key ?? problem.code))], [], "the real catalog and capsule rendered their words from the exact packs");
 });

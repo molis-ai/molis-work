@@ -29,7 +29,7 @@ export interface Recording { readonly row: HTMLElement; readonly root: ParentNod
 export interface SettingsPage {
   readonly api: string;
   readonly tables: HotkeyTables;
-  readonly L: Translate;
+  readonly readText: Translate;
   settings: Settings | null;
   recording: Recording | null;
 }

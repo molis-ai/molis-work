@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { type UiConnectionNeedOutcome, type UiConnectionNeedTarget } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { ConnectorConnectionView } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { CONNECTION_NEED_HEIGHTS, connectionNeedHtml, isConnectionLoginUrl, sayNamed, type ConnectionNeedStage, type ConnectionNeedView } from "../../connection-need-card.js";
@@ -277,7 +278,7 @@ export function childConnectionNeed(port: MessagePort, scope: FrameScope): Child
   const made = childNeeds.get(port);
   if (made) return made;
   let sequence = 0;
-  const named: (text: string, values?: Record<string, string | number>) => string = (text, values) => sayNamed(L)(text, values);
+  const named: (text: string, values?: Record<string, string | number>) => string = (text, values) => sayNamed(uiText.text)(text, values);
   type Waiting = { element: HTMLElement; settle?: { resolve(outcome: UiConnectionNeedOutcome): void; reject(error: Error): void }; stop?: () => void };
   const entries = new Map<number, Waiting>(), up = (message: ConnectionNeedUp) => port.postMessage(message);
   const close = (id: number, error: Error = closed()) => {

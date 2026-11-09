@@ -21,7 +21,7 @@ function drawAvatar(_L: Translate, executor: NonNullable<BoardRow["executor"]>):
  * One compact row of the outline: state mark, key, title, children's count, and who is on it. No controls here; the row's
  * target is found by its key (`targets`), because one listener on the list opens it.
  */
-export function drawOutlineRow(L: Translate, targets: Map<string, BoardTarget>, row: BoardRow, depth: number): HTMLElement {
+export function drawOutlineRow(readText: Translate, targets: Map<string, BoardTarget>, row: BoardRow, depth: number): HTMLElement {
   const item = el("li", "", "coding-outline-item");
   item.style.setProperty("--board-depth", String(depth));
   const node = el("button", "", "coding-outline-row");
@@ -37,12 +37,12 @@ export function drawOutlineRow(L: Translate, targets: Map<string, BoardTarget>, 
   node.append(el("strong", row.title));
   node.setAttribute("aria-label", row.label ? row.label + " " + row.title + "：" + label : row.title + "：" + label);
   if (row.progress && row.children.length) node.append(el("span", row.progress.done + "/" + row.progress.total, "coding-outline-count"));
-  if (row.executor) node.append(drawAvatar(L, row.executor));
+  if (row.executor) node.append(drawAvatar(readText, row.executor));
   targets.set(row.key, row.target);
   item.append(node);
   if (row.children.length) {
     const children = el("ul", "", "coding-outline-children");
-    for (const child of row.children) children.append(drawOutlineRow(L, targets, child, depth + 1));
+    for (const child of row.children) children.append(drawOutlineRow(readText, targets, child, depth + 1));
     item.append(children);
   }
   return item;

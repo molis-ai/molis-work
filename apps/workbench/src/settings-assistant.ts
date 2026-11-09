@@ -3,7 +3,7 @@ import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
  * “助理”: what the Assistant may use (its own grants, separate from Coding's and external agents'), and what each
  * plugin contributes for it — with the exact gaps a plugin's developer can close.
  */
-export function renderAssistantSettings({ projectId }: { L(text: string): string; projectId: string | null }): string {
+export function renderAssistantSettings({ projectId }: { readText(text: string): string; projectId: string | null }): string {
   return `<section class="settings-document assistant-settings" aria-labelledby="settings-title" data-assistant-settings data-project="${projectId ? projectId.replace(/[^a-zA-Z0-9_.:-]/g, "") : ""}">
     <header class="settings-heading"><div class="settings-heading-title"><h1 id="settings-title">${uiText("workbench.settings-assistant.assistant")}</h1></div>
       <p>${uiText("workbench.settings-assistant.what-assistant-may-use-what-each-plugin-provides")}</p></header>
@@ -87,7 +87,7 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
   const root = container.matches?.("[data-assistant-settings]") ? container : container.querySelector?.("[data-assistant-settings]");
   if (!root || root.dataset.assistantBound) return;
   root.dataset.assistantBound = "1";
-  const L = globalThis.L || ((text) => text);
+  const readText = globalThis.t.text;
   const project = root.dataset.project || "";
   const body = root.querySelector("[data-assistant-capabilities]");
   const search = root.querySelector("[data-assistant-capability-search]");
@@ -109,13 +109,13 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
     groups.forEach((items, provider) => {
       const section = el("section", "settings-section prompt-group");
       const off = items.filter((row) => !row.enabled).length;
-      section.append(el("h2", "prompt-group-title", L(provider) + (off ? " · " + globalThis.t.text("workbench.settings-assistant.switched-off") + " " + off : "")));
+      section.append(el("h2", "prompt-group-title", provider + (off ? " · " + globalThis.t.text("workbench.settings-assistant.switched-off") + " " + off : "")));
       const list = el("ul", "prompt-list");
       items.forEach((row) => {
         const item = el("li", "prompt-row assistant-capability");
         const head = el("label", "prompt-row-head");
         const copy = el("div", "prompt-row-copy");
-        copy.append(el("strong", "", L(row.title)), el("span", "settings-muted", L(row.description || "")));
+        copy.append(el("strong", "", row.title), el("span", "settings-muted", (row.description || "")));
         const meta = el("div", "prompt-row-meta");
         meta.append(el("span", "prompt-tag", globalThis.t.text(EFFECT[row.effect] || row.effect)));
         const control = el("span", "mw-switch"), toggle = el("input"); toggle.type = "checkbox"; toggle.setAttribute("role", "switch"); toggle.checked = row.enabled;
@@ -172,7 +172,7 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
         const facts = [globalThis.t.text("workbench.settings-assistant.capabilities") + " " + item.actions + "（" + globalThis.t.text("workbench.settings-assistant.read") + " " + item.reads + " · " + globalThis.t.text("workbench.settings-assistant.change") + " " + item.changes + "）",
           item.readable_kinds.length ? globalThis.t.text("workbench.settings-assistant.readable-objects") + "：" + item.readable_kinds.join("、") : globalThis.t.text("workbench.settings-assistant.objects-cannot-be-read-back"),
           item.changes ? globalThis.t.text("workbench.settings-assistant.linked-changes") + " " + item.linked_changes + "/" + item.changes : "", item.searchable ? globalThis.t.text("workbench.settings-assistant.search") : ""].filter(Boolean).join(" · ");
-        row.append(el("strong", "", L(item.title)), el("span", "settings-muted", facts));
+        row.append(el("strong", "", item.title), el("span", "settings-muted", facts));
         if (item.gaps.length) {
           const gaps = el("ul", "prompt-diagnostics-issues");
           item.gaps.forEach((gap) => gaps.append(el("li", "prompt-diagnostics-issue prompt-diagnostics-issue--warning", globalThis.t.text(AREA[gap.area] || gap.area) + "：" + gap.text)));
@@ -195,9 +195,9 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
   const surfacesBox = root.querySelector("[data-assistant-rule-surfaces]");
   const paintPages = (pages) => {
     surfacesBox.replaceChildren();
-    pages.forEach(({ page_id: id, label: name }) => { pageNames[id] = name; const label = el("label", "settings-check"); const box = el("input"); box.type = "checkbox"; box.value = id; box.dataset.assistantRuleSurface = ""; label.append(box, document.createTextNode(" " + L(name))); surfacesBox.append(label); });
+    pages.forEach(({ page_id: id, label: name }) => { pageNames[id] = name; const label = el("label", "settings-check"); const box = el("input"); box.type = "checkbox"; box.value = id; box.dataset.assistantRuleSurface = ""; label.append(box, document.createTextNode(" " + name)); surfacesBox.append(label); });
   };
-  const describe = (rule) => (rule.kind === "pause" ? globalThis.t.text("workbench.settings-assistant.pause-notices") : (rule.surfaces.length ? globalThis.t.text("workbench.settings-assistant.label") + " " + rule.surfaces.map((id) => L(surfaceName(id))).join("、") + " " + globalThis.t.text("workbench.settings-assistant.stay-quiet") : globalThis.t.text("workbench.settings-assistant.stay-quiet-everywhere")))
+  const describe = (rule) => (rule.kind === "pause" ? globalThis.t.text("workbench.settings-assistant.pause-notices") : (rule.surfaces.length ? globalThis.t.text("workbench.settings-assistant.label") + " " + rule.surfaces.map((id) => surfaceName(id)).join("、") + " " + globalThis.t.text("workbench.settings-assistant.stay-quiet") : globalThis.t.text("workbench.settings-assistant.stay-quiet-everywhere")))
     + (rule.except.length ? "；" + rule.except.map((kind) => globalThis.t.text(KIND[kind] || kind)).join("、") + globalThis.t.text("workbench.settings-assistant.still-notify") : "")
     + (rule.until ? "；" + globalThis.t.text("workbench.settings-assistant.until") + " " + new Date(rule.until).toLocaleString() : "");
   const paintRules = (rules) => {
@@ -230,7 +230,7 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
     event.preventDefault();
     const form = event.currentTarget, surfaces = [...form.querySelectorAll("[data-assistant-rule-surface]")].filter((box) => box.checked).map((box) => box.value);
     const except = exceptOf(form);
-    const label = (surfaces.length ? globalThis.t.text("workbench.settings-assistant.label") + " " + surfaces.map((id) => L(surfaceName(id))).join("、") + " " + globalThis.t.text("workbench.settings-assistant.stay-quiet-2") : globalThis.t.text("workbench.settings-assistant.stay-quiet-everywhere")) + (except.length ? "，" + except.map((kind) => globalThis.t.text(KIND[kind])).join("、") + globalThis.t.text("workbench.settings-assistant.excepted") : "");
+    const label = (surfaces.length ? globalThis.t.text("workbench.settings-assistant.label") + " " + surfaces.map((id) => surfaceName(id)).join("、") + " " + globalThis.t.text("workbench.settings-assistant.stay-quiet-2") : globalThis.t.text("workbench.settings-assistant.stay-quiet-everywhere")) + (except.length ? "，" + except.map((kind) => globalThis.t.text(KIND[kind])).join("、") + globalThis.t.text("workbench.settings-assistant.excepted") : "");
     run(() => rulesApi("/rules", { rule: { kind: "quiet", surfaces, except, label } }));
   });
   root.querySelector("[data-assistant-rule-pause]").addEventListener("submit", (event) => {

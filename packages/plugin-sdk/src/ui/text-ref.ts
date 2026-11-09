@@ -1,5 +1,5 @@
 import { TEXT_DATE_STYLES, TEXT_NUMBER_STYLES, TEXT_REF_LIMITS, type OwnedTextRef, type TextArg, type TextArgs, type TextArgValue, type TextDateOptions, type TextDateStyle, type TextNumberStyle, type TextRef } from "@molis-ai/molis-work-contracts/platform/ui";
-import { keyOwnerProblem, messageOwnerOf, PLATFORM_TEXT_OWNER, SHARED_OWNER, STABLE_KEY } from "../message-declarations.js";
+import { keyOwnerProblem, messageOwnerOf, PLATFORM_TEXT_OWNER, SHARED_OWNER, STABLE_KEY } from "./text-keys.js";
 import { uiTextErrors } from "./text-errors.js";
 import { isTextTimeZone } from "./message-format.js";
 

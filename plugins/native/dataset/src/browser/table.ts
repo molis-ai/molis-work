@@ -39,10 +39,10 @@ function headCell(_L: Translate, column: Column): HTMLTableCellElement {
   return th;
 }
 
-function tableHead(L: Translate, columns: readonly Column[]): HTMLTableSectionElement {
+function tableHead(readText: Translate, columns: readonly Column[]): HTMLTableSectionElement {
   const thead = document.createElement("thead");
   const headRow = document.createElement("tr");
-  columns.forEach((column) => headRow.append(headCell(L, column)));
+  columns.forEach((column) => headRow.append(headCell(readText, column)));
   const addColumnCell = document.createElement("th");
   addColumnCell.className = "dataset-add-column-cell";
   addColumnCell.innerHTML = '<button class="mw-btn mw-btn--ghost mw-btn--icon-only" type="button" data-dataset-add-column aria-label="' + uiText.text("dataset.column.add") + '" title="' + uiText.text("dataset.column.add") + '"><svg aria-hidden="true"><use href="#icon-plus"></use></svg></button>';
@@ -78,7 +78,7 @@ function addRowLine(_L: Translate, columns: readonly Column[]): HTMLTableRowElem
 
 /** The table on screen: reading it back into a draft, drawing a record into it, and the version list. */
 export function installTable(page: DatasetPage): void {
-  const { L, el, s } = page;
+  const { readText, el, s } = page;
 
   page.columnsFromDom = () => [...el.tableEl.querySelectorAll<HTMLElement>("[data-dataset-column]")].map((cell, index) => ({
     id: cell.dataset.columnId ?? "",
@@ -123,12 +123,12 @@ export function installTable(page: DatasetPage): void {
     const tbody = document.createElement("tbody");
     (record.rows || []).forEach((row) => {
       const match = !query || columns.some((column) => String(row.cells?.[column.id] ?? "").toLowerCase().includes(query));
-      if (match) tbody.append(bodyRow(L, columns, row));
+      if (match) tbody.append(bodyRow(readText, columns, row));
     });
     const noMatch = Boolean(query && !tbody.childElementCount);
     // Grow from the table edge, with a "+" after the last column and below the last row.
-    if (!query) tbody.append(addRowLine(L, columns));
-    el.tableEl.replaceChildren(tableHead(L, columns), tbody);
+    if (!query) tbody.append(addRowLine(readText, columns));
+    el.tableEl.replaceChildren(tableHead(readText, columns), tbody);
     // Offer filtering once there is something to filter through.
     if (el.toolbar) el.toolbar.hidden = !((record.rows || []).length >= 8 || query);
     el.tableEl.hidden = noMatch;

@@ -16,7 +16,7 @@ export interface PageReport { readonly url: string; readonly title: string }
 
 /** What the workbench hands the Issue page's client. */
 export type IssuesHost = Pick<UiPluginClientHost<HTMLElement, HTMLDialogElement>,
-  "root" | "translate" | "route" | "pluginRoute" | "pluginId" | "drafts" | "confirmBox" | "readRefusal"> & {
+  "root" | "route" | "pluginRoute" | "pluginId" | "drafts" | "confirmBox" | "readRefusal"> & {
   mountPluginClient(root: HTMLElement): Scope | null;
   status?(state: string): void;
   page?(): PageReport | null | undefined;

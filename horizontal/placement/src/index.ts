@@ -318,9 +318,9 @@ async function moveBack(ports: PlacementPorts, object: PlacedObject, at: string 
   // from the partition it just arrived in, so the caller's project is the place the plugin already wrote.
   const scope = await (ports.revert ?? ports.scope)(object.project_id === null ? null : at);
   const mover = placementToolOf(ports, await scope.client.discover(scope.caller), object.kind, "move");
-  if (!mover) throw new ActionError("placement.not_movable", t("移回原处时找不到移动动作"));
+  if (!mover) throw new ActionError("placement.not_movable", t("workbench.index.no-move-action-was-found-to-put"));
   const result = await scope.client.invoke(scope.caller, mover, { subject: { kind: object.kind, id: object.id }, to_project_id: to }) as PlacementResult;
-  if (result.project_id !== to || result.subject.id !== object.id) throw new ActionError("placement.result_mismatch", t("移回原处的结果与请求不一致"));
+  if (result.project_id !== to || result.subject.id !== object.id) throw new ActionError("placement.result_mismatch", t("workbench.index.putting-it-back-did-not-return-the"));
 }
 
 /** The ledger access this service writes as; the Host authorizes exactly this partition. */

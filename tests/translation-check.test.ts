@@ -1,742 +1,98 @@
 import assert from "node:assert/strict";
-import { execFileSync, spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import path from "node:path";
-import test, { after, before } from "node:test";
-import { fileURLToPath } from "node:url";
-import { MESSAGES_ROOT, SERVED_ROOT, analyse, isProductSource, missingErrors, ownerTable, scanFile, scanTree, summarise, unservedDictionaries, workingTreeSnapshot } from "../scripts/gates/translations.mjs";
+import test from "node:test";
+import { scanFile, scanTree, summarise, workingTreeSnapshot } from "../scripts/gates/translations.mjs";
 
-// specs/archive/repository-anti-corruption decision #16 (W1-08): the translation check scans every translator call and every
-// dictionary instead of a list of files. It is a health-gate metric, so these tests drive scripts/check-health-gates.mjs on a
-// small scratch repository, the way tests/health-gates-merge-base.test.ts does: each rule is mutation-verified (one violation
-// added on a branch makes `--base main` fail, and rewriting the baseline in that branch hides nothing), and the changes
-// that must stay possible (moving a file to stable keys, resolving a conflict, renaming a dictionary) pass.
-const script = fileURLToPath(new URL("../scripts/check-health-gates.mjs", import.meta.url));
-const cli = fileURLToPath(new URL("../scripts/gates/translations.mjs", import.meta.url));
-const repoRoot = fileURLToPath(new URL("..", import.meta.url));
-let repo = "";
-let initialQuickBaseline = "";
-
-const git = (...args: string[]) => execFileSync("git", ["-c", "commit.gpgsign=false", "-c", "user.name=gates", "-c", "user.email=gates@example.invalid", ...args], { cwd: repo, encoding: "utf8", stdio: "pipe" });
-const put = (file: string, text: string) => { mkdirSync(path.dirname(path.join(repo, file)), { recursive: true }); writeFileSync(path.join(repo, file), text); };
-const read = (file: string) => readFileSync(path.join(repo, file), "utf8");
-const commit = (message: string) => { git("add", "-A"); git("commit", "-q", "--allow-empty", "-m", message); };
-const gate = (...args: string[]) => {
-  const run = spawnSync(process.execPath, [script, "--root", repo, ...args], { encoding: "utf8" });
-  return { code: run.status, out: `${run.stdout}${run.stderr}` };
-};
-const branch = (name: string, mutate: () => void) => {
-  git("checkout", "-q", "-f", "main");
-  put(".git/molis-health-baseline.json", initialQuickBaseline);
-  git("clean", "-fdq");
-  git("checkout", "-q", "-B", name);
-  mutate();
-  commit(name);
-};
-
-// A scratch product: the Workbench dictionary (apps/workbench/src/i18n/en.ts builds the catalog the Host serves from the two
-// plugins' dictionaries and its own entries), two plugins with a dictionary each ("说明" is translated two ways, the one
-// frozen conflict), a server-rendered UI, and a browser script in a template literal. "旧的" is a dead key.
-// The two plugins are packages from the start, as the built-ins whose dictionaries the Workbench serves are: a plugin that only
-// became a package on a scenario's branch would be a new plugin named outside its package (the import in en.ts), which the
-// assembly gate refuses (W5-02 PR-C), and these scenarios are about translations.
-const pluginPackage = (owner: string) => put(`plugins/native/${owner}/package.json`, JSON.stringify({ name: `@scratch/${owner}` }));
-const base = () => {
-  pluginPackage("alpha");
-  pluginPackage("beta");
-  put("tooling/gates/limits.json", JSON.stringify({ file: 800, classLines: 300, classMethods: 25, functionLines: 150, vendoredPrologueSdk: 2 }, null, 2) + "\n");
-  put("specs/demo/spec.md", "# Demo\n\n状态：进行中\n");
-  put("apps/workbench/src/i18n/en.ts", [
-    'import { ALPHA_EN } from "@scratch/alpha";',
-    'import { BETA_EN } from "@scratch/beta";',
-    'export const EN: Record<string, string> = {',
-    "  ...ALPHA_EN,",
-    "  ...BETA_EN,",
-    '  "设置": "Settings",',
-    '  "保存": "Save",',
-    "};",
-    'Object.assign(EN, { "关闭": "Close" });',
-    "",
-  ].join("\n"));
-  put("apps/workbench/src/renderer.ts", [
-    "export const render = (L: (zh: string) => string) => L(\"设置\") + L('保存') + L(\"关闭\");",
-    '// L("只在注释里")',
-    'export const name = (L: (zh: string) => string) => L("Gmail");',
-    "",
-  ].join("\n"));
-  put("plugins/native/alpha/src/en.ts", 'export const ALPHA_EN: Record<string, string> = {\n  "打开": "Open",\n  "说明": "Description",\n  "旧的": "Old",\n};\n');
-  put("plugins/native/alpha/src/ui.ts", "export const ui = (p: { text(value: string): string }) => p.text(\"打开\") + p.text(\"说明\");\n");
-  put("plugins/native/beta/src/en.ts", 'export const BETA_EN: Record<string, string> = {\n  "说明": "Notes",\n  "载入": "Load",\n};\n');
-  put("plugins/native/beta/src/client.ts", [
-    "export const BETA_CLIENT_SCRIPT = `",
-    '  const t = (value) => (typeof L === "function" ? L(value) : value);',
-    "  document.title = L('载入') + t('载入') + globalThis.L('载入');",
-    "`;",
-    "",
-  ].join("\n"));
-  // Not product source: never scanned.
-  put("tests/some.test.ts", 'export const x = L("测试里的字");\n');
-  put("plugins/native/alpha/dist/ui.js", 'export const y = L("构建产物里的字");\n');
-};
-
-before(() => {
-  repo = mkdtempSync(path.join(tmpdir(), "molis-translation-check-"));
-  git("init", "-q", "-b", "main");
-  base();
-  git("add", "-A");
-  assert.equal(gate("--update").code, 0);
-  initialQuickBaseline = read(".git/molis-health-baseline.json");
-  commit("base");
+const DIR = "plugins/native/alpha", ID = "example.publisher.alpha";
+const ZH = DIR + "/locales/zh.json", EN = DIR + "/locales/en.json", UI = DIR + "/src/ui.ts";
+const manifest = DIR + "/src/manifest.ts";
+const messages = (locale: string, words: Record<string, unknown>, owner = ID) =>
+  JSON.stringify({ format_version: 1, owner, locale, messages: words });
+const core = () => ({
+  [manifest]: 'import { OWNER as id } from "./id.js"; export const manifest = { plugin_id: id, ui: { contributions: [], locales: { default: "zh", available: ["en", "zh"] } } };',
+  [DIR + "/src/id.ts"]: 'export const OWNER = "example.publisher.alpha";',
+  [ZH]: messages("zh", { "alpha.page.open": "打开{name}", "alpha.page.close": "关闭", "alpha.page.unused": "旧" }),
+  [EN]: messages("en", { "alpha.page.open": "Open {name}", "alpha.page.close": "Close", "alpha.page.unused": "Old" }),
+  [UI]: [
+    'import { t as sayOwn } from "@molis-ai/molis-work-plugin-sdk/ui";',
+    'const labels = Object.freeze({ open: "alpha.page.open", close: "alpha.page.close" });',
+    'export const render = (opened: boolean) => sayOwn.text(opened ? labels.open : labels.close);',
+    '// sayOwn("alpha.page.comment")',
+  ].join("\n"),
+  "tests/skip.test.ts": 'L("source from a test")',
+  [DIR + "/dist/built.ts"]: 'L("built file")',
 });
-after(() => { if (repo) rmSync(repo, { recursive: true, force: true }); });
-
-// A third plugin's dictionary, added to the catalog the way a plugin does it: an import and a spread in the Workbench's en.ts.
-const gamma = (entries: string) => 'export const GAMMA_EN: Record<string, string> = {\n' + entries + '\n};\n';
-const addToRoot = (import_: string, use: string) => put("apps/workbench/src/i18n/en.ts", read("apps/workbench/src/i18n/en.ts").replace('import { ALPHA_EN } from "@scratch/alpha";', `import { ALPHA_EN } from "@scratch/alpha";\n${import_}`).replace("  ...ALPHA_EN,", `  ...ALPHA_EN,\n${use}`));
-const addGamma = (entries: string) => { put("plugins/native/gamma/src/en.ts", gamma(entries)); addToRoot('import { GAMMA_EN } from "@scratch/gamma";', "  ...GAMMA_EN,"); };
-const messages = (owner: string, entries: string) => `export const ${owner.toUpperCase()}_MESSAGES = {\n${entries}\n};\n`;
-// A plugin registers its words in its Manifest (`ui.messages`), and the built catalog lists the plugin's registration (PG-071).
-const catalogListing = (owner: string) => {
-  pluginPackage(owner);
-  put(`plugins/native/${owner}/src/registration.ts`, `export const registration = { project_plugin_id: "${owner}" };\n`);
-  return `import { registration as ${owner}Registration } from "@scratch/${owner}/registration";\nexport const BUILTIN_PLUGIN_CATALOG = [${owner}Registration];\n`;
-};
-const manifestFor = (owner: string, ui: string, alias = `${owner.toUpperCase()}_MESSAGES`, before = "") => put(`plugins/native/${owner}/src/manifest.ts`,
-  `import { ${owner.toUpperCase()}_MESSAGES as ${alias} } from "@scratch/${owner}";\n${before}export const manifest = { ui: { ${ui.replaceAll("{alias}", alias)} } };\n`);
-const registerMessages = (owner: string, alias = `${owner.toUpperCase()}_MESSAGES`) => {
-  put(MESSAGES_ROOT, catalogListing(owner));
-  manifestFor(owner, "messages: {alias}", alias);
-};
-
-
-// A browser program in three files of the beta plugin: program.ts defines tx and button, and joins the scripts of the files it
-// imports (program-views.ts, and program-flows.ts when it has lines). Each file's lines are the body of its template.
-const program = (files: { views: string[]; flows?: string[] }) => {
-  const script = (name: string, constant: string, lines: string[]) => put(`plugins/native/beta/src/${name}.ts`, [`export const ${constant} = String.raw\``, ...lines, "`;", ""].join("\n"));
-  const flows = files.flows !== undefined;
-  put("plugins/native/beta/src/program.ts", [
-    'import { PROGRAM_VIEWS } from "./program-views.js";',
-    ...(flows ? ['import { PROGRAM_FLOWS } from "./program-flows.js";'] : []),
-    "export const PROGRAM_SCRIPT = String.raw`",
-    "  const tx = (value) => esc(L(value));",
-    "  const button = (label, action) => '<button data-action=\"' + action + '\">' + tx(label) + '</button>';",
-    `\` + PROGRAM_VIEWS${flows ? " + PROGRAM_FLOWS" : ""};`,
-    "",
-  ].join("\n"));
-  script("program-views", "PROGRAM_VIEWS", ["", ...files.views]);
-  if (files.flows) script("program-flows", "PROGRAM_FLOWS", ["", ...files.flows]);
-};
-
-type Scenario = { name: string; mutate: () => void; expect: RegExp[] };
-// Missing English is absolute: it fails at the head whatever the baseline says.
-const missing: Scenario[] = [
-  { name: "a double-quoted L() with no entry", mutate: () => put("apps/workbench/src/renderer.ts", `${read("apps/workbench/src/renderer.ts")}export const more = (L: (zh: string) => string) => L("新的");\n`),
-    expect: [/no English for "新的" \(apps\/workbench\/src\/renderer\.ts:4\); add its English to apps\/workbench\/src\/i18n\/en\.ts/] },
-  { name: "a p.text() with no entry", mutate: () => put("plugins/native/alpha/src/ui.ts", `${read("plugins/native/alpha/src/ui.ts")}export const more = (p: { text(value: string): string }) => p.text("新的");\n`),
-    expect: [/no English for "新的" \(plugins\/native\/alpha\/src\/ui\.ts:2\); add its English to plugins\/native\/alpha\/src\/en\.ts/] },
-  { name: "a single-quoted L() in a browser script", mutate: () => put("plugins/native/beta/src/client.ts", read("plugins/native/beta/src/client.ts").replace("document.title", "document.body.title = L('新的');\n  document.title")),
-    expect: [/no English for "新的" \(plugins\/native\/beta\/src\/client\.ts:\d+\); add its English to plugins\/native\/beta\/src\/en\.ts/] },
-  { name: "a wrapper defined inside the browser script", mutate: () => put("plugins/native/beta/src/client.ts", read("plugins/native/beta/src/client.ts").replace("document.title", "document.body.title = t('新的');\n  document.title")),
-    expect: [/no English for "新的" \(plugins\/native\/beta\/src\/client\.ts/] },
-  { name: "a globalThis.L() in a browser script", mutate: () => put("plugins/native/beta/src/client.ts", read("plugins/native/beta/src/client.ts").replace("document.title", "document.body.title = globalThis.L('新的');\n  document.title")),
-    expect: [/no English for "新的" \(plugins\/native\/beta\/src\/client\.ts/] },
-  { name: "a wrapper function that forwards a parameter to p.text()", mutate: () => put("plugins/native/alpha/src/ui.ts", [
-    "export const ui = (p: { text(value: string): string; escape(value: string): string }) => {",
-    "  const t = (value: string) => p.escape(p.text(value));",
-    '  const button = (label: string, attr: string) => `<button ${attr}>${t(label)}</button>`;',
-    '  return t("打开") + t("说明") + button("新的", "x");',
-    "};",
-    "",
-  ].join("\n")), expect: [/no English for "新的" \(plugins\/native\/alpha\/src\/ui\.ts:4\)/] },
-  { name: "one branch of a conditional key", mutate: () => put("apps/workbench/src/renderer.ts", `${read("apps/workbench/src/renderer.ts")}export const pick = (L: (zh: string) => string, flag: boolean) => L(flag ? "设置" : "新的");\n`),
-    expect: [/no English for "新的"/] },
-  { name: "a value of a constant table that is passed to L()", mutate: () => put("apps/workbench/src/renderer.ts", `${read("apps/workbench/src/renderer.ts")}const LABEL = { ready: "设置", broken: "新的" } as const;\nexport const label = (L: (zh: string) => string, state: keyof typeof LABEL) => L(LABEL[state]);\n`),
-    expect: [/no English for "新的"/] },
-  { name: "a stable key in a constant table that is passed to L()", mutate: () => put("plugins/native/alpha/src/ui.ts", `${read("plugins/native/alpha/src/ui.ts")}const STATUS = { running: "alpha.status.running" } as const;\nexport const status = (L: (key: string) => string, state: keyof typeof STATUS) => L(STATUS[state]);\n`),
-    expect: [/no English for "alpha\.status\.running" \(plugins\/native\/alpha\/src\/ui\.ts:\d+\); define it with \{ zh, en \} in the alpha dictionary/] },
-  { name: "a translator injected as a typed parameter", mutate: () => put("plugins/native/alpha/src/ui.ts", `${read("plugins/native/alpha/src/ui.ts")}export const injected = (text: (value: string, values?: Record<string, string | number>) => string) => text("新的");\n`),
-    expect: [/no English for "新的" \(plugins\/native\/alpha\/src\/ui\.ts:2\)/] },
-  { name: "a translate() call", mutate: () => put("plugins/native/alpha/src/ui.ts", `${read("plugins/native/alpha/src/ui.ts")}export const viaTranslate = (translate: (value: string) => string) => translate("新的");\n`),
-    expect: [/no English for "新的"/] },
-  // Under String.raw the browser gets the text as written. Read as cooked text, `'\n'` is a real line break inside a quoted
-  // string and `\/\/` loses its backslashes, so `/^https?:\/\//` turns into a `//` comment: the parse breaks there and every
-  // call after it on the line is lost.
-  { name: "an L() after '\\n' and a regular expression in a String.raw browser script", mutate: () => put("plugins/native/beta/src/raw-client.ts", [
-    "export const RAW_SCRIPT = String.raw`",
-    "  const parts = text.split('\\n');",
-    "  const web = /^https?:\\/\\//.test(value); document.title = L('新的');",
-    "  console.log(parts, web);",
-    "`;",
-    "",
-  ].join("\n")), expect: [/no English for "新的" \(plugins\/native\/beta\/src\/raw-client\.ts:3\); add its English to plugins\/native\/beta\/src\/en\.ts/] },
-  { name: "an L() after '\\n' in a String.raw browser script with a substitution", mutate: () => put("plugins/native/beta/src/raw-client.ts", [
-    "const ID = 'x';",
-    "export const RAW_SCRIPT = String.raw`",
-    "  const parts = text.split('\\n'), id = '${ID}'; note = L('新的');",
-    "  const again = L('载入') + /\\d+\\/\\//.test(id) + L('也新的');",
-    "`;",
-    "",
-  ].join("\n")), expect: [/no English for "新的" \(plugins\/native\/beta\/src\/raw-client\.ts:3\)/, /no English for "也新的" \(plugins\/native\/beta\/src\/raw-client\.ts:4\)/] },
-  { name: "an L() after an escaped newline in an ordinary template", mutate: () => put("plugins/native/beta/src/cooked-client.ts", [
-    "export const COOKED_SCRIPT = `",
-    "  const parts = text.split('\\\\n'); document.title = L('新的');",
-    "`;",
-    "",
-  ].join("\n")), expect: [/no English for "新的" \(plugins\/native\/beta\/src\/cooked-client\.ts:2\)/] },
-  // A wrapper that translates two of its parameters has two keys at every call (`relationGroup(title, hint)`); a gate that reads
-  // only the first lets the second reach the English interface as Chinese.
-  { name: "the second label of a wrapper that translates two parameters", mutate: () => put("plugins/native/alpha/src/ui.ts", [
-    "export const ui = (p: { text(value: string): string }) => {",
-    "  const group = (title: string, hint: string) => `<h3>${p.text(title)}</h3><p>${p.text(hint)}</p>`;",
-    '  return group("打开", "新的");',
-    "};",
-    "",
-  ].join("\n")), expect: [/no English for "新的" \(plugins\/native\/alpha\/src\/ui\.ts:3\)/] },
-  // `group` is read before `describe`, the function its second parameter goes to: that parameter becomes a key only on a later
-  // round, once `describe` is known to translate. A single pass loses it.
-  { name: "a second parameter that reaches the translator through a function defined after the wrapper", mutate: () => put("plugins/native/alpha/src/ui.ts", [
-    "export const ui = (p: { text(value: string): string }) => {",
-    "  const group = (title: string, hint: string) => p.text(title) + describe(hint);",
-    "  const describe = (value: string) => p.text(value);",
-    '  return group("打开", "新的");',
-    "};",
-    "",
-  ].join("\n")), expect: [/no English for "新的" \(plugins\/native\/alpha\/src\/ui\.ts:4\)/] },
-  { name: "a parameter after an untranslated one (the first is a name, the second a label)", mutate: () => put("plugins/native/alpha/src/ui.ts", [
-    "export const ui = (p: { text(value: string): string }) => {",
-    "  const toggle = (name: string, label: string, description: string) => `<input name=\"${name}\"><b>${p.text(label)}</b><i>${p.text(description)}</i>`;",
-    '  return toggle("approval", "打开", "新的");',
-    "};",
-    "",
-  ].join("\n")), expect: [/no English for "新的" \(plugins\/native\/alpha\/src\/ui\.ts:3\)/] },
-  { name: "the placeholder of a field wrapper in a browser script (the second parameter reaches the translator)", mutate: () => put("plugins/native/beta/src/client.ts", read("plugins/native/beta/src/client.ts").replace("document.title", "const field = (name, label, placeholder) => '<input name=\"' + name + '\" placeholder=\"' + t(placeholder) + '\">' + t(label);\n  document.body.innerHTML = field('a', '载入', '新的');\n  document.title")),
-    expect: [/no English for "新的" \(plugins\/native\/beta\/src\/client\.ts:\d+\)/] },
-  // One browser program in several files: `program.ts` defines `tx` and `button`, joins the script constants of the files it
-  // imports, and those files call the wrappers without defining them.
-  { name: "a wrapper defined in the file that joins the script (the other file calls it)", mutate: () => program({
-    views: ["  document.title = L('载入') + tx('新的') + button('也新的', 'go');"],
-  }), expect: [/no English for "新的" \(plugins\/native\/beta\/src\/program-views\.ts:3\)/, /no English for "也新的" \(plugins\/native\/beta\/src\/program-views\.ts:3\)/] },
-  { name: "a wrapper another file defines, in a file that has no L() of its own", mutate: () => program({
-    views: ["  document.title = tx('新的');"],
-  }), expect: [/no English for "新的" \(plugins\/native\/beta\/src\/program-views\.ts:3\)/] },
-  { name: "a wrapper of one imported file that calls a wrapper of the joining file (a chain over two files)", mutate: () => program({
-    views: ["  const section = (title, body) => '<h3>' + tx(title) + '</h3>' + body;", "  document.title = L('载入') + section('新的', '');"],
-  }), expect: [/no English for "新的" \(plugins\/native\/beta\/src\/program-views\.ts:4\)/] },
-  { name: "a wrapper of a third file that is built on the second file's wrapper", mutate: () => program({
-    views: ["  const section = (title, body) => '<h3>' + tx(title) + '</h3>' + body;", "  document.title = L('载入');"],
-    flows: ["  document.body.title = L('载入') + card('新的');", "  const card = (title) => section(title, '');"],
-  }), expect: [/no English for "新的" \(plugins\/native\/beta\/src\/program-flows\.ts:3\)/] },
-  { name: "a key with placeholders that no dictionary has", mutate: () => put("apps/workbench/src/renderer.ts", `${read("apps/workbench/src/renderer.ts")}export const n = (L: (zh: string, vars?: Record<string, number>) => string) => L("共 {count} 项", { count: 3 });\n`),
-    expect: [/no English for "共 \{count\} 项"/] },
-  // RAC-775: a Plugin's own text is drawn with LF(pluginId, text), or a wrapper bound to it; a script that calls only those (no L())
-  // is still read, and a Chinese key that no dictionary has is still missing.
-  { name: "an LF(pluginId, text) in a browser script that never calls L()", mutate: () => put("plugins/native/beta/src/bound.ts",
-    "export const BOUND = String.raw`\n  document.title = LF('io.example.beta', '新的');\n`;\n"),
-    expect: [/no English for "新的" \(plugins\/native\/beta\/src\/bound\.ts:2\)/] },
-  { name: "a wrapper bound to LF(pluginId, text) in a browser script that never calls L()", mutate: () => put("plugins/native/beta/src/bound.ts",
-    "export const BOUND = String.raw`\n  const FL = (text, vars) => LF('io.example.beta', text, vars);\n  document.title = FL('新的');\n`;\n"),
-    expect: [/no English for "新的" \(plugins\/native\/beta\/src\/bound\.ts:3\)/] },
-];
-
-const failsAndStaysFailing = (scenario: Scenario) => {
-  test(`${scenario.name} fails, and --update does not hide it`, () => {
-    branch("absolute", scenario.mutate);
-    const caught = gate("--base", "main");
-    assert.equal(caught.code, 1, caught.out);
-    for (const pattern of scenario.expect) assert.match(caught.out, pattern);
-    gate("--update");
-    commit("update baseline");
-    const still = gate("--base", "main");
-    assert.equal(still.code, 1, still.out);
-    for (const pattern of scenario.expect) assert.match(still.out, pattern);
-  });
-};
-for (const scenario of missing) failsAndStaysFailing(scenario);
-
-// RAC-2847 / RA4-05: the existing dictionary selection contract follows the renamed editor directory.
-test("RAC-775 LF(pluginId, text) and a wrapper bound to it are translator calls, the plugin id is not a key", () => {
-  const text = "export const BOUND = String.raw`\n  const FL = (text, vars) => LF('io.example.beta', text, vars);\n  document.title = FL('新的') + LF('io.example.beta', '另一个');\n`;\n";
-  const found = scanFile("plugins/native/beta/src/bound.ts", text);
-  assert.deepEqual(found.calls.map((call: { callee: string; key: string }) => [call.callee, call.key]).sort(), [["FL", "新的"], ["LF", "另一个"]]);
-  assert.deepEqual(found.dynamic, [], "forwarding the parameter is not a dynamic call");
-});
-
-// The sharing stops where the program stops: a file that neither imports a script nor is imported by one keeps its own names (its
-// own `tx` is not the program's), and so does a file of another plugin, even when it imports the program.
-test("a wrapper is followed only into the files of its own browser program", () => {
-  branch("lonely", () => {
-    program({ views: ["  document.title = L('载入') + tx('载入');"] });
-    put("plugins/native/beta/src/lonely.ts", "export const LONELY = String.raw`\n  document.title = L('载入') + tx('孤独') + button('更孤独', 'go');\n`;\n");
-    put("plugins/native/alpha/src/outside.ts", 'import { PROGRAM_SCRIPT } from "../../beta/src/program.js";\nexport const OUTSIDE = String.raw`\n  document.title = L(\'打开\') + tx(\'外面\');\n` + PROGRAM_SCRIPT;\n');
-  });
-  const run = gate("--base", "main");
-  assert.equal(run.code, 0, run.out);
-  const calls = JSON.parse(gate("--report", "--json").out).head.translations;
-  assert.equal(calls.missingKeys, 0);
-});
-
-test("a program whose files all have English passes, and the wrapper calls in every file are counted", () => {
-  branch("program", () => program({
-    views: ["  const section = (title, body) => '<h3>' + tx(title) + '</h3>' + body;", "  document.title = L('载入') + section('设置', '');"],
-    flows: ["  document.body.title = L('载入') + button('保存', 'go');"],
-  }));
-  const run = gate("--base", "main");
-  assert.equal(run.code, 0, run.out);
-  const calls = scanFile("plugins/native/beta/src/program-views.ts", read("plugins/native/beta/src/program-views.ts"), new Map([["tx", new Set([0])]])).calls;
-  assert.deepEqual(calls.filter((call: { callee: string }) => call.callee === "section").map((call: { key: string }) => call.key), ["设置"]);
-  assert.deepEqual(scanFile("plugins/native/beta/src/program-views.ts", read("plugins/native/beta/src/program-views.ts")).calls.filter((call: { callee: string }) => call.callee === "section"), [], "alone, the file does not know tx");
-});
-
-// A dictionary only counts when the English catalog the Host serves (`EN`, built in apps/workbench/src/i18n/en.ts) reaches it:
-// writing `FOO_EN` and never adding it there leaves the English interface showing Chinese, which no test of the key set sees.
-const gammaText = gamma('  "伽马": "Gamma",');
-const rootText = () => read("apps/workbench/src/i18n/en.ts");
-const unserved: Scenario[] = [
-  { name: "a dictionary that no served dictionary imports", mutate: () => put("plugins/native/gamma/src/en.ts", gammaText),
-    expect: [/dictionary GAMMA_EN \(plugins\/native\/gamma\/src\/en\.ts:1\) is not part of the English the Host serves, so its texts are never shown in English; import GAMMA_EN in apps\/workbench\/src\/i18n\/en\.ts/] },
-  { name: "a dictionary that is imported but never added to EN", mutate: () => { put("plugins/native/gamma/src/en.ts", gammaText); addToRoot('import { GAMMA_EN } from "@scratch/gamma";', ""); },
-    expect: [/dictionary GAMMA_EN \(plugins\/native\/gamma\/src\/en\.ts:1\) is not part of the English the Host serves/] },
-  { name: "a dictionary that is only re-exported by a barrel file", mutate: () => { put("plugins/native/gamma/src/en.ts", gammaText); put("plugins/native/gamma/src/index.ts", 'export { GAMMA_EN } from "./en.js";\n'); },
-    expect: [/dictionary GAMMA_EN \(plugins\/native\/gamma\/src\/en\.ts:1\) is not part of the English the Host serves/] },
-  { name: "a dictionary that a served dictionary's file only re-exports", mutate: () => { put("plugins/native/gamma/src/en.ts", gammaText); put("plugins/native/alpha/src/en.ts", `${read("plugins/native/alpha/src/en.ts")}export { GAMMA_EN } from "@scratch/gamma";\n`); },
-    expect: [/dictionary GAMMA_EN \(plugins\/native\/gamma\/src\/en\.ts:1\) is not part of the English the Host serves/] },
-  { name: "a dictionary that another file only fills with Object.assign", mutate: () => { put("plugins/native/gamma/src/en.ts", gammaText); put("plugins/native/gamma/src/more.ts", 'import { GAMMA_EN } from "./en.js";\nObject.assign(GAMMA_EN, { "更多伽马": "More gamma" });\n'); },
-    expect: [/dictionary GAMMA_EN \(plugins\/native\/gamma\/src\/en\.ts:1\) is not part of the English the Host serves/] },
-  { name: "a second dictionary in a served file that nothing uses", mutate: () => put("plugins/native/alpha/src/en.ts", `${read("plugins/native/alpha/src/en.ts")}export const ALPHA_LATER_EN: Record<string, string> = { "更晚": "Later" };\n`),
-    expect: [/dictionary ALPHA_LATER_EN \(plugins\/native\/alpha\/src\/en\.ts:\d+\) is not part of the English the Host serves/] },
-];
-for (const scenario of unserved) failsAndStaysFailing(scenario);
-
-// The three ways a dictionary does reach EN: spread by the root, merged by it, or spread by a dictionary the root imports.
-const served: Array<{ name: string; mutate: () => void }> = [
-  { name: "spread into EN", mutate: () => addGamma('  "伽马": "Gamma",') },
-  { name: "merged into EN with Object.assign, under another name", mutate: () => { put("plugins/native/gamma/src/en.ts", gammaText); put("apps/workbench/src/i18n/en.ts", `import { GAMMA_EN as G } from "@scratch/gamma";\n${rootText()}Object.assign(EN, G);\n`); } },
-  { name: "spread by a served dictionary of another plugin", mutate: () => {
-    put("plugins/native/gamma/src/en.ts", gammaText);
-    put("plugins/native/alpha/src/en.ts", `import { GAMMA_EN } from "@scratch/gamma";\n${read("plugins/native/alpha/src/en.ts").replace('export const ALPHA_EN: Record<string, string> = {', "export const ALPHA_EN: Record<string, string> = {\n  ...GAMMA_EN,")}`);
-  } },
-];
-for (const scenario of served) {
-  test(`a dictionary ${scenario.name} is served`, () => {
-    branch("served", scenario.mutate);
-    const run = gate("--base", "main");
-    assert.equal(run.code, 0, run.out);
-    assert.match(gate("--report").out, /unserved dictionaries: 0/);
-  });
+function read(files: Record<string, string>) {
+  return scanTree({ files: Object.keys(files), read: (file: string) => files[file] ?? null });
 }
 
-// Conflicts are frozen: the baseline lists today's, a new one or one more variant fails, and rewriting the baseline in the
-// same branch does not help because --base compares with the merge-base's own scan.
-const conflicts: Scenario[] = [
-  { name: "a new conflict between two dictionaries", mutate: () => put("plugins/native/beta/src/en.ts", 'export const BETA_EN: Record<string, string> = {\n  "说明": "Notes",\n  "载入": "Load",\n  "保存": "Store",\n};\n'),
-    expect: [/new translation conflict: "保存" is translated 2 ways: "Save" \(apps\/workbench\/src\/i18n\/en\.ts:\d+\) \| "Store" \(plugins\/native\/beta\/src\/en\.ts:\d+\)/] },
-  { name: "one more variant of the frozen conflict", mutate: () => addGamma('  "说明": "Caption",'),
-    expect: [/translation conflict grew: "说明" has 3 different English texts, was 2/] },
-  { name: "a new conflict inside one file (a later block overrides)", mutate: () => put("apps/workbench/src/i18n/en.ts", `${read("apps/workbench/src/i18n/en.ts")}Object.assign(EN, { "设置": "Preferences" });\n`),
-    expect: [/new translation conflict: "设置" is translated 2 ways: "Settings" \(apps\/workbench\/src\/i18n\/en\.ts:\d+\) \| "Preferences"/] },
-];
+test("FSS-53 the locale gate reads the declared owner, t aliases, constants and both languages", () => {
+  const result = read(core());
+  assert.deepEqual(result.problems, []);
+  assert.deepEqual(new Set(result.calls.map(call => call.key)), new Set(["alpha.page.open", "alpha.page.close"]));
+  assert.deepEqual(result.dead, ["alpha.page.unused"]);
+});
 
-for (const scenario of conflicts) {
-  test(`${scenario.name} fails against the merge-base, and --update does not hide it`, () => {
-    branch("conflict", scenario.mutate);
-    const caught = gate("--base", "main");
-    assert.equal(caught.code, 1, caught.out);
-    for (const pattern of scenario.expect) assert.match(caught.out, pattern);
-    const refused = gate("--update", "--base", "main");
-    assert.equal(refused.code, 1, refused.out);
-    assert.match(refused.out, /Baseline not written/);
-    assert.equal(git("status", "--porcelain"), "", "a refused --update leaves baseline.json alone");
-    assert.equal(gate("--update").code, 0);
-    commit("update baseline");
-    assert.equal(gate().code, 0, "the committed baseline now agrees with the head, which is the hole the merge-base comparison closes");
-    const still = gate("--base", "main");
-    assert.equal(still.code, 1, still.out);
-    for (const pattern of scenario.expect) assert.match(still.out, pattern);
+test("FSS-53 the locale gate refuses missing English, invalid key shapes and dropped declarations", () => {
+  const files = core();
+  assert.deepEqual(read({ ...files, [EN]: messages("en", { "alpha.page.close": "Close" }) }).problems,
+    [UI + ":3: no English word for alpha.page.open"]);
+  assert.ok(read({ ...files, [UI]: files[UI] + '\nsayOwn("原文"); sayOwn("alpha.page.absent");' }).problems
+    .some(problem => problem.includes('expected a stable text key at sayOwn: "原文"')));
+  const dropped = read({ ...files, [manifest]: files[manifest].replace(/, locales: \{.*?\}/u, "") });
+  assert.ok(dropped.problems.some(problem => problem.includes("declare the owner's ui.locales")));
+  assert.ok(dropped.problems.some(problem => problem.includes(EN + ": no locale declaration")));
+});
+
+test("FSS-53 duplicate words, argument mismatches and a foreign file fail the locale gate", () => {
+  const files = core();
+  const duplicate = files[EN].replace('"alpha.page.close":"Close"', '"alpha.page.close":"Close","alpha.page.close":"Other"');
+  assert.ok(read({ ...files, [EN]: duplicate }).problems.some(problem => problem.endsWith("repeated key alpha.page.close")));
+  const wrongArgs = files[EN].replace("{name}", "{person}");
+  assert.ok(read({ ...files, [EN]: wrongArgs }).problems.some(problem => problem.endsWith("arguments differ for alpha.page.open")));
+  const wrongOwner = files[EN].replace(ID, "example.another.alpha");
+  assert.ok(read({ ...files, [EN]: wrongOwner }).problems.some(problem => problem.endsWith("wrong owner, language or message table")));
+  assert.ok(read({ ...files, [EN]: files[EN].replace("alpha.page.close", "beta.page.close") }).problems
+    .some(problem => problem.endsWith("invalid or foreign key beta.page.close")));
+});
+
+test("FSS-53 a browser program's forwarded title and hint count, independently of script escaping", () => {
+  const frame = DIR + "/src/frame.ts", view = DIR + "/src/frame-view.ts";
+  const files = core();
+  const result = read({ ...files,
+    [frame]: 'import { VIEW } from "./frame-view.js";\nexport const FRAME = String.raw`\nconst words = (title,hint) => globalThis.t(title) + globalThis.t.text(hint);\n` + VIEW;',
+    [view]: 'export const VIEW = String.raw`\nconst urls = /^https?:\\/\\//; const line = "\\n";\nwords("alpha.page.open", "alpha.page.missing");\n`;',
+    [DIR + "/src/other.ts"]: 'export const OTHER = `words("alpha.page.unrelated", "alpha.page.unrelated")`;',
   });
-}
-
-test("a third dictionary that repeats an existing English text adds no conflict", () => {
-  branch("same-english", () => addGamma('  "说明": "Notes",'));
-  const run = gate("--base", "main");
-  assert.equal(run.code, 0, run.out);
+  assert.deepEqual(result.problems, [view + ":3: no registered default word for alpha.page.missing"]);
+  assert.ok(result.calls.some(call => call.file === view && call.key === "alpha.page.open" && call.embedded));
 });
 
-// The target scheme (decision #16): `owner.area.name` with { zh, en } in the owner's dictionary, checked as soon as one exists.
-const stableAlpha = messages("alpha", '  "alpha.ui.open": { zh: "打开", en: "Open" },\n  "alpha.ui.saved": { zh: "已保存 {count} 项", en: "Saved {count} items" },');
-const stable: Scenario[] = [
-  { name: "a stable key defined twice", mutate: () => { put("plugins/native/alpha/src/messages.ts", stableAlpha); put("plugins/native/alpha/src/more-messages.ts", messages("alpha", '  "alpha.ui.open": { zh: "打开", en: "Open" },')); },
-    expect: [/stable key alpha\.ui\.open is defined 2 times \(plugins\/native\/alpha\/src\/messages\.ts:\d+, plugins\/native\/alpha\/src\/more-messages\.ts:\d+\); one key, one definition/] },
-  { name: "a stable key that does not start with its owner", mutate: () => put("plugins/native/beta/src/messages.ts", messages("beta", '  "alpha.ui.open": { zh: "打开", en: "Open" },')),
-    expect: [/stable key alpha\.ui\.open \(plugins\/native\/beta\/src\/messages\.ts:\d+\) must start with its owner: beta/] },
-  { name: "a stable key without English", mutate: () => put("plugins/native/alpha/src/messages.ts", messages("alpha", '  "alpha.ui.open": { zh: "打开" },')),
-    expect: [/stable key alpha\.ui\.open \(plugins\/native\/alpha\/src\/messages\.ts:\d+\) needs both zh and en as non-empty literal text/] },
-  { name: "a stable key whose zh and en use different placeholders", mutate: () => put("plugins/native/alpha/src/messages.ts", messages("alpha", '  "alpha.ui.saved": { zh: "已保存 {count} 项", en: "Saved {total} items" },')),
-    expect: [/stable key alpha\.ui\.saved \(plugins\/native\/alpha\/src\/messages\.ts:\d+\): zh and en use different \{placeholders\}/] },
-  { name: "a call to a stable key nobody defines", mutate: () => put("plugins/native/alpha/src/ui.ts", `${read("plugins/native/alpha/src/ui.ts")}export const gone = (p: { text(value: string): string }) => p.text("alpha.ui.gone");\n`),
-    expect: [/no English for "alpha\.ui\.gone" \(plugins\/native\/alpha\/src\/ui\.ts:2\); define it with \{ zh, en \} in the alpha dictionary/] },
-  { name: "a plugin using another owner's stable key", mutate: () => {
-    put("plugins/native/alpha/src/messages.ts", stableAlpha);
-    put("plugins/native/beta/src/client.ts", `${read("plugins/native/beta/src/client.ts")}export const borrowed = (L: (key: string) => string) => L("alpha.ui.open");\n`);
-  }, expect: [/plugins\/native\/beta\/src\/client\.ts:\d+ uses alpha\.ui\.open, which belongs to alpha; a key is used by its owner only/] },
-];
-
-for (const scenario of stable) {
-  test(`${scenario.name} fails`, () => {
-    branch("stable", scenario.mutate);
-    const caught = gate("--base", "main");
-    assert.equal(caught.code, 1, caught.out);
-    for (const pattern of scenario.expect) assert.match(caught.out, pattern);
+test("FSS-53 only platform common words cross a plugin owner boundary", () => {
+  const registry = "packages/design-system/resources/registry.json", owner = "apps/workbench/resources/locales/";
+  const file = core()[UI] + '\nsayOwn("workbench.control.private"); sayOwn("common.control.save");';
+  const platform = (locale: string) => messages(locale, { "workbench.control.private": "Private", "common.control.save": "Save" }, "workbench");
+  const result = read({ ...core(), [UI]: file,
+    [registry]: JSON.stringify({ resources: [{ kind: "locale", owner: "workbench", package: "@molis/workbench", path: "resources/locales" }] }),
+    "apps/workbench/package.json": JSON.stringify({ name: "@molis/workbench" }),
+    "packages/contracts/src/platform/ui-text.ts": 'const UI_LANGUAGES = [{tag: "zh"}, {tag: "en"}] as const;',
+    [owner + "zh.json"]: platform("zh"), [owner + "en.json"]: platform("en"),
   });
-}
+  assert.deepEqual(result.problems, [UI + ":5: workbench.control.private belongs to another producer"]);
+});
 
-test("a file moves to stable keys while the rest stays on Chinese keys", () => {
-  branch("moved", () => {
-    registerMessages("alpha");
-    // Alpha's UI moves: its keys, their English and the owner's dictionary entry go together, nothing else changes.
-    put("plugins/native/alpha/src/messages.ts", messages("alpha", '  "alpha.ui.open": { zh: "打开", en: "Open" },\n  "alpha.ui.description": { zh: "说明", en: "Description" },'));
-    put("plugins/native/alpha/src/ui.ts", "export const ui = (p: { text(value: string): string }) => p.text(\"alpha.ui.open\") + p.text(\"alpha.ui.description\");\n");
-    put("plugins/native/alpha/src/en.ts", 'export const ALPHA_EN: Record<string, string> = {\n  "旧的": "Old",\n};\n');
+test("FSS-52 the gate flags the removed translator and manifest fields even with an otherwise valid pack", () => {
+  const files = core();
+  const result = read({ ...files, [UI]: files[UI] + '\nLF("alpha", "中文"); globalThis.L("中文");',
+    [manifest]: files[manifest].replace("contributions: []", 'contributions: [], messages: {}, translations: {}'),
   });
-  const run = gate("--base", "main");
-  assert.equal(run.code, 0, run.out);
-  // The conflict on "说明" is gone with the Chinese key: one fewer, which the hint says.
-  assert.match(run.out, /Lower than the merge-base: translations/);
-  assert.match(run.out, /0 translation conflicts, 0 missing English/);
-  const report = JSON.parse(gate("--report", "--json", "--base", "main").out);
-  assert.equal(report.head.translations.stableKeys, 2);
-  assert.equal(report.base.translations.stableKeys, 0);
-  assert.deepEqual(report.head.translations.conflicts, {});
-  assert.deepEqual(report.base.translations.conflicts, { "说明": 2 });
+  assert.equal(result.problems.filter(problem => problem.includes("retired translator")).length, 2);
+  assert.ok(result.problems.some(problem => problem.includes("replaced by ui.locales")));
+  assert.equal(scanFile(UI, '// L("a comment")').retired.length, 0);
 });
 
-test("resolving a conflict lowers the number and --update --base accepts it", () => {
-  branch("resolved", () => put("plugins/native/beta/src/en.ts", 'export const BETA_EN: Record<string, string> = {\n  "说明": "Description",\n  "载入": "Load",\n};\n'));
-  const run = gate("--base", "main");
-  assert.equal(run.code, 0, run.out);
-  assert.match(run.out, /Lower than the merge-base: translations/);
-  assert.equal(gate("--update", "--base", "main").code, 0);
-  assert.deepEqual(JSON.parse(read(".git/molis-health-baseline.json")).translationConflicts, {});
-});
-
-test("renaming or moving a dictionary does not make its frozen conflict new", () => {
-  branch("moved-dictionary", () => {
-    git("mv", "plugins/native/beta/src/en.ts", "plugins/native/beta/src/translations.ts");
-    put("plugins/native/beta/src/translations.ts", read("plugins/native/beta/src/translations.ts").replace("BETA_EN", "BETA_FIXED_EN"));
-    put("apps/workbench/src/i18n/en.ts", read("apps/workbench/src/i18n/en.ts").replaceAll("BETA_EN", "BETA_FIXED_EN"));
-  });
-  const run = gate("--base", "main");
-  assert.equal(run.code, 0, run.out);
-});
-
-test("dead keys, comments, tests and build output are reported or ignored, never failures", () => {
-  branch("quiet", () => {
-    put("plugins/native/alpha/src/en.ts", 'export const ALPHA_EN: Record<string, string> = {\n  "打开": "Open",\n  "说明": "Description",\n  "旧的": "Old",\n  "更旧的": "Older",\n};\n');
-    put("apps/workbench/src/renderer.ts", `${read("apps/workbench/src/renderer.ts")}// L("评论里的字")\nexport const text = "L('字符串里的字')";\n`);
-    put("tests/other.test.ts", 'export const y = L("另一个测试里的字");\n');
-  });
-  const run = gate("--base", "main");
-  assert.equal(run.code, 0, run.out);
-  const report = JSON.parse(gate("--report", "--json").out);
-  assert.equal(report.head.translations.deadKeys, 2, "旧的 and 更旧的 are mentioned nowhere");
-  assert.equal(report.head.translations.missingKeys, 0);
-  assert.match(gate("--report").out, /missing English: 0; unserved dictionaries: 0; stable-key problems: 0; dead keys \(reported only\): 2/);
-});
-
-test("a key built from a stable prefix keeps the keys of that family from being dead", () => {
-  branch("family", () => {
-    registerMessages("alpha");
-    put("plugins/native/alpha/src/messages.ts", messages("alpha", '  "alpha.status.running": { zh: "进行中", en: "Running" },\n  "alpha.status.stopped": { zh: "已停止", en: "Stopped" },\n  "alpha.other.unused": { zh: "没人用", en: "Unused" },'));
-    put("plugins/native/alpha/src/ui.ts", `${read("plugins/native/alpha/src/ui.ts")}export const status = (L: (key: string) => string, state: string) => L(\`alpha.status.\${state}\`);\n`);
-  });
-  const run = gate("--base", "main");
-  assert.equal(run.code, 0, run.out);
-  const report = JSON.parse(gate("--report", "--json").out);
-  assert.equal(report.head.translations.stableKeys, 3);
-  assert.equal(report.head.translations.dynamicCalls, 1);
-  // 旧的 (legacy) and alpha.other.unused (not under the family) are dead; the two alpha.status.* keys are not.
-  assert.equal(report.head.translations.deadKeys, 2);
-});
-
-test("the report prints the numbers and the biggest conflicts; an old-shaped baseline asks for --update", () => {
-  git("checkout", "-q", "-f", "main");
-  // Checkout no longer restores the private quick baseline; give this scenario its original baseline explicitly.
-  put(".git/molis-health-baseline.json", initialQuickBaseline);
-  const text = gate("--report", "--top", "1").out;
-  assert.match(text, /Translations: 3 dictionaries, 8 entries \(7 distinct keys, 1 defined more than once\), 0 stable keys/);
-  assert.match(text, /conflicting keys: 1;/);
-  assert.match(text, /\s2\s+"说明"/);
-  assert.equal(JSON.parse(read(".git/molis-health-baseline.json")).translationConflictTotal, 1);
-  const baseline = JSON.parse(read(".git/molis-health-baseline.json"));
-  delete baseline.translationConflicts;
-  put(".git/molis-health-baseline.json", `${JSON.stringify(baseline, null, 2)}\n`);
-  const old = gate();
-  assert.equal(old.code, 2, old.out);
-  assert.match(old.out, /translationConflicts is missing or has an old shape; regenerate it/);
-  git("checkout", "-q", "-f", "main");
-});
-
-// ---- this repository ----------------------------------------------------------------------------------------------------------
-// The scan has to read the real tree, not only fixtures: these are canaries for each kind of call and for the dictionaries.
-const productSnapshot = workingTreeSnapshot(repoRoot);
-const real = (() => { const scan = scanTree(productSnapshot, isProductSource); return { scan, summary: summarise(scan) }; })();
-// Independently discover the literal dictionary declarations in the source text, including inline dictionaries and stable
-// dictionary parts. This does not use scanFile/scanTree to decide what ought to be found. A new declaration form needs its own
-// example here; this deliberately small inventory is not a second TypeScript parser.
-const dictionaryDeclaration = /^\s*(?:export\s+)?const\s+(?:EN|[A-Z][A-Z0-9_]*_(?:EN|MESSAGES))\b[^=\n]*=\s*(?:Object\.freeze\(\s*)?\{/m;
-const expectedDictionaryFiles = productSnapshot.files.filter((file) => isProductSource(file) && dictionaryDeclaration.test(productSnapshot.read(file) ?? ""));
-const assertDictionaryCoverage = (scan: typeof real.scan) => assert.deepEqual(
-  [...scan.dictionaryFiles].sort(), expectedDictionaryFiles.toSorted(), "every declared source dictionary must be scanned",
-);
-
-test("this repository: nothing is missing, and the scan covers every kind of call the product uses", () => {
-  const { scan, summary } = real;
-  assert.deepEqual(summary.detail.missing.map((item: { key: string; sites: Array<{ file: string; line: number }> }) => `${item.key} ${item.sites[0]!.file}:${item.sites[0]!.line}`), [], "every translator call has English");
-  assert.deepEqual(scan.stableErrors, []);
-  // TSCAN-01: entries counts Chinese-key words only; moving words to stable dictionaries legitimately lowers it.
-  assert.ok(summary.dictionaries >= 40, `dictionaries ${summary.dictionaries}`);
-  assert.ok(summary.calls >= 7000 && summary.callFiles >= 150, `calls ${summary.calls} in ${summary.callFiles} files`);
-  // One floor per kind of call (about half of what the tree has today), so a refactor that moves a file does not break this,
-  // while a rule that stops reading a whole kind of call does.
-  const count = (match: (call: { callee: string; embedded: boolean }) => boolean) => scan.calls.filter(match).length;
-  const roots = new Set(["L", "p.text", "p.L", "primitives.text", "globalThis.L", "this.t", "translate"]);
-  assert.ok(count((call) => call.callee === "L") > 3000, "L(…) in server renderers and browser scripts");
-  assert.ok(count((call) => call.callee === "p.text") > 600, "p.text(…) in plugin UI files");
-  assert.ok(count((call) => call.embedded) > 1500, "calls inside the browser scripts that live in template literals");
-  assert.ok(count((call) => call.callee === "globalThis.L" && call.embedded) >= 1, "globalThis.L(…) inside a browser script");
-  assert.ok(count((call) => !roots.has(call.callee)) > 250, "calls of wrappers and of translators injected as typed parameters");
-  assert.ok(count((call) => call.callee === "p.L") > 20, "p.L(…)");
-  // No product file calls `this.t(…)` since the horizontal services were split (R-38): Placement's `placementText(ports, …)` hands its
-  // key to the port's `text(…)`, a translator its interface declares, and is read as a wrapper. The `this.t` rule stays, shown here on a
-  // file of its own, and the wrapper is shown on the real tree.
-  assert.deepEqual(scanFile("horizontal/sample/src/index.ts", 'class Sample { private t(zh: string): string { return zh; } title() { return this.t("未命名"); } }\n').calls
-    .filter((call: { callee: string }) => call.callee === "this.t").map((call: { key: string }) => call.key), ["未命名"], "this.t(…)");
-  assert.ok(count((call) => call.callee === "placementText" && call.file.startsWith("horizontal/placement/")) > 20, "a wrapper of a port's declared translator");
-  assert.ok(count((call) => call.callee === "text") > 10, "an injected translator typed as a parameter (text: (value: string, values?: Record<string, string | number>) => string)");
-});
-
-test("this repository: wrappers are followed through every forwarded parameter and into the other files of a browser program", () => {
-  const keys = (file: string, callee: string) => real.scan.calls.filter((call: { file: string; callee: string }) => call.file === file && call.callee === callee).map((call: { key: string }) => call.key);
-  // relationGroup forwards its title and hint; renderPolicyToggle forwards the confirmation label.
-  // The field-wrapper placeholder is covered by the dedicated mutation case above.
-  assert.ok(keys("plugins/native/goals/src/relation-ui.ts", "relationGroup").includes("上游") && keys("plugins/native/goals/src/relation-ui.ts", "relationGroup").includes("这个 Goal 的归属与完成依赖"));
-  assert.ok(keys("plugins/native/goals/src/policy-ui.ts", "renderPolicyToggle").includes("完成前必须由用户确认工作结果"));
-  // Alchemist: tx and button are defined in client.ts, section in client-views.ts, and the three other script files call them
-  assert.ok(keys("plugins/native/alchemist/src/client-views.ts", "button").includes("归档方向"));
-  assert.ok(keys("plugins/native/alchemist/src/client-views.ts", "tx").includes("实际使用次数"));
-  assert.ok(keys("plugins/native/alchemist/src/client-flows.ts", "field").includes("探索描述"));
-  assert.ok(keys("plugins/native/alchemist/src/work-reuse/client.ts", "section").includes("适用条件"), "section is defined in client-views.ts and calls tx from client.ts");
-});
-
-test("this repository: every dictionary is part of the English the Host serves, and the rule is really looking at it", () => {
-  const { scan, summary } = real;
-  assert.deepEqual(scan.unserved, []);
-  assert.equal(summary.unservedDictionaries, 0);
-  // The rule is off when its root cannot be found, so pin the root: it exists, builds `EN`, and uses the dictionaries.
-  const root = scan.files.find((file: { file: string }) => file.file === SERVED_ROOT);
-  assert.ok(root, `${SERVED_ROOT} is not a scanned file: move SERVED_ROOT in scripts/gates/translations.mjs with it`);
-  assert.ok(root.dictionaries.some((item: { name: string }) => item.name === "EN"));
-  const rootUses = new Set([...root.usesBy.values()].flatMap((names: Set<string>) => [...names]));
-  assert.ok(rootUses.size >= 10 && rootUses.has("FUNCTIONS_EN") && !rootUses.has("IMAGES_EN"), `the root uses ${rootUses.size} dictionaries; a plugin's own English is declared in its Manifest, not imported here`);
-  // A plugin's dictionaries are served through its Manifest's `ui.translations` (PG-071).
-  const imagesManifest = scan.files.find((file: { file: string }) => file.file === "plugins/native/images/src/manifest.ts");
-  assert.ok(imagesManifest?.usesBy.get("")?.has("IMAGES_EN"), "Images' Manifest names IMAGES_EN");
-  // Mutations on the real tree: a Manifest stops naming its plugin's dictionary, or a new dictionary appears that nothing uses.
-  const without = (name: string) => scan.files.map((file: { file: string; usesBy: Map<string, Set<string>> }) => (file.file === "plugins/native/images/src/manifest.ts"
-    ? { ...file, usesBy: new Map([...file.usesBy].map(([owner, names]) => [owner, new Set([...names].filter((use) => use !== name))])) } : file));
-  assert.deepEqual(unservedDictionaries(without("IMAGES_EN")).map((item: { name: string; file: string }) => `${item.name} ${item.file}`), ["IMAGES_EN plugins/native/images/src/en.ts"]);
-  const extra = scanFile("plugins/native/images/src/more-en.ts", 'export const IMAGES_MORE_EN: Record<string, string> = { "更多": "More" };\n');
-  assert.deepEqual(unservedDictionaries([...scan.files, extra]).map((item: { name: string }) => item.name), ["IMAGES_MORE_EN"]);
-  const spread = scanFile("plugins/native/images/src/en.ts", `${readFileSync(path.join(repoRoot, "plugins/native/images/src/en.ts"), "utf8")}\nexport const IMAGES_LATER_EN = { ...IMAGES_MORE_EN, "后来": "Later" };\n`);
-  assert.deepEqual(unservedDictionaries([...scan.files.filter((file: { file: string }) => file.file !== spread.file), spread, extra]).map((item: { name: string }) => item.name).sort(), ["IMAGES_LATER_EN", "IMAGES_MORE_EN"]);
-});
-
-test("without the catalog root there is nothing to serve from, and the rule stays quiet", () => {
-  const files = [scanFile("plugins/native/gamma/src/en.ts", 'export const GAMMA_EN: Record<string, string> = { "伽马": "Gamma" };\n')];
-  assert.deepEqual(unservedDictionaries(files), []);
-  assert.deepEqual(unservedDictionaries([...files, scanFile(SERVED_ROOT, "export const NOT_THE_CATALOG = 1;\n")]), []);
-  const withRoot = [...files, scanFile(SERVED_ROOT, 'export const EN: Record<string, string> = { "设置": "Settings" };\n')];
-  assert.deepEqual(unservedDictionaries(withRoot).map((item: { name: string }) => item.name), ["GAMMA_EN"]);
-});
-
-test("RAC-755: a dictionary a plugin's Manifest names in ui.translations is served; one only another file of the plugin uses is not", () => {
-  const root = scanFile(SERVED_ROOT, 'export const EN: Record<string, string> = { "设置": "Settings" };\n');
-  const dictionary = scanFile("plugins/native/gamma/src/en.ts", 'export const GAMMA_EN: Record<string, string> = { "伽马": "Gamma" };\n');
-  const named = scanFile("plugins/native/gamma/src/manifest.ts", 'import { GAMMA_EN } from "./en.js";\nexport const manifest = { ui: { translations: GAMMA_EN } };\n');
-  const elsewhere = scanFile("plugins/native/gamma/src/ui.ts", 'import { GAMMA_EN } from "./en.js";\nexport const words = GAMMA_EN;\n');
-  assert.deepEqual(unservedDictionaries([root, dictionary, named]), []);
-  assert.deepEqual(unservedDictionaries([root, dictionary]).map((item: { name: string }) => item.name), ["GAMMA_EN"]);
-  assert.deepEqual(unservedDictionaries([root, dictionary, elsewhere]).map((item: { name: string }) => item.name), ["GAMMA_EN"]);
-  // A dictionary the Manifest's dictionary spreads is served with it.
-  const part = scanFile("plugins/native/gamma/src/part-en.ts", 'export const GAMMA_PART_EN: Record<string, string> = { "部分": "Part" };\n');
-  const whole = scanFile("plugins/native/gamma/src/en.ts", 'import { GAMMA_PART_EN } from "./part-en.js";\nexport const GAMMA_EN: Record<string, string> = { ...GAMMA_PART_EN, "伽马": "Gamma" };\n');
-  assert.deepEqual(unservedDictionaries([root, part, whole, named]), []);
-  assert.deepEqual(unservedDictionaries([root, part, whole]).map((item: { name: string }) => item.name).sort(), ["GAMMA_EN", "GAMMA_PART_EN"]);
-});
-
-test("RAC-755 this repository: Goals' dictionaries are served through its Manifest, and dropping that declaration is caught", () => {
-  const manifest = "plugins/native/goals/src/manifest.ts";
-  const text = readFileSync(path.join(repoRoot, manifest), "utf8");
-  assert.match(text, /translations: \{[^}]*GOALS_POLICY_EN/u, "the Manifest names Goals' dictionaries");
-  const cut = scanFile(manifest, text.replace(/ {4}translations: \{[^}]*\},\n/u, ""));
-  const unserved = unservedDictionaries(real.scan.files.map((file: { file: string }) => file.file === manifest ? cut : file)).map((item: { name: string }) => item.name);
-  assert.ok(unserved.length >= 12 && unserved.includes("GOALS_POLICY_EN") && unserved.includes("GOALS_PROPOSAL_EN"), unserved.join(", "));
-});
-
-test("TSCAN-02 this repository: every dictionary file is found, wherever it lives", () => {
-  assertDictionaryCoverage(real.scan);
-  const listed = workingTreeSnapshot(repoRoot).files.filter((file) => isProductSource(file) && /(^|\/)(en|[a-z-]+-en)\.ts$/.test(file));
-  assert.ok(listed.length >= 40);
-  assert.deepEqual(listed.filter((file) => !real.scan.dictionaryFiles.has(file)), [], "a *-en.ts file the scan could not read as a dictionary");
-  // Fixed facts, read directly from these product dictionaries: plain objects, Object.assign, inline dictionaries, stable
-  // dictionaries and a stable dictionary part. Expected keys and English do not come from the scan's output.
-  for (const [file, key, english] of [
-    [SERVED_ROOT, "连接不可用", "Connection unavailable"],
-    [SERVED_ROOT, "概览", "Overview"],
-    ["packages/design-system/src/plugin-components.ts", "页框", "Page frame"],
-    ["plugins/native/schedule/src/en.ts", "确认决定", "Confirm decision"],
-  ]) {
-    const source = real.scan.files.find((item: { file: string }) => item.file === file);
-    assert.ok(source?.entries.some((entry: { key: string; value: string | null }) => entry.key === key && entry.value === english), `${file}: ${key} = ${english}`);
-  }
-  for (const [file, key, zh, en] of [
-    ["plugins/native/schedule/src/messages.ts", "schedule.action.new", "新建定时任务", "New scheduled task"],
-    ["plugins/native/shelf/src/messages.ts", "shelf.bar.manage-actions", "管理动作", "Manage actions"],
-    ["plugins/native/coding/src/timeline-messages.ts", "coding.call.read", "读取", "Read"],
-  ]) {
-    const source = real.scan.files.find((item: { file: string }) => item.file === file);
-    assert.ok(source?.stable.some((entry: { key: string; zh: string | null; en: string | null }) => entry.key === key && entry.zh === zh && entry.en === en), `${file}: ${key} = ${en}`);
-  }
-});
-
-const stableDictionaryFiles = new Set(expectedDictionaryFiles.filter((file) => /\bconst\s+[A-Z][A-Z0-9_]*_MESSAGES\b/.test(productSnapshot.read(file) ?? "")));
-for (const [kind, omitted] of [
-  ["one dictionary", new Set(["plugins/native/schedule/src/en.ts"])],
-  ["all Chinese-key dictionaries", new Set(expectedDictionaryFiles.filter((file) => !stableDictionaryFiles.has(file)))],
-  ["all stable dictionaries", stableDictionaryFiles],
-] as const) {
-  test(`TSCAN-03 the independent inventory rejects a scan that skips ${kind}`, () => {
-    const incomplete = scanTree({ ...productSnapshot, files: productSnapshot.files.filter((file) => !omitted.has(file)) }, isProductSource);
-    assert.throws(() => assertDictionaryCoverage(incomplete), /every declared source dictionary must be scanned/);
-  });
-}
-
-test("this repository: scanning a file twice gives the same facts, and the owners table names the plugins", () => {
-  const text = readFileSync(path.join(repoRoot, "plugins/native/images/src/ui.ts"), "utf8");
-  assert.deepEqual(scanFile("plugins/native/images/src/ui.ts", text).calls, scanFile("plugins/native/images/src/ui.ts", text).calls);
-  const owners = new Map(ownerTable(real.scan).map((row: { owner: string }) => [row.owner, row]));
-  for (const owner of ["workbench", "goals", "images", "schedule", "todo"]) assert.ok(owners.has(owner), owner);
-});
-
-test("a missing key says which dictionary its English belongs in", () => {
-  const dictionary = (file: string, name: string) => scanFile(file, `export const ${name}: Record<string, string> = { "已有": "Present" };\n`);
-  const result = summarise(analyse([
-    dictionary("apps/workbench/src/i18n/en.ts", "EN"), dictionary("apps/workbench/src/i18n/renderer-gap-en.ts", "RENDERER_GAP_EN"), dictionary("apps/workbench/src/judgment-rules/en.ts", "FUNCTIONS_EN"),
-    dictionary("plugins/native/goals/src/status-en.ts", "GOALS_STATUS_EN"), dictionary("plugins/native/goals/src/tree-en.ts", "GOALS_TREE_EN"),
-    scanFile("apps/workbench/src/settings.ts", 'export const a = L("新一");\n'), scanFile("apps/workbench/src/judgment-rules/client.ts", 'export const b = L("新二");\n'),
-    scanFile("apps/local-host/src/host.ts", 'export const c = L("新三");\n'), scanFile("plugins/native/goals/src/tree-ui.ts", 'export const d = L("新四");\n'),
-  ]));
-  const hint = Object.fromEntries(missingErrors(result).map((line: string) => [/no English for "(.+?)"/.exec(line)![1], /add its English to (.+)$/.exec(line)![1]]));
-  assert.deepEqual(hint, {
-    "新一": "apps/workbench/src/i18n/renderer-gap-en.ts", "新二": "apps/workbench/src/judgment-rules/en.ts",
-    "新三": "apps/workbench/src/i18n/renderer-gap-en.ts", "新四": "plugins/native/goals/src/tree-en.ts",
-  });
-});
-
-test("the command line lists missing keys, conflicts, dead keys and owners; a bad flag is an error", () => {
-  const run = (...args: string[]) => spawnSync(process.execPath, [cli, ...args], { encoding: "utf8" });
-  const all = run("--conflicts", "--owners", "--dead");
-  assert.equal(all.status, 0, all.stdout + all.stderr);
-  assert.match(all.stdout, /Translations: \d+ dictionaries/);
-  assert.match(all.stdout, /"说明": \d+ English texts/);
-  assert.match(all.stdout, /^owner\s+files\s+calls/m);
-  assert.match(all.stdout, /^dead: /m);
-  assert.equal(run("--bogus").status, 2);
-});
-
-
-for (const mode of ["missing manifest", "import only", "unrelated object", "wrong field", "plugin not in the catalog"] as const) {
-  test(`RAC-59: a stable dictionary with ${mode} fails, and updating the baseline cannot hide it`, () => {
-    branch("unserved-stable", () => {
-      put("plugins/native/alpha/src/messages.ts", stableAlpha);
-      if (mode !== "missing manifest") {
-        put(MESSAGES_ROOT, mode === "plugin not in the catalog" ? "export const BUILTIN_PLUGIN_CATALOG = [];\n" : catalogListing("alpha"));
-        manifestFor("alpha", mode === "wrong field" ? "unused: {alias}" : mode === "plugin not in the catalog" ? "messages: {alias}" : "",
-          "ALPHA_MESSAGES", mode === "unrelated object" ? "const unused = { messages: ALPHA_MESSAGES };\n" : "");
-      }
-    });
-    for (const flags of [[], ["--base", "main"]]) {
-      const run = gate(...flags);
-      assert.equal(run.code, 1, run.out);
-      assert.match(run.out, /stable dictionary ALPHA_MESSAGES .*not registered/);
-    }
-    // --update records counts; absolute errors are checked by the gate, never accepted through that file.
-    for (const update of [["--update"], ["--update", "--base", "main"]]) {
-      const written = gate(...update);
-      assert.equal(written.code, 0, written.out);
-      for (const flags of [[], ["--base", "main"]]) {
-        const run = gate(...flags);
-        assert.equal(run.code, 1, run.out);
-        assert.match(run.out, /stable dictionary ALPHA_MESSAGES .*not registered/);
-      }
-    }
-  });
-}
-
-test("RAC-59: the catalog may import the owner's registration under any name", () => {
-  branch("stable-alias", () => {
-    put("plugins/native/alpha/src/messages.ts", stableAlpha);
-    registerMessages("alpha", "WORDS");
-  });
-  const run = gate("--base", "main");
-  assert.equal(run.code, 0, run.out);
-});
-
-// VUX-40 (slice 40): one owner's words may span several files. The registered dictionary spreads its parts; each part is
-// checked like any dictionary, and a part must belong to the same owner.
-const alphaParts = (spreadsFromBeta = false) => {
-  put("plugins/native/alpha/src/timeline-messages.ts", 'export const ALPHA_TIMELINE_MESSAGES = {\n  "alpha.timeline.done": { zh: "完成", en: "Done" },\n};\n');
-  if (spreadsFromBeta) put("plugins/native/beta/src/messages.ts", messages("beta", '  "beta.ui.open": { zh: "打开", en: "Open" },'));
-  put("plugins/native/alpha/src/messages.ts", 'import { ALPHA_TIMELINE_MESSAGES as TIMELINE } from "./timeline-messages.js";\n' +
-    (spreadsFromBeta ? 'import { BETA_MESSAGES } from "@scratch/beta";\n' : "") +
-    'export const ALPHA_MESSAGES = {\n  ...TIMELINE,\n' + (spreadsFromBeta ? "  ...BETA_MESSAGES,\n" : "") + '  "alpha.ui.open": { zh: "打开", en: "Open" },\n};\n');
-  registerMessages("alpha");
-};
-
-test("VUX-40: a registered dictionary may be assembled from its owner's parts, and each part is still checked", () => {
-  branch("stable-parts", () => alphaParts());
-  const run = gate("--base", "main");
-  assert.equal(run.code, 0, run.out);
-  branch("stable-parts-bad-part", () => {
-    alphaParts();
-    put("plugins/native/alpha/src/timeline-messages.ts", 'export const ALPHA_TIMELINE_MESSAGES = {\n  "alpha.timeline.done": { zh: "完成 {count}", en: "Done" },\n};\n');
-  });
-  const bad = gate("--base", "main");
-  assert.equal(bad.code, 1, bad.out);
-  assert.match(bad.out, /stable key alpha\.timeline\.done .*different \{placeholders\}/);
-});
-
-test("VUX-40: a part another owner defines is rejected, and a part nothing spreads is still unregistered", () => {
-  branch("stable-parts-foreign", () => alphaParts(true));
-  const foreign = gate("--base", "main");
-  assert.equal(foreign.code, 1, foreign.out);
-  assert.match(foreign.out, /stable dictionary ALPHA_MESSAGES \(plugins\/native\/alpha\/src\/messages\.ts\) spreads BETA_MESSAGES, which beta defines/);
-  assert.match(foreign.out, /stable dictionary BETA_MESSAGES .*not registered/);
-  branch("stable-parts-unspread", () => {
-    alphaParts();
-    put("plugins/native/alpha/src/messages.ts", messages("alpha", '  "alpha.ui.open": { zh: "打开", en: "Open" },') + 'const unused = { ...ALPHA_TIMELINE_MESSAGES };\n');
-  });
-  const unspread = gate("--base", "main");
-  assert.equal(unspread.code, 1, unspread.out);
-  assert.match(unspread.out, /stable dictionary ALPHA_TIMELINE_MESSAGES .*not registered/);
-});
-
-test("RAC-59: removing Images' real catalog registration is detected even while its import remains", () => {
-  assert.deepEqual(real.scan.stableErrors, []);
-  const original = readFileSync(path.join(repoRoot, MESSAGES_ROOT), "utf8");
-  assert.match(original, /imagesRegistration,/);
-  const disconnected = scanFile(MESSAGES_ROOT, original.replace("  imagesRegistration,\n", ""));
-  const changed = analyse(real.scan.files.map((file: { file: string }) => file.file === MESSAGES_ROOT ? disconnected : file));
-  assert.equal(changed.stableErrors.length, 1);
-  assert.match(changed.stableErrors[0], /stable dictionary IMAGES_MESSAGES .*not registered/);
+test("FSS-53 the real working tree has registered packs and no translation violations", () => {
+  const result = summarise(scanTree(workingTreeSnapshot(process.cwd())));
+  assert.ok(result.packs > 2);
+  assert.ok(result.calls > 100);
+  assert.deepEqual(result.errors, []);
 });

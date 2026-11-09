@@ -9,7 +9,8 @@ export interface CapsuleProjectNavigation {
 export interface CapsuleShellEnvironment {
   translate(message: string): string;
   htmlLang: string;
-  clientI18nScript: string;
+  pluginTitleScript: string;
+  languageHead: string;
   themeBootstrapScript: string;
 }
 
@@ -242,8 +243,8 @@ export const CAPSULE_CLIENT_SCRIPT = `
     if (invoke) invoke("capsule_open_main", { path }).catch(() => { location.href = path; });
     else location.href = path;
   };
-  const capsuleLocale = document.documentElement.lang.toLowerCase().startsWith("en") ? "en" : "zh";
-  const capsuleRequestPath = (path) => path + (path.includes("?") ? "&" : "?") + "locale=" + capsuleLocale;
+  const capsuleLocale = () => document.documentElement.lang.toLowerCase().startsWith("en") ? "en" : "zh";
+  const capsuleRequestPath = (path) => path + (path.includes("?") ? "&" : "?") + "locale=" + capsuleLocale();
   const appendFact = (list, label, value, emphasized = false) => {
     const row = element("div", "capsule__fact" + (emphasized ? " capsule__fact--next" : ""));
     row.append(element("dt", "", label), element("dd", "", value || "—"));
@@ -443,6 +444,7 @@ export const CAPSULE_CLIENT_SCRIPT = `
     renderTabs(keepTabFocus);
     renderList(focusedGoalId);
     invoke?.("capsule_update_menu_bar", {
+      languageRevision: Number(document.documentElement.dataset.uiNativeLanguageRevision || "0"),
       title: next.state.menu_bar_title,
       tooltip: next.state.menu_bar_tooltip,
       path: next.state.action_path,
@@ -485,6 +487,7 @@ export const CAPSULE_CLIENT_SCRIPT = `
       setText("[data-capsule-error-detail]", globalThis.t.text("workbench.capsule-shell.molis-work-reconnecting-automatically-until-recovers-old-status"));
       setCapsuleHeight(252);
       invoke?.("capsule_update_menu_bar", {
+        languageRevision: Number(document.documentElement.dataset.uiNativeLanguageRevision || "0"),
         title: globalThis.t.text("workbench.capsule-shell.disconnected"),
         tooltip: globalThis.t.text("workbench.capsule-shell.latest-work-status-cannot-be-confirmed-molis-work"),
         path: snapshot?.state?.action_path || "/projects/" + encodeURIComponent(requestedProjectId),
@@ -579,6 +582,7 @@ export const CAPSULE_CLIENT_SCRIPT = `
     event.preventDefault();
     invoke?.("capsule_hide").catch(() => {});
   });
+  document.addEventListener("molis-work:language-changed", () => load());
   load({ showLoading: true });
   window.addEventListener("online", () => load({ showLoading: true }));
   startTimers();
@@ -595,7 +599,7 @@ export function renderDesktopCapsuleShell(
   environment: CapsuleShellEnvironment,
 ): string {
   const options = projectOptions(projects);
-  return `<!doctype html><html lang="${environment.htmlLang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${uiText("workbench.capsule-shell.work-capsule")} · Molis Work</title><script>${environment.themeBootstrapScript}</script><style>${CAPSULE_STYLES}</style></head><body><main class="capsule-shell" data-capsule data-state="empty" data-error="false" data-loading="true" aria-busy="true">
+  return `<!doctype html><html lang="${environment.htmlLang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${uiText("workbench.capsule-shell.work-capsule")} · Molis Work</title>${environment.languageHead}<script>${environment.themeBootstrapScript}</script><style>${CAPSULE_STYLES}</style></head><body><main class="capsule-shell" data-capsule data-state="empty" data-error="false" data-loading="true" aria-busy="true">
     <i class="capsule__arrow" aria-hidden="true"></i>
     <section class="capsule">
       <header class="capsule__head">
@@ -607,6 +611,6 @@ export function renderDesktopCapsuleShell(
       <footer class="capsule__actions"><p class="capsule__hint">Esc ${uiText("common.control.close")}</p><div class="capsule__buttons"><button class="capsule__button" type="button" data-capsule-open-board>${uiText("workbench.capsule-shell.open-molis-work")}</button></div></footer>
       <div class="capsule__error" data-capsule-error role="alert"><strong>${uiText("workbench.capsule-shell.latest-status-unavailable")}</strong><span data-capsule-error-detail>${uiText("workbench.capsule-shell.molis-work-reconnecting-automatically-until-recovers-old-status")}</span><button class="capsule__retry" type="button" data-capsule-retry>${uiText("workbench.capsule-shell.retry-now")}</button></div>
     </section>
-  </main><script id="capsule-projects" type="application/json">${safeJson(projects)}</script><script>${environment.clientI18nScript}${SELECT_MENU_CLIENT_SCRIPT}${CAPSULE_CLIENT_SCRIPT}</script></body></html>`;
+  </main><script id="capsule-projects" type="application/json">${safeJson(projects)}</script><script>${environment.pluginTitleScript}${SELECT_MENU_CLIENT_SCRIPT}${CAPSULE_CLIENT_SCRIPT}</script></body></html>`;
 }
 

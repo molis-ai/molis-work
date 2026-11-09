@@ -8,7 +8,7 @@ export const ONBOARDING_MODEL_SLIDE_CLIENT = String.raw`
   const draw = globalThis.molisWorkOnboardingDraw;
   const host = globalThis.molisWorkOnboardingModelHost;
   if (!draw || !host) return;
-  const L = draw.L;
+  const readText = draw.readText;
   let active = false, opening = false, saving = false, turn = 0;
   let data = null, templateId = null, draft = null, errorText = '', statusText = '';
   const typed = { key: '', modelId: '', base: '' };
@@ -37,17 +37,17 @@ export const ONBOARDING_MODEL_SLIDE_CLIENT = String.raw`
     const templates = data.templates || [];
     const chosen = templateOf(templateId);
     const choices = '<div class="mw-choice-group" role="group" aria-label="' + globalThis.t.text("workbench.onboarding-model-slide.common-providers") + '">' + templates.map(item => draw.choice({
-      label: L(item.display_name), selected: item.template_id === templateId, attrs: { 'data-ob-template': item.template_id },
+      label: item.display_name, selected: item.template_id === templateId, attrs: { 'data-ob-template': item.template_id },
     })).join('') + '</div>';
     const missing = !chosen ? '' : !chosen.fills_base_url
-      ? globalThis.t.text("workbench.onboarding-model-slide.name-format-chosen-still-needed-base-url-api", { name: L(chosen.display_name) })
+      ? globalThis.t.text("workbench.onboarding-model-slide.name-format-chosen-still-needed-base-url-api", { name: chosen.display_name })
       : !chosen.fills_model
-        ? globalThis.t.text("workbench.onboarding-model-slide.name-address-format-filled-still-needed-api-key", { name: L(chosen.display_name) })
-        : globalThis.t.text("workbench.onboarding-model-slide.name-address-format-model-filled-still-needed-api", { name: L(chosen.display_name) });
+        ? globalThis.t.text("workbench.onboarding-model-slide.name-address-format-filled-still-needed-api-key", { name: chosen.display_name })
+        : globalThis.t.text("workbench.onboarding-model-slide.name-address-format-model-filled-still-needed-api", { name: chosen.display_name });
     const form = !draft ? '' : '<div class="ob-model-form">'
-      + (chosen && !chosen.fills_base_url ? field('ob-model-base', 'Base URL', 'type="url" inputmode="url" data-ob-base') : '')
+      + (chosen && !chosen.fills_base_url ? field('ob-model-base', "workbench.onboarding-model-slide.base-url", 'type="url" inputmode="url" data-ob-base') : '')
       + (chosen && !chosen.fills_model ? field('ob-model-id', "workbench.onboarding-model-slide.model-id", 'data-ob-model-id') : '')
-      + field('ob-model-key', 'API Key', 'type="password" data-ob-key', "workbench.onboarding-model-slide.stored-only-computer-not-shown-again-after-saving")
+      + field('ob-model-key', "workbench.onboarding-model-slide.api-key", 'type="password" data-ob-key', "workbench.onboarding-model-slide.stored-only-computer-not-shown-again-after-saving")
       + (statusText ? '<p class="ob-quiet" role="status">' + draw.esc(statusText) + '</p>' : '')
       + (errorText ? '<p class="ob-error" role="alert">' + draw.esc(errorText) + '</p>' : '')
       + '</div>';
@@ -71,8 +71,8 @@ export const ONBOARDING_MODEL_SLIDE_CLIENT = String.raw`
         start: draw.exitButton() + draw.stepsBar('模型'),
         center: draw.barStatus({ glyph: 'key', title: globalThis.t.text("workbench.onboarding-model-slide.text-model"), caption: globalThis.t.text(saving ? "workbench.onboarding-model-slide.checking-connection-then-saving" : "workbench.onboarding-model-slide.originals-kept-device-connect-write-summary-later") }),
         end: draft
-          ? draw.secondary('返回', 'model-back', { icon: 'back' }) + draw.secondary(offer.label, 'start', { disabled: offer.disabled || saving }) + draw.primary('保存配置', 'model-save', { disabled: saving })
-          : draw.secondary('返回', 'model-back', { icon: 'back' }) + proceed,
+          ? draw.secondary("common.control.back", 'model-back', { icon: 'back' }) + draw.secondary(offer.label, 'start', { disabled: offer.disabled || saving }) + draw.primary("workbench.onboarding-model-slide.save-configuration", 'model-save', { disabled: saving })
+          : draw.secondary("common.control.back", 'model-back', { icon: 'back' }) + proceed,
       },
     };
   };

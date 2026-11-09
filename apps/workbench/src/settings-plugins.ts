@@ -11,7 +11,7 @@ import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
  * Home's own instance, shared by every project, are listed below the project's with the same rows; their switch goes through the Host settings
  * door for them, `/api/settings/plugin-permissions/set` (BL-700, S-94), as an agreement is taken back through the Host's, and so do switching a signed one off and on and taking it off (`/api/settings/plugin-permissions/{disable,enable,uninstall}`, BL-715).
  */
-export function renderPluginTrustSettings({ projectId, chevron }: { L(text: string): string; projectId: string; chevron: string }): string {
+export function renderPluginTrustSettings({ projectId, chevron }: { readText(text: string): string; projectId: string; chevron: string }): string {
   return `<section class="settings-document plugin-trust-settings" aria-labelledby="plugin-trust-title" data-plugin-trust-settings data-project="${projectId}">
     <header class="settings-page-heading"><h1 id="plugin-trust-title">${uiText("workbench.settings-plugins.plugin")}</h1>
       <p>${uiText("workbench.settings-plugins.plugins-installed-project-who-signed-them-what-they")}</p></header>
@@ -51,7 +51,7 @@ export const PLUGIN_TRUST_SETTINGS_CLIENT_SCRIPT = String.raw`
 const bind = (root) => {
 if (!root || root.dataset.pluginTrustBound === "1") return;
 root.dataset.pluginTrustBound = "1";
-const L = globalThis.L || ((text) => text);
+const readText = globalThis.t.text;
 const base = "/projects/" + encodeURIComponent(root.dataset.project || "") + "/api/plugin-trust";
 const $ = (name) => root.querySelector("[data-plugin-trust-" + name + "]");
 const el = (tag, className, text) => { const node = document.createElement(tag); if (className) node.className = className; if (text !== undefined && text !== null) node.textContent = text; return node; };
@@ -142,7 +142,7 @@ box.append(el("p", "", globalThis.t.text(status[view.state])), el("p", "settings
 if (view.error) box.append(el("p", "settings-form-error", view.error));
 const describe = (id) => {
 const item = reachCapabilities.get(id);
-return row(item ? L(item.title) : id, item ? L(item.description) : "", item?.available ? "" : globalThis.t.text("workbench.settings-plugins.unavailable-now"));
+return row(item ? item.title : id, item ? item.description : "", item?.available ? "" : globalThis.t.text("workbench.settings-plugins.unavailable-now"));
 };
 if (view.capability_ids.length) box.append(group(globalThis.t.text("workbench.settings-plugins.declared-actions"), "", view.capability_ids.map(describe)));
 if (view.added_capability_ids.length) box.append(group(globalThis.t.text("workbench.settings-plugins.newly-declared-actions"), "", view.added_capability_ids.map(describe)));
@@ -248,7 +248,7 @@ const bodies = el("div", "plugin-trust-agent-bodies"); bodies.append(el("h4", ""
 shown.agent_bodies.forEach((item) => {
 const body = el("div", "plugin-trust-agent-body");
 body.append(el("strong", "", globalThis.t.text(item.kind === "role" ? "workbench.settings-plugins.role-material" : "workbench.settings-plugins.method") + "：" + item.name));
-if (item.change) body.append(el("p", "settings-muted", L({ added: "新增正文", changed: "正文已变化", removed: "已移除正文" }[item.change])));
+if (item.change) body.append(el("p", "settings-muted", readText({ added: "workbench.settings-plugins.body-added", changed: "workbench.settings-plugins.body-changed", removed: "workbench.settings-plugins.body-removed" }[item.change])));
 const excerpt = el("pre", "", item.excerpt); excerpt.style.whiteSpace = "pre-wrap"; excerpt.style.overflowWrap = "anywhere";
 body.append(excerpt); bodies.append(body);
 }); panel.append(bodies);

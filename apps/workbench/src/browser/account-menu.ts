@@ -4,7 +4,7 @@ export function requiredElement(root: ParentNode, selector: string): HTMLElement
   if (!element) throw new Error('Missing account element: ' + selector);
   return element;
 }
-function createAccountToast(L: (text: string) => string) {
+function createAccountToast(_readText: (text: string) => string) {
   const toast = document.createElement('div');
   toast.className = 'mw-toast mw-account-toast'; toast.hidden = true;
   toast.setAttribute('role', 'status'); toast.setAttribute('aria-live', 'polite');
@@ -12,26 +12,26 @@ function createAccountToast(L: (text: string) => string) {
   let toastTimer: ReturnType<typeof setTimeout> | undefined, pendingToast = '';
   const showToast = () => {
     if (!pendingToast || document.hidden) return;
-    clearTimeout(toastTimer); toast.textContent = L(pendingToast); pendingToast = ''; toast.hidden = false;
+    clearTimeout(toastTimer); toast.textContent = pendingToast; pendingToast = ''; toast.hidden = false;
     toastTimer = setTimeout(() => { toast.hidden = true; toast.textContent = ''; }, 3000);
   };
   document.addEventListener('visibilitychange', showToast);
   addEventListener('focus', showToast);
   try { pendingToast = sessionStorage.getItem('molis-work-account-toast') || ''; sessionStorage.removeItem('molis-work-account-toast'); showToast(); } catch { /* Storage may be unavailable; a toast is presentation only. */ }
 }
-function createAccountMenu(L: (text: string) => string) {
+function createAccountMenu(readText: (text: string) => string) {
   const style = document.createElement('style');
   style.textContent = '.mw-account-popover{position:fixed;z-index:10000;width:264px;max-width:calc(100vw - 24px);box-sizing:border-box;padding:8px;border:1px solid var(--line,#dedee3);border-radius:12px;background:var(--panel,#fff);color:var(--ink,#202023);box-shadow:0 8px 28px #0002;font:14px/1.5 system-ui}.mw-account-popover[hidden]{display:none}.mw-account-popover button{display:flex;align-items:center;width:100%;box-sizing:border-box;min-height:40px;padding:8px 10px;border:0;border-radius:6px;background:transparent;color:inherit;text-decoration:none;font:inherit;cursor:pointer;text-align:left}.mw-account-popover button:hover{background:var(--nav-hover,#f1f1f3)}.mw-account-popover button:focus-visible{outline:2px solid var(--accent,#5068b7);outline-offset:-2px}.mw-account-popover button:disabled{opacity:.5;cursor:wait}.mw-account-summary{padding:8px 10px 12px;margin-bottom:4px;border-bottom:1px solid var(--line,#dedee3)}.mw-account-summary strong,.mw-account-summary small{display:block;overflow-wrap:anywhere}.mw-account-summary small{color:var(--muted,#62626b);font-size:12px}.mw-account-feedback{margin:8px 10px;font-size:12px;overflow-wrap:anywhere}.mw-account-feedback:empty{display:none}.mw-account-feedback[role=alert]{color:#b42318}.project-directory-topbar [data-account-link]{max-width:240px;gap:8px}.project-directory-topbar [data-personal-name]{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.project-directory-topbar [data-personal-status]{color:var(--muted);font-size:12px;white-space:nowrap}';
   document.head.append(style);
   style.textContent += '.mw-account-toast{position:fixed;z-index:10001;inset-inline:0;bottom:28px;margin-inline:auto;pointer-events:none}';
-  createAccountToast(L);
+  createAccountToast(readText);
   style.textContent += '[data-account-compact-label]{display:none}body.immersive-workbench .plugin-rail .personal-account{height:50px;flex-direction:column;gap:2px}body.immersive-workbench .plugin-rail [data-account-compact-label]{display:block;font-size:10px;line-height:14px;color:var(--muted)}@media(max-width:480px){.project-directory-topbar [data-personal-status]{display:none}.project-directory-topbar [data-account-link]{flex-shrink:0;max-width:120px}.project-directory-topbar .brand{white-space:nowrap}}';
   const menu = document.createElement('div');
   menu.className = 'mw-account-popover'; menu.hidden = true; menu.id = 'mw-account-menu';
   menu.setAttribute('role', 'dialog'); menu.setAttribute('aria-label', uiText.text("workbench.account-menu.account"));
   menu.innerHTML = '<div class="mw-account-summary"><strong data-menu-name></strong><small data-menu-email></small></div><button type="button" data-personal-action="login"></button><button type="button" data-personal-action="switch"></button><button type="button" data-personal-action="logout"></button><p class="mw-account-feedback" role="status"></p><p class="mw-account-feedback" role="alert"></p>';
   for (const [action, label] of [['login', '登录 / 注册'], ['switch', '切换账号'], ['logout', '退出登录']]) {
-    requiredElement(menu, '[data-personal-action=' + action + ']').textContent = L(label);
+    requiredElement(menu, '[data-personal-action=' + action + ']').textContent = label;
   }
   document.body.append(menu);
   const notice = document.createElement('div');
@@ -48,9 +48,9 @@ interface AccountMenuState {
 }
 
 /** Account presentation and keyboard/focus behavior; the account owner supplies its current state on every use. */
-export function createAccountMenuController(L: (text: string) => string, state: () => AccountMenuState, refresh: () => void) {
+export function createAccountMenuController(readText: (text: string) => string, state: () => AccountMenuState, refresh: () => void) {
   const links = [...document.querySelectorAll<HTMLElement>('[data-account-link]')];
-  const {menu,notice} = createAccountMenu(L);
+  const {menu,notice} = createAccountMenu(readText);
   let trigger: HTMLElement | null = null;
   const feedback = (text: string, error = false) => {
     const surface = menu;

@@ -1,3 +1,4 @@
+import { fillMessage } from "@molis-ai/molis-work-plugin-sdk";
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import {handleProjectRecycleHttp} from './web-project-recycle.js';
 import { randomBytes } from "node:crypto";
@@ -5,8 +6,6 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { ProjectDeletionResult } from "@molis-ai/molis-work-contracts/modules/projects";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { decodeLocalWebPathPart, readLocalWebBody as readBody, respondLocalWebRefusal, sendLocalWebJson as sendJson } from "./web-http.js";
-import { L } from "./web-locale.js";
-import { withPluginWords } from "@molis-ai/molis-work-app-workbench";
 import { projectDeletedHooksFor, type ProjectDeletedOwner } from "./project-deleted-hooks.js";
 import { resolveConfiguredHome } from "./product-home.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
@@ -14,8 +13,7 @@ import { ProjectDeletionService, type ProjectDeletionPorts } from "./project-del
 
 /** What an owner says goes with the project, in the person's language; a plugin owner's text is translated with that plugin's own words. */
 export function ownerLabel(owner: Pick<ProjectDeletedOwner, "label" | "label_values" | "words_of">): string {
-  const draw = () => L(owner.label ?? "", owner.label_values && Object.fromEntries(Object.entries(owner.label_values).map(([name, value]) => [name, L(value)])));
-  return owner.words_of ? withPluginWords(owner.words_of, draw) : draw();
+  return fillMessage(owner.label ?? "", owner.label_values);
 }
 
 /** How the settings page hears a refused or failed deletion: the answer every Host exit gives a failure, chosen by its kind (SDK `actionErrorResponse`), so a missing project is the not-found 404 and a live terminal the 409. */

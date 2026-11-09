@@ -73,13 +73,13 @@ export function renderMcp(page: Page) {
 
 /** A method's text, read when asked for. */
 async function readMethod(page: Page, method: MethodRef & { readonly skill_id: string }) {
-  const { L, lifetime, q } = page, { s } = page, ticket = ++s.methodDocumentTicket, doc = q("[data-coding-method-document]");
+  const { lifetime, q } = page, { s } = page, ticket = ++s.methodDocumentTicket, doc = q("[data-coding-method-document]");
   doc.hidden = false;
   doc.textContent = uiText.text("coding.method.loading");
   try {
     const result = await api<{ method: { name: string; version: number; body: string } }>(page, "/methods/" + encodeURIComponent(method.skill_id) + "/" + method.version);
     if (ticket !== s.methodDocumentTicket) return;
-    doc.replaceChildren(el("h3", L(result.method.name) + " · v" + result.method.version), el("p", result.method.body));
+    doc.replaceChildren(el("h3", result.method.name + " · v" + result.method.version), el("p", result.method.body));
     doc.scrollIntoView({ block: "nearest" });
   } catch (error) {
     if (!lifetime.alive) return;
@@ -89,12 +89,12 @@ async function readMethod(page: Page, method: MethodRef & { readonly skill_id: s
 
 /** One method of the catalog: its box, its words, and the way to read it. */
 function methodRow(page: Page, method: MethodEntry): HTMLElement {
-  const { L, lifetime } = page, { s } = page;
+  const { lifetime } = page, { s } = page;
   const row = el("div", "", "mw-field"), label = el("label", "", "mw-check-row"), check = el("input", "", "mw-check");
   check.type = "checkbox";
   check.checked = s.methodChoices.some(ref => ref.skill_id === method.skill_id && ref.version === method.version);
   check.disabled = !method.enabled;
-  label.append(check, el("span", L(method.name) + " · v" + method.version));
+  label.append(check, el("span", method.name + " · v" + method.version));
   lifetime.listen(check, "change", () => {
     s.methodChoices = s.methodChoices.filter(ref => ref.skill_id !== method.skill_id);
     if (check.checked) s.methodChoices.push({ skill_id: method.skill_id, version: method.version });

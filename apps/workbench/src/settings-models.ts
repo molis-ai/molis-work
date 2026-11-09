@@ -28,7 +28,7 @@ import { renderConnectionProgress } from "./service-connection-parts.js";
  */
 
 export interface ModelSettingsPrimitives {
-  L(text: string, values?: Record<string, string | number>): string;
+  readText(text: string, values?: Record<string, string | number>): string;
   escape(value: unknown): string;
   icon(name: PluginIconName): string;
 }
@@ -79,7 +79,7 @@ const PROMPT_CACHE_MODES: ReadonlyArray<{ value: ModelPromptCacheMode; label: st
 ];
 
 /** The first key's three steps, the same names the component board's key specimen uses. */
-const KEY_STEPS = ["填密钥", "验证密钥", "能用了"] as const;
+const KEY_STEPS = ["workbench.settings-models.enter-key", "workbench.settings-models.check-key", "workbench.settings-models.ready"] as const;
 
 /** Status maps to the family colours already in the palette, never to new ones. */
 const STATUS_TONE: Record<ModelProviderStatus, string> = {
@@ -168,9 +168,9 @@ function renderEmptyDetail(model: ModelSettingsModel): string {
 }
 
 /** One click per common provider; the form it opens is the same one a hand-made provider uses. */
-function renderTemplateChoices(templates: readonly ModelTemplateChoice[], p: ModelSettingsPrimitives, chosen: string | null): string {
+function renderTemplateChoices(templates: readonly ModelTemplateChoice[], _p: ModelSettingsPrimitives, chosen: string | null): string {
   return `<div class="mw-choice-group" role="group" aria-label="${uiText("workbench.settings-models.common-providers")}">${templates.map((template) => renderChoice({
-    label: p.L(template.display_name), selected: template.template_id === chosen, attrs: { "data-model-template": template.template_id },
+    label: template.display_name, selected: template.template_id === chosen, attrs: { "data-model-template": template.template_id },
   })).join("")}</div>`;
 }
 
@@ -199,7 +199,7 @@ function renderProviderDetail(provider: ModelProviderRecord, model: ModelSetting
       <button type="button" class="mw-btn" data-model-provider-remove="${id}">${p.icon("trash")}${uiText("workbench.settings-models.remove-provider")}</button>
     </header>
     ${draft ? renderDraftTemplates(model, p) : renderFacts(provider, health, model)}
-    ${health?.status === "credential-unavailable" ? `<p class="mw-alert mw-alert--danger" role="alert">${p.escape(p.L(health.detail))}</p>` : ""}
+    ${health?.status === "credential-unavailable" ? `<p class="mw-alert mw-alert--danger" role="alert">${p.escape(health.detail)}</p>` : ""}
     <section class="model-section" aria-label="${uiText("workbench.settings-models.key")}">
       ${renderCredentialField(provider, hasCredential, model)}
       ${askAddress ? renderAddressField(provider, p, uiText.text("workbench.settings-models.find-base-url-services-documentation-stop-domain-version")) : ""}
@@ -212,7 +212,7 @@ function renderProviderDetail(provider: ModelProviderRecord, model: ModelSetting
     <div class="mw-alert mw-alert--warning" role="status" data-model-limited hidden><strong>${uiText("workbench.settings-models.name-says-too-many-requests-out-credit", { name: provider.display_name })}</strong><p></p>${renderButton({ label: uiText.text("workbench.settings-models.check-now"), variant: "secondary", size: "sm", attrs: { "data-model-recheck": "" } })}</div>
     <div data-model-delete-confirm hidden><p>${uiText("workbench.settings-models.remove-provider-future-tasks-cannot-select-history-preserved")}</p><button class="mw-btn" type="button" data-model-delete-cancel>${uiText("common.control.cancel")}</button><button class="mw-btn" type="button" data-model-delete>${uiText("workbench.settings-models.confirm-removal")}</button></div>
     <footer class="model-settings-actions model-save-bar">
-      ${draft ? renderConnectionProgress({ steps: KEY_STEPS.map((step) => p.L(step)), at: 0, state: "running" }, p.L) : ""}
+      ${draft ? renderConnectionProgress({ steps: KEY_STEPS.map((step) => uiText.text(step)), at: 0, state: "running" }, p.readText) : ""}
       <span class="model-save-note">${draft ? uiText("workbench.settings-models.checks-before-saving-if-check-fails-nothing-saved") : uiText("workbench.settings-models.checks-before-saving-if-check-fails-nothing-saved-2")}</span>
       <button class="mw-btn" type="button" data-model-discard>${uiText("workbench.settings-models.discard-unsaved-changes")}</button>
       ${renderButton({ label: uiText.text("workbench.settings-models.save-check"), variant: "primary", key: "↵", attrs: { "data-model-save": "" } })}
@@ -240,7 +240,7 @@ function renderFormatField(provider: ModelProviderRecord, p: ModelSettingsPrimit
 /** A new provider starts from a template or from nothing; what the template cannot know is named, not guessed. */
 function renderDraftTemplates(model: ModelSettingsModel, p: ModelSettingsPrimitives): string {
   const template = model.templates.find((choice) => choice.template_id === model.draft_template_id) ?? null;
-  const name = template === null ? "" : p.escape(p.L(template.display_name));
+  const name = template === null ? "" : p.escape(template.display_name);
   const note = template === null ? "" : !template.fills_base_url ? uiText.text("workbench.settings-models.name-format-chosen-still-needed-base-url-api", { name })
     : !template.fills_model ? uiText.text("workbench.settings-models.name-address-format-filled-still-needed-api-key", { name })
     : uiText.text("workbench.settings-models.name-address-format-model-filled-still-needed-api", { name });
@@ -260,7 +260,7 @@ function checkTime(at: string): string {
 }
 
 /** Whether the provider answers, from its health and its last real check: never verified, verified, or why not, with when. */
-function reachability(health: ModelProviderHealth | undefined, p: ModelSettingsPrimitives): string {
+function reachability(health: ModelProviderHealth | undefined, _p: ModelSettingsPrimitives): string {
   const mark = (label: string, state: StateRingState, tone: MwStatusTone) => renderStatusMark({ label, state, tone, plain: true });
   if (!health || health.status === "disabled") return mark(uiText.text("workbench.settings-models.switched-off"), "disabled", "quiet");
   if (health.status === "needs-credential") return mark(uiText.text("workbench.settings-models.no-key-yet"), "reauth", "attention");
@@ -272,7 +272,7 @@ function reachability(health: ModelProviderHealth | undefined, p: ModelSettingsP
     : mark(uiText.text("workbench.settings-models.not-checked-since-change-reachable-time", { time }), "idle", "quiet");
   const [words, state, tone] = CHECK_FAILURES[last.code ?? ""] ?? ["检查没有完成", "failed", "attention"] as const;
   const retry = last.retry_at ? ` · ${uiText.text("workbench.settings-models.checks-again-after-time", { time: checkTime(last.retry_at) })}` : "";
-  return mark(`${p.L(words)} · ${time}${retry}`, state, tone);
+  return mark(`${uiText.text(words)} · ${time}${retry}`, state, tone);
 }
 
 /**
@@ -285,7 +285,7 @@ function renderFacts(provider: ModelProviderRecord, health: ModelProviderHealth 
   const connections = model.connections ?? [], keys = model.selected_connection_ids ?? {};
   const key = connections.find((connection) => connection.connection_id === keys[provider.provider_id]);
   const enabled = provider.models.filter((entry) => entry.enabled).map((entry) => entry.model_id);
-  const named = enabled.slice(0, 2).join(p.L("、"));
+  const named = enabled.slice(0, 2).join(uiText.text("common.list.separator"));
   const models = enabled.length === 0 ? uiText.text("workbench.settings-models.no-model-turned") : enabled.length <= 2 ? uiText.text("workbench.settings-models.uses-list", { list: named })
     : uiText.text("workbench.settings-models.uses-list-more-count-count", { list: named, count: enabled.length });
   const ready = (one: ModelProviderRecord) => model.health.find((entry) => entry.provider_id === one.provider_id)?.status === "ready";
@@ -296,7 +296,7 @@ function renderFacts(provider: ModelProviderRecord, health: ModelProviderHealth 
     row(uiText.text("workbench.settings-models.key"), uiText.text("workbench.settings-models.encrypted-computer-neither-page-nor-assistant-sees"), `<strong>${key ? p.escape(key.display_name) : uiText("workbench.settings-models.no-key-yet")}</strong>`),
     row(uiText.text("workbench.settings-models.reachable"), uiText.text("workbench.settings-models.checked-before-each-save"), reachability(health, p)),
     row(uiText.text("workbench.settings-models.what-can-do"), uiText.text("workbench.settings-models.each-call-billed-account-service"), `<span>${p.escape(models)}</span>`),
-    row(uiText.text("workbench.settings-models.used"), sharing.length ? p.escape(uiText.text("workbench.settings-models.same-key-also-serves-names", { names: sharing.join(p.L("、")) })) : uiText.text("workbench.settings-models.changing-key-turning-off-affects-these"), `<span>${users}</span>`),
+    row(uiText.text("workbench.settings-models.used"), sharing.length ? p.escape(uiText.text("workbench.settings-models.same-key-also-serves-names", { names: sharing.join(uiText.text("common.list.separator")) })) : uiText.text("workbench.settings-models.changing-key-turning-off-affects-these"), `<span>${users}</span>`),
   ].join("") });
 }
 
@@ -327,7 +327,7 @@ function renderPromptCacheField(
   const current = provider.prompt_cache ?? "off";
   const options = PROMPT_CACHE_MODES
     .filter((mode) => controllable || mode.value !== "required")
-    .map((mode) => `<option value="${mode.value}"${mode.value === current ? " selected" : ""}>${p.escape(p.L(mode.label))}</option>`)
+    .map((mode) => `<option value="${mode.value}"${mode.value === current ? " selected" : ""}>${p.escape(uiText.text(mode.label))}</option>`)
     .join("");
   const note = controllable
     ? uiText.text("workbench.settings-models.requesting-cache-does-not-guarantee-hit-provider-reported")
@@ -351,7 +351,7 @@ function renderThinkingField(provider: ModelProviderRecord, p: ModelSettingsPrim
       <p class="model-field-note">${p.escape(uiText.text("workbench.settings-models.format-has-no-thinking-level-turn"))}</p>
     </div>`;
   const options = ([["off", "关闭"], ["adaptive", "开启（由模型决定想多少）"]] as const)
-    .map(([value, label]) => `<option value="${value}"${value === current ? " selected" : ""}>${p.escape(p.L(label))}</option>`).join("");
+    .map(([value, label]) => `<option value="${value}"${value === current ? " selected" : ""}>${p.escape(uiText.text(label))}</option>`).join("");
   return `<div class="model-field">
       <label for="model-thinking">${uiText("workbench.settings-models.thinking")}</label>
       <select class="mw-select" id="model-thinking" data-model-thinking="${p.escape(provider.provider_id)}">${options}</select>

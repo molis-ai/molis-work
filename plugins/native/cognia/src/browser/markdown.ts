@@ -31,8 +31,8 @@ function inline(line: string, _L: Translate, outgoing: readonly Link[], referenc
 }
 
 /** The small Markdown the reader shows: headings, bullets, quotes, fenced code, bold, inline code and links. Everything is escaped first. */
-export function renderMarkdown(body: string, L: Translate, outgoing: readonly Link[] = [], references: readonly Reference[] = []): string {
-  const draw = (line: string) => inline(line, L, outgoing, references);
+export function renderMarkdown(body: string, readText: Translate, outgoing: readonly Link[] = [], references: readonly Reference[] = []): string {
+  const draw = (line: string) => inline(line, readText, outgoing, references);
   let code = false, output = "", paragraph: string[] = [], list = false;
   const flush = () => {
     if (paragraph.length) { output += "<p>" + paragraph.map(draw).join("\n") + "</p>"; paragraph = []; }

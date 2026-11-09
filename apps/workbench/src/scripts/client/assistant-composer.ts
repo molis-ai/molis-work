@@ -121,7 +121,7 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
   }
   function closeSlash() { if (startPop && startPop.dataset.mode === "slash") { delete startPop.dataset.mode; startPop.hidden = true; } }
   /* “@”: the system search's hits, brought along as references (assistant-mention.ts). */
-  const mention = (${ASSISTANT_MENTION_FACTORY_SCRIPT})({ L, el, pop: startPop, field: input,
+  const mention = (${ASSISTANT_MENTION_FACTORY_SCRIPT})({ readText, el, pop: startPop, field: input,
     search: (query) => molisWorkRequest(host.route("/api/search/query"), { body: { query, scope: "all", limit: 8 }, fallback: globalThis.t.text("workbench.assistant-composer.search-unavailable-right-now-try-again-shortly") }),
     pick: (hit) => {
       if (!files.some((file) => file.reference && file.object && file.object.kind === hit.subject.kind && file.object.id === hit.subject.id)) {

@@ -15,10 +15,10 @@ type RoundsBody = { runs?: Array<CodingFollowUpRun & { turns?: unknown; awaiting
  * the latest one's. The row is the round's questions and cards, then, once the round is over, the result of its card that ran
  * last, then the round card's own follow-ups; every step presses a control already on screen.
  */
-export async function codingInteractionHtml<T>(body: T, interaction: PluginInteractionClient | undefined, locale: ActionLocale | undefined): Promise<T> {
+export async function codingInteractionHtml<T>(body: T, interaction: PluginInteractionClient | undefined, _locale: ActionLocale | undefined): Promise<T> {
   const page = body as RoundsBody | undefined;
   if (!interaction || !Array.isArray(page?.runs)) return body;
-  const say = codingText(locale);
+  const say = codingText;
   await Promise.all(page.runs.map(async run => {
     // Recovery reports also list runs, but carry receipt facts rather than turns.
     if (!Array.isArray(run.turns) || !Array.isArray(run.awaiting_input)) return;

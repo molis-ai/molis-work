@@ -18,7 +18,7 @@ import { ALCHEMIST_FLOWS } from './client-flows.js';
 export const ALCHEMIST_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
 const root=document.querySelector('[data-alchemist=workbench]');if(!root)return;
 const life=host.mountPluginClient(root);if(!life)return;let viewAbort;
-const L=host.translate, $=(s,n=root)=>n.querySelector(s[0]==='['?s:'[data-alc-'+s+']'), enc=encodeURIComponent;
+const readText=globalThis.t.text, $=(s,n=root)=>n.querySelector(s[0]==='['?s:'[data-alc-'+s+']'), enc=encodeURIComponent;
 const mainEl=$('content'),footer=$('footer'),side=$('side'),sheet=$('dialog'),form=$('form'),bodySlot=$('dialog-body'),submitBtn=$('submit');
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),tx=v=>esc(globalThis.t.text(v));
 const button=(label,action,primary=false,attrs='')=>'<button type="button" class="mw-btn mw-btn--'+(primary?'primary':'ghost')+'" data-alc-action="'+action+'" '+attrs+'>'+tx(label)+'</button>';

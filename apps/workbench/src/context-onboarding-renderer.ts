@@ -24,6 +24,6 @@ export function renderContextOnboarding(options: MolisWorkOnboardingRenderOption
     bodyAttrs: ` data-onboarding-mode="${options.mode}"`,
     titlebar: shell.titlebar(desktopShell, { theme: true }), stage, bar: shell.bar({ kind: "onboard", start: exit }),
     after: `<template id="cx-caption">${shell.caption()}</template><template id="cx-wordmark">${shell.wordmark()}</template><dialog id="cx-dialog" class="cx-dialog" aria-labelledby="cx-dialog-title"></dialog>`,
-    scripts: `${p.clientI18nScript()}${UI_REQUEST_CLIENT_SCRIPT}${VISUAL_FOUNDATION_CLIENT_SCRIPT}${ARRIVAL_MOTION_CLIENT_SCRIPT}${CONTEXT_ONBOARDING_CLIENT}${ONBOARDING_MODEL_SLIDE_CLIENT}`,
+    scripts: `${p.pluginTitleScript()}${UI_REQUEST_CLIENT_SCRIPT}${VISUAL_FOUNDATION_CLIENT_SCRIPT}${ARRIVAL_MOTION_CLIENT_SCRIPT}${CONTEXT_ONBOARDING_CLIENT}${ONBOARDING_MODEL_SLIDE_CLIENT}`,
   });
 }

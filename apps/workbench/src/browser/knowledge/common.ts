@@ -8,9 +8,9 @@ import type { KnowledgeCardRecord, KnowledgeReadReceipt } from "@molis-ai/molis-
 export const request = (): UiRequest => molisWorkRequest;
 
 type Translate = (text: string, values?: Record<string, string | number>) => string;
-/** The page's translator (apps/workbench i18n.ts writes `globalThis.L`); the Chinese text itself when there is none. */
-export const L: Translate = (text, values) => {
-  const page = (globalThis as { L?: Translate }).L;
+/** The page's translator (apps/workbench i18n.ts writes `globalThis.t.text`); the Chinese text itself when there is none. */
+export const readText: Translate = (text, values) => {
+  const page = (globalThis as { readText?: Translate }).readText;
   if (page) return page(text, values);
   return Object.entries(values ?? {}).reduce((out, [key, value]) => out.split("{" + key + "}").join(String(value)), text);
 };

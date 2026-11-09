@@ -10,7 +10,7 @@ export const SYNC_INDICATOR_STYLES=String.raw`
 export const SYNC_INDICATOR_SCRIPT=String.raw`
 (()=>{
  if(!document.querySelector('[data-sync-indicator]'))return;
- const L=globalThis.L||((text)=>text),control=new AbortController();let timer,busy=false,available=true;
+ const readText=globalThis.t.text,control=new AbortController();let timer,busy=false,available=true;
  const paint=(phase,label,detail)=>{for(const el of document.querySelectorAll('[data-sync-indicator]')){el.hidden=false;el.dataset.syncPhase=phase;el.querySelector('[data-sync-indicator-label]').textContent=globalThis.t.text(label);el.title=globalThis.t.text("workbench.sync-indicator.view-synchronization-details")+' · '+(detail||globalThis.t.text(label));}};
  const load=async()=>{
   clearTimeout(timer);if(busy||control.signal.aborted||document.hidden)return;busy=true;

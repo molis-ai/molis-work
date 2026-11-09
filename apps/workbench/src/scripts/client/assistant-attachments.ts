@@ -14,7 +14,7 @@
  * for files not in hand yet, after the materials; `drop` is false when the key is not one of them.
  */
 export const ASSISTANT_ATTACHMENTS_FACTORY_SCRIPT = String.raw`(input) => {
-  const { L, api, toast, files, take, paint } = input;
+  const { readText, api, toast, files, take, paint } = input;
   let incoming = [];
   const readBase64 = (file) => new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result).split(",")[1] || ""); reader.onerror = () => reject(reader.error); reader.readAsDataURL(file); });
   const isImage = (file) => /^image\//.test(file.type) || /\.(png|jpe?g|gif|webp|heic|heif|bmp|tiff?|svg)$/i.test(file.name);

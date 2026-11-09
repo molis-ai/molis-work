@@ -30,15 +30,15 @@ function stationHtml(page: WorkflowsPage, station: Station, index: number, count
 }
 
 function linkHtml(page: WorkflowsPage, flow: Flow, index: number) {
-  const { ui, L } = page;
+  const { ui, readText } = page;
   const link = flow.links[index]!, ready = readyState(page, link);
   const from = flow.stations[index]!, to = flow.stations[index + 1]!;
   const between = label(page, from) + " → " + label(page, to);
   const open = ui.openLink === index;
   return `<div class="wf-link${ui.openGap === index + 1 ? " is-picking" : ""}" data-wf-gap="${index + 1}" data-link-key="${esc(from.station_id + ">" + to.station_id)}" data-kind="${link.kind}" data-ready="${ready.ready}">`
     + '<span class="wf-link__line" aria-hidden="true"></span>'
-    + `<button type="button" class="wf-link__pill${open ? " is-open" : ""}" data-wf-action="link" data-link="${index}" aria-haspopup="dialog" aria-expanded="${open}" aria-label="${esc(between + " · " + kindName(L, link.kind) + (ready.ready ? "" : " · " + uiText.text("workflows.link.not-connected")))}">`
-    + (ready.ready ? "" : ico("alert")) + `<span>${esc(kindName(L, link.kind))}</span></button>`
+    + `<button type="button" class="wf-link__pill${open ? " is-open" : ""}" data-wf-action="link" data-link="${index}" aria-haspopup="dialog" aria-expanded="${open}" aria-label="${esc(between + " · " + kindName(readText, link.kind) + (ready.ready ? "" : " · " + uiText.text("workflows.link.not-connected")))}">`
+    + (ready.ready ? "" : ico("alert")) + `<span>${esc(kindName(readText, link.kind))}</span></button>`
     + `<button type="button" class="wf-add" data-wf-action="gap" data-gap="${index + 1}" aria-label="${esc(uiText.text("workflows.gap.between", { a: label(page, from), b: label(page, to) }))}" title="${esc(uiText.text("workflows.gap.here"))}">${ico("plus")}</button>`
     + '<span class="wf-link__line" aria-hidden="true"></span></div>';
 }
@@ -60,11 +60,11 @@ function chainBody(page: WorkflowsPage, flow: Flow) {
 }
 
 function faultHtml(page: WorkflowsPage, flow: Flow) {
-  const { L } = page;
+  const { readText } = page;
   const issues = chainIssues(page, flow);
   if (!issues.length) return "";
   return `<p class="wf-issues" role="status">${ico("alert")}<span>${esc(uiText.text("workflows.issues.count", { count: issues.length }))}` + issues.map((item) => {
-    const message = esc(label(page, flow.stations[item.index]!) + " → " + label(page, flow.stations[item.index + 1]!) + "（" + said(L, item.state.reason) + "）");
+    const message = esc(label(page, flow.stations[item.index]!) + " → " + label(page, flow.stations[item.index + 1]!) + "（" + said(readText, item.state.reason) + "）");
     if (flow.stations.slice(item.index, item.index + 2).some((station) => station.availability?.available === false)) return `<span>${message}</span>`;
     return `<button type="button" class="wf-issue" data-wf-action="link" data-link="${item.index}">${message}</button>`;
   }).join('<span aria-hidden="true">；</span>') + "</span></p>";
@@ -95,11 +95,11 @@ export function returnHtml(page: WorkflowsPage) {
 }
 
 function paletteHtml(page: WorkflowsPage) {
-  const { ui, L } = page;
+  const { ui, readText } = page;
   const joinable = ui.stations.filter((info) => info.supported), others = ui.stations.filter((info) => !info.supported);
-  return joinable.map((info) => `<button type="button" class="wf-chip" draggable="true" data-wf-plugin="${esc(info.plugin)}" data-wf-action="append" title="${esc(uiText.text("workflows.palette.chip-hint"))}" style="--station-tint:${tint(info.plugin)}">${ico(info.icon)}<span>${esc(said(L, info.label))}</span></button>`).join("")
+  return joinable.map((info) => `<button type="button" class="wf-chip" draggable="true" data-wf-plugin="${esc(info.plugin)}" data-wf-action="append" title="${esc(uiText.text("workflows.palette.chip-hint"))}" style="--station-tint:${tint(info.plugin)}">${ico(info.icon)}<span>${esc(said(readText, info.label))}</span></button>`).join("")
     + `<button type="button" class="wf-chip wf-chip--action" data-wf-action="add-step" title="${esc(uiText.text("workflows.palette.action-hint"))}">${ico("zap")}<span>${esc(uiText.text("workflows.palette.add-action"))}</span></button>`
-    + (others.length ? `<span class="wf-palette__others" title="${esc(others.map((info) => said(L, info.label)).join("、"))}">${esc(uiText.text("workflows.palette.others", { count: others.length }))}</span>` : "");
+    + (others.length ? `<span class="wf-palette__others" title="${esc(others.map((info) => said(readText, info.label)).join("、"))}">${esc(uiText.text("workflows.palette.others", { count: others.length }))}</span>` : "");
 }
 
 export function drawFlow(page: WorkflowsPage) {

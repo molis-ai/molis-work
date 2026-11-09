@@ -50,14 +50,6 @@ enum CapsuleLocale {
 }
 
 impl CapsuleLocale {
-    fn from_web_locale(value: &str) -> Self {
-        if value.trim().to_ascii_lowercase().starts_with("en") {
-            Self::En
-        } else {
-            Self::Zh
-        }
-    }
-
     fn query_value(self) -> &'static str {
         match self {
             Self::Zh => "zh",
@@ -65,56 +57,56 @@ impl CapsuleLocale {
         }
     }
 
-    fn default_status(self) -> (&'static str, &'static str) {
+    fn words(self) -> &'static TrayWords {
         match self {
-            Self::Zh => ("读取中", "Molis Work 正在读取当前工作"),
-            Self::En => ("Loading", "Molis Work is reading current work"),
+            Self::Zh => &ZH,
+            Self::En => &EN,
         }
+    }
+
+    fn default_status(self) -> (&'static str, &'static str) {
+        (self.words().loading, self.words().loading_tip)
     }
 
     fn recovering_status(self) -> (&'static str, &'static str) {
-        match self {
-            Self::Zh => (
-                "连接中断",
-                "暂时无法确认最新工作状态，Molis Work 正在自动重新连接",
-            ),
-            Self::En => (
-                "Disconnected",
-                "Molis Work is reconnecting to confirm the latest work status",
-            ),
-        }
+        (self.words().disconnected, self.words().disconnected_tip)
     }
 
     fn synced_status(self) -> (&'static str, &'static str) {
-        match self {
-            Self::Zh => ("正在同步", "Molis Work 已重新连接，正在读取最新工作状态"),
-            Self::En => (
-                "Syncing",
-                "Molis Work reconnected and is reading the latest work status",
-            ),
-        }
+        (self.words().syncing, self.words().syncing_tip)
     }
 
-    /// 桌面是本机服务的主人（用户 2026-11-04 定）：服务由桌面拉起时，退出一起停；
-    /// 服务是命令行装的常驻服务或别的入口拉起的，退出菜单写明它会继续运行。
+    /// 只有由桌面拉起的服务随桌面退出；另一入口拉起的服务继续运行。
     fn tray_actions(self, desktop_owns_host: bool) -> (&'static str, &'static str) {
-        match (self, desktop_owns_host) {
-            (Self::Zh, true) => ("打开当前目标", "退出 Molis Work"),
-            (Self::Zh, false) => ("打开当前目标", "退出 Molis Work（后台服务继续运行）"),
-            (Self::En, true) => ("Open current Goal", "Quit Molis Work"),
-            (Self::En, false) => (
-                "Open current Goal",
-                "Quit Molis Work (background service keeps running)",
-            ),
-        }
+        let words = self.words();
+        (
+            words.open_goal,
+            if desktop_owns_host {
+                words.quit
+            } else {
+                words.quit_keep_service
+            },
+        )
     }
+
     fn restore_appearance_label(self) -> &'static str {
-        match self {
-            Self::Zh => "恢复内置外观",
-            Self::En => "Restore built-in appearance",
-        }
+        self.words().restore_appearance
     }
 }
+
+struct TrayWords {
+    loading: &'static str,
+    loading_tip: &'static str,
+    disconnected: &'static str,
+    disconnected_tip: &'static str,
+    syncing: &'static str,
+    syncing_tip: &'static str,
+    open_goal: &'static str,
+    quit: &'static str,
+    quit_keep_service: &'static str,
+    restore_appearance: &'static str,
+}
+include!(concat!(env!("OUT_DIR"), "/tray-words.rs"));
 
 struct CapsuleTrayMenuItems {
     open_molis_work: MenuItem<tauri::Wry>,
@@ -129,7 +121,7 @@ struct CapsuleStatusState {
     last_tray_rect: Mutex<Option<tauri::Rect>>,
     last_appkit_anchor: Mutex<Option<(f64, capsule_window::AppKitRect)>>,
     ignore_focus_loss_until: Mutex<Option<Instant>>,
-    locale: Mutex<CapsuleLocale>,
+    locale: Mutex<(CapsuleLocale, u64)>,
     menu_items: Mutex<Option<CapsuleTrayMenuItems>>,
 }
 
@@ -222,7 +214,7 @@ fn current_capsule_locale(state: &CapsuleStatusState) -> Result<CapsuleLocale, S
     state
         .locale
         .lock()
-        .map(|locale| *locale)
+        .map(|locale| locale.0)
         .map_err(|error| error.to_string())
 }
 
@@ -256,16 +248,33 @@ fn sync_capsule_locale(
     state: &CapsuleStatusState,
     locale: CapsuleLocale,
 ) -> Result<(), String> {
-    *state.locale.lock().map_err(|error| error.to_string())? = locale;
-    update_capsule_tray_menu(app, state, locale)?;
-    let (title, tooltip) = locale.default_status();
-    set_capsule_connection_status(app, title, tooltip)?;
+    let mut displayed = state.locale.lock().map_err(|error| error.to_string())?;
+    if displayed.0 != locale {
+        update_capsule_tray_menu(app, state, locale)?;
+        *displayed = (locale, displayed.1 + 1);
+    }
     if let Some(capsule) = app.get_webview_window("capsule") {
-        capsule
-            .navigate(capsule_web_url(locale)?)
-            .map_err(|error| error.to_string())?;
+        apply_capsule_language(&capsule, *displayed)?;
     }
     Ok(())
+}
+
+fn apply_capsule_language(
+    window: &tauri::WebviewWindow,
+    (locale, revision): (CapsuleLocale, u64),
+) -> Result<(), String> {
+    if !window
+        .url()
+        .is_ok_and(|url| is_molis_work_web_url(&url) && url.path() == "/desktop/capsule")
+    {
+        return Ok(());
+    }
+    window
+        .eval(format!(
+            "globalThis.molisWorkSelectLocalLanguage?.({:?}, {revision})",
+            locale.query_value()
+        ))
+        .map_err(|error| error.to_string())
 }
 
 fn hide_capsule_window(app: &tauri::AppHandle, state: &CapsuleStatusState) -> Result<(), String> {
@@ -577,11 +586,24 @@ fn capsule_resize(
 #[tauri::command]
 fn capsule_update_menu_bar(
     app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
     state: State<CapsuleStatusState>,
+    language_revision: u64,
     title: String,
     tooltip: String,
     path: String,
 ) -> Result<(), String> {
+    if window.label() != "capsule"
+        || !window
+            .url()
+            .is_ok_and(|url| is_molis_work_web_url(&url) && url.path() == "/desktop/capsule")
+    {
+        return Err("菜单栏状态来源无效".into());
+    }
+    let shown = state.locale.lock().map_err(|error| error.to_string())?;
+    if shown.1 != language_revision {
+        return Err("菜单栏状态语言已经变化".into());
+    }
     let title = title.trim();
     let tooltip = tooltip.trim();
     if title.is_empty() || title.chars().count() > 24 {
@@ -602,10 +624,19 @@ fn capsule_update_menu_bar(
 #[tauri::command]
 fn capsule_set_locale(
     app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
     state: State<CapsuleStatusState>,
     locale: String,
 ) -> Result<(), String> {
-    sync_capsule_locale(&app, state.inner(), CapsuleLocale::from_web_locale(&locale))
+    if window.label() != "main" || !window.url().is_ok_and(|url| is_molis_work_web_url(&url)) {
+        return Err("界面语言来源无效".into());
+    }
+    let locale = match locale.as_str() {
+        "zh" => CapsuleLocale::Zh,
+        "en" => CapsuleLocale::En,
+        _ => return Err("不支持这个界面语言".into()),
+    };
+    sync_capsule_locale(&app, state.inner(), locale)
 }
 
 #[tauri::command]
@@ -1057,10 +1088,24 @@ fn main() {
         traffic_lights::pin_from_handle(window.app_handle());
         let _ = window.eval(
           r#"(() => {
-            const locale = String(document.documentElement.lang || "zh").toLowerCase().startsWith("en") ? "en" : "zh";
-            globalThis.__TAURI__?.core?.invoke?.("capsule_set_locale", { locale }).catch(() => {});
+            const root = document.documentElement;
+            if (root.dataset.capsuleLanguageWatch) return;
+            root.dataset.capsuleLanguageWatch = "true";
+            let pending = Promise.resolve();
+            const sync = () => {
+              const locale = String(root.lang || "zh").toLowerCase().startsWith("en") ? "en" : "zh";
+              pending = pending.then(() => globalThis.__TAURI__?.core?.invoke?.("capsule_set_locale", { locale })).catch(() => {});
+            };
+            new MutationObserver(sync).observe(root, { attributes: true, attributeFilter: ["lang"] });
+            sync();
           })();"#,
         );
+      } else if payload.event() == PageLoadEvent::Finished && window.label() == "capsule" {
+        let app = window.app_handle();
+        let state = app.state::<CapsuleStatusState>();
+        if let (Some(capsule), Ok(language)) = (app.get_webview_window("capsule"), state.locale.lock()) {
+          let _ = apply_capsule_language(&capsule, *language);
+        };
       }
     })
     .on_window_event(|window, event| {
@@ -1207,8 +1252,6 @@ mod tests {
 
     #[test]
     fn capsule_locale_controls_its_url_and_native_menu_copy() {
-        assert_eq!(CapsuleLocale::from_web_locale("en-US"), CapsuleLocale::En);
-        assert_eq!(CapsuleLocale::from_web_locale("zh-CN"), CapsuleLocale::Zh);
         assert_eq!(
             capsule_web_url(CapsuleLocale::En).unwrap().as_str(),
             "http://127.0.0.1:4173/desktop/capsule?desktop=1&locale=en"

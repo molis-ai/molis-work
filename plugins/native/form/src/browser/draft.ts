@@ -8,7 +8,7 @@ type DraftAnswer = { status: "needs_input"; interaction: { interaction_id: strin
 interface DraftPorts {
   readonly host: FormClientHost;
   readonly request: FormRequest;
-  readonly L: Translate;
+  readonly readText: Translate;
   readonly ask: HTMLElement;
   readonly prompt: HTMLTextAreaElement | HTMLInputElement;
   readonly button: HTMLButtonElement;

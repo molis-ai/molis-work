@@ -6,8 +6,8 @@ import { sortGoalTreeItems } from "./tree-order.js";
 
 const KANBAN_CARET = `<svg class="goal-kanban-caret" viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M6.8 4.9 10.6 8 6.8 11.1z"/></svg>`;
 export function createKanbanRenderer(primitives: GoalsMomentumUiPrimitives) {
-  const { translate: L, escapeHtml, renderVisibleGoalStatus } = primitives;
-  const { goalDisplayStatusLabel } = createGoalActionPresenter(L);
+  const { translate: readText, escapeHtml, renderVisibleGoalStatus } = primitives;
+  const { goalDisplayStatusLabel } = createGoalActionPresenter(readText);
 
   function renderGoalKanban(view: GoalsMomentumBoardView, selectedGoalId: string, items: readonly GoalsMomentumItem[]): string {
     const byId = new Map(items.map((item) => [item.goal.goal_id, item]));

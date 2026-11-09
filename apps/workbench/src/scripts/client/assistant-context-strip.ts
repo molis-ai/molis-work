@@ -17,7 +17,7 @@
  * chip went away.
  */
 export const ASSISTANT_CONTEXT_STRIP_FACTORY_SCRIPT = String.raw`(input) => {
-  const { strip, L, el } = input;
+  const { strip, readText, el } = input;
   let signature = "";
   const row = el("div", "assistant-strip-row");
   row.dataset.overflowFade = "";
@@ -55,8 +55,8 @@ export const ASSISTANT_CONTEXT_STRIP_FACTORY_SCRIPT = String.raw`(input) => {
     return node;
   };
   // Where a thing would be put on the left, as its owner reported it (molis:surface-landing): one chip after the rest, there
-  // while the object it is in goes with the Send (§21.5 L-1); × leaves it out until the landing moves to another object. Named
-  // by the heading above the place, the place and the text beside it (L-3), never by counting paragraphs.
+  // while the object it is in goes with the Send (§21.5 readText-1); × leaves it out until the landing moves to another object. Named
+  // by the heading above the place, the place and the text beside it (readText-3), never by counting paragraphs.
   // Only the page that reported it takes it back: a split pane and the page beside it each report their own.
   let landing = null, from = null, left = "";
   document.addEventListener("molis:surface-landing", (event) => {

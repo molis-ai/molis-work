@@ -184,11 +184,11 @@ export function dropZoneSection(): string {
   const upload = (mark: PluginIconName, name: string, body: string, end: string, sample = false) =>
     `<li class="mw-upload"${sample ? " data-drop-sample" : ""}><span class="mw-mark">${icon(mark)}</span><span>${name}${body}</span>${end}</li>`;
   return section("drop-zone", "Drop Zone", `<div class="mw-catalog__specimens">${specimen("放下文件", zone(" data-drop-live", "upload", pick, "PDF、图片、表格 · 单个不超过 50 MB"))}${
-    specimen("紧凑", compact)}${
+    specimen("workbench.context-onboarding.compact", compact)}${
     specimen("上传", `<ul class="mw-uploads" data-drop-list>${
       upload("note", "访谈记录.docx", renderProgress({ value: 62, label: "访谈记录.docx 已上传 62%" }), `<small>62%</small>${ghostIcon("取消上传 访谈记录.docx", "x")}`)
       + upload("image", "首页草图.png", "<small>820 KB</small>", renderStatusMark({ label: "已上传", state: "done", tone: "done" }), true)
-      + upload("file", "年度报告.pdf", `<small class="is-failed">超过 50 MB</small>`, renderButton({ label: "重试", variant: "ghost", size: "sm" }))
+      + upload("file", "年度报告.pdf", `<small class="is-failed">超过 50 MB</small>`, renderButton({ label: "common.control.retry", variant: "ghost", size: "sm" }))
     }</ul>`)}</div>`);
 }
 
@@ -223,11 +223,11 @@ export function rowsSection(): string {
   const items = `<ul class="mw-items">${
     item("file", "季度复盘.pdf", "成果库 · 2.4 MB", `10 分钟前${more("季度复盘.pdf")}`)
     + item("image", "首页草图.png", "设计 · 820 KB", renderStatusMark({ label: "同步中", state: "syncing", tone: "progress" }) + more("首页草图.png"))
-    + item("database", "客户名单.csv", "导入 · 1,284 行", renderStatusMark({ label: "失败", state: "failed", tone: "blocked" }) + renderButton({ label: "重试", variant: "ghost", size: "sm" }))
+    + item("database", "客户名单.csv", "导入 · 1,284 行", renderStatusMark({ label: "workbench.assistant-delivery.failed", state: "failed", tone: "blocked" }) + renderButton({ label: "common.control.retry", variant: "ghost", size: "sm" }))
   }</ul>`;
   const settings = `<div class="mw-settings">${
     setting("catalog-set-boot", "登录时启动", "在后台开着常驻宿主，助理随叫随到", renderSwitch({ checked: true, attrs: { "aria-labelledby": "catalog-set-boot" } }))
-    + setting("catalog-set-lang", "界面语言", "", renderSelect({ optionsHtml: "<option selected>简体中文</option><option>English</option>", attrs: { "aria-labelledby": "catalog-set-lang" } }))
+    + setting("catalog-set-lang", "workbench.context-onboarding.language-2", "", renderSelect({ optionsHtml: "<option selected>简体中文</option><option>English</option>", attrs: { "aria-labelledby": "catalog-set-lang" } }))
     + setting("catalog-set-notify", "只在要你确认时提醒", "", renderSwitch({ attrs: { "aria-labelledby": "catalog-set-notify" } }))
     + setting("catalog-set-cache", "清空本机缓存", "不影响项目里的内容", renderButton({ label: "清空…", variant: "secondary", attrs: { "aria-describedby": "catalog-set-cache" } }))
   }</div>`;
@@ -238,7 +238,7 @@ type FileRow = { name: string; mark: PluginIconName; where: string; status: Para
 const FILES: FileRow[] = [
   { name: "季度复盘.pdf", mark: "file", where: "成果库", status: { label: "已同步", state: "done", tone: "done" }, updated: "10 分钟前", minutes: 10, size: "2.4 MB", bytes: 2_400_000 },
   { name: "首页草图.png", mark: "image", where: "设计", status: { label: "同步中", state: "syncing", tone: "progress" }, updated: "1 小时前", minutes: 60, size: "820 KB", bytes: 820_000 },
-  { name: "客户名单.csv", mark: "database", where: "导入", status: { label: "失败", state: "failed", tone: "blocked" }, updated: "昨天", minutes: 1_440, size: "96 KB", bytes: 96_000 },
+  { name: "客户名单.csv", mark: "database", where: "导入", status: { label: "workbench.assistant-delivery.failed", state: "failed", tone: "blocked" }, updated: "昨天", minutes: 1_440, size: "96 KB", bytes: 96_000 },
   { name: "访谈记录.docx", mark: "note", where: "调研", status: { label: "已同步", state: "done", tone: "done" }, updated: "3 天前", minutes: 4_320, size: "1.1 MB", bytes: 1_100_000 },
   { name: "发布清单.md", mark: "text", where: "Pages", status: { label: "草稿", state: "draft", tone: "idle" }, updated: "上周", minutes: 10_080, size: "12 KB", bytes: 12_000 },
 ];

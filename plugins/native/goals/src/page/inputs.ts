@@ -15,22 +15,20 @@ interface GoalInputsItem {
 }
 
 interface GoalInputsPrimitives {
-  L: (text: string, values?: Record<string, string | number>) => string;
+  readText: (text: string, values?: Record<string, string | number>) => string;
   escapeHtml: (value: unknown) => string;
   renderReference: (value: string, label?: string) => string;
-  /** Runs `run` in the words of one plugin: a creatable kind's title is translated by the plugin that declares it. */
-  inPluginWords<T>(pluginId: string, run: (translate: GoalInputsPrimitives["L"]) => T): T;
 }
 
 /** A kind the project can make new for a Goal: a station of a plugin it shows, with the title that plugin's view declares (`creates`). */
 export interface GoalInputsCreatableKind {
   readonly station: string;
   readonly title: string;
-  /** The plugin whose words translate `title`. */
+  /** The plugin that declared the create station. */
   readonly plugin_id: string;
 }
 
-export function renderGoalInputsHtml(item: GoalInputsItem, { escapeHtml, renderReference, inPluginWords }: GoalInputsPrimitives, creatable: readonly GoalInputsCreatableKind[]): string {
+export function renderGoalInputsHtml(item: GoalInputsItem, { escapeHtml, renderReference }: GoalInputsPrimitives, creatable: readonly GoalInputsCreatableKind[]): string {
   const goalId = escapeHtml(item.goal.goal_id);
   const goalRoute = escapeHtml(`/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(item.goal.goal_id)}`);
   const follows = `<span class="goal-input-mode" data-goal-input-mode="live">${uiText("goals.inputs.follow-original")}</span>`;
@@ -55,7 +53,7 @@ export function renderGoalInputsHtml(item: GoalInputsItem, { escapeHtml, renderR
   });
   const rows = [...live, ...fixed].join("");
   // The button carries the declared title; the placement client names a new object and its card from it, so no table by plugin lives there.
-  const create = creatable.map(({ station, title, plugin_id }) => `<button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-placement-create="${escapeHtml(station)}" data-placement-create-title="${escapeHtml(title)}" data-goal-id="${goalId}">${escapeHtml(inPluginWords(plugin_id, translate => translate(title)))}</button>`).join("");
+  const create = creatable.map(({ station, title }) => `<button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-placement-create="${escapeHtml(station)}" data-placement-create-title="${escapeHtml(title)}" data-goal-id="${goalId}">${escapeHtml(title)}</button>`).join("");
   return `<section class="placement-goal-materials" data-placement-goal-materials data-goal-inputs data-goal-id="${goalId}"><h3>${uiText("goals.inputs.inputs")}</h3>
     <div class="placement-goal-create"><button type="button" class="mw-btn mw-btn--primary mw-btn--sm" data-goal-input-add data-goal-id="${goalId}">${uiText("goals.inputs.add-input")}</button><span>${uiText("goals.inputs.create-goal")}</span>${create}</div>
     ${rows ? `<div class="bound-list">${rows}</div>` : `<p class="empty-row">${uiText("goals.inputs.no-inputs-yet")}</p>`}

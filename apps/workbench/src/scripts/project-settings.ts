@@ -7,7 +7,7 @@
  */
 export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
   (() => {
-    const L = globalThis.L || ((text) => text);
+    const readText = globalThis.t.text;
     // A project's 「输入与输出」 is its own typed program (src/browser/project-directories.ts), loaded before this one.
     const bindWorkspaces = (scope) => globalThis.molisWorkBindProjectDirectories?.(scope);
     const bindRename = (scope) => {

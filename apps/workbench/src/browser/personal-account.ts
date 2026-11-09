@@ -29,13 +29,13 @@ const init = () => {
   const closeLoginWindow = () => { loginWindow?.close(); loginWindow = null; };
   let identity: AccountIdentity | null = null;
   let space = 'local', configured = true, loaded = false, busy = false, checking = false, attempt = '', expires = 0;
-  const L = globalThis.L || (text => text);
+  const readText = globalThis.t.text;
   const transition = accountTransition();
-  const menuController = createAccountMenuController(L, () => ({identity,space,configured,loaded,busy,preparing:transition.preparing}), () => void update());
+  const menuController = createAccountMenuController(readText, () => ({identity,space,configured,loaded,busy,preparing:transition.preparing}), () => void update());
   const {menu,notice,paint,feedback} = menuController;
   const reportRequestFailure = (error: unknown) => feedback(errorMessage(error, '请求失败，请重试。'), true);
   const syncConsent=createSyncConsent();
-  const registration = accountRegistration(L, () => update(true));
+  const registration = accountRegistration(readText, () => update(true));
   let generation: number | undefined;
   const destination = desktop ? '/?desktop=1' : '/';
   const channel = typeof BroadcastChannel === 'function' ? new BroadcastChannel('molis-work-account') : null;

@@ -42,7 +42,7 @@ function projectedPageText(view: WorkbenchShellPageView): string {
   return '<script type="application/json" data-ui-page-text>' + JSON.stringify(pages).replaceAll("<", "\\u003c") + '</script>';
 }
 
-function deferredSurfaces(L: Translate, enabledPlugins: readonly string[], view: WorkbenchShellPageView) {
+function deferredSurfaces(_readText: Translate, enabledPlugins: readonly string[], view: WorkbenchShellPageView) {
   const deferredIds = new Set(deferredSurfaceClients().map(client => client.id));
   const isolatedIds = new Set(pluginSurfaceClients().map(client => client.id));
   return (html: string): string => {
@@ -53,7 +53,7 @@ function deferredSurfaces(L: Translate, enabledPlugins: readonly string[], view:
     if (!isolatedIds.has(match[3]!)) return match[1]!.replace(/>$/, ' data-deferred-surface>') + '<template data-deferred-content>' + match[4] + '</template>' + match[5];
     const id = match[3]!, entry = BUILTIN_PLUGIN_CATALOG.find(plugin => plugin.project_plugin_id === id);
     const source = stagedFrameSource(view, id), settings = listPluginSettingsNavItems(enabledPlugins).some(item => item.section_id === id);
-    return renderPluginFrameSurface(html, id, L(entry?.manifest.name ?? id), true, settings, id, source?.mount, entry?.manifest.plugin_id, source?.producer, Boolean(source));
+    return renderPluginFrameSurface(html, id, (entry?.manifest.name ?? id), true, settings, id, source?.mount, entry?.manifest.plugin_id, source?.producer, Boolean(source));
   };
 }
 
@@ -108,14 +108,14 @@ export interface WorkbenchShellPageView {
  * HTML ports accept only trusted output from the registered product owners.
  */
 export interface WorkbenchShellPageOwners<TView extends WorkbenchShellPageView> {
-  L: Translate;
+  readText: Translate;
   escapeHtml(value: unknown): string;
   icon(name: PageIcon): string;
   htmlLang(): string;
   controlTokenMeta(token: string): string;
   themeBootstrapScript: string;
   renderIconSprite(): string;
-  clientI18nScript(): string;
+  pluginTitleScript(): string;
   prefixLocalLinks(html: string, prefix: string, desktopShell?: boolean): string;
   renderWorkbenchDocument(request: WorkbenchDocumentRenderRequest): string;
   renderDesktopProjectChrome(project: ShellProject | null, projects: readonly ShellProject[],
@@ -140,8 +140,8 @@ function renderProjectReferenceDialog(_L: (text: string) => string): string {
 export function createWorkbenchGoalsPageRenderer<TView extends WorkbenchShellPageView>(
   owners: WorkbenchShellPageOwners<TView>,
 ) {
-  const { L, escapeHtml, icon, htmlLang, controlTokenMeta, themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT,
-    renderIconSprite, clientI18nScript, prefixLocalLinks, renderWorkbenchDocument,
+  const { readText, escapeHtml, icon, htmlLang, controlTokenMeta, themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT,
+    renderIconSprite, pluginTitleScript, prefixLocalLinks, renderWorkbenchDocument,
     renderDesktopProjectChrome,
     stageModel } = owners;
 
@@ -157,7 +157,7 @@ function renderMolisWorkWeb(
   const title = parts?.title ?? "Molis Work";
   const bootstrap = parts?.bootstrap;
   const projectOptions = view.projects.length ? view.projects : view.project ? [view.project] : [];
-  const primitives = { L, escapeHtml, icon, htmlLang };
+  const primitives = { readText, escapeHtml, icon, htmlLang };
   const appearance = owners.appearance?.current();
   // What the Runtimes run in this project, as their Manifests declare it; a page drawn with no Runtime reads the built-in catalog.
   const directory = pluginDirectoryFor(view.plugin_directory);
@@ -180,7 +180,7 @@ function renderMolisWorkWeb(
   const settingsDirectory = `${renderSettingsDirectorySection(primitives, enabledPlugins)}${view.project ? renderProjectSettingsDirectorySection(primitives, goalsEnabled) : ""}`;
   const settingsSurfaces = `${renderSettingsWorkSurface(primitives, `${view.route_prefix || ""}/?settings=appearance`,
     appearance && owners.appearance ? { current: appearance, choices: owners.appearance.choices() } : undefined)}${view.project ? renderProjectSettingsWorkSurface(primitives, view.project, desktopShell) : ""}`;
-  const defer = deferredSurfaces(L, enabledPlugins, view);
+  const defer = deferredSurfaces(readText, enabledPlugins, view);
   const projectTitlebarChrome = renderDesktopProjectChrome(view.project ?? null, projectOptions, desktopShell, view.project ? "__PROJECT_SETTINGS__" : null, { switcherClass: "desktop-project-switcher", manageHref: "__PROJECT_INDEX__", directoryToggle: true, globalSearch: true });
   const directoryEmpty = initialDesktopDirectory === "root";
   const sideTabs = projectSideTabs(enabledPlugins, view.route_prefix);
@@ -239,21 +239,21 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
             <section class="desktop-work-surface immersive-artifact-surface plugin-stage-shell" data-work-surface="artifacts" data-work-surface-label="成果" data-artifact-stage-shell data-expanded="false" hidden><div class="plugin-stage-list feed-stage-tree" data-artifact-directory></div><div class="plugin-stage-workspace" data-artifact-stage-workspace hidden><div data-artifact-detail></div></div></section>
             <section class="desktop-work-surface immersive-market" data-work-surface="market" data-work-surface-label="${uiText("workbench.shell-page-renderer.plugin-market")}" hidden>${renderPluginMarket(primitives, { developerMode: view.developer_mode, marksFromHost: Boolean(view.plugin_directory) }, directory)}</section>
             ${settingsSurfaces}
-            ${(view.unavailable_plugin_stages ?? []).map(stage => renderUnavailablePluginStage(stage, L)).join("")}${(view.plugin_stages ?? []).map(defer).join("")}
+            ${(view.unavailable_plugin_stages ?? []).map(stage => renderUnavailablePluginStage(stage, readText)).join("")}${(view.plugin_stages ?? []).map(defer).join("")}
             ${declared.html.map(defer).join("")}
           </div>
         </div>
       </div>
       ${[...(view.plugin_overlays ?? []), ...declared.overlays].join("")}
-      ${renderRuntimePlanDialog({ L, icon })}
+      ${renderRuntimePlanDialog({ readText, icon })}
     </main>
   </div>
   ${page?.before_global_search ?? ""}
   ${renderGlobalSearchOverlay(primitives)}
   ${page?.after_global_search ?? ""}
-  <div class="mw-toast toast" data-toast data-settings-toast role="status" aria-live="polite"></div>${renderProjectReferenceDialog(L)}${renderAppearanceRecovery(L, appearance)}
+  <div class="mw-toast toast" data-toast data-settings-toast role="status" aria-live="polite"></div>${renderProjectReferenceDialog(readText)}${renderAppearanceRecovery(readText, appearance)}
   ${bootstrap ? `<script id="${escapeHtml(bootstrap.id)}" type="application/json">${JSON.stringify(bootstrap.value).replaceAll("<", "\\u003c")}</script>` : ""}
-  <script>${clientI18nScript()}</script>
+  <script>${pluginTitleScript()}</script>
   <script src="/assets/molis-work-workbench.js"></script>${knowledgeClientTag()}
   ${parts?.terminal_client ? '<script src="/desktop/pty-client.js"></script>' : ""}`,
   });

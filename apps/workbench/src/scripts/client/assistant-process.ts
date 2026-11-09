@@ -19,7 +19,7 @@
  * `put` places a node in order without moving one that already stands in place (`ASSISTANT_PLACER_SCRIPT`).
  */
 export const ASSISTANT_PROCESS_FACTORY_SCRIPT = String.raw`(input) => {
-  const { L, el, glyph, spinner, keyed, setText, placer } = input;
+  const { readText, el, glyph, spinner, keyed, setText, placer } = input;
   // Each step's verb in the three forms a line takes (bare, under way, done), each its own key so each language says it
   // whole: English needs "Reading" and "Read", not a prefix before "read".
   const VERBS = { lookup: ["查找能力", "正在查找能力", "已查找能力"], read: ["读取", "正在读取", "已读取"], change: ["修改", "正在修改", "已修改"], suggest: ["准备操作卡", "正在准备操作卡", "已准备操作卡"], ask: ["向你提问", "正在向你提问", "已向你提问"], todo: ["更新工作步骤", "正在更新工作步骤", "已更新工作步骤"], "lookup-tools": ["查找工具", "正在查找工具", "已查找工具"], delegate: ["委托子任务", "正在委托子任务", "已委托子任务"], "delegate-check": ["查看子任务", "正在查看子任务", "已查看子任务"], "delegate-follow-up": ["让子任务补改", "正在让子任务补改", "已让子任务补改"], "delegate-stop": ["停止子任务", "正在停止子任务", "已停止子任务"], "memory-keep": ["记下你的要求", "正在记下你的要求", "已记下你的要求"], "memory-list": ["查看记住的事", "正在查看记住的事", "已查看记住的事"], "memory-forget": ["删除一条记忆", "正在删除一条记忆", "已删除一条记忆"], "memory-suggest": ["建议记住一条", "正在建议记住一条", "已建议记住一条"], "file-read": ["读取文件", "正在读取文件", "已读取文件"], "file-list": ["查看目录", "正在查看目录", "已查看目录"], "file-search": ["搜索代码", "正在搜索代码", "已搜索代码"], "file-change": ["修改文件", "正在修改文件", "已修改文件"], command: ["运行命令", "正在运行命令", "已运行命令"], "command-output": ["查看命令输出", "正在查看命令输出", "已查看命令输出"], "auto-continue": ["自动续做", "正在自动续做", "已自动续做"], compact: ["整理上下文", "正在整理上下文", "已整理上下文"], "browser-list": ["找到侧栏浏览器", "正在找到侧栏浏览器", "已找到侧栏浏览器"], "browser-look": ["查看网页", "正在查看网页", "已查看网页"], "browser-act": ["操作网页", "正在操作网页", "已操作网页"], "computer-list": ["查看可操作的应用", "正在查看可操作的应用", "已查看可操作的应用"], "computer-look": ["查看应用窗口", "正在查看应用窗口", "已查看应用窗口"], "computer-act": ["操作应用", "正在操作应用", "已操作应用"], "ended-on-promise": ["收尾", "正在收尾", "已收尾"] };
@@ -30,7 +30,7 @@ export const ASSISTANT_PROCESS_FACTORY_SCRIPT = String.raw`(input) => {
     "auto-continue": "refresh", compact: "refresh", "browser-list": "globe", "browser-look": "globe", "browser-act": "globe", "computer-list": "system", "computer-look": "system", "computer-act": "system", "ended-on-promise": "alert" };
   const verbGlyph = (item) => item.state === "started" ? spinner() : item.state === "failed" || item.state === "unknown" ? spinner(item.state === "failed" ? "failed" : "verify") : glyph(VERB_GLYPH[item.verb] || "circle");
   // form: 0 bare, 1 under way, 2 done. A line starts with its verb, so it starts with a capital where the language has them.
-  const verb = (item, form = 0) => L(VERBS[item.verb]?.[form] || item.verb);
+  const verb = (item, form = 0) => globalThis.t.text(VERBS[item.verb]?.[form] || item.verb);
   const capital = (text) => text.charAt(0).toUpperCase() + text.slice(1);
   const activityLine = (item) => {
     const what = item.target ? (item.verb === "ask" ? "：" : " ") + item.target : "";
@@ -44,7 +44,7 @@ export const ASSISTANT_PROCESS_FACTORY_SCRIPT = String.raw`(input) => {
     const live = [...run].reverse().find((item) => item.state === "started");
     if (live) return activityLine(live);
     const said = [...new Set(run.map(phrase))], unfinished = run.filter((item) => item.state === "failed" || item.state === "unknown").length;
-    let what = said.slice(0, 2).join(L("、")); if (said.length > 2) what = globalThis.t.text("workbench.assistant-process.what-more").replace("{what}", what);
+    let what = said.slice(0, 2).join(globalThis.t.text("common.list.separator")); if (said.length > 2) what = globalThis.t.text("workbench.assistant-process.what-more").replace("{what}", what);
     return globalThis.t.text("workbench.assistant-process.what-n-n", { what: capital(what), n: run.length })
       + (unfinished ? " · " + unfinished + " " + globalThis.t.text("workbench.assistant-process.did-not-finish") : "");
   };
@@ -134,7 +134,7 @@ export const ASSISTANT_PROCESS_FACTORY_SCRIPT = String.raw`(input) => {
 export const ASSISTANT_RETRY_FACTORY_SCRIPT = String.raw`(input) => {
   let timer = 0;
   const line = (status) => {
-    const left = Math.max(0, Math.ceil((Date.parse(status.dataset.retryUntil) - Date.now()) / 1000)), L = input.L;
+    const left = Math.max(0, Math.ceil((Date.parse(status.dataset.retryUntil) - Date.now()) / 1000)), readText = input.readText;
     if (!left) return globalThis.t.text("workbench.assistant-process.retrying");
     const time = String(Math.floor(left / 60)).padStart(2, "0") + ":" + String(left % 60).padStart(2, "0"), reason = status.dataset.retryReason;
     return reason === "rate-limited" ? globalThis.t.text("workbench.assistant-process.rate-limited-retrying-time", { time }) : reason === "not-sent" ? globalThis.t.text("workbench.assistant-process.request-wasn-t-sent-retrying-time", { time }) : globalThis.t.text("workbench.assistant-process.model-service-unavailable-retrying-time", { time });

@@ -16,7 +16,6 @@ export interface FrameScope extends UiClientScope {
 export interface FrameHost {
   root?: HTMLElement;
   scope?: FrameScope;
-  translate: Translate;
   mountPluginClient(root: HTMLElement): FrameScope | null;
   route?(path: string): string;
   projectId?(): string;
@@ -54,7 +53,7 @@ export interface FrameConfig {
   shortcuts: string[];
   search?: string;
   origin: string; bundle: string; assets: string[]; projectId: string; projectTitle: string; routePrefix: string; side: boolean; page: unknown;
-  messages: Record<string, string>; titles: Record<string, string>; storage: Record<"localStorage" | "sessionStorage", Record<string, string>>;
+  titles: Record<string, string>; storage: Record<"localStorage" | "sessionStorage", Record<string, string>>;
 }
 export interface FrameFetch {
   type: "fetch"; id: number; url: string; method: string; headers: [string, string][]; body: ArrayBuffer | null;
@@ -156,20 +155,15 @@ declare global {
   interface Window { molisPluginFrames: typeof globalThis.molisPluginFrames }
   var molisPlacement: { paintBar(slot: HTMLElement): Promise<void>; paintTargets(root: HTMLElement): void } | undefined;
   var molisFrameReviews: HostReviewFactory;
-  var molisFrameFillMessage: Translate;
   var molisPageTerminal: UiPageTerminal;
   var molisWorkControlHeaders: UiRequest["headers"];
-  var MOLIS_WORK_MESSAGES: Record<string, string>;
   var MOLIS_WORK_PLUGIN_TITLES: Record<string, string>;
-  /** Each plugin's own English by plugin id: a frame takes its plugin's under the page's, and no other plugin's. */
-  var MOLIS_WORK_PLUGIN_WORDS: Record<string, Record<string, string>> | undefined;
-  var L: Translate;
   var molisWorkbenchPluginFactories: Record<string, (host: UiPluginClientHost<HTMLElement, HTMLDialogElement, HTMLImageElement | HTMLIFrameElement>) => void>;
   var molisPluginFrames: { assets: typeof frameAssets; prepareLanguage: typeof prepareFrameLanguages; mount(root: HTMLElement, host: FrameHost, pack: FramePack): Promise<{ frame: HTMLIFrameElement; scope: FrameScope }> };
-  var molisFrameUi: (translate: Translate) => {
+  var molisFrameUi: () => {
     mountPluginClient(root: HTMLElement): FrameScope | null;
     interaction: typeof import("@molis-ai/molis-work-design-system").createInteractionClient;
     receipts: unknown;
-    surfaceFocus(host: { translate: Translate; surfaceOnly: true }): void;
+    surfaceFocus(host: { surfaceOnly: true }): void;
   };
 }

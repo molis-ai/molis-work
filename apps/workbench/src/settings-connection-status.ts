@@ -2,7 +2,7 @@ import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { ConnectorConnectionStatus } from "@molis-ai/molis-work-contracts/services/connector-host";
 
 /** Kept in the existing connection detail; the four dimensions are never collapsed into one success badge. */
-export function renderConnectionStatus(status: ConnectorConnectionStatus | undefined, p: { L(text: string, values?: Record<string, string | number>): string; escapeHtml(value: unknown): string }): string {
+export function renderConnectionStatus(status: ConnectorConnectionStatus | undefined, p: { readText(text: string, values?: Record<string, string | number>): string; escapeHtml(value: unknown): string }): string {
   if (!status) return "";
   const { escapeHtml: e } = p;
   const connectivity = { disconnected: uiText.text("workbench.settings-connection-status.disconnected"), unchecked: uiText.text("workbench.settings-connection-status.not-checked"), connected: uiText.text("workbench.settings-connection-status.connectivity-verified"), failed: uiText.text("workbench.settings-connection-status.check-failed"), unknown: uiText.text("workbench.settings-connection-status.result-unconfirmed") };

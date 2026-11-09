@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { required } from "./dom.js";
 import { lingguangRequest } from "./request.js";
 import type { Elements, LingguangHost, LingguangPage, LingguangState, Scope } from "./types.js";
@@ -25,10 +26,10 @@ const freshState = (): LingguangState => ({
 
 /** The page the parts share. The parts that draw and load install their operations on it before the page is used. */
 export function createPage(host: LingguangHost, life: Scope, workbench: HTMLElement): LingguangPage {
-  const L = host.translate;
+  const readText = uiText.text;
   const el = elementsOf(workbench);
   const page = {
-    host, L, life, el, s: freshState(), request: lingguangRequest(host, life), api: "/sparks",
+    host, readText, life, el, s: freshState(), request: lingguangRequest(host, life), api: "/sparks",
     showNote(text: string, isError?: boolean) {
       el.note.hidden = !text;
       el.note.textContent = text || "";

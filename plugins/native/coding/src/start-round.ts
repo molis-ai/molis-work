@@ -279,7 +279,7 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
 export const roundAfterParkedAnswer = async (a: CodingActivation, record: CodingSessionRecord, session: { runtime_id: string; session_id: string },
   api: Capabilities, execution: CodingExecution, beforeWrite: CodingBeforeWrite): Promise<{ started: true; run_id: string } | { started: false; reason: string }> => {
   const saved = (() => { try { return JSON.parse(a.context.services?.storage?.get(`last-start:${record.session_id}`) ?? "null") as Record<string, unknown> | null; } catch { return null; } })();
-  if (!saved) return { started: false, reason: codingText(execution.locale)("coding.server.start-unknown") };
+  if (!saved) return { started: false, reason: codingText("coding.server.start-unknown") };
   const body = continuedBody(saved, "服务重启前你问我的问题，我已经回答，回答附在后面。");
   const start = () => startRound(a, record, body, api, execution, beforeWrite);
   const reason = (error: unknown) => error instanceof Error ? error.message : String(error);

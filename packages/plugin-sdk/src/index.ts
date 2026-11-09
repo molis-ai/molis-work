@@ -30,7 +30,6 @@ export { DIFF_STEP_BUDGET, splitLines, joinLines, reconstructSides, compareTexts
 export { parsePorcelainStatus, type GitStatus, type GitChange, type GitHead, type GitUpstream, type PorcelainInput } from "./git-porcelain.js";
 /** A message's `{name}` values filled in, with `{count|one|other}` for a word that agrees with a number. */
 export { fillMessage } from "./message-text.js";
-export { messageDeclarationProblems, PLUGIN_MESSAGE_LIMITS } from "./message-declarations.js";
 export { sandboxLocaleProblems } from "./locale-declarations.js";
 /**
  * Copied credentials masked in external text before it goes to a model or back on screen. Code colouring and rich text are

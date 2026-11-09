@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
  * project may read, by task, with taking a category or all of it back. Reading and changing go through
  * `/projects/<id>/api/settings/task-grants`, which calls `agent.task_grants.*` and the providers' own search sources as the person.
  */
-export function renderTaskGrantsSettings({ projectId }: { L(text: string): string; projectId: string }): string {
+export function renderTaskGrantsSettings({ projectId }: { readText(text: string): string; projectId: string }): string {
   return `<section class="settings-document task-grants-settings" aria-labelledby="task-grants-title" data-task-grants-settings data-project="${projectId}">
     <header class="settings-page-heading"><h1 id="task-grants-title">${uiText("workbench.settings-task-grants.access-approvals")}</h1>
       <p>${uiText("workbench.settings-task-grants.what-each-background-task-project-may-read-its")}</p></header>

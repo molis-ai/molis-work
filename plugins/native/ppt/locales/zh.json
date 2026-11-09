@@ -8,6 +8,7 @@
     "ppt.action.reload": "重新读取",
     "ppt.color.background": "背景",
     "ppt.color.primary": "主题色",
+    "ppt.create.kind-title": "演示稿",
     "ppt.dialog.cancel": "取消",
     "ppt.dialog.delete-confirm": "删除这份演示稿？",
     "ppt.dialog.reload-confirm": "重新读取会丢弃未保存的编辑。继续吗？",

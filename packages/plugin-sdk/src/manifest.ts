@@ -1,3 +1,4 @@
+import { tryOwnedTextRef } from "./ui/text-ref.js";
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { parsePluginSyncDeclaration } from "./plugin-sync.js";
 import { SURFACE_BROWSER_PERMISSION, type PluginDeclarationProblem, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -23,7 +24,6 @@ import { ownerFilesDeclarationProblems } from "./owner-files-declaration.js";
 import { imageGenerationDeclarationProblems, localToolsDeclarationProblems, modelConfigurationDeclarationProblems, runtimeDeclarationProblems } from "./service-declarations.js";
 import { inspectContextDeclarations } from "./context-declarations.js";
 import { localeDeclarationProblems } from "./locale-declarations.js";
-import { messageDeclarationProblems } from "./message-declarations.js";
 import { inspectEventDeclarations, inspectPortDeclarations } from "./wiring-declarations.js";
 import { pageRouteProblems } from "./page-routes.js";
 import { createStations, englishNameProblem, settingsReadActions, stageDataPlacementProblems, viewPlacementProblems } from "./view-placement-declarations.js";
@@ -120,6 +120,9 @@ export function parsePluginManifest(input: unknown): PluginManifest {
   }
   const ui = record(manifest.ui, "ui");
   strings(ui.contributions, "ui.contributions");
+  if (Object.hasOwn(ui, "messages") || Object.hasOwn(ui, "translations")) {
+    throw pluginErrors.declaration_invalid("界面文字请放在 locales/<语言>.json 并声明 ui.locales；Manifest 不再接收 messages 或 translations");
+  }
   if (ui.commands !== undefined) throw pluginErrors.declaration_invalid("ui.commands 已取消：没有界面调用插件的命令，请删掉这一项（BL-363）");
   if (ui.embedded_plugins !== undefined) {
     strings(ui.embedded_plugins, "ui.embedded_plugins");
@@ -131,6 +134,11 @@ export function parsePluginManifest(input: unknown): PluginManifest {
 
   const parsed = input as PluginManifest;
   assertDeclarations(parsed, ui);
+  for (const view of parsed.ui.views ?? []) {
+    const ref = view.creates?.title_text;
+    if (ref !== undefined && (!parsed.ui.locales || !tryOwnedTextRef(ref, parsed.plugin_id)))
+      throw pluginErrors.declaration_invalid("视图的 creates.title_text 须声明 ui.locales 并引用本插件的键或通用词");
+  }
   return parsed;
 }
 
@@ -229,7 +237,6 @@ function assertDeclarations(parsed: PluginManifest, ui: Record<string, unknown>)
   problems.push(...inspectSkillDeclarations(parsed.methods));
   problems.push(...inspectViewDeclarations(parsed, ui));
   problems.push(...pageRouteProblems(parsed));
-  problems.push(...messageDeclarationProblems(parsed));
   problems.push(...localeDeclarationProblems(parsed));
   problems.push(...inspectRouteDeclarations(parsed));
   problems.push(...inspectRequirementDeclarations(parsed));

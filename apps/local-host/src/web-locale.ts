@@ -3,7 +3,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { createWorkbenchLocale, type PluginTextReader, type WebLocale } from "@molis-ai/molis-work-app-workbench";
 import { currentPluginTextCall, pluginActivationOpen, type PluginInstance } from "@molis-ai/molis-work-plugin-runtime";
-export { EN, LOCALE_COOKIE, WEB_LOCALES, LOCALE_SWITCH_STYLES, type WebLocale, type WebLocalePreference } from "@molis-ai/molis-work-app-workbench";
+export { LOCALE_COOKIE, WEB_LOCALES, LOCALE_SWITCH_STYLES, type WebLocale, type WebLocalePreference } from "@molis-ai/molis-work-app-workbench";
 type WebLocaleChoice = ReturnType<ReturnType<typeof createWorkbenchLocale>["resolveWebLocaleChoice"]>;
 const localeStore = new AsyncLocalStorage<WebLocaleChoice>();
 
@@ -43,7 +43,7 @@ export const languagePreviewUnavailable = () => new ActionError("actions.unavail
 
 /**
  * Work no page started (a timed round, a continuation, a periodic look) in a language scope of its own. The caller reads the language
- * when this run starts (`lastUsedLocale`), so a change reaches the next run. `pageLocale` and `L` do not see it.
+ * when this run starts (`lastUsedLocale`), so a change reaches the next run. `pageLocale` and `readText` do not see it.
  */
 export function runBackgroundWork<T>(locale: WebLocale, fn: () => T): T {
   return inLocaleScope(locale, fn, { preview: false });
@@ -97,4 +97,7 @@ export const pageLocale = (): WebLocale | undefined => localeStore.getStore()?.t
 export const appearanceLocale = (): WebLocaleChoice => localeStore.getStore() ?? { tag: "zh", source: "default" };
 const workbenchLocale = createWorkbenchLocale(() => pageLocale() ?? "zh");
 export const isWebLocale: (value: unknown) => value is WebLocale = workbenchLocale.isWebLocale;
-export const { currentLocale, htmlLang, dateTimeLocale, listJoin, resolveWebLocale, resolveWebLocaleChoice, safeNextPath, localePreference, localeSetCookie, localeSwitchHref, L, renderLocaleSwitch, englishCatalogJson, clientI18nScript } = workbenchLocale;
+export const { currentLocale, htmlLang, dateTimeLocale, listJoin, resolveWebLocale, resolveWebLocaleChoice, safeNextPath, localePreference, localeSetCookie, localeSwitchHref, renderLocaleSwitch, pluginTitleScript } = workbenchLocale;
+
+/** A plain word for platform renderers that escape it at the HTML boundary. */
+export const readText = t.text;

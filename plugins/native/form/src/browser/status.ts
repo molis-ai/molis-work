@@ -33,10 +33,10 @@ export const publishContext = (page: FormPage) => {
 
 const collectWord = (_L: Translate, status: FormStatus) => status === "published" ? uiText.text("form.collect.on") : status === "closed" ? uiText.text("form.collect.stopped") : uiText.text("form.collect.off");
 const paintCollect = (page: FormPage, record: FormRecord) => {
-  const { L, one } = page;
+  const { readText, one } = page;
   const collecting = record.status === "published";
   const state = one("[data-form-collect-state]");
-  if (state) { state.dataset.mwState = collecting ? "doing" : record.status === "closed" ? "stopped" : "idle"; state.textContent = collectWord(L, record.status); state.className = "form-collect-state mw-status mw-status--" + (collecting ? "done" : "quiet"); }
+  if (state) { state.dataset.mwState = collecting ? "doing" : record.status === "closed" ? "stopped" : "idle"; state.textContent = collectWord(readText, record.status); state.className = "form-collect-state mw-status mw-status--" + (collecting ? "done" : "quiet"); }
   const start = one("[data-form-publish]");
   if (start) { start.hidden = collecting; start.textContent = record.status === "closed" ? uiText.text("form.collect.restart") : uiText.text("form.collect.start"); }
   const fill = one("[data-form-fill]");

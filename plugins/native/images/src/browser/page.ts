@@ -21,7 +21,7 @@ const freshState = (context: string): ImagesState => ({
 
 /** The browser owns drafts only; jobs and credentials belong to the local host. */
 export function createPage(host: ImagesHost, life: Scope, root: HTMLElement): ImagesPage {
-  const { translate: L } = host;
+  const readText = uiText.text;
   const el = elementsOf(root);
   const field = <T extends HTMLElement = HTMLElement>(name: string): T => required<T>(root, `[data-images-${name}]`);
   const projectId = () => String(host.projectId() || "");
@@ -31,7 +31,7 @@ export function createPage(host: ImagesHost, life: Scope, root: HTMLElement): Im
     cancelled: uiText.text("images.status.cancelled"), interrupted: uiText.text("images.status.interrupted"),
   };
   const page: ImagesPage = {
-    host, L, life, root, el, s, statuses, field, projectId,
+    host, readText, life, root, el, s, statuses, field, projectId,
     request: imagesRequest(host, life),
     say(message, isError = false, selector = "[data-images-note]") {
       if (!life.alive) return;

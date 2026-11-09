@@ -3,6 +3,13 @@
 // say what it means for them in the PR.
 
 export declare const DOM_EVENTS: readonly [{
+    readonly name: "molis-work:language-changed";
+    readonly kind: "announcement";
+    readonly owner: "document-language";
+    readonly on: "document";
+    readonly detail: "{ tag: UiLanguageTag }";
+    readonly summary: "A local preview or capsule has applied a new language in place; its existing child views can refresh their words.";
+}, {
     readonly name: "molis-shelf-notice";
     readonly kind: "request";
     readonly owner: "shelf";
@@ -484,6 +491,10 @@ export type DomEventName = (typeof DOM_EVENTS)[number]["name"];
 export type DomEventTarget = "window" | "document" | "element";
 
 export declare const PAGE_STATE_OWNERS: {
+    readonly "document-language": {
+        readonly files: readonly ["apps/workbench/src/browser/language-entry.ts"];
+        readonly state: "The displayed words and language of one document.";
+    };
     readonly "side-panel": {
         readonly files: readonly ["apps/workbench/src/side-panel-context.ts", "apps/workbench/src/side-panel.ts", "apps/workbench/src/side-panel-browser.ts", "apps/workbench/src/side-panel-files.ts"];
         readonly state: "The right side's views, their documents and what each was asked to show (a file, a web page, the browser held by the person or by a Work). Whether it is open, its tabs, the current one and its width are the tab workspace's state, not this owner's.";

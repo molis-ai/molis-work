@@ -5,7 +5,6 @@ export { PAGE_PLUGINS_WITHOUT_SELECTION } from "./page-plugin-visibility.js";
 export { renderHomePluginPage } from "./home-plugin-page.js";
 export { homeToolKeysScript } from "./home-plugin-navigation.js";
 export { CLIENT_SCRIPT, MORE_STYLES, RESPONSIVE_STYLES, STYLES } from "./browser-assets.js";
-export { EN } from "./i18n/en.js";
 export { ASSISTANT_RECEIPTS_FACTORY_SCRIPT } from "./scripts/client/assistant-send.js";
 export { PANE_MESSAGES_SCRIPT, SIDE_FORWARD_SCRIPT } from "./scripts/client/pane-messages.js";
 export { CONTEXT_ACTIONS_FACTORY_SCRIPT } from "./scripts/client/context-actions.js";
@@ -23,7 +22,7 @@ export type { CapabilitiesView, CapabilitySection } from "./capabilities.js";
 export { renderMcpAccessRows, type McpAccessModel, type McpAccessEntry } from "./mcp-access.js";
 export type { MolisWorkWebView, PreparedStageView } from "./page-view.js";
 export type { PluginRestartOffer, UnavailablePluginStage } from "./unavailable-plugin-stage.js";
-export { createWorkbenchLocale, inWordsOf, LOCALE_COOKIE, LOCALE_SWITCH_STYLES, registerPluginMessages, unregisterPluginMessages, WEB_LOCALES, withPluginWords, type WebLocale, type WebLocalePreference } from "./i18n.js";
+export { createWorkbenchLocale, LOCALE_COOKIE, LOCALE_SWITCH_STYLES, WEB_LOCALES, type WebLocale, type WebLocalePreference } from "./i18n.js";
 export { renderLanguageHead, workbenchLanguageResource } from "./language-resource.js";
 // The words this process holds for the text tools (specs/font-and-skin-system/a-section-contract.md §8.3): the Host registers and reads them.
 export { pluginTextForOwner, pluginTextOwnerOfPrefix, pluginTextReader, drawCatalogText, installCatalogTextScope, registerPlatformText, registerPluginText, type PluginTextReader } from "./plugin-text.js";

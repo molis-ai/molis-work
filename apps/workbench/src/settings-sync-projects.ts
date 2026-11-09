@@ -15,6 +15,6 @@ export const SYNC_PROJECT_RECYCLE_SCRIPT=String.raw`
           ])));body.append(row);
         }
         sheet("workbench.settings-sync-projects.project-recycle-bin",body,[]);
-      }catch(failure){error.hidden=false;error.textContent=L(failure.message);}
+      }catch(failure){error.hidden=false;error.textContent=failure.message;}
     });
 `;

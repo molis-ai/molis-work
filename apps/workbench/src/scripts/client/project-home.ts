@@ -7,8 +7,8 @@ import { createHomeFlow } from "../../home-flow.js";
  * (the things at hand). One detail node moves into whichever row is open.
  */
 export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
-  const { getState, translate: L, openItem, openPlugin, openTarget, api } = host;
-  (${HOME_SHORTCUTS_FACTORY_SCRIPT})({ root: document.querySelector('[data-work-surface="home"]'), translate: L,
+  const { getState, translate: readText, openItem, openPlugin, openTarget, api } = host;
+  (${HOME_SHORTCUTS_FACTORY_SCRIPT})({ root: document.querySelector('[data-work-surface="home"]'), translate: readText,
     projectKey: getState().project?.project_id || getState().snapshot.board.project_id });
   const home = document.querySelector('[data-work-surface="home"]');
   if (!home) return null;
@@ -102,7 +102,7 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
     const html =
       '<div class="home-heading__main"><h1>' + esc(day.today ? globalThis.t.text("workbench.project-home.today-s-work") : globalThis.t.text("workbench.project-home.work-date").replace("{date}", date)) + '</h1>' +
       '<p class="home-heading__sub">' + (day.today ? '<span class="craft-greeting">' + esc(greeting) + '</span><i>·</i>' : '') +
-        '<time data-home-date datetime="' + stamp + '">' + esc(L("{week}，{date}").replace("{week}", day.week).replace("{date}", date)) + '</time><i>·</i>' +
+        '<time data-home-date datetime="' + stamp + '">' + esc("{week}，{date}".replace("{week}", day.week).replace("{date}", date)) + '</time><i>·</i>' +
         '<span class="home-hero__sum">' + esc(sum) + '</span>' +
         (list.length ? '<i>·</i><span class="home-hero__lead">' + esc(summary.lead) + '</span>' : '') + '</p>' +
       '<div data-home-event-status role="status">' + eventIssues.map(issue => '<p>' + esc(issueText(issue)) + '</p>').join('') +
@@ -239,7 +239,7 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
       '<dl class="home-detail__facts">' + event.facts.map((fact) =>
         "<div><dt>" + esc(fact[0]) + "</dt><dd>" + esc(fact[1]) + "</dd></div>").join("") + "</dl>");
     const left = event.open ? '<button class="mw-btn mw-btn--primary" type="button" data-home-open-target' + (opening === event.id ? ' disabled' : '') + '>' + ico("arrow") +
-      esc(opening === event.id ? globalThis.t.text("workbench.project-home.opening") : L(event.open.label)) + '</button>' : '';
+      esc(opening === event.id ? globalThis.t.text("workbench.project-home.opening") : event.open.label) + '</button>' : '';
     const footer = $("[data-home-detail-act]", detailNode);
     if (!$(".home-detail__primary", footer)) footer.innerHTML =
       '<div data-home-offers></div><p data-home-navigation-error role="alert" hidden></p><div class="home-detail__primary"><div class="home-detail__act-left"></div>' +
@@ -295,7 +295,7 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
     } catch (error) { if (current()?.id === event.id) navigationError=error; }
     finally { opening = ''; if (current()?.id === event.id) renderDetail(); }
   };
-  const offers = (${HOME_OFFERS_FACTORY_SCRIPT})({ root: home, current, translate: L, api: api,
+  const offers = (${HOME_OFFERS_FACTORY_SCRIPT})({ root: home, current, translate: readText, api: api,
     projectKey, refresh: () => sync() });
   home.addEventListener("click", async (event) => {
     const start = event.target.closest('[data-home-start]');

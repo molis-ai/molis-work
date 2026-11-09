@@ -103,7 +103,7 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
   if(document.body.hasAttribute('data-pane-embedded'))return;
   const root=document.querySelector('[data-browser]'),projectId=document.body.dataset.projectId;
   if(!root||!projectId)return;
-  const L=globalThis.L||((text)=>text);
+  const readText=globalThis.t.text;
   const $=(selector)=>root.querySelector(selector);
   const view=$('[data-browser-view]'),canvas=$('[data-browser-canvas]'),keys=$('[data-browser-keys]'),address=$('[data-browser-address]');
   const cover=$('[data-browser-cover]'),coverCopy=$('[data-browser-cover-copy]'),strip=$('[data-browser-strip]'),sheet=$('[data-browser-sheet]');
@@ -149,7 +149,7 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
   };
   const say=(text,urgent)=>{if(!text||text===announced)return;announced=text;live.setAttribute('role',urgent?'alert':'status');live.textContent=text;};
   const tool=(name)=>$('[data-browser-action="'+name+'"]');
-  const button=(action,label,kind='secondary',scope)=>'<button class="mw-btn mw-btn--'+kind+' mw-btn--sm" type="button" data-browser-action="'+action+'"'+(scope===undefined?'':' data-scope="'+esc(scope)+'"')+'>'+esc(label)+'</button>';
+  const browserButton=(action,label,kind='secondary',scope)=>'<button class="mw-btn mw-btn--'+kind+' mw-btn--sm" type="button" data-browser-action="'+action+'"'+(scope===undefined?'':' data-scope="'+esc(scope)+'"')+'>'+esc(label)+'</button>';
   const render=()=>{
     if(!state)return;
     tool('back').disabled=!state.can_go_back;tool('forward').disabled=!state.can_go_forward;
@@ -164,7 +164,7 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
     const blank=!state.url&&!state.loading;
     if(fault&&(state.status==='unavailable'||state.status==='stopped'||state.status==='crashed')){
       cover.hidden=false;
-      const action=fault.code==='browser.not_found'?button('retry',globalThis.t.text("common.control.retry")):fault.code==='browser.page_crashed'?button('reload',globalThis.t.text("workbench.side-panel-browser.reload")):button('restart',globalThis.t.text("workbench.side-panel-browser.restart-browser"));
+      const action=fault.code==='browser.not_found'?browserButton('retry',globalThis.t.text("common.control.retry")):fault.code==='browser.page_crashed'?browserButton('reload',globalThis.t.text("workbench.side-panel-browser.reload")):browserButton('restart',globalThis.t.text("workbench.side-panel-browser.restart-browser"));
       coverCopy.innerHTML='<p class="side-browser-cover-title">'+esc(fault.code==='browser.not_found'?globalThis.t.text("workbench.side-panel-browser.no-browser-available"):fault.code==='browser.page_crashed'?globalThis.t.text("workbench.side-panel-browser.page-crashed"):globalThis.t.text("workbench.side-panel-browser.browser-not-running"))+'</p><p>'+esc(fault.message)+'</p>'+action;
       say(fault.message,true);
     }else if(state.status==='starting'){
@@ -174,8 +174,8 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
       coverCopy.innerHTML='<p class="side-browser-cover-title">'+esc(globalThis.t.text("workbench.side-panel-browser.enter-address-above-start-browsing"))+'</p><p>'+esc(globalThis.t.text("workbench.side-panel-browser.sign-ins-here-separate-own-browser-site-sign"))+(state.engine?'</p><p>'+esc(globalThis.t.text("workbench.side-panel-browser.using-name-computer",{name:state.engine})):'')+'</p>';
     }else cover.hidden=true;
     // The strip above the page: a page problem the page still shows behind, or the window a page opened.
-    if(fault&&cover.hidden){strip.hidden=false;strip.dataset.tone='problem';strip.innerHTML='<p>'+esc(fault.message)+'</p>'+(fault.code==='browser.load_failed'?button('reload',globalThis.t.text("workbench.side-panel-browser.refresh")):'');say(fault.message,true);}
-    else if(state.popup_depth>0){strip.hidden=false;strip.dataset.tone='popup';strip.innerHTML='<p>'+esc(globalThis.t.text("workbench.side-panel-browser.window-page-opened-example-sign-closing-returns-original"))+'</p>'+button('popup-close',globalThis.t.text("workbench.side-panel-browser.close-return"));}
+    if(fault&&cover.hidden){strip.hidden=false;strip.dataset.tone='problem';strip.innerHTML='<p>'+esc(fault.message)+'</p>'+(fault.code==='browser.load_failed'?browserButton('reload',globalThis.t.text("workbench.side-panel-browser.refresh")):'');say(fault.message,true);}
+    else if(state.popup_depth>0){strip.hidden=false;strip.dataset.tone='popup';strip.innerHTML='<p>'+esc(globalThis.t.text("workbench.side-panel-browser.window-page-opened-example-sign-closing-returns-original"))+'</p>'+browserButton('popup-close',globalThis.t.text("workbench.side-panel-browser.close-return"));}
     else{strip.hidden=true;strip.innerHTML='';}
     renderSheet();renderControl();
     // A page that failed to load is announced by its problem above, never as opened.
@@ -185,13 +185,13 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
     const dialog=state.dialog,chooser=state.file_chooser,download=[...state.downloads].reverse().find(item=>item.state==='completed'&&!seenDownloads.has(item.id));
     if(dialog){
       const title={alert:globalThis.t.text("workbench.side-panel-browser.message-page"),confirm:globalThis.t.text("workbench.side-panel-browser.page-asks-confirm"),prompt:globalThis.t.text("workbench.side-panel-browser.page-asks-input"),beforeunload:globalThis.t.text("workbench.side-panel-browser.leave-page")}[dialog.type]||globalThis.t.text("workbench.side-panel-browser.message-page");
-      sheet.innerHTML='<h2 id="side-browser-sheet-title">'+esc(title)+' · '+esc(state.origin)+'</h2><p>'+esc(dialog.message)+'</p>'+(dialog.type==='prompt'?'<input type="text" data-browser-prompt value="'+esc(dialog.default_prompt)+'" aria-label="'+esc(globalThis.t.text("workbench.side-panel-browser.input"))+'">':'')+'<div class="side-browser-actions">'+(dialog.type==='alert'?'':button('dialog-cancel',globalThis.t.text("common.control.cancel")))+button('dialog-accept',dialog.type==='beforeunload'?globalThis.t.text("workbench.side-panel-browser.leave"):globalThis.t.text("common.control.confirm"),'primary')+'</div>';
+      sheet.innerHTML='<h2 id="side-browser-sheet-title">'+esc(title)+' · '+esc(state.origin)+'</h2><p>'+esc(dialog.message)+'</p>'+(dialog.type==='prompt'?'<input type="text" data-browser-prompt value="'+esc(dialog.default_prompt)+'" aria-label="'+esc(globalThis.t.text("workbench.side-panel-browser.input"))+'">':'')+'<div class="side-browser-actions">'+(dialog.type==='alert'?'':browserButton('dialog-cancel',globalThis.t.text("common.control.cancel")))+browserButton('dialog-accept',dialog.type==='beforeunload'?globalThis.t.text("workbench.side-panel-browser.leave"):globalThis.t.text("common.control.confirm"),'primary')+'</div>';
       sheet.dataset.kind='dialog';sheet.dataset.id=dialog.id;sheet.hidden=false;
     }else if(chooser){
-      sheet.innerHTML='<h2 id="side-browser-sheet-title">'+esc(globalThis.t.text("workbench.side-panel-browser.page-asks-file"))+'</h2><p>'+esc(globalThis.t.text("workbench.side-panel-browser.files-choose-will-be-sent-origin",{origin:state.origin||globalThis.t.text("workbench.side-panel-browser.page")}))+'</p><div class="side-browser-actions">'+button('file-cancel',globalThis.t.text("common.control.cancel"))+button('file-pick',chooser.multiple?globalThis.t.text("workbench.side-panel-browser.choose-files"):globalThis.t.text("workbench.side-panel-browser.choose-file"),'primary')+'</div>';
+      sheet.innerHTML='<h2 id="side-browser-sheet-title">'+esc(globalThis.t.text("workbench.side-panel-browser.page-asks-file"))+'</h2><p>'+esc(globalThis.t.text("workbench.side-panel-browser.files-choose-will-be-sent-origin",{origin:state.origin||globalThis.t.text("workbench.side-panel-browser.page")}))+'</p><div class="side-browser-actions">'+browserButton('file-cancel',globalThis.t.text("common.control.cancel"))+browserButton('file-pick',chooser.multiple?globalThis.t.text("workbench.side-panel-browser.choose-files"):globalThis.t.text("workbench.side-panel-browser.choose-file"),'primary')+'</div>';
       sheet.dataset.kind='file';sheet.dataset.id=chooser.id;sheet.hidden=false;fileInput.multiple=!!chooser.multiple;
     }else if(download){
-      sheet.innerHTML='<h2 id="side-browser-sheet-title">'+esc(globalThis.t.text("workbench.side-panel-browser.download-finished"))+'</h2><p>'+esc(download.filename)+'</p><div class="side-browser-actions">'+button('download-dismiss',globalThis.t.text("common.control.close"))+'<a class="mw-btn mw-btn--primary mw-btn--sm" data-browser-download="'+esc(download.id)+'" href="/projects/'+encodeURIComponent(projectId)+'/api/browser/downloads/'+encodeURIComponent(download.id)+'" download="'+esc(download.filename)+'">'+esc(globalThis.t.text("workbench.side-panel-browser.save-computer"))+'</a></div>';
+      sheet.innerHTML='<h2 id="side-browser-sheet-title">'+esc(globalThis.t.text("workbench.side-panel-browser.download-finished"))+'</h2><p>'+esc(download.filename)+'</p><div class="side-browser-actions">'+browserButton('download-dismiss',globalThis.t.text("common.control.close"))+'<a class="mw-btn mw-btn--primary mw-btn--sm" data-browser-download="'+esc(download.id)+'" href="/projects/'+encodeURIComponent(projectId)+'/api/browser/downloads/'+encodeURIComponent(download.id)+'" download="'+esc(download.filename)+'">'+esc(globalThis.t.text("workbench.side-panel-browser.save-computer"))+'</a></div>';
       sheet.dataset.kind='download';sheet.dataset.id=download.id;sheet.hidden=false;
     }else{sheet.hidden=true;sheet.innerHTML='';delete sheet.dataset.kind;}
   };
@@ -200,12 +200,12 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
     const mode=state.control?.mode||'person',activity=state.control?.activity;
     if(mode==='assistant'){
       control.hidden=false;control.dataset.mode=mode;
-      control.innerHTML='<p><strong>'+esc(globalThis.t.text("workbench.side-panel-browser.assistant-working-here"))+'</strong> · '+esc(activity?.summary||state.origin)+'</p>'+button('takeover',globalThis.t.text("workbench.side-panel-browser.take-over"));
+      control.innerHTML='<p><strong>'+esc(globalThis.t.text("workbench.side-panel-browser.assistant-working-here"))+'</strong> · '+esc(activity?.summary||state.origin)+'</p>'+browserButton('takeover',globalThis.t.text("workbench.side-panel-browser.take-over"));
       if(activity?.point){const scaleX=view.clientWidth/(state.viewport.width||1),scaleY=view.clientHeight/(state.viewport.height||1);marker.style.left=activity.point.x*scaleX+'px';marker.style.top=activity.point.y*scaleY+'px';marker.hidden=false;}else marker.hidden=true;
       say(activity?.summary||globalThis.t.text("workbench.side-panel-browser.assistant-working-here"));
     }else if(mode==='taken-over'){
       control.hidden=false;control.dataset.mode=mode;marker.hidden=true;
-      control.innerHTML='<p>'+esc(globalThis.t.text("workbench.side-panel-browser.have-taken-over-assistant-paused"))+'</p>'+button('handback',globalThis.t.text("workbench.side-panel-browser.hand-back-assistant"),'primary');
+      control.innerHTML='<p>'+esc(globalThis.t.text("workbench.side-panel-browser.have-taken-over-assistant-paused"))+'</p>'+browserButton('handback',globalThis.t.text("workbench.side-panel-browser.hand-back-assistant"),'primary');
     }else{control.hidden=true;control.innerHTML='';marker.hidden=true;}
   };
   // When the Assistant starts using this project's page, the panel opens on it (once per piece of work), without focus.
@@ -240,8 +240,8 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
     const upload=/上传/.test(doc.summary||''),remember=!upload&&/^https?:\/\//.test(site);
     approval.innerHTML='<h2>'+esc(globalThis.t.text("workbench.side-panel-browser.assistant-asks-confirm"))+'</h2><p>'+esc(doc.summary||globalThis.t.text("workbench.side-panel-browser.assistant-wants-act-page"))+'</p><dl>'+fields.filter(field=>field.label!=='网站').map(field=>'<dt>'+esc(field.label)+'</dt><dd>'+esc(field.value)+'</dd>').join('')+'</dl>'+(held
       // While the person holds the page the step cannot run; after the handback the Assistant looks again first.
-      ?'<p class="side-browser-approval-note">'+esc(globalThis.t.text("workbench.side-panel-browser.while-hold-page-step-wont-run-after-hand"))+'</p><div class="side-browser-actions-row">'+button('reject',globalThis.t.text("workbench.side-panel-browser.dont-allow"),'ghost')+'</div>'
-      :'<div class="side-browser-actions-row">'+button('approve-once',globalThis.t.text("workbench.side-panel-browser.allow-once"),'primary')+(remember?button('approve-site',globalThis.t.text("workbench.side-panel-browser.dont-ask-again-site"),'secondary'):'')+button('reject',globalThis.t.text("workbench.side-panel-browser.dont-allow"),'ghost')+'</div>');
+      ?'<p class="side-browser-approval-note">'+esc(globalThis.t.text("workbench.side-panel-browser.while-hold-page-step-wont-run-after-hand"))+'</p><div class="side-browser-actions-row">'+browserButton('reject',globalThis.t.text("workbench.side-panel-browser.dont-allow"),'ghost')+'</div>'
+      :'<div class="side-browser-actions-row">'+browserButton('approve-once',globalThis.t.text("workbench.side-panel-browser.allow-once"),'primary')+(remember?browserButton('approve-site',globalThis.t.text("workbench.side-panel-browser.dont-ask-again-site"),'secondary'):'')+browserButton('reject',globalThis.t.text("workbench.side-panel-browser.dont-allow"),'ghost')+'</div>');
     approval.dataset.site=site;approval.hidden=false;
     if(!visible())document.dispatchEvent(new CustomEvent('molis:side-open',{detail:{tab:'browser'}}));
     say(globalThis.t.text("workbench.side-panel-browser.assistant-asks-confirm-what",{what:doc.summary||''}),true);
@@ -259,7 +259,7 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
     if(request!==sitesRender||sitesBox.hidden)return;
     const mine=rows.find(row=>row.scope===here);
     const label=(row)=>row.decision==='allow'?globalThis.t.text("workbench.side-panel-browser.may-act-without-asking"):globalThis.t.text("workbench.side-panel-browser.blocked-looking-acting");
-    sitesBox.innerHTML='<h2>'+esc(globalThis.t.text("workbench.side-panel-browser.what-assistant-may-do-sites"))+'</h2>'+(here?'<p>'+esc(here)+' · '+esc(mine?label(mine):globalThis.t.text("workbench.side-panel-browser.asks-before-every-action"))+'</p><div class="side-browser-actions-row">'+(mine?.decision!=='allow'?button('site-allow',globalThis.t.text("workbench.side-panel-browser.may-act-without-asking"),'secondary',here):'')+(mine?.decision!=='block'?button('site-block',globalThis.t.text("workbench.side-panel-browser.block-assistant-site"),'secondary',here):'')+(mine?button('site-forget',globalThis.t.text("workbench.side-panel-browser.ask-every-time-again"),'ghost',here):'')+'</div>':'<p>'+esc(globalThis.t.text("workbench.side-panel-browser.open-site-set-here"))+'</p>')
+    sitesBox.innerHTML='<h2>'+esc(globalThis.t.text("workbench.side-panel-browser.what-assistant-may-do-sites"))+'</h2>'+(here?'<p>'+esc(here)+' · '+esc(mine?label(mine):globalThis.t.text("workbench.side-panel-browser.asks-before-every-action"))+'</p><div class="side-browser-actions-row">'+(mine?.decision!=='allow'?browserButton('site-allow',globalThis.t.text("workbench.side-panel-browser.may-act-without-asking"),'secondary',here):'')+(mine?.decision!=='block'?browserButton('site-block',globalThis.t.text("workbench.side-panel-browser.block-assistant-site"),'secondary',here):'')+(mine?browserButton('site-forget',globalThis.t.text("workbench.side-panel-browser.ask-every-time-again"),'ghost',here):'')+'</div>':'<p>'+esc(globalThis.t.text("workbench.side-panel-browser.open-site-set-here"))+'</p>')
       +(rows.filter(row=>row.scope!==here).length?'<ul>'+rows.filter(row=>row.scope!==here).map(row=>'<li><span>'+esc(row.scope)+' · '+esc(label(row))+'</span><button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-browser-action="site-forget" data-scope="'+esc(row.scope)+'">'+esc(globalThis.t.text("workbench.side-panel-browser.undo"))+'</button></li>').join('')+'</ul>':'')
       +'<p class="side-browser-cover-copy">'+esc(globalThis.t.text("workbench.side-panel-browser.uploading-file-always-asks-first"))+'</p>'
       +'<label class="side-browser-toggle"><input type="checkbox" data-browser-assistant'+(enabled?' checked':'')+'> '+esc(globalThis.t.text("workbench.side-panel-browser.let-assistant-use-side-panel-browser"))+'</label>';

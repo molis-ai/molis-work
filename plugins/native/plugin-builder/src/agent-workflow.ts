@@ -4,7 +4,7 @@ import { publishAgentBuild, buildScope, releaseScope } from './agent-publication
 import { effectsFromContract } from '@molis-ai/molis-work-plugin-sdk';
 import { randomUUID } from 'node:crypto';
 import type { PluginPrivateStorage, PluginExecutionControl } from '@molis-ai/molis-work-contracts/platform/plugin';
-import { pluginComponentChoices, resolvePluginComponentCall } from '@molis-ai/molis-work-design-system';
+import { pluginComponentChoices, projectComponentMetadata, resolvePluginComponentCall } from '@molis-ai/molis-work-design-system';
 import type { SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { BuilderAgentRequest, BuilderAgentRecord, BuilderSkill } from '@molis-ai/molis-work-contracts/services/agent-host';
 import type { BuildManifest, BuildCheckResult } from '@molis-ai/molis-work-contracts/platform/plugin-builder';
@@ -501,7 +501,7 @@ export class AgentBuilderWorkflow {
     const design = this.store.require(id).design!;
     for (const part of design.parts) {
       signal.throwIfAborted(); this.current(id, token); if (this.store.require(id).nodes.some(node => node.id === part.id)) continue;
-      const choices = pluginComponentChoices(part, design.contract), stepId = 'part:' + design.contract.revision + ':' + part.id;
+      const choices = pluginComponentChoices(part, design.contract).map(projectComponentMetadata), stepId = 'part:' + design.contract.revision + ':' + part.id;
       this.step(id, { id: stepId, agent: 'ui', action: 'select', label: '选择「' + part.purpose + '」的组件', target: part.id, status: 'active' });
       const preference = design.presentation?.parts[part.id]?.kind;
       let selection: NonNullable<AgentBuildStep['selection']> = { source: preference ? 'design' : 'rule', candidates: choices.map(choice => choice.kind), choice: preference ?? choices[0]!.kind };

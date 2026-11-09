@@ -12,7 +12,7 @@ const SPARE_HUES = ["blue", "green", "orange", "purple", "cyan", "pink", "yellow
  * Plugin groups on the tab strip: drawing a plugin's automatic group, the plugin tab as the current place, closing a
  * group with a way back, and ⌘/Ctrl- or middle-click on a record opening it as a tab in its group.
  */
-export const PLUGIN_TAB_GROUPS_FACTORY = String.raw`({ getState, ops, apply, persist, L, rows, embedded, notify, editable, appendTab, removed = () => false, hues = {} }) => {
+export const PLUGIN_TAB_GROUPS_FACTORY = String.raw`({ getState, ops, apply, persist, readText, rows, embedded, notify, editable, appendTab, removed = () => false, hues = {} }) => {
   const HUES = { ...${JSON.stringify(SURFACE_HUES)}, ...hues };
   const SPARE = ${JSON.stringify(SPARE_HUES)};
   const hueOf = (plugin) => HUES[plugin] || SPARE[[...String(plugin)].reduce((sum, char) => sum + char.charCodeAt(0), 0) % SPARE.length];
@@ -63,7 +63,7 @@ export const PLUGIN_TAB_GROUPS_FACTORY = String.raw`({ getState, ops, apply, per
     wrap.append(pages); parent.append(wrap);
     return end;
   };
-  const undoLabel = (record) => globalThis.t.text("workbench.plugin-tab-groups.reopen-plugin", { plugin: record.side ? record.title : L(ops.pluginTitle(record.plugin)) });
+  const undoLabel = (record) => globalThis.t.text("workbench.plugin-tab-groups.reopen-plugin", { plugin: record.side ? record.title : ops.pluginTitle(record.plugin) });
   // Screen readers hear that a group closed and how to get it back; the chip itself appears with the next render.
   const live = document.createElement("div");
   live.setAttribute("role", "status"); live.className = "mw-sr-only";
@@ -73,7 +73,7 @@ export const PLUGIN_TAB_GROUPS_FACTORY = String.raw`({ getState, ops, apply, per
     const record = ops.closePluginGroup(getState(), paneId, plugin);
     if (!record) return record;
     closed.push({ record, until: Date.now() + UNDO_MS });
-    live.textContent = globalThis.t.text("workbench.plugin-tab-groups.closed-plugin-tab-group", { plugin: L(ops.pluginTitle(plugin)) }) + " · " + undoLabel(record);
+    live.textContent = globalThis.t.text("workbench.plugin-tab-groups.closed-plugin-tab-group", { plugin: ops.pluginTitle(plugin) }) + " · " + undoLabel(record);
     if (closed.length > 10) closed.shift();
     clearTimeout(undoTimer);
     undoTimer = setTimeout(() => apply(), UNDO_MS + 20);

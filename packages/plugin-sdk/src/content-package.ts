@@ -6,6 +6,7 @@ import { CONTENT_PACKAGE_FILES, type PluginDeclarationProblem, type PluginManife
 import { refuseDeclarations } from "./declaration-problems.js";
 import { isRecord } from "./json-value.js";
 import { parsePluginManifest } from "./manifest.js";
+import { inspectPluginLocales, pluginLocaleFilePaths } from "./ui/plugin-locales.js";
 import { packagePathProblem } from "./skill-declarations.js";
 
 // The package a plugin with only declarations is installed from (`CONTENT_PACKAGE_FILES`, specs/skill-packs/contract-design.md §3).
@@ -22,17 +23,20 @@ export interface ContentPackageSkill {
 export interface ContentPackage {
   manifest: PluginManifest;
   skills: ContentPackageSkill[];
+  /** The exact validated paths and text from this release. No path is resolved outside the verified payload. */
+  locale_files?: Readonly<Record<string, string>>;
 }
 
 /** What one declared file is: the Manifest, a Skill's body, or one of its resources. */
 type Expected =
   | { kind: "manifest" }
+  | { kind: "locale" }
   | { kind: "body"; skill: AgentSkillDeclaration }
   | { kind: "resource"; skill: AgentSkillDeclaration; bytes: number; sha256: string };
 
 /**
  * Read a content package's payload (`CONTENT_PACKAGE_FILES`), after its signature is verified and before anything is written. The files
- * are exactly `manifest.json` and the declared bodies and resources (SKC-03): each declared file is there, nothing else is, every path
+ * are exactly `manifest.json` and the declared bodies, language files and resources (SKC-03): each declared file is there, nothing else is, every path
  * stays inside the package, each resource has its declared size and digest, and each body is UTF-8 text within the limits. A bad
  * package is refused whole with `plugin.declaration_invalid`, its `details.problems` naming each Skill and file. The wire has no links;
  * whoever packs a folder from disk refuses a symbolic link there.
@@ -52,6 +56,7 @@ export function parseContentPackage(payload: unknown): ContentPackage {
   for (const [path, entry] of expected) {
     const bytes = files.get(path);
     if (!bytes) continue;
+    if (entry.kind === "locale") continue;
     if (entry.kind === "manifest") {
       if (!isDeepStrictEqual(jsonOf(bytes), JSON.parse(JSON.stringify(written)))) problems.push({ path, reason: "与包的 Manifest 不一致" });
     } else if (entry.kind === "resource") {
@@ -63,12 +68,21 @@ export function parseContentPackage(payload: unknown): ContentPackage {
       else problems.push({ ...skillOf(entry), path, reason: body.reason });
     }
   }
+  const paths = pluginLocaleFilePaths(manifest);
+  const localeFiles = Object.fromEntries(paths.flatMap(path => {
+    const bytes = files.get(path);
+    if (!bytes) return [];
+    try { return [[path, new TextDecoder("utf-8", { fatal: true }).decode(bytes)] as const]; }
+    catch { problems.push({ path, reason: "语言文件不是 UTF-8 文字" }); return []; }
+  }));
   if (problems.length) refuseDeclarations(problems);
-  return { manifest, skills };
+  const words = inspectPluginLocales(manifest, path => localeFiles[path] ?? null).filter(problem => problem.blocking);
+  if (words.length) refuseDeclarations(words.map(problem => ({ path: problem.file, reason: problem.reason, fix: problem.fix })));
+  return { manifest, skills, ...(paths.length > 0 ? { locale_files: localeFiles } : {}) };
 }
 
 function skillOf(entry: Expected): { skill_id?: string } {
-  return entry.kind === "manifest" ? {} : { skill_id: entry.skill.skill_id };
+  return "skill" in entry ? { skill_id: entry.skill.skill_id } : {};
 }
 
 /** The package's files by path, within the package limits; a file that cannot be one is a problem, not a stop. */
@@ -98,6 +112,7 @@ function decodedFiles(rows: readonly unknown[]): { files: Map<string, Buffer>; p
 /** The files the Manifest declares, by path. `parsePluginManifest` already refused a path outside the package or a duplicate. */
 function expectedFiles(manifest: PluginManifest): Map<string, Expected> {
   const expected = new Map<string, Expected>([[CONTENT_PACKAGE_FILES.manifest, { kind: "manifest" }]]);
+  for (const path of pluginLocaleFilePaths(manifest)) expected.set(path, { kind: "locale" });
   for (const skill of manifest.methods ?? []) {
     if (skill.body) expected.set(skill.body, { kind: "body", skill });
     for (const resource of skill.resources ?? []) expected.set(resource.path, { kind: "resource", skill, bytes: resource.bytes, sha256: resource.sha256 });

@@ -125,7 +125,7 @@ export const TAB_WORKSPACE_MENUS_PART = `  const svg = (name) => '<svg aria-hidd
     const colors = document.createElement("div"); colors.className = "workspace-tab-menu-colors";
     ops.GROUP_COLORS.forEach((color) => {
       const swatch = document.createElement("button"); swatch.type = "button"; swatch.setAttribute("role", "menuitem");
-      swatch.dataset.tabMenuAction = "color-" + color; swatch.title = L({grey:"灰色",blue:"蓝色",red:"红色",yellow:"黄色",green:"绿色",pink:"粉色",purple:"紫色",cyan:"青色"}[color]);
+      swatch.dataset.tabMenuAction = "color-" + color; swatch.title = readText({grey:"workbench.tab-workspace-menus.gray",blue:"workbench.tab-workspace-menus.blue",red:"workbench.tab-workspace-menus.red",yellow:"workbench.tab-workspace-menus.yellow",green:"workbench.tab-workspace-menus.green",pink:"workbench.tab-workspace-menus.pink",purple:"workbench.tab-workspace-menus.purple",cyan:"workbench.tab-workspace-menus.cyan"}[color]);
       swatch.style.setProperty("--group-color", GROUP_COLOR[color]);
       if (group.color === color) swatch.setAttribute("aria-current", "true");
       swatch.addEventListener("click", () => { tabMenu.hidePopover(); ops.setGroupColor(state, paneId, groupId, color); apply(); persist(); });
@@ -160,7 +160,7 @@ export const TAB_WORKSPACE_MENUS_PART = `  const svg = (name) => '<svg aria-hidd
       return !at ? "" : at.side ? globalThis.t.text("workbench.tab-workspace-menus.right") : at.paneId === paneId ? globalThis.t.text("workbench.tab-workspace-menus.pane") : globalThis.t.text("workbench.tab-workspace-menus.pane-n", { n: ops.paneNumber(state, at.paneId) });
     };
     const row = ({ id }) => {
-      const name = L(ops.pluginTitle(id)), place = where(id), wrap = document.createElement("div"), beside = document.createElement("button");
+      const name = ops.pluginTitle(id), place = where(id), wrap = document.createElement("div"), beside = document.createElement("button");
       const item = menuRow(name, tabIcon(id), go(() => openPlugin(id)), { key: "open-" + id, data: { plusOpen: id } });
       item.style.setProperty("--group-color", "var(--hue-" + pluginGroups.hueOf(id) + ")");
       item.setAttribute("aria-keyshortcuts", "Alt+Enter");
@@ -175,7 +175,7 @@ export const TAB_WORKSPACE_MENUS_PART = `  const svg = (name) => '<svg aria-hidd
       return wrap;
     };
     const offered = directory.filter((entry) => Number.isInteger(entry.order)).sort((a, b) => a.order - b.order);
-    const recent = pluginGroups.recent().map((entry, index) => menuRow(entry.record.tab ? entry.record.title : L(ops.pluginTitle(entry.record.plugin)), tabIcon(entry.record.plugin),
+    const recent = pluginGroups.recent().map((entry, index) => menuRow(entry.record.tab ? entry.record.title : ops.pluginTitle(entry.record.plugin), tabIcon(entry.record.plugin),
       go(() => pluginGroups.reopen(entry)), { key: "reopen", keys: index ? "" : keyName("⌘⇧T", "Ctrl+Shift+T") }));
     const find = document.createElement("label"), list = document.createElement("div"), foot = document.createElement("p");
     find.className = "mw-input-group tab-menu-find"; find.innerHTML = svg("search") + '<input class="mw-input" type="search" autocomplete="off">';
@@ -250,7 +250,7 @@ export const TAB_WORKSPACE_MENUS_PART = `  const svg = (name) => '<svg aria-hidd
       if (section?.key !== key) {
         const group = !tab.pinned && tab.groupId ? (pane.groups || []).find((candidate) => candidate.id === tab.groupId) : null;
         section = { key, rows: [],
-          name: tab.pinned ? globalThis.t.text("workbench.tab-workspace-menus.pinned") : group ? group.title || globalThis.t.text("workbench.tab-workspace-menus.group") : tab.kind === "system" ? "" : L(ops.pluginTitle(tab.plugin)),
+          name: tab.pinned ? globalThis.t.text("workbench.tab-workspace-menus.pinned") : group ? group.title || globalThis.t.text("workbench.tab-workspace-menus.group") : tab.kind === "system" ? "" : ops.pluginTitle(tab.plugin),
           color: tab.pinned || tab.kind === "system" ? "" : group ? GROUP_COLOR[group.color] || GROUP_COLOR.grey : "var(--hue-" + pluginGroups.hueOf(tab.plugin) + ")" };
         sections.push(section);
       }

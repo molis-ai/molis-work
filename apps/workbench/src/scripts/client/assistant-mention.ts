@@ -10,7 +10,7 @@
  * “@words” it was found for and the caret lands right after it, where the person goes on writing.
  */
 export const ASSISTANT_MENTION_FACTORY_SCRIPT = String.raw`(input) => {
-  const { L, el, pop, field, search, pick } = input;
+  const { readText, el, pop, field, search, pick } = input;
   let seq = 0, timer = null;
   const isOpen = () => pop && !pop.hidden && pop.dataset.mode === "mention";
   const at = () => {
@@ -19,7 +19,7 @@ export const ASSISTANT_MENTION_FACTORY_SCRIPT = String.raw`(input) => {
     return match ? { query: match[2], start: before.length - match[2].length - 1 } : null;
   };
   const close = () => { clearTimeout(timer); seq++; if (pop && pop.dataset.mode === "mention") { delete pop.dataset.mode; pop.hidden = true; pop.removeAttribute("aria-busy"); } };
-  const note = (text) => el("p", "assistant-material-origin", text);
+  const mentionNote = (text) => el("p", "assistant-material-origin", text);
   const open = (found) => {
     if (!pop) return;
     clearTimeout(timer);
@@ -28,9 +28,9 @@ export const ASSISTANT_MENTION_FACTORY_SCRIPT = String.raw`(input) => {
     pop.hidden = false;
     const head = el("p", "assistant-popover-title", globalThis.t.text("workbench.assistant-mention.bring-content"));
     const mine = ++seq;
-    if (!found.query) { pop.removeAttribute("aria-busy"); pop.replaceChildren(head, note(globalThis.t.text("workbench.assistant-mention.type-keyword-find-content-project-own"))); return; }
+    if (!found.query) { pop.removeAttribute("aria-busy"); pop.replaceChildren(head, mentionNote(globalThis.t.text("workbench.assistant-mention.type-keyword-find-content-project-own"))); return; }
     pop.setAttribute("aria-busy", "true");
-    const looking = note(globalThis.t.text("workbench.assistant-mention.looking-query", { query: found.query })); looking.dataset.mentionLooking = "";
+    const looking = mentionNote(globalThis.t.text("workbench.assistant-mention.looking-query", { query: found.query })); looking.dataset.mentionLooking = "";
     if (fresh) pop.replaceChildren(head, looking);
     else {
       pop.querySelectorAll(".assistant-mention").forEach((hit) => { hit.disabled = true; hit.classList.add("is-stale"); });
@@ -40,7 +40,7 @@ export const ASSISTANT_MENTION_FACTORY_SCRIPT = String.raw`(input) => {
     timer = setTimeout(async () => {
       let res;
       try { res = await search(found.query); }
-      catch (error) { if (mine === seq && isOpen()) { const line = note(""); molisWorkRequest.show(line, error); pop.removeAttribute("aria-busy"); pop.replaceChildren(head, line); } return; }
+      catch (error) { if (mine === seq && isOpen()) { const line = mentionNote(""); molisWorkRequest.show(line, error); pop.removeAttribute("aria-busy"); pop.replaceChildren(head, line); } return; }
       if (mine !== seq || !isOpen()) return;
       pop.removeAttribute("aria-busy");
       pop.replaceChildren(head);
@@ -57,7 +57,7 @@ export const ASSISTANT_MENTION_FACTORY_SCRIPT = String.raw`(input) => {
         });
         pop.append(row);
       });
-      if (!(res.hits || []).length) pop.append(note(res.status === "indexing" ? globalThis.t.text("workbench.assistant-mention.content-still-being-indexed-try-again-shortly") : globalThis.t.text("workbench.assistant-mention.nothing-found-try-other-words")));
+      if (!(res.hits || []).length) pop.append(mentionNote(res.status === "indexing" ? globalThis.t.text("workbench.assistant-mention.content-still-being-indexed-try-again-shortly") : globalThis.t.text("workbench.assistant-mention.nothing-found-try-other-words")));
     }, 180);
   };
   return { isOpen, at, close, open };

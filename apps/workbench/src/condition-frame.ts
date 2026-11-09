@@ -26,7 +26,7 @@ export interface ConditionFrameOptions {
   /** `rows`: the plugins' own rows (board-plugin-rows.ts) instead of the reply, for the board's 插件行视图 section. */
   part: "reply" | "rows";
 }
-export interface ConditionFramePorts { L(text: string, values?: Record<string, string | number>): string; htmlLang(): string; clientI18nScript(): string }
+export interface ConditionFramePorts { readText(text: string, values?: Record<string, string | number>): string; htmlLang(): string; pluginTitleScript(): string }
 
 const pick = <T extends string>(value: string | null, allowed: readonly T[]): T => (allowed as readonly string[]).includes(value ?? "") ? value as T : allowed[0]!;
 
@@ -47,10 +47,10 @@ const TOOLS: Array<[string, string, DirectoryStatusTone, string]> = [
   ["跑命令", "git push origin feature/session-cookie", "attention", "结果未知"], ["读文件", "docs/auth.md", "done", "完成"], ["改写文件", "docs/auth.md", "done", "完成"],
 ];
 
-function toolRows(L: ConditionFramePorts["L"], count: number): string {
+function toolRows(_readText: ConditionFramePorts["readText"], count: number): string {
   return TOOLS.slice(0, count).map(([verb, target, tone, state]) => renderDirectoryRow({
-    title: target, caption: L(verb) + (tone === "attention" ? " · " + uiText.text("workbench.condition-frame.disconnected") : ""), density: "meta", icon: verb === "跑命令" ? "terminal" : verb === "查找" ? "search" : "file",
-    status: L(state), statusTone: tone, statusIcon: tone === "done" ? "status-done" : tone === "blocked" ? "status-blocked" : "status-needs-you",
+    title: target, caption: uiText.text(verb) + (tone === "attention" ? " · " + uiText.text("workbench.condition-frame.disconnected") : ""), density: "meta", icon: verb === "跑命令" ? "terminal" : verb === "查找" ? "search" : "file",
+    status: uiText.text(state), statusTone: tone, statusIcon: tone === "done" ? "status-done" : tone === "blocked" ? "status-blocked" : "status-needs-you",
     attrs: tone === "done" ? {} : { "data-cond-kept": "" },
   })).join("");
 }
@@ -61,15 +61,15 @@ const FRAME_STYLES = `body.mw-cond-page{margin:0;background:var(--desk,var(--was
   + `.mw-cond .mw-cond-thread{flex:none;height:320px;border-radius:var(--r-card);background:var(--paper);box-shadow:var(--lift-1)}`
   + `.mw-cond-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px}.mw-cond-list{display:flex;flex-direction:column;gap:2px;padding:6px;border-radius:var(--r-card);background:var(--paper);box-shadow:var(--lift-1)}`;
 
-function frameBody(options: ConditionFrameOptions, L: ConditionFramePorts["L"], sample: { question: string; reply: string }): string {
+function frameBody(options: ConditionFrameOptions, readText: ConditionFramePorts["readText"], sample: { question: string; reply: string }): string {
   return `<main class="mw-cond" data-cond-frame-page data-text="${options.text}" data-kind="${options.kind}" data-font="${options.font}" data-copy="${options.copy}">
     <p class="mw-cond-env" data-cond-env><span>${escapeHtml(uiText.text("workbench.condition-frame.zoom"))} <b data-cond-env-zoom></b></span><span>${escapeHtml(uiText.text("workbench.condition-frame.pointer"))} <b data-cond-env-pointer></b></span><span>${escapeHtml(uiText.text("workbench.condition-frame.motion"))} <b data-cond-env-motion></b></span><span>${escapeHtml(uiText.text("workbench.condition-frame.set-browser-not-simulated-board"))}</span></p>
     <section><h2>${escapeHtml(uiText.text("workbench.condition-frame.reply-streaming-interleaved-scrolling"))}</h2><p class="mw-cond-note">${escapeHtml(uiText.text("workbench.condition-frame.scrolling-up-keeps-place-new-text-waits-behind"))}</p>
       <div class="assistant-thread mw-cond-thread" data-cond-thread role="log" aria-live="polite"><div class="assistant-round"><div class="assistant-msg assistant-msg--user">${escapeHtml(sample.question)}</div><div class="assistant-msg assistant-msg--assistant" data-cond-reply></div><button type="button" class="assistant-copy" data-cond-copy-reply>${escapeHtml(uiText.text("common.control.copy"))}</button></div></div>
       <div class="mw-cond-row"><button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-cond-replay>${escapeHtml(uiText.text("workbench.condition-frame.replay"))}</button><button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-cond-stop disabled>${escapeHtml(uiText.text("workbench.condition-frame.stop"))}</button><button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-cond-latest hidden>${escapeHtml(uiText.text("workbench.condition-frame.back-latest"))}</button><span role="status" data-cond-state></span></div>
     </section>
-    <section><h2>${escapeHtml(uiText.text("workbench.condition-frame.several-tools-failures-unknown-outcomes-stay-sight"))}</h2><div class="mw-cond-list" data-cond-tools>${toolRows(L, TOOLS.length)}</div></section>
-    <section><h2>${escapeHtml(uiText.text("workbench.condition-frame.edge-case-one-over-limit-not-tucked-away"))}</h2><div class="mw-cond-list" data-cond-tools-edge>${toolRows(L, 6)}</div></section>
+    <section><h2>${escapeHtml(uiText.text("workbench.condition-frame.several-tools-failures-unknown-outcomes-stay-sight"))}</h2><div class="mw-cond-list" data-cond-tools>${toolRows(readText, TOOLS.length)}</div></section>
+    <section><h2>${escapeHtml(uiText.text("workbench.condition-frame.edge-case-one-over-limit-not-tucked-away"))}</h2><div class="mw-cond-list" data-cond-tools-edge>${toolRows(readText, 6)}</div></section>
   </main>`;
 }
 
@@ -77,8 +77,8 @@ function frameBody(options: ConditionFrameOptions, L: ConditionFramePorts["L"], 
 const FALLBACK_FONT = `--font:"Inter Variable","Noto Sans SC",sans-serif;--font-mono:monospace`;
 
 export function renderMolisWorkConditionsSpecimen(options: ConditionFrameOptions, ports: ConditionFramePorts): string {
-  const { L } = ports, sample = conditionSample(options.kind, options.text), rows = options.part === "rows";
-  const steps = rows ? [] : conditionStream(sample.reply).map((text) => assistantTextHtml(text, [], L));
+  const { readText } = ports, sample = conditionSample(options.kind, options.text), rows = options.part === "rows";
+  const steps = rows ? [] : conditionStream(sample.reply).map((text) => assistantTextHtml(text, [], readText));
   const data = JSON.stringify({ steps, reply: sample.reply, copy: options.copy, pace: 220 }).replaceAll("<", "\\u003c");
   return `<!doctype html>
 <html lang="${ports.htmlLang()}"${options.font === "fallback" ? ` style='${FALLBACK_FONT}'` : ""}>
@@ -92,9 +92,9 @@ export function renderMolisWorkConditionsSpecimen(options: ConditionFrameOptions
 </head>
 <body class="immersive-workbench mw-cond-page">
   ${renderIconSprite()}
-  ${rows ? `<main class="mw-cond" data-cond-frame-page data-part="rows">${renderBoardPluginRows(L, options.text)}</main>` : frameBody(options, L, sample)}
+  ${rows ? `<main class="mw-cond" data-cond-frame-page data-part="rows">${renderBoardPluginRows(readText, options.text)}</main>` : frameBody(options, readText, sample)}
   ${renderLanguageHead(ports.htmlLang())}
-  <script>${ports.clientI18nScript()}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>
+  <script>${ports.pluginTitleScript()}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>
   ${rows ? "" : `<script type="application/json" id="mw-cond-data">${data}</script>
   <script>globalThis.molisBoardCodeGrow = ${createAssistantCodeGrow.toString()};</script>
   <script>${CONDITIONS_FRAME_SCRIPT}</script>`}

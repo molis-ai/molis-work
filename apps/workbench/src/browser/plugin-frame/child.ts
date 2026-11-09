@@ -29,7 +29,7 @@ import { createFrameFetch } from "./fetch.js";
 import { childContext } from "./context-child.js";
 import { frameAppearance } from "./appearance.js";
 import { frameLanguage } from "./language-child.js";
-import type { FrameConfig, FrameDown, FrameUp, Translate } from "./types.js";
+import type { FrameConfig, FrameDown, FrameUp } from "./types.js";
 
 function bindStorage(port: MessagePort, config: FrameConfig): void {
   for (const area of ["localStorage", "sessionStorage"] as const) {
@@ -52,10 +52,7 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
   if (config.text.owner !== config.pluginId) throw new Error("View text owner does not match");
   const updateLanguage = frameLanguage(config.text);
   globalThis.fetch = fetchThroughPort;
-  globalThis.MOLIS_WORK_MESSAGES = config.messages; globalThis.MOLIS_WORK_PLUGIN_TITLES = config.titles;
-  const L: Translate = globalThis.L = (key, values) => {
-    return globalThis.molisFrameFillMessage(config.messages[key] ?? key, values);
-  };
+  globalThis.MOLIS_WORK_PLUGIN_TITLES = config.titles;
   bindStorage(port, config);
   const call = createUiRequest({ fetch: fetchThroughPort, origin: config.origin, token: () => "", newKey: () => crypto.randomUUID(), readText: uiText.text });
   const view = createUiFailureView({ createElement: tag => document.createElement(tag), readText: uiText.text,
@@ -69,11 +66,11 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
   root.style.setProperty("--stage-title", config.stage.title); root.style.setProperty("--stage-desc", config.stage.description);
   root.hidden = false; document.body.dataset.projectId = config.projectId; document.body.dataset.routePrefix = config.routePrefix;
   const route = (path: string) => config.routePrefix + path;
-  const ui = globalThis.molisFrameUi(L), scope = ui.mountPluginClient(document.body);
+  const ui = globalThis.molisFrameUi(), scope = ui.mountPluginClient(document.body);
   if (!scope) throw new Error("Cannot mount plugin document");
-  const updateAppearance = frameAppearance(config.origin, config.appearance, scope, L);
+  const updateAppearance = frameAppearance(config.origin, config.appearance, scope);
   childIntake(port, scope);
-  childContext(port, scope, root); ui.surfaceFocus({ translate: L, surfaceOnly: true });
+  childContext(port, scope, root); ui.surfaceFocus({ surfaceOnly: true });
   globalThis.EventSource = pageEventSource(scope, config.origin);
   const copyText = childCopy(port, scope);
   Object.defineProperty(navigator, "clipboard", { value: { writeText: copyText } });
@@ -82,11 +79,11 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
   const select = pageSelection(root, scope, config.searchRow);
   let itemTab = config.itemTab;
   const intent = (name: Extract<FrameUp, { type: "ui" }>["name"], args: unknown[]) => send({ type: "ui", name, args });
-  const host = { root, scope, translate: L, mountPluginClient: ui.mountPluginClient, side: config.side,
+  const host = { root, scope, mountPluginClient: ui.mountPluginClient, side: config.side,
     mount: config.mount, search: config.search, connectionSlot: childConnectionSlot(port, scope), connectionNeed: childConnectionNeed(port, scope),
     openView: (selection: import("@molis-ai/molis-work-contracts/platform/ui").UiViewSelection) => send({ type: "view-open", selection }),
     invalidateView: () => send({ type: "view-invalidate" }),
-    ...pageDialogs(scope, L), confirmBox: pageConfirmBox(scope, L), drafts: childDrafts(port, scope),
+    ...pageDialogs(scope, uiText.text), confirmBox: pageConfirmBox(scope, uiText.text), drafts: childDrafts(port, scope),
     reviews: childReviews(port, scope), view: childView(port, scope), workspaces: childWorkspaces(port, scope),
     taskGrants: childTaskGrants(port, scope), returns: childReturns(port, scope),
     ...pageFiles(port, scope, globalThis.molisWorkRequest, copyText),

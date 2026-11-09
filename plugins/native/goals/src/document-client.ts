@@ -2,7 +2,7 @@ import { GOAL_NOT_FOUND } from "./document-routes.js";
 
 /** Browser factory expression. Workbench supplies only the explicit Host ports below. */
 export const GOALS_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
-    const { documentPane, documentCollection, route, translate: L,
+    const { documentPane, documentCollection, route, translate: readText,
       beforeReplace, afterReplace, isAbortError, showError } = host;
     let goalDocumentRequest = null;
 

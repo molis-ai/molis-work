@@ -2,7 +2,6 @@ export { ALCHEMIST_INSTRUCTIONS, ALCHEMIST_COPILOT, ALCHEMIST_EXPLORATION, ALCHE
 export { ALCHEMIST_UI_CONTRIBUTION_ID, alchemistUiContribution, alchemistUiDescriptor, renderAlchemistWorkbench } from "./ui.js";
 export type { AlchemistUiModel, AlchemistUiPrimitives, AlchemistUiSurface } from "./ui.js";
 export { ALCHEMIST_STYLES } from "./styles.js";
-export { ALCHEMIST_EN } from "./en.js";
 export { ALCHEMIST_CLIENT_FACTORY_SCRIPT } from "./client.js";
 export { ALCHEMIST_PLUGIN_ID, ALCHEMIST_PROJECT_PLUGIN_ID, alchemistManifest } from "./manifest.js";
 export { createLocalRuntime as createAlchemistStudioRuntime } from "./studio/server/bootstrap/local-runtime.js";

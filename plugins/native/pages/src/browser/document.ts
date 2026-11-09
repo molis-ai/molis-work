@@ -182,8 +182,8 @@ export async function publishPage(page: PagesPage, id: string) {
 
 /** Listeners that keep the open document and the list in step with the workbench: opening an item, a placement, a flush before a move. */
 export function bindDocument(page: PagesPage) {
-  const { bench, host, L } = page;
-  page.commentOpen = page.Editor.bindComments({ workbench: bench, messages: host.messages, persistCurrent: () => persist(page), showNote: (message, isError) => showNote(page, message, isError), translate: L,
+  const { bench, host, readText } = page;
+  page.commentOpen = page.Editor.bindComments({ workbench: bench, messages: host.messages, persistCurrent: () => persist(page), showNote: (message, isError) => showNote(page, message, isError), translate: readText,
     get selected() { return page.sel; }, get editor() { return page.editor; }, get unshowable() { return page.unshowable; }, get dirty() { return page.dirty || Boolean(page.saveTimer); } });
   bench.addEventListener("molis-work:select-item", (event) => {
     const detail = (event as CustomEvent<{ itemId?: string; quiet?: boolean } | undefined>).detail;

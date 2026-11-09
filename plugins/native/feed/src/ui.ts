@@ -464,15 +464,15 @@ function renderFeedSetupPanel(model: FeedUiModel): string {
   const connectorLabel = (status: FeedUiConnectorStatus, kind: "github" | "gmail") => status.bound
     ? uiText.text(kind === "gmail" ? "feed.ui.credentials-saved" : "feed.ui.connected") : uiText.text("feed.ui.disconnected");
   const choices = [
-    ["research_library", "book", "共享研究库", "已发布的研究成果"],
-    ["custom_rss", "rss", "RSS / Atom", "粘贴地址"],
-    ...(model.source_catalog.length ? [["rss", "list", "目录订阅", "选现成源"] as const] : []),
-    ["web_query", "search", "网页搜索", "按关键词"],
-    ["youtube_channel", "play", "YouTube", "频道 ID"],
-    ["github", "tree", "GitHub", "未读通知"],
-    ["gmail", "message", "Gmail", "按范围收信"],
+    ["research_library", "book", "feed.add-source.research-library", "feed.add-source.published-research"],
+    ["custom_rss", "rss", "feed.add-source.rss-atom", "feed.add-source.paste-url"],
+    ...(model.source_catalog.length ? [["rss", "list", "feed.add-source.feed-directory", "feed.add-source.existing-feed"] as const] : []),
+    ["web_query", "search", "feed.add-source.web-search", "feed.add-source.keywords"],
+    ["youtube_channel", "play", "feed.add-source.youtube", "feed.add-source.channel-id"],
+    ["github", "tree", "feed.add-source.github", "feed.add-source.unread-notifications"],
+    ["gmail", "message", "feed.add-source.gmail", "feed.add-source.mail-scope"],
   ];
-  const sourceChoiceRows = choices.map(([kind, icon, title, hint]) => `<button type="button" class="feed-source-choice" data-feed-choose-kind="${kind}"><span class="feed-source-choice__mark" aria-hidden="true">${p.icon(icon)}</span><strong>${p.text(title)}</strong><small>${p.text(hint)}</small></button>`).join("");
+  const sourceChoiceRows = choices.map(([kind, icon, title, hint]) => `<button type="button" class="feed-source-choice" data-feed-choose-kind="${kind}"><span class="feed-source-choice__mark" aria-hidden="true">${p.icon(icon)}</span><strong>${uiText(title)}</strong><small>${uiText(hint)}</small></button>`).join("");
   const taskPanels = renderTaskConfigPanels(model);
   return `<section class="feed-setup-panel" data-feed-sources-dialog aria-labelledby="feed-source-dialog-title" hidden><div class="feed-task-dialog-shell mw-form">
     <header class="mw-form__header"><div><h2 id="feed-source-dialog-title">${uiText("feed.ui.add-source")}</h2><p data-feed-setup-description>${uiText("feed.ui.choose-source-2")}</p></div><button class="mw-btn mw-btn--ghost mw-btn--icon-only" type="button" data-feed-sources-close aria-label="${uiText("feed.ui.close")}">${p.icon("x")}</button></header>

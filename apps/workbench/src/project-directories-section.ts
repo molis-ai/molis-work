@@ -12,7 +12,7 @@ type Say = (text: string, values?: Record<string, string | number>) => string;
  * page program (src/browser/project-directories.ts) fills with `textContent`, so a folder's name is never read as markup. The same
  * section draws on its own settings page and in the workbench's settings, which loads it from that page.
  */
-export function renderProjectDirectoriesSection(L: Say, prefix: string): string {
+export function renderProjectDirectoriesSection(readText: Say, prefix: string): string {
   const say = escapeHtml(JSON.stringify({
     loading: uiText.text("workbench.project-directories-section.reading-inputs-output"), failed: uiText.text("workbench.project-directories-section.couldn-t-change-inputs-output"), stale: uiText.text("workbench.project-directories-section.inputs-output-were-just-changed-elsewhere-have-been"),
     added: uiText.text("workbench.project-directories-section.name-now-input"), removed: uiText.text("workbench.project-directories-section.name-no-longer-input-nothing-disk-changes"),
@@ -76,6 +76,6 @@ export function renderProjectDirectoriesSection(L: Say, prefix: string): string 
       </section>
       <p class="project-directories__status" data-directories-status role="status" aria-live="polite"></p>
       ${row}${link}${chooser}${folderItem}
-      ${renderWriteCheckersSection(L)}
+      ${renderWriteCheckersSection(readText)}
     </section>`;
 }

@@ -13,8 +13,8 @@ export const GOALS_STAGE_CONTRIBUTION_ID = "io.molis.work.goals.stage";
 export function goalsPagePorts(model: Pick<StagePageModel, "drawing" | "primitives">): GoalsPagePorts<GoalsPageView> {
   const { drawing } = model;
   if (!drawing) throw new Error("Goals page drawing services are missing");
-  const L = model.primitives.text;
-  return { ...drawing, L, goalsL: L, formatDate: drawing.formatDocumentDate, creatableKinds: () => drawing.creatableKinds };
+  const readText = model.primitives.text;
+  return { ...drawing, readText, goalsL: readText, formatDate: drawing.formatDocumentDate, creatableKinds: () => drawing.creatableKinds };
 }
 
 /** The actual Runtime and catalog register this same owner; shell publication exists only on the matched page render. */
@@ -53,9 +53,9 @@ export const goalsStageUiContribution: UiContribution<StagePageModel<GoalsStageD
 /** Goals owns its canvas, collection and refresh content; the shell places it in the Host's document. */
 export function createGoalsWorkbenchStage<TView extends GoalsPageView>(
   page: ReturnType<typeof createGoalsPage<TView>>,
-  ports: Pick<GoalsPagePorts<TView>, "L" | "goalsL" | "prefixLocalLinks">,
+  ports: Pick<GoalsPagePorts<TView>, "readText" | "goalsL" | "prefixLocalLinks">,
 ) {
-  const { L, goalsL, prefixLocalLinks } = ports;
+  const { readText, goalsL, prefixLocalLinks } = ports;
   const { goalsTreeRenderer, renderMomentumPlaceholder, renderGoalKanban } = page.goals;
   const { dataJson, renderGoalDocument, renderTrashGoalDocument, goalsDocumentRenderer, renderCreateDialog, renderTuiPane } = page.documents;
   const renderGoalProposals = (view: TView) => page.goals.renderGoalTreeProposalList(view.snapshot.goal_tree_proposals, view);
@@ -87,7 +87,7 @@ function renderMolisWorkRefreshFragment(
     cliAvailability: Record<string, boolean>) {
     const collection = buildGoalCollectionModel(view, requestedGoalId, archiveView, trashView, goalsL);
     const { selected, title, collectionTitle } = collection;
-    const primitives = { L, escapeHtml, icon };
+    const primitives = { readText, escapeHtml, icon };
   const showTui = !archiveView && !trashView;
   const renderedDocumentContent = selected
     ? trashView ? renderTrashGoalDocument(selected, true) : renderGoalDocument(selected, view, true)
@@ -121,7 +121,7 @@ function renderMolisWorkRefreshFragment(
       </div>
     </section>
   </div>` : `${stageList}${goalDocument}`;
-  const frameStage = showTui ? renderGoalFrameStage({ L, icon }) : "";
+  const frameStage = showTui ? renderGoalFrameStage({ readText, icon }) : "";
     return { title, showTui, stage: goalStage, frame: frameStage };
   }
   return { render, renderMolisWorkRefreshFragment };

@@ -20,13 +20,13 @@ interface ProjectSettingsFoldContent {
 }
 
 interface ProjectSettingsFoldsPrimitives {
-  L(text: string, values?: Record<string, string | number>): string;
+  readText(text: string, values?: Record<string, string | number>): string;
   escapeHtml(value: unknown): string;
   icon(name: Extract<PluginIconName, "settings" | "book" | "shield" | "workflow" | "chevron-right" | "chevron-down" | "tree" | "plus">, className?: string): string;
   withDesktopQuery(path: string): string;
 }
 
-function renderMissingPlugins(project: ProjectSettingsFoldProject, { escapeHtml }: Pick<ProjectSettingsFoldsPrimitives, "L" | "escapeHtml">): string {
+function renderMissingPlugins(project: ProjectSettingsFoldProject, { escapeHtml }: Pick<ProjectSettingsFoldsPrimitives, "readText" | "escapeHtml">): string {
   const missing = (project.plugin_requirements ?? []).filter(plugin => !plugin.installed);
   if (!missing.length) return "";
   return `<section class="settings-section" data-project-missing-plugins><h2>${uiText("workbench.project-settings-folds.missing-plugins")}</h2>${missing.map(plugin => `<div class="settings-setting-row"><span class="setting-copy"><strong>${(plugin.plugin_id.match(/.{1,24}/gu) ?? []).map(escapeHtml).join("<wbr>")}</strong><span>${uiText("workbench.project-settings-folds.install-plugin-device-synced-content-kept")}</span></span><div class="setting-value">${renderStatusMark({ label: uiText.text("workbench.project-settings-folds.not-installed"), plain: true })}</div></div>`).join("")}</section>`;
@@ -37,7 +37,7 @@ function renderMissingPlugins(project: ProjectSettingsFoldProject, { escapeHtml 
  * user 2026-11-08): the two option cards are the confirmation, so the checkbox goes while it shows. Hidden until delete-scope says
  * `has_files`; empty or unreadable folders are not asked about and stay (SSC-23).
  */
-function renderDeleteOutputQuestion(project: ProjectSettingsFoldProject, { escapeHtml }: Pick<ProjectSettingsFoldsPrimitives, "L" | "escapeHtml">): string {
+function renderDeleteOutputQuestion(project: ProjectSettingsFoldProject, { escapeHtml }: Pick<ProjectSettingsFoldsPrimitives, "readText" | "escapeHtml">): string {
   const id = `project-delete-output-${project.project_id}`;
   const options = [
     { value: "keep", label: uiText.text("workbench.project-settings-folds.delete-project-keep-files"), description: uiText.text("workbench.project-settings-folds.default-output-folder-stays-mac-after-deleting-ll") },

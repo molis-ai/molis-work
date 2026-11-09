@@ -65,7 +65,7 @@ async function navigate(page: Page, id: string, target: BoardTarget) {
 
 /** The board of the session's rounds, and the cards that draw one round's plan and subtasks. */
 export function mountBoard(page: Page) {
-  const { L, directory, host, lifetime, q, refs, s } = page;
+  const { readText, directory, host, lifetime, q, refs, s } = page;
   // The board shows every round of the session: the loaded window as it is, earlier rounds from one read of the whole
   // session's plans and subagents, fetched again only when the number of rounds changes.
   s.boardAll = { key: "", id: "", value: null };
@@ -73,7 +73,7 @@ export function mountBoard(page: Page) {
   // directory on a narrow screen does not end it: the faces there describe the session the person just left.
   s.sessionOnShow = false;
   refs.taskboard = taskboard({
-    lifetime, translate: L, board: q("[data-coding-board]"), outline: directory.querySelector<HTMLElement>("[data-coding-board-outline]"), current: () => s.current,
+    lifetime, translate: readText, board: q("[data-coding-board]"), outline: directory.querySelector<HTMLElement>("[data-coding-board-outline]"), current: () => s.current,
     onShow: () => onShow(page), status: s.ports.status, ownTask, from: node => refs.inputReceipts.from(node, () => showBoard(page, false)),
     roleName: id => (id && s.ROLE_NAMES[id]) || id || "Agent",
     progress: text => {
@@ -86,7 +86,7 @@ export function mountBoard(page: Page) {
   });
   refs.planProgress = planProgress({ ...s.ports, roleLabel: id => s.ROLE_NAMES[id], openStep: (runId, stepId) => refs.stepReports.open(s.current, runId, stepId), from: node => refs.inputReceipts.from(node), word: state => host.receipts.step(state) });
   refs.subagents = subagentGroups({
-    ...s.ports, roleName: id => s.ROLE_NAMES[id] || id || "Agent", openIntegration: refs.integrations.open, usageSummary: usage => codingUsageSummary(usage, L),
+    ...s.ports, roleName: id => s.ROLE_NAMES[id] || id || "Agent", openIntegration: refs.integrations.open, usageSummary: usage => codingUsageSummary(usage, readText),
     prepareRework: async (id, runId, child, notes) => {
       if (s.current !== id) return;
       const instruction = uiText.text("coding.rework.instruction", { subagent: child.subagent_id, run: runId, path: child.workspace_path ?? "", task: child.task, notes });

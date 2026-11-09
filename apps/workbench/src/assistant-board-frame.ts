@@ -32,9 +32,9 @@ export interface AssistantFrameOptions {
   work: "plan" | "coding" | "check" | "limited" | "new";
 }
 export interface AssistantFramePorts {
-  L(text: string, values?: Record<string, string | number>): string;
+  readText(text: string, values?: Record<string, string | number>): string;
   htmlLang(): string;
-  clientI18nScript(): string;
+  pluginTitleScript(): string;
   /** The samples as the Host drew them (`drawAssistantReply`), as JSON. */
   samples: string;
 }
@@ -55,8 +55,8 @@ const FRAME_STYLES = `body.mw-asst-page{display:flex;flex-direction:column;margi
   + `.mw-asst-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px}.mw-asst-row [role=status]{color:var(--muted);font-size:12px}`;
 
 export function renderMolisWorkAssistantSpecimen(options: AssistantFrameOptions, ports: AssistantFramePorts): string {
-  const { L } = ports;
-  const bar = renderWorkbenchBar({ L, escapeHtml, icon, htmlLang: ports.htmlLang }, { rail: "", projectChrome: "", enabled: [] });
+  const { readText } = ports;
+  const bar = renderWorkbenchBar({ readText, escapeHtml, icon, htmlLang: ports.htmlLang }, { rail: "", projectChrome: "", enabled: [] });
   const data = `{"samples":${ports.samples.replaceAll("<", "\\u003c")},"current":${JSON.stringify(WORK_IDS[options.work])},"answer":"${options.answer}"}`;
   return `<!doctype html>
 <html lang="${ports.htmlLang()}">
@@ -82,12 +82,12 @@ export function renderMolisWorkAssistantSpecimen(options: AssistantFrameOptions,
   ${bar}
   <div class="mw-toast toast" data-toast role="status" aria-live="polite"></div>
   <script type="application/json" id="mw-asst-data">${data}</script>
-  <script>${ports.clientI18nScript()}${UI_REQUEST_CLIENT_SCRIPT}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>
+  <script>${ports.pluginTitleScript()}${UI_REQUEST_CLIENT_SCRIPT}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>
   <script>${ASSISTANT_FRAME_SCRIPT}</script>
-  <script>(board => board.start((${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ translate: globalThis.L, route: board.route, headers: () => ({}), project: board.project,
-    showToast: board.toast, openItem: board.openItem, pluginTitle: (plugin) => plugin, receipts: (${INPUT_RECEIPTS_CLIENT_SCRIPT})(globalThis.L),
+  <script>(board => board.start((${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ translate: globalThis.t.text, route: board.route, headers: () => ({}), project: board.project,
+    showToast: board.toast, openItem: board.openItem, pluginTitle: (plugin) => plugin, receipts: (${INPUT_RECEIPTS_CLIENT_SCRIPT})(globalThis.t.text),
     interaction: (client => (root, host) => client(root, { references: () => Promise.resolve({ items: [] }), ...host }))((${INTERACTION_CLIENT_SCRIPT_TYPED_DATES})) })))(globalThis.molisBoardAssistant);
-  (board => (${ATTENTION_FACTORY_SCRIPT})({ translate: globalThis.L, projectId: board.project.id, openItem: board.openItem, route: board.route }))(globalThis.molisBoardAssistant);</script>
+  (board => (${ATTENTION_FACTORY_SCRIPT})({ translate: globalThis.t.text, projectId: board.project.id, openItem: board.openItem, route: board.route }))(globalThis.molisBoardAssistant);</script>
 </body>
 </html>`;
 }

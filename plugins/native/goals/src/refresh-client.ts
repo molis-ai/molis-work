@@ -1,7 +1,7 @@
 /** Goals-only refresh contribution. The Host owns fetching, interaction guards and shared state. */
 export const GOALS_REFRESH_CLIENT_FACTORY_SCRIPT = `(host) => {
     const { treeScroll, treeFilter, documentPane, dialog,
-      readCreateDraft, refreshCreateChoices, translate: L } = host;
+      readCreateDraft, refreshCreateChoices, translate: readText } = host;
 
     const prepareGoalRefresh = (parsed, navigation, currentGoals, goalId, collectionPath) => {
       const renderedGoalId = parsed.querySelector("[data-goal-view]")?.dataset.goalView || "";

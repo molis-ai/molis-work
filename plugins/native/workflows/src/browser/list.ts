@@ -8,11 +8,11 @@ import { tint } from "./chain.js";
 
 /** A workflow's stations in order, joined by what hands each over. */
 export function chainText(page: WorkflowsPage, chain: WorkflowChain) {
-  const { L } = page;
+  const { readText } = page;
   if (!chain.stations.length) return `<span class="wf-muted">${esc(uiText.text("workflows.chain.no-stations"))}</span>`;
   return chain.stations.map((station, index) => {
     const link = chain.links[index - 1];
-    return (index ? `<i class="wf-mini-link" data-kind="${link!.kind}">${esc(kindName(L, link!.kind))}</i>` : "")
+    return (index ? `<i class="wf-mini-link" data-kind="${link!.kind}">${esc(kindName(readText, link!.kind))}</i>` : "")
       + `<b style="--station-tint:${tint(station.plugin)}">${esc(label(page, station))}</b>`;
   }).join("");
 }

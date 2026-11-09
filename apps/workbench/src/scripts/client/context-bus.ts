@@ -3,7 +3,7 @@
  * pane's frame or a side panel's plugin frame, which it marks as in the side panel and which tab), asks the Host for the
  * candidates by rules at once and by the judgment shortly after, and hands a choice to the page that owns the object or to
  * the Assistant as a prepared card. Also the Assistant's starters and the listeners that clear what was in hand. A fragment of the factory script in context-actions.ts: it shares that
- * closure (host, L, post, deliver, bar, ...) and is joined there in the order the text had before the split.
+ * closure (host, readText, post, deliver, bar, ...) and is joined there in the order the text had before the split.
  *
  * Notes on the parts below (kept here, not in the script, because the script ships to every page):
  * - `set`: the person reaching for the row (pointer on it, or its focus) as what they had in hand lapses — a finished step's

@@ -7,7 +7,7 @@ import type { GoalsRelationItem, GoalsRelationView, GoalsRelationUiPrimitives } 
 
 export const GOALS_RELATION_UI_CONTRIBUTION_ID = "io.molis.work.native.goals.relations.v1";
 function createRelationRenderer(primitives: GoalsRelationUiPrimitives) {
-  const { translate: L, escapeHtml, icon } = primitives;
+  const { escapeHtml, icon } = primitives;
 function relationRow(
   relation: GoalRelationRecord,
   item: GoalsRelationItem,
@@ -21,7 +21,7 @@ function relationRow(
   );
   const relatedName = related?.goal.title ?? relatedId;
   const rawLabels = RELATION_LABELS[relation.type] ?? { out: relation.type, in: relation.type };
-  const labels = { out: L(rawLabels.out), in: L(rawLabels.in) };
+  const labels = { out: rawLabels.out, in: rawLabels.in };
   const path = outgoing
     ? uiText.text("goals.relation-ui.current-goal-type-name", { type: labels.out, name: relatedName })
     : uiText.text("goals.relation-ui.name-type-current-goal", { name: relatedName, type: labels.out });
@@ -100,11 +100,11 @@ function renderRelationForm(item: GoalsRelationItem, view: GoalsRelationView): s
     .join("");
   const typeOptions = RELATION_TYPES.map(({ type, label, description }) => {
     const labels = RELATION_LABELS[type];
-    return `<option value="${escapeHtml(type)}"${type === "depends_on" ? " selected" : ""} data-out-label="${escapeHtml(L(labels.out))}" data-in-label="${escapeHtml(L(labels.in))}" data-description="${escapeHtml(L(description))}">${escapeHtml(L(label))}</option>`;
+    return `<option value="${escapeHtml(type)}"${type === "depends_on" ? " selected" : ""} data-out-label="${escapeHtml(labels.out)}" data-in-label="${escapeHtml(labels.in)}" data-description="${escapeHtml(description)}">${escapeHtml(label)}</option>`;
   }).join("");
   const firstTarget = targets[0]!.goal;
   return `<form class="relation-form" data-relation-form data-live-form="relation-${escapeHtml(item.goal.goal_id)}" data-goal-id="${escapeHtml(item.goal.goal_id)}" data-current-goal-name="${escapeHtml(item.goal.title)}" novalidate>
-      <div class="relation-authority"><span>${icon("shield")}</span><p><strong>${uiText("goals.relation-ui.directly-editing-goal-relationships")}</strong><small>${uiText("goals.relation-ui.changes-made-here-take-effect-immediately-recorded-relationship")}<a href="/" data-work-surface-link="inbox">${L("Inbox")}</a>${uiText("goals.relation-ui.take-effect-only-after-confirm-them")}</small></p></div>
+      <div class="relation-authority"><span>${icon("shield")}</span><p><strong>${uiText("goals.relation-ui.directly-editing-goal-relationships")}</strong><small>${uiText("goals.relation-ui.changes-made-here-take-effect-immediately-recorded-relationship")}<a href="/" data-work-surface-link="inbox">${"Inbox"}</a>${uiText("goals.relation-ui.take-effect-only-after-confirm-them")}</small></p></div>
       <div class="relation-builder">
         <label><span>${uiText("goals.relation-ui.what-does-relationship-mean")}</span><select name="relation_intent"><option value="needs">${uiText("goals.relation-ui.current-goal-needs-finish-before-can-close")}</option><option value="belongs">${uiText("goals.relation-ui.current-goal-part")}</option><option value="enables">${uiText("goals.relation-ui.needs-current-goal-finish-before-can-close")}</option><option value="contains">${uiText("goals.relation-ui.part-current-goal")}</option><option value="other">${uiText("goals.relation-ui.another-relationship")}</option></select></label>
         <label><span>${uiText("goals.relation-ui.other-goal")}</span><select name="target_goal_id">${targetOptions}</select></label>

@@ -14,8 +14,8 @@ const CONTENT_KEYS = new Set([
   "entrypoints", "permissions", "capabilities", "artifacts", "ui",
   "methods", "requires", "upgrade_compatibility", "runtime",
 ]);
-/** The `ui` keys it may write: the empty contribution list, and its words in both languages. */
-const CONTENT_UI_KEYS = new Set(["contributions", "messages", "translations"]);
+/** The `ui` keys it may write: the empty contribution list and the language file declaration. */
+const CONTENT_UI_KEYS = new Set(["contributions", "locales"]);
 /** Lists every Manifest has that must stay empty here: nothing to start, grant, provide, consume, produce or place. */
 const EMPTY_LISTS: ReadonlyArray<readonly [string, readonly string[]]> = [
   ["entrypoints", []], ["permissions", []],

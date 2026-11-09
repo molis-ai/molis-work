@@ -1,8 +1,6 @@
 export { TODO_UI_CONTRIBUTION_ID, todoUiContribution, todoUiDescriptor, renderTodoWorkbench } from "./ui.js";
 export type { TodoUiModel, TodoUiPrimitives, TodoUiSurface } from "./ui.js";
 export { TODO_STYLES } from "./styles.js";
-export { TODO_EN } from "./en.js";
-export { TODO_MESSAGES } from "./messages.js";
 export { TODO_CLIENT_FACTORY_SCRIPT } from "./client.js";
 export { createTodoPlugin } from "./plugin.js";
 export { TODO_PLUGIN_ID, TODO_PROJECT_PLUGIN_ID, todoManifest } from "./manifest.js";

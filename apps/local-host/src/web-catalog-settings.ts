@@ -17,7 +17,7 @@ import { selectedTypeSafeConnection } from "./typesafe-connection.js";
 import { molisWorkHostProjectReference } from "./project-host.js";
 import { shownProjectPlugins } from "./plugin-registry.js";
 import { sendLocalWebJson as sendJson } from "./web-http.js";
-import { L } from "./web-locale.js";
+import { readText } from "./web-locale.js";
 import type { LocalWebComposition } from "./web-composition.js";
 import type { CatalogRequestContext } from "./web-catalog-routes.js";
 
@@ -133,7 +133,7 @@ export async function handlePluginSettingsPage(ctx: CatalogRequestContext): Prom
   };
   const dataAction = pluginSettingsDataAction(pluginSettings.contribution_id);
   const data = dataAction ? await bindLocalWebActions(localHost, undefined, LOCAL_OWNER_PERMISSIONS).invoke(dataAction, {}) : undefined;
-  const model: SettingsPageModel = { context, data, primitives: { escape: escapeSettingsHtml, text: L } };
+  const model: SettingsPageModel = { context, data, primitives: { escape: escapeSettingsHtml, text: readText } };
   const plugin_settings_html = renderPluginSettingsContribution(pluginSettings.contribution_id, model);
   const membership = await pluginMembership(composition, serverOptions.homeDirectory, contextProject?.project_id ?? null);
   response.writeHead(200, {

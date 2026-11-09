@@ -6,7 +6,7 @@ import type { WorkflowLinkKind } from "../model.js";
 export const ico = (name: string) => `<svg aria-hidden="true"><use href="#icon-${esc(name)}"></use></svg>`;
 
 /** Words the Host or another plugin wrote (a plugin's name, a reason, what an action returned), or one of our own keys carried in a reason: the Host's dictionary translates them. */
-export const said = (L: Translate, text: string) => L(text);
+export const said = (_readText: Translate, text: string) => uiText.text(text);
 
 export const kindName = (_L: Translate, kind: WorkflowLinkKind) =>
   kind === "judgment" ? uiText.text("workflows.kind.judgment") : kind === "function" ? uiText.text("workflows.kind.function") : kind === "manual" ? uiText.text("workflows.kind.manual") : "AI";

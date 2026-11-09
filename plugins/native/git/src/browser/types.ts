@@ -19,7 +19,6 @@ export interface DecisionOutcome { readonly workspaceId?: string | null; readonl
 /** What the Git bundle's factory gets: the page's host, or Coding's with the ports of the panel Coding mounts Git in. */
 export interface GitFactoryHost {
   readonly root?: ParentNode;
-  readonly translate: Translate;
   mountPluginClient(root: Element): GitLifetime | null;
   /** A platform path in the current project. */
   route(path: string): string;
@@ -41,7 +40,6 @@ export interface GitFactoryHost {
 /** What Git's client uses: the factory's host with the requests Git makes and the ports of the page it is mounted in. */
 export interface GitHost {
   readonly root?: ParentNode;
-  readonly translate: Translate;
   mountPluginClient(root: Element): GitLifetime | null;
   /** One request to Git's routes (a failure is an Error). */
   request(path: string, method?: "GET" | "POST", body?: unknown, signal?: AbortSignal): Promise<unknown>;

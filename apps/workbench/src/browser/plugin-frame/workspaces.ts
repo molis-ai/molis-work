@@ -42,8 +42,8 @@ function outputQuestion(_L: Translate, asked: { plugin: string; project: string;
  * authorize either. The dialog names a folder as the Host reads it, never as the page says.
  */
 export function pageWorkspaces(port: MessagePort, scope: FrameScope, pageId: string, route: (path: string) => string,
-  L: Translate, plugin: string, project: string) {
-  const dialogs = pageDialogs(scope, L, true);
+  readText: Translate, plugin: string, project: string) {
+  const dialogs = pageDialogs(scope, readText, true);
   let adding = false;
   return async (message: Extract<FrameUp, { type: "workspace" }>): Promise<void> => {
     let ownsAdd = false;
@@ -62,7 +62,7 @@ export function pageWorkspaces(port: MessagePort, scope: FrameScope, pageId: str
         const folder = read.directories.find(item => item.workspace_id === message.value);
         if (!folder) throw new Error(uiText.text("common.workspaces.folder-no-longer-one-project-s-folders"));
         if (folder.roles.includes("output")) { port.postMessage({ type: "workspace-result", id: message.id, workspace: { workspace_id: folder.workspace_id } } satisfies FrameDown); return; }
-        if (!await dialogs.confirm(outputQuestion(L, { plugin, project, folder }, read.directories.find(item => item.roles.includes("output"))))) throw new Error(uiText.text("common.workspaces.cancelled"));
+        if (!await dialogs.confirm(outputQuestion(readText, { plugin, project, folder }, read.directories.find(item => item.roles.includes("output"))))) throw new Error(uiText.text("common.workspaces.cancelled"));
       } else if (!await dialogs.confirm(uiText.text("common.workspaces.allow-plugin-link-folder-project-project-path", { plugin, project, path: message.value }))) throw new Error(uiText.text("common.workspaces.cancelled"));
       scope.assertCurrent(); if (!scope.visible) throw new Error(uiText.text("common.workspaces.cancelled"));
       const result = await molisWorkRequest<{ workspace?: { workspace_id: string } }>(route("/api/host/plugin-page-workspaces"), {

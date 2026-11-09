@@ -42,8 +42,8 @@ function mountDraft(page: Page) {
 
 /** The round's side of the page: reports of a step, the subagents' cards, the usage meter and the model controls. */
 function mountRoundParts(page: Page) {
-  const { L, host, lifetime, q, refs, root, s } = page;
-  refs.integrations = writerIntegration({ lifetime, translate: L, q, api: s.ports.api, reviews: (box, workspace) => host.showReviews?.(box, [], null, workspace), status: s.ports.status });
+  const { readText, host, lifetime, q, refs, root, s } = page;
+  refs.integrations = writerIntegration({ lifetime, translate: readText, q, api: s.ports.api, reviews: (box, workspace) => host.showReviews?.(box, [], null, workspace), status: s.ports.status });
   refs.stepReports = stepReports({ ...s.ports, prepareRework: reason => refs.plans.prepareStepRework(reason), receipts: host.receipts });
   refs.subagentCards = subagentCards({
     ...s.ports, timeline: refs.timeline, roleName: id => s.ROLE_NAMES[id] || id || "Agent", showReviews: (container, found, sid) => showReviews(page, container, found, sid),
@@ -59,14 +59,14 @@ function mountRoundParts(page: Page) {
   });
   refs.usageMeter = usageMeter(s.ports);
   refs.composerModels = composerModels({
-    q, lifetime, translate: L, status: s.ports.status,
+    q, lifetime, translate: readText, status: s.ports.status,
     switchModel: (run, model) => api(page, sessionPath(s.current) + "/control", "POST", { kind: "switch-model", run_id: run.ref.run_id, ...model }).then(() => readCurrent(page)),
   });
 }
 
 /** The session's cooperation (mail, background commands) and the receipts of the words sent to a round under way. */
 function mountCooperation(page: Page) {
-  const { L, host, input, q, refs, root, s } = page;
+  const { readText, host, input, q, refs, root, s } = page;
   refs.cooperationUi = cooperationClient({
     ...s.ports,
     openSession: (id, title) => { host.openItem("coding", id, title || ""); return select(page, id); },
@@ -83,7 +83,7 @@ function mountCooperation(page: Page) {
     },
   });
   refs.inputReceipts = inputReceipts({
-    api: s.ports.api, translate: L, q, refresh: s.ports.refresh, find: <Found extends Element = HTMLElement>(selector: string) => root.querySelector<Found>(selector), receipts: host.receipts,
+    api: s.ports.api, translate: readText, q, refresh: s.ports.refresh, find: <Found extends Element = HTMLElement>(selector: string) => root.querySelector<Found>(selector), receipts: host.receipts,
     landed: (sent, said) => {
       if (s.current === sent.id && input.value === sent.text) {
         input.value = "";

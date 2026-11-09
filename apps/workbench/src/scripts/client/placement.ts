@@ -7,7 +7,7 @@
 import { pluginSearchRows } from "../../plugin-workbench.js";
 
 export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
-  const { translate: L, route, headers, openItem, openPluginRecord, itemTabs: ITEM_TABS } = host;
+  const { translate: readText, route, headers, openItem, openPluginRecord, itemTabs: ITEM_TABS } = host;
   /* The same rule as search: some plugins open an object as a tab, others by its row in their own list. */
   const RECORD_ROWS = ${JSON.stringify(pluginSearchRows().map(([plugin]) => plugin))};
   const here = () => document.body.dataset.projectId || null;
@@ -133,7 +133,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     } else if (view.can.move) list.push({ label: globalThis.t.text("workbench.placement.move"), run: () => moveOrCopy(view, "move") });
     return list;
   };
-  const named = (verb, title) => title ? L("{verb}《{title}》", { verb, title }) : verb;
+  const named = (verb, title) => title ? readText("workbench.placement.verb-title", { verb, title }) : verb;
   const VERB = { created: "workbench.placement.created", imported: "workbench.placement.imported", generated: "workbench.placement.generated", converted: "workbench.placement.turned-into", versioned: "workbench.placement.saved-fixed-version", received: "workbench.placement.added-shelf" };
   window.addEventListener("molis:placement-result", async (event) => {
     const detail = event.detail || {};
@@ -150,7 +150,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     const where = view && view.location ? view.location.title : hereTitle();
     const title = (detail.title || (view && view.title) || "");
     const head = named(globalThis.t.text(VERB[detail.verb] || "workbench.placement.saved"), title);
-    const lines = [detail.verb === "versioned" ? (detail.note || "") : globalThis.t.text("workbench.placement.saved-place", { place: where }) + (view && view.location ? " · " + L(view.location.access_label) : "")];
+    const lines = [detail.verb === "versioned" ? (detail.note || "") : globalThis.t.text("workbench.placement.saved-place", { place: where }) + (view && view.location ? " · " + view.location.access_label : "")];
     if (detail.note && detail.verb !== "versioned") lines.push(detail.note);
     const actions = [];
     // A version just pinned opens in the 成果库, not the object it was pinned from (artifact-positioning walkthrough).
@@ -218,7 +218,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     slot.textContent = "";
     if (!object) return;
     const bar = node("button", undefined, "placement-bar"); bar.type = "button";
-    const where = node("span", L("…"), "placement-bar-where");
+    const where = node("span", "…", "placement-bar-where");
     const access = node("span", "", "placement-bar-access");
     const links = node("span", "", "placement-bar-links");
     // A plugin that shows its own save state leaves it out here (data-placement-saved="off").
@@ -231,7 +231,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     if (slot.dataset.placementPainted !== signature) return;
     const location = view.location;
     where.textContent = location ? location.title : globalThis.t.text("workbench.placement.location-unavailable");
-    access.textContent = location ? L(location.access_label) : "";
+    access.textContent = location ? location.access_label : "";
     const count = view.associations.length;
     links.textContent = count ? globalThis.t.text("workbench.placement.count-linked", { count }) : "";
     links.hidden = !count;
@@ -530,7 +530,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     button.disabled = true;
     const station = button.dataset.placementCreate, goalId = button.dataset.goalId || null;
     // What this kind is called is the title its plugin's view declares; the button carries it (goal-inputs-html.ts), worded with that plugin's words.
-    const kind = (button.textContent || "").trim() || L(button.dataset.placementCreateTitle || "");
+    const kind = (button.textContent || "").trim() || (button.dataset.placementCreateTitle || "");
     try {
       const result = await api("create", { station, project_id: here(), goal_id: goalId, request_id: crypto.randomUUID(), title: globalThis.t.text("workbench.placement.untitled") + kind });
       invalidate();

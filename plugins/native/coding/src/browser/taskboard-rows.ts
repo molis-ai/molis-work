@@ -73,13 +73,13 @@ function drawAvatar(_L: Translate, executor: NonNullable<BoardRow["executor"]> |
   return avatar;
 }
 
-function drawMeta(L: Translate, row: BoardRow): HTMLElement {
+function drawMeta(readText: Translate, row: BoardRow): HTMLElement {
   const node = el("span", "", "coding-board-meta"), executor = row.executor;
   const time = el("time", row.time?.text || "", "coding-board-time" + (row.time ? "" : " is-empty"));
   if (row.time) time.title = row.time.title;
   if (executor?.none) node.dataset.owner = "none";
   else if (executor?.person) node.dataset.owner = "person";
-  const avatar = drawAvatar(L, executor), name = el("span", executor?.name || "", "coding-board-agent");
+  const avatar = drawAvatar(readText, executor), name = el("span", executor?.name || "", "coding-board-agent");
   if (executor) name.title = uiText.text("coding.board.executor", { detail: executor.detail });
   if (executor?.expired) {
     node.dataset.expired = "true";
@@ -115,7 +115,7 @@ function drawLead(view: RowView, row: BoardRow, open: boolean): HTMLElement {
 
 /** One row of the board: its fold, key, title, receipt link, state, progress, prerequisites, who and when, and the tools of a step. */
 export function drawRow(view: RowView, row: BoardRow, depth: number, owner: string): HTMLElement {
-  const { ports, collapsed } = view, L = ports.translate, item = el("li", "", "coding-board-item");
+  const { ports, collapsed } = view, readText = ports.translate, item = el("li", "", "coding-board-item");
   item.dataset.boardKey = row.key;
   item.style.setProperty("--board-depth", String(depth));
   const entry = el("div", "", "coding-board-entry"), open = !collapsed.has(row.key), lead = drawLead(view, row, open);
@@ -129,7 +129,7 @@ export function drawRow(view: RowView, row: BoardRow, depth: number, owner: stri
   // A step a person added for a supplement links back to its receipt in the conversation.
   const source = row.node ? ports.from(row.node) : null;
   if (source) lead.append(source);
-  entry.append(lead, drawState(row.state), drawProgress(L, row.progress), drawDeps(L, row), drawMeta(L, row));
+  entry.append(lead, drawState(row.state), drawProgress(readText, row.progress), drawDeps(readText, row), drawMeta(readText, row));
   const controls = rowTools(view, row, entry);
   if (controls) entry.append(controls);
   item.append(entry);

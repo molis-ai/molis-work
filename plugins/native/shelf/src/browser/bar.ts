@@ -33,26 +33,26 @@ function moreButton(page: ShelfPage): string {
 
 /** The words under a recipe or shortcut chip: why it is greyed out, or what it does. */
 function chipTitle(page: ShelfPage, action: Shortcut | null, recipe: Recipe | null, enough: boolean, needsVision: boolean): string {
-  const { L } = page;
-  const name = action ? said(L, action.name) : said(L, recipe?.short_title || recipe?.label || "");
+  const { readText } = page;
+  const name = action ? said(readText, action.name) : said(readText, recipe?.short_title || recipe?.label || "");
   if (!enough) return uiText.text("shelf.bar.name-needs-at-least-two", { name });
   if (needsVision) return uiText.text("shelf.bar.this-mac-has-no-on");
   if (action) {
     const reason = ai(page).reason;
-    return ai(page).available === true ? uiText.text("shelf.bar.run-on-a-copy-and") : reason ? said(L, reason) : uiText.text("shelf.bar.configure-an-ai-model-first");
+    return ai(page).available === true ? uiText.text("shelf.bar.run-on-a-copy-and") : reason ? said(readText, reason) : uiText.text("shelf.bar.configure-an-ai-model-first");
   }
-  if (recipe?.available === false) return recipe.reason ? said(L, recipe.reason) : "";
-  return recipe?.blurb ? said(L, recipe.blurb) : "";
+  if (recipe?.available === false) return recipe.reason ? said(readText, recipe.reason) : "";
+  return recipe?.blurb ? said(readText, recipe.blurb) : "";
 }
 
 /** One action of the bar for the chosen materials, or a way to bring a hidden one back; nothing when it does not fit. */
 function actionChip(page: ShelfPage, slot: string, picked: Item[], hidden: Set<string>): string {
-  const { L } = page;
+  const { readText } = page;
   const action = shortcutFor(page, slot);
   const recipe = action ? null : recipeFor(page, slot);
   const spec = action
     ? { id: slot, accepts: action.kinds || [], minimum: 1, tone: "ochre", label: action.name }
-    : recipe ? { id: actIdFor(recipe.recipe), accepts: recipe.accepts || [], minimum: recipe.minimum_count || 1, tone: recipe.tone, label: said(L, recipe.short_title || recipe.label) } : null;
+    : recipe ? { id: actIdFor(recipe.recipe), accepts: recipe.accepts || [], minimum: recipe.minimum_count || 1, tone: recipe.tone, label: said(readText, recipe.short_title || recipe.label) } : null;
   // The kind decides whether an action belongs here at all; too few materials only greys it out, the way DropAgent shows 整合.
   if (!spec || !(picked.length > 0 && picked.every((item) => (spec.accepts as readonly string[]).includes(item.kind)))) return "";
   const enough = picked.length >= spec.minimum;

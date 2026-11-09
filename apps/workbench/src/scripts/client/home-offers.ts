@@ -1,5 +1,5 @@
 export const HOME_OFFERS_FACTORY_SCRIPT = `(host) => {
-  const { root, current, projectKey, api, refresh, translate: L } = host;
+  const { root, current, projectKey, api, refresh, translate: readText } = host;
   const states = new Map();
   const rendered = new WeakMap();
   const esc = value => String(value ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');

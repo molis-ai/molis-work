@@ -1,6 +1,6 @@
 /** Delegation survives the connection panel's partial refresh after adding an account. */
 export const FUNCTIONS_SETTINGS_CLIENT_SCRIPT = `(() => {
-  const t = (value) => (typeof L === "function" ? globalThis.t.text(value) : value);
+  const t = (value) => (typeof readText === "function" ? globalThis.t.text(value) : value);
   const post = body => molisWorkRequest("/api/functions/settings", {body, fallback: t("workbench.settings-client.could-not-save")});
   const save = async (root, clear) => {
     const field = root.querySelector("[data-functions-connection]");

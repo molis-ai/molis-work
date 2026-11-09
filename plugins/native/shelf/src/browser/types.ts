@@ -34,7 +34,7 @@ export interface ShelfLifetime extends UiRequestScope {
 }
 
 /** What the page hands Shelf's client: the shared host fields it uses, and the root's lifetime. */
-export interface ShelfHost extends Pick<UiPluginClientHost<HTMLElement, HTMLDialogElement, HTMLElement>, "translate" | "pluginRoute" | "pluginId" | "copyText" | "nativeFiles" | "loadMedia"> {
+export interface ShelfHost extends Pick<UiPluginClientHost<HTMLElement, HTMLDialogElement, HTMLElement>, "pluginRoute" | "pluginId" | "copyText" | "nativeFiles" | "loadMedia"> {
   mountPluginClient(root: Element): ShelfLifetime | null;
 }
 
@@ -96,7 +96,7 @@ export interface Reading {
 /** The page: its parts, what it knows, and what the person has chosen so far. One per mounted root. */
 export interface ShelfPage {
   readonly host: ShelfHost;
-  readonly L: Translate;
+  readonly readText: Translate;
   readonly lifetime: ShelfLifetime;
   readonly directory: HTMLElement;
   readonly bench: HTMLElement;

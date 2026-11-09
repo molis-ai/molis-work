@@ -68,7 +68,7 @@ export function planContinuesAfterTalk(run: Pick<AgentRunView, "step_board">, la
   return Boolean(run.step_board && !run.step_board.terminal) && later.every(view => !view.frozen.execution_plan && isTerminalAgentPhase(view.phase));
 }
 /** Children of the rounds that coordinate them, with the person's saved verdicts. */
-const subagentGroups = async (a: CodingActivation, beforeWrite: CodingBeforeWrite, sessionId: string, session: { runtime_id: string; session_id: string }, runs: readonly AgentRunView[], locale?: ActionLocale) => {
+const subagentGroups = async (a: CodingActivation, beforeWrite: CodingBeforeWrite, sessionId: string, session: { runtime_id: string; session_id: string }, runs: readonly AgentRunView[], _locale?: ActionLocale) => {
   const { context } = a;
   const groups = [];
   for (const run of runs.filter(run => ["coordinator", "writers"].includes(run.frozen.role_id))) {
@@ -78,7 +78,7 @@ const subagentGroups = async (a: CodingActivation, beforeWrite: CodingBeforeWrit
         const saved = context.services!.storage!.get(`subagent-verdict:${sessionId}:${run.ref.run_id}:${child.subagent_id}`);
         return { ...child, integration_available: run.frozen.role_id === "writers" && Boolean(run.frozen.subagent_workspaces?.some(workspace => workspace.directory.canonical_path === child.workspace_path)), verdict: typeof saved === "string" ? JSON.parse(saved) : null };
       }) });
-    } catch (error) { groups.push({ run_id: run.ref.run_id, children: [], error: error instanceof Error ? error.message : codingText(locale)("coding.server.subtasks-unreadable") }); }
+    } catch (error) { groups.push({ run_id: run.ref.run_id, children: [], error: error instanceof Error ? error.message : codingText("coding.server.subtasks-unreadable") }); }
   }
   return groups;
 };
@@ -166,8 +166,8 @@ const ROUTES: RouteMaker[] = [
         const session = { ...record, state: "reconcile-required" as const };
         return { session, runs: [], draft, question_drafts,input_revision, materials, methods, configuration, action_tools, mcp_tools,mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan,plan_revision, recovery_required: true,
           error: (error as { code?: string }).code === "agent.session_unknown"
-            ? codingText(execution.locale)("coding.server.record-not-restored")
-            : codingText(execution.locale)("coding.server.record-unreadable") };
+            ? codingText("coding.server.record-not-restored")
+            : codingText("coding.server.record-unreadable") };
       }
     });
   },

@@ -8,7 +8,7 @@ import { FUNCTIONS_CLIENT_KEEP_PART } from "./client-keep.js";
  * readers, the four sibling files hold the rest as parts joined in place, in order.
  */
 export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
-  const { translate: L, api, root, page } = host;
+  const { translate: readText, api, root, page } = host;
   const bench = root.matches?.("[data-functions=workbench]") ? root : root.querySelector("[data-functions=workbench]");
   if (!bench || bench.dataset.bound === "1") return; bench.dataset.bound = "1";
   const list = bench.querySelector("[data-functions=directory]");
@@ -125,8 +125,8 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     clickable: true,
   };
   const optionTitle = (beh) => beh.source === "mcp" && beh.hint
-    ? L(beh.hint).split(/[。\\n]/)[0]
-    : L(beh.title);
+    ? beh.hint.split(/[。\\n]/)[0]
+    : beh.title;
   const outputLabel = (rec, key) => {
     const beh = cat.options.find((row) => row.option_id === key && (!row.destination_id || optionMatches(row, rec.scene_id, rec)));
     if (beh) return optionTitle(beh);
@@ -136,8 +136,8 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
   const destTitle = (recOrId) => {
     const id = recOrId && typeof recOrId === "object" ? recOrId.scene_id : recOrId;
     const dest = destOf(id, typeof recOrId === "object" ? recOrId : sel);
-    if (dest?.title) return L(dest.title) + (dest.scene_version ? " · v" + dest.scene_version : "");
-    return id === "home.dock" ? globalThis.t.text("workbench.judgment-rules-client.home") : id === "inbox.next" ? L("Inbox") : id === "feed.capture" ? L("Feed") : id === "agent.mcp" ? L("Agent") : globalThis.t.text("workbench.judgment-rules-client.none");
+    if (dest?.title) return dest.title + (dest.scene_version ? " · v" + dest.scene_version : "");
+    return id === "home.dock" ? globalThis.t.text("workbench.judgment-rules-client.home") : id === "inbox.next" ? "Inbox" : id === "feed.capture" ? "Feed" : id === "agent.mcp" ? "Agent" : globalThis.t.text("workbench.judgment-rules-client.none");
   };
   const optionIds = () => new Set(cat.options.filter(row => !row.destination_id || optionMatches(row, destKey())).map((row) => row.option_id));
   const matchesSubjects = (beh, kinds) => {

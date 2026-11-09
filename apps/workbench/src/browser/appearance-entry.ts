@@ -11,7 +11,7 @@ declare global {
 }
 
 function mount(initial: WorkbenchAppearance): void {
-  const L = globalThis.L ?? ((text: string) => text);
+  const readText = globalThis.t.text;
   const notice = document.querySelector<HTMLElement>("[data-appearance-notice]")!;
   const message = notice.querySelector("[data-appearance-message]")!;
   const undo = notice.querySelector<HTMLButtonElement>("[data-appearance-undo]")!, reread = notice.querySelector<HTMLButtonElement>("[data-appearance-read]")!;
@@ -85,7 +85,7 @@ function mount(initial: WorkbenchAppearance): void {
       drawNotice();
     },
   });
-  if (settings) picker = mountAppearancePicker(settings, initial, sync, L);
+  if (settings) picker = mountAppearancePicker(settings, initial, sync, readText);
   const page = mountDocumentAppearance(initial, problem => {
     renderError = problem === "partial" ? uiText.text("workbench.appearance-entry.some-appearance-settings-unavailable-showing-available-combinati")
       : problem === "loading-failed" ? uiText.text("workbench.appearance-entry.window-couldnt-load-new-appearance-keeping-current-look") : "";

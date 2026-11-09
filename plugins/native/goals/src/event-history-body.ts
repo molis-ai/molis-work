@@ -23,15 +23,15 @@ export function renderHistoryItemBody(
   lookups: GoalHistoryBodyLookups,
   primitives: Pick<GoalsDocumentUiPrimitives, "translate" | "escapeHtml">,
 ): string {
-  const { translate: L, escapeHtml } = primitives;
-  if (item.source === "event_work" && lookups.workEvent) return renderWorkEventBody(lookups.workEvent, L, escapeHtml, lookups.requirementNames, lookups.acknowledgedActorKind);
-  if (item.source === "journal" && lookups.journal) return renderJournal(lookups.journal, L, escapeHtml, item.relation);
+  const { translate: readText, escapeHtml } = primitives;
+  if (item.source === "event_work" && lookups.workEvent) return renderWorkEventBody(lookups.workEvent, readText, escapeHtml, lookups.requirementNames, lookups.acknowledgedActorKind);
+  if (item.source === "journal" && lookups.journal) return renderJournal(lookups.journal, readText, escapeHtml, item.relation);
   return `<article class="event"><h2>${escapeHtml(item.title)}</h2><p class="event-meta">${escapeHtml(item.type_label)} · ${escapeHtml(item.actor_id)}</p><p>${uiText("goals.event-history-body.original-text-currently-unreadable-record-still-keeps-original")}</p></article>`;
 }
 
 export function renderWorkEventBody(
   event: GoalWorkEventRecord,
-  L: GoalsDocumentUiPrimitives["translate"],
+  readText: GoalsDocumentUiPrimitives["translate"],
   escapeHtml: GoalsDocumentUiPrimitives["escapeHtml"],
   requirementNames: Readonly<Record<string, string>> = {},
   acknowledgedActorKind: AcknowledgementContext["acknowledgedActorKind"] = null,
@@ -51,7 +51,7 @@ export function renderWorkEventBody(
     const judgments = event.judgments.length
       ? `<div class="proof">${event.judgments.map((item) => {
         const name = requirementNames[item.requirement_id] || item.requirement_id;
-        return `<p><button type="button" class="mw-btn mw-btn--link" data-locate-event="${escapeHtml(event.event_id)}">${escapeHtml(name)}</button>：${escapeHtml(verdictLabel(item.verdict, L))}</p>`;
+        return `<p><button type="button" class="mw-btn mw-btn--link" data-locate-event="${escapeHtml(event.event_id)}">${escapeHtml(name)}</button>：${escapeHtml(verdictLabel(item.verdict, readText))}</p>`;
       }).join("")}</div>`
       : "";
     return `<article class="event"><h2>${escapeHtml(event.title)}</h2><p class="event-meta">${escapeHtml(meta)}</p>${fields}${judgments}</article>`;
@@ -67,7 +67,7 @@ export function renderWorkEventBody(
       ${extras ? `<h3>${uiText("goals.event-history-body.new-completion-requirement")}</h3><ul>${extras}</ul>` : ""}
     </article>`;
   }
-  return renderSystemPayload(event.title, meta, event.payload, L, escapeHtml, requirementNames, { actorId: event.actor_id, acknowledgedActorKind });
+  return renderSystemPayload(event.title, meta, event.payload, readText, escapeHtml, requirementNames, { actorId: event.actor_id, acknowledgedActorKind });
 }
 
 function verdictLabel(verdict: string, _L: GoalsDocumentUiPrimitives["translate"]): string {
@@ -80,7 +80,7 @@ function renderSystemPayload(
   title: string,
   meta: string,
   payload: GoalEventSystemPayload,
-  L: GoalsDocumentUiPrimitives["translate"],
+  readText: GoalsDocumentUiPrimitives["translate"],
   escapeHtml: GoalsDocumentUiPrimitives["escapeHtml"],
   requirementNames: Readonly<Record<string, string>> = {},
   acknowledgement: AcknowledgementContext = { actorId: "", acknowledgedActorKind: null },
@@ -90,20 +90,20 @@ function renderSystemPayload(
     case "progress_summary":
       return `${heading}${renderProgressSource(payload.source, escapeHtml)}<p>${escapeHtml(payload.summary)}</p>${payload.next_step ? `<p>${uiText("goals.event-history-body.next")}：${escapeHtml(payload.next_step)}</p>` : ""}${payload.next_actor ? `<p>${uiText("goals.event-history-body.who-will-do")}：${escapeHtml(payload.next_actor)}</p>` : ""}</article>`;
     case "concern_opened":
-      return `${heading}<p>${escapeHtml(payload.statement)}</p>${renderScope(payload.scope, L, escapeHtml, requirementNames)}${payload.blocks_closure ? `<p>${uiText("goals.event-history-body.blocks-completion")}</p>` : ""}</article>`;
+      return `${heading}<p>${escapeHtml(payload.statement)}</p>${renderScope(payload.scope, readText, escapeHtml, requirementNames)}${payload.blocks_closure ? `<p>${uiText("goals.event-history-body.blocks-completion")}</p>` : ""}</article>`;
     case "concern_resolved":
     case "concern_accepted":
     case "concern_overturned":
       return `${heading}<p>${escapeHtml(payload.reason)}</p>${payload.cited_decision_id ? `<p>${uiText("goals.event-history-body.referenced-decision")} ${escapeHtml(payload.cited_decision_id)}</p>` : ""}${payload.supporting_event_ids.length ? `<p>${uiText("goals.event-history-body.based-event")}：${escapeHtml(payload.supporting_event_ids.join("、"))}</p>` : ""}</article>`;
     case "decision_requested":
-      return `${heading}<p>${escapeHtml(payload.question)}</p><ul>${payload.options.map((option) => `<li><strong>${escapeHtml(option.label)}</strong> · ${escapeHtml(option.impact)}</li>`).join("")}</ul>${renderScope(payload.scope, L, escapeHtml, requirementNames)}</article>`;
+      return `${heading}<p>${escapeHtml(payload.question)}</p><ul>${payload.options.map((option) => `<li><strong>${escapeHtml(option.label)}</strong> · ${escapeHtml(option.impact)}</li>`).join("")}</ul>${renderScope(payload.scope, readText, escapeHtml, requirementNames)}</article>`;
     case "user_decision": {
-      const effects = payload.effects.map((item) => effectLabel(item.kind, L) + (item.action ? `（${item.action}）` : "")).join("、");
+      const effects = payload.effects.map((item) => effectLabel(item.kind, readText) + (item.action ? `（${item.action}）` : "")).join("、");
       const option = payload.selected_option_id ? `<p>${uiText("goals.event-history-body.selected-option")} ${escapeHtml(payload.selected_option_id)}</p>` : "";
-      return `${heading}<p>${escapeHtml(payload.conclusion)}</p>${option}<p>${uiText("goals.event-history-body.effect")}：${escapeHtml(effects)}</p>${renderScope(payload.scope, L, escapeHtml, requirementNames)}</article>`;
+      return `${heading}<p>${escapeHtml(payload.conclusion)}</p>${option}<p>${uiText("goals.event-history-body.effect")}：${escapeHtml(effects)}</p>${renderScope(payload.scope, readText, escapeHtml, requirementNames)}</article>`;
     }
     case "decision_cited":
-      return `${heading}<p>${uiText("goals.event-history-body.referenced-decision")} ${escapeHtml(payload.decision_id)}</p>${renderScope(payload.scope, L, escapeHtml, requirementNames)}</article>`;
+      return `${heading}<p>${uiText("goals.event-history-body.referenced-decision")} ${escapeHtml(payload.decision_id)}</p>${renderScope(payload.scope, readText, escapeHtml, requirementNames)}</article>`;
     case "agreement_set":
       return `${heading}<p>${escapeHtml(payload.outcome)}</p><p>${uiText("goals.event-history-body.agreement-version")} ${payload.version} · ${uiText("goals.event-history-body.configuration-version")} ${payload.config_version}</p></article>`;
     case "closure_submitted": {
@@ -118,7 +118,7 @@ function renderSystemPayload(
     case "observation_note":
       return `${heading}<p>${escapeHtml(payload.body)}</p></article>`;
     case "input_acknowledged":
-      return renderAcknowledgementBody(heading, payload, acknowledgement, L, escapeHtml);
+      return renderAcknowledgementBody(heading, payload, acknowledgement, readText, escapeHtml);
     default:
       return `${heading}<p>${uiText("goals.event-history-body.system-record")}</p></article>`;
   }
@@ -136,7 +136,7 @@ function effectLabel(kind: string, _L: GoalsDocumentUiPrimitives["translate"]): 
 
 function renderScope(
   scope: GoalEventScope,
-  L: GoalsDocumentUiPrimitives["translate"],
+  _readText: GoalsDocumentUiPrimitives["translate"],
   escapeHtml: GoalsDocumentUiPrimitives["escapeHtml"],
   requirementNames: Readonly<Record<string, string>> = {},
 ): string {
@@ -145,19 +145,19 @@ function renderScope(
   const parts = [
     requirements ? `${uiText.text("goals.event-history-body.requirement")} ${requirements}` : "",
     events ? `${uiText.text("goals.event-history-body.event")} ${events}` : "",
-    scope.concern_ids.length ? `${L("Concern")} ${escapeHtml(scope.concern_ids.join("、"))}` : "",
+    scope.concern_ids.length ? `${"Concern"} ${escapeHtml(scope.concern_ids.join("、"))}` : "",
     scope.action ? `${uiText.text("goals.event-history-body.action")} ${escapeHtml(scope.action)}` : "",
   ].filter(Boolean);
   return parts.length ? `<p>${uiText("goals.event-history-body.scope")}：${parts.join(" · ")}</p>` : "";
 }
 
-function renderJournal(event: GoalsDecisionEvent, L: GoalsDocumentUiPrimitives["translate"], escapeHtml: GoalsDocumentUiPrimitives["escapeHtml"], relationInfo?: GoalHistoryIndexItem["relation"]): string {
+function renderJournal(event: GoalsDecisionEvent, _readText: GoalsDocumentUiPrimitives["translate"], escapeHtml: GoalsDocumentUiPrimitives["escapeHtml"], relationInfo?: GoalHistoryIndexItem["relation"]): string {
   if (relationInfo) {
     const relation = relationInfo;
     const status = relation.removed ? uiText.text("goals.event-history-body.removed") : uiText.text("goals.event-history-body.established");
     return `<article class="event event-relation"><header><span class="history-state" data-tone="${relation.removed ? "muted" : "positive"}">${relation.removed ? "−" : "+"} ${status}</span><h2>${uiText("goals.event-history-body.goal-relationship-change")}</h2></header>
       <p class="event-meta">${escapeHtml(event.actor_id)} · ${escapeHtml(formatEventTime(event.at))}</p>
-      <div class="history-relation-flow"><button type="button" data-select-goal="${escapeHtml(relation.from_id)}">${escapeHtml(relation.from_title)}</button><span class="history-relation-link">${escapeHtml(L(relation.label))}<span aria-hidden="true">↓</span></span><button type="button" data-select-goal="${escapeHtml(relation.to_id)}">${escapeHtml(relation.to_title)}</button></div>
+      <div class="history-relation-flow"><button type="button" data-select-goal="${escapeHtml(relation.from_id)}">${escapeHtml(relation.from_title)}</button><span class="history-relation-link">${escapeHtml(relation.label)}<span aria-hidden="true">↓</span></span><button type="button" data-select-goal="${escapeHtml(relation.to_id)}">${escapeHtml(relation.to_title)}</button></div>
       ${relation.type === "depends_on" ? `<p class="form-note">${uiText("goals.event-history-body.goal-above-needs-goal-below-finish-before-can")}</p>` : ""}
       <h3>${uiText("goals.event-history-body.change-reason")}</h3><p>${escapeHtml(event.reason || uiText.text("goals.event-history-body.no-reason-given"))}</p>
       <details class="form-disclosure"><summary>${uiText("goals.event-history-body.show-original-record-identifier")}</summary><code>${escapeHtml(event.object_id)}</code></details></article>`;

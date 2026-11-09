@@ -9,7 +9,7 @@ export const SYNC_CLOUD_HISTORY_SCRIPT=String.raw`
           more?.remove();for(const item of page.items){const entry=row(item,dialog);entry.style.display='grid';entry.style.gridTemplateColumns='minmax(0,1fr) auto';body.append(entry);count++;}
           if(!count)body.append(node('p','settings-muted',globalThis.t.text("workbench.settings-sync-history.no-retained-versions")));
           if(page.more){cursor=page.next;more=button("workbench.settings-sync-history.load-more",load);body.append(more);}else more=null;
-        }catch(failure){if(dialog.isConnected){problem.textContent=L(failure.message);problem.hidden=false;if(!more){more=button("common.control.retry",load);body.append(more);}}}
+        }catch(failure){if(dialog.isConnected){problem.textContent=failure.message;problem.hidden=false;if(!more){more=button("common.control.retry",load);body.append(more);}}}
         finally{pending=false;loading.hidden=true;if(more)more.disabled=false;}
       };
       void load();return dialog;
@@ -31,7 +31,7 @@ export const SYNC_CLOUD_HISTORY_SCRIPT=String.raw`
               body.append(node('p','settings-muted',globalThis.t.text("workbench.settings-sync-history.permanent-cleanup-not-available-yet-retained-content-still")));
               const actions=view.revision===view.currentRevision?[]:[['恢复为当前版本',async()=>{await act(()=>request('/history/restore',{...value,operationId},'POST'),false,true);close();}]];
               const preview=sheet("workbench.settings-sync-history.cloud-history",body,actions);if(actions.length)preview.querySelector('footer button').classList.replace('mw-btn--secondary','mw-btn--primary');
-              }catch(failure){if(versions.isConnected){const problem=versions.querySelector('[data-sync-history-problem]');problem.hidden=false;problem.textContent=L(failure.message);}}
+              }catch(failure){if(versions.isConnected){const problem=versions.querySelector('[data-sync-history-problem]');problem.hidden=false;problem.textContent=failure.message;}}
             }));return row;
           });
         }));return entry;

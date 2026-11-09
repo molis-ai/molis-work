@@ -1,6 +1,6 @@
 /** Goals board view (list | canvas | kanban) and Frame canvas. Cross-plugin tabs and split panes live in tab-workspace. */
 export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
-  const { translate: L, showToast, visibleGoals, getSurface, setWorkSurface, setDirectory,
+  const { translate: readText, showToast, visibleGoals, getSurface, setWorkSurface, setDirectory,
     setWorkspaceMode, setMobileView, applySelection, locateGraphNode, getProjectId, route } = host;
   const LIST_TAB = "list";
   const CANVAS_TAB = "canvas";
@@ -262,7 +262,7 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     const source = document.querySelector('[data-goal-id="' + CSS.escape(curTab) + '"] .goal-status');
     statusEl.className = source?.className || ("goal-status" + (status ? " goal-status--" + status : ""));
     if (source) statusEl.innerHTML = source.innerHTML;
-    else statusEl.textContent = item?.status_label || L(status);
+    else statusEl.textContent = item?.status_label || status;
     statusEl.dataset.status = status;
     put('[data-frame-goal-outcome]', item?.goal.outcome || globalThis.t.text("workbench.frame-container.no-expected-result-written-yet-can-add-one"));
     surfaceEl.querySelector('[data-frame-empty]').hidden = frame.blocks.length > 0;

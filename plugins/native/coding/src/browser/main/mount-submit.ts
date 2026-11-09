@@ -17,9 +17,9 @@ import type { Overlap, RoundSelection } from "./shapes.js";
 
 /** The slash menu, the palette and the keys of the composer. */
 function mountCommands(page: Page) {
-  const { L, host, input, lifetime, q, refs, s, turns } = page;
+  const { readText, host, input, lifetime, q, refs, s, turns } = page;
   refs.commandsUi = commandsClient({
-    lifetime, translate: L, q, input, status: s.ports.status, commands: () => codingCommands(page), current: () => s.current, workspace: () => s.workspaceId,
+    lifetime, translate: readText, q, input, status: s.ports.status, commands: () => codingCommands(page), current: () => s.current, workspace: () => s.workspaceId,
     files: key => api(page, "/sessions/" + encodeURIComponent(s.current) + "/files?workspace_id=" + encodeURIComponent(key)),
     symbols: (key, path) => api(page, "/sessions/" + encodeURIComponent(s.current) + "/symbols?workspace_id=" + encodeURIComponent(key) + "&path=" + encodeURIComponent(path)),
     sessions: () => s.state.sessions.map(session => ({ ...session, state_label: s.SESSION_STATE[session.state] || "" })),

@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
  * is organized, today's organizing allowance, and who read what. Everything it shows and changes goes through
  * `/projects/<id>/api/knowledge/*`, which invokes the shared directory's `knowledge.*` actions as the person.
  */
-export function renderKnowledgeSettings({ projectId }: { L(text: string): string; projectId: string }): string {
+export function renderKnowledgeSettings({ projectId }: { readText(text: string): string; projectId: string }): string {
   const state = (value: string, label: string) => `<option value="${value}">${label}</option>`;
   return `<section class="settings-document knowledge-settings" aria-labelledby="knowledge-title" data-knowledge-settings data-project="${projectId}">
     <header class="settings-page-heading"><h1 id="knowledge-title">${uiText("workbench.settings-knowledge.project-knowledge")}</h1>
@@ -55,7 +55,7 @@ export function renderKnowledgeSettings({ projectId }: { L(text: string): string
  * The browser program of project knowledge: TypeScript in `src/browser/knowledge/` (tsconfig.browser.json), bundled by esbuild
  * into `dist/knowledge-client.js` when the package builds, and served once as `KNOWLEDGE_CLIENT_ASSET` (cached; the user chose
  * one asset over copies inside each page's script, 2026-10-19). It binds every 项目资料 page, also one the settings cover places
- * later, the side panel's import, and the one picker of project knowledge. It needs the page's `L` and `molisWorkRequest`
+ * later, the side panel's import, and the one picker of project knowledge. It needs the page's `readText` and `molisWorkRequest`
  * first, so its tag comes after the page's own scripts.
  */
 const KNOWLEDGE_CLIENT_ASSET = "/assets/molis-work-knowledge.js";

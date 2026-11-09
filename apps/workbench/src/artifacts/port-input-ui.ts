@@ -18,7 +18,7 @@ export function renderArtifactPortInputs(inputs: ReadonlyArray<ArtifactPluginInp
   return `<section class="artifact-port-inputs" data-artifact-port-inputs data-artifact-reference="${p.escape(JSON.stringify(reference))}"><h2>${uiText("workbench.port-input-ui.give-plugin-input")}</h2><ul>${rows}</ul><p class="artifact-port-inputs-status" data-artifact-port-inputs-status role="status"></p></section>`;
 }
 
-/** Runs inside the workbench's 成果 client and shares its `route`, `L`, `loadArtifacts` and `artifactPath`. */
+/** Runs inside the workbench's 成果 client and shares its `route`, `readText`, `loadArtifacts` and `artifactPath`. */
 export const ARTIFACT_PORT_INPUT_CLIENT_SCRIPT = String.raw`
   document.addEventListener("click", async (event) => {
     const button = event.target.closest?.("[data-artifact-port-input]");

@@ -2,10 +2,9 @@ import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { GoalsDocumentView as WebGoalView } from "../document-view.js";
 import { isAppliedGoalCompletion } from "../decision-view.js";
 import type { GoalsPageView } from "./view.js";
-import type { GoalsTranslate } from "./ports.js";
 import type { CapsuleGoalItem, CapsuleState, CapsuleStateKind, CapsuleTab, CapsuleTabKind } from "./capsule-view.js";
 
-export function createCapsuleItemProjection(L: GoalsTranslate) {
+export function createCapsuleItemProjection() {
   function activeGoalViews(view: GoalsPageView): WebGoalView[] {
     return view.goals.filter((item) => item.display_status === "in_progress");
   }
@@ -203,7 +202,7 @@ export function createCapsuleItemProjection(L: GoalsTranslate) {
   function menuBarTitle(tabs: CapsuleTab[], selected: CapsuleGoalItem): string {
     const tab = tabs.find((candidate) => candidate.kind === selected.tab_kind);
     const count = tab?.items.length ?? 1;
-    return count > 1 ? L("{label} · {count}", { label: tab?.label ?? selected.status_label, count }) : selected.status_label;
+    return count > 1 ? uiText.text("goals.capsule-items.status-count", { label: tab?.label ?? selected.status_label, count }) : selected.status_label;
   }
 
   function stateFromItem(

@@ -14,7 +14,7 @@ import type { FrameScope, TaskGrantsDown, TaskGrantsUp, Translate } from "./type
  */
 
 /** The one thing the page hears when an area cannot be shown, whatever the reason: the frame rejects with it, the shell sends it. */
-export const TASK_GRANTS_UNAVAILABLE = "暂时不能显示";
+export const TASK_GRANTS_UNAVAILABLE = "workbench.task-grants-area.cannot-display-this-right-now";
 /** The area's two heights (§3.1), by width alone; set on the component board's specimens so five categories need no scrolling. */
 export const TASK_GRANTS_AREA_HEIGHTS = { narrow: 468, wide: 396 } as const;
 
@@ -29,19 +29,11 @@ export type TaskGrantsLine = { readonly text: string; readonly act?: "undo" | "r
 const nameOf = (ref: TaskGrantCategoryReference) => ref.provider_id + "\n" + (ref.group_id ?? "");
 const refOf = (ref: TaskGrantCategoryReference): TaskGrantSetCategory => ref.group_id === undefined ? { provider_id: ref.provider_id } : { provider_id: ref.provider_id, group_id: ref.group_id };
 
-/**
- * A provider's words in the page's language, looked up as `LF` does: the shell's dictionary (where a built-in plugin's summary
- * and the platform's own categories have their English), then the plugin's own English (`ui.translations`), else as written.
- */
-function providerWords(category: TaskGrantCategory, text: string): string {
-  return globalThis.MOLIS_WORK_MESSAGES?.[text] ?? (category.plugin_id ? globalThis.MOLIS_WORK_PLUGIN_WORDS?.[category.plugin_id]?.[text] : undefined) ?? text;
-}
-
 /** One row per category: what this project offers, then what the task holds that is no longer offered (unavailable or removed). */
 export function taskGrantRows(reads: Reads): Row[] {
   const held = new Map(reads.subject.categories.map(category => [nameOf(category), category]));
   const row = (category: TaskGrantCategory, status: Status): Row => ({ ref: refOf(category), name: nameOf(category), status,
-    title: providerWords(category, category.title), description: providerWords(category, category.description) });
+    title: category.title, description: category.description });
   const offered = reads.categories.map(category => row(category, held.get(nameOf(category))?.status ?? "off"));
   const seen = new Set(offered.map(item => item.name));
   return [...offered, ...reads.subject.categories.filter(category => !seen.has(nameOf(category))).map(category => row(category, category.status))];
@@ -68,7 +60,7 @@ const summary = (subject: Reads["subject"]): UiTaskGrantsAreaState => ({
 });
 
 /** A row's note by its status, when it reads less than it is on for; translated where it is drawn. */
-const NOTES: Partial<Record<Status, string>> = { needs_confirmation: "有新的读取能力，允许之前读不到", unavailable: "暂时读不到，授权还在", removed: "这一类已不再提供" };
+const NOTES: Partial<Record<Status, string>> = { needs_confirmation: "workbench.task-grants-area.new-data-is-offered-approve-it-before", unavailable: "workbench.task-grants-area.unavailable-for-now-access-is-still-granted", removed: "workbench.task-grants-area.this-category-is-no-longer-offered" };
 
 /**
  * One category, one row (§3.5; the 授权与放行 page draws its rows with it too, §5): its name, what it is, and a note when it reads
@@ -84,14 +76,14 @@ export function taskGrantsAreaHtml(t: Translate, owner: string, rows: readonly R
   /** A small button by its control name (§3.3): a row's 允许 or 移除 (secondary), or the line's act (ghost). */
   const control = (name: string, label: string, variant = "secondary") =>
     `<button type="button" class="mw-btn mw-btn--sm mw-btn--${variant}" data-framed-control="${escape(name)}">${escape(label)}</button>`;
-  const item = (row: Row) => taskGrantRowHtml(t, row, row.status === "removed" ? control("remove:" + row.name, t("移除"))
-    : `${row.status === "needs_confirmation" ? control("allow:" + row.name, t("允许")) : ""}<span class="mw-switch" data-slot="switch"><input type="checkbox" role="switch" aria-label="${escape(row.title)}"${row.status !== "off" ? " checked" : ""} data-framed-control="${escape("switch:" + row.name)}"><span class="mw-switch__track" aria-hidden="true"></span></span>`);
+  const item = (row: Row) => taskGrantRowHtml(t, row, row.status === "removed" ? control("remove:" + row.name, t("workbench.task-grants-area.remove"))
+    : `${row.status === "needs_confirmation" ? control("allow:" + row.name, t("workbench.task-grants-area.allow")) : ""}<span class="mw-switch" data-slot="switch"><input type="checkbox" role="switch" aria-label="${escape(row.title)}"${row.status !== "off" ? " checked" : ""} data-framed-control="${escape("switch:" + row.name)}"><span class="mw-switch__track" aria-hidden="true"></span></span>`);
   const list = rows.length ? `<ul class="mw-items task-grants-area__rows">${rows.map(item).join("")}</ul>`
-    : `<p class="task-grants-area__empty">${escape(t("这个项目里还没有能读的插件数据。装了待办、日程、笔记一类的插件后，它们会出现在这里。"))}</p>`;
+    : `<p class="task-grants-area__empty">${escape(t("workbench.task-grants-area.nothing-in-this-project-can-be-read"))}</p>`;
   // The line stays put (D2): a persistent status line, the design system's `mw-alert`, not a passing toast (DESIGN「Toasts」).
   const act = line.act ? control(line.act, t(line.act === "undo" ? "撤销" : "重试"), "ghost") : "";
-  return `<header class="mw-platform-area__head" data-framed-area-head><span class="mw-platform-area__kicker"><svg aria-hidden="true"><use href="#icon-shield"></use></svg>${escape(t("Molis Work · 只有你能改"))}</span><span class="mw-platform-area__owner" title="${escape(owner)}">${escape(owner)}</span>`
-    + `<p class="mw-platform-area__lead">${escape(t("只能读，不能改；只给这个任务；随时可以撤回"))}</p></header>`
+  return `<header class="mw-platform-area__head" data-framed-area-head><span class="mw-platform-area__kicker"><svg aria-hidden="true"><use href="#icon-shield"></use></svg>${escape(t("workbench.task-grants-area.molis-work-only-you-can-change-this"))}</span><span class="mw-platform-area__owner" title="${escape(owner)}">${escape(owner)}</span>`
+    + `<p class="mw-platform-area__lead">${escape(t("workbench.task-grants-area.read-only-never-change-for-this-task"))}</p></header>`
     + `<div class="mw-platform-area__body" data-framed-scroll${busy ? ' aria-busy="true"' : ""}>${list}</div>`
     + `<footer class="mw-platform-area__foot" data-framed-area-foot><div class="mw-alert${line.tone === "danger" ? " mw-alert--danger" : ""}${fresh ? " is-fresh" : ""}" role="status"><span title="${escape(line.text)}">${escape(line.text)}</span>${act}</div></footer>`;
 }
@@ -130,8 +122,8 @@ export function pageTaskGrants(port: MessagePort, scope: FrameScope, areas: Page
   };
   const close = (id: number) => { entries.get(id)?.area.close(); entries.delete(id); };
   scope.own(() => { for (const id of [...entries.keys()]) close(id); });
-  const idle = (): TaskGrantsLine => ({ text: t("拨一下即生效，下一次运行起按新的范围读") });
-  const unread = (): TaskGrantsLine => ({ text: t("暂时读不到这个任务能读什么"), act: "read", tone: "danger" });
+  const idle = (): TaskGrantsLine => ({ text: t("workbench.task-grants-area.a-switch-takes-effect-at-once-the") });
+  const unread = (): TaskGrantsLine => ({ text: t("workbench.task-grants-area.cannot-read-what-this-task-may-read"), act: "read", tone: "danger" });
 
   const read = async (entry: Entry) => {
     entry.reads = await request<Reads>(entry, { mode: "read" });
@@ -151,12 +143,12 @@ export function pageTaskGrants(port: MessagePort, scope: FrameScope, areas: Page
       if (entries.get(entry.id) !== entry || !scope.alive) return;
       // Changed elsewhere (the same task open beside, or the grants page): read again, and the undo no longer applies.
       if ((error as { code?: string }).code === "actions.conflict") {
-        entry.last = null; entry.line = { text: t("已在别处改动，已刷新") };
+        entry.last = null; entry.line = { text: t("workbench.task-grants-area.changed-elsewhere-refreshed") };
         try { await read(entry); } catch { entry.line = unread(); }
       } else {
         // The switch goes back as it was; an undo that failed is spent (§3.6 「失败」).
         entry.last = change.kind === "undo" ? null : change;
-        entry.line = { text: t("没能保存，原来的授权没变"), act: change.kind === "undo" ? undefined : "retry", tone: "danger" };
+        entry.line = { text: t("workbench.task-grants-area.not-saved-the-permissions-are-as-they"), act: change.kind === "undo" ? undefined : "retry", tone: "danger" };
       }
     } finally {
       if (entries.get(entry.id) === entry) { entry.busy = false; draw(entry); catchUp(entry); }
@@ -231,7 +223,7 @@ export function pageTaskGrants(port: MessagePort, scope: FrameScope, areas: Page
     if (!area) { if (Number.isSafeInteger(message.id) && !entries.has(message.id)) unshown(message.id); return; }
     const { surface, holder } = area;
     surface.className = "mw-platform-area";
-    surface.setAttribute("aria-label", t("Molis Work · 只有你能改") + " · " + owner);
+    surface.setAttribute("aria-label", t("workbench.task-grants-area.molis-work-only-you-can-change-this") + " · " + owner);
     surface.dataset.taskGrantsArea = "";
     // Shown again (its page back in view, a dialog closed, its frame wide enough again), the area fades in with the shared
     // `craft-fade-in` (DESIGN「Motion」), not its first reveal's `craft-rise`. It is marked as it hides, never while in sight.

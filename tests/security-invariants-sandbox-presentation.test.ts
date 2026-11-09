@@ -15,6 +15,7 @@ import { signPluginPackage, verifyPluginPackageSignature } from "@molis-ai/molis
 import { assertContract, createSandboxRunner } from "@molis-ai/molis-work-plugin-sandbox";
 import { effectsFromContract, sandboxActionId, sandboxPackageBuildId, sandboxPluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { newPublisher, packageContract, packageFiles } from "./fixtures/sandbox-package.js";
+import { caller, installedPackageHost, mac } from "./fixtures/signed-package-host.js";
 
 const cli = fileURLToPath(new URL("../tooling/plugin-cli/dist/main.js", import.meta.url));
 
@@ -56,11 +57,13 @@ const entrypoint = `export const operations = {
     const subject = input.subjects[0];
     if (subject.id === 'denied-write') await sdk.storage.set('denied', 'no');
     if (subject.id === 'bad-output') return { items: [{ subject, revision: 'r1', state: 'impossible' }] };
-    return ${JSON.stringify(valuesResult)};
+    const values = input.fields.includes('title') ? { title: 'First note' } : {};
+    return { items: input.subjects.map(subject => subject.id === 'note-1'
+      ? { subject, revision: 'r1', state: 'ok', values } : { subject, revision: 'r1', state: 'deleted' }) };
   },
 };`;
 
-function signedPresentation(t: TestContext) {
+function authoredPresentation(t: TestContext) {
   const directory = mkdtempSync(join(tmpdir(), "signed-presentation-"));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const publisher = newPublisher();
@@ -73,14 +76,16 @@ function signedPresentation(t: TestContext) {
   const key = join(directory, "private.pem");
   writeFileSync(key, publisher.keys.privateKey.export({ type: "pkcs8", format: "pem" }), { mode: 0o600 });
   const unsigned = join(directory, "unsigned.json"), signed = join(directory, "signed.json");
-  const invoke = (...args: string[]) => spawnSync(process.execPath, [cli, ...args], { encoding: "utf8" });
-  const packed = invoke("pack-sandbox", directory, unsigned, "--name", "Presentation notes", "--version", "1.0.0", "--publisher-id", "author",
-    "--publisher-key-id", publisher.identity);
-  assert.equal(packed.status, 0, packed.stderr);
-  const signing = invoke("sign", unsigned, key, signed);
-  assert.equal(signing.status, 0, signing.stderr);
-  const { bundle } = verifyPluginPackageSignature(JSON.parse(readFileSync(signed, "utf8")));
-  return { contract, bundle, signer: publisher.signer, bundlePath: join(directory, "plugin.mjs") };
+  const pack = () => {
+    const invoke = (...args: string[]) => spawnSync(process.execPath, [cli, ...args], { encoding: "utf8" });
+    const packed = invoke("pack-sandbox", directory, unsigned, "--name", "Presentation notes", "--version", "1.0.0", "--publisher-id", "author",
+      "--publisher-key-id", publisher.identity);
+    assert.equal(packed.status, 0, packed.stderr);
+    const signing = invoke("sign", unsigned, key, signed);
+    assert.equal(signing.status, 0, signing.stderr);
+    return verifyPluginPackageSignature(JSON.parse(readFileSync(signed, "utf8"))).bundle;
+  };
+  return { contract, pack, signer: publisher.signer, bundlePath: join(directory, "plugin.mjs") };
 }
 
 test("SCS-15 a signed sandbox operation's external flag survives pack, signature verification and Host validation", t => {
@@ -119,7 +124,8 @@ test("SCS-15 a signed sandbox operation's external flag survives pack, signature
 });
 
 test("SCS-11 signed sandbox presentation uses the same three fixed action protocols and ordinary manifests keep their projection", t => {
-  const { contract, bundle, signer } = signedPresentation(t);
+  const { contract, pack, signer } = authoredPresentation(t);
+  const bundle = pack();
   const loaded = readSandboxPackage(bundle.payload);
   assert.deepEqual(loaded.manifest.presentation, contract.presentation);
   for (const operation of contract.operations.filter((item): item is SandboxReadOperation => item.read_protocol !== undefined)) {
@@ -168,19 +174,53 @@ test("fixed sandbox read protocols cannot be bound to ordinary page components",
     purpose: "Show the summary", props: {}, read: { operationId: "notes.overview", input: {} } }], contract), /平台读取协议不能绑定到页面组件/u);
 });
 
-test("SCS-11 one signed contract previews in the real sandbox and rejects wrong input, output and undeclared writes", { skip: process.platform !== "darwin" }, async t => {
-  const { contract, bundlePath } = signedPresentation(t);
+test("SCS-11 one signed contract previews in the real sandbox and rejects wrong input, output and undeclared writes, then its actions run after install and Host restart", mac, async t => {
+  const { contract, bundlePath, pack } = authoredPresentation(t);
   let writes = 0;
   const runner = await createSandboxRunner({ bundlePath, contract,
     identity: { projectId: "preview", installationId: "test-surface", pluginId: contract.pluginId, namespace: "preview" },
     grants: { storage: ["read", "write"] }, services: { storage: { transaction: async (_identity, run) => { writes++; return run(new Map()); } } },
   });
-  t.after(() => runner.stop());
-  assert.deepEqual(await runner.call("notes.context", { subject_id: subject.id }), contextResult);
-  assert.deepEqual(await runner.call("notes.values", valuesInput), valuesResult);
-  assert.deepEqual(await runner.call("notes.overview", {}), overviewResult);
-  await assert.rejects(runner.call("notes.values", { ...valuesInput, project_id: "elsewhere" }), { code: "sandbox.schema_mismatch" });
-  await assert.rejects(runner.call("notes.values", { ...valuesInput, subjects: [{ ...subject, id: "denied-write" }] }), { code: "sandbox.not_authorized" });
-  assert.equal(writes, 0);
-  await assert.rejects(runner.call("notes.values", { ...valuesInput, subjects: [{ ...subject, id: "bad-output" }] }), { code: "sandbox.protocol_error" });
+  try {
+    assert.deepEqual(await runner.call("notes.context", { subject_id: subject.id }), contextResult);
+    assert.deepEqual(await runner.call("notes.values", valuesInput), valuesResult);
+    assert.deepEqual(await runner.call("notes.overview", {}), overviewResult);
+    await assert.rejects(runner.call("notes.values", { ...valuesInput, project_id: "elsewhere" }), { code: "sandbox.schema_mismatch" });
+    await assert.rejects(runner.call("notes.values", { ...valuesInput, subjects: [{ ...subject, id: "denied-write" }] }), { code: "sandbox.not_authorized" });
+    assert.equal(writes, 0);
+    await assert.rejects(runner.call("notes.values", { ...valuesInput, subjects: [{ ...subject, id: "bad-output" }] }), { code: "sandbox.protocol_error" });
+  } finally { await runner.stop(); }
+
+  const bundle = pack();
+  assert.deepEqual(readSandboxPackage(bundle.payload).manifest.presentation, contract.presentation);
+  const host = await installedPackageHost();
+  t.after(() => host.close());
+  await host.install(bundle);
+  const [installation] = await host.plugins();
+  assert.ok(installation);
+  const verifyInstalledActions = async () => {
+    const directory = await host.client.discover(caller);
+    const action = (localId: string) => {
+      const view = directory.find(view => view.provider.plugin_id === contract.pluginId && view.action.local_id === localId);
+      assert.ok(view?.availability.available, localId + " must be discoverable and available");
+      assert.equal(view.provider.provider_id, "plugin:" + contract.pluginId);
+      assert.equal(view.provider.plugin_install_id, installation.install_id);
+      return view;
+    };
+    for (const [localId, input, output] of [
+      ["notes.context", { subject_id: subject.id }, contextResult],
+      ["notes.values", valuesInput, valuesResult],
+      ["notes.overview", {}, overviewResult],
+    ] as const) {
+      const view = action(localId);
+      assert.equal(view.action.execution?.cost, "none");
+      const ref = { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id };
+      assert.deepEqual(await host.client.invoke(caller, ref, input), output);
+    }
+    assert.equal(action("notes.add").action.external, true);
+  };
+  await verifyInstalledActions();
+  await host.reopen();
+  assert.deepEqual(await host.plugins(), [installation]);
+  await verifyInstalledActions();
 });

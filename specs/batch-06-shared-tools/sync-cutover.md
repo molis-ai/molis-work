@@ -56,4 +56,6 @@ begin、finish 用单条状态变更及其触发器，或用失败会 **ABORT �
 
 独立裁定允许 writer 做隔离原型。交片前须有三组真实证据：① v6→v7 quota 边界、GC 回补、并发、重启及清计划缓存后的精确重建；② R2 PUT／GET 跨 seal／revoke、已就绪败方清理与共享 checksum 读回；③ 双 Home 脏旧端保全、重开、拉齐与本人接管。公共 C 另行合审。
 
-本机 Node 24.15.0 可用；缺固定 Rust 1.96.0／wasm32、worker-build 0.8.6、配套 bindgen、锁定 Miniflare/workerd 和 WASM bundle。上一探针走真实 Host、模拟运输及现行 Rust SQL，未覆盖此提案的预留、跨 namespace 附件防护、真实 WASM/R2 或迁移。Rust 原生 CI 已覆盖两 crate 的 wasm32 编译检查，Worker 测试须另在隔离机按 lock 装配，使用 `cloudFixture` synthetic Auth、D1/R2 不持久化，机器 slot 各一份，Node `--test-concurrency=1`。仅本地迁移使用 `--local --persist-to <tmp>`。
+设计时本机缺固定 Worker 工具链；2026-11-09 已在临时目录安装 Rust 1.96.0／wasm32、worker-build 0.8.6、wasm-bindgen 0.2.128、该构建器指定的 esbuild 0.28.2，以及仓库锁定的 Miniflare/workerd。保留 Node 24.15.0，未改锁文件或全局工具。`00367bef9` 的现行 Rust/WASM 基线构建通过，`apps/sync-worker/cloud.test.mjs` 7/7 通过，使用 synthetic Auth 和临时 D1；独立工具冒烟实际写读临时 D1/R2 后关闭。Miniflare 首次直用旧构造选项被拒，按仓库已有 `convertV4MiniflareOptions` 后通过，没有修改产品或夹具。
+
+这些结果只证明当前 v6 Worker 与测试环境可用，未覆盖本稿新增的预留、跨 namespace 附件防护、v6→v7 或旧设备接管。上一 Host 探针也只用模拟运输和现行 Rust SQL。Rust 原生 CI 覆盖两 crate 的 wasm32 编译检查，Worker 测试另用 `cloudFixture`、D1/R2 不持久化，机器 slot 各一份，Node `--test-concurrency=1`。仅本地迁移使用 `--local --persist-to <tmp>`。

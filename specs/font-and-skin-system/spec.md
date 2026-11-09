@@ -12,12 +12,14 @@
 
 保留现有控件语义、工作台位置与导航、业务布局合同、权限和内容归属。可定制的视觉与界面文字由文件定义；控件交互和业务行为继续由实际组件与插件承担。
 
-| 当前依据 | 已有能力与差距 |
+下表保留需求起草时的迁移依据，不作为当前能力的完成清单；第 16 批当前实现、授权与验收进展见 [B/C 开工前检查](bc-preflight.md)。已删除的旧词典链接固定到起草基点，不能据此恢复旧翻译路径。
+
+| 起草时依据 | 当时已有能力与差距 |
 | --- | --- |
 | [Design System](../../packages/design-system/README.md)、[字体](../../packages/design-system/src/typeface.ts)、[偏好](../../packages/design-system/src/preferences.ts) | 生产基线为 Soft Workbench，已有系统字体/离线后备和设备侧明暗、密度、终端明暗；尚无可选字体方案及 Home 自定义皮肤库 |
 | [组件目录](../../packages/design-system/src/plugin-components.ts)、[生成插件渲染器](../../packages/design-system/src/plugin-component-client.ts) | 标准板与 Builder 已共享组件能力；现存局部样式尚不能据此视为已完整适配，生成插件仍有固定中文 |
-| [语言入口](../../apps/workbench/src/i18n.ts)、[切换路由](../../apps/local-host/src/web-server.ts)、[词典](../../apps/workbench/src/i18n/en.ts) | 当前仅中英文，Cookie/浏览器语言/中文默认值决定语言；中文原文作键，词典在代码中合并，切换跳转重绘，缺词回退中文 |
-| [稳定翻译键约定](../../apps/workbench/README.md#目标稳定键)、[BL-125](../BACKLOG.md) | 按文案主人组织稳定键已是既定方向；主翻译运行时尚未接通对应能力，部分 Builder、目录和嵌入文案未完整覆盖 |
+| [语言入口](../../apps/workbench/src/i18n.ts)、[切换路由](../../apps/local-host/src/web-server.ts)、[起草时的词典](https://github.com/molis-ai/molis-work/blob/9da1808334da/apps/workbench/src/i18n/en.ts) | 当时仅中英文，Cookie/浏览器语言/中文默认值决定语言；中文原文作键，词典在代码中合并，切换跳转重绘，缺词回退中文 |
+| [稳定翻译键约定](../../apps/workbench/README.md#界面文字稳定键和翻译检查)、[BL-125](../BACKLOG.md) | 按文案主人组织稳定键已是既定方向；当时主翻译运行时尚未接通对应能力，部分 Builder、目录和嵌入文案未完整覆盖 |
 | [个人助理](../../apps/local-host/src/assistant/assistant-service.ts) | 已有 Skill 发现与按需读取机制；需要内置外观制作 Skill 及真实文件/校验/应用能力 |
 | Folio 原型（原会话的设计材料，尚未入库） | 已有独立可交互试样，尚非正式皮肤或完整系统；用户的方向是丰富协调的色彩、圆润字体和活泼感，最终视觉仍待判断 |
 

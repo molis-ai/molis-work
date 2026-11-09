@@ -24,13 +24,15 @@ A 段（路线书第 14 批）的合同写到字段级，在 [A 段合同设计�
 
 ## 2. 现行代码怎样拆成文件与引擎
 
+下表保留起草时的迁移映射；已删除的旧词典链接固定到起草基点。当前 B/C 接入以 [运行接入合同](bc-runtime-contract.md) 及实际实现为准，不保留旧词典读取。
+
 | 现行入口 | 移到文件的内容 | 保留或替换的代码 |
 | --- | --- | --- |
 | [typeface.ts](../../packages/design-system/src/typeface.ts) | 系统字族列表、离线字体声明、角色字重/字号/字距与后备，成为字体方案/资源数据 | 保留基于已解析字体角色的 CSS 输出；字体路径与实际字节读取由 Host 资源适配器负责，删除写死的字体值与终层默认覆盖 |
 | [palette.ts](../../packages/design-system/src/palette.ts) | 面、字色、操作/状态、形状、抬升和动效值，成为 Soft Workbench/Folio 皮肤文件 | 组件仍使用受支持的语义变量；令牌渲染读已解析定义，不保留第二份常量表 |
 | [visual-foundation.ts](../../packages/design-system/src/visual-foundation.ts)、[page-assets.ts](../../apps/workbench/src/page-assets.ts) | 现行风格的值与可定制规则归皮肤/共同规格 | 保留一次结构、响应式、交互与可访问性样式；收敛多套旧皮肤和重复 Coss/Primitive/Typeface/终层拼接，不追加另一张完整主题表 |
 | [plugin-components.ts](../../packages/design-system/src/plugin-components.ts)、[原语目录](../../packages/design-system/src/primitives/catalog.ts) | 名称/说明的消息引用、分组、能力、状态/变体、可定制属性与标本描述，归同一个共同规格文件 | 保留组件 kind 到真实实现、标本操作到可信函数的绑定；Builder 的组件列表由文件投影，不再单独维护元数据数组 |
-| [i18n.ts](../../apps/workbench/src/i18n.ts)、[EN 词典](../../apps/workbench/src/i18n/en.ts) | 中文/英文文案改为按主人组织的语言 JSON | 语言匹配、完整消息参数处理与格式化成为 SDK 纯工具；Host 保留请求级语言上下文，Workbench 使用可更新文字绑定，删除集中 import 词典与中文原文查表 |
+| [i18n.ts](../../apps/workbench/src/i18n.ts)、[起草时的 EN 词典](https://github.com/molis-ai/molis-work/blob/9da1808334da/apps/workbench/src/i18n/en.ts) | 中文/英文文案改为按主人组织的语言 JSON | 语言匹配、完整消息参数处理与格式化成为 SDK 纯工具；Host 保留请求级语言上下文，Workbench 使用可更新文字绑定，删除集中 import 词典与中文原文查表 |
 | [preferences.ts](../../packages/design-system/src/preferences.ts)、[语言路由](../../apps/local-host/src/web-server.ts) | Home 级皮肤/字体选择单独保存；设备明暗/密度/终端偏好保留；语言偏好仍属入口 | 替换为读取同一快照的启动与更新控制器；语言切换改为更新偏好及当前 DOM，保留无 JS 的站内跳转入口，正常有 JS 路径不跳转 |
 
 共同规格只定义系统实际实现过的组件及可定制项。新增一种交互仍需实现组件；JSON 不能凭一个新 kind、选择器或事件名制造执行能力。目录投影、标准板和 Builder 均核对文件声明与真实实现，无实现的条目不能展示为可用。

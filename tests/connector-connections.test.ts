@@ -332,3 +332,24 @@ test("RAC-2421 a binding counts its usage and plugin ids in characters, not UTF-
     assert.throws(() => store.bind({ scopeId: "project-a", pluginId: "feed", slotId: "a".repeat(161), serviceId: "gmail", connectionId: connection.connection_id }), { code: "connector.connection.invalid" });
   } finally { db.close(); }
 });
+
+test("D0104 protocol metadata and target origin commit together and notify only after success", () => {
+  const db = new DatabaseSync(":memory:"); db.exec(CONNECTOR_CONNECTIONS_SCHEMA);
+  const changed: string[] = [];
+  const store = new ConnectorConnectionStore(db, { get: () => null, put() {}, delete() {} }, () => new Date("2026-11-09T00:00:00Z"), id => changed.push(id));
+  const input = { connectionId: randomUUID(), serviceId: "mcp-atomic", displayName: "First", endpoint: "https://first.example/mcp", credentialRef: null };
+  try {
+    db.exec("CREATE TRIGGER refuse_target BEFORE INSERT ON connector_connection_targets BEGIN SELECT RAISE(ABORT, 'target write refused'); END");
+    assert.throws(() => store.saveProtocol(input), /target write refused/);
+    assert.equal(store.get(input.connectionId), null); assert.deepEqual(changed, []);
+    db.exec("DROP TRIGGER refuse_target");
+    const original = store.saveProtocol(input);
+    db.exec("CREATE TRIGGER refuse_target BEFORE INSERT ON connector_connection_targets BEGIN SELECT RAISE(ABORT, 'target write refused'); END");
+    assert.throws(() => store.saveProtocol({ ...input, displayName: "Changed", endpoint: "https://second.example/mcp" }), /target write refused/);
+    assert.deepEqual(store.require(input.connectionId), original);
+    assert.equal(store.view(original).target_origin, "https://first.example"); assert.deepEqual(changed, []);
+    db.exec("DROP TRIGGER refuse_target");
+    store.saveProtocol({ ...input, displayName: "Committed", endpoint: "https://second.example/mcp" });
+    assert.deepEqual(changed, [input.connectionId]); assert.equal(store.view(store.require(input.connectionId)).target_origin, "https://second.example");
+  } finally { db.close(); }
+});

@@ -73,6 +73,7 @@ export const TAB_WORKSPACE_DRAG_PART = `  const tabIdsAfterMove = ${tabIdsAfterM
   const isCopyDrop = (event) => Boolean(event.altKey || document.body.dataset.tabDragCopy === "1");
   const finishDrag = () => {
     dragTab = null;
+    dragDepths.clear();
     root.classList.remove("is-tab-dragging");
     document.body.classList.remove("is-tab-dragging");
     hideDropPreview();

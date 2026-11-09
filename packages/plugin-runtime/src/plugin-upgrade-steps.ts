@@ -1,3 +1,4 @@
+import { rollbackPreservingError } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDatabaseDeclaration, PluginManifest, PluginSqlValue } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginTrustLevel } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
@@ -366,7 +367,7 @@ function inTransaction(db: PluginRuntimeDatabase, run: Run, inspector: PluginUpg
     run.finish(db);
     db.exec("COMMIT");
   } catch (error) {
-    if (transactionOpen(db)) db.exec("ROLLBACK");
+    rollbackPreservingError(error, () => { if (transactionOpen(db)) db.exec("ROLLBACK"); });
     throw ownFailure(error) ? error : failure(run, "step_failed", { cause: error });
   }
 }

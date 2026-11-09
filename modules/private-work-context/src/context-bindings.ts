@@ -1,3 +1,4 @@
+import type { RuntimeContextBindingPage } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 import { randomUUID } from "node:crypto";
 import type { SqliteDatabase } from "@molis-ai/molis-work-storage";
 import type { ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
@@ -27,11 +28,13 @@ export class RuntimeContextBindingRepository {
     return row ? this.map(row) : null;
   }
 
-  list(): RuntimeContextBindingRecord[] {
+  list(page: RuntimeContextBindingPage): RuntimeContextBindingRecord[] {
+    const projectBindings = page.project_id === undefined ? undefined : this.references.forProject(page.project_id);
     const rows = this.db.prepare(`
       SELECT * FROM runtime_context_bindings
-      ORDER BY updated_at DESC, runtime_id, stable_work_context_id
-    `).all() as Array<Record<string, unknown>>;
+      ${projectBindings === undefined ? "" : "WHERE binding_id IN (SELECT value FROM json_each(?))"}
+      ORDER BY updated_at DESC, runtime_id, stable_work_context_id LIMIT ? OFFSET ?
+    `).all(...(projectBindings === undefined ? [] : [JSON.stringify(projectBindings)]), Math.min(200, Math.max(1, page.limit)), Math.max(0, page.offset)) as Array<Record<string, unknown>>;
     return rows.map((row) => this.map(row));
   }
 
@@ -75,14 +78,12 @@ export class RuntimeContextBindingRepository {
     }).immediate();
   }
 
-  listEvents(filter?: { runtime_id: string; stable_work_context_id: string }): RuntimeContextBindingEventRecord[] {
-    const rows = filter
-      ? this.db.prepare(`
-          SELECT * FROM runtime_context_binding_events
-          WHERE runtime_id = ? AND stable_work_context_id = ?
-          ORDER BY rowid
-        `).all(filter.runtime_id, filter.stable_work_context_id)
-      : this.db.prepare("SELECT * FROM runtime_context_binding_events ORDER BY rowid").all();
+  listEvents(filter: { runtime_id: string; stable_work_context_id: string } | undefined, page: RuntimeContextBindingPage): RuntimeContextBindingEventRecord[] {
+    const where: string[] = [], parameters: unknown[] = [];
+    if (filter) { where.push("runtime_id = ? AND stable_work_context_id = ?"); parameters.push(filter.runtime_id, filter.stable_work_context_id); }
+    if (page.project_id !== undefined) { where.push("(project_id = ? OR previous_project_id = ?)"); parameters.push(page.project_id, page.project_id); }
+    const rows = this.db.prepare(`SELECT * FROM runtime_context_binding_events ${where.length ? "WHERE " + where.join(" AND ") : ""} ORDER BY rowid LIMIT ? OFFSET ?`)
+      .all(...parameters, Math.min(200, Math.max(1, page.limit)), Math.max(0, page.offset));
     return (rows as Array<Record<string, unknown>>).map(mapRuntimeContextBindingEvent);
   }
 

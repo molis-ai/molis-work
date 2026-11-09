@@ -169,6 +169,7 @@ tests/connector-record-actions.test.ts
 tests/connector-document-import.test.ts
 tests/connector-method-directory.test.ts
 tests/connector-oauth-choice.test.ts
+tests/connector-oauth-declarations.test.ts
 tests/connector-provider-contracts.test.ts
 tests/connector-reconnect-regressions.test.ts
 

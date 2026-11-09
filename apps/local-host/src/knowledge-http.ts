@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { KNOWLEDGE_CARD_STATES, KNOWLEDGE_PROVIDER_ID, knowledgeActions, knowledgeManageActions, type KnowledgeCardRecord, type KnowledgeCardsResponse, type KnowledgeCardState } from "@molis-ai/molis-work-contracts/services/knowledge";
+import { KNOWLEDGE_CARD_STATES, KNOWLEDGE_PROVIDER_ID, knowledgeActions, knowledgeManageActions, type KnowledgeCardsResponse, type KnowledgeCardState } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { dispatchNativePluginJsonHttp } from "./native-plugin-http.js";
 import { localWebActionContext } from "./local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
@@ -34,27 +34,16 @@ export async function handleKnowledgeHttp(request: IncomingMessage, response: Se
         const kind = query.get("kind"), id = query.get("id");
         return { status: 200, body: await call(knowledgeManageActions.receipts, { ...(kind && id ? { subject: { kind, id } } : {}), limit: RECENT, offset }) };
       }
-      // Every card (up to 2000 pieces), for the side panel: where each stands for its rows, and one piece's card for its preview.
-      let modelReady = true, listing = false;
-      const allCards = async () => {
-        const cards: KnowledgeCardRecord[] = [];
-        for (let at = 0; at < 2_000;) {
-          const page = await call(knowledgeManageActions.cards, { limit: PAGE, offset: at }) as KnowledgeCardsResponse;
-          cards.push(...page.cards);
-          modelReady = page.model_ready;
-          listing ||= page.listing;
-          at += page.cards.length;
-          if (!page.cards.length || at >= page.total) break;
-        }
-        return cards;
-      };
+      // D0234: the side panel consumes explicit pages; a preview selects one subject at its owner.
       if (method === "GET" && route === "states") {
-        const states = (await allCards()).map(card => ({ kind: card.subject.kind, id: card.subject.id, state: card.state, excluded: card.excluded, changed: !!card.suggestion }));
-        return { status: 200, body: { states, model_ready: modelReady, listing } };
+        const page = await call(knowledgeManageActions.cards, { limit: PAGE, offset }) as KnowledgeCardsResponse;
+        const states = page.cards.map(card => ({ kind: card.subject.kind, id: card.subject.id, state: card.state, excluded: card.excluded, changed: !!card.suggestion }));
+        const next = offset + page.cards.length;
+        return { status: 200, body: { states, total: page.total, next_offset: next < page.total ? next : null, model_ready: page.model_ready, listing: page.listing } };
       }
       if (method === "GET" && route === "card") {
-        const kind = query.get("kind"), id = query.get("id");
-        return { status: 200, body: { card: (await allCards()).find(card => card.subject.kind === kind && card.subject.id === id) ?? null } };
+        const page = await call(knowledgeManageActions.cards, { subject: { kind: query.get("kind"), id: query.get("id") }, limit: 1 }) as KnowledgeCardsResponse;
+        return { status: 200, body: { card: page.cards[0] ?? null } };
       }
       if (method === "GET" && route === "glob") return { status: 200, body: await call(knowledgeActions.glob, { pattern: query.get("pattern") ?? "", limit: PAGE }) };
       if (method === "GET" && route === "search") return { status: 200, body: await call(knowledgeActions.search, { query: query.get("q") ?? "", limit: 30 }) };

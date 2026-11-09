@@ -263,7 +263,7 @@ export function createArtifactActionHandlers(ports: ArtifactActionPorts): Action
       return { plugins: await referringPlugins(ports, references, caller as ActionExecutionContext), other: edges.length - references.length } satisfies ArtifactReferences;
     }),
     ...bindWorkflowContentHandlers(artifactsContentActions, {
-      list: () => ports.artifacts.query.listArtifacts(ports.projectId).filter(record => record.availability === "available" && record.lifecycle_state !== "archived")
+      list: () => ports.artifacts.query.listArtifacts(ports.projectId, { availability: "available", lifecycle_state: "active" })
         .sort((a, b) => b.created_at.localeCompare(a.created_at))
         .map(record => ({ item_id: artifactSubjectId(record), title: `${record.title} · v${record.version}`, caption: ports.typeTitle?.(record.artifact_type_id) ?? record.artifact_type_id, at: record.created_at })),
       read: async ({ item_id }, caller) => {

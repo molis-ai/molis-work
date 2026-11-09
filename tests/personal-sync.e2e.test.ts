@@ -59,6 +59,7 @@ test('sync settings: failed save retains selection and retry saves it',{timeout:
     let policy={spaceId:'synthetic-only',revision:0,selections:[]},automatic=false;
     window.fetch=async(url,init)=>{
       if(!new URL(String(url),location.href).pathname.startsWith('/api/sync'))return original(url,init);
+      if(String(url).endsWith('/run'))window.syncRuns=(window.syncRuns||0)+1;
       if(String(url).endsWith('/policy')){
         if(window.failSyncSave)return Response.json({error:'synthetic save failure'},{status:503});
         policy={...JSON.parse(init.body),revision:policy.revision+1};window.savedSyncPolicy=policy;
@@ -76,6 +77,11 @@ test('sync settings: failed save retains selection and retry saves it',{timeout:
   await b.click('[data-sync-automatic]');
   await b.waitFor("!document.querySelector('[data-sync-automatic]').disabled");
   assert.equal(await b.evaluate("document.querySelector('[data-sync-fields] input').checked"),true,'PCSYNC-03 device choice keeps unsaved collection selections');
+  // D0350: unsaved choices must neither start the old server policy nor be discarded.
+  await b.click('[data-sync-run]');
+  assert.equal(await b.evaluate('window.syncRuns||0'),0);
+  assert.equal(await b.evaluate("document.querySelector('[data-sync-fields] input').checked"),true);
+  assert.match(await b.evaluate<string>("document.querySelector('[data-sync-error]').textContent"),/请先保存/);
   await b.evaluate('window.failSyncSave=true');
   await b.click('[data-sync-form] button[type=submit]');
   await b.waitFor("!document.querySelector('[data-sync-error]').hidden");
@@ -84,6 +90,7 @@ test('sync settings: failed save retains selection and retry saves it',{timeout:
   await b.click('[data-sync-retry]');
   await b.waitFor('window.savedSyncPolicy?.selections.length===1');
   assert.equal(await b.evaluate("document.querySelector('[data-sync-error]').hidden"),true);
+  await b.click('[data-sync-run]');await b.waitFor('window.syncRuns===1');
   await mkdir('.impeccable/qa/review',{recursive:true});
   for(const [width,theme] of [[1440,'light'],[390,'dark']] as const){
     await b.command('Emulation.setDeviceMetricsOverride',{width,height:1000,deviceScaleFactor:1,mobile:false},b.sessionId);

@@ -1,3 +1,4 @@
+import { rollbackPreservingError } from "@molis-ai/molis-work-storage";
 import { setTimeout as delay } from "node:timers/promises";
 import { performance } from "node:perf_hooks";
 import { sqliteErrorName, type SqliteDatabase } from "@molis-ai/molis-work-storage";
@@ -30,7 +31,7 @@ export function createCatalogCommit(db: SqliteDatabase, validate: () => void): C
         if (result instanceof Promise) throw new TypeError("Catalog commit requires a synchronous owner operation");
         db.exec("COMMIT");
         return result;
-      } catch (error) { db.exec("ROLLBACK"); throw error; }
+      } catch (error) { rollbackPreservingError(error, () => db.exec("ROLLBACK")); throw error; }
     });
     tail = task.then(() => undefined, () => undefined);
     return task;

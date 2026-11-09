@@ -1,3 +1,4 @@
+import { assertActionInput } from "@molis-ai/molis-work-kernel";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorBody, actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import assert from "node:assert/strict";
@@ -21,7 +22,7 @@ import type {
 } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { eventCursorOf, pinnedArtifact } from "./fixtures/artifacts.js";
 
-function createHarness() {
+function createHarness(now?: () => string) {
   const db = openTestSqlite(":memory:");
   db.pragma("foreign_keys = ON");
   db.exec(`
@@ -52,7 +53,7 @@ function createHarness() {
   let tick = 0;
   const module = new ArtifactsModule({
     db: db as unknown as ArtifactsSqliteDatabase,
-    now: () => `2026-09-02T00:00:${String(tick++).padStart(2, "0")}.000Z`,
+    now: now ?? (() => `2026-09-02T00:00:${String(tick++).padStart(2, "0")}.000Z`),
     appendEvent: (event: ArtifactEventInput) => Number(db.prepare(`
       INSERT INTO events (
         event_id, project_id, actor_id, type, object_type, object_id, reason, payload_json, at
@@ -357,4 +358,59 @@ test("Artifact reference digest mismatch is rollback-safe, and the owner schema 
   } finally {
     schemaDb.close();
   }
+});
+
+
+test("D0264: filtered artifact pages retain later matches and stable ties without truncating complete callers", () => {
+  const { db, module } = createHarness(() => "2026-11-08T00:00:00.000Z");
+  try {
+    for (let n = 0; n < 405; n++) module.commands.registerVersion(registration({ artifact_id: `page-${String(n).padStart(3, "0")}`, artifact_type_id: n % 2 ? "io.example.other" : "io.example.report" }));
+    const filter = { artifact_type_id: "io.example.report", schema_version: 1, lifecycle_state: "active" as const };
+    const first = module.query.listArtifacts("board-artifacts", { ...filter, limit: 200, offset: 0 });
+    const next = module.query.listArtifacts("board-artifacts", { ...filter, limit: 200, offset: 200 });
+    assert.deepEqual([first.length, next.length], [200, 3]);
+    assert.equal(new Set([...first, ...next].map(item => item.artifact_id)).size, 203);
+    assert.ok([...first, ...next].every(item => item.artifact_type_id === filter.artifact_type_id && item.schema_version === 1 && item.lifecycle_state === "active"));
+    assert.equal(module.query.listArtifacts("board-artifacts", filter).length, 203, "owner-maintenance traversal follows the complete filtered result");
+    assert.equal(module.query.listArtifacts("board-artifacts", { ...filter, limit: 999, offset: 0 }).length, 200, "the SQL page is bounded even for a larger requested size");
+    assert.deepEqual(module.query.listArtifacts("another-project", { ...filter, limit: 200, offset: 0 }), []);
+    assert.deepEqual(module.query.listArtifacts("board-artifacts", { ...filter, schema_version: 2, limit: 200, offset: 0 }), []);
+  } finally { db.close(); }
+});
+
+
+test("D0264 listConsumable reads bounded declared pages and preserves artifact precedence without loading rejected bodies", t => {
+  const { db, module } = createHarness(() => "2026-11-08T00:00:00.000Z");
+  try {
+    db.exec(PROCESS_ITEMS_SCHEMA_SQL);
+    const process = new artifactsPackage.ProcessItemsModule({ db, appendEvent: () => 0, eventCursor: () => 0 });
+    for (let n = 0; n < 405; n++) module.commands.registerVersion(registration({ artifact_id: `unrelated-${n}`, artifact_type_id: "io.example.unrelated", content: { kind: "inline", payload: { content: "unselected body".repeat(100) } } }));
+    for (let n = 0; n < 205; n++) {
+      module.commands.registerVersion(registration({ artifact_id: `wanted-artifact-${n}` }));
+      process.commands.registerVersion(registration({ artifact_id: `wanted-process-${n}` }));
+    }
+    module.commands.registerVersion(registration({ artifact_id: "shadowed", artifact_type_id: "io.example.unrelated" }));
+    process.commands.registerVersion(registration({ artifact_id: "shadowed" }));
+    process.commands.registerVersion(registration({ artifact_id: "foreign-personal", actor_id: "someone-else" }));
+    let loaded = 0, bodiesByReference = 0;
+    for (const query of [module.query, process.query]) {
+      const list = query.listArtifacts.bind(query);
+      t.mock.method(query, "listArtifacts", (projectId, filter) => { assert.ok(filter?.limit && filter.limit <= 200); const page = list(projectId, filter); loaded += page.length; return page; });
+      const get = query.getArtifactVersion.bind(query);
+      t.mock.method(query, "getArtifactVersion", (...args) => { bodiesByReference++; return get(...args); });
+    }
+    const manifest = { schema_version: 1 as const, host_api_version: 1 as const, plugin_id: "io.example.reader", version: "1.0.0", name: "Reader", kind: "app" as const,
+      publisher: { publisher_id: "example", signature: "example" }, entrypoints: [{ deployment: "local" as const, entrypoint: "./index.js" }],
+      permissions: [{ permission: "artifact:read", required: true, reason: "Read selected versions" }], capabilities: { provides: [], consumes: [] }, ui: { contributions: [] },
+      artifacts: { produces: [], consumes: [{ artifact_type_id: "io.example.report", schema_version: 1 }] }, process_items: { produces: [], consumes: [{ artifact_type_id: "io.example.report", schema_version: 1 }] } };
+    const operations = artifactsPackage.createPluginArtifactOperations({ api: module, process, manifest, project_id: "board-artifacts", actor_id: "user-a", authorize() {}, assertCallerCurrent() {}, assertInput: assertActionInput });
+    const listed = operations.client.listConsumable();
+    assert.deepEqual([listed.filter(item => item.kind === "artifact").length, listed.filter(item => item.kind === "process_item").length], [205, 205]);
+    assert.ok(!listed.some(item => item.artifact_id === "shadowed" || item.artifact_id === "foreign-personal"));
+    assert.ok(loaded <= 420, "unrelated and foreign-personal content never enters the list's pages");
+    assert.equal(bodiesByReference, 0, "compatibility and cross-store precedence do not re-read content per candidate");
+    assert.deepEqual(module.query.existingReferences("board-artifacts", [{ artifact_id: "shadowed", version: 1 }, { artifact_id: "missing", version: 1 }]), [{ artifact_id: "shadowed", version: 1 }]);
+    assert.deepEqual(module.query.existingReferences("other-project", [{ artifact_id: "shadowed", version: 1 }]), []);
+    assert.throws(() => module.query.existingReferences("board-artifacts", Array.from({ length: 201 }, () => ({ artifact_id: "shadowed", version: 1 }))), { code: "artifacts.artifact.input_invalid" });
+  } finally { db.close(); }
 });

@@ -142,3 +142,92 @@ export const messageOf = (error: unknown): string => error instanceof Error ? er
  * Integer-shaped keys keep JavaScript's enumeration order; this is not signing text. */
 export const jsonComparisonText = (value: unknown): string | undefined => JSON.stringify(value, (_key, item: unknown) => item && typeof item === "object" && !Array.isArray(item)
   ? Object.fromEntries(Object.keys(item).sort().map(name => [name, (item as Record<string, unknown>)[name]])) : item);
+
+/** Shared content vocabulary for server rendering and browser consumption. */
+export const CONTENT_TAGS = /* @__PURE__ */ Object.freeze([
+  "p",
+  "br",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "blockquote",
+  "ul",
+  "ol",
+  "li",
+  "strong",
+  "em",
+  "del",
+  "code",
+  "pre",
+  "hr",
+  "a",
+  "table",
+  "thead",
+  "tbody",
+  "tr",
+  "th",
+  "td",
+  "details",
+  "summary",
+  "sup",
+  "sub",
+  "kbd",
+] as const);
+
+export const NON_TEXT_TAGS = /* @__PURE__ */ Object.freeze([
+  "script",
+  "style",
+  "textarea",
+  "option",
+  "xmp",
+  "noscript",
+  "template",
+  "iframe",
+  "object",
+  "embed",
+  "svg",
+  "math",
+  "form",
+] as const);
+
+/** D0103: render returned content inertly; only presentation markup and explicit safe links survive. */
+export function setContentHtml(target: Element, markup: string): void {
+  const template = target.ownerDocument.createElement("template"); template.innerHTML = markup;
+  const allowed = new Set<string>([...CONTENT_TAGS, "div", "span", "section", "header", "footer", "dl", "dt", "dd", "button", "mark", "svg", "use", "path", "line", "polyline", "rect", "circle"]);
+  const nonText = new Set<string>(NON_TEXT_TAGS.filter(tag => tag !== "svg"));
+  const attrs = new Set("class title dir aria-label aria-hidden role colspan rowspan align width height viewBox d fill stroke stroke-width stroke-linecap stroke-linejoin x y x1 y1 x2 y2 cx cy r points".split(" "));
+  const elements = Array.from(template.content.querySelectorAll("*"));
+  for (const element of elements) {
+    const tag = element.localName;
+    if (nonText.has(tag) || !["http://www.w3.org/1999/xhtml", "http://www.w3.org/2000/svg"].includes(element.namespaceURI ?? "")) { element.remove(); continue; }
+    if (!allowed.has(tag)) { element.replaceWith(...Array.from(element.childNodes)); continue; }
+    for (const attribute of Array.from(element.attributes)) {
+      const { name, value } = attribute;
+      if (name === "href" && tag === "use" && /^#icon-[a-z0-9-]+$/.test(value)) continue;
+      if (name === "href" && tag === "a") {
+        try { const url = new URL(value); if (url.protocol === "https:" || url.protocol === "http:") { element.setAttribute("href", url.href); continue; } }
+        catch { /* A malformed or relative URL is not a content link. */ }
+      }
+      if (name === "open" && tag === "details") continue;
+      if (name === "disabled" && tag === "button") continue;
+      if (["data-phase", "data-group", "data-kind", "data-mode", "data-sign", "data-path"].includes(name)) continue;
+      if (["data-change-index", "data-diff-folded", "data-diff-unfold", "data-coding-line"].includes(name) && /^\d{1,6}$/.test(value)) continue;
+      if (name === "data-coding-line-side" && ["before", "after"].includes(value)) continue;
+      if (name === "data-action" && tag === "button" && value === "diff.show-file") continue;
+      if (name === "hidden" && tag === "li" && /^\d{1,6}$/.test(element.getAttribute("data-diff-folded") ?? "")) continue;
+      if (["fill", "stroke"].includes(name) && !/^(?:none|currentColor|#[a-f0-9]{3,8})$/i.test(value)) { element.removeAttributeNode(attribute); continue; }
+      if (!attrs.has(name) || attribute.namespaceURI !== null) element.removeAttributeNode(attribute);
+    }
+    if (tag === "button") element.setAttribute("type", "button");
+    if (tag === "a") { element.setAttribute("target", "_blank"); element.setAttribute("rel", "noopener noreferrer"); }
+  }
+  target.replaceChildren(template.content);
+}
+
+/** The same boundary for a content fragment passed to a streaming or composite renderer. */
+export function contentHtml(markup: string, ownerDocument: Document = document): string {
+  const target = ownerDocument.createElement("div"); setContentHtml(target, markup); return target.innerHTML;
+}

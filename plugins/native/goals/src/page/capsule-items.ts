@@ -133,6 +133,11 @@ export function createCapsuleItemProjection(L: GoalsTranslate) {
     });
   }
 
+  /** D0013: keep the explicit resume path, outside the immediately actionable group. */
+  function cancelledItem(view: GoalsPageView, item: WebGoalView): CapsuleGoalItem {
+    return { ...availableItem(view, item), tab_kind: "cancelled", kind: "cancelled" };
+  }
+
   function blockedItem(view: GoalsPageView, item: WebGoalView): CapsuleGoalItem {
     const blocker = primaryBlocker();
     return itemBase(view, item, {
@@ -186,6 +191,7 @@ export function createCapsuleItemProjection(L: GoalsTranslate) {
     "waiting",
     "blocked",
     "completed",
+    "cancelled",
   ];
 
   function tabMeta(kind: CapsuleTabKind): Pick<CapsuleTab, "label" | "tone"> {
@@ -196,6 +202,7 @@ export function createCapsuleItemProjection(L: GoalsTranslate) {
       case "waiting": return { label: L("等待中"), tone: "waiting" };
       case "blocked": return { label: L("受阻"), tone: "blocked" };
       case "completed": return { label: L("已完成"), tone: "complete" };
+      case "cancelled": return { label: L("已取消"), tone: "cancelled" };
     }
   }
 
@@ -231,5 +238,5 @@ export function createCapsuleItemProjection(L: GoalsTranslate) {
       menu_bar_tooltip: `${view.project?.display_name ?? L("当前项目")} · ${selected.goal_title} · ${title}`,
     };
   }
-  return { activeGoalViews, newestFirst, recentCompletedGoal, projectPath, decisionItem, activeItem, availableItem, blockedItem, waitingItem, completeItem, TAB_ORDER, tabMeta, stateFromItem };
+  return { activeGoalViews, newestFirst, recentCompletedGoal, projectPath, decisionItem, activeItem, availableItem, cancelledItem, blockedItem, waitingItem, completeItem, TAB_ORDER, tabMeta, stateFromItem };
 }

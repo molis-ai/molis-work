@@ -95,7 +95,7 @@ export interface PluginInstallPreviewResult {
   effects: SandboxEffects;
   publisher: { key_id: string; pinned_label: string | null };
   /** The role materials the package ships, and in an upgrade how each changed. Its methods are Skills, listed in `skills`. */
-  agent_bodies?: Array<{ kind: 'role'; name: string; excerpt: string; change?: 'added' | 'changed' | 'removed' }>;
+  agent_bodies?: Array<{ kind: 'role'; name: string; excerpt: string; body: string; total_chars: number; truncated: boolean; change?: 'added' | 'changed' | 'removed' }>;
   /** Every Skill the package declares (its Manifest's `methods`), and in an upgrade what changed (specs/skill-packs/contract-design.md §5). */
   skills?: SkillInstallPreview[];
   /** The actions the Manifest `requires`, each with whether a provider offers it in this project now. */
@@ -140,7 +140,7 @@ const assertIdPathFree = (pluginId: string, keyId: string, installed: readonly I
 /** A package's role materials as the preview lists them, and in an upgrade how each changed against the installed package's. */
 function rolePreviews(bodies: readonly SandboxAgentBody[], installed?: readonly SandboxAgentBody[]): NonNullable<PluginInstallPreviewResult['agent_bodies']> {
   const roles = (all: readonly SandboxAgentBody[]) => all.filter(body => body.kind === 'role'), next = roles(bodies), old = installed && roles(installed);
-  const preview = (body: SandboxAgentBody, change?: 'added' | 'changed' | 'removed') => ({ kind: 'role' as const, name: body.name, excerpt: Array.from(body.body).slice(0, 200).join(''), ...(change ? { change } : {}) });
+  const preview = (body: SandboxAgentBody, change?: 'added' | 'changed' | 'removed') => ({ kind: 'role' as const, name: body.name, excerpt: Array.from(body.body).slice(0, 200).join(''), body: body.body, total_chars: Array.from(body.body).length, truncated: Array.from(body.body).length > 200, ...(change ? { change } : {}) });
   const previews = next.map(body => {
     const previous = old?.find(item => item.entry_id === body.entry_id);
     return preview(body, old === undefined ? undefined : !previous ? 'added' : previous.body !== body.body ? 'changed' : undefined);

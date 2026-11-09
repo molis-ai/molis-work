@@ -1,3 +1,4 @@
+import { setContentHtml } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { el, errorMessage } from "./dom.js";
 import type { PagePorts } from "./types.js";
 
@@ -169,7 +170,7 @@ function changes(L: WriterIntegrationPorts["translate"], row: HTMLElement, key: 
     diff.append(el("summary", L("coding.integration.diff")));
     const body = el("div");
     body.dataset.codePath = key;
-    body.innerHTML = file.diff_html;
+    setContentHtml(body, file.diff_html);
     diff.append(body);
     row.append(diff);
     return;

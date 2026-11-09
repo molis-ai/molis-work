@@ -167,7 +167,7 @@ export const ASSISTANT_SIDE_USAGE_FACTORY_SCRIPT = String.raw`({ L, el, progress
   return { paint(work) {
     const node = box(), view = current();
     if (!node) return;
-    const usage = work && view && view.usage ? view.usage : null, last = work && view ? view.rounds[view.rounds.length - 1] : null, round = last && (last.usage || last.model) ? last : null;
+    const usage = work && view && view.usage ? view.usage : null, last = work && view ? view.rounds[view.rounds.length - 1] : null, round = last || null;
     const signature = JSON.stringify([work && work.work_id, usage, round && [round.run_id, round.usage, round.model, round.ended_at]]);
     if (node.dataset.signature === signature) return;
     const wasOpen = node.querySelector("details")?.open;

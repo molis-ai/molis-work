@@ -9,7 +9,7 @@ import { checkGoalReadOwnerSql, checkNoGoalTypedAdapters, checkGoalTransportCall
 test("Goal read guard covers actual root callers and rejects restored Policy and relation SQL", () => {
   for (const file of ["apps/desktop/launchers/web/server.ts", ...WEB_DISPATCH_FILES, "apps/desktop/launchers/mcp/server.ts", "apps/local-host/src/mcp-server.ts", "apps/mcp/src/tool-dispatch.ts", "apps/local-host/src/cli-project.ts", "apps/cli/src/command-dispatch.ts",
     // The Host's Feed composition went with FI-6: the demo seed's library and the Runtime Feed's own composition are the callers now, as the boundary check reads them.
-    "apps/local-host/src/demo-feed-library.ts", ...["application-assembly.ts", "plugin.ts", "goal-promotion.ts"].map(file => `plugins/native/feed/src/${file}`)]) {
+    "plugins/native/feed/src/demo-seed.ts", ...["application-assembly.ts", "plugin.ts", "goal-promotion.ts"].map(file => `plugins/native/feed/src/${file}`)]) {
     const source = readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
     assert.deepEqual(checkGoalReadOwnerSql(source), [], file);
     for (const sql of ["SELECT 1 FROM goals WHERE project_id = ? AND goal_id = ?", "SELECT * FROM policy_bindings",

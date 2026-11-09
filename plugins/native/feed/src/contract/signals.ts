@@ -43,6 +43,7 @@ export interface SignalQuery {
 
 export interface SignalCommands {
   submitDraft(draft: SignalDraft): SignalReceipt;
+  deleteBySource(projectId: string, sourceId: string): void;
 }
 
 export interface SignalEvent {

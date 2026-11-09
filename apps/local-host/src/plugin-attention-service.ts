@@ -7,7 +7,7 @@ import {
   type PluginAttentionEntryInput, type PluginAttentionSubjectReference,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { attentionErrors, type AttentionEntryRecord } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
-import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
+import { createContextLedger, contextEdgeQueryKeys } from "@molis-ai/molis-work-module-context-ledger";
 import { AttentionModule, type AttentionSqliteDatabase } from "@molis-ai/molis-work-module-attention-resumption";
 import { assertCapturedPluginActionCurrent, currentPluginInvocation, pluginInvocationReadOnly, pluginSceneEffectPassed } from "@molis-ai/molis-work-plugin-runtime";
 import type { ContextLedgerDatabase } from "@molis-ai/molis-work-module-context-ledger";
@@ -173,7 +173,7 @@ export function pluginContextLedgerFor(manifest: PluginManifest, context: Plugin
   const access = (scope: Scope) => ({ actor_id: actorOf(scope, ports.actor_id), scope: { kind: "personal" as const, id: projectId } });
   return Object.freeze<PluginContextLedgerClient>({
     get: key => bareOrNull(ledger.query.get(access(gate.read(PLUGIN_CONTEXT_LEDGER_READ_PERMISSION)), named(key))),
-    list: query => ledger.query.list(access(gate.read(PLUGIN_CONTEXT_LEDGER_READ_PERMISSION)), query).filter(edge => names.owns(edge.key)).map(bare),
+    list: query => ledger.query.list(access(gate.read(PLUGIN_CONTEXT_LEDGER_READ_PERMISSION)), query?.keys === undefined ? query : { ...query, keys: contextEdgeQueryKeys(query.keys)!.map(named) }).filter(edge => names.owns(edge.key)).map(bare),
     history: key => ledger.query.history(access(gate.read(PLUGIN_CONTEXT_LEDGER_READ_PERMISSION)), named(key)).map(bare),
     join: (transaction, write) => joinPluginTransaction(database, transaction, (_afterCommit, live) => {
       const permit = () => { live(); return access(gate.write(PLUGIN_CONTEXT_LEDGER_WRITE_PERMISSION)); };

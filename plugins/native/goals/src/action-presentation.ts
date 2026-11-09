@@ -8,6 +8,7 @@ export const GOAL_DISPLAY_STATUSES: readonly GoalDisplayStatus[] = [
   "waiting",
   "blocked",
   "completed",
+  "cancelled",
 ];
 
 const STATUS_LABELS: Record<GoalDisplayStatus, string> = {
@@ -17,6 +18,7 @@ const STATUS_LABELS: Record<GoalDisplayStatus, string> = {
   waiting: "等待中",
   blocked: "受阻",
   completed: "已完成",
+  cancelled: "已取消",
 };
 
 export function createGoalActionPresenter(L: GoalStatusTranslate) {

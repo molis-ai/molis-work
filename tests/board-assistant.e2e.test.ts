@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { openBoardBrowser as openGoalBrowser } from "./fixtures/board-browser.js";
 
 // specs/visual-ui-experience VUX-39 (§render-lifecycle 同源标本), with VUX-08/09/10/13/18 as the board shows them: the
 // component board's 助理信息与任务 section runs the shipped Assistant island in its own bar on fixed works that the Host drew

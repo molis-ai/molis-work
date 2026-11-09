@@ -800,6 +800,8 @@ export declare function refuseDeclarations(problems: ReadonlyArray<string | Plug
 
 export { resolveActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
 
+export declare function rollbackPreservingError(original: unknown, rollback: () => unknown): void;
+
 export declare function runActionCard<Card extends ActionCard>(card: Card, input: {
     revision: number;
     values: Record<string, string>;

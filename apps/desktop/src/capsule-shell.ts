@@ -70,6 +70,7 @@ export const CAPSULE_STYLES = `
   .capsule-shell[data-state="complete"] .capsule__dot,
   .capsule-shell[data-state="ready"] .capsule__dot { background: var(--green); }
   .capsule-shell[data-state="empty"] .capsule__dot,
+  .capsule-shell[data-state="cancelled"] .capsule__dot,
   .capsule-shell[data-state="disconnected"] .capsule__dot { background: var(--faint); }
   .capsule__tabs { min-width: 0; display: flex; align-items: stretch; gap: 4px; overflow-x: auto; overflow-y: hidden; padding: 0 12px; border-bottom: 1px solid var(--line); background: var(--paper); }
   .capsule__tab { position: relative; flex: 0 0 auto; min-width: 0; border: 0; padding: 0 8px; background: transparent; color: var(--muted); font-size: 12px; font-weight: 400; white-space: nowrap; cursor: pointer; }

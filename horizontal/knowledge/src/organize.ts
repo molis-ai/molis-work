@@ -1,4 +1,4 @@
-import type { ActionSubject, SearchOpenTarget } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionSubject, type SearchOpenTarget } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   KNOWLEDGE_BRIEF_MAX_CHARS,
   KNOWLEDGE_CARD_MAX_KEYWORDS,
@@ -29,26 +29,55 @@ export interface KnowledgePiece {
   summary: string;
   /** The text the owner let the index hold; empty for a `summary` source. */
   content: string;
+  has_content?: boolean;
+  content_chars?: number;
   content_policy: "context" | "summary";
   updated_at: string | null;
   open: SearchOpenTarget | null;
 }
 
 /** A project's catalog: every document the search index holds for it, with the source that lists it. */
-export function knowledgeCatalog(index: Pick<SearchIndexPort, "documents" | "sources">, projectId: string): KnowledgePiece[] {
+export function knowledgeCatalog(index: Pick<SearchIndexPort, "catalog" | "document" | "sources">, projectId: string): KnowledgePiece[] {
   const sources = new Map(index.sources().filter(source => source.project_id === projectId).map(source => [source.source_key, source]));
-  return index.documents(projectId).flatMap(document => {
-    const source = sources.get(document.source_key);
-    if (!source) return [];
-    return [{ subject: { kind: document.kind, id: document.object_id }, source_key: document.source_key, provider_id: source.provider_id, plugin_id: source.plugin_id,
-      plugin_title: source.title, revision: document.revision, title: document.title, summary: document.summary, content: document.content,
-      content_policy: document.content_policy, updated_at: document.updated_at, open: document.open }];
-  });
+  const pieces: KnowledgePiece[] = [];
+  let cursor: string | undefined;
+  do {
+    const page = index.catalog(projectId, cursor);
+    for (const document of page.entries) {
+      const source = sources.get(document.source_key);
+      if (!source) continue;
+      let body: string | undefined;
+      pieces.push({ subject: { kind: document.kind, id: document.object_id }, source_key: document.source_key, provider_id: source.provider_id, plugin_id: source.plugin_id,
+        plugin_title: source.title, revision: document.revision, title: document.title, summary: document.summary,
+        has_content: document.has_content, content_chars: document.content_chars,
+        get content() {
+          if (body !== undefined) return body;
+          const current = index.document(document.source_key, document.kind, document.object_id);
+          if (!current || current.revision !== document.revision) throw new ActionError("actions.forbidden", "原资料来源已变化，请重新整理");
+          return body = current.content;
+        },
+        content_policy: document.content_policy, updated_at: document.updated_at, open: document.open });
+    }
+    cursor = page.next_cursor ?? undefined;
+  } while (cursor !== undefined);
+  return pieces;
 }
 
-/** A project's pieces whose text the index holds only the start of: a word past that is found only by reading them (PMAT-32). */
-export function knowledgeCutPieces(index: Pick<SearchIndexPort, "documents">, projectId: string): ActionSubject[] {
-  return index.documents(projectId).filter(document => document.content.length >= SEARCH_INDEX_CONTENT_CHARS).map(document => ({ kind: document.kind, id: document.object_id }));
+/** Metadata suffices to find pieces whose indexed text was cut, without reading their bodies. */
+export function knowledgeCutPieces(index: Pick<SearchIndexPort, "catalog" | "document">, projectId: string): ActionSubject[] {
+  const subjects: ActionSubject[] = [];
+  let cursor: string | undefined;
+  do {
+    const page = index.catalog(projectId, cursor);
+    for (const document of page.entries) {
+      // SQLite counts Unicode code points; a JS slice counts UTF-16 units. Only the large candidates need their exact text length.
+      if (document.content_chars < SEARCH_INDEX_CONTENT_CHARS / 2) continue;
+      if (document.content_chars >= SEARCH_INDEX_CONTENT_CHARS || (index.document(document.source_key, document.kind, document.object_id)?.content.length ?? 0) >= SEARCH_INDEX_CONTENT_CHARS)
+        subjects.push({ kind: document.kind, id: document.object_id });
+    }
+    cursor = page.next_cursor ?? undefined;
+  } while (cursor !== undefined);
+  return subjects;
 }
 
 /** What the model is given for one piece: its title, its text (or each section's opening when it is long) and the section anchors. */
@@ -86,7 +115,7 @@ const sameFields = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.string
  * A piece organizing has nothing to read in: its owner shares only a title and summary, or no text could be read out of it (an
  * image, a binary file). Its card is listed as its owner describes it, and nothing of it goes to the model.
  */
-const bare = (piece: KnowledgePiece) => piece.content_policy === "summary" || !piece.content.trim();
+const bare = (piece: KnowledgePiece) => piece.content_policy === "summary" || !(piece.has_content ?? !!piece.content.trim());
 
 /** A new card for a piece: a bare piece is listed as its owner describes it; the rest wait for organizing. */
 export function cardFor(projectId: string, piece: KnowledgePiece): KnowledgeCardRecord {

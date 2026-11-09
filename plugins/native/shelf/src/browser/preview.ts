@@ -1,3 +1,4 @@
+import { setContentHtml } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { escText, escapeAttr } from "./dom.js";
 import { renderBar } from "./bar.js";
 import { focusEditor } from "./edit.js";
@@ -40,7 +41,7 @@ export function fillReading(page: ShelfPage): void {
     readFullText(page, item).then((text) => {
       // Same text as the preview shown: re-rendering would only wipe a selection made meanwhile.
       const body = node.querySelector(".shelf-reading");
-      if (node.isConnected && body && text !== item.preview_text) body.innerHTML = reading.render(item, text);
+      if (node.isConnected && body && text !== item.preview_text) setContentHtml(body, reading.render(item, text));
     }).catch((error: Error) => {
       if (error.name === "AbortError" || !node.isConnected) return;
       const line = document.createElement("p");
@@ -60,7 +61,7 @@ function fillChildDoc(page: ShelfPage): void {
     const relative = doc.dataset.shelfChildDoc ?? "";
     const child = selected?.children?.find((entry) => entry.relative === relative);
     const holder = document.createElement("div");
-    holder.innerHTML = reading.render(child || { name: relative }, text);
+    setContentHtml(holder, reading.render(child || { name: relative }, text));
     doc.querySelectorAll("p.muted").forEach((node) => node.remove());
     doc.append(...holder.childNodes);
   }).catch(() => undefined);

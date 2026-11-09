@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
-import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { openBoardBrowser as openGoalBrowser } from "./fixtures/board-browser.js";
 import { assistantTextModel } from "./fixtures/assistant-text-model.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 

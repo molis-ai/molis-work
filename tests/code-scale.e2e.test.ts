@@ -5,7 +5,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createCodingCodePaint } from "@molis-ai/molis-work-plugin-coding";
 import { codeTokens, growCodeTokens } from "@molis-ai/molis-work-plugin-sdk/highlight";
-import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { openBoardBrowser as openGoalBrowser } from "./fixtures/board-browser.js";
 import { assistantTextModel } from "./fixtures/assistant-text-model.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 import { codeColouringProjection } from "./fixtures/code-colouring.js";

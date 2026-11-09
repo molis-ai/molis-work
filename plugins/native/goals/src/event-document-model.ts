@@ -211,7 +211,7 @@ export function eventDirectoryPresentation(state: GoalEventStateView, _goal?: Pi
     return {
       event_work: true,
       status: "invalidated",
-      display_status: "continue",
+      display_status: "cancelled",
       status_label: "已取消",
       main_action_label: "显式继续",
       action_summary: "已取消的 Goal 需要显式继续，不会被普通记录自动恢复。",

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { Script } from "node:vm";
 import test from "node:test";
-import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { openBoardBrowser as openGoalBrowser } from "./fixtures/board-browser.js";
 import { layoutFindings } from "./fixtures/layout-audit.js";
 import { renderInteractionNextSteps } from "@molis-ai/molis-work-design-system";
 import { CLIENT_SCRIPT, assistantTextHtml } from "@molis-ai/molis-work-app-workbench";

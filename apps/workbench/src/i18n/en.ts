@@ -1,3 +1,4 @@
+import { IM_EN } from "@molis-ai/molis-work-im-ui";
 import { SKILLS_EN } from "./skills-en.js";
 import { ARTIFACT_EN } from "../artifacts/en.js";
 import { FUNCTIONS_EN } from "../judgment-rules/en.js";
@@ -25,6 +26,7 @@ import { CONNECTION_NEED_EN } from "./connection-need-en.js";
 import { TASK_GRANTS_PAGE_EN } from "./task-grants-page-en.js";
 /** Existing Workbench English catalog, isolated from locale runtime state in AP3. */
 export const EN: Record<string, string> = {
+  ...IM_EN,
   "角色资料": "Role material",
   "角色资料与方法": "Role materials and methods",
   "新增正文": "Body added",

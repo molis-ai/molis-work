@@ -271,3 +271,15 @@ test("RAC-589 S-74 project_reach is declared on Home-scoped actions only, and on
   refused(manifest => { actionsOf(manifest).find(definition => definition.action.scope === "home")!.action.project_reach = "everyone"; }, "project_reach");
   refused(manifest => { actionsOf(manifest).find(definition => definition.action.scope === "home")!.action.project_reach = true; }, "project_reach");
 });
+
+
+test("D0041: demo_seed refuses missing, query, wrong audience and nonempty input actions", () => {
+  const base = currentManifest();
+  const command = { capability_id: "sample.demo.seed", version: 1, operation: "command", action: { kind: "operation", scope: "project", subject_kinds: ["project"], title: "Seed", description: "Sample", audiences: ["workflow"], permissions: [], input_schema: { type: "object", properties: {}, additionalProperties: false }, output_schema: { type: "object", properties: {}, additionalProperties: false } } };
+  const declaration = { capability_id: command.capability_id, version: 1 };
+  assert.throws(() => parsePluginManifest({ ...base, demo_seed: declaration }), /demo_seed/);
+  for (const action of [ { ...command, action: { ...command.action, scope: "home" } }, { ...command, operation: "query" }, { ...command, action: { ...command.action, audiences: ["user"] } }, { ...command, action: { ...command.action, input_schema: { type: "object", properties: { text: { type: "string" } }, additionalProperties: false } } } ]) {
+    assert.throws(() => parsePluginManifest({ ...base, actions: [action], demo_seed: declaration }), /demo_seed/);
+  }
+  assert.deepEqual(parsePluginManifest({ ...base, actions: [command], demo_seed: declaration }).demo_seed, declaration);
+});

@@ -1,3 +1,4 @@
+import { rollbackPreservingError } from "@molis-ai/molis-work-plugin-sdk";
 import type { DatabaseSync } from "node:sqlite";
 import { connectorErrors } from "@molis-ai/molis-work-contracts/services/connector-host";
 
@@ -31,7 +32,7 @@ export function inConnectorTransaction<T>(db: DatabaseSync, work: () => T): T {
     db.exec("COMMIT");
     return result;
   } catch (error) {
-    db.exec("ROLLBACK");
+    rollbackPreservingError(error, () => db.exec("ROLLBACK"));
     throw error;
   }
 }

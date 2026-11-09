@@ -6,5 +6,5 @@ export const STATUS_MARKS: Record<GoalPresentationState, StateRingState> = {
     satisfied: "done", invalidated: "cancelled", trashed: "trashed", archived: "archived",
 };
 export const DISPLAY_STATUS_MARKS: Record<GoalDisplayStatus, StateRingState> = {
-    continue: "ready", in_progress: "doing", waiting_user: "answer", waiting: "waiting", blocked: "blocked", completed: "done",
+    continue: "ready", in_progress: "doing", waiting_user: "answer", waiting: "waiting", blocked: "blocked", completed: "done", cancelled: "cancelled",
 };

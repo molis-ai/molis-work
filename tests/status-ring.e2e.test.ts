@@ -2,7 +2,7 @@ import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import test from "node:test";
-import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { openBoardBrowser as openGoalBrowser } from "./fixtures/board-browser.js";
 
 test("RING-01 RING-02 RING-03 RING-04 RING-05 catalog, lifecycle, Goals and Home plugin states", { timeout: 180_000 }, async t => {
   const browser = await openGoalBrowser(t, true);

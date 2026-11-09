@@ -1,3 +1,4 @@
+import type { RuntimeContextBindingPage } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 import { createCatalogCommit, type CatalogCommit } from "./catalog-commit.js";
 import { preflightMemoryHome, prepareMemoryHome } from "./memory/memory-initialization.js";
 import { ModelProviderStore } from "./model-provider-store.js";
@@ -138,10 +139,6 @@ export type MolisWorkProjectDeletionResult = ProjectDeletionResult;
  */
 export type CreateAndBindRuntimeContextInput = import("@molis-ai/molis-work-contracts/modules/private-work-context").CreateAndBindRuntimeContextInput;
 
-export interface LocalCatalogPlatform {
-  createPanelSchema(db: SqliteDatabase): void;
-}
-
 /** The complete memory preference gate precedes the catalog's first filesystem or SQLite write. */
 async function prepareCatalogStorage(options: MolisWorkProjectCatalogOptions) {
   const homeDirectory = resolveConfiguredHome(options.homeDirectory);
@@ -245,12 +242,12 @@ export class MolisWorkProjectCatalog {
       appendProjectEvent: (projectId: string, type: string, actorId: string, payload: Record<string, unknown>) => this.projects.lifecycle.appendEvent(projectId, type, actorId, payload) });
   }
 
-  /** Current owner composition in disposable memory authenticates the full archived catalog, including desktop tables. */
-  static inspectSnapshot(database: SqliteDatabase, platform: LocalCatalogPlatform): Readonly<Record<string, string | number>> {
-    return inspectCurrentCatalogSnapshot(database, platform.createPanelSchema);
+  /** Current owner composition in disposable memory authenticates the full archived catalog, without retired desktop tables. */
+  static inspectSnapshot(database: SqliteDatabase): Readonly<Record<string, string | number>> {
+    return inspectCurrentCatalogSnapshot(database);
   }
 
-  static async open(options: MolisWorkProjectCatalogOptions, platform: LocalCatalogPlatform): Promise<MolisWorkProjectCatalog> {
+  static async open(options: MolisWorkProjectCatalogOptions): Promise<MolisWorkProjectCatalog> {
     const home = resolveConfiguredHome(options.homeDirectory), root = agentRuntimeDirectory(home);
     // Given an owner, that owner's taker has already upgraded this Home.
     const owned = options.storageOwner === undefined ? acquireUpgradedHomeOwner(home, preflightMemoryHome) : undefined;
@@ -259,7 +256,7 @@ export class MolisWorkProjectCatalog {
     let opened: MolisWorkProjectCatalog | undefined;
     try {
       retained = retainStorageOwner(root, owner);
-      opened = await this.openOwned({ ...options, homeDirectory: home, storageOwner: owner }, platform);
+      opened = await this.openOwned({ ...options, homeDirectory: home, storageOwner: owner });
     } catch (error) { retained?.release(); owned?.release(); throw error; }
     const holding = retained;
     opened.releaseOwner = () => { holding.release(); owned?.release(); };
@@ -267,7 +264,7 @@ export class MolisWorkProjectCatalog {
     return opened;
   }
 
-  private static async openOwned(options: MolisWorkProjectCatalogOptions, platform: LocalCatalogPlatform): Promise<MolisWorkProjectCatalog> {
+  private static async openOwned(options: MolisWorkProjectCatalogOptions): Promise<MolisWorkProjectCatalog> {
     const { homeDirectory, databasePath, existed, storage } = await prepareCatalogStorage(options);
     const db = storage.db;
     try {
@@ -292,7 +289,7 @@ export class MolisWorkProjectCatalog {
           initializeSchema: !initialized,
           authorize: (access) => access.scope.kind === "personal" && access.scope.id === "private-work-context",
         });
-        if (!initialized) { bindDatabaseSpace(db,ensureStorageSpace(homeDirectory)); initializeCatalog(storage, platform.createPanelSchema); }
+        if (!initialized) { bindDatabaseSpace(db,ensureStorageSpace(homeDirectory)); initializeCatalog(storage); }
         return new MolisWorkProjectCatalog(storage, homeDirectory, ledger);
       }).immediate();
       return catalog;
@@ -362,9 +359,9 @@ export class MolisWorkProjectCatalog {
     });
   }
   listRuntimeContextBindingEvents(
-    context?: RuntimeWorkContext,
-  ): MolisWorkRuntimeContextBindingEvent[] { return this.runtimeContexts.records.listRuntimeContextBindingEvents(context); }
-  listRuntimeContextBindings(): MolisWorkRuntimeContextBinding[] { return this.runtimeContexts.records.listRuntimeContextBindings(); }
+    context?: RuntimeWorkContext, page?: RuntimeContextBindingPage,
+  ): MolisWorkRuntimeContextBindingEvent[] { return this.runtimeContexts.records.listRuntimeContextBindingEvents(context, page); }
+  listRuntimeContextBindings(page?: RuntimeContextBindingPage): MolisWorkRuntimeContextBinding[] { return this.runtimeContexts.records.listRuntimeContextBindings(page); }
 
   /** The project's inputs and output, a folder's state looked at now (`projects.directories.get@1`). */
   projectDirectories(projectId: string): ProjectDirectories {

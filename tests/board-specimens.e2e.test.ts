@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { openBoardBrowser as openGoalBrowser } from "./fixtures/board-browser.js";
 
 // specs/visual-ui-experience VUX-39 (§render-lifecycle 同源标本): what the component board was still missing — its own language
 // switch and English sample words beside Chinese and mixed ones; plugins' rows (Shelf's media materials, Diff's file rows,

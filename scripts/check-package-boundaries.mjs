@@ -562,7 +562,7 @@ export function checkMigratedGoalsCommandOwnership(repositoryRoot) {
   ) {
     errors.push(`${goalReadApplicationPath}: compatibility composition must not own Goal persistence or bypass Goals Query`);
   }
-  for (const relativePath of ["apps/local-host/src/demo-feed-library.ts", ...["application-assembly.ts", "plugin.ts", "goal-promotion.ts"].map(file => `plugins/native/feed/src/${file}`)]) {
+  for (const relativePath of ["plugins/native/feed/src/demo-seed.ts", ...["application-assembly.ts", "plugin.ts", "goal-promotion.ts"].map(file => `plugins/native/feed/src/${file}`)]) {
     errors.push(...checkGoalReadOwnerSql(read(relativePath)).map(error => `${relativePath}: ${error}`));
   }
   errors.push(...checkNoGoalTypedAdapters(["apps", "horizontal", "modules", "packages", "plugins", "server"]
@@ -877,8 +877,8 @@ export function checkArtifactsOwnership(repositoryRoot) {
     }
   }
 
-  // The lifecycle rules live in the service and in the registration it checks a version with (service.ts, registration.ts).
-  const service = read("modules/artifacts/src/service.ts") + read("modules/artifacts/src/registration.ts");
+  // Lifecycle and compatibility rules stay in the Artifact owner, shared by the service and paginated consumers.
+  const service = read("modules/artifacts/src/service.ts") + read("modules/artifacts/src/registration.ts") + read("modules/artifacts/src/compatibility.ts");
   for (const required of [
     "artifacts.artifact.version_not_increasing",
     "artifacts.artifact.version_conflict",
@@ -888,7 +888,7 @@ export function checkArtifactsOwnership(repositoryRoot) {
     '"consumer_missing"',
   ]) {
     if (!hasInText(service, required)) {
-      errors.push(`modules/artifacts/src/{service,registration}.ts: Artifact lifecycle is missing ${required}`);
+      errors.push(`modules/artifacts/src/{service,registration,compatibility}.ts: Artifact lifecycle is missing ${required}`);
     }
   }
   if (/plugins\/(?:native|official-integrations)\//u.test(service + repository)) {

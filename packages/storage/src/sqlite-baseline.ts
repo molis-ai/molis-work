@@ -1,3 +1,4 @@
+import { rollbackPreservingError } from "./transaction-errors.js";
 import { readStorageSpace, spaceMetadataShapeMatches, STORAGE_SPACE_SCHEMA_SQL } from "./space.js";
 import { existsSync, statSync } from "node:fs";
 import { basename, isAbsolute, relative } from "node:path";
@@ -278,7 +279,7 @@ function applyBaseline(db: SqliteBaselineDatabase, path: string, baseline: Sqlit
     db.exec(`PRAGMA user_version = ${baseline.version}`);
     db.exec("COMMIT");
   } catch (error) {
-    db.exec("ROLLBACK");
+    rollbackPreservingError(error, () => db.exec("ROLLBACK"));
     throw error;
   }
 }
@@ -392,6 +393,6 @@ export function clearInExistingHomeSqlite<T>(homeDirectory: string, storeName: s
       const result = clear(db);
       db.exec("COMMIT");
       return result;
-    } catch (error) { db.exec("ROLLBACK"); throw error; }
+    } catch (error) { rollbackPreservingError(error, () => db.exec("ROLLBACK")); throw error; }
   } finally { db.close(); }
 }

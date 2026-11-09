@@ -1,3 +1,4 @@
+import { goalsStatesAction, createGoalsStatesHandler } from "./state-batch-action.js";
 import { goalEntryActions, goalPluginActions, type GoalCreateActionInput, type GoalReadActionInput } from "./contract/goal-actions.js";
 export type { GoalCreateActionInput } from "./contract/goal-actions.js";
 export type { GoalReadActionInput } from "./contract/goal-actions.js";
@@ -78,6 +79,7 @@ export const goalsActions = {
   progressReceipt: goalPluginActions.receipt,
   list: goalPluginActions.list,
   state: goalPluginActions.state,
+  states: goalsStatesAction,
   directoryItem: goalEntryActions.directoryItem,
   events: action<GoalReadActionInput & GoalEventListQuery, GoalEventListPage>("goals.events.list", /* @version action.goals.events.list */ 1, "读取目标事件", "按记录顺序读取事件原文；after_cursor 为上次事件分页游标", "query",
     object({ goal_id: identifier, after_cursor: count, limit }, ["goal_id"]), goalEventPageSchema),
@@ -178,6 +180,7 @@ export function createGoalsActionHandlers({ events, acknowledgements, projectId,
     } },
     { ...goalsActions.list, handle: (_caller, input) => events.listGoals({ ...(input as GoalListActionInput), project_id: projectId }) },
     { ...goalsActions.state, handle: (_caller, input) => events.readState(projectId, (input as GoalReadActionInput).goal_id) },
+    createGoalsStatesHandler(events, projectId),
     { ...goalsActions.directoryItem, handle: (_caller, input) => events.readDirectoryItem(projectId, (input as GoalReadActionInput).goal_id) },
     { ...goalsActions.events, handle: (_caller, input) => { const { goal_id, ...query } = input as GoalReadActionInput & GoalEventListQuery; return events.listEvents(projectId, goal_id, query); } },
     { ...goalsActions.latestEvents, handle: (_caller, input) => { const { goal_id, ...query } = input as GoalReadActionInput & GoalEventHistoryQuery; return events.listLatestEvents(projectId, goal_id, query); } },

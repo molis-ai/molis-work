@@ -36,7 +36,7 @@ export async function withHomePluginStorePageRecovery(context: WebRequestContext
       project: catalog.getProject(selectedId), membership: catalog.storedProjectPluginMembership(selectedId),
     })) : { project: null, membership: { plugins: [], hidden: [] } };
     const prefix = projectId ? `/projects/${encodeURIComponent(projectId)}` : "";
-    const html = renderPluginStoreUnavailablePage({ ...projection, reason: error.message,
+    const html = renderPluginStoreUnavailablePage({ ...projection, reason: L("Home 插件运行库不可用"), code: error.code,
       reloadHref: prefix + url.pathname + url.search, desktopShell: composition.isDesktopShellRequest(request, url) }, { L, htmlLang, desktop: composition.desktopRenderer });
     response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": composition.PAGE_CSP });
     response.end(html);

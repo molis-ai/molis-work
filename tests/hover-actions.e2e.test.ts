@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import test from "node:test";
 import { pluginOnDemandStylesheet, pluginWorkbenchPacks } from "@molis-ai/molis-work-app-workbench";
-import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { openBoardBrowser as openGoalBrowser } from "./fixtures/board-browser.js";
 import { HOVER_HIDDEN, HOVER_RULES, hoverFocus, hoverShown, type HoverHidden, type HoverRule } from "./fixtures/hover-audit.js";
 
 // specs/visual-ui-experience §geometry-boundaries and §adaptive-focus (VUX-06, VUX-29): an action a row shows only while a

@@ -120,3 +120,4 @@ export {
   type VersionedFileRead,
   type VersionedFileStep,
 } from "./versioned-file.js";
+export { rollbackPreservingError } from "./transaction-errors.js";

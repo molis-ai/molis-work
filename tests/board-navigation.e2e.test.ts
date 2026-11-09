@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
-import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { openBoardBrowser as openGoalBrowser } from "./fixtures/board-browser.js";
 import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 
 // 07-1 S0 (docs/design/workbench-navigation, 组件板新增 1–3, 6–10, 12–16): the component board's 工作台导航 frame draws every

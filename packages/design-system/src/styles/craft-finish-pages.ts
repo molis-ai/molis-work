@@ -64,7 +64,9 @@ export const CRAFT_PAGES_STYLES = `  /* A phone: two rows at the foot, the Assis
     ${SHELL} [data-assistant-island]:has(.assistant-panel[hidden]) :is([data-assistant-character], [data-assistant-executor]):not([data-chosen]) { display: none; }
     ${SHELL} .bar-composer:has([data-assistant-character][data-chosen]) [data-assistant-executor] { display: none; }
     /* Only while typing: focusing the switcher or a chip must keep it on screen. */
-    ${SHELL} .bar-composer:has(.assistant-composer-input:focus):not([data-measuring]) :is(.assistant-target, .assistant-executor, .assistant-attention) { display: none; }
+    ${SHELL} .bar-composer:has(.assistant-composer-input:focus):not([data-measuring]) :is(.assistant-executor, .assistant-attention) { display: none; }
+    ${SHELL} .bar-composer:has(.assistant-composer-input:focus) .assistant-target { max-width: 76px; min-width: 36px; }
+    ${SHELL} .bar-composer:has(.assistant-composer-input:focus) [data-assistant-target-label] { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   }
 
   /* Prompt 与 Character settings: grouped by source, each prompt expandable to edit, the default beside the person's version. */

@@ -46,3 +46,10 @@ test("factors contribution keeps owner content, live counts and accessible tab r
   assert.match(captured[1]!.body, /Policy owner/);
   assert.match(html, /关联与约束/);
 });
+
+test("D0013 a cancelled goal keeps the cancelled state and shared visual mark", () => {
+  const renderer = goalsRenderers.status({ translate: L, escapeHtml, icon });
+  const item = { status: "cancelled" as const, display_status: "cancelled" as const };
+  assert.match(renderer.renderVisibleGoalStatus(item), /goal-status--cancelled/);
+  assert.equal(renderer.visibleGoalStatusIcon(item), renderStateRing({ state: "cancelled" }));
+});

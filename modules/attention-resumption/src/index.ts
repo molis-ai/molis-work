@@ -8,6 +8,7 @@ import type {
   AttentionEvent,
   AttentionReason,
   AttentionStatus,
+  AttentionSurfaceEntry,
   AttentionSubjectResolver,
   AttentionSubjectType,
   CreateAttentionEntryInput,
@@ -149,6 +150,19 @@ export class AttentionModule implements AttentionApi {
     private readonly subjects: AttentionSubjectResolver,
     private readonly options: AttentionModuleOptions = {},
   ) {}
+
+  /** Active references only. The owner is the persisted owner, never inferred from the object kind. */
+  listSurfaceEntries(projectId: string): AttentionSurfaceEntry[] {
+    const subjectKinds: Record<AttentionSubjectType, string> = { feed_item: "feed_item", goal_decision: "goal", source_fault: "source" };
+    const rows = this.db.prepare(`
+      SELECT owner_plugin_id, subject_type, subject_id, reason, revision, created_at
+      FROM inbox_entries WHERE project_id = ? AND status IN ('open', 'in_progress') AND owner_plugin_id IS NOT NULL
+      ORDER BY created_at DESC, entry_id
+    `).all(projectId) as Array<{ owner_plugin_id: string; subject_type: AttentionSubjectType; subject_id: string;
+      reason: AttentionReason; revision: number; created_at: string }>;
+    return rows.map(row => ({ owner_plugin_id: row.owner_plugin_id, subject: { kind: subjectKinds[row.subject_type], id: row.subject_id },
+      reason: row.reason, revision: row.revision, entered_at: row.created_at }));
+  }
 
   private list(projectId: string): AttentionEntryRecord[] {
     return (this.db.prepare(

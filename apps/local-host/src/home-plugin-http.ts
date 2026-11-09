@@ -28,6 +28,35 @@ import { FRAME_QUERY } from "./plugin-builder-surface.js";
 /** The project a Home route names: where its library is and whether it reaches a Home plugin (`projectReachablePlugins`); null when there is none. */
 export type HomeRouteProjectPlugins = (projectId: string) => Promise<{ readonly database_path: string; readonly display_name?: string; reaches(pluginId: string): boolean } | null>;
 
+/** Management is a Host operation. Queued requests check the original connection before changing an installation. */
+async function changeHomePlugin(request: IncomingMessage, response: ServerResponse, home: HomePluginHost, platform: HomePluginPlatform,
+  pluginId: string, operation: "enable" | "disable" | "uninstall"): Promise<void> {
+  if (request.method !== "POST") { sendLocalWebJson(response, 405, { error: "请通过 POST 更改插件状态" }); return; }
+  const assertConnected = () => {
+    if (request.aborted || response.destroyed) throw new ActionError("actions.cancelled", "这次设置操作已经结束");
+  };
+  try {
+    if (home.hasPackage(pluginId)) {
+      const body = operation === "uninstall" ? await readLocalWebBody(request) as { keep_data?: unknown } | null : null;
+      await home.packageAction(pluginId, operation, { keepData: body?.keep_data === true }, { assert_authority_current: assertConnected });
+      sendLocalWebJson(response, 200, { [operation === "enable" ? "enabled" : operation === "disable" ? "disabled" : "uninstalled"]: true });
+    } else if (operation === "uninstall") {
+      sendLocalWebJson(response, 404, { error: "插件没有这个入口" });
+    } else if (operation === "enable") {
+      const state = await home.installationScope.run(() => { assertConnected(); return platform.supervisor.enable(pluginId); });
+      sendLocalWebJson(response, state.status === "running" ? 200 : 503, { state, ...(state.message ? { error: state.message } : {}) });
+    } else {
+      assertConnected();
+      const refusal = home.leaveRefusal(pluginId, "停用");
+      if (refusal) throw refusal;
+      const install = home.installation(pluginId);
+      platform.supervisor.revoke(pluginId);
+      if (install && install.state !== "disabled") await platform.runtime.stop(install.install_id);
+      sendLocalWebJson(response, 200, { disabled: true });
+    }
+  } catch (error) { const refused = actionErrorResponse(error); sendLocalWebJson(response, refused.status, refused.body); }
+}
+
 /**
  * Called only after the common local transport Host/Origin/token checks. No business dispatch list lives here. A plugin's own route
  * under a project's path (`/projects/<id>/api/plugins/<plugin>/…`) runs in that project once it exists and shows the plugin; the
@@ -123,28 +152,8 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
     response.end(renderHomePluginPage(pageEntry(entry), html, host.homePlugins.packageError(pluginId) ?? platform.supervisor.state(pluginId)?.message ?? null, controlToken, { L, htmlLang, clientI18nScript, accountRegistration }, false, Boolean(sideView), project));
     return true;
   }
-  if (["enable", "disable", "uninstall"].includes(operation)) {
-    if (request.method !== "POST") { sendLocalWebJson(response, 405, { error: "请通过 POST 更改插件状态" }); return true; }
-    // A package installed in the Home (BL-628) is switched and removed by the install lifecycle a project's packages have, not by the supervisor alone.
-    if (host.homePlugins.hasPackage(pluginId)) {
-      try {
-        const body = operation === "uninstall" ? await readLocalWebBody(request) as { keep_data?: unknown } | null : null;
-        await host.homePlugins.packageAction(pluginId, operation as "enable" | "disable" | "uninstall", { keepData: body?.keep_data === true });
-        sendLocalWebJson(response, 200, { [operation === "enable" ? "enabled" : operation === "disable" ? "disabled" : "uninstalled"]: true });
-      } catch (error) { const refused = actionErrorResponse(error); sendLocalWebJson(response, refused.status, refused.body); }
-      return true;
-    }
-    if (operation === "uninstall") { sendLocalWebJson(response, 404, { error: "插件没有这个入口" }); return true; }
-    if (operation === "enable") {
-      const state = await platform.supervisor.enable(pluginId);
-      sendLocalWebJson(response, state.status === "running" ? 200 : 503, { state, ...(state.message ? { error: state.message } : {}) });
-    } else {
-      const refusal = host.homePlugins.leaveRefusal(pluginId, "停用");
-      if (refusal) { const refused = actionErrorResponse(refusal); sendLocalWebJson(response, refused.status, refused.body); return true; }
-      platform.supervisor.revoke(pluginId);
-      if (install && install.state !== "disabled") await platform.runtime.stop(install.install_id);
-      sendLocalWebJson(response, 200, { disabled: true });
-    }
+  if (operation === "enable" || operation === "disable" || operation === "uninstall") {
+    await changeHomePlugin(request, response, host.homePlugins, platform, pluginId, operation);
     return true;
   }
   const abort = new AbortController(), pageAuthority = pluginPageRequest(request);

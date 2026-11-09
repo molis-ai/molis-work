@@ -4,7 +4,7 @@ import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/p
 import {
   PLACEMENT_PROVIDER_ID, placementActions, placementGoalActions, type PlacedObject, type PlacementConvertRequest, type PlacementCreateRequest, type PlacementSpaceView,
 } from "@molis-ai/molis-work-contracts/services/placement";
-import { PlacementService, PLACEMENT_LEDGER_ACCESS, type PlacementPorts } from "@molis-ai/molis-work-service-placement";
+import { PlacementService, PLACEMENT_LEDGER_ACCESS, placementRelationsFor, type PlacementPorts } from "@molis-ai/molis-work-service-placement";
 import { CONTEXT_LEDGER_SCHEMA, createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase, type SqliteBaseline, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 import { isPersonalSpace, PERSONAL_SPACE_PROJECT_ID } from "./personal-space.js";
@@ -32,6 +32,7 @@ interface PlacementHostPorts {
 
 export interface PlacementHost {
   readonly service: PlacementService;
+  relationsFor(projectId: string, candidates: readonly PlacedObject[]): ReturnType<typeof placementRelationsFor>;
   close(): void;
 }
 
@@ -96,7 +97,13 @@ export function createPlacementHost(ports: PlacementHostPorts): PlacementHost {
   ];
   const dispose = ports.registry.registerProvider({ provider: { provider_id: PLACEMENT_PROVIDER_ID, title: "放置", kind: "system" },
     definitions: [...Object.values(placementActions), ...Object.values(placementGoalActions)], handlers });
-  return { service, close: () => { closed = true; dispose(); db.close(); } };
+  return { service,
+    relationsFor: (projectId, candidates) => {
+      if (closed) throw new ActionError("actions.expired", "原放置服务已关闭");
+      return placementRelationsFor(ledger, projectId, candidates);
+    },
+    close: () => { closed = true; dispose(); db.close(); },
+  };
 }
 
 /** This store in the Home's store registry (W4-11). */

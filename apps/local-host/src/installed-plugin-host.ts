@@ -180,7 +180,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
     else registerGeneratedPrompts(homeDirectory, generatedRegistration(release, releases.versions(release.buildId), state, installedVersion(release)), promptScope(record.install_id));
   };
   const stops = publisherStops({ standing, platform, recoveryErrors, withdraw, records });
-  const lifecycle = installedLifecycle({ platform, storage, privateStorage, secrets, recoveryErrors, closed: () => closed, trusted: standing.trusted, recordFor, releaseFor, approvedFor, definition, expose, withdraw, registerPrompts,
+  const lifecycle = installedLifecycle({ platform, projectId, storage, privateStorage, secrets, recoveryErrors, closed: () => closed, trusted: standing.trusted, recordFor, releaseFor, approvedFor, definition, expose, withdraw, registerPrompts,
     async forget(pluginId, installId) {
       unregisterGeneratedPrompts(homeDirectory, pluginId, promptScope(installId));
       forgetPluginAgentDefinitions(pluginHomeFor(homeDirectory), installId);
@@ -222,7 +222,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
 
     return { platform, storage, actions, releases, catalog, capabilityFor, network, secrets, lifecycle, close, records, releaseFor, recoveryErrors,
       /** Installs a release read from a signed package, under the trust it carries; the person's approval of its permissions is `consent`. A package of a plugin already installed here is its upgrade (BL-623). */
-      installPackage: (release: InstalledRelease, input: { consent: true }) => lifecycle(recordFor(release.pluginId) ? 'upgrade' : 'install', release, input),
+      installPackage: (release: InstalledRelease, input: { consent: true; assertCurrent?: () => void; scopeOpen?: () => boolean }) => lifecycle(recordFor(release.pluginId) ? 'upgrade' : 'install', release, input),
       packageOf: (pluginId: string) => signedPackageOf(packages, recordFor(pluginId)),
       refreshPublicActions: async () => { await stops.reconcile(); if (exposed.size) await catalog(); }, reconcilePublishers: stops.reconcile,
       installations: () => records().map(item => ({ pluginId: item.plugin_id, buildId: item.publisher_signature.startsWith(SIGNATURE) ? item.publisher_signature.slice(SIGNATURE.length) : item.publisher_signature, version: Number(item.version.split('.')[0]),

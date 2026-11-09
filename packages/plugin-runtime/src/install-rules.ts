@@ -140,6 +140,25 @@ export function validateInstalledManifest(manifest: PluginManifest, owners?: Dec
 /** Whoever the Host says declares the names the platform keeps one owner for, asked about the Manifest that wants to declare some. It throws when it cannot tell. */
 export type DeclarationOwners = (manifest: PluginManifest) => readonly DeclarationOwner[];
 
+/** The old edition is checked before its record is saved and again while it is starting. */
+export interface PresentationRestoration {
+  beforeCommit(): void;
+  assertRestored(): void;
+}
+
+/** The Host's complete, scope-local action declarations. It can recognize its own exact failed-switch restoration. */
+export type PresentationAdmission = (manifest: PluginManifest, rollback: boolean) => PresentationRestoration | undefined;
+
+export function assertPresentationAdmitted(manifest: PluginManifest, admit: PresentationAdmission | undefined,
+  { retained, rollback = false }: { retained?: PluginInstanceRecord | null; rollback?: boolean } = {}): PresentationRestoration | undefined {
+  if (manifest.presentation === undefined) return;
+  if (!admit) throw pluginErrors.declaration_invalid("这个宿主核对不了完整的呈现动作目录");
+  if (retained && retained.state !== "uninstalled" && retained.plugin_id === manifest.plugin_id
+    && retained.publisher_id === manifest.publisher.publisher_id && retained.publisher_signature === manifest.publisher.signature
+    && retained.version === manifest.version && retained.manifest_digest === pluginManifestDigest(manifest)) return;
+  return admit(manifest, rollback);
+}
+
 /** What a start needs besides a running host: the grants its Manifest requires, and its names still being its own (S-82: a start is where an enable lands). */
 export function assertStartable(manifest: PluginManifest, grants: readonly string[], owners?: DeclarationOwners): void {
   assertRequiredGrants(manifest, grants);

@@ -11,7 +11,7 @@ import type {
 import { ActionService, CapabilityRegistry, refuseCall, registeredActionMetadata, type CallSettled } from "@molis-ai/molis-work-kernel";
 import { projectCallCaller } from "./project-call-caller.js";
 import { ActionError, requireSynchronous, type SyncActionClient, type ActionCallContext, type ActionClient, type ActionDefinition,
-  type ActionRegistryPort, type ActionProviderRegistration, type ActionView, type ActionSceneClient, type ActionSceneDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+  type ActionProviderRegistration, type ActionView, type ActionSceneClient, type ActionSceneDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { dependencyCaller, verifiedCaller } from "./plugin-callers.js";
 import { HostAvailability } from "./local-host-availability.js";
 import { callSignal, snapshotCaller } from "./local-host-caller.js";
@@ -19,6 +19,8 @@ import { ProjectLine, normalizeReference } from "./local-host-project-line.js";
 import { createSceneClient, type SceneHost } from "./local-host-scenes.js";
 import { createSyncActionClient, type SyncClientHost } from "./local-host-sync-client.js";
 import type { HostCapabilityHandler, LocalHostOptions } from "./local-host-types.js";
+import { isMcpToolCapability } from "./mcp-tool-actions.js";
+import type { SurfaceInstallRegistry } from "./surface-installation.js";
 
 export type { ActionAvailabilityPolicy, HostCapabilityHandler, LocalHostOptions, LocalHostRuntimeFactory } from "./local-host-types.js";
 
@@ -84,10 +86,10 @@ export class LocalHost<Runtime> {
   }
 
   /** Composition-only registration. Project authority comes from the owner, never the Plugin. */
-  actionRegistry(reference?: LocalHostProjectReference): ActionRegistryPort {
+  actionRegistry(reference?: LocalHostProjectReference): SurfaceInstallRegistry {
     const project = reference ? normalizeReference(reference) : undefined;
     const entry = project ? this.line.ensureEntry(project) : undefined;
-    return { registerProvider: (registration: ActionProviderRegistration) => {
+    const registerProvider = (registration: ActionProviderRegistration) => {
       this.assertRunning();
       if (entry && !this.line.isLive(entry)) {
         throw hostErrors.project_closing("能力来源所属项目已关闭");
@@ -108,7 +110,10 @@ export class LocalHost<Runtime> {
       const dispose = () => { remove(); owner.delete(dispose); announce(); };
       owner.add(dispose); announce(registration.scenes);
       return dispose;
-    } };
+    };
+    return { registerProvider, presentationSystemActions: () => this.capabilities.descriptors(descriptor => descriptor.action?.scope === (project ? "project" : "home")
+      && descriptor.action_provider?.kind === "system" && (!descriptor.action_provider.project_id || descriptor.action_provider.project_id === project?.project_id)
+      && !isMcpToolCapability(descriptor.capability_id)).map(({ capability_id, version }) => ({ capability_id, version })) };
   }
 
   private metadataCaller(caller: ActionCallContext, reference?: LocalHostProjectReference): ActionCallContext {

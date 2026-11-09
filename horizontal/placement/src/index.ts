@@ -3,7 +3,7 @@ import {
   type ActionCallContext, type ActionClient, type ActionReference, type ActionView, type PlacementRelationRole, type PlacementResult,
   type WorkflowItemRef,
 } from "@molis-ai/molis-work-contracts/platform/actions";
-import { CONTEXT_RELATION_TYPES, type ContextAccess, type ContextEdge, type ContextLedgerApi, type ObjectRef } from "@molis-ai/molis-work-contracts/modules/context-ledger";
+import { CONTEXT_RELATION_TYPES, type ContextAccess, type ContextEdge, type ContextLedgerApi, type ContextLedgerRelationReader, type ObjectRef } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import type {
   PlacedObject, PlacementAssociation, PlacementConvertRequest, PlacementConvertResponse, PlacementCreateRequest, PlacementDescription, PlacementGoalView,
   PlacementLocation, PlacementMoveResponse, PlacementOpen, PlacementRelatedItem, PlacementSpaceView,
@@ -325,6 +325,28 @@ async function moveBack(ports: PlacementPorts, object: PlacedObject, at: string 
 
 /** The ledger access this service writes as; the Host authorizes exactly this partition. */
 export const PLACEMENT_LEDGER_ACCESS = ACCESS;
+
+/** The caller has already read these candidates from their owners at the supplied locations. */
+export function placementRelationsFor(ledger: ContextLedgerRelationReader, projectId: string, candidates: readonly PlacedObject[]): ContextEdge[] {
+  const objects = candidates.filter(object => object.project_id === projectId || object.project_id === null);
+  if (objects.length < 2) return [];
+  const locations = new Map(objects.map(object => [key(object.kind, object.id), object.project_id ?? HOME]));
+  const refs = [...objects.map(object => identity(object.kind, object.id)), ...Array.from(new Set(locations.values()), projectRef)];
+  const edges = ledger.activeBetween(ACCESS, refs, [TYPES.location, TYPES.copied, TYPES.derived]);
+  const found = new Set<string>();
+  for (const edge of edges) {
+    if (edge.type !== TYPES.location || edge.actor_id !== ACCESS.actor_id || !edge.source.object_type) continue;
+    const object = key(edge.source.object_type, edge.source.id);
+    if (edge.key === key("location", edge.source.object_type, edge.source.id) && locations.get(object) === edge.target.id) found.add(object);
+  }
+  return edges.filter(edge => {
+    const { source, target } = edge;
+    if (edge.actor_id !== ACCESS.actor_id || !source.object_type || !target.object_type) return false;
+    const kind = edge.type === TYPES.copied ? "copied_from" : edge.type === TYPES.derived ? "derived_from" : undefined;
+    return kind !== undefined && edge.key === key(kind, source.object_type, source.id)
+      && found.has(key(source.object_type, source.id)) && found.has(key(target.object_type, target.id));
+  });
+}
 
 interface PlacementInstanceAccess {
   locate(object: PlacedObject): { object: PlacedObject; moved: boolean };

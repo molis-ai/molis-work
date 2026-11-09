@@ -6,7 +6,7 @@ export { definitionOrigin, isFrozenRegisteredManifest, platformDefinition } from
 import { assertContributionMatchesManifest, offeredManifest, redemptionIn, type RedemptionScope } from "./contribution.js";
 import { definitionOrigin, platformDefinition } from "./platform-definitions.js";
 import { pluginManifestDigest } from "./identity.js";
-import { abandonRefusal, assertMutable, followHostBuild, installationGrants, normalizeGrants, prepareInstallationData, recordToFollow, saveInstalled, validateInstalledManifest, assertStartable, type DeclarationOwners } from "./install-rules.js";
+import { abandonRefusal, assertMutable, assertPresentationAdmitted, followHostBuild, installationGrants, normalizeGrants, prepareInstallationData, recordToFollow, saveInstalled, validateInstalledManifest, assertStartable, type DeclarationOwners, type PresentationAdmission } from "./install-rules.js";
 import { assertRuleKeysUnreserved, isHostTrust, type InProcessAdmission } from "./trust-rules.js";
 import { actionProviderId, assertInstallIdentity, assertStartIdentity, isIdentityFailure } from "./install-identity.js";
 import { InstallLocks } from "./install-locks.js";
@@ -72,7 +72,7 @@ export class PluginRuntime implements PluginRuntimeApi {
   constructor(
     private readonly repository: PluginRuntimeRepository = new MemoryPluginRuntimeRepository(),
     private readonly executor: PluginExecutor = new NativePluginExecutor(),
-    private readonly options: { now?: () => Date; maxRecoveryAttempts?: number; redemption?(definition: PluginDefinition): RedemptionScope; declarationOwners?: DeclarationOwners; reservedRuleKeys?(): ReadonlySet<string>;
+    private readonly options: { now?: () => Date; maxRecoveryAttempts?: number; redemption?(definition: PluginDefinition): RedemptionScope; declarationOwners?: DeclarationOwners; assertPresentation?: PresentationAdmission; reservedRuleKeys?(): ReadonlySet<string>;
       /** Where consents are recorded (the Home's ledger). Without one a Runtime records none, so nothing it installs has any consent in effect. */
       consents?: PluginConsentLedger;
       /** A trusted project half's optional permissions may be bounded by its Home owner. Captures no caller identity. */
@@ -136,6 +136,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     if (current && current.state !== "uninstalled" && current.publisher_trust !== trust.level) throw pluginErrors.definition_conflict("不能改变已安装插件的安装信任等级");
     const digest = pluginManifestDigest(manifest);
     const follow = recordToFollow(current, manifest, digest, host);
+    assertPresentationAdmitted(manifest, this.options.assertPresentation, { retained: follow ? undefined : current });
     if (!follow && current && current.version === manifest.version && current.manifest_digest !== digest) {
       const compatibleSameVersion = current.state !== "uninstalled"
         && (manifest.upgrade_compatibility?.compatible_from_versions ?? []).includes(current.version);
@@ -223,6 +224,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     definition: PluginDefinition;
     deployment?: PluginDeployment;
     grants?: string[];
+    assertCurrent?: () => void;
   }): Promise<PluginLifecycleReceipt> {
     return this.changeVersion(input, false);
   }
@@ -231,8 +233,9 @@ export class PluginRuntime implements PluginRuntimeApi {
     return this.changeVersion(input, true);
   }
 
-  private async changeVersion(given: { install_id: string; definition: PluginDefinition; deployment?: PluginDeployment; grants?: string[] }, rollbackCode: boolean): Promise<PluginLifecycleReceipt> {
+  private async changeVersion(given: { install_id: string; definition: PluginDefinition; deployment?: PluginDeployment; grants?: string[]; assertCurrent?: () => void }, rollbackCode: boolean): Promise<PluginLifecycleReceipt> {
     const input = { ...given, definition: platformDefinition(given.definition) }; return this.locks.run(input.install_id, async () => {
+      input.assertCurrent?.();
       const target = input.definition.manifest;
       validateInstalledManifest(target, this.options.declarationOwners);
       const current = requireInstall(this.repository, input.install_id);
@@ -246,6 +249,7 @@ export class PluginRuntime implements PluginRuntimeApi {
         throw pluginErrors.definition_conflict("升级目标必须属于同一插件和发布者签名");
       }
       assertStartIdentity(current, input.definition, this.repository.list(), this.options.hostIds, this.options.scope, this.options.inProcess);
+      const restoration = assertPresentationAdmitted(target, this.options.assertPresentation, { rollback: rollbackCode });
       if (current.version === target.version && current.manifest_digest !== pluginManifestDigest(target)) {
         throw pluginErrors.definition_conflict("同一版本的 Manifest 指纹不同，不能升级");
       }
@@ -272,15 +276,18 @@ export class PluginRuntime implements PluginRuntimeApi {
       }
 
       if (current.state === "running") await this.stopOnce(input.install_id);
+      restoration?.beforeCommit();
       const stopped = requireInstall(this.repository, input.install_id);
       const oldDefinition = this.definitions.get(definitionKey(stopped));
       let privateDataSnapshot: unknown;
       let hasPrivateDataSnapshot = false;
       try {
+        input.assertCurrent?.();
         if (current.execution !== "sandbox" && this.executor.capturePrivateData && this.executor.restorePrivateData) {
           privateDataSnapshot = await this.executor.capturePrivateData(input.install_id);
           hasPrivateDataSnapshot = privateDataSnapshot !== undefined;
         }
+        input.assertCurrent?.();
         if (input.definition.validateUpgrade) {
           const grants = Object.freeze([...targetGrants]);
           const context: PluginUpgradeContext = Object.freeze({
@@ -301,6 +308,8 @@ export class PluginRuntime implements PluginRuntimeApi {
           }
         }
 
+        restoration?.beforeCommit();
+        input.assertCurrent?.();
         this.register(input.definition);
 
         const upgraded: PluginInstanceRecord = {
@@ -319,16 +328,20 @@ export class PluginRuntime implements PluginRuntimeApi {
           uninstalled_at: null,
         };
         this.repository.save(upgraded);
-        const receipt = current.state === "disabled" ? this.receipt("start", upgraded, false) : await this.startOnce(input.install_id);
+        const receipt = current.state === "disabled" ? this.receipt("start", upgraded, false)
+          : await this.startOnce(input.install_id, restoration?.assertRestored ?? input.assertCurrent);
         return { ...receipt, operation: rollbackCode ? "rollback" : "upgrade", replayed: false };
       } catch (error) {
+        if (restoration && error instanceof ActionError && error.code === "actions.provider_replaced") throw error;
         const failed = this.repository.get(input.install_id);
         let dataRollbackError: unknown;
         if (hasPrivateDataSnapshot) {
           try { await this.executor.restorePrivateData!(input.install_id, privateDataSnapshot); }
           catch (restoreError) { dataRollbackError = restoreError; }
         }
-        const rollback: PluginInstanceRecord = {
+        let interrupted = false;
+        try { input.assertCurrent?.(); } catch { interrupted = true; }
+        const rollback: PluginInstanceRecord = interrupted && !dataRollbackError ? current : {
           ...stopped,
           state: dataRollbackError ? "disabled" : stopped.state,
           last_error_code: dataRollbackError ? "plugin.upgrade_rollback_failed" : safeErrorCode(error),
@@ -372,10 +385,11 @@ export class PluginRuntime implements PluginRuntimeApi {
       receipt: (record, replayed) => this.receipt("grant", record, replayed) }, installId, permission, granted);
   }
 
-  start(installId: string): Promise<PluginLifecycleReceipt> {
+  start(installId: string, control?: { assertCurrent?: () => void }): Promise<PluginLifecycleReceipt> {
+    control?.assertCurrent?.();
     const pending = this.starting.get(installId);
     if (pending) return pending;
-    const attempt = this.locks.run(installId, () => this.startOnce(installId));
+    const attempt = this.locks.run(installId, () => this.startOnce(installId, control?.assertCurrent));
     this.starting.set(installId, attempt);
     // Drop the shared attempt before callers resume, so a start that follows
     // `await start()` is a new call and can report an honest replay.
@@ -401,18 +415,27 @@ export class PluginRuntime implements PluginRuntimeApi {
   }
 
   /** Recheck identity even for a live replay. Cold running rows activate again; crashed/quarantined rows require recover. */
-  private async startOnce(installId: string): Promise<PluginLifecycleReceipt> {
+  private async startOnce(installId: string, assertCurrent?: () => void): Promise<PluginLifecycleReceipt> {
+    assertCurrent?.();
     const current = requireInstall(this.repository, installId);
     if (current.state !== "installed" && current.state !== "disabled" && current.state !== "running") {
       throw pluginErrors.state_invalid(`Plugin 当前状态 ${current.state} 不能直接启动`);
     }
     const definition = requireDefinition(this.definitions, current);
     assertStartable(definition.manifest, current.grants, this.options.declarationOwners);
+    assertPresentationAdmitted(definition.manifest, this.options.assertPresentation, { retained: current });
+    let startedContext: PluginStartContext | null = null;
     try {
       assertStartIdentity(current, definition, this.repository.list(), this.options.hostIds, this.options.scope, this.options.inProcess);
       if (current.state === "running" && this.hasLiveInstance(installId)) return this.receipt("start", current, true);
       const handle = await outsidePluginAction(() => this.executor.start(definition, this.activateContext(current, definition)));
+      startedContext = this.liveContext(installId);
+      assertCurrent?.();
+      // Redemption owns cleanup if it rejects the contribution.
+      startedContext = null;
       await this.redeem(definition, current, handle.contribution);
+      startedContext = this.liveContext(installId);
+      assertCurrent?.();
       const updated = {
         ...current,
         state: "running" as const,
@@ -426,6 +449,12 @@ export class PluginRuntime implements PluginRuntimeApi {
       // A stop revokes the context first and waits for the lock: a start it interrupted is cancelled, not crashed.
       const cancelled = !isIdentityFailure(error) && this.contexts.get(installId)?.revoked() === true;
       this.revokeContext(installId);
+      try { assertCurrent?.(); } catch (interrupted) {
+        // Release a successful start if its caller or the restoring scope expired.
+        try { if (startedContext) await outsidePluginAction(() => this.executor.stop(definition, startedContext!)); }
+        catch { /* Cleanup cannot replace the original cancellation. */ }
+        throw interrupted;
+      }
       if (cancelled) throw pluginErrors.state_invalid("启动被停用打断，没有记为崩溃");
       const updated = {
         ...current,
@@ -533,6 +562,7 @@ export class PluginRuntime implements PluginRuntimeApi {
       throw pluginErrors.quarantined("Plugin 多次恢复失败，已隔离");
     }
     const definition = requireDefinition(this.definitions, current);
+    assertPresentationAdmitted(definition.manifest, this.options.assertPresentation, { retained: current });
     assertRequiredGrants(definition.manifest, current.grants);
     const recoveryCount = current.recovery_count + 1;
     try {

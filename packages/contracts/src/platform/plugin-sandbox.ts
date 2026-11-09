@@ -1,3 +1,6 @@
+import type { ActionSchema } from './actions.js';
+import type { PresentationDeclaration } from './presentation.js';
+
 /** JSON-only contract shared by generated plugins and the trusted host. */
 export type SandboxJson = null | boolean | number | string | SandboxJson[] | { [key: string]: SandboxJson };
 
@@ -86,14 +89,21 @@ export interface SandboxOperationExample {
   error?: string;
 }
 
-export interface SandboxOperationContract {
+interface SandboxOperationFields {
   id: string;
-  kind: 'query' | 'command';
   description?: string;
-  input: SandboxSchema;
-  output: SandboxSchema;
   errors: Array<{ code: string; description: string }>;
   effects: SandboxEffects;
+  /** Whether the operation sends content outside the Home. Separate from the effects it has permission to use. */
+  external?: true;
+  examples: SandboxOperationExample[];
+}
+
+export interface SandboxDataOperation extends SandboxOperationFields {
+  kind: 'query' | 'command';
+  input: SandboxSchema;
+  output: SandboxSchema;
+  read_protocol?: never;
   /** A launcher's persistent business job, read by a query of this same package. Broker execution ids are separate, ephemeral handles. */
   background_job?: {
     status: string;
@@ -103,14 +113,29 @@ export interface SandboxOperationContract {
     done: readonly string[];
     failed: readonly string[];
   };
-  examples: SandboxOperationExample[];
 }
+
+export type SandboxReadProtocol = { kind: 'subject_context'; subject_kind: string }
+  | { kind: 'presentation_values'; subject_kinds: readonly string[] }
+  | { kind: 'presentation_overview' };
+
+/** The fixed public action schemas are used verbatim, outside the ordinary sandbox schema subset. */
+export interface SandboxReadOperation extends SandboxOperationFields {
+  kind: 'query';
+  read_protocol: SandboxReadProtocol;
+  input: ActionSchema;
+  output: ActionSchema;
+  background_job?: never;
+}
+
+export type SandboxOperationContract = SandboxDataOperation | SandboxReadOperation;
 
 export interface SandboxPluginContract {
   version: /* @version format.sandbox.contract */ 1;
   pluginId: string;
   revision: string;
   operations: SandboxOperationContract[];
+  presentation?: PresentationDeclaration;
   entities: Array<{ id: string; schema: SandboxSchema; description?: string }>;
   pages: Array<{
     id: string;
@@ -459,7 +484,7 @@ const ITEM = object({
 }, ['externalId', 'title', 'summary']);
 
 /** The schemas and effects of each operation (`account` is optional); a package's contract must carry them exactly. */
-export const SANDBOX_INTEGRATION_CONTRACT: Readonly<Record<keyof typeof SANDBOX_INTEGRATION_OPERATIONS, Pick<SandboxOperationContract, 'kind' | 'input' | 'output' | 'effects'>>> = {
+export const SANDBOX_INTEGRATION_CONTRACT: Readonly<Record<keyof typeof SANDBOX_INTEGRATION_OPERATIONS, Pick<SandboxDataOperation, 'kind' | 'input' | 'output' | 'effects'>>> = {
   health: {
     kind: 'query', input: object(SOURCE, ['source_id', 'config_json', 'has_connection']),
     output: object({ ok: { type: 'boolean' }, status: { type: 'string', enum: ['connected', 'disconnected', 'error', 'needs_auth'] }, message: text(2048), action: text(512) }, ['ok', 'status', 'message']),

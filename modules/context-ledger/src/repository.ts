@@ -1,4 +1,4 @@
-import type { ContextEdge, ContextEdgeQuery, ContextScope } from "@molis-ai/molis-work-contracts/modules/context-ledger";
+import type { ContextEdge, ContextEdgeQuery, ContextScope, ObjectRef } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 
 interface Statement {
   all(...params: unknown[]): unknown[];
@@ -65,19 +65,31 @@ export class ContextLedgerRepository {
 
   list(scope: ContextScope, query: ContextEdgeQuery = {}): ContextEdge[] {
     const conditions: string[] = [];
-    const values: unknown[] = [scope.kind, scope.id];
+    const values: unknown[] = [];
     if (query.type) { conditions.push("relation_type = ?"); values.push(query.type); }
     for (const [column, ref] of [["source_json", query.source], ["target_json", query.target]] as const) {
       if (!ref) continue;
       conditions.push(`json_extract(${column}, '$.module') = ? AND json_extract(${column}, '$.id') = ?`);
       values.push(ref.module, ref.id);
     }
+    return this.selectLatest(scope, conditions, values, query.include_removed === true);
+  }
+
+  between(scope: ContextScope, candidates: readonly ObjectRef[], types: readonly string[]): ContextEdge[] {
+    const keys = JSON.stringify(candidates.map(ref => [ref.module, ref.id]));
+    const inCandidates = (column: "source_json" | "target_json") =>
+      `json_array(json_extract(${column}, '$.module'), json_extract(${column}, '$.id')) IN (SELECT value FROM json_each(?))`;
+    return this.selectLatest(scope, ["relation_type IN (SELECT value FROM json_each(?))", inCandidates("source_json"), inCandidates("target_json")],
+      [JSON.stringify(types), keys, keys], false);
+  }
+
+  private selectLatest(scope: ContextScope, conditions: readonly string[], values: readonly unknown[], includeRemoved: boolean): ContextEdge[] {
     return (this.db.prepare(`SELECT e.* FROM context_edges e
       WHERE scope_kind = ? AND scope_id = ? ${conditions.length ? `AND ${conditions.join(" AND ")}` : ""} AND revision = (
         SELECT MAX(h.revision) FROM context_edges h
         WHERE h.scope_kind = e.scope_kind AND h.scope_id = e.scope_id AND h.edge_key = e.edge_key
       ) AND (? = 1 OR state = 'active') ORDER BY edge_key
-    `).all(...values, query.include_removed ? 1 : 0) as Row[]).map(edge);
+    `).all(scope.kind, scope.id, ...values, includeRemoved ? 1 : 0) as Row[]).map(edge);
   }
 
   history(scope: ContextScope, key: string): ContextEdge[] {

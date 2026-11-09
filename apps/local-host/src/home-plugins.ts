@@ -1,10 +1,10 @@
 import { renderHomePackageDocument } from "./plugin-builder/agent-surface.js";
-import { ActionError, type ActionCallContext, type ActionClient, type ActionRegistryPort, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, requireSynchronous, type ActionCallContext, type ActionClient, type ActionExecutionContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginInstallRecords } from "./plugin-install-records.js";
 import { openHomeInstalledPlugins, type HomeInstalledPlugins } from "./home-installed-plugins.js";
 import type { InstalledRelease } from "./installed-release.js";
 import { pluginErrors, type PluginDefinition, type PluginInstanceRecord, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { PLUGIN_PRESENTATION_CAPABILITY } from "@molis-ai/molis-work-contracts/platform/ui";
+import { PLUGIN_PRESENTATION_CAPABILITY, type UiSlotDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
 import { randomUUID } from "node:crypto";
 import { installedArtifacts, supervisedArtifacts } from "./artifact-type-registry.js";
 import { declarationOwnersFor } from "./declaration-owners.js";
@@ -31,6 +31,7 @@ import { homeIntegrationRegistry } from "./builtin-integrations.js";
 import { createCallConnectionsPort } from "./connector-plugin-requests.js";
 import type { ProjectActions } from "./plugin-builder/catalog.js";
 import type { ProjectReachConsents } from "./plugin-project-reach-consent.js";
+import { assertSurfacePresentation, createHomeInstallationScope, type SurfaceInstallRegistry } from "./surface-installation.js";
 
 export interface HomePluginEntry {
   readonly scope: "home";
@@ -58,9 +59,19 @@ export class HomePluginHost {
   private releaseProjectOwners?: () => void;
   private installationDirectory?: ReturnType<typeof openPluginInstallationDirectory>;
   private unwatchArtifacts?: () => void;
+  readonly installationScope = createHomeInstallationScope({
+    ready: () => this.ready(),
+    current: () => !!this.installed && !this.closed && !this.options.ownerClosing?.(),
+    catalog: () => {
+      if (!this.db || this.closed) throw new ActionError("actions.plugin_unavailable", "Home 插件宿主已关闭");
+      return { projectId: null, home: this.options.home, db: this.db, registry: this.options.registry,
+        pending: [...this.options.entries.map(entry => entry.manifest), ...pluginFixtureEntries(this.options.fixtures ?? []).map(entry => entry.definition.manifest)] };
+    },
+  });
   private readonly releaseRegistration: () => void;
-  constructor(private readonly options: { home: string; actorId: string; registry: ActionRegistryPort; client: ActionClient;
+  constructor(private readonly options: { home: string; actorId: string; registry: SurfaceInstallRegistry; client: ActionClient;
     entries: readonly HomePluginEntry[]; fixtures?: readonly PluginFixture[]; installed?: ReadonlySet<PluginDefinition>; projectReach?: PluginProjectReach;
+    ownerClosing?(): boolean;
     projectActions?(projectId: string, pluginId: string): Promise<ProjectActions>;
     /** The Home's action directory without the Host's preparation of it (which waits for this host to be ready): what an installed package's capability catalog is read from. */
     inspect?(caller: ActionCallContext): Promise<readonly ActionView[]> | readonly ActionView[] }) {
@@ -116,23 +127,37 @@ export class HomePluginHost {
    * Installs a release read from a signed package in the Home, for the person who confirmed it (`PluginInstallService`). It runs in the
    * sandbox, under the pin that confirmation made, and appears among the personal plugins every project reaches (#679).
    */
-  async installPackage(release: InstalledRelease): Promise<void> {
-    await this.ready();
-    const installed = this.installed;
-    if (!installed || this.closed) throw new ActionError("actions.plugin_unavailable", "Home 插件宿主已关闭");
-    await installed.installPackage(release, { consent: true });
-    await installed.refreshPublicActions();
+  async installPackage(release: InstalledRelease, assertCurrent?: () => void): Promise<void> {
+    await this.installationScope.run(async assertOpen => {
+      const check = () => { assertOpen(); assertCurrent?.(); };
+      const installed = this.installed!;
+      check();
+      await installed.installPackage(release, { consent: true, assertCurrent: check });
+      await installed.refreshPublicActions();
+    });
   }
   /** Switches an installed package off or on, or removes it (keeping its data or not): the install lifecycle a project's packages have. */
-  async packageAction(pluginId: string, action: "enable" | "disable" | "uninstall", input: { keepData?: boolean } = {}): Promise<void> {
+  async packageAction(pluginId: string, action: "enable" | "disable" | "uninstall", input: { keepData?: boolean } = {},
+    control?: Partial<Pick<ActionExecutionContext, "beforeEffect" | "assert_authority_current" | "signal">>): Promise<void> {
+    const change = async (assertOpen?: () => void) => {
+      const assertCurrent = () => {
+        assertOpen?.();
+        control?.signal?.throwIfAborted();
+        requireSynchronous(control?.assert_authority_current?.());
+      };
+      await control?.beforeEffect?.();
+      assertCurrent();
+      const installed = this.installed, record = installed?.recordFor(pluginId, action === "uninstall");
+      if (!installed || this.closed || !record) throw new ActionError("actions.missing", "这个 Home 插件不是装进来的包");
+      // A revoked publisher's package is still the person's to take off.
+      const release = installed.packageOf(pluginId, action === "uninstall");
+      if (!release) throw new Error(installed.recoveryErrors.get(pluginId) ?? "找不到已安装版本 " + record.version + " 的发布记录");
+      await installed.lifecycle(action, release, { ...input, assertCurrent });
+      await installed.refreshPublicActions();
+    };
+    if (action !== "disable") return this.installationScope.run(change);
     await this.ready();
-    const installed = this.installed, record = installed?.recordFor(pluginId, action === "uninstall");
-    if (!installed || this.closed || !record) throw new ActionError("actions.missing", "这个 Home 插件不是装进来的包");
-    // Read back without asking whether the publisher is still trusted: the lifecycle refuses to enable a revoked one, and can still take it off.
-    const release = installed.packageOf(pluginId, action === "uninstall");
-    if (!release) throw new Error(installed.recoveryErrors.get(pluginId) ?? "找不到已安装版本 " + record.version + " 的发布记录");
-    await installed.lifecycle(action, release, input);
-    await installed.refreshPublicActions();
+    await change();
   }
   /** Stops the installed packages whose publisher the person took back since this last looked (S-87), their data kept. */
   async reconcilePublishers(): Promise<void> { await this.installed?.reconcilePublishers(); }
@@ -157,7 +182,15 @@ export class HomePluginHost {
   }
   /** Why an installed package is not running, when it was not started or stopped itself; none when nothing is wrong with it. */
   packageError(pluginId: string): string | undefined { return this.installed?.recoveryErrors.get(pluginId); }
-  installations(): PluginInstanceRecord[] { return this.platform?.runtime.list() ?? []; }
+  installations(includeSurfaceSlots = false): Array<PluginInstanceRecord & { surface_slots?: readonly UiSlotDescriptor[] }> {
+    const records = this.platform?.runtime.list() ?? [];
+    if (!includeSurfaceSlots) return records;
+    return records.map(record => {
+      const contribution = this.platform?.supervisor.contribution(record.plugin_id);
+      const slots = contribution?.kind === "app" ? contribution.views?.flatMap(view => view.descriptor.slots) ?? [] : [];
+      return { ...record, surface_slots: slots };
+    });
+  }
   manifest(pluginId: string): PluginManifest | undefined {
     return this.platform?.supervisor.manifest(pluginId)
       ?? this.options.entries.find(entry => entry.manifest.plugin_id === pluginId)?.manifest
@@ -203,6 +236,7 @@ export class HomePluginHost {
     this.releaseRegistration();
     return this.closing ??= (async () => {
       try { await this.opening; } catch { /* Startup failure was reported to its callers and released by open(). */ }
+      await this.installationScope.settled();
       await this.release();
     })().catch(error => { this.closing = undefined; throw error; });
   }
@@ -257,7 +291,8 @@ export class HomePluginHost {
     // The Home half of a dual-instance plugin offers only its share, and no project reaches it: its ports and events are the project half's.
     const ledger = new SqlitePluginConsentLedger(db);
     recordHostAlwaysOnAgreements(ledger, new Set(entries.map(entry => entry.definition.manifest.plugin_id)), new Date().toISOString());
-    const runtime = new PluginRuntime(repository, executor, { consents: ledger, scope: "home", hostIds: HOST_PLUGIN_IDS, inProcess: fixtureAdmission(pluginFixtureEntries(this.options.fixtures ?? []), this.options.installed), declarationOwners: declarationOwnersFor(this.options.home, { db, scope: { kind: "home" } }, (pluginId: string): PluginManifest | undefined => supervisor.manifest(pluginId)), reservedRuleKeys: hostReservedRuleKeys,
+    const runtime: PluginRuntime = new PluginRuntime(repository, executor, { consents: ledger, scope: "home", hostIds: HOST_PLUGIN_IDS, inProcess: fixtureAdmission(pluginFixtureEntries(this.options.fixtures ?? []), this.options.installed), declarationOwners: declarationOwnersFor(this.options.home, { db, scope: { kind: "home" } }, (pluginId: string): PluginManifest | undefined => supervisor.manifest(pluginId)), reservedRuleKeys: hostReservedRuleKeys,
+      assertPresentation: (manifest, rollback) => assertSurfacePresentation(manifest, this.installationScope.catalog(), runtime, rollback),
       redemption: definition => identity.dualInstance(definition) ? { partial: true, outside_project: true } : {},
       actions: { registry: this.options.registry, providerId: (record, definition) => identity.providerFor(definition, record.install_id),
         register: (definition, contribution, record, registration) => registerInstalledActions(definition, contribution, record, registration,
@@ -286,18 +321,18 @@ export class HomePluginHost {
     // The packages installed in the Home start after the Host's own plugins, each on its own: one that cannot start leaves its reason and nothing else less (BL-628).
     // The way to start one is not on the platform this method returns: only a sandboxed definition under a pinned publisher goes through it (S-80).
     this.installed = await openHomeInstalledPlugins({ home: this.options.home, actorId: this.options.actorId, actions: { registry: this.options.registry, client: this.options.client, ...this.options.inspect ? { inspect: this.options.inspect } : {} },
-      db, privateStorage: storage, closed: () => this.closed, projectActions: this.options.projectActions,
+      db, privateStorage: storage, closed: () => this.closed || this.options.ownerClosing?.() === true, projectActions: this.options.projectActions,
       // An integration package's sources go to the Home's one registry, the one every project's Feed binds through (BL-530).
       integrations: { registry: () => homeIntegrationRegistry(this.options.home), connections: createCallConnectionsPort(this.options.home) },
       platform: { runtime, supervisor, router: platform.router, consents: ledger, upgrade: platform.upgrade, rollback: (pluginId, definition) => supervisor.rollback(pluginId, definition),
-        start: async started => {
+        start: async (started, control) => {
           const listed = new Set<string>();
           for (const { definition, trust } of started) {
             if (definition.execution !== "sandbox" || trust?.level !== "pinned") throw pluginErrors.home_scope_unavailable("Home 里只有来自已固定发布者的沙箱包才能这样启动");
             if (listed.has(definition.manifest.plugin_id) || ids.has(definition.manifest.plugin_id)) throw new Error("Home 插件标识重复");
             listed.add(definition.manifest.plugin_id);
           }
-          return supervisor.start(started);
+          return supervisor.start(started, control);
         } } });
     return platform;
   }

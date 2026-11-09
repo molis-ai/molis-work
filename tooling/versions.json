@@ -943,7 +943,7 @@
     "database.pages_database": 1,
     "database.placement_baseline": 1,
     "database.ppt_database": 1,
-    "database.project_database_baseline": 2,
+    "database.project_database_baseline": 3,
     "database.schedule_project_database": 1,
     "database.search.text-index": 1,
     "database.server_database_baseline": 1,

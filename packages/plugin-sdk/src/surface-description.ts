@@ -1,6 +1,7 @@
 import { ActionError, type ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PRESENTATION_LIMITS } from "@molis-ai/molis-work-contracts/platform/presentation";
 import type { OwnedTextRef } from "@molis-ai/molis-work-contracts/platform/ui";
+import { SURFACE_GENERIC_OPERATIONS } from "@molis-ai/molis-work-contracts/services/surface-composition";
 import type { SurfaceDescription, SurfaceExclusion, SurfaceGroup, SurfaceItem, SurfaceItemAction } from "@molis-ai/molis-work-contracts/services/surface-composition";
 import { canonicalJsonText, isRecord } from "./json-value.js";
 import { textRefProblems } from "./ui/text-ref.js";
@@ -19,7 +20,7 @@ export interface CheckedSurfaceDescription { readonly description: SurfaceDescri
 const malformed = (part: string) => new ActionError("actions.output_invalid", `操作面描述不合格：${part}`);
 
 const GROUP_KINDS = ["attention", "continue", "plugin", "slot"] as const;
-const GROUP_KEYS = ["kind", "owner_plugin_id", "state", "read_at", "excluded", "hidden_above", "title", "items"] as const;
+const GROUP_KEYS = ["kind", "owner_plugin_id", "state", "read_at", "excluded", "hidden_above", "overflow", "title", "items"] as const;
 const GROUP_STATES = ["ok", "unreadable", "stale", "disabled", "undeclared"] as const;
 
 function closed(value: unknown, part: string, keys: readonly string[]): Record<string, unknown> {
@@ -46,9 +47,9 @@ function ownedText(value: unknown, part: string): OwnedTextRef {
 function isSubject(value: unknown): value is ActionSubject {
   return isRecord(value) && typeof value.kind === "string" && typeof value.id === "string";
 }
-const subjectKey = (subject: ActionSubject) => `${subject.kind}\u0000${subject.id}`;
-/** What an item is apart from its actions: the value has to give it exactly as a candidate does. */
-const factsOf = (item: object) => canonicalJsonText(Object.fromEntries(Object.entries(item).filter(([key]) => key !== "actions")));
+const subjectKey = (subject: ActionSubject) => JSON.stringify([subject.kind, subject.id]);
+/** Item facts the selection echoes; notices are taken directly from the candidate. */
+const factsOf = (item: object) => canonicalJsonText(Object.fromEntries(Object.entries(item).filter(([key]) => key !== "actions" && key !== "notices")));
 
 /** A candidate group: what the value has to take as it is, and the items it may pick from, by subject. */
 interface CandidateGroup {
@@ -95,9 +96,10 @@ function candidateGroup(group: SurfaceGroup, at: string): CandidateGroup {
   const readAt = group.read_at === undefined ? {} : { read_at: timestamp(group.read_at, `${at}.read_at`) };
   const excluded = group.excluded === undefined ? {} : { excluded: exclusions(group.excluded, `${at}.excluded`) };
   const hidden = group.hidden_above === undefined ? {} : { hidden_above: hiddenAbove(group.hidden_above, `${at}.hidden_above`) };
+  const folded = group.overflow === undefined ? {} : { overflow: overflow(group.overflow, `${at}.overflow`) };
   if (!Array.isArray(group.items)) throw malformed(`${at}.items`);
   if (kind === "plugin" && group.items.some(item => item.owner_plugin_id !== ownerId)) throw malformed(`${at}.items：plugin 组只放这个插件的东西`);
-  return { facts: { kind, ...owner, state, ...readAt, ...excluded, ...hidden }, offered: new Map(group.items.map(item => [subjectKey(item.subject), item])) };
+  return { facts: { kind, ...owner, state, ...readAt, ...excluded, ...hidden, ...folded }, offered: new Map(group.items.map(item => [subjectKey(item.subject), item])) };
 }
 
 /** A group of the value: the candidates' group of the same kind and owner, once. The value gives its title and picks and orders its items. */
@@ -130,6 +132,31 @@ function hiddenAbove(value: unknown, at: string): { count: number; label: OwnedT
   const hidden = closed(value, at, ["count", "label"]);
   return { count: count(hidden.count, `${at}.count`), label: ownedText(hidden.label, `${at}.label`) };
 }
+function overflow(value: unknown, at: string): { count: number; label?: OwnedTextRef } {
+  const folded = closed(value, at, ["count", "label"]);
+  return { count: count(folded.count, `${at}.count`), ...(folded.label === undefined ? {} : { label: ownedText(folded.label, `${at}.label`) }) };
+}
+
+function actionIdentity(value: unknown, at: string): { ref: string; provider?: string; primary: boolean } {
+  if (!isRecord(value) || typeof value.primary !== "boolean") throw malformed(at);
+  const ref = text(value.ref, `${at}.ref`, PRESENTATION_LIMITS.action_ref);
+  if (SURFACE_GENERIC_OPERATIONS.some(operation => operation === ref)) {
+    if (value.provider_id !== undefined) throw malformed(`${at}.provider_id`);
+    return { ref, primary: value.primary };
+  }
+  return { ref, provider: text(value.provider_id, `${at}.provider_id`, 200), primary: value.primary };
+}
+
+function checkNotices(value: unknown, at: string): void {
+  if (value === undefined) return;
+  if (!Array.isArray(value)) throw malformed(at);
+  value.forEach((entry, index) => {
+    const path = `${at}[${index}]`;
+    const notice = closed(entry, path, ["reason", "next"]);
+    if (!isRecord(notice.reason) || textRefProblems(notice.reason, { owned: true, literal: false }).length) throw malformed(`${path}.reason`);
+    if (notice.next !== undefined && !actionIdentity(notice.next, `${path}.next`).provider) throw malformed(`${path}.next.provider_id`);
+  });
+}
 
 /** An item put in a group its candidate is not in, the attention group among them, is one the candidates do not have there: dropped. */
 function keptItem(value: unknown, at: string, offeredHere: ReadonlyMap<string, SurfaceItem>, pass: Pass): SurfaceItem[] {
@@ -143,13 +170,21 @@ function keptItem(value: unknown, at: string, offeredHere: ReadonlyMap<string, S
     return [];
   }
   if (!Array.isArray(value.actions)) throw malformed(`${at}.actions`);
+  if (offered.read_at !== undefined) {
+    if (offered.state !== "stale") throw malformed(`${at}.read_at`);
+    timestamp(offered.read_at, `${at}.read_at`);
+  }
+  checkNotices(offered.notices, `${at}.notices`);
   const refs = new Set<string>();
   const actions = value.actions.flatMap((action, index): SurfaceItemAction[] => {
-    if (!isRecord(action) || typeof action.ref !== "string" || typeof action.primary !== "boolean" || refs.has(action.ref)) throw malformed(`${at}.actions[${index}]`);
-    refs.add(action.ref);
-    const candidate = offered.actions.find(entry => entry.ref === action.ref);
-    if (!candidate) pass.dropped.push({ subject: offered.subject, action: action.ref });
-    return candidate ? [{ ...candidate, primary: action.primary }] : [];
+    const path = `${at}.actions[${index}]`;
+    const { ref, provider, primary } = actionIdentity(action, path);
+    const key = JSON.stringify([ref, provider]);
+    if (refs.has(key)) throw malformed(path);
+    refs.add(key);
+    const candidate = offered.actions.find(entry => entry.ref === ref && entry.provider_id === provider);
+    if (!candidate) pass.dropped.push({ subject: offered.subject, action: ref });
+    return candidate ? [{ ...candidate, primary }] : [];
   });
   if (actions.filter(action => action.primary).length > 1) throw malformed(`${at}.actions：至多一个 primary`);
   return [{ ...offered, actions }];

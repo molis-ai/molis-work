@@ -87,6 +87,11 @@ function wordProblems(declaration: Record<string, unknown>, pluginId: unknown): 
     (isRecord(object) && Array.isArray(object.fields) ? object.fields : []).forEach((field, at) => {
       if (isRecord(field) && isRecord(field.label)) words.push([`presentation.objects[${index}].fields[${at}].label`, field.label]);
     });
+    (isRecord(object) && Array.isArray(object.actions) ? object.actions : []).forEach((action, at) => {
+      if (isRecord(action) && isRecord(action.unavailable) && isRecord(action.unavailable.reason)) {
+        words.push([`presentation.objects[${index}].actions[${at}].unavailable.reason`, action.unavailable.reason]);
+      }
+    });
   });
   if (isRecord(declaration.overview) && isRecord(declaration.overview.note)) words.push(["presentation.overview.note", declaration.overview.note]);
   return words.flatMap(([at, ref]) => {
@@ -116,13 +121,18 @@ function valuedKinds(actions: readonly Record<string, unknown>[]): ReadonlySet<s
 }
 
 /** A values action is the platform's shape: read-only, with the schemas `definePresentationValuesAction` gives, so the service can ask any owner alike. */
+export function isPresentationValuesReader(action: unknown): boolean {
+  if (!isRecord(action)) return false;
+  const metadata = metadataOf(action);
+  return isValuesAction(metadata) && action.operation === "query" && metadata.kind === "query" && metadata.effect === "read" && metadata.external !== true
+    && Array.isArray(metadata.permissions) && !metadata.permissions.includes("model:invoke")
+    && isRecord(metadata.execution) && metadata.execution.cost === "none"
+    && sameJson(metadata.input_schema, PRESENTATION_VALUES_INPUT_SCHEMA) && sameJson(metadata.output_schema, PRESENTATION_VALUES_OUTPUT_SCHEMA);
+}
+
 function valuesActionProblems(actions: readonly Record<string, unknown>[]): string[] {
-  return actions.filter(action => isValuesAction(metadataOf(action))).flatMap(action => {
-    const metadata = metadataOf(action);
-    const fixed = action.operation === "query" && metadata.effect === "read" && sameJson(metadata.input_schema, PRESENTATION_VALUES_INPUT_SCHEMA)
-      && sameJson(metadata.output_schema, PRESENTATION_VALUES_OUTPUT_SCHEMA);
-    return fixed ? [] : [`给值的动作 ${String(action.capability_id)} 要用 definePresentationValuesAction 定义：只读 query，输入输出 schema 与平台定的一样`];
-  });
+  return actions.filter(action => isValuesAction(metadataOf(action)) && !isPresentationValuesReader(action))
+    .map(action => `给值的动作 ${String(action.capability_id)} 要用 definePresentationValuesAction 定义：只读 query，不调用模型、不外发或计费，输入输出 schema 与平台定的一样`);
 }
 
 function objectProblems(object: unknown, at: string, context: ObjectContext): string[] {
@@ -211,11 +221,12 @@ function objectActionProblems(value: unknown, at: string, context: ActionContext
   return value.flatMap((action, index) => {
     const path = `${at}[${index}]`;
     if (!isRecord(action)) return [`${path} 必须是对象`];
-    const problems = [...extraKeys(action, ["ref", "primary", "when", "input_from"], path), ...refProblems(action.ref, `${path}.ref`, context.catalog)];
+    const problems = [...extraKeys(action, ["ref", "primary", "when", "input_from", "unavailable"], path), ...refProblems(action.ref, `${path}.ref`, context.catalog)];
     if (refs.has(action.ref)) problems.push(`${path}.ref 重复`);
     refs.add(action.ref);
     if (action.primary !== undefined && typeof action.primary !== "boolean") problems.push(`${path}.primary 必须是 true 或 false`);
-    return [...problems, ...whenProblems(action.when, `${path}.when`, context.states), ...inputFromProblems(action.input_from, `${path}.input_from`, context.fields)];
+    return [...problems, ...whenProblems(action.when, `${path}.when`, context.states), ...inputFromProblems(action.input_from, `${path}.input_from`, context.fields),
+      ...unavailableProblems(action, value, `${path}.unavailable`, context.states)];
   });
 }
 
@@ -232,6 +243,28 @@ function whenProblems(value: unknown, at: string, states: ReadonlySet<string>): 
   const listed = (list: unknown, allowed: ReadonlySet<string>) => Array.isArray(list) && list.length > 0 && list.every(entry => member(allowed, entry));
   if (value.status !== undefined && !listed(value.status, states)) problems.push(`${at}.status 只能列本对象 status.map 里的状态`);
   if (value.slots !== undefined && !listed(value.slots, SLOTS)) problems.push(`${at}.slots 只能列平台的位置`);
+  return problems;
+}
+
+function unavailableProblems(action: Record<string, unknown>, actions: readonly unknown[], at: string, states: ReadonlySet<string>): string[] {
+  const notice = action.unavailable;
+  if (notice === undefined) return [];
+  if (!isRecord(notice)) return [`${at} 必须是对象`];
+  const problems = [...extraKeys(notice, ["when", "reason", "next"], at), ...textProblems(notice.reason, `${at}.reason`)];
+  const when = notice.when;
+  if (!isRecord(when)) problems.push(`${at}.when 必须是对象`);
+  else {
+    problems.push(...extraKeys(when, ["status", "codes"], `${at}.when`));
+    if (when.status === undefined && when.codes === undefined) problems.push(`${at}.when 要列出状态或不可用原因码`);
+    if (when.status !== undefined && (!Array.isArray(when.status) || !when.status.length || !when.status.every(status => member(states, status)))) {
+      problems.push(`${at}.when.status 只能列本对象 status.map 里的状态`);
+    }
+    if (when.codes !== undefined && (!Array.isArray(when.codes) || !when.codes.length || !when.codes.every(code => typeof code === "string" && code.trim().length > 0))) {
+      problems.push(`${at}.when.codes 要列非空的不可用原因码`);
+    }
+  }
+  if (notice.next !== undefined && (typeof notice.next !== "string" || notice.next === action.ref
+    || !actions.some(candidate => isRecord(candidate) && candidate.ref === notice.next))) problems.push(`${at}.next 必须引用本对象声明的另一个动作`);
   return problems;
 }
 

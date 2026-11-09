@@ -7,7 +7,7 @@ export declare const SANDBOX_IMAGE_LIMITS: Readonly<{
     max_bytes: number;
 }>;
 
-export declare const SANDBOX_INTEGRATION_CONTRACT: Readonly<Record<keyof typeof SANDBOX_INTEGRATION_OPERATIONS, Pick<SandboxOperationContract, 'kind' | 'input' | 'output' | 'effects'>>>;
+export declare const SANDBOX_INTEGRATION_CONTRACT: Readonly<Record<keyof typeof SANDBOX_INTEGRATION_OPERATIONS, Pick<SandboxDataOperation, 'kind' | 'input' | 'output' | 'effects'>>>;
 
 export declare const SANDBOX_INTEGRATION_LIMITS: {
     readonly items: 200;
@@ -43,6 +43,21 @@ export interface SandboxConnectionResponse {
     headers: Record<string, string>;
     body: string;
     authenticated: boolean;
+}
+
+export interface SandboxDataOperation extends SandboxOperationFields {
+    kind: 'query' | 'command';
+    input: SandboxSchema;
+    output: SandboxSchema;
+    read_protocol?: never;
+    background_job?: {
+        status: string;
+        id: string;
+        input: string;
+        state: string;
+        done: readonly string[];
+        failed: readonly string[];
+    };
 }
 
 export interface SandboxEffects {
@@ -279,27 +294,7 @@ export interface SandboxNetworkResponse {
     body: string;
 }
 
-export interface SandboxOperationContract {
-    id: string;
-    kind: 'query' | 'command';
-    description?: string;
-    input: SandboxSchema;
-    output: SandboxSchema;
-    errors: Array<{
-        code: string;
-        description: string;
-    }>;
-    effects: SandboxEffects;
-    background_job?: {
-        status: string;
-        id: string;
-        input: string;
-        state: string;
-        done: readonly string[];
-        failed: readonly string[];
-    };
-    examples: SandboxOperationExample[];
-}
+export type SandboxOperationContract = SandboxDataOperation | SandboxReadOperation;
 
 export interface SandboxOperationExample {
     input: SandboxJson;
@@ -364,6 +359,7 @@ export interface SandboxPluginContract {
     pluginId: string;
     revision: string;
     operations: SandboxOperationContract[];
+    presentation?: PresentationDeclaration;
     entities: Array<{
         id: string;
         schema: SandboxSchema;
@@ -390,6 +386,24 @@ export interface SandboxPluginContract {
         }>;
     }>;
 }
+
+export interface SandboxReadOperation extends SandboxOperationFields {
+    kind: 'query';
+    read_protocol: SandboxReadProtocol;
+    input: ActionSchema;
+    output: ActionSchema;
+    background_job?: never;
+}
+
+export type SandboxReadProtocol = {
+    kind: 'subject_context';
+    subject_kind: string;
+} | {
+    kind: 'presentation_values';
+    subject_kinds: readonly string[];
+} | {
+    kind: 'presentation_overview';
+};
 
 export interface SandboxSchema {
     type: 'null' | 'boolean' | 'number' | 'integer' | 'string' | 'array' | 'object';
@@ -535,3 +549,17 @@ export type SandboxWorkerMessage = {
     method: SandboxSdkMethod;
     args: SandboxJson[];
 };
+
+// Declarations the exports above refer to, which no entry exports itself:
+
+interface SandboxOperationFields {
+    id: string;
+    description?: string;
+    errors: Array<{
+        code: string;
+        description: string;
+    }>;
+    effects: SandboxEffects;
+    external?: true;
+    examples: SandboxOperationExample[];
+}

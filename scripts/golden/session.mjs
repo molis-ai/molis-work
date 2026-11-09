@@ -113,7 +113,8 @@ export async function openGoldenHost(home, { web = true } = {}) {
   let cookie;
   const http = async (route, { method = "POST", body } = {}) => {
     const token = readFileSync(path.join(real, "config/web-control-token"), "utf8").trim();
-    const response = await fetch(origin + route, { method, headers: { origin, "content-type": "application/json", "x-molis-work-control-token": token, "x-molis-work-idempotency-key": crypto.randomUUID(), ...(cookie ? { cookie } : {}) },
+    // Open a fresh connection for each loopback request so a later POST cannot reuse a socket the Host closed while idle.
+    const response = await fetch(origin + route, { method, headers: { origin, connection: "close", "content-type": "application/json", "x-molis-work-control-token": token, "x-molis-work-idempotency-key": crypto.randomUUID(), ...(cookie ? { cookie } : {}) },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }) })
       .catch(error => { throw goldenHttpFailure("request", error); });
     cookie = response.headers.get("set-cookie")?.split(";")[0] ?? cookie;

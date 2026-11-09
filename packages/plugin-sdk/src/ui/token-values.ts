@@ -1,5 +1,5 @@
 import { UI_FILE_PATTERNS, type UiRoleSpec, type UiTokenValue } from "@molis-ai/molis-work-contracts/platform/ui";
-import { isObject } from "./file-reader.js";
+import { isRecord } from "../json-value.js";
 
 // What one token value may be (specs/font-and-skin-system/a-section-contract.md §3.2). Not published. A value is structure, never CSS text: anything
 // that is not one of these shapes is refused here, so a selector, a function or a URL has no position to sit in.
@@ -21,11 +21,11 @@ function isRgba(value: unknown): boolean {
 const isRoleValue = (value: Record<string, unknown>): boolean => hasOnly(value, ["role"], ["fallback"]) && isRole(value.role) && (value.fallback === undefined || isColor(value.fallback));
 
 function isShadowLayer(layer: unknown): boolean {
-  if (!isObject(layer) || !hasOnly(layer, ["x", "y", "blur", "color"], ["spread"])) return false;
+  if (!isRecord(layer) || !hasOnly(layer, ["x", "y", "blur", "color"], ["spread"])) return false;
   if (!isNumber(layer.x) || !isNumber(layer.y) || !inRange(layer.blur, 0, Number.MAX_VALUE)) return false;
   if (layer.spread !== undefined && !isNumber(layer.spread)) return false;
   if (isColor(layer.color)) return true;
-  return isObject(layer.color) && ((hasOnly(layer.color, ["rgba"]) && isRgba(layer.color.rgba)) || (hasOnly(layer.color, ["role"]) && isRole(layer.color.role)));
+  return isRecord(layer.color) && ((hasOnly(layer.color, ["rgba"]) && isRgba(layer.color.rgba)) || (hasOnly(layer.color, ["role"]) && isRole(layer.color.role)));
 }
 
 /** Each object shape by the field that names it. A plain string is a colour. */
@@ -33,7 +33,7 @@ const SHAPES: Readonly<Record<string, (value: Record<string, unknown>) => boolea
   rgba: (value) => hasOnly(value, ["rgba"]) && isRgba(value.rgba),
   role: isRoleValue,
   mix(value) {
-    if (!hasOnly(value, ["mix"]) || !isObject(value.mix) || !hasOnly(value.mix, ["role", "percent", "with"])) return false;
+    if (!hasOnly(value, ["mix"]) || !isRecord(value.mix) || !hasOnly(value.mix, ["role", "percent", "with"])) return false;
     return isRole(value.mix.role) && inRange(value.mix.percent, 0, 100) && value.mix.with === "transparent";
   },
   shadow: (value) => hasOnly(value, ["shadow"]) && Array.isArray(value.shadow) && value.shadow.length > 0 && value.shadow.every(isShadowLayer),
@@ -42,7 +42,7 @@ const SHAPES: Readonly<Record<string, (value: Record<string, unknown>) => boolea
   number: (value) => hasOnly(value, ["number"]) && isNumber(value.number),
   bezier: (value) => hasOnly(value, ["bezier"]) && Array.isArray(value.bezier) && value.bezier.length === 4 && value.bezier.every(isNumber),
   stroke(value) {
-    if (!hasOnly(value, ["stroke"]) || !isObject(value.stroke) || !hasOnly(value.stroke, ["width_px", "style", "role"])) return false;
+    if (!hasOnly(value, ["stroke"]) || !isRecord(value.stroke) || !hasOnly(value.stroke, ["width_px", "style", "role"])) return false;
     return inRange(value.stroke.width_px, 0, Number.MAX_VALUE) && value.stroke.style === "solid" && isRole(value.stroke.role);
   },
 };
@@ -60,7 +60,7 @@ const SHAPES_OF_TYPE: Readonly<Record<UiRoleSpec["type"], readonly string[]>> = 
 
 function shapeOf(value: unknown): string | null {
   if (typeof value === "string") return isColor(value) ? "color" : null;
-  if (!isObject(value)) return null;
+  if (!isRecord(value)) return null;
   const shape = Object.keys(SHAPES).find((name) => value[name] !== undefined);
   return shape !== undefined && SHAPES[shape]!(value) ? shape : null;
 }

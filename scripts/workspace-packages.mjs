@@ -395,7 +395,8 @@ export const WORKSPACE_PACKAGES = [
   }),
   entry("horizontal/account", "@molis-ai/molis-work-contracts/services/account", {
     maturity: "slice",
-    capabilities: ["account.central-client.v1"]
+    capabilities: ["account.central-client.v1"],
+    extraWorkspaceDependencies: ["@molis-ai/molis-work-plugin-sdk"]
   }),
   entry("horizontal/agent-host", "@molis-ai/molis-work-contracts/services/agent-host", {
     maturity: "production",

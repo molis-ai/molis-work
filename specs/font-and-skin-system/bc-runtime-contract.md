@@ -49,6 +49,14 @@ B 先用真实工作台、Issues 侧栏的现有插件 frame 与 Builder 候选�
 2. 复用 [`plugin-text.ts`](../../apps/workbench/src/plugin-text.ts) 的登记、释放及 `t`／`say` 规则。基点的读表按进程 owner 取最近登记，C 改为准确来源：插件自己的调用绑定 Runtime 原 activation 对象，不能仅靠可在复制 Home 中重复的安装 ID 与代次；平台代画插件对象时，由宿主沿可信目录或挂载选择对象提供方的 reader，不能拿当前调用者的 reader 代替；无 Runtime activation 的内容包，沿当前 Home 已启用的发布记录选择其已验证包。`OwnedTextRef` 保持现有 owner/键形状，来源由宿主补齐，不接受浏览器或引用自报的身份。来源失效或缺键用既有 fallback，绝不去另一个 Home、版本或发布者的同名词表找。平台内置词表可共享，同页同准确来源的 owner/locale 只读一次。停止、卸载、换版本撤回原绑定，版本/签名变化作废相关缓存。沙箱和内容包只按完整 `plugin_id` 进 `say`；同进程可运行 `t` 的作者继续受前缀检查。词包只能提供自己的词；`common.*` 由平台投影。沙箱进程经现有受信启动数据取得本安装的文本上下文，调用时从 host/broker 已验证的范围取语言。
 3. 默认用 A §4.4 的独立 Workbench 启动词资源和可缓存准确版本。宿主页面按当前已准入的挂载集合批量读本页所需 owner 与 locale，计划用一个同源批量读入口（拟 `GET /api/ui/locales`），复用原工作台文档证明、项目/页面及挂载许可，参数中的 owner 仅作选择范围。Host 先据该文档实际获准的准确挂载和运行来源求交，核对版本和当前生存期后才返回所需包与公开共有词；同屏同名挂载分别关联来源，只对相同来源与语言去重。父文档一次准备供本屏挂载共享，按需开启的新一组挂载再批取，frame 不发请求。Issues 隐藏文档计入首屏。Goals 的同步词先从真实首屏查出使用者：工作台拥有的句子归工作台，Goals 自己的句子从其准确词包同步准备；最终下发范围以实测和预算批准确定，避免整包复制到工作台词表。动态资源路由、清单及增量见待决。
 
+### 目录名称与标签
+
+A §15.3 已要求本批删除固定双语的 `name_en`。同一路径还存在视图 `title_en`、目录 `label_en` 及 `pluginTitleScript(currentLocale() === "en")`，它们一起改为现行词包投影。保留必填 `PluginManifest.name`、`UiViewDeclaration.title` 和已有 `summary`、`start.title/hint`、`creates.title` 的原文含义及约束；新增可选 `name_text`／`summary_text`、视图 `title_text` 和 `start.title_text`／`hint_text`，复用 `creates.title_text`。均使用已有 `TextRef`，不新增一套消息结构。自有键绑定准确声明主人并需 `ui.locales`；共有词沿 SDK 既有规则，不允许引用其他插件的键。目录短句无运行参数，引用和词条中的占位参数须拒绝；`literal` 或没有引用时仍显示原文，找不到可用词时保留同一字段的原文和现有问题记录，不借另一字段猜译。
+
+来源各自独立：navigator／island 使用自己的视图标题，stage-only 的目录入口才使用 Manifest 名；start、creates、summary 各取自身文字，不拿插件名补视图名。内置市场沿真实登记，运行中插件沿当前 Runtime activation，沙箱沿准确 install／release 读词。Host 只向目录输出当前语言的普通字符串，保留原目录的裁剪、控制字符与图标等校验；不传另一份双语表、草稿词包或可由页面指定主人的引用。当前页面的语言预览沿已有 shell 请求和 DOM 合并，同时更新目录节点和客户端标签名投影，不增加逐插件语言请求或执行取回的脚本来读标题。
+
+SDK 的 Manifest／视图校验和内容包白名单明确拒绝 `name_en`／`title_en`；相关生产声明、样例与文档一次更新，公开 API 快照同步。无译文的外部品牌原名、用户内容和仅原文声明不被强制增加空词包。Studio 新发布的名称引用其已经冻结的同一 name 槽位，不由宿主猜一个新键；原签包仍按各自现行或退役合同校验，不原地修改。FSS-40／41 的动作文字与结果摘要维持暂缓。
+
 ### 请求语言与可信 frame
 
 - `WebLocale`、`WEB_LOCALES` 和现有 `ActionLocale` 改由通过校验的平台语言描述导出或验证，先覆盖已定中英；不另加动作业务入参。页面解析 Cookie 的明确语言或「跟随系统」，再用已登记语言匹配浏览器偏好，显示实际语言及后备。预览/双渲染只用同源、只读的请求级语言覆盖（拟 `x-molis-work-ui-locale`），不写 Cookie 或最近语言，也不改变 action scope、安装和权限。正常写偏好拟走 `POST /api/ui/locale`，接现行同源、会话、控制证明和一次性键防护（当前变更守卫只覆盖 `/api/` 等受保护路径）。它兑现入口 Cookie，无需另设系统动作。无 JS 的 `GET /locale` 仍走安全站内回跳，跨站不得更新最近语言。

@@ -1,14 +1,7 @@
-import type { ProjectDirectories, ProjectDirectory } from "@molis-ai/molis-work-contracts/modules/projects";
+import type { ProjectDirectories, ProjectDirectory, ProjectDirectoryPage } from "@molis-ai/molis-work-contracts/modules/projects";
 
-/** What the settings page's route adds to `projects.directories.get@1` for drawing it (`apps/local-host/src/project-workspace-http.ts`). */
-export interface DirectoriesPage {
-  default_output_id: string;
-  /** False only when the default output directory is the output and is not made yet. */
-  default_output_made: boolean;
-  /** What each folder of a source link was, so it is named without its path (spec §3 「另一台设备上的引用」). */
-  source_kinds: Record<string, "folder" | "former_default_output" | "other_default_output">;
-}
-export type Answer = ProjectDirectories & { page: DirectoriesPage };
+/** `page` is the route's drawing half, one shape with the Host (`ProjectDirectoryPage`). */
+export type Answer = ProjectDirectories & { page: ProjectDirectoryPage };
 export type Say = Record<"loading" | "failed" | "stale" | "added" | "removed" | "output" | "repaired" | "mapped" | "unmapped" | "remove_named" | "output_named"
   | "change_named" | "unmap_named" | "default_name" | "source_folder" | "source_other_default" | "source_former_default" | "choose_output" | "choose_source" | "stands" | "input_role" | "output_role", string>;
 export type Consequence = Record<"output" | "output_pick" | "source" | "source_pick", string>;

@@ -5,17 +5,20 @@ import { WORKBENCH, SHELL, ASSIST, PAGES, STAGE_LIST, STAGE_OPEN, CENTRED_DIALOG
 export const CRAFT_PAGES_STYLES = `  /* A phone: two rows at the foot, the Assistant line first, then the Dock and the project (a plugin's own list opens
      in a drawer from the button left of the project). */
   @media (max-width: 600px) {
-    ${SHELL} { --plugin-rail-width: 0px; --workspace-chrome-height: 0px; --assistant-island-row: 0px; --dock-h: 116px; --composer-h: 50px; }
+    ${SHELL} { --plugin-rail-width: 0px; --workspace-chrome-height: 0px; --assistant-island-row: 0px; --dock-min: 116px; }
     ${SHELL} .immersive-workspace,
     ${SHELL} .immersive-workspace.is-directory-collapsed,
     ${SHELL} .immersive-workspace.is-plugin-directory-empty { grid-template-rows: auto 0 0 minmax(0, 1fr) auto; }
     ${SHELL} .workbench-bar {
-      z-index: 45; grid-row: 5; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: 58px 50px; gap: 0 4px;
+      z-index: 45; grid-row: 5; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto 50px; gap: 0 4px;
       padding: 4px 8px max(8px, env(safe-area-inset-bottom));
     }
     ${SHELL} .bar-center { grid-column: 1 / -1; grid-row: 1; align-self: center; }
-    ${SHELL} .bar-start { grid-column: 1; grid-row: 2; }
-    html ${SHELL} .workbench-bar .bar-end { grid-column: 2; grid-row: 2; justify-self: end; }
+    ${SHELL} .bar-start { grid-column: 1; grid-row: 2; min-height: 0; }
+    html ${SHELL} .workbench-bar .bar-end { grid-column: 2; grid-row: 2; justify-self: end; min-height: 0; }
+    ${SHELL} .bar-center > .assistant-composer { padding-block: 4px; }
+    /* At rest the composer is one row (composer-styles.ts): the Assistant line comes back to the bar's rest height. */
+    ${SHELL} .bar-center > .assistant-composer:has(> .mw-composer[data-rest]) { padding-block: 2px; }
     ${SHELL} .dock-pins { gap: 0; margin-left: 0; }
     ${SHELL} .dock-pins::before { left: -1px; }
     ${SHELL} .dock-pin.is-fixed { margin-right: 0; }
@@ -44,7 +47,6 @@ export const CRAFT_PAGES_STYLES = `  /* A phone: two rows at the foot, the Assis
     ${ASSIST} .bar-center > .assistant-context-strip { inset: auto -8px calc(100% + var(--next-row, 0px)); max-width: none; padding: 6px 8px 0; background: var(--desk); }
     ${SHELL} .account-global-popover { position: fixed; left: 10px; bottom: calc(var(--dock-h) + 6px); width: min(300px, calc(100vw - 20px)); }
     html ${SHELL} .workbench-bar .bar-end .navigator-project-menu-popover { position: fixed; right: 10px; left: auto; bottom: calc(var(--dock-h) + 6px); }
-    /* The composer row carries the Assistant's own choosers; on a phone they stay compact, and typing gives the input the row. */
     ${SHELL} .bar-start .plugin-picker { max-width: none; padding-right: 0; }
     ${SHELL} .bar-start .plugin-picker-trigger { padding: 0 8px; }
     /* On a phone the Dock beside it already shows where you are: the switcher is the door to all plugins. */
@@ -56,17 +58,6 @@ export const CRAFT_PAGES_STYLES = `  /* A phone: two rows at the foot, the Assis
     ${ASSIST} .assistant-tab:not([data-current]) { display: none; }
     ${ASSIST} .assistant-tabs { flex: 1 1 auto; }
     ${ASSIST} .assistant-tab[data-current] { flex: 1 1 auto; width: auto; }
-    /* On a phone the chips sit compact beside a tappable input; while typing, the input takes the whole bar. */
-    ${SHELL} .bar-composer .assistant-composer-input { flex: 1 1 64px; min-width: 64px; }
-    ${ASSIST} .assistant-executor { flex: 0 1 auto; max-width: 64px; overflow: hidden; text-overflow: ellipsis; padding: 0 4px; }
-    ${ASSIST} .assistant-executor > svg { display: none; }
-    /* One chooser beside the input: the Character shows while the panel is open or once chosen, and then replaces the executor. */
-    ${SHELL} [data-assistant-island]:has(.assistant-panel[hidden]) :is([data-assistant-character], [data-assistant-executor]):not([data-chosen]) { display: none; }
-    ${SHELL} .bar-composer:has([data-assistant-character][data-chosen]) [data-assistant-executor] { display: none; }
-    /* Only while typing: focusing the switcher or a chip must keep it on screen. */
-    ${SHELL} .bar-composer:has(.assistant-composer-input:focus):not([data-measuring]) :is(.assistant-executor, .assistant-attention) { display: none; }
-    ${SHELL} .bar-composer:has(.assistant-composer-input:focus) .assistant-target { max-width: 76px; min-width: 36px; }
-    ${SHELL} .bar-composer:has(.assistant-composer-input:focus) [data-assistant-target-label] { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   }
 
   /* Prompt 与 Character settings: grouped by source, each prompt expandable to edit, the default beside the person's version. */
@@ -511,7 +502,7 @@ export const CRAFT_PAGES_STYLES = `  /* A phone: two rows at the foot, the Assis
   .mw-catalog-bar-frame { display: block; width: min(100%, 1100px); height: 440px; border: 0; border-radius: 14px; background: var(--desk); box-shadow: inset 0 0 0 1px var(--hairline); }
   body.mw-bar-specimen-page { background: var(--desk); }
   .mw-catalog-bar-stage { box-sizing: border-box; display: flex; flex-direction: column; justify-content: flex-end; height: 100dvh; padding: 0 16px; background: var(--desk); }
-  .mw-catalog-bar-stage .workbench-bar { height: var(--dock-h); padding: 0; background: transparent; }
+  .mw-catalog-bar-stage .workbench-bar { min-height: var(--dock-min); padding: 0; background: transparent; }
   .mw-catalog .mw-craft-space { display: grid; grid-template-columns: 70px 1fr; grid-template-rows: 1fr 30px; column-gap: 0; width: min(100%, 440px); height: 200px; padding: 12px 12px 0; border-radius: 14px; background: var(--desk); box-shadow: inset 0 0 0 1px var(--hairline); overflow: hidden; }
   .mw-catalog .mw-craft-space__dir { grid-row: 1; margin: 16px 0 0; border-radius: 10px 0 0 10px; background: repeating-linear-gradient(180deg, color-mix(in srgb, var(--ink) 9%, transparent) 0 6px, transparent 6px 14px) 10px 12px / 44px 100% no-repeat, var(--surface-soft); }
   .mw-catalog .mw-craft-space__main { grid-row: 1; display: grid; grid-template-rows: 18px 1fr; }

@@ -30,6 +30,13 @@ test("PFG-22 PFG-24 PFG-26 scheme A: two tiers, tabs narrow to 96px before the s
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { evaluate, waitFor, click, command, sessionId, navigate, origin, projectId } = browser;
+  // 07-AUDIT: a stand-in for a plugin that did not start (a real one is RAC-2623), as the bar's test makes it: its stage
+  // placeholder carries the Host's mark before the page's scripts read it. Pages is a project plugin, so the mark is the
+  // project scope's.
+  await command("Page.addScriptToEvaluateOnNewDocument", { source: `new MutationObserver((_, observer) => {
+    const stage = document.querySelector('[data-work-surface="pages"]'); if (!stage) return;
+    stage.setAttribute('data-project-plugin-unavailable', 'workbench'); observer.disconnect();
+  }).observe(document, { subtree: true, childList: true });` }, sessionId);
   const key = async (name: string, code: string) => {
     await command("Input.dispatchKeyEvent", { type: "keyDown", key: name, code }, sessionId);
     await command("Input.dispatchKeyEvent", { type: "keyUp", key: name, code }, sessionId);
@@ -44,6 +51,9 @@ test("PFG-22 PFG-24 PFG-26 scheme A: two tiers, tabs narrow to 96px before the s
   await evaluate(seeded(false));
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await waitFor(`document.querySelector('${TABS} [data-tab-id=tg1][aria-current]')`, 15_000);
+  // The Host's mark is in place before the strip and the lists read it (07-AUDIT): Pages is the stand-in for a plugin that
+  // did not start. Its tab and its 全部标签 row are checked below once a tab switch has drawn the strip again.
+  await waitFor(`document.querySelector('[data-work-surface="pages"]')?.hasAttribute('data-project-plugin-unavailable')`, 10_000);
 
   // Two tiers: the Goals head, then a hairline, then its records.
   const tiers = await evaluate<{ after: string | null; hidden: string | null }>(`(() => {
@@ -70,17 +80,21 @@ test("PFG-22 PFG-24 PFG-26 scheme A: two tiers, tabs narrow to 96px before the s
   // 全部标签 opens beside its button: search first, then a section per group with its count, the current tab marked.
   await click(ALL);
   await waitFor(`document.querySelector('${ALL_MENU}')?.matches(':popover-open') && document.activeElement?.matches('${ALL_MENU} input')`);
-  const menu = await evaluate<{ sections: (string | null)[]; current: string | null; expanded: string | null; near: boolean }>(`(() => {
+  const menu = await evaluate<{ sections: (string | null)[]; current: string | null; expanded: string | null; near: boolean; failed: { dot: boolean; label: string | null } }>(`(() => {
     const menu = document.querySelector('${ALL_MENU}'), button = document.querySelector('${ALL}').getBoundingClientRect(), box = menu.getBoundingClientRect();
+    const failedRow = menu.querySelector('[data-all-tab=tpages]'), failedDot = failedRow?.querySelector('.nav-warn-dot');
     return { sections: [...menu.querySelectorAll('.mw-menu__group')].map(group => group.getAttribute('aria-label')),
       current: menu.querySelector('[aria-current]')?.dataset.allTab ?? null, expanded: document.querySelector('${ALL}').getAttribute('aria-expanded'),
-      near: Math.abs(box.top - button.bottom) < 16 };
+      near: Math.abs(box.top - button.bottom) < 16, failed: { dot: Boolean(failedDot), label: failedRow?.getAttribute('aria-label') ?? null } };
   })()`);
   // The last section holds Pages and Issues, each open with nothing behind it: one unnamed section rather than one each.
   assert.deepEqual(menu.sections, ["已固定 · 1 张", "Goals · 4 张", "发布周 · 2 张", null]);
   assert.equal(menu.current, "tg1");
   assert.equal(menu.expanded, "true");
   assert.equal(menu.near, true, "the list opens at its button");
+  // 07-AUDIT: the list carries the strip's amber point, and the row's name says what it means.
+  assert.equal(menu.failed.dot, true, "全部标签 carries the point of a plugin that did not start");
+  assert.match(menu.failed.label ?? "", /没能启动/);
   // Typing narrows it; Esc closes it and gives the focus back.
   await evaluate(`(() => { const input = document.querySelector('${ALL_MENU} input'); input.value = '底座'; input.dispatchEvent(new Event('input')); })()`);
   assert.deepEqual(await evaluate(`[...document.querySelectorAll('${ALL_MENU} [data-all-tab]')].filter(row => row.checkVisibility()).map(row => row.dataset.allTab)`), ["tg1"]);
@@ -99,6 +113,18 @@ test("PFG-22 PFG-24 PFG-26 scheme A: two tiers, tabs narrow to 96px before the s
   await click(`${ALL_MENU} [data-all-tab=tg4]`);
   await waitFor(`document.querySelector('${TABS} [data-tab-id=tg4][aria-current]') && !document.querySelector('${ALL_MENU}').matches(':popover-open')`, 15_000);
 
+  // 07-AUDIT: a tab whose plugin did not start carries the amber point, and its name says so; the list carries the same mark.
+  await waitFor(`document.querySelector('${TABS} [data-tab-id=tpages][data-tab-state=failed]')`, 10_000);
+  const failedStrip = await evaluate<{ dot: boolean; shown: boolean; label: string | null; others: number }>(`(() => {
+    const trigger = document.querySelector('${TABS} [data-tab-id=tpages] .tab-item-trigger'), dot = trigger.querySelector('.nav-warn-dot');
+    return { dot: Boolean(dot), shown: Boolean(dot) && dot.getClientRects().length > 0, label: trigger.getAttribute('aria-label'),
+      others: document.querySelectorAll('${TABS} .nav-warn-dot').length };
+  })()`);
+  assert.equal(failedStrip.dot, true, "a plugin that did not start carries the amber point on its tab");
+  assert.equal(failedStrip.shown, true, "the point is drawn, not only in the markup");
+  assert.match(failedStrip.label ?? "", /没能启动/);
+  assert.equal(failedStrip.others, 1, "only the tab of the plugin that did not start carries it");
+
   // A record that is gone: its tab is struck through and stays; its pane says so and offers the way out.
   await click(ALL);
   await waitFor(`document.querySelector('${ALL_MENU}').matches(':popover-open')`);
@@ -116,10 +142,31 @@ test("PFG-22 PFG-24 PFG-26 scheme A: two tiers, tabs narrow to 96px before the s
   await click("[data-tab-gone-stage=tgone] .mw-btn--secondary");
   await waitFor(`!document.querySelector('${TABS} [data-tab-id=tgone]') && !document.querySelector('[data-tab-gone-stage]')`);
 
-  // The column without the focus keeps only its place: moving into the right side marks the main strip unfocused.
+  // The column without the focus keeps only its place: moving into the right side marks the main strip unfocused, and the
+  // current tab there loses its lift. 07-AUDIT: the computed look is asserted, not just the attribute.
   assert.equal(await evaluate(`document.querySelector('${TABS}').hasAttribute('data-unfocused')`), false);
+  await click(ALL);
+  await waitFor(`document.querySelector('${ALL_MENU}').matches(':popover-open')`);
+  await click(`${ALL_MENU} [data-all-tab=tg4]`);
+  await waitFor(`document.querySelector('${TABS} [data-tab-id=tg4][aria-current]') && !document.querySelector('${ALL_MENU}').matches(':popover-open')`, 15_000);
+  const look = () => evaluate<{ background: string; shadow: string; after: string; other: string }>(`(() => {
+    const tab = document.querySelector('${TABS} [data-tab-id=tg4]'), style = getComputedStyle(tab);
+    const other = document.querySelector('${TABS} [data-tab-id=tgoals]');
+    return { background: style.backgroundColor, shadow: style.boxShadow, after: getComputedStyle(tab, '::after').display,
+      other: getComputedStyle(other).backgroundColor };
+  })()`);
+  const focusedLook = await look();
   await click("[data-side-tabs] [data-side-tab]");
   await waitFor(`document.querySelector('${TABS}').hasAttribute('data-unfocused') && !document.querySelector('[data-side-tabs]').hasAttribute('data-unfocused')`);
+  // The tab's look transitions to the unfocused rule: measure it after the transition has settled.
+  await waitFor(`getComputedStyle(document.querySelector('${TABS} [data-tab-id=tg4]')).boxShadow === 'none'`, 5_000);
+  const unfocusedLook = await look();
+  assert.notEqual(focusedLook.shadow, "none", "the focused column's current tab carries the lift");
+  assert.equal(unfocusedLook.shadow, "none", "without the focus the current tab has no lift");
+  assert.notEqual(unfocusedLook.background, focusedLook.background, "it keeps only a background of its own, not the focused column's");
+  assert.notEqual(focusedLook.after, "none", "the current tab of a group says so in the focused column");
+  assert.equal(unfocusedLook.after, "none", "and keeps none of it without the focus");
+  assert.equal(unfocusedLook.other, focusedLook.other, "a tab that is not the current one does not change when the focus leaves");
 });
 
 test("PFG-22 PFG-26 独看 says so at the strip's end, and a phone leads with 主区｜右侧 and folds the other tabs into 全部标签", { timeout: 150_000 }, async t => {

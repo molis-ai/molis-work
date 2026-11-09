@@ -2,7 +2,7 @@ import { handleSkillSettingsHttp } from "./agent-definitions/skill-settings-http
 import { handlePluginPageHttp } from "./plugin-page-http.js";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
-import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import { projectSettingsCapabilities, type ProjectDirectories } from "@molis-ai/molis-work-contracts/modules/projects";
 import { agentWriteCheckerActions, hostsAgentSessions, resolveProjectRuntime, type AgentWriteCheckerList } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { pluginReachable, projectReachablePlugins, reachEntry } from "./project-action-availability.js";
@@ -28,6 +28,7 @@ import { handleAttentionHttp } from "./attention-http.js";
 import { handleMemoryHttp } from "./memory/memory-host.js";
 import { handleHomeDockJudgmentHttp } from "./home-dock-http.js";
 import { handleSearchHttp } from "./search-http.js";
+import { handleComposerSourcesHttp } from "./composer-sources-http.js";
 import { handleDirectoryGrantHttp } from "./plugin-directory-http.js";
 import { handleKnowledgeHttp } from "./knowledge-http.js";
 import { handlePluginTrustHttp } from "./plugin-trust-http.js";
@@ -108,12 +109,15 @@ export const workspaceMembershipRoute: WebRoute<ProjectRuntimeContext> = { id: "
     actions: bindLocalWebActions(localHost, hostReference, ["projects:settings"]),
     readBody: () => readBody(request), respond: (status, body) => sendJson(response, status, body),
     pickDirectory: () => pickLocalDirectory(),
-    defaultOutput: () => composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => defaultOutputOf(catalog, options.project!.project_id)) }) };
+    defaultOutput: read => composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => defaultOutputOf(catalog, options.project!.project_id, read)) }) };
 
-/** The project's default output directory and whether it is made: only looked at when it is one of the project's folders (read, never made). */
-function defaultOutputOf(catalog: Pick<MolisWorkProjectCatalog, "defaultOutputDirectoryId" | "projectDirectories" | "prepareWorkspaceDirectory">, projectId: string) {
+/**
+ * The project's default output directory and whether it is made: only looked at when it is one of the project's folders (read, never made).
+ * `read` is the `projects.directories.get@1` answer the same request already drew, so this adds no second read of the project's directories.
+ */
+function defaultOutputOf(catalog: Pick<MolisWorkProjectCatalog, "defaultOutputDirectoryId" | "prepareWorkspaceDirectory">, projectId: string, read: ProjectDirectories) {
   const workspaceId = catalog.defaultOutputDirectoryId(projectId);
-  if (!catalog.projectDirectories(projectId).directories.some(item => item.workspace_id === workspaceId)) return { workspace_id: workspaceId, made: true };
+  if (!read.directories.some(item => item.workspace_id === workspaceId)) return { workspace_id: workspaceId, made: true };
   // A folder that cannot be looked at (a symbolic link, say) is not called unmade: its own refusal comes when it is used.
   try { return { workspace_id: workspaceId, made: catalog.prepareWorkspaceDirectory(projectId, workspaceId, "read").exists }; } catch { return { workspace_id: workspaceId, made: true }; }
 }
@@ -229,6 +233,9 @@ export const boardRoute: WebRoute<ProjectRuntimeContext> = { id: "board", handle
 export const directoryRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
   { id: "search", handle: ({ request, response, url, localHost, hostReference }) =>
     handleSearchHttp(request, response, url, () => bindLocalWebActions(localHost, hostReference, LOCAL_OWNER_PERMISSIONS)) },
+  // The unified input's `+` sources (S-composer-source-call): every plugin's `composer_source`, as the person, in this project.
+  { id: "composer-sources", handle: ({ request, response, url, localHost, hostReference }) =>
+    handleComposerSourcesHttp(request, response, url, (signal) => bindLocalWebActions(localHost, hostReference, LOCAL_OWNER_PERMISSIONS, { signal })) },
   // Project knowledge's management page and side panel tab (specs/project-knowledge §8), as the person.
   { id: "knowledge", handle: ({ request, response, url, localHost, hostReference }) =>
     handleKnowledgeHttp(request, response, url, { localHost, projectRef: hostReference }) },

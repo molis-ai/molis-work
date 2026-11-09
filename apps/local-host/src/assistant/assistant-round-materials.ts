@@ -223,7 +223,7 @@ export class AssistantRoundMaterials {
     const readers = views.filter(view => isSubjectReader(view.action) && view.availability.available);
     const out: AssistantMaterial[] = [];
     for (const material of materials) {
-      if (!material.reference || !material.object || "subject" in material.reference) { out.push(material.reference && "subject" in material.reference ? await readPickedPiece(actions, views, { ...material, reference: material.reference }) : material); continue; }
+      if (!material.reference || !material.object || "material" in material.reference || "subject" in material.reference) { out.push(material.reference && "subject" in material.reference ? await readPickedPiece(actions, views, { ...material, reference: material.reference }) : material); continue; }
       if (!opener) throw assistantErrors.unsupported(`现在不能核对「${material.title}」，请稍后再试或去掉这个引用`);
       const opened = await actions.invoke({ capability_id: opener.capability_id, version: opener.version, provider_id: opener.provider.provider_id }, { hit_id: material.reference.hit_id })
         .catch((error: unknown) => ({ state: "unavailable" as const, reason: error instanceof Error ? error.message : String(error) })) as

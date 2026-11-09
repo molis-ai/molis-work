@@ -162,4 +162,4 @@ export declare const writerSource: {
     };
 };
 
-export declare const writerSourceRequired: string[];
+export declare const writerSourceRequired: readonly ["session_id", "run_id"];

@@ -9,6 +9,7 @@ import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contrac
 import type { PluginDefinition, PluginInstanceRecord, PluginManifest, PluginPackageBundle } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { MemoryPluginConsentLedger, PluginRuntime, SqlitePluginRuntimeRepository, resolvePluginActivation } from "@molis-ai/molis-work-plugin-runtime";
 import { PluginInstallService, SandboxPackageStore, homeAgentDefinitions, pluginInstallActions } from "@molis-ai/molis-work-app-local-host";
+import { SKILLS_PERMISSIONS, skillCatalogActions, type SkillCatalogEntry } from "@molis-ai/molis-work-contracts/services/skills";
 import { CONTENT_PLUGIN_ID, MEETING_NOTES, contentPackageParts, contentPayload, forgedBundle, signedContentPackage, type ContentPackageOptions } from "./fixtures/content-package.js";
 import { caller, installedPackageHost, mac } from "./fixtures/signed-package-host.js";
 import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
@@ -291,5 +292,25 @@ test("SKC-02 S-content-package in a real Host the Skills of a Home content packa
     await h.reopen();
     await installed();
     assert.deepEqual(skills(), [], "nor after a restart");
+  } finally { await h.close(); }
+});
+
+test("SKC-04 SKC-05 an upgrade preview reads a home pack's Skill state from the home scope, not from the project's", mac, async () => {
+  const h = await installedPackageHost();
+  try {
+    const publisher = newPublisher(), person = { ...h.person, permissions: [...h.person.permissions, ...SKILLS_PERMISSIONS] };
+    const homePerson = { ...person, project_id: null }, homeClient = h.host.homeActionClient();
+    await h.install(signedContentPackage(publisher, { scope: "home" }));
+    const listed = (await homeClient.invoke(homePerson, { capability_id: skillCatalogActions.list.capability_id, version: skillCatalogActions.list.version }, {}) as
+      { skills: SkillCatalogEntry[] }).skills.filter(row => row.ref.source.plugin_id === CONTENT_PLUGIN_ID);
+    const entry = listed.find(row => row.ref.skill_id === MEETING_NOTES.id);
+    assert.ok(entry, "the home install lists its Skill");
+    await homeClient.invoke(homePerson, { capability_id: skillCatalogActions.setState.capability_id, version: skillCatalogActions.setState.version },
+      { scope: "home", install_id: entry.ref.install_id, skill_id: entry.ref.skill_id, state: "manual", expected_revision: entry.settings_revision });
+    const upgrade = signedContentPackage(publisher, { scope: "home", version: "2.0.0", compatibleFrom: ["1.0.0"], skills: [{ ...MEETING_NOTES, version: 2, body: `# ${MEETING_NOTES.id} v2\n` }] });
+    const preview = (await h.client.invoke(h.person, { capability_id: pluginInstallActions.preview.capability_id, version: pluginInstallActions.preview.version }, { bundle: upgrade })) as
+      { runtime_scope: string; skills?: Array<{ skill_id: string; state: string }> };
+    assert.equal(preview.runtime_scope, "home");
+    assert.equal(preview.skills?.find(skill => skill.skill_id === MEETING_NOTES.id)?.state, "manual", "the home scope's manual state is what a home pack's upgrade preview shows");
   } finally { await h.close(); }
 });

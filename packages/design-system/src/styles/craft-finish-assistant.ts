@@ -67,9 +67,7 @@ export const CRAFT_ASSISTANT_STYLES = `  /* 概况: the state, what it is doing 
   ${ASSIST} .assistant-usage-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 0 2px; }
   ${ASSIST} .assistant-usage-input { width: 9em; min-width: 0; padding: 3px 6px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface, transparent); color: var(--ink); font: inherit; font-size: 12px; }
   ${ASSIST} .assistant-round-executor { margin: 0 0 4px; font-size: 11px; color: var(--muted); }
-  /* With the panel open, its tab says where the next message goes; with the side pane shown, it lists what goes with it and who carries it. */
-  ${ASSIST} [data-assistant-island]:has(> .assistant-panel:not([hidden])) .assistant-target { display: none; }
-  ${ASSIST} [data-assistant-island][data-side-shown] :is([data-assistant-executor], [data-assistant-character], [data-assistant-mode]) { display: none; }
+
   /* The side pane speaks in shapes, not only lines: the overview is a card toned by the state; what waits on you are
      cards with their buttons; the path is a line with markers; materials drop into a zone and sit as tiles; results are
      cards you open or take back. Colour only says state: amber waits on you, green is done, copper is a suggestion. */
@@ -340,48 +338,11 @@ export const CRAFT_ASSISTANT_STYLES = `  /* 概况: the state, what it is doing 
   ${ASSIST} .assistant-problem { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 12px 12px; border-radius: 10px; background: var(--wash); }
   ${ASSIST} .assistant-problem p { margin: 0; }
   ${ASSIST} .assistant-recovery { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; margin: 0; padding-left: 16px; font-size: 12px; }
-  /* In front of the input: where the next Send goes — a new work (and whose), or the work it continues. */
-  /* The Assistant's choosers read like the plugin switcher: quiet words with a hover wash, never a row of outlined chips. */
-  ${ASSIST} .assistant-target { display: inline-flex; flex: 0 1 auto; align-items: center; min-width: 0; max-width: 26%; height: 28px; border-radius: 8px; box-shadow: none; transition: background-color var(--dur-hover) var(--ease-quint); }
-  ${ASSIST} .assistant-target:hover { background: var(--nav-hover); }
-  ${ASSIST} .assistant-target[data-mode="work"] { background: var(--nav-hover); box-shadow: none; }
-  ${ASSIST} .assistant-target-main {
-    min-width: 0; height: 28px; padding: 0 8px; border: 0; border-radius: 7px; background: transparent; color: var(--muted);
-    font: inherit; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;
-  }
-  ${ASSIST} .assistant-target-main > span { display: block; overflow: hidden; text-overflow: ellipsis; }
-  ${ASSIST} .assistant-target[data-mode="work"] .assistant-target-main { color: var(--ink); padding-right: 4px; }
-  ${ASSIST} .assistant-target-main:hover { color: var(--ink); }
-  ${ASSIST} :is(.assistant-target-main, .assistant-target-clear):focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
-  ${ASSIST} .assistant-target-clear { display: inline-grid; place-items: center; flex: none; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 7px; background: transparent; color: var(--muted); cursor: pointer; }
-  ${ASSIST} .assistant-target-clear[hidden] { display: none; }
-  ${ASSIST} .assistant-target-clear:hover { background: var(--nav-active); color: var(--ink); }
-  ${ASSIST} .assistant-target-clear svg { width: 12px; height: 12px; }
-  /* What goes with this Send, and ways to begin: small popovers rising from the composer. */
-  ${ASSIST} .assistant-executor { display: inline-flex; flex: none; align-items: center; gap: 4px; height: 28px; padding: 0 8px; border: 0; border-radius: 7px; background: transparent; box-shadow: none; color: var(--ink-soft); font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap; }
-  ${ASSIST} .assistant-executor[hidden] { display: none; }
-  ${ASSIST} .assistant-executor svg { width: 12px; height: 12px; color: var(--muted); }
-  ${ASSIST} .assistant-executor:hover { background: var(--nav-hover); color: var(--ink); }
-  ${ASSIST} .assistant-executor:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
-  ${ASSIST} .assistant-starter[aria-current] { background: var(--nav-active); color: var(--ink); }
-  ${ASSIST} .bar-composer-attach {
-    display: inline-flex; flex: none; align-items: center; gap: 4px; height: 28px; padding: 0 8px; border: 0; border-radius: 7px;
-    background: transparent; color: var(--muted); font: inherit; font-size: 12px; cursor: pointer;
-  }
-  ${ASSIST} .bar-composer-attach svg { width: 14px; height: 14px; }
-  ${ASSIST} .bar-composer-attach:hover { background: var(--nav-active); color: var(--ink); }
-  ${ASSIST} .bar-composer-attach:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
   ${ASSIST} .assistant-popover {
     position: absolute; z-index: 60; left: 0; bottom: calc(100% + 8px); display: flex; flex-direction: column; gap: 4px; width: min(420px, 100%);
     max-height: 50dvh; overflow: auto; padding: 8px; border-radius: 10px; background: var(--paper); box-shadow: var(--lift-3); font-size: 13px;
   }
   ${ASSIST} .assistant-popover[hidden] { display: none; }
-  /* One “+” beside the input: adding files and every choice about the next work, each with its current value. */
-  ${ASSIST} .assistant-more { left: auto; right: 0; width: min(300px, 100%); gap: 2px; }
-  ${ASSIST} .assistant-more-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; min-height: 32px; padding: 4px 8px; border: 0; border-radius: 7px; background: transparent; color: var(--ink); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
-  ${ASSIST} .assistant-more-item:hover { background: var(--nav-hover); }
-  ${ASSIST} .assistant-more-item:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
-  ${ASSIST} .assistant-more-value { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 12px; }
   /* News alone is a quiet bell; a number means something waits for the person. */
   /* The work's own menu: where it belongs, who carries it, handing over, usage. */
   /* A long message of the person's folds after six lines. */
@@ -405,17 +366,19 @@ export const CRAFT_ASSISTANT_STYLES = `  /* 概况: the state, what it is doing 
   ${ASSIST} .assistant-strip-chip.is-work{padding:0 8px;color:var(--muted);cursor:pointer}
   ${ASSIST} .assistant-strip-chip.is-landing{background:var(--accent-soft);box-shadow:none}
   ${ASSIST} .assistant-strip-label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  ${ASSIST} .assistant-strip-note{color:var(--faint);white-space:nowrap} ${ASSIST} .assistant-strip-chip.is-failed{max-width:320px;box-shadow:inset 0 0 0 1px var(--danger)} ${ASSIST} .is-failed>.assistant-strip-label{max-width:120px} ${ASSIST} .is-failed>.assistant-strip-note{min-width:0;overflow:hidden;color:var(--danger);text-overflow:ellipsis}
-  ${ASSIST} .assistant-strip-thumb{width:20px;height:20px;border-radius:4px;object-fit:cover}
+  ${ASSIST} .assistant-strip-note{color:var(--faint);white-space:nowrap}
   ${ASSIST} .assistant-strip-act{flex:none;width:32px;height:32px;padding:0;border:0;border-radius:6px;background:transparent;color:var(--muted);font:inherit;cursor:pointer}
   ${ASSIST} :is(.assistant-strip-act,.is-work):hover{background:var(--nav-hover);color:var(--ink)}
   ${ASSIST} :is(.assistant-strip-act,.is-work):focus-visible{outline:var(--focus-stroke);outline-offset:var(--focus-stroke-inset,-1px)}
   ${ASSIST} .assistant-notice-actions{display:flex;gap:6px;justify-content:flex-end}
-  /* Attention: a count only for what the person's rules let through here; the list says what waits and why. */
+  /* Attention: a count only for what the person's rules let through here; the list says what waits and why. It sits at the
+     right of the composer's receiver row, one line tall, so the row and the bar keep their height. */
   ${ASSIST} .assistant-attention {
-    display: inline-flex; flex: none; align-items: center; gap: 3px; height: 28px; padding: 0 7px; border: 0; border-radius: 7px;
+    position: absolute; top: 8px; right: 4px; display: inline-flex; align-items: center; gap: 3px; height: 20px; padding: 0 7px; border: 0; border-radius: 6px;
     background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--ink); font: inherit; font-size: 12px; cursor: pointer;
   }
+  /* The target reaches past the drawn line, to the bar's 28px floor (44px to a finger, in the touch rules). */
+  ${ASSIST} .assistant-attention::after { content: ""; position: absolute; inset: -4px 0; }
   ${ASSIST} .assistant-attention[hidden] { display: none; }
   ${ASSIST} .assistant-attention svg { width: 14px; height: 14px; }
   ${ASSIST} .assistant-attention:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
@@ -425,32 +388,9 @@ export const CRAFT_ASSISTANT_STYLES = `  /* 概况: the state, what it is doing 
   ${ASSIST} .assistant-notices-held > summary { cursor: pointer; color: var(--muted); font-size: 12px; padding: 7px 2px; }
   ${ASSIST} .assistant-notices-held > .assistant-notice { margin-top: 6px; }
   ${ASSIST} .assistant-popover-title { margin: 0 0 4px; padding: 0 8px; font-size: 11px; color: var(--faint); }
-  ${ASSIST} .assistant-mention { display: grid; gap: 2px; text-align: left; } ${ASSIST} .assistant-mention.is-stale { opacity: .5; cursor: default; }
-  ${ASSIST} .assistant-mention-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  ${ASSIST} .assistant-mention-snippet { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--muted); }
-  ${ASSIST} .assistant-composer[data-dropping] { outline: 2px dashed var(--accent, var(--ink)); outline-offset: 2px; }
   ${ASSIST} .assistant-material-origin { font-size: 11px; color: var(--faint); white-space: nowrap; }
-  ${ASSIST} .assistant-starter { width: 100%; padding: 8px 8px; border: 0; border-radius: 7px; background: transparent; color: var(--ink-soft); font: inherit; text-align: left; cursor: pointer; }
-  ${ASSIST} .assistant-starter:hover { background: var(--nav-hover); color: var(--ink); }
-  ${ASSIST} .assistant-starter:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
   ${ASSIST} .assistant-exact summary { cursor: pointer; font-size: 12px; color: var(--muted); }
   ${ASSIST} .assistant-exact pre { margin: 4px 0 0; max-height: 200px; overflow: auto; padding: 8px 12px; border-radius: 8px; background: var(--wash); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
-  /* The input always keeps room to type; the Assistant's choosers give way first and end in an ellipsis. */
-  ${SHELL} .bar-composer .assistant-composer-input { flex: 1 1 120px; min-width: 120px; }
-  ${SHELL} .bar-composer .assistant-target { flex: 0 1 auto; min-width: 72px; max-width: 180px; }
-  ${SHELL} .bar-composer .assistant-executor { flex: 0 1 auto; min-width: 0; max-width: 104px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  /* A narrower bar compacts the choosers first (short labels, tighter gaps); below 860px it keeps one beside the input,
-     the rule main's phone bar uses: the executor or Character shows once chosen or while the panel is open. */
-  @media (max-width: 1100px) {
-    ${SHELL} .bar-composer { gap: 4px; }
-    ${SHELL} .bar-composer .assistant-target { min-width: 56px; max-width: 96px; }
-    ${SHELL} .bar-composer .assistant-executor { max-width: 72px; } ${SHELL} .bar-composer .assistant-mode-word { display: none; }
-    ${SHELL} .bar-composer .assistant-composer-input { min-width: 96px; }
-  }
-  @media (max-width: 860px) and (min-width: 601px) {
-    ${SHELL} [data-assistant-island]:has(.assistant-panel[hidden]) :is([data-assistant-character], [data-assistant-executor]):not([data-chosen]) { display: none; }
-    ${SHELL} .bar-composer:has([data-assistant-character][data-chosen]) [data-assistant-executor] { display: none; }
-  }
   /* ⌘K search opens from the same place: one entry for finding and for asking. */
   @media (min-width: 601px) {
     ${SHELL} dialog.global-search-dialog[open] { position: fixed; inset: auto 0 calc(var(--dock-h) + 4px) 0; margin: 0 auto; width: min(640px, calc(100vw - 32px)); max-height: min(70dvh, 560px); }
@@ -542,27 +482,4 @@ export const CRAFT_ASSISTANT_STYLES = `  /* 概况: the state, what it is doing 
   ${SHELL} .dock-window-action:hover { background: var(--nav-hover); color: var(--ink); }
   ${SHELL} .dock-window-action svg { width: 14px; height: 14px; }
 
-  /* A narrow Assistant column (a 640–900px window, a side-by-side layout) keeps one chooser beside a usable input, as on
-     a phone: unchosen Character and executor chips fold away while the panel is closed, the plugin chip narrows. */
-  @container assistant-bar (max-width: 460px) {
-    ${SHELL} [data-assistant-island]:has(.assistant-panel[hidden]) :is([data-assistant-character], [data-assistant-executor]):not([data-chosen]) { display: none; }
-    ${SHELL} .bar-composer:has([data-assistant-character][data-chosen]) [data-assistant-executor] { display: none; }
-    ${SHELL} .bar-composer { gap: 4px; }
-    ${SHELL} .bar-composer .assistant-composer-input { flex: 1 1 40px; min-width: 40px; }
-    /* While typing the input takes the column; focusing a chip keeps that chip on screen. */
-    ${SHELL} .bar-composer:has(.assistant-composer-input:focus):not([data-measuring]) :is(.assistant-target, .assistant-executor, .assistant-attention) { display: none; }
-  }
-  /* A crowded composer at any width takes the same steps, as far as the island measures it needs (data-fit): the chips
-     present — a work, its materials, what needs a look, who does it — would otherwise leave the input no room at all. */
-  ${SHELL} .bar-composer[data-fit] { gap: 4px; }
-  ${SHELL} [data-assistant-island]:has(.assistant-panel[hidden]) .bar-composer:is([data-fit="folded"], [data-fit="narrow"]) :is([data-assistant-character], [data-assistant-executor]):not([data-chosen]) { display: none; }
-  /* With the panel open the choosers are back; the ones nobody changed give up their width before the input does. */
-  ${SHELL} .bar-composer[data-fit="narrow"] .assistant-executor:not([data-chosen]) { flex: 0 1 auto; min-width: 0; }
-  ${SHELL} .bar-composer .assistant-executor > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-  /* The input's floor holds only where the column has room for it; a narrow column's own steps above take over there. */
-  @container assistant-bar (min-width: 461px) {
-    ${SHELL} .bar-composer:is([data-fit="folded"], [data-fit="narrow"]) .assistant-composer-input { flex: 1 1 64px; min-width: 64px; }
-    ${SHELL} .bar-composer:is([data-fit="folded"], [data-fit="narrow"]) .assistant-target { min-width: 56px; }
-    ${SHELL} .bar-composer[data-fit="narrow"] .assistant-target { max-width: 96px; }
-  }
 `;

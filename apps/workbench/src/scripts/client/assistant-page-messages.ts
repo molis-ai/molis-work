@@ -3,7 +3,6 @@ import { ASSISTANT_THREAD_REPLY_SCRIPT } from "./assistant-step-row.js";
 /** What plugin pages tell the Assistant (spec 8.3): opening, messages, delegation and filling the input, with the thread-reply fragment joined in. A part of ASSISTANT_ISLAND_FACTORY_SCRIPT, joined in place. */
 export const ASSISTANT_PAGE_MESSAGES_PART = String.raw`  /* ─── What plugin pages tell the Assistant (spec 8.3): by purpose, never by wording ───────────────────────── */
   const heard = new Set();
-  let requestOverride = null, pageText = null;
   const tidyMessage = (raw) => {
     if (!raw || typeof raw !== "object" || typeof raw.message_id !== "string" || !raw.message_id || raw.message_id.length > 120) return null;
     if (!["background", "change", "suggest", "delegate", "reply"].includes(raw.purpose)) return null;
@@ -20,20 +19,19 @@ export const ASSISTANT_PAGE_MESSAGES_PART = String.raw`  /* ─── What plugi
   const bring = (message) => {
     (message.materials.length || !message.object ? message.materials : [{ kind: "object", title: message.object.title || message.object.id }]).forEach((item, index) => files.some((file) => file.title === item.title && file.text === item.text) || files.push(Object.assign({ material_id: "msg-" + message.message_id.slice(0, 40) + "-" + index, kind: item.kind || "text", title: item.title, text: item.text,
       explicit: true, source: { surface: message.source.surface, title: message.source.title } }, message.object ? { object: message.object } : {})));
-    if (message.text) input.value = message.text;
-    syncSend(); paintMats();
+    paintMats();
   };
   const showOffer = (message, unconfirmed) => stepRow?.offer(message, unconfirmed); ${ASSISTANT_THREAD_REPLY_SCRIPT}
   const delegate = async (message) => {
-    if (busy) { showOffer(message, false); return; }
+    if (sending) { showOffer(message, false); return; }
     if (message.work_id && works.some((work) => work.work_id === message.work_id)) await switchTo(message.work_id);
     else if (message.work_id || curId) await switchTo(null);
     await executorsLoaded;
     if (!message.work_id && message.executor && executorOffer(message.executor)) { nextExec = message.executor; nextMode = ""; paintAim(); paintSum(); } // e.g. the 成果库's 「交给 Coding」
     bring(message);
-    if (!String(input.value || "").trim()) { setPanel(true); input.focus(); return; }
-    requestOverride = "msg-" + message.message_id; pageText = message.text && input.value.trim();
-    compose.requestSubmit(send);
+    if (!message.text) { setPanel(true); input.focus(); return; }
+    // The same message twice starts one work: it keeps its own key.
+    void say(message.text, { named: "msg-" + message.message_id, written_by: "page" });
   };
   document.addEventListener("molis:assistant-open", async (event) => {
     const detail = event.detail && typeof event.detail === "object" ? event.detail : {};
@@ -51,7 +49,7 @@ export const ASSISTANT_PAGE_MESSAGES_PART = String.raw`  /* ─── What plugi
     brought.forEach((item, index) => files.push(item.subject ? { material_id: "kn-" + crypto.randomUUID(), kind: "object", title: item.title.slice(0, 200), explicit: true, reference: { subject: { kind: item.subject.kind, id: item.subject.id } }, object: { kind: item.subject.kind, id: item.subject.id, title: item.title.slice(0, 200) }, ...(source ? { source } : {}) } : Object.assign({ material_id: "open-" + Date.now().toString(36) + "-" + index, kind: "text", title: item.title.slice(0, 200),
       text: item.text.slice(0, 20000), explicit: true }, source ? { source } : {}, object ? { object } : {})));
     if (brought.length) sel = null;
-    syncSend(); paintMats(); setPanel(true); input.focus();
+    paintMats(); setPanel(true); input.focus();
   });
   window.addEventListener("molis:assistant-message", (event) => {
     const message = tidyMessage(event.detail);

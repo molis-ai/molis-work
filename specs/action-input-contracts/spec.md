@@ -1,6 +1,6 @@
 # 动作的版本字段与输入类型（路线书 05 第 4 项）
 
-状态：实现中（2026-11-06 设计）。N22-06（#1893，`2d6c7b56b`）、N22-01（[#1909](https://github.com/molis-ai/molis-work/pull/1909)，`077073d7b`）已合入；N14 的标本在 #1913，第一段在分支上；N22-04 试点（#1923，`db4d1e32b`）已合入，N22-02 在 #1939。用户 2026-11-08 定拆分（[决定 29](../post-anticorruption-roadmap/reference/decisions.md#decision-29)，§9.1）：N14 和工具、样板留在第 05 批，余片移到[第 55 批第 3 项](../post-anticorruption-roadmap/reference/batches/55.md#batch-55-item-3)。N14 的界面用户 2026-11-06 选了「就地接住」（设计台实物 `docs/design/rule-stale-reload/`，定样 PR 另开）；N22 的范围用户同日定为一次迁完（§9）。排进[第 05 批第 4 项](../post-anticorruption-roadmap/reference/batches/05.md#batch-05-item-4)，来源是[对抗式审查台账](../../docs/reviews/adversarial-review-2026-11-01.md) N14、N22。依据是 main `242d75d03`；#1790 合入（`a942bd9c3`）后复核过路径和行号，2026-11-07 按 #1877 勘误一轮。
+状态：本批范围已实现（2026-11-06 设计；N22 余片按决定 29 在第 55 批第 3 项）。N22-06（#1893，`2d6c7b56b`）、N22-01（[#1909](https://github.com/molis-ai/molis-work/pull/1909)，`077073d7b`）、N22-02（[#1939](https://github.com/molis-ai/molis-work/pull/1939)，`87a97032bd`）、N22-04 试点（[#1923](https://github.com/molis-ai/molis-work/pull/1923)，`db4d1e32b`）与防回潮计数（[#1951](https://github.com/molis-ai/molis-work/pull/1951)，`c7acb8416e`）已合入；N14 两段（[#1913](https://github.com/molis-ai/molis-work/pull/1913)，`a49d656d8`；[#1961](https://github.com/molis-ai/molis-work/pull/1961)，`e8a75e8882`）已合入；第 05 批全批随 [#1979](https://github.com/molis-ai/molis-work/pull/1979)（`500d868df3`）合入。用户 2026-11-08 定拆分（[决定 29](../post-anticorruption-roadmap/reference/decisions.md#decision-29)，§9.1）：N14 和工具、样板留在第 05 批，余片移到[第 55 批第 3 项](../post-anticorruption-roadmap/reference/batches/55.md#batch-55-item-3)。N14 的界面用户 2026-11-06 选了「就地接住」（设计台实物 `docs/design/rule-stale-reload/`，定样 PR 另开）；N22 的范围用户同日定为一次迁完（§9）。排进[第 05 批第 4 项](../post-anticorruption-roadmap/reference/batches/05.md#batch-05-item-4)，来源是[对抗式审查台账](../../docs/reviews/adversarial-review-2026-11-01.md) N14、N22。依据是 main `242d75d03`；#1790 合入（`a942bd9c3`）后复核过路径和行号，2026-11-07 按 #1877 勘误一轮。
 
 验收编号前缀 `AIC`，见 §12。
 
@@ -263,7 +263,7 @@ type RepeatTuple<T, N extends number, Acc extends unknown[] = []> =
 | `InferActionInput<S>` | 所有人 | §4.2，只有类型 |
 | `bindActionHandler(definition, run, extra?)` | 所有处理器 | 把定义和处理函数接成 `ActionHandlerBinding`。`run` 是 `(input, caller)`，`extra` 是 `{ execution?, availability? }`，展开在 `capability_id`、`version` 前面，盖不掉动作 id。**全仓只在这里写一次 `input as I`**，这里是 kernel 校验过的边界。各包的 `bind` 小包装改成调它；要多包一层的（写入检查、取权限）还留自己的包装，但不再各写一次 `as` |
 | `inputSchemaFor<I>()(schema)` | 手写接口的公开合同 | 四样一起查，不符就编译失败，没有关掉的参数。接口和 schema 必须说同一个形状。工具本身返回 `ActionSchema`，不把 schema 字面量写进 `.d.ts` |
-| `FlatUnion<U>` | 接口是判别联合、schema 是一个扁平对象的公开合同 | 把联合压平再交给 `inputSchemaFor`。键和字段类型由编译器管，哪些字段能一起出现仍归处理器。写在定义处，一眼看得出；不是联合时不起作用，放宽不了别的定义 |
+| `FlatUnion<U>` | 接口是判别联合、schema 是一个扁平对象的公开合同 | 把联合压平再交给 `inputSchemaFor`。键和字段类型由编译器管，哪些字段能一起出现仍归处理器。写在定义处，一眼看得出。只对对象和对象联合有效：普通对象除 `readonly` 外不变；数组、元组、标量不原样返回；`X \| null` 会去掉 `null` 并让所有键变成可选，那是放宽，不能拿它包。 |
 
 | 查什么 | 拦下的是 | 不查它会怎样 |
 | --- | --- | --- |
@@ -315,14 +315,15 @@ export type FlatUnion<U> = Expand<{ [K in AllKeys<U> as IsRequired<U, K> extends
 | `memory.change` | 接口宽：`expected_version` 接口可选，schema 必填。`MemoryChangeRequest` 也是内部方法的入参（`horizontal/memory/src/service.ts:525`），助理的「忘记」故意不带版本（`apps/local-host/src/assistant/assistant-memory-tools.ts:164`） | S0：不收紧 `MemoryChangeRequest`，动作单独写 `MemoryChangeRequest & { expected_version: number }`，「忘记」继续不带版本 |
 | `memory.import` | 接口严：`package` 接口是 `MemoryExportPackage`，schema 只写了 `{ type: "object" }`。这是用户选的文件，`readPackage`（`horizontal/memory/src/shapes.ts:41`）逐条查，报「第 N 条损坏」「格式不认识」；写进 schema，这些话就变成通用的输入错误 | S0：schema 不动，接口改成 `package: object` |
 | `git.inspect` | 判别联合配扁平对象，而且 `path` 没写 `items`。元素是不是字符串现在由 `parseFilePath`（`packages/contracts/src/modules/workspace-artifacts.ts:263`）查 | S0：`path` 加 `items`（只搬这条检查），再包 `FlatUnion` |
+| `agent.run.control` | 输入是三元组，第三项 `control` 是判别联合（`services/agent-host.ts:282` 的 `runControl`）；N22-02 的 `inputSchemaFor` 包不上（`packages/contracts/README.md` 的名单也列了它，等 S0） | S0：把接口与 schema 对齐后再按 §4.4 包上；包不上就带理由进 §4.4 名单 |
 | `agent.session.create`、`agent.run.start` | 判别联合配扁平对象 | N22-03 直接包 `FlatUnion`，不用 S0 |
 | `memory.prefs.write` | 判别联合，schema 有 `properties` 又有顶层 `oneOf`，推成 `unknown` | §4.4 名单，不包 |
 
-共享帮手里，`artifact-pins` 的比较和继续、`file-sources` 的预览过不了（`artifact` 只写了 `{ type: "object" }`，接口是 `ArtifactVersionRecord`），进 §4.4 名单（理由在那里）。其余量过的都过。`work-executors`（7 个角色）、`action-scene-configuration`（3 个）和 `home-background-tasks` 没量，由 N22-02 包的时候编译器给结果，按 §5.1 走。
+共享帮手里，`artifact-pins` 的比较和继续、`file-sources` 的预览过不了（`artifact` 只写了 `{ type: "object" }`，接口是 `ArtifactVersionRecord`），进 §4.4 名单（理由在那里）。其余量过的都过。`work-executors`（6 个角色）、`action-scene-configuration`（3 个）和 `home-background-tasks` 已由 N22-02 包上，编译器通过。
 
 **零误报只说明没有错拦，查不出放行。**所以另量一次：给元组定义（当时数到 39 个，N22-01 重量是 43 个，带对象元素的都是 21 个）的每个对象元素加一个多余的可选键，看键检查报不报。带对象元素的 21 个全部报出（`ElementExcess` 之前只报出 3 个）。其余 22 个没有对象元素，加不了键。`FlatUnion` 同样量过：两个压平的定义加键被拒；小用例里键多、字段类型不符、判别值不符、schema 把某一支没有的键写成必填都被拒。反向键也量过：加上它 119 个的结果不变；再把接口里的可选键删掉，有可选键可删的 39 个全部报出，`AgentCollaborationControlInput`、`AgentRunControl` 是联合，到联合就停。
 
-**05② C-1 新增的 9 个定义**（[#1894](https://github.com/molis-ai/molis-work/pull/1894)，先量 7 个，#1895 又加了 `map_source`、`unmap_source`）：`projects.directories.set_output`、`map_source` 是 `properties` 加顶层 `oneOf`，N22-01 上推成 `unknown`，包 `FlatUnion` 也过不了，要等 N22-02 的工具改动（§4.2），N22-03 重量；`unmap_source` 推得出，在调用处包。评审台在 #1909 的头上用真实工具重量：公开合同 130 个定义，120 个通过，原来没过的 8 个还是那 8 个。上面 119 和 112 是原型的数，真实工具算上帮手生成的定义是 121 和 113。
+**05② C-1 新增的 9 个定义**（[#1894](https://github.com/molis-ai/molis-work/pull/1894)，先量 7 个，#1895 又加了 `map_source`、`unmap_source`）：`projects.directories.set_output`、`map_source` 是 `properties` 加顶层 `oneOf`，N22-01 上推成 `unknown`，包 `FlatUnion` 也过不了，要等 N22-02 的工具改动（§4.2），N22-03 重量；`unmap_source` 推得出，在调用处包。评审台在 #1909 的头上用真实工具重量：公开合同 130 个定义，120 个通过，原来没过的 8 个还是那 8 个；N22-02 带工具改动后（#1939）再量：130 个定义 122 个通过，剩 8 个留后续片（`memory.change`、`memory.candidates.list`、`memory.changes.list`、`memory.pairs.list` 接口宽；`memory.prefs.write`、`memory.import`、`git.inspect`、`characters.artifacts.preview` schema 松）。上面 119 和 112 是原型的数，真实工具算上帮手生成的定义是 121 和 113。
 
 | 要改的 | 写法 |
 | --- | --- |
@@ -342,7 +343,7 @@ SDK 的 `defineAction` 加一个不写 `Input`、从 schema 推的重载。收�
 | 情形 | 写法 | 为什么 |
 | --- | --- | --- |
 | 包内部的动作（插件、宿主动作、模块私有） | 从 schema **推导**，删掉手写的 `I` | 类型没有别的用处，一份事实 |
-| 输入类型是公开合同的一部分（`packages/contracts/src/services/*`、`modules/*`、§8.2 N22-02 列的 `platform/*`，05② C-1 合入后共 130 个定义加 15 组共享帮手） | **留着手写接口**，schema 外面包 `inputSchemaFor<I>()`（用户 2026-11-06 定） | **这些是两份事实，由编译器钉住**，这是有意的例外。调用方在用这些接口的名字；改成推导类型会把 schema 字面量写进每个定义的 `.d.ts`，动 14 份 API 快照，和 05② 抢合同队列，TS7056 也要量。这个方案也动快照，是 5 份，差异只是字面量变窄（§8.2 N22-02、N22-03） |
+| 输入类型是公开合同的一部分（`packages/contracts/src/services/*`、`modules/*`、§8.2 N22-02 列的 `platform/*`，05② C-1 合入后共 130 个定义加 15 组共享帮手） | **留着手写接口**，schema 外面包 `inputSchemaFor<I>()`（用户 2026-11-06 定） | **这些是两份事实，由编译器钉住**，这是有意的例外。调用方在用这些接口的名字；改成推导类型会把 schema 字面量写进每个定义的 `.d.ts`，动 14 份 API 快照，和 05② 抢合同队列，TS7056 也要量。这个方案也动快照，是 6 份（N22-02 4 份、N22-03 2 份），差异只是字面量变窄（§8.2 N22-02、N22-03） |
 | 公开合同，接口是判别联合，schema 是一个扁平对象（`agent.session.create`、`agent.run.start`；`git.inspect` S0 之后） | 留手写接口，`inputSchemaFor` 里写 `FlatUnion<I>` | 现在是扁平写法，改写法要动 schema 形状和动作快照，N22 不做。键和字段类型由编译器钉住，组合由处理器查 |
 | 公开合同，`inputSchemaFor` 过不了，S0 也修不了或不该修（现在是定义 `memory.prefs.write`，帮手 `artifact-pins` 的比较和继续、`file-sources` 的预览） | **留手写接口，不包**，写在这里，每条带理由 | `memory.prefs.write`：N22-02 的工具改动之后，N22-03 用真实 schema 再试，过了就从这里拿掉（合审用简化的 `prefs` 没过，不算结论）；`set_output`、`map_source` 同样的写法，改工具后能包，不进这里（§4.2）。3 个 `artifact` 帮手：`ArtifactVersionRecord` 是平台自己产出的记录，`payload`、`metadata` 是递归的 JSON，schema 推不出来；硬写全再封口，记录以后多一个字段，这些动作就全部运行时报错，它们有 10 个文件在用。**已知风险**：这几个没有编译器钉住，接口和 schema 漂了没人报，靠现有用例。N22-03、S0 碰到新的同类就加进来 |
 | 输入形状运行时才知道（`connector-mcp-actions.ts`、`external-mcp-actions.ts`、`plugin-builder/exposed-actions.ts`、`functions.published.*`） | `input: unknown`，不断言形状，原样转发 | 没有东西可推。名单写进收口片的记录 |
@@ -616,7 +617,7 @@ N22 只动 N12 第 ④ 块（`normalizeProjectId`）；①②③⑤（两段固�
 | N22-06 `normalizeProjectId` | §6 | Dataset、Form、Lingguang、Pages、PPT 的 `store.ts`（5） | E | 无 | Sonnet 5.5 high | **不依赖工具，也不等 #1837**：02 的 PR 没碰这五个 store（已查）。统筹可以最先开它 |
 | N14 | §2、§3 | §3 | 无归属（kernel 按 C1），Feed 一个文件 E | `host-actions.tsv` 6 行 | Opus 5.5 high，全量 | **#1837**；定样（#1873，已合入）；E 轨预警 |
 | N22-04 试点 Jelly | T＋S 同一个 PR，把两种片都走通，**定下写法样板**，量 §4.6 | Jelly（原估 5 个，实际 12 个：S 片还动 `ai.ts`、`calendar.ts`、`content.ts`、`store.ts`，另有 `contract.ts`、`plugin-routes.ts`、`search.ts`、`service-actions.ts`） | E | `actions.tsv` | Opus 5.5 high | N22-01。**它通过之前，下面的 T 片不开** |
-| N22-02 共享帮手 | **先带 §4.2 末尾的两处工具改动（合审实跑的 `set_output`、`map_source` 都是 `oneOf`，Goals 那两个是 `anyOf`，用例要带一个 `anyOf`），重量 130 个定义**；共享定义 `bind*` 改调工具，schema 包 `inputSchemaFor`。T 片 | contracts `platform/{artifact-pins,file-sources,placement,search-sources,workflow-content}.ts`、SDK `routes.ts`（6）；另有 10 个只有 `define*`、没有 `bind*` 的帮手，只包 schema：`platform/{action-fragments,action-offers,action-usages,action-subjects,home-events,home-background-tasks,due-reminders,work-executors,action-scene-configuration}.ts`、`services/connector-usages.ts`（共 16）。14 个导出的输入 schema 常量（`FILE_ENTRIES_INPUT_SCHEMA` 这些）加 `as const`，不包在常量定义处：包了导出类型变成 `ActionSchema`，同样改快照，还把字面量丢了。要加 `as const` 的比这 14 个多：它们嵌着的 `ACTION_REFERENCE_SCHEMA`（`platform/action-offers.ts`）、`ACTION_SUBJECT_SCHEMA`（`platform/actions.ts`）也要加，都在下面这几份快照里，不多占队列 | C1 | **改 3 份 API 快照**：`api/contracts/platform/actions.txt`、`platform/plugin.txt`、`services/connector-host.txt`。排 api 队列，过公共合同合审。差异只是字面量变窄，对调用方兼容：现有消费者都是展开读（`apps/local-host/src/{action-usage,home-event,home-offer}-actions.ts`）。动作快照不变 | Opus 5.5 high，全量 | N22-01；`platform/plugin.txt` 和 U1-f 不固定先后（§8.4） |
+| N22-02 共享帮手 | **先带 §4.2 末尾的两处工具改动（合审实跑的 `set_output`、`map_source` 都是 `oneOf`，Goals 那两个是 `anyOf`，用例要带一个 `anyOf`），重量 130 个定义**；共享定义 `bind*` 改调工具，schema 包 `inputSchemaFor`。T 片 | contracts `platform/{artifact-pins,file-sources,placement,search-sources,workflow-content}.ts`、SDK `routes.ts`（6）；另有 10 个只有 `define*`、没有 `bind*` 的帮手，只包 schema：`platform/{action-fragments,action-offers,action-usages,action-subjects,home-events,home-background-tasks,due-reminders,work-executors,action-scene-configuration}.ts`、`services/connector-usages.ts`（共 16）。14 个导出的输入 schema 常量（`FILE_ENTRIES_INPUT_SCHEMA` 这些）加 `as const`，不包在常量定义处：包了导出类型变成 `ActionSchema`，同样改快照，还把字面量丢了。要加 `as const` 的比这 14 个多：它们嵌着的 `ACTION_REFERENCE_SCHEMA`（`platform/action-offers.ts`）、`ACTION_SUBJECT_SCHEMA`（`platform/action-subjects.ts:34`）也要加；它还嵌在 `services/placement.ts` 里，`services/placement.txt` 因此一起变窄。新私有文件 `platform/closed-object-schema.ts` 保住字面量、不导出子路径，N22-03 可复用 | C1 | **改 4 份 API 快照**：`api/contracts/platform/actions.txt`、`platform/plugin.txt`、`services/connector-host.txt`、`services/placement.txt`（N22-02 与 N22-03 合计 6 份，见 §10 第 4 项）。排 api 队列，过公共合同合审。差异只是字面量变窄，对调用方兼容：现有消费者都是展开读（`apps/local-host/src/{action-usage,home-event,home-offer}-actions.ts`）。动作快照不变 | Opus 5.5 high，全量 | N22-01；`platform/plugin.txt` 和 U1-f 不固定先后（§8.4） |
 | N22-05 判断规则 | T＋S 同一个 PR：包小，N14 刚改过 | `modules/judgment-rules/src/{authoring-actions,actions}.ts`、宿主 `judgment-rules-actions.ts`（3） | 无归属 | `host-actions.tsv` | Opus 5.5 medium，全量 | **N14**（同一个文件）、N22-01、N22-02（`authoring-actions.ts:21` 展开 `ACTION_REFERENCE_SCHEMA`，常量还不是字面量时推出来是 `unknown`，容易误记成 schema 太松） |
 
 **N14 和工具谁先：** 互不依赖，可以同时开。只有 N22-05 必须排在 N14 和 N22-02 后面。
@@ -649,7 +650,7 @@ N22 只动 N12 第 ④ 块（`normalizeProjectId`）；①②③⑤（两段固�
 
 | 片 | 包 | 轨道 | 快照 | 档位 | 前置 |
 | --- | --- | --- | --- | --- | --- |
-| S0 合同里的共享 schema 与接口（清单空就取消） | 工具报出、N22-02、N22-03 记下的（已知 6 个定义，§4.3）。接口宽的收紧接口，调用方照接口写的本来就被拒，行为不变，报错的调用方当场改；schema 松的把字段写全，只搬已有检查，写不全就进 §4.4 名单。**例外：用户选的文件和平台自己产出的记录，先看该不该写全**：写进 schema，处理器具体的错误话会变成通用的输入错误（`memory.import`）；封口之后记录多一个字段就运行时报错（`artifact` 帮手） | C1 | 两份都占，可能还有 api | Opus 5.5 high，全量 | 这两片之后；占两份，这一轮别的 S 片让开 |
+| S0 合同里的共享 schema 与接口（清单空就取消） | 工具报出、N22-02、N22-03 记下的（已知 7 个定义，§4.3）。接口宽的收紧接口，调用方照接口写的本来就被拒，行为不变，报错的调用方当场改；schema 松的把字段写全，只搬已有检查，写不全就进 §4.4 名单。**例外：用户选的文件和平台自己产出的记录，先看该不该写全**：写进 schema，处理器具体的错误话会变成通用的输入错误（`memory.import`）；封口之后记录多一个字段就运行时报错（`artifact` 帮手） | C1 | 两份都占，可能还有 api | Opus 5.5 high，全量 | 这两片之后；占两份，这一轮别的 S 片让开 |
 | S1 | Goals | E | `actions.tsv` | Opus 5.5 medium | T01 |
 | S2 | Feed、Inbox、Issues | E | `actions.tsv` | Opus 5.5 medium | T02、T07 |
 | S3 | Todo、Schedule、Workflows | E | `actions.tsv` | Opus 5.5 medium | T03、T06 |
@@ -786,7 +787,7 @@ S 片：再加每个约束一个拒绝用例，PR 列出留下的检查和理由
 
 **拆分（用户 2026-11-08 定，[决定 29](../post-anticorruption-roadmap/reference/decisions.md#decision-29)）：** 范围不变，仍然全部迁完，只改时间。三个条件：工具和样板留在第 05 批；提前加一道只许减少的防回潮计数（§9.2）；余片在第 56 批开工前全部合入，因为第一个外部版本之后再收紧输入要升版本、留过渡期。第 05 批和第 06～54 批不再等余片。代价：新旧写法并存到第 56 批之前，后面改同一个插件的批次可能撞文件。
 
-**一个用户定的例外（2026-11-06）：** 119 个公开合同定义（05② C-1 合入后 130 个，算上帮手生成的）和 15 组共享帮手留手写接口，证明加反向（§4.3、§4.4）。处理器这一半照样没有 `as`，编译时对照；这些是两份事实，由编译器钉住，钉不住的写进 §4.4 名单。否掉的是全部推导：动 14 份 API 快照、抢合同队列、TS7056 风险。这个方案也动 5 份（当时 4 份，05② C-1 多出 `platform/project-materials.txt`），差异只是字面量变窄。
+**一个用户定的例外（2026-11-06）：** 119 个公开合同定义（05② C-1 合入后 130 个，算上帮手生成的）和 15 组共享帮手留手写接口，证明加反向（§4.3、§4.4）。处理器这一半照样没有 `as`，编译时对照；这些是两份事实，由编译器钉住，钉不住的写进 §4.4 名单。否掉的是全部推导：动 14 份 API 快照、抢合同队列、TS7056 风险。这个方案也动 6 份（原先按 5 份估；#1939 实测 N22-02 4 份、N22-03 2 份，多出 `services/placement.txt`），差异只是字面量变窄。
 
 ### 9.2 防止回潮：一条绝对门禁（用户 2026-11-06 定）
 
@@ -804,7 +805,7 @@ S 片：再加每个约束一个拒绝用例，PR 列出留下的检查和理由
 - 基线为 0，不用「只许减少」的账本，出现一个就失败。
 - 例外只有 `bindActionHandler` 那一处和 §4.4 的动态 schema，名单写在门禁里，每条带理由。
 - 测试不查。
-- **手写一份和 schema 对不上的 `I`，N22-G 多查一项来挡（统筹 2026-11-07 提出，用户同日同意）：** `createActionDefinition` 的第一个类型参数只能是 `InferActionInput<…>`，定义处也不许标 `ActionDefinition<X, …>`，合同包、SDK 自己（`packages/plugin-sdk/src/actions.ts`）和 §4.4 名单除外。`assistant-executor.ts:77` 这种按调用表取输入类型的写法，N22-G 开时核。原来写的「删 `defineAction` 的手写重载」挡不住：处理器走 `bindActionHandler`，不经过 `defineAction`，合审实跑 `createActionDefinition<错的, O>` 配 `bindActionHandler` 能编译。
+- **手写一份和 schema 对不上的 `I`，N22-G 多查一项来挡（统筹 2026-11-07 提出，用户同日同意）：** `createActionDefinition` 的第一个类型参数只能是 `InferActionInput<…>`，定义处也不许标 `ActionDefinition<X, …>`，合同包、SDK 自己（`packages/plugin-sdk/src/actions.ts`）和 §4.4 名单除外。`assistant-executor.ts:77` 这种按调用表取输入类型的写法，N22-G 开时核。原来写的「删 `defineAction` 的手写重载」挡不住：处理器走 `bindActionHandler`，不经过 `defineAction`，合审实跑 `createActionDefinition<错的, O>` 配 `bindActionHandler` 能编译。**还要查 cast 形式（2026-11-09 补）：** 定义处把定义 cast 成 `ActionDefinition<X, O>`（`expr as ActionDefinition<X, O>`）与类型参数同一条判据，`X` 不是 `InferActionInput<…>` 就算，带变异用例（这两项过渡计数都看不到 cast 形式）；第 05 批留下的 12 处（`apps/local-host/src/project-workspace-actions.ts:85-93`、`apps/local-host/src/project-workspace-http.ts:37-42`）由第 55 批 T11/S 片迁掉，N22-G 开时基线为 0。
 - `defineAction` 的手写重载不整个删，留 `input: unknown` 的写法，schema 擦除的定义（比如 TS 作者读 manifest）要有地方去。
 
 否掉两个方案（决策记录 §11）：不加门禁，只靠写法和评审，几个月后会慢慢长回来；类型上封死（品牌类型），测试里 189 个文件、475 处 `handle:` 都要跟着改，量顶得上好几个 T 片。门禁在最后一片之后才开，不影响分片和排程。
@@ -818,7 +819,7 @@ S 片：再加每个约束一个拒绝用例，PR 列出留下的检查和理由
 | 1 | 事实主人 | 不新增事实。版本字段的语义归动作合同；`updated_at` 归 `modules/judgment-rules` |
 | 2 | 插件同等待遇 | 过：N14 删掉内核给一个提供方的分支；N22 的工具在 SDK，内置和外部同一份 |
 | 3 | 能力注册 | 不新增动作。可信身份不变（项目 id 取自调用上下文，§6 正是核实这一点）；预览是 `concurrent`，保持 |
-| 4 | 合同 | N14 改 6 个动作输入和 `updated_at` 的语义，`functions.authoring.get` 对插件打开（`host-actions.tsv` 多变一行，§2.7），都在原版本上改（N35），一个 PR 改完所有消费者；N22-01 加公开类型和两个函数，单独排合同队列；T 片不改公开 API 和动作快照，N22-02、N22-03 例外：改 5 份 API 快照，差异只是字面量变窄，排 api 队列；S 片只改 schema 约束 |
+| 4 | 合同 | N14 改 6 个动作输入和 `updated_at` 的语义，`functions.authoring.get` 对插件打开（`host-actions.tsv` 多变一行，§2.7），都在原版本上改（N35），一个 PR 改完所有消费者；N22-01 加公开类型和两个函数，单独排合同队列；T 片不改公开 API 和动作快照，N22-02、N22-03 例外：改 6 份 API 快照，差异只是字面量变窄，排 api 队列；S 片只改 schema 约束 |
 | 5 | 放在哪个包 | 类型和两个小函数在 contracts（`bindActionHandler`、`inputSchemaFor` 都不到 20 行，无副作用），SDK 只依赖 contracts，不加第三方（§4.1） |
 | 6 | 表与存储 | 不改表。`updated_at` 语义收窄，存量值继续有效，不用升级 |
 | 7 | 兼容与迁移 | 不加。旧字段名直接拒绝 |
@@ -850,8 +851,8 @@ S 片：再加每个约束一个拒绝用例，PR 列出留下的检查和理由
 | 2026-11-06 | 80 字符上限删掉不搬 | 搬到 SDK | 和放置 schema 的 120 不一致，谁都不是主人 |
 | 2026-11-06 | **N22 一次迁完**（用户 2026-11-06 定） | 工具加试点、全量只换类型 | 代价是约 30 片、第 06 批之后等它，用户知道。2026-11-08 范围不变、时间拆开，§9.1 |
 | 2026-11-06 | 拆成 T 片和 S 片，T 片不动 schema 值、不占快照 | 每包一个 PR 两件一起做 | §8.3 |
-| 2026-11-06 | **公开合同的 119 个定义和 15 组共享帮手留手写接口，证明加反向**（用户定）：`inputSchemaFor` 加反向检查；接口宽于枚举的情形收紧接口，记进 S0；这些是两份事实，由编译器钉住 | 全部推导（`export type X = InferActionInput<typeof schema>`）；只查一个方向 | 全部推导要动 14 份 API 快照、和 05② 抢合同队列，还有 TS7056 风险；这个方案也动 4 份（N22-02、N22-03），差异只是字面量变窄。只查一个方向时，接口多键、接口宽于枚举都能编译通过，调用方照接口写、运行时被拒 |
-| 2026-11-06 | **严格比较和递归键检查进 `inputSchemaFor`，没有关掉的参数**；数组的三种定长写法都推成元组；键检查按位置走进元组，开放 schema 配有名字的接口要报，`required` 不是字面量不当必填；过不了的先不包，记进 S0 | 只顶层键加一次性严格比较 | 一次性比较挡不住以后的漂移。套到真实合同上，`memory.change` 等 4 个真漂移只有严格比较查得到；放进工具后 119 个定义零误报。工具本身不改 `.d.ts`，它要吃字面量，所以 N22-02、N22-03 改 4 份快照，少于全部推导的 14 份，不改变用户定的「留手写，证明加反向」 |
+| 2026-11-06 | **公开合同的 119 个定义和 15 组共享帮手留手写接口，证明加反向**（用户定）：`inputSchemaFor` 加反向检查；接口宽于枚举的情形收紧接口，记进 S0；这些是两份事实，由编译器钉住 | 全部推导（`export type X = InferActionInput<typeof schema>`）；只查一个方向 | 全部推导要动 14 份 API 快照、和 05② 抢合同队列，还有 TS7056 风险；这个方案也动 6 份（N22-02 4 份、N22-03 2 份），差异只是字面量变窄。只查一个方向时，接口多键、接口宽于枚举都能编译通过，调用方照接口写、运行时被拒 |
+| 2026-11-06 | **严格比较和递归键检查进 `inputSchemaFor`，没有关掉的参数**；数组的三种定长写法都推成元组；键检查按位置走进元组，开放 schema 配有名字的接口要报，`required` 不是字面量不当必填；过不了的先不包，记进 S0 | 只顶层键加一次性严格比较 | 一次性比较挡不住以后的漂移。套到真实合同上，`memory.change` 等 4 个真漂移只有严格比较查得到；放进工具后 119 个定义零误报。工具本身不改 `.d.ts`，它要吃字面量，所以 N22-02、N22-03 改 6 份快照，少于全部推导的 14 份，不改变用户定的「留手写，证明加反向」 |
 | 2026-11-06 | **加 `FlatUnion`，判别联合配扁平 schema 压平再比，写在定义处**（合同台定）。`agent.session.create`、`agent.run.start` 由此钉住，`git.inspect` 在 S0 后钉住 | 这几个全进名单；工具自动压平 | `agent-host-start.ts` 10-01 以来改了 8 次，最容易漂的就是这两个。同一个工具，不加开关。不自动压平：`oneOf` 写的 schema 要逐支比，放在定义处才看得出组合归处理器 |
 | 2026-11-06 | `memory.change` 不收紧 `MemoryChangeRequest`，动作单独写交叉类型；`memory.import` 改接口，schema 不动；3 个 `artifact` 帮手进名单，不写全 | 收紧 `MemoryChangeRequest`；把 `package` 和 `artifact` 写全并封口 | 助理的「忘记」故意不带版本；用户选的文件要处理器说具体的错；平台产出的记录封口之后多一个字段就运行时报错，而且 `payload` 是递归 JSON，推不出来 |
 | 2026-11-07 | `platform/plugin.txt` 上 N22-01、N22-02 和 U1-f 不固定先后，同一时间一个 PR，谁先准备好谁先；05② C-2、C-3 不预留（统筹定，取代 11-06 的「U1-f 先」） | U1-f 先、N22-02 在它合入之后；为 05② 预留 | 只共用生成的快照，没有语义依赖；U1-f 前面还隔着 U1-a～c，N22-02 跟着等的话 N22-05、T11 也要等。§8.4 |
@@ -883,14 +884,14 @@ S 片：再加每个约束一个拒绝用例，PR 列出留下的检查和理由
 | AIC-07 | 工作台连续保存两次都成功（第二次用第一次响应的版本）；两个页面同时改，后保存的得 `draft_stale`，未保存的输入还在，载入最新版后拿到新内容；别处只试跑或只加样例，这边保存成功，不出提示；别处删除后，未保存的输入还看得到，并有说明（界面断言按定样补；前两种情形的合同半见 AIC-09，删除的合同半见 AIC-15） |
 | AIC-08 | Feed：`draft_stale` 后存的旧版本作废，下一次提交用新版本成功；载入后要求重新预览；已发布后走重建草稿，新草稿不撞 key；Feed 走通 `functions.authoring.get`（`audiences` 含 `plugin`，Manifest 已声明，不报 `actions.forbidden`） |
 | AIC-09 | 试跑、加样例、删样例、发布、规整后无变化的保存，都不改 `updated_at`；定义字段真的变了才改。别处点一下试跑（含它先存一遍），这边的保存照常成功，不提示。列表顺序：发布顶到前面，试跑不动；排序只精确到秒，同一秒里的先后沿用现状。`tests/functions-store-versions.test.ts`：update、addSample、removeSample、preview、publish 五种拒绝都留，旧版本改由定义写入造出来，错误码是 `draft_stale`；`:30`、`:35`、`:41`、`:46` 的「版本前进」翻成「不变」；同一毫秒两次定义写入仍能分开 |
-| AIC-10 | 类型测试：必填、可选、enum、`oneOf`、`["string","null"]`、数组、`additionalProperties` 推导正确；只写 `{ type: "object" }` 时字段值是 `unknown`；`maxItems: 0`、`items` 是数组（含 `minItems` 短于 `items`）、`items` 是一个 schema 且 `minItems` 等于 `maxItems` 都推成元组；`inputSchemaFor` 在下面每种情形编译失败：schema 比接口松、字段类型不符、接口可选而 schema 必填、接口宽于枚举、接口有 schema 没写的键（顶层、嵌套、数组元素、多元素元组的每一位，含可选的那一位，可选和必填都算）、全可选接口配 `{ type: "object" }`、`required` 不是字面量而接口有必填字段、schema 有接口没写的键（顶层、嵌套、数组元素、元组每一位）、元组长度或元素不符；`FlatUnion` 下键多、字段类型不符、判别值不符也编译失败，不是联合时类型不变；只读数组、开放对象（接口也开放）、联合分支不误报；工具的返回类型不含 schema 字面量 |
+| AIC-10 | 类型测试：必填、可选、enum、`oneOf`、`["string","null"]`、数组、`additionalProperties` 推导正确；只写 `{ type: "object" }` 时字段值是 `unknown`；`maxItems: 0`、`items` 是数组（含 `minItems` 短于 `items`）、`items` 是一个 schema 且 `minItems` 等于 `maxItems` 都推成元组；`inputSchemaFor` 在下面每种情形编译失败：schema 比接口松、字段类型不符、接口可选而 schema 必填、接口宽于枚举、接口有 schema 没写的键（顶层、嵌套、数组元素、多元素元组的每一位，含可选的那一位，可选和必填都算）、全可选接口配 `{ type: "object" }`、`required` 不是字面量而接口有必填字段、schema 有接口没写的键（顶层、嵌套、数组元素、元组每一位）、元组长度或元素不符；`FlatUnion` 下键多、字段类型不符、判别值不符也编译失败；普通对象原样（除 `readonly`），数组、元组、标量不原样返回，`X \| null` 去 `null` 且所有键变可选、会放宽定义；只读数组、开放对象（接口也开放）、联合分支不误报；工具的返回类型不含 schema 字面量 |
 | AIC-11 | SDK 只依赖 contracts（`pnpm boundary:check`），公开 API 快照写明新类型和两个函数 |
 | AIC-12 | 每个 S 片：包内处理器不再有 `input as`；每个搬进 schema 的约束都有一个断言拒绝的用例，错误码写明；留下的检查有理由；动作快照刷新 |
 | AIC-13 | 试点量一次 `tsc` 时间与内存，记进 PR；超过 §4.6 估计三倍或碰到 TS7056，回到设计 |
 | AIC-14 | 五个 store 没有 `normalizeProjectId`；删掉之后，没有项目的调用行为不变：仍得 `actions.project_required`，由内核在处理器之前拒（`packages/kernel/src/action-service.ts:103`），用例经 `ActionService` 调；`to_project_id` 带空白、超 120 被放置 schema 拒；81 字符的项目 id 可用 |
 | AIC-15 | 规则被别处删除：有未保存输入时编辑器不关，输入还在，「存成新规则」得到一条带这些内容的新草稿；第二步失败时输入还在；没有未保存输入时关掉，并给一句「这条规则已被删除」。`sample.remove` 得 `sample_not_found` 时不当成规则没了 |
 | AIC-16 | 规则在别处发布：保存得 `published_immutable`，页面进「已在别处发布」，输入还在；「存成新规则」不撞 key；直接调动作、传的是发布的那一版，按成功（幂等只对直接调动作的调用方：编辑器点发布先 `saveDraft`，`update` 对已发布记录一律 `published_immutable`，走不到这里） |
-| AIC-17 | 每个 T 片：`pnpm actions:update`、`pnpm api:update` 无差异，运行时检查和错误码没动，PR 带 S 清单。N22-02、N22-03 的 `api:update` 除外：只改 §8.2 写明的 5 份快照，差异只是字面量变窄，PR 写明对调用方兼容 |
+| AIC-17 | 每个 T 片：`pnpm actions:update`、`pnpm api:update` 无差异，运行时检查和错误码没动，PR 带 S 清单。N22-02、N22-03 的 `api:update` 除外：只改 §8.2 写明的 6 份快照，差异只是字面量变窄，PR 写明对调用方兼容 |
 | AIC-18 | N22-Z：全仓处理器的输入参数上只剩 `bindActionHandler` 一处 `as` 和 §4.4 名单里的例外；公开合同的定义要么包了 `inputSchemaFor`，要么在 §4.4 名单里带理由；`defineAction` 的手写写法只剩 `input: unknown`；手写 `I` 被 N22-G 拦下；Skill 用新写法（`examples/plugin-sample`、`tooling/plugin-cli` 的模板是 JS，定义从 manifest 取，不用改）；读动作输入的 `text`、`optionalText` 只剩有理由的 |
-| AIC-19 | N22-G：新写一处处理器输入参数上的 `as`，门禁失败（变异用例），`bindOwnerPluginAction` 的输入参数上写 `as` 也失败；定义处写 `createActionDefinition<X, …>`、标 `ActionDefinition<X, …>` 时门禁失败（变异用例），合同包、SDK 和 §4.4 名单通过；类型参数化的帮手（`Object.entries<ActionDefinition<…>>`、`<I, O>(definition: ActionDefinition<I, O>)`）也通过，N22-G 只查定义处；基线为 0；`bindActionHandler` 和 §4.4 名单里的例外通过，名单每条有理由；测试文件不查 |
+| AIC-19 | N22-G：新写一处处理器输入参数上的 `as`，门禁失败（变异用例），`bindOwnerPluginAction` 的输入参数上写 `as` 也失败；定义处写 `createActionDefinition<X, …>`、标 `ActionDefinition<X, …>`、或把定义 cast 成 `ActionDefinition<X, …>` 时门禁失败（变异用例），合同包、SDK 和 §4.4 名单通过；类型参数化的帮手（`Object.entries<ActionDefinition<…>>`、`<I, O>(definition: ActionDefinition<I, O>)`）也通过，N22-G 只查定义处；基线为 0；`bindActionHandler` 和 §4.4 名单里的例外通过，名单每条有理由；测试文件不查 |
 | AIC-20 | 过渡计数：新文件写一处处理器输入上的 `as`、已有文件多写一处，门禁失败（变异用例）；`bindOwnerPluginAction` 的输入参数上写也算；减少时通过；测试文件不数；基点上的数字由同一份脚本量，改不大。定义处手写的输入类型同样：新文件、已有文件多写一处、经导出的包装写一处，门禁失败（变异用例）；`InferActionInput<…>`、不带类型参数、`define<O>()(…)`、只是同名的函数不算 |

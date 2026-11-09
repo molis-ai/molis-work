@@ -960,5 +960,29 @@
     "name": "version",
     "values": { "0.166.0": 3, "1.0.70": 1, "1.5.0": 1 },
     "reason": "外部工具登记表每行 `checked.version` 记的是核对那一行时外部工具的上游版本（如 Codex 0.166.0），说明这行依据哪一版写成，不是产品版本，也不是合同或库的版本，不进 tooling/versions.json。"
+  },
+  {
+    "entry": "action.sessions.list",
+    "reason": "由服务片 S-1 登记，登记后门禁会要求删掉：Sessions 合同片（第 22 批）只声明这个动作，所以动作快照里还没有行。"
+  },
+  {
+    "entry": "action.sessions.history.read",
+    "reason": "由服务片 S-1 登记，登记后门禁会要求删掉：Sessions 合同片（第 22 批）只声明这个动作，所以动作快照里还没有行。"
+  },
+  {
+    "entry": "action.sessions.scope.read",
+    "reason": "由服务片 S-1 登记，登记后门禁会要求删掉：Sessions 合同片（第 22 批）只声明这个动作，所以动作快照里还没有行。"
+  },
+  {
+    "entry": "action.sessions.scope.set",
+    "reason": "由服务片 S-1 登记，登记后门禁会要求删掉：Sessions 合同片（第 22 批）只声明这个动作，所以动作快照里还没有行。"
+  },
+  {
+    "entry": "action.sessions.project_ai_read.set",
+    "reason": "由服务片 S-1 登记，登记后门禁会要求删掉：Sessions 合同片（第 22 批）只声明这个动作，所以动作快照里还没有行。"
+  },
+  {
+    "entry": "action.sessions.discovery.run",
+    "reason": "由服务片 S-1 登记，登记后门禁会要求删掉：Sessions 合同片（第 22 批）只声明这个动作，所以动作快照里还没有行。"
   }
 ]

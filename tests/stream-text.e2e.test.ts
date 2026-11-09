@@ -110,9 +110,9 @@ test("VUX-14/15: the Assistant's streamed reply keeps its blocks, shows only new
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   // This case observes the motion itself, so lift the automation-only craft freeze.
   await evaluate("document.documentElement.removeAttribute('data-craft-still')");
-  await click("[data-assistant-input]");
+  await click("[data-assistant-composer] .mw-composer__input");
   await command("Input.insertText", { text: "写一段说明" }, sessionId);
-  await click("[data-assistant-send]");
+  await click("[data-assistant-composer] [data-composer-send]");
   await waitFor("document.querySelector('.assistant-msg--assistant .assistant-rich strong')?.textContent === '第一段'", 30_000);
   assert.equal(await evaluate<number>("window.freshSeen"), 0, "the reply's first words are not a growth of anything");
   await evaluate("window.firstBlock = document.querySelector('.assistant-msg--assistant .assistant-rich > p'); getSelection().selectAllChildren(window.firstBlock.querySelector('strong'))");

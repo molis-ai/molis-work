@@ -4,6 +4,7 @@ import {
   assistantBoardSamples, parseAssistantFrame, type AssistantFrameOptions, parseConditionFrame, renderMolisWorkAssistantSpecimen, renderMolisWorkBarSpecimen, renderMolisWorkConditionsSpecimen,
   renderMolisWorkNavigationSpecimen, renderMolisWorkPrimitiveCatalog, renderEnvironmentSection, renderEnvironmentSpecimen,
 } from "@molis-ai/molis-work-app-workbench";
+import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { drawAssistantReply } from "./assistant/assistant-view-html.js";
 import { questionErrors } from "./agent-question-card.js";
 import { L, clientI18nScript, currentLocale, htmlLang, isWebLocale, runWithLocale, type WebLocale } from "./web-locale.js";
@@ -19,7 +20,8 @@ export function handleComponentBoardHttp(request: IncomingMessage, response: Ser
   }
   if (request.method !== "GET") return false;
   // The board's own language switch (`?lang=`) changes this page only, never the Home's language; without it, the Home's.
-  const lang = url.searchParams.get("lang"), board = (locale: WebLocale) => runWithLocale(locale, () => renderMolisWorkPrimitiveCatalog(L, locale, environmentSection(locale)));
+  const lang = url.searchParams.get("lang"), board = (locale: WebLocale) => runWithLocale(locale,
+    () => renderMolisWorkPrimitiveCatalog(L, locale, environmentSection(locale), t.text("workbench.composer.next-boundary")));
   const page = url.pathname === "/__ui/catalog" ? () => board(isWebLocale(lang) ? lang : currentLocale())
     : url.pathname === "/__ui/catalog/bar" ? renderMolisWorkBarSpecimen
       : url.pathname === "/__ui/catalog/navigation" ? () => runWithLocale(isWebLocale(lang) ? lang : currentLocale(), () => renderMolisWorkNavigationSpecimen(L, htmlLang(), url.searchParams.get("sheet") === "arrival" ? "arrival" : "workbench"))

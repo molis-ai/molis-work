@@ -1,4 +1,5 @@
 import { lstatSync, type Stats } from "node:fs";
+import { isRecord } from "@molis-ai/molis-work-plugin-sdk";
 import { atomicWriteFileSync } from "./adapters/atomic-write.js";
 import { readSnapshotFile } from "./snapshot-files.js";
 import { sqliteStoreLabel, sqliteVersionRefusal, storageErrors, versionRefusalAfterSignal } from "./sqlite-baseline.js";
@@ -29,10 +30,8 @@ export type VersionedFileRead<T> =
   /** It does not parse, has no version an upgrade could start from, or its owner refuses it. Not a reason to overwrite it. */
   | { readonly status: "unreadable" };
 
-const isObject = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
-
 function versionIn(file: Pick<VersionedFile, "field">, value: unknown): number {
-  const found = isObject(value) ? value[file.field] : undefined;
+  const found = isRecord(value) ? value[file.field] : undefined;
   return Number.isSafeInteger(found) && (found as number) >= 1 ? found as number : 0;
 }
 
@@ -107,7 +106,7 @@ export function upgradeVersionedFile(file: VersionedFile, path: string, home?: s
   for (let at = from; at < file.version; at += 1) {
     const step = file.upgrades.find(item => item.from === at)!;
     try { value = step.transform(value); } catch (cause) { throw fail(label, "step_failed", cause); }
-    if (!isObject(value) || value instanceof Promise) throw fail(label, "step_failed");
+    if (!isRecord(value) || value instanceof Promise) throw fail(label, "step_failed");
     value = { ...value, [file.field]: at + 1 };
   }
   try { file.parse(value); } catch (cause) { throw fail(label, "verify_failed", cause); }

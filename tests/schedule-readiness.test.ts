@@ -120,12 +120,12 @@ test("the new-task form carries two hidden hints, one per missing thing, and not
   assert.doesNotMatch(form, /type="submit"[^>]*disabled/);
 });
 
-test("each hint says where to fix it with a plain link: the model settings, and the project's workspace settings", () => {
+test("each hint says where to fix it with a plain link: the model settings, and the project's inputs and output settings", () => {
   const p: ScheduleUiModel["primitives"] = { escape: String, icon: name => `<i data-icon="${name}"></i>`, text: zh, formatDate: value => value };
   const html = scheduleUiContribution.render({ contribution_id: "io.molis.work.native.schedule.ui.v1", surface: "workbench", model: { route_prefix: "/projects/p1", shown_plugins: ["schedule"], data: { jobs: [], tasks: [] }, primitives: p } });
   const hint = (kind: string) => new RegExp(`<div[^>]*data-schedule-hint="${kind}"[^>]*>([\\s\\S]*?)</div>`).exec(html)?.[1] ?? "";
   assert.match(hint("model"), /<a href="\/settings\/models"[^>]*>打开模型设置<\/a>/, "the model settings are global, so the link carries no project prefix");
-  assert.match(hint("workspace"), /<a href="\/projects\/p1\/settings\/workspaces"[^>]*>打开工作目录设置<\/a>/, "the workspace is bound in this project's settings");
+  assert.match(hint("workspace"), /<a href="\/projects\/p1\/settings\/workspaces"[^>]*>打开输入与输出设置<\/a>/, "the project's folders are bound in this project's settings, on the inputs and output page");
   assert.doesNotMatch(hint("model"), /“模型设置”/, "the sentence no longer names a place the person cannot click");
   // .mw-alert is a grid: a link that is a direct child of the alert would drop to its own row and stretch to the full width,
   // so its hit area and focus ring would cover the line. The sentence and its link share one span, and the link keeps its own text's width.

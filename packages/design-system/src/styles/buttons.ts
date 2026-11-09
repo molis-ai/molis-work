@@ -58,8 +58,8 @@ export const BUTTON_STYLES = `
     color: var(--action-ink);
     box-shadow: var(--lift-1);
   }
-  .mw-btn--primary:active:not(:disabled) {
-    background: color-mix(in srgb, var(--action) 82%, var(--action-ink));
+  .mw-btn--primary:is(:active, [aria-expanded="true"]):not(:disabled) {
+    background: var(--action-hover, var(--action)); border-color: var(--action-hover, var(--action));
   }
   /* Secondary is the soft button: a wash on whatever surface it sits on, no outline. Its size is the button's own
      (.mw-btn and --sm, --md, --lg), so a small secondary stands as tall as the small primary and ghost beside it. */

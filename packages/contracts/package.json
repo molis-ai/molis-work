@@ -202,6 +202,10 @@
       "types": "./dist/services/knowledge.d.ts",
       "import": "./dist/services/knowledge.js"
     },
+    "./services/sessions": {
+      "types": "./dist/services/sessions.d.ts",
+      "import": "./dist/services/sessions.js"
+    },
     "./services/search": {
       "types": "./dist/services/search.d.ts",
       "import": "./dist/services/search.js"
@@ -261,6 +265,10 @@
     "./platform/project-materials": {
       "types": "./dist/platform/project-materials.d.ts",
       "import": "./dist/platform/project-materials.js"
+    },
+    "./platform/composer": {
+      "types": "./dist/platform/composer.d.ts",
+      "import": "./dist/platform/composer.js"
     },
     "./platform/presentation": {
       "types": "./dist/platform/presentation.d.ts",

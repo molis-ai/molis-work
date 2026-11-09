@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { type TestContext } from "node:test";
 import { DatabaseSync } from "node:sqlite";
 import { homeAgentDefinitions, pluginControlActions, pluginInstallActions } from "@molis-ai/molis-work-app-local-host";
 import { ActionError, type ActionCallContext, type ActionDefinition, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -292,28 +292,29 @@ test("S-84 SCS-08 withdrawn project enable does not publish declared actions or 
   } finally { waiting = undefined; gate.release.resolve(); }
 });
 
-for (const scope of ["project", "home"] as const) {
-  test(`S-94 S-84 ${scope} regrant restores a real projected signed action on the same installation`, mac, async t => {
-    const f = await serveHomeRuntime(t), project = await f.project("Signed permission switch"), pkg = projectPackage(f, project);
-    await pkg.install(projectedNotes(scope, true));
-    const row = async () => scope === "project" ? await pkg.row() : f.host.homePlugins!.installation(PACKAGE_PLUGIN_ID)!;
-    const original = await row();
-    const client = scope === "project" ? pkg.client : f.host.homeActionClient(), caller = person(scope === "project" ? project.project_id : null);
-    const invoke = async () => {
-      const view = (await client.discover(caller)).find(item => item.provider.plugin_install_id === original.install_id && item.action.local_id === "notes.list");
-      assert.ok(view?.availability.available, JSON.stringify(view?.availability));
-      return client.invoke(caller, { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }, {});
-    };
-    assert.deepEqual(await invoke(), []);
-    const path = scope === "project" ? "/projects/" + project.project_id + "/api/plugin-trust/permissions/set" : "/api/settings/plugin-permissions/set";
-    const response = await f.request(path, { method: "POST", body: { install_id: original.install_id, permission: PLUGIN_PROJECTS_EXIST_PERMISSION, granted: true } });
-    assert.equal(response.status, 200, await response.clone().text());
-    const permission = (await response.json()).permissions.find((item: { permission: string }) => item.permission === PLUGIN_PROJECTS_EXIST_PERMISSION);
-    assert.equal(permission.granted, true, "the actual permission switch committed a changed grant");
-    const after = await row();
-    assert.deepEqual([after.install_id, after.installation_generation, after.version, after.manifest_digest],
-      [original.install_id, original.installation_generation, original.version, original.manifest_digest], "permission restart retains the release");
-    assert.equal(after.state, "running");
-    assert.deepEqual(await invoke(), [], "the actual sandbox query still runs after regrant");
-  });
+async function regrantRestoresProjectedAction(t: TestContext, scope: "project" | "home") {
+  const f = await serveHomeRuntime(t), project = await f.project("Signed permission switch"), pkg = projectPackage(f, project);
+  await pkg.install(projectedNotes(scope, true));
+  const row = async () => scope === "project" ? await pkg.row() : f.host.homePlugins!.installation(PACKAGE_PLUGIN_ID)!;
+  const original = await row();
+  const client = scope === "project" ? pkg.client : f.host.homeActionClient(), caller = person(scope === "project" ? project.project_id : null);
+  const invoke = async () => {
+    const view = (await client.discover(caller)).find(item => item.provider.plugin_install_id === original.install_id && item.action.local_id === "notes.list");
+    assert.ok(view?.availability.available, JSON.stringify(view?.availability));
+    return client.invoke(caller, { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }, {});
+  };
+  assert.deepEqual(await invoke(), []);
+  const path = scope === "project" ? "/projects/" + project.project_id + "/api/plugin-trust/permissions/set" : "/api/settings/plugin-permissions/set";
+  const response = await f.request(path, { method: "POST", body: { install_id: original.install_id, permission: PLUGIN_PROJECTS_EXIST_PERMISSION, granted: true } });
+  assert.equal(response.status, 200, await response.clone().text());
+  const permission = (await response.json()).permissions.find((item: { permission: string }) => item.permission === PLUGIN_PROJECTS_EXIST_PERMISSION);
+  assert.equal(permission.granted, true, "the actual permission switch committed a changed grant");
+  const after = await row();
+  assert.deepEqual([after.install_id, after.installation_generation, after.version, after.manifest_digest],
+    [original.install_id, original.installation_generation, original.version, original.manifest_digest], "permission restart retains the release");
+  assert.equal(after.state, "running");
+  assert.deepEqual(await invoke(), [], "the actual sandbox query still runs after regrant");
 }
+
+test("S-94 S-84 project regrant restores a real projected signed action on the same installation", mac, t => regrantRestoresProjectedAction(t, "project"));
+test("S-94 S-84 home regrant restores a real projected signed action on the same installation", mac, t => regrantRestoresProjectedAction(t, "home"));

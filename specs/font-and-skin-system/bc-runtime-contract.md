@@ -59,6 +59,8 @@ SDK 的 Manifest／视图校验和内容包白名单明确拒绝 `name_en`／`ti
 
 ### 连接服务的目录、表单与指南
 
+独立 Astra/high 已在 `130333b08d` 对照现行登记、目录、OAuth 和签包接点只读核对本段，未发现 Blocker/P1；该结论只覆盖合同，不代表实现或验收通过。
+
 现行 `IntegrationDeclarations` 已按 Home、完整插件身份和声明生存期持有服务；本批沿同一登记提供显示词来源，不新增服务名单或按服务 ID 猜词包。连接卡、搜索、连接请求及助理连接卡继续消费现有字符串目录；只在生成这份目录时按当前入口的受信语言投影。无页面工作沿已有最近语言上下文，不让浏览器指定词主人。
 
 声明层的 `PluginConnectionServiceDeclaration.title/summary/auth_help/outbound_note`、`capabilities[].label`、`setup_links[].label`、token 方法的 `label/placeholder`、`PluginOAuthMethodDeclaration.note` 和 `OAuthSettingDeclaration.label/placeholder` 接受已有 `TextRef` 与原文字串。原字串和 `literal` 保留其原义；专属界面短句迁到声明者的词包，共有词沿 SDK 现有规则。引用与词条均不收运行参数；主人、缺键、参数和默认语言完整性沿 SDK 同一校验。URL、域名、凭据格式示例、设置键、枚举机器值、端点、scope、pattern、绑定和用户数据不翻译。声明层与 `ConnectorDirectoryEntry` 等显示 DTO 分开：后者仍给普通字符串，不把 `TextRef` 对象送进旧字符串消费者。

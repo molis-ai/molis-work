@@ -34,16 +34,16 @@ export const assistantReviewHtml = (review: AssistantPendingReview, say: (text: 
  * the run's own pending question, a confirmation is the Host's review of the exact effect. The page only decides where
  * the next Send goes, and never sends anything the person did not send.
  *
- * Notes kept out of the served script (a comment in it is bytes the browser downloads and never runs). `namedObject`: A name in 「…」 that this work knows (one of its objects) opens where it lives: the answer points at the thing itself. `list items`: A model sometimes drops the space after a list's dash on one line (“-30 分钟” among “- 60 分钟”): beside a real item, it is one too. `ownStop`: A round the runtime stopped on its own (a guard, a breaker) says why in its own words; one the person stopped says so. `notices`: What needs the person first; news about a work (done, a result, new material) folds below — it also shows on the work. `reminder open`: A reminder opens its item where it lives: here when it is this page's project, otherwise on its own project's page. `pane switcher`: Split into panes, the switcher names each one: the page being worked on is the focused pane, not all of them run together. `delegated Send`: A delegated Send reuses its message id, so the same message twice starts one work. Its words are the page's: pageText marks them. `retried Send`: A Send whose outcome is unknown (the connection dropped) is retried with the same id, so the Host starts nothing twice. `project`: The project the next new work belongs to. The project list changes it as the person looks from one project to another. `searchKey`: Search opens with ⌘K (Ctrl K elsewhere); a touch screen has no key to name. `answer busy`: While a question's answer is on its way its button shows the shared loading mark, and ⌘↵ (or a closed card with no button) sends nothing.
+ * Notes kept out of the served script (a comment in it is bytes the browser downloads and never runs). `namedObject`: A name in 「…」 that this work knows (one of its objects) opens where it lives: the answer points at the thing itself. `list items`: A model sometimes drops the space after a list's dash on one line (“-30 分钟” among “- 60 分钟”): beside a real item, it is one too. `ownStop`: A round the runtime stopped on its own (a guard, a breaker) says why in its own words; one the person stopped says so. `notices`: What needs the person first; news about a work (done, a result, new material) folds below — it also shows on the work. `reminder open`: A reminder opens its item where it lives: here when it is this page's project, otherwise on its own project's page. `pane switcher`: Split into panes, the switcher names each one: the page being worked on is the focused pane, not all of them run together. `delegated Send`: A delegated Send reuses its message id, so the same message twice starts one work. Its words are the page's: pageText marks them. `retried Send`: A Send whose outcome is unknown (the connection dropped) is retried with the same id, so the Host starts nothing twice. `project`: The project the next new work belongs to. The project list changes it as the person looks from one project to another. `searchKey`: Search opens with ⌘K (Ctrl K elsewhere); a touch screen or a phone's width has no key to name (there the bar's input rests as one row), and the placeholder follows when the window crosses it. `answer busy`: While a question's answer is on its way its button shows the shared loading mark, and ⌘↵ (or a closed card with no button) sends nothing.
  */
 export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const L = host.translate, noticeText = (notice) => (${renderAssistantNoticeText.toString()})(notice, L);
   const island = document.querySelector("[data-assistant-island]");
   if (!island) return null;
   const panel = island.querySelector("[data-assistant-panel]");
+  // The composer's root and its text area (the first screen is the Dock's; the mount keeps that text area for good).
   const compose = island.querySelector("[data-assistant-composer]");
-  const input = island.querySelector("[data-assistant-input]");
-  const send = island.querySelector("[data-assistant-send]");
+  const input = compose?.querySelector(".mw-composer__input");
   const thread = island.querySelector("[data-assistant-thread]");
   const empty = island.querySelector("[data-assistant-empty]");
   const workNav = island.querySelector("[data-assistant-works]");
@@ -57,14 +57,11 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const sideToggle = island.querySelector("[data-assistant-side-toggle]");
   const sideDot = island.querySelector("[data-assistant-side-dot]");
   const blocks = Object.fromEntries([...island.querySelectorAll("[data-assistant-block]")].map((node) => [node.dataset.assistantBlock, node]));
-  const target = island.querySelector("[data-assistant-target]");
-  const targetWrap = island.querySelector("[data-assistant-target-wrap]");
-  const targetLabel = island.querySelector("[data-assistant-target-label]");
-  const targetClear = island.querySelector("[data-assistant-target-clear]");
   const newButton = island.querySelector("[data-assistant-new]");
-  if (!compose || !input || !send || !thread || !target) return null;
+  if (!compose || !input || !thread) return null;
   let project = host.project && host.project.id ? host.project : null;
-  const searchKey = () => !document.querySelector("[data-global-search-open], [data-global-search-dialog]") || (window.matchMedia && window.matchMedia("(hover: none)").matches) ? ""
+  const keyless = window.matchMedia ? window.matchMedia("(hover: none), (max-width: 600px)") : null;
+  const searchKey = () => !document.querySelector("[data-global-search-open], [data-global-search-dialog]") || keyless?.matches ? ""
     : /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘K" : "Ctrl K";
   const STATE_LABELS = { idle: "尚未开始", running: "进行中", "waiting-input": "等你回答", "waiting-review": "等你确认", paused: "已暂停",
     completed: "已完成", failed: "没有完成", stopped: "已停止", "needs-check": "需要核对" };
@@ -77,7 +74,6 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   let works = [];
   let curId = store.get(scoped("current"));
   let view = null;
-  let busy = false;
   let problem = null;
   let nextScope = project ? "project" : "personal";
   let nextExec = "assistant";
@@ -85,13 +81,11 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   let nextMode = "";
 ${ASSISTANT_CHOOSERS_PART}
 ${ASSISTANT_BROWSER_HANDBACK_PART}
-  let draftTimer = 0, draftWrite = Promise.resolve();
-  let activeSend = null;
 
   const api=(path,method,body,route=host.route("/api/assistant"+path))=>molisWorkRequest(route,{method:method||"GET",body,fallback:L("助理暂时无法完成")});
   const loadExecutors = () => project ? api("/executors").then((res) => { executors = res.executors || []; if (nextExec !== "assistant" && !executorOffer(nextExec)) nextExec = "assistant"; paintAim(); paintSum(); }).catch(() => { executors = []; }) : Promise.resolve();
   const executorsLoaded = loadExecutors();
-  const el = ${ASSISTANT_ELEMENT_SCRIPT}, receipts = (${ASSISTANT_RECEIPTS_FACTORY_SCRIPT})({ L, shared: host.receipts, chip: island.querySelector("[data-assistant-answer]"), api, work: () => curId, reload: () => reload(),
+  const el = ${ASSISTANT_ELEMENT_SCRIPT}, receipts = (${ASSISTANT_RECEIPTS_FACTORY_SCRIPT})({ L, shared: host.receipts, api, work: () => curId, reload: () => reload(),
     pact: (content, badge) => paintBlock(blocks.agreements, L("AI 记下的约定"), "list", content, badge) });
   const stateLabel = (state) => L(STATE_LABELS[state] || state || ""); const ringState = state => ({ "waiting-input": "answer", "waiting-review": "approval", "needs-check": "verify", completed: "round-ended" })[state] || state;
   const scopeLabel = (scope, title) => !scope ? "" : scope.kind === "personal" ? L("个人")
@@ -100,62 +94,18 @@ ${ASSISTANT_BROWSER_HANDBACK_PART}
   const isLive = (state) => state === "running" || state === "waiting-input" || state === "waiting-review" || state === "paused";
   let presentation, stepRow;
   const setPanel = (open) => { if (!presentation?.show(open) && panel) panel.hidden = !open; };
-  let attachments = null;
-  const syncSend = () => { send.disabled = busy || !!getWork()?.reply_target || !String(input.value || "").trim() || !!attachments?.reading(); };
 
-  /* ─── Where the next Send goes ─────────────────────────────────────────── */
+  /* ─── Where the next Send goes: the composer's receiver row, its controls and the placeholder ─── */
   const paintAim = () => {
     const work = getWork(); presentation?.syncWork(work); input.readOnly = !!work?.reply_target;
-    if (work) {
-      // A work opened from the list or a notice keeps where it belongs; the chip names it, before the title, when that is not this page.
-      const where = work.scope?.project_id !== project?.id ? scopeLabel(work.scope, work.scope_title) : "";
-      targetLabel.textContent = work.reply_target ? L("回复到原评论：{title}", { title: work.reply_target.title }) : isLive(work.state) ? L("补充到：{title}", { title: (where ? where + " · " : "") + work.title }) : L("继续：{title}", { title: (where ? where + " · " : "") + work.title });
-      target.title = work.reply_target ? L("请回到原评论继续回复") : L("下一次发送进入这项工作；点 × 改为开始新工作");
-      if (targetClear) targetClear.hidden = false;
-      if (targetWrap) { targetWrap.dataset.mode = "work"; targetWrap.hidden = false; }
-    } else {
-      targetLabel.textContent = L("新工作") + " · " + (nextScope === "project" && project ? (project.title || L("本项目")) : L("个人"));
-      target.title = project ? L("点击切换：新工作属于本项目，或属于你个人（不需要项目）") : L("新工作属于你个人");
-      if (targetClear) targetClear.hidden = true;
-      // A new work needs no chip: where it lives and who does it are in “+”; the input says the rest.
-      if (targetWrap) { targetWrap.dataset.mode = "new"; targetWrap.hidden = true; }
-    }
+    if (!executorsHere() && nextExec !== "assistant") nextExec = "assistant";
     // A page that knows what the person is looking at (the project list) may say so in the placeholder of a new work.
     const hint = !work && nextExec === "assistant" && host.placeholder ? host.placeholder(project) : "";
     input.placeholder = work?.reply_target ? L("请回到原评论继续回复") : work ? L("补充、回答或纠正…") : nextExec !== "assistant" && executorOffer(nextExec) ? L("让 {name} 做点什么…", { name: executorOffer(nextExec).title })
       : hint ? hint : searchKey() ? L("让助理做点什么，或按 {key} 搜索").replace("{key}", searchKey()) : L("让助理做点什么…");
-    // A plugin work shows the mode its next round runs in — the session's own setting, the same one its page shows.
-    if (modeButton) {
-      // A new work that continues a session open on the page runs in that session's own mode, shown once it is the work's.
-      const offer = modeOffer(), shown = Boolean(offer && offer.modes.length && (work || !executorSession(nextExec)));
-      modeButton.hidden = !shown;
-      if (shown && modeLabel) {
-        const wanted = work ? work.executor.mode || offer.default_mode : nextMode || offer.default_mode;
-        const name = L((offer.modes.find((one) => one.id === wanted) || { title: wanted }).title), [before, after = ""] = L("方式：{mode}", { mode: "\u0000" }).split("\u0000"), label = before + name + after;
-        modeLabel.replaceChildren(el("span", "assistant-mode-word", before), name, el("span", "assistant-mode-word", after)); // a narrow bar shows the mode alone
-        modeButton.setAttribute("aria-label", L(work ? "下一轮的方式" : "第一轮的方式") + " · " + label);
-      }
-    }
-    if (charBtn) {
-      const allowed = allowsCharacter(), chosen = chosenCharacter();
-      // Shown only once changed from the Assistant itself; choosing is in “+”.
-      charBtn.hidden = !allowed || !chosen;
-      charBtn.toggleAttribute("data-chosen", Boolean(allowed && chosen));
-      if (allowed && characterLabel) {
-        characterLabel.textContent = L("角色") + "：" + (chosen ? chosen.title : L("助理"));
-        charBtn.setAttribute("aria-label", L("由哪个角色负责") + " · " + (chosen ? chosen.title + " v" + chosen.version : L("助理自己")));
-      }
-    }
-    // Who carries the next new work: chosen before sending; an existing work keeps its own.
-    if (execBtn) {
-      execBtn.hidden = Boolean(work) || !executorsHere() || nextExec === "assistant";
-      if (!executorsHere() && nextExec !== "assistant") nextExec = "assistant";
-      execBtn.toggleAttribute("data-chosen", nextExec !== "assistant");
-      if (executorLabel) executorLabel.textContent = L((executorChoices().find((one) => one.id === nextExec) || executorChoices()[0]).label)
-        + (nextExec !== "assistant" && executorSession(nextExec) ? " · " + L("当前会话") : "");
-    }
+    syncComposer();
   };
-  execBtn?.addEventListener("click", () => setExecs(execsPop.hidden));
+  keyless?.addEventListener?.("change", () => paintAim());
   const remember = () => store.set(scoped("current"), curId);
 
   /* ─── Tabs: one per open work; which are open is this viewer's own convenience ─ */
@@ -188,39 +138,12 @@ ${ASSISTANT_BROWSER_HANDBACK_PART}
   };
 ${ASSISTANT_LAYOUT_PART}
 
-  /* Each work keeps its own unsent text. */
-  const saveDraft = (immediate) => {
-    clearTimeout(draftTimer);
-    const id = curId, text = String(input.value || "");
-    if (id && activeSend?.work === id) {
-      const work = works.find((row) => row.work_id === id); if (work) work.draft = text;
-      if (!immediate || text.trim() !== activeSend.body.text || activeSend.draft !== undefined) activeSend.draft = text;
-      return;
-    }
-    const write = () => {
-      if (!id) { store.set(scoped("new-draft"), text || null); return; }
-      const work = works.find((row) => row.work_id === id);
-      if (work && work.draft === text) return;
-      if (work) work.draft = text;
-      draftWrite = api("/works/" + encodeURIComponent(id) + "/draft", "POST", { draft: text }).catch(() => { /* kept on the page; the next edit retries */ });
-    };
-    if (immediate) write(); else draftTimer = setTimeout(write, 700);
-  };
-  const loadDraft = () => {
-    const work = getWork();
-    input.value = work ? (work.draft || "") : (store.get(scoped("new-draft")) || "");
-    syncSend();
-  };
-  const switchTo = async (id) => {
-    if (id === curId) return;
-    saveDraft(true);
-    await showWork(id);
-  };
+  const switchTo = async (id) => { if (id !== curId) await showWork(id); };
   const showWork = async (id) => {
     curId = id; remember(); problem = null; view = null; pendingChar = undefined;
     openTab(id); if (!spacious()) drawerOpen = false;
     thread.querySelectorAll(":scope > [data-round], :scope > [data-review], :scope > .assistant-problem").forEach((node) => node.remove());
-    loadDraft(); render(); paintLayout();
+    render(); paintLayout();
     if (panel) { panel.removeAttribute("data-arrive"); void panel.offsetWidth; panel.setAttribute("data-arrive", ""); }
     if (id) { await reload(); poll(); }
   };
@@ -464,7 +387,7 @@ ${ASSISTANT_TABS_PART}
     const work = view && view.work.work_id === curId ? view.work : null;
     if (work) {
       const index = works.findIndex((row) => row.work_id === work.work_id);
-      if (index >= 0) works[index] = Object.assign({}, works[index], work, { draft: works[index].draft });
+      if (index >= 0) works[index] = Object.assign({}, works[index], work, { draft: works[index].draft, draft_revision: works[index].draft_revision });
       else works.unshift(work);
     }
     renderAttention(work); renderPath(work); surroundings.paint(work); sideContext.paint(); renderResults(work); renderUsage(work);
@@ -600,8 +523,8 @@ ${ASSISTANT_TABS_PART}
   const readWorks = async () => {
     try {
       const res = await api("/works");
-      const drafts = new Map(works.map((work) => [work.work_id, work.draft]));
-      works = (res.works || []).map((work) => drafts.has(work.work_id) && (work.work_id === curId || work.work_id === activeSend?.work) ? Object.assign(work, { draft: drafts.get(work.work_id) }) : work);
+      const drafts = new Map(works.map((work) => [work.work_id, { draft: work.draft, draft_revision: work.draft_revision }]));
+      works = (res.works || []).map((work) => drafts.has(work.work_id) && work.work_id === curId ? Object.assign(work, drafts.get(work.work_id)) : work);
       if (curId && !works.some((work) => work.work_id === curId)) { curId = null; remember(); view = null; }
       // A tab whose work is gone closes; the work in front always has one.
       const kept = tabs.filter((id) => works.some((work) => work.work_id === id));
@@ -637,58 +560,35 @@ ${ASSISTANT_MATERIALS_PART}
 ${ASSISTANT_COMPOSER_PART}
 
 ${ASSISTANT_PAGE_MESSAGES_PART}
-  let typed = false, inputRev = 0;
-  input.addEventListener("input", () => {
-    typed = true; inputRev++; syncSend(); saveDraft(false);
-    const value = String(input.value || "");
-    if (value.startsWith("/")) { void setSlash(value.slice(1)); return; }
-    closeSlash();
-    const mention = mentionAt();
-    if (mention) { setMention(mention); return; }
-    closeMention();
-  });
-  input.addEventListener("keydown", (event) => {
-    if (slashOpen() && event.key === "ArrowDown") { event.preventDefault(); startPop.querySelector("button")?.focus(); return; }
-    if (slashOpen() && event.key === "Escape") { event.preventDefault(); event.stopPropagation(); closeSlash(); if (slashDraft !== null) { input.value = slashDraft; slashDraft = null; syncSend(); } return; }
-    if (mentionOpen() && event.key === "ArrowDown") { event.preventDefault(); startPop.querySelector("button")?.focus(); return; }
-    if (mentionOpen() && event.key === "Escape") { event.preventDefault(); event.stopPropagation(); closeMention(); return; }
-    if (mentionOpen() && event.key === "Enter" && !event.isComposing && event.keyCode !== 229 && startPop.querySelector("button")) { event.preventDefault(); startPop.querySelector("button").click(); return; }
-    if (event.key !== "Enter" || event.shiftKey || event.isComposing || event.keyCode === 229) return;
-    event.preventDefault();
-    if (String(input.value || "").startsWith("/")) { if (slashOpen()) startPop.querySelector("button")?.click(); return; }
-    if (!String(input.value || "").trim()) { if (getWork()) { setPanel(true); reload().then(poll); } else if (works.length) { setPanel(true); setWorks(true); } return; }
-    syncSend();
-    if (!send.disabled) compose.requestSubmit(send);
-  });
   ${ASSISTANT_SEND_CLIENT_SCRIPT}
   const nextRow = island.querySelector("[data-assistant-next-row]");
   stepRow = nextRow && (${ASSISTANT_STEP_ROW_FACTORY_SCRIPT})({ row: nextRow, thread, L, el, drawn, jumpTo, bindText, view: () => (view?.work.work_id === curId ? view : null), open: () => Boolean(panel && !panel.hidden),
     // A page's words and materials go in the input, in the work it named; nothing is sent.
-    reply: (message) => replyToThread(message), take: async (message) => { if (message.work_id && works.some((work) => work.work_id === message.work_id)) await switchTo(message.work_id); bring(message); setPanel(true); input.focus(); },
+    reply: (message) => replyToThread(message), take: async (message) => { if (message.work_id && works.some((work) => work.work_id === message.work_id)) await switchTo(message.work_id); bring(message); if (message.text) setWords(message.text); setPanel(true); input.focus(); },
     other: (id) => {
       const object = view.objects.find((one) => "open:" + one.subject.kind + ":" + one.subject.id === id), last = view.rounds[view.rounds.length - 1];
       if (object) showObject(object);
       else if (id === "check") jumpTo(".assistant-problem");
       else if (id.startsWith("work:")) switchTo(id.slice(5));
-      else if (id === "retry" && last) { input.value = last.text; typed = true; syncSend(); saveDraft(false); input.focus(); }
+      else if (id === "retry" && last) { setWords(last.text); input.focus(); }
     } });
   presentation = (${ASSISTANT_STAGE_FACTORY})({island,panel,input,current:getWork,switchTo,showProblem:showError,L,el});
   /* ─── Head controls ────────────────────────────────────────────────────── */
   island.querySelector("[data-assistant-panel-close]")?.addEventListener("click", () => setPanel(false));
-  island.querySelectorAll("[data-assistant-control]").forEach((btnEl) => btnEl.addEventListener("click", async () => {
+  /** Pause, resume or stop the work in front: the summary's and the strip's buttons, and the composer's stop. */
+  async function control(kind, extra) {
     if (!curId) return;
-    btnEl.disabled = true;
-    try { view = await api("/works/" + encodeURIComponent(curId) + "/control", "POST", { kind: btnEl.dataset.assistantControl, ...(btnEl.hasAttribute("data-keep-connections") ? { keep_connections: true } : {}) }); render(); }
+    try { view = await api("/works/" + encodeURIComponent(curId) + "/control", "POST", { kind, ...extra }); render(); }
     catch (error) { showError(error); }
-    finally { btnEl.disabled = false; poll(); }
+    finally { poll(); }
+  }
+  island.querySelectorAll("[data-assistant-control]").forEach((btnEl) => btnEl.addEventListener("click", async () => {
+    btnEl.disabled = true;
+    await control(btnEl.dataset.assistantControl, btnEl.hasAttribute("data-keep-connections") ? { keep_connections: true } : {});
+    btnEl.disabled = false;
   }));
   newButton?.addEventListener("click", () => { switchTo(null); input.focus(); });
   worksToggle?.addEventListener("click", () => setWorks(workNav.hidden));
-  targetClear?.addEventListener("click", () => { switchTo(null); input.focus(); });
-  target.addEventListener("click", () => {
-    if (getWork()) { setPanel(true); reload().then(poll); return; }
-    if (project) { nextScope = nextScope === "project" ? "personal" : "project"; paintAim(); paintSum(); }
-  });
   workNav?.addEventListener("keydown", (event) => {
     if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setWorks(false); worksToggle?.focus(); return; }
     if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
@@ -698,32 +598,14 @@ ${ASSISTANT_PAGE_MESSAGES_PART}
     items[(at + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length]?.focus();
   });
 
-  // The input keeps room to type, but the chips come and go, so the composer measures itself, as the Dock does, with its chips on it (typing
-  // hides them, the steps stay): quiet parts narrow, unchanged choosers fold, plugin and work chips narrow; with 44px targets, parts then leave a step at a time.
-  const INPUT_ROOM = 120;
-  let fitFrame = 0;
-  const roomy = () => input.clientWidth >= INPUT_ROOM && compose.scrollWidth <= compose.clientWidth + 1;
-  const fitInput = () => {
-    fitFrame = 0;
-    delete compose.dataset.fit; delete compose.dataset.crowded; compose.dataset.measuring = "";
-    for (const level of ["tight", "folded", "narrow"]) {
-      if (roomy()) break;
-      compose.dataset.fit = level;
-    }
-    if (matchMedia("(max-width: 600px), (pointer: coarse)").matches) for (const step of ["choosers", "mark", "chips"]) { if (compose.scrollWidth <= compose.clientWidth + 1) break; compose.dataset.crowded = step; }
-    delete compose.dataset.measuring;
-  };
-  const refit = () => { if (!fitFrame) fitFrame = requestAnimationFrame(fitInput); };
-  // The island's width is the bar's, never its chips'; the chips' own changes arrive as attributes and labels.
-  const fitWatchers = [];
-  if ("ResizeObserver" in window) { const watcher = new ResizeObserver(refit); watcher.observe(island); fitWatchers.push(watcher); }
-  if ("MutationObserver" in window) {
-    const watcher = new MutationObserver(refit);
-    watcher.observe(compose, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ["hidden", "data-chosen"] });
-    if (panel) watcher.observe(panel, { attributes: true, attributeFilter: ["hidden"] });
-    fitWatchers.push(watcher);
+  const watchers = [];
+  // The bar grows with the composer: what sits above it (the panel, the side panel, popovers, toasts) reads the bar's real height
+  // from --dock-h, written here; while the bar is not drawn (a page embedded in a pane) the sheets' rest height stands.
+  const bar = island.closest(".workbench-bar");
+  if (bar && "ResizeObserver" in window) {
+    const watcher = new ResizeObserver(() => { const height = bar.offsetHeight; if (height) document.body.style.setProperty("--dock-h", height + "px"); else document.body.style.removeProperty("--dock-h"); });
+    watcher.observe(bar); watchers.push(watcher);
   }
-
   // A finished work is where the next message goes only while it is fresh: once it has rested a while (and its panel is
   // closed, the input empty) a message starts a new work. It stays in the list, and its notices still open it.
   const RESTING_MS = 15 * 60 * 1000;
@@ -746,20 +628,24 @@ ${ASSISTANT_PAGE_MESSAGES_PART}
   if ("MutationObserver" in window) {
     const watcher = new MutationObserver((records) => { if (records.some((record) => !island.contains(record.target))) repaintMaterials(); });
     watcher.observe(document.body, { subtree: true, attributes: true, attributeFilter: ["data-assistant-context", "hidden"] });
-    fitWatchers.push(watcher);
+    watchers.push(watcher);
   }
 
-  openTab(curId); loadDraft(); render(); paintLayout(); refit(); repaintMaterials();
-  // The work's own draft is known only once the list arrives; fill it then unless the person has already typed.
+  openTab(curId); render(); paintLayout(); repaintMaterials();
+  // A work's own draft is known once the list arrives (the composer puts it back only into an empty box).
   // Changes already done before this page loaded are not news; only ones completing from now on are announced.
-  loadWorks().then(() => { restIfStale(); if (!typed) loadDraft(); if (curId) return reload().then(poll); }).finally(() => { announcing = true; });
+  loadWorks().then(() => { worksArrived(); restIfStale(); if (curId) return reload().then(poll); }).finally(() => { worksArrived(); announcing = true; });
   return { isOpen: () => Boolean(panel && !panel.hidden),
+    /** Words for the input, as if typed (the project list's prompts); nothing is sent. */
+    fill: (text) => { setWords(text); input.focus(); },
+    /** Search's 问助理: the words go now, to where the next Send goes. */
+    ask: (text) => say(text, {}),
     /** Where a new work goes, as the page changes what it is about: a project, or null for the person's own space. */
     setProject: (next) => {
       const chosen = next?.id ? next : null;
       if (chosen?.id === project?.id) { project = chosen; paintAim(); paintSum(); return; }
-      saveDraft(true); project = chosen; tabs = savedTabs(); nextScope = project ? "project" : "personal";
+      project = chosen; tabs = savedTabs(); nextScope = project ? "project" : "personal";
       void showWork(store.get(scoped("current")));
     },
-    dispose: () => { follower.stop(); retries.stop(); clearInterval(listTimer); cancelAnimationFrame(fitFrame); cancelAnimationFrame(materialsFrame); fitWatchers.forEach((watcher) => watcher.disconnect()); } };
+    dispose: () => { follower.stop(); retries.stop(); clearInterval(listTimer); cancelAnimationFrame(materialsFrame); watchers.forEach((watcher) => watcher.disconnect()); composer?.destroy(); } };
 }`;

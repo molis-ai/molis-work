@@ -5,6 +5,7 @@
   "messages": {
     "common.presentation.stale": "These values were read {at}",
     "common.text.unavailable": "This text cannot be shown right now",
+    "workbench.composer.next-boundary": "Add",
     "workbench.env.add-row": "Add a line",
     "workbench.env.add-user": "Add “保存” as the person",
     "workbench.env.clear": "Clear",

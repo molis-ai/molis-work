@@ -16,7 +16,7 @@ test("Assistant keeps the failed Send's draft and work from details, and its mod
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?desktop=1&openPlugin=todo` }, sessionId));
-  await waitFor("document.querySelector('[data-assistant-input]')");
+  await waitFor("document.querySelector('[data-assistant-composer] .mw-composer__input')");
   // Only observe an actual response; leave the request and reply consumed by the product untouched.
   await evaluate(`(() => { window.g3Sends = []; const send = window.fetch.bind(window); window.fetch = async (url, init) => {
     const response = await send(url, init);
@@ -24,9 +24,9 @@ test("Assistant keeps the failed Send's draft and work from details, and its mod
       window.g3Sends.push({ status: response.status, input: JSON.parse(init.body), body: await response.clone().json() });
     return response; }; })()`);
   const text = "帮我整理本周进展";
-  await click("[data-assistant-input]");
+  await click("[data-assistant-composer] .mw-composer__input");
   await command("Input.insertText", { text }, sessionId);
-  await click("[data-assistant-send]");
+  await click("[data-assistant-composer] [data-composer-send]");
   await waitFor("window.g3Sends.length === 1 && document.querySelector('.assistant-problem a')", 10_000);
   const refused = await evaluate<{ status: number; input: { request_id: string }; body: { code: string; details: { work: AssistantWork; action: string } } }>("window.g3Sends[0]");
   assert.deepEqual([refused.status, refused.body.code, refused.body.details.action], [400, "assistant.model_missing", "打开模型设置"]);
@@ -36,13 +36,13 @@ test("Assistant keeps the failed Send's draft and work from details, and its mod
   const api = `/projects/${projectId}/api/assistant/works/${workId}`;
   const read = () => evaluate<AssistantWorkView>(`fetch(${JSON.stringify(api)}).then(r => r.json())`);
   assert.equal((await read()).work.draft, text);
-  assert.equal(await evaluate("document.querySelector('[data-assistant-input]').value"), text);
+  assert.equal(await evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input').value"), text);
   await click(".assistant-problem a");
   await waitFor("document.querySelector('[data-model-settings] [data-model-template]')", 10_000);
   await saveFirstModel(browser, model.baseUrl);
   await waitFor("!document.querySelector('[data-cover-chip]') && !document.querySelector('.assistant-problem')", 15_000);
-  assert.equal(await evaluate("document.querySelector('[data-assistant-input]').value"), text);
-  await click("[data-assistant-send]");
+  assert.equal(await evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input').value"), text);
+  await click("[data-assistant-composer] [data-composer-send]");
   await waitFor("window.g3Sends.length === 2", 10_000);
   const continued = await evaluate<{ status: number; input: { work_id: string }; body: { work: AssistantWork } }>("window.g3Sends[1]");
   assert.deepEqual([continued.status, continued.input.work_id, continued.body.work.work_id], [200, workId, workId]);

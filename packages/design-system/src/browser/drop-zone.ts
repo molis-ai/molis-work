@@ -76,4 +76,9 @@ for (const type of ["drop", "dragend"]) addEventListener(type, () => { own = fal
 // Not caught on the way down: that would be every field's blur. The window's own blur reaches it as it happens.
 addEventListener("blur", clear);
 
-window.molisDropZone ??= (zone, mark, accepts = (types) => types.includes("Files"), reason) => { zones.set(zone, { mark, accepts, reason }); };
+// A page that draws its zone again registers the new element: the ones no longer in the page are let go here, not only during a
+// drag, so a zone drawn over and over is not kept with everything inside it (VUX-36).
+window.molisDropZone ??= (zone, mark, accepts = (types) => types.includes("Files"), reason) => {
+  for (const known of zones.keys()) if (typeof known !== "string" && !known.isConnected) zones.delete(known);
+  zones.set(zone, { mark, accepts, reason });
+};

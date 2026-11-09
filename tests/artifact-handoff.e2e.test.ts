@@ -37,6 +37,6 @@ test("a 成果 version is handed to the Assistant or to Coding as material of a 
   await click("[data-artifact-hand=coding]");
   await waitFor("window.__heard.some(message => message.purpose === 'delegate')");
   assert.equal((await evaluate<Heard[]>("window.__heard")).find(message => message.purpose === "delegate")!.executor, "io.molis.work.coding");
-  // The new work is Coding's.
-  await waitFor("document.querySelector('[data-assistant-executor]')?.hasAttribute('data-chosen')", 10_000);
+  // The new work is Coding's: the composer's receiver row names it (UIV-12, 「发给：…」).
+  await waitFor("/Coding/.test(document.querySelector('[data-assistant-composer] [data-composer-receiver]')?.textContent || '')", 10_000);
 });

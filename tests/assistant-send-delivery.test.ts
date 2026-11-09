@@ -59,6 +59,15 @@ test("UIC-03 UIC-12 UIV-17: delivery reaches the round as chosen, is refused whe
 
   const started = await service.send({ text: "帮我整理这周的周报", request_id: id("start"), scope: { kind: "personal" } }, {});
   const workId = started.work.work_id;
+  // B10-R3: status reads are actor scoped and do not claim or replay a request.
+  const pendingId = id("pending-check");
+  assert.deepEqual(store.requests.read("web-user", pendingId), { state: "not-sent" });
+  store.requests.claimRequest("web-user", pendingId);
+  assert.deepEqual(store.requests.read("web-user", pendingId), { state: "unknown" });
+  assert.deepEqual(store.requests.read("another-user", pendingId), { state: "not-sent" });
+  store.requests.finishRequest("web-user", pendingId, started);
+  assert.deepEqual(store.requests.read("web-user", pendingId), { state: "sent", result: started });
+
   await asked.promise;
   await assert.rejects(service.send({ work_id: workId, text: "回答", request_id: id("answer"), target: "answer", delivery: "next-boundary" }, {}), code("assistant.invalid"), "UIC-12 an answer takes no delivery");
   // An HTTP body is not typed: a value outside the three is refused, not taken as the default.

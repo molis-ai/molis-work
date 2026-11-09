@@ -51,9 +51,9 @@ test("VUX-12: a result made from the project chooser opens on its project's page
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/" }, sessionId));
   await waitFor(`document.querySelector('.chooser')?.dataset.selected === ${JSON.stringify(projectId)}`);
-  await click("[data-assistant-input]");
+  await click("[data-assistant-composer] .mw-composer__input");
   await command("Input.insertText", { text: "记一下：订读书会的场地" }, sessionId);
-  await click("[data-assistant-send]");
+  await click("[data-assistant-composer] [data-composer-send]");
   const step = "[data-assistant-next-row] [data-ix-step-id^=\"open:\"]";
   await waitFor(`document.querySelector(${JSON.stringify(step)})`, 30_000);
   await navigate(() => evaluate(`document.querySelector(${JSON.stringify(step)}).click()`));

@@ -397,11 +397,11 @@ interface HomePageVersion extends HomePageRef {
 
 | 编号 | 不变量 | 拒绝测试要断言的 |
 | --- | --- | --- |
-| S-111 | 生成页面只跑首页存下的、摘要相符的文件，文件只经 `home.pages.files.read@1` 送进框架 | 库里的正文被改过时 `files.read` 整版不给、外壳显示基础首页；外壳再核不符时不写进框架；哈希源之外的脚本（页面拼出的、内联事件）、`eval`、直接网络请求在真浏览器里不执行；页面主体调 `files.read` 被拒 |
-| S-112 | 页面主体只能调这一版声明并获准的动作，只在本项目，按 `plugin` 受众；试用主体只能调声明里的查询动作 | 声明外、未批准、只给 `user` 的动作，别的项目，都被拒；请求里自带主体、项目或版本的不认（主体只从宿主的页面记录读），别的项目或已作废的页面记录号被拒；试用主体调命令动作被拒 |
-| S-113 | 批准只由本人直接给（采用或恢复），换版或撤下后旧调用不生效 | 助理、插件、页面调 `adopt`／`restore` 被拒；`blueprints.adoption.apply`／`revert`／`remove` 嵌套调 `adopt`／`restore` 被拒（这两个动作只认没有上一层的本人调用）；换版后旧版本的在途调用在 `beforeEffect()` 被拒、不写记录 |
+| S-home-page-files | 生成页面只跑首页存下的、摘要相符的文件，文件只经 `home.pages.files.read@1` 送进框架 | 库里的正文被改过时 `files.read` 整版不给、外壳显示基础首页；外壳再核不符时不写进框架；哈希源之外的脚本（页面拼出的、内联事件）、`eval`、直接网络请求在真浏览器里不执行；页面主体调 `files.read` 被拒 |
+| S-home-page-authority | 页面主体只能调这一版声明并获准的动作，只在本项目，按 `plugin` 受众；试用主体只能调声明里的查询动作 | 声明外、未批准、只给 `user` 的动作，别的项目，都被拒；请求里自带主体、项目或版本的不认（主体只从宿主的页面记录读），别的项目或已作废的页面记录号被拒；试用主体调命令动作被拒 |
+| S-home-page-approval | 批准只由本人直接给（采用或恢复），换版或撤下后旧调用不生效 | 助理、插件、页面调 `adopt`／`restore` 被拒；`blueprints.adoption.apply`／`revert`／`remove` 嵌套调 `adopt`／`restore` 被拒（这两个动作只认没有上一层的本人调用）；换版后旧版本的在途调用在 `beforeEffect()` 被拒、不写记录 |
 
-编号由合同台 2026-11-04 定：第 7 节「采用不转交本人的同意」是 S-110，首页三条是 S-111～S-113。
+2026-11-08 核对现行安全登记：11-04 草稿预留的四个连续编号已被其他不变量采用，不复用或改写它们。本稿改用上述语义 ID；它们仍是待实现的候选，等第 37／44 批真实接入并通过拒绝测试后再登记。
 
 ### 6.5 动作
 
@@ -423,7 +423,7 @@ interface HomePageVersion extends HomePageRef {
 - 草稿写入并回读后，场景步骤记下固定 `{ page_id, version }` 和为这次批准生成的 `approval_request_id`，随 `needs_approval` 返回。续做沿用这个批准键。
 - 本人在首页自己的批准入口直接调 `home.pages.adopt@1`，把该批准键用作动作的 `request_id`。独立采用同一页同一版时使用新的请求键。批准键只关联本次操作。
 - 本人以原场景请求键续做 `apply`。场景按批准键经 `home.read` 查同一本人、同一项目的原回执，核对操作及固定页面版本。当前页面相同但缺少关联回执时仍待批准或核对，不能据此记生效或取得撤销凭据。
-- `adopt`、`restore` 只认没有上一层的本人调用：`apply`、`revert`、`remove` 嵌套调它们一律被拒（S-113）。
+- `adopt`、`restore` 只认没有上一层的本人调用：`apply`、`revert`、`remove` 嵌套调它们一律被拒（S-home-page-approval）。
 
 **P-4 公共合同与静态校验。** `services/home` 导出 `HomePageRef`、`HomePageVersion`、`HomePageDraft`、`HomeSelection`、`HomePageApproval` 和上述八个动作的闭合输入输出 schema。`HomePageDraft` 包含 `title`、`entry`、`actions` 和 `{ path, media_type, text }` 文件列表。`HomePageVersion` 的 `bytes` 和 `sha256` 由主人按文件原文的 UTF-8 字节生成，`sha256` 为 64 个小写十六进制字符。版本是正安全整数，`based_on` 指同页已存在的旧版本。动作复用 `ACTION_REFERENCE_SCHEMA` 并要求 `provider_id`，保留 `parseExactActionReferences` 的身份、版本、数量及去重规则。批准回读 `{ page: HomePageRef, approved_actions: ExactActionReference[], approved_at }`，操作者从可信入口取并由主人记录。项目当前选择的 `revision` 是主人比较写入的凭据，与页面 `version` 分开。
 
@@ -476,7 +476,7 @@ SDK 根入口 `inspectHomePageDraft(value: unknown)` 返回带字段路径的声
 
 - **安装只由本人确认。** `plugins.install.preview`／`confirm` 只接受本人的操作。`apply` 碰到要装的部分（缺的插件、草稿里新 Skill 打的内容包），把那一步标 `needs_install` 并返回 `plugins.install.preview` 的 `preview_id`；界面走普通的安装确认；装好后本人再调一次 `apply`（同一个 `request_id`），从那一步接着做。`apply` 自己从不调 `plugins.install.confirm`。
 - **嵌套调用带着本人的上下文。** `apply`、`revert`、`remove` 调主人的动作（`projects.plugins.set@1`、`skills.settings.set@1`、`characters.from_template@1`、各主人的设置写与采用动作）时：操作者、项目取自本人这次调用的上下文；子调用的授权按本人核，不按 `system.blueprints` 核；动作网关在调用记录里记下上一层（`blueprints.adoption.apply@1` 与它的调用 id）。`system.blueprints` 自己没有替人写主人数据的授权。
-- **新的安全不变量 S-110「采用不转交本人的同意」**（合同台定号）：P-3c 在第 20 批给出合同，实际接入的边界当批登记并验证真实拒绝。完整采用服务归第 44 批，其处理器实现时必须验证两种真实拒绝：`apply` 直接调 `plugins.install.confirm` 被拒；`apply` 用系统身份而非本人上下文写设置被拒。尚无 `apply` 处理器时这两项保持待验证，不以 schema 测试宣称 S-110 完成。首页批准的 S-113 归第 37 批真实验收（第 6.4 节）。
+- **新的安全不变量 S-blueprint-consent-context「采用不转交本人的同意」**（待真实接入后登记）：P-3c 在第 20 批给出合同，实际接入的边界当批登记并验证真实拒绝。完整采用服务归第 44 批，其处理器实现时必须验证两种真实拒绝：`apply` 直接调 `plugins.install.confirm` 被拒；`apply` 用系统身份而非本人上下文写设置被拒。尚无 `apply` 处理器时这两项保持待验证，不以 schema 测试宣称 S-blueprint-consent-context 完成。首页批准的 S-home-page-approval 归第 37 批真实验收（第 6.4 节）。
 
 **规则**：
 
@@ -545,8 +545,8 @@ SDK 根入口 `inspectHomePageDraft(value: unknown)` 返回带字段路径的声
 | P-2b 角色采用接口 | §5.2 的 `characters.from_template@1`、`characters.roles.read@1` 与角色成员、来源／回执合同 | `modules/characters.ts` | api：`contracts/modules/characters`。`host-actions.tsv` 随真实 owner 绑定 | P-2a 与 36 提前公开合同。真实 owner 归 36，场景消费归 44 |
 | P-3a 项目插件成员 | `projects.plugins.set@1` 按 `expected_revision` 把插件加进或撤出项目，受众为 `user`。`projects.plugins.get@1` 返回版本化成员。两个动作复用 Projects 的常开、随行、隐藏和原子 revision 规则。项目设置 HTTP 的写走 set，全项目 GET 复用 get 的 owner 读法，保持被动读取（第 10.1、10.2 节） | `modules/projects.ts` | api：`contracts/modules/projects`；动作：`host-actions.tsv` | 05② 的 C-1（同一快照） |
 | P-3b 场景定义 | `Blueprint`、`BlueprintSource`、`BlueprintPart`、`BlueprintProposal`、Manifest 的 `blueprint`／`adopts`；SDK 的 `inspectBlueprint`（静态）、`inspectBlueprintLocales`、内容包文件校验与 `validateAdoptsDeclaration`；GLOSSARY 加「场景包（blueprint）」一行（第 3.5 节） | `platform/blueprints.ts`（新）、`platform/plugin-manifest.ts` | api：`contracts/platform/blueprints`（新）、`contracts/platform/plugin`、`plugin-sdk/index` | 形状和检查复用 P-2a，设置与主人声明接 P-1。来源转出复用 36 提前合同，公开接线与包读取等 08 交接。不依赖 P-2b 或 36 的服务实现 |
-| P-3c 采用动作与签名入口 | 第 7.1 节八个动作的公开声明与类型，第 8 节固定内容采用输入，第 6.6 节签名入口与安装预览来源类型。实际接入边界随接线验证，完整服务与 S-110 处理器真实拒绝归第 44 批 | `services/blueprints.ts`（新）、`platform/plugin-trust.ts` | api：`contracts/services/blueprints`（新）、`contracts/platform/plugin-trust`；`host-actions.tsv` 只收真实登记 | 合同复用 P-3b 与 36 来源形状。P-3a、08 C-2 和主人读写是实际接入前置 |
-| P-4 首页与生成页面 | 第 6.5 节八个动作、选择／版本／批准和页面主体公开形状，SDK 静态校验及公共入口接线。已接入的真实边界当批验拒绝。运行、SPC-10／11 与 S-111～S-113 的页面实操归第 37 批 | `services/home.ts`（新）、`platform/actions.ts` | api：`contracts/services/home`（新）、`contracts/platform/actions`、`plugin-sdk/index`。`host-actions.tsv` 只收真实登记 | 05② C-2／C-3 公共形状已在。实际卡片用第 15 批提供方。P-3b／P-3c 共用采用形状，`platform/actions` 排 #1791 K0 后 |
+| P-3c 采用动作与签名入口 | 第 7.1 节八个动作的公开声明与类型，第 8 节固定内容采用输入，第 6.6 节签名入口与安装预览来源类型。实际接入边界随接线验证，完整服务与 S-blueprint-consent-context 处理器真实拒绝归第 44 批 | `services/blueprints.ts`（新）、`platform/plugin-trust.ts` | api：`contracts/services/blueprints`（新）、`contracts/platform/plugin-trust`；`host-actions.tsv` 只收真实登记 | 合同复用 P-3b 与 36 来源形状。P-3a、08 C-2 和主人读写是实际接入前置 |
+| P-4 首页与生成页面 | 第 6.5 节八个动作、选择／版本／批准和页面主体公开形状，SDK 静态校验及公共入口接线。已接入的真实边界当批验拒绝。运行、SPC-10／11 与 S-home-page-files／S-home-page-authority／S-home-page-approval 的页面实操归第 37 批 | `services/home.ts`（新）、`platform/actions.ts` | api：`contracts/services/home`（新）、`contracts/platform/actions`、`plugin-sdk/index`。`host-actions.tsv` 只收真实登记 | 05② C-2／C-3 公共形状已在。实际卡片用第 15 批提供方。P-3b／P-3c 共用采用形状，`platform/actions` 排 #1791 K0 后 |
 
 **先后**（合同台 2026-11-04 排，[#1806 评论](https://github.com/molis-ai/molis-work/pull/1806#issuecomment-6638722432)；08 C-3 的位置由用户 2026-11-07 改，见[技能包需求第 9 节](../skill-packs/spec.md#9-决策记录)；以下是依赖与接力顺序，不是拆 PR 的清单；第 20 批一个 PR，同一份快照一次一个写手，全部在 02 交接之后）：
 
@@ -573,7 +573,7 @@ SDK 根入口 `inspectHomePageDraft(value: unknown)` 返回带字段路径的声
 
 **P-3c 文件与验收。** 实施用 `packages/contracts/src/services/blueprints.ts` 和 `tests/blueprint-adoption-contract.test.ts`，按同批顺序接 `contracts/package.json`、`platform/plugin-trust.ts`、SDK 的声明检查与相关 API 快照。动作版本只首次登记。八个场景动作当前没有 `system.blueprints` provider 或处理器，交给第 44 批真实登记。签名仍归 `plugin-install`，输入沿现有内容包 `{ manifest, files }`，输出复用普通安装预览 `{ preview_id }`。`platform/plugin-trust` 的预览来源只收 `ai_generated`／`imported`／`saved`。真实签名接线排在 08 C-2 和内容包安装入口之后。基点的 `plugins.install.preview@1` 只认项目上下文，签名动作尚无登记。个人另存若缺普通预览上下文，由接线片解决。现有签包解析只保留 Manifest 与文件，随包来源须走经评审的签名覆盖路径。未核实前不改包格式、密钥或真实 Home。
 
-SPC-C07 经公开 `services/blueprints` 与 Kernel `compileActionSchema` 验八项动作的输入输出，覆盖三方差异、无安装身份的随包候选、采用历史与带请求键的撤销结果并存、跳过及待核对、安装与批准状态及伪造身份拒绝。第 8 节通过公开 Manifest／SDK 验固定 `selection` 缺 CAS、错分支及错动作版本被拒。实际接入须验证 A 创建、B 复用后 A 的旧凭据撤回被拒，同键重放只推进一次，移除 B 后旧凭据仍失效。基点 `pluginInstallHandlers` 只核可信 `user_action`，Kernel 允许嵌套调用原样继承，尚无供处理器消费的公开上一层引用。签名来源、直接批准拒绝与上一层审计须接真实可信调用链验证。没有该链和实际处理器时保留 SPC-14／15、S-110 及 S-113 的对应运行验收。
+SPC-C07 经公开 `services/blueprints` 与 Kernel `compileActionSchema` 验八项动作的输入输出，覆盖三方差异、无安装身份的随包候选、采用历史与带请求键的撤销结果并存、跳过及待核对、安装与批准状态及伪造身份拒绝。第 8 节通过公开 Manifest／SDK 验固定 `selection` 缺 CAS、错分支及错动作版本被拒。实际接入须验证 A 创建、B 复用后 A 的旧凭据撤回被拒，同键重放只推进一次，移除 B 后旧凭据仍失效。基点 `pluginInstallHandlers` 只核可信 `user_action`，Kernel 允许嵌套调用原样继承，尚无供处理器消费的公开上一层引用。签名来源、直接批准拒绝与上一层审计须接真实可信调用链验证。没有该链和实际处理器时保留 SPC-14／15、S-blueprint-consent-context 及 S-home-page-approval 的对应运行验收。
 
 **P-4 文件与验收。** 实施用 `packages/contracts/src/services/home.ts`、`packages/plugin-sdk/src/home-page.ts` 和 `tests/home-page-contract.test.ts`。`contracts/package.json`、SDK `index.ts` 及共享 API 快照按同批顺序接入，`platform/actions` 按上表等 #1791 K0。独占文件未接公开出口时只是待接候选。现行 `apps/local-host/src/home-actions.ts` 已用 `system.home`，新八个页面动作尚无处理器，第 37 批接同一提供方。此处必要接入是公开合同、SDK 及共用声明校验，范围不含新运行服务、数据库、iframe、网关或批准流程。
 
@@ -635,7 +635,7 @@ D 轨若要在组件板补「逐步状态」「三方差异」的标本，由 44
 
 ## 13. 要定的事
 
-1. **首页形态：用户 2026-11-04 已定**（统筹转达）：首页是平台能力、插件注册卡片、生成页面是首页自己的内容，不当插件。第 6 节按此改写；Work Brief 需求 §1.3、§2 与 Onboarding §3.10 里「页面定义归 Work Brief」随之改，决策记进 Onboarding §10。首页服务放 `horizontal/home`（第 6.1 节）请统筹确认；四条不变量的编号由合同台定为 S-110～S-113。
+1. **首页形态：用户 2026-11-04 已定**（统筹转达）：首页是平台能力、插件注册卡片、生成页面是首页自己的内容，不当插件。第 6 节按此改写；Work Brief 需求 §1.3、§2 与 Onboarding §3.10 里「页面定义归 Work Brief」随之改，决策记进 Onboarding §10。首页服务放 `horizontal/home`（第 6.1 节）请统筹确认；四条不变量按第 6.4 节现行语义 ID 继续，不复用已占用编号。
 2. **草稿采用时不必先打包**（第 3 节）：只有要装的新 Skill 才签名打包成内容包；生成页面不打包（第 6 节）。合同台 2026-11-04 核过，符合 #1793 裁定第 3 条的更正（个人场景包、AI 生成的草稿、外部导入都用这个 Home 已有的发布身份）。
 3. **场景服务放在 `horizontal/blueprints`**，草稿与采用记录在它自己的 Home 库（第 7 节）。合同台 2026-11-04 确认，与第 21 批 D2 同一做法。
 4. **界面名统一成「场景包」**（第 3 节）：「场景方案」「方案」不再用；「官方场景套组」改称「官方场景包」：**用户 11-04 已定**（合同台弹窗），Onboarding、路线书与第 20、44、51 批文件已同步改；第 20 批第 2 项随之叫「场景包声明」。英文键 `blueprint`。
@@ -656,7 +656,7 @@ D 轨若要在组件板补「逐步状态」「三方差异」的标本，由 44
 | SPC-07 | 撤销与移除只处理主人 revision 未变的部分；你之后改过的、别的场景包还在用的插件、稿件、待办、代码改动和你的角色都保留 | ONB-30、ONB-56 |
 | SPC-08 | 场景包升级按三方比较列出差异，你改过的默认保留；不升级时原采用照常可用 | ONB-55 |
 | SPC-09 | 插件没声明 `settings_entries` 或 `adopts` 的部分在预览里标「提供方没有公开配置能力」，不能采用 | ONB-33 |
-| SPC-10 | 生成页面只跑首页存下的、摘要相符的文件；改过的文件、清单外脚本、内联脚本、`eval`、直接网络都不运行；页面主体只能调这一版声明并经本人批准的、受众含 `plugin` 的本项目动作；助理、插件、页面自己调不了 `adopt`／`restore`（S-111～S-113） | §3.10、ONB-26 |
+| SPC-10 | 生成页面只跑首页存下的、摘要相符的文件；改过的文件、清单外脚本、内联脚本、`eval`、直接网络都不运行；页面主体只能调这一版声明并经本人批准的、受众含 `plugin` 的本项目动作；助理、插件、页面自己调不了 `adopt`／`restore`（S-home-page-files／S-home-page-authority／S-home-page-approval） | §3.10、ONB-26 |
 | SPC-11 | 生成页面加载失败、文件对不上或被撤下时显示基础首页；换版后旧版本的在途调用不生效；恢复上一版、回到基础首页都不重做已完成的业务动作；插件卡片在基础首页与生成页面里出自同一份呈现声明 | WBR-22、WBR-23、WBR-27、ONB-25 |
 | SPC-12 | 采用进度在页面上实时更新，不轮询；重进只读一次 | 第 9 节 |
 | SPC-13 | 一个官方场景包依赖还没装的插件时照样装得上；预览里那一项标依赖未满足，只挡受影响的步骤 | ONB-54 |

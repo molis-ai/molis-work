@@ -239,8 +239,18 @@ test('studio: a request becomes a working, published plugin that the person can 
     const stages = await installedPluginStages(options);
     assert.deepEqual(stages.map(item => [item.label, item.surface.startsWith('app-')]), [['笔记墙', true]]);
     assert.match(stages[0]!.stage, new RegExp('data-work-surface="' + stages[0]!.surface + '"[^>]*hidden><iframe src="' + pluginHref.replaceAll('.', '\\.') + '\\?frame=workbench&amp;installation='));
-    const framedStagePath = /<iframe src="([^"]+)"/u.exec(stages[0]!.stage)?.[1]?.replaceAll('&amp;', '&');
-    assert.ok(framedStagePath, 'SCS-11: use the real installed stage address with its edition');
+    const boundStagePath = (markup: string) => {
+      const source = /<iframe src="([^"]+)"/u.exec(markup)?.[1]?.replaceAll('&amp;', '&');
+      assert.ok(source, 'SCS-11: use the real installed stage address with its edition');
+      return source;
+    };
+    const framedStagePath = boundStagePath(stages[0]!.stage);
+    const currentStagePath = async () => boundStagePath((await installedPluginStages(options))[0]!.stage);
+    const refuseOldStage = async (path: string) => {
+      const response = await fetch(origin + path);
+      assert.equal(response.status, 409);
+      assert.equal((await response.json()).code, 'actions.provider_changed');
+    };
     // Its address opened directly (a link in a notice, say) opens the workbench on that plugin's stage, not a page of its own.
     const directPlugin = await fetch(origin + pluginHref, { redirect: 'manual' });
     assert.equal(directPlugin.status, 302); assert.equal(directPlugin.headers.get('location'), options.routePrefix + '/?openSurface=' + encodeURIComponent(stages[0]!.surface)); await directPlugin.text();
@@ -286,11 +296,14 @@ test('studio: a request becomes a working, published plugin that the person can 
 
     // Publish the preceding presentation as v2, upgrade, then roll back to the exact v1 layout without losing data.
     await page.evaluate(`(async()=>{const id=${JSON.stringify(visualBuildId)};const act=async(action,extra={})=>{const {build}=await(await fetch('${options.routePrefix}/api/plugin-builder/studio/builds/'+id)).json();const r=await fetch('${options.routePrefix}/api/plugin-builder/studio/builds/'+id+'/action',{method:'POST',headers:globalThis.molisWorkControlHeaders(),body:JSON.stringify({action,revision:build.revision,...extra})});if(!r.ok)throw Error(await r.text())};await act('undo');await act('publish');await act('upgrade',{version:2,grants:{consent:true}})})()`);
-    await installedPage.command('Page.reload');
+    await refuseOldStage(framedStagePath);
+    const upgradedStagePath = await currentStagePath();
+    await installedPage.command('Page.navigate', { url: origin + upgradedStagePath });
     await installedPage.wait(`globalThis.__molisPluginReady===true&&document.querySelector('[data-component-id="notes"] .pc-output')?.innerText.includes('正式使用的第一条')`);
     assert.equal(await installedPage.evaluate(`!!document.querySelector('[data-pc-open="editor"]')`), false, 'v2 uses the preceding inline form');
     await page.evaluate(`(async()=>{const id=${JSON.stringify(visualBuildId)},{build}=await(await fetch('${options.routePrefix}/api/plugin-builder/studio/builds/'+id)).json();const r=await fetch('${options.routePrefix}/api/plugin-builder/studio/builds/'+id+'/action',{method:'POST',headers:globalThis.molisWorkControlHeaders(),body:JSON.stringify({action:'rollback',revision:build.revision,version:1})});if(!r.ok)throw Error(await r.text())})()`);
-    await installedPage.command('Page.reload');
+    await refuseOldStage(upgradedStagePath);
+    await installedPage.command('Page.navigate', { url: origin + await currentStagePath() });
     await installedPage.wait(`globalThis.__molisPluginReady===true&&!!document.querySelector('[data-pc-open="editor"]')&&document.querySelector('[data-component-id="notes"] .pc-output')?.innerText.includes('正式使用的第一条')`);
 
     // The standalone page reads the same preview data through the same renderer.

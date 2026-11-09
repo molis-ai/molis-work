@@ -74,3 +74,45 @@ test("S-ui-text-page FSS-09 FSS-37 only the originating shell can batch exact ru
     assert.equal((await fresh.json()).owners[0].packs[0].messages["text-page.stage.title"], "Replacement view");
   } finally { replacement.close(); }
 });
+
+test("S-ui-text-page FSS-09 a scope that ends during the batch check delivers no language pack", { timeout: 40_000 }, async t => {
+  const f = await serveHomeRuntime(t), project = await f.project("In flight text owner");
+  const prefix = `/projects/${project.project_id}`;
+  const pages = pluginPagesFor(f.home);
+  const open = pages.open.bind(pages), batch = pages.withPageText.bind(pages);
+  t.after(() => { pages.open = open; pages.withPageText = batch; });
+  for (const end of ["page", "activation", "session"] as const) {
+    const fixture = connectText(f.home, project.project_id, "Never delivered");
+    const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), completed = Promise.withResolvers<void>();
+    const session = await pageSession(f.origin, prefix + "/");
+    pages.open = (plugin, project, actor, scope, registered, selected) => open(plugin, project, actor, async () => {
+      await scope?.(); entered.resolve(); await release.promise;
+    }, registered, selected);
+    pages.withPageText = async (...args) => {
+      try { await batch(...args); } finally { completed.resolve(); }
+    };
+    try {
+      const grant = await f.request(prefix + "/api/host/plugin-pages", { authorized: false, method: "POST", headers: session, body: { plugin_id: owner } });
+      assert.equal(grant.status, 200);
+      const { page_id } = await grant.json();
+      const pending = f.request(prefix + "/api/ui/locales?" + new URLSearchParams({ locale: "en", page: page_id }), { authorized: false, headers: session })
+        .then(response => ({ response }), error => ({ error }));
+      await entered.promise;
+      assert.deepEqual(fixture.read, []);
+      if (end === "page") {
+        assert.equal((await f.request(prefix + "/api/host/plugin-pages/" + page_id, { authorized: false, method: "DELETE", headers: session, body: {} })).status, 200);
+      } else if (end === "activation") fixture.close();
+      else assert.equal((await f.request("/api/web-session", { authorized: false, method: "DELETE", headers: session })).status, 200);
+      release.resolve();
+      const outcome = await pending;
+      await completed.promise;
+      if (end === "session") assert.ok("error" in outcome, "session withdrawal closes the held HTTP transport");
+      else {
+        assert.ok("response" in outcome);
+        assert.equal(outcome.response.status, 403);
+        assert.doesNotMatch(await outcome.response.text(), /Never delivered/);
+      }
+      assert.deepEqual(fixture.read, [], end + " withdrawal stops the batch before reading");
+    } finally { release.resolve(); fixture.close(); }
+  }
+});

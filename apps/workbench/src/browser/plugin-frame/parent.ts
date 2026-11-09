@@ -294,14 +294,29 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   frame.onload = () => {
     if (loaded) { fail(new Error("Plugin page navigated")); scope.dispose(); return; }
     loaded = true;
-    const config: FrameConfig = { mount, subjectSurfaces: surfaces, search: location.search, origin: location.origin, pluginId: pack.plugin_id, bundle: pack.bundle, assets: pack.assets, searchRow: pack.searchRow, recordRow: pack.recordRow, itemTab: ownItemTab(root, pack), surface: pack.id,
-      stage: { title: getComputedStyle(root).getPropertyValue("--stage-title") || JSON.stringify(host.translate(root.dataset.workSurfaceLabel ?? pack.id)), description: getComputedStyle(root).getPropertyValue("--stage-desc") },
-      nativeFiles: Boolean(nativeFileInvoke()), shortcuts: navigation.shortcuts, appearance: environment.initial,
-      projectId: host.projectId?.() ?? "", projectTitle: host.projectTitle?.() ?? "", routePrefix: route(""), side: Boolean(host.side), page: host.page?.() ?? null,
-      messages: { ...globalThis.MOLIS_WORK_PLUGIN_WORDS?.[pack.plugin_id], ...globalThis.MOLIS_WORK_MESSAGES }, titles: globalThis.MOLIS_WORK_PLUGIN_TITLES ?? {}, storage };
-    frame.contentWindow?.postMessage({ type: "molis:plugin-connect", config }, "*", [channel.port2]);
   };
-  frame.srcdoc = frameDocument(root, pack, environment.initial);
+  const challenge = crypto.randomUUID();
+  const unlisten = scope.listen(window, "message", incoming => {
+    const event = incoming as MessageEvent<{ type?: string; challenge?: string }>;
+    if (!event.isTrusted || event.source !== frame.contentWindow || event.origin !== "null" || event.data?.type !== "molis:plugin-mount"
+      || event.data.challenge !== challenge || event.ports.length !== 1) return;
+    unlisten();
+    const reply = event.ports[0]!;
+    try {
+      businessScope.assertCurrent();
+      if (!frame.isConnected) throw new Error("View closed");
+      const config: FrameConfig = { mount, subjectSurfaces: surfaces, search: location.search, origin: location.origin, pluginId: pack.plugin_id, bundle: pack.bundle, assets: pack.assets, searchRow: pack.searchRow, recordRow: pack.recordRow, itemTab: ownItemTab(root, pack), surface: pack.id,
+        stage: { title: getComputedStyle(root).getPropertyValue("--stage-title") || JSON.stringify(host.translate(root.dataset.workSurfaceLabel ?? pack.id)), description: getComputedStyle(root).getPropertyValue("--stage-desc") },
+        nativeFiles: Boolean(nativeFileInvoke()), shortcuts: navigation.shortcuts, appearance: environment.initial,
+        projectId: host.projectId?.() ?? "", projectTitle: host.projectTitle?.() ?? "", routePrefix: route(""), side: Boolean(host.side), page: host.page?.() ?? null,
+        messages: { ...globalThis.MOLIS_WORK_PLUGIN_WORDS?.[pack.plugin_id], ...globalThis.MOLIS_WORK_MESSAGES }, titles: globalThis.MOLIS_WORK_PLUGIN_TITLES ?? {}, storage };
+      reply.postMessage({ type: "molis:plugin-connect", config }, [channel.port2]);
+    } catch (error) {
+      fail(error instanceof Error ? error : new Error(String(error)));
+      scope.dispose();
+    } finally { reply.close(); }
+  });
+  frame.srcdoc = frameDocument(root, pack, challenge, environment.initial);
   own = root.dataset.uiClientState !== "loading";
   if (own) { root.inert = true; root.setAttribute("aria-busy", "true"); root.dataset.uiClientState = "loading"; }
   frame.hidden = Boolean(root.dataset.previewTab);

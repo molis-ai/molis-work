@@ -63,7 +63,7 @@ test("RAC-2516 RAC-2518 trusted Feed and Inbox drag handles reach the actual Goa
   const item = feed.ingestItem({ source, externalId: "native-frame-drag", title: "Actual opaque drag", summary: "Owner display fields", body: "Original material", occurredAt: now, attention: false }).item;
   const inboxEntry = feed.ensureInboxEntryForFeedItem(projectId!, item.item_id, "manual").entry;
   for (let index=0;index<8;index++) feed.ingestItem({ source, externalId: "drag-scroll-"+index, title: "Other drag material "+index, summary: "Actual rows make the source list scroll", occurredAt: new Date(Date.parse(now)-(index+1)*1000).toISOString(), attention: false });
-  await pluginFrameInitScript(t, b, `addEventListener('message',event=>{if(event.data?.type==='molis:plugin-connect'){window.t403Port=event.ports[0];t403Port.addEventListener('message',event=>{if(event.data?.type==='frame-asset-source')window.t403Handle=event.data.handle})}});
+  await pluginFrameInitScript(t, b, `const receive=MessagePort.prototype.addEventListener;MessagePort.prototype.addEventListener=function(type,listener,options){if(type==='message')receive.call(this,type,event=>{if(event.data?.type==='molis:plugin-connect'){window.t403Port=event.ports[0];receive.call(t403Port,'message',event=>{if(event.data?.type==='frame-asset-source')window.t403Handle=event.data.handle})}},{once:true});return receive.call(this,type,listener,options)};
     window.t403OpaqueTrace=[];window.t403Reads={pending:0,total:0,trace:[],pendingIds:new Set()};
     window.molisWorkbenchPluginFactories=new Proxy({}, {set(target,key,value){target[key]=['feed','inbox'].includes(key)?host=>{
       window.t403Host=host;const read=host.view.readDocument;

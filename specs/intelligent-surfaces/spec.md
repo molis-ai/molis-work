@@ -429,7 +429,7 @@ Feed 的归属已有事实来源，不新增个人订阅结构：`SourceRecord.p
 
 Inbox 的 `inbox.entry.status@1` 要求目标状态与读取时 revision；当前 `input_from` 不能把同 ref 的 done/dismiss 两种目标表示成两个按钮。本片不增加包装动作、不把当前状态当目标输入，公共形态保留打开／速览，原 offer 仍由现有 contextual prepare／确认／网关准备和执行。首片的真实操作验收不因此取消：最终消费者必须在挂载位通过已登记 placement 或既有 offer 完成真实写入、跨位置更新及回执，并验证撤权后零写；只打开页面不能销账 IUI-07／08。
 
-各 owner 的稳定词随真实消费者成套接入；业务状态保持原枚举，共用 renderer 为合法状态环补平台词，关闭已登记的 raw 状态文字缺口。以上是下一实施片的输入，尚未作为产品行为或验证结果交付。
+各 owner 的稳定词随真实消费者成套接入；业务状态保持原枚举，共用 renderer 为合法状态环补平台词，关闭已登记的 raw 状态文字缺口。这些读口已随首页消费者片合回，固定候选及证据边界见下文“生产首页消费者片交付”；跨位置消费者仍按 §17 继续。
 
 ### 四形态组件片开工检查
 
@@ -466,6 +466,16 @@ Inbox 的 `inbox.entry.status@1` 要求目标状态与读取时 revision；当�
 消费片还要处理两点。业务状态标记为 `attention: "stale"` 时补足本地化状态说明，读取过期仍只依据真实 `read_at`。纯展示行仅在需要键盘查看截断内容或有可操作控件时提供 Tab 落点。
 
 公共 D 在 `e5217ac45f` 的真实板发现身份图标对比不足 P1，以及默认圆角、宽卡片正文两处定样偏差；修复后在 `771cc4f9ad` 定向复核通过，三项关闭且无新增 Blocker/P1。本轮复用 12 组合与两项键盘用例，另补看桌面／手机的浅深色四组及速览／Sheet 焦点。最低图标对比度为浅色 4.21:1、深色 6.91:1；圆角和正文宽度按真实 computed 值核实，皮肤变量注入只证明继承，不代表菜单皮肤实操。该结论仍不包含生产消费者、读屏和本人验收。
+
+### 生产首页消费者片交付（2026-11-09）
+
+固定候选 `1af6bd8b6136ee5968b94ef4827fb039fb7cfc6c`（产品最后改动 `e6b6feb451`，随后仅许可记录）于 `f2cf9b4d5834` 合回 `batch/15`。首页 B 消费四 owner 的真实 overview／values，行与速览沿唯一 SDK renderer，保留原生与签包原页／原表单。Coding 原创建返回真实 session 引用，创建成功但打开失败只重试打开。Feed 归属取实际来源分区，缺源和退休来源不猜；同次 ActionView 跨 scope 不混批，每个对象只交付自身形态字段。
+
+新增与修改的定向验证中，四 owner／同源显示／分区／撤权与字段边界 18/18 通过；真实浏览器覆盖 Goals 原表单取消零写、提交一次、三宽中英深浅十二组合与键盘，原生 Inbox／Feed／Coding 精确打开、分屏迟到拒绝、未变化行保焦及旧书签保留。签包真实两个记录能打开准确对象；组件内重复和跨组件“二加一”同 ID 明确拒绝，选择、额外读取与写入为零。签包原表单保持打开／取消零写、提交一次。HTTP Coding 创建后失权的反例证明重试仅打开且仍只有一个会话。测试入口：[组合与分批](../../tests/surface-home-composition.test.ts)、[真实 owner 与授权](../../tests/security-invariants-surface-home-consumers.test.ts)、[签包显示边界](../../tests/security-invariants-surface-home-signed.test.ts)、[首页十二组合](../../tests/surface-home-workbench.e2e.test.ts)、[签包真实浏览器](../../tests/surface-home-signed-workbench.e2e.test.ts)、[原生导航与刷新](../../tests/project-home-start.e2e.test.ts)、[组件歧义反例](../../tests/agent-built-plugins-components.test.ts)。
+
+独立预审发现并关闭签包丢失对象 ID、重复 ID 混合场景漏拒的 P1；复核确认原通用 opaque 包装只保留 Host 已给的 producer，未伪造身份，读取／速览／打开交付前授权尾检保留。最终 `health --base`、diff 检查和实际 Host 资源比较通过。相对 `226ce892a8` 共 51 项资源，无新增：工作台脚本 +27,469 字节（前片 212 + 本片 27,257，在用户批准 28 KiB 内），样式 −14,358，创作台脚本 +1,862（独立评审确认准确选择与歧义拒绝的必要增长）。许可仅覆盖记录的具体增量，后续片继续按整批实际资源核对。
+
+保留的缺口：实际内容变化替换焦点所在行后的保焦 P2，须在 §17 跨位置刷新实操中关闭；当前十二组合不证明所有旧 owner 的英文名称已完成，最终采用第 16 批真实文字接口后再验。桌面／TUI 定向 35/36，唯一失败为基点 `20e3c62453` 同样复现的三项版本登记问题：SDK 合同校验用 `schemaIdentity.version` 尚未登记，`action.surfaces.compose`／`action.surfaces.correct` 两个例外已失效；整批统一验证前处理，不按既存问题豁免。第 20 批实际接口接回、所有跨位置写入与回执、统一验证、Full、公共最终合审、真实 Home 和本人验收不计为本片已完成。
 
 ## 17. 跨位置消费者实施输入（2026-11-09）
 

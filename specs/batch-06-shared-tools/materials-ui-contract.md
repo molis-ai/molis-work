@@ -1,6 +1,6 @@
 # A 就地预览：资料引用与消费者接入
 
-状态：实施前合同设计（2026-11-09），Agent 加密轮次索引升级范围待用户决定，其余沿已批准的 A 与 Files 退役范围准备；尚未实现或通过最终合审。
+状态：实施前合同设计（2026-11-09），Agent 加密轮次索引与 Coding 私有键转形范围待用户决定，其余沿已批准的 A 与 Files 退役范围准备；尚未实现或通过最终合审。
 
 本稿细化[共享工具与迁移需求书](spec.md#3-files-退役的系统产生者合同)，不代替[同步切换与旧设备恢复合同](sync-cutover.md)。只读设计基线 `9e8583022`。沿用用户选定的 A、WMD §8、SSC-28 及 BSH-05–08、13、14。侧栏原位预览，Coding 执行主区保留，选择器宽屏并排、窄屏分步。「展开到主区」「回到执行」按 A 原型。高保真中的 186 KB 日志是布局样本，大文件验收须实际超过现行 256 KiB 分段阈值。
 
@@ -9,18 +9,18 @@
 - 在计划中的平台资料动作 owner 下提供一个精确的 `materials.read` 入口，输入 `MaterialRef`，支持只核身份的 `head` 和有界的 `text`。结果含 owner 规范化的引用、显示信息、读取版本或明确的不可比较状态；正文只随 text 返回。所有分支从 ActionExecutionContext 取项目、操作者、调用插件安装和同意。源内权限由现有 owner 检查，交付前再查调用与来源的实时授权。来源错项目、错个人、已撤权、错版本均拒绝。
 - `pin.current` 走现有知识对象或工作区 owner，提供真实 `read_revision`。`pin.fixed` 走成果库指定 id+版本读取，保留现有固定成果语义。`pin.snapshot` 经 Runtime 项目版本 owner 按 id+版本读取过程项，核系统 producer 登记及声明的 snapshot/selection 类型和 schema、个人 owner、源 subject、range、正文摘要。迁移的版本也须通过同一检查。选区过程项已存选出的正文，按保存的原范围验证后直接读正文。已捕获版本依自己的当前授权读取，源目录后来消失时仍可准确解释其出处。当前资料的活动授权单独检查，固定读取遇不到目标时返回明确错误。来源解释走 `material-origins.ts`，将 snapshot 分支提前到活动目录筛选前，只交付获准的出处，不暴露已失权路径。
 - Goal 活引用维持 `goals.inputs.bind@1` 的 subject/title 分支，按 SSC-28 补可选 `read_revision`。SHA 存成 `snapshot_digest='sha256:<hex>'`，size 或旧缺值保留 null，显示「内容没有核对」。活动内容改变显示 changed 并仍可读。对象经 Placement 放进 Goal 的现有 `goal_in/used_in` 链继续适用。
-- 同一绑定动作增加互斥的 `{goal_id, ref: MaterialRef<snapshot>, title?}` 分支。Goal 先通过真实 owner 验精确过程项及摘要，异步读取在 SQLite 写窗外；`beforeEffect` 后同步窗重新确认 Goal 可操作及此次 exact source 的实时许可，复用已登记的 Goal 自管窗方式。复用 `input_bindings` 的 `source_type/source_ref/snapshot_digest`，固定过程项以新的明确 discriminator 和规范 JSON 完整保存 ref、范围与 owner 验证的摘要，同一 ref 幂等，版本/范围不同可并存。list/撤下、Goal 输入 UI、复制/同步保留该形状；活动目标对象列表仍按活动 subject 运作。现有 `artifact_inputs` 继续保存真正的成果库指定版本。新 discriminator 不改表形、旧行原样；Goal owner 核同步校验及同版本接收语义，按当前合同流程登记，若有在外已发布协议硬约束则交主台判定。
+- 同一绑定动作增加互斥的 `{goal_id, ref: MaterialRef<snapshot>, title?}` 分支。Goal 先通过真实 owner 验精确过程项及摘要，异步读取在 SQLite 写窗外；`beforeEffect` 后同步窗重新确认 Goal 可操作及此次 exact source 的实时许可，复用已登记的 Goal 自管窗方式。复用 `input_bindings` 的 `source_type/source_ref/snapshot_digest`，固定过程项以新的明确 discriminator 保存 `pin.snapshot.version` 的规范化精确定位（仅不透明的过程项 id 与版本）及 owner 验证的摘要；完整 subject 和原选区从该不可变过程项按当前授权恢复，不把路径或完整 MaterialRef JSON 放进旧页面可复制的 source_ref。同一固定版本幂等，不同固定版本可并存。list/撤下、Goal 输入 UI、复制/同步保留该形状；活动目标对象列表仍按活动 subject 运作。现有 `artifact_inputs` 继续保存真正的成果库指定版本。新 discriminator 不改表形、旧行原样。现行 `project_goals@1` 旧 owner 会原样收存和重新导出这些列，旧 bind/list 会忽略、撤下会拒绝；因此沿现行 action/collection 版本，不承诺旧页面拥有新交互。Goal 行先到时保留精确引用并显示待同步；目标集合独立未授权或已撤权时只显示不可读，零正文与路径，不自动勾选集合或补同意。获准目标到达后按同一定位解析。BSH-14 只封过程项，不能据此声称旧 Goals writer 被封；若实证需要改 Goals wire 或另做旧端共存/封旧，另列决定。
 - 取定版本或选区由统一 capture owner 读源、提交并返回精确 ref。若入口同时明确发布 before/after/selection，按 BSH-05 同事务提交过程项、端口和事件，提交后评估消费者。只选引用时不额外改端口。两项动作都需重查撤权和取消，失效后零业务写与交付。
 
 现况定位：`plugins/native/goals/src/input-actions.ts:41,65,120`、`plugin.ts:24,85`、`project-database-goals.ts:175`、`module/replication.ts:36`、`http/deliverables.ts:38`；`horizontal/placement/src/index.ts:130`；`apps/local-host/src/material-origins.ts:103`；`packages/contracts/src/platform/project-materials.ts`；`specs/shared-sources-and-surfaces/spec.md:278,699`。
 
 ## 2. Coding 草稿、轮次和临时 worktree
 
-- Coding 选料从 kind/id/title 改为完整 `{ref,title}`，按精确引用去重。草稿仍用 Runtime 的 `materials:<sessionId>`，独立选料 CAS 走该 key 的现有 revision，文本 autosave 使用已有 CAS。请求、待运行队列、委派、执行入口逐跳保留 pin/range；排队时将有效选择意图带入当前队列记录，真正启动时经资料 owner 读取，当前引用可重读且记录这次实际版本，固定/选区读确切版本。现有条数和模型文本预算继续生效，显示实际纳入、裁剪和省略的材料。来源找不到、授权撤回时保留用户原草稿并标具体项，用户可移除或重选。成功启动后显示该轮读取结果，继续新轮才会重新解析活引用。
-- `materials:`、`queued:` 位于 Runtime 的项目 `plugin_private_values`，与 Coding 自己的 v1 数据库分开。候选为随已授权项目库 2→3，在 Coding/Runtime owner 下仅转换受影响的 key 到明确的「历史活动待核对」成员，保留旧 subject/title 与原用途。新格式的一种有效业务状态是来源从前未记录完整，展示并允许按原活动路径重新选择或首次实际读时建立 ref，旧项不造版本、指纹、固定状态或选择范围。队列保全原意图和待执行状态，升级前后的合法队列仍可执行。主台核既定历史消费者迁移是否明确涵盖该 key 变形及非 Files 项处理，确认后登记保留机制。无对应授权时保留旧值并暂停该转换的采用，写手继续其余切片。
+- Coding 选料从 kind/id/title 改为完整 `{ref,title}`，按精确引用去重。草稿仍用 Runtime 的 `materials:<sessionId>`，独立选料复用该 key 的旧整值 `compareAndSet`，不新增 per-key revision；文本 autosave 使用已有 CAS。请求、待运行队列、委派、执行入口逐跳保留 pin/range；排队时将有效选择意图带入当前队列记录，真正启动时经资料 owner 读取，当前引用可重读且记录这次实际版本，固定/选区读确切版本。现有条数和模型文本预算继续生效，显示实际纳入、裁剪和省略的材料。来源找不到、授权撤回时保留用户原草稿并标具体项，用户可移除或重选。成功启动后显示该轮读取结果，继续新轮才会重新解析活引用。
+- `materials:`、`queued:` 位于 Runtime 的项目 `plugin_private_values`，与 Coding 自己的 v1 数据库分开。候选为随已授权项目库 2→3，在 Coding/Runtime owner 下仅转换精确官方 Coding 安装下两个键的已有行，包含非 Files 资料。原 `kind:artifact` 中可解析的精确成果 id/version 保持固定；确实没有版本的活项才记为「历史活动待核对」，保留旧 subject/title 与原用途。新格式的一种有效业务状态是来源从前未记录完整，展示并允许按原活动路径重新选择或首次实际读时建立 ref，旧项不造版本、指纹、固定状态或选择范围。旧队列保留原 workId、意图与待执行状态，材料缺省或 null 时仍按原语义从草稿取，显式 [] 仍不带材料；不把旧队列统一冻结成空或当前草稿。新队列才在入队时固定选择意图。升级前后的合法队列仍可执行。这两个私有键不进入 Coding `sessions@1` 的同步表，不另升 Coding 自身库或同步版本。主台核既定历史消费者迁移是否明确涵盖该 key 变形及非 Files 项处理，确认后登记保留机制。无对应授权时保留旧值并暂停该转换的采用，写手继续其余切片。
 - 真正接收的轮次由 Agent Host 自己持久化。建议将 `material_ref` 与实际 `read_revision` 加到 `AgentTextMaterial`/冻结元数据；保留只有真正成果才填的 `source_artifact_id/source_version`。同次解析得到的实际文本仍交 Prologue 现有资源暂存及 SDK 接收，引用元数据与之绑定，保持现有持久接收、放弃未接收 intent 和重试行为。历史轮次重新打开、恢复或重试 SDK 已接收的轮次均沿原资源，活引用改变也不重新读取替换冻结正文。主动新开一轮重新解析活动引用。老轮次显示原题名和已有成果信息，缺完整 ref 显示「当时未记录来源版本」，不能从现文件猜 ref。新轮次摘要复制嵌套引用，报告/任务板只识别原有真实成果字段。独立的 SDK Saved History 回放仍用其原事件及资源，这一改动的持久事实是本地可重开的 Agent 轮次，须证明已有历史同步未丢正文。
 - 现有接收链是 Coding `start-round.ts:195,225–265` → Agent `prologue-run-start.ts:72` 把实际文字交运行时 → `prologue-frozen.ts:43` 冻结材料题名/成果版本 → `prologue-run.ts:319–337` 在 SDK 接收前持久化 intent，未接收才撤 intent；`:601` 把实际正文暂存为 exact original resource，`:569` 的 resume 调现有 SDK control。Coding 的 last-start 写在 start 成功之后，无权用另一份存储补接收事实。重开由 `prologue-recovery.ts:112–122`/Agent readRun → Coding `routes-timeline.ts:125–171`/`session-window.ts:25–38` → `browser/main/run-facts.ts:27`。保存历史从 `prologue-saved-history.ts:29` 检查 SessionIndex 原归属后由 SDK replay/export。
-- **需主台核授权并裁决的新增升级范围**。Agent Host 是 `format.prologue.session-index` owner；`tooling/versions.json:1022`、`prologue-session-index.ts:10,48–79` 定义 v1 和 storage.get/readSecure/commit CAS，实际载体 `agent-runtime/records/molis-agent-index-*/<id>.json` 的加密正文和元数据 schema，`version` 是单记录 CAS。建议 1→2 连续步只改确切 namespace 内 v1 元数据/正文 schema，保留原 owner/attempts/资源，旧 ref 继续缺省。U1 现行入口 `runHomeUpgrade`→`ensureHomeUpgraded`（`apps/local-host/src/home-upgrade.ts:354,395`），由 `home-upgrade-stores.ts:59–80` 登记普通版本文件、SQLite、插件表；未发现 SessionIndex 的登记或可直接升级加密正文的 descriptor。复用 Home 与 Agent runtime owner 锁、SDK 现行 list/get/readSecure/commit 能力，只在运行时业务打开前按 exact kind 枚举及拒绝更高/外来记录，以 HOME-DATA 的 records/storage.key 同点备份和 CAS 恢复顺序接 U1；正式 GO 需隔离证明可在不创建新 key、不启动执行器的情况下安全使用此存储，且 U1 stamp/失败恢复覆盖该版本。本批已明确的项目库 2→3/Files 数据权限未明确扩到此版本载体，不能以无版本可选字段或另一张映射表绕开。
+- **需主台核授权并裁决的新增升级范围**。Agent Host 是 `format.prologue.session-index` owner；`tooling/versions.json:1022`、`prologue-session-index.ts:10,48–79` 定义 v1 和 storage.get/readSecure/commit CAS，实际载体 `agent-runtime/records/molis-agent-index-*/<id>.json` 的加密正文和元数据 schema，`version` 是单记录 CAS。建议 1→2 连续步只改实际 appId `io.molis.work` 所派生的精确 `molis-agent-index-*` kind 内 v1 元数据/密文正文 schema，保留原 owner/attempts/资源、原密钥及 SDK 历史，旧 ref 继续缺省；其他 kind 不改。U1 现行入口 `runHomeUpgrade`→`ensureHomeUpgraded`（`apps/local-host/src/home-upgrade.ts:354,395`），由 `home-upgrade-stores.ts:59–80` 登记普通版本文件、SQLite、插件表；未发现 SessionIndex 的登记或可直接升级加密正文的 descriptor。锁定 SDK 的公开 `@prologue/sdk/node.openNodeRecoveryMaintenance` 已提供 exact `appStorageKind`、原密钥下 list/get/readSecure/commit CAS 与 close，不启动 Runtime，缺原 key 拒绝。由 Agent owner 在运行时业务打开前使用它，仅索引 App 的授权为空、kind 精确；更高版本或该 kind 的外来归属拒绝且零改。现行 U1 描述器是同步的，这个维护口是异步的，尚不能宣称直接接入已成立。正式 GO 必须在隔离环境证明同一实际 Home lease 下的异步升级编排、records/storage.key 同点备份、CAS 续接、全部完成后才盖 stamp、中断重入/半升恢复、缺 key/高版零改；不创建新 key，不启动执行器，不另造打开时兼容读取。本批已明确的项目库 2→3/Files 数据权限未明确扩到此版本载体，不能以无版本可选字段或另一张映射表绕开。
 - 临时 worktree 沿 `workspace-git-worktrees.ts:17,121` 的 Host 拥有者解析和 `workspace-git-writers.ts:56` 的授权列表。按真实项目、原 workspace root、Host 的 worktree 身份及 Git 注册的 checkout 标识给已有 `workspace_file` 形状派生一个有保留前缀的有界 root id。当前浏览解析所选项目/会话的已授权 worktree，执行中的根取该轮 frozen directory/worktree。每次重新匹配 Host 登记、路径封闭和工作区许可；同名输出根、其他项目根、重建后身份已变的路径都拒绝。重开可重新解析身份未变的原 checkout；已删除的活动引用明确 unavailable，过程项捕获保持精确。此 root id 不是新目录映射，不向 `projects.directories` 写入，不把相同目录名当身份证明。
 
 现况定位：`plugins/native/coding/src/{materials.ts:13,routes-sessions.ts:194,wake-loop.ts:149,delegation-dispatch.ts}`、`browser/main/mount-forms.ts:94`；`packages/plugin-runtime/src/private-storage.ts:55`；`horizontal/agent-host/src/run-start.ts:143`；`apps/local-host/src/agent-host-composition.ts:237`；`docs/system/HOME-DATA.md:204,214`。
@@ -34,13 +34,13 @@
 ## 4. 续读、选择与文件变更
 
 - 保留现行读全文 API 的含义，给 owner 的工作区文件读和现有 `file_source.content` 增加显式 text-window 形态。首次及后续每段最多现行 256 KiB，返回 UTF-8 完整字符的文字、原文绝对 UTF-16 偏移和到末尾前的 next_cursor。游标为 owner 签发的有界不透明值，绑定可信项目、actor、精确 root/路径、文件观察身份及下一位置。文件打开仍做根封闭、禁 symlink 和 fd 前后检查；每段重查权限及 dev/ino/size/mtime/ctime。文件变化返回 changed，UI 丢弃混合段和旧选区，用户从当前版重读。服务重开失效的游标可刷新首段。逐段读取到 EOF，保留 A 的「继续读取」及绝对范围选择。
-- 当前阅读 revision 沿 SSC-28，现行指纹预算内才产生真 SHA，超预算标 size/不可精确比对；游标的文件观察身份独立于这份可比较指纹。固定选区由 owner 重新核同一观察和真实范围，抓取原文 UTF-16 半开区间，可选已加载的范围。固定全文沿已有 1 MiB 序列化约束，超限明确告知「可固定选区」，仍可分段读到末尾。固定和续读都不返回静默截断的全文，二进制继续走原信任与预览规则。
+- 当前阅读 revision 沿 SSC-28，现行指纹预算内才产生真 SHA，超预算标 size/不可精确比对；游标的文件观察身份独立于这份可比较指纹。固定选区由 owner 重新核同一观察和真实范围，抓取原文 UTF-16 半开区间，可选已加载的范围。现有 `MaterialRange` 只有 anchor/line/length/page；绝对 UTF-16 偏移保存在不可变过程项的原范围，由该 owner 证明，不悄悄塞入公共 ref。给人的 file_source.content 游标只用于该阅读调用，不转给 Agent 或借此扩大 audience。固定全文沿已有 1 MiB 序列化约束，超限明确告知「可固定选区」，仍可分段读到末尾。固定和续读都不返回静默截断的全文，二进制继续走原信任与预览规则。
 - 文件边界是 `apps/local-host/src/{workspace-files,project-capabilities}.ts`、`horizontal/knowledge/src/workspace.ts`、`packages/contracts/src/{platform/file-sources,modules/workspace-artifacts}.ts`。验证真实多字节字符跨分段、同大小改写、替换 inode、权限撤销、游标跨项目，以及捕获前发生变更。
 
 ## 5. 原阅读命令与端口
 
 - A 原型 `docs/design/batch-06-materials/app.js:909–913` 的 `read/place=coding` 是原 Coding 内嵌 Files 阅读面的文件行打开手势。将此手势接平台 `materials.open` 显式命令，成功仍在 A 的侧区就地显示。原 `files.open` 成功读文本后保存阅读位置并在可列目录时发布当前根的 files collection，移交该语义给系统资料 owner。保留 collection 的 workspace/handle/display_name/entry_count/truncated/selection.path 合同和用户已有合法绑定。没有内置 collection 默认消费者的证据；保留手绑/外装消费，实测已知 Diff before/after、Text Stats before。
-- Side 行、Goal/picker 预览、续读、程序恢复阅读位置只走只读查询。上次阅读位置与 Recent 分开，沿原 actor/项目/根/相对路径归属，用项目 2→3 的系统 owner 保存并搬运原合法历史。读到位置也先验当前权限。根切换、失权或卸载通过现有范围事件失效旧端口；以当前 open 操作票据丢弃先发后回的旧响应。异步读和列目录完成后才进最终授权与同步事务，合法 open 更新位置，根可列时同时提交集合过程项、端口及事件；读成功但目录不可列维持原只保存位置的行为。固定 before/after/selection 继续独立的用户意图，沿原端口消费授权。拒绝场景保证零位置、过程项、端口和事件写入。
+- Side 行、Goal/picker 预览、续读、程序恢复阅读位置只走只读查询。上次阅读位置与 Recent 分开。旧值仅有 `{workspace_id,path}`，按已知项目与官方安装的偏好随项目 2→3 搬运，不能推断历史 actor；当前入口仍按实际调用上下文和根权限读写，不能把旧项目偏好当作某个人的授权或事实。读到位置也先验当前权限。根切换、失权或卸载通过现有范围事件失效旧端口；以当前 open 操作票据丢弃先发后回的旧响应。异步读和列目录完成后才进最终授权与同步事务，合法 open 更新位置，根可列时同时提交集合过程项、端口及事件；读成功但目录不可列维持原只保存位置的行为。固定 before/after/selection 继续独立的用户意图，沿原端口消费授权。拒绝场景保证零位置、过程项、端口和事件写入。
 - 现况 `plugins/native/files/src/{actions.ts:69,153,185,position.ts}`，退出时在 PR 清点原固定动作引用及绑定消费者。兼容数据与旧同意按 BSH-06/07/14 正式方案，恢复入口显式授权。
 
 ## 6. N52 首屏与来源故障
@@ -65,4 +65,15 @@
 
 在途文件按主台核对：#1999 与 frame 的 `child.ts`、`files.ts`、合同 `platform/ui.ts` 及 Knowledge 入口共享文件，写手先核其 patch 并保留 readiness/失败重试。#2000 的 Coding settings/MCP 与资料事实独立。两者都占 `tooling/versions.json`，最后按条目合并。
 
-已核代码及原型入口，未运行构建、测试或真实 Home。主台需集中核对的新增决定是 Agent 轮次的加密载体 1→2，以及项目 2→3 对 Coding 私有值转形的明确授权范围。其余按既定 A、WMD 和 Files 历史迁移方案推进。U1 的 Agent secure 枚举/备份续接是该载体决定的技术采用条件。公共 C/D 仍各自审查。
+已核代码及原型入口，未运行构建、测试或真实 Home。独立复核已确认两项新增决定：仅 Agent 轮次加密载体 1→2，以及项目 2→3 扩到精确官方 Coding 的两个私有键（含非 Files 资料）。这两项获准前不实施；其余按上述已核边界推进。U1 的 Agent secure 枚举/备份续接是该载体决定的技术采用条件。公共 C/D 仍各自审查。
+
+## 待用户决定的两项隔离升级
+
+为让 A 中选取的文件版本和选区在 Coding 重开、排队与历史轮次中仍然准确，建议把下列两项纳入本批代码与隔离验证：
+
+| 范围 | 保留与验证 |
+| --- | --- |
+| Agent 轮次索引 1→2，仅实际应用的加密索引 kind | 新轮次保存完整引用和实际读取版本；旧轮次正文、SDK 资源与历史、已有成果版本、原密钥不变，缺失来源不猜补。用现有受限维护入口，先证明同一 Home 租约下备份、异步升级、中断恢复与缺密钥/高版本拒绝，再接入运行时。 |
+| 项目库 2→3 包含官方 Coding 的 `materials:` 与 `queued:` 已有行，含非 Files 资料 | 保住旧固定成果版本、活引用意图及队列缺省/null/空数组的不同含义，复用整值 CAS。其他安装的私有值不动，不另改 Coding 自身库与同步集合版本。 |
+
+依据是 [06 第六节的版本与迁移授权边界](../post-anticorruption-roadmap/reference/batches/06.md)：已有 Files 项目库与过程项同步迁移授权未明确覆盖这两个载体。推荐批准以上隔离实现；若暂缓，只暂停这两项依赖，其他本批工作继续，Coding 历史引用完整性不记完成。此次决定不包含真实 Home、真实部署、云端数据迁移或其他集合封旧。获准后先登记当前保留机制与升级步骤，再做隔离实现；通过采用条件后才能接入消费者，最终仍需公共 C 合审与本批统一验收。

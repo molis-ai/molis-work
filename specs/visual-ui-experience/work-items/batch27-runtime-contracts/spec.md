@@ -114,6 +114,8 @@ Home 级委托仍从同一 Host 的实际调用项目出发，有无项目、项
 
 ## BL-367 停止钩子的期限和记法
 
+2026-11-09 关闭链交接：第 06 批候选 `8982fad38` 将项目 SQL 子进程的真实退出承诺接到 `project-statement-process.ts`、`plugin-project-library.ts`、`plugin-host-services.ts`、`plugin-executor.ts`，构造／启动失败与正常停止均等待资源释放后再交还 Home 租约。统筹已核该提交的实际差异；其 `tests/installed-plugin-host.test.ts` 用例「BSH-03 S-59 a real installed project SQL child exits before the Host releases the Home lease」延迟真实 PID 的终止信号，断言退出前租约仍忙、退出后 PID 消失且租约可取。该候选仍在第 06 批工作分支，本批尚未集成，也未重跑其用例；最终采用第 06 批完成头并保留这些等待，复核 S-59 的双方证据。下述 2 秒只限制作者钩子，不能包住 `session.dispose()`、库关闭或子进程退出。
+
 ### 基点和调用链
 
 `PluginRuntime.stop` 先撤动作登记和激活授权，保留旧 context 让安装锁内的 `stopOnce` 清理。 `PluginSupervisor.revoke` 先使启用 epoch、登记实例与排队工作失效，再触发同一 Runtime stop。restart 等 stop 后按 Runtime 记录启动或恢复。卸载先通过常开协议检查，在安装锁内撤权、停、记 uninstalled，之后清理其拥有的登记及权限。regrant、版本升级／回滚、恢复出错和缺安装记录的释放也会走 executor。 `reportCrashOnce` 与兑现失败的清理另有入口，最终错误仍分别归原故障／兑现失败，不能把它们改报成正常停用。 [Runtime](../../../../packages/plugin-runtime/src/index.ts)、[监督器](../../../../packages/plugin-runtime/src/supervisor.ts)、[缺记录释放](../../../../packages/plugin-runtime/src/activation-context.ts)

@@ -534,9 +534,9 @@ interface SurfaceItem {
 | 动作 | 种类 | 说明 |
 | --- | --- | --- |
 | `surfaces.compose@1` | query | 按调用方、位置（slot）和对象返回校验过的 `SurfaceDescription`。第一片只做确定组合，不调模型 |
-| `surfaces.correct@1` | command | 用户换形态、移走、固定。按调用方和位置记住，同一位置下次先照纠正来（IUI-06）。用 `expected_revision`，取描述里的 `corrections_revision` |
+| `surfaces.correct@1` | command | 用户换形态、移走、固定或恢复默认。按调用方和位置记住，同一位置下次先照纠正来（IUI-06）。用 `expected_revision`，取描述里的 `corrections_revision` |
 
-两个动作都是项目范围。`compose` 只读、并发（要等各主人的 values），受众 user、plugin（第 10 节第 4 条）；`correct` 改的是本人自己的版面，受众只有 user。`correct` 的输入是 `{ slot, subject?, correction: "form" | "remove" | "pin", form?, position?, expected_revision }`：`form` 必带形态，不带 `subject` 时对整个位置；`remove` 必带对象；`pin` 带对象和从 0 起的位置；多带的键被 schema 拒绝。返回新的 `corrections_revision`。
+两个动作都是项目范围。`compose` 只读、并发（要等各主人的 values），受众 user、plugin（第 10 节第 4 条）；`correct` 改的是本人自己的版面，受众只有 user。`correct` 的输入是 `{ slot, subject?, correction: "form" | "remove" | "pin" | "reset", form?, position?, expected_revision }`：`form` 必带形态，不带 `subject` 时对整个位置；`remove` 必带对象；`pin` 带对象和从 0 起的位置；`reset` 不带 form／position，带对象时恢复该对象，不带对象时恢复整个位置。多带的键被 schema 拒绝。返回新的 `corrections_revision`。恢复沿原表写 reset 标记，修订号仍取所有行的最大值，不删除旧行使修订回退；对象恢复仍继承位置形态。准确截断和受保护消费者边界见[智能呈现 §17](../intelligent-surfaces/spec.md#17-跨位置消费者实施输入2026-11-09)。
 
 **纠正记录的生命周期**：
 - 存在哪：位置属于某个项目的（插件挂载位、项目讨论、等你）存在组合服务在项目库里的纠正表；不属于项目的（个人一层）存在组合服务自己的 Home 库，登记进 `homeStoreRegistry`。两处都在 `table-owners.json` 记为组合服务独占，建表经第 02 批的 storage 驱动，按 02③ 分界（第 8 节）。

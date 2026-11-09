@@ -40,7 +40,7 @@
 | --- | --- |
 | `surfaces.compose@1`：按调用方、位置和对象排出 `SurfaceDescription` | 字段的值（主人插件的 values 动作；页面另取） |
 | 确定组合的规则：选形态、选字段、选操作、分组、排序、去重、降级 | 呈现声明的解析与安装校验（Plugin Runtime，用 SDK 的 `validatePresentationDeclaration`） |
-| `surfaces.correct@1`：记住用户的纠正（换形态、移走、固定） | 「等你」条目本身（`modules/attention-resumption`） |
+| `surfaces.correct@1`：记住用户的纠正（换形态、移走、固定、恢复默认） | 「等你」条目本身（`modules/attention-resumption`） |
 | 纠正记录这一张表 | 对象之间的关系（Context Ledger） |
 | 组合结果的进程内缓存 | 最近在做什么（观测和采集层的工作记录） |
 | 按位置给出通用操作（打开、速览、放进、交给……）的引用 | 执行操作（动作网关，用点击时的授权） |
@@ -57,7 +57,7 @@ surface_corrections        项目库
   actor_id      调用方（取自调用上下文）
   slot_key      位置：kind + plugin_id + slot_id 归一后的串（如 "plugin-slot:goals:evidence"、"home"）
   subject_kind, subject_id   针对哪个对象；为空表示对整个位置（如密度）
-  correction    "form" | "remove" | "pin"
+  correction    "form" | "remove" | "pin" | "reset"
   value         form 时是形态名；pin 时是顺序
   revision      整数，按 (actor_id, slot_key) 递增；surfaces.correct@1 用 expected_revision 提交
   recorded_at
@@ -67,6 +67,7 @@ surface_corrections        项目库
 - **怎样建表**：经第 02 批的 storage 驱动（#1790「项目数据库归 storage」），包里不自己开库（C 轨评审 11-04）。
 - **不存组合结果**：描述只在进程内缓存（第 8 节），重启后重算；描述里本来就没有值，丢了不影响事实。
 - **不存值、不存正文**：纠正只记对象引用和形态。
+- **恢复默认**：reset 标记写在原表，修订号取所有行的最大 revision，包括 reset 和已失效偏好。对象恢复仅截断该对象之前的 form／remove／pin，仍继承位置统一 form；位置恢复截断全部旧偏好。后续新修订继续生效，不改建表结构。准确合同和当前验证边界见[智能呈现 §17](../intelligent-surfaces/spec.md#17-跨位置消费者实施输入2026-11-09)。
 - **库结构怎样进升级链**：和 05② §8 同一个分界，看 02③ 真实 Home 重建。重建之前落，就写进第 1 版建表；重建之后落，就是一步升级，属于「新增迁移逻辑」的红线，开 PR 之前由统筹先问用户。
 - **助理组合的记录**（第三片）写进观测和采集层的工作记录，不在本包另建表（IUI-23）。
 

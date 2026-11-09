@@ -43,10 +43,16 @@ export interface UiViewRegistryManifest {
   readonly ui: { readonly views?: readonly UiViewDeclaration[] };
 }
 
-export interface UiViewRegistryInput {
-  manifest: UiViewRegistryManifest;
+export interface UiViewRegistryInput<Manifest extends UiViewRegistryManifest = UiViewRegistryManifest> {
+  manifest: Manifest;
   /** Only enabled Plugins are placed. A disabled Plugin leaves no gap behind. */
   enabled: boolean;
+}
+
+type RegisteredView<Manifest extends UiViewRegistryManifest> = UiPlacedView & { readonly manifest: Manifest };
+
+function detachedView({ manifest: _manifest, ...view }: RegisteredView<UiViewRegistryManifest>): UiPlacedView {
+  return view;
 }
 
 function defaultContributionId(manifest: UiViewRegistryManifest, viewId: string): string {
@@ -59,16 +65,17 @@ function defaultContributionId(manifest: UiViewRegistryManifest, viewId: string)
  * This replaces hand-written per-plugin branches: adding a Plugin means adding
  * a Manifest, not editing the shell.
  */
-export class UiViewRegistry {
-  readonly #views: UiPlacedView[];
+export class UiViewRegistry<Manifest extends UiViewRegistryManifest = UiViewRegistryManifest> {
+  readonly #views: RegisteredView<Manifest>[];
 
-  constructor(entries: readonly UiViewRegistryInput[]) {
-    const views: UiPlacedView[] = [];
+  constructor(entries: readonly UiViewRegistryInput<Manifest>[]) {
+    const views: RegisteredView<Manifest>[] = [];
     for (const entry of entries) {
       if (!entry.enabled) continue;
       const manifest = entry.manifest;
       for (const view of manifest.ui.views ?? []) {
         views.push({
+          manifest,
           plugin_id: manifest.plugin_id,
           plugin_title: manifest.name,
           ...(manifest.name_en !== undefined ? { plugin_title_en: manifest.name_en } : {}),
@@ -97,15 +104,20 @@ export class UiViewRegistry {
 
   /** Views for one region, already in the order the shell should render them. */
   slot(slot: UiViewSlot): UiPlacedView[] {
-    return this.#views.filter((view) => view.slot === slot).map((view) => ({ ...view }));
+    return this.#views.filter(view => view.slot === slot).map(detachedView);
+  }
+
+  /** The same placement order, with the original input for consumers that also own a directory key. */
+  placements(slot: UiViewSlot): { manifest: Manifest; view: UiPlacedView }[] {
+    return this.#views.filter(view => view.slot === slot).map(({ manifest, ...view }) => ({ manifest, view }));
   }
 
   views(): UiPlacedView[] {
-    return this.#views.map((view) => ({ ...view }));
+    return this.#views.map(detachedView);
   }
 
   view(pluginId: string, viewId: string): UiPlacedView | null {
     const found = this.#views.find((item) => item.plugin_id === pluginId && item.view_id === viewId);
-    return found ? { ...found } : null;
+    return found ? detachedView(found) : null;
   }
 }

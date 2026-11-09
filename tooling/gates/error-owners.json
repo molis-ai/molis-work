@@ -220,11 +220,9 @@
     "kit": {
       "paths": [
         "packages/contracts/src/platform/kit-report.ts",
-        "packages/contracts/src/services/kit.ts",
-        "horizontal/kit/",
-        "apps/local-host/src/kit-actions.ts"
+        "packages/contracts/src/services/kit.ts"
       ],
-      "reason": "The AI kit (specs/capability-pack/contract-design.md §4, D-4): the report protocol, the kit.catalog.list contract, the gatherer horizontal and its Host wiring; its codes are kit.* like its action ids."
+      "reason": "The AI kit (specs/capability-pack/contract-design.md §4, D-4): the report protocol and the kit.catalog.list contract; its codes are kit.* like its action ids. The gatherer (horizontal/kit/) and its Host wiring (apps/local-host/src/kit-actions.ts) join this entry when they are written."
     },
     "knowledge": {
       "paths": [

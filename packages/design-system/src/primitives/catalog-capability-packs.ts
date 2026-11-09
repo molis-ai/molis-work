@@ -209,11 +209,12 @@ const hold = (word: string) => renderStatusMark({ label: word, tone: "hold", sta
 const inUse = (word: string) => renderStatusMark({ label: word, tone: "idle", state: "ready" });
 const go = (say: Say, label: string) => renderButton({ label: say(label), variant: "ghost", size: "sm", icon: "arrow" });
 
+/** The board draws this menu three times; each copy names its items after its own id, so no described item's id repeats. */
 function exportMenu(say: Say, id: string, withPrompts = true): NowMenu {
   const items = [
-    renderMenuItem({ label: say("整个包"), description: say("内容包原样带签名，加上你的提示词改写和引用"), iconName: "package" }),
-    ...(withPrompts ? [renderMenuItem({ label: say("只导出你的提示词改写（{n}）", { n: 1 }), description: say("存成你自己的数据文件，导回时逐条确认"), iconName: "text" })] : []),
-    renderMenuItem({ label: say("角色、工具和 MCP 的引用"), description: say("只带名字和版本，不带配置、地址和凭据"), iconName: "link" }),
+    renderMenuItem({ label: say("整个包"), description: say("内容包原样带签名，加上你的提示词改写和引用"), iconName: "package", id: `${id}-pack` }),
+    ...(withPrompts ? [renderMenuItem({ label: say("只导出你的提示词改写（{n}）", { n: 1 }), description: say("存成你自己的数据文件，导回时逐条确认"), iconName: "text", id: `${id}-prompts` })] : []),
+    renderMenuItem({ label: say("角色、工具和 MCP 的引用"), description: say("只带名字和版本，不带配置、地址和凭据"), iconName: "link", id: `${id}-refs` }),
   ].join("");
   return { id, label: say("导出这个包"), icon: "download", items: renderMenuGroup({ label: say("导出「{p}」", { p: say("写作工具") }), items }) };
 }

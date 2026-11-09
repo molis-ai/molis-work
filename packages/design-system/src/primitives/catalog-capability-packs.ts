@@ -72,6 +72,26 @@ export const CAPABILITY_PACK_BOARD_STYLES = `
   .mw-count { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
   .mw-count > svg { width: 12px; height: 12px; flex: none; }
 
+  /* 6 · State rows: one row per state, its name and what it means, its status mark, and where it is changed. Laid out by the list's
+     own width: under 520px the words take a line and the state and the way there share the next; under 320px one each. */
+  .mw-state-rows { container: mw-state-rows / inline-size; display: grid; gap: 1px; min-width: 0; margin: 0; padding: 0; list-style: none; border-radius: var(--r-row, 10px); overflow: hidden; background: var(--line); }
+  .mw-state-rows > li { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 52px; padding: 8px 10px 8px 12px; background: var(--paper); }
+  .mw-state-row__what { display: grid; gap: 1px; min-width: 0; }
+  .mw-state-row__what > strong { color: var(--ink); font-size: 13px; font-weight: var(--weight-control, 500); }
+  .mw-state-row__what > small { color: var(--muted); font-size: 12px; line-height: 1.4; }
+  .mw-state-row__state { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; min-width: 0; }
+  .mw-state-row__state > .mw-status { height: auto; min-height: 22px; white-space: normal; text-align: start; }
+  .mw-state-row__state > small { color: var(--muted); font-size: 12px; }
+  .mw-state-row__go { justify-self: end; }
+  @container mw-state-rows (max-width: 520px) {
+    .mw-state-rows > li { grid-template-columns: minmax(0, 1fr) auto; row-gap: 6px; }
+    .mw-state-row__what { grid-column: 1 / -1; }
+  }
+  @container mw-state-rows (max-width: 320px) {
+    .mw-state-rows > li { grid-template-columns: minmax(0, 1fr); }
+    .mw-state-row__go { justify-self: start; }
+  }
+
   @media (prefers-reduced-motion: reduce) { :is(.mw-item-group__head, .mw-cell) { transition: none; } }
 
   .mw-catalog :is([data-primitive="now-block"], [data-primitive="item-group"], [data-primitive="cell-grid"], [data-primitive="detail-trail"], [data-primitive="icon-counts"], [data-primitive="state-rows"], [data-primitive="usage-figure"]) .mw-catalog__specimens { grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); align-items: start; }
@@ -152,10 +172,17 @@ export function renderIconCounts(counts: ReadonlyArray<{ glyph: PluginIconName; 
     escapeHtml(count.value)}</span><span class="mw-sr-only">${escapeHtml(count.name)}</span></span>`).join("")}</span>`;
 }
 
+/** 6 · State rows: one per state, each with its own mark and, when it is changed elsewhere, the way there. */
+export function renderStateRows(rows: ReadonlyArray<{ name: string; meaning: string; mark: string; fact?: string; go?: string }>): string {
+  return `<ul class="mw-state-rows" data-slot="state-rows">${rows.map((row) => `<li><span class="mw-state-row__what"><strong>${escapeHtml(row.name)}</strong><small>${escapeHtml(row.meaning)}</small></span><span class="mw-state-row__state">${
+    row.mark}${row.fact ? `<small>${escapeHtml(row.fact)}</small>` : ""}</span>${row.go ? `<span class="mw-state-row__go">${row.go}</span>` : ""}</li>`).join("")}</ul>`;
+}
+
 /* ---------- the board's specimens (made up; nothing is read from a Home). Every text is still Chinese: `say` turns it. ---------- */
 
 const hold = (word: string) => renderStatusMark({ label: word, tone: "hold", state: "unavailable" });
 const inUse = (word: string) => renderStatusMark({ label: word, tone: "idle", state: "ready" });
+const go = (say: Say, label: string) => renderButton({ label: say(label), variant: "ghost", size: "sm", icon: "arrow" });
 
 function exportMenu(say: Say, id: string, withPrompts = true): NowMenu {
   const items = [
@@ -238,6 +265,21 @@ export function iconCountsSection(say: Say): string {
     ${specimen(say("列表行里：一个图标一个数"), `<ul class="mw-items">${packRow(say, "写作工具", { role: 2, prompt: 3, skill: 3, mcp: 0, tool: 3 }, hold(say("1 项要处理")))}${
       packRow(say, "Coding", { role: 2, prompt: 2, skill: 0, mcp: "—", tool: 6 }, hold(say("没读全")))}${packRow(say, "Feed", { role: 0, prompt: 2, skill: 0, mcp: 0, tool: 1 }, inUse(say("在用")))}</ul>`)}
     ${specimen(say("单独放：没读到的写「—」"), packCounts(say, { role: 2, prompt: 2, skill: 0, mcp: "—", tool: 6 }))}
+  </div>`);
+}
+
+function mcpRows(say: Say, broken = false): string {
+  return renderStateRows([
+    { name: say("服务器"), meaning: say("服务器有没有在跑、连不连得上"), mark: broken ? hold(say("断开了")) : inUse(say("开着")), fact: broken ? undefined : say("随 Molis Work 一起运行"), go: broken ? go(say, "重新连接") : undefined },
+    { name: say("给外部客户端"), meaning: say("哪些外部 AI 工具能连它"), mark: inUse(say("开给 {n} 个：{list}", { n: 2, list: "Claude Code、Codex" })), go: go(say, "对外接入") },
+    { name: say("工具可用"), meaning: say("它的工具里，有几个登记成动作、能被调用"), mark: inUse(say("{total} 个里开放 {open} 个", { total: 14, open: 12 })), go: go(say, "能力库") },
+  ]);
+}
+
+export function stateRowsSection(say: Say): string {
+  return section("state-rows", say("分项状态行 / State Rows"), `<div class="mw-catalog__specimens">
+    ${specimen(say("三种「开」：一行一种"), mcpRows(say))}
+    ${specimen(say("窄处：去处换到下一行"), `<div style="width: min(300px, 100%)">${mcpRows(say, true)}</div>`)}
   </div>`);
 }
 

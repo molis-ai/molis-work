@@ -61,6 +61,7 @@ export {
   renderCells,
   renderDetailTrail,
   renderIconCounts,
+  renderStateRows,
   type NowMenu,
   type PickRow,
 } from "./catalog-capability-packs.js";

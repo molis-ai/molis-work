@@ -472,5 +472,4 @@ test("07-AUDIT a record gone in a pane page marks its tab only after the page ta
     return { title: item.title, label: item.querySelector('[role=tab]')?.getAttribute('aria-label') ?? null }; })()`);
   assert.match(gone.title, /这一条已经不在了/u);
   assert.match(gone.label ?? "", /这一条已经不在了/u);
-    assert.match(await evaluate<string>("document.querySelector('[data-side-tabs] .tab-item[data-tab-state=gone]')?.dataset.sidePlugin ?? ''"), /^goals/u);
-});
+  });

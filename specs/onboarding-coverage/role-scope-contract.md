@@ -32,7 +32,7 @@ type CharacterRole =
 ```
 
 - `character_id` 沿现有个人身份，`member_id` 标识当前项目的成员绑定。同名无身份意义。本人、项目和执行权限从可信调用上下文取。项目成员读、写和按版本读都在该项目内查归属。成员跟随的原件由 Characters 确认，持有引用本身没有跨项目读取权。已解除的成员和已删除的原件在当前角色读回中为缺失。
-- 原件确认保存时得到不可变的 `version`。新成员两节都跟随。项目保存只覆盖本次编辑的节，其他节取最新已保存的原件，别的项目和原件不受影响。项目本地保存得到不可变的 `member_version`。任务固定当时的成员版本及原件版本。两者足以重建当时的内容，原件发布后无需逐项目补写成员。成员的 `revision` 是针对成员配置及采用复用保护的写入凭据，原件单独更新只改变读到的 `current.original`，不会改掉场景采用存下的成员 revision。
+- 原件确认保存时得到不可变的 `version`。新成员两节都跟随。项目保存只覆盖本次编辑的节，未编辑的节保留已有模式及覆盖值；只有仍为 `follow` 的节读取最新已保存的原件。先覆盖做事方式，再只改能用什么时，前一个覆盖不会被清掉。别的项目和原件不受影响。项目本地保存得到不可变的 `member_version`。任务固定当时的成员版本及原件版本。两者足以重建当时的内容，原件发布后无需逐项目补写成员。成员的 `revision` 是针对成员配置及采用复用保护的写入凭据，原件单独更新只改变读到的 `current.original`，不会改掉场景采用存下的成员 revision。
 - 「做事方式」复用 `instructions`。「能用什么」复用 `host_tools` 和 `action_tools`，保留原合同中 `null`、省略、空列表各自的意义。节的 `follow` 由节状态表达。标题沿个人原件。角色和模板只能收窄本次授权，任务启动和后续实际调用仍查现行许可。材料和输出说明、解析后的 Skill 引用由 P-2b 与后续角色服务接内容字段。材料说明没有授权效力，Skill 解析走现有 `SkillRef`，`works_with` 的场景部分 id 由第 44 批解析成实际成员。
 - `based_on_original_version` 指覆盖所依据的原件版本。`original_changed` 只在原件的对应节变化时提示。「保持本项目的」确认此次差异，下次这节再变才重新提示。项目覆盖和原件各自保留可读的固定版本，允许看差异。具体比较和确认记录由后续服务实现。
 
@@ -78,16 +78,20 @@ type CharacterTemplateAdoptionResult = {
   origin: BlueprintPartOrigin;
   role: CharacterRole;
 };
-type CharacterRoleReadInput =
+type CharacterRoleReadQuery =
   | { by: "role"; role: PersonalCharacterRef | ProjectCharacterMemberRef }
   | { by: "request"; layer: "personal" | "project"; request_id: string };
+type CharacterRoleReadInput = { queries: CharacterRoleReadQuery[] };
 type CharacterRoleReadResult =
   | { kind: "missing" }
   | { kind: "role"; role: CharacterRole }
   | { kind: "receipt"; receipt: CharacterTemplateAdoptionResult; current: CharacterRole | null };
+type CharacterRoleReadOutput = { results: CharacterRoleReadResult[] };
 ```
 
-采用的输入由 20 P-2b 组合既有 `RoleTemplate`、`origin`、`request_id` 与显式层和预览决定。本人选择新建，项目分支按模板建个人原件并确认首个版本，再建两节跟随的项目成员，返回项目分支。预览应列出会新建原件，默认选择不随采用写入。个人分支只返回新建原件。复用须指向预览已确认的同层稳定引用，角色自身的 `origin` 和内容保持原样，结果的 `origin` 只表明本次请求。项目成员的首次复用与本次回执在 Characters 同一提交中更新成员 `revision`，不改变 `member_version` 或正文；同请求重放返回原回执，不再次更新 revision。该变更使之前创建者记录的解除凭据失效，即使复用方后来移除也不恢复旧 revision。复用方的 `outcome: "reused"` 不授予解除权。解除和复用都在同一成员 owner 内按实际存在状态及所见 revision 比较提交：解除先成功时，针对已解除身份的复用失败；复用先成功时，旧 revision 的解除失败。因此保护不依赖跨 owner 的先查后写，也不让 Characters 与 Blueprints 各存一份共享计数。标题按采用时语言落为用户自己的文字。来源由验证过的内容包或已读到的草稿给出，进入角色结果的字段只有来源和稳定 `part_id`。Characters 仍核对授权及项目，来源不携带安装凭据或操作者身份。
+采用的输入由 20 P-2b 组合既有 `RoleTemplate`、`origin`、`request_id` 与显式层和预览决定。本人选择新建，项目分支按模板建个人原件并确认首个版本，再建两节跟随的项目成员，返回项目分支。预览应列出会新建原件，默认选择不随采用写入。个人分支只返回新建原件。复用须指向预览已确认的同层稳定引用，角色自身的 `origin` 和内容保持原样，结果的 `origin` 只表明本次请求。首次复用必须同时核对预览所见的成员 `revision` 与 `current.original.version`；个人分支核对预览所见的个人固定版本。原件换版即使没有改变成员 revision，也必须回读差异并重新确认，不能直接采用用户未见的内容。同请求重放仍返回原回执，不以当前版本代替原回执。项目成员的首次复用与本次回执在 Characters 同一提交中更新成员 `revision`，不改变 `member_version` 或正文；同请求重放返回原回执，不再次更新 revision。该变更使之前创建者记录的解除凭据失效，即使复用方后来移除也不恢复旧 revision。复用方的 `outcome: "reused"` 不授予解除权。解除和复用都在同一成员 owner 内按实际存在状态及所见 revision 比较提交：解除先成功时，针对已解除身份的复用失败；复用先成功时，旧 revision 的解除失败。因此保护不依赖跨 owner 的先查后写，也不让 Characters 与 Blueprints 各存一份共享计数。标题按采用时语言落为用户自己的文字。来源由验证过的内容包或已读到的草稿给出，进入角色结果的字段只有来源和稳定 `part_id`。Characters 仍核对授权及项目，来源不携带安装凭据或操作者身份。
+
+批量回读一次接受 1～128 个查询，与场景最多 128 个部分的上限一致；同一主人合并为一次调用。结果与输入等长、按原顺序逐项对应，按角色查只返回 `role`／`missing`，按请求查只返回 `receipt`／`missing`。`missing` 是主人成功查询后的不存在结论；回执存在但成员已解除返回 `receipt` 且 `current: null`。底层读取失败使本次批读失败，调用方保持待核对，不把失败改写成 `missing`，也不根据不完整或数量不符的响应补写。各查询共用本次可信本人和项目，不接受每项另填项目或身份。
 
 主人未来以本人和所选层的作用域约束 `<adoption_id>:<part_id>`。项目分支还使用可信项目。角色和回执在同一提交内生效，同键同请求重放原结果，同键异内容冲突。撤权或取消时经 `beforeEffect()` 拒绝写入。场景服务已知身份时按角色读。写成功而返回丢失时按请求读回执和当前角色，回执与已解除角色可同时表达。读失败按待核对处理，不能视作缺失后补写。当前角色回读用于确认身份、来源及撤销的 revision 观察值，原回执用于确认先前提交。这里的角色 DTO 没有正文，不能单独完成升级三方内容比较；内容读取由后续角色服务提供按固定版本取正文的公开入口，20／44 接升级路径时再验证，不能把本片 schema 当成该证据。
 
@@ -95,7 +99,7 @@ type CharacterRoleReadResult =
 
 ## 4. Schema、允许路径与验证
 
-公开 `BLUEPRINT_SOURCE_SCHEMA`、`BLUEPRINT_PART_ORIGIN_SCHEMA`、`CHARACTER_ROLE_VERSION_REF_SCHEMA`、`CHARACTER_DEFAULT_SELECTION_SCHEMA`、`CHARACTER_EFFECTIVE_SELECTION_SCHEMA`、`CHARACTER_TEMPLATE_ADOPTION_RESULT_SCHEMA` 及 `CHARACTER_ROLE_READ_INPUT_SCHEMA`／`CHARACTER_ROLE_READ_RESULT_SCHEMA`。共用同一组叶 schema，按判别字段使用闭合分支。ID、revision 凭据、请求键和来源字符串非空，数值版本与草稿 revision 为正安全整数。来源的真实包 id、SemVer 和草稿版本由接入片沿已有来源检查确认。项目、操作者、安装身份、当前授权等字段在输入的任何分支都不接收。保存、恢复、选择的实际动作输入与 owner 持久化由接入片按上面的边界完成。
+公开 `BLUEPRINT_SOURCE_SCHEMA`、`BLUEPRINT_PART_ORIGIN_SCHEMA`、`CHARACTER_ROLE_VERSION_REF_SCHEMA`、`CHARACTER_DEFAULT_SELECTION_SCHEMA`、`CHARACTER_EFFECTIVE_SELECTION_SCHEMA`、`CHARACTER_TEMPLATE_ADOPTION_RESULT_SCHEMA` 及 `CHARACTER_ROLE_READ_INPUT_SCHEMA`／`CHARACTER_ROLE_READ_RESULT_SCHEMA`／`CHARACTER_ROLE_READ_OUTPUT_SCHEMA`。共用同一组叶 schema，按判别字段使用闭合分支。ID、revision 凭据、请求键和来源字符串非空，数值版本与草稿 revision 为正安全整数。来源的真实包 id、SemVer 和草稿版本由接入片沿已有来源检查确认。项目、操作者、安装身份、当前授权等字段在输入的任何分支都不接收。保存、恢复、选择的实际动作输入与 owner 持久化由接入片按上面的边界完成。
 
 | 允许路径 | 内容 |
 | --- | --- |

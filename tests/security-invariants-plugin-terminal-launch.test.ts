@@ -1,3 +1,4 @@
+import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
@@ -764,6 +765,19 @@ test("TERM-CATALOG-01 TERM-CATALOG-02 TERM-CATALOG-03 terminal list hides a real
   assert.deepEqual(await snapshot(), records, "no record was added, removed or rewritten");
   assert.deepEqual(await panelState(f, panelId), { started: false, attached: true }, "the existing process still runs");
   assert.equal(await ranIn(marker), folder);
+  // D0256: a real catalog refusal rendered by the real workbench helper is readable to the person, without internal/old terms.
+  const chrome = locateTestChrome(); assert.ok(chrome, "TERM-CATALOG visible negative needs the dedicated browser");
+  const browser = await ChromeHarness.start(join(f.home, "catalog-visible-browser"), { executable: chrome });
+  try {
+    const page = await browser.page();
+    await page.command("Page.navigate", { url: f.origin + "/projects/" + project.project_id + "/" });
+    await page.wait("Boolean(globalThis.molisWorkRequest?.show)");
+    await page.evaluate(`(() => { const notice = document.createElement('p'); notice.id = 'terminal-catalog-error'; document.body.append(notice);
+      molisWorkRequest.show(notice, Object.assign(new Error(${JSON.stringify(failed.message)}), { code: ${JSON.stringify(failed.outcome)} })); })()`);
+    const visible = await page.evaluate<string>("document.getElementById('terminal-catalog-error').innerText");
+    assert.equal(visible, "项目目录暂时读不到");
+    assert.doesNotMatch(visible, /catalog|workspace|board|尚未配置|未装配|SQLITE|actor_id|\/(?:Users|private|var)\//iu);
+  } finally { await browser.close(); }
 });
 
 test("TERM-CATALOG-04 terminal list preserves ActionError identity and refuses a read cancelled or revoked during its catalog await", { timeout: 90_000 }, async t => {

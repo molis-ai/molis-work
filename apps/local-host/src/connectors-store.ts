@@ -1,5 +1,5 @@
 import { CONNECTOR_CONNECTIONS_SCHEMA, CONNECTOR_PROTOCOLS_SCHEMA, CONNECTOR_OBSERVATIONS_SCHEMA } from "@molis-ai/molis-work-service-connector-host";
-import { openBaselineHomeSqlite, type SqliteBaseline, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
+import { openBaselineHomeSqlite, openExistingBaselineHomeSqlite, type SqliteBaseline, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 
 /**
  * The Home connectors store's one current schema (repository-anti-corruption §4.1): connections and protocols as the
@@ -18,3 +18,10 @@ export function openConnectorsStore(home: string) {
 
 /** This store in the Home's store registry (W4-11). */
 export const CONNECTORS_HOME_STORE: HomeStoreDeclaration = { path: "connectors", library: { baseline: CONNECTORS_BASELINE } };
+
+/** Pure queries leave an empty Home unchanged; the caller supplies its own empty result. */
+export function readConnectorsStore<T>(home: string, empty: T, read: (db: ReturnType<typeof openBaselineHomeSqlite>) => T): T {
+  const db = openExistingBaselineHomeSqlite(home, CONNECTORS_HOME_STORE.path, CONNECTORS_BASELINE);
+  if (!db) return empty;
+  try { return read(db); } finally { db.close(); }
+}

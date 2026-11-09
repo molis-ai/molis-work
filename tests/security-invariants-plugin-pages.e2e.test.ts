@@ -250,3 +250,42 @@ test("D0033-01 S-47 the real side plugin cannot read either trusted ancestor, it
   await browser.evaluate("document.body.dataset.sideOpen === 'true' && (document.querySelector('[data-layout-open]').click(), document.querySelector('[data-layout-action=side]').click())");
   await browser.waitFor("document.body.dataset.sideOpen==='false'");
 });
+
+// D0109 / S-47: use the actual child SDK and parent bridge, but keep the browser's print UI out of this lifecycle check.
+test("D0109 S-47 scriptless print frames release on timeout, afterprint and owner disposal", { timeout: 60_000 }, async t => {
+  const browser = await openGoalBrowser(t, true); if (!browser) return;
+  await pluginFrameInitScript(t, browser, `
+    const factories = {};
+    globalThis.molisWorkbenchPluginFactories = new Proxy(factories, { set(target, name, factory) {
+      target[name] = host => { globalThis.__printHost = host; return factory(host); }; return true;
+    } });
+  `);
+  const child = await pluginFrameBrowser(t, browser, "cognia");
+  await browser.command("Page.addScriptToEvaluateOnNewDocument", { source: `(() => {
+    const schedule = window.setTimeout;
+    window.__printTimeouts = [];
+    window.setTimeout = (callback, ms, ...args) => { if (ms === 120000) window.__printTimeouts.push(callback); return schedule(callback, ms, ...args); };
+    document.addEventListener('load', event => { const frame = event.target;
+      if (frame instanceof HTMLIFrameElement && frame.hasAttribute('srcdoc') && frame.getAttribute('sandbox') === 'allow-same-origin allow-modals') frame.contentWindow.print = () => {};
+    }, true);
+  })()` }, browser.sessionId);
+  await browser.navigate(() => browser.command("Page.navigate", { url: browser.origin + "/projects/" + browser.projectId + "/?openPlugin=cognia" }, browser.sessionId));
+  await browser.surfaceReady("cognia");
+  await child.waitFor("Boolean(globalThis.__printHost)");
+  const frame = "document.querySelector('iframe[sandbox=\"allow-same-origin allow-modals\"]')";
+  const print = async () => {
+    await child.evaluate("globalThis.__printHost.printDocument('<p>Printable</p><script>parent.__printEscape=true</scr'+'ipt>')");
+    await browser.waitFor(frame + "?.isConnected");
+    assert.equal(await browser.evaluate("Boolean(globalThis.__printEscape)"), false);
+  };
+  await print();
+  await browser.evaluate("window.__printTimeouts.at(-1)()");
+  assert.equal(await browser.evaluate("!!(" + frame + ")"), false, "a browser that omits afterprint still releases the frame");
+  await print();
+  await browser.evaluate("window.dispatchEvent(new Event('afterprint'))");
+  assert.equal(await browser.evaluate("!!(" + frame + ")"), false);
+  await print();
+  await browser.evaluate("document.querySelector('[data-work-surface=cognia]').remove()");
+  await browser.waitFor("!(" + frame + ")");
+  assert.equal(await browser.evaluate("!!(" + frame + ")"), false, "disposing the owner removes its still-pending print frame");
+});

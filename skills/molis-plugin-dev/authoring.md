@@ -99,3 +99,7 @@ node --import tsx --test tests/plugin-sample.e2e.test.ts tests/plugin-package.te
 wire 的 `agent`、`methods` 是只含 `{ name, purpose, body }` 的数组，正文放在已签名包内的 agent/ 资源中；不是完整 AgentManifest。合计 64 项，名字 80、用途 300、正文 8000 UTF-16 单元，正文资源先限 32,000 字节。用 SDK 的 `parsePluginPackageManifest` 及唯一派生 helper，不能自行取短 hash、截名字或把包 SemVer 写成 Agent 数字版本。宿主会在安装预览中显示每条名字与节选，并用全文判断升级变化。
 
 角色资料和方法通过助理材料/读取动作消费，元数据与正文均为带签名来源的不可信 JSON；无工具、目录、执行或子 Agent 授权。角色的用户覆盖标明 effective/user_revision，不能称为发布者签名原文；方法不提供编辑。详见[包格式](../../docs/platform/PLUGIN-DEVELOPMENT.md#沙箱包格式与安装)。
+
+### 日评 A-1 公开复用入口
+
+插件 ID 的完整格式由 SDK 根入口 `PLUGIN_ID` 定义，路由与作者校验共用。执行生命周期与动作声明检查也可从 `@molis-ai/molis-work-plugin-sdk/execution` 读取，与根入口是同一实现。subjectContext 的分页 offset/length 按 Unicode 码点计数，调用方按同一单位推进；不自行按 UTF-16 长度换算。

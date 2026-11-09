@@ -9,7 +9,7 @@ import type { ConnectorActivation } from "./connector-activation.js";
 export function checkConnectorSetupSubmission(home: string, requestId: string | undefined, actual: Pick<ConnectorSetupPlan, "service_id" | "method"> & Partial<ConnectorSetupPlan>) {
   if (!requestId) return;
   const plan = assertConnectorSetup(home, requestId, actual);
-  if (plan.connection_id && withConnectorConnections(home, store => store.require(plan.connection_id!).updated_at) !== plan.expected_revision) {
+  if (plan.connection_id && withConnectorConnections(home, store => store.require(plan.connection_id!).updated_at, "required") !== plan.expected_revision) {
     throw connectorErrors["connector.connection.invalid"]("原连接在准备后已变化，请重新准备接入");
   }
 }

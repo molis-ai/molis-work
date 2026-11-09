@@ -4,7 +4,7 @@ import {personalSyncFixture} from './fixtures/personal-sync-coordinator.js';
 import {runtimePersonalSync} from './fixtures/runtime-personal-sync.js';
 import {openFormStore,openDatasetStore,openPptStore,openLingguangStore,openWorkflowsStore,openJellyStore,openTodoStore} from './fixtures/plugin-sync-stores.js';
 import {withMolisWorkProjectCatalog} from '@molis-ai/molis-work-app-desktop';
-import {LocalProjectDatabase} from '@molis-ai/molis-work-app-local-host';
+import {molisWorkHostProjectReference,scheduleServiceFor,LocalProjectDatabase} from '@molis-ai/molis-work-app-local-host';
 import {formManifest} from '@molis-ai/molis-work-plugin-form';
 import {datasetManifest} from '@molis-ai/molis-work-plugin-dataset';
 import {pptManifest} from '@molis-ai/molis-work-plugin-ppt';
@@ -20,7 +20,7 @@ import {LOCAL_PERSON_ACTOR_ID} from '@molis-ai/molis-work-contracts/platform/act
 import {CHARACTER_PLUGIN_ID,CHARACTER_PUBLISHER_SIGNATURE} from '@molis-ai/molis-work-contracts/modules/characters';
 test('Host exposes and transfers all registered creative collections through the shared coordinator',{timeout:60000},async t=>{
   const f=personalSyncFixture(t),previous=process.env.MOLIS_WORK_SYNC_LOCAL;process.env.MOLIS_WORK_SYNC_LOCAL='1';
-  t.after(()=>{if(previous===undefined)delete process.env.MOLIS_WORK_SYNC_LOCAL;else process.env.MOLIS_WORK_SYNC_LOCAL=previous;});t.mock.method(globalThis,'fetch',f.transport);
+  t.after(()=>{if(previous===undefined)delete process.env.MOLIS_WORK_SYNC_LOCAL;else process.env.MOLIS_WORK_SYNC_LOCAL=previous;});const requests:string[]=[];t.mock.method(globalThis,'fetch',async(input:Parameters<typeof fetch>[0],init?:Parameters<typeof fetch>[1])=>{requests.push(String(input));return f.transport(input,init);});
   const project=await withMolisWorkProjectCatalog({homeDirectory:f.homes[0]},async c=>{
     const p=await c.createProject({display_name:'多插件项目',actor_id:'alice'});
     for(const plugin_id of ['form','dataset','ppt','lingguang','workflows','schedule','feed'])c.addProjectPlugin({project_id:p.project_id,plugin_id,actor_id:'alice'});return p;
@@ -76,4 +76,23 @@ test('Host exposes and transfers all registered creative collections through the
   for(const client of [a,b])for(const collection of client.status().collections)assert.deepEqual(collection.conflicts,[],collection.selection.plugin_id+' '+collection.selection.collection_id);
   const before=f.events.length;await a.run();await b.run();assert.equal(f.events.length,before,'no replication echo');
   assert.doesNotMatch(JSON.stringify(f.events),/this-device-only-connection|this-device-only-reference/,'source setup never enters the transport');
+  // D0347: reopen the receiving project's real Plugin Runtime, then advance the shared scheduler.
+  const reference=molisWorkHostProjectReference({databasePath:target.database_path,projectId:project.project_id});
+  b.close();
+  await targetRuntime.host.closeProject(reference);
+  await targetRuntime.host.withProject(reference,async runtime=>{
+    const scheduler=scheduleServiceFor(runtime.store.db);
+    const jobs=scheduler.list();
+    assert.equal(jobs.filter(job=>job.object_ref==='sync-task'||job.object_ref===feedRuleId||job.object_ref==='portable-source').length,0,'no job is registered for received content after restart');
+    const beforeRequests=requests.length;
+    const tick=await scheduler.tick(new Date('2030-01-01T12:00:00.000Z'));
+    assert.equal(tick.failed,0,'the plugin maintenance wakeup still works');
+    assert.equal(requests.length,beforeRequests,'the maintenance wakeup pulls no received source before local opt-in');
+    const sql=runtime.store.db;
+    assert.equal(new FeedOutRuleStore(fromBetterSqlite(sql)).get(project.project_id,feedRuleId).enabled,false);
+    assert.equal((sql.prepare('SELECT enabled FROM schedule_conversation_tasks WHERE task_id=?').get('sync-task') as {enabled:number}).enabled,0);
+    assert.equal((sql.prepare('SELECT COUNT(*) AS n FROM schedule_conversation_turns WHERE task_id=?').get('sync-task') as {n:number}).n,0,'no imported task is executed');
+    assert.equal(new SourcesModule(fromBetterSqlite(sql)).query.get(project.project_id,'portable-source').enabled,false);
+  },{activatePlugins:true});
+
 });

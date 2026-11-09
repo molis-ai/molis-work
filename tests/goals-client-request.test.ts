@@ -1,3 +1,4 @@
+import { UI_HOST_CLIENT_CODES } from "@molis-ai/molis-work-contracts/platform/ui";
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
@@ -20,7 +21,7 @@ const helper = (answer: Answer) => {
   const request = createUiRequest({
     fetch: (url, init) => { const call = { url, ...init }; sent.push(call); return answer(call); },
     origin: ORIGIN, token: () => "control-token", newKey: () => "one-time-key", translate: (text) => text,
-  });
+  }, UI_HOST_CLIENT_CODES);
   return { request, sent };
 };
 const json = (status: number, body: unknown) => async () => new Response(JSON.stringify(body), { status });

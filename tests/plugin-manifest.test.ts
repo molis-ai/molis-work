@@ -119,7 +119,7 @@ test("N26: a manifest with an unsupported format or host API is refused", () => 
   for (const [schema_version, host_api_version] of [[2, 2], [1, 2], [2, 1]]) {
     assert.throws(
       () => parsePluginManifest({ ...current, schema_version, host_api_version }),
-      (error: unknown) => error instanceof ActionError && error.code === "plugin.manifest_invalid",
+      (error: unknown) => error instanceof ActionError && error.code === "plugin.manifest_version_invalid",
     );
   }
 });

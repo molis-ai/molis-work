@@ -458,13 +458,14 @@ export const CAPSULE_CLIENT_SCRIPT = `
       return;
     }
     const requestedProjectId = projectId;
+    const menuOnly = document.hidden;
     const requestId = ++requestSequence;
     activeRequest?.controller.abort();
     const controller = new AbortController();
     activeRequest = { requestId, controller };
     if (showLoading) setLoading(requestedProjectId);
     try {
-      const response = await readNoStore(capsuleRequestPath("/projects/" + encodeURIComponent(requestedProjectId) + "/api/capsule"), controller.signal);
+      const response = await readNoStore(capsuleRequestPath("/projects/" + encodeURIComponent(requestedProjectId) + "/api/capsule" + (menuOnly ? "?view=menu" : "")), controller.signal);
       if (response.status === 404 && requestId === requestSequence && requestedProjectId === projectId) {
         stopPolling();
         return;
@@ -473,7 +474,11 @@ export const CAPSULE_CLIENT_SCRIPT = `
       if (!response.ok) throw new Error(payload.error || L("无法读取工作状态"));
       if (requestId !== requestSequence || requestedProjectId !== projectId) return;
       if (payload.project?.project_id !== requestedProjectId) throw new Error(L("读取到的项目不一致，请重试"));
-      render(payload);
+      if (menuOnly) {
+        clearLoading(); root.dataset.error = "false";
+        if (!polling) { polling = true; startTimers(); }
+        invoke?.("capsule_update_menu_bar", { title: payload.state.menu_bar_title, tooltip: payload.state.menu_bar_tooltip, path: payload.state.action_path }).catch(() => {});
+      } else render(payload);
     } catch (error) {
       if (controller.signal.aborted || requestId !== requestSequence || requestedProjectId !== projectId) return;
       // After a 404 only an outside nudge (the "online" event) reads again; a failure then is the ordinary "reconnecting", so it polls again.

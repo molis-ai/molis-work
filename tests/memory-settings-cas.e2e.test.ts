@@ -22,6 +22,7 @@ async function open(t: TestContext, answer: (request: Request) => { status?: num
   const chrome = locateTestChrome(); if (!chrome) { t.skip("Chrome is required"); return null; }
   const directory = await mkdtemp(join(tmpdir(), "memory-settings-cas-"));
   const calls: Request[] = [];
+  const visits: string[] = [];
   const overview = { items: [entry("active", 7), entry("disabled", 11, "disabled"), entry("paused", 19, "paused")],
     candidates: [{ candidate_id: "proposal", version: 13, text: "建议", kind: "preference" }], changes: [], pairs: [], prefs: {}, counts: { project: 3 } };
   const project = { project_id: "project", display_name: "测试项目" };
@@ -37,7 +38,11 @@ async function open(t: TestContext, answer: (request: Request) => { status?: num
     const path = new URL(request.url!, "http://local").pathname;
     if (path.endsWith(".css")) { response.setHeader("content-type", "text/css"); response.end(renderMolisWorkSettingsStylesheet()); return; }
     if (path.endsWith(".js")) { response.setHeader("content-type", "application/javascript"); response.end(); return; }
-    if (!path.includes("/api/memory/")) { response.setHeader("content-type", "text/html; charset=utf-8"); response.end(html); return; }
+    if (!path.includes("/api/memory/")) {
+      visits.push(request.url!);
+      const guidance = path.endsWith("/settings/guidance") ? renderMolisWorkProjectSettingsHub(view, { entries: [], inactive_entries: [], revisions: [], virtual_document: "", runtime_prompt_prefix: "" }, [], "", false, "guidance") : html;
+      response.setHeader("content-type", "text/html; charset=utf-8"); response.end(guidance); return;
+    }
     response.setHeader("content-type", "application/json");
     if (path.endsWith("/overview")) { response.end(JSON.stringify(overview)); return; }
     if (path.endsWith("/history")) { response.end(JSON.stringify({ revisions: [{ version: 2, text: "旧版", at: "2026-10-22T00:00:00Z" }] })); return; }
@@ -53,7 +58,7 @@ async function open(t: TestContext, answer: (request: Request) => { status?: num
   const page = await browser.page(); await page.viewport(1200, 1000);
   const reset = async () => { await page.command("Page.navigate", { url: `http://127.0.0.1:${address.port}/?visit=${calls.length}` }); await page.wait("document.querySelector('[data-memory-id=active]')"); };
   await reset();
-  return { page, calls, reset, overview, directory };
+  return { page, calls, reset, overview, directory, visits, origin: `http://127.0.0.1:${address.port}` };
 }
 const item = (id = "active") => `[data-memory-id=${id}]`;
 const textButton = (label: string) => `button[aria-label^="${label}："]`;
@@ -318,4 +323,29 @@ test("D0194/D0224 the confirm dialog returns focus: Escape to the row's more but
   f.overview.items = f.overview.items.filter(one => one.memory_id !== "disabled");
   second.release();
   await page.wait("document.activeElement?.hasAttribute('data-memory-add')");
+});
+
+// D0191: the production Memory UI navigates with identity/version only; the project owner supplies the actual text.
+test("D0191 Memory promotion resolves a short versioned reference and refuses a changed or deleted memory", { timeout: 60_000 }, async t => {
+  const f = await open(t, () => ({ body: {} })); if (!f) return;
+  const text = "需要保密的项目约定🙂".repeat(200);
+  f.overview.items[0]!.text = text;
+  await f.reset();
+  await f.page.click(item() + " summary[aria-label^=更多操作]");
+  await f.page.evaluate("[...document.querySelectorAll('[data-memory-id=active] .mw-menu__item')].find(button => button.textContent === '升级为项目说明').click()");
+  await f.page.wait("document.querySelector('[data-guidance-editor]')?.hidden === false");
+  assert.equal(await f.page.evaluate("document.querySelector('[data-guidance-form]').elements.content.value"), text);
+  const visit = f.visits.find(path => path.includes("memory_id="))!;
+  assert.ok(visit); assert.ok(visit.length < 150);
+  assert.match(visit, /memory_id=active&memory_version=7/);
+  assert.doesNotMatch(visit, /需要保密|%E9%9C%80|text=/);
+  assert.equal(f.calls.length, 0, "navigation cannot publish a project instruction");
+  assert.equal(await f.page.evaluate("location.search"), "", "resolved references leave the current history entry");
+  for (const version of [6, 7]) {
+    if (version === 7) f.overview.items = [];
+    await f.page.command("Page.navigate", { url: f.origin + "/projects/project/settings/guidance?memory_id=active&memory_version=" + version });
+    await f.page.wait("document.querySelector('[data-guidance-receipt]')?.checkVisibility() && document.querySelector('[data-guidance-receipt]').textContent.includes('这条记忆已变化或不可用')");
+    assert.equal(await f.page.evaluate("document.querySelector('[data-guidance-editor]').hidden"), true);
+    assert.equal(f.calls.length, 0);
+  }
 });

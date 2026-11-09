@@ -245,6 +245,8 @@ export declare const PAGE_ROUTE_LIMITS: Readonly<{
 
 export { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 
+export declare const PLUGIN_ID: RegExp;
+
 export declare const PLUGIN_MESSAGE_LIMITS: {
     readonly entries: 5000;
     readonly keyLength: 120;

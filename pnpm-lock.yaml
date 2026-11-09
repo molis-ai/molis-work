@@ -543,15 +543,6 @@ importers:
       '@molis-ai/molis-work-design-system':
         specifier: workspace:*
         version: link:../../packages/design-system
-      '@molis-ai/molis-work-im-ui':
-        specifier: workspace:*
-        version: link:../../packages/im-ui
-      '@molis-ai/molis-work-integration-gmail':
-        specifier: workspace:*
-        version: link:../../plugins/official-integrations/gmail
-      '@molis-ai/molis-work-integration-rss':
-        specifier: workspace:*
-        version: link:../../plugins/official-integrations/rss
       '@molis-ai/molis-work-module-artifacts':
         specifier: workspace:*
         version: link:../../modules/artifacts
@@ -3358,7 +3349,7 @@ snapshots:
 
   '@larksuiteoapi/lark-mcp@0.5.1(debug@4.4.3)(zod@4.4.3)':
     dependencies:
-      '@larksuiteoapi/node-sdk': 1.74.0(debug@4.4.3)
+      '@larksuiteoapi/node-sdk': 1.74.0
       '@modelcontextprotocol/sdk': 1.31.0(zod@4.4.3)
       axios: 1.20.0(debug@4.4.3)
       commander: 13.1.0
@@ -3376,7 +3367,7 @@ snapshots:
       - utf-8-validate
       - zod
 
-  '@larksuiteoapi/node-sdk@1.74.0(debug@4.4.3)':
+  '@larksuiteoapi/node-sdk@1.74.0':
     dependencies:
       axios: 1.20.0(debug@4.4.3)
       lodash.identity: 3.0.0

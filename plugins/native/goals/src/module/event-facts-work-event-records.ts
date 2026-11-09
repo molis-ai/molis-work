@@ -97,11 +97,7 @@ export class GoalWorkEventRecords {
     `).all(projectId, goalId, beforeCursor, limit) as Row[]).map(mapWorkEvent);
   }
 
-  listOwnerGoalIds(projectId: string): string[] {
-    return (this.db.prepare(`
-      SELECT goal_id FROM goal_event_state_owners WHERE project_id = ? ORDER BY goal_id
-    `).all(projectId) as Row[]).map((row) => rowText(row.goal_id));
-  }
+
 
   listLatestReportEvents(projectId: string, goalId: string, limit: number): StoredWorkEvent[] {
     return (this.db.prepare(`

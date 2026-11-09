@@ -301,6 +301,14 @@ export function openBaselineHomeSqlite(homeDirectory: string, storeName: string,
   }
 }
 
+/** Reads only an existing, complete current baseline. Missing/empty stores are absent; no file or schema is created. */
+export function openExistingBaselineHomeSqlite(home: string, storeName: string, baseline: SqliteBaseline): DatabaseSync | undefined {
+  const path = homeSqlitePath(home, storeName);
+  if (!existsSync(path) || statSync(path).size === 0) return undefined;
+  if (!inspectSqliteBaseline(path, baseline, home)) throw structureMismatch(path, home);
+  return new DatabaseSync(path, { readOnly: true });
+}
+
 /** What makes two schemas the same: tables, their columns in order, indexes, foreign keys and CHECK clauses. */
 export interface SqliteSchemaShape {
   tables: Record<string, {

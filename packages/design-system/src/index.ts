@@ -1,3 +1,4 @@
+export { KEYBOARD_GROUP_ITEMS, KEYBOARD_GROUP_SELECTOR } from "./keyboard-groups.js";
 export { STATE_RING_CLIENT_SCRIPT } from "./state-ring-client.js";
 export { STATE_RING_STYLES } from "./styles/state-ring.js";
 export { SKIN_STYLES } from "./styles/skins.js";

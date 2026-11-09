@@ -1,3 +1,4 @@
+import { UI_HOST_CLIENT_CODES } from "@molis-ai/molis-work-contracts/platform/ui";
 /** Frozen Send intent and receipts, inside the resident Assistant's existing client scope. */
 export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
   const unsettled = new Map();
@@ -67,7 +68,7 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
       const said = { answered: L("已作为回答发送"), queued: L("已保存，下一轮开始生效") }[res.outcome];
       if (visible && said) host.showToast?.(said);
     } catch (error) {
-      const unknown=error.code==="ui_host.outcome_unknown";if(!unknown){unsettled.delete(intent.work);store.set(unsentKey,null);}
+      const unknown=error.code===${JSON.stringify(UI_HOST_CLIENT_CODES.outcomeUnknown)};if(!unknown){unsettled.delete(intent.work);store.set(unsentKey,null);}
       const data=error.body?.details||{},visible=here();
       if (data.work) retainSent(data.work);
       if (visible) {
@@ -119,7 +120,7 @@ export const ASSISTANT_RECEIPTS_FACTORY_SCRIPT = String.raw`({ L, shared, chip, 
   const first = () => ask?.draft_from_composer ? "draft" : "answer";
   const label = () => { chip.textContent = L(CHOICES[choice]); chip.title = L("点一下改成：" + CHOICES[choice === "steer" ? first() : "steer"]); };
   chip.addEventListener("click", () => { choice = choice === "steer" ? first() : "steer"; label(); });
-  const lost = (error) => { throw error.code === "ui_host.outcome_unknown" ? new Error(L("没确认送到：再按一次，同一条不会重复。")) : error; };
+  const lost = (error) => { throw error.code === ${JSON.stringify(UI_HOST_CLIENT_CODES.outcomeUnknown)} ? new Error(L("没确认送到：再按一次，同一条不会重复。")) : error; };
   const act = (round) => round && round.run_id ? {
     withdraw: (input_id) => api("/works/" + encodeURIComponent(work()) + "/control", "POST", { kind: "withdraw", run_id: round.run_id, input_id }).then(() => "", lost).finally(reload),
     correct: (about, text, key) => api("/send", "POST", { work_id: work(), text, about, request_id: key }).then((res) => res.outcome === "queued" ? L("已保存，下一轮开始生效") : "", lost).finally(reload),

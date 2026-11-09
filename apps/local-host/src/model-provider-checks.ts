@@ -51,7 +51,7 @@ export function modelCheckReason(raw: string): ModelProviderCheckReason {
 /** The connection holding the provider's key, and its version, read before the check runs; none when the key has no connection. */
 export interface ModelCheckTarget { connection_id: string; revision: string }
 export function modelCheckTarget(home: string, provider: ModelProviderRecord): ModelCheckTarget | undefined {
-  const connection = withConnectorConnections(home, store => store.list("model-api").find(row => row.credential_ref === provider.credential_ref));
+  const connection = withConnectorConnections(home, store => store.list("model-api").find(row => row.credential_ref === provider.credential_ref), true);
   return connection ? { connection_id: connection.connection_id, revision: connection.updated_at } : undefined;
 }
 
@@ -75,8 +75,8 @@ function checkOf(provider: ModelProviderRecord, check: ConnectorCheckObservation
 /** Health with each provider's last check, read in one pass over the connections and their checks. */
 export function withModelChecks(home: string | undefined, providers: readonly ModelProviderRecord[], health: readonly ModelProviderHealth[]): ModelProviderHealth[] {
   if (!home || providers.length === 0) return [...health];
-  const connections = withConnectorConnections(home, store => store.list("model-api"));
-  const checks = withConnectorObservations(home, store => new Map(connections.map(row => [row.connection_id, store.read(row.connection_id).check])));
+  const connections = withConnectorConnections(home, store => store.list("model-api"), true) ?? [];
+  const checks = withConnectorObservations(home, store => new Map(connections.map(row => [row.connection_id, store.read(row.connection_id).check])), true) ?? new Map();
   return health.map(entry => {
     const provider = providers.find(one => one.provider_id === entry.provider_id);
     const connection = provider && connections.find(row => row.credential_ref === provider.credential_ref);

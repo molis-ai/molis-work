@@ -1,3 +1,4 @@
+import { PLUGIN_ID } from "@molis-ai/molis-work-plugin-sdk";
 import { handlePluginPageHttp } from "./plugin-page-http.js";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
@@ -155,7 +156,8 @@ export const pluginStudioRoute: WebRoute<ProjectRuntimeContext> = { id: "plugin-
  * code the action layer uses; anything else under `/api/plugins/` falls through to the next entry.
  */
 export const runtimePluginsRoute: WebRoute<ProjectRuntimeContext> = { id: "runtime-plugins", handle: async ({ request, response, url, options, composition, serverOptions, pluginPorts }) => {
-  const runtimePluginRoute = /^\/api\/plugins\/(io\.molis\.work\.[a-z0-9][a-z0-9.-]*)\//u.exec(url.pathname);
+  const runtimePluginRoute = /^\/api\/plugins\/([^/]+)\//u.exec(url.pathname);
+  if (runtimePluginRoute && !PLUGIN_ID.test(runtimePluginRoute[1]!)) return false;
   const runtimeUpdatesRoute = url.pathname === "/api/plugins/runtime/updates" || isPluginEventManagementPath(url.pathname);
   const runtimeEntry = runtimePluginRoute
     ? PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.manifest.plugin_id === runtimePluginRoute[1]) : undefined;

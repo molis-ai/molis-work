@@ -1,3 +1,4 @@
+import { UI_HOST_CLIENT_CODES } from "@molis-ai/molis-work-contracts/platform/ui";
 import assert from "node:assert/strict";
 import test from "node:test";
 import vm from "node:vm";
@@ -43,7 +44,7 @@ function pageRequest(answers: (url: string, method: string) => Answer, requests:
       return new Response(JSON.stringify(found.body), { status: found.status });
     },
     origin: "http://127.0.0.1:1", token: () => "token", newKey: () => "key", translate: text => text,
-  });
+  }, UI_HOST_CLIENT_CODES);
 }
 
 function fixture(answers: (url: string, method: string) => Answer, locale: "zh" | "en" = "zh") {

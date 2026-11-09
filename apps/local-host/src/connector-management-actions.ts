@@ -66,7 +66,7 @@ export function connectorManagementHandlers(home: string, remember: ConnectorMcp
   const change = async (caller: Parameters<ActionHandlerBinding["handle"]>[0], command: { connection_id: string; expected_revision: string; action: "enable" | "disable" | "remove" }) => {
     if (command.connection_id.startsWith("mcp-")) return manageProjectMcp(home, projectMcp, caller, command);
     await caller.beforeEffect();
-    const current = withConnectorConnections(home, store => store.require(command.connection_id));
+    const current = withConnectorConnections(home, store => store.require(command.connection_id), "required");
     if (current.updated_at !== command.expected_revision) throw managementErrors.changed("连接已变化，请重新读取后操作");
     const result = controlConnectorConnection(home, command.connection_id, command.action);
     return command.action === "enable" ? { ...result, verification: await verifyEnabledConnection(home, command.connection_id, remember, caller) } : result;
@@ -78,7 +78,7 @@ export function connectorManagementHandlers(home: string, remember: ConnectorMcp
     }),
     binding(connectorManagementActions.list, async (caller, input) => {
       const service = (input as { service_id?: string }).service_id;
-      const revisions = withConnectorConnections(home, store => new Map(store.list(service).map(row => [row.connection_id, row.updated_at])));
+      const revisions = withConnectorConnections(home, store => new Map(store.list(service).map(row => [row.connection_id, row.updated_at])), true) ?? new Map();
       const actions = await inspect?.(caller) ?? [];
       const projects = !service || service === "mcp-bearer" ? await listProjectMcpConnections(home, projectMcp, actions, caller) : [];
       return { connections: [...listConnectorConnectionViews(home, service).map(row => ({ ...row, revision: revisions.get(row.connection_id),
@@ -91,7 +91,7 @@ export function connectorManagementHandlers(home: string, remember: ConnectorMcp
     }),
     binding(connectorManagementActions.availability, (_caller, input) => {
       const id = (input as { connection_id: string }).connection_id;
-      return { connection_id: id, available: withConnectorConnections(home, store => { const connection = store.get(id); return connection !== null && store.state(connection) === "connected"; }) };
+      return { connection_id: id, available: withConnectorConnections(home, store => { const connection = store.get(id); return connection !== null && store.state(connection) === "connected"; }, true) ?? false };
     }),
     binding(connectorManagementActions.control, (caller, input) => change(caller, input as { connection_id: string; expected_revision: string; action: "enable" | "disable" })),
     binding(connectorManagementActions.remove, (caller, input) => change(caller, { ...input as { connection_id: string; expected_revision: string }, action: "remove" })),

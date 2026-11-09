@@ -16,7 +16,7 @@ const policies = array(goalPolicyBindingSchema);
 const events = array(object({ seq: count, event_id: text, actor_id: text, type: text, object_type: text, object_id: text,
   reason: text, payload: {}, at: text }));
 const itemFields = { goal: goalRecordSchema, status: enumeration(GOALS_PRESENTATION_STATES),
-  display_status: enumeration(["continue", "in_progress", "blocked", "waiting_user", "waiting", "completed"]),
+  display_status: enumeration(["continue", "in_progress", "blocked", "waiting_user", "waiting", "completed", "cancelled"]),
   status_label: text, main_action_label: text, action_summary: text, event_work: boolean,
   relations: snapshot.relations!, input_bindings: inputs, policy_bindings: policies,
   events, resolved_policy: goalPolicySchema, created_by: nullable(text) };

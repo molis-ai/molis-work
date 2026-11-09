@@ -4,6 +4,16 @@
 
 ## [Unreleased]
 
+### 日评 A-1 合同说明（2026-11-09）
+
+- 当前 `assistant.methods.read@1` 与 `plugins.install.preview@1` 均按第02批统一版本合同调用。下文历史切片中的 @2/@3/@4 是当时记录，不是现在可调用的版本；固定旧引用须重新选择现行合同，不保留旧工具别名。
+- Manifest 版本1使用 SDK 的完整声明检查（动作、交叉引用、权限、Agent、方法与成果等）；没有放宽旧规则的开关。SDK和Runtime共用同一解析，错版统一为 `plugin.manifest_version_invalid`，含 found/expected 原因。
+- SDK 的 `PLUGIN_ID` 及 `/execution` 是公开面；平台路由、内核和插件作者复用同一实现。浏览器请求错误码由合同 `UI_HOST_CLIENT_CODES` 统一；外部业务错误仍保留自己的码。
+- subjectContext 的 offset/length 以 Unicode 码点计数，所有页边界保留完整码点。读取方须按码点推进游标；字素簇可以跨页。动作id与版本遵循当前开发期政策不变，公开快照随本批更新。
+
+- 隐藏胶囊新增只读`goals.capsule.menu.read@1`，由Goals统一注册并走同一动作目录；MCP/Agent目录可发现此查询，权限仍是goals:read。`goals.collection.read@1`和`goals.stage.read@1`的display_status新增cancelled，固定引用须处理该状态；本仓所有消费者已同步，按当前阶段一在原版本修改。
+- 平台内部createUiRequest工厂显式接收共享UI_HOST_CLIENT_CODES；序列化脚本与所有平台调用方已更新。外部插件仍使用现有SDK页面端口。
+
 ### 升级须知（需要动手）
 
 - **MCP 独立客户端凭据（D0071，2026-11-08）**：更新后在设置中对已有 Runtime 重新执行接入，并重启其 MCP 连接。主控制令牌不再允许动作网关声明任意客户端身份；旧请求体 `client_id` 被拒绝。连接凭据只存安装 Home，不写入 Runtime 配置、不随快照恢复；恢复后重新接入。动作名称、版本、输入输出 schema 与 MCP 工具名不变。实验 Server 的本地 `authorize` 命令须提供 `--host-home DIR`，由管理员为该成员建立独立连接。

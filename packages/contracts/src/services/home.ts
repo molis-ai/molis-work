@@ -6,7 +6,7 @@ import {
   type ContentAdoptionInput, type ContentAdoptionQuery, type ContentAdoptionReadResult, type ContentAdoptionResult,
 } from "../platform/blueprints.js";
 import { closedObjectSchema } from "../platform/closed-object-schema.js";
-import type { SandboxJson, SandboxSchema } from "../platform/plugin-sandbox.js";
+import type { SandboxSchema } from "../platform/plugin-sandbox.js";
 
 export const HOME_PAGE_CONTENT_TYPE = /* @version type.molis.home-page "molis.home-page.v{version}" */ "molis.home-page.v1";
 export const HOME_PAGE_LIMITS = { files: 64, fileBytes: 1024 * 1024, totalBytes: 4 * 1024 * 1024 } as const;
@@ -61,7 +61,7 @@ export interface HomePageVersionSummary extends HomePageVersion { approval: Home
 export interface HomePageOverview extends HomeSelectionState { versions: HomePageVersionSummary[] }
 export type HomePageReadInput = Record<string, never> | { queries: Array<ContentAdoptionQuery<HomePageDraft> | HomePageApprovalReadQuery> };
 export type HomePageReadResult = HomePageOverview | {
-  results: Array<ContentAdoptionReadResult<SandboxJson, HomePageDraftAdoptionResult> | HomePageApprovalReadResult>;
+  results: Array<ContentAdoptionReadResult | HomePageApprovalReadResult>;
 };
 
 export type HomePageDirectDraftSaveInput =
@@ -69,8 +69,8 @@ export type HomePageDirectDraftSaveInput =
   | { draft: HomePageDraft; page_id: string; expected_version: number; based_on?: number };
 export type HomePageDraftSaveInput = HomePageDirectDraftSaveInput | ContentAdoptionInput<HomePageDraft>;
 export interface HomePageDirectDraftSaveResult { version: HomePageVersion }
-export type HomePageDraftAdoptionResult = ContentAdoptionResult & HomePageDirectDraftSaveResult;
-export type HomePageDraftSaveResult = HomePageDirectDraftSaveResult | HomePageDraftAdoptionResult;
+/** In an adoption receipt, subject identifies the page and revision is the immutable draft version. */
+export type HomePageDraftSaveResult = HomePageDirectDraftSaveResult | ContentAdoptionResult;
 export interface HomePagePreviewResult { page: HomePageRef; page_session_id: string }
 export interface HomePageFilesResult { version: HomePageVersion; files: HomePageFile[] }
 
@@ -119,7 +119,6 @@ const versionFields = {
 const versionRequired = ["page_id", "version", "title", "entry", "actions", "files", "author", "created_at"] as const;
 const pageVersion = closedObjectSchema(versionFields, versionRequired);
 const directSaveResult = closedObjectSchema({ version: pageVersion });
-const adoptionSaveResult = closedObjectSchema({ ...CONTENT_ADOPTION_RESULT_SCHEMA.properties, version: pageVersion });
 const saveInput = { oneOf: [
   inputSchemaFor<{ draft: HomePageDraft }>()(closedObjectSchema({ draft })),
   inputSchemaFor<Extract<HomePageDirectDraftSaveInput, { page_id: string }>>()(
@@ -127,7 +126,7 @@ const saveInput = { oneOf: [
   ),
   contentAdoptionInputSchema(draft),
 ] };
-const saveResult = { oneOf: [directSaveResult, adoptionSaveResult] };
+const saveResult = { oneOf: [directSaveResult, CONTENT_ADOPTION_RESULT_SCHEMA] };
 
 const basic = closedObjectSchema({ kind: { const: "basic" } });
 const generated = closedObjectSchema({ kind: { const: "page" }, ...pageRef });
@@ -145,7 +144,7 @@ const readInput = { oneOf: [inputSchemaFor<Record<string, never>>()(closedObject
 const versions = closedObjectSchema({ ...versionFields, approval: { oneOf: [approval, nullValue] } }, [...versionRequired, "approval"]);
 const readResult = { oneOf: [
   closedObjectSchema({ ...state, versions: { type: "array", items: versions } }),
-  contentAdoptionReadOutputSchema(adoptionSaveResult, [
+  contentAdoptionReadOutputSchema([
     closedObjectSchema({ kind: { const: "receipt" }, receipt: approvalReceipt, current }),
     closedObjectSchema({ kind: { const: "missing" }, current }),
   ]),

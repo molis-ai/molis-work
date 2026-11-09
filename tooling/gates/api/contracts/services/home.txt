@@ -98,11 +98,9 @@ export interface HomePageDraft {
     files: HomePageFile[];
 }
 
-export type HomePageDraftAdoptionResult = ContentAdoptionResult & HomePageDirectDraftSaveResult;
-
 export type HomePageDraftSaveInput = HomePageDirectDraftSaveInput | ContentAdoptionInput<HomePageDraft>;
 
-export type HomePageDraftSaveResult = HomePageDirectDraftSaveResult | HomePageDraftAdoptionResult;
+export type HomePageDraftSaveResult = HomePageDirectDraftSaveResult | ContentAdoptionResult;
 
 export interface HomePageFile {
     path: string;
@@ -138,7 +136,7 @@ export type HomePageReadInput = Record<string, never> | {
 };
 
 export type HomePageReadResult = HomePageOverview | {
-    results: Array<ContentAdoptionReadResult<SandboxJson, HomePageDraftAdoptionResult> | HomePageApprovalReadResult>;
+    results: Array<ContentAdoptionReadResult | HomePageApprovalReadResult>;
 };
 
 export interface HomePageRef {

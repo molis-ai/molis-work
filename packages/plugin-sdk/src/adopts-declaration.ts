@@ -84,7 +84,9 @@ function inspectEndpoint(ref: unknown, definitions: readonly Record<string, unkn
     return;
   }
   problems.push(...metadataProblems(matches[0]?.operation, ref.capability_id, action, endpoint, path));
-  if (!matchesFixedBranch(action.input_schema, input) || !matchesFixedBranch(action.output_schema, output)) {
+  const inputBatch = endpoint === "read" ? "queries" : undefined;
+  const outputBatch = endpoint === "read" ? "results" : undefined;
+  if (!matchesFixedBranch(action.input_schema, input, inputBatch) || !matchesFixedBranch(action.output_schema, output, outputBatch)) {
     problems.push({ path, reason: "动作必须使用固定的闭合采用合同，正文须匹配声明的 schema" });
   }
   if (action.scope === "home" || action.scope === "project") return action.scope;
@@ -100,22 +102,72 @@ function metadataProblems(operation: unknown, id: string, action: Record<string,
     ? [] : [{ path, reason: read ? "采用批读必须是本人可调用的查询" : "采用和撤销必须是本人可调用的可写命令" }];
 }
 
-function matchesFixedBranch(actual: unknown, expected: ActionSchema): boolean {
+type BatchField = "queries" | "results";
+
+function matchesFixedBranch(actual: unknown, expected: ActionSchema, batchField?: BatchField): boolean {
   try { assertJson(actual, schemaFailure); } catch { return false; }
-  const expectedText = canonicalJsonText(expected);
-  if (canonicalJsonText(actual) === expectedText) return true;
-  if (!isJsonObject(actual) || Object.keys(actual).length !== 1 || !Array.isArray(actual.oneOf)) return false;
-  const branches: readonly unknown[] = actual.oneOf;
-  const matching = branches.filter(branch => canonicalJsonText(branch) === expectedText);
-  return matching.length === 1 && branches.every(branch => branch === matching[0] || disjointObjects(branch, expected));
+  const matches = (schema: unknown) => sameSchema(schema, expected) || (batchField !== undefined && matchesBatch(schema, expected, batchField));
+  if (matches(actual)) return true;
+  const branches = unionBranches(actual);
+  if (!branches) return false;
+  const matching = branches.filter(matches);
+  return matching.length === 1 && containsDisjointBranches(branches, matching);
 }
 
-/** A direct edit branch cannot swallow a malformed adoption request or an adoption receipt. */
-function disjointObjects(branch: unknown, expected: ActionSchema): boolean {
-  if (!isJsonObject(branch) || Object.keys(branch).some(key => !["type", "properties", "required", "additionalProperties"].includes(key))) return false;
-  if (branch.type !== "object" || branch.additionalProperties !== false || !isJsonObject(branch.properties) || !Array.isArray(branch.required)) return false;
-  const properties = branch.properties;
-  const required: readonly unknown[] = branch.required;
-  return required.every(key => typeof key === "string" && Object.hasOwn(properties, key))
-    && Array.isArray(expected.required) && expected.required.some(key => !Object.hasOwn(properties, key));
+function sameSchema(left: unknown, right: unknown): boolean { return canonicalJsonText(left) === canonicalJsonText(right); }
+
+function unionBranches(schema: unknown): readonly ActionSchema[] | undefined {
+  if (!isJsonObject(schema) || Object.keys(schema).length !== 1 || !Array.isArray(schema.oneOf)) return undefined;
+  const branches: readonly unknown[] = schema.oneOf;
+  return branches.every(isJsonObject) ? branches : undefined;
+}
+
+function matchesBatch(actual: unknown, expected: ActionSchema, field: BatchField): boolean {
+  if (!isJsonObject(actual) || !isJsonObject(actual.properties) || !isJsonObject(expected.properties)) return false;
+  const list = actual.properties[field];
+  const fixed = expected.properties[field];
+  if (!isJsonObject(list) || !isJsonObject(fixed)) return false;
+  if (!sameSchema({ ...actual, properties: { ...actual.properties, [field]: { ...list, items: fixed.items } } }, expected)) return false;
+  const branches = unionBranches(list.items);
+  const fixedBranches = unionBranches(fixed.items);
+  if (!branches || !fixedBranches) return false;
+  return containsDisjointBranches(branches, fixedBranches);
+}
+
+/** Keep each protocol branch byte-for-byte after canonicalization. Only the item's union may grow. */
+function containsDisjointBranches(branches: readonly ActionSchema[], fixed: readonly ActionSchema[]): boolean {
+  const keys = branches.map(branch => canonicalJsonText(branch));
+  const protocol = new Set(fixed.map(branch => canonicalJsonText(branch)));
+  for (const key of protocol) if (keys.filter(candidate => candidate === key).length !== 1) return false;
+  return branches.every((branch, index) => protocol.has(keys[index])
+    || branches.every((other, otherIndex) => otherIndex === index || disjointObjects(branch, other)));
+}
+
+function closedFields(schema: unknown): { properties: Record<string, unknown>; required: readonly string[] } | undefined {
+  if (!isJsonObject(schema) || Object.keys(schema).some(key => !["type", "properties", "required", "additionalProperties"].includes(key))) return undefined;
+  if (schema.type !== "object" || schema.additionalProperties !== false || !isJsonObject(schema.properties) || !Array.isArray(schema.required)) return undefined;
+  const properties = schema.properties;
+  const required: readonly unknown[] = schema.required;
+  if (!required.every((key): key is string => typeof key === "string" && Object.hasOwn(properties, key))
+    || new Set(required).size !== required.length) return undefined;
+  return { properties, required };
+}
+
+/** A required absent field or a required discriminator with disjoint values proves the branches cannot overlap. */
+function disjointObjects(left: unknown, right: unknown): boolean {
+  const a = closedFields(left), b = closedFields(right);
+  if (!a || !b) return false;
+  if (a.required.some(key => !Object.hasOwn(b.properties, key)) || b.required.some(key => !Object.hasOwn(a.properties, key))) return true;
+  return a.required.some(key => b.required.includes(key) && disjointStrings(a.properties[key], b.properties[key]));
+}
+
+function disjointStrings(left: unknown, right: unknown): boolean {
+  const values = (schema: unknown): readonly string[] => {
+    if (!isJsonObject(schema)) return [];
+    if (typeof schema.const === "string") return [schema.const];
+    const choices: readonly unknown[] = Array.isArray(schema.enum) ? schema.enum : [];
+    return choices.every(choice => typeof choice === "string") ? choices : [];
+  };
+  const a = values(left), b = values(right);
+  return a.length > 0 && b.length > 0 && a.every(value => !b.includes(value));
 }

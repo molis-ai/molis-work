@@ -2,12 +2,15 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { actionReachesAudience, type ActionDefinition, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { CONTENT_ADOPTION_RESULT_SCHEMA, contentAdoptionInputSchema, contentAdoptionReadInputSchema, contentAdoptionReadOutputSchema,
+  type ContentAdoptionResult,
+} from "@molis-ai/molis-work-contracts/platform/blueprints";
 import {
-  HOME_PAGE_CONTENT_TYPE, homePageActions, type HomePageApprovalReceipt, type HomePageDraft, type HomePageDraftAdoptionResult,
+  HOME_PAGE_CONTENT_TYPE, HOME_PAGE_DRAFT_SCHEMA, homePageActions, type HomePageApprovalReceipt, type HomePageDraft,
   type HomePageFile, type HomePageReadInput, type HomePageReadResult, type HomePageVersion,
 } from "@molis-ai/molis-work-contracts/services/home";
 import { assertActionInput, compileActionSchema } from "@molis-ai/molis-work-kernel";
-import { inspectHomePageDraft } from "@molis-ai/molis-work-plugin-sdk";
+import { inspectHomePageDraft, validateAdoptsDeclaration } from "@molis-ai/molis-work-plugin-sdk";
 
 const action = { capability_id: "notes.list", version: 1, provider_id: "system.connectors#mcp:notes" };
 const html = { path: "index.html", media_type: "text/html", text: "<h1>Weekly review</h1>" } satisfies HomePageFile;
@@ -19,7 +22,7 @@ const savedVersion: HomePageVersion = {
   created_at: "2026-11-09T00:00:00Z",
   files: draft.files.map(({ path, media_type, text }) => ({ path, media_type, bytes: Buffer.byteLength(text), sha256: "a".repeat(64) })),
 };
-const adoption: HomePageDraftAdoptionResult = { outcome: "created", subject: { kind: "home-page", id: page.page_id }, revision: page.version, version: savedVersion };
+const adoption: ContentAdoptionResult = { outcome: "created", subject: { kind: "home-page", id: page.page_id }, revision: page.version };
 const approval: HomePageApprovalReceipt<"adopt"> = {
   operation: "adopt", request_id: "approve-week-home", selection: { kind: "page", ...page }, revision: "home-12",
   approval: { page, approved_actions: [action], approved_at: "2026-11-09T01:00:00Z" },
@@ -58,6 +61,7 @@ test("SPC-C06: save separates new drafts, observed versions, and a closed conten
   const validate = result(saveDraft);
   assert.equal(validate({ version: savedVersion }), true);
   assert.equal(validate(adoption), true);
+  assert.equal(validate({ ...adoption, version: savedVersion }), false);
   assert.equal(validate({ ...adoption, approval: approval.approval }), false);
 });
 
@@ -78,7 +82,8 @@ test("SPC-C06/SPC-C07: readback separates draft adoption, approval and current s
     { queries: [{ by: "approval_request", operation: "adopt", request_id: approval.request_id, project_id: "forged" }] },
   );
   const output: HomePageReadResult = { results: [
-    { kind: "receipt", operation: "adopt", request_id: "adopt-scene:home", receipt: adoption, current: { state: "missing" } },
+    { kind: "receipt", operation: "adopt", request_id: "adopt-scene:home", receipt: adoption,
+      current: { state: "present", revision: page.version + 1, origin: null, value: { version: page.version + 1 } } },
     { kind: "receipt", receipt: approval, current },
     { kind: "missing", current },
   ] };
@@ -88,6 +93,50 @@ test("SPC-C06/SPC-C07: readback separates draft adoption, approval and current s
   assert.equal(validate({ ...current, versions: [{ ...savedVersion, approval: null, files: draft.files }] }), false);
   assert.equal(validate({ results: [{ kind: "receipt", receipt: { ...approval, request_id: "" }, current }] }), false);
   assert.equal(validate({ results: [{ kind: "missing", receipt: approval, current }] }), false);
+});
+
+function schemaObject(value: unknown): Record<string, unknown> {
+  assert.ok(value && typeof value === "object" && !Array.isArray(value));
+  return value as Record<string, unknown>;
+}
+
+function alteredReadReceipt(): ActionSchema {
+  const output = contentAdoptionReadOutputSchema();
+  const items = schemaObject(schemaObject(schemaObject(output.properties).results).items);
+  assert.ok(Array.isArray(items.oneOf));
+  const branches: readonly unknown[] = items.oneOf;
+  const original = branches.map(branch => schemaObject(schemaObject(branch).properties)).find(fields =>
+    fields.operation !== undefined && schemaObject(fields.operation).const === "adopt");
+  assert.ok(original);
+  original.receipt = { ...CONTENT_ADOPTION_RESULT_SCHEMA, required: ["outcome", "subject"] };
+  return output;
+}
+
+test("SPC-C06/SPC-C07: real homepage declarations pass the common adoption validator without weakening protocol branches", () => {
+  const { saveDraft, read } = homePageActions;
+  const ref = ({ capability_id, version }: ActionDefinition) => ({ capability_id, version });
+  const owner = { plugin_id: "system.home", actions: [saveDraft, read], adopts: [
+    { type: HOME_PAGE_CONTENT_TYPE, title: { key: "common.home" }, schema: HOME_PAGE_DRAFT_SCHEMA, adopt: ref(saveDraft), read: ref(read) },
+  ] };
+  assert.deepEqual(validateAdoptsDeclaration(owner), []);
+  const write = contentAdoptionInputSchema(HOME_PAGE_DRAFT_SCHEMA);
+  const missingCas = { ...write, properties: { ...schemaObject(write.properties), selection: { type: "object" } } };
+  const byApproval = { type: "object", additionalProperties: false, required: ["by", "operation", "request_id"], properties: {
+    by: { const: "approval_request" }, operation: { enum: ["adopt", "restore"] }, request_id: { type: "string" },
+  } };
+  const overlapsRequest = { ...byApproval, required: ["by", "request_id"], properties: {
+    ...byApproval.properties, by: { enum: ["request", "approval_request"] }, operation: { type: "string" },
+  } };
+  for (const [candidate, endpoint] of [
+    [{ ...saveDraft, action: { ...saveDraft.action, input_schema: missingCas } }, "adopt"],
+    [{ ...saveDraft, action: { ...saveDraft.action, output_schema: { ...CONTENT_ADOPTION_RESULT_SCHEMA, required: ["outcome", "subject"] } } }, "adopt"],
+    [{ ...read, action: { ...read.action, output_schema: alteredReadReceipt() } }, "read"],
+    [{ ...read, action: { ...read.action, input_schema: contentAdoptionReadInputSchema(HOME_PAGE_DRAFT_SCHEMA, [{ ...byApproval, additionalProperties: true }]) } }, "read"],
+    [{ ...read, action: { ...read.action, input_schema: contentAdoptionReadInputSchema(HOME_PAGE_DRAFT_SCHEMA, [overlapsRequest]) } }, "read"],
+  ] as const) {
+    const actions = owner.actions.map(definition => definition.capability_id === candidate.capability_id ? candidate : definition);
+    assert.equal(validateAdoptsDeclaration({ ...owner, actions })[0]?.path, `adopts[0].${endpoint}`);
+  }
 });
 
 test("SPC-C06: approvals and returning to Basic require the original observation and request key", () => {

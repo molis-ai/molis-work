@@ -308,11 +308,11 @@ export interface ContentAdoptionReadInput<Body = SandboxJson> {
     queries: ContentAdoptionQuery<Body>[];
 }
 
-export interface ContentAdoptionReadOutput<Value = SandboxJson, AdoptReceipt extends ContentAdoptionResult = ContentAdoptionResult> {
-    results: ContentAdoptionReadResult<Value, AdoptReceipt>[];
+export interface ContentAdoptionReadOutput<Value = SandboxJson> {
+    results: ContentAdoptionReadResult<Value>[];
 }
 
-export type ContentAdoptionReadResult<Value = SandboxJson, AdoptReceipt extends ContentAdoptionResult = ContentAdoptionResult> = {
+export type ContentAdoptionReadResult<Value = SandboxJson> = {
     kind: "proposal";
     candidates: Array<{
         subject: ActionSubject;
@@ -325,7 +325,7 @@ export type ContentAdoptionReadResult<Value = SandboxJson, AdoptReceipt extends 
     kind: "receipt";
     operation: "adopt";
     request_id: string;
-    receipt: AdoptReceipt;
+    receipt: ContentAdoptionResult;
     current: ContentAdoptionCurrent<Value>;
 } | {
     kind: "receipt";
@@ -370,7 +370,7 @@ export declare function contentAdoptionInputSchema(body: SandboxSchema): ActionS
 
 export declare function contentAdoptionReadInputSchema(body: SandboxSchema, extraQueries?: readonly ActionSchema[]): ActionSchema;
 
-export declare function contentAdoptionReadOutputSchema(adoptReceipt?: ActionSchema, extraResults?: readonly ActionSchema[]): ActionSchema;
+export declare function contentAdoptionReadOutputSchema(extraResults?: readonly ActionSchema[]): ActionSchema;
 
 // Declarations the exports above refer to, which no entry exports itself:
 

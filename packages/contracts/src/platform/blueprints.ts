@@ -81,15 +81,15 @@ export type ContentAdoptionCurrent<Value = SandboxJson> =
   | { state: "missing" }
   | { state: "unavailable"; reason: string };
 
-export type ContentAdoptionReadResult<Value = SandboxJson, AdoptReceipt extends ContentAdoptionResult = ContentAdoptionResult> =
+export type ContentAdoptionReadResult<Value = SandboxJson> =
   | { kind: "proposal"; candidates: Array<{ subject: ActionSubject; current: ContentAdoptionCurrent<Value> }> }
   | { kind: "subject"; current: ContentAdoptionCurrent<Value> }
-  | { kind: "receipt"; operation: "adopt"; request_id: string; receipt: AdoptReceipt; current: ContentAdoptionCurrent<Value> }
+  | { kind: "receipt"; operation: "adopt"; request_id: string; receipt: ContentAdoptionResult; current: ContentAdoptionCurrent<Value> }
   | { kind: "receipt"; operation: "revert"; request_id: string; receipt: ContentAdoptionRevertResult; current: ContentAdoptionCurrent<Value> }
   | { kind: "missing"; operation: "adopt" | "revert"; request_id: string };
 
-export interface ContentAdoptionReadOutput<Value = SandboxJson, AdoptReceipt extends ContentAdoptionResult = ContentAdoptionResult> {
-  results: ContentAdoptionReadResult<Value, AdoptReceipt>[];
+export interface ContentAdoptionReadOutput<Value = SandboxJson> {
+  results: ContentAdoptionReadResult<Value>[];
 }
 
 export interface ContentAdoptionRevertInput {
@@ -150,14 +150,12 @@ const current = { oneOf: [
   closedObjectSchema({ state: { const: "unavailable" }, reason: token }),
 ] };
 
-export function contentAdoptionReadOutputSchema(
-  adoptReceipt: ActionSchema = CONTENT_ADOPTION_RESULT_SCHEMA, extraResults: readonly ActionSchema[] = [],
-): ActionSchema {
+export function contentAdoptionReadOutputSchema(extraResults: readonly ActionSchema[] = []): ActionSchema {
   const receipt = { kind: { const: "receipt" }, request_id: token, current } as const;
   return closedObjectSchema({ results: batch({ oneOf: [
     closedObjectSchema({ kind: { const: "proposal" }, candidates: { type: "array", maxItems: BLUEPRINT_LIMITS.parts, items: closedObjectSchema({ subject: ACTION_SUBJECT_SCHEMA, current }) } }),
     closedObjectSchema({ kind: { const: "subject" }, current }),
-    closedObjectSchema({ ...receipt, operation: { const: "adopt" }, receipt: adoptReceipt }),
+    closedObjectSchema({ ...receipt, operation: { const: "adopt" }, receipt: CONTENT_ADOPTION_RESULT_SCHEMA }),
     closedObjectSchema({ ...receipt, operation: { const: "revert" }, receipt: CONTENT_ADOPTION_REVERT_RESULT_SCHEMA }),
     closedObjectSchema({ kind: { const: "missing" }, operation: adoptionOperation, request_id: token }),
     ...extraResults,

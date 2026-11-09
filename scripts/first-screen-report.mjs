@@ -14,12 +14,11 @@
 //
 //   node scripts/machine-slot.mjs run browser --label "first-screen" -- node scripts/first-screen-report.mjs --out <dir>
 //
-// Out (default .impeccable/qa/review/first-screen, ignored): http.json, the page bytes read without a browser, with each page's
-// HTML beside it; browser.json, every request of every run, cold (a new Chrome with an empty profile) and warm (a new tab in that
-// Chrome); catalog-use.json, which language entries the code of every frame of the first screen read.
+// Out (default .impeccable/qa/review/first-screen, ignored): http.json and the measured HTML; browser.json, every
+// request of each cold (fresh profile) and warm (new tab) run; audit.json, the differences between observed and measured
+// requests; catalog-use.json, which language entries the code of every frame of the first screen read.
 //
-// `--http-only` needs no slot, but it is not the page's total: it reads the document and the files the document names, and misses
-// the hidden side document, whatever a script loads and all startup JSON, so `--summarize` has nothing to print for it.
+// `--http-only` reads the same paths as the budget checker without running a browser. `--summarize` reads browser.json.
 // `--reads-only` skips the timed visits and only writes catalog-use.json (still a browser, still the slot).
 // `--resources` reads packages/design-system/resources/registry.json (what ships with the product and has a path in a package,
 // specs/font-and-skin-system/resource-budget.md §6.1), one line a file: a language directory is one line a language. Nothing is
@@ -35,6 +34,9 @@ import { gzipSync } from "node:zlib";
 import { BASELINE_REGISTRY } from "@molis-ai/molis-work-design-system";
 import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
 import { LOCALES, LOCALE_COOKIE, withFirstScreenHost } from "./first-screen/host.mjs";
+import { auditFirstScreen } from "./first-screen/audit.mjs";
+import { sampleFirstScreen } from "./first-screen/http.mjs";
+import { currentRows, readManifest, registeredPaths } from "./first-screen/manifest.mjs";
 
 const ROOT = resolve(import.meta.dirname, "..");
 const QUIET_MS = 1_500;
@@ -106,45 +108,27 @@ function inlineBlocks(html) {
   return blocks.sort((a, b) => b.raw - a.raw);
 }
 
-/** What the page links, read without a browser. */
-function linkedAssets(html) {
-  const found = [...html.matchAll(/<(?:link|script)\b[^>]*\b(?:href|src)="(\/[^"]+)"/g)].map((match) => match[1]);
-  return [...new Set(found)];
-}
-
-async function readHttp(origin, pages, signal) {
+async function readHttp(host, pages) {
   const report = {};
   const documents = {};
+  const rows = currentRows(readManifest(ROOT));
   for (const page of pages) {
     for (const locale of LOCALES) {
-      const request = async (path) => {
-        const response = await fetch(origin + path, {
-          redirect: "manual", signal: AbortSignal.any([signal, AbortSignal.timeout(10_000)]),
-          headers: { cookie: `${LOCALE_COOKIE}=${locale}`, "accept-encoding": "gzip, br" },
-        }).catch(error => {
-          signal.throwIfAborted();
-          throw new Error(`${page.id}/${locale} GET ${path}: ${error.message}`, { cause: error });
-        });
-        if (!response.ok) {
-          await response.body?.cancel();
-          throw new Error(`${page.id}/${locale} GET ${path}: HTTP ${response.status}`);
-        }
-        return response;
-      };
-      const answer = await request(page.path);
-      if (!answer.headers.get("content-type")?.startsWith("text/html")) throw new Error(`${page.id}/${locale}: expected an HTML document`);
-      const html = await answer.text();
+      const paths = registeredPaths(rows, page, locale);
+      const samples = await sampleFirstScreen(host.origin, page, locale, paths, { signal: host.signal, inspect: true });
+      const { cold, links } = samples.get(page.path);
+      const html = cold.body.toString("utf8");
       documents[`${page.id}.${locale}.html`] = html;
       const inline = inlineBlocks(html);
       const assets = {};
-      for (const asset of linkedAssets(html)) {
-        const response = await request(asset);
-        const body = Buffer.from(await response.arrayBuffer());
-        assets[asset] = { status: response.status, raw: body.length, gzip: gzipSync(body, { level: 9 }).length, encoding: response.headers.get("content-encoding"), cache: response.headers.get("cache-control") };
+      for (const link of links) {
+        const { status, headers, body } = samples.get(link).cold;
+        assets[link] = { status, raw: body.length, gzip: gzipSync(body, { level: 9 }).length, encoding: headers["content-encoding"] ?? null, cache: headers["cache-control"] ?? null };
       }
+      const responses = Object.fromEntries([...samples].map(([path, sample]) => [path, { cold: sample.cold.wire, warm: sample.warm.wire }]));
       report[`${page.id}/${locale}`] = {
-        status: answer.status, encoding: answer.headers.get("content-encoding"), cache: answer.headers.get("cache-control"),
-        html: sized(html), inline, inline_total: inline.reduce((sum, block) => sum + block.raw, 0), assets,
+        status: cold.status, encoding: cold.headers["content-encoding"] ?? null, cache: cold.headers["cache-control"] ?? null,
+        html: sized(html), inline, inline_total: inline.reduce((sum, block) => sum + block.raw, 0), assets, responses,
       };
     }
   }
@@ -167,6 +151,7 @@ const kindOf = (url, type) => {
 /** One visit: navigates, waits for load and for the network to go quiet, and returns every request with its bytes. */
 async function visit(browser, session, url, { signal, mayRedirect }) {
   const requests = new Map();
+  const redirects = [];
   let loadFired = false;
   let lastActivity = Date.now();
   const touch = () => { lastActivity = Date.now(); };
@@ -174,7 +159,10 @@ async function visit(browser, session, url, { signal, mayRedirect }) {
   const stops = [
     browser.on("Network.requestWillBeSent", own((params) => {
       touch();
-      if (params.redirectResponse) requests.delete(params.requestId);
+      const previous = requests.get(params.requestId);
+      if (previous && params.redirectResponse) {
+        redirects.push({ ...previous, status: params.redirectResponse.status, wire: params.redirectResponse.encodedDataLength, finished: true });
+      }
       requests.set(params.requestId, { url: params.request.url, type: params.type, method: params.request.method, status: 0, wire: 0, body: 0, finished: false, after_load: loadFired });
     })),
     browser.on("Network.responseReceived", own((params) => {
@@ -211,7 +199,14 @@ async function visit(browser, session, url, { signal, mayRedirect }) {
       const fcp = performance.getEntriesByType("paint").find((entry) => entry.name === "first-contentful-paint");
       return { dcl: Math.round(nav.domContentLoadedEventEnd), load: Math.round(nav.loadEventEnd), fcp: fcp ? Math.round(fcp.startTime) : null };
     })()`);
-    const list = [...requests.values()].map((entry) => ({ ...entry, kind: kindOf(entry.url, entry.type), url: new URL(entry.url).pathname + new URL(entry.url).search }));
+    const origin = new URL(url).origin;
+    const list = [...redirects, ...requests.values()].flatMap(entry => {
+      const target = new URL(entry.url);
+      if (target.protocol !== "http:" && target.protocol !== "https:") return [];
+      const same_origin = target.origin === origin;
+      const path = target.pathname + target.search;
+      return [{ ...entry, kind: kindOf(entry.url, entry.type), same_origin, url: same_origin ? path : target.origin + path }];
+    });
     return { timing, requests: list, load_average: loadavg()[0] };
   } finally { for (const stop of stops) stop(); }
 }
@@ -424,18 +419,19 @@ async function main(signal) {
   if (options.summarize) { summarize(options.summarize); return; }
   if (options.resources) { reportResources(); return; }
   const executable = options.httpOnly ? null : testExecutable();
-  const { report, documents, browser, catalogs } = await withFirstScreenHost(ROOT, { signal, port: options.port }, async (host) => {
+  const { report, documents, browser, audit, catalogs } = await withFirstScreenHost(ROOT, { signal, port: options.port }, async (host) => {
     const pages = options.pages ? host.pages.filter(page => options.pages.includes(page.id)) : host.pages;
     if (options.pages && pages.length !== options.pages.length) throw new Error("--pages needs distinct known page IDs");
-    const http = await readHttp(host.origin, pages, host.signal);
+    const http = await readHttp(host, pages);
     const browser = options.httpOnly || options.readsOnly ? null : await readBrowser(host, executable, pages, options.runs);
+    const audit = browser ? auditFirstScreen(http.report, browser) : null;
     const catalogs = options.httpOnly ? null : await readCatalogUse(host, executable, pages);
-    return { ...http, browser, catalogs };
+    return { ...http, browser, audit, catalogs };
   });
   signal.throwIfAborted();
   mkdirSync(options.out, { recursive: true });
   for (const [file, html] of Object.entries(documents)) writeFileSync(join(options.out, file), html);
-  for (const [name, data] of [["http", report], ["browser", browser], ["catalog-use", catalogs]]) {
+  for (const [name, data] of [["http", report], ["browser", browser], ["audit", audit], ["catalog-use", catalogs]]) {
     if (data) writeFileSync(join(options.out, `${name}.json`), `${JSON.stringify(data, null, 1)}\n`);
   }
   process.stdout.write(`written to ${options.out}\n`);

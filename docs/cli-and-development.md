@@ -252,6 +252,14 @@ pnpm --filter @molis-ai/molis-work-integration-github typecheck
 
 增长许可与页面资源共用目录。可写 `assets`、`pages` 或两者，`pages` 按页面及语言列上限，例如 `"pages": { "workbench-default/zh": { "cold": 120, "warm": 0 } }`。新增路径或单行净增超过 10,000 B 时，对应页面及语言须有带用户批准出处的新增许可，页总量缩小时也适用。冷、热均为 0 的页面项可以只记录批准出处，不提供额外增长额度。CI 会列出需审批的路径和对应许可文件。每次比较只消费基点尚未采用的许可。
 
+每批开工前由统筹通过独立浏览器做一次防漏核对。构建后运行：
+
+```sh
+node scripts/machine-slot.mjs run browser --label 'first-screen audit' -- node scripts/first-screen-report.mjs --runs 1 --pages arrival-empty,chooser,workbench-default,workbench-all-plugins,workbench-demo
+```
+
+`audit.json` 列出浏览器实际发出的未登记 GET、测量未重放的非 GET 或其他来源的请求，以及未观察到的登记路径。清单差异供评审检查。Host 中断、页面或登记资源响应失败、采样未完成时，报告以非零退出，保留上一次的完整结果。
+
 ### 推送前扫描密钥
 
 推送前扫描密钥：先 `git fetch origin main`，再跑 `pnpm secrets:check`。它逐个提交扫描本分支相对 `origin/main` 合并基点新增的行（`scripts/check-secrets.mjs`），找 OpenAI/Anthropic key（`sk-…`、`sk-ant-…`）、GitHub 令牌（`ghp_…`、`github_pat_…`）、Slack 令牌、AWS access key（`AKIA…`）、Google API key（`AIza…`）、私钥块、JWT，以及 `api_key`、`secret`、`password`、`token` 这类名字后面带引号、至少 12 位且字母数字混合的字面量（引用、`${…}`、占位符和网址不算）。名字也包括 `secretKey`、`private_key`、`aws_secret_access_key`、`clientKey` 这类以 secret、private、access、client、auth、signing、encryption 开头的 key（单独的 `key` 不算），名字和 `=` 之间可以带类型标注（`const apiKey: string = "…"`）。文件名里带引号、反斜杠、控制字符的文件（git 在 diff 头里会加引号转义）同样会被扫描，日志里的文件名也会把控制字符转义；读 diff 时关掉外部 diff 驱动、textconv 和 diff.noprefix，不受本机 git 配置影响。命中只打印文件、行号、规则和值的前 4 位，不打印整条。CI 里的 Secret scan 任务跑同一条命令（拉取完整历史；PR 取其基线分支，推送 main 取推送前的提交），并且是 `Verify` 的前置；规则本身的测试 `tests/secret-scan.test.ts` 在 CI 的 Package boundaries 任务里跑。

@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
+import { auditFirstScreen } from "../scripts/first-screen/audit.mjs";
 
 function fixture(t, mode) {
   const root = mkdtempSync(join(tmpdir(), "molis-first-screen-fixture-"));
@@ -15,6 +16,7 @@ function fixture(t, mode) {
     writeFileSync(file, contents);
   };
   put("dist/web/server.js", "");
+  put("tooling/gates/first-screen.json", "[]");
   put("apps/desktop/dist/index.js", `
 export async function openMolisWorkProjectCatalog() {
   return {
@@ -83,7 +85,7 @@ function assertClean(run) {
 
 for (const [mode, failure] of [
   ["startup-signal", /Host exited with SIGTERM/],
-  ["mid-run-signal", /Host exited with SIGTERM|arrival-empty\/en GET \/onboarding: fetch failed/],
+  ["mid-run-signal", /Host exited with SIGTERM|arrival-empty\/en GET \/onboarding: (socket hang up|aborted)/],
   ["missing-link", /linked.css: HTTP 404/],
 ]) {
   test(`FSS-BG-03 ${mode} fails the real reporter and publishes no partial run`, { timeout: 8_000 }, async t => {
@@ -115,4 +117,23 @@ test("FSS-BG-03 a complete run publishes both locales and cleans the Home", { ti
   assert.equal(report["arrival-empty/zh"].assets["/assets/linked.css"].raw, Buffer.byteLength("asset body"));
   assert.equal(report["arrival-empty/en"].html.raw, Buffer.byteLength('<link href="/assets/linked.css" rel="stylesheet">'));
   assertClean(run);
+});
+
+
+test("FSS-BG-04 browser audit reports missed GETs and non-GETs without failing for an omission", () => {
+  const key = "chooser/en";
+  const observed = (method, url, status) => ({ method, url, status, same_origin: true });
+  const http = { [key]: { responses: { "/": {}, "/known.js": {}, "/old.js": {} } } };
+  const requests = [observed("GET", "/", 200), observed("GET", "/known.js", 304), observed("GET", "/api/bootstrap", 200),
+    observed("GET", "/favicon.ico", 404), observed("POST", "/api/host/plugin-pages", 201)];
+  const browser = { [key]: [{ cold: { requests }, warm: { requests } }] };
+  const audit = auditFirstScreen(http, browser)[key];
+  assert.deepEqual(audit.unregistered, [
+    { method: "GET", path: "/api/bootstrap", visits: ["cold", "warm"], outcomes: [200] },
+    { method: "GET", path: "/favicon.ico", visits: ["cold", "warm"], outcomes: [404] },
+  ]);
+  assert.deepEqual(audit.excluded, [{ method: "POST", path: "/api/host/plugin-pages", visits: ["cold", "warm"], outcomes: [201] }]);
+  assert.deepEqual(audit.registered_not_observed, ["/old.js"]);
+  requests[1].status = 500;
+  assert.throws(() => auditFirstScreen(http, browser), /chooser\/en cold GET \/known.js: browser returned HTTP 500/);
 });

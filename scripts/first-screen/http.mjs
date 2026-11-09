@@ -76,10 +76,12 @@ export async function sampleFirstScreen(origin, page, locale, registered, { sign
   async function read(entry) {
     if (samples.has(entry)) return;
     const cold = await ask(entry, { inspect });
-    samples.set(entry, { cold });
+    const sample = { cold };
+    samples.set(entry, sample);
     if (entry === page.path && !isHtml(cold.headers)) throw new Error(`${label}: expected an HTML document at ${entry}`);
     if (isHtml(cold.headers)) {
-      for (const path of linkedPaths(cold.body.toString("utf8"), new URL(origin + entry))) await read(path);
+      sample.links = linkedPaths(cold.body.toString("utf8"), new URL(origin + entry));
+      for (const path of sample.links) await read(path);
     }
   }
 

@@ -14,7 +14,7 @@
 
 第 20 批定「场景与生成页面公共合同」，其中跟外部会话有关的需求是：
 
-- [Onboarding §3.8](../onboarding-coverage/spec.md#38-场景与能力包) 的「写代码」场景，起步首页有「最近会话」；
+- [Onboarding §3.8](../onboarding-coverage/spec.md#38-场景与能力组合) 的「写代码」场景，起步首页有「最近会话」；
 - [Onboarding §3](../onboarding-coverage/spec.md) 2026-10-28 一段：外部会话是可接入的已有材料来源，场景复用 Sessions 的公共来源与控制能力，不自己维护厂商读取器、会话库或执行链；
 - §3.8.1 场景套组要声明必要与可选依赖，依赖未就绪要如实显示。
 

@@ -45,7 +45,7 @@ export class SurfaceCompositionService {
 
   async compose(request: SurfaceRequest, ports: SurfaceComposePorts): Promise<SurfaceDescription> {
     const home = homeFor(request, ports);
-    const deadline = startDeadline(ports.signal);
+    const deadline = home?.deadline ?? startDeadline(ports.signal);
     try {
       checkCurrent(ports);
       const checked = await deadline.wait(ports.beforeEffect().then(() => true));
@@ -91,7 +91,7 @@ export class SurfaceCompositionService {
       if (cached) return structuredClone(cached);
       const candidate: SurfaceDescription = { composed_by: "rules", revision, corrections_revision: corrections.revision, groups: result.groups };
       return this.checked(candidate);
-    } finally { deadline.dispose(); }
+    } finally { if (!home?.deadline) deadline.dispose(); }
   }
 
   async correct(input: SurfaceCorrectionInput, ports: SurfaceCorrectPorts) {

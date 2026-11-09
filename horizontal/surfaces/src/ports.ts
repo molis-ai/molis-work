@@ -7,6 +7,7 @@ import type { OwnedTextRef, UiSlotDescriptor } from "@molis-ai/molis-work-contra
 import type { PlacedObject } from "@molis-ai/molis-work-contracts/services/placement";
 import type { SurfaceInstallationRef } from "@molis-ai/molis-work-contracts/services/surface-composition";
 import type { SurfaceCorrections } from "./corrections.js";
+import type { startDeadline } from "./values.js";
 
 export interface SurfacePlugin {
   plugin_id: string;
@@ -35,6 +36,8 @@ export interface SurfaceHomePlugin extends Omit<SurfaceInstallationRef, "scope" 
 }
 
 export interface SurfaceHomePorts {
+  /** A protected display read can extend the same time and in-flight budget through its final field projection. */
+  readonly deadline?: ReturnType<typeof startDeadline>;
   overview(action: ActionView, signal: AbortSignal, assertCurrent: () => void): Promise<PresentationOverview>;
   acceptsEmptyInput(action: ActionView): boolean;
   /** Some signed component actions are discoverable here solely to open their actual input form. */

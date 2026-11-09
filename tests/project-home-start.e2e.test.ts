@@ -4,11 +4,11 @@ import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
-import { boardSnapshot } from "./fixtures/goal-application.js";
-import { createLocalFeedApplication } from "./fixtures/feed-library.js";
+import { createProject } from "@molis-ai/molis-work-test-kit/local-host-http";
+import type { SurfaceHomeDisplay } from "@molis-ai/molis-work-app-workbench";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
-const captures = reviewEvidenceUrl("home-start/");
-const homeHasQuotes = "!!document.querySelector('[data-home-quote], [data-home-quotes], .home-reflection, .home-quote-pages, .immersive-home blockquote, .immersive-home figure') || /千里之行|Stephen Hawking|Intelligence is the ability/.test(document.querySelector('.immersive-home')?.textContent || '')";
 
 test("The project button holds settings and the account, and opens settings in the stage", { timeout: 45_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
@@ -92,328 +92,144 @@ test("The project button holds settings and the account, and opens settings in t
   assert.equal(await evaluate("document.querySelector('.navigator-project-settings').hasAttribute('aria-current')"), false);
 });
 
-test("Home shows a seven-day strip and keeps a chosen day across midnight", { timeout: 90_000 }, async t => {
-  const browser = await openGoalBrowser(t, "seeded");
-  if (!browser) return;
-  const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, store } = browser;
-  const before = boardSnapshot(store, projectId!);
-  await command("Page.addScriptToEvaluateOnNewDocument", { source: `
-    window.__homeErrors=[];addEventListener('error',e=>window.__homeErrors.push(e.message));
-    window.__clock=new Date(2028,1,29,23,59).getTime();const RealDate=Date;
-    window.Date=class extends RealDate{constructor(...args){super(...(args.length?args:[window.__clock]))}static now(){return window.__clock}};
-    window.__homeTimers={};const interval=window.setInterval;window.setInterval=(fn,ms,...args)=>{
-      if(ms===30000){window.__homeTimers[ms]=fn;return 0}return interval(fn,ms,...args)};
-  ` }, sessionId);
-  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
-  await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
-  await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
-  await waitFor("document.body.dataset.desktopSurface === 'home'");
-  await waitFor("document.querySelectorAll('[data-home-day]').length===7 && document.querySelector('[data-home-date]')?.dateTime==='2028-02-29'");
-  assert.equal(await evaluate("document.querySelector('[data-home-date]').dateTime"), "2028-02-29");
-  assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-home-day]')].map(x=>x.dataset.homeDay)"), [
-    "2028-02-26", "2028-02-27", "2028-02-28", "2028-02-29", "2028-03-01", "2028-03-02", "2028-03-03",
-  ]);
-  assert.equal(await evaluate("document.querySelector('[data-home-day].is-on').dataset.homeDay"), "2028-02-29");
-  assert.equal(await evaluate("document.querySelector('.home-calendar, .home-composer, [data-home-agent-input]')"), null);
-  await evaluate("window.__homeTimers[30000]()");
-  assert.equal(await evaluate("document.querySelector('[data-home-date]').dateTime"), "2028-02-29");
-  await evaluate("window.__clock=new Date(2028,2,1,0,1).getTime();window.__homeTimers[30000]()");
-  // QHR-02: a real day change still updates the heading before the events request returns.
-  assert.equal(await evaluate("document.querySelector('[data-home-date]').dateTime"), "2028-03-01", "unpinned home follows midnight");
-  await click('[data-home-day="2028-02-28"]');
-  assert.equal(await evaluate("document.querySelector('[data-home-date]').dateTime"), "2028-02-28");
-  await evaluate("window.__clock=new Date(2028,2,2).getTime();window.__homeTimers[30000]()");
-  assert.equal(await evaluate("document.querySelector('[data-home-date]').dateTime"), "2028-02-28", "chosen day survives midnight while still in the week");
-  assert.equal(await evaluate("document.querySelector('[data-quote-step], [data-quote-pause], [data-home-draft], [data-home-activity], [data-home-quote-next], .home-goals-entry')"), null);
-  assert.equal(await evaluate(homeHasQuotes), false, "home has no quotation carousel or famous-quote copy");
-  assert.equal(await evaluate("window.__homeTimers[8000]"), undefined, "no quote autoplay timer");
-  await click('[data-plugin-strip] [data-plugin-id="goals"]');
-  await waitFor("document.body.dataset.desktopSurface === 'goals'");
-  await click('[data-plugin-strip] [data-plugin-id="home"]');
-  await waitFor("document.body.dataset.desktopSurface === 'home'");
-  // Soft Workbench home (DESIGN.md → Home): the day strip runs across the top of the day column, and the margin
-  // (note and things at hand) sits beside that column on a wide home.
-  const homeStack = await evaluate<{ stripAbove: boolean; inColumn: boolean; marginBeside: boolean }>("(()=>{const d=document.querySelector('.home-dates').getBoundingClientRect();const list=document.querySelector('.home-tl').getBoundingClientRect();const m=document.querySelector('.home-margin').getBoundingClientRect();return {stripAbove:d.bottom<=list.top,inColumn:Math.abs(d.left-list.left)<2,marginBeside:m.left>=list.right}})()");
-  assert.deepEqual(homeStack, { stripAbove: true, inColumn: true, marginBeside: true });
-  await mkdir(captures, { recursive: true });
-  for (const [name, width, height, dark] of [["desktop", 1440, 1000, false], ["desktop-dark", 1440, 1000, true], ["user-1024", 1024, 768, false], ["user-1024-dark", 1024, 768, true], ["mobile", 390, 844, false], ["mobile-dark", 390, 844, true]] as const) {
-    await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: width < 600 }, sessionId);
-    await evaluate(`document.documentElement.dataset.resolvedTheme=${JSON.stringify(dark ? "dark" : "light")};document.activeElement.blur()`);
-    await command("Input.dispatchMouseEvent", { type: "mouseMoved", x: 1, y: 1 }, sessionId);
-    assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true, name);
-    assert.equal(await evaluate(homeHasQuotes), false, name + ": no quotes after viewport change");
-    await evaluate("document.querySelector('[data-work-surface=home]').scrollTop=0;new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))");
-    const shot = await command<{ data: string }>("Page.captureScreenshot", { format: "png", captureBeyondViewport: false }, sessionId);
-    await writeFile(new URL(name + ".png", captures), Buffer.from(shot.data, "base64"));
-  }
-  await evaluate("document.cookie='molis_work_locale=en;path=/'");
-  await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
-  await waitFor("document.body.dataset.desktopSurface === 'home'");
-  assert.equal(await evaluate(homeHasQuotes), false, "english locale still has no quotations");
-  for (const [name, width, height] of [["english-1024", 1024, 768], ["english-760", 760, 844], ["english-mobile", 390, 844]] as const) {
-    await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: width < 600 }, sessionId);
-    await evaluate("document.documentElement.dataset.resolvedTheme='light';document.activeElement.blur()");
-    await command("Input.dispatchMouseEvent", { type: "mouseMoved", x: 1, y: 1 }, sessionId);
-    await evaluate("document.fonts.ready.then(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))))");
-    assert.equal(await evaluate(homeHasQuotes), false, name);
-    const shot = await command<{ data: string }>("Page.captureScreenshot", { format: "png", captureBeyondViewport: false }, sessionId);
-    await writeFile(new URL(name + ".png", captures), Buffer.from(shot.data, "base64"));
-  }
-  await waitFor("document.querySelector('.immersive-home [data-home-shortcut-add]').getBoundingClientRect().height>0");
-  await click(".immersive-home [data-home-shortcut-add]");
-  await click(".home-shortcut-save");
-  const dialog = await command<{ data: string }>("Page.captureScreenshot", { format: "png", captureBeyondViewport: false }, sessionId);
-  await writeFile(new URL("dialog-mobile.png", captures), Buffer.from(dialog.data, "base64"));
-  assert.deepEqual(await evaluate("window.__homeErrors"), []);
-  assert.deepEqual(boardSnapshot(store, projectId!).goals, before.goals);
-  assert.deepEqual(boardSnapshot(store, projectId!).runs, before.runs);
-});
+const endpoint = "/api/host/surface-home";
+const homeCard = (owner: string) => '[data-home-card="io.molis.work.' + owner + '"]';
+const homeRow = (kind: string, id: string) => '[data-home-subject-kind="' + kind + '"][data-home-subject-id="' + id + '"]';
+const visible = (selector: string) => '!!document.querySelector(' + JSON.stringify(selector) + ')?.checkVisibility()';
 
-test("Home opens original Inbox items and source groups and completes Inbox", { timeout: 90_000 }, async t => {
-  const browser = await openGoalBrowser(t, true);
-  if (!browser) return;
-  const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId } = browser;
-  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
-  await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
-  await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
-  await waitFor("document.body.dataset.desktopSurface === 'home'");
-  await waitFor("document.querySelectorAll('[data-home-day]').length===7");
-  await waitFor("document.querySelector('[data-home-subject-kind=inbox_entry], [data-home-subject-kind=source]')", 8_000);
-  const visitHomeDays = `(visit) => {
-    const ids = [...document.querySelectorAll("[data-home-day]")].map((day) => day.dataset.homeDay);
-    for (const id of ids) {
-      document.querySelector('[data-home-day="' + CSS.escape(id) + '"]')?.click();
-      const found = visit(id);
-      if (found) return found;
-    }
-    return null;
-  }`;
-  const dumpHome = `(async () => {
-    const days = [];
-    const ids = [...document.querySelectorAll("[data-home-day]")].map((day) => day.dataset.homeDay);
-    for (const id of ids) {
-      document.querySelector('[data-home-day="' + CSS.escape(id) + '"]')?.click();
-      days.push({ id, events: [...document.querySelectorAll("[data-home-open-event]")].map((row) => row.dataset.homeOpenEvent) });
-    }
-    const read = (path) => fetch((document.body.dataset.routePrefix || "") + path, {
-      cache: "no-store",
-      headers: globalThis.molisWorkControlHeaders?.() || {},
-    });
-    // Feed's sources are Feed's route, the entries the Inbox's (FI-7).
-    const [response, entries] = await Promise.all([read("/api/plugins/io.molis.work.feed/snapshot"), read("/api/plugins/io.molis.work.inbox/entries")]);
-    const snapshot = await response.json(), inbox = await entries.json();
-    return JSON.stringify({
-      status: [response.status, entries.status],
-      days,
-      inbox: (inbox.entries || []).map((entry) => [entry.status, entry.created_at, entry.subject_type]),
-      sources: (snapshot.sources || []).map((source) => [source.status, source.last_error_code]),
-    });
-  })()`;
-  const inboxId = await evaluate<string | null>(`(${visitHomeDays})(() => {
-    const ids = [...document.querySelectorAll('[data-home-subject-kind="inbox_entry"]')].map((row) => row.dataset.homeSubjectId);
-    for (const id of ids) {
-      document.querySelector('[data-home-subject-id="' + CSS.escape(id) + '"]')?.click();
-      if (document.querySelector("[data-home-open-target]")?.textContent === "打开事项") return id;
-    }
-    return null;
-  })`);
-  if (!inboxId) assert.fail(await evaluate(dumpHome));
-  await waitFor("document.querySelector('[data-work-surface=home]').dataset.event==='on' && document.querySelector('[data-home-open-target]') && [...document.querySelectorAll('[data-home-offer]')].some(button=>button.textContent==='做完了' && !button.disabled)");
-  await click("[data-home-open-target]");
-  await waitFor("document.body.dataset.desktopSurface === 'feed'");
-  await click('[data-plugin-strip] [data-plugin-id="home"]');
-  await waitFor("document.body.dataset.desktopSurface === 'home'");
-  await evaluate(`document.querySelector('[data-home-subject-id="${inboxId}"]')?.click()`);
-  await waitFor("[...document.querySelectorAll('[data-home-offer]')].some(button=>button.textContent==='做完了' && !button.disabled)");
-  const beforeCount = await evaluate<number>("document.querySelectorAll('[data-home-open-event]').length");
-  const doneIndex = await evaluate<string>("[...document.querySelectorAll('[data-home-offer]')].find(button=>button.textContent==='做完了').dataset.homeOffer");
-  await click('[data-home-offer="' + doneIndex + '"]');
-  await waitFor(`!document.querySelector('[data-home-subject-id="${inboxId}"]')`, 8_000);
-  assert.ok(await evaluate<number>("document.querySelectorAll('[data-home-open-event]').length") < beforeCount);
-  const openedAuth = await evaluate<boolean>(`(() => {
-    if (document.querySelector("[data-home-open-target]")?.textContent === "查看来源") return true;
-    return Boolean((${visitHomeDays})(() => {
-      const ids = [...document.querySelectorAll('[data-home-subject-kind="source"], [data-home-subject-kind="inbox_entry"]')]
-        .map((row) => row.dataset.homeOpenEvent);
-      for (const id of ids) {
-        document.querySelector('[data-home-open-event="' + CSS.escape(id) + '"]')?.click();
-        if (document.querySelector("[data-home-open-target]")?.textContent === "查看来源") return true;
-      }
-      return null;
-    }));
-  })()`);
-  assert.equal(openedAuth, true, "demo home exposes the source group without claiming to authorize it");
-  await click("[data-home-open-target]");
-  await waitFor("document.body.dataset.desktopSurface === 'feed'");
-  await click('[data-plugin-strip] [data-plugin-id="home"]');
-  await waitFor("document.body.dataset.desktopSurface === 'home'");
-  await evaluate("document.querySelector('[data-home-open-event]')?.click()");
-  assert.equal(await evaluate("document.body.dataset.desktopSurface"), "home");
-});
-
-
-test("ASC-38, ASC-39: Home refresh cannot consume a click while Inbox offers are disabled", { timeout: 45_000 }, async t => {
-  const browser = await openGoalBrowser(t, true); if (!browser) return;
-  const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, store } = browser;
+test("WBR-24: Home opens the exact original Inbox item, Feed source, and a newly created Coding session", { timeout: 90_000 }, async t => {
+  const b = await openGoalBrowser(t, "seeded", undefined, null);
+  if (!b) return;
+  const { projectId, store } = b;
   assert.ok(projectId);
-  const feed = createLocalFeedApplication(store.db);
-  const before = feed.listInboxEntries(projectId).find(entry => entry.subject_type === "feed_item" && entry.status === "open");
-  assert.ok(before);
-  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
-  await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
-  await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
-  await waitFor("document.querySelector('[data-home-subject-kind=inbox_entry]')");
-  const row = '[data-home-subject-id="' + before.entry_id + '"]';
-  await evaluate(`(() => {
-    for (const day of [...document.querySelectorAll('[data-home-day]')].map(button => button.dataset.homeDay)) {
-      document.querySelector('[data-home-day="' + day + '"]').click();
-      if (document.querySelector(${JSON.stringify(row)})) return;
-    }
-    throw new Error('Seeded Inbox entry is missing from Home');
-  })()`);
-  await click(row);
-  const done = '[data-home-offer="0"]';
-  await waitFor(`document.querySelector(${JSON.stringify(done)})?.textContent === '做完了' && !document.querySelector(${JSON.stringify(done)}).disabled`);
-  // Start a real refresh after the earlier enabled check and hold its real prepare response.
-  await evaluate(`(() => {
-    window.__homeClickProbe = { pointers: 0, executions: 0 };
-    const gate = new Promise(resolve => { window.__releaseHomeOffers = resolve; });
-    const originalFetch = window.fetch;
-    window.fetch = async (...args) => {
-      const path = String(args[0]);
-      if (path.endsWith('/api/home/actions/execute')) window.__homeClickProbe.executions++;
-      const response = await originalFetch(...args);
-      if (path.endsWith('/api/home/actions/prepare')) await gate;
+  const feed = createLocalFeedApplication(store.db), sources = createLocalFeedSourceService(store.db, projectId);
+  const active = sources.register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "home-navigation" }).source;
+  const source = feed.sources.upsert({ ...active, status: "error", last_error_code: "source_offline" });
+  const material = feed.ingestItem({ source, externalId: "home-navigation", title: "The original material", summary: "Source metadata",
+    occurredAt: new Date().toISOString(), attention: false }).item;
+  const entry = feed.ensureInboxEntryForFeedItem(projectId, material.item_id, "manual").entry;
+  const inbox = await pluginFrameBrowser(t, b, "inbox"), sourceView = await pluginFrameBrowser(t, b, "sources"),
+    coding = await pluginFrameBrowser(t, b, "coding"), feedView = await pluginFrameBrowser(t, b, "feed");
+  await b.setViewport(1440, 900);
+  await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/projects/" + projectId + "/" }, b.sessionId));
+  const open = async (selector: string) => {
+    await b.waitFor(visible(selector), 15_000);
+    await b.click(selector);
+  };
+  const home = () => open('[data-dock-pin="home"]');
+  await open(homeRow("inbox_entry", entry.entry_id) + ' .mw-presentation__row-title');
+  await open('[data-home-peek] [data-presentation-action$=":peek-open"]');
+  await inbox.waitFor(`document.querySelector('[data-inbox-detail="${entry.entry_id}"]')?.hidden === false`);
+  await home();
+  await open(homeRow("source", source.source_id) + ' [data-presentation-action$=":open"]');
+  await sourceView.waitFor(`document.querySelector('[data-source-detail="${source.source_id}"]')?.hidden === false`);
+  assert.equal(await b.evaluate("document.querySelectorAll('[data-tab-id][data-plugin=sources]').length"), 0);
+  await home();
+  await open(homeRow("feed_item", material.item_id) + ' [data-presentation-action$=":open"]');
+  await feedView.waitFor(`document.querySelector('[data-feed-detail="${material.item_id}"][data-feed-detail-read=read]')`);
+  await home();
+  const sessions = async () => (await b.web.post<SurfaceHomeDisplay>("/projects/" + projectId + endpoint, {})).display.rows
+    .filter(row => row.subject.kind === "coding_session").map(row => row.subject.id);
+  const before = await sessions();
+  await open(homeCard("coding") + ' [data-home-control$=":start:0"]');
+  await coding.waitFor("document.querySelector('[data-coding-session][aria-current=true]') && !document.querySelector('[data-coding-task]').disabled");
+  const selected = await coding.evaluate<string>("document.querySelector('[data-coding-session][aria-current=true]').dataset.codingSession");
+  assert.deepEqual((await sessions()).filter(id => !before.includes(id)), [selected]);
+});
+
+test("WBR-21 QHR-01: a real background Home refresh keeps the current row, newer values win, and another project is isolated", { timeout: 90_000 }, async t => {
+  const b = await openGoalBrowser(t, "empty", undefined, null);
+  if (!b) return;
+  const first = await createProject(b.web, "Refresh source"), second = await createProject(b.web, "Another Home view");
+  const project = (id: string) => "/projects/" + id;
+  const go = (id: string) => b.navigate(() => b.command("Page.navigate", { url: b.origin + project(id) + "/" }, b.sessionId));
+  const add = (id: string, title: string) => b.web.post<{ goal: { goal_id: string } }>(project(id) + "/api/plugins/io.molis.work.goals/goals",
+    { title, idempotency_key: title });
+  const goal = (id: string) => homeRow("goal", id) + ' .mw-presentation__row-title';
+  await go(first.project_id);
+  const kept = (await add(first.project_id, "Keep the focused row")).goal.goal_id;
+  await go(first.project_id);
+  await b.waitFor(visible(goal(kept)));
+  await b.evaluate(`(() => {
+    const original = window.fetch, row = document.querySelector(${JSON.stringify(goal(kept))});
+    row.focus();
+    window.homeProbe = { row, requests: 0 };
+    const held = new Promise(resolve => { window.homeProbe.release = resolve; });
+    window.fetch = async (url, options) => {
+      const first = String(url).endsWith(${JSON.stringify(endpoint)}) && ++window.homeProbe.requests === 1;
+      const response = await original(url, options);
+      if (first) { window.homeProbe.signal = options.signal; window.homeProbe.first = await response.clone().json(); await held; }
       return response;
     };
-    document.addEventListener('pointerdown', event => {
-      if (event.target.closest('[data-home-offer]')) window.__homeClickProbe.pointers++;
-    }, true);
-    document.dispatchEvent(new Event('visibilitychange'));
+  })()`);
+  const announce = async () => {
+    const { observed_event_cursor: cursor } = await b.web.get<{ observed_event_cursor: number }>(project(first.project_id) + "/api/board/cursor");
+    await b.evaluate(`document.dispatchEvent(new CustomEvent("molis-work:attention", {detail:{board_cursor:${cursor}}}))`);
+  };
+  const early = (await add(first.project_id, "An earlier Home response")).goal.goal_id;
+  await announce();
+  await b.waitFor("!!window.homeProbe.first");
+  assert.equal(await b.evaluate(`homeProbe.first.display.rows.some(row=>row.subject.id===${JSON.stringify(early)})`), true);
+  assert.equal(await b.evaluate("homeProbe.row.isConnected && document.activeElement === homeProbe.row"), true);
+  const later = (await add(first.project_id, "A newer Home response")).goal.goal_id;
+  await announce();
+  try {
+    await b.waitFor(visible(goal(later)), 15_000);
+    assert.equal(await b.evaluate("homeProbe.signal.aborted"), true, "the superseded request was cancelled");
+    assert.equal(await b.evaluate("homeProbe.row.isConnected && document.activeElement === homeProbe.row"), true, "unchanged row stays put");
+  } finally { await b.evaluate("homeProbe.release()"); }
+  await b.evaluate("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
+  assert.equal(await b.evaluate(visible(goal(later))), true, "the older real reply did not replace the newer one");
+  await go(second.project_id);
+  await b.waitFor(visible(homeCard("goals")));
+  assert.equal(await b.evaluate("document.querySelectorAll('[data-home-row]').length"), 0);
+});
+
+test("SCS-11: a reply from the Home in an older focused split cannot open Goals in the other pane", { timeout: 90_000 }, async t => {
+  const b = await openGoalBrowser(t, "seeded", undefined, null);
+  if (!b) return;
+  const start = homeCard("goals") + ' [data-home-control$=":start:0"]';
+  const go = () => b.navigate(() => b.command("Page.navigate", { url: b.origin + "/projects/" + b.projectId + "/" }, b.sessionId));
+  await b.setViewport(1440, 960);
+  await go();
+  await b.click('[data-plugin-strip] [data-plugin-id="goals"]');
+  await b.click('[data-layout-open]');
+  await b.click('[data-layout-split="right"]');
+  await b.waitFor("document.querySelectorAll('[data-tab-pane]').length === 2");
+  await b.click('[data-dock-pin="home"]');
+  const frame = "document.querySelector('iframe[data-pane-key=\"plugin:home\"]:not([hidden])')";
+  await b.waitFor(`${frame}?.contentDocument?.querySelector(${JSON.stringify(start)})`);
+  const from = await b.evaluate<string>(`${frame}.dataset.paneOwner`);
+  const other = await b.evaluate<string>(`[...document.querySelectorAll('[data-tab-pane]')].find(pane=>pane.dataset.tabPane!==${JSON.stringify(from)}).dataset.tabPane`);
+  const otherTab = '[data-tab-pane="' + other + '"] [data-tab-id][data-plugin="goals"]';
+  await b.evaluate(`(() => {
+    const win=${frame}.contentWindow, previous=win.fetch;
+    const held=new Promise(resolve=>{window.releaseOldHomeClick=resolve});
+    win.fetch=async (url, options)=>{
+      const response=await previous(url, options);
+      if(String(url).endsWith(${JSON.stringify(endpoint + "/click")})){ window.oldHomeClick=await response.clone().json(); await held; }
+      return response;
+    };
+    win.document.querySelector(${JSON.stringify(start)}).click();
   })()`);
   try {
-    await waitFor(`document.querySelector(${JSON.stringify(done)})?.disabled`);
-    await assert.rejects(click(done), /Disabled click target/, "ASC-38: a blocked refresh never consumes a pointer click");
-    assert.deepEqual(await evaluate("window.__homeClickProbe"), { pointers: 0, executions: 0 });
-    assert.equal(feed.getInboxEntry(projectId, before.entry_id).status, before.status);
-    assert.equal(feed.getInboxEntry(projectId, before.entry_id).revision, before.revision);
-    // ASC-39: the same click call can wait for a short refresh; no business operation is retried.
-    await evaluate("setTimeout(() => window.__releaseHomeOffers(), 150)");
-    await click(done);
-    await waitFor(`!document.querySelector(${JSON.stringify(row)})`, 8_000);
-    assert.deepEqual(await evaluate("window.__homeClickProbe"), { pointers: 1, executions: 1 });
-    assert.equal(feed.getInboxEntry(projectId, before.entry_id).status, "done");
-    assert.equal(feed.getInboxEntry(projectId, before.entry_id).revision, before.revision + 1);
-  } finally { await evaluate("window.__releaseHomeOffers()"); }
+    await b.waitFor("window.oldHomeClick?.selection?.panel === 'create-dialog'");
+    await b.click(otherTab);
+    await b.waitFor(`document.querySelector('[data-tab-pane="${other}"]').classList.contains('is-focused')`);
+  } finally { await b.evaluate("releaseOldHomeClick()"); }
+  await b.evaluate("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
+  assert.equal(await b.evaluate(`${frame}?.dataset.paneOwner`), from, "the stale reply did not navigate its own Home pane either");
+  assert.equal(await b.evaluate("![document,...[...document.querySelectorAll('iframe[data-pane-tab]:not([hidden])')].map(frame=>frame.contentDocument)].some(doc=>doc?.querySelector('[data-create-dialog]')?.open)"), true);
 });
 
-test("Home shortcuts persist per project, open their destination, and preserve edits on failure", { timeout: 90_000 }, async t => {
-  const browser=await openGoalBrowser(t,"seeded");if(!browser)return;
-  const {command,sessionId,evaluate,waitFor,navigate,click,origin,projectId,reloadPage,store}=browser;
-  const before=boardSnapshot(store, projectId!);
-  await command("Emulation.setDeviceMetricsOverride",{width:1024,height:768,deviceScaleFactor:1,mobile:false},sessionId);
-  const url=origin+"/projects/"+projectId+"/";
-  const key="molis-work:home-shortcuts:"+projectId;
-  const saved=()=>evaluate<any[]>(`JSON.parse(localStorage.getItem(${JSON.stringify(key)})||'[]')`);
-  const fill=async(name:string,target:string)=>evaluate(`document.querySelector('[name=shortcut_name]').value=${JSON.stringify(name)};document.querySelector('[name=shortcut_url]').value=${JSON.stringify(target)}`);
-  await navigate(()=>command("Page.navigate",{url},sessionId));
-  await waitFor("document.body.dataset.desktopSurface === 'home'");
-  await waitFor("document.querySelector('.immersive-home [data-home-shortcut-add]').getBoundingClientRect().height>0");
-  assert.ok(await evaluate("Boolean(document.querySelector('.immersive-home [data-home-shortcut-add]'))"));
-  assert.equal(await evaluate("document.querySelector('[data-directory-shortcuts]')"),null);
-  assert.equal(await evaluate("document.querySelectorAll('[data-shortcut-id]').length"),0);
-  await click('[data-home-shortcut-add]');
-  await fill("取消的内容","https://example.com/");
-  await click('.home-shortcut-dialog footer [data-home-shortcut-cancel]');
-  assert.deepEqual(await saved(),[]);
-  await click('[data-home-shortcut-add]');
-  for(const invalid of ["javascript:alert(1)","file:///tmp/a","https://user:secret@example.com/","不是网址"]){
-    await fill("文档",invalid);await click('.home-shortcut-save');
-    assert.equal(await evaluate("document.querySelector('[data-home-shortcut-dialog]').open"),true);
-    assert.match(await evaluate<string>("document.querySelector('[data-home-shortcut-form-error]').textContent"),/http/);
-    assert.deepEqual(await saved(),[]);
-  }
-  const target=origin+"/health?shortcut=1#result";
-  await fill("项目文档",target);await click('.home-shortcut-save');
-  await waitFor("!document.querySelector('[data-home-shortcut-dialog]').open");
-  const first=await saved();assert.equal(first[0].name,"项目文档");assert.equal(first[0].url,target);
-  await reloadPage();await waitFor("document.querySelector('[data-home-shortcut-link]')");
-  assert.equal(await evaluate("document.querySelector('[data-home-shortcut-name]').textContent"),"项目文档");
-  await click('[data-plugin-strip] [data-plugin-id="goals"]');
-  await waitFor("document.body.dataset.desktopSurface === 'goals'");
-  assert.equal(await evaluate("document.querySelector('[data-directory-shortcuts]')"),null);
-  await click('[data-plugin-strip] [data-plugin-id="home"]');
-  await waitFor("document.body.dataset.desktopSurface === 'home'");
-  // Molis Work's own address opens here, never in a second browser tab (specs/artifact-positioning §4, S7).
-  await navigate(()=>click('[data-home-shortcut-link]'));
-  assert.equal(await evaluate("location.href"),target,"the shortcut opened its stored destination");
-  const targets=await command<{targetInfos:{url:string;openerId?:string}[]}>("Target.getTargets");
-  assert.equal(targets.targetInfos.filter(x=>x.openerId&&x.url===target).length,0,"no second tab for an address of Molis Work itself");
-  await navigate(()=>command("Page.navigate",{url},sessionId));
-  await waitFor("document.querySelector('[data-home-shortcut-link]')");
-  assert.equal(await evaluate("location.href"),url);
-  await click('[data-home-shortcut-edit]');await fill("<img src=x onerror=alert(1)>",target);
-  await evaluate("window.__save=Storage.prototype.setItem;Storage.prototype.setItem=function(k,v){if(k.startsWith('molis-work:home-shortcuts:'))throw new DOMException('blocked','QuotaExceededError');return window.__save.call(this,k,v)}");
-  await click('.home-shortcut-save');
-  assert.equal(await evaluate("document.querySelector('[data-home-shortcut-dialog]').open"),true);
-  assert.match(await evaluate<string>("document.querySelector('[data-home-shortcut-form-error]').textContent"),/未能保存/);
-  assert.deepEqual(await saved(),first);
-  assert.equal(await evaluate("document.querySelector('[name=shortcut_name]').value"),"<img src=x onerror=alert(1)>");
-  await evaluate("Storage.prototype.setItem=window.__save");await click('.home-shortcut-save');
-  assert.equal((await saved())[0].id,first[0].id);
-  assert.equal(await evaluate("document.querySelector('[data-home-shortcut-name]').textContent"),"<img src=x onerror=alert(1)>");
-  assert.equal(await evaluate("document.querySelector('[data-home-shortcut-name] img')"),null);
-  await reloadPage();await waitFor("document.querySelector('[data-home-shortcut-link]')");
-  await evaluate("window.__external=[];globalThis.molisWorkOpenExternalUrl=async url=>{window.__external.push(url);throw new Error('native open failed')}");
-  await click('[data-home-shortcut-link]');
-  await waitFor("!document.querySelector('[data-home-shortcut-error]').hidden");
-  assert.deepEqual(await evaluate("window.__external"),[target]);
-  await evaluate("globalThis.molisWorkOpenExternalUrl=async url=>window.__external.push(url)");
-  await click('[data-home-shortcut-link]');await waitFor("document.querySelector('[data-home-shortcut-error]').hidden");
-  const other=await evaluate<string>(`(async()=>{const r=await fetch('/api/settings/projects',{method:'POST',headers:globalThis.molisWorkControlHeaders(),body:JSON.stringify({display_name:'另一张书桌',user_confirmed:true})});if(!r.ok)throw new Error(await r.text());return(await r.json()).project.project_id})()`);
-  await navigate(()=>command("Page.navigate",{url:origin+"/projects/"+other+"/"},sessionId));
-  await waitFor("document.body.dataset.desktopSurface === 'home'");
-  assert.equal(await evaluate("document.querySelectorAll('[data-shortcut-id]').length"),0);
-  await navigate(()=>command("Page.navigate",{url},sessionId));await waitFor("document.querySelector('[data-home-shortcut-link]')");
-  await click('[data-home-shortcut-edit]');await click('[data-home-shortcut-remove]');
-  assert.deepEqual(await saved(),[]);await reloadPage();
-  assert.equal(await evaluate("document.querySelectorAll('[data-shortcut-id]').length"),0);
-  assert.deepEqual(boardSnapshot(store, projectId!).goals,before.goals);
-  assert.deepEqual(boardSnapshot(store, projectId!).runs,before.runs);
-});
-
-test("QHR-01 a background home refresh keeps the day and heading in place", { timeout: 45_000 }, async t => {
-  const browser = await openGoalBrowser(t, "seeded");
-  if (!browser) return;
-  const { command, sessionId, evaluate, waitFor, navigate, origin, projectId } = browser;
-  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
-  await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
-  await waitFor("document.body.dataset.desktopSurface === 'home'");
-  await waitFor("document.querySelectorAll('[data-home-day]').length === 7 && !document.querySelector('[data-home-hero]')?.textContent.includes('正在读取事项')");
-  await evaluate(`(() => {
-    const empty = [...document.querySelectorAll('[data-home-day]')].find((button) => button.querySelector('.home-day__dots') && !button.querySelector('.home-day__dots i'));
-    if (!empty) throw new Error('seeded home has no empty day to prove the loading sentence stays away');
-    empty.click();
-  })()`);
-  await waitFor("document.querySelector('.home-start') && !document.querySelector('.immersive-home .mw-loading')");
-  await evaluate(`(() => {
-    window.__qhr = {
-      day: document.querySelector('[data-home-day].is-on'),
-      title: document.querySelector('[data-home-hero] h1'),
-      start: document.querySelector('.home-start'),
-    };
-    const previous = window.fetch;
-    window.__releaseHomeReads = [];
-    window.fetch = (url, options) => {
-      if (String(url).includes('/api/home/events')) {
-        return new Promise((resolve, reject) => window.__releaseHomeReads.push(() => previous(url, options).then(resolve, reject)));
-      }
-      return previous(url, options);
-    };
-    document.dispatchEvent(new Event('visibilitychange'));
-  })()`);
-  await waitFor("window.__releaseHomeReads.length === 1");
-  assert.equal(await evaluate(`window.__qhr.day === document.querySelector('[data-home-day].is-on') && window.__qhr.title === document.querySelector('[data-home-hero] h1') && window.__qhr.start === document.querySelector('.home-start') && !document.querySelector('[data-home-hero]').textContent.includes('正在读取事项') && !document.querySelector('.immersive-home .mw-loading')`), true);
-  await evaluate(`window.__releaseHomeReads.shift()().then(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => { window.__qhr.settled = true; resolve(); }))))`);
-  assert.equal(await evaluate(`window.__qhr.settled === true && window.__qhr.day === document.querySelector('[data-home-day].is-on') && window.__qhr.title === document.querySelector('[data-home-hero] h1') && window.__qhr.start === document.querySelector('.home-start') && !document.querySelector('[data-home-hero]').textContent.includes('正在读取事项')`), true);
+test("WBR-21: the retired website shortcut entry does not delete its saved data", { timeout: 45_000 }, async t => {
+  const b = await openGoalBrowser(t, "seeded", undefined, null);
+  if (!b) return;
+  const key = "molis-work:home-shortcuts:" + b.projectId, saved = '[{"id":"website","name":"Existing link","url":"https://example.com/"}]';
+  await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/projects/" + b.projectId + "/" }, b.sessionId));
+  await b.evaluate(`localStorage.setItem(${JSON.stringify(key)},${JSON.stringify(saved)})`);
+  await b.reloadPage();
+  await b.waitFor(visible(homeCard("goals")));
+  assert.equal(await b.evaluate(`localStorage.getItem(${JSON.stringify(key)})`), saved);
+  assert.equal(await b.evaluate("document.querySelector('[data-home-shortcut-add], [data-home-shortcut-link], [data-home-day]') === null"), true);
 });

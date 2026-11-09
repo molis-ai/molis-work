@@ -277,11 +277,11 @@ bindActionHandler(read, (input, caller) => load(input.id, caller.project_id), { 
 
 每条事项包含稳定的 `event_id`、原对象 `subject: { kind, id }`、`occurred_at`、标题/摘要/正文、`facts` 二元字符串数组、`category`（`personal` 或 `organization`）和 `needs_attention`。`placement: occurred` 按发生日显示；`active` 把窗口外仍未处理的旧事项放到今天；`today` 始终放到今天。处理完成的记录应由提供方撤回。对象类型须在声明中列出，同一查询不能返回重复 `event_id`；Home 会再按提供方与查询能力隔离身份，避免不同插件互相覆盖。
 
-`open` 可为 `null`，或 `{ kind, surface, id, title, label }`。`item` 打开原对象，`group` 打开所属页面的分组，`surface` 打开页面且 `id` 必须为 `null`。目标必须是实际存在、由产品 UI 支持的页面或对象；它不表示执行业务操作，也不授予目标权限。Home 点击前通过 `home.events.open` 重新读取原查询，核对目标没有改变且提供方仍可访问。分组页面通过现有 DOM 事件 `workbench-open-group` 接收 `{ surface, id }`，由页面自己的控制器处理。
+`open` 可为 `null`，或 `{ kind, surface, id, title, label }`。`item` 打开原对象，`group` 打开所属页面的分组，`surface` 打开页面且 `id` 必须为 `null`。目标必须是实际存在、由产品 UI 支持的页面或对象；它不表示执行业务操作，也不授予目标权限。仍使用这份窗口结果的调用方可以用 `home.events.open` 核对原查询和目标。项目首页改用呈现声明、对象取值和概况，独立的事项窗口继续服务助理材料扫描等原调用方。
 
-事项、上下文和可执行动作是三种不同查询，按需求分别注册。提供事项不会自动生成上下文或写操作。Home 的 `home.events.read`、内部调用及 MCP 都使用同一目录、调用者和原始处理器；单个来源失败时只撤回该来源的事项并显示错误，停用或撤权后的下一次读取不会保留旧事项。插件内容更新在 Home 重新读取时反映；当前页面可见时每 30 秒查询一次，已接入的产品变更也会触发刷新。
+事项、上下文和可执行动作是三种不同查询，按需求分别注册。提供事项不会自动生成上下文或写操作。Home 的 `home.events.read`、内部调用及 MCP 都使用同一目录、调用者和原始处理器；单个来源失败时只撤回该来源的事项并返回错误说明，停用或撤权后的下一次读取不会保留旧事项。
 
-验证：[home-event-actions.test.ts](../../tests/home-event-actions.test.ts) 覆盖正式 Runtime、权限、导航变化和原业务记录；[home-events.e2e.test.ts](../../tests/home-events.e2e.test.ts) 覆盖未知插件在实际首页提供自己的事项、上下文和执行结果。
+验证：[home-event-actions.test.ts](../../tests/home-event-actions.test.ts) 覆盖正式 Runtime、权限、导航变化和原业务记录；[home-events.e2e.test.ts](../../tests/home-events.e2e.test.ts) 覆盖未知插件的真实事项和执行结果，并验证生产首页不再请求事项窗口。
 
 ### 首页判断的对象上下文
 

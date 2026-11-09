@@ -10,6 +10,7 @@ import { BOARD_EN } from "./board-en.js";
  * name the studio's package (the assembly gate counts the files that do).
  */
 export const STUDIO_EN: Record<string, string> = {
+  "原记录或表单已不可用": "This record or form is no longer available",
   "个人空间版本：下载签名包，在插件设置中导入并确认后使用。": "Personal-space version: download the signed package, then import and confirm it in plugin settings.",
   "签名包可导入其他空间；本项目原有安装保持不变。": "Import the signed package into another space. The existing installation in this project is preserved.",
   "安装到个人空间": "Install in personal space",

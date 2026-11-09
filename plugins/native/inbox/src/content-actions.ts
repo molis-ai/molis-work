@@ -18,7 +18,7 @@ export interface InboxItemBrief { item_id: string; title: string; source_label: 
 export interface InboxBriefs { items: ReadonlyMap<string, InboxItemBrief>; sources: ReadonlyMap<string, { source_id: string; name: string }> }
 
 /** The items and sources the open entries point at, asked of Feed once for all of them. */
-async function briefsOf(ports: InboxContentPorts, caller: ActionCallContext, entries: readonly ContentEntry[]): Promise<InboxBriefs> {
+export async function briefsOf(ports: InboxContentPorts, caller: ActionCallContext, entries: readonly ContentEntry[]): Promise<InboxBriefs> {
   const item_ids = [...new Set(entries.filter(entry => entry.subject_type === "feed_item").map(entry => entry.subject_id))];
   const source_ids = [...new Set(entries.filter(entry => entry.subject_type === "source_fault").map(entry => entry.subject_id))];
   return ports.briefs(caller, { item_ids, source_ids });
@@ -36,6 +36,13 @@ export interface InboxContentPorts {
   /** The item's entry, open and judged: Feed adds it, or reopens the one that was done or dismissed (`feed.items.admit`); who added it is Feed's reading of the caller. */
   admit(itemId: string, caller: ActionCallContext): Promise<{ entry_id: string }>;
 }
+export const inboxOrigin = (entry: ContentEntry): ActionSubject => ({
+  kind: entry.subject_type === "feed_item" ? "feed_item" : entry.subject_type === "goal_decision" ? "goal" : "source", id: entry.subject_id,
+});
+export const sameInboxEntry = (current: ContentEntry, previous: ContentEntry) => current.revision === previous.revision
+  && current.owner_plugin_id === previous.owner_plugin_id && current.subject_type === previous.subject_type
+  && current.subject_id === previous.subject_id && current.status === previous.status;
+
 export function createInboxContentHandlers(ports: InboxContentPorts) {
   return [createInboxHomeEventsHandler(ports, (caller, entries) => briefsOf(ports, caller, entries)), ...bindWorkflowContentHandlers(inboxContentActions, {
     list: async caller => {
@@ -82,10 +89,10 @@ export function createInboxContentHandlers(ports: InboxContentPorts) {
     const entry = ports.entry((input as { subject_id: string }).subject_id);
     if (entry.status !== "open" && entry.status !== "in_progress") throw new ActionError("actions.subject_unavailable", "此事项已处理，请回到原记录查看");
     if (!ports.readSubject) throw new ActionError("actions.service_unavailable", "对象上下文服务不可用");
-    const related = await ports.readSubject({ kind: entry.subject_type === "feed_item" ? "feed_item" : entry.subject_type === "goal_decision" ? "goal" : "source", id: entry.subject_id }, caller);
+    const related = await ports.readSubject(inboxOrigin(entry), caller);
     const current = ports.entry(entry.entry_id);
-    if (current.revision !== entry.revision || current.subject_id !== entry.subject_id || current.status !== entry.status) throw new ActionError("actions.subject_changed", "事项在读取期间已变化");
+    if (!sameInboxEntry(current, entry)) throw new ActionError("actions.subject_changed", "事项在读取期间已变化");
     return subjectContext({ subject: { kind: "inbox_entry", id: entry.entry_id }, revision: `${entry.revision}:${related.revision}`,
-      title: related.title, content: related.content, truncated: related.truncated, ...(related.goal_ids ? { goal_ids: related.goal_ids } : {}) });
+      title: related.title, content: related.content, truncated: related.truncated, open: { surface: "inbox", id: entry.entry_id }, ...(related.goal_ids ? { goal_ids: related.goal_ids } : {}) });
   } }];
 }

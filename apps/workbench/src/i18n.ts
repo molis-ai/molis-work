@@ -2,6 +2,7 @@
 import { fillMessage } from "@molis-ai/molis-work-plugin-sdk";
 import { EN } from "./i18n/en.js";
 import { BUILTIN_PLUGIN_CATALOG, pluginTabTitles } from "./plugin-catalog.js";
+import { pluginTextPack } from "./plugin-text.js";
 import { createPluginMessageStore } from "./plugin-messages.js";
 
 /** The words of the installed Plugins, from their Manifests: the built-in ones at start, the others as the Host installs them. */
@@ -138,7 +139,9 @@ function renderLocaleSwitch(nextPath: string): string {
 
 function catalogJson(locale: WebLocale): string {
   const messages = Object.fromEntries(Object.entries(pluginMessages.messages()).map(([key, text]) => [key, text[locale]]));
-  return JSON.stringify({ ...(locale === "en" ? EN : {}), ...messages }).replaceAll("<", "\\u003c");
+  const home = Object.fromEntries(Object.entries(pluginTextPack("workbench", locale)?.messages ?? {}).filter(([key]) =>
+    key.startsWith("common.presentation.") || key.startsWith("workbench.home.") || key === "common.text.unavailable"));
+  return JSON.stringify({ ...(locale === "en" ? EN : {}), ...messages, ...home }).replaceAll("<", "\\u003c");
 }
 
 /** Each Plugin's own English by its id, for the frame that draws that Plugin and nothing else (`ui.translations` are not page-wide). */
@@ -156,6 +159,7 @@ function clientI18nScript(): string {
   // The built-in plugins' tab titles in this page's language, read by the workbench scripts (one copy, not one per script).
   const titles = JSON.stringify(pluginTabTitles(currentLocale() === "en")).replaceAll("<", "\\u003c");
   return `globalThis.MOLIS_WORK_MESSAGES = ${catalog};
+  globalThis.MOLIS_WORK_MESSAGE_OWNERS = ${JSON.stringify(pluginMessages.owners()).replaceAll("<", "\\u003c")};
   globalThis.MOLIS_WORK_PLUGIN_TITLES = ${titles};
   globalThis.MOLIS_WORK_PLUGIN_WORDS = ${pluginWordsJson(currentLocale())};
   (fill => {

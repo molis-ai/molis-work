@@ -6,7 +6,7 @@ import { ActionError, defineSubjectContextAction, type ActionAvailability, type 
 import { definePresentationOverviewAction, definePresentationValuesAction, type PresentationObject, type PresentationOverview, type PresentationOverviewDeclaration, type PresentationValueItem, type PresentationValues, type PresentationValuesInput } from "@molis-ai/molis-work-contracts/platform/presentation";
 import { SURFACE_HOME_ORDER_LIMIT, type SurfaceDescription, type SurfaceRequest } from "@molis-ai/molis-work-contracts/services/surface-composition";
 import { compileActionSchema } from "@molis-ai/molis-work-kernel";
-import { SurfaceCompositionService, type SurfaceComposePorts, type SurfaceHomePlugin, type SurfaceHomePorts, type SurfacePlugin } from "@molis-ai/molis-work-service-surfaces";
+import { readSurfaceValues, startSurfaceRead, SurfaceCompositionService, type SurfaceComposePorts, type SurfaceHomePlugin, type SurfaceHomePorts, type SurfacePlugin } from "@molis-ai/molis-work-service-surfaces";
 
 const project = "project-a";
 const person = { actor_id: "local-person", project_id: project, audience: "user" } as const;
@@ -112,6 +112,31 @@ test("SCS-07 SCS-08 home is personal before reads and a supplied order only rank
     { code: "actions.input_invalid" });
   await assert.rejects(h.compose({ slot: { kind: "discussion" }, home_order: [b.plugin_id] }), { code: "actions.input_invalid" });
   assert.deepEqual(h.counts, { admission: 2, catalog: 2, directory: 2, corrections: 2, attention: 2, relations: 0 });
+});
+
+test("SCS-08: a dual owner's identical provider and action refs cannot mix Home and project field reads", async () => {
+  const personal = installation("shared", 0, { scope: "home" }), local = installation("shared", 0);
+  const owner = personal.plugin_id;
+  const view = (plugin: SurfacePlugin) => ownedView(plugin, definePresentationValuesAction("shared.values", 1, ["note"], "Values", [], plugin.scope), available, owner);
+  const home = view(personal), project = view(local);
+  const batch = [
+    { action: home, subject: subject("note", "personal-note"), fields: ["title"] },
+    { action: project, subject: subject("note", "project-note"), fields: ["title", "summary"] },
+    { action: project, subject: subject("note", "project-other"), fields: ["title"] },
+  ];
+  const calls: Array<{ scope: string; fields: string[]; ids: string[] }> = [];
+  const budget = startSurfaceRead(undefined);
+  try {
+    const results = await readSurfaceValues(batch, { values: async (action, input) => {
+      calls.push({ scope: action.action.scope, fields: [...input.fields], ids: input.subjects.map(object => object.id) });
+      return { items: input.subjects.map(object => ({ subject: object, revision: "1", state: "ok", values: { title: object.id } })) };
+    } }, budget, () => undefined);
+    assert.deepEqual(calls, [
+      { scope: "home", fields: ["title"], ids: ["personal-note"] },
+      { scope: "project", fields: ["summary", "title"], ids: ["project-note", "project-other"] },
+    ]);
+    assert.equal(results.size, 3);
+  } finally { budget.dispose(); }
 });
 
 test("SCS-08 SCS-11 SCS-12 SSC-18 cards preserve exact starts and restore routes, distinguish failed and disabled, and read a dual owner only if unique", async () => {

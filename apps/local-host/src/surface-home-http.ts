@@ -1,10 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { ActionError, bindActionClient, requireSynchronous, type ActionCallContext, type ActionClient, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, actionResultSubject, bindActionClient, requireSynchronous, type ActionCallContext, type ActionClient, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
-import type { UiViewSelection } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { PresentationValues, PresentationValuesInput } from "@molis-ai/molis-work-contracts/platform/presentation";
 import { surfaceCompositionActions, SURFACE_HOME_ORDER_LIMIT, SURFACES_PROVIDER_ID, type SurfaceHomeEnable, type SurfacePluginCard } from "@molis-ai/molis-work-contracts/services/surface-composition";
 import { actionErrorResponse, canonicalJsonText, isRecord } from "@molis-ai/molis-work-plugin-sdk";
-import { assertStageInstallation, installedStagePath, sameInstalledRelease } from "./installed-stage-identity.js";
+import { startSurfaceRead } from "@molis-ai/molis-work-service-surfaces";
+import { assertStageInstallation, sameInstalledRelease } from "./installed-stage-identity.js";
 import type { LocalHost } from "./local-host.js";
 import { openProjectPersonContext } from "./local-web-actions.js";
 import { pluginControlActions } from "./plugin-install-actions.js";
@@ -13,6 +14,8 @@ import { pluginPageRequest } from "./plugin-page-authority.js";
 import { pluginRouteControl } from "./plugin-route-control.js";
 import type { MolisWorkLocalHost, MolisWorkProjectRuntime } from "./project-host.js";
 import { surfaceHomeDirectory, type HomeDirectoryEntry, type SurfaceHomeCatalogReader } from "./surface-home-directory.js";
+import { homeReference as reference, ownerReader, projectHomeDisplay, projectHomePeek, type HomeReadSample } from "./surface-home-display.js";
+import { assertHomeDisplayReader, homeObjectClick, openHomeObject, stageNavigation } from "./surface-home-open.js";
 import { homeFormDiscovery } from "./surface-home-form-authority.js";
 import { withHomeSample } from "./surface-home-sample.js";
 import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
@@ -23,8 +26,7 @@ type Intent = { kind: "read"; home_order?: string[] } | { kind: "click"; owner: 
 
 const invalid = () => new ActionError("actions.input_invalid", "首页请求无效");
 const changed = () => new ActionError("actions.provider_changed", "原首页卡片已变化，请重新读取");
-const reference = (view: ActionView) => ({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id });
-
+const unknown = (cause: unknown) => new ActionError("actions.outcome_unknown", "操作已执行，但原首页或授权已变化，请检查结果", { cause });
 function homeIntent(body: Record<string, unknown>, click: boolean): Intent {
   if (!isRecord(body)) throw invalid();
   if (click) {
@@ -44,14 +46,6 @@ function originalTarget(card: SurfacePluginCard | undefined, target: Record<stri
   const accepted = [card?.open, ...card?.start ?? [], card?.enable].find(candidate => candidate && canonicalJsonText(candidate, "null") === key);
   if (!accepted) throw changed();
   return accepted;
-}
-
-function navigate(entry: HomeDirectoryEntry, target: Extract<Target, { kind: "stage" | "form" }>, prefix: string) {
-  const route = entry.route;
-  if (!route || route.view_id !== target.view_id) throw changed();
-  const selection: UiViewSelection = { surface: route.surface, id: route.view_id, intent: "open", ...(target.kind === "form" ? { panel: target.panel } : {}) };
-  return { kind: "stage", shell_key: route.shell, installation: entry.installation, selection,
-    ...(route.kind === "native" ? { producer: route.owner.producer } : { frame_path: installedStagePath(prefix, entry.plugin.plugin_id, entry.installation) }) };
 }
 
 function exactClickClient(client: ActionClient, caller: ActionCallContext, view: ActionView) {
@@ -84,9 +78,29 @@ async function enablePackage(client: ActionClient, caller: ActionCallContext, ru
   deliver({ kind: "enabled" });
 }
 
+function displayValues(sample: HomeReadSample, client: ActionClient, caller: ActionCallContext, transport: ReturnType<typeof pluginRouteControl>) {
+  const read = bindActionClient(client, () => ({ ...caller, query_only: true, read_only_effects: true }));
+  return (view: ActionView, input: PresentationValuesInput, signal: AbortSignal) => read.invoke<PresentationValuesInput, PresentationValues>(
+    { ...view, ...reference(view) }, input, { ...transport, signal, assert_authority_current: sample.assertCurrent });
+}
+
 async function clickHomeCard(intent: Extract<Intent, { kind: "click" }>, sample: Awaited<ReturnType<typeof composeHome>>,
   runtime: MolisWorkProjectRuntime, caller: ActionCallContext, client: ActionClient, prefix: string, transport: ReturnType<typeof pluginRouteControl>,
   deliver: (value: unknown) => void) {
+  const object = homeObjectClick(intent.target, intent.owner, sample);
+  if (object) {
+    if (object.item) assertHomeDisplayReader(sample, object.entry, object.item);
+    if (object.kind === "peek" && object.item) {
+      const row = await projectHomePeek(sample, object.item, transport.signal!, displayValues(sample, client, caller, transport));
+      sample.assertCurrent();
+      return deliver({ kind: "peek", row });
+    }
+    const reader = ownerReader(sample, object.entry, object.subject);
+    if (!reader) throw changed();
+    const opened = await openHomeObject(sample, object.entry, reader, object.subject, client, caller, transport, prefix);
+    sample.assertCurrent();
+    return deliver(opened);
+  }
   const group = sample.description.groups.find(item => item.kind === "plugin" && item.owner_plugin_id === intent.owner);
   const target = originalTarget(group?.plugin_card, intent.target);
   const entry = sample.catalog.entries.find(item => item.plugin.plugin_id === intent.owner && target.installation.scope === item.installation.scope
@@ -95,7 +109,7 @@ async function clickHomeCard(intent: Extract<Intent, { kind: "click" }>, sample:
   const assertCurrent = () => { requireSynchronous(transport.assert_authority_current?.()); sample.assertCurrent(); };
   assertCurrent();
   if (target.kind === "home_plugin_settings") return deliver({ kind: "settings", section: "plugins" });
-  if (target.kind === "stage") return deliver(navigate(entry, target, prefix));
+  if (target.kind === "stage") return deliver(stageNavigation(entry, target, prefix));
   const action = target.action;
   const view = [...sample.views].find(item => item.capability_id + "@" + item.version === action.ref && item.provider.provider_id === action.provider_id);
   if (!view) throw changed();
@@ -106,22 +120,41 @@ async function clickHomeCard(intent: Extract<Intent, { kind: "click" }>, sample:
   if (target.kind === "project_membership") throw changed();
   assertStageInstallation(entry.installation.scope, entry.record, target.installation);
   if (view.provider.plugin_id !== intent.owner || view.provider.plugin_install_id !== entry.installation.install_id || view.action.scope !== entry.installation.scope) throw changed();
-  if (target.kind === "form") return deliver(navigate(entry, target, prefix));
+  if (target.kind === "form") return deliver(stageNavigation(entry, target, prefix));
   const result = await exactClickClient(client, caller, view).invoke({ ...view, ...reference(view) }, {}, {
     ...transport, assert_authority_current: assertCurrent, async beforeEffect() { await transport.beforeEffect(); assertCurrent(); },
   });
   try { assertCurrent(); }
   catch (error) {
     if (view.operation !== "command") throw error;
-    throw new ActionError("actions.outcome_unknown", "操作已执行，但原首页或授权已变化，请检查结果", { cause: error });
+    throw unknown(error);
   }
-  deliver({ kind: "invoked", result });
+  const created = view.action.result_subject ? actionResultSubject(view.action, {}, result) : null;
+  if (!created) return deliver({ kind: "invoked", result });
+  const retry_open = { kind: "open_result", subject: created.subject, installation: entry.installation };
+  const reader = ownerReader(sample, entry, created.subject);
+  let stage;
+  try {
+    if (reader) {
+      const opened = await openHomeObject(sample, entry, reader, created.subject, client, caller, transport, prefix);
+      sample.assertCurrent();
+      stage = opened;
+    }
+  } catch {
+    // The command returned its result. A changed reader cannot roll it back or justify calling the command again.
+    try {
+      requireSynchronous(transport.assert_authority_current?.());
+      requireSynchronous(caller.assert_authority_current?.(reference(view), view.action.permissions));
+      sample.catalog.assertCurrent();
+    } catch (error) { throw unknown(error); }
+  }
+  deliver({ kind: "invoked", result, ...(stage ? { stage } : {}), retry_open });
 }
 
 function composeHome(runtime: MolisWorkProjectRuntime, client: ActionClient, discovery: ReturnType<typeof homeFormDiscovery>, catalog: ReturnType<typeof surfaceHomeDirectory>,
-  transport: ReturnType<typeof pluginRouteControl>, intent: Intent) {
+  transport: ReturnType<typeof pluginRouteControl>, intent: Intent, deadline: HomeReadSample["deadline"]) {
   const home_order = intent.kind === "read" ? intent.home_order : undefined;
-  return withHomeSample(runtime.store, catalog, discovery.formOnly, () => bindActionClient(client, () => discovery.caller).invoke({ ...surfaceCompositionActions.compose, provider_id: SURFACES_PROVIDER_ID },
+  return withHomeSample(runtime.store, catalog, discovery.formOnly, deadline, () => bindActionClient(client, () => discovery.caller).invoke({ ...surfaceCompositionActions.compose, provider_id: SURFACES_PROVIDER_ID },
     { slot: { kind: "home" }, ...(home_order ? { home_order } : {}) }, transport));
 }
 
@@ -138,11 +171,18 @@ export function projectSurfaceHome(host: LocalHost<MolisWorkProjectRuntime>, own
       const { caller, metadata } = openProjectPersonContext(owner, reference, runtime.store, signal);
       const discovery = homeFormDiscovery(caller, metadata, catalog.entries);
       const client = host.actionClient(reference);
-      const sample = await composeHome(runtime, client, discovery, catalog, transport, intent);
-      requireSynchronous(transport.assert_authority_current?.());
-      if (intent.kind === "read") { sample.assertCurrent(); deliver(sample.description); }
-      else await clickHomeCard(intent, sample, runtime, caller, client, prefix, transport, deliver);
-      return true;
+      const deadline = intent.kind === "read" || intent.target.kind === "peek" ? startSurfaceRead(signal) : undefined;
+      try {
+        const sample = await composeHome(runtime, client, discovery, catalog, transport, intent, deadline);
+        requireSynchronous(transport.assert_authority_current?.());
+        const deliverCurrent = (result: unknown) => { requireSynchronous(transport.assert_authority_current?.()); deliver(result); };
+        if (intent.kind === "read") {
+          const display = await projectHomeDisplay(sample, signal, displayValues(sample, client, caller, transport));
+          sample.assertCurrent();
+          deliverCurrent(display);
+        } else await clickHomeCard(intent, sample, runtime, caller, client, prefix, transport, deliverCurrent);
+        return true;
+      } finally { deadline?.dispose(); }
     });
   };
 }

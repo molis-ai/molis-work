@@ -15,23 +15,24 @@ const captures = reviewEvidenceUrl("home-offer-actions/");
 
 test("RAC-214: Home renders and executes unknown plugin offers and Inbox status without restoring the retired Talk entry", { timeout: 120_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded", undefined, null); if (!browser) return;
-  const { localHost, store, projectId, command, sessionId, evaluate, waitFor, click, navigate, origin, reloadPage } = browser;
+  const { localHost, store, projectId, command, sessionId, evaluate, waitFor, click, navigate, origin, reloadPage, web } = browser;
   assert.ok(localHost); assert.ok(projectId);
   const reference = molisWorkHostProjectReference({ databasePath: browser.databasePath, projectId });
   const feed = createLocalFeedApplication(store.db);
   const source = createLocalFeedSourceService(store.db, projectId).register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "offers-browser" }).source;
   const item = feed.ingestItem({ source, externalId: "unknown-offer", title: "新插件可以处理的材料", summary: "检查插件自己的真实结果", body: "未核查的原始材料", occurredAt: new Date().toISOString(), attention: false }).item;
+  const taggedEntry = feed.ensureInboxEntryForFeedItem(projectId, item.item_id, "manual").entry;
   const inboxItem = feed.ingestItem({ source, externalId: "inbox-offer", title: "完成这条 Inbox 事项", summary: "更新原始 Inbox 状态", body: "Inbox 正文", occurredAt: new Date().toISOString(), attention: false }).item;
   const entry = feed.ensureInboxEntryForFeedItem(projectId, inboxItem.item_id, "manual").entry;
   await feed.flushPendingJudgments();
   store.db.exec("CREATE TABLE fixture_home_tags (id TEXT PRIMARY KEY, tag TEXT NOT NULL, revision INTEGER NOT NULL)");
   store.db.prepare("INSERT INTO fixture_home_tags VALUES (?, '', 1)").run(item.item_id);
   const read = () => store.db.prepare("SELECT tag, revision FROM fixture_home_tags WHERE id = ?").get(item.item_id) as { tag: string; revision: number };
-  const offers = defineSubjectOffersAction("unknown.browser.offers", 1, ["feed_item"], "材料标记", ["fixture:read"], [
+  const offers = defineSubjectOffersAction("unknown.browser.offers", 1, ["inbox_entry"], "材料标记", ["fixture:read"], [
     { offer_id: "unknown.mark-review", title: "标记待核查", action: { capability_id: "unknown.browser.tag", version: 1 } },
   ]);
   const write: ActionDefinition = { capability_id: "unknown.browser.tag", version: 1, operation: "command", action: {
-    title: "标记材料", description: "更新本插件的实际标记", kind: "operation", scope: "project", audiences: ["user"], permissions: ["fixture:write"], subject_kinds: ["feed_item"],
+    title: "标记材料", description: "更新本插件的实际标记", kind: "operation", scope: "project", audiences: ["user"], permissions: ["fixture:write"], subject_kinds: ["inbox_entry"],
     input_schema: { type: "object", properties: { id: { type: "string" }, revision: { type: "integer" }, tag: { type: "string" }, request_id: { type: "string" } }, required: ["id", "revision", "tag", "request_id"], additionalProperties: false },
     output_schema: { type: "object", properties: { tag: { type: "string" }, revision: { type: "integer" } }, required: ["tag", "revision"] } } };
   let writes = 0;
@@ -43,7 +44,7 @@ test("RAC-214: Home renders and executes unknown plugin offers and Inbox status 
     async start() { return { kind: "app", actions: [{ ...offers, handle: async (_caller, value) => {
       await offersReady;
       const input = value as SubjectOffersInput;
-      if (input.subject.id !== item.item_id || read().tag) return { offers: [] };
+      if (input.subject.id !== taggedEntry.entry_id || read().tag) return { offers: [] };
       return { offers: [{ offer_id: "unknown.mark-review", title: "标记待核查", action: { capability_id: write.capability_id, version: 1 }, input: { id: item.item_id, revision: read().revision, tag: "needs-review", request_id: input.request_id } }] };
     } }, { ...write, handle: (caller, value) => {
       assert.equal(caller.actor_id, "web-user"); assert.equal(caller.project_id, projectId);
@@ -54,7 +55,7 @@ test("RAC-214: Home renders and executes unknown plugin offers and Inbox status 
   const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry: localHost.actionRegistry(reference), project_id: projectId } });
   const installed = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: ["fixture:read", "fixture:write"] }).install;
   await runtime.start(installed.install_id);
-  // Feed offers its own item actions beside the unknown plugin's; the checks name the plugin's offer instead of taking the first button.
+  // The original Inbox offers and another provider's offer use the same Peek and the same execution gateway.
   const TAG = "[...document.querySelectorAll('[data-home-offer]')].find(button => button.textContent === '标记待核查')";
   const clickTag = async () => click(`[data-home-offer="${await evaluate<string>(`${TAG}.dataset.homeOffer`)}"]`);
   const capture = async (name: string) => { const shot = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId); await writeFile(new URL(name + ".png", captures), Buffer.from(shot.data, "base64")); };
@@ -65,7 +66,7 @@ test("RAC-214: Home renders and executes unknown plugin offers and Inbox status 
     const choiceKey = subjectOfferChoiceKey({ ...offers, provider_id: installed.install_id }, offers.action.subject_offer_choices![0]!);
     const draft = withFunctionsService(browser.homeDirectory, service => {
       const created = service.createChoice({ name: "材料核查规则", function_key: "browser_offer_rule" });
-      return service.updateDraft(created.id, { instructions: "保留原条件", scene_id: "home.dock", subject_kinds: ["feed_item"],
+      return service.updateDraft(created.id, { instructions: "保留原条件", scene_id: "home.dock", subject_kinds: ["inbox_entry"],
         criteria: [{ key: "yes", description: "需要核查" }, { key: "no", description: "稍后核查" }], scene_map: { yes: choiceKey, no: choiceKey } }, service.get(created.id).updated_at);
     });
     await navigate(() => command("Page.navigate", { url: origin + "/capabilities/rules?project=" + projectId + "&rule=" + draft.id }, sessionId));
@@ -87,24 +88,47 @@ test("RAC-214: Home renders and executes unknown plugin offers and Inbox status 
     await runtime.start(installed.install_id);
     await command("Page.addScriptToEvaluateOnNewDocument", { source: "window.__homeRequests=[]; const originalFetch=window.fetch; window.fetch=(url,options)=>{window.__homeRequests.push(String(url));return originalFetch(url,options)}" }, sessionId);
     await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
-    await waitFor(`!!document.querySelector('[data-home-subject-kind="feed_item"][data-home-subject-id="${item.item_id}"]')`);
-    await click(`[data-home-subject-kind="feed_item"][data-home-subject-id="${item.item_id}"]`);
+    await waitFor(`!!document.querySelector('[data-home-subject-kind="inbox_entry"][data-home-subject-id="${taggedEntry.entry_id}"] .mw-presentation__row-title')`);
+    await click(`[data-home-subject-kind="inbox_entry"][data-home-subject-id="${taggedEntry.entry_id}"] .mw-presentation__row-title`);
     await waitFor("document.querySelector('[data-home-offers]')?.textContent.includes('正在查找')");
     assert.equal(await evaluate("!!document.querySelector('[data-home-open-talk]')"), false, "The retired Talk entry stays absent while offers load");
     releaseOffers();
     await waitFor(`!!${TAG} && !${TAG}.disabled`);
-    assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-home-offer]')].map(button => button.textContent)"), ["加入 Inbox", "保存为资料", "升格为 Goal", "忽略", "标记待核查"]);
+    assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-home-offer]')].map(button => button.textContent)"), ["做完了", "忽略", "整理成文稿", "标记待核查"]);
     assert.equal(await evaluate("!!document.querySelector('[data-home-open-talk]')"), false, "Loaded offers must not restore the retired Talk entry");
     await capture("desktop-unknown-action");
+    // ASC-38/39: hold an actual refresh response while the real prepared offer is disabled.
+    await evaluate(`(() => {
+      const original=window.fetch;
+      const held=new Promise(resolve=>{window.releaseOfferRefresh=resolve});
+      window.offerExecutes=0;
+      window.fetch=async (url, options)=>{
+        if(String(url).endsWith('/api/home/actions/execute'))window.offerExecutes++;
+        const response=await original(url, options);
+        if(String(url).endsWith('/api/home/actions/prepare'))await held;
+        return response;
+      };
+    })()`);
+    const projectPath = "/projects/" + projectId;
+    await web.post(projectPath + "/api/plugins/io.molis.work.goals/goals", { title: "Refresh Home while an offer is prepared", idempotency_key: "refresh-home-offer" });
+    const { observed_event_cursor: cursor } = await web.get<{ observed_event_cursor: number }>(projectPath + "/api/board/cursor");
+    await evaluate(`document.dispatchEvent(new CustomEvent("molis-work:attention", {detail:{board_cursor:${cursor}}}))`);
+    try {
+      await waitFor(`${TAG}?.disabled`);
+      await assert.rejects(clickTag(), /Disabled click target/);
+      assert.equal(await evaluate("offerExecutes"), 0);
+      assert.equal(writes, 0);
+    } finally { await evaluate("releaseOfferRefresh()"); }
+    await waitFor(`${TAG} && !${TAG}.disabled`);
     await clickTag();
     try { await waitFor(`!!document.querySelector('.home-offers-result') && !${TAG}`); }
     catch { throw new Error(JSON.stringify({ writes, data: read(), ui: await evaluate("document.querySelector('[data-home-offers]')?.textContent"), requests: await evaluate("window.__homeRequests.filter(p=>p.includes('/api/home/actions/'))") })); }
     assert.equal(writes, 1); assert.deepEqual(read(), { tag: "needs-review", revision: 2 });
     await click('.home-offers-result summary'); await capture("desktop-real-result");
-    await click('[data-home-close-event]');
+    await click('[data-home-close]');
     await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
     await command("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 }, sessionId);
-    await click(`[data-home-subject-kind="inbox_entry"][data-home-subject-id="${entry.entry_id}"]`);
+    await click(`[data-home-subject-kind="inbox_entry"][data-home-subject-id="${entry.entry_id}"] .mw-presentation__row-title`);
     await waitFor("document.querySelectorAll('[data-home-offer]').length===3 && !document.querySelector('[data-home-offer]').disabled");
     assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-home-offer]')].map(e=>e.textContent)"), ["做完了", "忽略", "整理成文稿"]);
     // Inbox's own drafting offer is listed with the real reason it cannot run here (this fixture has no text model). Pages asks the
@@ -115,7 +139,7 @@ test("RAC-214: Home renders and executes unknown plugin offers and Inbox status 
     assert.equal(await evaluate("[...document.querySelectorAll('[data-home-offer]')].every(button=>button.getBoundingClientRect().height>=44)"), true);
     await capture("mobile-inbox-actions");
     await click('[data-home-offer="0"]');
-    await waitFor(`!document.querySelector('[data-home-subject-kind="inbox_entry"][data-home-subject-id="${entry.entry_id}"]') && document.querySelector('[data-work-surface="home"]')?.dataset.event === 'off'`);
+    await waitFor(`!document.querySelector('[data-home-subject-kind="inbox_entry"][data-home-subject-id="${entry.entry_id}"]') && !document.querySelector('[data-home-peek]').open`);
     assert.equal(feed.getInboxEntry(projectId, entry.entry_id).status, "done");
     assert.equal(feed.getInboxEntry(projectId, entry.entry_id).revision, entry.revision + 1);
     const requests = await evaluate<string[]>("window.__homeRequests");
@@ -126,8 +150,8 @@ test("RAC-214: Home renders and executes unknown plugin offers and Inbox status 
     // The owner makes this material actionable again. Lose the next response after the real write.
     store.db.prepare("UPDATE fixture_home_tags SET tag = '', revision = revision + 1 WHERE id = ?").run(item.item_id);
     await reloadPage();
-    await waitFor(`!!document.querySelector('[data-home-subject-kind="feed_item"][data-home-subject-id="${item.item_id}"]')`);
-    await click(`[data-home-subject-kind="feed_item"][data-home-subject-id="${item.item_id}"]`);
+    await waitFor(`!!document.querySelector('[data-home-subject-kind="inbox_entry"][data-home-subject-id="${taggedEntry.entry_id}"] .mw-presentation__row-title')`);
+    await click(`[data-home-subject-kind="inbox_entry"][data-home-subject-id="${taggedEntry.entry_id}"] .mw-presentation__row-title`);
     await waitFor(`!!${TAG} && !${TAG}.disabled`);
     await evaluate("(()=>{const previous=window.fetch;window.fetch=async(url,options)=>{const response=await previous(url,options);if(String(url).endsWith('/api/home/actions/execute'))throw new TypeError('fixture response lost');return response;}})()");
     await clickTag();
@@ -137,8 +161,8 @@ test("RAC-214: Home renders and executes unknown plugin offers and Inbox status 
     await capture("mobile-response-unknown");
     await runtime.stop(installed.install_id);
     await reloadPage();
-    await waitFor(`!!document.querySelector('[data-home-subject-kind="feed_item"][data-home-subject-id="${item.item_id}"]')`);
-    await click(`[data-home-subject-kind="feed_item"][data-home-subject-id="${item.item_id}"]`);
+    await waitFor(`!!document.querySelector('[data-home-subject-kind="inbox_entry"][data-home-subject-id="${taggedEntry.entry_id}"] .mw-presentation__row-title')`);
+    await click(`[data-home-subject-kind="inbox_entry"][data-home-subject-id="${taggedEntry.entry_id}"] .mw-presentation__row-title`);
     await waitFor("document.querySelector('[data-home-offers]')?.textContent.includes('执行结果尚未确认') && !document.querySelector('[data-home-offers]').textContent.includes('正在查找')");
     assert.equal(writes, 2, "stopping the provider never converts uncertainty into a retry");
     await runtime.start(installed.install_id);
@@ -147,40 +171,4 @@ test("RAC-214: Home renders and executes unknown plugin offers and Inbox status 
     assert.equal(writes, 2, "the owner confirms the old offer no longer applies without resubmitting it");
     assert.equal(await evaluate("Object.keys(sessionStorage).some(key=>key.startsWith('molis.home-action:'))"), false);
   } finally { releaseOffers(); await runtime.stop(installed.install_id); }
-});
-
-test("RAC-2439: the Home next-step panel explains automatic judgment when it has no result", { timeout: 120_000 }, async t => {
-  const browser = await openGoalBrowser(t, "seeded", undefined, null); if (!browser) return;
-  const { localHost, store, projectId, command, sessionId, evaluate, waitFor, click, navigate, origin, reloadPage } = browser;
-  assert.ok(localHost); assert.ok(projectId);
-  const feed = createLocalFeedApplication(store.db);
-  const source = createLocalFeedSourceService(store.db, projectId).register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "rac-2439" }).source;
-  const item = feed.ingestItem({ source, externalId: "rac-2439-item", title: "没有自动判断结果的材料", summary: "首页下一步的空状态", body: "检查自动判断的说明", occurredAt: new Date().toISOString(), attention: false }).item;
-  await feed.flushPendingJudgments();
-  const row = `[data-home-subject-kind="feed_item"][data-home-subject-id="${item.item_id}"]`;
-  const chinese = "自动判断只看 Feed 已被授予的动作，需要更多请到权限里授予或手动判断";
-  const english = "Automatic judgment only considers the actions Feed has been granted; grant more in permissions or judge manually if you need them.";
-  const panel = () => evaluate<string>("document.querySelector('[data-home-offers]')?.textContent || ''");
-  const openEvent = async () => {
-    await waitFor(`!!document.querySelector(${JSON.stringify(row)})`, 12000);
-    await click(row);
-    await waitFor("!!document.querySelector('[data-home-offer]')", 12000);
-  };
-  await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
-  await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
-  await openEvent();
-  assert.ok((await panel()).includes(chinese), "without an automatic judgment result the panel says what automatic judgment sees");
-  await command("Network.setCookie", { name: "molis_work_locale", value: "en", url: origin }, sessionId);
-  await reloadPage();
-  await openEvent();
-  assert.ok((await panel()).includes(english), "the same sentence is shown in English");
-  assert.equal((await panel()).includes(chinese), false, "the Chinese sentence is translated on the English page");
-  // A result: the events response carries a suggestion for the Feed event, so the panel has an automatic judgment result.
-  const suggestion = "offer." + "0".repeat(58);
-  await command("Page.addScriptToEvaluateOnNewDocument", { source: "(function(){var previous=window.fetch;window.fetch=async function(url,options){var response=await previous(url,options);if(!String(url).endsWith('/api/home/events'))return response;var data=await response.clone().json();data.events=(data.events||[]).map(function(event){return Object.assign({},event,{suggested_behavior_ids:event.subject&&event.subject.kind==='feed_item'?['" + suggestion + "']:event.suggested_behavior_ids})});return new Response(JSON.stringify(data),{status:response.status,headers:new Headers(response.headers)})}})()" }, sessionId);
-  await reloadPage();
-  await openEvent();
-  assert.equal((await panel()).includes(english), false, "with an automatic judgment result the panel does not show the sentence");
-  assert.equal((await panel()).includes(chinese), false);
-  assert.equal(await evaluate("document.querySelectorAll('[data-home-offer]').length > 0"), true, "the result's offers are still listed");
 });

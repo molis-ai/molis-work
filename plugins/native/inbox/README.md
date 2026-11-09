@@ -84,4 +84,6 @@ node --import tsx --test tests/inbox-native-plugin.test.ts tests/inbox-plugin.te
 - [Inbox / Feed 拆插件需求](../../../specs/archive/inbox-feed-plugin-split/spec.md)
 
 
-`inbox.home.events` 从原注意力记录提供首页事项，只返回 open/in_progress；旧的未处理记录可放到今天，完成或忽略后撤回。正文和目标关联通过共同对象查询读取，读取期间原记录版本变化则不返回旧投影；相关对象不可读时保留原注意力记录与明确提示，不伪造正文。返回的对象、来源分组导航由 `home.events.open` 在点击时重新核对。完成/忽略仍经 `inbox.actions.prepare` 提供原状态动作，使用同一条记录与版本检查。
+项目首页按本项目 Inbox 的原记录挑选五条可读待处理事项。只借 Feed 和 Goals 的公开读取权限显示原件标题及来源，等待后核对事项的 revision、状态和关联原件；有原判断记录时才显示建议。打开回到 Inbox 的实际条目，处理仍走原 contextual 准备、确认及状态动作。
+
+`inbox.home.events` 保留给仍消费事项窗口的调用方，继续从原注意力记录提供事项。完成或忽略后撤回，正文和目标关联仍走共同对象查询。

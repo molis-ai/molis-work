@@ -166,12 +166,12 @@ test("a listener on a page prefix that nothing registers fails: a typo hears not
   for (const listen of [
     'window.addEventListener("molis:placement-reslt", () => {});',
     "document.addEventListener?.('molis:side-shwn', () => {});",
-    'surface.removeEventListener("workbench-open-grup", handler);',
+    'surface.removeEventListener("molis:surface-landing-flsh", handler);',
     'lifetime.listen(window, "molis-work:goal-chaged", () => {});',
     "lifetime.listen(frame.contentWindow,'molis-shelf-refrsh',e=>{});",
     'window.addEventListener<any>("molis:brand-neww", () => {});',
     "document.addEventListener<CustomEvent<{ id: string }>>('molis:placement-reslt', (event) => {});",
-    "surface.removeEventListener <Handler> (\"workbench-open-grup\", handler);",
+    "surface.removeEventListener <Handler> (\"molis:surface-landing-flsh\", handler);",
     'window.addEventListener?.<Event>("molis:side-shwn", handler);',
     'lifetime.listen<CustomEvent<Detail>>(window, "molis-work:goal-chaged", () => {});',
     "lifetime.listen<Event>(frame.contentWindow,'molis-shelf-refrsh',e=>{});",
@@ -184,9 +184,9 @@ test("a listener on a page prefix that nothing registers fails: a typo hears not
     'window.addEventListener("click", () => {});',
     'window.addEventListener("molis:placement-result", () => {});',
     'lifetime.listen(window, "storage", () => {});',
-    'document.addEventListener("workbench-open-group", () => {});',
+    'document.addEventListener("molis:surface-landing-flash", () => {});',
     'window.addEventListener<any>("molis:placement-result", () => {});',
-    "document.addEventListener<CustomEvent<{ id: string }>>('workbench-open-group', (event) => {});",
+    "document.addEventListener<CustomEvent<{ id: string }>>('molis:surface-landing-flash', (event) => {});",
     'lifetime.listen<CustomEvent<Detail>>(window, "molis-work:goal-changed", () => {});',
     'lifetime.listen<Event>(window, "storage", () => {});',
     'window.addEventListener<"click">("click", () => {});',
@@ -263,32 +263,32 @@ test("an owner's files exist, and an owner without events is deleted", () => {
 });
 
 test("the registry itself is held to its shape: order, names, prefixes, fields", () => {
-  const twice = domEventProblems(withRegistry('    name: "workbench-open-group"', '    name: "molis-work:select-item"'));
+  const twice = domEventProblems(withRegistry('    name: "molis:surface-landing-flash"', '    name: "molis-work:select-item"'));
   assert.ok(twice.some((problem) => /"molis-work:select-item" is listed twice/.test(problem)), twice.join("\n"));
   const order = domEventProblems(withRegistry(/name: "molis-shelf-notice"/, 'name: "molis-shelf-zeta"'));
   assert.ok(order.some((problem) => /"molis-shelf-refresh" is out of name order \(after "molis-shelf-zeta"\)/.test(problem)), order.join("\n"));
-  const prefix = domEventProblems(withRegistry('    name: "workbench-open-group"', '    name: "pane-open-group"'));
+  const prefix = domEventProblems(withRegistry('    name: "molis:surface-landing-flash"', '    name: "pane-open-group"'));
   assert.ok(prefix.some((problem) => /"pane-open-group" starts with none of DOM_EVENT_PREFIXES/.test(problem)), prefix.join("\n"));
-  const unusedPrefix = domEventProblems(withRegistry('"workbench-"] as const', '"workbench-", "legacy-"] as const'));
+  const unusedPrefix = domEventProblems(withRegistry('"molis:"] as const', '"molis:", "legacy-"] as const'));
   assert.ok(unusedPrefix.some((problem) => /the prefix "legacy-" is used by no event/.test(problem)), unusedPrefix.join("\n"));
-  const field = domEventProblems(withRegistry('    name: "workbench-open-group", kind: "request"', '    name: "workbench-open-group", kind: "request", note: "x"'));
-  assert.ok(field.some((problem) => /"workbench-open-group" has the unknown field "note"/.test(problem)), field.join("\n"));
-  const kind = domEventProblems(withRegistry('name: "workbench-open-group", kind: "request"', 'name: "workbench-open-group", kind: "command"'));
-  assert.ok(kind.some((problem) => /"workbench-open-group" has kind "command"/.test(problem)), kind.join("\n"));
+  const field = domEventProblems(withRegistry('    name: "molis:surface-landing-flash", kind: "request"', '    name: "molis:surface-landing-flash", kind: "request", note: "x"'));
+  assert.ok(field.some((problem) => /"molis:surface-landing-flash" has the unknown field "note"/.test(problem)), field.join("\n"));
+  const kind = domEventProblems(withRegistry('name: "molis:surface-landing-flash", kind: "request"', 'name: "molis:surface-landing-flash", kind: "command"'));
+  assert.ok(kind.some((problem) => /"molis:surface-landing-flash" has kind "command"/.test(problem)), kind.join("\n"));
   const target = domEventProblems(withRegistry('name: "molis:side-toggle", kind: "request", owner: "side-panel", on: "document"', 'name: "molis:side-toggle", kind: "request", owner: "side-panel", on: "page"'));
   assert.ok(target.some((problem) => /"molis:side-toggle" has on "page"/.test(problem)), target.join("\n"));
   const flag = domEventProblems(withRegistry('on: "document", cancelable: true', 'on: "document", cancelable: false'));
   assert.ok(flag.some((problem) => /has cancelable: false; leave it out or write true/.test(problem)), flag.join("\n"));
-  const nobody = domEventProblems(withRegistry('name: "workbench-open-group", kind: "request", owner: "tab-workspace"', 'name: "workbench-open-group", kind: "request", owner: "ghost"'));
-  assert.ok(nobody.some((problem) => /"workbench-open-group" is owned by "ghost", which is not in PAGE_STATE_OWNERS/.test(problem)), nobody.join("\n"));
-  const silent = domEventProblems(withRegistry('    summary: "Open the named plugin default page with its current group selection; the layout owner selects the pane and tab.",\n', ""));
-  assert.ok(silent.some((problem) => /"workbench-open-group" needs a summary sentence/.test(problem)), silent.join("\n"));
+  const nobody = domEventProblems(withRegistry('name: "molis:surface-landing-flash", kind: "request", owner: "pages-landing"', 'name: "molis:surface-landing-flash", kind: "request", owner: "ghost"'));
+  assert.ok(nobody.some((problem) => /"molis:surface-landing-flash" is owned by "ghost", which is not in PAGE_STATE_OWNERS/.test(problem)), nobody.join("\n"));
+  const silent = domEventProblems(withRegistry(/    summary: "The context row asks the page that reported the landing to show it once:[^\n]+\n/, ""));
+  assert.ok(silent.some((problem) => /"molis:surface-landing-flash" needs a summary sentence/.test(problem)), silent.join("\n"));
 });
 
 test("an event's name, payload and meaning are held to their shape", () => {
-  const entry = '    name: "workbench-open-group"';
+  const entry = '    name: "molis:surface-landing-flash"';
   const badName = /an event has a name that is not lowercase words joined by - with one optional prefix colon: /;
-  for (const bad of ["molis:Side-Open", "molis:side_open", "molis:side open", "molis:side:open", "molis::side-open", "molis:", "Molis:side-open", "-molis:side-open", "1molis:side-open", "workbench-open-group\\n", ""]) {
+  for (const bad of ["molis:Side-Open", "molis:side_open", "molis:side open", "molis:side:open", "molis::side-open", "molis:", "Molis:side-open", "-molis:side-open", "1molis:side-open", "molis:surface-landing-flash\\n", ""]) {
     const problems = domEventProblems(withRegistry(entry, `    name: ${JSON.stringify(bad)}`));
     assert.ok(problems.some((problem) => badName.test(problem) && problem.endsWith(JSON.stringify(bad))), `${JSON.stringify(bad)}: ${problems.join("\n")}`);
   }
@@ -302,10 +302,10 @@ test("an event's name, payload and meaning are held to their shape", () => {
   for (const field of ["detail", "summary"]) {
     const line = new RegExp(`    ${field}: "[^"\\n]*",\\n(?=(?:    summary: "[^"\\n]*",\\n)?  \\},\\n\\] as const satisfies readonly DomEventDeclaration)`);
     const missing = domEventProblems(withRegistry(line, ""));
-    assert.ok(missing.some((problem) => new RegExp(`"workbench-open-group" needs ${field === "detail" ? "detail" : "a summary sentence"}`).test(problem)), `${field}: ${missing.join("\n")}`);
+    assert.ok(missing.some((problem) => new RegExp(`"molis:surface-landing-flash" needs ${field === "detail" ? "detail" : "a summary sentence"}`).test(problem)), `${field}: ${missing.join("\n")}`);
     for (const blank of ['""', '"   "', "3", "null"]) {
       const empty = domEventProblems(withRegistry(new RegExp(`(    ${field}: )"[^"\\n]*"(,\\n)(?=(?:    summary: "[^"\\n]*",\\n)?  \\},\\n\\] as const satisfies readonly DomEventDeclaration)`), `$1${blank}$2`));
-      assert.ok(empty.some((problem) => new RegExp(`"workbench-open-group" needs ${field === "detail" ? "detail" : "a summary sentence"}`).test(problem)), `${field}: ${blank}: ${empty.join("\n")}`);
+      assert.ok(empty.some((problem) => new RegExp(`"molis:surface-landing-flash" needs ${field === "detail" ? "detail" : "a summary sentence"}`).test(problem)), `${field}: ${blank}: ${empty.join("\n")}`);
     }
   }
   // Both flags are held to "leave it out or write true".
@@ -335,7 +335,7 @@ test("an owner is held to its shape: files, a sentence about its state, no other
 test("the prefixes are held to their shape: at least one, each a non-empty string", () => {
   const prefixes = /DOM_EVENT_PREFIXES = \[[^\]]*\]/;
   const wanted = /DOM_EVENT_PREFIXES has to list the name prefixes as non-empty strings/;
-  for (const list of ["[]", '["molis-work:", "molis:", "workbench-", ""]', '["molis-work:", "molis:", "workbench-", 3]', '["molis-work:", "molis:", "workbench-", null]']) {
+  for (const list of ["[]", '["molis-work:", "molis:", ""]', '["molis-work:", "molis:", 3]', '["molis-work:", "molis:", null]']) {
     const problems = domEventProblems(withRegistry(prefixes, `DOM_EVENT_PREFIXES = ${list}`));
     assert.ok(problems.some((problem) => wanted.test(problem)), `${list}: ${problems.join("\n")}`);
   }
@@ -507,7 +507,7 @@ test("the gate's own command line checks and reports the working tree", () => {
 
 test("RAC-426: the platform's prefix table names no plugin; a plugin's events follow molis-<owner>- and their registered owner", () => {
   assert.ok(!DOM_EVENT_PREFIXES.some(prefix => Object.keys(PAGE_STATE_OWNERS).some(owner => prefix === `molis-${owner}-`)), "no owner has a prefix of its own in the table");
-  assert.deepEqual([...DOM_EVENT_PREFIXES], ["molis-work:", "molis:", "workbench-"]);
+  assert.deepEqual([...DOM_EVENT_PREFIXES], ["molis-work:", "molis:"]);
   const shelf = DOM_EVENTS.filter(event => event.owner === "shelf");
   assert.ok(shelf.length >= 4 && shelf.every(event => event.name.startsWith("molis-shelf-")), "Shelf's names are unchanged and satisfy the rule");
   assert.deepEqual(domEventProblems(tree), []);

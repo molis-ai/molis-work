@@ -4,7 +4,7 @@ import type { SandboxPluginContract } from '@molis-ai/molis-work-contracts/platf
 import type { PluginComponentNode } from './plugin-components.js';
 import type { PluginPresentation } from './plugin-presentation.js';
 import { createPluginPresentationClient as present } from './plugin-presentation-client.js';
-import type { Ctl, Det, Kit, Out, Prt, Qry, Rec, Rel, State, Sub } from './plugin-component-types.js';
+import type { Ctl, Det, Kit, Out, Part, Prt, Qry, Rec, Rel, State, Sub } from './plugin-component-types.js';
 import { pcKit } from './plugin-component-kit.js';
 import { pcRecords, pcRelations } from './plugin-component-records.js';
 import { pcControls, pcDetail } from './plugin-component-controls.js';
@@ -33,7 +33,49 @@ export function createPluginComponentClient(options: PluginComponentClientOption
   const c1 = Object.assign(state, kit), c2 = Object.assign(c1, pcRelations(c1)), c3 = Object.assign(c2, pcRecords(c2), pcDetail(c2), pcControls(c2));
   const c4 = Object.assign(c3, pcOutput(c3)), c5 = Object.assign(c4, pcQuery(c4)), c6 = Object.assign(c5, pcSubmit(c5)), c7 = Object.assign(c6, pcPart(c6));
   const { update, destroy } = pcLifecycle(c7);
-  return { update, refresh: c7.refresh, destroy };
+  const openInput = (id: string): boolean => {
+    const part = state.parts.get(id);
+    if (state.disposed || !part?.form || !part.node.submit || !c7.ready(part.node.submit.operationId)) return false;
+    c7.selectPage(part.node.pageId);
+    if (part.opener) { part.opener.click(); return true; }
+    part.root.scrollIntoView({ block: "nearest" });
+    part.form.querySelector<HTMLElement>("input:not([type=hidden]),textarea,select")?.focus();
+    return true;
+  };
+  const openRecord = async (id: string): Promise<boolean> => {
+    if (state.disposed) return false;
+    const locate = () => {
+      let match: { part: Part; row: HTMLElement; value: unknown } | undefined;
+      for (const part of state.parts.values()) {
+        const field = part.node.props.idField;
+        if (!field || !c7.ready(part.node.read?.operationId)) continue;
+        const records = part.rows?.filter(row => c7.text(c7.at(row, field)) === id) ?? [];
+        if (records.length > 1) return undefined;
+        if (!records.length) continue;
+        const rows = [...part.output.querySelectorAll<HTMLElement>("[data-record-id]")].filter(row => row.dataset.recordId === id);
+        if (rows.length > 1 || rows.length && match) return undefined;
+        if (rows[0]) match = { part, row: rows[0], value: records[0] };
+      }
+      return match;
+    };
+    const match = locate();
+    if (!match) return false;
+    const { part, value } = match, generation = c7.epoch;
+    c7.selectPage(part.node.pageId);
+    c7.select(part.node.id, value);
+    const selected = c7.selectionVersions.get(part.node.id);
+    if (c7.reading(part.node) || c7.selectable(part.node.id)) await c7.refresh();
+    if (!c7.live(part, generation) || c7.currentPage !== part.node.pageId || c7.selectionVersions.get(part.node.id) !== selected) return false;
+    const actual = locate();
+    if (actual?.part !== part || !c7.selection[part.node.id]) return false;
+    const row = actual.row;
+    part.output.querySelectorAll("[aria-current]").forEach(node => node.removeAttribute("aria-current"));
+    row.setAttribute("aria-current", "true");
+    if (row instanceof HTMLDetailsElement) row.open = true;
+    row.tabIndex = -1; row.focus({ preventScroll: true }); row.scrollIntoView({ block: "center" });
+    return true;
+  };
+  return { update, refresh: c7.refresh, destroy, openInput, openRecord };
 }
 function pcLifecycle(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry & Sub & Prt) {
   const { root, tabs, tabList, composition, selectionVersions, parts, pages, regions, details, make, headingOf, detailEnabled, ready, rowHost, rowLabel, signature, selectPage, showDetail, syncChoices, query, refresh, createPart } = c;

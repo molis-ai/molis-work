@@ -28,7 +28,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   const root = document.querySelector("[data-tab-workspace]");
   const panesEl = document.querySelector("[data-tab-panes]");
   const pool = document.querySelector("[data-surface-pool]");
-  if (!root || !panesEl || !pool) return { pluginTitle: (plugin) => plugin, apply() {}, openPlugin() {}, openPluginRecord() {}, openItem() {}, openBeside() {}, setExclusive() {}, restore() {}, isExclusive() { return false; },
+  if (!root || !panesEl || !pool) return { pluginTitle: (plugin) => plugin, homeOrder: () => [], homeNavigationFrom: () => () => false, apply() {}, openPlugin() {}, openPluginRecord() {}, openItem() {}, openBeside() {}, setExclusive() {}, restore() {}, isExclusive() { return false; },
     leavePlugin() { return false; }, closeCover() { return false; }, openCover() {}, registerCover() {}, noteCover() {}, coverPlace() { return ""; }, goHistory() { return false; }, shownPlugin() { return null; }, exclusive() { return null; } };
   const PLUGIN_TAB_ICON = ${JSON.stringify(pluginTabGlyphs())}, RECORD_ROWS = ${JSON.stringify(recordRows())};
   // A plugin whose only place is a side view (plugin-place) opens there: the right side is a pane of this workspace, so it is
@@ -558,11 +558,23 @@ ${TAB_WORKSPACE_DRAG_PART}
       const ask = panes.recordAsk(event);
       if (ask) { document.querySelector('[data-work-surface="' + CSS.escape(ask.plugin) + '"]')?.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: { itemId: ask.itemId, quiet: ask.quiet } })); return; }
       if (event.data.type !== "workbench-view") return;
+      const signed = event.data.signedHomeTarget;
+      if (signed) {
+        if (typeof signed.plugin !== "string" || typeof signed.href !== "string" || !signed.selection || ops.shownPlugin(ops.focused(state)) !== signed.plugin) return;
+        const target = signedHomeFrame(findTopLevelSurface(signed.plugin), signed.owner, signed.href);
+        if (target) signedHomeSelection(target, signed.href, { panel: signed.selection.panel, itemId: signed.selection.itemId });
+        return;
+      }
       if (ops.writeView(state, state.panes[0]?.id, event.data.view)) apply();
       if (event.data.intent === "open" || event.data.intent === "select") { const tab = ops.activeTab(state); if (tab) projectOwnSurface(ops.focused(state), tab.plugin, { id: event.data.view, surface: event.data.surface, panel: event.data.panel, intent: event.data.intent }, tab); }
       return;
     }
     const frame = panes.from(event);
+    if (frame && event.data.type === "workbench-home-navigation") {
+      const homePane = paneById(frame.dataset.paneOwner);
+      if (homePane && frame.dataset.paneKey === "plugin:home" && !frame.hidden) openHomeNavigation(event.data.result, homePane);
+      return;
+    }
     if (frame && event.data.type === "workbench-open-settings") {
       // A return trip's source is the pane this frame is (specs/draft-and-return §2.3, returnRelay in return-trips.ts), never the one it names.
       const paneId = frame.dataset.paneOwner || "";
@@ -643,11 +655,7 @@ ${TAB_WORKSPACE_DRAG_PART}
     apply(); persist();
     if (loadingGoalId === goalId) loadingGoalId = loading;
   });
-  document.addEventListener("workbench-open-group", event => {
-    if (typeof event.detail?.surface !== "string" || typeof event.detail.id !== "string") return;
-    openPlugin(event.detail.surface, event.detail.id);
-  });
-  return { apply, readView, writeView, openView, invalidateView, openPlugin, openPluginRecord, openItem, openBeside, openBehind: pluginGroups.openBehind, openGoalWork, closeItem, setExclusive, restore, landAtProjectRoot,
+  return { apply, readView, writeView, openView, homeOrder, homeNavigationFrom, invalidateView, openPlugin, openPluginRecord, openItem, openBeside, openBehind: pluginGroups.openBehind, openGoalWork, closeItem, setExclusive, restore, landAtProjectRoot,
     pluginTitle: ops.pluginTitle, leavePlugin, closeCover, openCover, registerCover, noteCover, coverPlace: restoredCoverPlace, goHistory,
     shownPlugin: () => state.exclusive ? null : ops.shownPlugin(ops.focused(state)),
     exclusive: () => state.exclusive, isExclusive: () => Boolean(state.exclusive), isEmbedded: () => embedded, state: () => state };

@@ -199,6 +199,7 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
     try {
       tabWorkspace = (${TAB_WORKSPACE_FACTORY_SCRIPT})({
         prepareSurface: (surface, intent) => deferredClients?.prepare(surface, intent),
+        refreshHome: () => projectHome?.sync(),
         showToast, paneMessages,
         showGoalFrame: (id) => frameContainer?.showGoalFrame(id),
         translate: L,

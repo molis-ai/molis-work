@@ -66,7 +66,6 @@ async function withGoal<T>(directory: readonly PluginDirectoryEntry[], run: (ren
 
 const unescape = (value: string) => value.replaceAll("&quot;", '"').replace(/&#0?39;/gu, "'").replaceAll("&lt;", "<").replaceAll("&gt;", ">").replaceAll("&amp;", "&");
 const directoryData = (html: string) => /<script type="application\/json" data-plugin-directory>([^]*?)<\/script>/u.exec(html)![1]!;
-const homeStartList = (html: string) => JSON.parse(unescape(/data-work-surface="home" data-home-starts="([^"]*)"/u.exec(html)![1]!)) as Array<{ id: string; title: string; hint: string; glyph: string }>;
 const createButtons = (html: string) => [...html.matchAll(/data-placement-create="([^"]*)" data-placement-create-title="([^"]*)"/gu)].map(([, station, title]) => ({ station, title: unescape(title!) }));
 
 /** The rail's headings, top to bottom, each with the plugin tiles under it. */
@@ -104,9 +103,7 @@ test("RAC-605 a plugin's name and declared texts come out escaped, and the direc
   assert.doesNotMatch(html, /evil\.example/u);
   assert.match(html, /&lt;\/script&gt;&lt;img src=x onerror=alert\(1\)&gt;&amp;/u, "the interface shows the text as it was written");
   assert.equal(railEntries(EVERYTHING, pluginDirectoryFor([hostile])).find(entry => entry.id === "evil")?.label, HOSTILE, "the server still keeps the rail's declared display text");
-  const startsOnPage = homeStartList(html).find(start => start.id === "evil");
-  assert.equal(startsOnPage?.title, HOSTILE);
-  assert.equal(startsOnPage?.glyph, "package", "an icon the design system does not know is the default icon, never a URL or markup");
+  assert.doesNotMatch(html, /data-home-starts/u, "the shell does not publish unverified homepage actions");
   // The one place text becomes script JSON escapes every case.
   assert.equal(scriptJson({ text: "a</script>&\u2028\u2029" }), '{"text":"a\\u003c/script\\u003e\\u0026\\u2028\\u2029"}');
 });
@@ -165,8 +162,6 @@ test("RAC-605-KEY-01 a Runtime publisher sharing a built-in Manifest id is refus
     assert.ok(html.includes(`data-plugin-tile="${pluginId}"`), "the actual rail points to this publisher's shell surface");
     assert.equal(html.includes(`data-plugin-toggle="${pluginId}"`), false, "sharing a Manifest id does not turn it into a built-in project choice");
     assert.equal(headingOf(html, pluginId), "写与做");
-    const { plugin_id: _drawnIn, ...pageStart } = start; // the page's start data carries the words already applied, not the plugin that supplied them
-    assert.deepEqual(homeStartList(html).find(entry => entry.title === start.title), pageStart, "the real page's start data keeps the same owner key");
   } finally {
     await platform.closeCoordination();
     for (const record of platform.runtime.list()) if (record.state === "running") await platform.runtime.stop(record.install_id);
@@ -319,8 +314,6 @@ test("RAC-609-BLOCK-01 an installed plugin blocked by a missing dependency leave
     const html = renderMolisWorkWeb(view(directory));
     assert.equal((JSON.parse(directoryData(html)) as Array<{ id: string }>).some(entry => entry.id === blockedId), false);
     assert.equal(headingOf(html, blockedId), undefined); assert.ok(headingOf(html, siblingId));
-    assert.equal(homeStartList(html).some(entry => entry.id === blockedId), false);
-    assert.equal(homeStartList(html).some(entry => entry.id === siblingId), true);
   } finally {
     await platform.closeCoordination();
     for (const record of platform.runtime.list()) if (record.state === "running") await platform.runtime.stop(record.install_id);
@@ -376,7 +369,6 @@ test("RAC-608 creatableKinds and homeStarts read an installed plugin like a buil
   await withGoal([notes], render => {
     const html = render();
     assert.ok(createButtons(html).some(button => button.station === "notes" && button.title === "笔记"), "the Goal's new buttons take it in");
-    assert.ok(homeStartList(html).some(start => start.id === "notes"));
   });
   const hostile = installed("evil", { creates: { station: "notes", title: HOSTILE }, start: { title: HOSTILE, hint: HOSTILE } }, "Evil");
   await withGoal([hostile], render => {

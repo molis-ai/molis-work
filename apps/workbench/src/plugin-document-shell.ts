@@ -19,8 +19,15 @@ export function renderPluginDocumentShell(input: {
     + '<style>html,body{margin:0;width:100%;height:100%;overflow:hidden}[data-work-surface]{position:relative;display:block;width:100%;height:100%}.icon-sprite{position:absolute;width:0;height:0;overflow:hidden}</style></head><body' + (input.accountRegistration ? ACCOUNT_REGISTRATION_BODY : '') + '>'
     + renderIconSprite() + renderPluginFrameSurface(input.html, input.id, input.title, false, false, input.bundle)
     + '<script>' + CONTROL_CLIENT_SCRIPT + '</script><script src="/assets/molis-work-plugin-frame.js"></script><script>'
-    + 'molisPluginFrames.mount(document.querySelector("[data-work-surface]"),{translate:s=>s,mountPluginClient:(' + UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT + ')(),'
+    + 'const root=document.querySelector("[data-work-surface]"),holder=frameElement;'
+    + 'const mounted=molisPluginFrames.mount(root,{translate:s=>s,mountPluginClient:(' + UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT + ')(),'
     + 'projectId:()=>'+ literal(input.project_id) + ',route:path=>' + literal(input.route_prefix) + '+path,page:()=>('+literal(input.page)+')},'+literal(pack)+')'
-    + '.catch(error=>{const note=document.createElement("p");note.setAttribute("role","alert");note.textContent=error.message;document.body.append(note);});'
+    + '.catch(error=>{const note=document.createElement("p");note.setAttribute("role","alert");note.textContent=error.message;document.body.append(note);return null;});'
+    // Only the owning shell can select a panel, and only in this same carrier's still-current opaque frame.
+    + 'if(holder?.parentElement?.dataset.installedPlugin===' + literal(input.plugin_id) + ')window.addEventListener("message",event=>{'
+    + 'if(event.source!==parent||event.origin!==location.origin||event.data?.type!=="workbench-view"||event.data.intent!=="open")return;'
+    + 'const {panel,itemId}=event.data,text=(value,max)=>typeof value==="string"&&value.length>0&&value.length<=max;'
+    + 'const detail=text(panel,100)&&itemId===undefined?{panel}:text(itemId,1000)&&panel===undefined?{itemId}:null;if(!detail)return;'
+    + 'void mounted.then(value=>{if(value?.scope.alive&&root.isConnected&&holder===frameElement&&holder.isConnected&&!holder.closest("[hidden]"))root.dispatchEvent(new CustomEvent("molis-work:select-item",{detail:{...detail,intent:"open"}}));});});'
     + '</script></body></html>';
 }

@@ -38,6 +38,8 @@ Coding 不按类型解析材料，也没有输入端口。运行中的这一轮�
 
 - 需求书：[`specs/coding-plugin/spec.md`](../../../specs/coding-plugin/spec.md)
 
+项目首页通过项目 Runtime 读 `CodingSessionStore` 的会话元数据，不加载 Run 正文或工作区。原 `coding.sessions.create@1` 返回 `session`，输出身份是 `session.session_id` 和 `session.updated_at`；首页据此打开同一会话，读不到时保留创建事实、只重试打开。
+
 ## 当前执行入口
 
 会话输入区可以选择方法、MCP 工具与只读资料来源，并固定下一轮使用的版本。只读资料可用于讨论/评审，外部工具仍走宿主逐笔审查。模型和凭据、工作区授权、连接与执行账各归现有宿主能力；具体已验证路径和未完成部分以需求书 §0 为准。

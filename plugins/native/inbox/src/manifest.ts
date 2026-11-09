@@ -8,6 +8,7 @@ import { INBOX_ACTIONS, INBOX_ACTION_PERMISSIONS, INBOX_STAGE_GOAL_READ, inboxAc
 import { INBOX_PROJECT_DATABASE } from "./database.js";
 
 import { INBOX_PLUGIN_ID } from "./identity.js";
+import { inboxPresentation, inboxPresentationActions, INBOX_PRESENTATION_MESSAGES } from "./presentation.js";
 import { INBOX_EN } from "./en.js";
 export { INBOX_PLUGIN_ID } from "./identity.js";
 /** What the project database stores for this Plugin. */
@@ -45,7 +46,8 @@ export const inboxManifest: PluginManifest = {
     .filter(permission => !PLATFORM_PERMISSIONS.some(platform => platform.permission === permission)).map(permission => ({ permission, required: false, reason: "使用对应的 Inbox 能力" })),
     { permission: "storage:private", required: true, reason: "项目里 Inbox 下一步的绑定" },
     ...PLATFORM_PERMISSIONS],
-  actions: [...INBOX_ACTIONS, ...Object.values(inboxContentActions), inboxSubjectAction, inboxSearchEntriesAction, inboxHomeEventsAction],
+  presentation: inboxPresentation,
+  actions: [...INBOX_ACTIONS, ...inboxPresentationActions, ...Object.values(inboxContentActions), inboxSubjectAction, inboxSearchEntriesAction, inboxHomeEventsAction],
   action_scenes: [inboxNextScene],
   // What another plugin's background task may be let read, one switch per group (specs/proactive-assistant/schedule-task-reads.md §3.2).
   read_groups: [{ group_id: "inbox", title: "来信", description: "Inbox 里待处理的事项与它们的内容",
@@ -65,6 +67,7 @@ export const inboxManifest: PluginManifest = {
   artifacts: { produces: [], consumes: [] },
   sync:{protocol_version:/* @version sync.protocol */ 1,collections:[{id:'attention',database:'project',title:'注意事项与处理历史',schema_version:/* @version sync.collection.inbox.attention */ 1,requires:[],sections:attentionSections}]},
   ui: {
+    messages: INBOX_PRESENTATION_MESSAGES,
     translations: INBOX_EN,
     contributions: [INBOX_UI_CONTRIBUTION_ID],
     views: [

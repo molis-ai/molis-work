@@ -1,6 +1,6 @@
+import { HOME_OFFERS_FACTORY_SCRIPT } from "./home-offers.js";
 import { DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT } from "./deferred-plugin-client.js";
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host";
-import { PROJECT_HOME_FACTORY_SCRIPT } from "./project-home.js";
 import { PLUGIN_WORKBENCH_FACTORY_SCRIPT } from "./plugin-workbench.js";
 import { PLUGIN_MEMBERSHIP_FACTORY_SCRIPT } from "./plugin-membership.js";
 import { IMMERSIVE_NAVIGATION_FACTORY_SCRIPT } from "./immersive-navigation.js";
@@ -98,19 +98,15 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       openTabItem: (plugin, id, title, mode) => tabWorkspace?.openItem(plugin, id, title, undefined, mode),
       expandDirectory: (id) => setPluginSectionExpanded(id),
     });
-    projectHome = (${PROJECT_HOME_FACTORY_SCRIPT})({
-      getState: () => state, translate: L, route,
-      api,
-      openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title),
-      openPlugin: (plugin) => tabWorkspace?.openPlugin(plugin),
-      openTarget: (target) => {
-        if (target.kind === 'item') tabWorkspace?.openItem(target.surface, target.id, target.title);
-        else {
-          tabWorkspace?.openPlugin(target.surface);
-          if (target.kind === 'group') document.dispatchEvent(new CustomEvent('workbench-open-group', { detail: { surface: target.surface, id: target.id } }));
-        }
-        setMobileView("document");
-      },
+    projectHome = globalThis.molisWorkHomeView?.mountHome({
+      read: (suffix, body, signal) => molisWorkRequest(route("/api/host/surface-home" + suffix), { method: "POST", body, signal }),
+      order: () => tabWorkspace?.homeOrder?.() ?? [],
+      navigationFrom: (source) => tabWorkspace?.homeNavigationFrom(source) ?? (() => false),
+      market: () => tabWorkspace?.setExclusive("market"),
+      offers: (${HOME_OFFERS_FACTORY_SCRIPT}),
+      projectKey: state.project?.project_id || "",
+      translate: L,
+      offerApi: (path, method, body, signal) => molisWorkRequest(route(path), { method, body, signal }),
     });
     // The question and action cards' shared client: one copy for the Assistant and every plugin that shows them (A1, A2).
     // A reference field searches this project through search.references (T2); a pick is <kind> <id> for the SDK's questionAnswer.

@@ -2,7 +2,7 @@ import type { ActionSubject, ActionView } from "@molis-ai/molis-work-contracts/p
 import { PRESENTATION_LIMITS, type PresentationObject, type PresentationValueItem, type PresentationValuesInput } from "@molis-ai/molis-work-contracts/platform/presentation";
 import { actionErrorKind } from "@molis-ai/molis-work-plugin-sdk";
 import { presentationValuesProblems } from "@molis-ai/molis-work-plugin-sdk/presentation";
-import { subjectKey, viewKey, viewRef, type SurfaceComposePorts } from "./ports.js";
+import { subjectKey, viewRef, type SurfaceComposePorts } from "./ports.js";
 
 const DEADLINE_MS = 1_000;
 const PARALLEL_READS = 4;
@@ -52,17 +52,17 @@ export function startDeadline(parent: AbortSignal | undefined) {
   };
 }
 
-interface ValueCandidate { subject: ActionSubject; object: PresentationObject; action: ActionView }
+interface ValueCandidate { subject: ActionSubject; fields: readonly string[]; action: ActionView }
 interface Batch { action: ActionView; subjects: ActionSubject[]; fields: Set<string> }
 interface ValueAnswer { item?: PresentationValueItem; denied?: true }
 
 function makeBatches(candidates: readonly ValueCandidate[]): Batch[] {
-  const byAction = new Map<string, Batch[]>();
+  const byAction = new Map<ActionView, Batch[]>();
   for (const candidate of candidates) {
-    const key = viewKey(candidate.action);
-    let batches = byAction.get(key);
-    if (!batches) { batches = []; byAction.set(key, batches); }
-    const fields = candidate.object.fields.filter(field => field.role === "status" || field.role === "relation").map(field => field.key);
+    // Keep the original directory rows separate, including the same provider and ref in another scope.
+    let batches = byAction.get(candidate.action);
+    if (!batches) { batches = []; byAction.set(candidate.action, batches); }
+    const { fields } = candidate;
     let batch = batches.find(group => group.subjects.length < PRESENTATION_LIMITS.values_subjects
       && new Set([...group.fields, ...fields]).size <= PRESENTATION_LIMITS.fields);
     if (!batch) {
@@ -75,7 +75,13 @@ function makeBatches(candidates: readonly ValueCandidate[]): Batch[] {
   return [...byAction.values()].flat();
 }
 
-export async function readRuleValues(candidates: readonly ValueCandidate[], ports: SurfaceComposePorts, deadline: ReturnType<typeof startDeadline>, current: () => void) {
+export function readRuleValues(candidates: readonly (Omit<ValueCandidate, "fields"> & { object: PresentationObject })[],
+  ports: SurfaceComposePorts, deadline: ReturnType<typeof startDeadline>, current: () => void) {
+  return readSurfaceValues(candidates.map(({ subject, action, object }) => ({ subject, action,
+    fields: object.fields.filter(field => field.role === "status" || field.role === "relation").map(field => field.key) })), ports, deadline, current);
+}
+
+export async function readSurfaceValues(candidates: readonly ValueCandidate[], ports: Pick<SurfaceComposePorts, "values" | "diagnostic">, deadline: ReturnType<typeof startDeadline>, current: () => void) {
   const batches = makeBatches(candidates).map(({ action, subjects, fields }) => ({ action, input: { subjects, fields: [...fields].sort() } satisfies PresentationValuesInput }));
   const answers = new Map<string, ValueAnswer>();
   await deadline.read(batches, current, ({ action, input }, signal) => ports.values(action, input, signal, current), ({ action, input }, result) => {

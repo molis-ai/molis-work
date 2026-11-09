@@ -201,7 +201,9 @@ export class SearchService {
   private readonly changed = new Map<string, number>();
   /** source_key → change number current when its last sync started. */
   private readonly syncedSeq = new Map<string, number>();
-  private readonly refreshTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private pendingRefreshes: RefreshProviders = new Map();
+  private refreshTimer: ReturnType<typeof setTimeout> | undefined;
+  private readonly refreshingScopes = new Map<string | null, Promise<void>>();
   private readonly reconciled = new Map<string, number>();
   private closed = false;
 
@@ -214,7 +216,13 @@ export class SearchService {
 
   /** Called by the Host whenever a command of a provider succeeded, from any entry. Known sources refresh shortly after. */
   markChanged(providerId: string, projectId: string | null): void {
-    if (!this.announce(providerId, projectId)) return;
+    if (this.closed || providerId === SEARCH_PROVIDER_ID) return;
+    const seq = ++this.changeSeq;
+    this.changed.set(`${projectId ?? ""}|${providerId}`, seq);
+    // Home-scoped providers are called with a project context too; their content is personal.
+    if (projectId) this.changed.set(`|${providerId}`, seq);
+    this.reconciled.delete(projectId ?? "");
+    this.reconciled.delete("");
     this.scheduleRefresh(providerId, projectId);
   }
 
@@ -223,18 +231,7 @@ export class SearchService {
    * Known sources refresh shortly after; the next query also re-checks them and drops the ones that are gone.
    */
   markRegistration(providerId: string, projectId: string | null): void {
-    if (this.announce(providerId, projectId)) this.scheduleRefresh(providerId, projectId);
-  }
-
-  private announce(providerId: string, projectId: string | null): boolean {
-    if (this.closed || providerId === SEARCH_PROVIDER_ID) return false;
-    const seq = ++this.changeSeq;
-    this.changed.set(`${projectId ?? ""}|${providerId}`, seq);
-    // Home-scoped providers are called with a project context too; their content is personal.
-    if (projectId) this.changed.set(`|${providerId}`, seq);
-    this.reconciled.delete(projectId ?? "");
-    this.reconciled.delete("");
-    return true;
+    this.markChanged(providerId, projectId);
   }
 
   async query(access: SearchAccess, input: SearchQueryRequest): Promise<SearchQueryResponse> {
@@ -334,24 +331,22 @@ export class SearchService {
 
   /** Project deletion: the index keeps nothing of it. */
   removeProject(projectId: string): number {
-    for (const [key, timer] of this.refreshTimers) if (key.startsWith(`${projectId}|`)) { clearTimeout(timer); this.refreshTimers.delete(key); }
+    this.pendingRefreshes.delete(projectId);
+    if (!this.pendingRefreshes.size) {
+      clearTimeout(this.refreshTimer);
+      this.refreshTimer = undefined;
+    }
     return this.options.index.removeProject(projectId);
   }
 
   async close(): Promise<void> {
     this.closed = true;
-    for (const timer of this.refreshTimers.values()) clearTimeout(timer);
-    this.refreshTimers.clear();
+    clearTimeout(this.refreshTimer);
+    this.pendingRefreshes.clear();
     // A sync waiting on a closing project must not hold the Host's shutdown; its next write fails and is dropped.
     let timer: ReturnType<typeof setTimeout> | undefined;
     await Promise.race([Promise.allSettled([...this.inflight.values()]), new Promise<void>(resolve => { timer = setTimeout(resolve, 3_000); })]);
     clearTimeout(timer);
-  }
-
-  private inScope(source: SourceView, scoped: Scoped): boolean {
-    // The personal space is a project partition, but what is in it is the person's own.
-    if (source.project_id && source.project_id === this.options.personalSpace) return scoped.personal || scoped.project;
-    return source.project_id ? scoped.project : scoped.personal;
   }
 
   /** The personal space seen from another project, for the local person only; null when out of scope, absent or not reachable. */
@@ -367,7 +362,7 @@ export class SearchService {
   /** The caller's sources in scope, from its catalog as it is now (with the personal space, for the local person), narrowed by a query's filters. */
   private async callerSources(access: SearchAccess, scoped: Scoped, input?: SearchQueryRequest) {
     const views = await access.client.discover(access.caller), personal = await this.personalSpaceOf(access, scoped);
-    const all = [...entrySources(views, access.caller), ...personal?.sources ?? []].filter(source => this.inScope(source, scoped)
+    const all = [...entrySources(views, access.caller), ...personal?.sources ?? []].filter(source => inSearchScope(source, scoped, this.options.personalSpace)
       && (!input?.plugins?.length || input.plugins.includes(source.view.provider.plugin_id ?? source.reference.provider_id))
       && (!input?.kinds?.length || [...source.kinds.keys()].some(kind => input.kinds!.includes(kind))));
     return { views: [...views, ...personal?.views ?? []], personal, all, visible: all.filter(source => source.view.availability.available) };
@@ -384,13 +379,16 @@ export class SearchService {
   }
 
   /** Sources the owner no longer has (uninstalled, upgraded to another version) leave the index. */
-  private async reconcile(projectId: string | null): Promise<void> {
+  private async reconcile(projectId: string | null, currentSources?: readonly SourceView[]): Promise<void> {
     const scope = projectId ?? "";
     const last = this.reconciled.get(scope) ?? 0;
-    if (this.clock() - last < 30_000) return;
+    if (!currentSources && this.clock() - last < 30_000) return;
     this.reconciled.set(scope, this.clock());
-    const { access, views } = await this.owner(projectId)();
-    const current = new Set(entrySources(views, access.caller).filter(source => source.project_id === projectId).map(source => source.key));
+    if (!currentSources) {
+      const { access, views } = await this.owner(projectId)();
+      currentSources = entrySources(views, access.caller).filter(source => source.project_id === projectId);
+    }
+    const current = new Set(currentSources.map(source => source.key));
     for (const record of this.options.index.sources()) {
       if (record.project_id !== projectId || current.has(record.source_key)) continue;
       await this.inflight.get(record.source_key)?.catch(() => undefined);
@@ -443,28 +441,36 @@ export class SearchService {
   }
 
   private scheduleRefresh(providerId: string, projectId: string | null): void {
-    const key = `${projectId ?? ""}|${providerId}`;
-    if (this.refreshTimers.has(key)) return;
-    const timer = setTimeout(() => {
-      this.refreshTimers.delete(key);
-      void this.refreshKnown(providerId, projectId).catch(error => this.options.onError?.(error, "search.refresh"));
+    const providers = this.pendingRefreshes.get(projectId) ?? new Set<string>();
+    providers.add(providerId);
+    this.pendingRefreshes.set(projectId, providers);
+    if (this.refreshTimer) return;
+    this.refreshTimer = setTimeout(() => {
+      this.refreshTimer = undefined;
+      const pending = this.pendingRefreshes;
+      this.pendingRefreshes = new Map();
+      void this.refreshKnown(pending).catch(error => this.options.onError?.(error, "search.refresh"));
     }, this.refreshDelayMs);
-    (timer as { unref?: () => void }).unref?.();
-    this.refreshTimers.set(key, timer);
+    (this.refreshTimer as { unref?: () => void }).unref?.();
   }
 
-  /** Only sources already in the index are refreshed in the background; new ones are indexed when first searched. */
-  private async refreshKnown(providerId: string, projectId: string | null): Promise<void> {
-    if (this.closed) return;
-    const records = this.options.index.sources().filter(record => record.provider_id === providerId && (projectId === null || record.project_id === projectId || record.project_id === null));
-    for (const scope of new Set(records.map(record => record.project_id))) {
-      const owner = this.owner(scope);
-      const { access, views } = await owner();
-      const all = entrySources(views, access.caller).filter(source => source.project_id === scope && source.reference.provider_id === providerId);
-      await this.purgeDisabled(all);
-      await this.reconcile(scope);
-      await Promise.allSettled(all.filter(source => source.view.availability.available).map(source => this.sync(source, owner)));
-    }
+  /** Only providers already represented in the index are refreshed in the background. */
+  private async refreshKnown(pending: RefreshProviders): Promise<void> {
+    const scopes = refreshScopes(this.options.index.sources(), pending);
+    await Promise.all([...scopes].map(([scope, providers]) => queueScopeRefresh(this.refreshingScopes, scope, async () => {
+      if (this.closed) return;
+      try {
+        const owner = this.owner(scope);
+        const { access, views } = await owner();
+        if (this.closed) return;
+        const current = entrySources(views, access.caller).filter(source => source.project_id === scope);
+        const dirty = current.filter(source => providers.has(source.reference.provider_id));
+        await this.purgeDisabled(dirty);
+        await this.reconcile(scope, current);
+        if (this.closed) return;
+        await Promise.allSettled(dirty.filter(source => source.view.availability.available).map(source => this.sync(source, owner)));
+      } catch (error) { this.options.onError?.(error, "search.refresh"); }
+    })));
   }
 
   private sync(source: SourceView, owner: () => Promise<Owner>): Promise<void> {
@@ -482,6 +488,33 @@ export class SearchService {
       syncedSeq: this.syncedSeq, changeSeq: () => this.changeSeq, isClosed: () => this.closed,
     }, () => this.clock(), source, ownerOf);
   }
+}
+
+type RefreshProviders = Map<string | null, Set<string>>;
+
+/** Independent scopes can proceed while the next window for the same scope waits for its prior sync and cleanup. */
+function queueScopeRefresh(active: Map<string | null, Promise<void>>, scope: string | null, run: () => Promise<void>): Promise<void> {
+  const prior = active.get(scope);
+  const task = (prior ? prior.then(run, run) : run()).finally(() => {
+    if (active.get(scope) === task) active.delete(scope);
+  });
+  active.set(scope, task);
+  return task;
+}
+
+/** Registrations without a project fan out; a project command can also change its provider's Home content. */
+function refreshScopes(records: readonly SearchIndexSourceRecord[], pending: RefreshProviders): RefreshProviders {
+  const global = pending.get(null);
+  const home = new Set([...pending.values()].flatMap(providers => [...providers]));
+  const scopes: RefreshProviders = new Map();
+  for (const { project_id: project, provider_id: provider } of records) {
+    const matches = project === null ? home.has(provider) : global?.has(provider) || pending.get(project)?.has(provider);
+    if (!matches) continue;
+    const providers = scopes.get(project) ?? new Set<string>();
+    providers.add(provider);
+    scopes.set(project, providers);
+  }
+  return scopes;
 }
 
 export { searchActions, SEARCH_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/search";
@@ -528,6 +561,12 @@ function searchScope(caller: ActionCallContext, scope: SearchScope | undefined):
   const chosen = scope ?? "all";
   if (chosen === "project" && !caller.project_id) throw new ActionError("actions.project_required", "当前没有打开项目，只能搜索个人内容");
   return { project: chosen !== "personal" && !!caller.project_id, personal: chosen !== "project" };
+}
+
+function inSearchScope(source: SourceView, scoped: Scoped, personalSpace: string | undefined): boolean {
+  // The personal space is a project partition, but what is in it is the person's own.
+  if (source.project_id && source.project_id === personalSpace) return scoped.personal || scoped.project;
+  return source.project_id ? scoped.project : scoped.personal;
 }
 
 

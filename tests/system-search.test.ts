@@ -3,8 +3,9 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { existsSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import test from "node:test";
+import test, { type TestContext } from "node:test";
 import { DatabaseSync } from "node:sqlite";
+import { setImmediate } from "node:timers/promises";
 
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import {
@@ -105,6 +106,7 @@ async function fixture(t: import("node:test").TestContext, options: { freshMs?: 
   t.after(async () => { await search.close(); index.close(); await rm(home, { recursive: true, force: true }); });
   return {
     home, actions,
+    get index() { return index; },
     get search() { return search; },
     tick(ms: number) { now += ms; },
     async reopen(damage: "none" | "remove" | "corrupt" | "version" = "none") {
@@ -122,6 +124,29 @@ async function fixture(t: import("node:test").TestContext, options: { freshMs?: 
 const ask = (f: { actions: ActionService; search: SearchService }, caller: ActionCallContext, query: string, extra: Record<string, unknown> = {}) =>
   f.search.query({ client: f.actions, caller }, { query, ...extra });
 const ids = (response: { hits: Array<{ subject: { id: string } }> }) => response.hits.map(hit => hit.subject.id).sort();
+
+async function waitForBackground(done: () => boolean): Promise<void> {
+  const deadline = performance.now() + 5_000;
+  while (!done()) {
+    assert.ok(performance.now() < deadline, "the background refresh completes without a foreground query");
+    await setImmediate();
+  }
+}
+
+function holdNextProjectListing(t: TestContext, actions: ActionService, project: string) {
+  const held = { arrived: false, release: Promise.withResolvers<void>() };
+  t.after(() => held.release.resolve());
+  const invoke = actions.invoke.bind(actions);
+  t.mock.method(actions, "invoke", async (...args: Parameters<typeof invoke>) => {
+    const result = await invoke(...args);
+    if (!held.arrived && args[0].project_id === project && args[1].capability_id === entries.capability_id) {
+      held.arrived = true;
+      await held.release.promise;
+    }
+    return result;
+  });
+  return held;
+}
 
 test("search source protocol rejects declarations that do not honor the canonical contract", () => {
   assert.deepEqual(inspectActionDeclarations([entries, reader, personalEntries], undefined), []);
@@ -372,6 +397,113 @@ test("a failing source keeps what it had, reports it, and recovers", async t => 
   assert.deepEqual(ids(recovered), []);
   assert.equal(recovered.status, "complete");
   assert.equal(recovered.sources[0]!.state, "ready");
+});
+
+test("BRC-04 · background refresh keeps scope fanout, live refusal and unregister cleanup", async t => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const errors: unknown[] = [];
+  const f = await fixture(t, { onError: error => errors.push(error) });
+  const old = (id: string): Note => ({ id, title: id, body: "old", version: 1 });
+  const denied = source([old("denied")]), healthy = source([old("healthy")]), shared = source([old("shared")]);
+  register(f.actions, denied, { provider_id: "denied", project_id: "a" });
+  register(f.actions, healthy, { provider_id: "healthy", project_id: "a" }, { entries: "healthy.search.entries", reader: "healthy.subject.read" });
+  const unregister = register(f.actions, shared, { provider_id: "shared" }, { entries: "shared.search.entries", reader: "shared.subject.read" });
+  const memos = [old("memo")];
+  registerPersonal(f.actions, memos);
+  assert.deepEqual(ids(await ask(f, owner("a"), "old", { scope: "project" })), ["denied", "healthy", "shared"]);
+  assert.deepEqual(ids(await ask(f, owner("b"), "old", { scope: "project" })), ["shared"]);
+  assert.deepEqual(ids(await ask(f, owner(null), "old")), ["memo"]);
+
+  const discover = f.actions.discover.bind(f.actions);
+  const discovered: Array<string | null> = [];
+  t.mock.method(f.actions, "discover", (caller: ActionCallContext) => {
+    const views = discover(caller);
+    discovered.push(caller.project_id);
+    // The directory still offers the source. Its listing must go through the action's current policy.
+    if (caller.project_id === "a") denied.availability = { available: false, code: "actions.forbidden", reason: "grant revoked after discover" };
+    return views;
+  });
+  const next = (id: string): Note => ({ id, title: id, body: "new", version: 2 });
+  denied.notes.set("denied", next("denied"));
+  healthy.notes.set("healthy", next("healthy"));
+  shared.notes.set("shared", next("shared"));
+  memos[0] = next("memo");
+  for (const provider of ["denied", "healthy", "shared", "memos"]) f.search.markChanged(provider, "a");
+  t.mock.timers.tick(5);
+  const projectBodies = (project: string) => Object.fromEntries(f.index.documents(project).map(row => [row.object_id, row.content]));
+  const memo = f.index.sources().find(row => row.provider_id === "memos");
+  assert.ok(memo);
+  await waitForBackground(() => projectBodies("a").healthy === "new" && projectBodies("a").shared === "new"
+    && f.index.document(memo.source_key, "memo", "memo")?.summary === "new" && errors.length > 0);
+  assert.deepEqual(projectBodies("a"), { denied: "old", healthy: "new", shared: "new" });
+  assert.deepEqual(projectBodies("b"), { shared: "old" });
+  assert.equal(denied.lists, 1, "the refused refresh never enters the listing handler");
+  assert.equal(denied.reads, 1, "the refused refresh never reads the replacement body");
+  assert.equal(errors.length, 1);
+  assert.ok(errors[0] instanceof ActionError && errors[0].code === "actions.forbidden");
+  assert.deepEqual(discovered.map(scope => scope ?? "home").sort(), ["a", "home"]);
+
+  discovered.length = 0;
+  unregister();
+  f.search.markRegistration("shared", null);
+  t.mock.timers.tick(5);
+  await waitForBackground(() => f.index.sources().every(row => row.provider_id !== "shared"));
+  assert.deepEqual(discovered.sort(), ["a", "b"], "a Home registration covers each known project even when recently reconciled");
+  assert.deepEqual(projectBodies("a"), { denied: "old", healthy: "new" });
+  assert.deepEqual(projectBodies("b"), {});
+});
+
+test("BRC-04 · a second window keeps its latest revision and another project proceeds", async t => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const f = await fixture(t);
+  const note = (version: number): Note => ({ id: "note", title: "Indexed note", body: `revision ${version}`, version });
+  const a = source([note(1)]), b = source([note(1)]);
+  register(f.actions, a, { provider_id: "notes-a", project_id: "a" });
+  register(f.actions, b, { provider_id: "notes-b", project_id: "b" });
+  for (const project of ["a", "b"]) assert.deepEqual(ids(await ask(f, owner(project), "Indexed", { scope: "project" })), ["note"]);
+
+  const revision = (project: string) => f.index.documents(project)[0]?.revision;
+  const first = holdNextProjectListing(t, f.actions, "a");
+  try {
+    a.notes.set("note", note(2));
+    f.search.markChanged("notes-a", "a");
+    t.mock.timers.tick(5);
+    await waitForBackground(() => first.arrived);
+    a.notes.set("note", note(3));
+    b.notes.set("note", note(2));
+    f.search.markChanged("notes-a", "a");
+    f.search.markChanged("notes-b", "b");
+    t.mock.timers.tick(5);
+    await waitForBackground(() => revision("b") === "2");
+    assert.equal(revision("a"), "1", "the held response has already captured revision 2");
+  } finally { first.release.resolve(); }
+  await waitForBackground(() => revision("a") === "3");
+  assert.equal(a.lists, 3, "initial listing followed by one per dirty window");
+});
+
+test("BRC-04 · a late listing cannot restore an unregistered source", async t => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const f = await fixture(t);
+  const note: Note = { id: "note", title: "Indexed note", body: "old", version: 1 };
+  const a = source([note]);
+  const unregister = register(f.actions, a, { provider_id: "notes-a", project_id: "a" });
+  assert.deepEqual(ids(await ask(f, owner("a"), "Indexed", { scope: "project" })), ["note"]);
+
+  const held = holdNextProjectListing(t, f.actions, "a");
+  try {
+    a.notes.set("note", { ...note, body: "new", version: 2 });
+    f.search.markChanged("notes-a", "a");
+    t.mock.timers.tick(5);
+    await waitForBackground(() => held.arrived);
+    unregister();
+    f.search.markRegistration("notes-a", "a");
+    t.mock.timers.tick(5);
+    // Let unregister cleanup contend with the held response, then let the late response settle before inspecting the index.
+    await setImmediate();
+  } finally { held.release.resolve(); }
+  await setImmediate();
+  assert.deepEqual(f.index.sources(), []);
+  assert.deepEqual(f.index.documents("a"), []);
 });
 
 test("RAC-129-SEARCH: close during a held listing preserves the old index and clock receiver, while another service remains independent", async t => {

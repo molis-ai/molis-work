@@ -8,12 +8,14 @@ export const TEXT_DATE_STYLES = ["date", "time", "datetime", "relative", "weekda
 
 export type TextNumberStyle = (typeof TEXT_NUMBER_STYLES)[number];
 export type TextDateStyle = (typeof TEXT_DATE_STYLES)[number];
+/** Format the same instant in its original zone. A date without a time keeps its calendar day. */
+export interface TextDateOptions { readonly time_zone?: string }
 
 /** One argument. It keeps the raw value, never formatted text: a change of language formats it again. */
 export type TextArg =
   | { readonly name: string; readonly kind: "text"; readonly text: string }
   | { readonly name: string; readonly kind: "number"; readonly number: number; readonly style?: TextNumberStyle }
-  | { readonly name: string; readonly kind: "date"; readonly at: string; readonly style: TextDateStyle };
+  | ({ readonly name: string; readonly kind: "date"; readonly at: string; readonly style: TextDateStyle } & TextDateOptions);
 
 /** What a declaration, an action output or a content pack writes. It has no owner: a trusted identity is never read from input. */
 export type TextRef =
@@ -26,10 +28,16 @@ export type OwnedTextRef =
   | { readonly literal: string };
 
 /** `owner` is a plugin_id or a platform owner's name; 200 is the longest plugin_id the Host's install actions take (a connector's slot actions take 160, and `parsePluginManifest` holds a Manifest to 200). */
-export const TEXT_REF_LIMITS = { key: 120, args: 8, arg_name: 64, arg_text: 2000, arg_at: 40, literal: 2000, fallback: 2000, owner: 200 } as const;
+export const TEXT_REF_LIMITS = { key: 120, args: 8, arg_name: 64, arg_text: 2000, arg_at: 40, arg_time_zone: 64, literal: 2000, fallback: 2000, owner: 200 } as const;
 
 /** A language tag. The Manifest's and the language pack's parsers both take it from here. */
 export const LOCALE_TAG = /^[a-z]{2,3}(-[A-Z][a-z]{3})?(-[A-Z]{2})?$/;
+
+/** The languages a plugin has words in. Each has the package's `locales/<language>.json`. */
+export interface PluginLocalesDeclaration {
+  readonly default: string;
+  readonly available: readonly string[];
+}
 
 const TEXT_ARG_SCHEMA: SandboxSchema = {
   type: "object", additionalProperties: false, required: ["name", "kind"],
@@ -39,6 +47,7 @@ const TEXT_ARG_SCHEMA: SandboxSchema = {
     text: { type: "string", maxLength: TEXT_REF_LIMITS.arg_text },
     number: { type: "number" },
     at: { type: "string", maxLength: TEXT_REF_LIMITS.arg_at },
+    time_zone: { type: "string", minLength: 1, maxLength: TEXT_REF_LIMITS.arg_time_zone },
     style: { type: "string", enum: [...TEXT_NUMBER_STYLES, ...TEXT_DATE_STYLES] },
   },
 };
@@ -68,7 +77,7 @@ export type TextArgValue =
   | string
   | number // a plain number, not grouped
   | { readonly kind: "number"; readonly number: number; readonly style?: TextNumberStyle }
-  | { readonly kind: "date"; readonly at: string; readonly style: TextDateStyle };
+  | ({ readonly kind: "date"; readonly at: string; readonly style: TextDateStyle } & TextDateOptions);
 export type TextArgs = Readonly<Record<string, TextArgValue>>;
 
 export interface UiTextTool {
@@ -90,7 +99,7 @@ export interface UiSayTool {
 }
 
 export interface UiFormatTool {
-  date(at: string, style: TextDateStyle): string;
+  date(at: string, style: TextDateStyle, options?: TextDateOptions): string;
   /** No style means `decimal`, which groups digits. */
   number(value: number, style?: TextNumberStyle): string;
 }

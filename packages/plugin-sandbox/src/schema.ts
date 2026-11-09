@@ -1,5 +1,5 @@
 import { isDeepStrictEqual } from 'node:util';
-import { sandboxBackgroundProblems } from '@molis-ai/molis-work-plugin-sdk';
+import { sandboxBackgroundProblems, sandboxLocaleProblems } from '@molis-ai/molis-work-plugin-sdk';
 import type { SandboxEffects, SandboxJson, SandboxPluginContract, SandboxSchema } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 
 export class SandboxError extends Error {
@@ -148,8 +148,8 @@ function assertContractEnvelope(contract: unknown, proposal: boolean): asserts c
     }
   }
   // A background run is a command of the contract with no background work of its own: one level, so a run cannot start more than the person approved.
-  const backgroundProblems = sandboxBackgroundProblems(c);
-  if (backgroundProblems.length) throw new SandboxError('sandbox.invalid_contract', backgroundProblems.join('; '));
+  const declarationProblems = [...sandboxBackgroundProblems(c), ...sandboxLocaleProblems(c)];
+  if (declarationProblems.length) throw new SandboxError('sandbox.invalid_contract', declarationProblems.join('; '));
   for (const entity of c.entities) { if (!id(entity.id)) throw new SandboxError('sandbox.invalid_contract', 'Invalid entity id'); assertSchema(entity.schema); }
   if (!unique(c.entities.map(e => e.id)) || !unique(c.pages.map(p => p.id)) || !unique(c.acceptance.map(a => a.id))) throw new SandboxError('sandbox.invalid_contract', 'Duplicate structural ids');
   const operationExists = (value: string) => c.operations.some(o => o.id === value);

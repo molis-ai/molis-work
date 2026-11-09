@@ -69,6 +69,25 @@ test("FSS-48: the same input gives the same JSON in Node and bundled for a brows
   assert.equal(SAME_INPUT(browser).messages[0], "1.2K files", "it did run");
 });
 
+test("FSS-39 zoned dates agree in the host and a browser bundle with different process zones", async () => {
+  const { text } = await bundle(`export { formatDate } from ${JSON.stringify(SDK_UI)};`);
+  const browser = await load(text) as Pick<typeof nodeUi, "formatDate">;
+  const at = "2026-03-08T10:00:00Z", time_zone = "America/Los_Angeles";
+  const previous = process.env.TZ;
+  try {
+    process.env.TZ = "America/New_York";
+    const hostText = nodeUi.formatDate(at, "time", "en", { time_zone });
+    const hostDefault = nodeUi.formatDate(at, "time", "en");
+    process.env.TZ = "Asia/Shanghai";
+    assert.notEqual(browser.formatDate(at, "time", "en"), hostDefault, "an unspecified zone follows the environment");
+    assert.equal(browser.formatDate(at, "time", "en", { time_zone }), hostText);
+    assert.match(hostText, /^3:00\sAM$/u);
+  } finally {
+    if (previous === undefined) delete process.env.TZ;
+    else process.env.TZ = previous;
+  }
+});
+
 test("FSS-50: `/ui` bundled for a browser has no Node built-in module", async () => {
   const { inputs } = await bundle(`export * from ${JSON.stringify(SDK_UI)};`);
   assert.ok(inputs.some((input) => input.includes("plugin-sdk/dist/ui/text.js")), "the text tools are in it");

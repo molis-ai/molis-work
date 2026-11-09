@@ -2,6 +2,8 @@ import type { UiPageRouteDeclaration, UiViewDeclaration } from "./ui.js";
 import type { PluginEventsDeclaration } from "./plugin-events.js";
 import type { PluginPortsDeclaration } from "./plugin-wiring.js";
 import type { AgentManifest } from "./plugin-agent.js";
+import type { PluginLocalesDeclaration } from "./ui-text.js";
+export type { PluginLocalesDeclaration } from "./ui-text.js";
 
 /** The permission a Plugin declares to name the websites it uses in the side panel browser (specs/archive/side-panel D16). */
 export const SURFACE_BROWSER_PERMISSION = "surface:browser";
@@ -113,12 +115,6 @@ export type PluginMessagesDeclaration = Readonly<Record<string, { readonly zh: s
 
 /** A Plugin's English for words still keyed by their Chinese source text. */
 export type PluginTranslationsDeclaration = Readonly<Record<string, string>>;
-
-/** The languages a Plugin has words in; the words of each are the package's `locales/<language>.json`. */
-export interface PluginLocalesDeclaration {
-  readonly default: string;
-  readonly available: readonly string[];
-}
 
 /** A bad list costs one message per entry, and a language is a file in the package: far more than any plugin translates into, so the author's mistake, not a real need. */
 export const PLUGIN_LOCALE_LIMITS = { available: 32 } as const;

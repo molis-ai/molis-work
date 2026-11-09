@@ -51,6 +51,7 @@ import { pluginTerminalFor } from "./plugin-terminal-service.js";
 import { registerPluginText } from "@molis-ai/molis-work-app-workbench";
 import type { PluginContribution } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { runWithPluginText } from "./web-locale.js";
+import { installedLocalePacks } from "./installed-action-registration.js";
 
 /** What the executor keeps of one started Plugin until it stops. */
 export interface HostSession {
@@ -141,7 +142,7 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
  * Only a plugin whose code runs in this process enters `t`'s index; a sandboxed one's `t` runs in its own process, and `say` still finds its words.
  */
 export function pluginTextFor(options: Pick<PluginHostExecutorOptions, "localePacks">, definition: PluginDefinition, activation: PluginInstance): (() => void) | undefined {
-  const reader = options.localePacks?.(definition) ?? null;
+  const reader = options.localePacks?.(definition) ?? installedLocalePacks(definition);
   if (reader === null) return undefined;
   if (reader.owner !== definition.manifest.plugin_id) throw new Error("语言文件的主人与运行的插件声明不符");
   return registerPluginText(reader, { activation, t: definition.execution !== "sandbox" && definition.manifest.kind !== "content" });

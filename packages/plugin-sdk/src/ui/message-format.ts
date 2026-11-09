@@ -1,4 +1,4 @@
-import type { TextArg, TextDateStyle, TextNumberStyle, UiMessage } from "@molis-ai/molis-work-contracts/platform/ui";
+import { TEXT_REF_LIMITS, type TextArg, type TextDateOptions, type TextDateStyle, type TextNumberStyle, type UiMessage } from "@molis-ai/molis-work-contracts/platform/ui";
 import { fillMessage } from "../message-text.js";
 
 // One sentence, formatted (specs/font-and-skin-system/a-section-contract.md §3.5). The plural form is chosen and the values are written with
@@ -12,6 +12,13 @@ export interface MessageFormatOptions {
 }
 
 type Locale = string | undefined;
+
+/** Intl is the authority on the zones this runtime can actually display. */
+export function isTextTimeZone(value: unknown): value is string {
+  if (typeof value !== "string" || !value.length || value.length > TEXT_REF_LIMITS.arg_time_zone) return false;
+  try { new Intl.DateTimeFormat("en", { timeZone: value }); return true; }
+  catch { return false; }
+}
 
 const NUMBER_OPTIONS: Readonly<Record<TextNumberStyle, Intl.NumberFormatOptions>> = {
   decimal: {},
@@ -58,18 +65,23 @@ function relativeText(moment: Moment, locale: Locale, now: number): string {
   return new Intl.RelativeTimeFormat(locale, { numeric: "auto" }).format(Math.round(seconds / length), unit);
 }
 
-function dateText(moment: Moment, style: TextDateStyle, locale: Locale, now: number): string {
+function dateText(moment: Moment, style: TextDateStyle, locale: Locale, now: number, timeZone?: string): string {
   if (style === "relative") return relativeText(moment, locale, now);
   // A date without a time is shown as it is written: no zone can move it to another day, and it has no time to show.
   if (moment.dateOnly) return new Intl.DateTimeFormat(locale, { ...DATE_OPTIONS[style === "time" || style === "datetime" ? "date" : style], timeZone: "UTC" }).format(moment.ms);
-  return new Intl.DateTimeFormat(locale, DATE_OPTIONS[style]).format(moment.ms);
+  return new Intl.DateTimeFormat(locale, { ...DATE_OPTIONS[style], timeZone }).format(moment.ms);
 }
 
 /** A date in the language. A value that cannot be read is shown as written and reported: one bad row does not fail a whole render. */
-export function formatDate(at: string, style: TextDateStyle, locale: Locale, options: MessageFormatOptions = {}): string {
+export function formatDate(at: string, style: TextDateStyle, locale: Locale, options: MessageFormatOptions & TextDateOptions = {}): string {
+  const timeZone = options.time_zone;
+  if (timeZone !== undefined && !isTextTimeZone(timeZone)) { options.problem?.("ui.text_bad_time_zone"); return at; }
   try {
     const moment = momentOf(at);
-    if (moment !== null) return dateText(moment, style, locale, options.now ?? Date.now());
+    // With an explicit zone, a time must be an instant, not an unqualified local wall time.
+    if (moment !== null && (timeZone === undefined || moment.dateOnly || /(?:Z|[+-]\d{2}:\d{2})$/u.test(at))) {
+      return dateText(moment, style, locale, options.now ?? Date.now(), timeZone);
+    }
   } catch {
     // `Intl` refusing it (a year out of its range) is the same bad value as one that does not parse: reported below.
   }
@@ -84,7 +96,7 @@ export function formatNumber(value: number, locale: Locale, style: TextNumberSty
 
 function argText(arg: TextArg, locale: Locale, options: MessageFormatOptions): string {
   if (arg.kind === "text") return arg.text;
-  if (arg.kind === "date") return formatDate(arg.at, arg.style, locale, options);
+  if (arg.kind === "date") return formatDate(arg.at, arg.style, locale, { ...options, time_zone: arg.time_zone });
   // A plain number may be a year, a port or a version, and none of those are grouped: grouping is asked for by a style.
   return arg.style === undefined ? new Intl.NumberFormat(locale, { useGrouping: false, maximumFractionDigits: 20 }).format(arg.number) : formatNumber(arg.number, locale, arg.style);
 }

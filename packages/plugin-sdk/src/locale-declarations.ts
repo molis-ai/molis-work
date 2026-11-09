@@ -42,8 +42,21 @@ export function localeDeclarationProblems(manifest: PluginManifest): string[] {
   const bothRoads = messages !== undefined || translations !== undefined;
   return [
     ...(bothRoads ? ["ui.locales 不能和 ui.messages、ui.translations 写在同一个 Manifest 里：留 ui.locales，把词搬到 locales/<语言>.json，再删掉 ui.messages、ui.translations"] : []),
-    // Every key a Plugin writes starts with the last segment of its id, so an id that cannot start a key could never fill the language files it declares.
-    ...[keyOwnerProblem(manifest.plugin_id)].flatMap((problem) => (problem === null ? [] : [`ui.locales 写不了键：${problem}`])),
-    ...localeListProblems(locales),
+    ...ownerLocaleProblems(manifest.plugin_id, locales),
   ];
+}
+
+function ownerLocaleProblems(owner: string, locales: unknown): string[] {
+  const ownerProblem = keyOwnerProblem(owner);
+  return [...(ownerProblem === null ? [] : [`ui.locales 写不了键：${ownerProblem}`]), ...localeListProblems(locales)];
+}
+
+/** An executable sandbox contract may only declare the same locale shape its Manifest carries. */
+export function sandboxLocaleProblems(contract: { readonly pluginId: string; readonly ui?: unknown }): string[] {
+  const ui = contract.ui;
+  if (ui === undefined) return [];
+  if (ui === null || typeof ui !== "object" || Array.isArray(ui) || Object.keys(ui).some(key => key !== "locales") || !("locales" in ui)) {
+    return ["合同的 ui 只声明 locales"];
+  }
+  return ownerLocaleProblems(contract.pluginId, ui.locales);
 }

@@ -1,6 +1,7 @@
-import { TEXT_DATE_STYLES, TEXT_NUMBER_STYLES, TEXT_REF_LIMITS, type OwnedTextRef, type TextArg, type TextArgs, type TextArgValue, type TextDateStyle, type TextNumberStyle, type TextRef } from "@molis-ai/molis-work-contracts/platform/ui";
+import { TEXT_DATE_STYLES, TEXT_NUMBER_STYLES, TEXT_REF_LIMITS, type OwnedTextRef, type TextArg, type TextArgs, type TextArgValue, type TextDateOptions, type TextDateStyle, type TextNumberStyle, type TextRef } from "@molis-ai/molis-work-contracts/platform/ui";
 import { keyOwnerProblem, messageOwnerOf, PLATFORM_TEXT_OWNER, SHARED_OWNER, STABLE_KEY } from "../message-declarations.js";
 import { uiTextErrors } from "./text-errors.js";
+import { isTextTimeZone } from "./message-format.js";
 
 // A piece of text as data (specs/font-and-skin-system/a-section-contract.md §2). `TEXT_REF_SCHEMA` cannot say which fields go together, so
 // `textRefProblems` is what refuses a bad reference, and `ownedTextRef` is the one place an owner is written into one.
@@ -24,13 +25,15 @@ export function refuseSharedTextPrefix(taken: string | null | undefined, owner: 
 /** The shape of a placeholder, the same as `message-declarations.ts` holds a Manifest's words to. */
 const ARG_NAME = /^[A-Za-z_]\w*$/u;
 const REF_FIELDS = new Set(["key", "args", "fallback", "literal"]);
-const ARG_VALUE_FIELDS = { text: ["text"], number: ["number", "style"], date: ["at", "style"] } as const;
+const ARG_VALUE_FIELDS = { text: ["text"], number: ["number", "style"], date: ["at", "style", "time_zone"] } as const;
 
 const isObject = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
 const isText = (value: unknown, longest: number): value is string => typeof value === "string" && value !== "" && value.length <= longest;
 
 /** The value of a date. Stored as it is and formatted when it is shown. */
-export const dateArg = (at: string, style: TextDateStyle): TextArgValue => ({ kind: "date", at, style });
+export const dateArg = (at: string, style: TextDateStyle, options?: TextDateOptions): TextArgValue => ({
+  kind: "date", at, style, ...(options?.time_zone === undefined ? {} : { time_zone: options.time_zone }),
+});
 /** A number with a style. A plain number needs none of this: `t(key, { count: 3 })`, shown without grouping. */
 export const numberArg = (number: number, style?: TextNumberStyle): TextArgValue => ({ kind: "number", number, ...(style === undefined ? {} : { style }) });
 
@@ -49,6 +52,7 @@ function argValueProblem(arg: Record<string, unknown>, kind: keyof typeof ARG_VA
     return arg.style === undefined || (TEXT_NUMBER_STYLES as readonly unknown[]).includes(arg.style) ? null : `${at} 是 number，style 必须是 ${TEXT_NUMBER_STYLES.join("、")} 之一`;
   }
   if (!isText(arg.at, TEXT_REF_LIMITS.arg_at)) return `${at} 的 at 必须是最长 ${TEXT_REF_LIMITS.arg_at} 个字符的日期`;
+  if (arg.time_zone !== undefined && !isTextTimeZone(arg.time_zone)) return `${at} 的 time_zone 必须是支持的时区`;
   return (TEXT_DATE_STYLES as readonly unknown[]).includes(arg.style) ? null : `${at} 是 date，style 必须是 ${TEXT_DATE_STYLES.join("、")} 之一`;
 }
 

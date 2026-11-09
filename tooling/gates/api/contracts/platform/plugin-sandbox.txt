@@ -363,6 +363,9 @@ export interface SandboxPluginContract {
     version: 1;
     pluginId: string;
     revision: string;
+    ui?: {
+        readonly locales: PluginLocalesDeclaration;
+    };
     operations: SandboxOperationContract[];
     entities: Array<{
         id: string;

@@ -410,6 +410,8 @@ flowchart LR
 
 组件可拆独立叶子文件，SDK 导出、样式入口与组件板装配沿现有接点，不扩现有巨大入口。第 15 批在独立工作树开发，最终统一同步 `main` 时接回已合入的安装、取词及页面授权改动，并解决共享入口的重叠。内置 `ui.locales` 和生产页面按实际切换后的路径统一验证。定样与产品运行分别留证。
 
+作者与平台共用的 `presentationOwnerHue(pluginId)` 从 design-system 原样移入公开 SDK `/ui`，design-system 原出口同名重导；Goals／Inbox 不为取得同色而依赖私有设计系统。此五行纯函数搬移已于 2026-11-09 前置窄审通过：保留当前色序、for…of／charCodeAt(0)／无符号取值算法和 canonical id 输入，不增加规范化、参数或 renderer 默认色行为。撤回本次两插件新增的私有依赖，刷新 SDK `/ui` API 快照，按原计划跑边界与构建，最终共享核心 Full 要求不变，不为机械搬移另造镜像测试。
+
 2026-11-08 标本阶段按用户要求等待第 08 批完整推送，先交四形态实件和键盘修复；其后真实组件与组件板已合回 `batch/15`，相关子树已清理。沿用已选 B；标本中的示例状态与交互只证明展示和可操作性。按用户同日后续更正，真实网关、跨位置刷新和产品接入在本批独立实施，最终统一同步时接回实际页面授权与语言切换，不再等待跨批文件交接。
 
 Feed 的归属已有事实来源，不新增个人订阅结构：`SourceRecord.project_id` 属于实际订阅，个人分区由宿主创建并使用公开合同的 `PERSONAL_SPACE_PROJECT_ID`。Feed 在个人分区与普通项目走相同 Runtime 和来源读写。实际 values 读取应按条目的 `source_id` 在授权分区核对来源原记录，由来源的 `project_id` 给 `held_in`，无法核实则不猜；不以 Gmail／GitHub／RSS 等类型或账号身份推断。已提交 v2 金样中同一普通项目的 Gmail 与 RSS 被旧名单分成不同归属，且有 Feed Item 没有 Attention，作为 WBR-24 的反例。此逻辑随 Feed 的实际 values／概况消费者交付，不给将退出的 `HOME_EVENTS` 另造归属合同，也不提前添加无人消费的 helper。

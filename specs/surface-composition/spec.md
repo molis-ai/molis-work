@@ -531,6 +531,8 @@ Goals 在自身声明中把 `goals.create@1` 指向 `stage/create-dialog`，自�
 
 项目与 Home 签名文档均通过现有 `PluginPageAuthority.open` 的 `selected` 绑定确切 scope、安装和发行物检查，Home 从项目打开时保持原 `assertProject`。Host 从原激活的可信 `definitionOrigin`／`rememberInstalledActionSource` 取已验证 node，复用 `resolvePluginComponentCall(node, "submit", payload)`，动作引用复用实际曝光投影：`exposedActionId`、曝光动作的数值版本（不是安装记录的版本字符串）及 `plugin:<canonical>`，不能误用页面通用分支默认的 install id 提供方。现行合法签包没有 `Manifest.actions` 时也只取同一安装真实注册的曝光，不改写或重签包。提交继续用 `pluginActionView`、当前页与安装检查、现有 bound action client 及 `withPluginPermissionChecks`，在本人精确动作范围内执行，并核目录行的 `plugin_install_id` 与 scope。
 
+签名组件提交须保留现有两种授权的区别：本 operation 的自身服务 effects（含声明的本地后台闭包）沿 SDK 唯一投影，由原 activation 的 requireGrant 核对；受委托 capability 由原安装的 sandboxGrants 核对声明和批准交集，不把目标的权限名当成本包自身服务授权。原曝光登记已经计算该 operation 的完整权限闭包，网关只从这份现有登记读取，并捕获原登记／policy 的当前性检查；不第二次扫描目录推算、不解析 binding 字符串。两种证明均通过后，本人 caller 只获得这一条精确曝光动作的闭包与 allowed_actions；等待后、写前继续核原安装、同一 policy 和两种授权，不能更新到新 policy 后继续旧请求。实际委托仍由既有 sandbox broker 与 catalogCapabilities.call 再核 capability id 和精确目标；仅另一 capability 持有同名权限不算批准，自身服务 grant 缺失也不能借委托闭包补足。此适配仅用于原页绑定的签名 component_submit，不放宽普通页面或公共 ActionClient。
+
 原文档的异步写前检查也必须保留：`pluginPageRequest(request).beforeEffect()` 含 Home `packageDocument` 捕获的项目可达性检查，不能用仅查 `page.assertCurrent` 和动作可见性的闭包替换。网关把原文档检查与同步的页／安装检查组合后，经现有 `withProjectReachInvocation` 传入实际执行 control，每次写前仍检查原项目。
 
 旧签名 `/call` 拒绝 `binding: "submit"` 和外部原始 `{ operation, input }`。内部动作桥只在 `currentPluginAction()` 与原激活、安装代次、实际提供方和动作 `local_id` 全部相符时进入原沙箱执行段；HTTP 同样有 `execution`，不能再以它存在作为内部调用证明。保留现有 `withProjectReachInvocation` 和生命周期 control，执行段不回调页面网关，避免递归。项目已装页 GET 和 `/call` 目前只匹配 `io.molis.work.generated.<uuid>`，须改为现行合法插件 id 后再核当前项目的确切签包／生成安装记录；未知、内置或 Home 仍沿原分流，不增页面或授权路由。

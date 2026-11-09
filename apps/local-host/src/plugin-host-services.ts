@@ -1,3 +1,4 @@
+import { installHostUiText } from "./ui-text-provider.js";
 import { combinePluginSyncLibraries } from './plugin-sync-library.js';
 import { savedHistoryFor } from "./saved-history-host.js";
 import { PROLOGUE_RUNTIME_ID, savedAgentHistoryView, readSavedAgentHistory } from "@molis-ai/molis-work-service-agent-host";
@@ -144,6 +145,7 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
 export function pluginTextFor(options: Pick<PluginHostExecutorOptions, "localePacks">, definition: PluginDefinition, activation: PluginInstance): (() => void) | undefined {
   const reader = options.localePacks?.(definition) ?? installedLocalePacks(definition);
   if (reader === null) return undefined;
+  installHostUiText();
   if (reader.owner !== definition.manifest.plugin_id) throw new Error("语言文件的主人与运行的插件声明不符");
   return registerPluginText(reader, { activation, t: definition.execution !== "sandbox" && definition.manifest.kind !== "content" });
 }

@@ -1,3 +1,4 @@
+import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { installCapture, remembered } from "./capture.js";
 import { installDetail } from "./detail.js";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
@@ -10,7 +11,7 @@ import type { Issue, IssuesHost, IssuesPage } from "./types.js";
 
 /** The button a click landed on, and what it asks for. */
 async function onClick(page: IssuesPage, event: Event) {
-  const { el, state, L } = page;
+  const { el, state } = page;
   const button = (event.target as Element).closest<HTMLElement>("button, a[data-issue-id]");
   if (!button || state.saving) return;
   const is = (key: string) => button.hasAttribute("data-issue-" + key);
@@ -23,11 +24,11 @@ async function onClick(page: IssuesPage, event: Event) {
   else if (is("redo") && current) { if (isPending(current)) await page.redo(current); else await page.reviewIssue(); }
   else if (is("delete") && current && !isPending(current)) {
     const target = current;
-    if (!await page.confirm(L("issues.editor.delete-title"), target.title + "\n\n" + L("issues.editor.delete-text"), L("issues.detail.delete"),
+    if (!await page.confirm(t.text("issues.editor.delete-title"), target.title + "\n\n" + t.text("issues.editor.delete-text"), t.text("issues.detail.delete"),
       () => page.api("delete", { id: target.id, expected_version: target.version }))) return;
     state.rows = state.rows.filter((row) => row.id !== target.id);
     if (state.current === target) await page.back();
-    page.toast(L("issues.editor.deleted"));
+    page.toast(t.text("issues.editor.deleted"));
   }
   else if (is("more")) await page.load(true);
   else if (is("reload")) await page.refresh();

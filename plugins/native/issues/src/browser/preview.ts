@@ -1,9 +1,10 @@
+import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { required } from "./dom.js";
 import type { IssuesPage, MediaZoom } from "./types.js";
 
 /** The enlarged picture: opened from a thumbnail, zoomed by the shared media-zoom helper, closed by a click beside it. */
 export function installPreview(page: IssuesPage): void {
-  const { el, L, scope, $ } = page;
+  const { el, scope, $ } = page;
   // Media zoom (VUX-32), made on first open; the button says what it does next. Without the helper: fit / own size.
   const view = required<HTMLElement>($("preview"), "[data-issue-picture]");
   const viewed = required<HTMLImageElement>(view, "img");
@@ -11,7 +12,7 @@ export function installPreview(page: IssuesPage): void {
   const fits = () => { if (zoom) $("zoom").hidden = zoom.state() === "fit" && zoom.fitsAtActual(); };
   const zoomer = (): MediaZoom | null => {
     if (zoom === undefined) {
-      zoom = globalThis.molisMediaZoom?.(view, viewed, { onChange: (next) => { $("zoom").textContent = next === "fit" ? L("issues.shots.actual-size") : L("issues.shots.fit"); fits(); } }) ?? null;
+      zoom = globalThis.molisMediaZoom?.(view, viewed, { onChange: (next) => { $("zoom").textContent = next === "fit" ? t.text("issues.shots.actual-size") : t.text("issues.shots.fit"); fits(); } }) ?? null;
     }
     return zoom;
   };
@@ -22,7 +23,7 @@ export function installPreview(page: IssuesPage): void {
       img.src = source.src;
       img.alt = source.alt;
       delete dialog.dataset.zoom;
-      $("zoom").textContent = L("issues.shots.actual-size");
+      $("zoom").textContent = t.text("issues.shots.actual-size");
       view.scrollTo(0, 0);
       dialog.showModal();
       zoomer()?.fit(false);
@@ -32,7 +33,7 @@ export function installPreview(page: IssuesPage): void {
       if (zoomed) { if (zoomed.state() === "fit") zoomed.actual(); else zoomed.fit(); }
       else {
         const on = $("preview").toggleAttribute("data-zoom");
-        button.textContent = L(on ? "issues.shots.fit" : "issues.shots.actual-size");
+        button.textContent = t.text(on ? "issues.shots.fit" : "issues.shots.actual-size");
         view.scrollTo(0, 0);
       }
     }

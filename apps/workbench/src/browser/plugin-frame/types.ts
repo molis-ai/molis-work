@@ -6,6 +6,7 @@ import type { PresentationMessage } from "./presentation.js";
 import type { UiClientMount, UiViewSelection, UiConnectionSlotChoice, UiFrameAssetReference } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { frameAssets } from "./frame-assets.js";
 import type { AppearanceProjection } from "../appearance-view.js";
+import type { FrameLanguage, FrameLanguageUpdate, prepareFrameLanguages } from "./language.js";
 
 export type Translate = UiClientTranslate;
 export interface FrameScope extends UiClientScope {
@@ -40,6 +41,7 @@ export interface FramePack { id: string; plugin_id: string; bundle: string; asse
 export interface FrameConfig {
   mount: UiClientMount | null;
   appearance?: AppearanceProjection;
+  text: FrameLanguage;
   searchRow?: FramePack["searchRow"];
   recordRow?: FramePack["recordRow"];
   itemTab: { tabId: string; itemId: string } | null;
@@ -137,6 +139,7 @@ export type FrameDown =
   | TaskGrantsDown | ConnectionNeedDown | ReturnDown
   | { type: "focus" } | FrameAnswer | ContextDown | { type: "state"; visible: boolean; theme: Record<string, string> }
   | { type: "environment"; snapshot: AppearanceProjection["snapshot"]; skin_href: string | null }
+  | FrameLanguageUpdate
   | { type: "document"; id: number; html?: string; error?: string }
   | { type: "copied"; id: number; error?: string }
   | { type: "draft-result"; id: number; value?: string | null; error?: string }
@@ -162,7 +165,7 @@ declare global {
   var MOLIS_WORK_PLUGIN_WORDS: Record<string, Record<string, string>> | undefined;
   var L: Translate;
   var molisWorkbenchPluginFactories: Record<string, (host: UiPluginClientHost<HTMLElement, HTMLDialogElement, HTMLImageElement | HTMLIFrameElement>) => void>;
-  var molisPluginFrames: { assets: typeof frameAssets; mount(root: HTMLElement, host: FrameHost, pack: FramePack): Promise<{ frame: HTMLIFrameElement; scope: FrameScope }> };
+  var molisPluginFrames: { assets: typeof frameAssets; prepareLanguage: typeof prepareFrameLanguages; mount(root: HTMLElement, host: FrameHost, pack: FramePack): Promise<{ frame: HTMLIFrameElement; scope: FrameScope }> };
   var molisFrameUi: (translate: Translate) => {
     mountPluginClient(root: HTMLElement): FrameScope | null;
     interaction: typeof import("@molis-ai/molis-work-design-system").createInteractionClient;

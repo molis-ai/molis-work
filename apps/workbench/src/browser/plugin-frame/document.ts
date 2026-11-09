@@ -2,6 +2,19 @@ import { escapeHtml as escape } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { FramePack } from "./types.js";
 import { appearanceRef, type AppearanceProjection } from "../appearance-view.js";
 
+/** Match the actual surface and producer already bound to this root in either representation of the same shell. */
+export function renderedFrameText(page: ParentNode, root: HTMLElement): string | null {
+  const selectors = root.dataset.pluginContribution ? "[data-plugin-contribution]" : "[data-work-surface], [data-directory-panel]";
+  const keys = root.dataset.pluginContribution
+    ? ["pluginOwner", "pluginContribution", "pluginSurface", "pluginSlot", "pluginProducer"] as const
+    : ["workSurface", "directoryPanel"] as const;
+  const matches = [...page.querySelectorAll<HTMLElement>(selectors)].filter(candidate =>
+    keys.every(key => candidate.dataset[key] === root.dataset[key]) && candidate.querySelector(":scope > script[data-plugin-document]"));
+  if (matches.length !== 1) return null;
+  const html: unknown = JSON.parse(matches[0]!.querySelector("script[data-plugin-document]")!.textContent ?? "null");
+  return typeof html === "string" ? html : null;
+}
+
 /** The CSP names only the registered bundle and its declared static dependencies. No child network or nested frame. */
 export function frameDocument(root: HTMLElement, pack: FramePack, challenge: string, appearance?: AppearanceProjection): string {
   const origin = location.origin, script = origin + "/assets/molis-work-plugin-frame.js";

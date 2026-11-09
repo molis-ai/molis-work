@@ -27,6 +27,7 @@ import { pageEventSource } from "./events.js";
 import { createFrameFetch } from "./fetch.js";
 import { childContext } from "./context-child.js";
 import { frameAppearance } from "./appearance.js";
+import { frameLanguage } from "./language-child.js";
 import type { FrameConfig, FrameDown, FrameUp, Translate } from "./types.js";
 
 function bindStorage(port: MessagePort, config: FrameConfig): void {
@@ -47,6 +48,8 @@ function bindStorage(port: MessagePort, config: FrameConfig): void {
 /** The opaque child receives public presentation data and one capability port, never owner credentials. */
 export async function startChild(port: MessagePort, config: FrameConfig): Promise<void> {
   const send = (message: FrameUp) => port.postMessage(message), fetchThroughPort = createFrameFetch(port, config.origin);
+  if (config.text.owner !== config.pluginId) throw new Error("View text owner does not match");
+  const updateLanguage = frameLanguage(config.text);
   globalThis.fetch = fetchThroughPort;
   globalThis.MOLIS_WORK_MESSAGES = config.messages; globalThis.MOLIS_WORK_PLUGIN_TITLES = config.titles;
   const L: Translate = globalThis.L = (key, values) => {
@@ -118,7 +121,7 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
       if (prior !== document.documentElement.dataset.resolvedTerminalTheme) dispatchEvent(new CustomEvent("molis-work:terminal-theme-change"));
       if (!message.visible) updateAppearance(undefined);
     }
-    else if (message.type === "environment") updateAppearance({ snapshot: message.snapshot, stylesheet: message.skin_href });
+    else if (message.type === "environment") "language" in message ? updateLanguage(message, event.ports[0]) : updateAppearance({ snapshot: message.snapshot, stylesheet: message.skin_href });
     else if (message.type === "focus") scope.frame(() => { if (scope.visible) dispatchEvent(new Event("focus")); });
     else if (message.type === "select") { itemTab = message.itemTab; select(message.detail); }
     else if (message.type === "collapse") collapsePage(root);

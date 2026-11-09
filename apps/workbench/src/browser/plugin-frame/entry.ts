@@ -2,8 +2,9 @@ import { mountFrame } from "./parent.js";
 import { startChild } from "./child.js";
 import { frameAssets } from "./frame-assets.js";
 import type { FrameConfig } from "./types.js";
+import { prepareFrameLanguages } from "./language.js";
 
-globalThis.molisPluginFrames = { mount: mountFrame, assets: frameAssets };
+globalThis.molisPluginFrames = { mount: mountFrame, assets: frameAssets, prepareLanguage: prepareFrameLanguages };
 const parentOrigin = document.querySelector<HTMLMetaElement>('meta[name="molis-work-frame-parent"]')?.content;
 const challenge = document.querySelector<HTMLMetaElement>('meta[name="molis-work-frame-mount"]')?.content;
 if (parent !== window && parentOrigin && challenge) {

@@ -11,7 +11,7 @@ import { HOST_BUILD_TRUST, SqlitePluginPrivateStorage } from "@molis-ai/molis-wo
 import type { PluginDependencyCheck } from "./plugin-actions-client.js";
 import { consentRevision } from "./consent-revision.js";
 import { bindDeclaredDefaults } from "./plugin-default-bindings.js";
-import { nativePluginReleaseArtifact } from "./native-plugin-release-artifact.js";
+import { registeredNativePlugin } from "./native-plugin-release-artifact.js";
 import { fixtureAdmission, installedFixturesFor, pluginHomeFor, projectFixtureEntries } from "./home-side.js";
 import { projectScopeEntries } from "./plugin-scope-entries.js";
 import { installationSwitchedOff, projectPluginEnablement, projectPluginEnablementRefresh } from "./project-plugin-enablement.js";
@@ -183,7 +183,6 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
  */
 function projectPluginEntries(): PluginPlatformEntry[] {
   return projectRuntimeDeclarations().map(entry => ({
-    definition: entry.create(), trust: HOST_BUILD_TRUST,
-    releaseArtifact: nativePluginReleaseArtifact<() => PluginDefinition>(entry.package_name, entry.factory_export, factory => factory()),
+    ...registeredNativePlugin(entry), trust: HOST_BUILD_TRUST,
   }));
 }

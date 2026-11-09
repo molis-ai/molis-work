@@ -1,6 +1,7 @@
 import { childEmbeds } from "./embed.js";
 import type { UiPageView } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { FrameDown, FramePack, FrameScope, FrameUp } from "./types.js";
+import { renderedFrameText } from "./document.js";
 
 /** Existing row-based clients and clients that open directly by id share the shell's selection intent. */
 export function pageSelection(root: HTMLElement, scope: FrameScope, row: FramePack["searchRow"]) {
@@ -78,16 +79,8 @@ export async function readOwnPageDocument(root: HTMLElement, route: (path: strin
     await check();
     const source = await molisWorkRequest<string>(location.pathname + location.search, { as: "text", scope, signal });
     const document = new DOMParser().parseFromString(source, "text/html");
-    const matches = root.dataset.pluginContribution
-      ? [...document.querySelectorAll<HTMLElement>("[data-plugin-contribution]")].filter(candidate =>
-        ["pluginOwner", "pluginContribution", "pluginSurface", "pluginSlot", "pluginProducer"].every(key => candidate.dataset[key] === root.dataset[key]))
-      : [...document.querySelectorAll<HTMLElement>("[data-work-surface]")].filter(candidate => candidate.dataset.workSurface === root.dataset.workSurface);
-    if (root.dataset.pluginContribution && matches.length !== 1) throw new Error("View unavailable");
-    const surface = matches[0];
-    const data = surface?.querySelector("script[data-plugin-document]")?.textContent;
-    if (!data) throw new Error("View unavailable");
-    const html: unknown = JSON.parse(data);
-    if (typeof html !== "string") throw new Error("View unavailable");
+  const html = renderedFrameText(document, root);
+  if (html === null) throw new Error("View unavailable");
     await check(); scope?.assertCurrent(signal);
     if (!root.isConnected || signal?.aborted) throw new Error("View unavailable");
     return html;

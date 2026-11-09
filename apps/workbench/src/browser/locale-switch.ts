@@ -201,7 +201,7 @@ export interface LocaleSwitchOptions<Prepared = undefined> {
   /** The region as the server draws it in a language; `null` when it cannot be had. */
   render(locale: string, signal: AbortSignal): Promise<ParentNode | null>;
   /** Load resources without changing the current language. */
-  prepare?(locale: string, signal: AbortSignal, document: ParentNode | null): Promise<Prepared>;
+  prepare?(locale: string, signal: AbortSignal, document: ParentNode | null, previous: ParentNode | null): Promise<Prepared>;
   /** Save the prepared preference, or read back its actual result if the reply is lost. Never cancelled once sent. */
   persist?(locale: string, prepared: Prepared): Promise<void>;
   /** The browser commits its prepared context synchronously, or restores the previous one if any update failed. */
@@ -231,16 +231,17 @@ export function createLocaleSwitch<Prepared>(options: LocaleSwitchOptions<Prepar
     let merged: LocaleMerge | null = null;
     while (wanted) {
       const request = wanted, target = request.locale, prior = current;
+      const abort = preparing = new AbortController(), signal = abort.signal;
       try {
-        const abort = preparing = new AbortController(), signal = abort.signal;
         const [old, next] = await waitForLocalePreparation(signal, Promise.all([
           target === prior ? null : options.render(prior, signal),
           target === prior ? null : options.render(target, signal),
         ]));
-        const prepared = options.prepare ? await waitForLocalePreparation(signal, options.prepare(target, signal, next)) : undefined;
-        if (preparing === abort) preparing = undefined;
         if (request !== wanted) continue;
         if (target !== prior && (old === null || next === null)) { wanted = undefined; return null; }
+        const prepared = options.prepare ? await waitForLocalePreparation(signal, options.prepare(target, signal, next, old)) : undefined;
+        if (preparing === abort) preparing = undefined;
+        if (request !== wanted) continue;
         const plan = old && next && planLocaleText({ root: options.root, old, next, produced: options.produced,
           retext: ref => options.retext(ref, target, prepared) });
         if (request.save && options.persist && (request.force || target !== persisted)) {
@@ -254,10 +255,12 @@ export function createLocaleSwitch<Prepared>(options: LocaleSwitchOptions<Prepar
         }
         current = target; if (wanted === request) wanted = undefined;
       } catch (error) {
-        preparing?.abort(); preparing = undefined;
         if (request !== wanted) continue;
         wanted = undefined;
         throw error;
+      } finally {
+        if (preparing === abort) preparing = undefined;
+        abort.abort();
       }
     }
     return merged;

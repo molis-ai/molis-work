@@ -1,6 +1,5 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { basename, dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { basename, join } from "node:path";
 import type { UiLocalePack, UiResourceRow, UiTextProvider } from "@molis-ai/molis-work-contracts/platform/ui";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { BASELINE_REGISTRY } from "@molis-ai/molis-work-design-system";
@@ -9,6 +8,7 @@ import { installUiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { pluginTextForOwner, pluginTextOwnerOfPrefix, registerPlatformText, type PluginTextReader } from "@molis-ai/molis-work-app-workbench";
 import { hostLog } from "./host-log.js";
 import { textScope, WEB_LOCALES } from "./web-locale.js";
+import { registeredPackageDirectory } from "./registered-plugin-files.js";
 
 // The text context of this process (specs/font-and-skin-system/a-section-contract.md §5.2, §8.3): what `t`, `say` and `format` find on the global. The
 // language is the scope's (`web-locale.ts`), which ends with the request or the run that opened it; plugin words come only from the exact activation. It does
@@ -57,18 +57,6 @@ export function hostTextProblems(): readonly TextProblem[] {
 /** A platform owner has no Manifest: the first web language is its default, the one a page with no choice shows. */
 const PLATFORM_DEFAULT_LOCALE = WEB_LOCALES[0];
 
-/** The directory a package is in: from its entry up to the `package.json` that names it. The same in a checkout and in a release's `node_modules`. */
-function packageDirectory(name: string): string {
-  let directory = dirname(fileURLToPath(import.meta.resolve(name)));
-  for (;;) {
-    const file = join(directory, "package.json");
-    if (existsSync(file) && (JSON.parse(readFileSync(file, "utf8")) as { name?: unknown }).name === name) return directory;
-    const parent = dirname(directory);
-    if (parent === directory) throw new Error(`找不到 ${name} 的包目录`);
-    directory = parent;
-  }
-}
-
 /**
  * A platform owner's language directory, a `locale` row of the resource registry (§1.2): adding an owner is a row, adding a language a file. Nothing is read
  * until a word of it is asked for; then each language's file once, through the rules a plugin's files go through (`pluginLocaleReader`).
@@ -77,7 +65,7 @@ function platformLocaleReader(row: UiResourceRow): PluginTextReader {
   let reader: PluginLocaleReader | null = null;
   const open = (): PluginLocaleReader => {
     if (reader !== null) return reader;
-    const directory = join(packageDirectory(row.package), row.path);
+    const directory = join(registeredPackageDirectory(row.package), row.path);
     const available = readdirSync(directory).filter((name) => name.endsWith(".json")).map((name) => name.slice(0, -".json".length)).sort();
     const read = (path: string) => { const file = join(directory, basename(path)); return existsSync(file) ? readFileSync(file, "utf8") : null; };
     reader = pluginLocaleReader({ plugin_id: row.owner, kind: "platform", ui: { locales: { default: PLATFORM_DEFAULT_LOCALE, available } } }, read)!;

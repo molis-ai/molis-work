@@ -558,11 +558,11 @@ ${TAB_WORKSPACE_DRAG_PART}
       const ask = panes.recordAsk(event);
       if (ask) { document.querySelector('[data-work-surface="' + CSS.escape(ask.plugin) + '"]')?.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: { itemId: ask.itemId, quiet: ask.quiet } })); return; }
       if (event.data.type !== "workbench-view") return;
-      const form = event.data.signedHomeForm;
-      if (form) {
-        if (typeof form.plugin !== "string" || typeof form.href !== "string" || typeof form.panel !== "string" || ops.shownPlugin(ops.focused(state)) !== form.plugin) return;
-        const target = signedHomeFrame(findTopLevelSurface(form.plugin), form.owner, form.href);
-        if (target) signedHomeSelection(target, form.href, form);
+      const signed = event.data.signedHomeTarget;
+      if (signed) {
+        if (typeof signed.plugin !== "string" || typeof signed.href !== "string" || !signed.selection || ops.shownPlugin(ops.focused(state)) !== signed.plugin) return;
+        const target = signedHomeFrame(findTopLevelSurface(signed.plugin), signed.owner, signed.href);
+        if (target) signedHomeSelection(target, signed.href, { panel: signed.selection.panel, itemId: signed.selection.itemId });
         return;
       }
       if (ops.writeView(state, state.panes[0]?.id, event.data.view)) apply();

@@ -4,7 +4,7 @@ import type { SandboxPluginContract } from '@molis-ai/molis-work-contracts/platf
 import type { PluginComponentNode } from './plugin-components.js';
 import type { PluginPresentation } from './plugin-presentation.js';
 import { createPluginPresentationClient as present } from './plugin-presentation-client.js';
-import type { Ctl, Det, Kit, Out, Prt, Qry, Rec, Rel, State, Sub } from './plugin-component-types.js';
+import type { Ctl, Det, Kit, Out, Part, Prt, Qry, Rec, Rel, State, Sub } from './plugin-component-types.js';
 import { pcKit } from './plugin-component-kit.js';
 import { pcRecords, pcRelations } from './plugin-component-records.js';
 import { pcControls, pcDetail } from './plugin-component-controls.js';
@@ -42,7 +42,32 @@ export function createPluginComponentClient(options: PluginComponentClientOption
     part.form.querySelector<HTMLElement>("input:not([type=hidden]),textarea,select")?.focus();
     return true;
   };
-  return { update, refresh: c7.refresh, destroy, openInput };
+  const openRecord = async (id: string): Promise<boolean> => {
+    if (state.disposed) return false;
+    const rows = (part: Part) => [...part.output.querySelectorAll<HTMLElement>("[data-record-id]")].filter(row => row.dataset.recordId === id);
+    const matches = [...state.parts.values()].flatMap(part => {
+      const field = part.node.props.idField;
+      if (!field || !c7.ready(part.node.read?.operationId)) return [];
+      const records = part.rows?.filter(row => c7.text(c7.at(row, field)) === id);
+      return records?.length === 1 && rows(part).length === 1 ? [{ part, value: records[0] }] : [];
+    });
+    if (matches.length !== 1) return false;
+    const { part, value } = matches[0]!, generation = c7.epoch;
+    c7.selectPage(part.node.pageId);
+    c7.select(part.node.id, value);
+    const selected = c7.selectionVersions.get(part.node.id);
+    if (c7.reading(part.node) || c7.selectable(part.node.id)) await c7.refresh();
+    if (!c7.live(part, generation) || c7.currentPage !== part.node.pageId || c7.selectionVersions.get(part.node.id) !== selected) return false;
+    const actual = rows(part);
+    if (actual.length !== 1 || !c7.selection[part.node.id]) return false;
+    const row = actual[0]!;
+    part.output.querySelectorAll("[aria-current]").forEach(node => node.removeAttribute("aria-current"));
+    row.setAttribute("aria-current", "true");
+    if (row instanceof HTMLDetailsElement) row.open = true;
+    row.tabIndex = -1; row.focus({ preventScroll: true }); row.scrollIntoView({ block: "center" });
+    return true;
+  };
+  return { update, refresh: c7.refresh, destroy, openInput, openRecord };
 }
 function pcLifecycle(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry & Sub & Prt) {
   const { root, tabs, tabList, composition, selectionVersions, parts, pages, regions, details, make, headingOf, detailEnabled, ready, rowHost, rowLabel, signature, selectPage, showDetail, syncChoices, query, refresh, createPart } = c;

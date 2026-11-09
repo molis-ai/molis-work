@@ -149,7 +149,6 @@ export function createFeedPlugin(): PluginDefinition {
       return readLinkedFeedContext(feed, projectId, input, hydrate);
     };
     const delegation = services?.actions?.directory;
-    // A home event's subject is read through the directory as the caller, as the Inbox reads its own (`resolveActionSubject`).
     const subjects: ActionClient | undefined = delegation && { discover: () => delegation.discover(), invoke: (_caller, reference, input) => delegation.invoke(reference, input) };
     const bindings: ActionHandlerBinding[] = [
       ...createFeedPresentationHandlers(projectId, feedPresentationRecords(ports.sql, projectId), new SourcesModule(ports.sql).query),

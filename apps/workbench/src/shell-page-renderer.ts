@@ -33,7 +33,10 @@ function deferredSurfaces(L: Translate, enabledPlugins: readonly string[], paneP
     if (!match || !deferredIds.has(match[3]!)) return html;
     if (panePlugin && panePlugin !== match[3]) return match[1]!.replace(/>$/, ' data-pane-placeholder>') + match[5];
     if (!isolatedIds.has(match[3]!)) return match[1]!.replace(/>$/, ' data-deferred-surface>') + '<template data-deferred-content>' + match[4] + '</template>' + match[5];
-    return renderPluginFrameSurface(html, match[3]!, L(BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === match[3])?.manifest.name ?? match[3]!), true, listPluginSettingsNavItems(enabledPlugins).some(item => item.section_id === match[3]));
+    const frame = renderPluginFrameSurface(html, match[3]!, L(BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === match[3])?.manifest.name ?? match[3]!), true, listPluginSettingsNavItems(enabledPlugins).some(item => item.section_id === match[3]));
+    // Carry the running stage's navigation proof onto the wrapper. Its existing client mount still has no contribution binding.
+    const proof = / (data-plugin-owner="[^"]*") data-plugin-contribution="[^"]*" (data-plugin-surface="[^"]*" data-plugin-slot="workbench.main" data-plugin-producer="[^"]*")/u.exec(match[1]!);
+    return proof ? frame.replace("<section ", () => "<section " + proof[1] + " " + proof[2] + " ") : frame;
   };
 }
 

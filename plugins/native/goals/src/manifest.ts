@@ -6,7 +6,7 @@ import { GOALS_ACTIONS } from "./actions.js";
 import { PERSONAL_PLANNING_ACTIONS } from "./personal-planning-actions.js";
 import { GOALS_TERMINAL_ACTIONS } from "./terminal-actions.js";
 import { GOALS_PROJECT_DATABASE } from "./project-database.js";
-import { goalsPresentation, goalsPresentationActions, GOALS_PRESENTATION_MESSAGES } from "./presentation.js";
+import { goalsPresentation, goalsPresentationActions } from "./presentation.js";
 import { GOALS_MESSAGES } from "./messages.js";
 import { GOALS_PAGE_ROUTES } from "./page-routes.js";
 import { GOALS_PAGE_EN } from "./page/en.js";
@@ -134,7 +134,7 @@ export const goalsManifest: PluginManifest = {
   routes: GOALS_ROUTES,
   sync: { protocol_version: /* @version sync.protocol */ 1, collections: [{ id: 'project_goals', database: 'project', title: '目标、关系与工作记录', schema_version: /* @version sync.collection.goals.project_goals */ 1, requires: [], sections: goalSectionsDeclaration, tracking: goalSectionsTracking }] },
   ui: {
-    messages: { ...GOALS_MESSAGES, ...GOALS_PRESENTATION_MESSAGES },
+    messages: GOALS_MESSAGES,
     // English for the words still keyed by their Chinese text (PG-071); the order is the one the Host's catalog used to merge them in.
     translations: {
       ...GOALS_POLICY_EN,

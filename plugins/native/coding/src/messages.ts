@@ -11,6 +11,9 @@ import { CODING_TIMELINE_MESSAGES } from "./timeline-messages.js";
  * (timeline-messages.ts, panels-messages.ts, settings-messages.ts, server-messages.ts, change-messages.ts), spread in here.
  */
 export const CODING_MESSAGES = {
+  "coding.presentation.empty": { zh: "还没有编码会话", en: "No coding sessions yet" },
+  "coding.presentation.summary": { zh: "最近更新的编码会话", en: "Recently updated coding sessions" },
+  "coding.presentation.start": { zh: "新建编码会话", en: "New coding session" },
   ...CODING_TIMELINE_MESSAGES,
   ...CODING_PANELS_MESSAGES,
   ...CODING_SETTINGS_MESSAGES,

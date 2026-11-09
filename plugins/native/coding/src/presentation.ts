@@ -25,12 +25,6 @@ export const codingPresentation = {
   overview: { capability_id: overview.capability_id, version: overview.version, start: [start] },
 } as const satisfies PresentationDeclaration;
 
-export const CODING_PRESENTATION_MESSAGES = {
-  "coding.presentation.empty": { zh: "还没有编码会话", en: "No coding sessions yet" },
-  "coding.presentation.summary": { zh: "最近更新的编码会话", en: "Recently updated coding sessions" },
-  "coding.presentation.start": { zh: "新建编码会话", en: "New coding session" },
-} as const;
-
 export function createCodingPresentationHandlers(projectId: string, sessions: Pick<CodingSessionStore, "get" | "list">) {
   return [
     bindPresentationValuesHandler(values, input => ({ items: input.subjects.filter(subject => subject.kind === "coding_session").map((subject): PresentationValueItem => {

@@ -6,7 +6,7 @@ import { FEED_HOME_DATABASE } from "./content-ledger.js";
 import { feedSync } from './replication.js';
 import { FEED_PROJECT_DATABASE } from "./database.js";
 import { FEED_EN } from "./en.js";
-import { feedPresentation, FEED_PRESENTATION_MESSAGES } from "./presentation.js";
+import { feedPresentation } from "./presentation.js";
 import { FEED_MESSAGES } from "./messages.js";
 import { feedReconcileJob } from "./runtime-reconcile.js";
 import { feedWakeJob } from "./runtime-wake.js";
@@ -77,7 +77,7 @@ export const feedManifest: PluginManifest = {
   events: { publishes: [], subscribes: [{ event_type_id: HOST_CONNECTION_CHANGED_EVENT, type_version: /* @version event.host.connection.changed */ 1 }] },
   background: { jobs: [feedWakeJob, feedReconcileJob], wakeups: [{ action: { capability_id: WAKE.capability_id, version: WAKE.version }, reason: WAKE.action.title }] },
   ui: {
-    messages: { ...FEED_MESSAGES, ...FEED_PRESENTATION_MESSAGES },
+    messages: FEED_MESSAGES,
     translations: FEED_EN,
     contributions: [FEED_UI_CONTRIBUTION_ID],
     views: [

@@ -24,12 +24,6 @@ export const goalsPresentation = {
   overview: { capability_id: overview.capability_id, version: overview.version, start: [{ ...start, open: { view_id: "stage", panel: "create-dialog" } }] },
 } as const satisfies PresentationDeclaration;
 
-export const GOALS_PRESENTATION_MESSAGES = {
-  "goals.presentation.empty": { zh: "还没有目标", en: "No goals yet" },
-  "goals.presentation.summary": { zh: "本项目最近更新的目标", en: "Recently updated project goals" },
-  "goals.presentation.start": { zh: "创建目标", en: "Create a goal" },
-} as const;
-
 const currentGoal = (goal: GoalRecord | null | undefined): goal is GoalRecord => !!goal && !goal.trashed_at && !goal.archived_at;
 
 export function createGoalsPresentationHandlers(projectId: string, query: Pick<GoalsQueryApi, "getGoal" | "listGoals">,

@@ -25,7 +25,9 @@ export function renderPluginDocumentShell(input: {
     + '.catch(error=>{const note=document.createElement("p");note.setAttribute("role","alert");note.textContent=error.message;document.body.append(note);return null;});'
     // Only the owning shell can select a panel, and only in this same carrier's still-current opaque frame.
     + 'if(holder?.parentElement?.dataset.installedPlugin===' + literal(input.plugin_id) + ')window.addEventListener("message",event=>{'
-    + 'const panel=event.data?.panel;if(event.source!==parent||event.origin!==location.origin||event.data?.type!=="workbench-view"||event.data.intent!=="open"||typeof panel!=="string"||!panel||panel.length>100)return;'
-    + 'void mounted.then(value=>{if(value?.scope.alive&&root.isConnected&&holder===frameElement&&holder.isConnected&&!holder.closest("[hidden]"))root.dispatchEvent(new CustomEvent("molis-work:select-item",{detail:{panel,intent:"open"}}));});});'
+    + 'if(event.source!==parent||event.origin!==location.origin||event.data?.type!=="workbench-view"||event.data.intent!=="open")return;'
+    + 'const {panel,itemId}=event.data,text=(value,max)=>typeof value==="string"&&value.length>0&&value.length<=max;'
+    + 'const detail=text(panel,100)&&itemId===undefined?{panel}:text(itemId,1000)&&panel===undefined?{itemId}:null;if(!detail)return;'
+    + 'void mounted.then(value=>{if(value?.scope.alive&&root.isConnected&&holder===frameElement&&holder.isConnected&&!holder.closest("[hidden]"))root.dispatchEvent(new CustomEvent("molis-work:select-item",{detail:{...detail,intent:"open"}}));});});'
     + '</script></body></html>';
 }

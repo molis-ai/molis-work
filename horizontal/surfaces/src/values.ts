@@ -2,7 +2,7 @@ import type { ActionSubject, ActionView } from "@molis-ai/molis-work-contracts/p
 import { PRESENTATION_LIMITS, type PresentationObject, type PresentationValueItem, type PresentationValuesInput } from "@molis-ai/molis-work-contracts/platform/presentation";
 import { actionErrorKind } from "@molis-ai/molis-work-plugin-sdk";
 import { presentationValuesProblems } from "@molis-ai/molis-work-plugin-sdk/presentation";
-import { subjectKey, viewKey, viewRef, type SurfaceComposePorts } from "./ports.js";
+import { subjectKey, viewRef, type SurfaceComposePorts } from "./ports.js";
 
 const DEADLINE_MS = 1_000;
 const PARALLEL_READS = 4;
@@ -57,11 +57,11 @@ interface Batch { action: ActionView; subjects: ActionSubject[]; fields: Set<str
 interface ValueAnswer { item?: PresentationValueItem; denied?: true }
 
 function makeBatches(candidates: readonly ValueCandidate[]): Batch[] {
-  const byAction = new Map<string, Batch[]>();
+  const byAction = new Map<ActionView, Batch[]>();
   for (const candidate of candidates) {
-    const key = viewKey(candidate.action);
-    let batches = byAction.get(key);
-    if (!batches) { batches = []; byAction.set(key, batches); }
+    // Keep the original directory rows separate, including the same provider and ref in another scope.
+    let batches = byAction.get(candidate.action);
+    if (!batches) { batches = []; byAction.set(candidate.action, batches); }
     const { fields } = candidate;
     let batch = batches.find(group => group.subjects.length < PRESENTATION_LIMITS.values_subjects
       && new Set([...group.fields, ...fields]).size <= PRESENTATION_LIMITS.fields);

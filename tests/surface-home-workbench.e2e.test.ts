@@ -25,7 +25,7 @@ test("IUI-21 IUI-26 SCS-11 WBR-21: the project home opens Goals’ original form
   assert.equal((await rows()).length, 0);
   await b.click(start);
   await b.waitFor("document.querySelector('[data-create-dialog]').open");
-  await b.command("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, b.sessionId);
+  await b.click('[data-create-dialog] [data-close-create]');
   await b.waitFor("!document.querySelector('[data-create-dialog]').open");
   assert.equal((await rows()).length, 0, "opening and cancelling the real form write no Goal");
   await b.click('[data-dock-pin="home"]');

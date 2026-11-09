@@ -293,7 +293,7 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
   const signedHomeSelection = (frame, href, selection) => {
     const select = () => {
       if (!frame.isConnected || frame.closest("[hidden]") || new URL(frame.src).href !== href) return;
-      frame.contentWindow?.postMessage({ type: "workbench-view", panel: selection.panel, intent: "open" }, location.origin);
+      frame.contentWindow?.postMessage({ type: "workbench-view", ...selection, intent: "open" }, location.origin);
     };
     if (frame.contentDocument?.readyState === "complete" && frame.contentDocument.URL === href) select();
     else frame.addEventListener("load", select, { once: true });
@@ -302,12 +302,12 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
     const frame = mount?.dataset.installedPlugin === owner && mount.querySelector(":scope > iframe");
     return frame && new URL(href, location.origin).origin === location.origin && new URL(frame.src).href === href ? frame : null;
   };
-  const selectSignedHomeForm = (pane, plugin, owner, href, selection) => {
+  const selectSignedHomeTarget = (pane, plugin, owner, href, selection) => {
     const paneFrame = panesEl.querySelector('iframe[data-pane-tab="' + CSS.escape(paneFrameKey(pane)) + '"]');
     if (!paneFrame) { const frame = signedHomeFrame(findTopLevelSurface(plugin), owner, href); if (frame) signedHomeSelection(frame, href, selection); return; }
     const select = () => {
       if (!paneFrame.isConnected || paneFrame.hidden || ops.focused(state) !== pane || ops.shownPlugin(pane) !== plugin) return;
-      paneFrame.contentWindow?.postMessage({ type: "workbench-view", signedHomeForm: { plugin, owner, href, panel: selection.panel } }, location.origin);
+      paneFrame.contentWindow?.postMessage({ type: "workbench-view", signedHomeTarget: { plugin, owner, href, selection } }, location.origin);
     };
     if (paneFrame.contentDocument?.body?.hasAttribute("data-pane-embedded")) select(); else paneFrame.addEventListener("load", select, { once: true });
   };
@@ -326,7 +326,8 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
       const url = new URL(result.frame_path, location.origin);
       if (!signedHomeFrame(mount, result.owner_plugin_id, url.href)) return false;
       openPlugin(plugin);
-      if (selection.panel) selectSignedHomeForm(ops.focused(state), plugin, result.owner_plugin_id, url.href, selection);
+      if (selection.panel || result.item_id) selectSignedHomeTarget(ops.focused(state), plugin, result.owner_plugin_id, url.href,
+        selection.panel ? { panel: selection.panel } : { itemId: result.item_id });
       return true;
     }
     if (typeof result.producer !== "string") return false;

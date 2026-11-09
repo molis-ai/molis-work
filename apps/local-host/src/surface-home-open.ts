@@ -53,7 +53,9 @@ export async function openHomeObject(sample: HomeReadSample, entry: HomeDirector
     { ...transport, assert_authority_current: current });
   current();
   if (result.subject.kind !== subject.kind || result.subject.id !== subject.id || !result.open) throw homeChanged();
-  const stage = sample.catalog.entries.find(item => item.plugin.plugin_id === entry.plugin.plugin_id && item.route);
+  // A signed reader can only open its own installation. A dual native owner can share its registered main surface.
+  const stage = entry.route ? entry : sample.catalog.entries.find(item => item.route?.kind === "native" && entry.record.publisher_trust === "host"
+    && item.plugin.plugin_id === entry.plugin.plugin_id && item.record.publisher_signature === entry.record.publisher_signature);
   const route = stage?.route;
   if (!stage || !route) throw homeChanged();
   assertStageInstallation(stage.installation.scope, stage.record, stage.installation);

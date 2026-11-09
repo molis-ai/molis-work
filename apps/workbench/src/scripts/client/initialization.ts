@@ -99,7 +99,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       expandDirectory: (id) => setPluginSectionExpanded(id),
     });
     projectHome = globalThis.molisWorkHomeView?.mountHome({
-      read: (suffix, body, signal) => molisWorkRequest(route("/api/host/surface-home" + suffix), { method: "POST", body, signal, fallback: L("workbench.home.refresh-failed") }),
+      read: (suffix, body, signal) => molisWorkRequest(route("/api/host/surface-home" + suffix), { method: "POST", body, signal }),
       order: () => tabWorkspace?.homeOrder?.() ?? [],
       navigationFrom: (source) => tabWorkspace?.homeNavigationFrom(source) ?? (() => false),
       market: () => tabWorkspace?.setExclusive("market"),

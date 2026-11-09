@@ -20,12 +20,6 @@ export const feedPresentation = {
   overview: { capability_id: overview.capability_id, version: overview.version, note: { key: "feed.presentation.note" } },
 } as const satisfies PresentationDeclaration;
 
-export const FEED_PRESENTATION_MESSAGES = {
-  "feed.presentation.empty": { zh: "还没有收到资料", en: "No materials yet" },
-  "feed.presentation.summary": { zh: "近期收到的资料和来源状态", en: "Recent materials and source status" },
-  "feed.presentation.note": { zh: "同步来的资料不算你接下的工作。", en: "Synced material does not count as work you took on." },
-} as const;
-
 const heldIn = (source: SourceRecord): PresentationHeldIn => source.project_id === PERSONAL_SPACE_PROJECT_ID ? "personal" : "project";
 const gone = (subject: ActionSubject): PresentationValueItem => ({ subject, revision: "0", state: "deleted" });
 

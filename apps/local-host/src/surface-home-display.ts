@@ -48,12 +48,14 @@ async function displayRows(sample: HomeReadSample, items: readonly SurfaceItem[]
   const current = () => { signal.throwIfAborted(); sample.assertCurrent(); };
   const answers = await readSurfaceValues(routes, { values: invoke }, deadline, current);
   return routes.map(({ entry, subject, object, fields, form }): SurfaceHomeRowDisplay => {
-      const result = answers.get(key(subject));
-      if (result?.denied || result?.item?.state === "forbidden" || result?.item?.state === "deleted") throw homeChanged();
-      const read = result?.item;
-      return { owner: entry.plugin.plugin_id, subject, installation: entry.installation, declaration: { owner: entry.plugin.plugin_id, kind: object.kind, fields: object.fields.filter(field => fields.includes(field.key)),
-          forms: { [form]: { fields } }, ...(object.status && fields.includes(object.status.field) ? { status: object.status } : {}) },
-        read: read ? { revision: read.revision, state: read.state, values: read.values, read_at: read.read_at } : { state: "unreadable" } };
+    const result = answers.get(key(subject));
+    if (result?.denied || result?.item?.state === "forbidden" || result?.item?.state === "deleted") throw homeChanged();
+    const read = result?.item;
+    const values = read?.values && (read.state === "ok" || read.state === "stale")
+      ? Object.fromEntries(Object.entries(read.values).filter(([field]) => fields.includes(field))) : undefined;
+    return { owner: entry.plugin.plugin_id, subject, installation: entry.installation, declaration: { owner: entry.plugin.plugin_id, kind: object.kind, fields: object.fields.filter(field => fields.includes(field.key)),
+        forms: { [form]: { fields } }, ...(object.status && fields.includes(object.status.field) ? { status: object.status } : {}) },
+      read: read ? { revision: read.revision, state: read.state, ...(values ? { values } : {}), ...(read.read_at ? { read_at: read.read_at } : {}) } : { state: "unreadable" } };
   });
 }
 
@@ -64,13 +66,11 @@ export async function projectHomeDisplay(sample: HomeReadSample, signal: AbortSi
   const owners = Object.fromEntries(catalog.entries.filter(entry => ids.has(entry.plugin.plugin_id))
     .map(entry => [entry.plugin.plugin_id, entry.display]));
   const rows = await displayRows(sample, description.groups.flatMap(group => group.items), signal, invoke);
-  sample.assertCurrent();
   return { ...description, display: { owners, rows } };
 }
 
 export async function projectHomePeek(sample: HomeReadSample, item: SurfaceItem, signal: AbortSignal, invoke: ReadValues) {
   const [row] = await displayRows(sample, [item], signal, invoke, true);
-  sample.assertCurrent();
   if (!row) throw homeChanged();
   return row;
 }

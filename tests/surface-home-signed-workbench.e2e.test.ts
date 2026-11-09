@@ -9,7 +9,7 @@ import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { PACKAGE_PLUGIN_ID } from "./fixtures/sandbox-package.js";
 import { presentingPackage } from "./fixtures/surface-home-sandbox.js";
 
-test("SCS-11: from the real homepage an ordinary signed plugin opens and submits its original dialog", { skip: process.platform !== "darwin", timeout: 90_000 }, async t => {
+test("SCS-11: an ordinary signed plugin opens its original form and exact original record from the real homepage", { skip: process.platform !== "darwin", timeout: 90_000 }, async t => {
   const b = await openGoalBrowser(t, "empty", undefined, null);
   if (!b) return;
   const project = await createProject(b.web, "Signed home form"), path = "/projects/" + project.project_id + "/";
@@ -35,18 +35,36 @@ test("SCS-11: from the real homepage an ordinary signed plugin opens and submits
     await b.click(start);
     await child.waitFor(`${dialog}?.open && ${dialog}.contains(document.activeElement)`, 15_000);
   };
+  const backHome = async () => { await b.click('[data-dock-pin="home"]'); await b.waitFor(`!!document.querySelector(${JSON.stringify(start)})`); };
+  const submit = async (text: string) => {
+    await child.evaluate(`(() => { const field=${dialog}.querySelector('[name="text"]');
+      field.value=${JSON.stringify(text)}; field.dispatchEvent(new Event('input',{bubbles:true})); })()`);
+    await child.click('[data-component-id="editor"] dialog [type=submit]');
+    await child.waitFor(`!${dialog}?.open`);
+  };
   await open();
   await child.click('[data-component-id="editor"] dialog .mw-form__footer button[type=button]');
   await child.waitFor(`!${dialog}?.open`);
   assert.deepEqual(await writes(), [], "original signed dialog opens and cancels without writing");
-  await b.click('[data-dock-pin="home"]');
-  await b.waitFor(`!!document.querySelector(${JSON.stringify(start)})`);
+  await child.evaluate(`parent.postMessage({type:"workbench-view",panel:"editor",intent:"open"},"*");
+    new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))`);
+  assert.equal(await child.evaluate(`Boolean(${dialog}?.open)`), false, "an opaque child cannot act as the carrier's owning workbench");
+  await backHome();
   await open();
-  await child.evaluate(`(() => { const field=${dialog}.querySelector('[name="text"]');
-    field.value='one original signed submission'; field.dispatchEvent(new Event('input',{bubbles:true})); })()`);
-  await child.click('[data-component-id="editor"] dialog [type=submit]');
-  await child.waitFor(`!${dialog}?.open`);
+  await submit("one original signed submission");
   const stored = await writes();
   assert.deepEqual(stored.map(row => row.item_key), ["sandbox:entries"]);
   assert.deepEqual(JSON.parse(stored[0]!.item_value), [["notes", JSON.stringify([{ id: "1", text: "one original signed submission" }])]]);
+  await backHome();
+  await open();
+  await submit("a distinct second record");
+  const two = await writes();
+  assert.deepEqual(JSON.parse(two[0]!.item_value), [["notes", JSON.stringify([{ id: "1", text: "one original signed submission" }, { id: "2", text: "a distinct second record" }])]]);
+  await backHome();
+  const row = '[data-home-subject-kind="sandbox-home-note"][data-home-subject-id="2"]';
+  const openRecord = row + ' [data-presentation-action$=":open"]';
+  await b.waitFor(`document.querySelector(${JSON.stringify(row)})?.textContent.includes("a distinct second record")`);
+  await b.click(openRecord);
+  await child.waitFor(`document.activeElement.matches('[data-record-id="2"][aria-current=true]') && document.activeElement.textContent.includes("a distinct second record")`);
+  assert.deepEqual(await writes(), two, "opening the exact signed record does not write");
 });

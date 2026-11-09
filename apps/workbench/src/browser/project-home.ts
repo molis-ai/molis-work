@@ -25,6 +25,7 @@ function reconcile(root: HTMLElement, html: string, rowMarkup: WeakMap<Element, 
     node.setAttribute("aria-haspopup", "dialog");
     node.setAttribute("role", "button");
   });
+  template.content.querySelectorAll("[data-home-row]").forEach(node => rowMarkup.set(node, node.outerHTML));
   const branch = "[data-home-group], .home-plugin-cards, .home-plugin-card__body, .home-rows";
   const key = (node: Element) => node.getAttribute("data-home-row") ?? node.getAttribute("data-home-group") ?? (node.matches(branch) ? node.className : null);
   function patch(parent: Element, incoming: HTMLCollection) {
@@ -36,9 +37,7 @@ function reconcile(root: HTMLElement, html: string, rowMarkup: WeakMap<Element, 
       const row = candidate.hasAttribute("data-home-row");
       let node = candidate;
       if (row) {
-        const markup = candidate.outerHTML;
-        if (old && rowMarkup.get(old) === markup) node = old;
-        else rowMarkup.set(candidate, markup);
+        if (old && rowMarkup.get(old) === rowMarkup.get(candidate)) node = old;
       } else if (old?.isEqualNode(candidate)) node = old;
       else if (old && id !== null && candidate.matches(branch)) {
         for (const attr of [...old.attributes]) if (!candidate.hasAttribute(attr.name)) old.removeAttribute(attr.name);
@@ -52,6 +51,31 @@ function reconcile(root: HTMLElement, html: string, rowMarkup: WeakMap<Element, 
     while (next) { const stale = next; next = next.nextElementSibling; stale.remove(); }
   }
   patch(root, template.content.children);
+}
+
+function bindHomeControls(root: HTMLElement, peek: HTMLDialogElement, act: (key: string, focus: HTMLElement) => Promise<void>, closePeek: () => void, onClose: () => void) {
+  root.addEventListener("click", event => {
+    if (!(event.target instanceof Element)) return;
+    const button = event.target.closest<HTMLElement>("[data-home-control], [data-presentation-action]");
+    if (button) {
+      button.closest<HTMLDetailsElement>("details")?.removeAttribute("open");
+      void act(button.dataset.homeControl ?? button.dataset.presentationAction ?? "", button);
+    } else if (event.target.closest("[data-home-close]")) closePeek();
+    else {
+      const title = event.target.closest<HTMLElement>(".mw-presentation__row-title[aria-haspopup]");
+      if (title) void act(title.closest<HTMLElement>("[data-home-row-peek]")!.dataset.homeRowPeek!, title);
+    }
+  });
+  root.addEventListener("keydown", event => {
+    if (!(event.target instanceof HTMLElement)) return;
+    const key = event.target.closest<HTMLElement>("[data-home-row-peek]")?.dataset.homeRowPeek;
+    if (key && event.target.matches(".mw-presentation__row-title[aria-haspopup]") && (event.key === "Enter" || event.key === " ")) {
+      event.preventDefault(); void act(key, event.target);
+    }
+    const menu = event.target.closest<HTMLDetailsElement>(".mw-presentation__more[open]");
+    if (event.key === "Escape" && menu) { event.preventDefault(); menu.open = false; menu.querySelector<HTMLElement>("summary")?.focus(); }
+  });
+  peek.addEventListener("close", onClose);
 }
 
 export function mountHome(host: HomeHost) {
@@ -166,28 +190,7 @@ export function mountHome(host: HomeHost) {
     }
   }
 
-  root.addEventListener("click", event => {
-    if (!(event.target instanceof Element)) return;
-    const button = event.target.closest<HTMLElement>("[data-home-control], [data-presentation-action]");
-    if (button) {
-      button.closest<HTMLDetailsElement>("details")?.removeAttribute("open");
-      void act(button.dataset.homeControl ?? button.dataset.presentationAction ?? "", button);
-    } else if (event.target.closest("[data-home-close]")) closePeek();
-    else {
-      const title = event.target.closest<HTMLElement>(".mw-presentation__row-title[aria-haspopup]");
-      if (title) void act(title.closest<HTMLElement>("[data-home-row-peek]")!.dataset.homeRowPeek!, title);
-    }
-  });
-  root.addEventListener("keydown", event => {
-    if (!(event.target instanceof HTMLElement)) return;
-    const key = event.target.closest<HTMLElement>("[data-home-row-peek]")?.dataset.homeRowPeek;
-    if (key && event.target.matches(".mw-presentation__row-title[aria-haspopup]") && (event.key === "Enter" || event.key === " ")) {
-      event.preventDefault(); void act(key, event.target);
-    }
-    const menu = event.target.closest<HTMLDetailsElement>(".mw-presentation__more[open]");
-    if (event.key === "Escape" && menu) { event.preventDefault(); menu.open = false; menu.querySelector<HTMLElement>("summary")?.focus(); }
-  });
-  peek.addEventListener("close", () => {
+  bindHomeControls(root, peek, act, closePeek, () => {
     closePeek(); peekContent.replaceChildren();
     if (visible()) restoreFocus?.focus({ preventScroll: true });
     restoreFocus = null;

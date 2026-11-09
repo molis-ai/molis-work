@@ -26,6 +26,7 @@ type Intent = { kind: "read"; home_order?: string[] } | { kind: "click"; owner: 
 
 const invalid = () => new ActionError("actions.input_invalid", "首页请求无效");
 const changed = () => new ActionError("actions.provider_changed", "原首页卡片已变化，请重新读取");
+const unknown = (cause: unknown) => new ActionError("actions.outcome_unknown", "操作已执行，但原首页或授权已变化，请检查结果", { cause });
 function homeIntent(body: Record<string, unknown>, click: boolean): Intent {
   if (!isRecord(body)) throw invalid();
   if (click) {
@@ -89,10 +90,16 @@ async function clickHomeCard(intent: Extract<Intent, { kind: "click" }>, sample:
   const object = homeObjectClick(intent.target, intent.owner, sample);
   if (object) {
     if (object.item) assertHomeDisplayReader(sample, object.entry, object.item);
-    if (object.kind === "peek" && object.item) return deliver({ kind: "peek", row: await projectHomePeek(sample, object.item, transport.signal!, displayValues(sample, client, caller, transport)) });
+    if (object.kind === "peek" && object.item) {
+      const row = await projectHomePeek(sample, object.item, transport.signal!, displayValues(sample, client, caller, transport));
+      sample.assertCurrent();
+      return deliver({ kind: "peek", row });
+    }
     const reader = ownerReader(sample, object.entry, object.subject);
     if (!reader) throw changed();
-    return deliver(await openHomeObject(sample, object.entry, reader, object.subject, client, caller, transport, prefix));
+    const opened = await openHomeObject(sample, object.entry, reader, object.subject, client, caller, transport, prefix);
+    sample.assertCurrent();
+    return deliver(opened);
   }
   const group = sample.description.groups.find(item => item.kind === "plugin" && item.owner_plugin_id === intent.owner);
   const target = originalTarget(group?.plugin_card, intent.target);
@@ -120,7 +127,7 @@ async function clickHomeCard(intent: Extract<Intent, { kind: "click" }>, sample:
   try { assertCurrent(); }
   catch (error) {
     if (view.operation !== "command") throw error;
-    throw new ActionError("actions.outcome_unknown", "操作已执行，但原首页或授权已变化，请检查结果", { cause: error });
+    throw unknown(error);
   }
   const created = view.action.result_subject ? actionResultSubject(view.action, {}, result) : null;
   if (!created) return deliver({ kind: "invoked", result });
@@ -128,10 +135,18 @@ async function clickHomeCard(intent: Extract<Intent, { kind: "click" }>, sample:
   const reader = ownerReader(sample, entry, created.subject);
   let stage;
   try {
-    if (reader) stage = await openHomeObject(sample, entry, reader, created.subject, client, caller, transport, prefix);
+    if (reader) {
+      const opened = await openHomeObject(sample, entry, reader, created.subject, client, caller, transport, prefix);
+      sample.assertCurrent();
+      stage = opened;
+    }
   } catch {
     // The command returned its result. A changed reader cannot roll it back or justify calling the command again.
-    requireSynchronous(transport.assert_authority_current?.());
+    try {
+      requireSynchronous(transport.assert_authority_current?.());
+      requireSynchronous(caller.assert_authority_current?.(reference(view), view.action.permissions));
+      sample.catalog.assertCurrent();
+    } catch (error) { throw unknown(error); }
   }
   deliver({ kind: "invoked", result, ...(stage ? { stage } : {}), retry_open });
 }
@@ -161,8 +176,11 @@ export function projectSurfaceHome(host: LocalHost<MolisWorkProjectRuntime>, own
         const sample = await composeHome(runtime, client, discovery, catalog, transport, intent, deadline);
         requireSynchronous(transport.assert_authority_current?.());
         const deliverCurrent = (result: unknown) => { requireSynchronous(transport.assert_authority_current?.()); deliver(result); };
-        if (intent.kind === "read") deliverCurrent(await projectHomeDisplay(sample, signal, displayValues(sample, client, caller, transport)));
-        else await clickHomeCard(intent, sample, runtime, caller, client, prefix, transport, deliverCurrent);
+        if (intent.kind === "read") {
+          const display = await projectHomeDisplay(sample, signal, displayValues(sample, client, caller, transport));
+          sample.assertCurrent();
+          deliverCurrent(display);
+        } else await clickHomeCard(intent, sample, runtime, caller, client, prefix, transport, deliverCurrent);
         return true;
       } finally { deadline?.dispose(); }
     });

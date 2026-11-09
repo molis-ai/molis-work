@@ -427,7 +427,7 @@ interface HomePageVersion {
 | --- | --- | --- | --- |
 | `blueprints.drafts.save@1` | user、agent | command | 存或改一份草稿，带 `expected_revision`；先过静态检查。助理按目的生成草稿走它 |
 | `blueprints.drafts.read@1` | user、agent | query | 读草稿 |
-| `blueprints.adoption.preview@1` | user | command（write：存一份会过期的预览记录、发 `preview_id`，与 `plugins.install.preview@5` 同一种） | 输入：草稿或已装的场景包、目标（新项目、某个项目、个人）、选了哪些部分、本次改了哪些值。先做主人检查（第 3 节），再输出每个部分：会新建、复用、修改、要先安装还是跳过；当前值与来源、建议值、写到哪一层；后果标记；依赖是否就绪、缺了挡哪一步；同名冲突。主人的当前值按主人一次读齐 |
+| `blueprints.adoption.preview@1` | user | command（write：存一份会过期的预览记录、发 `preview_id`，沿 `plugins.install.preview` 的预览句柄） | 输入：草稿或已装的场景包、目标（新项目、某个项目、个人）、选了哪些部分、本次改了哪些值。先做主人检查（第 3 节），再输出每个部分：会新建、复用、修改、要先安装还是跳过；当前值与来源、建议值、写到哪一层；后果标记；依赖是否就绪、缺了挡哪一步；同名冲突。主人的当前值按主人一次读齐 |
 | `blueprints.adoption.apply@1` | user | command | 输入 `preview_id`、接受的 `part_id`、`request_id`。逐步调主人的动作，幂等键是 `<adoption_id>:<part_id>`；写完回读，读到才标「已生效」。遇到要安装的部分不装，标 `needs_install` 并给出它的 `preview_id`；首页那一步只存草稿，标 `needs_approval`（第 6.5 节） |
 | `blueprints.adoption.read@1` | user | query | 一次采用的逐步状态：未执行、要先安装、要本人批准、已生效、失败（带主人的错误）、待核对、跳过 |
 | `blueprints.adoption.revert@1` | user | command | 撤销这次采用仍归它的部分：主人当前的 revision 还是采用写下的那个，才恢复；否则跳过并写「之后被你改过」 |
@@ -451,6 +451,26 @@ interface HomePageVersion {
 - **Home 快照与恢复**：场景服务的 Home 库登记进 `homeStoreRegistry`（`apps/local-host/src/home-stores.ts`），快照与恢复带上它。
 - **页面的版本与恢复**归首页服务（第 6 节）；采用记录里的首页一步只记本项目首页从哪个换成了哪个。撤销时：采用前是基础首页，就嵌套调 `home.select@1` 换回（只收窄，不授予）；采用前是别的生成页面，换回去等于重新批准它的动作，这一步标 `needs_approval`，由本人在首页的批准界面点 `home.pages.restore@1`。
 
+### 7.1 P-3c 公开动作与回读
+
+`contracts/services/blueprints` 导出八个动作定义及其输入、输出类型和闭合的外层 `ActionSchema`。复用 `inputSchemaFor`、`ActionReference`、`ActionSubject` 及它们的现有 schema。`Blueprint` 正文继续由 §3.5 的 SDK 检查负责。动作声明 `scope: "home"` 对应场景记录的主人，项目子调用仍须有可信项目。受众沿上表，查询用 `query`／`read`，命令用 `command`／`write`。固化主人动作时带确切 `provider_id`。草稿 revision 为正安全整数，owner 的 CAS 凭据保留原类型与值。actor、项目身份、安装、授权与来源凭证由可信入口或主人记录给出。
+
+| 动作 | 最小输入 → 输出 |
+| --- | --- |
+| `drafts.save`／`drafts.read` | 保存新稿 `{ expected_revision: null, blueprint }`，改稿 `{ draft_id, expected_revision, blueprint }`。读 `{ draft_id }`。输出 `{ draft: { source, blueprint, locale } }`，`source` 为 `BlueprintSource` 的 draft 分支。保存走 `inspectBlueprint` 的 draft 模式。 |
+| `adoption.preview` | `{ source: BlueprintSource, target, part_ids, changes?, upgrade_of? }`。`target` 区分 `personal`、可信调用的 `current_project`、`new_project`（只带 `display_name`）。`changes` 每项为 `{ part_id, proposal?, selection?, action? }`，只接受同种替换建议与已提供的对象或主人候选。`selection` 选新建或 `reuse`／`update` 加 `subject`，revision 由预览读回。输出 `{ preview_id, expires_at, source, target, locale, parts, upgrade? }`。每个 part 给建议、层次、主人候选及当前值与来源、`create`／`reuse`／`update`／`needs_choice`／`needs_install`／`skip` 决定、后果和 `affected_step_ids`。 |
+| `adoption.apply`／`adoption.read` | 应用 `{ preview_id, part_ids, request_id }`，读取 `{ adoption_id }`。共用 `{ adoption_id, source, target, locale, steps }`，`target` 的实际项目只从已绑定或已创建的项目回给调用方。 |
+| `adoption.revert`／`adoption.remove` | `{ adoption_id, request_id }` → `{ adoption_id, steps }`。逐项回报实际恢复、解除绑定、跳过、待批准、待核对或失败，保留最初的采用凭据。 |
+| `packs.save` | `{ source: { kind: "draft", draft_id, revision } \| { kind: "adoption", adoption_id } }` → `{ preview_id }`。读取选定版本或该次采用已确认的快照，沿 §3.3 校验转词后交 §6.6。 |
+
+`part_ids` 与 `changes` 只收唯一且存在的部分，按 `BLUEPRINT_LIMITS.parts` 限制。apply 只接受该预览已确认的部分、目标和主人选择，层不适用时明确说明。预览由主人读回 `current`，区分 `present`（值、主人来源和可用的 revision）、`missing`（确认不存在）与 `unavailable`（有原因的读取缺口）。`upgrade.parts` 每项按 `part_id` 给旧建议、新建议（缺一方时明确新增／移除）、当前值、是否保留人工修改及依赖变化，保留原采用语言。36 的角色批读能核身份、来源与 revision，实际三方正文仍须 36 的按固定版本读取。
+
+`steps` 每项带 `part_id`，状态分 `not_started`、`needs_install`、`needs_approval`、`applied`、`failed`、`pending_verification`、`skipped`。`needs_install` 带现有安装预览的 `preview_id`，`needs_approval` 带首页的 `{ page_id, version }`。`applied` 保留主人回执的 `created`／`reused`／`modified`、实际动作引用、对象及观测 revision。纯依赖已具备时只记录复用，无写回执或撤销权。`failed` 带已公开的主人错误码与说明。`skipped.reason` 区分 `not_selected`、`dependency_unmet`、`unsupported`、`scope_mismatch`、`owner_unavailable`、`revision_changed`、`reused`、`shared`、`no_revert`。只知道 revision 已变时，不归因于用户手改。读视图标明主人暂时不可用，历史回执仍保留。
+
+后续处理器按同一可信范围和 owner 读动作合并查询。已知对象读当前值，写出结果未知则按 `<adoption_id>:<part_id>` 查主人回执。失败、超时、数量不符或返回不全仍待核对。确认未提交后按原键补写。主人只提供当前值读取时，只有已证明可返回原回执的动作才能在成功回读后按原键核对式重放。相同当前值不能证明这次新建或具备撤销权，P-3a 的当前成员读取也无法单独证明失联写的来源。Characters 沿 36 的批读及复用 CAS，同时核对成员 revision 和原件版本，复用与回执同事务更新成员 revision，使旧解除凭据失效。Blueprints 不另存一份角色共享计数。
+
+第一次 apply 绑定可信本人、已确认预览、目标与原请求，同键异内容拒绝。预览未使用且过期时用 `blueprints.preview_expired`。一旦接受并记下 `adoption_id`，同请求重进沿该记录续做，原预览过期不让它重开一份。派发主人命令前经 `beforeEffect()` 留待核对的检查点，成功回读后才能记已生效。取消或撤权后停止派发和记账。迟到或重启后的检查点由下一次获准调用核对。新项目复用现有 `ProjectCatalog.createProject` 的可信稳定 ID 创建路径。现行目录没有 `projects.create` 动作，给刚建项目绑定子调用的可信入口由第 44 批接，不能修改一份 caller 对象冒充该项目的权限。
+
 ## 8. 插件采用边界
 
 插件（以及 Module、系统提供方）要被场景配置，只能经过下面三样声明；平台除此之外不碰插件的数据，也不为某个插件写采用代码（ONB-33）。
@@ -463,8 +483,9 @@ interface HomePageVersion {
 
 - 一次采用里一种 `content` 类型只交给一个主人；有两个提供方都声明时，预览让你选，不按插件名定。
 - 主人没有声明的，预览里那一部分标「提供方没有公开配置能力」，不能采用，宿主不兜底。
-- `adopt` 动作的输入有平台给的固定部分：`request_id` 和 `blueprint`（`{ source: BlueprintSource; part_id }`，只作来源记录，不作授权），另加 `body`。声明里的 `schema` 只描述 `body`。
-- 校验在 SDK：`validateSettingsDeclaration`、`validateAdoptsDeclaration`，安装时跑。`validateAdoptsDeclaration` 核 `adopt`、`read`、`revert` 都是本插件已声明的动作，固定部分确实在 `adopt` 的输入 schema 里、与平台导出的形状一字不差；声明不合法整个安装被拒并点名哪一项。
+- `adopt` 输入固定为 `{ request_id, blueprint, selection, body }`。`blueprint` 复用 36 的 `BlueprintPartOrigin`，只作来源记录。`selection` 为闭合联合 `{ kind: "create" }` 或 `{ kind: "reuse" | "update", subject: ActionSubject, expected_revision }`。由已确认的预览生成选择和 CAS 凭据，`body` 只按声明的 `schema` 传值。主人按可信范围核对象。复用和修改在同一 owner 提交内比较 revision、变更和写回执，重放返回原回执。成功回执给出 `{ outcome, subject, revision }`，`outcome` 用 §7.1 的三种实际结果。
+- `read` 用 `{ queries }`／`{ results }` 批读，结果与查询按序对应，单批沿 `BLUEPRINT_LIMITS.parts`。查询按 `by` 区分 `proposal`（`type`、`blueprint`、`body`，返回候选）、`subject`（读当前值）和 `request`（按 `request_id` 读回执与当前值）。批读失败和确认不存在分开。可选 `revert` 输入 `{ adopt_request_id, request_id, subject, expected_revision }`，由同一主人核回执和当前 revision 后恢复或解除。未声明时只解除场景绑定，并回报实际结果。
+- `validateAdoptsDeclaration` 随 Manifest 校验，核 `adopt`、`read`、`revert` 都指本插件已声明的同版本动作，读写效果与所用作用域一致。SDK 复用 `ACTION_SUBJECT_SCHEMA`、`BlueprintPartOrigin` schema 和 P-1 的有界 schema 检查，按 `canonicalJsonText` 比较固定字段，`body` 匹配声明的 schema。拒绝缺 CAS、错误分支和伪造身份。既供编辑又供采用的动作，采用分支也须闭合且与这份输入一致。现行签名沙箱的 `SandboxOperationContract` 无法直接表达该联合，实际接入须提供同一合同的绑定并验证，不能拿普通读动作或仅 Manifest 校验冒充支持。
 - 同一范围里两个安装声明同一种 `content` 类型时，后装的照样能装；采用时由预览让你选主人。`settings_entries` 的 key 不同：重复就拒后装的（第 4 节）。
 
 ## 9. 调用次数
@@ -483,7 +504,7 @@ interface HomePageVersion {
 | P-2b 角色采用接口 | `characters.from_template@1` 的声明、准确的项目成员返回值与来源／回读合同 | `modules/characters.ts` | api：`contracts/modules/characters`；动作：`host-actions.tsv`（提供方 `io.molis.work.characters` 由宿主登记） | P-2a；36 的层次合同同一片或在它之后 |
 | P-3a 项目插件成员 | `projects.plugins.set@1` 按 `expected_revision` 把插件加进或撤出项目，受众为 `user`。`projects.plugins.get@1` 返回版本化成员。两个动作复用 Projects 的常开、随行、隐藏和原子 revision 规则。项目设置 HTTP 的写走 set，全项目 GET 复用 get 的 owner 读法，保持被动读取（第 10.1、10.2 节） | `modules/projects.ts` | api：`contracts/modules/projects`；动作：`host-actions.tsv` | 05② 的 C-1（同一快照） |
 | P-3b 场景定义 | `Blueprint`、`BlueprintSource`、`BlueprintPart`、`BlueprintProposal`、Manifest 的 `blueprint`／`adopts`；SDK 的 `inspectBlueprint`（静态）、`inspectBlueprintLocales`、内容包文件校验与 `validateAdoptsDeclaration`；GLOSSARY 加「场景包（blueprint）」一行（第 3.5 节） | `platform/blueprints.ts`（新）、`platform/plugin-manifest.ts` | api：`contracts/platform/blueprints`（新）、`contracts/platform/plugin`、`plugin-sdk/index` | 形状和检查复用 P-2a，设置与主人声明接 P-1。来源转出复用 36 提前合同，公开接线与包读取等 08 交接。不依赖 P-2b 或 36 的服务实现 |
-| P-3c 采用动作与签名入口 | 第 7 节八个动作的声明与类型（`adoption.preview` 是 command／write）；`needs_install`、`needs_approval` 步骤状态；「采用不转交本人的同意」合同及本批实际接入边界的拒绝测试；完整 apply 服务与 S-110 处理器真实拒绝归第 44 批；第 6.6 节的 `plugins.local_packages.sign@1` 与安装预览里的来源字段 | `services/blueprints.ts`（新）、`platform/plugin-trust.ts`（安装预览的类型在这里） | api：`contracts/services/blueprints`（新）、`contracts/platform/plugin-trust`；动作：`host-actions.tsv`（`system.blueprints`、`plugin-install` 的签名入口） | P-3a、P-3b；08 的 C-2（`skills.*`） |
+| P-3c 采用动作与签名入口 | 第 7.1 节八个动作的公开声明与类型，第 8 节固定内容采用输入，第 6.6 节签名入口与安装预览来源类型。实际接入边界随接线验证，完整服务与 S-110 处理器真实拒绝归第 44 批 | `services/blueprints.ts`（新）、`platform/plugin-trust.ts` | api：`contracts/services/blueprints`（新）、`contracts/platform/plugin-trust`；`host-actions.tsv` 只收真实登记 | 合同复用 P-3b 与 36 来源形状。P-3a、08 C-2 和主人读写是实际接入前置 |
 | P-4 首页与生成页面 | `services/home.ts`：首页选择、`HomePageVersion`、第 6.5 节八个动作；页面主体与试用主体这两种调用主体（`platform/actions.ts` 里的调用方种类）；S-111～S-113 三条边界的公共合同。本批交 schema、SDK 校验及必要接入，并验证实际接入边界的真实拒绝；文件送达、页面主体网关、执行隔离、撤权／换版与真实浏览器拒绝归第 37 批（第 6.4 节）。SPC-10／11 留给第 37 批真实验收，不记第 20 批通过（用户 2026-11-08 PST 裁定） | `services/home.ts`（新）、`platform/actions.ts` | api：`contracts/services/home`（新）、`contracts/platform/actions`；动作：`host-actions.tsv`（`system.home`） | 05② 的 C-2、C-3（卡片与 `home` 组合位置）；#1791 K0（同动 `platform/actions`）；P-3b（`adopts`） |
 
 **先后**（合同台 2026-11-04 排，[#1806 评论](https://github.com/molis-ai/molis-work/pull/1806#issuecomment-6638722432)；08 C-3 的位置由用户 2026-11-07 改，见[技能包需求第 9 节](../skill-packs/spec.md#9-决策记录)；以下是依赖与接力顺序，不是拆 PR 的清单；第 20 批一个 PR，同一份快照一次一个写手，全部在 02 交接之后）：
@@ -506,6 +527,10 @@ interface HomePageVersion {
 - 按快照看：`plugin-manifest` 是 08 C-1 → 05② C-2 → P-1 → P-3b，08 C-3 插在 08 C-1 之后、P-3b 之前，和 05② C-2、P-1 先准备好的先落（共用 `platform/plugin.txt`，见下一条）；`modules/projects` 是 05② C-1 → P-3a；`plugin-package` 只有 08 C-3（本稿不动）；`platform/actions` 是 #1791 K0 → P-4；`host-actions.tsv` 按上表依次落，同一时间只有一片在途。
 - 全部在 M1 之前落，按 N35 一个 PR 改完所有消费者，不留兼容期。
 - 错误码用 `defineErrorCodes`：`blueprints.part_unsupported`（主人没声明）、`blueprints.step_conflict`（主人的 revision 变了）、`blueprints.dependency_unmet`、`blueprints.preview_expired`；设置的拒绝由主人给 `<主人>.setting_invalid`、`<主人>.setting_conflict`，SDK 的 bind 帮主人按主人名生成，不新增平台码。P-1 落时按 `tooling/gates/error-owners.json` 核主人名。
+
+**P-3c 文件与验收。** 先准备 `packages/contracts/src/services/blueprints.ts` 和 `tests/blueprint-adoption-contract.test.ts`，等 #1984 和同批出口交接再接 `contracts/package.json`、`platform/plugin-trust.ts`、SDK 的声明检查与相关 API 快照。动作版本只首次登记。八个场景动作当前没有 `system.blueprints` provider 或处理器，交给第 44 批真实登记。签名仍归 `plugin-install`，输入沿现有内容包 `{ manifest, files }`，输出复用普通安装预览 `{ preview_id }`。`platform/plugin-trust` 的预览来源只收 `ai_generated`／`imported`／`saved`。真实签名接线排在 08 C-2 和内容包安装入口之后。基点的 `plugins.install.preview@1` 只认项目上下文，签名动作尚无登记。个人另存若缺普通预览上下文，由接线片解决。现有签包解析只保留 Manifest 与文件，随包来源须走经评审的签名覆盖路径。未核实前不改包格式、密钥或真实 Home。
+
+SPC-C07 经公开 `services/blueprints` 与 Kernel `compileActionSchema` 验八项动作的输入输出，覆盖三方差异、无安装身份的随包候选、跳过原因、未知结果、安装与批准状态及伪造身份拒绝。第 8 节通过公开 Manifest／SDK 验固定 `selection` 缺 CAS、错分支及错动作版本被拒。以上证明合同形状。基点 `pluginInstallHandlers` 只核可信 `user_action`，Kernel 允许嵌套调用原样继承，尚无供处理器消费的公开上一层引用。签名来源、直接批准拒绝与上一层审计须接真实可信调用链验证。没有该链和实际处理器时保留 SPC-14／15、S-110 及 S-113 的对应运行验收。
 
 
 ### 10.1 P-3a 项目插件成员的最小接入（20-1）

@@ -153,6 +153,7 @@
 | `characters/characters.sqlite` | 1 → 4 | 2026-11-04 personal/main 集成（personal `e33e1ade4`、main `8de0b0740`；本次合并提交） | 将个人同步技术表合入现行 owner 完整基线，版本取两分支已用编号以上；只验证隔离新 Home 和旧库拒绝，未维护真实 Home。旧 Home 不自动升级，安装前须另行明确维护或新建方案；本轮只合代码，不更换运行中的应用。 |
 | `projects/<project_id>/molis-work.db` | 1 → 2 | 第 05 批 #1979（项目目录合同：去掉浏览目录设置、加材料最近使用） | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE#1→2` |
 | `projects/catalog.db` | 1 → 2 | 第 05 批 #1979（项目目录合同：工作目录的输入、输出两种角色取代 `is_default`，加来源链接表） | `apps/local-host/src/project-catalog-contract.ts#CATALOG_SCHEMA_VERSION#1→2` |
+| `projects/<project_id>/molis-work.db` | 2 → 3 | 第 15 批 S-1（2026-11-08 用户批准，实施中、尚未验证采用） | 新建空 `surface_corrections`，保留 1→2；`apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE#2→3`。v2 金样 `0.1.1-dev.1` 已生成并复现，候选回放待本批验证；不操作真实 Home。 |
 
 ## 4. 阶段二：起点之后，读取兼容
 

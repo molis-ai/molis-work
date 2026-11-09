@@ -1,6 +1,6 @@
 # 公共来源与呈现合同（路线书 05 ②）
 
-状态：实现中，2026-11-04 设计，只有 C-1 已合入。合同归 C 轨，呈现组件归 D 轨，这一份是共同设计；D 轨 2026-11-04 共审，四处要改的已改进稿子，§10 的四问已答（见第 10 节）。2026-11-06 按第 05 批核账勘误（动作版本、事件位置、Manifest 快照、C-1 与 U1 的先后），并按用户同日的决定改了第 8、9 节：真实 Home 重建不等 C-1，动表的部分走升级段。2026-11-07 统筹定 C-1 只加不删（第 9 节），用户定默认输出目录的快照和永久删除，以及另一台设备上的引用加「指定文件夹」、接受脱钩之前目录行还剩的静默读（第 3 节）。2026-11-04 收进第 06 批核账（#1805）列的七处缺口（第 3、4、8、9 节）、第 15 批评审里收下的五项（#1798，第 5、6 节）和 D 轨定的两个字段角色。C-1 已合入（[#1894](https://github.com/molis-ai/molis-work/pull/1894)，`91f820f55`），合审留下的事见第 9 节；03、04 定样已全部合入，统一起点已登记（#1914）。2026-11-08 状态环取值已下沉到 contracts 的 `platform/ui`（随 C-2，用户同意，D 轨事后审）；C-2、C-3 的合同和 SDK 的共用校验在同一个分支、同一个 PR 里（用户 11-08 定本批只开一个大 PR），不设临时拒绝；用到第 14 批 T4 文字工具的部分单独一个提交，等 14 批合入后统一编译（第 7、9 节）。同日统筹定：`mounts` 并进 `slots`，挂载位就是带 `accepts_forms` 的 slot（第 5 节）；`renderPresentationForm` 和 SSC-14 移到第 15 批第 2 项；目录实现片等 C-2、C-3 合入，它的升级段另等 U1 和四份门禁（第 9 节）；组合服务的实现在[第 15 批](../post-anticorruption-roadmap/reference/batches/15.md)。2026-11-08 用户看实物定了目录实现片和指定文件夹片的定样：永久删除时问删还是留选 A3「选项就是确认」，指定文件夹选 B1「就地指定」（第 3 节「定样」，原型在 [`docs/design/05-materials-directories/`](../../docs/design/05-materials-directories/README.md)）。
+状态：合同与 SDK 的 C-1、C-2、C-3 已合入（第 05 批 #1979）；呈现组件和组合服务由第 15 批继续，S-1 的合同补充在第 5、6 节，尚未交付。2026-11-04 设计。合同归 C 轨，呈现组件归 D 轨，这一份是共同设计；D 轨 2026-11-04 共审，四处要改的已改进稿子，§10 的四问已答（见第 10 节）。2026-11-06 按第 05 批核账勘误（动作版本、事件位置、Manifest 快照、C-1 与 U1 的先后），并按用户同日的决定改了第 8、9 节：真实 Home 重建不等 C-1，动表的部分走升级段。2026-11-07 统筹定 C-1 只加不删（第 9 节），用户定默认输出目录的快照和永久删除，以及另一台设备上的引用加「指定文件夹」、接受脱钩之前目录行还剩的静默读（第 3 节）。2026-11-04 收进第 06 批核账（#1805）列的七处缺口（第 3、4、8、9 节）、第 15 批评审里收下的五项（#1798，第 5、6 节）和 D 轨定的两个字段角色。C-1 已合入（[#1894](https://github.com/molis-ai/molis-work/pull/1894)，`91f820f55`），合审留下的事见第 9 节；03、04 定样已全部合入，统一起点已登记（#1914）。2026-11-08 状态环取值已下沉到 contracts 的 `platform/ui`（随 C-2，用户同意，D 轨事后审）；C-2、C-3 的合同和 SDK 的共用校验在同一个分支、同一个 PR 里（用户 11-08 定本批只开一个大 PR），不设临时拒绝；用到第 14 批 T4 文字工具的部分单独一个提交，等 14 批合入后统一编译（第 7、9 节）。同日统筹定：`mounts` 并进 `slots`，挂载位就是带 `accepts_forms` 的 slot（第 5 节）；`renderPresentationForm` 和 SSC-14 移到第 15 批第 2 项；目录实现片等 C-2、C-3 合入，它的升级段另等 U1 和四份门禁（第 9 节）；组合服务的实现在[第 15 批](../post-anticorruption-roadmap/reference/batches/15.md)。2026-11-08 用户看实物定了目录实现片和指定文件夹片的定样：永久删除时问删还是留选 A3「选项就是确认」，指定文件夹选 B1「就地指定」（第 3 节「定样」，原型在 [`docs/design/05-materials-directories/`](../../docs/design/05-materials-directories/README.md)）。
 
 ## 0. 这份稿子做什么
 
@@ -416,6 +416,11 @@ interface PresentationObject {
     primary?: boolean;
     when?: { status?: string[]; slots?: SurfaceSlotKind[] };
     input_from?: Record<string, string>;  // 预备输入取哪些字段；预备不写入
+    unavailable?: {
+      when: { status?: string[]; codes?: string[] }; // 至少一项非空；两项并列时 AND
+      reason: TextRef;               // 主人的已声明文字键，不收 literal
+      next?: string;                 // 只引用本对象 actions 里的另一动作，复用它的 input_from
+    };
   }>;
   /** 给外部 Agent、终端、通知用的文本形态（§4.5）：每一行是一个字段键，和图形出自同一份事实。 */
   text?: { lines: string[] };
@@ -476,6 +481,8 @@ type SurfaceSlotKind = "plugin-slot" | "conversation" | "discussion" | "attentio
 interface SurfaceRequest {
   slot: { kind: SurfaceSlotKind; plugin_id?: string; slot_id?: string };   // plugin-slot 时要写在哪个插件的哪个 slot（带 accepts_forms 的）
   subjects?: ActionSubject[];
+  delivery_subjects?: ActionSubject[]; // 仅 conversation；subjects 的去重子集，其余为正文引用；总输入仍最多 50 项
+  expanded?: true;                    // 仅 conversation/discussion，在原位置展开全部可读项；不改变挂载位 max
   /** 此刻在做什么（§5 依据 4）。第一片的确定组合不看它，只为助理组合留位置。 */
   task?: "writing" | "reviewing" | "finding" | "handing-off" | "discussing";
 }
@@ -497,8 +504,17 @@ interface SurfaceGroup {
   /** 没有放进来的。第一片只收 disabled：不给 forbidden，「有几件你看不了」本身就是泄露。件数和插件 id 只给 user 受众；plugin 受众只给有没有（统筹 2026-11-08 定，和第 15 批 §7.1 对齐）。 */
   excluded?: Array<{ reason: "disabled"; count?: number; owner_plugin_id?: string }>;
   hidden_above?: { count: number; label: OwnedTextRef };   // 「另有 N 件」：只数调用方读得了的；label 带 count 参数
+  overflow?: { count: number; label?: OwnedTextRef };     // 当前折叠的可读项，与已经显示在上面的 hidden_above 分开；S-1 不新声明文字键
   title?: OwnedTextRef;
   items: SurfaceItem[];
+}
+
+interface SurfaceItemAction {
+  ref: string;                    // "capability_id@version"，或平台通用操作 open、peek、place、hand_off
+  provider_id?: string;           // 普通目录动作必带精确提供方；通用操作不冒充某个提供方
+  primary: boolean;
+  prepared_input?: Record<string, string>; // 输入键 → 字段键，不放值；点击时按当时授权取值
+  consequence?: Array<"external" | "cost" | "irreversible">;
 }
 
 interface SurfaceItem {
@@ -506,13 +522,10 @@ interface SurfaceItem {
   owner_plugin_id: string;          // 方案 B 的插件色块、色带用它
   form: FormKind;
   state: "ok" | "forbidden" | "deleted" | "stale";
+  read_at?: string;                // 只转发本次已授权 owner 读取给的真实旧值时间，不填当前时间冒充
   fields: Array<{ key: string; role: FieldRole }>;   // 显示哪些字段；值由页面用 PresentationValues 去取，不放进描述
-  actions: Array<{
-    ref: string;                    // "capability_id@version"，或平台的通用操作 SURFACE_GENERIC_OPERATIONS：open、peek、place、hand_off（打开、速览、放进、交给）
-    primary: boolean;
-    prepared_input?: Record<string, string>;   // 只放字段引用（同 input_from：输入键 → 字段键），不放值；点下去时按当时的授权取值
-    consequence?: Array<"external" | "cost" | "irreversible">;   // 写在按钮旁（IUI-08，VUX-56）
-  }>;
+  actions: SurfaceItemAction[];
+  notices?: Array<{ reason: OwnedTextRef; next?: SurfaceItemAction }>; // 原因不是可执行按钮；next 只能复用已核实的只读/导航动作
   /** 被合并进这一件的对象（#1798 第 12 节第 5 条）。服务按动作目录填 owner_plugin_id；调用方读不了的不放进来。 */
   merged?: Array<{ subject: ActionSubject; owner_plugin_id: string; relation: ContextRelationType }>;
 }
@@ -537,6 +550,8 @@ interface SurfaceItem {
 - **关系类型要登记**：现在 context-ledger 的 `ContextEdge.type` 是自由字符串，写入方各自定常量（如 `horizontal/placement/src/index.ts` 的 `TYPES`）。C-3 在 contracts 的 `modules/context-ledger` 加一张平台关系类型表 `CONTEXT_RELATION_TYPES`（类型 `ContextRelationType`）：放进 placement 已有的 `placement.derived_from`、`placement.copied_from`（照原名，归 placement，placement 的 `TYPES` 改成从表里取；它的其余几种边说的是「放在哪里」，不是同一件事，不进表），再加 `created_from`；`merged` 只认表里的类型。三者不重叠：`copied_from` 是复制出的副本，`derived_from` 是由别的对象派生出的版本，`created_from` 是在操作面上「从这件新建」出的另一件东西，两者主人可以不同。这条边由执行「从这件新建」的平台路径写，不由插件自称。
 - **授权核对只读**：组合服务核对「这个操作此刻能不能点」直接用动作目录的 `discover()`，它带 `availability`，不另开接口。
 - **操作就是动作**：`SurfaceItem.actions` 里只能是动作目录里现有的动作，或者平台的通用操作。点下去的时候走动作网关，用当时的授权，不用组合当时的授权（IUI-07）。
+- **提供方和不可用说明（15 S-1 合审补齐，2026-11-08）。** 普通动作按 `(ref, provider_id)` 匹配候选及去重；先在声明 owner 的提供方找唯一匹配，再找唯一跨提供方匹配，有歧义不给按钮。先筛外层 `when`，再匹配 `unavailable.when`：`status` 可抑制原本可用的按钮，`codes` 只匹配可见目录行的 `available:false` 原因码；条件都满足时只给 notice，不再给该按钮。权限隐藏的行不出说明。`next` 只能引用同一对象另一个声明动作，复用其输入映射；最终不可用、不能准备输入或不是只读 query/navigation 就省略去处。候选事实中的 provider、notice 与后果不能由助理改写。动作元数据补 `external?: true`，SDK 拒绝其他值；不可逆和计费复用 `effect` 与 `execution.cost`，不按动作名猜外发。
+- **对话和折叠（同次合审）。** `delivery_subjects` 必须是 `subjects` 的去重子集，交付默认卡片、其余默认名字片；讨论默认卡片。默认显示前 6 件，多出的可读件数进 `overflow`；`expanded:true` 才在同一位置全部展开，仍最多 50 个请求对象。`hidden_above` 只记录首页上方已经显示的对象。没有授权核实的对象不能进入折叠计数。无可用旧值时间的读取失败使用 unreadable 组，不捏造 stale 组的 `read_at`。
 - **组合不存值**：描述里只有引用、形态和该显示哪些字段，值由页面另取。所以描述可以缓存，值照样是主人的当前值。
 - **助理组合**（第三片）：同一个 `compose`，`composed_by: "assistant"`。服务先算出确定组合的候选，再经 agent-host 让模型挑选，输出用 `assertSurfaceDescription(候选)` 校验：候选以外的丢掉并记下，不合格就退回确定组合（IUI-05）。合同现在只是给它留了字段，第一片不实现。
 - **记录**：助理组合的输入、候选、选择、理由和纠正写进组合服务自己的组合记录，不记对象正文（IUI-23）；观测采集层（第 21 批）落地后由它接进「完整工作记录」，这里不另起同名的东西。

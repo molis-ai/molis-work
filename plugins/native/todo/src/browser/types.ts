@@ -161,6 +161,7 @@ export interface TodoPage {
   loadBatches(): Promise<void>;
   renderReview(): void;
   openDetail(id: string, keepEdits?: boolean): Promise<void>;
+  reloadDetail(id: string): Promise<boolean>;
   closeDetail(): Promise<void>;
   flush(): Promise<void>;
   setStatus(id: string, status: string, revision: number): Promise<void>;

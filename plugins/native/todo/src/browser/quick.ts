@@ -75,7 +75,7 @@ export function installQuick(page: TodoPage): void {
     if (!state.quickAttempt || state.quickAttempt.fingerprint !== fingerprint) state.quickAttempt = { fingerprint, request_id: crypto.randomUUID() };
     page.setBusy(true);
     try {
-      await page.flush();
+      try { await page.flush(); } catch { return; }
       const payload = await page.request<ItemPayload>("POST", "/items", { ...input, request_id: state.quickAttempt.request_id });
       state.quickAttempt = null;
       el.quickInput.value = "";

@@ -154,7 +154,7 @@ Manifest 只加 `blueprint?: { locales: string[] }`，不内嵌第二份 Bluepri
 
 ### 3.3 语言、版本与保存错误
 
-按 [14 的语言合同 §15.3／15.4](../font-and-skin-system/a-section-contract.md#154-内容包与场景包)执行：有场景包就必须有 `ui.locales`；`blueprint.locales` 是 `ui.locales.available` 的子集，只列译文、不列默认语言、不可重复，单语言写 `[]`。语言文件与全部场景文件必须不多不少；包拒 literal、草稿拒 key。`inspectBlueprintLocales(default, others)` 只允许 `TextRef`、`instructions` 与 `content.body` 不同，结构、稳定 ID、能力／Skill 引用、设置值、依赖与步骤均相同。`body` 的 schema 留给采用预览按所用语言向主人校验，SDK 不 import 主人的实现。
+按 [14 的语言合同 §15.3／15.4](../font-and-skin-system/a-section-contract.md#154-内容包与场景包交第-20-批合同)执行：有场景包就必须有 `ui.locales`；`blueprint.locales` 是 `ui.locales.available` 的子集，只列译文、不列默认语言、不可重复，单语言写 `[]`。语言文件与全部场景文件必须不多不少；包拒 literal、草稿拒 key。`inspectBlueprintLocales(default, others)` 只允许 `TextRef`、`instructions` 与 `content.body` 不同，结构、稳定 ID、能力／Skill 引用、设置值、依赖与步骤均相同。`body` 的 schema 留给采用预览按所用语言向主人校验，SDK 不 import 主人的实现。
 
 采用记录与草稿记 `locale`，正文和标题等按采用时语言选定；回退按 14／08 既定规则，不改变包版本。包身份与版本来自安装记录的 `BlueprintSource`，不在 Blueprint 再加版本或安装身份。所有语言共用 Manifest 的版本。场景升级沿第 7 节按稳定 `part_id` 比「旧版建议、新版建议、主人当前值」，并保持采用语言：用户修改默认保留，新增／删除／依赖变化明确列出；包升级不等于重新采用，拒绝升级继续使用原采用。步骤与示范任务变化也展示，但它们不写业务数据。移除仍按 SPC-07／16 保留用户内容与共享依赖。
 

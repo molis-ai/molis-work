@@ -21,12 +21,12 @@ export { composeProjectBrief, currentBriefGoal, summarizeProjectBrief, type Brie
 export type { WebSettingsProject, WebInstallationDiagnostics, WebPeriodicTask, MolisWorkSettingsView } from "./settings-view.js";
 export type { CapabilitiesView, CapabilitySection } from "./capabilities.js";
 export { renderMcpAccessRows, type McpAccessModel, type McpAccessEntry } from "./mcp-access.js";
-export type { MolisWorkWebView } from "./page-view.js";
+export type { MolisWorkWebView, PreparedStageView } from "./page-view.js";
 export type { PluginRestartOffer, UnavailablePluginStage } from "./unavailable-plugin-stage.js";
 export { createWorkbenchLocale, inWordsOf, LOCALE_COOKIE, LOCALE_SWITCH_STYLES, registerPluginMessages, unregisterPluginMessages, WEB_LOCALES, withPluginWords, type WebLocale, type WebLocalePreference } from "./i18n.js";
 export { renderLanguageHead, workbenchLanguageResource } from "./language-resource.js";
 // The words this process holds for the text tools (specs/font-and-skin-system/a-section-contract.md §8.3): the Host registers and reads them.
-export { pluginTextForOwner, pluginTextOwnerOfPrefix, pluginTextReader, registerPlatformText, registerPluginText, type PluginTextReader } from "./plugin-text.js";
+export { pluginTextForOwner, pluginTextOwnerOfPrefix, pluginTextReader, drawCatalogText, installCatalogTextScope, registerPlatformText, registerPluginText, type PluginTextReader } from "./plugin-text.js";
 export {
   artifactWorkbench,
   createArtifactReferenceRenderer,

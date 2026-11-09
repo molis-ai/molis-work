@@ -53,7 +53,7 @@ export const ASSISTANT_WORK_OBJECTS_FACTORY_SCRIPT = String.raw`({ api, joined, 
     const pickable = (node, object, title) => {
       if (object.state !== "current" && object.state !== "changed") return node;
       // A group, not a button: the card holds its own buttons. Picked, it is the current one.
-      node.tabIndex = 0; node.setAttribute("role", "group"); node.setAttribute("aria-label", L("拿起") + "：" + title);
+      node.tabIndex = 0; node.setAttribute("role", "group"); node.setAttribute("aria-label", globalThis.t.text("workbench.assistant-work-objects.pick-up") + "：" + title);
       node.addEventListener("click", (event) => {
         const selection = getSelection();
         if (event.target.closest("button, a") || (selection && !selection.isCollapsed && node.contains(selection.anchorNode))) return;

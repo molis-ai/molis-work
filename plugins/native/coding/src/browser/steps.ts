@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { stepActorText } from "./step-actor.js";
 import { insertedAcceptance } from "../inserted-step.js";
 import { el, errorMessage } from "./dom.js";
@@ -26,8 +27,8 @@ export function stepReports(ports: StepPorts): StepReports {
   let owner = "", runId = "", stepId = "", ticket = 0, busy = false;
   let data: SessionRead | null = null, entry: PlanEntry | null | undefined = null, node: StepNode | null | undefined = null, verdict: StepVerdict | null = null;
   const states: Record<string, string> = {
-    "not-started": L("coding.step.state.not-started"), ready: L("coding.step.state.ready"), running: L("coding.step.state.running"),
-    succeeded: L("coding.step.state.succeeded"), failed: L("coding.step.state.failed"), cancelled: L("coding.step.state.cancelled"), blocked: L("coding.step.state.blocked"),
+    "not-started": uiText.text("coding.step.state.not-started"), ready: uiText.text("coding.step.state.ready"), running: uiText.text("coding.step.state.running"),
+    succeeded: uiText.text("coding.step.state.succeeded"), failed: uiText.text("coding.step.state.failed"), cancelled: uiText.text("coding.step.state.cancelled"), blocked: uiText.text("coding.step.state.blocked"),
   };
   const key = () => "molis-coding-step-notes:" + location.pathname + ":" + owner + ":" + runId + ":" + stepId;
   const remember = () => {
@@ -44,16 +45,16 @@ export function stepReports(ports: StepPorts): StepReports {
   };
   const describe = (found: PlanEntry, step: StepNode) => {
     const plan = found.plan, board = found.board;
-    if (!plan || !board) throw new Error(L("coding.step.unreadable"));
+    if (!plan || !board) throw new Error(uiText.text("coding.step.unreadable"));
     const planned = plan.content.steps[Number(step.id.replace("step-", "")) - 1];
-    const shown = step.inserted ? { title: step.title || step.id, acceptance: insertedAcceptance(step.reports) || L("coding.step.see-insert") } : planned ?? { title: step.title || step.id, acceptance: "" };
-    detail.append(el("p", L("coding.step.run", { run: runId, revision: found.revision })), el("h3", shown.title), el("p", L("coding.step.acceptance", { acceptance: shown.acceptance })), el("p", states[step.state] || L("coding.step.state.unknown")));
+    const shown = step.inserted ? { title: step.title || step.id, acceptance: insertedAcceptance(step.reports) || uiText.text("coding.step.see-insert") } : planned ?? { title: step.title || step.id, acceptance: "" };
+    detail.append(el("p", uiText.text("coding.step.run", { run: runId, revision: found.revision })), el("h3", shown.title), el("p", uiText.text("coding.step.acceptance", { acceptance: shown.acceptance })), el("p", states[step.state] || uiText.text("coding.step.state.unknown")));
     // Who holds the step now, and who made each report (a handover says so).
-    if (step.owner) detail.append(el("p", L("coding.step.owner", { owner: stepActorText(L, step.owner) })));
+    if (step.owner) detail.append(el("p", uiText.text("coding.step.owner", { owner: stepActorText(L, step.owner) })));
     const reports = el("ol", "");
     // A report naming a supplement opens its receipt in the conversation, when this page drew one.
     for (const report of step.reports) {
-      const li = el("li", (report.by ? stepActorText(L, report.by) + L("coding.timeline.colon") : "") + report.note);
+      const li = el("li", (report.by ? stepActorText(L, report.by) + uiText.text("coding.timeline.colon") : "") + report.note);
       for (const one of report.inputs || []) {
         const link = receipts.link(q("[data-coding-turns]"), one.input_id, () => dialog.close());
         if (link) li.append(" ", link);
@@ -61,18 +62,18 @@ export function stepReports(ports: StepPorts): StepReports {
       reports.append(li);
     }
     detail.append(reports);
-    if (!step.reports.length) detail.append(el("p", L("coding.step.no-reports")));
+    if (!step.reports.length) detail.append(el("p", uiText.text("coding.step.no-reports")));
     if (verdict) {
-      detail.append(el("p", verdict.status === "accepted" ? L("coding.step.accepted") : L("coding.step.needs-work")), el("p", verdict.notes));
-      if (verdict.project_id !== board.project_id || verdict.board_version !== board.version) detail.append(el("p", L("coding.step.stale-verdict")));
-    } else detail.append(el("p", L("coding.step.no-verdict")));
+      detail.append(el("p", verdict.status === "accepted" ? uiText.text("coding.step.accepted") : uiText.text("coding.step.needs-work")), el("p", verdict.notes));
+      if (verdict.project_id !== board.project_id || verdict.board_version !== board.version) detail.append(el("p", uiText.text("coding.step.stale-verdict")));
+    } else detail.append(el("p", uiText.text("coding.step.no-verdict")));
     if (!notes.value && verdict?.notes) notes.value = verdict.notes;
   };
   const read = async () => {
     const at = ticket, id = owner;
     busy = true;
     update();
-    message.textContent = L("coding.step.reading");
+    message.textContent = uiText.text("coding.step.reading");
     try {
       const value = await api<SessionRead>("/sessions/" + encodeURIComponent(id));
       if (at !== ticket || id !== current()) return;
@@ -81,10 +82,10 @@ export function stepReports(ports: StepPorts): StepReports {
       node = entry?.board?.nodes.find(each => each.id === stepId);
       verdict = entry?.verdicts?.[stepId] || null;
       detail.replaceChildren();
-      if (!node || !entry) throw new Error(L("coding.step.unreadable"));
+      if (!node || !entry) throw new Error(uiText.text("coding.step.unreadable"));
       describe(entry, node);
       const run = value.runs.find(item => item.ref.run_id === runId);
-      message.textContent = run && ENDED.includes(run.phase) ? L("coding.step.run-ended") : L("coding.step.run-running");
+      message.textContent = run && ENDED.includes(run.phase) ? uiText.text("coding.step.run-ended") : uiText.text("coding.step.run-running");
     } catch (error) {
       if (!lifetime.alive) return;
       if (at === ticket) { entry = null; node = null; verdict = null; message.textContent = errorMessage(error); }
@@ -98,7 +99,7 @@ export function stepReports(ports: StepPorts): StepReports {
     busy = true;
     update();
     remember();
-    message.textContent = L("coding.step.saving");
+    message.textContent = uiText.text("coding.step.saving");
     try {
       await api("/sessions/" + encodeURIComponent(id) + "/runs/" + encodeURIComponent(runId) + "/steps/" + encodeURIComponent(stepId), "POST", {
         action, notes: notes.value, expected_revision: verdict?.revision || 0, project_id: board.project_id, board_version: board.version,
@@ -107,7 +108,7 @@ export function stepReports(ports: StepPorts): StepReports {
       try { sessionStorage.removeItem(key()); } catch { /* storage closed: nothing was kept */ }
       await read();
       if (id === current()) await refresh();
-      if (at === ticket) message.textContent = action === "accepted" ? L("coding.step.saved-accepted") : L("coding.step.saved-rework");
+      if (at === ticket) message.textContent = action === "accepted" ? uiText.text("coding.step.saved-accepted") : uiText.text("coding.step.saved-rework");
     } catch (error) {
       if (!lifetime.alive) return;
       if (at === ticket) message.textContent = errorMessage(error);
@@ -117,7 +118,7 @@ export function stepReports(ports: StepPorts): StepReports {
   };
   const askRework = () => {
     if (busy || verdict?.status !== "needs-work" || !entry) return;
-    const reason = L("coding.step.rework-reason", { run: runId, revision: entry.revision, step: stepId, notes: verdict.notes });
+    const reason = uiText.text("coding.step.rework-reason", { run: runId, revision: entry.revision, step: stepId, notes: verdict.notes });
     dialog.close();
     try {
       prepareRework(reason);
@@ -136,7 +137,7 @@ export function stepReports(ports: StepPorts): StepReports {
   return {
     sync(id) { if (dialog.open && owner !== id) dialog.close(); },
     async open(id, run, step) {
-      if (busy) { status(L("coding.step.busy"), true); return; }
+      if (busy) { status(uiText.text("coding.step.busy"), true); return; }
       ticket++;
       owner = id; runId = run; stepId = step;
       data = null; entry = null; node = null; verdict = null;

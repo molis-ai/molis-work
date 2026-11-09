@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { escText, escapeAttr, said, setText } from "./dom.js";
 import { ai, aiLabel, batch, confirmRecipe, isLocalRecipe } from "./model.js";
 import type { ConfirmRecipe, ShelfPage } from "./types.js";
@@ -9,23 +10,22 @@ const shortcutOutput = (sourceName: string, actionName: string): string => {
   return base + "-" + action + ".md";
 };
 
-function facts(page: ShelfPage, recipe: ConfirmRecipe, count: number) {
-  const { L } = page;
+function facts(_page: ShelfPage, recipe: ConfirmRecipe, count: number) {
   const local = isLocalRecipe(recipe);
   return {
-    read: L("shelf.confirm.copies-of-count", { count: String(count) }),
-    write: L("shelf.confirm.save-a-new-result-keep"),
-    network: local ? L("shelf.confirm.off") : L("shelf.confirm.send-materials-to-the-selected"),
-    isolation: local ? L("shelf.confirm.on-device-extraction-not-sent") : L("shelf.confirm.no-terminal-or-file-writing"),
+    read: uiText.text("shelf.confirm.copies-of-count", { count: String(count) }),
+    write: uiText.text("shelf.confirm.save-a-new-result-keep"),
+    network: local ? uiText.text("shelf.confirm.off") : uiText.text("shelf.confirm.send-materials-to-the-selected"),
+    isolation: local ? uiText.text("shelf.confirm.on-device-extraction-not-sent") : uiText.text("shelf.confirm.no-terminal-or-file-writing"),
   };
 }
 
 function actorLine(page: ShelfPage, recipe: ConfirmRecipe): string {
   const { L } = page;
-  if (isLocalRecipe(recipe)) return page.selected?.kind === "image" ? L("shelf.confirm.on-device-recognition-not-sent") : L("shelf.confirm.on-device-extraction-not-sent-2");
-  if (ai(page).available) return L("shelf.confirm.model-processes-the-selected-materials", { model: aiLabel(page) });
+  if (isLocalRecipe(recipe)) return page.selected?.kind === "image" ? uiText.text("shelf.confirm.on-device-recognition-not-sent") : uiText.text("shelf.confirm.on-device-extraction-not-sent-2");
+  if (ai(page).available) return uiText.text("shelf.confirm.model-processes-the-selected-materials", { model: aiLabel(page) });
   const reason = ai(page).reason;
-  return reason ? said(L, reason) : L("shelf.bar.configure-an-ai-model-first");
+  return reason ? said(L, reason) : uiText.text("shelf.bar.configure-an-ai-model-first");
 }
 
 /** The plate is the same node across choices, so it springs across instead of blinking. */
@@ -78,7 +78,7 @@ function outputName(page: ShelfPage, recipe: ConfirmRecipe): string {
 function confirmTitle(page: ShelfPage, recipe: ConfirmRecipe): string {
   const { L, selected } = page;
   if (recipe.recipe !== "extract_text") return said(L, recipe.label);
-  return selected?.kind === "pdf" ? L("shelf.confirm.extract-pdf-text") : selected?.kind === "image" ? L("shelf.confirm.extract-image-text") : L("shelf.confirm.extract-text");
+  return selected?.kind === "pdf" ? uiText.text("shelf.confirm.extract-pdf-text") : selected?.kind === "image" ? uiText.text("shelf.confirm.extract-image-text") : uiText.text("shelf.confirm.extract-text");
 }
 
 export function fillConfirm(page: ShelfPage): void {
@@ -89,12 +89,12 @@ export function fillConfirm(page: ShelfPage): void {
   const title = confirmTitle(page, recipe);
   const option = (recipe.choices || []).find((choice) => choice.id === pending.option);
   setText(bench, "[data-shelf-confirm-title]", option ? title + " · " + said(L, option.title) : title);
-  setText(bench, "[data-shelf-confirm-count]", L("shelf.confirm.count", { count: String(picked.length) }));
-  setText(bench, "[data-shelf-confirm-out]", L("shelf.confirm.creates-name-your-original-file", { name: outputName(page, recipe) }));
+  setText(bench, "[data-shelf-confirm-count]", uiText.text("shelf.confirm.count", { count: String(picked.length) }));
+  setText(bench, "[data-shelf-confirm-out]", uiText.text("shelf.confirm.creates-name-your-original-file", { name: outputName(page, recipe) }));
   const fact = facts(page, recipe, picked.length);
   for (const key of ["read", "write", "network", "isolation"] as const) setText(bench, '[data-shelf-fact="' + key + '"]', fact[key]);
   setText(bench, "[data-shelf-actor]", actorLine(page, recipe));
-  setText(bench, "[data-shelf-run]", isLocalRecipe(recipe) ? L("shelf.confirm.start-extraction") : L("shelf.confirm.start-processing"));
-  setText(bench, "[data-shelf-back]", L("shelf.confirm.back"));
+  setText(bench, "[data-shelf-run]", isLocalRecipe(recipe) ? uiText.text("shelf.confirm.start-extraction") : uiText.text("shelf.confirm.start-processing"));
+  setText(bench, "[data-shelf-back]", uiText.text("shelf.confirm.back"));
   paintChoices(page, recipe);
 }

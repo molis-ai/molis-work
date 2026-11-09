@@ -1,9 +1,10 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { GoalsDocumentItem, GoalsDocumentContext, GoalsDocumentUiPrimitives } from "./document-ui-model.js";
 import { renderGoalEventDocument } from "./event-document-ui.js";
 
 function createDocumentRenderer(primitives: GoalsDocumentUiPrimitives) {
-  const { translate: L, escapeHtml, icon, formatDate, renderStatus, sectionHeading } = primitives;
+  const { escapeHtml, icon, formatDate, renderStatus, sectionHeading } = primitives;
 
   function renderGoalDocument(item: GoalsDocumentItem, context: GoalsDocumentContext, selected: boolean): string {
     return renderGoalEventDocument(item, context, selected, primitives);
@@ -12,34 +13,34 @@ function createDocumentRenderer(primitives: GoalsDocumentUiPrimitives) {
   function renderTrashGoalDocument(item: GoalsDocumentItem, selected: boolean): string {
     const goal = item.goal;
     const trashEvent = item.events.find((event) => event.type === "goal.trashed");
-    const owner = goal.trashed_by ?? trashEvent?.actor_id ?? L("未记录");
+    const owner = goal.trashed_by ?? trashEvent?.actor_id ?? uiText.text("goals.document-ui.not-recorded");
     return `<article class="goal-document trash-goal-document" data-goal-view="${escapeHtml(goal.goal_id)}"${selected ? "" : " hidden"}>
     <section class="goal-hero trash-goal-hero" aria-labelledby="trash-goal-title-${escapeHtml(goal.goal_id)}">
       <header class="goal-header">
-        <div class="goal-title-kicker">${renderStatus("trashed")}<dl class="trash-goal-facts"><div>${icon("archive")}<dt>${L("移入于")}</dt><dd>${formatDate(goal.trashed_at)}</dd></div><div>${icon("user")}<dt>${L("操作人")}</dt><dd>${escapeHtml(owner)}</dd></div><div>${icon("history")}<dt>${L("最近更新")}</dt><dd>${formatDate(goal.updated_at)}</dd></div></dl></div>
-        <div class="goal-title-row"><div class="goal-title-copy"><h1 id="trash-goal-title-${escapeHtml(goal.goal_id)}">${escapeHtml(goal.title)}</h1><p class="goal-title-outcome">${L("这条 Goal 已从日常列表移除，但内容和历史仍然保留。")}</p></div><div class="goal-title-actions"><button class="mw-btn mw-btn--secondary" type="button" data-open-goal-restore data-goal-id="${escapeHtml(goal.goal_id)}" data-goal-title="${escapeHtml(goal.title)}">${icon("refresh")}<span>${L("恢复")}</span></button></div></div>
+        <div class="goal-title-kicker">${renderStatus("trashed")}<dl class="trash-goal-facts"><div>${icon("archive")}<dt>${uiText("goals.document-ui.moved")}</dt><dd>${formatDate(goal.trashed_at)}</dd></div><div>${icon("user")}<dt>${uiText("goals.document-ui.label")}</dt><dd>${escapeHtml(owner)}</dd></div><div>${icon("history")}<dt>${uiText("goals.document-ui.last-updated")}</dt><dd>${formatDate(goal.updated_at)}</dd></div></dl></div>
+        <div class="goal-title-row"><div class="goal-title-copy"><h1 id="trash-goal-title-${escapeHtml(goal.goal_id)}">${escapeHtml(goal.title)}</h1><p class="goal-title-outcome">${uiText("goals.document-ui.goal-removed-active-list-but-its-content-history")}</p></div><div class="goal-title-actions"><button class="mw-btn mw-btn--secondary" type="button" data-open-goal-restore data-goal-id="${escapeHtml(goal.goal_id)}" data-goal-title="${escapeHtml(goal.title)}">${icon("refresh")}<span>${uiText("goals.document-ui.restore")}</span></button></div></div>
       </header>
     </section>
     <div class="goal-workspace-panels trash-goal-workspace">
     <section class="trash-goal-panel trash-goal-panel--state">
       ${sectionHeading("archive", "回收站状态", "这不是永久删除；恢复后仍是同一个 Goal")}
-      <div class="trash-summary"><p><strong>${L("Goal 的内容和完整历史都已保留。")}</strong>${L("移入时仍生效的关联关系会临时停止；恢复时，只有两端都不在回收站的关系才会安全恢复。")}</p>${trashEvent ? `<p><strong>移入原因：</strong>${escapeHtml(trashEvent.reason)}</p>` : ""}</div>
+      <div class="trash-summary"><p><strong>${uiText("goals.document-ui.goals-content-full-history-kept")}</strong>${uiText("goals.document-ui.active-relations-pause-when-enters-trash-restore-only")}</p>${trashEvent ? `<p><strong>移入原因：</strong>${escapeHtml(trashEvent.reason)}</p>` : ""}</div>
     </section>
     <section class="trash-goal-panel">
       ${sectionHeading("book", "原始目标")}
-      <div class="business-copy"><p class="outcome"><strong>${L("要得到的结果：")}</strong>${escapeHtml(goal.outcome || L("待澄清"))}</p><p><strong>${L("为什么做：")}</strong>${escapeHtml(goal.why || L("待澄清"))}</p><p><strong>${L("事情如何运转：")}</strong>${escapeHtml(goal.business_logic || L("待澄清"))}</p></div>
+      <div class="business-copy"><p class="outcome"><strong>${uiText("goals.document-ui.result-want")}</strong>${escapeHtml(goal.outcome || uiText.text("goals.document-ui.needs-clarification"))}</p><p><strong>${uiText("goals.document-ui.why-do")}</strong>${escapeHtml(goal.why || uiText.text("goals.document-ui.needs-clarification"))}</p><p><strong>${uiText("goals.document-ui.how-works")}</strong>${escapeHtml(goal.business_logic || uiText.text("goals.document-ui.needs-clarification"))}</p></div>
     </section>
     <section class="trash-goal-panel trash-goal-panel--restore">
       ${sectionHeading("refresh", "恢复到 Goal Tree", "恢复不会创建新 Goal，也不会自动启动 Runtime")}
-      <div class="trash-restore-row"><p>${L("确认恢复后，这条 Goal 会回到原来的日常列表；如果有关联仍不能安全恢复，系统会保留它们为待处理事实。")}</p><button class="mw-btn mw-btn--primary" type="button" data-open-goal-restore data-goal-id="${escapeHtml(goal.goal_id)}" data-goal-title="${escapeHtml(goal.title)}">${icon("refresh")}<span>${L("恢复这个 Goal")}</span></button></div>
+      <div class="trash-restore-row"><p>${uiText("goals.document-ui.after-confirm-goal-returns-everyday-list-relations-that")}</p><button class="mw-btn mw-btn--primary" type="button" data-open-goal-restore data-goal-id="${escapeHtml(goal.goal_id)}" data-goal-title="${escapeHtml(goal.title)}">${icon("refresh")}<span>${uiText("goals.document-ui.restore-goal")}</span></button></div>
     </section>
     </div>
   </article>`;
   }
 
   function renderEmptyGoalCollection(trash: boolean, full: boolean): string {
-    const title = trash ? L("回收站是空的") : L("还没有归档 Goal");
-    const detail = full ? `<p>${trash ? L("移入回收站的 Goal 可以在这里恢复；日常 Goal Tree 不会被它们干扰。") : L("已完成的 Goal 可以在正文顶部手动归档，历史事实不会被删除。")}</p><a href="/">${L("返回 Goal Tree")}</a>` : "";
+    const title = trash ? uiText.text("goals.document-ui.trash-empty") : uiText.text("goals.document-ui.no-archived-goal-yet");
+    const detail = full ? `<p>${trash ? uiText("goals.document-ui.goals-trash-can-be-restored-here-they-will") : uiText("goals.document-ui.finished-goal-can-be-archived-top-its-document")}</p><a href="/">${uiText("goals.document-ui.return-goal-tree")}</a>` : "";
     return `<div class="archive-empty">${icon("archive")}<h1>${title}</h1>${detail}</div>`;
   }
   return { renderGoalDocument, renderTrashGoalDocument, renderEmptyGoalCollection };

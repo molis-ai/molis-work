@@ -147,14 +147,14 @@ export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
     post("/api/contextual/create", { focus, ...landing.with(focus), ...(candidate.intake_id ? { intake_id: candidate.intake_id } : { key: candidate.key }), request_id: held.request_id }).then((out) => {
       if (!out.created) { made.delete(id); return suggestCard(focus, candidate, out.draft); }
       const place = globalThis.molisPlacement, title = out.draft.summary || "", actions = [];
-      if (out.subject) actions.push({ label: L("打开"), primary: true, run: () => place.describe({ ...out.subject, project_id: document.body.dataset.projectId || null }, true).then((view) => view.open && place.openObject(view.open)) });
-      if (out.undo_token) actions.push({ label: L("撤销"), run: () => post("/api/contextual/undo", { undo_token: out.undo_token })
-        .then(() => { made.delete(id); place.card(L("已撤销"), title, [], "done"); }, (error) => place.card(L("没能撤销"), error, [], "error")) });
-      place.card(L("已{verb}", { verb: candidate.title || out.draft.title }), title, actions, "done");
+      if (out.subject) actions.push({ label: globalThis.t.text("common.control.open"), primary: true, run: () => place.describe({ ...out.subject, project_id: document.body.dataset.projectId || null }, true).then((view) => view.open && place.openObject(view.open)) });
+      if (out.undo_token) actions.push({ label: globalThis.t.text("workbench.context-bus.undo"), run: () => post("/api/contextual/undo", { undo_token: out.undo_token })
+        .then(() => { made.delete(id); place.card(globalThis.t.text("workbench.context-bus.undone"), title, [], "done"); }, (error) => place.card(globalThis.t.text("workbench.context-bus.could-not-undo"), error, [], "error")) });
+      place.card(globalThis.t.text("workbench.context-bus.done-verb", { verb: candidate.title || out.draft.title }), title, actions, "done");
     }).catch((error) => { made.delete(id); bar.error(error); }).finally(() => { held.busy = false; });
   };
   const suggestCard = async (focus, candidate, offer) => {
-    const material = { title: L("选中的内容") + (focus.object.title ? " · " + focus.object.title : ""), text: quoted(focus) };
+    const material = { title: globalThis.t.text("workbench.context-bus.selection") + (focus.object.title ? " · " + focus.object.title : ""), text: quoted(focus) };
     const summary = offer.summary || candidate.hint;
     const source = { surface: focus.plugin_id, title: focus.object.title || "" };
     const card = { title: candidate.title, summary, reference: offer.action, input: offer.input,
@@ -220,7 +220,7 @@ export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
       const focus = this.focus, plan = this.plan;
       const candidate = focus && plan && focus.context_id === objectKey ? plan.candidates.find((item) => item.key === key) : null;
       // Shown a moment ago but gone or switched off since: say why instead of doing nothing.
-      if (!candidate || !candidate.available) { bar.error(new Error(candidate ? candidate.reason || L("不可用") : L("这个动作已不在当前内容的候选里"))); return; }
+      if (!candidate || !candidate.available) { bar.error(new Error(candidate ? candidate.reason || globalThis.t.text("workbench.context-bus.unavailable") : globalThis.t.text("workbench.context-bus.action-no-longer-offered-what-have-open"))); return; }
       const prepared = settle(focus, candidate, "assistant-start");
       // The page that has this object open takes it when it can (Pages runs it on the whole document); else a card.
       if (prepared) void deliver(focus, { ...candidate, scope: "object" }).then(fallback => { if (fallback) prepared().then((offer) => suggestCard(focus, candidate, offer)).catch(() => openAssistant(fallback)); });
@@ -237,9 +237,9 @@ export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
     const title = cutWhole(String(detail.title || "").trim(), 200), text = cutWhole(String(detail.text || ""), 4000);
     known().then((declared) => {
       const entry = declared[surface.getAttribute("data-work-surface")];
-      if (!entry) throw new Error(L("这个页面还没有声明它的对象，不能放进去"));
+      if (!entry) throw new Error(globalThis.t.text("workbench.context-bus.page-has-not-declared-its-objects-so-cannot"));
       const focus = starters.focusFor({ plugin_id: entry.plugin_id, object: { kind: entry.kind, id, ...(title ? { title } : {}) }, draft_text: text || title });
-      if (!focus) throw new Error(L("没有可以放进去的内容"));
+      if (!focus) throw new Error(globalThis.t.text("workbench.context-bus.there-nothing-put"));
       // The Host finds the creation entry by its declared id among what is offered for exactly this object, and refuses when it is gone.
       create(focus, { key: "intake:" + intake, intake_id: intake, title: "" }, ("intake:" + intake + ":" + entry.kind + ":" + id).slice(0, 120));
     }).catch((error) => bar.error(error));

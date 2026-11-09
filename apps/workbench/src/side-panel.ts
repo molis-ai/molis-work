@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { withPluginWords } from "./i18n.js";
 import type { PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { SIDE_CONTEXT_FACTORY } from "./side-panel-context.js";
@@ -68,28 +69,28 @@ function sideEntries(primitives: SidePanelPrimitives, pluginTabs: readonly SideP
  * focused. The background tasks' glyph carries how many are not done.
  */
 export function renderSideStrip(primitives: SidePanelPrimitives, pluginTabs: readonly SidePanelPluginTab[] = [], views: SideViews = {}): string {
-  const { L, icon, escapeHtml } = primitives;
+  const { icon, escapeHtml } = primitives;
   // A Home tool with a chord says it where it is named, as its titlebar button did before 07-1 S4b moved it here: ⌘⇧I in the
   // name a pointer rests on (rewritten to Ctrl+Shift+I off a Mac in the page), and the chord for a screen reader.
   const keyed = (entry: SideEntry) => entry.plugin?.keys
     ? { title: `${entry.label} ${entry.plugin.keys.replace("Mod+", "⌘").replace("Shift+", "⇧").replace("Alt+", "⌥")}`, attrs: ` aria-keyshortcuts="${escapeHtml(entry.plugin.keys.replace("Mod+", "Meta+"))}"` }
     : { title: entry.label, attrs: "" };
   const tab = (entry: SideEntry, { title, attrs } = keyed(entry)) => `<div class="tab-item" data-glyph-only title="${escapeHtml(title)}"><button class="tab-item-trigger" type="button" role="tab" id="side-tab-${escapeHtml(entry.id)}" aria-controls="side-body-${escapeHtml(entry.id)}" aria-selected="false" tabindex="-1" data-side-tab="${escapeHtml(entry.id)}" aria-label="${escapeHtml(entry.label)}"${attrs}${entry.attrs}>${icon(entry.glyph).replace("<svg", '<svg class="tab-item-icon"')}<span class="tab-item-name" aria-hidden="true">${escapeHtml(entry.label)}</span></button>${entry.id === "tasks" ? `<span class="tab-count-badge" data-background-tasks-count aria-hidden="true" hidden>0</span>` : ""}</div>`;
-  return `<div class="side-strip tab-glyph-row" role="tablist" aria-label="${L("右侧")}" data-side-tabs data-overflow-fade>${sideEntries(primitives, pluginTabs, views).map(entry => tab(entry)).join("")}</div>`;
+  return `<div class="side-strip tab-glyph-row" role="tablist" aria-label="${uiText("workbench.side-panel.right")}" data-side-tabs data-overflow-fade>${sideEntries(primitives, pluginTabs, views).map(entry => tab(entry)).join("")}</div>`;
 }
 
 export function renderSidePanel(primitives: SidePanelPrimitives, pluginTabs: readonly SidePanelPluginTab[] = [], views: SideViews = {}): string {
-  const { L, escapeHtml } = primitives;
+  const { escapeHtml } = primitives;
   const body = (id: string, label: string, inner: string, extra = "") =>
     `<div class="side-panel-body" id="side-body-${escapeHtml(id)}" role="tabpanel" aria-labelledby="side-tab-${escapeHtml(id)}" aria-label="${escapeHtml(label)}" data-side-body="${escapeHtml(id)}"${extra} hidden>${inner}</div>`;
   const inner: Record<string, () => string> = {
-    discussion: () => body("discussion", L("项目讨论"), `<iframe title="${L("群聊与 Thread")}"></iframe>`),
-    browser: () => body("browser", L("浏览器"), renderSideBrowser(primitives), " data-side-browser"),
-    computer: () => body("computer", L("电脑"), renderSideComputer(primitives), " data-side-computer"),
-    files: () => body("files", L("项目资料"), renderSideFiles(primitives), " data-side-files"),
-    tasks: () => body("tasks", L("后台任务"), `<div class="side-tasks"><strong class="side-tasks-title">${L("后台任务")}</strong><div class="side-tasks-list" data-background-tasks-list><p class="side-tasks-empty">${L("现在没有后台任务")}</p></div></div>`),
+    discussion: () => body("discussion", uiText.text("workbench.side-panel.project-discussion"), `<iframe title="${uiText("workbench.side-panel.group-chat-threads")}"></iframe>`),
+    browser: () => body("browser", uiText.text("workbench.side-panel.browser"), renderSideBrowser(primitives), " data-side-browser"),
+    computer: () => body("computer", uiText.text("workbench.side-panel.computer"), renderSideComputer(primitives), " data-side-computer"),
+    files: () => body("files", uiText.text("workbench.side-panel.project-knowledge"), renderSideFiles(primitives), " data-side-files"),
+    tasks: () => body("tasks", uiText.text("workbench.side-panel.background-job"), `<div class="side-tasks"><strong class="side-tasks-title">${uiText("workbench.side-panel.background-job")}</strong><div class="side-tasks-list" data-background-tasks-list><p class="side-tasks-empty">${uiText("workbench.side-panel.no-background-tasks-right-now")}</p></div></div>`),
   };
-  return `<section class="side-panel" id="side-panel" role="region" aria-label="${L("右侧")}" data-side-panel hidden>
+  return `<section class="side-panel" id="side-panel" role="region" aria-label="${uiText("workbench.side-panel.right")}" data-side-panel hidden>
         ${sideEntries(primitives, pluginTabs, views).map(entry => entry.plugin
           ? body(entry.id, entry.label, `<iframe title="${escapeHtml(entry.label)}" data-side-frame></iframe>`, ` data-side-src="${escapeHtml(entry.plugin.src)}"`)
           : inner[entry.id]!()).join("")}
@@ -205,7 +206,7 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
   const tabs=()=>buttons().filter(button=>!button.hidden&&tabOf(button.dataset.sideTab));
   const current=()=>{const key=ops.sideActive(getState())?.itemId;const shown=tabs();return shown.some(button=>button.dataset.sideTab===key)?key:shown[0]?.dataset.sideTab||null;};
   const divider=document.createElement('div');divider.className='side-panel-divider';divider.tabIndex=0;
-  divider.setAttribute('role','separator');divider.setAttribute('aria-orientation','vertical');divider.setAttribute('aria-label',L('调整侧栏宽度'));divider.setAttribute('aria-controls',panel.id);
+  divider.setAttribute('role','separator');divider.setAttribute('aria-orientation','vertical');divider.setAttribute('aria-label',globalThis.t.text("workbench.side-panel.resize-side-panel"));divider.setAttribute('aria-controls',panel.id);
   panel.after(divider);
   let open=false,closing=null,trigger=null;
   const size=()=>Math.min(Math.max(innerWidth*side().ratio,360),innerWidth*.55);
@@ -242,7 +243,7 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
   const ready=(inner,run)=>'loaded' in inner.dataset?run():inner.addEventListener('load',run,{once:true});
   let undoTimer=0;
   const live=document.createElement('div');live.setAttribute('role','status');live.className='mw-sr-only';document.body.append(live);
-  const undoLabel=record=>L('撤销关闭 {plugin}',{plugin:record.title});
+  const undoLabel=record=>globalThis.t.text("workbench.side-panel.reopen-plugin",{plugin:record.title});
   const drawUndo=()=>{
     document.querySelector('[data-side-undo]')?.remove();
     const chip=undoChip('side');if(!chip)return;
@@ -256,13 +257,13 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
     side().tabs.forEach((tab,index)=>{
       if(buttons().some(button=>button.dataset.sideTab===tab.itemId))return;
       const item=document.createElement('div'),body=document.createElement('div'),id='removed-'+ ++removedIds;
-      item.className='tab-item';item.dataset.glyphOnly='';item.title=tab.title+' · '+L('已移除');
+      item.className='tab-item';item.dataset.glyphOnly='';item.title=tab.title+' · '+globalThis.t.text("workbench.side-panel.removed");
       item.innerHTML='<button type="button" class="tab-item-trigger" role="tab" aria-selected="false" tabindex="-1" data-side-removed><svg class="tab-item-icon" aria-hidden="true"><use href="#icon-package"></use></svg><span class="tab-item-name" aria-hidden="true"></span></button>';
       const button=item.firstChild;button.id='side-tab-'+id;button.setAttribute('aria-controls','side-body-'+id);button.setAttribute('aria-label',item.title);
       Object.assign(button.dataset,{sideTab:tab.itemId,sidePlugin:tab.plugin+'/'});button.lastChild.textContent=tab.title;
       body.className='side-panel-body';body.id='side-body-'+id;body.hidden=true;body.setAttribute('role','tabpanel');Object.assign(body.dataset,{sideBody:tab.itemId,sideRemovedBody:''});
       body.innerHTML='<div class="mw-empty tab-removed-stage" role="status"><h2></h2><p></p></div>';
-      body.querySelector('h2').textContent=L('{plugin} 已从这个项目移除',{plugin:tab.title});body.querySelector('p').textContent=L('标签和内容都还在；把它加回这个项目，就能接着用。');
+      body.querySelector('h2').textContent=globalThis.t.text("workbench.side-panel.plugin-was-removed-project",{plugin:tab.title});body.querySelector('p').textContent=globalThis.t.text("workbench.side-panel.its-tabs-content-still-here-add-back-project");
       const next=side().tabs.slice(index+1).map(other=>buttons().find(node=>node.dataset.sideTab===other.itemId)).find(Boolean);
       strip.insertBefore(item,next?next.parentElement:null);panel.append(body);
     });
@@ -316,7 +317,7 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
     const tab=tabOf(button?.dataset.sideTab);if(!tab)return;
     const record=ops.closeSideTab(getState(),tab.id);if(!record)return;
     clearTimeout(undoTimer);undoTimer=setTimeout(drawUndo,6020);
-    live.textContent=L('已关闭 {plugin}',{plugin:record.title})+' · '+undoLabel(record);
+    live.textContent=globalThis.t.text("workbench.side-panel.closed-plugin",{plugin:record.title})+' · '+undoLabel(record);
     remember?.(record,()=>reopen(record));
     if(open&&!side().open)setOpen(false);else if(record.active&&open)select(current());else draw();
     save();
@@ -370,8 +371,8 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
   strip.addEventListener('focusout',event=>{if(!strip.contains(event.relatedTarget))grow(null);});
   const menuFor=button=>menu?.(button,[
     // A tab moved here from the main area goes back the same way it came (07-S2).
-    toMain&&button.hasAttribute('data-side-pane')&&{key:'to-main',icon:'arrow',label:L('移到主区'),run:()=>toMain(tabOf(button.dataset.sideTab)?.id)},
-    {key:'close',icon:'x',label:L('关闭标签'),run:()=>close(button)},
+    toMain&&button.hasAttribute('data-side-pane')&&{key:'to-main',icon:'arrow',label:globalThis.t.text("workbench.side-panel.move-main-area"),run:()=>toMain(tabOf(button.dataset.sideTab)?.id)},
+    {key:'close',icon:'x',label:globalThis.t.text("workbench.side-panel.close-tab"),run:()=>close(button)},
   ].filter(Boolean));
   strip.addEventListener('contextmenu',event=>{const button=event.target.closest?.('[data-side-tab]');if(!button||!menu)return;event.preventDefault();menuFor(button);});
   // A dialog opened from the panel (the import dialog) closes on its own Escape; the panel stays.
@@ -401,7 +402,7 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
     if(event.data?.type==='molis:im-connect'&&projectId){
       const answer=(error)=>frame.contentWindow.postMessage({type:'molis:im-connected',requestId:event.data.requestId,error},location.origin);
       try{await molisWorkRequest('/projects/'+encodeURIComponent(projectId)+'/api/im/connect',{body:{}});answer(null);}
-      catch(error){answer(molisWorkRequest.text(error,L('项目连接失败')));}
+      catch(error){answer(molisWorkRequest.text(error,globalThis.t.text("workbench.side-panel.couldn-t-connect-project")));}
     }
   });
   let drag=null;
@@ -449,7 +450,7 @@ export const SIDE_PANEL_SCRIPT = String.raw`(() => {
   const undoChip=()=>{
     if(!last||last.until<Date.now())return null;
     const chip=document.createElement('button');chip.type='button';chip.className='mw-btn mw-btn--ghost mw-btn--sm';
-    chip.innerHTML='<svg aria-hidden="true"><use href="#icon-undo"></use></svg><span></span>';chip.lastChild.textContent=chip.title=L('撤销关闭 {plugin}',{plugin:last.record.title});
+    chip.innerHTML='<svg aria-hidden="true"><use href="#icon-undo"></use></svg><span></span>';chip.lastChild.textContent=chip.title=globalThis.t.text("workbench.side-panel.reopen-plugin",{plugin:last.record.title});
     chip.addEventListener('click',back);return chip;
   };
   addEventListener('keydown',e=>{if(last&&!e.repeat&&e.key?.toLowerCase()==='t'&&e.shiftKey&&!e.altKey&&(e.metaKey||e.ctrlKey)){e.preventDefault();back();}},true);

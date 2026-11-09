@@ -83,7 +83,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
       const script = document.createElement("script");
       script.src = "/assets/molis-work-capabilities.js";
       script.onload = () => resolve();
-      script.onerror = () => { capabilityScripts = null; script.remove(); reject(new Error(L("请稍后重试"))); };
+      script.onerror = () => { capabilityScripts = null; script.remove(); reject(new Error(globalThis.t.text("workbench.settings-directory.try-again-moment"))); };
       document.head.append(script);
     });
   const stylesheets = new Set();
@@ -226,11 +226,11 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
       status.dataset.settingsLoading = "1";
       status.className = "mw-loading";
       status.setAttribute("role", "status");
-      status.textContent = L("正在加载设置");
+      status.textContent = globalThis.t.text("workbench.settings-directory.loading-settings");
       showNode(status);
       try {
         const path = fetchPath || options.sectionPath(section);
-        const html = await molisWorkRequest(path, { as: "text", headers: { Accept: "text/html" }, fallback: L("请稍后重试") });
+        const html = await molisWorkRequest(path, { as: "text", headers: { Accept: "text/html" }, fallback: globalThis.t.text("workbench.settings-directory.try-again-moment") });
         await ensureCapabilityScripts(html);
         await ensureStyleSheets(html);
         if (loading !== request) return;
@@ -242,10 +242,10 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
         failed.dataset.settingsLoading = "1";
         failed.setAttribute("role", "alert");
         failed.innerHTML = '<span class="mw-empty__mark"><svg aria-hidden="true"><use href="#icon-circle-alert"></use></svg></span><strong></strong><p></p><button class="mw-btn mw-btn--secondary" type="button"></button>';
-        failed.querySelector("strong").textContent = L("无法加载设置");
+        failed.querySelector("strong").textContent = globalThis.t.text("workbench.settings-directory.couldn-t-load-settings");
         molisWorkRequest.show(failed.querySelector("p"), error);
         const retry = failed.querySelector("button");
-        retry.textContent = L("重试");
+        retry.textContent = globalThis.t.text("common.control.retry");
         retry.addEventListener("click", () => { if (!body.contains(failed)) return; retry.disabled = true; if (loading === request) loading = null; void loadSection(section, fetchPath); });
         showNode(failed);
       } finally {

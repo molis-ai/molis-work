@@ -1,3 +1,4 @@
+import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { UiLocalePack } from "@molis-ai/molis-work-contracts/platform/ui";
 import { refuseSharedTextPrefix, textKeyPrefix } from "@molis-ai/molis-work-plugin-sdk/ui";
 
@@ -58,4 +59,17 @@ export function pluginTextOwnerOfPrefix(prefix: string, activation?: object): st
   if (scoped && scoped.t && textKeyPrefix(scoped.reader.owner) === prefix) return scoped.reader.owner;
   const owner = prefixes.get(prefix)?.owner;
   return owner && platform.has(owner) ? owner : null;
+}
+
+type CatalogTextScope = <T>(manifest: PluginManifest, draw: () => T) => T;
+let catalogTextScope: CatalogTextScope | undefined;
+
+/** The host binds static, registered catalog contributions to their own packaged source. */
+export function installCatalogTextScope(scope: CatalogTextScope): void {
+  if (catalogTextScope && catalogTextScope !== scope) throw new Error("Workbench catalog text scope already installed");
+  catalogTextScope = scope;
+}
+
+export function drawCatalogText<T>(manifest: PluginManifest, draw: () => T): T {
+  return catalogTextScope ? catalogTextScope(manifest, draw) : draw();
 }

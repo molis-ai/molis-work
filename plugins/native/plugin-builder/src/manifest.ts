@@ -12,5 +12,5 @@ export const builderManifest:PluginManifest={
  capabilities:{provides:[],consumes:[agent.listRuntimes,agent.createSession,agent.readSession,agent.startRun,agent.readRun,agent.controlRun,projectDirectoryActions.get].map(x=>x.capability_id)},
  artifacts:{produces:[],consumes:[]},
  sync:builderSync,
- ui:{contributions:[BUILDER_UI_ID],views:[{view_id:'directory',slot:'navigator',title:'插件创作工作台',title_en:'Plugin Studio',contribution_id:BUILDER_UI_ID,icon:'wand',hue:'indigo',order:57,rail:'extend'}]},
+ ui:{ locales: { default: "zh", available: ["zh", "en"] },contributions:[BUILDER_UI_ID],views:[{view_id:'directory',slot:'navigator',title:'插件创作工作台',title_en:'Plugin Studio',contribution_id:BUILDER_UI_ID,icon:'wand',hue:'indigo',order:57,rail:'extend'}]},
 };

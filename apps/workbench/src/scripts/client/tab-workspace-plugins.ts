@@ -44,7 +44,7 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
     queueMicrotask(() => shellCollapse.delete(plugin));
     selectItem(topLevelSurface(plugin), null, readView(ops.focused(state).id));
     if (plugin === "goals") {
-      document.querySelector("[data-goal-collapse]")?.setAttribute("aria-label", L("收起 Goal，返回关系画布"));
+      document.querySelector("[data-goal-collapse]")?.setAttribute("aria-label", globalThis.t.text("workbench.tab-workspace-plugins.collapse-goal-return-canvas"));
       (restoreBoard || showCanvas)?.();
       return;
     }
@@ -81,7 +81,7 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
   const recall = (plugin, itemId) => {
     const at = ops.locate(state, plugin, itemId);
     if (!at || at.paneId === ops.focused(state).id) return false;
-    showToast?.(L(at.side ? "已在右侧打开，切过去了" : "已在另一栏打开，切过去了"));
+    showToast?.(globalThis.t.text(at.side ? "workbench.tab-workspace-plugins.already-open-right-went-there" : "workbench.tab-workspace-plugins.already-open-another-pane-went-there"));
     if (at.side) { column = "side"; sidePane?.open(at.side); return true; }
     state.focusedPaneId = at.paneId; column = "main";
     return false;
@@ -203,7 +203,7 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
       const stillCurrent = current(); const opened = showsIt(frame ? frame.contentDocument : document); finish();
       if (opened) return;
       if (quiet) { if (openRecords[plugin] === itemId) forgetRecord(plugin); } // quiet: no error, and only the record it looked for is forgotten
-      else if (stillCurrent) showToast?.(L('未能打开这条内容，请重试或从列表中选择。'), true);
+      else if (stillCurrent) showToast?.(globalThis.t.text("workbench.tab-workspace-plugins.could-not-open-item-try-again-select-list"), true);
     }, quiet ? 8000 : 10000);
     frame?.addEventListener('load', loaded); watch();
   };

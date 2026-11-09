@@ -6,9 +6,9 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
      it as a click on the row would. With nothing offered, three plain questions that only fill the input. Pages do not
      list their own. */
   const plainStarters = () => [
-    { label: L("总结这一页"), prompt: L("总结这一页的要点") },
-    { label: L("列出这一页的要点"), prompt: L("把这一页的要点逐条列出来") },
-    { label: L("下一步可以做什么"), prompt: L("根据这一页，下一步可以做什么？") },
+    { label: globalThis.t.text("workbench.assistant-composer.summarize-page"), prompt: globalThis.t.text("workbench.assistant-composer.summarize-key-points-page") },
+    { label: globalThis.t.text("workbench.assistant-composer.list-page-s-key-points"), prompt: globalThis.t.text("workbench.assistant-composer.list-key-points-page-one-one") },
+    { label: globalThis.t.text("workbench.assistant-composer.what-could-come-next"), prompt: globalThis.t.text("workbench.assistant-composer.based-page-what-could-i-do-next") },
   ];
   const offered = {
     signature: "", request: "", answer: null, timer: 0,
@@ -83,7 +83,7 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
     if (mine !== slashSeq || !String(input.value || "").startsWith("/")) return;
     startPop.dataset.mode = "slash";
     startPop.hidden = false;
-    startPop.replaceChildren(el("p", "assistant-popover-title", L("用一个方法或能力，或这样开始")));
+    startPop.replaceChildren(el("p", "assistant-popover-title", globalThis.t.text("workbench.assistant-composer.use-method-capability-start-like")));
     starters.forEach((starter) => {
       const btnEl = el("button", "assistant-starter", starterLabel(starter)); btnEl.type = "button";
       if (starter.hint) btnEl.title = starter.hint;
@@ -107,22 +107,22 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
       startPop.append(btnEl);
     };
     methods.forEach((row) => {
-      const label = L(row.kind === "role" ? "角色资料" : "方法") + "：" + row.name;
+      const label = globalThis.t.text(row.kind === "role" ? "workbench.assistant-composer.role-material" : "workbench.assistant-composer.method") + "：" + row.name;
       pick(label + " · " + row.plugin_title, row.summary || row.name, "method-",
         (file) => file.method.method_id === row.method_id && file.method.installation?.install_id === row.installation?.install_id,
         { kind: "method", title: label, method: { method_id: row.method_id, version: row.version, ...(row.default_ref ? { default_ref: row.default_ref, installation: row.installation } : {}) } });
     });
     rows.forEach((row) => {
       const title = row.provider + " · " + row.title;
-      pick(L("用") + "：" + title, row.description || title, "cap-", (file) => file.capability.capability_id === row.capability_id,
-        { kind: "capability", title: L("用") + "：" + title, capability: { capability_id: row.capability_id, version: row.version, provider_id: row.provider_id, title } });
+      pick(globalThis.t.text("workbench.assistant-composer.use") + "：" + title, row.description || title, "cap-", (file) => file.capability.capability_id === row.capability_id,
+        { kind: "capability", title: globalThis.t.text("workbench.assistant-composer.use") + "：" + title, capability: { capability_id: row.capability_id, version: row.version, provider_id: row.provider_id, title } });
     });
-    if (!starters.length && !rows.length && !methods.length) startPop.append(el("p", "assistant-material-origin", L("没有匹配的能力；换个词，或直接说要做什么")));
+    if (!starters.length && !rows.length && !methods.length) startPop.append(el("p", "assistant-material-origin", globalThis.t.text("workbench.assistant-composer.no-matching-capability-try-other-words-just-say")));
   }
   function closeSlash() { if (startPop && startPop.dataset.mode === "slash") { delete startPop.dataset.mode; startPop.hidden = true; } }
   /* “@”: the system search's hits, brought along as references (assistant-mention.ts). */
   const mention = (${ASSISTANT_MENTION_FACTORY_SCRIPT})({ L, el, pop: startPop, field: input,
-    search: (query) => molisWorkRequest(host.route("/api/search/query"), { body: { query, scope: "all", limit: 8 }, fallback: L("搜索暂时不可用，请稍后重试") }),
+    search: (query) => molisWorkRequest(host.route("/api/search/query"), { body: { query, scope: "all", limit: 8 }, fallback: globalThis.t.text("workbench.assistant-composer.search-unavailable-right-now-try-again-shortly") }),
     pick: (hit) => {
       if (!files.some((file) => file.reference && file.object && file.object.kind === hit.subject.kind && file.object.id === hit.subject.id)) {
         files.push({ material_id: "ref-" + crypto.randomUUID(), kind: "object", title: hit.title, explicit: true, reference: { hit_id: hit.hit_id },
@@ -174,9 +174,9 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
   const paintMore = () => {
     if (!morePop) return;
     const rows = [...(compose.dataset.crowded === "chips" ? [noticeBtn] : []).filter((btnEl) => btnEl && !btnEl.hidden).map((btnEl) => moreItem(btnEl.title, btnEl.textContent.trim(), () => { setMore(false); btnEl.click(); })),
-      moreItem(L("添加文件或图片…"), L("也可以拖入、粘贴"), () => { setMore(false); fileInput?.click(); }), ...(project && document.documentElement.dataset.knowledgePicker === "1" ? [moreItem(L("选择项目资料…"), L("可多选，读原文给助理"), () => { setMore(false); document.dispatchEvent(new CustomEvent("molis-work:knowledge-pick", { detail: { request_id: "assistant:" + crypto.randomUUID(), max: 10 } })); })] : []),
-      moreItem(L("引用项目里的内容"), "@", () => { setMore(false); insertTrigger("@"); }),
-      moreItem(L("用一个能力或方法"), "/", () => { setMore(false); insertTrigger("/"); })];
+      moreItem(globalThis.t.text("workbench.assistant-composer.add-file-picture"), globalThis.t.text("workbench.assistant-composer.drop-paste"), () => { setMore(false); fileInput?.click(); }), ...(project && document.documentElement.dataset.knowledgePicker === "1" ? [moreItem(globalThis.t.text("workbench.assistant-composer.choose-project-knowledge"), globalThis.t.text("workbench.assistant-composer.several-once-their-text-goes-assistant"), () => { setMore(false); document.dispatchEvent(new CustomEvent("molis-work:knowledge-pick", { detail: { request_id: "assistant:" + crypto.randomUUID(), max: 10 } })); })] : []),
+      moreItem(globalThis.t.text("workbench.assistant-composer.bring-project-content"), "@", () => { setMore(false); insertTrigger("@"); }),
+      moreItem(globalThis.t.text("workbench.assistant-composer.use-capability-method"), "/", () => { setMore(false); insertTrigger("/"); })];
     morePop.replaceChildren(...rows);
   };
   function setMore(open) {
@@ -193,7 +193,7 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
   });
   // A picture pasted or dropped on the composer is added the same way; pasted text stays text.
   const pastedName = (file) => file.name && file.name !== "image.png" ? file
-    : new File([file], L("粘贴的图片") + "." + ((file.type.split("/")[1] || "png").replace("jpeg", "jpg")), { type: file.type });
+    : new File([file], globalThis.t.text("workbench.assistant-composer.pasted-image") + "." + ((file.type.split("/")[1] || "png").replace("jpeg", "jpg")), { type: file.type });
   input.addEventListener("paste", (event) => {
     const pasted = [...(event.clipboardData?.files || [])];
     if (!pasted.length) return;

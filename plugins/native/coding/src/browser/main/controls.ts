@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { errorMessage } from "../dom.js";
 import { shut, terminal, unread } from "./composer-state.js";
 import type { Page } from "./page.js";
@@ -5,10 +6,10 @@ import { status } from "./request.js";
 
 /** Materials are picked in the one picker of project knowledge (specs/project-knowledge PMAT-17); the page holds the whole choice it hears back for the session that asked. */
 export async function openMaterials(page: Page) {
-  const { L, lifetime } = page, { draft } = page.refs, { s } = page;
+  const { lifetime } = page, { draft } = page.refs, { s } = page;
   const id = s.current, ticket = ++s.materialTicket;
   if (document.documentElement.dataset.knowledgePicker !== "1") {
-    status(page, L("coding.material.picker-unavailable"), true);
+    status(page, uiText.text("coding.material.picker-unavailable"), true);
     return;
   }
   try {
@@ -31,12 +32,12 @@ function contextLabel(page: Page, selector: string, label: string, count = 0) {
 
 /** The send, stop and pause buttons, and the pickers of what the next round is given. */
 function runButtons(page: Page, active: boolean) {
-  const { L, input, q } = page, { s } = page;
+  const { input, q } = page, { s } = page;
   input.disabled = shut(page);
   const send = q<HTMLButtonElement>("[data-coding-send]");
   const chosen = q<HTMLSelectElement>("[data-coding-model]").value;
   send.disabled = input.disabled || s.recovery || s.checkpointBusy || (!active && (!s.state.models.some(model => JSON.stringify([model.provider_id, model.model_id]) === chosen) || !s.state.workspaces?.some(workspace => workspace.workspace_id === s.workspaceId)));
-  send.textContent = s.sending ? L("coding.composer.sending") : L("coding.composer.send");
+  send.textContent = s.sending ? uiText.text("coding.composer.sending") : uiText.text("coding.composer.send");
   q("[data-coding-mode]").hidden = !active;
   q("[data-coding-stop]").hidden = !active;
   q<HTMLButtonElement>("[data-coding-stop]").disabled = s.sending;
@@ -45,7 +46,7 @@ function runButtons(page: Page, active: boolean) {
   const paused = phase === "paused" || phase === "pausing", pausable = phase === "starting" || phase === "running" || phase === "compacting";
   pause.hidden = !(paused || pausable);
   pause.dataset.action = paused ? "resume" : "pause";
-  pause.textContent = phase === "pausing" ? L("coding.run.pausing") : paused ? L("coding.run.resume") : L("coding.run.pause");
+  pause.textContent = phase === "pausing" ? uiText.text("coding.run.pausing") : paused ? uiText.text("coding.run.resume") : uiText.text("coding.run.pause");
   pause.disabled = s.sending || phase === "pausing";
   q<HTMLSelectElement>("[data-coding-intent]").disabled = Boolean(active || s.sending || unread(page));
   q("[data-coding-rename]").hidden = !s.current;
@@ -55,28 +56,28 @@ function runButtons(page: Page, active: boolean) {
 
 /** What is attached to the next round, counted on the pickers' buttons. */
 function attachLabels(page: Page) {
-  const { L, q } = page, { s } = page;
+  const { q } = page, { s } = page;
   const materialCount = (s.materialSelections.get(s.current) || []).length;
-  contextLabel(page, "[data-coding-material-open]", L("coding.attach.material") + (materialCount ? " · " + materialCount : ""), materialCount);
+  contextLabel(page, "[data-coding-material-open]", uiText.text("coding.attach.material") + (materialCount ? " · " + materialCount : ""), materialCount);
   const character = s.characterSelections.get(s.current);
-  contextLabel(page, "[data-coding-character-open]", character ? L("coding.attach.character") + " · v" + character.version : L("coding.attach.character"), character ? 1 : 0);
-  q("[data-coding-character-open]").title = character ? L("coding.character.next", { title: s.characterTitles.get(s.current) || character.artifact_id, version: character.version }) : L("coding.character.none-next");
+  contextLabel(page, "[data-coding-character-open]", character ? uiText.text("coding.attach.character") + " · v" + character.version : uiText.text("coding.attach.character"), character ? 1 : 0);
+  q("[data-coding-character-open]").title = character ? uiText.text("coding.character.next", { title: s.characterTitles.get(s.current) || character.artifact_id, version: character.version }) : uiText.text("coding.character.none-next");
   const actionCount = (s.actionSelections.get(s.current) || []).length;
-  contextLabel(page, "[data-coding-actions-open]", L("coding.attach.actions") + (actionCount ? " · " + actionCount : ""), actionCount);
+  contextLabel(page, "[data-coding-actions-open]", uiText.text("coding.attach.actions") + (actionCount ? " · " + actionCount : ""), actionCount);
   const mcpCount = (s.mcpSelections.get(s.current) || []).length + (s.mcpSourceSelections.get(s.current) || []).length;
   contextLabel(page, "[data-coding-mcp-open]", "MCP" + (mcpCount ? " · " + mcpCount : ""), mcpCount);
   const count = (s.methodSelections.get(s.current) || []).length;
-  contextLabel(page, "[data-coding-method-open]", L("coding.attach.method") + (count ? " · " + count : ""), count);
+  contextLabel(page, "[data-coding-method-open]", uiText.text("coding.attach.method") + (count ? " · " + count : ""), count);
 }
 
 /** The rewind buttons of the checkpoints list are for a writable, idle session. */
 function checkpointButtons(page: Page, active: boolean) {
-  const { L, q } = page, { s } = page;
+  const { q } = page, { s } = page;
   const writable = ["edit", "execute"].includes(q<HTMLSelectElement>("[data-coding-intent]").value);
   q<HTMLButtonElement>("[data-coding-checkpoints-refresh]").disabled = !s.current || s.checkpointLoading;
   q("[data-coding-checkpoints-list]").querySelectorAll("button").forEach(button => {
     button.disabled = Boolean(!writable || active || s.sending || s.recovery || s.checkpointBusy || s.checkpointLoading);
-    button.title = !writable ? L("coding.worktrees.needs-writing") : active ? L("coding.run.wait-end") : s.checkpointBusy ? L("coding.checkpoints.busy") : "";
+    button.title = !writable ? uiText.text("coding.worktrees.needs-writing") : active ? uiText.text("coding.run.wait-end") : s.checkpointBusy ? uiText.text("coding.checkpoints.busy") : "";
   });
 }
 

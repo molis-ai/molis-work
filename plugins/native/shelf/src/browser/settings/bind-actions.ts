@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type {} from "@molis-ai/molis-work-plugin-sdk";
 import { fresh } from "./bind-basic.js";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
@@ -99,7 +100,7 @@ export function bindSample(page: SettingsPage, scope: ParentNode): void {
     try {
       await molisWorkRequest(page.api + "/sample", { method: "POST", body: {} });
       say(scope, "[data-shelf-shortcut-error]", "");
-      sample.textContent = page.L("shelf.settings.sample-back");
+      sample.textContent = uiText.text("shelf.settings.sample-back");
     } catch (error) {
       say(scope, "[data-shelf-shortcut-error]", messageOf(error));
     } finally {
@@ -111,8 +112,7 @@ export function bindSample(page: SettingsPage, scope: ParentNode): void {
 interface SetupStatus { accessibility?: boolean; clipboard_readable?: boolean; browsers?: string[] }
 
 /** What this Mac lets Shelf do, in the lines the page drew for it. */
-export function showPermissions(page: SettingsPage, scope: ParentNode): void {
-  const { L } = page;
+export function showPermissions(_page: SettingsPage, scope: ParentNode): void {
   invoke("shelf_setup_status").then((raw) => {
     const status = raw as SetupStatus | null;
     if (!status) return;
@@ -120,8 +120,8 @@ export function showPermissions(page: SettingsPage, scope: ParentNode): void {
       const node = scope.querySelector(selector);
       if (node && text) node.textContent = text;
     };
-    line('[data-shelf-permission="accessibility"]', status.accessibility ? L("shelf.settings.accessibility-on") : L("shelf.settings.accessibility-off"));
-    if (status.clipboard_readable === false) line('[data-shelf-permission="clipboard"]', L("shelf.settings.clipboard-blocked"));
-    if (Array.isArray(status.browsers)) line('[data-shelf-permission="browsers"]', status.browsers.length ? L("shelf.settings.browsers-found") + status.browsers.join("、") : L("shelf.settings.browsers-none"));
+    line('[data-shelf-permission="accessibility"]', status.accessibility ? uiText.text("shelf.settings.accessibility-on") : uiText.text("shelf.settings.accessibility-off"));
+    if (status.clipboard_readable === false) line('[data-shelf-permission="clipboard"]', uiText.text("shelf.settings.clipboard-blocked"));
+    if (Array.isArray(status.browsers)) line('[data-shelf-permission="browsers"]', status.browsers.length ? uiText.text("shelf.settings.browsers-found") + status.browsers.join("、") : uiText.text("shelf.settings.browsers-none"));
   }).catch(() => undefined);
 }

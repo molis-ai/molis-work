@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { shownProjectPlugins } from "./plugin-registry.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { PlanningMethodPack, PlanningMethodPackInput } from "@molis-ai/molis-work-plugin-goals/contract";
@@ -74,7 +75,7 @@ export function createLocalPlanningHttp(ports: {
         ? body.method as PlanningMethodPackInput
         : null;
       if (body.scope !== "personal" || !method) {
-        sendJson(response, 400, { error: L("个人方法内容无效") });
+        sendJson(response, 400, { error: uiText.text("workbench.planning.personal-method-content-invalid") });
         return true;
       }
       try {
@@ -139,7 +140,7 @@ export function createLocalPlanningHttp(ports: {
         ? body.method as PlanningMethodPackInput
         : null;
       if (!scope || !method) {
-        sendJson(response, 400, { error: L("保存范围或方法内容无效") });
+        sendJson(response, 400, { error: uiText.text("workbench.planning.save-scope-method-content-invalid") });
         return true;
       }
       try {

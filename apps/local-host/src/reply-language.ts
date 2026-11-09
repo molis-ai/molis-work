@@ -1,5 +1,6 @@
 import type { AgentPromptText } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
-import type { WebLocale } from "./web-locale.js";
+import { activeLocale, WEB_LOCALES, type WebLocale } from "./web-locale.js";
+import { lastUsedLocale } from "./ui-locale-memory.js";
 
 /** Fixed words for each language: a locale value is never written into a prompt. A new language fails to compile here until it has its own. */
 const REPLY_LANGUAGE: Readonly<Record<WebLocale, string>> = {
@@ -10,4 +11,9 @@ const REPLY_LANGUAGE: Readonly<Record<WebLocale, string>> = {
 /** What a round is told about the language to reply in (`AgentStartAuthority.reply_language`). */
 export function replyLanguagePrompt(locale: WebLocale): AgentPromptText {
   return { prompt_id: "reply-language", version: /* @version prompt.reply-language */ 1, body: REPLY_LANGUAGE[locale] };
+}
+
+/** The current call's language, or this Home's most recent language when a round did not come from a page. */
+export function modelRoundLocale(home: string | undefined): WebLocale {
+  return activeLocale() ?? (home ? lastUsedLocale(home) : WEB_LOCALES[0]);
 }

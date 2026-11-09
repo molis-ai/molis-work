@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText, escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { TASK_GRANTS_AREA_EN } from "./i18n/task-grants-area-en.js";
 import { EN } from "./i18n/en.js";
 import { PLATFORM_AREA_STYLES } from "./styles/platform-area.js";
@@ -17,18 +17,18 @@ const figure = (caption: string, name: string, note?: string) =>
   `<figure class="mw-catalog__specimen"><figcaption>${escapeHtml(caption)}${note ? `<small>${escapeHtml(note)}</small>` : ""}</figcaption><div class="mw-pa-board__stage" data-platform-area-specimen="${name}"></div></figure>`;
 
 /** The section the board places after 服务连接. The area's words go to the program as it would get them from the shell. */
-export function renderPlatformAreaSection(L: Say, lang: "zh" | "en"): string {
+export function renderPlatformAreaSection(_L: Say, lang: "zh" | "en"): string {
   const words = lang === "en" ? { ...TASK_GRANTS_AREA_EN, 移除: EN["移除"], 撤销: EN["撤销"], 重试: EN["重试"] } : {};
-  return `<section class="mw-catalog__section" id="platform-area" data-primitive="platform-area"><h2>${escapeHtml(L("平台区域"))}</h2>
+  return `<section class="mw-catalog__section" id="platform-area" data-primitive="platform-area"><h2>${escapeHtml(uiText.text("workbench.platform-area-specimens.platform-area"))}</h2>
     <script type="application/json" id="platform-area-words">${JSON.stringify(words).replace(/</g, "\\u003c")}</script>
     <div class="mw-catalog__specimens">
-      ${figure(L("外框与标头 · 宽档（480px 起）"), "wide", L("每种状态各一行：开着、关着、有新的读取能力、暂时读不到、已不再提供"))}
-      ${figure(L("窄档（280–479px）· 标头说明与变化行可占两行"), "narrow")}
-      ${figure(L("未就绪 · 刚出现或刚移动的 500 毫秒里，控件变淡、按下不生效"), "unready")}
-      ${figure(L("正在保存"), "busy")}
-      ${figure(L("没有能读的数据"), "empty")}
-      ${figure(L("变化行 · 宽档"), "lines-wide")}
-      ${figure(L("变化行 · 窄档"), "lines-narrow")}
+      ${figure(uiText.text("workbench.platform-area-specimens.frame-header-wide-step-480px"), "wide", uiText.text("workbench.platform-area-specimens.one-row-per-state-off-reads-more-now"))}
+      ${figure(uiText.text("workbench.platform-area-specimens.narrow-step-280-479px-header-line-change-line"), "narrow")}
+      ${figure(uiText.text("workbench.platform-area-specimens.not-ready-500-ms-after-appears-moves-controls"), "unready")}
+      ${figure(uiText.text("workbench.platform-area-specimens.saving"), "busy")}
+      ${figure(uiText.text("workbench.platform-area-specimens.nothing-read"), "empty")}
+      ${figure(uiText.text("workbench.platform-area-specimens.change-line-wide-step"), "lines-wide")}
+      ${figure(uiText.text("workbench.platform-area-specimens.change-line-narrow-step"), "lines-narrow")}
     </div>
   </section>`;
 }

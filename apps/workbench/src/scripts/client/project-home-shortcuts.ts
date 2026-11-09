@@ -18,7 +18,7 @@ export const HOME_SHORTCUTS_FACTORY_SCRIPT = `({ root, translate: L, projectKey 
       return ["https:", "http:"].includes(url.protocol) && url.hostname && !url.username && !url.password ? url.href : null;
     } catch { return null; }
   };
-  const report = message => { status.textContent = L(message); status.hidden = !message; };
+  const report = message => { status.textContent = globalThis.t.text(message); status.hidden = !message; };
   const load = () => {
     try {
       const stored = JSON.parse(localStorage.getItem(key) || "[]");
@@ -29,7 +29,7 @@ export const HOME_SHORTCUTS_FACTORY_SCRIPT = `({ root, translate: L, projectKey 
         ids.add(item.id); return true;
       }).map(item => ({ id: item.id, name: item.name, url: item.url }));
       report("");
-    } catch { report("无法读取快捷方式，请检查浏览器存储权限后刷新。"); }
+    } catch { report("workbench.project-home-shortcuts.shortcuts-could-not-be-loaded-check-browser-storage"); }
   };
   const render = () => {
     list.querySelectorAll("[data-shortcut-id]").forEach(row => row.remove());
@@ -37,10 +37,10 @@ export const HOME_SHORTCUTS_FACTORY_SCRIPT = `({ root, translate: L, projectKey 
       const row = template.content.firstElementChild.cloneNode(true);
       row.dataset.shortcutId = item.id;
       const link = row.querySelector("[data-home-shortcut-link]");
-      link.href = item.url; link.setAttribute("aria-label", L("打开快捷方式：{name}").replace("{name}", item.name));
+      link.href = item.url; link.setAttribute("aria-label", globalThis.t.text("workbench.project-home-shortcuts.open-shortcut-name").replace("{name}", item.name));
       row.querySelector("[data-home-shortcut-name]").textContent = item.name;
       const edit = row.querySelector("[data-home-shortcut-edit]");
-      edit.setAttribute("aria-label", L("编辑快捷方式：{name}").replace("{name}", item.name));
+      edit.setAttribute("aria-label", globalThis.t.text("workbench.project-home-shortcuts.edit-shortcut-name").replace("{name}", item.name));
       edit.addEventListener("click", () => openEditor(item.id));
       list.insertBefore(row, add.closest("li"));
     }
@@ -51,7 +51,7 @@ export const HOME_SHORTCUTS_FACTORY_SCRIPT = `({ root, translate: L, projectKey 
     if (id && !current) return;
     editingId = id; returnFocus = document.activeElement;
     form.reset(); error.textContent = "";
-    root.querySelector("#home-shortcut-title").textContent = L(id ? "编辑快捷方式" : "添加快捷方式");
+    root.querySelector("#home-shortcut-title").textContent = globalThis.t.text(id ? "workbench.project-home-shortcuts.edit-shortcut" : "workbench.project-home-shortcuts.add-shortcut");
     form.elements.shortcut_name.value = current?.name || "";
     form.elements.shortcut_url.value = current?.url || "";
     remove.hidden = !id;
@@ -59,15 +59,15 @@ export const HOME_SHORTCUTS_FACTORY_SCRIPT = `({ root, translate: L, projectKey 
   };
   const persist = next => {
     try { localStorage.setItem(key, JSON.stringify(next)); }
-    catch { error.textContent = L("未能保存快捷方式，内容仍保留在这里。请检查存储权限后重试。"); return false; }
+    catch { error.textContent = globalThis.t.text("workbench.project-home-shortcuts.shortcut-was-not-saved-edits-still-here-check"); return false; }
     items = next; render(); report(""); closeEditor(); return true;
   };
   form.addEventListener("submit", event => {
     event.preventDefault();
     const name = form.elements.shortcut_name.value.trim(), url = validUrl(form.elements.shortcut_url.value.trim());
-    if (!name || name.length > 32) { error.textContent = L("请填写 1–32 字的名称。"); form.elements.shortcut_name.focus(); return; }
-    if (!url) { error.textContent = L("请输入有效的 http 或 https 网址，且不要包含账号或密码。"); form.elements.shortcut_url.focus(); return; }
-    if (editingId && !items.some(item => item.id === editingId)) { error.textContent = L("这个快捷方式已被移除，请取消后重新添加。"); return; }
+    if (!name || name.length > 32) { error.textContent = globalThis.t.text("workbench.project-home-shortcuts.enter-name-between-1-32-characters"); form.elements.shortcut_name.focus(); return; }
+    if (!url) { error.textContent = globalThis.t.text("workbench.project-home-shortcuts.enter-valid-http-https-url-without-username-password"); form.elements.shortcut_url.focus(); return; }
+    if (editingId && !items.some(item => item.id === editingId)) { error.textContent = globalThis.t.text("workbench.project-home-shortcuts.shortcut-was-removed-cancel-add-again"); return; }
     const item = { id: editingId || crypto.randomUUID(), name, url };
     persist(editingId ? items.map(previous => previous.id === editingId ? item : previous) : [...items, item]);
   });
@@ -88,7 +88,7 @@ export const HOME_SHORTCUTS_FACTORY_SCRIPT = `({ root, translate: L, projectKey 
     if (!link || !globalThis.molisWorkOpenExternalUrl) return;
     event.preventDefault();
     try { await globalThis.molisWorkOpenExternalUrl(link.href); report(""); }
-    catch { report("无法打开链接，请检查系统浏览器后重试。"); }
+    catch { report("workbench.project-home-shortcuts.link-could-not-be-opened-check-system-browser"); }
   });
   load(); render();
 }`;

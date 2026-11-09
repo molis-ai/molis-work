@@ -4,7 +4,7 @@ import { tabShareWidth, tabShareMin, tabScrollAllotment } from "../../tab-strip-
 export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth.toString()};
   const tabShareMin = ${tabShareMin.toString()};
   const tabScrollAllotment = ${tabScrollAllotment.toString()};
-  const paneMarkup = () => '<nav class="tab-strip" data-tab-strip></nav><div class="tab-pane-body" data-tab-pane-body></div><button type="button" class="tab-pane-close" data-tab-pane-close aria-label="' + L("关闭分栏") + '"><svg aria-hidden="true"><use href="#icon-x"></use></svg></button><div class="tab-drop-edges" data-tab-edges><button type="button" data-tab-edge="left" aria-label="' + L("拆到左侧") + '"></button><button type="button" data-tab-edge="right" aria-label="' + L("拆到右侧") + '"></button><button type="button" data-tab-edge="top" aria-label="' + L("拆到上方") + '"></button><button type="button" data-tab-edge="bottom" aria-label="' + L("拆到下方") + '"></button></div>';
+  const paneMarkup = () => '<nav class="tab-strip" data-tab-strip></nav><div class="tab-pane-body" data-tab-pane-body></div><button type="button" class="tab-pane-close" data-tab-pane-close aria-label="' + globalThis.t.text("workbench.tab-workspace-strip.close-pane") + '"><svg aria-hidden="true"><use href="#icon-x"></use></svg></button><div class="tab-drop-edges" data-tab-edges><button type="button" data-tab-edge="left" aria-label="' + globalThis.t.text("workbench.tab-workspace-strip.split-left") + '"></button><button type="button" data-tab-edge="right" aria-label="' + globalThis.t.text("workbench.tab-workspace-strip.split-right") + '"></button><button type="button" data-tab-edge="top" aria-label="' + globalThis.t.text("workbench.tab-workspace-strip.split-up") + '"></button><button type="button" data-tab-edge="bottom" aria-label="' + globalThis.t.text("workbench.tab-workspace-strip.split-down") + '"></button></div>';
   /** One of the strip's text buttons (workbench-navigation.ts .tab-strip-button): a glyph and its words. */
   const stripButton = (kind, glyph, words, data) => {
     const button = document.createElement("button");
@@ -16,8 +16,8 @@ export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth
   /** 主区 | 右侧 before the titlebar's strip, shown at 760px and under, where only the focused column shows. */
   const paneSwitch = () => {
     const group = document.createElement("div"), inSide = column === "side" && Boolean(sidePane?.isOpen());
-    group.className = "mw-toggle-group tab-pane-switch"; group.dataset.slot = "toggle-group"; group.setAttribute("role", "group"); group.setAttribute("aria-label", L("显示哪一栏"));
-    [["main", L("主区"), !inSide], ["side", L("右侧"), inSide]].forEach(([value, words, current]) => {
+    group.className = "mw-toggle-group tab-pane-switch"; group.dataset.slot = "toggle-group"; group.setAttribute("role", "group"); group.setAttribute("aria-label", globalThis.t.text("workbench.tab-workspace-strip.which-pane-show"));
+    [["main", globalThis.t.text("workbench.tab-workspace-strip.main"), !inSide], ["side", globalThis.t.text("workbench.tab-workspace-strip.right"), inSide]].forEach(([value, words, current]) => {
       const button = document.createElement("button");
       button.type = "button"; button.className = "mw-toggle" + (current ? " is-current" : ""); button.dataset.paneSwitch = value;
       button.setAttribute("aria-pressed", String(current)); button.textContent = words;
@@ -53,7 +53,7 @@ export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth
     // out of the project (S1 keeps it, the group greys), its record is gone (struck through), or its plugin did not start (amber).
     const mark = tab.kind === "system" ? "" : removedPlugin(tab.plugin) ? "removed" : goneRecord(tab) ? "gone" : failedPlugin(tab.plugin) ? "failed" : "";
     if (mark === "removed") button.dataset.tabRemoved = "true"; else if (mark) button.dataset.tabState = mark;
-    if (mark) button.title = trigger.ariaLabel = label + " · " + (mark === "removed" ? L("已移除") : mark === "gone" ? L("这一条已经不在了") : L("没能启动"));
+    if (mark) button.title = trigger.ariaLabel = label + " · " + (mark === "removed" ? globalThis.t.text("workbench.tab-workspace-strip.removed") : mark === "gone" ? globalThis.t.text("workbench.tab-workspace-strip.one-no-longer-here") : globalThis.t.text("workbench.tab-workspace-strip.didn-t-start"));
     const name = document.createElement("span");
     name.textContent = label;
     const close = document.createElement("button");
@@ -61,7 +61,7 @@ export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth
     close.className = "tab-item-close";
     close.dataset.tabClose = tab.id;
     // A plugin tab closes its whole group.
-    const closeWords = L(tab.kind === "plugin" ? "关闭标签组" : "关闭标签");
+    const closeWords = globalThis.t.text(tab.kind === "plugin" ? "workbench.tab-workspace-strip.close-tab-group" : "workbench.tab-workspace-strip.close-tab");
     close.ariaLabel = closeWords;
     close.title = closeWords + "·" + label;
     close.tabIndex = selected ? 0 : -1;
@@ -212,7 +212,7 @@ export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth
     const scrollLeft = strip.querySelector("[data-tab-scroll]")?.scrollLeft || 0;
     const previousActive = strip.querySelector('[data-tab-id][aria-current]')?.dataset.tabId;
     strip.setAttribute("role", "tablist");
-    strip.setAttribute("aria-label", L("工作区标签"));
+    strip.setAttribute("aria-label", globalThis.t.text("workbench.tab-workspace-strip.workspace-tabs"));
     const fragment = document.createDocumentFragment();
     const scrollArea = document.createElement("div"); scrollArea.className = "tab-scroll"; scrollArea.dataset.tabScroll = scrollArea.dataset.overflowFade = "";
     fragment.append(scrollArea);
@@ -239,7 +239,7 @@ export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth
         label.className = "tab-group-label";
         label.dataset.tabGroupToggle = tab.groupId;
         const groupName = document.createElement("span"); groupName.className = "tab-group-name"; groupName.textContent = group?.title || ""; label.append(groupName);
-        const title = (group?.collapsed ? L("展开标签组") : L("收起标签组")) + (group?.title ? " · " + group.title : "");
+        const title = (group?.collapsed ? globalThis.t.text("workbench.tab-workspace-strip.expand-tab-group") : globalThis.t.text("workbench.tab-workspace-strip.collapse-tab-group")) + (group?.title ? " · " + group.title : "");
         label.title = title; label.setAttribute("aria-label", title); label.setAttribute("aria-expanded", String(!group?.collapsed));
         wrap.append(label);
         const pages = document.createElement("div"); pages.className = "tab-group-pages";
@@ -263,8 +263,8 @@ export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth
       cover.append(label);
       const close = document.createElement("button");
       close.type = "button"; close.className = "tab-view-chip-close"; close.dataset.coverClose = "";
-      close.title = L("关闭") + " · " + coverLabel(state.exclusive) + " (Esc)";
-      close.setAttribute("aria-label", L("关闭") + " " + coverLabel(state.exclusive));
+      close.title = globalThis.t.text("common.control.close") + " · " + coverLabel(state.exclusive) + " (Esc)";
+      close.setAttribute("aria-label", globalThis.t.text("common.control.close") + " " + coverLabel(state.exclusive));
       close.innerHTML = '<svg aria-hidden="true"><use href="#icon-x"></use></svg>';
       cover.append(close);
       const divider = document.createElement("span"); divider.className = "tab-view-divider"; divider.setAttribute("aria-hidden", "true");
@@ -278,11 +278,11 @@ export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth
     // the way out of 独看, and 全部标签, which appears once the tabs no longer fit (shareTabStrip says when; a phone always shows it).
     const undo = pluginGroups.undoChip(pane.id);
     if (undo) fragment.append(undo);
-    if (!embedded && state.solo?.paneId === pane.id) fragment.append(stripButton("tab-solo-chip", "maximize", L("独看中 · 显示全部"), { soloChip: "" }));
+    if (!embedded && state.solo?.paneId === pane.id) fragment.append(stripButton("tab-solo-chip", "maximize", globalThis.t.text("workbench.tab-workspace-strip.one-pane-show-all"), { soloChip: "" }));
     if (!embedded) {
-      const all = stripButton("tab-all-button", "rows", L("全部标签"), { tabAll: pane.id });
+      const all = stripButton("tab-all-button", "rows", globalThis.t.text("workbench.tab-workspace-strip.all-tabs"), { tabAll: pane.id });
       const count = document.createElement("span"); count.className = "tab-all-count"; count.textContent = String(pane.tabs.length); all.append(count);
-      all.setAttribute("aria-label", L("全部标签") + " · " + L("{n} 张", { n: pane.tabs.length })); all.setAttribute("aria-haspopup", "menu");
+      all.setAttribute("aria-label", globalThis.t.text("workbench.tab-workspace-strip.all-tabs") + " · " + globalThis.t.text("workbench.tab-workspace-strip.n-n", { n: pane.tabs.length })); all.setAttribute("aria-haspopup", "menu");
       all.setAttribute("aria-expanded", String(document.querySelector("[data-workspace-all-tabs]:popover-open")?.dataset.forPane === pane.id));
       all.hidden = true;
       fragment.append(all);
@@ -293,7 +293,7 @@ export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth
     if (!pane.tabs.length && !strip.hasAttribute("data-titlebar-tabs")) {
       const empty = document.createElement("p");
       empty.className = "tab-pane-empty-hint";
-      empty.textContent = L("从下方切换插件，或把标签拖进来。");
+      empty.textContent = globalThis.t.text("workbench.tab-workspace-strip.switch-plugin-below-drag-tab-here");
       scrollArea.append(empty);
     }
     if (!embedded) {
@@ -307,7 +307,7 @@ export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth
         fragment.append(spacer);
       }
       const add = document.createElement("button"); add.type = "button"; add.className = "tab-add-button"; add.dataset.tabAdd = pane.id;
-      add.setAttribute("aria-label", L("打开")); add.title = L("打开"); add.setAttribute("aria-haspopup", "menu"); add.setAttribute("aria-expanded", "false");
+      add.setAttribute("aria-label", globalThis.t.text("common.control.open")); add.title = globalThis.t.text("common.control.open"); add.setAttribute("aria-haspopup", "menu"); add.setAttribute("aria-expanded", "false");
       add.innerHTML = '<svg aria-hidden="true"><use href="#icon-plus"></use></svg>'; fragment.append(add);
     }
     strip.replaceChildren(fragment);

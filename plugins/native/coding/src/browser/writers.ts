@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { WRITER_SPLIT_HEAD } from "../writer-split.js";
 import { el, errorMessage } from "./dom.js";
 import type { PagePorts } from "./types.js";
@@ -78,22 +79,22 @@ const button = (label: string) => {
 
 /** The check box that puts a directory in the split, and the task it is given. */
 function assignmentFields(state: Dialog, row: HTMLElement, directory: WriterDirectory, draft: Draft) {
-  const { translate: L, lifetime } = state.ports;
+  const { lifetime } = state.ports;
   const join = el("label", "", "mw-check-row"), check = el("input");
   check.type = "checkbox";
-  check.setAttribute("aria-label", L("coding.writers.assign-label", { path: directory.canonical_path }));
+  check.setAttribute("aria-label", uiText.text("coding.writers.assign-label", { path: directory.canonical_path }));
   check.className = "mw-check";
   check.checked = draft.selected;
-  join.append(check, el("span", L("coding.writers.join")));
+  join.append(check, el("span", uiText.text("coding.writers.join")));
   row.append(join);
   const field = el("label", "", "mw-field"), task = el("textarea");
-  task.setAttribute("aria-label", L("coding.writers.task-label", { path: directory.canonical_path }));
+  task.setAttribute("aria-label", uiText.text("coding.writers.task-label", { path: directory.canonical_path }));
   task.className = "mw-textarea";
   task.rows = 3;
   task.maxLength = 8000;
   task.value = draft.task;
   task.disabled = !draft.selected;
-  field.append(el("span", L("coding.writers.task")), task);
+  field.append(el("span", uiText.text("coding.writers.task")), task);
   row.append(field);
   lifetime.listen(check, "change", () => {
     draft.selected = check.checked;
@@ -111,22 +112,22 @@ function assignmentFields(state: Dialog, row: HTMLElement, directory: WriterDire
  * session already runs in offers to bring its changes back instead.
  */
 function directoryRow(state: Dialog, directory: WriterDirectory) {
-  const { translate: L, lifetime } = state.ports;
+  const { lifetime } = state.ports;
   const row = el("section", "", "coding-material");
-  row.append(el("p", directory.canonical_path), el("p", L("coding.writers.branch", { branch: directory.branch || L("coding.writers.no-branch") })));
+  row.append(el("p", directory.canonical_path), el("p", uiText.text("coding.writers.branch", { branch: directory.branch || uiText.text("coding.writers.no-branch") })));
   // A directory whose branch or origin no longer matches is listed so it is not a mystery, but it takes no work.
   if (directory.problem) {
-    row.append(el("p", L("coding.writers.problem", { reason: directory.problem })));
+    row.append(el("p", uiText.text("coding.writers.problem", { reason: directory.problem })));
     return row;
   }
-  row.append(el("p", L("coding.writers.base", { commit: directory.base_commit })));
+  row.append(el("p", uiText.text("coding.writers.base", { commit: directory.base_commit })));
   const id = directory.worktree_id;
   const draft = state.assignments.get(id) || { task: "", selected: false };
   state.assignments.set(id, draft);
   assignmentFields(state, row, directory, draft);
   // The worktree the session works in brings its changes back the way a writer's do: reviewed file by file, checked again when approved.
   if (state.ports.chosen() === id) {
-    const integrate = button(L("coding.writers.integrate"));
+    const integrate = button(uiText.text("coding.writers.integrate"));
     lifetime.listen(integrate, "click", () => {
       if (state.busy) return;
       state.dialog.close();
@@ -135,7 +136,7 @@ function directoryRow(state: Dialog, directory: WriterDirectory) {
     row.append(integrate);
     return row;
   }
-  const use = button(L("coding.writers.use"));
+  const use = button(uiText.text("coding.writers.use"));
   lifetime.listen(use, "click", async () => {
     if (state.busy) return;
     state.busy = true;
@@ -157,9 +158,8 @@ function directoryRow(state: Dialog, directory: WriterDirectory) {
 
 /** A directory the person put in the split that is not listed any more, with a button to drop it. */
 function missingRow(state: Dialog, id: string, draft: Draft, again: () => void) {
-  const L = state.ports.translate;
-  const row = el("section", "", "coding-material"), remove = button(L("coding.writers.remove"));
-  row.append(el("p", L("coding.writers.saved-gone", { id })), el("p", draft.task || L("coding.writers.no-task")), remove);
+  const row = el("section", "", "coding-material"), remove = button(uiText.text("coding.writers.remove"));
+  row.append(el("p", uiText.text("coding.writers.saved-gone", { id })), el("p", draft.task || uiText.text("coding.writers.no-task")), remove);
   state.ports.lifetime.listen(remove, "click", () => {
     state.assignments.delete(id);
     remember(state);
@@ -171,7 +171,7 @@ function missingRow(state: Dialog, id: string, draft: Draft, again: () => void) 
 
 /** Reads the directories again and draws them, unless the dialog is closed or a read is under way. */
 async function refresh(state: Dialog) {
-  const { ports, dialog, list, message } = state, { translate: L, lifetime, api, q } = ports;
+  const { ports, dialog, list, message } = state, { lifetime, api, q } = ports;
   if (!dialog.open || state.reading || !state.parent) return;
   state.reading = true;
   const at = state.ticket;
@@ -182,7 +182,7 @@ async function refresh(state: Dialog) {
     if (key !== state.renderKey) {
       state.renderKey = key;
       list.replaceChildren();
-      if (!data.directories.length) list.append(el("p", L("coding.writers.none")));
+      if (!data.directories.length) list.append(el("p", uiText.text("coding.writers.none")));
       for (const directory of data.directories) list.append(directoryRow(state, directory));
       for (const [id, draft] of state.assignments) {
         if (draft.selected && !data.directories.some(item => item.worktree_id === id && !item.problem)) list.append(missingRow(state, id, draft, () => void refresh(state)));
@@ -199,9 +199,9 @@ async function refresh(state: Dialog) {
 
 /** Opens the dialog on the directory the session works in, with the split it already keeps (or the one typed and not saved). */
 function open(state: Dialog) {
-  const { ports, list, message } = state, { translate: L, q } = ports;
+  const { ports, list, message } = state, { q } = ports;
   if (state.busy) {
-    ports.status(L("coding.writers.busy"), true);
+    ports.status(uiText.text("coding.writers.busy"), true);
     return;
   }
   const next = ports.workspace();
@@ -217,9 +217,9 @@ function open(state: Dialog) {
   state.renderKey = "";
   list.replaceChildren();
   message.textContent = "";
-  q("[data-coding-writer-parent]").textContent = L("coding.writers.parent", { path: ports.workspaceLabel() });
+  q("[data-coding-writer-parent]").textContent = uiText.text("coding.writers.parent", { path: ports.workspaceLabel() });
   if (!state.parent || !state.owner) {
-    ports.status(L("coding.writers.choose-first"), true);
+    ports.status(uiText.text("coding.writers.choose-first"), true);
     return;
   }
   state.dialog.showModal();
@@ -238,7 +238,7 @@ async function saveSplit(state: Dialog, save: HTMLButtonElement) {
     if (snapshot === JSON.stringify([...state.assignments])) {
       try { sessionStorage.removeItem(key); } catch { /* storage closed: nothing was kept */ }
     }
-    message.textContent = ports.translate("coding.writers.saved");
+    message.textContent = uiText.text("coding.writers.saved");
   } catch (error) {
     if (!ports.lifetime.alive) return;
     message.textContent = errorMessage(error);
@@ -284,7 +284,7 @@ function splitOf(run: WriterTurnRun, turn: WriterTurn): { rows: SplitRow[]; at: 
   return whole ? { rows, at } : null;
 }
 
-const renderTurn = (L: WriterPorts["translate"], target: Element, run: WriterTurnRun, turn: WriterTurn) => {
+const renderTurn = (_L: WriterPorts["translate"], target: Element, run: WriterTurnRun, turn: WriterTurn) => {
   if (run.frozen.role_id !== "writers" || turn.kind !== "user" || turn.steer) return false;
   const split = splitOf(run, turn);
   if (!split) return false;
@@ -293,11 +293,11 @@ const renderTurn = (L: WriterPorts["translate"], target: Element, run: WriterTur
   task.style.whiteSpace = "pre-wrap";
   target.append(task);
   const details = el("details");
-  details.append(el("summary", L("coding.writers.turn", { count: split.rows.length })));
+  details.append(el("summary", uiText.text("coding.writers.turn", { count: split.rows.length })));
   for (const row of split.rows) {
     const section = el("section", "", "coding-material"), body = el("p", row.task);
     body.style.whiteSpace = "pre-wrap";
-    section.append(el("p", row.directory), body, el("p", L("coding.writers.branch-base", { branch: row.branch, commit: row.base_commit })));
+    section.append(el("p", row.directory), body, el("p", uiText.text("coding.writers.branch-base", { branch: row.branch, commit: row.base_commit })));
     details.append(section);
   }
   target.append(details);

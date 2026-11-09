@@ -11,9 +11,9 @@ import type {
 
 // The one browser request helper (specs/archive/repository-anti-corruption W3-10). The two factories below are serialized with
 // toString() into a page, so each stands alone: no module-level name, no import of a value, no template literal. The page
-// hands them everything they touch (fetch, origin, token, translator, clock, elements) as ports.
+// hands them everything they touch (fetch, origin, token, text reader, clock, elements) as ports.
 
-export type UiTranslate = (text: string, values?: Record<string, string | number>) => string;
+export type UiReadText = (text: string, values?: Record<string, string | number>) => string;
 
 /** What the helper hands to `fetch`: always `no-store`, never a credentials or redirect override. */
 export interface UiFetchInit {
@@ -37,7 +37,7 @@ export interface UiRequestPorts {
   readonly intercept?: (input:string,init:UiFetchInit)=>Promise<Response>|null|undefined;
   /** A new one-time key. */
   readonly newKey: () => string;
-  readonly translate: UiTranslate;
+  readonly readText: UiReadText;
 }
 
 /** The part of a DOM element the failure view uses. */
@@ -56,7 +56,7 @@ export interface UiFailureViewPorts {
   readonly createElement: (tag: string) => UiViewElement;
   /** Puts text on the clipboard; rejects when the browser refuses. */
   readonly copy: (text: string) => Promise<void>;
-  readonly translate: UiTranslate;
+  readonly readText: UiReadText;
   readonly setTimeout: (callback: () => void, ms: number) => unknown;
   readonly clearTimeout: (id: unknown) => void;
 }
@@ -88,7 +88,7 @@ export function createUiRequest(ports: UiRequestPorts): UiRequestCall {
     const as = init.as ?? "json";
     const method = init.method ?? (init.body === undefined && init.file === undefined ? "GET" : "POST");
     const read = method === "GET";
-    const fallback = (): string => init.fallback ?? ports.translate("暂时处理不了，请稍后重试");
+    const fallback = (): string => init.fallback ?? ports.readText("common.request-client.can-t-do-that-right-now-try-again");
     let target: URL | null = null;
     try { target = new URL(url, ports.origin); } catch { target = null; }
     if (!target || target.origin !== ports.origin) throw failure(fallback(), "ui_host.cross_origin", 0, null, null);
@@ -114,8 +114,8 @@ export function createUiRequest(ports: UiRequestPorts): UiRequestCall {
     } catch (error) {
       if ((error as { name?: string } | null)?.name === "AbortError") throw error;
       throw read
-        ? failure(ports.translate("连不上 Molis Work 服务，请稍后重试"), "ui_host.unreachable", 0, null, null)
-        : failure(ports.translate("不知道这次操作有没有完成，请刷新后核对"), "ui_host.outcome_unknown", 0, null, null);
+        ? failure(ports.readText("common.request-client.can-t-reach-molis-work-service-try-again"), "ui_host.unreachable", 0, null, null)
+        : failure(ports.readText("common.request-client.we-can-t-tell-whether-finished-refresh-page"), "ui_host.outcome_unknown", 0, null, null);
     }
     init.scope?.assertCurrent(init.signal);
     if (as === "response") return response;
@@ -132,9 +132,9 @@ export function createUiRequest(ports: UiRequestPorts): UiRequestCall {
 
   async function stream(url: string, init: UiStreamRequestInit = {}): Promise<unknown> {
     const response = await call(url, { ...init, method: "POST", as: "response" }) as Response;
-    const fallback = init.fallback ?? ports.translate("暂时处理不了，请稍后重试");
+    const fallback = init.fallback ?? ports.readText("common.request-client.can-t-do-that-right-now-try-again");
     const invalid = () => failure(fallback, "ui_host.invalid_response", response.status, null, null);
-    const interrupted = () => failure(ports.translate("不知道这次操作有没有完成，请刷新后核对"), "ui_host.outcome_unknown", response.status, null, null);
+    const interrupted = () => failure(ports.readText("common.request-client.we-can-t-tell-whether-finished-refresh-page"), "ui_host.outcome_unknown", response.status, null, null);
     const current = () => { init.signal?.throwIfAborted(); init.scope?.assertCurrent(init.signal); };
     current();
     if (!response.ok) {
@@ -203,11 +203,11 @@ export function createUiRequest(ports: UiRequestPorts): UiRequestCall {
 export function createUiFailureView(ports: UiFailureViewPorts): UiFailureView & { install(doc: UiViewDocument): void } {
   const named = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null;
   const idOf = (error: unknown): string => (named(error) && typeof error.callId === "string" ? error.callId : "");
-  const label = (id: string): string => ports.translate("诊断编号 {id}", { id: id.slice(0, 8) });
+  const label = (id: string): string => ports.readText("common.request-client.diagnostic-id-id", { id: id.slice(0, 8) });
   const text = (error: unknown, fallback?: string): string => {
     if (named(error) && error.name === "AbortError") return "";
     if (named(error) && error.name === "Error" && typeof error.message === "string" && error.message !== "") return error.message;
-    return fallback ?? ports.translate("暂时处理不了，请稍后重试");
+    return fallback ?? ports.readText("common.request-client.can-t-do-that-right-now-try-again");
   };
   const place = (target: UiFailureTarget, error: unknown, fallback?: string): UiViewElement | null => {
     target.textContent = text(error, fallback);
@@ -217,7 +217,7 @@ export function createUiFailureView(ports: UiFailureViewPorts): UiFailureView & 
     button.setAttribute("type", "button");
     button.setAttribute("class", "mw-btn mw-btn--link mw-btn--sm");
     button.setAttribute("data-molis-call-id", id);
-    button.setAttribute("aria-label", ports.translate("复制诊断编号 {id}", { id: id.slice(0, 8) }));
+    button.setAttribute("aria-label", ports.readText("common.request-client.copy-diagnostic-id-id", { id: id.slice(0, 8) }));
     button.textContent = label(id);
     target.append(button);
     return button;
@@ -271,7 +271,7 @@ export function createUiFailureView(ports: UiFailureViewPorts): UiFailureView & 
       const id = button?.getAttribute("data-molis-call-id");
       if (!button || !id) return;
       const flash = (shown: string) => { button.textContent = shown; ports.setTimeout(() => { button.textContent = label(id); }, 1500); };
-      ports.copy(id).then(() => flash(ports.translate("已复制")), () => flash(ports.translate("复制失败") + " " + id));
+      ports.copy(id).then(() => flash(ports.readText("common.request-client.copied")), () => flash(ports.readText("common.request-client.could-not-copy") + " " + id));
     }, true);
   };
 
@@ -279,7 +279,7 @@ export function createUiFailureView(ports: UiFailureViewPorts): UiFailureView & 
 }
 
 /**
- * The page program: builds both halves from the page's own fetch, origin, meta tag, `crypto`, translator `L` and clipboard,
+ * The page program: builds both halves from the page's own fetch, origin, meta tag, `crypto`, text reader and clipboard,
  * installs the copy handler, and publishes the result as `molisWorkRequest`. `molisWorkControlHeaders` stays as the
  * headers-only entrance of the same helper for the callers that have not moved yet. Runs once per page. The page budget counts
  * every byte of the Workbench program, so the factories go in without the compiler's indentation: a line's leading blanks are
@@ -289,16 +289,16 @@ const compact = (source: string): string => source.replace(/\n[ \t]+/g, "\n");
 export const UI_REQUEST_CLIENT_SCRIPT = `
 ;(() => {
   if (globalThis.molisWorkRequest) return;
-  const translate = (text, values) => (typeof globalThis.L === "function" ? globalThis.L(text, values) : text);
+  const readText = (key, values) => globalThis.t.text(key, values);
   const call = (${compact(createUiRequest.toString())})({
     fetch: (input, init) => fetch(input, init), origin: location.origin,
     intercept: (input, init) => globalThis.molisWorkUiTransport?.(input, init),
     token: () => document.querySelector('meta[name="molis-work-page-session"]')?.content || "",
     readHeaders: () => ({"x-molis-work-page-session": document.querySelector('meta[name="molis-work-page-session"]')?.content || ""}),
-    newKey: () => crypto.randomUUID(), translate,
+    newKey: () => crypto.randomUUID(), readText,
   });
   const view = (${compact(createUiFailureView.toString())})({
-    createElement: (tag) => document.createElement(tag), translate,
+    createElement: (tag) => document.createElement(tag), readText,
     copy: (text) => Promise.resolve().then(() => navigator.clipboard.writeText(text)),
     setTimeout: (callback, ms) => setTimeout(callback, ms), clearTimeout: (id) => clearTimeout(id),
   });

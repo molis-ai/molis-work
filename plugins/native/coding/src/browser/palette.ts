@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { el } from "./dom.js";
 import { keyLabel, matches } from "./matching.js";
 import type { Command } from "./slash-menu.js";
@@ -36,9 +37,9 @@ interface Palette {
 const LIMIT = 60;
 
 function entriesOf(palette: Palette): Entry[] {
-  const { ports } = palette, L = ports.translate;
-  const commands = ports.commands().filter(command => command.enabled !== false).map((command): Entry => ({ kind: L("coding.slash.label"), label: command.label, detail: "/" + command.slash, keys: command.keys, run: command.run, words: [command.slash, ...(command.keywords || [])] }));
-  const sessions = ports.sessions().filter(session => session.session_id !== ports.current()).map((session): Entry => ({ kind: L("coding.palette.session"), label: session.title, detail: session.state_label || "", run: () => ports.openSession(session.session_id, session.title), words: [] }));
+  const { ports } = palette;
+  const commands = ports.commands().filter(command => command.enabled !== false).map((command): Entry => ({ kind: uiText.text("coding.slash.label"), label: command.label, detail: "/" + command.slash, keys: command.keys, run: command.run, words: [command.slash, ...(command.keywords || [])] }));
+  const sessions = ports.sessions().filter(session => session.session_id !== ports.current()).map((session): Entry => ({ kind: uiText.text("coding.palette.session"), label: session.title, detail: session.state_label || "", run: () => ports.openSession(session.session_id, session.title), words: [] }));
   return [...commands, ...sessions];
 }
 
@@ -61,7 +62,7 @@ function draw(palette: Palette) {
   palette.entries = entriesOf(palette).filter(entry => matches(field.value, entry.label, entry.detail, ...entry.words)).slice(0, LIMIT);
   palette.selected = Math.min(palette.selected, Math.max(palette.entries.length - 1, 0));
   list.replaceChildren();
-  if (!palette.entries.length) list.append(el("li", palette.ports.translate("coding.palette.none"), "coding-palette-empty"));
+  if (!palette.entries.length) list.append(el("li", uiText.text("coding.palette.none"), "coding-palette-empty"));
   palette.entries.forEach((entry, index) => list.append(entryRow(palette, entry, index)));
   field.setAttribute("aria-activedescendant", palette.entries.length ? "coding-palette-" + palette.selected : "");
   list.children[palette.selected]?.scrollIntoView({ block: "nearest" });

@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { clipById, itemById, items } from "./model.js";
 import { paintPreview, syncShelfStage } from "./preview.js";
 import { paintLists, setMultiMode } from "./rows.js";
@@ -14,7 +15,7 @@ function followSelection(page: ShelfPage, selectId: string): void {
   page.selection = page.selected ? new Set([page.selected.item_id]) : new Set();
   if (selectId === page.wantedId) {
     page.wantedId = null;
-    if (!page.selected && !page.selClip) page.stickyHint = page.L("shelf.snapshot.this-material-is-no-longer");
+    if (!page.selected && !page.selClip) page.stickyHint = uiText.text("shelf.snapshot.this-material-is-no-longer");
   }
   page.pending = null;
   page.compare = false;
@@ -52,7 +53,7 @@ export function applySnapshot(page: ShelfPage, next: Snapshot, selectId?: string
 
 export async function load(page: ShelfPage, selectId?: string, signal?: AbortSignal): Promise<void> {
   const version = ++page.loadVersion;
-  const next = await read<Snapshot>(page, "/", page.L("shelf.directory.could-not-read-the-shelf"), signal);
+  const next = await read<Snapshot>(page, "/", uiText.text("shelf.directory.could-not-read-the-shelf"), signal);
   page.lifetime.assertCurrent(signal);
   if (version === page.loadVersion) applySnapshot(page, next, selectId || page.wantedId || undefined);
 }

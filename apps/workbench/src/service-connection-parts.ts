@@ -1,4 +1,4 @@
-import { escapeHtml, renderAttrs, renderButton, renderStatusMark } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText, escapeHtml, renderAttrs, renderButton, renderStatusMark } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderSteps } from "@molis-ai/molis-work-design-system";
 
 /**
@@ -26,7 +26,7 @@ export interface ConnectionProgressView {
 }
 
 const PROGRESS_SUFFIX: Record<ConnectionProgressState, string> = { running: "", hold: "等服务那边", failed: "没通过", cancelled: "取消了", done: "" };
-const PROGRESS_CAPTION = "第 {n} 步，共 {total} 步：{step}";
+const PROGRESS_CAPTION = "workbench.service-connection-parts.step-n-total-step";
 
 /**
  * The step marks with one line after them that says the step, out of how many, and what it is. The line is a polite live
@@ -37,11 +37,11 @@ const PROGRESS_CAPTION = "第 {n} 步，共 {total} 步：{step}";
 export function renderConnectionProgress(view: ConnectionProgressView, L: Say): string {
   const total = view.steps.length, done = view.state === "done";
   const at = done ? total - 1 : Math.min(Math.max(view.at, 0), total - 1);
-  const marks = `<span class="connection-progress__marks" aria-hidden="true">${renderSteps({ total, current: done ? total : at, label: L("连接进度") })}</span>`;
+  const marks = `<span class="connection-progress__marks" aria-hidden="true">${renderSteps({ total, current: done ? total : at, label: uiText.text("workbench.service-connection-parts.connection-progress") })}</span>`;
   const suffix = PROGRESS_SUFFIX[view.state];
   const words = Object.fromEntries(Object.entries(PROGRESS_SUFFIX).filter(([, word]) => word).map(([state, word]) => [state, L(word)]));
-  const data = `data-steps="${escapeHtml(JSON.stringify(view.steps))}" data-caption="${escapeHtml(L(PROGRESS_CAPTION))}" data-words="${escapeHtml(JSON.stringify(words))}"`;
-  const caption = escapeHtml(L(PROGRESS_CAPTION, { n: at + 1, total, step: view.steps[at] ?? "" }));
+  const data = `data-steps="${escapeHtml(JSON.stringify(view.steps))}" data-caption="${escapeHtml(uiText.text(PROGRESS_CAPTION))}" data-words="${escapeHtml(JSON.stringify(words))}"`;
+  const caption = escapeHtml(uiText.text(PROGRESS_CAPTION, { n: at + 1, total, step: view.steps[at] ?? "" }));
   return `<div class="connection-progress" data-connection-progress data-state="${view.state}" ${data}>${marks}<p class="connection-progress__caption" tabindex="-1"${view.live === false ? "" : ' aria-live="polite"'}>${caption}${suffix ? ` <span class="connection-progress__state">· ${escapeHtml(L(suffix))}</span>` : ""}</p></div>`;
 }
 
@@ -65,9 +65,9 @@ export interface ConnectionItemView {
  * A `settings-connection-row` that opens in place: the row is the one the connections page draws, with a toggle at its end
  * (`aria-expanded`, `aria-controls`); the part under it lines up with the row's name. A press anywhere on the row opens it too.
  */
-export function renderConnectionItem(view: ConnectionItemView, L: Say): string {
+export function renderConnectionItem(view: ConnectionItemView, _L: Say): string {
   const id = escapeHtml(view.id), open = view.open === true;
-  const toggle = renderButton({ label: L("{name} 详情", { name: view.name }), variant: "ghost", icon: "chevron-down", iconOnly: true, className: "settings-connection-item__toggle", attrs: { "data-connection-toggle": "", "aria-expanded": String(open), "aria-controls": `${view.id}-body` } });
+  const toggle = renderButton({ label: uiText.text("workbench.service-connection-parts.name-details", { name: view.name }), variant: "ghost", icon: "chevron-down", iconOnly: true, className: "settings-connection-item__toggle", attrs: { "data-connection-toggle": "", "aria-expanded": String(open), "aria-controls": `${view.id}-body` } });
   return `<div class="settings-connection-item" data-connection-item data-open="${open}"${renderAttrs(view.attrs)}>
     <div class="settings-connection-row">${view.mark}<div class="settings-connection-row__identity"><strong id="${id}-name">${escapeHtml(view.name)}</strong><small>${escapeHtml(view.caption)}</small></div>${view.state}${toggle}</div>
     <div class="settings-connection-item__fold" id="${id}-body" role="region" aria-labelledby="${id}-name"><div class="settings-connection-item__clip"><div class="settings-connection-item__body settings-connector-flow">${view.body}</div></div></div>

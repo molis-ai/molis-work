@@ -1,4 +1,4 @@
-import { renderButton, renderDirectoryRow, renderEmpty, renderSkeleton, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText, renderButton, renderDirectoryRow, renderEmpty, renderSkeleton, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import {
   renderBrief,
   renderBriefFocus,
@@ -135,7 +135,7 @@ interface ProjectBriefPrimitives {
 
 /** The brief's two reading aids that depend on the clock: how long ago, and which day. */
 export function createBriefTime(primitives: Pick<ProjectBriefPrimitives, "L" | "dateTimeLocale">, nowIso: string) {
-  const { L, dateTimeLocale } = primitives;
+  const { dateTimeLocale } = primitives;
   const now = new Date(nowIso);
   const dayKey = (date: Date) => `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
   return {
@@ -144,12 +144,12 @@ export function createBriefTime(primitives: Pick<ProjectBriefPrimitives, "L" | "
       const at = iso ? new Date(iso) : null;
       if (!at || !Number.isFinite(at.getTime())) return "";
       const minutes = Math.max(0, Math.round((now.getTime() - at.getTime()) / 60_000));
-      if (minutes < 1) return L("刚刚");
-      if (minutes < 60) return L("{n} 分钟前", { n: minutes });
-      if (minutes < 60 * 24 && dayKey(at) === dayKey(now)) return L("{n} 小时前", { n: Math.round(minutes / 60) });
+      if (minutes < 1) return uiText.text("workbench.project-brief.just-now");
+      if (minutes < 60) return uiText.text("workbench.project-brief.n-min-ago", { n: minutes });
+      if (minutes < 60 * 24 && dayKey(at) === dayKey(now)) return uiText.text("workbench.project-brief.n-h-ago", { n: Math.round(minutes / 60) });
       const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1);
-      if (dayKey(at) === dayKey(yesterday)) return L("昨天");
-      if (minutes < 60 * 24 * 7) return L("{n} 天前", { n: Math.round(minutes / (60 * 24)) });
+      if (dayKey(at) === dayKey(yesterday)) return uiText.text("workbench.project-brief.yesterday");
+      if (minutes < 60 * 24 * 7) return uiText.text("workbench.project-brief.n-n-ago", { n: Math.round(minutes / (60 * 24)) });
       return new Intl.DateTimeFormat(dateTimeLocale(), { month: "numeric", day: "numeric" }).format(at);
     },
     /** “昨天 22:14” or “9月29日”. */
@@ -158,16 +158,16 @@ export function createBriefTime(primitives: Pick<ProjectBriefPrimitives, "L" | "
       if (!Number.isFinite(at.getTime())) return "";
       const clock = new Intl.DateTimeFormat(dateTimeLocale(), { hour: "2-digit", minute: "2-digit", hour12: false }).format(at);
       const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1);
-      if (dayKey(at) === dayKey(now)) return L("今天 {time}", { time: clock });
-      if (dayKey(at) === dayKey(yesterday)) return L("昨天 {time}", { time: clock });
+      if (dayKey(at) === dayKey(now)) return uiText.text("workbench.project-brief.today-time", { time: clock });
+      if (dayKey(at) === dayKey(yesterday)) return uiText.text("workbench.project-brief.yesterday-time", { time: clock });
       return new Intl.DateTimeFormat(dateTimeLocale(), { month: "long", day: "numeric" }).format(at);
     },
   };
 }
 
 export function createWorkbenchProjectBriefRenderer(primitives: ProjectBriefPrimitives) {
-  const { L, escapeHtml } = primitives;
-  const PERSONAL_NOTE = "不属于任何项目的资料和工作。没想好放哪里，就先放这里。";
+  const { escapeHtml } = primitives;
+  const PERSONAL_NOTE = "workbench.project-brief.material-work-that-doesn-t-belong-any-project";
 
   /** A project's link into its own page: its Home, or one plugin's page and the item on it. */
   const hrefFor = (projectId: string, open: BriefEvent["open"]): string => {
@@ -180,35 +180,35 @@ export function createWorkbenchProjectBriefRenderer(primitives: ProjectBriefPrim
 
   function renderProjectBrief(model: ProjectBriefModel): string {
     const time = createBriefTime(primitives, model.now);
-    const name = model.personal ? L("个人空间") : model.name;
+    const name = model.personal ? uiText.text("workbench.project-brief.personal-space") : model.name;
     const goals = model.goals;
     // The badge speaks only for the Goals plugin's own count; a project with no Goals (or none read) claims no state, since its
     // work may well be in other plugins.
     const state = model.personal
-      ? { label: L("只有你能看到"), tone: "quiet" as const, glyph: "user" as PluginIconName }
+      ? { label: uiText.text("workbench.project-brief.only-can-see"), tone: "quiet" as const, glyph: "user" as PluginIconName }
       : !goals || !goals.total ? null
-      : goals.done === goals.total ? { label: L("目标已完成"), tone: "done" as const, glyph: "status-done" as PluginIconName }
-      : { label: L("目标进行中"), tone: "progress" as const, glyph: "status-progress" as PluginIconName };
-    const opened = model.opened_at ? `<span>${L("最近打开")} <time datetime="${escapeHtml(model.opened_at)}" data-relative>${escapeHtml(time.ago(model.opened_at))}</time></span>` : "";
-    const kicker = `${state ? renderBriefStatus(state) : ""}${opened}${model.demo ? `<span>${L("演示数据，可随时重建")}</span>` : ""}`;
+      : goals.done === goals.total ? { label: uiText.text("workbench.project-brief.goals-done"), tone: "done" as const, glyph: "status-done" as PluginIconName }
+      : { label: uiText.text("workbench.project-brief.goals-progress"), tone: "progress" as const, glyph: "status-progress" as PluginIconName };
+    const opened = model.opened_at ? `<span>${uiText("workbench.project-brief.last-opened")} <time datetime="${escapeHtml(model.opened_at)}" data-relative>${escapeHtml(time.ago(model.opened_at))}</time></span>` : "";
+    const kicker = `${state ? renderBriefStatus(state) : ""}${opened}${model.demo ? `<span>${uiText("workbench.project-brief.demo-data-can-be-rebuilt-any-time")}</span>` : ""}`;
 
-    const description = model.personal ? L(PERSONAL_NOTE) : model.description ?? undefined;
-    const missing = model.personal || model.description ? undefined : L("还没有项目描述。进入项目后，在项目设置里补一句它要做什么。");
+    const description = model.personal ? uiText.text(PERSONAL_NOTE) : model.description ?? undefined;
+    const missing = model.personal || model.description ? undefined : uiText.text("workbench.project-brief.no-description-yet-open-project-add-line-its");
 
     let focus = "";
     if (!model.personal && goals) {
       if (!goals.total) {
-        focus = renderBriefFocus({ label: "", title: L("还没有目标"), body: L("进入项目后写下第一个目标，也可以先让助理起草。"), empty: {
-          action: renderButton({ variant: "secondary", size: "md", icon: "sparkles", label: L("让助理起草目标"), attrs: { "data-act": "prefill", "data-text": L("帮我为这个项目起草几个目标") } }),
+        focus = renderBriefFocus({ label: "", title: uiText.text("workbench.project-brief.no-goals-yet"), body: uiText.text("workbench.project-brief.write-first-goal-once-open-project-ask-assistant"), empty: {
+          action: renderButton({ variant: "secondary", size: "md", icon: "sparkles", label: uiText.text("workbench.project-brief.draft-assistant"), attrs: { "data-act": "prefill", "data-text": uiText.text("workbench.project-brief.help-me-draft-few-goals-project") } }),
         } });
       } else {
         const allDone = goals.done === goals.total;
-        const track = renderGoalTrack({ goals: goals.track, label: L("{done} / {total} 个目标完成", { done: goals.done, total: goals.total }) });
+        const track = renderGoalTrack({ goals: goals.track, label: uiText.text("workbench.project-brief.done-total-total-done", { done: goals.done, total: goals.total }) });
         focus = renderBriefFocus({
-          label: allDone ? L("目标全部完成") : L("当前目标"),
-          count: `<b>${goals.done}</b> / ${goals.total} ${L("完成")}`,
-          title: allDone ? L("{n} 个目标都完成了", { n: goals.total }) : goals.current?.title ?? "",
-          body: allDone ? L("可以收尾，或为这个项目定下新的目标。") : model.current_detail || goals.current?.next_hint || undefined,
+          label: allDone ? uiText.text("workbench.project-brief.all-goals-done") : uiText.text("workbench.project-brief.focused-goal"),
+          count: `<b>${goals.done}</b> / ${goals.total} ${uiText("common.control.done")}`,
+          title: allDone ? uiText.text("workbench.project-brief.all-n-n-done", { n: goals.total }) : goals.current?.title ?? "",
+          body: allDone ? uiText.text("workbench.project-brief.can-wrap-up-set-new-goals-project") : model.current_detail || goals.current?.next_hint || undefined,
           track,
         });
       }
@@ -217,27 +217,27 @@ export function createWorkbenchProjectBriefRenderer(primitives: ProjectBriefPrim
     const nextBody = model.next.length
       ? `<div class="mw-brief__list">${model.next.map(item => renderDirectoryRow({
           title: item.title, caption: item.caption, density: "meta", href: hrefFor(model.project_id, item.open),
-          ...(item.attention ? { status: L("等你确认"), statusTone: "attention" as const, statusIcon: "status-needs-you" as PluginIconName } : {}),
+          ...(item.attention ? { status: uiText.text("workbench.project-brief.needs-approval"), statusTone: "attention" as const, statusIcon: "status-needs-you" as PluginIconName } : {}),
           attrs: { "data-act": "enter-item" },
         })).join("")}</div>`
-      : `<p class="mw-brief__quiet">${model.issues.includes("events") ? L("暂时读不到事项，进入项目可以看到。") : goals?.total ? L("没有待推进的事。") : L("各插件有要推进或等你确认的事时，会出现在这里。")}</p>`;
+      : `<p class="mw-brief__quiet">${model.issues.includes("events") ? uiText("workbench.project-brief.can-t-read-items-right-now-open-project") : goals?.total ? uiText("workbench.project-brief.nothing-waiting-move-forward") : uiText("workbench.project-brief.when-plugin-has-something-move-confirm-will-show")}</p>`;
     const recentBody = model.recent.length
       ? renderBriefRecent(model.recent.map(item => ({ when: time.when(item.at), text: item.title })))
-      : `<p class="mw-brief__quiet">${model.issues.includes("events") ? L("暂时读不到动静。") : L("还没有动静。")}</p>`;
-    const sections = [renderBriefSection({ title: L("接下来"), body: nextBody }), renderBriefSection({ title: L("最近"), body: recentBody })];
-    const facts = model.workspace_path ? `<p class="mw-brief__facts"><span>${L("工作目录")} ${escapeHtml(model.workspace_path)}</span></p>` : "";
+      : `<p class="mw-brief__quiet">${model.issues.includes("events") ? uiText("workbench.project-brief.can-t-read-recent-activity-right-now") : uiText("workbench.project-brief.nothing-yet")}</p>`;
+    const sections = [renderBriefSection({ title: uiText.text("workbench.project-brief.next"), body: nextBody }), renderBriefSection({ title: uiText.text("workbench.project-brief.last"), body: recentBody })];
+    const facts = model.workspace_path ? `<p class="mw-brief__facts"><span>${uiText("workbench.project-brief.working-directory")} ${escapeHtml(model.workspace_path)}</span></p>` : "";
     return renderBrief({ kicker, title: name, description, descriptionMissing: missing, focus, sections, facts, attrs: { "data-id": model.project_id } });
   }
 
   /** The brief before it arrives: the name is known, the rest is a quiet placeholder of the same shape. */
   function renderProjectBriefLoading(name: string, id: string): string {
     const line = (width: string) => `<span style="display:block;width:${width};margin-top:12px">${renderSkeleton()}</span>`;
-    return `<article class="mw-brief mw-brief--loading" data-slot="brief" aria-labelledby="brief-title" aria-busy="true" data-id="${escapeHtml(id)}"><p class="mw-brief__kicker"><span class="mw-loading">${L("正在读取项目…")}</span></p><h1 class="mw-brief__title" id="brief-title">${escapeHtml(name)}</h1>${line("62%")}${line("48%")}<div class="mw-brief__focus" aria-hidden="true">${line("40%")}${line("72%")}</div></article>`;
+    return `<article class="mw-brief mw-brief--loading" data-slot="brief" aria-labelledby="brief-title" aria-busy="true" data-id="${escapeHtml(id)}"><p class="mw-brief__kicker"><span class="mw-loading">${uiText("workbench.project-brief.loading-projects")}</span></p><h1 class="mw-brief__title" id="brief-title">${escapeHtml(name)}</h1>${line("62%")}${line("48%")}<div class="mw-brief__focus" aria-hidden="true">${line("40%")}${line("72%")}</div></article>`;
   }
 
   /** The brief that could not be read says so where it would be, and offers the retry. */
   function renderProjectBriefError(name: string, id: string, reason: string): string {
-    return `<article class="mw-brief mw-brief--error" data-slot="brief" aria-labelledby="brief-title" data-id="${escapeHtml(id)}"><h1 class="mw-brief__title" id="brief-title">${escapeHtml(name)}</h1>${renderEmpty({ icon: "circle-alert", title: L("项目简介暂时读不到"), body: reason || L("这个项目没有及时响应。仍然可以直接进入它。"), className: "mw-empty--error", action: renderButton({ variant: "secondary", size: "md", icon: "refresh", label: L("重试"), attrs: { "data-act": "retry-brief" } }) })}</article>`;
+    return `<article class="mw-brief mw-brief--error" data-slot="brief" aria-labelledby="brief-title" data-id="${escapeHtml(id)}"><h1 class="mw-brief__title" id="brief-title">${escapeHtml(name)}</h1>${renderEmpty({ icon: "circle-alert", title: uiText.text("workbench.project-brief.can-t-read-project-summary-right-now"), body: reason || uiText.text("workbench.project-brief.project-didn-t-answer-time-can-still-open"), className: "mw-empty--error", action: renderButton({ variant: "secondary", size: "md", icon: "refresh", label: uiText.text("common.control.retry"), attrs: { "data-act": "retry-brief" } }) })}</article>`;
   }
 
   return { renderProjectBrief, renderProjectBriefLoading, renderProjectBriefError, hrefFor };

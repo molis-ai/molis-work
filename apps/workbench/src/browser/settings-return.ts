@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type {} from "@molis-ai/molis-work-plugin-sdk";
 import {
   RETURN_TRIP_RULES, createReturnOwner, leaveReturnWindow, needOfAddress, placeOf, returnFrom, returnLanding, returnLink, returnNeed, startReturnWindow,
@@ -70,7 +71,7 @@ const announce = (id: string, status: ReturnStatus | "ended" | "refused") => doc
 /** A trip a page asked for that did not open (no settings, no trips in this document): its `go()` is refused at once. */
 const refuse = (id: unknown) => { if (typeof id === "string" && id.length <= 64) announce(id, "refused"); };
 /** Said on the bar and in the toast when the place the person came from was closed. */
-const GONE = "原来的页面已经关了，配好的设置都在。";
+const GONE = "workbench.settings-return.page-came-closed-what-set-up-kept";
 const IDLE: SettingsReturn = { open: detail => refuse((detail as Detail | null)?.return_id), refuse, link() {}, saved: async () => {}, start() {}, paint() {} };
 
 function sessionStore(): Storage | null {
@@ -103,7 +104,7 @@ const setText = (node: Element | null | undefined, text: string) => { if (node &
  * The return bar on the settings surface (U4): one, cloned from the surface's template, at the top of the settings' own column (it
  * scrolls with them) on the cover the trip was opened for; any other is removed. Its button calls `back` with the trip it shows.
  */
-function paintReturnBar(L: SettingsReturnHost["translate"], kind: string | null, trip: ReturnTrip | null, view: { name: string | null; ready: boolean; back(id: string): void }) {
+function paintReturnBar(_L: SettingsReturnHost["translate"], kind: string | null, trip: ReturnTrip | null, view: { name: string | null; ready: boolean; back(id: string): void }) {
   const cover = kind ? document.querySelector(`[data-work-surface="${CSS.escape(kind)}"]`) : null;
   const surface = cover?.querySelector("[data-settings-stage-body]") ?? cover;
   document.querySelectorAll("[data-settings-return-bar]").forEach(bar => { if (!trip || bar.parentElement !== surface) bar.remove(); });
@@ -124,12 +125,12 @@ function paintReturnBar(L: SettingsReturnHost["translate"], kind: string | null,
   bar.classList.toggle("mw-alert--info", state !== "ready");
   // "What you wrote is kept" only when the page said where its draft is.
   const kept = Boolean(trip.carry?.draft_key), model = trip.need.kind === "model";
-  const body = state === "gone" ? L(GONE) : state === "ready" ? L("已经好了，可以回去了。")
-    : state === "look" ? L("看完点「回去」，回到原来的地方。")
-    : (model ? L("配好模型后自动回去。") : L("连好后自动回去。")) + (kept ? L("你写的都还在。") : "");
-  setText(bar.querySelector("[data-return-bar-title]"), view.name ? L("从「{name}」来", { name: view.name }) : L("从原来的页面来"));
+  const body = state === "gone" ? uiText.text(GONE) : state === "ready" ? uiText.text("workbench.settings-return.its-set-up-can-go-back-now")
+    : state === "look" ? uiText.text("workbench.settings-return.when-youre-done-press-go-back-return-where")
+    : (model ? uiText.text("workbench.settings-return.goes-back-once-model-set-up") : uiText.text("workbench.settings-return.goes-back-once-connected")) + (kept ? uiText.text("workbench.settings-return.what-wrote-kept") : "");
+  setText(bar.querySelector("[data-return-bar-title]"), view.name ? uiText.text("workbench.settings-return.name", { name: view.name }) : uiText.text("workbench.settings-return.previous-page"));
   setText(bar.querySelector("[data-return-bar-body]"), body);
-  setText(bar.querySelector("[data-return-bar-back] [data-slot=button-label]"), state === "waiting" ? L("现在回去") : state === "gone" ? L("关闭设置") : L("回去"));
+  setText(bar.querySelector("[data-return-bar-back] [data-slot=button-label]"), state === "waiting" ? uiText.text("workbench.settings-return.go-back-now") : state === "gone" ? uiText.text("workbench.settings-return.close-settings") : uiText.text("workbench.settings-return.go-back"));
 }
 
 export function createSettingsReturn(host: SettingsReturnHost): SettingsReturn {
@@ -140,7 +141,7 @@ export function createSettingsReturn(host: SettingsReturnHost): SettingsReturn {
   const windowId = startReturnWindow(storage, Date.now(), returnLanding(location.search, location.origin), () => crypto.randomUUID());
   const workspace = () => host.tabWorkspace() || null;
   const coverKind = () => workspace()?.exclusive?.() || null;
-  const fallback = L("请稍后重试"), read = (need: ReturnNeed) => readNeed(need, fallback);
+  const fallback = uiText.text("workbench.settings-return.try-again-moment"), read = (need: ReturnNeed) => readNeed(need, fallback);
   const ready = new Set<string>();
   const owner = createReturnOwner({
     storage, window: windowId, project, now: () => Date.now(), newId: () => crypto.randomUUID(),
@@ -153,7 +154,7 @@ export function createSettingsReturn(host: SettingsReturnHost): SettingsReturn {
   });
   /** The place's own name, or null when the workbench has none for it (the bar and the toast then say "the page you came from"). */
   const nameOf = (trip: ReturnTrip) => {
-    if (trip.from.kind === "assistant") return L("助理");
+    if (trip.from.kind === "assistant") return uiText.text("workbench.settings-return.assistant");
     const place = placeOfTrip(trip);
     return (place && workspace()?.pluginTitle?.(place.surface)) || null;
   };
@@ -189,9 +190,9 @@ export function createSettingsReturn(host: SettingsReturnHost): SettingsReturn {
     const landed = travel(trip);
     owner.settle(trip.id, status);
     const name = nameOf(trip), model = trip.need.kind === "model";
-    if (landed === "gone") host.showToast?.(L(GONE));
-    else if (status === "ready" && trip.need.kind !== "none") host.showToast?.(model ? (name ? L("模型已连接，回到「{name}」接着做。", { name }) : L("模型已连接，可以继续了。"))
-      : name ? L("已经连上，回到「{name}」。", { name }) : L("已连接"));
+    if (landed === "gone") host.showToast?.(uiText.text(GONE));
+    else if (status === "ready" && trip.need.kind !== "none") host.showToast?.(model ? (name ? uiText.text("workbench.settings-return.model-connected-back-name", { name }) : uiText.text("workbench.settings-return.model-connected-can-carry"))
+      : name ? uiText.text("workbench.settings-return.connected-back-name", { name }) : uiText.text("workbench.settings-return.connected"));
   };
   function paint() {
     const kind = coverKind(), trip = owner.current(kind);

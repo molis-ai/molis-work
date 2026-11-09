@@ -4,7 +4,7 @@
  * Runs inside the workbench's 成果 client and shares its `route`, `L` and `detail`.
  */
 export const ARTIFACT_WORKS_CLIENT_SCRIPT = String.raw`
-  const WORK_RELATIONS = { origin: L("从这一版开始"), material: L("作为材料"), result: L("工作结果") };
+  const WORK_RELATIONS = { origin: globalThis.t.text("workbench.works-client.started-version"), material: globalThis.t.text("workbench.works-client.material"), result: globalThis.t.text("workbench.works-client.work-result") };
   const loadArtifactWorks = async () => {
     const box = detail.querySelector("[data-artifact-works]");
     if (!box) return;
@@ -18,7 +18,7 @@ export const ARTIFACT_WORKS_CLIENT_SCRIPT = String.raw`
     if (!unique.length || !box.isConnected) return;
     box.querySelector("ul").replaceChildren(...unique.map((work) => {
       const row = document.createElement("li"), open = document.createElement("button"), role = document.createElement("span");
-      open.type = "button"; open.className = "artifact-link-work"; open.dataset.artifactOpenWork = work.work_id; open.textContent = work.title || L("助理工作");
+      open.type = "button"; open.className = "artifact-link-work"; open.dataset.artifactOpenWork = work.work_id; open.textContent = work.title || globalThis.t.text("workbench.works-client.assistant-work");
       role.textContent = WORK_RELATIONS[work.relation];
       row.append(open, role);
       return row;

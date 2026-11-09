@@ -49,7 +49,7 @@ import { DIRECTORY_READ_PERMISSION, directoryForHome, type DirectoryGrantService
 import { servicesUntilStopped } from "./plugin-stopped-services.js";
 import { refuseUngivenSandboxServices } from "./plugin-sandbox-start.js";
 import { pluginTerminalFor } from "./plugin-terminal-service.js";
-import { registerPluginText } from "@molis-ai/molis-work-app-workbench";
+import { pluginTextReader, registerPluginText } from "@molis-ai/molis-work-app-workbench";
 import type { PluginContribution } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { runWithPluginText } from "./web-locale.js";
 import { installedLocalePacks } from "./installed-action-registration.js";
@@ -150,13 +150,25 @@ export function pluginTextFor(options: Pick<PluginHostExecutorOptions, "localePa
   return registerPluginText(reader, { activation, t: definition.execution !== "sandbox" && definition.manifest.kind !== "content" });
 }
 
+const producingView = new WeakMap<import("@molis-ai/molis-work-contracts/platform/ui").UiContribution, PluginInstance>();
+
+/** A platform page drawing one of these views uses the very same activation as render. */
+export function pluginViewText(view: import("@molis-ai/molis-work-contracts/platform/ui").UiContribution) {
+  const activation = producingView.get(view);
+  return activation && pluginActivationOpen(activation) ? pluginTextReader(activation) : null;
+}
+
 /** Views returned by start() have the same activation boundary as those registered through services.ui. */
 export function pluginTextViews(contribution: PluginContribution, activation: PluginInstance): PluginContribution {
   if (contribution.kind !== "app" || !contribution.views?.length) return contribution;
-  return { ...contribution, views: contribution.views.map(view => ({ ...view, render(request) {
-    if (!pluginActivationOpen(activation)) throw new ActionError("actions.forbidden", "此插件实例已停止，请重新打开");
-    return runWithPluginText(activation, () => view.render(request));
-  } })) };
+  return { ...contribution, views: contribution.views.map(view => {
+    const bound = { ...view, render(request: Parameters<typeof view.render>[0]) {
+      if (!pluginActivationOpen(activation)) throw new ActionError("actions.forbidden", "此插件实例已停止，请重新打开");
+      return runWithPluginText(activation, () => view.render(request));
+    } };
+    producingView.set(bound, activation);
+    return bound;
+  }) };
 }
 
 /**

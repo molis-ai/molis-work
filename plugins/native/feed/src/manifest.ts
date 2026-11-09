@@ -5,8 +5,6 @@ import { FEED_PLUGIN_ID, FEED_CAPTURE_ARTIFACT_TYPE_ID, FEED_CAPTURE_SCHEMA_VERS
 import { FEED_HOME_DATABASE } from "./content-ledger.js";
 import { feedSync } from './replication.js';
 import { FEED_PROJECT_DATABASE } from "./database.js";
-import { FEED_EN } from "./en.js";
-import { FEED_MESSAGES } from "./messages.js";
 import { feedReconcileJob } from "./runtime-reconcile.js";
 import { feedWakeJob } from "./runtime-wake.js";
 import { FEED_PERMISSIONS } from "./permissions.js";
@@ -74,9 +72,7 @@ export const feedManifest: PluginManifest = {
   // The Home says when a connection changed (never which account); the kept job then looks at each account source again.
   events: { publishes: [], subscribes: [{ event_type_id: HOST_CONNECTION_CHANGED_EVENT, type_version: /* @version event.host.connection.changed */ 1 }] },
   background: { jobs: [feedWakeJob, feedReconcileJob], wakeups: [{ action: { capability_id: WAKE.capability_id, version: WAKE.version }, reason: WAKE.action.title }] },
-  ui: {
-    messages: FEED_MESSAGES,
-    translations: FEED_EN,
+  ui: { locales: { default: "zh", available: ["zh", "en"] },
     contributions: [FEED_UI_CONTRIBUTION_ID],
     views: [
       { view_id: "directory", slot: "navigator", title: "Feed", contribution_id: FEED_UI_CONTRIBUTION_ID, icon: "rss", hue: "brown", order: 40, rail: "core", pinned_default: true, accepts_objects: true,

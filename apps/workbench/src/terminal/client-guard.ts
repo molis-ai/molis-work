@@ -1,4 +1,4 @@
-import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText, escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { type TerminalPaneElements, type TerminalStatus, type TerminalTranslate } from "./client-dom.js";
 import type { PanelRecord } from "./types.js";
 
@@ -20,12 +20,12 @@ export interface TerminalGuardOptions {
 
 /** Whether this page may drive a terminal: a parent Goal is read-only, and a panel answers only to its own Goal. */
 export function createTerminalGuard(options: TerminalGuardOptions) {
-  const { els, text: L, route, goalId, setStatus } = options;
+  const { els, route, goalId, setStatus } = options;
   const { pane, emptyEl, parentGuardEl, childChoicesEl, addBtn, emptyAddBtn } = els;
   let parentReadOnly = pane.dataset.tuiParentReadOnly === "true";
 
   const parentReadOnlyMessage = () =>
-    L("这条上层 Goal 由子 Goal 共同完成，当前终端只读。请进入具体的子 Goal 查看或继续。");
+    uiText.text("workbench.client-guard.goal-completed-through-its-child-goals-so-its");
 
   const panelBelongsHere = (panel: PanelRecord | null | undefined) =>
     Boolean(panel && panel.goal_id === goalId());
@@ -37,7 +37,7 @@ export function createTerminalGuard(options: TerminalGuardOptions) {
     }
     if (!panelBelongsHere(panel)) {
       setStatus(
-        L("当前页面已经切到另一条 Goal，这个终端不会跟着切换。请回到它所属的 Goal 再操作。"),
+        uiText.text("workbench.client-guard.page-has-switched-another-goal-terminal-stays-its"),
         "error",
       );
       return false;
@@ -50,9 +50,9 @@ export function createTerminalGuard(options: TerminalGuardOptions) {
     childChoicesEl.innerHTML = children.length
       ? children.map((child) => `<a class="tui-child-choice" href="${escapeHtml(route(`/goals/${encodeURIComponent(child.goal.goal_id)}`))}">
         <span><strong>${escapeHtml(child.goal.title)}</strong><small>${escapeHtml(child.status_label)} · ${escapeHtml(child.next_action)}</small></span>
-        <b>${escapeHtml(L("打开这个子 Goal"))}<svg aria-hidden="true"><use href="#icon-chevron-right"></use></svg></b>
+        <b>${escapeHtml(uiText.text("workbench.client-guard.open-child-goal"))}<svg aria-hidden="true"><use href="#icon-chevron-right"></use></svg></b>
       </a>`).join("")
-      : `<p>${escapeHtml(L("还没有可推进的子 Goal，请先检查 Goal 的拆分。"))}</p>`;
+      : `<p>${escapeHtml(uiText.text("workbench.client-guard.there-no-child-goal-ready-work-check-how"))}</p>`;
   };
 
   const updateEmptyCopy = (readOnly: boolean) => {
@@ -60,11 +60,11 @@ export function createTerminalGuard(options: TerminalGuardOptions) {
     if (emptyAddBtn) emptyAddBtn.hidden = readOnly;
     const paragraphs = emptyEl.querySelectorAll("p");
     const title = paragraphs[0]?.querySelector("strong");
-    if (title) title.textContent = readOnly ? L("这个上层 Goal 不直接使用终端") : L("还没有终端");
+    if (title) title.textContent = readOnly ? uiText.text("workbench.client-guard.parent-goal-does-not-use-terminal-directly") : uiText.text("workbench.client-guard.no-terminal-yet");
     if (paragraphs[1]) {
       paragraphs[1].textContent = readOnly
-        ? L("请从上方进入一个具体的子 Goal。")
-        : L("选择常用 Runtime 或自定义命令，在这个 Goal 上开始工作。");
+        ? uiText.text("workbench.client-guard.open-specific-child-goal-above")
+        : uiText.text("workbench.client-guard.choose-runtime-custom-command-work-goal");
     }
   };
 
@@ -76,7 +76,7 @@ export function createTerminalGuard(options: TerminalGuardOptions) {
     if (readOnly) renderChildChoices(children);
     updateEmptyCopy(readOnly);
     addBtn.disabled = readOnly;
-    addBtn.title = readOnly ? L("请进入一个具体的子 Goal") : "";
+    addBtn.title = readOnly ? uiText.text("workbench.client-guard.open-specific-child-goal") : "";
     if (readOnly) options.closeMenu();
   };
 

@@ -1,7 +1,7 @@
 import { renderModelSettingsDocument } from "./settings-models.js";
 import { ACCOUNT_REGISTRATION_BODY, NO_FAVICON_LINK } from "./document-shell.js";
 import { renderLanguageHead } from "./language-resource.js";
-import { icon as modelIcon } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText, icon as modelIcon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { SETTINGS_CLIENT_SCRIPT } from "./browser-assets.js";
 import { CONTROL_CLIENT_SCRIPT as UI_REQUEST_CLIENT_SCRIPT } from "./scripts/control.js";
 import type { MolisWorkSettingsView } from "./settings-view.js";
@@ -54,25 +54,25 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
   const appearance = primitives.appearance?.current();
   const capabilities = view.capabilities ? createCapabilitiesRenderer(primitives, view.capabilities, view.context_project ?? null, view.projects, desktopShell) : undefined;
   const pluginPage = findPluginSettingsNavItem(view.section);
-  const title = view.section === "sync" ? L("同步") : capabilities ? L("能力") : view.section === "appearance"
-    ? L("界面与语言")
-    : view.section === "models" ? L("模型设置")
+  const title = view.section === "sync" ? uiText.text("workbench.settings-renderer.sync") : capabilities ? uiText.text("workbench.settings-renderer.capabilities") : view.section === "appearance"
+    ? uiText.text("workbench.settings-renderer.interface-language")
+    : view.section === "models" ? uiText.text("workbench.settings-renderer.models")
     : view.section === "runtimes"
-      ? L("AI 与执行工具")
+      ? uiText.text("workbench.settings-renderer.ai-execution-tools")
     : view.section === "assistant"
-      ? L("助理")
+      ? uiText.text("workbench.settings-renderer.assistant")
     : view.section === "prompts"
-      ? L("提示词")
+      ? uiText.text("workbench.settings-renderer.prompts")
     : view.section === "memory"
-      ? L("记忆")
+      ? uiText.text("workbench.settings-renderer.memory")
     : view.section === "mcp"
       ? L("MCP")
       : view.section === "connectors"
         ? L("Connectors")
         : view.section === "projects"
-        ? L("项目设置")
+        ? uiText.text("workbench.settings-renderer.project-settings")
         : view.section === "diagnostics"
-          ? L("诊断")
+          ? uiText.text("workbench.settings-renderer.diagnostics")
           : L(pluginPage?.label ?? groupedGlobalSettingsSections().flatMap(group => group.sections).find(section => section.id === view.section)?.label ?? view.section);
   const contextProject = view.context_project ?? null;
   const settingsPath = settingsContextHref(`/settings/${view.section}`, contextProject, desktopShell);
@@ -104,10 +104,10 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
             : "");
   return `<!doctype html>
 <html lang="${htmlLang()}">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${NO_FAVICON_LINK}${controlTokenMeta(controlToken)}<title>${title} · ${L("Molis Work 设置")}</title><script>${THEME_BOOTSTRAP_SCRIPT}</script><link rel="stylesheet" href="/assets/molis-work-settings.css">${pluginSettingsStyleLinks(pluginPage?.contribution_id ?? "")}${appearanceHead(appearance)}</head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${NO_FAVICON_LINK}${controlTokenMeta(controlToken)}<title>${title} · ${uiText("workbench.settings-renderer.molis-work-settings")}</title><script>${THEME_BOOTSTRAP_SCRIPT}</script><link rel="stylesheet" href="/assets/molis-work-settings.css">${pluginSettingsStyleLinks(pluginPage?.contribution_id ?? "")}${appearanceHead(appearance)}</head>
 <body${primitives.accountRegistration ? ACCOUNT_REGISTRATION_BODY : ''} class="settings-page project-preferences-page global-preferences-page${capabilities ? " capabilities-page" : ""}" data-settings-section="${view.section}" data-desktop-shell="false"${desktopShell ? ' data-native-desktop="true"' : ""}>
   ${renderIconSprite()}
-  <header class="project-preferences-chrome"${desktopShell ? ' data-tauri-drag-region="deep"' : ""}><span>${capabilities ? L("能力") : projectManager ? L("项目管理") : L("全局设置")}</span><a href="${returnHref}" aria-label="${L(capabilities ? "关闭能力服务" : "关闭全局设置")}">${icon("x")}</a></header>
+  <header class="project-preferences-chrome"${desktopShell ? ' data-tauri-drag-region="deep"' : ""}><span>${capabilities ? uiText("workbench.settings-renderer.capabilities") : projectManager ? uiText("workbench.settings-renderer.project-management") : uiText("workbench.settings-renderer.global-settings")}</span><a href="${returnHref}" aria-label="${uiText(capabilities ? "workbench.settings-renderer.close-capabilities" : "workbench.settings-renderer.close-global-settings")}">${icon("x")}</a></header>
   <main class="settings-shell${projectManager ? " settings-shell--standalone" : ""}">
     ${capabilities?.navigation ?? (projectManager ? "" : renderSettingsNavigation(view.section, contextProject, desktopShell, view.projects, view.shown_plugins))}
     <div class="settings-content">${content}</div>

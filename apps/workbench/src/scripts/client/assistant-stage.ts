@@ -3,7 +3,7 @@ export const ASSISTANT_STAGE_FACTORY = String.raw`({island,panel,input,current,s
   if(document.body.hasAttribute('data-pane-embedded'))return null;
   const home=document.createComment('assistant-home');island.before(home);
   const launcher=el('button','mw-btn mw-btn--secondary assistant-stage-launcher');launcher.type='button';
-  launcher.textContent=L('助理');launcher.hidden=true;home.after(launcher);
+  launcher.textContent=globalThis.t.text("workbench.assistant-stage.assistant");launcher.hidden=true;home.after(launcher);
   const expand=island.querySelector('[data-assistant-expand]');
   const retract=island.querySelector('[data-assistant-retract]');
   const footer=el('div','assistant-stage-footer');
@@ -38,7 +38,7 @@ export const ASSISTANT_STAGE_FACTORY = String.raw`({island,panel,input,current,s
       if(island.parentNode!==destination)destination.append(island);
       for(const {node} of footerHomes)footer.append(node);panel.querySelector('.assistant-main').append(footer);
       staged=true;shownId=active.id;island.dataset.assistantStage='';launcher.hidden=false;
-      launcher.textContent=L('返回助理');if(expand)expand.hidden=true;if(retract)retract.hidden=false;
+      launcher.textContent=globalThis.t.text("workbench.assistant-stage.return-assistant");if(expand)expand.hidden=true;if(retract)retract.hidden=false;
       panel.hidden=false;
       const thread=panel.querySelector('[data-assistant-thread]'),restore=(top)=>thread.dataset.follow?window.molisFollow(thread).restore(top):thread.scrollTop=top;if(thread)restore(scroll);
       const id=active.id;mounting=true;Promise.resolve(switchTo(id)).then(()=>{if(shownId===id)requestAnimationFrame(()=>{if(thread)restore(offsets.get(id)||0);});},error=>showProblem({message:error.message})).finally(()=>{mounting=false;});

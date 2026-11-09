@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { terminal } from "./composer-state.js";
 import type { Page } from "./page.js";
 import { readCurrent } from "./read.js";
@@ -47,7 +48,7 @@ export async function followLive(page: Page, id: string, runId: string) {
 
 /** The bar above the first loaded round: it names how many earlier rounds there are and loads them. */
 export function renderEarlier(page: Page) {
-  const { L, lifetime, s, turns } = page, hidden = s.allRuns.findIndex(run => !run.light);
+  const { lifetime, s, turns } = page, hidden = s.allRuns.findIndex(run => !run.light);
   let bar = turns.querySelector<HTMLButtonElement>(":scope > [data-coding-earlier]");
   if (hidden <= 0) {
     if (bar) {
@@ -66,7 +67,7 @@ export function renderEarlier(page: Page) {
   }
   if (turns.firstElementChild !== bar) turns.prepend(bar);
   bar.disabled = s.pageLoading;
-  bar.textContent = s.pageLoading ? L("coding.turns.loading-earlier") : L("coding.turns.show-earlier", { count: hidden });
+  bar.textContent = s.pageLoading ? uiText.text("coding.turns.loading-earlier") : uiText.text("coding.turns.show-earlier", { count: hidden });
 }
 
 /** Earlier rounds come back a page at a time as the reader scrolls up; what they were reading stays where it was. */

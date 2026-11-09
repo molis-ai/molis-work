@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderBar } from "./bar.js";
 import { isEditable, itemById, stageBusy } from "./model.js";
 import { readFullText, paintPreview } from "./preview.js";
@@ -40,7 +41,7 @@ export async function saveCopy(page: ShelfPage, id: string | undefined, text: st
     if (page.selected?.item_id === id && status) {
       status.hidden = false;
       status.dataset.mwState = "failed";
-      status.textContent = page.L("shelf.edit.the-copy-was-not-saved") + " " + messageOf(error);
+      status.textContent = uiText.text("shelf.edit.the-copy-was-not-saved") + " " + messageOf(error);
     }
     throw error;
   }

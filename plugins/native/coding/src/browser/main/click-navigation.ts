@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { loadArtifacts } from "./artifacts.js";
 import { showBoard, onShow } from "./board.js";
 import type { ClickRule } from "./click-types.js";
@@ -12,16 +13,16 @@ import { status } from "./request.js";
 
 /** Brings a face to the directory column: the Files face is the companions' (the Host shows them), every other hides them and shows its own panel. */
 async function openFace(page: Page, target: HTMLButtonElement) {
-  const { L, directory, host, s } = page, { taskboard } = page.refs, face = target.dataset.codingFace || "", handled = host.onDirectoryFace?.(face) ?? false;
+  const { directory, host, s } = page, { taskboard } = page.refs, face = target.dataset.codingFace || "", handled = host.onDirectoryFace?.(face) ?? false;
   if (face === "files" && !handled) {
-    status(page, L("coding.face.files-unavailable"));
+    status(page, uiText.text("coding.face.files-unavailable"));
     return;
   }
   directory.dataset.codingCurrentFace = face;
   directory.querySelector<HTMLElement>("[data-coding-artifact-directory]")!.hidden = face !== "artifacts";
   directory.querySelector<HTMLElement>("[data-coding-goal-face]")!.hidden = face !== "goals";
   directory.querySelectorAll("[data-coding-face]").forEach(button => button.setAttribute("aria-pressed", String(button === target)));
-  directory.querySelector(".mw-dir__label")!.textContent = face === "taskboard" ? "TaskBoard" : face === "goals" ? L("coding.face.goals") : face === "artifacts" ? L("coding.face.artifacts") : face === "files" ? L("coding.face.files") : L("coding.face.sessions");
+  directory.querySelector(".mw-dir__label")!.textContent = face === "taskboard" ? "TaskBoard" : face === "goals" ? uiText.text("coding.face.goals") : face === "artifacts" ? uiText.text("coding.face.artifacts") : face === "files" ? uiText.text("coding.face.files") : uiText.text("coding.face.sessions");
   if (face === "taskboard") {
     taskboard.showOutline();
     if (s.current) await readCurrent(page);

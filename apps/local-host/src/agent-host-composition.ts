@@ -35,6 +35,7 @@ import { agentHostCapabilities, type AgentMcpLibrary, type AgentRuntimeDescripto
 import { resolveConfiguredHome } from "./product-home.js";
 import { memoryForAgentRun } from "./memory/memory-host.js";
 import { assistantConnectionCheckers } from "./assistant/assistant-connection-authority.js";
+import { modelRoundLocale, replyLanguagePrompt } from "./reply-language.js";
 import { workAuthorityCheck } from "./agent-work-authority.js";
 
 /**
@@ -276,6 +277,7 @@ async function startAuthority(
   subject?: string,
 ): Promise<AgentStartAuthority> {
   const { localHost, homeDirectory } = options;
+  const locale = modelRoundLocale(homeDirectory);
   // A plugin's Agent declarations come only from its running activation (PG-051 RAC-195). A call without one (the Characters host
   // listing actions) gets none: it lists what it may call, and a run of a plugin role finds no role and is refused.
   const declared = caller ? { manifest: caller.declaration.manifest.agent, prompts: caller.declaration.agent_prompts, skills: caller.declaration.agent_skills } : undefined;
@@ -288,6 +290,7 @@ async function startAuthority(
   const callId = currentCallId() ?? newCallId();
   return {
     call_id: callId,
+    reply_language: replyLanguagePrompt(locale),
     ...(original ? { original_input: original } : {}),
     manifest: declared?.manifest ?? { roles: [], prompts: [] },
     // A round works in the output or one of the Host's worktrees of it, never in an input folder (SSC-15).
@@ -307,7 +310,7 @@ async function startAuthority(
       // recorded as author (`agent:<runtime>:<session>`, a task's round as well).
       const source = subject ? taskReadableHost(localHost) : localHost;
       const current = (signal?: AbortSignal) => authorizeMcpActions(source, { actor_id: subject ?? `agent:${runtimeId}`, actor_kind: "runtime", call_id: callId,
-        project_id: runtime.project_id, audience: "agent", permissions: [], ...(session ? { runtime_session_id: session.session_id, audit_actor_id: `agent:${runtimeId}:${session.session_id}` } : {}), ...(signal ? { signal } : {}) }, homeDirectory, reference, async () => { caller?.assertActive(); await validate?.(); caller?.assertActive(); }, () => {
+        project_id: runtime.project_id, audience: "agent", permissions: [], locale, ...(session ? { runtime_session_id: session.session_id, audit_actor_id: `agent:${runtimeId}:${session.session_id}` } : {}), ...(signal ? { signal } : {}) }, homeDirectory, reference, async () => { caller?.assertActive(); await validate?.(); caller?.assertActive(); }, () => {
           caller?.assertActive(); signal?.throwIfAborted();
           if (localHost.lifecycle() !== "running") throw new ActionError("actions.host_closed", "能力所在运行环境已关闭");
         });

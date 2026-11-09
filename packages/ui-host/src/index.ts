@@ -15,7 +15,7 @@ export { UiViewRegistry } from "./view-registry.js";
 export { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "./client-lifecycle.js";
 export { shortCallId } from "./call-id.js";
 export { createUiFailureView, createUiRequest, UI_REQUEST_CLIENT_SCRIPT } from "./request-client.js";
-export type { UiFailureViewPorts, UiFetchInit, UiRequestPorts, UiTranslate, UiViewDocument, UiViewElement } from "./request-client.js";
+export type { UiFailureViewPorts, UiFetchInit, UiRequestPorts, UiReadText, UiViewDocument, UiViewElement } from "./request-client.js";
 export type { UiPlacedView, UiViewRegistryInput, UiViewRegistryManifest } from "./view-registry.js";
 
 

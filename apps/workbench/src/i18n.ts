@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 import { fillMessage } from "@molis-ai/molis-work-plugin-sdk";
 import { UI_LANGUAGES, type UiLanguageTag } from "@molis-ai/molis-work-contracts/platform/ui";
@@ -141,7 +142,7 @@ function L(key: string, vars?: Record<string, string | number>): string {
 
 function renderLocaleSwitch(nextPath: string): string {
   const locale = currentLocale();
-  return `<nav class="locale-switch" aria-label="${escapeAttr(L("界面语言"))}">
+  return `<nav class="locale-switch" aria-label="${escapeAttr(uiText.text("workbench.i18n.language"))}">
     ${UI_LANGUAGES.map(language => `<a href="${localeSwitchHref(language.tag, nextPath)}" hreflang="${language.html_lang}" lang="${language.html_lang}" data-ui-language="${language.tag}"${locale === language.tag ? ' aria-current="true"' : ""}>${language.name}</a>`).join("")}
   </nav>`;
 }

@@ -7,8 +7,6 @@ import { SHELF_HOME_ROUTES } from "./routes.js";
 import { SHELF_OWNER_FILES } from "./owner-files.js";
 import { SHELF_LOCAL_TOOLS } from "./local-tools.js";
 import { CODING_RESULT_DOCUMENT_ID } from "./coding-result.js";
-import { SHELF_MESSAGES } from "./messages.js";
-import { SHELF_EN } from "./en.js";
 export const SHELF_PLUGIN_ID = "io.molis.work.shelf";
 /** What the project database stores for this Plugin. */
 export const SHELF_PROJECT_PLUGIN_ID = "shelf";
@@ -70,9 +68,7 @@ export const shelfManifest: PluginManifest = {
     { route_id: "shelf.project-result-preview", method: "GET", path: "/project-result" },
     { route_id: "shelf.project-result-receive", method: "POST", path: "/project-result" },
   ],
-  ui: {
-    messages: SHELF_MESSAGES,
-    translations: SHELF_EN,
+  ui: { locales: { default: "zh", available: ["zh", "en"] },
     contributions: [SHELF_UI_CONTRIBUTION_ID, SHELF_SETTINGS_UI_CONTRIBUTION_ID],
     views: [
       // The side panel's first tab (order 0, before 灵光's 10 and the panel's own tabs); it never opens in the work area.

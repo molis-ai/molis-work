@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { Child, Clip, ConfirmRecipe, Item, Recipe, RuntimeView, Shortcut, ShelfPage } from "./types.js";
 
 const TEXT_EDIT = new Set(["txt", "md", "markdown", "json", "swift", "py", "js", "ts", "mjs", "css", "yaml", "yml", "xml", "toml", "ini", "rs", "go", "rb", "sh", "zsh", "c", "h", "cc", "cpp", "m", "mm", "csv", "log"]);
@@ -46,7 +47,7 @@ export const ai = (page: ShelfPage) => page.snapshot.ai || { available: false, r
 export const agentMissing = (page: ShelfPage): boolean => !ai(page).available;
 export const aiLabel = (page: ShelfPage): string => {
   const { choices, selected } = ai(page);
-  return choices.find((choice) => choice.provider_id === selected?.provider_id && choice.model_id === selected?.model_id)?.label || page.L("shelf.model.ai-model");
+  return choices.find((choice) => choice.provider_id === selected?.provider_id && choice.model_id === selected?.model_id)?.label || uiText.text("shelf.model.ai-model");
 };
 
 export const recipeList = (page: ShelfPage): readonly Recipe[] => page.snapshot.recipes || [];
@@ -74,12 +75,12 @@ export function matchesPanelKey(page: ShelfPage, event: KeyboardEvent, slot: "hi
 
 /** The recipe the confirmation drawer shows: the pending one, or one made up of a shortcut action's own words. */
 export function confirmRecipe(page: ShelfPage): ConfirmRecipe | null {
-  const { pending, L } = page;
+  const { pending } = page;
   if (!pending) return null;
   const { shortcut } = pending;
   if (shortcut) {
     return {
-      recipe: "shortcut", label: shortcut.name, short_title: shortcut.name, blurb: L("shelf.bar.run-on-a-copy-and"), tone: "ochre",
+      recipe: "shortcut", label: shortcut.name, short_title: shortcut.name, blurb: uiText.text("shelf.bar.run-on-a-copy-and"), tone: "ochre",
       accepts: shortcut.kinds || [], output_file: "", needs_network: true, requires_agent: true, minimum_count: 1, choices: [], default_choice: "",
     };
   }

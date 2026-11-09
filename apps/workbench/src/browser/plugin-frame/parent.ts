@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { collapsePage } from "./view.js";
 import { accountTransition } from "../account-transition.js";
 import { pagePlacement } from "./placement.js";
@@ -144,7 +145,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   const flushes = new Map<number, {resolve(): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout>}>();
   const flush = () => new Promise<void>((resolve, reject) => {
     scope.assertCurrent(); draftsPrepared = false; const id = ++flushSequence;
-    const timer = setTimeout(() => { flushes.delete(id); reject(new Error(host.translate("草稿保存未完成，请返回原页面重试"))); }, 10000);
+    const timer = setTimeout(() => { flushes.delete(id); reject(new Error(uiText.text("common.parent.draft-could-not-be-saved-return-page-try"))); }, 10000);
     flushes.set(id, {resolve, reject, timer}); port.postMessage({type: "draft-flush", id});
   });
   scope.own(transition.page(root, flush, () => scope.dispose(), () => { draftsPrepared = false; port.postMessage({type: "draft-resume"}); }));
@@ -167,7 +168,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   let closing: Extract<FrameUp, {type: "on-closing"}>["action"] = null;
   let readyResolve!: () => void, readyReject!: (error: Error) => void;
   const ready = new Promise<void>((resolve, reject) => { readyResolve = resolve; readyReject = reject; });
-  const deadline = setTimeout(() => readyReject(new Error(host.translate("无法加载界面，请重试"))), 10000);
+  const deadline = setTimeout(() => readyReject(new Error(uiText.text("common.parent.could-not-load-view-retry"))), 10000);
   scope.own(() => {
     if (closing) collapsePage(root);
     clearTimeout(deadline); readyReject(new Error("View closed")); port.postMessage({ type: "dispose" }); port.close(); frame.remove();
@@ -219,7 +220,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
       const pending = flushes.get(message.id); if (!pending) return;
       flushes.delete(message.id); clearTimeout(pending.timer);
       draftsPrepared = true;
-      if (message.error) pending.reject(new Error(host.translate("草稿保存未完成，请返回原页面重试")));
+      if (message.error) pending.reject(new Error(uiText.text("common.parent.draft-could-not-be-saved-return-page-try")));
       else void Promise.all([...draftWork]).then(() => pending.resolve(), error => pending.reject(error));
       return;
     }

@@ -75,7 +75,10 @@ export function renderEnvironmentSpecimen(locale: Locale): string {
 
 /** The section: the content on show, both languages' renders for the switch, and what the page's own text tools need. */
 export function renderEnvironmentSection(renders: Readonly<Record<Locale, string>>, lang: Locale): string {
-  const packs = [...LOCALES.flatMap(locale => pluginTextForOwner(WORKBENCH_OWNER)?.pack(locale) ?? []), ...SAMPLE_PACKS];
+  const packs = [...LOCALES.flatMap(locale => {
+    const pack = pluginTextForOwner(WORKBENCH_OWNER)?.pack(locale);
+    return pack ? [{ ...pack, messages: Object.fromEntries(Object.entries(pack.messages).filter(([key]) => key.startsWith("workbench.env."))) }] : [];
+  }), ...SAMPLE_PACKS];
   const snapshots = Object.fromEntries(LOCALES.map((locale) => [locale, resolveUiEnvironment({ spec: SPEC_IDENTITY, skin: SKIN_IDENTITY, locale: { tag: locale, source: "explicit" } })]));
   const data = JSON.stringify({ locale: lang, packs, environment: { spec: SPEC_IDENTITY, skin: SKIN_IDENTITY, snapshots } }).replace(/</gu, "\\u003c");
   const languages = renderToggleGroup({ label: t.text("workbench.env.switch"), items: LOCALES.map((locale) => ({ value: locale, label: locale === "zh" ? "中文" : "English", current: locale === lang, attrs: { "data-board-env-lang": locale } })) });

@@ -20,7 +20,7 @@ export const ASSISTANT_CHOOSERS_PART = String.raw`  const execBtn = island.query
     const work = getWork();
     const offer = modeOffer(); if (!offer) { modesPop.hidden = true; return; }
     const chosen = work ? work.executor && work.executor.mode || offer.default_mode : nextMode || offer.default_mode;
-    modesPop.replaceChildren(el("p", "assistant-popover-title", L(work ? "下一轮的方式（与插件自己的页面同一设置）" : "第一轮的方式")));
+    modesPop.replaceChildren(el("p", "assistant-popover-title", globalThis.t.text(work ? "workbench.assistant-choosers.mode-next-turn-same-setting-plugin-s-own" : "workbench.assistant-choosers.mode-first-turn")));
     modeRows(offer).forEach((mode) => {
       const item = el("button", "assistant-starter"); item.type = "button";
       if (chosen === mode.id) item.setAttribute("aria-current", "true");
@@ -57,27 +57,27 @@ export const ASSISTANT_CHOOSERS_PART = String.raw`  const execBtn = island.query
     charBtn?.setAttribute("aria-expanded", String(open));
     if (!open) return;
     const work = getWork(), chosen = chosenCharacter();
-    charsPop.replaceChildren(el("p", "assistant-popover-title", L("由哪个角色负责（从下一轮开始）")));
+    charsPop.replaceChildren(el("p", "assistant-popover-title", globalThis.t.text("workbench.assistant-choosers.which-character-carries-next-turn")));
     let choices = [];
     try { choices = (await api("/characters" + (work ? "?work=" + encodeURIComponent(work.work_id) : ""))).characters; }
     catch (error) { const note=el("p","assistant-material-origin");molisWorkRequest.show(note,error);charsPop.append(note); }
     const pick = (value) => { setChars(false); if (work) pendingChar = value; else nextChar = value; paintAim(); input.focus(); };
     const own = el("button", "assistant-starter"); own.type = "button";
     if (!chosen) own.setAttribute("aria-current", "true");
-    own.append(el("strong", "", L("助理自己")), el("span", "assistant-material-origin", " " + L("不指定角色")));
+    own.append(el("strong", "", globalThis.t.text("workbench.assistant-choosers.assistant-itself")), el("span", "assistant-material-origin", " " + globalThis.t.text("workbench.assistant-choosers.no-character")));
     own.addEventListener("click", () => pick(null));
     charsPop.append(own);
     choices.forEach((choice) => {
       const item = el("button", "assistant-starter"); item.type = "button";
       const same = chosen && chosen.artifact_id === choice.reference.artifact_id && chosen.version === choice.reference.version;
       if (same) item.setAttribute("aria-current", "true");
-      item.append(el("strong", "", choice.title), el("span", "assistant-material-origin", " v" + choice.reference.version + (choice.available ? "" : " · " + (choice.reason || L("当前不可用")))));
+      item.append(el("strong", "", choice.title), el("span", "assistant-material-origin", " v" + choice.reference.version + (choice.available ? "" : " · " + (choice.reason || globalThis.t.text("workbench.assistant-choosers.unavailable-now")))));
       // An unavailable version is shown with why, and cannot be chosen: nothing runs under a name it is not.
       if (!choice.available) item.disabled = true;
       else item.addEventListener("click", () => pick({ artifact_id: choice.reference.artifact_id, version: choice.reference.version, title: choice.title }));
       charsPop.append(item);
     });
-    if (!choices.length) charsPop.append(el("p", "assistant-material-origin", L("这个项目里还没有你发布的 Character；在 Characters 里新建并发布后就能选择。")));
+    if (!choices.length) charsPop.append(el("p", "assistant-material-origin", globalThis.t.text("workbench.assistant-choosers.have-no-published-character-project-yet-create-publish")));
     (charsPop.querySelector("[aria-current]") || charsPop.querySelector("button:not([disabled])"))?.focus();
   };
   charBtn?.addEventListener("click", async () => { if (!charsPop.hidden) { setChars(false); return; } if (curId) await reload().catch(() => {}); await setChars(true); });
@@ -97,7 +97,7 @@ export const ASSISTANT_CHOOSERS_PART = String.raw`  const execBtn = island.query
     execsPop.hidden = !open;
     execBtn?.setAttribute("aria-expanded", String(open));
     if (!open) return;
-    execsPop.replaceChildren(el("p", "assistant-popover-title", L("由谁来做")));
+    execsPop.replaceChildren(el("p", "assistant-popover-title", globalThis.t.text("workbench.assistant-choosers.who-does")));
     void loadExecutors();
     executorChoices().forEach((one) => {
       const item = el("button", "assistant-starter"); item.type = "button";

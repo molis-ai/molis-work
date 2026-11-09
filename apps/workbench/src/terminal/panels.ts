@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { createTerminalConnection, type PtyServerMessage } from "./connection.js";
 import { createPanelSpawner } from "./panel-spawn.js";
 import type { PanelProgram, PanelRecord, SpawnMode, TerminalPanelState, TerminalRequest, TerminalScreens, TerminalStatusSetter } from "./types.js";
@@ -48,7 +49,6 @@ const openTerminal = (options: TerminalPanelsOptions, goalId: string, body: Reco
 
 function handleExit(ctx: PanelContext, value: Extract<PtyServerMessage, { type: "exit" }>) {
   const { options, state } = ctx;
-  const L = options.text;
   if (!value.panelId) return;
   state.alive.delete(value.panelId);
   const panel = state.panels.find((item) => item.panel_id === value.panelId);
@@ -56,14 +56,14 @@ function handleExit(ctx: PanelContext, value: Extract<PtyServerMessage, { type: 
   const session = options.screens.get(value.panelId);
   if (session) {
     const exitCode = value.exitCode ?? 0;
-    session.term.write(`\r\n${L("终端进程已退出")}${value.exitCode != null ? `（${L("退出码")} ${exitCode}）` : ""}\r\n`);
+    session.term.write(`\r\n${uiText.text("workbench.panels.terminal-process-exited")}${value.exitCode != null ? `（${uiText.text("workbench.panels.exit-code")} ${exitCode}）` : ""}\r\n`);
     if (!session.hasOutput && exitCode !== 0) {
-      session.term.write(`\r\n${L("进程在启动后立即退出，常见原因：命令未安装、不在 PATH 中或工作目录不存在。")}\r\n`);
+      session.term.write(`\r\n${uiText.text("workbench.panels.process-exited-immediately-after-starting-common-causes-command")}\r\n`);
     }
   }
   if (state.activeId === value.panelId) {
     options.showTerminal(state.activeId);
-    options.setStatus(value.exitCode != null ? L("终端已退出（退出码 {code}）", { code: value.exitCode }) : L("终端已退出"));
+    options.setStatus(value.exitCode != null ? uiText.text("workbench.panels.terminal-exited-exit-code-code", { code: value.exitCode }) : uiText.text("workbench.panels.terminal-exited"));
   }
 }
 
@@ -148,10 +148,9 @@ async function loadPanels(ctx: PanelContext) {
 
 async function openPanel(ctx: PanelContext, body: Record<string, unknown>) {
   const { options, state } = ctx;
-  const L = options.text;
   const id = options.goalId();
   if (!id) {
-    options.setStatus(L("打开项目后，Goal 右侧可以添加终端"));
+    options.setStatus(uiText.text("workbench.panels.after-opening-project-add-terminal-right-goal"));
     return;
   }
   if (options.parentReadOnly()) {
@@ -168,7 +167,7 @@ async function openPanel(ctx: PanelContext, body: Record<string, unknown>) {
     return;
   }
   if (!record || id !== options.goalId()) {
-    if (!record) options.setStatus(L("打开失败"), "error");
+    if (!record) options.setStatus(uiText.text("workbench.panels.could-not-open"), "error");
     return;
   }
   record.status = "open";

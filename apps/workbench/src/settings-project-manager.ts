@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderHint } from "@molis-ai/molis-work-design-system";
 import { createProjectSettingsFolds } from "./project-settings-folds.js";
 import type { SettingsRenderPrimitives } from "./settings-renderer.js";
@@ -6,18 +7,18 @@ import type { MolisWorkSettingsView, WebSettingsProject } from "./settings-view.
 type ProjectManagerPrimitives = Pick<SettingsRenderPrimitives, "L" | "escapeHtml" | "icon" | "withDesktopQuery">;
 type ProjectFolds = ReturnType<typeof createProjectSettingsFolds>;
 
-function projectKindShort(project: WebSettingsProject, L: ProjectManagerPrimitives["L"]): string {
-  if (project.data_class === "regenerable_demo") return L("演示数据");
-  return L("本地项目");
+function projectKindShort(project: WebSettingsProject, _L: ProjectManagerPrimitives["L"]): string {
+  if (project.data_class === "regenerable_demo") return uiText.text("workbench.settings-project-manager.demo-data");
+  return uiText.text("workbench.settings-project-manager.local-project");
 }
 
 function renderProjectDetail(project: WebSettingsProject, selected: boolean, desktopShell: boolean, primitives: ProjectManagerPrimitives, folds: ProjectFolds): string {
-  const { L, escapeHtml } = primitives;
+  const { escapeHtml } = primitives;
   const id = project.project_id;
   const safe = escapeHtml(id);
   const href = `/projects/${encodeURIComponent(id)}`;
   return `<article class="project-manager-detail" data-project-pane="${safe}" data-route-prefix="${href}"${selected ? "" : " hidden"} aria-labelledby="project-pane-title-${safe}">
-    ${folds.renderProjectSettingsHero(project, { headingTag: "h2", showOpenTree: true, hint: renderHint({ id: `settings-hint-project-${project.project_id}`, label: L("如何生效"), text: L("项目说明在项目设置中维护。工作规划和工作规则在 Goals 顶栏。") }) })}
+    ${folds.renderProjectSettingsHero(project, { headingTag: "h2", showOpenTree: true, hint: renderHint({ id: `settings-hint-project-${project.project_id}`, label: uiText.text("workbench.settings-project-manager.how-applies"), text: uiText.text("workbench.settings-project-manager.project-guidance-lives-project-settings-work-planning-work") }) })}
     ${folds.renderGeneralBody(project)}
     ${folds.renderDanger(project)}
     ${folds.renderProjectDeleteDialog(project, desktopShell)}
@@ -39,18 +40,18 @@ export function renderProjectSettings(view: MolisWorkSettingsView, desktopShell:
   return `<section class="project-manager" data-project-manager aria-labelledby="settings-title">
     <aside class="project-manager-index">
       <header class="project-manager-index-chrome">
-        <h1 id="settings-title">${L("项目")}</h1>
-        <p>${L("本机 {count} 个项目", { count: view.projects.length })}</p>
+        <h1 id="settings-title">${uiText("workbench.settings-project-manager.project")}</h1>
+        <p>${uiText("workbench.settings-project-manager.count-count-device", { count: view.projects.length })}</p>
       </header>
       <div class="project-manager-list">
-        <div class="project-manager-rows" role="radiogroup" aria-label="${L("选择要配置的项目")}">
+        <div class="project-manager-rows" role="radiogroup" aria-label="${uiText("workbench.settings-project-manager.choose-project-configure")}">
           ${rows}
           <input id="project-focus-create" class="project-manager-create-input" type="radio" name="project-focus" value="create"${createChecked}>
         </div>
-        ${view.projects.length ? "" : `<p class="project-manager-empty">${L("还没有项目")}</p>`}
+        ${view.projects.length ? "" : `<p class="project-manager-empty">${uiText("workbench.settings-project-manager.no-project-yet")}</p>`}
       </div>
       <footer class="project-manager-index-actions">
-        <label class="project-manager-ghost" for="project-focus-create">${icon("plus")}<span>${L("新建项目")}</span></label>
+        <label class="project-manager-ghost" for="project-focus-create">${icon("plus")}<span>${uiText("workbench.settings-project-manager.new-project")}</span></label>
       </footer>
     </aside>
     <div class="project-manager-stage">
@@ -58,17 +59,17 @@ export function renderProjectSettings(view: MolisWorkSettingsView, desktopShell:
       <article class="project-manager-detail" data-project-pane="create"${selectedId === "create" ? "" : " hidden"} aria-labelledby="create-project-title">
         <header class="project-manager-hero">
           <div>
-            <div class="settings-heading-title"><h2 id="create-project-title">${L("创建项目")}</h2>${view.projects.length ? renderHint({ id: "settings-hint-create-project", label: L("如何生效"), text: L("普通用户项目不会被示例操作或普通卸载删除；永久清除用户数据需要单独确认精确数据目录和项目数量。") }) : ""}</div>
-            <p>${L("创建一个空项目，随后进入工作台。")}</p>
+            <div class="settings-heading-title"><h2 id="create-project-title">${uiText("workbench.settings-project-manager.create-project")}</h2>${view.projects.length ? renderHint({ id: "settings-hint-create-project", label: uiText.text("workbench.settings-project-manager.how-applies"), text: uiText.text("workbench.settings-project-manager.user-projects-not-deleted-sample-actions-normal-uninstall") }) : ""}</div>
+            <p>${uiText("workbench.settings-project-manager.create-empty-project-then-open-workbench")}</p>
           </div>
         </header>
         <form class="inline-settings-form project-manager-create-form" data-project-create>
-          <label>${L("项目名称")}<input name="display_name" required maxlength="160" placeholder="${L("例如：新产品发布")}"></label>
-          <label class="inline-confirm"><input type="checkbox" name="user_confirmed"><span>${L("确认创建这个项目")}</span></label>
+          <label>${uiText("workbench.settings-project-manager.project-name")}<input name="display_name" required maxlength="160" placeholder="${uiText("workbench.settings-project-manager.example-new-product-launch")}"></label>
+          <label class="inline-confirm"><input type="checkbox" name="user_confirmed"><span>${uiText("workbench.settings-project-manager.confirm-creating-project")}</span></label>
           <p class="settings-form-error" role="alert" hidden></p>
-          <button class="mw-btn mw-btn--primary" type="submit">${L("创建并打开")}</button>
+          <button class="mw-btn mw-btn--primary" type="submit">${uiText("workbench.settings-project-manager.create-open")}</button>
         </form>
-        ${demo ? "" : `<section class="project-manager-section" aria-labelledby="demo-project-title"><h3 id="demo-project-title">${L("产品示例")}</h3><p>${L("创建一份明确标记为可重建的示例数据；普通卸载会清理它，但保留用户项目。")}</p><button class="mw-btn mw-btn--secondary" type="button" data-demo-action="create">${L("创建示例项目")}</button><p class="settings-form-error" data-demo-error role="alert" hidden></p></section>`}
+        ${demo ? "" : `<section class="project-manager-section" aria-labelledby="demo-project-title"><h3 id="demo-project-title">${uiText("workbench.settings-project-manager.product-demo")}</h3><p>${uiText("workbench.settings-project-manager.create-demo-data-that-clearly-marked-regenerable-normal")}</p><button class="mw-btn mw-btn--secondary" type="button" data-demo-action="create">${uiText("workbench.settings-project-manager.create-demo-project")}</button><p class="settings-form-error" data-demo-error role="alert" hidden></p></section>`}
       </article>
     </div>
   </section>`;

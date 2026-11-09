@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { el, errorMessage } from "./dom.js";
 import type { PagePorts, Translate } from "./types.js";
 
@@ -115,7 +116,7 @@ function remember(r: Reader) {
   try {
     localStorage.setItem(key(r), JSON.stringify(r.comments));
   } catch {
-    r.message.textContent = r.ports.translate("coding.change.not-stored");
+    r.message.textContent = uiText.text("coding.change.not-stored");
   }
 }
 
@@ -130,27 +131,27 @@ function close(r: Reader) {
   r.reader.parentElement?.removeAttribute("data-coding-reading");
 }
 
-const lineLabel = (L: Translate, remark: Remark) => remark.side === "before" ? L("coding.change.line-before", { line: remark.line }) : L("coding.change.line-after", { line: remark.line });
+const lineLabel = (_L: Translate, remark: Remark) => remark.side === "before" ? uiText.text("coding.change.line-before", { line: remark.line }) : uiText.text("coding.change.line-after", { line: remark.line });
 
 /** One remark: where it is, its text, and the button that drops it. */
 function remarkRow(r: Reader, remark: Remark, n: number) {
   const { translate: L, lifetime } = r.ports, file = r.value?.change.files[remark.change_index];
   const row = el("div", "", "coding-feedback-item"), head = el("div", "", "coding-feedback-where");
-  const where = el("span", L("coding.change.where", { path: file?.path || L("coding.change.original-file"), write: remark.change_index + 1, line: lineLabel(L, remark) }));
+  const where = el("span", uiText.text("coding.change.where", { path: file?.path || uiText.text("coding.change.original-file"), write: remark.change_index + 1, line: lineLabel(L, remark) }));
   where.title = where.textContent ?? "";
   const input = el("textarea", "", "mw-textarea"), remove = el("button", "", "mw-btn mw-btn--ghost coding-feedback-remove");
   input.rows = 2;
   input.value = remark.comment;
   input.maxLength = 5000;
-  input.placeholder = L("coding.change.comment-placeholder");
-  input.setAttribute("aria-label", L("coding.change.comment-label", { where: where.textContent ?? "" }));
+  input.placeholder = uiText.text("coding.change.comment-placeholder");
+  input.setAttribute("aria-label", uiText.text("coding.change.comment-label", { where: where.textContent ?? "" }));
   lifetime.listen(input, "input", () => {
     remark.comment = input.value;
     remember(r);
   });
   remove.type = "button";
-  remove.setAttribute("aria-label", L("coding.change.comment-remove"));
-  remove.title = L("coding.change.comment-remove");
+  remove.setAttribute("aria-label", uiText.text("coding.change.comment-remove"));
+  remove.title = uiText.text("coding.change.comment-remove");
   remove.innerHTML = '<svg aria-hidden="true"><use href="#icon-x"></use></svg>';
   lifetime.listen(remove, "click", () => {
     r.comments.splice(n, 1);
@@ -178,9 +179,9 @@ function renderComments(r: Reader) {
 }
 
 /** The state of one write: tone, words, and the ring the page draws for it. */
-function stateOf(L: Translate, file: ChangeFile): readonly [string, string, string] {
-  const tones: Readonly<Record<string, readonly [string, string, string]>> = { applied: ["done", L("coding.change.applied"), "done"], failed: ["failed", L("coding.change.apply-failed"), "failed"], unknown: ["attention", L("coding.change.unknown"), "verify"], "not-applied": ["idle", L("coding.change.not-applied"), "idle"] };
-  const decisions: Readonly<Record<string, readonly [string, string]>> = { rejected: [L("coding.change.rejected"), "cancelled"], cancelled: [L("coding.state.cancelled"), "cancelled"], expired: [L("coding.change.expired"), "stale"], pending: [L("coding.change.pending"), "approval"] };
+function stateOf(_L: Translate, file: ChangeFile): readonly [string, string, string] {
+  const tones: Readonly<Record<string, readonly [string, string, string]>> = { applied: ["done", uiText.text("coding.change.applied"), "done"], failed: ["failed", uiText.text("coding.change.apply-failed"), "failed"], unknown: ["attention", uiText.text("coding.change.unknown"), "verify"], "not-applied": ["idle", uiText.text("coding.change.not-applied"), "idle"] };
+  const decisions: Readonly<Record<string, readonly [string, string]>> = { rejected: [uiText.text("coding.change.rejected"), "cancelled"], cancelled: [uiText.text("coding.state.cancelled"), "cancelled"], expired: [uiText.text("coding.change.expired"), "stale"], pending: [uiText.text("coding.change.pending"), "approval"] };
   const decided = file.review.decision !== "approved" ? decisions[file.review.decision] : undefined;
   if (decided) return ["idle", decided[0], decided[1]];
   return tones[file.review.execution] ?? tones.unknown!;
@@ -228,14 +229,14 @@ function singleFile(r: Reader, runValue: string, path: string, n: number, file: 
   const L = r.ports.translate, button = pickButton(r, runValue, n);
   button.setAttribute("aria-pressed", String(n === r.index));
   button.classList.add("is-file");
-  button.append(fileIcon(), pathLabel(path), el("span", file.kind === "added" ? L("coding.change.created") : L("coding.change.modified"), "coding-change-kind"), counts(file.added_lines, file.removed_lines), stateChip(L, file));
+  button.append(fileIcon(), pathLabel(path), el("span", file.kind === "added" ? uiText.text("coding.change.created") : uiText.text("coding.change.modified"), "coding-change-kind"), counts(file.added_lines, file.removed_lines), stateChip(L, file));
   return button;
 }
 
 /** A path written more than once: its header, the net change when it can be shown, and each write. */
 function manyWrites(r: Reader, runValue: string, files: readonly ChangeFile[], path: string, list: readonly number[], group: HTMLElement) {
   const { translate: L, lifetime } = r.ports;
-  const head = el("div", "", "coding-change-file-head"), writes = el("span", L("coding.change.writes", { count: list.length }), "coding-change-kind");
+  const head = el("div", "", "coding-change-file-head"), writes = el("span", uiText.text("coding.change.writes", { count: list.length }), "coding-change-kind");
   const netGroup = (r.value?.net_groups || []).find(item => item.path === path);
   if (netGroup && !netGroup.available && netGroup.reason) writes.title = netGroup.reason;
   head.append(fileIcon(), pathLabel(path), writes);
@@ -245,7 +246,7 @@ function manyWrites(r: Reader, runValue: string, files: readonly ChangeFile[], p
     whole.type = "button";
     whole.dataset.codingChangeNet = path;
     whole.setAttribute("aria-pressed", String(r.net && list.includes(r.index)));
-    whole.append(el("span", L("coding.change.net"), "coding-change-step"));
+    whole.append(el("span", uiText.text("coding.change.net"), "coding-change-step"));
     lifetime.listen(whole, "click", () => {
       const first = list[0];
       if (!(r.net && list.includes(r.index)) && first !== undefined) void open(r, runValue, false, first, r.fixed, "1");
@@ -256,13 +257,13 @@ function manyWrites(r: Reader, runValue: string, files: readonly ChangeFile[], p
     const file = files[n];
     if (!file) return;
     const button = pickButton(r, runValue, n);
-    button.append(el("span", L("coding.change.write-number", { number: order + 1 }) + (file.kind === "added" && order === 0 ? " · " + L("coding.change.created") : ""), "coding-change-step"), counts(file.added_lines, file.removed_lines), stateChip(L, file));
+    button.append(el("span", uiText.text("coding.change.write-number", { number: order + 1 }) + (file.kind === "added" && order === 0 ? " · " + uiText.text("coding.change.created") : ""), "coding-change-step"), counts(file.added_lines, file.removed_lines), stateChip(L, file));
     group.append(button);
   });
 }
 
 function renderFiles(r: Reader, files: readonly ChangeFile[], runValue: string) {
-  const { translate: L, q } = r.ports, nav = q("[data-coding-change-files]");
+  const { q } = r.ports, nav = q("[data-coding-change-files]");
   nav.replaceChildren();
   const groups = new Map<string, number[]>();
   files.forEach((file, n) => groups.set(file.path, [...(groups.get(file.path) ?? []), n]));
@@ -274,12 +275,12 @@ function renderFiles(r: Reader, files: readonly ChangeFile[], runValue: string) 
     else manyWrites(r, runValue, files, path, list, group);
     nav.append(group);
   }
-  q("[data-coding-change-summary]").textContent = files.length ? L("coding.change.summary", { files: groups.size, writes: files.length }) : L("coding.change.no-writes");
+  q("[data-coding-change-summary]").textContent = files.length ? uiText.text("coding.change.summary", { files: groups.size, writes: files.length }) : uiText.text("coding.change.no-writes");
 }
 
 /** The save chip, the output button and the hint under the remarks, after a read. */
 function drawReference(r: Reader, result: Changeset, scrollToStart: boolean) {
-  const { translate: L, q } = r.ports;
+  const { q } = r.ports;
   q<HTMLButtonElement>("[data-coding-change-patch]").disabled = !result.patch;
   const fixedChip = q("[data-coding-change-fixed]"), saveButton = q<HTMLButtonElement>("[data-coding-change-save]");
   fixedChip.hidden = !result.reference;
@@ -287,11 +288,11 @@ function drawReference(r: Reader, result: Changeset, scrollToStart: boolean) {
   saveButton.disabled = Boolean(result.reference);
   if (result.reference) {
     const chip = fixedChip.lastElementChild;
-    if (chip) chip.textContent = L("coding.change.fixed", { version: result.reference.version });
-    fixedChip.title = L("coding.change.fixed-at", { time: new Date(result.saved_at ?? 0).toLocaleString(document.documentElement.lang || "zh-CN") });
+    if (chip) chip.textContent = uiText.text("coding.change.fixed", { version: result.reference.version });
+    fixedChip.title = uiText.text("coding.change.fixed-at", { time: new Date(result.saved_at ?? 0).toLocaleString(document.documentElement.lang || "zh-CN") });
   }
-  r.message.textContent = result.change.files.length ? "" : L("coding.change.no-reviewed");
-  q("[data-coding-feedback-hint]").textContent = result.reference ? L("coding.change.comment-hint") : L("coding.feedback.hint");
+  r.message.textContent = result.change.files.length ? "" : uiText.text("coding.change.no-reviewed");
+  q("[data-coding-feedback-hint]").textContent = result.reference ? uiText.text("coding.change.comment-hint") : uiText.text("coding.feedback.hint");
   const output = q<HTMLButtonElement>("[data-coding-change-output]");
   const selected = Boolean(result.reference) && result.output?.artifact_id === result.reference?.artifact_id && result.output?.version === result.reference?.version;
   output.hidden = !result.reference;
@@ -300,12 +301,12 @@ function drawReference(r: Reader, result: Changeset, scrollToStart: boolean) {
   else keepPlace(r, r.anchor);
   r.anchor = null;
   output.disabled = !result.reference || selected;
-  output.textContent = selected ? L("coding.change.is-output") : L("coding.change.set-output");
+  output.textContent = selected ? uiText.text("coding.change.is-output") : uiText.text("coding.change.set-output");
 }
 
 /** Reads (or, to fix them, saves) a round's changes and draws them. */
 async function open(r: Reader, nextRun: string, save = false, nextIndex = 0, requireFixed = false, mode = "auto") {
-  const { ports, message } = r, { translate: L, q, api, lifetime } = ports;
+  const { ports, message } = r, { q, api, lifetime } = ports;
   const id = ports.current(), token = ++r.ticket;
   const scrollToStart = !r.runId || r.runId !== nextRun || r.index !== nextIndex || (mode !== "auto" && r.net !== (mode === "1"));
   if (scrollToStart) {
@@ -329,7 +330,7 @@ async function open(r: Reader, nextRun: string, save = false, nextIndex = 0, req
   q<HTMLButtonElement>("[data-coding-change-save]").disabled = true;
   q<HTMLButtonElement>("[data-coding-feedback-return]").disabled = true;
   q<HTMLButtonElement>("[data-coding-change-patch]").disabled = true;
-  message.textContent = save ? L("coding.change.saving") : L("coding.change.reading");
+  message.textContent = save ? uiText.text("coding.change.saving") : uiText.text("coding.change.reading");
   try {
     const result = await api<Changeset>("/sessions/" + encodeURIComponent(id) + "/runs/" + encodeURIComponent(nextRun) + "/changeset?change_index=" + r.index + "&net=" + mode + "&layout=" + r.layout + (requireFixed ? "&fixed=1" : ""), save ? "POST" : "GET");
     if (r.ticket !== token || id !== ports.current()) return;
@@ -375,9 +376,9 @@ async function setOutput(r: Reader, target: HTMLButtonElement) {
 
 /** Adds a remark on the line the person pressed. */
 function addRemark(r: Reader, target: HTMLElement) {
-  const { translate: L, q } = r.ports;
+  const { q } = r.ports;
   if (r.comments.length >= MAX_REMARKS) {
-    r.message.textContent = L("coding.change.too-many");
+    r.message.textContent = uiText.text("coding.change.too-many");
     return;
   }
   const side = target.dataset.codingLineSide ?? "after", indices = r.netIndices;
@@ -429,8 +430,8 @@ async function onClick(r: Reader, event: Event) {
   if (!button) return;
   const inReader = r.reader.contains(button);
   if (button.hasAttribute("data-coding-change-patch") && inReader) {
-    const patch = r.value?.patch, L = ports.translate;
-    if (patch) window.molisCopy?.(button, () => patch, { done: L("coding.change.copied"), failed: L("coding.change.copy-failed") });
+    const patch = r.value?.patch;
+    if (patch) window.molisCopy?.(button, () => patch, { done: uiText.text("coding.change.copied"), failed: uiText.text("coding.change.copy-failed") });
   } else if (button.hasAttribute("data-diff-unfold") && inReader) {
     const group = button.dataset.diffUnfold ?? "";
     r.opened.add(group);

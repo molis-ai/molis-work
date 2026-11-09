@@ -1,17 +1,17 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 export function renderPagesComments(): string {
-  return `<section class="pages-comments" data-pages-comments aria-label="${uiText.text("pages.comments.label")}">
-    <header><small>${uiText.text("pages.comments.viewing")}</small><h2 data-comment-title>${uiText.text("pages.comments.pick-doc")}</h2>
-      <div class="pages-comment-modes"><button type="button" data-comment-mode="comments" aria-pressed="true">${uiText.text("pages.comments.comments")}</button><button type="button" data-comment-mode="notes" aria-pressed="false">${uiText.text("pages.comments.notes")}</button></div>
+  return `<section class="pages-comments" data-pages-comments aria-label="${uiText("pages.comments.label")}">
+    <header><small>${uiText("pages.comments.viewing")}</small><h2 data-comment-title>${uiText("pages.comments.pick-doc")}</h2>
+      <div class="pages-comment-modes"><button type="button" data-comment-mode="comments" aria-pressed="true">${uiText("pages.comments.comments")}</button><button type="button" data-comment-mode="notes" aria-pressed="false">${uiText("pages.comments.notes")}</button></div>
     </header>
-    <div data-comment-discussion><nav data-comment-threads aria-label="${uiText.text("pages.comments.threads")}"></nav><button class="mw-btn mw-btn--ghost" type="button" data-comment-new>${uiText.text("pages.comments.new-whole")}</button>
-      <blockquote data-comment-quote hidden></blockquote><button type="button" class="mw-btn mw-btn--ghost" data-comment-locate hidden>${uiText.text("pages.comments.locate")}</button><div class="pages-comment-messages" data-comment-messages aria-live="polite"></div>
+    <div data-comment-discussion><nav data-comment-threads aria-label="${uiText("pages.comments.threads")}"></nav><button class="mw-btn mw-btn--ghost" type="button" data-comment-new>${uiText("pages.comments.new-whole")}</button>
+      <blockquote data-comment-quote hidden></blockquote><button type="button" class="mw-btn mw-btn--ghost" data-comment-locate hidden>${uiText("pages.comments.locate")}</button><div class="pages-comment-messages" data-comment-messages aria-live="polite"></div>
       <p data-comment-run role="status"></p>
     </div><div data-comment-notes hidden></div>
-    <form data-comment-form><p data-comment-scope hidden>${uiText.text("pages.comments.scope-note")}</p><label data-comment-unsaved hidden><input type="checkbox" data-comment-include-draft>${uiText.text("pages.comments.include-draft")}</label><button type="button" class="mw-btn mw-btn--ghost" data-comment-reply hidden></button><textarea class="mw-input" data-comment-draft rows="3" aria-label="${uiText.text("pages.comments.write")}" placeholder="${uiText.text("pages.comments.write-placeholder")}"></textarea>
-      <footer><button class="mw-btn mw-btn--ghost" type="button" data-comment-ai aria-pressed="false">@${uiText.text("pages.comments.assistant")}</button><span>${uiText.text("pages.comments.send-hint")}</span><button class="mw-btn mw-btn--primary" data-comment-send>${uiText.text("pages.comments.send")}</button></footer>
-    </form><p class="pages-comment-error" data-comment-error role="alert" hidden></p><button type="button" class="mw-btn mw-btn--ghost" data-comment-reload hidden>${uiText.text("pages.comments.reload")}</button>
+    <form data-comment-form><p data-comment-scope hidden>${uiText("pages.comments.scope-note")}</p><label data-comment-unsaved hidden><input type="checkbox" data-comment-include-draft>${uiText("pages.comments.include-draft")}</label><button type="button" class="mw-btn mw-btn--ghost" data-comment-reply hidden></button><textarea class="mw-input" data-comment-draft rows="3" aria-label="${uiText("pages.comments.write")}" placeholder="${uiText("pages.comments.write-placeholder")}"></textarea>
+      <footer><button class="mw-btn mw-btn--ghost" type="button" data-comment-ai aria-pressed="false">@${uiText("pages.comments.assistant")}</button><span>${uiText("pages.comments.send-hint")}</span><button class="mw-btn mw-btn--primary" data-comment-send>${uiText("pages.comments.send")}</button></footer>
+    </form><p class="pages-comment-error" data-comment-error role="alert" hidden></p><button type="button" class="mw-btn mw-btn--ghost" data-comment-reload hidden>${uiText("pages.comments.reload")}</button>
   </section>`;
 }
 

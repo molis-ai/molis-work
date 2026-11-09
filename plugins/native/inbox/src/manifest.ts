@@ -8,7 +8,6 @@ import { INBOX_ACTIONS, INBOX_ACTION_PERMISSIONS, INBOX_STAGE_GOAL_READ, inboxAc
 import { INBOX_PROJECT_DATABASE } from "./database.js";
 
 import { INBOX_PLUGIN_ID } from "./identity.js";
-import { INBOX_EN } from "./en.js";
 export { INBOX_PLUGIN_ID } from "./identity.js";
 /** What the project database stores for this Plugin. */
 export const INBOX_PROJECT_PLUGIN_ID = "inbox";
@@ -64,8 +63,7 @@ export const inboxManifest: PluginManifest = {
   capabilities: { provides: [], consumes: ["feed.briefs.read", "feed.items.content", INBOX_STAGE_GOAL_READ.capability_id] },
   artifacts: { produces: [], consumes: [] },
   sync:{protocol_version:/* @version sync.protocol */ 1,collections:[{id:'attention',database:'project',title:'注意事项与处理历史',schema_version:/* @version sync.collection.inbox.attention */ 1,requires:[],sections:attentionSections}]},
-  ui: {
-    translations: INBOX_EN,
+  ui: { locales: { default: "zh", available: ["zh", "en"] },
     contributions: [INBOX_UI_CONTRIBUTION_ID],
     views: [
       { view_id: "directory", slot: "navigator", title: "Inbox", contribution_id: INBOX_UI_CONTRIBUTION_ID, icon: "inbox", hue: "mint", order: 30, rail: "core", pinned_default: true, accepts_objects: true,

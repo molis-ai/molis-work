@@ -1,4 +1,4 @@
-import { renderDirectoryPanel, renderDirectoryRow, renderReturnBar, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText, renderDirectoryPanel, renderDirectoryRow, renderReturnBar, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderAppearanceSettingsDocument, type AppearanceSettingsModel } from "./settings-appearance.js";
 import { createProjectSettingsFolds, type ProjectSettingsFoldProject } from "./project-settings-folds.js";
 import { groupedGlobalSettingsSections } from "./settings-sections.js";
@@ -28,16 +28,16 @@ function localeSwitchHref(locale: import("./i18n.js").WebLocalePreference, nextP
 
 /** Personal identity and login entry stay inside main's project menu, followed by capabilities and settings. */
 export function renderPersonalMenuItems(primitives: SettingsDirectoryPrimitives, appearance = false): string {
-  const { L, icon } = primitives;
+  const { icon } = primitives;
   return `<div class="navigator-personal" data-personal-menu>
-    <button class="personal-account" type="button" data-account-link aria-label="${L("账号管理")}">
+    <button class="personal-account" type="button" data-account-link aria-label="${uiText("workbench.settings-directory.account")}">
       <span class="personal-account-avatar" aria-hidden="true">${icon("user")}</span>
-      <span class="personal-account-copy"><strong data-personal-name>${L("未登录")}</strong><small data-personal-status>${L("本地空间")}</small></span>
+      <span class="personal-account-copy"><strong data-personal-name>${uiText("workbench.settings-directory.not-signed")}</strong><small data-personal-status>${uiText("workbench.settings-directory.local-space")}</small></span>
     </button>
-    <button class="immersive-plugin-link account-global-item" type="button" data-unified-account-link aria-label="${L("Molis 账号")}" title="${L("Molis 账号")}">${icon("user")}<span data-unified-account-name>${L("Molis 账号")}</span></button>
-    <a class="immersive-plugin-link account-global-item" href="__SYSTEM_CAPABILITIES__" data-capabilities-open aria-label="${L("打开能力服务")}" title="${L("能力")}">${icon("sparkles")}<span>${L("能力")}</span></a>
-    <button class="immersive-plugin-link account-global-item personal-settings" type="button" data-plugin-id="settings" data-directory-open="settings" aria-label="${L("打开全局设置")}" title="${L("设置")}">${icon("settings")}<span>${L("设置")}</span></button>
-    ${appearance ? `<button class="immersive-plugin-link account-global-item" type="button" data-appearance-restore>${icon("settings")}<span>${L("恢复内置外观")}</span></button>` : ""}
+    <button class="immersive-plugin-link account-global-item" type="button" data-unified-account-link aria-label="${uiText("workbench.settings-directory.molis-account")}" title="${uiText("workbench.settings-directory.molis-account")}">${icon("user")}<span data-unified-account-name>${uiText("workbench.settings-directory.molis-account")}</span></button>
+    <a class="immersive-plugin-link account-global-item" href="__SYSTEM_CAPABILITIES__" data-capabilities-open aria-label="${uiText("workbench.settings-directory.open-capabilities")}" title="${uiText("workbench.settings-directory.capabilities")}">${icon("sparkles")}<span>${uiText("workbench.settings-directory.capabilities")}</span></a>
+    <button class="immersive-plugin-link account-global-item personal-settings" type="button" data-plugin-id="settings" data-directory-open="settings" aria-label="${uiText("workbench.settings-directory.open-global-settings")}" title="${uiText("workbench.settings-directory.settings")}">${icon("settings")}<span>${uiText("workbench.settings-directory.settings")}</span></button>
+    ${appearance ? `<button class="immersive-plugin-link account-global-item" type="button" data-appearance-restore>${icon("settings")}<span>${uiText("workbench.settings-directory.restore-built-appearance")}</span></button>` : ""}
   </div>`;
 }
 
@@ -53,7 +53,7 @@ export function renderSettingsNav(
   const labelled = groups.length > 1;
   return renderDirectoryPanel({
     pluginId,
-    listLabel: L(label),
+    listLabel: uiText.text(label),
     listRole: "none",
     listClassName: "settings-directory-nav",
     listAttrs: { "data-settings-directory-nav": true },
@@ -70,29 +70,29 @@ export function renderSettingsNav(
 }
 
 export function renderSettingsDirectorySection(primitives: SettingsDirectoryPrimitives, shown?: readonly string[]): string {
-  const { L, icon } = primitives;
+  const { icon } = primitives;
   return `<section class="plugin-section is-expanded" data-plugin-section="settings" data-plugin-expanded="true" hidden>
-    <div class="immersive-plugin-link" aria-hidden="true">${icon("settings")}<span>${L("设置")}</span></div>
+    <div class="immersive-plugin-link" aria-hidden="true">${icon("settings")}<span>${uiText("workbench.settings-directory.settings")}</span></div>
     <div class="plugin-section-body">
-      ${renderSettingsNav(primitives, groupedGlobalSettingsSections(shown), "appearance", "系统设置", "settings")}
+      ${renderSettingsNav(primitives, groupedGlobalSettingsSections(shown), "appearance", "workbench.settings-directory.system-settings", "settings")}
     </div>
   </section>`;
 }
 
 /** `goals` is false for a project without Goals: the project description page is Goals', so it is not listed (RAC-400). */
 export function renderProjectSettingsDirectorySection(primitives: SettingsDirectoryPrimitives, goals = true): string {
-  const { L, icon } = primitives;
+  const { icon } = primitives;
   return `<section class="plugin-section is-expanded" data-plugin-section="project-settings" data-plugin-expanded="true" hidden>
-    <div class="immersive-plugin-link" aria-hidden="true">${icon("settings")}<span>${L("项目设置")}</span></div>
+    <div class="immersive-plugin-link" aria-hidden="true">${icon("settings")}<span>${uiText("workbench.settings-directory.project-settings")}</span></div>
     <div class="plugin-section-body">
-      ${renderSettingsNav(primitives, [{ group: "", sections: PROJECT_SETTINGS_SECTIONS.filter(section => goals || section.id !== "guidance") }], "general", "项目设置", "project-settings")}
+      ${renderSettingsNav(primitives, [{ group: "", sections: PROJECT_SETTINGS_SECTIONS.filter(section => goals || section.id !== "guidance") }], "general", "workbench.settings-directory.project-settings", "project-settings")}
     </div>
   </section>`;
 }
 
 /** The return bar the settings-return owner puts on top of the settings it opened for a page (specs/draft-and-return §9); it fills the words. */
-function returnBarTemplate(L: SettingsDirectoryPrimitives["L"]): string {
-  return `<template data-settings-return-bar-template>${renderReturnBar({ title: "", body: "", back: L("现在回去"), label: L("从哪里来") })}</template>`;
+function returnBarTemplate(_L: SettingsDirectoryPrimitives["L"]): string {
+  return `<template data-settings-return-bar-template>${renderReturnBar({ title: "", body: "", back: uiText.text("workbench.settings-directory.go-back-now"), label: uiText.text("workbench.settings-directory.where-came") })}</template>`;
 }
 
 /** Settings inside a project. `nextPath` is where switching the language lands: this project with Settings open on the same page (VUX-40). */
@@ -107,7 +107,7 @@ export function renderSettingsWorkSurface(primitives: SettingsDirectoryPrimitive
     '<section class="settings-document appearance-document"',
     '<section class="settings-document appearance-document" data-settings-panel="appearance"',
   );
-  return `<section class="desktop-work-surface settings-stage" data-work-surface="settings" data-work-surface-label="${L("设置")}" hidden>
+  return `<section class="desktop-work-surface settings-stage" data-work-surface="settings" data-work-surface-label="${uiText("workbench.settings-directory.settings")}" hidden>
     ${returnBarTemplate(L)}<div class="settings-content" data-settings-stage-body>${appearance}</div>
   </section>`;
 }
@@ -125,7 +125,7 @@ export function renderProjectSettingsWorkSurface(
     withDesktopQuery,
   });
   const general = project ? folds.renderGeneralPage(project, desktopShell) : "";
-  return `<section class="desktop-work-surface settings-stage" data-work-surface="project-settings" data-work-surface-label="${L("项目设置")}" hidden>
+  return `<section class="desktop-work-surface settings-stage" data-work-surface="project-settings" data-work-surface-label="${uiText("workbench.settings-directory.project-settings")}" hidden>
     ${returnBarTemplate(L)}<div class="settings-content" data-settings-stage-body>${general}</div>
   </section>`;
 }

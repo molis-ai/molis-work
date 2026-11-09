@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { countGoalDecisions } from "../decision-groups.js";
 import type { GoalsPageView } from "./view.js";
 import type { GoalsTranslate } from "./ports.js";
@@ -109,7 +110,7 @@ export function createGoalsCapsuleProjection(L: GoalsTranslate) {
       };
     }
 
-    const label = L("暂无可开始项");
+    const label = uiText.text("goals.capsule.nothing-ready");
     return {
       observed_event_cursor: view.snapshot.cursor,
       project: view.project,
@@ -117,18 +118,18 @@ export function createGoalsCapsuleProjection(L: GoalsTranslate) {
         kind: "empty",
         label,
         goal_id: null,
-        goal_title: L("当前没有聚焦的目标"),
+        goal_title: uiText.text("goals.capsule.no-focused-goal"),
         goal_path: projectPath(view),
-        action_label: L("打开 Molis Work"),
+        action_label: uiText.text("goals.capsule.open-molis-work"),
         action_path: projectPath(view),
         status_since: null,
-        why: L("当前没有正在执行或可以立即开始的目标"),
-        current: L("当前没有正在执行的工作"),
-        blocker: L("可能仍有前置事项、风险或目标说明需要处理"),
-        next: L("打开 Molis Work 查看哪些条件还没有满足"),
+        why: uiText.text("goals.capsule.there-no-running-immediately-actionable-goal"),
+        current: uiText.text("goals.capsule.no-work-running-right-now"),
+        blocker: uiText.text("goals.capsule.prerequisite-risk-goal-definition-may-still-need-attention"),
+        next: uiText.text("goals.capsule.open-molis-work-see-which-conditions-not-yet"),
         running_count: 0,
         additional_running: 0,
-        menu_bar_title: L("空闲"),
+        menu_bar_title: uiText.text("goals.capsule.idle"),
         menu_bar_tooltip: `${view.project.display_name} · ${label}`,
       },
       tabs: [],

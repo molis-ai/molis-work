@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { GoalTreeProposalRecord } from "./contract/governance-collaboration.js";
 import { GOALS_RELATION_LABELS as RELATION_LABELS } from "./relation-presentation.js";
 import { findGoalView, type GoalsProposalView, type GoalsProposalUiPrimitives } from "./proposal-ui-model.js";
@@ -9,7 +10,7 @@ function proposedGoalName(
   proposal?: GoalTreeProposalRecord,
 ): string {
   const goalId = String(value ?? "");
-  if (!goalId) return L("未指明 Goal");
+  if (!goalId) return uiText.text("goals.proposal-presentation.unspecified-goal");
   const proposed = proposal?.items
     .filter((item) => item.kind === "goal")
     .map((item) => item.payload)
@@ -39,7 +40,7 @@ function goalTreeProposalItemCopy(
   proposal: GoalTreeProposalRecord,
 ): { title: string; detail: string; facts: string[] } {
   const payload = item.payload;
-  const operation = item.operation === "create" ? L("新增") : L("停止使用");
+  const operation = item.operation === "create" ? uiText.text("goals.proposal-presentation.add") : uiText.text("goals.proposal-presentation.stop-using");
   if (item.kind === "goal") {
     const goal = payload;
     const title = String(goal.title ?? proposedGoalName(goal.goal_id, view));
@@ -49,8 +50,8 @@ function goalTreeProposalItemCopy(
       title: L("{operation} Goal「{title}」", { operation, title }),
       detail: outcome || item.reason,
       facts: [
-        ...(why ? [L("为什么：{why}", { why })] : []),
-        ...(outcome ? [L("要达成：{outcome}", { outcome })] : []),
+        ...(why ? [uiText.text("goals.proposal-presentation.why-why", { why })] : []),
+        ...(outcome ? [uiText.text("goals.proposal-presentation.outcome-outcome", { outcome })] : []),
       ],
     };
   }
@@ -58,11 +59,11 @@ function goalTreeProposalItemCopy(
   const facts = relations.map((relation) => {
     const from = proposedGoalName(relation.from_goal_id, view, proposal);
     const to = proposedGoalName(relation.to_goal_id, view, proposal);
-    const relationLabel = RELATION_LABELS[String(relation.type ?? "")]?.out ?? L("建立关系");
+    const relationLabel = RELATION_LABELS[String(relation.type ?? "")]?.out ?? uiText.text("goals.proposal-presentation.create-relation");
     return L("{from} → {relation} → {to}", { from, relation: L(relationLabel), to });
   });
   return {
-    title: L("{operation} {count} 条 Goal 关系", { operation, count: facts.length || 1 }),
+    title: uiText.text("goals.proposal-presentation.operation-count-goal-relationships", { operation, count: facts.length || 1 }),
     detail: item.reason,
     facts,
   };

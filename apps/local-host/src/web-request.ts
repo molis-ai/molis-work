@@ -21,8 +21,7 @@ import type { MolisWorkWebServiceManager } from "./installer/web-service.js";
 import type { WebServerOptions, ProjectScheduleRuntime, ResolvedWebRequest } from "./web-types.js";
 import type { LocalWebComposition } from "./web-composition.js";
 import { sendLocalWebJson as sendJson } from "./web-http.js";
-import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { L } from "./web-locale.js";
+import { t as uiText, t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import fs from "node:fs";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import type { MolisWorkPtyHost } from "@molis-ai/molis-work-service-runtime-host";
@@ -97,7 +96,7 @@ export async function handleMolisWorkWebRequest(
       return;
     }
     if (resolved.kind === "project_not_found") {
-      sendJson(response, 404, { error: L("找不到这个 Molis Work 项目") });
+      sendJson(response, 404, { error: uiText.text("workbench.request.that-molis-work-project-was-not-found") });
       return;
     }
     url.pathname = resolved.pathname;
@@ -228,7 +227,7 @@ const pageOwnerRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
 const capsuleRoute: WebRoute<ProjectRuntimeContext> = { id: "capsule", handle: async ({ request, response, url, options, goalActions, composition, readWebView, goalsHere }) => {
   if (request.method !== "GET" || url.pathname !== "/api/capsule") return false;
   if (!options.project) {
-    sendJson(response, 400, { error: L("请先选择一个 Molis Work 项目") });
+    sendJson(response, 400, { error: uiText.text("workbench.request.choose-molis-work-project-first") });
     return true;
   }
   // A project without Goals has none to list (RAC-400); in one with Goals, a refused list is that refusal.

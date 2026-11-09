@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { errorMessage, part } from "../dom.js";
 import { renderGoalFace, renderGoalRows } from "./goals.js";
 import { applyConfiguration, refreshState, rememberConfiguration } from "./configuration.js";
@@ -36,7 +37,7 @@ function listenSelect(page: Page) {
 /** The bottom Assistant can carry this same session through Coding's own actions. When it changes the session's settings or
  *  starts a round, the page takes what is saved, so its next save cannot write the old choice back. */
 function listenAssistant(page: Page) {
-  const { L, lifetime, q, s } = page;
+  const { lifetime, q, s } = page;
   lifetime.listen(window, "molis:assistant-effect", event => {
     const detail = detailOf<AssistantEffectDetail>(event) ?? {};
     if (typeof detail.capability_id !== "string" || !detail.capability_id.startsWith("coding.") || !s.current || detail.session_id !== s.current) return;
@@ -47,7 +48,7 @@ function listenAssistant(page: Page) {
       s.configurations.set(id, { ...s.configurations.get(id), ...data.configuration });
       applyConfiguration(page);
       controls(page);
-      if (before !== data.configuration.intent) status(page, L("coding.intent.changed-by-assistant", { intent: q<HTMLSelectElement>("[data-coding-intent]").selectedOptions[0]?.textContent || data.configuration.intent }));
+      if (before !== data.configuration.intent) status(page, uiText.text("coding.intent.changed-by-assistant", { intent: q<HTMLSelectElement>("[data-coding-intent]").selectedOptions[0]?.textContent || data.configuration.intent }));
     }).catch(() => {
       // The saved choice could not be read: the full read below shows whatever the session holds.
     });
@@ -57,7 +58,7 @@ function listenAssistant(page: Page) {
 
 /** A Character brings a task to Coding: a session is made for it with the Character and the task saved, never started by itself. */
 async function bringCharacter(page: Page, selected: CharacterCodingDetail) {
-  const { L, host, input, refs, s } = page;
+  const { host, input, refs, s } = page;
   const result = await api<{ session: { session_id: string } }>(page, "/sessions", "POST", { title: selected.title }), id = result.session.session_id;
   // Persist the exact publication and task before navigation; never start a paid run automatically.
   await page.refs.inputEditor.write(id, { draft: selected.task || "", character: selected.reference, character_skill_ids: selected.skill_ids || [] }, 0);
@@ -74,17 +75,17 @@ async function bringCharacter(page: Page, selected: CharacterCodingDetail) {
     await refreshState(page);
   }
   input.focus();
-  status(page, L("coding.character.brought-in"));
+  status(page, uiText.text("coding.character.brought-in"));
 }
 
 function listenCharacter(page: Page) {
-  const { L, lifetime, s } = page;
+  const { lifetime, s } = page;
   lifetime.listen(window, "molis-work:character-coding", event => {
     const selected = detailOf<CharacterCodingDetail>(event);
     if (s.creatingCharacterSession || !selected?.reference) return;
     s.creatingCharacterSession = true;
     void bringCharacter(page, selected)
-      .catch(error => status(page, L("coding.character.session-failed", { reason: errorMessage(error) }), true))
+      .catch(error => status(page, uiText.text("coding.character.session-failed", { reason: errorMessage(error) }), true))
       .finally(() => { s.creatingCharacterSession = false; });
   });
 }
@@ -115,7 +116,7 @@ function listenAttach(page: Page) {
 
 /** The page's own controls: every click on it, the searches, the settings of the next round. */
 export function mountControlEvents(page: Page) {
-  const { L, directory, lifetime, q, refs, root, s, turns } = page;
+  const { directory, lifetime, q, refs, root, s, turns } = page;
   listenAttach(page);
   lifetime.listen(root, "click", event => { void onClick(page, event as MouseEvent); });
   lifetime.listen(part(directory, "[data-coding-search]"), "input", () => renderDirectory(page));
@@ -126,7 +127,7 @@ export function mountControlEvents(page: Page) {
       const id = s.current;
       rememberConfiguration(page);
       controls(page);
-      void refs.draft.flush().then(() => surfaceChanged(page, id)).catch(error => status(page, L("coding.configuration.unsaved", { reason: errorMessage(error) }), true));
+      void refs.draft.flush().then(() => surfaceChanged(page, id)).catch(error => status(page, uiText.text("coding.configuration.unsaved", { reason: errorMessage(error) }), true));
     });
   }
   lifetime.listen(q("[data-coding-method-search]"), "input", () => renderMethods(page));

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
-import { pluginPagesFor, runWithLocale } from "@molis-ai/molis-work-app-local-host";
+import { hostTextProblems, pluginPagesFor, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import { format } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { deferred } from "./fixtures/home-runtime.js";
@@ -191,4 +191,29 @@ test("S-ui-text-page FSS-37 Coding receives only the words of its actual embedde
     assert.deepEqual(await child.evaluate("[document.querySelector('[data-git-status]').textContent, document.querySelector('[data-files-status]').textContent, document.querySelector('[data-files-copy]').textContent]"),
       ["Reading Git…", "Reading the workspace…", "Copy all"], "the actual Git and Files client listeners consume their own words");
   } finally { await b.evaluate("finishCompanionReads.splice(0).forEach(finish => finish())"); }
+});
+
+test("FSS-20 FSS-37 the Workbench and its inline Goals share a language change without replacing a draft", { timeout: 120_000 }, async t => {
+  const b = await openGoalBrowser(t, "seeded", undefined, null); if (!b) return;
+  const problemsBefore = hostTextProblems().length;
+  const route = "/projects/" + b.projectId + "/?openPlugin=goals";
+  await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/locale?lang=zh&next=" + encodeURIComponent(route) }, b.sessionId));
+  await b.waitFor("typeof t === 'function' && document.querySelector('[data-open-create] span')");
+  const projection = await b.evaluate("JSON.parse(document.querySelector('script[data-ui-page-text]')?.textContent || '[]').map(row => [row.slot,row.packs.map(pack => pack.owner)])");
+  assert.deepEqual(projection, [["project:goals", ["io.molis.work.goals"]]]);
+  assert.equal(await b.evaluate("t.text('goals.tree-ui.new-goal')"), "新建 Goal");
+  assert.equal(await b.evaluate("t.text('git.commit.submit')"), "这句话暂时显示不了", "an opaque client's words do not enter the shell");
+  await b.evaluate("document.querySelector('[data-open-create]').click()");
+  await b.waitFor("document.querySelector('dialog[open] input.create-compose-title')");
+  await b.evaluate(`(() => {
+    const field = window.goalDraft = document.querySelector('dialog[open] input.create-compose-title');
+    window.goalNewLabel = document.querySelector('[data-open-create] span');
+    field.value = 'Original 目标'; field.focus(); field.setSelectionRange(1, 5, 'backward');
+    field.dispatchEvent(new Event('input', { bubbles: true }));
+  })()`);
+  await chooseEnglishInSettings(t, b);
+  await b.waitFor("document.documentElement.lang === 'en'", 25000);
+  assert.deepEqual(await b.evaluate("[goalNewLabel.textContent.trim(), goalNewLabel === document.querySelector('[data-open-create] span'), goalDraft === document.activeElement, goalDraft.value, goalDraft.selectionStart, goalDraft.selectionEnd, goalDraft.selectionDirection, t.text('goals.tree-ui.new-goal')]"),
+    ["New Goal", true, true, "Original 目标", 1, 5, "backward", "New Goal"]);
+  assert.deepEqual(hostTextProblems().slice(problemsBefore), [], "the real Host rendered every visible owner without missing text");
 });

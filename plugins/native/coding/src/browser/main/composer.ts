@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { errorMessage } from "../dom.js";
 import { refreshState } from "./configuration.js";
 import { terminal } from "./composer-state.js";
@@ -10,18 +11,18 @@ import type { ContinuationRead, RecoveryReport, RoundSelection, StartedRound } f
 
 /** What the Host said about the digest a round started from: written by the model (with its cost) or by the Host. */
 function digestNote(page: Page, started: StartedRound | null) {
-  const { L } = page, digest = started?.digest;
+  const digest = started?.digest;
   if (!digest) return;
   const tokens = digest.usage ? (digest.usage.input + digest.usage.output).toLocaleString() : "";
-  const note = digest.source !== "model" ? L("coding.digest.host", { reason: digest.problem || "" }) : digest.usage ? L("coding.digest.model-usage", { tokens }) : L("coding.digest.model", { tokens });
+  const note = digest.source !== "model" ? uiText.text("coding.digest.host", { reason: digest.problem || "" }) : digest.usage ? uiText.text("coding.digest.model-usage", { tokens }) : uiText.text("coding.digest.model", { tokens });
   status(page, note, digest.source !== "model");
 }
 
 /** One way to start a round, shared by the composer and by continuing from a breakpoint. */
 export async function startRound(page: Page, id: string, task: string | undefined, intent: string, modelValue: string, selection: RoundSelection, extra: Record<string, unknown> = {}) {
-  const { L, s } = page, { composerModels } = page.refs, [provider_id, model_id] = JSON.parse(modelValue) as [string, string];
+  const { s } = page, { composerModels } = page.refs, [provider_id, model_id] = JSON.parse(modelValue) as [string, string];
   // A round that carries a digest waits for the model to write it first; say so rather than look stuck.
-  if (id === s.current && s.lastData?.next_history?.history === "digest") status(page, L("coding.digest.writing"));
+  if (id === s.current && s.lastData?.next_history?.history === "digest") status(page, uiText.text("coding.digest.writing"));
   const started = await page.refs.inputReceipts.start<StartedRound | null>(id, {
     ...extra, task, intent, provider_id, model_id, ...composerModels.effort(), workspace_id: selection.workspace_id, methods: selection.methods,
     ...(selection.action_tools === undefined ? {} : { action_tools: selection.action_tools }),
@@ -45,13 +46,13 @@ export function currentSelection(page: Page, id: string): RoundSelection {
 
 /** Continues an unfinished round (the Host states what already happened) or asks a closed question again; the composer draft stays untouched. */
 export async function continueRound(page: Page, runId: string | null, reask?: { readonly run_id: string; readonly pending_id: string }) {
-  const { L, q, s } = page;
+  const { q, s } = page;
   if (s.sending || !s.current) return;
   const id = s.current, modelValue = q<HTMLSelectElement>("[data-coding-model]").value;
   s.sending = true;
   controls(page);
   try {
-    if (!s.state.models.some(model => JSON.stringify([model.provider_id, model.model_id]) === modelValue)) throw new Error(L("coding.model.choose-first"));
+    if (!s.state.models.some(model => JSON.stringify([model.provider_id, model.model_id]) === modelValue)) throw new Error(uiText.text("coding.model.choose-first"));
     const chosen = q<HTMLSelectElement>("[data-coding-intent]").value;
     const next: ContinuationRead = reask || runId === null ? { intent: chosen } : await api<ContinuationRead>(page, sessionPath(id, runId) + "/continuation");
     if (s.current !== id) return;
@@ -62,7 +63,7 @@ export async function continueRound(page: Page, runId: string | null, reask?: { 
     const selection = currentSelection(page, id);
     if (intent === "parallel") selection.writer_assignments = structuredClone(s.configurations.get(id)?.writer_assignments || []);
     await startRound(page, id, next.task, intent, modelValue, selection, { ...(next.continue_step_board_of ? { plan_revision: next.plan_revision, continue_step_board_of: next.continue_step_board_of } : {}), ...(next.continued_from ? { continued_from: next.continued_from } : {}), ...(reask ? { reask } : {}) });
-    if (!reask) status(page, L("coding.run.continued"));
+    if (!reask) status(page, uiText.text("coding.run.continued"));
     s.follow.resume();
     await refreshState(page);
     await readCurrent(page);
@@ -76,7 +77,7 @@ export async function continueRound(page: Page, runId: string | null, reask?: { 
 
 /** An interrupted round is checked first; only a round whose outcomes are all known is closed and continued. */
 export async function recoverAndContinue(page: Page, runId: string) {
-  const { L, root, s } = page;
+  const { root, s } = page;
   if (s.sending || !s.current) return;
   const id = s.current;
   try {
@@ -88,7 +89,7 @@ export async function recoverAndContinue(page: Page, runId: string) {
       root.dataset.codingResults = "true";
       s.recoveryKey = "";
       void readRecovery(page);
-      status(page, L("coding.run.blocked", { reason: report.blockers.length ? report.blockers.join("；") : (blocked || entry)?.blockers?.join("；") || L("coding.run.unknown-operations") }), true);
+      status(page, uiText.text("coding.run.blocked", { reason: report.blockers.length ? report.blockers.join("；") : (blocked || entry)?.blockers?.join("；") || uiText.text("coding.run.unknown-operations") }), true);
       return;
     }
     for (const run of [...report.runs.filter(item => item.subagent), entry]) await api(page, sessionPath(id, run.run_id) + "/recover", "POST", { expected_version: run.version });

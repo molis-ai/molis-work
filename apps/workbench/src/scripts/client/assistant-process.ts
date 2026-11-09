@@ -23,7 +23,7 @@ export const ASSISTANT_PROCESS_FACTORY_SCRIPT = String.raw`(input) => {
   // Each step's verb in the three forms a line takes (bare, under way, done), each its own key so each language says it
   // whole: English needs "Reading" and "Read", not a prefix before "read".
   const VERBS = { lookup: ["查找能力", "正在查找能力", "已查找能力"], read: ["读取", "正在读取", "已读取"], change: ["修改", "正在修改", "已修改"], suggest: ["准备操作卡", "正在准备操作卡", "已准备操作卡"], ask: ["向你提问", "正在向你提问", "已向你提问"], todo: ["更新工作步骤", "正在更新工作步骤", "已更新工作步骤"], "lookup-tools": ["查找工具", "正在查找工具", "已查找工具"], delegate: ["委托子任务", "正在委托子任务", "已委托子任务"], "delegate-check": ["查看子任务", "正在查看子任务", "已查看子任务"], "delegate-follow-up": ["让子任务补改", "正在让子任务补改", "已让子任务补改"], "delegate-stop": ["停止子任务", "正在停止子任务", "已停止子任务"], "memory-keep": ["记下你的要求", "正在记下你的要求", "已记下你的要求"], "memory-list": ["查看记住的事", "正在查看记住的事", "已查看记住的事"], "memory-forget": ["删除一条记忆", "正在删除一条记忆", "已删除一条记忆"], "memory-suggest": ["建议记住一条", "正在建议记住一条", "已建议记住一条"], "file-read": ["读取文件", "正在读取文件", "已读取文件"], "file-list": ["查看目录", "正在查看目录", "已查看目录"], "file-search": ["搜索代码", "正在搜索代码", "已搜索代码"], "file-change": ["修改文件", "正在修改文件", "已修改文件"], command: ["运行命令", "正在运行命令", "已运行命令"], "command-output": ["查看命令输出", "正在查看命令输出", "已查看命令输出"], "auto-continue": ["自动续做", "正在自动续做", "已自动续做"], compact: ["整理上下文", "正在整理上下文", "已整理上下文"], "browser-list": ["找到侧栏浏览器", "正在找到侧栏浏览器", "已找到侧栏浏览器"], "browser-look": ["查看网页", "正在查看网页", "已查看网页"], "browser-act": ["操作网页", "正在操作网页", "已操作网页"], "computer-list": ["查看可操作的应用", "正在查看可操作的应用", "已查看可操作的应用"], "computer-look": ["查看应用窗口", "正在查看应用窗口", "已查看应用窗口"], "computer-act": ["操作应用", "正在操作应用", "已操作应用"], "ended-on-promise": ["收尾", "正在收尾", "已收尾"] };
-  const REASONS = { "not-authorized": "未获授权，没有执行", declined: "你拒绝了，没有执行", interrupted: "这一轮停止了，没有执行", unavailable: "这项能力已关闭或不再可用，没有执行" };
+  const REASONS = { "not-authorized": "workbench.assistant-process.not-authorized-nothing-done", declined: "workbench.assistant-process.declined-nothing-done", interrupted: "workbench.assistant-process.turn-stopped-did-not-run", unavailable: "workbench.assistant-process.switched-off-no-longer-available-nothing-done" };
   const VERB_GLYPH = { lookup: "search", "lookup-tools": "search", "file-search": "search", read: "note", "file-read": "file", "file-list": "list", change: "edit",
     "file-change": "code", command: "terminal", "command-output": "terminal", ask: "question", todo: "list", suggest: "zap", delegate: "workflow", "delegate-check": "workflow",
     "delegate-follow-up": "workflow", "delegate-stop": "workflow", "memory-keep": "sparkles", "memory-list": "sparkles", "memory-forget": "sparkles", "memory-suggest": "sparkles",
@@ -35,8 +35,8 @@ export const ASSISTANT_PROCESS_FACTORY_SCRIPT = String.raw`(input) => {
   const activityLine = (item) => {
     const what = item.target ? (item.verb === "ask" ? "：" : " ") + item.target : "";
     if (item.state === "started") return verb(item, 1) + what;
-    if (item.state === "completed") return verb(item, 2) + what + (item.verb === "ask" && item.answer ? " · " + L("你的回答") + "：" + item.answer : "");
-    return capital(verb(item)) + what + " — " + L(item.state === "failed" ? REASONS[item.reason] || "没有完成" : "结果未确认");
+    if (item.state === "completed") return verb(item, 2) + what + (item.verb === "ask" && item.answer ? " · " + globalThis.t.text("workbench.assistant-process.answer") + "：" + item.answer : "");
+    return capital(verb(item)) + what + " — " + globalThis.t.text(item.state === "failed" ? REASONS[item.reason] || "workbench.assistant-process.not-finished" : "workbench.assistant-process.result-unconfirmed");
   };
   const BY_PROVIDER = new Set(["read", "change", "suggest"]);
   const phrase = (item) => verb(item).charAt(0).toLowerCase() + verb(item).slice(1) + (BY_PROVIDER.has(item.verb) && item.target ? " " + item.target.split(" · ")[0] : "");
@@ -44,18 +44,18 @@ export const ASSISTANT_PROCESS_FACTORY_SCRIPT = String.raw`(input) => {
     const live = [...run].reverse().find((item) => item.state === "started");
     if (live) return activityLine(live);
     const said = [...new Set(run.map(phrase))], unfinished = run.filter((item) => item.state === "failed" || item.state === "unknown").length;
-    let what = said.slice(0, 2).join(L("、")); if (said.length > 2) what = L("{what}等").replace("{what}", what);
-    return L("{what} · {n} 步", { what: capital(what), n: run.length })
-      + (unfinished ? " · " + unfinished + " " + L("步没有完成") : "");
+    let what = said.slice(0, 2).join(L("、")); if (said.length > 2) what = globalThis.t.text("workbench.assistant-process.what-more").replace("{what}", what);
+    return globalThis.t.text("workbench.assistant-process.what-n-n", { what: capital(what), n: run.length })
+      + (unfinished ? " · " + unfinished + " " + globalThis.t.text("workbench.assistant-process.did-not-finish") : "");
   };
   // A refusal the platform classified is said in the person's words (its sort, then each field and the rule it broke); the
   // owner's own text stays one fold further down, for tracing (user 2026-10-23 ⑤). An unclassified one shows its text as is.
-  const FAILURES = { invalid: "输入不符合能力合同", forbidden: "没有权限这样做", not_found: "要用的对象已不在", conflict: "对象在这期间变了，要重新读取", too_large: "内容太大",
-    rate_limited: "请求太频繁，被限流了", cancelled: "已取消", timeout: "超时了", unavailable: "这项能力现在用不了", upstream: "依赖的服务没有给出完整的回答", internal: "执行时出错了" };
-  const RULES = { required: "缺少必填的内容", additionalProperties: "多了合同里没有的内容", type: "类型不对", enum: "不是允许的取值" };
-  const where = (path) => path === "/" ? L("整个输入") : path.slice(1).split("/").join(" › ");
-  const facts = (item) => [item.capability_id && [L("调用的能力"), item.capability_id], item.failure && [L("原因"), L(FAILURES[item.failure.kind] || "没有完成")],
-    ...(item.failure?.fields || []).map((field) => [where(field.path), L(RULES[field.rule] || "不符合约束")]), !item.failure && item.detail && [L("返回的说明"), item.detail]].filter(Boolean);
+  const FAILURES = { invalid: "workbench.assistant-process.input-did-not-match-capability-s-contract", forbidden: "workbench.assistant-process.not-permitted-do", not_found: "workbench.assistant-process.what-needed-gone", conflict: "workbench.assistant-process.changed-meantime-needs-reading-again", too_large: "workbench.assistant-process.too-large",
+    rate_limited: "workbench.assistant-process.too-many-requests-rate-limited", cancelled: "workbench.assistant-process.cancelled", timeout: "workbench.assistant-process.timed-out", unavailable: "workbench.assistant-process.capability-not-available-now", upstream: "workbench.assistant-process.service-relies-did-not-answer-completely", internal: "workbench.assistant-process.failed-while-running" };
+  const RULES = { required: "workbench.assistant-process.something-required-missing", additionalProperties: "workbench.assistant-process.has-something-contract-does-not-include", type: "workbench.assistant-process.wrong-type", enum: "workbench.assistant-process.not-allowed-value" };
+  const where = (path) => path === "/" ? globalThis.t.text("workbench.assistant-process.whole-input") : path.slice(1).split("/").join(" › ");
+  const facts = (item) => [item.capability_id && [globalThis.t.text("workbench.assistant-process.capability-called"), item.capability_id], item.failure && [globalThis.t.text("workbench.assistant-process.reason"), globalThis.t.text(FAILURES[item.failure.kind] || "workbench.assistant-process.not-finished")],
+    ...(item.failure?.fields || []).map((field) => [where(field.path), globalThis.t.text(RULES[field.rule] || "workbench.assistant-process.breaks-rule-contract")]), !item.failure && item.detail && [globalThis.t.text("workbench.assistant-process.what-came-back"), item.detail]].filter(Boolean);
   const raw = (item) => item.failure && item.detail ? item.detail : "";
   const line = (round, item) => {
     const known = (round.stepLines ||= new Map()), shown = facts(item), tag = shown.length || raw(item) ? "DETAILS" : "P";
@@ -74,7 +74,7 @@ export const ASSISTANT_PROCESS_FACTORY_SCRIPT = String.raw`(input) => {
     if (tag === "DETAILS" && node.dataset.facts !== signature) {
       node.dataset.facts = signature;
       const rows = shown.map(([label, value]) => { const row = el("p"); row.append(el("span", "assistant-activity-label", label), el("span", "", value)); return row; });
-      if (said) { const fold = el("details", "assistant-activity-raw"); fold.append(el("summary", "", L("原始说明")), el("p", "", said)); rows.push(fold); }
+      if (said) { const fold = el("details", "assistant-activity-raw"); fold.append(el("summary", "", globalThis.t.text("workbench.assistant-process.original-message")), el("p", "", said)); rows.push(fold); }
       node.lastElementChild.replaceChildren(...rows);
     }
     return node;
@@ -99,7 +99,7 @@ export const ASSISTANT_PROCESS_FACTORY_SCRIPT = String.raw`(input) => {
     [...round.children].forEach((child) => { if (/^[ag]:/.test(child.getAttribute("data-entry") || "") && !placed.has(child)) child.remove(); });
     for (const [id, node] of round.stepLines || []) if (!node.isConnected) round.stepLines.delete(id);
   };
-  const memoryScope = (scope) => L(scope === "personal" ? "个人" : scope === "character" ? "角色" : "本项目");
+  const memoryScope = (scope) => globalThis.t.text(scope === "personal" ? "workbench.assistant-process.personal" : scope === "character" ? "workbench.assistant-process.role" : "workbench.assistant-process.project");
   const memory = (round, trail, put) => {
     const { used = [], omitted = [], uncertain = [], unverified, recording_error } = trail || {};
     if (!(used.length || omitted.length || uncertain.length || unverified || recording_error)) return round.querySelector(':scope > .assistant-memories')?.remove();
@@ -107,20 +107,20 @@ export const ASSISTANT_PROCESS_FACTORY_SCRIPT = String.raw`(input) => {
     const signature = JSON.stringify(trail);
     if (box.dataset.signature === signature) return put(box);
     box.dataset.signature = signature;
-    setText(box.firstElementChild, L("已提供 {n} 条记忆", { n: used.length }) + (omitted.length ? " · " + L("没带上 {n} 条", { n: omitted.length }) : ""));
+    setText(box.firstElementChild, globalThis.t.text("workbench.assistant-process.provided-n-n", { n: used.length }) + (omitted.length ? " · " + globalThis.t.text("workbench.assistant-process.n-left-out", { n: omitted.length }) : ""));
     while (box.children[1]) box.children[1].remove();
-    const note = (text) => box.append(el("p", "assistant-memory-omitted", L(text)));
+    const note = (text) => box.append(el("p", "assistant-memory-omitted", globalThis.t.text(text)));
     const lines = (items) => items.forEach((item) => {
       const row = el("p", "assistant-activity assistant-memory");
-      row.append(el("span", "assistant-memory-scope", memoryScope(item.scope)), item.content_changed ? L("记忆已更新，隐藏旧内容") : item.text);
+      row.append(el("span", "assistant-memory-scope", memoryScope(item.scope)), item.content_changed ? globalThis.t.text("workbench.assistant-process.memory-updated-old-text-hidden") : item.text);
       row.title = item.origin || "";
       box.append(row);
     });
     lines(used);
-    if (uncertain.length || unverified) note("记忆送达未确认");
+    if (uncertain.length || unverified) note("workbench.assistant-process.memory-delivery-unconfirmed");
     lines(uncertain);
-    if (recording_error) note("本轮参考记录未保存");
-    if (omitted.length) { note(omitted.every((item) => item.reason === "budget") ? "因为篇幅没带上" : "因为篇幅或条数上限没带上"); lines(omitted); }
+    if (recording_error) note("workbench.assistant-process.turn-reference-not-saved");
+    if (omitted.length) { note(omitted.every((item) => item.reason === "budget") ? "workbench.assistant-process.left-out-length" : "workbench.assistant-process.left-out-length-count"); lines(omitted); }
     put(box);
   };
   return { activityLine, place, sweep, memory, memoryScope };
@@ -135,9 +135,9 @@ export const ASSISTANT_RETRY_FACTORY_SCRIPT = String.raw`(input) => {
   let timer = 0;
   const line = (status) => {
     const left = Math.max(0, Math.ceil((Date.parse(status.dataset.retryUntil) - Date.now()) / 1000)), L = input.L;
-    if (!left) return L("正在重试…");
+    if (!left) return globalThis.t.text("workbench.assistant-process.retrying");
     const time = String(Math.floor(left / 60)).padStart(2, "0") + ":" + String(left % 60).padStart(2, "0"), reason = status.dataset.retryReason;
-    return reason === "rate-limited" ? L("被限流，{time} 后自动重试", { time }) : reason === "not-sent" ? L("请求没有发出，{time} 后自动重试", { time }) : L("模型服务暂时不可用，{time} 后自动重试", { time });
+    return reason === "rate-limited" ? globalThis.t.text("workbench.assistant-process.rate-limited-retrying-time", { time }) : reason === "not-sent" ? globalThis.t.text("workbench.assistant-process.request-wasn-t-sent-retrying-time", { time }) : globalThis.t.text("workbench.assistant-process.model-service-unavailable-retrying-time", { time });
   };
   const tick = () => {
     const waiting = input.root.querySelectorAll("[data-retry-until]");

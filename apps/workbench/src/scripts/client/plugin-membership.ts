@@ -154,7 +154,7 @@ export const PLUGIN_MEMBERSHIP_FACTORY_SCRIPT = `(host) => {
     if (!same(owned(), after) || unfollowed(document) !== unfollowed(next) || [...came, ...gone].some((id) => Boolean(stageOf(next, id)) !== (livePage(id).length > 0))) { reload(); return; }
     try { saveUiState?.(); } catch {}
     const also = [...came, ...gone].filter((id) => id !== pluginId);
-    if (also.length) showToast?.((adding ? L('同时添加了：{list}') : L('同时移除了：{list}')).replace('{list}', also.map(nameOf).join('、')));
+    if (also.length) showToast?.((adding ? globalThis.t.text("workbench.plugin-membership.also-added-list") : globalThis.t.text("workbench.plugin-membership.also-removed-list")).replace('{list}', also.map(nameOf).join('、')));
   };
 
   const run = async (pluginId, action, quiet) => {
@@ -166,7 +166,7 @@ export const PLUGIN_MEMBERSHIP_FACTORY_SCRIPT = `(host) => {
     // The tile answers at once; the server confirms, or the tile goes back.
     tile?.classList.toggle('is-available', !adding);
     try {
-      const result=await molisWorkRequest('/api/settings/projects/'+encodeURIComponent(projectId)+'/plugins',{method:adding?'POST':'DELETE',body:{plugin_id:pluginId},fallback:L(adding?'无法添加插件':'无法移除插件')});
+      const result=await molisWorkRequest('/api/settings/projects/'+encodeURIComponent(projectId)+'/plugins',{method:adding?'POST':'DELETE',body:{plugin_id:pluginId},fallback:globalThis.t.text(adding?"workbench.plugin-membership.could-not-add-plugin":"workbench.plugin-membership.could-not-remove-plugin")});
       await follow(pluginId, adding, before);
       return { ok: true, result };
     } catch (error) {

@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { pluginInstallRecords } from "../plugin-install-records.js";
 import { HomeConsentLedger } from "../home-plugin-store.js";
 import { assistantRelatedRegistration, relatedWorks, type RelatedWorksSource } from "./assistant-related-action.js";
@@ -462,6 +463,6 @@ async function interactionRoute(workId: string, parts: string[], body: Record<st
   // A stale card is prepared again only when asked: the request goes in as the page's words, nothing runs in its place.
   if (parts[4] !== "redo") return null;
   const card = service.offers.card(workId, parts[3]!);
-  return { status: 200, body: await service.send({ work_id: workId, request_id: randomUUID(), text: L("建议「{title}」没有执行：{why}。请读取最新状态，按现在的情况重新准备这一项的操作卡。",
-    { title: card.title, why: card.outcome || L("数据在建议之后变化了") }) }, { ...pageRoundLanguage(ports), ...(projectRef ? { project_ref: projectRef } : {}) }, "page") };
+  return { status: 200, body: await service.send({ work_id: workId, request_id: randomUUID(), text: uiText.text("workbench.assistant-http.suggestion-title-did-not-run-why-read-latest",
+    { title: card.title, why: card.outcome || uiText.text("workbench.assistant-http.data-changed-after-was-suggested") }) }, { ...pageRoundLanguage(ports), ...(projectRef ? { project_ref: projectRef } : {}) }, "page") };
 }

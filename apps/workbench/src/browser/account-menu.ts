@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 export function requiredElement(root: ParentNode, selector: string): HTMLElement {
   const element = root.querySelector<HTMLElement>(selector);
   if (!element) throw new Error('Missing account element: ' + selector);
@@ -27,7 +28,7 @@ function createAccountMenu(L: (text: string) => string) {
   style.textContent += '[data-account-compact-label]{display:none}body.immersive-workbench .plugin-rail .personal-account{height:50px;flex-direction:column;gap:2px}body.immersive-workbench .plugin-rail [data-account-compact-label]{display:block;font-size:10px;line-height:14px;color:var(--muted)}@media(max-width:480px){.project-directory-topbar [data-personal-status]{display:none}.project-directory-topbar [data-account-link]{flex-shrink:0;max-width:120px}.project-directory-topbar .brand{white-space:nowrap}}';
   const menu = document.createElement('div');
   menu.className = 'mw-account-popover'; menu.hidden = true; menu.id = 'mw-account-menu';
-  menu.setAttribute('role', 'dialog'); menu.setAttribute('aria-label', L('账号管理'));
+  menu.setAttribute('role', 'dialog'); menu.setAttribute('aria-label', uiText.text("workbench.account-menu.account"));
   menu.innerHTML = '<div class="mw-account-summary"><strong data-menu-name></strong><small data-menu-email></small></div><button type="button" data-personal-action="login"></button><button type="button" data-personal-action="switch"></button><button type="button" data-personal-action="logout"></button><p class="mw-account-feedback" role="status"></p><p class="mw-account-feedback" role="alert"></p>';
   for (const [action, label] of [['login', '登录 / 注册'], ['switch', '切换账号'], ['logout', '退出登录']]) {
     requiredElement(menu, '[data-personal-action=' + action + ']').textContent = L(label);
@@ -37,8 +38,8 @@ function createAccountMenu(L: (text: string) => string) {
   notice.className = 'mw-account-popover'; notice.dataset.accountTransitionNotice = ''; notice.hidden = true;
   notice.style.cssText = 'inset-inline:0;bottom:28px;margin-inline:auto'; notice.setAttribute('role', 'status');
   notice.innerHTML = '<p data-account-transition-message></p><button type="button" data-personal-action="cancel"></button>';
-  requiredElement(notice, '[data-account-transition-message]').textContent = L('账号正在切换，请稍候');
-  requiredElement(notice, 'button').textContent = L('取消'); document.body.append(notice);
+  requiredElement(notice, '[data-account-transition-message]').textContent = uiText.text("workbench.account-menu.switching-accounts-please-wait");
+  requiredElement(notice, 'button').textContent = uiText.text("common.control.cancel"); document.body.append(notice);
   return { menu, notice };
 }
 interface AccountMenuState {
@@ -53,8 +54,8 @@ export function createAccountMenuController(L: (text: string) => string, state: 
   let trigger: HTMLElement | null = null;
   const feedback = (text: string, error = false) => {
     const surface = menu;
-    requiredElement(surface, '[role="' + (error ? 'alert' : 'status') + '"]').textContent = L(text);
-    if (state().preparing && error && text) requiredElement(notice, '[data-account-transition-message]').textContent = L(text);
+    requiredElement(surface, '[role="' + (error ? 'alert' : 'status') + '"]').textContent = uiText.text(text);
+    if (state().preparing && error && text) requiredElement(notice, '[data-account-transition-message]').textContent = uiText.text(text);
   };
   const close = (focus = false) => {
     menu.hidden = true; links.forEach(a => a.setAttribute('aria-expanded', 'false'));
@@ -63,13 +64,13 @@ export function createAccountMenuController(L: (text: string) => string, state: 
   };
   const paint = () => {
     const {identity,space,busy,configured} = state();
-    const name = identity?.displayName || identity?.emails?.[0] || L('未登录');
+    const name = identity?.displayName || identity?.emails?.[0] || uiText.text("workbench.account-menu.not-signed");
     document.querySelectorAll('[data-personal-name]').forEach(el => { el.textContent = name; });
-    document.querySelectorAll('[data-personal-status]').forEach(el => { el.textContent = L(space === 'account' ? '个人空间' : '本地空间'); });
-    document.querySelectorAll('[data-account-compact-label]').forEach(el => { el.textContent = L(identity ? '账号管理' : '登录'); });
-    links.forEach(a => { a.title = identity ? name + ' · ' + L('切换账号') + ' / ' + L('退出登录') : L('登录 / 注册 molis AI'); a.setAttribute('aria-label', a.title); });
+    document.querySelectorAll('[data-personal-status]').forEach(el => { el.textContent = uiText.text(space === 'account' ? "workbench.account-menu.personal-space" : "workbench.account-menu.local-space"); });
+    document.querySelectorAll('[data-account-compact-label]').forEach(el => { el.textContent = uiText.text(identity ? "workbench.account-menu.account" : "workbench.account-menu.sign"); });
+    links.forEach(a => { a.title = identity ? name + ' · ' + uiText.text("workbench.account-menu.switch-account") + ' / ' + uiText.text("workbench.account-menu.sign-out") : uiText.text("workbench.account-menu.sign-sign-up-molis-ai"); a.setAttribute('aria-label', a.title); });
     requiredElement(menu,'[data-menu-name]').textContent = name;
-    requiredElement(menu,'[data-menu-email]').textContent = identity?.emails?.join(' · ') || L('登录后可管理你的 molis 账号');
+    requiredElement(menu,'[data-menu-email]').textContent = identity?.emails?.join(' · ') || uiText.text("workbench.account-menu.sign-manage-molis-account");
     requiredElement(menu,'[data-personal-action=login]').hidden = !!identity;
     requiredElement(menu,'[data-personal-action=switch]').hidden = !identity;
     requiredElement(menu,'[data-personal-action=logout]').hidden = !identity;
@@ -86,7 +87,7 @@ export function createAccountMenuController(L: (text: string) => string, state: 
       const rect = link.getBoundingClientRect();
       menu.style.left = Math.max(12, Math.min(rect.left, innerWidth - menu.offsetWidth - 12)) + 'px';
       menu.style.top = Math.max(12, rect.top > innerHeight / 2 ? rect.top - menu.offsetHeight - 8 : Math.min(rect.bottom + 8, innerHeight - menu.offsetHeight - 12)) + 'px';
-      if (!state().loaded) feedback('正在读取账号状态…');
+      if (!state().loaded) feedback("workbench.account-menu.reading-account-status");
       [...menu.querySelectorAll<HTMLButtonElement>('button:not([hidden])')].find(button => button.getClientRects().length)?.focus(); refresh();
     });
   });

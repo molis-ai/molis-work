@@ -1,5 +1,6 @@
+import { renderLanguageHead } from "./language-resource.js";
 import { readFileSync } from "node:fs";
-import { escapeHtml, renderDirectoryRow, type MwStatusTone as DirectoryStatusTone } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText, escapeHtml, renderDirectoryRow, type MwStatusTone as DirectoryStatusTone } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { THEME_BOOTSTRAP_SCRIPT, VISUAL_FOUNDATION_CLIENT_SCRIPT, renderIconSprite } from "@molis-ai/molis-work-design-system";
 import { assistantTextHtml } from "./scripts/client/assistant-island.js";
 import { createAssistantCodeGrow } from "./scripts/client/assistant-code-grow.js";
@@ -48,7 +49,7 @@ const TOOLS: Array<[string, string, DirectoryStatusTone, string]> = [
 
 function toolRows(L: ConditionFramePorts["L"], count: number): string {
   return TOOLS.slice(0, count).map(([verb, target, tone, state]) => renderDirectoryRow({
-    title: target, caption: L(verb) + (tone === "attention" ? " · " + L("连接中断") : ""), density: "meta", icon: verb === "跑命令" ? "terminal" : verb === "查找" ? "search" : "file",
+    title: target, caption: L(verb) + (tone === "attention" ? " · " + uiText.text("workbench.condition-frame.disconnected") : ""), density: "meta", icon: verb === "跑命令" ? "terminal" : verb === "查找" ? "search" : "file",
     status: L(state), statusTone: tone, statusIcon: tone === "done" ? "status-done" : tone === "blocked" ? "status-blocked" : "status-needs-you",
     attrs: tone === "done" ? {} : { "data-cond-kept": "" },
   })).join("");
@@ -62,13 +63,13 @@ const FRAME_STYLES = `body.mw-cond-page{margin:0;background:var(--desk,var(--was
 
 function frameBody(options: ConditionFrameOptions, L: ConditionFramePorts["L"], sample: { question: string; reply: string }): string {
   return `<main class="mw-cond" data-cond-frame-page data-text="${options.text}" data-kind="${options.kind}" data-font="${options.font}" data-copy="${options.copy}">
-    <p class="mw-cond-env" data-cond-env><span>${escapeHtml(L("缩放"))} <b data-cond-env-zoom></b></span><span>${escapeHtml(L("指针"))} <b data-cond-env-pointer></b></span><span>${escapeHtml(L("动效"))} <b data-cond-env-motion></b></span><span>${escapeHtml(L("由浏览器给，板上不模拟"))}</span></p>
-    <section><h2>${escapeHtml(L("回复 · 流式写出与滚动交错"))}</h2><p class="mw-cond-note">${escapeHtml(L("往上滚就停在原处，新写出的在「回到最新」后面等着；停止时已写出的部分留着。"))}</p>
-      <div class="assistant-thread mw-cond-thread" data-cond-thread role="log" aria-live="polite"><div class="assistant-round"><div class="assistant-msg assistant-msg--user">${escapeHtml(sample.question)}</div><div class="assistant-msg assistant-msg--assistant" data-cond-reply></div><button type="button" class="assistant-copy" data-cond-copy-reply>${escapeHtml(L("复制"))}</button></div></div>
-      <div class="mw-cond-row"><button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-cond-replay>${escapeHtml(L("重播"))}</button><button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-cond-stop disabled>${escapeHtml(L("停止"))}</button><button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-cond-latest hidden>${escapeHtml(L("回到最新"))}</button><span role="status" data-cond-state></span></div>
+    <p class="mw-cond-env" data-cond-env><span>${escapeHtml(uiText.text("workbench.condition-frame.zoom"))} <b data-cond-env-zoom></b></span><span>${escapeHtml(uiText.text("workbench.condition-frame.pointer"))} <b data-cond-env-pointer></b></span><span>${escapeHtml(uiText.text("workbench.condition-frame.motion"))} <b data-cond-env-motion></b></span><span>${escapeHtml(uiText.text("workbench.condition-frame.set-browser-not-simulated-board"))}</span></p>
+    <section><h2>${escapeHtml(uiText.text("workbench.condition-frame.reply-streaming-interleaved-scrolling"))}</h2><p class="mw-cond-note">${escapeHtml(uiText.text("workbench.condition-frame.scrolling-up-keeps-place-new-text-waits-behind"))}</p>
+      <div class="assistant-thread mw-cond-thread" data-cond-thread role="log" aria-live="polite"><div class="assistant-round"><div class="assistant-msg assistant-msg--user">${escapeHtml(sample.question)}</div><div class="assistant-msg assistant-msg--assistant" data-cond-reply></div><button type="button" class="assistant-copy" data-cond-copy-reply>${escapeHtml(uiText.text("common.control.copy"))}</button></div></div>
+      <div class="mw-cond-row"><button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-cond-replay>${escapeHtml(uiText.text("workbench.condition-frame.replay"))}</button><button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-cond-stop disabled>${escapeHtml(uiText.text("workbench.condition-frame.stop"))}</button><button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-cond-latest hidden>${escapeHtml(uiText.text("workbench.condition-frame.back-latest"))}</button><span role="status" data-cond-state></span></div>
     </section>
-    <section><h2>${escapeHtml(L("多工具 · 失败与结果未知不收起"))}</h2><div class="mw-cond-list" data-cond-tools>${toolRows(L, TOOLS.length)}</div></section>
-    <section><h2>${escapeHtml(L("边界 · 只多一项时不收起"))}</h2><div class="mw-cond-list" data-cond-tools-edge>${toolRows(L, 6)}</div></section>
+    <section><h2>${escapeHtml(uiText.text("workbench.condition-frame.several-tools-failures-unknown-outcomes-stay-sight"))}</h2><div class="mw-cond-list" data-cond-tools>${toolRows(L, TOOLS.length)}</div></section>
+    <section><h2>${escapeHtml(uiText.text("workbench.condition-frame.edge-case-one-over-limit-not-tucked-away"))}</h2><div class="mw-cond-list" data-cond-tools-edge>${toolRows(L, 6)}</div></section>
   </main>`;
 }
 
@@ -84,7 +85,7 @@ export function renderMolisWorkConditionsSpecimen(options: ConditionFrameOptions
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>${escapeHtml(L("条件与状态样例"))} · Molis Work</title>
+  <title>${escapeHtml(uiText.text("workbench.condition-frame.conditions-states-specimen"))} · Molis Work</title>
   <script>${THEME_BOOTSTRAP_SCRIPT}</script>
   <link rel="stylesheet" href="/assets/molis-work-workbench.css">${rows ? boardPluginStyleLinks() : ""}
   <style>${FRAME_STYLES}${rows ? BOARD_PLUGIN_ROW_STYLES : ""}</style>
@@ -92,6 +93,7 @@ export function renderMolisWorkConditionsSpecimen(options: ConditionFrameOptions
 <body class="immersive-workbench mw-cond-page">
   ${renderIconSprite()}
   ${rows ? `<main class="mw-cond" data-cond-frame-page data-part="rows">${renderBoardPluginRows(L, options.text)}</main>` : frameBody(options, L, sample)}
+  ${renderLanguageHead(ports.htmlLang())}
   <script>${ports.clientI18nScript()}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>
   ${rows ? "" : `<script type="application/json" id="mw-cond-data">${data}</script>
   <script>globalThis.molisBoardCodeGrow = ${createAssistantCodeGrow.toString()};</script>

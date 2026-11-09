@@ -53,46 +53,46 @@ export function renderFormWorkbench(_model: FormUiModel): string {
     body: `
     <div class="plugin-stage-list feed-stage-list feed-stage-tree" data-form="directory">
       <header class="plugin-stage-chrome form-stage-chrome">
-        <button class="mw-btn mw-btn--ghost tree-create" type="button" data-form-new>${icon("plus")}<span>${uiText.text("form.action.new")}</span></button>
+        <button class="mw-btn mw-btn--ghost tree-create" type="button" data-form-new>${icon("plus")}<span>${uiText("form.action.new")}</span></button>
       </header>
       <div class="mw-empty" data-form-empty>
         <span class="mw-empty__mark">${icon("clipboard")}</span>
-        <strong>${uiText.text("form.empty.title")}</strong>
-        <p>${uiText.text("form.empty.hint")}</p>
+        <strong>${uiText("form.empty.title")}</strong>
+        <p>${uiText("form.empty.hint")}</p>
         <p data-placement-target></p>
-        <button class="mw-btn mw-btn--primary" type="button" data-form-new>${icon("plus")}<span>${uiText.text("form.action.new")}</span></button>
+        <button class="mw-btn mw-btn--primary" type="button" data-form-new>${icon("plus")}<span>${uiText("form.action.new")}</span></button>
       </div>
       <p class="form-placement-line" data-placement-target></p>
       <div data-form-rows></div>
     </div>
     <div class="plugin-stage-workspace" data-form-stage-workspace hidden>
       <div class="plugin-stage-detail-bar">
-        <button class="plugin-stage-back" type="button" data-form-back aria-label="${uiText.text("form.editor.back")}" title="${uiText.text("form.editor.back")}">${icon("chevron-right")}</button>
-        <h1 data-form-editor-title>${uiText.text("form.page.title")}</h1>
+        <button class="plugin-stage-back" type="button" data-form-back aria-label="${uiText("form.editor.back")}" title="${uiText("form.editor.back")}">${icon("chevron-right")}</button>
+        <h1 data-form-editor-title>${uiText("form.page.title")}</h1>
         <span data-form-editor-status></span>
         <span data-placement-slot data-placement-saved="off"></span>
         <div class="form-tabs" role="tablist">
-          <button class="mw-btn mw-btn--ghost is-current" type="button" role="tab" aria-selected="true" data-form-tab="editor">${uiText.text("form.tab.edit")}</button>
-          <button class="mw-btn mw-btn--ghost" type="button" role="tab" aria-selected="false" data-form-tab="preview" title="${uiText.text("form.try.hint")}">${uiText.text("form.try.label")}</button>
-          <button class="mw-btn mw-btn--ghost" type="button" role="tab" aria-selected="false" data-form-tab="results">${uiText.text("form.tab.result")}</button>
+          <button class="mw-btn mw-btn--ghost is-current" type="button" role="tab" aria-selected="true" data-form-tab="editor">${uiText("form.tab.edit")}</button>
+          <button class="mw-btn mw-btn--ghost" type="button" role="tab" aria-selected="false" data-form-tab="preview" title="${uiText("form.try.hint")}">${uiText("form.try.label")}</button>
+          <button class="mw-btn mw-btn--ghost" type="button" role="tab" aria-selected="false" data-form-tab="results">${uiText("form.tab.result")}</button>
         </div>
         <span class="form-collect-state" data-form-collect-state></span>
-        <button class="mw-btn mw-btn--primary" type="button" data-form-publish title="${uiText.text("form.collect.hint")}">${uiText.text("form.collect.start")}</button>
-        <button class="mw-btn mw-btn--primary" type="button" data-form-fill hidden title="${uiText.text("form.fill.open-hint")}">${uiText.text("form.fill.open")}</button>
+        <button class="mw-btn mw-btn--primary" type="button" data-form-publish title="${uiText("form.collect.hint")}">${uiText("form.collect.start")}</button>
+        <button class="mw-btn mw-btn--primary" type="button" data-form-fill hidden title="${uiText("form.fill.open-hint")}">${uiText("form.fill.open")}</button>
         <details class="plugin-stage-more form-share-menu">
-          <summary class="mw-btn mw-btn--secondary">${icon("download")}<span>${uiText.text("form.export.menu")}</span></summary>
+          <summary class="mw-btn mw-btn--secondary">${icon("download")}<span>${uiText("form.export.menu")}</span></summary>
           <div class="plugin-stage-more-actions">
-            <button class="mw-btn mw-btn--ghost" type="button" data-form-export-fill>${uiText.text("form.export.fill-file")}</button>
-            <button class="mw-btn mw-btn--ghost" type="button" data-form-export-csv>${uiText.text("form.export.csv")}</button>
+            <button class="mw-btn mw-btn--ghost" type="button" data-form-export-fill>${uiText("form.export.fill-file")}</button>
+            <button class="mw-btn mw-btn--ghost" type="button" data-form-export-csv>${uiText("form.export.csv")}</button>
           </div>
         </details>
-        <button class="mw-btn mw-btn--ghost" type="button" data-form-artifact="" data-form-artifact-bar title="${uiText.text("form.fixed.hint")}">${uiText.text("form.fixed.save")}</button>
+        <button class="mw-btn mw-btn--ghost" type="button" data-form-artifact="" data-form-artifact-bar title="${uiText("form.fixed.hint")}">${uiText("form.fixed.save")}</button>
         <details class="plugin-stage-more">
-          <summary class="mw-btn mw-btn--ghost" aria-label="${uiText.text("form.more.aria")}">${icon("more")}<span>${uiText.text("form.more.label")}</span></summary>
+          <summary class="mw-btn mw-btn--ghost" aria-label="${uiText("form.more.aria")}">${icon("more")}<span>${uiText("form.more.label")}</span></summary>
           <div class="plugin-stage-more-actions">
-            <button class="mw-btn mw-btn--ghost" type="button" data-form-close hidden>${uiText.text("form.collect.stop")}</button>
-            <button class="mw-btn mw-btn--ghost" type="button" data-form-reload>${uiText.text("form.action.reload")}</button>
-            <button class="mw-btn mw-btn--ghost" type="button" data-form-delete>${uiText.text("form.action.delete")}</button>
+            <button class="mw-btn mw-btn--ghost" type="button" data-form-close hidden>${uiText("form.collect.stop")}</button>
+            <button class="mw-btn mw-btn--ghost" type="button" data-form-reload>${uiText("form.action.reload")}</button>
+            <button class="mw-btn mw-btn--ghost" type="button" data-form-delete>${uiText("form.action.delete")}</button>
           </div>
         </details>
       </div>
@@ -100,33 +100,33 @@ export function renderFormWorkbench(_model: FormUiModel): string {
       <p class="form-note" data-form-publication-note hidden></p>
       <div class="form-workspace" data-form-pane="editor">
         <div class="form-identity">
-          <label class="form-field">${uiText.text("form.field.title")}<input class="mw-input" data-form-title autocomplete="off"></label>
-          <label class="form-field">${uiText.text("form.field.description")}<input class="mw-input" data-form-description autocomplete="off" placeholder="${uiText.text("form.field.optional")}"></label>
+          <label class="form-field">${uiText("form.field.title")}<input class="mw-input" data-form-title autocomplete="off"></label>
+          <label class="form-field">${uiText("form.field.description")}<input class="mw-input" data-form-description autocomplete="off" placeholder="${uiText("form.field.optional")}"></label>
         </div>
         <div data-form-questions></div>
         <div class="form-add-row" data-form-add-row>
-          <button class="mw-btn mw-btn--secondary" type="button" data-form-add-question>${icon("plus")}<span>${uiText.text("form.question.add")}</span></button>
+          <button class="mw-btn mw-btn--secondary" type="button" data-form-add-question>${icon("plus")}<span>${uiText("form.question.add")}</span></button>
           <select class="mw-select" data-form-question-type hidden aria-hidden="true" tabindex="-1">
-            <option value="text">${uiText.text("form.type.text")}</option>
-            <option value="singleChoice">${uiText.text("form.type.single")}</option>
-            <option value="multiChoice">${uiText.text("form.type.multi")}</option>
-            <option value="dropdown">${uiText.text("form.type.dropdown")}</option>
-            <option value="rating">${uiText.text("form.type.rating")}</option>
-            <option value="date">${uiText.text("form.type.date")}</option>
+            <option value="text">${uiText("form.type.text")}</option>
+            <option value="singleChoice">${uiText("form.type.single")}</option>
+            <option value="multiChoice">${uiText("form.type.multi")}</option>
+            <option value="dropdown">${uiText("form.type.dropdown")}</option>
+            <option value="rating">${uiText("form.type.rating")}</option>
+            <option value="date">${uiText("form.type.date")}</option>
           </select>
-          <div class="mw-toggle-group form-add-types" data-slot="toggle-group" role="group" aria-label="${uiText.text("form.question.add-type")}">
-            <button class="mw-toggle" type="button" data-form-add-question="text">${uiText.text("form.type.text")}</button>
-            <button class="mw-toggle" type="button" data-form-add-question="singleChoice">${uiText.text("form.type.single")}</button>
-            <button class="mw-toggle" type="button" data-form-add-question="multiChoice">${uiText.text("form.type.multi")}</button>
-            <button class="mw-toggle" type="button" data-form-add-question="dropdown">${uiText.text("form.type.dropdown")}</button>
-            <button class="mw-toggle" type="button" data-form-add-question="rating">${uiText.text("form.type.rating")}</button>
-            <button class="mw-toggle" type="button" data-form-add-question="date">${uiText.text("form.type.date")}</button>
+          <div class="mw-toggle-group form-add-types" data-slot="toggle-group" role="group" aria-label="${uiText("form.question.add-type")}">
+            <button class="mw-toggle" type="button" data-form-add-question="text">${uiText("form.type.text")}</button>
+            <button class="mw-toggle" type="button" data-form-add-question="singleChoice">${uiText("form.type.single")}</button>
+            <button class="mw-toggle" type="button" data-form-add-question="multiChoice">${uiText("form.type.multi")}</button>
+            <button class="mw-toggle" type="button" data-form-add-question="dropdown">${uiText("form.type.dropdown")}</button>
+            <button class="mw-toggle" type="button" data-form-add-question="rating">${uiText("form.type.rating")}</button>
+            <button class="mw-toggle" type="button" data-form-add-question="date">${uiText("form.type.date")}</button>
           </div>
         </div>
         <div class="form-prompt">
-          <label class="form-field">${uiText.text("form.ai.prompt-label")}<input class="mw-input" data-form-ai-prompt autocomplete="off" placeholder="${uiText.text("form.ai.prompt-placeholder")}"></label>
-          <button class="mw-btn mw-btn--ghost" type="button" data-form-generate>${uiText.text("form.ai.add-this")}</button>
-          <button class="mw-btn mw-btn--ghost" type="button" data-form-generate-ai disabled>${icon("sparkles")}<span>${uiText.text("form.ai.draft")}</span></button>
+          <label class="form-field">${uiText("form.ai.prompt-label")}<input class="mw-input" data-form-ai-prompt autocomplete="off" placeholder="${uiText("form.ai.prompt-placeholder")}"></label>
+          <button class="mw-btn mw-btn--ghost" type="button" data-form-generate>${uiText("form.ai.add-this")}</button>
+          <button class="mw-btn mw-btn--ghost" type="button" data-form-generate-ai disabled>${icon("sparkles")}<span>${uiText("form.ai.draft")}</span></button>
         </div>
         <div class="form-draft-ask" data-form-draft-ask hidden></div>
         <p class="form-note" data-form-ai-reason></p>
@@ -134,22 +134,22 @@ export function renderFormWorkbench(_model: FormUiModel): string {
       <form class="form-workspace" data-form-pane="preview" hidden>
         <div data-form-preview></div>
         <div class="form-actions">
-          <button class="mw-btn mw-btn--primary" type="submit" data-form-submit>${uiText.text("form.fill.submit")}</button>
+          <button class="mw-btn mw-btn--primary" type="submit" data-form-submit>${uiText("form.fill.submit")}</button>
         </div>
       </form>
       <div class="form-workspace" data-form-pane="results" hidden>
         <div class="form-results-head">
           <p data-form-result-summary></p>
           <div class="form-results-actions">
-            <button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-form-import>${uiText.text("form.import.action")}</button>
+            <button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-form-import>${uiText("form.import.action")}</button>
             <input type="file" data-form-import-files accept=".json,application/json" multiple hidden>
-            <button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-form-export-csv>${uiText.text("form.export.csv-button")}</button>
-            <button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-form-to-dataset title="${uiText.text("form.dataset.hint")}">${uiText.text("form.dataset.save")}</button>
+            <button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-form-export-csv>${uiText("form.export.csv-button")}</button>
+            <button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-form-to-dataset title="${uiText("form.dataset.hint")}">${uiText("form.dataset.save")}</button>
           </div>
         </div>
         <div class="form-result-stats" data-form-result-stats></div>
         <details class="form-result-details" open>
-          <summary>${uiText.text("form.result.each")}</summary>
+          <summary>${uiText("form.result.each")}</summary>
           <div data-form-result-list></div>
         </details>
       </div>
@@ -158,8 +158,8 @@ export function renderFormWorkbench(_model: FormUiModel): string {
       <form class="creative-confirm-form" method="dialog">
         <p data-confirm-text></p>
         <div class="creative-confirm-actions">
-          <button class="mw-btn mw-btn--ghost" value="cancel">${uiText.text("form.dialog.cancel")}</button>
-          <button class="mw-btn mw-btn--primary" value="ok" data-confirm-ok>${uiText.text("form.action.delete")}</button>
+          <button class="mw-btn mw-btn--ghost" value="cancel">${uiText("form.dialog.cancel")}</button>
+          <button class="mw-btn mw-btn--primary" value="ok" data-confirm-ok>${uiText("form.action.delete")}</button>
         </div>
       </form>
     </dialog>

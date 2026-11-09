@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import fs from "node:fs";
 import path from "node:path";
 import type { WebProjectNavigation, WebSettingsProject, WebInstallationDiagnostics } from "@molis-ai/molis-work-app-workbench";
@@ -5,12 +6,11 @@ import type { MolisWorkProjectRecord } from "./project-catalog.js";
 import { isOwnedInstaller } from "./installer/home-contract.js";
 import { resolveConfiguredHome } from "./product-home.js";
 import { isPersonalSpace } from "./personal-space.js";
-import { L } from "./web-locale.js";
 
 export function projectNavigation(project: MolisWorkProjectRecord): WebProjectNavigation {
   return {
     project_id: project.project_id,
-    display_name: isPersonalSpace(project) ? L("个人空间") : project.display_name,
+    display_name: isPersonalSpace(project) ? uiText.text("workbench.project-presentation.personal-space") : project.display_name,
     data_class: project.data_class,
     database_path: project.database_path,
     source: project.source,

@@ -11,7 +11,7 @@ export const TAB_WORKSPACE_PANES_PART = `  const isCurrent = (${isCurrentTabWork
   const notifyParent = (type, payload = {}) => { if (embedded) parent.postMessage({ type, paneId: paneParams.get("workbenchPane"), ...payload }, location.origin); };
   const narrow = () => matchMedia("(max-width: 760px)").matches || root.hasAttribute("data-split-narrow");
   const paneById = (id) => state.panes.find((pane) => pane.id === id);
-  const persist = () => { if (embedded) return; try { localStorage.setItem(storageKey, JSON.stringify(state)); unsaved = false; } catch { if (!unsaved) showToast?.(L("这个布局没能保存到本机，刷新后会回到上次保存的样子"), true); unsaved = true; } };
+  const persist = () => { if (embedded) return; try { localStorage.setItem(storageKey, JSON.stringify(state)); unsaved = false; } catch { if (!unsaved) showToast?.(globalThis.t.text("workbench.tab-workspace-panes.layout-could-not-be-saved-device-after-reload"), true); unsaved = true; } };
   const readView = (paneId, tabId) => ops.readView(state, paneId, tabId);
   const writeView = (paneId, view, tabId) => {
     if (!ops.writeView(state, paneId, view, tabId)) return false;
@@ -36,12 +36,12 @@ export const TAB_WORKSPACE_PANES_PART = `  const isCurrent = (${isCurrentTabWork
       }
       setWorkspaceMode("focus", false, true);
       const collapse = document.querySelector("[data-goal-collapse]");
-      collapse?.setAttribute("aria-label", L("返回 Goal 画布"));
-      collapse?.setAttribute("title", L("返回 Goal 画布"));
+      collapse?.setAttribute("aria-label", globalThis.t.text("workbench.tab-workspace-panes.back-goal-canvas"));
+      collapse?.setAttribute("title", globalThis.t.text("workbench.tab-workspace-panes.back-goal-canvas"));
       return;
     }
     if (tab.plugin === "goals") {
-      document.querySelector("[data-goal-collapse]")?.setAttribute("aria-label", L("收起 Goal，返回关系画布"));
+      document.querySelector("[data-goal-collapse]")?.setAttribute("aria-label", globalThis.t.text("workbench.tab-workspace-panes.collapse-goal-return-canvas"));
       if (keepFrame) {
         setWorkSurface("goals");
         setWorkspaceMode("graph", false, true);
@@ -167,7 +167,7 @@ export const TAB_WORKSPACE_PANES_PART = `  const isCurrent = (${isCurrentTabWork
       // The right side alone says so at the end of its own strip, with the way back (the main strips draw theirs in renderStrip).
       let chip = document.querySelector("[data-side-solo-chip]");
       if (!ops.soloSide(state)) chip?.remove();
-      else if (!chip) { chip = stripButton("tab-solo-chip side-solo-chip", "maximize", L("独看中 · 显示全部"), { sideSoloChip: "" }); chip.addEventListener("click", () => { toggleSolo(); apply(); persist(); }); document.querySelector("[data-side-tabs]")?.before(chip); }
+      else if (!chip) { chip = stripButton("tab-solo-chip side-solo-chip", "maximize", globalThis.t.text("workbench.tab-workspace-panes.one-pane-show-all"), { sideSoloChip: "" }); chip.addEventListener("click", () => { toggleSolo(); apply(); persist(); }); document.querySelector("[data-side-tabs]")?.before(chip); }
     }
     root.toggleAttribute("data-split", state.panes.length > 1);
     const chromeTabs = !embedded && state.panes.length < 2;
@@ -195,7 +195,7 @@ export const TAB_WORKSPACE_PANES_PART = `  const isCurrent = (${isCurrentTabWork
       if (!["settings", "project-settings"].includes(document.querySelector("#goal-tree-pane")?.dataset.desktopDirectory)) {
         setDirectory(directoryOf(focusedView), false, false);
       }
-      document.title = (focusedView === "home" ? L(personal ? "个人首页" : "项目首页") : ops.pluginTitle(focusedView)) + " · Molis Work";
+      document.title = (focusedView === "home" ? globalThis.t.text(personal ? "workbench.tab-workspace-panes.personal-home" : "workbench.tab-workspace-panes.project-home") : ops.pluginTitle(focusedView)) + " · Molis Work";
     }
     // Surfaces stay where they are while they keep showing: moving a node out and back drops its scroll and focus.
     // Hidden isolated pages stay attached: reparenting an iframe reloads its browsing context.
@@ -318,7 +318,7 @@ export const TAB_WORKSPACE_PANES_PART = `  const isCurrent = (${isCurrentTabWork
         if (tree.paneId) return;
         const split = document.createElement("div"); split.className = "tab-split"; split.dataset.splitId = tree.id; split.dataset.direction = tree.direction;
         const sash = document.createElement("div"); sash.className = "tab-sash"; sash.dataset.tabSash = tree.id; sash.role = "separator"; sash.tabIndex = 0;
-        sash.setAttribute("aria-label", L("调整分屏大小")); sash.setAttribute("aria-orientation", tree.direction === "row" ? "vertical" : "horizontal");
+        sash.setAttribute("aria-label", globalThis.t.text("workbench.tab-workspace-panes.resize-split-panes")); sash.setAttribute("aria-orientation", tree.direction === "row" ? "vertical" : "horizontal");
         const handle = document.createElement("span"); handle.className = "tab-sash-handle"; handle.setAttribute("aria-hidden", "true");
         handle.innerHTML = '<svg aria-hidden="true"><use href="#icon-grip"></use></svg>';
         sash.append(handle);

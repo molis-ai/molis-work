@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { mergeDatasetDraftRows } from "../row-merge.js";
 import type { Column, Dataset, DatasetPage } from "./types.js";
 
@@ -5,12 +6,12 @@ const emptyCells = (columns: readonly Column[]) => Object.fromEntries(columns.ma
 
 /** Adds a column at the table's edge. The first column starts a grid with three empty rows. */
 export function addColumn(page: DatasetPage, open: Dataset): void {
-  const { L, el, s } = page;
+  const { el, s } = page;
   const draft = page.readDraft();
   const firstColumn = draft.columns.length === 0;
   draft.columns.push({
     id: "col-" + crypto.randomUUID(),
-    name: (el.columnName?.value || "").trim() || L("dataset.column.default-name", { n: draft.columns.length + 1 }),
+    name: (el.columnName?.value || "").trim() || uiText.text("dataset.column.default-name", { n: draft.columns.length + 1 }),
     type: (el.columnType?.value as Column["type"] | undefined) || "text",
     order: draft.columns.length + 1,
   });

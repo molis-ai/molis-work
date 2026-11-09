@@ -1,4 +1,4 @@
-import { icon, type MwButtonOptions, renderAlert, renderButton, renderKept, renderStepDot } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText, icon, type MwButtonOptions, renderAlert, renderButton, renderKept, renderStepDot } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 export interface FunctionsUiPrimitives {
   escape(value: unknown): string;
@@ -15,102 +15,102 @@ export function renderFunctionsWorkbench(model: FunctionsUiModel): string {
   return `<section class="functions-system-editor plugin-stage-shell" data-functions="workbench" data-expanded="false">
     <div class="plugin-stage-list feed-stage-list feed-stage-tree" data-functions="directory">
       <header class="plugin-stage-chrome functions-stage-chrome">
-        <h1>${p.text("判断规则")}</h1>
-        <button class="mw-btn mw-btn--ghost tree-create" type="button" data-functions-new>${icon("plus")}<span>${p.text("新建判断")}</span></button>
+        <h1>${uiText("workbench.ui.judgment-rule")}</h1>
+        <button class="mw-btn mw-btn--ghost tree-create" type="button" data-functions-new>${icon("plus")}<span>${uiText("workbench.ui.new-judgment")}</span></button>
       </header>
       <p class="functions-note" data-functions-list-note role="status" hidden></p>
       <div class="mw-empty" data-functions-empty>
         <span class="mw-empty__mark">${icon("zap")}</span>
-        <strong>${p.text("还没有判断")}</strong>
-        <p>${p.text("把重复的判断写成规则，试跑后用在页面或交给 Agent。点「新建判断」开始。") }</p>
+        <strong>${uiText("workbench.ui.no-judgments-yet")}</strong>
+        <p>${uiText("workbench.ui.turn-recurring-decisions-into-rules-test-them-then") }</p>
       </div>
       <div data-functions-rows></div>
     </div>
     <div class="plugin-stage-workspace" data-functions-stage-workspace hidden>
       <div class="plugin-stage-detail-bar">
-        <button class="plugin-stage-back" type="button" data-functions-back aria-label="${p.text("返回列表")}" title="${p.text("返回列表")}">${icon("chevron-right")}</button>
-        <h1 data-functions-editor-title>${p.text("判断")}</h1>
+        <button class="plugin-stage-back" type="button" data-functions-back aria-label="${uiText("workbench.ui.back")}" title="${uiText("workbench.ui.back")}">${icon("chevron-right")}</button>
+        <h1 data-functions-editor-title>${uiText("workbench.ui.evaluation")}</h1>
         <span data-functions-editor-status></span>
-        <button class="mw-btn mw-btn--ghost" type="button" data-functions-delete hidden>${p.text("删除草稿")}</button>
+        <button class="mw-btn mw-btn--ghost" type="button" data-functions-delete hidden>${uiText("workbench.ui.delete-draft")}</button>
       </div>
       <form class="functions-editor" data-functions-editor>
-        <nav class="functions-steps" aria-label="${p.text("函数设置步骤")}">
-          <button type="button" data-functions-step="look" aria-current="step"><span>1</span>${p.text("选择用途")}</button>
-          <button type="button" data-functions-step="fn"><span>2</span>${p.text("判断规则")}</button>
-          <button type="button" data-functions-step="use"><span>3</span>${p.text("试跑与启用")}</button>
+        <nav class="functions-steps" aria-label="${uiText("workbench.ui.function-setup-steps")}">
+          <button type="button" data-functions-step="look" aria-current="step"><span>1</span>${uiText("workbench.ui.choose-use")}</button>
+          <button type="button" data-functions-step="fn"><span>2</span>${uiText("workbench.ui.judgment-rule")}</button>
+          <button type="button" data-functions-step="use"><span>3</span>${uiText("workbench.ui.test-activate")}</button>
         </nav>
         <div class="functions-columns" data-functions-columns>
-          <section class="functions-col" data-functions-col="look" aria-label="${p.text("选择用途")}">
-            <header class="functions-section-heading"><h2 tabindex="-1">${p.text("让 AI 帮你做哪种判断？")}</h2><p data-functions-kind-description></p></header>
-            <label class="functions-field functions-name">${p.text("名称")}<input class="mw-input" data-functions-name autocomplete="off" placeholder="${p.text("例如：筛选值得跟进的消息")}"></label>
+          <section class="functions-col" data-functions-col="look" aria-label="${uiText("workbench.ui.choose-use")}">
+            <header class="functions-section-heading"><h2 tabindex="-1">${uiText("workbench.ui.what-should-ai-help-decide")}</h2><p data-functions-kind-description></p></header>
+            <label class="functions-field functions-name">${uiText("workbench.ui.name")}<input class="mw-input" data-functions-name autocomplete="off" placeholder="${uiText("workbench.ui.example-find-messages-worth-following-up")}"></label>
             <fieldset class="functions-fieldset" data-functions-destinations>
-              <legend>${p.text("在哪里使用结果")}</legend>
-              <p class="functions-hint">${p.text("选择用途后，再写判断规则。也可以先做一个独立函数。")}</p>
+              <legend>${uiText("workbench.ui.where-use-result")}</legend>
+              <p class="functions-hint">${uiText("workbench.ui.choose-where-use-result-then-write-rules-can")}</p>
               <div class="functions-dest-list">
-                <button class="functions-dest" type="button" data-functions-destination="" data-kind="none"><strong>${p.text("独立使用")}</strong><small>${p.text("先写规则、试跑，暂不接入页面。")}</small></button>
+                <button class="functions-dest" type="button" data-functions-destination="" data-kind="none"><strong>${uiText("workbench.ui.standalone")}</strong><small>${uiText("workbench.ui.write-test-rules-without-connecting-page-yet")}</small></button>
               </div>
-              <p class="functions-hint" data-functions-choice-only hidden>${p.text("评分用于独立试跑或 Agent 调用；页面按钮需要选择或是非判断。")}</p>
+              <p class="functions-hint" data-functions-choice-only hidden>${uiText("workbench.ui.ratings-work-standalone-agents-page-actions-require-choice")}</p>
               <p class="functions-context-note" data-functions-destination-hint></p>
             </fieldset>
-            <details class="functions-details" data-functions-subject-details><summary>${p.text("限定判断对象（可选）")}</summary>
-              <fieldset class="functions-fieldset" data-functions-sources><legend>${p.text("判断对象")}</legend>
-                <p class="functions-hint">${p.text("不选时显示该用途的全部动作；选择对象只筛选建议动作，不会自动读取数据。")}</p>
+            <details class="functions-details" data-functions-subject-details><summary>${uiText("workbench.ui.limit-judgment-subjects-optional")}</summary>
+              <fieldset class="functions-fieldset" data-functions-sources><legend>${uiText("workbench.ui.judgment-subjects")}</legend>
+                <p class="functions-hint">${uiText("workbench.ui.leave-empty-show-all-actions-use-filters-suggestions")}</p>
                 <div class="functions-chips" data-functions-subject-list></div>
               </fieldset>
             </details>
           </section>
-          <section class="functions-col" data-functions-col="fn" aria-label="${p.text("判断规则")}" hidden>
-            <header class="functions-section-heading"><h2 tabindex="-1">${p.text("告诉 AI 怎么判断")}</h2><p>${p.text("写清判断依据，再定义可能的结果。草稿会自动保存。")}</p></header>
-            <label class="functions-field">${p.text("判断说明")}<textarea class="mw-input" data-functions-instructions rows="4" placeholder="${p.text("例如：优先跟进与当前项目相关、需要我采取行动的消息；广告和重复内容可以忽略。")}"></textarea></label>
+          <section class="functions-col" data-functions-col="fn" aria-label="${uiText("workbench.ui.judgment-rule")}" hidden>
+            <header class="functions-section-heading"><h2 tabindex="-1">${uiText("workbench.ui.tell-ai-how-judge")}</h2><p>${uiText("workbench.ui.explain-how-judge-then-define-possible-results-drafts")}</p></header>
+            <label class="functions-field">${uiText("workbench.ui.judgment-instructions")}<textarea class="mw-input" data-functions-instructions rows="4" placeholder="${uiText("workbench.ui.example-follow-up-messages-related-project-that-need")}"></textarea></label>
             <section class="functions-criteria" data-functions-criteria-panel>
-              <div class="functions-criteria-head" data-functions-criteria-head><strong data-functions-criteria-label>${p.text("返回哪些结果")}</strong><button class="mw-btn mw-btn--ghost" type="button" data-functions-add-criterion hidden>${p.text("添加")}</button></div>
+              <div class="functions-criteria-head" data-functions-criteria-head><strong data-functions-criteria-label>${uiText("workbench.ui.possible-results")}</strong><button class="mw-btn mw-btn--ghost" type="button" data-functions-add-criterion hidden>${uiText("workbench.ui.add")}</button></div>
               <p class="functions-hint" data-functions-criteria-hint></p>
               <div data-functions-criteria></div>
-              <details class="functions-details" data-functions-palette-details><summary>${p.text("从插件能力中添加结果")}</summary>
-                <p class="functions-hint">${p.text("这里只选择判断可能返回的动作，不会执行。Agent 调用还需启用对应工具并满足权限。")} ${p.text("仅列出插件已声明的工具和页面动作。") }</p>
-                <label class="functions-field">${p.text("搜索能力")}<input class="mw-input" type="search" data-functions-palette-search placeholder="${p.text("搜索插件、动作或用途")}"></label>
+              <details class="functions-details" data-functions-palette-details><summary>${uiText("workbench.ui.add-results-plugin-capabilities")}</summary>
+                <p class="functions-hint">${uiText("workbench.ui.choose-actions-judgment-may-return-nothing-runs-here")} ${uiText("workbench.ui.only-declared-plugin-tools-page-actions-listed") }</p>
+                <label class="functions-field">${uiText("workbench.ui.search-capabilities")}<input class="mw-input" type="search" data-functions-palette-search placeholder="${uiText("workbench.ui.search-plugins-actions-uses")}"></label>
                 <div class="functions-palette" data-functions-palette></div>
               </details>
             </section>
             <section class="functions-map" data-functions-map-panel>
-              <div class="functions-criteria-head"><strong data-functions-map-title>${p.text("结果对应的页面动作")}</strong></div>
-              <p class="functions-hint" data-functions-map-hint>${p.text("每个结果都需要对应一个动作，才能在所选页面启用。")}</p>
+              <div class="functions-criteria-head"><strong data-functions-map-title>${uiText("workbench.ui.map-results-page-actions")}</strong></div>
+              <p class="functions-hint" data-functions-map-hint>${uiText("workbench.ui.map-every-result-action-before-activating-page")}</p>
               <div data-functions-map></div>
             </section>
-            <details class="functions-details"><summary>${p.text("高级：调用标识")}</summary><label class="functions-field">${p.text("函数 key")}<input class="mw-input" data-functions-key spellcheck="false" autocomplete="off"><small>${p.text("供 Agent 和接口调用，已自动生成；发布后不能改。")}</small></label></details>
+            <details class="functions-details"><summary>${uiText("workbench.ui.advanced-invocation-key")}</summary><label class="functions-field">${uiText("workbench.ui.function-key")}<input class="mw-input" data-functions-key spellcheck="false" autocomplete="off"><small>${uiText("workbench.ui.generated-agent-api-calls-locked-after-publishing")}</small></label></details>
           </section>
-          <section class="functions-col" data-functions-col="use" aria-label="${p.text("试跑与启用")}" hidden>
-            <header class="functions-section-heading"><h2 tabindex="-1">${p.text("先试一段，再投入使用")}</h2><p>${p.text("试跑只返回判断结果，不执行选出的动作。TypeSafe 可能收取调用费用。")}</p></header>
+          <section class="functions-col" data-functions-col="use" aria-label="${uiText("workbench.ui.test-activate")}" hidden>
+            <header class="functions-section-heading"><h2 tabindex="-1">${uiText("workbench.ui.test-judgment-before-using")}</h2><p>${uiText("workbench.ui.tests-return-judgment-without-executing-selected-action-type")}</p></header>
             <section class="functions-try">
-              <label class="functions-field">${p.text("试跑内容")}<textarea class="mw-input" data-functions-preview-input rows="5" placeholder="${p.text("粘贴一条真实场景中的消息或材料，看看判断是否符合预期。")}"></textarea></label>
-              <div class="functions-actions"><button class="mw-btn mw-btn--secondary" type="button" data-functions-preview>${p.text("试跑")}</button><button class="mw-btn mw-btn--ghost" type="button" data-functions-save-sample>${p.text("存为样例")}</button></div>
-              <details class="functions-details"><summary>${p.text("已保存的样例")}</summary><div data-functions-samples></div></details>
+              <label class="functions-field">${uiText("workbench.ui.test-input")}<textarea class="mw-input" data-functions-preview-input rows="5" placeholder="${uiText("workbench.ui.paste-message-material-real-scenario-check-judgment")}"></textarea></label>
+              <div class="functions-actions"><button class="mw-btn mw-btn--secondary" type="button" data-functions-preview>${uiText("workbench.ui.preview")}</button><button class="mw-btn mw-btn--ghost" type="button" data-functions-save-sample>${uiText("workbench.ui.save-sample")}</button></div>
+              <details class="functions-details"><summary>${uiText("workbench.ui.saved-samples")}</summary><div data-functions-samples></div></details>
               <div class="functions-preview" data-functions-last-preview hidden aria-live="polite"></div>
             </section>
-            <section class="functions-release"><h3>${p.text("发布与启用")}</h3><p class="functions-hint" data-functions-release-hint></p><button class="mw-btn mw-btn--primary" type="button" data-functions-publish>${p.text("发布 v1")}</button><div class="functions-usages" data-functions-usages></div></section>
+            <section class="functions-release"><h3>${uiText("workbench.ui.publish-activate")}</h3><p class="functions-hint" data-functions-release-hint></p><button class="mw-btn mw-btn--primary" type="button" data-functions-publish>${uiText("workbench.ui.publish-v1")}</button><div class="functions-usages" data-functions-usages></div></section>
           </section>
         </div>
         <footer class="functions-editor-footer">
           <div class="functions-feedback"><span class="functions-save-status" data-functions-save-status role="status"></span><div class="functions-band" data-functions-band role="status"></div><p class="functions-note" data-functions-note role="status" hidden></p></div>
-          <div class="functions-actions"><button class="mw-btn mw-btn--ghost" type="button" data-functions-prev>${p.text("上一步")}</button><button class="mw-btn mw-btn--primary" type="button" data-functions-next>${p.text("下一步：判断规则")}</button></div>
+          <div class="functions-actions"><button class="mw-btn mw-btn--ghost" type="button" data-functions-prev>${uiText("workbench.ui.previous")}</button><button class="mw-btn mw-btn--primary" type="button" data-functions-next>${uiText("workbench.ui.next-judgment-rules")}</button></div>
         </footer>
       </form>
     </div>
     ${renderKeepEdits(p)}
     <dialog class="mw-dialog" data-functions-leave aria-labelledby="functions-leave-title">
       <form class="mw-form mw-dialog__shell" method="dialog">
-        <header class="mw-form__header"><div><h2 id="functions-leave-title">${p.text("你写的还没存")}</h2></div></header>
-        <div class="mw-form__body"><p>${p.text("这次没能存上。离开后，你写的就没有了。")}</p></div>
-        <footer class="mw-form__footer">${renderButton({ label: p.text("不要了，回到列表"), variant: "secondary", type: "submit", attrs: { value: "discard", "data-functions-leave-discard": "" } })}${renderButton({ label: p.text("留在这里"), type: "submit", attrs: { value: "stay", autofocus: true, "data-functions-leave-stay": "" } })}</footer>
+        <header class="mw-form__header"><div><h2 id="functions-leave-title">${uiText("workbench.ui.what-wrote-isn-t-saved")}</h2></div></header>
+        <div class="mw-form__body"><p>${uiText("workbench.ui.couldn-t-be-saved-time-if-leave-what")}</p></div>
+        <footer class="mw-form__footer">${renderButton({ label: uiText.text("workbench.ui.discard-go-back"), variant: "secondary", type: "submit", attrs: { value: "discard", "data-functions-leave-discard": "" } })}${renderButton({ label: uiText.text("workbench.ui.stay-here"), type: "submit", attrs: { value: "stay", autofocus: true, "data-functions-leave-stay": "" } })}</footer>
       </form>
     </dialog>
     <dialog class="mw-dialog mw-dialog--form" data-functions-create-dialog aria-labelledby="functions-create-title">
       <form class="mw-form mw-dialog__shell" data-functions-create-form>
-        <header class="mw-form__header"><div><h2 id="functions-create-title">${p.text("新建判断")}</h2></div><button class="mw-btn mw-btn--ghost mw-btn--icon-only" type="button" data-functions-create-close aria-label="${p.text("关闭")}">${icon("x")}</button></header>
+        <header class="mw-form__header"><div><h2 id="functions-create-title">${uiText("workbench.ui.new-judgment")}</h2></div><button class="mw-btn mw-btn--ghost mw-btn--icon-only" type="button" data-functions-create-close aria-label="${uiText("common.control.close")}">${icon("x")}</button></header>
         <div class="mw-form__body functions-create-choices">
-          <button class="mw-btn mw-btn--secondary" type="submit" name="primitive" value="choice">${p.text("选择一个结果")}<small>${p.text("例如：跟进、保存还是忽略。Choice")}</small></button>
-          <button class="mw-btn mw-btn--secondary" type="submit" name="primitive" value="noul">${p.text("判断是或否")}<small>${p.text("例如：这份材料是否足够。Noul")}</small></button>
-          <button class="mw-btn mw-btn--secondary" type="submit" name="primitive" value="score">${p.text("按等级评分")}<small>${p.text("例如：把紧急程度分为低、中、高。Score")}</small></button>
+          <button class="mw-btn mw-btn--secondary" type="submit" name="primitive" value="choice">${uiText("workbench.ui.choose-one-result")}<small>${uiText("workbench.ui.example-follow-up-save-ignore-choice")}</small></button>
+          <button class="mw-btn mw-btn--secondary" type="submit" name="primitive" value="noul">${uiText("workbench.ui.decide-yes-no")}<small>${uiText("workbench.ui.example-material-sufficient-noul")}</small></button>
+          <button class="mw-btn mw-btn--secondary" type="submit" name="primitive" value="score">${uiText("workbench.ui.rate-scale")}<small>${uiText("workbench.ui.example-rate-urgency-low-medium-high-score")}</small></button>
         </div>
         <p class="functions-note is-error" data-functions-create-note role="status"></p>
       </form>
@@ -127,21 +127,21 @@ const band = (phase: string, alert: Parameters<typeof renderAlert>[0]): string =
  * one alert per state for the feedback slot, the kept row and the step's dot, drawn by the SDK's parts and cloned by the page.
  * `{version}` is filled in by the page from the record it read.
  */
-function renderKeepEdits(p: FunctionsUiPrimitives): string {
-  const reload = act("reload", p.text("载入最新版"), true), saveNew = (primary: boolean) => act("save-new", p.text("存成新规则"), primary);
+function renderKeepEdits(_p: FunctionsUiPrimitives): string {
+  const reload = act("reload", uiText.text("workbench.ui.load-latest"), true), saveNew = (primary: boolean) => act("save-new", uiText.text("workbench.ui.save-new-rule"), primary);
   return [
-    band("conflict", { tone: "warning", title: p.text("这条规则在别处改过"), body: p.text("你写的都还在，还没存。"), actions: [reload] }),
-    band("offline", { tone: "warning", title: p.text("最新版还没载入"), body: p.text("连接好像断了。你写的都还在，连上后再试一次。"), actions: [act("reload", p.text("再试一次"), true)] }),
-    band("second", { tone: "warning", title: p.text("这条规则又被改了一次"), body: p.text("可能还有人在改它。你写的都还在，还没存。"), actions: [saveNew(false), reload] }),
-    band("deleted", { tone: "warning", title: p.text("这条规则已被删除"), body: p.text("你写的都还在，可以存成一条新规则。"), actions: [act("discard", p.text("不要了")), saveNew(true)] }),
-    band("published", { tone: "warning", title: p.text("这条规则已在别处发布为 {version}", { version: "{version}" }), body: p.text("发布后不能再改。你写的都还在，可以用它另起一条。"), actions: [act("view", p.text("查看 {version}", { version: "{version}" })), saveNew(true)] }),
-    band("viewing", { title: p.text("这是已发布的 {version}", { version: "{version}" }), body: p.text("你写的还留着，可以用它另起一条。"), actions: [saveNew(true)] }),
-    band("settled", { title: p.text("这条规则已在别处发布为 {version}", { version: "{version}" }), body: p.text("发布后不能再改。") }),
-    band("clean", { title: p.text("这条规则刚在别处改过，已换成最新版"), body: p.text("发布前看一眼。"), actions: [act("goto", p.text("看看改了什么"))] }),
-    band("loaded", { tone: "success", state: "done", title: p.text("已载入最新版"), body: " ", actions: [act("dismiss", p.text("收起"))] }),
-    band("saved-new", { tone: "success", state: "done", title: p.text("已存成新规则"), body: p.text("名字和内容都是你写的。"), actions: [act("dismiss", p.text("收起"))] }),
+    band("conflict", { tone: "warning", title: uiText.text("workbench.ui.rule-changed-elsewhere"), body: uiText.text("workbench.ui.what-wrote-still-here-not-saved-yet"), actions: [reload] }),
+    band("offline", { tone: "warning", title: uiText.text("workbench.ui.couldn-t-load-latest-version"), body: uiText.text("workbench.ui.connection-seems-down-what-wrote-still-here-try"), actions: [act("reload", uiText.text("workbench.ui.try-again"), true)] }),
+    band("second", { tone: "warning", title: uiText.text("workbench.ui.rule-changed-again"), body: uiText.text("workbench.ui.someone-may-still-be-working-what-wrote-still"), actions: [saveNew(false), reload] }),
+    band("deleted", { tone: "warning", title: uiText.text("workbench.ui.rule-was-deleted"), body: uiText.text("workbench.ui.what-wrote-still-here-can-keep-new-rule"), actions: [act("discard", uiText.text("workbench.ui.discard")), saveNew(true)] }),
+    band("published", { tone: "warning", title: uiText.text("workbench.ui.rule-was-published-elsewhere-version", { version: "{version}" }), body: uiText.text("workbench.ui.published-rule-can-t-change-what-wrote-still"), actions: [act("view", uiText.text("workbench.ui.view-version", { version: "{version}" })), saveNew(true)] }),
+    band("viewing", { title: uiText.text("workbench.ui.published-version", { version: "{version}" }), body: uiText.text("workbench.ui.what-wrote-still-kept-can-start-new-one"), actions: [saveNew(true)] }),
+    band("settled", { title: uiText.text("workbench.ui.rule-was-published-elsewhere-version", { version: "{version}" }), body: uiText.text("workbench.ui.published-rule-can-t-change") }),
+    band("clean", { title: uiText.text("workbench.ui.rule-just-changed-elsewhere-so-re-latest-now"), body: uiText.text("workbench.ui.take-look-before-publish"), actions: [act("goto", uiText.text("workbench.ui.see-what-changed"))] }),
+    band("loaded", { tone: "success", state: "done", title: uiText.text("workbench.ui.latest-version-loaded"), body: " ", actions: [act("dismiss", uiText.text("workbench.ui.collapse"))] }),
+    band("saved-new", { tone: "success", state: "done", title: uiText.text("workbench.ui.saved-new-rule"), body: uiText.text("workbench.ui.name-content-what-wrote"), actions: [act("dismiss", uiText.text("workbench.ui.collapse"))] }),
     `<template data-functions-keep="busy">${renderButton({ label: "", loading: true, attrs: { "data-functions-keep-act": "busy" } })}</template>`,
-    `<template data-functions-keep="kept">${renderKept({ who: p.text("你写的"), text: "", rise: true, action: { label: p.text("放回"), attrs: { "data-functions-kept-swap": "" } }, more: { label: p.text("看全部"), attrs: { hidden: true, "data-functions-kept-more": "" } } })}</template>`,
-    `<template data-functions-keep="dot">${renderStepDot({ label: p.text("这一步有改动要看") })}</template>`,
+    `<template data-functions-keep="kept">${renderKept({ who: uiText.text("workbench.ui.wrote"), text: "", rise: true, action: { label: uiText.text("workbench.ui.put-back"), attrs: { "data-functions-kept-swap": "" } }, more: { label: uiText.text("workbench.ui.show-all"), attrs: { hidden: true, "data-functions-kept-more": "" } } })}</template>`,
+    `<template data-functions-keep="dot">${renderStepDot({ label: uiText.text("workbench.ui.something-changed-step") })}</template>`,
   ].join("");
 }

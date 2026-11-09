@@ -27,8 +27,8 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
       }
       form.querySelectorAll('[aria-invalid="true"]').forEach((control) => control.removeAttribute("aria-invalid"));
       invalid.setAttribute("aria-invalid", "true");
-      const label = invalid.closest("label")?.querySelector(":scope > span")?.textContent?.trim() || L("必填信息");
-      errorBox.textContent = L("请先补充：{label}", { label });
+      const label = invalid.closest("label")?.querySelector(":scope > span")?.textContent?.trim() || globalThis.t.text("workbench.editing-graph.required-information");
+      errorBox.textContent = globalThis.t.text("workbench.editing-graph.complete-field-first-label", { label });
       errorBox.hidden = false;
       requestAnimationFrame(() => invalid.focus());
       return true;

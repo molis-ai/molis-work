@@ -18,6 +18,7 @@ interface Activation {
   readonly install_id: string | null;
   /** The Runtime's own activation, if this is a running plugin rather than a registered platform page. */
   readonly instance?: PluginInstance;
+  readonly registeredText?: PluginTextReader;
   readonly project_id: string | null;
   readonly actor_id: string;
   /** The image connections this instance was given (`services.imageGeneration`): its Manifest's, or the one a sandboxed package's effects derive. */
@@ -80,7 +81,7 @@ function assertTextSource(activation: Activation, connected: ReadonlySet<Activat
 
 function pageTextSources(id: string, page: Page): PageTextSource[] {
   return [page.activation, ...page.embedded].map((activation, index) => ({
-    id, manifest: activation.manifest, reader: activation.instance ? pluginTextReader(activation.instance) : null, embedded: index > 0,
+    id, manifest: activation.manifest, reader: activation.instance ? pluginTextReader(activation.instance) : activation.registeredText ?? null, embedded: index > 0,
   }));
 }
 

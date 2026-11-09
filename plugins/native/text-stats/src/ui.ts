@@ -66,8 +66,8 @@ export function renderTextStats(model: TextStatsUiModel): string {
     + `<p class="stats-source">${escape(view.source.path)}`
     + `<span class="stats-origin">${escape(view.source.source_plugin_id)} · v${escape(view.source.content_version)}</span></p>`
     + `<dl class="stats-counts">`
-    + `<dt>${uiText.text("text-stats.count.characters")}</dt><dd>${escape(view.characters ?? 0)}</dd>`
-    + `<dt>${uiText.text("text-stats.count.bytes")}</dt><dd>${escape(view.utf8_bytes ?? 0)}</dd>`
-    + `<dt>${uiText.text("text-stats.count.lines")}</dt><dd>${escape(view.lines ?? 0)}</dd>`
+    + `<dt>${uiText("text-stats.count.characters")}</dt><dd>${escape(view.characters ?? 0)}</dd>`
+    + `<dt>${uiText("text-stats.count.bytes")}</dt><dd>${escape(view.utf8_bytes ?? 0)}</dd>`
+    + `<dt>${uiText("text-stats.count.lines")}</dt><dd>${escape(view.lines ?? 0)}</dd>`
     + `</dl></section>`;
 }

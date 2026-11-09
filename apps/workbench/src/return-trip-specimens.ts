@@ -1,4 +1,4 @@
-import { escapeHtml, renderBadge, renderReturnBar, renderResumePrompt, type ReturnBarState } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText, escapeHtml, renderBadge, renderReturnBar, renderResumePrompt, type ReturnBarState } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 /**
  * The component board's 回到原处 section (specs/draft-and-return/spec.md §9, U2 and U4): the settings' return bar in each of its
@@ -8,44 +8,44 @@ import { escapeHtml, renderBadge, renderReturnBar, renderResumePrompt, type Retu
  */
 type Say = (text: string, values?: Record<string, string | number>) => string;
 
-function figure(L: Say, caption: string, body: string): string {
-  return `<figure class="mw-catalog__specimen" data-board-review="d-track"><figcaption>${escapeHtml(caption)} ${renderBadge({ label: L("待 D 轨合审"), tone: "info" })}</figcaption>${body}</figure>`;
+function figure(_L: Say, caption: string, body: string): string {
+  return `<figure class="mw-catalog__specimen" data-board-review="d-track"><figcaption>${escapeHtml(caption)} ${renderBadge({ label: uiText.text("workbench.return-trip-specimens.awaiting-d-track-review"), tone: "info" })}</figcaption>${body}</figure>`;
 }
 
-function bar(L: Say, name: string, state: ReturnBarState, body: string, back: string, kept = false): string {
-  return renderReturnBar({ title: L("从「{name}」来", { name }), body: L(body) + (kept ? L("你写的都还在。") : ""), back: L(back), label: L("从哪里来"), state });
+function bar(_L: Say, name: string, state: ReturnBarState, body: string, back: string, kept = false): string {
+  return renderReturnBar({ title: uiText.text("workbench.return-trip-specimens.name", { name }), body: uiText.text(body) + (kept ? uiText.text("workbench.return-trip-specimens.what-wrote-kept") : ""), back: uiText.text(back), label: uiText.text("workbench.return-trip-specimens.where-came"), state });
 }
 
 function barsSpecimen(L: Say): string {
-  const row = (label: string, body: string) => `<li><span>${escapeHtml(L(label))}</span>${body}</li>`;
+  const row = (label: string, body: string) => `<li><span>${escapeHtml(uiText.text(label))}</span>${body}</li>`;
   return `<ul class="mw-return-board__states">
-    ${row("在等配好", bar(L, "Coding", "waiting", "配好模型后自动回去。", "现在回去", true))}
-    ${row("连接在等", bar(L, "Feed", "waiting", "连好后自动回去。", "现在回去"))}
-    ${row("本来就好", bar(L, "Feed", "look", "看完点「回去」，回到原来的地方。", "回去"))}
-    ${row("已经好了", bar(L, "Coding", "ready", "已经好了，可以回去了。", "回去"))}
-    ${row("原处已关", bar(L, "Images", "gone", "原来的页面已经关了，配好的设置都在。", "关闭设置"))}
+    ${row("workbench.return-trip-specimens.waiting", bar(L, "Coding", "waiting", "workbench.return-trip-specimens.goes-back-once-model-set-up", "workbench.return-trip-specimens.go-back-now", true))}
+    ${row("workbench.return-trip-specimens.waiting-connect", bar(L, "Feed", "waiting", "workbench.return-trip-specimens.goes-back-once-connected", "workbench.return-trip-specimens.go-back-now"))}
+    ${row("workbench.return-trip-specimens.already-set-up", bar(L, "Feed", "look", "workbench.return-trip-specimens.when-youre-done-press-go-back-return-where", "workbench.return-trip-specimens.go-back"))}
+    ${row("workbench.return-trip-specimens.set-up", bar(L, "Coding", "ready", "workbench.return-trip-specimens.its-set-up-can-go-back-now", "workbench.return-trip-specimens.go-back"))}
+    ${row("workbench.return-trip-specimens.page-closed", bar(L, "Images", "gone", "workbench.return-trip-specimens.page-came-closed-what-set-up-kept", "workbench.return-trip-specimens.close-settings"))}
   </ul>`;
 }
 
 function narrowSpecimen(L: Say): string {
-  return `<div class="mw-return-board__narrow">${bar(L, "Cognia", "waiting", "配好模型后自动回去。", "现在回去")}</div>`;
+  return `<div class="mw-return-board__narrow">${bar(L, "Cognia", "waiting", "workbench.return-trip-specimens.goes-back-once-model-set-up", "workbench.return-trip-specimens.go-back-now")}</div>`;
 }
 
-function resumeSpecimen(L: Say): string {
+function resumeSpecimen(_L: Say): string {
   const prompt = (title: string, body: string, resume: string) =>
-    renderResumePrompt({ title: L(title), body: L(body), resume: L(resume), dismiss: L("先不用") });
+    renderResumePrompt({ title: uiText.text(title), body: uiText.text(body), resume: uiText.text(resume), dismiss: uiText.text("workbench.return-trip-specimens.not-now") });
   return `<div class="mw-return-board__prompts">
-    ${prompt("刚才去配了模型，已经好了", "你写的那段还在输入框里。", "接着发送")}
-    ${prompt("GitHub 已经连上", "要接着推送这 3 个提交吗？", "接着推送")}
+    ${prompt("workbench.return-trip-specimens.model-went-set-up-ready", "workbench.return-trip-specimens.what-wrote-still-message-box", "workbench.return-trip-specimens.send-now")}
+    ${prompt("workbench.return-trip-specimens.git-hub-connected", "workbench.return-trip-specimens.push-these-3-commits-now", "workbench.return-trip-specimens.push-now")}
   </div>`;
 }
 
 export function renderReturnTripSection(L: Say): string {
-  return `<section class="mw-catalog__section" id="return-trips" data-primitive="return-trips"><h2>${escapeHtml(L("回到原处"))}</h2>
+  return `<section class="mw-catalog__section" id="return-trips" data-primitive="return-trips"><h2>${escapeHtml(uiText.text("workbench.return-trip-specimens.back-where-were"))}</h2>
     <div class="mw-catalog__specimens">
-      ${figure(L, L("设置顶上的返回条 · 从哪里来、配好以后怎样、现在回去"), barsSpecimen(L))}
-      ${figure(L, L("返回条 · 窄屏（390）"), narrowSpecimen(L))}
-      ${figure(L, L("接着做 · 刷新或重开后回到原处，问一句再做"), resumeSpecimen(L))}
+      ${figure(L, uiText.text("workbench.return-trip-specimens.return-bar-above-settings-where-came-what-happens"), barsSpecimen(L))}
+      ${figure(L, uiText.text("workbench.return-trip-specimens.return-bar-narrow-390"), narrowSpecimen(L))}
+      ${figure(L, uiText.text("workbench.return-trip-specimens.carry-back-after-reload-reopen-asked-once-before"), resumeSpecimen(L))}
     </div>
   </section>`;
 }

@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 /**
  * A file's content as read-only HTML (specs/artifact-positioning A4): Markdown, CSV as a table, plain text, and raster
  * images. Everything else is named, not shown. It escapes every value and never emits a script, a frame or a link that
@@ -14,10 +15,10 @@ export interface FilePreviewContent {
 export function renderFilePreviewHtml(file: FilePreviewContent, primitives: { escape(value: string): string; text(value: string): string }): string {
   const esc = primitives.escape;
   const type = file.media_type.split(";")[0]!.trim().toLowerCase();
-  const truncated = file.truncated ? `<p class="file-preview-truncated">${primitives.text("只显示了开头一部分。")}</p>` : "";
+  const truncated = file.truncated ? `<p class="file-preview-truncated">${uiText("workbench.file-preview.only-beginning-shown")}</p>` : "";
   if (file.encoding === "base64") {
     if (/^image\/(?:png|jpeg|gif|webp|avif)$/u.test(type)) return `<img class="file-preview-image" alt="${esc(file.title)}" src="data:${type};base64,${file.data.replace(/[^A-Za-z0-9+/=]/gu, "")}">`;
-    return `<p class="file-preview-note">${primitives.text("这种文件不能在这里预览，可以下载后打开。")}（${esc(type)}）</p>`;
+    return `<p class="file-preview-note">${uiText("workbench.file-preview.kind-file-can-t-be-previewed-here-download")}（${esc(type)}）</p>`;
   }
   if (/markdown/u.test(type)) return truncated + markdown(file.data, esc);
   if (type === "text/csv") return truncated + table(file.data, esc);

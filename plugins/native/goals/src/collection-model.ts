@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 /** UI-only collection selection and labels; counts are supplied by the authoritative query. */
 export interface GoalCollectionItem {
   goal: { goal_id: string; title: string };
@@ -20,8 +21,8 @@ export function buildGoalCollectionModel<T extends GoalCollectionItem>(
 ) {
   const visibleGoals = trashView ? view.trashed_goals : archiveView ? view.archived_goals : view.goals;
   const collectionView = archiveView || trashView;
-  const collectionTitle = trashView ? L("回收站") : archiveView ? L("已归档") : L("Goal Tree");
-  const collectionSuffix = trashView ? L("回收站") : archiveView ? L("归档") : "";
+  const collectionTitle = trashView ? uiText.text("goals.collection-model.trash") : archiveView ? uiText.text("goals.collection-model.archived") : L("Goal Tree");
+  const collectionSuffix = trashView ? uiText.text("goals.collection-model.trash") : archiveView ? uiText.text("goals.collection-model.archive") : "";
   // Current Goals stay unselected until the user opens one or the Board has a real active Goal.
   // Archive and trash still land on the first item in that collection when none was requested.
   const selected =
@@ -32,16 +33,16 @@ export function buildGoalCollectionModel<T extends GoalCollectionItem>(
   const selectedId = selected?.goal.goal_id ?? "";
   const title =
     selected ? selected.goal.title + " · Molis Work" :
-    trashView ? L("回收站 · Molis Work") : archiveView ? L("已归档 Goal · Molis Work") : "Molis Work";
+    trashView ? uiText.text("goals.collection-model.trash-molis-work") : archiveView ? uiText.text("goals.collection-model.archived-goals-molis-work") : "Molis Work";
   const phaseSummary = [
-    { label: L("需要你决定"), count: view.counts.waiting_for_human },
-    { label: L("正在推进"), count: view.counts.executing },
-    { label: L("可记录"), count: view.counts.execution_pending },
-    { label: L("受阻"), count: view.counts.execution_blocked },
-    { label: L("已取消"), count: view.counts.invalidated },
+    { label: uiText.text("goals.collection-model.needs-decision"), count: view.counts.waiting_for_human },
+    { label: uiText.text("goals.collection-model.progress"), count: view.counts.executing },
+    { label: uiText.text("goals.collection-model.ready-record"), count: view.counts.execution_pending },
+    { label: uiText.text("goals.collection-model.blocked"), count: view.counts.execution_blocked },
+    { label: uiText.text("goals.collection-model.cancelled"), count: view.counts.invalidated },
   ].filter(item => item.count > 0).map(item => `${item.label} ${item.count}`).join(" · ");
-  const footerStatus = phaseSummary || L("当前没有进行中的 Goal");
-  const collectionNote = trashView ? L("可恢复；历史与关联处理记录会保留") : archiveView ? L("可随时恢复") : footerStatus;
+  const footerStatus = phaseSummary || uiText.text("goals.collection-model.no-goal-progress");
+  const collectionNote = trashView ? uiText.text("goals.collection-model.recoverable-history-relation-handling-stay") : archiveView ? uiText.text("goals.collection-model.can-be-restored-any-time") : footerStatus;
   return { visibleGoals, selected, selectedId, title, collectionView, collectionTitle, collectionSuffix,
     collectionNote, archiveView, trashView };
 }

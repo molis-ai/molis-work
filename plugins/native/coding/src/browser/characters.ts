@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { errorMessage } from "./dom.js";
 import type { PagePorts } from "./types.js";
 
@@ -32,7 +33,6 @@ export interface CharacterPorts extends PagePorts {
 
 /** Exact published selection for the next Run; never derives history from the current library. */
 export function characterChoice(ports: CharacterPorts) {
-  const L = ports.translate;
   const { lifetime, q, api, current, selections, titles, skillSelections, save, controls, status } = ports;
   const dialog = q<HTMLDialogElement>('[data-coding-character-dialog]'), list = q('[data-coding-character-list]'), error = q('[data-coding-character-error]'), submit = q<HTMLButtonElement>('[data-coding-character-save]');
   const closeButton = q<HTMLButtonElement>('[data-coding-character-close]');
@@ -49,7 +49,7 @@ export function characterChoice(ports: CharacterPorts) {
     candidate = structuredClone(selections.get(id) ?? null);
     selectedSkills = [...(skillSelections.get(id) || [])];
     rows = [];
-    list.textContent = L('coding.character.reading');
+    list.textContent = uiText.text('coding.character.reading');
     error.textContent = '';
     submit.disabled = true;
     dialog.showModal();
@@ -57,11 +57,11 @@ export function characterChoice(ports: CharacterPorts) {
       const data = await api<CharactersRead>('/sessions/' + encodeURIComponent(id) + '/characters');
       if (request !== ticket || current() !== id || !dialog.open)
         return;
-      rows = data.characters.map(item => ({ ...item, available: item.available && data.limits_verified, reason: data.limits_verified ? item.reason : L('coding.character.runtime') }));
+      rows = data.characters.map(item => ({ ...item, available: item.available && data.limits_verified, reason: data.limits_verified ? item.reason : uiText.text('coding.character.runtime') }));
       if (candidate && !rows.some(item => key(item.reference) === key(candidate)))
-        rows.unshift({ reference: candidate, title: titles.get(id) || L('coding.character.gone-title'), available: false, reason: L('coding.character.gone') });
+        rows.unshift({ reference: candidate, title: titles.get(id) || uiText.text('coding.character.gone-title'), available: false, reason: uiText.text('coding.character.gone') });
       list.replaceChildren();
-      const options = [{ reference: null, title: L('coding.character.no-character'), available: true, instructions: L('coding.character.no-character-note') }, ...rows];
+      const options = [{ reference: null, title: uiText.text('coding.character.no-character'), available: true, instructions: uiText.text('coding.character.no-character-note') }, ...rows];
       for (const [index, item] of options.entries()) {
         const row = document.createElement('section'), label = document.createElement('label'), radio = document.createElement('input'), name = document.createElement('span');
         row.className = 'coding-material';
@@ -79,21 +79,21 @@ export function characterChoice(ports: CharacterPorts) {
           return; candidate = structuredClone(item.reference); selectedSkills = []; list.querySelectorAll<HTMLInputElement>('[data-character-skill]').forEach(input => { input.checked = false; input.disabled = input.dataset.owner !== key(candidate) || input.dataset.compatible !== 'true'; }); submit.disabled = false; error.textContent = ''; });
         if (!item.available) {
           const reason = document.createElement('p');
-          reason.textContent = item.reason || L('coding.character.unavailable');
+          reason.textContent = item.reason || uiText.text('coding.character.unavailable');
           row.append(reason);
         }
         if (item.reference && typeof item.instructions === 'string') {
           const detail = document.createElement('details'), summary = document.createElement('summary'), body = document.createElement('pre'), scope = document.createElement('p');
-          summary.textContent = L('coding.character.content');
+          summary.textContent = uiText.text('coding.character.content');
           body.textContent = item.instructions;
           const hostTools = item.host_tools ?? null;
-          scope.textContent = L('coding.character.tools', { tools: hostTools === null ? L('coding.character.tools-inherit') : hostTools.length ? hostTools.join(L('coding.list.joiner')) : L('coding.character.tools-none') });
+          scope.textContent = uiText.text('coding.character.tools', { tools: hostTools === null ? uiText.text('coding.character.tools-inherit') : hostTools.length ? hostTools.join(uiText.text('coding.list.joiner')) : uiText.text('coding.character.tools-none') });
           detail.append(summary, body, scope);
           row.append(detail);
         }
         if (item.imported_skills?.length) {
           const skills = document.createElement('details'), summary = document.createElement('summary');
-          summary.textContent = L('coding.character.skills');
+          summary.textContent = uiText.text('coding.character.skills');
           skills.append(summary);
           for (const skill of item.imported_skills) {
             const label = document.createElement('label'), check = document.createElement('input'), title = document.createElement('span');
@@ -105,7 +105,7 @@ export function characterChoice(ports: CharacterPorts) {
             check.dataset.compatible = String(skill.compatibility === 'portable');
             check.disabled = key(candidate) !== key(item.reference) || skill.compatibility !== 'portable';
             check.checked = key(candidate) === key(item.reference) && selectedSkills.includes(skill.id);
-            title.textContent = skill.name + (skill.compatibility !== 'portable' ? L('coding.character.native') : '');
+            title.textContent = skill.name + (skill.compatibility !== 'portable' ? uiText.text('coding.character.native') : '');
             label.append(check, title);
             skills.append(label);
             check.onchange = () => { selectedSkills = check.checked ? [...selectedSkills, skill.id] : selectedSkills.filter(id => id !== skill.id); };
@@ -116,7 +116,7 @@ export function characterChoice(ports: CharacterPorts) {
       }
       if (!rows.length) {
         const note = document.createElement('p');
-        note.textContent = L('coding.character.none');
+        note.textContent = uiText.text('coding.character.none');
         list.append(note);
       }
       submit.disabled = Boolean(candidate && !rows.some(item => key(item.reference) === key(candidate) && item.available));
@@ -134,7 +134,7 @@ export function characterChoice(ports: CharacterPorts) {
     if (busy || submit.disabled)
       return;
     if (current() !== session) {
-      error.textContent = L('coding.character.session-changed');
+      error.textContent = uiText.text('coding.character.session-changed');
       return;
     }
     const id = session, selected = rows.find(item => key(item.reference) === key(candidate));
@@ -153,10 +153,10 @@ export function characterChoice(ports: CharacterPorts) {
       await save(id);
       dialog.close();
       ticket++;
-      status(L('coding.character.saved'));
+      status(uiText.text('coding.character.saved'));
     }
     catch (failure) {
-      error.textContent = L('coding.choice.save-failed', { reason: errorMessage(failure) });
+      error.textContent = uiText.text('coding.choice.save-failed', { reason: errorMessage(failure) });
     }
     finally {
       busy = false;

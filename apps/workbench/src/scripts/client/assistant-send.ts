@@ -19,7 +19,7 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
     if (!text || busy) return;
     const into = curId && receipts.into(), fill = into && fills.get(into.pending_id);
     if (fill) {
-      await fill(into.draft_from_composer, text).then(() => { input.value = ""; saveDraft(true); syncSend(); host.showToast?.(L("已写进问卷；按「提交回答」才交回")); }, showError);
+      await fill(into.draft_from_composer, text).then(() => { input.value = ""; saveDraft(true); syncSend(); host.showToast?.(globalThis.t.text("workbench.assistant-send.written-into-form-goes-back-only-when-press")); }, showError);
       return;
     }
     const again = unsettled.get(curId), byPage = pageText === text, kept = unsent(), unsentKey = scoped("unsent");
@@ -64,7 +64,7 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
       const carrier = res.work.executor?.kind === "plugin" ? executorOffer(res.work.executor.plugin_id) : null;
       if (carrier) window.dispatchEvent(new CustomEvent("molis:assistant-effect", { detail: { work_id: res.work.work_id, capability_id: carrier.capability_ids["run.start"], session_id: res.work.executor.session_id } }));
       // A supplement's fate is its receipt line in the thread; only an answer and words kept for the next round say more.
-      const said = { answered: L("已作为回答发送"), queued: L("已保存，下一轮开始生效") }[res.outcome];
+      const said = { answered: globalThis.t.text("workbench.assistant-send.sent-answer"), queued: globalThis.t.text("workbench.assistant-send.saved-takes-effect-next-turn") }[res.outcome];
       if (visible && said) host.showToast?.(said);
     } catch (error) {
       const unknown=error.code==="ui_host.outcome_unknown";if(!unknown){unsettled.delete(intent.work);store.set(unsentKey,null);}
@@ -76,7 +76,7 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
           chooseSent(data.work);
           if (!sameInput()) saveDraft(true);
         }
-        problem={...error,name:error.name,message:error.message+(unknown?"":L("。输入已保留")),action:data.action};
+        problem={...error,name:error.name,message:error.message+(unknown?"":globalThis.t.text("workbench.assistant-send.text-kept")),action:data.action};
         if (curId) await reload(); else render();
       } else host.showToast?.(error);
     } finally {
@@ -110,19 +110,19 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
  * field), the default is 「写进问卷」 instead: Send writes the words into the card's draft and hands nothing back (R4, D14).
  */
 export const ASSISTANT_RECEIPTS_FACTORY_SCRIPT = String.raw`({ L, shared, chip, api, work, reload, pact }) => {
-  const CHOICES = { answer: "回答上面的问题", draft: "写进问卷", steer: "补充这一轮" };
+  const CHOICES = { answer: "workbench.assistant-send.answer-questions-above", draft: "workbench.assistant-send.write-into-form", steer: "workbench.assistant-send.add-turn" };
   let asked = "", ask = null, choice = "answer", pacted = null, drawn = "", block = null;
   const question = (round) => {
     const waiting = round && round.phase === "awaiting-input" ? round.awaiting_input || [] : [];
     return waiting.find((item) => item.from_composer || item.draft_from_composer) || null;
   };
   const first = () => ask?.draft_from_composer ? "draft" : "answer";
-  const label = () => { chip.textContent = L(CHOICES[choice]); chip.title = L("点一下改成：" + CHOICES[choice === "steer" ? first() : "steer"]); };
+  const label = () => { chip.textContent = globalThis.t.text(CHOICES[choice]); chip.title = L("点一下改成：" + CHOICES[choice === "steer" ? first() : "steer"]); };
   chip.addEventListener("click", () => { choice = choice === "steer" ? first() : "steer"; label(); });
-  const lost = (error) => { throw error.code === "ui_host.outcome_unknown" ? new Error(L("没确认送到：再按一次，同一条不会重复。")) : error; };
+  const lost = (error) => { throw error.code === "ui_host.outcome_unknown" ? new Error(globalThis.t.text("workbench.assistant-send.not-confirmed-connection-dropped-reply-couldn-t-be")) : error; };
   const act = (round) => round && round.run_id ? {
     withdraw: (input_id) => api("/works/" + encodeURIComponent(work()) + "/control", "POST", { kind: "withdraw", run_id: round.run_id, input_id }).then(() => "", lost).finally(reload),
-    correct: (about, text, key) => api("/send", "POST", { work_id: work(), text, about, request_id: key }).then((res) => res.outcome === "queued" ? L("已保存，下一轮开始生效") : "", lost).finally(reload),
+    correct: (about, text, key) => api("/send", "POST", { work_id: work(), text, about, request_id: key }).then((res) => res.outcome === "queued" ? globalThis.t.text("workbench.assistant-send.saved-takes-effect-next-turn") : "", lost).finally(reload),
   } : undefined;
   return {
     /** The receipt under one of the person's supplements, placed after it; none for anything else. The thread is its surface. */

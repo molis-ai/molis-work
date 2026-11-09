@@ -1,9 +1,10 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import type { Dataset, DatasetPage, Version } from "./types.js";
 
 /** The open table: opening and closing the editor, and saving what has been typed. */
 export function installEditor(page: DatasetPage): void {
-  const { L, el, s } = page;
+  const { el, s } = page;
 
   page.fillEditor = async (record) => {
     clearTimeout(s.saveTimer);
@@ -68,6 +69,6 @@ export function installEditor(page: DatasetPage): void {
     s.editRev += 1;
     if (s.selected) page.paintStatus(s.selected);
     clearTimeout(s.saveTimer);
-    if (!s.saveError) s.saveTimer = setTimeout(() => { void page.save().catch((error: unknown) => page.showNote(messageOf(error) || L("dataset.save.failed"), true)); }, 400);
+    if (!s.saveError) s.saveTimer = setTimeout(() => { void page.save().catch((error: unknown) => page.showNote(messageOf(error) || uiText.text("dataset.save.failed"), true)); }, 400);
   };
 }

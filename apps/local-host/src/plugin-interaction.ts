@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginInteractionClient, PluginInteractionNextSteps, PluginInteractionStep } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { AGENT_QUESTION_TYPES, type AgentPendingQuestion } from "@molis-ai/molis-work-contracts/services/agent-interaction";
@@ -95,6 +96,6 @@ export const pluginInteraction = Object.freeze<PluginInteractionClient>({
     // Once the round is over, the result of its card that ran last, pressed by the selector its page keeps the card under.
     const ran = input.finished ? cardOutcomeSteps(input.cards, "", L, item => `[data-card=${JSON.stringify(item.card_id)}] [data-ix-press=${JSON.stringify(CARD_RESULT_OPEN)}]`) : [];
     const all = interactionNextSteps(input.questions, input.cards, [], [...ran, ...(input.follow_ups ?? [])], L);
-    return all.length ? renderInteractionNextSteps(all, L("下一步"), { max: all.length }) : "";
+    return all.length ? renderInteractionNextSteps(all, uiText.text("workbench.plugin-interaction.next"), { max: all.length }) : "";
   }),
 });

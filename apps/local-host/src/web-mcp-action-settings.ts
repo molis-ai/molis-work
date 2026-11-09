@@ -5,7 +5,7 @@ import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./projec
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { readLocalWebBody as readBody, respondLocalWebRefusal, sendLocalWebJson as sendJson } from "./web-http.js";
 import { renderMcpAccessRows } from "@molis-ai/molis-work-app-workbench";
-import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText, escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { L, listJoin } from "./web-locale.js";
 import { readMcpActionAccess } from "./mcp-action-access.js";
 import { actionClientAudience, createMcpActionGrant, resolveMcpActionContext } from "./mcp-action-grants.js";
@@ -88,7 +88,7 @@ export async function handleMcpActionSettingsHttp(request: IncomingMessage, resp
       // Naming what is still missing tells the person which grants to add, rather than that the action cannot be used.
       const missing = (view.action.required_actions ?? []).filter(need => !(context.allowed_actions ?? []).some(allowed => allowed.capability_id === need.capability_id
         && allowed.version === need.version && (!need.provider_id || allowed.provider_id === need.provider_id)));
-      if (missing.length) throw mcpErrors.grant_requires(L("此能力还要同时授权：{actions}", { actions: listJoin(missing.map(need => need.capability_id)) }));
+      if (missing.length) throw mcpErrors.grant_requires(uiText.text("workbench.mcp-action-settings.action-also-needs-these-actions-granted-actions", { actions: listJoin(missing.map(need => need.capability_id)) }));
       throw new ActionError(state && !state.available ? state.code : "mcp.grant_unavailable", state && !state.available ? state.reason : "能力尚不可用，请检查权限和方法开关",
         state && !state.available && state.kind ? { kind: state.kind } : undefined);
     }

@@ -14,22 +14,22 @@ const GOALS_TRASH_DIALOG_SCRIPT = `    const openGoalTrashDialog = (trigger, tra
       trashError.hidden = true;
       trashError.textContent = "";
       trashForm.elements.reason.value = "";
-      trashDialog.querySelector("[data-goal-trash-title]").textContent = trashed ? L("移入回收站") : L("恢复 Goal");
+      trashDialog.querySelector("[data-goal-trash-title]").textContent = trashed ? globalThis.t.text("goals.dialogs-client.move-trash") : globalThis.t.text("goals.dialogs-client.restore-goal");
       trashDialog.querySelector("[data-goal-trash-description]").textContent = trashed
-        ? L("请确认这条 Goal 和本次操作原因。")
-        : L("请确认把这条 Goal 恢复到日常 Goal Tree。");
+        ? globalThis.t.text("goals.dialogs-client.confirm-goal-reason-action")
+        : globalThis.t.text("goals.dialogs-client.confirm-restoring-goal-everyday-goal-tree");
       trashDialog.querySelector("[data-goal-trash-target-title]").textContent = goalTitle;
       trashDialog.querySelector("[data-goal-trash-target-id]").textContent = goalId;
       trashDialog.querySelector("[data-goal-trash-note]").textContent = trashed
-        ? L("该操作可恢复：Goal 历史会保留，当前仍生效的关联关系会暂时停止。若这条 Goal 仍有未结束的历史活动记录，系统不会改动它，而会指出还挡着的记录。")
-        : L("恢复不会创建新 Goal，也不会自动启动 Runtime。系统只会恢复两端都不在回收站的关联关系；其余关系会保留为待处理事实。");
-      trashDialog.querySelector("[data-goal-trash-reason-label]").textContent = trashed ? L("移入原因") : L("恢复原因");
+        ? globalThis.t.text("goals.dialogs-client.can-be-undone-goal-history-kept-currently-active")
+        : globalThis.t.text("goals.dialogs-client.restore-does-not-create-new-goal-does-not");
+      trashDialog.querySelector("[data-goal-trash-reason-label]").textContent = trashed ? globalThis.t.text("goals.dialogs-client.why-move") : globalThis.t.text("goals.dialogs-client.why-restore");
       trashForm.elements.reason.placeholder = trashed
-        ? L("说明为什么暂时不再保留这条 Goal")
-        : L("说明为什么现在要恢复这条 Goal");
+        ? globalThis.t.text("goals.dialogs-client.say-why-goal-should-leave-everyday-list-now")
+        : globalThis.t.text("goals.dialogs-client.say-why-goal-should-come-back-now");
       trashSubmit.classList.toggle("mw-btn--danger", trashed);
       trashSubmit.classList.toggle("mw-btn--primary", !trashed);
-      trashSubmit.textContent = trashed ? L("移入回收站") : L("恢复到 Goal Tree");
+      trashSubmit.textContent = trashed ? globalThis.t.text("goals.dialogs-client.move-trash") : globalThis.t.text("goals.dialogs-client.restore-goal-tree");
       // The menu that offered this action must not stay open: the host rightly reads an open menu as an active
       // interaction and skips the board refresh a close settles on. Only the nearest menu fold closes — the Goal
       // information fold above it stays as it is — and its summary, the visible way back, takes the focus so the
@@ -60,7 +60,7 @@ const GOALS_TRASH_DIALOG_SCRIPT = `    const openGoalTrashDialog = (trigger, tra
       if (!trashIntent || !trashForm || !trashError || !trashSubmit || trashPending) return;
       const reason = String(new FormData(trashForm).get("reason") || "").trim();
       if (!reason) {
-        trashError.textContent = L("请说明本次操作原因。");
+        trashError.textContent = globalThis.t.text("goals.dialogs-client.give-reason-action");
         trashError.hidden = false;
         trashForm.elements.reason.focus();
         return;
@@ -77,12 +77,12 @@ const GOALS_TRASH_DIALOG_SCRIPT = `    const openGoalTrashDialog = (trigger, tra
             reason,
             user_confirmed: true,
           },
-          fallback: L("操作失败"),
+          fallback: globalThis.t.text("goals.dialogs-client.action-failed"),
         });
         const expected = intent.trashed
           ? ["trashed", "already_trashed"]
           : ["restored", "already_active"];
-        if (!expected.includes(result.status)) throw new Error(L("Molis Work 返回了无法识别的回收站状态"));
+        if (!expected.includes(result.status)) throw new Error(globalThis.t.text("goals.dialogs-client.molis-work-returned-unrecognized-trash-state"));
         redirecting = true;
         // Navigation replaces the page, so the trigger is dropped here and no focus is restored on the way out.
         trashTrigger = null;
@@ -90,7 +90,7 @@ const GOALS_TRASH_DIALOG_SCRIPT = `    const openGoalTrashDialog = (trigger, tra
         clearCollectionUiState();
         navigate(route((intent.trashed ? "/trash/goals/" : "/goals/") + encodeURIComponent(intent.goalId)));
       } catch (error) {
-        trashError.textContent = error.message || L("操作失败，请检查后重试");
+        trashError.textContent = error.message || globalThis.t.text("goals.dialogs-client.action-failed-check-try-again");
         trashError.hidden = false;
       } finally {
         if (!redirecting) setTrashPending(false);
@@ -208,7 +208,7 @@ export const GOALS_DIALOGS_CLIENT_FACTORY_SCRIPT = `(host) => {
       trashPending = pending;
       trashForm.setAttribute("aria-busy", String(pending));
       trashSubmit.disabled = pending;
-      trashSubmit.textContent = pending ? L("正在保存…") : L(trashIntent.trashed ? "移入回收站" : "恢复到 Goal Tree");
+      trashSubmit.textContent = pending ? globalThis.t.text("goals.dialogs-client.saving") : globalThis.t.text(trashIntent.trashed ? "goals.dialogs-client.move-trash" : "goals.dialogs-client.restore-goal-tree");
       trashForm.elements.reason.readOnly = pending;
       trashDialog.querySelectorAll("[data-close-goal-trash]").forEach((button) => { button.disabled = pending; });
     };

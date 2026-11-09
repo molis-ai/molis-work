@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { DeclaredPageRouteMatch } from "@molis-ai/molis-work-plugin-sdk";
 import type { PlanningMethodPack } from "./contract/goals.js";
 import { GOALS_PLUGIN_ID } from "./identity.js";
@@ -19,12 +20,12 @@ export function goalsPlanningRouteOf(declared: DeclaredPageRouteMatch | null): G
 /** Select within the Host's already-resolved methods; this is not a method authorization query. */
 export function selectGoalsPlanningPageMethod(
   route: Extract<GoalsPlanningRoute, { kind: "method" }>, methods: readonly PlanningMethodPack[],
-  scope: "personal" | "project", translate: (text: string) => string,
+  scope: "personal" | "project", _translate: (text: string) => string,
 ): { method: PlanningMethodPack | null } | { status: 404; error: string } {
   const method = route.method_id === "new" ? null : methods.find(item =>
     item.method_id === route.method_id && (scope === "personal" || item.scope === "project")) ?? null;
   if (route.method_id !== "new" && !method) {
-    return { status: 404, error: translate(scope === "project" ? "找不到这个项目方法" : "找不到这套规划方法") };
+    return { status: 404, error: uiText.text(scope === "project" ? "goals.planning-routes.that-project-method-wasn-t-found" : "goals.planning-routes.that-planning-method-wasn-t-found") };
   }
   return { method };
 }

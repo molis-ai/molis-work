@@ -236,15 +236,15 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
       receipt.setAttribute("tabindex", "-1");
       const copy = document.createElement("div");
       const title = document.createElement("strong");
-      title.textContent = L("已记录你的决定");
+      title.textContent = globalThis.t.text("workbench.refresh-decisions.decision-was-saved");
       const detail = document.createElement("span");
-      detail.textContent = message + " " + (receiptHost.querySelector(".decision-record") ? L("下一步：继续处理下面的待决定事项。") : L("下一步：返回 Goal 查看结果。"));
+      detail.textContent = message + " " + (receiptHost.querySelector(".decision-record") ? globalThis.t.text("workbench.refresh-decisions.next-continue-remaining-decisions-below") : globalThis.t.text("workbench.refresh-decisions.next-return-goal-review-result"));
       copy.append(title, detail);
       receipt.append(copy);
       if (context?.goalHref) {
         const link = document.createElement("a");
         link.href = context.goalHref;
-        link.textContent = context.goalTitle ? L("返回「{title}」", { title: context.goalTitle }) : L("返回 Goal");
+        link.textContent = context.goalTitle ? globalThis.t.text("workbench.refresh-decisions.return-title", { title: context.goalTitle }) : globalThis.t.text("workbench.refresh-decisions.return-goal");
         receipt.append(link);
       }
       const receiptAnchor = receiptHost.querySelector(".feed-detail-header, .goal-workspace-hero");

@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderPluginStoreUnavailablePage } from "@molis-ai/molis-work-app-workbench";
 import { isHomePluginStoreRefusal } from "./home-plugin-store.js";
 import type { MolisWorkProjectCatalog } from "./project-catalog.js";
@@ -13,7 +14,7 @@ export function projectPluginMembershipForPage(catalog: MolisWorkProjectCatalog,
   try { return catalog.projectPluginMembership(projectId); }
   catch (error) {
     if (!isHomePluginStoreRefusal(error)) throw error;
-    return { ...catalog.storedProjectPluginMembership(projectId), unavailable: L("Home 插件运行库不可用") };
+    return { ...catalog.storedProjectPluginMembership(projectId), unavailable: uiText.text("workbench.home-plugin-recovery.home-plugin-store-unavailable") };
   }
 }
 
@@ -25,7 +26,7 @@ export async function withHomePluginStorePageRecovery(context: WebRequestContext
     if (!isHomePluginStoreRefusal(error) || request.method !== "GET"
       || !serverOptions.homeDirectory || response.headersSent) throw error;
     if (url.pathname.startsWith("/api/")) {
-      const failure = actionErrorResponse(new ActionError(error.code, L("Home 插件运行库不可用"), { kind: "unavailable", cause: error }));
+      const failure = actionErrorResponse(new ActionError(error.code, uiText.text("workbench.home-plugin-recovery.home-plugin-store-unavailable"), { kind: "unavailable", cause: error }));
       sendLocalWebJson(response, failure.status, failure.body);
       return;
     }

@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { childFrameAssets } from "./frame-assets.js";
 import { childPlacement } from "./placement.js";
@@ -56,8 +57,8 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
     return globalThis.molisFrameFillMessage(config.messages[key] ?? key, values);
   };
   bindStorage(port, config);
-  const call = createUiRequest({ fetch: fetchThroughPort, origin: config.origin, token: () => "", newKey: () => crypto.randomUUID(), translate: L });
-  const view = createUiFailureView({ createElement: tag => document.createElement(tag), translate: L,
+  const call = createUiRequest({ fetch: fetchThroughPort, origin: config.origin, token: () => "", newKey: () => crypto.randomUUID(), readText: uiText.text });
+  const view = createUiFailureView({ createElement: tag => document.createElement(tag), readText: uiText.text,
     copy: text => copyText(text), setTimeout, clearTimeout: id => clearTimeout(id as ReturnType<typeof setTimeout>) });
   view.install(document);
   globalThis.molisWorkRequest = Object.assign(call, { text: view.text, show: view.show, toast: view.toast });
@@ -98,8 +99,8 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
     pluginId: config.pluginId, pluginRoute: (path: string) => route("/api/plugins/" + config.pluginId + path),
     projectId: () => config.projectId, projectTitle: () => config.projectTitle, route, headers: call.headers,
     // What a page says when the Host's router refused its read for who-may-read reasons (403 `actions.*`); empty for any other failure.
-    readRefusal: (status: number, code: unknown) => status === 403 && String(code).startsWith("actions.") ? L(code === "actions.plugin_disabled" ? "这个项目停用了这个插件，所以显示不了。到插件市场重新添加后就能打开。" : "没有权限读取这里的内容，所以显示不了。授权在设置里管理。") : "",
-    api: (path: string, method: "GET" | "POST", body: unknown, fallback = L("来源操作失败")) => call(route(path), { method, body, fallback }),
+    readRefusal: (status: number, code: unknown) => status === 403 && String(code).startsWith("actions.") ? uiText.text(code === "actions.plugin_disabled" ? "common.child.project-has-turned-plugin-off-so-can-t" : "common.child.don-t-have-permission-read-so-can-t") : "",
+    api: (path: string, method: "GET" | "POST", body: unknown, fallback = uiText.text("common.child.source-operation-failed")) => call(route(path), { method, body, fallback }),
     openItem: (...args: unknown[]) => intent("openItem", args), openBeside: (...args: unknown[]) => intent("openBeside", args), openPlugin: (...args: unknown[]) => intent("openPlugin", args),
     hideDirectory: () => intent("hideDirectory", []), showToast: (...args: unknown[]) => intent("showToast", args), page: () => config.page,
     status: (status: unknown) => intent("status", [status]), interaction: (element: HTMLElement, options: { onSubmit?: () => void }) => ui.interaction(element, {
@@ -138,11 +139,11 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
   });
   const load = (url: string) => new Promise<void>((resolve, reject) => {
     const script = document.createElement("script"); script.src = new URL(url, config.origin).href;
-    script.onload = () => resolve(); script.onerror = () => reject(new Error(L("无法加载界面，请重试"))); document.head.append(script);
+    script.onload = () => resolve(); script.onerror = () => reject(new Error(uiText.text("common.child.could-not-load-view-retry"))); document.head.append(script);
   });
   for (const asset of config.assets) await load(asset);
   await load("/assets/molis-work-plugins/" + encodeURIComponent(config.bundle) + ".js");
   const factory = globalThis.molisWorkbenchPluginFactories?.[config.bundle];
-  if (!factory) throw new Error(L("无法加载界面，请重试"));
+  if (!factory) throw new Error(uiText.text("common.child.could-not-load-view-retry"));
   childPresentation(port, scope); childModal(port, scope); factory(host satisfies UiPluginClientHost<HTMLElement, HTMLDialogElement, HTMLImageElement | HTMLIFrameElement>); childPlacement(port, scope); childFrameAssets(port, scope, root); childNavigation(port, scope, config, () => itemTab); context(); send({ type: "ready" });
 }

@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { errorMessage } from "./dom.js";
 import { keyLabel } from "./matching.js";
 import { commandPalette, type PaletteControl, type PalettePorts } from "./palette.js";
@@ -63,7 +64,7 @@ function shortcuts(ports: CommandPorts, palette: PaletteControl, run: (command: 
 
 /** The composer's slash menu, the command palette and the page's shortcuts, over one list of commands. */
 export function commandsClient(ports: CommandPorts): CommandsClient {
-  const { lifetime, translate: L } = ports;
+  const { lifetime } = ports;
   const run = async (command: { readonly run: () => unknown }) => {
     try {
       await command.run();
@@ -78,6 +79,6 @@ export function commandsClient(ports: CommandPorts): CommandsClient {
     openPalette: palette.open,
     closeMenu: menu.close,
     keyLabel,
-    shortcuts: () => [["Mod+Shift+P", L("coding.palette.label")], ["Mod+Alt+↑ / ↓", L("coding.palette.key.sessions")], ["/", L("coding.palette.key.slash")], ["Mod+Enter", L("coding.palette.key.send")], ["Esc", L("coding.palette.key.stop")]],
+    shortcuts: () => [["Mod+Shift+P", uiText.text("coding.palette.label")], ["Mod+Alt+↑ / ↓", uiText.text("coding.palette.key.sessions")], ["/", uiText.text("coding.palette.key.slash")], ["Mod+Enter", uiText.text("coding.palette.key.send")], ["Esc", uiText.text("coding.palette.key.stop")]],
   };
 }

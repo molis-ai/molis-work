@@ -1,6 +1,6 @@
 import { withProjectReachInvocation } from "./plugin-project-reach-subject.js";
 import { pluginPageRequest } from "./plugin-page-authority.js";
-import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText, escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { HomePluginHost, HomePluginPlatform } from "./home-plugins.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { declaredStageContributionId, inWordsOf, renderHomePluginPage, sideOpenedPlugins, stageContributionId, renderStagePage, type RenderedStagePage, type UnavailablePluginStage, type WorkbenchAppearancePorts } from "@molis-ai/molis-work-app-workbench";
@@ -339,8 +339,8 @@ function homeUnavailableStage(host: HomePluginHost, platform: HomePluginPlatform
   entry: { project_plugin_id: string; manifest: PluginManifest }): UnavailablePluginStage {
   const install = host.installation(entry.manifest.plugin_id);
   return { surface: entry.project_plugin_id, label: entry.manifest.name, scope: "home",
-    reason: L(failure ?? host.packageError(entry.manifest.plugin_id) ?? platform?.supervisor.state(entry.manifest.plugin_id)?.message
-      ?? (install?.state === "running" ? "插件页面未注册" : "插件已停用")) };
+    reason: uiText.text(failure ?? host.packageError(entry.manifest.plugin_id) ?? platform?.supervisor.state(entry.manifest.plugin_id)?.message
+      ?? (install?.state === "running" ? "workbench.home-plugin-http.plugin-page-not-registered" : "workbench.home-plugin-http.plugin-disabled")) };
 }
 
 /** The running Home instance's view of this stage: the contribution the Manifest names, with its `workbench` surface. */

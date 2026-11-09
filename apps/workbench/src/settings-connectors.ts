@@ -1,4 +1,4 @@
-import { icon as designIcon, renderAlert, renderButton, renderStatusMark } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText, icon as designIcon, renderAlert, renderButton, renderStatusMark } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderFunctionsSettings } from "./judgment-rules/settings-ui.js";
 import type { ConnectorConnectionView, ConnectorDirectoryGroupId } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { connectorCardText, CONNECTOR_NAME_MAX_CHARS, CONNECTOR_SOURCE_MAX_CHARS, CONNECTOR_SUMMARY_MAX_CHARS, connectorPurpose, recommendedMethod, renderConnectorConnect, renderConnectorWays } from "./settings-connector-guide.js";
@@ -52,27 +52,27 @@ export function renderConnectorMark(connectorId: string, escapeHtml: ConnectorsS
 }
 
 function renderNextSteps(card: ConnectorSettingsCardView, connections: readonly ConnectorConnectionView[], p: ConnectorsSettingsPrimitives): string {
-  const { L, escapeHtml: e } = p;
+  const { escapeHtml: e } = p;
   const active = connections.filter(connection => connection.state === "connected");
   if (!active.length) return "";
   const instructions: Array<{ text: string; label?: string; href?: string; plugin?: string }> = [];
-  if (active.some(row => row.auth_method === "mcp" && row.agent_available !== false) || card.connector_id === "mcp-bearer") instructions.push({ text: L("在 Coding 的 MCP 设置中选择已授权账号，保存并连接后，在会话中选择本轮工具。"), label: L("设置 Agent 工具"), href: "/settings/coding-settings" });
-  if (active.some(row => row.auth_method === "mcp" && row.agent_available === false)) instructions.push({ text: L("此连接使用服务商的原生传输。可以在「高级」里查看工具并执行明确的工具操作；当前传输暂不支持 Coding。") });
-  if (active.some(row => row.auth_method === "cli")) instructions.push({ text: L("账号由本机客户端管理。可以检查连接，在「高级」里查看读取结果；本机客户端连接不用于 Feed 自动同步。") });
+  if (active.some(row => row.auth_method === "mcp" && row.agent_available !== false) || card.connector_id === "mcp-bearer") instructions.push({ text: uiText.text("workbench.settings-connectors.choose-authorized-account-coding-s-mcp-settings-save"), label: uiText.text("workbench.settings-connectors.set-up-agent-tools"), href: "/settings/coding-settings" });
+  if (active.some(row => row.auth_method === "mcp" && row.agent_available === false)) instructions.push({ text: uiText.text("workbench.settings-connectors.connection-uses-provider-s-native-transport-under-advanced") });
+  if (active.some(row => row.auth_method === "cli")) instructions.push({ text: uiText.text("workbench.settings-connectors.account-managed-client-machine-can-check-connection-view") });
   if (active.some(row => row.auth_method === "oauth" || row.auth_method === "token")) {
-    if (card.connector_id === "model-api") instructions.push({ text: L("在模型设置中选择此连接，再选择模型并检查可用性。"), label: L("打开模型设置"), href: "/settings/models" });
-    else if (card.connector_id === "image-api") instructions.push({ text: L("在项目 Images 中选择此连接，配置图像服务并尝试生成。"), label: L("选择项目，打开 Images"), href: "/", plugin: "images" });
-    else if (card.connector_id === "typesafe") instructions.push({ text: L("在 Functions 中选择此账号。"), label: L("查看 Functions"), href: "/capabilities/library" });
-    else if (card.feed_available) instructions.push({ text: L("在项目 Feed 中添加来源并选择已连接的 API 账号与内容范围。"), label: L("选择项目，添加来源"), href: "/", plugin: "feed" });
-    else if (card.connector_id !== "mcp-bearer") instructions.push({ text: L("可以检查账号授权。此 API 连接暂不提供 Feed 同步。") });
+    if (card.connector_id === "model-api") instructions.push({ text: uiText.text("workbench.settings-connectors.choose-connection-model-settings-then-pick-model-check"), label: uiText.text("workbench.settings-connectors.open-model-settings"), href: "/settings/models" });
+    else if (card.connector_id === "image-api") instructions.push({ text: uiText.text("workbench.settings-connectors.choose-connection-project-s-images-set-up-image"), label: uiText.text("workbench.settings-connectors.choose-project-open-images"), href: "/", plugin: "images" });
+    else if (card.connector_id === "typesafe") instructions.push({ text: uiText.text("workbench.settings-connectors.choose-account-functions"), label: uiText.text("workbench.settings-connectors.see-functions"), href: "/capabilities/library" });
+    else if (card.feed_available) instructions.push({ text: uiText.text("workbench.settings-connectors.project-s-feed-add-source-choose-connected-api"), label: uiText.text("workbench.settings-connectors.choose-project-add-source"), href: "/", plugin: "feed" });
+    else if (card.connector_id !== "mcp-bearer") instructions.push({ text: uiText.text("workbench.settings-connectors.can-check-account-s-authorization-api-connection-doesn") });
   }
   if (!instructions.length) return "";
-  return `<section class="settings-connector-next" data-connector-next><h3>${L("连好以后")}</h3>${instructions.map(step => `<div class="settings-connector-next__step"><p>${e(step.text)}</p>${step.href ? `<a class="mw-btn mw-btn--secondary" data-connector-next-link="${e(step.plugin || "")}" href="${e(step.href)}">${e(step.label!)}</a>` : ""}</div>`).join("")}</section>`;
+  return `<section class="settings-connector-next" data-connector-next><h3>${uiText("workbench.settings-connectors.once-connected")}</h3>${instructions.map(step => `<div class="settings-connector-next__step"><p>${e(step.text)}</p>${step.href ? `<a class="mw-btn mw-btn--secondary" data-connector-next-link="${e(step.plugin || "")}" href="${e(step.href)}">${e(step.label!)}</a>` : ""}</div>`).join("")}</section>`;
 }
 
 /** The folded 高级 at the bottom of a service (§13.1 ② plan A): each account's own settings, then the other ways to connect. */
-function renderAdvanced(body: string, p: ConnectorsSettingsPrimitives): string {
-  return body.trim() ? `<details class="mw-collapsible settings-connector-advanced" data-slot="collapsible" data-connector-advanced><summary>${p.L("高级")}</summary><div class="mw-collapsible__body">${body}</div></details>` : "";
+function renderAdvanced(body: string, _p: ConnectorsSettingsPrimitives): string {
+  return body.trim() ? `<details class="mw-collapsible settings-connector-advanced" data-slot="collapsible" data-connector-advanced><summary>${uiText("workbench.settings-connectors.advanced")}</summary><div class="mw-collapsible__body">${body}</div></details>` : "";
 }
 
 /** A service's open part: what it is, its accounts, the way to connect it (or one more account), what to do next, and 高级. */
@@ -80,15 +80,15 @@ function renderServiceBody(card: ConnectorSettingsCardView, connections: readonl
   const { L, escapeHtml: e } = p;
   // null is the platform's own; an object names the declaring package; undefined means nothing said where the service comes from, so
   // no source line is shown rather than a trust label the page cannot back.
-  const source = card.declared_by === null ? L("Molis Work（内置）")
+  const source = card.declared_by === null ? uiText.text("workbench.settings-connectors.molis-work-built")
     : card.declared_by ? connectorCardText(card.declared_by.title, CONNECTOR_SOURCE_MAX_CHARS) : undefined;
   const live = connections.filter(connection => connection.state !== "disconnected");
   const connect = renderConnectorConnect(card, p);
   const add = live.length && card.availability !== "placeholder"
-    ? `<details class="mw-collapsible settings-connector-add" data-slot="collapsible" data-connector-add><summary>${L(recommendedMethod(card) ? "再加一个账号" : "再加一个账号或密钥")}</summary><div class="mw-collapsible__body settings-connector-flow">${connect}</div></details>`
+    ? `<details class="mw-collapsible settings-connector-add" data-slot="collapsible" data-connector-add><summary>${uiText(recommendedMethod(card) ? "workbench.settings-connectors.add-another-account" : "workbench.settings-connectors.add-another-account-key")}</summary><div class="mw-collapsible__body settings-connector-flow">${connect}</div></details>`
     : `<div class="settings-connector-flow" data-connector-add>${connect}</div>`;
   return `<div class="settings-connector-panel" data-connector-detail="${e(card.connector_id)}">
-    ${source === undefined ? "" : `<p class="settings-connector-source"><small data-connector-source>${e(L("来自 {package}", { package: source }))}</small></p>`}
+    ${source === undefined ? "" : `<p class="settings-connector-source"><small data-connector-source>${e(uiText.text("workbench.settings-connectors.package", { package: source }))}</small></p>`}
     <div class="settings-connector-feedback" data-connector-feedback role="status" aria-live="polite" tabindex="-1" hidden></div>
     ${connections.map(connection => renderConnectionAccount(connection, card, p, connections.filter(other => other !== connection && other.state === "connected" && other.enabled !== false && !other.project_id && other.auth_method === connection.auth_method))).join("")}
     ${card.connector_id === "typesafe" && view.functions_settings ? renderFunctionsSettings({ ...view.functions_settings, embedded: true, primitives: { escape: e, text: L } }) : ""}
@@ -126,22 +126,22 @@ export function renderConnectorsSettings(
   // A connection whose service is no longer declared (its package was removed) has no way to connect left: its row opens on the account
   // and what can still be done with it.
   const orphans = connections.filter(connection => !cards.some(card => card.connector_id === connection.service_id));
-  const orphanGroup = orphans.length ? `<section class="settings-connector-subgroup" data-connector-subgroup="orphan"><h3>${L("目录里已没有的服务")}</h3>${orphans.map(connection => renderConnectionItem({
+  const orphanGroup = orphans.length ? `<section class="settings-connector-subgroup" data-connector-subgroup="orphan"><h3>${uiText("workbench.settings-connectors.no-longer-catalog")}</h3>${orphans.map(connection => renderConnectionItem({
     id: `connection-${connection.connection_id}`, mark: renderConnectorMark(connection.service_id, escapeHtml), name: connection.display_name,
-    caption: L("提供它的插件已不在；连接还在，可以检查或移除"), state: `<span class="settings-state settings-state--neutral" data-connector-state data-mw-state="unavailable">${escapeHtml(L("不在目录里"))}</span>`,
+    caption: uiText.text("workbench.settings-connectors.plugin-that-provided-gone-connection-remains-can-be"), state: `<span class="settings-state settings-state--neutral" data-connector-state data-mw-state="unavailable">${escapeHtml(uiText.text("workbench.settings-connectors.not-catalog"))}</span>`,
     // Not a service the page can open or connect: no `data-connector-item`, no service panel, only this account and what can be done with it.
     body: `<div class="settings-connector-panel">${renderConnectionAccount(connection, undefined, primitives)}${renderAdvanced(renderConnectionManage(connection, undefined, primitives), primitives)}</div>`,
     attrs: { "data-connector-orphan": connection.connection_id, "data-connector-search": `${connection.display_name} ${connection.service_id}`.toLowerCase() },
   }, L)).join("")}</section>` : "";
   // Under the heading, like the MCP page's link to the external-tools page: a footnote below the whole catalog is rarely seen.
-  const networkDoc = primitives.networkDocHref ? `<p data-network-doc>${L("Molis Work 自己联网的去处（模型、搜索、订阅源、依赖下载等）逐类写在这一页：")}<a href="${escapeHtml(primitives.networkDocHref)}" target="_blank" rel="noopener noreferrer">${L("Molis Work 会联网去哪里")}</a></p>` : "";
+  const networkDoc = primitives.networkDocHref ? `<p data-network-doc>${uiText("workbench.settings-connectors.everywhere-molis-work-goes-online-itself-models-search")}<a href="${escapeHtml(primitives.networkDocHref)}" target="_blank" rel="noopener noreferrer">${uiText("workbench.settings-connectors.where-molis-work-connects")}</a></p>` : "";
   return `<section class="settings-document" aria-labelledby="settings-title" data-connectors-settings>
-    <header class="settings-heading"><div class="settings-heading-title"><h1 id="settings-title">${L("服务连接")}</h1></div><p>${L("连接你常用的应用，把工作内容和工具带进 Molis。点一行就在原处展开。")}</p>${networkDoc}</header>
+    <header class="settings-heading"><div class="settings-heading-title"><h1 id="settings-title">${uiText("workbench.settings-connectors.service-connections")}</h1></div><p>${uiText("workbench.settings-connectors.connect-apps-use-bring-work-tools-into-molis")}</p>${networkDoc}</header>
     <div class="settings-body">
       <p class="settings-form-error" data-connectors-error role="alert" hidden></p>
       <div class="settings-connector-catalog" data-connectors-list>
-        <label class="settings-connector-field settings-connector-search"><span>${L("搜索服务")}</span><input class="mw-input" type="search" data-connectors-search placeholder="${L("搜索 Gmail、Notion、飞书…")}"></label>
-        <p class="settings-connector-empty" data-connectors-no-results role="status" hidden><span>${L("没有找到这个服务。换个关键词试试。")}</span><button type="button" class="mw-btn mw-btn--secondary" data-connectors-reset>${L("清除搜索")}</button></p>
+        <label class="settings-connector-field settings-connector-search"><span>${uiText("workbench.settings-connectors.search-services")}</span><input class="mw-input" type="search" data-connectors-search placeholder="${uiText("workbench.settings-connectors.search-gmail-notion-feishu")}"></label>
+        <p class="settings-connector-empty" data-connectors-no-results role="status" hidden><span>${uiText("workbench.settings-connectors.no-service-matches-try-another-word")}</span><button type="button" class="mw-btn mw-btn--secondary" data-connectors-reset>${uiText("workbench.settings-connectors.clear-search")}</button></p>
         ${groups}${orphanGroup}
       </div>
       ${renderPluginSlots(view, cards, connections, { L, escapeHtml, mark: serviceId => renderConnectorMark(serviceId, escapeHtml) })}
@@ -158,17 +158,17 @@ function CLIENT_TEMPLATES(p: ConnectorsSettingsPrimitives): string {
   const progress = (steps: readonly string[]) => renderConnectionProgress({ steps: steps.map(step => p.L(step)), at: 0, state: "running" }, p.L);
   return `<template data-connector-template="progress-login">${progress(["在浏览器登录", "看能做什么", "能用了"])}</template>
     <template data-connector-template="progress-key">${progress(["填密钥", "验证密钥", "能用了"])}</template>
-    <template data-connector-template="running">${renderStatusMark({ label: p.L("连接中"), state: "running", tone: "progress", plain: true })}</template>
-    <template data-connector-template="switching">${renderStatusMark({ label: p.L("换账号"), state: "answer", tone: "attention", plain: true })}</template>
-    <template data-connector-template="reach-connected">${renderStatusMark({ label: p.L("连得上 · {time} 检查"), state: "connected", tone: "done", plain: true })}</template>
-    <template data-connector-template="reach-failed">${renderStatusMark({ label: p.L("没通过检查 · {time}"), state: "failed", tone: "blocked", plain: true })}</template>
-    <template data-connector-template="reach-limited">${renderStatusMark({ label: p.L("服务那边暂时限流 · {time} 后自动再查"), state: "retrying", tone: "hold", plain: true })}</template>
+    <template data-connector-template="running">${renderStatusMark({ label: uiText.text("workbench.settings-connectors.connecting"), state: "running", tone: "progress", plain: true })}</template>
+    <template data-connector-template="switching">${renderStatusMark({ label: uiText.text("workbench.settings-connectors.switch-account"), state: "answer", tone: "attention", plain: true })}</template>
+    <template data-connector-template="reach-connected">${renderStatusMark({ label: uiText.text("workbench.settings-connectors.reachable-checked-time"), state: "connected", tone: "done", plain: true })}</template>
+    <template data-connector-template="reach-failed">${renderStatusMark({ label: uiText.text("workbench.settings-connectors.check-failed-time"), state: "failed", tone: "blocked", plain: true })}</template>
+    <template data-connector-template="reach-limited">${renderStatusMark({ label: uiText.text("workbench.settings-connectors.rate-limited-service-checks-again-time"), state: "retrying", tone: "hold", plain: true })}</template>
     <template data-connector-template="draft">${draftNote(p)}</template>`;
 }
 
 /** The note before 高级 when it holds changes not saved in this window: the alert as it is, and its two answers under it. */
-function draftNote(p: ConnectorsSettingsPrimitives): string {
-  const answer = (attr: string, label: string) => renderButton({ label: p.L(label), variant: "secondary", attrs: { [attr]: "" } });
-  const alert = renderAlert({ title: p.L("「高级」里有上次没保存的改动"), body: p.L("只留在这个窗口里；密钥不会留下，要重新填。") });
-  return `<div class="settings-connector-draft" data-connector-draft>${alert}<div class="settings-connector-actions">${answer("data-draft-resume", "接着改")}${answer("data-draft-drop", "放弃改动")}</div></div>`;
+function draftNote(_p: ConnectorsSettingsPrimitives): string {
+  const answer = (attr: string, label: string) => renderButton({ label: uiText.text(label), variant: "secondary", attrs: { [attr]: "" } });
+  const alert = renderAlert({ title: uiText.text("workbench.settings-connectors.advanced-has-changes-didn-t-save"), body: uiText.text("workbench.settings-connectors.kept-only-window-keys-aren-t-kept-must") });
+  return `<div class="settings-connector-draft" data-connector-draft>${alert}<div class="settings-connector-actions">${answer("data-draft-resume", "workbench.settings-connectors.keep-editing")}${answer("data-draft-drop", "workbench.settings-connectors.discard-changes")}</div></div>`;
 }

@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 /**
  * The component board's Assistant frame (apps/workbench/src/assistant-board-frame.ts, specs/visual-ui-experience VUX-39): a
  * stand-in for the Host that answers the shipped island from fixed works, and the frame's two simulated actions.
@@ -27,7 +28,6 @@ type Samples = { project: { id: string; title: string }; works: Array<Json & { w
 type Page = Window & { L?: (text: string, values?: Record<string, string | number>) => string; molisWorkRequest?: Pick<UiRequest, "toast"> };
 
 const page = window as Page;
-const L = (text: string, values?: Record<string, string | number>) => page.L ? page.L(text, values) : text;
 const one = <T extends Element = HTMLElement>(selector: string) => document.querySelector<T>(selector)!;
 const data = JSON.parse(one("#mw-asst-data").textContent ?? "{}") as { samples: Samples; current: string | null; answer: "ok" | "refused" };
 const S = data.samples;
@@ -54,7 +54,7 @@ HTMLElement.prototype.focus = function (this: HTMLElement, options?: FocusOption
 const versions = new Map<string, number>(S.works.map((work) => [work.work_id, 1]));
 const waiting = new Map<string, Array<() => void>>();
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
-const refuse = () => json({ error: L("样例不执行这一步（模拟）"), code: "workbench.board_sample" }, 409);
+const refuse = () => json({ error: uiText.text("workbench.assistant-frame.sample-does-not-carry-out-simulated"), code: "workbench.board_sample" }, 409);
 const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 const answerWait = (id: string, since: string | null, signal?: AbortSignal | null) => new Promise<Response>((resolve, reject) => {
   const done = () => { clearTimeout(timer); resolve(json({ version: String(versions.get(id)), view: copy(S.views[id]) })); };
@@ -81,7 +81,7 @@ const moveOn = (id: string, next: View) => {
 const ANSWER_MS = 900;
 const answerQuestion = (id: string, body: string | null) => new Promise<Response>((resolve) => setTimeout(() => {
   const pending = String((JSON.parse(body ?? "{}") as { pending_id?: unknown }).pending_id ?? ""), errors = S.refused[pending];
-  if (data.answer === "refused" && errors) resolve(json({ error: L("回答没有交回（模拟）"), code: "assistant.invalid", details: { errors } }, 400));
+  if (data.answer === "refused" && errors) resolve(json({ error: uiText.text("workbench.assistant-frame.answer-was-not-taken-simulated"), code: "assistant.invalid", details: { errors } }, 400));
   else resolve(S.answered[id] ? moveOn(id, S.answered[id]!) : refuse());
 }, ANSWER_MS));
 
@@ -128,9 +128,9 @@ const toast = (message: unknown) => page.molisWorkRequest?.toast(toastNode, type
 // 推进一步: the running work's next view, as the Host would hand it to the island's long wait.
 one("[data-asst-advance]").addEventListener("click", () => {
   const id = Object.keys(S.next).find((key) => S.next[key]!.length);
-  if (!id) { status.textContent = L("样例已经走完了"); return; }
+  if (!id) { status.textContent = uiText.text("workbench.assistant-frame.sample-has-no-more-steps"); return; }
   moveOn(id, S.next[id]!.shift()!);
-  status.textContent = L("已推进一步");
+  status.textContent = uiText.text("workbench.assistant-frame.moved-one-step");
 });
 
 // 带上三个文件: one the island reads, one it will not take, one the stand-in Host refuses to read.
@@ -150,7 +150,7 @@ one("[data-asst-attach]").addEventListener("click", () => {
   project: S.project,
   route: (path: string) => PREFIX + path,
   toast,
-  openItem: (_surface: string, _id: string, title: string) => toast(L("样例里不打开「{title}」（模拟）", { title })),
+  openItem: (_surface: string, _id: string, title: string) => toast(uiText.text("workbench.assistant-frame.sample-does-not-open-title-simulated", { title })),
   /** Opens the panel on the starting work (or a new one) the way a page asks the Assistant to open. */
   start(island: unknown) {
     document.dispatchEvent(new CustomEvent("molis:assistant-open", { detail: data.current ? { work_id: data.current } : { new: true } }));

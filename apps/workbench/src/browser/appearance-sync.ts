@@ -4,7 +4,6 @@ import { readEventStream } from "./event-stream.js";
 
 const path = "/api/ui/appearance";
 const handoffKey = "molis-work:appearance-handoff";
-const handoffMs = 10_000;
 interface ReadReply { current: WorkbenchAppearance; recovery?: UiAppearanceRecovery; recovery_revision?: number | null }
 interface WriteReply { current: WorkbenchAppearance; receipt: UiAppearanceReceipt }
 type CommandInput = { kind: "apply"; body: UiAppearanceApplyInput } | { kind: "undo"; body: UiAppearanceUndoInput };
@@ -28,10 +27,10 @@ function takeHandoff(scope: string | undefined): Command | undefined {
     const raw = sessionStorage.getItem(handoffKey);
     sessionStorage.removeItem(handoffKey);
     if (!raw) return;
-    const handoff = JSON.parse(raw) as { scope: string; at: number; command: CommandInput } | null;
+    const handoff = JSON.parse(raw) as { scope: string; command: CommandInput } | null;
     if (!handoff || handoff.scope !== scope) return;
-    const { at, command } = handoff, age = Date.now() - at;
-    if (!Number.isFinite(age) || age < 0 || age > handoffMs || (command?.kind !== "apply" && command?.kind !== "undo")) return;
+    const { command } = handoff;
+    if (command?.kind !== "apply" && command?.kind !== "undo") return;
     if (!Number.isSafeInteger(command.body?.expected_revision) || command.body.expected_revision < 0
       || !/^[0-9a-f-]{36}$/u.test(commandId(command))) return;
     return { ...command, checked: false };
@@ -132,7 +131,7 @@ export function createAppearanceSync(initial: WorkbenchAppearance, request: UiRe
     stopStream();
     if (!lifetime.signal.aborted && viewScope && unconfirmed) {
       const { kind, body } = unconfirmed;
-      try { sessionStorage.setItem(handoffKey, JSON.stringify({ scope: viewScope, at: Date.now(), command: { kind, body } })); }
+      try { sessionStorage.setItem(handoffKey, JSON.stringify({ scope: viewScope, command: { kind, body } })); }
       catch { /* If storage is unavailable the original page retains its command in memory. */ }
     }
     lifetime.abort();

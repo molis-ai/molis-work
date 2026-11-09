@@ -195,6 +195,10 @@ test("FSS-01 FSS-02 FSS-08 FSS-20 FSS-27 FSS-28 FSS-32 real settings prepare a l
   await issue.until(`d.documentElement.dataset.uiSkin === '${soft}'`);
   const original = await b.evaluate<string>("appearanceCalls.writes[0].request_id");
   const before = recoveryReads.length;
+  // Model time spent away from the cached page without sleeping or changing the production account guard.
+  await b.command("Page.addScriptToEvaluateOnNewDocument", {
+    source: "{ const now = Date.now; Date.now = () => now() + 60_000; }",
+  }, b.sessionId);
   await b.navigate(() => b.evaluate(`setTimeout(() => {
     dispatchEvent(new PageTransitionEvent('pagehide', { persisted: true }));
     dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));

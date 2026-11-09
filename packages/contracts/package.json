@@ -122,6 +122,10 @@
       "types": "./dist/platform/storage.d.ts",
       "import": "./dist/platform/storage.js"
     },
+    "./platform/settings": {
+      "types": "./dist/platform/settings.d.ts",
+      "import": "./dist/platform/settings.js"
+    },
     "./platform/testing": {
       "types": "./dist/platform/testing.d.ts",
       "import": "./dist/platform/testing.js"

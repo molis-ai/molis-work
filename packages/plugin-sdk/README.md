@@ -171,6 +171,12 @@ Home 判断前会读取原对象、准备其实际可用动作，并把当前选
 
 完整例子见 [Inbox 动作](../../plugins/native/inbox/src/actions.ts)；未知插件正式注册、真实写入、失效拒绝及 MCP 共用执行测试见 [home-offer-actions.test.ts](../../tests/home-offer-actions.test.ts)，浏览器真实执行见 [home-offers.e2e.test.ts](../../tests/home-offers.e2e.test.ts)。
 
+## 设置
+
+从 SDK 根入口用 `defineSettingsActions` 生成主人的读写动作，`validateSettingsDeclaration` 检查条目与动作引用。设置值走条目的 `SandboxSchema`，凭据走连接。公共形状在 contracts 的 `/platform/settings`，项目和操作者从动作上下文读取。
+
+`bindSettingsHandlers` 接主人的存储接口。读返回各层快照，SDK 按项目、个人、提供方默认的顺序解析。写给本人调用，主人在同一个同步事务里读取回执、读取有效 revision、执行写入、回读并保存回执。有效 revision 由主人给出，覆盖各层与默认值的变更。同一个请求重放时返回原回执。主人用 `defineErrorCodes` 提供自己的 `setting_invalid` 和 `setting_conflict`。
+
 ## 本地开发
 
 以下命令在**仓库根目录**执行，使用 Node.js 24+ 与仓库配置的 pnpm。首次准备运行 `pnpm install --frozen-lockfile` 和 `pnpm build`；之后可单独检查此包。

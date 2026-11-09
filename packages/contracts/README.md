@@ -66,6 +66,8 @@ node scripts/run-tests.mjs tests/plugin-authoring.test.ts
 
 插件同步集合/快照合同从 `/platform/plugin` 导出；spaceId 级配置格式从 `/modules/sync-replication` 导出。校验不负责授权、持久化或传输，详见[同步接入规范](../../skills/molis-plugin-dev/sync.md)。
 
+`/platform/settings` 提供设置条目、读写输入及共用返回的合同。动作输入只携带设置键和修改内容，主人和项目从可信上下文获得。写入用读到的 revision 与 `request_id`，返回同一事务内回读的有效值。接入见 [SDK 的设置说明](../plugin-sdk/README.md#设置)。
+
 同步声明解析与依赖展开实现在 plugin-sdk；空间策略解析实现在 sync-replication。这里不定义同步 Error 子类，失败统一使用各 owner 声明的 ActionError。
 
 `SyncRoundSummary` 是现行格式 1 的只读轮次提示，包含策略、容量和每个所选 namespace 的普通变更 head；不是接收回执，不授予推进游标或确认上传的权力。Worker 与协调器同步更新，缺失或错误格式拒绝，不提供旧接口兜底。

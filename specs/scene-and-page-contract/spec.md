@@ -529,7 +529,7 @@ SDK 根入口 `inspectHomePageDraft(value: unknown)` 返回带字段路径的声
 - 主人没有声明的，预览里那一部分标「提供方没有公开配置能力」，不能采用，宿主不兜底。
 - `adopt` 输入固定为 `{ request_id, blueprint, selection, body }`。`blueprint` 复用 36 的 `BlueprintPartOrigin`，只作来源记录。`selection` 为闭合联合 `{ kind: "create" }` 或 `{ kind: "reuse" | "update", subject: ActionSubject, expected_revision }`。由已确认的预览生成选择和 CAS 凭据，`body` 只按声明的 `schema` 传值。主人按可信范围核对象。复用和修改在同一 owner 提交内比较 revision、变更和写回执。成功回执给出 `{ outcome, subject, revision }`，`outcome` 用 §7.1 的三种实际结果。
 - 通用 `content` 首次复用也在写回执的同一事务推进撤销所用的 owner revision，正文照旧。提交失败一并回滚。同键重放原回执，revision 只推进一次。复用方的回执没有主人撤销权，后续移除也不恢复旧 revision。这样 A 创建的对象被 B 复用后，A 的旧 revision 无法通过原子撤回核对。保护由同一主人完成，Blueprints 不另存共享计数。
-- `read` 用 `{ queries }`／`{ results }` 批读，结果与查询按序对应，单批沿 `BLUEPRINT_LIMITS.parts`。查询按 `by` 区分 `proposal`（`type`、`blueprint`、`body`，返回候选）、`subject`（读当前值）和 `request`（按 `request_id` 读回执与当前值）。批读失败和确认不存在分开。可选 `revert` 输入 `{ adopt_request_id, request_id, subject, expected_revision }`，由同一主人核回执和当前 revision 后恢复或解除。未声明时只解除场景绑定，并回报实际结果。
+- `read` 用 `{ queries }`／`{ results }` 批读，结果与查询按序对应，单批沿 `BLUEPRINT_LIMITS.parts`。查询按 `by` 区分 `proposal`（`type`、`blueprint`、`body`，返回候选）、`subject`（读当前值）和 `request`（按 `operation: "adopt" | "revert"` 与 `request_id` 读该次操作的原回执和当前值）。批读失败和确认不存在分开。可选 `revert` 输入 `{ adopt_request_id, request_id, subject, expected_revision }`，由同一主人核回执和当前 revision 后恢复或解除。未声明时只解除场景绑定，并回报实际结果。
 - `validateAdoptsDeclaration` 随 Manifest 校验，核 `adopt`、`read`、`revert` 都指本插件已声明的同版本动作，读写效果与所用作用域一致。SDK 复用 `ACTION_SUBJECT_SCHEMA`、`BlueprintPartOrigin` schema 和 P-1 的有界 schema 检查，按 `canonicalJsonText` 比较固定字段，`body` 匹配声明的 schema。拒绝缺 CAS、错误分支和伪造身份。既供编辑又供采用的动作，采用分支也须闭合且与这份输入一致。现行签名沙箱的 `SandboxOperationContract` 无法直接表达该联合，实际接入须提供同一合同的绑定并验证，不能拿普通读动作或仅 Manifest 校验冒充支持。
 - 同一范围里两个安装声明同一种 `content` 类型时，后装的照样能装；采用时由预览让你选主人。`settings_entries` 的 key 不同：重复就拒后装的（第 4 节）。
 
@@ -540,16 +540,17 @@ type ContentAdoptionCurrent<Value> =
   | { state: "present"; value: Value; revision: string | number; origin: BlueprintPartOrigin | null }
   | { state: "missing" }
   | { state: "unavailable"; reason: string };
-type ContentAdoptionReadResult<Value, Receipt> =
+type ContentAdoptionReadResult<Value, AdoptReceipt, RevertReceipt> =
   | { kind: "proposal"; candidates: Array<{ subject: ActionSubject; current: ContentAdoptionCurrent<Value> }> }
   | { kind: "subject"; current: ContentAdoptionCurrent<Value> }
-  | { kind: "receipt"; receipt: Receipt; current: ContentAdoptionCurrent<Value> }
-  | { kind: "missing" };
+  | { kind: "receipt"; operation: "adopt"; request_id: string; receipt: AdoptReceipt; current: ContentAdoptionCurrent<Value> }
+  | { kind: "receipt"; operation: "revert"; request_id: string; receipt: RevertReceipt; current: ContentAdoptionCurrent<Value> }
+  | { kind: "missing"; operation: "adopt" | "revert"; request_id: string };
 // revert 的实际写结果：
 // { outcome: "restored" | "detached"; subject: ActionSubject; revision: string | number }
 ```
 
-`Receipt` 为本次采用最初的回执，不能用当前值的凭据替换；在批读里，`missing` 确认没有原回执，不能代替读取失败。候选由调用的确切主人查询给出，`subject` 是该主人中的对象引用，调用方仍须保留真实动作提供方。SDK 通过定义列表、正确定版、读写效果与同一 scope 核声明，采用分支不能和另一个编辑分支重叠。SPC-C07 定向用例还覆盖缺 CAS、声明的正文 schema 与动作不一致、错引用版本、随包候选冒充已安装、旧回执与当前状态并列，以及升级三方中的新增、删除和保留用户改动。
+`AdoptReceipt` 与 `RevertReceipt` 分别是该请求最初的采用回执、撤销回执，不能用当前值的凭据替换。`current` 始终独立；在批读里，`missing` 只确认该操作、该请求键没有原回执，不能代替读取失败。撤销已提交但应答丢失时，按撤销请求键回读原来的 `restored`／`detached`，不能仅凭当前 revision 变化推断成功；原采用凭据仍保留在 `apply_steps`，不被撤销回执覆盖。候选由调用的确切主人查询给出，`subject` 是该主人中的对象引用，调用方仍须保留真实动作提供方。SDK 通过定义列表、正确定版、读写效果与同一 scope 核声明，采用分支不能和另一个编辑分支重叠。SPC-C07 定向用例还覆盖缺 CAS、声明的正文 schema 与动作不一致、错引用版本、随包候选冒充已安装、两种原回执与当前状态并列，以及升级三方中的新增、删除和保留用户改动。
 
 ## 9. 调用次数
 

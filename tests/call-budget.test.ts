@@ -31,7 +31,7 @@ async function callMeter(t: TestContext) {
   const { LocalHost, MolisWorkLocalHost, MolisWorkProjectCatalog } = await import("@molis-ai/molis-work-app-local-host");
   const { ActionService } = await import("@molis-ai/molis-work-kernel");
   const prepare = MolisWorkLocalHost.prototype.inspectPreparedActionMetadata;
-  t.mock.method(MolisWorkLocalHost.prototype, "inspectPreparedActionMetadata", function (this: InstanceType<typeof MolisWorkLocalHost>, ...args: Parameters<typeof prepare>) {
+  t.mock.method(MolisWorkLocalHost.prototype, "inspectPreparedActionMetadata", function (this: typeof MolisWorkLocalHost.prototype, ...args: Parameters<typeof prepare>) {
     count("prepareContext");
     return prepare.apply(this, args);
   });
@@ -41,22 +41,22 @@ async function callMeter(t: TestContext) {
     return inspect.apply(this, args);
   });
   const discover = ActionService.prototype.discover;
-  t.mock.method(ActionService.prototype, "discover", function (this: InstanceType<typeof ActionService>, ...args: Parameters<typeof discover>) {
+  t.mock.method(ActionService.prototype, "discover", function (this: typeof ActionService.prototype, ...args: Parameters<typeof discover>) {
     count("discover");
     return discover.apply(this, args);
   });
   const scenes = ActionService.prototype.discoverScenes;
-  t.mock.method(ActionService.prototype, "discoverScenes", function (this: InstanceType<typeof ActionService>, ...args: Parameters<typeof scenes>) {
+  t.mock.method(ActionService.prototype, "discoverScenes", function (this: typeof ActionService.prototype, ...args: Parameters<typeof scenes>) {
     count("discoverScenes");
     return scenes.apply(this, args);
   });
   const membership = MolisWorkProjectCatalog.prototype.projectPluginMembership;
-  t.mock.method(MolisWorkProjectCatalog.prototype, "projectPluginMembership", function (this: InstanceType<typeof MolisWorkProjectCatalog>, ...args: Parameters<typeof membership>) {
+  t.mock.method(MolisWorkProjectCatalog.prototype, "projectPluginMembership", function (this: typeof MolisWorkProjectCatalog.prototype, ...args: Parameters<typeof membership>) {
     count("projectPluginReads");
     return membership.apply(this, args);
   });
   const plugins = MolisWorkProjectCatalog.prototype.listProjectPlugins;
-  t.mock.method(MolisWorkProjectCatalog.prototype, "listProjectPlugins", function (this: InstanceType<typeof MolisWorkProjectCatalog>, ...args: Parameters<typeof plugins>) {
+  t.mock.method(MolisWorkProjectCatalog.prototype, "listProjectPlugins", function (this: typeof MolisWorkProjectCatalog.prototype, ...args: Parameters<typeof plugins>) {
     count("projectPluginReads");
     return plugins.apply(this, args);
   });
@@ -77,8 +77,8 @@ function median(runs: readonly Counts[]): Counts {
 type Source = { id: string; kinds: Array<{ kind: string }> };
 type FileList = { page: { entries: Array<{ subject: { kind: string; id: string }; title: string }> } };
 
-// BCC-02 / BCC-04: use real Web routes in one disposable Home. HTTP samples include every awaited nested action.
-test("BCC-02 and BCC-04 · representative Host requests stay within their measured call budgets", { timeout: 60_000 }, async t => {
+// BCC-02 / BCC-03 / BCC-04. Use real Web routes in one disposable Home. HTTP samples include every awaited nested action.
+test("BCC-02, BCC-03 and BCC-04 · Host requests stay within budget and incomplete previews never prepare actions", { timeout: 60_000 }, async t => {
   const measure = await callMeter(t);
   // Move Date past request caches without running intervals or deferred search and knowledge refreshes.
   t.mock.timers.enable({ apis: ["Date", "setInterval", "setTimeout"], now: startedAt });
@@ -115,6 +115,11 @@ test("BCC-02 and BCC-04 · representative Host requests stay within their measur
     assert.match(await response.text(), message, path);
   }
 
+  const incomplete = {
+    sideFileMissingSource: () => refusal(prefix + "/api/side/files/entries", 404, /文件来源已经不在/u),
+    sideFileMissingKind: () => refusal(previewPath + missingKind, 400, /没有说明要预览哪个文件/u),
+    sideFileMissingId: () => refusal(rawPath + missingId, 400, /没有说明要预览哪个文件/u),
+  };
   const requests = {
     projectHome: async () => {
       const response = await fetch(home.origin + prefix + "/", { redirect: "error" });
@@ -149,9 +154,7 @@ test("BCC-02 and BCC-04 · representative Host requests stay within their measur
       const { content } = await home.web.get<{ content: { data: string } }>(previewPath + previewQuery);
       assert.ok(content.data.includes(markdown));
     },
-    sideFileMissingSource: () => refusal(prefix + "/api/side/files/entries", 404, /文件来源已经不在/u),
-    sideFileMissingKind: () => refusal(previewPath + missingKind, 400, /没有说明要预览哪个文件/u),
-    sideFileMissingId: () => refusal(rawPath + missingId, 400, /没有说明要预览哪个文件/u),
+    ...incomplete,
     goalPanes: async () => {
       await Promise.all(goalIds.map(async goalId => {
         const response = await fetch(`${home.origin}${prefix}/api/goals/${goalId}/document?view=current`);
@@ -167,10 +170,25 @@ test("BCC-02 and BCC-04 · representative Host requests stay within their measur
     const runs: Counts[] = [];
     for (let sample = 0; sample < samples; sample++) {
       t.mock.timers.setTime(now += 60_000);
-      runs.push(await measure(request));
+      const observed = await measure(request);
+      if (Object.hasOwn(incomplete, name)) {
+        assert.equal(observed.prepareContext, 0, `${name} must refuse before preparing an action context`);
+        assert.equal(observed.discover, 0, `${name} must refuse before discovering actions`);
+      }
+      runs.push(observed);
     }
     measured[name] = median(runs);
   }
+
+  // Required fields are checked before the current source is looked up. A complete request still checks live membership.
+  const unknownAndIncomplete = new URLSearchParams({ source: "absent", id: file.subject.id });
+  const rejected = await measure(() => refusal(previewPath + unknownAndIncomplete, 400, /没有说明要预览哪个文件/u));
+  assert.equal(rejected.prepareContext, 0);
+  assert.equal(rejected.discover, 0);
+  const unsupportedKind = new URLSearchParams({ source: source.id, kind: "unsupported", id: file.subject.id });
+  await refusal(previewPath + unsupportedKind, 400, /没有说明要预览哪个文件/u);
+  await home.web.delete(`/api/settings/projects/${encodeURIComponent(project.project_id)}/plugins`, { plugin_id: "pages" });
+  await refusal(previewPath + previewQuery, 404, /文件来源已经不在/u);
 
   if (process.env.MOLIS_WORK_CALL_BUDGET_REPORT === "1" && !process.env.CI) {
     t.diagnostic(JSON.stringify(measured));

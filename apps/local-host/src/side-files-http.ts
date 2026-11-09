@@ -49,7 +49,13 @@ export async function handleSideFilesHttp(request: IncomingMessage, response: Se
   if (!route) return false;
   const json = (status: number, body: unknown) => writeNativePluginJsonResponse(response, { status, body });
   if (request.method !== "GET") { json(405, { error: "不支持这个请求" }); return true; }
+  const unknownSource = () => { json(404, { error: "这个文件来源已经不在了（插件可能已停用）" }); return true; };
+  const missingPreview = () => { json(400, { error: "没有说明要预览哪个文件" }); return true; };
+  const sourceKey = url.searchParams.get("source");
+  const kind = url.searchParams.get("kind") ?? "", id = url.searchParams.get("id") ?? "";
   try {
+    if (route !== "sources" && !sourceKey) return unknownSource();
+    if ((route === "content" || route === "raw") && (!kind || !id)) return missingPreview();
     const caller = await localWebActionContext(ports.localHost, ports.reference, LOCAL_OWNER_PERMISSIONS);
     const client = ports.localHost.actionClient(ports.reference);
     const views = await client.discover(caller);
@@ -67,8 +73,8 @@ export async function handleSideFilesHttp(request: IncomingMessage, response: Se
       })) });
       return true;
     }
-    const source = sources.find(view => sourceId(view) === url.searchParams.get("source"));
-    if (!source) { json(404, { error: "这个文件来源已经不在了（插件可能已停用）" }); return true; }
+    const source = sources.find(view => sourceId(view) === sourceKey);
+    if (!source) return unknownSource();
     if (route === "entries") {
       const cursor = url.searchParams.get("cursor");
       const page = await client.invoke(caller, referenceOf(source), { cursor: cursor || null, limit: FILE_ENTRIES_PAGE_LIMIT }) as FileEntriesPage;
@@ -84,8 +90,7 @@ export async function handleSideFilesHttp(request: IncomingMessage, response: Se
       response.end(Buffer.from(file.data, "base64"));
       return true;
     };
-    const kind = url.searchParams.get("kind") ?? "", id = url.searchParams.get("id") ?? "";
-    if (!kind || !id || !source.action.file_source!.kinds.some(entry => entry.kind === kind)) { json(400, { error: "没有说明要预览哪个文件" }); return true; }
+    if (!source.action.file_source!.kinds.some(entry => entry.kind === kind)) return missingPreview();
     const provider = source.provider.provider_id;
     // A 成果 version previews through its type's owner (artifact-positioning A4b), the same as in the 成果库.
     const owned = kind === ARTIFACT_SUBJECT_KIND ? await ownerPreview(id, views, (view, input) => client.invoke(caller, referenceOf(view), input), ports) : null;

@@ -56,28 +56,28 @@
     "sqliteOpens": 12
   },
   "sideFileMissingSource": {
-    "prepareContext": 1,
+    "prepareContext": 0,
     "inspectActions": 0,
-    "discover": 1,
-    "discoverScenes": 1,
-    "projectPluginReads": 4,
-    "sqliteOpens": 10
+    "discover": 0,
+    "discoverScenes": 0,
+    "projectPluginReads": 0,
+    "sqliteOpens": 0
   },
   "sideFileMissingKind": {
-    "prepareContext": 1,
+    "prepareContext": 0,
     "inspectActions": 0,
-    "discover": 1,
-    "discoverScenes": 1,
-    "projectPluginReads": 4,
-    "sqliteOpens": 10
+    "discover": 0,
+    "discoverScenes": 0,
+    "projectPluginReads": 0,
+    "sqliteOpens": 0
   },
   "sideFileMissingId": {
-    "prepareContext": 1,
+    "prepareContext": 0,
     "inspectActions": 0,
-    "discover": 1,
-    "discoverScenes": 1,
-    "projectPluginReads": 4,
-    "sqliteOpens": 10
+    "discover": 0,
+    "discoverScenes": 0,
+    "projectPluginReads": 0,
+    "sqliteOpens": 0
   },
   "goalPanes": {
     "prepareContext": 10,

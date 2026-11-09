@@ -85,6 +85,8 @@ test("SCS-02 SCS-05 SCS-10 corrections, the form ladder and hard mount limits ap
   assert.deepEqual(h.calls[0]?.subjects, subjects.slice(0, 2));
   assert.equal(group(result).overflow, undefined);
   assert.deepEqual(group(await h.compose({ slot: { ...slot, slot_id: "undeclared" }, subjects })).items, []);
+  const reverse = harness({ catalog: () => [{ ...owner, slots: [{ ...owner.slots[0]!, accepts_forms: ["card", "chip"] }] }] });
+  assert.equal(group(await reverse.compose({ slot, subjects: [note("a")] })).items[0]?.form, "card");
   const onlyRow = { ...object, forms: { row: { fields: ["title"] } } };
   const ladder = harness({ catalog: () => [plugin(onlyRow)] });
   const fallback = group(await ladder.compose({ slot: { kind: "discussion" }, subjects: [note("a")] })).items[0];
@@ -98,18 +100,22 @@ test("SCS-03 SCS-12 SCS-15 resolves exact providers, replaces the locked operati
   const details: ActionDefinition = { ...edit, capability_id: "notes.details", operation: "query", action: {
     ...reader().action, input_type: undefined, output_type: undefined, kind: "query", effect: "read", input_schema: { type: "object", required: ["note_id"] },
   } };
+  const remove: ActionDefinition = { ...edit, capability_id: "notes.remove", action: { ...edit.action, effect: undefined, external: undefined, execution: undefined } };
+  const purge: ActionDefinition = { ...remove, capability_id: "notes.purge", action: { ...remove.action, effect: "write" } };
   const display: PresentationObject = { ...object, actions: [{ ref: "notes.edit@1", primary: true, when: { slots: ["discussion"] }, unavailable: {
     when: { status: ["draft"], codes: ["notes.locked"] }, reason: { key: "surface-notes.edit.locked" }, next: "notes.details@1",
-  } }, { ref: "notes.details@1", primary: true, input_from: { note_id: "title" } }] };
+  } }, { ref: "notes.details@1", primary: true, input_from: { note_id: "title" } }, { ref: "notes.remove@1" }, { ref: "notes.purge@1" }] };
   const locked: ActionAvailability = { available: false, code: "notes.locked", reason: "internal reason is never displayed" };
   let own: ActionAvailability | undefined = locked, next: ActionAvailability = active;
   let detailsDefinition = details;
   const h = harness({ catalog: () => [plugin(display)], discover: () => [reader(), values(), view(edit, "other-a"), view(edit, "other-b"),
-    ...(own ? [view(edit, pluginId, own)] : []), view(detailsDefinition, pluginId, next)] });
+    ...(own ? [view(edit, pluginId, own)] : []), view(detailsDefinition, pluginId, next), view(remove), view(purge)] });
   const request = { slot: { kind: "discussion" }, subjects: [note("a")] } as const;
   const blocked = await h.compose(request);
   const first = group(blocked).items[0]!;
   assert.equal(first.actions.some(action => action.ref === "notes.edit@1"), false);
+  assert.deepEqual(first.actions.find(action => action.ref === "notes.remove@1")?.consequence, ["irreversible"]);
+  assert.equal(first.actions.find(action => action.ref === "notes.purge@1")?.consequence, undefined);
   assert.deepEqual(first.notices, [{ reason: { owner: pluginId, key: "surface-notes.edit.locked" },
     next: { ref: "notes.details@1", provider_id: pluginId, primary: false, prepared_input: { note_id: "title" } } }]);
   next = locked;

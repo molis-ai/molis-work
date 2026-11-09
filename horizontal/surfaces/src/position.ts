@@ -25,7 +25,7 @@ export function positionFor(slot: SurfaceSlot, plugins: readonly SurfacePlugin[]
       if (!active.length) throw surfaceErrors.slot_unknown("找不到这个挂载位置");
       const mounts = active.flatMap(plugin => plugin.slots.filter(entry => entry.slot_id === slot.slot_id && entry.accepts_forms?.length));
       const mount = mounts.length === 1 ? mounts[0] : undefined;
-      return { forms: mount?.accepts_forms ?? [], max: mount?.max ?? Infinity, refuse: new Set(mount?.refuse_kinds) };
+      return { forms: PRESENTATION_FORM_KINDS.filter(form => mount?.accepts_forms?.includes(form)), max: mount?.max ?? Infinity, refuse: new Set(mount?.refuse_kinds) };
     }
     default: throw surfaceErrors.slot_unknown("这个位置尚未提供组合");
   }
@@ -42,7 +42,7 @@ export function deliveredSubjects(request: SurfaceRequest): ReadonlySet<string> 
 }
 
 export function formAt(position: Position, preferred: FormKind, object?: PresentationObject): Pick<SurfaceItem, "form" | "fields"> {
-  const forms = PRESENTATION_FORM_KINDS.filter(form => position.forms.includes(form));
+  const forms = [...position.forms];
   const fallback = { form: forms[0]!, fields: [] };
   if (!object) return fallback;
   const ceiling = PRESENTATION_FORM_KINDS.indexOf(preferred);

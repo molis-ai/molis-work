@@ -1,5 +1,6 @@
 /** Browser-only account and space controls. No credentials are stored in this page. */
 import { createSyncConsent } from './sync-consent.js';
+import { accountFrameCohort } from './account-frame-cohort.js';
 import { accountTransition } from './account-transition.js';
 import { accountCohort, type AccountPreparation } from './account-cohort.js';
 import { accountRegistration } from './account-registration.js';
@@ -9,7 +10,7 @@ interface AccountIdentity { userId: string; applicationId?: string; displayName?
 interface AccountStatus {
   identity: AccountIdentity | null; space?: string; configured: boolean; viewScope?: string;
   browserSessionTicket?: string; loginCompleted?: boolean; offline?: boolean;
-  accountGeneration?: number; accountChanged?: boolean; ready?: boolean; switching?: boolean; error?: string; loginPending?: boolean;
+  pageBinding?: string; accountGeneration?: number; accountChanged?: boolean; ready?: boolean; switching?: boolean; error?: string; loginPending?: boolean;
   preparation?: AccountPreparation | null;
 }
 interface AccountActionResult { loginUrl?: string; loginAttempt?: string; signedOut?: boolean }
@@ -27,7 +28,7 @@ const init = () => {
   let loginWindow: Window | null = null;
   const closeLoginWindow = () => { loginWindow?.close(); loginWindow = null; };
   let identity: AccountIdentity | null = null;
-  let space = 'local', configured = true, loaded = false, busy = false, checking = false, attempt = '', expires = 0;
+  let space = 'local', configured = true, loaded = false, busy = false, checking = false, attempt = '', expires = 0, revocationPending = false, refreshPending = false;
   const L = globalThis.L || (text => text);
   const transition = accountTransition();
   const menuController = createAccountMenuController(L, () => ({identity,space,configured,loaded,busy,preparing:transition.preparing}), () => void update());
@@ -44,8 +45,9 @@ const init = () => {
     return originalTransport?.(input, options) ?? null;
   };
   const leaveOldPage = () => {
-    closeLoginWindow();
     transition.invalidate();
+    if (busy) { revocationPending = true; return; }
+    closeLoginWindow();
     for (const node of document.body.children) if (node instanceof HTMLElement) { node.inert = true; node.hidden = true; }
     location.replace(destination);
   };
@@ -60,7 +62,7 @@ const init = () => {
     if ((unsaved || tasks) && !confirm(L('还有未保存的修改或运行中的任务。取消可返回原页面保存；继续将放弃未保存的修改并停止任务。继续切换账号？'))) { transition.resume(); return false; }
     return true;
   };
-  const cohort = accountCohort(prepare, leaveOldPage, error => feedback(errorMessage(error, L('草稿保存未完成，请返回原页面重试')), true));
+  const cohort = accountFrameCohort(prepare) ?? accountCohort(prepare, leaveOldPage, error => feedback(errorMessage(error, L('草稿保存未完成，请返回原页面重试')), true));
   const cancelAttempt = async () => {
     const previous = attempt;
     if (previous) await molisWorkRequest('/api/personal/login-cancel?' + new URLSearchParams({attempt:previous}), {method:'POST',body:{}});
@@ -94,7 +96,7 @@ const init = () => {
       }
       const preparation = identity ? await cohort.begin(action === 'logout' ? 'logout' : 'switch') : undefined;
       if (preparation === null || preparation === undefined && !await prepare()) { closeLoginWindow(); return; }
-      if (preparation) query.set('preparation',preparation);
+      if (preparation) query.set('preparation',preparation);if(action==='logout')query.set('scope',button.dataset.accountLogoutScope??'CURRENT_LOGIN');
       const result = await molisWorkRequest<AccountActionResult>('/api/personal/' + action + '?' + query,{method:'POST',body:{}});
       if (result.loginUrl) {
         attempt = result.loginAttempt ?? ''; expires = Date.now() + 600000;
@@ -104,19 +106,20 @@ const init = () => {
         feedback('请在浏览器完成登录，此页面会自动更新。');
       } else if (result.signedOut) {
         channel?.postMessage('changed'); transition.invalidate();
-        attempt = ''; closeLoginWindow(); identity = null; paint();
+        revocationPending = false; attempt = ''; closeLoginWindow(); identity = null; paint();
         location.assign(destination); return;
       }
     } catch (error) { await cancelAttempt().catch(() => { /* A revoked account cannot be resumed by this page. */ }); closeLoginWindow(); reportRequestFailure(error); }
-    finally { setBusy(false); }
+    finally { setBusy(false); if (revocationPending) { revocationPending = false; leaveOldPage(); } }
   });
   const update = async (force = false) => {
-    if ((document.hidden && !attempt && !force) || checking) return;
+    if (checking) { if (force) refreshPending = true; return; }
+    if (document.hidden && !attempt && !force) return;
     if (attempt && Date.now() > expires) { await cancelAttempt().catch(reportRequestFailure); feedback('登录等待已结束，可重新登录。', true); }
     checking = true;
     try {
       const statusQuery = new URLSearchParams();
-      statusQuery.set('page',cohort.pageId);
+      if (cohort.pageId) statusQuery.set('page',cohort.pageId);
       if (desktop) statusQuery.set('desktop','1');
       if (attempt) { statusQuery.set('pending','1'); statusQuery.set('attempt',attempt); }
       const preparationRevision = cohort.revision;
@@ -127,7 +130,7 @@ const init = () => {
         try { sessionStorage.setItem('molis-work-account-toast', '登录成功'); } catch { /* The completed login does not depend on a toast. */ }
         channel?.postMessage('changed'); leaveOldPage(); return;
       }
-      if (state.accountChanged || loaded && generation !== undefined && generation !== state.accountGeneration) { if (attempt) channel?.postMessage('changed'); leaveOldPage(); return; }
+      if (state.accountChanged && !document.body.hasAttribute('data-account-entry') || loaded && generation !== undefined && generation !== state.accountGeneration) { if (attempt) channel?.postMessage('changed'); leaveOldPage(); return; }
       generation = state.accountGeneration;
       if (attempt && state.loginPending === false && !state.loginCompleted) { await cancelAttempt(); closeLoginWindow(); }
       if (loaded && identity && !state.identity && !state.offline) { leaveOldPage(); return; }
@@ -145,7 +148,7 @@ const init = () => {
         }
       }
       if (registration.pending && !state.identity) { leaveOldPage(); return; }
-      if (state.identity) {cohort.connect();if (preparationRevision === cohort.revision) cohort.observe(state.preparation);}
+      if (state.identity) {await cohort.connect(state.pageBinding);if (preparationRevision === cohort.revision) cohort.observe(state.preparation);}
       if (document.body.hasAttribute('data-account-entry') && state.identity && state.ready) { location.replace(destination); return; }
       const pageToken = document.querySelector<HTMLMetaElement>('meta[name="molis-work-page-session"]')?.content;
       const changed = (state.identity && state.viewScope && pageToken && state.viewScope !== pageToken.split(".")[1]) || (loaded && space !== (state.space || 'local'));
@@ -159,7 +162,7 @@ const init = () => {
       if (attempt && loginWindow?.closed) { await cancelAttempt(); loginWindow = null; feedback('登录窗口已关闭，未完成登录；可以重新尝试。'); }
       if (state.offline) feedback('暂时无法连接账号服务，本地工作不受影响。');
     } catch (error) { registration.failure(); if (!menu.hidden) feedback(errorMessage(error, '暂时无法读取账号状态。'), true); }
-    finally { checking = false; }
+    finally { checking = false; if (refreshPending) { refreshPending = false; void update(true); } }
   };
   void update();
   // Initial load, menu opening and focus refresh account state; only an in-progress login needs a polling loop.

@@ -395,6 +395,10 @@ export type Subscription = {
     readonly status: "SCHEDULED" | "ACTIVE" | "EXPIRED" | "DISABLED";
 };
 
+export type TenantCreationPolicyView = {
+    readonly mode: "SELF_SERVICE" | "PLATFORM_ONLY";
+};
+
 export type TenantView = {
     readonly tenantId: Id;
     readonly name: DisplayName;
@@ -462,7 +466,7 @@ type LoginMethodType = "EMAIL" | "PHONE" | "GOOGLE" | "GITHUB";
 
 type PlanVersionNumber = number;
 
-type PlatformCapability = "TENANT_CREATE" | "TENANT_READ" | "TENANT_STATUS" | "CATALOG_WRITE" | "SUBSCRIPTION_READ" | "SUBSCRIPTION_WRITE" | "AUDIT_READ";
+type PlatformCapability = "TENANT_CREATE" | "TENANT_READ" | "TENANT_STATUS" | "CATALOG_WRITE" | "SUBSCRIPTION_READ" | "SUBSCRIPTION_WRITE" | "AUDIT_READ" | "APPLICATION_READ" | "APPLICATION_WRITE" | "CLIENT_READ" | "CLIENT_WRITE" | "USER_READ" | "USER_STATUS" | "PLATFORM_PERMISSION_WRITE";
 
 type PngDataUrl = string;
 

@@ -5,7 +5,8 @@ import type { AccountView } from "@molis-ai/molis-work-contracts/services/accoun
 interface AuthReply { handle: string; nextStep: string; challengeHandle: string; retryAfterSeconds: number; account?: AccountView; remoteRevocation?: string; status?: string; browserStartUrl?: string }
 ;(() => {
   const L = (text: string) => globalThis.L?.(text) || text;
-  const request = <T = AuthReply>(path: string, body?: unknown, headers?: Record<string, string>, method?: "PATCH") => globalThis.molisWorkRequest('/api/account' + path, { control: true, ...(method ? { method } : {}), ...(body === undefined ? {} : { body }), ...(headers ? { headers } : {}) }).then(reply => (reply as { data: T }).data);
+  const loginNonce=new URL(location.href).searchParams.get('accountLogin');
+  const request = <T = AuthReply>(path: string, body?: unknown, headers?: Record<string, string>, method?: "PATCH") => globalThis.molisWorkRequest('/api/account' + path, { control: true, ...(method ? { method } : {}), ...(body === undefined ? {} : { body }), ...((headers||loginNonce)?{headers:{...headers,...(loginNonce?{'X-Molis-Account-Login':loginNonce}:{})}}:{}) }).then(reply => (reply as { data: T }).data);
   let opened: HTMLDialogElement | null = null;
   const node = <K extends keyof HTMLElementTagNameMap>(tag: K, text = "", cls = "") => { const el = document.createElement(tag); if(text) el.textContent = text; if(cls) el.className = cls; return el; };
   document.addEventListener('click', event => {
@@ -48,14 +49,24 @@ interface AuthReply { handle: string; nextStep: string; challengeHandle: string;
     function showAccount(account: Extract<AccountView, {state: "AUTHENTICATED" | "OFFLINE_CACHED"}>) {
       disposeManagement?.();disposeManagement=undefined;form.onsubmit=e=>e.preventDefault();
       transaction=null;challenge=null;clearInterval(timer);modes.replaceChildren();form.replaceChildren();
+      if(loginNonce && account.state==='AUTHENTICATED') {
+        dialog.close();
+        const status=node('main',L('登录成功，正在进入工作台…'),'arrival-stage');status.setAttribute('role','status');status.dataset.accountLoginComplete='';
+        document.body.replaceChildren(status);
+        if(typeof BroadcastChannel==='function'){const channel=new BroadcastChannel('molis-work-account');channel.postMessage('changed');channel.close();}
+        setTimeout(()=>{status.textContent=L('登录成功，可以关闭此窗口。');},5000);
+        return;
+      }
       form.append(node('p',account.user?.displayName||L('已登录')));
       if(account.state==='AUTHENTICATED') {
         const ui={form,dialog,message,L,node,field,button,request,perform}, back=async()=>{const view=await request<AccountView>('/session');if(dialog.open&&(view.state==='AUTHENTICATED'||view.state==='OFFLINE_CACHED'))showAccount(view);};
-        button('个人资料与安全',()=>{disposeManagement=openAccountManagement(ui,account.user,back);});
-        button('个人与租户',()=>{disposeManagement=openAccountTenants(ui,account,back);});
+        if(!loginNonce)button('个人资料与安全',()=>{disposeManagement=openAccountManagement(ui,account.user,back);});
+        if(!loginNonce)button('个人与租户',()=>{disposeManagement=openAccountTenants(ui,account,back);});
       }
       if(account.state==='OFFLINE_CACHED')message.textContent=L('当前离线，账号状态暂不可确认。');
-      for(const [scope,label] of [['CURRENT_LOGIN','退出登录'],['ALL_MOLIS_PRODUCTS','退出所有产品和设备']]) button(label!,()=>perform(async()=>{const result=await request('/logout',{scope},{'Idempotency-Key':crypto.randomUUID()});form.replaceChildren();document.querySelectorAll('[data-unified-account-name]').forEach(el=>el.textContent=L('Molis 账号'));message.textContent=result.remoteRevocation==='CONFIRMED'?L('已退出登录。'):L('本机已退出，远端撤销尚未确认。');button('返回登录',()=>{dialog.addEventListener('close',()=>trigger!.click(),{once:true});dialog.close();});}));
+      for(const [scope,label] of (loginNonce?[]:[['CURRENT_LOGIN','退出登录'],['ALL_MOLIS_PRODUCTS','退出所有产品和设备']])) {
+        const exit=button(label!,()=>dialog.close());exit.dataset.personalAction='logout';exit.dataset.accountLogoutScope=scope;
+      }
       document.querySelectorAll('[data-unified-account-name]').forEach(el=>el.textContent=account.user?.displayName||L('已登录'));
     }
     const submitStep = (body: unknown) => request('/auth/transactions/'+transaction!.handle+'/submit',body);
@@ -99,4 +110,5 @@ interface AuthReply { handle: string; nextStep: string; challengeHandle: string;
     dialog.addEventListener('close',()=>{disposeManagement?.();cancel();clearInterval(timer);form.reset();dialog.remove();opened=null;(trigger.closest('details:not([open])')?.querySelector<HTMLElement>(':scope > summary') || trigger).focus();});
     draw();void perform(async()=>{const account=await request<AccountView>('/session');if(!dialog.open)return;if(account.state==='AUTHENTICATED'||account.state==='OFFLINE_CACHED'){showAccount(account);if(account.state==='AUTHENTICATED'&&document.visibilityState==='visible')await request('/activity',{eventId:crypto.randomUUID(),kind:'OPEN'});}else if(account.state==='EXPIRED')message.textContent=L('登录已过期，请重新登录。');});
   });
+  if(loginNonce)document.querySelector<HTMLElement>('[data-unified-account-link]')?.click();
 })();

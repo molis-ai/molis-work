@@ -21,7 +21,7 @@ test('ASR-01/02/03/08 account handoff keeps the public listener and waits for ev
   const state=await f.begin('bob'),pending=f.complete(state);await oldClosed;
   assert.deepEqual(opened,[alice],'B cannot open while A resources are releasing');
   const old=await fetch(f.origin+'/api/personal/status',{headers:{Cookie:oldCookie}});assert.equal((await old.json()).identity,null);
-  release();assert.equal((await pending).status,303);assert.equal((await f.status()).ready,true);assert.deepEqual(opened,[alice,bob]);
+  release();assert.equal((await pending).status,200);assert.equal((await f.status()).ready,true);assert.deepEqual(opened,[alice,bob]);
   assert.deepEqual(f.server.address(),listener,'public listener is not restarted');
   const nextA=await f.login('alice');assert.equal(nextA.ready,true);assert.deepEqual(opened,[alice,bob,alice]);
   assert.notEqual(nextA.viewScope,firstA.viewScope,'ASR-03 old A control credentials cannot revive');
@@ -45,7 +45,7 @@ test('ASR-05/08 failed old-owner disposal keeps both old authorization and new b
   return core;
  });
  try{
-  await f.login('alice');const oldCookie=f.cookie,state=await f.begin('bob');assert.equal((await f.complete(state)).status,400);
+  await f.login('alice');const oldCookie=f.cookie,state=await f.begin('bob');assert.equal((await f.complete(state)).status,503);
   assert.equal(opened.length,1);const failed=await f.status();assert.equal(failed.ready,false);assert.ok(failed.error);
   assert.equal((await(await fetch(f.origin+'/api/personal/status',{headers:{Cookie:oldCookie}})).json()).identity,null);
   assert.equal((await f.request('/api/personal/space?kind=personal','POST')).status,200);assert.equal((await f.status()).ready,true);assert.equal(opened.length,2);
@@ -54,10 +54,20 @@ test('ASR-05/08 failed old-owner disposal keeps both old authorization and new b
 
 test('ASR-02 a new browser can prove current A, cannot replace A with B, and cannot interrupt an active account operation',async t=>{
  const opened:string[]=[];const f=await accountRefreshFixture(t,home=>{opened.push(basename(home));return accountProbeCore(home);});
- let cookie='',seq=0;
- const browser=async(path:string,post=false)=>{
-  const response=await fetch(f.origin+path,{method:post?'POST':'GET',redirect:'manual',headers:{Cookie:cookie,Origin:f.origin,'content-type':'application/json','x-molis-work-control-token':f.rootToken,'x-molis-work-idempotency-key':'new-browser-'+(++seq)},...(post?{body:'{}'}:{})});
+ let cookie='',seq=0,browserNonce='';
+ const browser=async(path:string,post=false,body:unknown={},extra:Record<string,string>={})=>{
+  const response=await fetch(f.origin+path,{method:post?'POST':'GET',redirect:'manual',headers:{Cookie:cookie,Origin:f.origin,'content-type':'application/json','x-molis-work-control-token':f.rootToken,'x-molis-work-idempotency-key':'new-browser-'+(++seq),...extra},...(post?{body:JSON.stringify(body)}:{})});
+  if(response.status===200&&path==='/api/personal/login')browserNonce=new URL((await response.clone().json()).loginUrl).searchParams.get('accountLogin')!;
   const set=response.headers.get('set-cookie');if(set?.startsWith('molis-work-session='))cookie=set.split(';')[0]!;return response;
+ };
+ const completeBrowser=async(email:string)=>{
+   const headers={'x-molis-account-login':browserNonce};
+   const created=await browser('/api/account/auth/transactions',true,{purpose:'LOGIN',method:'EMAIL_PASSWORD'},headers);
+   if(created.status!==200)return created;const {data:t}=await created.json();
+   const path='/api/account/auth/transactions/'+t.handle+'/submit';
+   const verified=await browser(path,true,{step:'PASSWORD_LOGIN',email,password:'synthetic-fixture-password'},headers);
+   if(verified.status!==200)return verified;
+   return browser(path,true,{step:'COMPLETE'},headers);
  };
  try{
   const a=await f.login('alice'),originalCookie=f.cookie;
@@ -65,14 +75,14 @@ test('ASR-02 a new browser can prove current A, cannot replace A with B, and can
   const unproved=await(await browser('/api/personal/status')).json();assert.equal(unproved.identity,null,'a pending browser login has no account authority');assert.equal(unproved.viewToken,undefined,'the pending browser must never receive any Host control credential');assert.notEqual(unproved.viewScope,a.viewScope);
   assert.equal((await browser('/api/personal/logout',true)).status,401,'an unproved browser cannot sign out installation A');
   assert.equal((await f.status()).identity.userId,'alice','refusing the pending browser logout preserves A');
-  assert.equal((await browser('/account/callback?code=bob&state='+f.loginState)).status,400,'B cannot replace installed A through an unauthenticated browser');
+  assert.equal((await completeBrowser('bob@example.test')).status,403,'B cannot replace installed A through an unauthenticated browser');
   assert.equal((await f.status()).identity.userId,'alice');assert.equal((await f.status()).accountGeneration,a.accountGeneration);assert.equal(opened.length,1);
   cookie='';f.setAuthUser('alice');assert.equal((await browser('/api/personal/login',true)).status,200);
-  assert.equal((await browser('/account/callback?code=alice&state='+f.loginState)).status,303);
+  assert.equal((await completeBrowser('alice@example.test')).status,200);
   assert.equal((await(await browser('/api/personal/status')).json()).identity.userId,'alice');
   assert.equal((await f.status()).accountGeneration,a.accountGeneration);assert.equal(f.cookie,originalCookie,'proving A does not rotate an existing page credential');
   const pending=await f.begin('bob');cookie='';assert.equal((await browser('/api/personal/login',true)).status,409,'a new browser cannot replace a prepared login transaction');
-  assert.equal((await f.complete(pending)).status,303);assert.equal((await f.status()).identity.userId,'bob');
+  assert.equal((await f.complete(pending)).status,200);assert.equal((await f.status()).identity.userId,'bob');
  }finally{await f.close();}
 });
 
@@ -96,9 +106,11 @@ for(const phase of ['token','identity'] as const)for(const action of ['cancel','
   const state=await f.begin('bob'),pending=f.complete(state);await waiting;
   const waitingStatus=await f.status();assert.equal(waitingStatus.loginPending,true,"exchange remains pending after the one-use callback state is consumed");
   const preparation=waitingStatus.preparation;assert.ok(preparation);
-  const stopped=await f.request('/api/personal/prepare?action='+action+'&page=account-refresh-page&id='+preparation.id,'POST');assert.equal(stopped.status,200);assert.equal((await f.status()).loginPending,false,'cancel invalidates the original in-flight attempt before its response arrives');
-  release();assert.equal((await pending).status,400,'a late authorization cannot commit after the page barrier is cancelled');
-  const after=await f.status();assert.equal(after.identity.userId,'alice');assert.equal(after.accountGeneration,before.accountGeneration);assert.equal(after.ready,true);assert.equal(after.preparation,null);assert.equal(after.loginPending,false);assert.equal(opened.length,1);
+  const stopped=await f.request('/api/personal/prepare?action='+action+'&page=account-refresh-page&id='+preparation.id,'POST');assert.equal(stopped.status,200);assert.equal((await (await f.request('/api/personal/status')).json()).loginPending,false,'cancel invalidates the original in-flight attempt before its response arrives');
+  release();assert.equal((await pending).status,499,'a late authorization cannot commit after the page barrier is cancelled');
+  // Observe the installation without re-registering the document that just left.
+  const observed=await f.request('/api/personal/status');assert.equal(observed.status,200);
+  const after=await observed.json();assert.equal(after.identity.userId,'alice');assert.equal(after.accountGeneration,before.accountGeneration);assert.equal(after.ready,true);assert.equal(after.preparation,null);assert.equal(after.loginPending,false);assert.equal(opened.length,1);
  }finally{release();await f.close();}
 });
 
@@ -106,10 +118,10 @@ for(const phase of ['token','identity'] as const)for(const action of ['cancel','
 test('ASR-04 losing a page event stream retains its draft participant until explicit page departure',async t=>{
  const f=await accountRefreshFixture(t,accountProbeCore),controller=new AbortController();let ended!:()=>void;
  const closed=new Promise<void>(resolve=>{ended=resolve;});
- f.server.on('request',(request,response)=>{if(request.url==='/api/personal/events?page=other-page')response.once('close',ended);});
+ f.server.on('request',(request,response)=>{if(request.url?.startsWith('/api/personal/events?page=other-page&'))response.once('close',ended);});
  try{
-  await f.login('alice');await f.request('/api/personal/status?page=other-page');
-  const stream=await fetch(f.origin+'/api/personal/events?page=other-page',{signal:controller.signal,headers:{Cookie:f.cookie,Origin:f.origin,'x-molis-work-control-token':f.control}});assert.equal(stream.status,200);
+  await f.login('alice');const {pageBinding}=await (await f.request('/api/personal/status?page=other-page')).json();
+  const stream=await fetch(f.origin+'/api/personal/events?page=other-page&binding='+encodeURIComponent(pageBinding),{signal:controller.signal,headers:{Cookie:f.cookie,Origin:f.origin,'x-molis-work-control-token':f.control}});assert.equal(stream.status,200);
   const reader=stream.body!.getReader();await reader.read();const readerClosed=reader.closed.catch(()=>{});controller.abort();await readerClosed;await closed;
   const start=await f.request('/api/personal/prepare?action=start&page=account-refresh-page&intent=switch','POST');assert.equal(start.status,200);const {id}=await start.json();
   const ack=await f.request('/api/personal/prepare?action=ack&page=account-refresh-page&id='+id,'POST');assert.equal(ack.status,200);assert.equal((await ack.json()).ready,false,'a disconnected live page still owes its own saved-draft acknowledgement');
@@ -127,10 +139,10 @@ test('ASR-05 cancelling the original popup attempt is owner-bound, idempotent an
   assert.equal((await f.request('/api/personal/login-cancel?attempt=wrong','POST')).status,409);assert.equal((await f.status()).loginPending,true);
   const cancelled=await f.request('/api/personal/login-cancel?attempt='+loginAttempt,'POST');assert.equal(cancelled.status,200);assert.equal((await f.status()).loginPending,false);
   assert.equal((await f.request('/api/personal/login-cancel?attempt='+loginAttempt,'POST')).status,200,'repeating this page cancellation is harmless');
-  assert.equal((await f.complete(oldState)).status,400,'the cancelled callback cannot sign in late');
+  assert.equal((await f.complete(oldState)).status,403,'the cancelled callback cannot sign in late');
   const next=await f.request('/api/personal/login','POST');assert.equal(next.status,200);const nextState=f.loginState;
   assert.equal((await fetch(f.origin+'/api/personal/login-cancel?attempt='+loginAttempt,{method:'POST',headers:{Cookie:oldCookie,Origin:f.origin,'x-molis-work-control-token':f.rootToken,'x-molis-work-idempotency-key':'old-popup-cancel-new'},body:'{}'})).status,409);
-  assert.equal((await f.complete(nextState)).status,303);assert.equal((await f.status()).identity.userId,'alice');
+  assert.equal((await f.complete(nextState)).status,200);assert.equal((await f.status()).identity.userId,'alice');
  }finally{await f.close();}
 });
 
@@ -140,7 +152,7 @@ test('ASR-05 an expired unconsumed popup attempt does not permanently block the 
   const first=await f.request('/api/personal/login','POST');assert.equal(first.status,200);const oldState=f.loginState;
   now+=11*60*1000;
   const second=await f.request('/api/personal/login','POST');assert.equal(second.status,200,'the original Auth owner expires the consumed waiting slot');const state=f.loginState;assert.notEqual(state,oldState);
-  assert.equal((await f.complete(oldState)).status,400);assert.equal((await f.complete(state)).status,303);assert.equal((await f.status()).identity.userId,'alice');
+  assert.equal((await f.complete(oldState)).status,403);assert.equal((await f.complete(state)).status,200);assert.equal((await f.status()).identity.userId,'alice');
  }finally{await f.close();}
 });
 
@@ -155,8 +167,28 @@ test('ASR-05 cancelling the first token exchange permits a new login before the 
   assert.equal((await f.request('/api/personal/login-cancel?attempt='+loginAttempt,'POST')).status,200);
   assert.equal((await f.status()).loginPending,false);
   const next=await f.request('/api/personal/login','POST');assert.equal(next.status,200,'the consumed old callback cannot hold the login slot after cancellation');const state=f.loginState;
-  release();assert.equal((await old).status,400,'the old late exchange cannot authenticate or cancel the new attempt');
+  release();assert.equal((await old).status,499,'the old late exchange cannot authenticate or cancel the new attempt');
   assert.equal((await f.status()).loginPending,true,'old failure cleanup must not cancel the replacement pending owner');
-  assert.equal((await f.complete(state)).status,303);assert.equal((await f.status()).identity.userId,'alice');
+  assert.equal((await f.complete(state)).status,200);assert.equal((await f.status()).identity.userId,'alice');
  }finally{release();await f.close();}
+});
+
+
+test('ASR-09 event reconnect refuses missing, forged and departed page bindings without registering a new participant', async t => {
+ const f=await accountRefreshFixture(t,accountProbeCore);
+ try {
+  await f.login('alice');
+  for (const Cookie of ['', 'molis-work-session=expired']) {
+   const refused=await f.request('/api/personal/events?page=old&binding=old','GET',{Cookie});
+   assert.equal(refused.status,200);assert.match(await refused.text(), /"type":"revoked"/u,'expired or absent cookies must stop reconnecting instead of looping on 401');
+  }
+  const {pageBinding}=await (await f.request('/api/personal/status?page=departing')).json();
+  await f.request('/api/personal/prepare?action=leave&page=departing','POST');
+  for(const suffix of ['page=unknown','page=account-refresh-page&binding=forged','page=departing&binding='+pageBinding]){
+   const response=await f.request('/api/personal/events?'+suffix);
+   assert.equal(response.status,200);
+   assert.match(await response.text(), /"type":"revoked"/u);
+  }
+  assert.equal((await f.logout()).status,200,'refused connections do not create phantom participants');
+ } finally { await f.close(); }
 });

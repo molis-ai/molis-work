@@ -1,0 +1,8 @@
+{
+  "reason": "账号统一退出保留安装级草稿准备协议；ASR-09 修复安全重连、心跳、父子页面保存协调与中文提示。相较本轮修复前 workbench.js 增加 1700 字节、plugin-frame.js 增加 92 字节；加上原有 193 字节，累计相对原基点分别为 1893、92 字节，无新增资源。 ASR-10 移除登录成功后的账号展示弹窗并即时通知原窗口，新增成功/关闭提示与查询期间通知排队；相对 ASR-09 workbench.js 再增加 473 字节，累计 2366 字节，plugin-frame.js 仍为 92 字节。",
+  "review": "specs/unified-account/spec.md 的 V2U-04/07 与 2026-11-09 ASR-09 用户批准方案；新增字节用于原账号绑定的消息恢复及子页面保存保护，单个资源增长均小于 10000 字节。完整 PR 前重新核对最新 merge-base。 2026-11-10 用户明确批准去掉登录成功后多余表单；ASR-10 真实双窗口验证在关闭轮询时仍能完成。",
+  "assets": {
+    "/assets/molis-work-workbench.js": 2366,
+    "/assets/molis-work-plugin-frame.js": 92
+  }
+}

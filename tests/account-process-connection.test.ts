@@ -1,3 +1,5 @@
+import {v2AccountPeer} from './fixtures/v2-account-peer.js';
+import {completeInstallationLogin} from './fixtures/installation-login.js';
 import { changeMcpClientCredential } from "@molis-ai/molis-work-app-local-host";
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -20,29 +22,24 @@ const run=promisify(execFile);
 // ASR-02/03/06: shipped process entrypoints attach through the installation's existing native proof, never a disk account selector.
 test('ASR-02/03/06 shipped stdio and CLI explicitly connect current A/B/A while old process credentials remain refused',async()=>{
  const home=mkdtempSync(join(tmpdir(),'account-process-'));
- let user='alice',state='',authOrigin='';
- const auth=createServer(async(request,response)=>{
-  let raw='';for await(const chunk of request)raw+=chunk;response.setHeader('content-type','application/json');
-  if(request.url==='/api/v1/auth/transactions'){state=JSON.parse(raw).state;response.end(JSON.stringify({data:{loginUrl:authOrigin+'/login'}}));}
-  else if(request.url==='/oauth2/token')response.end(JSON.stringify({access_token:'synthetic-'+user,refresh_token:'synthetic-refresh',expires_in:3600}));
-  else if(request.url==='/api/v1/users/me'){const name=String(request.headers.authorization).replace('Bearer synthetic-','');response.end(JSON.stringify({data:{userId:name,displayName:name,emails:[],applicationId:'work',clientId:'web-test'}}));}
-  else response.end('{}');
- });
+ let user='alice',authOrigin='';
+ const peer=v2AccountPeer(()=>user),auth=peer.server;
  authOrigin=await listen(auth);
- const env={MOLIS_WORK_AUTH_ORIGIN:authOrigin,MOLIS_WORK_AUTH_CLIENT_ID:'web-test',MOLIS_WORK_CLOUD_ORIGIN:authOrigin,MOLIS_WORK_SECRET_BACKEND:'file'};
+ const env={MOLIS_WORK_ACCOUNT_CONFIG:'',MOLIS_WORK_SECRET_BACKEND:'file'};
  const before=Object.fromEntries(Object.keys(env).map(key=>[key,process.env[key]]));Object.assign(process.env,env);
  const server=createDesktopWebHost({ptyClientFilePath:()=>'/unused-for-process-test'})({homeDirectory:home}),origin=await listen(server);
+ process.env.MOLIS_WORK_ACCOUNT_CONFIG=peer.configure(origin);
  const rootToken=readFileSync(join(home,'config','web-control-token'),'utf8').trim(),proof=readFileSync(join(home,NATIVE_SESSION_FILE),'utf8');
  let cookie='',token=rootToken,sequence=0;
- const request=async(path:string,body?:unknown)=>{
-  const response=await fetch(origin+path,{method:body===undefined?'GET':'POST',headers:{Cookie:cookie,Origin:origin,'content-type':'application/json','x-molis-work-control-token':token,'x-molis-work-idempotency-key':'process-'+(++sequence)},...(body===undefined?{}:{body:JSON.stringify(body)}),redirect:'manual'});
+ const request=async(path:string,body?:unknown,extra:Record<string,string>={})=>{
+  const response=await fetch(origin+path,{method:body===undefined?'GET':'POST',headers:{Cookie:cookie,Origin:origin,'content-type':'application/json','x-molis-work-control-token':token,'x-molis-work-idempotency-key':'process-'+(++sequence),...extra},...(body===undefined?{}:{body:JSON.stringify(body)}),redirect:'manual'});
   const set=response.headers.get('set-cookie');if(set?.startsWith('molis-work-session='))cookie=set.split(';')[0]!;return response;
  };
  const json=async(path:string,body?:unknown)=>{const response=await request(path,body),value=await response.json();assert.ok(response.status<400,JSON.stringify({path,status:response.status,value}));return value;};
  const login=async(name:string)=>{
   const current=await json('/api/personal/status?page=process-page');let prepared='';
   if(current.identity){const start=await json('/api/personal/prepare?action=start&page=process-page&intent=switch',{});assert.equal((await json('/api/personal/prepare?action=ack&page=process-page&id='+start.id,{})).ready,true);prepared='&page=process-page&preparation='+start.id;}
-  user=name;await json('/api/personal/'+(current.identity?'switch':'login')+'?returnTo=%2F'+prepared,{});assert.equal((await request('/account/callback?code=synthetic&state='+state)).status,303);token=readFileSync(join(home,'spaces',(await json('/api/spaces')).current.spaceId,'config/web-control-token'),'utf8').trim();
+  user=name;const begun=await json('/api/personal/'+(current.identity?'switch':'login')+'?returnTo=%2F'+prepared,{});assert.equal((await completeInstallationLogin((path,init)=>request(path,JSON.parse(String(init?.body)),Object.fromEntries(new Headers(init?.headers))),begun.loginUrl,name+'@example.test')).status,200);token=readFileSync(join(home,'spaces',(await json('/api/spaces')).current.spaceId,'config/web-control-token'),'utf8').trim();
  };
  changeMcpClientCredential(home,"runtime:codex","connect");changeMcpClientCredential(home,"runtime:account-process-test","connect");
  const peers:Client[]=[];

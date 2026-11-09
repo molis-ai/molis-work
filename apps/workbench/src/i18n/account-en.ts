@@ -1,5 +1,7 @@
 /** Personal and unified account copy. */
 export const ACCOUNT_EN: Record<string, string> = {
+  "创建租户": "Create tenant",
+  "租户已创建。": "Tenant created.",
   '无法使用登录方式？': 'Can’t use your sign-in methods?',
   '还有可用方式：用它登录，在“个人资料与安全”验证身份后绑定或换绑。仅忘记邮箱密码，可在登录页选择“找回密码”。': 'If a method still works, sign in with it and verify your identity in Profile and security to add or replace a method. If you only forgot your email password, choose Reset password on the sign-in screen.',
   '全部方式都已丢失：先向邮箱服务商、手机运营商或 Google、GitHub 找回原登录方式，再回来登录。': 'If all methods are lost, recover an original method through your email provider, mobile carrier, Google or GitHub, then return to sign in.',
@@ -241,4 +243,10 @@ export const ACCOUNT_EN: Record<string, string> = {
   "账号正在切换，请稍候": "Switching accounts. Please wait.",
   "草稿保存未完成，请返回原页面重试": "The draft could not be saved. Return to the page and try again.",
   "还有未保存的修改或运行中的任务。取消可返回原页面保存；继续将放弃未保存的修改并停止任务。继续切换账号？": "There are unsaved edits or running tasks. Cancel to return and save, or continue to discard unsaved edits and stop tasks. Switch accounts?",
+  "账号操作已取消，尚未退出或切换账号。": "Account action cancelled. You have not signed out or switched accounts.",
+  "账号准备尚未完成，请稍后重试。": "Account preparation is incomplete. Please try again shortly.",
+  "有页面未响应，尚未退出或切换账号。请检查其他窗口后重试。": "A page did not respond. You have not signed out or switched accounts. Check your other windows and try again.",
+  "请在主窗口操作账号。": "Manage your account in the main window.",
+  "登录成功，正在进入工作台…": "Signed in. Opening your workbench…",
+  "登录成功，可以关闭此窗口。": "Signed in. You can close this window.",
 };

@@ -30,7 +30,7 @@ process.env.MOLIS_WORK_ENCRYPTION_KEY = '';
 const home = await mkdtemp(join(tmpdir(), 'work02-central-'));
 let host, server;
 try {
-  await initializeLocalRuntime(proxy);
+  await initializeLocalRuntime(proxy,false);
   const seed = readFileSync(resolve(source, 'worker/unified-account-local-seed.sql'), 'utf8').replaceAll('http://127.0.0.1:4207', productOrigin);
   for (const sql of seed.replace(/--[^\n]*/g, '').split(';').map(s => s.trim()).filter(Boolean)) await proxy.env.DB.prepare(sql).run();
   const secret = () => randomBytes(32).toString('base64url');

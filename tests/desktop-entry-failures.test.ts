@@ -63,7 +63,7 @@ async function web(t: TestContext, mode: string, prepare?: (directory: string) =
   const businessHome = await account.prepareHome(directory);
   try { await prepare?.(businessHome); }
   catch (error) { rmSync(directory, { recursive: true, force: true }); throw error; }
-  const child = spawn(process.execPath, [...flags, "--import", preload, webEntry, "--home", directory, "--port", "0"], {
+  const child = spawn(process.execPath, [...flags, "--import", preload, webEntry, "--home", directory, "--port", String(account.webPort)], {
     cwd: root, stdio: ["ignore", "pipe", "pipe", "ipc"],
     env: { ...process.env, MOLIS_WORK_HOME: directory, MOLIS_WORK_DEBUG: "",
       ...account.environment,

@@ -1,22 +1,26 @@
 interface AccountTransition {
   readonly preparing: boolean;
   page(root: HTMLElement, flush: () => Promise<void>, dispose: () => void, resume: () => void): () => void;
+  changed(listener: () => void): () => void;
   prepare(): Promise<void>;
   lock(): void;
   resume(): void;
   invalidate(): void;
 }
-declare global { var molisWorkAccountTransition: AccountTransition | undefined; }
+declare global { var molisWorkAccountTransition: AccountTransition | undefined; interface Window { molisWorkAccountTransition?: AccountTransition } }
 
 /** Account controls and opaque-frame transport are separate bundles in the same trusted document. */
 export function accountTransition(): AccountTransition {
   if (globalThis.molisWorkAccountTransition) return globalThis.molisWorkAccountTransition;
   const pages = new Map<HTMLElement, {flush(): Promise<void>; dispose(): void; resume(): void}>();
+  const listeners = new Set<() => void>();
+  const changed = () => { for (const listener of listeners) listener(); };
   const inert = new Map<HTMLElement, boolean>();
   let preparing = false, invalidated = false;
   return globalThis.molisWorkAccountTransition = {
     get preparing() { return preparing; },
-    page(root, flush, dispose, resume) { pages.set(root, {flush, dispose, resume}); return () => { pages.delete(root); }; },
+    page(root, flush, dispose, resume) { pages.set(root, {flush, dispose, resume}); changed(); return () => { if (pages.delete(root)) changed(); }; },
+    changed(listener) { listeners.add(listener); return () => { listeners.delete(listener); }; },
     lock() {
       preparing = true;
       if (document.body.hasAttribute('data-account-entry')) return;

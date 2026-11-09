@@ -1,5 +1,5 @@
 {
-  "contractVersion": "1.1.0",
+  "contractVersion": "1.2.0",
   "syntheticOnly": true,
   "fixtures": [
     {
@@ -1927,6 +1927,278 @@
     {
       "name": "TenantCreateRequest:wrong-root-type",
       "schema": "TenantCreateRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "PlatformApplication:minimal-valid",
+      "schema": "PlatformApplication",
+      "valid": true,
+      "value": {
+        "applicationId": "xxxxxxxx",
+        "name": "xxxxxxxx",
+        "status": "ACTIVE",
+        "version": 1
+      }
+    },
+    {
+      "name": "PlatformApplication:wrong-root-type",
+      "schema": "PlatformApplication",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "PlatformApplicationPage:minimal-valid",
+      "schema": "PlatformApplicationPage",
+      "valid": true,
+      "value": {
+        "items": [],
+        "nextCursor": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "PlatformApplicationPage:wrong-root-type",
+      "schema": "PlatformApplicationPage",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "ApplicationCreateRequest:minimal-valid",
+      "schema": "ApplicationCreateRequest",
+      "valid": true,
+      "value": {
+        "name": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "ApplicationCreateRequest:wrong-root-type",
+      "schema": "ApplicationCreateRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "ApplicationUpdateRequest:minimal-valid",
+      "schema": "ApplicationUpdateRequest",
+      "valid": true,
+      "value": {
+        "name": "xxxxxxxx",
+        "status": "ACTIVE",
+        "expectedVersion": 1
+      }
+    },
+    {
+      "name": "ApplicationUpdateRequest:wrong-root-type",
+      "schema": "ApplicationUpdateRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "PlatformLoginClient:minimal-valid",
+      "schema": "PlatformLoginClient",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "applicationId": "xxxxxxxx",
+        "clientType": "WEB",
+        "status": "ACTIVE",
+        "version": 1,
+        "environmentId": "xxxxxxxx",
+        "policyVersion": 1,
+        "allowedOrigins": [
+          "https://auth.example.invalid"
+        ],
+        "redirectAllowlist": [
+          "https://auth.example.invalid"
+        ],
+        "product": "WORK"
+      }
+    },
+    {
+      "name": "PlatformLoginClient:wrong-root-type",
+      "schema": "PlatformLoginClient",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "PlatformLoginClientPage:minimal-valid",
+      "schema": "PlatformLoginClientPage",
+      "valid": true,
+      "value": {
+        "items": [],
+        "nextCursor": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "PlatformLoginClientPage:wrong-root-type",
+      "schema": "PlatformLoginClientPage",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "LoginClientCreateRequest:minimal-valid",
+      "schema": "LoginClientCreateRequest",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "clientType": "WEB",
+        "environmentId": "xxxxxxxx",
+        "allowedOrigins": [
+          "https://auth.example.invalid"
+        ],
+        "redirectAllowlist": [
+          "https://auth.example.invalid"
+        ]
+      }
+    },
+    {
+      "name": "LoginClientCreateRequest:wrong-root-type",
+      "schema": "LoginClientCreateRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "LoginClientUpdateRequest:minimal-valid",
+      "schema": "LoginClientUpdateRequest",
+      "valid": true,
+      "value": {
+        "status": "ACTIVE",
+        "allowedOrigins": [
+          "https://auth.example.invalid"
+        ],
+        "redirectAllowlist": [
+          "https://auth.example.invalid"
+        ],
+        "expectedPolicyVersion": 1,
+        "expectedVersion": 1
+      }
+    },
+    {
+      "name": "LoginClientUpdateRequest:wrong-root-type",
+      "schema": "LoginClientUpdateRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "PlatformUser:minimal-valid",
+      "schema": "PlatformUser",
+      "valid": true,
+      "value": {
+        "userId": "xxxxxxxx",
+        "displayName": "xxxxxxxx",
+        "status": "ACTIVE",
+        "version": 1
+      }
+    },
+    {
+      "name": "PlatformUser:wrong-root-type",
+      "schema": "PlatformUser",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "PlatformUserPage:minimal-valid",
+      "schema": "PlatformUserPage",
+      "valid": true,
+      "value": {
+        "items": [],
+        "nextCursor": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "PlatformUserPage:wrong-root-type",
+      "schema": "PlatformUserPage",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "UserStatusRequest:minimal-valid",
+      "schema": "UserStatusRequest",
+      "valid": true,
+      "value": {
+        "status": "ACTIVE",
+        "expectedVersion": 1,
+        "reason": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "UserStatusRequest:wrong-root-type",
+      "schema": "UserStatusRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "PlatformPermission:minimal-valid",
+      "schema": "PlatformPermission",
+      "valid": true,
+      "value": {
+        "userId": "xxxxxxxx",
+        "capability": "TENANT_CREATE",
+        "status": "ACTIVE",
+        "version": 1
+      }
+    },
+    {
+      "name": "PlatformPermission:wrong-root-type",
+      "schema": "PlatformPermission",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "PlatformPermissionPage:minimal-valid",
+      "schema": "PlatformPermissionPage",
+      "valid": true,
+      "value": {
+        "items": [],
+        "nextCursor": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "PlatformPermissionPage:wrong-root-type",
+      "schema": "PlatformPermissionPage",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "PlatformPermissionRequest:minimal-valid",
+      "schema": "PlatformPermissionRequest",
+      "valid": true,
+      "value": {
+        "enabled": true,
+        "expectedVersion": 1,
+        "reason": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "PlatformPermissionRequest:wrong-root-type",
+      "schema": "PlatformPermissionRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "SelfTenantCreateRequest:minimal-valid",
+      "schema": "SelfTenantCreateRequest",
+      "valid": true,
+      "value": {
+        "name": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "SelfTenantCreateRequest:wrong-root-type",
+      "schema": "SelfTenantCreateRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "TenantCreationPolicyView:minimal-valid",
+      "schema": "TenantCreationPolicyView",
+      "valid": true,
+      "value": {
+        "mode": "SELF_SERVICE"
+      }
+    },
+    {
+      "name": "TenantCreationPolicyView:wrong-root-type",
+      "schema": "TenantCreationPolicyView",
       "valid": false,
       "value": null
     },
@@ -4612,6 +4884,168 @@
       "value": null
     },
     {
+      "name": "PlatformUserPageResponse:minimal-valid",
+      "schema": "PlatformUserPageResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "items": [],
+          "nextCursor": "xxxxxxxx"
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "PlatformUserPageResponse:wrong-root-type",
+      "schema": "PlatformUserPageResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "PlatformUserResponse:minimal-valid",
+      "schema": "PlatformUserResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "userId": "xxxxxxxx",
+          "displayName": "xxxxxxxx",
+          "status": "ACTIVE",
+          "version": 1
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "PlatformUserResponse:wrong-root-type",
+      "schema": "PlatformUserResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "PlatformPermissionPageResponse:minimal-valid",
+      "schema": "PlatformPermissionPageResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "items": [],
+          "nextCursor": "xxxxxxxx"
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "PlatformPermissionPageResponse:wrong-root-type",
+      "schema": "PlatformPermissionPageResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "PlatformPermissionResponse:minimal-valid",
+      "schema": "PlatformPermissionResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "userId": "xxxxxxxx",
+          "capability": "TENANT_CREATE",
+          "status": "ACTIVE",
+          "version": 1
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "PlatformPermissionResponse:wrong-root-type",
+      "schema": "PlatformPermissionResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "PlatformApplicationPageResponse:minimal-valid",
+      "schema": "PlatformApplicationPageResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "items": [],
+          "nextCursor": "xxxxxxxx"
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "PlatformApplicationPageResponse:wrong-root-type",
+      "schema": "PlatformApplicationPageResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "PlatformApplicationResponse:minimal-valid",
+      "schema": "PlatformApplicationResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "applicationId": "xxxxxxxx",
+          "name": "xxxxxxxx",
+          "status": "ACTIVE",
+          "version": 1
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "PlatformApplicationResponse:wrong-root-type",
+      "schema": "PlatformApplicationResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "PlatformLoginClientPageResponse:minimal-valid",
+      "schema": "PlatformLoginClientPageResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "items": [],
+          "nextCursor": "xxxxxxxx"
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "PlatformLoginClientPageResponse:wrong-root-type",
+      "schema": "PlatformLoginClientPageResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "PlatformLoginClientResponse:minimal-valid",
+      "schema": "PlatformLoginClientResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "clientId": "xxxxxxxx",
+          "applicationId": "xxxxxxxx",
+          "clientType": "WEB",
+          "status": "ACTIVE",
+          "version": 1,
+          "environmentId": "xxxxxxxx",
+          "policyVersion": 1,
+          "allowedOrigins": [
+            "https://auth.example.invalid"
+          ],
+          "redirectAllowlist": [
+            "https://auth.example.invalid"
+          ],
+          "product": "WORK"
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "PlatformLoginClientResponse:wrong-root-type",
+      "schema": "PlatformLoginClientResponse",
+      "valid": false,
+      "value": null
+    },
+    {
       "name": "MyTenantsPageResponse:minimal-valid",
       "schema": "MyTenantsPageResponse",
       "valid": true,
@@ -4629,6 +5063,23 @@
     {
       "name": "MyTenantsPageResponse:wrong-root-type",
       "schema": "MyTenantsPageResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "TenantCreationPolicyViewResponse:minimal-valid",
+      "schema": "TenantCreationPolicyViewResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "mode": "SELF_SERVICE"
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "TenantCreationPolicyViewResponse:wrong-root-type",
+      "schema": "TenantCreationPolicyViewResponse",
       "valid": false,
       "value": null
     },
@@ -5557,6 +6008,23 @@
       "value": {
         "kind": "PERSONAL",
         "userId": "victim"
+      }
+    },
+    {
+      "name": "self-tenant-owner-injection",
+      "schema": "SelfTenantCreateRequest",
+      "valid": false,
+      "value": {
+        "name": "Example",
+        "ownerUserId": "another_user"
+      }
+    },
+    {
+      "name": "tenant-creation-unknown-policy",
+      "schema": "TenantCreationPolicyView",
+      "valid": false,
+      "value": {
+        "mode": "UNKNOWN"
       }
     },
     {

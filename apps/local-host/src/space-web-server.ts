@@ -193,7 +193,7 @@ function createSpaceContext(options:WebServerOptions,createCore:(options:WebServ
     const initialLease=personalSurfaceLease(space,selected.session);
     const coreOptions=space.kind==='local'?{...options,homeDirectory:directory}:{homeDirectory:directory};
     const token=tokenFor(selected);
-    const core=runWithMolisWorkHome(directory,()=>createCore({...coreOptions,controlToken:token,webSessions:options.webSessions,accountRegistration:true,mcpCredentialHomeDirectory:home,runtimeIntegrationService:options.runtimeIntegrationService,webServiceManager:options.webServiceManager,installationDiagnostics:options.installationDiagnostics,...(initialLease?{isNativeAccountRequest:request=>!!account.context(request,true),assertAccountCurrent:()=>{if(stopping)throw new ActionError("actions.unavailable","服务正在关闭。");initialLease.assertCurrent();}}:{})}));
+    const core=runWithMolisWorkHome(directory,()=>createCore({...coreOptions,controlToken:token,webSessions:options.webSessions,accountRegistration:true,...(selected.session?{account:{environment:selected.session.auth.config,session:selected.session.auth.sessions}}:{}),mcpCredentialHomeDirectory:home,runtimeIntegrationService:options.runtimeIntegrationService,webServiceManager:options.webServiceManager,installationDiagnostics:options.installationDiagnostics,...(initialLease?{isNativeAccountRequest:request=>!!account.context(request,true),assertAccountCurrent:()=>{if(stopping)throw new ActionError("actions.unavailable","服务正在关闭。");initialLease.assertCurrent();}}:{})}));
     core.address=address;
     result={home:directory,space,token,server:core,users:new Map(),connections:new Map(),responses:new Map()};
     if(space.kind==='personal'){
@@ -305,7 +305,7 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
           if(request.method!=='POST'){sendLocalWebJson(response,405,{error:'不支持此操作。'});return;}
           if(account.preparing()){sendLocalWebJson(response,409,{error:'账号操作进行中，请稍后显式重连。'});return;}
           // This native attachment is an explicit retry; ordinary business traffic never retries a failed handoff.
-          try{await settleAccount(true);}catch(error){respondLocalWebRefusal({respond:(status,body)=>sendLocalWebJson(response,status,body)},error);return;}
+          try{await account.restore();await settleAccount(true);}catch(error){respondLocalWebRefusal({respond:(status,body)=>sendLocalWebJson(response,status,body)},error);return;}
           const session=account.current();
           if(!session){sendLocalWebJson(response,401,{error:'请先登录当前安装的账号。'});return;}
           const selected=selection(request),entry=surfaces.get(selected.space.spaceId);
@@ -330,10 +330,12 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
         const callback=url.pathname==='/account/callback';
         // Protocol markers only route the request; the selected Home verifies the pending attempt.
         const unifiedCallback=callback&&(url.searchParams.has('transactionId')||url.searchParams.has('result'));
-        const accountPath=url.pathname.startsWith('/api/personal/')||['/account','/welcome'].includes(url.pathname)||(callback&&!unifiedCallback);
+        const installationProtocol=account.protocol.owns(request,url)||(url.pathname.startsWith('/api/account/')&&request.headers['x-molis-account-login']!==undefined);
+        const accountPath=installationProtocol||url.pathname.startsWith('/api/personal/')||['/account','/welcome'].includes(url.pathname)||(callback&&!unifiedCallback);
         const address=server.address();
         const origin=`http://127.0.0.1:${address&&typeof address==='object'?address.port:4173}`;
         if(accountEntry?.asset(request,response,url))return;
+        if(request.method==='GET'&&accountEntry&&account.protocol.entry(url)){response.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-frame-options':'DENY'});response.end(accountEntry.render(webPageToken(request),request,url));return;}
         if(url.pathname.startsWith('/api/sync')){
           const expectedSpace=request.headers['x-molis-sync-space'];
           if(expectedSpace&&expectedSpace!==selected.space.spaceId){sendLocalWebJson(response,409,{error:'空间已切换，请刷新页面。'});return;}
@@ -344,7 +346,7 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
         }
         if(accountPath){
           if(!authorizeLocalWebRequest(request,response,url,native(request)||request.headers['x-molis-work-control-token']===rootToken?rootToken:token,mutations))return;
-          if(!await account(request,response,url,origin,webPageToken(request),''))sendLocalWebJson(response,404,{error:'接口不存在。'});
+          if(!await (installationProtocol?account.protocol.handle(request,response,url):account(request,response,url,origin,webPageToken(request),'')))sendLocalWebJson(response,404,{error:'接口不存在。'});
           if (url.pathname === '/api/personal/logout' && response.statusCode === 200) revokeWebSession(request);
           sweep();await resume(request);return;
         }
@@ -387,6 +389,7 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
         // Do not yield before the core's synchronous HTTP guards (including malformed mutation bodies).
         void resume(request);
       }catch(error){
+        if(!response.headersSent&&error instanceof ActionError){respondLocalWebRefusal({respond:(status,body)=>sendLocalWebJson(response,status,body)},error);return;}
         if(!response.headersSent){
           if(request.method==='GET'&&!(request.url??'/').startsWith('/api/')&&accountEntry){response.writeHead(503,{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-frame-options':'DENY'});response.end(accountEntry.render(webPageToken(request),request,new URL(request.url??'/','http://localhost'),'账号环境尚未就绪，请重试。'));}
           else sendLocalWebJson(response,503,{code:'space.unavailable',error:'账号环境尚未就绪，请重试。'});
@@ -411,7 +414,7 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
   });
   timer=setInterval(sweep,1000);timer.unref();
   shutdown=awaitWebServerShutdown(server,()=>{clearInterval(timer);sessions.close();stop();},
-    ()=>releaseRetired(true));
+    async()=>{await releaseRetired(true);await account.drained();});
   return server;
   } catch(error){
     throw retainInitializationCleanup(error,async()=>{

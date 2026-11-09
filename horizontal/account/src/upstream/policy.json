@@ -1,5 +1,5 @@
 {
-  "contractVersion": "1.1.0",
+  "contractVersion": "1.2.0",
   "implementationStatus": "CONTRACT_ONLY",
   "policyProfile": "unified-account-v2",
   "defaults": {
@@ -249,11 +249,116 @@
       "outputSchema": "GlobalLogoutResult"
     },
     {
+      "operationId": "listPlatformUsers",
+      "authority": "platform:USER_READ",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "PlatformUserPage"
+    },
+    {
+      "operationId": "getPlatformUser",
+      "authority": "platform:USER_READ",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "PlatformUser"
+    },
+    {
+      "operationId": "setPlatformUserStatus",
+      "authority": "platform:USER_STATUS",
+      "idempotency": "REQUIRED",
+      "inputSchema": "UserStatusRequest",
+      "outputSchema": "PlatformUser"
+    },
+    {
+      "operationId": "listPlatformPermissions",
+      "authority": "platform:PLATFORM_PERMISSION_WRITE",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "PlatformPermissionPage"
+    },
+    {
+      "operationId": "setPlatformPermission",
+      "authority": "platform:PLATFORM_PERMISSION_WRITE",
+      "idempotency": "REQUIRED",
+      "inputSchema": "PlatformPermissionRequest",
+      "outputSchema": "PlatformPermission"
+    },
+    {
+      "operationId": "listApplications",
+      "authority": "platform:APPLICATION_READ",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "PlatformApplicationPage"
+    },
+    {
+      "operationId": "getApplication",
+      "authority": "platform:APPLICATION_READ",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "PlatformApplication"
+    },
+    {
+      "operationId": "createApplication",
+      "authority": "platform:APPLICATION_WRITE",
+      "idempotency": "REQUIRED",
+      "inputSchema": "ApplicationCreateRequest",
+      "outputSchema": "PlatformApplication"
+    },
+    {
+      "operationId": "updateApplication",
+      "authority": "platform:APPLICATION_WRITE",
+      "idempotency": "REQUIRED",
+      "inputSchema": "ApplicationUpdateRequest",
+      "outputSchema": "PlatformApplication"
+    },
+    {
+      "operationId": "listLoginClients",
+      "authority": "platform:CLIENT_READ",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "PlatformLoginClientPage"
+    },
+    {
+      "operationId": "createLoginClient",
+      "authority": "platform:CLIENT_WRITE",
+      "idempotency": "REQUIRED",
+      "inputSchema": "LoginClientCreateRequest",
+      "outputSchema": "PlatformLoginClient"
+    },
+    {
+      "operationId": "getLoginClient",
+      "authority": "platform:CLIENT_READ",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "PlatformLoginClient"
+    },
+    {
+      "operationId": "updateLoginClient",
+      "authority": "platform:CLIENT_WRITE",
+      "idempotency": "REQUIRED",
+      "inputSchema": "LoginClientUpdateRequest",
+      "outputSchema": "PlatformLoginClient"
+    },
+    {
       "operationId": "listMyTenants",
       "authority": "session",
       "idempotency": "NOT_APPLICABLE",
       "inputSchema": null,
       "outputSchema": "MyTenantsPage"
+    },
+    {
+      "operationId": "getTenantCreationPolicy",
+      "authority": "session",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "TenantCreationPolicyView"
+    },
+    {
+      "operationId": "createMyTenant",
+      "authority": "session",
+      "idempotency": "REQUIRED",
+      "inputSchema": "SelfTenantCreateRequest",
+      "outputSchema": "TenantView"
     },
     {
       "operationId": "getTenant",
@@ -662,11 +767,116 @@
       "outputSchema": "PasswordResetResult"
     },
     {
+      "operationId": "product_listPlatformUsers",
+      "authority": "product",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "PlatformUserPage"
+    },
+    {
+      "operationId": "product_getPlatformUser",
+      "authority": "product",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "PlatformUser"
+    },
+    {
+      "operationId": "product_setPlatformUserStatus",
+      "authority": "product",
+      "idempotency": "REQUIRED",
+      "inputSchema": "UserStatusRequest",
+      "outputSchema": "PlatformUser"
+    },
+    {
+      "operationId": "product_listPlatformPermissions",
+      "authority": "product",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "PlatformPermissionPage"
+    },
+    {
+      "operationId": "product_setPlatformPermission",
+      "authority": "product",
+      "idempotency": "REQUIRED",
+      "inputSchema": "PlatformPermissionRequest",
+      "outputSchema": "PlatformPermission"
+    },
+    {
+      "operationId": "product_listApplications",
+      "authority": "product",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "PlatformApplicationPage"
+    },
+    {
+      "operationId": "product_getApplication",
+      "authority": "product",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "PlatformApplication"
+    },
+    {
+      "operationId": "product_createApplication",
+      "authority": "product",
+      "idempotency": "REQUIRED",
+      "inputSchema": "ApplicationCreateRequest",
+      "outputSchema": "PlatformApplication"
+    },
+    {
+      "operationId": "product_updateApplication",
+      "authority": "product",
+      "idempotency": "REQUIRED",
+      "inputSchema": "ApplicationUpdateRequest",
+      "outputSchema": "PlatformApplication"
+    },
+    {
+      "operationId": "product_listLoginClients",
+      "authority": "product",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "PlatformLoginClientPage"
+    },
+    {
+      "operationId": "product_createLoginClient",
+      "authority": "product",
+      "idempotency": "REQUIRED",
+      "inputSchema": "LoginClientCreateRequest",
+      "outputSchema": "PlatformLoginClient"
+    },
+    {
+      "operationId": "product_getLoginClient",
+      "authority": "product",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "PlatformLoginClient"
+    },
+    {
+      "operationId": "product_updateLoginClient",
+      "authority": "product",
+      "idempotency": "REQUIRED",
+      "inputSchema": "LoginClientUpdateRequest",
+      "outputSchema": "PlatformLoginClient"
+    },
+    {
       "operationId": "product_listMyTenants",
       "authority": "product",
       "idempotency": "NOT_APPLICABLE",
       "inputSchema": null,
       "outputSchema": "MyTenantsPage"
+    },
+    {
+      "operationId": "product_getTenantCreationPolicy",
+      "authority": "product",
+      "idempotency": "NOT_APPLICABLE",
+      "inputSchema": null,
+      "outputSchema": "TenantCreationPolicyView"
+    },
+    {
+      "operationId": "product_createMyTenant",
+      "authority": "product",
+      "idempotency": "REQUIRED",
+      "inputSchema": "SelfTenantCreateRequest",
+      "outputSchema": "TenantView"
     },
     {
       "operationId": "product_getTenant",
@@ -1240,6 +1450,17 @@
     }
   ],
   "roleRules": {
+    "tenantCreation": {
+      "configuration": "TENANT_CREATION_POLICY",
+      "default": "SELF_SERVICE",
+      "modes": [
+        "SELF_SERVICE",
+        "PLATFORM_ONLY"
+      ],
+      "selfServiceOwner": "CURRENT_AUTHENTICATED_USER",
+      "platformCreation": "TENANT_CREATE",
+      "changesExistingMembership": false
+    },
     "tenantDisabled": "DENY_MEMBER_READ_AND_WRITE_EXCEPT_MINIMAL_MY_TENANTS",
     "platformAuthority": "INDEPENDENT_OF_TENANT_ROLE",
     "OWNER": [
@@ -1369,19 +1590,11 @@
     "refreshUnknownOutcome": "NO_REPLAY_REAUTHENTICATE",
     "revokedProofMayReadSameLogoutResultOnly": true
   },
-  "migrationRules": {
-    "preserveData": true,
+  "identityRules": {
     "automaticEmailMerge": false,
-    "raiseEmailVerification": false,
-    "reuseWorkClubOldSessions": false,
-    "revokeOtherProductLegacySessions": false,
-    "legacyTeamAutoAdoption": false
+    "unverifiedEmailMayAuthenticate": false,
+    "productSessionsIndependent": true
   },
-  "legacyGuards": [
-    "MANAGED_CLIENT_CANNOT_USE_LEGACY_USER_GRANT",
-    "MANAGED_TENANT_SAME_POLICY_ON_ALL_VERSIONS",
-    "NO_IMPLICIT_TEAM_ADOPTION"
-  ],
   "portSchemas": [
     "SmsDelivery",
     "MailDelivery",

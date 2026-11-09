@@ -1,4 +1,5 @@
 import {personalStorageSpace} from "@molis-ai/molis-work-storage";
+import {createTrialAuthPeer,trialAccountConfig} from '../../examples/personal-trial-tools/mock-auth.mjs';
 import assert from 'node:assert/strict';
 import {mkdtempSync,rmSync,readFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
@@ -10,26 +11,23 @@ import {createSpaceWebServer,type SpaceWebSurface,type WebServerOptions} from '@
 /** Real installation account entry and Auth exchange; only the scoped business core and remote Auth are test doubles. */
 export async function accountRefreshFixture(t:TestContext,createCore:(home:string,options:WebServerOptions)=>SpaceWebSurface){
  const home=mkdtempSync(join(tmpdir(),'account-refresh-')),authOrigin='https://auth.example.test';
- const env={MOLIS_WORK_AUTH_ORIGIN:authOrigin,MOLIS_WORK_AUTH_CLIENT_ID:'web-test'};
+ const env={MOLIS_WORK_ACCOUNT_CONFIG:''};
  const before=Object.fromEntries(Object.keys(env).map(key=>[key,process.env[key]]));Object.assign(process.env,env);
  let state='',user='alice';const original=fetch;
  const authWaits:{token?:(user:string)=>Promise<void>;identity?:(user:string)=>Promise<void>}={};
- t.mock.method(globalThis,'fetch',(async(input,init)=>{
-  const url=new URL(String(input));if(url.origin!==authOrigin)return original(input,init);
-  if(url.pathname==='/api/v1/auth/transactions'){state=JSON.parse(String(init?.body)).state;return Response.json({data:{loginUrl:authOrigin+'/login'}});}
-  if(url.pathname==='/oauth2/token'){await authWaits.token?.(user);return Response.json({access_token:'synthetic-'+user,refresh_token:'synthetic-refresh',expires_in:3600});}
-  if(url.pathname==='/api/v1/users/me'){const name=(new Headers(init?.headers).get('authorization')??'').replace('Bearer synthetic-','');await authWaits.identity?.(name);return Response.json({data:{userId:name,displayName:name,emails:[],applicationId:'work',clientId:'web-test'}});}
-  return Response.json({});
- }) as typeof fetch);
+ let config:ReturnType<typeof trialAccountConfig>;
+ const peer=createTrialAuthPeer({configuration:()=>config,user:()=>user,waits:authWaits});
+ t.mock.method(globalThis,'fetch',(async(input,init)=>new URL(String(input)).origin===authOrigin?peer.fetch(input,init):original(input,init)) as typeof fetch);
  const token='synthetic-refresh-control-token-0123456789';
  const server=createSpaceWebServer({homeDirectory:home,controlToken:token},options=>createCore(options.homeDirectory!,options),undefined,{
   render:()=>'<p data-account-entry>登录</p>',asset:()=>false,
  });
  await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));const address=server.address();assert.ok(address&&typeof address==='object');
- const origin='http://127.0.0.1:'+address.port;let cookie='',control=token,sequence=0;
+ const origin='http://127.0.0.1:'+address.port;config={...trialAccountConfig(authOrigin,origin,'work','web-test'),environmentKind:'TEST'};process.env.MOLIS_WORK_ACCOUNT_CONFIG=JSON.stringify(config);let cookie='',control=token,sequence=0;
  const page='account-refresh-page';
- const request=async(path:string,method='GET',headers:Record<string,string>={})=>{
-  const response=await fetch(origin+path,{method,redirect:'manual',headers:{Cookie:cookie,Origin:origin,'content-type':'application/json','x-molis-work-control-token':control,'x-molis-work-idempotency-key':'refresh-'+(++sequence),...headers},...(method==='GET'?{}:{body:'{}'})});
+ const request=async(path:string,method='GET',headers:Record<string,string>={},body:unknown={})=>{
+  const response=await fetch(origin+path,{method,redirect:'manual',headers:{Cookie:cookie,Origin:origin,'content-type':'application/json','x-molis-work-control-token':control,'x-molis-work-idempotency-key':'refresh-'+(++sequence),...headers},...(method==='GET'?{}:{body:JSON.stringify(body)})});
+  if(response.status===200&&/^\/api\/personal\/(login|switch)(?:\?|$)/.test(path)){const value=await response.clone().json();state=new URL(value.loginUrl).searchParams.get('accountLogin')!;}
   const set=response.headers.get('set-cookie');if(set?.startsWith('molis-work-session='))cookie=set.split(';')[0]!;
   return response;
  };
@@ -38,9 +36,17 @@ export async function accountRefreshFixture(t:TestContext,createCore:(home:strin
   await status();const started=await request('/api/personal/prepare?action=start&page='+page+'&intent='+intent,'POST');assert.equal(started.status,200,await started.clone().text());
   const {id}=await started.json();const ack=await request('/api/personal/prepare?action=ack&page='+page+'&id='+id,'POST');assert.equal(ack.status,200);assert.equal((await ack.json()).ready,true);return '&page='+page+'&preparation='+id;
  };
- const begin=async(next:string)=>{const previous=await status();const prepared=previous.identity?await prepare('switch'):'';user=next;const response=await request('/api/personal/'+(previous.identity?'switch':'login')+'?returnTo=%2F'+prepared,'POST');assert.equal(response.status,200,await response.clone().text());return state;};
- const complete=(current:string)=>request('/account/callback?code=synthetic&state='+current);
- const login=async(next:string)=>{const current=await begin(next);const response=await complete(current);assert.equal(response.status,303,await response.clone().text());return status();};
+ const begin=async(next:string)=>{const previous=await status();const prepared=previous.identity?await prepare('switch'):'';user=next;const response=await request('/api/personal/'+(previous.identity?'switch':'login')+'?returnTo=%2F'+prepared,'POST');assert.equal(response.status,200,await response.clone().text());state=new URL((await response.json()).loginUrl).searchParams.get('accountLogin')!;return state;};
+ const complete=async(current:string)=>{
+   const headers={'x-molis-account-login':current};
+   const created=await request('/api/account/auth/transactions','POST',headers,{purpose:'LOGIN',method:'EMAIL_PASSWORD'});
+   if(created.status!==200)return created;
+   const {data:t}=await created.json(),path='/api/account/auth/transactions/'+t.handle+'/submit';
+   const verified=await request(path,'POST',headers,{step:'PASSWORD_LOGIN',email:user+'@example.test',password:'synthetic-fixture-password'});
+   if(verified.status!==200)return verified;
+   return request(path,'POST',headers,{step:'COMPLETE'});
+ };
+ const login=async(next:string)=>{const current=await begin(next);const response=await complete(current);assert.equal(response.status,200,await response.clone().text());return status();};
  const logout=async()=>{const prepared=await prepare('logout');const response=await request('/api/personal/logout?'+prepared.slice(1),'POST');return response;};
  let closing:Promise<void>|undefined;
  const close=()=>closing??=(async()=>{

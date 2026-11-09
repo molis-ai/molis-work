@@ -39,8 +39,10 @@ account.seat.assign	1	system.account	command	operation	home	write	concurrent	use
 account.seat.reassign	1	system.account	command	operation	home	write	concurrent	user	account:write	-	-	-	8906224ef684	a9e735fadebb	-
 account.seat.release	1	system.account	command	operation	home	write	concurrent	user	account:write	-	-	-	9e07d3a72724	e0c0958bdff4	-
 account.subscriptions.list	1	system.account	query	query	home	read	concurrent	user	account:read	-	-	-	a5a61327c9d4	e7c9c70b77e8	-
+account.tenant-creation-policy.read	1	system.account	query	query	home	read	concurrent	user	account:read	-	-	-	d746974fa9af	da7c1313a1fc	-
 account.tenant-invitations.list	1	system.account	query	query	home	read	concurrent	user	account:read	-	-	-	8435c7487c74	9bf4f2fdfadb	-
 account.tenant-subscriptions.list	1	system.account	query	query	home	read	concurrent	user	account:read	-	-	-	8435c7487c74	e7c9c70b77e8	-
+account.tenant.create	1	system.account	command	operation	home	write	concurrent	user	account:write	-	-	-	aed830b93381	65ad00cdf7d7	-
 account.tenant.leave	1	system.account	command	operation	home	write	concurrent	user	account:write	-	-	-	4a5c10eab56d	afdef09a355f	-
 account.tenant.read	1	system.account	query	query	home	read	concurrent	user	account:read	-	-	-	dace8e17e087	65ad00cdf7d7	-
 account.tenant.update	1	system.account	command	operation	home	write	concurrent	user	account:write	-	-	-	88fd58863196	65ad00cdf7d7	-

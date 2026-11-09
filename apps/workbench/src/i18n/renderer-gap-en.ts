@@ -189,7 +189,8 @@ export const RENDERER_GAP_EN: Record<string, string> = {
   "这一轮做出的结果": "What this turn made",
   "个人工具": "Personal tools",
   "正在加载…": "Loading…",
-  "设置加载失败，当前输入已保留，请重试。": "Settings could not load. Your input is preserved. Please retry.",
+  "设置加载失败，当前输入已保留。": "Settings could not load. Your input is preserved.",
+  "列表更新失败，当前输入已保留。": "Could not refresh the list. Your input is preserved.",
   "图片无法读取，请重新选择有效的图片。": "The image could not be read. Choose a valid image.",
   "连接中断，请稍后重试。": "Connection interrupted. Try again later.",
   "原始尺寸": "Original size",
@@ -289,8 +290,6 @@ export const RENDERER_GAP_EN: Record<string, string> = {
   "服务重启前没有结束，打开后核对": "Didn't finish before the service restarted; check it when you open it",
   "本轮已结束": "This turn has ended",
   "后台命令": "Background command",
-  // apps/workbench/src/scripts/client/events-primary.ts
-  "任务已创建，拉取计划未保存。请重试，不会重复创建任务。": "The task was created, but its fetch schedule wasn't saved. Retry; the task won't be created twice.",
   "重试保存计划": "Retry saving the schedule",
   // apps/workbench/src/scripts/client/feed-rule-authoring.ts
   "原判断能力不可用，请重新选择": "The original judgment capability is unavailable. Choose again",

@@ -56,7 +56,13 @@ export function feedClient(host: FeedHost): void {
     const check = page.guard(), sequence = ++refreshSequence;
     const refresh = async () => {
       reading++;
-      const html = await host.view.readDocument({ signal: page.signal() }).finally(() => reading--); check();
+      const html = await host.view.readDocument({ signal: page.signal() }).catch(error => {
+        check();
+        const reason = molisWorkRequest.text(error);
+        if (!reason) throw error;
+        throw new Error(host.translate("列表更新失败，当前输入已保留。") + " " + reason);
+      }).finally(() => reading--);
+      check();
       if (sequence !== refreshSequence) { await activeRefresh; check(); return; }
       // A notice that reads back what is already drawn (the poll after this page's own save) leaves the page alone:
       // redrawing it would only swap out the controls in use and the result a person was just shown.

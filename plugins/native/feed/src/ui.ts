@@ -7,6 +7,7 @@ import type {
 } from "./contract/feed.js";
 import type { SourceRecord } from "./contract/sources.js";
 import { FEED_PLUGIN_ID } from "./identity.js";
+import { feedRunFailure } from "./source-presentation.js";
 import { buildFeedReaderUiModel, buildFeedStageUiModel } from "./stage-ui.js";
 import type { FeedReaderData, FeedStageData } from "./query-actions.js";
 import { type MwButtonOptions, renderAlert, renderButton, renderKept, renderStateRing, renderStatusMark, type StateRingState } from "@molis-ai/molis-work-plugin-sdk/ui";
@@ -82,6 +83,7 @@ export interface FeedUiSourceRun {
   readonly phase: "running" | "terminal" | "interrupted";
   readonly outcome: string | null;
   readonly error_code: string | null;
+  readonly http_status?: number;
   readonly created_count: number;
   readonly deduped_count: number;
   readonly started_at: string;
@@ -410,10 +412,11 @@ export function renderSourceWorkbench(model: FeedUiModel): string {
 
 function renderSourceRuns(source: FeedUiSource, p: FeedUiModel["primitives"]): string {
   return source.runs.length ? `<ol class="source-run-ledger">${source.runs.map((run) => {
-    const state = run.phase === "running" ? "running" : run.phase === "interrupted" || run.error_code ? "error" : "complete";
-    const ringState = run.phase === "running" ? "syncing" : run.phase === "interrupted" ? "interrupted" : run.error_code ? "failed" : "done";
-    const title = run.phase === "running" ? p.text("正在拉取") : run.phase === "interrupted" ? p.text("拉取已中断") : run.error_code ? p.text("拉取失败") : p.text("拉取完成");
-    const summary = run.phase === "running" ? p.text("已开始，等待来源返回") : run.error_code ? p.text("错误：{code} · 可安全重试", { code: run.error_code }) : p.text("新增 {created} · 去重 {deduped}", { created: run.created_count, deduped: run.deduped_count });
+    const failure = feedRunFailure(run, p.text);
+    const state = run.phase === "running" ? "running" : failure ? "error" : "complete";
+    const ringState = run.phase === "running" ? "syncing" : run.phase === "interrupted" ? "interrupted" : failure ? "failed" : "done";
+    const title = run.phase === "running" ? p.text("正在拉取") : run.phase === "interrupted" ? p.text("拉取已中断") : failure ? p.text("拉取失败") : p.text("拉取完成");
+    const summary = run.phase === "running" ? p.text("已开始，等待来源返回") : failure ?? p.text("新增 {created} · 去重 {deduped}", { created: run.created_count, deduped: run.deduped_count });
     return `<li data-run-state="${state}"><span>${renderStateRing({ state: ringState })}</span><div><strong>${title}</strong><p>${p.escape(summary)}</p></div><time>${p.formatDate(run.completed_at || run.started_at)}</time></li>`;
   }).join("")}</ol>` : `<div class="source-panel-empty">${p.icon("waiting")}<strong>${p.text("还没有运行记录")}</strong></div>`;
 }
@@ -460,7 +463,9 @@ export function renderFeedOverlays(_model: FeedUiModel): string { return ""; }
 
 function renderFeedSetupPanel(model: FeedUiModel): string {
   const p = model.primitives;
-  const catalogOptions = model.source_catalog.map((source) => `<option value="${p.escape(source.id)}">${p.escape(`${source.category_label} · ${source.name}`)}</option>`).join("");
+  // The catalog documents access restrictions for 36kr. Keep it available for an explicit choice.
+  const defaultSource = model.source_catalog.find((source) => source.id !== "36kr");
+  const catalogOptions = (defaultSource ? "" : `<option value="" disabled selected>${p.text("选择订阅")}</option>`) + model.source_catalog.map((source) => `<option value="${p.escape(source.id)}"${source === defaultSource ? " selected" : ""}>${p.escape(`${source.category_label} · ${source.name}`)}</option>`).join("");
   const connectorLabel = (status: FeedUiConnectorStatus, kind: "github" | "gmail") => status.bound
     ? p.text(kind === "gmail" ? "凭据已保存" : "已连接") : p.text("未连接");
   const choices = [
@@ -482,7 +487,7 @@ function renderFeedSetupPanel(model: FeedUiModel): string {
         <form id="feed-add-task-form" data-feed-add-form hidden><label><span>${p.text("来源名称")} <small>${p.text("可选")}</small></span><input data-feed-add-name maxlength="80" placeholder="${p.text("例如：产品观察")}"></label>
           <div data-feed-setup-kind="research_library" hidden><label><span>${p.text("GitHub 仓库")}</span><input data-feed-source-value="research_library" value="molis-ai/research-library" required></label><label><span>${p.text("研究来源 id")}</span><input data-feed-research-source value="twitter-ai-observation" required></label><small>${p.text("读取已发布研究，保留原始链接、版本和使用限制。私有仓库使用本机 Git 登录。")}</small></div>
           <label data-feed-setup-kind="custom_rss" hidden><span>${p.text("订阅地址")}</span><input data-feed-source-value="custom_rss" type="url" placeholder="https://example.com/feed.xml" required><small>${p.text("填写网站提供的 RSS 或 Atom 地址。")}</small></label>
-          <label data-feed-setup-kind="rss" hidden><span>${p.text("选择订阅")}</span><select data-feed-rss-definition>${catalogOptions}</select></label>
+          <label data-feed-setup-kind="rss" hidden><span>${p.text("选择订阅")}</span><select data-feed-rss-definition required>${catalogOptions}</select></label>
           <label data-feed-setup-kind="web_query" hidden><span>${p.text("你想追踪什么？")}</span><input data-feed-source-value="web_query" placeholder="${p.text("例如：AI 产品设计")}" required></label>
           <label data-feed-setup-kind="youtube_channel" hidden><span>${p.text("YouTube 频道 ID")}</span><input data-feed-source-value="youtube_channel" placeholder="UC…" required><small>${p.text("在 YouTube 频道的高级信息中复制频道 ID。")}</small></label>
           <label><span>${p.text("拉取频率")}</span><select data-feed-create-frequency><option value="0">${p.text("手动拉取")}</option><option value="60">${p.text("每小时")}</option><option value="360">${p.text("每 6 小时")}</option><option value="1440">${p.text("每天")}</option></select><small>${p.text("定时拉取需要 Molis Work 本地服务保持运行。")}</small></label>

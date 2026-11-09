@@ -20,7 +20,7 @@ export async function accountRefreshFixture(t:TestContext,createCore:(home:strin
  t.mock.method(globalThis,'fetch',(async(input,init)=>new URL(String(input)).origin===authOrigin?peer.fetch(input,init):original(input,init)) as typeof fetch);
  const token='synthetic-refresh-control-token-0123456789';
  const server=createSpaceWebServer({homeDirectory:home,controlToken:token},options=>createCore(options.homeDirectory!,options),undefined,{
-  render:()=>'<p data-account-entry>登录</p>',asset:()=>false,
+  render:token=>'<meta name="molis-work-page-session" content="'+token+'"><p data-account-entry>登录</p>',asset:()=>false,
  });
  await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));const address=server.address();assert.ok(address&&typeof address==='object');
  const origin='http://127.0.0.1:'+address.port;config={...trialAccountConfig(authOrigin,origin,'work','web-test'),environmentKind:'TEST'};process.env.MOLIS_WORK_ACCOUNT_CONFIG=JSON.stringify(config);let cookie='',control=token,sequence=0;

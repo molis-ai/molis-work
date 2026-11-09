@@ -192,3 +192,35 @@ test('ASR-09 event reconnect refuses missing, forged and departed page bindings 
   assert.equal((await f.logout()).status,200,'refused connections do not create phantom participants');
  } finally { await f.close(); }
 });
+
+
+test('WAS-10 installation page survives old Home revocation but its proof never authorizes business or another login',async t=>{
+ const f=await accountRefreshFixture(t,home=>accountProbeCore(home));
+ try{
+  await f.login('alice');const nonce=await f.begin('bob');
+  const page=await fetch(f.origin+'/?accountLogin='+nonce,{headers:{Cookie:f.cookie}});
+  assert.equal(page.status,200);const html=await page.text();assert.ok(!html.includes(f.rootToken));
+  const proof=/<meta name="molis-work-page-session" content="([^"]+)"/.exec(html)?.[1];assert.ok(proof);
+  let cookie=[f.cookie,...page.headers.getSetCookie().map(value=>value.split(';')[0])].join('; ');
+  const request=(path:string,body?:unknown,headers:Record<string,string>={})=>fetch(f.origin+path,{
+   method:body===undefined?'GET':'POST',headers:{Cookie:cookie,Origin:f.origin,'content-type':'application/json',
+    'x-molis-work-page-session':proof,'x-molis-account-login':nonce,'x-molis-work-idempotency-key':crypto.randomUUID(),...headers},
+   ...(body===undefined?{}:{body:JSON.stringify(body)})});
+  const input={purpose:'LOGIN',method:'EMAIL_PASSWORD'};
+  for(const headers of [{'x-molis-account-login':'another-attempt'},{Cookie:f.cookie}]){
+   assert.equal((await request('/api/account/auth/transactions',input,headers)).status,403);
+  }
+  assert.equal((await request('/api/spaces')).status,409,'business stays frozen during account preparation');
+  const created=await request('/api/account/auth/transactions',input);assert.equal(created.status,200);
+  const {data:transaction}=await created.json(),path='/api/account/auth/transactions/'+transaction.handle+'/submit';
+  assert.equal((await request(path,{step:'PASSWORD_LOGIN',email:'bob@example.test',password:'synthetic-fixture-password'})).status,200);
+  const completed=await request(path,{step:'COMPLETE'});assert.equal(completed.status,200,await completed.clone().text());
+  assert.equal((await completed.json()).data.account.user.userId,'bob','retiring A must not abort the successful response');
+  const nextCookie=completed.headers.getSetCookie().find(value=>value.startsWith('molis-work-session='));assert.ok(nextCookie);
+  cookie=[nextCookie.split(';')[0],...page.headers.getSetCookie().map(value=>value.split(';')[0])].join('; ');
+  assert.equal((await request('/api/spaces')).status,403,'the same login proof cannot acquire the new business Home');
+  assert.equal((await request('/api/account/auth/transactions',input)).status,403,'a completed login nonce must not start another login or bypass preparation');
+  assert.equal((await request('/api/account/activity',{eventId:crypto.randomUUID(),kind:'OPEN'})).status,403,'a completed login window is not an account-write entry');
+  assert.equal((await (await request('/api/account/session')).json()).data.user.userId,'bob','completed login reads still report the adopted account');
+ }finally{await f.close();}
+});

@@ -21,6 +21,14 @@ declare global {
 }
 
 function errorMessage(error: unknown, fallback: string): string { return error instanceof Error ? error.message || fallback : fallback; }
+function guardAccountRequests(transition: ReturnType<typeof accountTransition>, L: (text: string) => string): void {
+  const originalTransport = window.molisWorkUiTransport;
+  window.molisWorkUiTransport = (input, options) => {
+    if (transition.preparing && !new URL(input, location.href).pathname.startsWith('/api/personal/')) return Promise.reject(new Error(L('账号正在切换，请稍候')));
+    return originalTransport?.(input, options) ?? null;
+  };
+}
+
 const init = () => {
   const desktop = new URLSearchParams(location.search).get('desktop') === '1' || document.body.dataset.nativeDesktop === 'true';
   const query = new URLSearchParams({returnTo: location.pathname + location.search + location.hash});
@@ -39,11 +47,7 @@ const init = () => {
   let generation: number | undefined;
   const destination = desktop ? '/?desktop=1' : '/';
   const channel = typeof BroadcastChannel === 'function' ? new BroadcastChannel('molis-work-account') : null;
-  const originalTransport = window.molisWorkUiTransport;
-  window.molisWorkUiTransport = (input, options) => {
-    if (transition.preparing && !new URL(input, location.href).pathname.startsWith('/api/personal/')) return Promise.reject(new Error(L('账号正在切换，请稍候')));
-    return originalTransport?.(input, options) ?? null;
-  };
+  guardAccountRequests(transition, L);
   const leaveOldPage = () => {
     transition.invalidate();
     if (busy) { revocationPending = true; return; }

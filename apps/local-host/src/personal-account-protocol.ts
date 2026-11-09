@@ -27,6 +27,7 @@ export function createPersonalAccountProtocol(current:()=>InstallationLogin|null
   return {owns,entry(url:URL){const login=current();return !!login&&!login.complete&&login.expires>Date.now()&&url.pathname==='/'&&url.searchParams.get('accountLogin')===login.nonce;},async handle(request:IncomingMessage,response:ServerResponse,url:URL):Promise<boolean>{
     if(!owns(request,url))throw accountErrors.forbidden('Installation login is not current');
     const login=current()!;
+    if(login.complete&&request.method!=='GET')throw accountErrors.forbidden('Installation login is already complete');
     const check=()=>{try{login.auth.assertCurrent();login.assertCurrent();}catch{throw accountErrors.cancelled('Installation login ended');}if(login.expires<=Date.now())throw accountErrors.cancelled('Installation login expired');};
     const run:AccountHostBinding['run']=async(origin,signal,operation)=>{
       check();if(origin!==login.auth.config.productOrigin)throw accountErrors.forbidden('Account product origin mismatch');

@@ -271,6 +271,23 @@ async function closeSpaceSurface(core: SpaceWebSurface):Promise<void> {
   await core.spaceDisposed;
 }
 
+function bindSpaceSockets(server:http.Server,sessions:WebSessions,{surface,selection,attach}:Pick<ReturnType<typeof createSpaceContext>,'surface'|'selection'|'attach'>):void {
+  server.on('upgrade',(request,socket,head)=>{
+    void (async()=>{try{
+      if(!requestHost(request)){
+        socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
+        socket.destroy();return;
+      }
+      const entry=await surface(selection(request));
+      sessions.bind(request, entry.token);
+      const valid=attach(entry,request);
+      if(!valid())throw new Error('SPACE_CHANGED');
+      entry.connections.set(socket,valid);socket.once('close',()=>entry.connections.delete(socket));
+      entry.server.emit('upgrade',request,socket,head);
+    }catch{socket.destroy();}})();
+  });
+}
+
 /** One public listener. Each scope owns its Host, databases, caches and timers.
  * Child servers are in-process dispatchers: no extra port and no browser-selected Home.
  */
@@ -280,6 +297,8 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
 }):http.Server {
   let server:http.Server;
   const sessions = new WebSessions(resolveConfiguredHome(options.homeDirectory));
+  // The installation login response must survive retirement of the previous business Home.
+  const loginSessions = new WebSessions(resolveConfiguredHome(options.homeDirectory) + ":installation-login");
   options = { ...options, webSessions: sessions };
   const {home,native,account,rootToken,tokenFor,mutations,surface,selection,attach,sweep,syncFor,resume,surfaces,stop,settleAccount,releaseRetired,isAccountReady,activeSurface,isStopping}=createSpaceContext(options,createCore,withCatalog,()=>server?.address()??null);
   let timer:ReturnType<typeof setInterval>|undefined, shutdown:(()=>Promise<void>)|undefined;
@@ -326,16 +345,18 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
         }
         const selected=selection(request);
         let token=selected.space.kind==='local'?rootToken:tokenFor(selected);
-        sessions.bind(request, token, response);
         const callback=url.pathname==='/account/callback';
         // Protocol markers only route the request; the selected Home verifies the pending attempt.
         const unifiedCallback=callback&&(url.searchParams.has('transactionId')||url.searchParams.has('result'));
         const installationProtocol=account.protocol.owns(request,url)||(url.pathname.startsWith('/api/account/')&&request.headers['x-molis-account-login']!==undefined);
+        const installationEntry=request.method==='GET'&&!!accountEntry&&account.protocol.entry(url);
+        const protocolToken=installationProtocol&&request.headers['x-molis-work-page-session']!==undefined?rootToken:token;
+        (installationEntry||installationProtocol?loginSessions:sessions).bind(request,installationEntry?rootToken:protocolToken,response);
         const accountPath=installationProtocol||url.pathname.startsWith('/api/personal/')||['/account','/welcome'].includes(url.pathname)||(callback&&!unifiedCallback);
         const address=server.address();
         const origin=`http://127.0.0.1:${address&&typeof address==='object'?address.port:4173}`;
         if(accountEntry?.asset(request,response,url))return;
-        if(request.method==='GET'&&accountEntry&&account.protocol.entry(url)){response.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-frame-options':'DENY'});response.end(accountEntry.render(webPageToken(request),request,url));return;}
+        if(installationEntry&&accountEntry){response.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-frame-options':'DENY'});response.end(accountEntry.render(webPageToken(request),request,url));return;}
         if(url.pathname.startsWith('/api/sync')){
           const expectedSpace=request.headers['x-molis-sync-space'];
           if(expectedSpace&&expectedSpace!==selected.space.spaceId){sendLocalWebJson(response,409,{error:'空间已切换，请刷新页面。'});return;}
@@ -345,7 +366,7 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
           return;
         }
         if(accountPath){
-          if(!authorizeLocalWebRequest(request,response,url,native(request)||request.headers['x-molis-work-control-token']===rootToken?rootToken:token,mutations))return;
+          if(!authorizeLocalWebRequest(request,response,url,native(request)||request.headers['x-molis-work-control-token']===rootToken?rootToken:protocolToken,mutations))return;
           if(!await (installationProtocol?account.protocol.handle(request,response,url):account(request,response,url,origin,webPageToken(request),'')))sendLocalWebJson(response,404,{error:'接口不存在。'});
           if (url.pathname === '/api/personal/logout' && response.statusCode === 200) revokeWebSession(request);
           sweep();await resume(request);return;
@@ -398,22 +419,9 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
       }
     }));
   }));
-  server.on('upgrade',(request,socket,head)=>{
-    void (async()=>{try{
-      if(!requestHost(request)){
-        socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
-        socket.destroy();return;
-      }
-      const entry=await surface(selection(request));
-      sessions.bind(request, entry.token);
-      const valid=attach(entry,request);
-      if(!valid())throw new Error('SPACE_CHANGED');
-      entry.connections.set(socket,valid);socket.once('close',()=>entry.connections.delete(socket));
-      entry.server.emit('upgrade',request,socket,head);
-    }catch{socket.destroy();}})();
-  });
+  bindSpaceSockets(server,sessions,{surface,selection,attach});
   timer=setInterval(sweep,1000);timer.unref();
-  shutdown=awaitWebServerShutdown(server,()=>{clearInterval(timer);sessions.close();stop();},
+  shutdown=awaitWebServerShutdown(server,()=>{clearInterval(timer);sessions.close();loginSessions.close();stop();},
     async()=>{await releaseRetired(true);await account.drained();});
   return server;
   } catch(error){

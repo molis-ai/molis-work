@@ -66,11 +66,12 @@ const sameScope = (a: InstallScope, b: InstallScope): boolean => a.kind === b.ki
  * the Home's own plugin store and each project's, read as they are on disk. This is where a plugin's names are kept one owner for
  * (S-82) and where the last holder of a plugin's rules is told, so what cannot be read is not guessed at: it throws, and the caller
  * refuses (or counts the plugin as held). `current` is the database of the installation scope asking, read as it is open.
+ * `onlyProjects` limits reads to those project scopes, before opening their libraries; it excludes the Home store.
  */
-export function heldInstalls(home: string | null, current?: { readonly db: RuntimeDatabase; readonly scope: InstallScope }): HeldInstall[] {
-  const found = current ? heldIn(current.db, current.scope) : [];
-  if (home === null) return found;
-  const store = openReadOnlyHomePluginStore(home);
+export function heldInstalls(home: string | null, current?: { readonly db: RuntimeDatabase; readonly scope: InstallScope }, onlyProjects?: ReadonlySet<string>): HeldInstall[] {
+  const found = current && (!onlyProjects || current.scope.kind === "project" && onlyProjects.has(current.scope.project_id)) ? heldIn(current.db, current.scope) : [];
+  if (home === null || onlyProjects?.size === 0) return found;
+  const store = onlyProjects ? null : openReadOnlyHomePluginStore(home);
   if (store) try { found.push(...heldIn(store, { kind: "home" })); } finally { store.close(); }
   const catalogPath = join(home, "projects", "catalog.db");
   if (!existsSync(catalogPath)) return found;
@@ -79,6 +80,7 @@ export function heldInstalls(home: string | null, current?: { readonly db: Runti
     if (!isOwnedCatalogOwner(new LocalCatalogMetadata(catalog.db).owner())) throw new Error("项目目录不是本 Home 建的，读不了其中的安装");
     const root = resolve(home, "projects") + sep;
     for (const project of listCatalogProjectsForUninstall(catalog.db, join(home, "projects"))) {
+      if (onlyProjects && !onlyProjects.has(project.project_id)) continue;
       const file = resolve(project.database_path);
       if (!file.startsWith(root)) throw new Error(`项目库 ${project.project_id} 不在本 Home 的项目目录里，读不了其中的安装`);
       const db = new LocalSqliteStorage(file, { readonly: true });

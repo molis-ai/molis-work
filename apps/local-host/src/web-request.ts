@@ -1,3 +1,4 @@
+import { handleSkillSettingsHttp } from "./agent-definitions/skill-settings-http.js";
 import { withReadOnlyPluginDirectory } from "./always-on-plugins.js";
 import { handlePluginConsentSettingsHttp } from "./plugin-consent-settings-http.js";
 import { handleTaskGrantsSettingsHttp } from "./task-grants-settings-http.js";
@@ -89,6 +90,7 @@ export async function handleMolisWorkWebRequest(
     // Every registered prompt and role, and the person's edits of them: one register per Home, whichever page asks.
     if (serverOptions.homeDirectory && url.pathname.startsWith("/api/agent-definitions/")
       && await handleAgentDefinitionsHttp(request, response, url, agentDefinitionsFor(serverOptions.homeDirectory, builtinRegistrations))) return;
+    if (url.pathname.startsWith("/api/skills/") && await handleSkillSettingsHttp(request, response, url, localHost)) return;
     if (resolved.kind === "catalog_index") {
       const assistant = serverOptions.homeDirectory ? assistantPortsFor(serverOptions.homeDirectory, composition, localHost, agentHost, agentReady) : null;
       await withHomePluginStorePageRecovery(context, null, () => dispatchWebRoutes(CATALOG_INDEX_ROUTES, { ...context, projects: resolved.projects, assistant }));

@@ -1,3 +1,4 @@
+import { SKILLS_EN } from "./skills-en.js";
 import { ARTIFACT_EN } from "../artifacts/en.js";
 import { FUNCTIONS_EN } from "../judgment-rules/en.js";
 import { GAP_EN } from "./gap-en.js";
@@ -3235,4 +3236,4 @@ Object.assign(EN, {
   "继续前必须打开「显式继续」并填写原因。": "Before continuing, open Resume explicitly and give a reason.",
   "这条 Goal 已从日常列表移除，但内容和历史仍然保留。": "This Goal was removed from the active list; its content and history remain.",
 });
-Object.assign(EN, GAP_EN, ACCOUNT_EN, FLOW_EN, MEMORY_EN, KNOWLEDGE_EN, PLUGIN_TRUST_EN);
+Object.assign(EN, SKILLS_EN, GAP_EN, ACCOUNT_EN, FLOW_EN, MEMORY_EN, KNOWLEDGE_EN, PLUGIN_TRUST_EN);

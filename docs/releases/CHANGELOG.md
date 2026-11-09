@@ -6,6 +6,8 @@
 
 ### 升级须知（需要动手）
 
+- **技能包方法声明与 SDK 出口（第 08 批）**：含 Manifest `methods` 的插件作者须为每项方法补齐 `description` 与 `applies_to`，再重新打包签名。旧三键方法声明的签名包会被明确拒绝，不做自动迁移。使用 SDK 的作者将 `ContentPackageSkill` 改为 `PackagedSkillBody`；原 `sandboxAgentBodyIdentity` 的角色用途改为 `sandboxRoleIdentity`，方法身份使用声明中的 `skill_id` 与 `version`，正文使用声明中的 `body` 路径。固定调用 `plugins.install.preview@1` 的调用方须接受新增的技能、需求及升级差异字段；输入现在支持 `bundle` 或 `bundled` 二选一。安装或导入技能后仍为关闭，需本人另行启用。
+
 - **MCP 独立客户端凭据（D0071，2026-11-08）**：更新后在设置中对已有 Runtime 重新执行接入，并重启其 MCP 连接。主控制令牌不再允许动作网关声明任意客户端身份；旧请求体 `client_id` 被拒绝。连接凭据只存安装 Home，不写入 Runtime 配置、不随快照恢复；恢复后重新接入。动作名称、版本、输入输出 schema 与 MCP 工具名不变。实验 Server 的本地 `authorize` 命令须提供 `--host-home DIR`，由管理员为该成员建立独立连接。
 
 - MCP 客户端和已保存的调用：判断规则的 `functions.authoring.update`、`preview`、`publish`、`delete`、`sample.add`、`sample.remove` 改为必须带读取时的版本 `expected_updated_at`（必填的非空字符串，取读到的记录的 `updated_at`），原来的 `updated_at` 字段不再接受。Agent 和 MCP 缺版本时得到 `actions.version_required`，字段名写旧或值非法得到 `actions.input_invalid`，版本过期得到 `functions.draft_stale`：先用 `functions.authoring.get` 读最新内容，再决定怎样提交。另有三处结果变了，按原来的结果判断的客户端要改：

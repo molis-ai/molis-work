@@ -22,6 +22,7 @@ import { MEMORY_PERMISSIONS, MEMORY_PROVIDER_ID } from "@molis-ai/molis-work-con
 import { KNOWLEDGE_PERMISSIONS, KNOWLEDGE_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { ARTIFACT_ACTION_PERMISSIONS, ARTIFACTS_PROVIDER_ID } from "@molis-ai/molis-work-module-artifacts";
 import { agentTaskGrantActions } from "@molis-ai/molis-work-contracts/services/agent-task-grants";
+import { SKILLS_PROVIDER_ID, SKILLS_PERMISSIONS, skillImportActions } from "@molis-ai/molis-work-contracts/services/skills";
 import { TASK_GRANTS_PROVIDER_ID } from "./task-grant-actions.js";
 
 const asks = (definitions: Iterable<{ readonly action?: { readonly permissions: readonly string[] } }>) =>
@@ -46,7 +47,9 @@ function ownerProviders(): ReadonlyMap<string, readonly string[]> {
     [ACCOUNT_PROVIDER_ID, ACCOUNT_PERMISSIONS],
     [CONNECTOR_PROVIDER_ID, [...CONNECTOR_ACCOUNT_PERMISSIONS, CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE, ...connectorRecordActions.read.action.permissions]],
     [PLUGIN_CONSENT_PROVIDER_ID, PLUGIN_CONSENT_PERMISSIONS],
-    [PLUGIN_INSTALL_PROVIDER_ID, PLUGIN_INSTALL_PERMISSIONS],
+    // Importing Skills is installing the package the import makes: the same provider, the person's own (batch 08, 08-8).
+    [PLUGIN_INSTALL_PROVIDER_ID, [...PLUGIN_INSTALL_PERMISSIONS, ...asks(Object.values(skillImportActions))]],
+    [SKILLS_PROVIDER_ID, SKILLS_PERMISSIONS],
     [INFORMATION_PROVIDER_ID, asks(Object.values(informationActions))],
     [FUNCTIONS_PROVIDER_ID, asks([...Object.values(functionsActions), ...Object.values(functionAuthoringActions), ...Object.values(functionContextActions)])],
     [PROJECT_WORKSPACE_PROVIDER_ID, asks([...Object.values(projectDirectoryActions), ...Object.values(projectPluginActions), ...Object.values(materialRecentActions), ...Object.values(materialOriginActions)])],

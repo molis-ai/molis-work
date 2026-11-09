@@ -1,3 +1,4 @@
+import { handleSkillSettingsHttp } from "./agent-definitions/skill-settings-http.js";
 import { handlePluginPageHttp } from "./plugin-page-http.js";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
@@ -233,7 +234,7 @@ export const directoryRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
     handleKnowledgeHttp(request, response, url, { localHost, projectRef: hostReference }) },
   // A project's plugins: what is installed with what it asked for, installing a signed package, taking an agreement back (ac-trust T7), as the person.
   { id: "plugin-trust", handle: ({ request, response, url, localHost, hostReference }) =>
-    handlePluginTrustHttp(request, response, url, { localHost, projectRef: hostReference }) },
+    handleSkillSettingsHttp(request, response, url, localHost, hostReference).then(handled => handled || handlePluginTrustHttp(request, response, url, { localHost, projectRef: hostReference })) },
   { id: "placement", handle: ({ request, response, url, localHost, hostReference }) =>
     handlePlacementHttp(request, response, url, () => bindLocalWebActions(localHost, hostReference, LOCAL_OWNER_PERMISSIONS)) },
   // What the person has in hand, ranked from the same directory under their own authority (specs/archive/contextual-interaction).

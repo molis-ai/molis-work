@@ -10,12 +10,12 @@ import { isDeepStrictEqual } from 'node:util';
 import { pluginErrors, SANDBOX_PACKAGE_FILES, type PluginManifest, type SandboxAgentBody, type SandboxPackageManifest, type PluginPackagePayload, type SandboxPackagePrompt } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { SANDBOX_INTEGRATION_CONTRACT, SANDBOX_INTEGRATION_OPERATIONS, type SandboxEffects, type SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { CONNECTOR_REQUEST_SERVICES } from '@molis-ai/molis-work-contracts/services/connector-host';
-import { parsePluginManifest, parsePluginPackageManifest } from '@molis-ai/molis-work-plugin-sdk';
+import { parseContentPackage, parsePluginManifest, parsePluginPackageManifest, refuseDeclarations } from '@molis-ai/molis-work-plugin-sdk';
 import { PLUGIN_ICON_NAMES } from '@molis-ai/molis-work-plugin-sdk/ui';
 import { assertContract } from '@molis-ai/molis-work-plugin-sandbox';
 import { validatePluginComponentNodes, validatePluginComponentPlans, validatePluginPresentation,
   type PluginComponentNode, type PluginComponentPlan, type PluginPresentation } from '@molis-ai/molis-work-design-system';
-import { readSandboxAgentBodies } from './sandbox-agent-bodies.js';
+import { packagedMethodBodies, readSandboxAgentBodies, sandboxAgentBodyPaths } from './sandbox-agent-bodies.js';
 import { assertPluginHomeSchema } from '@molis-ai/molis-work-plugin-runtime';
 
 
@@ -84,10 +84,12 @@ export function readSandboxPackage(payload: PluginPackagePayload): SandboxPackag
   if (wire.kind !== 'app' || (wire.agent !== undefined && !Array.isArray(wire.agent))) refuse('文字正文只用于 app 包');
   refuseLocales(wire);
   const manifest = wire as SandboxPackageManifest;
-  const wanted = [...Object.values(SANDBOX_PACKAGE_FILES), ...(manifest.agent ?? []).map(item => item.body), ...(manifest.methods ?? []).map(item => item.body)];
+  const wanted = [...Object.values(SANDBOX_PACKAGE_FILES), ...sandboxAgentBodyPaths(manifest)];
   const files = new Map(payload.files.map(file => [file.path, Buffer.from(file.content_base64, 'base64')] as const));
   if (files.size !== payload.files.length) refuse('包内文件路径重复');
-  for (const path of files.keys()) if (!wanted.includes(path)) refuse('包里有格式之外的文件：' + path);
+  // A path is the publisher's text: each one is named, quoted and cut short, as every package refusal names a file.
+  const outside = [...files.keys()].filter(path => !wanted.includes(path));
+  if (outside.length) refuseDeclarations(outside.map(path => ({ path, reason: '沙箱包的格式里没有这个文件' })));
   const entrypoint = files.get(SANDBOX_PACKAGE_FILES.entrypoint) ?? refuse('缺少 ' + SANDBOX_PACKAGE_FILES.entrypoint);
   if (!entrypoint.length || entrypoint.length > MAX_ENTRYPOINT_BYTES) refuse(SANDBOX_PACKAGE_FILES.entrypoint + ' 为空或太大');
 
@@ -137,6 +139,31 @@ export type KeptSandboxPackage = SandboxPackage | SandboxIntegrationPackage;
 export const isIntegrationPackage = (pkg: KeptSandboxPackage): pkg is SandboxIntegrationPackage => pkg.manifest.kind === 'integration';
 export function readKeptSandboxPackage(payload: PluginPackagePayload): KeptSandboxPackage {
   return payload.manifest.kind === 'integration' ? readSandboxIntegrationPackage(payload) : readSandboxPackage(payload);
+}
+
+/**
+ * A content package as the Host keeps it (specs/skill-packs/contract-design.md §3): the Manifest of a plugin with only declarations and
+ * each declared Skill with the body its package ships. No code, contract, interface or prompts, and it asks for nothing.
+ */
+export interface ContentKeptPackage {
+  readonly manifest: PluginManifest;
+  readonly agentBodies: SandboxAgentBody[];
+  readonly permissions: SandboxEffects;
+}
+
+/** Every package the Host keeps and installs: a sandbox package, or a content package. */
+export type KeptPackage = KeptSandboxPackage | ContentKeptPackage;
+export const isContentPackage = (pkg: KeptPackage): pkg is ContentKeptPackage => pkg.manifest.kind === 'content';
+
+/**
+ * Reads a verified package by its Manifest's kind: a content package through the SDK's `parseContentPackage` (every declared file there,
+ * nothing else, each path inside the package, each resource's size and digest as declared), any other as a sandbox package. One install
+ * path for both: the same signature check before, the same preview and confirmation after.
+ */
+export function readKeptPackage(payload: PluginPackagePayload): KeptPackage {
+  if (payload.manifest?.kind !== 'content') return readKeptSandboxPackage(payload);
+  const { manifest, skills } = parseContentPackage(payload);
+  return { manifest, agentBodies: packagedMethodBodies(manifest.methods ?? [], skills), permissions: {} };
 }
 
 /** A sandboxed integration as the Host runs it (BL-530): its Manifest, its contract of the platform's operations and its code. */

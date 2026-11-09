@@ -14,7 +14,10 @@ export { sandboxOperationActions, sandboxActionId, sandboxPackageBuildId, sandbo
 export { assertJson as assertSandboxJson, assertSchema as assertSandboxSchema, assertMatches as assertSandboxMatches, type SandboxSchemaFailure } from "./sandbox-schema.js";
 export { parsePluginManifest, comparePluginVersions } from "./manifest.js";
 export { inspectContentPlugin } from "./content-plugin.js";
-export { parseContentPackage, type ContentPackage, type ContentPackageSkill } from "./content-package.js";
+export { parseContentPackage, type ContentPackage } from "./content-package.js";
+export { readPackagedSkills, type PackagedSkillBody, type PackagedSkills } from "./skill-files.js";
+/** The one refusal of a declaration or package check (`plugin.declaration_invalid`): outside paths quoted and cut short, at most 30 problems listed. */
+export { refuseDeclarations } from "./declaration-problems.js";
 export { inspectCharacterTemplateAdoption, inspectRoleTemplate, type RoleTemplateInspectionOptions } from "./role-template.js";
 export { inspectBlueprint, inspectBlueprintLocales } from "./blueprints.js";
 export { validateAdoptsDeclaration } from "./adopts-declaration.js";
@@ -23,13 +26,14 @@ export { defineSettingsActions, validateSettingsDeclaration, type SettingsAction
 export { bindSettingsHandlers, resolveEffectiveSetting, type SettingSnapshot, type SettingsOwner, type SettingsOwnerScope,
   type SettingsRequestIdentity, type SettingsTransaction, type SettingsWriteReceipt } from "./settings.js";
 export { skillDeclarationFromFrontmatter, type SkillFrontmatterOptions } from "./skill-frontmatter.js";
+export { contentPackagePayload, skillFromFolder, type ContentPackageInput, type FolderSkill } from "./skill-folder.js";
 export { parsePluginSyncDeclaration, expandPluginSyncSelection } from "./plugin-sync.js";
 export { createSyncJsonContent, type SyncJsonContentOptions } from './sync-content.js';
 export { createSyncDocument, type SyncDocument, type SyncDocumentOwner, type SyncDocumentStorage } from './sync-document.js';
 export { syncTupleLocation } from './sync-location.js';
 export { createSyncConflictState } from './sync-conflict.js';
 export type { PluginSyncDeclaration, PluginSyncCollection, PluginSyncIdentity, PluginSyncSnapshot, PluginSyncSnapshotAdapter, PluginSyncBinding, PluginSyncContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-export { assertSandboxAgentDefinition, parsePluginPackageManifest, sandboxAgentBodyIdentity, sandboxAgentDeclarations } from "./sandbox-agent-declarations.js";
+export { assertSandboxAgentDefinition, parsePluginPackageManifest, sandboxRoleIdentity, sandboxAgentDeclarations } from "./sandbox-agent-declarations.js";
 export { inspectActionDeclarations, isHomeAggregateQuery } from "./action-declarations.js";
 export { inspectActionCrossReferences } from "./action-cross-references.js";
 /** Bounded line comparison. Its result and row types are in the contracts (modules/workspace-artifacts). */

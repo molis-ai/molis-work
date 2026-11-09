@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
-import { describeSqliteSchema, readDatabaseSpace, ensureStorageSpace, STORAGE_SPACE_SCHEMA_SQL } from "@molis-ai/molis-work-storage";
+import { runSqliteUpgrade, applySqliteBaseline, describeSqliteSchema, readDatabaseSpace, ensureStorageSpace, STORAGE_SPACE_SCHEMA_SQL } from "@molis-ai/molis-work-storage";
 import { CHARACTERS_STORE_BASELINE, openCharacters } from "@molis-ai/molis-work-module-characters";
 import { ALCHEMIST_SEARCH_BASELINE, HomeConsentLedger, MolisWorkLocalHost, homeStores } from "@molis-ai/molis-work-app-local-host";
 
@@ -50,8 +50,8 @@ test("FI-6: Feed's Home reference ledger freezes its accepted v1 schema, with no
 // Alchemist store's directory, one per project, so it is not a registered library of its own. Changing a baseline means a
 // new version and a new fixture, never a silent drift.
 for (const [name, baseline] of [...libraries.filter(([name]) => !WITHOUT_REAL_HOME_FIXTURE.includes(name) && name !== "plugin-runtime"), ["alchemist-search", ALCHEMIST_SEARCH_BASELINE] as const]) {
-  test(`N41-PERSONAL-01 the ${name} store's baseline is version 1 and its complete frozen schema`, () => {
-    assert.equal(baseline.version, 1);
+  test(`N41-PERSONAL-01 the ${name} store has its declared version and complete frozen schema`, () => {
+    assert.equal(baseline.version, name === "agent-definitions" ? 2 : 1);
     const existing = shape(readFileSync(new URL(`./fixtures/home-store-schemas/${name}.sql`, import.meta.url), "utf8")), want = shape(baseline.schema);
     // RAC-2384: the fixture carries the complete current schema; no missing-table allowance remains.
     assert.deepEqual(want, existing, `${name}: complete frozen schema`);
@@ -183,4 +183,25 @@ test("the Characters store refuses tables without a version and a newer version,
   try { assert.deepEqual(fresh.service.list(), []); } finally { fresh.close(); }
   assert.deepEqual(state(join(home, "fresh")), { version: CHARACTERS_STORE_BASELINE.version, rows: 0 });
   openCharacters(join(home, "fresh"), "actor").close();
+});
+
+
+test("SKC-05: Agent definitions upgrade creates empty Skill tables and preserves all prior prompt records", () => {
+  const baseline = homeStores().stores.find(store => store.path === "agent-definitions")!.library!.baseline;
+  const db = new DatabaseSync(":memory:");
+  try {
+    db.exec(readFileSync(new URL("./fixtures/agent-definitions-v1.sql", import.meta.url), "utf8") + " PRAGMA user_version=1;");
+    db.prepare("INSERT INTO prompt_overrides VALUES (?,?,?,?,?,?,?)").run("owner/prompt", 2, 1, "keep body", "then", "person", null);
+    db.prepare("INSERT INTO prompt_history VALUES (?,?,?,?,?,?,?,?)").run("owner/prompt", 2, "save", "keep history", 1, "then", "person", null);
+    db.prepare("INSERT INTO prompt_uses VALUES (?,?,?,?,?,?)").run("owner/prompt", "then", 1, 2, "assistant", null);
+    const tables = ["prompt_overrides", "prompt_history", "prompt_uses"];
+    const before = tables.map(table => db.prepare(`SELECT * FROM ${table}`).all());
+    assert.throws(() => applySqliteBaseline(db, "agent-definitions", baseline), { code: "storage.upgrade_pending" });
+    assert.deepEqual(runSqliteUpgrade(db, "agent-definitions", baseline), { from: 1, to: 2 });
+    assert.deepEqual(tables.map(table => db.prepare(`SELECT * FROM ${table}`).all()), before);
+    assert.deepEqual(db.prepare("SELECT * FROM skill_settings").all(), []);
+    assert.deepEqual(db.prepare("SELECT * FROM skill_uses").all(), []);
+    assert.deepEqual(describeSqliteSchema(db), shape(baseline.schema));
+    applySqliteBaseline(db, "agent-definitions", baseline);
+  } finally { db.close(); }
 });

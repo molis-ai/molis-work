@@ -94,11 +94,13 @@ Ready 后经 Studio 发布并下载原始签包，从同一隔离项目的插件
 
 本机只读检查已确认：`127.0.0.1:4173` 的监听进程属于 `gui/501/com.adeptify.goalboard.web`，对应 LaunchAgent 为 `/Users/yijunwang/Library/LaunchAgents/com.adeptify.goalboard.web.plist`。实际执行前重核进程和服务归属；经批准后才暂退该服务，QA 结束后用原 plist 恢复并核原服务可用。已开的 55507、55516 隔离网页与此端口无冲突。不能仅按旧 PID 杀进程，也不改变原服务文件、Home 或配置。
 
-用最终头及同一 Runtime payload 单独构建 QA `.app`，通过现有 Tauri 配置覆盖使用专属 bundle ID，完整保留主窗和胶囊参数，两窗均开启 `incognito`，不改正式发行配置或产品源码。锁定依赖的静态窗口构造会传递该项，WebKit 使用各自内存数据仓库；仅指定新 bundle ID 的默认持久仓库是否完全隔离日用状态尚未确认，不作为运行前提。临时 Home 先用包内安装命令预装同版本 payload，核该 Home 的安装版本和两个可执行启动器，避免 App 走自动安装受管服务的分支。启动按 QA `.app` 的绝对路径交给 LaunchServices，并明确传入该 Home 与文件密钥后端；不使用普通安装脚本打开日用 App。
+用最终头及同一 Runtime payload 单独构建 QA `.app`，通过现有 Tauri 配置覆盖使用专属 bundle ID `com.molis.work.qa.batch16` 和可辨识的 QA 应用名，完整沿用正式主窗和胶囊配置，不改产品源码。2026-11-09 补核 [WebKit 默认仓](https://github.com/apple-oss-distributions/WebKit/blob/WebKit-7623.2.7.11.6/Source/WebKit/UIProcess/WebsiteData/WebsiteDataStore.cpp#L248-L260)、[按应用身份分开的目录](https://github.com/apple-oss-distributions/WebKit/blob/WebKit-7623.2.7.11.6/Source/WebKit/UIProcess/WebsiteData/Cocoa/WebsiteDataStoreCocoa.mm#L586-L625)及 [Apple Cookie 仓合同](https://developer.apple.com/documentation/foundation/httpcookiestorage?language=objc)，支持在非沙箱、无共享 App Group 的独立 QA 应用中使用自己的持久默认仓，两窗共用该仓。因此取消早先两窗各自 `incognito` 的准备配置，以保留共享与重启持久化的验收条件。锁定 Tauri 虽有 `dataStoreIdentifier` 配置字段，静态窗口构造未传递它，不用这个字段假定隔离成立。
+
+正式启动前核成品 `Info.plist`、签名标识及权限满足上述前提，两窗均连接本次隔离 Home 的同一固定地址。临时 Home 先用包内安装命令预装同版本 payload，核该 Home 的安装版本和两个可执行启动器，避免 App 走自动安装受管服务的分支。启动按 QA `.app` 的绝对路径交给 LaunchServices，并明确传入该 Home 与文件密钥后端；不使用普通安装脚本打开日用 App。公开 WebKit 标签不是本机精确补丁源码，上述证据支持准备方案，尚非本机候选实跑结果。
 
 当前桌面启动会装配剪贴板监听。根据 [Apple 的按应用预览开关](https://developer.apple.com/documentation/updates/appkit)，可只给 QA bundle 启用剪贴板访问确认；正式启动获批后，由用户亲自先复制合成测试文本，QA 启动后再复制一次以触发提示，首次即拒绝，并核实该 QA 应用为 [Always Deny](https://developer.apple.com/documentation/appkit/nspasteboard/accessbehavior-swift.enum/alwaysdeny)。提示未出现、归到其他应用或合成首启条件无法保证时，不继续此路径；测试中不主动粘贴，因系统仍允许本人发起的粘贴。上述权限与剪贴板动作均尚未执行。
 
-这份配置不同的 QA 包只用于原生主窗、胶囊、启动失败反馈和菜单恢复的可覆盖实操。两窗各自无痕会改变 cookie／站点状态共享，并舍弃 WebKit 重启持久化；**正式发行配置下的窗口共享和重启语言持久化仍待单独验收**，不能外推为通过，也不降低原 FSS 标准。完成 QA 后先退出该 App，再停本次 Host，最后恢复原服务；只清理本次 QA 目录与专属偏好。
+这份 QA 包用于原生主窗、胶囊、启动失败反馈、菜单恢复，以及同窗口配置下的语言共享与重启实操。只在 QA Host 观察 `molis_work_locale` 这一项 Cookie，核主窗切换后胶囊的新请求及 App 完全退出重启后的首请求；胶囊还有 URL 语言参数和原生转发，不能只看它显示英文就宣称 Cookie 共享。所有结果仍待执行，界面实操不代替用户认可。完成 QA 后先退出该 App，再停本次 Host，最后恢复原服务；只清理本次 QA 目录和已确认属于 QA 身份的数据，不读取或清理日用 WebKit 数据。
 
 ## 开工前 15 项
 

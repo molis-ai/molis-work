@@ -749,6 +749,8 @@ export declare function questionProblems(questions: readonly AgentQuestion[], an
 
 export declare function questionSetFlaw(questions: readonly AgentQuestion[]): string | null;
 
+export declare function readLocalizedMarkdown(directory: URL, id: string, locales: readonly string[], read: (file: URL) => string): LocalizedAgentBody;
+
 export declare function reconstructSides(ops: readonly DiffOp[]): {
     before: string;
     after: string;

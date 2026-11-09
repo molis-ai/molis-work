@@ -102,7 +102,7 @@ export function pluginAgentRegistration(definition: PluginDefinition, source: Ag
     }
   }
   return { owner_id: owner, source, prompts: [...declared.prompts, ...instructions.map(item => ({ prompt_id: item.prompt_id, version: item.version,
-    kind: "instruction" as const, title: item.title, purpose: item.purpose, used_by: [...item.used_by], body: item.body }))], roles: declared.roles,
+    kind: "instruction" as const, title: item.title, purpose: item.purpose, used_by: [...item.used_by], body: item.body, ...(item.body_by_locale ? { body_by_locale: item.body_by_locale } : {}) }))], roles: declared.roles,
     ...(methods.length ? { methods } : {}), ...(notes.length ? { notes } : {}) };
 }
 

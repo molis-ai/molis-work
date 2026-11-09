@@ -76,7 +76,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     (${PLUGIN_NOTIFICATIONS_FACTORY_SCRIPT})({ projectId: state.project?.project_id });
     // The side panel's file tab opens a file in its plugin the way system search does (specs/archive/side-panel P3): an
     // object's tab where the surface opens objects by id, else the record in the plugin's list.
-    (${SIDE_FILES_FACTORY_SCRIPT})({ translate: readText, route, openRecord: (plugin, id, title) => itemTabs.includes(plugin)
+    (${SIDE_FILES_FACTORY_SCRIPT})({ readText, route, openRecord: (plugin, id, title) => itemTabs.includes(plugin)
       ? tabWorkspace?.openItem(plugin, id, title) : tabWorkspace?.openPluginRecord(plugin, id) });
     globalSearchPalette = (${GLOBAL_SEARCH_FACTORY_SCRIPT})({
       translate: readText, itemTabs,

@@ -105,6 +105,8 @@ struct TrayWords {
     quit: &'static str,
     quit_keep_service: &'static str,
     restore_appearance: &'static str,
+    boot_loading: &'static str,
+    boot_failed: &'static str,
 }
 include!(concat!(env!("OUT_DIR"), "/tray-words.rs"));
 
@@ -980,6 +982,36 @@ fn install_molis_work_tray(app: &tauri::App) -> tauri::Result<()> {
     Ok(())
 }
 
+/// Only the local bootstrap document can receive startup details. Values are data, including an unmodified failure reason.
+fn bootstrap_view(failure: Option<&str>) -> String {
+    let text = if failure.is_some() {
+        [ZH.boot_failed, EN.boot_failed]
+    } else {
+        [ZH.boot_loading, EN.boot_loading]
+    };
+    let values =
+        serde_json::json!({ "text": text, "failure": failure, "tokens": BOOTSTRAP_TOKENS });
+    format!(
+        r#"((data) => {{
+        const show = () => {{
+            if (location.protocol !== 'tauri:' && location.hostname !== 'tauri.localhost') return;
+            const host = document.getElementById('molis-native-bootstrap');
+            if (!host || (host.dataset.failed && data.failure === null)) return;
+            const language = (navigator.languages || []).map(tag => tag.split('-')[0].toLowerCase()).find(tag => tag === 'en' || tag === 'zh') || 'zh';
+            document.documentElement.lang = language;
+            document.getElementById('molis-native-tokens').textContent = data.tokens;
+            host.querySelector('h1').textContent = data.text[language === 'en' ? 1 : 0];
+            const detail = host.querySelector('p');
+            detail.textContent = data.failure || '';
+            detail.hidden = data.failure === null;
+            if (data.failure !== null) host.dataset.failed = '1';
+            host.hidden = false;
+        }};
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', show, {{ once: true }}); else show();
+    }})({values});"#
+    )
+}
+
 fn main() {
     let app = tauri::Builder::default()
     .manage(WebServiceState::default())
@@ -1053,12 +1085,7 @@ fn main() {
             }
             Err(error) => {
               eprintln!("{error}");
-              let message = serde_json::to_string(&error)
-                .unwrap_or_else(|_| "\"Molis Work 启动失败\"".into());
-              let script = format!(
-                r#"document.body.innerHTML='<main style="font:14px -apple-system,sans-serif;max-width:640px;margin:12vh auto;padding:32px;color:#20232a"><h1 style="font-size:24px">Molis Work 无法启动</h1><p id="molis-work-bootstrap-error" style="line-height:1.7;color:#5f6673"></p></main>';document.getElementById('molis-work-bootstrap-error').textContent={message};"#
-              );
-              let _ = window.eval(&script);
+              let _ = window.eval(&bootstrap_view(Some(&error)));
             }
           }
         }
@@ -1086,6 +1113,7 @@ fn main() {
     .on_page_load(|window, payload| {
       if payload.event() == PageLoadEvent::Finished && window.label() == "main" {
         traffic_lights::pin_from_handle(window.app_handle());
+        let _ = window.eval(&bootstrap_view(None));
         let _ = window.eval(
           r#"(() => {
             const root = document.documentElement;

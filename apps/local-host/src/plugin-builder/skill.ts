@@ -7,6 +7,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import type { WebLocale } from '../web-locale.js';
 import type { BuilderSkill } from '@molis-ai/molis-work-contracts/services/agent-host';
 
 export const PLUGIN_SKILL_ID = 'molis-plugin-dev';
@@ -39,14 +40,15 @@ function section(markdown: string, heading: string): string {
 }
 
 /** The Skill a stage mounts, or undefined when the release has no Skill directory. */
-export function builderSkill(stage: keyof typeof CHAPTERS, directory = pluginSkillDirectory()): BuilderSkill | undefined {
+export function builderSkill(stage: keyof typeof CHAPTERS, directory = pluginSkillDirectory(), locale: WebLocale = 'zh'): BuilderSkill | undefined {
   if (!directory) return undefined;
   const parts = CHAPTERS[stage].map(chapter => {
-    const file = typeof chapter === 'string' ? chapter : chapter.file, text = readFileSync(join(directory, file), 'utf8').trim();
-    return typeof chapter === 'string' ? text : section(text, chapter.section);
+    const file = typeof chapter === 'string' ? chapter : chapter.file;
+    const text = readFileSync(join(directory, locale === 'en' ? file.replace(/\.md$/u, '.en.md') : file), 'utf8').trim();
+    return typeof chapter === 'string' ? text : section(text, locale === 'en' ? '## Quality bar (all plugins)' : chapter.section);
   });
   const body = parts.join('\n\n---\n\n');
   if (body.length > MAX_BODY) throw new Error(`插件开发 Skill 的 ${stage} 部分有 ${body.length} 字，超过 ${MAX_BODY} 字的挂载上限；请精简章节`);
   const version = Number.parseInt(createHash('sha256').update(body).digest('hex').slice(0, 7), 16);
-  return { id: PLUGIN_SKILL_ID + '.' + stage, version, name: stage === 'design' ? '插件开发规范 · 设计' : stage === 'experience' ? '插件开发规范 · 体验设计' : stage === 'ui' ? '插件开发规范 · 界面' : stage === 'review' ? '插件开发规范 · 界面复查' : '插件开发规范 · 代码', body };
+  return { id: PLUGIN_SKILL_ID + '.' + stage, version, name: locale === 'en' ? 'Plugin development standard · ' + stage : stage === 'design' ? '插件开发规范 · 设计' : stage === 'experience' ? '插件开发规范 · 体验设计' : stage === 'ui' ? '插件开发规范 · 界面' : stage === 'review' ? '插件开发规范 · 界面复查' : '插件开发规范 · 代码', body };
 }

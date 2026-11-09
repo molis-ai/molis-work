@@ -42,7 +42,7 @@ export function cardOutcomeSteps(cards: readonly OutcomeCard[], since: string, s
   to = (card: OutcomeCard) => NEXT_STEP.press(NEXT_STEP.card(card.card_id), CARD_RESULT_OPEN)): InteractionNextStep[] {
   const ran = cards.filter(card => RAN.has(card.status) && card.updated_at >= since).sort((a, b) => a.updated_at.localeCompare(b.updated_at)).at(-1);
   const result = ran?.status === "done" && ran.presentation?.link ? ran.presentation : null;
-  return ran && result ? [{ id: to(ran), label: say("打开「{title}」", { title: result.title ?? ran.title }), source: say("来自操作卡") }] : [];
+  return ran && result ? [{ id: to(ran), label: say("workbench.agent-next-steps.open-title", { title: result.title ?? ran.title }), source: say("workbench.agent-next-steps.from-an-action-card") }] : [];
 }
 
 /** The one choice the person can answer with a single press: the set has one question, it is single choice, nothing else is required (FLOW-02). */
@@ -66,20 +66,20 @@ function oneChoice(question: AgentPendingQuestion): { field: string; options: Ar
 export function interactionNextSteps(questions: readonly AgentPendingQuestion[], cards: readonly NextStepCard[], reviews: readonly NextStepReview[],
   followUps: readonly InteractionNextStep[], say: Say): InteractionNextStep[] {
   const steps: InteractionNextStep[] = [];
-  const waiting = say("等你：");
-  for (const review of reviews) steps.push({ id: NEXT_STEP.review(review.review_id), label: say("去确认"), source: review.title ?? say("等你确认的操作"), primary: false, waiting: true, waitingLabel: waiting });
+  const waiting = say("workbench.agent-next-steps.waiting-on-you");
+  for (const review of reviews) steps.push({ id: NEXT_STEP.review(review.review_id), label: say("workbench.agent-next-steps.review-it"), source: review.title ?? say("workbench.agent-next-steps.an-action-waiting-for-your-review"), primary: false, waiting: true, waitingLabel: waiting });
   for (const question of questions) {
     const choice = oneChoice(question);
     if (choice) for (const option of choice.options) steps.push({ id: NEXT_STEP.choose(question.pending_id, choice.field, option.value),
-      label: option.recommended ? say("{label}（推荐）", { label: option.label }) : option.label, source: question.prompt, primary: false });
+      label: option.recommended ? say("workbench.agent-next-steps.label-recommended", { label: option.label }) : option.label, source: question.prompt, primary: false });
     const count = question.questions?.length || 1;
-    if (!choice) steps.push({ id: NEXT_STEP.question(question.pending_id), label: say("去回答（{count} 题）", { count }), source: question.prompt, primary: false, waiting: true, waitingLabel: waiting });
+    if (!choice) steps.push({ id: NEXT_STEP.question(question.pending_id), label: say("workbench.agent-next-steps.answer-questions", { count }), source: question.prompt, primary: false, waiting: true, waitingLabel: waiting });
   }
   for (const card of cards) {
     // A card that ran, is running, went stale or was put away is not a step (FLOW-04); one that needs an answer or failed is only reached.
-    if (card.status === "ready" && !card.missing.length) steps.push({ id: NEXT_STEP.run(card.card_id), label: card.title, source: say("来自操作卡"), primary: false, waiting: true, waitingLabel: waiting });
+    if (card.status === "ready" && !card.missing.length) steps.push({ id: NEXT_STEP.run(card.card_id), label: card.title, source: say("workbench.agent-next-steps.from-an-action-card"), primary: false, waiting: true, waitingLabel: waiting });
     else if (card.status === "ready" || card.status === "needs-input" || card.status === "failed" || card.status === "unknown")
-      steps.push({ id: NEXT_STEP.card(card.card_id), label: say("去处理：{title}", { title: card.title }), source: say("来自操作卡"), primary: false, waiting: true, waitingLabel: waiting });
+      steps.push({ id: NEXT_STEP.card(card.card_id), label: say("workbench.agent-next-steps.open-title-detail", { title: card.title }), source: say("workbench.agent-next-steps.from-an-action-card"), primary: false, waiting: true, waitingLabel: waiting });
   }
   steps.push(...followUps.map(step => ({ ...step, primary: false })));
   // The same thing once (FLOW-05).

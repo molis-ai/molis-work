@@ -1,19 +1,24 @@
 #!/usr/bin/env node
 // The C-stage translation gate: stable keys are read from the SDK call sites and their forwarding functions. The corresponding
-// registered locale files must exist, carry the right owner and agree on arguments. JSON duplicate keys are rejected before JSON.parse.
-// Runtime and package validation use the SDK parser; this pass runs before the workspace is built.
+// registered locale files must exist, carry the right owner and agree on arguments. Load the SDK validator from source:
+// this pass runs before the workspace is built and checks the same file grammar as runtime and package validation.
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
+import { buildSync } from "esbuild";
 import { isMainScript } from "../script-paths.mjs";
 
 export const STABLE_KEY = /^[a-z][a-z0-9-]*(?:\.[a-z][a-z0-9_-]*){1,4}$/u;
 const HAN = /\p{Script=Han}/u;
-const OBJECT = value => value && typeof value === "object" && !Array.isArray(value);
 const PLATFORM_REGISTRY = "packages/design-system/resources/registry.json";
 const PLATFORM_LANGUAGES = "packages/contracts/src/platform/ui-text.ts";
+const sdkEntry = fileURLToPath(new URL("../../packages/plugin-sdk/src/ui/locale-pack.ts", import.meta.url));
+const uiContract = fileURLToPath(new URL("../../packages/contracts/src/platform/ui.ts", import.meta.url));
+const sdkBundle = buildSync({ entryPoints: [sdkEntry], alias: { "@molis-ai/molis-work-contracts/platform/ui": uiContract },
+  bundle: true, format: "esm", platform: "node", write: false, logLevel: "silent" });
+const { parseLocalePack, inspectLocaleSet } = await import("data:text/javascript;base64," + Buffer.from(sdkBundle.outputFiles[0].contents).toString("base64"));
 
 export const ownerOf = (file) => {
   const parts = file.split("/");
@@ -98,7 +103,6 @@ const calleeText = (expression) => {
   }
   return null;
 };
-const lineAt = (tree, node, first) => first + tree.getLineAndCharacterOfPosition(node.getStart(tree)).line;
 
 const NO_ARGUMENTS = Object.freeze([]);
 const FIRST_ARGUMENT = Object.freeze([0]);
@@ -106,8 +110,8 @@ const argumentIndexes = (callee, wrappers, declared) => {
   if (!callee) return NO_ARGUMENTS;
   if (callee === "globalThis.t" || callee === "globalThis.t.text" || callee === "readText") return FIRST_ARGUMENT;
   const name = callee.endsWith(".text") ? callee.slice(0, -5) : callee;
-  if (declared.has(name)) return FIRST_ARGUMENT;
-  const indexes = wrappers.get(callee);
+  if (declared.has(name) || name.startsWith("this.") && declared.has(name.slice(5))) return FIRST_ARGUMENT;
+  const indexes = wrappers.get(callee) ?? wrappers.get(callee.startsWith("this.") ? callee.slice(5) : callee);
   return indexes ? [...indexes].sort((a, b) => a - b) : NO_ARGUMENTS;
 };
 // Functions that hand parameters to a translator are translators within their file, by name (their callers carry the keys, so
@@ -178,7 +182,7 @@ const mergeInto = (into, from) => {
  * define differently is a translator for the parameters either one forwards, which is the safe side for a check that looks
  * for Chinese with no English. Returns the scans of the files that were read again with what the others define.
  */
-export function linkPrograms(scans, read) {
+export function linkPrograms(scans, read, readModule) {
   const known = new Set(scans.keys());
   const near = new Map();
   const link = (a, b) => near.set(a, (near.get(a) ?? new Set()).add(b));
@@ -206,7 +210,7 @@ export function linkPrograms(scans, read) {
     for (let round = 0; members.length > 1 && round < 4; round++) {
       let grew = false;
       for (const file of members) {
-        const scan = scanFile(file, read(file), pool);
+        const scan = scanFile(file, read(file), pool, readModule);
         again.set(file, scan);
         scans.set(file, scan);
         grew = mergeInto(pool, scan.scriptWrappers) || grew;
@@ -216,7 +220,7 @@ export function linkPrograms(scans, read) {
     for (const file of members) for (const next of near.get(file) ?? []) if (!scripted.has(next)) mergeInto(seeds.get(next) ?? seeds.set(next, new Map()).get(next), pool);
   }
   for (const [file, shared] of seeds) {
-    const scan = scanFile(file, read(file), shared);
+    const scan = scanFile(file, read(file), shared, readModule);
     again.set(file, scan);
     scans.set(file, scan);
   }
@@ -235,13 +239,59 @@ const words = (source) => {
   }
   return names;
 };
+// Recognize the typed text port as well as SDK imports. Follow a named function type through local imports so
+// an injected Say/TranslateText parameter is checked without a list of files or receiver names.
+const typeText = node => node?.getText().replace(/\s+/gu, "") ?? "";
+function translatorShape(parameters, returns) {
+  const vars = typeText(parameters[1]?.type);
+  return parameters.length >= 2 && typeText(parameters[0].type) === "string"
+    && (/^(?:Readonly<)?Record<string,(?:string\|number|number\|string)>(?:>)?$/u.test(vars) || vars === "TextValues")
+    && (!returns || typeText(returns) === "string");
+}
+
+function translatorType(type, source, readModule, seen = new Set()) {
+  if (!type) return false;
+  if (ts.isFunctionTypeNode(type)) return translatorShape(type.parameters, type.type);
+  if (ts.isParenthesizedTypeNode(type)) return translatorType(type.type, source, readModule, seen);
+  if (!ts.isTypeReferenceNode(type) || !ts.isIdentifier(type.typeName)) return false;
+  return translatorAlias(type.typeName.text, source, readModule, seen);
+}
+
+function translatorAlias(name, source, readModule, seen) {
+  const key = source.fileName + ":" + name;
+  if (seen.has(key)) return false;
+  seen.add(key);
+  for (const node of source.statements) {
+    if (ts.isTypeAliasDeclaration(node) && node.name.text === name) return translatorType(node.type, source, readModule, seen);
+    if (!ts.isImportDeclaration(node) || !ts.isStringLiteralLike(node.moduleSpecifier)) continue;
+    const bindings = node.importClause?.namedBindings;
+    if (!bindings || !ts.isNamedImports(bindings)) continue;
+    const binding = bindings.elements.find(item => item.name.text === name);
+    if (!binding) continue;
+    const definition = readModule?.(source.fileName, node.moduleSpecifier.text);
+    if (definition && translatorAlias(binding.propertyName?.text ?? name, definition, readModule, seen)) return true;
+  }
+  return false;
+}
+
+function declaredTranslators(source, readModule) {
+  const names = new Set();
+  const visit = node => {
+    if ((ts.isParameter(node) || ts.isPropertySignature(node) || ts.isPropertyDeclaration(node) || ts.isVariableDeclaration(node))
+      && nameOf(node.name) && translatorType(node.type, source, readModule)) names.add(nameOf(node.name));
+    if (ts.isMethodSignature(node) && nameOf(node.name) && translatorShape(node.parameters, node.type)) names.add(nameOf(node.name));
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  return names;
+}
 const title = (node, source) => source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1;
 const testCall = (name) => /^(?:globalThis\.)?(?:L|LF|LFor)$/u.test(name ?? "");
 const escapeRegExp = (text) => text.replace(/[.*+?^\${}()|[\]\\]/g, "\\$&");
 const scriptPattern = (names) => new RegExp(String.raw`(?:\bt(?:\.text)?|\buiText(?:\.text)?|\breadText|\bL(?:F|For)?${names?.size ? `|${[...names.keys()].map(escapeRegExp).join("|")}` : ""})\(`);
 
-export function scanFile(file, text, shared) {
-  const source = sourceOf(file, text), imports = words(source);
+export function scanFile(file, text, shared, readModule) {
+  const source = sourceOf(file, text), imports = new Set([...words(source), ...declaredTranslators(source, readModule)]);
   const result = { file, calls: [], dynamic: [], retired: [], mentions: new Set(), scripts: 0, scriptWrappers: new Map(),
     imports: source.statements.filter(node => (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier
       && ts.isStringLiteralLike(node.moduleSpecifier) && node.moduleSpecifier.text.startsWith(".")).map(node => node.moduleSpecifier.text) };
@@ -255,7 +305,7 @@ export function scanFile(file, text, shared) {
       const line = first + title(node, tree) - 1;
       if (ts.isCallExpression(node)) {
         const callee = calleeText(node.expression);
-        if (testCall(callee)) result.retired.push({ file, line, callee });
+        if (testCall(callee) || callee === "host.translate") result.retired.push({ file, line, callee });
         for (const index of argumentIndexes(callee, wrappers, imports)) {
           if (!node.arguments[index]) continue;
           const found = keysOf(node.arguments[index], tables);
@@ -381,56 +431,37 @@ function declaredOwners(snapshot, problems) {
   return owners;
 }
 
-const args = text => [...new Set([...text.matchAll(/\{([a-zA-Z_]\w*)\}/gu)].map(match => match[1]))].sort().join(",");
 function readMessages(snapshot, definition, locale, problems) {
-  const file = `${definition.directory}/${locale}.json`, pack = readJson(snapshot, file, problems), prefix = definition.owner.split(".").at(-1);
-  if (!pack) return new Map();
-  if (pack.owner !== definition.owner || pack.locale !== locale || !OBJECT(pack.messages)) {
-    problems.push(`${file}: wrong owner, language or message table`); return new Map();
+  const file = `${definition.directory}/${locale}.json`, raw = snapshot.read(file);
+  if (raw === null) { problems.push(`${file}: declared file missing`); return null; }
+  const result = parseLocalePack(raw, { file });
+  if (!result.ok) {
+    for (const issue of result.problems) problems.push(`${issue.file}:${issue.line} ${issue.path}: ${issue.code}: ${issue.reason}`);
+    return null;
   }
-  const out = new Map();
-  for (const [key, value] of Object.entries(pack.messages)) {
-    if (!STABLE_KEY.test(key) || !(key.startsWith(prefix + ".") || definition.owner === "workbench" && key.startsWith("common."))) {
-      problems.push(`${file}: invalid or foreign key ${key}`); continue;
-    }
-    const phrases = typeof value === "string" ? [value] : typeof value?.plural_arg === "string" && OBJECT(value.forms) && typeof value.forms.other === "string"
-      ? Object.values(value.forms) : [];
-    if (!phrases.length || phrases.some(text => typeof text !== "string" || !text.trim())) {
-      problems.push(`${file}: ${key} has an empty or invalid message`); continue;
-    }
-    const signatures = new Set(phrases.map(text => args(text)));
-    if (typeof value !== "string") {
-      // Plural categories may omit the numeric count in one form; named arguments besides that count are the same.
-      const names = phrases.map(text => args(text).split(",").filter(name => name && name !== value.plural_arg).join(","));
-      if (new Set(names).size !== 1) problems.push(`${file}: ${key} has inconsistent plural arguments`);
-      signatures.clear();
-      signatures.add([...new Set([...names[0].split(",").filter(Boolean), value.plural_arg])].sort().join(","));
-    }
-    out.set(key, [...signatures][0]);
+  if (result.value.owner !== definition.owner || result.value.locale !== locale) {
+    problems.push(`${file}: wrong owner or language`); return null;
   }
-  return out;
+  return result.value;
 }
 
 function inspectPacks(snapshot, problems) {
   const owners = declaredOwners(snapshot, problems), all = new Map(), files = new Set();
   for (const [prefix, definition] of owners) {
-    const packs = new Map();
-    for (const tag of definition.languages) {
+    const packs = definition.languages.flatMap(tag => {
       files.add(`${definition.directory}/${tag}.json`);
-      packs.set(tag, readMessages(snapshot, definition, tag, problems));
+      return readMessages(snapshot, definition, tag, problems) ?? [];
+    });
+    for (const issue of inspectLocaleSet(packs, definition)) {
+      if (issue.blocking || (issue.locale === "en" && issue.code === "ui.locale_missing_key"))
+        problems.push(`${issue.file}: ${issue.code}${issue.key ? " " + issue.key : ""}: ${issue.reason}`);
     }
-    const baseline = packs.get(definition.default);
-    for (const [key, signature] of baseline) {
+    const english = packs.find(pack => pack.locale === "en");
+    if (!english) problems.push(`${definition.directory}/en.json: no declared English pack`);
+    const baseline = packs.find(pack => pack.locale === definition.default);
+    for (const key of Object.keys(baseline?.messages ?? {})) {
       if (all.has(key)) problems.push(`${definition.directory}: duplicate owner of ${key}`);
-      all.set(key, { prefix, default: definition.default, present: new Set([definition.default]) });
-      for (const [tag, pack] of packs) {
-        if (tag === definition.default || !pack.has(key)) continue;
-        if (pack.get(key) !== signature) problems.push(`${definition.directory}/${tag}.json: arguments differ for ${key}`);
-        all.get(key).present.add(tag);
-      }
-    }
-    for (const [tag, pack] of packs) {
-      for (const key of pack.keys()) if (!baseline.has(key)) problems.push(`${definition.directory}/${tag}.json: ${key} is missing from the default language`);
+      all.set(key, { prefix });
     }
   }
   for (const file of snapshot.files) if (/^(?:plugins\/native\/[^/]+\/locales|apps\/workbench\/resources\/locales)\/[^/]+\.json$/u.test(file)
@@ -439,12 +470,18 @@ function inspectPacks(snapshot, problems) {
 }
 
 export function scanTree(snapshot, isSource = isProductSource) {
-  const scans = new Map();
+  const scans = new Map(), known = new Set(snapshot.files), definitions = new Map();
+  const readModule = (from, specifier) => {
+    const file = specifier.startsWith(".") ? resolveModule(from, specifier, known) : null;
+    if (!file) return null;
+    if (!definitions.has(file)) definitions.set(file, sourceOf(file, snapshot.read(file) ?? ""));
+    return definitions.get(file);
+  };
   for (const file of snapshot.files.filter(isSource)) {
     const text = snapshot.read(file);
-    if (text !== null) scans.set(file, scanFile(file, text));
+    if (text !== null) scans.set(file, scanFile(file, text, undefined, readModule));
   }
-  linkPrograms(scans, file => snapshot.read(file));
+  linkPrograms(scans, file => snapshot.read(file), readModule);
   const files = [...scans.values()], calls = files.flatMap(file => file.calls), dynamicCalls = files.flatMap(file => file.dynamic), problems = [];
   const { all, files: packFiles } = inspectPacks(snapshot, problems);
   for (const { file, line, callee } of files.flatMap(file => file.retired)) problems.push(`${file}:${line}: retired translator ${callee}; read an owned key with t or say`);
@@ -452,7 +489,6 @@ export function scanTree(snapshot, isSource = isProductSource) {
     if (!STABLE_KEY.test(call.key)) { problems.push(`${call.file}:${call.line}: expected a stable text key at ${call.callee}: ${JSON.stringify(call.key)}`); continue; }
     const word = all.get(call.key);
     if (!word) problems.push(`${call.file}:${call.line}: no registered default word for ${call.key}`);
-    else if (!word.present.has("en")) problems.push(`${call.file}:${call.line}: no English word for ${call.key}`);
     else if (call.file.startsWith("plugins/native/") && word.prefix !== ownerOf(call.file) && !call.key.startsWith("common."))
       problems.push(`${call.file}:${call.line}: ${call.key} belongs to another producer`);
   }

@@ -35,6 +35,7 @@ export interface AgentBuilderPorts {
   models(): Promise<readonly { provider_id: string; model_id: string; label: string }[]>;
   agent(build: AgentBuild, purpose: 'design' | 'code'): Promise<{ run(request: BuilderAgentRequest): Promise<BuilderAgentRecord>; close(): Promise<void>; records(): Promise<BuilderAgentRecord[]> }>;
   /** The plugin development Skill a stage works to (the same standard official plugins use); absent in a release without it. */
+  runInLanguage?<T>(run: () => T, recovered: boolean): T;
   skill?(stage: 'design' | 'code' | 'experience' | 'ui' | 'review'): BuilderSkill | undefined;
   /**
    * The text an Agent prompt runs with now: the person's edit (from “Prompt 与 Character”) or the shipped default. The
@@ -115,7 +116,7 @@ export class AgentBuilderWorkflow {
       const stage = build.active.stage;
       this.change(build.id, value => { value.active = null; value.phase = 'paused'; value.error = '宿主已重启，保留已有文件，继续时先重新检查'; for (const step of value.steps) if (step.status === 'active') step.status = 'cancelled'; });
       // Recovered build jobs continue from persisted files. Design is safe to retry with a new session.
-      this.launch(build.id, stage);
+      this.launch(build.id, stage, true);
     }
   }
   subscribe(listener: (build: AgentBuild) => void) { this.listeners.add(listener); return () => this.listeners.delete(listener); }
@@ -128,7 +129,7 @@ export class AgentBuilderWorkflow {
   private current(id: string, token: string) { if (this.closed || this.store.require(id).active?.token !== token) throw new Error('旧构建结果已作废'); }
   async state() { return { builds: this.store.list(), releases: this.store.releases(), installations: await this.ports.installations(), models: await this.ports.models(), selectionAvailable: Boolean(this.ports.choose && this.ports.selectionAvailable?.()), runtimeAvailable: true }; }
   create(brief: string) { const build = this.store.create(brief); this.launch(build.id, 'design'); return this.store.require(build.id); }
-  private launch(id: string, stage: NonNullable<AgentBuild['active']>['stage']) {
+  private launch(id: string, stage: NonNullable<AgentBuild['active']>['stage'], recovered = false) {
     // A job told to stop no longer counts: its results are void, and the next run may start.
     if (this.closed || this.jobs.get(id)?.abort.signal.aborted === false) throw new Error('此草稿已有执行中的工作');
     const abort = new AbortController(), token = randomUUID(), signal = abort.signal;
@@ -142,7 +143,8 @@ export class AgentBuilderWorkflow {
       : stage === 'visual' ? () => this.reviseVisual(id, token, signal)
       : stage === 'revise' ? async () => { await this.revise(id, token, signal); await build(); }
       : build;
-    const done = Promise.resolve().then(work).catch(error => {
+    const start = () => Promise.resolve().then(work);
+    const done = (this.ports.runInLanguage?.(start, recovered) ?? start()).catch(error => {
       if (this.store.require(id).active?.token === token) this.change(id, build => { build.active = null; build.phase = abort.signal.aborted ? 'paused' : 'failed'; build.error = humanize(message(error)); for (const step of build.steps) if (step.status === 'active') { step.status = abort.signal.aborted ? 'cancelled' : 'failed'; step.detail = message(error); } });
     }).finally(() => { if (this.jobs.get(id)?.abort === abort) this.jobs.delete(id); });
     this.jobs.set(id, { abort, done });

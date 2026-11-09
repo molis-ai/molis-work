@@ -318,3 +318,5 @@ export type { SyncTrackedTable, SyncKeyPart, PluginSyncCollectionDefinition, Plu
 
 export { syncAggregateDeclaration, parseSyncTracking, parseSyncAggregates } from './sync-schema.js';
 export { syncSection, syncSectionsDeclaration, syncSectionsTracking } from './sync-sections.js';
+
+export { readLocalizedMarkdown } from "./localized-markdown.js";

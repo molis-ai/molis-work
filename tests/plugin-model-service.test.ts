@@ -220,6 +220,26 @@ test("a call sends the plugin's registered instruction and this call's data kept
     } finally { item.store.close(); }
   }));
 
+test("FSS-74 a direct model action uses the exact declaration's language, never words sent in the call, and keeps the person's edit", { timeout: 60_000 },
+  withDirectory(async directory => {
+    const model = standIn(), item = platformIn(directory, { current: model.complete });
+    const plugin = probe({ instructions: owner_id => [
+      defineInstructionPrompt({ owner_id, prompt_id: "summarize", version: 2, title: "摘要", purpose: "摘要", used_by: ["测试"],
+        body: "只发送声明的正文。", body_by_locale: { en: "Send the declaration's exact English body." } }),
+    ] });
+    plugin.on.ask = ({ model }) => model.complete(instructed({ ...plugin.summarize, body: "偽造正文" }, "用户原文"));
+    try {
+      await item.platform.start([{ definition: plugin.definition, ...GRANTED }]);
+      await item.invoke(plugin.ask, { locale: "en" });
+      assert.equal(model.calls.at(-1)?.prompt, "Send the declaration's exact English body.\n\n用户原文");
+      await item.invoke(plugin.ask, { locale: "zh" });
+      assert.equal(model.calls.at(-1)?.prompt, "只发送声明的正文。\n\n用户原文");
+      personEdits(directory, plugin.id, "summarize", "用户编辑不翻译");
+      await item.invoke(plugin.ask, { locale: "en" });
+      assert.equal(model.calls.at(-1)?.prompt, "用户编辑不翻译\n\n用户原文");
+    } finally { await item.platform.runtime.stop(item.installId(plugin.id)); item.store.close(); }
+  }));
+
 test("a call that breaks the rules is refused before anything is sent: a raw string, someone else's instruction, someone else's system, an instruction the plugin never registered, limits beyond the ceiling, an output that is not text or json", { timeout: 60_000 },
   withDirectory(async directory => {
     const model = standIn(), item = platformIn(directory, { current: model.complete }), plugin = probe();

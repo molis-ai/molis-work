@@ -183,7 +183,7 @@ dialog.mw-dialog.knowledge-import{width:min(520px,calc(100vw - 32px));max-height
 export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
   const root=document.querySelector('[data-side-files-root]');
   if(!root||document.body.hasAttribute('data-pane-embedded'))return;
-  const readText=host.translate||((text)=>text);
+  const { readText } = host;
   const $=(selector)=>root.querySelector(selector);
   const list=$('[data-side-files-list]'),filter=$('[data-side-files-filter]'),browse=$('[data-side-files-browse]'),preview=$('[data-side-files-preview]');
   const body=$('[data-side-files-body]'),title=$('[data-side-files-title]'),meta=$('[data-side-files-meta]'),openButton=$('[data-side-files-action="open"]');

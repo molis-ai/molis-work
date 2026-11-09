@@ -31,6 +31,7 @@ import { assistantCharacterChoices } from "./assistant-characters.js";
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { assistantContributions } from "./assistant-contributions.js";
 import { registerAssistantRuleActions } from "./assistant-rule-actions.js";
+import { modelRoundLocale } from "../reply-language.js";
 import { agentDefinitionsFor } from "../agent-definitions/agent-definitions.js";
 import { memoryHostFor } from "../memory/memory-host.js";
 import { builtinRegistrations } from "../agent-definitions/builtin-agents.js";
@@ -148,13 +149,13 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
       void memoryHostFor(ports.localHost)?.learnLater({ actor_id: WEB_ACTOR, work_id: work.work_id, run_id, session_id: work.session_id, sources })
         .catch(error => hostLog.warn("memory", "learning_not_queued", error));
     },
-    authority: async (work, origin) => work.reply_target ? { manifest: ASSISTANT_AGENT, prompts: ASSISTANT_PROMPTS, authorizedDirectories: [], beforeDispatch: () => threads.authorize(work) } : ({ ...assistantAuthority(ports.localHost, work, () => store.disabledActions(WEB_ACTOR), (offer, views) => service.offers.recordOffer(work, offer, views),
+    authority: async (work, origin, locale) => work.reply_target ? { manifest: ASSISTANT_AGENT, prompts: ASSISTANT_PROMPTS, authorizedDirectories: [], beforeDispatch: () => threads.authorize(work) } : ({ ...assistantAuthority(ports.localHost, work, () => store.disabledActions(WEB_ACTOR), (offer, views) => service.offers.recordOffer(work, offer, views),
       (view, input, output) => service.outcomes.recordResult(work, view, input, output, origin?.source !== "card"), service.delegation(work),
       (view, call) => service.dispatcher.trackUnsettled(work, `${view.provider.title} · ${view.action.title}`, call), service.memory.memoryTools(work), () => store.confirmAlways(WEB_ACTOR),
       view => service.dispatcher.noteDispatched(work, view), () => {
         const snapshot = store.rounds(work.work_id).at(-1)?.context;
         return snapshot ? { url: null, title: snapshot.source.title ?? snapshot.source.surface, provenance: "client_reported" } : undefined;
-      }),
+      }, locale),
       project_prompts: await assistantProjectPrompts(ports.localHost, work),
       // The platform memory, under the Assistant's switch: re-read and injected by the runtime as data.
       memory: task => service.memory.memoryForRound(work, task),
@@ -165,8 +166,8 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
     projectTitle: ports.projectTitle,
     // Methods Plugins offer for business work, from the Home's registry of Agent definitions.
     methods: { list: () => agentDefinitionsFor(ports.homeDirectory, builtinRegistrations).methods(),
-      read: (owner, skill, version) => agentDefinitionsFor(ports.homeDirectory, builtinRegistrations).method(owner, skill, version),
-      readSigned: (install, ref) => agentDefinitionsFor(ports.homeDirectory, builtinRegistrations).signedMaterial(install, ref),
+      read: (owner, skill, version) => agentDefinitionsFor(ports.homeDirectory, builtinRegistrations).method(owner, skill, version, modelRoundLocale(ports.homeDirectory)),
+      readSigned: (install, ref) => agentDefinitionsFor(ports.homeDirectory, builtinRegistrations).signedMaterial(install, ref, modelRoundLocale(ports.homeDirectory)),
       recordSignedUse: (material, caller) => agentDefinitionsFor(ports.homeDirectory, builtinRegistrations).recordSignedUse(material, caller),
       bindSigned: async (project, installId, ref) => {
         const projectRows = project ? await ports.localHost.withProject(project, runtime => pluginInstallRecords(runtime.store.db)) : undefined;

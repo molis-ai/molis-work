@@ -1,3 +1,4 @@
+import { agentBodyIn } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 export {readSavedAgentHistory,savedAgentHistoryView,type PrologueSavedHistoryPort,type SavedHistoryOwner} from './adapters/prologue-saved-history.js';
 import { trustedOriginalInput } from "./original-inputs.js";
 import { agentErrors } from "./errors.js";
@@ -178,6 +179,8 @@ export interface AgentStartAuthority {
    * language, so a Plugin cannot set it. Composed with the role's prompts, so the round's frozen record names it.
    */
   reply_language?: AgentPromptText;
+  /** Host-selected language for this round’s shipped content. It is frozen before any preparation awaits. */
+  content_locale?: string;
   /**
    * The platform memory for this run, recalled by the Host for this consumer (the switches and scopes are the Host's).
    * Absent or null: the run is given no memory.
@@ -195,7 +198,7 @@ export interface AgentStartAuthority {
  */
 /** Looks up the text a registered prompt runs with now. Returns the prompt unchanged when the person has not edited it. */
 export interface AgentPromptResolver {
-  effective(ownerId: string, prompt: AgentPromptText): AgentPromptText;
+  effective(ownerId: string, prompt: AgentPromptText, locale?: string): AgentPromptText;
 }
 
 export class AgentHost implements AgentHostApi {
@@ -302,10 +305,11 @@ export class AgentHost implements AgentHostApi {
     const definition = authority.skills?.find(item => item.skill_id === ref.skill_id && item.version === ref.version);
     if (entry?.source === "installed" && authority.skill_owner) return this.adapter(runtimeId).skillLibrary!.read(authority.skill_owner, ref);
     if (!entry?.enabled || !definition) throw agentErrors.capability_unavailable("这个方法版本不可用，请重新选择");
-    if (definition.body.length > 20_000 || JSON.stringify(definition.tools) !== JSON.stringify(entry.tools)) {
+    const body = agentBodyIn(definition, authority.content_locale);
+    if (body.length > 20_000 || JSON.stringify(definition.tools) !== JSON.stringify(entry.tools)) {
       throw agentErrors.capability_unavailable("方法正文或工具声明与发布版本不一致");
     }
-    return { skill_id: entry.skill_id, version: entry.version, name: entry.name, summary: entry.summary, tools: [...entry.tools], body: definition.body };
+    return { skill_id: entry.skill_id, version: entry.version, name: entry.name, summary: entry.summary, tools: [...entry.tools], body };
   }
 
   async discoverSkills(runtimeId: string, authority: AgentStartAuthority, directory: AgentWorkingDirectory, path: string) {
@@ -339,9 +343,12 @@ export class AgentHost implements AgentHostApi {
     request = { ...request, original_input: trustedOriginalInput(request, authority.original_input), continued_from: request.continued_from && structuredClone(request.continued_from), budget: parseAgentRunBudget(request.budget), execution_plan: freezeExecutionPlan(request) };
     // What runs is the registered prompt as the person left it: their version when they edited it, otherwise the
     // default. Same id and version either way — the frozen record says which, and no text widens what the role may do.
-    if (this.#prompts && authority.prompts?.length) {
-      const resolve = this.#prompts;
-      authority = { ...authority, prompts: authority.prompts.map(prompt => resolve.effective(request.plugin_id, prompt)) };
+    if (authority.prompts?.length) {
+      const locale = authority.content_locale, resolve = this.#prompts;
+      authority = { ...authority, prompts: authority.prompts.map(({ body_by_locale, ...prompt }) => {
+        const declaration = { ...prompt, ...(body_by_locale ? { body_by_locale } : {}) };
+        return resolve ? resolve.effective(request.plugin_id, declaration, locale) : { ...prompt, body: agentBodyIn(declaration, locale) };
+      }) };
     }
     const adapter = this.adapter(runtimeId);
     const worktrees = request.workspace === "none" || request.workspace === "business" ? [] : await worktreesFor(authority, request.directory, request.subagent_workspaces?.length);

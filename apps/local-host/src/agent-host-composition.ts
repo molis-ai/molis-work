@@ -290,7 +290,7 @@ async function startAuthority(
   const callId = currentCallId() ?? newCallId();
   return {
     call_id: callId,
-    reply_language: replyLanguagePrompt(locale),
+    reply_language: replyLanguagePrompt(locale), content_locale: locale,
     ...(original ? { original_input: original } : {}),
     manifest: declared?.manifest ?? { roles: [], prompts: [] },
     // A round works in the output or one of the Host's worktrees of it, never in an input folder (SSC-15).

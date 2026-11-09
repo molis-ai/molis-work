@@ -1,6 +1,6 @@
 ---
 method_id: overlay-minors
-version: 1
+version: 2
 kind: overlay
 name: "未成年人"
 summary: "为面向或可能触达未成年人的产品叠加年龄适配、监护、安全和商业约束。"

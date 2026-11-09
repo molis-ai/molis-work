@@ -5,6 +5,7 @@ import { resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { withHomePluginStorePageRecovery } from "./web-home-plugin-recovery.js";
 import { agentDefinitionsFor } from "./agent-definitions/agent-definitions.js";
 import { builtinRegistrations } from "./agent-definitions/builtin-registrations.js";
+import { modelRoundLocale } from "./reply-language.js";
 import { handleAgentDefinitionsHttp } from "./agent-definitions/agent-definitions-http.js";
 import { handleCharactersHttp, hostCharactersInvoke } from "./characters-http.js";
 import { pluginRouteControl } from "./plugin-route-control.js";
@@ -89,7 +90,7 @@ export async function handleMolisWorkWebRequest(
     if (!resolved || redirectFunctionsPage(request.method, response, url, resolved)) return;
     // Every registered prompt and role, and the person's edits of them: one register per Home, whichever page asks.
     if (serverOptions.homeDirectory && url.pathname.startsWith("/api/agent-definitions/")
-      && await handleAgentDefinitionsHttp(request, response, url, agentDefinitionsFor(serverOptions.homeDirectory, builtinRegistrations))) return;
+      && await handleAgentDefinitionsHttp(request, response, url, agentDefinitionsFor(serverOptions.homeDirectory, builtinRegistrations), modelRoundLocale(serverOptions.homeDirectory))) return;
     if (resolved.kind === "catalog_index") {
       const assistant = serverOptions.homeDirectory ? assistantPortsFor(serverOptions.homeDirectory, composition, localHost, agentHost, agentReady) : null;
       await withHomePluginStorePageRecovery(context, null, () => dispatchWebRoutes(CATALOG_INDEX_ROUTES, { ...context, projects: resolved.projects, assistant }));

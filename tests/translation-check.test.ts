@@ -34,8 +34,9 @@ test("FSS-53 the locale gate reads the declared owner, t aliases, constants and 
 
 test("FSS-53 the locale gate refuses missing English, invalid key shapes and dropped declarations", () => {
   const files = core();
-  assert.deepEqual(read({ ...files, [EN]: messages("en", { "alpha.page.close": "Close" }) }).problems,
-    [UI + ":3: no English word for alpha.page.open"]);
+  const missing = read({ ...files, [EN]: messages("en", { "alpha.page.close": "Close", "alpha.page.unused": "Old" }) }).problems;
+  assert.equal(missing.length, 1);
+  assert.match(missing[0], /ui\.locale_missing_key alpha\.page\.open/);
   assert.ok(read({ ...files, [UI]: files[UI] + '\nsayOwn("原文"); sayOwn("alpha.page.absent");' }).problems
     .some(problem => problem.includes('expected a stable text key at sayOwn: "原文"')));
   const dropped = read({ ...files, [manifest]: files[manifest].replace(/, locales: \{.*?\}/u, "") });
@@ -46,13 +47,13 @@ test("FSS-53 the locale gate refuses missing English, invalid key shapes and dro
 test("FSS-53 duplicate words, argument mismatches and a foreign file fail the locale gate", () => {
   const files = core();
   const duplicate = files[EN].replace('"alpha.page.close":"Close"', '"alpha.page.close":"Close","alpha.page.close":"Other"');
-  assert.ok(read({ ...files, [EN]: duplicate }).problems.some(problem => problem.endsWith("repeated key alpha.page.close")));
+  assert.ok(read({ ...files, [EN]: duplicate }).problems.some(problem => problem.includes("alpha.page.close") && problem.includes("ui.json_repeated_name")));
   const wrongArgs = files[EN].replace("{name}", "{person}");
-  assert.ok(read({ ...files, [EN]: wrongArgs }).problems.some(problem => problem.endsWith("arguments differ for alpha.page.open")));
+  assert.ok(read({ ...files, [EN]: wrongArgs }).problems.some(problem => problem.includes("ui.locale_args alpha.page.open")));
   const wrongOwner = files[EN].replace(ID, "example.another.alpha");
-  assert.ok(read({ ...files, [EN]: wrongOwner }).problems.some(problem => problem.endsWith("wrong owner, language or message table")));
+  assert.ok(read({ ...files, [EN]: wrongOwner }).problems.some(problem => problem.endsWith("wrong owner or language")));
   assert.ok(read({ ...files, [EN]: files[EN].replace("alpha.page.close", "beta.page.close") }).problems
-    .some(problem => problem.endsWith("invalid or foreign key beta.page.close")));
+    .some(problem => problem.includes("beta.page.close") && problem.includes("ui.locale_key_owner")));
 });
 
 test("FSS-53 a browser program's forwarded title and hint count, independently of script escaping", () => {
@@ -88,6 +89,35 @@ test("FSS-52 the gate flags the removed translator and manifest fields even with
   assert.equal(result.problems.filter(problem => problem.includes("retired translator")).length, 2);
   assert.ok(result.problems.some(problem => problem.includes("replaced by ui.locales")));
   assert.equal(scanFile(UI, '// L("a comment")').retired.length, 0);
+});
+
+test("FSS-53 typed translators and dynamic English coverage fail on their own", () => {
+  const port = DIR + "/src/words.ts", files = core();
+  const typed = read({ ...files,
+    [port]: 'export type Wording = (key: string, values?: Record<string, string | number>) => string;',
+    [UI]: [
+      'import type { Wording as Words } from "./words.js";',
+      'function render(word: Words) { return word("还在使用原句"); }',
+      'function inline(say: (key: string, args?: Record<string, string | number>) => string) { return say("alpha.page.absent"); }',
+      'function dynamic(word: Words, status: string) { return word("alpha.page." + status); }',
+    ].join("\n"),
+    [EN]: messages("en", { "alpha.page.open": "Open {name}", "alpha.page.close": "Close" }),
+  });
+  assert.ok(typed.problems.some(problem => problem.includes("expected a stable text key at word")));
+  assert.ok(typed.problems.some(problem => problem.includes("no registered default word for alpha.page.absent")));
+  assert.ok(typed.dynamicCalls.some(call => call.prefix === "alpha.page."));
+  assert.ok(typed.problems.some(problem => problem.includes("ui.locale_missing_key alpha.page.unused")));
+});
+
+test("FSS-53 the build-free gate refuses the same malformed packs as the SDK", () => {
+  const files = core(), values = { "alpha.page.open": "Open {name}", "alpha.page.close": "Close", "alpha.page.unused": "Old" };
+  for (const [raw, code] of [
+    [JSON.stringify({ ...JSON.parse(files[EN]), format_version: 2 }), "ui.file_format_version"],
+    [JSON.stringify({ ...JSON.parse(files[EN]), ui_messages: {} }), "ui.file_unknown_field"],
+    [messages("en", { ...values, "alpha.page.open": { plural_arg: "x-y", forms: { other: "Open {name}" } } }), "ui.locale_placeholder"],
+    [messages("en", { ...values, "alpha.page.open": { plural_arg: "name", forms: { dual: "Open {name}", other: "Open {name}" } } }), "ui.file_unknown_field"],
+    [messages("en", { ...values, "alpha.page.open": "Open {name|file|files}" }), "ui.locale_old_plural"],
+  ]) assert.ok(read({ ...files, [EN]: raw }).problems.some(problem => problem.includes(code)), code);
 });
 
 test("FSS-53 the real working tree has registered packs and no translation violations", () => {

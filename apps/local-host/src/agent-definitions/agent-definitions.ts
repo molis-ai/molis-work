@@ -4,7 +4,7 @@ import { applySqliteBaseline, openBaselineHomeSqlite, openHomeSqliteDatabase, ty
 import { AgentDeclarations, notRunning } from "./agent-declarations.js";
 import type { AgentManifest, AgentPromptText, AgentRoleExecution, AgentSkillDeclaration, AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
-import type { InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
+import { agentBodyIn, type InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { hostLog } from "../host-log.js";
 import {
   AGENT_PROMPT_MAX_CHARS,
@@ -125,29 +125,29 @@ export class AgentDefinitions {
     return { owner, prompt };
   }
 
-  private view(owner: AgentDefinitionRegistration, prompt: AgentPromptRegistration): AgentPromptView {
+  private view(owner: AgentDefinitionRegistration, prompt: AgentPromptRegistration, locale?: string): AgentPromptView {
     const key = keyOf(owner.owner_id, prompt.prompt_id);
-    const edited = this.override(key);
+    const edited = this.override(key), body = agentBodyIn(prompt, locale);
     const used = this.db.prepare("SELECT * FROM prompt_uses WHERE key = ? ORDER BY at DESC LIMIT 1").get(key) as (Omit<AgentPromptUse, "source_ref"> & { source_ref: string | null }) | undefined;
     return {
       key, owner_id: owner.owner_id, source: structuredClone(owner.source), prompt_id: prompt.prompt_id, kind: prompt.kind,
       ...(prompt.layer ? { layer: prompt.layer } : {}), title: prompt.title, purpose: prompt.purpose, used_by: [...prompt.used_by],
       ...(prompt.default_ref ? { default_ref: structuredClone(prompt.default_ref) } : {}),
-      default_version: prompt.version, default_body: prompt.body,
-      effective: edited ? "user" : "default", body: edited ? edited.body : prompt.body,
+      default_version: prompt.version, default_body: body,
+      effective: edited ? "user" : "default", body: edited?.body ?? body,
       ...(edited ? { user: { revision: edited.revision, base_version: edited.base_version, ...(edited.default_ref ? { default_ref: storedRef(edited.default_ref) } : {}), updated_at: edited.updated_at } } : {}),
       default_updated: Boolean(edited && (prompt.default_ref ? !sameRef(prompt.default_ref, storedRef(edited.default_ref)) : prompt.version > edited.base_version)),
       ...(used ? { last_used: { ...(used.source_ref ? { source_ref: storedRef(used.source_ref) } : {}), at: used.at, version: used.version, user_revision: used.user_revision, caller: used.caller } } : {}),
     };
   }
 
-  prompts(): AgentPromptView[] {
-    return [...this.owners.values()].flatMap(owner => owner.prompts.map(prompt => this.view(owner, prompt)));
+  prompts(locale?: string): AgentPromptView[] {
+    return [...this.owners.values()].flatMap(owner => owner.prompts.map(prompt => this.view(owner, prompt, locale)));
   }
 
-  prompt(key: string): AgentPromptView {
+  prompt(key: string, locale?: string): AgentPromptView {
     const { owner, prompt } = this.registered(key);
-    return this.view(owner, prompt);
+    return this.view(owner, prompt, locale);
   }
 
   /** Methods owners offer to other Agents for business work; the body is read with `method`. A plugin that is not running offers none. */
@@ -167,27 +167,28 @@ export class AgentDefinitions {
   }
 
   /** One registered method with its body, by owner, id and (when given) exact version. */
-  method(ownerId: string, skillId: string, version?: number): AgentSkillRegistration {
-    const owner = this.owners.get(ownerId), method = owner && offering(owner) ? owner.methods?.find(item => item.skill_id === skillId) : undefined;
-    if (!method || (version !== undefined && method.version !== version)) throw agentDefinitionsErrors.not_found("没有登记这个方法版本");
-    return structuredClone(method);
+  method(ownerId: string, skillId: string, version?: number, locale?: string): AgentSkillRegistration {
+    const matches = [...(this.scopes.get(ownerId)?.values() ?? [])].filter(owner => nativeOffering(owner)).flatMap(owner => owner.methods ?? [])
+      .filter(item => item.skill_id === skillId && (version === undefined || item.version === version));
+    if (matches.length !== 1) throw agentDefinitionsErrors.not_found("没有登记这个方法版本");
+    return structuredClone(selectedBody(matches[0]!, locale));
   }
 
   /** Read the selected installation, never the settings aggregation or a newer default. No use is recorded here. */
-  signedMaterial(installId: string, ref: SignedAgentReference): SignedAgentMaterial {
+  signedMaterial(installId: string, ref: SignedAgentReference, locale?: string): SignedAgentMaterial {
     const owner = this.scopes.get(ref.source.plugin_id)?.get(installId), source = owner?.source;
     if (!owner || !offering(owner) || source?.kind !== "plugin" || source.plugin_version !== ref.source.plugin_version
       || source.publisher_signature !== ref.source.publisher_signature) throw agentDefinitionsErrors.not_found("签名正文来源已变化，请重新选择");
     if (ref.kind === "method") {
       const method = owner.methods?.find(item => item.skill_id === ref.entry_id);
       if (!method) throw agentDefinitionsErrors.not_found("没有登记这个方法版本");
-      return { default_ref: structuredClone(ref), effective: "default", user_revision: null, body: method.body };
+      return { default_ref: structuredClone(ref), effective: "default", user_revision: null, body: agentBodyIn(method, locale) };
     }
     const role = owner.roles.find(item => item.role_id === ref.entry_id);
     const prompt = role && owner.prompts.find(item => role.prompt_ids.includes(item.prompt_id) && sameRef(item.default_ref, ref));
     if (!prompt) throw agentDefinitionsErrors.not_found("没有登记这个角色资料版本");
     const edited = this.override(keyOf(owner.owner_id, prompt.prompt_id));
-    return { default_ref: structuredClone(ref), effective: edited ? "user" : "default", user_revision: edited?.revision ?? null, body: edited?.body ?? prompt.body };
+    return { default_ref: structuredClone(ref), effective: edited ? "user" : "default", user_revision: edited?.revision ?? null, body: edited?.body ?? agentBodyIn(prompt, locale) };
   }
 
   /** Called only after an accepted handoff; a later withdrawal does not erase the accepted historical fact. */
@@ -214,7 +215,7 @@ export class AgentDefinitions {
   }
 
   /** Save the person's version. `expected` is the revision they edited (null when they edited the default). */
-  save(key: string, body: string, expected: number | null, actorId: string): AgentPromptView {
+  save(key: string, body: string, expected: number | null, actorId: string, locale?: string): AgentPromptView {
     const { owner, prompt } = this.registered(key);
     if (typeof body !== "string" || !body.trim()) throw agentDefinitionsErrors.invalid("Prompt 不能为空；要回到原来的文字请用“恢复默认”");
     if (body.length > AGENT_PROMPT_MAX_CHARS) throw agentDefinitionsErrors.invalid(`Prompt 最长 ${AGENT_PROMPT_MAX_CHARS} 字`);
@@ -227,45 +228,44 @@ export class AgentDefinitions {
         .run(key, revision, prompt.version, body, at, actorId, prompt.default_ref ? JSON.stringify(prompt.default_ref) : null);
       this.db.prepare("INSERT INTO prompt_history(key,revision,action,body,base_version,at,actor_id,default_ref) VALUES (?,?,?,?,?,?,?,?)").run(key, revision, "save", body, prompt.version, at, actorId, prompt.default_ref ? JSON.stringify(prompt.default_ref) : null);
     });
-    return this.view(owner, prompt);
+    return this.view(owner, prompt, locale);
   }
 
   /** Back to the shipped default. The person's versions stay in the history. */
-  reset(key: string, expected: number | null, actorId: string): AgentPromptView {
+  reset(key: string, expected: number | null, actorId: string, locale?: string): AgentPromptView {
     const { owner, prompt } = this.registered(key);
     const current = this.override(key);
-    if (!current) return this.view(owner, prompt);
+    if (!current) return this.view(owner, prompt, locale);
     if (current.revision !== expected) throw agentDefinitionsErrors.conflict("这段 Prompt 已在别处修改，请刷新后再改");
     const revision = this.nextRevision(key);
     this.transaction(() => {
       this.db.prepare("DELETE FROM prompt_overrides WHERE key = ?").run(key);
       this.db.prepare("INSERT INTO prompt_history(key,revision,action,body,base_version,at,actor_id,default_ref) VALUES (?,?,?,?,?,?,?,?)").run(key, revision, "reset", null, prompt.version, this.now().toISOString(), actorId, prompt.default_ref ? JSON.stringify(prompt.default_ref) : null);
     });
-    return this.view(owner, prompt);
+    return this.view(owner, prompt, locale);
   }
 
   /** The Agent Host's resolver: the text a registered prompt runs with now. Unregistered prompts run as given. */
-  effective(ownerId: string, prompt: AgentPromptText): AgentPromptText {
-    const key = keyOf(ownerId, prompt.prompt_id);
-    const owned = this.owners.get(ownerId)?.prompts.find(item => item.prompt_id === prompt.prompt_id);
-    if (!owned) return prompt;
+  effective(ownerId: string, declaration: AgentPromptText, locale?: string): AgentPromptText {
+    const prompt = selectedBody(declaration, locale), key = keyOf(ownerId, prompt.prompt_id);
+    if (!this.hasPrompt(ownerId, prompt.prompt_id)) return prompt;
     const edited = this.override(key);
     this.recordUse({ key, version: prompt.version, user_revision: edited?.revision ?? null, caller: `agent:${ownerId}`, at: this.now().toISOString() });
     return edited ? { ...prompt, body: edited.body, user_revision: edited.revision } : prompt;
   }
 
   /** A direct model call's instructions, as registered and as the person left them. */
-  instruction(ownerId: string, promptId: string, caller: string): { body: string; version: number; user_revision: number | null } {
+  instruction(ownerId: string, promptId: string, caller: string, locale?: string): { body: string; version: number; user_revision: number | null } {
     const { prompt } = this.registered(keyOf(ownerId, promptId));
-    return this.instructionForDeclaration(ownerId, prompt, caller);
+    return this.instructionForDeclaration(ownerId, prompt, caller, locale);
   }
 
   /** Host-selected release declaration, never a prompt body supplied by a model action's business input. */
-  instructionForDeclaration(ownerId: string, prompt: AgentPromptRegistration, caller: string): { body: string; version: number; user_revision: number | null } {
+  instructionForDeclaration(ownerId: string, prompt: Pick<AgentPromptRegistration, "prompt_id" | "version" | "kind" | "body" | "body_by_locale">, caller: string, locale?: string): { body: string; version: number; user_revision: number | null } {
     if (prompt.kind !== "instruction") throw agentDefinitionsErrors.invalid("这段 Prompt 不是模型调用的指令");
     const key = keyOf(ownerId, prompt.prompt_id), edited = this.override(key);
     this.recordUse({ key, version: prompt.version, user_revision: edited?.revision ?? null, caller, at: this.now().toISOString() });
-    return { body: edited ? edited.body : prompt.body, version: prompt.version, user_revision: edited?.revision ?? null };
+    return { body: edited?.body ?? agentBodyIn(prompt, locale), version: prompt.version, user_revision: edited?.revision ?? null };
   }
 
   /** What each owner registered and what of it is not in effect, for developers; plus calls known to bypass the register. */
@@ -343,7 +343,7 @@ export function agentRegistration(ownerId: string, source: AgentDefinitionSource
     const title = named?.title ?? side?.title ?? (layer === "base" ? "基础约束" : users.length === 1 ? users[0]! : text.prompt_id);
     return { prompt_id: text.prompt_id, version: text.version, kind: "agent", layer, title,
       purpose: named?.purpose ?? side?.purpose ?? (users.length ? `组成角色：${users.join("、")}` : "未被任何角色使用"),
-      used_by: side ? [side.title] : users, body: text.body };
+      used_by: side ? [side.title] : users, body: text.body, ...(text.body_by_locale ? { body_by_locale: text.body_by_locale } : {}) };
   });
   return { owner_id: ownerId, source, prompts, roles };
 }
@@ -354,6 +354,12 @@ const registries = new Map<string, AgentDefinitions>(), declarations = new Map<s
 
 /** Whether an owner's methods are offered: not while its plugin does not run (a remembered declaration, PG-051 RAC-196). */
 const offering = (owner: AgentDefinitionRegistration) => owner.source.kind !== "plugin" || owner.source.state !== "disabled";
+const nativeOffering = (owner: AgentDefinitionRegistration) => offering(owner) && !(owner.source.kind === "plugin" && owner.source.publisher_signature);
+
+function selectedBody<T extends { body: string; body_by_locale?: Readonly<Record<string, string>> }>(declaration: T, locale?: string): Omit<T, "body_by_locale"> {
+  const { body_by_locale, ...selected } = declaration;
+  return { ...selected, body: agentBodyIn({ body: selected.body, body_by_locale }, locale) };
+}
 
 /** The Home's remembered installation declarations (PG-051 Q1 b), opened once. */
 export function agentDeclarationsFor(homeDirectory: string): AgentDeclarations {
@@ -385,8 +391,8 @@ export function agentDefinitionsFor(homeDirectory: string, registrations: () => 
  */
 export function declaredMethods(declared: readonly AgentSkillDeclaration[], bodies: readonly AgentSkillDefinition[] = []): { methods: AgentSkillRegistration[]; notes: string[] } {
   const methods = declared.flatMap(method => {
-    const body = bodies.find(item => item.skill_id === method.skill_id && item.version === method.version)?.body;
-    return body ? [{ skill_id: method.skill_id, version: method.version, name: method.name, summary: method.summary, tools: [...method.tools], body }] : [];
+    const content = bodies.find(item => item.skill_id === method.skill_id && item.version === method.version);
+    return content?.body ? [{ skill_id: method.skill_id, version: method.version, name: method.name, summary: method.summary, tools: [...method.tools], body: content.body, ...(content.body_by_locale ? { body_by_locale: content.body_by_locale } : {}) }] : [];
   });
   const notes = declared.filter(method => !methods.some(item => item.skill_id === method.skill_id)).map(method => `方法 ${method.skill_id} 声明了但包里没有正文，未登记`);
   return { methods, notes };
@@ -399,7 +405,7 @@ export function withInstructions(registrations: readonly AgentDefinitionRegistra
   for (const instruction of instructions) {
     const owner = merged.get(instruction.owner_id) ?? { owner_id: instruction.owner_id, source: sourceOf(instruction.owner_id), prompts: [], roles: [] };
     owner.prompts.push({ prompt_id: instruction.prompt_id, version: instruction.version, kind: "instruction", title: instruction.title, purpose: instruction.purpose,
-      used_by: [...instruction.used_by], body: instruction.body });
+      used_by: [...instruction.used_by], body: instruction.body, ...(instruction.body_by_locale ? { body_by_locale: instruction.body_by_locale } : {}) });
     merged.set(instruction.owner_id, owner);
   }
   return [...merged.values()];

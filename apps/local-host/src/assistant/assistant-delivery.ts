@@ -3,6 +3,7 @@ import { RECEIPT_WORDS, type InteractionNextStep } from "@molis-ai/molis-work-co
 import { isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentInputModelClaim, AgentInputQuestion, AgentQueuedInput, AgentTurnSteer } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 import type { AssistantActivity, AssistantRound, AssistantWorkObject, AssistantWorkState, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
+import { dateTimeLocale } from "../web-locale.js";
 import { NEXT_STEP } from "../agent-next-steps.js";
 
 /** Whether the person can open this object from where the work shows it: it has a place to open, and its owner still has it. One test for the delivery note and the round outcome. */
@@ -109,7 +110,7 @@ function resultState(result: DeliveryResult, say: (text: string, values?: Record
   if (result.state === "missing") return say("workbench.assistant-delivery.no-longer-exists");
   if (result.state === "unavailable") return say("workbench.assistant-delivery.cannot-be-read-now");
   if (result.state !== "moved") return "";
-  return result.movedTo === null ? say("workbench.assistant-delivery.another-project") : say("workbench.assistant-delivery.moved") + say("「") + result.movedTo + say("」");
+  return result.movedTo === null ? say("workbench.assistant-delivery.another-project") : say("workbench.assistant-delivery.moved-to", { name: result.movedTo });
 }
 
 /**
@@ -121,7 +122,7 @@ export function deliveryNoteHtml(note: DeliveryNote, say: (text: string, values?
   const { FACT, TREATMENT, IMPACT, QUESTION, STEP } = RECEIPT_WORDS, states = workWords(say);
   // The AI's report of its own steps: done is only "the model reports done".
   const stepWords = { pending: say("workbench.assistant-delivery.not-started"), "in-progress": say("workbench.assistant-delivery.progress"), done: say(STEP.succeeded), abandoned: say(STEP.cancelled) };
-  const quoted = (text: string) => say("「") + clip(text) + say("」");
+  const quoted = (text: string) => say("workbench.assistant-delivery.quoted-supplement", { text: clip(text) });
   // The page binds a supplement's button to its receipt (`shared.link`) by the input id.
   const supplement = (one: DeliverySupplement) => `<button class="mw-btn mw-btn--sm mw-btn--link" type="button" data-input="${esc(one.id)}">${esc(quoted(one.text))}</button>`;
   const line = (...parts: string[]) => parts.join(DOT);
@@ -140,7 +141,7 @@ export function deliveryNoteHtml(note: DeliveryNote, say: (text: string, values?
     ...one.about ? [esc(say("workbench.assistant-delivery.corrects") + (one.about.text === null ? say("workbench.assistant-delivery.earlier-one") : quoted(one.about.text)))] : [],
     ...one.questions.map(question => esc(say("workbench.assistant-delivery.question-about") + say(QUESTION[question.state])))));
   const statements = note.supplements.flatMap(one => one.claim
-    ? [line(supplement(one), esc(say(TREATMENT[one.claim.treatment]) + (one.claim.impacts.length ? say("workbench.assistant-delivery.affects") + one.claim.impacts.map(impact => say(IMPACT[impact])).join(say("、")) : "")))]
+    ? [line(supplement(one), esc(say(TREATMENT[one.claim.treatment]) + (one.claim.impacts.length ? say("workbench.assistant-delivery.affects") + new Intl.ListFormat(dateTimeLocale()).format(one.claim.impacts.map(impact => say(IMPACT[impact]))) : "")))]
     : one.state === "read" ? [line(supplement(one), esc(say("workbench.assistant-delivery.read-ai-no-word-how-handles-them")))] : []);
   const claimed = [...statements, ...note.steps.map(item => esc(say("workbench.assistant-delivery.step-ai-reports") + clip(item.text, 80) + DOT + stepWords[item.state]))];
   const missing = [

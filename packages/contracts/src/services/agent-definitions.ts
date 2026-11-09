@@ -1,3 +1,4 @@
+import type { LocalizedAgentBody } from "../platform/model-prompts.js";
 import type { ContractDescriptor } from "../platform/package.js";
 import type { AgentPromptLayer, AgentRoleExecution } from "../platform/plugin-agent.js";
 
@@ -67,7 +68,7 @@ export type AgentDefinitionSource =
  */
 export type AgentPromptKind = "agent" | "instruction";
 
-export interface AgentPromptRegistration {
+export interface AgentPromptRegistration extends LocalizedAgentBody {
   default_ref?: SignedAgentReference;
   prompt_id: string;
   /** The shipped default's version. A newer default after the person's edit is shown as “default updated”. */
@@ -107,7 +108,7 @@ export interface AgentDefinitionRegistration {
   notes?: string[];
 }
 
-export interface AgentSkillRegistration {
+export interface AgentSkillRegistration extends LocalizedAgentBody {
   skill_id: string;
   version: number;
   name: string;

@@ -1,3 +1,4 @@
+import type { LocalizedAgentBody } from "./model-prompts.js";
 import type { ContractDescriptor } from "./package.js";
 
 export const platformPluginAgentContract = {
@@ -199,12 +200,12 @@ export interface AgentSkillDeclaration {
   connector_categories?: string[];
 }
 
-export interface AgentSkillDefinition extends Omit<AgentSkillDeclaration, "body"> {
+export interface AgentSkillDefinition extends Omit<AgentSkillDeclaration, "body">, LocalizedAgentBody {
   /** The body's text, not the package path a declaration's `body` names. */
   body: string;
 }
 
-export interface AgentPromptText {
+export interface AgentPromptText extends LocalizedAgentBody {
   prompt_id: string;
   version: number;
   body: string;

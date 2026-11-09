@@ -41,8 +41,8 @@ export async function assistantConnectionCard(host: MolisWorkLocalHost, home: st
   const view: ConnectionNeedView & { read: NonNullable<ConnectionNeedView["read"]> } = {
     stage: done ? "line" : state === "pending" ? "running" : setup.method === "oauth" ? "ask" : "key", note: "", danger: false, busy: false, answered: done, accounts: [],
     read: { service_title: title, connection: null },
-    ...(done ? { line: state === "connected" ? say("已连上 {name}", { name: title }) : say("没有连上，这里什么都没改") } : {}),
+    ...(done ? { line: state === "connected" ? say("workbench.assistant-connection-card.connected-to-name", { name: title }) : say("workbench.assistant-connection-card.not-connected-nothing-changed-here") } : {}),
   };
-  return { state: state as "prepared", html: connectionNeedHtml(say, say("助理"), view),
+  return { state: state as "prepared", html: connectionNeedHtml(say, say("workbench.assistant-connection-card.assistant"), view),
     ...(done ? {} : { setup: { service_id: setup.service_id, method: setup.method, display_name: setup.display_name, setup_id: id, ...(setup.connection_id ? { connection_id: setup.connection_id } : {}) } }) };
 }

@@ -369,8 +369,8 @@ async function describePlacement(ports: PlacementPorts, self: PlacementInstanceA
     const goal = await self.targetTitle(binding.project_id, binding.target_kind, binding.goal_id);
     const name = goal ?? placementText(ports, "workbench.index.title-unavailable");
     associations.push({ key: key("goal", binding.project_id, binding.goal_id, binding.binding_id), type: "goal",
-      label: binding.project_id === object.project_id ? placementText(ports, "{noun}「{name}」", { noun: binding.noun, name })
-        : placementText(ports, "{noun}「{name}」 · {place}", { noun: binding.noun, name, place: placementLocation(ports, binding.project_id, spaces).title }),
+      label: binding.project_id === object.project_id ? placementText(ports, "workbench.placement.related-goal", { noun: binding.noun, name })
+        : placementText(ports, "workbench.placement.related-goal-with-place", { noun: binding.noun, name, place: placementLocation(ports, binding.project_id, spaces).title }),
       target: { kind: "goal", project_id: binding.project_id, goal_id: binding.goal_id, title: goal ?? "" }, since: binding.created_at, removable: true });
   }
   const kept = read.context?.goal_ids ?? [];

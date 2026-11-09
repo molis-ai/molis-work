@@ -31,7 +31,7 @@ export async function runSmokeCommand(options: SmokeCommandOptions): Promise<num
   if (!existsSync(options.briefs)) return refuse(`no briefs file at ${options.briefs}`);
   const parsed = JSON.parse(readFileSync(options.briefs, 'utf8')) as { briefs?: SmokeBrief[] };
   const briefs = parsed.briefs ?? [];
-  if (!briefs.length || briefs.some(item => typeof item?.id !== 'string' || typeof item?.brief !== 'string')) return refuse(`${options.briefs} needs { "briefs": [{ "id", "brief" }, ...] }`);
+  if (!briefs.length || briefs.some(item => typeof item?.id !== 'string' || typeof item?.brief !== 'string' || (item.locale !== undefined && item.locale !== 'zh' && item.locale !== 'en') || (item.clarification !== undefined && typeof item.clarification !== 'string'))) return refuse(`${options.briefs} needs { "briefs": [{ "id", "brief" }, ...] }`);
   if (options.standIn) return withStandIn(options, briefs);
 
   const requested = process.env.MOLIS_WORK_HOME?.trim();
@@ -73,6 +73,9 @@ async function execute(home: string, briefs: SmokeBrief[], options: SmokeCommand
   const { createPrologueNodeAdapter, prologueModelConfiguration, AgentReviewQueue } = await import('@molis-ai/molis-work-service-agent-host');
   const { runSmoke, renderSmoke } = await import('./smoke.mjs');
   const { builderSkill } = await import('../../apps/local-host/src/plugin-builder/skill.js');
+  const { builderPrompts, builderInstructions } = await import('../../apps/local-host/src/plugin-builder/agent-surface.js');
+  const { builderAgentInLanguage } = await import('../../apps/local-host/src/plugin-builder/studio-language.js');
+  const { runBackgroundWork } = await import('../../apps/local-host/src/web-locale.js');
   const work = join(home, 'studio-replay'), runs = join(work, 'runs'), design = join(work, 'design');
   mkdirSync(runs, { recursive: true, mode: 0o700 }); mkdirSync(design, { recursive: true, mode: 0o700 });
   // The model and its key come from the isolated Home only, through these two ports; the key is read when a call needs it and never printed.
@@ -80,8 +83,8 @@ async function execute(home: string, briefs: SmokeBrief[], options: SmokeCommand
   const adapter = await createPrologueNodeAdapter({ app: { appId: 'io.molis.work.studio-replay', appVersion: '1.0.0' }, storageRoot: join(work, 'sdk'), reviewQueue: new AgentReviewQueue(), ...access });
   say(`Running ${briefs.length} briefs against ${chosen.model.model_id} (${chosen.provider.display_name}) on ${home}; design only, no plugin is built.`);
   try {
-    const report = await runSmoke({ briefs, minutes: options.minutes, pollMs: standIn ? 50 : 500, model: { ...selection, label: chosen.model.model_id }, skill: stage => builderSkill(stage),
-      agent: () => adapter.createBuilderAgent({ buildRoot: design, storageRoot: runs, timeoutMs: 600_000, ...access }), progress: line => process.stderr.write(line + '\n') });
+    const report = await runSmoke({ briefs, minutes: options.minutes, pollMs: standIn ? 50 : 500, model: { ...selection, label: chosen.model.model_id }, wording: locale => ({ skill: stage => builderSkill(stage, undefined, locale), prompt: builderPrompts(home), instruction: builderInstructions(home), runInLanguage: run => runBackgroundWork(locale, run) }),
+      agent: async locale => builderAgentInLanguage(await adapter.createBuilderAgent({ buildRoot: design, storageRoot: runs, timeoutMs: 600_000, ...access }), locale), progress: line => process.stderr.write(line + '\n') });
     say(renderSmoke(report));
     if (!standIn) say(`The designer's raw answers of this run are kept in ${runs}. To add them to a corpus: pnpm studio:replay harvest --runs ${runs} --out <file> (read the file before committing it).`);
     if (options.out) { mkdirSync(resolve(options.out, '..'), { recursive: true }); writeFileSync(options.out, JSON.stringify({ ...report, standIn }, null, 2) + '\n'); say(`report written to ${options.out}`); }

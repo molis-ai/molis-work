@@ -9,6 +9,7 @@ import type { ArtifactRootStore } from "./plugin-artifact-row-transaction.js";
 import type { ProjectArtifactRoot } from "./plugin-project-rows.js";
 import type { ProjectLibrary } from "./plugin-project-library.js";
 import { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
+import { assertArtifactLibraryReady } from "./artifact-row-storage-policy.js";
 
 export interface ArtifactHomeLibrary {
   readonly home: string;
@@ -63,6 +64,7 @@ export function artifactRootStore(project: ProjectLibrary, library: ArtifactHome
       if (databases.some(row => row.name !== "main" && row.name !== "temp")
         || databases.find(row => row.name === "main")?.file !== path) throw wrongLibrary();
       if (db.pragma("main.journal_mode", { simple: true }) !== "delete" || db.pragma("main.synchronous", { simple: true }) !== 3) throw wrongMode();
+      assertArtifactLibraryReady(library.path);
       const url = pathToFileURL(library.path);
       url.searchParams.set("mode", "rw");
       const previousTimeout = db.pragma("busy_timeout", { simple: true });

@@ -21,7 +21,6 @@ export function openPluginDatabaseConnection(home: string, declaration: HomePlug
     const path = homeSqlitePath(home, declaration.store_name, partition?.project_id);
     assertArtifactLibraryReady(path);
     const existing = lstatSync(path, { throwIfNoEntry: false });
-    if (existing) snapshotFileStat(path);
     if (!existing || existing.size === 0) {
       // The existing initializer establishes the space in WAL before the fresh file receives any business schema.
       openHomeSqliteDatabase(home, declaration.store_name, partition?.project_id, db => {
@@ -53,8 +52,10 @@ export function openPluginDatabase(home: string, declaration: PluginDatabaseDecl
   let reader: ReturnType<typeof openReadOnlyHomeSqlite>;
   try {
     if (root) {
+      writer.exec("PRAGMA synchronous=EXTRA");
       if (writer.prepare("PRAGMA journal_mode=DELETE").get()?.journal_mode !== "delete") throw new ActionError("actions.service_unavailable", "插件库的回滚日志模式暂不可用");
-      writer.exec("PRAGMA synchronous=EXTRA; PRAGMA busy_timeout=1000");
+      writer.exec("PRAGMA busy_timeout=1000");
+      assertArtifactLibraryReady(homeSqlitePath(home, declaration.store_name, partition?.project_id));
     } else writer.exec("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 1000;");
     reader = openReadOnlyHomeSqlite(home, declaration.store_name, partition?.project_id);
   } catch (error) { writer.close(); throw error; }

@@ -1,19 +1,17 @@
 import { lstatSync, realpathSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { listProjectRoots } from "@molis-ai/molis-work-module-projects";
 import { readPluginRuntimeRecords } from "@molis-ai/molis-work-plugin-runtime";
 import {
-  assertStorageOwner, checkSqliteBaselineVersion, homeSqlitePath, readDatabaseSpace, readStorageSpace, readUpgradeStore, recoverSqliteRollbackJournals, snapshotFileStat,
+  assertStorageOwner, checkSqliteBaselineVersion, homeSqlitePath, readDatabaseSpace, readStorageSpace, readUpgradeStore, recoverSqliteRollbackJournals,
   type RollbackLibrary, type SqliteDatabase, type StorageOwner, type StorageSpace,
 } from "@molis-ai/molis-work-storage";
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
-import { artifactRollbackSidecars, artifactRowLibraryDeclarations, assertArtifactLibraryReady, recoveryRequired } from "./artifact-row-storage-policy.js";
+import { artifactRollbackSidecars, artifactRowLibraryDeclarations, assertArtifactLibraryReady, assertArtifactProjectIdentity, recoveryRequired, wrongArtifactSpace } from "./artifact-row-storage-policy.js";
 import { homeStores } from "./home-stores.js";
 import { projectDatabases } from "./platform-upgrade-stores.js";
 import { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
 
-const wrongSpace = () => new ActionError("actions.home_mismatch", "日志恢复的库和当前 Home 空间不一致");
 const quoted = (value: string) => `"${value.replaceAll('"', '""')}"`;
 
 /** The normal Home owner and U1 share this entry, before checking an upgrade stamp or opening a business database. */
@@ -25,9 +23,9 @@ export function recoverHomeArtifactRows(home: string, owner: StorageOwner, expec
   const sidecars = artifactRollbackSidecars(root, declarations.map(({ library }) => library.store_name));
   if (sidecars.length === 0) { recoverSqliteRollbackJournals(lock, [], []); return; }
   const space = readStorageSpace(root);
-  if (!space || expected && JSON.stringify(space) !== JSON.stringify(expected)) throw wrongSpace();
+  if (!space || expected && JSON.stringify(space) !== JSON.stringify(expected)) throw wrongArtifactSpace();
   const inspectSpace = (db: SqliteDatabase) => {
-    if (JSON.stringify(readDatabaseSpace(db)) !== JSON.stringify(space)) throw wrongSpace();
+    if (JSON.stringify(readDatabaseSpace(db)) !== JSON.stringify(space)) throw wrongArtifactSpace();
   };
   const registry = homeStores();
   const owners = new Map(declarations.map(({ manifest, library }) => [homeSqlitePath(root, library.store_name), manifest]));
@@ -39,9 +37,7 @@ export function recoverHomeArtifactRows(home: string, owner: StorageOwner, expec
   const projects: RollbackLibrary[] = projectDatabases(root, space).map(relative => {
     const path = join(root, relative), id = basename(dirname(path));
     return { path, kind: "project", version: PROJECT_DATABASE_BASELINE.version, baseline: PROJECT_DATABASE_BASELINE, inspect(db: SqliteDatabase, peer?: RollbackLibrary) {
-      inspectSpace(db);
-      const roots = listProjectRoots(db);
-      if (roots.length !== 1 || roots[0]?.project_id !== id) throw recoveryRequired();
+      assertArtifactProjectIdentity(db, space, id);
       if (!peer) return;
       const manifest = owners.get(peer.path);
       if (!manifest || !readPluginRuntimeRecords(db).some(record => record.execution === "host" && record.state !== "uninstalled"
@@ -72,11 +68,10 @@ export function assertNoPendingArtifactRows(home: string, owner: StorageOwner): 
     if (!declaration.pending_column) continue;
     const file = homeSqlitePath(root, library.store_name);
     if (!lstatSync(file, { throwIfNoEntry: false })) continue;
-    snapshotFileStat(file);
     assertArtifactLibraryReady(file);
     const ids = readUpgradeStore(file, db => {
       if (!checkSqliteBaselineVersion(db, file, library, root)) return [];
-      if (!space || JSON.stringify(readDatabaseSpace(db)) !== JSON.stringify(space)) throw wrongSpace();
+      if (!space || JSON.stringify(readDatabaseSpace(db)) !== JSON.stringify(space)) throw wrongArtifactSpace();
       return db.prepare(`SELECT ${quoted(declaration.id_column)} AS id FROM ${quoted(declaration.table)} WHERE ${quoted(declaration.pending_column!)} IS NOT NULL LIMIT 20`)
         .all().map(row => String(row.id));
     });

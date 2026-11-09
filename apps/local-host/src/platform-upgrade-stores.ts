@@ -4,7 +4,7 @@ import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plu
 import { pluginProjectTablesVersion } from "@molis-ai/molis-work-plugin-runtime";
 import {
   CATALOG_VERSION_ACCESS, catalogOwner, entryAt, openHomeSqliteFile, openSqliteConnection, readDatabaseSpace, readUpgradeStore, SECRET_STORE_FILE,
-  snapshotFileStat, upgradeFailedRefusal, upgradeStepsProblem, USER_VERSION_ACCESS, type HomeStore, type StorageSpace,
+  upgradeFailedRefusal, upgradeStepsProblem, USER_VERSION_ACCESS, type HomeStore, type StorageSpace,
 } from "@molis-ai/molis-work-storage";
 import { SHELF_CATALOG_FILE } from "@molis-ai/molis-work-module-shelf";
 import { BROWSER_SITES_FILE } from "./browser/browser-surfaces.js";
@@ -16,6 +16,7 @@ import { ONBOARDING_FILE } from "./onboarding.js";
 import { PROJECT_ARRIVAL_FILE } from "./project-arrival.js";
 import { listProjectDatabasePaths } from "@molis-ai/molis-work-module-projects";
 import { assertCatalogOwner, CATALOG_BASELINE, catalogBaselineFor } from "./catalog-schema.js";
+import { assertArtifactDatabaseFiles } from "./artifact-row-storage-policy.js";
 import { homeStores, platformModelPreferences } from "./home-stores.js";
 import type { HomeUpgradeDescriptor } from "./home-upgrade-stores.js";
 import { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
@@ -32,7 +33,7 @@ const CATALOG = join("projects", "catalog.db"), PROJECT_LIBRARY = join("projects
 export function projectDatabases(home: string, space?: StorageSpace): readonly string[] {
   const file = join(home, CATALOG);
   if (!entryAt(file)) return [];
-  if (space) snapshotFileStat(file);
+  if (space) assertArtifactDatabaseFiles(file);
   return readUpgradeStore(file, db => {
     if (CATALOG_VERSION_ACCESS.read(db) > CATALOG_BASELINE.version) return [];
     assertCatalogOwner(catalogOwner(db), file);

@@ -1,4 +1,5 @@
 import path from "node:path";
+import { assertCurrentHomeStorageOwner } from "./home-storage-lifetime.js";
 import { closeAssistantService } from "./assistant/assistant-http.js";
 import { pluginErrors, type PluginDefinition, type PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { homeStoreRegistry, type HomeStore, type HomeStoreRegistry } from "@molis-ai/molis-work-storage";
@@ -31,6 +32,7 @@ export interface PluginPlatformHome {
   readonly consents: PluginConsentLedger;
   /** Captures the matching Home activation's permission, never exposes that activation to a project. */
   capturePermission(project: PluginInstanceRecord, permission: string): () => void;
+  assertStorageOwner(): void;
 }
 
 type HomeSideOptions = Pick<MolisWorkLocalHostOptions, "completeText" | "pluginFixtures" | "workspaceFor" | "workspacesFor" | "directoriesFor" | "prepareDirectory">;
@@ -79,7 +81,15 @@ export function pluginHomeFor(homeDirectory: string): PluginPlatformHome {
         if (sides.get(directory)?.host.homePlugins !== owner) throw pluginErrors.grant_denied("个人空间插件权限当前不可用");
         check();
       };
-    } };
+    }, assertStorageOwner: homeStorageAssertion(directory) };
+}
+
+function homeStorageAssertion(directory: string): () => void {
+  const host = sides.get(directory)?.host;
+  return () => {
+    if (!host || sides.get(directory)?.host !== host) throw pluginErrors.grant_denied("插件原 Home 的存储所有权已失效");
+    assertCurrentHomeStorageOwner(host, directory);
+  };
 }
 
 /** The existing, single Agent runtime of this Home; never creates a second runtime for a plugin. */

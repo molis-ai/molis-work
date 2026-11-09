@@ -35,6 +35,7 @@ export {
   type UpgradeSnapshotUnit,
   type UpgradeSqliteConnection,
 } from "./upgrade-snapshot.js";
+export { recoverSqliteRollbackJournals, type RollbackLibrary } from "./rollback-journal.js";
 export { homeStoreRegistry, type HomeStore, type HomeStoreDeclaration, type HomeStoreRegistry } from "./home-stores.js";
 export {
   isSqliteSchemaStructureMismatch,

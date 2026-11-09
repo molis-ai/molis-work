@@ -9,8 +9,8 @@ import { upgradeStepsProblem } from "./sqlite-upgrade.js";
 import { readDatabaseSpace, type StorageSpace } from "./space.js";
 import { openSqliteConnection, type SqliteDatabase } from "./sqlite-connection.js";
 import {
-  assertRollbackFile, checkedRollbackFile, relocatedRollbackFooter, removeUnflushedRollbackJournal, rollbackDatabaseVersion,
-  rollbackFooter, rollbackMarkerBytes, rollbackRefused, type RollbackFile, type RollbackFooter,
+  assertRollbackFile, checkedRollbackFile, relocatedRollbackFooter, removeUnflushedRollbackJournal, rollbackDatabaseHeader,
+  rollbackFooter, rollbackMarkerBytes, rollbackRefused, walModeTransitionJournal, type RollbackFile, type RollbackFooter,
 } from "./sqlite-rollback-files.js";
 import type { UpgradeHomeLock } from "./upgrade-snapshot.js";
 
@@ -135,8 +135,13 @@ function originalFiles(group: Group): Sources {
   const uninitialized = new Set<RollbackLibrary>();
   const databases = group.libraries.map(library => {
     const file = checkedRollbackFile(library.path);
-    const version = rollbackDatabaseVersion(file);
+    const { version, wal } = rollbackDatabaseHeader(file);
     if (version > library.version) throw rollbackRefused();
+    if (wal) {
+      const child = group.children[0];
+      if (group.marker || group.libraries.length !== 1 || group.children.length !== 1 || !child || child.footer
+        || !walModeTransitionJournal(child, version)) throw rollbackRefused();
+    }
     if (version === 0) uninitialized.add(library);
     return file;
   });
@@ -171,6 +176,7 @@ function replay(group: Group, sources: Sources, at: (path: string) => string): v
 
 function inspectReplay(db: SqliteDatabase, group: Group, library: RollbackLibrary, rawUninitialized: boolean): void {
   const version = Number(db.pragma("user_version", { simple: true }));
+  if (group.libraries.length > 1 && db.pragma("journal_mode", { simple: true }) !== "delete") throw rollbackRefused();
   if (version === 0) {
     const child = group.children[0], space = library.initialSpace, baseline = library.baseline;
     if (!space || !baseline || !rawUninitialized || library.kind !== "home" || group.libraries.length !== 1 || group.marker || !child || child.footer) throw rollbackRefused();

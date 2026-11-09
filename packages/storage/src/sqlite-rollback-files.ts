@@ -45,13 +45,39 @@ function readFilePart<T>(file: RollbackFile, inspect: (read: (length: number, of
   } finally { closeSync(descriptor); }
 }
 
-export function rollbackDatabaseVersion(file: RollbackFile): number {
-  if (file.stat.size === 0) return 0;
+function sqlitePageMode(header: Buffer): number | undefined {
+  const mode = header[18];
+  if (header.subarray(0, 16).equals(sqliteMagic) && (mode === 1 || mode === 2) && header[19] === mode) return mode;
+  return undefined;
+}
+
+export function rollbackDatabaseHeader(file: RollbackFile): { version: number; wal: boolean } {
+  if (file.stat.size === 0) return { version: 0, wal: false };
   return readFilePart(file, read => {
     const header = read(64, 0);
-    if (header.every(byte => byte === 0)) return 0;
-    if (!header.subarray(0, 16).equals(sqliteMagic) || header[18] !== 1 || header[19] !== 1) throw rollbackRefused();
-    return header.readUInt32BE(60);
+    if (header.every(byte => byte === 0)) return { version: 0, wal: false };
+    const mode = sqlitePageMode(header);
+    if (!mode) throw rollbackRefused();
+    return { version: header.readUInt32BE(60), wal: mode === 2 };
+  });
+}
+
+/** A WAL mode change checkpoints first and journals only page 1; native replay validates its checksum and owner. */
+export function walModeTransitionJournal(file: RollbackFile, version: number): boolean {
+  if (file.stat.size === 0) return true;
+  return readFilePart(file, read => {
+    if (read(1, 0)[0] === 0) return true;
+    if (file.stat.size < 28) return false;
+    const header = read(28, 0), pages = header.readUInt32BE(8);
+    const sector = header.readUInt32BE(20), pageSize = header.readUInt32BE(24);
+    const powerOfTwo = (size: number) => size >= 512 && size <= 65_536 && (size & (size - 1)) === 0;
+    if (!header.subarray(0, 8).equals(journalMagic) || (pages !== 1 && pages !== 0xffff_ffff) || !powerOfTwo(sector)
+      || !powerOfTwo(pageSize) || file.stat.size !== sector + pageSize + 8) return false;
+    const first = read(pageSize + 8, sector), page = first.subarray(4, 4 + pageSize);
+    if (first.readUInt32BE(0) !== 1 || sqlitePageMode(page) === undefined || page.readUInt32BE(60) !== version) return false;
+    let checksum = header.readUInt32BE(12);
+    for (let offset = pageSize - 200; offset > 0; offset -= 200) checksum = (checksum + page[offset]!) >>> 0;
+    return checksum === first.readUInt32BE(4 + pageSize);
   });
 }
 

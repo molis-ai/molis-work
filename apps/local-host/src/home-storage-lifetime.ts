@@ -4,7 +4,6 @@ import { acquireStorageOwner, assertStorageOwner, assertNoPendingHomeRestore, re
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
 import { ensureHomeUpgraded, homeUpgradeLooksPending, watchHomeUpgradePending } from "./home-upgrade.js";
-import { assertNoPendingArtifactRows } from "./home-artifact-recovery.js";
 import { hostErrors } from "./host-errors.js";
 import { registerHomeUpgradeDescriptors } from "./home-upgrade-stores.js";
 import { hostLog } from "./host-log.js";
@@ -86,7 +85,6 @@ export function acquireUpgradedHomeOwner(home: string, beforeAcquire?: (home: st
     if (stored && JSON.stringify(stored) !== JSON.stringify(expected)) throw new Error("SPACE_OWNERSHIP_MISMATCH");
     watchHomeUpgradePending(home, owner);
     ensureHomeUpgraded(home, owner, { expectedSpace: expected });
-    assertNoPendingArtifactRows(home, owner);
     return owner;
   } catch (error) { owner.release(); throw error; }
 }

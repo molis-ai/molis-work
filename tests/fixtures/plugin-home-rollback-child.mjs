@@ -23,6 +23,16 @@ if (mode === "replay") {
 
 function runWrite() {
   const db = new DatabaseSync(file);
+  if (mode === "wal-transition") {
+    db.exec("PRAGMA synchronous=EXTRA");
+    // The first row is available while the native statement still holds its page-1 journal.
+    const changing = db.prepare("PRAGMA journal_mode=DELETE").iterate();
+    if (changing.next().value?.journal_mode !== "delete") throw new Error("journal-mode change did not begin");
+    process.on("SIGCONT", () => changing.return());
+    process.stdout.write("staged\n");
+    setInterval(() => {}, 1000);
+    return;
+  }
   db.exec("PRAGMA journal_mode=DELETE; PRAGMA synchronous=EXTRA");
   if (mode === "pair") {
     const uri = pathToFileURL(peer);

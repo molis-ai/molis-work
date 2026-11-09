@@ -22,9 +22,9 @@ export class LocalProjectDatabase extends LocalSqliteStorage {
   /** What happened to each built-in plugin's tables when this library opened; a refused one stops only that plugin. */
   readonly pluginDatabases: ReadonlyMap<string, ProjectPluginDatabaseOutcome>;
 
-  constructor(path: string, options: { existingOnly?: boolean } = {}) {
+  constructor(path: string, options: { existingOnly?: boolean; journalMode?: "delete" } = {}) {
     const home = managedProjectHome(path);
-    super(inspectDatabase(path, options.existingOnly ?? false, home), { fileMustExist: options.existingOnly });
+    super(inspectDatabase(path, options.existingOnly ?? false, home), { fileMustExist: options.existingOnly, journalMode: options.journalMode });
     this.replicationDatabase = {exec: sql => this.db.exec(sql), prepare: sql => this.db.prepare<ReplicaInputValue[], Record<string, ReplicaOutputValue>>(sql)};
     shareReplicaTriggerDefinitions(this.db, this.replicationDatabase);
     try {

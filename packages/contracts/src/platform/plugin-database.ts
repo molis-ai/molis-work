@@ -30,6 +30,18 @@ export interface PluginDatabaseTransaction extends PluginDatabaseReader {
 export interface PluginDatabase extends PluginDatabaseReader {
   /** Wait for current action authority, then run one synchronous transaction. Async bodies are rejected and rolled back. */
   transaction<T>(beforeEffect: () => Promise<void>, write: (transaction: PluginDatabaseTransaction) => T): Promise<T>;
+  /**
+   * Pin from one declared Home root row in the current project. The Host waits for the original authority and takes a structured
+   * clone of the synchronous body's data before committing. An uncloneable result rolls the transaction back.
+   */
+  transactionProjectRow?<T>(id: string, write: (transaction: PluginProjectRowTransaction) => T): Promise<T>;
+}
+
+/** The bound row in a Home library that participates in `artifacts.join`. Both capabilities expire when the synchronous body ends. */
+export interface PluginProjectRowTransaction {
+  read(): PluginSqlRow | null;
+  /** Record the newly joined artifact and increment the row revision if it is still `expectedVersion`. `changes` contains only declared extra columns. */
+  compareAndSet(expectedVersion: number, changes: Readonly<PluginSqlRow>): boolean;
 }
 
 /** A statement as a plugin the Host does not run in its own process sends it: text and parameters, nothing a channel cannot carry. */
@@ -207,6 +219,16 @@ export interface PluginProjectRowsDeclaration {
   readonly order?: number;
   /** Children before their parent: a child's rows go by the ids of the parent's rows of the project, so it is cleared first. */
   readonly tables: readonly PluginProjectRowsTable[];
+  /** A direct root table eligible for atomic pins with this project's artifact library. Its project column comes from `tables`. */
+  readonly artifact_join?: {
+    readonly table: string;
+    readonly id_column: string;
+    readonly version_column: string;
+    readonly artifact_id_column: string;
+    readonly artifact_version_column: string;
+    readonly write_columns: readonly string[];
+    readonly pending_column?: string;
+  };
   /**
    * The plugin's own files (`owner_files`) that these rows name: the platform reads the names before it deletes the rows, and once
    * the rows are gone it removes each named file from the declared directory. It removes only a regular file whose name is one

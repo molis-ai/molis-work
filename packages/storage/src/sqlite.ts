@@ -179,14 +179,18 @@ export const LOCAL_JOURNAL_SCHEMA_SQL = `
 `;
 
 export class LocalSqliteStorage extends LocalSqliteJournal {
-  constructor(readonly path: string, options: { readonly?: boolean; fileMustExist?: boolean } = {}) {
+  constructor(readonly path: string, options: { readonly?: boolean; fileMustExist?: boolean; journalMode?: "delete" | "preserve" } = {}) {
     const db = openSqliteConnection(path, { timeout: 5000, fileMustExist: options.fileMustExist ?? false, ...(options.readonly ? { readonly: true, fileMustExist: true } : {}) });
-    if (!options.readonly) {
-      db.pragma("journal_mode = WAL");
-      db.pragma("synchronous = FULL");
-      db.pragma("foreign_keys = ON");
-      db.pragma("busy_timeout = 5000");
-    }
+    try {
+      if (!options.readonly) {
+        const { journalMode } = options;
+        const mode = db.pragma(journalMode === "preserve" ? "journal_mode" : `journal_mode = ${journalMode === "delete" ? "DELETE" : "WAL"}`, { simple: true });
+        if (journalMode === "delete" && mode !== "delete") throw new Error("SQLite refused the project's rollback journal mode");
+        db.pragma(mode === "delete" ? "synchronous = EXTRA" : "synchronous = FULL");
+        db.pragma("foreign_keys = ON");
+        db.pragma("busy_timeout = 5000");
+      }
+    } catch (error) { db.close(); throw error; }
     super(db);
   }
   checkpoint(): void { this.db.pragma("wal_checkpoint(TRUNCATE)"); }

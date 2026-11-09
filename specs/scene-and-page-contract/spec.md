@@ -13,7 +13,7 @@
 5. **保存与恢复**（第 7 节）：多步采用的记录、续做、撤销、移除和升级；
 6. **插件采用边界**（第 8 节）：插件要声明什么才能被场景配置，平台除此之外不碰插件的数据。
 
-[第 2 项](../post-anticorruption-roadmap/reference/batches/20.md#batch-20-item-2)的场景包声明在第 3.1～3.4 节：§3.8 的内容、示范任务、「挡第几步」、版本与升级差异、随包带上但未安装的状态，都沿同一个 Blueprint 与内容包合同表达。首批三套的实际内容与贯穿任务归第 44 批，不在本批制作。
+[第 2 项](../post-anticorruption-roadmap/reference/batches/20.md#batch-20-item-2)的场景包声明在第 3.1～3.4 节：§3.8 的内容、示范任务、「挡第几步」、版本与升级差异、随包带上但未安装的状态，都沿同一个 Blueprint 与内容包合同表达。首批三套的原型、成品与贯穿任务按批次交付：行业观察与写作、写代码归第 44 批，个人事务与每日简报归第 51 批，不在本批制作。
 
 产品规则已经定了，这里不重定：
 
@@ -310,14 +310,14 @@ interface HomePageVersion {
   2. 首页服务按这一版的清单从项目库取正文，**送出前逐个重算 `sha256`**；有一个对不上就整版不给（`home.page_file_mismatch`），外壳显示基础首页。
   3. 外壳拿到后**再核一次**摘要，以入口 HTML 为底，把这一版的 JS、CSS 分别内联成 `<script>`、`<style>` 元素，整份写进框架的 `srcdoc`；页面文件里引用别的文件的 `<script src>`、`<link>` 由外壳换成内联，清单外的引用不加载。页面不能用内联 `style` 属性和内联事件（`style-src` 不给 `'unsafe-inline'`，这一点与插件页不同）。框架的 CSP 里 `script-src`、`style-src` 只有平台固定的框架脚本，加上这一版每个文件的 `'sha256-…'` 哈希源；`connect-src 'none'`，不给 `'unsafe-eval'`、`'unsafe-hashes'`。所以浏览器也按摘要把关：页面运行中拼出的脚本、内联事件、`eval` 都不执行。
   - 页面文件不走静态路由，也不进 `/assets/`，没有按地址取页面文件的第二条路。
-  - 实现要改的：`apps/workbench/src/browser/plugin-frame/document.ts`（按页面版本组 `srcdoc` 与 CSP）、`parent.ts`（挂页面主体）；宿主侧页面网关 `apps/local-host/src/plugin-page-authority.ts`、`plugin-page-actions.ts`（认页面主体）。都随 P-4 列进冲突面（第 15 节第 14 项）。
+  - 实现要改的：`apps/workbench/src/browser/plugin-frame/document.ts`（按页面版本组 `srcdoc` 与 CSP）、`parent.ts`（挂页面主体）；宿主侧页面网关 `apps/local-host/src/plugin-page-authority.ts`、`plugin-page-actions.ts`（认页面主体）。这些文件送达、页面主体与执行隔离实现归第 37 批，列入该批冲突面；第 20 批 P-4 只交公共 schema、SDK 校验和本批必要接入，实际接入的边界须当批验证真实拒绝，不提前改这条页面运行链。
 - **主体从哪来**：照插件页的做法（`apps/local-host/src/plugin-page-authority.ts`）。外壳打开生成页面时请宿主开一条页面记录，宿主从调用上下文取项目、从首页服务读本项目此刻用的 `page_id@version`，记进页面记录、发回一个 `page_session_id`（页面记录的号，与生成页面的 `page_id` 是两回事）；外壳和页面都只拿这个号。网关每次调用按 `page_session_id` 从宿主的页面记录读主体，外壳或页面在请求里写的主体、项目、版本一律不认。换版、撤下、关页面、切项目后页面记录作废，号再用被拒。
 - **调用**：页面只经页面网关调动作。每次调用都核：动作在这一版声明的 `actions` 里，也在本人为这一版批准的集合里；动作的受众含 `plugin`（页面主体按 `plugin` 受众核，只给 `user` 的动作调不到）；目标项目就是页面所在的项目。调用记录里写页面主体和它的版本。
 - **批准**：只有本人在采用或恢复时批准，`home.pages.adopt@1`、`home.pages.restore@1` 只给 `user`。批准时列出这一版要用的每个动作和后果（会写、对外发、花钱），与安装确认的权限清单同一种呈现。恢复的那一版若用的动作没有超出它当初获准的集合，界面写「没有新增权限」，但仍由本人点一次恢复。
 - **失效**：换了首页、恢复了别的版本、页面被删、项目切换后，旧版本的在途调用在 `beforeEffect()` 处被拒，迟到的结果不写。
 - 页面拿不到宿主文件、凭据、私有库，也没有平台服务，只有页面网关。
 
-这是新的授权主体，按 AGENTS 的规矩登记安全不变量并配拒绝测试（第 10 节 P-4）：
+这是新的授权主体。第 20 批 P-4 定公共 schema 与 SDK 校验，必要接入中实际形成的边界按 AGENTS 当批登记并验证真实拒绝；以下完整的文件送达、页面主体、执行隔离、撤权／换版和真实浏览器拒绝，由第 37 批随页面运行实现登记安全不变量并验收。尚无处理器的边界不能用 schema 拒绝充数，SPC-10／11 不记为本批通过：
 
 | 编号 | 不变量 | 拒绝测试要断言的 |
 | --- | --- | --- |
@@ -383,7 +383,7 @@ interface HomePageVersion {
 
 - **安装只由本人确认。** `plugins.install.preview`／`confirm` 只接受本人的操作。`apply` 碰到要装的部分（缺的插件、草稿里新 Skill 打的内容包），把那一步标 `needs_install` 并返回 `plugins.install.preview` 的 `preview_id`；界面走普通的安装确认；装好后本人再调一次 `apply`（同一个 `request_id`），从那一步接着做。`apply` 自己从不调 `plugins.install.confirm`。
 - **嵌套调用带着本人的上下文。** `apply`、`revert`、`remove` 调主人的动作（`projects.plugins.set@1`、`skills.settings.set@1`、`characters.from_template@1`、各主人的设置写与采用动作）时：操作者、项目取自本人这次调用的上下文；子调用的授权按本人核，不按 `system.blueprints` 核；动作网关在调用记录里记下上一层（`blueprints.adoption.apply@1` 与它的调用 id）。`system.blueprints` 自己没有替人写主人数据的授权。
-- **新的安全不变量 S-110「采用不转交本人的同意」**（合同台定号），随 P-3c 落，拒绝测试覆盖两种：`apply` 直接调 `plugins.install.confirm` 被拒；`apply` 用系统身份而非本人上下文写设置被拒。首页的批准由 S-113 管（第 6.4 节）。
+- **新的安全不变量 S-110「采用不转交本人的同意」**（合同台定号）：P-3c 在第 20 批给出合同，实际接入的边界当批登记并验证真实拒绝。完整采用服务归第 44 批，其处理器实现时必须验证两种真实拒绝：`apply` 直接调 `plugins.install.confirm` 被拒；`apply` 用系统身份而非本人上下文写设置被拒。尚无 `apply` 处理器时这两项保持待验证，不以 schema 测试宣称 S-110 完成。首页批准的 S-113 归第 37 批真实验收（第 6.4 节）。
 
 **规则**：
 
@@ -427,8 +427,8 @@ interface HomePageVersion {
 | P-2 角色模板 | `RoleTemplate`、`characters.from_template@1` 的声明 | `modules/characters.ts` | api：`contracts/modules/characters`；动作：`host-actions.tsv`（提供方 `io.molis.work.characters` 由宿主登记） | 36 的层次合同同一片或在它之后 |
 | P-3a 项目插件成员 | `projects.plugins.set@1`：把插件加进或撤出项目，带 `expected_revision`，只给 `user`；常开插件撤不出，随行插件（如 Feed 带 Inbox）一起进出。表与常开／随行规则已在 `modules/projects` 的 `ProjectService`：这一片复用它们，补 `projects.plugins.get@1` 和原子 revision 检查，宿主项目设置 HTTP 改调这对动作（第 10.1 节） | `modules/projects.ts` | api：`contracts/modules/projects`；动作：`host-actions.tsv` | 05② 的 C-1（同一快照） |
 | P-3b 场景定义 | `Blueprint`、`BlueprintSource`、`BlueprintPart`、`BlueprintProposal`、Manifest 的 `blueprint`／`adopts`；SDK 的 `inspectBlueprint`（静态）、`inspectBlueprintLocales`、内容包文件校验与 `validateAdoptsDeclaration`；GLOSSARY 加「场景包（blueprint）」一行 | `platform/blueprints.ts`（新）、`platform/plugin-manifest.ts` | api：`contracts/platform/blueprints`（新）、`contracts/platform/plugin-manifest`、`plugin-sdk/index` | P-1、P-2；08 的 C-1（`content`、`SkillRef`） |
-| P-3c 采用动作与签名入口 | 第 7 节八个动作的声明与类型（`adoption.preview` 是 command／write）；`needs_install`、`needs_approval` 步骤状态；「采用不转交本人的同意」不变量与拒绝测试；第 6.6 节的 `plugins.local_packages.sign@1` 与安装预览里的来源字段 | `services/blueprints.ts`（新）、`platform/plugin-trust.ts`（安装预览的类型在这里） | api：`contracts/services/blueprints`（新）、`contracts/platform/plugin-trust`；动作：`host-actions.tsv`（`system.blueprints`、`plugin-install` 的签名入口） | P-3a、P-3b；08 的 C-2（`skills.*`） |
-| P-4 首页与生成页面 | `services/home.ts`：首页选择、`HomePageVersion`、第 6.5 节八个动作；页面主体与试用主体这两种调用主体（`platform/actions.ts` 里的调用方种类）；S-111～S-113 三条不变量与拒绝测试。本批交合同与 SDK 校验及必要接入；框架送文件、页面主体网关和真实拒绝实现归第 37 批（第 6.4 节）。SPC-10／11 留给第 37 批真实验收，不记第 20 批通过（用户 2026-11-08 PST 裁定） | `services/home.ts`（新）、`platform/actions.ts` | api：`contracts/services/home`（新）、`contracts/platform/actions`；动作：`host-actions.tsv`（`system.home`） | 05② 的 C-2、C-3（卡片与 `home` 组合位置）；#1791 K0（同动 `platform/actions`）；P-3b（`adopts`） |
+| P-3c 采用动作与签名入口 | 第 7 节八个动作的声明与类型（`adoption.preview` 是 command／write）；`needs_install`、`needs_approval` 步骤状态；「采用不转交本人的同意」合同及本批实际接入边界的拒绝测试；完整 apply 服务与 S-110 处理器真实拒绝归第 44 批；第 6.6 节的 `plugins.local_packages.sign@1` 与安装预览里的来源字段 | `services/blueprints.ts`（新）、`platform/plugin-trust.ts`（安装预览的类型在这里） | api：`contracts/services/blueprints`（新）、`contracts/platform/plugin-trust`；动作：`host-actions.tsv`（`system.blueprints`、`plugin-install` 的签名入口） | P-3a、P-3b；08 的 C-2（`skills.*`） |
+| P-4 首页与生成页面 | `services/home.ts`：首页选择、`HomePageVersion`、第 6.5 节八个动作；页面主体与试用主体这两种调用主体（`platform/actions.ts` 里的调用方种类）；S-111～S-113 三条边界的公共合同。本批交 schema、SDK 校验及必要接入，并验证实际接入边界的真实拒绝；文件送达、页面主体网关、执行隔离、撤权／换版与真实浏览器拒绝归第 37 批（第 6.4 节）。SPC-10／11 留给第 37 批真实验收，不记第 20 批通过（用户 2026-11-08 PST 裁定） | `services/home.ts`（新）、`platform/actions.ts` | api：`contracts/services/home`（新）、`contracts/platform/actions`；动作：`host-actions.tsv`（`system.home`） | 05② 的 C-2、C-3（卡片与 `home` 组合位置）；#1791 K0（同动 `platform/actions`）；P-3b（`adopts`） |
 
 **先后**（合同台 2026-11-04 排，[#1806 评论](https://github.com/molis-ai/molis-work/pull/1806#issuecomment-6638722432)；08 C-3 的位置由用户 2026-11-07 改，见[技能包需求第 9 节](../skill-packs/spec.md#9-决策记录)；以下是依赖与接力顺序，不是拆 PR 的清单；第 20 批一个 PR，同一份快照一次一个写手，全部在 02 交接之后）：
 
@@ -532,4 +532,4 @@ D 轨若要在组件板补「逐步状态」「三方差异」的标本，由 44
 
 ## 15. 开工前检查
 
-本批 20-1／20-2 的 15 项回答唯一维护在 [Onboarding 第 11 节](../onboarding-coverage/spec.md#batch-20-preflight)，Work Brief 引用同处。原 11-04 设计的主人、表、调用次数和安全规则保留在本文对应章节；本次不把它们记成已实现。合同设计与工程验收分开：本批补公共形状与共用校验；37／44 接页面与采用，36 接角色层次，26 接正式签名发行。任何新增存量 schema／版本、页面资源或产品语义变化仍先交主会话处理红线。
+本批 20-1／20-2 的 15 项回答唯一维护在 [Onboarding 第 11 节](../onboarding-coverage/spec.md#batch-20-preflight)，Work Brief 引用同处。原 11-04 设计的主人、表、调用次数和安全规则保留在本文对应章节；本次不把它们记成已实现。合同设计与工程验收分开：本批补公共形状、共用校验与必要接入，并验证实际接入边界的真实拒绝；37／44 接页面与采用，36 接角色层次，26 接正式签名发行；行业观察与写作、写代码场景归 44，个人事务与每日简报归 51。任何新增存量 schema／版本、页面资源或产品语义变化仍先交主会话处理红线。

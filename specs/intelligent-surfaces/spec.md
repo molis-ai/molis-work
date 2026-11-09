@@ -429,6 +429,8 @@ Feed 的归属已有事实来源，不新增个人订阅结构：`SourceRecord.p
 
 Inbox 的 `inbox.entry.status@1` 要求目标状态与读取时 revision；当前 `input_from` 不能把同 ref 的 done/dismiss 两种目标表示成两个按钮。本片不增加包装动作、不把当前状态当目标输入，公共形态保留打开／速览，原 offer 仍由现有 contextual prepare／确认／网关准备和执行。首片的真实操作验收不因此取消：最终消费者必须在挂载位通过已登记 placement 或既有 offer 完成真实写入、跨位置更新及回执，并验证撤权后零写；只打开页面不能销账 IUI-07／08。
 
+**Goals 自身舞台的同源状态（2026-11-09 前置窄审）。** 现有 collection 的 status／display_status 已把不同 pending_decisions 合并，不能从它们或译文反推呈现声明中的 pending_acceptance／pending_decision；selected.event_document 也不能为未选中对象提供状态。仅在 `goals.stage.read@1` 的 GoalsStageData 增加 `presentation_states: { goal_id, status }[]`，status 为 open／completed／cancelled／pending_decision／pending_acceptance 的闭集，当前可读、未归档及未回收的集合每 Goal 一条。由原 `projectGoalDocument`／`buildGoalsDocumentCollection` 已读取的同一事件状态，通过仅舞台调用启用的同步内部 capture 收集，并与 values 共用 `goalPresentationStatus`，不增加逐 Goal 读取。舞台按 id 把该最小投影交给自身树的共用 renderer；通用 collection 读口、GoalRecord 和存储不变，不把私有字段塞进原闭合 DTO 或放宽其额外字段检查。动作依阶段一在现行版本更新并刷新准确快照。SSC-14／IUI-03 须比较选中与未选中对象、验收与其他待决、普通工作状态的同源显示，保留树、画布、归档／回收与文档行为，同时验证 stage 调用次数未增加；不能只让选中的一个对象状态正确。
+
 各 owner 的稳定词随真实消费者成套接入；业务状态保持原枚举，共用 renderer 为合法状态环补平台词，关闭已登记的 raw 状态文字缺口。这些读口已随首页消费者片合回，固定候选及证据边界见下文“生产首页消费者片交付”；跨位置消费者仍按 §17 继续。
 
 ### 四形态组件片开工检查

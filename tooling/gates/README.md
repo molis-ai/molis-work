@@ -19,6 +19,14 @@
 | `golden-coverage.json` | 金样覆盖面：`uncovered`（必须备份、今天金样里没有的路径和理由）、`writes`（每个必备份的库由 `tests/golden-writes/` 哪几个用例写，或为什么没有）、`other_writes`（不对应某个库的用例和它写什么）。见下「金样」 | 人，过评审；每条都双向核对，过期就失败 |
 | `sqlite-driver-owners.json` | 允许直接 import `better-sqlite3` 的目录（以 `/` 结尾）和理由：今天只有 `plugins/native/alchemist/`（已有审批的私有驱动，BL-377 重做前保留；其余项目库连接已由 storage 统一走 `node:sqlite`）。文件缺失、形状或理由不合格时 `pnpm boundary:check` 直接失败（`scripts/gates/project-sqlite-driver.mjs`） | 人，过评审；新增一个例外要加一条带理由的目录 |
 
+## 宿主源码行数报告（A2）
+
+`pnpm health:check` 显示 `apps/local-host/src/` 的总行数。有实际 merge-base 时，同时显示基点行数和净变化。按用户 2026-11-01 的决定，增长只报告。本地快查不保存这项数字。
+
+在 Git 跟踪的文件里统计 `.ts`、`.mts`、`.cts`、`.tsx`、`.js`、`.mjs`、`.cjs` 和 `.jsx`，各级目录中的生成源码、夹具、测试和声明都计入。空行、注释和未以换行结束的末行各算一行。LF 和 CRLF 都只换一次行，尾换行不多算一行，空文件是零行。
+
+`node scripts/check-health-gates.mjs --base origin/main --report` 按行数变化幅度列出变更文件，可以用 `--top N` 收窄。Git 识别到范围内的改名时，同时显示两个路径。省略 `--base` 则列当前文件的行数。再加 `--json` 可从 `hostLines` 读取两份总量与逐文件计数、净变化和变更明细。JSON 的明细完整输出。
+
 ## 按文件计数、只许减少的项
 
 每一项是 `{ 文件: 个数 }`；没有记录的文件从 0 开始，所以新文件不许带。CI 用同一份脚本量当前树和 merge-base 再比，改 本地快查 放不过变大的。文件改名后记录跟着走。

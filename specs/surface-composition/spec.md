@@ -466,6 +466,6 @@ surface_corrections        项目库
 
 **版本边界。** 本方案按阶段一公开分发合同在现行 v1 增加可选作者声明，不改持久业务格式、不提供双版本读取、不改写或重签已安装发行物。[Home 数据 §1](../../docs/system/HOME-DATA.md#1-怎么读) 把 `plugin-packages/` 定为原样保留的软件发行物，[金样 §2](../upgrade-continuity/golden-replay-design.md#2-一份金样里有什么) 单列已签字节，且它不在现行持久格式升级名单。没有新增声明的现有签名包须得到逐字相同的 Manifest 投影并原样回放；这是上述阶段一规则的适用范围，不是新增历史兼容许可。
 
-**文件与交接。** 写手可改 contracts 的 `plugin-sandbox.ts`、SDK `sandbox-actions.ts`／`sandbox-manifest.ts` 及专用协议工具、sandbox 的 schema／runner、正常包依赖登记与独立 `tests/sandbox-presentation.test.ts`。#1984 正占用的 SDK 根导出与共享 API 快照、Host `sandbox-package.ts`、CLI、两包 README、`tests/sandbox-pack.test.ts` 及其公共 fixture 保持串行交接；可读取复用，不覆盖。本批独立代码不得绕开原入口来避开占用。
+**文件与交接。** 写手可改 contracts 的 `plugin-sandbox.ts`、SDK `sandbox-actions.ts`／`sandbox-manifest.ts` 及专用协议工具、sandbox 的 schema／runner、正常包依赖登记与独立 `tests/security-invariants-sandbox-presentation.test.ts`。第 10、16 批均核实并释放了 design-system 的 `plugin-components.ts`／`plugin-component-records.ts`，只在普通组件绑定中排除固定读取协议，不改界面或样式。创作台 `build-checks.ts` 的 G5 合成测试壳只移除真实 query 的协议标记；生产声明、样例和 G6 的真实权限保持。#1984 正占用的 SDK 根导出与共享 API 快照、Host `sandbox-package.ts`、CLI、两包 README、`tests/sandbox-pack.test.ts` 及其公共 fixture 保持串行交接；可读取复用，不覆盖。本批独立代码不得绕开原入口来避开占用。
 
 **验证。** SCS-11／16：上述同包预览、安装、运行与重开均须保留呈现、values、reader 与 external；伪造投影、未知协议、普通操作中的开放 schema、协议写入／联网／计费 effects、坏输入输出与撤权都被拒。没有新增声明的旧包原样回放。服务测试与真实安装证据分开；未完成安装、运行和重开前，不宣称第三方同等待遇已实现。

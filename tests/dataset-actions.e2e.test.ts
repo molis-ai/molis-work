@@ -108,7 +108,7 @@ for (const width of [1440, 390]) test(`W5-01-DATASET-03: Dataset ${width}px: edi
   await moreClick('[data-dataset-reload]'); await waitFor("document.querySelector('[data-dataset-confirm]').open");
   await click('[data-dataset-confirm] [data-confirm-ok]'); await idle();
   assert.equal(await evaluate("document.querySelector('[data-dataset-title]').value"), '另一客户端修改');
-  // A failed fixed version leaves the draft unchanged and can be retried after editing.
+  // An undeclared trigger is refused before publication. The page keeps the draft and offers an explicit new attempt.
   const db = openHomeSqliteDatabase(homeDirectory, 'dataset');
   try {
     db.exec("CREATE TRIGGER fail_dataset_ui_publication BEFORE UPDATE OF artifact_version ON datasets WHEN NEW.artifact_version > OLD.artifact_version BEGIN SELECT RAISE(ABORT, 'fixture association failed'); END");

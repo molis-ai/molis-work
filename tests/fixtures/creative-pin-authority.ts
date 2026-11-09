@@ -15,7 +15,7 @@ interface PinOwner {
   actions: { create: ActionReference; get: ActionReference; promote: ActionReference; artifactPin: ActionReference };
 }
 
-/** Uses the actual project action, then changes its original caller while both databases are still in the transaction. */
+/** Makes the real project action lose its live caller guard while both databases are still in the transaction. */
 export async function checkCreativePinAuthority(t: TestContext, owner: PinOwner): Promise<void> {
   const h = await openTestHome(t), project = await h.createProject("Pin authority", [owner.slug]);
   const person = await h.host.localPersonContext(project.reference), client = h.host.actionClient(project.reference);
@@ -46,6 +46,7 @@ export async function checkCreativePinAuthority(t: TestContext, owner: PinOwner)
   });
 
   const stageSql = { pinned: /^\s*INSERT INTO library_artifact_versions\b/iu, associated: /^UPDATE OR ABORT molis_home\./iu };
+  // Refuse through the original caller guard. A separate Host test replaces the installation generation.
   for (const [stage, sql] of Object.entries(stageSql)) for (const change of ["cancel", "revoke", "replace"] as const) {
     const controller = new AbortController(), label = stage + " " + change;
     let stale = false;

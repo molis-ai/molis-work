@@ -96,6 +96,7 @@ for(const width of [1440,390])test(`PPT ${width}px: slides, colors, download, sa
   await evaluate("document.querySelector('[data-ppt-confirm]').close('cancel')");await idle();assert.equal(await evaluate("document.querySelector('[data-ppt-title]').value"),'不能丢失的本地标题');
   await moreClick('[data-ppt-reload]');await waitFor("document.querySelector('[data-ppt-confirm]').open");await click('[data-ppt-confirm] [data-confirm-ok]');await idle();
   assert.equal(await evaluate("document.querySelector('[data-ppt-description]').value"),'远端修改');
+  // The root-program guard refuses this trigger before either write. This exercises the failure UI and explicit retry.
   const db=openHomeSqliteDatabase(homeDirectory,'ppt');
   try{db.exec("CREATE TRIGGER fail_ppt_ui BEFORE UPDATE OF artifact_version ON presentations WHEN NEW.artifact_version > OLD.artifact_version BEGIN SELECT RAISE(ABORT, 'fixture association failed'); END");
     await click('[data-ppt-artifact-bar]');await idle();assert.equal(read()[0]!.publication_pending,undefined);assert.equal(read()[0]!.artifact_version,0);db.exec('DROP TRIGGER fail_ppt_ui');

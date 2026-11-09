@@ -140,6 +140,7 @@ for (const width of [1440,390]) test(`Form ${width}px: author, preview, historic
   await screenshot('conflict');
   await moreClick('[data-form-reload]');await waitFor("document.querySelector('[data-form-confirm]').open");await click('[data-form-confirm] [data-confirm-ok]');await idle();
   await click('[data-form-tab=editor]');await idle();
+  // The root-program guard refuses this trigger before either write. This exercises the failure UI and explicit retry.
   const db=openHomeSqliteDatabase(homeDirectory,'form');
   try{
     db.exec("CREATE TRIGGER fail_form_ui BEFORE UPDATE OF artifact_version ON forms WHEN NEW.artifact_version > OLD.artifact_version BEGIN SELECT RAISE(ABORT, 'fixture association failed'); END");
@@ -191,4 +192,61 @@ test('Form unavailable model keeps local question creation usable',{timeout:45_0
   assert.match(await evaluate<string>("document.querySelector('[data-form-ai-reason]').textContent"),/模型/);
   await evaluate("document.querySelector('[data-form-ai-prompt]').value='手工问题'");await click('[data-form-generate]');
   await waitFor("document.querySelector('[data-question-title]')?.value === '手工问题'");
+});
+
+test("BSH-01 Form reads its only fixed version after losing the committed HTTP response", { timeout: 45_000 }, async t => {
+  const browser = await openGoalBrowser(t, true, undefined, null);
+  if (!browser) return;
+  const { evaluate, waitFor, click } = await pluginFrameBrowser(t, browser, "form");
+  const { command, sessionId, navigate, origin, projectId, homeDirectory, store } = browser;
+  assert.ok(projectId);
+  await browser.setViewport(1440, 950);
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=form` }, sessionId));
+  await browser.waitFor("document.querySelector('[data-plugin-id=form]')");
+  if (await browser.evaluate("document.body.dataset.desktopSurface") !== "form") await browser.click('[data-plugin-strip] [data-plugin-id=form]');
+  const idle = () => waitFor("document.querySelector('[data-form=workbench]').getAttribute('aria-busy') === 'false'");
+  await click('[data-form-new]');
+  await idle();
+  const read = () => {
+    const library = openFormStore(homeDirectory);
+    try { return library.list(projectId)[0]!; }
+    finally { library.close(); }
+  };
+  const form = read(), artifactId = "form-" + form.id;
+  const versions = () => store.db.prepare("SELECT version FROM library_artifact_versions WHERE artifact_id=? ORDER BY version").all(artifactId).map(row => row.version);
+  assert.deepEqual(versions(), []);
+  assert.equal(form.artifact_version, 0);
+
+  // Let the real HTTP request finish and discard its successful response before Form consumes it.
+  await evaluate(`(() => {
+    const original = window.molisWorkRequest, formPath = "/forms/" + ${JSON.stringify(encodeURIComponent(form.id))};
+    const observed = window.observedPin = { posts: 0, committed: null, reread: null };
+    window.molisWorkRequest = Object.assign(async (url, init) => {
+      const path = new URL(url, 'http://plugin.invalid').pathname;
+      const pin = init?.method === "POST" && path.endsWith(formPath + "/promote");
+      if (pin) observed.posts++;
+      const response = await original(url, init);
+      if (pin && observed.posts === 1 && response.artifact?.version === 1) {
+        observed.committed = response.artifact;
+        throw new Error("fixture fixed-version response lost");
+      }
+      if (observed.committed !== null && path.endsWith(formPath) && (init?.method ?? "GET") === "GET") {
+        observed.reread = { artifact_id: response.form.artifact_id, version: response.form.artifact_version };
+      }
+      return response;
+    }, original);
+  })()`);
+
+  await click('[data-form-artifact-bar]');
+  await idle();
+  assert.match(await evaluate<string>("document.querySelector('[data-form-note].is-error:not([hidden])')?.textContent"), /fixed-version response lost/u);
+  assert.equal(await evaluate("document.querySelector('[data-form-artifact-bar]').textContent"), "再存一个固定版本");
+  const ref = { artifact_id: artifactId, version: 1 };
+  assert.deepEqual(await evaluate("window.observedPin"), { posts: 1, committed: ref, reread: ref });
+  const fixed = read();
+  assert.equal(fixed.artifact_id, artifactId);
+  assert.equal(fixed.artifact_version, 1);
+  assert.equal(fixed.version, form.version + 1);
+  assert.equal(fixed.publication_pending, undefined);
+  assert.deepEqual(versions(), [1]);
 });

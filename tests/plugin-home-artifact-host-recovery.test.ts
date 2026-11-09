@@ -1,21 +1,26 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { existsSync, linkSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, linkSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
 import { fileURLToPath } from "node:url";
 import { acquireUpgradedHomeOwner, createHomeSnapshot, homeUpgradeDescriptors, LocalProjectDatabase, molisWorkHostProjectReference, MolisWorkLocalHost, PLATFORM_PLUGIN_REGISTRATIONS, pluginSyncNamespace, restoreHomeSnapshot, runHomeUpgrade, runV1Cli, upgradeFingerprint } from "@molis-ai/molis-work-app-local-host";
 import { inspectMolisWorkProjectCatalogSnapshot, openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { writeProjectRoot } from "@molis-ai/molis-work-module-projects";
 import { DATASET_DATABASE, datasetActions } from "@molis-ai/molis-work-plugin-dataset";
+import { formManifest } from "@molis-ai/molis-work-plugin-form";
+import type { FormRecord } from "@molis-ai/molis-work-plugin-form/contract";
+import { isLocalHostHttpError } from "@molis-ai/molis-work-test-kit/local-host-http";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
-import { bindDatabaseSpace, ensureStorageSpace, homeSqlitePath, openSqliteConnection } from "@molis-ai/molis-work-storage";
+import { bindDatabaseSpace, ensureStorageSpace, homeSqlitePath, openSqliteConnection, sqliteErrorName } from "@molis-ai/molis-work-storage";
 import { smallSnapshotHome } from "./fixtures/home-snapshot-small.js";
 import { ADD_TAG, BASELINE_V2, homeIdentityOf, ledgerFile, ledgerOf, notesDescriptor, raiseProjectBaseline, REAL_PROJECT_VERSION, relativeStore, seedStore, stampFile, useDescriptors, versionOf, writeLedger } from "./fixtures/home-upgrade-home.js";
 import { registerProbe } from "./fixtures/plugin-home-artifact-probe.js";
 import { runRollbackPair } from "./fixtures/plugin-home-rollback-pair.js";
-import { openTestHome } from "./fixtures/test-home.js";
+import { openTestHome, serveTestHost } from "./fixtures/test-home.js";
 
 /** The Host reads its real registry; this fixture enables the candidate declaration without changing any shipped action. */
 function optInCandidate(t: TestContext): void {
@@ -299,4 +304,128 @@ test("BSH-03 · Host startup rolls back a live pair before resuming the same unf
   const library = openSqliteConnection(libraryFile, { readonly: true });
   try { assert.equal(library.prepare(`SELECT count(*) AS n FROM ${collection}`).get()?.n, homeChanges); }
   finally { library.close(); }
+});
+
+async function whileSqliteLocked(t: TestContext, file: string, readTable: string, check: () => Promise<void>): Promise<void> {
+  // A separate process owns the OS lock. No business row is written merely to obtain a RESERVED lock.
+  const hold = `
+    import { once } from "node:events";
+    import { DatabaseSync } from "node:sqlite";
+    const [file, table] = process.argv.slice(1);
+    const db = new DatabaseSync(file, { readOnly: Boolean(table) });
+    try {
+      db.exec(table ? "BEGIN" : "BEGIN IMMEDIATE");
+      if (table) db.prepare("SELECT count(*) FROM " + table).get();
+      process.stdout.write("locked\\n");
+      process.stdin.resume();
+      await once(process.stdin, "end");
+    } finally {
+      if (db.isTransaction) db.exec("ROLLBACK");
+      db.close();
+    }
+  `;
+  const child = spawn(process.execPath, ["--input-type=module", "-e", hold, file, readTable], { stdio: ["pipe", "pipe", "inherit"] });
+  const exited = once(child, "close");
+  try {
+    const ready = once(child.stdout, "data", { signal: t.signal }).then(([data]) => String(data));
+    assert.equal(await Promise.race([ready, exited.then(() => "early exit")]), "locked\n");
+    await check();
+  } finally {
+    if (child.exitCode === null && child.signalCode === null) child.stdin.end();
+    assert.deepEqual(await exited, [0, null]);
+  }
+}
+
+test("BSH-03 · cold Host opens the registered pair and retries the same pin after real SQLite locks clear", { timeout: 30_000 }, async t => {
+  const home = mkdtempSync(join(tmpdir(), "molis-n12-locked-pair-"));
+  let host: MolisWorkLocalHost | undefined, server: Awaited<ReturnType<typeof serveTestHost>> | undefined;
+  t.after(async () => {
+    try { await server?.close(); }
+    finally { try { await host?.close(); } finally { rmSync(home, { recursive: true, force: true }); } }
+  });
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+  const project = await (async () => {
+    try {
+      const project = await catalog.createProject({ display_name: "Busy fixed version", actor_id: "fixture" });
+      catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "form", actor_id: "fixture" });
+      return project;
+    } finally { catalog.close(); }
+  })();
+  const file = realpathSync(project.database_path), libraryFile = homeSqlitePath(home, "form");
+  assert.deepEqual([...readFileSync(file).subarray(18, 20)], [2, 2], "the registered project starts in WAL");
+  assert.equal(existsSync(libraryFile), false, "the registered Form library is still unopened");
+
+  const started = performance.now();
+  host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  server = await serveTestHost(null, { home, host });
+  const listeningMs = performance.now() - started;
+  assert.equal(host.status().projects.some(row => row.project_id === project.project_id), false);
+  const route = `/projects/${project.project_id}/api/plugins/io.molis.work.form/forms`;
+  const first = performance.now(), { form } = await server.web.post<{ form: FormRecord }>(route, { title: "Lock fixture" });
+  const firstActionMs = performance.now() - first;
+  assert.equal(form.version, 1);
+  assert.deepEqual([...readFileSync(file).subarray(18, 20)], [1, 1]);
+  assert.deepEqual([...readFileSync(libraryFile).subarray(18, 20)], [1, 1]);
+
+  const sync = pluginSyncNamespace(formManifest, formManifest.sync!.collections[0]!.id) + "_replica_changes";
+  const artifactId = "form-" + form.id, pinPath = `${route}/${form.id}/promote`;
+  const facts = () => {
+    const main = openSqliteConnection(file, { readonly: true });
+    try {
+      const library = openSqliteConnection(libraryFile, { readonly: true });
+      try {
+        return {
+          form: library.prepare("SELECT version, artifact_id, artifact_version, publication_pending_json FROM forms WHERE id=? AND project_id=?").get(form.id, project.project_id),
+          versions: main.prepare< [string], { version: number }>("SELECT version FROM library_artifact_versions WHERE artifact_id=? ORDER BY version").all(artifactId).map(row => row.version),
+          events: main.prepare("SELECT object_id FROM events WHERE object_id GLOB ? ORDER BY seq").all(artifactId + "@*"),
+          projectChanges: main.prepare<[], { n: number }>("SELECT count(*) AS n FROM artifacts_replica_changes").get()!.n,
+          homeChanges: library.prepare<[], { n: number }>(`SELECT count(*) AS n FROM ${sync}`).get()!.n,
+        };
+      } finally { library.close(); }
+    } finally { main.close(); }
+  };
+
+  const blocked: { statement: string; ms: number }[] = [], exec = DatabaseSync.prototype.exec;
+  t.mock.method(DatabaseSync.prototype, "exec", function (this: DatabaseSync, sql: string) {
+    const start = performance.now();
+    try { return exec.call(this, sql); }
+    catch (error) {
+      if (sqliteErrorName(error) === "SQLITE_BUSY" && this.location() === file) blocked.push({ statement: sql, ms: performance.now() - start });
+      throw error;
+    }
+  });
+  const cases = [
+    { side: "project reader", path: file, table: "project_root", statement: "COMMIT" },
+    { side: "Home reader", path: libraryFile, table: "forms", statement: "COMMIT" },
+    { side: "project writer", path: file, table: "", statement: "BEGIN IMMEDIATE" },
+    { side: "Home writer", path: libraryFile, table: "", statement: "BEGIN IMMEDIATE" },
+  ];
+  t.diagnostic(JSON.stringify({ listeningMs, firstActionMs }));
+  for (const [index, lock] of cases.entries()) {
+    const old = facts(), input = { expected_version: form.version + index };
+    assert.deepEqual(old.versions, Array.from({ length: index }, (_, version) => version + 1));
+    let failureMs = 0;
+    await whileSqliteLocked(t, lock.path, lock.table, async () => {
+      const requested = performance.now();
+      await assert.rejects(server!.web.post(pinPath, input), error => isLocalHostHttpError(error) && /database is locked/u.test(error.message));
+      failureMs = performance.now() - requested;
+      assert.deepEqual(facts(), old, lock.side + " leaves both databases unchanged");
+      assert.equal(existsSync(file + "-journal"), false);
+      assert.equal(existsSync(libraryFile + "-journal"), false);
+    });
+    assert.equal(blocked.length, index + 1);
+    const observed = blocked[index]!;
+    assert.equal(observed.statement, lock.statement);
+    const resumed = performance.now();
+    const { artifact } = await server.web.post<{ artifact: { artifact_id: string; version: number } }>(pinPath, input);
+    const retryMs = performance.now() - resumed;
+    assert.deepEqual(artifact, { artifact_id: artifactId, version: index + 1 });
+    const settled = facts();
+    assert.deepEqual(settled.versions, [...old.versions, index + 1]);
+    assert.deepEqual(settled.form, { version: input.expected_version + 1, artifact_id: artifactId, artifact_version: index + 1, publication_pending_json: null });
+    assert.deepEqual(settled.events, [...old.events, { object_id: artifactId + "@" + (index + 1) }]);
+    assert.ok(settled.projectChanges > old.projectChanges);
+    assert.equal(settled.homeChanges, old.homeChanges + 1);
+    t.diagnostic(JSON.stringify({ lock: lock.side, ...observed, failureMs, retryMs }));
+  }
 });

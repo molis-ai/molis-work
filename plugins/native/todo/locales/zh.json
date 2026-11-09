@@ -136,6 +136,7 @@
     "todo.place.project-named": "项目「{name}」",
     "todo.place.this-project": "这个项目",
     "todo.place.unassigned": "暂未归类",
+    "todo.project-deletion.data": "放在这个项目里的待办",
     "todo.quick.add": "记下",
     "todo.quick.drop-date": "不按这个日期",
     "todo.quick.due": "截止",

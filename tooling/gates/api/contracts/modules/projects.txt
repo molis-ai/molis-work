@@ -70,7 +70,7 @@ export type DirectoryTarget = {
 export declare const PROJECT_WORKSPACE_PROVIDER_ID = "system.project-workspaces";
 
 export interface ProjectDataDeclaration {
-    readonly label: string;
+    readonly label: string | TextRef;
     readonly order?: number;
     purge(homeDirectory: string, projectId: string): void | Promise<void>;
 }

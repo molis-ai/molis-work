@@ -278,6 +278,7 @@
     "pages.note.publication-pending": "The previous save is unfinished. Resume it to save that snapshot; your current edits can be saved as another version afterwards.",
     "pages.note.unshowable": "This document’s structure can’t be shown in the editor. To keep its content safe, editing and autosave are paused here. Ask the Assistant to write it again, or undo that change from the Assistant’s work panel.",
     "pages.note.unsupported-op": "This document structure does not support this operation yet. The original content is preserved.",
+    "pages.project-deletion.data": "Pages documents and folders",
     "pages.star.add": "Favorite",
     "pages.star.remove": "Unfavorite",
     "pages.status.saved": "Saved",

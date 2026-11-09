@@ -17,3 +17,6 @@ export function selectionPorts(homeDirectory?:string){
   return {choice:result.choice,model:result.model,elapsedMs:Math.round(performance.now()-started),confidence:result.confidence};
  }};
 }
+
+export { builderReleaseInterface, inDesignOrder, studioLocaleFiles, studioProblem } from "@molis-ai/molis-work-plugin-builder";
+export type { AgentBuilderPorts, AgentDesign } from "@molis-ai/molis-work-plugin-builder";

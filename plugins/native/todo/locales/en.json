@@ -136,6 +136,7 @@
     "todo.place.project-named": "Project “{name}”",
     "todo.place.this-project": "This project",
     "todo.place.unassigned": "Not placed yet",
+    "todo.project-deletion.data": "Todos placed in this project",
     "todo.quick.add": "Add",
     "todo.quick.drop-date": "Ignore this date",
     "todo.quick.due": "Due",

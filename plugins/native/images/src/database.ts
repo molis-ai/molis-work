@@ -6,7 +6,7 @@ import { IMAGES_ASSETS } from "./owner-files.js";
  * running jobs are stopped first by the platform's background jobs (PG-038); a job finishing in another process loses its record.
  */
 const IMAGES_PROJECT_ROWS: PluginProjectRowsDeclaration = {
-  label: "图片生成记录和已生成的图片", order: 90,
+  label: { key: "images.project-deletion.data" }, order: 90,
   tables: [{ table: "jobs", column: "project_id" }],
   files: [{ table: "jobs", column: "images_json", key: "filename", directory: IMAGES_ASSETS }],
 };

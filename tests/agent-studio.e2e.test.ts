@@ -19,7 +19,7 @@ import { randomUUID } from 'node:crypto';
 import { openStudioChrome, dedicatedBuilderBrowser } from './fixtures/plugin-builder-browser.js';
 import { agentStudioFixture } from '../scripts/agent-studio-preview-fixture.mjs';
 import { STUDIO_HARNESS_PATH } from '../scripts/agent-studio-harness.mjs';
-import { LocalProjectDatabase } from '@molis-ai/molis-work-app-local-host';
+import { LocalProjectDatabase, runWithLocale } from '@molis-ai/molis-work-app-local-host';
 import { verifySyncPluginDistribution, seedDemoBoard, DEMO_PROJECT_ID } from '@molis-ai/molis-work-app-local-host';
 import { handleAgentStudioHttp, installedPluginStages, releaseAgentStudio } from '../apps/local-host/dist/plugin-builder/agent-surface.js';
 import { ensureInstalledPlugins, releaseInstalledPlugins } from '../apps/local-host/dist/installed-plugin-host.js';
@@ -47,7 +47,7 @@ function studioServer(options: Parameters<typeof handleAgentStudioHttp>[3] & { h
       if (!authorizeLocalWebRequest(request, response, url, token, mutations)) return;
       return pluginPagesFor(options.homeDirectory).bind(request, url).then(release => {
         if (release) response.once('close', release);
-        return handleAgentStudioHttp(request, response, local, options, proof);
+        return runWithLocale(setup?.locale ?? "zh", () => handleAgentStudioHttp(request, response, local, options, proof));
       }).then(handled => { if (!handled) sendLocalWebJson(response, 404, { error: 'not found' }); }).catch(error => sendLocalWebJson(response, 403, { error: String(error.message) }));
     });
   });
@@ -483,7 +483,9 @@ test('studio in English: its controls, labels, phases and boards are English', {
   const databasePath = join(home, 'project.db'); seedDemoBoard(databasePath);
   const store = new LocalProjectDatabase(databasePath), token = randomUUID() + randomUUID(), mutations = new Map<string, LocalMutationState>();
   const fixture = agentStudioFixture(0);
-  const options = { store, projectId: DEMO_PROJECT_ID, homeDirectory: home, browserExecutable: dedicatedBuilderBrowser(), routePrefix: '/projects/' + DEMO_PROJECT_ID, ...fixture };
+  let rawModelError: string | undefined;
+  const options = { store, projectId: DEMO_PROJECT_ID, homeDirectory: home, browserExecutable: dedicatedBuilderBrowser(), routePrefix: '/projects/' + DEMO_PROJECT_ID, ...fixture,
+    models: async () => { if (rawModelError !== undefined) throw new Error(rawModelError); return fixture.models(); } };
   const server = studioServer(options, token, mutations, { page: true, locale: 'en' });
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   const origin = 'http://127.0.0.1:' + (server.address() as { port: number }).port;
@@ -503,12 +505,12 @@ test('studio in English: its controls, labels, phases and boards are English', {
     await page.wait(`/Your plugin will appear here/.test(document.querySelector('[data-as-empty]')?.innerText || '')`);
     assert.equal(await page.evaluate<string>(`document.documentElement.lang`), 'en');
     assert.deepEqual(await page.evaluate<string[]>(chrome), [], 'nothing the studio writes on its first screen is Chinese');
-    assert.match(await page.evaluate<string>(`document.querySelector('.as-feed').innerText`), /Let's build your idea together[\s\S]*Reading notes[\s\S]*Daily review[\s\S]*Group sign-up sheet/u);
+    assert.match(await page.evaluate<string>(`document.querySelector('.as-feed').innerText`), /Let’s build your idea together[\s\S]*Reading notes[\s\S]*Daily review[\s\S]*Group sign-up sheet/u);
     assert.equal(await page.evaluate<string>(`document.querySelector('[data-as-builds] option').textContent`), 'No plugins yet');
     assert.equal(await page.evaluate<string>(`document.querySelector('[data-as-title]').textContent`), 'New plugin');
     assert.equal(await page.evaluate<string>(`document.querySelector('.as-send').getAttribute('aria-label')`), 'Send');
     assert.match(await page.evaluate<string>(`document.querySelector('[data-as-input]').placeholder`), /^Describe the plugin you want/u);
-    assert.match(await page.evaluate<string>(`document.querySelector('[data-as-model-note]').textContent`), /^Choose the model used for building · Jev (configured|not configured \(the UI Agent's design is used first\))$/u);
+    assert.match(await page.evaluate<string>(`document.querySelector('[data-as-model-note]').textContent`), /^Choose the model used for building · Jev (configured|not configured \(the UI Agent’s design is used first\))$/u);
 
     // The brief goes to the stand-in designer as the person typed it.
     await page.evaluate(`(()=>{const s=document.querySelector('[data-as-model]');s.value=[...s.options].find(o=>o.value.startsWith('fixture')).value;s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
@@ -525,21 +527,19 @@ test('studio in English: its controls, labels, phases and boards are English', {
     assert.match(await page.evaluate<string>(`document.querySelector('.as-candidate .as-meta').innerText`), /Features: \d+[\s\S]*UI parts: \d+[\s\S]*Pages: \d+/u);
     assert.match(await page.evaluate<string>(`getComputedStyle(document.querySelector('[data-component-id="notes"]'),'::before').content`), /Not connected yet/, 'a part still to be wired says so in English');
 
-    // A request that fails shows the server's message in English when the dictionary has it: as a whole, or its opening sentence
-    // followed by the detail as the host wrote it; any other message is shown as written. (The fetch is answered here; the
-    // messages themselves are the ones the routes throw, checked against the source in tests/studio-english.test.ts.)
-    await page.evaluate(`(()=>{const real=window.fetch;window.__fail=null;window.fetch=(input,init)=>window.__fail&&init?.method==='POST'&&/\\/action$/.test(String(input))?Promise.resolve(new Response(JSON.stringify({error:window.__fail}),{status:400,headers:{'content-type':'application/json'}})):real(input,init);})()`);
-    for (const [error, shown] of [
-      ['草稿已改变，请刷新', 'The draft has changed. Refresh and try again.'],
-      ['目标范围的功能检查和浏览器验收全部通过后才能发布', 'You can publish only after the feature checks and browser acceptance pass for the target scope'],
-      ['发布前请先修好调用模型的写法：src/plugin.ts:12 model.generate names no prompt', 'Fix how the plugin calls the model before publishing: src/plugin.ts:12 model.generate names no prompt'],
-      ['一句宿主还没有英文的话：细节', '一句宿主还没有英文的话：细节'],
-    ] as const) {
-      await page.evaluate(`window.__fail=${JSON.stringify(error)}`);
-      await page.click('[data-as-choose]');
-      await page.wait(`document.querySelector('.as-error p')?.textContent===${JSON.stringify(shown)}`);
-    }
-    await page.evaluate(`window.__fail=null`);
+    // FSS-36: refuse a real request from this frame. The normal selection is untouched, and the same production route
+    // supplies both the English words and their owner-bound reference. The authorized page is still able to choose a real proposal.
+    const refused = await page.evaluate<{ error: string; text: { key: string } }>(`(async()=>{const root=document.querySelector('[data-as-builds]'),id=root.value;
+      const response=await fetch(${JSON.stringify(options.routePrefix + "/api/plugin-builder/studio/builds/")}+id+'/action',{method:'POST',headers:globalThis.molisWorkControlHeaders(),
+        body:JSON.stringify({action:'choose',candidateId:'missing'})});if(response.status!==400)throw Error('Unexpected status '+response.status);return response.json();})()`);
+    assert.deepEqual(refused, { error: "This proposal is no longer valid", text: { key: "plugin-builder.request.proposal-expired" } });
+    const original = '原错误 <b>不是标签</b>\n' + '底层细节'.repeat(600);
+    rawModelError = original;
+    await page.evaluate(`document.querySelector('[data-as-model]').dispatchEvent(new Event('change',{bubbles:true}))`);
+    await page.wait(`document.querySelector('.as-error p')?.textContent===${JSON.stringify(original)}`);
+    assert.equal(await page.evaluate(`document.querySelector('.as-error p').getAttribute('translate')`), 'no');
+    assert.equal(await page.evaluate(`Boolean(document.querySelector('.as-error p b'))`), false);
+    rawModelError = undefined;
 
     // Once a proposal is chosen the design arrives and the spec board and the capability board open.
     await page.click('[data-as-choose]');
@@ -549,9 +549,9 @@ test('studio in English: its controls, labels, phases and boards are English', {
     assert.match(await page.evaluate<string>(`document.querySelector('.as-board-label').innerText`), /^Spec board\s+Placed \d+\/\d+ · in use \d+\/\d+$/u);
     assert.match(await page.evaluate<string>(`document.querySelector('.as-board-cap').innerText`), /^Capability board\s+Connected \d+\/\d+ · catalog \d+$/u);
     assert.deepEqual(await page.evaluate<string[]>(`[...document.querySelectorAll('.as-board .as-part:not(.as-cap)')].map(b=>b.textContent+'|'+b.getAttribute('aria-label')).filter(x=>/\\p{Script=Han}/u.test(x))`), [], 'the spec board names its components in English');
-    assert.match(await page.evaluate<string>(`document.querySelector('[data-as-board] [data-kind]').getAttribute('aria-label')`), /^[A-Z][\w ]+ [A-Z][\w ]+: [A-Z]/u, 'name, catalog name: description');
+    assert.match(await page.evaluate<string>(`document.querySelector('[data-as-board] [data-kind]').getAttribute('aria-label')`), /^[A-Z][\w ]+ · [A-Z]/u, 'name, catalog name: description');
     assert.deepEqual(await page.evaluate<string[]>(chrome), [], 'and so is the rest of the stage');
-    assert.match(await page.evaluate<string>(`document.querySelector('[data-as-model-note]').textContent`), /^Lead designer and Code Agent: .+ · Jev (configured|not configured \(the UI Agent's design is used first\))$/u);
+    assert.match(await page.evaluate<string>(`document.querySelector('[data-as-model-note]').textContent`), /^Lead designer and Code Agent: .+ · Jev (configured|not configured \(the UI Agent’s design is used first\))$/u);
     assert.deepEqual(await page.evaluate<string[]>(`[...new Set([...document.querySelectorAll('.as-plugin .pc-inspect')].map(b=>b.textContent))]`), ['Inspect part'], 'the button that points the studio at a part of the plugin');
 
     // The catalog panel and a tip carry the catalog's words in English.

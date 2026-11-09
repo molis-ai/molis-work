@@ -1,3 +1,5 @@
+import type { PluginTextReader } from "@molis-ai/molis-work-app-workbench";
+import { namedProjectDataLabel, projectDataLabel } from "./project-deletion-words.js";
 import { rm } from "node:fs/promises";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HomePluginDatabaseDeclaration, PluginDefinition, PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -19,11 +21,12 @@ export interface PluginProjectCleanup {
 /** A Home plugin as the deletion sees it: who owns its data of a project, and its library when that is partitioned by project. */
 export interface PluginProjectCleanupEntry {
   readonly definition: PluginDefinition;
+  readonly localePacks: PluginTextReader | null;
   readonly project_data?: PluginProjectCleanup;
 }
 
 /** An owner id the start list gives is the Host's to give: one per plugin, and never for a plugin run in the sandbox. */
-export function assertProjectCleanupEntries(entries: readonly PluginProjectCleanupEntry[]): void {
+export function assertProjectCleanupEntries(entries: readonly Pick<PluginProjectCleanupEntry, "definition" | "project_data">[]): void {
   const owners = new Set<string>();
   for (const owner of entries.flatMap(entry => entry.project_data ? [{ ...entry.project_data, sandbox: entry.definition.execution === "sandbox" }] : [])) {
     if (owner.sandbox || !owner.owner_id || owners.has(owner.owner_id)) {
@@ -75,7 +78,7 @@ function cleanupOwner(home: string, entry: PluginProjectCleanupEntry, stopBackgr
   if (library?.partition === "project") {
     const store = library.store_name;
     return {
-      id: entry.project_data?.owner_id ?? manifest.plugin_id, ...partitionLabel(manifest.name), words_of: manifest.plugin_id,
+      id: entry.project_data?.owner_id ?? manifest.plugin_id, ...namedProjectDataLabel("workbench.project-deletion.partition", manifest, entry.localePacks),
       async clear(projectId) {
         const { record, settled } = stopBackground(projectId);
         // Keep the same-turn refusal even while a cancelled activation job is still unwinding.
@@ -88,22 +91,20 @@ function cleanupOwner(home: string, entry: PluginProjectCleanupEntry, stopBackgr
       },
     };
   }
-  return hasPluginBackground(entry.definition) ? { id: `plugin-background:${manifest.plugin_id}`, label: "{name} 的后台工作（将停止）", label_values: { name: manifest.name }, words_of: manifest.plugin_id, async clear(projectId) { await stopBackground(projectId).settled; } } : null;
+  return hasPluginBackground(entry.definition) ? { id: `plugin-background:${manifest.plugin_id}`, ...namedProjectDataLabel("workbench.project-deletion.background", manifest, entry.localePacks), async clear(projectId) { await stopBackground(projectId).settled; } } : null;
 }
-
-/** What the confirmation dialog says of a library partitioned by project: the Host's words, with the plugin's name. */
-export const partitionLabel = (name: string) => ({ label: "{name} 在这个项目里的数据", label_values: { name } });
 
 /**
  * The rows a library declares of a project. Every entry here is on the Host's start list, so its library is the one the Home's store
  * registry holds as its own (`assertDatabaseEntries`). A shipped plugin's step goes under its catalog id with its own words; any other
- * (a fixture the Host was given) goes under its plugin id, its words shown as written beside its name, never looked up for a translation.
+ * (a fixture the Host was given) goes under its plugin id. The platform supplies only the enclosing sentence.
  */
 function declaredRowsOwner(home: string, entry: PluginProjectCleanupEntry, library: HomePluginDatabaseDeclaration, stopBackground: StopBackground): ProjectDeletedOwner {
   const { manifest } = entry.definition, rows = library.project_rows!, shipped = entry.project_data;
   return {
-    id: shipped?.owner_id ?? manifest.plugin_id, words_of: manifest.plugin_id,
-    ...shipped ? { label: rows.label } : { label: "{name} 的项目数据：{detail}", label_values: { name: manifest.name, detail: rows.label } },
+    id: shipped?.owner_id ?? manifest.plugin_id,
+    ...(shipped ? projectDataLabel(rows.label, manifest, entry.localePacks)
+      : namedProjectDataLabel("workbench.project-deletion.external-rows", manifest, entry.localePacks, rows.label)),
     async clear(projectId) {
       const { settled } = stopBackground(projectId);
       if (settled) await settled;

@@ -10,6 +10,7 @@ export interface SettingsDirectoryPrimitives {
   icon(name: PluginIconName): string;
   htmlLang(): string;
   withDesktopQuery?(path: string): string;
+  projectDeletionLabels?(): readonly string[];
 }
 
 
@@ -123,7 +124,7 @@ export function renderProjectSettingsWorkSurface(
     readText,
     escapeHtml,
     icon: (name) => icon(name),
-    withDesktopQuery,
+    withDesktopQuery, projectDeletionLabels: primitives.projectDeletionLabels,
   });
   const general = project ? folds.renderGeneralPage(project, desktopShell) : "";
   return `<section class="desktop-work-surface settings-stage" data-work-surface="project-settings" data-work-surface-label="${uiText("workbench.settings-directory.project-settings")}" hidden>

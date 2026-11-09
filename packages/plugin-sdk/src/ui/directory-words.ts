@@ -1,10 +1,11 @@
+import { projectDeletionLine } from "../project-rows-declarations.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { TextRef, UiLocalePack, UiMessage } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { PluginConnectionServiceDeclaration, PluginConnectionWord } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import { localeMessageArguments, type LocaleSetProblem } from "./locale-pack.js";
 import { tryOwnedTextRef } from "./text-ref.js";
 
-type NameFields = Pick<PluginManifest, "plugin_id" | "name_text" | "summary_text" | "connection_services">;
+type NameFields = Pick<PluginManifest, "plugin_id" | "name_text" | "summary_text" | "connection_services" | "databases">;
 export type DirectoryWordManifest = NameFields & { readonly ui?: Pick<PluginManifest["ui"], "locales" | "views"> };
 
 const fields = (manifest: DirectoryWordManifest) => [
@@ -21,6 +22,12 @@ const fields = (manifest: DirectoryWordManifest) => [
   }),
 ] satisfies ReadonlyArray<readonly [string, TextRef | undefined, number]>;
 
+const deletionField = "databases.home.project_rows.label";
+function deletionRef(manifest: DirectoryWordManifest): TextRef | undefined {
+  const label = manifest.databases?.home?.project_rows?.label;
+  return typeof label === "object" ? label : undefined;
+}
+
 const oneLine = (value: string, limit: number) => value.trim() !== "" && value === value.trim()
   && !/[\u0000-\u001f\u007f]/u.test(value) && [...value].length <= limit;
 
@@ -35,6 +42,10 @@ export function directoryWordProblems(manifest: PluginManifest): string[] {
       if (!oneLine(ref.literal, limit)) problems.push(`${field} 必须为一行，不超过 ${limit} 字`);
     } else if (ref.args !== undefined || ref.fallback !== undefined) problems.push(`${field} 不接收参数或另一份后备文字`);
     else if (!ref.key.startsWith("common.") && !manifest.ui.locales) problems.push(`${field} 引用本插件的词须声明 ui.locales`);
+  }
+  const deletion = deletionRef(manifest);
+  if (deletion && "key" in deletion && (!tryOwnedTextRef(deletion, manifest.plugin_id) || deletion.key.startsWith("common.") || !manifest.ui.locales)) {
+    problems.push(`${deletionField} 须引用本插件在 ui.locales 声明的无参词`);
   }
   return problems;
 }
@@ -63,6 +74,15 @@ export function directoryPackProblems(manifest: DirectoryWordManifest, pack: UiL
     return [{ file, locale: pack.locale, key: ref.key, code: "ui.locale_connector_word",
       reason: `${field} 要取本插件无参短句，默认语言不能缺词`, fix: "在默认语言文件里声明这条短句；不写参数或复数", blocking: true }];
   });
+  const label = deletionRef(manifest);
+  if (label && "key" in label && pack.owner === manifest.plugin_id) {
+    const present = Object.hasOwn(pack.messages, label.key), message = staticUiMessage(pack.messages[label.key]);
+    if ((present || pack.locale === manifest.ui?.locales?.default) && (message === null || !projectDeletionLine(message))) {
+      return [...ordinary, ...connector, { file, locale: pack.locale, key: label.key, code: "ui.locale_directory_word",
+        reason: `${deletionField} 要取一行不超过 200 字的无参短句，默认语言不能缺词`,
+        fix: "在默认语言文件里声明这条短句；不写参数或复数", blocking: true }];
+    }
+  }
   return [...ordinary, ...connector];
 }
 

@@ -12,6 +12,8 @@ import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { createFormPlugin } from "@molis-ai/molis-work-plugin-form";
 import type { HomePluginDatabaseDeclaration, PluginDefinition, PluginManifest, PluginProjectRowsDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
+import { assertPluginLocales } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { pluginLocaleReader } from "@molis-ai/molis-work-plugin-runtime";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { readDatabaseSpace, describeSqliteBaseline, describeSqliteSchema, homeSqlitePath, homeStoreRegistry, openBaselineHomeSqlite } from "@molis-ai/molis-work-storage";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
@@ -127,6 +129,56 @@ test("RAC-561 the SDK refuses project_rows that name what is not this library's 
   refused(ROWS, /不能和 partition/u, { partition: "project" });
 });
 
+const rowsWord = "rowsprobe.project-deletion.data", declarations = { default: "zh", available: ["zh", "en"] } as const;
+function declaredRowsWord(label: PluginProjectRowsDeclaration["label"] = { key: rowsWord }) {
+  const m = manifest({ ...LIBRARY, project_rows: { ...ROWS, label } });
+  return { ...m, ui: { ...m.ui, locales: declarations } };
+}
+
+const wordFiles = (owner: string, english: string, chinese?: string) => (path: string) => {
+  const locale = path.endsWith("/en.json") ? "en" : "zh";
+  const value = locale === "en" ? english : chinese;
+  return JSON.stringify({ format_version: 1, owner, locale, messages: value === undefined ? {} : { [rowsWord]: value } });
+};
+
+test("FSS-36 RAC-563 project deletion's label ref must have its own no-argument default word and keeps the original label boundary", () => {
+  const own = parsePluginManifest(declaredRowsWord());
+  assert.doesNotThrow(() => assertPluginLocales(own, wordFiles(own.plugin_id, "Library records", "记录")));
+  for (const ref of [{ key: "pages.project-deletion.data" }, { key: rowsWord, args: [{ name: "value", kind: "text" as const, text: "original" }] },
+    { literal: "first\u0085second" }, { literal: "🟢".repeat(101) }]) {
+    assert.throws(() => parsePluginManifest(declaredRowsWord(ref)), /project_rows.label/u);
+  }
+  assert.throws(() => parsePluginManifest(manifest({ ...LIBRARY, project_rows: { ...ROWS, label: { key: rowsWord } } })), /project_rows.label.*ui.locales/u);
+  for (const zh of [undefined, "有 {n} 条", "first\u0085second", "🟢".repeat(101)]) {
+    assert.throws(() => assertPluginLocales(own, wordFiles(own.plugin_id, "Library records", zh)), /project_rows.label/u);
+  }
+});
+
+test("FSS-36 the same plugin ID in two Homes keeps each registration's deletion words", async t => {
+  const build = async (signature: string, english: string) => {
+    const probe = rowsProbe({ key: rowsWord }), source = declaredRowsWord();
+    const parsed = parsePluginManifest({ ...source, publisher: { ...source.publisher, signature }, name: "原项目名称" });
+    const definition = { ...probe.definition, manifest: parsed };
+    const read = pluginLocaleReader(parsed, wordFiles(parsed.plugin_id, english, "相同项目数据"));
+    assert.ok(read);
+    const env = await runningProbe(t, { ...probe, definition }, read);
+    return { ...env, definition };
+  };
+  const a = await build("publisher-a", "First exact library"), b = await build("publisher-b", "Second exact library");
+  const label = async (env: typeof a) => {
+    const response = await env.request("/api/settings/projects/any/delete-scope", { headers: { "accept-language": "en" } });
+    assert.equal(response.status, 200);
+    const data = await response.json() as { owners: Array<{ owner_id: string; label: string }> };
+    return data.owners.find(row => row.owner_id === env.definition.manifest.plugin_id)?.label;
+  };
+  assert.equal(await label(a), "Project data of 原项目名称: First exact library");
+  assert.equal(await label(b), "Project data of 原项目名称: Second exact library");
+  assert.equal(await label(a), "Project data of 原项目名称: First exact library");
+  await a.host.close();
+  assert.equal(projectDeletedHooksFor(a.home).owners().some(row => row.id === a.definition.manifest.plugin_id), false);
+  assert.equal(await label(b), "Project data of 原项目名称: Second exact library");
+});
+
 test("RAC-561 the platform deletes only from the declaring plugin's own library, and refuses a column its schema does not make", async t => {
   const home = withHome(t);
   const pages = catalog.find(entry => entry.project_plugin_id === "pages")!, dataset = catalog.find(entry => entry.project_plugin_id === "dataset")!;
@@ -151,8 +203,9 @@ function rowsProbe(label = ROWS.label, id = "io.molis.work.example.rowsprobe") {
 }
 
 /** A Host behind the desktop HTTP composition, given the probe as a Home plugin it did not ship, granted and running. */
-async function runningProbe(t: TestContext, probe: ReturnType<typeof rowsProbe>) {
-  const f = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } });
+async function runningProbe(t: TestContext, probe: ReturnType<typeof rowsProbe>, words?: ReturnType<typeof pluginLocaleReader>) {
+  const fixture = { definition: probe.definition, ...(words ? { localePacks: (definition: PluginDefinition) => definition === probe.definition ? words : null } : {}) };
+  const f = await serveHomeRuntime(t, { pluginFixtures: { home: [fixture] } });
   const platform = await f.host.homePlugins!.ready(), install = f.host.homePlugins!.installation(probe.id)!;
   await platform.runtime.stop(install.install_id);
   platform.runtime.grant(install.install_id, PERMISSIONS.map(item => item.permission));

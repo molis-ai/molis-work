@@ -85,6 +85,7 @@
     "ppt.present.action": "Present",
     "ppt.present.bar": "←/→ to change slides · N for speaker notes · Esc to exit",
     "ppt.present.hint": "Present full screen: arrow keys change slides, N shows speaker notes, Esc exits",
+    "ppt.project-deletion.data": "PPT presentations",
     "ppt.save.busy": "In progress",
     "ppt.save.failed": "Save failed",
     "ppt.save.saved": "Saved",

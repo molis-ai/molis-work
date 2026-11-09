@@ -111,6 +111,7 @@
     "workflows.palette.label": "可以加入的插件",
     "workflows.palette.others": "其余 {count} 个插件暂不能串进流程",
     "workflows.palette.plugins": "插件",
+    "workflows.project-deletion.data": "工作流程及其运行记录",
     "workflows.ready.no-instructions": "还没写 AI 要整理成什么",
     "workflows.ready.no-judgment": "还没选判断规则",
     "workflows.ready.no-model": "还没有可用的文字模型",

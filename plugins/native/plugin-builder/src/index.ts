@@ -18,3 +18,5 @@ export {builderSyncProjection} from './sync-content.js';
 export { freezeStudioUi, studioLocaleFiles } from "./agent-ui-text.js";
 
 export { builderReleaseInterface } from "./agent-model.js";
+
+export { studioProblem, studioProblemWord } from "./studio-problem.js";

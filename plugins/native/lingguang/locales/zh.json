@@ -70,6 +70,7 @@
     "lingguang.list.retry": "重试",
     "lingguang.list.selected": "已选 {count}",
     "lingguang.page.title": "灵光",
+    "lingguang.project-deletion.data": "灵光里的想法与对话",
     "lingguang.reading.empty": "读取没有返回结果",
     "lingguang.reading.issue-separator": "；",
     "lingguang.reading.issues": "说明：{issues}",

@@ -110,6 +110,7 @@
     "form.option.word": "Options",
     "form.page.title": "Form",
     "form.preview.empty": "No questions yet. Go back to Edit and add one.",
+    "form.project-deletion.data": "Forms and every answer they received",
     "form.question.add": "Add question",
     "form.question.add-type": "Type of question to add",
     "form.question.down": "Move down",

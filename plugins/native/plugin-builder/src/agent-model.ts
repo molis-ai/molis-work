@@ -121,6 +121,11 @@ export interface AgentPublicationControl {
   commit(artifact: AgentPublicationArtifact): AgentRelease;
 }
 
+/** Nodes follow the design's part order however they were placed: parts kept from the previous design are placed before new ones. */
+export function inDesignOrder<T extends { id: string }>(design: { parts: readonly { id: string }[] } | null | undefined, nodes: readonly T[]): T[] {
+  const order = (id: string) => design?.parts.findIndex(part => part.id === id) ?? 0;
+  return [...nodes].sort((a, b) => order(a.id) - order(b.id));
+}
 /** The interface.json document in a published release, shared by the publisher and synchronization validator. */
 export function builderReleaseInterface(design: AgentDesign, nodes: AgentBuild['nodes']) {
   return { parts: design.parts, nodes, acceptance: design.acceptance,

@@ -1,4 +1,4 @@
-import { builderReleaseInterface, studioLocaleFiles } from "@molis-ai/molis-work-plugin-builder";
+import { builderReleaseInterface, studioLocaleFiles, studioProblem } from "../plugin-builder-surface.js";
 import { existsSync, lstatSync, realpathSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync } from 'node:fs';
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { join, relative } from 'node:path';
@@ -72,7 +72,7 @@ export function createStudioPublisher(home: string, root: string): AgentBuilderP
   return async (build, manifest, bundlePath, version, control) => {
     const run = async () => {
       await control.beforeEffect();
-      if (control.versions().some(item => item.version === version)) throw new Error('发布版本已存在');
+      if (control.versions().some(item => item.version === version)) throw studioProblem("plugin-builder.request.version-already-published", '发布版本已存在');
       const design = build.design!;
       assertContract(design.contract); validatePluginComponentNodes(build.nodes, design.parts, design.contract);
       if (design.presentation) validatePluginPresentation(design.presentation, design.parts, design.contract);
@@ -80,7 +80,7 @@ export function createStudioPublisher(home: string, root: string): AgentBuilderP
       control.assertCurrent();
       const { prompts, problems } = readPluginPrompts(await buildSources(build.directory!, build.directory! + '.settled', design.contract.operations.length));
       control.assertCurrent();
-      if (problems.length) throw new Error('发布前请先修好调用模型的写法：' + problems[0]);
+      if (problems.length) throw studioProblem("plugin-builder.request.publication-model-fix", '发布前请先修好调用模型的写法：' + problems[0], problems[0]);
       const scope = build.runtimeScope ?? 'project';
       const originalFiles = {
         'plugin.mjs': code, 'manifest.json': JSON.stringify(manifest), 'contract.json': JSON.stringify(design.contract),

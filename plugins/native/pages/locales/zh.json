@@ -266,6 +266,7 @@
     "pages.note.publication-pending": "上次成果保存尚未完成。继续保存会恢复当时的快照，当前编辑内容可在之后另存一版。",
     "pages.note.unshowable": "这篇文档的内容结构在编辑器里显示不了，为了不覆盖原内容，这里暂停编辑和自动保存。可以让助理重新写一遍，或在助理的工作面板里撤销那次修改。",
     "pages.note.unsupported-op": "这篇文档的内容结构暂不支持此操作，原内容已保留。",
+    "pages.project-deletion.data": "Pages 文稿与文件夹",
     "pages.star.add": "收藏",
     "pages.star.remove": "取消收藏",
     "pages.status.saved": "已保存",

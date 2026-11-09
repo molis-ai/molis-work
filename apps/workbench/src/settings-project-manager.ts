@@ -4,7 +4,7 @@ import { createProjectSettingsFolds } from "./project-settings-folds.js";
 import type { SettingsRenderPrimitives } from "./settings-renderer.js";
 import type { MolisWorkSettingsView, WebSettingsProject } from "./settings-view.js";
 
-type ProjectManagerPrimitives = Pick<SettingsRenderPrimitives, "readText" | "escapeHtml" | "icon" | "withDesktopQuery">;
+type ProjectManagerPrimitives = Pick<SettingsRenderPrimitives, "readText" | "escapeHtml" | "icon" | "withDesktopQuery" | "projectDeletionLabels">;
 type ProjectFolds = ReturnType<typeof createProjectSettingsFolds>;
 
 function projectKindShort(project: WebSettingsProject, _L: ProjectManagerPrimitives["readText"]): string {
@@ -27,7 +27,7 @@ function renderProjectDetail(project: WebSettingsProject, selected: boolean, des
 
 export function renderProjectSettings(view: MolisWorkSettingsView, desktopShell: boolean, primitives: ProjectManagerPrimitives): string {
   const { readText, escapeHtml, icon, withDesktopQuery } = primitives;
-  const folds = createProjectSettingsFolds({ readText, escapeHtml, icon, withDesktopQuery });
+  const folds = createProjectSettingsFolds({ readText, escapeHtml, icon, withDesktopQuery, projectDeletionLabels: primitives.projectDeletionLabels });
   const demo = view.projects.find((project) => project.data_class === "regenerable_demo");
   const selectedId = view.projects[0]?.project_id ?? "create";
   const rows = view.projects.map((project) => {

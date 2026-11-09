@@ -1,3 +1,4 @@
+import { studioProblem } from "./studio-problem.js";
 import type { BuildCheckResult } from '@molis-ai/molis-work-contracts/platform/plugin-builder';
 import type { AgentBuild } from './agent-model.js';
 
@@ -14,7 +15,7 @@ interface PresentationContinuation {
 /** A portable passing observation is not this device's executable bundle. Only explicit continuation may rebuild it. */
 export async function reviseCheckedPresentation(port: PresentationContinuation): Promise<void> {
   const build = port.read();
-  if (!build.design || !build.checks.global?.passed) throw new Error('功能验证通过后才能调整界面');
+  if (!build.design || !build.checks.global?.passed) throw studioProblem("plugin-builder.request.visual-edit-not-ready", '功能验证通过后才能调整界面');
   if (!build.checks.global.bundlePath) {
     const checked = await port.check();
     port.current();

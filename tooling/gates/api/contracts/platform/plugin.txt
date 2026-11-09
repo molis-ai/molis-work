@@ -3967,7 +3967,7 @@ export interface PluginProjectDatabaseTransaction extends PluginDatabaseTransact
 export type PluginProjectRow = Record<string, null | number | string>;
 
 export interface PluginProjectRowsDeclaration {
-    readonly label: string;
+    readonly label: string | TextRef;
     readonly order?: number;
     readonly tables: readonly PluginProjectRowsTable[];
     readonly files?: readonly PluginProjectRowsFiles[];

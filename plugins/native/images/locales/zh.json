@@ -47,6 +47,7 @@
     "images.history.refresh": "刷新",
     "images.history.retry": "可点击刷新重试。",
     "images.page.title": "图片",
+    "images.project-deletion.data": "图片生成记录和已生成的图片",
     "images.result.delete": "删除记录",
     "images.result.delete-confirm": "删除这次生成记录和图片文件？",
     "images.result.download": "下载图片",

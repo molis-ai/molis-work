@@ -420,21 +420,23 @@ interface HomePageVersion extends HomePageRef {
 
 场景包里的首页部分是一个 `content` 建议，类型 `molis.home-page.v1`：`system.home` 在登记里声明 `adopts`（第 8 节），它的采用动作就是 `home.pages.drafts.save@1`，只存一版草稿，不批准、不换首页。
 
-- `apply` 做到这一步：存好草稿，把这一步标 `needs_approval`，返回 `page_id`、`version`。
-- 本人在首页服务自己的批准界面（第 6.4 节）点 `home.pages.adopt@1`。
-- 批准后本人用同一个 `request_id` 再调 `apply`；`home.read` 读到首页已是这一版，才标「已生效」。
+- 草稿写入并回读后，场景步骤记下固定 `{ page_id, version }` 和为这次批准生成的 `approval_request_id`，随 `needs_approval` 返回。续做沿用这个批准键。
+- 本人在首页自己的批准入口直接调 `home.pages.adopt@1`，把该批准键用作动作的 `request_id`。独立采用同一页同一版时使用新的请求键。批准键只关联本次操作。
+- 本人以原场景请求键续做 `apply`。场景按批准键经 `home.read` 查同一本人、同一项目的原回执，核对操作及固定页面版本。当前页面相同但缺少关联回执时仍待批准或核对，不能据此记生效或取得撤销凭据。
 - `adopt`、`restore` 只认没有上一层的本人调用：`apply`、`revert`、`remove` 嵌套调它们一律被拒（S-113）。
 
 **P-4 公共合同与静态校验。** `services/home` 导出 `HomePageRef`、`HomePageVersion`、`HomePageDraft`、`HomeSelection`、`HomePageApproval` 和上述八个动作的闭合输入输出 schema。`HomePageDraft` 包含 `title`、`entry`、`actions` 和 `{ path, media_type, text }` 文件列表。`HomePageVersion` 的 `bytes` 和 `sha256` 由主人按文件原文的 UTF-8 字节生成，`sha256` 为 64 个小写十六进制字符。版本是正安全整数，`based_on` 指同页已存在的旧版本。动作复用 `ACTION_REFERENCE_SCHEMA` 并要求 `provider_id`，保留 `parseExactActionReferences` 的身份、版本、数量及去重规则。批准回读 `{ page: HomePageRef, approved_actions: ExactActionReference[], approved_at }`，操作者从可信入口取并由主人记录。项目当前选择的 `revision` 是主人比较写入的凭据，与页面 `version` 分开。
 
 | 动作 | 输入与回读 |
 | --- | --- |
-| `home.read` | `{}` → `{ selection, revision, versions }`，版本摘要含声明动作和该版 `approval`（未批准为 `null`），无文件正文。第 8 节的首页主人批读复用同一查询定义的 `queries` 分支，只在实际入口核实采用者和项目范围后返回回执。 |
+| `home.read` | `{}` → `{ selection, revision, versions }`，版本摘要含声明动作和该版 `approval`（未批准为 `null`），无文件正文。第 8 节的首页主人批读沿同一 `queries` 分支。批准回执查询为 `{ by: "request", operation: "adopt" \| "restore", request_id }`。核可信本人和项目后返回 `{ kind: "receipt", receipt, current }` 或 `{ kind: "missing", current }`。`current` 是独立的 `{ selection, revision }`，读失败仍待核对。 |
 | `home.pages.drafts.save` | 直接新建传 `{ draft }`，追加版本传 `{ draft, page_id, expected_version, based_on? }`，输出 `{ version: HomePageVersion }`。采用分支沿第 8 节固定输入与回执，`body` 共用 `HomePageDraft`，回执同时给新草稿版本，供 `needs_approval` 使用。 |
 | `home.pages.preview`／`home.pages.files.read` | 均用 `HomePageRef`。试用返回 `{ page, page_session_id }`，文件读取返回 `{ version: HomePageVersion, files }`，`files` 带同版完整正文。 |
-| `home.pages.adopt`／`home.pages.restore` | `{ page_id, version, approved_actions, request_id, expected_revision }` → `{ selection, revision, approval }`。批准动作须是该版声明且当前可批准的精确子集。恢复仍由本人再次确认，旧批准只供比较。 |
+| `home.pages.adopt`／`home.pages.restore` | `{ page_id, version, approved_actions, request_id, expected_revision }` → `HomePageApprovalReceipt`。批准动作须是该版声明且当前可批准的精确子集。恢复仍由本人再次确认，旧批准只供比较。 |
 | `home.select` | `{ kind: "basic", request_id, expected_revision }` → `{ selection, revision, approval: null }`。第 7 节退回基础首页按采用记录的 revision 比较，写回不重做业务动作。 |
 | `home.pages.diff` | `{ page_id, from_version, to_version }` → 两版的文件新增／修改／删除、入口和动作集合差异。文字对照复用 SDK `compareTexts`，结果用于本人查看。 |
+
+`HomePageApprovalReceipt` 为 `{ operation: "adopt" | "restore", request_id, selection, revision, approval }`。`selection` 是 `{ kind: "page", page_id, version }`，`revision` 是批准与选择同一提交写下的版本凭据。原回执由首页主人在该提交内保存。相同请求重放及按键回读均返回原回执，同键改变操作、页面版本或批准集合时拒绝。每次新的批准或页面切换提交推进选择 revision，切回同一版也有新 revision。
 
 SDK 根入口 `inspectHomePageDraft(value: unknown)` 返回带字段路径的声明问题。正文形状由一份可作 §8 `body` 的 `HOME_PAGE_DRAFT_SCHEMA` 配合现有 SDK `assertMatches` 检查。复用 `packagePathProblem` 核相对路径，检查重复路径、入口唯一且是 `text/html`、允许的媒体类型，以及 64 文件、单个 1 MiB、合计 4 MiB 的实际 UTF-8 字节。闭合引用形状后调用 `parseExactActionReferences`。这一步检查文件和声明数据。保存／批准时的动作存在性、提供方、项目及当前权限由真实 owner 和动作目录核实。页面引用须显式有 `plugin` 受众，普通 `actionReachesAudience` 的 agent 转 plugin 路径不满足这一条件。文件读取不复用会截断正文的 `fileContentOf`。
 
@@ -485,7 +487,7 @@ SDK 根入口 `inspectHomePageDraft(value: unknown)` 返回带字段路径的声
 - **删项目**：场景服务在项目删除回执里登记一步（目录删除时每个项目数据主人一步，`ProjectDeletionService` 是唯一入口），清掉指向这个项目的采用记录与预览；建在个人一层的采用不受影响。
 - **主人不在了**：某一步的主人插件停用或卸载、角色被删后，`adoption.read` 把那一步标「主人已不在」；`revert`、`remove` 跳过它并如实写出，不假装撤销成功。主人再启用后，按 revision 规则照常可撤。
 - **Home 快照与恢复**：场景服务的 Home 库登记进 `homeStoreRegistry`（`apps/local-host/src/home-stores.ts`），快照与恢复带上它。
-- **页面的版本与恢复**归首页服务（第 6 节）；采用记录里的首页一步只记本项目首页从哪个换成了哪个。撤销时：采用前是基础首页，就嵌套调 `home.select@1` 换回（只收窄，不授予）；采用前是别的生成页面，换回去等于重新批准它的动作，这一步标 `needs_approval`，由本人在首页的批准界面点 `home.pages.restore@1`。
+- **页面的版本与恢复**归首页服务（第 6 节）。采用步骤沿第 6.5 节保存匹配的原批准回执及提交时 revision，用它核撤销。后续页面选择变化时仍可确认旧批准曾生效，当前状态按读回说明，撤销沿 `revision_changed` 跳过。没有匹配回执时没有撤销凭据。采用前是基础首页时以原 revision 调 `home.select@1`。采用前是别的生成页面时，撤销步骤给固定的恢复批准请求键，由本人以原 revision 直接点 `home.pages.restore@1`，续做按该键回读恢复结果。
 
 ### 7.1 P-3c 公开动作与回读
 
@@ -501,9 +503,9 @@ SDK 根入口 `inspectHomePageDraft(value: unknown)` 返回带字段路径的声
 
 `part_ids` 与 `changes` 只收唯一且存在的部分，按 `BLUEPRINT_LIMITS.parts` 限制。apply 只接受该预览已确认的部分、目标和主人选择，层不适用时明确说明。预览由主人读回 `current`，区分 `present`（值、主人来源和可用的 revision）、`missing`（确认不存在）与 `unavailable`（有原因的读取缺口）。`upgrade.parts` 每项按 `part_id` 给旧建议、新建议（缺一方时明确新增／移除）、当前值、是否保留人工修改及依赖变化，保留原采用语言。36 的角色批读能核身份、来源与 revision，实际三方正文仍须 36 的按固定版本读取。
 
-`steps` 每项带 `part_id`，状态分 `not_started`、`needs_install`、`needs_approval`、`applied`、`failed`、`pending_verification`、`skipped`。`needs_install` 带现有安装预览的 `preview_id`，`needs_approval` 带首页的 `{ page_id, version }`。`applied` 保留主人回执的 `created`／`reused`／`modified`、实际动作引用、对象及观测 revision。纯依赖已具备时只记录复用，无写回执或撤销权。`failed` 带已公开的主人错误码与说明。`skipped.reason` 区分 `not_selected`、`dependency_unmet`、`unsupported`、`scope_mismatch`、`owner_unavailable`、`revision_changed`、`reused`、`shared`、`no_revert`。只知道 revision 已变时，不归因于用户手改。读视图标明主人暂时不可用，历史回执仍保留。
+`steps` 每项带 `part_id`，状态分 `not_started`、`needs_install`、`needs_approval`、`applied`、`failed`、`pending_verification`、`skipped`。`needs_install` 带现有安装预览的 `preview_id`，`needs_approval` 带首页的 `{ page_id, version, approval_request_id }`。`applied` 保留主人回执的 `created`／`reused`／`modified`、实际动作引用、对象及观测 revision。首页步骤用原批准回执的提交 revision，当前选择变化时保留历史并标当前已变更。纯依赖已具备时只记录复用，无写回执或撤销权。`failed` 带已公开的主人错误码与说明。`skipped.reason` 区分 `not_selected`、`dependency_unmet`、`unsupported`、`scope_mismatch`、`owner_unavailable`、`revision_changed`、`reused`、`shared`、`no_revert`。只知道 revision 已变时，不归因于用户手改。读视图标明主人暂时不可用，历史回执仍保留。
 
-`UndoResult` 为 `{ operation: "revert" | "remove", request_id, steps: UndoStep[] }`。`UndoStep` 按 `state` 闭合，各分支带 `part_id`。`restored` 带经核实的 `{ action, subject, revision }`。`detached` 表示实际解除，只有场景解绑时省略主人写回执。`skipped` 带 `reason`，`needs_approval` 带 `{ page_id, version }`，`pending_verification` 带待核对的主人 `request_id`，`failed` 带主人的 `error`。动作、对象、CAS 凭据及错误复用采用步骤的合同。`adoption.read` 用 `latest_undo` 呈现当前撤销进度与结果，已恢复或解除的部分保留原采用回执供追溯。
+`UndoResult` 为 `{ operation: "revert" | "remove", request_id, steps: UndoStep[] }`。`UndoStep` 按 `state` 闭合，各分支带 `part_id`。`restored` 带经核实的 `{ action, subject, revision }`。`detached` 表示实际解除，只有场景解绑时省略主人写回执。`skipped` 带 `reason`，`needs_approval` 带 `{ page_id, version, approval_request_id }`，`pending_verification` 带待核对的主人 `request_id`，`failed` 带主人的 `error`。动作、对象、CAS 凭据及错误复用采用步骤的合同。`adoption.read` 用 `latest_undo` 呈现当前撤销进度与结果，已恢复或解除的部分保留原采用回执供追溯。
 
 后续处理器按同一可信范围和 owner 读动作合并查询。已知对象读当前值，写出结果未知则按 `<adoption_id>:<part_id>` 查主人回执。失败、超时、数量不符或返回不全仍待核对。确认未提交后按原键补写。主人只提供当前值读取时，只有已证明可返回原回执的动作才能在成功回读后按原键核对式重放。相同当前值不能证明这次新建或具备撤销权，P-3a 的当前成员读取也无法单独证明失联写的来源。Characters 沿 36 的批读及复用 CAS，同时核对成员 revision 和原件版本，复用与回执同事务更新成员 revision，使旧解除凭据失效。Blueprints 不另存一份角色共享计数。
 
@@ -576,6 +578,8 @@ SPC-C07 经公开 `services/blueprints` 与 Kernel `compileActionSchema` 验八�
 **P-4 文件与验收。** 实施用 `packages/contracts/src/services/home.ts`、`packages/plugin-sdk/src/home-page.ts` 和 `tests/home-page-contract.test.ts`。`contracts/package.json`、SDK `index.ts` 及共享 API 快照按同批顺序接入，`platform/actions` 按上表等 #1791 K0。独占文件未接公开出口时只是待接候选。现行 `apps/local-host/src/home-actions.ts` 已用 `system.home`，新八个页面动作尚无处理器，第 37 批接同一提供方。此处必要接入是公开合同、SDK 及共用声明校验，范围不含新运行服务、数据库、iframe、网关或批准流程。
 
 SPC-C06 经公开 `services/home` 和 Kernel `compileActionSchema` 验精确页面与动作版本、摘要形状、批准回读／恢复输入、身份字段拒绝和 user-only 声明。经公开 SDK 验路径穿越／重名、错误入口与类型、单文件和合计 UTF-8 字节超限、引用缺 provider 或重复。可用 `surfaceCompositionActions.compose` 公开 schema 验 `{ slot: { kind: "home" } }`，以 `/presentation` 检查真实 values 形状。没有真实页面执行入口时，以上只记合同和静态证据。
+
+SPC-C06／C07 用公开 schema 验批准请求键、按请求返回原回执、另列当前 revision 及回执缺失的形状。真实接入验 A 批准后切回基础首页，再独立批准同一页同一版。A 续做仍读 A 的原 revision，撤销不能改动后一次选择。缺少匹配回执时即使当前页相同，也不能证明 A 生效。真实写入与续做由 37／44 按已有首页主人事务和场景步骤实现。
 
 
 ### 10.1 P-3a 项目插件成员的最小接入（20-1）

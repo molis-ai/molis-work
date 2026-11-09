@@ -388,6 +388,10 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     }
     // Off the Goal stage the board cursor comes with the attention read (W4-10).
     const goalStageShown = () => (document.body.dataset.desktopSurface || "goals") === "goals";
+    // The page was drawn at its snapshot's cursor (the Goals log's end: the same journal, never past the platform's), so the
+    // first poll redraws only what came after it. Without it the first poll always redrew the board and forced the relation
+    // graph that had just loaded to load again, replacing the node that had focus.
+    if (goalData && goalData.boardCursor === undefined && typeof state.snapshot?.cursor === "number") goalData.boardCursor = state.snapshot.cursor;
     boardLifetime.poll(async signal => {
       boardVisibleSignal = signal;
       if (goalData && goalStageShown()) await refreshBoard(false, signal);

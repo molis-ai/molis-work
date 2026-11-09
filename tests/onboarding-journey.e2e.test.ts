@@ -94,10 +94,10 @@ async function reviewShot(journey: NonNullable<Awaited<ReturnType<typeof openJou
   await writeFile(join(directory, name + ".png"), Buffer.from(data, "base64"));
 }
 
-test("a new person's first run: the opening, two questions, materials, a name, and the project they made", { timeout: 180_000 }, async t => {
+test("FSS-37 a new person's first run: the opening, two questions, materials, a name, and the project they made", { timeout: 180_000 }, async t => {
   const journey = await openJourneyBrowser(t, "empty");
   if (!journey) return;
-  const { view, press, go, setFiles, evaluate, waitFor, click, navigate, origin } = journey;
+  const { view, press, go, setFiles, evaluate, waitFor, click, origin, navigate } = journey;
   const folder = await mkdtemp(join(tmpdir(), "molis-arrival-files-"));
   t.after(() => rm(folder, { recursive: true, force: true }));
   for (const name of ["首版功能范围.md", "用户访谈-0926.md", "竞品笔记.md", "设计评审纪要.txt"]) await writeFile(join(folder, name), `# ${name}\n\n${"这是一份示例材料，用来确认带入、阅读和保存的每一步。".repeat(20)}`);
@@ -120,16 +120,18 @@ test("a new person's first run: the opening, two questions, materials, a name, a
   assert.equal(await evaluate("document.querySelector('#cx-exit').textContent.trim()"), "稍后再说");
   assert.equal(await evaluate("getComputedStyle(document.querySelector('.arrival-global')).display"), "none", "only the theme switch stays in the titlebar");
   await assertLayoutClean(evaluate, "language");
-  // Choosing English reloads the page in English and the person is still on the same question.
-  await navigate(() => click(".welcome-options a[hreflang=en]"));
+  // The same document and question stay on screen while the language changes.
+  await evaluate("window.firstWelcome = document.querySelector('.welcome'); window.firstArrival = document.body");
+  await click(".welcome-options a[data-ui-language=en]");
   await waitFor("document.documentElement.lang === 'en' && document.querySelector('.welcome')?.dataset.step === 'language'");
-  assert.equal(await evaluate("document.querySelector('#ob-title').textContent"), "Language");
+  assert.deepEqual(await evaluate("[firstArrival === document.body, firstWelcome === document.querySelector('.welcome'), document.querySelector('#ob-title').textContent, document.querySelector('.ob-greeting strong').textContent]"), [true, true, "Language", "Hello."]);
   assert.equal(await evaluate("document.querySelector('#cx-exit').textContent.trim()"), "Not now");
   assert.deepEqual(await evaluate("document.body.innerText.replace('简体中文', '').match(/\\p{Script=Han}/gu)"), null, "nothing is left in Chinese but the language's own name");
   await assertLayoutClean(evaluate, "language, English");
-  await navigate(() => click(".welcome-options a[hreflang=zh]"));
+  await click(".welcome-options a[data-ui-language=zh]");
   await waitFor("document.documentElement.lang.startsWith('zh') && document.querySelector('.welcome')?.dataset.step === 'language'");
-  await press("Enter");
+  assert.equal(await evaluate("document.activeElement?.dataset.uiLanguage"), "zh");
+  await click("[data-action=intro-next]");
   await waitFor("document.querySelector('.welcome')?.dataset.step === 'appearance'");
   await click("[data-theme-option=dark]");
   assert.equal(await evaluate("document.documentElement.dataset.resolvedTheme"), "dark", "a theme takes hold the moment it is chosen");

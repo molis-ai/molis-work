@@ -64,11 +64,11 @@ export const ONBOARDING_MODEL_SLIDE_CLIENT = String.raw`
     const offer = host.startOffer();
     const proceed = draw.primary(offer.label, 'start', { disabled: offer.disabled || saving });
     return {
-      kind: 'onboard', view: 'model', step: '模型',
+      kind: 'onboard', view: 'model', step: 'model',
       left: draw.question(globalThis.t.text("workbench.onboarding-model-slide.connect-text-model"), globalThis.t.text("workbench.onboarding-model-slide.originals-kept-device-connect-write-summary-later")),
       right: right(),
       bar: {
-        start: draw.exitButton() + draw.stepsBar('模型'),
+        start: draw.exitButton() + draw.stepsBar('model'),
         center: draw.barStatus({ glyph: 'key', title: globalThis.t.text("workbench.onboarding-model-slide.text-model"), caption: globalThis.t.text(saving ? "workbench.onboarding-model-slide.checking-connection-then-saving" : "workbench.onboarding-model-slide.originals-kept-device-connect-write-summary-later") }),
         end: draft
           ? draw.secondary("common.control.back", 'model-back', { icon: 'back' }) + draw.secondary(offer.label, 'start', { disabled: offer.disabled || saving }) + draw.primary("workbench.onboarding-model-slide.save-configuration", 'model-save', { disabled: saving })

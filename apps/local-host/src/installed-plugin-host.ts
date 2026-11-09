@@ -169,7 +169,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
   const withdraw = (pluginId: string) => { exposed.get(pluginId)?.dispose(); exposed.delete(pluginId); exposureRevision++; };
   const expose = installedPluginExposure({ actions, platform, exposed, recoveryErrors, recordFor, closed: () => closed, withdraw,
     changed: () => { exposureRevision++; }, catalog });
-  const { definition, manifestOf, forget: forgetDefinitions } = installedDefinitions({ catalog, capabilityFor, network, assertInstalled,
+  const { definition, manifestOf, forget: forgetDefinitions } = installedDefinitions({ home: homeDirectory, catalog, capabilityFor, network, assertInstalled,
     holdAgentDefinitions: (definition, installId) => registerPluginAgentDefinitions(pluginHomeFor(homeDirectory), definition, installId),
     earlier: release => release.packaged ? [] : releases.versions(release.buildId).map(item => item.version).filter(version => version < release.version) });
   const promptScope = (installationId: string) => JSON.stringify([actions.project_id, projectId, installationId]);

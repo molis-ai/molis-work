@@ -1,4 +1,4 @@
-import type { PluginLocalesDeclaration } from './ui-text.js';
+import type { PluginLocalesDeclaration, UiFormatTool, UiSayTool, UiTextTool } from './ui-text.js';
 
 /** JSON-only contract shared by generated plugins and the trusted host. */
 export type SandboxJson = null | boolean | number | string | SandboxJson[] | { [key: string]: SandboxJson };
@@ -288,6 +288,10 @@ export type SandboxSqlRow = { [column: string]: SandboxSqlValue };
 export interface SandboxSqlStatement { sql: string; parameters?: SandboxSqlValue[] }
 
 export interface SandboxSdk {
+  /** The same text tools as the public SDK, supplied by the sandbox's trusted bootstrap. */
+  readonly t: UiTextTool;
+  readonly say: UiSayTool;
+  readonly format: UiFormatTool;
   storage: {
     get(key: string): Promise<SandboxJson>;
     set(key: string, value: SandboxJson): Promise<void>;
@@ -432,7 +436,8 @@ export type SandboxWorkerMessage =
   | { type: 'error'; id: string; code: string; message: string }
   | { type: 'sdk'; id: string; callId: string; method: SandboxSdkMethod; args: SandboxJson[] };
 export type SandboxHostMessage =
-  | { type: 'call'; id: string; operationId: string; input: SandboxJson }
+  | { type: 'call'; id: string; operationId: string; input: SandboxJson; locale: string | null }
+  | { type: 'locale-pack'; part: string }
   | { type: 'sdk-result'; id: string; value: SandboxJson }
   | { type: 'sdk-error'; id: string; code: string; message: string };
 

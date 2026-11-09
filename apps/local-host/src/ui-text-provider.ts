@@ -1,7 +1,8 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { UiResourceRow, UiTextProvider } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { UiLocalePack, UiResourceRow, UiTextProvider } from "@molis-ai/molis-work-contracts/platform/ui";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { BASELINE_REGISTRY } from "@molis-ai/molis-work-design-system";
 import { pluginLocaleReader, type PluginLocaleReader } from "@molis-ai/molis-work-plugin-runtime";
 import { installUiText } from "@molis-ai/molis-work-plugin-sdk/ui";
@@ -107,4 +108,24 @@ export function installHostUiText(): void {
     platformText.forEach(registerPlatformText);
   }
   installUiText(provider);
+}
+
+/** Each pack keeps its own grammar. Supply the selected words plus only the default words that fill missing keys. */
+export function projectTextPacks(reader: PluginTextReader, locale: string, declared: boolean, sharedOnly = false): UiLocalePack[] {
+  const requested = reader.pack(locale), baseline = locale === reader.default ? requested : reader.pack(reader.default);
+  if (!baseline || (declared && !requested)) throw new ActionError("actions.unavailable", "界面语言包不可用，请重试");
+  const messages = (pack: UiLocalePack, excluding?: UiLocalePack) => Object.fromEntries(Object.entries(pack.messages)
+    .filter(([key]) => (!sharedOnly || key.startsWith("common.")) && (!excluding || !Object.hasOwn(excluding.messages, key))));
+  if (!requested || baseline === requested) return [{ ...baseline, messages: messages(baseline) }];
+  const fallback = messages(baseline, requested);
+  return [...(Object.keys(fallback).length ? [{ ...baseline, messages: fallback }] : []), { ...requested, messages: messages(requested) }];
+}
+
+/** An installed worker can see its own release and the public common words. The trusted broker supplies its locale. */
+export function sandboxTextPacks(own: PluginLocaleReader | null | undefined): (locale: string) => readonly UiLocalePack[] {
+  return locale => {
+    installHostUiText();
+    const shared = pluginTextForOwner("workbench");
+    return [...(own ? projectTextPacks(own, locale, own.available.includes(locale)) : []), ...(shared ? projectTextPacks(shared, locale, true, true) : [])];
+  };
 }

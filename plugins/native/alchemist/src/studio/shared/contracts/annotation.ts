@@ -26,6 +26,4 @@ export const listAnnotationsQuerySchema = z
   })
   .strict();
 
-export const annotationParamsSchema = z.object({ id: z.string().min(1) }).strict();
-
 export type AnnotationDto = Annotation;

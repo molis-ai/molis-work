@@ -1,5 +1,3 @@
-import { z } from "zod";
-
 export interface IdeaBriefContent {
   sourceLabel: string;
   title: string;
@@ -36,8 +34,3 @@ export interface KeepIdeaResponse {
   idea: { id: string; directionId: string; currentVersion: number };
   version: { revision: { version: number }; sourceCardId: string };
 }
-
-export const ideaCardParamsSchema = z.object({ id: z.string().min(1) }).strict();
-export const ideaVersionParamsSchema = z
-  .object({ id: z.string().min(1), version: z.coerce.number().int().positive() })
-  .strict();

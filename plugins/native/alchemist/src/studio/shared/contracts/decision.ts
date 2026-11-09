@@ -3,10 +3,6 @@ import type { Decision, DecisionOutcome, DecisionSourceKind } from "../../domain
 import type { IdeaLifecycle } from "../../domain/ideas/idea.js";
 import type { LensViewStatus } from "./research.js";
 
-export const decisionParamsSchema = z
-  .object({ id: z.string().min(1), version: z.coerce.number().int().positive() })
-  .strict();
-
 export const createDecisionRequestSchema = z
   .object({
     outcome: z.enum(["build", "hold", "drop"]),

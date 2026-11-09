@@ -10,10 +10,12 @@ import { positionMenuKey } from "../project-position-menu.js";
 type Rendered = { render: string; display: SurfaceHomeDisplay; controls: FramedSurfaceControl[] };
 type Activated = { preparation?: string; label?: string; consequence?: string[]; choices?: FramedSurfaceControl[]; description?: string;
   result?: { kind?: string; row?: SurfaceHomeRowDisplay; label?: string; receipt?: { title: string } } };
+const slotNotes = { unavailable: "暂时读不到", completed: "已完成", unknown: "到原处核对执行结果", changed: "这个对象已变化，请重新读取" };
+type SlotNote = { kind: keyof typeof slotNotes; title?: string };
 type Entry = { id: number; slot_id: string; subjects: unknown; box: FrameBox | null; slot?: string; area?: FramedArea;
   read?: AbortController; operation?: AbortController; render?: Rendered; ready?: boolean; press?: string; preparation?: string;
   corrections: Map<string, SurfaceDisplayCorrection>; correcting?: SurfaceDisplayCorrection; correctionNote?: string; recovery?: SurfaceDisplayCorrection["subject"];
-  peek?: SurfaceHomeRowDisplay; choices?: FramedSurfaceControl[]; description?: string; note?: string; commandSource?: string; focusAfter?: { original: HTMLElement; selector: string; fallback?: string } };
+  peek?: SurfaceHomeRowDisplay; choices?: FramedSurfaceControl[]; description?: string; note?: SlotNote; commandSource?: string; focusAfter?: { original: HTMLElement; selector: string; fallback?: string } };
 
 const renderers = () => {
   type WindowWithRenderer = Window & { molisWorkHomeView?: typeof SurfaceRenderer };
@@ -42,6 +44,7 @@ function drawSurfaceSlot(entry: Entry, say: FrameHost["translate"], unsettled: R
     : sdk.renderPositionGroup(render.display, 0, new Map(), labels, { controls: entry.corrections, recovery: render.display.object_restore_available ? entry.recovery : undefined }).html);
   const button = (kind: string, label: string, primary = false) => '<button class="mw-btn mw-btn--' + (primary ? "primary" : "secondary") +
     '" type="button" data-framed-control="' + kind + '">' + escapeHtml(say(label)) + "</button>";
+  const note = entry.note && (entry.note.title ?? slotNotes[entry.note.kind]);
   const template = area.surface.ownerDocument.createElement("template");
   template.innerHTML = '<div class="surface-slot-body"><div data-framed-area-head class="surface-slot-edge"></div><div data-framed-scroll>' +
     (entry.description ? '<p>' + escapeHtml(entry.description) + '</p>' : '') + (content || "") + '</div><div data-framed-area-foot class="surface-slot-edge">' +
@@ -50,9 +53,9 @@ function drawSurfaceSlot(entry: Entry, say: FrameHost["translate"], unsettled: R
       : confirmation ? '<span>' + escapeHtml(say(confirmation.label)) + '</span>' +
       confirmation.consequence.map(word => '<small>' + escapeHtml(sdk.presentationWord(word)) + '</small>').join("") + button("cancel", "取消") + button("confirm", "确认", true)
       : (entry.peek || entry.choices ? button("back", "返回") : "") +
-        (unknown ? '<span role="status">' + escapeHtml(say("到原处核对执行结果")) + '</span>'
+        (unknown ? '<span role="status">' + escapeHtml(say(slotNotes.unknown)) + '</span>'
           : entry.correctionNote ? '<span role="status">' + escapeHtml(sdk.surfaceCorrectionWord(entry.correctionNote)) + '</span>'
-          : entry.note || entry.choices?.length === 0 ? '<span role="status">' + escapeHtml(say(entry.note ?? "暂无可用操作")) + '</span>' : "")) + '</div></div>';
+          : note || entry.choices?.length === 0 ? '<span role="status">' + escapeHtml(say(note ?? "暂无可用操作")) + '</span>' : "")) + '</div></div>';
   for (const button of template.content.querySelectorAll<HTMLElement>("[data-presentation-action]")) {
     const index = labels.findIndex(control => control.key === button.dataset.presentationAction);
     const control = labels[index];
@@ -121,11 +124,13 @@ export function pageSurfaceSlots(port: MessagePort, scope: FrameScope, areas: Pa
       if (!shown(entry) || entry.read !== request || request.signal.aborted) return;
       entry.render = result;
       const empty = !result.display.display.rows.length && !result.display.object_restore_available && Array.isArray(entry.subjects) && entry.subjects.length;
-      if (empty && entry.note !== "已完成" && entry.note !== "到原处核对执行结果") entry.note = "暂时读不到";
-      else if (!empty && entry.note === "暂时读不到") entry.note = undefined;
+      const kind = entry.note?.kind;
+      if (kind === "completed" || kind === "unknown") entry.note = { kind };
+      else if (empty) entry.note = { kind: "unavailable" };
+      else if (kind === "unavailable") entry.note = undefined;
       draw(entry);
     } catch {
-      if (entry.read === request && !request.signal.aborted && current(entry)) { entry.render = undefined; entry.note = "暂时读不到"; draw(entry); }
+      if (entry.read === request && !request.signal.aborted && current(entry)) { entry.render = undefined; entry.note = { kind: "unavailable" }; draw(entry); }
     } finally { if (entry.read === request) entry.read = undefined; }
   }
   async function click(entry: Entry, event: MouseEvent) {
@@ -177,7 +182,7 @@ export function pageSurfaceSlots(port: MessagePort, scope: FrameScope, areas: Pa
       else if (result.result?.kind === "peek") { entry.peek = result.result.row; draw(entry); }
       else {
         if (id === "confirm") { entry.choices = undefined; entry.description = undefined; }
-        entry.note = id === "confirm" ? result.result?.receipt?.title ?? "已完成" : undefined; draw(entry);
+        entry.note = id === "confirm" ? { kind: "completed", title: result.result?.receipt?.title } : undefined; draw(entry);
         if (id === "confirm") host.positionChanged?.();
       }
     } catch (error) {
@@ -187,7 +192,7 @@ export function pageSurfaceSlots(port: MessagePort, scope: FrameScope, areas: Pa
         entry.preparation = undefined;
         entry.choices = undefined; entry.description = undefined;
         if (correction) entry.correctionNote = "failed";
-        else entry.note = id === "confirm" ? "到原处核对执行结果" : "这个对象已变化，请重新读取";
+        else entry.note = { kind: id === "confirm" ? "unknown" : "changed" };
         draw(entry);
       }
     } finally {

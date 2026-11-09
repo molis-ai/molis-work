@@ -52,7 +52,7 @@ const hasRelease = (manifest: PluginManifest, record: PluginInstanceRecord) => m
 
 type ScopedCheck = { active: boolean; projectId: string | null; identity: string } & (
   { system: readonly ActionReference[] }
-  | { runtime: object; ownsMoved(): boolean }
+  | { runtime: object; ownsMoved(): boolean; ownsRestored(): boolean }
 );
 const checks = new AsyncLocalStorage<ScopedCheck>();
 
@@ -91,16 +91,16 @@ function installedActions(catalog: SurfaceInstallCatalog, candidate: PluginManif
 }
 
 /** Runtime and signed-package confirmation ask the same complete declaration directory. */
-export function assertSurfacePresentation(candidate: PluginManifest, catalog: SurfaceInstallCatalog, runtime?: object, rollback = false): (() => void) | undefined {
+export function assertSurfacePresentation(candidate: PluginManifest, catalog: SurfaceInstallCatalog, runtime?: object, rollback = false) {
   if (candidate.presentation === undefined) return;
   const seen = checks.getStore();
   const current = seen?.active && seen.projectId === catalog.projectId && seen.identity === releaseIdentity(candidate) ? seen : undefined;
   if (rollback && current && "runtime" in current && current.runtime === runtime) {
-    const check = () => {
-      if (!current.active || !current.ownsMoved()) throw new ActionError("actions.provider_replaced", "原安装已变化，不能恢复旧发行物");
+    const check = (owned: () => boolean) => {
+      if (!current.active || !owned()) throw new ActionError("actions.provider_replaced", "原安装已变化，不能恢复旧发行物");
     };
-    check();
-    return check;
+    check(current.ownsMoved);
+    return { beforeCommit: () => check(current.ownsMoved), assertRestored: () => check(current.ownsRestored) };
   }
   const system = current && "system" in current ? current.system : catalog.registry?.presentationSystemActions?.() ?? [];
   const scope = catalog.projectId === null ? "home" : "project";
@@ -122,8 +122,8 @@ export function withSurfacePresentationCheck<Result>(candidate: PluginManifest, 
 
 /** Only the exact edition captured before this failed version switch, while that switch still owns the installation. */
 export function withSurfaceRestoration<Result>(candidate: PluginManifest, original: PluginInstanceRecord, projectId: string | null,
-  runtime: object, ownsMoved: () => boolean, operation: () => Promise<Result>): Promise<Result> {
+  runtime: object, ownership: { ownsMoved(): boolean; ownsRestored(): boolean }, operation: () => Promise<Result>): Promise<Result> {
   if (candidate.presentation === undefined) return operation();
-  if (!hasRelease(candidate, original) || !ownsMoved()) throw new ActionError("actions.provider_replaced", "原安装已变化，不能恢复旧发行物");
-  return scopedCheck({ active: true, projectId, identity: releaseIdentity(candidate), runtime, ownsMoved }, operation);
+  if (!hasRelease(candidate, original) || !ownership.ownsMoved()) throw new ActionError("actions.provider_replaced", "原安装已变化，不能恢复旧发行物");
+  return scopedCheck({ active: true, projectId, identity: releaseIdentity(candidate), runtime, ...ownership }, operation);
 }

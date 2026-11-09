@@ -135,8 +135,8 @@ export class PluginRuntime implements PluginRuntimeApi {
     if (current && current.execution !== (input.definition.execution ?? "host")) throw pluginErrors.definition_conflict("不能改变已安装插件的执行信任边界");
     if (current && current.state !== "uninstalled" && current.publisher_trust !== trust.level) throw pluginErrors.definition_conflict("不能改变已安装插件的安装信任等级");
     const digest = pluginManifestDigest(manifest);
-    assertPresentationAdmitted(manifest, this.options.assertPresentation, { retained: current });
     const follow = recordToFollow(current, manifest, digest, host);
+    assertPresentationAdmitted(manifest, this.options.assertPresentation, { retained: follow ? undefined : current });
     if (!follow && current && current.version === manifest.version && current.manifest_digest !== digest) {
       const compatibleSameVersion = current.state !== "uninstalled"
         && (manifest.upgrade_compatibility?.compatible_from_versions ?? []).includes(current.version);
@@ -249,7 +249,7 @@ export class PluginRuntime implements PluginRuntimeApi {
         throw pluginErrors.definition_conflict("升级目标必须属于同一插件和发布者签名");
       }
       assertStartIdentity(current, input.definition, this.repository.list(), this.options.hostIds, this.options.scope, this.options.inProcess);
-      const assertRestoring = assertPresentationAdmitted(target, this.options.assertPresentation, { rollback: rollbackCode });
+      const restoration = assertPresentationAdmitted(target, this.options.assertPresentation, { rollback: rollbackCode });
       if (current.version === target.version && current.manifest_digest !== pluginManifestDigest(target)) {
         throw pluginErrors.definition_conflict("同一版本的 Manifest 指纹不同，不能升级");
       }
@@ -276,7 +276,7 @@ export class PluginRuntime implements PluginRuntimeApi {
       }
 
       if (current.state === "running") await this.stopOnce(input.install_id);
-      assertRestoring?.();
+      restoration?.beforeCommit();
       const stopped = requireInstall(this.repository, input.install_id);
       const oldDefinition = this.definitions.get(definitionKey(stopped));
       let privateDataSnapshot: unknown;
@@ -308,7 +308,7 @@ export class PluginRuntime implements PluginRuntimeApi {
           }
         }
 
-        assertRestoring?.();
+        restoration?.beforeCommit();
         input.assertCurrent?.();
         this.register(input.definition);
 
@@ -328,10 +328,11 @@ export class PluginRuntime implements PluginRuntimeApi {
           uninstalled_at: null,
         };
         this.repository.save(upgraded);
-        const receipt = current.state === "disabled" ? this.receipt("start", upgraded, false) : await this.startOnce(input.install_id, input.assertCurrent);
+        const receipt = current.state === "disabled" ? this.receipt("start", upgraded, false)
+          : await this.startOnce(input.install_id, restoration?.assertRestored ?? input.assertCurrent);
         return { ...receipt, operation: rollbackCode ? "rollback" : "upgrade", replayed: false };
       } catch (error) {
-        if (assertRestoring && error instanceof ActionError && error.code === "actions.provider_replaced") throw error;
+        if (restoration && error instanceof ActionError && error.code === "actions.provider_replaced") throw error;
         const failed = this.repository.get(input.install_id);
         let dataRollbackError: unknown;
         if (hasPrivateDataSnapshot) {
@@ -428,6 +429,10 @@ export class PluginRuntime implements PluginRuntimeApi {
       assertStartIdentity(current, definition, this.repository.list(), this.options.hostIds, this.options.scope, this.options.inProcess);
       if (current.state === "running" && this.hasLiveInstance(installId)) return this.receipt("start", current, true);
       const handle = await outsidePluginAction(() => this.executor.start(definition, this.activateContext(current, definition)));
+      startedContext = this.liveContext(installId);
+      assertCurrent?.();
+      // Redemption owns cleanup if it rejects the contribution.
+      startedContext = null;
       await this.redeem(definition, current, handle.contribution);
       startedContext = this.liveContext(installId);
       assertCurrent?.();
@@ -445,7 +450,7 @@ export class PluginRuntime implements PluginRuntimeApi {
       const cancelled = !isIdentityFailure(error) && this.contexts.get(installId)?.revoked() === true;
       this.revokeContext(installId);
       try { assertCurrent?.(); } catch (interrupted) {
-        // Redemption failures already stop their instance. A later cancellation releases a successful one before restoring an older edition.
+        // Release a successful start if its caller or the restoring scope expired.
         try { if (startedContext) await outsidePluginAction(() => this.executor.stop(definition, startedContext!)); }
         catch { /* Cleanup cannot replace the original cancellation. */ }
         throw interrupted;

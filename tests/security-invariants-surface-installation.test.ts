@@ -3,14 +3,16 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
+import { setTimeout as delay } from "node:timers/promises";
 import { HomeConsentLedger, PluginInstallService, SandboxPackageStore, pluginInstallActions, readSandboxIntegrationPackage, readSandboxPackage } from "@molis-ai/molis-work-app-local-host";
 import { ActionError, defineSubjectContextAction, type ActionCallContext, type ActionClient, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PLACEMENT_READ_PERMISSION, PLACEMENT_WRITE_PERMISSION, placementGoalActions, type PlacementCreateRequest } from "@molis-ai/molis-work-contracts/services/placement";
 import { SANDBOX_PACKAGE_FILES, type PluginDefinition, type PluginPackageBundle } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { definePresentationOverviewAction, definePresentationValuesAction } from "@molis-ai/molis-work-contracts/platform/presentation";
 import type { SandboxPluginContract } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
-import { HOST_BUILD_TRUST, MemoryPluginConsentLedger, MemoryPluginRuntimeRepository, PluginRuntime, signPluginPackage, verifyPluginPackageSignature } from "@molis-ai/molis-work-plugin-runtime";
+import { HOST_BUILD_TRUST, MemoryPluginConsentLedger, MemoryPluginRuntimeRepository, PluginRuntime, SqlitePluginRuntimeRepository, signPluginPackage, verifyPluginPackageSignature } from "@molis-ai/molis-work-plugin-runtime";
 import { sandboxActionId, sandboxPackageBuildId, sandboxPluginManifest } from "@molis-ai/molis-work-plugin-sdk";
+import { presentationCatalog, validatePresentationDeclaration } from "@molis-ai/molis-work-plugin-sdk/presentation";
 import { integrationPackage } from "./fixtures/home-upgrade-source.js";
 import { APPROVED, fixture, homePackage, mac, person, ref } from "./fixtures/home-sandbox.js";
 import { PACKAGE_PLUGIN_ID, newPublisher, signedPackage } from "./fixtures/sandbox-package.js";
@@ -20,7 +22,7 @@ import { openTestHome, serveTestHost } from "./fixtures/test-home.js";
 const dependencyId = "io.molis.work.surface.source";
 const actionId = (pluginId: string, publisher: string, localId: string) => sandboxActionId(sandboxPackageBuildId(pluginId, publisher), localId);
 
-function surfacePackage(publisher = newPublisher(), options: { pluginId?: string; version?: string; dependency?: string; writable?: boolean; listId?: string } = {}): PluginPackageBundle {
+function surfacePackage(publisher = newPublisher(), options: { pluginId?: string; version?: string; dependency?: string; writable?: boolean; listId?: string; startupDelay?: number } = {}): PluginPackageBundle {
   return signedPackage(publisher, (files, manifest) => {
     const contract = JSON.parse(files[SANDBOX_PACKAGE_FILES.contract]!) as SandboxPluginContract;
     const subject = { kind: "note", id: "n1" };
@@ -44,7 +46,8 @@ function surfacePackage(publisher = newPublisher(), options: { pluginId?: string
       publisher: manifest.publisher, contract, runtime, presentation: false }));
     if (options.version) manifest.upgrade_compatibility = { compatible_from_versions: ["1.0.0"] };
     files[SANDBOX_PACKAGE_FILES.contract] = JSON.stringify(contract);
-    files[SANDBOX_PACKAGE_FILES.entrypoint] = `export const operations = {
+    const wait = options.startupDelay ? `await new Promise(resolve => setTimeout(resolve, ${options.startupDelay}));\n` : "";
+    files[SANDBOX_PACKAGE_FILES.entrypoint] = `${wait}export const operations = {
       '${listId}': async () => [],
       'notes.add': async (input, sdk) => {${options.writable ? "await sdk.storage.set('note', input.text);" : ""} return true;},
       'notes.values': async () => ({ items: [] }),
@@ -259,6 +262,45 @@ test("S-surface-composition SCS-16 recovery restores the exact signed edition af
   assert.equal(home.installation(PACKAGE_PLUGIN_ID)?.version, "1.1.0", "an ordinary rollback has no failed-switch authority");
 });
 
+test("S-surface-composition SCS-16 closing the Home while a restored signed edition starts does not activate it", mac, async t => {
+  const h = await fixture(t), source = newPublisher(), owner = newPublisher();
+  await h.install(homePackage(source, { pluginId: dependencyId }));
+  await h.install(surfacePackage(owner, { dependency: actionId(dependencyId, source.identity, "notes.list") + "@1", startupDelay: 500 }));
+  const home = h.host.homePlugins!, platform = await home.ready();
+  const original = home.installation(PACKAGE_PLUGIN_ID);
+  assert.ok(original);
+  await home.packageAction(dependencyId, "uninstall");
+  const client = h.projectClient(), caller = person(), next = surfacePackage(owner, { version: "1.1.0" });
+  const preview = await previewOf(client, caller, next);
+  let lateCancellation = false, activated = 0;
+  const observe = platform.supervisor.observeActivation(pluginId => {
+    if (pluginId === PACKAGE_PLUGIN_ID && home.installation(pluginId)?.version === "1.0.0") activated++;
+  });
+  t.after(observe);
+  const pending = confirm(client, { ...caller, assert_authority_current: () => {
+    const record = home.installation(PACKAGE_PLUGIN_ID);
+    if (record?.version === "1.1.0" && record.state === "running") {
+      lateCancellation = true;
+      throw new ActionError("actions.cancelled", "The new edition finished after the original call was cancelled");
+    }
+  } }, preview);
+  const refused = assert.rejects(pending);
+  const waiting = async () => {
+    const signal = AbortSignal.any([t.signal, AbortSignal.timeout(10_000)]);
+    for (;;) {
+      const record = home.installation(PACKAGE_PLUGIN_ID);
+      if (lateCancellation && record?.version === original.version && record.state === "installed") return;
+      await delay(5, undefined, { signal });
+    }
+  };
+  await Promise.race([waiting(), refused.then(() => assert.fail("the original edition did not wait in startup"))]);
+  await Promise.all([home.close(), refused]);
+  assert.equal(activated, 0, "a successful sandbox ready after close cannot publish a restored activation");
+  assert.equal(platform.runtime.contribution(original.install_id), null);
+  const persisted = h.store(db => new SqlitePluginRuntimeRepository(db).get(original.install_id));
+  assert.deepEqual([persisted?.version, persisted?.installation_generation, persisted?.state], ["1.0.0", original.installation_generation, "installed"]);
+});
+
 test("S-surface-composition SCS-16 Placement can call into the project while its signed confirmation owns that project's line", mac, async t => {
   const h = await openTestHome(t), project = await h.createProject("Concurrent placement", ["pages"]);
   const client = h.host.actionClient(project.reference), caller = person(project.project_id);
@@ -320,6 +362,30 @@ test("S-surface-composition SCS-16 the Runtime refuses a presented definition wi
     installInProject: async () => assert.fail("unadmitted project installation"), installInHome: async () => assert.fail("unadmitted Home installation"),
     installed: async () => [], control: async () => assert.fail("unadmitted control") });
   await assert.rejects(service.preview({ bundle }, { project_id: "project", actor_id: "person" }), { code: "plugin.declaration_invalid" });
+});
+
+test("S-surface-composition SCS-16 following the same host edition to repair required grants must recheck its references", () => {
+  const dependency = { capability_id: "surface.retained-source", version: 1 };
+  const bundle = surfacePackage(newPublisher(), { dependency: dependency.capability_id + "@1" });
+  const manifest = { ...readSandboxPackage(bundle.payload).manifest, publisher: { publisher_id: "build", signature: "surface-follow-fixture" } };
+  const definition: PluginDefinition = { manifest, start: async () => ({ kind: "app" }) };
+  const repository = new MemoryPluginRuntimeRepository();
+  let sources = [dependency];
+  const runtime = new PluginRuntime(repository, undefined, { scope: "home", hostIds: new Set([definition.manifest.plugin_id]), assertPresentation: manifest => {
+    const catalog = presentationCatalog([...(manifest.actions ?? []), ...sources], true);
+    const problems = validatePresentationDeclaration(manifest, catalog);
+    if (problems.length) throw new ActionError("plugin.declaration_invalid", problems.join(" "));
+    return undefined;
+  } });
+  const install = () => runtime.install({ definition, deployment: "local", trust: HOST_BUILD_TRUST }).install;
+  const exact = install();
+  assert.ok(exact.grants.includes("storage:private"));
+  // Retained record from before this required grant was repaired. Its version, digest and installation identity match.
+  const before = { ...exact, grants: exact.grants.filter(permission => permission !== "storage:private") };
+  repository.save(before);
+  sources = [];
+  assert.throws(install, { code: "plugin.declaration_invalid" });
+  assert.deepEqual(repository.get(exact.install_id), before);
 });
 
 test("S-sandbox-presentation a signed integration cannot carry presentation, read protocols or external action metadata", () => {

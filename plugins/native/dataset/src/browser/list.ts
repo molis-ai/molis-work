@@ -73,6 +73,7 @@ export function installList(page: DatasetPage): void {
   };
 
   page.remember = (record, redraw) => {
+    page.scope.assertCurrent();
     s.selected = record;
     const index = s.records.findIndex((item) => item.id === record.id);
     if (index >= 0) s.records[index] = record;
@@ -105,6 +106,7 @@ export function installList(page: DatasetPage): void {
   page.loadList = async () => {
     const seq = ++s.listSeq;
     const payload = await page.request<{ datasets?: Dataset[]; ai_available?: boolean; ai_unavailable_reason?: string }>("GET", page.api);
+    page.scope.assertCurrent();
     if (seq !== s.listSeq) return;
     s.records = payload.datasets || [];
     page.renderList();
@@ -127,12 +129,12 @@ export function installList(page: DatasetPage): void {
     retry.textContent = L("dataset.list.retry");
     retry.addEventListener("click", () => {
       retry.disabled = true;
-      void page.loadList().then(() => box.remove(), (next: unknown) => {
+      void page.loadList().then(() => { if (page.scope.alive) box.remove(); }, (next: unknown) => {
         if (!page.scope.alive) return;
         retry.disabled = false;
         hint.textContent = (next as Error | null)?.message || L("dataset.list.failed-hint");
       });
-    });
+    }, { signal: page.scope.signal });
     el.rowsEl.replaceChildren(box);
   };
 }

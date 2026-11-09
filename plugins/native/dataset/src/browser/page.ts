@@ -62,18 +62,25 @@ export function createPage(host: DatasetHost, scope: Scope, bench: HTMLElement):
       node.classList.add("is-arriving");
       return node;
     },
-    placed(detail) { window.dispatchEvent(new CustomEvent("molis:placement-result", { detail })); },
+    placed(detail) {
+      if (scope.alive) window.dispatchEvent(new CustomEvent("molis:placement-result", { detail }));
+    },
     ask(message, okLabel) {
       const box = el.confirmBox;
+      if (!scope.alive || !box) return Promise.resolve(false);
       return new Promise<boolean>((resolve) => {
-        if (!box) { resolve(false); return; }
         required(box, "[data-confirm-text]").textContent = message;
         required(box, "[data-confirm-ok]").textContent = okLabel;
         box.returnValue = "cancel";
         const onClose = () => {
-          box.removeEventListener("close", onClose);
-          resolve(box.returnValue === "ok");
+          resolve(scope.alive && box.returnValue === "ok");
+          release();
         };
+        const release = scope.own(() => {
+          box.removeEventListener("close", onClose);
+          if (box.open) box.close("cancel");
+          resolve(false);
+        });
         box.addEventListener("close", onClose);
         box.showModal();
       });

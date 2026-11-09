@@ -63,6 +63,7 @@
 | Goal 事件历史、成果的固定版本 | 现行历史记录和固定版本功能，不是旧格式 | Goals 与成果事实 owner；按对应功能和留存合同处理，不因防腐清理删除用户历史 |
 | 中文原文作为翻译键（2026-10-25 决定） | 现行翻译键机制；插件词典由插件在 Manifest 声明，平台同样加载内置与第三方插件，不在工作台导入插件词典 | [工作台「界面文字」](../../apps/workbench/README.md#界面文字翻译检查与一个文件怎样迁到稳定键)及各插件词典 owner；稳定键接续按该处规则，不新增旧键读取兜底 |
 | 库与带版本文件的升级链（`SqliteBaseline.upgrades`、`VersionedFile.upgrades`、`PluginDatabaseDeclaration.upgrades`、升级记录、升级快照） | 统一起点之后，让 `n → n+1` 的结构变更不再要求重建 Home。只在持存储主人锁的升级过程里执行（安装器自己的 `config/installation.json`、`release.json` 在安装器读它们时升，这时还没有宿主），读写路径只认现行版本，不做读时兼容、不做回写回退。比程序新的库只拒绝。起点：第 02 批的统一起点；段的跑法和范围检查对所有插件同一份，唯一的暂时例外是装上的插件写了段在安装时拒绝，移除条件是 U4（用户 2026-11-06 定） | `packages/storage` 负责机制，各库主人负责自己的段。某段在最早支持的金样都用不到时删段；机制随产品保留，不是过渡期 |
+| 第 15 批组合纠正表的项目库 2→3 升级（用户 2026-11-08 批准） | 沿用上一行升级链，新建空 `surface_corrections`；保留原项目数据和 1→2 段，不新增读取兼容。补存着 v2 的独立金样，在隔离 Home 验 1→2→3 与失败保留原数据；不升级真实 Home | 纠正事实归 `horizontal/surfaces`，项目库基线由宿主装配。该段随最早支持金样的规则保留；具体方案见[组合服务 §14.1](../../specs/surface-composition/spec.md#141-s-1-当前开工检查2026-11-08) |
 
 第 02 批 N30/N36/N37 的 Feed 清理以[本片需求](../../specs/post-anticorruption-roadmap/reference/batches/02.md#origin-reset-preflight)为准：证据正文只用 `feed/evidence/` 和 `system:feed:evidence-content-key:v1`，搜索意图只用 `feed-intent-v1`；环境口令的派生盐为 `molis-work-secretstore-v1`。删除第二密钥、恢复目录和命名空间绕行；旧盐不参与解密，缺钥或认证失败保留错误与原密文，不补副本、不就地迁移。该构建只在隔离 Home 验证，真实 Home 的切换仍要求原可恢复备份和重建窗口；代码合入不表示现场维护完成。
 

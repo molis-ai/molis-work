@@ -922,17 +922,17 @@ apps/workbench/
 
 | 时机 | 谁 | 做什么 |
 | --- | --- | --- |
-| 会话打开 | `openHostSession`、Home 执行器 | `options.localePacks?.(definition)` 有内容就 `registerPluginText(plugin_id, reader)`，拿到一个撤回函数 |
-| 会话释放（停用、撤权、升级前的旧会话） | 同一处的 `dispose` | 调撤回函数。按计数：同一插件在几个项目里各有一次会话，都释放才删。两个项目装了不同版本时，先查最新登记的，没有的键再查旧的：词是显示，不是权限，残余是显示新版的译文；同一 `plugin_id`、不同发布者的残余登在 BL-586 下 |
+| 会话打开 | `openHostSession`、Home 执行器 | `options.localePacks?.(definition)` 有内容就按该会话的原 Runtime activation 对象登记 reader，拿到一个撤回函数；不以可重复的安装 ID 或进程内的 owner 代替来源 |
+| 会话释放（停用、撤权、升级前的旧会话） | 同一处的 `dispose` | 撤回这一个 activation 的 reader，不影响其他会话。第 16 批替换 A 起点的「最新登记优先」：不同 Home、项目、版本或发布者不得相互补词，准确来源没有键时走既有 fallback；停止后的旧回调也不能借到重新启动的 reader |
 | 卸载 | 卸载先停，走上一行 | 不另写 |
 | 升级 | 新会话登记新的读取器，旧的随旧会话撤回 | 所以插件升级后不重启进程也不会留旧词 |
-| 内容包（08，第 6.2 节） | 没有会话：安装记录启用时登记，停用时撤回 | 和 08 第 3 节「启用时登记方法」同一个时机 |
+| 内容包（08，第 6.2 节） | 没有会话：安装记录启用时登记，停用时撤回 | 和 08 第 3 节「启用时登记方法」同一个时机；读取由宿主按当前 Home 已启用的准确发布记录选包，不按进程内同名 owner 选最近登记 |
 
 `PluginHostExecutorOptions.localePacks` 是可选的。A 段只有 `runPluginDevelopment` 传（用 `loadDevelopmentLocalePacks`）；第 16 批沙箱包和内置插件各传各的，只有能调 `t` 的进 `t` 的索引（第 5.2 节）。今天的 `registerPluginMessages` 不一样：它在 `plugin-platform.ts:249` 只登记，生产代码里没人删；新路径不沿用。
 
 现有插件 `options.localePacks` 不给，不调 `t`，所以行为不变，一个请求也不多。
 
-**插件页面画别人的对象。** 05② §7 写了 `renderPresentationForm` 给「插件在自己页面上画别人交来的对象」；可是 iframe 只带自己和 `common.*` 的词，读不出别人的 `label`。两条路：
+**插件页面画别人的对象。** 05② §7 写了 `renderPresentationForm` 给「插件在自己页面上画别人交来的对象」；可是 iframe 只带自己和 `common.*` 的词，读不出别人的 `label`。平台代画时由宿主沿可信目录或挂载绑定选择对象提供方的准确 reader，不能使用当前调用者的 reader；`OwnedTextRef` 不增加调用方自报的身份字段。两条路：
 
 | 路 | 怎样做 | 代价 |
 | --- | --- | --- |

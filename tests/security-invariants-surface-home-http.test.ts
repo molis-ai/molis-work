@@ -145,3 +145,39 @@ test("SCS-07 SCS-08 Catalog hiding, actual member removal and an actual failed s
   assert.equal(findCard(next, f.crashing.id)?.state, "unreadable");
   assert.equal(findCard(next, "io.molis.work.coding"), undefined);
 });
+
+test("SCS-11 a committed homepage command keeps its fact if the original authority changes before the reply", { timeout: 60_000 }, async t => {
+  const f = await fixture(t);
+  await f.warm();
+  const start = findCard(await f.read(), f.dual.id)?.plugin_card?.start?.[0];
+  assert.ok(start?.kind === "invoke");
+  const { records, storage } = await f.host.withProject(f.project.reference, runtime => ({
+    records: new SqlitePluginRuntimeRepository(runtime.store.db), storage: new SqlitePluginPrivateStorage(runtime.store.db),
+  }));
+  const original = records.get(start.installation.install_id);
+  assert.ok(original?.grants.includes(f.dual.read));
+  f.dual.inside(async caller => {
+    await caller.beforeEffect();
+    f.dual.services.project!.storage!.set("committed-click", "once");
+  });
+  const log = f.host.callLog!;
+  const record = log.record;
+  let committed = 0;
+  log.record = function (caller, action, outcome) {
+    record.call(this, caller, action, outcome);
+    // The real Kernel has finished the command and accepted its output, before the waiting HTTP entry can deliver it.
+    if (action.capability_id === f.dual.actions.project.capability_id && outcome.ok) {
+      committed++;
+      records.save({ ...original, grants: original.grants.filter(grant => grant !== f.dual.read) });
+    }
+  };
+  try {
+    const response = await json<{ code: string; result?: unknown }>(await f.click(f.dual.id, start), 500);
+    assert.equal(response.code, "actions.outcome_unknown");
+    assert.equal(response.result, undefined);
+    assert.equal(committed, 1);
+    assert.deepEqual(storage.snapshotInstallationData(original.install_id), [{ item_key: "committed-click", item_value: "once" }]);
+    const executions = log.list(f.project.project_id).filter(call => call.capability_id === f.dual.actions.project.capability_id);
+    assert.equal(executions.reduce((count, call) => count + (call.count ?? 1), 0), 1, "the entry never retries an already committed command");
+  } finally { log.record = record; records.save(original); }
+});

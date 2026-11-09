@@ -89,6 +89,11 @@ export interface MolisWorkLocalHostOptions {
    * Runtime admits exactly those objects to the process (S-75 ⑥). No production code passes `pluginFixtures` (RAC-995).
    */
   pluginFixtures?: { project?: readonly PluginFixture[]; home?: readonly PluginFixture[]; installed?: ReadonlySet<PluginDefinition> };
+  /**
+   * The folder of the packages the release ships uninstalled. Left out, the release's own (`bundledPackagesDirectory`, beside the Host's
+   * code); only a test gives another, and no production code passes one (S-bundled-packages).
+   */
+  bundledPluginsDirectory?: string;
   sceneAvailability?: LocalHostOptions<MolisWorkProjectRuntime>["sceneAvailability"];
   actionAvailability?: LocalHostOptions<MolisWorkProjectRuntime>["actionAvailability"];
   onRuntimeOpen?: (reference: LocalHostProjectReference) => void;

@@ -25,6 +25,7 @@ import { installedPluginViews, jobViews, permissionViews, type InstalledPluginEn
 import type { PermissionSwitchTarget } from './plugin-installed-view.js';
 import { sandboxRequestedPermissions } from '@molis-ai/molis-work-plugin-sdk';
 import { validateSandboxHomeSchema } from './plugin-sandbox-home-library.js';
+import { readBundledPackages } from './bundled-packages.js';
 
 /** A preview waits this long for its confirmation, and at most this many wait at once. */
 const PREVIEW_TTL_MS = 15 * 60_000;
@@ -55,8 +56,33 @@ export interface PluginInstallPorts {
   homeRegrant?(installId: string, permission: string, granted: boolean, expected?: PermissionSwitchTarget): Promise<void>;
   /** Switches a signed package installed in the Home off or on, or takes it off (BL-715); answers its state afterwards. A Host without a Home leaves it out. */
   homeControl?(pluginId: string, action: 'disable' | 'enable' | 'uninstall', input: { keep_data: boolean }): Promise<string>;
+  /** The release's folder of the packages it ships uninstalled (`bundledPackagesDirectory`); a Host without one ships none. */
+  bundledDirectory?: string;
   now?(): string;
 }
+
+/**
+ * A package this release ships uninstalled, as the person's list shows it (`plugins.bundled.list@1`): who it is, what it says it is,
+ * and who signed it, with whether the person has pinned or taken back that publisher. Installing it is `preview` with `bundled`.
+ */
+export interface BundledPluginView {
+  plugin_id: string;
+  version: string;
+  name: string;
+  name_en: string | null;
+  summary: string | null;
+  runtime_scope: 'home' | 'project';
+  publisher: { publisher_id: string; key_id: string; pinned_label: string | null; revoked: boolean };
+}
+
+/** The packages this release ships, and each file in their folder the Host would not take, with why. */
+export interface BundledPluginList {
+  plugins: BundledPluginView[];
+  refused: Array<{ file: string; code: string; message: string }>;
+}
+
+/** What a preview checks: a signed package handed in whole, or one this release ships, named by its id and the version the person saw. */
+export type PluginInstallPreviewInput = { bundle: unknown } | { bundled: { plugin_id: string; version: string } };
 
 export interface PluginInstallPreviewResult {
   preview_id: string;
@@ -130,9 +156,37 @@ export class PluginInstallService {
 
   private pinOf(keyId: string): PluginPublisherPin | undefined { return this.ports.ledger.publishers().find(pin => pin.key_id === keyId); }
 
+  /** The packages this release ships, read and verified now; listing them installs nothing and registers nothing. */
+  async bundled(): Promise<BundledPluginList> {
+    const { packages, refused } = this.ports.bundledDirectory ? await readBundledPackages(this.ports.bundledDirectory) : { packages: [], refused: [] };
+    const pins = this.ports.ledger.publishers();
+    return {
+      plugins: packages.map(({ manifest, key_id }) => {
+        const pin = pins.find(item => item.key_id === key_id);
+        return { plugin_id: manifest.plugin_id, version: manifest.version, name: manifest.name, name_en: manifest.name_en ?? null, summary: manifest.summary ?? null,
+          runtime_scope: scopeOf(manifest), publisher: { publisher_id: manifest.publisher.publisher_id, key_id, pinned_label: pin?.label ?? null, revoked: Boolean(pin?.revoked_at) } };
+      }),
+      refused: refused.map(({ file, error }) => ({ file, code: error.code, message: error.message })),
+    };
+  }
+
+  /**
+   * The bundle a bundled package is, as its file lies now: the one the person saw in the list (`version`), or the refusal its file
+   * raises. It is then previewed as any package is, signature and all.
+   */
+  private async bundledBundle(reference: { plugin_id: string; version: string }): Promise<unknown> {
+    if (!this.ports.bundledDirectory) throw pluginErrors.definition_missing('这个安装包没有随包带上的插件');
+    const { packages, refused } = await readBundledPackages(this.ports.bundledDirectory);
+    const found = packages.find(item => item.manifest.plugin_id === reference.plugin_id);
+    if (!found) throw refused.find(item => item.file === `${reference.plugin_id}.json`)?.error ?? pluginErrors.definition_missing(`这个安装包没有随包带上 ${reference.plugin_id}`);
+    const { version } = found.manifest;
+    if (version !== reference.version) throw pluginErrors.definition_missing(`随包带上的 ${reference.plugin_id} 是 ${version}，不是 ${reference.version}：请重新打开列表`);
+    return found.bundle;
+  }
+
   /** Checks a package and says what installing it means. Writes nothing durable: the preview is held in memory for the confirmation. */
-  async preview(input: { bundle: unknown }, who: { project_id: string; actor_id: string }): Promise<PluginInstallPreviewResult> {
-    const { bundle, key_id, public_key_spki_base64 } = verifyPluginPackageSignature(input.bundle);
+  async preview(input: PluginInstallPreviewInput, who: { project_id: string; actor_id: string }): Promise<PluginInstallPreviewResult> {
+    const { bundle, key_id, public_key_spki_base64 } = verifyPluginPackageSignature('bundled' in input ? await this.bundledBundle(input.bundled) : input.bundle);
     const pkg = readKeptPackage(bundle.payload);
     const pin = this.pinOf(key_id);
     if (pin?.revoked_at) throw pluginErrors.publisher_revoked('这个发布者的固定已被撤销，它的包不能再安装');

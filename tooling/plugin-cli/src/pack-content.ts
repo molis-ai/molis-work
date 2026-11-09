@@ -1,7 +1,7 @@
 import { constants } from 'node:fs';
 import { lstat, open, readdir, realpath } from 'node:fs/promises';
 import { join } from 'node:path';
-import { pluginErrors, type PluginPackageBundle } from '@molis-ai/molis-work-contracts/platform/plugin';
+import { pluginErrors, type PluginPackageBundle, type PluginPackagePayload, type PluginTranslationsDeclaration } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { SKILL_LIMITS } from '@molis-ai/molis-work-contracts/platform/plugin-agent';
 import { contentPackagePayload, skillFromFolder } from '@molis-ai/molis-work-plugin-sdk';
 import { parsePluginPackage } from '@molis-ai/molis-work-plugin-runtime';
@@ -19,6 +19,10 @@ export interface PackContentOptions {
   publisherKeyId: string;
   scope?: 'project' | 'home';
   upgradesFrom?: string[];
+  /** The package's English name, its one-line summary, and the English of its words; a bundled package's options give them (`pack-bundled`). */
+  nameEn?: string;
+  summary?: string;
+  translations?: PluginTranslationsDeclaration;
 }
 
 const invalid = (message: string): never => { throw pluginErrors.package_invalid(message); };
@@ -47,6 +51,13 @@ async function folderFiles(root: string, budget: { files: number; bytes: number 
 
 /** Packs each Skill folder under `directory`; one that is not a Skill (no SKILL.md, a file out of place, a frontmatter the reading refuses) refuses the package. */
 export async function packContentProject(directory: string, output: string, options: PackContentOptions): Promise<PluginPackageBundle> {
+  const bundle = parsePluginPackage({ payload: await contentPayloadFromFolder(directory, options), signature: null, publisher_key: null });
+  await writePluginPackageFile(output, bundle);
+  return bundle;
+}
+
+/** The unsigned payload of the content package the Skill folders under `directory` make, written by nothing yet. */
+export async function contentPayloadFromFolder(directory: string, options: PackContentOptions): Promise<PluginPackagePayload> {
   const root = await realpath(directory), budget = { files: 0, bytes: 0 }, skills = [];
   for (const name of (await readdir(root)).sort()) {
     const path = join(root, name), stat = await lstat(path);
@@ -55,12 +66,11 @@ export async function packContentProject(directory: string, output: string, opti
     skills.push(skillFromFolder(await folderFiles(path, budget)));
   }
   if (!skills.length) invalid('目录里没有技能：每个技能是一个带 SKILL.md 的子目录');
-  const payload = contentPackagePayload({ plugin_id: options.pluginId, version: options.version, name: options.name,
+  return contentPackagePayload({ plugin_id: options.pluginId, version: options.version, name: options.name,
+    ...(options.nameEn ? { name_en: options.nameEn } : {}), ...(options.summary ? { summary: options.summary } : {}),
+    ...(options.translations ? { translations: options.translations } : {}),
     publisher: { publisher_id: options.publisherId, signature: options.publisherKeyId }, scope: options.scope ?? 'project',
     ...(options.upgradesFrom ? { compatible_from: options.upgradesFrom } : {}), skills });
-  const bundle = parsePluginPackage({ payload, signature: null, publisher_key: null });
-  await writePluginPackageFile(output, bundle);
-  return bundle;
 }
 
 /** The publishing choices `pack-content` takes; the Manifest is written from them and from the Skills, never taken from the author. */

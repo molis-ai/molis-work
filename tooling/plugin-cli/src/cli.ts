@@ -4,7 +4,8 @@ import { createPluginProject } from "./create.js";
 import { packPluginProject } from "./package-files.js";
 import { packSandboxProject, sandboxPackOptions } from "./pack-sandbox.js";
 import { contentPackOptions, packContentProject } from "./pack-content.js";
-import { readPublisherIdentity, signPluginPackageFile, verifyPluginPackageFile } from "./package-signing.js";
+import { keyFileSigner, readPublisherIdentity, signPluginPackageFile, verifyPluginPackageFile } from "./package-signing.js";
+import { packBundledContent } from "./pack-bundled.js";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDevelopmentResult } from "@molis-ai/molis-work-contracts/platform/tooling";
 
@@ -15,6 +16,7 @@ const COMMANDS: readonly { line: string; host?: true }[] = [
   { line: "pack <directory> <output.json>" },
   { line: "pack-sandbox <directory> <output.json> --name <name> --version <version> --publisher-id <id> --publisher-key-id <fingerprint> [--scope project|home] [--icon <icon>] [--compatible-from <versions>] [--agent <JSON>] [--methods <JSON>]" },
   { line: "pack-content <skills-directory> <output.json> --plugin-id <id> --name <name> --version <version> --publisher-id <id> --publisher-key-id <fingerprint> [--scope project|home] [--compatible-from <versions>]" },
+  { line: "pack-bundled <pack-directory> <output-directory> --publisher-key <private-key.pem>" },
   { line: "identity <public-key.pem>" },
   { line: "sign <input.json> <private-key.pem> <output.json>" },
   { line: "verify <input.json> <trusted-public-key.pem>" },
@@ -70,6 +72,18 @@ export async function runPluginCli(args: readonly string[], output: PluginCliOut
       const problems = error && typeof error === "object" && "details" in error ? (error.details as { problems?: unknown } | undefined)?.problems : undefined;
       output.stderr(`${JSON.stringify({ packed: false, code: error && typeof error === "object" && "code" in error ? error.code : "plugin.package_invalid",
         message: error instanceof Error ? error.message : String(error), ...(problems ? { problems } : {}) })}\n`);
+      return 1;
+    }
+  }
+  if (args[0] === "pack-bundled") {
+    try {
+      if (!args[1] || !args[2] || (args.length !== 3 && (args.length !== 5 || args[3] !== "--publisher-key"))) throw new Error("pack-bundled 需要包目录、输出目录和 --publisher-key <私钥>");
+      const { bundle, file } = await packBundledContent(args[1], args[2], args[4] ? await keyFileSigner(args[4]) : undefined);
+      output.stdout(`${JSON.stringify({ packed: true, plugin_id: bundle.payload.manifest.plugin_id, version: bundle.payload.manifest.version, publisher_key_id: bundle.payload.manifest.publisher.signature, output: file, signed: true })}\n`);
+      return 0;
+    } catch (error) {
+      output.stderr(`${JSON.stringify({ packed: false, code: error && typeof error === "object" && "code" in error ? error.code : "plugin.package_invalid",
+        message: error instanceof Error ? error.message : String(error) })}\n`);
       return 1;
     }
   }

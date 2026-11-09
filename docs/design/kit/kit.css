@@ -6862,4 +6862,235 @@ body.immersive-workbench:not([data-pane-embedded]) .assistant-activity-raw>p{mar
 [data-overflow-fade]{scroll-padding-inline:28px}[data-overflow-fade][data-more]{--mw-fs:0px;--mw-fe:0px;--mw-fd:to right;mask-image:linear-gradient(var(--mw-fd),#0000 0,rgb(0 0 0/.05) calc(var(--mw-fs)*.15),rgb(0 0 0/.15) calc(var(--mw-fs)*.3),rgb(0 0 0/.3) calc(var(--mw-fs)*.45),rgb(0 0 0/.5) calc(var(--mw-fs)*.6),rgb(0 0 0/.7) calc(var(--mw-fs)*.75),rgb(0 0 0/.85) calc(var(--mw-fs)*.87),#000 var(--mw-fs),#000 calc(100% - var(--mw-fe)),rgb(0 0 0/.85) calc(100% - var(--mw-fe)*.87),rgb(0 0 0/.7) calc(100% - var(--mw-fe)*.75),rgb(0 0 0/.5) calc(100% - var(--mw-fe)*.6),rgb(0 0 0/.3) calc(100% - var(--mw-fe)*.45),rgb(0 0 0/.15) calc(100% - var(--mw-fe)*.3),rgb(0 0 0/.05) calc(100% - var(--mw-fe)*.15),#0000 100%)}[data-overflow-fade][data-more]:dir(rtl){--mw-fd:to left}[data-overflow-fade]:is([data-more=start],[data-more=both]){--mw-fs:28px}[data-overflow-fade]:is([data-more=end],[data-more=both]){--mw-fe:28px}@media (forced-colors:active){[data-overflow-fade][data-more]{mask-image:none}}
 .mw-num{display:inline-flex;flex-direction:column;font-variant-numeric:tabular-nums;white-space:nowrap}.mw-num[data-align=end]{align-items:flex-end}.mw-num::after{content:attr(data-num-ghost);height:0;overflow:hidden;visibility:hidden}
  :is(.pf-group,.pf-step)::details-content{display:grid;grid-template-rows:0fr;overflow:clip;transition:grid-template-rows var(--dur-move) var(--ease-quint),content-visibility var(--dur-move) allow-discrete} :is(.pf-group,.pf-step)[open]::details-content{grid-template-rows:1fr} :is(.pf-group__body,.pf-step__body){min-height:0;overflow:clip}@media (prefers-reduced-motion:reduce){ :is(.pf-group,.pf-step)::details-content, :is(.pf-group,.pf-step)>*{transition:none}} .pf-group{font-size:12px;line-height:1.6;color:var(--muted)} :is(.pf-group,.pf-step)>summary{width:fit-content;max-width:100%;margin-left:-4px;border-radius:6px;list-style:none;cursor:pointer} :is(.pf-group,.pf-step)>summary::-webkit-details-marker{display:none} .pf-group>summary{padding:2px 4px} .pf-step>summary{padding:0 4px} .pf-group>summary::before, .pf-step>summary::after{content:"›";flex:none;transition:transform var(--dur-hover) var(--ease-quint)} .pf-group>summary::before{display:inline-block;width:12px} .pf-group[open]>summary::before, .pf-step[open]>summary::after{transform:rotate(90deg)} :is(.pf-group,.pf-step)>summary:hover{background:var(--nav-hover)} .pf-group>summary:hover{color:var(--ink-soft)} :is(.pf-group,.pf-step)>summary:focus-visible{outline:var(--focus-stroke);outline-offset:var(--focus-stroke-inset,-1px)} .pf-group[data-state="failed"]>summary{color:var(--danger)} .pf-group[data-state="unknown"]>summary{color:var(--tone-attention)} .pf-group__body>*{padding:2px 0 0 12px}
+
+  .mw-items { display: grid; grid-template-columns: minmax(0, 1fr); width: min(480px, 100%); margin: 0; padding: 6px; list-style: none; border: 1px solid var(--sk-card-edge, var(--line)); border-radius: var(--sk-r-card, 12px); background: var(--sk-raised, var(--paper)); box-shadow: var(--sk-card-shadow, none); }
+  .mw-item { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 6px 6px 6px 10px; border-radius: var(--sk-r-item, 8px); transition: background-color var(--dur-hover, 130ms) var(--ease-quint); }
+  .mw-item:is(:hover, :focus-within) { background: var(--nav-hover); }
+  /* An item is one line: its name, then where it lives in muted words, cut first when room runs out. */
+  .mw-item > span:nth-child(2) { display: flex; align-items: baseline; gap: 8px; flex: 1 1 auto; min-width: 0; }
+  .mw-item strong { flex: 0 1 auto; min-width: 0; overflow: hidden; color: var(--ink); font-size: 13px; font-weight: var(--weight-control, 500); text-overflow: ellipsis; white-space: nowrap; }
+  .mw-item small { flex: 1 1 0; min-width: 0; margin: 0; overflow: hidden; color: var(--muted); font-size: 12px; line-height: 1.5; text-overflow: ellipsis; white-space: nowrap; }
+  .mw-item__end { display: flex; align-items: center; gap: 8px; flex: none; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+
+  .mw-mark { display: inline-grid; place-items: center; width: 32px; height: 32px; flex: none; border-radius: var(--sk-r-slot, 8px); background: var(--sk-raised, var(--paper)); box-shadow: inset 0 0 0 1px var(--line); color: var(--ink-soft); }
+  .mw-mark svg { width: 16px; height: 16px; }
+
+  /* 1 · An item row whose words stack (name, what it is for, its marks) with the three-way choice under them, not at the row's end:
+     the choice is the row's one control, and under the words it keeps the same place whatever the name's length. The name wraps
+     instead of being cut: a finger has no hover to read a cut name by. */
+  .mw-item.mw-item--stack { align-items: flex-start; flex-wrap: wrap; row-gap: 0; padding-block: 10px; }
+  .mw-item--stack > .mw-mark { margin-top: 2px; }
+  .mw-item.mw-item--stack > span:nth-child(2) { display: grid; gap: 4px; flex: 1 1 0; align-items: start; }
+  .mw-item--stack > span:nth-child(2) > small { white-space: normal; text-wrap: pretty; }
+  .mw-item.mw-item--stack > span:nth-child(2) > strong { overflow: visible; white-space: normal; text-overflow: clip; overflow-wrap: break-word; line-height: 1.45; }
+  .mw-item--stack[data-off] strong { color: var(--muted); }
+  /* The choice's own row in the item, indented to the words where there is room. */
+  .mw-item > .mw-item__under { display: flex; flex: 1 0 100%; align-items: center; flex-wrap: wrap; gap: 8px; min-width: 0; margin-top: 8px; padding-left: 44px; }
+  .mw-item__under > .mw-alert { flex: 1 1 100%; }
+  .mw-item__under .mw-toggle { white-space: nowrap; }
+
+  /* 2 · A fold inside an item row: indented to the words (the 32px mark and the row's 12px gap), its summary a quiet 13px action
+     instead of the standalone fold's 12px of room above and below. Its readable name carries the item's name. */
+  .mw-item > .mw-item__more { flex: 1 0 100%; min-width: 0; padding: 0 0 0 44px; }
+  .mw-item__more > summary { padding: 4px 0; color: var(--muted); font-size: 13px; }
+  .mw-item__more > summary:hover { color: var(--ink-soft); }
+  .mw-item__more > summary:focus-visible { outline: var(--focus-stroke); outline-offset: 2px; border-radius: 4px; }
+  .mw-item__more .mw-collapsible__body { padding: 4px 0 6px; }
+  .mw-facts { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; margin: 0; max-width: 640px; font-size: 13px; line-height: 1.55; }
+  .mw-facts dt { color: var(--muted); font-size: 12px; }
+  .mw-facts dd { min-width: 0; margin: 0 0 8px; color: var(--ink); overflow-wrap: anywhere; }
+  .mw-facts dd:last-child { margin-bottom: 0; }
+  .mw-facts code { font-size: 12px; }
+  .mw-facts ul { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+  .mw-facts li { display: flex; flex-wrap: wrap; gap: 2px 10px; }
+  .mw-facts li > span { color: var(--muted); font-size: 12px; }
+  .mw-facts blockquote { margin: 0; padding-left: 10px; border-left: 2px solid var(--line); color: var(--ink-soft); }
+
+  /* 4 · Buttons inside an alert: under its words, so the next step reads as the answer to what the alert says. */
+  .mw-alert__problems { display: grid; gap: 2px; margin: 4px 0 0; padding-left: 18px; color: var(--ink-soft); }
+  .mw-alert__problems code { overflow-wrap: anywhere; }
+
+  /* 5 · A link beside a status mark: one paragraph that starts with the mark, so the mark, its reason and the link share a line
+     while they fit and wrap as words when they do not. The link's padding reaches a finger without taking line room. */
+  .mw-status-line { margin: 0; min-width: 0; color: var(--ink-soft); font-size: 12px; line-height: 20px; text-wrap: pretty; }
+  .mw-status-line > .mw-status { margin-right: 6px; vertical-align: middle; }
+  .mw-status-line > .mw-btn--link { --reach: 6px; min-height: 0; margin-left: 6px; padding-block: var(--reach); margin-block: calc(-1 * var(--reach)); font-size: 13px; line-height: 20px; vertical-align: middle; }
+
+  /* 3 · List and detail: the list on the left keeps each entry a list item (a screen reader says "3 of 5") and a real button fills
+     it; the detail on the right is everything about one entry. Where the room is narrow it is one side at a time. */
+  .mw-list-detail { container: mw-list-detail / inline-size; min-width: 0; }
+  .mw-list-detail__body { display: grid; grid-template-columns: minmax(280px, 360px) minmax(0, 1fr); gap: 20px; align-items: start; min-width: 0; }
+  .mw-list-detail__list { min-width: 0; }
+  .mw-list-detail__list > .mw-items { width: 100%; }
+  .mw-item.mw-item--pick { min-height: 0; padding: 0; }
+  .mw-item--pick:is(:hover, :focus-within) { background: transparent; }
+  .mw-item__pick { appearance: none; display: flex; align-items: center; gap: 12px; width: 100%; min-width: 0; min-height: 44px; margin: 0; padding: 6px 8px 6px 10px; border: 0; border-radius: var(--sk-r-item, 8px); background: transparent; color: inherit; font: inherit; text-align: start; cursor: pointer; transition: background-color var(--dur-hover) var(--ease-quint); }
+  .mw-item__pick:hover { background: var(--nav-hover); }
+  .mw-item__pick[aria-current="true"] { background: var(--nav-active); }
+  .mw-item__pick:active:not(:disabled) { background: var(--nav-press); }
+  .mw-item__pick:focus-visible { outline: var(--focus-stroke); outline-offset: -2px; }
+  .mw-item__pick > span:nth-child(2) { display: grid; gap: 1px; flex: 1 1 0; min-width: 0; }
+  /* The name wraps as it is; the pack it lives in takes one line, cut where room runs out, its whole name on hover. */
+  .mw-item__pick > span:nth-child(2) > strong { overflow: visible; white-space: normal; overflow-wrap: break-word; line-height: 1.4; }
+  .mw-item__pick > span:nth-child(2) > small { flex: none; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .mw-item__pick > .mw-item__end { color: inherit; }
+  .mw-list-detail__detail { display: grid; gap: 14px; align-content: start; min-width: 0; padding: 4px 4px 4px 20px; border-left: 1px solid var(--line); }
+  .mw-list-detail__detail[hidden] { display: none; }
+  /* Only when another entry is chosen; the first view and a reload show the detail at once. */
+  .mw-list-detail__detail.is-entering { animation: craft-rise var(--dur-move) var(--ease-quint); }
+  .mw-list-detail__detail > header { display: grid; gap: 6px; }
+  .mw-list-detail__detail h3 { margin: 0; color: var(--ink); font-size: 20px; font-weight: var(--weight-title, 600); line-height: 1.4; overflow-wrap: anywhere; }
+  .mw-list-detail__detail h3:focus-visible { outline: var(--focus-stroke); outline-offset: 2px; border-radius: 4px; }
+  .mw-list-detail__detail[data-off] h3 { color: var(--muted); }
+  .mw-list-detail__detail > header > p { margin: 0; max-width: 640px; color: var(--ink-soft); font-size: 13px; line-height: 1.55; }
+  /* The radios fade by their own .42; their words go muted, as the title does, without a second opacity. */
+  .mw-list-detail__detail .mw-radio-group:disabled .mw-check-row { color: var(--muted); }
+  .mw-list-detail__used { margin: 0; color: var(--muted); font-size: 12px; }
+  .mw-list-detail__detail > .mw-list-detail__back { display: none; justify-self: start; }
+  @container mw-list-detail (max-width: 640px) {
+    .mw-list-detail__body { grid-template-columns: minmax(0, 1fr); }
+    .mw-list-detail__detail { padding: 0; border-left: 0; }
+    .mw-list-detail:not([data-detail]) .mw-list-detail__detail { display: none; }
+    .mw-list-detail[data-detail] .mw-list-detail__list { display: none; }
+    .mw-list-detail__detail > .mw-list-detail__back { display: inline-flex; }
+  }
+  /* A phone's list keeps its room for the names: the glyph, the same for every entry, gives way. */
+  @container mw-list-detail (max-width: 480px) {
+    .mw-item__pick > .mw-mark { display: none; }
+    /* Only here may the status word be cut (its whole word on hover, and in the detail one tap away). */
+    .mw-item__pick > .mw-item__end { min-width: 0; max-width: 45%; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .mw-list-detail__detail.is-entering { animation: none; }
+    .mw-item__pick { transition: none; }
+  }
+  /* A phone or a finger: each of these is a 44px target, the link by its padding (it sits in a sentence). */
+  @media (max-width: 600px), (pointer: coarse) {
+    /* On a phone the choice takes the row from the glyph's edge and its three settings share it equally, so a longer word in
+       another language narrows the others instead of running past the row. */
+    .mw-item > .mw-item__under { padding-left: 0; }
+    .mw-item__under > .mw-toggle-group { display: flex; flex: 1 1 100%; min-width: 0; }
+    .mw-item__under .mw-toggle { flex: 1 1 0; min-width: 0; min-height: 44px; padding-inline: 6px; }
+    .mw-item__more > summary { min-height: 44px; padding-block: 0; }
+    .mw-status-line > .mw-btn--link { --reach: 12px; }
+    .mw-alert__actions .mw-btn, .mw-list-detail__back { min-height: 44px; }
+  }
+
+  .mw-catalog :is([data-primitive="item-choice"], [data-primitive="item-details"], [data-primitive="alert-actions"], [data-primitive="status-link"]) .mw-catalog__specimens { grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); align-items: start; }
+  .mw-catalog :is([data-primitive="item-choice"], [data-primitive="item-details"]) .mw-items { width: 100%; }
+  .mw-catalog [data-primitive="list-detail"] .mw-catalog__specimens { grid-template-columns: minmax(0, 1fr); }
+  .mw-catalog [data-primitive="list-detail"] .mw-catalog__row { display: block; }
+  .mw-catalog [data-list-detail-narrow] { width: min(390px, 100%); padding: 12px; border-radius: var(--sk-r-item, 8px); box-shadow: inset 0 0 0 1px var(--line); }
+  .mw-catalog [data-primitive="status-link"] .mw-catalog__row { display: grid; gap: 10px; justify-items: start; }
+
+
+  /* 1 · State and next steps: the status line (08's), an optional note, then a row of buttons; one of them may open a menu anchored
+     under it (a mw-menu in the top layer, so no scrolling box clips it; placed by the anchored-menu client). */
+  .mw-now { display: grid; gap: 10px; min-width: 0; padding: 12px 14px; border-radius: var(--r-card, 12px); background: var(--surface-soft); }
+  .mw-now > .mw-status-line { color: var(--ink-soft); font-size: 13px; line-height: 20px; }
+  .mw-now__note { margin: 0; max-width: 640px; color: var(--muted); font-size: 12px; line-height: 1.55; }
+  .mw-now__actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-width: 0; }
+  .mw-now__actions:empty { display: none; }
+  .mw-anchored-menu[popover] { position: fixed; inset: auto; margin: 0; overflow-y: auto; width: 320px; max-width: calc(100vw - 32px); }
+
+  /* 2 · An item group: a parent row (choosable, with where it applies) and, indented under it, its own entries. */
+  .mw-item-groups { container: mw-item-groups / inline-size; display: grid; gap: 8px; min-width: 0; margin: 0; padding: 0; list-style: none; }
+  .mw-item-group { display: grid; min-width: 0; padding: 6px; border-radius: var(--r-card, 12px); background: var(--paper); box-shadow: var(--lift-1); }
+  .mw-item-group__head { appearance: none; display: flex; align-items: flex-start; gap: 12px; width: 100%; min-width: 0; min-height: 44px; margin: 0; padding: 8px 8px 8px 10px; border: 0; border-radius: var(--sk-r-item, 8px); background: transparent; color: inherit; font: inherit; text-align: start; cursor: pointer; transition: background-color var(--dur-hover) var(--ease-quint); }
+  .mw-item-group__head:hover { background: var(--nav-hover); }
+  .mw-item-group__head[aria-current="true"] { background: var(--nav-active); }
+  .mw-item-group__head:active { background: var(--nav-press); }
+  .mw-item-group__head:focus-visible { outline: var(--focus-stroke); outline-offset: -2px; }
+  .mw-item-group__text { display: grid; gap: 2px; flex: 1 1 auto; min-width: 0; }
+  .mw-item-group__text strong { color: var(--ink); font-size: 13px; font-weight: var(--weight-title, 600); line-height: 1.4; overflow-wrap: break-word; }
+  .mw-item-group__text small { color: var(--muted); font-size: 12px; line-height: 1.45; }
+  .mw-item-group__text .mw-item-group__where { color: var(--ink-soft); }
+  .mw-item-group__head > .mw-item__end { margin-top: 4px; }
+  .mw-item-group__children { display: grid; gap: 4px; min-width: 0; margin: 2px 0 0 54px; padding: 8px 0 2px; border-top: 1px solid var(--line); }
+  .mw-item-group__label { padding: 0 4px; color: var(--faint); font-size: 11px; font-weight: var(--weight-control, 500); }
+  .mw-item-group__children > .mw-items { width: 100%; padding: 0; background: transparent; box-shadow: none; }
+  .mw-item-group__empty { margin: 0; padding: 4px; color: var(--muted); font-size: 12px; }
+  @container mw-item-groups (max-width: 360px) { .mw-item-group__children { margin-left: 0; } }
+
+  /* 3 · Compact cells: each a button with a name, a code name and one tag; two columns where the room is narrow. */
+  .mw-cells { container: mw-cells / inline-size; min-width: 0; }
+  .mw-cells > ul { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr)); gap: 6px; margin: 0; padding: 0; list-style: none; }
+  @container mw-cells (max-width: 480px) {
+    .mw-cells > ul { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    /* Two narrow columns: the tag goes under the name, so the name keeps the cell's width. */
+    .mw-cell { flex-wrap: wrap; row-gap: 4px; padding-block: 8px; }
+    .mw-cell__name { flex-basis: 100%; }
+  }
+  .mw-cell { appearance: none; display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0; min-height: 44px; margin: 0; padding: 6px 10px; border: 0; border-radius: var(--r-row, 10px); background: var(--paper); box-shadow: inset 0 0 0 1px var(--line); color: inherit; font: inherit; text-align: start; cursor: pointer; transition: background-color var(--dur-hover) var(--ease-quint); }
+  .mw-cell:hover { background: var(--nav-hover); }
+  .mw-cell[aria-current="true"] { background: var(--nav-active); }
+  .mw-cell:active { background: var(--nav-press); }
+  .mw-cell:focus-visible { outline: var(--focus-stroke); outline-offset: -2px; }
+  .mw-cell__name { display: grid; flex: 1 1 auto; min-width: 0; }
+  .mw-cell__name > :is(strong, code) { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .mw-cell__name > strong { color: var(--ink); font-size: 13px; font-weight: var(--weight-control, 500); }
+  .mw-cell__name > code { color: var(--muted); font-size: 11px; }
+  .mw-cell > .mw-badge { flex: none; white-space: nowrap; }
+
+  /* 4 · List and detail, third level: back to the entry it came from (the same button as 08's __back), then the path. */
+  .mw-list-detail__trail { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; min-width: 0; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+  .mw-list-detail__trail > .mw-btn { max-width: calc(100% + 8px); height: auto; margin-left: -8px; white-space: normal; text-align: start; overflow-wrap: anywhere; }
+  .mw-list-detail__path { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; min-width: 0; margin: 0; padding: 0; list-style: none; color: var(--muted); font-size: 12px; }
+  .mw-list-detail__path > li { min-width: 0; overflow-wrap: anywhere; }
+  .mw-list-detail__path > li + li::before { content: "/"; margin-right: 6px; color: var(--faint); }
+  .mw-list-detail__path > [aria-current] { color: var(--ink-soft); }
+
+  /* 5 · Icon counts: one glyph and one number per kind; the whole name on hover (title) and for a screen reader (its own words). */
+  .mw-counts { display: flex; flex-wrap: wrap; gap: 2px 10px; min-width: 0; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .mw-count { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
+  .mw-count > svg { width: 12px; height: 12px; flex: none; }
+
+  /* 6 · State rows: one row per state, its name and what it means, its status mark, and where it is changed. Laid out by the list's
+     own width: under 520px the words take a line and the state and the way there share the next; under 320px one each. */
+  .mw-state-rows { container: mw-state-rows / inline-size; display: grid; gap: 1px; min-width: 0; margin: 0; padding: 0; list-style: none; border-radius: var(--r-row, 10px); overflow: hidden; background: var(--line); }
+  .mw-state-rows > li { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 52px; padding: 8px 10px 8px 12px; background: var(--paper); }
+  .mw-state-row__what { display: grid; gap: 1px; min-width: 0; }
+  .mw-state-row__what > strong { color: var(--ink); font-size: 13px; font-weight: var(--weight-control, 500); }
+  .mw-state-row__what > small { color: var(--muted); font-size: 12px; line-height: 1.4; }
+  .mw-state-row__state { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; min-width: 0; }
+  .mw-state-row__state > .mw-status { height: auto; min-height: 22px; white-space: normal; text-align: start; }
+  .mw-state-row__state > small { color: var(--muted); font-size: 12px; }
+  .mw-state-row__go { justify-self: end; }
+  @container mw-state-rows (max-width: 520px) {
+    .mw-state-rows > li { grid-template-columns: minmax(0, 1fr) auto; row-gap: 6px; }
+    .mw-state-row__what { grid-column: 1 / -1; }
+  }
+  @container mw-state-rows (max-width: 320px) {
+    .mw-state-rows > li { grid-template-columns: minmax(0, 1fr); }
+    .mw-state-row__go { justify-self: start; }
+  }
+
+  /* 7 · Usage: a figure only when there are recent uses, one line of what it counts, and under them what the count covers. */
+  .mw-usage { display: grid; gap: 6px; min-width: 0; }
+  .mw-usage__figure { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .mw-usage__num { min-width: 40px; color: var(--ink); font-size: 24px; font-weight: var(--weight-title, 600); line-height: 1; font-variant-numeric: tabular-nums; }
+  .mw-usage__text { display: grid; gap: 2px; min-width: 0; color: var(--ink-soft); font-size: 13px; line-height: 1.45; }
+  .mw-usage__text > strong { color: var(--ink); font-weight: var(--weight-control, 500); }
+  .mw-usage__scope { margin: 0; max-width: 640px; color: var(--muted); font-size: 12px; line-height: 1.55; }
+
+  /* 8 · List and detail with the detail kept in view, only where a page asks (data-sticky-detail): it stays at the top of the
+     scrolling area and scrolls itself when taller; at its end the scroll goes on to the page (no overscroll containment). The
+     area's height comes from the settings shell (--settings-view-h); outside it, the window's. One side at a time, it is in flow. */
+  .mw-list-detail[data-sticky-detail] .mw-list-detail__detail { position: sticky; top: 16px; max-height: calc(var(--settings-view-h, 100dvh) - 32px); overflow-y: auto; }
+  @container mw-list-detail (max-width: 640px) { .mw-list-detail[data-sticky-detail] .mw-list-detail__detail { position: static; max-height: none; overflow: visible; } }
+  /* A titled group inside a detail (an entry's usage, a pack's roles), quiet heading over its body. */
+  .mw-list-detail__group { display: grid; gap: 8px; min-width: 0; }
+  .mw-list-detail__group > .mw-items { width: 100%; }
+  .mw-list-detail__group > h4 { margin: 0; color: var(--muted); font-size: 12px; font-weight: var(--weight-control, 500); }
+
+  @media (prefers-reduced-motion: reduce) { :is(.mw-item-group__head, .mw-cell) { transition: none; } }
+
+  .mw-catalog :is([data-primitive="now-block"], [data-primitive="item-group"], [data-primitive="cell-grid"], [data-primitive="detail-trail"], [data-primitive="icon-counts"], [data-primitive="state-rows"], [data-primitive="usage-figure"]) .mw-catalog__specimens { grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); align-items: start; }
+  .mw-catalog :is([data-primitive="now-block"], [data-primitive="item-group"], [data-primitive="cell-grid"], [data-primitive="detail-trail"], [data-primitive="icon-counts"], [data-primitive="state-rows"], [data-primitive="usage-figure"]) .mw-catalog__row { display: grid; gap: 10px; min-width: 0; }
+  .mw-catalog [data-primitive="icon-counts"] .mw-items { width: 100%; }
+  .mw-catalog :is([data-primitive="sticky-detail"], [data-primitive="state-rows"]) .mw-catalog__specimens { grid-template-columns: minmax(0, 1fr); }
+  .mw-catalog [data-primitive="sticky-detail"] .mw-catalog__row { display: block; }
+  .mw-catalog [data-sticky-frame] { height: var(--settings-view-h); overflow: auto; padding: 12px; border-radius: var(--sk-r-item, 8px); box-shadow: inset 0 0 0 1px var(--line); }
+  .mw-catalog [data-sticky-frame] > p { margin: 0 0 12px; color: var(--muted); font-size: 12px; }
+
 html{--hue-gray: #5c6570; --hue-gray-fill: #95a2b3; --hue-gray-soft: #eef0f2; --hue-brown: #9c5f1a; --hue-brown-fill: #c4894a; --hue-brown-soft: #f6eee4; --hue-orange: #8a5c18; --hue-orange-fill: #f2994a; --hue-orange-soft: #f8f0e2; --hue-yellow: #8a6d12; --hue-yellow-fill: #e2b203; --hue-yellow-soft: #f7f3e0; --hue-green: #2d7a5a; --hue-green-fill: #4cb782; --hue-green-soft: #e8f4ee; --hue-mint: #26785f; --hue-mint-fill: #4cb8a5; --hue-mint-soft: #e6f4f0; --hue-cyan: #3d6f78; --hue-cyan-fill: #4db7c9; --hue-cyan-soft: #e7f2f3; --hue-blue: #3c6fc6; --hue-blue-fill: #5b8def; --hue-blue-soft: #e8eef9; --hue-indigo: #5e6ad2; --hue-indigo-fill: #5e6ad2; --hue-indigo-soft: #eef0fb; --hue-purple: #7f5eb0; --hue-purple-fill: #a78bda; --hue-purple-soft: #f1ebf7; --hue-pink: #a15571; --hue-pink-fill: #e39eb6; --hue-pink-soft: #f8eef2; --hue-red: #b03d45; --hue-red-fill: #eb5757; --hue-red-soft: #fbecec; --hue-steel: #4f6470; --hue-steel-fill: #7d93a0; --hue-steel-soft: #eef1f3; --hue-slate: #66709e; --hue-slate-fill: #8b95c4; --hue-slate-soft: #eef0f6; --tone-idle: var(--hue-gray); --tone-progress: var(--accent); --tone-attention: var(--amber); --tone-hold: var(--hue-cyan); --tone-blocked: var(--red); --tone-done: var(--green); --tone-quiet: var(--faint); --content-side: var(--surface-soft); --content-paper: var(--paper); --content-hover: var(--nav-hover); --content-press: var(--nav-press); --content-ink: var(--ink); --content-muted: var(--muted); --content-line: var(--line); --content-accent: var(--action); --content-accent-press: var(--action-hover); --content-on-accent: var(--action-ink); --content-select: var(--nav-active); --content-tty: #F8F7F4; --content-tty-ink: #383A43; --content-danger: var(--red); --content-field: var(--rail); --mark-slate: #647DB5; --mark-slate-fill: #E7EAF2; --mark-blue: #5684AA; --mark-blue-fill: #E6ECF3; --mark-ochre: #A7803E; --mark-ochre-fill: #F2EBDF; --mark-plum: #9270B1; --mark-plum-fill: #EFE6EF; --mark-clay: #B27460; --mark-clay-fill: #F2E7E1;} html[data-resolved-theme="dark"]{--hue-gray: #b3b8c2; --hue-gray-fill: #95a2b3; --hue-gray-soft: #24262a; --hue-brown: #dcab6d; --hue-brown-fill: #c4894a; --hue-brown-soft: #32281c; --hue-orange: #d4a15c; --hue-orange-fill: #f2994a; --hue-orange-soft: #342a1c; --hue-yellow: #e0c56a; --hue-yellow-fill: #e2b203; --hue-yellow-soft: #332e18; --hue-green: #6bc49a; --hue-green-fill: #4cb782; --hue-green-soft: #173026; --hue-mint: #86c9b1; --hue-mint-fill: #4cb8a5; --hue-mint-soft: #17302a; --hue-cyan: #86c0c7; --hue-cyan-fill: #4db7c9; --hue-cyan-soft: #1b2e32; --hue-blue: #8fb2f5; --hue-blue-fill: #5b8def; --hue-blue-soft: #1c2740; --hue-indigo: #8b93f1; --hue-indigo-fill: #8b93f1; --hue-indigo-soft: #262848; --hue-purple: #c0a0ea; --hue-purple-fill: #a78bda; --hue-purple-soft: #2c2438; --hue-pink: #e39eb6; --hue-pink-fill: #e39eb6; --hue-pink-soft: #3a242c; --hue-red: #ee858c; --hue-red-fill: #eb5757; --hue-red-soft: #3a2024; --hue-steel: #9bb0bc; --hue-steel-fill: #7d93a0; --hue-steel-soft: #22282c; --hue-slate: #a6afd5; --hue-slate-fill: #8b95c4; --hue-slate-soft: #242636; --tone-idle: var(--hue-gray); --tone-progress: var(--accent); --tone-attention: var(--amber); --tone-hold: var(--hue-cyan); --tone-blocked: var(--red); --tone-done: var(--green); --tone-quiet: var(--faint); --content-side: var(--surface-soft); --content-paper: var(--paper); --content-hover: var(--nav-hover); --content-press: var(--nav-press); --content-ink: var(--ink); --content-muted: var(--muted); --content-line: var(--line); --content-accent: var(--action); --content-accent-press: var(--action-hover); --content-on-accent: var(--action-ink); --content-select: var(--nav-active); --content-tty: #222329; --content-tty-ink: #E2E3E9; --content-danger: var(--red); --content-field: var(--rail); --mark-slate: #91A8DC; --mark-slate-fill: #3A4155; --mark-blue: #8AB2D5; --mark-blue-fill: #354454; --mark-ochre: #C9A566; --mark-ochre-fill: #4B4133; --mark-plum: #BC9ADA; --mark-plum-fill: #4C3C4D; --mark-clay: #D29C87; --mark-clay-fill: #4D3D37;}

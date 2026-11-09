@@ -27,11 +27,15 @@ export const ITEM_ROW_STYLES = `
   .mw-item small { flex: 1 1 0; min-width: 0; margin: 0; overflow: hidden; color: var(--muted); font-size: 12px; line-height: 1.5; text-overflow: ellipsis; white-space: nowrap; }
   .mw-item__end { display: flex; align-items: center; gap: 8px; flex: none; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }`;
 
+/** The glyph square at an item row's start (`mw-mark`). */
+export const MARK_STYLES = `
+  .mw-mark { display: inline-grid; place-items: center; width: 32px; height: 32px; flex: none; border-radius: var(--sk-r-slot, 8px); background: var(--sk-raised, var(--paper)); box-shadow: inset 0 0 0 1px var(--line); color: var(--ink-soft); }
+  .mw-mark svg { width: 16px; height: 16px; }`;
+
 export const CATALOG_PATTERN_STYLES = `
   .mw-catalog .mw-popover .mw-catalog__row { flex-wrap: nowrap; }
   .mw-catalog .mw-popover .mw-input { flex: 1; min-width: 220px; }
-  .mw-mark { display: inline-grid; place-items: center; width: 32px; height: 32px; flex: none; border-radius: var(--sk-r-slot, 8px); background: var(--sk-raised, var(--paper)); box-shadow: inset 0 0 0 1px var(--line); color: var(--ink-soft); }
-  .mw-mark svg { width: 16px; height: 16px; }
+${MARK_STYLES}
 
   .mw-btn-group { display: inline-flex; gap: 1px; }
   ${joined()} { border-radius: 0; }

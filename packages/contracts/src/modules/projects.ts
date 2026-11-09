@@ -437,7 +437,7 @@ export const projectPluginActions = {
     action: {
       title: "更改项目插件成员",
       description: "按读取时的版本在当前项目启用或移除一个插件，随行插件一起调整",
-      kind: "operation", scope: "project", audiences: ["user"], permissions: ["projects:settings"], subject_kinds: ["project"],
+      kind: "operation", scope: "project", scheduling: "concurrent", audiences: ["user"], permissions: ["projects:settings"], subject_kinds: ["project"],
       input_schema: inputSchemaFor<SetProjectPluginInput>()({
         type: "object",
         properties: { plugin_id: { type: "string", minLength: 1 }, enabled: { type: "boolean" }, expected_revision: expectedRevision },

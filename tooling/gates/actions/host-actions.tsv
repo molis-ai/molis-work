@@ -269,7 +269,7 @@ projects.directories.repair	1	system.project-workspaces	command	operation	projec
 projects.directories.set_output	1	system.project-workspaces	command	operation	project	write	-	user	projects:settings	project	-	project.directories	4caaf6a98bb7	3a015074df9d	-
 projects.directories.unmap_source	1	system.project-workspaces	command	operation	project	write	-	user	projects:settings	project	-	project.directories	a2a089faf780	3a015074df9d	-
 projects.plugins.get	1	system.project-workspaces	query	query	project	read	-	agent,plugin,user	-	project	-	project.plugin_membership	99334726611c	2a702bb14aae	-
-projects.plugins.set	1	system.project-workspaces	command	operation	project	write	-	user	projects:settings	project	-	project.plugin_membership	af72fb37900e	2a702bb14aae	-
+projects.plugins.set	1	system.project-workspaces	command	operation	project	write	concurrent	user	projects:settings	project	-	project.plugin_membership	af72fb37900e	2a702bb14aae	-
 projects.settings.runtime.read	1	platform	query	query	project	read	-	agent,mcp,user,workflow	-	project	-	project.runtime.optional	9cecb8ebe607	8c923fd28c9a	-
 projects.settings.runtime.select	1	platform	command	operation	project	write	-	user	projects:settings	project	-	project.runtime.optional	65d08d19afe5	8c923fd28c9a	-
 projects.workspace.files.read	1	platform	query	query	project	read	-	agent,mcp,user,workflow	workspace:read	workspace	-	-	9a0d0d76ae5b	a2c799262a3c	-

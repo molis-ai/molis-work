@@ -9,7 +9,7 @@ export const ASSISTANT_SIDE_PATH_PART = String.raw`  /* 路径: a line from who 
     const scheduled = work && view.scheduled ? view.scheduled : [];
     const signature = JSON.stringify([work && work.work_id, work && work.executor, work && work.origin, parent, children,
       objects.filter((o) => o.relation === "origin" || o.relation === "session").map((o) => [o.relation, o.subject.id, o.state, o.title, o.current_revision]),
-      scheduled.map((f) => [f.followup_id, f.next_at, f.enabled, f.last && f.last.outcome]), work && view.schedule_survives_close, latestSteps(work), waitsOn(work)]);
+      scheduled.map((f) => [f.followup_id, f.next_at, f.enabled, f.last]), work && view.schedule_survives_close, latestSteps(work), waitsOn(work)]);
     if (node.dataset.signature === signature) return;
     node.dataset.signature = signature;
     keepFocus(node, () => {
@@ -73,11 +73,26 @@ export const ASSISTANT_SIDE_PATH_PART = String.raw`  /* 路径: a line from who 
         });
         step(done + "/" + children.length, waiting ? "attention" : done === children.length ? "done" : "", L("分出去的子任务"), meter, ...rows);
       }
-      const REPEAT = { none: "一次", daily: "每天", weekly: "每周" }, OUTCOME = { started: "已开始", missed: "错过（当时没在运行）", skipped: "跳过（上一轮未结束）", failed: "没有完成" };
-      if (scheduled.length) step("clock", "later", L("之后"), ...scheduled.map((followUp) => card({ icon: "clock", title: followUp.label,
-        sub: L(REPEAT[followUp.repeat] || followUp.repeat) + " · " + (followUp.enabled && followUp.next_at ? L("下一次") + " " + when(followUp.next_at) : L("已结束")),
-        detail: (followUp.last ? L("上次") + L(OUTCOME[followUp.last.outcome] || followUp.last.outcome) + " · " : "") + (followUp.enabled ? L(view.schedule_survives_close ? "关闭窗口后仍会执行" : "需要 Molis Work 在运行") : ""),
-        actions: followUp.enabled ? [sideAct(L("取消"), followUp.label, async () => { await api("/followups/remove", "POST", { followup_id: followUp.followup_id }); await reload(); }, true)] : [] })));
+      if (scheduled.length) step("clock", "later", globalThis.t.text("workbench.assistant-followup.later"), ...scheduled.map((followUp) => {
+        const at = (value) => ({ kind: "date", style: "datetime", at: value, time_zone: followUp.time_zone });
+        const schedule = followUp.enabled && followUp.next_at
+          ? globalThis.t.text("workbench.assistant-followup.next-" + followUp.repeat, { at: at(followUp.next_at) })
+          : globalThis.t.text("workbench.assistant-followup.ended-" + followUp.repeat);
+        const row = card({ icon: "clock", title: followUp.label, sub: schedule,
+          actions: followUp.enabled ? [sideAct(globalThis.t.text("workbench.assistant-followup.cancel"), followUp.label, async () => { await api("/followups/remove", "POST", { followup_id: followUp.followup_id }); await reload(); }, true)] : [] });
+        const content = row.querySelector(".assistant-item-text");
+        content.querySelector(".assistant-item-title").translate = false;
+        if (followUp.last) {
+          content.append(el("span", "assistant-item-sub", globalThis.t.text("workbench.assistant-followup.last-" + followUp.last.outcome, { at: at(followUp.last.due_at) })));
+          if (followUp.last.detail) {
+            const detail = el("span", "assistant-item-sub", savedAssistantText(followUp.last.detail, globalThis.say.text));
+            if (typeof followUp.last.detail.original === "string") { detail.translate = false; detail.style.whiteSpace = "pre-wrap"; }
+            content.append(detail);
+          }
+        }
+        if (followUp.enabled) content.append(el("span", "assistant-item-sub", globalThis.t.text(view.schedule_survives_close ? "workbench.assistant-followup.keep-running" : "workbench.assistant-followup.need-running")));
+        return row;
+      }));
       const done = children.filter((child) => child.state === "completed" || child.taken_back).length;
       const stepsDone = steps.filter((item) => item.state === "done").length;
       paintBlock(node, L("路径"), "workflow", line.children.length ? line : null,

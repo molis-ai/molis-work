@@ -1,11 +1,15 @@
+import { noticeText, savedText } from "./fixtures/assistant-saved-text.js";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { DUE_REMINDERS_INPUT_TYPE, DUE_REMINDERS_OUTPUT_TYPE } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentScheduleCapability, AgentScheduledTask } from "@molis-ai/molis-work-contracts/services/agent-host";
-import type { AssistantRule } from "@molis-ai/molis-work-contracts/services/assistant";
-import { ASSISTANT_STORE_BASELINE, AssistantFollowUpRecords, AssistantFollowUps, FOLLOW_UP_KIND, type AssistantFollowUpPorts } from "@molis-ai/molis-work-app-local-host";
+import type { AssistantRule, AssistantSavedText } from "@molis-ai/molis-work-contracts/services/assistant";
+import { AssistantFollowUpRecords, AssistantFollowUps, AssistantStore, FOLLOW_UP_KIND, type AssistantFollowUpPorts } from "@molis-ai/molis-work-app-local-host";
 
 /**
  * W4-05: the Assistant's reminders and follow-ups are a collaborator of their own, shaped like a package. These run it on
@@ -15,13 +19,13 @@ import { ASSISTANT_STORE_BASELINE, AssistantFollowUpRecords, AssistantFollowUps,
 
 interface Work { work_id: string; title: string; session_id: string | null; archived: boolean }
 
-function harness(start = "2026-10-15T08:00:00.000Z") {
-  const db = new DatabaseSync(":memory:");
-  db.exec(ASSISTANT_STORE_BASELINE.schema);
+function harness(start = "2026-10-15T08:00:00.000Z", options: { file?: string; timeZone?: string; failSend?: string } = {}) {
+  const db = new DatabaseSync(options.file ?? ":memory:");
   let now = new Date(start);
+  const store = new AssistantStore(db, () => now);
   const works = new Map<string, Work>([["w1", { work_id: "w1", title: "周报", session_id: "s1", archived: false }]]);
-  const changed: string[] = [], notices: Array<{ text: string; dedupe: string }> = [], sent: Array<{ text: string; requestId: string }> = [];
-  const settings = new Map<string, string>(), told = new Set<string>();
+  const changed: string[] = [], notices: Array<{ text: AssistantSavedText; dedupe: string }> = [], sent: Array<{ text: string; requestId: string }> = [];
+  const settings = new Map<string, string>();
   let rules: AssistantRule[] = [];
   const tasks = new Map<string, AgentScheduledTask>();
   let runner: ((task: AgentScheduledTask) => Promise<void>) | null = null;
@@ -35,20 +39,60 @@ function harness(start = "2026-10-15T08:00:00.000Z") {
   };
   let homeActions: AssistantFollowUpPorts<Work>["homeActions"];
   const ports: AssistantFollowUpPorts<Work> = {
-    actorId: "person", records: new AssistantFollowUpRecords(db, workId => changed.push(workId)), now: () => now, timeZone: "Asia/Shanghai",
+    actorId: "person", records: new AssistantFollowUpRecords(db, workId => changed.push(workId)), now: () => now, timeZone: options.timeZone ?? "Asia/Shanghai",
     work: id => { const work = works.get(id); if (!work) throw new Error("gone"); return work; },
-    notify: (notice, dedupe) => { if (told.has(dedupe)) return false; told.add(dedupe); notices.push({ text: notice.text, dedupe }); return true; },
+    notify: (notice, dedupe) => { if (!store.raiseNotice("person", notice, dedupe)) return false; notices.push({ text: notice.text, dedupe }); return true; },
     setting: key => settings.get(key) ?? null, setSetting: (key, value) => { settings.set(key, value); },
     rules: () => rules, setRules: next => { rules = [...next]; }, pages: async () => ["home"],
     get homeActions() { return homeActions; },
     host: async () => ({}) as never, state: async () => "idle",
-    send: async (_work, text, requestId) => { sent.push({ text, requestId }); },
+    send: async (_work, text, requestId) => { sent.push({ text, requestId }); if (options.failSend !== undefined) throw new Error(options.failSend); },
     schedule: async () => schedule,
   };
-  return { followUps: new AssistantFollowUps(ports), tasks, sent, notices, changed, settings, works,
+  return { followUps: new AssistantFollowUps(ports), tasks, sent, notices, changed, settings, works, db, store,
     run: async (key: string) => { assert.ok(runner, "a runner is attached"); await runner!(tasks.get(key)!); },
     at: (iso: string) => { now = new Date(iso); }, setHome: (actions: typeof homeActions) => { homeActions = actions; } };
 }
+
+test("FSS-38 FSS-39 nonempty follow-ups and notices retain stable keys, zoned instants and long original failures after a v1 restart", async t => {
+  const directory = await mkdtemp(join(tmpdir(), "molis-assistant-saved-text-"));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const file = join(directory, "assistant.db"), timeZone = "America/Los_Angeles";
+  const original = "Original upstream failure <file>\n" + "原始错误内容，保留末尾。\n".repeat(230) + "EOF & 尾句";
+  const failureAt = "2026-03-08T09:59:00.000Z", missedAt = "2026-03-08T10:00:00.000Z";
+  const live = harness("2026-03-08T09:00:00.000Z", { file, timeZone, failSend: original });
+  let missedId = "";
+  try {
+    const failed = await live.followUps.save({ work_id: "w1", text: "查原始记录", at: failureAt, label: "失败的跟进" });
+    const missed = await live.followUps.save({ work_id: "w1", text: "未改写的安排", at: missedAt, label: "DST 原文" });
+    missedId = missed.followup_id;
+    live.at("2026-03-08T09:59:30.000Z");
+    await live.run(`fu-${failed.followup_id}-${Date.parse(failureAt)}`);
+    live.at("2026-03-08T10:15:00.000Z");
+    await live.run(`fu-${missedId}-${Date.parse(missedAt)}`);
+    assert.equal(live.sent.length, 1, "a missed follow-up never sends a late round");
+  } finally { live.db.close(); }
+  const restarted = harness("2026-03-08T10:15:00.000Z", { file, timeZone });
+  try {
+    assert.equal(restarted.db.prepare("PRAGMA user_version").get()?.user_version, 1);
+    const [failed, missed] = restarted.followUps.list("w1");
+    assert.deepEqual(failed!.last!.detail, { original });
+    assert.equal(savedText(failed!.last!.detail, "en"), original, "no size limit for the upstream's own words");
+    assert.equal(savedText(failed!.last!.detail, "zh"), original);
+    assert.equal(missed!.text, "未改写的安排");
+    assert.deepEqual(missed!.last!.detail, { owner: "workbench", key: "workbench.assistant-followup.missed" });
+    assert.match(savedText(missed!.last!.detail, "en")!, /Molis Work was not running/u);
+    const [notice] = restarted.store.openNotices("person");
+    assert.ok(notice && "key" in notice.text);
+    assert.deepEqual(notice.text.args, [{ name: "label", kind: "text", text: "DST 原文" },
+      { name: "at", kind: "date", at: missedAt, style: "datetime", time_zone: timeZone }]);
+    assert.match(noticeText(notice, "en"), /DST 原文.*3:00\sAM/u, "the due time after the DST jump is drawn in its stored zone");
+    assert.match(noticeText(notice, "zh"), /错过了「DST 原文」.*03:00/u);
+    const { notice_id: _id, created_at: _created, state: _state, ...body } = notice;
+    assert.equal(restarted.store.raiseNotice("person", body, `followup:${missedId}:${missedAt}:missed`), null);
+    assert.deepEqual(restarted.store.openNotices("person"), [notice], "a restart and replay of the same request cannot duplicate or rewrite the row");
+  } finally { restarted.db.close(); }
+});
 
 test("W4-05-01 a daily follow-up is queued, runs once at its time and queues the next day, on the collaborator's ports alone", async () => {
   const h = harness();
@@ -78,7 +122,7 @@ test("W4-05-01 a follow-up removed before its time does not run, and archiving s
   const [stopped] = h.followUps.list("w1");
   assert.equal(stopped?.followup_id, second.followup_id);
   assert.equal(stopped?.enabled, false);
-  assert.equal(stopped?.last?.detail, "这项工作已归档，定时已停用");
+  assert.equal(savedText(stopped?.last?.detail), "这项工作已归档，定时已停用");
   assert.equal(h.tasks.size, 0);
   assert.equal(h.followUps.pending(), false);
 });
@@ -119,7 +163,7 @@ test("W4-05-02 attention rules are checked strictly and kept through the rules p
 test("W4-05-03 the collaborator depends on its own ports only: no import of another Assistant module's implementation", () => {
   const source = readFileSync(new URL("../apps/local-host/src/assistant/assistant-followups.ts", import.meta.url), "utf8");
   const siblings = [...source.matchAll(/from "\.\/([^"]+)"/g)].map(match => match[1]);
-  assert.deepEqual(siblings, ["assistant-errors.js"], "only the Assistant's shared error table, which moves with it");
+  assert.deepEqual(siblings, ["assistant-errors.js", "assistant-saved-text.js"], "only the Assistant's shared error table and pure text reference constructor");
   const imports = source.split("\n").filter(line => line.startsWith("import ")).join("\n");
   assert.doesNotMatch(imports, /AssistantStore|AssistantService/, "the store and the service are reached through ports");
 });

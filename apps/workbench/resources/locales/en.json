@@ -5,6 +5,117 @@
   "messages": {
     "common.presentation.stale": "These values were read {at}",
     "common.text.unavailable": "This text cannot be shown right now",
+    "workbench.assistant-connection.denied": "The service keeps refusing the key or permission for “{name}”. Open the connection settings to check.",
+    "workbench.assistant-connection.reauth": "The sign-in for the service connection “{name}” has expired. Sign in again.",
+    "workbench.assistant-connection.unavailable": "“{name}” could not reach its service several times in a row. Open the connection settings to check.",
+    "workbench.assistant-directory.denied-agent": "“{plugin}” tried to read your authorized local folder “{folder}”, but access was denied (started by an agent). View the record or revoke access in Settings › Local folders.",
+    "workbench.assistant-directory.denied-background": "“{plugin}” tried to read your authorized local folder “{folder}”, but access was denied (started by a background or scheduled task). View the record or revoke access in Settings › Local folders.",
+    "workbench.assistant-directory.denied-mcp": "“{plugin}” tried to read your authorized local folder “{folder}”, but access was denied (started by an external client (MCP)). View the record or revoke access in Settings › Local folders.",
+    "workbench.assistant-directory.denied-person": "“{plugin}” tried to read your authorized local folder “{folder}”, but access was denied (started by you on the page). View the record or revoke access in Settings › Local folders.",
+    "workbench.assistant-directory.denied-workflow": "“{plugin}” tried to read your authorized local folder “{folder}”, but access was denied (started by a workflow). View the record or revoke access in Settings › Local folders.",
+    "workbench.assistant-directory.incomplete-agent": "“{plugin}” tried to read your authorized local folder “{folder}”, but the read did not complete (started by an agent). View the record or revoke access in Settings › Local folders.",
+    "workbench.assistant-directory.incomplete-background": "“{plugin}” tried to read your authorized local folder “{folder}”, but the read did not complete (started by a background or scheduled task). View the record or revoke access in Settings › Local folders.",
+    "workbench.assistant-directory.incomplete-mcp": "“{plugin}” tried to read your authorized local folder “{folder}”, but the read did not complete (started by an external client (MCP)). View the record or revoke access in Settings › Local folders.",
+    "workbench.assistant-directory.incomplete-person": "“{plugin}” tried to read your authorized local folder “{folder}”, but the read did not complete (started by you on the page). View the record or revoke access in Settings › Local folders.",
+    "workbench.assistant-directory.incomplete-workflow": "“{plugin}” tried to read your authorized local folder “{folder}”, but the read did not complete (started by a workflow). View the record or revoke access in Settings › Local folders.",
+    "workbench.assistant-directory.invalid": "The directory-read notice has incomplete data.",
+    "workbench.assistant-directory.read-agent": "“{plugin}” read your authorized local folder “{folder}” (started by an agent). View the record or revoke access in Settings › Local folders.",
+    "workbench.assistant-directory.read-background": "“{plugin}” read your authorized local folder “{folder}” (started by a background or scheduled task). View the record or revoke access in Settings › Local folders.",
+    "workbench.assistant-directory.read-mcp": "“{plugin}” read your authorized local folder “{folder}” (started by an external client (MCP)). View the record or revoke access in Settings › Local folders.",
+    "workbench.assistant-directory.read-person": "“{plugin}” read your authorized local folder “{folder}” (started by you on the page). View the record or revoke access in Settings › Local folders.",
+    "workbench.assistant-directory.read-workflow": "“{plugin}” read your authorized local folder “{folder}” (started by a workflow). View the record or revoke access in Settings › Local folders.",
+    "workbench.assistant-followup.archived": "The work was archived and its follow-up was turned off.",
+    "workbench.assistant-followup.archived-skip": "The work was archived, so this round did not start.",
+    "workbench.assistant-followup.busy": "The previous round had not finished, so this round did not start.",
+    "workbench.assistant-followup.cancel": "Cancel",
+    "workbench.assistant-followup.ended-daily": "Daily follow-up ended",
+    "workbench.assistant-followup.ended-none": "One-time follow-up ended",
+    "workbench.assistant-followup.ended-weekly": "Weekly follow-up ended",
+    "workbench.assistant-followup.keep-running": "It can run with the window closed.",
+    "workbench.assistant-followup.last-failed": "The follow-up scheduled for {at} did not finish.",
+    "workbench.assistant-followup.last-missed": "The follow-up scheduled for {at} was missed.",
+    "workbench.assistant-followup.last-skipped": "The follow-up scheduled for {at} was skipped.",
+    "workbench.assistant-followup.last-started": "The follow-up scheduled for {at} started.",
+    "workbench.assistant-followup.later": "Later",
+    "workbench.assistant-followup.missed": "Molis Work was not running and did not start the round later.",
+    "workbench.assistant-followup.missing": "This work no longer exists.",
+    "workbench.assistant-followup.need-running": "Molis Work needs to be running.",
+    "workbench.assistant-followup.next-daily": "Daily follow-up, next at {at}",
+    "workbench.assistant-followup.next-none": "One follow-up scheduled for {at}",
+    "workbench.assistant-followup.next-weekly": "Weekly follow-up, next at {at}",
+    "workbench.assistant-job.done": "“{title}” finished in the background.",
+    "workbench.assistant-job.expired": "“{title}” was still running after six hours. Check its status where it started.",
+    "workbench.assistant-job.failed": "“{title}” did not finish in the background.",
+    "workbench.assistant-job.unchecked": "The status of “{title}” is no longer available here. Check where it started.",
+    "workbench.assistant-notice.attention": "Waiting for you",
+    "workbench.assistant-notice.attention-count": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "{count} item needs your attention",
+        "other": "{count} items need your attention"
+      }
+    },
+    "workbench.assistant-notice.completed": "“{title}” is done.",
+    "workbench.assistant-notice.dismiss": "Got it",
+    "workbench.assistant-notice.dismiss-named": "Got it: “{title}”",
+    "workbench.assistant-notice.failed": "“{title}” did not finish this round. Open it to see why.",
+    "workbench.assistant-notice.followup-missed": "“{label}” missed its scheduled time at {at}. Molis Work was not running and did not start it later.",
+    "workbench.assistant-notice.handoff-blocked": "All delegated tasks for “{title}” reported back, but the work could not resume:",
+    "workbench.assistant-notice.held": "Held by your rule: {reason}",
+    "workbench.assistant-notice.held-count": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "{count} notice held by your rules",
+        "other": "{count} notices held by your rules"
+      }
+    },
+    "workbench.assistant-notice.material": "{source} has a new item, “{item}”, related to this work’s goal “{goal}”.",
+    "workbench.assistant-notice.material-more": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "{source} has a new item, “{item}”, related to this work’s goal “{goal}”. There is {count} more item.",
+        "other": "{source} has a new item, “{item}”, related to this work’s goal “{goal}”. There are {count} more items."
+      }
+    },
+    "workbench.assistant-notice.material-untitled": "{source} has a new item, “{item}”, related to this work’s goal.",
+    "workbench.assistant-notice.material-untitled-more": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "{source} has a new item, “{item}”, related to this work’s goal. There is {count} more item.",
+        "other": "{source} has a new item, “{item}”, related to this work’s goal. There are {count} more items."
+      }
+    },
+    "workbench.assistant-notice.none": "Nothing needs your attention right now",
+    "workbench.assistant-notice.open": "Open",
+    "workbench.assistant-notice.open-named": "Open “{title}”",
+    "workbench.assistant-notice.plugin-review": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "{count} plugin notification to check",
+        "other": "{count} plugin notifications to check"
+      }
+    },
+    "workbench.assistant-notice.reminder": "Reminder from {source} at {at}: {title}",
+    "workbench.assistant-notice.reminder-missed": "Missed reminder from {source} at {at}: {title}",
+    "workbench.assistant-notice.result": "{from} returned a result to “{title}”.",
+    "workbench.assistant-notice.results": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "{count} new result",
+        "other": "{count} new results"
+      }
+    },
+    "workbench.assistant-notice.review": "Review",
+    "workbench.assistant-notice.review-count": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "Review {count} plugin notification",
+        "other": "Review {count} plugin notifications"
+      }
+    },
+    "workbench.assistant-notice.waiting": "Waiting for you: {count}",
+    "workbench.assistant-notice.waiting-input": "“{title}” is waiting for your answer.",
+    "workbench.assistant-notice.waiting-review": "“{title}” is waiting for you to confirm a change.",
     "workbench.env.add-row": "Add a line",
     "workbench.env.add-user": "Add “保存” as the person",
     "workbench.env.clear": "Clear",
@@ -24,7 +135,13 @@
     "workbench.env.row": "List row {n}",
     "workbench.env.same": "What the person wrote is an interface word:",
     "workbench.env.save": "Save",
-    "workbench.env.saved": {"plural_arg": "count", "forms": {"one": "{count} note saved", "other": "{count} notes saved"}},
+    "workbench.env.saved": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "{count} note saved",
+        "other": "{count} notes saved"
+      }
+    },
     "workbench.env.search": "Search notes",
     "workbench.env.search-hint": "Type what to find",
     "workbench.env.skin": "Skin",

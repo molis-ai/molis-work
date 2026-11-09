@@ -1,3 +1,4 @@
+import type { DirectoryReadOrigin } from "@molis-ai/molis-work-contracts/platform/plugin-directory";
 import { existsSync } from "node:fs";
 import { homeSqlitePath, openBaselineHomeSqlite, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 
@@ -23,7 +24,6 @@ export const DIRECTORY_GRANTS_HOME_STORE: HomeStoreDeclaration = { path: "plugin
 const KEPT_READS = 200;
 
 /** Who started a call that read: the person on a page, or one of the callers that act for them without being there. */
-export type DirectoryReadOrigin = "person" | "agent" | "workflow" | "mcp" | "background";
 
 export interface StoredDirectoryGrant {
   readonly grant_id: string;

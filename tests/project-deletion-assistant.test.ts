@@ -26,7 +26,7 @@ async function assistantHome(t: { after(fn: () => Promise<void> | void): void })
       time_zone: "Asia/Shanghai", enabled: true, created_at: new Date().toISOString() });
     // Rows left in the table no longer written (jobs are steps on the work's graph now) still go with their work.
     db.prepare("INSERT INTO assistant_jobs(key,actor_id,work_id,body) VALUES (?,?,?,?)").run(`job-${work.work_id}`, ACTOR, work.work_id, "{}");
-    store.raiseNotice(ACTOR, { kind: "result", work_id: work.work_id, work_title: work.title, text: "做完了" }, `notice-${work.work_id}`);
+    store.raiseNotice(ACTOR, { kind: "result", work_id: work.work_id, work_title: work.title, text: { original: "做完了" } }, `notice-${work.work_id}`);
     store.addRound(work.work_id, { run_id: `run-${work.work_id}`, text: "第一轮", materials: [], context: null, started_at: new Date().toISOString() });
     store.relations.link({ work_id: work.work_id, project_id: work.project_ref?.project_id ?? null }, "origin", { kind: "pages.doc", id: `doc-${work.work_id}`, revision: "1" }, "从文稿开始");
   }

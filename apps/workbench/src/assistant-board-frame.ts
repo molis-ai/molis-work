@@ -11,6 +11,7 @@ import { UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "./scripts/client/assistant-island.js";
 import { ATTENTION_FACTORY_SCRIPT } from "./scripts/client/attention.js";
 import { renderWorkbenchBar } from "./immersive-shell.js";
+import { renderLanguageHead } from "./language-resource.js";
 
 /**
  * The component board's Assistant frame (specs/visual-ui-experience VUX-39; VUX-08/09/10/13/18): the page
@@ -63,6 +64,7 @@ export function renderMolisWorkAssistantSpecimen(options: AssistantFrameOptions,
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${escapeHtml(L("助理样例"))} · Molis Work</title>
+  ${renderLanguageHead(ports.htmlLang())}
   <script>${THEME_BOOTSTRAP_SCRIPT}</script>
   <link rel="stylesheet" href="/assets/molis-work-workbench.css">
   <style>${FRAME_STYLES}</style>

@@ -1,3 +1,4 @@
+import { noticeText } from "./fixtures/assistant-saved-text.js";
 import assert from "node:assert/strict";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import test from "node:test";
@@ -499,7 +500,7 @@ for (const stage of ["authority", "before-start", "sdk-prepared-start"] as const
     finishChild.resolve(); await entered.promise;
     if (stage !== "sdk-prepared-start") await f.service.archive(sent.work.work_id, true);
     release.resolve();
-    await until(() => f.service.notices.notices(null).some(notice => notice.kind === "needs-decision" && notice.text.includes("没有自动接着做")), "cancelled hand-back settles");
+    await until(() => f.service.notices.notices(null).some(notice => notice.kind === "needs-decision" && noticeText(notice).includes("没有自动接着做")), "cancelled hand-back settles");
     const after = await f.adapter.readSession({ session_id: before.session_id });
     assert.deepEqual(after.runs, beforeSession.runs, "the actual SDK accepted no hand-back run");
     assert.equal(f.store.rounds(sent.work.work_id).length, 1); assert.equal(f.store.get("web-user", sent.work.work_id).archived, true);
@@ -537,7 +538,7 @@ for (const change of ["stop", "new-round"] as const) test(`W2-18-HANDBACK-CURREN
       await until(async () => (await f.service.read(parent.work_id)).work.state === "completed");
     }
     release.resolve();
-    await until(() => f.service.notices.notices(null).some(notice => notice.text.includes("没有自动接着做")), "old hand-back refused");
+    await until(() => f.service.notices.notices(null).some(notice => noticeText(notice).includes("没有自动接着做")), "old hand-back refused");
     assert.equal((await f.adapter.readSession({ session_id: parent.session_id })).runs.length, change === "stop" ? 1 : 2);
     if (change === "stop") {
       assert.equal((await rootOf(f, parent.work_id)).continuation?.state, "blocked", "the person's stop holds what came back for them");
@@ -567,7 +568,7 @@ test("W2-18-HANDBACK-CURRENT-03: a hand-back refused after it took the continuat
     await until(async () => (await f.service.read(sent.work.work_id)).work.state === "completed", "parent finishes before child");
     f.flags.beforeStart = async () => { if (!refused && (await rootOf(f, sent.work.work_id)).continuation?.state === "claimed") { refused++; throw new Error("这一刻不能开始"); } };
     finishChild.resolve();
-    await until(() => f.service.notices.notices(null).some(notice => notice.text.includes("没有自动接着做")), "the refused hand-back is told");
+    await until(() => f.service.notices.notices(null).some(notice => noticeText(notice).includes("没有自动接着做")), "the refused hand-back is told");
     await new Promise(resolve => setTimeout(resolve, 500));
     assert.equal(refused, 1);
     assert.equal(f.store.rounds(sent.work.work_id).length, 1, "not started again by itself");

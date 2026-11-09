@@ -380,7 +380,7 @@ surface_corrections        项目库
 | SCS-14 | 同一对话可混排正文引用与交付；默认前 6 件、原处展开，计数只含可读对象；对话之外拒绝交付子集，挂载位上限不能被展开绕过 | §6.1、§6.7；§14.2 |
 | SCS-15 | 普通操作固定提供方；不可用说明与按钮互斥，原因取 owner 的文字键，去处复用同对象声明的可用只读或导航动作；同名提供方与助理改写不能重指向 | IUI-07、IUI-08；§14.2 |
 | SCS-16 | 安装、换版及外部确认写入之前用同一完整目录验证跨提供方引用；停用但已装的声明仍参与，换版移除的旧动作不能满足引用 | SSC-06；§14.2 |
-| SCS-17 | 「等你」只读活动持久条目；未授权或尚未核实的对象不进入任何引用或计数；关系仅两端已授权且位置相符时合并，伪造平台关系被拒 | SSC-11、SCS-06；§14.2 |
+| SCS-17 | 「等你」只读活动持久条目；未授权或尚未核实的对象不进入对象引用或可读对象计数；停用遗漏只按 §7.1／§14.2 的已授权 Attention 事实聚合；关系仅两端已授权且位置相符时合并，伪造平台关系被拒 | SSC-11、SCS-06；§14.2 |
 
 ## 14. 开工前检查
 
@@ -438,8 +438,9 @@ surface_corrections        项目库
 
 - **对话用途、折叠与时间。** 请求的 `delivery_subjects` 是 `subjects` 的去重子集，仅对话可给；交付默认卡片、其余引用默认名字片。对话和讨论默认显示前 6 个，`overflow` 只记可读的折叠件数；`expanded:true` 在原位置展开，不改变 50 项输入上限和插件挂载位硬上限。它与首页上方已显示的 `hidden_above` 不共用语义。S-1 省略可选的折叠标签，不伪造词表键。条目的 `read_at` 只转发本次授权读取给的真实旧值时间；无时间的失败组是 unreadable。
 - **动作和说明。** 普通操作固定精确 provider；同名跨提供方有歧义时不任选。`unavailable` 只有声明与输出两处：先筛外层 `when`，内部 status/codes 至少一个非空，两项同时给时为 AND；codes 只比可见的不可用行。命中时把按钮替换为 owner 文字键的 notice。去处只引用同一对象已声明的另一动作、复用其输入映射，且最终必须可用并为只读 query 或 navigation。权限隐藏的动作不出原因；provider、notice、后果由候选决定，助理不能改写。外发由动作 owner 的 `external:true` 显式声明，计费和不可逆用既有元数据，不按名称猜。
-- **批量和截止。** SDK 允许一个主人不同 kind 使用不同 values 动作，旧“每 owner 一次”不能覆盖现行合法声明。按精确提供方和 values 动作合并最少批次，每批最多 50 对象、32 个规则字段，同一对象不重复读取；最多 4 个真实在途调用，整次 compose 共用 1 秒截止。截止停止派发并取消本轮子调用，不能把 Promise 超时当成底层已经结束后继续补槽。父取消或撤权直接传播，不能当作 stale 成功。动作必须符合现有 values schema、只读、不调模型且明确 `execution.cost: "none"`；省略、unknown 和 metered 均不能作为自动 values 读取，标准声明 helper 显式给 none；复用 `presentationValuesProblems`。发现型 Attention 条目尚未证明可读就不输出，也不进入 merged、overflow、hidden 或计数；有未完成读取时组给 unreadable，不伪装成空组。
+- **批量和截止。** SDK 允许一个主人不同 kind 使用不同 values 动作，旧“每 owner 一次”不能覆盖现行合法声明。按精确提供方和 values 动作合并最少批次，每批最多 50 对象、32 个规则字段，同一对象不重复读取；最多 4 个真实在途调用，整次 compose 共用 1 秒截止。截止停止派发并取消本轮子调用，不能把 Promise 超时当成底层已经结束后继续补槽。父取消或撤权直接传播，不能当作 stale 成功。动作必须符合现有 values schema、只读、不调模型、非 `external:true` 且明确 `execution.cost: "none"`；省略、unknown 和 metered 均不能作为自动 values 读取，标准声明 helper 显式给 none；复用 `presentationValuesProblems`。签名与原生自动读取采用同一边界，不能借组合触发外发。发现型 Attention 条目指向的对象尚未证明可读就不输出，也不进入 merged、overflow、hidden 或可读对象计数；有未完成读取时组给 unreadable，不伪装成空组。停用条目的独立聚合按下一条，不把 Attention 自身事实等同于对象正文。
 - **Attention 的事实与排序。** 由 `modules/attention-resumption` 的窄批量读取只投影活动持久条目的 owner、规范对象引用、reason、revision、进入时间，不带 detail。现有 subject_type 到 kind 的对应由这个事实 owner 维护，不在服务抄 Inbox 分支；null owner 不猜。goal_decision 是决定，source_fault/artifact_out_failed 是失败，其余已存在且可读的条目可以按主人状态分类，无分类排在三类之后。状态只影响排序，绝不产生条目（SSC-11）。当前 Coding/Goals 的其他待验收没有进入此表，不假造；新增生产者与生命周期另议。本片不接 `/api/attention` 的后台任务和 AssistantNotices 聚合。插件枚举继续服从现有 attention:read 和原调用人的对象权限。
+- **停用遗漏的准确口径。** §7.1 原有 user 停用计数保留：Attention 自身事实已有独立读取授权（`PluginAttentionClient` 的本项目显式 owner 条目），不以对象 reader 可用为前提。仅 user、当前项目、原 caller 授权仍有效时，按 owner＋规范 subject 去重统计活动 Attention 事实，且准确安装状态必须为 `disabled`；输出 owner 与数量，不输出其对象引用、正文或关系，也不算进可读对象数。它表示因停用未参与的 Attention 项，不声称对象仍存在、可读或已跨关系合并。crashed、quarantined、启动失败和权限拒绝不能压成 disabled；目录须保留真实状态。无授权的事实不计，非 user 不带 owner 和数字。该口径经独立只读复核，纠正本节先前“任何计数”的过宽措辞，不改变原首页验收。
 - **关系只读与身份。** Context Ledger owner 提供限定候选引用的 active latest 批量读取，复用原有 scope、namespace、引用和访问校验。Placement 在自己的 Home 分区批读复制／派生边，并核对当前位置；Host 一次逻辑端口合并主人结果，不跨包写 SQL。两端必须都是本轮已授权候选且位置、kind、身份一致；不向候选外扩图。当前没有可信 created_from 生产来源，不能仅凭插件可自写的 type/cause 把它认成平台关系。真实链用 placement.copy/convert 验证。
 - **安装目录。** Runtime 的安装、换版和外部确认 pin/save 前复用同一套 `validatePresentationDeclaration`、完整 `presentationCatalog`。Host 注入同作用域完整可信声明：已装（含停用和未授权）、待启动声明、系统定义、候选自身，去掉被替换旧版本；不能用 caller discover 代替完整目录，也不递归启动插件。Runtime 和安装 Service 遇到有呈现声明却没有可信校验端口时，按 `plugin.declaration_invalid` 拒绝。这里只核引用存在；组合每次另用同一份 discover 和 `findSubjectReader` 判唯一 reader 与 owner。保留现成 `presentationFormFields` 及自查重复组拒绝，`assertSurfaceDescription(候选, 候选)` 必须无 dropped。Home 串行、动态系统声明和同发行物重挂的边界见 §14.4。
 - **纠正写点。** slot 与 subject 使用无碰撞键，位置级 form 不依赖 NULL 唯一性。form、pin、remove 是独立偏好，remove 优先；换形态不丢 pin。actor 从上下文来，项目库隔离。user compose 按本人 actor 读纠正；plugin compose 给空纠正及 revision 0，不因共享 actor_id 读到本人的偏好。await `beforeEffect` 后，最后同步控制检查与同一事务里的 revision 比较、写入递增紧邻；关闭、取消、撤权和冲突都不留业务记录。
@@ -467,6 +468,8 @@ surface_corrections        项目库
 **版本边界。** 本方案按阶段一公开分发合同在现行 v1 增加可选作者声明，不改持久业务格式、不提供双版本读取、不改写或重签已安装发行物。[Home 数据 §1](../../docs/system/HOME-DATA.md#1-怎么读) 把 `plugin-packages/` 定为原样保留的软件发行物，[金样 §2](../upgrade-continuity/golden-replay-design.md#2-一份金样里有什么) 单列已签字节，且它不在现行持久格式升级名单。没有新增声明的现有签名包须得到逐字相同的 Manifest 投影并原样回放；这是上述阶段一规则的适用范围，不是新增历史兼容许可。
 
 **文件与交接。** 写手可改 contracts 的 `plugin-sandbox.ts`、SDK `sandbox-actions.ts`／`sandbox-manifest.ts` 及专用协议工具、sandbox 的 schema／runner、正常包依赖登记与独立 `tests/security-invariants-sandbox-presentation.test.ts`。第 10、16 批均核实并释放了 design-system 的 `plugin-components.ts`／`plugin-component-records.ts`，只在普通组件绑定中排除固定读取协议，不改界面或样式。创作台 `build-checks.ts` 的 G5 合成测试壳只移除真实 query 的协议标记；生产声明、样例和 G6 的真实权限保持。#1984 正占用的 SDK 根导出与共享 API 快照、Host `sandbox-package.ts`、CLI、两包 README、`tests/sandbox-pack.test.ts` 及其公共 fixture 保持串行交接；可读取复用，不覆盖。本批独立代码不得绕开原入口来避开占用。
+
+隔离作者开发入口 `apps/local-host/src/plugin-development.ts` 也向原 Runtime 安装路径注入同一可信呈现检查器，避免正式安装能用、作者预览却因缺 hook 被拒；不能为开发路径关闭检查或默认放行。该接点只装配现有目录和 checker，不引入另一份声明目录。
 
 **验证。** SCS-11／16：上述同包预览、安装、运行与重开均须保留呈现、values、reader 与 external；伪造投影、未知协议、普通操作中的开放 schema、协议写入／联网／计费 effects、坏输入输出与撤权都被拒。没有新增声明的旧包原样回放。服务测试与真实安装证据分开；未完成安装、运行和重开前，不宣称第三方同等待遇已实现。
 

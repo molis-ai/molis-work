@@ -1,6 +1,6 @@
 # 场景与生成页面公共合同（路线书 20 第 1、2 项）
 
-状态：部分实施，2026-11-04 起草，2026-11-08 补齐第 20 批场景包声明与合同验收边界。P-3a 的 owner、合同、运行恢复及宿主动作／HTTP／现有界面接入已合回本地批分支；P-2a、P-1 独立合同与 SDK、P-3b 正文静态校验已实施。Manifest／Runtime 准入、内容包与其余公共接口继续接入，整批验证未完成。保留 11-04 评审修订及用户确定的首页归属。第 20 批全部合同在同一批分支按依赖接力、一个 PR 交付（第 10 节）；第 36 批提前合同 #1995 已合入，P-2b 合同前置解除，角色服务仍归 36。第 37／44 批承担页面与引导的服务、交互和真实路径验收，不能拿本批静态校验代替。P4 分工由用户 2026-11-08（PST）明确选择：「按批次分工（推荐）：20 完成公共合同、SDK 校验和本批必要接入；37 完成页面运行及真实安全验收，未完成项明确保留。」
+状态：部分实施，2026-11-04 起草，2026-11-08 补齐第 20 批场景包声明与合同验收边界。P-3a 的 owner、合同、运行恢复及宿主动作／HTTP／现有界面接入已合回本地批分支；P-2a、P-1 独立合同与 SDK、P-3b 正文静态校验、P-2b／P-3c／P-4 独立公共接口已实施，后者在 `9616b26861` 经 15 项新用例与限定评审通过，合回批分支 `8b0a0c4c82`。首页页面主体类型待第 10 批共享文件交接；Manifest／Runtime 准入、内容包与签名入口继续接入，整批验证未完成。保留 11-04 评审修订及用户确定的首页归属。第 20 批全部合同在同一批分支按依赖接力、一个 PR 交付（第 10 节）；第 36 批提前合同 #1995 已合入，P-2b 合同前置解除，角色服务仍归 36。第 37／44 批承担页面与引导的服务、交互和真实路径验收，不能拿本批静态校验代替。P4 分工由用户 2026-11-08（PST）明确选择：「按批次分工（推荐）：20 完成公共合同、SDK 校验和本批必要接入；37 完成页面运行及真实安全验收，未完成项明确保留。」
 
 ## 0. 这份稿子做什么
 
@@ -604,7 +604,7 @@ type ContentAdoptionReadResult<Value> =
 - 全部在 M1 之前落，按 N35 一个 PR 改完所有消费者，不留兼容期。
 - 错误码用 `defineErrorCodes`：`blueprints.part_unsupported`（主人没声明）、`blueprints.step_conflict`（主人的 revision 变了）、`blueprints.dependency_unmet`、`blueprints.preview_expired`；设置的拒绝由主人给 `<主人>.setting_invalid`、`<主人>.setting_conflict`，SDK 的 bind 帮主人按主人名生成，不新增平台码。P-1 落时按 `tooling/gates/error-owners.json` 核主人名。
 
-**共享文件交接更新。** 第 08 批 #1984 最新交接头 `8fc71a40e8` 已释放 SDK 根出口、contracts 导出、Manifest 及 `packages/plugin-runtime/src/index.ts` 等共享文件。串行接入须保留该头的取消清理修复。宿主枢纽与动作快照由第 16 批交给第 15 批，组合提供方接好后交第 20 批。文件交接与提供方可调用分别验证。
+**共享文件交接更新。** 第 08 批 #1984 最新交接头 `2703ca8b15` 已释放 SDK 根出口、contracts 导出、Manifest 及 Runtime 共享文件，串行接入保留取消清理与限定项目读取。第 15 批已交回 Runtime 与项目接线；第 20 批项目成员桥接 `3a8a3703ed` 已合回。四个页面渲染文件、`project-host.ts` 及 `host-actions.tsv` 当前交回第 16 批 C 接力，P-1 的 Home 共用临时引用只在构造 hunk 重新交接后接入。首页页面主体类型等第 10 批释放 `platform/actions.ts` 与对应快照。文件交接与提供方可调用分别验证。
 
 **P-3c 文件与验收。** 实施用 `packages/contracts/src/services/blueprints.ts` 和 `tests/blueprint-adoption-contract.test.ts`，按同批顺序接 `contracts/package.json`、`platform/plugin-trust.ts`、SDK 的声明检查与相关 API 快照。签名静态验收覆盖闭合输入输出。真实首接按第 6.6 节复用 08 的签名、安装预览和导入确认。动作快照只收实际登记。八个场景动作由第 44 批在 `system.blueprints` 下登记，`packs.save` 接平台签名、已有安装预览的只读回取及本人确认。
 

@@ -20,7 +20,7 @@ import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { directScheduleActions } from "./schedule-direct-actions.js";
 import { scheduleHost, zh } from "./fixtures/schedule-host.js";
 import { initializeBoard } from "./fixtures/goals-board.js";
-import { directoriesOf } from "./fixtures/catalog-host.ts";
+import { directoriesOf } from "./fixtures/catalog-host.js";
 
 // W2-18 decision 3: creating a scheduled task without a model or a bound workspace shows a hint in the form and still
 // allows creation. The workspace is what the runner checks when it wakes up; the model is read from the model catalog as a

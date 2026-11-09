@@ -217,13 +217,95 @@ test("VUX-31: the search palette shows the words typed last when an earlier sear
   const hold = await holdReads(browser, ["*/api/search/query"]);
   try {
     await evaluate(typed("[data-global-search]", "alphaone")); await hold.next('"query":"alphaone"');
-    await evaluate(typed("[data-global-search]", "betatwo")); await hold.answer('"query":"betatwo"');
+    await evaluate(typed("[data-global-search]", "betatwo"));
+    assert.deepEqual(await shown(), [], "B27-UI-02 / BL-112: prior content disappears before the new request returns");
+    await hold.answer('"query":"betatwo"');
     await waitFor("[...document.querySelectorAll('[data-global-search-hit].is-content .global-search-hit-title')].some((node) => node.textContent.includes('betatwo'))", 10_000);
     await hold.answer('"query":"alphaone"'); await pause(800);
     const titles = await shown();
     assert.ok(titles.length && titles.every((title) => title.includes("betatwo")), "the first words' late answer does not replace the hits: " + JSON.stringify(titles));
     assert.equal(await evaluate("document.querySelector('[data-global-search]').value"), "betatwo");
     assert.equal(hold.seen.length, 2, JSON.stringify(hold.seen));
+  } finally { await hold.close(); }
+});
+
+test("B27-UI-01/02 · BL-112: a late search result keeps the tool under the pointer until the person changes intent", { timeout: 120_000 }, async t => {
+  const browser = await openGoalBrowser(t, "seeded");
+  if (!browser) return;
+  const { command, sessionId, evaluate, navigate, waitFor, click, origin, projectId } = browser;
+  const proof = "dataset search proof";
+  await importPieces(browser, 1, () => proof);
+  await wide(browser);
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
+  const input = "[data-global-search]";
+  const dialog = "document.querySelector('[data-global-search-dialog]')";
+  const tool = '[data-global-search-kind="plugin"][data-global-search-id="dataset"]';
+  const content = "[data-global-search-hit].is-content";
+  await click("[data-global-search-open]");
+  await evaluate(typed(input, "dataset"));
+  await waitFor(`document.querySelector('${content}')?.textContent.includes('${proof}')`, 30_000);
+  const hold = await holdReads(browser, ["*/api/search/query"], "Response");
+  const reads = "performance.getEntriesByType('resource').filter(entry => entry.name.endsWith('/api/search/query')).length";
+  const move = (point: { x: number; y: number }) => command("Input.dispatchMouseEvent", { type: "mouseMoved", ...point }, sessionId);
+  const press = async (key: string, windowsVirtualKeyCode: number) => {
+    const keyData = { key, code: key, windowsVirtualKeyCode };
+    await command("Input.dispatchKeyEvent", { ...keyData, type: "keyDown", ...(key === "Enter" ? { text: "\r" } : {}) }, sessionId);
+    await command("Input.dispatchKeyEvent", { ...keyData, type: "keyUp" }, sessionId);
+  };
+  const freshSearch = async () => {
+    await move({ x: 1, y: 1 });
+    if (!await evaluate(`${dialog}.open`)) await click("[data-global-search-open]");
+    await evaluate(typed(input, ""));
+    await evaluate(typed(input, "dataset"));
+    const pending = await hold.next('"query":"dataset"');
+    assert.equal(await evaluate(`!!document.querySelector('${tool}') && !document.querySelector('${content}')`), true, "the tool is usable while content is outstanding");
+    return pending;
+  };
+  const afterAnswer = async (pending: Held) => {
+    const before = await evaluate<number>(reads);
+    await hold.release(pending);
+    await waitFor(`${reads} > ${before}`);
+    await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+  };
+  try {
+    for (const intent of ["leave", "new words", "click", "keyboard"]) {
+      const pending = await freshSearch();
+      const point = await evaluate<{ x: number; y: number }>(`(() => {
+        const row = document.querySelector('${tool}');
+        window.aimedSearchRow = row;
+        const rect = row.getBoundingClientRect();
+        return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+      })()`);
+      await move(point);
+      await afterAnswer(pending);
+      assert.equal(await evaluate(`document.elementFromPoint(${point.x}, ${point.y})?.closest('${tool}') === window.aimedSearchRow && window.aimedSearchRow.getAttribute('aria-selected') === 'true'`), true, "the same node remains selected and under the pointer");
+      assert.equal(await evaluate(`document.querySelector('${content}') === null`), true, "the late content waits");
+      if (intent === "leave") {
+        await move({ x: 1, y: 1 });
+        await waitFor("document.querySelector('[data-global-search-hit]')?.classList.contains('is-content')");
+      } else if (intent === "new words") {
+        await evaluate(typed(input, "unrelatedterm"));
+        assert.equal(await evaluate(`document.querySelector('${tool}, ${content}') === null`), true, "the old term disappears immediately");
+        await hold.answer('"query":"unrelatedterm"');
+        await waitFor("document.querySelector('.global-search-empty')");
+      } else if (intent === "click") {
+        for (const type of ["mousePressed", "mouseReleased"]) await command("Input.dispatchMouseEvent", { type, ...point, button: "left", clickCount: 1 }, sessionId);
+        await waitFor(`!${dialog}.open && document.body.dataset.desktopSurface === 'dataset'`);
+      } else {
+        await press("ArrowDown", 40);
+        await waitFor("document.querySelector('[data-global-search-hit]')?.matches('.is-content[aria-selected=true]')");
+        await press("Enter", 13);
+        await waitFor(`!${dialog}.open && document.querySelector('[data-artifact-detail] .artifact-detail h1')?.textContent.includes('${proof}')`, 15_000);
+      }
+    }
+
+    const oldScope = await freshSearch();
+    await click('[data-global-search-scope-option="personal"]');
+    await afterAnswer(oldScope);
+    assert.equal(await evaluate(`document.querySelector('${content}') === null`), true, "a previous scope's late response does not repopulate the list");
+    await hold.answer('"scope":"personal"');
+    await waitFor("document.querySelector('.global-search-empty')");
+    assert.equal(await evaluate(`document.querySelector('${content}') === null`), true);
   } finally { await hold.close(); }
 });
 

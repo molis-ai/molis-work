@@ -88,7 +88,7 @@ export const ONBOARDING_EN: Record<string, string> = {
   "项已跳过": "items skipped",
   "资料已经准备好": "Your materials are ready",
   "给它一个项目名字，就可以开始阅读和创作。摘要可以连接文字模型后再整理。": "Give it a project name to start reading and writing. The summary can come once a text model is connected.",
-  "已连接，继续整理": "Connected — continue",
+  "连好后继续整理": "Continue after connecting",
   "资料已暂存": "Materials stored",
   "保存资料，开始工作": "Save materials and start",
   "正在整理工作脉络": "Tracing how the work fits together",

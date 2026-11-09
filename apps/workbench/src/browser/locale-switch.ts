@@ -33,7 +33,7 @@ export interface LocaleMerge {
 }
 
 /** These change with what a person does, not with the language. */
-const STATE_ATTRIBUTES = new Set(["checked", "selected", "open", "style", "class"]);
+const TEXT_ATTRIBUTES = new Set(["title", "placeholder", "aria-label", "aria-description", "alt", "label", "data-work-surface-label"]);
 /**
  * A button-type input's label is its value. Every other `value` is data: a field's is the person's, and an `<option>`'s or a `<button>`'s goes with
  * the form when it is sent (a `<button>`'s label is the text inside it), so it is never merged.
@@ -47,11 +47,11 @@ const keepsChildren = (element: Element) => element.localName === "textarea" || 
 function wordAttributes(element: Element): string[] {
   if (element.getAttribute("translate") === "no") return [];
   const input = element.localName === "input" && BUTTON_INPUTS.has((element.getAttribute("type") ?? "").toLowerCase());
-  return element.getAttributeNames().filter((name) => !STATE_ATTRIBUTES.has(name) && !name.startsWith("on") && (name !== "value" || input)).sort();
+  return element.getAttributeNames().filter(name => TEXT_ATTRIBUTES.has(name) || input && name === "value").sort();
 }
 
 /** One word of a region: a text, an attribute or a data block, under the nearest ancestor with an `id` or a `data-plugin-contribution`. */
-interface Word { readonly group: string; readonly key: string; readonly value: string; set(value: string): void }
+interface Word { readonly group: string; readonly key: string; readonly value: string; read(): string | null; set(value: string): void }
 
 const groupOf = (element: Element, group: string) => element.id ? `#${element.id}` : element.hasAttribute("data-plugin-contribution") ? `@${element.getAttribute("data-plugin-contribution")}` : group;
 const childrenOf = (node: Node): readonly Node[] => [...(node instanceof HTMLTemplateElement ? node.content : node).childNodes];
@@ -60,16 +60,16 @@ const childrenOf = (node: Node): readonly Node[] => [...(node instanceof HTMLTem
 function wordsOf(node: Node, group: string, into: Word[]): Word[] {
   for (const child of childrenOf(node)) {
     if (child instanceof Text) {
-      if (child.data.trim() !== "") into.push({ group, key: `t:${child.data}`, value: child.data, set: (value) => { child.data = value; } });
+      if (child.data.trim() !== "") into.push({ group, key: `t:${child.data}`, value: child.data, read: () => child.data, set: (value) => { child.data = value; } });
     } else if (child instanceof Element) {
       const inner = groupOf(child, group);
       for (const name of wordAttributes(child)) {
         const value = child.getAttribute(name)!;
-        into.push({ group: inner, key: `a:${name}=${value}`, value, set: (next) => child.setAttribute(name, next) });
+        into.push({ group: inner, key: `a:${name}=${value}`, value, read: () => child.getAttribute(name), set: (next) => child.setAttribute(name, next) });
       }
       if (child.localName === "script" || child.localName === "style") {
         const text = child.firstChild;
-        if (child.getAttribute("type") === "application/json" && text instanceof Text) into.push({ group: inner, key: `s:${text.data}`, value: text.data, set: (value) => { text.data = value; } });
+        if (child.hasAttribute("data-ui-language-model") && child.getAttribute("type") === "application/json" && text instanceof Text) into.push({ group: inner, key: `s:${text.data}`, value: text.data, read: () => text.data, set: (value) => { text.data = value; } });
       } else if (!keepsChildren(child)) wordsOf(child, inner, into);
     }
   }
@@ -79,12 +79,21 @@ function wordsOf(node: Node, group: string, into: Word[]): Word[] {
 /** Old words with what each becomes. Two renders of one page have one shape; a part that does not is left alone and said. */
 function expectedWords(old: ParentNode, next: ParentNode, problems: string[]): Array<Word & { readonly to: string | null }> {
   const before = wordsOf(old, "", []), after = wordsOf(next, "", []);
-  const shape = (words: readonly Word[]) => words.map(({ group, key }) => `${group} ${key.slice(0, key.indexOf(key.startsWith("a:") ? "=" : ":"))}`).join("\n");
-  if (shape(before) !== shape(after)) {
-    problems.push("两种语言画出来的结构不同：这一块不改");
-    return [];
-  }
-  return before.map((word, index) => ({ ...word, to: after[index]!.value === word.value ? null : after[index]!.value }));
+  const shape = (words: readonly Word[]) => words.map(({ key }) => key.slice(0, key.indexOf(key.startsWith("a:") ? "=" : ":"))).join("\n");
+  const groups = (words: readonly Word[]) => {
+    const result = new Map<string, Word[]>();
+    for (const word of words) { const same = result.get(word.group) ?? []; same.push(word); result.set(word.group, same); }
+    return result;
+  };
+  const later = groups(after);
+  return [...groups(before)].flatMap(([group, previous]) => {
+    const nextWords = later.get(group) ?? [];
+    if (shape(previous) !== shape(nextWords)) {
+      problems.push(group);
+      return [];
+    }
+    return previous.map((word, index) => ({ ...word, to: nextWords[index]!.value === word.value ? null : nextWords[index]!.value }));
+  });
 }
 
 interface Run<T> { readonly key: string; readonly words: T[] }
@@ -118,13 +127,14 @@ function align(old: readonly Run<Word>[], live: readonly Run<Word>[]): Array<[nu
  * positions the difference in count leaves it, so a position changes when a word that changes could be there. A real interface word is never
  * left in the old language; a word the person or the browser put right beside it may show translated until it is drawn again (§5.4).
  */
-function mergeRun(old: Run<Word & { readonly to: string | null }>, live: Run<Word>): number {
+interface WordChange { readonly word: Word; readonly to: string }
+function mergeRun(old: Run<Word & { readonly to: string | null }>, live: Run<Word>, changes: WordChange[]): number {
   const extra = live.words.length - old.words.length;
   let changed = 0;
   live.words.forEach((word, position) => {
     const from = extra >= 0 ? position - extra : position, to = extra >= 0 ? position : position - extra;
     const source = old.words.find((candidate, index) => candidate.to !== null && index >= from && index <= to);
-    if (source !== undefined && word.value !== source.to) { word.set(source.to!); changed += 1; }
+    if (source !== undefined && word.value !== source.to) { changes.push({ word, to: source.to! }); changed += 1; }
   });
   return changed;
 }
@@ -140,16 +150,17 @@ export interface LocaleMergeInput {
   retext(ref: OwnedTextRef): string;
 }
 
-/** Changes the region's words to the new language. The text context must already answer in the new language. */
-export function mergeLocaleText(input: LocaleMergeInput): LocaleMerge {
+/** Prepare the replacement words without mutating the page or its context. */
+export function planLocaleText(input: LocaleMergeInput) {
   const problems: string[] = [];
+  const changes: WordChange[] = [];
   const expected = expectedWords(input.old, input.next, problems), live = wordsOf(input.root, "", []);
   const unmatched = new Set<Word>(live);
   let changed = 0, redrawn = 0;
   for (const group of new Set([...expected, ...live].map((word) => word.group))) {
     const oldRuns = runsOf(expected.filter((word) => word.group === group)), liveRuns = runsOf(live.filter((word) => word.group === group));
     for (const [i, j] of align(oldRuns, liveRuns)) {
-      changed += mergeRun(oldRuns[i]!, liveRuns[j]!);
+      changed += mergeRun(oldRuns[i]!, liveRuns[j]!, changes);
       for (const word of liveRuns[j]!.words) unmatched.delete(word);
     }
   }
@@ -158,52 +169,106 @@ export function mergeLocaleText(input: LocaleMergeInput): LocaleMerge {
     const ref = input.produced.find(word.value);
     if (ref === undefined) continue;
     const text = input.retext(ref);
-    if (text !== word.value) { word.set(text); redrawn += 1; }
+    if (text !== word.value) { changes.push({ word, to: text }); redrawn += 1; }
   }
-  return { changed, redrawn, problems };
+  return { result: { changed, redrawn, problems }, apply(use: () => void, restore: () => void) {
+    const wrote: Word[] = [];
+    try {
+      for (const { word, to } of changes) {
+        // A concurrent ordinary update owns any word it has since redrawn. It will be invalidated after the switch.
+        if (word.read() !== word.value) continue;
+        wrote.push(word);
+        word.set(to);
+      }
+      use();
+    } catch (error) {
+      for (const word of wrote.reverse()) word.set(word.value);
+      restore();
+      throw error;
+    }
+  } };
 }
 
-export interface LocaleSwitchOptions {
+/** Changes the region's words to the new language. `retext` reads the prepared language, independently of the displayed context. */
+export function mergeLocaleText(input: LocaleMergeInput): LocaleMerge {
+  const merge = planLocaleText(input);
+  merge.apply(() => {}, () => {});
+  return merge.result;
+}
+
+export interface LocaleSwitchOptions<Prepared = undefined> {
   readonly root: ParentNode;
   /** The region as the server draws it in a language; `null` when it cannot be had. */
-  render(locale: string): Promise<ParentNode | null>;
-  /** Puts the new language into the browser's text context, once everything is in hand. */
-  use(locale: string): void;
+  render(locale: string, signal: AbortSignal): Promise<ParentNode | null>;
+  /** Load resources without changing the current language. */
+  prepare?(locale: string, signal: AbortSignal, document: ParentNode | null): Promise<Prepared>;
+  /** Save the prepared preference, or read back its actual result if the reply is lost. Never cancelled once sent. */
+  persist?(locale: string, prepared: Prepared): Promise<void>;
+  /** The browser commits its prepared context synchronously, or restores the previous one if any update failed. */
+  use(locale: string, prepared?: Prepared): void;
   readonly produced: ProducedLog;
-  retext(ref: OwnedTextRef): string;
+  retext(ref: OwnedTextRef, locale: string, prepared?: Prepared): string;
+}
+
+function waitForLocalePreparation<T>(signal: AbortSignal, work: Promise<T>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const abort = () => reject(signal.reason);
+    signal.addEventListener("abort", abort, { once: true });
+    work.then(value => { signal.removeEventListener("abort", abort); resolve(value); },
+      error => { signal.removeEventListener("abort", abort); reject(error); });
+  });
 }
 
 /**
- * One switch at a time; asked again meanwhile, it does only the last. Answers the merge, or `null` when a render could not be had: then nothing
- * on the page changed, and the language on show is still the old one.
+ * The latest request owns preparation. Preference writes are serialized: a write already sent may have succeeded, but
+ * its words cannot update the page after a newer choice. A later choice can even restore the language still on display.
  */
-export function createLocaleSwitch(options: LocaleSwitchOptions, shown: string) {
-  let current = shown, wanted = shown, running: Promise<LocaleMerge | null> | null = null;
+export function createLocaleSwitch<Prepared>(options: LocaleSwitchOptions<Prepared>, shown: string) {
+  let current = shown, persisted = shown, running: Promise<LocaleMerge | null> | null = null;
+  let wanted: { locale: string; save: boolean; force: boolean } | undefined;
+  let preparing: AbortController | undefined;
   const run = async (): Promise<LocaleMerge | null> => {
     let merged: LocaleMerge | null = null;
-    while (wanted !== current) {
-      const target = wanted;
-      const [old, next] = await Promise.all([options.render(current), options.render(target)]);
-      if (old === null || next === null) { wanted = current; return null; }
-      // The new language goes in first, since a word `t` produced is drawn again in it. A merge that throws puts the old one back, so the language
-      // in force and `current` always say the same (#1976 review ② item 6); whatever it had already written stays until the next switch.
-      options.use(target);
+    while (wanted) {
+      const request = wanted, target = request.locale, prior = current;
       try {
-        merged = mergeLocaleText({ root: options.root, old, next, produced: options.produced, retext: options.retext });
+        const abort = preparing = new AbortController(), signal = abort.signal;
+        const [old, next] = await waitForLocalePreparation(signal, Promise.all([
+          target === prior ? null : options.render(prior, signal),
+          target === prior ? null : options.render(target, signal),
+        ]));
+        const prepared = options.prepare ? await waitForLocalePreparation(signal, options.prepare(target, signal, next)) : undefined;
+        if (preparing === abort) preparing = undefined;
+        if (request !== wanted) continue;
+        if (target !== prior && (old === null || next === null)) { wanted = undefined; return null; }
+        const plan = old && next && planLocaleText({ root: options.root, old, next, produced: options.produced,
+          retext: ref => options.retext(ref, target, prepared) });
+        if (request.save && options.persist && (request.force || target !== persisted)) {
+          await options.persist(target, prepared as Prepared);
+          persisted = target;
+        } else if (!request.save) persisted = target;
+        if (request !== wanted) continue;
+        if (plan) {
+          plan.apply(() => options.use(target, prepared), () => options.use(prior));
+          merged = plan.result;
+        }
+        current = target; if (wanted === request) wanted = undefined;
       } catch (error) {
-        options.use(current);
-        wanted = current;
+        preparing?.abort(); preparing = undefined;
+        if (request !== wanted) continue;
+        wanted = undefined;
         throw error;
       }
-      current = target;
     }
     return merged;
   };
   return {
     current: () => current,
-    switchTo(locale: string): Promise<LocaleMerge | null> {
-      wanted = locale;
-      running ??= run().finally(() => { running = null; });
+    switchTo(locale: string, save = true, force = false): Promise<LocaleMerge | null> {
+      if (wanted?.locale !== locale || wanted.save !== save || force) {
+        wanted = { locale, save, force }; preparing?.abort();
+      }
+      running ??= Promise.resolve().then(run).finally(() => { running = null; });
       return running;
     },
   };

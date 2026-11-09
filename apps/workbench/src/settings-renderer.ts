@@ -1,5 +1,6 @@
 import { renderModelSettingsDocument } from "./settings-models.js";
 import { ACCOUNT_REGISTRATION_BODY, NO_FAVICON_LINK } from "./document-shell.js";
+import { renderLanguageHead } from "./language-resource.js";
 import { icon as modelIcon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { SETTINGS_CLIENT_SCRIPT } from "./browser-assets.js";
 import { CONTROL_CLIENT_SCRIPT as UI_REQUEST_CLIENT_SCRIPT } from "./scripts/control.js";
@@ -33,7 +34,7 @@ export interface SettingsRenderPrimitives {
   escapeHtml(value: unknown): string;
   icon(name: "check" | "sun" | "moon" | "system" | "workflow" | "settings" | "chevron-down" | "chevron-right" | "database" | "refresh" | "x" | "brand" | "blocked" | "tree" | "plus" | "book" | "shield" | "link" | "mail" | "back", className?: string): string;
   currentLocale(): string;
-  localeSwitchHref(locale: "zh" | "en", nextPath: string): string;
+  localeSwitchHref(locale: import("./i18n.js").WebLocalePreference, nextPath: string): string;
   htmlLang(): string;
   controlTokenMeta(token: string): string;
   clientI18nScript(): string;
@@ -113,7 +114,7 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
   </main>
   ${renderRuntimePlanDialog({ L, icon })}
   <div class="mw-toast toast" data-settings-toast role="status" aria-live="polite"></div>${renderAppearanceRecovery(L, appearance)}
-  <script>${clientI18nScript()}${UI_REQUEST_CLIENT_SCRIPT}${SETTINGS_CLIENT_SCRIPT}${view.capabilities?.rules ? FUNCTIONS_SYSTEM_CLIENT_SCRIPT : ""}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>${appearanceClientTag(appearance)}
+  ${renderLanguageHead(htmlLang())}<script>${clientI18nScript()}${UI_REQUEST_CLIENT_SCRIPT}${SETTINGS_CLIENT_SCRIPT}${view.capabilities?.rules ? FUNCTIONS_SYSTEM_CLIENT_SCRIPT : ""}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>${appearanceClientTag(appearance)}
 </body></html>`;
 }
 

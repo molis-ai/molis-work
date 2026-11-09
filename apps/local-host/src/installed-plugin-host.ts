@@ -1,3 +1,4 @@
+import { inLanguagePreview, languagePreviewUnavailable } from "./web-locale.js";
 import { effectsFromContract } from '@molis-ai/molis-work-plugin-sdk';
 import { pluginAgentRegistration, registerPluginAgentDefinitions, updatePluginAgentDefinitions, forgetPluginAgentDefinitions } from "./plugin-instructions.js";
 import { pluginHomeFor } from "./home-side.js";
@@ -66,13 +67,15 @@ export async function runningInstalledPluginPlatform(store: LocalProjectDatabase
 export const staleInstallation = (message = '插件的安装执行身份已失效'): SandboxError => new SandboxError('plugin.capability_denied', message);
 
 export function ensureInstalledPlugins(options: InstalledPluginHostOptions): Promise<InstalledPluginHost> {
-  const boards = hosts.get(options.store) ?? new Map(); hosts.set(options.store, boards);
+  const boards = hosts.get(options.store) ?? new Map();
   const identity = { home: resolve(options.homeDirectory), actor: options.actorId ?? 'web-user', project: options.actions?.project_id ?? options.projectId };
   const existing = boards.get(options.projectId);
   if (existing) {
     if (existing.home !== identity.home || existing.actor !== identity.actor || existing.project !== identity.project) throw new Error('安装运行入口的 Home、用户或项目身份不一致');
     return existing.ready;
   }
+  if (inLanguagePreview()) throw languagePreviewUnavailable();
+  hosts.set(options.store, boards);
   const ready = openInstalledPlugins(options);
   const entry = { ...identity, ready }; boards.set(options.projectId, entry);
   ready.catch(() => { if (boards.get(options.projectId) === entry) boards.delete(options.projectId); });

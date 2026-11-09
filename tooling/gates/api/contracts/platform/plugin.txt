@@ -513,7 +513,7 @@ export interface ActionInvokeTransport {
     readonly on_progress?: (event: ActionProgressEvent) => void;
 }
 
-export type ActionLocale = "zh" | "en";
+export type ActionLocale = UiLanguageTag;
 
 export interface ActionMetadata {
     readonly title: string;

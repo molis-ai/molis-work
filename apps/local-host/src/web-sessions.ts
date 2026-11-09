@@ -6,6 +6,7 @@ import { loopbackHost } from "@molis-ai/molis-work-contracts/platform/loopback";
 import { controlTokenMatches } from "./web-control-token.js";
 
 export const WEB_PAGE_SESSION_HEADER = "x-molis-work-page-session";
+export const UI_LANGUAGE_PREVIEW_HEADER = "x-molis-work-ui-locale";
 const COOKIE_PREFIX = "molis-work-web-";
 const TTL = 8 * 60 * 60 * 1000;
 
@@ -82,7 +83,7 @@ export class WebSessions {
     const url = new URL(request.url ?? "/", "http://localhost");
     const page = request.method === "GET" && !/^(?:\/api(?:\/|$)|\/projects\/[^/]+\/api(?:\/|$)|\/assets\/|\/health$|\/locale$|\/account\/callback$)/.test(url.pathname);
     const site = request.headers["sec-fetch-site"], source = request.headers.origin;
-    const trustedPage = request.headers["x-molis-work-control-token"] === undefined && site !== "cross-site" && (source === undefined || source === origin) && request.headers["sec-fetch-dest"] !== "empty";
+    const trustedPage = request.headers[UI_LANGUAGE_PREVIEW_HEADER] === undefined && request.headers["x-molis-work-control-token"] === undefined && site !== "cross-site" && (source === undefined || source === origin) && request.headers["sec-fetch-dest"] !== "empty";
     if (response && origin && page && trustedPage && (!session || session.scope !== webPageScope(expected))) {
       if (session) this.remove(session);
       session = this.create(origin, expected);

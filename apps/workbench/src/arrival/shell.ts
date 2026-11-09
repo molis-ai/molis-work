@@ -5,6 +5,7 @@ import { homePluginSideTabs } from "../home-plugin-navigation.js";
 import { renderSidePanel, renderSideStrip, SIDE_PANEL_SCRIPT, SIDE_PANEL_STYLES } from "../side-panel.js";
 import { ACCOUNT_REGISTRATION_BODY, NO_FAVICON_LINK, renderWorkbenchDocument } from "../document-shell.js";
 import { createWorkbenchLocale } from "../i18n.js";
+import { renderLanguageHead } from "../language-resource.js";
 import { CONTROL_CLIENT_SCRIPT } from "../scripts/control.js";
 import { appearanceClientTag, appearanceHead, type WorkbenchAppearancePorts } from "../appearance-document.js";
 import { renderAppearanceRecovery } from "../settings-appearance.js";
@@ -107,6 +108,7 @@ export function createArrivalShell(p: ArrivalShellPrimitives) {
   ${NO_FAVICON_LINK}
   ${p.controlTokenMeta(options.controlToken)}
   <title>${escapeHtml(options.title)}</title>
+  ${renderLanguageHead(p.htmlLang())}
   <script>${p.themeBootstrapScript}</script>
   <link rel="stylesheet" href="/assets/molis-work-arrival.css">${appearanceHead(appearance)}
   ${side ? `<style>${SIDE_PANEL_STYLES}body.immersive-workbench.arrival-page{--desktop-titlebar-height:var(--arrival-titlebar-h)}</style>` : ""}

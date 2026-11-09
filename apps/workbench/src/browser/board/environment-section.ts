@@ -41,7 +41,7 @@ function start(section: HTMLElement, live: HTMLElement, data: SectionData): void
   const status = section.querySelector<HTMLElement>("[data-board-env-status]"), retry = section.querySelector<HTMLButtonElement>("[data-board-env-retry]");
   const languages = [...section.querySelectorAll<HTMLButtonElement>("[data-board-env-lang]")];
   const rendered = (tag: string) => section.querySelector<HTMLTemplateElement>(`template[data-board-env-render="${tag}"]`)?.content ?? null;
-  const switcher = createLocaleSwitch({ root: live, render: async (tag) => rendered(tag), use: (tag) => { locale = tag; }, produced, retext: (ref) => say.text(ref) }, locale);
+  const switcher = createLocaleSwitch({ root: live, render: async (tag) => rendered(tag), use: (tag) => { locale = tag; }, produced, retext: (ref, tag) => say.text(ref, { locale: tag }) }, locale);
 
   /** The page works the snapshot out again with the same function, from the same definitions: they must agree. */
   const checkSnapshot = () => {

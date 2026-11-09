@@ -1,5 +1,6 @@
 
 import { fillMessage } from "@molis-ai/molis-work-plugin-sdk";
+import { UI_LANGUAGES, type UiLanguageTag } from "@molis-ai/molis-work-contracts/platform/ui";
 import { EN } from "./i18n/en.js";
 import { BUILTIN_PLUGIN_CATALOG, pluginTabTitles } from "./plugin-catalog.js";
 import { createPluginMessageStore } from "./plugin-messages.js";
@@ -34,12 +35,19 @@ export const inWordsOf = <A extends unknown[], R>(pluginId: string, translate: (
 export { EN } from "./i18n/en.js";
 
 
-export type WebLocale = "zh" | "en";
+export type WebLocale = UiLanguageTag;
+export type WebLocalePreference = WebLocale | "system";
 
 
 export const LOCALE_COOKIE = "molis_work_locale";
 
-export const WEB_LOCALES = ["zh", "en"] as const;
+export const WEB_LOCALES = [UI_LANGUAGES[0].tag, ...UI_LANGUAGES.slice(1).map(language => language.tag)] as const;
+
+export function isWebLocale(value: unknown): value is WebLocale {
+  return UI_LANGUAGES.some(language => language.tag === value);
+}
+
+export const webLanguage = (tag: WebLocale) => UI_LANGUAGES.find(language => language.tag === tag)!;
 
 
 export const LOCALE_SWITCH_STYLES = `
@@ -56,16 +64,12 @@ export const LOCALE_SWITCH_STYLES = `
 /** Platform-independent locale behavior; the Host supplies request-local state. */
 export function createWorkbenchLocale(currentLocale: () => WebLocale) {
 
-function isWebLocale(value: unknown): value is WebLocale {
-  return value === "zh" || value === "en";
-}
-
 function htmlLang(locale: WebLocale = currentLocale()): string {
-  return locale === "en" ? "en" : "zh-CN";
+  return webLanguage(locale).html_lang;
 }
 
 function dateTimeLocale(locale: WebLocale = currentLocale()): string {
-  return locale === "en" ? "en-US" : "zh-CN";
+  return webLanguage(locale).intl;
 }
 
 function listJoin(values: readonly string[], locale: WebLocale = currentLocale()): string {
@@ -92,13 +96,13 @@ function resolveWebLocaleChoice(
   if (isWebLocale(fromCookie)) return { tag: fromCookie, source: "explicit" };
 
   const accept = Array.isArray(acceptLanguage) ? acceptLanguage.join(",") : acceptLanguage;
-  for (const part of String(accept ?? "").split(",")) {
-    const tag = part.split(";")[0]?.trim().toLowerCase();
-    if (!tag) continue;
-    if (tag === "en" || tag.startsWith("en-")) return { tag: "en", source: "system" };
-    if (tag === "zh" || tag.startsWith("zh-")) return { tag: "zh", source: "system" };
-  }
-  return { tag: "zh", source: "default" };
+  const preferred = String(accept ?? "").split(",").flatMap(part => {
+    const [name, weight] = part.trim().toLowerCase().split(";");
+    const tag = name?.split("-")[0], q = weight === undefined ? 1 : Number(weight.trim().replace(/^q=/u, ""));
+    return isWebLocale(tag) && q > 0 && q <= 1 ? [{ tag, q }] : [];
+  }).sort((a, b) => b.q - a.q);
+  const match = preferred[0]?.tag;
+  return match ? { tag: match, source: "system" } : { tag: UI_LANGUAGES[0].tag, source: "default" };
 }
 
 const resolveWebLocale = (...args: Parameters<typeof resolveWebLocaleChoice>): WebLocale => resolveWebLocaleChoice(...args).tag;
@@ -117,11 +121,16 @@ function safeNextPath(raw: string | null | undefined): string {
   return value;
 }
 
-function localeSetCookie(locale: WebLocale): string {
+function localePreference(cookieHeader?: string | null): WebLocalePreference {
+  const preferred = cookieValue(cookieHeader ?? undefined, LOCALE_COOKIE);
+  return isWebLocale(preferred) ? preferred : "system";
+}
+
+function localeSetCookie(locale: WebLocalePreference): string {
   return `${LOCALE_COOKIE}=${locale}; Path=/; Max-Age=31536000; SameSite=Lax`;
 }
 
-function localeSwitchHref(locale: WebLocale, nextPath: string): string {
+function localeSwitchHref(locale: WebLocalePreference, nextPath: string): string {
   return `/locale?lang=${locale}&next=${encodeURIComponent(safeNextPath(nextPath))}`;
 }
 
@@ -133,8 +142,7 @@ function L(key: string, vars?: Record<string, string | number>): string {
 function renderLocaleSwitch(nextPath: string): string {
   const locale = currentLocale();
   return `<nav class="locale-switch" aria-label="${escapeAttr(L("界面语言"))}">
-    <a href="${localeSwitchHref("zh", nextPath)}" hreflang="zh-CN" lang="zh-CN"${locale === "zh" ? ' aria-current="true"' : ""}>中文</a>
-    <a href="${localeSwitchHref("en", nextPath)}" hreflang="en" lang="en"${locale === "en" ? ' aria-current="true"' : ""}>EN</a>
+    ${UI_LANGUAGES.map(language => `<a href="${localeSwitchHref(language.tag, nextPath)}" hreflang="${language.html_lang}" lang="${language.html_lang}" data-ui-language="${language.tag}"${locale === language.tag ? ' aria-current="true"' : ""}>${language.name}</a>`).join("")}
   </nav>`;
 }
 
@@ -177,5 +185,5 @@ function escapeAttr(value: string): string {
     .replaceAll('"', "&quot;");
 }
 
-  return { currentLocale, isWebLocale, htmlLang, dateTimeLocale, listJoin, resolveWebLocale, resolveWebLocaleChoice, safeNextPath, localeSetCookie, localeSwitchHref, L, renderLocaleSwitch, englishCatalogJson, clientI18nScript };
+  return { currentLocale, isWebLocale, htmlLang, dateTimeLocale, listJoin, resolveWebLocale, resolveWebLocaleChoice, safeNextPath, localePreference, localeSetCookie, localeSwitchHref, L, renderLocaleSwitch, englishCatalogJson, clientI18nScript };
 }

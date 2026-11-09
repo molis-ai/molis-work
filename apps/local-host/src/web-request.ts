@@ -21,6 +21,7 @@ import type { MolisWorkWebServiceManager } from "./installer/web-service.js";
 import type { WebServerOptions, ProjectScheduleRuntime, ResolvedWebRequest } from "./web-types.js";
 import type { LocalWebComposition } from "./web-composition.js";
 import { sendLocalWebJson as sendJson } from "./web-http.js";
+import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { L } from "./web-locale.js";
 import fs from "node:fs";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
@@ -28,6 +29,7 @@ import type { MolisWorkPtyHost } from "@molis-ai/molis-work-service-runtime-host
 import { cachedMolisWorkWebView, type MolisWorkWebViewCache, type GoalsWebView } from "./web-view.js";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import { ensureProjectPlugins } from "./project-plugins.js";
+import { UI_LANGUAGE_PREVIEW_HEADER } from "./web-ui-preference.js";
 import { homeStageHalves } from "./home-plugin-http.js";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { readRuntimeStageData, runtimeStageOwner } from "./project-plugin-stages.js";
@@ -81,7 +83,7 @@ export async function handleMolisWorkWebRequest(
       ptyHost, webUrl, localHost, composition, agentHost, agentReady };
     if (await homePluginsRoute.handle(context)) return;
     // The personal space always exists for the person; it is made the first time anyone opens it.
-    if (/^\/projects\/personal(?:\/|$)/u.test(url.pathname) && !serverOptions.databasePath) {
+    if (/^\/projects\/personal(?:\/|$)/u.test(url.pathname) && !serverOptions.databasePath && request.headers[UI_LANGUAGE_PREVIEW_HEADER] === undefined) {
       await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => catalog.ensurePersonalSpace());
     }
     const resolved = await resolveOrChooser(context);
@@ -144,6 +146,10 @@ const PROJECT_ROUTES: readonly WebRoute<ProjectRequestContext>[] = [
   sideViewRoute,
   sideFilesRoute,
   { id: "project-runtime", handle: async context => {
+    const preview = context.request.headers[UI_LANGUAGE_PREVIEW_HEADER] !== undefined;
+    if (preview && !context.localHost.projects().some(project => project.storage_key === context.hostReference.storage_key && project.state === "ready")) {
+      sendJson(context.response, 409, { error: t.text("workbench.language.project-closed") }); return true;
+    }
     await context.localHost.withProject(context.hostReference, runtime =>
       dispatchWebRoutes(PROJECT_RUNTIME_ROUTES, projectRuntimeContext(context, runtime)));
     return true;
@@ -176,7 +182,8 @@ function projectWebView({ options, webViewCache, store, homeActions, localHost, 
     const stage_request = declaredStageRequests(view.shown_plugins ?? [], pageMatch);
     view = { ...view, ...(pageMatch && !pageMatch.rejected ? { page_owner: pageMatch.plugin_id } : {}),
       ...(Object.keys(stage_request).length > 0 ? { stage_request } : {}) };
-    const prepared = await readRuntimeStageData(await ensureProjectPlugins(pluginPorts), view.shown_plugins ?? [], await homeStageHalves(localHost.homePlugins),
+    const plugins = await ensureProjectPlugins(pluginPorts);
+    const prepared = await readRuntimeStageData(plugins, view.shown_plugins ?? [], await homeStageHalves(localHost.homePlugins),
       (action, owner) => bindLocalWebAction(localHost, hostReference, action, { stage_read: { manifest: owner.entry.manifest, install_id: owner.install_id, installation_generation: owner.installation_generation, scope: owner.scope, assertCurrent: owner.assertCurrent, capturePermission: owner.capturePermission } }), stage_request);
     view = { ...view, stage_data: prepared.data, plugin_stage_views: prepared.views };
     // Existing bootstrap consumer reads Inbox's own summary from its single stage answer, without another query.

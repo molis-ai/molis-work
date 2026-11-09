@@ -5,6 +5,7 @@ export * from "./action-execution.js";
 import { ActionError, type ActionErrorKind } from "./action-errors.js";
 export * from "./action-errors.js";
 import type { ActionExecutionPolicy } from "./action-execution.js";
+import type { UiLanguageTag } from "./ui-text.js";
 import type { ActionResultView } from "./action-result.js";
 import type { SubjectOfferChoice } from "./action-offers.js";
 export * from "./home-background-tasks.js";
@@ -77,7 +78,7 @@ export interface HostOfferedOriginalInput {
 }
 
 /** The languages a page is shown in; the words a handler sends back follow the caller's. */
-export type ActionLocale = "zh" | "en";
+export type ActionLocale = UiLanguageTag;
 
 /**
  * Which protected entry a person's operation came through, and where to find it: audit locators that grant nothing on their own (PG-029).

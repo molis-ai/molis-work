@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import { createRequire } from "node:module";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { WorkbenchRenderer } from "@molis-ai/molis-work-app-workbench";
+import { workbenchLanguageResource, type WorkbenchRenderer } from "@molis-ai/molis-work-app-workbench";
 import { BASELINE_REGISTRY, baselinePackageFile } from "@molis-ai/molis-work-design-system";
 import { appearanceSheet } from "./appearance-sheet.js";
 import { tightenServedJs, tightenServedCss } from "./served-page-text.js";
@@ -77,6 +77,14 @@ export function createLocalWebAssets(ports: {
     pathname: string,
   ): boolean {
     if (request.method !== "GET" && request.method !== "HEAD") return false;
+    const language = workbenchLanguageResource(pathname);
+    if (language) {
+      const headers = { "content-type": "text/javascript; charset=utf-8", "cache-control": "private, max-age=31536000, immutable",
+        etag: language.etag, "x-content-type-options": "nosniff" };
+      const status = request.headers["if-none-match"] === language.etag ? 304 : 200;
+      response.writeHead(status, headers); response.end(status === 200 && request.method === "GET" ? language.body : undefined);
+      return true;
+    }
     const key = pathname.endsWith(".woff2") ? pathname : currentLocale() + ":" + pathname;
     let asset = workbenchAssets.get(key);
     if (!asset) {

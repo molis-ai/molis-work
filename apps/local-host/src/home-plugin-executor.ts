@@ -38,7 +38,8 @@ import { pluginTerminalFor } from "./plugin-terminal-service.js";
 import { openPluginOwnerFiles } from "./plugin-owner-files.js";
 import { syncActivation, copyActivation } from "./sync-activation.js";
 import { servicesUntilStopped } from "./plugin-stopped-services.js";
-import { pluginTextFor } from "./plugin-host-services.js";
+import { pluginTextFor, pluginTextViews } from "./plugin-host-services.js";
+import { runWithPluginText } from "./web-locale.js";
 import { realpathSync } from "node:fs";
 import { join } from "node:path";
 import { withPluginWords } from "@molis-ai/molis-work-app-workbench";
@@ -96,7 +97,7 @@ export class HomePluginExecutor implements PluginExecutor {
       context.requireGrant(permission);
     };
     const ui = createPluginUiClient(new UiHost({ drawingAs: withPluginWords }), context, manifest,
-      { invalidate: () => this.options.invalidateView(manifest.plugin_id), active: () => active && this.options.active() });
+      { invalidate: () => this.options.invalidateView(manifest.plugin_id), active: () => active && this.options.active(), draw: draw => runWithPluginText(context, draw) });
     let database: ReturnType<typeof openPluginDatabase> | undefined;
     let sandboxLibrary: Awaited<ReturnType<typeof openSandboxHomeLibrary>> | undefined;
     let partitions: PartitionedPluginDatabase | undefined;
@@ -117,7 +118,7 @@ export class HomePluginExecutor implements PluginExecutor {
       if (failures.length) throw new AggregateError(failures, "Home 插件服务释放失败");
     };
     try {
-      withdrawText = pluginTextFor(this.options, definition);
+      withdrawText = pluginTextFor(this.options, definition, context);
       const home = pluginHomeFor(this.options.home);
       const library = homeLibraryFor(definition, this.options.database(definition), this.options.record(context.install_id));
       const declaration = library?.declaration;
@@ -158,7 +159,7 @@ export class HomePluginExecutor implements PluginExecutor {
         ? directoryForHome(this.options.home).connect({ plugin_id: manifest.plugin_id, install_id: context.install_id, installation_generation: context.installation_generation, name: manifest.name,
           project_id: null, actor_id: this.options.actorId, assertCurrent: () => authorize(DIRECTORY_READ_PERMISSION) }) : undefined;
       // A Home instance's jobs have no project of their own: each takes the project of the call that kept it.
-      background = pluginBackgroundFor(definition, authorized, assertActive, { actor_id: this.options.actorId, record: activeRecord });
+      background = pluginBackgroundFor(definition, authorized, assertActive, { actor_id: this.options.actorId, activation: context, home: this.options.home, record: activeRecord });
       const storage = manifest.permissions.some(item => item.permission === "storage:private")
         ? this.options.storage.forPlugin(authorized, manifest) : undefined;
       terminal = pluginTerminalFor({ home: this.options.home, manifest, context: authorized, ownerFiles: ownerFiles?.client, assertActive });
@@ -174,9 +175,9 @@ export class HomePluginExecutor implements PluginExecutor {
         invoke: pluginPageActions(manifest, authorized, { client: this.options.client, actions: hosted.services?.actions, caller, provider: this.options.providerFor(definition, context.install_id) }),
         assertCurrent: permission => permission ? authorize(permission) : assertActive() });
       const given = servicesUntilStopped(hosted, () => stopped, this.stoppedCalls);
-      const contribution = await (background ? background.starting(() => definition.start(given)) : definition.start(given));
-      this.sessions.set(context.install_id, { context: given, revoke: () => { active = false; try { terminal?.dispose(); } finally { withdrawPages?.(); directory?.dispose(); background?.close(); withdrawCaller?.(); } }, dispose, partitions, background });
-      return { contribution };
+      const contribution = await runWithPluginText(context, () => background ? background.starting(() => definition.start(given)) : definition.start(given));
+      this.sessions.set(context.install_id, { context: given, revoke: () => { active = false; withdrawText?.(); try { terminal?.dispose(); } finally { withdrawPages?.(); directory?.dispose(); background?.close(); withdrawCaller?.(); } }, dispose, partitions, background });
+      return { contribution: pluginTextViews(contribution, context) };
     } catch (error) {
       try { dispose(); } catch (cleanup) { throw new AggregateError([error, cleanup], "Home 插件启动与服务释放失败"); }
       throw error;

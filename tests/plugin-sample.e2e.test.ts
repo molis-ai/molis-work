@@ -11,7 +11,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import test from "node:test";
 import { type SqliteDatabase } from "@molis-ai/molis-work-test-kit/sqlite";
-import { PluginHostExecutor, installHostUiText, runWithLocale } from "@molis-ai/molis-work-app-local-host";
+import { PluginHostExecutor, installHostUiText, runWithLocale, runWithPluginText } from "@molis-ai/molis-work-app-local-host";
 import { registerPluginText } from "@molis-ai/molis-work-app-workbench";
 import { t as hostT } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { build } from "esbuild";
@@ -225,10 +225,11 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
       bundle: true, write: false, format: "esm", platform: "node", packages: "bundle", target: "node24", logLevel: "silent" });
     const copy = await import(`data:text/javascript;base64,${Buffer.from(single.outputFiles[0]!.text).toString("base64")}`) as { default: PluginDefinition; t: typeof hostT };
     assert.notEqual(copy.t, hostT, "a copy of its own");
-    const copyWords = registerPluginText(pluginLocaleReader(copy.default.manifest, path => existsSync(join(repositorySample, path)) ? readFileSync(join(repositorySample, path), "utf8") : null)!, { t: true });
+    const activation = { install_id: "bundled-example", installation_generation: "test" };
+    const copyWords = registerPluginText(pluginLocaleReader(copy.default.manifest, path => existsSync(join(repositorySample, path)) ? readFileSync(join(repositorySample, path), "utf8") : null)!, { t: true, activation });
     try {
-      assert.equal(runWithLocale("zh", () => copy.t("notes.main.title")), "本地插件样例");
-      assert.equal(runWithLocale("en", () => copy.t("notes.main.source", { name: "Tom's" })), "Source: Tom&#039;s");
+      assert.equal(runWithLocale("zh", () => runWithPluginText(activation, () => copy.t("notes.main.title"))), "本地插件样例");
+      assert.equal(runWithLocale("en", () => runWithPluginText(activation, () => copy.t("notes.main.source", { name: "Tom's" }))), "Source: Tom&#039;s");
     } finally { copyWords(); }
     assert.ok(existsSync(join(repositorySample, "node_modules/@molis-ai/molis-work-plugin-sdk/dist/page-globals.d.ts")));
     const repositoryRun = dev(join(directory, "repository-state"), grants, "--allow-unsigned-development", repositorySample);

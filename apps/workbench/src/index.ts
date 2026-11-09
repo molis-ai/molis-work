@@ -25,7 +25,7 @@ export type { MolisWorkWebView } from "./page-view.js";
 export type { PluginRestartOffer, UnavailablePluginStage } from "./unavailable-plugin-stage.js";
 export { createWorkbenchLocale, inWordsOf, LOCALE_COOKIE, LOCALE_SWITCH_STYLES, registerPluginMessages, unregisterPluginMessages, WEB_LOCALES, withPluginWords, type WebLocale } from "./i18n.js";
 // The words this process holds for the text tools (specs/font-and-skin-system/a-section-contract.md §8.3): the Host registers and reads them.
-export { hasPluginText, pluginTextDefault, pluginTextMessage, pluginTextOwnerOfPrefix, registerPluginText, type PluginTextReader } from "./plugin-text.js";
+export { pluginTextForOwner, pluginTextOwnerOfPrefix, pluginTextReader, registerPlatformText, registerPluginText, type PluginTextReader } from "./plugin-text.js";
 export {
   artifactWorkbench,
   createArtifactReferenceRenderer,

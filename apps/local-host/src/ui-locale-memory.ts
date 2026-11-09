@@ -1,7 +1,7 @@
 import { createAppearanceOwner, type AppearanceOwner } from "@molis-ai/molis-work-service-appearance";
 import { hostLog, repeatingFailure } from "./host-log.js";
 import { resolveConfiguredHome } from "./product-home.js";
-import { isWebLocale, WEB_LOCALES, type WebLocale } from "./web-locale.js";
+import { isWebLocale, runBackgroundWork, WEB_LOCALES, type WebLocale } from "./web-locale.js";
 
 export { UI_LOCALE_RELATIVE_PATH } from "@molis-ai/molis-work-service-appearance";
 
@@ -34,3 +34,9 @@ export function closeHomeAppearance(home: string | undefined): void {
 export const readUiLocale = (home: string): WebLocale | null => appearanceForHome(home).locale.read();
 export const lastUsedLocale = (home: string): WebLocale => appearanceForHome(home).locale.lastUsed();
 export const rememberUiLocale = (home: string, locale: unknown): void => appearanceForHome(home).locale.remember(locale);
+
+/** One new background operation reads this Home's preference once, independent of any initiating page. */
+export function runBackgroundWorkIn<T>(home: string, operation: (locale: WebLocale) => T): T {
+  const locale = lastUsedLocale(home);
+  return runBackgroundWork(locale, () => operation(locale));
+}

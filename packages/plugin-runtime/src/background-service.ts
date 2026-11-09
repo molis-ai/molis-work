@@ -1,4 +1,4 @@
-import { ActionError, requireSynchronous, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, requireSynchronous, type ActionExecutionContext, type ActionLocale } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginBackgroundClient, PluginExecutionControl, PluginJobControl } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createExecutionLifetime } from "@molis-ai/molis-work-plugin-sdk";
 import { currentPluginAction, inPluginInstance, pluginActionBeforeEffect, runInPluginAction, type PluginInstance } from "./action-scope.js";
@@ -14,6 +14,8 @@ export function createPluginBackgroundClient(gate: PluginInstance & {
   assertActive(): void; requireGrant(permission: string): void;
   /** Declared installation grants; live action permissions additionally include the caller's selected dependency permissions. */
   installationPermissions: readonly string[];
+  /** Supplies the Home's language when retained work begins. */
+  withLocale?<T>(run: (locale: ActionLocale) => T): T;
   /** Present when the Manifest declares jobs (`background.jobs`). */
   jobs?: Omit<ActivationJobGate, keyof PluginInstance | "assertActive" | "requireGrant">;
 }): { client: PluginBackgroundClient; starting<T>(run: () => T): T; stopProject(projectId: string): Promise<void> | undefined; stopProjectJobs(projectId: string): Promise<void> | undefined; close(): void } {
@@ -62,8 +64,9 @@ export function createPluginBackgroundClient(gate: PluginInstance & {
       } catch (error) { active.delete(controller); throw error; }
       const pending = Promise.resolve().then(() => {
         control.assert_authority_current!();
-        return runInPluginAction({ ...scope, caller: control, checked }, () => work({ signal: control.signal, beforeEffect: control.beforeEffect,
-          assert_authority_current: control.assert_authority_current, page_context: control.page_context, locale: control.locale, ...(control.project_id ? { project_id: control.project_id } : {}) }));
+        const run = (locale?: ActionLocale) => runInPluginAction({ ...scope, caller: { ...control, locale }, checked }, () => work({ signal: control.signal, beforeEffect: control.beforeEffect,
+          assert_authority_current: control.assert_authority_current, page_context: control.page_context, locale, ...(control.project_id ? { project_id: control.project_id } : {}) }));
+        return gate.withLocale ? gate.withLocale(run) : run(control.locale);
       }).then(value => { control.assert_authority_current!(); return value; });
       const result = lifetime.wait(pending).finally(() => { running = false; active.delete(controller); lifetime.dispose(); });
       // The handle may be stored before its owner attaches a handler; a late refusal must still be observed.

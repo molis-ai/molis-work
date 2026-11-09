@@ -54,8 +54,10 @@ export function assertArtifactLibraryReady(file: string): void {
 }
 
 /** Filesystem-only detection works before Catalog inspection and on an opaque restore target. These names confer no recovery authority. */
-export function artifactRollbackSidecars(root: string, libraries: readonly string[]): string[] {
-  const projects = join(root, "projects"), found = libraries.flatMap(name => sidecarsAt(homeSqlitePath(root, name)));
+export function artifactRollbackSidecars(root: string, libraries: readonly string[], registeredProjects?: readonly string[]): string[] {
+  const found = libraries.flatMap(name => sidecarsAt(homeSqlitePath(root, name)));
+  if (registeredProjects) return [...found, ...registeredProjects.flatMap(path => sidecarsAt(join(root, path)))];
+  const projects = join(root, "projects");
   if (localDirectory(projects)) {
     for (const entry of readdirSync(projects, { withFileTypes: true })) {
       if (entry.isDirectory() || entry.isSymbolicLink()) found.push(...sidecarsAt(join(projects, entry.name, "molis-work.db")));

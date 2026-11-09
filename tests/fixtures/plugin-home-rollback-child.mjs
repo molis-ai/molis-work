@@ -19,15 +19,17 @@ if (mode === "replay") {
     ], [file + "-journal", peer + "-journal", join(dirname(file), marker)]);
   } finally { lease.release(); }
   process.exitCode = 1; // Reaching here would miss the requested kill window.
-} else runWrite();
+} else if (mode === "host-pair") await runHostPair(root);
+else runWrite();
 
 function runWrite() {
   const db = new DatabaseSync(file);
-  if (mode === "wal-transition") {
+  if (mode === "wal-transition" || mode === "wal-provision") {
     db.exec("PRAGMA synchronous=EXTRA");
     // The first row is available while the native statement still holds its page-1 journal.
-    const changing = db.prepare("PRAGMA journal_mode=DELETE").iterate();
-    if (changing.next().value?.journal_mode !== "delete") throw new Error("journal-mode change did not begin");
+    const nextMode = mode === "wal-transition" ? "delete" : "wal";
+    const changing = db.prepare(`PRAGMA journal_mode=${nextMode}`).iterate();
+    if (changing.next().value?.journal_mode !== nextMode) throw new Error("journal-mode change did not begin");
     process.on("SIGCONT", () => changing.return());
     process.stdout.write("staged\n");
     setInterval(() => {}, 1000);
@@ -35,16 +37,9 @@ function runWrite() {
   }
   db.exec("PRAGMA journal_mode=DELETE; PRAGMA synchronous=EXTRA");
   if (mode === "pair") {
-    const uri = pathToFileURL(peer);
-    uri.searchParams.set("mode", "rw");
-    db.prepare("ATTACH DATABASE ? AS peer").run(uri.href);
-    db.exec("PRAGMA peer.synchronous=EXTRA; PRAGMA cache_spill=OFF; BEGIN IMMEDIATE");
-    for (const schema of ["main", "peer"]) {
-      db.prepare(`UPDATE ${schema}.facts SET value='staged' WHERE id=1`).run();
-      db.prepare(`UPDATE ${schema}.padding SET payload=randomblob(?) WHERE id=1`).run(32 * 1024 * 1024);
-    }
-    process.stdout.write("entering commit\n");
-    db.exec("COMMIT");
+    commitPair(db, () => {
+      for (const schema of ["main", "peer"]) db.prepare(`UPDATE ${schema}.facts SET value='staged' WHERE id=1`).run();
+    });
     db.close();
     return;
   }
@@ -63,4 +58,36 @@ function runWrite() {
   }
   process.stdout.write("staged\n");
   setInterval(() => {}, 1000);
+}
+
+function commitPair(db, write) {
+  const uri = pathToFileURL(peer);
+  uri.searchParams.set("mode", "rw");
+  db.prepare("ATTACH DATABASE ? AS peer").run(uri.href);
+  db.exec("PRAGMA peer.synchronous=EXTRA; PRAGMA cache_spill=OFF; BEGIN IMMEDIATE");
+  write();
+  // Only this test payload lengthens the native COMMIT window.
+  for (const schema of ["main", "peer"]) db.prepare(`UPDATE ${schema}.padding SET payload=randomblob(?) WHERE id=1`).run(32 * 1024 * 1024);
+  db.exec("COMMIT");
+}
+
+async function runHostPair(subject) {
+  const { LocalSqliteStorage } = await import("@molis-ai/molis-work-storage");
+  const { ArtifactsModule } = await import("@molis-ai/molis-work-module-artifacts");
+  const { datasetManifest } = await import("@molis-ai/molis-work-plugin-dataset");
+  const writer = new LocalSqliteStorage(file, { fileMustExist: true, journalMode: "preserve" });
+  const db = writer.db;
+  try {
+    const artifacts = new ArtifactsModule({ db, appendEvent: writer.appendEvent.bind(writer), eventCursor: writer.eventCursor.bind(writer) });
+    const project = db.prepare("SELECT project_id FROM project_root").get().project_id;
+    const artifact = "n12-uncommitted";
+    commitPair(db, () => {
+      artifacts.commands.registerVersion({ project_id: project, actor_id: "fixture", artifact_id: artifact, version: 1,
+        artifact_type_id: datasetManifest.artifacts.produces[0].artifact_type_id, schema_version: 1,
+        producer: { plugin_id: datasetManifest.plugin_id, plugin_version: datasetManifest.version, binding_signature: datasetManifest.publisher.signature },
+        content: { kind: "inline", payload: { title: "Interrupted pin" } }, title: "Interrupted pin", media_type: "application/json",
+        origin: { kind: "pinned", subject: { kind: "dataset", id: subject }, revision: "1" } });
+      db.prepare("UPDATE peer.datasets SET artifact_id=?, artifact_version=1, version=2 WHERE id=?").run(artifact, subject);
+    });
+  } finally { writer.close(); }
 }

@@ -16,7 +16,7 @@ import { ONBOARDING_FILE } from "./onboarding.js";
 import { PROJECT_ARRIVAL_FILE } from "./project-arrival.js";
 import { listProjectDatabasePaths } from "@molis-ai/molis-work-module-projects";
 import { assertCatalogOwner, CATALOG_BASELINE, catalogBaselineFor } from "./catalog-schema.js";
-import { assertArtifactDatabaseFiles } from "./artifact-row-storage-policy.js";
+import { artifactRowLibraryDeclarations, assertArtifactDatabaseFiles } from "./artifact-row-storage-policy.js";
 import { homeStores, platformModelPreferences } from "./home-stores.js";
 import type { HomeUpgradeDescriptor } from "./home-upgrade-stores.js";
 import { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
@@ -33,15 +33,18 @@ const CATALOG = join("projects", "catalog.db"), PROJECT_LIBRARY = join("projects
 export function projectDatabases(home: string, space?: StorageSpace): readonly string[] {
   const file = join(home, CATALOG);
   if (!entryAt(file)) return [];
-  if (space) assertArtifactDatabaseFiles(file);
-  return readUpgradeStore(file, db => {
+  const guarded = artifactRowLibraryDeclarations().length > 0;
+  if (guarded) assertArtifactDatabaseFiles(file);
+  const paths = readUpgradeStore(file, db => {
     if (CATALOG_VERSION_ACCESS.read(db) > CATALOG_BASELINE.version) return [];
     assertCatalogOwner(catalogOwner(db), file);
     if (space && JSON.stringify(readDatabaseSpace(db)) !== JSON.stringify(space)) {
       throw upgradeFailedRefusal(CATALOG, "invalid_path", "目录库的空间与当前 Home 不一致");
     }
-    return listProjectDatabasePaths(db, join(home, "projects")).map(database => relative(home, database));
+    return listProjectDatabasePaths(db, join(home, "projects"));
   });
+  if (guarded) for (const path of paths) assertArtifactDatabaseFiles(path);
+  return paths.map(path => relative(home, path));
 }
 
 /** A library partitioned by project has one file per project. No built-in plugin declares one today; the code it would use does. */

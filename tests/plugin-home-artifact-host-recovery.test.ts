@@ -1,17 +1,21 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { existsSync, linkSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, linkSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { fileURLToPath } from "node:url";
-import { acquireUpgradedHomeOwner, createHomeSnapshot, LocalProjectDatabase, PLATFORM_PLUGIN_REGISTRATIONS, restoreHomeSnapshot, runHomeUpgrade } from "@molis-ai/molis-work-app-local-host";
+import { acquireUpgradedHomeOwner, createHomeSnapshot, homeUpgradeDescriptors, LocalProjectDatabase, molisWorkHostProjectReference, MolisWorkLocalHost, PLATFORM_PLUGIN_REGISTRATIONS, pluginSyncNamespace, restoreHomeSnapshot, runHomeUpgrade, runV1Cli, upgradeFingerprint } from "@molis-ai/molis-work-app-local-host";
 import { inspectMolisWorkProjectCatalogSnapshot, openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { writeProjectRoot } from "@molis-ai/molis-work-module-projects";
-import { DATASET_DATABASE } from "@molis-ai/molis-work-plugin-dataset";
+import { DATASET_DATABASE, datasetActions } from "@molis-ai/molis-work-plugin-dataset";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { bindDatabaseSpace, ensureStorageSpace, homeSqlitePath, openSqliteConnection } from "@molis-ai/molis-work-storage";
 import { smallSnapshotHome } from "./fixtures/home-snapshot-small.js";
+import { ADD_TAG, BASELINE_V2, homeIdentityOf, ledgerFile, ledgerOf, notesDescriptor, raiseProjectBaseline, REAL_PROJECT_VERSION, relativeStore, seedStore, stampFile, useDescriptors, versionOf, writeLedger } from "./fixtures/home-upgrade-home.js";
+import { registerProbe } from "./fixtures/plugin-home-artifact-probe.js";
+import { runRollbackPair } from "./fixtures/plugin-home-rollback-pair.js";
+import { openTestHome } from "./fixtures/test-home.js";
 
 /** The Host reads its real registry; this fixture enables the candidate declaration without changing any shipped action. */
 function optInCandidate(t: TestContext): void {
@@ -148,11 +152,151 @@ test("BSH-03 · a registered project recovers the WAL mode change; staging stays
     try { writeProjectRoot(first.db, "unregistered", "2026-11-09T00:00:00Z"); } finally { first.close(); }
     const again = new LocalProjectDatabase(staging);
     try { assert.equal(again.db.pragma("journal_mode", { simple: true }), "wal"); } finally { again.close(); }
-    const current = new LocalProjectDatabase(file);
+    const current = new LocalProjectDatabase(file, { homeStorage: { home: f.home, owner } });
     try {
       assert.equal(current.db.pragma("journal_mode", { simple: true }), "delete");
       assert.equal(current.db.pragma("synchronous", { simple: true }), 3);
       assert.equal(current.db.prepare<[], { project_id: string }>("SELECT project_id FROM project_root").get()?.project_id, selected.project_id);
     } finally { current.close(); }
   } finally { owner.release(); }
+});
+
+test("BSH-03 · a Goals CLI snapshot cannot switch a project belonging to another Home's lease", async t => {
+  const source = await smallSnapshotHome(t), target = await smallSnapshotHome(t);
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: target.home });
+  const project = await catalog.createProject({ display_name: "Other Home", actor_id: "fixture" });
+  catalog.close();
+  const file = project.database_path, projectId = project.project_id;
+  const modes = () => [...readFileSync(file).subarray(18, 20)];
+  assert.deepEqual(modes(), [2, 2]);
+  optInCandidate(t);
+  const sourceOwner = acquireUpgradedHomeOwner(source.home);
+  const targetOwner = acquireUpgradedHomeOwner(target.home);
+  try {
+    const output = t.mock.method(console, "log", () => {});
+    assert.equal(await runV1Cli(["snapshot", "--db", file, "--json", JSON.stringify({ project_id: projectId })],
+      { homeDirectory: source.home, actionServiceUrl: process.env.MOLIS_WORK_WEB_URL }), 0);
+    assert.match(String(output.mock.calls[0]?.arguments[0]), new RegExp(projectId, "u"));
+    assert.deepEqual(modes(), [2, 2], "the independent CLI kept the other Home's WAL mode");
+  } finally { targetOwner.release(); sourceOwner.release(); }
+  const host = new MolisWorkLocalHost({ homeDirectory: target.home, completeText: null });
+  try {
+    const reference = molisWorkHostProjectReference({ databasePath: file, projectId });
+    await host.withProject(reference, ({ store }) => {
+      assert.equal(store.db.pragma("journal_mode", { simple: true }), "delete");
+      assert.equal(store.db.pragma("synchronous", { simple: true }), 3);
+    });
+  } finally { await host.close(); }
+  const standalone = new LocalProjectDatabase(file, { existingOnly: true });
+  try { assert.equal(standalone.db.pragma("journal_mode", { simple: true }), "delete"); }
+  finally { standalone.close(); }
+});
+
+test("BSH-03 · U1 refuses a linked project SHM before the first SQLite read of an upgradable database", async t => {
+  const f = await smallSnapshotHome(t);
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: f.home });
+  const project = await catalog.createProject({ display_name: "First read fixture", actor_id: "fixture" });
+  catalog.close();
+  optInCandidate(t);
+  raiseProjectBaseline(t);
+  const file = project.database_path, shm = file + "-shm", external = join(f.area, "external-shm");
+  rmSync(stampFile(f.home), { force: true });
+  const state = ledgerFile(f.home), ledger = existsSync(state) ? readFileSync(state) : undefined;
+  const bytes = readFileSync(file), sentinel = Buffer.alloc(36_864, 0x51);
+  assert.deepEqual([...bytes.subarray(18, 20)], [2, 2]);
+  writeFileSync(external, sentinel);
+  linkSync(external, shm);
+  try {
+    let refusal: unknown;
+    try { runHomeUpgrade(f.home); } catch (error) { refusal = error; }
+    assert.equal(statSync(external).size, sentinel.length, "the native SQLite reader must not truncate the external SHM");
+    assert.ok(readFileSync(external).equals(sentinel));
+    assert.ok(readFileSync(file).equals(bytes));
+    assert.equal((refusal as { code?: string } | undefined)?.code, "actions.input_invalid");
+    assert.deepEqual(existsSync(state) ? readFileSync(state) : undefined, ledger);
+    assert.equal(existsSync(stampFile(f.home)), false);
+  } finally { rmSync(shm, { force: true }); }
+  runHomeUpgrade(f.home);
+  assert.equal(versionOf(file), REAL_PROJECT_VERSION + 1);
+});
+
+test("BSH-03 · an interrupted unregistered staging WAL open remains with the provisioning owner", { timeout: 20_000 }, async t => {
+  const f = await smallSnapshotHome(t);
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: f.home });
+  const project = await catalog.createProject({ display_name: "Registered project", actor_id: "fixture" });
+  catalog.close();
+  optInCandidate(t);
+  const stage = join(f.home, "projects", ".staging-interrupted", "molis-work.db"), journal = stage + "-journal";
+  mkdirSync(dirname(stage));
+  await interruptProjectWrite(t, stage, "wal-provision");
+  assert.equal(statSync(stage).size, 0);
+  assert.equal(statSync(journal).size, 512);
+  const original = readFileSync(journal);
+  const host = new MolisWorkLocalHost({ homeDirectory: f.home, completeText: null });
+  try {
+    const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
+    await host.withProject(reference, ({ store }) => {
+      assert.equal(store.db.pragma("journal_mode", { simple: true }), "delete");
+    });
+    assert.equal(statSync(stage).size, 0);
+    assert.deepEqual(readFileSync(journal), original);
+  } finally { await host.close(); }
+});
+
+test("BSH-03 · Host startup rolls back a live pair before resuming the same unfinished U1 round", { timeout: 30_000 }, async t => {
+  const manifest = registerProbe(t, () => ({ ok: true }), () => {}, sql => sql);
+  const home = await openTestHome(t);
+  const selected = await home.createProject("Paired recovery fixture", ["dataset"]);
+  const person = await home.host.localPersonContext(selected.reference), actions = home.host.actionClient(selected.reference);
+  const draft = await actions.invoke(person, datasetActions.create, { title: "Kept draft" }) as { dataset: { id: string; version: number } };
+  assert.equal(draft.dataset.version, 1);
+  await home.close();
+  await home.host.close();
+
+  const file = selected.database_path, libraryFile = homeSqlitePath(home.home, "dataset");
+  const addPadding = (path: string, replication: string) => {
+    const db = openSqliteConnection(path, { fileMustExist: true });
+    try {
+      assert.equal(db.pragma("journal_mode", { simple: true }), "delete");
+      db.exec("PRAGMA synchronous=EXTRA; CREATE TABLE padding (id INTEGER PRIMARY KEY, payload BLOB NOT NULL); INSERT INTO padding VALUES (1, zeroblob(32768));");
+      return db.prepare(`SELECT count(*) AS n FROM ${replication}`).get()?.n;
+    } finally { db.close(); }
+  };
+  const collection = pluginSyncNamespace(manifest, manifest.sync!.collections[0]!.id) + "_replica_changes";
+  const projectChanges = addPadding(file, "artifacts_replica_changes"), homeChanges = addPadding(libraryFile, collection);
+  const notes = seedStore(home.home, "notes");
+  const marker = await runRollbackPair(t, { file, libraryFile }, true, draft.dataset.id);
+  assert.ok(marker);
+  let upgradeRan = false;
+  useDescriptors(t, notesDescriptor("notes", { baseline: { ...BASELINE_V2, upgrades: [{ from: 1, run(db) {
+    assert.equal(existsSync(marker), false);
+    assert.equal(existsSync(file + "-journal"), false);
+    assert.equal(existsSync(libraryFile + "-journal"), false);
+    db.exec(ADD_TAG);
+    upgradeRan = true;
+  } }] } }));
+  const run = "n12-unfinished-round";
+  mkdirSync(join(home.home, "upgrade"), { recursive: true });
+  writeLedger(home.home, { schema_version: 1, home_identity: homeIdentityOf(home.home), run_id: run, from: null,
+    to: upgradeFingerprint(homeUpgradeDescriptors()), started_at: "2026-11-09T00:00:00Z",
+    units: [{ kind: "sqlite", owner: "tests/notes", relative_path: relativeStore("notes"), from: 1, to: 2, group: null, state: "planned", error: null }] });
+  const reopened = new MolisWorkLocalHost({ homeDirectory: home.home, completeText: null });
+  try {
+    reopened.configurePersonalPlanning(home.home, reopened.ensureWebCatalog(home.home, openMolisWorkProjectCatalog).withCatalog);
+    assert.equal(upgradeRan, true);
+    assert.equal(versionOf(notes), 2);
+    assert.equal(ledgerOf(home.home).run_id, run);
+    assert.equal(ledgerOf(home.home).units[0]?.state, "committed");
+    const reopenedPerson = await reopened.localPersonContext(selected.reference);
+    const unchanged = await reopened.actionClient(selected.reference).invoke(reopenedPerson, datasetActions.get, { id: draft.dataset.id });
+    assert.deepEqual(unchanged, draft);
+    await reopened.withProject(selected.reference, ({ store, artifacts }) => {
+      assert.equal(artifacts.query.latestArtifactVersion(selected.project_id, "n12-uncommitted"), null);
+      assert.equal(store.db.prepare("SELECT 1 FROM events WHERE object_id='n12-uncommitted'").get(), undefined);
+      assert.equal(store.db.prepare<[], { n: number }>("SELECT count(*) AS n FROM artifacts_replica_changes").get()?.n, projectChanges);
+    });
+  } finally { await reopened.close(); }
+  const library = openSqliteConnection(libraryFile, { readonly: true });
+  try { assert.equal(library.prepare(`SELECT count(*) AS n FROM ${collection}`).get()?.n, homeChanges); }
+  finally { library.close(); }
 });

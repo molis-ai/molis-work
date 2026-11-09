@@ -20,7 +20,8 @@ export function recoverHomeArtifactRows(home: string, owner: StorageOwner, expec
   if (declarations.length === 0) return;
   const root = realpathSync(home), lock = { home: root, lockDirectory: agentRuntimeDirectory(root), owner };
   assertStorageOwner(lock.lockDirectory, owner);
-  const sidecars = artifactRollbackSidecars(root, declarations.map(({ library }) => library.store_name));
+  const catalogProjects = projectDatabases(root);
+  const sidecars = artifactRollbackSidecars(root, declarations.map(({ library }) => library.store_name), catalogProjects);
   if (sidecars.length === 0) { recoverSqliteRollbackJournals(lock, [], []); return; }
   const space = readStorageSpace(root);
   if (!space || expected && JSON.stringify(space) !== JSON.stringify(expected)) throw wrongArtifactSpace();

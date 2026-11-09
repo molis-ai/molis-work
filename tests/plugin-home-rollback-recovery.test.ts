@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { closeSync, existsSync, fstatSync, mkdirSync, mkdtempSync, openSync, readFileSync, readdirSync, readSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { runRollbackPair } from "./fixtures/plugin-home-rollback-pair.js";
 import { acquireStorageOwner, ensureStorageSpace, openSqliteConnection, recoverSqliteRollbackJournals, type RollbackLibrary, type StorageOwner } from "@molis-ai/molis-work-storage";
 
 const childEntry = fileURLToPath(new URL("./fixtures/plugin-home-rollback-child.mjs", import.meta.url));
@@ -61,45 +62,6 @@ function dirtyFacts(file: string) {
   const db = new DatabaseSync(uri, { readOnly: true });
   try { return { ...db.prepare("PRAGMA user_version").get(), ...db.prepare("SELECT owner, value FROM facts WHERE id=1").get() }; }
   finally { db.close(); }
-}
-
-function tailHas(path: string, marker: string): boolean {
-  try {
-    const fd = openSync(path, "r");
-    try {
-      const tail = Buffer.alloc(4096), size = fstatSync(fd).size;
-      const count = readSync(fd, tail, 0, tail.length, Math.max(0, size - tail.length));
-      return tail.subarray(0, count).includes(marker);
-    } finally { closeSync(fd); }
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
-    throw error;
-  }
-}
-
-async function runPair(t: TestContext, f: ReturnType<typeof fixture>, interrupt: boolean): Promise<string | undefined> {
-  const child = spawn(process.execPath, [childEntry, f.file, "2", "trusted", "pair", f.libraryFile], { stdio: ["ignore", "pipe", "inherit"] });
-  const ended = once(child, "exit");
-  const markerIn = () => readdirSync(dirname(f.file)).find(name => name.startsWith("molis-work.db-mj"));
-  let selected: string | undefined;
-  const observer = interrupt ? setInterval(() => {
-    const marker = markerIn();
-    if (selected || !marker) return;
-    const path = join(dirname(f.file), marker);
-    if (tailHas(f.journal, path) && tailHas(f.libraryFile + "-journal", path) && child.kill("SIGKILL")) selected = path;
-  }, 1) : undefined;
-  try {
-    const result = await Promise.race([ended, once(t.signal, "abort").then(() => [])]);
-    if (interrupt) {
-      assert.equal(result[1], "SIGKILL");
-      assert.ok(selected && existsSync(selected), "both rollback journals named the live super-journal at SIGKILL");
-    } else assert.deepEqual(result, [0, null]);
-    return selected;
-  } finally {
-    clearInterval(observer);
-    if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
-    await ended;
-  }
 }
 
 test("BSH-03 · an actual SQLite spill before COMMIT rolls back before the Home opens", { timeout: 10_000 }, async t => {
@@ -195,7 +157,7 @@ test("BSH-03 · a first Home library's zero-header write replays to the owner in
 
 test("BSH-03 · two live journals survive another process death during recovery and cleared-marker residue preserves committed data", { timeout: 20_000 }, async t => {
   const f = fixture(t), peerJournal = f.libraryFile + "-journal";
-  const marker = (await runPair(t, f, true))!;
+  const marker = (await runRollbackPair(t, f, true))!;
   const remnants = [readFileSync(f.journal), readFileSync(peerJournal)];
   f.releaseOwner();
   const restarted = spawn(process.execPath, [childEntry, f.file, "2", "trusted", "replay", f.libraryFile, f.home], { stdio: ["ignore", "ignore", "inherit"] });
@@ -209,7 +171,7 @@ test("BSH-03 · two live journals survive another process death during recovery 
   assert.equal(existsSync(marker), false);
   assert.equal(existsSync(peerJournal), false);
 
-  await runPair(t, f, false);
+  await runRollbackPair(t, f, false);
   // Simulate an interruption during the final journal unlink, using the real child bytes from the same two files.
   writeFileSync(f.journal, remnants[0]!);
   writeFileSync(peerJournal, remnants[1]!);

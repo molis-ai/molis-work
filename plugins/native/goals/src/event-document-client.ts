@@ -3,7 +3,7 @@ import { GOALS_DELIVERABLES_SCRIPT } from "./event-document-deliverables.js";
 
 /** Keep source indentation readable; omit it from the served program within the frozen asset budget. */
 export const GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
-    const { documentPane, route, translate: L, isAbortError, showError, showStatus, reloadDocument } = host;
+    const { documentPane, route, translate: readText, isAbortError, showError, showStatus, reloadDocument } = host;
     let selectedRequest = 0;
     let moreRequest = 0;
     let returnFocusTarget = null;

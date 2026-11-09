@@ -40,7 +40,7 @@ export type CodingUiSurface = "directory" | "workbench";
  */
 export const CODING_DIRECTORY_FACES = [
   { face: "sessions", label: "coding.face.sessions", icon: "message" },
-  { face: "taskboard", label: "TaskBoard", icon: "board" },
+  { face: "taskboard", label: "coding.face.taskboard", icon: "board" },
   { face: "goals", label: "coding.face.goals", icon: "target" },
   { face: "artifacts", label: "coding.face.artifacts", icon: "package" },
   { face: "files", label: "coding.face.files", icon: "folder" },
@@ -308,8 +308,8 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
           <header><button class="mw-btn mw-btn--ghost" type="button" data-coding-report-close>${p.icon("chevron-left")}<span>${p.escape(uiText.text("coding.report.back"))}</span></button><button class="mw-btn mw-btn--primary" type="button" data-coding-report-save>${p.escape(uiText.text("coding.report.save"))}</button><button class="mw-btn mw-btn--ghost" type="button" data-coding-report-progress hidden>${p.escape(uiText.text("coding.progress.title"))}</button><button class="mw-btn mw-btn--ghost" type="button" data-coding-report-output hidden>${p.escape(uiText.text("coding.report.set-output"))}</button></header>
           <p data-coding-report-status role="status"></p><p data-coding-report-output-status role="status" hidden></p><div data-coding-report-body></div>
         </section>
-        <section class="coding-board mw-scroll" data-coding-board aria-label="TaskBoard" tabindex="0" hidden>
-          <header class="coding-board-head"><div class="coding-board-heading"><h2 data-coding-board-title>TaskBoard</h2><p data-coding-board-meta></p></div><button class="mw-btn mw-btn--ghost" type="button" data-coding-board-close>${p.icon("chevron-left")}<span>${p.escape(uiText.text("coding.board.back"))}</span></button></header>
+        <section class="coding-board mw-scroll" data-coding-board aria-label="${uiText("coding.face.taskboard")}" tabindex="0" hidden>
+          <header class="coding-board-head"><div class="coding-board-heading"><h2 data-coding-board-title>${uiText("coding.face.taskboard")}</h2><p data-coding-board-meta></p></div><button class="mw-btn mw-btn--ghost" type="button" data-coding-board-close>${p.icon("chevron-left")}<span>${p.escape(uiText.text("coding.board.back"))}</span></button></header>
           <div class="coding-board-columns" aria-hidden="true"><span>${p.escape(uiText.text("coding.board.col.task"))}</span><span>${p.escape(uiText.text("coding.board.col.status"))}</span><span>${p.escape(uiText.text("coding.board.col.progress"))}</span><span>${p.escape(uiText.text("coding.board.col.needs"))}</span><span>${p.escape(uiText.text("coding.board.col.run"))}</span></div>
           <div class="coding-board-list" data-coding-board-list></div>
           <p class="coding-board-note" data-coding-board-status role="status"></p>

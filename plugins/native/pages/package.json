@@ -29,6 +29,8 @@
     "./editor": "./dist/pages-editor.js"
   },
   "files": [
+    "prompts",
+    "methods",
     "locales",
     "dist",
     "README.md"

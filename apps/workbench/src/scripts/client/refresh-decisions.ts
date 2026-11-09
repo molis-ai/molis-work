@@ -46,7 +46,7 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
 
     let documentReplaceGeneration = 0;
     const { loadGoalDocument } = (${GOALS_PAGE.goalsDocument})({
-      documentPane, documentCollection, route, translate: LFor("io.molis.work.goals"), isAbortError,
+      documentPane, documentCollection, route, translate: globalThis.t.text, isAbortError,
       showError: (message) => showToast(message, true),
       afterReplace: () => {
         documentReplaceGeneration += 1;
@@ -75,11 +75,11 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
       setTreeFilterOpen, filterTree, bindTreeSearchEvents, bindTreeFilterTrigger,
       handleTreeStatusChange, handleTreeDisclosureClick,
       handleTreeKeyboard } = (${GOALS_PAGE.goalsTree})({
-        treeFilter, treeFilterTrigger, treeScroll, globalSearch, translate: LFor("io.molis.work.goals"),
+        treeFilter, treeFilterTrigger, treeScroll, globalSearch, translate: globalThis.t.text,
         updateGraphVisibility, queueSave, saveUiState,
       });
     const { prepareGoalRefresh } = (${GOALS_PAGE.goalsRefresh})({
-      treeScroll, treeFilter, documentPane, dialog, readCreateDraft, refreshCreateChoices, translate: LFor("io.molis.work.goals"),
+      treeScroll, treeFilter, documentPane, dialog, readCreateDraft, refreshCreateChoices, translate: globalThis.t.text,
     });
     const searchInteractionActive = () => globalSearchPalette?.isBusy?.() || Date.now() < searchBusyUntil;
 
@@ -290,7 +290,7 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
     };
 
     const { handleGoalProposalSubmit, requireDecisionText, humanDecisionError } = (${GOALS_PAGE.goalsProposal})({
-      translate: LFor("io.molis.work.goals"), route, decisionReceiptContext, refreshBoardWithDecisionReceipt,
+      translate: globalThis.t.text, route, decisionReceiptContext, refreshBoardWithDecisionReceipt,
     });
 
     if (goalData) {

@@ -6,7 +6,7 @@ export type Translate = UiClientTranslate;
  * What the workbench hands Schedule's client: the shared host fields it uses (the platform's reads area among them), the shell's
  * document read and its toast.
  */
-export interface ScheduleHost extends Pick<UiPluginClientHost<HTMLElement, HTMLDialogElement>, "translate" | "pluginRoute" | "pluginId" | "confirm" | "taskGrants"> {
+export interface ScheduleHost extends Pick<UiPluginClientHost<HTMLElement, HTMLDialogElement>, "pluginRoute" | "pluginId" | "confirm" | "taskGrants"> {
   readonly view: Pick<UiPageView<HTMLElement>, "readDocument">;
   showToast(message: string, isError?: boolean): void;
 }

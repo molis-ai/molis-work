@@ -18,9 +18,9 @@ import type { Page } from "./page.js";
 
 /** The split of a directory into worktrees: who works where, and which directory the next round uses. */
 function mountWriterDirectories(page: Page) {
-  const { L, host, lifetime, q, refs, s } = page;
+  const { readText, host, lifetime, q, refs, s } = page;
   refs.writerDirectories = writerDirectories({
-    lifetime, translate: L, q, api: s.ports.api, reviews: (box, parent) => host.showReviews?.(box, [], null, parent), current: () => s.current, workspace: () => s.workspaceId,
+    lifetime, translate: readText, q, api: s.ports.api, reviews: (box, parent) => host.showReviews?.(box, [], null, parent), current: () => s.current, workspace: () => s.workspaceId,
     workspaceLabel: () => s.state.workspaces.find(item => item.workspace_id === s.workspaceId)?.canonical_path || s.workspaceId, status: s.ports.status,
     assignments: () => s.configurations.get(s.current)?.writer_assignments || [],
     saveAssignments: async (owner, parent, assignments) => {
@@ -88,10 +88,10 @@ async function executePlan(page: Page, revision: number) {
 
 /** The plan and the review of a round's changes: each opens in the results panel, and the review's remarks go to the draft. */
 function mountReview(page: Page) {
-  const { L, input, lifetime, q, refs, root, s } = page;
+  const { readText, input, lifetime, q, refs, root, s } = page;
   refs.plans = plansClient({ ...s.ports, execute: revision => executePlan(page, revision) });
   refs.changeReview = changesetClient({
-    lifetime, translate: L, root, q, api: s.ports.api, current: () => s.current, closeReport: () => closeReport(page), returnToTask: () => returnFromChange(page),
+    lifetime, translate: readText, root, q, api: s.ports.api, current: () => s.current, closeReport: () => closeReport(page), returnToTask: () => returnFromChange(page),
     onRunOpen: () => { s.changeItem = ""; s.reportItem = ""; renderArtifacts(page); },
     appendDraft: task => refs.draft.append(s.current, text => {
       const next = text.endsWith(task) ? text : (text ? text + "\n\n" : "") + task;
@@ -104,14 +104,14 @@ function mountReview(page: Page) {
 
 /** What the round's choices are made with: the Host's actions as operation cards, and the Character. */
 function mountChoices(page: Page) {
-  const { L, host, lifetime, q, refs, s } = page;
+  const { readText, host, lifetime, q, refs, s } = page;
   s.materialTicket = 0;
   refs.renderCards = actionsClient({
     ...s.ports, selections: s.actionSelections, save: refs.draft.saveChoices, controls: () => controls(page), interaction: (node, options) => host.interaction(node, options),
     make: tag => document.createElement(tag), sessionPath, readCurrent: () => readCurrent(page),
   }).renderCards;
   characterChoice({
-    ...s.ports, lifetime, translate: L, q, selections: s.characterSelections, titles: s.characterTitles, skillSelections: s.characterSkills, save: refs.draft.saveChoices, controls: () => controls(page),
+    ...s.ports, lifetime, translate: readText, q, selections: s.characterSelections, titles: s.characterTitles, skillSelections: s.characterSkills, save: refs.draft.saveChoices, controls: () => controls(page),
   });
 }
 

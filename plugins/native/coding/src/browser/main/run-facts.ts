@@ -11,7 +11,7 @@ type Fact = readonly [label: string, value: string];
 
 /** What a round was set up with: each part it used is a line, and what it did not use is named once. */
 function factsOf(page: Page, run: RunView): { values: Fact[]; unused: string[] } {
-  const { L } = page, f: FrozenSetup = run.frozen, values: Fact[] = [[uiText.text("coding.facts.model"), f.model_id], [uiText.text("coding.facts.usage"), codingUsageSummary(run.usage, L)], [uiText.text("coding.facts.scope"), f.directory?.canonical_path || uiText.text("coding.facts.no-directory")]], unused: string[] = [];
+  const { readText } = page, f: FrozenSetup = run.frozen, values: Fact[] = [[uiText.text("coding.facts.model"), f.model_id], [uiText.text("coding.facts.usage"), codingUsageSummary(run.usage, readText)], [uiText.text("coding.facts.scope"), f.directory?.canonical_path || uiText.text("coding.facts.no-directory")]], unused: string[] = [];
   const joiner = uiText.text("coding.list.joiner");
   if (f.subagent_workspaces?.length) values.push([uiText.text("coding.facts.subagent-dirs"), f.subagent_workspaces.map(item => item.directory.canonical_path).join(uiText.text("coding.list.semicolon"))]);
   values.push([uiText.text("coding.facts.role"), f.role_id + " · v" + f.role_version]);

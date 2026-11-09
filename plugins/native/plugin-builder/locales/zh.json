@@ -124,6 +124,7 @@
     "plugin-builder.agent-studio.model-used-building": "构建使用的模型",
     "plugin-builder.agent-studio.my-plugins": "我的插件",
     "plugin-builder.agent-studio.my-plugins-n": "我的插件（{n}）",
+    "plugin-builder.agent-studio.name": "「{name}」",
     "plugin-builder.agent-studio.name-did-not-work-expected-trial": "试用时「{name}」没有按预期工作",
     "plugin-builder.agent-studio.needs": "等你决定",
     "plugin-builder.agent-studio.needs-answer": "等你回答",

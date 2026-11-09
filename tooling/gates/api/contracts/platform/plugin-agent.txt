@@ -38,7 +38,7 @@ export interface AgentPromptDeclaration {
 
 export type AgentPromptLayer = "base" | "role" | "project" | "task";
 
-export interface AgentPromptText {
+export interface AgentPromptText extends LocalizedAgentBody {
     prompt_id: string;
     version: number;
     body: string;
@@ -82,7 +82,7 @@ export interface AgentSkillDeclaration {
     connector_categories?: string[];
 }
 
-export interface AgentSkillDefinition extends Omit<AgentSkillDeclaration, "body"> {
+export interface AgentSkillDefinition extends Omit<AgentSkillDeclaration, "body">, LocalizedAgentBody {
     body: string;
 }
 

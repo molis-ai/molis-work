@@ -13,7 +13,7 @@ import type { HomePluginHost } from "./home-plugins.js";
 import type { LocalProjectDatabase } from "./project-database.js";
 import type { ProjectPluginHttpPorts } from "./project-plugin-http.js";
 import { projectPluginProblem, type ProjectPluginState } from "./project-plugins.js";
-import { activeLocale, WEB_LOCALES } from "./web-locale.js";
+import { activeLocale, runWithRegisteredText, WEB_LOCALES } from "./web-locale.js";
 import { pluginViewText } from "./plugin-host-services.js";
 import { projectTextPacks } from "./ui-text-provider.js";
 
@@ -305,6 +305,11 @@ export async function readRuntimeStageData(state: ProjectPluginState, shown: rea
       if (result === undefined && stageDataAction(owner.entry.manifest)) continue;
       if (result !== undefined) data[entry.project_plugin_id] = result;
       views[key] = { producer: owner.producer, get descriptor() { owner.assertCurrent(); return owner.view.descriptor; }, render: request => { owner.assertCurrent(); return owner.view.render(request); },
+        drawText: draw => {
+          owner.assertCurrent();
+          const reader = pluginViewText(owner.view);
+          return reader ? runWithRegisteredText(reader, draw) : draw();
+        },
         ...(entry.workbench?.pageClients && !entry.workbench.clientFactory ? { textPacks: () => {
           owner.assertCurrent();
           const reader = pluginViewText(owner.view), language = activeLocale() ?? WEB_LOCALES[0];

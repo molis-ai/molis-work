@@ -256,7 +256,6 @@ export interface StagePageDrawing {
         readonly title: string;
         readonly plugin_id: string;
     }[];
-    inPluginWords: <T>(pluginId: string, run: (translate: StagePagePrimitives["text"]) => T) => T;
     renderTerminalPane: (model: StageTerminalPaneModel) => string;
     renderHint: (options: {
         id: string;
@@ -930,7 +929,6 @@ export interface UiPageWorkspaces {
 export interface UiPluginClientHost<Element = unknown, Dialog = Element, Media = Element> extends UiPageFiles<Media>, UiPageDialogs, UiPageActions {
     readonly root: Element;
     readonly scope: UiClientScope;
-    readonly translate: UiClientTranslate;
     readonly mount: UiClientMount | null;
     readonly search?: string;
     readonly view: UiPageView<Element>;
@@ -1293,6 +1291,7 @@ export type UiTokenValue = string | {
 export interface UiViewCreateEntry {
     readonly station: string;
     readonly title: string;
+    readonly title_text?: TextRef;
 }
 
 export interface UiViewDeclaration {

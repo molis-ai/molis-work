@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { Translate } from "./types.js";
 
 export const required = <T extends Element = HTMLElement>(root: ParentNode, selector: string): T => {
@@ -7,4 +8,4 @@ export const required = <T extends Element = HTMLElement>(root: ParentNode, sele
 };
 
 /** Words the Host or an action wrote (a refusal, a reason): the Host's dictionary translates them. */
-export const said = (L: Translate, text: string) => L(text);
+export const said = (_readText: Translate, text: string) => uiText.text(text);

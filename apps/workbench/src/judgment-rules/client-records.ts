@@ -111,7 +111,7 @@ export const FUNCTIONS_CLIENT_RECORDS_PART = `  const fillEditor = (rec) => {
         input.dataset.functionsSource = subject.subject_kind;
         input.checked = checked.has(subject.subject_kind);
         const title = document.createElement("span");
-        title.textContent = L(subject.title);
+        title.textContent = subject.title;
         label.append(input, title);
         subjects.append(label);
       });

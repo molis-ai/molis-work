@@ -30,6 +30,13 @@ test("planning actions preserve complete methods, project versions, live policy 
     const source = initial.methods.find(m => m.method_id === method_id)!;
     assert.equal(source.scope, "built_in");
     assert.ok(source.event_types.length && source.default_requirements.length);
+    // FSS-74: the normal action reads the alternate authored body from the same built-in method.
+    const english = (await actions.invoke({ ...caller, locale: "en" }, goalsActions.planningRead, { method_ids: [method_id] })).methods[0]!;
+    assert.equal(english.version, source.version);
+    assert.match(english.instructions ?? "", /^# Software development/);
+    assert.doesNotMatch(english.instructions ?? "", /\p{Script=Han}/u);
+    assert.deepEqual(english.required_coverage.map(row => row.area), source.required_coverage.map(row => row.area));
+    assert.deepEqual(english.event_types.map(row => row.type_id), source.event_types.map(row => row.type_id));
     await assert.rejects(bound.invoke( goalsActions.planningApply, { method_id, user_confirmed: false }));
     await assert.rejects(bound.invoke( goalsActions.planningApply, { method_id, user_confirmed: true, actor_id: "forged" } as never), { code: "actions.input_invalid" });
     await assert.rejects(actions.invoke({ ...caller, permissions: ["goals:read"] }, goalsActions.planningApply, { method_id, user_confirmed: true }), { code: "actions.forbidden" });
@@ -49,6 +56,9 @@ test("planning actions preserve complete methods, project versions, live policy 
     assert.equal(saved.method.version, source.version + 1);
     const read = await bound.invoke(goalsActions.planningRead, {});
     assert.equal(read.methods.find(m => m.method_id === method_id)?.instructions, "项目独立正文");
+    const overridden = (await actions.invoke({ ...caller, locale: "en" }, goalsActions.planningRead, { method_ids: [method_id] })).methods[0]!;
+    assert.equal(overridden.instructions, "项目独立正文");
+    assert.equal(overridden.version, saved.method.version);
     assert.equal(read.composition.method_pack_ids.includes(method_id), false);
     await assert.rejects(actions.invoke({ ...caller, project_id: "another-project" }, goalsActions.planningGraph, {}), { code: "actions.scope_mismatch" });
     await assert.rejects(actions.invoke({ ...caller, project_id: "another-project" }, goalsActions.planningRead, {}), { code: "actions.scope_mismatch" });

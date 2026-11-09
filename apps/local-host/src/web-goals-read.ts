@@ -20,7 +20,6 @@ import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import type { createLocalHostWorkbenchRenderer } from "./workbench-renderer.js";
 import { sendLocalWebJson as sendJson } from "./web-http.js";
 import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { L } from "./web-locale.js";
 import { ensureProjectPlugins } from "./project-plugins.js";
 import { renderProjectRuntimeStages, type ProjectPluginSurfacePorts } from "./project-plugin-stages.js";
 import { homeStageHalves } from "./home-plugin-http.js";
@@ -47,11 +46,13 @@ async function projectPluginStages(ports: ProjectPluginSurfacePorts, view: Molis
   configuration: { readonly plugins: readonly string[]; readonly hidden: readonly string[] },
   model: (projectPluginId: string, view: MolisWorkWebView) => unknown) {
   const record = await ensureProjectPlugins(ports);
+  const directory = record.platform ? runningPluginDirectory(record.platform.supervisor, ports.homeDirectory) : [];
+  const stageView = { ...view, plugin_directory: mergePluginDirectories(directory, view.plugin_directory ?? [], builtinMarketDirectory(ports.homeDirectory)) };
   const runtime = renderProjectRuntimeStages(record, ports.store, { shown: view.shown_plugins ?? shownProjectPlugins(configuration.plugins, configuration.hidden),
-    drawn: view.plugin_stage_surfaces ?? [], views: view.plugin_stage_views, page_owner: view.page_owner, model: projectPluginId => model(projectPluginId, view), home: await homeStageHalves(ports.homePlugins) });
+    drawn: view.plugin_stage_surfaces ?? [], views: view.plugin_stage_views, page_owner: view.page_owner, model: projectPluginId => model(projectPluginId, stageView), home: await homeStageHalves(ports.homePlugins) });
   const characters = renderCharacters({ route_prefix: ports.routePrefix ?? "", primitives: { escape: value => escapeHtml(String(value)) } });
   return { html: [characters, ...runtime.html], panels: runtime.panels, overlays: runtime.overlays, surfaces: runtime.surfaces, unavailable: runtime.unavailable, page: runtime.page,
-    directory: record.platform ? runningPluginDirectory(record.platform.supervisor, ports.homeDirectory) : [] };
+    directory };
 }
 /**
  * The project page with what its plugins draw and declare: the stages of the plugins its Runtime runs, the unavailable shell for one
@@ -264,7 +265,7 @@ async function withGoalArtifactContext(eventView: GoalsWebView, goalId: string, 
     if (!(error instanceof ActionError) || !["actions.plugin_disabled", "actions.forbidden", "actions.missing"].includes(error.code)) throw error;
     // An unavailable optional reader must not prevent opening the Goal itself.
     // Keep the relation data untouched and show why its contents cannot be read.
-    html = `<p class="empty-state" data-artifact-unavailable>${escapeHtml(L(error.message))}</p>`;
+    html = `<p class="empty-state" data-artifact-unavailable>${escapeHtml(error.message)}</p>`;
   }
   const decorate = (item: GoalsWebView["goals"][number]) =>
     item.goal.goal_id === goalId ? { ...item,

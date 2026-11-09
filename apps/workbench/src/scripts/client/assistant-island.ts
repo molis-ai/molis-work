@@ -37,7 +37,7 @@ export const assistantReviewHtml = (review: AssistantPendingReview, say: (text: 
  * Notes kept out of the served script (a comment in it is bytes the browser downloads and never runs). `namedObject`: A name in 「…」 that this work knows (one of its objects) opens where it lives: the answer points at the thing itself. `list items`: A model sometimes drops the space after a list's dash on one line (“-30 分钟” among “- 60 分钟”): beside a real item, it is one too. `ownStop`: A round the runtime stopped on its own (a guard, a breaker) says why in its own words; one the person stopped says so. `notices`: What needs the person first; news about a work (done, a result, new material) folds below — it also shows on the work. `reminder open`: A reminder opens its item where it lives: here when it is this page's project, otherwise on its own project's page. `pane switcher`: Split into panes, the switcher names each one: the page being worked on is the focused pane, not all of them run together. `delegated Send`: A delegated Send reuses its message id, so the same message twice starts one work. Its words are the page's: pageText marks them. `retried Send`: A Send whose outcome is unknown (the connection dropped) is retried with the same id, so the Host starts nothing twice. `project`: The project the next new work belongs to. The project list changes it as the person looks from one project to another. `searchKey`: Search opens with ⌘K (Ctrl K elsewhere); a touch screen has no key to name. `answer busy`: While a question's answer is on its way its button shows the shared loading mark, and ⌘↵ (or a closed card with no button) sends nothing.
  */
 export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
-  const L = host.translate, savedAssistantText = (${renderAssistantSavedText.toString()});
+  const readText = host.translate, savedAssistantText = (${renderAssistantSavedText.toString()});
   const noticeText = (notice) => (${renderAssistantNoticeText.toString()})(notice, globalThis.say.text, savedAssistantText);
   const island = document.querySelector("[data-assistant-island]");
   if (!island) return null;
@@ -92,9 +92,9 @@ ${ASSISTANT_BROWSER_HANDBACK_PART}
   const api=(path,method,body,route=host.route("/api/assistant"+path))=>molisWorkRequest(route,{method:method||"GET",body,fallback:globalThis.t.text("workbench.assistant-island.assistant-could-not-finish-right-now")});
   const loadExecutors = () => project ? api("/executors").then((res) => { executors = res.executors || []; if (nextExec !== "assistant" && !executorOffer(nextExec)) nextExec = "assistant"; paintAim(); paintSum(); }).catch(() => { executors = []; }) : Promise.resolve();
   const executorsLoaded = loadExecutors();
-  const el = ${ASSISTANT_ELEMENT_SCRIPT}, receipts = (${ASSISTANT_RECEIPTS_FACTORY_SCRIPT})({ L, shared: host.receipts, chip: island.querySelector("[data-assistant-answer]"), api, work: () => curId, reload: () => reload(),
+  const el = ${ASSISTANT_ELEMENT_SCRIPT}, receipts = (${ASSISTANT_RECEIPTS_FACTORY_SCRIPT})({ readText, shared: host.receipts, chip: island.querySelector("[data-assistant-answer]"), api, work: () => curId, reload: () => reload(),
     pact: (content, badge) => paintBlock(blocks.agreements, globalThis.t.text("workbench.assistant-island.what-ai-noted-agreed"), "list", content, badge) });
-  const stateLabel = (state) => L(STATE_LABELS[state] || state || ""); const ringState = state => ({ "waiting-input": "answer", "waiting-review": "approval", "needs-check": "verify", completed: "round-ended" })[state] || state;
+  const stateLabel = (state) => (STATE_LABELS[state] || state || ""); const ringState = state => ({ "waiting-input": "answer", "waiting-review": "approval", "needs-check": "verify", completed: "round-ended" })[state] || state;
   const scopeLabel = (scope, title) => !scope ? "" : scope.kind === "personal" ? globalThis.t.text("workbench.assistant-island.personal")
     : title || (project && scope.project_id === project.id ? (project.title || globalThis.t.text("workbench.assistant-island.project")) : globalThis.t.text("workbench.assistant-island.another-project"));
   const getWork = () => works.find((work) => work.work_id === curId) || (view && view.work.work_id === curId ? view.work : null);
@@ -132,7 +132,7 @@ ${ASSISTANT_BROWSER_HANDBACK_PART}
       modeButton.hidden = !shown;
       if (shown && modeLabel) {
         const wanted = work ? work.executor.mode || offer.default_mode : nextMode || offer.default_mode;
-        const name = L((offer.modes.find((one) => one.id === wanted) || { title: wanted }).title), [before, after = ""] = globalThis.t.text("workbench.assistant-island.mode-mode", { mode: "\u0000" }).split("\u0000"), label = before + name + after;
+        const name = (offer.modes.find((one) => one.id === wanted)?.title ?? wanted), [before, after = ""] = globalThis.t.text("workbench.assistant-island.mode-mode", { mode: "\u0000" }).split("\u0000"), label = before + name + after;
         modeLabel.replaceChildren(el("span", "assistant-mode-word", before), name, el("span", "assistant-mode-word", after)); // a narrow bar shows the mode alone
         modeButton.setAttribute("aria-label", globalThis.t.text(work ? "workbench.assistant-island.mode-next-turn" : "workbench.assistant-island.mode-first-turn") + " · " + label);
       }
@@ -152,7 +152,7 @@ ${ASSISTANT_BROWSER_HANDBACK_PART}
       execBtn.hidden = Boolean(work) || !executorsHere() || nextExec === "assistant";
       if (!executorsHere() && nextExec !== "assistant") nextExec = "assistant";
       execBtn.toggleAttribute("data-chosen", nextExec !== "assistant");
-      if (executorLabel) executorLabel.textContent = L((executorChoices().find((one) => one.id === nextExec) || executorChoices()[0]).label)
+      if (executorLabel) executorLabel.textContent = (executorChoices().find((one) => one.id === nextExec) || executorChoices()[0]).label
         + (nextExec !== "assistant" && executorSession(nextExec) ? " · " + globalThis.t.text("workbench.assistant-island.session") : "");
     }
   };
@@ -432,7 +432,7 @@ ${ASSISTANT_STRIP_PART}
         }
       } else {
         // A new work: who carries it and where it lives are chosen here, before its first message.
-        const who = executorChoices().map((one) => ({ id: one.id, label: L(one.label), hint: L(one.hint) }));
+        const who = executorChoices().map((one) => ({ id: one.id, label: one.label, hint: one.hint }));
         rows.push(...metaRow(globalThis.t.text("workbench.assistant-island.who-will-do"), segmented(globalThis.t.text("workbench.assistant-island.who-does"), who, nextExec, (id) => { nextExec = id; if (id !== "assistant") nextChar = null; paintAim(); paintSum(); })));
         if (nextExec === "assistant" && allowsCharacter() && hasChoices) rows.push(...metaRow(globalThis.t.text("workbench.assistant-island.role"), characterPicker()));
         if (nextExec !== "assistant" && modeOffer()) {
@@ -527,15 +527,15 @@ ${ASSISTANT_TABS_PART}
         box.append(check);
       }
       if (shown.action) {
-        if (/模型/.test(shown.action)) { const link = el("a", "mw-btn mw-btn--secondary mw-btn--sm", L(shown.action)); link.href = "/settings/models"; link.addEventListener("click", (event) => { if (!event.metaKey && !event.ctrlKey) setPanel(false); }); box.append(link); }
+        if (/模型/.test(shown.action)) { const link = el("a", "mw-btn mw-btn--secondary mw-btn--sm", shown.action); link.href = "/settings/models"; link.addEventListener("click", (event) => { if (!event.metaKey && !event.ctrlKey) setPanel(false); }); box.append(link); }
         // A work's own cap is raised right here, in its usage box; the daily cap lives in the Assistant's settings.
         else if (/这项工作的上限/.test(shown.action) && usageBox) {
-          const raise = el("button", "mw-btn mw-btn--secondary mw-btn--sm", L(shown.action)); raise.type = "button";
+          const raise = el("button", "mw-btn mw-btn--secondary mw-btn--sm", shown.action); raise.type = "button";
           raise.addEventListener("click", openUsage);
           box.append(raise);
         }
         else if (shown.action === "打开设置") { const link = el("a", "mw-btn mw-btn--secondary mw-btn--sm", globalThis.t.text("workbench.assistant-island.open-assistant-settings")); link.href = "/settings/assistant"; box.append(link); }
-        else box.append(el("p", "assistant-muted", L(shown.action)));
+        else box.append(el("p", "assistant-muted", shown.action));
       }
       thread.append(box);
     }
@@ -559,7 +559,7 @@ ${ASSISTANT_TABS_PART}
     groups.forEach(([label, fits]) => {
       const rows = works.filter((work) => !placed.has(work.work_id) && fits(work));
       if (!rows.length) return;
-      workNav.append(el("p", "assistant-works-group", L(label)));
+      workNav.append(el("p", "assistant-works-group", label));
       rows.forEach((work) => {
         placed.add(work.work_id);
         const item = el("button", "assistant-works-item"); item.type = "button"; item.dataset.workId = work.work_id;
@@ -663,7 +663,7 @@ ${ASSISTANT_PAGE_MESSAGES_PART}
   });
   ${ASSISTANT_SEND_CLIENT_SCRIPT}
   const nextRow = island.querySelector("[data-assistant-next-row]");
-  stepRow = nextRow && (${ASSISTANT_STEP_ROW_FACTORY_SCRIPT})({ row: nextRow, thread, L, el, drawn, jumpTo, bindText, view: () => (view?.work.work_id === curId ? view : null), open: () => Boolean(panel && !panel.hidden),
+  stepRow = nextRow && (${ASSISTANT_STEP_ROW_FACTORY_SCRIPT})({ row: nextRow, thread, readText, el, drawn, jumpTo, bindText, view: () => (view?.work.work_id === curId ? view : null), open: () => Boolean(panel && !panel.hidden),
     // A page's words and materials go in the input, in the work it named; nothing is sent.
     reply: (message) => replyToThread(message), take: async (message) => { if (message.work_id && works.some((work) => work.work_id === message.work_id)) await switchTo(message.work_id); bring(message); setPanel(true); input.focus(); },
     other: (id) => {
@@ -673,7 +673,7 @@ ${ASSISTANT_PAGE_MESSAGES_PART}
       else if (id.startsWith("work:")) switchTo(id.slice(5));
       else if (id === "retry" && last) { input.value = last.text; typed = true; syncSend(); saveDraft(false); input.focus(); }
     } });
-  presentation = (${ASSISTANT_STAGE_FACTORY})({island,panel,input,current:getWork,switchTo,showProblem:showError,L,el});
+  presentation = (${ASSISTANT_STAGE_FACTORY})({island,panel,input,current:getWork,switchTo,showProblem:showError,readText,el});
   /* ─── Head controls ────────────────────────────────────────────────────── */
   island.querySelector("[data-assistant-panel-close]")?.addEventListener("click", () => setPanel(false));
   island.querySelectorAll("[data-assistant-control]").forEach((btnEl) => btnEl.addEventListener("click", async () => {

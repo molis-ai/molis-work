@@ -1,10 +1,17 @@
 <!doctype html>
-<html lang="zh-CN">
+<html>
   <head>
     <meta charset="utf-8">
     <title>Molis Work</title>
+    <style id="molis-native-tokens"></style>
+    <style>
+      html { color-scheme: light dark; background: var(--page); color: var(--ink); font-family: var(--font); }
+      main { max-inline-size: 48rem; margin: 12vh auto; padding: 2rem; }
+      h1 { font: inherit; font-weight: 600; }
+      p { color: var(--ink-soft); line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+    </style>
   </head>
   <body>
-    <p>正在连接 Molis Work Web…</p>
+    <main id="molis-native-bootstrap" hidden><h1></h1><p id="molis-work-bootstrap-error" hidden></p></main>
   </body>
 </html>

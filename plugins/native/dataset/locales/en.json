@@ -21,6 +21,7 @@
     "dataset.column.type-date": "Date",
     "dataset.column.type-number": "Number",
     "dataset.column.type-text": "Text",
+    "dataset.create.kind-title": "Data table",
     "dataset.dialog.cancel": "Cancel",
     "dataset.dialog.confirm": "Confirm",
     "dataset.dialog.delete-confirm": "Delete this table? Version history will be removed too.",

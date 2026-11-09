@@ -1,20 +1,21 @@
 import { THEME_BOOTSTRAP_SCRIPT, TYPEFACE_STYLES } from "@molis-ai/molis-work-design-system";
+import { renderLanguageHead } from "./language-resource.js";
 import type { WebProjectNavigation } from "./settings-navigation.js";
 import type { WorkbenchRendererPorts } from "./renderer.js";
 
 export interface CapsuleRendererPorts {
-  locale: Pick<WorkbenchRendererPorts["locale"], "L" | "htmlLang" | "clientI18nScript">;
+  locale: Pick<WorkbenchRendererPorts["locale"], "readText" | "htmlLang" | "pluginTitleScript">;
   renderDesktopShell(projects: WebProjectNavigation[], environment: {
-    translate(message: string): string; htmlLang: string; clientI18nScript: string; themeBootstrapScript: string;
+    translate(message: string): string; htmlLang: string; pluginTitleScript: string; languageHead: string; themeBootstrapScript: string;
   }): string;
 }
 
 export function createCapsuleWorkbench(ports: CapsuleRendererPorts) {
-  const { L, htmlLang, clientI18nScript } = ports.locale;
+  const { readText, htmlLang, pluginTitleScript } = ports.locale;
 
   function renderCapsuleShell(projects: WebProjectNavigation[]): string {
     const html = ports.renderDesktopShell(projects, {
-      translate: L, htmlLang: htmlLang(), clientI18nScript: clientI18nScript(),
+      translate: readText, htmlLang: htmlLang(), pluginTitleScript: pluginTitleScript(), languageHead: renderLanguageHead(htmlLang()),
       themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT,
     });
     return html.replace("</style>", `${TYPEFACE_STYLES}</style>`);

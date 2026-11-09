@@ -1,5 +1,5 @@
 /** Reparents the one Assistant controller; tabs own presentation, never execution. */
-export const ASSISTANT_STAGE_FACTORY = String.raw`({island,panel,input,current,switchTo,showProblem,L,el})=>{
+export const ASSISTANT_STAGE_FACTORY = String.raw`({island,panel,input,current,switchTo,showProblem,readText,el})=>{
   if(document.body.hasAttribute('data-pane-embedded'))return null;
   const home=document.createComment('assistant-home');island.before(home);
   const launcher=el('button','mw-btn mw-btn--secondary assistant-stage-launcher');launcher.type='button';

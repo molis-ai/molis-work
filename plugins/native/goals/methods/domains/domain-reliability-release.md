@@ -1,6 +1,6 @@
 ---
 method_id: domain-reliability-release
-version: 1
+version: 2
 kind: domain
 name: "可靠性与发布"
 summary: "围绕服务目标、变更控制、可观测性和恢复能力建立持续交付闭环。"

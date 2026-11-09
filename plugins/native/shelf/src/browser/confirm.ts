@@ -21,11 +21,11 @@ function facts(_page: ShelfPage, recipe: ConfirmRecipe, count: number) {
 }
 
 function actorLine(page: ShelfPage, recipe: ConfirmRecipe): string {
-  const { L } = page;
+  const { readText } = page;
   if (isLocalRecipe(recipe)) return page.selected?.kind === "image" ? uiText.text("shelf.confirm.on-device-recognition-not-sent") : uiText.text("shelf.confirm.on-device-extraction-not-sent-2");
   if (ai(page).available) return uiText.text("shelf.confirm.model-processes-the-selected-materials", { model: aiLabel(page) });
   const reason = ai(page).reason;
-  return reason ? said(L, reason) : uiText.text("shelf.bar.configure-an-ai-model-first");
+  return reason ? said(readText, reason) : uiText.text("shelf.bar.configure-an-ai-model-first");
 }
 
 /** The plate is the same node across choices, so it springs across instead of blinking. */
@@ -43,7 +43,7 @@ function movePlate(page: ShelfPage, seg: HTMLElement, instant: boolean): void {
 }
 
 function paintChoices(page: ShelfPage, recipe: ConfirmRecipe): void {
-  const { L, bench, pending, selected } = page;
+  const { readText, bench, pending, selected } = page;
   const wrap = bench.querySelector<HTMLElement>("[data-shelf-choice]");
   const seg = bench.querySelector<HTMLElement>("[data-shelf-seg]");
   if (!wrap || !seg) return;
@@ -51,14 +51,14 @@ function paintChoices(page: ShelfPage, recipe: ConfirmRecipe): void {
   const list = recipe.recipe === "extract_text" && !imageText ? [] : (recipe.choices || []);
   wrap.hidden = list.length === 0;
   if (!list.length) { seg.innerHTML = ""; return; }
-  setText(bench, "[data-shelf-choice-label]", recipe.choice_label ? said(L, recipe.choice_label) : "");
-  setText(bench, "[data-shelf-choice-hint]", recipe.choice_hint ? said(L, recipe.choice_hint) : "");
+  setText(bench, "[data-shelf-choice-label]", recipe.choice_label ? said(readText, recipe.choice_label) : "");
+  setText(bench, "[data-shelf-choice-hint]", recipe.choice_hint ? said(readText, recipe.choice_hint) : "");
   const current = pending ? pending.option : recipe.default_choice;
   const rebuild = seg.dataset.shelfRecipe !== recipe.recipe;
   if (rebuild) {
     seg.dataset.shelfRecipe = recipe.recipe;
     seg.innerHTML = '<span class="shelf-seg-plate" data-shelf-seg-plate aria-hidden="true"></span>' + list.map((choice) =>
-      '<span class="shelf-seg-item" role="radio" tabindex="0" data-shelf-choice-id="' + escapeAttr(choice.id) + '">' + escText(said(L, choice.title)) + "</span>").join("");
+      '<span class="shelf-seg-item" role="radio" tabindex="0" data-shelf-choice-id="' + escapeAttr(choice.id) + '">' + escText(said(readText, choice.title)) + "</span>").join("");
   }
   seg.querySelectorAll<HTMLElement>("[data-shelf-choice-id]").forEach((item) => {
     item.setAttribute("aria-checked", String(item.dataset.shelfChoiceId === current));
@@ -76,19 +76,19 @@ function outputName(page: ShelfPage, recipe: ConfirmRecipe): string {
 }
 
 function confirmTitle(page: ShelfPage, recipe: ConfirmRecipe): string {
-  const { L, selected } = page;
-  if (recipe.recipe !== "extract_text") return said(L, recipe.label);
+  const { readText, selected } = page;
+  if (recipe.recipe !== "extract_text") return said(readText, recipe.label);
   return selected?.kind === "pdf" ? uiText.text("shelf.confirm.extract-pdf-text") : selected?.kind === "image" ? uiText.text("shelf.confirm.extract-image-text") : uiText.text("shelf.confirm.extract-text");
 }
 
 export function fillConfirm(page: ShelfPage): void {
-  const { L, bench, selected, pending } = page;
+  const { readText, bench, selected, pending } = page;
   const recipe = confirmRecipe(page);
   if (!recipe || !selected || !pending) return;
   const picked = batch(page);
   const title = confirmTitle(page, recipe);
   const option = (recipe.choices || []).find((choice) => choice.id === pending.option);
-  setText(bench, "[data-shelf-confirm-title]", option ? title + " · " + said(L, option.title) : title);
+  setText(bench, "[data-shelf-confirm-title]", option ? title + " · " + said(readText, option.title) : title);
   setText(bench, "[data-shelf-confirm-count]", uiText.text("shelf.confirm.count", { count: String(picked.length) }));
   setText(bench, "[data-shelf-confirm-out]", uiText.text("shelf.confirm.creates-name-your-original-file", { name: outputName(page, recipe) }));
   const fact = facts(page, recipe, picked.length);

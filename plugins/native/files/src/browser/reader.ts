@@ -46,7 +46,7 @@ export async function companions(page: FilesPage, ticket: number): Promise<void>
 
 /** Reads one file into the reader. */
 export async function openFile(page: FilesPage, path: string[]): Promise<void> {
-  const { L, result, text } = page, ticket = ++page.readTicket, epoch = page.generation, id = page.workspace;
+  const { readText, result, text } = page, ticket = ++page.readTicket, epoch = page.generation, id = page.workspace;
   page.current = null; page.selectedPath = path; publishContext(page, path); page.reload.disabled = true;
   result.setAttribute("aria-busy", "true"); controls(page); text.hidden = true;
   page.q("[data-files-title]").textContent = path.join("/");
@@ -68,7 +68,7 @@ export async function openFile(page: FilesPage, path: string[]): Promise<void> {
     });
     controls(page);
   } catch (error) {
-    if (ticket === page.readTicket && active(page, epoch)) { notice.textContent = uiText.text("files.reader.retry", { message: said(L, messageOf(error)) }); controls(page); }
+    if (ticket === page.readTicket && active(page, epoch)) { notice.textContent = uiText.text("files.reader.retry", { message: said(readText, messageOf(error)) }); controls(page); }
   } finally {
     if (ticket === page.readTicket && active(page, epoch)) { result.setAttribute("aria-busy", "false"); page.reload.disabled = false; }
   }
@@ -76,7 +76,7 @@ export async function openFile(page: FilesPage, path: string[]): Promise<void> {
 
 /** Pins the text as read (or the selection of it) as a snapshot another plugin can bind to. */
 export async function capture(page: FilesPage, button: HTMLButtonElement): Promise<void> {
-  const { L, text, lifetime } = page;
+  const { readText, text, lifetime } = page;
   if (!page.current || page.captureBusy) return;
   const saved = { ...page.current }, epoch = page.generation, ticket = page.readTicket, port = button.dataset.filesCapture ?? "";
   const range = { start: text.selectionStart, end: text.selectionEnd };
@@ -91,7 +91,7 @@ export async function capture(page: FilesPage, button: HTMLButtonElement): Promi
     status.textContent = port === "before" ? uiText.text("files.snapshot.pinned-before", told) : port === "after" ? uiText.text("files.snapshot.pinned-after", told) : uiText.text("files.snapshot.pinned-selection", told);
     await companions(page, epoch);
   } catch (error) {
-    if (active(page, epoch) && ticket === page.readTicket) status.textContent = said(L, messageOf(error));
+    if (active(page, epoch) && ticket === page.readTicket) status.textContent = said(readText, messageOf(error));
   } finally {
     page.captureBusy = false;
     if (lifetime.alive) { button.removeAttribute("data-loading"); spinner.remove(); controls(page); }

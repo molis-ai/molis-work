@@ -20,6 +20,7 @@
     "form.collect.start": "开始收集",
     "form.collect.stop": "停止收集",
     "form.collect.stopped": "已停止收集",
+    "form.create.kind-title": "问卷",
     "form.dataset.hint": "把现有答卷做成一张可以继续编辑的数据表；之后的新答卷不会自动加入",
     "form.dataset.save": "存成数据表",
     "form.dialog.cancel": "取消",

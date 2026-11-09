@@ -20,7 +20,7 @@
  * the shell read from its frame is 「让助理回复」 instead: this press starts the reply, as the person (PG-057); nothing else does.
  */
 export const ASSISTANT_STEP_ROW_FACTORY_SCRIPT = String.raw`(input) => {
-  const { row, thread, L, el } = input;
+  const { row, thread, readText, el } = input;
   let offer, offerNode, unfolded = false, shownWork;
   const press = (node, control) => { input.jumpTo(node); if (control && !control.disabled) control.click(); };
   // A step's id names the record it leads to (review:, question:, card:, or an outcome's own key), as the conversation keys it.

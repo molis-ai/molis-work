@@ -6,7 +6,7 @@ import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { readLocalWebBody as readBody, respondLocalWebRefusal, sendLocalWebJson as sendJson } from "./web-http.js";
 import { renderMcpAccessRows } from "@molis-ai/molis-work-app-workbench";
 import { t as uiText, escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { L, listJoin } from "./web-locale.js";
+import { readText, listJoin } from "./web-locale.js";
 import { readMcpActionAccess } from "./mcp-action-access.js";
 import { actionClientAudience, createMcpActionGrant, resolveMcpActionContext } from "./mcp-action-grants.js";
 import { actionGrantKey, readMcpToolPreference, writeMcpActionGrant, writeMcpActionGrants } from "./mcp-settings-store.js";
@@ -59,7 +59,7 @@ export async function handleMcpActionSettingsHttp(request: IncomingMessage, resp
     if (request.method === "GET") {
       const access = await readMcpActionAccess(homeDirectory, host, caller, reference, scopeMissing, preference);
       sendJson(response, 200, url.searchParams.get("format") === "html" ? { html: renderMcpAccessRows({ entries: access.entries,
-        query: url.searchParams.get("q") ?? "", filter: url.searchParams.get("filter") ?? "" }, { L, escapeHtml: value => escapeHtml(String(value ?? "")) }) } : access);
+        query: url.searchParams.get("q") ?? "", filter: url.searchParams.get("filter") ?? "" }, { readText, escapeHtml: value => escapeHtml(String(value ?? "")) }) } : access);
       return true;
     }
     const all = await host.inspectActions(caller, reference);

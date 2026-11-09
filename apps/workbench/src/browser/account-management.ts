@@ -4,7 +4,7 @@ import { verifyAccountMethod } from "./account-verification.js";
 export interface AccountReply { handle: string; nextStep: string; challengeHandle: string; retryAfterSeconds: number; status?: string; browserStartUrl?: string; operationReady?: boolean }
 export interface AccountUi {
   form: HTMLFormElement; dialog: HTMLDialogElement; message: HTMLElement;
-  L(text: string): string;
+  readText(text: string): string;
   node<K extends keyof HTMLElementTagNameMap>(tag: K, text?: string, cls?: string): HTMLElementTagNameMap[K];
   field(label: string, name: string, type: string, autocomplete: string): HTMLInputElement;
   button(text: string, action: () => void | Promise<void>, parent?: HTMLElement): HTMLButtonElement;
@@ -16,7 +16,7 @@ type MethodType = keyof typeof names;
 type Mutation = { kind: "bind" | "replace" | "unlink" | "password"; type?: MethodType; bindingId?: string; label?: string };
 const verification = (type: MethodType, current = false) => type === "EMAIL" ? current ? "EMAIL_PASSWORD" : "EMAIL_CODE" : type === "PHONE" ? "PHONE_OTP" : type;
 export function openAccountManagement(ui: AccountUi, user: UserView, back: () => Promise<void>) {
-  const { form, dialog, message, L, node, field, button, request, perform } = ui;
+  const { form, dialog, message, node, field, button, request, perform } = ui;
   const handles = new Set<string>(); let active = true, disposeVerification: (() => void) | undefined;
   const current = () => active && dialog.open;
   const discard = () => { disposeVerification?.(); disposeVerification = undefined; for (const h of handles) void request('/auth/transactions/'+h+'/cancel',{}).catch(()=>{ /* Expiry also revokes abandoned proofs. */ }); handles.clear(); };
@@ -56,7 +56,7 @@ export function openAccountManagement(ui: AccountUi, user: UserView, back: () =>
   function choose(action: Mutation, methods: LoginMethodsView) {
     discard();reset("workbench.account-management.verify-current-account");
     const select=node('select','','mw-input');select.setAttribute('aria-label',uiText.text("workbench.account-management.verification-method"));
-    for(const method of new Set(methods.loginMethods.filter(m=>m.usableForLogin).map(m=>verification(m.type,true)))){const option=node('option',L(method==='EMAIL_PASSWORD'?"workbench.account-management.email-password":method==='PHONE_OTP'?"workbench.account-management.phone-code":method==='GOOGLE'?'Google':'GitHub'));option.value=method;select.append(option);}form.append(select);
+    for(const method of new Set(methods.loginMethods.filter(m=>m.usableForLogin).map(m=>verification(m.type,true)))){const option=node('option',(method==='EMAIL_PASSWORD'?"workbench.account-management.email-password":method==='PHONE_OTP'?"workbench.account-management.phone-code":method==='GOOGLE'?'Google':'GitHub'));option.value=method;select.append(option);}form.append(select);
     const start=button('开始验证',()=>perform(async()=>{
       const operation={bind:'BIND_METHOD',replace:'REPLACE_METHOD',unlink:'UNLINK_METHOD',password:'CHANGE_PASSWORD'}[action.kind];
       const target=action.kind==='bind'?{method:action.type}:action.kind==='password'?{kind:'PASSWORD'}:{bindingId:action.bindingId};

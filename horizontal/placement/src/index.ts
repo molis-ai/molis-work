@@ -318,9 +318,9 @@ async function moveBack(ports: PlacementPorts, object: PlacedObject, at: string 
   // from the partition it just arrived in, so the caller's project is the place the plugin already wrote.
   const scope = await (ports.revert ?? ports.scope)(object.project_id === null ? null : at);
   const mover = placementToolOf(ports, await scope.client.discover(scope.caller), object.kind, "move");
-  if (!mover) throw new ActionError("placement.not_movable", t("移回原处时找不到移动动作"));
+  if (!mover) throw new ActionError("placement.not_movable", t("workbench.index.no-move-action-was-found-to-put"));
   const result = await scope.client.invoke(scope.caller, mover, { subject: { kind: object.kind, id: object.id }, to_project_id: to }) as PlacementResult;
-  if (result.project_id !== to || result.subject.id !== object.id) throw new ActionError("placement.result_mismatch", t("移回原处的结果与请求不一致"));
+  if (result.project_id !== to || result.subject.id !== object.id) throw new ActionError("placement.result_mismatch", t("workbench.index.putting-it-back-did-not-return-the"));
 }
 
 /** The ledger access this service writes as; the Host authorizes exactly this partition. */
@@ -369,8 +369,8 @@ async function describePlacement(ports: PlacementPorts, self: PlacementInstanceA
     const goal = await self.targetTitle(binding.project_id, binding.target_kind, binding.goal_id);
     const name = goal ?? placementText(ports, "workbench.index.title-unavailable");
     associations.push({ key: key("goal", binding.project_id, binding.goal_id, binding.binding_id), type: "goal",
-      label: binding.project_id === object.project_id ? placementText(ports, "{noun}「{name}」", { noun: binding.noun, name })
-        : placementText(ports, "{noun}「{name}」 · {place}", { noun: binding.noun, name, place: placementLocation(ports, binding.project_id, spaces).title }),
+      label: binding.project_id === object.project_id ? placementText(ports, "workbench.placement.related-goal", { noun: binding.noun, name })
+        : placementText(ports, "workbench.placement.related-goal-with-place", { noun: binding.noun, name, place: placementLocation(ports, binding.project_id, spaces).title }),
       target: { kind: "goal", project_id: binding.project_id, goal_id: binding.goal_id, title: goal ?? "" }, since: binding.created_at, removable: true });
   }
   const kept = read.context?.goal_ids ?? [];

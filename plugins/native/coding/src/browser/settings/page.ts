@@ -4,9 +4,9 @@ import { errorMessage } from "../dom.js";
 /** The route the injected constant names, under the prefix the Host drew on the section (the project's address, or Home's). */
 declare const CODING_SETTINGS_API: string;
 /** The page's own translator. */
-declare const L: UiClientTranslate;
+declare const readText: UiClientTranslate;
 
-export const translate: UiClientTranslate = L;
+export const translate: UiClientTranslate = readText;
 
 /** A directory the project has granted. */
 export interface Workspace { readonly workspace_id: string; readonly canonical_path: string }

@@ -32,7 +32,7 @@ export async function fixed(page: GitPage, item: Selected, serial: number, epoch
 
 /** Opens one changed file's diff in the result panel. */
 export async function open(page: GitPage, path: string[], side: string, button: HTMLElement | null): Promise<void> {
-  const { S, q, result, action, diffNotice } = page;
+  const { q, result, action, diffNotice } = page;
   page.opener = button || page.opener;
   page.list.querySelectorAll<HTMLElement>("[data-git-path]").forEach((row) => row.classList.toggle("is-selected", row.dataset.gitPath === JSON.stringify([path, side])));
   const serial = ++page.ticket, epoch = page.generation, id = page.workspace;
@@ -47,12 +47,12 @@ export async function open(page: GitPage, path: string[], side: string, button: 
   try {
     const value = await request<DiffAnswer>(page, "/diff", "POST", { workspace_id: id, path, side });
     if (serial !== page.ticket || !active(page, epoch)) return;
-    if (value.result.outcome !== "diff") { diffNotice.textContent = S(value.result.message ?? ""); return; }
+    if (value.result.outcome !== "diff") { diffNotice.textContent = (value.result.message ?? ""); return; }
     page.selected = value.selected;
     page.reopen.hidden = false;
     await fixed(page, value.selected, serial, epoch);
   } catch (error) {
-    if (serial === page.ticket && active(page, epoch)) diffNotice.textContent = S(messageOf(error));
+    if (serial === page.ticket && active(page, epoch)) diffNotice.textContent = (messageOf(error));
   } finally {
     if (serial === page.ticket && active(page, epoch)) result.setAttribute("aria-busy", "false");
   }
@@ -105,7 +105,7 @@ async function reopenSelected(page: GitPage): Promise<void> {
   reveal(page, reopen);
   const serial = ++page.ticket, epoch = page.generation;
   try { await fixed(page, item, serial, epoch); }
-  catch (error) { if (serial === page.ticket && active(page, epoch)) page.diffNotice.textContent = page.S(messageOf(error)); }
+  catch (error) { if (serial === page.ticket && active(page, epoch)) page.diffNotice.textContent = (messageOf(error)); }
 }
 
 function closeResult(page: GitPage): void {

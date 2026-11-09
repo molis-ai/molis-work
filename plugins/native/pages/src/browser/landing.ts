@@ -8,8 +8,8 @@ import type { PagesPage } from "./page.js";
  * preview there — is the editor's `mountPagesLanding` (landing-editor.ts); this joins it to the open document, its saving and its list.
  */
 export function bindLanding(page: PagesPage) {
-  const { Editor, bench, L, host } = page;
-  page.landing = Editor.mountPagesLanding({ bench, translate: L, view: () => (page.editor ? page.editor.view : null),
+  const { Editor, bench, readText, host } = page;
+  page.landing = Editor.mountPagesLanding({ bench, translate: readText, view: () => (page.editor ? page.editor.view : null),
     // Only the saved text has a landing: its positions belong to the version it is reported with.
     open: () => (page.sel && !page.unshowable && !page.saveTimer && !page.dirty ? { id: page.sel.id, version: page.sel.version, title: page.titleInput.value || page.sel.title } : null),
     refresh: () => loadList(page) });

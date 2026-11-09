@@ -130,6 +130,7 @@
     "plugin-builder.agent-studio.model-used-building": "Model used for building",
     "plugin-builder.agent-studio.my-plugins": "My plugins",
     "plugin-builder.agent-studio.my-plugins-n": "My plugins ({n})",
+    "plugin-builder.agent-studio.name": "“{name}”",
     "plugin-builder.agent-studio.name-did-not-work-expected-trial": "“{name}” did not work as expected in the trial",
     "plugin-builder.agent-studio.needs": "Needs you",
     "plugin-builder.agent-studio.needs-answer": "Needs your answer",

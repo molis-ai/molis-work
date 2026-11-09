@@ -135,7 +135,7 @@ const GOALS_TREE_KEYBOARD_SCRIPT = `      if (event.key === "Escape" && treeFilt
 /** Goal Tree state and handlers; shared refresh scheduling remains a Host service. */
 export const GOALS_TREE_CLIENT_FACTORY_SCRIPT = `(host) => {
     const { treeFilter, treeFilterTrigger, treeScroll, globalSearch,
-      translate: L, updateGraphVisibility, queueSave, saveUiState } = host;
+      translate: readText, updateGraphVisibility, queueSave, saveUiState } = host;
     let selectedStatuses = new Set();
 ${GOALS_TREE_FILTER_SCRIPT}
     const expandAncestors = (node) => {

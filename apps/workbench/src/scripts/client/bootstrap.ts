@@ -15,6 +15,7 @@ const DESKTOP_NAVIGATION_STATE = /* @version format.workbench.navigation-state *
  *   workspace only when asked, so it does not wait for it.
  */
 export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
+    const readText = globalThis.t.text;
     const q = (selector) => document.querySelector(selector);
     const goalData = q("#molis-work-data");
     let state = goalData ? JSON.parse(goalData.textContent) : { project: { project_id: document.body.dataset.projectId } };
@@ -40,7 +41,7 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     const documentCollection = trashView ? "trash" : archiveView ? "archive" : "current";
     const routePrefix = document.body.dataset.routePrefix || "";
     const route = (pathname) => routePrefix + pathname;
-    const api = (pathname,method,body,msg="来源操作失败") => molisWorkRequest(route(pathname), {method,body:body==null?undefined:body,fallback:globalThis.t.text(msg)});
+    const api = (pathname,method,body,fallback) => molisWorkRequest(route(pathname), {method,body:body==null?undefined:body,fallback});
     const localPathname = () => routePrefix && location.pathname.startsWith(routePrefix)
       ? location.pathname.slice(routePrefix.length) || "/"
       : location.pathname;
@@ -58,7 +59,7 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     let frameContainer = null;
     let tabWorkspace = null;
     const paneMessages = ${PANE_MESSAGES_SCRIPT};
-    const settingsReturn = molisWorkSettingsReturn({ translate: (...args) => L(...args), projectId: state.project?.project_id || "", prefix: routePrefix,
+    const settingsReturn = molisWorkSettingsReturn({ translate: readText, projectId: state.project?.project_id || "", prefix: routePrefix,
       tabWorkspace: () => tabWorkspace, showToast: (...args) => showToast(...args), setDirectory: (...args) => setDesktopDirectory(...args) });
     let projectHome = null;
     let pluginWorkbench = null;

@@ -1,7 +1,7 @@
 /**
  * 「交给助理 / Coding」 in a 成果 version's detail (specs/artifact-positioning 五.1): the person's click hands the version to
  * the Assistant as material of a new work — its subject, so the work is listed under 「被谁引用」, and the text the detail
- * shows. Coding takes it only where the project has Coding. Runs inside the workbench's 成果 client and shares its `L` and `detail`.
+ * shows. Coding takes it only where the project has Coding. Runs inside the workbench's 成果 client and shares its `readText` and `detail`.
  */
 export const ARTIFACT_HANDOFF_CLIENT_SCRIPT = String.raw`
   const showHandoff = () => {

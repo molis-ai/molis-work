@@ -60,11 +60,11 @@ function stepFor(nodes: readonly StepNode[], child: BoardChild): StepNode | null
   return best;
 }
 
-function childRow({ translate: L, words, ports }: TreeInput, run: BoardRun, { child, run_id }: ChildItem): BoardRow {
+function childRow({ translate: readText, words, ports }: TreeInput, run: BoardRun, { child, run_id }: ChildItem): BoardRow {
   const verdict = child.verdict?.status, role = ports.roleName(child.role_id) || child.role_name || "", at = startedAt(child);
   const here = run.frozen?.directory?.canonical_path;
   const own = child.workspace_path && here && child.workspace_path !== here ? child.workspace_path.split("/").filter(Boolean).at(-1) : "";
-  const state = verdict === "accepted" ? words.state.accepted! : verdict === "needs-work" ? words.state["needs-work"]! : words.child[child.state] || unknown(L);
+  const state = verdict === "accepted" ? words.state.accepted! : verdict === "needs-work" ? words.state["needs-work"]! : words.child[child.state] || unknown(readText);
   return {
     key: "child-" + child.subagent_id, label: uiText.text("coding.board.subtask"), title: oneLine(child.task), hint: child.task, state, progress: null,
     note: own ? uiText.text("coding.board.own-directory", { path: own }) : "",
@@ -77,9 +77,9 @@ function childRow({ translate: L, words, ports }: TreeInput, run: BoardRun, { ch
  * Who does a step: its holder on the graph, not whoever runs the round. A claim held quiet too long by a session with no round
  * running reads as expired, for you to reassign.
  */
-function doerOf({ input: { translate: L, ports }, executor }: StepScope, holder: StepNode["owner"], held: BoardChild | undefined): Executor {
+function doerOf({ input: { translate: readText, ports }, executor }: StepScope, holder: StepNode["owner"], held: BoardChild | undefined): Executor {
   if (!holder) return executor;
-  const label = stepActorText(L, holder), expired = holder.expired ? { expired: true } : {};
+  const label = stepActorText(readText, holder), expired = holder.expired ? { expired: true } : {};
   if (holder.kind === "session") return { name: executor.name, detail: uiText.text("coding.board.holder", { holder: label }) + " · " + executor.detail, ...expired };
   if (holder.kind === "subtask") return { name: label, detail: uiText.text("coding.board.holder", { holder: label }) + (held ? " · " + uiText.text("coding.board.by-role", { role: ports.roleName(held.role_id) || held.role_name || "" }) : "") };
   if (holder.kind === "person") return { name: uiText.text("coding.board.you"), detail: uiText.text("coding.board.holder-you"), person: true };
@@ -99,13 +99,13 @@ function stepState({ input: { words }, run, entry, board }: StepScope, node: Ste
   return { state: [state[0], mark, state[2]], decided };
 }
 
-function stepHint(L: Translate, acceptance: string, holderLabel: string, last: StepNode["reports"][number] | undefined): string {
+function stepHint(readText: Translate, acceptance: string, holderLabel: string, last: StepNode["reports"][number] | undefined): string {
   return (acceptance ? uiText.text("coding.board.acceptance", { acceptance }) : "") + (holderLabel ? "\n" + uiText.text("coding.board.holder", { holder: holderLabel }) : "")
-    + (last ? "\n" + uiText.text("coding.board.last-report", { report: (last.by ? stepActorText(L, last.by) + uiText.text("coding.timeline.colon") : "") + last.note }) : "");
+    + (last ? "\n" + uiText.text("coding.board.last-report", { report: (last.by ? stepActorText(readText, last.by) + uiText.text("coding.timeline.colon") : "") + last.note }) : "");
 }
 
 function stepRow(scope: StepScope, node: StepNode, position: number): BoardRow {
-  const { input, entry, board, run, placed, children, live, editable } = scope, L = input.translate, id = run.ref.run_id;
+  const { input, entry, board, run, placed, children, live, editable } = scope, readText = input.translate, id = run.ref.run_id;
   const step = stepOf(entry.plan, node), { state, decided } = stepState(scope, node);
   const deps = (node.depends_on || []).map(dep => board.nodes.find(other => other.id === dep)).filter((dep): dep is StepNode => Boolean(dep))
     .map(dep => ({ title: stepOf(entry.plan, dep).title, ready: settled(dep), blocked: ["failed", "blocked"].includes(dep.state) }));
@@ -114,7 +114,7 @@ function stepRow(scope: StepScope, node: StepNode, position: number): BoardRow {
   const done = mine.length ? mine.filter(row => ["done", "accepted"].includes(row.state[2])).length : settled(node) || decided === "accepted" ? 1 : 0;
   return {
     key: "step-" + id + "-" + node.id, label: node.inserted ? uiText.text("coding.board.inserted") : "S" + (Number(node.id.replace("step-", "")) || position + 1), title: step.title,
-    hint: stepHint(L, step.acceptance, holder ? stepActorText(L, holder) : "", last), state, progress: { done, total: mine.length || 1 }, deps,
+    hint: stepHint(readText, step.acceptance, holder ? stepActorText(readText, holder) : "", last), state, progress: { done, total: mine.length || 1 }, deps,
     executor: doerOf(scope, holder, held), time: last ? when(last.at_ms) : null, target: { kind: "step", run_id: id, step_id: node.id }, children: mine, node,
     ...(editable ? { edit: { board, runId: id, position, live } } : {}),
   };
@@ -145,7 +145,7 @@ function canChange({ data }: TreeInput, span: readonly number[], board: Board | 
 
 /** One round that ran a plan or dispatched subagents; null when it did neither. */
 function roundRow(input: TreeInput, index: number, entry: PlanEntry | undefined, span: readonly number[]): BoardRow | null {
-  const { data, translate: L, ports } = input, runs = data.runs || [], plans = data.taskboard_plans || [], run = runs[index]!, id = run.ref.run_id;
+  const { data, translate: readText, ports } = input, runs = data.runs || [], plans = data.taskboard_plans || [], run = runs[index]!, id = run.ref.run_id;
   const here = span.map(at => (data.subagents || []).find(item => item.run_id === runs[at]!.ref.run_id)).filter((item): item is BoardSubagents => Boolean(item));
   const group = here.find(item => item.error), children = here.flatMap(item => item.children.map(child => ({ child, run_id: item.run_id })));
   if (!entry && !children.length && !plans.some(item => item.run_id === id)) return null;
@@ -160,7 +160,7 @@ function roundRow(input: TreeInput, index: number, entry: PlanEntry | undefined,
   return {
     key: "run-" + id, label: span.length > 1 ? "#" + (span[0]! + 1) + "–" + (index + 1) : "#" + (index + 1), title: name,
     hint: [entry ? uiText.text("coding.board.plan-revision", { revision: entry.revision ?? "?" }) : "", span.length > 1 ? uiText.text("coding.board.continued-turns", { turns: turns.join(uiText.text("coding.list.joiner")) }) : ""].filter(Boolean).join("\n"),
-    state: input.words.phase[run.phase] || unknown(L),
+    state: input.words.phase[run.phase] || unknown(readText),
     progress: nodes.length ? { done: doneSteps, total: counted || nodes.length } : children.length ? { done: children.filter(item => item.child.state === "completed").length, total: children.length } : null,
     executor, time: when(first.started_at), target: { kind: "run", run_id: id }, children: [...steps, ...loose.map(item => childRow(input, run, item))], note: entry?.error || group?.error || "",
   };

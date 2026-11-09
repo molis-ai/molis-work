@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { installArrange } from "./arrange.js";
 import { installControls } from "./controls.js";
 import { installDirectory } from "./directory.js";
@@ -26,7 +27,7 @@ export function shelfClient(host: ShelfHost): void {
   const bar = bench.querySelector<HTMLElement>("[data-shelf-bar]");
   if (!stage || !preview || !bar) return;
   const page: ShelfPage = {
-    host, L: host.translate, lifetime, directory, bench, stage, preview, bar, reading,
+    host, readText: uiText.text, lifetime, directory, bench, stage, preview, bar, reading,
     stageWorkspace: bench.querySelector<HTMLElement>("[data-shelf-stage-workspace]"),
     fileInput: bench.querySelector<HTMLInputElement>("[data-shelf-file]"),
     search: bench.querySelector<HTMLInputElement>("[data-shelf-search]"),

@@ -5,16 +5,16 @@ import { renderAlertDialog, renderCommand, renderContextMenu, renderDialog, rend
 import { mark, section, specimen } from "./catalog-parts.js";
 
 export function buttonSection(): string {
-  const primary = renderButton({ label: "保存", variant: "primary" });
-  const secondary = renderButton({ label: "取消", variant: "secondary" });
-  const ghost = renderButton({ label: "更多", variant: "ghost", icon: "more" });
+  const primary = renderButton({ label: "common.control.save", variant: "primary" });
+  const secondary = renderButton({ label: "common.control.cancel", variant: "secondary" });
+  const ghost = renderButton({ label: "workbench.context-toolbar.more", variant: "ghost", icon: "more" });
   const danger = renderButton({ label: "删除", variant: "danger" });
   const dangerOutline = renderButton({ label: "移入回收站", variant: "danger-outline" });
   const link = renderButton({ label: "打开链接", variant: "link" });
   const iconBtn = renderButton({ label: "关闭", variant: "ghost", size: "icon", icon: "x", iconOnly: true });
   const loading = renderButton({ label: "保存中", variant: "primary", loading: true });
   const loadingIcon = renderButton({ label: "导出中", variant: "secondary", icon: "download", loading: true });
-  const disabled = renderButton({ label: "不可用", variant: "primary", disabled: true });
+  const disabled = renderButton({ label: "workbench.capabilities.unavailable", variant: "primary", disabled: true });
   const disabledSecondary = renderButton({ label: "次操作不可用", variant: "secondary", disabled: true });
   const sizes = ["sm", "md", "lg"].map((size) => renderButton({ label: size, variant: "secondary", size: size as "sm" | "md" | "lg" })).join("");
   return section("button", "Button", `<div class="mw-catalog__specimens">
@@ -102,8 +102,8 @@ export function advancedFieldSection(): string {
 }
 
 export function formSection(): string {
-  const primary = renderButton({ label: "保存", variant: "primary" });
-  const secondary = renderButton({ label: "取消", variant: "secondary" });
+  const primary = renderButton({ label: "common.control.save", variant: "primary" });
+  const secondary = renderButton({ label: "common.control.cancel", variant: "secondary" });
   const input = renderField({
     label: "目标名称",
     required: true,
@@ -120,9 +120,9 @@ export function formSection(): string {
 }
 
 export function badgeSection(): string {
-  const badges = `<div class="mw-catalog__row">${([["草稿", "neutral"], ["进行中", "info"], ["已完成", "success"], ["待复核", "warning"], ["失败", "danger"]] as const)
+  const badges = `<div class="mw-catalog__row">${([["草稿", "neutral"], ["workbench.assistant-delivery.progress", "info"], ["已完成", "success"], ["待复核", "warning"], ["workbench.assistant-delivery.failed", "danger"]] as const)
     .map(([label, tone]) => renderBadge({ label, tone }))
-    .join("")}</div><div class="mw-catalog__row">${([["草稿", "draft", "idle"], ["进行中", "doing", "progress"], ["已完成", "done", "done"], ["待复核", "verify", "attention"], ["失败", "failed", "blocked"]] as const)
+    .join("")}</div><div class="mw-catalog__row">${([["草稿", "draft", "idle"], ["workbench.assistant-delivery.progress", "doing", "progress"], ["已完成", "done", "done"], ["待复核", "verify", "attention"], ["workbench.assistant-delivery.failed", "failed", "blocked"]] as const)
     .map(([label, state, tone]) => renderStatusMark({ label, state, tone }))
     .join("")}</div>`;
   const alerts = renderAlert({ title: "保存失败", body: "连接中断，草稿仍在，可以重试。", tone: "danger" })
@@ -173,8 +173,8 @@ export function calendarSection(): string {
 }
 
 export function overlaySection(): string {
-  const primary = renderButton({ label: "保存", variant: "primary" });
-  const secondary = renderButton({ label: "取消", variant: "secondary" });
+  const primary = renderButton({ label: "common.control.save", variant: "primary" });
+  const secondary = renderButton({ label: "common.control.cancel", variant: "secondary" });
   const danger = renderButton({ label: "删除", variant: "danger" });
   const input = renderField({
     label: "目标名称",
@@ -225,8 +225,8 @@ export function overlaySection(): string {
 }
 
 export function menuSection(): string {
-  return section("menu", "Menu / Context Menu / Popover / Tooltip / Command / Preview Card", `<div class="mw-catalog__specimens">${mark("menu", specimen("菜单", renderMenu({
-      items: renderMenuGroup({ items: renderMenuItem({ label: "重命名", iconName: "edit", shortcut: "F2" }) + renderMenuItem({ label: "复制链接", iconName: "link", shortcut: "⌘L" }) + renderMenuItem({ label: "移到其他项目", iconName: "folder", disabled: true }) })
+  return section("menu", "Menu / Context Menu / Popover / Tooltip / Command / Preview Card", `<div class="mw-catalog__specimens">${mark("menu", specimen("workbench.catalog-controls.menu", renderMenu({
+      items: renderMenuGroup({ items: renderMenuItem({ label: "重命名", iconName: "edit", shortcut: "F2" }) + renderMenuItem({ label: "复制链接", iconName: "link", shortcut: "⌘readText" }) + renderMenuItem({ label: "移到其他项目", iconName: "folder", disabled: true }) })
         + renderMenuGroup({ items: renderMenuItem({ label: "删除", iconName: "trash", danger: true, shortcut: "⌘⌫" }) }),
     })))}${mark("context-menu", specimen("右键菜单", renderContextMenu({
       items: renderMenuGroup({ label: "显示", items: renderMenuItem({ label: "行号", checked: true }) + renderMenuItem({ label: "自动换行", checked: false }) })
@@ -239,8 +239,8 @@ export function menuSection(): string {
 }
 
 export function tabsSection(): string {
-  const primary = renderButton({ label: "保存", variant: "primary" });
-  const ghost = renderButton({ label: "更多", variant: "ghost", icon: "more" });
+  const primary = renderButton({ label: "common.control.save", variant: "primary" });
+  const ghost = renderButton({ label: "workbench.context-toolbar.more", variant: "ghost", icon: "more" });
   return section("tabs", "Tabs / Toolbar / Toggle / Collapsible / Combobox / Accordion / Pagination / Breadcrumb", `<div class="mw-catalog__specimens">${mark("tabs", specimen("页签", renderTabs({
       label: "来源详情",
       tabs: [{ id: "overview", label: "概览", selected: true }, { id: "schedule", label: "定时拉取" }],

@@ -61,7 +61,7 @@ export const datasetManifest: PluginManifest = {
     contributions: [DATASET_UI_CONTRIBUTION_ID],
     views: [
       { view_id: "directory", slot: "navigator", title: "Dataset", contribution_id: DATASET_UI_CONTRIBUTION_ID, icon: "database", hue: "green", order: 58, group: "make",
-        creates: { station: "dataset", title: "数据表" } },
+        creates: { station: "dataset", title: "数据表", title_text: { key: "dataset.create.kind-title" } } },
     ],
   },
 };

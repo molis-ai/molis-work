@@ -4,7 +4,6 @@ import type { ModelApiFormat } from "@molis-ai/molis-work-contracts/modules/mode
 import { listProviderModels, modelListErrors, type ListedModel, type ModelListSend } from "@molis-ai/molis-work-service-agent-host";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import type { MolisWorkProjectCatalog } from "./project-catalog.js";
-import { L } from "./web-locale.js";
 
 /**
  * "Fetch models" on the settings page (spec assistant-service-connections §13.2): which key may ask the service at the
@@ -70,7 +69,7 @@ function modelListProblem(error: unknown): string {
     case modelListErrors.timeout("").code: return uiText.text("workbench.model-provider-list.no-response-came-back-check-address-network-then");
     case modelListErrors.response_invalid("").code: return uiText.text(error.message.includes("太大") ? "workbench.model-provider-list.model-list-service-too-large-type-model-name" : "workbench.model-provider-list.service-s-answer-not-model-list-check-base");
     // The three ways a connection fails carry their own words, already in the catalog.
-    case modelListErrors.unreachable("").code: return L(error.message);
+    case modelListErrors.unreachable("").code: return error.message;
     default: return uiText.text("workbench.model-provider-list.could-not-get-model-list-type-model-name");
   }
 }

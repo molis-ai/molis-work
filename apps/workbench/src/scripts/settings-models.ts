@@ -179,7 +179,7 @@ export const MODEL_SETTINGS_CLIENT_SCRIPT = readFileSync(new URL("../../dist/mod
             const result = await mutate(encodeURIComponent(provider) + '/test', {
               model_id: button.closest('[data-model-row]').querySelector('[data-model-id]').value,
             });
-            status(result.model_id + '：' + L(result.message));
+            status(result.model_id + '：' + result.message);
           } else if (button.matches('[data-model-delete]')) {
             begin();
             const result = await mutate(encodeURIComponent(provider), undefined, 'DELETE'); await refresh(); status(globalThis.t.text("workbench.settings-models.provider-removed")); released(result.released_key);

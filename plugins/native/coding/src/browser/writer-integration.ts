@@ -189,7 +189,7 @@ function changes(_L: WriterIntegrationPorts["translate"], row: HTMLElement, key:
 
 /** One changed file: its check box, what changed and, when both sides changed it, the merge. */
 function fileRow(state: Integration, file: IntegrationFile, previous: ReadonlyMap<string, string>, shown: number) {
-  const { translate: L, lifetime } = state.ports;
+  const { translate: readText, lifetime } = state.ports;
   const key = file.path.join("/"), row = el("section", "", "coding-material");
   const label = el("label", "", "mw-check-row"), check = el("input");
   check.type = "checkbox";
@@ -209,7 +209,7 @@ function fileRow(state: Integration, file: IntegrationFile, previous: ReadonlyMa
   label.append(check, el("span", key + " · " + targets[file.target]));
   row.append(label);
   if (file.reason) row.append(el("p", file.reason));
-  changes(L, row, key, file, shown);
+  changes(readText, row, key, file, shown);
   // Both sides changed this file: a three-way merge a person finishes, never the child's version over the main one.
   const conflict = file.conflict;
   if (conflict) {

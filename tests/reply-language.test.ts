@@ -143,7 +143,9 @@ test("FSS-71 a round from an English page is told English and from a Chinese pag
   const { system } = systemOf(english.body);
   assertToldOnly({ system }, "en", "the English page");
   assert.ok(!system.includes("forged"), "words in the body reach no prompt");
-  assert.ok(system.indexOf("回复语言见本轮说明") < system.indexOf(sayEnglish), "it comes after the base instructions, which point at it");
+  const base = "You are the person's work assistant in Molis Work.";
+  assert.ok(system.includes(base), "the running role uses its English body");
+  assert.ok(system.indexOf(base) < system.indexOf(sayEnglish), "the language authority follows the base instructions");
   assert.equal(readUiLocale(home), "en", "sending is using the language");
   const onDisk = join(home, UI_LOCALE_RELATIVE_PATH);
   assert.deepEqual(JSON.parse(readFileSync(onDisk, "utf8")), { schema_version: 1, locale: "en" });
@@ -152,6 +154,7 @@ test("FSS-71 a round from an English page is told English and from a Chinese pag
   const chinese = await round("zh", "second question");
   assert.deepEqual(chinese.record.filter(prompt => prompt.prompt_id === "reply-language").map(prompt => prompt.version), [VERSION]);
   assertToldOnly(systemOf(chinese.body), "zh", "the Chinese page");
+  assert.match(told(systemOf(chinese.body)), /你是 Molis Work 的个人工作助理/);
   assert.equal(readUiLocale(home), "zh");
 
   // A window left open in another language only reads: the record moves when the person acts, not when a page opens.
@@ -298,7 +301,7 @@ test("FSS-71 a Home with no record gets the default language, and the base instr
   const sent = await a.service.send({ text: "hi", request_id: "req-default-1" }, {});
   await a.completed(sent.work.work_id, 1);
   assertToldOnly(a.requests[0], "zh", "a Home with no record");
-  assert.match(told(a.requests[0]), /回复语言见本轮说明；本轮没有说明时，用用户使用的语言/);
+  assert.match(told(a.requests[0]), /回复语言见本轮说明/);
   assert.doesNotMatch(told(a.requests[0]), /- 用用户使用的语言/, "the old sentence is gone");
 });
 
@@ -415,7 +418,7 @@ test("FSS-69 a language scope ends with the function that opened it: a timer sta
   assert.deepEqual(seen, [true, true, true, true]);
 });
 
-test("FSS-69 pageLocale and L stay as they were: background work does not move them, and they still follow a timer (a later batch changes this)", async () => {
+test("FSS-69 page provenance remains distinct from the live language scope", async () => {
   let timer!: Promise<WebLocale | undefined>;
   await runWithLocale("en", async () => { timer = new Promise(resolve => setTimeout(() => resolve(pageLocale()), 10)); });
   assert.equal(await timer, "en");

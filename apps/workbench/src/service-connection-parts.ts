@@ -25,7 +25,7 @@ export interface ConnectionProgressView {
   readonly live?: boolean;
 }
 
-const PROGRESS_SUFFIX: Record<ConnectionProgressState, string> = { running: "", hold: "等服务那边", failed: "没通过", cancelled: "取消了", done: "" };
+const PROGRESS_SUFFIX: Record<ConnectionProgressState, string> = { running: "", hold: "workbench.service-connection-parts.waiting-on-the-service", failed: "workbench.service-connection-parts.not-accepted", cancelled: "workbench.service-connection-parts.cancelled", done: "" };
 const PROGRESS_CAPTION = "workbench.service-connection-parts.step-n-total-step";
 
 /**
@@ -34,15 +34,15 @@ const PROGRESS_CAPTION = "workbench.service-connection-parts.step-n-total-step";
  * hidden from it. The words a page needs to change it (the steps, the caption's one template, the words after a step that did
  * not go on) are drawn into it here, so the page never writes them again.
  */
-export function renderConnectionProgress(view: ConnectionProgressView, L: Say): string {
+export function renderConnectionProgress(view: ConnectionProgressView, _readText: Say): string {
   const total = view.steps.length, done = view.state === "done";
   const at = done ? total - 1 : Math.min(Math.max(view.at, 0), total - 1);
   const marks = `<span class="connection-progress__marks" aria-hidden="true">${renderSteps({ total, current: done ? total : at, label: uiText.text("workbench.service-connection-parts.connection-progress") })}</span>`;
   const suffix = PROGRESS_SUFFIX[view.state];
-  const words = Object.fromEntries(Object.entries(PROGRESS_SUFFIX).filter(([, word]) => word).map(([state, word]) => [state, L(word)]));
+  const words = Object.fromEntries(Object.entries(PROGRESS_SUFFIX).filter(([, word]) => word).map(([state, word]) => [state, uiText.text(word)]));
   const data = `data-steps="${escapeHtml(JSON.stringify(view.steps))}" data-caption="${escapeHtml(uiText.text(PROGRESS_CAPTION))}" data-words="${escapeHtml(JSON.stringify(words))}"`;
   const caption = escapeHtml(uiText.text(PROGRESS_CAPTION, { n: at + 1, total, step: view.steps[at] ?? "" }));
-  return `<div class="connection-progress" data-connection-progress data-state="${view.state}" ${data}>${marks}<p class="connection-progress__caption" tabindex="-1"${view.live === false ? "" : ' aria-live="polite"'}>${caption}${suffix ? ` <span class="connection-progress__state">· ${escapeHtml(L(suffix))}</span>` : ""}</p></div>`;
+  return `<div class="connection-progress" data-connection-progress data-state="${view.state}" ${data}>${marks}<p class="connection-progress__caption" tabindex="-1"${view.live === false ? "" : ' aria-live="polite"'}>${caption}${suffix ? ` <span class="connection-progress__state">· ${escapeHtml(uiText.text(suffix))}</span>` : ""}</p></div>`;
 }
 
 export interface ConnectionItemView {

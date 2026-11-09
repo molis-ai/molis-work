@@ -48,14 +48,14 @@ function drawCurrentGoal(_page: Page, add: (tag: "h3" | "p", text: string) => vo
 
 /** The facts the progress record rests on: the report's Goal, and the Goal now. */
 function drawFacts(page: Page, value: ProgressPreview) {
-  const { L, q } = page, region = q("[data-coding-progress-facts]");
+  const { readText, q } = page, region = q("[data-coding-progress-facts]");
   const add = (tag: "h3" | "p", text: string) => region.append(el(tag, text));
   add("h3", uiText.text("coding.progress.goal-title", { title: value.report_goal.title }));
   add("p", uiText.text("coding.progress.artifact", { title: value.title, version: value.reference.version }));
   drawCurrentGoal(page, add, value);
-  const now = value.current ? "\n" + uiText.text("coding.progress.source-now", { version: codingGoalVersionLabel({ agreement_version: value.current.state.agreement.version }, L), cursor: value.current.state.goal_event_cursor }) : "";
+  const now = value.current ? "\n" + uiText.text("coding.progress.source-now", { version: codingGoalVersionLabel({ agreement_version: value.current.state.agreement.version }, readText), cursor: value.current.state.goal_event_cursor }) : "";
   q("[data-coding-progress-source]").textContent = value.reference.artifact_id + " v" + value.reference.version + "\n" + uiText.text("coding.progress.source-goal", { goal: value.report_goal.goal_id }) + "\n"
-    + uiText.text("coding.progress.source-basis", { version: codingGoalVersionLabel(value.report_goal, L), cursor: value.report_goal.goal_event_cursor }) + now;
+    + uiText.text("coding.progress.source-basis", { version: codingGoalVersionLabel(value.report_goal, readText), cursor: value.report_goal.goal_event_cursor }) + now;
 }
 
 export function renderProgress(page: Page) {

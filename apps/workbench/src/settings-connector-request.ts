@@ -24,7 +24,7 @@ export interface ConnectorSetupView {
 
 /** The requested method uses the existing protected form; none of its input is sent through the conversation. */
 export function renderConnectorRequest(request: ConnectorSetupView | null, cards: readonly ConnectorSettingsCardView[], p: ConnectorPrimitives): string {
-  const { L, escapeHtml: e } = p, plan = request?.setup;
+  const { escapeHtml: e } = p, plan = request?.setup;
   const card = cards.find(row => row.connector_id === plan?.service_id);
   const option = card?.method_options?.find(row => row.kind === plan?.method);
   if (!request || !plan || !card || (!option && !plan.local_setup)) return `<section class="settings-document"><h1>${uiText("workbench.settings-connector-request.connection-request-no-longer-active")}</h1><p>${uiText("workbench.settings-connector-request.return-conversation-prepare-new-request-existing-connections-una")}</p></section>`;
@@ -36,7 +36,7 @@ export function renderConnectorRequest(request: ConnectorSetupView | null, cards
     <div data-connectors-list hidden></div><p data-connectors-error role="alert" hidden></p>
     <section class="settings-connector-detail" data-connector-detail="${e(card.connector_id)}">
       <header class="settings-heading"><h2 tabindex="-1">${e(plan.display_name)}</h2><p>${e(plan.local_setup ? uiText.text("workbench.settings-connector-request.local-mcp") : card.title)}</p></header>
-      <p data-connector-feedback role="status">${L(message)}</p><div class="settings-body">
+      <p data-connector-feedback role="status">${message}</p><div class="settings-body">
       ${prepared ? `${plan.cli_setup ? renderLocalConnectorPlan(plan, p, request.installation_ready) + (request.installation_ready ? renderMethodGuide(card, selected!, p, plan, request.presentation?.cli_job) : "") : plan.local_setup ? renderLocalConnectorPlan(plan, p, request.installation_ready) : renderMethodGuide(card, selected!, p, plan, undefined, requestGuideVariant(selected!))}<input data-connector-new-name type="hidden" value="${e(plan.display_name)}">` : ""}
       ${pending ? `<div data-protocol="${e(plan.method)}" data-protocol-service="${e(card.connector_id)}" data-pending-setup="${e(request.id)}" data-setup-expires="${request.expires_at}"><div data-protocol-result></div>
         ${request.presentation?.authorization_url ? `<a class="mw-btn mw-btn--secondary" href="${e(request.presentation.authorization_url)}" target="_blank" rel="noopener noreferrer">${uiText("workbench.settings-connector-request.reopen-official-authorization-page")}</a>` : ""}

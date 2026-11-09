@@ -20,13 +20,13 @@ type ProjectSettingsNavigationActive = "general" | "workspaces" | "guidance" | "
 
 
 export interface SettingsNavigationPrimitives {
-  L(text: string): string;
+  readText(text: string): string;
   escapeHtml(value: unknown): string;
   icon(name: PluginIconName): string;
   withDesktopQuery(path: string): string;
 }
 export function createWorkbenchSettingsNavigation(primitives: SettingsNavigationPrimitives) {
-  const { L, escapeHtml, icon, withDesktopQuery } = primitives;
+  const { escapeHtml, icon, withDesktopQuery } = primitives;
 function settingsContextHref(
   path: string,
   project: Pick<WebProjectNavigation, "project_id"> | null,
@@ -92,8 +92,8 @@ function renderSettingsNavigation(
   return `<nav class="settings-navigation settings-navigation--codex" aria-label="${uiText("workbench.settings-navigation.system-settings")}">
     <a class="settings-nav-back" href="${href(projectHome)}">${icon("arrow")} ${uiText("workbench.settings-navigation.return-project")}</a>
     <div class="settings-nav-body">
-      ${groupedGlobalSettingsSections(shownPlugins).map(({ group, sections }) => `<div class="settings-nav-group-label">${L(group)}</div>
-      ${sections.map((section) => `<a href="${href(globalSettingsSectionPath(section.id))}"${current(section.id)}>${icon(section.icon)}${escapeHtml(L(section.label))}</a>`).join("")}`).join("")}
+      ${groupedGlobalSettingsSections(shownPlugins).map(({ group, sections }) => `<div class="settings-nav-group-label">${escapeHtml(group)}</div>
+      ${sections.map((section) => `<a href="${href(globalSettingsSectionPath(section.id))}"${current(section.id)}>${icon(section.icon)}${escapeHtml(section.label)}</a>`).join("")}`).join("")}
     </div>
   </nav>`;
 }

@@ -154,9 +154,9 @@ function savedEditor(id: string): { revision: number; content: CodingPlanContent
 
 /** One step of the editor: its title, acceptance and waits, and the buttons that move or remove it. */
 function addStep(state: Plans, editor: Editor, steps: HTMLElement, value: EditedStep) {
-  const { translate: L } = state.ports;
+  const { translate: readText } = state.ports;
   const row = el("section", "", "coding-material"), title = field(uiText.text("coding.plan.step"), value.title, "input"), acceptance = field(uiText.text("coding.board.insert-acceptance"), value.acceptance, "textarea");
-  const after = field(uiText.text("coding.plan.after-field"), afterText(L, value.after), "input");
+  const after = field(uiText.text("coding.plan.after-field"), afterText(readText, value.after), "input");
   after.input.inputMode = "numeric";
   after.node.dataset.codingPlanAfter = "";
   const entry: StepFields = { title: title.input, acceptance: acceptance.input, after: after.input };
@@ -184,7 +184,7 @@ function addStep(state: Plans, editor: Editor, steps: HTMLElement, value: Edited
 
 /** Opens the editor on the session's plan, over what was typed and not saved when that is for the same revision. */
 function edit(state: Plans) {
-  const { ports, plan, dialog } = state, { translate: L, q } = ports;
+  const { ports, plan, dialog } = state, { translate: readText, q } = ports;
   if (!plan) return;
   const content = structuredClone(plan.content), saved = savedEditor(state.owner);
   const heading = dialog.querySelector("h2");
@@ -201,7 +201,7 @@ function edit(state: Plans) {
   if (saved && saved.revision !== plan.revision) {
     const comparison = el("details");
     comparison.append(el("summary", uiText.text("coding.plan.saved-version", { revision: plan.revision })));
-    describe(L, comparison, content);
+    describe(readText, comparison, content);
     body.append(comparison, button(state, uiText.text("coding.plan.discard", { revision: plan.revision }), () => {
       try { sessionStorage.removeItem(storedKey(state.owner)); } catch { /* storage closed: nothing was kept */ }
       edit(state);
@@ -226,7 +226,7 @@ function edit(state: Plans) {
 
 /** Shows a revision as it was fixed, read-only. */
 async function fixed(state: Plans, revision: number) {
-  const { ports, dialog } = state, { translate: L, q, api, current } = ports;
+  const { ports, dialog } = state, { translate: readText, q, api, current } = ports;
   const id = state.owner, data = await api<{ plan: PlanDraft }>(path(state) + "?revision=" + revision);
   if (id !== current()) return;
   state.editor = null;
@@ -237,7 +237,7 @@ async function fixed(state: Plans, revision: number) {
   q("[data-coding-plan-help]").textContent = uiText.text("coding.plan.fixed-help");
   const body = q("[data-coding-plan-fields]");
   body.replaceChildren();
-  describe(L, body, data.plan.content);
+  describe(readText, body, data.plan.content);
   q("[data-coding-plan-error]").textContent = uiText.text("coding.plan.fixed-note");
   dialog.showModal();
 }
@@ -305,9 +305,9 @@ function drawProgress(state: Plans, plan: PlanDraft, active: boolean) {
 
 /** The plan, its source and how far it has got. */
 function drawPlan(state: Plans, plan: PlanDraft, active: boolean) {
-  const { translate: L } = state.ports, { region } = state;
+  const { translate: readText } = state.ports, { region } = state;
   region.append(el("p", uiText.text("coding.board.revision", { revision: plan.revision }) + " · " + (plan.confirmed ? uiText.text("coding.board.plan.confirmed") : uiText.text("coding.board.plan.unconfirmed"))));
-  describe(L, region, plan.content);
+  describe(readText, region, plan.content);
   const origin = el("details");
   origin.append(el("summary", uiText.text("coding.plan.source")), el("p", plan.source.task));
   region.append(origin, button(state, uiText.text("coding.plan.view-adjust"), () => edit(state), state.busy));
@@ -384,12 +384,12 @@ async function save(state: Plans, event: Event) {
   }
 }
 
-function proposalOf(L: PlanPorts["translate"], node: HTMLElement, run: PlanRun, text: string) {
+function proposalOf(readText: PlanPorts["translate"], node: HTMLElement, run: PlanRun, text: string) {
   node.replaceChildren();
   try {
     const content = parseCodingPlanAnswer(text);
     node.append(el("p", uiText.text("coding.plan.proposal")));
-    describe(L, node, content);
+    describe(readText, node, content);
     const detail = el("details");
     detail.append(el("summary", uiText.text("coding.plan.planner-answer")), el("pre", text));
     node.append(detail);
@@ -403,7 +403,7 @@ function proposalOf(L: PlanPorts["translate"], node: HTMLElement, run: PlanRun, 
 
 /** The plan panel, the plan editor and the planner's proposals in the conversation. Plan drafts are UI inputs; execution state is always projected from Run records. */
 export function plansClient(ports: PlanPorts): PlansClient {
-  const { lifetime, q } = ports, L = ports.translate;
+  const { lifetime, q } = ports, readText = ports.translate;
   const state: Plans = { ports, region: q("[data-coding-plan]"), dialog: q<HTMLDialogElement>("[data-coding-plan-dialog]"), plan: null, runs: [], owner: "", revision: 0, busy: false, editor: null, renderKey: "" };
   lifetime.listen(q("[data-coding-plan-form]"), "input", () => remember(state));
   lifetime.listen(q("[data-coding-plan-close]"), "click", () => {
@@ -441,7 +441,7 @@ export function plansClient(ports: PlanPorts): PlansClient {
     },
     renderTurn(node, run, turn) {
       if (run.frozen.role_id !== "planner" || turn.kind !== "assistant" || !(/^\s*\{/.test(turn.text) || turn.text.includes("\n{") || turn.text.includes("```"))) return false;
-      proposalOf(L, node, run, turn.text);
+      proposalOf(readText, node, run, turn.text);
       return true;
     },
   };

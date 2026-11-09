@@ -17,7 +17,7 @@ export interface FocusSectionCardOptions {
 
 
 export function createFocusSections(primitives: {
-  L: (text: string) => string;
+  readText: (text: string) => string;
   escapeHtml: (value: unknown) => string;
 }) {
   const { escapeHtml } = primitives;

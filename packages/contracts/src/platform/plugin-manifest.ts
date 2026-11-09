@@ -110,12 +110,6 @@ export interface ArtifactLinkDeclaration {
 export interface PluginRuntimeDeclaration {
   readonly scope: "home";
 }
-/** A Plugin's words by stable key, each in both page languages. */
-export type PluginMessagesDeclaration = Readonly<Record<string, { readonly zh: string; readonly en: string }>>;
-
-/** A Plugin's English for words still keyed by their Chinese source text. */
-export type PluginTranslationsDeclaration = Readonly<Record<string, string>>;
-
 /** A bad list costs one message per entry, and a language is a file in the package: far more than any plugin translates into, so the author's mistake, not a real need. */
 export const PLUGIN_LOCALE_LIMITS = { available: 32 } as const;
 
@@ -187,22 +181,7 @@ export interface PluginManifest {
     views?: UiViewDeclaration[];
     /** the GET pages of the project the Plugin answers, as data the Host matches (T-116). A view's `stage_data.input` names parameters declared here. */
     page_routes?: UiPageRouteDeclaration[];
-    /**
-     * the Plugin's UI words in both page languages, by stable key (`<owner>.<area>.<name>`, 2 to 5 lowercase segments).
-     * Plain data in the Manifest, so a built-in and a third-party Plugin bring their words the same way; the Host reads
-     * them from the Manifests of the Plugins that are installed, never from a list of its own. A key one Plugin has
-     * declared is refused to another.
-     */
-    messages?: PluginMessagesDeclaration;
-    /**
-     * English for UI words still written as their Chinese source text (`{ "保存": "Save" }`), until the words have
-     * stable keys (specs/archive/repository-anti-corruption PG-071). Any publisher's Plugin may declare it. It applies only to
-     * what this Plugin draws itself (its frame and its contributions) and to the text it supplies where the Host draws it
-     * (an action's title, a deletion dialog's data description): the same Chinese sentence on the Host's pages or in another
-     * Plugin is not changed by it, and the Host's own English wins. New words use `messages`.
-     */
-    translations?: PluginTranslationsDeclaration;
-    /** The Plugin's languages. A Manifest that declares them writes neither `messages` nor `translations`: no Plugin takes both roads. */
+    /** The Plugin's languages, provided as one file per declared language. */
     locales?: PluginLocalesDeclaration;
   };
   /** named, typed connection points wired by the user inside a project. */

@@ -6,7 +6,7 @@ import { subscriptionRow, unavailable, seatName, canAssign, assignmentLabels } f
 import { renderEntitlements } from "./account-entitlements.js";
 import { seatOperation } from "./account-seats.js";
 export async function renderSubscriptions(panel: TenantPanel, tenant?: TenantView, history = false) {
-  const { ui, list, begin, load } = panel, { form, node, L, button, perform, request } = ui;
+  const { ui, list, begin, load } = panel, { form, node, button, perform, request } = ui;
   const current = begin('订阅与席位'), reload = () => renderSubscriptions(panel, tenant, history);
   button('返回空间选择', () => perform(load));
   try {
@@ -19,7 +19,7 @@ export async function renderSubscriptions(panel: TenantPanel, tenant?: TenantVie
     if (!current()) return;
     form.append(node('p', view?.name ?? uiText.text("workbench.account-subscriptions.personal-space")));button('刷新订阅与席位', () => perform(reload)); button('查看当前权益', () => perform(() => renderEntitlements(panel, view, reload)));
     for (const [label, items] of [['个人订阅', personal], ['租户订阅', subscriptions]] as const) { if (label === '租户订阅' && !view) continue;
-      form.append(node('h4', L(label))); if (!items.length) form.append(node('p', uiText.text("workbench.account-subscriptions.no-subscriptions")));
+      form.append(node('h4', uiText.text(label))); if (!items.length) form.append(node('p', uiText.text("workbench.account-subscriptions.no-subscriptions")));
       for (const s of items) { const row = subscriptionRow(panel, s, plans); form.append(row); }
     }
     if (!view) return;

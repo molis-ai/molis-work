@@ -16,19 +16,19 @@ function bar(_L: Say, name: string, state: ReturnBarState, body: string, back: s
   return renderReturnBar({ title: uiText.text("workbench.return-trip-specimens.name", { name }), body: uiText.text(body) + (kept ? uiText.text("workbench.return-trip-specimens.what-wrote-kept") : ""), back: uiText.text(back), label: uiText.text("workbench.return-trip-specimens.where-came"), state });
 }
 
-function barsSpecimen(L: Say): string {
+function barsSpecimen(readText: Say): string {
   const row = (label: string, body: string) => `<li><span>${escapeHtml(uiText.text(label))}</span>${body}</li>`;
   return `<ul class="mw-return-board__states">
-    ${row("workbench.return-trip-specimens.waiting", bar(L, "Coding", "waiting", "workbench.return-trip-specimens.goes-back-once-model-set-up", "workbench.return-trip-specimens.go-back-now", true))}
-    ${row("workbench.return-trip-specimens.waiting-connect", bar(L, "Feed", "waiting", "workbench.return-trip-specimens.goes-back-once-connected", "workbench.return-trip-specimens.go-back-now"))}
-    ${row("workbench.return-trip-specimens.already-set-up", bar(L, "Feed", "look", "workbench.return-trip-specimens.when-youre-done-press-go-back-return-where", "workbench.return-trip-specimens.go-back"))}
-    ${row("workbench.return-trip-specimens.set-up", bar(L, "Coding", "ready", "workbench.return-trip-specimens.its-set-up-can-go-back-now", "workbench.return-trip-specimens.go-back"))}
-    ${row("workbench.return-trip-specimens.page-closed", bar(L, "Images", "gone", "workbench.return-trip-specimens.page-came-closed-what-set-up-kept", "workbench.return-trip-specimens.close-settings"))}
+    ${row("workbench.return-trip-specimens.waiting", bar(readText, "Coding", "waiting", "workbench.return-trip-specimens.goes-back-once-model-set-up", "workbench.return-trip-specimens.go-back-now", true))}
+    ${row("workbench.return-trip-specimens.waiting-connect", bar(readText, "Feed", "waiting", "workbench.return-trip-specimens.goes-back-once-connected", "workbench.return-trip-specimens.go-back-now"))}
+    ${row("workbench.return-trip-specimens.already-set-up", bar(readText, "Feed", "look", "workbench.return-trip-specimens.when-youre-done-press-go-back-return-where", "workbench.return-trip-specimens.go-back"))}
+    ${row("workbench.return-trip-specimens.set-up", bar(readText, "Coding", "ready", "workbench.return-trip-specimens.its-set-up-can-go-back-now", "workbench.return-trip-specimens.go-back"))}
+    ${row("workbench.return-trip-specimens.page-closed", bar(readText, "Images", "gone", "workbench.return-trip-specimens.page-came-closed-what-set-up-kept", "workbench.return-trip-specimens.close-settings"))}
   </ul>`;
 }
 
-function narrowSpecimen(L: Say): string {
-  return `<div class="mw-return-board__narrow">${bar(L, "Cognia", "waiting", "workbench.return-trip-specimens.goes-back-once-model-set-up", "workbench.return-trip-specimens.go-back-now")}</div>`;
+function narrowSpecimen(readText: Say): string {
+  return `<div class="mw-return-board__narrow">${bar(readText, "Cognia", "waiting", "workbench.return-trip-specimens.goes-back-once-model-set-up", "workbench.return-trip-specimens.go-back-now")}</div>`;
 }
 
 function resumeSpecimen(_L: Say): string {
@@ -40,12 +40,12 @@ function resumeSpecimen(_L: Say): string {
   </div>`;
 }
 
-export function renderReturnTripSection(L: Say): string {
+export function renderReturnTripSection(readText: Say): string {
   return `<section class="mw-catalog__section" id="return-trips" data-primitive="return-trips"><h2>${escapeHtml(uiText.text("workbench.return-trip-specimens.back-where-were"))}</h2>
     <div class="mw-catalog__specimens">
-      ${figure(L, uiText.text("workbench.return-trip-specimens.return-bar-above-settings-where-came-what-happens"), barsSpecimen(L))}
-      ${figure(L, uiText.text("workbench.return-trip-specimens.return-bar-narrow-390"), narrowSpecimen(L))}
-      ${figure(L, uiText.text("workbench.return-trip-specimens.carry-back-after-reload-reopen-asked-once-before"), resumeSpecimen(L))}
+      ${figure(readText, uiText.text("workbench.return-trip-specimens.return-bar-above-settings-where-came-what-happens"), barsSpecimen(readText))}
+      ${figure(readText, uiText.text("workbench.return-trip-specimens.return-bar-narrow-390"), narrowSpecimen(readText))}
+      ${figure(readText, uiText.text("workbench.return-trip-specimens.carry-back-after-reload-reopen-asked-once-before"), resumeSpecimen(readText))}
     </div>
   </section>`;
 }

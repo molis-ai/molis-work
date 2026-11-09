@@ -1,5 +1,5 @@
 /** Project-scoped UI preferences. Domain data and Runtime state are never written. */
-export const HOME_SHORTCUTS_FACTORY_SCRIPT = `({ root, translate: L, projectKey }) => {
+export const HOME_SHORTCUTS_FACTORY_SCRIPT = `({ root, translate: readText, projectKey }) => {
   if (!root) return;
   const key = "molis-work:home-shortcuts:" + projectKey;
   const list = root.querySelector("[data-home-shortcuts]");
@@ -18,7 +18,7 @@ export const HOME_SHORTCUTS_FACTORY_SCRIPT = `({ root, translate: L, projectKey 
       return ["https:", "http:"].includes(url.protocol) && url.hostname && !url.username && !url.password ? url.href : null;
     } catch { return null; }
   };
-  const report = message => { status.textContent = globalThis.t.text(message); status.hidden = !message; };
+  const report = message => { status.textContent = message ? globalThis.t.text(message) : ""; status.hidden = !message; };
   const load = () => {
     try {
       const stored = JSON.parse(localStorage.getItem(key) || "[]");

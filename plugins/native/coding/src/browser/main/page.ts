@@ -169,7 +169,7 @@ export interface Refs {
 /** What every function of the page is given: the Host's side, the page's markup, its memory and its pieces. */
 export interface Page {
   readonly host: CodingHost;
-  readonly L: Translate;
+  readonly readText: Translate;
   readonly root: HTMLElement;
   readonly directory: HTMLElement;
   readonly lifetime: Lifetime;

@@ -3,7 +3,7 @@ import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
  * “Prompt 与 Character”: every prompt and role the Host registers — the system's, and each Plugin's — with the
  * person's edits. Editing changes the words a model reads from its next run on; it never changes what a role may do.
  */
-export function renderPromptSettings({ }: { L(text: string): string }): string {
+export function renderPromptSettings({ }: { readText(text: string): string }): string {
   return `<section class="settings-document prompt-settings" aria-labelledby="settings-title" data-prompt-settings>
     <header class="settings-heading"><div class="settings-heading-title"><h1 id="settings-title">${uiText("workbench.settings-prompts.prompts")}</h1></div>
       <p>${uiText("workbench.settings-prompts.instructions-system-plugins-give-model-characters-made-some")}</p></header>
@@ -32,7 +32,7 @@ globalThis.molisWorkBindPromptSettings = (container = document, context = null) 
   root.dataset.promptBound = "1";
   // The settings cover passes the address it loaded; the page itself reads its own.
   const address = context || { search: location.search, hash: location.hash };
-  const L = globalThis.L || ((text) => text);
+  const readText = globalThis.t.text;
   const body = root.querySelector("[data-prompt-body]");
   const search = root.querySelector("[data-prompt-search]");
   let prompts = [], roles = [], filter = "all", open = null;
@@ -48,7 +48,7 @@ globalThis.molisWorkBindPromptSettings = (container = document, context = null) 
   const EXECUTION = { "read-only": "workbench.settings-prompts.read-only", "text-edit": "workbench.settings-prompts.can-edit-text", "workspace-write": "workbench.settings-prompts.can-edit-files-run-commands", operate: "workbench.settings-prompts.can-use-business-capabilities" };
   const short = (signature) => String(signature).replace(/^ed25519:sha256:/, "").slice(0, 12);
   const signedVersion = (ref) => ref ? ref.source.plugin_id + " · " + ref.source.plugin_version + (ref.source.publisher_signature ? " · " + short(ref.source.publisher_signature) : "") : "";
-  const sourceTitle = (source) => source.kind === "system" ? globalThis.t.text("workbench.settings-prompts.system") + " · " + L(source.title) : globalThis.t.text("workbench.settings-prompts.plugin") + " · " + L(source.title) + (source.plugin_version ? " " + source.plugin_version : "")
+  const sourceTitle = (source) => source.kind === "system" ? globalThis.t.text("workbench.settings-prompts.system") + " · " + source.title : globalThis.t.text("workbench.settings-prompts.plugin") + " · " + source.title + (source.plugin_version ? " " + source.plugin_version : "")
     + (source.publisher_signature ? " · " + short(source.publisher_signature) : "")
     + (source.origin === "generated" ? " · " + globalThis.t.text("workbench.settings-prompts.made-plugin-builder") : "") + (source.state === "disabled" ? " · " + globalThis.t.text("workbench.settings-prompts.disabled-not-called-now") : "");
   const matches = (prompt) => {
@@ -122,7 +122,7 @@ globalThis.molisWorkBindPromptSettings = (container = document, context = null) 
     row.dataset.key = prompt.key;
     const head = el("div", "prompt-row-head");
     const copy = el("div", "prompt-row-copy");
-    copy.append(el("strong", "", L(prompt.title)), el("span", "settings-muted", L(prompt.purpose)));
+    copy.append(el("strong", "", prompt.title), el("span", "settings-muted", prompt.purpose));
     const meta = el("div", "prompt-row-meta");
     meta.append(el("span", "prompt-tag", globalThis.t.text(prompt.kind === "agent" && prompt.layer ? LAYER[prompt.layer] || prompt.layer : KIND[prompt.kind] || prompt.kind)),
       el("span", "prompt-tag", globalThis.t.text("workbench.settings-prompts.version-2") + " " + (prompt.default_ref ? signedVersion(prompt.default_ref) : prompt.default_version)), stateBadge(prompt));
@@ -143,7 +143,7 @@ globalThis.molisWorkBindPromptSettings = (container = document, context = null) 
     if (role) {
       const banner = el("div", "prompt-role-focus");
       const copy = el("div", "prompt-role-focus-copy");
-      copy.append(el("strong", "", L(role.name)), el("p", "", globalThis.t.text("workbench.settings-prompts.character-made-prompts-below-given-model-order-changes")));
+      copy.append(el("strong", "", role.name), el("p", "", globalThis.t.text("workbench.settings-prompts.character-made-prompts-below-given-model-order-changes")));
       banner.append(copy);
       // The way back to where the role was chosen: Settings › 角色.
       const back = el("a", "mw-btn mw-btn--secondary mw-btn--sm", globalThis.t.text("workbench.settings-prompts.back-characters"));
@@ -189,7 +189,7 @@ globalThis.molisWorkBindPromptSettings = (container = document, context = null) 
           const button = el("button", "prompt-role"); button.type = "button";
           button.setAttribute("aria-pressed", String(focusRole === role.key));
           button.title = globalThis.t.text("workbench.settings-prompts.show-only-prompts-character-made");
-          button.append(el("strong", "", L(role.name) + (role.subagent ? " · " + globalThis.t.text("workbench.settings-prompts.sub-task") : "")), el("span", "settings-muted", globalThis.t.text(EXECUTION[role.execution] || role.execution) + (role.edited ? " · " + globalThis.t.text("workbench.settings-prompts.includes-edits") : "")));
+          button.append(el("strong", "", role.name + (role.subagent ? " · " + globalThis.t.text("workbench.settings-prompts.sub-task") : "")), el("span", "settings-muted", globalThis.t.text(EXECUTION[role.execution] || role.execution) + (role.edited ? " · " + globalThis.t.text("workbench.settings-prompts.includes-edits") : "")));
           button.addEventListener("click", () => { focusRole = focusRole === role.key ? null : role.key; paint(); });
           item.append(button);
           list.append(item);
@@ -215,11 +215,11 @@ globalThis.molisWorkBindPromptSettings = (container = document, context = null) 
       data.owners.forEach((owner) => {
         const item = el("li", "prompt-diagnostics-owner");
         const counts = [owner.prompts ? globalThis.t.text("workbench.settings-prompts.role-part") + " " + owner.prompts : "", owner.instructions ? globalThis.t.text("workbench.settings-prompts.model-call-instructions") + " " + owner.instructions : "",
-          owner.roles ? L("Character") + " " + owner.roles : "", owner.edited ? globalThis.t.text("workbench.settings-prompts.edited-2") + " " + owner.edited : ""].filter(Boolean).join(" · ");
+          owner.roles ? "Character" + " " + owner.roles : "", owner.edited ? globalThis.t.text("workbench.settings-prompts.edited-2") + " " + owner.edited : ""].filter(Boolean).join(" · ");
         item.append(el("strong", "", sourceTitle(owner.source)), el("span", "settings-muted", counts || globalThis.t.text("workbench.settings-prompts.no-prompts-registered")));
         if (owner.issues.length) {
           const issues = el("ul", "prompt-diagnostics-issues");
-          owner.issues.forEach((issue) => issues.append(el("li", "prompt-diagnostics-issue prompt-diagnostics-issue--" + issue.level, L(issue.text))));
+          owner.issues.forEach((issue) => issues.append(el("li", "prompt-diagnostics-issue prompt-diagnostics-issue--" + issue.level, issue.text)));
           item.append(issues);
         }
         list.append(item);
@@ -228,7 +228,7 @@ globalThis.molisWorkBindPromptSettings = (container = document, context = null) 
       if (data.unregistered.length) {
         diagnosticsBody.append(el("h3", "prompt-diagnostics-heading", globalThis.t.text("workbench.settings-prompts.model-calls-not-registered-yet")));
         const rest = el("ul", "prompt-diagnostics-list");
-        data.unregistered.forEach((call) => { const item = el("li", "prompt-diagnostics-owner"); item.append(el("strong", "", L(call.title)), el("span", "settings-muted", L(call.reason))); rest.append(item); });
+        data.unregistered.forEach((call) => { const item = el("li", "prompt-diagnostics-owner"); item.append(el("strong", "", call.title), el("span", "settings-muted", call.reason)); rest.append(item); });
         diagnosticsBody.append(rest);
       }
     } catch (failure) { delete diagnostics.dataset.loaded; diagnosticsBody.replaceChildren(problem(failure)); }

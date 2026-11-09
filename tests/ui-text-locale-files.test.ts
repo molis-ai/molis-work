@@ -289,11 +289,11 @@ test("FSS-53 FSS-60 a real signed installation binds words to its authorized pag
 });
 
 test("FSS-53 built-in registrations use the same declared language files as a plugin project", () => {
-  const entries = BUILTIN_PLUGIN_CATALOG.filter(entry => entry.manifest.ui.locales);
+  const entries = BUILTIN_PLUGIN_CATALOG;
   assert.ok(entries.length > 1);
   for (const entry of entries) {
-    assert.equal(entry.manifest.ui.messages, undefined, entry.manifest.plugin_id);
-    assert.equal(entry.manifest.ui.translations, undefined, entry.manifest.plugin_id);
+    assert.ok(entry.manifest.ui.locales, entry.manifest.plugin_id);
+    assert.deepEqual(new Set(entry.manifest.ui.locales.available), new Set(["zh", "en"]), entry.manifest.plugin_id);
     const directory = entry.project_plugin_id === "plugin-builder" ? "plugin-builder" : entry.project_plugin_id;
     assert.deepEqual(inspectPluginLocales(entry.manifest, file => readFileSync(path.join("plugins/native", directory, file), "utf8")), [], entry.manifest.plugin_id);
   }

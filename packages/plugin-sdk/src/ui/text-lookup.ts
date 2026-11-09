@@ -1,5 +1,5 @@
 import type { OwnedTextRef, TextArg, UiLocalePack, UiMessage, UiSayOptions, UiTextProvider } from "@molis-ai/molis-work-contracts/platform/ui";
-import { PLATFORM_TEXT_OWNER } from "../message-declarations.js";
+import { PLATFORM_TEXT_OWNER } from "./text-keys.js";
 import { formatMessage } from "./message-format.js";
 import { uiTextErrors } from "./text-errors.js";
 import { refuseSharedTextPrefix, textKeyPrefix, textRefProblems } from "./text-ref.js";

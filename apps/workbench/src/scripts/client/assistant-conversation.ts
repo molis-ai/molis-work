@@ -153,7 +153,7 @@ export const ASSISTANT_CONVERSATION_PART = String.raw`  /* ─── Showing a t
     const chip = el(open ? "button" : "span", "assistant-attachment" + (material.draft ? " is-draft" : ""));
     if (open) { chip.type = "button"; chip.addEventListener("click", open); chip.setAttribute("aria-label", globalThis.t.text("common.control.open") + "：" + title); }
     chip.append(glyph(icon), el("span", "assistant-attachment-name", title + (material.draft ? globalThis.t.text("workbench.assistant-conversation.draft") : "") + (material.expired ? globalThis.t.text("workbench.assistant-conversation.no-longer-valid") : "")));
-    if (MATERIAL_KIND[material.kind]) chip.title = L(MATERIAL_KIND[material.kind]);
+    if (MATERIAL_KIND[material.kind]) chip.title = globalThis.t.text(MATERIAL_KIND[material.kind]);
     if (material.expired) { chip.classList.add("is-expired"); chip.title = globalThis.t.text(EXPIRED_IMAGE); }
     return chip;
   };

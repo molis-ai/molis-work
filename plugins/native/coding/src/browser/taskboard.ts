@@ -60,7 +60,7 @@ function summary(_state: State, data: BoardData) {
 }
 
 function drawOutline(state: State) {
-  const { outline, ports, data } = state, L = ports.translate;
+  const { outline, ports, data } = state, readText = ports.translate;
   if (!outline || outline.hidden) return;
   const rows = part(outline, "[data-coding-outline-list]"), note = part(outline, "[data-coding-outline-status]"), brief = part(outline, "[data-coding-outline-meta]");
   const expand = outline.querySelector<HTMLButtonElement>("[data-coding-board-expand]"), onShow = ports.onShow || (() => true);
@@ -89,7 +89,7 @@ function drawOutline(state: State) {
     heading.append(el("small", group.count || String(group.items.length)));
     rows.append(heading);
     const tree = el("ul", "", "coding-outline-tree");
-    for (const row of group.items) tree.append(drawOutlineRow(L, state.outlineTargets, row, 0));
+    for (const row of group.items) tree.append(drawOutlineRow(readText, state.outlineTargets, row, 0));
     rows.append(tree);
   }
 }
@@ -163,12 +163,12 @@ function forget(state: State) {
  * for the main area's view switch.
  */
 export function taskboard(ports: TaskboardPorts): Taskboard {
-  const { lifetime, board, translate: L, current, status } = ports, words = boardWords(L), outline = ports.outline || null;
+  const { lifetime, board, translate: readText, current, status } = ports, words = boardWords(readText), outline = ports.outline || null;
   const view: RowView = { ports, words, board, list: part(board, "[data-coding-board-list]"), collapsed: new Set(), redraw: () => { state.key = ""; render(state); } };
   const state: State = {
     ports, view, outline, list: view.list, notice: part(board, "[data-coding-board-status]"), title: part(board, "[data-coding-board-title]"), meta: part(board, "[data-coding-board-meta]"),
     empty: uiText.text("coding.board.empty"), outlineTargets: new Map(), owner: "", data: null, key: "", outlineKey: "", loadError: "",
-    input: data => ({ data, translate: L, words, ports }),
+    input: data => ({ data, translate: readText, words, ports }),
   };
   if (outline) {
     lifetime.listen(outline, "click", event => {

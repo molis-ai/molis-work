@@ -3,6 +3,20 @@
   "owner": "io.molis.work.feed",
   "locale": "en",
   "messages": {
+    "feed.add-source.channel-id": "Channel ID",
+    "feed.add-source.existing-feed": "Choose an existing source",
+    "feed.add-source.feed-directory": "Feed directory",
+    "feed.add-source.github": "GitHub",
+    "feed.add-source.gmail": "Gmail",
+    "feed.add-source.keywords": "By keyword",
+    "feed.add-source.mail-scope": "Mail by scope",
+    "feed.add-source.paste-url": "Paste an address",
+    "feed.add-source.published-research": "Published research",
+    "feed.add-source.research-library": "Research library",
+    "feed.add-source.rss-atom": "RSS / Atom",
+    "feed.add-source.unread-notifications": "Unread notifications",
+    "feed.add-source.web-search": "Web search",
+    "feed.add-source.youtube": "YouTube",
     "feed.factory.could-not-refresh-feed": "Could not refresh Feed",
     "feed.factory.original-capture-rule-doesn-t-exist-may-have": "The original capture rule doesn’t exist; it may have been deleted.",
     "feed.rule-authoring.choose-judgment": "Choose a judgment",
@@ -82,6 +96,7 @@
     "feed.stage-ui.account-inbound-updates": "Account inbound updates",
     "feed.stage-ui.connected": "Connected",
     "feed.stage-ui.disconnected": "Disconnected",
+    "feed.stage-ui.etag-conditional-requests-enabled": "ETag conditional requests enabled",
     "feed.stage-ui.every-count-count": {
       "plural_arg": "count",
       "forms": {
@@ -89,6 +104,7 @@
         "other": "Every {count} minutes"
       }
     },
+    "feed.stage-ui.last-modified-conditional-requests-enabled": "Last-Modified conditional requests enabled",
     "feed.stage-ui.manual-pulls-only": "Manual pulls only",
     "feed.stage-ui.needs-attention": "Needs attention",
     "feed.stage-ui.no-additional-summary": "No additional summary",
@@ -102,6 +118,8 @@
     "feed.stage-ui.retry-after-rate-limit-time": "Retry after rate limit at {time}",
     "feed.stage-ui.scheduled-pulls-off": "Scheduled pulls are off",
     "feed.stage-ui.selected-labels-unread-mail": "Selected labels and unread mail",
+    "feed.stage-ui.the-source-does-not-support-conditional-validation": "The source does not support conditional validation; items are deduplicated by identity",
+    "feed.stage-ui.validate-the-feed-and-record-conditional-requests": "Validate the feed and record conditional requests after the first fetch",
     "feed.stage-ui.waiting-manual-pull": "Waiting for a manual pull",
     "feed.stage.could-not-load-item": "Could not load this item",
     "feed.stage.count-count": {

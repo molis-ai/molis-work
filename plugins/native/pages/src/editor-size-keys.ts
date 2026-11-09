@@ -24,7 +24,7 @@ const sizeHere = (dir: number, t: (text: string) => string): Command => (state, 
     // As with the handle, an image that reaches the line goes back to filling it.
     return done(setImageWidth(state, sel.from, line && raw >= line - 24 ? 0 : raw), () => {
       const width = safePagesImageWidth(view.state.doc.nodeAt(sel.from)?.attrs.width);
-      return width ? t("宽度 {n} 像素").replace("{n}", String(width)) : t("占满一行");
+      return width ? t("pages.editor-size-keys.width-n-px").replace("{n}", String(width)) : t("pages.editor-size-keys.full-width");
     });
   }
   let d = $.depth;
@@ -33,14 +33,14 @@ const sizeHere = (dir: number, t: (text: string) => string): Command => (state, 
   if ($.node(d).type !== n.column) {
     const width = safePagesColumnWidth($.node(d).attrs.colwidth) || box(view.nodeDOM($.before(d)));
     return done(setColumnWidth(state, $.before(d - 2), $.index(d - 1), width + dir * STEP),
-      () => t("列宽 {n} 像素").replace("{n}", String(safePagesColumnWidth(view.state.selection.$from.node(d).attrs.colwidth) || Math.round(width))));
+      () => t("pages.editor-size-keys.column-width-n-px").replace("{n}", String(safePagesColumnWidth(view.state.selection.$from.node(d).attrs.colwidth) || Math.round(width))));
   }
   // A column moves its right edge; the last one moves its left edge, the other way.
   const list = $.node(d - 1), i = $.index(d - 1), pair = Math.min(i, list.childCount - 2), share = (k: number, of = list) => safePagesColumnShare(of.child(k).attrs.width);
   return done(nudgeColumnShare(state, $.before(d - 1), pair, (pair === i ? dir : -dir) * (share(pair) + share(pair + 1)) / 20), () => {
     const now = view.state.selection.$from.node(d - 1);
     let total = 0; now.forEach((column) => { total += safePagesColumnShare(column.attrs.width); });
-    return t("栏宽 {n}%").replace("{n}", String(Math.round(share(i, now) / total * 100)));
+    return t("pages.editor-size-keys.column-n").replace("{n}", String(Math.round(share(i, now) / total * 100)));
   });
 };
 

@@ -6,7 +6,7 @@
  */
 export const CHOOSER_CLIENT_SCRIPT = String.raw`
 (() => {
-  const L = globalThis.L || ((text) => text);
+  const readText = globalThis.t.text;
   const arrival = window.molisArrival;
   const root = document.querySelector('.arrival[data-screen="chooser"]');
   const dataNode = document.getElementById('arrival-data');

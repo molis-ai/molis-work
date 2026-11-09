@@ -2,7 +2,7 @@ import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { ConnectorSettingsCardView, ConnectorSettingsConnection, MolisWorkSettingsView } from "./settings-view.js";
 
 interface PluginSlotsPrimitives {
-  L(text: string, values?: Record<string, string | number>): string;
+  readText(text: string, values?: Record<string, string | number>): string;
   escapeHtml(value: unknown): string;
   /** The service's mark, drawn as the connection rows above draw it. */
   mark(serviceId: string): string;

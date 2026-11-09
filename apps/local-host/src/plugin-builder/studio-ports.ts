@@ -7,7 +7,11 @@ import type { SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin
 import { assertContract } from '@molis-ai/molis-work-plugin-sandbox';
 import { resolvePrologueBuilder } from '../prologue-inference-host.js';
 import type { ensureInstalledPlugins } from '../installed-plugin-host.js';
-import { builderSkill } from './skill.js';
+import { builderSkills } from './skill.js';
+import { modelRoundLocale } from '../reply-language.js';
+import { runBackgroundWork } from '../web-locale.js';
+import { lastUsedLocale } from '../ui-locale-memory.js';
+import { builderAgentInLanguage } from './studio-language.js';
 import { buildManifest, createBuildProject, copyBuildRevision } from './build-project.js';
 import { runPluginChecks } from './build-checks.js';
 import { runBuilderBrowserAcceptance, inspectBuilderPresentation } from './browser.js';
@@ -48,16 +52,18 @@ export function builderPorts(inputs: {
     ...(options.parallel ? { parallel: options.parallel } : {}),
     mockups: images,
     models: options.models,
-    agent: options.agents ?? (async (build, purpose) => {
+    agent: async (build, purpose) => {
+      if (options.agents) return builderAgentInLanguage(await options.agents(build, purpose), modelRoundLocale(home));
       const selection = selected();
       if (!selection) throw new Error('请先在右上角选择构建使用的模型');
       const buildRoot = purpose === 'code' && build.directory ? build.directory : join(studio.root, 'design', build.id);
       await mkdir(buildRoot, { recursive: true, mode: 0o700 });
       const create = await resolvePrologueBuilder(home);
-      return create({ buildRoot, storageRoot: join(studio.root, 'runs', build.id), ...access(selection) });
-    }),
+      return builderAgentInLanguage(await create({ buildRoot, storageRoot: join(studio.root, 'runs', build.id), ...access(selection) }), modelRoundLocale(home));
+    },
     validateContract: contract => assertContract(contract),
-    skill: stage => builderSkill(stage),
+    runInLanguage: (run, recovered) => runBackgroundWork(recovered ? lastUsedLocale(home) : modelRoundLocale(home), run),
+    skills: stage => builderSkills(stage, undefined, modelRoundLocale(home)),
     prompt: inputs.prompt, instruction: inputs.instruction,
     async prepareBuild(previous, design, manifest) {
       const directory = join(studio.root, 'builds', previous.id, design.contract.revision);

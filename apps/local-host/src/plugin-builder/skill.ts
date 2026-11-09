@@ -1,27 +1,27 @@
 /**
- * The plugin standard the builder's agents work to: `skills/molis-plugin-dev`, the same Skill official plugins are
- * written with. Each stage mounts the chapters it needs; the version is the content's own digest, so every build
- * records exactly which revision of the standard it followed.
+ * Studio mounts the same standard its plugin authors use. Groups keep each SDK Skill within its own body limit; a
+ * group's version covers its shipped text in every language, while Prologue registers each concrete body separately.
  */
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { WEB_LOCALES, type WebLocale } from '@molis-ai/molis-work-app-workbench';
 import type { BuilderSkill } from '@molis-ai/molis-work-contracts/services/agent-host';
 
 export const PLUGIN_SKILL_ID = 'molis-plugin-dev';
-/** Prologue inlines at most this much Skill body. */
+/** The maximum body passed to Prologue's fillSkillBody, per mounted Skill. */
 const MAX_BODY = 20_000;
-/** What each stage reads, in order. The UI quality bar is the section of ui.md every plugin shares. */
-const CHAPTERS: Record<'design' | 'code' | 'experience' | 'ui' | 'review', Array<string | { file: string; section: string }>> = {
-  design: ['process.md', 'generated-design.md', 'generated-experience.md', 'generated-ai.md', { file: 'ui.md', section: '## 质量线（所有插件）' }, 'capabilities.md'],
-  ui: ['generated-experience.md', 'generated-ui.md', { file: 'ui.md', section: '## 质量线（所有插件）' }],
-  experience: ['generated-experience.md', { file: 'ui.md', section: '## 质量线（所有插件）' }],
-  review: ['generated-experience.md', { file: 'ui.md', section: '## 质量线（所有插件）' }],
-  code: ['generated-code.md', 'generated-ai.md', 'capabilities.md'],
-};
+const QUALITY_BAR = 'studio-quality-bar';
+const CHAPTERS = {
+  design: [['process', 'generated-design'], ['generated-experience', 'generated-ai'], ['ui', 'capabilities']],
+  ui: [['generated-experience', 'generated-ui', 'ui']],
+  experience: [['generated-experience', 'ui']],
+  review: [['generated-experience', 'ui']],
+  code: [['generated-code', 'generated-ai', 'capabilities']],
+} as const;
 
-/** The Skill directory: in the repository and in an installed release, `skills/` sits beside the code. */
+/** In the repository and in an installed release, `skills/` sits beside the code. */
 export function pluginSkillDirectory(from = dirname(fileURLToPath(import.meta.url))): string | undefined {
   for (let directory = from, depth = 0; depth < 10; depth++, directory = dirname(directory)) {
     const candidate = join(directory, 'skills', PLUGIN_SKILL_ID);
@@ -31,22 +31,41 @@ export function pluginSkillDirectory(from = dirname(fileURLToPath(import.meta.ur
   return undefined;
 }
 
-function section(markdown: string, heading: string): string {
-  const start = markdown.indexOf(heading);
-  if (start < 0) throw new Error('插件开发 Skill 缺少章节：' + heading);
-  const next = markdown.indexOf('\n## ', start + heading.length);
-  return markdown.slice(start, next < 0 ? undefined : next).trim();
+function chapterText(file: string, chapter: string): string {
+  const markdown = readFileSync(file, 'utf8').trim();
+  if (chapter !== 'ui') return markdown;
+  const marker = '<!-- ' + QUALITY_BAR + ' -->\n', start = markdown.indexOf(marker);
+  if (start < 0) throw new Error(file + ': missing Studio quality bar');
+  const body = start + marker.length, end = markdown.indexOf('\n## ', body);
+  return markdown.slice(body, end < 0 ? undefined : end).trim();
 }
 
-/** The Skill a stage mounts, or undefined when the release has no Skill directory. */
-export function builderSkill(stage: keyof typeof CHAPTERS, directory = pluginSkillDirectory()): BuilderSkill | undefined {
-  if (!directory) return undefined;
-  const parts = CHAPTERS[stage].map(chapter => {
-    const file = typeof chapter === 'string' ? chapter : chapter.file, text = readFileSync(join(directory, file), 'utf8').trim();
-    return typeof chapter === 'string' ? text : section(text, chapter.section);
-  });
-  const body = parts.join('\n\n---\n\n');
-  if (body.length > MAX_BODY) throw new Error(`插件开发 Skill 的 ${stage} 部分有 ${body.length} 字，超过 ${MAX_BODY} 字的挂载上限；请精简章节`);
-  const version = Number.parseInt(createHash('sha256').update(body).digest('hex').slice(0, 7), 16);
-  return { id: PLUGIN_SKILL_ID + '.' + stage, version, name: stage === 'design' ? '插件开发规范 · 设计' : stage === 'experience' ? '插件开发规范 · 体验设计' : stage === 'ui' ? '插件开发规范 · 界面' : stage === 'review' ? '插件开发规范 · 界面复查' : '插件开发规范 · 代码', body };
+function chapterIn(directory: string, chapter: string, tag: WebLocale): string | undefined {
+  const file = join(directory, chapter + (tag === WEB_LOCALES[0] ? '' : '.' + tag) + '.md');
+  if (tag !== WEB_LOCALES[0] && !existsSync(file)) return undefined;
+  return chapterText(file, chapter);
+}
+
+function groupIn(directory: string, chapters: readonly string[], id: string, selected: WebLocale): BuilderSkill {
+  const translations = chapters.map(chapter => new Map(WEB_LOCALES.flatMap(tag => {
+    const body = chapterIn(directory, chapter, tag);
+    return body === undefined ? [] : [[tag, body] as const];
+  })));
+  const version = Number.parseInt(createHash('sha256').update(JSON.stringify(translations.map(part => [...part]))).digest('hex').slice(0, 7), 16);
+  const bodies = new Map(WEB_LOCALES.map(tag => {
+    const body = translations.map(part => part.get(tag) ?? part.get(WEB_LOCALES[0])!).join('\n\n---\n\n');
+    if (body.length > MAX_BODY) throw new Error(`${id} (${tag}): ${body.length} characters exceeds the ${MAX_BODY} character Skill body limit`);
+    return [tag, body];
+  }));
+  const body = bodies.get(selected)!;
+  const name = body.split('\n', 1)[0]!.replace(/^#+\s+/u, '');
+  return { id: id + '.' + selected.toLowerCase(), version, name, body };
+}
+
+/** The ordered standards for a stage, or no standards when a release has no Skill directory. */
+export function builderSkills(stage: keyof typeof CHAPTERS, directory = pluginSkillDirectory(), locale: WebLocale = WEB_LOCALES[0]): readonly BuilderSkill[] {
+  if (!directory) return [];
+  const selected = WEB_LOCALES.includes(locale) ? locale : WEB_LOCALES[0];
+  const groups = CHAPTERS[stage];
+  return groups.map((chapters, index) => groupIn(directory, chapters, PLUGIN_SKILL_ID + '.' + stage + (groups.length > 1 ? '.' + (index + 1) : ''), selected));
 }

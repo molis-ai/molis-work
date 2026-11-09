@@ -1,7 +1,7 @@
 /**
  * What draws the ranked actions: the context toolbar (the design system's page program) in this document, or, when what is in
  * hand sits in a split pane, the same toolbar in that pane's own document, driven by a message. It reads the plan the bus hands it and
- * never decides what is in hand. A fragment of the factory script in context-actions.ts: the pieces share its closure (host, L, bus,
+ * never decides what is in hand. A fragment of the factory script in context-actions.ts: the pieces share its closure (host, readText, bus,
  * choose, makeToolbar, ...) and are joined there.
  *
  * The bus meets only `bar`: `render` / `idle` / `pending` / `error` / `judgeFailed`, and the state it reads (`plan`, `shown`,
@@ -10,7 +10,7 @@
  * not shown by itself: ⌘. summons it.
  */
 export const CONTEXT_BAR_SCRIPT = String.raw`  const toolbar = makeToolbar({
-    translate: L, inset: { top: 54, bottom: 100 }, width: () => (host.width ? host.width() : innerWidth),
+    translate: readText, inset: { top: 54, bottom: 100 }, width: () => (host.width ? host.width() : innerWidth),
     choose: (key) => choose(key), assistant: () => bringToAssistant(),
     dismiss: () => bar.dismissAll(), hold: () => { bar.leave(); landing.hint(toolbar.pointed(), bar.plan); }, settled: () => bar.leave(),
   });
@@ -33,7 +33,7 @@ export const CONTEXT_BAR_SCRIPT = String.raw`  const toolbar = makeToolbar({
     const entry = (item) => ({ key: item.key, label: item.title, disabled: !item.available, note: item.available ? other(item) : item.reason || globalThis.t.text("workbench.context-bar.unavailable") });
     return { context_id: plan.context_id, assistant: true, basis: basisOf(out, rulesOnly),
       actions: plan.primary.map((key) => { const item = byKey.get(key); return { key, label: item.title, hint: item.hint, emphasis: plan.emphasis === key, badge: other(item) }; }),
-      more: [...plan.more.map((group) => ({ title: L(group.title), items: group.keys.map((key) => entry(byKey.get(key))) })),
+      more: [...plan.more.map((group) => ({ title: group.title, items: group.keys.map((key) => entry(byKey.get(key))) })),
         { title: globalThis.t.text("workbench.context-bar.all-actions-independent-suggestions"), items: plan.candidates.map(entry) }] };
   };
   const bar = {

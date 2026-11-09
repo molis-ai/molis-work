@@ -1,7 +1,7 @@
 import { GOALS_PLUGIN_API } from "./plugin-api.js";
 /** Goal proposal decisions; Workbench supplies transport and cross-surface refresh/receipts. */
 export const GOALS_PROPOSAL_CLIENT_FACTORY_SCRIPT = `(host) => {
-    const { translate: L, route, decisionReceiptContext, refreshBoardWithDecisionReceipt } = host;
+    const { translate: readText, route, decisionReceiptContext, refreshBoardWithDecisionReceipt } = host;
     // The link opens Goals through the common workbench route; only Goals consumes the proposal anchor, once.
     addEventListener("load", () => {
       const entry = document.getElementById(location.hash.slice(1));

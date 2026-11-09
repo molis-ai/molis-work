@@ -27,9 +27,9 @@ function view(stage: View["stage"], read: View["read"], more: Partial<View> = {}
 }
 
 /** One card as the shell holds it: a fixed width, the height that width gets (or the folded line's), the card's markup inside. */
-function card(L: Say, owner: string, entry: View, width: number): string {
+function card(readText: Say, owner: string, entry: View, width: number): string {
   const height = entry.stage === "line" ? CONNECTION_NEED_HEIGHTS.line : width < 480 ? CONNECTION_NEED_HEIGHTS.narrow : CONNECTION_NEED_HEIGHTS.wide;
-  return `<div class="mw-platform-area connection-need-area" data-connection-need-specimen="${entry.stage}" data-stage="${entry.stage}" style="width:${width}px;height:${height}px">${connectionNeedHtml(L, owner, entry)}</div>`;
+  return `<div class="mw-platform-area connection-need-area" data-connection-need-specimen="${entry.stage}" data-stage="${entry.stage}" style="width:${width}px;height:${height}px">${connectionNeedHtml(readText, owner, entry)}</div>`;
 }
 
 function figure(_L: Say, caption: string, body: string): string {
@@ -37,7 +37,7 @@ function figure(_L: Say, caption: string, body: string): string {
 }
 
 /** The section the board places after 平台区域. */
-export function renderConnectionNeedSection(L: Say): string {
+export function renderConnectionNeedSection(readText: Say): string {
   const feed = "Feed", images = uiText.text("workbench.connection-need-specimens.images"), github = { service_title: "GitHub", reason: FEED_REASON, connection: null };
   const signedIn = { ...github, connection: { label: "yijunw0212" } };
   const imageModel = { service_title: "图像模型", origin: "https://api.openai.com", connection: null };
@@ -54,16 +54,16 @@ export function renderConnectionNeedSection(L: Say): string {
     [uiText.text("workbench.connection-need-specimens.not-one-click-yet"), "Salesforce", view("unsupported", { service_title: "Salesforce", connection: null })],
   ];
   const lines = [
-    card(L, feed, view("line", github, { answered: true, line: uiText.text("workbench.connection-need-specimens.name-connected-account", { name: "GitHub", account: "yijunw0212" }) }), 560),
-    card(L, feed, view("line", github, { answered: true, line: uiText.text("workbench.connection-need-specimens.not-connected-nothing-changed-here") }), 560),
-    card(L, feed, view("line", github, { line: uiText.text("workbench.connection-need-specimens.not-connected") }), 375),
+    card(readText, feed, view("line", github, { answered: true, line: uiText.text("workbench.connection-need-specimens.name-connected-account", { name: "GitHub", account: "yijunw0212" }) }), 560),
+    card(readText, feed, view("line", github, { answered: true, line: uiText.text("workbench.connection-need-specimens.not-connected-nothing-changed-here") }), 560),
+    card(readText, feed, view("line", github, { line: uiText.text("workbench.connection-need-specimens.not-connected") }), 375),
   ].join("");
-  const assistant = `<div class="mw-platform-area connection-need-area assistant-connection-need" data-connection-need-specimen="assistant" data-stage="ask" style="width:400px">${connectionNeedHtml(L, uiText.text("workbench.connection-need-specimens.assistant"), view("ask", { service_title: "GitHub", connection: null }, {}, null))}</div>`;
+  const assistant = `<div class="mw-platform-area connection-need-area assistant-connection-need" data-connection-need-specimen="assistant" data-stage="ask" style="width:400px">${connectionNeedHtml(readText, uiText.text("workbench.connection-need-specimens.assistant"), view("ask", { service_title: "GitHub", connection: null }, {}, null))}</div>`;
   return `<section class="mw-catalog__section" id="connection-need" data-primitive="connection-need"><h2>${escapeHtml(uiText.text("workbench.connection-need-specimens.connection-card-place-platform-area"))}</h2>
     <div class="mw-catalog__specimens">
-      ${stages.map(([caption, owner, entry]) => figure(L, caption, card(L, owner, entry, 560) + card(L, owner, entry, 375))).join("\n      ")}
-      ${figure(L, uiText.text("workbench.connection-need-specimens.folded-into-one-line-connected-cancelled-asked-again"), lines)}
-      ${figure(L, uiText.text("workbench.connection-need-specimens.same-card-under-assistant-result"), assistant)}
+      ${stages.map(([caption, owner, entry]) => figure(readText, caption, card(readText, owner, entry, 560) + card(readText, owner, entry, 375))).join("\n      ")}
+      ${figure(readText, uiText.text("workbench.connection-need-specimens.folded-into-one-line-connected-cancelled-asked-again"), lines)}
+      ${figure(readText, uiText.text("workbench.connection-need-specimens.same-card-under-assistant-result"), assistant)}
     </div>
   </section>`;
 }

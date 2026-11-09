@@ -4,7 +4,7 @@ import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
  * settings. Both are the same page in a different scope; everything it shows and changes goes through `/api/memory/*`,
  * which invokes the shared directory's `memory.*` actions as the person.
  */
-export function renderMemorySettings({ L, scope, projectId }: { L(text: string): string; scope: "personal" | "project"; projectId: string | null }): string {
+export function renderMemorySettings({ readText, scope, projectId }: { readText(text: string): string; scope: "personal" | "project"; projectId: string | null }): string {
   const personal = scope === "personal";
   const title = personal ? uiText.text("workbench.settings-memory.memory") : uiText.text("workbench.settings-memory.project-memory");
   const lead = personal
@@ -47,19 +47,19 @@ export function renderMemorySettings({ L, scope, projectId }: { L(text: string):
     </section>
     <section class="settings-section memory-prefs" aria-labelledby="memory-form-title">
       <h2 id="memory-form-title">${uiText("workbench.settings-memory.how-memories-form")}</h2>
-      ${prefRow(L, "form", uiText.text("workbench.settings-memory.allow-remembering"), personal ? uiText.text("workbench.settings-memory.main-switch-off-no-new-memories-no-suggestions") : uiText.text("workbench.settings-memory.off-no-new-memories-suggestions-project"))}
+      ${prefRow(readText, "form", uiText.text("workbench.settings-memory.allow-remembering"), personal ? uiText.text("workbench.settings-memory.main-switch-off-no-new-memories-no-suggestions") : uiText.text("workbench.settings-memory.off-no-new-memories-suggestions-project"))}
       <div class="settings-setting-row memory-pref-static"><span class="setting-copy"><strong>${uiText("workbench.settings-memory.remember-when-ask")}</strong><span>${uiText("workbench.settings-memory.when-say-now-remember-kept-once-told-where")}</span></span><span class="setting-value settings-muted">${uiText("workbench.settings-memory.always")}</span></div>
-      ${prefRow(L, "auto", uiText.text("workbench.settings-memory.keep-low-risk-preferences-lessons-automatically"), uiText.text("workbench.settings-memory.kept-automatically-when-ask-same-thing-two-different"))}
-      ${prefRow(L, "learn_from_work", uiText.text("workbench.settings-memory.suggest-work"), uiText.text("workbench.settings-memory.when-work-ends-suggest-what-worth-keeping-accept"))}
-      ${prefRow(L, "learn_from_ui", uiText.text("workbench.settings-memory.learn-interface"), uiText.text("workbench.settings-memory.only-counts-how-often-accept-ignore-rewrite-undo"))}
+      ${prefRow(readText, "auto", uiText.text("workbench.settings-memory.keep-low-risk-preferences-lessons-automatically"), uiText.text("workbench.settings-memory.kept-automatically-when-ask-same-thing-two-different"))}
+      ${prefRow(readText, "learn_from_work", uiText.text("workbench.settings-memory.suggest-work"), uiText.text("workbench.settings-memory.when-work-ends-suggest-what-worth-keeping-accept"))}
+      ${prefRow(readText, "learn_from_ui", uiText.text("workbench.settings-memory.learn-interface"), uiText.text("workbench.settings-memory.only-counts-how-often-accept-ignore-rewrite-undo"))}
     </section>
     <section class="settings-section memory-prefs" aria-labelledby="memory-use-title">
       <h2 id="memory-use-title">${uiText("workbench.settings-memory.who-can-use-them")}</h2>
-      ${prefRow(L, "consumers.assistant", uiText.text("workbench.settings-memory.assistant"), uiText.text("workbench.settings-memory.work-give-assistant-bottom-bar"))}
-      ${prefRow(L, "consumers.agent", uiText.text("workbench.settings-memory.agent-work"), uiText.text("workbench.settings-memory.coding-plugin-agents-workflows"))}
-      ${prefRow(L, "consumers.ui", uiText.text("workbench.settings-memory.interface-suggestions"), uiText.text("workbench.settings-memory.suggestions-based-what-looking"))}
-      ${prefRow(L, "consumers.plugin", uiText.text("workbench.settings-memory.plugins"), uiText.text("workbench.settings-memory.plugins-read-only-preferences-conventions-never-background-facts"))}
-      ${prefRow(L, "consumers.mcp", uiText.text("workbench.settings-memory.external-ai-clients"), personal ? uiText.text("workbench.settings-memory.clients-connected-over-mcp-personal-memories-closed-them") : uiText.text("workbench.settings-memory.clients-connected-over-mcp-read-only"))}
+      ${prefRow(readText, "consumers.assistant", uiText.text("workbench.settings-memory.assistant"), uiText.text("workbench.settings-memory.work-give-assistant-bottom-bar"))}
+      ${prefRow(readText, "consumers.agent", uiText.text("workbench.settings-memory.agent-work"), uiText.text("workbench.settings-memory.coding-plugin-agents-workflows"))}
+      ${prefRow(readText, "consumers.ui", uiText.text("workbench.settings-memory.interface-suggestions"), uiText.text("workbench.settings-memory.suggestions-based-what-looking"))}
+      ${prefRow(readText, "consumers.plugin", uiText.text("workbench.settings-memory.plugins"), uiText.text("workbench.settings-memory.plugins-read-only-preferences-conventions-never-background-facts"))}
+      ${prefRow(readText, "consumers.mcp", uiText.text("workbench.settings-memory.external-ai-clients"), personal ? uiText.text("workbench.settings-memory.clients-connected-over-mcp-personal-memories-closed-them") : uiText.text("workbench.settings-memory.clients-connected-over-mcp-read-only"))}
     </section>
     <section class="settings-section memory-data" aria-labelledby="memory-data-title">
       <h2 id="memory-data-title">${uiText("workbench.settings-memory.tidying-data")}</h2>
@@ -91,7 +91,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
   const bind = (root) => {
     if (!root || root.dataset.memoryBound === "1") return;
     root.dataset.memoryBound = "1";
-    const L = globalThis.L || ((text) => text);
+    const readText = globalThis.t.text;
     const scope = root.dataset.memoryScope === "project" ? "project" : "personal";
     const project = root.dataset.project || "";
     const base = (scope === "project" && project ? "/projects/" + encodeURIComponent(project) : "") + "/api/memory";
@@ -504,9 +504,9 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
         showClear(globalThis.t.text("workbench.settings-memory.clear-completed") + " · " + globalThis.t.text("workbench.settings-memory.deleted-count", { count: done.removed }));
         toast(clearStatus.textContent);
       } else {
-        const count = (outcome) => done.items.filter((item) => item.outcome === outcome).length;
+        const countOutcome = (outcome) => done.items.filter((item) => item.outcome === outcome).length;
         showClear(globalThis.t.text("workbench.settings-memory.clear-incomplete-retrying-only-handles-confirmed-memories") + " · " + globalThis.t.text("workbench.settings-memory.deleted") + " " + done.removed
-          + " · " + globalThis.t.text("workbench.settings-memory.version-conflicts") + " " + count("conflict") + " · " + globalThis.t.text("workbench.settings-memory.outcome-unknown") + " " + count("unknown") + " · " + globalThis.t.text("workbench.settings-memory.not-run-yet") + " " + count("not-executed"));
+          + " · " + globalThis.t.text("workbench.settings-memory.version-conflicts") + " " + countOutcome("conflict") + " · " + globalThis.t.text("workbench.settings-memory.outcome-unknown") + " " + countOutcome("unknown") + " · " + globalThis.t.text("workbench.settings-memory.not-run-yet") + " " + countOutcome("not-executed"));
       }
     }));
     resetClear.addEventListener("click", () => run(async () => {

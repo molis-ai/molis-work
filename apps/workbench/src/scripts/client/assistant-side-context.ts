@@ -10,7 +10,7 @@
  *   from their owners (`view.objects`), so one that changed since says so.
  * - The drop zone stays first: dropping or picking a file adds to 待发送.
  */
-export const ASSISTANT_SIDE_CONTEXT_FACTORY_SCRIPT = String.raw`({ L, el, kinds, tile, glyph, group, sideAct, paintBlock, keepFocus, current, pending, sidePanelHere, sidePreview,
+export const ASSISTANT_SIDE_CONTEXT_FACTORY_SCRIPT = String.raw`({ readText, el, kinds, tile, glyph, group, sideAct, paintBlock, keepFocus, current, pending, sidePanelHere, sidePreview,
   readBack, readImage, openObject, objectState, objectTitle, objectDetail, objectGlyph, surfaceName, pickFile, addFiles, expired, block }) => {
   const GLYPH = { image: "image", file: "file", method: "zap", capability: "zap", text: "note", selection: "text", object: "file" };
   const nameOf = (material) => material.title.replace(/^(方法|用|图片|引用)：/, "");
@@ -33,7 +33,7 @@ export const ASSISTANT_SIDE_CONTEXT_FACTORY_SCRIPT = String.raw`({ L, el, kinds,
     if (readable) { title.type = "button"; title.setAttribute("aria-label", globalThis.t.text("workbench.assistant-side-context.preview") + "：" + name); box.classList.add("is-openable"); title.addEventListener("click", readable); }
     box.append(tile(GLYPH[material.kind] || "file", ""), title, el("span", "assistant-item-sub", [globalThis.t.text(kinds[material.kind] || "workbench.assistant-side-context.material"),
       round ? globalThis.t.text("workbench.assistant-side-context.turn-n").replace("{n}", String(round)) : "", material.expired ? globalThis.t.text("workbench.assistant-side-context.no-longer-valid") : ""].filter(Boolean).join(" · ")));
-    if (material.expired) box.title = L(expired);
+    if (material.expired) box.title = expired;
     return box;
   };
   const tiles = (items) => { const box = el("div", "assistant-tiles"); items.forEach((one) => box.append(one)); return box; };
@@ -90,7 +90,7 @@ export const ASSISTANT_SIDE_CONTEXT_FACTORY_SCRIPT = String.raw`({ L, el, kinds,
  * - 连接与工具: each of the person's connections (headed 你的连接: they are the person's, not what this work was given) by its own status (signed in, needs signing in, failed, off) and whether its tools can run;
  *   then what the Assistant can call now by provider, and what it cannot with its owner's reason. A plugin that carries the work keeps its own tools.
  */
-export const ASSISTANT_SIDE_SURROUNDINGS_FACTORY_SCRIPT = String.raw`({ L, el, card, group, stack, paintBlock, keepFocus, api, environmentBlock, toolsBlock }) => {
+export const ASSISTANT_SIDE_SURROUNDINGS_FACTORY_SCRIPT = String.raw`({ readText, el, card, group, stack, paintBlock, keepFocus, api, environmentBlock, toolsBlock }) => {
   let asked = "", held = null, at = 0, asking = false, last = null;
   const count = (text, value) => globalThis.t.text(text).replace("{n}", String(value));
   const CONNECTION = { connected: "workbench.assistant-side-context.connected", "needs-authorization": "workbench.assistant-side-context.needs-sign", failed: "workbench.assistant-side-context.connection-failed", disconnected: "workbench.assistant-side-context.disconnected", unchecked: "workbench.assistant-side-context.not-checked-yet", incomplete: "workbench.assistant-side-context.setup-not-finished", off: "workbench.assistant-side-context.switched-off" };
@@ -125,7 +125,7 @@ export const ASSISTANT_SIDE_SURROUNDINGS_FACTORY_SCRIPT = String.raw`({ L, el, c
       if (can.executor === "plugin") callable.unshift(card({ icon: "terminal", title: work.executor.title || globalThis.t.text("workbench.assistant-side-context.executor"), sub: can.callable.length || can.unavailable.length ? globalThis.t.text("workbench.assistant-side-context.its-own-file-command-tools-plus-mcp-tools") : globalThis.t.text("workbench.assistant-side-context.its-own-file-command-tools-mcp-tools-chosen") }));
       if (can.problem) callable.push(card({ icon: "zap", tone: "attention", title: globalThis.t.text("workbench.assistant-side-context.tools-can-t-be-read-right-now"), sub: can.problem, subTone: "attention" }));
       if (callable.length) box.append(group(globalThis.t.text("workbench.assistant-side-context.can-call"), stack(callable, work.work_id + ":tools:callable")));
-      const blocked = can.unavailable.map((one) => card({ icon: "zap", tone: "blocked", title: one.title, sub: one.provider + (one.reason ? " · " + L(one.reason) : ""), subTone: "blocked" }));
+      const blocked = can.unavailable.map((one) => card({ icon: "zap", tone: "blocked", title: one.title, sub: one.provider + (one.reason ? " · " + one.reason : ""), subTone: "blocked" }));
       if (blocked.length) box.append(group(globalThis.t.text("workbench.assistant-side-context.not-usable-now"), stack(blocked, work.work_id + ":tools:blocked")));
       const needs = connections.filter((one) => ["needs-authorization", "failed"].includes(one.state)).length, total = can.callable.reduce((sum, one) => sum + one.count, 0);
       paintBlock(tools, globalThis.t.text("workbench.assistant-side-context.connections-tools"), "link", box.children.length ? box : null, needs ? count("workbench.assistant-side-context.n-handle", needs) : total ? count("workbench.assistant-side-context.n-available", total) : "", needs > 0);
@@ -158,7 +158,7 @@ export const ASSISTANT_SIDE_SURROUNDINGS_FACTORY_SCRIPT = String.raw`({ L, el, c
  * - The account's quota and reset have no source here, so they read 暂不可用.
  * - 这项工作: the work's own total and its cap, as before.
  */
-export const ASSISTANT_SIDE_USAGE_FACTORY_SCRIPT = String.raw`({ L, el, progress, api, toast, box, current, adopt }) => {
+export const ASSISTANT_SIDE_USAGE_FACTORY_SCRIPT = String.raw`({ readText, el, progress, api, toast, box, current, adopt }) => {
   const number = (value) => Number(value).toLocaleString("en-US");
   const MARK = { estimated: "workbench.assistant-side-context.estimated", partial: "workbench.assistant-side-context.partial", "partial-estimated": "workbench.assistant-side-context.partly-estimated" };
   const tag = (coverage) => MARK[coverage] ? "（" + globalThis.t.text(MARK[coverage]) + "）" : "", marked = (value, coverage) => coverage === "unknown" ? globalThis.t.text("workbench.assistant-side-context.unavailable") : number(value) + tag(coverage);
@@ -190,7 +190,7 @@ export const ASSISTANT_SIDE_USAGE_FACTORY_SCRIPT = String.raw`({ L, el, progress
         tokens.cached_input ? row(globalThis.t.text("workbench.assistant-side-context.cached-reads"), marked(tokens.cached_input, coverage.cached_input)) : null, tokens.cache_creation ? row(globalThis.t.text("workbench.assistant-side-context.cache-write"), marked(tokens.cache_creation, coverage.cache_creation)) : null,
         tokens.reasoning ? row(globalThis.t.text("workbench.assistant-side-context.reasoning"), number(tokens.reasoning)) : null,
         row(globalThis.t.text("workbench.assistant-side-context.cost"), typeof report.cost_usd === "number" && coverage.cost_usd !== "unknown" ? "$" + report.cost_usd.toFixed(4) + tag(coverage.cost_usd) : globalThis.t.text("workbench.assistant-side-context.unavailable"), typeof report.cost_usd !== "number"),
-        report.unavailable_reason ? el("p", "assistant-material-origin", L(report.unavailable_reason)) : null));
+        report.unavailable_reason ? el("p", "assistant-material-origin", report.unavailable_reason) : null));
       details.append(section(globalThis.t.text("workbench.assistant-side-context.account-quota"), row(globalThis.t.text("workbench.assistant-side-context.quota-reset"), globalThis.t.text("workbench.assistant-side-context.unavailable"), true)));
     }
     if (usage && usage.budget_of) details.append(el("p", "assistant-material-origin", globalThis.t.text("workbench.assistant-side-context.sub-task-counts-toward-work-that-delegated") + "：「" + usage.budget_of.title + "」"));

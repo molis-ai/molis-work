@@ -19,7 +19,7 @@ const field = (name: string, title: string, value: string, rows: number, placeho
 
 /** What the link needs from the person, by its kind. */
 export function linkView(page: WorkflowsPage, link: WorkflowLink) {
-  const { ui, L } = page;
+  const { ui, readText } = page;
   if (link.kind === "function") {
     return field("title_template", uiText.text("workflows.rule.title"), link.title_template, 1, "{标题}")
       + field("body_template", uiText.text("workflows.rule.body"), link.body_template, 5, uiText.text("workflows.rule.body-placeholder", { source: "{来源}", link: "{链接}", body: "{正文}" }))
@@ -35,7 +35,7 @@ export function linkView(page: WorkflowsPage, link: WorkflowLink) {
     const picker = rows.length
       ? `<label class="mw-field"><span class="mw-field__label">${esc(uiText.text("workflows.kind.judgment"))}</span><select class="mw-select" data-wf-judgment>`
         + (link.judgment ? "" : `<option value="" selected>${esc(uiText.text("workflows.judgment.choose"))}</option>`)
-        + rows.map((row) => `<option value="${esc(ruleKey(row.ref))}"${row === current ? " selected" : ""}>${esc(row.title + " · v" + row.ref.version + (row.available ? "" : " · " + said(L, row.reason || "workflows.judgment.unavailable")))}</option>`).join("") + "</select></label>"
+        + rows.map((row) => `<option value="${esc(ruleKey(row.ref))}"${row === current ? " selected" : ""}>${esc(row.title + " · v" + row.ref.version + (row.available ? "" : " · " + said(readText, row.reason || "workflows.judgment.unavailable")))}</option>`).join("") + "</select></label>"
       : `<p class="wf-hint">${esc(uiText.text("workflows.judgment.none"))} <a href="/capabilities/rules">${esc(uiText.text("workflows.judgment.write"))}</a></p>`;
     const choices = current ? `<fieldset class="wf-pass"><legend class="mw-field__label">${esc(uiText.text("workflows.judgment.pass-when"))}</legend>`
       + (current.choices.length ? current.choices.map((choice) => `<label class="mw-check-row"><input class="mw-check" type="checkbox" data-wf-pass value="${esc(choice)}"${(link.pass || []).includes(choice) ? " checked" : ""}><span>${esc(choice)}</span></label>`).join("")
@@ -52,16 +52,16 @@ function backFoot(page: WorkflowsPage, ready: Ready) {
 }
 
 export function readyRow(page: WorkflowsPage, ready: Ready) {
-  const { L } = page;
+  const { readText } = page;
   if (ready.ready) return `${ico("check")}<span>${esc(uiText.text("workflows.link.connected"))}</span>`;
   // The settings open for this link and come back to it (specs/draft-and-return §4): the flow is the object, the link the step.
   const fix = ready.reason === "workflows.ready.no-model" ? ` <button class="mw-btn mw-btn--ghost mw-btn--sm wf-model-settings" type="button" data-wf-action="model-settings">${esc(uiText.text("workflows.link.open-model-settings"))}</button>` : "";
-  return `${ico("alert")}<span>${esc(uiText.text("workflows.link.not-connected-reason", { reason: said(L, ready.reason) }))}${fix}</span>`;
+  return `${ico("alert")}<span>${esc(uiText.text("workflows.link.not-connected-reason", { reason: said(readText, ready.reason) }))}${fix}</span>`;
 }
 
 /** The popover of one link: its kind, what that kind needs, and whether it can carry content now. */
 export function showLink(page: WorkflowsPage, index: number) {
-  const { ui, pop, L } = page;
+  const { ui, pop, readText } = page;
   const flow = ui.workflow!, link = flow.links[index]!;
   const from = label(page, flow.stations[index]!), to = label(page, flow.stations[index + 1]!);
   const ready = readyState(page, link);
@@ -69,8 +69,8 @@ export function showLink(page: WorkflowsPage, index: number) {
   pop.dataset.mode = "link"; pop.dataset.link = String(index);
   pop.innerHTML = `<header class="wf-pop__head"><strong>${esc(from + " → " + to)}</strong><span class="wf-muted">${esc(uiText.text("workflows.link.heading"))}</span></header>`
     + `<div class="mw-toggle-group wf-kinds" role="radiogroup" aria-label="${esc(uiText.text("workflows.link.type"))}">`
-    + KINDS.map((kind) => `<button type="button" class="mw-toggle${kind === link.kind ? " is-current" : ""}" role="radio" aria-checked="${kind === link.kind}" data-wf-action="kind" data-kind="${kind}" data-link="${index}">${esc(kindName(L, kind))}</button>`).join("")
-    + `</div><p class="wf-kind-help" data-wf-kind-help>${esc(kindHelp(L, link.kind))}</p><div class="wf-link-fields" data-wf-link-fields>${linkView(page, link)}</div>`
+    + KINDS.map((kind) => `<button type="button" class="mw-toggle${kind === link.kind ? " is-current" : ""}" role="radio" aria-checked="${kind === link.kind}" data-wf-action="kind" data-kind="${kind}" data-link="${index}">${esc(kindName(readText, kind))}</button>`).join("")
+    + `</div><p class="wf-kind-help" data-wf-kind-help>${esc(kindHelp(readText, link.kind))}</p><div class="wf-link-fields" data-wf-link-fields>${linkView(page, link)}</div>`
     + `<p class="wf-readiness" data-ready="${ready.ready}" data-wf-readiness>${readyRow(page, ready)}</p>${backFoot(page, ready)}`;
   markOpen(page);
   placePop(page, pillOf(page, index));
@@ -89,7 +89,7 @@ export async function checkRules(page: WorkflowsPage, index: number, force?: boo
 }
 
 export function switchKind(page: WorkflowsPage, index: number, kind: WorkflowLinkKind, { pointer = false } = {}) {
-  const { ui, pop, L } = page;
+  const { ui, pop, readText } = page;
   const chain = chainOf(page);
   if (chain.links[index]!.kind === kind) return;
   chain.links[index] = { ...chain.links[index]!, kind };
@@ -98,7 +98,7 @@ export function switchKind(page: WorkflowsPage, index: number, kind: WorkflowLin
     const on = toggle.dataset.kind === kind;
     toggle.classList.toggle("is-current", on); toggle.setAttribute("aria-checked", String(on));
   }
-  required(pop, "[data-wf-kind-help]").textContent = kindHelp(L, kind);
+  required(pop, "[data-wf-kind-help]").textContent = kindHelp(readText, kind);
   const fields = required(pop, "[data-wf-link-fields]");
   fields.innerHTML = linkView(page, ui.workflow!.links[index]!);
   settle(fields);

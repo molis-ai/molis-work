@@ -20,6 +20,8 @@
     }
   },
   "files": [
+    "prompts",
+    "methods",
     "dist",
     "locales",
     "README.md"

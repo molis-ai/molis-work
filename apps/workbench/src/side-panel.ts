@@ -1,5 +1,4 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { withPluginWords } from "./i18n.js";
 import type { PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { SIDE_CONTEXT_FACTORY } from "./side-panel-context.js";
 import { SIDE_FORWARD_SCRIPT } from "./scripts/client/pane-messages.js";
@@ -21,7 +20,7 @@ import { BACKGROUND_TASKS_STYLES } from "./styles/background-tasks.js";
  * draft, page or reading position. Other surfaces open it with `molis:side-open`.
  */
 export interface SidePanelPrimitives {
-  L(value: string): string;
+  readText(value: string): string;
   escapeHtml(value: unknown): string;
   icon(name: PluginIconName): string;
 }
@@ -48,19 +47,19 @@ export interface SideViews {
 }
 
 /** The panel's own tabs, in the places they take among the plugins' (side-shelf §3.1: Shelf · 灵光 · 资料 · 浏览器 · 电脑 · 讨论; 资料 was 文件, specs/project-knowledge §8.1). */
-const OWN_TABS = [["files", "项目资料", "file", 20], ["browser", "浏览器", "globe", 30], ["computer", "电脑", "system", 40], ["discussion", "讨论", "message", 50]] as const;
+const OWN_TABS = [["files", "workbench.side-panel-tab.materials", "file", 20], ["browser", "workbench.side-panel-tab.browser", "globe", 30], ["computer", "workbench.side-panel-tab.computer", "system", 40], ["discussion", "workbench.side-panel-tab.discussion", "message", 50]] as const;
 /** The background tasks, after them: what was the title bar's button (workbench-navigation「三个方案共用的部分」3). */
-const TASKS_TAB = ["tasks", "后台任务", "activity", 60] as const;
+const TASKS_TAB = ["tasks", "workbench.side-panel-tab.background-tasks", "activity", 60] as const;
 
 interface SideEntry { id: string; order: number; label: string; glyph: PluginIconName; attrs: string; plugin?: SidePanelPluginTab }
 
 function sideEntries(primitives: SidePanelPrimitives, pluginTabs: readonly SidePanelPluginTab[], views: SideViews): SideEntry[] {
-  const { L, escapeHtml } = primitives;
+  const { escapeHtml } = primitives;
   // A plugin's side view names itself in its Manifest; the side shows that name in the interface language.
-  const plugins = pluginTabs.map(entry => ({ id: `plugin:${entry.key}`, order: entry.order ?? 100, label: withPluginWords(entry.key.split("/")[0] ?? "", () => L(entry.title)), glyph: entry.icon, plugin: entry,
+  const plugins = pluginTabs.map(entry => ({ id: `plugin:${entry.key}`, order: entry.order ?? 100, label: entry.title, glyph: entry.icon, plugin: entry,
     attrs: ` data-side-plugin="${escapeHtml(entry.key)}"${entry.contextOwner ? ` data-side-context-owner="${escapeHtml(entry.contextOwner)}" data-side-context-surface="${escapeHtml(entry.contextSurface)}" hidden` : ""}${entry.keys ? ` data-side-keys="${escapeHtml(entry.keys)}"` : ""}` }));
   const own = [...views.projectTools === false ? [] : OWN_TABS, ...views.tasks ? [TASKS_TAB] : []]
-    .map(([id, label, glyph, order]) => ({ id, order, label: L(label), glyph, attrs: id === "tasks" ? " data-side-tasks" : "" }));
+    .map(([id, label, glyph, order]) => ({ id, order, label: uiText.text(label), glyph, attrs: id === "tasks" ? " data-side-tasks" : "" }));
   return [...own, ...plugins].sort((a, b) => a.order - b.order);
 }
 
@@ -190,7 +189,7 @@ body.is-side-resizing{cursor:col-resize;user-select:none}
  * A tab widens after a rest or on keyboard focus; a press never moves the tabs under the pointer (it cancels a pending widening,
  * and focus from a click leaves the widths as they are).
  */
-export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=null,undoChip=()=>null,menu=null,removed=()=>false,L=globalThis.L,paneSrc=null,glyph=()=>'',toMain=null})=>{
+export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=null,undoChip=()=>null,menu=null,removed=()=>false,readText=globalThis.t.text,paneSrc=null,glyph=()=>'',toMain=null})=>{
   const panel=document.querySelector('[data-side-panel]'),strip=document.querySelector('[data-side-tabs]'),stage=document.querySelector('[data-plugin-stage],.arrival-stage');
   if(!panel||!strip||!stage)return null;
   stage.setAttribute('data-plugin-stage','');
@@ -433,7 +432,7 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
 /** The side on a page without a tab workspace (the way in): the same rules and the same pane, held by the page alone. */
 export const SIDE_PANEL_SCRIPT = String.raw`(() => {
   if(document.body.hasAttribute('data-pane-embedded')||document.querySelector('[data-tab-workspace]'))return;
-  const ops=(${withSidePane.toString()})({create:()=>({})}),state=ops.create(),L=globalThis.L;
+  const ops=(${withSidePane.toString()})({create:()=>({})}),state=ops.create(),readText=globalThis.t.text;
   // No tab workspace here to lend the side its tab menu and its way back (the workbench's are tab-workspace-menus.ts and
   // plugin-tab-groups.ts), so the side has small ones of its own: one closed tab to bring back, by its chip or ⌘⇧T.
   let last=null;

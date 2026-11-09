@@ -195,7 +195,7 @@ const GOALS_DIALOG_ESCAPE_SCRIPT = `      if (event.key === "Escape" && dialog.o
 /** Dialog-local intent and draft state; Host supplies shared refresh, storage and navigation. */
 export const GOALS_DIALOGS_CLIENT_FACTORY_SCRIPT = `(host) => {
     const { dialog, form, route, refreshBoard,
-      updateRelationPreviews, currentLocale, translate: L, clearCollectionUiState, clearCurrentGoalUiState, navigate } = host;
+      updateRelationPreviews, currentLocale, translate: readText, clearCollectionUiState, clearCurrentGoalUiState, navigate } = host;
     const formError = document.querySelector("[data-create-error]");
     const trashDialog = document.querySelector("[data-goal-trash-dialog]");
     const trashForm = document.querySelector("[data-goal-trash-form]");

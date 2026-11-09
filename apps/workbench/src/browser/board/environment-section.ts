@@ -85,7 +85,7 @@ function start(section: HTMLElement, live: HTMLElement, data: SectionData): void
     } else if (target?.closest("[data-board-env-add-user]") && rows) {
       // The person's own words, which happen to be an interface word: the page drew them, nothing produced them.
       const row = document.createElement("li");
-      row.textContent = "保存";
+      row.textContent = "common.control.save";
       rows.append(row);
     }
   });

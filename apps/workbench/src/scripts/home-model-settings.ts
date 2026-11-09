@@ -4,7 +4,7 @@ import { CONNECTORS_SETTINGS_CLIENT_SCRIPT } from "./connectors-settings.js";
 
 /** The project-free Home shell hosts the existing settings document without unloading plugin drafts. */
 export const HOME_MODEL_SETTINGS_CLIENT_SCRIPT = `(() => {
-  const L = globalThis.L || (text => text);
+  const readText = globalThis.t.text;
   // The pages' own address declarations (settings-address-params.ts): this dialog keeps only what the page it opens reads.
   const DEFAULTS = ${JSON.stringify(SETTINGS_ADDRESS_DEFAULTS.global)};
   const HOME_QUERY_EXTRAS = ${JSON.stringify(HOME_SETTINGS_QUERY_EXTRAS)};

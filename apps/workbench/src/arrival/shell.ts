@@ -16,14 +16,14 @@ import { renderAppearanceRecovery } from "../settings-appearance.js";
  */
 export interface ArrivalShellPrimitives {
   accountRegistration?: boolean;
-  L(text: string, values?: Record<string, string | number>): string;
+  readText(text: string, values?: Record<string, string | number>): string;
   escapeHtml(value: unknown): string;
   icon(name: PluginIconName): string;
   withDesktopQuery(path: string): string;
   htmlLang(): string;
   renderIconSprite(): string;
   controlTokenMeta(token: string): string;
-  clientI18nScript(): string;
+  pluginTitleScript(): string;
   /** The theme preference, and the native window's safe insets. Runs before the first paint. */
   themeBootstrapScript: string;
   visualFoundationClientScript: string;
@@ -68,7 +68,7 @@ interface ArrivalDocumentOptions {
 }
 
 export function createArrivalShell(p: ArrivalShellPrimitives) {
-  const { L, escapeHtml, icon } = p;
+  const { readText, escapeHtml, icon } = p;
   const href = (desktopShell: boolean, path: string) => desktopShell ? p.withDesktopQuery(path) : path;
 
   const caption = () => renderCaption({ label: uiText.text("workbench.shell.pause-title-animation"), playLabel: uiText.text("workbench.shell.play-title-animation"), title: uiText.text("workbench.shell.click-pause-play") });
@@ -121,7 +121,7 @@ export function createArrivalShell(p: ArrivalShellPrimitives) {
     ${options.bar}
     ${side}
   </div>
-  ${options.after ?? ""}${renderAppearanceRecovery(L, appearance)}
+  ${options.after ?? ""}${renderAppearanceRecovery(readText, appearance)}
   <script>${options.scripts}${options.screen === "chooser" ? ACCOUNT_CLIENT_SCRIPT : ""}${side ? SIDE_PANEL_SCRIPT : ""}</script>${appearanceClientTag(appearance)}
 </body>
 </html>`;
@@ -132,7 +132,7 @@ export function createArrivalShell(p: ArrivalShellPrimitives) {
 
 /** The same workbench document and account controls, without opening an anonymous business Home. */
 export function renderPersonalAccountEntry(controlToken: string, desktop: boolean, message?: string,
-  locale: Pick<ReturnType<typeof createWorkbenchLocale>, "L" | "htmlLang" | "clientI18nScript"> = createWorkbenchLocale(() => "zh"), nativeBootstrap = ""): string {
+  locale: Pick<ReturnType<typeof createWorkbenchLocale>, "htmlLang" | "pluginTitleScript"> = createWorkbenchLocale(() => "zh"), nativeBootstrap = ""): string {
   return renderWorkbenchDocument({lang: locale.htmlLang(), title: "Molis Work",
     body_attributes: {class: "arrival-page immersive-workbench", "data-arrival": "welcome", "data-account-entry": true, "data-native-desktop": desktop ? "true" : null},
     head_html: `<meta name="molis-work-page-session" content="${escapeHtml(controlToken)}"><script>${THEME_BOOTSTRAP_SCRIPT}${desktop ? nativeBootstrap : ""}</script><link rel="stylesheet" href="/assets/molis-work-arrival.css">`,
@@ -140,5 +140,5 @@ export function renderPersonalAccountEntry(controlToken: string, desktop: boolea
       <main class="arrival-stage"><section class="mw-empty"><h1>${escapeHtml(uiText.text("workbench.shell.sign-sign-up-molis-ai"))}</h1><p>${escapeHtml(uiText.text("workbench.shell.sign-manage-molis-account"))}</p>
       <button class="mw-btn mw-btn--primary" type="button" data-account-link aria-label="${escapeHtml(uiText.text("workbench.shell.account"))}">${icon("user")}<span data-personal-name>${escapeHtml(uiText.text("workbench.shell.not-signed"))}</span></button>
       <p role="status" data-account-entry-status>${escapeHtml(message ?? "")}</p><button class="mw-btn mw-btn--secondary" type="button" data-personal-action="retry"${message ? "" : " hidden"}>${escapeHtml(uiText.text("common.control.retry"))}</button></section></main></div>
-      <script>${locale.clientI18nScript()}${CONTROL_CLIENT_SCRIPT}</script>`});
+      <script>${locale.pluginTitleScript()}${CONTROL_CLIENT_SCRIPT}</script>`});
 }

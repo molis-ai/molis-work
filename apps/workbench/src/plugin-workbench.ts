@@ -45,9 +45,6 @@ function withUsedClients(user: Registered, factory: string, all: readonly Regist
   return `(host) => (${factory})({ ...host, clients: { ${used.join(", ")} } })`;
 }
 
-/** The Manifest `plugin_id` of a catalog entry: whose words translate what its client draws, never another plugin's. */
-const pluginIdOf = (catalog: readonly PluginRegistration[], projectPluginId: string): string => catalog.find(entry => entry.project_plugin_id === projectPluginId)?.manifest.plugin_id ?? "";
-
 /** Derive the registered UI and assets from the same entries used by the Host catalog. */
 export function pluginWorkbenchPacks(catalog: readonly PluginRegistration[] = BUILTIN_PLUGIN_CATALOG): BuiltinPluginWorkbenchPack[] {
   const owners = new Map(catalog.map(entry => [entry.project_plugin_id, entry.manifest.plugin_id]));
@@ -141,12 +138,12 @@ export function pluginRecordRows(packs: readonly BuiltinPluginWorkbenchPack[] = 
     : []);
 }
 
-export function pluginWorkbenchClientBootstrap(packs: readonly BuiltinPluginWorkbenchPack[] = BUILTIN_PLUGIN_WORKBENCH, deferClients = false, catalog: readonly PluginRegistration[] = BUILTIN_PLUGIN_CATALOG): string {
+export function pluginWorkbenchClientBootstrap(packs: readonly BuiltinPluginWorkbenchPack[] = BUILTIN_PLUGIN_WORKBENCH, deferClients = false): string {
   return packs.flatMap((pack) => {
     const lines: string[] = [];
     if (pack.clientFactory && !deferClients) {
       // The page translates what the client draws with the words of the plugin it belongs to, never with another's.
-      lines.push(`(${pack.clientFactory})({ mountPluginClient, translate: LFor(${JSON.stringify(pluginIdOf(catalog, pack.project_plugin_id))}), projectId: () => state.project?.project_id || document.body.dataset.projectId || "", projectTitle: () => state.project?.display_name || "", api, route });`);
+      lines.push(`(${pack.clientFactory})({ mountPluginClient, projectId: () => state.project?.project_id || document.body.dataset.projectId || "", projectTitle: () => state.project?.display_name || "", api, route });`);
     }
     if (pack.settingsClient) lines.push(pack.settingsClient);
     return lines;
@@ -155,6 +152,9 @@ export function pluginWorkbenchClientBootstrap(packs: readonly BuiltinPluginWork
 
 /** A surface's client: the bundle that carries its factory and what it prepares first (the bundles of the clients it uses among them). */
 export interface PluginSurfaceClient { readonly id: string; readonly plugin_id: string; readonly bundle: string; readonly assets: readonly string[]; readonly styles: readonly string[]; readonly factory: string; readonly searchRow?: PluginWorkbenchRegistration["searchRow"]; readonly recordRow?: PluginWorkbenchRegistration["recordRow"] }
+
+const pluginIdOf = (catalog: readonly PluginRegistration[], projectPluginId: string): string =>
+  catalog.find(entry => entry.project_plugin_id === projectPluginId)?.manifest.plugin_id ?? "";
 
 /** Every surface with a client, each pointing at the one bundle that serves it. */
 export function pluginSurfaceClients(packs: readonly BuiltinPluginWorkbenchPack[] = BUILTIN_PLUGIN_WORKBENCH, catalog: readonly PluginRegistration[] = BUILTIN_PLUGIN_CATALOG): PluginSurfaceClient[] {

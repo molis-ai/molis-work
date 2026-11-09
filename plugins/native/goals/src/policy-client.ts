@@ -34,7 +34,7 @@ const GOALS_POLICY_SUBMIT_SCRIPT = `      const policyForm = submittedForm.close
 `;
 
 export const GOALS_POLICY_CLIENT_FACTORY_SCRIPT = `(host) => {
-    const { route, translate: L,
+    const { route, translate: readText,
       requireFormFacts, refreshBoard, showToast, humanDecisionError } = host;
     const submitMatchedPolicy = async (submittedForm, event) => {
 ${GOALS_POLICY_SUBMIT_SCRIPT}    };

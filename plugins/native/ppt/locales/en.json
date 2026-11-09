@@ -8,6 +8,7 @@
     "ppt.action.reload": "Reload",
     "ppt.color.background": "Background",
     "ppt.color.primary": "Accent",
+    "ppt.create.kind-title": "Presentation",
     "ppt.dialog.cancel": "Cancel",
     "ppt.dialog.delete-confirm": "Delete this deck?",
     "ppt.dialog.reload-confirm": "Reloading discards unsaved edits. Continue?",

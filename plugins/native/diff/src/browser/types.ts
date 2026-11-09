@@ -1,7 +1,3 @@
-import type { UiClientTranslate } from "@molis-ai/molis-work-contracts/platform/ui";
-
-export type Translate = UiClientTranslate;
-
 /** The mounted root's lifetime (packages/ui-host client-lifecycle): what the page uses of it. */
 export interface Lifetime {
   readonly alive: boolean;
@@ -14,7 +10,6 @@ export interface Lifetime {
 /** What the workbench hands Diff's client: the page's root and the shared host fields it uses. */
 export interface Host {
   readonly root: Element;
-  readonly translate: Translate;
   mountPluginClient(root: Element): Lifetime | null;
   /** A path under this plugin's own routes. */
   pluginRoute(path: string): string;

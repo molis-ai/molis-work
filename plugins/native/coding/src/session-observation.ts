@@ -19,7 +19,7 @@ export async function readCodingSessions(a: CodingActivation, execution: CodingE
   for (const runtimeId of new Set(records.filter(record => record.runtime_session_id).map(record => record.runtime_id))) {
     const ids = records.filter(record => record.runtime_id === runtimeId && record.runtime_session_id).map(record => record.runtime_session_id!);
     try { for (const status of await actions.invoke(agent.readSessionStatuses, [runtimeId, ids])) statuses.set(`${runtimeId}:${status.session_id}`, status); }
-    catch (error) { for (const id of ids) statuses.set(`${runtimeId}:${id}`, { session_id: id, error: error instanceof Error ? error.message : codingText(execution.locale)("coding.server.session-unreadable") }); }
+    catch (error) { for (const id of ids) statuses.set(`${runtimeId}:${id}`, { session_id: id, error: error instanceof Error ? error.message : codingText("coding.server.session-unreadable") }); }
   }
   // Parked sessions are read without starting their consumer; the activation job owns its recovery.
   const parked = new Map<string, CodingWaitView>(), backgroundUnreadable = await codingBackgroundState(actions, records, execution.sessions, projectId, persist ? beforeWrite : undefined);

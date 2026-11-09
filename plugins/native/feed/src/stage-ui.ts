@@ -7,13 +7,13 @@ import type { FeedStageData, FeedReaderData } from "./query-actions.js";
 import type { FeedUiEntry, FeedUiItem, FeedUiModel, FeedUiPrimitives, FeedUiSource, PersistedFeedDetailModel } from "./ui.js";
 import { feedSourceUiKind } from "./source-presentation.js";
 
-type FeedText = { L: FeedUiPrimitives["text"] };
+type FeedText = { readText: FeedUiPrimitives["text"] };
 type FeedStageView = { route_prefix: string; data: FeedStageData };
 
 /** The owner converts its stage read into the same source, message and reader UI models. */
 export function buildFeedStageUiModel(model: StagePageModel<FeedStageData>): FeedUiModel {
   if (!model.data) throw new ActionError("actions.plugin_unavailable", "Feed 舞台数据不可用");
-  return buildFeedModel({ L: model.primitives.text }, feedStagePrimitives(model), { route_prefix: model.route_prefix, data: model.data }, "feed");
+  return buildFeedModel({ readText: model.primitives.text }, feedStagePrimitives(model), { route_prefix: model.route_prefix, data: model.data }, "feed");
 }
 export function buildFeedReaderUiModel(model: StagePageModel<FeedReaderData>): PersistedFeedDetailModel {
   if (!model.data || !model.object) throw new ActionError("actions.plugin_unavailable", "Feed 对象数据不可用");
@@ -34,16 +34,16 @@ function buildFeedModel(
   view: FeedStageView,
   preset: FeedItemType,
 ): FeedUiModel {
-  const sources = view.data.snapshot.sources.map((source) => sourceModel(source, view, text.L, ui));
+  const sources = view.data.snapshot.sources.map((source) => sourceModel(source, view, text.readText, ui));
   return {
     route_prefix: view.route_prefix,
     preset,
-    entries: feedEntries(view, text.L),
+    entries: feedEntries(view, text.readText),
     sources,
     source_catalog: (view.data.source_catalog ?? []).map((source) => ({
       id: source.id,
       name: source.name,
-      category_label: text.L(source.category_label),
+      category_label: source.category_label,
     })),
     connector_auth: {
       github: view.data.connector_auth?.github ?? { bound: false },
@@ -64,7 +64,7 @@ function buildFeedModel(
   };
 }
 
-function feedEntries(view: FeedStageView, _L: FeedText["L"]): FeedUiEntry[] {
+function feedEntries(view: FeedStageView, _L: FeedText["readText"]): FeedUiEntry[] {
   return [
     ...view.data.snapshot.feed_items.map((item): FeedUiEntry => ({
       entry_id: item.item_id,
@@ -118,7 +118,7 @@ function itemModel(item: FeedItemRecord): FeedUiItem {
   };
 }
 
-function sourceModel(source: FeedSourceRecord, view: FeedStageView, L: FeedText["L"], ui: FeedUiPrimitives): FeedUiSource {
+function sourceModel(source: FeedSourceRecord, view: FeedStageView, readText: FeedText["readText"], ui: FeedUiPrimitives): FeedUiSource {
   const runs = view.data.snapshot.runs.filter((run) => run.source_id === source.source_id);
   const uiKind = feedSourceUiKind(source);
   const presentation = view.data.source_presentations[source.source_id];
@@ -162,7 +162,7 @@ function sourceModel(source: FeedSourceRecord, view: FeedStageView, L: FeedText[
     ui_kind: uiKind,
     type_label: source.kind === "research_library" ? uiText.text("feed.stage-ui.research-library") : uiKind === "github" ? "GitHub" : uiKind === "gmail" ? "Gmail" : uiKind === "rss" ? "RSS / Atom" : uiKind === "connector" ? source.name : uiText.text("feed.stage-ui.other-source"),
     status_kind: statusKind,
-    status_label: running ? uiText.text("feed.stage-ui.pulling") : sourceStatusLabel(source.status, L),
+    status_label: running ? uiText.text("feed.stage-ui.pulling") : sourceStatusLabel(source.status, readText),
     last_fetch_label: source.last_sync_at ? ui.formatDate(source.last_sync_at) : uiText.text("feed.stage-ui.not-pulled-yet"),
     next_fetch_label: !source.enabled || source.status === "paused"
       ? uiText.text("feed.stage-ui.paused")
@@ -174,11 +174,11 @@ function sourceModel(source: FeedSourceRecord, view: FeedStageView, L: FeedText[
     schedule_label: source.schedule.mode === "manual"
       ? uiText.text("feed.stage-ui.manual-pulls-only")
       : source.schedule.enabled ? uiText.text("feed.stage-ui.every-count-count", { count: source.schedule.interval_minutes }) : uiText.text("feed.stage-ui.scheduled-pulls-off"),
-    scope_label: source.kind === "research_library" ? String(source.config.research_source ?? "") : L(scope),
-    scope_options: (presentation?.scope_options ?? []).map((preset) => ({ value: preset.value, label: L(preset.label) })),
+    scope_label: source.kind === "research_library" ? String(source.config.research_source ?? "") : scope,
+    scope_options: (presentation?.scope_options ?? []).map((preset) => ({ value: preset.value, label: preset.label })),
     configured_endpoint: configuredEndpoint,
     protocol_status: presentation?.conditional_request
-      ? L(({ etag: "ETag 条件请求已启用", "last-modified": "Last-Modified 条件请求已启用", unvalidated: "源站未提供条件校验；使用 Item 身份去重", "not-fetched": "首次拉取后验证 Feed 并记录条件请求" } as const)[presentation.conditional_request])
+      ? readText(({ etag: "feed.stage-ui.etag-conditional-requests-enabled", "last-modified": "feed.stage-ui.last-modified-conditional-requests-enabled", unvalidated: "feed.stage-ui.the-source-does-not-support-conditional-validation", "not-fetched": "feed.stage-ui.validate-the-feed-and-record-conditional-requests" } as const)[presentation.conditional_request])
       : null,
     home_url: presentation?.home_url ?? null,
     editable_endpoint: source.kind === "custom_rss",
@@ -195,7 +195,7 @@ function sourceModel(source: FeedSourceRecord, view: FeedStageView, L: FeedText[
   };
 }
 
-function sourceStatusLabel(status: FeedSourceRecord["status"], _L: FeedText["L"]): string {
+function sourceStatusLabel(status: FeedSourceRecord["status"], _L: FeedText["readText"]): string {
   return ({ active: uiText.text("feed.stage-ui.connected"), paused: uiText.text("feed.stage-ui.paused"), error: uiText.text("feed.stage-ui.needs-attention"), disconnected: uiText.text("feed.stage-ui.disconnected") } as const)[status];
 }
 

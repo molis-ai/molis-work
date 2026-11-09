@@ -24,12 +24,12 @@ import { renderAppearanceRecovery } from "./settings-appearance.js";
 export interface ProjectSettingsPagePorts {
   accountRegistration?: boolean;
   appearance?: WorkbenchAppearancePorts;
-  L(text: string, values?: Record<string, string | number>): string;
+  readText(text: string, values?: Record<string, string | number>): string;
   escapeHtml(value: unknown): string;
   icon(name: PluginIconName): string;
   htmlLang(): string;
   controlTokenMeta(token: string): string;
-  clientI18nScript(): string;
+  pluginTitleScript(): string;
   renderIconSprite(): string;
   withDesktopQuery(path: string): string;
   themeBootstrapScript: string;
@@ -43,11 +43,11 @@ const GOALS_SETTINGS_SECTIONS: ReadonlySet<ProjectSettingsFoldId> = new Set(["gu
 
 /** Settings page composition consumes canonical Goals facts and platform presentation ports. */
 export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePorts) {
-  const { L, escapeHtml, icon, htmlLang, controlTokenMeta, clientI18nScript, renderIconSprite, withDesktopQuery, renderSettingsContent } = ports;
+  const { readText, escapeHtml, icon, htmlLang, controlTokenMeta, pluginTitleScript, renderIconSprite, withDesktopQuery, renderSettingsContent } = ports;
   const { renderProjectSettingsNavigation, renderSettingsNavigation } = ports.navigation;
   const THEME_BOOTSTRAP_SCRIPT = ports.themeBootstrapScript;
   const VISUAL_FOUNDATION_CLIENT_SCRIPT = ports.visualFoundationClientScript;
-  const folds = createProjectSettingsFolds({ L, escapeHtml, icon, withDesktopQuery });
+  const folds = createProjectSettingsFolds({ readText, escapeHtml, icon, withDesktopQuery });
   function content<Data>(surface: string, data: Data, request: Readonly<Record<string, string>> = {}, view?: MolisWorkWebView,
     project = view?.project ?? null, document?: StagePageDrawing["document"]): string {
     return renderSettingsContent("goals", surface, stage => ({ ...stage, data, request,
@@ -56,9 +56,9 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
 
   function planningDocument(controlToken: string, desktopShell: boolean, navigation: string): NonNullable<StagePageDrawing["document"]> {
     const appearance = ports.appearance?.current();
-    return { lang: htmlLang(), navigation_html: navigation, client_i18n: clientI18nScript(), request_client: UI_REQUEST_CLIENT_SCRIPT,
+    return { lang: htmlLang(), navigation_html: navigation, client_i18n: pluginTitleScript(), request_client: UI_REQUEST_CLIENT_SCRIPT,
       foundation_client: VISUAL_FOUNDATION_CLIENT_SCRIPT,
-      render: (document: WorkbenchDocumentRenderRequest) => `<!doctype html>${document.preamble_html ?? ""}<html lang="${document.lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${NO_FAVICON_LINK}${controlTokenMeta(controlToken)}<title>${escapeHtml(document.title)}</title><script>${THEME_BOOTSTRAP_SCRIPT}</script><link rel="stylesheet" href="/assets/molis-work-settings.css">${appearanceHead(appearance)}</head><body${ports.accountRegistration ? ACCOUNT_REGISTRATION_BODY : ''} class="settings-page planning-page project-preferences-page" data-desktop-shell="false"${desktopShell ? ' data-native-desktop="true"' : ""}>${renderIconSprite()}${document.body_html}${renderAppearanceRecovery(L, appearance)}${appearanceClientTag(appearance)}</body></html>`,
+      render: (document: WorkbenchDocumentRenderRequest) => `<!doctype html>${document.preamble_html ?? ""}<html lang="${document.lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${NO_FAVICON_LINK}${controlTokenMeta(controlToken)}<title>${escapeHtml(document.title)}</title><script>${THEME_BOOTSTRAP_SCRIPT}</script><link rel="stylesheet" href="/assets/molis-work-settings.css">${appearanceHead(appearance)}</head><body${ports.accountRegistration ? ACCOUNT_REGISTRATION_BODY : ''} class="settings-page planning-page project-preferences-page" data-desktop-shell="false"${desktopShell ? ' data-native-desktop="true"' : ""}>${renderIconSprite()}${document.body_html}${renderAppearanceRecovery(readText, appearance)}${appearanceClientTag(appearance)}</body></html>`,
     };
   }
 
@@ -71,13 +71,13 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
   }
 
   function renderHubSection(view: MolisWorkWebView, guidance: ProjectGuidanceView | null, methods: readonly PlanningMethodPack[], section: ProjectSettingsFoldId, desktopShell: boolean): string {
-    if (section === "workspaces") return renderProjectDirectoriesSection(L, view.route_prefix || `/projects/${encodeURIComponent(view.project!.project_id)}`);
+    if (section === "workspaces") return renderProjectDirectoriesSection(readText, view.route_prefix || `/projects/${encodeURIComponent(view.project!.project_id)}`);
     if (section === "general" || guidance === null && GOALS_SETTINGS_SECTIONS.has(section)) return folds.renderGeneralPage(hubProject(view), desktopShell);
     if (section === "guidance") return content("guidance", { guidance: guidance! }, {}, view);
-    if (section === "memory") return renderMemorySettings({ L, scope: "project", projectId: view.project!.project_id });
-    if (section === "knowledge") return renderKnowledgeSettings({ L, projectId: escapeHtml(view.project!.project_id) });
-    if (section === "plugins") return renderPluginTrustSettings({ L, projectId: escapeHtml(view.project!.project_id), chevron: icon("chevron-down") });
-    if (section === "grants") return renderTaskGrantsSettings({ L, projectId: escapeHtml(view.project!.project_id) });
+    if (section === "memory") return renderMemorySettings({ readText, scope: "project", projectId: view.project!.project_id });
+    if (section === "knowledge") return renderKnowledgeSettings({ readText, projectId: escapeHtml(view.project!.project_id) });
+    if (section === "plugins") return renderPluginTrustSettings({ readText, projectId: escapeHtml(view.project!.project_id), chevron: icon("chevron-down") });
+    if (section === "grants") return renderTaskGrantsSettings({ readText, projectId: escapeHtml(view.project!.project_id) });
     if (section === "rules") return content("rules", { policy_bindings: view.policy_bindings }, {}, view);
     return content("project", { methods }, { desktop: String(desktopShell) }, view);
   }
@@ -109,8 +109,8 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
     ${navigation}
     <div class="settings-content" id="settings-content">${page}</div>
   </main>
-  <div class="mw-toast toast" data-settings-toast role="status" aria-live="polite"></div>${renderAppearanceRecovery(L, appearance)}
-  <script>${clientI18nScript()}${UI_REQUEST_CLIENT_SCRIPT}${WRITE_CHECKERS_CLIENT_SCRIPT}${PROJECT_DIRECTORIES_CLIENT_SCRIPT}${PROJECT_SETTINGS_CLIENT_SCRIPT}${PROJECT_GUIDANCE_CLIENT_SCRIPT}${MEMORY_SETTINGS_CLIENT_SCRIPT}${PLUGIN_TRUST_SETTINGS_CLIENT_SCRIPT}${TASK_GRANTS_SETTINGS_CLIENT_SCRIPT}${pluginSettingsClients()}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>${appearanceClientTag(appearance)}${knowledgeClientTag()}
+  <div class="mw-toast toast" data-settings-toast role="status" aria-live="polite"></div>${renderAppearanceRecovery(readText, appearance)}
+  <script>${pluginTitleScript()}${UI_REQUEST_CLIENT_SCRIPT}${WRITE_CHECKERS_CLIENT_SCRIPT}${PROJECT_DIRECTORIES_CLIENT_SCRIPT}${PROJECT_SETTINGS_CLIENT_SCRIPT}${PROJECT_GUIDANCE_CLIENT_SCRIPT}${MEMORY_SETTINGS_CLIENT_SCRIPT}${PLUGIN_TRUST_SETTINGS_CLIENT_SCRIPT}${TASK_GRANTS_SETTINGS_CLIENT_SCRIPT}${pluginSettingsClients()}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>${appearanceClientTag(appearance)}${knowledgeClientTag()}
 </body></html>`;
   }
 

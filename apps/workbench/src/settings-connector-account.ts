@@ -48,12 +48,12 @@ function reachability(connection: ConnectorSettingsConnection, p: Primitives): s
 }
 
 /** What the account can do, in the service's own words; the permission names are under 高级. */
-function abilities(card: ConnectorSettingsCardView | undefined, connection: ConnectorSettingsConnection, p: Primitives): string {
-  const { L } = p, can = (card?.capabilities ?? []).filter(entry => entry.fulfillment === "live").map(entry => L(entry.label));
+function abilities(card: ConnectorSettingsCardView | undefined, connection: ConnectorSettingsConnection): string {
+  const can = (card?.capabilities ?? []).filter(entry => entry.fulfillment === "live").map(entry => entry.label);
   const tools = connection.status?.capabilities.entries.filter(entry => entry.available).length ?? 0;
   if (connection.auth_method === "mcp" && tools) return uiText.text("workbench.settings-connector-account.count-count-available", { count: tools });
   if (!can.length) return uiText.text("workbench.settings-connector-account.uses-what-service-grants");
-  return can.length > 3 ? uiText.text("workbench.settings-connector-account.list-more-count", { list: can.slice(0, 3).join(L("、")), count: can.length }) : can.join(L("、"));
+  return can.length > 3 ? uiText.text("workbench.settings-connector-account.list-more-count", { list: can.slice(0, 3).join(uiText.text("common.list.separator")), count: can.length }) : can.join(uiText.text("common.list.separator"));
 }
 
 /** Who may use the connection and whether the person may change it here: theirs, a project's, or an account an official client keeps. */
@@ -95,18 +95,18 @@ function renderSwitch(connection: ConnectorSettingsConnection, others: readonly 
  * person manages, the ones 换账号 can move to.
  */
 export function renderConnectionAccount(connection: ConnectorSettingsConnection, card: ConnectorSettingsCardView | undefined, p: Primitives, others: readonly ConnectorSettingsConnection[] = []): string {
-  const { L, escapeHtml: e } = p;
+  const { escapeHtml: e } = p;
   const id = e(connection.connection_id), { project, own } = manageable(connection);
   const key = connection.auth_method === "token" && !connection.account_label;
   const row = (title: string, note: string, value: string) => `<div class="settings-setting-row"><span class="setting-copy"><strong>${title}</strong><span>${note}</span></span><span class="setting-value">${value}</span></div>`;
   const declared = connection.declared_by ? ` <small data-connection-declared-by>${e(uiText.text("workbench.settings-connector-account.made"))} · ${e(connection.declared_by.title)}</small>` : "";
   const named = connection.account_label && connection.account_label !== connection.display_name ? e(connection.display_name) : e(uiText.text(key ? "workbench.settings-connector-account.kept-machine-neither-page-nor-assistant-sees" : "workbench.settings-connector-account.account-signed"));
   const where = connection.target_origin ? ` · ${e(connection.target_origin)}` : "";
-  const reachNote = connection.reauth_note ? `<small data-connection-reauth-note>${e(L(connection.reauth_note))}</small>` : e(uiText.text(checkable(connection) ? "workbench.settings-connector-account.last-check" : "workbench.settings-connector-account.checked-where-used"));
+  const reachNote = connection.reauth_note ? `<small data-connection-reauth-note>${e(connection.reauth_note)}</small>` : e(uiText.text(checkable(connection) ? "workbench.settings-connector-account.last-check" : "workbench.settings-connector-account.checked-where-used"));
   const facts = renderCard({ className: "connection-facts", body: [
     row(e(uiText.text(key ? "workbench.settings-connector-account.key" : "workbench.settings-connector-account.account")), `${named}${where}${declared}`, `<strong>${e(accountName(connection))}</strong>`),
     row(e(uiText.text("workbench.settings-connector-account.reachable-2")), reachNote, `<span data-connection-state>${reachability(connection, p)}</span>`),
-    row(e(uiText.text("workbench.settings-connector-account.what-can-do")), e(uiText.text("workbench.settings-connector-account.raw-permissions-under-advanced-below")), `<span>${e(abilities(card, connection, p))}</span>`),
+    row(e(uiText.text("workbench.settings-connector-account.what-can-do")), e(uiText.text("workbench.settings-connector-account.raw-permissions-under-advanced-below")), `<span>${e(abilities(card, connection))}</span>`),
     row(e(uiText.text("workbench.settings-connector-account.used")), e(uiText.text("workbench.settings-connector-account.switching-disconnecting-affects-these")), `<span data-connection-usages="${id}">${e(uiText.text("workbench.settings-connector-account.read-when-opened"))}</span>`),
   ].join("") });
   const button = (variant: string, attrs: string, label: string) => `<button class="mw-btn mw-btn--${variant}" type="button" ${attrs}>${e(label)}</button>`;

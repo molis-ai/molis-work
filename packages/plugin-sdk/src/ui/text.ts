@@ -1,5 +1,5 @@
 import type { OwnedTextRef, TextArgs, TextDateOptions, TextDateStyle, TextNumberStyle, UiFormatTool, UiLocalePack, UiSayOptions, UiSayTool, UiTextProvider, UiTextTool } from "@molis-ai/molis-work-contracts/platform/ui";
-import { PLATFORM_TEXT_OWNER, SHARED_OWNER } from "../message-declarations.js";
+import { PLATFORM_TEXT_OWNER, SHARED_OWNER } from "./text-keys.js";
 import { escapeHtml } from "./html.js";
 import { formatDate, formatNumber } from "./message-format.js";
 import { uiTextErrors } from "./text-errors.js";

@@ -3,7 +3,7 @@ import { pluginPageRequest } from "./plugin-page-authority.js";
 import { t as uiText, escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { HomePluginHost, HomePluginPlatform } from "./home-plugins.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { declaredStageContributionId, inWordsOf, renderHomePluginPage, sideOpenedPlugins, stageContributionId, renderStagePage, type RenderedStagePage, type UnavailablePluginStage, type WorkbenchAppearancePorts } from "@molis-ai/molis-work-app-workbench";
+import { declaredStageContributionId, renderHomePluginPage, sideOpenedPlugins, stageContributionId, renderStagePage, type RenderedStagePage, type UnavailablePluginStage, type WorkbenchAppearancePorts } from "@molis-ai/molis-work-app-workbench";
 import type { UiContribution, UiRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import { PLATFORM_PLUGIN_REGISTRATIONS, runsInHome } from "./plugin-registry.js";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -20,7 +20,7 @@ import { captureRuntimeStageOwner, type HomeStageHalves } from "./project-plugin
 import { dispatchRuntimePluginRoute, PLUGIN_MANAGEMENT_OPERATIONS } from "./plugin-route-operations.js";
 import { projectRouteControl } from "./plugin-actions-client.js";
 import { pluginRouteControl } from "./plugin-route-control.js";
-import { L, htmlLang, clientI18nScript } from "./web-locale.js";
+import { readText, htmlLang, pluginTitleScript } from "./web-locale.js";
 import { randomUUID } from "node:crypto";
 import { installedStageSection } from "./installed-stage-section.js";
 import { FRAME_QUERY } from "./plugin-builder-surface.js";
@@ -42,7 +42,7 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
   const page = sidePage ?? /^\/plugins\/([a-z0-9][a-z0-9.-]*)$/u.exec(url.pathname);
   const route = /^\/api\/plugins\/([^/]+)\//u.exec(url.pathname);
   if (!page && !route || !host.homePlugins) return false;
-  const pageLocale = () => ({ L, htmlLang, clientI18nScript, accountRegistration, appearance: appearance?.current() });
+  const pageLocale = () => ({ readText, htmlLang, pluginTitleScript, accountRegistration, appearance: appearance?.current() });
   // The Home's own registration names its pages and owns its routes, a plugin the build does not ship included (#679, S-31).
   const entry = page ? await registeredPage(host.homePlugins, page[1]!) : undefined;
   if (page && !entry) return false;
@@ -276,8 +276,8 @@ function homePageContext(request: IncomingMessage, url: URL, registered: ReturnT
 const pageEntry = (entry: ReturnType<HomePluginHost["registered"]>[number]) => ({ project_plugin_id: entry.key, manifest: entry.manifest });
 
 /** What a Home view is drawn with: the page's own escaping and language, as the workbench gives its built-in stages. */
-function homeViewModel(pluginId: string) {
-  return { primitives: { escape: (value: unknown) => escapeHtml(String(value)), text: inWordsOf(pluginId, L) } };
+function homeViewModel(_pluginId: string) {
+  return { primitives: { escape: (value: unknown) => escapeHtml(String(value)), text: readText } };
 }
 
 /**

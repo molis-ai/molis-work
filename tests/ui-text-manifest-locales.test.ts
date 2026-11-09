@@ -23,12 +23,14 @@ test("FSS-52 a Manifest declares its languages and the parsed Manifest keeps the
   }
 });
 
-test("FSS-52 a Manifest without ui.locales still parses and still takes ui.messages and ui.translations", () => {
+test("FSS-52 a Manifest may omit ui.locales, but neither removed field is accepted", () => {
   assert.equal(parsePluginManifest(declarationManifest()).ui.locales, undefined);
-  const messages = { "declaration-rules.page.title": { zh: "标题", en: "Title" } };
-  const parsed = parsePluginManifest(declarationManifest({ ui: { contributions: [], messages, translations: { 保存: "Save" } } }));
-  assert.deepEqual(parsed.ui.messages, messages);
-  assert.deepEqual(parsed.ui.translations, { 保存: "Save" });
+  for (const field of ["messages", "translations"]) {
+    for (const locales of [undefined, LOCALES]) {
+      const problem = manifestProblems(declarationManifest({ ui: { contributions: [], ...(locales ? { locales } : {}), [field]: {} } }));
+      assert.match(problem, /声明 ui\.locales；Manifest 不再接收 messages 或 translations/u);
+    }
+  }
 });
 
 test("FSS-52 a language tag of the wrong shape is refused, in the list and as the default", () => {
@@ -75,15 +77,6 @@ test("FSS-52 the list of languages has a limit, and going over it is one message
   assert.equal(manifestProblems(withLocales({ default: tags[0], available: tags.slice(0, 32) })), "");
   assert.equal(manifestProblems(withLocales({ default: tags[0], available: tags })), "ui.locales.available 最多 32 种语言");
   assert.equal(manifestProblems(withLocales({ default: "zh", available: ["zh", ...Array.from({ length: 5000 }, () => "BAD")] })), "ui.locales.available 最多 32 种语言");
-});
-
-test("FSS-52 ui.locales is refused beside ui.messages and beside ui.translations, and the refusal says what to do", () => {
-  const both = "ui.locales 不能和 ui.messages、ui.translations 写在同一个 Manifest 里：留 ui.locales，把词搬到 locales/<语言>.json，再删掉 ui.messages、ui.translations";
-  assert.equal(manifestProblems(withLocales(LOCALES, { messages: { "declaration-rules.page.title": { zh: "标题", en: "Title" } } })), both);
-  assert.equal(manifestProblems(withLocales(LOCALES, { translations: { 保存: "Save" } })), both);
-  // Declared at all is enough: an empty older field is still a second road.
-  assert.equal(manifestProblems(withLocales(LOCALES, { messages: {} })), both);
-  assert.equal(manifestProblems(withLocales(LOCALES, { translations: {} })), both);
 });
 
 test("FSS-52 with ui.locales, a plugin_id whose last segment cannot start a key is refused, and says why", () => {

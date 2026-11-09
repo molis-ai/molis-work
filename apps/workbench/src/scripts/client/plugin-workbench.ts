@@ -7,7 +7,7 @@ import { ARTIFACT_PORT_INPUT_CLIENT_SCRIPT } from "../../artifacts/port-input-ui
 /** Workbench composes bundled project entries and exact Artifact contributions. The switcher holding the market's update count
  * lights its dot from `data-market-updates`: a style rule that looked inside it restyled the whole switcher on every change. */
 export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
-  const { route, translate: L, projectId, setSurface, saveUiState, setMobileView, openTabItem, openPlugin } = host;
+  const { route, translate: readText, projectId, setSurface, saveUiState, setMobileView, openTabItem, openPlugin } = host;
   const market = document.querySelector('[data-work-surface="market"]');
   const selector = market.querySelector("[data-market-project]");
   const eventRecovery = (${PLUGIN_EVENT_RECOVERY_CLIENT})(host, market);
@@ -30,7 +30,7 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     return heading ? heading.textContent : id;
   };
   // One sentence with the names filled in; no sentence when the list is empty (so a button has no empty title).
-  const relation = (ids, template) => ids.length ? globalThis.t.text(template).replace("{list}", ids.map(marketName).join(L("、"))) : "";
+  const relation = (ids, template) => ids.length ? globalThis.t.text(template).replace("{list}", ids.map(marketName).join(globalThis.t.text("common.list.separator"))) : "";
   const paintUpdateCount = () => {
     if (updateCount) {
       updateCount.hidden = updates.length === 0;
@@ -140,7 +140,7 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
       const title = added
         ? relation(neededBy.filter(id => addedIds.includes(id)), "workbench.plugin-workbench.removing-also-removes-list")
         : [relation(needs.filter(id => !addedIds.includes(id)), "workbench.plugin-workbench.also-adds-list"),
-          relation(neededBy.filter(id => !addedIds.includes(id)), "workbench.plugin-workbench.plugins-that-depend-not-added-list")].filter(Boolean).join(L("；"));
+          relation(neededBy.filter(id => !addedIds.includes(id)), "workbench.plugin-workbench.plugins-that-depend-not-added-list")].filter(Boolean).join("；");
       if (title) button.title = title; else button.removeAttribute("title");
       const update = added && currentProject ? updates.find(item => item.project_plugin_id === card.dataset.marketPlugin && item.plugin_id === card.dataset.marketRuntimeId) : null;
       const upgradeButton = card.querySelector("[data-market-upgrade]");
@@ -283,7 +283,7 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
         .filter(id => id !== button.dataset.marketAdd);
       const came = targetProject === projectId ? "" : relation(also, removing ? "workbench.plugin-workbench.also-removed-list" : "workbench.plugin-workbench.also-added-list");
       const missing = removing ? "" : relation(clickedNeededBy.filter(id => !result.plugins.includes(id)), "workbench.plugin-workbench.plugins-that-depend-not-added-list");
-      const note = [came, missing].filter(Boolean).map(part => L("；") + part).join("");
+      const note = [came, missing].filter(Boolean).map(part => "；" + part).join("");
       status.textContent = (removing ? globalThis.t.text("workbench.plugin-workbench.removed") : globalThis.t.text("workbench.plugin-workbench.added")) + " " + project.display_name + note;
       if (targetProject === projectId && !host.membership) { saveUiState(); location.reload(); }
     } catch (error) { molisWorkRequest.show(status,error); }

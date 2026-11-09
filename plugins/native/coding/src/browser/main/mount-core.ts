@@ -10,7 +10,7 @@ import { api, status } from "./request.js";
 import { mountResultsIndex } from "./results-index.js";
 
 /** The words of a round's state, as the header, the directory and the facts name it. */
-function phaseWords(_L: Page["L"]): Record<string, string> {
+function phaseWords(_L: Page["readText"]): Record<string, string> {
   return {
     starting: uiText.text("coding.phase.starting"), running: uiText.text("coding.state.running"), compacting: uiText.text("coding.phase.compacting"), pausing: uiText.text("coding.phase.pausing"),
     paused: uiText.text("coding.state.paused"), "awaiting-input": uiText.text("coding.phase.awaiting-input"), "awaiting-review": uiText.text("coding.phase.awaiting-review"),
@@ -20,7 +20,7 @@ function phaseWords(_L: Page["L"]): Record<string, string> {
 }
 
 /** What each role is called where the page names a round's or a subtask's role. */
-function roleNames(_L: Page["L"]): Record<string, string> {
+function roleNames(_L: Page["readText"]): Record<string, string> {
   return {
     planner: uiText.text("coding.role.planner"), reader: uiText.text("coding.role.reader"), reviewer: uiText.text("coding.role.reviewer"), coordinator: uiText.text("coding.role.coordinator"), writers: uiText.text("coding.role.writers"),
     builder: uiText.text("coding.role.builder"), writer: uiText.text("coding.role.writer"), "coding-reader": uiText.text("coding.role.coding-reader"), "coding-reviewer": uiText.text("coding.role.coding-reviewer"),
@@ -29,9 +29,9 @@ function roleNames(_L: Page["L"]): Record<string, string> {
 }
 
 /** Everything the page remembers, empty: no session is chosen and nothing is read. `ports`, `follow` and `earlierWatch` are made by the caller. */
-function emptyState(L: Page["L"]): Omit<State, "ports" | "follow" | "earlierWatch"> {
+function emptyState(readText: Page["readText"]): Omit<State, "ports" | "follow" | "earlierWatch"> {
   return {
-    ROLE_NAMES: roleNames(L), SECTION_SHORT: {}, SESSION_STATE: Object.fromEntries(Object.entries(CODING_SESSION_MARKS).map(([state, mark]) => [state, L(mark.label)])),
+    ROLE_NAMES: roleNames(readText), SECTION_SHORT: {}, SESSION_STATE: Object.fromEntries(Object.entries(CODING_SESSION_MARKS).map(([state, mark]) => [state, mark.label])),
     actionSelections: new Map(), adoptedConfigurations: new Map(), allRuns: [], answeredQuestions: new Set(), artifactRows: [], artifactTicket: 0,
     boardAll: { key: "", id: "", value: null }, changeItem: "", characterSelections: new Map(), characterSkills: new Map(), characterTitles: new Map(),
     checkpointBusy: false, checkpointKey: "", checkpointLoading: false,
@@ -42,7 +42,7 @@ function emptyState(L: Page["L"]): Omit<State, "ports" | "follow" | "earlierWatc
     indexSignature: "", indexTimer: 0, indexed: [], itemTicket: 0, lastData: null, lastRun: null, liveRun: "", liveTicket: 0, loading: false,
     materialSelections: new Map(), materialTicket: 0, mcpChoices: [], mcpSelections: new Map(), mcpSourceChoices: [], mcpSourceSelections: new Map(),
     methodChoices: [], methodDocumentTicket: 0, methodSelections: new Map(), offeredApprovals: new Set(), offsets: new Map(),
-    olderPlanEntries: [], olderSubagents: [], olderViews: new Map(), pageLoading: false, paintFrame: 0, phases: phaseWords(L), planEntries: [], pollingTicks: 0,
+    olderPlanEntries: [], olderSubagents: [], olderViews: new Map(), pageLoading: false, paintFrame: 0, phases: phaseWords(readText), planEntries: [], pollingTicks: 0,
     progressSaving: false, progressTicket: 0, progressView: null, questionDrafts: new Map(), queuedInputs: undefined, queuedKey: "",
     recovery: false, recoveryBusy: false, recoveryKey: "", recoveryLoading: false, renderedText: new WeakMap(),
     reportItem: "", reportOutput: null, reportRun: "", reportSaving: false, reportTicket: 0, reportTrigger: undefined,
@@ -66,24 +66,24 @@ export function createPage(host: CodingHost): Page | null {
   if (!root || !directory) return null;
   const lifetime = host.mountPluginClient(root);
   if (!lifetime) return null;
-  const L = host.translate, q: Page["q"] = <Found extends Element = HTMLElement>(selector: string) => {
+  const readText = uiText.text, q: Page["q"] = <Found extends Element = HTMLElement>(selector: string) => {
     const found = root.querySelector<Found>(selector);
     if (!found) throw new Error("missing part: " + selector);
     return found;
   };
-  const s = emptyState(L) as State, refs = {} as Refs;
-  const page: Page = { host, L, root, directory, lifetime, q, turns: q("[data-coding-turns]"), input: q<HTMLTextAreaElement>("[data-coding-task]"), s, refs };
-  s.ports = { lifetime, translate: L, q, api: (path, method, body, signal) => api(page, path, method, body, signal), current: () => s.current, status: (message, isError) => status(page, message, isError), refresh: () => readCurrent(page) };
+  const s = emptyState(readText) as State, refs = {} as Refs;
+  const page: Page = { host, readText, root, directory, lifetime, q, turns: q("[data-coding-turns]"), input: q<HTMLTextAreaElement>("[data-coding-task]"), s, refs };
+  s.ports = { lifetime, translate: readText, q, api: (path, method, body, signal) => api(page, path, method, body, signal), current: () => s.current, status: (message, isError) => status(page, message, isError), refresh: () => readCurrent(page) };
   return page;
 }
 
 /** The first things the page sets up: the results index, the timeline pieces, the follow and the earlier-rounds watch. */
 export function mountFoundations(page: Page) {
-  const { L, lifetime, s, turns } = page;
+  const { readText, lifetime, s, turns } = page;
   s.viewSignal = undefined;
   mountResultsIndex(page);
-  page.refs.timeline = createCodingTimeline(codingTimelineWords(L));
-  page.refs.turnChanges = createCodingTurnChanges(L);
+  page.refs.timeline = createCodingTimeline(codingTimelineWords(readText));
+  page.refs.turnChanges = createCodingTurnChanges(readText);
   lifetime.poll(() => page.refs.timeline.tick(turns), 1000);
   followConversation(page);
 }

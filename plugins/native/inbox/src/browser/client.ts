@@ -2,7 +2,7 @@ import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type {} from "@molis-ai/molis-work-plugin-sdk";
 import type { UiPluginClientHost } from "@molis-ai/molis-work-contracts/platform/ui";
 
-export type InboxHost = Pick<UiPluginClientHost<HTMLElement, HTMLDialogElement>, "root" | "scope" | "translate" | "pluginRoute" | "route" | "mount" | "view" | "openItem" | "openPlugin" | "showToast" | "invalidateView">;
+export type InboxHost = Pick<UiPluginClientHost<HTMLElement, HTMLDialogElement>, "root" | "scope" | "pluginRoute" | "route" | "mount" | "view" | "openItem" | "openPlugin" | "showToast" | "invalidateView">;
 interface ComposeDraft { entry_ids: string[]; title: string; instructions: string; request_id: string }
 interface ComposeResult extends ComposeDraft { document_id: string | null; status: string; error?: string }
 

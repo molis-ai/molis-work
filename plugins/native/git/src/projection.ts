@@ -1,11 +1,7 @@
+import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { pathLabel } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 
 import type { GitChange, GitHead, GitStatus } from "@molis-ai/molis-work-plugin-sdk";
-
-import { GIT_MESSAGES } from "./messages.js";
-
-/** A host sentence, written in Chinese from its template; the page recognizes it and says it in its own language (`sentences.ts`). */
-const said = (key: keyof typeof GIT_MESSAGES, values: Record<string, string | number>) => GIT_MESSAGES[key].zh.replace(/\{(\w+)\}/g, (_all, name: string) => String(values[name]));
 
 /**
  * What the Git surface shows.
@@ -102,7 +98,7 @@ export function projectGit(input: GitProjectionInput): GitView {
     staged,
     changes,
     conflicts,
-    message: staged.length + changes.length + conflicts.length === 0 ? "工作区是干净的" : "",
+    message: staged.length + changes.length + conflicts.length === 0 ? t.text("git.projection.working-tree-clean") : "",
     truncated: status.truncated,
     committable: conflicts.length === 0 && staged.length > 0,
     ...(selected === undefined ? {} : { selected }),
@@ -124,22 +120,22 @@ function item(kind: GitListKind, change: GitChange): GitListItem {
 
 export function headLabel(head: GitHead): string {
   if (head.kind === "branch") return head.name;
-  if (head.kind === "unborn") return said("git.host.head-unborn", { name: head.name });
-  return said("git.host.head-detached", { commit: head.commit.slice(0, 8) });
+  if (head.kind === "unborn") return t.text("git.host.head-unborn", { name: head.name });
+  return t.text("git.host.head-detached", { commit: head.commit.slice(0, 8) });
 }
 
 function messageFor(phase: GitPhase): string {
-  if (phase === "waiting") return "这个项目还没有绑定工作目录";
-  if (phase === "loading") return "正在读取工作区状态…";
-  if (phase === "not-a-repository") return "这个目录不是 Git 仓库";
-  if (phase === "unavailable") return "打不开这个工作目录";
-  return "读取状态失败";
+  if (phase === "waiting") return t.text("git.projection.waiting");
+  if (phase === "loading") return t.text("git.projection.loading");
+  if (phase === "not-a-repository") return t.text("git.projection.not-repository");
+  if (phase === "unavailable") return t.text("git.projection.unavailable");
+  return t.text("git.projection.read-failed");
 }
 
 function recoveryFor(phase: GitPhase): string | undefined {
-  if (phase === "waiting") return "先在项目设置里选一个目录";
-  if (phase === "not-a-repository") return "在这个目录里 git init，或者换一个目录";
-  if (phase === "unavailable") return "目录可能被移动或删除了，重新选一次";
-  if (phase === "error") return "重试一次，或者先在终端里看看 git status";
+  if (phase === "waiting") return t.text("git.projection.choose-directory");
+  if (phase === "not-a-repository") return t.text("git.projection.initialize");
+  if (phase === "unavailable") return t.text("git.projection.directory-moved");
+  if (phase === "error") return t.text("git.projection.retry");
   return undefined;
 }

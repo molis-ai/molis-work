@@ -52,15 +52,15 @@ const problemSlot = (container: Element) =>
 
 /** The action schema and the store take FORM_ANSWER_LIMIT characters; a maxlength attribute takes UTF-16 units and stopped a
  * two-unit character at half the limit. This cuts the box to whole characters at the same limit and says it in the page's words. */
-const capAnswer = (L: Translate, input: HTMLInputElement, title: string, container: Element) => {
+const capAnswer = (readText: Translate, input: HTMLInputElement, title: string, container: Element) => {
   const slot = problemSlot(container);
   const over = input.value.length > FORM_ANSWER_LIMIT && [...input.value].length > FORM_ANSWER_LIMIT;
   if (over) input.value = [...input.value].slice(0, FORM_ANSWER_LIMIT).join("");
   if (!slot) return;
-  if (over) { slot.hidden = false; slot.textContent = tooLongText(L, title); slot.classList.add("is-error"); }
+  if (over) { slot.hidden = false; slot.textContent = tooLongText(readText, title); slot.classList.add("is-error"); }
   // The preview's note line is hidden when empty; the full-screen fill page's error line is never hidden (its submit writes into it
   // without un-hiding it), so hiding it here would swallow the next "required is still empty" or "submission failed" line.
-  else if (slot.textContent === tooLongText(L, title)) { slot.textContent = ""; slot.hidden = slot.matches("[data-form-note]"); slot.classList.remove("is-error"); }
+  else if (slot.textContent === tooLongText(readText, title)) { slot.textContent = ""; slot.hidden = slot.matches("[data-form-note]"); slot.classList.remove("is-error"); }
 };
 
 const answerField = (question: FormQuestion) => {
@@ -79,7 +79,7 @@ const answerField = (question: FormQuestion) => {
   return input;
 };
 
-export const buildFields = (L: Translate, container: Element, questions: readonly FormQuestion[]) => {
+export const buildFields = (readText: Translate, container: Element, questions: readonly FormQuestion[]) => {
   questions.forEach((question) => {
     const field = make("div", "form-field");
     const title = document.createElement(["singleChoice", "multiChoice", "rating"].includes(question.type) ? "span" : "label");
@@ -90,7 +90,7 @@ export const buildFields = (L: Translate, container: Element, questions: readonl
     field.querySelectorAll<HTMLInputElement | HTMLSelectElement>("input:not([type=radio]):not([type=checkbox]),select").forEach((input) => {
       input.id = title.id + "-input"; if (title instanceof HTMLLabelElement) title.htmlFor = input.id; input.setAttribute("aria-labelledby", title.id);
       input.setAttribute("aria-required", String(question.required));
-      if (input instanceof HTMLInputElement && input.type === "text") input.addEventListener("input", () => capAnswer(L, input, question.title, container));
+      if (input instanceof HTMLInputElement && input.type === "text") input.addEventListener("input", () => capAnswer(readText, input, question.title, container));
     });
     container.append(field);
   });
@@ -130,5 +130,5 @@ export const renderPreview = (page: FormPage, record: FormRecord) => {
     page.previewEl.append(emptyPreview);
     return;
   }
-  buildFields(page.L, page.previewEl, record.questions || []);
+  buildFields(page.readText, page.previewEl, record.questions || []);
 };

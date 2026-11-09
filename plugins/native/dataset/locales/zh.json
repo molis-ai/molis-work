@@ -21,6 +21,7 @@
     "dataset.column.type-date": "日期",
     "dataset.column.type-number": "数字",
     "dataset.column.type-text": "文字",
+    "dataset.create.kind-title": "数据表",
     "dataset.dialog.cancel": "取消",
     "dataset.dialog.confirm": "确定",
     "dataset.dialog.delete-confirm": "删除这张表？版本记录也会一起删掉。",

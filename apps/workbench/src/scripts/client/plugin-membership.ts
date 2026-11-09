@@ -13,7 +13,7 @@
  * match what the server renders. The page's state is saved and the page is loaded again.
  */
 export const PLUGIN_MEMBERSHIP_FACTORY_SCRIPT = `(host) => {
-  const { route, translate: L, projectId, saveUiState, showToast } = host;
+  const { route, translate: readText, projectId, saveUiState, showToast } = host;
   const rail = (root = document) => root.querySelector('.plugin-rail-items');
   const tiles = (root = document) => [...(rail(root)?.querySelectorAll('.plugin-rail-tile') || [])];
   const tileOf = (id, root = document) => tiles(root).find((tile) => tile.dataset.pluginTile === id) || null;

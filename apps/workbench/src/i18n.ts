@@ -1,40 +1,6 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
-
-import { fillMessage } from "@molis-ai/molis-work-plugin-sdk";
 import { UI_LANGUAGES, type UiLanguageTag } from "@molis-ai/molis-work-contracts/platform/ui";
-import { EN } from "./i18n/en.js";
-import { BUILTIN_PLUGIN_CATALOG, pluginTabTitles } from "./plugin-catalog.js";
-import { createPluginMessageStore } from "./plugin-messages.js";
-
-/** The words of the installed Plugins, from their Manifests: the built-in ones at start, the others as the Host installs them. */
-const pluginMessages = createPluginMessageStore();
-for (const entry of BUILTIN_PLUGIN_CATALOG) {
-  const problems = pluginMessages.register(entry.manifest);
-  if (problems.length > 0) throw new Error(`${entry.manifest.plugin_id}: ${problems.join("；")}`);
-}
-export const registerPluginMessages = pluginMessages.register;
-export const unregisterPluginMessages = pluginMessages.unregister;
-
-/** The English a Plugin keys by Chinese text, while the page draws that Plugin's contribution (see `withPluginWords`). */
-let drawingFor: Readonly<Record<string, string>> | null = null;
-
-/**
- * Runs `draw` with `pluginId`'s own `ui.translations` applied after the Host's English, so what the Plugin's contribution
- * draws can be shown in English without the same Chinese sentence changing anywhere else on the page. Synchronous on purpose:
- * the scope ends when `draw` returns, and nothing it awaits would still be inside it.
- */
-export function withPluginWords<T>(pluginId: string, draw: () => T): T {
-  const outer = drawingFor;
-  drawingFor = pluginMessages.translationsFor(pluginId);
-  try { return draw(); } finally { drawingFor = outer; }
-}
-
-
-/** `translate` for text a Plugin's own code draws: that Plugin's words after the page's, and no one else's. */
-export const inWordsOf = <A extends unknown[], R>(pluginId: string, translate: (...args: A) => R) => (...args: A): R => withPluginWords(pluginId, () => translate(...args));
-
-export { EN } from "./i18n/en.js";
-
+import { pluginTabTitles } from "./plugin-catalog.js";
 
 export type WebLocale = UiLanguageTag;
 export type WebLocalePreference = WebLocale | "system";
@@ -135,11 +101,6 @@ function localeSwitchHref(locale: WebLocalePreference, nextPath: string): string
   return `/locale?lang=${locale}&next=${encodeURIComponent(safeNextPath(nextPath))}`;
 }
 
-function L(key: string, vars?: Record<string, string | number>): string {
-  const locale = currentLocale();
-  return fillMessage(pluginMessages.messages()[key]?.[locale] ?? (locale === "en" ? (EN[key] ?? drawingFor?.[key] ?? key) : key), vars);
-}
-
 function renderLocaleSwitch(nextPath: string): string {
   const locale = currentLocale();
   return `<nav class="locale-switch" aria-label="${escapeAttr(uiText.text("workbench.i18n.language"))}">
@@ -147,36 +108,11 @@ function renderLocaleSwitch(nextPath: string): string {
   </nav>`;
 }
 
-function catalogJson(locale: WebLocale): string {
-  const messages = Object.fromEntries(Object.entries(pluginMessages.messages()).map(([key, text]) => [key, text[locale]]));
-  return JSON.stringify({ ...(locale === "en" ? EN : {}), ...messages }).replaceAll("<", "\\u003c");
-}
-
-/** Each Plugin's own English by its id, for the frame that draws that Plugin and nothing else (`ui.translations` are not page-wide). */
-function pluginWordsJson(locale: WebLocale): string {
-  const words = locale === "en" ? Object.fromEntries(pluginMessages.translated()) : {};
-  return JSON.stringify(words).replaceAll("<", "\\u003c");
-}
-
-function englishCatalogJson(): string {
-  return catalogJson("en");
-}
-
-function clientI18nScript(): string {
-  const catalog = catalogJson(currentLocale());
-  // The built-in plugins' tab titles in this page's language, read by the workbench scripts (one copy, not one per script).
+/** A projection of the registered tab names, separate from the words owned by a language file. */
+function pluginTitleScript(): string {
   const titles = JSON.stringify(pluginTabTitles(currentLocale() === "en")).replaceAll("<", "\\u003c");
-  return `globalThis.MOLIS_WORK_MESSAGES = ${catalog};
-  globalThis.MOLIS_WORK_PLUGIN_TITLES = ${titles};
-  globalThis.MOLIS_WORK_PLUGIN_WORDS = ${pluginWordsJson(currentLocale())};
-  (fill => {
-    globalThis.L = function L(key, vars) { return fill(globalThis.MOLIS_WORK_MESSAGES[key] ?? key, vars); };
-    // A Plugin's text drawn by the page: its own English after the page's, and nothing it declares reaches anything else.
-    globalThis.LF = function LF(pluginId, key, vars) { return fill(globalThis.MOLIS_WORK_MESSAGES[key] ?? globalThis.MOLIS_WORK_PLUGIN_WORDS[pluginId]?.[key] ?? key, vars); };
-    globalThis.LFor = function LFor(pluginId) { return function (key, vars) { return globalThis.LF(pluginId, key, vars); }; };
-  })(${fillMessage.toString()});`;
+  return `globalThis.MOLIS_WORK_PLUGIN_TITLES = ${titles};`;
 }
-
 
 function escapeAttr(value: string): string {
   return value
@@ -186,5 +122,5 @@ function escapeAttr(value: string): string {
     .replaceAll('"', "&quot;");
 }
 
-  return { currentLocale, isWebLocale, htmlLang, dateTimeLocale, listJoin, resolveWebLocale, resolveWebLocaleChoice, safeNextPath, localePreference, localeSetCookie, localeSwitchHref, L, renderLocaleSwitch, englishCatalogJson, clientI18nScript };
+  return { currentLocale, isWebLocale, htmlLang, dateTimeLocale, listJoin, resolveWebLocale, resolveWebLocaleChoice, safeNextPath, localePreference, localeSetCookie, localeSwitchHref, renderLocaleSwitch, pluginTitleScript };
 }

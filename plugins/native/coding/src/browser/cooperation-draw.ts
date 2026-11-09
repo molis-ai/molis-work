@@ -60,7 +60,7 @@ async function post(coop: Coop, path: string, said: string) {
 }
 
 function receipts(coop: Coop, delegation: Delegation) {
-  const L = coop.ports.translate, word = words(L).event;
+  const readText = coop.ports.translate, word = words(readText).event;
   const details = el("details", "", "coding-coop-receipts"), list = el("ol");
   for (const receipt of delegation.receipts) {
     const item = el("li");
@@ -73,8 +73,8 @@ function receipts(coop: Coop, delegation: Delegation) {
   return details;
 }
 
-function stateChip(L: Translate, delegation: Delegation) {
-  const chip = el("span", words(L).delegation[delegation.state] || delegation.state_label, "mw-status mw-status--plain");
+function stateChip(readText: Translate, delegation: Delegation) {
+  const chip = el("span", words(readText).delegation[delegation.state] || delegation.state_label, "mw-status mw-status--plain");
   chip.dataset.tone = TONE[delegation.state] || "idle";
   chip.dataset.mwState = RING[delegation.state] || "verify";
   return chip;
@@ -103,7 +103,7 @@ function reasonForm(coop: Coop, label: string, confirm: string, handler: (reason
 
 /** Commands a round left running in the background, with a button to stop each. */
 export function drawBackground(coop: Coop) {
-  const { translate: L } = coop.ports, section = coop.backgroundSection, word = words(L).task;
+  const { translate: readText } = coop.ports, section = coop.backgroundSection, word = words(readText).task;
   section.hidden = !coop.commands.length && !coop.backgroundUnknown;
   section.replaceChildren();
   if (section.hidden) return;
@@ -188,12 +188,12 @@ function answerRow(coop: Coop, incoming: Delegation, path: string) {
 
 /** The delegation another session handed to this one: what it asks, and what can be done with it now. */
 export function drawBanner(coop: Coop, incoming: Delegation | null) {
-  const { translate: L } = coop.ports, { banner } = coop;
+  const { translate: readText } = coop.ports, { banner } = coop;
   banner.hidden = !incoming;
   banner.replaceChildren();
   if (!incoming) return;
   const head = el("div", "", "coding-coop-head");
-  head.append(el("strong", uiText.text("coding.coop.incoming")), stateChip(L, incoming));
+  head.append(el("strong", uiText.text("coding.coop.incoming")), stateChip(readText, incoming));
   const from = el("p", "", "coding-coop-line");
   from.append(document.createTextNode(uiText.text("coding.coop.from")), sessionLink(coop, incoming.from), document.createTextNode(" · " + incoming.title));
   const ended = ENDED.includes(incoming.state);
@@ -214,7 +214,7 @@ export function drawBanner(coop: Coop, incoming: Delegation | null) {
   } else if (incoming.state === "committing") {
     committing(coop, incoming, path);
   } else {
-    banner.append(el("p", incoming.state === "completed" ? uiText.text("coding.coop.completed") : (incoming.receipts.at(-1)?.note || words(L).delegation[incoming.state] || incoming.state_label), "coding-coop-note"));
+    banner.append(el("p", incoming.state === "completed" ? uiText.text("coding.coop.completed") : (incoming.receipts.at(-1)?.note || words(readText).delegation[incoming.state] || incoming.state_label), "coding-coop-note"));
   }
   banner.append(receipts(coop, incoming));
 }
@@ -266,9 +266,9 @@ function deliveryRow(coop: Coop, delegation: Delegation, delivery: Delivery, pat
 
 /** A delegation this session handed to another. */
 function outgoingCard(coop: Coop, delegation: Delegation) {
-  const L = coop.ports.translate, word = words(L);
+  const readText = coop.ports.translate, word = words(readText);
   const card = el("article", "", "coding-coop-card"), head = el("div", "", "coding-coop-head"), path = "/" + encodeURIComponent(delegation.delegation_id);
-  head.append(el("strong", delegation.title), stateChip(L, delegation));
+  head.append(el("strong", delegation.title), stateChip(readText, delegation));
   const open = !ENDED.includes(delegation.state), to = el("p", "", "coding-coop-line");
   to.append(document.createTextNode(uiText.text("coding.coop.delegated-to")), sessionLink(coop, delegation.to));
   if (delegation.to?.state) to.append(el("span", uiText.text("coding.coop.there", { state: word.session[delegation.to.state] || delegation.to.state }), "coding-coop-note"));
@@ -282,7 +282,7 @@ function outgoingCard(coop: Coop, delegation: Delegation) {
 
 /** Every delegation of the session, the sessions related to it, and its messages. */
 export function drawSection(coop: Coop, value: Delegations) {
-  const { translate: L } = coop.ports, { section } = coop, word = words(L);
+  const { translate: readText } = coop.ports, { section } = coop, word = words(readText);
   const empty = !value.outgoing.length && !value.related.length && !value.incoming && !coop.mail.length;
   section.hidden = empty;
   section.replaceChildren();

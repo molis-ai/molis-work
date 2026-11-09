@@ -1,5 +1,5 @@
 import { LOCALE_TAG, TEXT_REF_LIMITS, UI_FILE_LIMITS, UI_FORMAT_VERSIONS, type UiFileResult, type UiLocalePack, type UiMessage } from "@molis-ai/molis-work-contracts/platform/ui";
-import { keyOwnerProblem, messageOwnerOf, PLATFORM_TEXT_OWNER, SHARED_OWNER, STABLE_KEY } from "../message-declarations.js";
+import { keyOwnerProblem, messageOwnerOf, PLATFORM_TEXT_OWNER, SHARED_OWNER, STABLE_KEY } from "./text-keys.js";
 import { checkFormatVersion, childPath, finishFile, isObject, readObject, readStrictJson, type ProblemSink } from "./file-reader.js";
 import { localeChain } from "./text-lookup.js";
 

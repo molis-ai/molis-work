@@ -61,7 +61,7 @@ export const ASSISTANT_MATERIALS_PART = String.raw`  /* ─── Sending ──
      is linked under it, otherwise neither (spec §21.5). What a page hands over brings its object along. */
   const joined = new Set();
   const { objectKey, belongsToWork, holds, relatedWorks, pickable, forgetRelated } = (${ASSISTANT_WORK_OBJECTS_FACTORY_SCRIPT})({ api, joined, open: () => Boolean(panel && !panel.hidden),
-    current: () => (view && view.work.work_id === curId ? view : null), repaint: () => paintMats(), L });
+    current: () => (view && view.work.work_id === curId ? view : null), repaint: () => paintMats(), readText });
   /** The page's session of the plugin a new work aims at, which it continues instead of starting another. */
   const executorSession = (id) => { const offer = id === "assistant" ? null : executorOffer(id), ctx = pageCtx(); return offer && ctx && ctx.object && ctx.object.kind === offer.session_kind ? ctx.object.id : null; };
   const pageObject = () => {
@@ -95,13 +95,13 @@ export const ASSISTANT_MATERIALS_PART = String.raw`  /* ─── Sending ──
     else if (item.key.startsWith("file:")) { if (!attachments.drop(item.key)) files = files.filter((file) => "file:" + (file.chip || file.material_id) !== item.key); } else removed.add(item.key);
   }
   const stripNode = island.querySelector("[data-assistant-context-strip]");
-  attachments = (${ASSISTANT_ATTACHMENTS_FACTORY_SCRIPT})({ L, api, toast: (text) => host.showToast?.(text), files: () => files, take: (file) => files.push(file), paint: () => paintMats() });
-  const sideContext = (${ASSISTANT_SIDE_CONTEXT_FACTORY_SCRIPT})({ L, el, kinds: MATERIAL_KIND, tile, glyph, group, sideAct, paintBlock, keepFocus, sidePanelHere, sidePreview, readBack, readImage, openObject, objectState, objectTitle, objectDetail, objectGlyph, surfaceName, addFiles,
+  attachments = (${ASSISTANT_ATTACHMENTS_FACTORY_SCRIPT})({ readText, api, toast: (text) => host.showToast?.(text), files: () => files, take: (file) => files.push(file), paint: () => paintMats() });
+  const sideContext = (${ASSISTANT_SIDE_CONTEXT_FACTORY_SCRIPT})({ readText, el, kinds: MATERIAL_KIND, tile, glyph, group, sideAct, paintBlock, keepFocus, sidePanelHere, sidePreview, readBack, readImage, openObject, objectState, objectTitle, objectDetail, objectGlyph, surfaceName, addFiles,
     current: () => (view && view.work.work_id === curId ? view : null), pickFile: () => fileInput?.click(), expired: EXPIRED_IMAGE, block: () => blocks.materials,
     pending: () => materialsNow().filter((item) => !item.optional && !item.state).map((item) => ({ kind: item.key === "draft" ? "text" : item.key === "selection" ? "selection" : item.key.startsWith("file:") ? (files.find((file) => "file:" + (file.chip || file.material_id) === item.key) || {}).kind || "file" : "object", title: item.label })) });
-  const surroundings = (${ASSISTANT_SIDE_SURROUNDINGS_FACTORY_SCRIPT})({ L, el, card, group, stack, paintBlock, keepFocus, api, environmentBlock: () => blocks.environment, toolsBlock: () => blocks.tools });
-  const usagePane = (${ASSISTANT_SIDE_USAGE_FACTORY_SCRIPT})({ L, el, progress, api, toast: (error) => host.showToast?.(error), box: () => usageBox, current: () => (view && view.work.work_id === curId ? view : null), adopt: (next) => { view = next; render(); } });
-  contextStrip = stripNode && (${ASSISTANT_CONTEXT_STRIP_FACTORY_SCRIPT})({ strip: stripNode, L, el, items: materialsNow, open: () => Boolean(panel && !panel.hidden), focused: () => document.activeElement === input,
+  const surroundings = (${ASSISTANT_SIDE_SURROUNDINGS_FACTORY_SCRIPT})({ readText, el, card, group, stack, paintBlock, keepFocus, api, environmentBlock: () => blocks.environment, toolsBlock: () => blocks.tools });
+  const usagePane = (${ASSISTANT_SIDE_USAGE_FACTORY_SCRIPT})({ readText, el, progress, api, toast: (error) => host.showToast?.(error), box: () => usageBox, current: () => (view && view.work.work_id === curId ? view : null), adopt: (next) => { view = next; render(); } });
+  contextStrip = stripNode && (${ASSISTANT_CONTEXT_STRIP_FACTORY_SCRIPT})({ strip: stripNode, readText, el, items: materialsNow, open: () => Boolean(panel && !panel.hidden), focused: () => document.activeElement === input,
     add: () => { const page = pageObject(); if (page) joined.add(objectKey(page.object)); paintMats(); },
     drop: (item) => { dropMaterial(item); paintMats(); }, retry: (item) => attachments.retry(item.key),
     go: (work) => { void switchTo(work.work_id); input.focus(); } });

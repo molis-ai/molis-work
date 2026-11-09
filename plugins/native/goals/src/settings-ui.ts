@@ -23,7 +23,7 @@ interface GoalsSettingsData {
 
 function planningRenderer(model: StagePageModel<GoalsSettingsData>, ports: ReturnType<typeof goalsPagePorts>) {
   const desktop = model.request?.desktop === "true", document = model.drawing?.document;
-  const primitives: GoalsPlanningPrimitives = { translate: ports.L, escapeHtml, icon, listJoin: ports.listJoin,
+  const primitives: GoalsPlanningPrimitives = { translate: ports.readText, escapeHtml, icon, listJoin: ports.listJoin,
     settingsContextHref: model.drawing!.settingsContextHref, withDesktopQuery: model.drawing!.withDesktopQuery,
     renderPage: page => document ? document.render({ lang: document.lang, title: `${page.title} · Molis Work`,
       preamble_html: page.documentComment,
@@ -37,7 +37,7 @@ function renderSettingsContent(surface: string, model: StagePageModel<GoalsSetti
   const ports = goalsPagePorts(model), data = model.data ?? {}, project = model.context?.project ?? null;
   if (surface === "guidance") {
     if (!data.guidance) throw new Error("Goals guidance data is missing");
-    return createProjectGuidanceDocumentRenderer({ L: ports.L, escapeHtml, icon, formatDate: ports.formatDate, renderHint: ports.renderHint })(data.guidance);
+    return createProjectGuidanceDocumentRenderer({ readText: ports.readText, escapeHtml, icon, formatDate: ports.formatDate, renderHint: ports.renderHint })(data.guidance);
   }
   if (surface === "rules") return createGoalsPage(ports).goals.renderProjectPolicyDocument({ project, policy_bindings: data.policy_bindings ?? [] });
   const planning = planningRenderer(model, ports), desktop = model.request?.desktop === "true", methods = data.methods ?? [];

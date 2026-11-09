@@ -135,9 +135,9 @@ const lineLabel = (_L: Translate, remark: Remark) => remark.side === "before" ? 
 
 /** One remark: where it is, its text, and the button that drops it. */
 function remarkRow(r: Reader, remark: Remark, n: number) {
-  const { translate: L, lifetime } = r.ports, file = r.value?.change.files[remark.change_index];
+  const { translate: readText, lifetime } = r.ports, file = r.value?.change.files[remark.change_index];
   const row = el("div", "", "coding-feedback-item"), head = el("div", "", "coding-feedback-where");
-  const where = el("span", uiText.text("coding.change.where", { path: file?.path || uiText.text("coding.change.original-file"), write: remark.change_index + 1, line: lineLabel(L, remark) }));
+  const where = el("span", uiText.text("coding.change.where", { path: file?.path || uiText.text("coding.change.original-file"), write: remark.change_index + 1, line: lineLabel(readText, remark) }));
   where.title = where.textContent ?? "";
   const input = el("textarea", "", "mw-textarea"), remove = el("button", "", "mw-btn mw-btn--ghost coding-feedback-remove");
   input.rows = 2;
@@ -205,8 +205,8 @@ const pathLabel = (path: string) => {
   return box;
 };
 
-function stateChip(L: Translate, file: ChangeFile) {
-  const [tone, label, ring] = stateOf(L, file), node = el("span", label, "coding-change-state");
+function stateChip(readText: Translate, file: ChangeFile) {
+  const [tone, label, ring] = stateOf(readText, file), node = el("span", label, "coding-change-state");
   node.dataset.tone = tone;
   node.dataset.mwState = ring;
   return node;
@@ -226,16 +226,16 @@ function pickButton(r: Reader, runValue: string, n: number) {
 
 /** A path changed once: one button for the file. */
 function singleFile(r: Reader, runValue: string, path: string, n: number, file: ChangeFile) {
-  const L = r.ports.translate, button = pickButton(r, runValue, n);
+  const readText = r.ports.translate, button = pickButton(r, runValue, n);
   button.setAttribute("aria-pressed", String(n === r.index));
   button.classList.add("is-file");
-  button.append(fileIcon(), pathLabel(path), el("span", file.kind === "added" ? uiText.text("coding.change.created") : uiText.text("coding.change.modified"), "coding-change-kind"), counts(file.added_lines, file.removed_lines), stateChip(L, file));
+  button.append(fileIcon(), pathLabel(path), el("span", file.kind === "added" ? uiText.text("coding.change.created") : uiText.text("coding.change.modified"), "coding-change-kind"), counts(file.added_lines, file.removed_lines), stateChip(readText, file));
   return button;
 }
 
 /** A path written more than once: its header, the net change when it can be shown, and each write. */
 function manyWrites(r: Reader, runValue: string, files: readonly ChangeFile[], path: string, list: readonly number[], group: HTMLElement) {
-  const { translate: L, lifetime } = r.ports;
+  const { translate: readText, lifetime } = r.ports;
   const head = el("div", "", "coding-change-file-head"), writes = el("span", uiText.text("coding.change.writes", { count: list.length }), "coding-change-kind");
   const netGroup = (r.value?.net_groups || []).find(item => item.path === path);
   if (netGroup && !netGroup.available && netGroup.reason) writes.title = netGroup.reason;
@@ -257,7 +257,7 @@ function manyWrites(r: Reader, runValue: string, files: readonly ChangeFile[], p
     const file = files[n];
     if (!file) return;
     const button = pickButton(r, runValue, n);
-    button.append(el("span", uiText.text("coding.change.write-number", { number: order + 1 }) + (file.kind === "added" && order === 0 ? " · " + uiText.text("coding.change.created") : ""), "coding-change-step"), counts(file.added_lines, file.removed_lines), stateChip(L, file));
+    button.append(el("span", uiText.text("coding.change.write-number", { number: order + 1 }) + (file.kind === "added" && order === 0 ? " · " + uiText.text("coding.change.created") : ""), "coding-change-step"), counts(file.added_lines, file.removed_lines), stateChip(readText, file));
     group.append(button);
   });
 }

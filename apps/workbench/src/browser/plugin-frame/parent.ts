@@ -163,7 +163,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   const modal = pageModal(scope, frame);
   const reviews = pageReviews(port, scope, root, frame, grant.page_id, route, host);
   const embed = pageEmbeds(port, scope, root, frame, grant.page_id, route);
-  const workspaces = pageWorkspaces(port, scope, grant.page_id, route, host.translate, frame.title, host.projectTitle?.() ?? "");
+  const workspaces = pageWorkspaces(port, scope, grant.page_id, route, uiText.text, frame.title, host.projectTitle?.() ?? "");
   let childExpanded: string | null = null;
   let closing: Extract<FrameUp, {type: "on-closing"}>["action"] = null;
   let readyResolve!: () => void, readyReject!: (error: Error) => void;
@@ -178,9 +178,9 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   const environment = frameEnvironment(port, scope, root, frame);
   const { visible } = environment;
   // One registry of framed areas a page: the reads area and the connection card share its four places, layer and checks (§13.5).
-  const areas = pageFramedAreas(scope, root, frame, visible), owner = host.translate(frame.title);
-  const taskGrants = pageTaskGrants(port, scope, areas, grant.page_id, route, host.translate, owner);
-  const returns = pageReturns(port, scope, root, pack, grant.storage_scope, visible), connectionNeed = pageConnectionNeed(port, scope, areas, grant.page_id, route, host.translate, owner, returns.connection);
+  const areas = pageFramedAreas(scope, root, frame, visible), owner = frame.title;
+  const taskGrants = pageTaskGrants(port, scope, areas, grant.page_id, route, uiText.text, owner);
+  const returns = pageReturns(port, scope, root, pack, grant.storage_scope, visible), connectionNeed = pageConnectionNeed(port, scope, areas, grant.page_id, route, uiText.text, owner, returns.connection);
   const state = () => {
     const shown = visible();
     if (shown && invalidated) {
@@ -211,8 +211,8 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
     if (own) { root.inert = false; root.removeAttribute("aria-busy"); root.dataset.uiClientState = "failed"; }
     readyReject(error);
   };
-  const connectionSlot = pageConnectionSlot(port, scope, frame, root, grant.page_id, route, host.translate);
-  const pickFile = pageFilePicker(port, scope, frame, grant.page_id, route, host.translate);
+  const connectionSlot = pageConnectionSlot(port, scope, frame, root, grant.page_id, route, uiText.text);
+  const pickFile = pageFilePicker(port, scope, frame, grant.page_id, route, uiText.text);
   port.onmessage = (event: MessageEvent<FrameUp>) => {
     const message = event.data;
     if (!scope.alive || !message || typeof message.type !== "string") return;
@@ -323,12 +323,12 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
     pluginId: pack.plugin_id, bundle: pack.bundle, assets: pack.assets, surface: pack.id,
     searchRow: pack.searchRow, recordRow: pack.recordRow, itemTab: ownItemTab(root, pack),
     stage: {
-      title: getComputedStyle(root).getPropertyValue("--stage-title") || JSON.stringify(host.translate(root.dataset.workSurfaceLabel ?? pack.id)),
+      title: getComputedStyle(root).getPropertyValue("--stage-title") || JSON.stringify(root.dataset.workSurfaceLabel ?? pack.id),
       description: getComputedStyle(root).getPropertyValue("--stage-desc"),
     },
     nativeFiles: Boolean(nativeFileInvoke()), shortcuts: navigation.shortcuts, appearance: environment.initial, text: await openingFrameLanguage(route(""), grant, pack.plugin_id, businessScope).then(text => trackFrameLanguage({ route: route(""), id: grant.page_id, owner: pack.plugin_id, root, port, scope: businessScope }, text)),
     projectId: host.projectId?.() ?? "", projectTitle: host.projectTitle?.() ?? "", routePrefix: route(""), side: Boolean(host.side), page: host.page?.() ?? null,
-    messages: { ...globalThis.MOLIS_WORK_PLUGIN_WORDS?.[pack.plugin_id], ...globalThis.MOLIS_WORK_MESSAGES }, titles: globalThis.MOLIS_WORK_PLUGIN_TITLES ?? {}, storage,
+    titles: globalThis.MOLIS_WORK_PLUGIN_TITLES ?? {}, storage,
   }), fail);
   own = root.dataset.uiClientState !== "loading";
   if (own) { root.inert = true; root.setAttribute("aria-busy", "true"); root.dataset.uiClientState = "loading"; }

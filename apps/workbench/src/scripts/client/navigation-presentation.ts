@@ -1,17 +1,17 @@
 import { dockDefaultPins, pluginStageSummaries } from "../../plugin-catalog.js";
 import { UNAVAILABLE_STAGE } from "../../unavailable-plugin-stage.js";
 /** Menus of the bottom bar and the stage: presentation only; opening one never selects or starts a tool. */
-export const NAVIGATION_PRESENTATION_SCRIPT = `(L) => {
+export const NAVIGATION_PRESENTATION_SCRIPT = `(readText) => {
   // Plugin list pages draw their heading from the surface's own label (craft-finish, "Plugin list pages").
   // The label is set once on the shell, so a plugin that re-renders its list keeps the heading.
   // [the Plugin's id, its summary] by work surface.
   const STAGE_SUMMARIES = ${JSON.stringify(Object.fromEntries(Object.entries(pluginStageSummaries()).map(([id, { plugin_id, summary }]) => [id, [plugin_id, summary]])))};
   const titleStages = () => document.querySelectorAll('.plugin-stage-shell[data-work-surface-label]').forEach((shell) => {
-    const title = JSON.stringify(L(shell.dataset.workSurfaceLabel || ''));
+    const title = JSON.stringify((shell.dataset.workSurfaceLabel || ''));
     if (shell.style.getPropertyValue('--stage-title') !== title) shell.style.setProperty('--stage-title', title);
     const summary = STAGE_SUMMARIES[shell.dataset.workSurface || ''];
     // The summary is the Plugin's own text: English from its own words.
-    const desc = JSON.stringify(summary ? LF(summary[0], summary[1]) : '');
+    const desc = JSON.stringify(summary ? summary[1] : '');
     if (shell.style.getPropertyValue('--stage-desc') !== desc) shell.style.setProperty('--stage-desc', desc);
   });
   titleStages();
@@ -43,7 +43,7 @@ export const NAVIGATION_PRESENTATION_SCRIPT = `(L) => {
  * folds (specs/craft-finish, round four). When even 项目首页 and "+N" do not fit (a phone's second row under 356px with
  * a directory button), the "+N" button goes too: the switcher lists every plugin, the kept ones included, so nothing is
  * lost. */
-export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
+export const DOCK_SCRIPT = `(readText, projectId, host = {}) => {
   if (document.body.hasAttribute('data-pane-embedded') || (window.parent !== window && new URLSearchParams(location.search).has('workbenchPane'))) return;
   const dock = document.querySelector('[data-dock]');
   if (!dock) return;
@@ -63,7 +63,7 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
   const current = dock.querySelector('[data-plugin-picker-current]');
   // The switcher is its glyph alone: its name says what the work area shows, so a screen reader hears where it is.
   const nameSwitcher = (names) => {
-    const label = globalThis.t.text("workbench.navigation-presentation.switch-plugin-now-now").replace('{now}', names.join(L('、')));
+    const label = globalThis.t.text("workbench.navigation-presentation.switch-plugin-now-now").replace('{now}', names.join(globalThis.t.text("common.list.separator")));
     if (pickerToggle && pickerToggle.getAttribute('aria-label') !== label) pickerToggle.setAttribute('aria-label', label);
   };
   const setPicker = (open) => {

@@ -12,7 +12,6 @@ import { taskGrantChange, taskGrantRowHtml, taskGrantRows } from "./plugin-frame
  * switch to point to. Everything drawn is
  * escaped markup, as the area's is; one click listener on the list reads which control, which task and which row from the markup.
  */
-type Translate = (text: string, values?: Record<string, string | number>) => string;
 type Row = ReturnType<typeof taskGrantRows>[number];
 interface Installation { plugin_install_id: string; plugin_id: string | null; name: string | null; titled: boolean }
 interface Listed extends TaskGrantListResult { installations: Installation[] }
@@ -20,10 +19,8 @@ interface Title { key: string; title: string; open: { surface: string; id: strin
 interface TitlesPage { entries: Title[]; next_cursor: string | null }
 type Post = <T>(body: Record<string, unknown>) => Promise<T>;
 
-const page = globalThis as typeof globalThis & { L?: Translate; LF?: (pluginId: string, text: string) => string; molisWorkRequest: UiRequest };
-const L: Translate = (text, values) => page.L ? page.L(text, values) : Object.entries(values ?? {}).reduce((out, [key, value]) => out.split("{" + key + "}").join(String(value)), text);
+const { molisWorkRequest } = globalThis as typeof globalThis & { molisWorkRequest: UiRequest };
 const subjectId = (subject: Pick<TaskGrantSubject, "plugin_install_id" | "key">) => subject.plugin_install_id + "\n" + subject.key;
-/** A small button for one act; `about` names what it acts on, for a screen reader. */
 const button = (label: string, variant: string, act: string, about?: string) => {
   const text = escape(uiText.text(label));
   return `<button type="button" class="mw-btn mw-btn--sm ${variant}" data-task-grants-act="${act}"${about === undefined ? "" : ` aria-label="${text} · ${escape(about)}"`}>${text}</button>`;
@@ -75,7 +72,7 @@ function ask(root: HTMLElement, title: string, description: string): Promise<boo
  * One category the task holds: the area's own row (`taskGrantRowHtml`: its name, what it is and the same note), with the page's
  * buttons in place of the switch, since turning a category on belongs to the task. On one line here; the note is cut first.
  */
-const rowHtml = (row: Row) => taskGrantRowHtml(L, row, (row.status === "needs_confirmation" ? button("workbench.task-grants-page.allow", "mw-btn--secondary", "allow", row.title) : "")
+const rowHtml = (row: Row) => taskGrantRowHtml(uiText.text, row, (row.status === "needs_confirmation" ? button("workbench.task-grants-page.allow", "mw-btn--secondary", "allow", row.title) : "")
   + (row.status === "removed" ? button("workbench.task-grants-page.remove", "mw-btn--secondary", "remove", row.title) : button("workbench.task-grants-page.withdraw", "mw-btn--ghost", "off", row.title)));
 
 /**
@@ -91,7 +88,7 @@ export function bindTaskGrantsSettings(root: HTMLElement): void {
   root.dataset.taskGrantsBound = "1";
   const project = root.dataset.project ?? "", endpoint = "/projects/" + encodeURIComponent(project) + "/api/settings/task-grants";
   const list = root.querySelector<HTMLElement>("[data-task-grants-list]")!;
-  const post: Post = body => page.molisWorkRequest(endpoint, { body, fallback: uiText.text("workbench.task-grants-page.that-did-not-finish") });
+  const post: Post = body => molisWorkRequest(endpoint, { body, fallback: uiText.text("workbench.task-grants-page.that-did-not-finish") });
   let listed: Listed | null = null;
   /** Titles found this time the page is open, by installation; `asked` is which keys each installation was asked for. */
   const titles = new Map<string, Map<string, Title>>(), asked = new Map<string, Set<string>>(), busy = new Set<string>();
@@ -116,7 +113,7 @@ export function bindTaskGrantsSettings(root: HTMLElement): void {
 
   const installName = (install: Installation | undefined) => {
     const name = install?.name ?? install?.plugin_install_id ?? "";
-    return install?.plugin_id && page.LF ? page.LF(install.plugin_id, name) : L(name);
+    return name;
   };
   const titleOf = (subject: TaskGrantSubject) => titles.get(subject.plugin_install_id)?.get(subject.key);
   const nameOf = (subject: TaskGrantSubject) => titleOf(subject)?.title

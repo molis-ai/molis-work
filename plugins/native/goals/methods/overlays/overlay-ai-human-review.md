@@ -1,6 +1,6 @@
 ---
 method_id: overlay-ai-human-review
-version: 1
+version: 2
 kind: overlay
 name: "AI 人工复核"
 summary: "为会影响用户、内容、资金或专业判断的 AI 能力叠加可观察、可干预和可恢复约束。"

@@ -57,7 +57,7 @@ async function mergeThreeWay(root: string, current: string, base: string, other:
     const files = ["current", "base", "other"].map(name => path.join(dir, name));
     await writeFile(files[0]!, current); await writeFile(files[1]!, base); await writeFile(files[2]!, other);
     try {
-      const out = await git(root, ["merge-file", "-p", "--diff3", "-L", "主工作区", "-L", "原基线", "-L", "子任务", ...files], LIMIT * 4);
+      const out = await git(root, ["merge-file", "-p", "--diff3", "-readText", "主工作区", "-readText", "原基线", "-readText", "子任务", ...files], LIMIT * 4);
       return { text: new TextDecoder("utf-8", { fatal: true }).decode(out), clean: true, conflicts: 0 };
     } catch (error) {
       // merge-file exits with the number of conflicts and still prints the marked result.

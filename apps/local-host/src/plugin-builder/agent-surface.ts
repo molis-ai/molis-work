@@ -1,3 +1,4 @@
+import { modelRoundLocale } from "../reply-language.js";
 import { htmlLang } from "../web-locale.js";
 import { registeredBuiltinText } from "../ui-text-provider.js";
 import { withPassiveSyncExecution } from '../passive-sync-execution.js';
@@ -17,7 +18,7 @@ import type { PluginPlatformOptions } from '../plugin-platform.js';
 import type { CapabilityImplementations } from './capabilities.js';
 import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { PLUGIN_COMPONENTS } from '@molis-ai/molis-work-design-system';
-import { AgentBuilderWorkflow, inDesignOrder, BUILDER_PLUGIN_ID, builderManifest, builderPromptVersion, type AgentBuild, type AgentBuilderPorts, type AgentRelease, type AgentPublicationControl } from '@molis-ai/molis-work-plugin-builder';
+import { AgentBuilderWorkflow, inDesignOrder, BUILDER_PLUGIN_ID, BUILDER_PROMPTS, builderManifest, builderPromptVersion, type AgentBuild, type AgentBuilderPorts, type AgentRelease, type AgentPublicationControl } from '@molis-ai/molis-work-plugin-builder';
 import type { LocalProjectDatabase } from '../project-database.js';
 import { selectionPorts } from '../plugin-builder-surface.js';
 import { installedStageSection, installedStageSurface } from '../installed-stage-section.js';
@@ -85,8 +86,8 @@ const message = (error: unknown) => error instanceof Error ? error.message : Str
  */
 export function builderPrompts(home: string): NonNullable<AgentBuilderPorts['prompt']> {
   return (name, shipped) => {
-    const resolved = agentDefinitionsFor(home, builtinRegistrations).effective(BUILDER_PLUGIN_ID, { prompt_id: `builder-${name}`, version: builderPromptVersion(name), layer: "role", body: shipped.text });
-    return resolved.user_revision === undefined ? shipped : { version: `${shipped.version}+user.${resolved.user_revision}`, text: resolved.body };
+    const resolved = agentDefinitionsFor(home, builtinRegistrations).effective(BUILDER_PLUGIN_ID, { prompt_id: `builder-${name}`, version: builderPromptVersion(name), layer: "role", body: shipped.text, body_by_locale: BUILDER_PROMPTS[name].body_by_locale }, modelRoundLocale(home));
+    return { version: resolved.user_revision === undefined ? shipped.version : `${shipped.version}+user.${resolved.user_revision}`, text: resolved.body };
   };
 }
 

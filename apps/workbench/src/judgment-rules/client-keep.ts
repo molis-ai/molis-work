@@ -135,7 +135,7 @@ export const FUNCTIONS_CLIENT_KEEP_PART = `  const bandEl = bench.querySelector(
   const paintLoaded = () => {
     const body = bandEl.querySelector(".mw-alert--success p");
     if (!body || phase !== "loaded") return;
-    const ids = Object.keys(keptRows), open = ids.filter((id) => !keptRows[id].swapped), join = (labels) => labels.join(L("、"));
+    const ids = Object.keys(keptRows), open = ids.filter((id) => !keptRows[id].swapped), join = (labels) => labels.join(globalThis.t.text("common.list.separator"));
     body.textContent = [open.length ? globalThis.t.text("workbench.client-keep.fields-changed-both-sides-yours-right-under", { fields: join(open.map(labelOf)) }) : ids.length ? globalThis.t.text("workbench.client-keep.what-wrote-back") : "",
       theirsLabels.length ? globalThis.t.text("workbench.client-keep.also-changed-elsewhere-fields", { fields: join(theirsLabels) }) : "",
       yoursLabels.length ? globalThis.t.text("workbench.client-keep.edit-fields-stays", { fields: join(yoursLabels) }) : ""].filter(Boolean).join("\\n");

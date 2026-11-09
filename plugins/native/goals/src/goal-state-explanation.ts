@@ -8,14 +8,14 @@ export interface ParentCompletionExplanation {
     meaning: string;
     tone: "progress";
 }
-export function createGoalStateExplainer(L: GoalStatusTranslate) {
+export function createGoalStateExplainer(_readText: GoalStatusTranslate) {
     function explainWorkState(state: GoalPresentationState): WorkStateExplanation {
         const copy = WORK_STATE_COPY[state];
         return {
-            label: L(copy.label),
-            meaning: L(copy.meaning),
-            nextAction: L(copy.nextAction),
-            howToContinue: L(copy.howToContinue),
+            label: copy.label,
+            meaning: copy.meaning,
+            nextAction: copy.nextAction,
+            howToContinue: copy.howToContinue,
             actionKind: copy.actionKind,
         };
     }

@@ -61,14 +61,14 @@ function syncConflict(page: GitPage): void {
 }
 
 async function openConflict(page: GitPage, path: string): Promise<void> {
-  const { S, s, conflictEditor, conflictText } = page;
+  const { s, conflictEditor, conflictText } = page;
   const epoch = page.generation, serial = ++page.conflictTicket;
   conflictEditor.hidden = false;
   s("[data-git-conflict-state]").textContent = uiText.text("git.conflict.reading", { path });
   try {
     const file = await request<ConflictAnswer>(page, inFolder(`/conflict?path=${encodeURIComponent(path)}`, page.workspace));
     if (!active(page, epoch) || serial !== page.conflictTicket) return;
-    if (file.outcome !== "conflict-file") throw new Error(file.message ? S(file.message) : uiText.text("git.conflict.unreadable"));
+    if (file.outcome !== "conflict-file") throw new Error(file.message ? (file.message) : uiText.text("git.conflict.unreadable"));
     page.conflictPath = path;
     // The Host names the two sides in Chinese; the page says them in its own language.
     page.conflictSides = { ours: file.ours === "当前" ? uiText.text("git.conflict.ours") : file.ours, theirs: file.theirs === "合并进来的一方" ? uiText.text("git.conflict.theirs") : file.theirs };
@@ -77,7 +77,7 @@ async function openConflict(page: GitPage, path: string): Promise<void> {
     syncConflict(page);
     conflictText.focus();
   } catch (error) {
-    if (active(page, epoch) && serial === page.conflictTicket) s("[data-git-conflict-state]").textContent = S(messageOf(error));
+    if (active(page, epoch) && serial === page.conflictTicket) s("[data-git-conflict-state]").textContent = (messageOf(error));
   }
 }
 
@@ -99,11 +99,11 @@ export function renderConflicts(page: GitPage): void {
 }
 
 export function installConflicts(page: GitPage): void {
-  const { L, s, conflictText, lifetime } = page;
+  const { readText, s, conflictText, lifetime } = page;
   lifetime.listen(conflictText, "input", () => syncConflict(page));
   lifetime.listen(s("[data-git-conflict-resolve]"), "click", (event) => {
     if (!page.conflictPath || conflictText.value.split("\n").some(isMark)) return;
     void prepare(page, { action: "resolve", path: page.conflictPath, content: conflictText.value }, uiText.text("git.op.resolve-file", { path: page.conflictPath }), event.currentTarget as HTMLElement);
   });
-  lifetime.listen(s("[data-git-merge-abort]"), "click", (event) => void prepare(page, { action: "merge-abort" }, operationLabel(L, "merge-abort") ?? "", event.currentTarget as HTMLElement));
+  lifetime.listen(s("[data-git-merge-abort]"), "click", (event) => void prepare(page, { action: "merge-abort" }, operationLabel(readText, "merge-abort") ?? "", event.currentTarget as HTMLElement));
 }

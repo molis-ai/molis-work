@@ -2,7 +2,7 @@ import { t as uiText, escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { createWorkbenchLocale, WebLocale } from "./i18n.js";
 
 /** The words and formats of the request being rendered; the Host binds them, the workbench only reads them. */
-export type RendererLocale = Pick<ReturnType<typeof createWorkbenchLocale>, "L" | "htmlLang" | "dateTimeLocale" | "listJoin" | "localeSwitchHref" | "clientI18nScript"> & { currentLocale(): WebLocale };
+export type RendererLocale = Pick<ReturnType<typeof createWorkbenchLocale>, "htmlLang" | "dateTimeLocale" | "listJoin" | "localeSwitchHref" | "pluginTitleScript"> & { currentLocale(): WebLocale; readText: typeof uiText.text };
 
 export function controlTokenMeta(controlToken: string): string {
   return `<meta name="molis-work-page-session" content="${escapeHtml(controlToken)}">`;
@@ -10,7 +10,7 @@ export function controlTokenMeta(controlToken: string): string {
 
 /** The small string helpers every page of the workbench shares: a date in the request's locale, an empty-aware list, and the page's local links. */
 export function createRendererHelpers(ports: {
-  L: RendererLocale["L"];
+  readText: RendererLocale["readText"];
   dateTimeLocale: RendererLocale["dateTimeLocale"];
   appendDesktopQueryToLocalHrefs(html: string): string;
 }) {

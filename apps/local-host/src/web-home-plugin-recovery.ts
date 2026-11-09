@@ -3,7 +3,7 @@ import { renderPluginStoreUnavailablePage } from "@molis-ai/molis-work-app-workb
 import { isHomePluginStoreRefusal } from "./home-plugin-store.js";
 import type { MolisWorkProjectCatalog } from "./project-catalog.js";
 import type { WebRequestContext } from "./web-route-table.js";
-import { htmlLang, L } from "./web-locale.js";
+import { htmlLang, readText } from "./web-locale.js";
 import { matchPageRoute } from "./page-routes.js";
 import { sendLocalWebJson } from "./web-http.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -38,7 +38,7 @@ export async function withHomePluginStorePageRecovery(context: WebRequestContext
     })) : { project: null, membership: { plugins: [], hidden: [] } };
     const prefix = projectId ? `/projects/${encodeURIComponent(projectId)}` : "";
     const html = renderPluginStoreUnavailablePage({ ...projection, reason: error.message,
-      reloadHref: prefix + url.pathname + url.search, desktopShell: composition.isDesktopShellRequest(request, url) }, { L, htmlLang, desktop: composition.desktopRenderer });
+      reloadHref: prefix + url.pathname + url.search, desktopShell: composition.isDesktopShellRequest(request, url) }, { readText, htmlLang, desktop: composition.desktopRenderer });
     response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": composition.PAGE_CSP });
     response.end(html);
   }

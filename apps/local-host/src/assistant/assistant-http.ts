@@ -13,7 +13,7 @@ import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { ASSISTANT_INSTALL_ID, type AssistantHandover, type AssistantPageCardInput, type AssistantSendInput } from "@molis-ai/molis-work-contracts/services/assistant";
 import { dispatchNativePluginJsonHttp, type NativePluginJsonResult, writeNativePluginJsonResponse } from "../native-plugin-http.js";
-import { L, pageLocale, type WebLocale } from "../web-locale.js";
+import { readText, pageLocale, type WebLocale } from "../web-locale.js";
 import { lastUsedLocale, rememberUiLocale } from "../ui-locale-memory.js";
 import { bindLocalWebActions, localWebActionContext } from "../local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "../local-owner-permissions.js";
@@ -31,6 +31,7 @@ import { assistantCharacterChoices } from "./assistant-characters.js";
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { assistantContributions } from "./assistant-contributions.js";
 import { registerAssistantRuleActions } from "./assistant-rule-actions.js";
+import { modelRoundLocale } from "../reply-language.js";
 import { agentDefinitionsFor } from "../agent-definitions/agent-definitions.js";
 import { memoryHostFor } from "../memory/memory-host.js";
 import { builtinRegistrations } from "../agent-definitions/builtin-agents.js";
@@ -148,13 +149,13 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
       void memoryHostFor(ports.localHost)?.learnLater({ actor_id: WEB_ACTOR, work_id: work.work_id, run_id, session_id: work.session_id, sources })
         .catch(error => hostLog.warn("memory", "learning_not_queued", error));
     },
-    authority: async (work, origin) => work.reply_target ? { manifest: ASSISTANT_AGENT, prompts: ASSISTANT_PROMPTS, authorizedDirectories: [], beforeDispatch: () => threads.authorize(work) } : ({ ...assistantAuthority(ports.localHost, work, () => store.disabledActions(WEB_ACTOR), (offer, views) => service.offers.recordOffer(work, offer, views),
+    authority: async (work, origin, locale) => work.reply_target ? { manifest: ASSISTANT_AGENT, prompts: ASSISTANT_PROMPTS, authorizedDirectories: [], beforeDispatch: () => threads.authorize(work) } : ({ ...assistantAuthority(ports.localHost, work, () => store.disabledActions(WEB_ACTOR), (offer, views) => service.offers.recordOffer(work, offer, views),
       (view, input, output) => service.outcomes.recordResult(work, view, input, output, origin?.source !== "card"), service.delegation(work),
       (view, call) => service.dispatcher.trackUnsettled(work, `${view.provider.title} · ${view.action.title}`, call), service.memory.memoryTools(work), () => store.confirmAlways(WEB_ACTOR),
       view => service.dispatcher.noteDispatched(work, view), () => {
         const snapshot = store.rounds(work.work_id).at(-1)?.context;
         return snapshot ? { url: null, title: snapshot.source.title ?? snapshot.source.surface, provenance: "client_reported" } : undefined;
-      }),
+      }, locale),
       project_prompts: await assistantProjectPrompts(ports.localHost, work),
       // The platform memory, under the Assistant's switch: re-read and injected by the runtime as data.
       memory: task => service.memory.memoryForRound(work, task),
@@ -165,8 +166,8 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
     projectTitle: ports.projectTitle,
     // Methods Plugins offer for business work, from the Home's registry of Agent definitions.
     methods: { list: () => agentDefinitionsFor(ports.homeDirectory, builtinRegistrations).methods(),
-      read: (owner, skill, version) => agentDefinitionsFor(ports.homeDirectory, builtinRegistrations).method(owner, skill, version),
-      readSigned: (install, ref) => agentDefinitionsFor(ports.homeDirectory, builtinRegistrations).signedMaterial(install, ref),
+      read: (owner, skill, version) => agentDefinitionsFor(ports.homeDirectory, builtinRegistrations).method(owner, skill, version, modelRoundLocale(ports.homeDirectory)),
+      readSigned: (install, ref) => agentDefinitionsFor(ports.homeDirectory, builtinRegistrations).signedMaterial(install, ref, modelRoundLocale(ports.homeDirectory)),
       recordSignedUse: (material, caller) => agentDefinitionsFor(ports.homeDirectory, builtinRegistrations).recordSignedUse(material, caller),
       bindSigned: async (project, installId, ref) => {
         const projectRows = project ? await ports.localHost.withProject(project, runtime => pluginInstallRecords(runtime.store.db)) : undefined;
@@ -370,7 +371,7 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
       if (method === "GET" && parts.length === 5 && parts[2] === "materials" && parts[4] === "image") return { status: 200, body: { image: await service.materials.materialImage(workId, parts[3]!) } };
       // The connection card of a result that left a connection to finish (ASC-69): read, and cancelled, as whoever prepared it.
       if (parts.length === 5 && parts[2] === "cards" && parts[4] === "connection" && (method === "GET" || method === "POST" && body.step === "cancel")) {
-        return { status: 200, body: await assistantConnectionCard(ports.localHost, ports.homeDirectory, store.get(WEB_ACTOR, workId), service.offers.card(workId, parts[3]!), method === "GET" ? "read" : "cancel", L) };
+        return { status: 200, body: await assistantConnectionCard(ports.localHost, ports.homeDirectory, store.get(WEB_ACTOR, workId), service.offers.card(workId, parts[3]!), method === "GET" ? "read" : "cancel", readText) };
       }
       if (method !== "POST") return null;
       const threadWork = await threadWorkRoute(workId, parts, body, ports);
@@ -422,7 +423,7 @@ async function threadWorkRoute(workId: string, parts: string[], body: Record<str
 /** A reply with its questions, cards and next steps drawn (the page only binds them). */
 function writeDrawn(ports: AssistantHttpPorts, response: ServerResponse, result: NativePluginJsonResult): void {
   const { service, store } = assistantServiceFor(ports);
-  drawAssistantReply(result.body, { say: L, card: card => service.offers.html(card, L),
+  drawAssistantReply(result.body, { say: readText, card: card => service.offers.html(card, readText),
     drafts: workId => { try { return questionDrafts(store).read(workId); } catch (error) {
       if (!(error instanceof ActionError && error.code === "assistant.not_found")) hostLog.warn("assistant", "question_drafts_read_failed", error);
       return {};
@@ -451,7 +452,7 @@ async function interactionRoute(workId: string, parts: string[], body: Record<st
         if (!(error instanceof ActionError && error.code === "assistant.not_found")) hostLog.warn("assistant", "answer_context_read_failed", error);
         return undefined;
       }))?.rounds.flatMap(round => round.awaiting_input).find(item => item.pending_id === body.pending_id)?.questions;
-      throw assistantErrors.invalid(String(error.message), Array.isArray(error.problems) ? { errors: questionErrors(error.problems, L, asked) } : undefined);
+      throw assistantErrors.invalid(String(error.message), Array.isArray(error.problems) ? { errors: questionErrors(error.problems, readText, asked) } : undefined);
     });
     drafts.drop(workId, String(body.pending_id ?? ""));
     return { status: 200, body: view };

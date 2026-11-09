@@ -4,7 +4,7 @@ import { OWN_DIRECTORY_SURFACES } from "../../plugin-catalog.js";
 export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
   const OWN_DIRECTORY_SURFACES = ${JSON.stringify([...OWN_DIRECTORY_SURFACES])};
   const PLUGIN_TAB_TITLES = { sources: "Feed", ...globalThis.MOLIS_WORK_PLUGIN_TITLES };
-  const { workspace, treePane, documentPane, getSelected, getState, getSurface, translate: L,
+  const { workspace, treePane, documentPane, getSelected, getState, getSurface, translate: readText,
     setDirectoryCollapsed, setWorkspaceMode, setMobileView, saveUiState } = host;
   if (!document.body.classList.contains("immersive-workbench")) return null;
     const pluginRail = document.querySelector("[data-plugin-strip]");

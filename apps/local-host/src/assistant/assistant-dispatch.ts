@@ -176,7 +176,7 @@ export class AssistantDispatch {
     }
     const host = await this.ports.host();
     const adapter = host.adapter(RUNTIME);
-    let base = await this.ports.authority(work);
+    let base = await this.ports.authority(work, undefined, replyLocale);
     const original_input = !work.delegated_by && !work.reply_target ? intent?.original_input : undefined;
 
     const startAuthority = () => ({ ...(stillCurrent || beforeStart || assertBeforeStart || sourceHandoff ? { ...base, beforeStart: async () => {
@@ -184,7 +184,7 @@ export class AssistantDispatch {
     }, assertBeforeStart: () => {
       requireSynchronous(base.assertBeforeStart?.(), "最终授权检查必须同步完成");
       requireSynchronous(assertBeforeStart?.(), "最终授权检查必须同步完成"); assertSendCurrent(stillCurrent); handoff.assertCurrent();
-    } } : base), original_input, ...(replyLocale ? { reply_language: replyLanguagePrompt(replyLocale) } : {}) });
+    } } : base), original_input, ...(replyLocale ? { reply_language: replyLanguagePrompt(replyLocale), content_locale: replyLocale } : {}) });
     let authority = startAuthority();
     const role = work.reply_target ? "thread-reply" : work.delegated_by ? ASSISTANT_DELEGATED_ROLE_ID : ASSISTANT_ROLE_ID;
     if (!work.session_id) {
@@ -192,7 +192,7 @@ export class AssistantDispatch {
         actor_id: this.actorId, title: work.title, workspace: "business", role_id: role }, authority);
       work = this.store.update(this.actorId, work.work_id, null, { session_id: session.session_id });
       // Action ownership includes the newly created session, also on the very first round.
-      base = await this.ports.authority(work); authority = startAuthority();
+      base = await this.ports.authority(work, undefined, replyLocale); authority = startAuthority();
     }
     assertSendCurrent(stillCurrent);
     const session = await adapter.readSession(sessionRef(work));

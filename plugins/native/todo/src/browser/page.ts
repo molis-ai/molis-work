@@ -40,7 +40,7 @@ function initialState(): TodoState {
 
 /** The page the parts share. The parts that draw and load install their operations on it (`installList` and the others). */
 export function todoPage(host: TodoClientHost, bench: HTMLElement): TodoPage {
-  const L = host.translate;
+  const readText = uiText.text;
   const el = elements(bench);
   const state = initialState();
   const $ = <T extends Element = HTMLElement>(selector: string): T => {
@@ -147,7 +147,7 @@ export function todoPage(host: TodoClientHost, bench: HTMLElement): TodoPage {
   };
 
   const page = {
-    host, L, el, state, request, $, projectId, hereName, placeName, dayDiff, dayLabel, timeLabel, showNote, detailHint, ask, paintPlaces,
+    host, readText, el, state, request, $, projectId, hereName, placeName, dayDiff, dayLabel, timeLabel, showNote, detailHint, ask, paintPlaces,
     tellAssistant, publishContext, post, candidateOf, statusName: (status: string) => statusNames[status] ?? status,
     field: (name: string) => $<HTMLInputElement | HTMLTextAreaElement>(`[data-todo-field="${name}"]`),
   } as TodoPage;

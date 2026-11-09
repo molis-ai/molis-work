@@ -18,7 +18,7 @@ import { SIDE_FRAME_FROM_SCRIPT } from "./pane-messages.js";
 // The factory is one closure, so the four files are joined into one script, in the order of the original text.
 // What a surface's own document runs: the selection reader, the naming of an opened item and, in a split pane or a side
 // view, the toolbar it draws for the top document. A side view's document runs this part alone (side-view-document.ts).
-const PANE_PART = String.raw`  const L = host.translate;
+const PANE_PART = String.raw`  const readText = host.translate;
   const embedded = window.parent !== window && document.body.matches("[data-pane-embedded],[data-side-view]");
   const ownPane = embedded ? new URL(location.href).searchParams.get("workbenchPane") || "pane" : "main";
   const panes = host.paneMessages;
@@ -183,7 +183,7 @@ const PANE_PART = String.raw`  const L = host.translate;
     let shown = null;
     const say = (message) => { if (shown) parent.postMessage({ ...message, context_id: shown.context_id }, location.origin); };
     const toolbar = makeToolbar({
-      translate: L, inset: { top: 0, bottom: 0 }, width: () => innerWidth,
+      translate: readText, inset: { top: 0, bottom: 0 }, width: () => innerWidth,
       choose: (key) => say({ type: "workbench-context-action-choose", key }),
       assistant: () => say({ type: "workbench-context-assistant" }),
       dismiss: () => say({ type: "workbench-context-dismiss" }),

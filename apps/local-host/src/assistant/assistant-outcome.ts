@@ -40,9 +40,9 @@ function cardOutcome(view: AssistantWorkView, say: Say): InteractionNextStep[] {
 /** What the latest round made, or the same words again when it failed. */
 function roundOutcome(view: AssistantWorkView, say: Say): InteractionNextStep[] {
   const last = view.rounds.at(-1);
-  if (last?.phase === "failed") return [{ id: "retry", label: say("用同样的话再试一次"), source: last.text.slice(0, 200) }];
+  if (last?.phase === "failed") return [{ id: "retry", label: say("workbench.assistant-outcome.try-the-same-words-again"), source: last.text.slice(0, 200) }];
   if (last?.phase !== "completed") return [];
   return view.objects.filter(object => object.relation === "result" && isOpenable(object)).slice(0, OUTCOME_STEPS)
-    .map((object, index) => ({ id: `open:${object.subject.kind}:${object.subject.id}`, label: say("打开「{title}」", { title: object.title }), source: say("这一轮做出的结果"),
+    .map((object, index) => ({ id: `open:${object.subject.kind}:${object.subject.id}`, label: say("workbench.assistant-outcome.open-title", { title: object.title }), source: say("workbench.assistant-outcome.what-this-turn-made"),
       ...(index ? { primary: false } : {}) }));
 }

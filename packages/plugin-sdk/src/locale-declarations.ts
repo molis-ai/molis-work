@@ -1,6 +1,6 @@
 import { PLUGIN_LOCALE_LIMITS, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { LOCALE_TAG } from "@molis-ai/molis-work-contracts/platform/ui";
-import { keyOwnerProblem } from "./message-declarations.js";
+import { keyOwnerProblem } from "./ui/text-keys.js";
 
 // Checks of `ui.locales` (specs/font-and-skin-system/a-section-contract.md §6.1). A tag is also a file name, `locales/<tag>.json`,
 // so the shape check is what keeps a declared language inside the package. The files themselves are read by the platform, not here.
@@ -35,15 +35,9 @@ function localeListProblems(declared: unknown): string[] {
   ];
 }
 
-/** One Plugin brings its words one way: a Manifest with `ui.locales` that also writes the older fields would need a translator reading both. */
 export function localeDeclarationProblems(manifest: PluginManifest): string[] {
-  const { locales, messages, translations } = manifest.ui;
-  if (locales === undefined) return [];
-  const bothRoads = messages !== undefined || translations !== undefined;
-  return [
-    ...(bothRoads ? ["ui.locales 不能和 ui.messages、ui.translations 写在同一个 Manifest 里：留 ui.locales，把词搬到 locales/<语言>.json，再删掉 ui.messages、ui.translations"] : []),
-    ...ownerLocaleProblems(manifest.plugin_id, locales),
-  ];
+  const { locales } = manifest.ui;
+  return locales === undefined ? [] : ownerLocaleProblems(manifest.plugin_id, locales);
 }
 
 function ownerLocaleProblems(owner: string, locales: unknown): string[] {

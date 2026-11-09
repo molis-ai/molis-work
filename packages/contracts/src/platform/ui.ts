@@ -5,6 +5,7 @@ import type { AgentInputImpact, AgentInputKind, AgentInputQuestion, AgentInputTa
 import type { UiConnectionNeedOutcome, UiConnectionNeedTarget, UiConnectionSlotChoice, UiConnectionSlotRequest } from "./ui-connections.js";
 export * from "./ui-connections.js";
 import type { UiPageDrafts, UiPageReturns } from "./ui-returns.js";
+import type { TextRef } from "./ui-text.js";
 import type { UiSlotDescriptor } from "./ui-slots.js";
 export * from "./ui-returns.js";
 export * from "./ui-environment.js";
@@ -326,8 +327,6 @@ export interface StagePageDrawing {
   prefixLocalLinks: (html: string, routePrefix: string, desktopShell?: boolean) => string;
   renderReference: (value: string, label?: string) => string;
   creatableKinds: readonly { readonly station: string; readonly title: string; readonly plugin_id: string }[];
-  /** Runs synchronously in that plugin's words and supplies its translator for cross-owner text. */
-  inPluginWords: <T>(pluginId: string, run: (translate: StagePagePrimitives["text"]) => T) => T;
   renderTerminalPane: (model: StageTerminalPaneModel) => string;
   renderHint: (options: { id: string; label: string; text?: string; html?: string; iconName?: string }) => string;
   withDesktopQuery: (path: string) => string;
@@ -411,8 +410,10 @@ export interface SettingsPageModel<Data = unknown> {
 export interface UiViewCreateEntry {
   /** The `id` of a `workflow_content` station of the same Manifest whose role is `create`; `placement.create` calls it. */
   readonly station: string;
-  /** The kind's name (文档, 问卷): the button says it, and a new one is called 未命名 followed by it. */
+  /** The kind's name, also the original used if the supplying release no longer has the words. */
   readonly title: string;
+  /** Optional owned short text, resolved by the Host while projecting the supplying declaration. */
+  readonly title_text?: TextRef;
 }
 
 /** One way to start something from the project home on an empty day; choosing it opens the view's plugin. */
@@ -629,7 +630,6 @@ export interface UiPageInteraction {
 export interface UiPluginClientHost<Element = unknown, Dialog = Element, Media = Element> extends UiPageFiles<Media>, UiPageDialogs, UiPageActions {
   readonly root: Element;
   readonly scope: UiClientScope;
-  readonly translate: UiClientTranslate;
   readonly mount: UiClientMount | null;
   /** Public navigation parameters of the enclosing workbench; they grant no action or record access. */
   readonly search?: string;

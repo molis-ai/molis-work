@@ -36,7 +36,7 @@ import {
 } from "../../settings-address-params.js";
 
 export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
-  const { translate: L, setDirectory, setExclusive, hideDirectory } = host;
+  const { translate: readText, setDirectory, setExclusive, hideDirectory } = host;
   const projectId = host.projectId || (() => {
     try { return JSON.parse(document.querySelector("#molis-work-data")?.textContent || "{}").project?.project_id || ""; }
     catch { return ""; }

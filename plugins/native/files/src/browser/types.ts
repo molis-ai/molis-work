@@ -16,7 +16,6 @@ export interface FilesLifetime {
 /** What the Files bundle's factory gets: the page's host, or Coding's with the ports of the panel Coding mounts Files in. */
 export interface FilesFactoryHost {
   readonly root?: ParentNode;
-  readonly translate: Translate;
   mountPluginClient(root: Element): FilesLifetime | null;
   /** A platform path in the current project. */
   route(path: string): string;
@@ -34,7 +33,6 @@ export interface FilesFactoryHost {
 /** What Files' client uses: the factory's host with the requests Files makes and the ports of the page it is mounted in. */
 export interface FilesHost {
   readonly root?: ParentNode;
-  readonly translate: Translate;
   mountPluginClient(root: Element): FilesLifetime | null;
   /** One request to Files' routes (a failure is an Error). */
   request(path: string, method?: "GET" | "POST", body?: unknown, signal?: AbortSignal): Promise<unknown>;

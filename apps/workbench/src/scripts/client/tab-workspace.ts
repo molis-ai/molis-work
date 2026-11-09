@@ -23,7 +23,7 @@ export { placeLayoutMenu } from "./tab-workspace-menus.js";
 
 /** Cross-plugin tabs and split panes. Goals canvas/kanban/Frame chrome stays in frame-container. */
 export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
-  const { showToast, showGoalFrame, translate: L, getSurface, setWorkSurface, setDirectory, setWorkspaceMode, setMobileView,
+  const { showToast, showGoalFrame, translate: readText, getSurface, setWorkSurface, setDirectory, setWorkspaceMode, setMobileView,
     applySelection, loadGoalDocument, getDocumentGoalId, getProjectId, visibleGoals, showCanvas, restoreBoard, releaseFrame } = host;
   const root = document.querySelector("[data-tab-workspace]");
   const panesEl = document.querySelector("[data-tab-panes]");
@@ -93,7 +93,7 @@ ${TAB_WORKSPACE_DRAG_PART}
     if (stage.dataset.tabRemovedStage === plugin) return;
     stage.dataset.tabRemovedStage = plugin;
     const title = document.createElement("h2"), note = document.createElement("p");
-    title.textContent = globalThis.t.text("workbench.tab-workspace.plugin-was-removed-project", { plugin: L(ops.pluginTitle(plugin)) });
+    title.textContent = globalThis.t.text("workbench.tab-workspace.plugin-was-removed-project", { plugin: ops.pluginTitle(plugin) });
     note.textContent = globalThis.t.text("workbench.tab-workspace.its-tabs-content-still-here-add-back-project");
     stage.replaceChildren(title, note);
   };
@@ -124,7 +124,7 @@ ${TAB_WORKSPACE_DRAG_PART}
     const button = (label, variant, run) => { const node = document.createElement("button"); node.type = "button"; node.className = "mw-btn mw-btn--" + variant; node.textContent = label; node.addEventListener("click", run); return node; };
     actions.className = "mw-empty__actions";
     actions.append(button(globalThis.t.text("workbench.tab-workspace.close-tab"), "secondary", () => { closeTabBack(pane.id, tab.id); focusActiveTab(); }),
-      button(globalThis.t.text("workbench.tab-workspace.back-plugin-list", { plugin: L(ops.pluginTitle(tab.plugin)) }), "ghost", () => openPlugin(tab.plugin)));
+      button(globalThis.t.text("workbench.tab-workspace.back-plugin-list", { plugin: ops.pluginTitle(tab.plugin) }), "ghost", () => openPlugin(tab.plugin)));
     stage.replaceChildren(title, note, actions);
   };
   let state = ops.create(), column = "main";
@@ -292,7 +292,7 @@ ${TAB_WORKSPACE_DRAG_PART}
   const readDirectory = (doc) => JSON.parse(doc?.querySelector("script[data-plugin-directory]")?.textContent || "[]");
   let directory = readDirectory(document);
   const DIRECTORY_HUES = Object.fromEntries(directory.filter((entry) => entry.hue).map((entry) => [entry.id, entry.hue]));
-  const pluginGroups = (${PLUGIN_TAB_GROUPS_FACTORY})({ getState: () => state, ops, apply: () => apply(), persist, L, rows: RECORD_ROWS.concat(SEARCH_ROWS), embedded, notify: notifyParent, editable: (node) => editable(node), appendTab, removed: removedPlugin, hues: DIRECTORY_HUES });
+  const pluginGroups = (${PLUGIN_TAB_GROUPS_FACTORY})({ getState: () => state, ops, apply: () => apply(), persist, readText, rows: RECORD_ROWS.concat(SEARCH_ROWS), embedded, notify: notifyParent, editable: (node) => editable(node), appendTab, removed: removedPlugin, hues: DIRECTORY_HUES });
   // The right side, drawn from state.side; a tab closed there joins the closed groups, so ⌘⇧T reopens whichever closed last.
   // A main tab moved there shows in the workbench's own pane page, as a split pane does (07-S2).
   const paneUrl = (paneId, plugin, item, title, view) => {
@@ -303,7 +303,7 @@ ${TAB_WORKSPACE_DRAG_PART}
     if (view !== undefined) url.searchParams.set("paneView", view);
     return url.href;
   };
-  const sidePane = embedded ? null : (${SIDE_PANE_FACTORY})({ ops, getState: () => state, save: persist, remember: pluginGroups.keep, undoChip: pluginGroups.undoChip, menu: (tab, entries) => openSideTabMenu(tab, entries), removed: removedPlugin, L,
+  const sidePane = embedded ? null : (${SIDE_PANE_FACTORY})({ ops, getState: () => state, save: persist, remember: pluginGroups.keep, undoChip: pluginGroups.undoChip, menu: (tab, entries) => openSideTabMenu(tab, entries), removed: removedPlugin, readText,
     paneSrc: (tab) => paneUrl("side", tab.plugin, tab.item, tab.title, tab.view), glyph: iconMarkup, toMain: (id) => moveToMain(id) });
   // A plugin taken out or added back in place: its tabs are drawn again, marked removed or working (removedPlugin).
   document.addEventListener("molis-work:plugins-changed", (event) => { if (event.detail?.next) directory = readDirectory(event.detail.next); apply(); });

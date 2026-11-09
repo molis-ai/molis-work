@@ -21,7 +21,7 @@ const ENDED = ["completed", "failed", "stopped", "cancelled"];
 
 /** User assessments stay separate from original SDK reports and never mutate the graph. */
 export function stepReports(ports: StepPorts): StepReports {
-  const { lifetime, translate: L, q, api, current, status, refresh, prepareRework, receipts } = ports;
+  const { lifetime, translate: readText, q, api, current, status, refresh, prepareRework, receipts } = ports;
   const dialog = q<HTMLDialogElement>("[data-coding-step-dialog]"), detail = q("[data-coding-step-detail]"), notes = q<HTMLTextAreaElement>("[data-coding-step-notes]"), message = q("[data-coding-step-status]");
   const accept = q<HTMLButtonElement>("[data-coding-step-accept]"), reject = q<HTMLButtonElement>("[data-coding-step-reject]"), rework = q<HTMLButtonElement>("[data-coding-step-rework]"), reload = q<HTMLButtonElement>("[data-coding-step-refresh]");
   let owner = "", runId = "", stepId = "", ticket = 0, busy = false;
@@ -50,11 +50,11 @@ export function stepReports(ports: StepPorts): StepReports {
     const shown = step.inserted ? { title: step.title || step.id, acceptance: insertedAcceptance(step.reports) || uiText.text("coding.step.see-insert") } : planned ?? { title: step.title || step.id, acceptance: "" };
     detail.append(el("p", uiText.text("coding.step.run", { run: runId, revision: found.revision })), el("h3", shown.title), el("p", uiText.text("coding.step.acceptance", { acceptance: shown.acceptance })), el("p", states[step.state] || uiText.text("coding.step.state.unknown")));
     // Who holds the step now, and who made each report (a handover says so).
-    if (step.owner) detail.append(el("p", uiText.text("coding.step.owner", { owner: stepActorText(L, step.owner) })));
+    if (step.owner) detail.append(el("p", uiText.text("coding.step.owner", { owner: stepActorText(readText, step.owner) })));
     const reports = el("ol", "");
     // A report naming a supplement opens its receipt in the conversation, when this page drew one.
     for (const report of step.reports) {
-      const li = el("li", (report.by ? stepActorText(L, report.by) + uiText.text("coding.timeline.colon") : "") + report.note);
+      const li = el("li", (report.by ? stepActorText(readText, report.by) + uiText.text("coding.timeline.colon") : "") + report.note);
       for (const one of report.inputs || []) {
         const link = receipts.link(q("[data-coding-turns]"), one.input_id, () => dialog.close());
         if (link) li.append(" ", link);

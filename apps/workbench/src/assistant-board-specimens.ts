@@ -10,17 +10,17 @@ import { boardFrameParam, type BoardFrameParam } from "./condition-specimens.js"
 type Say = (text: string, values?: Record<string, string | number>) => string;
 
 const PARAMS: readonly BoardFrameParam[] = [
-  ["lang", "界面语言", [["zh", "中文"], ["en", "English"]]],
-  ["text", "正文语言", [["zh", "中文"], ["en", "English"], ["mixed", "混排"]]],
-  ["work", "打开的工作", [["plan", "非编程 · 等你确认"], ["coding", "编程 · 进行中"], ["check", "中断 · 要核对"], ["limited", "限流 · 等待重试"], ["new", "新工作"]]],
-  ["answer", "回答问卷", [["ok", "交回"], ["refused", "被拒（模拟）"]]],
-  ["width", "容器", [["1280", "宽窗口"], ["760", "分屏一格"], ["390", "手机"]]],
+  ["lang", "workbench.context-onboarding.language-2", [["zh", "中文"], ["en", "English"]]],
+  ["text", "workbench.assistant-board-specimens.body-language", [["zh", "中文"], ["en", "English"], ["mixed", "workbench.assistant-board-specimens.mixed"]]],
+  ["work", "workbench.assistant-dock.open-work", [["plan", "workbench.assistant-board-specimens.non-programming-waiting-for-you-to-confirm"], ["coding", "workbench.assistant-board-specimens.programming-running"], ["check", "workbench.assistant-board-specimens.interrupted-to-be-checked"], ["limited", "workbench.assistant-board-specimens.rate-limited-waiting-to-retry"], ["new", "workbench.assistant-dock.new-work"]]],
+  ["answer", "workbench.assistant-board-specimens.answering-the-questionnaire", [["ok", "workbench.assistant-board-specimens.taken"], ["refused", "workbench.assistant-board-specimens.refused-simulated"]]],
+  ["width", "workbench.assistant-board-specimens.container", [["1280", "workbench.assistant-board-specimens.wide-window"], ["760", "workbench.assistant-board-specimens.one-split-pane"], ["390", "workbench.account-management.phone"]]],
 ];
 
 export function renderAssistantBoardSection(say: Say, lang: "zh" | "en" = "zh"): string {
-  return `<section class="mw-catalog__section" id="assistant" data-primitive="assistant"><h2>${escapeHtml(say("助理信息与任务"))}</h2>
+  return `<section class="mw-catalog__section" id="assistant" data-primitive="assistant"><h2>${escapeHtml(say("workbench.primitive-catalog.assistant-information-works"))}</h2>
     <div class="mw-cond-params" data-asst-params>${PARAMS.map((one) => boardFrameParam(say, one, one[0] === "lang" ? lang : undefined)).join("")}</div>
-    <div class="mw-asst-stage"><iframe class="mw-asst-frame" data-asst-frame src="/__ui/catalog/assistant?lang=${lang}&amp;text=zh&amp;work=plan&amp;answer=ok" title="${escapeHtml(say("助理样例"))}" style="width:1280px" loading="lazy"></iframe></div>
+    <div class="mw-asst-stage"><iframe class="mw-asst-frame" data-asst-frame src="/__ui/catalog/assistant?lang=${lang}&amp;text=zh&amp;work=plan&amp;answer=ok" title="${escapeHtml(say("workbench.assistant-board-frame.assistant-specimen"))}" style="width:1280px" loading="lazy"></iframe></div>
   </section>`;
 }
 

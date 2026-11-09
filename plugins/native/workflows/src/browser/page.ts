@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { required } from "./dom.js";
 import { workflowsRequest } from "./request.js";
 import type { Edit, PendingEdit, Translate, Ui, Undo, WorkflowsHost, WorkflowsRequest } from "./types.js";
@@ -11,7 +12,7 @@ export type Dragging = { readonly plugin: string } | { readonly from: number };
  */
 export interface WorkflowsPage {
   readonly host: WorkflowsHost;
-  readonly L: Translate;
+  readonly readText: Translate;
   readonly api: WorkflowsRequest;
   readonly root: HTMLElement;
   readonly listEl: HTMLElement;
@@ -50,9 +51,9 @@ export interface WorkflowsPage {
 }
 
 export function createPage(host: WorkflowsHost, root: HTMLElement): WorkflowsPage {
-  const L = host.translate;
+  const readText = uiText.text;
   return {
-    host, L, api: workflowsRequest(host), root,
+    host, readText, api: workflowsRequest(host), root,
     listEl: required(root, "[data-wf-list]"),
     space: required(root, "[data-wf-workspace]"),
     view: required(root, "[data-wf-view]"),

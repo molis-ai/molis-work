@@ -12,11 +12,11 @@ import type { GoalsPageView } from "./view.js";
 
 /** A Goal's document, its fragments, dialogs and terminal pane, composed from the Goals owners' renderers. */
 export function createGoalsDocuments<TView extends GoalsPageView>(
-  ports: Pick<GoalsPagePorts<TView>, "L" | "goalsL" | "formatDate" | "prefixLocalLinks" | "creatableKinds" | "inPluginWords" | "renderTerminalPane">
+  ports: Pick<GoalsPagePorts<TView>, "readText" | "goalsL" | "formatDate" | "prefixLocalLinks" | "creatableKinds" | "renderTerminalPane">
     & { goals: ReturnType<typeof createGoalsRenderers<TView>> },
   factories: GoalsRendererFactories,
 ) {
-  const { L, goalsL, formatDate, prefixLocalLinks, goals, creatableKinds, inPluginWords, renderTerminalPane } = ports;
+  const { readText, goalsL, formatDate, prefixLocalLinks, goals, creatableKinds, renderTerminalPane } = ports;
   const {
     sectionHeading, renderFocusSectionDeck, renderGoalTreeProposalDecision, explainWorkState, renderReference,
     renderStatus, renderVisibleGoalStatus, visibleGoalStatusIcon, sortGoals,
@@ -59,7 +59,7 @@ export function createGoalsDocuments<TView extends GoalsPageView>(
 
   /** The Goal's inputs, followed and fixed, in one list with one 「加输入」 (goal-inputs-html.ts). */
   function renderInputBindingsHtml(item: WebGoalView, view: TView): string {
-    return renderGoalInputsHtml(item, { L, escapeHtml, renderReference, inPluginWords }, creatableKinds(view));
+    return renderGoalInputsHtml(item, { readText, escapeHtml, renderReference }, creatableKinds(view));
   }
 
   function renderGoalDecisionHtml(item: WebGoalView, view: TView): string {
@@ -119,7 +119,7 @@ export function createGoalsDocuments<TView extends GoalsPageView>(
       cliAvailability,
       promptRoute: "/api/plugins/io.molis.work.goals/goals/:goalId/advance-prompt",
       terminalsRoute: "/api/plugins/io.molis.work.goals/goals/:goalId/terminals",
-      text: L,
+      text: readText,
       icon,
     });
   }

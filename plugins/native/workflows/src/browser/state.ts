@@ -15,8 +15,8 @@ export const stnMeta = (page: WorkflowsPage, plugin: string): StationInfo => plu
   : page.ui.stations.find((info) => info.plugin === plugin) || { plugin, label: plugin, icon: "grid", supported: false };
 
 export const label = (page: WorkflowsPage, value: Station | string) => typeof value === "string"
-  ? said(page.L, stnMeta(page, value).label)
-  : value.action ? value.action.title : said(page.L, stnMeta(page, value.plugin).label);
+  ? said(page.readText, stnMeta(page, value).label)
+  : value.action ? value.action.title : said(page.readText, stnMeta(page, value.plugin).label);
 
 /** Whether a link can carry content now, and if not, why: one of our message keys, or the words the Host gave for an absent station. */
 export function readyState(page: WorkflowsPage, link: WorkflowLink): Ready {

@@ -11,7 +11,7 @@ export const ASSISTANT_CHOOSERS_PART = String.raw`  const execBtn = island.query
   const modeLabel = island.querySelector("[data-assistant-mode-label]");
   const modesPop = island.querySelector("[data-assistant-modes]");
   const modeOffer = () => { const work = getWork(); return executorOffer(work ? work.executor.kind === "plugin" ? work.executor.plugin_id : "" : nextExec); };
-  const modeRows = (offer) => offer.modes.map((mode) => ({ id: mode.id, label: L(mode.title) }));
+  const modeRows = (offer) => offer.modes.map((mode) => ({ id: mode.id, label: mode.title }));
   const setModes = (open) => {
     if (!modesPop) return;
     modesPop.hidden = !open;
@@ -102,7 +102,7 @@ export const ASSISTANT_CHOOSERS_PART = String.raw`  const execBtn = island.query
     executorChoices().forEach((one) => {
       const item = el("button", "assistant-starter"); item.type = "button";
       if (one.id === nextExec) item.setAttribute("aria-current", "true");
-      item.append(el("strong", "", L(one.label)), el("span", "assistant-material-origin", " " + L(one.hint)));
+      item.append(el("strong", "", one.label), el("span", "assistant-material-origin", " " + one.hint));
       item.addEventListener("click", () => { nextExec = one.id; nextMode = ""; setExecs(false); paintAim(); paintSum(); input.focus(); });
       execsPop.append(item);
     });

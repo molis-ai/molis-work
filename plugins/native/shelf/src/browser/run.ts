@@ -23,9 +23,9 @@ export function watchRun(page: ShelfPage): void {
 }
 
 function runLine(page: ShelfPage, recipe: ConfirmRecipe): string {
-  const { L } = page;
+  const { readText } = page;
   if (isLocalRecipe(recipe)) return page.selected?.kind === "image" ? uiText.text("shelf.run.reading-the-text-in-this") : uiText.text("shelf.run.extracting-selectable-text-from-the");
-  return uiText.text("shelf.run.agent-is-running-recipe-on", { agent: aiLabel(page), recipe: said(L, recipe.short_title || recipe.label) });
+  return uiText.text("shelf.run.agent-is-running-recipe-on", { agent: aiLabel(page), recipe: said(readText, recipe.short_title || recipe.label) });
 }
 
 /** The job could not be done: the stage says why, or goes back when the person cancelled it. */

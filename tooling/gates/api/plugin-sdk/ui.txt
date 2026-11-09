@@ -110,6 +110,24 @@ export declare const PLUGIN_ICON_NAMES: readonly ["presentation", "flask", "stat
 
 export type PluginIconName = typeof PLUGIN_ICON_NAMES[number];
 
+export interface PluginLocaleManifest {
+    readonly plugin_id: string;
+    readonly kind: string;
+    readonly ui?: {
+        readonly locales?: PluginLocalesDeclaration;
+    };
+}
+
+export type PluginLocaleRead = (path: string) => string | null;
+
+export interface PluginLocaleReader {
+    readonly owner: string;
+    readonly default: string;
+    readonly available: readonly string[];
+    pack(locale: string): UiLocalePack | null;
+    problems(): readonly LocaleSetProblem[];
+}
+
 export type ReturnBarState = "waiting" | "look" | "ready" | "gone";
 
 export declare const STATE_RING_CORES: Record<string, string>;
@@ -221,6 +239,8 @@ export interface UiResolvedSkin {
     readonly terminal: Readonly<Record<TerminalAxis, UiTokenMap>>;
 }
 
+export declare function assertPluginLocales(manifest: PluginLocaleManifest, read: PluginLocaleRead): readonly LocaleSetProblem[];
+
 export declare function calendarTitle(year: number, month: number): string;
 
 export declare function createTextReader(input: TextReaderInput): UiSayTool;
@@ -249,6 +269,8 @@ export declare function icon(name: PluginIconName, className?: string): string;
 
 export declare function inspectLocaleSet(packs: readonly UiLocalePack[], options: LocaleSetOptions): readonly LocaleSetProblem[];
 
+export declare function inspectPluginLocales(manifest: PluginLocaleManifest, read: PluginLocaleRead): readonly LocaleSetProblem[];
+
 export declare function installTextForTest(input: TextForTest): () => void;
 
 export declare function installUiText(provider: UiTextProvider): () => void;
@@ -271,12 +293,20 @@ export declare function parseStrictJson(source: string, options?: StrictJsonOpti
 
 export declare function parseUiSpecFile(source: string, options?: UiFileOptions): UiFileResult<UiSpecFile>;
 
+export declare const pluginLocaleFilePath: (locale: string) => string;
+
+export declare function pluginLocaleFilePaths(manifest: Pick<PluginLocaleManifest, "ui">): readonly string[];
+
+export declare function pluginLocaleReader(manifest: PluginLocaleManifest, read: PluginLocaleRead): PluginLocaleReader | null;
+
 export declare const processFold: (scope: string, { group, groupBody, step, stepBody }: {
     group: string;
     groupBody: string;
     step: string;
     stepBody: string;
 }) => string;
+
+export declare function refuseLocaleProblems(problems: readonly LocaleSetProblem[]): void;
 
 export declare function refuseSharedTextPrefix(taken: string | null | undefined, owner: string): void;
 

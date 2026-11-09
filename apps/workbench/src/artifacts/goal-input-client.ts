@@ -1,6 +1,6 @@
 /**
  * 「作为 Goal 的输入」 in a 成果 version's detail (specs/artifact-positioning A4b): choose a Goal of this project and record
- * the version as its input. Runs inside the workbench's 成果 client and shares its `route`, `L` and `loadArtifacts`.
+ * the version as its input. Runs inside the workbench's 成果 client and shares its `route`, `readText` and `loadArtifacts`.
  */
 export const ARTIFACT_GOAL_INPUT_CLIENT_SCRIPT = String.raw`
   // Goals' own routes live under its plugin prefix; the page's project prefix joins it, as it does for this bundle's routes.

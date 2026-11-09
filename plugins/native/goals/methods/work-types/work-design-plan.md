@@ -1,6 +1,6 @@
 ---
 method_id: work-design-plan
-version: 1
+version: 2
 kind: work_type
 name: "设计与规划"
 summary: "先固定目标和约束，再形成可验证方案与落地路径。"

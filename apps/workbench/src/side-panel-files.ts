@@ -10,7 +10,7 @@ import { FILE_PREVIEW_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
  * Assistant's work, a plugin page) open a preview here with `molis:side-open { tab: "files", target }`, where the
  * target names a declared source and subject, or carries a preview of its own (`{ preview: { title, media_type, text | url } }`).
  */
-export function renderSideFiles({ L, icon }: SidePanelPrimitives): string {
+export function renderSideFiles({ readText, icon }: SidePanelPrimitives): string {
   return `<div class="side-files" data-side-files-root>
       <section class="side-files-browse" data-side-files-browse aria-label="${uiText("workbench.side-panel-files.file-list")}">
         <div class="side-files-head">
@@ -20,7 +20,7 @@ export function renderSideFiles({ L, icon }: SidePanelPrimitives): string {
         </div>
         <div class="side-files-list" data-side-files-list aria-busy="true"><p class="side-files-note">${uiText("workbench.side-panel-files.loading-materials")}</p></div>
       </section>
-      ${renderKnowledgeImportDialog(L)}
+      ${renderKnowledgeImportDialog(readText)}
       <template data-side-files-icon>${icon("file")}</template>
       <section class="side-files-preview" data-side-files-preview aria-label="${uiText("workbench.side-panel-files.file-preview")}" hidden>
         <header class="side-files-preview-head">
@@ -39,7 +39,7 @@ export function renderSideFiles({ L, icon }: SidePanelPrimitives): string {
  * on the list) and online documents, each saved through the 成果库's import (`/api/artifacts/import`) and organized after.
  * Bound by the knowledge bundle (`src/browser/knowledge/import.ts`).
  */
-function renderKnowledgeImportDialog(_L: SidePanelPrimitives["L"]): string {
+function renderKnowledgeImportDialog(_L: SidePanelPrimitives["readText"]): string {
   return `<dialog class="mw-dialog mw-dialog--form knowledge-import" data-knowledge-import-dialog aria-labelledby="knowledge-import-title">
         <form method="dialog" class="knowledge-import-form" data-knowledge-import-form>
           <header><h2 id="knowledge-import-title">${uiText("workbench.side-panel-files.import")}</h2><button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-knowledge-import-close>${uiText("common.control.close")}</button></header>
@@ -183,7 +183,7 @@ dialog.mw-dialog.knowledge-import{width:min(520px,calc(100vw - 32px));max-height
 export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
   const root=document.querySelector('[data-side-files-root]');
   if(!root||document.body.hasAttribute('data-pane-embedded'))return;
-  const L=host.translate||((text)=>text);
+  const { readText } = host;
   const $=(selector)=>root.querySelector(selector);
   const list=$('[data-side-files-list]'),filter=$('[data-side-files-filter]'),browse=$('[data-side-files-browse]'),preview=$('[data-side-files-preview]');
   const body=$('[data-side-files-body]'),title=$('[data-side-files-title]'),meta=$('[data-side-files-meta]'),openButton=$('[data-side-files-action="open"]');
@@ -268,7 +268,7 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
     if(file.encoding==='base64'&&/^image\/(png|jpeg|gif|webp|avif|svg\+xml)$/.test(type)){body.innerHTML=head+'<img alt="'+esc(file.title)+'" src="data:'+type+';base64,'+file.data+'">';return;}
     if(file.encoding==='base64'&&type==='application/pdf'&&file.raw){body.classList.add('is-frame');body.innerHTML=head+'<iframe title="'+esc(file.title)+'" src="'+esc(file.raw)+'"></iframe>';return;}
     if(file.encoding==='base64'){body.innerHTML=head+'<p class="side-files-note">'+esc(globalThis.t.text("workbench.side-panel-files.kind-file-type-cannot-be-previewed-here-can",{type}))+'</p>';return;}
-    body.innerHTML=head+renderFilePreview({...file,truncated:false},{escape:esc,text:L});
+    body.innerHTML=head+renderFilePreview({...file,truncated:false},{escape:esc,text:readText});
   };
   // The piece's card above its preview: how far it is organized, its brief and keywords, and what the person can do with it.
   const showCard=async(kind,id,request)=>{

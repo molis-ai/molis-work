@@ -60,7 +60,7 @@ export const CONTEXT_TOOLBAR_STYLES = `
 const LIMITS = JSON.stringify(CONTEXT_TOOL_LIMITS);
 
 export const CONTEXT_TOOLBAR_CLIENT_SCRIPT = compactScript(String.raw`(host) => {
-const L = host.translate || ((t) => t), doc = document, on = (n, t, f, o) => n.addEventListener(t, f, o);
+const readText = host.translate || ((t) => t), doc = document, on = (n, t, f, o) => n.addEventListener(t, f, o);
 ${FLOATING_CLIENT_SOURCE}
 ${sanitizeContextTools.toString().replace(/^[ \t]+/gm, "")}
 const h = (tag, props, ...kids) => {

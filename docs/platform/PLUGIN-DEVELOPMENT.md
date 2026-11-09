@@ -99,7 +99,7 @@ node dist/cli/main.js plugin dev "$plugin_dev_dir/sample" "$plugin_dev_dir/state
 
 插件的界面文字写在自己的语言文件里，每种语言一个 `locales/<语言>.json`，在 Manifest 的 `ui.locales` 声明（`{ "default": "en", "available": ["en", "zh"] }`）；代码里用 SDK `/ui` 的 `t("<plugin_id 最后一段>.<位置>.<元素>", 参数)` 和 `format`，语言由平台给。文件形状、键和参数的规则、`t` 与 `t.text` 的区别、颜色和字体变量见 [文字与外观](../../skills/molis-plugin-dev/text-and-appearance.md)。`create` 生成的样例已经带两种语言。
 
-**现在哪条路走得通：** 只有 `molis-work plugin dev`。加 `--locale <语言>` 选画页面的语言，不写用 `default`；语言不在 `available` 里报 `actions.input_invalid` 并列出可选的，没写 `ui.locales` 却传了 `--locale` 同样报错，提示先写 `ui.locales`。开发路径只有画页面时有语言：`start`、`health`、`sync`、动作处理器、定时器里调 `t` 抛 `ui.text_no_context`，要显示的句子存键和参数，到画页面时再 `t`。`pack` 会自动带上声明的语言文件，不用写进 `package.json` 的 `files`；但带 `ui.locales` 的沙箱包第 16 批之前装不上，安装时被拒并说明原因。内置插件第 16 批之前照旧用 `L`、`p.text` 和 `ui.messages`，不写 `ui.locales`（`tests/ui-text-locale-files.test.ts` 拦）。
+**开发和安装。** `molis-work plugin dev --locale <语言>` 选择预览语言；不传用 Manifest 的 `default`。请求的语言不在 `available`，或插件未声明 `ui.locales`，会报 `actions.input_invalid`。开发预览只在渲染时提供文字上下文。正式的内置、签名安装和沙箱插件沿同一声明路径；打包自动带上声明的语言文件，签名覆盖这些文件。安装会拒绝不一致、缺文件或夹带未声明语言文件的包。
 
 **先 `validate`，再 `dev`。** `validate` 和打包用同一套规则查全部语言文件（`packages/plugin-runtime/src/locale-packs.ts`，规则本身在 SDK 的 `parseLocalePack`、`inspectLocaleSet`）。`dev` 只读这次用的语言和默认语言两个文件，用同一套规则查：单个文件坏了（不是合法 JSON、有那五个字符、`owner` 或 `locale` 不符），或者这两种语言之间参数不一样、默认语言缺这次语言有的键，都拒绝运行（`plugin.package_invalid`）；没用到的语言它不读，全部语言的检查仍看 `validate`；这次的语言少几个键不挡运行，那几处显示默认语言的字。
 

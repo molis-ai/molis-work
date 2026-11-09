@@ -109,7 +109,7 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
  * waits on a questionnaire whose one text question is among others (the Host marks it `draft_from_composer` with that
  * field), the default is 「写进问卷」 instead: Send writes the words into the card's draft and hands nothing back (R4, D14).
  */
-export const ASSISTANT_RECEIPTS_FACTORY_SCRIPT = String.raw`({ L, shared, chip, api, work, reload, pact }) => {
+export const ASSISTANT_RECEIPTS_FACTORY_SCRIPT = String.raw`({ readText, shared, chip, api, work, reload, pact }) => {
   const CHOICES = { answer: "workbench.assistant-send.answer-questions-above", draft: "workbench.assistant-send.write-into-form", steer: "workbench.assistant-send.add-turn" };
   let asked = "", ask = null, choice = "answer", pacted = null, drawn = "", block = null;
   const question = (round) => {
@@ -117,7 +117,7 @@ export const ASSISTANT_RECEIPTS_FACTORY_SCRIPT = String.raw`({ L, shared, chip, 
     return waiting.find((item) => item.from_composer || item.draft_from_composer) || null;
   };
   const first = () => ask?.draft_from_composer ? "draft" : "answer";
-  const label = () => { chip.textContent = globalThis.t.text(CHOICES[choice]); chip.title = L("点一下改成：" + CHOICES[choice === "steer" ? first() : "steer"]); };
+  const label = () => { chip.textContent = globalThis.t.text(CHOICES[choice]); chip.title = globalThis.t.text("workbench.assistant-send.click-to-switch-to-choice", { choice: CHOICES[choice === "steer" ? first() : "steer"] }); };
   chip.addEventListener("click", () => { choice = choice === "steer" ? first() : "steer"; label(); });
   const lost = (error) => { throw error.code === "ui_host.outcome_unknown" ? new Error(globalThis.t.text("workbench.assistant-send.not-confirmed-connection-dropped-reply-couldn-t-be")) : error; };
   const act = (round) => round && round.run_id ? {

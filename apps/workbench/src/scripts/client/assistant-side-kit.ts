@@ -15,7 +15,7 @@ export const ASSISTANT_SIDE_KIT_PART = String.raw`  // Short on the card; the ve
     return holder;
   };
   const spinner = (state = "running") => { const mark = el("span", "assistant-state-ring"); mark.dataset.mwState = state; mark.setAttribute("aria-hidden", "true"); return mark; };
-  const proc = (${ASSISTANT_PROCESS_FACTORY_SCRIPT})({ L, el, keyed, setText, placer, glyph, spinner }), activityLine = proc.activityLine, retries = (${ASSISTANT_RETRY_FACTORY_SCRIPT})({ L, root: island, setText });
+  const proc = (${ASSISTANT_PROCESS_FACTORY_SCRIPT})({ readText, el, keyed, setText, placer, glyph, spinner }), activityLine = proc.activityLine, retries = (${ASSISTANT_RETRY_FACTORY_SCRIPT})({ readText, root: island, setText });
   /** What an object is, read from its kind or the surface it opens in. */
   const KIND_GLYPH = [[/todo/, "check"], [/image|photo/, "image"], [/coding|code/, "code"], [/goal/, "target"], [/lingguang|idea/, "idea"],
     [/feed|inbox|mail/, "inbox"], [/workflow|schedule/, "workflow"], [/dataset|database/, "database"], [/artifact|package/, "package"], [/page|doc|note|form|ppt/, "note"]];
@@ -23,7 +23,7 @@ export const ASSISTANT_SIDE_KIT_PART = String.raw`  // Short on the card; the ve
   const objectGlyph = (object) => kindGlyph((object.subject ? object.subject.kind : "") + " " + (object.open ? object.open.surface : ""));
   /** The plugin's own name for where an object lives: the catalog's name for it (the host asks the tab workspace, which holds
    *  the catalog and the plugins installed at run time), never what one list in the page happens to show. */
-  const surfaceName = (surf) => surf ? L((host.pluginTitle && host.pluginTitle(surf)) || surf) : "";
+  const surfaceName = (surf) => surf ? ((host.pluginTitle && host.pluginTitle(surf)) || surf) : "";
   /** A glyph on a small tinted square; its tone says waiting on you, done, a suggestion, or not there. */
   const tile = (name, tone) => { const box = el("span", "assistant-glyph" + (tone ? " is-" + tone : "")); box.append(typeof name === "string" ? glyph(name) : name); return box; };
   /** An action. Primary and secondary ones look like buttons; a quiet one (stop, take back, cancel) shows on hover or focus. */

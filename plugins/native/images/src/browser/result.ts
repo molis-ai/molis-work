@@ -42,7 +42,6 @@ const statusPanel = (page: ImagesPage, job: ImageJob): HTMLElement => {
 
 // Keep a generated image as a personal material: from Shelf it can be used in a project or handed to other work.
 const shelfButton = (page: ImagesPage, job: ImageJob, item: GeneratedImage): HTMLButtonElement => {
-  const { L } = page;
   const keep = text("button", uiText.text("images.result.shelf"), "mw-btn mw-btn--ghost");
   keep.type = "button";
   keep.title = uiText.text("images.result.shelf-help");
@@ -55,7 +54,7 @@ const shelfButton = (page: ImagesPage, job: ImageJob, item: GeneratedImage): HTM
       const shelved = { kind: "shelf_item", id: kept.item_id, project_id: null };
       window.dispatchEvent(new CustomEvent("molis:placement-result", { detail: { verb: "received", title: kept.name, object: shelved,
         open: { surface: "shelf", id: kept.item_id, project_id: null },
-        note: `${L("来自 {source}", { source: `${uiText.text("images.page.title")} · ${firstCharacters(job.prompt, 40)}` })} · ${L("可以在 Shelf 里用于项目")}` } }));
+        note: `${uiText.text("images.result.from-source", { source: `${uiText.text("images.page.title")} · ${firstCharacters(job.prompt, 40)}` })} · ${uiText.text("images.result.you-can-use-it-in-a-project")}` } }));
     } catch (error) { page.say(messageOf(error) || uiText.text("images.error.shelf"), true); }
     finally { page.life.timeout(() => { keep.disabled = false; }, 1200); }
   });

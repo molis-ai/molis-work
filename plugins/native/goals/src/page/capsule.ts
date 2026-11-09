@@ -1,13 +1,12 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { countGoalDecisions } from "../decision-groups.js";
 import type { GoalsPageView } from "./view.js";
-import type { GoalsTranslate } from "./ports.js";
 import type { CapsuleSnapshot, CapsuleGoalItem, CapsuleTab, CapsuleTabKind } from "./capsule-view.js";
 import { createCapsuleItemProjection } from "./capsule-items.js";
 
 /** The Goals owner's existing capsule projection; the shell only displays its JSON. */
-export function createGoalsCapsuleProjection(L: GoalsTranslate) {
-  const { activeGoalViews, newestFirst, recentCompletedGoal, projectPath, decisionItem, activeItem, availableItem, blockedItem, waitingItem, completeItem, TAB_ORDER, tabMeta, stateFromItem } = createCapsuleItemProjection(L);
+export function createGoalsCapsuleProjection() {
+  const { activeGoalViews, newestFirst, recentCompletedGoal, projectPath, decisionItem, activeItem, availableItem, blockedItem, waitingItem, completeItem, TAB_ORDER, tabMeta, stateFromItem } = createCapsuleItemProjection();
   function buildCapsuleSnapshot(
     view: GoalsPageView,
     directory: { goal_id: string }[],

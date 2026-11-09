@@ -82,8 +82,8 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
         try {
           const read = await usagesOf(node.dataset.connectionUsages);
           const titles = (read.usages || []).map(usage => usage.title).filter(Boolean), issues = read.issues || [];
-          node.textContent = titles.length > 2 ? globalThis.t.text("workbench.connectors-settings.list-more-count", { list: titles.slice(0, 2).join(L('、')), count: titles.length })
-            : titles.length ? titles.join(L('、')) : issues.length ? globalThis.t.text("workbench.connectors-settings.couldn-t-check-everywhere") : globalThis.t.text("workbench.connectors-settings.nothing-uses-yet");
+          node.textContent = titles.length > 2 ? globalThis.t.text("workbench.connectors-settings.list-more-count", { list: titles.slice(0, 2).join(globalThis.t.text("common.list.separator")), count: titles.length })
+            : titles.length ? titles.join(globalThis.t.text("common.list.separator")) : issues.length ? globalThis.t.text("workbench.connectors-settings.couldn-t-check-everywhere") : globalThis.t.text("workbench.connectors-settings.nothing-uses-yet");
           node.title = [...titles, ...issues].join('\\n');
         } catch { node.textContent = globalThis.t.text("workbench.connectors-settings.cannot-be-read-now"); delete node.dataset.loaded; }
       });
@@ -398,7 +398,7 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
         return [...(read.issues || []).map(issue => globalThis.t.text("workbench.connectors-settings.couldn-t-check-issue", { issue })), ...(unseen ? [globalThis.t.text("workbench.connectors-settings.count-count-using-did-not-switch-may-still", { count: unseen })] : [])];
       };
       const switchOutcome = (outcome, total, notes = []) => {
-        const lines = [...outcome.left.map(entry => L('{title}：{reason}', { title: entry.title, reason: switchReasons[entry.code] || globalThis.t.text("workbench.connectors-settings.can-t-be-switched-one-step-yet-choose") })), ...notes];
+        const lines = [...outcome.left.map(entry => readText("workbench.connectors-settings.title-reason", { title: entry.title, reason: switchReasons[entry.code] || globalThis.t.text("workbench.connectors-settings.can-t-be-switched-one-step-yet-choose") })), ...notes];
         if (outcome.left.length) return [globalThis.t.text("workbench.connectors-settings.moved-switched-count-not-moved", { switched: outcome.switched, count: outcome.left.length }), lines];
         if (notes.length) return [globalThis.t.text("workbench.connectors-settings.moved-count-not-everything-could-be-checked-moved", { count: outcome.switched }), lines];
         return [total || outcome.switched ? globalThis.t.text("workbench.connectors-settings.all-moved-count", { count: outcome.switched }) : globalThis.t.text("workbench.connectors-settings.nothing-was-found-using-so-there-nothing-switch"), []];

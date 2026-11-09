@@ -1,3 +1,8 @@
+import { say, tryOwnedTextRef } from "@molis-ai/molis-work-plugin-sdk/ui";
+import type { PluginActiveInstance } from "@molis-ai/molis-work-plugin-runtime";
+import { pluginViewText } from "./plugin-host-services.js";
+import { drawRegisteredText } from "./ui-text-provider.js";
+import { runWithRegisteredText } from "./web-locale.js";
 import type { PluginDirectory, PluginDirectoryEntry } from "@molis-ai/molis-work-app-workbench";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import type { UiViewDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
@@ -9,6 +14,7 @@ import { BUILTIN_PLUGIN_REGISTRY, PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin
 /** What the directory reads of a Runtime's supervisor: which plugins it holds enabled, how each one is doing, and its Manifest. */
 export interface DirectorySource {
   enabledPluginIds(): readonly string[];
+  activeInstance?(pluginId: string): PluginActiveInstance | undefined;
   state(pluginId: string): { readonly status: string } | null;
   manifest(pluginId: string): {
     readonly plugin_id: string;
@@ -38,8 +44,21 @@ export function runningPluginDirectory(source: DirectorySource, home?: string): 
     if (!manifest || !state || state.status === "blocked") return [];
     const builtin = PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.manifest.plugin_id === manifest.plugin_id
       && entry.manifest.publisher.signature === manifest.publisher.signature);
+    const active = source.activeInstance?.(pluginId);
+    const reader = active?.active() && active.contribution.views?.map(pluginViewText).find(reader => reader?.owner === manifest.plugin_id);
+    const views = manifest.ui.views ?? [];
     return [{ id: builtin?.project_plugin_id ?? manifest.plugin_id, plugin_id: manifest.plugin_id, name: manifest.name, ...(manifest.name_en !== undefined ? { name_en: manifest.name_en } : {}),
-      chosen: builtin !== undefined, ...(builtin ? builtinMarks(builtin, alwaysOn) : {}), ui: { views: manifest.ui.views ?? [] } }];
+      chosen: builtin !== undefined, ...(builtin ? builtinMarks(builtin, alwaysOn) : {}), ui: { views: reader ? runWithRegisteredText(reader, () => projectViewWords(manifest.plugin_id, views)) : views } }];
+  });
+}
+
+/** A producer's fixed words are projected while its original activation or registered release is in scope. */
+function projectViewWords(owner: string, views: readonly UiViewDeclaration[]): UiViewDeclaration[] {
+  return views.map(view => {
+    if (!view.creates?.title_text) return view;
+    const ref = tryOwnedTextRef(view.creates.title_text, owner);
+    if (!ref) return view;
+    return { ...view, creates: { station: view.creates.station, title: say.text({ ...ref, ...("key" in ref ? { fallback: ref.fallback ?? view.creates.title } : {}) }) } };
   });
 }
 
@@ -56,7 +75,7 @@ function builtinMarks(builtin: PluginRegistration, alwaysOn: readonly string[]):
 export function builtinMarketDirectory(home?: string): PluginDirectoryEntry[] {
   const alwaysOn = home ? readOnlyAlwaysOnProjectPlugins(home) : [];
   return PLATFORM_PLUGIN_REGISTRATIONS.map(entry => ({ id: entry.project_plugin_id, plugin_id: entry.manifest.plugin_id, name: entry.manifest.name, ...(entry.manifest.name_en !== undefined ? { name_en: entry.manifest.name_en } : {}),
-    chosen: true, ...builtinMarks(entry, alwaysOn), ui: { views: entry.manifest.ui.views ?? [] } }));
+    chosen: true, ...builtinMarks(entry, alwaysOn), ui: { views: drawRegisteredText(entry.manifest, () => projectViewWords(entry.manifest.plugin_id, entry.manifest.ui.views ?? [])) } }));
 }
 
 /**

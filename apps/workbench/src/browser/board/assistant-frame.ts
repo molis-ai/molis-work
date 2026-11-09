@@ -25,7 +25,7 @@ type Samples = { project: { id: string; title: string }; works: Array<Json & { w
   next: Record<string, View[]>; answered: Record<string, View>; closed: Record<string, View>; recovery: Record<string, Json>; notices: Array<Json & { notice_id: string; work_id: string }>;
   /** The lines beside each field for a questionnaire answer the Runtime refuses, by question, as the Host drew them. */
   refused: Record<string, Record<string, string>> };
-type Page = Window & { L?: (text: string, values?: Record<string, string | number>) => string; molisWorkRequest?: Pick<UiRequest, "toast"> };
+type Page = Window & { readText?: (text: string, values?: Record<string, string | number>) => string; molisWorkRequest?: Pick<UiRequest, "toast"> };
 
 const page = window as Page;
 const one = <T extends Element = HTMLElement>(selector: string) => document.querySelector<T>(selector)!;

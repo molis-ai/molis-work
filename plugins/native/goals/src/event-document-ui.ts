@@ -12,14 +12,14 @@ export function renderGoalEventDocument(
   selected: boolean,
   primitives: GoalsDocumentUiPrimitives,
 ): string {
-  const { translate: L, escapeHtml, icon, formatDate, renderVisibleGoalStatus } = primitives;
+  const { translate: readText, escapeHtml, icon, formatDate, renderVisibleGoalStatus } = primitives;
   const forms = createEventDocumentForms(primitives);
   const doc = context.eventDocument;
   const goal = item.goal;
   const goalId = escapeHtml(goal.goal_id);
   const owned = isEventStateOwner(item, doc);
   const state = doc?.state;
-  const judgment = currentJudgment(state, L);
+  const judgment = currentJudgment(state, readText);
   const stale = state?.progress_summary?.stale
     ? `<span class="overview-timestamp">${uiText("goals.event-document-ui.summary-has-not-caught-up-latest-updates")}</span>`
     : state?.progress_summary
@@ -38,7 +38,7 @@ export function renderGoalEventDocument(
     <button type="button" data-event-form-open="progress"><strong>${uiText("goals.event-document-ui.progress-update")}</strong><small>${uiText("goals.event-document-ui.update-where-things-stand-what-comes-next")}</small></button>
     <button type="button" data-event-form-open="concern"><strong>${uiText("goals.event-document-ui.issues-risks")}</strong><small>${uiText("goals.event-document-ui.log-resolve-issues-affecting-completion")}</small></button>
   </div></details>` : "";
-  const timeline = renderTimeline(doc?.timeline.items ?? [], L, escapeHtml, state);
+  const timeline = renderTimeline(doc?.timeline.items ?? [], readText, escapeHtml, state);
   return `<article class="goal-event-document" data-goal-view="${goalId}" data-goal-event-document data-event-work="${doc?.state.owner ? "true" : "false"}" data-agreement-version="${state?.agreement.version ?? 0}" data-config-version="${state?.config.version ?? 0}" data-observed-cursor="${state?.observed_event_cursor ?? 0}" data-goal-event-cursor="${state?.goal_event_cursor ?? 0}"${selected ? "" : " hidden"}>
     <aside class="goal-workspace-hero" aria-label="${uiText("goals.event-document-ui.goal-info")}">
       <details class="goal-info-popover" data-goal-info open>
@@ -81,8 +81,8 @@ export function renderGoalEventDocument(
           <header class="reader-header"><button type="button" class="mw-btn mw-btn--link" data-event-back>${uiText("goals.event-document-ui.back-selected-event")}</button><h2 data-reader-title></h2></header>
           <div class="reader-content" data-reader-content>
             ${doc ? forms.renderPlanning(doc, owned) : ""}
-            ${renderDescription(doc, item, context, L, escapeHtml)}
-            ${renderRequirements(doc, item, context, L, escapeHtml, owned)}
+            ${renderDescription(doc, item, context, readText, escapeHtml)}
+            ${renderRequirements(doc, item, context, readText, escapeHtml, owned)}
           </div>
         </section>
         ${owned && doc ? forms.renderTypeForm(doc) : ""}
@@ -168,7 +168,7 @@ function renderDescription(
   doc: GoalEventDocumentView | null | undefined,
   item: GoalsDocumentItem,
   context: GoalsDocumentContext,
-  L: GoalsDocumentUiPrimitives["translate"],
+  readText: GoalsDocumentUiPrimitives["translate"],
   escapeHtml: GoalsDocumentUiPrimitives["escapeHtml"],
 ): string {
   const d = doc?.description;
@@ -180,11 +180,11 @@ function renderDescription(
       ? `<ul>${doc.state.current_decisions.map((decision) => `<li>${escapeHtml(decision.conclusion)} · ${escapeHtml(decision.actor_id)}</li>`).join("")}</ul>`
       : `<p>${uiText("goals.event-document-ui.there-no-currently-effective-user-decision")}</p>`}
     <h3>${uiText("goals.event-document-ui.scope")}</h3>
-    ${originalDefinitionLine("goals.event-document-ui.scope-2", d?.in_scope ?? item.goal.in_scope, L, escapeHtml)}
-    ${originalDefinitionLine("goals.event-document-ui.out-scope", d?.out_of_scope ?? item.goal.out_of_scope, L, escapeHtml)}
-    ${originalDefinitionLine("goals.event-document-ui.constraints", d?.constraints ?? item.goal.constraints, L, escapeHtml)}
-    ${originalDefinitionLine("goals.event-document-ui.required-inputs", d?.required_inputs ?? item.goal.required_inputs, L, escapeHtml)}
-    ${originalDefinitionLine("goals.event-document-ui.promised-outputs", d?.promised_outputs ?? item.goal.promised_outputs, L, escapeHtml)}
+    ${originalDefinitionLine("goals.event-document-ui.scope-2", d?.in_scope ?? item.goal.in_scope, readText, escapeHtml)}
+    ${originalDefinitionLine("goals.event-document-ui.out-scope", d?.out_of_scope ?? item.goal.out_of_scope, readText, escapeHtml)}
+    ${originalDefinitionLine("goals.event-document-ui.constraints", d?.constraints ?? item.goal.constraints, readText, escapeHtml)}
+    ${originalDefinitionLine("goals.event-document-ui.required-inputs", d?.required_inputs ?? item.goal.required_inputs, readText, escapeHtml)}
+    ${originalDefinitionLine("goals.event-document-ui.promised-outputs", d?.promised_outputs ?? item.goal.promised_outputs, readText, escapeHtml)}
     ${context.coverageHtml}
     ${context.relatedWorkHtml}
   </div>`;
@@ -205,13 +205,13 @@ function formatOriginalCriterionTarget(
 
 function renderOriginalCriteria(
   criteria: GoalsDocumentItem["goal"]["acceptance_criteria"],
-  L: GoalsDocumentUiPrimitives["translate"],
+  readText: GoalsDocumentUiPrimitives["translate"],
   escapeHtml: GoalsDocumentUiPrimitives["escapeHtml"],
 ): string {
   if (!criteria.length) return "";
   return `<details class="original-goal-criteria"><summary>${uiText("goals.event-document-ui.original-goal-standard")}</summary>
     <p>${uiText("goals.event-document-ui.keeps-goals-saved-original-acceptance-criteria-current-results")}</p>
-    <ul>${criteria.map((criterion) => `<li><strong>${escapeHtml(criterion.statement)}</strong><small>${uiText("goals.event-document-ui.pass-when")}${escapeHtml(criterion.pass_condition || "")}</small><p>${uiText("goals.event-document-ui.criterion-id")}：${escapeHtml(criterion.criterion_id)}</p><p>${uiText("goals.event-document-ui.decision-method")}：${escapeHtml(criterion.decision_method)}</p><p>${uiText("goals.event-document-ui.target")}：${escapeHtml(formatOriginalCriterionTarget(criterion.target, L))}</p><p>${uiText("goals.event-document-ui.required-evidence")}：${escapeHtml(criterion.required_evidence.join("、") || uiText.text("goals.event-document-ui.not-specified"))}</p></li>`).join("")}</ul>
+    <ul>${criteria.map((criterion) => `<li><strong>${escapeHtml(criterion.statement)}</strong><small>${uiText("goals.event-document-ui.pass-when")}${escapeHtml(criterion.pass_condition || "")}</small><p>${uiText("goals.event-document-ui.criterion-id")}：${escapeHtml(criterion.criterion_id)}</p><p>${uiText("goals.event-document-ui.decision-method")}：${escapeHtml(criterion.decision_method)}</p><p>${uiText("goals.event-document-ui.target")}：${escapeHtml(formatOriginalCriterionTarget(criterion.target, readText))}</p><p>${uiText("goals.event-document-ui.required-evidence")}：${escapeHtml(criterion.required_evidence.join("、") || uiText.text("goals.event-document-ui.not-specified"))}</p></li>`).join("")}</ul>
   </details>`;
 }
 
@@ -219,7 +219,7 @@ function renderRequirements(
   doc: GoalEventDocumentView | null | undefined,
   item: GoalsDocumentItem,
   context: GoalsDocumentContext,
-  L: GoalsDocumentUiPrimitives["translate"],
+  readText: GoalsDocumentUiPrimitives["translate"],
   escapeHtml: GoalsDocumentUiPrimitives["escapeHtml"],
   owned = false,
 ): string {
@@ -237,7 +237,7 @@ function renderRequirements(
       return `<li><button type="button" class="mw-btn mw-btn--link" data-locate-event="${escapeHtml(requirement.current_report?.event_id ?? "")}"${boundType ? ` data-bound-type="${boundType}"` : ""}>${escapeHtml(requirement.statement)}</button><small>${requirement.currently_satisfied ? uiText("goals.event-document-ui.currently-satisfied") : uiText("goals.event-document-ui.not-yet-satisfied")}${source ? ` · ${source}` : ""}</small></li>`;
     }).join("")}</ul>` : `<p>${uiText("goals.event-document-ui.there-no-completion-requirements-yet")}</p>`}
     ${owned ? `<div class="event-actions"><button type="button" class="mw-btn mw-btn--secondary" data-event-form-open="requirement">${uiText("goals.event-document-ui.add-completion-requirement-2")}</button><button type="button" class="mw-btn mw-btn--secondary" data-event-form-open="agreement">${uiText("goals.event-document-ui.change-current-agreement")}</button><button type="button" class="mw-btn mw-btn--primary" data-event-form-open="decision">${uiText("goals.event-document-ui.record-decision")}</button><button type="button" class="mw-btn mw-btn--primary" data-event-form-open="closure">${uiText("goals.event-document-ui.check-close")}</button></div>` : ""}
-    ${renderOriginalCriteria(original, L, escapeHtml)}
+    ${renderOriginalCriteria(original, readText, escapeHtml)}
     ${context.artifactHtml}
   </div>`;
 }

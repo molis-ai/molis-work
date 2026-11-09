@@ -28,12 +28,12 @@ export interface CallRowView {
   last_at?: string;
 }
 
-type CallText = Pick<SettingsRenderPrimitives, "L" | "escapeHtml">;
+type CallText = Pick<SettingsRenderPrimitives, "readText" | "escapeHtml">;
 
 const CALLER: Record<string, string> = { user: "workbench.call-row.label", agent: "workbench.call-row.built-agent", workflow: "workbench.call-row.workflows", mcp: "workbench.call-row.mcp-client", plugin: "workbench.call-row.plugin" };
 
 /** Who asked. A call the Host made for itself carries its own name and the user audience; it is not the person's. */
-function callerLabel(row: Pick<CallRowView, "actor_id" | "audience">, _L: CallText["L"]): string {
+function callerLabel(row: Pick<CallRowView, "actor_id" | "audience">, _L: CallText["readText"]): string {
   return row.audience === "user" && row.actor_id === "local-host" ? "Molis Work" : (CALLER[row.audience] ? uiText.text(CALLER[row.audience]) : row.audience);
 }
 
@@ -49,10 +49,10 @@ function renderCallIdButton(id: string, { escapeHtml: e }: CallText): string {
 
 /** One call: what was called, for whom, how it ended and its 诊断编号; `where` adds the project it was made in and the way to its call history. */
 export function renderCallRow(row: CallRowView, p: CallText, where?: { label: string; href?: string }): string {
-  const { L, escapeHtml: e } = p;
+  const { readText, escapeHtml: e } = p;
   const at = row.last_at ?? row.at;
   return `<article data-call-row><header><strong>${e(row.title)}</strong><span${row.ok ? "" : ' class="is-unavailable"'}>${uiText(row.refused ? "workbench.call-row.not-run" : row.ok ? "workbench.call-row.succeeded" : "workbench.call-row.failed")}</span></header>`
-    + `<p>${e(row.provider_title)} · ${callerLabel(row, L)}${row.audience === "mcp" || row.audience === "plugin" ? ` · ${e(row.actor_id)}` : ""} · <code>${e(row.capability_id)}@${row.version}</code></p>`
+    + `<p>${e(row.provider_title)} · ${callerLabel(row, readText)}${row.audience === "mcp" || row.audience === "plugin" ? ` · ${e(row.actor_id)}` : ""} · <code>${e(row.capability_id)}@${row.version}</code></p>`
     + `<p>${renderCallIdButton(row.matched_call_id ?? row.call_id, p)}</p>`
     + (where ? `<p>${e(where.label)}${where.href ? ` · <a href="${e(where.href)}">${uiText("workbench.call-row.view-call-history")}</a>` : ""}</p>` : "")
     + `<time datetime="${e(at)}">${e(at)}</time>${row.count && row.count > 1 ? `<p>${uiText("workbench.call-row.same-result-count-count-row-first", { count: row.count, at: row.at })}</p>` : ""}`

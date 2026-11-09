@@ -8,7 +8,7 @@ import { pathLabel } from "@molis-ai/molis-work-contracts/modules/workspace-arti
 
 import { renderCompanionBrowserStage, type CompanionStageModel } from "./companion-stage.js";
 import type { GitListItem, GitView } from "./projection.js";
-import { GIT_SENTENCE_TABLE, sayHostSentence, sayUpstream } from "./sentences.js";
+import { sayUpstream } from "./say.js";
 
 export const GIT_UI_CONTRIBUTION_ID = "io.molis.work.native.git.ui.v1";
 
@@ -130,16 +130,16 @@ export function renderGitChanges(model: GitUiModel): string {
   if (view.phase !== "ready") {
     const recovery = view.recovery === undefined
       ? ""
-      : `<span class="git-recovery">${escape(p.text(view.recovery))}</span>`;
+      : `<span class="git-recovery">${escape(view.recovery)}</span>`;
     return `<section class="git" data-phase="${escape(view.phase)}">`
-      + `<p class="git-notice">${escape(p.text(view.message))}${recovery}</p></section>`;
+      + `<p class="git-notice">${escape(view.message)}${recovery}</p></section>`;
   }
   const header = `<header class="git-head">${icon("git-branch")}`
-    + `<span class="git-branch">${escape(sayHostSentence(p.text, GIT_SENTENCE_TABLE, view.head))}</span>`
+    + `<span class="git-branch">${escape(view.head)}</span>`
     + (view.upstream === null ? "" : `<span class="git-tracking">${escape(sayUpstream(p.text, view.upstream))}</span>`)
     + `</header>`;
   const body = view.message !== ""
-    ? `<p class="git-clean">${escape(p.text(view.message))}</p>`
+    ? `<p class="git-clean">${escape(view.message)}</p>`
     : renderList(uiText.text("git.group.conflicts"), view.conflicts, model)
       + renderList(uiText.text("git.group.staged"), view.staged, model)
       + renderList(uiText.text("git.group.unstaged"), view.changes, model);

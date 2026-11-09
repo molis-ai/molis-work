@@ -5,7 +5,7 @@ import type { WebLocalePreference } from "./i18n.js";
 import { appearanceJson, type WorkbenchAppearance, type WorkbenchAppearanceChoices } from "./appearance-document.js";
 
 interface AppearanceSettingsPrimitives {
-  L(text: string, values?: Record<string, string | number>): string;
+  readText(text: string, values?: Record<string, string | number>): string;
   currentLocale(): string;
   localeSwitchHref(locale: WebLocalePreference, nextPath: string): string;
 }
@@ -16,24 +16,24 @@ export interface AppearanceSettingsModel {
 }
 const scope = ({ id, revision }: UiDefinitionRef) => `${id}@${revision}`;
 
-function renderAppearanceChoices(L: AppearanceSettingsPrimitives["L"], { current, choices }: AppearanceSettingsModel): string {
+function renderAppearanceChoices(readText: AppearanceSettingsPrimitives["readText"], { current, choices }: AppearanceSettingsModel): string {
   const { snapshot, selection } = current;
   const active = choices.skins.find(skin => scope(skin.ref) === scope(snapshot.skin));
-  const cards = choices.skins.map(skin => renderLookCard(L, {
-    id: skin.ref.id, name: skin.name, by: "内置", previewSkin: scope(skin.ref),
+  const cards = choices.skins.map(skin => renderLookCard(readText, {
+    id: skin.ref.id, name: skin.name, by: readText("workbench.immersive-shell.built"), previewSkin: scope(skin.ref),
   }, { inUse: skin === active, fontName: choices.fonts.find(font => scope(font.ref) === scope(skin.recommended_font))?.name })).join("");
   const option = (control: string, id: string, label: string, pressed: boolean) =>
     renderButton({ label, variant: "secondary", size: "sm", attrs: { [control]: id, "aria-pressed": String(pressed) } });
   const fonts = choices.fonts.filter(font => font.ref.id !== "system-menlo");
-  const proof = renderLookProof(L, {
-    look: { id: snapshot.skin.id, name: active?.name ?? "Soft Workbench", by: "内置" }, state: "idle",
+  const proof = renderLookProof(readText, {
+    look: { id: snapshot.skin.id, name: active?.name ?? "Soft Workbench", by: readText("workbench.immersive-shell.built") }, state: "idle",
     scopes: { skin: scope(snapshot.skin), font: scope(snapshot.font.scheme), mono: scope(snapshot.font.mono) },
   });
   return `<div class="appearance-choices" data-appearance-settings>
     <script type="application/json" data-appearance-choices>${appearanceJson(choices)}</script>
     <div class="appearance-controls">
       <section class="settings-section appearance-picker" aria-label="${escapeHtml(uiText.text("workbench.settings-appearance.skin"))}">
-        <h2>${escapeHtml(uiText.text("workbench.settings-appearance.skin"))}</h2>${renderLookGroup(L, cards)}
+        <h2>${escapeHtml(uiText.text("workbench.settings-appearance.skin"))}</h2>${renderLookGroup(readText, cards)}
         <div class="appearance-pick-row"><strong>${escapeHtml(uiText.text("workbench.settings-appearance.interface-font"))}</strong>
           <div class="appearance-options" role="group" aria-label="${escapeHtml(uiText.text("workbench.settings-appearance.interface-font"))}">
             ${option("data-appearance-font", "follow", uiText.text("workbench.settings-appearance.use-skins-recommendation"), selection.font.policy === "follow-skin")}
@@ -57,7 +57,7 @@ function renderAppearanceChoices(L: AppearanceSettingsPrimitives["L"], { current
 }
 
 /** Recovery uses Soft's own complete token scope even if the surrounding selection cannot be rendered. */
-export function renderAppearanceRecovery(_L: AppearanceSettingsPrimitives["L"], current: WorkbenchAppearance | undefined): string {
+export function renderAppearanceRecovery(_L: AppearanceSettingsPrimitives["readText"], current: WorkbenchAppearance | undefined): string {
   if (!current) return "";
   return renderDialog({
     title: uiText.text("workbench.settings-appearance.restore-built-appearance"), labelledBy: "appearance-recovery-title", closeLabel: uiText.text("common.control.close"), className: "appearance-recovery",
@@ -77,28 +77,28 @@ export function renderAppearanceRecovery(_L: AppearanceSettingsPrimitives["L"], 
 }
 
 export function renderAppearanceSettingsDocument(
-  { L, currentLocale, localeSwitchHref }: AppearanceSettingsPrimitives,
+  { readText, currentLocale, localeSwitchHref }: AppearanceSettingsPrimitives,
   nextPath: string,
   model?: AppearanceSettingsModel,
 ): string {
   const locale = currentLocale();
   const language = (value: WebLocalePreference, label: string, tag?: string) =>
     `<a class="mw-toggle${locale === value ? " is-current" : ""}" href="${localeSwitchHref(value, nextPath)}" data-ui-language="${value}"${tag ? ` lang="${tag}"` : ""} aria-current="${locale === value}">${escapeHtml(label)}</a>`;
-  const options = (attribute: string, values: [string, string][]) => `<div class="mw-toggle-group settings-segmented" data-slot="toggle-group" role="group">${values.map(([value, label]) => `<button class="mw-toggle" type="button" ${attribute}="${value}" aria-pressed="false">${L(label)}</button>`).join("")}</div>`;
+  const options = (attribute: string, values: [string, string][]) => `<div class="mw-toggle-group settings-segmented" data-slot="toggle-group" role="group">${values.map(([value, label]) => `<button class="mw-toggle" type="button" ${attribute}="${value}" aria-pressed="false">${uiText(label)}</button>`).join("")}</div>`;
   const row = (title: string, description: string, control: string) => `<section class="settings-setting-row"><div class="setting-copy"><strong>${uiText(title)}</strong><span>${uiText(description)}</span></div><div class="setting-value" aria-label="${uiText(title)}">${control}</div></section>`;
   return `<section class="settings-document appearance-document" aria-labelledby="settings-title"><header class="settings-heading"><div class="settings-heading-title"><h1 id="settings-title">${uiText("workbench.settings-appearance.interface-language")}</h1>${renderHint({ id: "settings-hint-appearance", label: uiText.text("workbench.settings-appearance.how-applies"), text: uiText.text("workbench.settings-appearance.theme-density-terminal-colors-saved-device") })}</div></header>
-    ${model ? renderAppearanceChoices(L, model) : ""}
+    ${model ? renderAppearanceChoices(readText, model) : ""}
     <section class="settings-section" aria-label="${uiText("workbench.settings-appearance.preferences")}">
-    ${row("workbench.settings-appearance.theme", "workbench.settings-appearance.choose-theme-follow-system-appearance", options("data-theme-option", [["light", "浅色"], ["dark", "深色"], ["system", "跟随系统"]]))}
+    ${row("workbench.settings-appearance.theme", "workbench.settings-appearance.choose-theme-follow-system-appearance", options("data-theme-option", [["light", "workbench.primitive-catalog.light"], ["dark", "workbench.primitive-catalog.dark"], ["system", "workbench.language.follow-system"]]))}
     ${row("workbench.settings-appearance.language", "workbench.settings-appearance.change-interface-text-while-keeping-project-content-its", `<div class="mw-toggle-group settings-segmented" data-slot="toggle-group" data-ui-language-options>${language("system", t.text("workbench.language.follow-system"))}${UI_LANGUAGES.map(value => language(value.tag, value.name, value.html_lang)).join("")}</div>`)}
-    ${row("workbench.settings-appearance.interface-density", "workbench.settings-appearance.adjust-spacing-goal-navigation-content", options("data-density-option", [["standard", "标准"], ["compact", "紧凑"]]))}
-    ${row("workbench.settings-appearance.terminal-appearance", "workbench.settings-appearance.choose-separate-color-scheme-terminal-content", options("data-terminal-theme-option", [["auto", "跟随界面"], ["light", "浅色"], ["dark", "深色"]]))}
+    ${row("workbench.settings-appearance.interface-density", "workbench.settings-appearance.adjust-spacing-goal-navigation-content", options("data-density-option", [["standard", "workbench.settings-appearance.density-standard"], ["compact", "workbench.settings-appearance.density-compact"]]))}
+    ${row("workbench.settings-appearance.terminal-appearance", "workbench.settings-appearance.choose-separate-color-scheme-terminal-content", options("data-terminal-theme-option", [["auto", "workbench.settings-appearance.follow-interface"], ["light", "workbench.primitive-catalog.light"], ["dark", "workbench.primitive-catalog.dark"]]))}
     </section>
   </section>`;
 }
 
 export function renderRuntimePlanDialog(ports: {
-  L(text: string): string;
+  readText(text: string): string;
   icon(name: "x", className?: string): string;
 }): string {
   const { icon } = ports;

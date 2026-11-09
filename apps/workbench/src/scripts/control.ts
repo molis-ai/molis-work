@@ -10,7 +10,7 @@ export const CONTROL_CLIENT_SCRIPT = UI_REQUEST_CLIENT_SCRIPT + PERSONAL_ACCOUNT
  */
 export const ONBOARDING_DISMISS_CLIENT_SCRIPT = `
   (() => {
-    const L = globalThis.L || ((text) => text);
+    const readText = globalThis.t.text;
     const globalError = document.querySelector("[data-onboarding-error]");
     const dismissButtons = [...document.querySelectorAll("[data-onboarding-dismiss]")];
     const setGlobalError = (message) => {

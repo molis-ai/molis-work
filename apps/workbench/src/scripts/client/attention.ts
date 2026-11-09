@@ -17,7 +17,7 @@
  * next (up to two minutes), so a host that is not answering is not asked every 15 seconds; a hidden page waits for nothing (N54).
  */
 export const ATTENTION_FACTORY_SCRIPT = `(host) => {
-  const { translate: L, projectId, openItem, route } = host;
+  const { translate: readText, projectId, openItem, route } = host;
   if (document.body.dataset.paneEmbedded === "true") return;
   const tab = document.querySelector('[data-side-tab="tasks"]');
   const count = tab?.parentElement?.querySelector("[data-background-tasks-count]");
@@ -43,7 +43,7 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
       const head = node("span", undefined, "background-task-head");
       head.append(node("span", task.title, "background-task-title"), node("time", when(task.updated_at)));
       const detail = node("span", undefined, "background-task-detail");
-      detail.append(node("span", task.standing.map(phrase => L(phrase.text, { n: phrase.count })).join(" · ")));
+      detail.append(node("span", task.standing.map(phrase => phrase.text).join(" · ")));
       if (task.project_id !== projectId) detail.append(node("span", task.project_name, "background-task-project"));
       row.append(head, detail);
       row.addEventListener("click", (event) => {

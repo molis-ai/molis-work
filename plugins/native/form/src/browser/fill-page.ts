@@ -7,7 +7,7 @@ import { loadResults, type Results } from "./results.js";
 
 /** Full-screen fill page on this computer: one person after another, each submission counted as a response. */
 export const openFillPage = (page: FormPage, record: FormRecord) => {
-  const { L, request } = page;
+  const { readText, request } = page;
   const stage = make("div", "form-fill-page");
   stage.setAttribute("role", "dialog");
   stage.setAttribute("aria-label", uiText.text("form.fill.title") + " · " + record.title);
@@ -32,7 +32,7 @@ export const openFillPage = (page: FormPage, record: FormRecord) => {
     sheet.append(kicker, heading);
     if (record.description) { const lede = make("p", "form-fill-lede", record.description); sheet.append(lede); }
     const fields = make("div", "form-fill-fields");
-    buildFields(L, fields, record.questions || []);
+    buildFields(readText, fields, record.questions || []);
     const error = make("p", "form-fill-error"); error.setAttribute("role", "alert");
     const actions = make("div", "form-fill-actions");
     const exit = make("button", "mw-btn mw-btn--secondary", uiText.text("form.fill.exit")); exit.type = "button"; exit.onclick = leave;

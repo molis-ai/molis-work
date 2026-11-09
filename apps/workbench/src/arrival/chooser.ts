@@ -29,9 +29,9 @@ export interface ChooserArrival {
 const PERSONAL = "personal";
 
 export function createWorkbenchProjectChooserRenderer(p: ArrivalPrimitives) {
-  const { L, escapeHtml, icon } = p;
+  const { readText, escapeHtml, icon } = p;
   const shell = createArrivalShell(p);
-  const brief = createWorkbenchProjectBriefRenderer({ L, escapeHtml, dateTimeLocale: p.dateTimeLocale });
+  const brief = createWorkbenchProjectBriefRenderer({ readText, escapeHtml, dateTimeLocale: p.dateTimeLocale });
 
   const greeting = (now: Date) => {
     const hour = now.getHours();
@@ -48,7 +48,7 @@ export function createWorkbenchProjectChooserRenderer(p: ArrivalPrimitives) {
     arrival: ChooserArrival = { now: new Date().toISOString(), last_project_id: null, opened: {} },
   ): string {
     const href = (path: string) => shell.href(desktopShell, path);
-    const time = createBriefTime({ L, dateTimeLocale: p.dateTimeLocale }, arrival.now);
+    const time = createBriefTime({ readText, dateTimeLocale: p.dateTimeLocale }, arrival.now);
     const now = new Date(arrival.now);
     // The personal space is a location, not a project: it is always offered first and made when first opened.
     const personal = { project_id: PERSONAL, display_name: uiText.text("workbench.chooser.personal-space"), data_class: "user" as const };
@@ -102,7 +102,7 @@ export function createWorkbenchProjectChooserRenderer(p: ArrivalPrimitives) {
     const context = renderBarContext({ mark: mark(entry), title: entry.display_name, caption: uiText.text("workbench.chooser.previewing-enter-open") });
     const enter = `<a class="mw-btn mw-btn--primary mw-btn--lg" data-slot="button" data-act="enter" href="${entryPath(selected)}" aria-keyshortcuts="Enter"><span data-slot="button-label">${personalSelected ? uiText("workbench.chooser.open-personal-space") : uiText("workbench.chooser.open-project")}</span><kbd class="mw-btn__key" aria-hidden="true">↵</kbd></a>`;
     const create = `<a class="mw-btn mw-btn--secondary mw-btn--lg" data-slot="button" data-act="new" aria-label="${uiText("workbench.chooser.new-project")}" href="${href("/onboarding?mode=new-project")}">${icon("plus")}<span data-slot="button-label">${uiText("workbench.chooser.new-project")}</span></a>`;
-    const bar = shell.bar({ kind: "chooser", start: context, center: renderAssistantDock({ L, icon }), end: `${create}${enter}` });
+    const bar = shell.bar({ kind: "chooser", start: context, center: renderAssistantDock({ readText, icon }), end: `${create}${enter}` });
 
     // Fragments the chooser cannot make without the person's words: what to say when nothing matches, and when nothing exists yet.
     const none = renderEmpty({ icon: "search", title: uiText.text("workbench.chooser.no-project-called-q"), body: uiText.text("workbench.chooser.try-another-word-start-new-project-anything-that"),
@@ -115,11 +115,11 @@ export function createWorkbenchProjectChooserRenderer(p: ArrivalPrimitives) {
       <template data-tpl="nobody"><article class="mw-brief brief-none">${nobody}</article></template>`;
     const data = JSON.stringify({ selected, projects: ordered.map(project => project.project_id), personalTitle: personal.display_name, firstName: last?.display_name ?? null, loadError: Boolean(arrival.load_error) })
       .replaceAll("<", "\\u003c");
-    const scripts = `${p.clientI18nScript()}${UI_REQUEST_CLIENT_SCRIPT}${p.visualFoundationClientScript}${ARRIVAL_MOTION_CLIENT_SCRIPT}
+    const scripts = `${p.pluginTitleScript()}${UI_REQUEST_CLIENT_SCRIPT}${p.visualFoundationClientScript}${ARRIVAL_MOTION_CLIENT_SCRIPT}
 // The Assistant and what waits on the person speak for the project chosen here, or for the person outside any project.
 const chosenRoute = path => { const id = document.querySelector('.chooser')?.dataset.selected; return id && id !== 'personal' ? '/projects/' + encodeURIComponent(id) + path : path; };
-(${ATTENTION_FACTORY_SCRIPT})({ translate: globalThis.L, route: chosenRoute, projectId: null, openItem: () => {} });
-globalThis.__ARRIVAL_ASSISTANT__ = (${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ translate: globalThis.L, route: chosenRoute, headers: () => molisWorkControlHeaders(), project: null, interaction: (client => (root, host) => client(root, { references: (source, query) => molisWorkRequest(chosenRoute("/api/search/references"), { body: { kinds: source.split(","), query, limit: 8 }, fallback: globalThis.t.text("workbench.chooser.search-not-available-right-now-try-again-later") }).then(found => ({ items: found.candidates.map(item => ({ value: item.kind + " " + item.id, label: item.label, meta: item.plugin_title })) })), ...host }))((${INTERACTION_CLIENT_SCRIPT_TYPED_DATES})), receipts: (${INPUT_RECEIPTS_CLIENT_SCRIPT})(globalThis.L),
+(${ATTENTION_FACTORY_SCRIPT})({ translate: globalThis.t.text, route: chosenRoute, projectId: null, openItem: () => {} });
+globalThis.__ARRIVAL_ASSISTANT__ = (${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ translate: globalThis.t.text, route: chosenRoute, headers: () => molisWorkControlHeaders(), project: null, interaction: (client => (root, host) => client(root, { references: (source, query) => molisWorkRequest(chosenRoute("/api/search/references"), { body: { kinds: source.split(","), query, limit: 8 }, fallback: globalThis.t.text("workbench.chooser.search-not-available-right-now-try-again-later") }).then(found => ({ items: found.candidates.map(item => ({ value: item.kind + " " + item.id, label: item.label, meta: item.plugin_title })) })), ...host }))((${INTERACTION_CLIENT_SCRIPT_TYPED_DATES})), receipts: (${INPUT_RECEIPTS_CLIENT_SCRIPT})(globalThis.t.text),
   placeholder: project => project && project.title ? globalThis.t.text("workbench.chooser.ask-about-name-give-assistant-task", { name: project.title }) : globalThis.t.text("workbench.chooser.ask-assistant-do-something-personal-space") });
 ${CHOOSER_CLIENT_SCRIPT}`;
     return shell.document({

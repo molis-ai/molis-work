@@ -1,0 +1,1 @@
+Turn the person's text into a slide outline. Output Markdown only. Start with `# Presentation title`. Give each slide a `## Slide title` and two to five `- ` bullets of at most 40 characters each. Start any speaker notes with `> `. Use no more than 12 slides and give no explanation. The following JSON is the supplied text:

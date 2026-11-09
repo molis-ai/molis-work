@@ -17,7 +17,7 @@ import { renderPluginSlots } from "./settings-plugin-slots.js";
  * src/browser/service-connection-item.ts.
  */
 interface ConnectorsSettingsPrimitives {
-  L(text: string, values?: Record<string, string | number>): string;
+  readText(text: string, values?: Record<string, string | number>): string;
   escapeHtml(value: unknown): string;
   icon(name: "link" | "mail" | "back" | "tree"): string;
   /** Where the docs page that lists every outbound network class is read, in the interface language; no link without it. */
@@ -77,7 +77,7 @@ function renderAdvanced(body: string, _p: ConnectorsSettingsPrimitives): string 
 
 /** A service's open part: what it is, its accounts, the way to connect it (or one more account), what to do next, and 高级. */
 function renderServiceBody(card: ConnectorSettingsCardView, connections: readonly ConnectorSettingsConnection[], view: Pick<MolisWorkSettingsView, "functions_settings">, p: ConnectorsSettingsPrimitives): string {
-  const { L, escapeHtml: e } = p;
+  const { readText, escapeHtml: e } = p;
   // null is the platform's own; an object names the declaring package; undefined means nothing said where the service comes from, so
   // no source line is shown rather than a trust label the page cannot back.
   const source = card.declared_by === null ? uiText.text("workbench.settings-connectors.molis-work-built")
@@ -91,7 +91,7 @@ function renderServiceBody(card: ConnectorSettingsCardView, connections: readonl
     ${source === undefined ? "" : `<p class="settings-connector-source"><small data-connector-source>${e(uiText.text("workbench.settings-connectors.package", { package: source }))}</small></p>`}
     <div class="settings-connector-feedback" data-connector-feedback role="status" aria-live="polite" tabindex="-1" hidden></div>
     ${connections.map(connection => renderConnectionAccount(connection, card, p, connections.filter(other => other !== connection && other.state === "connected" && other.enabled !== false && !other.project_id && other.auth_method === connection.auth_method))).join("")}
-    ${card.connector_id === "typesafe" && view.functions_settings ? renderFunctionsSettings({ ...view.functions_settings, embedded: true, primitives: { escape: e, text: L } }) : ""}
+    ${card.connector_id === "typesafe" && view.functions_settings ? renderFunctionsSettings({ ...view.functions_settings, embedded: true, primitives: { escape: e, text: readText } }) : ""}
     ${add}
     ${renderNextSteps(card, connections, p)}
     ${renderAdvanced(connections.map(connection => renderConnectionManage(connection, card, p)).join("") + renderConnectorWays(card, p), p)}
@@ -102,7 +102,7 @@ export function renderConnectorsSettings(
   view: Pick<MolisWorkSettingsView, "connectors" | "connector_connections" | "connector_setup" | "capabilities" | "functions_settings" | "plugin_slots" | "context_project">,
   primitives: ConnectorsSettingsPrimitives,
 ): string {
-  const { L, escapeHtml } = primitives;
+  const { readText, escapeHtml } = primitives;
   const cards = view.connectors ?? [];
   if (view.connector_setup !== undefined) return renderConnectorRequest(view.connector_setup, cards, primitives);
   const connections = [...view.connector_connections ?? []].sort((a, b) => connectionOrder(a) - connectionOrder(b));
@@ -110,18 +110,18 @@ export function renderConnectorsSettings(
   // Within a group: services that have an account first, then those that connect now, then those not in yet.
   const rank = (card: ConnectorSettingsCardView) => of(card.connector_id).some(connection => connection.state !== "disconnected") ? 0 : card.availability === "placeholder" ? 2 : 1;
   const item = (card: ConnectorSettingsCardView) => {
-    const purpose = connectorPurpose(card, L);
+    const purpose = connectorPurpose(card, readText);
     return renderConnectionItem({
       id: `connector-${card.connector_id}`, mark: renderConnectorMark(card.connector_id, escapeHtml),
       // A package writes the row's words: the row shows them within their limits, cut in whole characters; the search reads them whole.
       name: connectorCardText(card.title, CONNECTOR_NAME_MAX_CHARS), caption: connectorCardText(purpose, CONNECTOR_SUMMARY_MAX_CHARS),
       state: serviceState(card, of(card.connector_id), primitives), body: renderServiceBody(card, of(card.connector_id), view, primitives),
       attrs: { "data-connector-item": card.connector_id, "data-connector-search": `${card.title} ${card.connector_id} ${purpose}`.toLowerCase() },
-    }, L);
+    }, readText);
   };
   const groups = DISPLAY_GROUPS.map(group => {
     const rows = cards.filter(card => displayGroup(card) === group.id).map((card, index) => ({ card, index })).sort((a, b) => rank(a.card) - rank(b.card) || a.index - b.index);
-    return rows.length ? `<section class="settings-connector-subgroup" data-connector-subgroup="${group.id}"><h3>${L(group.title)}</h3>${rows.map(row => item(row.card)).join("")}</section>` : "";
+    return rows.length ? `<section class="settings-connector-subgroup" data-connector-subgroup="${group.id}"><h3>${uiText.text(group.title)}</h3>${rows.map(row => item(row.card)).join("")}</section>` : "";
   }).join("");
   // A connection whose service is no longer declared (its package was removed) has no way to connect left: its row opens on the account
   // and what can still be done with it.
@@ -132,7 +132,7 @@ export function renderConnectorsSettings(
     // Not a service the page can open or connect: no `data-connector-item`, no service panel, only this account and what can be done with it.
     body: `<div class="settings-connector-panel">${renderConnectionAccount(connection, undefined, primitives)}${renderAdvanced(renderConnectionManage(connection, undefined, primitives), primitives)}</div>`,
     attrs: { "data-connector-orphan": connection.connection_id, "data-connector-search": `${connection.display_name} ${connection.service_id}`.toLowerCase() },
-  }, L)).join("")}</section>` : "";
+  }, readText)).join("")}</section>` : "";
   // Under the heading, like the MCP page's link to the external-tools page: a footnote below the whole catalog is rarely seen.
   const networkDoc = primitives.networkDocHref ? `<p data-network-doc>${uiText("workbench.settings-connectors.everywhere-molis-work-goes-online-itself-models-search")}<a href="${escapeHtml(primitives.networkDocHref)}" target="_blank" rel="noopener noreferrer">${uiText("workbench.settings-connectors.where-molis-work-connects")}</a></p>` : "";
   return `<section class="settings-document" aria-labelledby="settings-title" data-connectors-settings>
@@ -144,7 +144,7 @@ export function renderConnectorsSettings(
         <p class="settings-connector-empty" data-connectors-no-results role="status" hidden><span>${uiText("workbench.settings-connectors.no-service-matches-try-another-word")}</span><button type="button" class="mw-btn mw-btn--secondary" data-connectors-reset>${uiText("workbench.settings-connectors.clear-search")}</button></p>
         ${groups}${orphanGroup}
       </div>
-      ${renderPluginSlots(view, cards, connections, { L, escapeHtml, mark: serviceId => renderConnectorMark(serviceId, escapeHtml) })}
+      ${renderPluginSlots(view, cards, connections, { readText, escapeHtml, mark: serviceId => renderConnectorMark(serviceId, escapeHtml) })}
       ${CLIENT_TEMPLATES(primitives)}
     </div>
   </section>`;
@@ -155,7 +155,7 @@ export function renderConnectorsSettings(
  * progress of a login and of a key (`renderConnectionProgress`), and the row's running state.
  */
 function CLIENT_TEMPLATES(p: ConnectorsSettingsPrimitives): string {
-  const progress = (steps: readonly string[]) => renderConnectionProgress({ steps: steps.map(step => p.L(step)), at: 0, state: "running" }, p.L);
+  const progress = (steps: readonly string[]) => renderConnectionProgress({ steps: steps.map(step => uiText.text(step)), at: 0, state: "running" }, p.readText);
   return `<template data-connector-template="progress-login">${progress(["在浏览器登录", "看能做什么", "能用了"])}</template>
     <template data-connector-template="progress-key">${progress(["填密钥", "验证密钥", "能用了"])}</template>
     <template data-connector-template="running">${renderStatusMark({ label: uiText.text("workbench.settings-connectors.connecting"), state: "running", tone: "progress", plain: true })}</template>

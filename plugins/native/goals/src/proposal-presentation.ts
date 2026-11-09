@@ -3,7 +3,7 @@ import type { GoalTreeProposalRecord } from "./contract/governance-collaboration
 import { GOALS_RELATION_LABELS as RELATION_LABELS } from "./relation-presentation.js";
 import { findGoalView, type GoalsProposalView, type GoalsProposalUiPrimitives } from "./proposal-ui-model.js";
 
-export function createGoalsProposalPresentation(L: GoalsProposalUiPrimitives["translate"]) {
+export function createGoalsProposalPresentation(readText: GoalsProposalUiPrimitives["translate"]) {
 function proposedGoalName(
   value: unknown,
   view: GoalsProposalView,
@@ -47,7 +47,7 @@ function goalTreeProposalItemCopy(
     const outcome = String(goal.outcome ?? "").trim();
     const why = String(goal.why ?? "").trim();
     return {
-      title: L("{operation} Goal「{title}」", { operation, title }),
+      title: readText("goals.proposal-presentation.operation-goal-title", { operation, title }),
       detail: outcome || item.reason,
       facts: [
         ...(why ? [uiText.text("goals.proposal-presentation.why-why", { why })] : []),
@@ -60,7 +60,7 @@ function goalTreeProposalItemCopy(
     const from = proposedGoalName(relation.from_goal_id, view, proposal);
     const to = proposedGoalName(relation.to_goal_id, view, proposal);
     const relationLabel = RELATION_LABELS[String(relation.type ?? "")]?.out ?? uiText.text("goals.proposal-presentation.create-relation");
-    return L("{from} → {relation} → {to}", { from, relation: L(relationLabel), to });
+    return readText("goals.proposal-presentation.from-relation-to", { from, relation: relationLabel, to });
   });
   return {
     title: uiText.text("goals.proposal-presentation.operation-count-goal-relationships", { operation, count: facts.length || 1 }),

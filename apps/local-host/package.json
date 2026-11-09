@@ -16,6 +16,7 @@
     }
   },
   "files": [
+    "prompts",
     "dist",
     "README.md",
     "native/materials/bin",

@@ -7,6 +7,7 @@ import type { PluginDirectory } from "./plugin-directory.js";
 export interface PreparedStageView extends UiContribution {
   readonly producer?: string;
   readonly textPacks?: () => readonly UiLocalePack[];
+  readonly drawText?: <T>(draw: () => T) => T;
 }
 
 export interface MolisWorkWebView {

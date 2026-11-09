@@ -1,6 +1,5 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { ImmersiveShellPrimitives } from "./immersive-shell.js";
-import { withPluginWords } from "./i18n.js";
 import type { PluginHomeStart } from "./plugin-catalog.js";
 
 /**
@@ -9,9 +8,9 @@ import type { PluginHomeStart } from "./plugin-catalog.js";
  * The event detail keeps one node (`data-home-detail`) that the client moves into the open row. The ways to start on an empty day are the
  * enabled plugins' declared `start` (`data-home-starts`); the client keeps no list by plugin.
  */
-export function renderProjectHome(name: string, { L, escapeHtml: e, icon }: ImmersiveShellPrimitives, starts: readonly PluginHomeStart[]): string {
+export function renderProjectHome(name: string, { escapeHtml: e, icon }: ImmersiveShellPrimitives, starts: readonly PluginHomeStart[]): string {
   // Each start is its plugin's own text, so it is worded in the page's language with that plugin's words before the page gets it.
-  const worded = starts.map(({ plugin_id, ...start }) => withPluginWords(plugin_id, () => ({ ...start, title: L(start.title), hint: L(start.hint) })));
+  const worded = starts;
   return `<section class="desktop-work-surface immersive-home" data-work-surface="home" data-home-starts="${e(JSON.stringify(worded))}" data-work-surface-label="${uiText("workbench.project-home.project-home")}" data-event="off" data-dock="closed" aria-label="${e(name)} · ${uiText("workbench.project-home.project-home")}" hidden>
     <div class="home-scroll" data-home-scroll>
       <header class="home-heading home-hero" data-home-hero>

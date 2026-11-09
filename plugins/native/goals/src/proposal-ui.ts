@@ -17,9 +17,9 @@ function renderProposalList(primitives: GoalsProposalUiPrimitives, proposals: re
 
 export const GOALS_PROPOSAL_UI_CONTRIBUTION_ID = "io.molis.work.native.goals.proposal";
 function createProposalRenderer(primitives: GoalsProposalUiPrimitives) {
-const { translate: L, escapeHtml, icon } = primitives;
+const { translate: readText, escapeHtml, icon } = primitives;
 const { renderNewDecisionBadge, renderDecisionGuidance, renderDecisionScenario, proposedGoalNextStage } = createGoalsDecisionPresentation(primitives);
-const { proposedGoalName, goalTreeRelationPayloads, goalTreeProposalItemCopy } = createGoalsProposalPresentation(L);
+const { proposedGoalName, goalTreeRelationPayloads, goalTreeProposalItemCopy } = createGoalsProposalPresentation(readText);
 function goalTreeRelationScenario(
   item: GoalTreeProposalRecord["items"][number],
   view: GoalsProposalView,
@@ -139,8 +139,8 @@ function renderGoalTreeProposalDecision(proposal: GoalTreeProposalRecord, view: 
     const semanticExplanation = `<dl class="goal-tree-proposal-item-explanation">
       <div><dt>${uiText("goals.proposal-ui.problem-addressed")}</dt><dd>${escapeHtml(explanation?.problem ?? item.reason)}</dd></div>
       ${explanation ? `<div><dt>${uiText("goals.proposal-ui.what-changes")}</dt><dd>${escapeHtml(explanation.expected_effect)}</dd></div>
-      <div><dt>${uiText("goals.proposal-ui.what-stays-unchanged")}</dt><dd>${explanation.non_goals.length ? escapeHtml(explanation.non_goals.join(L("；"))) : uiText("goals.proposal-ui.no-additional-boundary")}</dd></div>
-      <div><dt>${uiText("goals.proposal-ui.related-changes")}</dt><dd>${dependencyLabels.length ? escapeHtml(dependencyLabels.join(L("；"))) : uiText("goals.proposal-ui.can-be-understood-independently-no-prerequisite-change")}</dd></div>` : ""}
+      <div><dt>${uiText("goals.proposal-ui.what-stays-unchanged")}</dt><dd>${explanation.non_goals.length ? escapeHtml(explanation.non_goals.join("；")) : uiText("goals.proposal-ui.no-additional-boundary")}</dd></div>
+      <div><dt>${uiText("goals.proposal-ui.related-changes")}</dt><dd>${dependencyLabels.length ? escapeHtml(dependencyLabels.join("；")) : uiText("goals.proposal-ui.can-be-understood-independently-no-prerequisite-change")}</dd></div>` : ""}
     </dl>`;
     const issueCopy = issuesByItem.get(item.item_id) ?? [];
     const blocked = item.state === "conflict" || issueCopy.length > 0;

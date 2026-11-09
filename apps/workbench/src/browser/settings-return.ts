@@ -134,7 +134,7 @@ function paintReturnBar(_L: SettingsReturnHost["translate"], kind: string | null
 }
 
 export function createSettingsReturn(host: SettingsReturnHost): SettingsReturn {
-  const L = host.translate, project = host.projectId || "", prefix = host.prefix || "";
+  const readText = host.translate, project = host.projectId || "", prefix = host.prefix || "";
   if (!project || window.top !== window) return IDLE;
   const storage = sessionStore();
   if (!storage) return IDLE;
@@ -196,7 +196,7 @@ export function createSettingsReturn(host: SettingsReturnHost): SettingsReturn {
   };
   function paint() {
     const kind = coverKind(), trip = owner.current(kind);
-    paintReturnBar(L, kind, trip, { name: trip ? nameOf(trip) : "", ready: Boolean(trip && ready.has(trip.id)), back: id => void back(owner.find(id)) });
+    paintReturnBar(readText, kind, trip, { name: trip ? nameOf(trip) : "", ready: Boolean(trip && ready.has(trip.id)), back: id => void back(owner.find(id)) });
   }
   document.addEventListener("molis-work:return-claim", event => {
     const detail = detailOf(event);

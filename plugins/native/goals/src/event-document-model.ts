@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type {
   GoalEventStateView,
   GoalEventTimelineItem,
@@ -202,9 +203,9 @@ export function eventDirectoryPresentation(state: GoalEventStateView, _goal?: Pi
       event_work: true,
       status: "satisfied",
       display_status: "completed",
-      status_label: "已完成",
-      main_action_label: "显式继续",
-      action_summary: state.closure?.result || state.agreement.outcome || "已有明确完成结论。如需新一轮，打开「继续此目标」并填写原因。",
+      status_label: uiText.text("goals.event-document-model.completed"),
+      main_action_label: uiText.text("goals.event-document-model.continue-this-goal"),
+      action_summary: state.closure?.result || state.agreement.outcome || uiText.text("goals.event-document-model.a-completion-result-is-recorded-to-start"),
     };
   }
   if (state.work_status === "cancelled") {
@@ -212,9 +213,9 @@ export function eventDirectoryPresentation(state: GoalEventStateView, _goal?: Pi
       event_work: true,
       status: "invalidated",
       display_status: "continue",
-      status_label: "已取消",
-      main_action_label: "显式继续",
-      action_summary: "已取消的 Goal 需要显式继续，不会被普通记录自动恢复。",
+      status_label: uiText.text("goals.event-document-model.cancelled"),
+      main_action_label: uiText.text("goals.event-document-model.continue-this-goal"),
+      action_summary: uiText.text("goals.event-document-model.continue-a-cancelled-goal-explicitly-adding-a"),
     };
   }
   if (state.pending_decisions.length) {
@@ -222,8 +223,8 @@ export function eventDirectoryPresentation(state: GoalEventStateView, _goal?: Pi
       event_work: true,
       status: "waiting_for_human",
       display_status: "waiting_user",
-      status_label: "需要你决定",
-      main_action_label: "作出决定",
+      status_label: uiText.text("goals.event-document-model.needs-your-decision"),
+      main_action_label: uiText.text("goals.event-document-model.make-a-decision"),
       action_summary: state.pending_decisions[0]!.question,
     };
   }
@@ -233,8 +234,8 @@ export function eventDirectoryPresentation(state: GoalEventStateView, _goal?: Pi
       event_work: true,
       status: "execution_blocked",
       display_status: "blocked",
-      status_label: "受阻",
-      main_action_label: "处理问题",
+      status_label: uiText.text("goals.event-document-model.blocked"),
+      main_action_label: uiText.text("goals.event-document-model.handle-the-blocker"),
       action_summary: blocking[0]!.title,
     };
   }
@@ -244,8 +245,8 @@ export function eventDirectoryPresentation(state: GoalEventStateView, _goal?: Pi
       event_work: true,
       status: "executing",
       display_status: "in_progress",
-      status_label: "正在推进",
-      main_action_label: "记录进展",
+      status_label: uiText.text("goals.event-document-model.in-progress"),
+      main_action_label: uiText.text("goals.event-document-model.record-progress"),
       action_summary: next,
     };
   }
@@ -253,9 +254,9 @@ export function eventDirectoryPresentation(state: GoalEventStateView, _goal?: Pi
     event_work: true,
     status: "execution_pending",
     display_status: "continue",
-    status_label: state.latest_reports.length || state.progress_summary ? "待继续" : "待开始",
-    main_action_label: state.latest_reports.length || state.progress_summary ? "继续工作" : "开始工作",
-    action_summary: state.progress_summary?.summary || "打开终端开始工作，或添加一条记录。",
+    status_label: state.latest_reports.length || state.progress_summary ? uiText.text("goals.event-document-model.ready-to-continue") : uiText.text("goals.event-document-model.not-started"),
+    main_action_label: state.latest_reports.length || state.progress_summary ? uiText.text("goals.event-document-model.continue-work") : uiText.text("goals.event-document-model.start-work"),
+    action_summary: state.progress_summary?.summary || uiText.text("goals.event-document-model.open-the-terminal-to-start-work-or"),
   };
 }
 

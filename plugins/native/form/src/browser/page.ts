@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { FormQuestion, FormRecord } from "../contract.js";
 import type { formDraft } from "./draft.js";
 import type { FormClientHost, FormFailure, FormRequest, Translate } from "./types.js";
@@ -8,7 +9,7 @@ import type { FormClientHost, FormFailure, FormRequest, Translate } from "./type
  */
 export interface FormPage {
   readonly host: FormClientHost;
-  readonly L: Translate;
+  readonly readText: Translate;
   readonly request: FormRequest;
   readonly bench: HTMLElement;
   readonly one: <T extends Element = HTMLElement>(selector: string) => T | null;
@@ -60,7 +61,7 @@ export type FormAnswer = { form: FormRecord };
 export function formPage(host: FormClientHost, request: FormRequest, bench: HTMLElement): FormPage {
   const one = <T extends Element = HTMLElement>(selector: string) => bench.querySelector<T>(selector);
   return {
-    host, L: host.translate, request, bench, one,
+    host, readText: uiText.text, request, bench, one,
     list: one("[data-form=directory]"),
     rowsEl: one("[data-form-rows]")!,
     empty: one("[data-form-empty]"),

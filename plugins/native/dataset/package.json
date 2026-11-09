@@ -24,6 +24,7 @@
     }
   },
   "files": [
+    "prompts",
     "locales",
     "dist",
     "README.md"

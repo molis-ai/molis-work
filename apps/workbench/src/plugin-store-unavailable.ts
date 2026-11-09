@@ -13,19 +13,19 @@ export function renderPluginStoreUnavailablePage(input: {
   reason: string;
   reloadHref: string;
   desktopShell: boolean;
-}, locale: { L(text: string, values?: Record<string, string | number>): string; htmlLang(): string; desktop: WorkbenchRendererPorts["desktop"] }): string {
-  const { L } = locale;
+}, locale: { readText(text: string, values?: Record<string, string | number>): string; htmlLang(): string; desktop: WorkbenchRendererPorts["desktop"] }): string {
+  const { readText } = locale;
   const plugins = [...new Set([...input.membership.plugins, ...input.membership.hidden])];
   const members = plugins.map(pluginId => {
     const entry = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === pluginId);
     const hidden = input.membership.hidden.includes(pluginId);
-    return `<li data-stored-project-plugin="${escapeHtml(pluginId)}" data-plugin-hidden="${hidden}">${escapeHtml(L(entry?.manifest.name ?? pluginId))}${hidden ? ` · ${escapeHtml(uiText.text("workbench.plugin-store-unavailable.hidden"))}` : ""}</li>`;
+    return `<li data-stored-project-plugin="${escapeHtml(pluginId)}" data-plugin-hidden="${hidden}">${escapeHtml((entry?.manifest.name ?? pluginId))}${hidden ? ` · ${escapeHtml(uiText.text("workbench.plugin-store-unavailable.hidden"))}` : ""}</li>`;
   }).join("");
   // These are failure/status entries, not derived project members. Never invoke a running contribution while its ledger is unreadable.
   const statuses = BUILTIN_PLUGIN_CATALOG.filter(entry => entry.manifest.runtime?.scope === "home").map(entry =>
     `<section class="mw-frame__panel" data-work-surface="${escapeHtml(entry.project_plugin_id)}" data-home-plugin-unavailable="workbench">${renderUnavailablePluginStatus({
       surface: entry.project_plugin_id, label: entry.manifest.name, scope: "home", reason: uiText.text("workbench.plugin-store-unavailable.home-plugin-store-unavailable"),
-    }, L)}</section>`).join("");
+    }, readText)}</section>`).join("");
   const html = renderWorkbenchDocument({
     lang: locale.htmlLang(), title: uiText.text("workbench.plugin-store-unavailable.home-plugin-store-unavailable"),
     head_html: `<script>${THEME_BOOTSTRAP_SCRIPT}${locale.desktop.bootstrapScript}</script><link rel="stylesheet" href="/assets/molis-work-settings.css"><style>body[data-home-plugin-store-unavailable] .mw-btn { min-height: var(--control-h); min-width: var(--control-h); }</style>`,

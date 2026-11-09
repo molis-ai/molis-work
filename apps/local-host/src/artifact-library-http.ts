@@ -12,12 +12,12 @@ import {
   ARTIFACTS_PLUGIN_ID, artifactsErrors, documentErrors, DOCUMENT_ARTIFACT_TYPE, matchArtifactBrowserRoute, artifactsActions, artifactVersionPath, importedFileOf, openArtifactOriginal,
   EXTERNAL_DOCUMENT_SOURCES, type ArtifactFileImport, type ArtifactImportResult, type ArtifactExternalImport, type GoalArtifactEmbed,
 } from "@molis-ai/molis-work-module-artifacts";
-import { artifactWorkbench, withPluginWords } from "@molis-ai/molis-work-app-workbench";
+import { artifactWorkbench } from "@molis-ai/molis-work-app-workbench";
 import { artifactTypeDeclarations, artifactContinuers, artifactReferrerActions, continuerReadsFile, type ArtifactTypeDeclaration } from "./artifact-type-registry.js";
 import { renderFilePreviewHtml } from "@molis-ai/molis-work-design-system";
 import { importedDocumentFile, type ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { ActionProgressEvent, ArtifactCompareResult, ArtifactContinueResult, ArtifactReferrersResult, FileContent } from "@molis-ai/molis-work-contracts/platform/actions";
-import { dateTimeLocale, L } from "./web-locale.js";
+import { dateTimeLocale, readText } from "./web-locale.js";
 import { requestHeader, sendLocalWebJson } from "./web-http.js";
 import { readArtifactImportBody } from "./artifact-document-import.js";
 import { answerPluginRouteStream } from "./plugin-route-stream.js";
@@ -44,7 +44,7 @@ function escape(value: string): string {
 }
 
 /** A type's name is its owner's own text, so the plugin that declares it translates it, whoever published it (artifact-positioning A4). */
-const typeTitle = (declaration: ArtifactTypeDeclaration): string => withPluginWords(declaration.plugin_id, () => L(declaration.title));
+const typeTitle = (declaration: ArtifactTypeDeclaration): string => declaration.title;
 const typeTitlesOf = (declarations: ReadonlyMap<string, ArtifactTypeDeclaration>) => Object.fromEntries([...declarations].map(([type, declaration]) => [type, typeTitle(declaration)]));
 const typeTitleOf = (declarations: ReadonlyMap<string, ArtifactTypeDeclaration>, type: string): string => { const declaration = declarations.get(type); return declaration ? typeTitle(declaration) : type; };
 /** The platform's own pages and answers use the Workbench's current dictionary. */
@@ -108,7 +108,7 @@ async function importRawOriginal(request: IncomingMessage, response: ServerRespo
       ...new URL(request.url ?? "/", "http://host").searchParams.get("allow_model_download") === "true" ? { allow_model_download: true } : {} };
     const answer = async (on_progress?: (event: ActionProgressEvent) => void) => {
       const saved = await context.offeredActions({ path, install_id: ARTIFACTS_PLUGIN_ID }).invoke(artifactsActions.importFile, input, undefined, on_progress ? { on_progress } : undefined);
-      return { status: saved.reused ? 200 : 201, body: { ...saved, url: context.routePrefix + artifactVersionPath(saved), warnings: saved.warnings.map(warning => L(warning)) } };
+      return { status: saved.reused ? 200 : 201, body: { ...saved, url: context.routePrefix + artifactVersionPath(saved), warnings: saved.warnings.map(warning => warning) } };
     };
     if (requestHeader(request, "accept")?.includes("application/x-ndjson")) await answerPluginRouteStream(response, emit => answer(emit), () => undefined);
     else { const result = await answer(); sendLocalWebJson(response, result.status, result.body); }
@@ -137,7 +137,7 @@ export function createLocalArtifactHttp() {
             ? await context.actions.invoke<unknown, ArtifactImportResult>(artifactsActions.importFile, input, undefined, transport)
             : await context.actions.invoke<unknown, ArtifactImportResult>(artifactsActions.importExternal, input, undefined, transport);
           const result = { ...saved, url: context.routePrefix + artifactVersionPath(saved) };
-          return { status: result.reused ? 200 : 201, body: { ...result, warnings: result.warnings.map(warning => L(warning)) } };
+          return { status: result.reused ? 200 : 201, body: { ...result, warnings: result.warnings.map(warning => warning) } };
         };
         // A page that waits on a slow reading (the speech model's download, a transcription) asks for its progress as NDJSON (PMAT-48).
         if (requestHeader(request, "accept")?.includes("application/x-ndjson")) return answerPluginRouteStream(response, emit => answer(emit), () => undefined);
@@ -246,7 +246,7 @@ export function createLocalArtifactHttp() {
       return true;
     } catch (error) {
       // The status is the one of the failure's kind. This is the one edge where the Host translates a failure's message itself.
-      const failure = actionErrorResponse(error, { translate: L });
+      const failure = actionErrorResponse(error, { translate: readText });
       sendLocalWebJson(response, failure.status, failure.body);
       return true;
     }

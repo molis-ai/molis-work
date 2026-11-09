@@ -251,6 +251,27 @@ test("real routes: a record that is not there is 404 <owner>.not_found at Pages,
   assert.deepEqual([missingSpark.status, (await missingSpark.json() as { code: string }).code], [404, "lingguang.not_found"]);
 });
 
+test("BSH-09 Runtime document routes reject mismatching query or body project fields without writing", async t => {
+  const home = await openTestHome(t);
+  const project = await home.createProject("Document request project");
+  const other = await home.createProject("Other document project");
+  const owners = [
+    ["dataset", "datasets", "数据表"], ["form", "forms", "问卷"], ["pages", "pages", "文档"],
+    ["ppt", "ppt", "演示稿"], ["lingguang", "sparks", "请求"],
+  ];
+  for (const [owner, route, label] of owners) {
+    const path = `/projects/${project.project_id}/api/plugins/io.molis.work.${owner}/${route}`;
+    const otherPath = `/projects/${other.project_id}/api/plugins/io.molis.work.${owner}/${route}`;
+    const refusal = { status: 403, code: "actions.scope_mismatch", message: `${label}项目与当前项目不一致` };
+    const before = await home.web.get(path);
+    const beforeOther = await home.web.get(otherPath);
+    await assert.rejects(home.web.post(`${path}?project_id=${encodeURIComponent(other.project_id)}`, { title: "Forbidden query", project_id: project.project_id }), refusal);
+    await assert.rejects(home.web.post(`${path}?project_id=${encodeURIComponent(project.project_id)}`, { title: "Forbidden body", project_id: other.project_id }), refusal);
+    assert.deepEqual(await home.web.get(path), before, owner);
+    assert.deepEqual(await home.web.get(otherPath), beforeOther, owner);
+  }
+});
+
 test("real routes: a change made on a stale version is 409 <owner>.conflict at Pages, PPT, Dataset, Form and Workflows", async t => {
   const datasets = await datasetRoutes(t);
   const forms = await formRoutes(t);

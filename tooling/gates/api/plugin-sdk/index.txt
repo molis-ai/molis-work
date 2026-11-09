@@ -759,6 +759,8 @@ export declare function pollingIntegrationBinding({ manifest, provider, presentA
     now?: () => Date;
 }): ReturnType<PluginIntegrationContribution["bind"]>;
 
+export declare function projectRouteFields(request: PluginRouteRequest, projectId: PluginStartContext["project_id"], mismatch: string): Record<string, unknown>;
+
 export declare function questionAnswer(values: unknown): {
     answers: Array<{
         question: number;

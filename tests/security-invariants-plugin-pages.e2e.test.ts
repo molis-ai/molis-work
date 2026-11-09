@@ -322,7 +322,7 @@ test("D0109 S-47 scriptless print frames release on timeout, afterprint and owne
     assert.equal(await browser.evaluate("Boolean(globalThis.__printEscape)"), false);
   };
   await print();
-  await browser.evaluate("window.__printTimeouts.at(-1)()");
+  await browser.evaluate("Object.defineProperty(" + frame + ", 'contentWindow', { get() { throw new DOMException('Opaque print window', 'SecurityError'); } });window.__printTimeouts.at(-1)()");
   assert.equal(await browser.evaluate("!!(" + frame + ")"), false, "a browser that omits afterprint still releases the frame");
   await print();
   await browser.evaluate("window.dispatchEvent(new Event('afterprint'))");

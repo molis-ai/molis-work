@@ -42,8 +42,17 @@ export function printPageDocument(html: string, scope: FrameScope): void {
   frame.setAttribute("sandbox", "allow-same-origin allow-modals"); frame.setAttribute("aria-hidden", "true");
   frame.style.cssText = "position:fixed;width:0;height:0;border:0;right:0;bottom:0";
   let timer: ReturnType<typeof setTimeout>;
-  const cleanup = () => { clearTimeout(timer); window.removeEventListener("afterprint", cleanup); frame.contentWindow?.removeEventListener("afterprint", cleanup); frame.onload = null; frame.remove(); };
-  frame.onload = () => { if (!frame.isConnected) return; frame.contentWindow?.addEventListener("afterprint", cleanup, { once: true }); frame.contentWindow?.focus(); frame.contentWindow?.print(); };
+  const cleanup = () => {
+    clearTimeout(timer); window.removeEventListener("afterprint", cleanup); frame.onload = null;
+    try { frame.contentWindow?.removeEventListener("afterprint", cleanup); }
+    catch { return; } // A navigated child may be opaque; removal still runs and releases its listeners.
+    finally { frame.remove(); }
+  };
+  frame.onload = () => {
+    if (!frame.isConnected) return;
+    try { frame.contentWindow?.addEventListener("afterprint", cleanup, { once: true }); frame.contentWindow?.focus(); frame.contentWindow?.print(); }
+    catch { cleanup(); }
+  };
   frame.srcdoc = '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'; img-src data: blob:; form-action \'none\'">' + html;
   timer = setTimeout(cleanup, 120_000);
   window.addEventListener("afterprint", cleanup, { once: true });

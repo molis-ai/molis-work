@@ -34,3 +34,7 @@
 由各测试owner分批修真实问题，优先参数个数、错误的合同输入和缺失字段，再处理fixture上下文推断。每批保留运行时拒绝/副作用断言，不能用any、压制或关闭检查换绿。清完且在Linux验证稳定后，再单独review是否接入必过CI。跨版本数据/SDK合同变动先读现行合同，不批量按旧调用形状改产品。
 
 本批D0012的编译期负向单独可复验：`pnpm exec tsc --noEmit --strict --skipLibCheck --module nodenext --target es2022 tests/types/directory-pass.ts`；同步返回通过，Promise、PromiseLike和含Promise的联合返回均必须报错（由expect-error验证）。
+
+## 主线集成复核
+
+在main `1b8712618152ff4563e0678fa7167fe6063f8999`的干净独立构建与A-1集成候选上重跑同一配置：双方均为**3,051条/775文件**，按文件/错误码计数完全相同。775相较冻结起点774的变化来自新主线；未拿不同基点的数字抵消本批问题。检查仍失败，阶段边界不变。

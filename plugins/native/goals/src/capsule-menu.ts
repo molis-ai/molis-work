@@ -1,3 +1,4 @@
+import type { InferActionInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import { goalAction } from "./contract/goal-action-definition.js";
 import type { GoalsSqliteDatabase } from "./module/repository.js";
 import type { GoalPresentationState } from "./tree-order.js";
@@ -5,8 +6,9 @@ import type { GoalPresentationState } from "./tree-order.js";
 export interface GoalCapsuleMenu {
   focus: { goal_id: string; title: string; state: GoalPresentationState; count: number; historical: boolean } | null;
 }
-export const goalCapsuleMenuAction = goalAction<Record<string, never>, GoalCapsuleMenu>("goals.capsule.menu.read", /* @version action.goals.capsule.menu.read */ 1,
-  "读取菜单栏工作摘要", "只读取菜单栏需要的目标状态和同组数量，不展开事件正文或整个工作台", "query", { type: "object", additionalProperties: false },
+const MENU_INPUT = { type: "object", properties: {}, additionalProperties: false } as const;
+export const goalCapsuleMenuAction = goalAction<InferActionInput<typeof MENU_INPUT>, GoalCapsuleMenu>("goals.capsule.menu.read", /* @version action.goals.capsule.menu.read */ 1,
+  "读取菜单栏工作摘要", "只读取菜单栏需要的目标状态和同组数量，不展开事件正文或整个工作台", "query", MENU_INPUT,
   { type: "object", properties: { focus: { anyOf: [{ type: "null" }, { type: "object", properties: { goal_id: { type: "string" }, title: { type: "string" },
     historical: { type: "boolean" }, state: { type: "string", enum: ["waiting_for_human", "executing", "execution_blocked", "execution_pending", "satisfied", "invalidated", "trashed", "archived"] }, count: { type: "integer", minimum: 1 } }, required: ["goal_id", "title", "state", "count", "historical"], additionalProperties: false }] } }, required: ["focus"], additionalProperties: false });
 

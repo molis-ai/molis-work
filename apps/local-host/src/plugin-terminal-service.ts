@@ -67,11 +67,10 @@ export function pluginTerminalFor(options: { home: string; manifest: PluginManif
       const cwd = await terminalDirectory(home, request.directory, owner.project_id, ownerFiles, request.directory.root === "workspace"
         ? () => { check(); context.requireGrant(WORKSPACE_READ_PERMISSION); } : check);
       const { host, webUrl } = terminalHost(home);
-      const catalog = catalogFor(home);
       const panelId = terminalPanelId(owner, request.key);
       const searchPath = terminalSearchPath();
       check();
-      const started = await catalog({ homeDirectory: home }, projects => projects.commit(() => {
+      const started = await withTerminalCatalog(home, check, projects => projects.commit(() => {
         // Everything below is one transaction: a call stopped here (revoked, cancelled, stopped) leaves no record and starts nothing.
         check();
         if (owner.project_id) { projects.getProject(owner.project_id); assertPassiveProjectAvailable(home, owner.project_id); }
@@ -99,15 +98,7 @@ export function pluginTerminalFor(options: { home: string; manifest: PluginManif
       const subject = terminalListSubject(input);
       check();
       const { host } = terminalHost(home);
-      let rows: PluginTerminalPanelRecord[];
-      try {
-        rows = await catalogFor(home)({ homeDirectory: home }, projects => projects.terminalPanels.list(owner, subject));
-      } catch (error) {
-        check();
-        if (error instanceof ActionError) throw error;
-        hostLog.warn("terminal", "catalog_unreadable", error);
-        throw new ActionError("actions.unavailable", "项目目录暂时读不到");
-      }
+      const rows = await withTerminalCatalog(home, check, projects => projects.terminalPanels.list(owner, subject));
       check();
       return Object.freeze(rows.map(row => Object.freeze<PluginTerminalPanel>({
         key: row.key, panelId: row.panel_id, title: row.title, runtime: row.runtime, subject: row.subject, running: host.alive(row.panel_id),
@@ -121,7 +112,7 @@ export function pluginTerminalFor(options: { home: string; manifest: PluginManif
       const panelId = terminalPanelId(owner, input.key);
       check(); await scope.caller.beforeEffect(); check();
       const { host } = terminalHost(home);
-      await catalogFor(home)({ homeDirectory: home }, projects => projects.commit(() => {
+      await withTerminalCatalog(home, check, projects => projects.commit(() => {
         check();
         const record = projects.terminalPanels.get(panelId);
         if (!record) throw new ActionError("actions.missing", "找不到这个终端");
@@ -150,6 +141,18 @@ function catalogFor(home: string) {
   const catalog = pluginCatalogFor(home);
   if (!catalog) throw new ActionError("actions.unavailable", "项目目录暂时读不到");
   return catalog;
+}
+
+/** One projection for catalog failures from open, list, close and their directory reads. Revocation always wins. */
+async function withTerminalCatalog<T>(home: string, check: () => void,
+  read: (catalog: Parameters<Parameters<ReturnType<typeof catalogFor>>[1]>[0]) => T | Promise<T>): Promise<T> {
+  try { return await catalogFor(home)({ homeDirectory: home }, read); }
+  catch (error) {
+    check();
+    if (error instanceof ActionError) throw error;
+    hostLog.warn("terminal", "catalog_unreadable", error);
+    throw new ActionError("actions.unavailable", "项目目录暂时读不到");
+  }
 }
 
 /**
@@ -275,12 +278,10 @@ async function terminalDirectory(home: string, directory: PluginTerminalDirector
   } else {
     if (!projectId) throw new ActionError("actions.forbidden", "工作目录只在项目里的调用中可用");
     check();
-    const catalog = pluginCatalogFor(home);
-    if (!catalog) throw new ActionError("actions.unavailable", "项目目录暂时读不到");
     const named = directory.workspace_id;
     // No folder named is the output (SSC-17); a folder that is only an input is read, never run in (user 2026-11-08). A default output
     // directory not made yet is made here, after its checks, before the terminal opens in it (SSC-24).
-    const linked = await catalog({ homeDirectory: home }, projects => {
+    const linked = await withTerminalCatalog(home, check, projects => {
       const directories = projects.projectDirectories(projectId).directories;
       const folder = named === undefined ? directories.find(item => item.roles.includes("output")) : directories.find(item => item.workspace_id === named);
       return folder ? projects.prepareWorkspaceDirectory(projectId, folder.workspace_id, "write").path : undefined;

@@ -1481,6 +1481,132 @@
     .project-settings-fold-body .guidance-aside { grid-template-columns: 1fr; gap: 16px; }
   }
 
+  /* 1 · An item row whose words stack (name, what it is for, its marks) with the three-way choice under them, not at the row's end:
+     the choice is the row's one control, and under the words it keeps the same place whatever the name's length. The name wraps
+     instead of being cut: a finger has no hover to read a cut name by. */
+  .mw-item.mw-item--stack { align-items: flex-start; flex-wrap: wrap; row-gap: 0; padding-block: 10px; }
+  .mw-item--stack > .mw-mark { margin-top: 2px; }
+  .mw-item.mw-item--stack > span:nth-child(2) { display: grid; gap: 4px; flex: 1 1 0; align-items: start; }
+  .mw-item--stack > span:nth-child(2) > small { white-space: normal; text-wrap: pretty; }
+  .mw-item.mw-item--stack > span:nth-child(2) > strong { overflow: visible; white-space: normal; text-overflow: clip; overflow-wrap: break-word; line-height: 1.45; }
+  .mw-item--stack[data-off] strong { color: var(--muted); }
+  /* The choice's own row in the item, indented to the words where there is room. */
+  .mw-item > .mw-item__under { display: flex; flex: 1 0 100%; align-items: center; flex-wrap: wrap; gap: 8px; min-width: 0; margin-top: 8px; padding-left: 44px; }
+  .mw-item__under > .mw-alert { flex: 1 1 100%; }
+  .mw-item__under .mw-toggle { white-space: nowrap; }
+
+  /* 2 · A fold inside an item row: indented to the words (the 32px mark and the row's 12px gap), its summary a quiet 13px action
+     instead of the standalone fold's 12px of room above and below. Its readable name carries the item's name. */
+  .mw-item > .mw-item__more { flex: 1 0 100%; min-width: 0; padding: 0 0 0 44px; }
+  .mw-item__more > summary { padding: 4px 0; color: var(--muted); font-size: 13px; }
+  .mw-item__more > summary:hover { color: var(--ink-soft); }
+  .mw-item__more > summary:focus-visible { outline: var(--focus-stroke); outline-offset: 2px; border-radius: 4px; }
+  .mw-item__more .mw-collapsible__body { padding: 4px 0 6px; }
+  .mw-facts { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; margin: 0; max-width: 640px; font-size: 13px; line-height: 1.55; }
+  .mw-facts dt { color: var(--muted); font-size: 12px; }
+  .mw-facts dd { min-width: 0; margin: 0 0 8px; color: var(--ink); overflow-wrap: anywhere; }
+  .mw-facts dd:last-child { margin-bottom: 0; }
+  .mw-facts code { font-size: 12px; }
+  .mw-facts ul { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+  .mw-facts li { display: flex; flex-wrap: wrap; gap: 2px 10px; }
+  .mw-facts li > span { color: var(--muted); font-size: 12px; }
+  .mw-facts blockquote { margin: 0; padding-left: 10px; border-left: 2px solid var(--line); color: var(--ink-soft); }
+
+  /* 4 · Buttons inside an alert: under its words, so the next step reads as the answer to what the alert says. */
+  .mw-alert__problems { display: grid; gap: 2px; margin: 4px 0 0; padding-left: 18px; color: var(--ink-soft); }
+  .mw-alert__problems code { overflow-wrap: anywhere; }
+
+  /* 5 · A link beside a status mark: one paragraph that starts with the mark, so the mark, its reason and the link share a line
+     while they fit and wrap as words when they do not. The link's padding reaches a finger without taking line room. */
+  .mw-status-line { margin: 0; min-width: 0; color: var(--ink-soft); font-size: 12px; line-height: 20px; text-wrap: pretty; }
+  .mw-status-line > .mw-status { margin-right: 6px; vertical-align: middle; }
+  .mw-status-line > .mw-btn--link { --reach: 6px; min-height: 0; margin-left: 6px; padding-block: var(--reach); margin-block: calc(-1 * var(--reach)); font-size: 13px; line-height: 20px; vertical-align: middle; }
+
+  /* 3 · List and detail: the list on the left keeps each entry a list item (a screen reader says "3 of 5") and a real button fills
+     it; the detail on the right is everything about one entry. Where the room is narrow it is one side at a time. */
+  .mw-list-detail { container: mw-list-detail / inline-size; min-width: 0; }
+  .mw-list-detail__body { display: grid; grid-template-columns: minmax(280px, 360px) minmax(0, 1fr); gap: 20px; align-items: start; min-width: 0; }
+  .mw-list-detail__list { min-width: 0; }
+  .mw-list-detail__list > .mw-items { width: 100%; }
+  .mw-item.mw-item--pick { min-height: 0; padding: 0; }
+  .mw-item--pick:is(:hover, :focus-within) { background: transparent; }
+  .mw-item__pick { appearance: none; display: flex; align-items: center; gap: 12px; width: 100%; min-width: 0; min-height: 44px; margin: 0; padding: 6px 8px 6px 10px; border: 0; border-radius: var(--sk-r-item, 8px); background: transparent; color: inherit; font: inherit; text-align: start; cursor: pointer; transition: background-color var(--dur-hover) var(--ease-quint); }
+  .mw-item__pick:hover { background: var(--nav-hover); }
+  .mw-item__pick[aria-current="true"] { background: var(--nav-active); }
+  .mw-item__pick:active:not(:disabled) { background: var(--nav-press); }
+  .mw-item__pick:focus-visible { outline: var(--focus-stroke); outline-offset: -2px; }
+  .mw-item__pick > span:nth-child(2) { display: grid; gap: 1px; flex: 1 1 0; min-width: 0; }
+  /* The name wraps as it is; the pack it lives in takes one line, cut where room runs out, its whole name on hover. */
+  .mw-item__pick > span:nth-child(2) > strong { overflow: visible; white-space: normal; overflow-wrap: break-word; line-height: 1.4; }
+  .mw-item__pick > span:nth-child(2) > small { flex: none; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .mw-item__pick > .mw-item__end { color: inherit; }
+  .mw-list-detail__detail { display: grid; gap: 14px; align-content: start; min-width: 0; padding: 4px 4px 4px 20px; border-left: 1px solid var(--line); }
+  .mw-list-detail__detail[hidden] { display: none; }
+  /* Only when another entry is chosen; the first view and a reload show the detail at once. */
+  .mw-list-detail__detail.is-entering { animation: craft-rise var(--dur-move) var(--ease-quint); }
+  .mw-list-detail__detail > header { display: grid; gap: 6px; }
+  .mw-list-detail__detail h3 { margin: 0; color: var(--ink); font-size: 20px; font-weight: var(--weight-title, 600); line-height: 1.4; overflow-wrap: anywhere; }
+  .mw-list-detail__detail h3:focus-visible { outline: var(--focus-stroke); outline-offset: 2px; border-radius: 4px; }
+  .mw-list-detail__detail[data-off] h3 { color: var(--muted); }
+  .mw-list-detail__detail > header > p { margin: 0; max-width: 640px; color: var(--ink-soft); font-size: 13px; line-height: 1.55; }
+  /* The radios fade by their own .42; their words go muted, as the title does, without a second opacity. */
+  .mw-list-detail__detail .mw-radio-group:disabled .mw-check-row { color: var(--muted); }
+  .mw-list-detail__used { margin: 0; color: var(--muted); font-size: 12px; }
+  .mw-list-detail__detail > .mw-list-detail__back { display: none; justify-self: start; }
+  @container mw-list-detail (max-width: 640px) {
+    .mw-list-detail__body { grid-template-columns: minmax(0, 1fr); }
+    .mw-list-detail__detail { padding: 0; border-left: 0; }
+    .mw-list-detail:not([data-detail]) .mw-list-detail__detail { display: none; }
+    .mw-list-detail[data-detail] .mw-list-detail__list { display: none; }
+    .mw-list-detail__detail > .mw-list-detail__back { display: inline-flex; }
+  }
+  /* A phone's list keeps its room for the names: the glyph, the same for every entry, gives way. */
+  @container mw-list-detail (max-width: 480px) {
+    .mw-item__pick > .mw-mark { display: none; }
+    /* Only here may the status word be cut (its whole word on hover, and in the detail one tap away). */
+    .mw-item__pick > .mw-item__end { min-width: 0; max-width: 45%; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .mw-list-detail__detail.is-entering { animation: none; }
+    .mw-item__pick { transition: none; }
+  }
+  /* A phone or a finger: each of these is a 44px target, the link by its padding (it sits in a sentence). */
+  @media (max-width: 600px), (pointer: coarse) {
+    /* On a phone the choice takes the row from the glyph's edge and its three settings share it equally, so a longer word in
+       another language narrows the others instead of running past the row. */
+    .mw-item > .mw-item__under { padding-left: 0; }
+    .mw-item__under > .mw-toggle-group { display: flex; flex: 1 1 100%; min-width: 0; }
+    .mw-item__under .mw-toggle { flex: 1 1 0; min-width: 0; min-height: 44px; padding-inline: 6px; }
+    .mw-item__more > summary { min-height: 44px; padding-block: 0; }
+    .mw-status-line > .mw-btn--link { --reach: 12px; }
+    .mw-alert__actions .mw-btn, .mw-list-detail__back { min-height: 44px; }
+  }
+
+  .mw-catalog :is([data-primitive="item-choice"], [data-primitive="item-details"], [data-primitive="alert-actions"], [data-primitive="status-link"]) .mw-catalog__specimens { grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); align-items: start; }
+  .mw-catalog :is([data-primitive="item-choice"], [data-primitive="item-details"]) .mw-items { width: 100%; }
+  .mw-catalog [data-primitive="list-detail"] .mw-catalog__specimens { grid-template-columns: minmax(0, 1fr); }
+  .mw-catalog [data-primitive="list-detail"] .mw-catalog__row { display: block; }
+  .mw-catalog [data-list-detail-narrow] { width: min(390px, 100%); padding: 12px; border-radius: var(--sk-r-item, 8px); box-shadow: inset 0 0 0 1px var(--line); }
+  .mw-catalog [data-primitive="status-link"] .mw-catalog__row { display: grid; gap: 10px; justify-items: start; }
+
+.skill-settings { max-width: 1100px; }
+.skill-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-block: 16px; }
+.skill-toolbar input { flex: 1 1 180px; min-width: 0; width: auto; }
+.skill-toolbar select { flex: 0 1 auto; width: auto; max-width: 100%; }
+.skill-settings .mw-facts dd { white-space: pre-wrap; }
+.skill-full-text { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; }
+.skill-settings .mw-radio-group { display: grid; gap: 10px; border: 0; margin: 0; padding: 0; }
+.skill-settings .mw-check-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-height: 32px; }
+.skill-settings .mw-check-row small { flex: 1 1 100%; padding-left: 24px; }
+.skill-segments { display: flex; flex-wrap: wrap; gap: 4px; border: 0; padding: 0; margin: 8px 0; }
+.skill-segments label { display: flex; align-items: center; justify-content: center; gap: 6px; flex: 1; padding: 8px; background: var(--nav-hover); border-radius: 8px; }
+.skill-segments label:has(:checked) { background: var(--nav-active); }
+.skill-enable-row, .skill-import-row { padding-block: 12px; border-bottom: 1px solid var(--line); }
+.skill-sr { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+[data-sk-import-panel] { padding-block: 12px; margin-bottom: 20px; border-bottom: 1px solid var(--line); }
+[data-sk-import-panel] > select { margin-right: 8px; }
+.skill-settings .mw-items { padding: 0; list-style: none; }
+
   .local-directory-settings .local-directory-root { overflow-wrap: anywhere; white-space: break-spaces; }
 
 .model-settings-head,.model-settings-actions,.model-provider-detail-head,.model-list-head,.model-row,.model-provider-row { display:flex; align-items:center; gap:8px; }

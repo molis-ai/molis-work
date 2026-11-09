@@ -63,7 +63,7 @@ SDK 的 Manifest／视图校验和内容包白名单明确拒绝 `name_en`／`ti
 
 声明层的 `PluginConnectionServiceDeclaration.title/summary/auth_help/outbound_note`、`capabilities[].label`、`setup_links[].label`、token 方法的 `label/placeholder`、`PluginOAuthMethodDeclaration.note` 和 `OAuthSettingDeclaration.label/placeholder` 接受已有 `TextRef` 与原文字串。原字串和 `literal` 保留其原义；专属界面短句迁到声明者的词包，共有词沿 SDK 现有规则。引用与词条均不收运行参数；主人、缺键、参数和默认语言完整性沿 SDK 同一校验。URL、域名、凭据格式示例、设置键、枚举机器值、端点、scope、pattern、绑定和用户数据不翻译。声明层与 `ConnectorDirectoryEntry` 等显示 DTO 分开：后者仍给普通字符串，不把 `TextRef` 对象送进旧字符串消费者。
 
-同一服务的 `officialMethodsFor()` 说明和链接由其实际声明者提供，包括独立 GitHub/Gmail 插件；Host 的通用操作说明、`CONNECTOR_CLIS` 的环境字段名及指南说明归工作台。沿现有方法数据源接词引用，不新建覆盖服务名称的第二张语言表。MCP 按已有 support 和配置分支组合作者说明与平台操作提示，删除按中文句子正则剥字的逻辑；原页面消费外层 `note` 的路径保持。OAuth 设置字段还用于必填、枚举、格式、路径和租户拒绝信息，同样先从准确声明者取标签，再作为参数放进平台错误句，不能直接把引用插进字符串。
+同一服务的 `officialMethodsFor()` 说明和链接由其实际声明者提供，包括独立 GitHub/Gmail 插件；Host 的通用操作说明、`CONNECTOR_CLIS` 的环境字段标签及指南说明归工作台，环境变量名保留原值。沿现有方法数据源接词引用，不新建覆盖服务名称的第二张语言表。MCP 按已有 support 和配置分支组合作者说明与平台操作提示，删除按中文句子正则剥字的逻辑；原页面消费外层 `note` 的路径保持。OAuth 设置字段还用于必填、枚举、格式、路径和租户拒绝信息，同样先从准确声明者取标签，再作为参数放进平台错误句，不能直接把引用插进字符串。
 
 词来源随原登记提供：内置定义的工厂给出本定义的受信资源根或现有 `PluginLocaleRead`，由 SDK 读取其 Manifest 声明的文件；静态目录与运行登记用同一来源。Catalog 中多个 Manifest 共用一个 npm 包，不能把共包根下同名的 `locales/<tag>.json` 当成每个插件的词包。安装包沿现有 `attach` 接点携带已从准确签名文件校验的 `release.packaged.localePacks`；校验及活性确认在原串行替换之前完成，绑定随原声明原子替换、停用及 detach 撤回。同一准确来源与语言复用读取结果，不逐字段重新发现目录、读取文件或打开库；失效来源不借另一安装、Home 或版本补词。
 

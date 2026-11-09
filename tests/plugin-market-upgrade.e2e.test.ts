@@ -75,6 +75,6 @@ test("plugin market sends a manual upgrade after a real browser click", { timeou
   assert.deepEqual(await evaluate("window.__pluginUpgradeRequests"), [1, 2].map(() => ({
     pathname: `/projects/${projectId}/api/plugins/io.molis.work.coding/upgrade`,
     method: "POST",
-    headers: ["content-type", "x-molis-work-control-token", "x-molis-work-idempotency-key"],
+    headers: ["content-type", "x-molis-work-page-session", "x-molis-work-idempotency-key"],
   })));
 });

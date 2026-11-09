@@ -34,6 +34,7 @@ export function gitClient(host: GitHost, sentences: GitSentenceTable): GitBrowse
   });
   return {
     refresh: () => refresh(page),
+    browse(id) { if (id === page.folder && id === page.workspace) return; page.folder = id; void refresh(page); },
     afterDecision: (outcome) => afterDecision(page, outcome),
     show(face) {
       page.directory.hidden = face !== "files";

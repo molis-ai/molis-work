@@ -92,10 +92,12 @@ test("VUX-40: with a real repository, Git's changes, branches, commit and confli
   await click(".navigator-project-settings");
   await waitFor("!!document.querySelector('[data-directory-panel=project-settings] [data-settings-section=workspaces]')");
   await click("[data-directory-panel=project-settings] [data-settings-section=workspaces]");
-  await waitFor("!!document.querySelector('[data-project-workspaces-add]') && !document.querySelector('[data-project-workspaces-refresh]').disabled");
-  await evaluate(`(()=>{const node=document.querySelector('[data-project-workspaces-add] [name=path]');node.value=${JSON.stringify(repo)};node.dispatchEvent(new Event('input',{bubbles:true}));node.dispatchEvent(new Event('change',{bubbles:true}));})()`);
-  await click("[data-project-workspaces-add] [type=submit]");
-  await waitFor("document.querySelector('[data-project-workspaces-list]').textContent.includes('english-repo')");
+  await waitFor("!!document.querySelector('[data-directories-add]') && document.querySelector('[data-project-directories]')?.dataset.state==='ready'");
+  await evaluate(`(()=>{const node=document.querySelector('[data-directories-add] [name=path]');node.value=${JSON.stringify(repo)};node.dispatchEvent(new Event('input',{bubbles:true}));node.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  await click("[data-directories-add] [type=submit]");
+  await waitFor("document.querySelector('[data-directories-inputs]').textContent.includes('english-repo')");
+  await click("[data-directories-inputs] [data-directory-row]:has([title$='/english-repo']) [data-act=set-output]");
+  await waitFor("document.querySelector('[data-directories-output] [data-directory-row] [data-text=path]')?.title.endsWith('/english-repo')");
 
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=git` }, sessionId));
   active = views.git!;

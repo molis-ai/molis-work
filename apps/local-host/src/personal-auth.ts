@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import type { SecretStore } from "@molis-ai/molis-work-storage";
+import { assertSecretStoreWritable, createFileSecretStore, resolveMolisWorkHome, type SecretStore } from "@molis-ai/molis-work-storage";
 
 export interface PersonalCloudConfig { authOrigin: string; clientId: string; desktopClientId?: string }
 export interface PersonalIdentity { userId: string; displayName: string; emails: string[]; applicationId: string }
@@ -14,6 +14,17 @@ export interface PersonalAccountLease {
 }
 interface Credentials { identity: PersonalIdentity; clientId?: string; access: string; refresh: string; expires: number }
 type SavedAccount = Credentials | { identity: PersonalIdentity; clientId?: string; offline: true };
+/**
+ * Where the account's credentials are kept, and the question asked before anything is sent: can `feed/secrets.json` take this login's
+ * write. A login whose credentials could not be kept does not start a transaction or spend an authorization code.
+ */
+export interface AccountSecrets extends Pick<SecretStore,'get'|'put'|'delete'> { assertWritable(): void }
+
+/** The vault of the Home the store is opened on, asked as its own writes ask it (`assertSecretStoreWritable`). */
+export function fileAccountSecrets(): AccountSecrets {
+  const store=createFileSecretStore(),home=resolveMolisWorkHome();
+  return {get:ref=>store.get(ref),put:(ref,value)=>store.put(ref,value),delete:ref=>store.delete(ref),assertWritable:()=>assertSecretStoreWritable(home)};
+}
 type HttpFetch = typeof fetch;
 const random = () => randomBytes(32).toString("base64url");
 
@@ -41,7 +52,7 @@ export class PersonalAuth {
   private readonly key: string;
   private pending: {state:string;verifier:string;redirect:string;expires:number;epoch:number;clientId:string;generation:number}|null=null;
   private exchanging: PersonalAuth["pending"]=null;
-  constructor(readonly config: PersonalCloudConfig, private readonly secrets: Pick<SecretStore,'get'|'put'|'delete'>,
+  constructor(readonly config: PersonalCloudConfig, private readonly secrets: AccountSecrets,
     private readonly http: HttpFetch=fetch, private readonly now=()=>Date.now()) {
     this.key=`personal-auth:${createHash("sha256").update(JSON.stringify(config)).digest("hex")}`;
   }
@@ -137,6 +148,7 @@ export class PersonalAuth {
   async begin(redirect: string, desktop = false, forceLogin = false): Promise<string> {
     const callback=new URL(redirect);
     if (callback.protocol!=="http:" || callback.hostname!=="127.0.0.1" || callback.pathname!=="/account/callback" || callback.search || callback.hash) throw new Error("INVALID_LOGIN_CALLBACK");
+    this.secrets.assertWritable();
     const clientId=desktop?(this.config.desktopClientId??this.config.clientId):this.config.clientId;
     const attempt={state:random(),verifier:random(),redirect,expires:this.now()+600000,epoch:this.epoch,clientId,generation:++this.loginGeneration};
     this.pending=attempt;
@@ -156,6 +168,8 @@ export class PersonalAuth {
     const pending=this.pending;
     if (!pending || pending.state!==state || pending.expires<this.now() || pending.epoch!==this.epoch || !code || code.length>2048) throw new Error("INVALID_LOGIN_CALLBACK");
     this.pending=null; // single use, including uncertain exchange results
+    // Before the code is spent: a refused vault leaves the remote side, the current account and its lease as they were.
+    this.secrets.assertWritable();
     this.exchanging=pending;
     try{
     const tokens=await this.token({grant_type:"authorization_code",code,code_verifier:pending.verifier,redirect_uri:pending.redirect},pending.clientId);

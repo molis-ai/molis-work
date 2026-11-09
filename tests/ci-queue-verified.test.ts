@@ -130,9 +130,9 @@ test("RAC-1900 the command: answers false without the environment, writes both o
 /** The two test jobs that joined Verify (decision #14, 2026-10-31): on a pull request they also wait for `test-selection`. */
 const TEST_JOBS = ["security-invariants", "product-subset"];
 /** The jobs that also wait for `test-selection`: the two test jobs, and the macOS Rust and Swift checks (用户 2026-11-04), skipped on a successful `none`. */
-const SELECTED_JOBS = [...TEST_JOBS, "native-checks", "gates", "health-gate-rules", "architecture-boundaries", "action-contracts", "shell-checks"];
-const BLOCKING = ["gates", "health-gate-rules", "architecture-boundaries", "action-contracts", "secret-scan", "native-checks", "shell-checks", ...TEST_JOBS];
-const RESULTS = ["GATES", "HEALTH_GATE_RULES", "PACKAGE_BOUNDARIES", "ACTION_CONTRACTS", "SECRET_SCAN", "NATIVE_CHECKS", "SHELL_CHECKS", "SECURITY_INVARIANTS", "PRODUCT_SUBSET"];
+const SELECTED_JOBS = [...TEST_JOBS, "golden-replay", "golden-replay-third-party", "native-checks", "gates", "health-gate-rules", "architecture-boundaries", "action-contracts", "shell-checks"];
+const BLOCKING = ["gates", "health-gate-rules", "architecture-boundaries", "action-contracts", "secret-scan", "native-checks", "shell-checks", ...TEST_JOBS, "golden-replay", "golden-replay-third-party"];
+const RESULTS = ["GATES", "HEALTH_GATE_RULES", "PACKAGE_BOUNDARIES", "ACTION_CONTRACTS", "SECRET_SCAN", "NATIVE_CHECKS", "SHELL_CHECKS", "SECURITY_INVARIANTS", "PRODUCT_SUBSET", "GOLDEN_REPLAY", "GOLDEN_REPLAY_THIRD_PARTY"];
 const TEST_RESULTS = ["SECURITY_INVARIANTS", "PRODUCT_SUBSET"];
 const steps = (job: string) => jobBlock(job).split("\n      - ").slice(1);
 const scratch = () => { const directory = mkdtempSync(path.join(tmpdir(), "molis-queue-check-")); directories.push(directory); return directory; };
@@ -168,7 +168,7 @@ const CASES: Case[] = [
 const contexts = (item: Case) => ({
   "github.event_name": item.event, "needs.queue-check.result": item.result, "needs.queue-check.outputs.verified": item.verified,
   "needs.test-selection.result": "success", "needs.test-selection.outputs.security_mode": "some", "needs.test-selection.outputs.product_mode": "some",
-  "needs.test-selection.outputs.native_mode": "whole",
+  "needs.test-selection.outputs.native_mode": "whole", "needs.test-selection.outputs.golden_third_party_mode": "whole",
   "needs.test-selection.outputs.documentation_mode": "code", "needs.test-selection.outputs.gate_rules_mode": "whole", "needs.test-selection.outputs.shell_mode": "whole",
 });
 
@@ -180,7 +180,7 @@ test("RAC-1901 ci.yml: queue-check runs on a push only, may read runs and nothin
   assert.match(check, /GITHUB_TOKEN: \$\{\{ github\.token \}\}/);
   assert.match(check, /PUSH_BEFORE: \$\{\{ github\.event\.before \}\}/, "the base the push's own gates would compare with");
   assert.doesNotMatch(check, /pnpm install/, "no dependencies");
-  assert.deepEqual(blockingJobs(), BLOCKING, "the blocking jobs are the nine of today");
+  assert.deepEqual(blockingJobs(), BLOCKING, "the blocking jobs are the eleven of today");
   for (const name of BLOCKING) {
     const job = jobBlock(name);
     assert.match(job, SELECTED_JOBS.includes(name) ? /^    needs: \[test-selection, queue-check\]$/m : /^    needs: \[queue-check\]$/m, name);
@@ -224,7 +224,7 @@ test("RAC-1902 ci.yml: in the merge queue every blocking job first checks that i
   }
 });
 
-test("RAC-1903 ci.yml: Verify records the queue's base, waits for the nine blocking jobs and judges them, except where they may be skipped", () => {
+test("RAC-1903 ci.yml: Verify records the queue's base, waits for the eleven blocking jobs and judges them, except where they may be skipped", () => {
   const verify = jobBlock("verify");
   assert.match(verify, /^    name: Verify$/m, "the required check keeps its name");
   // Direct selector dependencies and env mappings are checked after the actual shell verdicts below.
@@ -248,9 +248,9 @@ test("RAC-1903 ci.yml: Verify records the queue's base, waits for the nine block
   for (const item of CASES) {
     // When the blocking jobs were skipped, Verify must pass without them; otherwise it judges them, every one a success.
     const skipped = judged(item.event, item.result, item.verified, "skipped");
-    assert.equal(skipped.status === 0, item.skip, `${item.event}, ${item.result}, ${JSON.stringify(item.verified)}, the nine skipped: ${skipped.stdout}${skipped.stderr}`);
+    assert.equal(skipped.status === 0, item.skip, `${item.event}, ${item.result}, ${JSON.stringify(item.verified)}, the eleven skipped: ${skipped.stdout}${skipped.stderr}`);
     if (item.skip) { assert.match(skipped.stdout, /passed Verify in the merge queue \(https:\/\/example\/7\)/); continue; }
-    assert.equal(judged(item.event, item.result, item.verified, "success").status, 0, `${item.event}, ${item.result}: nine successes pass`);
+    assert.equal(judged(item.event, item.result, item.verified, "success").status, 0, `${item.event}, ${item.result}: eleven successes pass`);
     const withOne = (name: string, result: string) => runStep(script, { GITHUB_EVENT_NAME: item.event, QUEUE_CHECK_RESULT: item.result, QUEUE_VERIFIED: item.verified, ...selectorSome, ...Object.fromEntries(RESULTS.map((other) => [`${other}_RESULT`, other === name ? result : "success"])) });
     for (const name of RESULTS) {
       for (const result of ["failure", "cancelled"]) assert.notEqual(withOne(name, result).status, 0, `${item.event}, ${item.result}: ${name} ${result} fails Verify`);
@@ -258,7 +258,7 @@ test("RAC-1903 ci.yml: Verify records the queue's base, waits for the nine block
       assert.notEqual(withOne(name, "skipped").status, 0, `${item.event}, ${item.result}: ${name} some cannot pass with a skipped job`);
     }
   }
-  // A failed queue-check is not a check of its own: with the nine green, Verify passes.
+  // A failed queue-check is not a check of its own: with the eleven green, Verify passes.
   assert.equal(judged("push", "failure", "", "success").status, 0);
 
 
@@ -318,7 +318,7 @@ test("RAC-1903 ci.yml: Verify records the queue's base, waits for the nine block
     }
   }
 
-  assert.match(verify, /^    needs: \[gates, health-gate-rules, architecture-boundaries, action-contracts, secret-scan, native-checks, shell-checks, security-invariants, product-subset, queue-check, test-selection\]$/m);
+  assert.match(verify, /^    needs: \[gates, health-gate-rules, architecture-boundaries, action-contracts, secret-scan, native-checks, shell-checks, security-invariants, product-subset, golden-replay, golden-replay-third-party, queue-check, test-selection\]$/m);
   assert.ok(verify.includes("          TEST_SELECTION_RESULT: ${{ needs.test-selection.result }}"), "Verify receives the selector result directly");
   for (const [name, output] of [["SECURITY_MODE", "security_mode"], ["PRODUCT_MODE", "product_mode"], ["NATIVE_MODE", "native_mode"]]) {
     assert.ok(verify.includes(`          ${name}: \${{ needs.test-selection.outputs.${output} }}`), `${output} reaches its own Verify verdict`);
@@ -331,7 +331,7 @@ test("RAC-1904 ci.yml: queue-check's word reaches nothing but the blocking jobs'
   assert.deepEqual([...new Set(readers.map((line) => /needs\.queue-check\.([a-z_.]+)/.exec(line)![1]))].sort(), ["outputs.run_url", "outputs.verified", "result"]);
   const outputs = [...jobBlock(QUEUE_CHECK_JOB).matchAll(/^      ([a-z_]+): \$\{\{ steps\.check\.outputs\.([a-z_]+) \}\}$/gm)].map((match) => [match[1], match[2]]);
   assert.deepEqual(outputs, [["verified", "verified"], ["run_url", "run_url"]]);
-  // The jobs that read it are exactly the nine and verify.
+  // The jobs that read it are exactly the eleven and verify.
   const jobsReading = [...workflow.slice(workflow.indexOf("\njobs:\n")).matchAll(/^  ([A-Za-z0-9_-]+):\s*$/gm)].map((match) => match[1]!).filter((name) => /needs\.queue-check\./.test(jobBlock(name)));
   assert.deepEqual(jobsReading.sort(), [...BLOCKING, "verify"].sort());
   // Verify's three conditions are the jobs' three: the push, success, true (RAC-1901 and RAC-1903 evaluate both over the same cases).

@@ -147,7 +147,7 @@ revision 由插件自己推动：服务端在改了页面显示的内容以后�
 
 页面要在自己的布局里展示另一个已启用插件的对象，使用 `host.view.embed(element, { surface, itemId, title? })`，得到 `ready` 与 `dispose()`。它只提交对象身份和区域坐标；宿主在该区域显示同项目的独立页面，内容 DOM、页面凭据和任意地址均不交给调用插件。区域受父页边界裁切，隐藏随父页隐藏，移除占位元素或关闭父页即释放；创建时复核父页授权，目标交互继续由目标页自己的授权处理。
 
-`host.workspaces.add(path)` 在宿主显示插件、项目与路径，真实确认后关联；`host.workspaces.select(id)` 只切换当前项目已经授权的浏览目录。页面须有 `workspace:read`，不能通过普通请求伪造确认、项目或通用设置权限；隐藏取消尚未完成的关联。
+`host.workspaces.add(path)` 在宿主显示插件、项目与路径，真实确认后关联为输入目录；`host.workspaces.setOutput(id)` 在宿主显示插件、项目与这个目录的名字（宿主自己读，不用页面给的），真实确认后把当前项目已有的这个目录设为输出目录，用在「只作输入，设为输出后才能写」的拒绝旁边。页面看哪个目录是页面自己的状态，项目不再记浏览目录，没有 `select`（[shared-sources-and-surfaces](../../specs/shared-sources-and-surfaces/spec.md) §3）。页面须有 `workspace:read`，不能通过普通请求伪造确认、项目或通用设置权限；隐藏取消尚未完成的关联或设置。
 
 页面收尾用 `host.view.onClosing({ reference, input })` 在页面活跃时登记，`null` 取消登记。宿主离开文档时以 keepalive 发送一次，先取消该页普通在途请求，再在同一激活、项目和权限下运行它自己声明的动作，最后撤销页面；消费别的插件动作不能登记为收尾。空白新建项使用原有带版本约束的撤销动作，任何待保存或非空输入都会取消登记。keepalive 仅保持浏览器传输，不延长撤权或项目删除后的写权限。
 

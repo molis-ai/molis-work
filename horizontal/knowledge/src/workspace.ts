@@ -1,8 +1,9 @@
 import { retainActionAuthority, type ActionReference, type ActionSubject, type ActionSubjectContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
-import { projectsCapabilities, type ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
+import { projectDirectoryActions, projectDirectoryErrors, type ProjectDirectories } from "@molis-ai/molis-work-contracts/modules/projects";
 import { KNOWLEDGE_GLOB_MAX_FILES, KNOWLEDGE_GLOB_MAX_FOLDERS, KNOWLEDGE_PROVIDER_ID, type KnowledgeGlobRequest, type KnowledgeGlobResponse } from "@molis-ai/molis-work-contracts/services/knowledge";
 import {
   parseWorkspaceFileSubjectId,
+  resolveWorkspaceFileSubject,
   workspaceFileSubjectId,
   workspaceReadActions,
   WORKSPACE_FILE_SUBJECT_KIND,
@@ -67,20 +68,32 @@ export class KnowledgeWorkspace {
   async file(access: KnowledgeAccess, subject: ActionSubject, origin: Origin): Promise<ActionSubjectContext> {
     const named = parseWorkspaceFileSubjectId(subject.id);
     if (!named) throw knowledgeErrors.invalid("这不是工作目录里的文件");
-    const { invoke } = await this.reader(access, origin, named.workspace_id);
-    const read = await invoke({ workspace_id: named.workspace_id, path: named.path, kind: "text" });
+    const { invoke, folders } = await this.reader(access, origin, named, subject);
+    // Read from this device's folder for the id; the reference, and the subject handed back, keep the id they were written with.
+    const read = await invoke({ workspace_id: folders[0]!.workspace_id, path: named.path, kind: "text" });
     if (read.outcome !== "text") throw knowledgeErrors.unreadable(read.outcome in NOT_TEXT ? NOT_TEXT[read.outcome as keyof typeof NOT_TEXT] : "这个文件不能按文字读取");
     return { subject, revision: read.fingerprint, title: named.path.join("/"), content: read.text, truncated: false };
   }
 
-  /** The workspace read action and the project's folders, as this caller may reach them now. */
-  private async reader(access: KnowledgeAccess, origin: Origin, workspaceId: string | undefined) {
+  /**
+   * The workspace read action and the project's folders, as this caller may reach them now. The grant comes first: a caller without it
+   * learns nothing about the folders. A file names its folder by id: one of the project's own, or another device's that a folder here
+   * was named for (`resolveWorkspaceFileSubject`); an id that is neither is `projects.directory_unmapped`, so the caller can say why.
+   */
+  private async reader(access: KnowledgeAccess, origin: Origin, target: string | { workspace_id: string; path: string[] } | undefined, subject?: ActionSubject) {
     const caller = retainActionAuthority(access.workspace ?? access.caller, { ...origin, provider_id: KNOWLEDGE_PROVIDER_ID });
     const views = await access.client.discover(caller);
-    const files = available(views, workspaceReadActions.file), list = available(views, projectsCapabilities.listWorkspaces);
-    if (!files || !list) throw knowledgeErrors.unreadable("没有读取项目工作目录的授权；要用工作目录里的文件，请在「对外接入」里允许读取项目目录文件");
-    const linked = (await access.client.invoke(caller, list, []) as readonly ProjectWorkspaceRef[]).filter(item => item.realpath_verified);
-    const folders = workspaceId === undefined ? linked : linked.filter(item => item.workspace_id === workspaceId);
+    const files = available(views, workspaceReadActions.file), get = available(views, projectDirectoryActions.get);
+    if (!files || !get) throw knowledgeErrors.unreadable("没有读取项目工作目录的授权；要用工作目录里的文件，请在「对外接入」里允许读取项目目录文件");
+    const directories = await access.client.invoke(caller, get, {}) as ProjectDirectories;
+    const usable = directories.directories.filter(item => item.state === "ok" && item.realpath_verified);
+    let workspaceId = typeof target === "string" ? target : undefined;
+    if (typeof target === "object") {
+      const resolved = resolveWorkspaceFileSubject(subject!, directories);
+      if (!resolved) throw projectDirectoryErrors.directory_unmapped("这份资料在另一台设备的文件夹里，这台电脑还没有指定对应的文件夹", { source_workspace_id: target.workspace_id, path: target.path });
+      workspaceId = resolved.workspace_id;
+    }
+    const folders = workspaceId === undefined ? usable : usable.filter(item => item.workspace_id === workspaceId);
     if (!folders.length) throw knowledgeErrors.unreadable(workspaceId === undefined ? "这个项目还没有关联工作目录" : "这个工作目录不属于当前项目，或已取消关联");
     return { folders, invoke: (input: { workspace_id: string; path: readonly string[]; kind: "directory" | "text" }) => access.client.invoke(caller, files, input) as Promise<WorkspaceFileResult> };
   }

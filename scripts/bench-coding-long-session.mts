@@ -92,9 +92,11 @@ log("home", home, "project", projectPath);
 const key = await call(`${origin}/api/settings/connectors/connections`, "POST", { service_id: "model-api", display_name: "Bench key", token: "bench-placeholder-not-a-secret" });
 await call(`${origin}/api/settings/models/bench`, "POST", { display_name: "Bench", base_url: "https://1.1.1.1", api_format: "anthropic-messages", enabled: true, prompt_cache: "off",
   models: [{ model_id: "bench-model", enabled: true, context_tokens: 200_000 }], connection_id: key.connection.connection_id });
-const grant = await call(`${projectPath}/api/workspaces`, "POST", { workspace_path: workspace, user_confirmed: true });
-const workspaceId: string = grant.workspace?.workspace_id ?? grant.workspace_id ?? grant.workspaces?.[0]?.workspace_id;
-if (!workspaceId) throw new Error("workspace grant: " + JSON.stringify(grant).slice(0, 400));
+// The bench folder becomes the project's output: sessions and rounds run only there (an input-only folder is refused).
+const read = await call(`${projectPath}/api/project-settings/directories`, "GET");
+const grant = await call(`${projectPath}/api/project-settings/directories`, "POST", { change: "set_output", input: { workspace_path: workspace, expected_revision: read.revision } });
+const workspaceId: string = grant.directories?.find((item: { roles: string[] }) => item.roles.includes("output"))?.workspace_id;
+if (!workspaceId) throw new Error("set output: " + JSON.stringify(grant).slice(0, 400));
 const created = await call(`${plugin}/sessions`, "POST", {});
 const sessionId: string = created.session?.session_id ?? created.session_id;
 if (!sessionId) throw new Error("session: " + JSON.stringify(created).slice(0, 400));

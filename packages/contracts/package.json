@@ -206,6 +206,10 @@
       "types": "./dist/services/placement.d.ts",
       "import": "./dist/services/placement.js"
     },
+    "./services/surface-composition": {
+      "types": "./dist/services/surface-composition.d.ts",
+      "import": "./dist/services/surface-composition.js"
+    },
     "./services/memory": {
       "types": "./dist/services/memory.d.ts",
       "import": "./dist/services/memory.js"
@@ -253,6 +257,10 @@
     "./platform/project-materials": {
       "types": "./dist/platform/project-materials.d.ts",
       "import": "./dist/platform/project-materials.js"
+    },
+    "./platform/presentation": {
+      "types": "./dist/platform/presentation.d.ts",
+      "import": "./dist/platform/presentation.js"
     },
     "./platform/plugin-attention": {
       "types": "./dist/platform/plugin-attention.d.ts",

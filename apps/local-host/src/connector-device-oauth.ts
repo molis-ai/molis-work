@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginOAuthMethodDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
-import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { assertSecretStoreWritable, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { ApiOAuthError, assertStillDeclared, commitApiOAuth, declared, declaredMethod, localOrigin, methodFingerprint, object, registryOwners, sender, serialized,
   settingsOf, text, type Json, type OAuthConfiguration, type OAuthOwners } from "./connector-api-oauth.js";
 import { assertConnectorAuthorizationPending, beginConnectorAuthorization, expireConnectorAuthorizations, finishConnectorAuthorization, pendingConnectorAuthorizations } from "./connector-authorization-status.js";
@@ -73,6 +73,8 @@ export async function startDeviceOAuth(home: string, input: { serviceId: string;
   }
   if (!clientId) clientId = connectorProductAuth(input.serviceId, "oauth")?.clientId ?? "";
   if (!clientId || clientId.length > 512 || /[\r\n]/u.test(clientId)) throw new ApiOAuthError("请填写有效的 OAuth Client ID");
+  // The device code is the vault's to keep: a vault this build cannot write is found before the service is asked for one.
+  assertSecretStoreWritable(home);
   const request = declared(() => oauthDeviceRequest(method, settings, clientId), input.serviceId);
   const send = sender(fetchImpl, { current: () => checkConnectorSetupSubmission(home, input.setupId, setup) });
   let started: Json;
@@ -143,6 +145,8 @@ export async function pollDeviceOAuth(home: string, input: { origin: string; sta
       const method = deviceMethod(declaredMethod(await owners(config.serviceId, "device"), config.serviceId), config.serviceId);
       const deviceCode = secrets.get("device");
       if (!deviceCode) throw new ApiOAuthError("设备授权已失效，请重新开始", config.serviceId);
+      // A token the service hands over is claimed once: the vault that keeps it is asked before the poll goes.
+      assertSecretStoreWritable(home);
       const send = sender(fetchImpl, { beforeEffect: () => assertStillDeclared(config, owners), current: () => assertConnectorAuthorizationPending(home, state) });
       const request = declared(() => oauthTokenRequest(method, settingsOf(config.serviceId, method, config.settings), { clientId: config.clientId, clientSecret: "", redirectUri: "", deviceCode }), config.serviceId);
       let tokens: Json;

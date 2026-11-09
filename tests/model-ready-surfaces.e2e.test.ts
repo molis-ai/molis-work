@@ -193,7 +193,15 @@ test("jelly: settings opened some other way stay as they are when the first mode
 const CLIENTS_READY = `!document.querySelector('[data-ui-client-state="loading"]')
   && ![...document.querySelectorAll('[data-deferred-surface]')].some(surface => !surface.closest('[hidden]') && surface.dataset.uiClientState !== 'failed')`;
 
-async function openScheduleDialog({ waitFor, click }: Pick<Awaited<ReturnType<typeof pluginFrameBrowser>>, "waitFor" | "click">) {
+// Every project has an output (batch 05, SSC-17: the default one is made on the first run), so the Host always reports a folder. To show
+// the folder hint beside the model one, the page's readiness answer says the folder is missing; the model half stays the Host's own.
+const NO_FOLDER = `if (!window.realFetch) { window.realFetch = window.fetch; window.fetch = async (url, options) => {
+  const answer = await window.realFetch(url, options);
+  if (!String(url).endsWith('/api/plugins/io.molis.work.schedule/readiness') || !answer.ok) return answer;
+  return new Response(JSON.stringify({ ...await answer.json(), workspace: false }), { status: 200, headers: { 'content-type': 'application/json' } }); }; }`;
+
+async function openScheduleDialog({ waitFor, click }: Pick<Awaited<ReturnType<typeof pluginFrameBrowser>>, "waitFor" | "click">, page: { evaluate: (expression: string) => Promise<unknown> }) {
+  await page.evaluate(NO_FOLDER);
   await waitFor(`document.querySelector('[data-schedule-new]') && ${CLIENTS_READY}`, 20_000);
   await click("[data-schedule-new]");
   const shown = (kind: string) => `(() => { const hint = document.querySelector('[data-schedule-hint="${kind}"]'); return Boolean(hint) && !hint.hidden && hint.getClientRects().length > 0; })()`;
@@ -205,7 +213,7 @@ test("schedule: the new-task form's model hint goes when the first model is read
   if (!browser) return;
   const {projectId}=browser;
   const {evaluate,waitFor}=browser.child;
-  await openScheduleDialog(browser.child);
+  await openScheduleDialog(browser.child, browser);
   // The desktop page adds ?desktop=1 to the links it serves; where each one goes is the path.
   const linkPath = (kind: string) => evaluate<string | null>(`(() => { const link = document.querySelector('[data-schedule-hint=${kind}] a'); return link && new URL(link.getAttribute('href'), ${JSON.stringify(browser.origin)}).pathname; })()`);
   assert.equal(await linkPath("model"), "/settings/models", "a plain link to the model settings");
@@ -240,7 +248,7 @@ test("schedule: the model link opens the model settings with nothing modal over 
   const browser = await open(t, "schedule");
   if (!browser) return;
   const { evaluate, waitFor } = browser.child;
-  await openScheduleDialog(browser.child);
+  await openScheduleDialog(browser.child, browser);
   await evaluate("document.querySelector('[data-schedule-hint=model] a').click()");
   await browser.waitFor("document.body.dataset.desktopSurface === 'settings'",10_000);
   assert.equal(await evaluate("document.querySelectorAll(':modal').length"), 0, "nothing modal is over the settings");

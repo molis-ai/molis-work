@@ -32,8 +32,9 @@ test("SQLD-06 a Host on another SQLite says so once: both versions, what follows
     assert.ok(result.includes("v24.22.2"), "names the Node it is running on");
     assert.ok(result.includes(running), "names the SQLite it has");
     assert.ok(result.includes(PLUGIN_STATEMENT_SQLITE_VERSION), "names the reviewed SQLite");
-    assert.match(result, /拒绝项目库里的全部插件语句/, "says what would follow");
-    assert.match(result, /项目库现在仍用随包的 SQLite/, "says what is true of this build today");
+    assert.match(result, /项目库里的插件语句都会被拒绝/, "says what follows");
+    assert.match(result, /数据不受影响/, "and that nothing is lost");
+    assert.doesNotMatch(result, /不受影响；|随包/, "not what was true while project libraries had their own SQLite");
     assert.ok(result.includes(`Node ${LOCKED}`), "says which Node to use");
     assert.doesNotMatch(result, /[!！]|错误|失败|警告/, "calm: a note, not an alarm");
     assert.equal(entries.length, 1);
@@ -59,6 +60,19 @@ test("SQLD-06 .nvmrc, every workflow's setup-node and engines.node name one Node
   const engines = (JSON.parse(read("package.json")) as { engines: { node: string } }).engines.node;
   assert.equal(engines, `>=${LOCKED} <${major}.${Number(minor) + 1}.0`, "the root engines only turns away a different minor line");
   assert.ok(sqliteVersionNotice("0.0.0")!.includes(`Node ${LOCKED}`));
+});
+
+test("SQLD-11 the macOS Desktop payload downloads the locked Node, and its smoke compares the bundled SQLite with the reviewed one", () => {
+  // Without this the Desktop app would bundle a Node whose SQLite refuses every plugin statement (S-46). The release build calls the
+  // script without an override (build-macos-release.sh), so the default is what ships.
+  const runtime = read("apps/desktop/tooling/prepare-macos-runtime.sh");
+  const defaults = [...runtime.matchAll(/^NODE_VERSION="\$\{MOLIS_WORK_NODE_VERSION:-([^}]+)\}"$/gm)].map(match => match[1]);
+  assert.deepEqual(defaults, [LOCKED]);
+  assert.doesNotMatch(read("apps/desktop/tooling/build-macos-release.sh"), /MOLIS_WORK_NODE_VERSION/, "the release build does not pick another Node");
+  const smoke = read("apps/desktop/tooling/prepare-runtime-payload.mjs");
+  assert.match(smoke, /SELECT sqlite_version\(\)/);
+  assert.match(smoke, /import\('@molis-ai\/molis-work-plugin-runtime'\)/, "the reviewed version is read from its source, not copied");
+  assert.doesNotMatch(smoke, /\b3\.\d+\.\d+\b/, "no second copy of the version");
 });
 
 test("SQLD-06 on the locked Node the SQLite is the reviewed one (a machine on another Node has nothing to compare, and says which)", t => {

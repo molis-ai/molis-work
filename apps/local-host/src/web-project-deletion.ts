@@ -34,6 +34,7 @@ export async function removeDemoThroughService(withCatalog: LocalWebCatalogRunne
     actor_id: LOCAL_PERSON_ACTOR_ID,
     delete_confirmed: true,
     idempotency_key: `web-demo-remove-${randomBytes(16).toString("hex")}`,
+    output_files: "keep",
   });
 }
 
@@ -49,7 +50,14 @@ export function createProjectDeletionHttp(withMolisWorkProjectCatalog: LocalWebC
     if (request.method === "GET" && scopeMatch) {
       // Every owner of project data in this Home that names itself, in the person's language.
       const owners = projectDeletedHooksFor(homeDirectory ?? resolveConfiguredHome()).owners().flatMap(owner => owner.label ? [{ owner_id: owner.id, label: ownerLabel(owner) }] : []);
-      sendJson(response, 200, { project_id: decodeLocalWebPathPart(scopeMatch[1]), owners });
+      const projectId = decodeLocalWebPathPart(scopeMatch[1]);
+      try {
+        // Whether the dialog asks about the files in the default output directory: only when it has some (§3 「永久删除怎么做」).
+        const defaultOutput = await withMolisWorkProjectCatalog({ homeDirectory }, catalog => catalog.projectDeletion.outputContents(projectId));
+        sendJson(response, 200, { project_id: projectId, owners, default_output: defaultOutput });
+      } catch (error) {
+        sendDeletionFailure(response, error);
+      }
       return true;
     }
     const projectDeleteMatch = url.pathname.match(/^\/api\/settings\/projects\/([^/]+)\/delete$/);
@@ -60,12 +68,18 @@ export function createProjectDeletionHttp(withMolisWorkProjectCatalog: LocalWebC
         sendJson(response, 400, { error: L("请明确确认删除项目，并提供有效的删除请求键。") });
         return true;
       }
+      // Only this page asks the person what happens to the files in the default output directory; nothing else is taken (SSC-23).
+      if (body.output_files !== undefined && body.output_files !== "keep" && body.output_files !== "delete") {
+        sendJson(response, 400, { error: L("默认输出目录里的文件只能选择留下或删除。") });
+        return true;
+      }
       try {
         const result = await new ProjectDeletionService(withMolisWorkProjectCatalog, deletionPorts).deleteProject(homeDirectory, {
           project_id: decodeLocalWebPathPart(projectDeleteMatch[1]),
           actor_id: LOCAL_PERSON_ACTOR_ID,
           delete_confirmed: true,
           idempotency_key: deletionKey,
+          output_files: body.output_files === "delete" ? "delete" : "keep",
         });
         sendJson(response, 200, result);
       } catch (error) {

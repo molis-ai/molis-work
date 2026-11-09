@@ -164,9 +164,14 @@ test("an Agent round carries the number of the call that started it: its tool ca
   served = await serveTestHost(null, { home, host: localHost });
   const project = await served.createProject("Numbers");
   const reference = project.reference;
-  // Once the web server serves this Home, a project's directories are the catalog's: bind the one this round works in.
+  // Once the web server serves this Home, a project's directories are the catalog's: bind the one this round works in, as its output (SSC-15).
   const withHostCatalog = localHost.configurePersonalPlanning(home, withCatalog);
-  await withHostCatalog({ homeDirectory: home }, catalog => catalog.commit(() => catalog.addWorkspaceProject({ canonical_path: home, project_id: project.project_id, actor_id: "test-user", user_confirmed: true })));
+  await withHostCatalog({ homeDirectory: home }, async catalog => {
+    await catalog.commit(() => catalog.addWorkspaceProject({ canonical_path: home, project_id: project.project_id, actor_id: "test-user", user_confirmed: true }));
+    const linked = catalog.listWorkspaceDirectory(project.project_id).find(record => record.canonical_path === home)!;
+    await catalog.commit(() => catalog.changeDirectories({ project_id: project.project_id, actor_id: "test-user",
+      change: { kind: "set_output", target: { workspace_id: linked.workspace_id } }, expected_revision: catalog.projectDirectories(project.project_id).revision }));
+  });
   const ping: ActionDefinition = { capability_id: "fixture.agent.ping", version: 1, operation: "query", action: { title: "Ping", description: "Answers", kind: "query", scope: "project",
     audiences: ["agent", "mcp"], permissions: [], subject_kinds: [], input_schema: { type: "object", properties: {}, additionalProperties: false } } };
   const handled: Array<string | undefined> = [];

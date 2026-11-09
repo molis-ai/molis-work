@@ -12,8 +12,7 @@ import { informationActions, INFORMATION_PROVIDER_ID } from "./information-actio
 import { ASSISTANT_RULES_PROVIDER, ASSISTANT_RULE_ACTIONS, ASSISTANT_FOLLOW_UP_ACTIONS } from "./assistant/assistant-rule-actions.js";
 import { assistantThreadActions } from "./assistant/assistant-thread-actions.js";
 import { FUNCTIONS_PROVIDER_ID, functionsActions, functionAuthoringActions, functionContextActions } from "@molis-ai/molis-work-module-judgment-rules";
-import { projectWorkspaceActions } from "@molis-ai/molis-work-contracts/modules/projects";
-import { PROJECT_WORKSPACE_PROVIDER_ID } from "./project-workspace-actions.js";
+import { materialOriginActions, materialRecentActions, PROJECT_WORKSPACE_PROVIDER_ID, projectDirectoryActions } from "@molis-ai/molis-work-contracts/modules/projects";
 import { HOST_PROVIDER_ID } from "./local-host.js";
 import { EXTERNAL_MCP_PERMISSION } from "./mcp-tool-actions.js";
 import { NATIVE_CONTENT_PERMISSIONS } from "./native-content-permissions.js";
@@ -52,7 +51,7 @@ function ownerProviders(): ReadonlyMap<string, readonly string[]> {
     [PLUGIN_INSTALL_PROVIDER_ID, [...PLUGIN_INSTALL_PERMISSIONS, ...asks(Object.values(skillImportActions))]],
     [INFORMATION_PROVIDER_ID, asks(Object.values(informationActions))],
     [FUNCTIONS_PROVIDER_ID, asks([...Object.values(functionsActions), ...Object.values(functionAuthoringActions), ...Object.values(functionContextActions)])],
-    [PROJECT_WORKSPACE_PROVIDER_ID, asks(Object.values(projectWorkspaceActions))],
+    [PROJECT_WORKSPACE_PROVIDER_ID, asks([...Object.values(projectDirectoryActions), ...Object.values(materialRecentActions), ...Object.values(materialOriginActions)])],
     [CHARACTER_PLUGIN_ID, CHARACTER_ACTION_PERMISSIONS],
     [ASSISTANT_RULES_PROVIDER, asks([...Object.values(ASSISTANT_RULE_ACTIONS), ...Object.values(ASSISTANT_FOLLOW_UP_ACTIONS), ...Object.values(assistantThreadActions)])],
     [SEARCH_PROVIDER_ID, SEARCH_PERMISSIONS],

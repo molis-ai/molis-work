@@ -22,7 +22,7 @@ import { fullSuiteWorkflow, workflow, workflowFiles } from "./fixtures/ci-workfl
 //
 // Two sentinels keep forms the guard was not taught from escaping quietly. `mentions()` counts `pnpm` … `install`/`i`
 // loosely on every line with comments stripped, and `problems()` requires the recognised installs to equal both that loose
-// count and the expected count, pinning the real workflows at 7 in ci.yml and 1 in full-suite.yml (RAC-1458). Every file
+// count and the expected count, pinning the real workflows at 9 in ci.yml and 1 each in full-suite.yml and golden-replay-nightly.yml (RAC-1458). Every file
 // under .github/workflows is swept the same way: a file with an install must be listed, or listed in UNGUARDED_INSTALLS
 // where release-macos.yml is knowingly unguarded (T-019 任务书 明令不动, tracked separately) (RAC-1458). A later CI change
 // that adds or removes an install has to update EXPECTED_INSTALLS in the same pull request.
@@ -38,7 +38,7 @@ const INSTALL =
 const LOOSE_INSTALL = /(?<![\w./-])pnpm\b[^\n]*?\s(?:install|i)(?=\s|$|[;&|)])/g;
 
 /** The installs the real workflows are expected to have; a CI change that adds one must update this. */
-const EXPECTED_INSTALLS: Record<string, number> = { "ci.yml": 7, "full-suite.yml": 1 };
+const EXPECTED_INSTALLS: Record<string, number> = { "ci.yml": 9, "full-suite.yml": 1, "golden-replay-nightly.yml": 1 };
 /** release-macos.yml installs without a guard on purpose: T-019 任务书 明令不动, tracked separately. */
 const UNGUARDED_INSTALLS: Record<string, number> = { "release-macos.yml": 1 };
 
@@ -387,7 +387,7 @@ test("RAC-1456: a folded block under a > header is read as folded", () => {
 test("RAC-1456: rewriting the real workflows' block headers keeps the counts and the guard green", () => {
   for (const header of ["|-", "|+", "|2", "|2-", "|-2", "| # note", "|- # note"]) {
     for (const [file, text, expected] of [
-      ["ci.yml", workflow, 7],
+      ["ci.yml", workflow, 9],
       ["full-suite.yml", fullSuiteWorkflow, 1],
     ] as const) {
       const rewritten = text.replace(/^ {8}run: \|$/gm, `        run: ${header}`);
@@ -400,10 +400,10 @@ test("RAC-1456: rewriting the real workflows' block headers keeps the counts and
 
 test("RAC-1456: folding the real workflows makes the export and the install one command, and the sentinels report it", () => {
   for (const header of [">-", ">+", "> # note"]) {
-    const reported = problems("ci.yml", workflow.replace(/^ {8}run: \|$/gm, `        run: ${header}`), 7);
+    const reported = problems("ci.yml", workflow.replace(/^ {8}run: \|$/gm, `        run: ${header}`), 9);
     assert.ok(reported, `${header}: ci.yml is reported`);
     assert.match(reported, /recognised 0 install/);
-    assert.match(reported, /loosely counted 7/);
+    assert.match(reported, /loosely counted 9/);
     assert.match(reported, /line/);
     assert.ok(problems("full-suite.yml", fullSuiteWorkflow.replace(/^ {8}run: \|$/gm, `        run: ${header}`), 1));
   }
@@ -519,11 +519,11 @@ test("RAC-1457: commands that only mention pnpm install are not installs", () =>
 
 // RAC-1458: the sentinels that catch the forms the guard was not taught.
 test("RAC-1458: the real workflows carry exactly the counted and expected installs", () => {
-  assert.equal(recognised(workflow), 7);
-  assert.equal(mentions(workflow), 7);
+  assert.equal(recognised(workflow), 9);
+  assert.equal(mentions(workflow), 9);
   assert.equal(recognised(fullSuiteWorkflow), 1);
   assert.equal(mentions(fullSuiteWorkflow), 1);
-  assert.equal(problems("ci.yml", workflow, 7), undefined);
+  assert.equal(problems("ci.yml", workflow, 9), undefined);
   assert.equal(problems("full-suite.yml", fullSuiteWorkflow, 1), undefined);
 });
 
@@ -541,10 +541,10 @@ test("RAC-1458: forms the guard does not read are reported, not silently ignored
 });
 
 test("RAC-1458: losing an install in the real workflow is reported against the expected count", () => {
-  const reported = problems("ci.yml", workflow.replace("pnpm install --frozen-lockfile", "pnpm exec true"), 7);
+  const reported = problems("ci.yml", workflow.replace("pnpm install --frozen-lockfile", "pnpm exec true"), 9);
   assert.ok(reported);
-  assert.match(reported, /recognised 6 install/);
-  assert.match(reported, /expected 7/);
+  assert.match(reported, /recognised 8 install/);
+  assert.match(reported, /expected 9/);
 });
 
 test("RAC-1458: every workflow file with an install is listed, and the listed counts match", () => {
@@ -568,6 +568,6 @@ test("RAC-1458: an unlisted file whose fold hides the install is caught, and a l
   assert.equal(unrecognised.length, 1, unrecognised.join("\n"));
   assert.match(unrecognised[0], /unknown\.yml: has pnpm install\(s\) but is not in EXPECTED_INSTALLS or UNGUARDED_INSTALLS/);
   const missing = directoryProblems([{ file: ".github/workflows/ci.yml", text: "" }]);
-  assert.match(missing.join("\n"), /ci\.yml: recognised 0, loosely counted 0, expected 7/);
+  assert.match(missing.join("\n"), /ci\.yml: recognised 0, loosely counted 0, expected 9/);
   assert.match(missing.join("\n"), /full-suite\.yml: listed but not found/);
 });

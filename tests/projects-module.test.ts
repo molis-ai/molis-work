@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -18,6 +18,7 @@ function createModule(db: SqliteDatabase, directory: string): ProjectsModule {
   return new ProjectsModule({
     db,
     projects_directory: directory,
+    outputs_directory: join(directory, "outputs"),
     plugins: { has: id => id === "goals", companions: () => [] },
     now: () => `2026-09-02T00:00:${String(sequence).padStart(2, "0")}.000Z`,
     id: (prefix) => `${prefix}-${++sequence}`,
@@ -26,7 +27,7 @@ function createModule(db: SqliteDatabase, directory: string): ProjectsModule {
 }
 
 test("Projects Module owns canonical project identity and workspace membership", () => {
-  const directory = mkdtempSync(join(tmpdir(), "molis-work-projects-module-"));
+  const directory = realpathSync(mkdtempSync(join(tmpdir(), "molis-work-projects-module-")));
   const db = openTestSqlite(":memory:");
   try {
     db.pragma("foreign_keys = ON");
@@ -66,6 +67,7 @@ test("Projects Module owns canonical project identity and workspace membership",
     });
 
     const workspacePath = join(directory, "workspace");
+    mkdirSync(workspacePath);
     const workspace = projects.commands.addWorkspaceProject({
       canonical_path: workspacePath,
       project_id: first.project_id,
@@ -73,7 +75,10 @@ test("Projects Module owns canonical project identity and workspace membership",
       user_confirmed: true,
     });
     assert.deepEqual(workspace.project_ids, [first.project_id]);
-    assert.equal(projects.query.preferredWorkspacePath(first.project_id), workspacePath);
+    // A linked folder is an input; what names no folder goes to the project's output, its default output directory (SSC-17, SSC-20).
+    assert.deepEqual(projects.query.projectDirectories(first.project_id).directories.map(item => [item.canonical_path, item.roles]),
+      [[join(directory, "outputs", first.project_id), ["output"]], [workspacePath, ["input"]]]);
+    assert.equal(projects.query.outputDirectory(first.project_id).canonical_path, join(directory, "outputs", first.project_id));
     assert.deepEqual(
       projects.query.workspaceProjectSelections(workspace.workspace_id),
       [{ project_id: first.project_id, display_name: first.display_name }],
@@ -120,8 +125,8 @@ test("Projects Module owns canonical project identity and workspace membership",
 });
 
 /** A catalog with two projects, so that a directory can belong to one or to both. */
-function withTwoProjects(run: (env: { db: SqliteDatabase; projects: ProjectsModule; first: string; second: string; link: (projectId: string, path: string) => string }) => void): void {
-  const directory = mkdtempSync(join(tmpdir(), "molis-work-projects-module-"));
+function withTwoProjects(run: (env: { db: SqliteDatabase; projects: ProjectsModule; first: string; second: string; link: (projectId: string, path: string) => string; output: (projectId: string) => string }) => void): void {
+  const directory = realpathSync(mkdtempSync(join(tmpdir(), "molis-work-projects-module-")));
   const db = openTestSqlite(":memory:");
   try {
     db.pragma("foreign_keys = ON");
@@ -132,10 +137,14 @@ function withTwoProjects(run: (env: { db: SqliteDatabase; projects: ProjectsModu
       projects.lifecycle.register(record, "project.created", "user-1");
       return record.project_id;
     });
-    const link = (projectId: string, path: string) => projects.commands.addWorkspaceProject({
-      canonical_path: join(directory, path), project_id: projectId, actor_id: "user-1", user_confirmed: true,
-    }).workspace_id;
-    run({ db, projects, first: ids[0]!, second: ids[1]!, link });
+    const link = (projectId: string, path: string) => {
+      mkdirSync(join(directory, path), { recursive: true });
+      return projects.commands.addWorkspaceProject({
+        canonical_path: join(directory, path), project_id: projectId, actor_id: "user-1", user_confirmed: true,
+      }).workspace_id;
+    };
+    const output = (projectId: string) => projects.query.outputDirectory(projectId).workspace_id;
+    run({ db, projects, first: ids[0]!, second: ids[1]!, link, output });
   } finally {
     db.close();
     rmSync(directory, { recursive: true, force: true });
@@ -145,11 +154,13 @@ const rows = (db: SqliteDatabase, table: "workspaces" | "workspace_project_membe
   Number((db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get() as { n: number }).n);
 
 test("RAC-2453 deleting a project's memberships removes the directory records that no project belongs to any more", () => {
-  withTwoProjects(({ db, projects, first, link }) => {
+  withTwoProjects(({ db, projects, first, second, link, output }) => {
     link(first, "alone");
+    // Each project also has its default output directory: one row and one membership of its own (SSC-20).
+    assert.deepEqual([rows(db, "workspaces"), rows(db, "workspace_project_memberships")], [3, 3]);
+    assert.equal(projects.lifecycle.removeWorkspaceMembershipsForProject(first), 2, "the count is still the memberships removed: the folder and the default output");
     assert.deepEqual([rows(db, "workspaces"), rows(db, "workspace_project_memberships")], [1, 1]);
-    assert.equal(projects.lifecycle.removeWorkspaceMembershipsForProject(first), 1, "the count is still the memberships removed");
-    assert.deepEqual([rows(db, "workspaces"), rows(db, "workspace_project_memberships")], [0, 0]);
+    assert.deepEqual(db.prepare("SELECT workspace_id FROM workspaces").all(), [{ workspace_id: output(second) }]);
   });
 });
 
@@ -157,37 +168,40 @@ test("RAC-2454 a directory two projects share stays, with the other project's me
   withTwoProjects(({ db, projects, first, second, link }) => {
     const shared = link(first, "shared");
     assert.equal(link(second, "shared"), shared);
-    assert.equal(projects.lifecycle.removeWorkspaceMembershipsForProject(first), 1);
-    assert.deepEqual([rows(db, "workspaces"), rows(db, "workspace_project_memberships")], [1, 1]);
+    assert.equal(projects.lifecycle.removeWorkspaceMembershipsForProject(first), 2, "the shared folder and the first project's default output");
+    assert.deepEqual([rows(db, "workspaces"), rows(db, "workspace_project_memberships")], [2, 2]);
     assert.deepEqual(projects.query.workspaceProjectSelections(shared).map(selection => selection.project_id), [second]);
-    assert.equal(projects.lifecycle.removeWorkspaceMembershipsForProject(second), 1);
+    assert.equal(projects.lifecycle.removeWorkspaceMembershipsForProject(second), 2);
     assert.deepEqual([rows(db, "workspaces"), rows(db, "workspace_project_memberships")], [0, 0]);
   });
 });
 
 test("RAC-2455 of a project's two directories, the one only it belongs to goes and the shared one stays", () => {
-  withTwoProjects(({ db, projects, first, second, link }) => {
+  withTwoProjects(({ db, projects, first, second, link, output }) => {
     const alone = link(first, "alone"), shared = link(first, "shared");
     link(second, "shared");
-    assert.equal(projects.lifecycle.removeWorkspaceMembershipsForProject(first), 2);
-    assert.deepEqual(db.prepare("SELECT workspace_id FROM workspaces").all(), [{ workspace_id: shared }]);
+    assert.equal(projects.lifecycle.removeWorkspaceMembershipsForProject(first), 3, "two folders and the default output");
+    assert.deepEqual(db.prepare("SELECT workspace_id FROM workspaces ORDER BY workspace_id").all(),
+      [shared, output(second)].sort().map(workspace_id => ({ workspace_id })));
     assert.notEqual(alone, shared);
   });
 });
 
 test("RAC-2456 a deletion that fails after the memberships go puts the directory records back, and records this deletion did not empty are not touched", () => {
-  withTwoProjects(({ db, projects, first, second, link }) => {
+  withTwoProjects(({ db, projects, first, second, link, output }) => {
     link(first, "alone");
     // A directory with no member at all was there before this deletion: it is not this deletion's to remove.
     db.prepare("INSERT INTO workspaces (workspace_id, canonical_path, realpath_verified, display_name, created_at, updated_at) VALUES ('stale', '/stale', 0, 'stale', 'x', 'x')").run();
     assert.throws(() => projects.lifecycle.transaction(() => {
-      assert.equal(projects.lifecycle.removeWorkspaceMembershipsForProject(first), 1);
-      assert.deepEqual(db.prepare("SELECT workspace_id FROM workspaces").all(), [{ workspace_id: "stale" }]);
+      assert.equal(projects.lifecycle.removeWorkspaceMembershipsForProject(first), 2);
+      assert.deepEqual(db.prepare("SELECT workspace_id FROM workspaces ORDER BY workspace_id").all(),
+        ["stale", output(second)].sort().map(workspace_id => ({ workspace_id })));
       throw new Error("the deletion failed after the directory step");
     }), /deletion failed/u);
-    assert.deepEqual([rows(db, "workspaces"), rows(db, "workspace_project_memberships")], [2, 1], "rolled back: the directory and its membership are back");
-    assert.equal(projects.lifecycle.removeWorkspaceMembershipsForProject(second), 0, "a project with no directory removes nothing");
-    assert.equal(rows(db, "workspaces"), 2);
+    assert.deepEqual([rows(db, "workspaces"), rows(db, "workspace_project_memberships")], [4, 3], "rolled back: the directory, the default output and their memberships are back");
+    assert.equal(projects.lifecycle.removeWorkspaceMembershipsForProject(second), 1, "a project with no folder of its own removes only its default output");
+    assert.equal(rows(db, "workspaces"), 3);
+    assert.ok(db.prepare("SELECT 1 FROM workspaces WHERE workspace_id = 'stale'").get(), "the record this deletion did not empty stays");
   });
 });
 

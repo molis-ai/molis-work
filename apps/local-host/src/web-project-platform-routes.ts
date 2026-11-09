@@ -1,7 +1,7 @@
 import { handlePluginPageHttp } from "./plugin-page-http.js";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
-import { projectSettingsCapabilities, projectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
+import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { agentWriteCheckerActions, hostsAgentSessions, resolveProjectRuntime, type AgentWriteCheckerList } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { pluginReachable, projectReachablePlugins, reachEntry } from "./project-action-availability.js";
@@ -10,11 +10,11 @@ import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { bindLocalWebActions } from "./local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { HOME_ACTION_PERMISSIONS } from "./home-actions.js";
-import { ProjectBrowsingSettings } from "./project-browsing-settings.js";
 import { handleAgentStudioHttp } from "./plugin-builder/agent-surface.js";
 import { configuredModelChoices } from "./configured-models.js";
 import { handleSideFilesHttp } from "./side-files-http.js";
 import { handleProjectWorkspaceHttp } from "./project-workspace-http.js";
+import type { MolisWorkProjectCatalog } from "./project-catalog.js";
 import { pickLocalDirectory } from "./directory-picker.js";
 import { handleFunctionsHttp } from "./judgment-rules-http.js";
 import { handleAgentReviewHttp } from "./agent-review-http.js";
@@ -77,23 +77,6 @@ export const sideFilesRoute: WebRoute<ProjectRequestContext> = { id: "side-files
   url.pathname.startsWith("/api/side/files/") && await handleSideFilesHttp(request, response, url, { localHost, reference: hostReference,
     shownPlugins: async () => new Set(await shownPlugins(options.project!.project_id)) }) };
 
-/** The project's browsing workspace: the same registered project setting every caller uses; this route only adapts the form. */
-export const projectWorkspacesRoute: WebRoute<ProjectRuntimeContext> = { id: "project-workspaces", handle: async ({ request, response, url, options, composition, serverOptions, store, localHost, hostReference }) => {
-  if (url.pathname !== "/api/project-settings/workspaces" || !options.project || !["GET", "POST"].includes(request.method ?? "")) return false;
-  const workspaces = await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory },
-    catalog => catalog.listWorkspaceDirectory(options.project!.project_id).map(projectWorkspaceRef));
-  const settings = new ProjectBrowsingSettings(store.db);
-  try {
-    if (request.method === "POST") {
-      const body = await readBody(request);
-      if (typeof body.workspace_id !== "string" || !body.workspace_id) throw new Error("请选择当前项目已关联且可用的工作目录");
-      await bindLocalWebActions(localHost, hostReference, ["projects:settings"]).invoke(projectSettingsCapabilities.selectBrowsingWorkspace, [body.workspace_id]);
-    }
-    sendJson(response, 200, { workspaces, selected: settings.read(options.projectId, workspaces)?.workspace_id ?? null });
-  } catch (error) { sendJson(response, 403, { error: error instanceof Error ? error.message : String(error) }); }
-  return true;
-} };
-
 /**
  * The Runtime the project's Agent sessions run on: the registered project setting every caller uses (null is the Home default). This
  * route adapts the form, and says which Runtimes can be picked now and, when the pick is no longer one of them, why: the picker
@@ -118,12 +101,21 @@ export const projectRuntimeRoute: WebRoute<ProjectRuntimeContext> = { id: "proje
   return true;
 } };
 
-/** Linking, repairing and unlinking the project's folders and the folder window, as the person under the project setting's permission. */
-export const workspaceMembershipRoute: WebRoute<ProjectRuntimeContext> = { id: "workspace-membership", handle: ({ request, response, url, options, localHost, hostReference }) =>
+/** The project's inputs and output (read, and one change at a time) and the folder window, as the person under the project setting's permission. */
+export const workspaceMembershipRoute: WebRoute<ProjectRuntimeContext> = { id: "workspace-membership", handle: ({ request, response, url, options, localHost, hostReference, composition, serverOptions }) =>
   handleProjectWorkspaceHttp({ method: request.method, pathname: url.pathname, hasProject: Boolean(options.project),
     actions: bindLocalWebActions(localHost, hostReference, ["projects:settings"]),
     readBody: () => readBody(request), respond: (status, body) => sendJson(response, status, body),
-    pickDirectory: () => pickLocalDirectory() }) };
+    pickDirectory: () => pickLocalDirectory(),
+    defaultOutput: () => composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => defaultOutputOf(catalog, options.project!.project_id)) }) };
+
+/** The project's default output directory and whether it is made: only looked at when it is one of the project's folders (read, never made). */
+function defaultOutputOf(catalog: Pick<MolisWorkProjectCatalog, "defaultOutputDirectoryId" | "projectDirectories" | "prepareWorkspaceDirectory">, projectId: string) {
+  const workspaceId = catalog.defaultOutputDirectoryId(projectId);
+  if (!catalog.projectDirectories(projectId).directories.some(item => item.workspace_id === workspaceId)) return { workspace_id: workspaceId, made: true };
+  // A folder that cannot be looked at (a symbolic link, say) is not called unmade: its own refusal comes when it is used.
+  try { return { workspace_id: workspaceId, made: catalog.prepareWorkspaceDirectory(projectId, workspaceId, "read").exists }; } catch { return { workspace_id: workspaceId, made: true }; }
+}
 
 /**
  * The after-write checkers of the project's authorized workspaces (specs/prologue-adoption §6.0p.13): the person's own two

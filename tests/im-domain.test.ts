@@ -31,7 +31,7 @@ async function fixture() {
       requireMember(session) { active(session); const member = this.member(session); if (!member) throw new ImError("im.identity.unauthenticated", "请设置名字", 401); return member; },
       name(session, value) {
         active(session);
-        // The real shared Identity uses its own better-sqlite3 transaction.
+        // The real shared Identity uses its own transaction on the connection.
         // This exercises nested SAVEPOINT behavior rather than a no-op stub.
         return db.transaction(() => {
           const member = this.member(session) ?? { id: randomUUID(), display_name: String(value) };

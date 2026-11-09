@@ -19,6 +19,20 @@ pub(crate) struct Health {
     pub(crate) desktop_tui: bool,
 }
 
+/// What a 503 says of itself. Only `upgrading` is read (`upgrade-maintenance.ts` in the Host).
+#[derive(Deserialize)]
+struct Unavailable {
+    status: String,
+}
+
+/// What `/health` proved, once the proof covers these exact bytes.
+pub(crate) enum Answer {
+    Ready(Health),
+    /// This Home's Host, upgrading its data before it starts (upgrade-chain-design §4.2): not
+    /// ready, and not dead either.
+    Upgrading,
+}
+
 pub(crate) fn control_token() -> Result<String, String> {
     let token = std::fs::read_to_string(
         crate::web_service::molis_work_home().join("config/web-control-token"),
@@ -32,14 +46,30 @@ pub(crate) fn control_token() -> Result<String, String> {
 }
 
 pub(crate) fn health() -> Result<Health, String> {
+    match answer()? {
+        Answer::Ready(health) => Ok(health),
+        Answer::Upgrading => Err(REFUSED.into()),
+    }
+}
+
+/// `/health` on the fixed port, ready or upgrading. Only the wait for the service tells them apart.
+pub(crate) fn answer() -> Result<Answer, String> {
     let token = control_token()?;
     let address = SocketAddr::from(([127, 0, 0, 1], 4173));
     let mut stream = TcpStream::connect_timeout(&address, Duration::from_millis(250))
         .map_err(|_| REFUSED.to_string())?;
-    authenticate(&mut stream, &token)
+    prove(&mut stream, &token)
 }
 
+/// A socket kept for a native request: only a ready service is sent one.
 pub(crate) fn authenticate(stream: &mut TcpStream, token: &str) -> Result<Health, String> {
+    match prove(stream, token)? {
+        Answer::Ready(health) => Ok(health),
+        Answer::Upgrading => Err(REFUSED.into()),
+    }
+}
+
+fn prove(stream: &mut TcpStream, token: &str) -> Result<Answer, String> {
     let mut random = [0_u8; 32];
     File::open("/dev/urandom")
         .and_then(|mut source| source.read_exact(&mut random))
@@ -56,7 +86,7 @@ pub(crate) fn authenticate(stream: &mut TcpStream, token: &str) -> Result<Health
     verify_response(stream, token, &challenge).ok_or_else(|| REFUSED.into())
 }
 
-fn verify_response(stream: &mut impl Read, token: &str, challenge: &str) -> Option<Health> {
+fn verify_response(stream: &mut impl Read, token: &str, challenge: &str) -> Option<Answer> {
     let mut head = Vec::new();
     while !head.ends_with(b"\r\n\r\n") {
         if head.len() == MAX_HEAD {
@@ -68,9 +98,13 @@ fn verify_response(stream: &mut impl Read, token: &str, challenge: &str) -> Opti
     }
     let head = std::str::from_utf8(&head).ok()?;
     let mut lines = head.split("\r\n");
-    if lines.next()? != "HTTP/1.1 200 OK" {
-        return None;
-    }
+    // The two lines the Host's Node server writes: ready, and the listener that answers while the
+    // Home upgrades.
+    let ready = match lines.next()? {
+        "HTTP/1.1 200 OK" => true,
+        "HTTP/1.1 503 Service Unavailable" => false,
+        _ => return None,
+    };
     let mut length = None;
     let mut proof = None;
     for line in lines.filter(|line| !line.is_empty()) {
@@ -97,8 +131,12 @@ fn verify_response(stream: &mut impl Read, token: &str, challenge: &str) -> Opti
     mac.update(b"\n");
     mac.update(&body);
     mac.verify_slice(&proof?).ok()?;
-    let health: Health = serde_json::from_slice(&body).ok()?;
-    (health.status == "ok").then_some(health)
+    if ready {
+        let health: Health = serde_json::from_slice(&body).ok()?;
+        return (health.status == "ok").then_some(Answer::Ready(health));
+    }
+    let unavailable: Unavailable = serde_json::from_slice(&body).ok()?;
+    (unavailable.status == "upgrading").then_some(Answer::Upgrading)
 }
 
 #[cfg(test)]
@@ -110,14 +148,22 @@ mod tests {
 
     const KEY: &str = "desktop-identity-fixture-control-key";
     const BODY: &str = r#"{"status":"ok","desktop_tui":true}"#;
+    const READY: &str = "HTTP/1.1 200 OK";
+    /// The status line and the fields the Host's maintenance listener writes.
+    const UNAVAILABLE: &str = "HTTP/1.1 503 Service Unavailable";
+    const UPGRADING: &str = r#"{"status":"upgrading","process_id":7,"service_process_id":7,
+        "upgrade":{"done":1,"total":3,"started_at":1794100000000}}"#;
     fn response(challenge: &str, key: &str, body: &str) -> String {
+        signed(READY, challenge, key, body)
+    }
+    fn signed(status: &str, challenge: &str, key: &str, body: &str) -> String {
         let mut mac = Hmac::<Sha256>::new_from_slice(key.as_bytes()).unwrap();
         mac.update(challenge.as_bytes());
         mac.update(b"\n");
         mac.update(body.as_bytes());
         let proof = URL_SAFE_NO_PAD.encode(mac.finalize().into_bytes());
         format!(
-            "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nx-molis-work-proof: {proof}\r\n\r\n{body}",
+            "{status}\r\nContent-Length: {}\r\nx-molis-work-proof: {proof}\r\n\r\n{body}",
             body.len()
         )
     }
@@ -125,11 +171,10 @@ mod tests {
     #[test]
     fn sys14_rejects_false_replayed_tampered_and_malformed_services() {
         let valid = response("fresh", KEY, BODY);
-        assert!(
-            verify_response(&mut Cursor::new(&valid), KEY, "fresh")
-                .unwrap()
-                .desktop_tui
-        );
+        match verify_response(&mut Cursor::new(&valid), KEY, "fresh") {
+            Some(Answer::Ready(health)) => assert!(health.desktop_tui),
+            _ => panic!("this Home's ready service is ready"),
+        }
         for fake in [
             response("old", KEY, BODY),
             response("fresh", "another-home", BODY),
@@ -198,5 +243,56 @@ mod tests {
             drop(client);
             server.join().unwrap();
         }
+    }
+
+    #[test]
+    fn upg19_an_upgrading_host_counts_only_with_this_homes_proof() {
+        let upgrading = signed(UNAVAILABLE, "fresh", KEY, UPGRADING);
+        match verify_response(&mut Cursor::new(&upgrading), KEY, "fresh") {
+            Some(Answer::Upgrading) => {}
+            _ => panic!("this Home's Host, upgrading, says so"),
+        }
+        for fake in [
+            signed(UNAVAILABLE, "old", KEY, UPGRADING),
+            signed(UNAVAILABLE, "fresh", "another-home", UPGRADING),
+            upgrading.replace("x-molis-work-proof", "x-ignored"),
+            upgrading.replace("\"upgrading\"", "\"upgraded\""),
+            signed("HTTP/1.1 503 Unavailable", "fresh", KEY, UPGRADING),
+            signed("HTTP/1.1 502 Bad Gateway", "fresh", KEY, UPGRADING),
+            signed(READY, "fresh", KEY, UPGRADING),
+            signed(UNAVAILABLE, "fresh", KEY, r#"{"status":"starting"}"#),
+            signed(UNAVAILABLE, "fresh", KEY, BODY),
+            signed(UNAVAILABLE, "fresh", KEY, r#"{"text":"status upgrading"}"#),
+        ] {
+            assert!(verify_response(&mut Cursor::new(fake), KEY, "fresh").is_none());
+        }
+    }
+
+    #[test]
+    fn upg19_no_native_payload_goes_to_a_host_that_is_upgrading() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = thread::spawn(move || {
+            let (mut socket, _) = listener.accept().unwrap();
+            socket
+                .set_read_timeout(Some(Duration::from_secs(2)))
+                .unwrap();
+            let mut reader = BufReader::new(socket.try_clone().unwrap());
+            let mut request = String::new();
+            while !request.ends_with("\r\n\r\n") {
+                assert!(reader.read_line(&mut request).unwrap() > 0);
+            }
+            let challenge = request.split("challenge=").nth(1).unwrap();
+            let challenge = challenge.split(' ').next().unwrap();
+            let answer = signed(UNAVAILABLE, challenge, KEY, UPGRADING);
+            socket.write_all(answer.as_bytes()).unwrap();
+            let mut payload = String::new();
+            reader.read_line(&mut payload).unwrap();
+            assert_eq!(payload, "");
+        });
+        let mut client = TcpStream::connect(address).unwrap();
+        assert!(authenticate(&mut client, KEY).is_err());
+        drop(client);
+        server.join().unwrap();
     }
 }

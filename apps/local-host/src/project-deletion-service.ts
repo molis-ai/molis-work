@@ -2,7 +2,7 @@ import {readStorageSpace} from '@molis-ai/molis-work-storage';
 import {admitProjectSync} from './project-sync-admission.js';
 import { withPassiveProjectChange } from './passive-sync-execution.js';
 import type { DeleteProjectInput, ProjectDeletionResult } from "@molis-ai/molis-work-contracts/modules/projects";
-import { requireDeletionConfirmed, requiredDeletionIdempotencyKey } from "./managed-project-deletion.js";
+import { requireDeletionConfirmed, requiredDeletionIdempotencyKey, requiredOutputFiles } from "./managed-project-deletion.js";
 import { catalogErrors } from "./project-catalog-contract.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
 import { L } from "./web-locale.js";
@@ -69,6 +69,7 @@ export class ProjectDeletionService {
   async deleteProject(homeDirectory: string | undefined, input: DeleteProjectInput): Promise<ProjectDeletionResult> {
     requireDeletionConfirmed(input.delete_confirmed);
     requiredDeletionIdempotencyKey(input.idempotency_key);
+    const deleteOutput = requiredOutputFiles(input.output_files) === "delete";
     return this.withCatalog({ homeDirectory }, async catalog => {
       if (readStorageSpace(catalog.homeDirectory)?.kind === 'personal') throw catalogErrors.personal_deletion_unavailable('个人项目暂不支持永久删除，请使用项目回收与恢复');
       // An already deleted project is not in the list: its persisted receipt replays without asking the terminals or the runtime.
@@ -80,6 +81,12 @@ export class ProjectDeletionService {
           }
         };
         assertNoLiveTerminal();
+        // Deleting the files of the default output directory waits for every running or queued task: one still writing there would leave
+        // files behind. Without a way to ask, nothing is deleted (absence is never taken for idle).
+        if (deleteOutput) {
+          if (!this.ports.isProjectBusy) throw catalogErrors.project_storage_invalid("项目运行状态尚未接入，默认输出目录里的文件没有删，项目也没有删");
+          if (this.ports.isProjectBusy(project.database_path)) throw catalogErrors.project_task_live("项目仍有运行或排队的任务，请结束后再删除项目和它默认输出目录里的文件");
+        }
         await this.ports.releaseProject(project.database_path);
         // Shutdown yields: another entry can have opened a panel while it was pending.
         assertNoLiveTerminal();

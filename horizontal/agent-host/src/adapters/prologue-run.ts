@@ -171,7 +171,7 @@ async function childSetup(deps: RunDeps, input: PrologueStartInput) {
     const overlaps = (a: string, b: string) => { const relative = path.relative(a, b); return !relative || !relative.startsWith(`..${path.sep}`) && relative !== ".." && !path.isAbsolute(relative); };
     if ([input.root_path!, ...childRoots.map(root => root.path)].some(other => overlaps(other, grant.directory.canonical_path) || overlaps(grant.directory.canonical_path, other))) throw new Error("子任务目录必须与主目录及其他子目录互不包含");
     const authorized = await runtime.workspace.authorize({ path: grant.directory.canonical_path });
-    childRoots.push({ id: grant.workspace_id, rootRef: authorized.ref, path: grant.directory.canonical_path });
+    childRoots.push({ id: grant.worktree_id, rootRef: authorized.ref, path: grant.directory.canonical_path });
   }
   const childRoles = new Map<string, ChildRole>();
   for (const role of input.subagents ?? []) {

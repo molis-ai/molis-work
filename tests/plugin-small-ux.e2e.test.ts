@@ -32,9 +32,11 @@ test("Schedule's new-task form (in the detail pane) says what a due task still n
   assert.equal(await schedule.evaluate("document.querySelector('[data-schedule-hint=model]').hidden && document.querySelector('[data-schedule-hint=workspace]').hidden"), true,
     "nothing is claimed before the Host has answered");
   await schedule.click("[data-schedule-new]");
-  await schedule.waitFor(`${shown("model")} && ${shown("workspace")}`, 20_000);
+  await schedule.waitFor(shown("model"), 20_000);
   assert.match(await schedule.evaluate("document.querySelector('[data-schedule-hint=model]').textContent"), /还没有配置文字模型/);
-  assert.match(await schedule.evaluate("document.querySelector('[data-schedule-hint=workspace]').textContent"), /还没有绑定工作区/);
+  // Every project has an output (batch 05, SSC-17: the default one is made on the first run), so the Host reports a folder; the
+  // folder hint is checked below with an answer that has none.
+  assert.equal(await schedule.evaluate("document.querySelector('[data-schedule-hint=workspace]').hidden"), true, "the project's output counts as its folder");
   assert.equal(await schedule.evaluate("document.querySelector('[data-schedule-create-form] [type=submit]').disabled"), false, "the hint does not block");
   await schedule.evaluate(`{ const form = document.querySelector('[data-schedule-create-form]');
     form.elements.title.value = '提示不拦创建'; form.elements.instructions.value = '只读汇总'; form.elements.time.value = '07:45'; }`);
@@ -54,6 +56,7 @@ test("Schedule's new-task form (in the detail pane) says what a due task still n
   await schedule.click("[data-schedule-new]");
   await schedule.waitFor(shown("workspace"), 20_000);
   assert.equal(await schedule.evaluate("document.querySelector('[data-schedule-hint=model]').hidden"), true, "the model is there now");
+  assert.match(await schedule.evaluate("document.querySelector('[data-schedule-hint=workspace]').textContent"), /还没有绑定工作区/);
   await schedule.click("[data-schedule-create-form] footer [data-schedule-create-close]");
   // A readiness read that fails says nothing, and the form still works.
   await evaluate("window.readinessAnswer = null");

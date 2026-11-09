@@ -14,7 +14,7 @@ import type { CodingExecution } from "./routes.js";
 import { text } from "./run-inputs.js";
 import { codingSessionTitleFrom } from "./session-title.js";
 import type { CodingSessionRecord } from "./store.js";
-import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import { projectFolders } from "./project-folders.js";
 import type { PluginActionClient, PluginRouteBinding } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities as agent, type AgentMessageAttachment, type AgentPeopleMessageAction, type AgentSessionMessage } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { codingFailure, codingText } from "./words.js";
@@ -29,7 +29,7 @@ export const runtimeSessionOf = async (a: CodingActivation, record: CodingSessio
   if (record.runtime_session_id) return record.runtime_session_id;
   const saved = context.services?.storage?.get(`configuration:${record.session_id}`);
   const chosen = typeof saved === "string" ? (JSON.parse(saved) as { workspace_id?: string }).workspace_id : undefined;
-  const workspaces = await api.invoke(projectSettingsCapabilities.workspaces, []);
+  const workspaces = await projectFolders(api);
   const workspace = workspaces.find(entry => entry.workspace_id === chosen && entry.realpath_verified) ?? workspaces.find(entry => entry.realpath_verified);
   if (!workspace) throw codingFailure("coding.server.authorize-workspace");
   const session = await codingActions(a.context, beforeWrite).invoke(agent.createSession, [record.runtime_id, { directory: { canonical_path: workspace.canonical_path, realpath_verified: true }, title: record.title }]);

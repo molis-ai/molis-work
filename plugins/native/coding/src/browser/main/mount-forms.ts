@@ -170,7 +170,9 @@ async function saveWorkspace(page: Page, form: HTMLFormElement) {
     if (s.current !== id) return;
     await useProjectWorkspace(page, chosen);
     if (s.current !== id) return;
+    // Choosing a folder ends a worktree choice: the session's rounds run in the folder again.
     s.workspaceId = chosen;
+    s.worktree = null;
     rememberConfiguration(page);
     await refs.draft.flush();
     await refreshState(page);

@@ -12,9 +12,11 @@
 | `limits.json` | 巨大单元与 vendored SDK 的阈值，以及 `docs/` 下一个 `.json` 最多多少字节（`docsJsonBytes`，依据见 `scripts/gates/README.md`「文档里的原始数据」），只许收紧 | 人，过评审 |
 | `api/<包>/<subpath>.txt` | contracts 每个 subpath、插件 SDK 的公开 API 快照 | `pnpm api:update`（见下） |
 | `actions/*.tsv` | 内置 Manifest 声明的动作与消费场景、宿主另外登记的动作与消费场景的合同快照（提供方、宿主登记用的提供方 id、谁能调、输入输出 schema 的哈希） | `pnpm actions:update`（见「动作合同快照」） |
+| `schemas/stores.tsv` | 这个构建会建的每个库的结构快照（位置、主人、版本、结构哈希、升级段的 `from`） | `pnpm schemas:update`（见「库的结构快照」） |
 | `secret-allowlist.txt` | 密钥扫描的已知测试值 | 人，过评审 |
 | `table-owners.json` | `shared`：几个包有意共用的表（今天没有；`events`、`idempotency_records` 原先在里面，PG-094 S9-1 后已删）的 owner、用到它的包、理由；`same_name`：两个包各建一张的同名表（今天是 `workspaces`、`jobs`，不同库）的包与理由；`areas`：包里自己当 owner 的目录（今天是 Feed 的 `src/store`，BL-802）与理由；其余的表只许 owner 包读写（`scripts/gates/table-owners.mjs`，说明在 `scripts/gates/README.md`） | 人，过评审；门禁两头核对，登记的包不再用就要删 |
 | `error-owners.json` | 错误码的主人表：`platform.prefixes`（平台自己的前缀，今天是 `actions`、`placement`、`search`、`files`）和 `owners.<名字>`（主人名、它名下的目录、glob 或文件、理由）。每个错误码以所在文件的主人名开头，平台码（`ACTION_ERROR_KINDS` 里有行的）除外；`plugins/native/<目录>/` 下的文件不用登记，主人就是目录名（连字符变下划线）。表自己的规则没有基线，表只许变严（`scripts/gates/error-owners.mjs`，口径见下面「错误模型」） | 人，过评审；新增一个包或区域要先加一条 |
+| `golden-coverage.json` | 金样覆盖面：`uncovered`（必须备份、今天金样里没有的路径和理由）、`writes`（每个必备份的库由 `tests/golden-writes/` 哪几个用例写，或为什么没有）、`other_writes`（不对应某个库的用例和它写什么）。见下「金样」 | 人，过评审；每条都双向核对，过期就失败 |
 
 ## 按文件计数、只许减少的项
 
@@ -59,6 +61,17 @@
 
 验证：`node scripts/run-tests.mjs tests/health-gates-test-imports-tool.test.ts`——在临时仓库里：每种拆成两份的写法（源码加包名、帮手、别的包的构建、动态 import、`dist` 换成 `src`、新测试、没人导入的夹具一开始就拆开或多拆一个包）在 `--base main` 下必须失败，`--update` 藏不住；类型导入、`dist` 孪生、只用源码、没人导入而只有一份的夹具必须不变红；删掉拆分（含夹具里的）会降低、改名保留记录。同一个文件也验证重写工具（公开名字走入口、别名、非公开走 `dist`、动态导入的解构、`apps/*` 的名字规则、没有构建孪生时不动、自检失败时不写）。
 
+## 金样（`scripts/gates/golden-homes.mjs`，UPG2-04、UPG2-07、UPG2-08）
+
+不比数字，出现一个就失败。设计见 [golden-replay-design.md](../../specs/upgrade-continuity/golden-replay-design.md) §5、§6。
+
+- **覆盖面：** `docs/system/HOME-DATA.md` §3、§5、§6 里备份一栏以「必备份」开头的路径（§3.3 整节都是），加上设计额外要的（`storage-space.json`、`plugin-packages/`、`spaces/`、`feed/secrets.json`、`config/installation.json`、`agent-runtime/storage.key`），都要在最新一份金样的清单里，根 Home 或账号 Home 都算。路径里的 `<x>` 是一段，`**` 是任意，`{a,b}` 是其一，以 `/` 结尾是下面的任何东西。今天放不进金样的写进 `golden-coverage.json` 的 `uncovered`，带理由；已经进了金样、或不再是必备份的条目会失败，所以这张表过不了期。
+- **最小写入：** §3 里每个必备份的库，`writes` 要说由哪几个 `tests/golden-writes/` 用例写，或者为什么没有；`tests/golden-writes/` 下每个文件要么被某个库用，要么在 `other_writes` 里。文件名和 `HOME-DATA.md` 的 owner 对不上（owner 常常是「宿主」），所以要这张对应表。
+- **怎样生成的：** 最新一份的清单要有 `third_party`、`home_library`、`node`：没有样本、或不说用哪个 Node 生成的，不入库。Node 是否等于 `.nvmrc` 由 `scripts/golden-home.mjs create` 在写默认目录时拒绝，门禁不比，否则升 Node 就要重生成旧金样。
+- **50 MB：** `tests/fixtures/golden-homes/` 下被跟踪文件的工作树字节不超过 50 MB。超了失败并点名最老的一份，不看年龄（用户 2026-11-08 定）。
+
+读不到的：库里有没有行、文件里的内容读不读得回来。那是回放的事（`scripts/replay-golden-homes.mjs`）。
+
 ## 包清单（`scripts/gates/package-inventory.mjs`，W1-18）
 
 唯一现行表在 [PACKAGE-BOUNDARIES.md「现行包清单」](../../docs/system/PACKAGE-BOUNDARIES.md#7-现行包清单)，包登记仍来自 `scripts/workspace-packages.mjs`。门禁按首个完全匹配的 11 列表头读取，守包的行集合、层、代码判定的状态、人工列词汇及数字写法；缺文档或缺表就失败。不比较数字列的当前实测值，也不根据默认生成值覆盖人工审查。`--table` 供核对机器列；原包的计划深度、审查及证据须保留。`--check` 和健康门禁只读新表，不回读历史 spec。完整负例在 `tests/package-inventory-gate.test.ts`。
@@ -101,11 +114,26 @@
 
 验证：`node scripts/run-tests.mjs tests/health-gates-store-versions.test.ts`。在临时仓库里：版本升了、降了却没有那一行就失败；有对的那一行就通过；数字不对、库不对、只写在正文里、写在登记节之外，都不算；检查清单第 3 节之后的表不算第 3 节；新库和去掉的库不用登记；没有标题、缺列、版本不是数字或写 `无`、同一个位置两行、文件被删、没有登记节标题、没有清单开头那一行、清单里的行写法不对，以及 merge-base 上的检查清单没有标题，都以退出码 2 结束。真实数据的用例：这个仓库现在的表和清单直接通过；表里每一个版本是 1 的库，升到 2 带段、带指针就过，缺指针、缺段、版本降都失败；这条用的是合成的段，只证明规则读得懂每一行，不是说这些库都该这样升（上面「可重建的库」）。统一起点的用例：未登记时版本照旧能升能降；登记后版本降、「维护」一格还是文字、指向别的定义处、箭头数字对不上、基线字面量里没有 `from: 旧`、别的基线有但这个没有、跨两版缺中间一段、`upgrades` 写成读不懂的名字（没声明、`let`、名字指向名字、声明两次）或展开、登记后改回未登记都失败；写对就通过，写成本文件 `const` 数组的名字也通过；普通版本常量和 JSON 文件的字段看文件里的 `upgrades`，别的名字还是要有那一个常量。
 
+## 库的结构快照（`scripts/gates/store-schemas.mjs`、`store-schema-snapshot.mjs`，UPG-01）
+
+统一起点之后，改了库的建库语句就要升版本、带升级段（[升级后持续可用](../../specs/upgrade-continuity/spec.md) UPG-01）：正在用的 Home 留着旧结构，打开时只比表，同版本的库也不会就地修补。`schemas/stores.tsv` 把这个构建会建的每个库写下来，一行一个：项目目录库、项目库、宿主库登记表（`homeStores()`）里的每个 Home 库（含内置插件的 `databases.home`）、每个内置插件的项目表（`projects/*/molis-work.db#<plugin_id>`）和旧炼金术士的两个库。装上的插件的库是发布者的，不在这里。
+
+**一行写什么。** `store`（位置，分项目的用 `*`）、`owner`、`version`、`structure`、`upgrades`（升级段的 `from`，没有写 `-`）。`structure` 是 sha256 前 16 位：建库语句在内存 SQLite 里跑完，`describeSqliteSchema` 报的表、列、检查、外键、索引（打开 Home 时比的那一份），加上每个触发器和视图的语句（空白归一）。只改排版和触发器外的注释不算，改触发器算：正在用的 Home 留着旧触发器。
+
+**两半。** 文件和构建出的产品一致，由 `pnpm test:contracts` 的 `tests/store-schema-snapshot.test.ts` 看住（要构建，CI「Action and plugin contracts」步骤），不一致就跑 `pnpm schemas:update` 再提交。和 merge-base 比的规则在 `pnpm health:check`，不用构建：
+
+- 同一个库版本没变、结构哈希变了：失败（UPG-01）。
+- 版本降了：失败。
+- 版本升了：每个 `from`（旧版本到新版本减 1）都要有升级段；还要有一份金样（`tests/fixtures/golden-homes/<版本>/manifest.json`）存着这个库的旧版本，账号 Home 里的也算。回放本身过没过由挡合并的 `golden-replay` 作业管。
+- 新库、删掉的库这里不管。merge-base 有文件、头上没了，失败；两边都没有（别的门禁测试的草稿仓库）不查。
+
+**金样记的版本。** 金样清单按主人存版本的地方记真实取值（`scripts/golden/formats.mjs`）：大多数库是 `PRAGMA user_version`，目录库读 `catalog_meta`，项目库另记每个插件项目表在 `plugin_project_databases` 账本里的版本（`plugin_tables`），`<库>#<插件>` 那一行读它。带版本的文件没有建库语句，不在这里，版本连续归下一节。某个库能不能升到 1 以上、维护清单那一行，分别归 `initial-versions.mjs` 与 `store-versions.mjs`，这里不重复。
+
 ## 统一起点的版本检查（`scripts/gates/initial-versions.mjs`，N41）
 
 分两半，每一项都要是 1，差一个就失败。扫描范围与上面「自有版本的声明」是同一份（`scripts/version-source.mjs`）。测试文件只在两条边界都不扫时才跳过：那份共用的测试边界，和这个门禁原来的「任意深度的 `tests/`、`fixtures/` 目录」。所以包顶层 `tests/`、`fixtures/` 里的不扫；`*.test.*`、`test.*`、包顶层 `test/` 不在这两种目录里的照扫（如 `apps/sync-worker/*.test.mjs`），`src/tests/`、`src/fixtures/` 也扫。产品版本 `apps/local-host/src/product-version.ts#PRODUCT_VERSION` 是唯一不按 1 算的常量：要是这个文件这个名字，带 `product.release` 标记，字面量是字符串，值由生成器对表；别的常量带同样的标记也只能是 1。产品代码里的 `*VERSION` 常量和 `tooling/versions.json` 里下面那些持久化格式的条目不用构建，是 `pnpm health:check` 的绝对规则（用户 2026-11-07 定）：CI 里跑，不比 merge-base，干净的树上 0 个问题。动作、Manifest、提示词、方法、角色只有 `node scripts/gates/initial-versions.mjs` 查，只在有人跑时才查，现在是重建窗口手跑（检查清单 §4.1）。提示词和方法不进 CI 这半：它们的文字一变就要升版本（`tests/prompt-registration.test.ts`），不是数据文件。
 
-持久化格式另算：`CATALOG_SCHEMA_VERSION`、`FORMAT_VERSION`（密钥文件）、`MCP_TOOL_PREFERENCE_VERSION`、`CATALOG_VERSION`（Shelf）、`home-contract` 的 `SCHEMA_VERSION`、`text-search` 的 `SCHEMA_VERSION`，以及设计稿 §2.6 说进链、用户 2026-11-07 单独同意加上的六个文件的常量：`ONBOARDING_SCHEMA_VERSION`、`PROJECT_ARRIVAL_SCHEMA_VERSION`、`BROWSER_SITES_VERSION`、`COMPUTER_SETTINGS_VERSION`、`COMPUTER_RECORD_VERSION`、`MODEL_PREFERENCE_SCHEMA_VERSION`（`jelly/preferences.json`），按 `文件#名字` 认，别处的同名常量不算；还有三项不是常量，从 `tooling/versions.json` 的条目读：`database.ledger_baseline`（插件 Home 库账本）、`database.memory_ledger_baseline`（记忆账本）、`format.jelly.workspace`（Jelly 的 `schema_version`）。它们大于 1 时，要有登记的升级链，版本相同、`from` 从 1 到版本减 1 各一次，回放通过（`{ version, froms, replay_passed }`），缺一样就失败。登记由 `registeredUpgradeChains` 从源码读（`X_VERSION` 配同一文件的 `const X_UPGRADES` 数组，基线对象读 `upgrades`，和上一节同一个读法 `upgrade-steps.mjs`，读不出来的算没有链），接在这两半；回放的结果 U2 还没有接，`replay_passed` 现在总是假，所以它们现在也只能是 1；全部是 1 时用不到登记，窗口照常通过。其余基线的 `version:` 不归它查，归 `verify-release-versions.mjs` 和上一节。
+持久化格式另算：`CATALOG_SCHEMA_VERSION`、`FORMAT_VERSION`（密钥文件）、`MCP_TOOL_PREFERENCE_VERSION`、`CATALOG_VERSION`（Shelf）、`home-contract` 的 `SCHEMA_VERSION`、`text-search` 的 `SCHEMA_VERSION`，以及设计稿 §2.6 说进链、用户 2026-11-07 单独同意加上的六个文件的常量：`ONBOARDING_SCHEMA_VERSION`、`PROJECT_ARRIVAL_SCHEMA_VERSION`、`BROWSER_SITES_VERSION`、`COMPUTER_SETTINGS_VERSION`、`COMPUTER_RECORD_VERSION`、`MODEL_PREFERENCE_SCHEMA_VERSION`（`jelly/preferences.json`），按 `文件#名字` 认，别处的同名常量不算；还有三项不是常量，从 `tooling/versions.json` 的条目读：`database.ledger_baseline`（插件 Home 库账本）、`database.memory_ledger_baseline`（记忆账本）、`format.jelly.workspace`（Jelly 的 `schema_version`）。它们大于 1 时，要有登记的升级链，版本相同、`from` 从 1 到版本减 1 各一次，回放通过（`{ version, froms, replay_passed }`），缺一样就失败。登记由 `registeredUpgradeChains` 从源码读（`X_VERSION` 配同一文件的 `const X_UPGRADES` 数组，基线对象读 `upgrades`，和上一节同一个读法 `upgrade-steps.mjs`，读不出来的算没有链），接在这两半；`replay_passed` 读金样（U2-d）：`tests/fixtures/golden-homes/<版本>/manifest.json` 的 `formats` 按 `tooling/versions.json` 的条目名记着每个持久化格式的版本（位置写在 `scripts/golden/formats.mjs`，生成时读主人存版本的地方），从 1 到链的版本减 1，每个都要有一份金样存着，才是真；缺哪几个，提示里写出来。库那条（UPG-01）只要升级前的那个版本，两边不一样是有意的：UPG-01 和 merge-base 比，知道这次从哪个版本升；这条只读一棵树，只有每个都要才漏不掉。清单里记的版本由回放核对：还原后用生成时的读法把记下的每一项重读一遍，不符、读不出来或没有读法就失败（`golden.recorded_version_mismatch`）；没记的不核，所以格式表以后加条目不会让老金样失败，条目换位置或改名则要给老位置留读法。回放本身是 `golden-replay` 作业，`Verify` 要它过，所以这里只证明有东西可回放，不证明回放过了。`config/installation.json`（安装器写的，金样是跑宿主生成的）和 `search/`（可重建，快照不收）金样存不了，`computer/` 的两个文件第一份金样还没有（BL-golden-computer-settings），这几项大于 1 现在都过不了；全部是 1 时用不到登记，窗口照常通过。其余基线的 `version:` 不归它查，归 `verify-release-versions.mjs` 和上一节。
 
 不在名单上的常量给了链也只能是 1。Coding 计划、Feed 捕获、Dataset、Form、Pages、PPT 的 `schema_version` 是固定版本，写下之后不该再变：靠合同和 `content_digest`，库本身不拦，所以也不该让升级段改写。Gmail 的 `GMAIL_LIVE_CURSOR_VERSION` 是同步进度，版本不符时同步失败，跑一次全量就重建，用不着段。`workspace-artifacts.ts` 的六个 `*_SCHEMA_VERSION` 也不在名单上，它们的读取方没有查过。`format.jelly.workspace` 同样是行里的内容（`jelly_workspace.body`），留在名单上是因为那一行会变，丢了也重建不回来。现在的段改写不了它：这一行带 `checksum`（sha256），读的时候校验，内置插件的段只有 SQL，SQLite 算不出 sha256。第一次要升时再定。它和 `jelly/preferences.json` 的 `format.model.preference` 是两个版本。这道检查只看 `*VERSION` 常量和上面三个条目（手跑那半多看提示词、方法的条目），其余写成行内字面量的 `format.*` 它看不到；`format.web.service.receipt` 是机器收据，§2.6 说不做，也不在内。
 

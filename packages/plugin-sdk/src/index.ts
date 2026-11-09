@@ -72,6 +72,9 @@ export type { FileEntry, FileContent, FileSourceKind } from "@molis-ai/molis-wor
 export { defineWorkExecutorAction, defineWorkExecutorActions, WORK_EXECUTOR_ROLES } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { WorkExecutorRole, WorkExecutorActionOptions, WorkExecutorCalls, WorkExecutorState, WorkExecutorSession, WorkExecutorRunControl } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SearchEntry, SearchEntriesInput, SearchEntriesPage, SearchOpenTarget, SearchSourceKind } from "@molis-ai/molis-work-contracts/platform/actions";
+/** Intelligent surfaces: the owner's values for the fields its presentation declaration shows, and the plugin's overview (`/presentation` has the checks). */
+export { definePresentationValuesAction, bindPresentationValuesHandler, isPresentationValuesAction, definePresentationOverviewAction, PRESENTATION_VALUES_AUDIENCES } from "@molis-ai/molis-work-contracts/platform/presentation";
+export type { PresentationValuesInput, PresentationValues, PresentationValueItem, PresentationOverview } from "@molis-ai/molis-work-contracts/platform/presentation";
 export type { HomeEventWindow, HomeEvent, HomeEventCollection, HomeOpenTarget } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { HomeBackgroundTask, HomeBackgroundTaskCollection, HomeBackgroundTaskCommand, HomeBackgroundTaskPhrase } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { ActionSubject, ActionSubjectContext } from "@molis-ai/molis-work-contracts/platform/actions";

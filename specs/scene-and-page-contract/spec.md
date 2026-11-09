@@ -1,6 +1,6 @@
 # 场景与生成页面公共合同（路线书 20 第 1、2 项）
 
-状态：部分实施，2026-11-04 起草，2026-11-08 补齐第 20 批场景包声明与合同验收边界。P-3a 的 owner、合同与独立运行恢复段已在本地批分支实施，宿主动作、HTTP 及界面接入未完成；其他合同仍在设计与等待前置阶段，证据见批次文件。保留 11-04 评审修订及用户确定的首页归属。第 20 批全部合同在同一批分支按依赖接力、一个 PR 交付（第 10 节）；第 36 批角色层次合同只挡 P-2b 采用接口，P-2a 模板与静态校验继续。第 37／44 批承担页面与引导的服务、交互和真实路径验收，不能拿本批静态校验代替。P4 分工由用户 2026-11-08（PST）明确选择：「按批次分工（推荐）：20 完成公共合同、SDK 校验和本批必要接入；37 完成页面运行及真实安全验收，未完成项明确保留。」
+状态：部分实施，2026-11-04 起草，2026-11-08 补齐第 20 批场景包声明与合同验收边界。P-3a 的 owner、合同、运行恢复及宿主动作／HTTP／现有界面接入已合回本地批分支；P-2a、P-1 独立合同与 SDK、P-3b 正文静态校验已实施。Manifest／Runtime 准入、内容包与其余公共接口继续接入，整批验证未完成。保留 11-04 评审修订及用户确定的首页归属。第 20 批全部合同在同一批分支按依赖接力、一个 PR 交付（第 10 节）；第 36 批提前合同 #1995 已合入，P-2b 合同前置解除，角色服务仍归 36。第 37／44 批承担页面与引导的服务、交互和真实路径验收，不能拿本批静态校验代替。P4 分工由用户 2026-11-08（PST）明确选择：「按批次分工（推荐）：20 完成公共合同、SDK 校验和本批必要接入；37 完成页面运行及真实安全验收，未完成项明确保留。」
 
 ## 0. 这份稿子做什么
 
@@ -304,7 +304,7 @@ interface RoleTemplate {
 
 ### 5.2 P-2b 模板采用与同主人批读
 
-消费第 36 批提前合同 #1995（核对头 `7339705f7b`，尚待合入）。在现有 `packages/contracts/src/modules/characters.ts` 合成下面输入和闭合 `CHARACTER_TEMPLATE_ADOPTION_INPUT_SCHEMA`。新建分支引用 `ROLE_TEMPLATE_SCHEMA`，来源用 `BLUEPRINT_PART_ORIGIN_SCHEMA`，层和观察版本沿 36 类型。复用分支只传被选中的角色与观察值。`request_id`、`expected_revision` 非空，版本为正安全整数。
+消费第 36 批提前合同 #1995（已于 2026-11-09 UTC 合入 main `6e44827749`，整棵树与已验证头 `7339705f7b` 相同）。在现有 `packages/contracts/src/modules/characters.ts` 合成下面输入和闭合 `CHARACTER_TEMPLATE_ADOPTION_INPUT_SCHEMA`。新建分支引用 `ROLE_TEMPLATE_SCHEMA`，来源用 `BLUEPRINT_PART_ORIGIN_SCHEMA`，层和观察版本沿 36 类型。复用分支只传被选中的角色与观察值。`request_id`、`expected_revision` 非空，版本为正安全整数。
 
 ```ts
 type CharacterTemplateAdoptionInput = { origin: BlueprintPartOrigin; request_id: string } & (

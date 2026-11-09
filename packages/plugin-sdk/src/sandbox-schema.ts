@@ -4,16 +4,26 @@ import type { SandboxJson, SandboxSchema } from "@molis-ai/molis-work-contracts/
 /** Let the consumer report the same refusal through its own error model. */
 export type SandboxSchemaFailure = (kind: "invalid_json" | "invalid_schema" | "schema_mismatch", reason: string) => never;
 
-export function assertJson(value: unknown, fail: SandboxSchemaFailure, depth = 0, budget = { remaining: 50_000 }): asserts value is SandboxJson {
+export function assertJson(value: unknown, fail: SandboxSchemaFailure): asserts value is SandboxJson {
+  assertJsonValue(value, fail, 0, { remaining: 50_000 });
+}
+
+export function isJsonObject(value: unknown): value is Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
+function assertJsonValue(value: unknown, fail: SandboxSchemaFailure, depth: number, budget: { remaining: number }): void {
   if (--budget.remaining < 0 || depth > 32) fail("invalid_json", "JSON structure exceeds limits");
   if (value === null || typeof value === "string" || typeof value === "boolean") return;
   if (typeof value === "number" && Number.isFinite(value)) return;
   if (Array.isArray(value)) {
-    for (const item of value) assertJson(item, fail, depth + 1, budget);
+    for (const item of value) assertJsonValue(item, fail, depth + 1, budget);
     return;
   }
-  if (value && typeof value === "object" && (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null)) {
-    for (const item of Object.values(value)) assertJson(item, fail, depth + 1, budget);
+  if (isJsonObject(value)) {
+    for (const item of Object.values(value)) assertJsonValue(item, fail, depth + 1, budget);
     return;
   }
   fail("invalid_json", "Only bounded JSON values are allowed");
@@ -26,8 +36,12 @@ const typed: Record<string, string[]> = {
   object: ["properties", "required", "additionalProperties"],
 };
 
-export function assertSchema(schema: unknown, fail: SandboxSchemaFailure, depth = 0): asserts schema is SandboxSchema {
-  if (depth === 0) assertJson(schema, fail);
+export function assertSchema(schema: unknown, fail: SandboxSchemaFailure): asserts schema is SandboxSchema {
+  assertJson(schema, fail);
+  assertSchemaAtDepth(schema, fail, 0);
+}
+
+function assertSchemaAtDepth(schema: unknown, fail: SandboxSchemaFailure, depth: number): asserts schema is SandboxSchema {
   assertSchemaShape(schema, fail, depth);
   const base = { ...schema };
   delete base.enum;
@@ -60,7 +74,7 @@ function assertSchemaShape(schema: unknown, fail: SandboxSchemaFailure, depth: n
     const minimum = shape[min], maximum = shape[max];
     if (typeof minimum === "number" && typeof maximum === "number" && minimum > maximum) fail("invalid_schema", `${min} exceeds ${max}`);
   }
-  if (shape.type === "array") assertSchema(shape.items, fail, depth + 1);
+  if (shape.type === "array") assertSchemaAtDepth(shape.items, fail, depth + 1);
   if (shape.type === "object") {
     const properties = shape.properties, required = shape.required;
     if (!properties || typeof properties !== "object" || Array.isArray(properties) || shape.additionalProperties !== false) {
@@ -69,12 +83,16 @@ function assertSchemaShape(schema: unknown, fail: SandboxSchemaFailure, depth: n
     if (!Array.isArray(required) || required.some(key => typeof key !== "string" || !Object.hasOwn(properties, key)) || new Set(required).size !== required.length) {
       fail("invalid_schema", "Object required must name unique declared properties");
     }
-    for (const child of Object.values(properties)) assertSchema(child, fail, depth + 1);
+    for (const child of Object.values(properties)) assertSchemaAtDepth(child, fail, depth + 1);
   }
 }
 
-export function assertMatches(schema: SandboxSchema, value: unknown, fail: SandboxSchemaFailure, path = "$", depth = 0): asserts value is SandboxJson {
-  if (depth === 0) assertJson(value, fail);
+export function assertMatches(schema: SandboxSchema, value: unknown, fail: SandboxSchemaFailure, path = "$"): asserts value is SandboxJson {
+  assertJson(value, fail);
+  matchValue(schema, value, fail, path);
+}
+
+function matchValue(schema: SandboxSchema, value: unknown, fail: SandboxSchemaFailure, path: string): void {
   const mismatch: (message: string) => never = message => fail("schema_mismatch", `${path}: ${message}`);
   if (schema.enum && !schema.enum.some(item => isDeepStrictEqual(item, value))) mismatch("value is outside enum");
   if (Object.hasOwn(schema, "const") && !isDeepStrictEqual(schema.const, value)) mismatch("value differs from const");
@@ -114,7 +132,7 @@ export function assertMatches(schema: SandboxSchema, value: unknown, fail: Sandb
       if (!Array.isArray(value)) mismatch("expected array");
       if (schema.minItems !== undefined && value.length < schema.minItems) mismatch("too few items");
       if (schema.maxItems !== undefined && value.length > schema.maxItems) mismatch("too many items");
-      value.forEach((item, index) => assertMatches(schema.items!, item, fail, `${path}[${index}]`, depth + 1));
+      value.forEach((item, index) => matchValue(schema.items!, item, fail, `${path}[${index}]`));
       break;
     case "object": {
       if (!value || typeof value !== "object" || Array.isArray(value)) mismatch("expected object");
@@ -122,7 +140,7 @@ export function assertMatches(schema: SandboxSchema, value: unknown, fail: Sandb
       for (const key of schema.required!) if (!Object.hasOwn(record, key)) mismatch(`missing ${key}`);
       for (const key of Object.keys(record)) {
         if (!Object.hasOwn(schema.properties!, key)) mismatch(`unexpected property ${key}`);
-        assertMatches(schema.properties![key]!, record[key], fail, `${path}.${key}`, depth + 1);
+        matchValue(schema.properties![key]!, record[key], fail, `${path}.${key}`);
       }
       break;
     }

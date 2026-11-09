@@ -1,18 +1,39 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { assistantTextHtml } from "@molis-ai/molis-work-app-workbench";
 import { openPagesStore, openTodoStore } from "./fixtures/plugin-home-stores.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { assistantTextModel } from "./fixtures/assistant-text-model.js";
 import { CURRENT_WORK } from "./fixtures/assistant-current-work.js";
 
+test("VUX-33: Assistant fences keep literal code during an open, closed or corrected reply", () => {
+  const source = "  -old\r\n- item\n~~~\r\n~~~~ still code\n+new  ";
+  const open = "~~~~diff\n" + source;
+  const escapedSource = "  -old&#13;\n- item\n~~~&#13;\n~~~~ still code\n+new  ";
+  const copySource = (text: string) => {
+    const html = assistantTextHtml(text, [], word => word);
+    return [...html.matchAll(/ data-code="([^"]*)"/g)].map(match => match[1]);
+  };
+  assert.deepEqual(copySource(open), [escapedSource]);
+  assert.deepEqual(copySource(open + "\n"), [escapedSource + "\n"]);
+  assert.deepEqual(copySource(open + "\r\n~~~~~  \n\nDone"), [escapedSource]);
+  assert.deepEqual(copySource(open.replace("-old", "-changed") + "\n~~~~"), [escapedSource.replace("-old", "-changed")]);
+  assert.deepEqual(copySource("> ```\r\n> \t\r\n> \tvalue\n> ```"), ["\t&#13;\n\tvalue"]);
+  assert.deepEqual(copySource("> ```\r\n> x  \r\n"), ["x  &#13;\n"]);
+  assert.deepEqual(copySource("> ```\r\n> x  \r\noutside"), ["x  "]);
+  assert.deepEqual(copySource("~~~\rleft\rright\r~~~"), ["left&#13;right"]);
+  const prose = assistantTextHtml("- 60 分钟\n-30 分钟", [], word => word);
+  assert.match(prose, /<li>60 分钟<\/li><li>30 分钟<\/li>/);
+});
+
 test("PAS-15: Host text streams, keeps reading state, copies exact code, opens named objects and submits real review decisions", { timeout: 180_000 }, async t => {
   const pageTitle = "代码验证文档";
-  // VUX-33: an indented first line and a blank last line are part of the code, shown and copied as written.
-  const code = "  // 首行缩进\n" + Array.from({ length: 19 }, (_, index) => `const value${index} = "<safe>&";`).join("\n") + "\n";
+  // VUX-33: indentation, mixed line endings, list-like patch lines and a shorter fence are literal code.
+  const code = "  // 首行缩进\r\n-old\n- item\n~~~\n" + Array.from({ length: 19 }, (_, index) => `const value${index} = "<safe>&";`).join("\n") + "\n";
   let model!: Awaited<ReturnType<typeof assistantTextModel>>;
   const browser = await openGoalBrowser(t, true, undefined, undefined, undefined, undefined, {
-    prepareHome: async homeDirectory => { model = await assistantTextModel(t, homeDirectory, `「${pageTitle}」\n\n<img src=x onerror="window.injected=1"> [不能执行](javascript:alert)\n\n\`\`\`ts\n${code}\n\`\`\``); },
+    prepareHome: async homeDirectory => { model = await assistantTextModel(t, homeDirectory, `「${pageTitle}」\n\n<img src=x onerror="window.injected=1"> [不能执行](javascript:alert)\n\n~~~~ts\n${code}\n~~~~`); },
   }); if (!browser) return;
   const child = await pluginFrameBrowser(t, browser, "pages");
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;

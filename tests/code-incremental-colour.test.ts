@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { registerHooks } from "node:module";
 import test from "node:test";
 import { codeTokens, growCodeTokens, type CodeColouring } from "@molis-ai/molis-work-plugin-sdk/highlight";
 
@@ -95,4 +96,42 @@ test("VUX-33: a text edited anywhere is coloured again from the edited line and 
       last = next;
     } }
   }
+});
+
+test("VUX-33, VUX-35, VUX-36: the Assistant reuses the unchanged colouring before a corrected line", async (t) => {
+  const highlight = "@molis-ai/molis-work-plugin-sdk/highlight";
+  const sdk = JSON.stringify(import.meta.resolve(highlight));
+  const key = "assistantColourProbe";
+  const probe = { offsets: [] as number[], colourings: [] as CodeColouring[] };
+  Reflect.set(globalThis, key, probe);
+  // Observe the SDK boundary while the public Assistant renderer drives the real grower and tokenizer.
+  const observedSdk = `data:text/javascript,${encodeURIComponent(`
+    export * from ${sdk};
+    import { growCodeTokens as grow } from ${sdk};
+    const probe = globalThis[${JSON.stringify(key)}];
+    export function growCodeTokens(last, text, language, tokenize) {
+      const next = grow(last, text, language, (source, hint, offset = 0) => {
+        probe.offsets.push(offset);
+        return tokenize(source, hint, offset);
+      });
+      probe.colourings.push(next);
+      return next;
+    }
+  `)}`;
+  const hook = registerHooks({ resolve(specifier, context, nextResolve) {
+    return specifier === highlight ? { url: observedSdk, shortCircuit: true } : nextResolve(specifier, context);
+  } });
+  t.after(() => { hook.deregister(); Reflect.deleteProperty(globalThis, key); });
+  const { assistantTextHtml } = await import("@molis-ai/molis-work-app-workbench");
+  const original = Array.from({ length: 1000 }, (_, index) => `const row = ${index};\n`).join("");
+  const corrected = original.replace("const row = 900;", "let row = 900;");
+  for (const source of [original, corrected]) assistantTextHtml("```ts\n" + source + "\n```", [], word => word);
+  assert.equal(probe.offsets.length, 2, "the original and corrected render both use the shared tokenizer");
+  const restart = probe.offsets[1]!;
+  assert.ok(restart > original.indexOf("const row = 899;") && restart <= corrected.indexOf("let row = 900;"),
+    `the correction restarts the tokenizer at the affected line boundary, got offset ${restart}`);
+  const [before, after] = probe.colourings;
+  assert.deepEqual(after!.pieces, codeTokens(corrected, "ts"));
+  assert.ok(after!.from > 0 && after!.pieces.slice(0, after!.from).every((piece, index) => piece === before!.pieces[index]),
+    "pieces ahead of the correction keep their identity");
 });

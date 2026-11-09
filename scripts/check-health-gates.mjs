@@ -64,6 +64,7 @@ import { specCoverageLine } from "./gates/spec-coverage.mjs";
 import { createLintMetrics, isOwnRepository, lintWantsText } from "./gates/lint.mjs";
 import { createErrorMetrics } from "./gates/error-metrics.mjs";
 import { actionInputMetrics } from "./gates/action-input-counts.mjs";
+import { CALL_BUDGET_FILE, callBudgetProblems, contextCallMetric } from "./gates/call-budget.mjs";
 import { errorOwnersWantsText } from "./gates/error-owners.mjs";
 import { pluginRegistryProblems } from "./generate-plugin-registry.mjs";
 
@@ -157,7 +158,7 @@ const isVendoredSdk = (file) => /^vendor\/prologue-sdk\/.*\.tgz$/.test(file);
 // cannot hide from them in a directory of that name. `tests/`, `dist/` and `node_modules/` are still skipped.
 const FIXTURES_DIR = /(^|\/)fixtures\//;
 const isStructureSource = (file) => isSource(file) || (FIXTURES_DIR.test(file) && isSource(file.replace(FIXTURES_DIR, "$1")));
-const needsText = (file) => file.startsWith(GIANT_REGISTRY) || isStructureSource(file) || schemaPatchesWantText(file) || schemaExecsWantText(file) || isTestFile(file) || structureWantsText(file) || docGateInputs(file) || lintWantsText(file) || splitsWantText(file) || errorOwnersWantsText(file) || browserWantsText(file);
+const needsText = (file) => file === CALL_BUDGET_FILE || file.startsWith(GIANT_REGISTRY) || isStructureSource(file) || schemaPatchesWantText(file) || schemaExecsWantText(file) || isTestFile(file) || structureWantsText(file) || docGateInputs(file) || lintWantsText(file) || splitsWantText(file) || errorOwnersWantsText(file) || browserWantsText(file);
 
 // A snapshot is a file list plus a reader: the working tree for the head, a commit read from the object database for the
 // merge-base (no checkout, so it cannot disturb the working tree or another session's worktree).
@@ -421,6 +422,7 @@ METRICS.push(testImportSplits({ perFile }));
 METRICS.push(...createErrorMetrics({ root, required: isOwnRepository(root, import.meta.url), isSource: isStructureSource, perFile, rekey, rekeyFile, sumOf }));
 // 10. `as` on an action handler's input and input types written by hand at a definition, interim until N22-G turns them into absolute rules (scripts/gates/action-input-counts.mjs).
 METRICS.push(...actionInputMetrics({ perFile }));
+METRICS.push(contextCallMetric({ perFile, isSource }));
 const measureAll = (snapshot) => Object.fromEntries(METRICS.map((metric) => [metric.id, metric.measure(snapshot)]));
 const summaryOf = (measured) => METRICS.map((metric) => metric.summary(measured[metric.id])).join(", ");
 
@@ -503,6 +505,7 @@ const limitErrors = () => {
 const exceptionErrors = () => Object.entries(exceptions).flatMap(([unit, entry]) => (!Object.hasOwn(head.giant, unit)
   ? [`giant exception for ${unit} is stale: it is not a giant unit any more (split, shrunk or renamed); delete the entry from tooling/gates/giant-exceptions/, or key it by the new name after a rename`]
   : problemsOfException(entry, head.giant[unit]).map((problem) => `giant exception for ${unit}: ${problem}`)));
+const callBudgetErrors = () => callBudgetProblems(workingTree(), baseSnapshot, isOwnRepository(root, import.meta.url));
 const retiredRecordErrors = () => workingTree().files.filter(file => ["tooling/gates/baseline.json", "tooling/gates/page-assets.json", "tooling/gates/giant-exceptions.json"].includes(file)).map(file => `${file}: retired shared record; use checkout-local state or independent records`);
 const absolute = () => [...retiredRecordErrors(), ...METRICS.flatMap((metric) => metric.absolute?.(head[metric.id]) ?? []), ...specProblems(), ...exceptionErrors(), ...(packageRegistry ? inventoryProblems(workingTree(), packageRegistry) : []), ...(packageRegistry ? pluginRegistryProblems(workingTree(), packageRegistry) : []), ...docGateProblems(workingTree()), ...goldenHomeProblems({ ...workingTree(), size: file => statSync(path.join(root, file)).size }), ...domEventProblems(workingTree()), ...vendoredProvenanceProblems(root), ...tableOwnerProblems(workingTree(), { isSource }), ...kernelContextualProblems(workingTree()), ...dualInstanceProblems(workingTree()), ...productSubsetProblems(root)];
 // The public API of the contracts and the plugin SDK against the snapshots in tooling/gates/api (scripts/gates/api-snapshot.mjs):
@@ -553,7 +556,7 @@ if (update) {
     process.exit(1);
   }
   const splitMetric = METRICS.find(metric => metric.id === "testImportSplits");
-  const errors = [...(splitMetric?.absolute(head.testImportSplits) ?? []), ...(mergeBase ? [...growth(), ...limitErrors()] : [])];
+  const errors = [...(splitMetric?.absolute(head.testImportSplits) ?? []), ...callBudgetErrors(), ...(mergeBase ? [...growth(), ...limitErrors()] : [])];
   if (errors.length) {
     console.error(`Baseline not written: the working tree violates a gate${mergeBase ? ` relative to ${against}` : ""}:\n- ` + errors.join("\n- "));
     process.exit(1);
@@ -567,7 +570,7 @@ if (update) {
 
 // ---- the verdict -----------------------------------------------------------------------------------------------------
 const api = apiSnapshots();
-const errors = [...growth(), ...limitErrors(), ...absolute(), ...storeVersions(), ...storeSchemas(), ...versionOrigin(), ...api.errors];
+const errors = [...growth(), ...limitErrors(), ...callBudgetErrors(), ...absolute(), ...storeVersions(), ...storeSchemas(), ...versionOrigin(), ...api.errors];
 if (errors.length) {
   console.error(`Health gates failed against ${against}:\n- ` + errors.join("\n- "));
   process.exit(1);

@@ -92,3 +92,50 @@ test("SCS-10 one overlapping command wins and stale, revoked or cancelled comman
     });
   } finally { database.close(); }
 });
+
+test("IUI-06 resets the current object's choices or the whole position without rolling back the revision", async t => {
+  const directory = mkdtempSync(join(tmpdir(), "surface-corrections-reset-"));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const path = join(directory, "project.db"), database = new LocalProjectDatabase(path);
+  try {
+    const store = createSurfaceCorrections(database.db, user);
+    const next = (expected_revision: string, input: Omit<SurfaceCorrectionInput, "slot" | "expected_revision">) =>
+      store.correct({ slot, expected_revision, ...input }, active, now);
+    await next("0", { correction: "form", form: "card" });
+    await next("1", { correction: "form", subject, form: "row" });
+    await next("2", { correction: "remove", subject });
+    assert.deepEqual(await next("3", { correction: "reset", subject }), { corrections_revision: "4" });
+    assert.deepEqual(store.read(slot), { revision: "4", corrections: [{ correction: "form", form: "card", position: null }] });
+    await next("4", { correction: "pin", subject, position: 0 });
+    assert.deepEqual(store.read(slot).corrections, [
+      { correction: "pin", subject, form: null, position: 0 },
+      { correction: "form", form: "card", position: null },
+    ]);
+    const paused = Promise.withResolvers<void>();
+    const old = store.correct({ slot, expected_revision: "5", correction: "remove", subject }, { ...active, beforeEffect: () => paused.promise }, now);
+    await next("5", { correction: "reset" });
+    paused.resolve();
+    await assert.rejects(old, { code: "surfaces.correction_conflict", details: { corrections_revision: "6" } });
+    assert.deepEqual(store.read(slot), { revision: "6", corrections: [] });
+    let valid = true;
+    const fence = Promise.withResolvers<void>();
+    const refused = store.correct({ slot, expected_revision: "6", correction: "reset", subject }, { ...active, beforeEffect: () => fence.promise,
+      current: () => { if (!valid) throw new ActionError("actions.forbidden", "Authority was revoked"); } }, now);
+    valid = false; fence.resolve();
+    await assert.rejects(refused, { code: "actions.forbidden" });
+    assert.deepEqual(store.read(slot), { revision: "6", corrections: [] });
+    await next("6", { correction: "form", form: "row" });
+    await next("7", { correction: "remove", subject }); // Updates an existing row; it is newer than both reset markers.
+    await next("8", { correction: "reset", subject });
+    await next("9", { correction: "pin", subject, position: 0 });
+    assert.deepEqual(createSurfaceCorrections(database.db, { ...user, actor_id: "second" }).read(slot), empty);
+    assert.deepEqual(store.read({ ...slot, slot_id: "neighbor" }), empty);
+  } finally { database.close(); }
+  const reopened = new LocalProjectDatabase(path);
+  try {
+    assert.deepEqual(createSurfaceCorrections(reopened.db, user).read(slot), { revision: "10", corrections: [
+      { correction: "pin", subject, form: null, position: 0 },
+      { correction: "form", form: "row", position: null },
+    ] });
+  } finally { reopened.close(); }
+});

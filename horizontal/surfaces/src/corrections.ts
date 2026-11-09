@@ -24,7 +24,7 @@ interface CorrectionRow {
 
 export interface SurfaceCorrection {
   subject?: ActionSubject;
-  correction: SurfaceCorrectionInput["correction"];
+  correction: Exclude<SurfaceCorrectionInput["correction"], "reset">;
   form: FormKind | null;
   position: number | null;
 }
@@ -40,6 +40,18 @@ interface CorrectionControl {
 }
 
 const slotKey = (slot: SurfaceSlot) => JSON.stringify([slot.kind, slot.plugin_id, slot.slot_id]);
+const rowSubject = (row: CorrectionRow) => JSON.stringify([row.subject_kind, row.subject_id]);
+
+function effectiveCorrections(rows: readonly CorrectionRow[]): SurfaceCorrection[] {
+  const resets = rows.filter(row => row.correction === "reset");
+  const slotReset = resets.find(row => !row.subject_kind)?.revision ?? 0;
+  const objects = new Map(resets.filter(row => row.subject_kind).map(row => [rowSubject(row), row.revision]));
+  return rows.flatMap(row => {
+    if (row.correction === "reset" || row.revision <= Math.max(slotReset, objects.get(rowSubject(row)) ?? 0)) return [];
+    const subject = row.subject_kind ? { kind: row.subject_kind, id: row.subject_id } : undefined;
+    return [{ ...(subject ? { subject } : {}), correction: row.correction, form: row.form, position: row.position }];
+  });
+}
 
 /** The host binds the caller and project from the same action context. The store never opens a connection. */
 export function createSurfaceCorrections(database: SurfaceCorrectionsDatabase, { actor_id: actorId, audience }: Pick<ActionCallContext, "actor_id" | "audience">) {
@@ -52,9 +64,7 @@ export function createSurfaceCorrections(database: SurfaceCorrectionsDatabase, {
       `).all(actorId, slotKey(slot));
       return {
         revision: String(rows[0]?.revision ?? 0),
-        corrections: rows.map(({ subject_kind, subject_id, correction, form, position }) => ({
-          ...(subject_kind ? { subject: { kind: subject_kind, id: subject_id } } : {}), correction, form, position,
-        })),
+        corrections: effectiveCorrections(rows),
       };
     },
     async correct(input: SurfaceCorrectionInput, control: CorrectionControl, now: () => string): Promise<SurfaceCorrectionResult> {

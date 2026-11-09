@@ -422,4 +422,4 @@ search.rebuild	1	system.search	command	operation	home	write	concurrent	user	sear
 search.references	1	system.search	query	query	home	read	concurrent	plugin,user	search:read	-	-	-	b97ecba7506e	d300be37db51	-
 search.status	1	system.search	query	query	home	read	concurrent	agent,mcp,plugin,user,workflow	search:read	-	-	-	95b7741253bf	67fb0130cd9a	-
 surfaces.compose	1	system.surfaces	query	query	project	read	concurrent	plugin,user	-	-	-	surfaces.description	ccf3f4c7b906	54be99d3709f	-
-surfaces.correct	1	system.surfaces	command	operation	project	write	-	user	-	-	-	-	2a50168ddd5a	e2b416124e26	-
+surfaces.correct	1	system.surfaces	command	operation	project	write	-	user	-	-	-	-	bc75f60bd856	e2b416124e26	-

@@ -196,5 +196,6 @@ export async function composeHome(read: ComposeRead, home: SurfaceHomePorts) {
   const catalog = read.plugins.map(plugin => [plugin.plugin_id, plugin.scope, plugin.install_id, plugin.state, plugin.revision, plugin.home])
     .sort((a, b) => compareCodeUnits(JSON.stringify(a), JSON.stringify(b)));
   const cardAuthority = [...considered].sort((a, b) => compareCodeUnits(viewKey(a), viewKey(b))).map(viewRevision);
-  return { groups: [attentionGroup, ...pluginGroups], facts: { ...objects.facts, catalog, cardAuthority, operations: retainDisplayedOperations(objectRead, displayed) } };
+  return { groups: [attentionGroup, ...pluginGroups], simpler: displayed.some(row => row.simpler),
+    facts: { ...objects.facts, catalog, cardAuthority, operations: retainDisplayedOperations(objectRead, displayed) } };
 }

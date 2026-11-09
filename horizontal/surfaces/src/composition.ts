@@ -39,6 +39,14 @@ function homeFor(request: SurfaceRequest, ports: SurfaceComposePorts) {
 
 const revisionFor = (data: unknown) => createHash("sha256").update(canonicalJsonText(data, "null")).digest("hex");
 const CACHE_LIMIT = 64;
+const reasonKeys = { home: "home", attention: "attention", conversation: "conversation", discussion: "discussion", "plugin-slot": "plugin-slot" } as const;
+
+function compositionReason(read: ComposeRead, simpler: boolean): SurfaceDescription["reason"] {
+  const position = reasonKeys[read.request.slot.kind as keyof typeof reasonKeys];
+  if (!position || !read.position.forms.length) return undefined;
+  const adjusted = read.corrections.corrections.length > 0;
+  return { owner: "workbench", key: "workbench.surfaces.reason." + (simpler ? adjusted ? "adjusted-simpler" : "simpler" : adjusted ? "adjusted" : position) };
+}
 
 export class SurfaceCompositionService {
   readonly #cache = new Map<string, SurfaceDescription>();
@@ -84,13 +92,14 @@ export class SurfaceCompositionService {
       const read = { request, ports, position, plugins, views, delivered, corrections, deadline, current, retain };
       const result = home ? await composeHome(read, home) : await composeGroup(read);
       current();
+      const reason = compositionReason(read, result.simpler);
       const { actor_id, project_id, audience, plugin_install_id, calling_plugin_id } = ports.caller;
       const subjects = !home && request.slot.kind !== "attention" ? request.subjects : undefined;
       const revision = revisionFor([[actor_id, project_id, audience, plugin_install_id, calling_plugin_id], request.slot, request.expanded,
-        subjects, [...delivered].sort(), request.home_order, corrections.revision, result]);
+        subjects, [...delivered].sort(), request.home_order, corrections.revision, result, reason]);
       const cached = this.#cache.get(revision);
       if (cached) return structuredClone(cached);
-      const candidate: SurfaceDescription = { composed_by: "rules", revision, corrections_revision: corrections.revision, groups: result.groups };
+      const candidate: SurfaceDescription = { composed_by: "rules", revision, corrections_revision: corrections.revision, groups: result.groups, ...(reason ? { reason } : {}) };
       return this.checked(candidate);
     } finally { if (!retainedDeadline) deadline.dispose(); }
   }
@@ -146,5 +155,5 @@ async function composeGroup(read: ComposeRead) {
         ...(remaining ? { overflow: { count: remaining } } : {}) };
     }));
   }
-  return { groups: [group], facts: { ...facts, operations: retainDisplayedOperations(read, shown) } };
+  return { groups: [group], simpler: shown.some(row => row.simpler), facts: { ...facts, operations: retainDisplayedOperations(read, shown) } };
 }

@@ -37,6 +37,7 @@ interface Projected {
   inOverview: boolean;
   pin: number;
   projectId: string | null;
+  simpler: boolean;
 }
 
 function eligibleSources(read: ComposeRead, sources: readonly ObjectSource[]) {
@@ -163,7 +164,7 @@ function renderCandidate(candidate: Candidate, answer: RuleAnswer | undefined, r
     ...(notices ? { notices } : {}), ...(state === "stale" && value?.read_at ? { read_at: value.read_at } : {}) };
   return { item, ...(readable ? { value } : {}), attention, inOverview: candidate.inOverview, dependencies,
     pin: choices.find(choice => choice.correction === "pin")?.position ?? PRESENTATION_LIMITS.values_subjects,
-    projectId: candidate.values?.action.scope === "home" ? null : ports.caller.project_id };
+    projectId: candidate.values?.action.scope === "home" ? null : ports.caller.project_id, simpler: Boolean(readable && display.form !== chosenForm) };
 }
 
 export function groupState(projected: readonly Projected[], unreadable: boolean): Pick<SurfaceGroup, "state" | "read_at"> {

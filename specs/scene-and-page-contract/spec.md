@@ -1,6 +1,6 @@
 # 场景与生成页面公共合同（路线书 20 第 1、2 项）
 
-状态：第 20 批候选已同步主线 `c7bf66a711`，产品代码 `06b28f8ef5` 完成成员控制与 Skill 在途撤销的两处整合修复。核心、安全、macOS 补验及三宽双语双主题的隔离界面操作已有通过记录。唯一 PR、最终 CI Full 与两路审查仍待完成。当前证据及执行安排见[第 20 批整批验证记录](../post-anticorruption-roadmap/reference/batches/20.md#batch-20-validation)。第 08 批 #1984、第 36 批提前合同 #1995 均已合入并消费。按用户 2026-11-08 确定的分工，第 20 批交公共合同、SDK 共用校验及必要现有接入。第 36 批接角色服务，第 37 批接页面运行与真实安全验收，第 44 批接引导采用与另存，第 51 批接场景成品。签名沙箱设置执行及本人体验分别见 [BL-settings-sandbox-execution](../backlog/BL-settings-sandbox-execution.md)、[BL-batch20-membership-acceptance](../backlog/BL-batch20-membership-acceptance.md)。
+状态：第 20 批唯一草稿 [PR #2000](https://github.com/molis-ai/molis-work/pull/2000) 已建立，产品代码 `7aa4ba3a56` 已修复成员队列互等、Skill 在途撤销及成员保存意外打开项目三处回归。核心、安全、macOS、三宽双语双主题实操及修后 31 文件回归有通过记录，两路增量审查通过。最终视觉仍失败；最终头绑定、普通 CI、Full 与合并队列尚未完成。当前证据及执行安排见[第 20 批整批验证记录](../post-anticorruption-roadmap/reference/batches/20.md#batch-20-validation)。第 08 批 #1984、第 36 批提前合同 #1995 均已合入并消费。按用户 2026-11-08 确定的分工，第 20 批交公共合同、SDK 共用校验及必要现有接入。第 36 批接角色服务，第 37 批接页面运行与真实安全验收，第 44 批接引导采用与另存，第 51 批接场景成品。签名沙箱设置执行及本人体验分别见 [BL-settings-sandbox-execution](../backlog/BL-settings-sandbox-execution.md)、[BL-batch20-membership-acceptance](../backlog/BL-batch20-membership-acceptance.md)。
 
 ## 0. 这份稿子做什么
 

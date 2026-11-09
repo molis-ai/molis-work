@@ -1,8 +1,7 @@
-import { el, errorMessage } from "../dom.js";
+import { el } from "../dom.js";
 import { shut } from "./composer-state.js";
 import type { Page } from "./page.js";
-import { api } from "./request.js";
-import type { McpServer, McpToolRef, MethodEntry, MethodRef } from "./shapes.js";
+import type { McpServer, McpToolRef, SkillChoice, SkillRef } from "./shapes.js";
 
 interface ToolRow extends McpToolRef { readonly label: string; readonly available: boolean; readonly description: string }
 interface SourceRow { readonly server: string; readonly configuration_version: number; readonly label: string; readonly resources: readonly unknown[]; readonly available: boolean }
@@ -70,42 +69,39 @@ export function renderMcp(page: Page) {
   if (!tools && !sources) list.textContent = page.L("coding.mcp.none");
 }
 
-/** A method's text, read when asked for. */
-async function readMethod(page: Page, method: MethodRef & { readonly skill_id: string }) {
-  const { L, lifetime, q } = page, { s } = page, ticket = ++s.methodDocumentTicket, doc = q("[data-coding-method-document]");
+const refKey = (ref: SkillRef) => JSON.stringify([ref.source.plugin_id, ref.source.plugin_version, ref.source.publisher_signature, ref.skill_id, ref.version, ref.install_id, ref.installation_generation]);
+
+/** A Skill's opening as the catalog keeps it: the menu reads no body (the round's start does). */
+function showExcerpt(page: Page, skill: SkillChoice) {
+  const doc = page.q("[data-coding-method-document]");
   doc.hidden = false;
-  doc.textContent = L("coding.method.loading");
-  try {
-    const result = await api<{ method: { name: string; version: number; body: string } }>(page, "/methods/" + encodeURIComponent(method.skill_id) + "/" + method.version);
-    if (ticket !== s.methodDocumentTicket) return;
-    doc.replaceChildren(el("h3", L(result.method.name) + " · v" + result.method.version), el("p", result.method.body));
-    doc.scrollIntoView({ block: "nearest" });
-  } catch (error) {
-    if (!lifetime.alive) return;
-    if (ticket === s.methodDocumentTicket) doc.textContent = errorMessage(error);
-  }
+  doc.replaceChildren(el("h3", skill.name + " · v" + skill.ref.version), el("p", skill.excerpt));
+  doc.scrollIntoView({ block: "nearest" });
 }
 
-/** One method of the catalog: its box, its words, and the way to read it. */
-function methodRow(page: Page, method: MethodEntry): HTMLElement {
-  const { L, lifetime } = page, { s } = page;
+/** One Skill of the catalog: its box, its words, and its opening. */
+function methodRow(page: Page, skill: SkillChoice): HTMLElement {
+  const { L, lifetime } = page, { s } = page, key = refKey(skill.ref);
   const row = el("div", "", "mw-field"), label = el("label", "", "mw-check-row"), check = el("input", "", "mw-check");
+  const chosen = s.methodChoices.some(ref => refKey(ref) === key);
   check.type = "checkbox";
-  check.checked = s.methodChoices.some(ref => ref.skill_id === method.skill_id && ref.version === method.version);
-  check.disabled = !method.enabled;
-  label.append(check, el("span", L(method.name) + " · v" + method.version));
+  check.checked = chosen;
+  // Another plugin's `manual` Skill is named only in the Assistant; one already kept can still be cleared.
+  check.disabled = !chosen && (!skill.available || skill.assistant_only);
+  label.append(check, el("span", skill.name + " · v" + skill.ref.version));
   lifetime.listen(check, "change", () => {
-    s.methodChoices = s.methodChoices.filter(ref => ref.skill_id !== method.skill_id);
-    if (check.checked) s.methodChoices.push({ skill_id: method.skill_id, version: method.version });
+    s.methodChoices = s.methodChoices.filter(ref => refKey(ref) !== key);
+    if (check.checked) s.methodChoices.push(structuredClone(skill.ref));
   });
   const read = el("button", L("coding.method.read"), "mw-btn mw-btn--ghost");
   read.type = "button";
-  read.setAttribute("aria-label", L("coding.method.read-label", { name: L(method.name) }));
-  read.disabled = !method.enabled;
-  lifetime.listen(read, "click", () => readMethod(page, method));
+  read.setAttribute("aria-label", L("coding.method.read-label", { name: skill.name }));
+  lifetime.listen(read, "click", () => showExcerpt(page, skill));
   const heading = el("div", "", "coding-method-heading");
   heading.append(label, read);
-  row.append(heading, el("small", method.enabled ? L(method.summary) : L("coding.method.unavailable", { summary: L(method.summary) })));
+  const note = skill.assistant_only ? L("coding.method.assistant-only", { summary: skill.description })
+    : skill.available ? skill.description : L("coding.method.unavailable", { summary: skill.description });
+  row.append(heading, el("small", note));
   return row;
 }
 
@@ -113,10 +109,10 @@ export function renderMethods(page: Page) {
   const { L, lifetime, q } = page, { s } = page;
   const list = q("[data-coding-method-list]"), needle = q<HTMLInputElement>("[data-coding-method-search]").value.trim().toLocaleLowerCase();
   list.replaceChildren();
-  const catalog = s.state.methods || [], rows = catalog.filter(item => (item.name + " " + item.summary).toLocaleLowerCase().includes(needle));
-  for (const method of rows) list.append(methodRow(page, method));
+  const catalog = s.state.skills || [], rows = catalog.filter(item => (item.name + " " + item.description).toLocaleLowerCase().includes(needle));
+  for (const skill of rows) list.append(methodRow(page, skill));
   if (!rows.length) list.append(el("p", needle ? L("coding.method.no-match") : L("coding.method.none")));
-  for (const ref of s.methodChoices.filter(item => !catalog.some(method => method.skill_id === item.skill_id && method.version === item.version))) {
+  for (const ref of s.methodChoices.filter(item => !catalog.some(skill => refKey(skill.ref) === refKey(item)))) {
     const remove = el("button", L("coding.method.remove-gone", { method: ref.skill_id + " · v" + ref.version }), "mw-btn");
     remove.type = "button";
     lifetime.listen(remove, "click", () => {
@@ -131,7 +127,6 @@ export function openMethods(page: Page) {
   const { q } = page, { s } = page;
   if (shut(page)) return;
   s.methodChoices = [...structuredClone(s.methodSelections.get(s.current) || [])];
-  s.methodDocumentTicket++;
   q<HTMLInputElement>("[data-coding-method-search]").value = "";
   q("[data-coding-method-document]").hidden = true;
   q("[data-coding-method-error]").textContent = "";

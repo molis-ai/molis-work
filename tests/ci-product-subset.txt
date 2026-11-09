@@ -141,7 +141,6 @@ tests/coding-history-requirements.test.ts
 tests/coding-long-session.test.ts
 tests/coding-mcp-settings-client.test.ts
 tests/coding-mcp.test.ts
-tests/coding-method-install.test.ts
 tests/coding-net-change.test.ts
 tests/coding-plan-amend-http.test.ts
 tests/coding-plan-dependencies.test.ts

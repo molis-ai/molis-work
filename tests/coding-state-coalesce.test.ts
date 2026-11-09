@@ -36,7 +36,6 @@ test("however many pages poll the Coding directory at once, one read runs and at
       return (_args as unknown as [string, string[]])[1].map(session_id => session_id === "sdk-a" ? { session_id, latest_phase: "awaiting-review", recovery: false, checkpoint_busy: false, steps: { mine: 1, subtasks: 1, unowned: 0 } }
         : session_id === "sdk-b" ? { session_id, latest_phase: null, recovery: false, checkpoint_busy: true } : { session_id, error: "读不到" }) as Output;
     }
-    if (definition.capability_id === agent.listSkills.capability_id) return [] as Output;
     if (definition.capability_id === projectDirectoryActions.get.capability_id) return [] as Output;
     if (definition.capability_id === agent.availableRoles.capability_id) return [{ role_id: "builder", available: true }] as Output;
     if (definition.capability_id === agent.listActions.capability_id) return [] as Output;
@@ -111,14 +110,10 @@ async function harness(initial: Entry[]) {
     // Every call that names a Runtime says which one, so a test can tell where each went.
     if (id === agent.listRuntimes.capability_id) return world.runtimes as Output;
     if (id === projectSettingsCapabilities.runtime.capability_id) return null as Output;
-    // Each answer carries the Runtime it was asked of in a field of its own contract (a method's name, a server's label).
-    if (id === agent.listSkills.capability_id) return [{ skill_id: "from", name: input[0] }] as Output;
+    // Each answer carries the Runtime it was asked of in a field of its own contract (a server's label).
     if (id === agent.listMcp.capability_id) return [{ id: "from", label: input[0] }] as Output;
     if (id === agent.saveMcp.capability_id) return { id: "saved", label: input[0] } as Output;
     if (id === agent.controlMcp.capability_id) return undefined as Output;
-    if (id === agent.discoverSkills.capability_id) return [{ candidate_id: "c1", source_label: input[0] }] as Output;
-    if (id === agent.installSkill.capability_id) return { skill_id: "installed", name: input[0] } as Output;
-    if (id === agent.readSkill.capability_id) return { skill_id: "read", name: input[0] } as Output;
     if (id === agent.createSession.capability_id) return { runtime_id: input[0], session_id: `rt-${++world.created}` } as Output;
     if (id === agent.readMessages.capability_id) return [] as Output;
     if (id === agent.sendPeopleMessage.capability_id) {
@@ -149,7 +144,7 @@ async function harness(initial: Entry[]) {
   return { call, calls, made, sessions, world, close, root };
 }
 
-test("PG-054 with only Prologue in the directory a new session, the methods and the MCP servers behave as they did", { timeout: 30_000 }, async () => {
+test("PG-054 with only Prologue in the directory a new session and the MCP servers behave as they did", { timeout: 30_000 }, async () => {
   const h = await harness([runtime("prologue")]);
   try {
     const created = await h.call("/sessions", { title: "第一件事" });
@@ -157,27 +152,22 @@ test("PG-054 with only Prologue in the directory a new session, the methods and 
     assert.equal(created.body.session.runtime_id, "prologue");
     const state = await h.call("/state");
     assert.equal(state.status, 200, JSON.stringify(state.body));
-    assert.deepEqual(state.body.methods.map((method: { skill_id: string; name: string }) => [method.skill_id, method.name]), [["from", "prologue"]]);
     assert.deepEqual(state.body.mcp.map((server: { id: string; label: string }) => [server.id, server.label]), [["from", "prologue"]]);
     const saved = await h.call("/mcp", { expected_version: 0, label: "x", transport: "http", endpoint: "http://127.0.0.1:1/mcp", enabled: true, timeout_ms: 1000, auth: { kind: "none" } });
     assert.equal(saved.status, 200, JSON.stringify(saved.body));
     assert.equal(saved.body.server.label, "prologue");
     assert.equal((await h.call("/mcp/s1/control", { action: "connect" })).status, 200);
     assert.equal(h.made(agent.controlMcp)[0]![0], "prologue");
-    assert.equal((await h.call("/methods/discover", { workspace_id: "work", path: "skills" })).body.candidates[0].source_label, "prologue");
-    assert.equal((await h.call("/methods/install", { candidate_id: "c1" })).body.method.name, "prologue");
-    assert.equal((await h.call("/methods/review-change/1")).body.method.name, "prologue");
   } finally { await h.close(); }
 });
 
-test("PG-054 a Runtime listed earlier that cannot host a session is skipped: a new session, the methods and the MCP servers use the next one", { timeout: 30_000 }, async () => {
+test("PG-054 a Runtime listed earlier that cannot host a session is skipped: a new session and the MCP servers use the next one", { timeout: 30_000 }, async () => {
   const h = await harness([runtime("reader", { "session.create": "unsupported", "run.start": "unsupported" }), runtime("no-rounds", { "run.start": "unsupported" }), runtime("beta"), runtime("prologue")]);
   try {
     const created = await h.call("/sessions", {});
     assert.equal(created.status, 200, JSON.stringify(created.body));
     assert.equal(created.body.session.runtime_id, "beta", "the first two in the directory cannot host a session; the third can");
     const state = await h.call("/state");
-    assert.deepEqual(state.body.methods.map((method: { skill_id: string; name: string }) => [method.skill_id, method.name]), [["from", "beta"]]);
     assert.deepEqual(state.body.mcp.map((server: { id: string; label: string }) => [server.id, server.label]), [["from", "beta"]]);
     const saved = await h.call("/mcp", { expected_version: 0, label: "x", transport: "http", endpoint: "http://127.0.0.1:1/mcp", enabled: true, timeout_ms: 1000, auth: { kind: "none" } });
     assert.equal(saved.body.server.label, "beta");
@@ -195,10 +185,11 @@ test("PG-054 with no Runtime that can host a session a new session is refused wi
     assert.deepEqual([refused.status, refused.body.code], [503, "coding.runtime_unavailable"]);
     assert.match(refused.body.error, /宿主还没有可用的运行时/);
     assert.equal(h.sessions.list(DEMO_PROJECT_ID).length, 0, "nothing was created");
-    // The project still opens: no methods or MCP servers are asked of a Runtime that cannot be chosen, and none are saved.
+    // The project still opens: no MCP servers are asked of a Runtime that cannot be chosen, and none are saved. Skills are the shared
+    // catalog's, which this fixture's Host does not offer.
     const state = await h.call("/state");
-    assert.deepEqual([state.status, state.body.sessions, state.body.methods, state.body.mcp], [200, [], [], []]);
-    assert.equal(h.made(agent.listSkills).length + h.made(agent.listMcp).length, 0);
+    assert.deepEqual([state.status, state.body.sessions, state.body.skills, state.body.mcp], [200, [], [], []]);
+    assert.equal(h.made(agent.listMcp).length, 0);
     assert.equal((await h.call("/mcp/s1/control", { action: "connect" })).status, 503);
     assert.equal(h.made(agent.controlMcp).length, 0);
     // A Runtime that can host one appears: the same request now works, with nothing to redo.
@@ -207,12 +198,11 @@ test("PG-054 with no Runtime that can host a session a new session is refused wi
   } finally { await h.close(); }
 });
 
-test("PG-054 a Runtime whose matrix offers no MCP shows no MCP servers and refuses to save or control them; methods follow their own entry", { timeout: 30_000 }, async () => {
+test("PG-054 a Runtime whose matrix offers no MCP shows no MCP servers and refuses to save or control them", { timeout: 30_000 }, async () => {
   const h = await harness([runtime("prologue", { mcp: "unsupported" })]);
   try {
     const state = await h.call("/state");
     assert.deepEqual([state.status, state.body.mcp], [200, []]);
-    assert.deepEqual(state.body.methods.map((method: { skill_id: string; name: string }) => [method.skill_id, method.name]), [["from", "prologue"]], "methods are not tied to MCP");
     assert.equal(h.made(agent.listMcp).length, 0, "no MCP list is asked of a Runtime that has none");
     const input = { expected_version: 0, label: "x", transport: "http", endpoint: "http://127.0.0.1:1/mcp", enabled: true, timeout_ms: 1000, auth: { kind: "none" } };
     const save = await h.call("/mcp", input);
@@ -221,15 +211,6 @@ test("PG-054 a Runtime whose matrix offers no MCP shows no MCP servers and refus
     const control = await h.call("/mcp/s1/control", { action: "connect" });
     assert.deepEqual([control.status, control.body.code], [503, "coding.runtime_unavailable"]);
     assert.equal(h.made(agent.saveMcp).length + h.made(agent.controlMcp).length, 0, "nothing reached the Runtime");
-    // The same for methods: a Runtime that offers none shows none and refuses to find or install them.
-    h.world.runtimes = [runtime("prologue", { skills: "unsupported" })];
-    const bare = await h.call("/state");
-    assert.deepEqual([bare.body.methods, bare.body.mcp.length], [[], 1]);
-    for (const attempt of [h.call("/methods/discover", { workspace_id: "work", path: "skills" }), h.call("/methods/install", { candidate_id: "c1" }), h.call("/methods/review-change/1")]) {
-      const refused = await attempt;
-      assert.deepEqual([refused.status, refused.body.code], [503, "coding.runtime_unavailable"]);
-    }
-    assert.equal(h.made(agent.discoverSkills).length + h.made(agent.installSkill).length + h.made(agent.readSkill).length, 0);
   } finally { await h.close(); }
 });
 

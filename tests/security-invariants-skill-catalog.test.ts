@@ -3,7 +3,7 @@ import { mkdtemp, rm, readFile, writeFile, readdir, chmod } from "node:fs/promis
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { SkillCatalog, homeAgentDefinitions, withSkillSelection, type CatalogSkill } from "@molis-ai/molis-work-app-local-host";
+import { SkillCatalog, homeAgentDefinitions, type CatalogSkill } from "@molis-ai/molis-work-app-local-host";
 import { SKILLS_PERMISSIONS, skillCatalogActions, type SkillCatalogEntry, type SkillBodyReadResult } from "@molis-ai/molis-work-contracts/services/skills";
 import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { installedPackageHost } from "./fixtures/signed-package-host.js";
@@ -50,18 +50,20 @@ test("SKC-12: rejected, cancelled and stale acceptance receipts record no uses; 
     definitions.skills.set("project-a", "install", "review", "manual", 0, "person");
     const caller: ActionExecutionContext = { actor_id: "person", project_id: "project-a", audience: "user", permissions: SKILLS_PERMISSIONS,
       signal: controller.signal, beforeEffect: async () => { controller.signal.throwIfAborted(); } };
-    const selection = { actor_id: "person", project_id: "project-a", consumer: "assistant" as const, named: [skill.ref] };
-    const accept = (accepted = true) => withSkillSelection(selection, () => catalog.recordAcceptedUses(caller, { accepted, refs: [skill.ref, skill.ref], run_ref: "run-1" }));
+    // The round's owner records uses on the Host's own call, which carries the round (`skill_round`, specs/capability-pack §2.3).
+    const round: ActionExecutionContext = { ...caller, skill_round: { consumer: "assistant", named: [skill.ref] } };
+    const accept = (accepted = true) => catalog.recordAcceptedUses(round, { accepted, refs: [skill.ref, skill.ref], run_ref: "run-1" });
     await accept(false); assert.deepEqual(definitions.skills.uses("install", "review"), []);
     await catalog.recordAcceptedUses(caller, { accepted: true, refs: [skill.ref] }); assert.deepEqual(definitions.skills.uses("install", "review"), [], "no trusted round selection");
     current = false; await accept(); assert.deepEqual(definitions.skills.uses("install", "review"), []);
     current = true; await accept(); assert.equal(definitions.skills.uses("install", "review").length, 1, "one receipt does not duplicate a repeated reference");
     assert.equal((await catalog.list(caller, {})).skills[0]?.last_used?.run_ref, "run-1");
-    // The person's protected page click names one Skill to read (no consumer): a manual Skill opens, and the view records no use.
-    const pageSelection = { actor_id: "person", project_id: "project-a", named: [skill.ref] };
-    const pageRead = await withSkillSelection(pageSelection, () => catalog.readBodies(caller, [skill.ref]));
+    // The person's protected preview names one Skill to read, frozen by the Host as that read's named list: a manual Skill opens. The view
+    // itself records no use: a record without the Host's round is refused like any other.
+    const pageRead = await catalog.readBodies({ ...caller, skill_round: { consumer: "assistant", named: [skill.ref] } }, [skill.ref]);
     assert.equal(pageRead.results[0]!.ok, true, "the page view may show a manual Skill it named");
-    await withSkillSelection(pageSelection, () => catalog.recordAcceptedUses(caller, { accepted: true, refs: [skill.ref], run_ref: "page" }));
+    assert.equal((await catalog.readBodies(caller, [skill.ref])).results[0]!.ok, false, "without the Host's named list a manual Skill stays closed");
+    await catalog.recordAcceptedUses(caller, { accepted: true, refs: [skill.ref], run_ref: "page" });
     assert.equal(definitions.skills.uses("install", "review").length, 1, "a page view is not a round and records no use");
     controller.abort(); await assert.rejects(accept()); assert.equal(definitions.skills.uses("install", "review").length, 1);
     definitions.skills.forget("project-a", "install");

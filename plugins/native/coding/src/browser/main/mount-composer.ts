@@ -35,7 +35,7 @@ function mountDraft(page: Page) {
     premise: id => page.refs.inputEditor.premise(id),
     choices: {
       action_tools: s.actionSelections, character: s.characterSelections, character_skill_ids: s.characterSkills, configuration: s.configurations, materials: s.materialSelections,
-      mcp_sources: s.mcpSourceSelections, mcp_tools: s.mcpSelections, methods: s.methodSelections, question_drafts: s.questionDrafts,
+      mcp_sources: s.mcpSourceSelections, mcp_tools: s.mcpSelections, skills: s.methodSelections, question_drafts: s.questionDrafts,
     },
   });
 }

@@ -43,7 +43,7 @@ export const ASSISTANT_EN: Record<string, string> = {
   "你的个人工作助理": "Your personal work assistant",
   "说出要做的事：整理资料、起草、查询、安排后续……它会使用你已授权的能力推进，改动数据前先请你确认。": "Say what needs doing — organize material, draft, look things up, plan follow-ups. It works with the capabilities you have granted and asks you before changing any data.",
   "下一次发送给哪项工作": "Where your next message goes",
-  "让助理做点什么…": "Ask the assistant to do something…",
+  "让助理做点什么…": "Ask the assistant…",
   "发给助理": "Send to the assistant",
   "尚未开始": "Not started",
   "进行中": "In progress",

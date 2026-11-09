@@ -187,12 +187,13 @@ test("07-2a N53 request counts: loading the chooser and a project page, switchin
   for (const name of PHASES) {
     assert.ok(requestsIn(name).length <= MEASURED[name] + CALL_SLACK, `${name}: ${requestsIn(name).length} requests, over the measured ${MEASURED[name]} + ${CALL_SLACK} allowance`);
   }
-  // Each step really mounts a plugin frame and asks a document for the shared stylesheet: without this, the checks below could pass
-  // because nothing was mounted or fetched at all (b51cb696d1 counted a page registration in every step, 1-2 each).
+  // Each step really mounts a plugin frame, and a document asked for the shared stylesheet at least once: without this, the checks
+  // below could pass because nothing was mounted or fetched at all (b51cb696d1 counted a page registration in every step, 1-2
+  // each, and the sheet on each page load; a step whose document was already loaded may take it from the document's own cache).
   for (const name of PHASES) {
     assert.ok(requestsIn(name).some(one => one.method === "POST" && one.path === "/api/host/plugin-pages"), `${name}: a plugin frame registered its page`);
-    assert.ok(requestsIn(name).some(one => one.path === "/assets/molis-work-workbench.css"), `${name}: a document asked for the shared stylesheet`);
   }
+  assert.ok(seen.some(one => one.path === "/assets/molis-work-workbench.css"), "a document asked for the shared stylesheet");
   // A page registered for a frame is kept while the frame is up: none of these steps takes one back as soon as it was made.
   assert.deepEqual(seen.filter(one => one.method === "DELETE" && one.path.startsWith("/api/host/plugin-pages")).map(one => one.phase), [], "no frame's page is taken back while it shows");
   // What waits on the person is read exactly once for a page that loads, however many readers ask (the review saw 3; b51cb696d1

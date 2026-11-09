@@ -6,7 +6,7 @@
 
 ## 在做的
 
-- [batch-06-shared-tools](batch-06-shared-tools/spec.md)：第 06 批成果固定、平台资料产生者与 SDK 公用工具；合同预审回修中，N12 待隔离验证，Files 界面定样与实现按本批顺序推进。
+- [batch-06-shared-tools](batch-06-shared-tools/spec.md)：第 06 批成果固定、平台资料产生者与 SDK 公用工具；合同设计复核通过，N12 待隔离验证，Files 界面定样与实现按本批顺序推进。
 
 - [batch-06-call-cost](batch-06-call-cost/spec.md)：第 06 批调用成本整治；先建立 N56 静态与运行时预算及当前基线，再验证宿主重复调用的定向修复。
 

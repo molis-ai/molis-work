@@ -43,6 +43,11 @@ export const COMPOSER_BOARD_EN: Readonly<Record<string, string>> = {
   "如果中间遇到需要我决定的地方，先停下来问我，不要自己选；拿不准的写在最后，我一起看。":
     "If anything along the way needs my decision, stop and ask me; don't choose for me. Put what you're unsure of at the end and I'll go through it all.",
   "空白": "Empty",
+  "静止 · 手机上收成一行": "At rest · one row on a phone",
+  "没人写字、没有附件也没有状态时，手机（≤ 600px 宽）上是一行：＋、发给谁的小标签、输入框、发送；一开始写就长回多行。":
+    "With nothing written, attached or reported, a phone (600px wide or less) shows one row: ＋, a small tag for who it goes to, the input and send. It grows back to rows as soon as you start writing.",
+  "静止 · 矮窗口收成一行": "At rest · one row in a short window",
+  "矮窗口（≤ 560px 高）用鼠标时同样一行，按钮和输入框是鼠标的尺寸。": "A short window (560px tall or less) with a mouse shows the same row, with the buttons and input at a mouse's size.",
   "有草稿 · 恢复行": "Draft · restored line",
   "把第 3 步的测试补上，再看一下 Coding 的会话草稿": "Add the tests for step 3, then look at Coding's session draft",
   "附件与长高到上限 · 框内滚动": "Attachments, grown to the cap · scrolls inside",

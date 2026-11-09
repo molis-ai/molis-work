@@ -40,17 +40,67 @@ export function paint(c: Composer, controls = false) {
   const list = c.box.querySelector<HTMLElement>(".mw-composer__files");
   const shown = list ? ([...list.children] as HTMLElement[]).map((row) => row.dataset.composerFile).join(" ") : "";
   const moves = Boolean(list) && c.items.length > 0 && c.items.map((item) => item.key).join(" ") !== shown;
-  if (moves && window.molisReflow) window.molisReflow(list!, () => draw(c, controls)); else draw(c, controls);
+  const run = () => { if (moves && window.molisReflow) window.molisReflow(list!, () => draw(c, controls)); else draw(c, controls); };
+  if (c.shell.hasAttribute("data-rest") !== atRest(c)) settle(c, run); else run();
+}
+
+function shownState(c: Composer) {
+  return c.phase === "failed" || c.phase === "sending" || c.phase === "unknown" ? c.phase : c.ai && c.running ? "running" : undefined;
+}
+
+/** At rest: nothing written, attached or brought back, nothing to say and no state (the SDK's first screen marks it the same way). */
+function atRest(c: Composer) {
+  return !c.field.value && !c.field.disabled && !c.items.length && !c.restored && !shownState(c) && !status(c);
+}
+
+const SETTLE = "mw-composer-settle";
+const PARTS = [".mw-composer__to", ".mw-composer__text", ".mw-composer__start", ".mw-composer__end"];
+const token = (name: string, fallback: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+
+/**
+ * Rest ↔ rows (composer-styles.ts `composerRestRules`, only where the page sheet lays rest out as one row): the box eases to its
+ * new height and each part from where it was seen (First, Last, Invert, Play, with the board's `--dur-move` and `--ease-quint`).
+ * Nothing changes element for the input, so focus and the caret stay. Positions are taken against the box's top, which is where
+ * the box starts whether its page grows it up (the bar) or down; a change while one is moving starts from where things are seen.
+ */
+function settle(c: Composer, change: () => void) {
+  const { shell, box } = c;
+  if (document.documentElement.hasAttribute("data-craft-still") || matchMedia("(prefers-reduced-motion: reduce)").matches || !shell.isConnected) {
+    change(); window.molisFit?.(c.field); return;
+  }
+  const seen = () => new Map(PARTS.map((query) => [query, shell.querySelector<HTMLElement>(query)?.getBoundingClientRect()]));
+  const was = seen(), from = box.getBoundingClientRect();
+  change();
+  window.molisFit?.(c.field);
+  for (const node of [box, ...PARTS.map((query) => shell.querySelector<HTMLElement>(query))]) for (const motion of node?.getAnimations() ?? []) if (motion.id === SETTLE) motion.cancel();
+  const now = seen(), to = box.getBoundingClientRect();
+  if (Math.abs(from.height - to.height) < 1 && [...now].every(([query, rect]) => rect?.left === was.get(query)?.left && rect?.top === was.get(query)?.top)) return;
+  const duration = parseFloat(token("--dur-move", "250ms")) || 250, easing = token("--ease-quint", "cubic-bezier(.22, 1, .36, 1)");
+  box.dataset.settling = "";
+  const height = box.animate([{ height: `${from.height}px` }, { height: `${to.height}px` }], { duration, easing, id: SETTLE });
+  const done = () => { if (!box.getAnimations().some((motion) => motion.id === SETTLE && motion.playState === "running")) delete box.dataset.settling; };
+  height.onfinish = done; height.oncancel = done;
+  // Where the box starts now (a page that grows it down moves it by the receiver row): it eases from where it was seen too.
+  const start = box.getBoundingClientRect().top, lift = from.top - start;
+  if (lift) box.animate([{ translate: `0 ${lift}px` }, { translate: "0 0" }], { duration, easing, id: SETTLE });
+  for (const query of PARTS) {
+    const node = shell.querySelector<HTMLElement>(query), before = was.get(query), after = now.get(query);
+    if (!node || !before || !after) continue;
+    // The parts inside the box move with it; the receiver row is outside it, so it takes the box's own move as well.
+    const x = before.left - from.left - (after.left - to.left), y = before.top - from.top - (after.top - to.top) + (box.contains(node) ? 0 : lift);
+    if (x || y) node.animate([{ translate: `${x}px ${y}px` }, { translate: "0 0" }], { duration, easing, id: SETTLE });
+  }
 }
 
 function draw(c: Composer, controls: boolean) {
   const { shell } = c;
-  const state = c.phase === "failed" || c.phase === "sending" || c.phase === "unknown" ? c.phase : c.ai && c.running ? "running" : undefined;
+  const state = shownState(c);
   const now = status(c), drawn = { ...firstScreen(c, c.field.value), ...(state ? { state } : {}), ...(now ? { status: now } : {}) } as MwComposerOptions;
   const fresh = document.createElement("template");
   fresh.innerHTML = renderComposer(drawn);
   const next = fresh.content.firstElementChild as HTMLElement;
   if (state) shell.dataset.state = state; else delete shell.dataset.state;
+  shell.toggleAttribute("data-rest", atRest(c));
   const was = shell.querySelector(".mw-composer__status"), line = next.querySelector(".mw-composer__status");
   if (line) was ? was.replaceWith(line) : shell.querySelector(".mw-composer__text")!.after(line); else was?.remove();
   const to = next.querySelector(".mw-composer__to"), had = shell.querySelector(".mw-composer__to");

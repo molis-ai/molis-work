@@ -211,14 +211,19 @@ function endGroup(options: MwComposerOptions, state: ShellState | undefined): st
   return `<div class="mw-composer__end">${mic}${stop}${sendControl(options, state, !options.text?.trim())}</div>`;
 }
 
-/** The composer's first screen: who it goes to (AI only), the text, the status and the bottom bar. */
+/**
+ * The composer's first screen: who it goes to (AI only), the text, the status and the bottom bar. `data-rest` marks it at rest
+ * (nothing written, no status, no state): on a phone or in a short window the page sheet lays it out as one row (＋, who it goes
+ * to, the input, send) until something is written, attached or said; the client keeps the mark as that changes.
+ */
 export function renderComposer(options: MwComposerOptions): string {
   const state: ShellState | undefined = options.disabled ? "disabled" : options.state;
   const disabled = state === "disabled";
   const status = options.disabled ? { caption: options.disabled.caption, text: options.disabled.reason } : options.status;
   const textarea = `<textarea class="mw-composer__input" data-fit rows="1" aria-label="${escapeHtml(options.labels.input)}"${
     options.placeholder ? ` placeholder="${escapeHtml(options.placeholder)}"` : ""}${disabled ? " disabled" : ""}>${escapeHtml(options.text ?? "")}</textarea>`;
-  return `<div class="mw-composer" data-slot="composer"${state ? ` data-state="${state}"` : ""}${renderAttrs(options.attrs)}>${
+  const rest = !options.text && !status && !state;
+  return `<div class="mw-composer" data-slot="composer"${state ? ` data-state="${state}"` : ""}${rest ? " data-rest" : ""}${renderAttrs(options.attrs)}>${
     options.kind === "ai" && options.receiver ? receiverRow(options.labels, options.receiver) : ""
   }<div class="mw-composer__box"><div class="mw-composer__text">${textarea}</div>${statusRow(status, state)}<div class="mw-composer__foot">${startGroup(options, disabled)}${endGroup(options, state)}</div></div></div>`;
 }

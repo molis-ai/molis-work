@@ -17,6 +17,8 @@ export const CRAFT_PAGES_STYLES = `  /* A phone: two rows at the foot, the Assis
     ${SHELL} .bar-start { grid-column: 1; grid-row: 2; min-height: 0; }
     html ${SHELL} .workbench-bar .bar-end { grid-column: 2; grid-row: 2; justify-self: end; min-height: 0; }
     ${SHELL} .bar-center > .assistant-composer { padding-block: 4px; }
+    /* At rest the composer is one row (composer-styles.ts): the Assistant line comes back to the bar's rest height. */
+    ${SHELL} .bar-center > .assistant-composer:has(> .mw-composer[data-rest]) { padding-block: 2px; }
     ${SHELL} .dock-pins { gap: 0; margin-left: 0; }
     ${SHELL} .dock-pins::before { left: -1px; }
     ${SHELL} .dock-pin.is-fixed { margin-right: 0; }

@@ -10,6 +10,7 @@ import { escapeHtml, icon, renderButton, renderComposer, renderProgress, type Mw
 import { renderMenu, renderMenuGroup, renderMenuItem } from "./overlay.js";
 import { renderComposerDeliveryMenu } from "../composer-parts.js";
 import { section, specimen } from "./catalog-parts.js";
+import { composerRestRules, composerRestTouch } from "../composer-styles.js";
 
 export type Say = (text: string, values?: Record<string, string | number>) => string;
 
@@ -28,6 +29,11 @@ export const COMPOSER_BOARD_STYLES = `
   .mw-catalog-mic { display: grid; justify-items: center; align-content: center; gap: 8px; min-width: 72px; min-height: 80px; padding: 12px; border-radius: var(--r-card, 12px); background: var(--surface-soft); color: var(--ink); }
   .mw-catalog-mic > svg { width: var(--mic-size); height: var(--mic-size); }
   .mw-catalog-mic > span { color: var(--muted); font-size: 12px; font-weight: 400; font-variant-numeric: tabular-nums; }
+  /* At rest where height is scarce (user 11-08): the page sheet's one row, shown here under the board's own mark at a phone's
+     width, with a finger's targets and with a mouse's (a short window). */
+  .mw-catalog [data-catalog-compact] { display: grid; gap: 8px; max-width: 390px; }
+  .mw-catalog [data-catalog-compact] > .mw-catalog__note { margin: 0; color: var(--muted); font-size: 12px; }${composerRestRules(".mw-catalog [data-catalog-compact] .mw-composer[data-rest]")}${composerRestTouch('.mw-catalog [data-catalog-compact="touch"] .mw-composer[data-rest]')}
+  .mw-catalog [data-catalog-compact="touch"] .mw-composer__foot :is(.mw-btn--icon, .mw-btn--icon-only) { width: 44px; min-width: 44px; min-height: 44px; }
 `;
 
 const ghostIcon = (label: string, name: Parameters<typeof icon>[0], attrs: Record<string, string | boolean> = {}) =>
@@ -135,6 +141,8 @@ export function composerSection(say: Say, add = say("补充")): string {
   ].join("\n\n");
   return section("composer", escapeHtml(say("多行输入框 / Composer")), `<p class="mw-catalog__hint">${escapeHtml(say("首页单行胶囊长成多行：同一套圆角、阴影和焦点描边。写字区随内容长高，到 240px 或窗口的 40% 后在框里滚动。"))}</p><div class="mw-catalog__specimens">
     ${specimen(escapeHtml(say("空白")), shell(say, add, {}))}
+    ${specimen(escapeHtml(say("静止 · 手机上收成一行")), `<div data-catalog-compact="touch">${shell(say, add, {})}<p class="mw-catalog__note">${escapeHtml(say("没人写字、没有附件也没有状态时，手机（≤ 600px 宽）上是一行：＋、发给谁的小标签、输入框、发送；一开始写就长回多行。"))}</p></div>`)}
+    ${specimen(escapeHtml(say("静止 · 矮窗口收成一行")), `<div data-catalog-compact>${shell(say, add, {})}<p class="mw-catalog__note">${escapeHtml(say("矮窗口（≤ 560px 高）用鼠标时同样一行，按钮和输入框是鼠标的尺寸。"))}</p></div>`)}
     ${specimen(escapeHtml(say("普通 · 只有编辑器层")), renderComposer({ kind: "plain", labels: { ...composerLabelsIn(say, say("助理"), add), input: say("评论") }, placeholder: say("写评论…"), add: false }))}
     ${specimen(escapeHtml(say("聚焦")), shell(say, add, { focus: true, text: task }))}
     ${specimen(escapeHtml(say("有草稿 · 恢复行")), shell(say, add, { restored: true, text: say("把第 3 步的测试补上，再看一下 Coding 的会话草稿") }))}

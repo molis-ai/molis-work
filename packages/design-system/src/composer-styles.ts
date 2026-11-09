@@ -9,6 +9,8 @@ import { COMPOSER_PATTERN_STYLES } from "./primitives/catalog-patterns.js";
  * Its menus (＋ and the delivery ▾) hang from the whole composer, not from their button, so they are as wide as it allows and,
  * on a phone, open above the receiver row instead of over it (D-track desk). Scene controls sit beside ＋ and fold behind 更多 in
  * a narrow composer, a panel that rises from the bar like the menus.
+ *
+ * At rest on a phone or in a short window (≤ 600px wide, ≤ 560px tall; user 2026-11-08) it is one row, `composerRestRules()`.
  */
 export const COMPOSER_STYLES = `${COMPOSER_PATTERN_STYLES}
   .mw-composer { position: relative; display: grid; gap: 6px; width: min(640px, 100%); min-width: 0; container: mw-composer / inline-size; }
@@ -20,6 +22,8 @@ export const COMPOSER_STYLES = `${COMPOSER_PATTERN_STYLES}
   .mw-composer__box { display: grid; min-width: 0; border-radius: var(--r-composer, 15px); background: var(--paper); box-shadow: 0 0 0 1px var(--line), var(--lift-1); transition: box-shadow var(--dur-hover) var(--ease-quint), background-color var(--dur-hover) var(--ease-quint); }
   .mw-composer__box:focus-within { box-shadow: 0 0 0 1px var(--line-strong), var(--lift-1); }
   .mw-composer__box[data-dropping] { box-shadow: 0 0 0 2px var(--accent), var(--lift-1); }
+  /* While it eases between one row and rows, what is already laid out for the end stays inside it (the menus hang from the composer). */
+  .mw-composer__box[data-settling] { overflow: clip; }
   .mw-composer__files { width: auto; padding: 6px 6px 0; }
   /* A read picture shows itself in its row's mark; a row being read is quieter until it is. */
   .mw-composer__files .mw-mark { overflow: hidden; }
@@ -68,4 +72,36 @@ export const COMPOSER_STYLES = `${COMPOSER_PATTERN_STYLES}
     .mw-composer__foot .mw-btn--icon-only { width: 44px; min-width: 44px; }
     .mw-composer__to { gap: 12px; }
     .mw-composer__to [data-tag-remove] { width: 44px; height: 44px; margin: -10px -13px -10px -11px; }
+  }
+  @media (max-width: 600px), (max-height: 560px) {${composerRestRules(".mw-composer[data-rest]")}
+  }
+  @media (max-width: 600px), (max-height: 560px) and (pointer: coarse) {${composerRestTouch(".mw-composer[data-rest]")}
   }`;
+
+/**
+ * The composer at rest where height is scarce (user 2026-11-08): nothing written, attached or said (`data-rest`, kept by the
+ * client) and it is one row inside the box: ＋ (and 更多), who it goes to as a small tag, the input, then the end of the bar (the
+ * microphone, send). The parts keep their elements and only change place (the foot lets its two groups into the box's columns),
+ * so the first letter typed grows it into the rows above with the caret where it was (browser/composer-view.ts eases it).
+ * `scope` is the composer at rest: the page sheet gives it under the media query, the board under its own mark.
+ */
+export function composerRestRules(scope: string): string {
+  return `
+    ${scope} { grid-template-columns: auto auto minmax(0, 1fr) auto; gap: 0; }
+    ${scope} > .mw-composer__to { position: relative; z-index: 1; grid-area: 1 / 2; align-self: center; padding-inline: 2px 0; }
+    ${scope} > .mw-composer__to > span:first-child { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+    ${scope} > .mw-composer__to .mw-tag { max-width: 128px; box-shadow: 0 0 0 1px var(--line); }
+    ${scope} > .mw-composer__box { grid-area: 1 / 1 / 2 / -1; grid-template-columns: subgrid; align-items: center; padding: 2px; }
+    ${scope} .mw-composer__foot { display: contents; }
+    ${scope} .mw-composer__start { grid-area: 1 / 1; flex: none; }
+    ${scope} .mw-composer__text { grid-area: 1 / 3; padding: 0 6px 0 8px; }
+    ${scope} .mw-composer__end { grid-area: 1 / 4; }
+    ${scope} .mw-composer__text > .mw-composer__input:not(#mw-composer) { box-sizing: border-box; height: 32px; min-height: 32px; max-height: 32px; padding-block: 6px; overflow: hidden; resize: none; }
+    ${scope} .mw-composer__input::placeholder { white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }`;
+}
+
+/** At rest under a finger (or on a phone): the input is the same 44px target as the buttons beside it. */
+export function composerRestTouch(scope: string): string {
+  return `
+    ${scope} .mw-composer__text > .mw-composer__input:not(#mw-composer) { height: 44px; min-height: 44px; max-height: 44px; padding-block: 11px; font-size: 16px; line-height: 22px; }`;
+}

@@ -339,18 +339,20 @@ export const CRAFT_BAR_STYLES = `
   ${SHELL} .assistant-composer :is(.mw-compose__menu, .mw-composer__controls) { z-index: 60; }
   /* The receiver's name opens its conversation (the island's click). */
   ${SHELL} .assistant-composer .mw-composer__to .mw-tag { cursor: pointer; }
-  /* A short window gives its height to writing (DESIGN.md → Layout, ≤ 560px tall): the bar's composer starts at one line and
-     sits tighter, so the panel above keeps room; it still grows with what is written, and its targets keep their size: the text
-     row's top padding moves into the input, so the input itself stays the target (30px with a mouse, 44px to a finger). */
+  /* A short window gives its height to writing (DESIGN.md → Layout, ≤ 560px tall): at rest the composer is one row (its own
+     rule, composer-styles.ts); once something is written it starts at one line and sits tighter, so the panel above keeps room;
+     it still grows with what is written, and its targets keep their size: the text row's top padding moves into the input, so the
+     input itself stays the target (30px with a mouse, 44px to a finger). */
   @media (max-height: 560px) {
     ${SHELL} .bar-center > .assistant-composer { padding-block: 4px; }
-    ${SHELL} .assistant-composer > .mw-composer { gap: 2px; }
-    ${SHELL} .assistant-composer .mw-composer__text { padding-top: 0; }
-    ${SHELL} .assistant-composer .mw-composer__text > .mw-composer__input:not(#mw-composer) { box-sizing: border-box; min-height: 30px; padding-block: 6px 2px; }
-    ${SHELL} .assistant-composer .mw-composer__foot { padding-block: 2px 4px; }
+    ${SHELL} .bar-center > .assistant-composer:has(> .mw-composer[data-rest]) { padding-block: 2px; }
+    ${SHELL} .assistant-composer > .mw-composer:not([data-rest]) { gap: 2px; }
+    ${SHELL} .assistant-composer > .mw-composer:not([data-rest]) .mw-composer__text { padding-top: 0; }
+    ${SHELL} .assistant-composer > .mw-composer:not([data-rest]) .mw-composer__text > .mw-composer__input:not(#mw-composer) { box-sizing: border-box; min-height: 30px; padding-block: 6px 2px; }
+    ${SHELL} .assistant-composer > .mw-composer:not([data-rest]) .mw-composer__foot { padding-block: 2px 4px; }
   }
   @media (max-height: 560px) and (pointer: coarse), (max-height: 560px) and (max-width: 600px) {
-    ${SHELL} .assistant-composer .mw-composer__text > .mw-composer__input:not(#mw-composer) { min-height: 44px; }
+    ${SHELL} .assistant-composer > .mw-composer:not([data-rest]) .mw-composer__text > .mw-composer__input:not(#mw-composer) { min-height: 44px; }
   }
   ${SHELL} .plugin-picker { position: relative; flex: none; min-width: 0; max-width: 46%; padding-right: 8px; }
   ${SHELL} .plugin-picker::after { content: ""; position: absolute; right: 0; top: 50%; width: 1px; height: 18px; margin-top: -8px; background: var(--line); pointer-events: none; }

@@ -1,6 +1,6 @@
 # 场景与生成页面公共合同（路线书 20 第 1、2 项）
 
-状态：第 20 批整批验证中，安全回归发现成员控制动作与在途查询的队列互等，正在修复，尚未开 PR 或合入。2026-11-09 的代码头 `aaa2e4c81b` 已通过整合预审、公共合同合审、核心回归、三宽双语双主题矩阵、正式视觉与页面资源检查；完整安全组及 macOS 补验尚未完成，修复后的影响验证、最终 CI Full 与 PR 评审绑定待完成。当前证据与执行安排见[第 20 批整批验证记录](../post-anticorruption-roadmap/reference/batches/20.md#batch-20-validation)。第 08 批 #1984、第 36 批提前合同 #1995 均已合入并消费，合同前置已解除。用户 2026-11-08 确定的分工不变：20 交公共合同、SDK 共用校验及必要现有接入；36 接角色服务，37 接页面运行与真实安全验收，44 接引导采用与另存，51 接场景成品。不能用本批静态校验代替后续运行验收；签名沙箱设置执行及本人体验分别见 [BL-settings-sandbox-execution](../backlog/BL-settings-sandbox-execution.md)、[BL-batch20-membership-acceptance](../backlog/BL-batch20-membership-acceptance.md)。
+状态：第 20 批整批验证中；成员控制与在途查询的队列互等已修复并通过限定复核，已合入第 10 批所在最新 main，正在补整合验证，尚未开 PR 或合入。2026-11-09 的代码头 `aaa2e4c81b` 已通过整合预审、公共合同合审、核心回归、三宽双语双主题矩阵、正式视觉与页面资源检查；完整安全组及 macOS 补验尚未完成，最新整合头 `44f353ccba` 的影响验证、最终 CI Full 与 PR 评审绑定待完成。当前证据与执行安排见[第 20 批整批验证记录](../post-anticorruption-roadmap/reference/batches/20.md#batch-20-validation)。第 08 批 #1984、第 36 批提前合同 #1995 均已合入并消费，合同前置已解除。用户 2026-11-08 确定的分工不变：20 交公共合同、SDK 共用校验及必要现有接入；36 接角色服务，37 接页面运行与真实安全验收，44 接引导采用与另存，51 接场景成品。不能用本批静态校验代替后续运行验收；签名沙箱设置执行及本人体验分别见 [BL-settings-sandbox-execution](../backlog/BL-settings-sandbox-execution.md)、[BL-batch20-membership-acceptance](../backlog/BL-batch20-membership-acceptance.md)。
 
 ## 0. 这份稿子做什么
 

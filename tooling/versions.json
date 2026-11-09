@@ -746,6 +746,8 @@
     "action.projects.directories.repair": 1,
     "action.projects.directories.set_output": 1,
     "action.projects.directories.unmap_source": 1,
+    "action.projects.plugins.get": 1,
+    "action.projects.plugins.set": 1,
     "action.projects.settings.runtime.read": 1,
     "action.projects.settings.runtime.select": 1,
     "action.projects.workspace.files.read": 1,

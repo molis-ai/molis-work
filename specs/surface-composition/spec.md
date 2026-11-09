@@ -434,6 +434,8 @@ surface_corrections        项目库
 
 ### 14.2 S-1 装配缺口与合同合审（2026-11-08）
 
+公共合同台在 `85d54e86e0f10e53c1fb4ec8bd9b4271b8bd4074` 对本节至 §14.4 及公共来源 §7 的呈现承载设计合审通过，无 Blocker/P1（`gpt-6-astra / high`，只读，未跑测试）。此结论只覆盖设计，不覆盖尚未固定的 Host 接线或最终 PR。首页接入还须把原生 `definePresentationOverviewAction` 与 overview 校验补成同一自动读取门槛：明确 `execution.cost: "none"`、read/query、无模型和 external；不能只拦 values 和签名协议。
+
 在 `efafe16f5e` 上按实际调用链核查，合同设计台给出的最小补充经过独立 `gpt-6-astra / high` 只读合审。以下是本片实施约定，尚不是代码或验收证据。公开形状维护在 [05② §5～§7](../shared-sources-and-surfaces/spec.md#6-组合服务的公开合同)，S-1 不重复定义类型。
 
 - **对话用途、折叠与时间。** 请求的 `delivery_subjects` 是 `subjects` 的去重子集，仅对话可给；交付默认卡片、其余引用默认名字片。对话和讨论默认显示前 6 个，`overflow` 只记可读的折叠件数；`expanded:true` 在原位置展开，不改变 50 项输入上限和插件挂载位硬上限。它与首页上方已显示的 `hidden_above` 不共用语义。S-1 省略可选的折叠标签，不伪造词表键。条目的 `read_at` 只转发本次授权读取给的真实旧值时间；无时间的失败组是 unreadable。

@@ -606,6 +606,8 @@ SDK 只依赖 contracts，不依赖也不转出私有包。改 SDK 算动共享�
 
 ### 第 15 批渲染入口交接（2026-11-08）
 
+公共合同台在 `85d54e86e0f10e53c1fb4ec8bd9b4271b8bd4074` 对本段的渲染输入及可信父文档承载设计合审通过，无 Blocker/P1（`gpt-6-astra / high`，只读）；与组合和安装边界一并记录在[组合服务 §14.2](../surface-composition/spec.md#142-s-1-装配缺口与合同合审2026-11-08)。设计通过不代替组件、挂载执行和最终合同代码的合审与实操。
+
 本节把原三参数签名与必填 locale 的缺口补全，不改变 Manifest、values 或 `SurfaceItem` 的线协议。设计依据是 S-1 `ccfd93200936` 和方案 B 实件标本 `49beab1c55`；以下仍待公共 API 合审和实际实现验证。
 
 `PresentationFormValues` 是一次渲染的显示投影：必填 `locale: string | null`、`ownerDisplay: { name: string; icon?: PluginIconName; hue?: UiViewHue }`、`read`（`PresentationValueItem` 的 state／values／read_at，或明确的 `{ state: "unreadable" }`），可选 `actions` 与 `notices`。控件为 `{ key: string; label: string; primary?: boolean; consequence?: readonly SurfaceConsequence[] }`；notice 为 `{ reason: OwnedTextRef; next?: 控件 }`。`key` 只是一处位置自己绑定的局部 DOM 句柄，不能充当 provider、ref、prepared_input、执行权或自造 URL；renderer 不执行、不取数据、不注册动作。

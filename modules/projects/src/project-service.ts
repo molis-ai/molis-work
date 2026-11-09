@@ -113,6 +113,8 @@ export class ProjectService {
   addPlugin(input: AddProjectPluginInput, observedAlwaysOn?: readonly ProjectPluginId[]): ProjectPluginId[] {
     const project = this.get(input.project_id);
     const actor = this.requiredActorId(input.actor_id);
+    // Preserve any stored preference while the registry keeps this plugin on.
+    if (observedAlwaysOn?.includes(input.plugin_id)) return this.listPlugins(project.project_id, observedAlwaysOn);
     if (this.plugins.isPersonal?.(input.plugin_id) === true) {
       return this.repository.transaction(() => {
         if (this.repository.projects.showProjectPlugin(project.project_id, input.plugin_id)) {
@@ -124,8 +126,6 @@ export class ProjectService {
     if (!this.plugins.has(input.plugin_id)) {
       throw catalogErrors.plugin_not_found("找不到这个插件");
     }
-    // A versioned enable of a derived member has no membership to add.
-    if (observedAlwaysOn?.includes(input.plugin_id)) return this.listPlugins(project.project_id, observedAlwaysOn);
     return this.repository.transaction(() => {
       const at = this.now();
       for (const pluginId of [input.plugin_id, ...this.plugins.companions(input.plugin_id)]) {

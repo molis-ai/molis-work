@@ -37,7 +37,7 @@ export function rememberInstalledActionSource(definition: PluginDefinition, rele
     const operation = contract.operations.find(item => item.id === node.submit?.operationId);
     if (!operation) throw new ActionError('actions.definition_invalid', '原组件绑定的操作不存在');
     const effects = sandboxOperationEffects(contract, operation);
-    const binding: ComponentBinding = { node: structuredClone(node), operationId: operation.id, action: exposedActionReference(release, operation.id),
+    const binding: ComponentBinding = { node: structuredClone(node), operationId: operation.id, action: Object.freeze(exposedActionReference(release, operation.id)),
       form: operation.kind === 'command' && Object.values(node.submit.input).some(input => input.source === 'form'),
       ownPermissions: [...new Set(['storage:private', ...sandboxOperationPermissions(effects)])], capabilities: [...(effects.capabilities ?? [])] };
     return [[node.id, binding] as const];
@@ -47,8 +47,10 @@ export function rememberInstalledActionSource(definition: PluginDefinition, rele
 
 /** The original exposure and both permission proofs are the same for form navigation and submission. */
 export function installedComponentSubmit(definition: PluginDefinition, scope: ActionScope, readRecord: () => PluginInstanceRecord | null | undefined) {
-  const source = sources.get(definitionOrigin(definition)), record = readRecord();
-  if (!source || !record) return undefined;
+  const source = sources.get(definitionOrigin(definition));
+  if (!source) return undefined;
+  const record = readRecord();
+  if (!record) return undefined;
   const key = registrationKey(scope, record);
   const current = () => registrations.get(scope.registry)?.get(key);
   const identity: Readonly<SandboxIdentity> = Object.freeze({ projectId: scope.project_id, installationId: record.install_id,

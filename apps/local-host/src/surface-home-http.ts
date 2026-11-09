@@ -147,10 +147,14 @@ export function projectSurfaceHome(host: LocalHost<MolisWorkProjectRuntime>, own
   };
 }
 
+const HOME_SURFACE_PATH = "/api/host/surface-home";
+const HOME_SURFACE_CLICK_PATH = HOME_SURFACE_PATH + "/click";
+export const isSurfaceHomePath = (pathname: string) => pathname === HOME_SURFACE_PATH || pathname === HOME_SURFACE_CLICK_PATH;
+
 export async function handleSurfaceHomeHttp(context: ProjectRequestContext): Promise<boolean> {
   const { request, response, url, localHost, hostReference, options } = context;
-  const click = url.pathname === "/api/host/surface-home/click";
-  if (!click && url.pathname !== "/api/host/surface-home") return false;
+  if (!isSurfaceHomePath(url.pathname)) return false;
+  const click = url.pathname === HOME_SURFACE_CLICK_PATH;
   const disconnected = new AbortController();
   const cancel = () => { if (!response.writableEnded) disconnected.abort(new ActionError("actions.cancelled", "首页请求已结束")); };
   request.once("aborted", cancel); response.once("close", cancel);

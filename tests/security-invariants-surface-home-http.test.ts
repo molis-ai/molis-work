@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
+import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { bindActionHandler, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { definePresentationOverviewAction } from "@molis-ai/molis-work-contracts/platform/presentation";
@@ -51,6 +52,11 @@ test("S-surface-composition SCS-07 SCS-08 protected HTTP does not start a cold p
   const f = await fixture(t);
   assert.equal((await f.request(f.prefix + route, { method: "POST", body: {}, authorized: false })).status, 403);
   const before = f.counts();
+  const personalProjects = () => withMolisWorkProjectCatalog({ homeDirectory: f.home }, catalog =>
+    catalog.listProjects().filter(project => project.project_id === "personal"));
+  assert.deepEqual(await personalProjects(), []);
+  await json(await f.request("/projects/personal" + route, { method: "POST", body: {} }), 404);
+  assert.deepEqual(await personalProjects(), [], "a read does not provision an unopened personal project");
   assert.equal(f.host.projects().some(project => project.project_id === f.project.project_id), false);
   await json(await f.post(route), 503);
   assert.equal(f.host.projects().some(project => project.project_id === f.project.project_id), false);

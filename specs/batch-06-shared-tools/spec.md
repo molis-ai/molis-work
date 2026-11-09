@@ -108,6 +108,8 @@ Manifest 借用现行对象形状表达精确系统来源，例如 `default_sour
 
 预审允许独立推进来源、界面定样与隔离合同验证。**Files 整块采用与删除当前 NO-GO。** 实施前核过最小 resolver 和同意恢复入口，落定 knowledge 来源、工作台文件界面、Coding 嵌入和 Runtime 四项前置。数据切换还要证明项目步骤、Home 账本和同步的次序，覆盖 BSH-07 与 BSH-11。若同步仍没有保全远端历史和授权的最小做法，按 06 批止损规则向主会话报整块延期，维持 Files 活动入口。N12 存储和 Files 本库事务各自判定。
 
+N52 随 S4/S5 接同一公共界面：现有 `/sources` 响应合并可见来源的第一页、`next_cursor` 和来源状态，侧栏与 Goal 放置选择器共用；每个来源仍调用其已登记动作，不新增聚合动作或存储。首次读取共用上下文与发现，实际执行保持现行实时授权。源状态和部分失败在 HTTP 边界明确建模，分页、内容和当前引用身份沿原 owner；采用前按 BSH-13 真实验证。
+
 ## 4. S3 公用 SDK 工具
 
 - **N13／N12⑤。** `/browser` 沿用浏览器安全的叶子入口，复用 `/ui` 的 HTML 转义与已存在请求基础 `molisWorkRequest`。仅提取实际共用的 `required`、错误消息／状态、abort 识别和 `pluginRequest(host, { fallback, codes })`。保持不同路由的已定项目参数、body、翻译回退、失败 code/status 与当前生命周期 `signal`，调用点负责附上实际的挂载／离开信号（Dataset BL-1033）。浏览器助手复用 Pages 已有文档内容 owner。search/body/start 的输入、权限、摘要和错误先比对，只有纯粹的适配相同才共享。页面专用控件与非同义辅助代码仍在各自插件。
@@ -135,6 +137,7 @@ Manifest 借用现行对象形状表达精确系统来源，例如 `default_sour
 | BSH-10 | UTF-16 边界的 emoji 与生僻字不留半字，短串不变，码点与含尾记长度守住调用方预算。源码新增直接切片拼省略号时门禁稳定拒绝，已有计数只减不增。 |
 | BSH-11 | 双 Home 以现有同步运行回读仅远端历史、结清冻结 outbox 与原回执、解决项目 conflict/recovery 及独立延迟下载。切换后证明可回读旧 ref、新空 Home 能取回历史、旧设备事件不能复活旧 owner 或先建出无权项目。任何非空阻塞项保全队列和游标并拦住采用。接 `apps/sync-worker/process-items.test.mjs`。 |
 | BSH-12 | N47 的最终回调未读时克隆 0 条，第一次读取克隆当前引用，同回调保持 identity，缺省、空数组、枚举、赋值和序列化一致。通过 action、scene 与嵌套回调测试证明改一份无外溢，Host ingress 快照行为保持。真实请求记录前后复制量。 |
+| BSH-13 | N52：真实多来源项目分别打开项目资料与 Goal「加输入」，每次首屏一次 HTTP 聚合请求、零逐来源 entries 请求，宿主一次上下文与发现。共用来源第一页、游标及可见但未配置的状态；未配置来源零条目调用，单个失败不遮住其余结果。分页和正文按需读取；发现后撤权仍由实际动作拒绝，零未授权内容交付。 |
 
 验证由实现会话按项目规则排槽。构建后先跑上述定向用例、四插件及 `modules/artifacts`、`packages/plugin-runtime` README 的适用必跑项，再由全批运行合同、边界、安全、金样回放、页面资源及共享核心全量。页面脚本改动比较真实下发字节，使用独立浏览器和临时 Home。公开快照检查 `pnpm api:update`、`pnpm actions:update`、`pnpm test:contracts`，版本变化核对 `pnpm schemas:update`。安全不变量表同步登记拒绝用例（尤其 S-18、S-35、S-46／S-100、S-76 与 S-81）。测试名或注释逐个引用 BSH 编号。本轮仅设计，证据状态均为待执行。
 

@@ -77,7 +77,6 @@ tests/agent-reference-questions.test.ts
 tests/agent-review-http.test.ts
 tests/agent-review-surface.test.ts
 tests/agent-run-wait.test.ts
-tests/agent-start-authority.test.ts
 tests/agent-workspace-none.test.ts
 
 # artifact

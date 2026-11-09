@@ -32,7 +32,7 @@ export async function pluginEventsPending(ports: ProjectPluginHttpPorts): Promis
 export async function handleProjectPluginHttp(request: IncomingMessage, response: ServerResponse, url: URL, ports: ProjectPluginHttpPorts): Promise<boolean> {
   const runtimeUpdates = url.pathname === "/api/plugins/runtime/updates" && request.method === "GET";
   const runtimeEvents = isPluginEventManagementPath(url.pathname);
-  const pluginRoute = url.pathname.match(/^\/api\/plugins\/([^/]+)\/(.+)$/u);
+  const pluginRoute = runtimeUpdates || runtimeEvents ? null : url.pathname.match(/^\/api\/plugins\/([^/]+)\/(.+)$/u);
   if (pluginRoute && !PLUGIN_ID.test(pluginRoute[1]!)) return false;
   if (!runtimeUpdates && !runtimeEvents && !pluginRoute) return false;
   const record = await ensureProjectPlugins(ports);

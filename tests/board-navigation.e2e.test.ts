@@ -101,7 +101,8 @@ test("07-S0 the navigation frame draws every new part, named for screen readers,
       b.click(); return seen; })`);
     assert.deepEqual(outside, [], `${lang} ${width}px: the titlebar's ＋, 全部标签 and 布局 menus open inside the window`);
     if (width <= 760) {
-      const send = await evaluate<[number, number]>("(() => { const box = document.querySelector('[data-nav-composer] .mw-btn').getBoundingClientRect(); return [Math.round(box.width), Math.round(box.height)]; })()");
+      // The bar's composer is the platform's since K3 (unified input): its send button is the one marked data-composer-send.
+      const send = await evaluate<[number, number]>("(() => { const box = document.querySelector('[data-nav-bar] .assistant-composer [data-composer-send]').getBoundingClientRect(); return [Math.round(box.width), Math.round(box.height)]; })()");
       assert.ok(send[0] >= 44 && send[1] >= 44, `${lang}: the composer's send button is a 44 × 44 target on a phone (${send})`);
     }
     // Nothing in the titlebar covers ＋ or 全部标签: the glyph row keeps its width and the strip gives way.

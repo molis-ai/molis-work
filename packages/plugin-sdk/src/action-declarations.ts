@@ -9,7 +9,8 @@ import {
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import { contextDeclarationProblems } from "./context-declarations.js";
 import {
-  fileSourceDeclarationProblems, fragmentOfferDeclarationProblems, placementDeclarationProblems, placementRelationListProblems, placementRelationProblems, searchSourceDeclarationProblems,
+  composerSourceDeclarationProblems, fileSourceDeclarationProblems, fragmentOfferDeclarationProblems, placementDeclarationProblems, placementRelationListProblems,
+  placementRelationProblems, searchSourceDeclarationProblems,
 } from "./source-declarations.js";
 import { workExecutorDeclarationProblems } from "./work-executor-declarations.js";
 
@@ -49,6 +50,7 @@ function definitionProblems(raw: unknown, seen: Set<string>): string[] {
     ...backgroundJobProblems(key, raw.operation, action),
     ...undoProblems(key, raw.operation, action),
     ...searchSourceDeclarationProblems(key, action, raw.operation, canonicalSchema),
+    ...composerSourceDeclarationProblems(key, action, raw.operation, canonicalSchema),
     ...fragmentOfferDeclarationProblems(key, action, raw.operation, canonicalSchema),
     ...fileSourceDeclarationProblems(key, action, raw.operation, canonicalSchema),
     ...placementDeclarationProblems(key, action, raw.operation, canonicalSchema),

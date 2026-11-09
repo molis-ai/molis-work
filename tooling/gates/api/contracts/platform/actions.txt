@@ -535,6 +535,7 @@ export interface ActionMetadata {
     readonly workflow_content?: WorkflowContentStation;
     readonly search_source?: SearchSourceDeclaration;
     readonly file_source?: FileSourceDeclaration;
+    readonly composer_source?: ComposerSourceDeclaration;
     readonly thread_source?: {
         readonly role: "context" | "reply";
         readonly subject_kind: string;

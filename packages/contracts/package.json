@@ -278,6 +278,10 @@
       "types": "./dist/platform/project-materials.d.ts",
       "import": "./dist/platform/project-materials.js"
     },
+    "./platform/composer": {
+      "types": "./dist/platform/composer.d.ts",
+      "import": "./dist/platform/composer.js"
+    },
     "./platform/presentation": {
       "types": "./dist/platform/presentation.d.ts",
       "import": "./dist/platform/presentation.js"

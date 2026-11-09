@@ -247,3 +247,38 @@ test("FSS-60 FSS-69 the same copied installation identifiers cannot mix readers;
   assert.throws(() => runWithLocale("en", () => renderStagePage(one.views![0]!, {}, "views-probe", false)), { code: "actions.forbidden" });
   assert.equal((await two.routes![0]!.handle(english)).body, "Second title", "the unrelated Home remains live");
 });
+
+test("FSS-69 nested SDK actions inherit the verified language and a settled child cannot borrow its living parent", async t => {
+  const probe = viewsProbe("Default title", "本轮语言");
+  const outer = createActionDefinition(`${probe.definition.manifest.plugin_id}.outer`, "query", { ...probe.read.action,
+    output_schema: { type: "array", items: { type: "string" } } }, 1);
+  const definition: PluginDefinition = { ...probe.definition,
+    manifest: { ...probe.definition.manifest, actions: [probe.read, outer], capabilities: { provides: [probe.read.capability_id, outer.capability_id], consumes: [] } },
+    async start(context) {
+      const contribution = await probe.definition.start(context);
+      assert.equal(contribution.kind, "app");
+      let release: ReturnType<typeof Promise.withResolvers<void>>;
+      let late: Promise<string>[];
+      return { ...contribution, actions: [{ ...probe.read, handle() {
+        late.push(release.promise.then(() => say.text({ owner: probe.definition.manifest.plugin_id, key: "views-probe.main.title" })));
+        return say.text({ owner: probe.definition.manifest.plugin_id, key: "views-probe.main.title" });
+      } }, { ...outer, async handle() {
+        release = Promise.withResolvers<void>(); late = [];
+        const actions = context.services!.actions!;
+        try {
+          const ordinary = await actions.invoke(probe.read, {});
+          const forged = await actions.invoke(probe.read, {}, { locale: "en", beforeEffect: async () => undefined });
+          release.resolve();
+          return [ordinary, forged, ...await Promise.all(late)];
+        } finally { release.resolve(); }
+      } }] };
+    },
+  };
+  const { runtime, actions } = projectRig(t, given => definitionOrigin(given) === definition ? probe.words : null);
+  const installId = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: [] }).install.install_id;
+  await runtime.start(installId);
+  const caller = { actor_id: "user", audience: "user" as const, project_id: DEMO_PROJECT_ID, permissions: [], locale: "zh" as const };
+  const call = () => actions.client.invoke(caller, outer, {});
+  assert.deepEqual(await call(), ["本轮语言", "本轮语言", "Default title", "Default title"], "the action alone carries the trusted language");
+  assert.deepEqual(await runWithLocale("zh", call), ["本轮语言", "本轮语言", "Default title", "Default title"], "a settled nested invocation is outside the still-active page's language");
+});

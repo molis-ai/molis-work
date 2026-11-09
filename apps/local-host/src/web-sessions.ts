@@ -158,11 +158,14 @@ export function revokeWebSession(request: IncomingMessage): void { requestSessio
 export function withWebSessionRequest<T>(request: IncomingMessage, operation: () => T): T { return currentRequest.run(request, operation); }
 
 /** Capture before any await; later effects never borrow a new session or a new account. */
-export function captureWebSessionAuthority(): () => void {
+export function captureWebSessionAuthority(): (reader?: IncomingMessage) => void {
   const request = currentRequest.getStore(), context = request ? requestSessions.get(request) : undefined;
-  if (!context?.session) return () => {};
-  const proof = request?.headers[WEB_PAGE_SESSION_HEADER] ?? context.session.proof;
-  return () => {
-    if (!context.owner.accepts(context, proof)) throw new ActionError("actions.forbidden", "页面会话已失效，请刷新页面后重试");
+  const capturedProof = request?.headers[WEB_PAGE_SESSION_HEADER] ?? context?.session?.proof;
+  return reader => {
+    const current = reader ? requestSessions.get(reader) : context;
+    const proof = reader ? reader.headers[WEB_PAGE_SESSION_HEADER] : capturedProof;
+    if (!reader && !context?.session) return;
+    if (!current || !context?.session || current.owner !== context.owner || current.session !== context.session || !current.owner.accepts(current, proof))
+      throw new ActionError("actions.forbidden", "页面会话已失效，请刷新页面后重试");
   };
 }

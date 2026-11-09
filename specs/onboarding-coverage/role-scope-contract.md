@@ -115,10 +115,10 @@ type CharacterRoleReadOutput = { results: CharacterRoleReadResult[] };
 | --- | --- |
 | RSC-C01 | 项目成员能表达双跟随和任一节覆盖。拒绝缺节、未知节模式、伪造身份、项目版本缺原件引用、把成果引用当角色版本和超过安全整数的版本。个人固定引用可独立成立。 |
 | RSC-C02 | 默认形状区分项目沿用与显式助理，个人默认拒绝项目成员。有效值能区分本次、项目、个人和助理，拒绝来源和版本所属层矛盾，只允许助理自身结果带停用的项目默认引用。 |
-| RSC-C03 | 模板采用结果区分个人原件和项目成员、创建和复用。接受内容包／草稿两种来源，拒绝跨分支字段、伪造安装／操作者。角色读与请求读是互斥分支。回执存在且角色已解除与未找到回执可分别返回。 |
+| RSC-C03 | 模板采用结果区分个人原件和项目成员、创建和复用。接受内容包／草稿两种来源，拒绝跨分支字段、伪造安装／操作者。批量读接受 1～128 项，拒绝空批与超限；按角色和按请求是互斥的查询分支。回执存在且角色已解除与未找到回执可分别返回。保序、等长和查询分支对应关系由接入片验证。 |
 | RSC-C04 | [原型] 个人默认已有角色时进入「项目默认的角色已停用」状态，任务选择器和项目设置都显示新任务由助理自己做，个人默认配置保留，进行中的任务继续显示原固定版本。原型说明同样记录用户确认的行为。 |
 
-测试以现有公开 `modules/characters` 及 Kernel 的 `compileActionSchema`／`assertActionInput` 运行真实 schema。正例用公开类型作 `satisfies` 约束，负例经公开 validator 检查。整批类型检查覆盖测试文件。构建产物就绪后跑 `node scripts/run-tests.mjs tests/character-role-scope-contract.test.ts`，并核对公开 API 快照和健康门禁。实际继承、授权拒绝、并发冲突、原子回执、重启后恢复、冻结执行和 UI 由第 36／20／44 批各接入片运行时验收。本片的结构测试只证明形状。
+测试以现有公开 `modules/characters` 及 Kernel 的 `compileActionSchema`／`assertActionInput` 运行真实 schema。正例用公开类型作 `satisfies` 约束，负例经公开 validator 检查。构建后，用 `pnpm exec tsc --noEmit --module NodeNext --target ES2022 --strict --skipLibCheck tests/character-role-scope-contract.test.ts` 检查测试里的类型例，再跑 `node scripts/run-tests.mjs tests/character-role-scope-contract.test.ts`，并核对公开 API 快照和健康门禁。实际继承、授权拒绝、并发冲突、原子回执、重启后恢复、冻结执行和产品 UI 由第 36／20／44 批各接入片运行时验收。本片的结构测试只证明形状。
 
 ## 5. 开工前检查
 

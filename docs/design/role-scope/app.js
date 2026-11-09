@@ -105,8 +105,10 @@
 
   // [组件板新增] where the value comes from: the layers from nearest to farthest, the one in use marked.
   function ladderFor(proj, mine, off = "") {
-    const layers = [{ k: L("任务里另选", "Picked in a task"), note: L("只管那一次", "That task only") }, { k: L("本项目", "This project"), value: proj, off }, { k: L("你的默认", "Your default"), value: mine }, { k: L("最后", "Otherwise"), value: L("助理自己", "The Assistant") }];
-    layers.find((x) => x.value && !x.off).on = true;
+    const assistant = { k: L("最后", "Otherwise"), value: L("助理自己", "The Assistant") };
+    const layers = [{ k: L("任务里另选", "Picked in a task"), note: L("只管那一次", "That task only") }, { k: L("本项目", "This project"), value: proj, off }, { k: L("你的默认", "Your default"), value: mine }, assistant];
+    const effective = off ? assistant : layers.find((x) => x.value);
+    effective.on = true;
     return `<ol class="cand-scope" aria-label="${L("新任务的角色从哪来", "Where a new task's role comes from")}">${layers.map((x) => `<li class="${x.on ? "is-on" : x.off ? "is-off" : x.value ? "is-under" : "is-empty"}"${x.on ? ' aria-current="true"' : ""}><span class="k">${x.k}</span><span class="v">${x.off || x.value || x.note || L("没设", "Not set")}</span></li>`).join("")}</ol>`;
   }
 
@@ -116,7 +118,7 @@
     const proj = personal ? null : projectDefault();
     const mine = personalDefault();
     const stoppedDefault = proj === "week";
-    const fallback = personal || stoppedDefault ? mine : proj || mine;
+    const fallback = stoppedDefault ? null : proj || mine;
     const chosen = S.choice !== undefined ? S.choice : s === "once" && !S.done.settled ? "res" : fallback;
     const isOnce = (S.choice !== undefined || (s === "once" && !S.done.settled)) && chosen !== fallback;
     const created = S.done.created ? ["mine1"] : [];
@@ -136,13 +138,16 @@
     const list = [opt(null), ...ids.map((id) => opt(id)), opt("code", s === "exceed" ? L("要用终端，助理这里没开放", "needs the terminal, not open here") : ""),
       ...(stoppedDefault ? [opt("week", L("已停用", "turned off"))] : [])].join("");
     const newRow = S.mode ? "" : `<button type="button" class="assistant-starter rs-starter rs-new"${P.attrs(act("drawer", "new"))}><span class="mw-avatar rs-add" data-slot="avatar">${ic("plus")}</span><span class="rs-starter__copy"><strong>${L("写一个新角色", "Write a new role")}</strong><span class="assistant-material-origin">${L(" 保存后直接用于这次", " used for this task once saved")}</span></span></button>`;
-    const stopNote = stoppedDefault && !S.mode ? alert("warning", L(`本项目默认的${q(R("week"))}已停用`, `This project's default, ${q(R("week"))}, is turned off`), L(`这次由${q(R(mine))}（你的默认）来做。进行中的照常做完。`, `This task goes to ${q(R(mine))} (your default). Running ones finish as they are.`), actions(btn({ size: "sm", label: L("换一个默认", "Pick another default"), attrs: act("mode", "project") }), btn({ variant: "ghost", size: "sm", label: L("重新启用", "Turn it back on"), attrs: act("restart-week") }))) : "";
+    const stopNote = stoppedDefault && !S.mode ? alert("warning", L(`本项目默认的${q(R("week"))}已停用`, `This project's default, ${q(R("week"))}, is turned off`), L("未另选的新任务由助理自己做。进行中的继续用开始时的版本。", "The Assistant handles new tasks unless you pick another role. Running tasks keep the version they started with."), actions(btn({ size: "sm", label: L("换一个默认", "Pick another default"), attrs: act("mode", "project") }), btn({ variant: "ghost", size: "sm", label: L("重新启用", "Turn it back on"), attrs: act("restart-week") }))) : "";
     const MODE = { project: L("选一个，作为本项目的默认", "Pick one as this project's default"), mine: L("选一个，作为你的默认", "Pick one as your default"), continue: L("「第二期观察」从下一轮起由谁来做", "Who carries “Issue 2 watch” from the next round") };
     const title = S.mode ? `<div class="rs-pop-mode"><p class="assistant-popover-title">${MODE[S.mode]}</p>${btn({ variant: "ghost", size: "sm", label: L("取消", "Cancel"), attrs: act("mode", "") })}</div>` : `<p class="assistant-popover-title">${L("这次由谁来做", "Who does this task")}</p>`;
-    const srcText = chosen === null ? L("没有默认角色，由助理自己做", "No default role; the Assistant does it") : personal || stoppedDefault || (!proj && chosen === mine) ? L("来自你的默认", "From your default") : L("来自本项目默认", "From the project default");
+    const defaultScope = personal || (!proj && chosen === mine) ? "mine" : "project";
+    const srcText = stoppedDefault ? L("项目默认已停用，由助理自己做", "The project default is off. The Assistant does it.")
+      : chosen === null ? L("没有默认角色，由助理自己做", "No default role; the Assistant does it")
+      : defaultScope === "mine" ? L("来自你的默认", "From your default") : L("来自本项目默认", "From the project default");
     const foot = S.mode ? "" : isOnce
       ? `<div class="rs-pop-foot"><p>${ic("info")}<span>${L("只用于这一次", "Only for this task")}</span></p><div class="q-row">${personal ? "" : btn({ size: "sm", label: L("设为本项目默认", "Make it the project default"), attrs: act("make-default", "project") })}${btn({ variant: "ghost", size: "sm", label: L("设为我的默认", "Make it my default"), attrs: act("make-default", "mine") })}</div></div>`
-      : `<div class="rs-pop-foot rs-pop-foot--row"><p>${ic("info")}<span>${srcText}</span></p>${btn({ variant: "link", size: "sm", label: L("改默认", "Change default"), attrs: act("mode", personal || stoppedDefault || (!proj && chosen === mine) ? "mine" : "project") })}</div>`;
+      : `<div class="rs-pop-foot rs-pop-foot--row"><p>${ic("info")}<span>${srcText}</span></p>${btn({ variant: "link", size: "sm", label: L("改默认", "Change default"), attrs: act("mode", defaultScope) })}</div>`;
     const pop = S.pop ? `<div class="assistant-popover rs-pop${S.mode ? " is-mode" : ""}" id="assistant-characters" role="group" aria-label="${L("这次由谁来做", "Who does this task")}">${title}${stopNote}<div class="rs-opts">${list}</div>${newRow}${foot}</div>` : "";
     const chip = `<button class="assistant-executor" type="button" data-assistant-character${isOnce ? " data-chosen" : ""} aria-haspopup="true" aria-expanded="${S.pop}" aria-controls="assistant-characters" title="${L("这次由谁来做", "Who does this task")}"${P.attrs(act("pop"))}><span data-assistant-character-label>${chosen ? R(chosen) : L("助理", "Assistant")}</span>${ic("chevron-up")}</button>`;
     const center = `<div class="bar-center rs-island" data-assistant-island>${pop}<form class="assistant-composer bar-composer" aria-label="Molis Work Assistant" onsubmit="return false"><span class="assistant-target"><button class="assistant-target-main" type="button" title="${L("下一次发送给哪项工作", "Where the next message goes")}"><span>${L("新工作", "New work")}</span></button></span>${chip}<input class="assistant-composer-input" type="text" autocomplete="off" value="${L("把这周的三篇稿子过一遍", "Go through this week's three drafts")}" aria-label="${L("发给助理", "Message the Assistant")}"><button class="bar-composer-attach" type="button" aria-label="${L("添加文件、引用或能力", "Add files, references or capabilities")}">${ic("plus")}</button>${btn({ variant: "primary", size: "sm", only: true, icon: "send", label: L("发送", "Send"), attrs: act("send") })}</form></div>`;
@@ -166,7 +171,7 @@
     let value, state = "";
     if (proj === "week") {
       value = select(L("新任务默认", "Default for new tasks"), [["week", L(`${R("week")}（已停用）`, `${R("week")} (turned off)`)], ...opts], "week", "proj-default");
-      state = alert("warning", L(`${q(R("week"))}已停用，新任务现在由${q(R(mine))}（你的默认）来做`, `${q(R("week"))} is turned off; new tasks now go to ${q(R(mine))} (your default)`), L("进行中的照常做完。在上面换一个，或者重新启用它。", "Running ones finish as they are. Pick another above, or turn it back on."), actions(btn({ variant: "ghost", size: "sm", label: L("重新启用", "Turn it back on"), attrs: act("restart-week") })));
+      state = alert("warning", L(`${q(R("week"))}已停用，新任务默认由助理自己做`, `${q(R("week"))} is turned off. The Assistant handles new tasks by default.`), L("进行中的继续用开始时的版本。可以换个默认，也可以重新启用这个角色。", "Running tasks keep the version they started with. Pick another default or turn this role back on."), actions(btn({ variant: "ghost", size: "sm", label: L("重新启用", "Turn it back on"), attrs: act("restart-week") })));
     } else if (proj) {
       value = select(L("新任务默认", "Default for new tasks"), opts, proj, "proj-default") + btn({ variant: "ghost", size: "sm", label: L("恢复沿用", "Use my default again"), attrs: act("proj-inherit") });
     } else value = select(L("新任务默认", "Default for new tasks"), opts, "inherit", "proj-default");
@@ -244,8 +249,9 @@
       const open = S.menu === id;
       const more = off ? "" : `<div class="rs-more">${btn({ variant: "ghost", size: "sm", only: true, icon: "more", label: L(`更多：${R(id)}`, `More: ${R(id)}`), attrs: { ...act("more", id), "aria-haspopup": "menu", "aria-expanded": String(open), "aria-controls": open ? `rs-menu-${id}` : null } })}${open ? `<div class="mw-menu" data-slot="menu" role="menu" id="rs-menu-${id}" aria-label="${L(`${R(id)}的更多操作`, `More for ${R(id)}`)}"><button type="button" class="mw-menu__item" role="menuitem"${P.attrs(act("menu-copy", id))}>${ic("copy")}<span data-slot="menu-item-label">${L("复制成新角色", "Duplicate as a new role")}</span></button><hr><button type="button" class="mw-menu__item" role="menuitem"${P.attrs(act("stop-ask", id))}>${ic("pause")}<span data-slot="menu-item-label">${L("停用…", "Turn off…")}</span></button></div>` : ""}</div>`;
       const end = off ? setState("warning", L("已停用", "Turned off")) + btn({ variant: "ghost", size: "sm", label: L("重新启用", "Turn back on"), aria: L(`重新启用：${R(id)}`, `Turn back on: ${R(id)}`), attrs: act("unstop") }) : "";
-      const facts = id === "rev" ? [[L(`${PROJECT()}的默认`, `${PROJECT()}'s default`), L("新任务改由你的默认（研究员）做", "New tasks go to your default (Researcher)")], [L("进行中的 1 件", "1 running"), L("照常做完", "Finishes as is")], [L("做过的记录和各个版本", "Past records and versions"), L("都留着，可以重新启用", "All kept; you can turn it back on")]]
-        : [[L("跟随它的项目", "Projects following it"), L("新任务改由各自的默认做", "New tasks go to each one's default")], [L("做过的记录和各个版本", "Past records and versions"), L("都留着，可以重新启用", "All kept; you can turn it back on")]];
+      const newTasks = L("新任务默认由助理自己做", "The Assistant handles new tasks by default");
+      const facts = id === "rev" ? [[L(`${PROJECT()}的默认`, `${PROJECT()}'s default`), newTasks], [L("进行中的 1 件", "1 running"), L("继续用开始时的版本", "Keeps the version it started with")], [L("做过的记录和各个版本", "Past records and versions"), L("都留着，可以重新启用", "All kept; you can turn it back on")]]
+        : [[L("以它为默认的项目", "Projects that use it as their default"), newTasks], [L("做过的记录和各个版本", "Past records and versions"), L("都留着，可以重新启用", "All kept; you can turn it back on")]];
       const confirm = S.stopAsk === id ? inset(`<p class="rs-inset__title" id="rs-stop-title" tabindex="-1">${L(`停用${q(R(id))}会怎样`, `What turning off ${q(R(id))} does`)}</p>${facts.map(([n, e]) => `<div class="rs-fact"><span>${n}</span><span class="rr-fact">${e}</span></div>`).join("")}<div class="q-row rs-inset__end">${btn({ variant: "ghost", size: "sm", label: L("取消", "Cancel"), attrs: act("stop-cancel", id) })}${btn({ variant: "primary", size: "sm", label: L("停用", "Turn off"), aria: L(`停用：${R(id)}`, `Turn off: ${R(id)}`), attrs: act("stop-do", id) })}</div>`, "rs-inset--confirm", { by: "rs-stop-title" }) : "";
       return `<div class="settings-setting-row rs-member${S.done.flash === id ? " is-flash" : ""}" id="rs-row-${id}" tabindex="-1" aria-labelledby="rs-name-${id}"><div class="settings-record-title">${face(id)}<div><h3 id="rs-name-${id}">${R(id)}${id === mine ? ` ${badge("neutral", L("我的默认", "My default"))}` : ""}</h3><p>${cap}</p></div></div><div class="setting-value">${end}${btn({ size: "sm", label: L("调整", "Adjust"), aria: L(`调整：${R(id)}`, `Adjust: ${R(id)}`), attrs: act("drawer", id) })}${more}</div></div>${confirm}`;
     };

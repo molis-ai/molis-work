@@ -28,7 +28,7 @@
 - [方案 C](../../docs/design/appearance-selection/README.md) 已确认。把 `look-card`、`look-proof`、`look-fade` 从 Design System 的 `catalog-appearance` 标本提成组件板与产品共用的实件，产品接 [`settings-appearance.ts`](../../apps/workbench/src/settings-appearance.ts) 及现有设置目录。卡片选候选，样张在自己作用域准备外观，窄屏用 Sheet；「用上」才提交。在用状态、加载、失败和冲突在原位可见。明确固定字体换肤时保留，用户可选改用推荐；等宽独立。另一窗口有新修订时保留候选和样张，显示新正式选择，「仍然用上」以用户看到的新修订重新提交。恢复入口用固定内置投影，可从设置外或 Mac 菜单进入，经同一 apply/undo；不要依赖可能失效的当前样式。淡入沿标本的动效变量与减少动态效果规则，变更提交与反馈不等待动画。
 - 当前只有账号等专用事件流，没有可直接复用的外观 SSE。复用现有同源、当前 Home 会话及关闭/退订做法，增加每个文档至多一个 Home 外观失效订阅（拟 `GET /api/ui/appearance/events`），消息仅携带 `selection_revision`。发起者直接消费提交结果，其余文档失效后合并重读一次；重新连接或从隐藏恢复时以当前 owner 投影为准，切 Home 释放旧连接。每个文档独立准备并更新展示，未能应用的保留最后可用组合、显示原因并原地重试。文档重试只读 Home。无需全窗确认、持久事件表或轮询。文档更新成功后才登记/发 `molis-work:ui-environment-changed`，载荷为当前快照修订和实际改变的维度，首个监听者用来重测终端，不重启会话。B 先用既有绑定端口发 `environment` 的快照/样式部分，C 再接词包和双份文档。
 
-B 先用真实工作台、Issues 侧栏的现有插件 frame 与 Builder 候选板走通外观链。B 的文字仍走现有入口。组件元数据从 `PLUGIN_COMPONENTS` 搬到共同规格，由真实实现提供 kind 绑定，标准板和 Builder 用同一个投影。Folio 正式视觉沿 2026-11-08 确认的「杏纸与常青」（grove）。定样指导实现，真实工作台的浅深色和交互仍按 FSS-02/17 验收。Resource Han Rounded v1.910、Nunito 的生产裁法、实际加载与资源增长许可另取证。
+B 先用真实工作台、Issues 侧栏的现有插件 frame 与 Builder 候选板走通外观链。用户 2026-11-08 已确认本会话展示的真实隔离工作台视觉与交互定样，按此方向继续；工程、资源与尚未实操的入口仍分别验收，不将该确认计作 C 段或整批完成。B 的文字仍走现有入口。组件元数据从 `PLUGIN_COMPONENTS` 搬到共同规格，由真实实现提供 kind 绑定，标准板和 Builder 用同一个投影。Folio 正式视觉沿 2026-11-08 确认的「杏纸与常青」（grove）。定样指导实现，真实工作台的浅深色和交互仍按 FSS-02/17 验收。Resource Han Rounded v1.910、Nunito 的生产裁法、实际加载与资源增长许可另取证。
 
 ## C 段　一次更换运行中的文字入口
 

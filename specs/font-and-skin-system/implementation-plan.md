@@ -427,9 +427,9 @@ Host 尚未启动时，原生启动/恢复提示读取随发行物从同一 owne
 | Builder/助理 | 实际 Skill/Prompt 版本进入模型请求，生成语义/消息资源，新增及已安装渲染同源；未验证不能报告成功（FSS-10/11/21/22/29/30） |
 | 发行物/作者 | 干净安装资源/Skill 可读、手册真实插件、跨 Home 导入；发布转换保留业务并拒绝无发布权限/签名篡改，renderer 升级不复用旧必要校验；不以源文件存在自证（FSS-09/10/15/25/29/31） |
 
-未来改到 contracts/SDK、装配与多个包需完成共享核心全量；先整体构建，再跑定向与全量，期间不改源码/skills，不并发构建或浏览器批次。失败按 [并行开发规则](../../docs/system/PARALLEL-DEVELOPMENT.md) 用干净基线比对。
+改到 contracts/SDK、装配与多个包需完成共享核心全量。第 16 批先在最终候选整体构建，本机经机器槽以 `--jobs 1` 跑定向验证，Full 按 [并行开发规则 §5.1](../../docs/system/PARALLEL-DEVELOPMENT.md#51-子代理与并发的-agent) 交统筹安排 CI；不将受影响用例的大清单当成本机全量。验证同一工作树期间不改源码/skills、不并发构建；失败按同一规则用干净基线比对。
 
-下列为未来实现时的检查，不在本轮运行：
+下列列出实现阶段的检查入口，按对应批次和现有授权执行；本机运行方式、真实模型及原生实操边界见 [第 16 批开工前检查](bc-preflight.md)：
 
 ```sh
 pnpm build
@@ -440,11 +440,11 @@ node scripts/check-health-gates.mjs --base origin/main
 pnpm test:contracts
 pnpm test:security
 pnpm page-assets:check
-node scripts/run-tests.mjs tests/primitives.test.ts tests/visual-foundation.test.ts tests/i18n.test.ts tests/translation-check.test.ts tests/assistant-methods.test.ts tests/agent-built-plugins-components.test.ts tests/plugin-sample.e2e.test.ts tests/ui-client-lifecycle.e2e.test.ts
+node scripts/machine-slot.mjs run browser --label "16 focused verification" -- node scripts/run-tests.mjs --jobs 1 tests/primitives.test.ts tests/visual-foundation.test.ts tests/i18n.test.ts tests/translation-check.test.ts tests/assistant-methods.test.ts tests/agent-built-plugins-components.test.ts tests/plugin-sample.e2e.test.ts tests/ui-client-lifecycle.e2e.test.ts
 pnpm studio:replay
 pnpm studio:replay smoke
 ```
 
 API/动作快照只为有意的合同变化刷新，不刷新健康阈值求绿。页面资源预算需符合 §12.2 后再跑；Builder 章节/设计校验变更须离线 replay 加隔离 Home smoke，Mock/录制数据只证明相应局部。实际产品、真实模型和视觉验收仍按需求书分别留证。
 
-本轮交付仅为方案文档；上述代码改造、迁移、依赖引入、浏览器实操、真实模型、构建与产品测试均未执行。
+第 16 批已进入 B/C 实施，阶段构建、定向工程验证及 B2 真实浏览器定样分别留有证据；它们不代表 C 段全部入口、最终整批回归、真实模型或原生实操已通过。D/E 段及真实 Home 维护仍按各自批次与授权执行。

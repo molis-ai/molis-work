@@ -1,3 +1,4 @@
+import { noticeText, savedText } from "./fixtures/assistant-saved-text.js";
 import assert from "node:assert/strict";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import test from "node:test";
@@ -80,7 +81,7 @@ test("a standing request is kept by Prologue's durable queue: it runs once per d
     const missed = await until(() => service.followUps.list(sent.work.work_id)[0]!.last?.outcome === "missed" ? service.followUps.list(sent.work.work_id)[0] : undefined, "missed");
     assert.equal(requests.length, before, "a missed time starts nothing late");
     assert.equal((await service.read(sent.work.work_id)).rounds.length, 2);
-    assert.match(service.notices.notices(null).find(notice => notice.work_id === sent.work.work_id && /错过/.test(notice.text))!.text, /错过了「每天六点汇总」/);
+    assert.match(noticeText(service.notices.notices(null).find(notice => notice.work_id === sent.work.work_id && /错过/.test(noticeText(notice)))!), /错过了「每天六点汇总」/);
     assert.ok(Date.parse(missed!.next_at!) > Date.now(), "the next time is in the future");
     await assert.rejects(service.followUps.save({ work_id: sent.work.work_id, text: "x", at: "2026-09-01T00:00:00.000Z", label: "过去" }), /之后/);
 
@@ -167,7 +168,7 @@ test("archiving a work puts its timed rounds away: queued times are cancelled, a
     const archived = await service.archive(workId, true);
     assert.equal(archived.archived, true);
     const away = service.followUps.list(workId)[0]!;
-    assert.deepEqual([away.enabled, away.next_at ?? null, away.last?.outcome, away.last?.detail], [false, null, "skipped", "这项工作已归档，定时已停用"]);
+    assert.deepEqual([away.enabled, away.next_at ?? null, away.last?.outcome, savedText(away.last?.detail)], [false, null, "skipped", "这项工作已归档，定时已停用"]);
     assert.equal(schedule.find(key)?.state, "cancelled");
     await assert.rejects(service.followUps.save({ work_id: workId, text: "x", at: new Date(Date.now() + 60_000).toISOString(), label: "归档后" }), (error: unknown) => error instanceof ActionError && error.code === "assistant.state" && error.kind === "conflict");
 

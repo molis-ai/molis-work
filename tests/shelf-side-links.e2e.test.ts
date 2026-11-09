@@ -67,7 +67,7 @@ test("SHELF-LINK-01 SHELF-LINK-02 SHELF-LINK-03 a stored link, search hit and no
   const seeded = (() => {
     const db = openHomeSqliteDatabase(homeDirectory, ASSISTANT_STORE_NAME);
     try {
-      return new AssistantStore(db).raiseNotice(LOCAL_PERSON_ACTOR_ID, { kind: "reminder", work_id: "", work_title: "Shelf", text: `提醒（Shelf · 09:00）：${item.name}`,
+      return new AssistantStore(db).raiseNotice(LOCAL_PERSON_ACTOR_ID, { kind: "reminder", work_id: "", work_title: "Shelf", text: { original: `提醒（Shelf · 09:00）：${item.name}` },
         open: { surface: "shelf", id: item.item_id, title: item.name, project_id: projectId } }, dedupe);
     } finally { db.close(); }
   })();

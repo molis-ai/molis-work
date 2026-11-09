@@ -6,7 +6,7 @@ import { ASSISTANT_FOLLOW_FACTORY_SCRIPT } from "./assistant-follow.js";
 import { ASSISTANT_STEP_ROW_FACTORY_SCRIPT } from "./assistant-step-row.js";
 import type { AssistantPendingReview, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import { ARTIFACT_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import { renderAssistantTextHtml, renderAssistantReviewHtml, renderAssistantNoticeText } from "../../assistant-text-html.js";
+import { renderAssistantTextHtml, renderAssistantReviewHtml, renderAssistantNoticeText, renderAssistantSavedText } from "../../assistant-text-html.js";
 import { ASSISTANT_CHOOSERS_PART } from "./assistant-choosers.js";
 import { ASSISTANT_BROWSER_HANDBACK_PART } from "./assistant-browser-handback.js";
 import { ASSISTANT_LAYOUT_PART } from "./assistant-layout.js";
@@ -37,7 +37,8 @@ export const assistantReviewHtml = (review: AssistantPendingReview, say: (text: 
  * Notes kept out of the served script (a comment in it is bytes the browser downloads and never runs). `namedObject`: A name in 「…」 that this work knows (one of its objects) opens where it lives: the answer points at the thing itself. `list items`: A model sometimes drops the space after a list's dash on one line (“-30 分钟” among “- 60 分钟”): beside a real item, it is one too. `ownStop`: A round the runtime stopped on its own (a guard, a breaker) says why in its own words; one the person stopped says so. `notices`: What needs the person first; news about a work (done, a result, new material) folds below — it also shows on the work. `reminder open`: A reminder opens its item where it lives: here when it is this page's project, otherwise on its own project's page. `pane switcher`: Split into panes, the switcher names each one: the page being worked on is the focused pane, not all of them run together. `delegated Send`: A delegated Send reuses its message id, so the same message twice starts one work. Its words are the page's: pageText marks them. `retried Send`: A Send whose outcome is unknown (the connection dropped) is retried with the same id, so the Host starts nothing twice. `project`: The project the next new work belongs to. The project list changes it as the person looks from one project to another. `searchKey`: Search opens with ⌘K (Ctrl K elsewhere); a touch screen has no key to name. `answer busy`: While a question's answer is on its way its button shows the shared loading mark, and ⌘↵ (or a closed card with no button) sends nothing.
  */
 export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
-  const L = host.translate, noticeText = (notice) => (${renderAssistantNoticeText.toString()})(notice, L);
+  const L = host.translate, savedAssistantText = (${renderAssistantSavedText.toString()});
+  const noticeText = (notice) => (${renderAssistantNoticeText.toString()})(notice, globalThis.say.text, savedAssistantText);
   const island = document.querySelector("[data-assistant-island]");
   if (!island) return null;
   const panel = island.querySelector("[data-assistant-panel]");

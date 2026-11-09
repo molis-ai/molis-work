@@ -12,6 +12,7 @@ import { identity } from "./assistant-relations.js";
 import { memoryLearningSources } from "./assistant-inputs.js";
 import { RUNTIME, type AssistantServicePorts } from "./assistant-service-shared.js";
 import type { AssistantWorkReads } from "./assistant-work-reads.js";
+import { assistantWords } from "./assistant-saved-text.js";
 
 /** The rule that holds a notice of this kind on this surface now, if any. Rules apply exactly as written. */
 export function holdingRule(rules: readonly AssistantRule[], kind: AssistantNoticeKind, surface: string | null): AssistantRule | undefined {
@@ -41,13 +42,14 @@ export class AssistantNotices {
     if (!["waiting-input", "waiting-review"].includes(state)) this.store.settleNotices(this.actorId, { work_id: work.work_id, kinds: ["needs-decision"] }, "resolved");
     if (state === "running") this.store.settleNotices(this.actorId, { work_id: work.work_id, kinds: ["failed", "completed"] }, "resolved");
     const round = this.store.rounds(work.work_id).at(-1)?.run_id ?? "none";
-    const raise = (kind: AssistantNoticeKind, text: string) => this.store.raiseNotice(this.actorId, { kind, work_id: work.work_id, work_title: work.title, text }, `${work.work_id}:${round}:${kind}:${state}`);
+    const raise = (kind: AssistantNoticeKind, key: `workbench.assistant-notice.${string}`) =>
+      this.store.raiseNotice(this.actorId, { kind, work_id: work.work_id, work_title: work.title, text: assistantWords(key, { title: work.title }) }, `${work.work_id}:${round}:${kind}:${state}`);
     // A delegated work reports to the work that asked for it; only what the person must decide reaches them directly.
     if (work.delegated_by && state !== "waiting-review" && state !== "waiting-input") return;
-    if (state === "failed") raise("failed", `「${work.title}」这一轮没有完成，打开看看原因`);
-    else if (state === "waiting-review") raise("needs-decision", `「${work.title}」在等你确认一项修改`);
-    else if (state === "waiting-input") raise("needs-decision", `「${work.title}」在等你回答一个问题`);
-    else if (state === "completed" && ["running", "paused", "waiting-input", "waiting-review"].includes(before)) raise("completed", `「${work.title}」做完了`);
+    if (state === "failed") raise("failed", "workbench.assistant-notice.failed");
+    else if (state === "waiting-review") raise("needs-decision", "workbench.assistant-notice.waiting-review");
+    else if (state === "waiting-input") raise("needs-decision", "workbench.assistant-notice.waiting-input");
+    else if (state === "completed" && ["running", "paused", "waiting-input", "waiting-review"].includes(before)) raise("completed", "workbench.assistant-notice.completed");
     // What the person said in this work may hold a standing wish worth keeping: the platform memory decides (a sub-task's
     // words are the delegating work's, not the person's, so it never learns from those).
     if (state === "completed" && before !== "completed" && !work.delegated_by && round !== "none")
@@ -71,7 +73,7 @@ export class AssistantNotices {
       }
       const { state: _state, ...view } = notice;
       const count = notice.kind === "material" ? open.filter(item => item.kind === "material" && item.work_id === notice.work_id && Date.parse(item.created_at) >= stale).length : 1;
-      const shown = count > 1 ? { ...view, text: `${view.text}（另有 ${count - 1} 条）` } : view;
+      const shown = count > 1 ? { ...view, additional_count: count - 1 } : view;
       const rule = holdingRule(rules, notice.kind, surface);
       return [rule ? { ...shown, held: { rule_id: rule.rule_id, reason: rule.label } } : shown];
     });

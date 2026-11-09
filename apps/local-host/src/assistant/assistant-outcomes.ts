@@ -1,3 +1,4 @@
+import { assistantWords } from "./assistant-saved-text.js";
 import { isDeepStrictEqual } from "node:util";
 import { recordAssistantResultCard } from "./assistant-result-card.js";
 import { isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -104,7 +105,8 @@ export class AssistantOutcomes {
     const kind = text(object?.kind), id = text(object?.id), from = text(source?.title) ?? text(source?.surface);
     if (!kind || !id || !from) throw assistantErrors.invalid("交回的结果要说明对象种类、标识和来自哪里");
     this.store.relations.link(identity(work), "result", { kind, id, revision: revisionOf(typeof object?.version === "number" || typeof object?.version === "string" ? object.version : undefined) }, `${from} 交回`);
-    this.store.raiseNotice(this.actorId, { kind: "result", work_id: work.work_id, work_title: work.title, text: `${from} 把结果交回了「${work.title}」` }, `${work.work_id}:result:${kind}:${id}:${String(object?.version ?? "")}`);
+    this.store.raiseNotice(this.actorId, { kind: "result", work_id: work.work_id, work_title: work.title,
+      text: assistantWords("workbench.assistant-notice.result", { from, title: work.title }) }, `${work.work_id}:result:${kind}:${id}:${String(object?.version ?? "")}`);
     return this.link.read(workId);
   }
 

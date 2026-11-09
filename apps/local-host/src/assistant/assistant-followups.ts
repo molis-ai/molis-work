@@ -4,8 +4,10 @@ import type { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentScheduleCapability, AgentScheduledTask } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { DUE_REMINDERS_INPUT_TYPE, DUE_REMINDERS_OUTPUT_TYPE, type ActionView, type DueReminderCollection, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { AssistantFollowUp, AssistantNotice, AssistantNoticeKind, AssistantRule, AssistantRuleInput, AssistantWorkState } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { AssistantFollowUp, AssistantNotice, AssistantNoticeKind, AssistantRule, AssistantRuleInput, AssistantSavedText, AssistantWorkState } from "@molis-ai/molis-work-contracts/services/assistant";
+import { dateArg } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { assistantErrors, whenThere } from "./assistant-errors.js";
+import { assistantWords } from "./assistant-saved-text.js";
 import { repeatingFailure } from "../host-log.js";
 
 /**
@@ -149,7 +151,7 @@ export class AssistantFollowUps<W extends FollowUpWork> {
     const { ports } = this, schedule = await ports.schedule().catch(() => null), at = ports.now().toISOString();
     for (const { next_at, ...rest } of this.list(workId).filter(item => item.enabled)) {
       if (next_at) await schedule?.cancel(followUpTask({ ...rest, next_at }, "").key).catch(() => null);
-      ports.records.save(ports.actorId, { ...rest, enabled: false, last: { due_at: next_at ?? at, at, outcome: "skipped", detail: "这项工作已归档，定时已停用" } });
+      ports.records.save(ports.actorId, { ...rest, enabled: false, last: { due_at: next_at ?? at, at, outcome: "skipped", detail: assistantWords("workbench.assistant-followup.archived") } });
     }
   }
 
@@ -209,27 +211,27 @@ export class AssistantFollowUps<W extends FollowUpWork> {
     const { ports } = this, current = () => this.#isCurrent(followUp);
     if (!current()) return;
     const now = ports.now(), due = followUp.next_at!;
-    let outcome: NonNullable<AssistantFollowUp["last"]>["outcome"] = "started", detail: string | undefined;
+    let outcome: NonNullable<AssistantFollowUp["last"]>["outcome"] = "started", detail: AssistantSavedText | undefined;
     // Gone is said so. A store that cannot be read writes nothing to the follow-up: it is written to the Host log (once, the same key as at
     // start) and thrown, so the queue keeps this time failed and the next start decides it again by the same grace rule.
     let work: W | undefined;
     try { work = whenThere(() => ports.work(followUp.work_id)) ?? undefined; this.#unreadableWorks.worked(followUp.followup_id); }
     catch (error) { this.#unreadableWorks.failed(followUp.followup_id, error, { followup_id: followUp.followup_id }); throw error; }
-    if (!work) { outcome = "failed"; detail = "这项工作已不存在"; }
-    else if (work.archived) { outcome = "skipped"; detail = "这项工作已归档，这一次没有开始"; }
+    if (!work) { outcome = "failed"; detail = assistantWords("workbench.assistant-followup.missing"); }
+    else if (work.archived) { outcome = "skipped"; detail = assistantWords("workbench.assistant-followup.archived-skip"); }
     else if (work && now.getTime() - Date.parse(due) > FOLLOW_UP_GRACE_MS) {
-      outcome = "missed"; detail = "当时 Molis Work 没有在运行，没有补做";
+      outcome = "missed"; detail = assistantWords("workbench.assistant-followup.missed");
       ports.notify({ kind: "failed", work_id: work.work_id, work_title: work.title,
-        text: `错过了「${followUp.label}」（原定 ${new Date(due).toLocaleString("zh-CN", { timeZone: followUp.time_zone })}）：当时 Molis Work 没有在运行，没有补做` }, `followup:${followUp.followup_id}:${due}:missed`);
+        text: assistantWords("workbench.assistant-notice.followup-missed", { label: followUp.label, at: dateArg(due, "datetime", { time_zone: followUp.time_zone }) }) }, `followup:${followUp.followup_id}:${due}:missed`);
     } else if (work) {
       const host = await ports.host();
       if (!current()) return;
       const state = await ports.state(host, work);
       if (!current()) return;
-      if (["running", "paused", "waiting-input", "waiting-review"].includes(state)) { outcome = "skipped"; detail = "上一轮还没结束，这一次没有开始"; }
+      if (["running", "paused", "waiting-input", "waiting-review"].includes(state)) { outcome = "skipped"; detail = assistantWords("workbench.assistant-followup.busy"); }
       else {
         try { await ports.send(work, `（按你的定时安排「${followUp.label}」）${followUp.text}`, `fu-${followUp.followup_id}-${Date.parse(due)}`, current); }
-        catch (error) { outcome = "failed"; detail = error instanceof Error ? error.message : String(error); }
+        catch (error) { outcome = "failed"; detail = { original: error instanceof Error ? error.message : String(error) }; }
       }
     }
     if (!current()) return;
@@ -259,6 +261,7 @@ export class AssistantFollowUps<W extends FollowUpWork> {
       const actions = await ports.homeActions();
       const providers = (await actions.discover()).filter(view => view.action.input_type === DUE_REMINDERS_INPUT_TYPE && view.action.output_type === DUE_REMINDERS_OUTPUT_TYPE && view.availability.available);
       let raised = 0, missed = false;
+      const time_zone = ports.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
       for (const provider of providers) {
         let collection: DueReminderCollection;
         try { collection = await actions.invoke({ capability_id: provider.capability_id, version: provider.version, provider_id: provider.provider.provider_id }, window) as DueReminderCollection; }
@@ -268,10 +271,10 @@ export class AssistantFollowUps<W extends FollowUpWork> {
           const due = Date.parse(reminder.due_at);
           if (!(due >= from.getTime() && due <= now.getTime())) continue;
           const late = now.getTime() - due > REMINDER_LATE_MS;
-          const at = new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false, ...(ports.timeZone ? { timeZone: ports.timeZone } : {}) }).format(new Date(due));
           const told = ports.notify({ kind: "reminder", work_id: "", work_title: collection.source.title,
-            text: `${late ? "错过的提醒" : "提醒"}（${collection.source.title} · ${at}）：${reminder.title.slice(0, 120)}`,
-            ...(reminder.open ? { open: { surface: reminder.open.surface, id: reminder.open.id, title: reminder.title.slice(0, 120), project_id: reminder.project_id } } : {}) },
+            text: assistantWords(late ? "workbench.assistant-notice.reminder-missed" : "workbench.assistant-notice.reminder",
+              { source: collection.source.title, at: dateArg(reminder.due_at, "time", { time_zone }), title: reminder.title }),
+            ...(reminder.open ? { open: { surface: reminder.open.surface, id: reminder.open.id, title: reminder.title, project_id: reminder.project_id } } : {}) },
             `reminder:${provider.provider.provider_id}:${reminder.reminder_id}`);
           if (told) raised += 1;
         }

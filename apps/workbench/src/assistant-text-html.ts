@@ -1,4 +1,5 @@
-import type { AssistantNotice, AssistantPendingReview } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { AssistantNotice, AssistantPendingReview, AssistantSavedText } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { UiSayTool } from "@molis-ai/molis-work-contracts/platform/ui";
 import { assistantCodeHtml, assistantEscape, assistantInlineHtml, assistantListHtml, ASSISTANT_LIST_ITEM, type AssistantTextPorts } from "./assistant-text-parts.js";
 
 /** Assistant-only Markdown projection, with the same block rules as its original browser renderer. */
@@ -77,11 +78,20 @@ export function renderAssistantReviewHtml(review: AssistantPendingReview, ports:
   return html + `<div class="assistant-card-actions"><button class="mw-btn mw-btn--primary mw-btn--sm" type="button" data-assistant-decision="approve">${say("允许执行")}</button><button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-assistant-decision="reject">${say("拒绝")}</button></div><p class="assistant-card-hint">${say("允许只执行这一次；拒绝就不执行，助理会知道你拒绝了。")}</p>`;
 }
 
-/** Saved notice templates use the current UI language; names are filled once as literal text. Self-contained for the client. */
-export function renderAssistantNoticeText(notice: AssistantNotice, say: (key: string, vars?: Record<string, string>) => string): string {
-  // A connection's notice is a template whose one name is the connection's, kept as `work_title` (ASC-58).
-  if (notice.kind === "connection") return say(notice.text, { name: notice.work_title });
-  if (notice.kind !== "directory-read") return notice.text;
-  const params = notice.text_params;
-  return params ? say(notice.text, { ...params, origin: say(params.origin) }) : say("目录读取通知的数据不完整。");
+/** Plain text, drawn by the SDK only for the Host-owned label. The owner's original can be arbitrarily long. */
+export function renderAssistantSavedText(text: AssistantSavedText, read: UiSayTool["text"]): string {
+  return "original" in text ? text.label ? read(text.label) + "\n" + text.original : text.original : read(text);
+}
+
+/** The stored owner and facts are the same in any language. Self-contained with the saved text reader for the browser. */
+export function renderAssistantNoticeText(notice: AssistantNotice, read: UiSayTool["text"], saved = renderAssistantSavedText): string {
+  const { text, directory_origin: origin, additional_count: count } = notice;
+  if (notice.kind === "directory-read") {
+    if (!origin || !["person", "agent", "workflow", "mcp", "background"].includes(origin) || "original" in text)
+      return read({ owner: "workbench", key: "workbench.assistant-directory.invalid" });
+    return read({ ...text, key: `${text.key}-${origin}` });
+  }
+  if (notice.kind === "material" && count && count > 0 && "key" in text)
+    return read({ ...text, key: text.key + "-more", args: [...(text.args ?? []), { name: "count", kind: "number", number: count }] });
+  return saved(text, read);
 }

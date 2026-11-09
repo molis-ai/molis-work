@@ -52,7 +52,11 @@
     "workbench.env.title": "语言与文字",
     "workbench.env.when": "时间",
     "workbench.font.system-sans": "系统无衬线",
+    "workbench.presentation.declared": "已声明",
+    "workbench.presentation.example": "示例数据",
     "workbench.presentation.forms": "呈现形态",
+    "workbench.presentation.missing": "缺对象呈现",
+    "workbench.presentation.plugins": "内置插件的对象呈现",
     "workbench.presentation.retry": "查看重试详情",
     "workbench.presentation.send": "查看发送内容",
     "workbench.skin.soft-workbench": "柔和工作台"

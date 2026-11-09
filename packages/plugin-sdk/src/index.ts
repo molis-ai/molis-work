@@ -58,6 +58,11 @@ export { actionErrorKind, actionHttpStatus, actionErrorBody, actionErrorResponse
 export { defineSubjectContextAction, subjectContext, resolveActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineSubjectOffersAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineActionUsagesAction, referencesAction, type ActionUsage, type ActionUsagesInput } from "@molis-ai/molis-work-contracts/platform/actions";
+/** Reporting what your plugin's pack holds on the AI kit page (能力包): its prompts, roles and MCP, found by type, stamped as yours by the Host. */
+export { defineKitReportAction, KIT_KINDS, KIT_TOOL_ORIGINS } from "@molis-ai/molis-work-contracts/platform/kit-report";
+export type {
+  KitAvailability, KitDeclared, KitKind, KitManageLink, KitMcpRef, KitMcpState, KitReport, KitReportInput, KitReportedEntry, KitRoleRef, KitToolOrigin, KitUsage, KitVersion,
+} from "@molis-ai/molis-work-contracts/platform/kit-report";
 export type { SubjectOffersInput, SubjectActionOffer, SubjectOfferChoice } from "@molis-ai/molis-work-contracts/platform/actions";
 /** Putting what the person has in hand somewhere: declare `intake` (this command creates an Item) or `attach` (it adds to one) on the command itself. */
 export type { ActionIntake, ActionAttach, ItemAttachPosition } from "@molis-ai/molis-work-contracts/platform/actions";

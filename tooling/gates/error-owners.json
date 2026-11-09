@@ -217,6 +217,15 @@
       ],
       "reason": "The action kernel: kernel.* for its own failures (the runtime-identity code mcp.runtime_identity_missing becomes kernel.runtime_identity_missing)."
     },
+    "kit": {
+      "paths": [
+        "packages/contracts/src/platform/kit-report.ts",
+        "packages/contracts/src/services/kit.ts",
+        "horizontal/kit/",
+        "apps/local-host/src/kit-actions.ts"
+      ],
+      "reason": "The AI kit (specs/capability-pack/contract-design.md §4, D-4): the report protocol, the kit.catalog.list contract, the gatherer horizontal and its Host wiring; its codes are kit.* like its action ids."
+    },
     "knowledge": {
       "paths": [
         "horizontal/knowledge/",

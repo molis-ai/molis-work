@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import type { ActionDefinition, ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionReachesAudience, type ActionDefinition, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   HOME_PAGE_CONTENT_TYPE, homePageActions, type HomePageApprovalReceipt, type HomePageDraft, type HomePageDraftAdoptionResult,
   type HomePageFile, type HomePageReadInput, type HomePageReadResult, type HomePageVersion,
@@ -41,6 +41,7 @@ test("SPC-C06: save separates new drafts, observed versions, and a closed conten
     selection: { kind: "create" }, body: draft };
   assert.equal(HOME_PAGE_CONTENT_TYPE, "molis.home-page.v1");
   assert.deepEqual(saveDraft.action.audiences, ["user", "agent"]);
+  assert.equal(actionReachesAudience(saveDraft.action, saveDraft.capability_id, "plugin"), false);
   assertActionInput(schema, { draft });
   assertActionInput(schema, { draft, page_id: page.page_id, expected_version: 1, based_on: 1 });
   assertActionInput(schema, adopt);
@@ -60,8 +61,9 @@ test("SPC-C06: save separates new drafts, observed versions, and a closed conten
   assert.equal(validate({ ...adoption, approval: approval.approval }), false);
 });
 
-test("SPC-C06/C07: readback separates draft adoption, approval and current selection", () => {
+test("SPC-C06/SPC-C07: readback separates draft adoption, approval and current selection", () => {
   const { read } = homePageActions;
+  assert.equal(actionReachesAudience(read.action, read.capability_id, "plugin"), true);
   const current = { selection: { kind: "basic" }, revision: "home-13" } as const;
   const input: HomePageReadInput = { queries: [
     { by: "request", operation: "adopt", request_id: "adopt-scene:home" },

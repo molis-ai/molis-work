@@ -195,6 +195,7 @@ function homeAction<Input, Output>(capability_id: string, actionVersion: number,
   return { capability_id, version: actionVersion, operation, action: {
     title, description, audiences, input_schema, output_schema, scope: "project", subject_kinds: [],
     kind: operation === "query" ? "query" : "operation", effect: operation === "query" ? "read" : "write",
+    ...(audiences.includes("agent") && !audiences.includes("plugin") ? { plugin: false as const } : {}),
     permissions: [operation === "query" ? "home:read" : "home:write"],
   } };
 }

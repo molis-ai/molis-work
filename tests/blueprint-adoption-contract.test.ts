@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import type { ActionDefinition, ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionReachesAudience, type ActionDefinition, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   CONTENT_ADOPTION_RESULT_SCHEMA, CONTENT_ADOPTION_REVERT_INPUT_SCHEMA, CONTENT_ADOPTION_REVERT_RESULT_SCHEMA,
   contentAdoptionInputSchema, contentAdoptionReadInputSchema, contentAdoptionReadOutputSchema,
@@ -44,10 +44,13 @@ function validateResult(action: ActionDefinition): ReturnType<typeof compileActi
   return compileActionSchema(action.action.output_schema);
 }
 
-test("SPC-C03/C07: draft and pack actions wrap the Blueprint body and preserve the selected revision", () => {
+test("SPC-C03/SPC-C07: draft and pack actions wrap the Blueprint body and preserve the selected revision", () => {
   const { draftSave, draftRead, packSave } = blueprintActions;
   assert.deepEqual(draftSave.action.audiences, ["user", "agent"]);
   assert.deepEqual(draftRead.action.audiences, ["user", "agent"]);
+  for (const definition of [draftSave, draftRead]) {
+    assert.equal(actionReachesAudience(definition.action, definition.capability_id, "plugin"), false);
+  }
   assert.deepEqual(packSave.action.audiences, ["user"]);
   assertActionInput(draftSave.action.input_schema, { expected_revision: null, blueprint: body });
   assertActionInput(draftSave.action.input_schema, { draft_id: source.draft_id, expected_revision: 3, blueprint: body });

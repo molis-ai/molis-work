@@ -283,6 +283,7 @@ function blueprintAction<Input, Output>(capability_id: string, actionVersion: nu
   return { capability_id, version: actionVersion, operation, action: {
     title, description, audiences, input_schema, output_schema, scope: "home", permissions: [], subject_kinds: [],
     kind: operation === "query" ? "query" : "operation", effect: operation === "query" ? "read" : "write",
+    ...(audiences.includes("agent") && !audiences.includes("plugin") ? { plugin: false as const } : {}),
     ...(concurrent ? { scheduling: "concurrent" } : {}),
   } };
 }

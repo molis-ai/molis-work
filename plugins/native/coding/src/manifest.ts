@@ -55,7 +55,6 @@ export const codingManifest: PluginManifest = {
   sync: codingSync,
   summary: "和 Agent 一起写代码，留每轮记录。",
   kind: "app",
-  // Both development lines (1.30–1.32 on main, 1.31–1.44 on the Coding goal branch) continue here without migration.
   publisher: { publisher_id: "molis", signature: "official-coding-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [

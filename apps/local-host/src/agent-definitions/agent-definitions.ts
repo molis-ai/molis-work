@@ -96,14 +96,14 @@ export class AgentDefinitions {
     this.refreshOwner(ownerId);
   }
 
-  /** Settings show one editable key; execution resolves the calling installation's declaration separately. */
+  /** Settings share one editable key across installations. Execution resolves the calling installation's declaration. */
   private refreshOwner(ownerId: string): void {
     const declarations = [...(this.scopes.get(ownerId)?.values() ?? [])];
     if (!declarations.length) { this.scopes.delete(ownerId); this.owners.delete(ownerId); return; }
     const enabled = declarations.filter(owner => owner.source.kind !== "plugin" || owner.source.state === "enabled");
     const preferred = enabled.length ? enabled : declarations;
     const prompts = new Map<string, AgentPromptRegistration>();
-    // Keep older-only prompts editable too; an enabled declaration takes precedence over a disabled one.
+    // Keep prompts unique to any declaration editable. Enabled declarations take precedence on shared IDs.
     for (const group of [declarations, preferred]) {
       const selected = new Map<string, AgentPromptRegistration>();
       for (const owner of group) for (const prompt of owner.prompts) {

@@ -1,6 +1,6 @@
 # Plugin 开发与打包命令
 
-给 Plugin 作者提供 validate、create、pack、pack-sandbox、pack-content、identity、sign 和 verify 命令，并通过 Host 接入本地开发验证。
+给 Plugin 作者提供 validate、create、pack、pack-sandbox、pack-content、pack-bundled、identity、sign 和 verify 命令，并通过 Host 接入本地开发验证。
 
 包名：`@molis-ai/molis-work-plugin-cli`。工作区内部包，通过仓库构建和 Host 装配使用。
 
@@ -65,6 +65,10 @@ node tooling/plugin-cli/dist/main.js validate examples/plugin-sample/manifest.js
 `pack-content <skills-directory> <output.json>` 把一个目录下的各个技能目录（每个是 `<skill_id>/SKILL.md`，附带文件只能放在 `references/`、`scripts/`、`assets/` 下）打成只有声明的插件（`kind: "content"`）的未签名内容包。必填 `--plugin-id`、`--name`、`--version`、`--publisher-id`、`--publisher-key-id`；范围用 `--scope project|home`（默认 project），可选逗号分隔的 `--compatible-from`。每个技能的声明从 `SKILL.md` 的 frontmatter 读（SDK 的 `skillDeclarationFromFrontmatter`：只认下划线写法的键，`argument-hint` 一类带连字符的写法点名拒绝；多行值拒绝；`description`、`applies_to` 必填），资源的大小与 SHA-256 由命令算出；Manifest 由 SDK 的 `skillFromFolder` / `contentPackagePayload` 生成，与宿主「从本机导入技能」是同一个打包函数。
 
 符号链接、既不是文件也不是目录的条目、其他位置的文件、超过上限（一个包至多 128 个技能）都拒绝，不写输出、也不悄悄丢掉。输出不能覆盖。随后用既有 `sign`、`verify` 命令签名与核验，再从插件设置安装（`plugins.install.preview`／`confirm`，与别的包同一条路）。
+
+## 随安装包带上的包
+
+`pack-bundled <pack-directory> <output-directory> --publisher-key <private-key.pem>` 打随安装包带上的只有声明的插件（如 `plugins/content/design-accessibility/`）。包目录里是 `skills/` 与 `pack-content.json`（`pack-content` 的参数写成文件：`plugin_id`、`version`、`name`、`publisher_id`，可选 `name_en`、`summary`、`scope`、`compatible_from`、`translations`；多一个键就拒绝）。它用与 `pack-content` 同一个打包函数，同一步签名并自验，写到 `<output-directory>/<plugin_id>.json`，不覆盖。没有 `--publisher-key` 就以 `plugin.publisher_key_missing` 拒绝，不建目录、不写文件：官方发布者密钥与在发版构建里跑这一步归第 26 批（26-1）。宿主从自己构建产物里的 `bundled-plugins/` 读这些包（`plugins.bundled.list@1`），装仍走 `plugins.install.preview`／`confirm`。
 
 ## 开发要求
 

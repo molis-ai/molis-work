@@ -70,6 +70,7 @@ export function composerSender(c: Composer, drafts: ComposerDrafts, sentByKey: (
       c.requestId ||= crypto.randomUUID();
       const text = field.value, materials = attached(c);
       went = { text, items: c.items.slice(), revision: retained.revision() }; retained.remember(went);
+      drafts.stop(); // Flush the submitted edit before subsequent edits acquire their own draft generation.
       c.phase = "sending"; c.close(); c.paint();
       let outcome: ComposerOutcome;
       try { outcome = await options.submit({ text, materials, ...(delivery ? { delivery } : {}), controls: values(), request_id: c.requestId }, signal); }

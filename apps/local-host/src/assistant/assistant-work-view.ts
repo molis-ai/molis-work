@@ -13,7 +13,7 @@ type OptionalOf<T> = { [K in keyof T]-?: {} extends Pick<T, K> ? K : never }[key
 export function workView(work: StoredWork, state: AssistantWorkState, delegated_by: AssistantWork["delegated_by"]): AssistantWork {
   const view: AssistantWork = {
     work_id: work.work_id, executor: work.executor, revision: work.revision, title: work.title, scope: work.scope, origin: work.origin, state,
-    session_id: work.session_id, draft: work.draft, created_at: work.created_at, updated_at: work.updated_at, archived: work.archived,
+    session_id: work.session_id, draft: work.draft, draft_revision: work.draft_revision, created_at: work.created_at, updated_at: work.updated_at, archived: work.archived,
   };
   const optional: { [K in OptionalOf<AssistantWork>]-?: AssistantWork[K] | undefined } = {
     reply_target: work.reply_target, scope_title: work.scope_title, character: work.character, delegated_by, budget_tokens: work.budget_tokens,

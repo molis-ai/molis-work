@@ -106,7 +106,7 @@ test("W2-18-SEND-01: A to B to A before the receipt retains A's later draft on s
     await browser.click(`[data-assistant-tabs] [data-tab="${b}"] .assistant-tab-main`);
     await browser.waitFor("document.querySelector('[data-assistant-thread]').textContent.includes('工作 B')");
     await putInput(browser, "B 自己的 Y");
-    assert.equal((await readWork(browser, a)).work.draft, "", "A's later draft is still intentionally deferred on the Host");
+    await waitWork(browser, a, view => view.work.draft === "A 等回执期间写下的 X");
     // Observe the real list request, so A's local pending draft must also survive a fresh server snapshot while B is current.
     let listRequest = "";
     let stopResponse = () => {}, stopFinished = () => {};
@@ -426,5 +426,152 @@ test("B10-R3: reading a historical send receipt cannot replace an existing work'
     await browser.evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
     await openWork(browser, a); await browser.waitFor("document.querySelector('[data-assistant-composer] textarea').value === 'A 从宿主恢复的新草稿'");
     assert.equal((await readWork(browser, a)).work.draft, 'A 从宿主恢复的新草稿'); assert.equal((await readWork(browser, a)).rounds.length, 2);
+  } finally { await barrier.close(); }
+});
+
+test("B10-R3: a delayed original Send preserves the newer Host draft across a second reload", { timeout: 90_000 }, async t => {
+  const browser = await sendBrowser(t); if (!browser) return;
+  const a = await seedWork(browser, "Persisted draft owner"); await openWork(browser, a);
+  await putInput(browser, "Original delayed content");
+  const before = await waitWork(browser, a, view => view.work.draft === "Original delayed content");
+  let barrier = await sendBarrier(browser, [{ urlPattern: "*/api/assistant/send", requestStage: "Request" }]);
+  try {
+    await browser.click('[data-assistant-composer] [data-composer-send]');
+    const old = await barrier.next(), original = JSON.parse(old.request.postData!);
+    assert.equal(original.draft_revision, before.work.draft_revision);
+    await barrier.drop(old); await browser.waitFor("document.querySelector('[data-composer-status-action=check]')"); await barrier.close();
+    await browser.reloadPage(); await browser.waitFor("document.querySelector('[data-assistant-composer] textarea')"); await openWork(browser, a);
+    await putInput(browser, "New draft already saved on Host");
+    await waitWork(browser, a, view => view.work.draft === "New draft already saved on Host");
+    barrier = await sendBarrier(browser, [{ urlPattern: "*/api/assistant/requests/*", requestStage: "Response" }, { urlPattern: "*/api/assistant/send", requestStage: "Response" }]);
+    await browser.click('[data-assistant-composer] [data-composer-send]'); const check = await barrier.next();
+    assert.ok(check.request.url.endsWith('/requests/' + original.request_id));
+    await browser.evaluate(`void fetch(${JSON.stringify(old.request.url)}, { method: 'POST', headers: molisWorkControlHeaders(), body: ${JSON.stringify(old.request.postData!)} }).then(r => r.json()).then(result => { globalThis.durableOld = result; })`);
+    const late = await barrier.next(); assert.equal(late.responseStatusCode, 200);
+    assert.equal((await readWork(browser, a)).work.draft, "New draft already saved on Host", "the old request cannot replace or clear the newer persisted draft");
+    await barrier.release(late); await browser.waitFor('Boolean(globalThis.durableOld)'); await barrier.release(check);
+    const repeated = await barrier.next(); assert.equal(JSON.parse(repeated.request.postData!).request_id, original.request_id);
+    await barrier.release(repeated); await browser.waitFor("document.querySelector('[data-assistant-composer] .mw-composer[data-state=failed]')");
+    assert.equal(await browser.evaluate("document.querySelector('[data-assistant-composer] textarea').value"), "New draft already saved on Host");
+    const result = await waitWork(browser, a, view => view.work.state === "completed");
+    assert.equal(result.rounds.length, 2); assert.equal(result.rounds.at(-1)?.text, "Original delayed content");
+    assert.equal(browser.model!.requests.length, 2);
+    await barrier.close(); await browser.reloadPage();
+    await browser.waitFor("document.querySelector('[data-assistant-composer] textarea').value === 'New draft already saved on Host'");
+    assert.equal((await readWork(browser, a)).work.draft, "New draft already saved on Host");
+  } finally { await barrier.close(); }
+});
+
+for (const changedMaterials of [false, true]) test(`B10-R3: same-page retry claims the original receipt only for unchanged complete content (${changedMaterials})`, { timeout: 90_000 }, async t => {
+  const browser = await sendBrowser(t); if (!browser) return;
+  await putInput(browser, "Unchanged original text");
+  let barrier = await sendBarrier(browser, [{ urlPattern: "*/api/assistant/send", requestStage: "Request" }]);
+  try {
+    await browser.click('[data-assistant-composer] [data-composer-send]'); const old = await barrier.next(), original = JSON.parse(old.request.postData!);
+    await barrier.drop(old); await browser.waitFor("document.querySelector('[data-composer-status-action=check]')");
+    await browser.click('[data-composer-status-action=check]'); await browser.waitFor("!document.querySelector('[data-composer-status-action=check]')"); await barrier.close();
+    if (changedMaterials) await putInput(browser, "Unchanged original text", "New unsent material");
+    barrier = await sendBarrier(browser, [{ urlPattern: "*/api/assistant/requests/*", requestStage: "Response" }, { urlPattern: "*/api/assistant/send", requestStage: "Response" }]);
+    await browser.evaluate(`void fetch(${JSON.stringify(old.request.url)}, { method: 'POST', headers: molisWorkControlHeaders(), body: ${JSON.stringify(old.request.postData!)} }).then(r => r.json()).then(result => { globalThis.unchangedOld = result; })`);
+    const late = await barrier.next(); assert.equal(late.responseStatusCode, 200); await barrier.release(late); await browser.waitFor('Boolean(globalThis.unchangedOld)');
+    await browser.click('[data-assistant-composer] [data-composer-send]'); const retry = await barrier.next();
+    if (changedMaterials) {
+      assert.ok(retry.request.url.endsWith('/requests/' + original.request_id)); await barrier.release(retry);
+      await browser.waitFor("document.querySelector('[data-assistant-composer] .mw-composer[data-state=failed]')");
+      assert.equal(await browser.evaluate("document.querySelector('[data-assistant-composer] textarea').value"), "Unchanged original text");
+      assert.match(await browser.evaluate<string>("document.querySelector('[data-assistant-context-strip]:not([hidden])').textContent"), /New unsent material/);
+    } else {
+      assert.ok(retry.request.url.endsWith('/send')); const body = JSON.parse(retry.request.postData!);
+      assert.equal(body.request_id, original.request_id); assert.equal(body.submission_id, original.submission_id);
+      await barrier.release(retry); await browser.waitFor("document.querySelector('[data-assistant-composer] textarea').value === ''");
+      assert.equal(await browser.evaluate("document.querySelector('[data-assistant-composer] [data-composer-send]').disabled"), true, "the successful unchanged retry is consumed, so another click cannot repeat it");
+    }
+    const works = await browser.evaluate<Array<{ work_id: string }>>("fetch('/api/assistant/works').then(r => r.json()).then(b => b.works)");
+    assert.equal(works.length, 1); assert.equal((await waitWork(browser, works[0]!.work_id, view => view.work.state === "completed")).rounds.length, 1);
+    assert.equal(browser.model!.requests.length, 1);
+  } finally { await barrier.close(); }
+});
+
+
+for (const checkReceipt of [false, true]) test(`B10-R3: another window's saved draft survives ${checkReceipt ? "Check" : "Send"} settlement and switching work`, { timeout: 90_000 }, async t => {
+  const browser = await sendBrowser(t); if (!browser) return;
+  const a = await seedWork(browser, "Shared draft A"), b = await seedWork(browser, "Work B"); await openWork(browser, a);
+  await putInput(browser, "My sent text"); await waitWork(browser, a, view => view.work.draft === "My sent text");
+  let barrier = await sendBarrier(browser, [{ urlPattern: "*/api/assistant/send", requestStage: "Response" }]);
+  try {
+    await browser.click('[data-assistant-composer] [data-composer-send]'); let receipt = await barrier.next();
+    if (checkReceipt) {
+      await barrier.drop(receipt); await browser.waitFor("document.querySelector('[data-composer-status-action=check]')"); await barrier.close();
+      barrier = await sendBarrier(browser, [{ urlPattern: "*/api/assistant/requests/*", requestStage: "Response" }]);
+      await browser.click('[data-composer-status-action=check]'); receipt = await barrier.next();
+    }
+    await browser.evaluate(`fetch('/api/assistant/works/${a}/draft', { method: 'POST', headers: molisWorkControlHeaders(), body: JSON.stringify({ draft: 'Other window durable Y' }) }).then(r => { if (!r.ok) throw new Error('save failed'); })`);
+    if (checkReceipt) { await putInput(browser, "Same page newer Z"); await waitWork(browser, a, view => view.work.draft === "Same page newer Z"); }
+    await barrier.release(receipt); await browser.waitFor("!document.querySelector('[data-assistant-composer] .mw-composer[data-state=sending]')");
+    if (!checkReceipt) assert.equal(await browser.evaluate("document.querySelector('[data-assistant-composer] textarea').value"), "");
+    await openWork(browser, b); await openWork(browser, a);
+    if (checkReceipt) await browser.waitFor("document.querySelector('[data-assistant-composer] textarea').value === 'Same page newer Z'");
+    assert.equal((await readWork(browser, a)).work.draft, checkReceipt ? "Same page newer Z" : "Other window durable Y", "settlement and remount must not write an empty stale field over the newer draft");
+    await barrier.close(); await browser.reloadPage();
+    await browser.waitFor(`document.querySelector('[data-assistant-composer] textarea').value === ${JSON.stringify(checkReceipt ? "Same page newer Z" : "Other window durable Y")}`);
+    assert.equal((await readWork(browser, a)).rounds.length, 2);
+  } finally { await barrier.close(); }
+});
+
+for (const sameText of [false, true]) test(`B10-R3: a stale page draft keeps its own version after work polling (same text ${sameText})`, { timeout: 90_000 }, async t => {
+  const browser = await sendBrowser(t); if (!browser) return;
+  const a = await seedWork(browser, "Draft pair A"), b = await seedWork(browser, "Pair B"); await openWork(browser, a);
+  await putInput(browser, "X"); const original = await waitWork(browser, a, view => view.work.draft === "X");
+  await browser.evaluate(`(async () => { for (const draft of ${JSON.stringify(sameText ? ["", "X"] : ["Y"])}) { const res = await fetch('/api/assistant/works/${a}/draft', { method:'POST', headers:molisWorkControlHeaders(), body:JSON.stringify({draft}) }); if (!res.ok) throw new Error('save failed'); } })()`);
+  // Both view rendering and list refresh must keep the old draft paired with its old version.
+  await openWork(browser, a);
+  await browser.click('[data-assistant-works-toggle]');
+  const barrier = await sendBarrier(browser, [{ urlPattern: "*/api/assistant/send", requestStage: "Response" }]);
+  try {
+    await browser.click('[data-assistant-composer] [data-composer-send]'); const receipt = await barrier.next();
+    assert.equal(JSON.parse(receipt.request.postData!).draft_revision, original.work.draft_revision);
+    assert.equal((await readWork(browser, a)).work.draft, sameText ? "X" : "Y");
+    await barrier.release(receipt); await browser.waitFor("document.querySelector('[data-assistant-composer] textarea').value === ''");
+    await openWork(browser, b);
+    assert.equal((await readWork(browser, a)).work.draft, sameText ? "X" : "Y", "switching after the stale Send must preserve the new generation");
+  } finally { await barrier.close(); }
+});
+
+// B10-R3: the same words typed after Send are a new draft, even if the debounce never saved the intermediate empty value.
+test("B10-R3: clearing and retyping the sent text while its receipt is held preserves the new generation", { timeout: 90_000 }, async t => {
+  const browser = await sendBrowser(t); if (!browser) return;
+  const a = await seedWork(browser, "Same text generation"), b = await seedWork(browser, "Other work"); await openWork(browser, a);
+  await putInput(browser, "X"); await waitWork(browser, a, view => view.work.draft === "X");
+  const barrier = await sendBarrier(browser, [{ urlPattern: "*/api/assistant/send", requestStage: "Response" }]);
+  try {
+    await browser.click('[data-assistant-composer] [data-composer-send]'); const receipt = await barrier.next();
+    await putInput(browser, ""); await putInput(browser, "X");
+    const newer = await waitWork(browser, a, view => view.work.draft === "X");
+    await barrier.release(receipt); await browser.waitFor("!document.querySelector('[data-assistant-composer] .mw-composer[data-state=sending]')");
+    assert.equal(await browser.evaluate("document.querySelector('[data-assistant-composer] textarea').value"), "X");
+    await openWork(browser, b); await openWork(browser, a);
+    await browser.waitFor("document.querySelector('[data-assistant-composer] textarea').value === 'X'");
+    assert.equal((await readWork(browser, a)).work.draft_revision, newer.work.draft_revision);
+    await barrier.close(); await browser.reloadPage(); await browser.waitFor("document.querySelector('[data-assistant-composer] textarea').value === 'X'");
+  } finally { await barrier.close(); }
+});
+
+test("B10-R3: switching work before the shared composer script arrives saves only the edited owner's text", { timeout: 90_000 }, async t => {
+  const browser = await sendBrowser(t); if (!browser) return;
+  const a = await seedWork(browser, "Early input A"), b = await seedWork(browser, "Early input B"); await openWork(browser, a);
+  await browser.command("Network.setCacheDisabled", { cacheDisabled: true }, browser.sessionId);
+  const barrier = await sendBarrier(browser, [{ urlPattern: "*/assets/molis-work-composer.js", requestStage: "Response" }]);
+  try {
+    const loading = browser.reloadPage(); const script = await barrier.next();
+    await browser.waitFor("Boolean(window.molisComposer) && !window.molisComposerProgram");
+    await putInput(browser, "Typed before the program arrived");
+    await browser.evaluate(`document.dispatchEvent(new CustomEvent('molis:assistant-open', { detail: { work_id: '${b}' } }))`);
+    await browser.waitFor(`${CURRENT_WORK} === '${b}'`);
+    await waitWork(browser, a, view => view.work.draft === "Typed before the program arrived");
+    await barrier.release(script); await loading;
+    await browser.waitFor("Boolean(window.molisComposerProgram)");
+    assert.equal(await browser.evaluate("document.querySelector('[data-assistant-composer] textarea').value"), "");
+    await openWork(browser, a);
+    await browser.waitFor("document.querySelector('[data-assistant-composer] textarea').value === 'Typed before the program arrived'");
   } finally { await barrier.close(); }
 });

@@ -186,6 +186,8 @@ export interface ComposerDraftAdapter {
   read(signal: AbortSignal): Promise<string>;
   /** Throttled as the person writes; a rejection is told in the status line and the text stays. */
   write(text: string): Promise<void>;
+  /** Settle a successful send when the owner already clears its persistent draft atomically. Otherwise the composer writes an empty draft. */
+  sent?(): Promise<void>;
 }
 
 /** Each delivery the target may take now, or why not: a mode it does not take is shown and cannot be picked, never sent as another. */

@@ -18,6 +18,8 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
   const sendTarget = () => curId || JSON.stringify([project?.id, nextScope, nextExec, nextMode, nextChar]);
   const retainSent = (work) => {
     const index = works.findIndex(row => row.work_id === work.work_id);
+    const cached = works[index];
+    if (cached && (cached.draft_revision > work.draft_revision || writing.has(work.work_id))) work = { ...work, draft: cached.draft, draft_revision: cached.draft_revision };
     if (index >= 0) works[index] = work; else works.unshift(work);
     paintList(); drawTabs();
   };
@@ -43,6 +45,8 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
   }
   const recoveredWork = work => { if (!works.some(one => one.work_id === work.work_id)) retainSent(work); };
   const ownsReceipt = (res, intent) => res.submission_id === intent.body.submission_id;
+  const contentOf = ({ request_id, submission_id, draft_revision, context, materials, ...content }) => JSON.stringify({ ...content,
+    context: context && { ...context, captured_at: undefined }, materials: materials.map(({ material_id, ...material }) => material) });
   async function checkSent(intent, consumed) {
     const route = intent.route.replace(/\/send$/, "/requests/" + encodeURIComponent(intent.body.request_id));
     const result = await api("", "GET", undefined, route);
@@ -69,16 +73,17 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
   async function post(text, extra = {}) {
     const target = sendTarget(), route = host.route("/api/assistant/send"), unsentKey = scoped("unsent") + ":" + encodeURIComponent(curId || "new"), kept = unsent(unsentKey);
     const pending = [...lostSends.values()].filter(one => one.body.text === text);
-    const again = extra.named ? undefined : pending.find(one => one.target === target && one.route === route && one.body.submission_id === extra.request_id)
+    let again = extra.named ? undefined : pending.find(one => one.target === target && one.route === route && one.body.submission_id === extra.request_id)
       || (!curId ? pending.find(one => !one.work && (one.target !== target || one.route !== route)) : undefined);
     const submission = extra.named || extra.request_id || crypto.randomUUID();
-    const recovering = !again && !extra.named && kept.id && kept.work === (curId || null) && kept.target === target && kept.route === route;
+    let recovering = !again && !extra.named && kept.id && kept.work === (curId || null) && kept.target === target && kept.route === route;
     const body = { text, request_id: recovering ? kept.id : submission, submission_id: submission,
       context: pageContext(), materials: [...sendMaterials(), ...(extra.materials || [])], ...(extra.written_by ? { written_by: extra.written_by } : {}) };
     const character = curId ? pendingChar : nextChar || undefined;
     if (character !== undefined && allowsCharacter()) body.character = character ? { artifact_id: character.artifact_id, version: character.version } : null;
     if (curId) {
       body.work_id = curId;
+      body.draft_revision = getWork()?.draft_revision;
       // Answering the round's question is its own target; the Host takes a way of delivering only with a supplement (K0b).
       const target = receipts.target();
       if (target) body.target = target;
@@ -88,6 +93,8 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
       const session = executorSession(nextExec);
       if (session) body.executor_session_id = session; else if (nextMode) body.mode = nextMode;
     } else body.scope = nextScope === "project" && project ? { kind: "project", project_id: project.id } : { kind: "personal" };
+    if (!again && !extra.named) again = pending.find(one => one.target === target && one.route === route && contentOf(one.body) === contentOf(body));
+    if (again) recovering = false;
     const intent = again?.body.text === text ? again
       : { body, unsentKey, work: curId, target, route, character, files: files.slice(), selection: sel, removed: [...removed], joined: [...joined] };
     if (recovering) {
@@ -99,12 +106,12 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
     const here = () => sendTarget() === intent.target && host.route("/api/assistant/send") === intent.route;
     // The work a new work's Send made is where the words are now: the composer moves to it without writing them anywhere else.
     const chooseSent = (work) => { if (!intent.work) handedOver = true; curId = work.work_id; remember(); openTab(curId); };
+    // A refused draft save has not submitted anything and must not discard an older uncertain request key.
+    if (extra.before) { const revision = await extra.before; if (!again && typeof revision === "number") intent.body.draft_revision = revision; }
     problem = null; setPanel(true); scrollOwner()?.toLatest();
     lostSends.set(intent.body.request_id, intent);
     store.set(intent.unsentKey, JSON.stringify({ work: intent.work || null, text, id: intent.body.request_id, target: intent.target, route: intent.route }));
     try {
-      // Everything the Send is for was read above; it goes once the work's draft write before it has been answered.
-      if (extra.before) await extra.before.catch(() => undefined);
       const res = await api("/send", "POST", intent.body, intent.route);
       if (!ownsReceipt(res, intent)) { forgetIntent(intent); recoveredWork(res.work); return { consumed: false }; }
       return { ...await acceptSent(res, intent), consumed };

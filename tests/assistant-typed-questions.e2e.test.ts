@@ -150,8 +150,8 @@ test("AC-03, R4: among other questions, the composer writes into the questionnai
   const send = async (text: string) => { await click("[data-assistant-composer] .mw-composer__input"); await command("Input.insertText", { text }, sessionId); await click("[data-assistant-composer] [data-composer-send]"); };
   // One change of the composer's select, as one click of the old chip (K3).
   const flip = `(() => { const select = ${chip}; select.selectedIndex = (select.selectedIndex + 1) % select.options.length; select.dispatchEvent(new Event('change', { bubbles: true })); })()`;
-  const work = () => evaluate<Array<{ revision: number }>>(`fetch(document.body.dataset.routePrefix + '/api/assistant/works', { headers: molisWorkControlHeaders() }).then(r => r.json()).then(body => body.works)`);
-  const apart = (works: Array<{ revision: number }>) => works.map(({ revision: _revision, ...rest }) => rest);
+  const work = () => evaluate<Array<{ revision: number; draft_revision: number }>>(`fetch(document.body.dataset.routePrefix + '/api/assistant/works', { headers: molisWorkControlHeaders() }).then(r => r.json()).then(body => body.works)`);
+  const apart = (works: Array<{ revision: number; draft_revision: number }>) => works.map(({ revision: _revision, draft_revision: _draftRevision, ...rest }) => rest);
   await waitFor(`${notes} && ${chip}`, 20_000);
   assert.equal(await evaluate(`${chip}.selectedOptions[0].textContent`), "写进问卷", "the default is on the chip");
   const before = { files: await runtimeFiles(homeDirectory), works: await work() };
@@ -165,8 +165,9 @@ test("AC-03, R4: among other questions, the composer writes into the questionnai
   assert.deepEqual(await runtimeFiles(homeDirectory), before.files, "the session, its run and its queue are unchanged on disk: nothing was handed back or queued");
   const after = await work();
   assert.deepEqual(apart(after), apart(before.works), "the Assistant's works are unchanged");
-  // The card's drafts are kept on its work (`question_drafts`, assistant-questions.ts); each save is one revision and nothing else.
-  assert.equal(after[0]!.revision, before.works[0]!.revision + 2, "the only writes are the two draft saves");
+  // B10-R3: each fill first saves its composer draft, then writes the questionnaire and clears that exact draft generation atomically.
+  assert.equal(after[0]!.revision, before.works[0]!.revision + 4, "two composer saves and two atomic questionnaire fills, with no post-success clear");
+  assert.equal(after[0]!.draft_revision, before.works[0]!.draft_revision + 4, "both writes belong to the corresponding draft generation");
   assert.equal(await evaluate("document.querySelectorAll('[data-assistant-thread] .assistant-msg--user').length"), 1, "only the first message: no supplement in the thread");
   assert.equal(await evaluate("document.querySelectorAll('[data-assistant-thread] [data-entry^=receipt]').length"), 0, "and no receipt");
 

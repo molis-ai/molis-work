@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { createPrologueNodeAdapter, AgentHost, AgentReviewQueue } from "@molis-ai/molis-work-service-agent-host";
-import { AssistantService, AssistantStore } from "@molis-ai/molis-work-app-local-host";
+import { ASSISTANT_STORE_BASELINE, AssistantService, AssistantStore } from "@molis-ai/molis-work-app-local-host";
+
+import { runSqliteUpgrade } from "@molis-ai/molis-work-storage";
 
 test("ASC-18: rejecting controls on an idle work changes neither its stored choice nor its setup requests", async () => {
   const db = new DatabaseSync(":memory:"), store = new AssistantStore(db);
@@ -67,6 +69,22 @@ test("ASC-34: an earlier Send failing after a newer accepted input cannot replac
     failed.end();
     assert.equal(store.get("user", work.work_id).continuation_hold, "input");
   } finally { release.resolve(); service.continuations.close(); db.close(); }
+});
+
+test("B10-R3: a late failed Send preserves a newer saved or explicitly cleared draft", async () => {
+  for (const newer of ["New durable draft", ""]) {
+    const db = new DatabaseSync(":memory:"), store = new AssistantStore(db);
+    const service = new AssistantService(store, { pages: async () => ["home"], host: async () => { throw new Error("runtime unavailable"); },
+      authority: async () => { throw new Error("must not dispatch"); } }, "user");
+    try {
+      const work = store.create({ actor_id: "user", title: "Draft owner", scope: { kind: "personal" }, origin: null });
+      const original = service.saveDraft(work.work_id, "Old unsent text");
+      service.saveDraft(work.work_id, newer);
+      await assert.rejects(service.send({ work_id: work.work_id, text: "Old unsent text", request_id: "late-draft-request", draft_revision: original.draft_revision }, {}));
+      assert.equal(store.get("user", work.work_id).draft, newer, "neither the input hold nor the failure writes an older draft");
+      assert.equal(store.rounds(work.work_id).length, 0);
+    } finally { service.continuations.close(); db.close(); }
+  }
 });
 
 test("ASC-34: a newer Send whose setup hold fails invalidates the older Send before failure and preserves its own draft", () => {
@@ -204,4 +222,39 @@ for (const change of ["close", "latest-input"] as const) test(`ASC-18 ASC-34: a 
     assert.deepEqual(service.notices.notices(null), [], "there is no false completed notification");
     if (change === "latest-input") assert.equal(store.get("user", work.work_id).draft, "Newest intent");
   } finally { release.resolve(); service.continuations.close(); await adapter.close(); db.close(); await rm(directory, { recursive: true, force: true }); }
+});
+
+
+test("B10-R3: draft generations distinguish same-text rewrites from unrelated work updates", () => {
+  const db = new DatabaseSync(":memory:"), store = new AssistantStore(db);
+  try {
+    const work = store.create({ actor_id: "user", title: "Draft generations", scope: { kind: "personal" }, origin: null });
+    const first = store.update("user", work.work_id, null, { draft: "X" });
+    const title = store.update("user", work.work_id, null, { title: "Renamed" });
+    assert.equal(title.draft_revision, first.draft_revision);
+    store.update("user", work.work_id, null, { draft: "" });
+    const retyped = store.update("user", work.work_id, null, { draft: "X" });
+    assert.equal(retyped.draft_revision, first.draft_revision + 2);
+    assert.equal(retyped.draft, first.draft);
+  } finally { db.close(); }
+});
+
+test("B10-R3 UPG-01: assistant v1 works and saved send receipts upgrade together without changing content", async () => {
+  const db = new DatabaseSync(":memory:");
+  try {
+    db.exec(await readFile(new URL("./fixtures/golden-homes/0.1.0/stores/assistant/assistant.db.sql", import.meta.url), "utf8"));
+    const works = db.prepare("SELECT actor_id, work_id, body FROM assistant_works").all();
+    const receipts = db.prepare("SELECT actor_id, request_id, result FROM assistant_requests WHERE state='done'").all();
+    assert.ok(works.length && receipts.length, "exercise stored work and an actual historical receipt");
+    assert.throws(() => new AssistantStore(db), /版本|version/);
+    runSqliteUpgrade(db, "assistant/assistant.db", ASSISTANT_STORE_BASELINE);
+    const store = new AssistantStore(db);
+    for (const row of works) assert.deepEqual(store.get(String(row.actor_id), String(row.work_id)), { ...JSON.parse(String(row.body)), draft_revision: 1 });
+    for (const row of receipts) {
+      const before = JSON.parse(String(row.result)), after = store.requests.read(String(row.actor_id), String(row.request_id));
+      assert.equal(after.state, "sent");
+      if (after.state === "sent") assert.deepEqual(after.result, { ...before, work: { ...before.work, draft_revision: 1 } });
+    }
+    assert.deepEqual(runSqliteUpgrade(db, "assistant/assistant.db", ASSISTANT_STORE_BASELINE), { from: 2, to: 2 });
+  } finally { db.close(); }
 });

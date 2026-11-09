@@ -1,6 +1,7 @@
+import { composerLocalDraft } from "./composer-storage.js";
 import type { ComposerRetained } from "./composer-retained.js";
 import { formatMessage } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { ENTER_HINT_KEY, composerDraft, composerDraftKey } from "../composer-rules.js";
+import { ENTER_HINT_KEY } from "../composer-rules.js";
 import { storage, type Composer } from "./composer-state.js";
 
 /**
@@ -13,10 +14,7 @@ export interface ComposerDrafts { load(): void; save(): void; clear(): void; sto
 
 export function composerDrafts(c: Composer, retained: ComposerRetained): ComposerDrafts {
   const { options, signal, field } = c;
-  const key = "conversation" in options.draft ? composerDraftKey({ project: document.body.dataset.projectId || "home",
-    install: c.root.closest<HTMLElement>("[data-plugin-owner]")?.dataset.pluginOwner || document.body.dataset.pluginId || "workbench",
-    entry: options.entry, conversation: options.draft.conversation }) : "";
-  const local = key ? composerDraft(storage, key) : null;
+  const local = composerLocalDraft(c.root, options);
   const adapter = "adapter" in options.draft ? options.draft.adapter : null;
   let timer = 0, edited = false, pending: string | undefined;
   const loadedAt = retained.revision();
@@ -37,10 +35,10 @@ export function composerDrafts(c: Composer, retained: ComposerRetained): Compose
     else adapter?.write(text).then(() => refused(false), () => refused(true));
   };
   window.addEventListener("pagehide", flush, { signal });
-  const clear = () => {
+  const clear = (sent = false) => {
     clearTimeout(timer); pending = undefined; edited = true; c.restored = ""; retained.edit();
     if (local) refused(!local.write(""));
-    else void adapter?.write("").catch(() => refused(true));
+    else void (sent && adapter?.sent ? adapter.sent() : adapter?.write(""))?.catch(() => refused(true));
   };
   return {
     load() {
@@ -53,10 +51,10 @@ export function composerDrafts(c: Composer, retained: ComposerRetained): Compose
       timer = window.setTimeout(flush, 500);
     },
     /** The text was sent or thrown away: the draft goes too. */
-    clear,
+    clear: () => clear(),
     sent(revision) {
       if (retained.revision() !== revision) return false;
-      clear(); return true;
+      clear(true); return true;
     },
     stop: flush,
   };

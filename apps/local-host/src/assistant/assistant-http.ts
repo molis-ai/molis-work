@@ -448,7 +448,7 @@ async function interactionRoute(workId: string, parts: string[], body: Record<st
     drafts.drop(workId, String(body.pending_id ?? ""));
     return { status: 200, body: view };
   }
-  if (parts.length === 3 && parts[2] === "question-draft") { drafts.save(workId, String(body.pending_id ?? ""), body.values); return { status: 200, body: { ok: true } }; }
+  if (parts.length === 3 && parts[2] === "question-draft") { return { status: 200, body: { ok: true, ...drafts.save(workId, String(body.pending_id ?? ""), body.values, body.draft_revision) } }; }
   if (parts.length !== 5 || parts[2] !== "cards") return null;
   if (parts[4] === "run") return { status: 200, body: await service.offers.runCard(workId, parts[3]!, { revision: Number(body.revision), values: body.values }) };
   if (parts[4] === "dismiss") return { status: 200, body: service.offers.dismissCard(workId, parts[3]!) };

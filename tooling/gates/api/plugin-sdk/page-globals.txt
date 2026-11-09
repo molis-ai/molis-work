@@ -77,6 +77,7 @@ export type ComposerDelivery = {
 export interface ComposerDraftAdapter {
     read(signal: AbortSignal): Promise<string>;
     write(text: string): Promise<void>;
+    sent?(): Promise<void>;
 }
 
 export interface ComposerHandle {

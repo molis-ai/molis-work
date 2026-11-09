@@ -162,9 +162,8 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
   };
   let composer = null, mountedFor = null, draftHere = null, painted = "", sending = 0, handedOver = false, inFlight = null;
   let worksArrived; const worksIn = new Promise((resolve) => { worksArrived = resolve; });
-  /* A work's Send on its way (going), the words written for that work meanwhile (later) and a draft write not yet answered
-     (writing). The Host clears a work's draft when a Send lands, so words written after the Send are kept here and written once it
-     has landed, and the Send itself goes only after the draft write before it (W2-18-SEND-01). */
+  /* A work's Send (going), edits made meanwhile (later), and each pending draft's text + save promise (writing).
+     Edits persist immediately; the Host settles only the draft generation captured before the Send (B10-R3). */
   const going = new Map(), later = new Map(), writing = new Map();
   const draftAdapters = new Map();
   const draftFor = (id) => {
@@ -175,18 +174,26 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
   const makeDraft = (id) => {
     if (!id) { const key = scoped("new-draft"); return { read: async () => store.get(key) || "", write: async (text) => store.set(key, text || null) }; }
     const route = host.route("/api/assistant/works/" + encodeURIComponent(id) + "/draft");
+    let unsaved = false;
     return {
+      sent: async () => {}, // The Host settles the persistent draft together with the accepted input.
       // A work's draft comes with the list of works. While a Send is on its way the box holds only what was written after it: the
       // Host's draft is the Send's own words, or older ones, and is cleared when the Send lands.
       read: () => later.has(id) ? Promise.resolve(later.get(id)) : going.has(id) ? Promise.resolve("")
-        : worksIn.then(() => (works.find((work) => work.work_id === id) || {}).draft || ""),
+        : worksIn.then(() => writing.get(id)?.text ?? (works.find((work) => work.work_id === id) || {}).draft ?? ""),
       write: (text) => {
-        if (going.has(id)) { if (text === going.get(id).text) later.delete(id); else later.set(id, text); return Promise.resolve(); }
-        const work = works.find((row) => row.work_id === id);
-        if (work && work.draft === text) return Promise.resolve();
+        const editing = going.has(id), pending = writing.get(id), work = works.find((row) => row.work_id === id);
+        if (editing) later.set(id, text);
+        if (!editing && pending?.text === text) return pending.promise;
+        if (!editing && !pending && work && work.draft === text && !unsaved) return Promise.resolve(work.draft_revision);
+        unsaved = true;
         if (work) work.draft = text;
-        const run = api("", "POST", { draft: text }, route).then(() => undefined), done = () => { if (writing.get(id) === run) writing.delete(id); };
-        writing.set(id, run); run.then(done, done);
+        const run = (pending?.promise || Promise.resolve()).catch(() => undefined).then(() => api("", "POST", { draft: text }, route)).then(({ work: saved }) => {
+          const cached = works.find(row => row.work_id === id);
+          if (writing.get(id)?.promise === run) { unsaved = false; if (cached && cached.draft_revision <= saved.draft_revision) { cached.draft = saved.draft; cached.draft_revision = saved.draft_revision; cached.revision = Math.max(cached.revision, saved.revision); } }
+          return saved.draft_revision;
+        }), done = () => { if (writing.get(id)?.promise === run) writing.delete(id); };
+        writing.set(id, { text, promise: run }); run.then(done, done);
         return run;
       },
     };
@@ -194,15 +201,16 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
   /** One Send from the composer: the work it is for is the one in front now, whatever the person opens while it is on its way. */
   const sendNow = async (sent) => {
     const id = curId, mine = { text: sent.text, mount: mountedFor };
+    const before = id ? draftFor(id).write(sent.text) : undefined;
     sending += 1; inFlight = mine; if (id) going.set(id, mine);
     try {
-      const outcome = await submit(sent, id ? writing.get(id) : undefined);
+      const outcome = await submit(sent, before);
       return outcome;
     } finally {
       sending -= 1; if (inFlight === mine) inFlight = null;
       if (id && going.get(id) === mine) {
         going.delete(id);
-        if (later.has(id)) { const words = later.get(id); later.delete(id); void draftFor(id).write(words).catch(() => undefined); }
+        later.delete(id);
       }
       setTimeout(syncComposer, 0);
     }
@@ -225,12 +233,8 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
     // The person opened another receiver: the composer moves now, even with a Send on its way (its outcome is the Host's and the
     // thread's). A new work's first Send moving it to that work waits until the composer has settled the Send.
     if (mountedFor !== (curId || scoped("new-draft")) && !(sending && handedOver)) {
-      if (composer && !handedOver) {
-        // The words of a Send on its way are that Send's; only words written after it stay with the receiver they were for.
-        const words = input.value;
-        if (!(inFlight && inFlight.mount === mountedFor && words === inFlight.text)) void draftHere.write(words).catch(() => undefined);
-        input.value = ""; window.molisFit?.(input);
-      }
+      // Destroy flushes captured edits, including typing before the shared script arrived.
+      composer?.destroy();
       handedOver = false;
       return mountComposer();
     }
@@ -243,7 +247,7 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
   async function submit(sent, before) {
     const text = sent.text.trim(), into = curId && receipts.into(), fill = into && fills.get(into.pending_id);
     if (fill && sent.materials.length) return { state: "failed", message: L("问卷这里只能写文字；请移除附件，或改为补充这一轮") };
-    if (fill) return fill(into.draft_from_composer, text).then(() => { host.showToast?.(L("已写进问卷；按「提交回答」才交回")); return { state: "sent" }; }, (error) => ({ state: "failed", message: error.message }));
+    if (fill) return Promise.resolve(before).then(revision => fill(into.draft_from_composer, text, revision)).then(() => { host.showToast?.(L("已写进问卷；按「提交回答」才交回")); return { state: "sent" }; }, (error) => ({ state: "failed", message: error.message }));
     const { materials, over, positions } = upload.take(sent.materials);
     if (over.length) return { state: "failed", message: over[0].reason, unreadable: over };
     const asked = { request_id: sent.request_id, delivery: sent.delivery, materials, ...(before ? { before } : {}) };

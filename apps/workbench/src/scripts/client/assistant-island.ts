@@ -387,7 +387,7 @@ ${ASSISTANT_TABS_PART}
     const work = view && view.work.work_id === curId ? view.work : null;
     if (work) {
       const index = works.findIndex((row) => row.work_id === work.work_id);
-      if (index >= 0) works[index] = Object.assign({}, works[index], work, { draft: works[index].draft });
+      if (index >= 0) works[index] = Object.assign({}, works[index], work, { draft: works[index].draft, draft_revision: works[index].draft_revision });
       else works.unshift(work);
     }
     renderAttention(work); renderPath(work); surroundings.paint(work); sideContext.paint(); renderResults(work); renderUsage(work);
@@ -523,8 +523,8 @@ ${ASSISTANT_TABS_PART}
   const readWorks = async () => {
     try {
       const res = await api("/works");
-      const drafts = new Map(works.map((work) => [work.work_id, work.draft]));
-      works = (res.works || []).map((work) => drafts.has(work.work_id) && work.work_id === curId ? Object.assign(work, { draft: drafts.get(work.work_id) }) : work);
+      const drafts = new Map(works.map((work) => [work.work_id, { draft: work.draft, draft_revision: work.draft_revision }]));
+      works = (res.works || []).map((work) => drafts.has(work.work_id) && work.work_id === curId ? Object.assign(work, drafts.get(work.work_id)) : work);
       if (curId && !works.some((work) => work.work_id === curId)) { curId = null; remember(); view = null; }
       // A tab whose work is gone closes; the work in front always has one.
       const kept = tabs.filter((id) => works.some((work) => work.work_id === id));

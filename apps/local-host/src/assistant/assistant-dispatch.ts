@@ -155,14 +155,14 @@ export class AssistantDispatch {
       // The executor's own control carries both: every answer with the revision it answers, every supplement with its receipt and its source, so words a page wrote reach the round as a note (BL-144).
       const outcome = await this.inputs.deliver(latest, text, materials, context, { answer: control => executor.control(sessionId, latest.ref.run_id, control),
         send: async input => { const receipt = await executor.send(sessionId, latest.ref.run_id, input); handoff?.accepted(); return receipt; } }, intent);
-      return this.result(work, outcome, latest.ref.run_id, stillCurrent);
+      return this.result(work, outcome, latest.ref.run_id, stillCurrent, intent?.draftCurrent);
     }
     const task = work.handover_brief ? `${work.handover_brief}\n\n用户现在的要求：${text}` : text;
     const runId = await executor.start(sessionId, this.inputs.compose(task, materials, context));
     handoff?.accepted();
     if (work.handover_brief) work = this.store.update(this.actorId, work.work_id, null, { handover_brief: undefined }, false);
     this.store.addRound(work.work_id, { run_id: runId, executor: "plugin", text, materials, context, started_at: this.now().toISOString(), ...(writtenBy ? { written_by: writtenBy } : {}) });
-    return this.result(work, "started", runId);
+    return this.result(work, "started", runId, stillCurrent, intent?.draftCurrent);
   }
 
   async dispatch(work: StoredWork, text: string, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, mode?: string, writtenBy?: StoredRound["written_by"], stillCurrent?: () => boolean, beforeStart?: () => Promise<void>, assertBeforeStart?: () => void, intent?: SendIntent, sourceHandoff?: MethodHandoff): Promise<AssistantSendResult> {
@@ -210,7 +210,7 @@ export class AssistantDispatch {
         beforeSteer: () => { if (materials.some(item => item.kind === "image")) throw assistantErrors.state(isTerminalAgentPhase(latest.phase)
           ? "这一轮刚结束，留给下一轮的话带不了图片：直接再发一次，就会和图片一起开始新的一轮"
           : "这一轮还在进行，图片只能随新的一轮发送：等它结束后再发，或先停止这一轮"); } }, { ...intent, original_input });
-      return this.result(work, outcome, latest.ref.run_id, stillCurrent);
+      return this.result(work, outcome, latest.ref.run_id, stillCurrent, intent?.draftCurrent);
     }
     const previousWaitWithdrawn = !intent?.byHost && await this.link.continuations.withdraw(work, "用户更新了任务，接下来按最新要求处理");
     await this.link.assertBudget();
@@ -249,14 +249,14 @@ export class AssistantDispatch {
     this.chosenMemory.delete(work.work_id);
     this.starting.delete(work.work_id);
     this.link.continuations.watch(work, handle.ref);
-    return this.result(work, "started", handle.ref.run_id, stillCurrent);
+    return this.result(work, "started", handle.ref.run_id, stillCurrent, intent?.draftCurrent);
   }
 
-  private async result(work: StoredWork, outcome: AssistantSendResult["outcome"], runId: string, current?: () => boolean): Promise<AssistantSendResult> {
+  private async result(work: StoredWork, outcome: AssistantSendResult["outcome"], runId: string, current?: () => boolean, draftCurrent?: () => boolean): Promise<AssistantSendResult> {
     // A round that started is seen as running from here: however soon it ends, its end is news (a new work included).
     if (outcome === "started") this.link.notice(work, "running");
-    // Sent text is no longer a draft; the work moves to the top of the list.
-    const updated = !current || current() ? this.store.update(this.actorId, work.work_id, null, { draft: "" }) : this.store.get(this.actorId, work.work_id);
+    // Only this Send's unchanged draft is consumed; a later saved draft stays while the work moves to the top.
+    const updated = !current || current() ? this.store.update(this.actorId, work.work_id, null, !draftCurrent || draftCurrent() ? { draft: "" } : {}) : this.store.get(this.actorId, work.work_id);
     return { work: this.link.publicWork(updated, await this.link.stateSafely(updated)), outcome, run_id: runId };
   }
 

@@ -26,7 +26,7 @@ export const ASSISTANT_STORE_NAME = "assistant";
  * The current schema retains the table and its stored work shape.
  * The current executor is `{ kind: "plugin", plugin_id, ... }`; other stored versions are refused, never translated on read.
  */
-export const ASSISTANT_STORE_BASELINE: SqliteBaseline = { version: /* @version database.assistant_store_baseline */ 1, schema: `
+export const ASSISTANT_STORE_BASELINE: SqliteBaseline = { version: /* @version database.assistant_store_baseline */ 2, schema: `
 CREATE TABLE assistant_works (
   work_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, revision INTEGER NOT NULL, updated_at TEXT NOT NULL,
   archived INTEGER NOT NULL DEFAULT 0, body TEXT NOT NULL
@@ -71,7 +71,11 @@ CREATE TABLE assistant_requests (
   actor_id TEXT NOT NULL, request_id TEXT NOT NULL, work_id TEXT, state TEXT NOT NULL, result TEXT, created_at TEXT NOT NULL,
   PRIMARY KEY(actor_id, request_id)
 );
-${CONTEXT_LEDGER_SCHEMA}` };
+${CONTEXT_LEDGER_SCHEMA}`, upgrades: [{ from: 1, sql: `
+UPDATE assistant_works SET body=json_set(body, '$.draft_revision', 1);
+UPDATE assistant_requests SET result=json_set(result, '$.work.draft_revision', 1)
+  WHERE result IS NOT NULL AND json_type(result, '$.work')='object';
+` }] };
 
 /** A work as stored: the public record plus the project reference its actions and sessions are bound to. */
 export interface StoredWork extends Omit<AssistantWork, "state" | "delegated_by"> {
@@ -193,7 +197,7 @@ export class AssistantStore {
     const work: StoredWork = { work_id: `work-${randomUUID()}`, revision: 1, title: input.title, scope: structuredClone(input.scope), origin: input.origin ? structuredClone(input.origin) : null,
       ...(input.scope_title ? { scope_title: input.scope_title } : {}),
       executor: input.executor ?? { kind: "assistant" },
-      session_id: null, draft: "", created_at: at, updated_at: at, archived: false, actor_id: input.actor_id,
+      session_id: null, draft: "", draft_revision: 1, created_at: at, updated_at: at, archived: false, actor_id: input.actor_id,
       ...(input.project_ref ? { project_ref: structuredClone(input.project_ref) } : {}),
       ...(input.delegated_by ? { delegated_by: { ...input.delegated_by } } : {}) };
     this.db.prepare("INSERT INTO assistant_works(work_id,actor_id,revision,updated_at,archived,body) VALUES (?,?,?,?,0,?)")
@@ -219,7 +223,7 @@ export class AssistantStore {
   update(actorId: string, workId: string, expected: number | null, patch: Partial<Pick<StoredWork, "title" | "session_id" | "draft" | "archived" | "executor" | "handover_brief" | "character" | "graph_id" | "delegated_by" | "budget_tokens" | "question_drafts" | "reply_target" | "thread_round" | "continuation_hold">>, touch = true): StoredWork {
     const current = this.get(actorId, workId);
     if (expected !== null && current.revision !== expected) throw assistantErrors.conflict("这项工作已在别处更新，请刷新后再改");
-    const next: StoredWork = { ...current, ...patch, revision: current.revision + 1, updated_at: touch ? this.now().toISOString() : current.updated_at };
+    const next: StoredWork = { ...current, ...patch, draft_revision: current.draft_revision + (Object.hasOwn(patch, "draft") ? 1 : 0), revision: current.revision + 1, updated_at: touch ? this.now().toISOString() : current.updated_at };
     const changed = this.db.prepare("UPDATE assistant_works SET revision=?, updated_at=?, archived=?, body=? WHERE work_id=? AND actor_id=? AND revision=?")
       .run(next.revision, next.updated_at, next.archived ? 1 : 0, JSON.stringify(next), workId, actorId, current.revision).changes;
     if (!changed) throw assistantErrors.conflict("这项工作已在别处更新，请刷新后再改");

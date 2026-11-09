@@ -193,21 +193,24 @@ export class AssistantService {
     if (input.delivery !== undefined && !(AGENT_STEER_MODES as readonly unknown[]).includes(input.delivery)) throw assistantErrors.invalid("delivery 只能是 next-boundary、interrupt 或 after-run");
     if (input.delivery !== undefined && (!input.work_id || input.target === "answer")) throw assistantErrors.invalid("送达方式只用在已有工作的补充上，新工作和回答问题都不带");
     if (input.submission_id !== undefined && (typeof input.submission_id !== "string" || !/^[A-Za-z0-9-]{8,80}$/.test(input.submission_id))) throw assistantErrors.invalid("提交内容标识无效");
+    if (input.draft_revision !== undefined && (!input.work_id || !Number.isSafeInteger(input.draft_revision) || input.draft_revision < 1)) throw assistantErrors.invalid("草稿版本无效");
     const claim = this.store.requests.claimRequest(this.actorId, String(input.request_id ?? ""));
     if (!claim.claimed) return claim.result;
-    let work: StoredWork | undefined, inputHold: ReturnType<AssistantContinuations["begin"]> | undefined;
+    let work: StoredWork | undefined, inputHold: ReturnType<AssistantContinuations["begin"]> | undefined, draftCurrent = () => false;
     try {
       const created = !input.work_id;
       const scope = input.work_id ? this.store.get(this.actorId, input.work_id) : { project_ref: sendScope(input.scope, caller, choice).kind === "project" ? caller.project_ref : undefined };
       materials = await readComposerMaterials(materials, scope, this.ports);
       assertSendCurrent(stillCurrent);
       work = input.work_id ? this.store.get(this.actorId, input.work_id) : await this.createWork(text, input.scope, context, caller, choice);
+      const draftWorkId = work.work_id, ownsDraft = input.draft_revision === undefined || input.draft_revision === work.draft_revision;
+      let savedDraft = work.draft_revision; draftCurrent = () => ownsDraft && this.store.get(this.actorId, draftWorkId).draft_revision === savedDraft;
       // Before the input hold and the material links: a work with no session yet has no round to interrupt or wait behind.
       if (!created) assertRoundToAddress(Boolean(work.executor.kind === "plugin" ? work.executor.session_id : work.session_id), input.delivery);
       if (work.reply_target && caller.thread_request !== work.thread_round?.attempt_id) throw assistantErrors.scope("请在原评论内继续这项讨论");
       if (created && input.executor_session_id) work = await adoptSession(this.store, this.actorId, work, await this.dispatcher.executorOf(work), input.executor_session_id);
       if (!writtenBy && !input.written_by && work.executor.kind === "assistant") {
-        inputHold = this.continuations.begin(work, text); work = inputHold.work;
+        inputHold = this.continuations.begin(work, text, draftCurrent()); work = inputHold.work; savedDraft = work.draft_revision;
         const previous = stillCurrent; stillCurrent = () => inputHold!.current() && (!previous || previous());
       }
       work = await this.chooseCharacter(work, input.character);
@@ -217,7 +220,7 @@ export class AssistantService {
       if (input.reask !== undefined) materials = [...materials, await reaskMaterial(work, input.reask, this.store.rounds(work.work_id), (await this.ports.host()).adapter(RUNTIME))];
       assertSendCurrent(stillCurrent);
       linkSent(this.store.relations, work, materials, created ? context : null);
-      const result = await this.dispatcher.dispatch(work, text, materials, context, input.work_id ? undefined : input.mode, writtenBy ?? input.written_by, stillCurrent, caller.beforeStart, caller.assertBeforeStart, { id: input.request_id, target: input.target, delivery: input.delivery, byHost: Boolean(writtenBy ?? input.written_by) || input.reask !== undefined || !original_input, about: input.about, original_input, reply_locale: caller.reply_locale }, { assertCurrent: () => { for (const item of handoffs) item.assertCurrent(); }, accepted: () => { for (const item of handoffs) item.accepted(); } });
+      const result = await this.dispatcher.dispatch(work, text, materials, context, input.work_id ? undefined : input.mode, writtenBy ?? input.written_by, stillCurrent, caller.beforeStart, caller.assertBeforeStart, { id: input.request_id, target: input.target, delivery: input.delivery, byHost: Boolean(writtenBy ?? input.written_by) || input.reask !== undefined || !original_input, about: input.about, original_input, reply_locale: caller.reply_locale, draftCurrent }, { assertCurrent: () => { for (const item of handoffs) item.assertCurrent(); }, accepted: () => { for (const item of handoffs) item.accepted(); } });
       if (inputHold) { inputHold.accept(); const current = this.store.get(this.actorId, work.work_id); result.work = this.reads.publicWork(current, await this.reads.stateSafely(current)); }
       if (input.submission_id !== undefined) result.submission_id = input.submission_id;
       this.store.requests.finishRequest(this.actorId, input.request_id, result);
@@ -227,7 +230,7 @@ export class AssistantService {
       if (stillCurrent && !stillCurrent()) throw error;
       // Nothing the person typed is lost: an unsent message stays as the work's draft (a re-ask's words are the Host's: the draft stays).
       if (work && !work.reply_target) {
-        const kept = input.reask === undefined ? this.store.update(this.actorId, work.work_id, null, { draft: text }, false) : work;
+        const kept = input.reask === undefined && draftCurrent() ? this.store.update(this.actorId, work.work_id, null, { draft: text }, false) : this.store.get(this.actorId, work.work_id);
         const failure = assistantFailure(error);
         throw new ActionError(failure.code, failure.message, { kind: failure.kind, cause: failure,
           details: { ...failure.details, work: this.reads.publicWork(kept, await this.reads.stateSafely(kept)) } });

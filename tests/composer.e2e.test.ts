@@ -472,6 +472,19 @@ test("§3.1: the program is one shared file fetched on the first mount; one that
   await page.click("#composer-first .mw-composer__input");
   await c.type("字还能写");
   assert.equal(await page.evaluate("document.querySelector('#composer-first .mw-composer__input').value"), "字还能写");
+  // B10-R3: before the program arrives, remount releases the old owner; an old/double destroy cannot save or clear the new owner's text.
+  assert.deepEqual(await page.evaluate(`(() => {
+    const root = document.getElementById("composer-first"), old = firstHandle;
+    const next = window.molisComposer(root, { kind: "plain", labels: ${JSON.stringify(COMPOSER_PLAIN_LABELS)}, entry: "comment", draft: { conversation: "second" }, submit: async () => ({ state: "sent" }) });
+    const field = root.querySelector("textarea"); field.value = "B 的字"; field.dispatchEvent(new Event("input", { bubbles: true }));
+    old.destroy(); old.destroy();
+    const key = "mw.composer.draft:" + [document.body.dataset.projectId, document.body.dataset.pluginId || "workbench", "comment", "first"].map(encodeURIComponent).join(":");
+    globalThis.blockedNextDone = false; globalThis.blockedNext = next;
+    [...document.scripts].filter(script => script.src.endsWith("/assets/molis-work-composer.js")).at(-1).addEventListener("error", () => { globalThis.blockedNextDone = true; });
+    return [JSON.parse(localStorage.getItem(key)).text, field.value];
+  })()`), ["字还能写", "B 的字"]);
+  await page.wait("globalThis.blockedNextDone"); // Let this deliberately blocked request finish before retrying the load.
+  await page.evaluate("globalThis.blockedNext.destroy()");
   // The next mount tries again; once it is in, every mount is the program's own and the file is fetched once.
   await page.command("Network.setBlockedURLs", { urls: [] });
   await c.mountPlain();

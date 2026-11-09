@@ -282,6 +282,8 @@ export interface AssistantWork {
   session_id: string | null;
   /** Unsent text for this work. Never sent, never read by a model. */
   draft: string;
+  /** Advances on every draft write, independently of other work changes. */
+  draft_revision: number;
   created_at: string;
   updated_at: string;
   archived: boolean;
@@ -520,6 +522,8 @@ export interface AssistantSendInput extends Pick<AgentInputSend, "about"> {
   reask?: AgentQuestionReask;
   /** Identifies the content of this attempt when recovering a lost Send with the same request_id. Echoed only for the attempt that claimed it. */
   submission_id?: string;
+  /** Draft revision paired with the text read or saved by the page. A delayed Send cannot replace a newer saved draft. */
+  draft_revision?: number;
   /** One per press of Send. A repeat returns the first outcome and starts nothing. */
   request_id: string;
 }

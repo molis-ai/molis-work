@@ -1,3 +1,4 @@
+import { composerLocalDraft } from "./composer-storage.js";
 import type { ComposerHandle, ComposerOptions } from "@molis-ai/molis-work-plugin-sdk/page-globals";
 import { COMPOSER_ASSET, type ComposerMount } from "./composer-program.js";
 
@@ -13,6 +14,7 @@ import { COMPOSER_ASSET, type ComposerMount } from "./composer-program.js";
  */
 
 let program: Promise<ComposerMount> | undefined;
+const pending = new WeakMap<HTMLElement, () => void>();
 
 function load(): Promise<ComposerMount> {
   return program ??= new Promise<ComposerMount>((resolve, reject) => {
@@ -36,24 +38,43 @@ function unavailable(root: HTMLElement, options: ComposerOptions) {
 }
 
 function molisComposer(root: HTMLElement, options: ComposerOptions): ComposerHandle {
+  pending.get(root)?.();
   const ready = globalThis.molisComposerProgram;
   if (ready) return ready(root, options);
-  let handle: ComposerHandle | null = null, gone = false;
+  let handle: ComposerHandle | null = null, gone = false, edited: string | undefined;
+  const field = root.querySelector<HTMLTextAreaElement>(".mw-composer__input"), local = composerLocalDraft(root, options);
+  const capture = () => { edited = field?.value; };
+  field?.addEventListener("input", capture);
   const waiting: (() => void)[] = [];
   void load().then((mount) => {
     if (gone) return;
+    field?.removeEventListener("input", capture); pending.delete(root);
     handle = mount(root, options);
+    if (edited !== undefined && field) { field.value = edited; field.dispatchEvent(new Event("input", { bubbles: true })); }
     for (const call of waiting.splice(0)) call();
   }, () => { if (!gone) unavailable(root, options); });
   const later = <Name extends keyof ComposerHandle>(name: Name) => (...args: Parameters<ComposerHandle[Name]>) => {
     const run = () => (handle![name] as (...given: typeof args) => void)(...args);
     if (handle) run(); else waiting.push(run);
   };
+  const destroy = () => {
+    if (gone) return;
+    gone = true;
+    if (handle) { handle.destroy(); return; }
+    waiting.length = 0; field?.removeEventListener("input", capture);
+    if (pending.get(root) === destroy) pending.delete(root);
+    if (edited !== undefined) {
+      if ("adapter" in options.draft) void options.draft.adapter.write(edited).catch(() => { /* The old owner has no mounted status line. */ });
+      else local?.write(edited);
+    }
+    if (field) field.value = "";
+  };
+  pending.set(root, destroy);
   return {
     setRunning: later("setRunning"), refresh: later("refresh"), insert: later("insert"), attach: later("attach"),
     materials: () => handle ? handle.materials() : [],
     focus: () => { if (handle) handle.focus(); else root.querySelector<HTMLElement>(".mw-composer__input")?.focus(); },
-    destroy: () => { if (handle) handle.destroy(); else { gone = true; waiting.length = 0; } },
+    destroy,
   };
 }
 

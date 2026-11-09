@@ -30,11 +30,14 @@
 | 消费场景 | 插件或系统里真正使用判断结果的位置 | 用途、消费场景 | 判断场景、去向、消费入口 |
 | 推荐选项 | 判断结果里「建议做什么」的一项 | 推荐动作 | 行为（behavior） |
 | Skill | 按需读取的文字做法，不授予任何权限 | 方法（Character 流程里写 Skills） | 方法（指这个时）、Method |
+| Skill 目录 | 一个范围（某个项目，或个人空间）里装着的全部 Skill，每项带精确引用 `SkillRef`、在这个范围的状态（关、自动、仅手动）和能不能用；归宿主的 Agent 定义登记，由 `system.skills` 的 `skills.catalog.list@1` 等动作读写（`packages/contracts/src/services/skills.ts`，`specs/skill-packs/contract-design.md` 第 8 节）。助理和 Coding 读同一份，不各存名单 | 设置里「技能」一节（还没做） | 共同目录（指它时；共同目录是动作目录的旧称，不指 Skill）、方法目录、平台方法目录 |
 | 规划方法 | Goals 里可选采用的规划方法包 | 规划方法 | 方法包（method pack） |
 | 研究方法 | 炼金术士里用户确认保存、可沿用的研究做法 | 研究方法 | playbook |
 | 连接方式 | 一个服务的授权途径（OAuth、命令行、令牌、MCP） | 连接方式 | method（代码里的 `ConnectorMethod*`） |
 | Agent | 多轮、带工具、按角色运行并受审查的 AI 工作者；外部的叫外部 Agent，是在外部 Runtime 里运行的工作者 | 内置 Agent、外部 Agent（另有「原生 Agent」等写法，见 U6） | 把 Claude Code、Codex 这类产品叫 Agent（它们是 Runtime） |
 | Runtime（AI Runtime） | 能运行 Agent 或与用户对话的 AI 环境，含外部 AI 工具这个产品（Claude Code、Codex 等） | Runtime、执行工具（另有处写「本地 Agent」「Agent」指它，见 U6） | 把外部产品叫 Agent；与 Plugin Runtime、项目运行对象混写（见 2.3） |
+| 外部工具 | 登记表（`platform/external-tools`）里的一个外部 AI 开发工具；范围比外部 Runtime 大，Molis 只读其会话、不运行的也算（见 2.3） | 无 | 把它和 Runtime 当同义词；厂商、插件 |
+| 产品入口 | 外部工具的一个可用形态，登记表一行一个：CLI、IDE、桌面、云端分开，国内、国际分开 | 无 | 把同品牌的几个入口当成一个 |
 | Agent role | 插件或系统声明的 Agent 工作方式，起跑时被冻结 | 角色（「系统与插件带来的角色」） | 角色、role、Character（指它时） |
 | 写后检查器 | 人在平台的项目设置里、和工作区授权一起，给一个已授权工作区存的检查命令：Agent 写完一个它适用的文件后，经命令审查跑一次 | 无（设置页未做） | 检查器（裸写）、checker、诊断器 |
 | 等待检查器 | Agent 的一步在等一个条件时，由宿主按 SDK 的节奏去看那个条件的代码，只看不改 | 无 | 检查器（裸写）、condition checker |
@@ -172,6 +175,12 @@
 - 定义：能运行 Agent 或与用户对话的 AI 环境。本机有两类：Home 唯一的 Prologue Runtime（内置），以及外部 AI 工具。`horizontal/agent-host` 注册 Runtime 并记录各自的能力矩阵，`horizontal/runtime-host` 启动、恢复外部 Runtime 的进程和终端。产品对 Runtime 保持中立（`PRODUCT.md`）。
 - 另外两个东西也带 Runtime，写的时候必须加限定：**Plugin Runtime**（`packages/plugin-runtime`，插件的安装、授权、隔离和生命周期；「Runtime 插件」指经它装配的插件，对比构建期装配的插件：还没迁到 Plugin Runtime、由宿主构建期手写接线的内置插件，名单冻结在 `tests/builtin-plugin-assembly-gate.test.ts` 的 `BUILD_TIME_ASSEMBLED`，只许减少；规则见 `AGENTS.md` 硬约束）；**项目运行对象**（`MolisWorkProjectRuntime`，`apps/local-host/src/project-host.ts`，宿主为一个已打开的项目装起来的存储和协调对象）。
 - 裸写「Runtime」只指本条的 AI Runtime（`skills/goal-advance/SKILL.md` 与 `docs/runtime.md` 都是这个用法）。
+
+**外部工具、产品入口**
+
+- 定义：外部工具是 Molis 之外的 AI 开发工具，唯一的名单是 `packages/contracts/src/platform/external-tools.ts` 的登记表 `EXTERNAL_TOOLS`。产品入口是它的一个可用形态，登记表一行一个，`id` 就是入口的 id：`claude-code` 和 `claude-code-web` 是两个入口。入口之间是否共用会话，实测后才写进 `shares_sessions_with`。
+- 和 Runtime 的关系：外部 Runtime 都是外部工具，反过来不成立。登记表里带 `mcp_integration` 或 `terminal` 的入口才是 Molis 接入或运行的 Runtime，`SUPPORTED_RUNTIME_IDS`、`TERMINAL_RUNTIMES` 由这两个字段派生；其余入口只登记它给了什么、缺什么。说「扫描、连接、启动」时对象仍写 Runtime，说「读它的会话、它有没有这项能力」时写外部工具或产品入口。
+- 登记不等于接通：登记表写这个工具给了什么，Molis 有没有接上由服务在运行时报告。
 
 **Agent role（角色声明）**
 

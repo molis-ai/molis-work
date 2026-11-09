@@ -79,7 +79,8 @@ for (const missing of ["workspace", "model"] as const) test(`Schedule persists a
   const f = await scheduledAgent(t, { [missing]: false });
   assert.equal((await f.tick()).failed, 1);
   assert.equal(f.prompts.length, 0); assert.equal(f.task().turns.at(-1)?.kind, "system");
-  assert.match(f.task().last_error ?? "", missing === "workspace" ? /工作区|文件夹|folder/i : /模型|model/i);
+  // A missing folder is the output deleted from disk: the agent runtime refuses to start in it and says so (its own sentence).
+  assert.match(f.task().last_error ?? "", missing === "workspace" ? /folder does not exist/i : /还没有配置可用的模型/);
 });
 
 test("SYS-15-S7/A3: disabling Schedule during the actual model request cancels it and writes no late task result or notification", { timeout: 60_000 }, async t => {

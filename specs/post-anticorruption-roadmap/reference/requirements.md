@@ -67,6 +67,7 @@
 | --- | --- | --- | --- |
 | [unified-input-voice](../../unified-input-voice/spec.md) | 横向能力（输入组件）、产品线（助理、Coding、首页）、体验与效果 | [03](batches/03.md)、[10](batches/10.md)、[11](batches/11.md)、[53](batches/53.md) | 要决策：界面定样；助理对外用词 H4 在 10 开工前定；其余 10-27 已定 |
 | [skill-packs](../../skill-packs/spec.md) | 横向能力（技能包、合同） | [08](batches/08.md)、[09](batches/09.md)、[72](batches/72.md) | 直接做 |
+| [capability-pack](../../capability-pack/spec.md) | 横向能力（能力包：技能、提示词、角色、工具、MCP 的声明与目录） | [09](batches/09.md)；消费者 [61](batches/61.md)、[72](batches/72.md)、[74](batches/74.md) | 要决策：目录页定样；名称已定（界面「能力包」、代码 `kit`），其余直接做（2026-11-08 用户定） |
 | [work-brief](../../work-brief/spec.md) | 产品线（首页与简报）、横向能力（公共来源与呈现） | [15](batches/15.md)、[19](batches/19.md)、[37](batches/37.md)、[51](batches/51.md)、[63](batches/63.md) | 要决策：综合首页的界面定样 |
 | [观测和采集层](../../observation-collection/spec.md) | 横向能力（采集）、底层与架构 | [21](batches/21.md)、[28](batches/28.md)、[29](batches/29.md) | 直接做：合同按 C1 排队 |
 | [平台端到端效果评测](../../proactive-assistant/spec.md#14-molis-work-的端到端效果评测) | 横向能力（评测） | [21](batches/21.md)、[30](batches/30.md)、[62](batches/62.md)、[75](batches/75.md) | 直接做 |
@@ -80,6 +81,7 @@
 | [product-flow-governance](../../product-flow-governance/spec.md) | 跨线：体验与效果、横向能力（资料、目录、工作台） | [03](batches/03.md)、[05](batches/05.md)、[06](batches/06.md)、[07](batches/07.md)、[12](batches/12.md)、[13](batches/13.md)、[33](batches/33.md)、[39](batches/39.md)、[40](batches/40.md)、[56](batches/56.md) | 要决策：改变现行规则的整改 |
 | [onboarding-coverage](../../onboarding-coverage/spec.md) | 产品线（引导）、横向能力（场景与设置） | [04](batches/04.md)、[12](batches/12.md)、[13](batches/13.md)、[20](batches/20.md)、[33](batches/33.md)、[35](batches/35.md)、[36](batches/36.md)、[37](batches/37.md)、[38](batches/38.md)、[43](batches/43.md)、[44](batches/44.md)、[45](batches/45.md)、[56](batches/56.md)、[72](batches/72.md) | 要决策：首日旅程的界面定样；场景闭环是否拆分见[决定 19](decisions.md#decision-19) |
 | [font-and-skin-system](../../font-and-skin-system/spec.md) | 横向能力（外观与语言）、体验与效果 | [14](batches/14.md)、[16](batches/16.md)、[55](batches/55.md)、[70](batches/70.md) | 要决策：皮肤方向定样；资源／字体与维护条件（[决定 23](decisions.md#decision-23)）；首批语种已定：只做中文和英文（[需求书 §12](../../font-and-skin-system/spec.md#12-决策记录)，2026-11-04） |
+| [state-machine-platform](../../state-machine-platform/spec.md) | 横向能力（共享核心）、底层与架构 | [26](batches/26.md)、[27](batches/27.md)、[46](batches/46.md)、[47](batches/47.md)；迁移片进[统一待办](../../backlog/BL-state-machine-migration.md) | 要决策：新门禁用户 2026-11-08 已批先只报告；`AGENTS.md` 文字仍先给用户看；21 类家族已随 #1979 合入（`platform/ui-state-rings.ts`）；第三方最终强制随市场开放（暂缓项） |
 | [risk-plugin](../../risk-plugin/spec.md) | 产品线（风险插件） | [03](batches/03.md)、[17](batches/17.md)、[19](batches/19.md) | 要决策：总览与复查的高保真定样 |
 | [prologue-skill-strategy](../../prologue-skill-strategy/spec.md) | 横向能力（AI 运行时） | [41](batches/41.md)、[42](batches/42.md)、[61](batches/61.md) | 要决策：四份策略整体评审（[决定 9](decisions.md#decision-9)） |
 | [prologue-context-strategy](../../prologue-context-strategy/spec.md) | 横向能力（AI 运行时） | [61](batches/61.md) | 要决策：四份策略整体评审（[决定 9](decisions.md#decision-9)） |

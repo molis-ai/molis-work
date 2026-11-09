@@ -120,6 +120,10 @@ const pages: Record<string, Draw> = {
 // it, the composer at rest carries ` data-rest` (+10 characters in every page-*), and the English placeholder is 「Ask the assistant…」
 // (16 fewer than 「…to do something…」): zh +10, en −6 on all 16, checked against the drawn pages. No Goals markup or JSON changed;
 // the 16 were recorded with MOLIS_WORK_GOLDEN_RECORD=1 and the other 50 records did not change.
+// Batch 08 (Skills): all 66 normalized draws were checked against the old records before updating. Removing only the new
+// Skills navigation restores every old hash and length: 16 whole pages have two directory buttons (706 zh / 722 en characters),
+// six personal planning records one link (92 zh / 96 en), and twelve project planning/settings records one link with its line
+// (115 zh / 119 en). Only those 34 records changed; the other 32, Goals JSON, view fixture and golden Home fixtures stayed fixed.
 const RECORDED = new URL("golden.json", GOLDEN);
 interface Recorded { sha256: string; length: number }
 const recorded: Record<string, Recorded> = record ? {} : JSON.parse(readFileSync(RECORDED, "utf8"));

@@ -1,3 +1,4 @@
+import { nativeSkill } from "./skill-portability.js";
 import { constants, closeSync, existsSync, fstatSync, lstatSync, openSync, readFileSync, readdirSync, realpathSync } from "node:fs";
 import { join, relative, sep, basename, extname } from "node:path";
 import { CHARACTER_IMPORT_LIMITS as LIMITS, type CharacterImportFile, type CharacterImportRule, type CharacterImportRuntimeId, type CharacterImportSkill } from "@molis-ai/molis-work-contracts/modules/characters";
@@ -143,8 +144,7 @@ export class CharacterScan {
     if (!body) { this.warn(`${path}：缺少可读取的 SKILL.md，未导入技能`); return; }
     const frontmatter = body.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/)?.[1] ?? "";
     const field = (key: "name" | "description") => skillFrontmatterScalar(frontmatter, key);
-    const native = files.some(file => file.encoding === "base64" || !/\.(?:md|mdx|txt|json|jsonc|ya?ml|toml|csv|tsv|xml|svg)$/i.test(file.path))
-      || /(?:mcp__|\bBash\b|\ballowed-tools:|\$\{(?:CLAUDE|CODEX|CURSOR)|(?:^|[\s(])(?:\.\.\/|file:\/\/))/m.test(body);
+    const native = nativeSkill(body, files.map(file => ({ path: file.path, binary: file.encoding === "base64" })));
     const incomplete = this.warnings.length !== beforeWarnings;
     this.skills.push({ id: `${this.runtime}:${target}`, path, name: (field("name") || basename(path)).slice(0, 200),
       description: (field("description") || "").slice(0, 8000), files,

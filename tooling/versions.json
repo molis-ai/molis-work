@@ -700,6 +700,7 @@
     "action.placement.related": 1,
     "action.placement.spaces": 1,
     "action.placement.unlink": 1,
+    "action.plugins.bundled.list": 1,
     "action.plugins.consents.list": 1,
     "action.plugins.consents.revoke": 1,
     "action.plugins.home.installed.disable": 1,
@@ -817,6 +818,12 @@
     "action.shelf.snapshot": 1,
     "action.shelf.subject.read": 1,
     "action.shelf.terminal.open": 1,
+    "action.skills.body.read": 1,
+    "action.skills.catalog.list": 1,
+    "action.skills.import.confirm": 1,
+    "action.skills.import.preview": 1,
+    "action.skills.resource.read": 1,
+    "action.skills.settings.set": 1,
     "action.surfaces.compose": 1,
     "action.surfaces.correct": 1,
     "action.text-stats.count": 1,
@@ -911,8 +918,9 @@
     "contract.io.molis.work.service.runtime-host": 1,
     "contract.io.molis.work.service.scheduler": 1,
     "contract.io.molis.work.service.search": 1,
+    "contract.io.molis.work.service.skills": 1,
     "database.agent_declarations_baseline": 1,
-    "database.agent_definitions_baseline": 1,
+    "database.agent_definitions_baseline": 2,
     "database.alchemist_search_baseline": 1,
     "database.alchemist_studio_baseline": 1,
     "database.assistant_store_baseline": 2,
@@ -1016,7 +1024,6 @@
     "format.runtime.integration.plan": 1,
     "format.runtime.integration.receipt": 1,
     "format.runtime.private-replica": 1,
-    "format.sandbox.agent-method": 1,
     "format.sandbox.agent-prompt": 1,
     "format.sandbox.agent-role": 1,
     "format.sandbox.contract": 1,
@@ -1050,6 +1057,11 @@
     "method.coding-git-delivery": 1,
     "method.coding-implement-change": 1,
     "method.coding-review-change": 1,
+    "method.design-accessibility.accessibility-review": 1,
+    "method.design-accessibility.design-critique": 1,
+    "method.design-accessibility.design-handoff": 1,
+    "method.design-accessibility.design-system": 1,
+    "method.design-accessibility.ux-copy": 1,
     "method.goals.domain-ai-data-product": 1,
     "method.goals.domain-app-product": 1,
     "method.goals.domain-brand-communication": 1,
@@ -1091,6 +1103,7 @@
     "method.meeting-notes": 1,
     "method.todo-advance": 1,
     "method.todo-organize": 1,
+    "plugin.content-design-accessibility": "1.0.0",
     "plugin.integration-catalog": "1.0.0",
     "plugin.integration-catalog.connectors": "1.4.0",
     "plugin.integration-github": "1.5.0",
@@ -1646,6 +1659,36 @@
       "file": "apps/local-host/src/assistant/assistant-agent.ts",
       "key": "checker.molis.connection-ready",
       "pattern": "(molis\\.connection-ready@)\\d+(?=[^\\d]|$)()"
+    },
+    {
+      "file": "plugins/content/design-accessibility/pack-content.json",
+      "key": "plugin.content-design-accessibility",
+      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
+    },
+    {
+      "file": "plugins/content/design-accessibility/skills/accessibility-review/SKILL.md",
+      "key": "method.design-accessibility.accessibility-review",
+      "pattern": "(^version: )\\d+()"
+    },
+    {
+      "file": "plugins/content/design-accessibility/skills/design-critique/SKILL.md",
+      "key": "method.design-accessibility.design-critique",
+      "pattern": "(^version: )\\d+()"
+    },
+    {
+      "file": "plugins/content/design-accessibility/skills/design-handoff/SKILL.md",
+      "key": "method.design-accessibility.design-handoff",
+      "pattern": "(^version: )\\d+()"
+    },
+    {
+      "file": "plugins/content/design-accessibility/skills/design-system/SKILL.md",
+      "key": "method.design-accessibility.design-system",
+      "pattern": "(^version: )\\d+()"
+    },
+    {
+      "file": "plugins/content/design-accessibility/skills/ux-copy/SKILL.md",
+      "key": "method.design-accessibility.ux-copy",
+      "pattern": "(^version: )\\d+()"
     },
     {
       "file": "plugins/native/goals/methods/domains/domain-ai-data-product.md",

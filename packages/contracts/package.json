@@ -66,6 +66,10 @@
       "types": "./dist/platform/dom-events.d.ts",
       "import": "./dist/platform/dom-events.js"
     },
+    "./platform/external-tools": {
+      "types": "./dist/platform/external-tools.d.ts",
+      "import": "./dist/platform/external-tools.js"
+    },
     "./platform/kernel": {
       "types": "./dist/platform/kernel.d.ts",
       "import": "./dist/platform/kernel.js"
@@ -213,6 +217,10 @@
     "./services/memory": {
       "types": "./dist/services/memory.d.ts",
       "import": "./dist/services/memory.js"
+    },
+    "./services/skills": {
+      "types": "./dist/services/skills.d.ts",
+      "import": "./dist/services/skills.js"
     },
     "./modules/characters": {
       "types": "./dist/modules/characters.d.ts",

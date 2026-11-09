@@ -1,34 +1,21 @@
 import { Buffer } from "node:buffer";
-import { createHash } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
-import { SKILL_LIMITS, type AgentSkillDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
+import { SKILL_LIMITS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { CONTENT_PACKAGE_FILES, type PluginDeclarationProblem, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { refuseDeclarations } from "./declaration-problems.js";
 import { isRecord } from "./json-value.js";
 import { parsePluginManifest } from "./manifest.js";
 import { packagePathProblem } from "./skill-declarations.js";
+import { readPackagedSkills, type PackagedSkillBody } from "./skill-files.js";
 
 // The package a plugin with only declarations is installed from (`CONTENT_PACKAGE_FILES`, specs/skill-packs/contract-design.md §3).
 // The Host picks this reading or the sandbox package's by the Manifest's `kind`, after the same signature check.
 
-/** One Skill's body as the package ships it, read and checked against its declaration. */
-export interface ContentPackageSkill {
-  skill_id: string;
-  version: number;
-  body: string;
-}
-
 /** A content package that passed every check: the Manifest, and each declared Skill's body. Resources stay in the package files. */
 export interface ContentPackage {
   manifest: PluginManifest;
-  skills: ContentPackageSkill[];
+  skills: PackagedSkillBody[];
 }
-
-/** What one declared file is: the Manifest, a Skill's body, or one of its resources. */
-type Expected =
-  | { kind: "manifest" }
-  | { kind: "body"; skill: AgentSkillDeclaration }
-  | { kind: "resource"; skill: AgentSkillDeclaration; bytes: number; sha256: string };
 
 /**
  * Read a content package's payload (`CONTENT_PACKAGE_FILES`), after its signature is verified and before anything is written. The files
@@ -45,30 +32,14 @@ export function parseContentPackage(payload: unknown): ContentPackage {
   const manifest = parsePluginManifest(written);
   if (manifest.kind !== "content") refuseDeclarations([{ reason: "内容包只装只有声明的插件（kind: \"content\"）" }]);
   const { files, problems } = decodedFiles(payload.files as unknown[]);
-  const expected = expectedFiles(manifest);
-  for (const [path, entry] of expected) if (!files.has(path)) problems.push({ ...skillOf(entry), path, reason: "包里找不到" });
-  for (const path of files.keys()) if (!expected.has(path)) problems.push({ path, reason: "声明里没有这个文件" });
-  const skills: ContentPackageSkill[] = [];
-  for (const [path, entry] of expected) {
-    const bytes = files.get(path);
-    if (!bytes) continue;
-    if (entry.kind === "manifest") {
-      if (!isDeepStrictEqual(jsonOf(bytes), JSON.parse(JSON.stringify(written)))) problems.push({ path, reason: "与包的 Manifest 不一致" });
-    } else if (entry.kind === "resource") {
-      if (bytes.length !== entry.bytes) problems.push({ ...skillOf(entry), path, reason: "大小与声明不符" });
-      else if (createHash("sha256").update(bytes).digest("hex") !== entry.sha256) problems.push({ ...skillOf(entry), path, reason: "摘要与声明不符" });
-    } else {
-      const body = bodyText(bytes);
-      if (typeof body === "string") skills.push({ skill_id: entry.skill.skill_id, version: entry.skill.version, body });
-      else problems.push({ ...skillOf(entry), path, reason: body.reason });
-    }
-  }
+  const manifestBytes = files.get(CONTENT_PACKAGE_FILES.manifest);
+  if (!manifestBytes) problems.push({ path: CONTENT_PACKAGE_FILES.manifest, reason: "包里找不到" });
+  const skills = readPackagedSkills(manifest.methods ?? [], files);
+  problems.push(...skills.problems);
+  for (const path of files.keys()) if (path !== CONTENT_PACKAGE_FILES.manifest && !skills.paths.has(path)) problems.push({ path, reason: "声明里没有这个文件" });
+  if (manifestBytes && !isDeepStrictEqual(jsonOf(manifestBytes), JSON.parse(JSON.stringify(written)))) problems.push({ path: CONTENT_PACKAGE_FILES.manifest, reason: "与包的 Manifest 不一致" });
   if (problems.length) refuseDeclarations(problems);
-  return { manifest, skills };
-}
-
-function skillOf(entry: Expected): { skill_id?: string } {
-  return entry.kind === "manifest" ? {} : { skill_id: entry.skill.skill_id };
+  return { manifest, skills: skills.bodies };
 }
 
 /** The package's files by path, within the package limits; a file that cannot be one is a problem, not a stop. */
@@ -95,27 +66,6 @@ function decodedFiles(rows: readonly unknown[]): { files: Map<string, Buffer>; p
   return { files, problems };
 }
 
-/** The files the Manifest declares, by path. `parsePluginManifest` already refused a path outside the package or a duplicate. */
-function expectedFiles(manifest: PluginManifest): Map<string, Expected> {
-  const expected = new Map<string, Expected>([[CONTENT_PACKAGE_FILES.manifest, { kind: "manifest" }]]);
-  for (const skill of manifest.methods ?? []) {
-    if (skill.body) expected.set(skill.body, { kind: "body", skill });
-    for (const resource of skill.resources ?? []) expected.set(resource.path, { kind: "resource", skill, bytes: resource.bytes, sha256: resource.sha256 });
-  }
-  return expected;
-}
-
 function jsonOf(bytes: Buffer): unknown {
   try { return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)); } catch { return undefined; }
-}
-
-/** A body is non-empty UTF-8 within the line limit and Prologue's character limit (UTF-16 units, as Prologue counts them). */
-function bodyText(bytes: Buffer): string | { reason: string } {
-  let body: string;
-  try { body = new TextDecoder("utf-8", { fatal: true }).decode(bytes); } catch { return { reason: "正文不是 UTF-8 文字" }; }
-  if (!body.trim()) return { reason: "正文是空的" };
-  const lines = body.split(/\r?\n/u).length - (/\r?\n$/u.test(body) ? 1 : 0);
-  if (lines > SKILL_LIMITS.bodyLines) return { reason: `正文超过 ${SKILL_LIMITS.bodyLines} 行` };
-  if (body.length > SKILL_LIMITS.bodyChars) return { reason: `正文超过 ${SKILL_LIMITS.bodyChars} 字` };
-  return body;
 }

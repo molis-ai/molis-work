@@ -125,6 +125,29 @@ export function updatePluginAgentDefinitions(home: PluginPlatformHome, definitio
   declarations.remember(installId, registration);
 }
 
+/**
+ * A plugin with only declarations (`kind: "content"`) runs no instance whose start and stop hold its Agent definitions (specs/skill-packs/
+ * contract-design.md §3): while it is enabled on a Host, the Host holds them in the instance's place (`set`), and lets go when it is switched
+ * off, taken off (`release`, before `forgetPluginAgentDefinitions`) or the Host closes (`releaseAll`). As with running instances, the
+ * last hold let go leaves its Skills not running, so they are offered only while some Host has the plugin enabled and its package verified.
+ */
+export function declaredOnlyHolds(home: PluginPlatformHome | null | undefined) {
+  const held = new Map<string, { version: string; release: () => void }>();
+  const release = (pluginId: string) => { const hold = held.get(pluginId); held.delete(pluginId); hold?.release(); };
+  return {
+    set(definition: PluginDefinition, installId: string, state: "enabled" | "disabled"): void {
+      const { plugin_id: pluginId, version, kind } = definition.manifest, holds = state === "enabled" && kind === "content";
+      if (holds && held.get(pluginId)?.version === version) return;
+      // A new version is held before the earlier one is let go, so the Skills are not left not running in between.
+      const acquired = holds ? registerPluginAgentDefinitions(home, definition, installId) : undefined;
+      release(pluginId);
+      if (acquired) held.set(pluginId, { version, release: acquired });
+    },
+    release,
+    releaseAll(): void { for (const pluginId of [...held.keys()]) release(pluginId); },
+  };
+}
+
 /** An uninstalled installation's declarations leave the register and the Home (PG-051 Q1 b), unless it still runs somewhere. */
 export function forgetPluginAgentDefinitions(home: PluginPlatformHome | null | undefined, installId: string): void {
   if (!home) return;

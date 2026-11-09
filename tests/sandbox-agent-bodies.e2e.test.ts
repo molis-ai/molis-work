@@ -7,7 +7,7 @@ import { HomeConsentLedger, homeAgentDefinitions } from "@molis-ai/molis-work-ap
 import type { AssistantMethod, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { issueModel } from "./fixtures/issue-model.js";
-import { newPublisher, signedAgentPackage, PACKAGE_PLUGIN_ID } from "./fixtures/sandbox-package.js";
+import { newPublisher, packageMethod, signedAgentPackage, PACKAGE_PLUGIN_ID } from "./fixtures/sandbox-package.js";
 import { waitWork } from "./fixtures/assistant-send-journey.js";
 import { CURRENT_WORK } from "./fixtures/assistant-current-work.js";
 
@@ -18,7 +18,8 @@ test("RAC-2636/2640/2641/2643 signed File preview and real picker preserve bound
   }); assert.ok(browser);
   const publisher = newPublisher(), names = ["中".repeat(80), "😀".repeat(40), "文".repeat(78) + "😀", "<img src=x onerror=globalThis.__agentInjected=1>"], prefix = "😀".repeat(200);
   const roles = names.map((name, index) => ({ name, purpose: "目".repeat(300), body: `agent/role-${index}.md` }));
-  const methods = [{ name: names[0]!, purpose: "同名方法", body: "agent/method.md" }, { name: "旧方法", purpose: "将被移除", body: "agent/removed.md" }];
+  // SKP-08 SKC-03: a signed package's methods are complete Skill declarations, each with its own skill_id.
+  const methods = [packageMethod("same-name", names[0]!, "同名方法"), packageMethod("old-method", "旧方法", "将被移除")];
   const bodies = Object.fromEntries(roles.map(entry => [entry.body, prefix + "<script>仅为正文</script>旧尾部"]));
   const bundle = signedAgentPackage(publisher, { version: "1.1.0", roles, methods, bodies });
   const settings = `/projects/${browser.projectId}/settings/plugins`;
@@ -48,7 +49,7 @@ test("RAC-2636/2640/2641/2643 signed File preview and real picker preserve bound
   assert.equal(homeAgentDefinitions(browser.homeDirectory).methods().some(item => item.owner_id === PACKAGE_PLUGIN_ID), false);
   await select(bundle, "install"); await confirm();
   await browser.waitFor("document.querySelector('[data-plugin-trust-list]').innerText.includes('1.1.0')");
-  const next = signedAgentPackage(publisher, { version: "1.2.0", compatibleFrom: ["1.1.0"], roles, methods: [methods[0]!, { name: "新增方法", purpose: "新增", body: "agent/new.md" }], bodies: Object.fromEntries(roles.map(entry => [entry.body, prefix + "新尾部"])) });
+  const next = signedAgentPackage(publisher, { version: "1.2.0", compatibleFrom: ["1.1.0"], roles, methods: [methods[0]!, packageMethod("new-method", "新增方法", "新增")], bodies: Object.fromEntries(roles.map(entry => [entry.body, prefix + "新尾部"])) });
   const evidence = join(process.cwd(), ".impeccable/qa/review/t144"); await mkdir(evidence, { recursive: true });
   for (const locale of ["zh", "en"] as const) {
     await go("/locale?lang=" + locale + "&next=" + encodeURIComponent(settings)); await browser.waitFor("!!document.querySelector('[data-plugin-trust-pick]')");

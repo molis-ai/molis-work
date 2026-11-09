@@ -240,6 +240,7 @@ placement.move	1	system.placement	command	operation	home	write	-	user	placement:
 placement.related	1	system.placement	query	query	home	read	concurrent	agent,user	placement:read	-	-	-	03636e556197	c77ce5a16d74	-
 placement.spaces	1	system.placement	query	query	home	read	concurrent	agent,user	placement:read	-	-	-	d746974fa9af	afb3d85a8f08	-
 placement.unlink	1	system.placement	command	operation	home	write	-	user	placement:read,placement:write	-	-	-	767463c0e660	ffe64f3e9a62	-
+plugins.bundled.list	1	plugin-install	query	query	home	read	-	user	plugin-install:read	-	-	-	99334726611c	c1d2b4a1e6c3	-
 plugins.consents.list	1	plugin-consents	query	query	home	read	-	user	plugin-consents:read	-	-	-	0f4df4950e13	8c0cd2b99249	-
 plugins.consents.revoke	1	plugin-consents	command	operation	home	write	-	user	plugin-consents:write	-	-	-	3d297df1d589	41c687ca9fa6	-
 plugins.home.installed.disable	1	plugin-install	command	operation	home	write	-	user	plugin-install:write	-	-	-	52c1f91a2943	ed1bbfdbc8a1	-
@@ -248,7 +249,7 @@ plugins.home.installed.list	1	plugin-install	query	query	home	read	-	user	plugin
 plugins.home.installed.uninstall	1	plugin-install	command	operation	home	write	-	user	plugin-install:write	-	-	-	58f4e0ac86dd	ed1bbfdbc8a1	-
 plugins.home.permissions.set	1	plugin-install	command	operation	home	write	-	user	plugin-install:write	-	-	-	a84e21e82492	5f69cd6b08ba	-
 plugins.install.confirm	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	1ac5b8aa902d	d14b3d6b0630	-
-plugins.install.preview	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	da2e9ff3ba28	3a47a0187dbc	-
+plugins.install.preview	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	750c5d5fd01c	db44b239cf8d	-
 plugins.installed.disable	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	52c1f91a2943	ed1bbfdbc8a1	-
 plugins.installed.enable	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	52c1f91a2943	ed1bbfdbc8a1	-
 plugins.installed.list	1	plugin-install	query	query	project	read	-	user	plugin-install:read	-	-	-	99334726611c	ac7a1ab2b686	-
@@ -421,3 +422,9 @@ search.query	1	system.search	query	query	home	read	concurrent	agent,mcp,plugin,u
 search.rebuild	1	system.search	command	operation	home	write	concurrent	user	search:manage	-	-	-	95b7741253bf	b11c9beb88b3	-
 search.references	1	system.search	query	query	home	read	concurrent	plugin,user	search:read	-	-	-	b97ecba7506e	d300be37db51	-
 search.status	1	system.search	query	query	home	read	concurrent	agent,mcp,plugin,user,workflow	search:read	-	-	-	95b7741253bf	67fb0130cd9a	-
+skills.body.read	1	system.skills	query	query	home	read	-	agent,plugin,user	skills:read	-	-	-	7ab98c3605d4	ed41f9af69f3	-
+skills.catalog.list	1	system.skills	query	query	home	read	-	agent,plugin,user	skills:read	-	-	-	432f3f6a5823	9616a6f9f77b	-
+skills.import.confirm	1	plugin-install	command	operation	home	write	-	user	skills:manage	-	-	-	6991138fea2c	d14b3d6b0630	-
+skills.import.preview	1	plugin-install	command	operation	home	write	-	user	skills:manage	-	-	-	dcd04372233e	177b091e5a8d	-
+skills.resource.read	1	system.skills	query	query	home	read	-	agent,plugin,user	skills:read	-	-	-	69404a9dbf5f	b3b4ba8c0864	-
+skills.settings.set	1	system.skills	command	operation	home	write	-	user	skills:manage	-	-	-	94bf6ef0f64a	2b646704d211	-

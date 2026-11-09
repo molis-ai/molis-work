@@ -164,6 +164,30 @@ Manifest 只加 `blueprint?: { locales: string[] }`，不内嵌第二份 Bluepri
 
 沿 08 的 `plugins.bundled.list@1` 读取已验签包的身份、名称与说明；未安装的场景正文从同一份验证过的内容包读，不另建场景登记库。文字经 `createTextReader` 按调用语言解析，HTML 不用 `.text`。这里只列候选，不能把 bundled 当 install_id、项目成员、启用或授权。尚未选用时不登记 Skill、不出现在工作台／项目，不起进程；选中才走普通安装预览、本人确认、项目启用与场景采用。离线挑选不等于所有依赖离线可用。发布者密钥、签包和安装包资源由第 26 批处理，本批不碰凭据、不制作官方发行包。
 
+### 3.5 P-3b 静态实施设计
+
+`contracts/platform/blueprints` 导出 §3 的四种类型和 `BLUEPRINT_LIMITS`（`parts`、`steps` 各 128）。`BlueprintProposal` 使用 §5.1 的 `RoleTemplate`、现有 `PluginRequirementDeclaration`、`TextRef` 和 `SandboxJson`。上文的 `BlueprintSource` 展示来源形状，实际定义与 schema 复用第 36 批提前合同的 `platform/blueprint-source.ts`，交接后从本子路径转出。校验正文只使用调用方提供的 `package`／`draft` 模式。正文不带来源、包版本、安装、操作者或项目身份，因此静态校验无需等 P-2b 或 36 的角色服务。
+
+SDK 入口为 `inspectBlueprint(value: unknown, options: { source: "package" | "draft" }): readonly PluginDeclarationProblem[]`。空数组表示通过。先查对象、数组及上限，再查引用。所有有明确定义字段的对象均闭合，必填字段按 §3 的形状，包括建议分支、目的、步骤与示范任务。每个部分的 `required` 必须为布尔值，`layer` 只收 `personal`／`project`。`setting.value`、`content.body` 按现有 SDK `sandbox-schema.ts` 的 `assertJson` 核对有界 JSON，值里的字段交给主人。场景包形状由这一份检查执行，SDK 无需 Kernel 或再定义一套 `SandboxSchema` 联合。问题路径用 `$.parts[2].proposal.requires.optional` 这类实际字段位置，包读取附文件路径，经 `refuseDeclarations` 整包拒绝，保留 `plugin.declaration_invalid`。
+
+| 建议 | 静态检查 |
+| --- | --- |
+| `capability` | `requires` 只收 `capability_id`、正安全整数 `version`、非空 `reason` 和可选布尔 `optional`，版本用 SDK `validVersion`。`required: true` 对应省略 `optional` 或 `false`，`required: false` 对应 `optional: true`。Manifest 检查里的 `capabilities.consumes` 与包级启用规则留在原处。 |
+| `skill`／`role` | Skill 的 `pack`、`skill_id` 沿 §5.1 的插件 ID 与 Skill token 规则，`state` 只收 `auto`／`manual`。角色复用同一份 §5.1 模板校验，把问题路径挂到 `proposal.template`。`works_with` 的指向由场景部分集合核对。第 09 批 #1993 的角色说明消费同一内容合同，本片不另加白名单键或模板字段。 |
+| `setting`／`connection`／`content` | 设置 key 沿 P-1 规则。连接类别非空并检查 `purpose` 的文字引用。内容 `type` 用 §3 的 `<主人>.<名字>.v<正整数>` 形状，与 §8 的 `adopts.type` 共用这一检查。是否存在该设置、类别、内容类型及其主人，以及值是否满足主人 schema，留给采用预览。 |
+
+用一个部分索引和一个步骤索引核对本包引用。两个 ID 集合各自唯一，标识非空。重复或悬空的 `part_ids`、`step_ids`、`works_with` 要定位到引用项，数组不超过各自可引用集合。`works_with` 只指其他 role，表示协作关系。步骤实际需要协作者时在 `part_ids` 明列。`example_task.result.part_id` 须为 `capability` 或 `content`，并被 `example_task.step_ids` 选中的至少一个步骤引用。校验保持声明顺序，跨版本稳定性在升级预览按 ID 比较。
+
+采用预览以后直接按 `steps[].part_ids` 判受影响步骤。`required` 决定整套起步路径对该部分的要求。可选部分可以跳过，选了引用它的步骤就需要它。比如一项可选订阅未连接，只挡明列它的调研步骤，独立的写作步骤仍可继续。角色协作和示范任务的描述不会隐式添加步骤依赖，依赖也不会复制到 Manifest `requires`。静态检查没有目录输入，缺安装、连接或主人时仍可读到有效 Blueprint。
+
+`inspectBlueprintLocales(defaultBlueprint: unknown, others: readonly { locale: string; blueprint: unknown }[])` 同样返回声明问题。先用 `inspectBlueprint` 的 package 模式检查每一份，再比较通过的默认与译文。所有 `TextRef` 用 `textRefProblems`，包传 `{ literal: false }`，草稿传 `{ key: false }`，保留现有参数、互斥与长度规则。比较时仅允许声明里的 `TextRef`、role 的 `proposal.template.instructions` 和 content 的 `proposal.body` 的值变化，外层字段是否存在保持一致。对象忽略键顺序，数组保持顺序。`setting.value` 里的同名字段仍按原值比较，引用、步骤和 `requires.reason` 也须一致。问题指出译文文件和第一个不同的结构字段。读取并比较一次即可，调用方继续使用已校验的正文。
+
+**接入现有包读取。** `parsePluginManifest` 在既有内容包检查中接 `blueprint`，验证闭合的 `{ locales }`、与 `ui.locales` 的子集关系及非默认、去重。仅 `kind: "content"` 接受 `blueprint`，至少一个 method 或一份 Blueprint。随包提供的 methods 仍逐项检查。沿 08 的 `ui.locales` 检查和 14 的 `parseLocalePack`／`inspectLocaleSet`，词表文件与声明的语言和包主人相符，保留词表回退和阻断规则。包读者用现有预期文件清单计入默认 `blueprint.json`、列明的译文与声明的语言文件，在同一份 UTF-8／文件数／字节限制下解码校验。`parseContentPackage` 的结果新增可选 `blueprint: { default: Blueprint; others: readonly { locale: string; blueprint: Blueprint }[] }`，默认语言从 Manifest 取。默认与译文的正文一次检查，文字读取按验过的包主人走 `tryOwnedTextRef`／`createTextReader`。声明 `adopts` 的实际动作及固定 schema 核对仍按 §8，在共享 Manifest 接线时做。
+
+**文件与顺序。** 可先准备新文件 `packages/contracts/src/platform/blueprints.ts`、`packages/plugin-sdk/src/blueprints.ts` 和 `tests/blueprint-contract.test.ts`。复用 P-2a 的 `role-template.ts`，P-1 的设置边界在其合同到位后接。等 #1984 交接后，单一写手串行接 `packages/contracts/package.json` 的既定子路径、SDK `index.ts`、`plugin-manifest.ts` 及 SDK 的 `manifest.ts`、`content-plugin.ts`、`content-package.ts`，统一刷新 `contracts/platform/blueprints`、`contracts/platform/plugin` 与 `plugin-sdk/index` API 快照。包读取接 08 的同一条已验签内容包入口。基点 `7098d6c37d` 的 Host 尚无 `parseContentPackage` 调用，真实安装证据须等该入口接通。公开子路径和 SDK 根出口未接时，独占文件只是待接候选。跨包调用走公共出口，定向测试不导入内部文件。
+
+**验收映射。** SPC-C03 从 `contracts/platform/blueprints` 消费类型与上限，从 SDK 根调用 `inspectBlueprint`。验包与草稿正例、超限和多余身份字段、重复／悬空引用、互相协作和自指的区别、结果在未选步骤或指向错误建议种类、必需／可选不一致，以及可选依赖尚未安装仍通过静态检查。SPC-C04 经公开 `parseContentPackage` 验纯场景包、仅 methods、混合包与空包，覆盖缺／多文件、坏语言清单、译文改步骤／能力／设置值。SPC-C05 经公开 `inspectBlueprintLocales` 和内容包词表读取验三类允许的译文变化、来源文字模式及占位符问题的文件与词键。草稿转词时，另存消费者须把生成的键映回场景字段，复用 14 的占位符诊断并按 §3.3 提供替换建议。字段映射与失败无写入在该消费者实际接入时验。实际受影响步骤、采用和安装行为沿 SPC-01／02／13 另验。
+
 ## 4. 设置
 
 **一项设置**由它的主人声明、保存、给出有效值。平台不存设置值，也不另建「设置中心」的第二份名单（§3.11「引导与设置页读写同一份有效配置」）。
@@ -458,7 +482,7 @@ interface HomePageVersion {
 | P-2a 角色模板 | `RoleTemplate`、严格形状及静态校验；不建角色成员或持久化来源 | `modules/characters.ts` | api：`contracts/modules/characters`；SDK 的静态校验随既定公共出口接入 | 不依赖 36；复用现行 Character 内容与 TextRef |
 | P-2b 角色采用接口 | `characters.from_template@1` 的声明、准确的项目成员返回值与来源／回读合同 | `modules/characters.ts` | api：`contracts/modules/characters`；动作：`host-actions.tsv`（提供方 `io.molis.work.characters` 由宿主登记） | P-2a；36 的层次合同同一片或在它之后 |
 | P-3a 项目插件成员 | `projects.plugins.set@1` 按 `expected_revision` 把插件加进或撤出项目，受众为 `user`。`projects.plugins.get@1` 返回版本化成员。两个动作复用 Projects 的常开、随行、隐藏和原子 revision 规则。项目设置 HTTP 的写走 set，全项目 GET 复用 get 的 owner 读法，保持被动读取（第 10.1、10.2 节） | `modules/projects.ts` | api：`contracts/modules/projects`；动作：`host-actions.tsv` | 05② 的 C-1（同一快照） |
-| P-3b 场景定义 | `Blueprint`、`BlueprintSource`、`BlueprintPart`、`BlueprintProposal`、Manifest 的 `blueprint`／`adopts`；SDK 的 `inspectBlueprint`（静态）、`inspectBlueprintLocales`、内容包文件校验与 `validateAdoptsDeclaration`；GLOSSARY 加「场景包（blueprint）」一行 | `platform/blueprints.ts`（新）、`platform/plugin-manifest.ts` | api：`contracts/platform/blueprints`（新）、`contracts/platform/plugin-manifest`、`plugin-sdk/index` | P-1、P-2a；08 的 C-1（`content`、`SkillRef`）。不依赖 P-2b 或 36 的服务实现 |
+| P-3b 场景定义 | `Blueprint`、`BlueprintSource`、`BlueprintPart`、`BlueprintProposal`、Manifest 的 `blueprint`／`adopts`；SDK 的 `inspectBlueprint`（静态）、`inspectBlueprintLocales`、内容包文件校验与 `validateAdoptsDeclaration`；GLOSSARY 加「场景包（blueprint）」一行（第 3.5 节） | `platform/blueprints.ts`（新）、`platform/plugin-manifest.ts` | api：`contracts/platform/blueprints`（新）、`contracts/platform/plugin`、`plugin-sdk/index` | 形状和检查复用 P-2a，设置与主人声明接 P-1。来源转出复用 36 提前合同，公开接线与包读取等 08 交接。不依赖 P-2b 或 36 的服务实现 |
 | P-3c 采用动作与签名入口 | 第 7 节八个动作的声明与类型（`adoption.preview` 是 command／write）；`needs_install`、`needs_approval` 步骤状态；「采用不转交本人的同意」合同及本批实际接入边界的拒绝测试；完整 apply 服务与 S-110 处理器真实拒绝归第 44 批；第 6.6 节的 `plugins.local_packages.sign@1` 与安装预览里的来源字段 | `services/blueprints.ts`（新）、`platform/plugin-trust.ts`（安装预览的类型在这里） | api：`contracts/services/blueprints`（新）、`contracts/platform/plugin-trust`；动作：`host-actions.tsv`（`system.blueprints`、`plugin-install` 的签名入口） | P-3a、P-3b；08 的 C-2（`skills.*`） |
 | P-4 首页与生成页面 | `services/home.ts`：首页选择、`HomePageVersion`、第 6.5 节八个动作；页面主体与试用主体这两种调用主体（`platform/actions.ts` 里的调用方种类）；S-111～S-113 三条边界的公共合同。本批交 schema、SDK 校验及必要接入，并验证实际接入边界的真实拒绝；文件送达、页面主体网关、执行隔离、撤权／换版与真实浏览器拒绝归第 37 批（第 6.4 节）。SPC-10／11 留给第 37 批真实验收，不记第 20 批通过（用户 2026-11-08 PST 裁定） | `services/home.ts`（新）、`platform/actions.ts` | api：`contracts/services/home`（新）、`contracts/platform/actions`；动作：`host-actions.tsv`（`system.home`） | 05② 的 C-2、C-3（卡片与 `home` 组合位置）；#1791 K0（同动 `platform/actions`）；P-3b（`adopts`） |
 

@@ -507,6 +507,10 @@ SDK 根入口 `inspectHomePageDraft(value: unknown)` 返回带字段路径的声
 
 `UndoResult` 为 `{ operation: "revert" | "remove", request_id, steps: UndoStep[] }`。`UndoStep` 按 `state` 闭合，各分支带 `part_id`。`restored` 带经核实的 `{ action, subject, revision }`。`detached` 表示实际解除，只有场景解绑时省略主人写回执。`skipped` 带 `reason`，`needs_approval` 带 `{ page_id, version, approval_request_id }`，`pending_verification` 带待核对的主人 `request_id`，`failed` 带主人的 `error`。动作、对象、CAS 凭据及错误复用采用步骤的合同。`adoption.read` 用 `latest_undo` 呈现当前撤销进度与结果，已恢复或解除的部分保留原采用回执供追溯。
 
+**P-3c 回读字段。** 预览部分的 `{ part_id, proposal, layer, candidates, decision, consequences, affected_step_ids }` 中，候选是 `{ kind: "owner", action: ExactActionReference, subject?, current }` 或 `{ kind: "bundled", plugin_id, version }`。随包候选的标识直接沿已验签的 `plugins.bundled.list`／安装预览 `bundled` 输入，没有安装 ID、动作或授权。主人观测 `current` 区分 `{ state: "present", value, origin: BlueprintPartOrigin | null, revision? }`、`{ state: "missing" }` 和 `{ state: "unavailable", reason }`。后果用第 4 节的取值；预览中的选择不携带主人 revision。采用返回的实际目标为 `{ kind: "personal" }` 或 `{ kind: "project", project_id }`，后者仅是结果事实，不能再当作调用身份。
+
+升级比较 `{ adoption_id, locale, parts }`；每项为 `{ part_id, before: BlueprintProposal | null, after: BlueprintProposal | null, current, keep_user_changes, dependency_changes }`，前后不能都空。依赖变化列 `{ part_id, change: "added" | "removed" | "changed" }`。旧采用语言留在比较对象中。应用和撤销的主人回执共用 `{ action: ExactActionReference, subject: ActionSubject, revision }`，写入步骤另带实际 `outcome`，原批准的关联键随 `approval: { page_id, version, approval_request_id }` 保留。纯依赖复用只有 `outcome: "reused"`，无写回执。`applied.current` 可标 `changed`／`owner_unavailable`，旧回执不变。`pending_verification` 带待核对的主人请求键，`failed.error` 只给 `{ code, message }`。撤销的 `restored` 必须带主人 `receipt`，`detached` 可省略。
+
 后续处理器按同一可信范围和 owner 读动作合并查询。已知对象读当前值，写出结果未知则按 `<adoption_id>:<part_id>` 查主人回执。失败、超时、数量不符或返回不全仍待核对。确认未提交后按原键补写。主人只提供当前值读取时，只有已证明可返回原回执的动作才能在成功回读后按原键核对式重放。相同当前值不能证明这次新建或具备撤销权，P-3a 的当前成员读取也无法单独证明失联写的来源。Characters 沿 36 的批读及复用 CAS，同时核对成员 revision 和原件版本，复用与回执同事务更新成员 revision，使旧解除凭据失效。Blueprints 不另存一份角色共享计数。
 
 第一次 apply 绑定可信本人、已确认预览、目标与原请求，同键异内容拒绝。预览未使用且过期时用 `blueprints.preview_expired`。一旦接受并记下 `adoption_id`，同请求重进沿该记录续做，原预览过期不让它重开一份。派发主人命令前经 `beforeEffect()` 留待核对的检查点，成功回读后才能记已生效。取消或撤权后停止派发和记账。迟到或重启后的检查点由下一次获准调用核对。新项目复用现有 `ProjectCatalog.createProject` 的可信稳定 ID 创建路径。现行目录没有 `projects.create` 动作，给刚建项目绑定子调用的可信入口由第 44 批接，不能修改一份 caller 对象冒充该项目的权限。
@@ -528,6 +532,24 @@ SDK 根入口 `inspectHomePageDraft(value: unknown)` 返回带字段路径的声
 - `read` 用 `{ queries }`／`{ results }` 批读，结果与查询按序对应，单批沿 `BLUEPRINT_LIMITS.parts`。查询按 `by` 区分 `proposal`（`type`、`blueprint`、`body`，返回候选）、`subject`（读当前值）和 `request`（按 `request_id` 读回执与当前值）。批读失败和确认不存在分开。可选 `revert` 输入 `{ adopt_request_id, request_id, subject, expected_revision }`，由同一主人核回执和当前 revision 后恢复或解除。未声明时只解除场景绑定，并回报实际结果。
 - `validateAdoptsDeclaration` 随 Manifest 校验，核 `adopt`、`read`、`revert` 都指本插件已声明的同版本动作，读写效果与所用作用域一致。SDK 复用 `ACTION_SUBJECT_SCHEMA`、`BlueprintPartOrigin` schema 和 P-1 的有界 schema 检查，按 `canonicalJsonText` 比较固定字段，`body` 匹配声明的 schema。拒绝缺 CAS、错误分支和伪造身份。既供编辑又供采用的动作，采用分支也须闭合且与这份输入一致。现行签名沙箱的 `SandboxOperationContract` 无法直接表达该联合，实际接入须提供同一合同的绑定并验证，不能拿普通读动作或仅 Manifest 校验冒充支持。
 - 同一范围里两个安装声明同一种 `content` 类型时，后装的照样能装；采用时由预览让你选主人。`settings_entries` 的 key 不同：重复就拒后装的（第 4 节）。
+
+**P-3c 通用主人回读字段。** 同一主人为每种内容声明一个条目，动作引用只写 `capability_id` 和正安全整数 `version`。CAS 凭据保留原来的非空字符串或正安全整数。通用回读按以下分支，匹配哪条查询和批读返回不全由调用方核对：
+
+```ts
+type ContentAdoptionCurrent<Value> =
+  | { state: "present"; value: Value; revision: string | number; origin: BlueprintPartOrigin | null }
+  | { state: "missing" }
+  | { state: "unavailable"; reason: string };
+type ContentAdoptionReadResult<Value, Receipt> =
+  | { kind: "proposal"; candidates: Array<{ subject: ActionSubject; current: ContentAdoptionCurrent<Value> }> }
+  | { kind: "subject"; current: ContentAdoptionCurrent<Value> }
+  | { kind: "receipt"; receipt: Receipt; current: ContentAdoptionCurrent<Value> }
+  | { kind: "missing" };
+// revert 的实际写结果：
+// { outcome: "restored" | "detached"; subject: ActionSubject; revision: string | number }
+```
+
+`Receipt` 为本次采用最初的回执，不能用当前值的凭据替换；在批读里，`missing` 确认没有原回执，不能代替读取失败。候选由调用的确切主人查询给出，`subject` 是该主人中的对象引用，调用方仍须保留真实动作提供方。SDK 通过定义列表、正确定版、读写效果与同一 scope 核声明，采用分支不能和另一个编辑分支重叠。SPC-C07 定向用例还覆盖缺 CAS、声明的正文 schema 与动作不一致、错引用版本、随包候选冒充已安装、旧回执与当前状态并列，以及升级三方中的新增、删除和保留用户改动。
 
 ## 9. 调用次数
 

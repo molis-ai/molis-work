@@ -387,6 +387,10 @@ Host 的动作客户端和场景客户端共享项目运行时与执行队列。
 
 Pages 与 Coding 是完整样例；需求与验收见 `specs/archive/system-assistant/spec.md` 第 10.4 节与 AC46—AC51。
 
+## 对象的呈现
+
+对象、字段与四种呈现形态沿用同一份声明。原生插件的读取绑定、手写签名 app 包的固定读取协议和组件板自查，见 [插件开发 Skill · 对象的呈现](../../skills/molis-plugin-dev/ui.md#对象的呈现)。
+
 ## 系统搜索
 
 插件的内容经共同动作目录进入系统搜索（`search.query`，工作台 ⌘K、助理、工作流与 MCP 共用），插件不写索引、不调用搜索服务：

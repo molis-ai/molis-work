@@ -184,6 +184,34 @@ Files/Git 的目录子树独立挂载，避免和 Coding 根节点争用同一�
 
 需要事件刷新时复用 `scope.watchRevision(read, refresh)`；可见时只查轻量 revision，变化后读原状态，隐藏/卸载停止，重连重新读当前事实。忙碌时 refresh 返回 false，避免丢失发生在当前读取期间的通知。revision 不是业务执行身份或成功回执，不能重放写命令。参考 Files/Git。服务端让自己的页面重新读取，调 `context.services.ui.invalidate()`：不带参数，只推自己的 revision；Manifest 声明了 `ui.views` 就能调，不要权限；动作里、事件回调或定时器里都行。`start()` 里还没运行时调用什么也不做，激活停了（停用、重启）再调被拒，版本号不动。`stop` 钩子里被拒是同步抛错（`ui_host.plugin_denied`）；钩子返回以后，留下的定时器、监听器再调什么也不做、不抛错，在还没返回的动作或还没答复的路由里调照常抛错（BL-411，见 [host.md](host.md)「停止以后」）。会调它的定时器、监听器仍要在 `stop` 一开始清掉：它们停用后白跑，日志里留下这个插件。
 
+## 对象的呈现
+
+给插件已经拥有的对象写 `presentation.objects`。例如 `note` 已由本插件的对象读取动作声明，名字片显示标题，行还显示更新时间。要加操作时，`actions[].ref` 指向动作目录中的 `capability_id@version`，`input_from` 写成动作输入键到呈现字段键的映射。实际执行由位置层经动作网关核当前授权。
+
+```json
+{
+  "presentation": { "objects": [{
+    "kind": "note",
+    "fields": [{ "key": "title", "role": "title" }, { "key": "updated_at", "role": "updated_at" }],
+    "forms": { "chip": { "fields": ["title"] }, "row": { "fields": ["title", "updated_at"] } }
+  }] }
+}
+```
+
+**原生插件。** 每个种类在同一插件、同一运行范围内各用一支对象读取动作和给值动作。给值动作可服务多个本插件的种类。两份定义登记到 Manifest 的 `actions`，运行时绑定处理器。SDK 根入口用 `defineSubjectContextAction(id, version, kind, title, permissions, scope)` 配 `bindActionHandler` 读对象正文与版本，用 `definePresentationValuesAction(id, version, [kind], title, permissions, scope)` 配 `bindPresentationValuesHandler` 读显示字段。权限按对象的真实读取要求声明。给值是只读、不外发、不调用模型且不计费的查询。 字段标签和概况说明用所属插件词表的 `TextRef`，公共词可引用 `common.`，用户正文保留原样。`status` 映射供显示，不产生「等你」条目。
+
+给值处理器从调用上下文取当前调用方与项目并逐对象核权。按请求的 `subjects` 和 `fields` 返回 `items`，每件带 `subject`、`revision` 和 `state`，最多回答一次。读到当前值给 `ok`，只回请求过且有权读取的字段。对 `forbidden`、`deleted` 只给前三项。暂时读不到但有旧值时回 `stale` 和真实的 `read_at`。首次读取失败且没有旧值，预览可用 `unreadable` 显示。
+
+**预览。** 用 SDK `/presentation` 的 `presentationFormFields` 选形态与字段，再用 `/ui` 的 `renderPresentationForm(object, form, values)` 画 `chip`、`row`、`card` 或 `peek`。`object.owner` 从可信目录或自己的 Manifest 取。第三参给 `locale`（`null` 用主人默认语言）、`ownerDisplay` 和本次读取结果 `read`。只有位置已经绑定的控件才传给 `actions` 或 `notices` 的下一步。控件 `key` 是这次渲染的局部句柄，由位置层绑定。
+
+**手写签名 app 包。** 在 `contract.json` 写同样的 `presentation`。需要的固定操作写 `kind: "query"` 及 `read_protocol`。对象读取用 `{ kind: "subject_context", subject_kind: "note" }`，给值用 `{ kind: "presentation_values", subject_kinds: ["note"] }`，可选概况用 `{ kind: "presentation_overview" }`。分别取上述两个定义 helper 和 `definePresentationOverviewAction` 返回的 `action.input_schema`、`action.output_schema` 原样作为操作的 `input`、`output`，并给符合合同的示例。固定操作只用实际需要的本机只读效果，例如 `effects: { storage: ["read"] }`。
+
+操作能力 id 用 SDK 的 `sandboxActionId(sandboxPackageBuildId(pluginId, publisherSignature), operationId)` 派生，`publisherSignature` 用签名包真实的公钥绑定身份。签名包动作版本为 1，写对象的操作引用时用派生后的 `capability_id@1`。完整的签验、沙箱读取和重开用例见 [签名包呈现验证](../../tests/security-invariants-sandbox-presentation.test.ts)。
+
+挂载位置写在贡献的 `slots` 里，例如 `{ slot_id: "related", accepts: [], accepts_forms: ["chip", "row"] }`。生产跨页挂载在第 16 批之后接入。
+
+用 SDK `/presentation` 的 `validatePresentationDeclaration(manifest)` 自查清单，用 `presentationValuesProblems(input, output)` 检查取值。打开组件板 `/__ui/catalog#presentation-forms` 对照四种形态，自查长标题、不可读状态、操作后果和速览的键盘路径。
+
 ## 生成插件的页面组合
 
 生成插件使用 design-system 的 `PluginPresentation` v1：stack/split/grid 树引用已有部件，kind、密度、阅读宽度、主操作与选中详情都是语义属性。结构由 `validatePluginPresentation` 严格校验；旧插件没有 presentation 时沿用旧布局。可操作示例在 `/__ui/catalog#plugin-composition`，由正式渲染器运行，示例数据只在该页内存。

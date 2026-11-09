@@ -1,8 +1,7 @@
 import { randomUUID } from "node:crypto";
-import { isDeepStrictEqual } from "node:util";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { SKILLS_PERMISSIONS, skillCatalogActions, type SkillCatalogEntry } from "@molis-ai/molis-work-contracts/services/skills";
+import { SKILLS_PERMISSIONS, skillCatalogActions } from "@molis-ai/molis-work-contracts/services/skills";
 import { withSkillSelection } from "./skill-selection.js";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { dispatchNativePluginJsonHttp } from "../native-plugin-http.js";
@@ -27,12 +26,9 @@ export async function handleSkillSettingsHttp(request: IncomingMessage, response
       const client = project ? host.actionClient(project) : host.homeActionClient();
       const invoke = () => client.invoke(caller, { capability_id: definition.capability_id, version: definition.version }, body);
       if (definition === skillCatalogActions.readBodies && Array.isArray(body.refs) && body.refs.length === 1) {
-        const selectedRef = body.refs[0];
-        const catalog = await client.invoke(caller, { capability_id: skillCatalogActions.list.capability_id, version: skillCatalogActions.list.version }, {}) as { skills: SkillCatalogEntry[] };
-        const selected = catalog.skills.find(skill => isDeepStrictEqual(skill.ref, selectedRef));
-        // This protected person's click names one current Skill. It does not enable it or count as an accepted run.
-        if (selected) return { status: 200, body: await withSkillSelection({ actor_id: caller.actor_id, project_id: caller.project_id,
-          consumer: selected.applies_to === "both" ? "assistant" : selected.applies_to, named: [selected.ref] }, invoke) };
+        // The person's protected click names exactly this Skill: the read checks that reference against the catalog in its one snapshot,
+        // so a `manual` Skill's body can be shown. It is not a round: nothing is enabled and no use is recorded.
+        return { status: 200, body: await withSkillSelection({ actor_id: caller.actor_id, project_id: caller.project_id, named: [body.refs[0]] }, invoke) };
       }
       return { status: 200, body: await invoke() };
     } });

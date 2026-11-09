@@ -3,6 +3,7 @@ import { localPublisherKeyId } from "../plugin-builder/publisher-identity.js";
 import { isDeepStrictEqual } from "node:util";
 import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginPublisherPin } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import { skillErrors, type SkillAvailability } from "@molis-ai/molis-work-contracts/services/skills";
 import { HomeConsentLedger } from "../home-plugin-store.js";
 import { installedHomePlugins, installedPluginsInProject, type ProjectPluginHost } from "../project-plugin-ports.js";
@@ -81,17 +82,19 @@ export function skillCatalogProviderFor(home: string, source: ProjectPluginHost)
             skill_id: declaration.skill_id, version: declaration.version, install_id: record.install_id, installation_generation: record.installation_generation },
           pack: { plugin_id: record.plugin_id, title: english ? words[manifest.name] ?? manifest.name : manifest.name, version: record.version, publisher_label: pin?.label ?? manifest.publisher.publisher_id,
             trust: record.publisher_trust === "host" ? "host" : record.publisher_signature === localKey ? "home_local" : "pinned", scope },
-          assertCurrent: () => {
-            assertInstallation();
-            if (record.publisher_trust === "pinned") {
-              const currentPin = ledger.publishers().find(value => value.key_id === record.publisher_signature);
-              if (!isDeepStrictEqual(currentPin, pin)) throw skillErrors.read_refused("发布者授权已变化", { reason: "publisher_revoked" });
-            }
+          // The snapshot reads the ledger once; a read path compares its captured pin and never reopens an owner.
+          assertCurrent: () => { assertInstallation(); },
+          // After an await, the caller reads the ledger once and passes the live pins here instead of reopening it per Skill (N42–N44).
+          assertPublisher: (live: ReadonlyMap<string, PluginPublisherPin>) => {
+            if (record.publisher_trust !== "pinned") return;
+            if (!isDeepStrictEqual(live.get(record.publisher_signature), pin)) throw skillErrors.read_refused("发布者授权已变化", { reason: "publisher_revoked" });
           } });
       }
     }
     return result;
   };
   return skillCatalogProvider({ definitions, skills, resource: (skill, path) => packages.skillResource(skill.ref.source.plugin_id,
-    skill.ref.source.publisher_signature, skill.ref.source.plugin_version, skill.ref.skill_id, path) });
+    skill.ref.source.publisher_signature, skill.ref.source.plugin_version, skill.ref.skill_id, path),
+    // Read once by an action that must recheck a publisher after an await; read paths use the snapshot's own pins.
+    publishers: () => new Map(ledger.publishers().map(pin => [pin.key_id, pin])) });
 }

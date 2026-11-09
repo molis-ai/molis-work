@@ -482,4 +482,10 @@ surface_corrections        项目库
 
 **已装发行物与目录完整性。** 同一安装记录、严格身份和 `manifest_digest` 的现行发行物重挂、enable 或恢复，不重新当作接纳新声明；仍做形状、可信 hook 和身份检查，依赖后来卸载只影响组合时的可用性。首次安装、卸载后重装、`recordToFollow`、新声明和换版均须完整检查；跨版本 rollback 不能按同发行物重挂免验。同范围旧签名 app 的 Manifest 可能没有 actions，目录读取须用现有 `SandboxPackageStore.load(id, signature, version)` 严格读取留存原件，再复用真实曝光的 `sandboxOperationActions`，含停用项；不改写或重签原件。已装记录覆盖待启动同 id，候选整体替换旧版，目录 reader 本身不启动 Runtime。
 
+**失败后的原状恢复。** 第 08 批的 `changeInstalledVersion` 已有提交后失败补偿；本片复用它，不另建恢复流程。只有该 catch 的 `same(moved)` 成立后，Host 才可用私有、结束即失效的上下文包住原有 `platform.rollback`，对本次操作前的确切 release 免外部引用存在性重验。写前核对 scope、Runtime、plugin id、publisher signature、version 和现有 `manifest_digest` 与原 record 一致；Runtime 取得锁、实际执行 hook 时再核 active、closed、epoch、install id、installation generation 及当前仍是本次 moved 的 version/digest。形状、可信 hook、身份及生命周期检查不豁免。保留 `actions.provider_replaced` 直接退出，以及替换、卸载、关闭、epoch 变化不补偿的保护；跨 await 仍核归属，恢复后仍核原 version/digest/state，再恢复原批准值、曝光及提示词。失效的 caller `assertCurrent` 不能充当补偿许可，也不能复活撤销的执行权限。普通回滚、其它请求、同版本不同 digest 和上下文结束后的调用均完整校验；首次安装失败仍走 `abandonInstall`。这项窄边界已由独立 `gpt-6-astra / high` 只读裁定，不是运行证据。
+
+第 08 批已在 [#1984 交接](https://github.com/molis-ai/molis-work/pull/1984#issuecomment-6732774500) 释放最终头 `8fc71a40e879deec31c4ac3cb36a5571920f9215`；本批按其实际调用控制、恢复保护和成功启动后取消清理接续，不在开发中合并该批或同步 main。`project-host.ts` 与宿主动作快照按 16→15→20 串行，其余已释放文件可独立接线。交接不等于第 08 批已合入或本批已验证。
+
 **SCS-16 验证。** 两个项目共用隔离 Home，制造真实确认与卸载／换版的交错，验证两种先后：确认持线时目录变更不能插入；目录先变更时确认引用旧动作被拒，pin、留存包、安装记录均不变。另覆盖出队前取消／撤权、关闭排队、内置 enable 跟随构建、取样后系统规则消失而下一次确认重新取样、缺可信端口拒绝、依赖卸载后同发行物恢复，以及 Placement Home→Project 与安装确认并行不死锁。已有 SCS-11 同签名包的真实安装测试接上 compose/correct 后再记完整链路通过。
+
+补偿反例：原 A 的外部依赖已卸载，B 不再引用该依赖；采用 B 后取消，原操作须拒绝并恢复 A。普通用户回滚到 A 仍拒绝；等待恢复时安装被替换不能覆盖新安装；恢复上下文结束后不能再次复用。测试走实际 Host/Runtime 入口，断言最终安装、实例、批准值和业务副作用，不只测上下文工具。

@@ -597,7 +597,7 @@ test("the smoke only runs on an isolated Home with the file secret store, and sa
   assert.doesNotMatch(skipped.out, /REFUSED/);
 });
 
-test("the smoke wiring works end to end against a scripted local model: Home, model, Prologue agent, studio workflow, report", () => {
+test("FSS-74 the smoke wiring works end to end against a scripted local model: Home, model, Prologue agent, studio workflow, report", () => {
   const result = cli(["smoke", "--stand-in", "--minutes", "1"], { MOLIS_WORK_HOME: undefined });
   assert.equal(result.code, 0, result.out);
   assert.match(result.out, /STAND-IN MODEL: .* not any Skill or prompt/);

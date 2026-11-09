@@ -1,7 +1,8 @@
 import { BASELINE_FONT, BASELINE_SKIN, renderDialog, renderHint, renderLookCard, renderLookGroup, renderLookProof, renderSheet } from "@molis-ai/molis-work-design-system";
-import { UI_LANGUAGES, type UiDefinitionRef } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { UiDefinitionRef } from "@molis-ai/molis-work-contracts/platform/ui";
 import { t as uiText, escapeHtml, icon, renderButton, t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { WebLocalePreference } from "./i18n.js";
+import { WORKBENCH_LANGUAGES } from "./platform-languages.js";
 import { appearanceJson, type WorkbenchAppearance, type WorkbenchAppearanceChoices } from "./appearance-document.js";
 
 interface AppearanceSettingsPrimitives {
@@ -90,7 +91,7 @@ export function renderAppearanceSettingsDocument(
     ${model ? renderAppearanceChoices(readText, model) : ""}
     <section class="settings-section" aria-label="${uiText("workbench.settings-appearance.preferences")}">
     ${row("workbench.settings-appearance.theme", "workbench.settings-appearance.choose-theme-follow-system-appearance", options("data-theme-option", [["light", "workbench.primitive-catalog.light"], ["dark", "workbench.primitive-catalog.dark"], ["system", "workbench.language.follow-system"]]))}
-    ${row("workbench.settings-appearance.language", "workbench.settings-appearance.change-interface-text-while-keeping-project-content-its", `<div class="mw-toggle-group settings-segmented" data-slot="toggle-group" data-ui-language-options>${language("system", t.text("workbench.language.follow-system"))}${UI_LANGUAGES.map(value => language(value.tag, value.name, value.html_lang)).join("")}</div>`)}
+    ${row("workbench.settings-appearance.language", "workbench.settings-appearance.change-interface-text-while-keeping-project-content-its", `<div class="mw-toggle-group settings-segmented" data-slot="toggle-group" data-ui-language-options>${language("system", t.text("workbench.language.follow-system"))}${WORKBENCH_LANGUAGES.languages.map(value => language(value.tag, value.name, value.html_lang)).join("")}</div>`)}
     ${row("workbench.settings-appearance.interface-density", "workbench.settings-appearance.adjust-spacing-goal-navigation-content", options("data-density-option", [["standard", "workbench.settings-appearance.density-standard"], ["compact", "workbench.settings-appearance.density-compact"]]))}
     ${row("workbench.settings-appearance.terminal-appearance", "workbench.settings-appearance.choose-separate-color-scheme-terminal-content", options("data-terminal-theme-option", [["auto", "workbench.settings-appearance.follow-interface"], ["light", "workbench.primitive-catalog.light"], ["dark", "workbench.primitive-catalog.dark"]]))}
     </section>

@@ -1,3 +1,5 @@
+import { WORKBENCH_LANGUAGES } from "./platform-languages.js";
+import { DEFAULT_WEB_LOCALE, type WebLocale } from "./i18n.js";
 import { readFileSync } from "node:fs";
 import { escapeHtml, renderChoice } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderToggleGroup } from "@molis-ai/molis-work-design-system";
@@ -15,7 +17,7 @@ export type BoardFrameParam = readonly [name: string, label: string, options: re
 
 // The language names are written in their own language, as the product's language switch writes them.
 const PARAMS: readonly BoardFrameParam[] = [
-  ["lang", "workbench.context-onboarding.language-2", [["zh", "中文"], ["en", "English"]]],
+  ["lang", "workbench.context-onboarding.language-2", WORKBENCH_LANGUAGES.languages.map(row => [row.tag, row.name] as const)],
   ["text", "workbench.condition-specimens.body-language", [["zh", "中文"], ["en", "English"], ["mixed", "workbench.condition-specimens.mixed"]]],
   ["kind", "workbench.settings-sync-comparison.content", [["code", "workbench.condition-specimens.programming"], ["prose", "workbench.condition-specimens.non-programming"]]],
   ["font", "workbench.env.font", [["system", "workbench.client-render.system"], ["fallback", "workbench.condition-specimens.fallback-only-simulated"]]],
@@ -27,7 +29,7 @@ const NATIVE = new Set(["中文", "English"]);
 /** A frame's parameter as one toggle group, `current` (else its first value) current; the board's strip program (conditions-section.ts) reads it. */
 export function boardFrameParam(say: Say, [name, label, options]: BoardFrameParam, current = options[0]![0]): string {
   return `<div class="mw-cond-param"><span>${escapeHtml(say(label))}</span>${renderToggleGroup({ label: say(label), items: options.map(([value, text]) => ({
-    value, label: NATIVE.has(text) ? text : say(text), current: value === current, attrs: { "data-cond-param": name, "data-cond-value": value },
+    value, label: name === "lang" || NATIVE.has(text) ? text : say(text), current: value === current, attrs: { "data-cond-param": name, "data-cond-value": value },
   })) })}</div>`;
 }
 
@@ -36,7 +38,7 @@ function preference(say: Say, label: string, attribute: string, options: readonl
 }
 
 /** `lang` is the board's own language: the frame starts in it. */
-export function renderConditionsSection(say: Say, lang: "zh" | "en" = "zh"): string {
+export function renderConditionsSection(say: Say, lang: WebLocale = DEFAULT_WEB_LOCALE): string {
   const preferences = preference(say, "workbench.condition-specimens.light-and-dark", "data-theme-option", [["light", "workbench.context-onboarding.light"], ["dark", "workbench.context-onboarding.dark"]])
     + preference(say, "workbench.context-onboarding.interface-density", "data-density-option", [["standard", "workbench.context-onboarding.standard"], ["compact", "workbench.context-onboarding.compact"]]);
   return `<section class="mw-catalog__section" id="conditions" data-primitive="conditions"><h2>${escapeHtml(say("workbench.primitive-catalog.conditions-states"))}</h2>

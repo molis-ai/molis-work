@@ -1,3 +1,5 @@
+import { WORKBENCH_LANGUAGES } from "./platform-languages.js";
+import { DEFAULT_WEB_LOCALE, type WebLocale } from "./i18n.js";
 import { renderLanguageHead } from "./language-resource.js";
 import { escapeHtml, icon, t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import {
@@ -209,10 +211,10 @@ const BOARD_PAGE_STYLES = "body.mw-catalog-page .mw-catalog{position:relative;co
  * plugin-row sections are written through it and their frames start in it (the sections keep the same sample structure). `environment` is the
  * 语言与文字 section (`renderEnvironmentSection`), drawn by the Host, which has the language scopes its two renders need; without it the board has none.
  */
-export function renderMolisWorkPrimitiveCatalog(say: (text: string, values?: Record<string, string | number>) => string = t, lang: "zh" | "en" = "zh", environment = "", appearance?: WorkbenchAppearance): string {
+export function renderMolisWorkPrimitiveCatalog(say: (text: string, values?: Record<string, string | number>) => string = t, lang: WebLocale = DEFAULT_WEB_LOCALE, environment = "", appearance?: WorkbenchAppearance): string {
   const languages = renderToggleGroup({
     label: say("workbench.primitive-catalog.language"),
-    items: [["zh", "中文"], ["en", "English"]].map(([value, label]) => ({ value: value!, label: label!, current: value === lang, attrs: { "data-board-lang": value! } })),
+    items: WORKBENCH_LANGUAGES.languages.map(({ tag, name }) => ({ value: tag, label: name, current: tag === lang, attrs: { "data-board-lang": tag } })),
   });
   const themes = renderToggleGroup({
     label: t.text("workbench.primitive-catalog.theme"),
@@ -226,7 +228,7 @@ export function renderMolisWorkPrimitiveCatalog(say: (text: string, values?: Rec
     .replace("</nav>", `<a href="#foundation" title="${t("workbench.primitive-catalog.foundation")}">${t("workbench.primitive-catalog.foundation")}</a><a href="#conditions" title="${say("workbench.primitive-catalog.conditions-states")}">${say("workbench.primitive-catalog.conditions-states")}</a><a href="#assistant" title="${say("workbench.primitive-catalog.assistant-information-works")}">${say("workbench.primitive-catalog.assistant-information-works")}</a><a href="#plugin-rows" title="${say("workbench.primitive-catalog.plugin-rows")}">${say("workbench.primitive-catalog.plugin-rows")}</a><a href="#service-connections" title="${say("workbench.primitive-catalog.service-connections")}">${say("workbench.primitive-catalog.service-connections")}</a><a href="#return-trips" title="${say("workbench.primitive-catalog.back-where-were")}">${say("workbench.primitive-catalog.back-where-were")}</a><a href="#platform-area" title="${say("workbench.primitive-catalog.platform-area")}">${say("workbench.primitive-catalog.platform-area")}</a><a href="#connection-need" title="${say("workbench.primitive-catalog.connection-card-place-platform-area")}">${say("workbench.primitive-catalog.connection-card-place-platform-area")}</a><a href="#bar" title="${t("workbench.primitive-catalog.bar-and-overlays")}">${t("workbench.primitive-catalog.bar-and-overlays")}</a><a href="#collab" title="${say("workbench.primitive-catalog.collaboration-parts")}">${say("workbench.primitive-catalog.collaboration-parts")}</a><a href="#navigation" title="${say("workbench.primitive-catalog.workbench-navigation")}">${say("workbench.primitive-catalog.workbench-navigation")}</a>${environment ? `<a href="#environment" title="${t("workbench.env.title")}">${t("workbench.env.title")}</a>` : ""}</nav>`)
     .replace("\n  </div>\n  <script>", `\n    ${renderFoundationSection()}\n    ${renderConditionsSection(say, lang)}\n    ${renderAssistantBoardSection(say, lang)}\n    ${renderPluginRowsSection(say, lang)}\n    ${renderServiceConnectionSection(say)}\n    ${renderReturnTripSection(say)}\n    ${renderPlatformAreaSection(say, lang)}\n    ${renderConnectionNeedSection(say)}\n    ${renderBarSection()}\n    ${renderCollabSection(say)}\n    ${renderNavigationSection(say, lang)}\n    ${environment}\n  </div>\n  <script>`);
   return `<!doctype html>
-<html lang="${lang === "en" ? "en" : "zh-CN"}">
+<html lang="${WORKBENCH_LANGUAGES.languages.find(row => row.tag === lang)?.html_lang ?? DEFAULT_WEB_LOCALE}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">

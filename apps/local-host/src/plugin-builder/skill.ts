@@ -6,7 +6,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { WEB_LOCALES, type WebLocale } from '@molis-ai/molis-work-app-workbench';
+import { DEFAULT_WEB_LOCALE, WEB_LOCALES, type WebLocale } from '@molis-ai/molis-work-app-workbench';
 import type { BuilderSkill } from '@molis-ai/molis-work-contracts/services/agent-host';
 
 export const PLUGIN_SKILL_ID = 'molis-plugin-dev';
@@ -41,19 +41,20 @@ function chapterText(file: string, chapter: string): string {
 }
 
 function chapterIn(directory: string, chapter: string, tag: WebLocale): string | undefined {
-  const file = join(directory, chapter + (tag === WEB_LOCALES[0] ? '' : '.' + tag) + '.md');
-  if (tag !== WEB_LOCALES[0] && !existsSync(file)) return undefined;
+  const file = join(directory, chapter + (tag === DEFAULT_WEB_LOCALE ? '' : '.' + tag) + '.md');
+  if (tag !== DEFAULT_WEB_LOCALE && !existsSync(file)) return undefined;
   return chapterText(file, chapter);
 }
 
 function groupIn(directory: string, chapters: readonly string[], id: string, selected: WebLocale): BuilderSkill {
-  const translations = chapters.map(chapter => new Map(WEB_LOCALES.flatMap(tag => {
+  const available = [...WEB_LOCALES].sort();
+  const translations = chapters.map(chapter => new Map(available.flatMap(tag => {
     const body = chapterIn(directory, chapter, tag);
     return body === undefined ? [] : [[tag, body] as const];
   })));
   const version = Number.parseInt(createHash('sha256').update(JSON.stringify(translations.map(part => [...part]))).digest('hex').slice(0, 7), 16);
   const bodies = new Map(WEB_LOCALES.map(tag => {
-    const body = translations.map(part => part.get(tag) ?? part.get(WEB_LOCALES[0])!).join('\n\n---\n\n');
+    const body = translations.map(part => part.get(tag) ?? part.get(DEFAULT_WEB_LOCALE)!).join('\n\n---\n\n');
     if (body.length > MAX_BODY) throw new Error(`${id} (${tag}): ${body.length} characters exceeds the ${MAX_BODY} character Skill body limit`);
     return [tag, body];
   }));
@@ -63,9 +64,9 @@ function groupIn(directory: string, chapters: readonly string[], id: string, sel
 }
 
 /** The ordered standards for a stage, or no standards when a release has no Skill directory. */
-export function builderSkills(stage: keyof typeof CHAPTERS, directory = pluginSkillDirectory(), locale: WebLocale = WEB_LOCALES[0]): readonly BuilderSkill[] {
+export function builderSkills(stage: keyof typeof CHAPTERS, directory = pluginSkillDirectory(), locale: WebLocale = DEFAULT_WEB_LOCALE): readonly BuilderSkill[] {
   if (!directory) return [];
-  const selected = WEB_LOCALES.includes(locale) ? locale : WEB_LOCALES[0];
+  const selected = WEB_LOCALES.includes(locale) ? locale : DEFAULT_WEB_LOCALE;
   const groups = CHAPTERS[stage];
   return groups.map((chapters, index) => groupIn(directory, chapters, PLUGIN_SKILL_ID + '.' + stage + (groups.length > 1 ? '.' + (index + 1) : ''), selected));
 }

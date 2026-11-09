@@ -103,7 +103,7 @@ function bindFrameDocument(frame: HTMLIFrameElement, root: HTMLElement, scope: F
     const reply = event.ports[0]!;
     void config().then(prepared => {
       scope.assertCurrent();
-      if (!frame.isConnected || prepared.text.locale !== pageLanguage()) throw new Error("View closed or language changed");
+      if (!frame.isConnected || prepared.text.language.tag !== pageLanguage()) throw new Error("View closed or language changed");
       reply.postMessage({ type: "molis:plugin-connect", config: { ...prepared, text: forOpeningFrame(root, original, prepared.text) } }, [port]);
     }).catch(error => reject(error instanceof Error ? error : new Error(String(error)))).finally(() => reply.close());
   });

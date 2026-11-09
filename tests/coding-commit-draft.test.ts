@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { commitDraftMaterial, commitMessageFrom, createCodingPlugin, CODING_COMMIT_DRAFT, CODING_INSTRUCTIONS } from "@molis-ai/molis-work-plugin-coding";
 import { createFormPlugin } from "@molis-ai/molis-work-plugin-form";
-import { draftText, homeAgentDefinitions, homeStores } from "@molis-ai/molis-work-app-local-host";
+import { draftText, homeAgentDefinitions, homeStores, rememberUiLocale } from "@molis-ai/molis-work-app-local-host";
 import { registerPluginAgentDefinitions } from "../apps/local-host/dist/plugin-instructions.js";
 import type { AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 
@@ -20,22 +20,17 @@ test("提交说明的材料：计划标题、每轮的要求与结论、实际�
     { number: 4, run: run("按计划执行", "改了 mentionedPaths"), change: change("src/mentions.ts", "a\nfilter(/[./]/)\nc\n", "a\nfilter(none)\nc\n") },
     { number: 9, run: run("只提到裸名字又读不到时不要留空标题", "加了 parts 为空时原样返回"), change: change("src/rejected.ts", "x\n", "y\n", "not-applied") },
   ] });
-  assert.match(material, /^提交说明用中文写。\n这些改动服务的计划：让 @ 引用支持无扩展名文件/, "without a page the draft is written in Chinese");
-  assert.match(material, /### 第 4 轮\n要求：按计划执行\n结论：改了 mentionedPaths/);
-  assert.match(material, /#### src\/mentions\.ts（修改，\+1 −1）\n.*- filter\(\/\[\.\/\]\/\)\n\+ filter\(none\)/s);
+  assert.match(material, /^Plan: 让 @ 引用支持无扩展名文件\n\n### Round 4\nRequest: 按计划执行\nConclusion: 改了 mentionedPaths/);
+  assert.match(material, /#### src\/mentions\.ts \(modified, \+1 −1\)\n.*- filter\(\/\[\.\/\]\/\)\n\+ filter\(none\)/s);
   assert.doesNotMatch(material, /rejected\.ts/, "a write that never landed is not described as a change");
   const long = commitDraftMaterial({ rounds: Array.from({ length: 20 }, (_, index) => index + 1).map(number => ({ number, run: run("第 " + number + " 轮的要求", "x"), change: change("f" + number + ".ts", null, "y\n".repeat(20_000)) })) });
   assert.ok(long.length <= 58_100);
-  assert.doesNotMatch(long, /### 第 1 轮\n/, "the oldest round goes first"); assert.match(long, /### 第 20 轮/);
+  assert.doesNotMatch(long, /### Round 1\n/, "the oldest round goes first"); assert.match(long, /### Round 20/);
   assert.equal(commitMessageFrom("```text\nfix: 标题\n\n- 要点\n```"), "fix: 标题\n\n- 要点");
   assert.match(CODING_COMMIT_DRAFT.body, /不编造/);
-  // VUX-40: in the English page the draft is asked for in English, and its frame reads in English too, even when the
-  // person's requests were written in Chinese.
-  const english = commitDraftMaterial({ planTitle: "Bare names in @", locale: "en", rounds: [
-    { number: 4, run: run("按计划执行", "改了 mentionedPaths"), change: change("src/mentions.ts", "a\n", "b\n") }] });
-  assert.match(english, /^Write the commit message in English\.\nThe plan these changes serve: Bare names in @\n\n### Round 4\nRequest: 按计划执行\nConclusion: 改了 mentionedPaths\nChanges:\n#### src\/mentions\.ts \(modified, \+1 −1\)/);
-  assert.doesNotMatch(english, /[轮要求结论改动修改]：|（/, "no Chinese frame words around the person's own text");
-  assert.match(CODING_COMMIT_DRAFT.body, /材料第一行指定的语言/);
+  // FSS-74: the plugin sends source material only; the Host puts its reply language in the system instruction.
+  assert.doesNotMatch(material, /提交说明用中文写|Write the commit message in English/);
+  assert.match(CODING_COMMIT_DRAFT.body, /本轮的回复语言说明/);
 });
 
 test("packed SDK: drafts share their owning Runtime, have no tools and leave no draft workspace", { timeout: 30_000 }, async () => {
@@ -117,6 +112,27 @@ test("packed SDK: drafts share their owning Runtime, have no tools and leave no 
     assert.ok(JSON.stringify(bodies.at(-1).system).includes(CODING_COMMIT_DRAFT.body.split("\n")[0]!));
     assert.doesNotMatch(JSON.stringify(bodies.at(-1).system), /User instructions/);
     assert.equal(bodies.length, 5);
+
+    // FSS-74: freeze the prompt and the same Home's language before the real authorization wait.
+    const held = Promise.withResolvers<void>(), entered = Promise.withResolvers<void>(), fresh = homeAgentDefinitions(otherHome);
+    rememberUiLocale(otherHome, "en");
+    const draft = draftText({ ...options, homeDirectory: otherHome }, named, { pluginId, beforeDispatch: () => { entered.resolve(); return held.promise; } });
+    await entered.promise;
+    assert.equal(fresh.uses(key).length, 1, "preparation records no use while authorization is pending");
+    rememberUiLocale(otherHome, "zh");
+    fresh.save(key, "A later prompt edit", null, "owner");
+    held.resolve(); await draft;
+    const frozen = JSON.stringify(bodies.at(-1).system);
+    assert.match(frozen, /Write a Git commit message/);
+    assert.match(frozen, /Reply language for this round: English/);
+    assert.doesNotMatch(frozen, /A later prompt edit|本轮回复语言：简体中文/);
+    assert.deepEqual(fresh.uses(key).map(use => [use.version, use.user_revision]), [[2, null], [2, null]]);
+
+    await draftText({ ...options, homeDirectory: otherHome }, { ...named, prompt: "coding.history-summary" }, { pluginId });
+    const digest = JSON.stringify(bodies.at(-1).system);
+    assert.match(digest, /用和材料相同的语言/, "the digest's version-one content is still present");
+    assert.match(digest, /本轮回复语言：简体中文。给用户的回复/);
+    assert.equal(fresh.uses(`${pluginId}/coding.history-summary`)[0]!.version, 1);
   } finally {
     await adapter.close(); server.closeAllConnections();
     await new Promise<void>(resolve => server.close(() => resolve())); await rm(home, { recursive: true, force: true });

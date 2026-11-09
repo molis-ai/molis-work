@@ -4,7 +4,12 @@ use std::{env, fs, path::Path};
 /// Compile the shell's finite startup and tray words from the Workbench's language files. The native shell can show these before the Host starts.
 fn tray_words() {
     let workspace = env::var_os("CARGO_MANIFEST_DIR").expect("Cargo manifest directory");
-    let languages = Path::new(&workspace).join("../../workbench/resources/locales");
+    let workbench = Path::new(&workspace).join("../../workbench/resources");
+    let catalog = design_resource(&workbench, "languages.json");
+    let languages = workbench
+        .join("locales")
+        .canonicalize()
+        .expect("registered locales directory");
     let fields = [
         "loading",
         "loading-tip",
@@ -16,27 +21,44 @@ fn tray_words() {
         "quit",
         "quit-keep-service",
         "restore-appearance",
-        "boot-loading",
-        "boot-failed",
     ];
-    let mut code = String::new();
-    for (tag, name) in [("zh", "ZH"), ("en", "EN")] {
-        let file = languages.join(format!("{tag}.json"));
-        println!("cargo:rerun-if-changed={}", file.display());
-        let pack: Value =
-            serde_json::from_str(&fs::read_to_string(file).expect("Workbench language file"))
-                .expect("Workbench language JSON");
-        code.push_str(&format!("const {name}: TrayWords = TrayWords {{\n"));
-        for field in fields {
+    let mut tray = Vec::new();
+    let mut views = Vec::new();
+    for descriptor in catalog["languages"]
+        .as_array()
+        .expect("registered platform languages")
+    {
+        let tag = descriptor["tag"].as_str().expect("registered language tag");
+        let file = languages
+            .join(format!("{tag}.json"))
+            .canonicalize()
+            .expect("registered locale file");
+        let name = file
+            .strip_prefix(&languages)
+            .expect("locale is outside the registered directory");
+        let pack = design_resource(&languages, name.to_str().expect("locale file name"));
+        assert_eq!(pack["owner"], "workbench");
+        assert_eq!(pack["locale"], tag);
+        let label = |field: &str| {
             let key = format!("workbench.native-tray.{field}");
-            let label = pack["messages"][&key]
+            pack["messages"][&key]
                 .as_str()
-                .filter(|label| !label.is_empty())
-                .unwrap_or_else(|| panic!("Missing native tray word {key} for {tag}"));
-            code.push_str(&format!("    {}: {label:?},\n", field.replace('-', "_")));
-        }
-        code.push_str("};\n");
+                .filter(|value| !value.is_empty())
+                .unwrap_or_else(|| panic!("Missing native tray word {key} for {tag}"))
+        };
+        let words = fields
+            .into_iter()
+            .map(|field| (field.replace('-', "_"), serde_json::json!(label(field))))
+            .collect::<serde_json::Map<String, Value>>();
+        tray.push(serde_json::json!({ "language": { "tag": tag, "html_lang": descriptor["html_lang"], "direction": descriptor["direction"] }, "words": words }));
+        views.push(serde_json::json!({ "tag": tag, "html_lang": descriptor["html_lang"], "direction": descriptor["direction"],
+            "intl": descriptor["intl"], "loading": label("boot-loading"), "failed": label("boot-failed") }));
     }
+    let boot_tray =
+        serde_json::json!({ "default": catalog["default"], "locales": tray }).to_string();
+    let boot_view =
+        serde_json::json!({ "default": catalog["default"], "locales": views }).to_string();
+    let mut code = format!("const BOOTSTRAP_TRAY: &str = {boot_tray:?};\nconst BOOTSTRAP_VIEW: &str = {boot_view:?};\n");
     let resources = Path::new(&workspace).join("../../../packages/design-system/resources");
     let soft = design_resource(&resources, "skins/soft-workbench.json");
     let font = design_resource(&resources, "fonts/system-sans.json");

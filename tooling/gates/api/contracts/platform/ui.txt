@@ -245,7 +245,7 @@ export interface StagePageContext {
 
 export interface StagePageDrawing {
     mount: (contributionId: string, surface: string, model: unknown) => string;
-    currentLocale: () => "zh" | "en";
+    currentLocale: () => UiLanguageTag;
     listJoin: (values: readonly string[]) => string;
     formatDocumentDate: (value: string | null | undefined) => string;
     renderList: (values: string[], empty: string) => string;
@@ -448,22 +448,9 @@ export declare const UI_FORMAT_VERSIONS: {
     readonly skin: 1;
     readonly font: 1;
     readonly locale: 1;
+    readonly languages: 1;
     readonly registry: 1;
 };
-
-export declare const UI_LANGUAGES: readonly [{
-    readonly tag: "zh";
-    readonly html_lang: "zh-CN";
-    readonly direction: "ltr";
-    readonly intl: "zh-CN";
-    readonly name: "简体中文";
-}, {
-    readonly tag: "en";
-    readonly html_lang: "en";
-    readonly direction: "ltr";
-    readonly intl: "en-US";
-    readonly name: "English";
-}];
 
 export declare const UI_PAGE_ROUTE_PARAM_LIMIT = 256;
 
@@ -763,6 +750,8 @@ export interface UiFrameAssetReference {
     readonly id: string;
 }
 
+export type UiFrameLanguage = Pick<UiLanguageDescriptor, "tag" | "html_lang" | "direction">;
+
 export interface UiHostApi {
     register<TModel>(contribution: OwnedUiContribution<TModel>): void;
     unregister(contributionId: string): void;
@@ -771,7 +760,21 @@ export interface UiHostApi {
     mount<TModel>(request: UiMountRequest<TModel>): UiMountResult;
 }
 
-export type UiLanguageTag = (typeof UI_LANGUAGES)[number]["tag"];
+export interface UiLanguageCatalog {
+    readonly format_version: typeof UI_FORMAT_VERSIONS.languages;
+    readonly default: string;
+    readonly languages: readonly UiLanguageDescriptor[];
+}
+
+export interface UiLanguageDescriptor {
+    readonly tag: string;
+    readonly html_lang: string;
+    readonly direction: "ltr" | "rtl";
+    readonly intl: string;
+    readonly name: string;
+}
+
+export type UiLanguageTag = string;
 
 export interface UiLocalePack {
     readonly format_version: typeof UI_FORMAT_VERSIONS.locale;
@@ -1219,6 +1222,7 @@ export type UiTextDirection = "ltr" | "rtl";
 
 export interface UiTextProvider {
     locale(): string | null;
+    intlLocale?(tag: string): string | undefined;
     noContext(): "default" | "throw";
     ownerOfPrefix(prefix: string): string | null;
     message(owner: string, key: string, locale: string): UiMessage | null;

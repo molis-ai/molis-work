@@ -1,7 +1,7 @@
 import { createAppearanceOwner, type AppearanceOwner } from "@molis-ai/molis-work-service-appearance";
 import { hostLog, repeatingFailure } from "./host-log.js";
 import { resolveConfiguredHome } from "./product-home.js";
-import { isWebLocale, runBackgroundWork, WEB_LOCALES, type WebLocale } from "./web-locale.js";
+import { isWebLocale, runBackgroundWork, DEFAULT_WEB_LOCALE, type WebLocale } from "./web-locale.js";
 
 export { UI_LOCALE_RELATIVE_PATH } from "@molis-ai/molis-work-service-appearance";
 
@@ -15,7 +15,7 @@ export function appearanceForHome(homeDirectory: string): AppearanceOwner<WebLoc
   const existing = owners.get(home);
   if (existing) return existing;
   const appearance = createAppearanceOwner(home, {
-    locale: { defaultLocale: WEB_LOCALES[0], isSupported: isWebLocale, readFailed: readFailures.failed,
+    locale: { defaultLocale: DEFAULT_WEB_LOCALE, isSupported: isWebLocale, readFailed: readFailures.failed,
       writeFailed: writeFailures.failed, writeSucceeded: writeFailures.worked },
     listenerFailed: error => hostLog.warn("appearance", "listener_failed", error),
   });

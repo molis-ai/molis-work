@@ -2,6 +2,8 @@ import { readFileSync } from "node:fs";
 import { UI_FORMAT_VERSIONS, type UiLocalePack, type UiSkinFile, type UiSpecFile } from "@molis-ai/molis-work-contracts/platform/ui";
 import { BASELINE_SKIN, BASELINE_SPEC, renderToggleGroup } from "@molis-ai/molis-work-design-system";
 import { createTextReader, escapeHtml, format, parseSkinFile, renderButton, resolveUiEnvironment, t } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { WORKBENCH_LANGUAGES } from "./platform-languages.js";
+import type { WebLocale } from "./i18n.js";
 import { pluginTextForOwner } from "./plugin-text.js";
 
 // The component board's 语言与文字 section (specs/font-and-skin-system/a-section-contract.md §8.2): the platform's text tools used the way §1.1 writes
@@ -26,8 +28,7 @@ const SPEC_IDENTITY: UiSpecFile = { format_version: BASELINE_SPEC.format_version
   baseline_skin: BASELINE_SPEC.baseline_skin, baseline_font: BASELINE_SPEC.baseline_font, groups: [], font_roles: [], components: [] };
 const SKIN_IDENTITY: UiSkinFile = { format_version: UI_FORMAT_VERSIONS.skin, id: BASELINE_SKIN.ref.id, revision: BASELINE_SKIN.ref.revision, spec: BASELINE_SKIN.spec,
   name: BASELINE_SKIN.name, recommended_font: BASELINE_SKIN.recommended_font, light: {}, dark: {}, shared: {}, terminal: {} };
-const LOCALES = ["zh", "en"] as const;
-type Locale = (typeof LOCALES)[number];
+const LOCALES = WORKBENCH_LANGUAGES.languages.map(language => language.tag);
 
 /** A skin a person wrote, wrong four ways: what `parseSkinFile` says of each is what an author sees. */
 function skinChecks(): string {
@@ -49,7 +50,7 @@ function skinChecks(): string {
  * The section's content in the language of the scope it is drawn in, as business code writes it: `t` and `format` only, no language and no owner.
  * The Host draws it once a language and puts both in the page (`renderEnvironmentSection`).
  */
-export function renderEnvironmentSpecimen(locale: Locale): string {
+export function renderEnvironmentSpecimen(locale: WebLocale): string {
   const sampleText = createTextReader({ packs: SAMPLE_PACKS, locale });
   const lines = Array.from({ length: 12 }, (_, index) => `<p>${t("workbench.env.line", { n: index + 1 })}</p>`).join("");
   return `<h2>${t("workbench.env.title")}</h2>
@@ -74,14 +75,14 @@ export function renderEnvironmentSpecimen(locale: Locale): string {
 }
 
 /** The section: the content on show, both languages' renders for the switch, and what the page's own text tools need. */
-export function renderEnvironmentSection(renders: Readonly<Record<Locale, string>>, lang: Locale): string {
+export function renderEnvironmentSection(renders: Readonly<Record<WebLocale, string>>, lang: WebLocale): string {
   const packs = [...LOCALES.flatMap(locale => {
     const pack = pluginTextForOwner(WORKBENCH_OWNER)?.pack(locale);
     return pack ? [{ ...pack, messages: Object.fromEntries(Object.entries(pack.messages).filter(([key]) => key.startsWith("workbench.env."))) }] : [];
   }), ...SAMPLE_PACKS];
   const snapshots = Object.fromEntries(LOCALES.map((locale) => [locale, resolveUiEnvironment({ spec: SPEC_IDENTITY, skin: SKIN_IDENTITY, locale: { tag: locale, source: "explicit" } })]));
   const data = JSON.stringify({ locale: lang, packs, environment: { spec: SPEC_IDENTITY, skin: SKIN_IDENTITY, snapshots } }).replace(/</gu, "\\u003c");
-  const languages = renderToggleGroup({ label: t.text("workbench.env.switch"), items: LOCALES.map((locale) => ({ value: locale, label: locale === "zh" ? "中文" : "English", current: locale === lang, attrs: { "data-board-env-lang": locale } })) });
+  const languages = renderToggleGroup({ label: t.text("workbench.env.switch"), items: WORKBENCH_LANGUAGES.languages.map(({ tag, name }) => ({ value: tag, label: name, current: tag === lang, attrs: { "data-board-env-lang": tag } })) });
   return `<section class="mw-catalog__section" id="environment" data-primitive="environment">
     <div class="mw-board-env__bar">${languages}<p class="mw-board-env__status" data-board-env-status role="status" hidden></p>${renderButton({ label: t.text("workbench.env.retry"), variant: "secondary", attrs: { "data-board-env-retry": true, hidden: true } })}</div>
     <div class="mw-board-env" id="board-env" data-board-env-live>${renders[lang]}</div>

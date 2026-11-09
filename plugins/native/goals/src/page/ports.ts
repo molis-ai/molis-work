@@ -41,7 +41,7 @@ export interface GoalsPagePorts<TView> {
   readText: GoalsTranslate;
   /** The words of Goals itself (its Manifest dictionary), for what Goals draws. */
   goalsL: GoalsTranslate;
-  currentLocale: () => "zh" | "en";
+  currentLocale: () => string;
   listJoin: (values: readonly string[]) => string;
   formatDate: (value: string | null | undefined) => string;
   renderList: (values: string[], empty: string) => string;

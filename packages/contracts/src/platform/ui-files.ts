@@ -11,6 +11,7 @@ export const UI_FORMAT_VERSIONS = {
   skin: /* @version format.ui.skin */ 1,
   font: /* @version format.ui.font */ 1,
   locale: /* @version format.ui.locale */ 1,
+  languages: /* @version format.ui.languages */ 1,
   registry: /* @version format.ui.registry */ 1,
 } as const;
 

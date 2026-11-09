@@ -1,3 +1,4 @@
+import { WEB_LOCALES, type WebLocale } from "./i18n.js";
 import { renderLanguageHead } from "./language-resource.js";
 import { readFileSync } from "node:fs";
 import { t as uiText, escapeHtml, renderDirectoryRow, type MwStatusTone as DirectoryStatusTone } from "@molis-ai/molis-work-plugin-sdk/ui";
@@ -16,7 +17,7 @@ import { BOARD_PLUGIN_ROW_STYLES, boardPluginStyleLinks, renderBoardPluginRows }
  * keep-failures rule. The query picks one value per parameter; theme and density follow the page's preferences.
  */
 export interface ConditionFrameOptions {
-  lang: "zh" | "en";
+  lang: WebLocale;
   text: ConditionText;
   kind: ConditionKind;
   /** `fallback` (simulated): the system faces are gone and only the bundled Inter Variable and Noto Sans SC are left. */
@@ -33,7 +34,7 @@ const pick = <T extends string>(value: string | null, allowed: readonly T[]): T 
 /** Only known values are read; anything else is the first value, so the page never reflects what the query said. */
 export function parseConditionFrame(query: URLSearchParams): ConditionFrameOptions {
   return {
-    lang: pick(query.get("lang"), ["zh", "en"] as const), text: pick(query.get("text"), ["zh", "en", "mixed"] as const),
+    lang: pick(query.get("lang"), WEB_LOCALES), text: pick(query.get("text"), ["zh", "en", "mixed"] as const),
     kind: pick(query.get("kind"), ["code", "prose"] as const), font: pick(query.get("font"), ["system", "fallback"] as const),
     copy: pick(query.get("copy"), ["ok", "fail"] as const), part: pick(query.get("part"), ["reply", "rows"] as const),
   };

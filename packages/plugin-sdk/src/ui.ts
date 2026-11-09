@@ -23,6 +23,7 @@ export * from "./ui/text.js";
 export * from "./ui/text-ref.js";
 export { formatDate, formatMessage, formatNumber, type MessageFormatOptions } from "./ui/message-format.js";
 export * from "./ui/locale-pack.js";
+export * from "./ui/language-catalog.js";
 export {
   assertPluginLocales, inspectPluginLocales, refuseLocaleProblems, pluginLocaleFilePath, pluginLocaleFilePaths,
   pluginLocaleReader, type PluginLocaleManifest, type PluginLocaleRead, type PluginLocaleReader,

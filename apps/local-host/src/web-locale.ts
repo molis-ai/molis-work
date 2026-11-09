@@ -1,9 +1,9 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { createWorkbenchLocale, type PluginTextReader, type WebLocale } from "@molis-ai/molis-work-app-workbench";
+import { createWorkbenchLocale, DEFAULT_WEB_LOCALE, type PluginTextReader, type WebLocale } from "@molis-ai/molis-work-app-workbench";
 import { currentPluginTextCall, pluginActivationOpen, type PluginInstance } from "@molis-ai/molis-work-plugin-runtime";
-export { LOCALE_COOKIE, WEB_LOCALES, LOCALE_SWITCH_STYLES, type WebLocale, type WebLocalePreference } from "@molis-ai/molis-work-app-workbench";
+export { DEFAULT_WEB_LOCALE, LOCALE_COOKIE, WEB_LOCALES, LOCALE_SWITCH_STYLES, type WebLocale, type WebLocalePreference } from "@molis-ai/molis-work-app-workbench";
 type WebLocaleChoice = ReturnType<ReturnType<typeof createWorkbenchLocale>["resolveWebLocaleChoice"]>;
 const localeStore = new AsyncLocalStorage<WebLocaleChoice>();
 
@@ -94,8 +94,8 @@ export function textScope(): Pick<LocaleScope, "locale" | "noContext" | "activat
  * it after the request ended, so it says which page began the chain, not that a page is still asking.
  */
 export const pageLocale = (): WebLocale | undefined => localeStore.getStore()?.tag;
-export const appearanceLocale = (): WebLocaleChoice => localeStore.getStore() ?? { tag: "zh", source: "default" };
-const workbenchLocale = createWorkbenchLocale(() => pageLocale() ?? "zh");
+export const appearanceLocale = (): WebLocaleChoice => localeStore.getStore() ?? { tag: DEFAULT_WEB_LOCALE, source: "default" };
+const workbenchLocale = createWorkbenchLocale(() => pageLocale() ?? DEFAULT_WEB_LOCALE);
 export const isWebLocale: (value: unknown) => value is WebLocale = workbenchLocale.isWebLocale;
 export const { currentLocale, htmlLang, dateTimeLocale, listJoin, resolveWebLocale, resolveWebLocaleChoice, safeNextPath, localePreference, localeSetCookie, localeSwitchHref, renderLocaleSwitch, pluginTitleScript } = workbenchLocale;
 

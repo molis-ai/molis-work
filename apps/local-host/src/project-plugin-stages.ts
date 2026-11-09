@@ -13,7 +13,7 @@ import type { HomePluginHost } from "./home-plugins.js";
 import type { LocalProjectDatabase } from "./project-database.js";
 import type { ProjectPluginHttpPorts } from "./project-plugin-http.js";
 import { projectPluginProblem, type ProjectPluginState } from "./project-plugins.js";
-import { activeLocale, runWithRegisteredText, WEB_LOCALES } from "./web-locale.js";
+import { activeLocale, runWithRegisteredText, DEFAULT_WEB_LOCALE } from "./web-locale.js";
 import { pluginViewText } from "./plugin-host-services.js";
 import { projectTextPacks } from "./ui-text-provider.js";
 
@@ -312,7 +312,7 @@ export async function readRuntimeStageData(state: ProjectPluginState, shown: rea
         },
         ...(entry.workbench?.pageClients && !entry.workbench.clientFactory ? { textPacks: () => {
           owner.assertCurrent();
-          const reader = pluginViewText(owner.view), language = activeLocale() ?? WEB_LOCALES[0];
+          const reader = pluginViewText(owner.view), language = activeLocale() ?? DEFAULT_WEB_LOCALE;
           return reader ? projectTextPacks(reader, language, owner.entry.manifest.ui.locales?.available.includes(language) === true) : [];
         } } : {}) };
     } catch (error) {

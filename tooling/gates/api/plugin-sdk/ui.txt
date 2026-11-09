@@ -180,6 +180,7 @@ export interface TextForTest {
 export interface TextReaderInput {
     readonly packs: readonly UiLocalePack[];
     readonly locale: string | null;
+    readonly intlLocale?: UiTextProvider["intlLocale"];
     readonly problem?: UiTextProvider["problem"];
 }
 
@@ -265,6 +266,8 @@ export declare function formatMessage(message: UiMessage, args?: readonly TextAr
 
 export declare function formatNumber(value: number, locale: Locale, style?: TextNumberStyle): string;
 
+export declare function frameUiLanguage({ tag, html_lang, direction }: UiLanguageDescriptor): UiFrameLanguage;
+
 export declare function icon(name: PluginIconName, className?: string): string;
 
 export declare function inspectLocaleSet(packs: readonly UiLocalePack[], options: LocaleSetOptions): readonly LocaleSetProblem[];
@@ -274,6 +277,8 @@ export declare function inspectPluginLocales(manifest: PluginLocaleManifest, rea
 export declare function installTextForTest(input: TextForTest): () => void;
 
 export declare function installUiText(provider: UiTextProvider): () => void;
+
+export declare function isFrameUiLanguage(value: unknown): value is UiFrameLanguage;
 
 export declare function matchLocale(requested: string | null, available: readonly string[], fallback: string): string;
 
@@ -291,6 +296,8 @@ export declare function parseSkinFile(source: string, spec: UiSpecFile, options?
 
 export declare function parseStrictJson(source: string, options?: StrictJsonOptions): UiFileResult<unknown>;
 
+export declare function parseUiLanguageCatalog(source: string, file?: string): UiFileResult<UiLanguageCatalog>;
+
 export declare function parseUiSpecFile(source: string, options?: UiFileOptions): UiFileResult<UiSpecFile>;
 
 export declare const pluginLocaleFilePath: (locale: string) => string;
@@ -298,6 +305,8 @@ export declare const pluginLocaleFilePath: (locale: string) => string;
 export declare function pluginLocaleFilePaths(manifest: Pick<PluginLocaleManifest, "ui">): readonly string[];
 
 export declare function pluginLocaleReader(manifest: PluginLocaleManifest, read: PluginLocaleRead): PluginLocaleReader | null;
+
+export declare function preferredUiLanguage(catalog: UiLanguageCatalog, requested: readonly string[]): UiLanguageDescriptor | undefined;
 
 export declare const processFold: (scope: string, { group, groupBody, step, stepBody }: {
     group: string;

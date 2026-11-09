@@ -13,12 +13,11 @@ import { isMainScript } from "../script-paths.mjs";
 export const STABLE_KEY = /^[a-z][a-z0-9-]*(?:\.[a-z][a-z0-9_-]*){1,4}$/u;
 const HAN = /\p{Script=Han}/u;
 const PLATFORM_REGISTRY = "packages/design-system/resources/registry.json";
-const PLATFORM_LANGUAGES = "packages/contracts/src/platform/ui-text.ts";
-const sdkEntry = fileURLToPath(new URL("../../packages/plugin-sdk/src/ui/locale-pack.ts", import.meta.url));
+const sdkRoot = fileURLToPath(new URL("../../packages/plugin-sdk/src/ui/", import.meta.url));
 const uiContract = fileURLToPath(new URL("../../packages/contracts/src/platform/ui.ts", import.meta.url));
-const sdkBundle = buildSync({ entryPoints: [sdkEntry], alias: { "@molis-ai/molis-work-contracts/platform/ui": uiContract },
-  bundle: true, format: "esm", platform: "node", write: false, logLevel: "silent" });
-const { parseLocalePack, inspectLocaleSet } = await import("data:text/javascript;base64," + Buffer.from(sdkBundle.outputFiles[0].contents).toString("base64"));
+const sdkBundle = buildSync({ stdin: { contents: 'export { parseLocalePack, inspectLocaleSet } from "./locale-pack.ts"; export { parseUiLanguageCatalog } from "./language-catalog.ts";', resolveDir: sdkRoot },
+  alias: { "@molis-ai/molis-work-contracts/platform/ui": uiContract }, bundle: true, format: "esm", platform: "node", write: false, logLevel: "silent" });
+const { parseLocalePack, inspectLocaleSet, parseUiLanguageCatalog } = await import("data:text/javascript;base64," + Buffer.from(sdkBundle.outputFiles[0].contents).toString("base64"));
 
 export const ownerOf = (file) => {
   const parts = file.split("/");
@@ -389,20 +388,17 @@ function declaredOwners(snapshot, problems) {
     const registry = readJson(snapshot, PLATFORM_REGISTRY, problems);
     const packages = new Map(snapshot.files.filter(file => /^(apps|packages|horizontal)\/[^/]+\/package.json$/u.test(file))
       .map(file => { const record = readJson(snapshot, file, problems); return [record?.name, path.posix.dirname(file)]; }));
-    const languageSource = sourceOf(PLATFORM_LANGUAGES, snapshot.read(PLATFORM_LANGUAGES) ?? ""), tags = [];
-    const visit = node => {
-      if (ts.isVariableDeclaration(node) && nameOf(node.name) === "UI_LANGUAGES") {
-        const list = unwrap(node.initializer);
-        if (list && ts.isArrayLiteralExpression(list)) for (const row of list.elements) if (ts.isObjectLiteralExpression(row)) tags.push(literalText(byKey(row, "tag")));
-      }
-      ts.forEachChild(node, visit);
-    };
-    visit(languageSource);
+    const platform = registry?.resources?.find(row => row.kind === "locale" && row.owner === "workbench");
+    const descriptor = platform && packages.has(platform.package) ? packages.get(platform.package) + "/" + path.posix.dirname(platform.path) + "/languages.json" : null;
+    const raw = descriptor ? snapshot.read(descriptor) : null;
+    const checked = typeof raw === "string" ? parseUiLanguageCatalog(raw, descriptor) : null;
+    if (checked && !checked.ok) for (const issue of checked.problems) problems.push(`${issue.file}:${issue.line ?? 1} ${issue.path}: ${issue.code}: ${issue.reason}`);
+    if (descriptor && !checked) problems.push(descriptor + ": language catalog missing");
     for (const row of registry?.resources ?? []) {
       if (row.kind !== "locale") continue;
       const root = packages.get(row.package);
-      if (!root || !tags.length || tags.some(tag => !tag) || owners.has(row.owner)) { problems.push(`${PLATFORM_REGISTRY}: invalid locale owner ${row.owner}`); continue; }
-      owners.set(row.owner, { owner: row.owner, directory: root + "/" + row.path, languages: tags, default: tags[0] });
+      if (!root || !checked?.ok || owners.has(row.owner)) { problems.push(`${PLATFORM_REGISTRY}: invalid locale owner ${row.owner}`); continue; }
+      owners.set(row.owner, { owner: row.owner, directory: root + "/" + row.path, languages: checked.value.languages.map(row => row.tag), default: checked.value.default, platform: true });
     }
     if (!owners.has("workbench")) problems.push(`${PLATFORM_REGISTRY}: workbench locale owner missing`);
   }
@@ -453,7 +449,7 @@ function inspectPacks(snapshot, problems) {
       return readMessages(snapshot, definition, tag, problems) ?? [];
     });
     for (const issue of inspectLocaleSet(packs, definition)) {
-      if (issue.blocking || (issue.locale === "en" && issue.code === "ui.locale_missing_key"))
+      if (issue.blocking || ((definition.platform || issue.locale === "en") && issue.code === "ui.locale_missing_key"))
         problems.push(`${issue.file}: ${issue.code}${issue.key ? " " + issue.key : ""}: ${issue.reason}`);
     }
     const english = packs.find(pack => pack.locale === "en");

@@ -982,6 +982,7 @@ test('visual model review has one repair and one confirmation; a stale cancelled
     for (const request of h.requests) {
       const stage = request.role === 'coder' ? 'code' : request.promptVersion.startsWith('ui-review/') ? 'review' : JSON.parse(request.task).mode === 'compose' ? 'ui' : JSON.parse(request.task).mode === 'experience' ? 'experience' : 'design';
       const names = stage === 'design' ? ['design.1', 'design.2', 'design.3'] : [stage];
+      // FSS-74: each stage mounts its own complete ordered standards.
       assert.deepEqual(request.skills?.map(skill => skill.id), names.map(name => 'molis-plugin-dev.' + name + '.zh'), 'every stage mounts its own ordered standard');
       if (stage !== 'code') assert.match(request.skills!.map(skill => skill.body).join('\n'), /生成插件：体验与审美标准/);
       if (stage === 'ui' || stage === 'review') assert.equal(JSON.parse(request.task).brief, build.brief, 'original user intent reaches every visual task');

@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { BASELINE_REGISTRY, INTER_VARIABLE_ASSET_PATH, interVariableFontFilePath, NOTO_SANS_SC_ASSET_PATH, notoSansScFontFilePath } from "@molis-ai/molis-work-design-system";
-import { inspectLocaleSet, parseLocalePack } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { inspectLocaleSet, parseLocalePack, parseUiLanguageCatalog } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 // The one table of what ships with the product (specs/font-and-skin-system/a-section-contract.md §1.3, §3.6). What a row says of a file, and that nothing ships without a row.
 
@@ -46,6 +48,7 @@ test("FSS-58 nothing sits under resources/ or fonts/ without a row", () => {
   for (const directory of new Set(RESOURCES.map((row) => directoryOf(row.package)))) {
     const registered = RESOURCES.filter((row) => directoryOf(row.package) === directory).flatMap(row => [
       `${directory}/${row.path}`,
+      ...(row.kind === "locale" && row.owner === "workbench" ? [`${directory}/${path.dirname(row.path)}/languages.json`] : []),
       ...((row.kind === "font" || row.kind === "asset") && row.license.notice_path ? [`${directory}/${row.license.notice_path}`] : []),
     ]);
     for (const file of ["resources", "fonts"].flatMap((name) => (existsSync(path.join(ROOT, directory, name)) ? filesBelow(`${directory}/${name}`) : []))) {
@@ -84,6 +87,8 @@ test("FSS-58 a language directory's files parse, are the row's owner's, and agre
   assert.deepEqual(rows.map((row) => row.owner), ["workbench"]);
   for (const row of rows) {
     const directory = path.join(ROOT, directoryOf(row.package), row.path);
+    const catalog = parseUiLanguageCatalog(readFileSync(path.join(directory, "..", "languages.json"), "utf8"));
+    assert.ok(catalog.ok);
     const packs = readdirSync(directory).sort().map((name) => {
       const parsed = parseLocalePack(readFileSync(path.join(directory, name), "utf8"), { file: name });
       assert.ok(parsed.ok, `${row.id} ${name}: ${JSON.stringify(parsed.ok ? null : parsed.problems)}`);
@@ -91,8 +96,77 @@ test("FSS-58 a language directory's files parse, are the row's owner's, and agre
       assert.equal(`${parsed.value.locale}.json`, name, `${row.id} ${name}: the file is named for its language`);
       return parsed.value;
     });
-    assert.deepEqual(packs.map((pack) => pack.locale), ["en", "zh"]);
-    // The platform's default language is the first of the Web's (`WEB_LOCALES[0]`, zh); every other language has the same keys and arguments.
-    assert.deepEqual(inspectLocaleSet(packs, { default: "zh", directory: row.path }), [], row.id);
+    assert.deepEqual(packs.map(pack => pack.locale), catalog.value.languages.map(language => language.tag).sort());
+    assert.deepEqual(inspectLocaleSet(packs, { default: catalog.value.default, directory: row.path }), [], row.id);
+  }
+});
+
+test("FSS-34 the same Workbench build discovers and serves a language added only in its registered resources", () => {
+  const source = path.join(ROOT, "apps/workbench"), scratch = mkdtempSync(path.join(tmpdir(), "workbench-language-catalog-"));
+  try {
+    for (const item of ["package.json", "dist", "resources"]) cpSync(path.join(source, item), path.join(scratch, item), { recursive: true });
+    symlinkSync(path.join(source, "node_modules"), path.join(scratch, "node_modules"));
+    const catalogPath = path.join(scratch, "resources/languages.json"), packPath = path.join(scratch, "resources/locales/en-GB.json");
+    const catalog = JSON.parse(readFileSync(catalogPath, "utf8"));
+    const pack = JSON.parse(readFileSync(path.join(scratch, "resources/locales/en.json"), "utf8"));
+    const descriptor = { tag: "en-GB", html_lang: "en-GB", intl: "en-GB", direction: "ltr", name: "English (UK)" };
+    const probe = () => JSON.parse(execFileSync(process.execPath, ["--input-type=module", "-e", `
+      import { WEB_LOCALES, createWorkbenchLocale, renderLanguageHead, workbenchLanguageResource, workbenchPlatformText } from "./dist/index.js";
+      const web = createWorkbenchLocale(() => "en-GB");
+      const href = renderLanguageHead("en-GB").match(/src="([^"]+)/)?.[1];
+      const asset = href && workbenchLanguageResource(href);
+      process.stdout.write(JSON.stringify({ languages: WEB_LOCALES, system: web.resolveWebLocaleChoice(undefined, "en-GB,en;q=0.8").tag,
+        cookie: web.resolveWebLocaleChoice("molis_work_locale=en-GB", "zh").tag, rejected: web.resolveWebLocaleChoice("molis_work_locale=fr", "en").tag,
+        href, served: asset?.href === href, word: workbenchPlatformText.pack("en-GB")?.messages["workbench.language.retry"], html: web.htmlLang(),
+        intl: web.dateTimeLocale() }));
+    `], { cwd: scratch, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }));
+    const text = "Try that again";
+    writeFileSync(catalogPath, JSON.stringify({ ...catalog, languages: [...catalog.languages, descriptor] }));
+    assert.throws(probe, /en-GB\.json/, "a declared platform language with no pack stops startup");
+    writeFileSync(packPath, JSON.stringify({ ...pack, locale: descriptor.tag, messages: { ...pack.messages, "workbench.language.retry": text } }));
+    const first = probe();
+    assert.deepEqual(first, { languages: ["zh", "en", "en-GB"], system: "en-GB", cookie: "en-GB", rejected: "en", href: first.href,
+      served: true, word: text, html: "en-GB", intl: "en-GB" });
+    assert.match(first.href, /^\/assets\/locale\/workbench\.en-GB\.[a-f0-9]{24}\.js$/u);
+    writeFileSync(catalogPath, JSON.stringify({ ...catalog, languages: [...catalog.languages, { ...descriptor, name: "British English" }] }));
+    assert.notEqual(probe().href, first.href, "a description-only change invalidates the exact asset");
+    writeFileSync(packPath, JSON.stringify({ ...pack, locale: descriptor.tag, messages: { ...pack.messages, "workbench.language.retry": "Retry the request" } }));
+    const replaced = probe();
+    assert.equal(replaced.word, "Retry the request");
+    assert.notEqual(replaced.href, first.href, "the same binary serves edited words after reopening");
+    const hostSource = path.join(ROOT, "apps/local-host"), host = path.join(scratch, "host");
+    for (const item of ["package.json", "dist", "prompts", "node_modules"]) cpSync(path.join(hostSource, item), path.join(host, item), { recursive: true });
+    const workbench = path.join(host, "node_modules/@molis-ai/molis-work-app-workbench");
+    rmSync(workbench); symlinkSync(scratch, workbench);
+    const authority = () => JSON.parse(execFileSync(process.execPath, ["--input-type=module", "-e", `
+      import { replyLanguagePrompt } from "./host/dist/reply-language.js";
+      process.stdout.write(JSON.stringify(replyLanguagePrompt("en-GB")));
+    `], { cwd: scratch, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }));
+    assert.throws(authority, /reply-language\/en-GB\.md/, "the platform cannot choose a reply language with no fixed instruction for it");
+    const rule = "Reply to the person in British English unless they explicitly ask for another language this round.";
+    writeFileSync(path.join(host, "prompts/reply-language/en-GB.md"), rule + "\n");
+    assert.deepEqual(authority(), { prompt_id: "reply-language", version: 1, body: rule });
+    const messages = { ...pack.messages }; delete messages["workbench.language.retry"];
+    writeFileSync(packPath, JSON.stringify({ ...pack, locale: descriptor.tag, messages }));
+    assert.throws(probe, /workbench\.language\.retry/, "an incomplete selected platform pack is refused");
+  } finally { rmSync(scratch, { recursive: true, force: true }); }
+});
+
+test("FSS-34 a platform language descriptor refuses malformed or unknown values", () => {
+  const row = { tag: "en", html_lang: "en", intl: "en-US", direction: "ltr", name: "English" };
+  const catalog = { format_version: 1, default: "en", languages: [row] };
+  for (const [source, code] of [
+    [JSON.stringify({ ...catalog, format_version: 2 }), "ui.file_format_version"],
+    [JSON.stringify({ ...catalog, path: "unregistered" }), "ui.file_unknown_field"],
+    [JSON.stringify({ ...catalog, default: "fr" }), "ui.language_default"],
+    [JSON.stringify({ ...catalog, languages: [row, row] }), "ui.language_tag"],
+    [JSON.stringify({ ...catalog, languages: [{ ...row, tag: "../en" }] }), "ui.language_tag"],
+    [JSON.stringify({ ...catalog, languages: [{ ...row, intl: "zz-ZZ" }] }), "ui.language_intl"],
+    [JSON.stringify({ ...catalog, languages: [{ ...row, direction: "auto" }] }), "ui.language_direction"],
+    [JSON.stringify({ ...catalog, languages: [{ ...row, name: "<English>" }] }), "ui.language_name"],
+    [" ".repeat(70_000), "ui.file_too_large"],
+  ]) {
+    const parsed = parseUiLanguageCatalog(source);
+    assert.ok(!parsed.ok && parsed.problems.some(problem => problem.code === code), code);
   }
 });

@@ -1,6 +1,6 @@
 Write a Git commit message for the supplied code changes.
 
-The first line is a title of at most 60 characters that describes the change. Use the language designated on the first line of the material for the title and bullets. The language used elsewhere in the material does not decide it.
+The first line is a title of at most 60 characters that describes the change. Follow the round’s reply-language instruction for the title and bullets. The language used in the material does not decide it.
 
 After a blank line, add two to six one-line bullets beginning with "- ". Explain the main changes and why they were made.
 

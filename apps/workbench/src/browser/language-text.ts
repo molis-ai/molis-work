@@ -9,22 +9,23 @@ declare global {
 }
 
 /** A document answers only from the packs the Host projected into this realm. Switching the projection does not replace the SDK tools. */
-export function installLanguageText(initial: string, initialPacks: readonly UiLocalePack[]) {
+export function installLanguageText(initial: string, initialPacks: readonly UiLocalePack[], initialIntl?: (tag: string) => string | undefined) {
   const produced = createProducedLog();
-  let locale = initial, packs = initialPacks;
+  let locale = initial, packs = initialPacks, intlLocale = initialIntl;
   let prefixes = new Map<string, string>();
-  const select = (next: string, projection: readonly UiLocalePack[]) => {
+  const select = (next: string, projection: readonly UiLocalePack[], intl?: typeof initialIntl) => {
     const owners = new Map<string, string>();
     for (const { owner } of projection) {
       const prefix = textKeyPrefix(owner);
       refuseSharedTextPrefix(owners.get(prefix), owner);
       owners.set(prefix, owner);
     }
-    locale = next; packs = projection; prefixes = owners;
+    locale = next; packs = projection; prefixes = owners; intlLocale = intl;
   };
-  select(initial, initialPacks);
+  select(initial, initialPacks, initialIntl);
   installUiText({
     locale: () => locale,
+    intlLocale: tag => intlLocale?.(tag),
     noContext: () => "default",
     ownerOfPrefix: prefix => prefixes.get(prefix) ?? null,
     message(owner, key, tag) {

@@ -70,7 +70,10 @@ export const say: UiSayTool = /* @__PURE__ */ Object.assign((ref: OwnedTextRef, 
 function formatted(what: string, last: string, write: (locale: string | undefined, problem: (code: string) => void) => string): string {
   const provider = requireProvider(what);
   // `format` has no `.text` and goes into HTML, and a bad date shows as it was written, so it escapes the way `t` does.
-  return escapeHtml(guarded(provider, () => write(languageFor(provider, null, what) ?? undefined, (code) => report(provider, { code, key: what })), last));
+  return escapeHtml(guarded(provider, () => {
+    const locale = languageFor(provider, null, what);
+    return write(locale === null ? undefined : provider.intlLocale?.(locale) ?? locale, (code) => report(provider, { code, key: what }));
+  }, last));
 }
 
 /** Dates and numbers in the current language. The result goes into HTML like `t`'s. */

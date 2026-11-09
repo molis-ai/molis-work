@@ -75,7 +75,10 @@ test("FSS-53 only platform common words cross a plugin owner boundary", () => {
   const result = read({ ...core(), [UI]: file,
     [registry]: JSON.stringify({ resources: [{ kind: "locale", owner: "workbench", package: "@molis/workbench", path: "resources/locales" }] }),
     "apps/workbench/package.json": JSON.stringify({ name: "@molis/workbench" }),
-    "packages/contracts/src/platform/ui-text.ts": 'const UI_LANGUAGES = [{tag: "zh"}, {tag: "en"}] as const;',
+    "apps/workbench/resources/languages.json": JSON.stringify({ format_version: 1, default: "zh", languages: [
+      { tag: "zh", html_lang: "zh-CN", intl: "zh-CN", direction: "ltr", name: "简体中文" },
+      { tag: "en", html_lang: "en", intl: "en-US", direction: "ltr", name: "English" },
+    ] }),
     [owner + "zh.json"]: platform("zh"), [owner + "en.json"]: platform("en"),
   });
   assert.deepEqual(result.problems, [UI + ":5: workbench.control.private belongs to another producer"]);

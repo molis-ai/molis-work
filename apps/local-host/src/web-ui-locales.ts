@@ -1,7 +1,8 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { UiLocalePack } from "@molis-ai/molis-work-contracts/platform/ui";
-import { pluginTextForOwner, type PluginTextReader } from "@molis-ai/molis-work-app-workbench";
+import { frameUiLanguage } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { pluginTextForOwner, webLanguage, type PluginTextReader } from "@molis-ai/molis-work-app-workbench";
 import { pluginPagesFor } from "./plugin-page-authority.js";
 import { isWebLocale } from "./web-locale.js";
 import { refuseLocalWebRequest, requestHost, respondLocalWebRefusal, sendLocalWebJson } from "./web-http.js";
@@ -46,7 +47,7 @@ export async function handlePageLocales({ request, response, url, serverOptions 
         }
         (embedded ? existing.embedded : existing.pages).push(id);
       }
-      sendLocalWebJson(response, 200, { locale, shared: projectTextPacks(common, locale, true, true), owners: [...owners.values()] });
+      sendLocalWebJson(response, 200, { language: frameUiLanguage(webLanguage(locale)!), shared: projectTextPacks(common, locale, true, true), owners: [...owners.values()] });
     });
   } catch (error) {
     if (!response.destroyed) respondLocalWebRefusal({ respond: (status, body) => sendLocalWebJson(response, status, body) }, error);

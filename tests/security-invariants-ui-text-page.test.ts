@@ -57,6 +57,8 @@ test("S-ui-text-page FSS-09 FSS-37 only the originating shell can batch exact ru
   const response = await locale([id, otherMount]);
   assert.equal(response.status, 200, await response.clone().text());
   const body = await response.json();
+  assert.deepEqual(body.language, { tag: "en", html_lang: "en", direction: "ltr" }, "FSS-34: the frame receives only the selected language description");
+  assert.equal(body.languages, undefined, "the frame never gets the platform catalog");
   assert.deepEqual(body.owners.map((source: { pages: string[] }) => source.pages), [[id, otherMount]], "both mounts use one pack projection");
   assert.deepEqual(body.owners[0].packs.map((pack: { messages: Record<string, string> }) => pack.messages["text-page.stage.title"]), ["First view"]);
   assert.ok(body.shared.every((pack: { messages: object }) => Object.keys(pack.messages).every(key => key.startsWith("common."))));

@@ -115,6 +115,7 @@ export function installList(page: DatasetPage): void {
 
   // Report unreadable lists in place, with retry; the normal note lives in the editor.
   page.listFailed = (error) => {
+    if (!page.scope.alive) return;
     el.empty.hidden = true;
     const box = document.createElement("div");
     box.className = "mw-empty mw-empty--error";
@@ -126,7 +127,11 @@ export function installList(page: DatasetPage): void {
     retry.textContent = L("dataset.list.retry");
     retry.addEventListener("click", () => {
       retry.disabled = true;
-      void page.loadList().then(() => box.remove(), (next: unknown) => { retry.disabled = false; hint.textContent = (next as Error | null)?.message || L("dataset.list.failed-hint"); });
+      void page.loadList().then(() => box.remove(), (next: unknown) => {
+        if (!page.scope.alive) return;
+        retry.disabled = false;
+        hint.textContent = (next as Error | null)?.message || L("dataset.list.failed-hint");
+      });
     });
     el.rowsEl.replaceChildren(box);
   };

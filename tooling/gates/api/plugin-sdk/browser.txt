@@ -24,7 +24,11 @@ export interface FloatingSize {
 
 export declare function clampTo(value: number, limit: number, length: number): number;
 
+export declare const codeOf: (error: unknown) => string | undefined;
+
 export declare function followScroll(panel: Element, run: () => void): () => void;
+
+export declare const isAbort: (error: unknown) => boolean;
 
 export declare const jsonComparisonText: (value: unknown) => string | undefined;
 
@@ -53,4 +57,28 @@ export declare function placeStacked(anchor: FloatingAnchor, size: FloatingSize,
     top: number;
 };
 
+export declare function pluginRequest(host: PluginRequestHost, { fallback, codes, readRefusal, scope, project }: PluginRequestOptions): <T>(method: "GET" | "POST", path: string, body?: Record<string, unknown>, signal?: AbortSignal) => Promise<T>;
+
+export declare function requiredQuery(missing: (selector: string) => string): <T extends Element = HTMLElement>(root: ParentNode, selector: string) => T;
+
 export declare function scrollShouldFollow(target: EventTarget | null, panel: Element | null): boolean;
+
+export declare const statusOf: (error: unknown) => number | undefined;
+
+export declare function textCell(className: string, text: string): HTMLSpanElement;
+
+// Declarations the exports above refer to, which no entry exports itself:
+
+type PluginRequestHost = Pick<UiPluginClientHost, "pluginRoute"> & Partial<Pick<UiPluginClientHost, "route" | "readRefusal">>;
+
+interface PluginRequestOptions {
+    fallback(): string;
+    readonly codes?: Readonly<Record<string, () => string>>;
+    readonly readRefusal?: boolean;
+    readonly scope?: UiRequestScope;
+    readonly project?: {
+        id(): string;
+        missing(): string;
+        readonly includeInRequest?: boolean;
+    };
+}

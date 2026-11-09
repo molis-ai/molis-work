@@ -128,6 +128,16 @@ N52 随 S4/S5 接同一公共界面：现有 `/sources` 响应合并可见来源
 - **N16／E3。** 在 `whole-units.ts` 实现 `cutWithEllipsis`，沿用 `cutHead/cutCharacters`，输出不拆代理对。按调用点核截断前清理、UTF-16／码点预算、尾记是否计入预算及既有 `…`／`...`，明确选项只覆盖现存差异。E3 的无省略号提醒标题直接改用 `cutHead`。门禁只增加用户已批准的直接 `slice` 后加省略号的源码计数，按文件比较基点只减不增，跳过无关的一般切片。库快照与用例随同一 PR。
 - #1987 已收口 `isRecord`、`compareCodeUnits` 和 Shelf/工作台的转义。这里直接复用该 SDK 实现，contracts 的工具依赖方向按 BL 另算。SDK 公开入口和快照写前按实际文件查 #1999／#2000，当前已知 `packages/plugin-sdk/src/index.ts` 与部分入口在途。先以有消费的子路径缩小出口范围，再等待同文件的接力。
 
+### S3 执行切片（7b9bddc95）
+
+目标是功能可用。以 18 个页面 `dom.ts` 和 16 个页面 `request.ts` 为文件基线（16 含 Coding 的 `browser/main/request.ts`），按被替换的函数另量实际重复。SDK 的 `browser.ts` 负责必需节点、单行提示单元格、错误读取和共同请求映射。其余页面工具由原 owner 维护。Dataset、Form、PPT 保留同一项目的 URL 查询与写入正文；Pages 只检查存在项目。Lingguang、Todo 仍选择插件或平台路由。Form 保留 `details`、PPT 保留单次 signal、Todo 保留写后的变更通知。Issues 的写结果未知、Jelly 的流式传输、Files/Git 的嵌入动作、Shelf 的文本及失败快照、Cognia 的目录授权和 Schedule 的薄适配继续沿自己的协议。
+
+Dataset 用 `mountPluginClient` 给页面请求提供作用域，取消的结果不进入旧页的结果、提示或失败状态。403 拒绝读取继续显示原错误码与状态，用户文字用宿主 `readRefusal`。走生产客户端与真实请求传输，在隔离浏览器中延迟读取响应，验证取消及目录结果、403 失败显示和同一入口成功后恢复。服务端仅将五家的项目参数检查、正文复制与移除 `project_id` 移入 SDK `routes.ts`，按可信上下文比较查询与正文。五家的业务映射和拒绝文字由原 owner 提供。沿真实 Runtime HTTP 验请求不匹配、状态／错误码及无业务写入。
+
+时间部件以 `card-values.ts` 为已有规则来源，SDK 提供可复用的 Intl formatter 和有效时区检查。卡片保留分钟和短偏移，助理保留秒、毫秒及原有 DST 回退。Dataset、Form、Pages、PPT 的短日期按浏览器原 locale 和本地年比较，SDK 函数允许显式传入 locale 验证中英文。截断只共享有实际调用方的 UTF-16／码点计量、触发长度、尾记及截后清理。门禁在源码计数中识别直接切片拼省略号，原计数与无关切片分开。
+
+定向验证沿 BSH-09／10，覆盖 SDK 公共入口、Dataset 浏览器、文档路由、助理提醒／用量和操作卡；每次公开导出生成对应的 API 快照。收尾运行 `pnpm build`、定向 `node scripts/run-tests.mjs --jobs 1` 与 `node scripts/check-health-gates.mjs --base origin/main`，构建和测试分别占本机槽位。共享核心的 Full 由本批最终头的 CI 提供。N12 的 `join`、复制协议、Files 切换和真实 Home 仍依 §2／3 独立处理。
+
 **N47 的 Runtime 主人已独立裁定 GO（06-4）。** 在实际交给插件的最终 callback view 装惰性 `allowed_actions`。首次读取才克隆数组和每条引用，同一回调内保持同一个可改副本，其他回调和原权限快照各自隔离。保留缺省字段与空数组的区别、可枚举、赋值和序列化语义。Host ingress 继续立即取得独立权限快照，首次读取依据同一可信来源。检查 [action-provider](../../packages/plugin-runtime/src/action-provider.ts) 和 [scene-provider](../../packages/plugin-runtime/src/scene-provider.ts) 构造视图时的对象 spread，它会过早触发 getter。最终 view 安装 getter，或在转交时保留描述符。普通回调、availability 和场景入口各测未读、首次读、重复读与改值，再测嵌套调用及序列化。
 
 独立合成探针走生产回调函数，1,502 次各 164 条引用共复制 246,328 个引用对象，即使回调完全不读。该值是探针证据，真实 brief 请求的前后成本由 06-4 单独测。

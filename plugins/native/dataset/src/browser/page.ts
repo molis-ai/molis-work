@@ -1,6 +1,6 @@
 import { required } from "./dom.js";
 import { datasetRequest } from "./request.js";
-import type { DatasetHost, DatasetPage, DatasetState, Elements } from "./types.js";
+import type { DatasetHost, DatasetPage, DatasetState, Elements, Scope } from "./types.js";
 
 const elementsOf = (bench: HTMLElement): Elements => {
   const optional = <T extends Element>(selector: string) => bench.querySelector<T>(selector);
@@ -43,13 +43,13 @@ const initialState = (): DatasetState => ({
 const notInstalled = (name: string) => () => { throw new Error(`Dataset page: ${name} is not installed`); };
 
 /** The page the parts share: what the server drew, the state, the requests. The parts install their operations on it. */
-export function createPage(host: DatasetHost, bench: HTMLElement): DatasetPage {
+export function createPage(host: DatasetHost, scope: Scope, bench: HTMLElement): DatasetPage {
   const L = host.translate, el = elementsOf(bench);
   const page: DatasetPage = {
-    host, L, el, s: initialState(), request: datasetRequest(host, L), api: "/datasets",
+    host, scope, L, el, s: initialState(), request: datasetRequest(host, scope, L), api: "/datasets",
     showNote(text, isError) {
       const { note } = el;
-      if (!note) return;
+      if (!scope.alive || !note) return;
       note.hidden = !text;
       note.textContent = text || "";
       note.classList.toggle("is-error", Boolean(isError && text));

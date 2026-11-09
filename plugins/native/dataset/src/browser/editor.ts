@@ -3,7 +3,8 @@ import type { Dataset, DatasetPage, Version } from "./types.js";
 
 /** The open table: opening and closing the editor, and saving what has been typed. */
 export function installEditor(page: DatasetPage): void {
-  const { L, el, s } = page;
+  const { L, el, s, scope } = page;
+  scope.own(() => clearTimeout(s.saveTimer));
 
   page.fillEditor = async (record) => {
     clearTimeout(s.saveTimer);
@@ -46,7 +47,7 @@ export function installEditor(page: DatasetPage): void {
         s.savedRev = revision;
         page.remember(laterDraft ? { ...payload.dataset, ...laterDraft } : payload.dataset, false);
       } catch (error) {
-        s.saveError = error;
+        if (scope.alive) s.saveError = error;
         throw error;
       }
     }

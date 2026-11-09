@@ -161,3 +161,76 @@ test('W5-01-DATASET-03: Dataset without a model disables AI while local creation
   await evaluate("document.querySelector('[data-dataset-ai-prompt]').value='手工列'"); await click('[data-dataset-generate]');
   await waitFor("document.querySelector('[data-column-name]')?.value === '手工列'");
 });
+
+test("BSH-09 BL-1033: Dataset shows a real read refusal and drops a response after its view unmounts", { timeout: 60_000 }, async t => {
+  const browser = await openGoalBrowser(t, true, undefined, null); if (!browser) return;
+  const { command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
+  assert.ok(projectId);
+  const child = await pluginFrameBrowser(t, browser, "dataset");
+  const createTable = (title: string) => {
+    const store = openDatasetStore(homeDirectory);
+    try { return store.create({ project_id: projectId, title }); } finally { store.close(); }
+  };
+  const original = createTable("请求前的表");
+  browser.setFrameInitScript(`
+    const state = window.datasetRead = { deny: true, hold: false };
+    const urlOf = url => new URL(url, ${JSON.stringify(origin)});
+    const isList = (url, init) => init?.method === "GET" && url.pathname.endsWith("/api/plugins/io.molis.work.dataset/datasets");
+    window.molisWorkbenchPluginFactories = new Proxy({}, { set(target, key, factory) {
+      target[key] = key !== "dataset" ? factory : host => {
+        const request = window.molisWorkRequest, fetch = window.fetch;
+        window.molisWorkRequest = Object.assign(async (url, init) => {
+          const link = urlOf(url);
+          if (!isList(link, init)) return request(url, init);
+          if (state.deny) { state.deny = false; link.searchParams.set("project_id", "other-project"); }
+          state.scoped = Boolean(init.scope);
+          state.settled = false;
+          try { return await request(link.href, init); }
+          catch (error) { state.error = error; throw error; }
+          finally { state.settled = true; }
+        }, request);
+        window.fetch = async (url, init) => {
+          const response = await fetch(url, init);
+          if (state.hold && isList(urlOf(url), init)) {
+            state.signal = init.signal;
+            state.status = response.status;
+            await new Promise(resolve => { state.release = resolve; });
+          }
+          return response;
+        };
+        return factory(host);
+      };
+      return true;
+    } });
+  `);
+  await browser.setViewport(1440, 950);
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=dataset` }, sessionId));
+  await browser.waitFor("document.body.dataset.desktopSurface === 'dataset'");
+  const failure = "[data-dataset-rows] [role=alert]";
+  await child.waitFor(`document.querySelector('${failure} p')`);
+  assert.deepEqual(await child.evaluate("({ status: datasetRead.error.status, code: datasetRead.error.code })"), {
+    status: 403, code: "actions.scope_mismatch",
+  });
+  assert.match(await child.evaluate<string>(`document.querySelector('${failure} p').textContent`), /没有权限读取这里的内容/);
+  await child.click(`${failure} button`);
+  await child.waitFor(`document.querySelector('[data-dataset-id="${original.id}"]')`);
+
+  const late = createTable("离开后才送达的表");
+  await child.evaluate(`(() => {
+    datasetRead.hold = true;
+    datasetRead.root = document.querySelector('[data-dataset=workbench]');
+    datasetRead.note = datasetRead.root.querySelector('[data-dataset-note]').textContent;
+    document.dispatchEvent(new Event('molis-work:model-ready'));
+  })()`);
+  await child.waitFor("datasetRead.release || datasetRead.settled");
+  assert.equal(await child.evaluate("datasetRead.scoped"), true);
+  assert.equal(await child.evaluate("datasetRead.status"), 200);
+  await child.evaluate("datasetRead.root.remove()");
+  await child.waitFor("datasetRead.signal.aborted");
+  await child.evaluate("datasetRead.release()");
+  await child.waitFor("datasetRead.settled");
+  await child.evaluate("new Promise(resolve => setTimeout(resolve, 0))");
+  assert.equal(await child.evaluate("datasetRead.error.name"), "AbortError");
+  assert.equal(await child.evaluate(`Boolean(datasetRead.root.querySelector('[data-dataset-id="${late.id}"]'))`), false);
+  assert.equal(await child.evaluate("datasetRead.root.querySelector('[data-dataset-note]').textContent === datasetRead.note"), true);
+});

@@ -1,3 +1,4 @@
+import { requiredQuery } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { Translate } from "./types.js";
 import type { WorkflowLinkKind } from "../model.js";
@@ -23,16 +24,12 @@ export const when = (iso: string | null | undefined) => {
     : date.toLocaleDateString(lang, { month: "short", day: "numeric" });
 };
 
-export const required = <T extends Element = HTMLElement>(root: ParentNode, selector: string): T => {
-  const node = root.querySelector<T>(selector);
-  if (!node) throw new Error(`Workflows page: ${selector} is missing`);
-  return node;
-};
+export const required = requiredQuery(selector => `Workflows page: ${selector} is missing`);
 
 /** A copy that shares nothing with the original (the page edits plain data only). */
 export const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 
-export const statusOf = (error: unknown) => (error as { status?: unknown }).status;
+export { statusOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 
 /** Motion: nothing moves for a person who asked for less of it. */
 export const calm = () => Boolean(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);

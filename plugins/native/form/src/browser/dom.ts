@@ -5,7 +5,7 @@ export function make<K extends keyof HTMLElementTagNameMap>(tag: K, className?: 
   const node = document.createElement(tag); if (className) node.className = className; if (text !== undefined) node.textContent = text; return node;
 }
 
-export const textCell = (className: string, text: string) => { const node = make("span", className, text); node.title = text; return node; };
+export { textCell } from "@molis-ai/molis-work-plugin-sdk/browser";
 
 export const firstLine = (value: string | undefined, fallback = "") => {
   const line = String(value || "").trim().split("\n")[0]!.trim();

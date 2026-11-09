@@ -268,6 +268,16 @@ interface RoleTemplate {
 - 官方场景包升级时，模板变了只出现在升级预览里，由你挑着重新采用；不改你已经改过的角色（ONB-55）。
 - **36 前置核对与阻塞修正（2026-11-08，用户明确要求继续独立部分）**：其方案 C 足以确定模板内容、个人／项目作用域、逐节跟随与覆盖的设计原则；现有 `CharacterDraft` 没有项目成员、默认选择和固定生效版本的层次合同。P-2 分成 P-2a 的 `RoleTemplate`、严格形状及静态校验，与 P-2b 的 `characters.from_template` 采用接口。P-2a 不依赖 36；P-3b 的场景形状与静态校验只消费 P-2a，不等角色采用接口。只有 P-2b 的项目成员返回值、来源挂载与回读须接 36 的准确类型；不能凭本稿补一套角色层次，也不把模板类型完成写成角色采用完成。36 的角色服务与界面排期不变；同一批中的独立工作继续，不因该接口未交接停整批。
 
+### 5.1 P-2a 模板内容与静态边界
+
+首片从现有 `contracts/modules/characters` 公开导出 `RoleTemplate` 和 `ROLE_TEMPLATE_SCHEMA`，仅含第 5 节列出的八个字段，必填 `title` 与 `instructions`。模板不收 actor、安装、项目成员、来源或授权状态。`title`、`materials`、`outputs` 复用 `TEXT_REF_SCHEMA`；包键／草稿 literal 模式由调用校验的外层 source 决定，不加进模板。TextRef 的互斥、参数与来源语义继续由 SDK `textRefProblems` 检查，不复制实现。角色采用后标题的非空及 120 UTF-16 长度限制在解析语言键后由 P-2b 校验，模板的文字引用仍沿 TextRef 的原上限。
+
+正文沿 CharacterDraft：`instructions` 允许空，上限 20,000 UTF-16 单位。工具列表的省略／null 表示继承，空数组表示不使用，最多 100 项。Host 工具的名字与去重复用 `parseCharacterTools`；动作工具复用 `parseExactActionReferences`，每项须是闭合的 capability、version、provider 三字段，provider 允许现有 `#mcp:` 身份，不收角色自行声称的授权。公开动作引用 schema 复用 `ACTION_REFERENCE_SCHEMA` 并要求 provider；准确字符、重复项、安全整数与 UTF-16 限制由已有 parser 检查。JSON Schema 的 maxLength 按码点计数，不能单凭它声称正文及 provider 的 UTF-16 边界通过。
+
+`skills` 每项只收 `{ pack, skill_id }`，按现有插件 id 与 Skill token 规则检查，不把单个包的技能声明数上限套在多包引用上。`works_with` 每项为非空字符串且不能重复；是否指向同一场景中另一个 role、是否自指，由 P-3b 检查实际部分集合，引用条数不超过其他角色数。第 09 批 #1993 的能力包扩展要求共用角色说明字段；本片不新增内容包角色白名单键，后续打包接入复用同一份角色内容。
+
+合同首片允许修改 `packages/contracts/src/modules/characters.ts`、该公开子路径的 API 快照和新定向测试。SPC-C06 先通过公开合同与 Kernel `assertActionInput` 验证八字段形状、可空工具和伪造身份／未知字段拒绝；这一阶段只报形状证据。SDK 的纯静态校验位于独立 `role-template.ts`，由 P-3b `inspectBlueprint` 复用，仍沿计划的 SDK 公共出口接入；公共出口未交接时可准备，不能以内部 import 测试冒充公开入口交付。SPC-C03 的角色引用与 SPC-C06 的完整语义均保留后续验证，角色创建、持久化、授权及层次恢复仍不在首片。
+
 ## 6. 首页与生成页面
 
 **用户 2026-11-04 定**（统筹转达）：「放在首页插件下，然后首页插件允许各个插件注册，也允许根据描述生成，不是当做普通插件」；「插件可以注册卡片，首页当做平台能力」。上一版的做法 A（页面打成插件包）与做法 B 都不用了。落成三条：

@@ -52,3 +52,9 @@ export { ITEM_ROW_STYLES } from "./catalog-patterns.js";
 export { SKILL_PACK_BOARD_EN } from "./catalog-skill-packs-en.js";
 
 export { SKILL_PACK_BOARD_STYLES } from "./catalog-skill-packs.js";
+export { CAPABILITY_PACK_BOARD_EN } from "./catalog-capability-packs-en.js";
+export {
+  CAPABILITY_PACK_BOARD_STYLES,
+  renderNowBlock,
+  type NowMenu,
+} from "./catalog-capability-packs.js";

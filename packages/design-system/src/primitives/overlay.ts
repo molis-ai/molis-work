@@ -99,10 +99,11 @@ export function renderHint(options: {
   return `<span class="mw-hint"><button type="button" class="mw-hint__trigger" popovertarget="${escapeHtml(ident)}" aria-label="${escapeHtml(options.label)}" style="anchor-name: ${anchor}">${icon(options.iconName ?? "circle-alert")}</button><div id="${escapeHtml(ident)}" class="mw-tooltip mw-hint__tooltip" data-slot="tooltip" role="tooltip" popover="auto" style="position-anchor: ${anchor}">${body}</div></span>`;
 }
 
-export function renderMenu(options: { items: string; className?: string; labelledBy?: string }): string {
+/** `attrs` carries what places the menu: an `id` and `popover` for one anchored under its button (`data-anchored-menu`). */
+export function renderMenu(options: { items: string; className?: string; labelledBy?: string; attrs?: Record<string, AttrValue> }): string {
   return `<div class="${cx("mw-menu", options.className)}" data-slot="menu" role="menu"${
     options.labelledBy ? ` aria-labelledby="${escapeHtml(options.labelledBy)}"` : ""
-  }>${options.items}</div>`;
+  }${renderAttrs(options.attrs)}>${options.items}</div>`;
 }
 
 /**

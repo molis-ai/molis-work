@@ -126,6 +126,10 @@
       "types": "./dist/platform/settings.d.ts",
       "import": "./dist/platform/settings.js"
     },
+    "./platform/blueprints": {
+      "types": "./dist/platform/blueprints.d.ts",
+      "import": "./dist/platform/blueprints.js"
+    },
     "./platform/testing": {
       "types": "./dist/platform/testing.d.ts",
       "import": "./dist/platform/testing.js"

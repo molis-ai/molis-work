@@ -737,6 +737,15 @@ export declare function inspectActionCrossReferences(definitions: unknown): stri
 
 export declare function inspectActionDeclarations(definitions: unknown, scenes: unknown): string[];
 
+export declare function inspectBlueprint(value: unknown, options: RoleTemplateInspectionOptions): readonly PluginDeclarationProblem[];
+
+export declare function inspectBlueprintLocales(defaultBlueprint: unknown, others: readonly {
+    locale: string;
+    blueprint: unknown;
+}[], options: {
+    owner: string;
+}): readonly PluginDeclarationProblem[];
+
 export declare function inspectContentPlugin(manifest: Readonly<Record<string, unknown>>): PluginDeclarationProblem[];
 
 export declare function inspectRoleTemplate(value: unknown, options: RoleTemplateInspectionOptions): readonly PluginDeclarationProblem[];

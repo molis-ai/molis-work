@@ -177,6 +177,10 @@ Home 判断前会读取原对象、准备其实际可用动作，并把当前选
 
 `bindSettingsHandlers` 接主人的存储接口。读返回各层快照，SDK 按项目、个人、提供方默认的顺序解析。写给本人调用，主人在同一个同步事务里读取回执、读取有效 revision、执行写入、回读并保存回执。有效 revision 由主人给出，覆盖各层与默认值的变更。同一个请求重放时返回原回执。主人用 `defineErrorCodes` 提供自己的 `setting_invalid` 和 `setting_conflict`。
 
+## 场景包正文
+
+从 SDK 根入口用 `inspectBlueprint` 检查正文和引用。草稿使用 `{ source: "draft" }`，包版使用 `{ source: "package", owner }`，`owner` 取自调用方已核对的 Manifest。`inspectBlueprintLocales` 检查默认正文和每份包内译文，仅允许文字引用、角色正文和内容建议的 `body` 改值。两者返回带字段路径的问题。实际提供方及设置或内容的主人由采用预览核对。
+
 ## 本地开发
 
 以下命令在**仓库根目录**执行，使用 Node.js 24+ 与仓库配置的 pnpm。首次准备运行 `pnpm install --frozen-lockfile` 和 `pnpm build`；之后可单独检查此包。

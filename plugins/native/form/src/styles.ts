@@ -15,7 +15,7 @@ export const FORM_STYLES = `
   @media (prefers-reduced-motion: reduce) { .creative-artifact-act { transition: none; } }
   .form-stage-chrome { pointer-events: auto; }
   [data-form=workbench] { --plugin-tint: var(--ink-soft); }
-  [data-form-stage-workspace] > .plugin-stage-detail-bar { min-width: 0; max-width: 100%; flex-wrap: wrap; }
+  [data-form-stage-workspace] > .plugin-stage-detail-bar { position: relative; min-width: 0; max-width: 100%; flex-wrap: wrap; }
   .form-workspace > * { flex-shrink: 0; }
   [data-form-stage-workspace] > .form-note { flex-shrink: 0; }
   .form-tabs { display: flex; gap: 4px; margin-left: auto; }
@@ -90,6 +90,9 @@ export const FORM_STYLES = `
   .form-preview-option .mw-check, .form-preview-option .mw-radio,
   .form-question .mw-check {
     width: 16px; height: 16px; margin: 0;
+  }
+  .form-preview-option .mw-check, .form-preview-option .mw-radio,
+  .form-question .mw-check:where(:not(:checked)) {
     border-color: var(--muted);
     background: var(--paper);
   }
@@ -138,8 +141,20 @@ export const FORM_STYLES = `
 
   .form-placement-line { margin: 2px 0 10px; }
   [data-form-empty]:not([hidden]) ~ .form-placement-line { display: none; }
-  .form-share-menu > summary { list-style: none; }
-  @media (max-width: 600px) { .form-share-menu > .plugin-stage-more-actions { left: 0; right: auto; } }
+  /* The button may wrap to either side of the toolbar. Keep the panel inside the toolbar's width. */
+  .form-share-menu { position: static; }
+  .form-share-menu > .plugin-stage-more-actions {
+    --form-export-width: 16rem;
+    right: 12px; min-width: 0; width: min(var(--form-export-width), calc(100% - 24px));
+  }
+  .form-share-menu > .plugin-stage-more-actions > .mw-btn { white-space: normal; text-align: start; }
+  @supports (right: anchor(--form-export right)) {
+    .form-share-menu > summary { anchor-name: --form-export; }
+    .form-share-menu > .plugin-stage-more-actions {
+      top: calc(anchor(--form-export bottom, 100%) + 6px);
+      right: clamp(12px, anchor(--form-export right, 12px), calc(100% - var(--form-export-width) - 12px));
+    }
+  }
   .form-collect-state { white-space: nowrap; }
   .form-collect-help { margin: 14px 0 0; }
   .form-results-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }

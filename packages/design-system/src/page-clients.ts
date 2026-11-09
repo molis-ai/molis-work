@@ -30,6 +30,8 @@ export const REFLOW_CLIENT_SCRIPT = readFileSync(new URL("../dist/reflow-client.
 export const OVERFLOW_FADE_CLIENT_SCRIPT = readFileSync(new URL("../dist/overflow-fade-client.js", import.meta.url), "utf8").trim();
 /** `window.molisCopy`, the one copy feedback (`browser/copy-feedback.ts`, VUX-19). */
 export const COPY_FEEDBACK_CLIENT_SCRIPT = readFileSync(new URL("../dist/copy-feedback-client.js", import.meta.url), "utf8").trim();
+/** A menu anchored under its button, in the top layer (`browser/anchored-menu.ts`): the AI kit state block's menu. */
+export const ANCHORED_MENU_CLIENT_SCRIPT = readFileSync(new URL("../dist/anchored-menu-client.js", import.meta.url), "utf8").trim();
 /** The component board's demo behaviour (`browser/catalog.ts`): overlay specimens, motion and craft demos, composition menus. */
 export const CATALOG_CLIENT_SCRIPT = readFileSync(new URL("../dist/catalog-client.js", import.meta.url), "utf8").trim();
 /** The unified input's program (`browser/composer.ts`, specs/unified-input-voice §3.1, K2): one shared file, `/assets/molis-work-composer.js`. */

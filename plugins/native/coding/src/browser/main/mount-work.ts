@@ -68,7 +68,8 @@ async function executePlan(page: Page, revision: number) {
   const request = {
     plan_revision: revision, intent, provider_id, model_id, ...refs.composerModels.effort(), workspace_id: s.workspaceId, ...(s.worktree ? { worktree_id: s.worktree.worktree_id } : {}),
     ...(intent === "parallel" ? { writer_assignments: structuredClone(s.configurations.get(id)?.writer_assignments || []) } : {}),
-    methods: structuredClone(s.methodSelections.get(id) || []), materials: structuredClone(s.materialSelections.get(id) || []), character: structuredClone(s.characterSelections.get(id) ?? null),
+    // The session's Skills, and the same list in the naming envelope: on Coding's own page, resending them is the person naming them (§2.3).
+    skills: structuredClone(s.methodSelections.get(id) || []), named_skills: structuredClone(s.methodSelections.get(id) || []), materials: structuredClone(s.materialSelections.get(id) || []), character: structuredClone(s.characterSelections.get(id) ?? null),
     character_skill_ids: s.characterSkills.get(id), action_tools: structuredClone(s.actionSelections.get(id) || []), mcp_tools: structuredClone(s.mcpSelections.get(id) || []),
     mcp_sources: structuredClone(s.mcpSourceSelections.get(id) || []),
   };

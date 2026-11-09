@@ -322,7 +322,6 @@
  "tests/coding-mcp-settings-client.test.ts": 3,
  "tests/coding-mcp.test.ts": 11,
  "tests/coding-message-wait.test.ts": 10,
- "tests/coding-method-install.test.ts": 2,
  "tests/coding-mode-switch-pack.test.ts": 16,
  "tests/coding-model-controls.e2e.test.ts": 25,
  "tests/coding-net-change.test.ts": 1,

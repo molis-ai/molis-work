@@ -40,7 +40,7 @@ function emptyState(L: Page["L"]): Omit<State, "ports" | "follow" | "earlierWatc
     generation: 0, goalChoice: null, goalCursor: null, goalReading: 0, goalRows: [], goalSaving: false, goalTicket: 0,
     indexSignature: "", indexTimer: 0, indexed: [], itemTicket: 0, lastData: null, lastRun: null, liveRun: "", liveTicket: 0, loading: false,
     materialSelections: new Map(), materialTicket: 0, mcpChoices: [], mcpSelections: new Map(), mcpSourceChoices: [], mcpSourceSelections: new Map(),
-    methodChoices: [], methodDocumentTicket: 0, methodSelections: new Map(), offeredApprovals: new Set(), offsets: new Map(),
+    methodChoices: [], methodSelections: new Map(), offeredApprovals: new Set(), offsets: new Map(),
     olderPlanEntries: [], olderSubagents: [], olderViews: new Map(), pageLoading: false, paintFrame: 0, phases: phaseWords(L), planEntries: [], pollingTicks: 0,
     progressSaving: false, progressTicket: 0, progressView: null, questionDrafts: new Map(), queuedInputs: undefined, queuedKey: "",
     recovery: false, recoveryBusy: false, recoveryKey: "", recoveryLoading: false, renderedText: new WeakMap(),

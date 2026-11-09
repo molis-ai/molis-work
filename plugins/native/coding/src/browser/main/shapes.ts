@@ -112,7 +112,7 @@ export interface FrozenSetup {
   readonly subagent_workspaces?: readonly { readonly directory: { readonly canonical_path: string } }[];
   /** Where the round ran, as the Host froze it: the project's output, or one of the Host's worktrees of it (by id). */
   readonly directories?: { readonly execution: { readonly kind: "output" } | { readonly kind: "worktree"; readonly worktree_id: string } };
-  readonly skills: readonly { readonly name: string; readonly version: number }[];
+  readonly skills: readonly { readonly name: string; readonly ref: { readonly version: number } }[];
   readonly action_tools?: readonly { readonly capability_id: string; readonly version: number; readonly provider_id: string }[];
   readonly mcp_tools?: readonly { readonly server: string; readonly server_label?: string; readonly tool: string; readonly version: string; readonly configuration_version: number }[];
   readonly mcp_sources?: readonly { readonly server: string; readonly server_label?: string; readonly configuration_version: number }[];
@@ -217,7 +217,7 @@ export interface SessionData extends UsageData {
   readonly character?: CharacterRef | null;
   readonly character_title?: string;
   readonly character_skill_ids?: readonly string[];
-  readonly methods?: readonly MethodRef[];
+  readonly skills?: readonly SkillRef[];
   readonly question_drafts?: Readonly<Record<string, unknown>>;
   readonly draft?: string;
   readonly plan?: PlanDraft | null;
@@ -251,10 +251,26 @@ export interface WorkspaceRecord {
 
 export interface McpSourceRef { readonly server: string; readonly server_label?: string; readonly configuration_version: number }
 export interface McpToolRef { readonly server: string; readonly server_label?: string; readonly tool: string; readonly version: string; readonly configuration_version: number }
-export interface MethodRef { readonly skill_id: string; readonly version: number }
+/** An exact Skill of the shared catalog, as the Host checks it when a round starts; the page only keeps and resends it. */
+export interface SkillRef {
+  readonly source: { readonly kind: "plugin"; readonly plugin_id: string; readonly plugin_version: string; readonly publisher_signature: string };
+  readonly skill_id: string;
+  readonly version: number;
+  readonly install_id: string;
+  readonly installation_generation: string;
+}
 
-/** A method of the catalog (`GET /state`). */
-export interface MethodEntry extends MethodRef { readonly name: string; readonly summary: string; readonly enabled: boolean }
+/** A Skill the method menu offers (`GET /state`, `skill-choices.ts`). */
+export interface SkillChoice {
+  readonly ref: SkillRef;
+  readonly name: string;
+  readonly description: string;
+  readonly excerpt: string;
+  readonly available: boolean;
+  readonly reason?: string;
+  /** Another plugin's `manual` Skill: only the Assistant names it, so the menu does not keep it. */
+  readonly assistant_only: boolean;
+}
 
 export interface McpServer {
   readonly id: string;
@@ -274,7 +290,7 @@ export interface StateRead {
   workspaces: WorkspaceRecord[];
   workspace?: WorkspaceRecord | null;
   readonly mcp?: readonly McpServer[];
-  readonly methods?: readonly MethodEntry[];
+  readonly skills?: readonly SkillChoice[];
   readonly runtimes: readonly { readonly runtime_id: string; readonly roles: readonly { readonly role_id: string; readonly available: boolean }[] }[];
   readonly project_runtime_id?: string;
   readonly [field: string]: unknown;
@@ -285,7 +301,7 @@ export interface RoundSelection {
   readonly workspace_id: string;
   /** The Host's worktree of that folder the round runs in, when the session was pointed at one. */
   readonly worktree_id?: string;
-  readonly methods: readonly MethodRef[];
+  readonly skills: readonly SkillRef[];
   readonly action_tools?: readonly unknown[];
   readonly mcp_tools: readonly McpToolRef[];
   readonly mcp_sources: readonly McpSourceRef[];

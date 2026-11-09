@@ -439,7 +439,6 @@ export interface CodingSettingsModel {
   readonly roles: ReadonlyArray<{ role_id: string; name: string; execution: string }>;
   /** Runtimes the Host registered, with whether each can run a writing role. */
   readonly runtimes: ReadonlyArray<{ runtime_id: string; display_name: string; can_write: boolean; can_command?: boolean; methods?: string }>;
-  readonly methods?: ReadonlyArray<{ name: string; version: number; summary?: string }>;
   readonly project_href?: string | null;
   readonly project_name?: string;
   readonly projects?: ReadonlyArray<{ project_id: string; name: string }>;
@@ -471,7 +470,6 @@ export function renderCodingSettings(model: CodingSettingsModel): string {
   const runtimes = model.runtimes.length === 0
     ? `<p class="model-field-hint">${p.escape(p.text("coding.settings.no-runtimes"))}</p>`
     : model.runtimes.map((runtime) => `<div class="settings-setting-row"><div class="setting-copy"><strong>${p.escape(runtime.display_name)}</strong><span>${p.escape(runtime.can_write ? runtime.can_command ? p.text("coding.settings.runtime.write-command") : p.text("coding.settings.runtime.write") : p.text("coding.settings.runtime.read-only"))}</span><span>${p.escape(runtime.methods === "partial" ? p.text("coding.settings.runtime.methods-partial") : runtime.methods === "supported" ? p.text("coding.settings.runtime.methods-supported") : p.text("coding.settings.runtime.methods-none"))}</span></div></div>`).join("");
-  const methods = (model.methods ?? []).map(method => `<div class="settings-setting-row"><div class="setting-copy"><strong>${p.escape(p.text(method.name))} · v${method.version}</strong><span>${p.escape(method.summary ? p.text(method.summary) : "")}</span></div></div>`).join("");
   return `<section class="settings-document coding-settings" data-coding-settings>
     <style>${CODING_SETTINGS_STYLES}</style>
     <header class="settings-heading"><div class="settings-heading-title"><h1>${p.escape("Coding")}</h1></div>
@@ -486,23 +484,8 @@ export function renderCodingSettings(model: CodingSettingsModel): string {
       <h2>${p.escape(p.text("coding.settings.runtimes"))}</h2>
       ${runtimes}
     </section>
-    <section class="settings-section" aria-label="${p.escape(p.text("coding.attach.method"))}">
-      <h2>${p.escape(p.text("coding.attach.method"))}</h2>
-      <p>${p.escape(p.text("coding.settings.methods-help"))}</p>
-      ${methods}
-      <h3>${p.escape(p.text("coding.settings.project-methods"))}</h3>
-      ${model.project_href ? `<div data-coding-method-library data-prefix="${p.escape(model.project_href)}">
-        <p>${p.escape(p.text("coding.settings.project-line", { name: model.project_name ?? p.text("coding.settings.current-project") }))} · <a href="/settings/coding-settings">${p.escape(p.text("coding.settings.switch-project"))}</a></p>
-        <p>${p.escape(p.text("coding.settings.methods-note"))}</p>
-        <form data-method-discovery-form class="mw-form-stack">
-          <label class="mw-field">${p.escape(p.text("coding.settings.granted-workspace"))}<select class="mw-select" data-method-workspace aria-label="${p.escape(p.text("coding.settings.method-workspace"))}"></select></label>
-          <label class="mw-field">${p.escape(p.text("coding.settings.relative-dir"))}<input class="mw-input" data-method-path aria-label="${p.escape(p.text("coding.settings.method-path"))}" value="skills" required maxlength="1000"></label>
-          <div>${renderButton({ label: p.text("coding.settings.discover"), type: "submit", disabled: true, attrs: { "data-method-discover": "" } })}</div>
-        </form>
-        <p data-method-library-status data-method-library-loading role="status">${p.escape(p.text("coding.settings.methods-loading"))}</p>
-        <div data-method-candidates></div>
-        <h3>${p.escape(p.text("coding.settings.installed"))}</h3><div data-installed-methods></div>
-      </div>
+    <section class="settings-section" aria-label="${p.escape(p.text("coding.settings.mcp.title"))}">
+      ${model.project_href ? `<p>${p.escape(p.text("coding.settings.project-line", { name: model.project_name ?? p.text("coding.settings.current-project") }))} · <a href="/settings/coding-settings">${p.escape(p.text("coding.settings.switch-project"))}</a></p>
       <section data-coding-mcp-settings data-prefix="${p.escape(model.project_href)}">
         <h2>${p.escape(p.text("coding.settings.mcp.title"))}</h2><p>${p.escape(p.text("coding.settings.mcp.note"))}</p>
         <div data-mcp-servers></div>
@@ -537,8 +520,7 @@ function executionLabel(execution: string, p: Pick<CodingUiPrimitives, "text">):
 }
 
 /**
- * The page is drawn from the platform's settings context alone (its view declares no `settings_data`): the roles and the methods are
- * this plugin's own, from its Agent Manifest, and the runtimes, projects and the project the page was opened from are the Host's.
+ * The page is drawn from the platform's settings context alone (its view declares no `settings_data`): the roles are this plugin's own, from its Agent Manifest, and the runtimes, projects and the project the page was opened from are the Host's.
  */
 export function codingSettingsModel({ context, primitives }: SettingsPageModel): CodingSettingsModel {
   return {
@@ -548,7 +530,6 @@ export function codingSettingsModel({ context, primitives }: SettingsPageModel):
       can_command: runtime.capabilities.command !== "unsupported",
       methods: runtime.capabilities.skills,
     })),
-    methods: codingAgentManifest.skills ?? [],
     projects: context.projects.map(project => ({ project_id: project.project_id, name: project.name })),
     project_name: context.project?.name,
     project_href: context.project?.href ?? null,

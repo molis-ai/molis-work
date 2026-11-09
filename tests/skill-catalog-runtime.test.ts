@@ -3,7 +3,8 @@ import test from "node:test";
 import { PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SKILLS_PERMISSIONS, skillCatalogActions, type SkillCatalogEntry, type SkillBodyReadResult, type SkillResourceContent } from "@molis-ai/molis-work-contracts/services/skills";
-import { HomeConsentLedger, homeAgentDefinitions, withSkillSelection, pluginInstallActions } from "@molis-ai/molis-work-app-local-host";
+import { HomeConsentLedger, homeAgentDefinitions, pluginInstallActions } from "@molis-ai/molis-work-app-local-host";
+import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { installedPackageHost } from "./fixtures/signed-package-host.js";
 import { newPublisher } from "./fixtures/sandbox-package.js";
 import { CONTENT_PLUGIN_ID, MEETING_NOTES, signedContentPackage } from "./fixtures/content-package.js";
@@ -16,7 +17,9 @@ test("SKC-05 SKC-06 SKC-08 SKC-09: installed Skills use scoped settings, frozen 
     const publisher = newPublisher();
     const person = { ...h.person, permissions: [...h.person.permissions, ...SKILLS_PERMISSIONS] };
     const list = async () => ((await h.client.invoke(person, ref(skillCatalogActions.list), {})) as { skills: SkillCatalogEntry[] }).skills.filter(row => row.ref.source.plugin_id === CONTENT_PLUGIN_ID);
-    const read = async (entry: SkillCatalogEntry) => (await h.client.invoke(person, ref(skillCatalogActions.readBodies), { refs: [entry.ref] }) as { results: SkillBodyReadResult[] }).results[0]!;
+    const read = async (entry: SkillCatalogEntry, caller: typeof person = person) => (await h.client.invoke(caller, ref(skillCatalogActions.readBodies), { refs: [entry.ref] }) as { results: SkillBodyReadResult[] }).results[0]!;
+    // A round's read: the Host writes the round's frozen named list on its own calls to `system.skills` only (`skill_round`, §2.3).
+    const roundRead = (named: SkillRef[], entry: SkillCatalogEntry) => read(entry, { ...person, skill_round: { consumer: "assistant", named } });
     const set = (entry: SkillCatalogEntry, state: "off" | "auto" | "manual") => h.client.invoke(person, ref(skillCatalogActions.setState), {
       install_id: entry.ref.install_id, skill_id: entry.ref.skill_id, scope: "project", expected_revision: entry.settings_revision, state,
     }) as Promise<SkillCatalogEntry>;
@@ -39,9 +42,10 @@ test("SKC-05 SKC-06 SKC-08 SKC-09: installed Skills use scoped settings, frozen 
     skill = await set(skill, "manual");
     await assert.rejects(set(old, "off"), { code: "skills.settings_conflict" });
     assert.deepEqual(await read(skill), { ref: skill.ref, ok: false, reason: "not_named" });
-    const selection = { actor_id: person.actor_id, project_id: person.project_id, consumer: "assistant" as const, named: [skill.ref] };
-    assert.equal((await withSkillSelection(selection, () => read(skill))).ok, true);
-    assert.equal((await withSkillSelection({ ...selection, actor_id: "someone-else" }, () => read(skill))).ok, false);
+    const named = [skill.ref];
+    assert.equal((await roundRead(named, skill)).ok, true);
+    // The list is the round's: a round that named another Skill does not name this one.
+    assert.equal((await roundRead([{ ...skill.ref, skill_id: "another-skill" }], skill)).ok, false);
     await h.control("disable", { plugin_id: CONTENT_PLUGIN_ID });
     assert.equal((await list())[0]!.state, "manual");
     assert.deepEqual(await read(skill), { ref: skill.ref, ok: false, reason: "plugin_disabled" });
@@ -55,7 +59,7 @@ test("SKC-05 SKC-06 SKC-08 SKC-09: installed Skills use scoped settings, frozen 
     assert.equal(skill.state, "manual");
     assert.equal(skill.ref.version, 2);
     assert.deepEqual(await read({ ...skill, ref: oldRef }), { ref: oldRef, ok: false, reason: "not_current" });
-    assert.equal((await withSkillSelection(selection, () => read(skill))).ok, false, "old frozen names cannot select an upgraded Skill");
+    assert.equal((await roundRead(named, skill)).ok, false, "old frozen names cannot select an upgraded Skill");
     await h.control("uninstall", { plugin_id: CONTENT_PLUGIN_ID, keep_data: false });
     assert.deepEqual(await list(), []);
     assert.equal(homeAgentDefinitions(h.home).skills.setting(person.project_id!, skill.ref.install_id, skill.ref.skill_id), undefined);

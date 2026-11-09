@@ -120,24 +120,19 @@ export interface ActionCallContext extends ActionCallOrigin {
   /** Optional page evidence supplied by a protected entry adapter, never business/model input. */
   readonly page_context?: { readonly url: string | null; readonly title: string | null; readonly provenance: "host_snapshot" | "client_reported" };
   /**
-   * The language of the page the call came from (the Host resolves it from the request: the page's language cookie, else
-   * Accept-Language), or the one the Host settled for a delegation it hands on (the delegating round's). It only picks the words a
-   * handler sends back to be shown and a round's reply language; it grants nothing and is never read from business input. Absent when
-   * neither applies (a model's tool call, a timer): the handler uses its own default.
+   * The page's language (the Host resolves it from the request: language cookie, else Accept-Language), or the delegating round's
+   * one the Host hands on. It picks only the shown words and a round's reply language; it grants nothing, is never business input,
+   * and is absent when neither applies (a model's tool call, a timer): the handler uses its own default.
    */
   readonly locale?: ActionLocale;
   /**
-   * Set only by the Host, in two places: the routed naming envelope (bound, as `original_input` is, to the first own action the route
-   * calls) and the Host's call to a work executor's `run.start` (bound to that executor's installation and action). It is not carried
-   * by the handler's nested calls nor by a round's gateway tool calls into a plugin's action; the Host's round composition reads it only
-   * to freeze that round's reads of `system.skills`. A `SkillRef` in any action's input names nothing. Never business input.
+   * Set only by the Host: by the routed naming envelope (bound, like `original_input`, to the route's first own action) and by its
+   * call to a work executor's `run.start` (bound to that installation and action). Not carried by nested handler calls or a round's
+   * gateway tool calls; only freezes that round's `system.skills` reads. A `SkillRef` in action input names nothing.
    */
   readonly named_skills?: import("./action-named-skills.js").ActionNamedSkills;
-  /**
-   * Who a round's Skill reads are for, written by the Host's round composition only on the calls it makes to `system.skills` for that
-   * round (its start and the round's own tool calls to `system.skills`): `consumer` decides which Skills apply, `named` is the round's
-   * frozen named list, `engine: "local"` lets a `native_only` Skill be read. A plugin's handler never sees it. Never business input.
-   */
+  /** Host-written only on a round's own calls to `system.skills`: who the reads are for (`consumer`), the frozen `named` list, and
+   * `engine: "local"` for `native_only` Skills. A plugin's handler never sees it. Never business input. */
   readonly skill_round?: import("./action-named-skills.js").ActionSkillRound;
   /** Optional historical author supplied by a trusted adapter; grants still belong to actor_id. Never business input. */
   readonly audit_actor_id?: string;

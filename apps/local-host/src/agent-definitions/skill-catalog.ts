@@ -8,7 +8,6 @@ import { SKILL_EXCERPT_CHARS, SKILL_SETTINGS_LOCKED_REASONS, skillErrors, type S
   type SkillCatalogEntry, type SkillCatalogListRequest, type SkillReadRefusal, type SkillResourceContent, type SkillSettingsSetRequest } from "@molis-ai/molis-work-contracts/services/skills";
 import type { AgentDefinitions } from "./agent-definitions.js";
 import type { SkillSetting } from "./skill-settings.js";
-import { currentSkillSelection } from "./skill-selection.js";
 
 /** Ephemeral projection of the existing installation and Agent definition owners, never a second register. */
 export interface CatalogSkill {
@@ -33,8 +32,12 @@ export interface SkillCatalogPorts {
 
 const settingKey = (install: string, skill: string) => `${install}\0${skill}`;
 const scopeOf = (caller: ActionCallContext) => caller.project_id ?? "home";
+/**
+ * Which Skills apply is the round's consumer, which the Host writes on its own calls only (`ActionCallContext.skill_round`,
+ * specs/capability-pack/contract-design.md §2.3); the person's own view, which is no round, sees them all.
+ */
 const applicable = (skill: CatalogSkill, caller: ActionCallContext) => {
-  const consumer = currentSkillSelection(caller)?.consumer;
+  const consumer = caller.skill_round?.consumer;
   return (caller.audience === "user" && !consumer) || skill.declaration.applies_to === "both" || skill.declaration.applies_to === (consumer ?? "agent");
 };
 
@@ -70,10 +73,10 @@ export class SkillCatalog {
   private refusal(skill: CatalogSkill | undefined, ref: SkillRef, caller: ActionCallContext, setting: SkillSetting | undefined): SkillReadRefusal | undefined {
     if (!skill || !isDeepStrictEqual(skill.ref, ref)) return "not_current";
     try { skill.assertCurrent(); } catch { return "not_current"; }
-    if (!skill.availability.available && !(skill.availability.reason === "native_only" && currentSkillSelection(caller)?.engine === "local")) return skill.availability.reason;
+    if (!skill.availability.available && !(skill.availability.reason === "native_only" && caller.skill_round?.engine === "local")) return skill.availability.reason;
     if (!applicable(skill, caller)) return "not_applicable";
     if (!setting) return "off";
-    if (setting.state === "manual" && !currentSkillSelection(caller)?.named.some(named => isDeepStrictEqual(named, ref))) return "not_named";
+    if (setting.state === "manual" && !caller.skill_round?.named.some(named => isDeepStrictEqual(named, ref))) return "not_named";
     return undefined;
   }
 
@@ -105,9 +108,9 @@ export class SkillCatalog {
   /** The trusted round owner calls this only with its acceptance receipt; reads alone never count as use. */
   async recordAcceptedUses(caller: ActionExecutionContext, receipt: { accepted: boolean; refs: readonly SkillRef[]; run_ref?: string }): Promise<void> {
     if (!receipt.accepted) return;
-    const selection = currentSkillSelection(caller);
-    // A round owner records its round's uses; a page view names a Skill for reading only and never records one.
-    if (!selection?.consumer) return;
+    const round = caller.skill_round;
+    // A round owner records its round's uses; a call that is no round of the Host's records none.
+    if (!round) return;
     const { skills } = await this.snapshot(caller);
     await caller.beforeEffect();
     caller.assert_authority_current?.(); caller.signal?.throwIfAborted();
@@ -122,7 +125,7 @@ export class SkillCatalog {
       const skill = skills.find(value => isDeepStrictEqual(value.ref, ref));
       try { skill?.assertCurrent(); skill?.assertPublisher(live); } catch { continue; }
       if (this.refusal(skill, ref, caller, settings.get(id))) continue;
-      store.recordUse({ ref, name: skill!.declaration.name, scope_ref: scope, caller: selection.consumer,
+      store.recordUse({ ref, name: skill!.declaration.name, scope_ref: scope, caller: round.consumer,
         ...(receipt.run_ref ? { run_ref: receipt.run_ref } : {}), at: new Date().toISOString() });
     }
   }

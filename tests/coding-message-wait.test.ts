@@ -83,7 +83,6 @@ test("a round that ends waiting on an answer or a background command waits as th
     if (id === agent.listRuntimes.capability_id) return [{ runtime_id: "prologue", capabilities: { mcp: "unsupported" } }] as Output;
     if (id === projectSettingsCapabilities.runtime.capability_id) return null as Output;
     if (id === agent.readSessionStatuses.capability_id) return input[1].map((session_id: string) => ({ session_id, latest_phase: "completed", recovery: false, checkpoint_busy: false })) as Output;
-    if (id === agent.listSkills.capability_id) return [] as Output;
     throw new Error(`Unexpected capability ${id}`);
   } };
   const host = () => withFakeAgentHost({ store, ...openProjectVersionStores(store), homeDirectory: root, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user",

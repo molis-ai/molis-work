@@ -1,25 +1,8 @@
 /**
- * The words of Coding's settings and its parallel-writer dialogs (method library, MCP services, writer directories,
+ * The words of Coding's settings and its parallel-writer dialogs (MCP services, writer directories,
  * integration): a part of `CODING_MESSAGES`, which spreads it.
  */
 export const CODING_SETTINGS_MESSAGES = {
-  "coding.library.failed": { zh: "方法操作失败", en: "The method action failed" },
-  "coding.library.files": { zh: "包含文件：{files}", en: "Files: {files}" },
-  "coding.library.reading": { zh: "正在读取…", en: "Reading…" },
-  "coding.library.none": { zh: "这个项目还没有安装方法。", en: "No methods are installed in this project yet." },
-  "coding.library.read": { zh: "项目方法已读取。", en: "Project methods loaded." },
-  "coding.library.no-workspace": { zh: "先返回 Coding，为这个项目选择并授权工作区。", en: "Go back to Coding first and choose and authorize a workspace for this project." },
-  "coding.library.source-changed": { zh: "来源已改变，请重新发现方法。", en: "The source changed; find the methods again." },
-  "coding.library.discovering": { zh: "正在读取候选方法…", en: "Reading candidate methods…" },
-  "coding.library.install": { zh: "安装此版本", en: "Install this version" },
-  "coding.library.install-label": { zh: "安装方法：{name}", en: "Install method: {name}" },
-  "coding.library.installing": { zh: "正在扫描并安装…", en: "Scanning and installing…" },
-  "coding.library.installed": { zh: "已安装 {name} · v{version}；回到会话后在方法菜单中选择。", en: "Installed {name} · v{version}; choose it from the methods menu back in a session." },
-  "coding.library.installed-button": { zh: "已安装", en: "Installed" },
-  "coding.library.refresh-failed": { zh: "目录刷新失败：{reason}", en: " Refreshing the list failed: {reason}" },
-  "coding.library.candidates": { zh: "展开候选并阅读正文，安装当前所见内容；源文件变化后需重新发现。", en: "Open a candidate and read it; installing takes what you see. If the source files change, find them again." },
-  "coding.library.no-candidates": { zh: "目录中没有找到 SKILL.md 方法包。", en: "No SKILL.md method packages were found in the directory." },
-  "coding.library.unreadable": { zh: "方法目录暂不可读：{reason}。请确认此项目已启用 Coding。", en: "The method list can't be read right now: {reason}. Check that Coding is enabled in this project." },
   "coding.mcp-config.failed": { zh: "MCP 操作失败", en: "The MCP action failed" },
   "coding.mcp-config.save": { zh: "保存", en: "Save" },
   "coding.mcp-config.add": { zh: "添加 MCP 服务", en: "Add an MCP server" },

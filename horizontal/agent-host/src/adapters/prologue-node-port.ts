@@ -8,7 +8,6 @@ import { createCollaborationHost, readyStep, sessionBlock, type DispatchChecks }
 import { createPrologueDocuments } from "./prologue-documents.js";
 import { createPrologueGitReviews } from "./prologue-git.js";
 import { MAX_BROADCAST } from "./prologue-messages.js";
-import { createPrologueSkillLibrary } from "./prologue-methods.js";
 import { workPaths } from "./prologue-project-work.js";
 import { answerProblems, ownedReferences, projectQuestion, questionUnavailable } from "./prologue-questions.js";
 import { queuedInput, type createPrologueRecovery } from "./prologue-recovery.js";
@@ -316,7 +315,6 @@ export function createNodePort(deps: PortDeps): PrologueRuntimePort {
       });
     },
     actionTools: true,
-    skillLibrary: createPrologueSkillLibrary(runtime),
     mcpLibrary,
     async readPendingQuestion(run, id, revision) {
       const pending = await deps.readQuestion(run, id, revision);

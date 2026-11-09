@@ -2,6 +2,7 @@ import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plu
 import { ISSUES_ACTIONS } from "./actions.js";
 import { issuesSkills } from "./skills.js";
 import { ISSUES_DATABASE } from "./database.js";
+import { issuesSync } from './replication.js';
 
 import { ISSUES_MESSAGES } from "./messages.js";
 export const ISSUES_PLUGIN_ID = "io.molis.work.issues";
@@ -19,6 +20,7 @@ export const issuesManifest: PluginManifest = {
   methods: issuesSkills.map(({ body: _body, ...method }) => ({ ...method, tools: [...method.tools] })),
   runtime: { scope: "home" },
   databases: { home: ISSUES_DATABASE },
+  sync: issuesSync,
   routes: [
     { route_id: "issues.prepare", method: "POST", path: "/prepare", permission: "issues:write" },
     { route_id: "issues.cancel_capture", method: "POST", path: "/cancel-capture", permission: "issues:write" },

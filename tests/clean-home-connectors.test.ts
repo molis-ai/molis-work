@@ -5,10 +5,10 @@ import { tmpdir } from "node:os";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { withConnectorConnections, withConnectorProtocols } from "@molis-ai/molis-work-app-local-host";
-import { describeSqliteSchema, SqliteSchemaVersionError } from "@molis-ai/molis-work-storage";
+import { describeSqliteSchema, SqliteSchemaVersionError, ensureStorageSpace, readDatabaseSpace } from "@molis-ai/molis-work-storage";
 
 const sql = readFileSync(new URL("./fixtures/home-store-schemas/connectors.sql", import.meta.url), "utf8");
-const shape = () => { const db = new DatabaseSync(":memory:"); try { db.exec(sql); return describeSqliteSchema(db); } finally { db.close(); } };
+const shape = (bound = false) => { const db = new DatabaseSync(":memory:"); try { db.exec(sql); if (bound) db.exec("CREATE TABLE molis_storage_space (singleton INTEGER PRIMARY KEY CHECK(singleton=1), space_id TEXT NOT NULL, descriptor TEXT NOT NULL)"); return describeSqliteSchema(db); } finally { db.close(); } };
 test("RAC-2382 RAC-2384 both connector owner paths create and reopen the complete current schema at 1", () => {
   const home = mkdtempSync(join(tmpdir(), "clean-home-connectors-"));
   try {
@@ -19,8 +19,9 @@ test("RAC-2382 RAC-2384 both connector owner paths create and reopen the complet
     const db = new DatabaseSync(join(home, "connectors", "connectors.db"), { readOnly: true });
     try {
       assert.equal(db.prepare("PRAGMA user_version").get()!.user_version, 1);
-      const expected = shape(); assert.ok(expected.tables.connector_authorization_results);
+      const expected = shape(true); assert.ok(expected.tables.connector_authorization_results);
       assert.deepEqual(describeSqliteSchema(db), expected);
+      assert.deepEqual(readDatabaseSpace(db), ensureStorageSpace(home));
       assert.equal(db.prepare("PRAGMA integrity_check").get()!.integrity_check, "ok");
       assert.deepEqual(db.prepare("PRAGMA foreign_key_check").all(), []);
     } finally { db.close(); }

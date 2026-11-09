@@ -1,3 +1,4 @@
+import {bindSavedHistory} from './saved-history-host.js';
 import { projectOrNull } from "./catalog-lookup.js";
 import { prologueModelConfiguration } from "@molis-ai/molis-work-service-agent-host";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -100,7 +101,8 @@ export function ensureSystemAgentService(localHost: MolisWorkLocalHost, homeDire
       projectTitle: async projectId => owner.withCatalog ? owner.withCatalog({ homeDirectory: storageHome }, catalog => projectOrNull(catalog, projectId)?.display_name ?? null) : null });
     const unbind = bindPrologueInference(storageHome, service.inference);
     const unbindBuilder = bindPrologueBuilder(storageHome, service.createBuilderAgent);
-    owner.release = () => { unbind(); unbindBuilder(); };
+    const unbindHistory = bindSavedHistory(storageHome, service.savedHistory);
+    owner.release = () => { unbind(); unbindBuilder(); unbindHistory(); };
     owners.set(localHost, owner);
     const dispose = service.dispose.bind(service);
     let closing: Promise<void> | undefined;

@@ -98,8 +98,9 @@ export function createConnectorMcpDirectory(options: { localHost: MolisWorkLocal
 
   function remember(connectionId: string, tools: readonly ConnectorMcpTool[], resources?: readonly unknown[]) {
     const row = connection(connectionId), config = withConnectorProtocols(options.homeDirectory, store => store.get<StoredMcpConfiguration>(connectionId));
+    // The listing a call makes before it ends no run of failed calls but `reauth` (ASC-58 §13.2 ⑫); a check writes its own result first.
     if (row) rememberConnectorCheck(options.homeDirectory, connectionId, { at: new Date().toISOString(), revision: row.updated_at,
-      outcome: "connected", authorization: config?.mode === "none" ? "not-required" : "verified" });
+      outcome: "connected", authorization: config?.mode === "none" ? "not-required" : "verified" }, { listedBeforeCall: true });
     const seen = readJsonFile<Seen>(seenFile, {});
     const next = { tools: tools.map(tool => ({ name: tool.name, description: tool.description ?? "", input_schema: tool.inputSchema ?? { type: "object" } })),
       ...(resources?.length ? { resources: true } : {}) };

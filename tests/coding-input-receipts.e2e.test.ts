@@ -107,7 +107,7 @@ test("RC-10/RC-11/RC-13/RC-16: Coding sends a supplement with its mode, sends a 
   const menu = await evaluate<string>(`'#'+CSS.escape(document.querySelector(${JSON.stringify(trigger)}).getAttribute('aria-controls'))`);
   await waitFor(`document.querySelector(${JSON.stringify(menu)})?.matches(':popover-open, [data-open], .is-open') || document.querySelector(${JSON.stringify(menu)})?.getBoundingClientRect().height > 0`);
   assert.deepEqual(await evaluate<string[]>(`[...document.querySelectorAll(${JSON.stringify(menu + " [data-mw-select-option]")})].map(item => item.textContent.trim())`),
-    ["补充：这步做完后读", "打断：丢弃当前回复", "下一轮再做"]);
+    ["补充", "打断并改向", "下一轮再做"]);
   await shot("coding-send-modes.png");
   await click(`${menu} [data-mw-select-option="1"]`);
   assert.equal(await evaluate<string>(`document.querySelector('${coding} [data-coding-send-mode]').value`), "interrupt");

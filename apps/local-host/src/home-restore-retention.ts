@@ -15,6 +15,7 @@ import { memoryRuntimePolicy } from "./memory/memory-runtime-policy.js";
 import { PRODUCT_VERSION } from "./product-version.js";
 import { freshMemoryHome } from "./memory/memory-initialization.js";
 import { memoryRestoreFile } from "./home-restore-owner-payload.js";
+import { journalStorageSpace } from "./home-restore-space.js";
 
 /** Only the ledger and SDK record payloads can change. Keys, owner locks and other SDK stores stay protected. */
 export const memoryRestoreWritable = (path: string) => path === "memory/memory.db"
@@ -47,7 +48,7 @@ function finalMemoryMaterial(journal: HomeRestoreJournal, registry: HomeSnapshot
       const store = registry.stores.find(item => path.startsWith(item.path + "/"));
       if (!store) throw invalidRestore();
       const options = snapshotDatabaseOptions(store, path.slice(store.path.length + 1));
-      const sqlite = options ? inspectSnapshotSqlite(absolute, { ...options, signal: control.signal }) : undefined;
+      const sqlite = options ? inspectSnapshotSqlite(absolute, { ...options, space: journalStorageSpace(journal), signal: control.signal }) : undefined;
       const digest = snapshotFileDigest(absolute);
       const file: RestoreJournalFile = { path, mode: node.mode, ...digest, ...(sqlite ? { sqlite } : {}) };
       files.set(path, file); flushRestoreFile(absolute, node);

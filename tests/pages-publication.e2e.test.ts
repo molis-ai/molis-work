@@ -13,7 +13,7 @@ for (const width of [1440, 390]) {
     if (!browser) return;
     const {evaluate, waitFor, click} = await pluginFrameBrowser(t, browser, "pages");
     const { command, sessionId, navigate, origin, projectId, homeDirectory, store: project } = browser;
-    await command("Emulation.setDeviceMetricsOverride", { width, height: width === 390 ? 844 : 950, deviceScaleFactor: 1, mobile: width === 390 }, sessionId);
+    await browser.setViewport(width, width === 390 ? 844 : 950, width === 390);
     await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
     const openPages = async () => {
       await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages` }, sessionId));
@@ -32,11 +32,15 @@ for (const width of [1440, 390]) {
     const pages = openPagesStore(homeDirectory), db = openHomeSqliteDatabase(homeDirectory, "pages");
     try {
       const original = pages.list(projectId!)[0]!;
-      db.exec("CREATE TRIGGER fail_ui_publication BEFORE UPDATE OF artifact_version ON pages WHEN NEW.artifact_version > OLD.artifact_version BEGIN SELECT RAISE(ABORT, '测试：成果关联暂未保存'); END");
+      // A real constraint interrupts only the final publication write; arbitrary triggers are rightly refused by the SQL port.
+      const sentinel = pages.create({ project_id: projectId!, title: "Published constraint fixture" });
+      pages.update(sentinel.id, { artifact_version: 1 }, projectId!);
+      db.exec("CREATE UNIQUE INDEX fail_ui_publication ON pages ((1)) WHERE artifact_version > 0");
       await click('[data-pages-artifact-bar]');
-      await waitFor("document.querySelector('[data-pages-note]').textContent.includes('成果关联暂未保存') && document.querySelector('[data-pages-artifact-bar]').textContent.includes('继续保存')");
+      await waitFor("document.querySelector('[data-pages-note]').textContent.includes('UNIQUE constraint failed') && document.querySelector('[data-pages-artifact-bar]').textContent.includes('继续保存')");
       assert.equal(pages.get(original.id, projectId!).publication_pending!.version, 1);
-      db.exec("DROP TRIGGER fail_ui_publication");
+      db.exec("DROP INDEX fail_ui_publication");
+      pages.delete(sentinel.id, projectId!);
       await openPages();
       // Opening Pages again reopens the page that was open (on a phone it fills the stage and the list steps aside).
       await waitFor(`document.querySelector('[data-pages-title]')?.value === '已确认的发布快照'`);

@@ -16,6 +16,7 @@ export interface CogniaPage {
   selected: Set<string>;
   /** The material open in the reader. */
   cur: Material | null;
+  etag: string;
   preview: Preview | null;
   receipt: Receipt | null;
   draft: Draft | null;
@@ -42,7 +43,7 @@ export function cogniaPage(host: CogniaClientHost, root: HTMLElement): CogniaPag
     dialog: part<HTMLDialogElement>("[data-cognia-dialog]"), form: part<HTMLFormElement>("[data-cognia-form]"),
     content: part("[data-cognia-dialog-content]"), submit: part<HTMLButtonElement>("[data-cognia-submit]"),
     state: { materials: [], domains: [], sources: [], drafts: [], ai_available: false, ai_runtime: null, ai_unavailable_reason: null },
-    selected: new Set(), cur: null, preview: null, receipt: null, draft: null, flow: "", busy: false, seq: 0, opened: 0,
+    selected: new Set(), cur: null, etag: "", preview: null, receipt: null, draft: null, flow: "", busy: false, seq: 0, opened: 0,
     timer: undefined, returnFocus: null, listScroll: 0, listFocus: null,
   };
 }

@@ -1,3 +1,4 @@
+export {readSavedAgentHistory,savedAgentHistoryView,type PrologueSavedHistoryPort,type SavedHistoryOwner} from './adapters/prologue-saved-history.js';
 import { trustedOriginalInput } from "./original-inputs.js";
 import { agentErrors } from "./errors.js";
 import { parseAgentRunBudget } from "@molis-ai/molis-work-contracts/services/agent-host";

@@ -1,3 +1,4 @@
+import { isRecord } from "@molis-ai/molis-work-plugin-sdk";
 import type { IntegrationProviderItem, IntegrationProviderSyncResult } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { GmailFetch } from "./provider.js";
 import {
@@ -9,7 +10,7 @@ import {
   type GmailHistoryReduceState, type GmailHistoryPageDecision, type GmailLiveCursor, type GmailSyncEntryDecision,
 } from "./history-cursor.js";
 import { gmailScopeMatchesLabels, type GmailScope } from "./scope.js";
-import { classifyGmailPath, getLabelIds, isPlainObject, mapMessageDetailToItem, nowIso } from "./provider-message.js";
+import { classifyGmailPath, getLabelIds, mapMessageDetailToItem, nowIso } from "./provider-message.js";
 
 type ConnectorIngestItem = IntegrationProviderItem;
 type ConnectorSyncFailure = Extract<IntegrationProviderSyncResult, { ok: false }>;
@@ -209,7 +210,7 @@ async function fetchProfileHighWaterMark(
   } catch {
     return providerFailure("profile", { reason: "malformed" });
   }
-  if (!isPlainObject(json)) {
+  if (!isRecord(json)) {
     return providerFailure("profile", { reason: "malformed" });
   }
   const historyId = (json as { historyId?: unknown }).historyId;
@@ -260,14 +261,14 @@ async function fetchMessagesList(
   } catch {
     return providerFailure("list", { reason: "malformed" });
   }
-  if (!isPlainObject(json)) {
+  if (!isRecord(json)) {
     return providerFailure("list", { reason: "malformed" });
   }
   const messagesRaw = (json as { messages?: unknown }).messages;
   const messages: unknown[] = Array.isArray(messagesRaw) ? messagesRaw : [];
   const ids: string[] = [];
   for (const raw of messages.slice(0, maxMessages)) {
-    if (!isPlainObject(raw)) continue;
+    if (!isRecord(raw)) continue;
     const id = raw.id;
     if (typeof id !== "string" || id.length === 0) continue;
     if (id.length > 128) continue;
@@ -328,7 +329,7 @@ export async function runIncremental(
     } catch {
       return providerFailure("history", { reason: "malformed" });
     }
-    if (!isPlainObject(pageJson)) {
+    if (!isRecord(pageJson)) {
       return providerFailure("history", { reason: "malformed" });
     }
 
@@ -426,7 +427,7 @@ async function fetchBoundedDetails(opts: {
     } catch {
       return providerFailure("detail", { reason: "malformed" });
     }
-    if (!isPlainObject(msgJson)) {
+    if (!isRecord(msgJson)) {
       return providerFailure("detail", { reason: "malformed" });
     }
     const labelIds = getLabelIds(msgJson);

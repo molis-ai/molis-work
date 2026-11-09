@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
+import { Script } from "node:vm";
 import test from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { layoutFindings } from "./fixtures/layout-audit.js";
 import { renderInteractionNextSteps } from "@molis-ai/molis-work-design-system";
+import { CLIENT_SCRIPT, assistantTextHtml } from "@molis-ai/molis-work-app-workbench";
+import { agentQuestionHtml } from "@molis-ai/molis-work-app-local-host";
 
 // DESIGN.md → Focus and accessibility: every target is 44px wherever the pointer is coarse (a phone, a phone held sideways, a
 // tablet) or the window is a phone's width, and the desktop window's chrome (the title bar's tab strip and the bottom bar) keeps
@@ -309,6 +312,15 @@ const NEXT_STEPS_HTML = renderInteractionNextSteps([
 ], "下一步", { max: 3, more: count => `还有 ${count} 项` });
 type BodyControl = { cls: string; w: number; h: number; hit?: boolean };
 type PanelBody = { real: Record<string, BodyControl[]>; made: BodyControl[]; kinds: number; overflow: number };
+// Minification may rename el and pool its strings. Enumerate the canonical public program and the real Host renderers;
+// the served program is still fetched and parsed below, and every discovered control is measured in the real browser.
+const PANEL_CLIENT_KINDS = [...CLIENT_SCRIPT.matchAll(/\bel\(\s*(["'])(button|summary|a|input|select|textarea|label)\1\s*,\s*(["'])((?:assistant|mw)-[^"']*)\3/g)]
+  .map(match => [match[2]!, match[4]!] as const);
+const PANEL_HOST_CONTROLS = assistantTextHtml('[link](https://example.test) 「固定资料」\n\n```ts\n' + 'const value = 1;\n'.repeat(20) + '```', [
+  { title: '固定资料', subject: { kind: 'page', id: 'fixed-page' }, relation: 'material', state: 'current',
+    open: { surface: 'pages', id: 'fixed-page' }, recorded_revision: null, current_revision: null, recorded_at: '' },
+], text => text) + agentQuestionHtml({ pending_id: 'touch-question', kind: 'clarify', prompt: '怎么继续？',
+  options: [{ value: 'one', label: '继续整理' }], allows_free_text: true }, text => text);
 const PANEL_BODY = `(async () => {
   const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   document.querySelector(".assistant-target-main")?.click(); await wait(800);
@@ -325,8 +337,16 @@ const PANEL_BODY = `(async () => {
   real["all works"] = sizes(panel.querySelector("[data-assistant-works]"));
   panel.querySelector("[data-assistant-works-toggle]").click(); await wait(200);
   const source = [...document.scripts].find(script => /molis-work-workbench\\.js/.test(script.src));
-  const text = source ? await fetch(source.src).then(response => response.text()) : "";
-  const kinds = new Map();
+  if (!source) throw new Error('The actual workbench client must be present');
+  const response = await fetch(source.src); if (!response.ok) throw new Error('The workbench client must load');
+  const text = await response.text(); if (!text.trim()) throw new Error('The workbench client must not be empty');
+  const kinds = new Map(${JSON.stringify(PANEL_CLIENT_KINDS)}.map(([tag, classes]) => [tag + '.' + classes, [tag, classes]]));
+  const rendered = document.createElement('template'); rendered.innerHTML = ${JSON.stringify(PANEL_HOST_CONTROLS)};
+  for (const element of rendered.content.querySelectorAll('button, summary, a[href], input, select, textarea, label')) {
+    if (!element.className) continue;
+    const tag = element.tagName.toLowerCase(), classes = element.className;
+    kinds.set(tag + '.' + classes, [tag, classes]);
+  }
   // RING-06: built clients remove JavaScript trivia; every control still gets measured. The bundler renames the helper where
   // a factory takes it as a parameter (\`el2\`, \`el3\`), so those calls are read too.
   for (const match of text.matchAll(/\\bel\\d*\\(\\s*"(button|summary|a|input|select|textarea|label)"\\s*,\\s*"((?:assistant|mw)-[^"]*)"/g)) kinds.set(match[1] + "." + match[2], [match[1], match[2]]);
@@ -367,7 +387,7 @@ const PANEL_BODY = `(async () => {
     const hit = inline ? [hits(b.top + b.height / 2 - 21), hits(b.top + b.height / 2 + 21)].every(Boolean) : undefined;
     return { cls: tag + "." + classes.split(" ").join(".") + (hit === false ? " (hit " + seen.join(" / ") + ")" : ""), w: Math.round(b.width), h: Math.round(b.height), hit };
   });
-  const result = { real, made: out, kinds: kinds.size, overflow: thread.scrollWidth - thread.clientWidth };
+  const result = { real, made: out, kinds: kinds.size, overflow: thread.scrollWidth - thread.clientWidth, script: text };
   holder.remove();
   panel.querySelector("[data-assistant-panel-close]").click(); await wait(200);
   return result;
@@ -601,15 +621,28 @@ function windowsOf(browser: Browser, scheme: "light" | "dark", touch: boolean) {
   /** The menus the strip opens (open plugin, layout, a tab, a tab group) and the opened Assistant panel's tab bar. */
   const stripMenus = () => evaluate<Record<string, StripMenu>>(STRIP_MENUS);
   const panelHeader = () => evaluate<PanelHeader>(PANEL_HEADER);
-  const panelBody = () => evaluate<PanelBody>(PANEL_BODY);
+  const panelBody = async () => {
+    const {script,...body} = await evaluate<PanelBody & {script:string}>(PANEL_BODY);
+    // Parse the exact bytes fetched by this browser without bypassing or relaxing its CSP.
+    new Script(script);
+    return body;
+  };
 
-  /** The heights of the `mw-menu` items on the specimen board, which shows the menu as the plugin pages use it. */
+  /**
+   * The heights of the visible `mw-menu` items on the specimen board, which shows the menu as the plugin pages use it, in two lists:
+   * `plain` rows (a name only) and `described` rows (`mw-menu__item--described`: a 12px description under the name, the "Menu
+   * Description" specimen added by K1 #1850). A described row grows with its description and has its own rule in DESIGN.md's `mw-menu` paragraph.
+   */
   const menuRows = async (width: number, height: number) => {
     await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: touch }, sessionId);
     await navigate(() => command("Page.navigate", { url: `${origin}/__ui/catalog` }, sessionId));
     await waitFor("document.querySelectorAll('.mw-menu__item').length > 0", 20_000);
     await settle();
-    return evaluate<number[]>(`[...document.querySelectorAll(".mw-menu .mw-menu__item")].filter(el => el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })).map(el => Math.round(el.getBoundingClientRect().height))`);
+    return evaluate<{ plain: number[]; described: number[] }>(`(() => {
+      const rows = [...document.querySelectorAll(".mw-menu .mw-menu__item")].filter(el => el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }));
+      const height = el => Math.round(el.getBoundingClientRect().height);
+      return { plain: rows.filter(el => !el.classList.contains("mw-menu__item--described")).map(height), described: rows.filter(el => el.classList.contains("mw-menu__item--described")).map(height) };
+    })()`);
   };
 
   return { start, open, short, settle, shellFindings, rowFit, dockFold, popovers, switcherOps, stripMenus, panelHeader, panelBody, menuRows, line, typeAndLeave, moreLabels, makeCurrentWork, chooseExecutor, escapeReturns, evaluate, waitFor };
@@ -757,9 +790,11 @@ for (const scheme of ["light", "dark"] as const) {
 
     // A menu a plugin page opens (the specimen board shows `mw-menu` as the pages use it) has 44px items on a phone and on a tablet.
     for (const [width, height] of [[390, 844], [1024, 768]] as const) {
-      const rows = await w.menuRows(width, height);
-      assert.ok(rows.length > 0, `the specimen board shows menu items at ${width}`);
-      assert.deepEqual(rows.filter(row => row < 44), [], `mw-menu items are 44px tall at ${width} (${rows})`);
+      const { plain, described } = await w.menuRows(width, height);
+      assert.ok(plain.length > 0, `the specimen board shows menu items at ${width}`);
+      assert.deepEqual([...new Set(plain)].filter(row => row !== 44), [], `plain mw-menu items (no description) are exactly 44px tall at ${width} (${plain})`);
+      assert.ok(described.length > 0, `the specimen board still shows described mw-menu items (K1 #1850) at ${width}`);
+      assert.deepEqual(described.filter(row => row < 44), [], `described mw-menu items are never under 44px at ${width} (${described})`);
     }
 
     // The Assistant line in the states the seeded project does not start in. The chips of a state are the ones the island shows
@@ -862,7 +897,13 @@ for (const scheme of ["light", "dark"] as const) {
     }
 
     // What a plugin page's menu holds is 34px on a desktop window, as DESIGN.md writes it.
-    assert.deepEqual([...new Set(await w.menuRows(1280, 800))], [34], "mw-menu items keep their 34px with a fine pointer");
+    // Rows without a description are exactly 34px; a described row (K1 #1850) is its own rule there: never under 34px, 8px padding above
+    // and below a 20px name line and one or two 18px description lines 2px apart, so 56px or 74px.
+    const desktopRows = await w.menuRows(1280, 800);
+    assert.deepEqual([...new Set(desktopRows.plain)], [34], "plain mw-menu items (no description) keep their 34px with a fine pointer");
+    assert.ok(desktopRows.described.length > 0, "the specimen board still shows described mw-menu items (K1 #1850) at 1280");
+    assert.deepEqual(desktopRows.described.filter(row => row < 34), [], `described mw-menu items are never under 34px at 1280 (${desktopRows.described})`);
+    assert.deepEqual([...new Set(desktopRows.described)].filter(row => ![56, 74].includes(row)), [], `described mw-menu items are 56px (one description line) or 74px (two) at 1280 (${desktopRows.described})`);
 
     // What the bar opens keeps the desktop floor too (32px, 28px compact): nothing in its lists is smaller.
     await w.open(1280, 800, "", "true");

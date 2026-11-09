@@ -101,6 +101,8 @@ test("export has a version and no secrets or absolute paths; importing twice add
 
 test("upkeep switches off expired and long-unused automatic memories, merges automatic duplicates, hands the person's own to them, and every step is undoable", { timeout: 60_000 }, async t => {
   const clock = { now: new Date("2026-09-30T08:00:00.000Z") };
+  // The real SDK timestamps entries with Date too; keep both clocks on the same deterministic timeline.
+  t.mock.timers.enable({ apis: ["Date"], now: clock.now.getTime() });
   const env = await memoryHome(t, clock);
   let memory = await env.open();
   const expiring = (await memory.write(person(), { scope: "personal", text: "九月底前周报发给王总", expires_at: "2026-10-01T00:00:00.000Z" })).memory!;
@@ -116,6 +118,7 @@ test("upkeep switches off expired and long-unused automatic memories, merges aut
   const written = (await memory.list(person(), { scope: "all" })).items;
   assert.ok(written.some(item => item.memory_id === oldAuto.memory_id) && written.some(item => item.memory_id === auto1.memory_id));
   clock.now = new Date(Math.max(...written.map(item => { assert.ok(item.created_at, "new writes have a known creation time"); return Date.parse(item.created_at); })) + 91 * 86_400_000);
+  t.mock.timers.setTime(clock.now.getTime());
   // The model finds the near-duplicates (their wording differs too much for the character-pair rule).
   const maintenance = { ...person(null), operation_id: "581868a5-78c4-4c1a-883f-67734cba5c23" };
   const report = await memory.upkeep(maintenance, { projects: ["project-a"], tidy: async entries => ({ duplicates: ([[auto1.memory_id, auto3.memory_id], [said1.memory_id, said2.memory_id]] as Array<[string, string]>)

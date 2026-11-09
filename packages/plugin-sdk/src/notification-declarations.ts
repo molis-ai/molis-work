@@ -1,3 +1,4 @@
+import { isRecord } from "./json-value.js";
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 
 // The shape of a Manifest's `notifications` (D6-2): the plugin takes the platform's notifications by one of its own actions. Only the
@@ -23,8 +24,4 @@ export function notificationDeclarationProblems(value: unknown, actions: readonl
     problems.push(`接收通知的能力 ${definition.capability_id} 的受众只能是 workflow（平台以通知身份调用，别的受众不能发通知）`);
   }
   return problems;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

@@ -72,13 +72,15 @@ test("Dataset publication recovers original Artifact after restart without repla
   const { dataset } = await bound.invoke(actions.create, { title: "Publication v1" });
   const db = openHomeSqliteDatabase(home, "dataset");
   try {
-    db.exec("CREATE TRIGGER fail_publication BEFORE UPDATE OF artifact_version ON datasets WHEN NEW.artifact_version > OLD.artifact_version BEGIN SELECT RAISE(ABORT, 'fixture association failure'); END");
-    await assert.rejects(bound.invoke(actions.promote, { id: dataset.id }), /fixture association failure/);
+    const sentinel = (await bound.invoke(actions.create, { title: "Published constraint fixture" })).dataset;
+    await bound.invoke(actions.promote, { id: sentinel.id });
+    db.exec("CREATE UNIQUE INDEX fail_publication ON datasets ((1)) WHERE artifact_version > 0");
+    await assert.rejects(bound.invoke(actions.promote, { id: dataset.id }), /UNIQUE constraint failed/);
     assert.equal((await bound.invoke(actions.get, { id: dataset.id })).dataset.publication_pending!.version, 1);
     await assert.rejects(bound.invoke(actions.delete, { id: dataset.id }), { code: "dataset.publication_pending" });
     const edited = (await bound.invoke(actions.update, { id: dataset.id, title: "New local edit" })).dataset;
     await assert.rejects(client.invoke({ ...caller, actor_id: "another-user" }, actions.promote, { id: dataset.id }), { code: "dataset.publication_owner" });
-    db.exec("DROP TRIGGER fail_publication"); await host.closeProject(ref);
+    db.exec("DROP INDEX fail_publication"); await host.closeProject(ref);
     const restored = await bound.invoke(actions.promote, { id: dataset.id, expected_version: edited.version });
     assert.equal(restored.recovered, true); assert.equal(restored.dataset.title, "New local edit"); assert.equal(restored.dataset.publication_pending, undefined);
     await host.withProject(ref, runtime => {
@@ -90,14 +92,14 @@ test("Dataset publication recovers original Artifact after restart without repla
   } finally { db.close(); }
 });
 
-test("Dataset deletion is atomic with version removal", async t => {
+test("Dataset deletion rolls version removal back when the SQL boundary refuses an undeclared trigger", async t => {
   const { bound, home } = await fixture(t);
   const { dataset } = await bound.invoke(actions.create, {});
   const saved = await bound.invoke(actions.snapshot, { id: dataset.id });
   const db = openHomeSqliteDatabase(home, "dataset");
   try {
     db.exec("CREATE TRIGGER fail_delete BEFORE DELETE ON datasets BEGIN SELECT RAISE(ABORT, 'fixture delete failure'); END");
-    await assert.rejects(bound.invoke(actions.delete, { id: dataset.id }), /fixture delete failure/);
+    await assert.rejects(bound.invoke(actions.delete, { id: dataset.id }), /not authorized/);
     assert.equal((await bound.invoke(actions.get, { id: dataset.id })).dataset.id, dataset.id);
     assert.equal((await bound.invoke(actions.versions, { id: dataset.id })).versions[0]!.id, saved.version.id);
   } finally { db.close(); }

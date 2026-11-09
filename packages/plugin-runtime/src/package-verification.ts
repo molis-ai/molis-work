@@ -1,6 +1,6 @@
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createHash, createPublicKey, type KeyObject, verify } from "node:crypto";
-import { parsePluginPackageManifest } from "@molis-ai/molis-work-plugin-sdk";
+import { isRecord, parsePluginPackageManifest } from "@molis-ai/molis-work-plugin-sdk";
 import type { PluginPackageBundle, PluginPackagePayload, PluginPackageSigner } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 
@@ -121,7 +121,7 @@ function canonical(value: unknown): string {
 }
 
 function object(value: unknown): Record<string, unknown> {
-  if (!value || typeof value !== "object" || Array.isArray(value)) invalid("Plugin package 必须为对象");
-  return value as Record<string, unknown>;
+  if (!isRecord(value)) invalid("Plugin package 必须为对象");
+  return value;
 }
 function invalid(message: string): never { throw pluginErrors.package_invalid(message); }

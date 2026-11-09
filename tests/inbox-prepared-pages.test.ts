@@ -1,4 +1,4 @@
-import { readMaterialUploads } from "../apps/local-host/src/material-documents.js";
+import { readMaterialUploads } from "../apps/local-host/dist/material-documents.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -12,7 +12,7 @@ import { createInboxPagesHandlers, inboxPagesRequestHash } from "@molis-ai/molis
 import { createPagesActionHandlers, ownPagesStores, pagesActions, preparePagesImport, PAGES_ACTIONS } from "@molis-ai/molis-work-plugin-pages";
 import { feedInboxActions } from "@molis-ai/molis-work-plugin-feed";
 import { openPagesStore } from "./fixtures/plugin-home-stores.js";
-import { createHomeOfferHandlers, homeOfferActions, type HomeActionOffers, type HomeOfferExecutionInput } from "../apps/local-host/src/home-offer-actions.js";
+import { createHomeOfferHandlers, homeOfferActions, type HomeActionOffers, type HomeOfferExecutionInput } from "../apps/local-host/dist/home-offer-actions.js";
 
 const inboxId = "io.molis.work.inbox", pagesId = "io.molis.work.pages";
 function deferred() { let resolve = () => {}; const promise = new Promise<void>(done => { resolve = done; }); return { promise, resolve }; }

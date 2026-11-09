@@ -43,7 +43,7 @@ CDP 命令超时的 `Error.cause` 仅记录等待期间的 `nodeCpuMs`、`eventL
 
 用 test-kit 浏览器代码的用例会被 Linux 探针标成浏览器用例（`scripts/ci-linux-probe/select.mjs` 的 `RULES.browser.text` 认包名 `molis-work-test-kit/browser`），不在探针里跑。
 
-工作区依赖：`@molis-ai/molis-work-contracts`。其他运行依赖见 [package.json](package.json)。
+工作区依赖：`@molis-ai/molis-work-contracts`；只有 `/sqlite` 使用 `@molis-ai/molis-work-storage` 打开项目库连接。其他运行依赖见 [package.json](package.json)。
 
 ## 本地开发
 
@@ -63,10 +63,10 @@ pnpm boundary:test
 
 ## 开发要求
 
-- 负责：导入边界规则；与业务无关的无头 Chrome 启动与 DevTools 驱动（子路径 `/browser`）；访问本机 Host HTTP 管理接口的客户端与授权、项目的调用（子路径 `/local-host-http`）。确定性时钟、假能力、临时存储目前不在这里，仍在各测试里。
+- 负责：导入边界规则；与业务无关的无头 Chrome 启动与 DevTools 驱动（子路径 `/browser`）；访问本机 Host HTTP 管理接口的客户端与授权、项目的调用（子路径 `/local-host-http`）。确定性时钟、假能力、临时业务表与种子数据仍在各测试里。`/sqlite` 提供原始连接的测试入口，由 storage 打开，建表、只读参数与关闭都由用例决定。
 - 不负责：属于某个 Module 的业务夹具、规则或断言；任何产品选择器；宿主、授权与项目的装配（那在 `tests/fixtures/`）；决定一项授权该不该被接受（那是 Host 的检查，这里只发请求、转述拒绝）。
 - 公开入口：`@molis-ai/molis-work-test-kit`（`src/index.ts`）、`@molis-ai/molis-work-test-kit/browser`（`src/browser/index.ts`）与 `@molis-ai/molis-work-test-kit/local-host-http`（`src/local-host-http/index.ts`），都经 `dist` 导出，不深入 `src/` 导入；合同 `@molis-ai/molis-work-contracts/platform/testing`。
-- 依赖：`@molis-ai/molis-work-contracts`。方向：平台包只依赖 contracts/platform 与更低层平台包（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`；只有 `/sqlite` 使用 `@molis-ai/molis-work-storage` 打开项目库连接。方向：平台包只依赖 contracts/platform 与更低层平台包（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 规则与业务无关，不替代模块测试、浏览器验收或迁移验证。
   - 新增边界规则同时提供允许与拒绝案例，不靠检查固定文件数量。

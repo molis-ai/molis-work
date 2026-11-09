@@ -1,6 +1,6 @@
 # Prologue 记忆策略与 Molis Work 接入
 
-状态：2026-11-07，按用户要求先提交现有本地成果并停止继续实现；V0 未完成，剩余事项转入统一 backlog。
+状态：2026-11-09，经用户批准完成第 1 步：在隔离树并入 main `c79236860` 并换入 SDK 6664，作一次本地提交，未推送；V0 未完成，性能门（BL-1072）待用户决定，其余仍按 BL-1071～BL-1077。
 
 ## 当前交接与 backlog（2026-11-07）
 
@@ -8,7 +8,7 @@
 
 本轮 SDK 本地提交为 `6664b9ca87aaff1994e8804b2d78e6bf6be245fa`（父 `6785a84b9cb168966f654e193b818c672cb459d1`，分支 `codex/memory-v0-closeout-delivery-20261106`）；App 本轮提交基于 `9a12bc8e75eb4d3ff54888d6a6c518dab70a37b3`，分支 `codex/memory-v0-closeout-application-20261106`。两个本地仓库分别位于 `/private/tmp/prologue-memory-v0-closeout-delivery-20261106` 与 `/private/tmp/molis-memory-v0-main-integration-20261106`；App vendor 仍为此前采用的 6785 来源。本轮只提交，不换包或运行新验证。
 
-未完成交付的唯一清单为 [BACKLOG](../BACKLOG.md) BL-1054～BL-1060，分别覆盖正式 SDK 采用、原性能门、真实质量与全成本、原生 Linux 失败、后续跨主人动线、最终 App/本人验收及历史执行事故。BL-1058 沿 §10.3 的后续范围，不新增为 V0 门。本次本地提交不恢复换包、推送、CI/Full、180读或其他测量、付费及真实 Home 操作；不降低原验收，不把记录入 backlog 当作完成。以下按日期保留历史结果和授权，当前交接覆盖其中“仍未提交”的旧状态。
+未完成交付的唯一清单为 [BACKLOG](../BACKLOG.md) BL-1071～BL-1077，分别覆盖正式 SDK 采用、原性能门、真实质量与全成本、原生 Linux 失败、后续跨主人动线、最终 App/本人验收及历史执行事故。BL-1075 沿 §10.3 的后续范围，不新增为 V0 门。本次本地提交不恢复换包、推送、CI/Full、180读或其他测量、付费及真实 Home 操作；不降低原验收，不把记录入 backlog 当作完成。以下按日期保留历史结果和授权，当前交接覆盖其中“仍未提交”的旧状态。
 
 **前次正式测量状态（2026-11-06，保留历史）。** SDK 6785a84b 与 App 9a12bc8e 的获批180读已完成；1000条暖读中位数107.193ms，上限10.660ms，性能验收失败。后续批次、按范围查询/解码和暖读优化尚无新的正式成绩。旧 B1 原始答卷/同口径规模原件缺失仍保留，不能用历史摘要补造。
 
@@ -19,6 +19,20 @@
 Assistant/Coding 跨主人回执与后续使用的本地接入已收束。人工接受已有候选已与自动学习用途分开，真实 failed 初始原件可以由本人认可，取消/归档/遗忘及 failed 补充输入仍拒绝；后续两业务读取、原 Work 续办与原 Goals 幂等、重开和隔离的指定工程路径通过。Goals 成功回执沿原结果卡提供当前项目说明入口，即使该轮随后因 Memory 撤权失败，也不依赖模型补答；真实点击、本人最小化助理、原正文及编辑器无遮挡的指定页面路径通过。这里只证明本地构建、非空合成 Home、loopback Provider 下的对应行为，不等于最终签名 App 完整实操、真实模型效果或本人验收。当前构建、对准确 c595 的健康/边界及资源门已有通过证据；workbench.js 为 1,102,527 B，本片必要 9 B 经独立评审及统筹授权单独登记，其它 50 项不变，Goals 入口没有新增资源增长。所有原失败日志保留，证据分轮列于末尾，不拼成 Full 或同轮全文件通过。
 
 性能、真实质量、最终注入 token、全生命周期成本及完整产品/用户验收仍未结。本次获准的固定180次零模型读取已完成：当前 abdb74a9d＋SDK2a49 组合在1000条显式暖读中位数为159.404 ms、经验P95为173.934 ms，仍超过冻结上限10.660/14.330 ms。此前组合的中位数270.487 ms仅作历史观察；两次产品及SDK组合不同，不能把全部差值归于索引，也不冒充严格B1配对，旧原始件缺失仍保留。180次运行成功不等于性能通过，原报告和失败准备记录见末节；本批结束即停，没有追加样本。历史 Linux 问答卡原失败日志已取回，根因未明。旧源不可用且缺目标回执的移动已依用户决定停止自动续办、保留现存内容；未恢复已取消的旧库转换。额外提交、推送、合并、发布、Full、付费、真实 Home 和未授权 SDK 换包继续暂停。#1064 已合 main；#1101 于 2026-11-04 关闭且未合并，当前聚合成果本地保留，最终 PR 入口待交付阶段核定，不自动重开或推送。当前合同与依赖见 §13 及末尾，历史失败与证据按原日期保留，§9.2/§10 验收不变。
+
+## 6664 隔离采用并入 main（2026-11-09，用户批准第 1 步）
+
+用户批准的范围：在隔离树里并入最新 main、干净打包并换入 SDK 6664，作一次本地提交，跑定向验证；不推送、不跑180读或其他测量、不跑 CI/Full、不付费、不碰真实 Home。本节只证明工程验证这一层，不是产品实操通过，也不是用户本人验收。
+
+- **位置。** 隔离树 `/private/tmp/molis-memory-v0-adopt-6664-20261107`，分支 `claude/memory-v0-adopt-6664-20261107`，从 App `51c77e734` 起，并入 main `c792368608271d961a4085fe2224146b3a7fee62`（领先原基线 c7b658428 共 16 个提交）。证据与脚本在 `/private/tmp/memory-v0-adopt-6664-20261107/`。原树 A（`51c77e734`）与 S（SDK `6664b9ca`）原样保留。
+- **合并。** 共 22 处冲突。宿主恢复、目录与系统 Agent 一侧取 main；Memory 的遗忘清单、回执和 Coding 推迟写配置的语义保留；存储改用 main 的 `openBaselineHomeSqlite` 与存储空间标记。测试发现 3 处合并回归并已修：`inspectMemoryLedgerSnapshot` 自动合并后引用了不存在的 `options`；有 `storage-space.json` 的新 Home 被 `initializeMemoryForgetting` 误判为非空（`memory.forgetting_invalid`）；恢复保留时快照库没有带上 journal 的存储空间（「快照库的空间归属与 Home 不同」）。
+- **换包。** `vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-memory-p0.tgz` 换成 6664（树 `60a63ecc`）的干净打包：1,424,552 B，SHA-256 `ed6d0b584fe3a7c950e74a524f4fa88bfd64856283b50623bbf6fd74014fbb8a`。两次独立打包逐字节相同；相对 6785 有 824 个文件，改 18 个，无增删。`.sha256`、`.provenance.json`（`previousArtifact` 保留 6785 完整记录）、README 与 lock 完整性同步；离线安装后 824 个实际安装文件与包内逐字节相同，仅一份 SDK。SDK 远端 main（ccafbb74）落后 6664 七个提交，6664 尚未推送。
+- **编号。** main 已用 BL-1054～1057，Memory 的 backlog 行从 BL-1054～1060 改为 BL-1071～1077，本文与 `specs/README.md` 同步。
+- **验证。** SDK 12 文件 247/247 一次通过（隔离 HOME）。完整 `pnpm build` 退出 0（Swift 包需在用户终端构建，见下）。App 43 个定向文件（Memory README 必跑、`home-restore-*`、快照内容、Coding 与存储相关）一次跑完 42 个通过；未过的 `tests/coding-runtime-regressions.test.ts` 有 2 项（SDK 后台读取失败保留上次命令观测；激活时续接持久化的 SDK 等待），都是 15 秒内等不到命令审批。同一环境下干净 main `c79236860`、合并前 `51c77e734` 与候选各跑一次，三者都是这 2 项失败、其余 6 项通过，所以不是这次合并或换包引入的；根因未查，该文件不在 `tests/quarantine.json` 和 CI 产品子集里，main 的 CI 也看不到它。
+- **门禁。** 边界 64 包通过；contracts/SDK 公开 API 快照与动作合同快照无变化；页面资源通过：coding.js 304,173 B（+6,496）、workbench.js 906,427 B（+21,132），都在原批准增量 +6,499 / +27,407 之内，按新基线重写 `APPROVED_CEILINGS` 这两项。巨大单元按实测重记 AssistantStore 282 行/40 方法、`openMemoryLedger` 204 行。提交前的健康门以 c7 为 merge-base，只用于找冲突；提交后对 `c79236860` 重跑的结果见下一条。
+- **提交后的健康门。** 作本地合并提交后，经真实构建槽跑 `node scripts/check-health-gates.mjs --base github/main`，对 merge-base `c79236860` 通过。巨大单元的变化都已登记实测值；公开 API 有 4 个快照文件相对 main 变了（contracts 的 `platform/actions`、`platform/plugin`、`services/agent-host`、`services/memory`），都是 Memory V0 原有的合同改动，开 PR 时要按 `docs/system/CONTRACT-CHANGES.md` 写清对插件和调用方的影响。
+- **执行事故与环境限制。** 设置 TMPDIR 后机器槽目录跟着移动，第 2～4 次构建和第 1 次健康门没有排进真实队列；发现后用 `MOLIS_WORK_SLOT_DIR` 指回真实目录。会话沙箱里 SwiftPM 嵌套 sandbox 失败、回环连接被拒（EPERM/代理 403），所以完整构建和 App 用例在用户终端里跑；关掉 SwiftPM sandbox 的绕过被拒后没有再试。干净 main 构建排队时，构建槽被另一会话卡住 28 小时的 P-1 基线构建占着，经用户同意按 pid 停掉。
+- **性能（推断，未测）。** 证明缓存 `AuthenticatedEnvelopes` 每个 Host 默认 1024 条、16 MiB，先进先出、命中不刷新；超过 1024 条的整表扫描可能每次都冷。只影响速度，不影响正确性；App 没有配置 `memoryObservationCache`。按当前合同（每次读全字节、逐读授权、752 条回执），1000 条暖读中位数到 10.660 ms 的上限可能达不到，由用户决定性能门怎样处理后再做第 2 步。
 
 ## 1. 用户结果与责任边界
 

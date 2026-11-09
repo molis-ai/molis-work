@@ -38,10 +38,27 @@ export function boundedRetryAt(value: string | undefined, now = Date.now()): str
   return Number.isFinite(at) && at > now ? new Date(Math.min(at, now + LONGEST_RETRY_WAIT_MS)).toISOString() : undefined;
 }
 
-/** A failed identity or health read as the error a check remembers: a rate limit keeps the time the service gave, bounded. */
-function readFailure(result: { message: string; failure?: string; retryAfterAt?: string }): Error {
+/**
+ * What the service did with a read (ASC-58 §13.2): it refused the key or permission, it could not be reached or failed, or it answered
+ * for the read's own reason. The run of failures on the connection's last call is kept by these codes.
+ */
+export const connectorReadErrors = defineErrorCodes("connector.read", { refused: "upstream", unreachable: "upstream", answered: "upstream" });
+
+/**
+ * A failed identity, health or record read as the error a check remembers: a rate limit keeps the time the service gave, bounded; the
+ * service's status, or the reader's failure kind when it has none, says which of the read errors it is (a reader's `provider` failure
+ * without a status, such as GitHub's account read, is mostly a 5xx or an unreadable answer: the service failed). A failure that never
+ * reached the service (no credential, no reader) stays a plain error.
+ */
+function readFailure(result: { message: string; failure?: string; retryAfterAt?: string; http_status?: number; httpStatus?: number }): Error {
   const retry_at = boundedRetryAt(result.retryAfterAt);
-  return result.failure === "rate_limited" ? connectorCheckErrors.rate_limited(result.message, retry_at ? { retry_at } : undefined) : new Error(result.message);
+  if (result.failure === "rate_limited") return connectorCheckErrors.rate_limited(result.message, retry_at ? { retry_at } : undefined);
+  const status = result.http_status ?? result.httpStatus;
+  const reason = status !== undefined && status >= 400
+    ? status === 401 || status === 403 ? "refused" : status >= 500 ? "unreachable" : "answered"
+    : result.failure === "needs_auth" ? "refused" : result.failure === "network" || result.failure === "provider" ? "unreachable"
+      : result.failure === "stale_history" ? "answered" : undefined;
+  return reason ? connectorReadErrors[reason](result.message) : new Error(result.message);
 }
 
 interface ApiConnectionAccess {
@@ -109,7 +126,7 @@ async function previewRead(home: string, service: string, access: ApiConnectionA
   if (!provider) return {};
   await beforeRead?.(); signal.throwIfAborted();
   const read = await provider.sync({ cursor: null }, control);
-  if (!read.ok) throw new Error(read.message);
+  if (!read.ok) throw readFailure(read);
   return { record_count: read.items.length, items: read.items };
 }
 

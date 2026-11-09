@@ -21,6 +21,8 @@ import { CODING_SETTINGS_UI_CONTRIBUTION_ID, CODING_UI_CONTRIBUTION_ID } from ".
 import { CODING_ACTIONS } from "./route-actions.js";
 import { codingExecutorActions } from "./executor-actions.js";
 import { codingArtifactPreview } from "./artifact-preview.js";
+import { CODING_PLAN_SCHEMA_VERSION } from "./plans.js";
+import { codingSync } from './session-replication.js';
 import { codingHomeBackgroundTasks } from "./home-background.js";
 import { codingResultDocument } from "./contract.js";
 import { CODING_PROJECT_DATABASE } from "./database.js";
@@ -51,6 +53,7 @@ export const codingManifest: PluginManifest = {
   plugin_id: CODING_PLUGIN_ID,
   version: "0.3.0",
   name: "Coding",
+  sync: codingSync,
   summary: "和 Agent 一起写代码，留每轮记录。",
   kind: "app",
   // Both development lines (1.30–1.32 on main, 1.31–1.44 on the Coding goal branch) continue here without migration.
@@ -109,8 +112,8 @@ export const codingManifest: PluginManifest = {
     consumes: [CHARACTER_ARTIFACT_TYPE, CODING_REPORT_TYPE].map(artifact_type_id => ({ artifact_type_id, schema_version: 1 })),
   },
   process_items: {
-    produces: [CODING_PLAN_TYPE, CODING_GOAL_CONTEXT_TYPE, CODING_CHANGESET_TYPE, CODING_DIAGRAM_TYPE].map(artifact_type_id => ({ artifact_type_id, schema_version: 1 })),
-    consumes: [CODING_PLAN_TYPE, CODING_GOAL_CONTEXT_TYPE, CODING_CHANGESET_TYPE].map(artifact_type_id => ({ artifact_type_id, schema_version: 1 })),
+    produces: [CODING_PLAN_TYPE, CODING_GOAL_CONTEXT_TYPE, CODING_CHANGESET_TYPE, CODING_DIAGRAM_TYPE].map(artifact_type_id => ({ artifact_type_id, schema_version: artifact_type_id === CODING_PLAN_TYPE ? CODING_PLAN_SCHEMA_VERSION : 1 })),
+    consumes: [CODING_PLAN_TYPE, CODING_GOAL_CONTEXT_TYPE, CODING_CHANGESET_TYPE].map(artifact_type_id => ({ artifact_type_id, schema_version: artifact_type_id === CODING_PLAN_TYPE ? CODING_PLAN_SCHEMA_VERSION : 1 })),
   },
   ports: {
     // What a round takes from elsewhere is picked from project knowledge (specs/project-knowledge §9), not wired in by port.

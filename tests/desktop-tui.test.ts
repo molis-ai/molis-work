@@ -681,10 +681,12 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.match(desktop, /data-workspace-mode="graph"/);
     assert.doesNotMatch(desktop, /data-workbench-view="graph"/);
     assert.match(desktop, /data-navigator-view="graph"/);
+    // Source-level client checks use the unminified program. Markup and styles are checked against the served page.
     // The phone's tab switch has had no markup since bc79f8a49; its click handler is gone too (W3-A3a), and narrow layouts
     // move between panes from the places that open them.
     assert.doesNotMatch(desktop, /data-mobile-target/);
-    assert.match(desktop, /if \(matchMedia\("\(max-width: 760px\)"\)\.matches\) setMobileView\("document"\)/);
+    assert.match(CLIENT_SCRIPT, /if \(matchMedia\("\(max-width: 760px\)"\)\.matches\) setMobileView\("document"\)/);
+    assert.doesNotThrow(() => new Function(renderMolisWorkWorkbenchClientScript()));
     assert.match(desktop, /data-tauri-drag-region/);
     assert.match(desktop, /\.tui-terminal \{ grid-area: terminal;/);
     assert.match(desktop, /\.tui-terminal \.tui-xterm \{[^}]*inset: 10px 12px 12px/);
@@ -698,9 +700,9 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.match(desktop, /\*::-webkit-scrollbar\{display:none/);
     assert.match(desktop, /在这个 Goal 上打开终端/);
     // #994 gathered the page's lookups behind one `q`; the tree resizer is still found in the page's own document.
-    assert.match(desktop, /const q = \(selector\) => document\.querySelector\(selector\);/);
-    assert.match(desktop, /const treeResizer = q\("\[data-tree-resizer\]"\);/);
-    assert.match(desktop, /treeWidth: parseFloat\(workspace\.style\.getPropertyValue\("--tree-width"\)\)/);
+    assert.match(CLIENT_SCRIPT, /const q = \(selector\) => document\.querySelector\(selector\);/);
+    assert.match(CLIENT_SCRIPT, /const treeResizer = q\("\[data-tree-resizer\]"\);/);
+    assert.match(CLIENT_SCRIPT, /treeWidth: parseFloat\(workspace\.style\.getPropertyValue\("--tree-width"\)\)/);
     assert.match(desktop, /\.workspace\.is-desktop-tui \{ grid-template-columns: var\(--tree-width, 240px\)/);
     assert.match(desktop, /class="immersive-workspace is-desktop-tui is-plugin-directory-empty"/);
     assert.match(desktop, /src="\/desktop\/pty-client\.js"/);
@@ -745,8 +747,8 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.doesNotMatch(desktop, /class="desktop-workbench-actions"/);
     assert.doesNotMatch(desktop, /class="desktop-workbench-bar" data-tauri-drag-region/);
     assert.match(desktop, /data-plugin-id="settings"[^>]*data-directory-open="settings"[^>]*aria-label="打开全局设置"/);
-    // The sign-in placeholder explains why it cannot be activated yet.
-    assert.match(desktop, /<button class="personal-account" type="button" data-account-link disabled title="登录功能暂未开放">/);
+    // Personal keeps its working account entry instead of main's disabled placeholder.
+    assert.match(desktop, /<button class="personal-account" type="button" data-account-link aria-label="账号管理">/);
     // 能力 is part of settings (specs/artifact-positioning S6b): its entry opens the settings at the library, not a framed page.
     assert.doesNotMatch(desktop, /data-capabilities-frame|data-work-surface="capabilities"/);
     assert.match(desktop, /href="\/capabilities\/library(?:\?[^"]*)?"[^>]*data-capabilities-open/);
@@ -764,7 +766,7 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.match(settingsDirectory, /mw-dir-row--compact/);
     assert.match(settingsDirectory, /mw-dir-row__icon/);
     assert.doesNotMatch(settingsDirectory, /data-theme-option/);
-    assert.match(desktop, />未登录<\/strong><small>登录<\/small>/);
+    assert.match(desktop, /<strong data-personal-name>未登录<\/strong><small data-personal-status>本地空间<\/small>/);
     assert.match(desktop, /class="container-tabs" data-container-tabs/);
     assert.match(desktop, /data-titlebar-chrome/);
     assert.match(desktop, /data-titlebar-tabs/);
@@ -808,22 +810,22 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.doesNotMatch(desktop.slice(0, desktop.indexOf("<style>")), /class="navigator-view-switch"/);
     assert.match(desktop, /data-goal-frame-surface/);
     assert.doesNotMatch(desktop, /data-task-frame-surface|data-plugin-id="task"|openTaskForGoal/);
-    assert.match(desktop, /openWorkbenchSurface/);
+    assert.match(CLIENT_SCRIPT, /openWorkbenchSurface/);
     assert.match(desktop, /data-container-tabs/);
     assert.match(desktop, /molis-work-tab-workspace:/);
     assert.doesNotMatch(desktop, /molis-work-work-tabs:|goalboard-work-tabs:/);
     assert.doesNotMatch(desktop, /goalUiStorageKey \+ ":inbox"/, "the Goal-era decisions page, which had its own saved state, is gone");
-    assert.match(desktop, /const desktopNavigationStateVersion = 4/);
-    assert.match(desktop, /navigationVersion: desktopNavigationStateVersion/);
-    assert.match(desktop, /const setDesktopWorkSurface = \(surface, persist = true, restoreScroll = true, intent = "open"\) =>/);
-    assert.match(desktop, /surfaceScroll: \{ \.\.\.desktopSurfaceScroll, \[activeDesktopSurface\]:/);
-    assert.match(desktop, /setDesktopWorkSurface\("goals", false, false\)/);
+    assert.match(CLIENT_SCRIPT, /const desktopNavigationStateVersion = 4/);
+    assert.match(CLIENT_SCRIPT, /navigationVersion: desktopNavigationStateVersion/);
+    assert.match(CLIENT_SCRIPT, /const setDesktopWorkSurface = \(surface, persist = true, restoreScroll = true, intent = "open"\) =>/);
+    assert.match(CLIENT_SCRIPT, /surfaceScroll: \{ \.\.\.desktopSurfaceScroll, \[activeDesktopSurface\]:/);
+    assert.match(CLIENT_SCRIPT, /setDesktopWorkSurface\("goals", false, false\)/);
     assert.doesNotMatch(desktop, /pluginForSurface/, "a surface is its plugin's id; nothing turns one into the other (T-114)");
-    assert.match(desktop, /directoryPanelFor/);
-    assert.match(desktop, /let desktopDirectoryOrigin = null/);
-    assert.match(desktop, /ui\?\.navigationVersion === desktopNavigationStateVersion/);
-    assert.match(desktop, /setDesktopDirectory\(restoredDirectory, false, false\)/);
-    assert.match(desktop, /const directGoalRequested = .*localPathname\(\)/);
+    assert.match(CLIENT_SCRIPT, /directoryPanelFor/);
+    assert.match(CLIENT_SCRIPT, /let desktopDirectoryOrigin = null/);
+    assert.match(CLIENT_SCRIPT, /ui\?\.navigationVersion === desktopNavigationStateVersion/);
+    assert.match(CLIENT_SCRIPT, /setDesktopDirectory\(restoredDirectory, false, false\)/);
+    assert.match(CLIENT_SCRIPT, /const directGoalRequested = .*localPathname\(\)/);
     assert.match(desktop, /data-directory-back/);
     assert.doesNotMatch(desktop, /class="desktop-project-context"/);
     assert.doesNotMatch(desktop, /class="project-decisions/);

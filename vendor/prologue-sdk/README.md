@@ -1,6 +1,12 @@
 # Prologue SDK 构建来源
 
-当前唯一隔离采用包为 `prologue-sdk-0.0.0-rc.1-memory-p0.tgz`，版本 `0.0.0-rc.1`，**1,418,384 字节**，SHA-256 `a1a3433d52b62fe05519b8348a47d643b39739f670e5ba26cbad646f01f5cc2c`。来源为准确干净本地提交 `6785a84b9cb168966f654e193b818c672cb459d1`，tree `b1c3a9e1f7209dbdf2a10c70b7db01e0f8e82137`，父提交 `2a49a9826ef442c743eab8fb44a7594a7bbf52aa`。这次仅采用用户批准的8文件集中读取消重；没有新优化、权限/布局/公开入口变化。源码在独立Git目录仅提交一次，未推送、合并或发布，Molis尚未提交。
+当前唯一隔离采用包为 `prologue-sdk-0.0.0-rc.1-memory-p0.tgz`，版本 `0.0.0-rc.1`，**1,424,552 字节**，SHA-256 `ed6d0b584fe3a7c950e74a524f4fa88bfd64856283b50623bbf6fd74014fbb8a`。来源为准确干净本地提交 `6664b9ca87aaff1994e8804b2d78e6bf6be245fa`，tree `60a63ecc91451d109078e3db9e0a7b20c0cf2124`，父提交 `6785a84b9cb168966f654e193b818c672cb459d1`。用户2026-11-07批准本地合入最新 main 并正式换入；源码未推送、未合并或发布。
+
+固定Node24.14.0/pnpm11.9.0，两个独立干净目录经原build槽离线frozen安装、整体build/pack，完整tgz逐字节相同。824个普通文件，相对6785新增0、删除0、变化18个包文件，manifest逐字不变。旧6785包及sidecars保留于 `/private/tmp/memory-v0-adopt-6664-20261107/previous-6785-vendor/`，相邻provenance的previousArtifact保留完整来源链。这只是来源记录，不是性能、完整App或用户验收结果。
+
+## 上一份隔离采用：6785（保留原记录）
+
+上一隔离采用包为 `prologue-sdk-0.0.0-rc.1-memory-p0.tgz`，版本 `0.0.0-rc.1`，**1,418,384 字节**，SHA-256 `a1a3433d52b62fe05519b8348a47d643b39739f670e5ba26cbad646f01f5cc2c`。来源为准确干净本地提交 `6785a84b9cb168966f654e193b818c672cb459d1`，tree `b1c3a9e1f7209dbdf2a10c70b7db01e0f8e82137`，父提交 `2a49a9826ef442c743eab8fb44a7594a7bbf52aa`。这次仅采用用户批准的8文件集中读取消重；没有新优化、权限/布局/公开入口变化。源码在独立Git目录仅提交一次，未推送、合并或发布，Molis尚未提交。
 
 固定Node24.14.0/pnpm11.9.0，经原build槽离线frozen安装、正常整体SDK build/pack。824个普通文件与实际clean构建一致；相对2a49无增删、6个包文件变化，manifest逐字不变，四个公开子路径齐全。旧2a49包及完整来源原件保留于 `/private/tmp/memory-v0-approved-delivery-20261106/previous-2a49-vendor/`，相邻provenance的previousArtifact完整保留原链，不伪造gitBlob。准确产物、命令、包比较和增量Git bundle在 `/private/tmp/memory-v0-approved-delivery-20261106/`。
 

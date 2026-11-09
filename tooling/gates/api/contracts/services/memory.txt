@@ -1001,9 +1001,9 @@ export declare const memoryLearningActions: {
 };
 
 export declare const servicesMemoryContract: {
-    readonly contractId: "io.molis.work.service.memory.v2";
+    readonly contractId: "io.molis.work.service.memory.v1";
     readonly kind: "service";
-    readonly schemaVersion: 2;
+    readonly schemaVersion: 1;
     readonly maturity: "partial";
     readonly ssot: "specs/prologue-memory-strategy/spec.md";
 };

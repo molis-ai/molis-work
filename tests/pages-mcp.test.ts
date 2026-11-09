@@ -89,15 +89,19 @@ test("official stdio MCP client queries, imports, edits and generates with actua
     } finally { store.close(); }
     const db = openHomeSqliteDatabase(home, "pages");
     try {
-      db.exec("CREATE TRIGGER fail_mcp_publication BEFORE UPDATE OF artifact_version ON pages WHEN NEW.artifact_version > OLD.artifact_version BEGIN SELECT RAISE(ABORT, 'fixture association failed'); END");
+      const sentinel = (await call(restarted, "pages.create", { title: "Published constraint fixture" })).document;
+      await call(restarted, "pages.promote", { id: sentinel.id, expected_version: sentinel.version });
+      db.exec("CREATE UNIQUE INDEX fail_mcp_publication ON pages ((1)) WHERE artifact_version > 0");
       const before = (await call(reader, "pages.get", { id: document.id })).document;
       const failed = await restarted.callTool({ name: tool("pages.promote"), arguments: { id: document.id, expected_version: before.version } });
       assert.equal(failed.isError, true);
+      assert.match(JSON.stringify(failed.content), /UNIQUE constraint failed/);
       assert.notEqual(JSON.parse((failed.content as Array<{ text: string }>)[0]!.text).code, "actions.version_required", "the promote fails at the association, not for a missing version");
       const pending = (await call(reader, "pages.get", { id: document.id })).document;
       assert.equal(pending.publication_pending.version, 1); assert.equal(pending.artifact_version, 0);
       await call(restarted, "pages.update", { id: document.id, title: "Edited during recovery", expected_version: pending.version });
-      db.exec("DROP TRIGGER fail_mcp_publication");
+      db.exec("DROP INDEX fail_mcp_publication");
+      await call(restarted, "pages.delete", { id: sentinel.id });
     } finally { db.close(); }
     await restarted.close();
     const recovering = await connect("a");

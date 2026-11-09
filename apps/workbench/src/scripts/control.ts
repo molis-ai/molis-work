@@ -1,3 +1,9 @@
+import { UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
+import { PERSONAL_ACCOUNT_CLIENT_SCRIPT } from "./personal-account.js";
+
+// Compose the shared request client with account/space isolation for every workbench page.
+export const CONTROL_CLIENT_SCRIPT = UI_REQUEST_CLIENT_SCRIPT + PERSONAL_ACCOUNT_CLIENT_SCRIPT;
+
 /**
  * The update page's only program: the button that records the update notice as seen. The first-run and new-project
  * journey is `context-onboarding.ts`.

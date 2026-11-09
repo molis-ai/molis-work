@@ -129,7 +129,7 @@ test("VUX-40: cooperation, subagents and the usage meter speak English in Englis
       return {han:[...new Set(han)],meter:text(q('[data-coding-meter-panel]')),cards:text(section),coop:text(root),errors};
     })()`);
     assert.deepEqual(result.han, [], "no Chinese in what these panels draw");
-    assert.match(result.cards, /Dispatched 3 subtasks|Subtasks dispatched: 3/);
+    assert.match(result.cards, /Dispatched 3 sub-tasks|Sub-tasks dispatched: 3/);
     assert.match(result.cards, /You accepted the conclusion/);
     assert.match(result.meter, /This session's usage/);
     assert.match(result.meter, /Used 102K \/ 100K tokens \(102%\)/, "compact numbers follow the page's language");
@@ -193,7 +193,7 @@ test("VUX-40: the writer directories and integration dialogs speak English in En
     assert.match(result.turn, /^Split the work.*This turn's split · separate directories: 1.*Branch: part-a · started from: abc123/);
     assert.match(result.integration, /From: \/tmp\/child · child.*Back into: \/repo/);
     assert.match(result.integration, /b\.ts · added.*The file doesn't exist yet.*\(empty file\)/);
-    assert.match(result.integration, /Conflict 1 · lines: main workspace 1, subtask 1.*Use the main workspace.*Keep both/);
+    assert.match(result.integration, /Conflict 1 · lines: main workspace 1, sub-task 1.*Use the main workspace.*Keep both/);
     assert.match(result.integration, /Unresolved conflicts: 1/);
     assert.deepEqual(result.errors, []);
   } finally { await browser.close(); rmSync(directory, { recursive: true, force: true }); }
@@ -238,7 +238,7 @@ test("VUX-40: the step report dialog and the change set reader speak English in 
         comments:q('[data-coding-feedback-list]').querySelector('textarea').getAttribute('aria-label')};
     })()`);
     assert.deepEqual(result.han, [], "no Chinese in what the dialog and the reader draw");
-    assert.match(result.step, /Run r · plan revision 2.*Write the parser.*Done when: Tests pass.*The model reports success; for you to check.*Held by: You.*Subtask “Builder”: Done it/);
+    assert.match(result.step, /Run r · plan revision 2.*Write the parser.*Done when: Tests pass.*The model reports success; for you to check.*Held by: You.*Sub-task “Builder”: Done it/);
     assert.match(result.step, /You asked for rework.*Missing an edge case.*This assessment is for an earlier report/);
     assert.equal(result.stepStatus, "The run has ended; the step reports keep their states, so check each one.");
     assert.match(result.files, /a\.ts\s*Writes: 2\s*Net change this turn.*Write 1.*Written.*Write 2.*Write failed/);
@@ -338,7 +338,7 @@ test("RAC-658-UI-01..03: step details localize holders and authors while preserv
         return {rows,leaked,errors};
       })()`);
       for (const row of result.rows) {
-        const subtask = row.title === null ? (locale === "en" ? "Subtask" : "子任务") : locale === "en" ? `Subtask “${row.title}”` : `子任务「${row.title}」`;
+        const subtask = row.title === null ? (locale === "en" ? "Sub-task" : "子任务") : locale === "en" ? `Sub-task “${row.title}”` : `子任务「${row.title}」`;
         const names: Record<string, string> = locale === "en"
           ? { session: "this session", person: "You", none: "Unclaimed", other: "Other holder", handover: "Reassigned", subtask }
           : { session: "本会话", person: "你", none: "没人认领", other: "其他负责人", handover: "改派", subtask };

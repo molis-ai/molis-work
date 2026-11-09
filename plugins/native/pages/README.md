@@ -37,6 +37,10 @@ Inbox 通过 `pages.generations.get/list`、`pages.get` 和 `pages.generate` 读
 
 ## 开发要求
 
+项目变更观察由 owner 解码稳定日志键，覆盖已删除记录、冻结上传与保留冲突，未启用上传也不能冒充无本机修改；`hasProjectChanges` 不读取或导出正文，不跨其他 owner 查询。
+
+同步试点：`store.syncAdapter(trustedContext)` 提供项目快照验证，`store.replica(trustedContext)` 提供逐文档/文件夹增量，复用 storage 队列。未发布草稿保留，缺关联依赖、待完成发布、撤权时不覆盖；并发编辑进入冲突处理。正文内嵌图片可携带，HTTP 图片仅保留引用，本机/相对链接拒绝。Host 已接个人空间同步配置页与 Rust/D1 本机联调，默认关闭，未部署公网。生成历史、Goal/Artifact、附件对象不在本轮集合里。说明见[规范](../../../skills/molis-plugin-dev/sync.md)。
+
 - 负责：文档目录、ProseMirror 编辑器、导入、按材料生成与发布。
 - 不负责：Goal 与 Artifact 事实、模型提供方、托管文档服务、ZIP/DOCX 系统解析。
 - 公开入口：`@molis-ai/molis-work-plugin-pages`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；插件协议 `@molis-ai/molis-work-contracts/platform/plugin`，数据合同 `@molis-ai/molis-work-plugin-pages/contract`（`src/contract.ts`）；别的使用方按动作 id 调用，就地声明自己用到的字段，不 import 它。
@@ -79,6 +83,7 @@ Inbox 通过 `pages.generations.get/list`、`pages.get` 和 `pages.generate` 读
 - 工具定义/选区投影改动加跑：`node scripts/run-tests.mjs tests/pages-tools.e2e.test.ts tests/pages-keyboard.e2e.test.ts tests/context-toolbar-panes.e2e.test.ts tests/contextual-interaction.e2e.test.ts`（正式编辑器与样式，工具字段/译文顺序/动态 pressed、命令/撤销/弹层路由、DOM Range 矩形、滚动、setDoc 与重挂；后两项覆盖真实工作台接线和窄屏）。
 - 链接/评论预览改动加跑：`node scripts/run-tests.mjs tests/pages-previews.e2e.test.ts tests/content-editing-regressions.e2e.test.ts tests/pages-tools.e2e.test.ts tests/context-toolbar-panes.e2e.test.ts tests/contextual-interaction.e2e.test.ts`（正式编辑器与样式，当前目标、编辑与取消、焦点、滚动/resize、setDoc 原刷新时点、释放重入和带待处理 blur 的销毁重挂）。
 - 上述内容与编辑状态的定向回归：`node scripts/run-tests.mjs tests/content-owner-regressions.test.ts tests/content-editing-regressions.e2e.test.ts tests/content-portable-regressions.e2e.test.ts`（浏览器文件需要本机 Chrome；受控模型与下载/打印拦截不代替真实模型、文件应用或读屏体验验收）。
+- 同步回归：`node scripts/run-tests.mjs tests/plugin-sync-foundation.test.ts`。
 - 相关手册：[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)、[skills/molis-prologue-ai/SKILL.md](../../../skills/molis-prologue-ai/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 评论回归：`node scripts/run-tests.mjs tests/pages-comments.test.ts tests/assistant-thread-reply.test.ts tests/pages-assistant-surfaces.e2e.test.ts tests/pages-comment-draft-length.e2e.test.ts`。第二项经过真实 Host/Prologue（本机流式模型夹具），第三、四项经过真实浏览器；第四项用浏览器自己的文字输入，量评论输入框的字数口径。

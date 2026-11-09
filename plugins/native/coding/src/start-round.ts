@@ -19,6 +19,7 @@ import { executionSteps } from "./plan-content.js";
 import { confirmedPlan, planMaterial } from "./plans.js";
 import { reaskMaterial } from "./reask.js";
 import { QUESTION_REASK } from "@molis-ai/molis-work-plugin-sdk";
+import { requireLocalPlanningRun } from "./plan-execution.js";
 import { limitsCharacters } from "./runtime-choice.js";
 import { CODING_HISTORY_SUMMARY } from "./prompts.js";
 import { type Capabilities, type CodingActivation, savedDigestUsage, sessionState } from "./route-activation.js";
@@ -121,6 +122,7 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
   // A round woken by the activation's own loop (an answer arrived, a wait ended) answers to that loop's job (wake-loop.ts).
   api: Capabilities, execution: CodingExecution, beforeWrite: CodingBeforeWrite) => {
   const { context, projectId } = a;
+  const savedInput=execution.sessions.inputs.read(projectId,record.session_id);
   // Continuing an earlier round's unfinished graph uses that round's own confirmed revision, whatever the draft is now.
   const original_input = originalForStart(body, beforeWrite), continued_from = continuedOriginal(body, record.runtime_session_id);
   const continueOf = body.continue_step_board_of === undefined ? undefined : text(body.continue_step_board_of, "coding.field.continued-run", 200);
@@ -146,7 +148,7 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
   const workspace = workspaces.find(entry => entry.workspace_id === body.workspace_id);
   if (!workspace?.realpath_verified) throw codingFailure("coding.server.authorize-workspace");
   const directory = { canonical_path: workspace.canonical_path, realpath_verified: true };
-  if (plan && directory.canonical_path !== plan.source.workspace_path) throw codingFailure("coding.server.plan-workspace");
+  if (plan) await requireLocalPlanningRun(api, record, plan, directory.canonical_path);
   // Files named with @ travel with the task, as they read at this moment.
   task = (await attachMentions(workspaceFileReader(context), workspace.workspace_id, task)).task;
   const subagent_workspaces: AgentSubagentWorkspace[] = [];
@@ -239,7 +241,7 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
     // A Runtime without letters between sessions has none to accept: the read comes back empty.
     await startDelegation(record, codingActions(context, beforeWrite), session.session_id).catch(() => undefined);
     await beforeWrite(); beforeWrite.assert_current();
-    if (!plan) context.services!.storage!.delete(`draft:${record.session_id}`);
+    const cleared_input_revision=!plan&&savedInput.draft===body.task&&await execution.sessions.inputs.clearIfUnchanged(beforeWrite,projectId,record.session_id,savedInput.revision)?savedInput.revision+1:undefined;
     // A session named by default takes its name from the first task, the way a person would label it.
     // The name and the running state are one write: the directory never shows the new name beside the old state.
     await execution.sessions.roundStarted(beforeWrite, projectId, record.session_id, new Date().toISOString(), firstRound ? { from: DEFAULT_SESSION_TITLE, to: codingSessionTitleFrom(task) } : null);
@@ -253,7 +255,7 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
       workspace_id: body.workspace_id,
       origin_task: typeof body.origin_task === "string" ? body.origin_task : continued ? lastStart!.origin_task : plan ? plan.source.task : body.reask !== undefined ? QUESTION_REASK.task : text(body.task, "coding.field.task", 100_000) }));
     receipted = true;
-    return { run, history, ...(historyReason ? { history_reason: historyReason } : {}),
+    return { run, history, ...(cleared_input_revision===undefined?{}:{cleared_input_revision}), ...(historyReason ? { history_reason: historyReason } : {}),
       ...(digest ? { digest: { source: digest.source, ...(digest.usage ? { usage: digest.usage } : {}), ...(digest.problem ? { problem: digest.problem } : {}) } } : {}) };
   } finally {
     // R-CODING-RECEIPT-01/02: accepted work keeps its follower even when the caller cannot finish its receipt.

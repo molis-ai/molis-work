@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>过期提交定样 · Molis Work 原型</title>
+  <!-- The component board's kit (../kit/) and the product's own page sheets (settings from the kit; workbench and Feed from ./export.mjs).
+       The rule editor lives on the settings sheet and Feed on the workbench sheet, in the product too; app.js switches them with the page. -->
+  <script src="../kit/kit.js"></script>
+  <link rel="stylesheet" href="../kit/kit.css">
+  <link rel="stylesheet" href="../kit/settings.css" id="css-settings">
+  <link rel="stylesheet" href="dist/workbench.css" id="css-workbench" disabled>
+  <link rel="stylesheet" href="dist/feed.css" id="css-feed" disabled>
+  <link rel="stylesheet" href="proto.css">
+</head>
+<body class="proto-on">
+  <div id="icons" hidden></div>
+  <div class="proto" role="region" aria-label="原型控制（不是产品界面）">
+    <b id="p-title"></b>
+    <label><span id="p-host"></span><select class="mw-select" data-slot="select" id="host"></select></label>
+    <label><span id="p-state"></span><select class="mw-select" data-slot="select" id="state"></select></label>
+    <label><span id="p-data"></span><select class="mw-select" data-slot="select" id="data"></select></label>
+    <label><span id="p-lang"></span>
+      <span class="mw-toggle-group" data-slot="toggle-group" role="group" id="lang"><button type="button" class="mw-toggle" data-lang="zh">中</button><button type="button" class="mw-toggle" data-lang="en">EN</button></span>
+    </label>
+    <label><span id="p-theme"></span>
+      <span class="mw-toggle-group" data-slot="toggle-group" role="group" id="theme"><button type="button" class="mw-toggle" data-theme-set="light"></button><button type="button" class="mw-toggle" data-theme-set="dark"></button></span>
+    </label>
+    <button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-slot="button" id="reset"><span data-slot="button-label"></span></button>
+  </div>
+  <p class="proto-note" id="note" role="note"></p>
+  <div id="app"></div>
+  <script>
+    document.getElementById("icons").innerHTML = window.mwKitSprite;
+    const client = document.createElement("script");
+    client.textContent = window.mwKitClient;
+    document.body.appendChild(client);
+  </script>
+  <script src="dist/fragments.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

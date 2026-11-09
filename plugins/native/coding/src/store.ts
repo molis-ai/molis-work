@@ -1,5 +1,7 @@
+import {CODING_HISTORY_SCHEMA_SQL,readCodingSavedHistory} from './saved-history.js';
 import type { PluginDatabase, PluginDatabaseReader } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { codingStoreErrors } from "./store-errors.js";
+import {CodingInputStore,CODING_INPUTS_SCHEMA_SQL} from './inputs.js';
 import type { CodingSessionEntry, CodingSessionState } from "./projection.js";
 import type { CodingPlanDraft } from "./plans.js";
 
@@ -68,6 +70,17 @@ export const CODING_SCHEMA_SQL = `
       PRIMARY KEY (project_id, session_id),
       FOREIGN KEY (project_id, session_id) REFERENCES coding_sessions(project_id, session_id) ON DELETE CASCADE
     );
+    CREATE TABLE IF NOT EXISTS coding_plan_versions (
+      project_id TEXT NOT NULL,
+      session_id TEXT NOT NULL,
+      revision INTEGER NOT NULL CHECK (revision > 0),
+      PRIMARY KEY (project_id, session_id)
+    );
+
+
+
+${CODING_INPUTS_SCHEMA_SQL}
+${CODING_HISTORY_SCHEMA_SQL}
 `;
 
 type Row = Record<string, unknown>;
@@ -121,11 +134,21 @@ const planIn = (reader: PluginDatabaseReader, projectId: string, sessionId: stri
  * that touches several rows or tables (a plan with its session, a round's name with its state) is one transaction.
  */
 export class CodingSessionStore {
-  /** The tables are already there: the platform made them when the project's library opened with Coding. */
-  constructor(private readonly db: PluginDatabase) {}
+  readonly inputs: CodingInputStore;
+  constructor(private readonly db: PluginDatabase) {
+    this.inputs = new CodingInputStore(db);
+  }
+
+  savedHistory(projectId:string,sessionId:string):string[] {const record=this.get(projectId,sessionId);return readCodingSavedHistory(this.db,projectId,sessionId,record.runtime_session_id);}
 
   plan(projectId: string, sessionId: string): CodingPlanDraft | null {
     return planIn(this.db, projectId, sessionId);
+  }
+
+  planRevision(projectId: string, sessionId: string): number {
+    this.get(projectId, sessionId);
+    const row=this.db.get("SELECT revision FROM coding_plan_versions WHERE project_id=? AND session_id=?", [projectId,sessionId]) as Row|undefined;
+    return row?Number(row.revision):0;
   }
 
   async savePlan(beforeEffect: CodingBeforeEffect, projectId: string, sessionId: string, expected: number, draft: CodingPlanDraft,
@@ -134,12 +157,16 @@ export class CodingSessionStore {
       guard?.();
       sessionIn(tx, projectId, sessionId);
       if (!Number.isSafeInteger(expected) || expected < 0 || draft.revision !== expected + 1) throw new Error("计划修订无效");
-      const result = expected === 0
+      const clock = tx.get("SELECT revision FROM coding_plan_versions WHERE project_id=? AND session_id=?", [projectId,sessionId]);
+      if (Number(clock?.revision ?? 0) !== expected) throw new Error("计划已被另一页面修改，请重新打开后合并修改");
+      const exists = planIn(tx, projectId, sessionId);
+      const result = !exists
         ? tx.run("INSERT OR IGNORE INTO coding_plan_drafts (project_id, session_id, revision, draft_json) VALUES (?, ?, ?, ?)",
           [projectId, sessionId, draft.revision, JSON.stringify(draft)])
         : tx.run("UPDATE coding_plan_drafts SET revision = ?, draft_json = ? WHERE project_id = ? AND session_id = ? AND revision = ?",
           [draft.revision, JSON.stringify(draft), projectId, sessionId, expected]);
       if (Number(result.changes) !== 1) throw new Error("计划已被另一页面修改，请重新打开后合并修改");
+      tx.run("INSERT INTO coding_plan_versions VALUES (?,?,?) ON CONFLICT(project_id,session_id) DO UPDATE SET revision=excluded.revision", [projectId,sessionId,draft.revision]);
       return planIn(tx, projectId, sessionId)!;
     });
   }

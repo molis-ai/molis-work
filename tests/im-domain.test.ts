@@ -5,16 +5,16 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import Database from "better-sqlite3";
+import { openTestSqlite, type SqliteDatabase } from "@molis-ai/molis-work-test-kit/sqlite";
 import { createImDomain, ImError, type ImSession, type ImEvents, type ImIdentity } from "../server/src/im/index.js";
 import type { ImMember, ImMessagePage, ImMessage, ImRoom, ImThreadState } from "@molis-ai/molis-work-contracts/services/im";
 
 async function fixture() {
   const directory = await mkdtemp(join(tmpdir(), "molis-im-domain-"));
-  let db: Database.Database, domain: ReturnType<typeof createImDomain>, server: http.Server, origin = "";
+  let db: SqliteDatabase, domain: ReturnType<typeof createImDomain>, server: http.Server, origin = "";
   let failAppend = false, failNotify = false, notifications = 0;
   const boot = async () => {
-    db = new Database(join(directory, "server.sqlite"));
+    db = openTestSqlite(join(directory, "server.sqlite"));
     db.pragma("foreign_keys = ON");
     db.exec(`CREATE TABLE IF NOT EXISTS mw_members(id TEXT PRIMARY KEY, display_name TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS mw_projects(id TEXT PRIMARY KEY,title TEXT,owner_id TEXT REFERENCES mw_members(id),scope_json TEXT);

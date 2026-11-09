@@ -1,4 +1,5 @@
 import { connectorErrors } from "@molis-ai/molis-work-contracts/services/connector-host";
+import { settleConnectionNotices } from "./assistant/assistant-connection-notices.js";
 import { ActionError, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { connectorManagementActions } from "./connector-management-actions.js";
 import { handleConnectionActionsHttp } from "./web-connection-actions.js";
@@ -95,6 +96,8 @@ export async function handleConnectorConnectionsHttp(
         if (typeof body.display_name === "string") updated = store.rename(updated.connection_id, body.display_name);
         return store.view(updated);
       });
+      // A rename is a new version of the connection (`updated_at`): the notices of the old one are settled, and a run starts again (ASC-58).
+      if (!completion && typeof body.display_name === "string") settleConnectionNotices(homeDirectory, item[1]!);
       if (typeof body.enabled === "boolean") {
         const result = controlConnectorConnection(homeDirectory, item[1]!, body.enabled ? "enable" : "disable");
         const verification = body.enabled && remember ? await verifyEnabledConnection(homeDirectory, item[1]!, remember) : undefined;

@@ -10,6 +10,7 @@
   每个都带产出它的那一轮执行，读的人总能回到「这是怎么来的」。
 - **目标输入快照**：`coding.goal-context.v1` 保存用户确认的 Goal 合同与事件事实。它不是新 Goal，不改变原目标状态；本轮通过精确引用消费，报告保留原目标归属。
 - **计划**：规划角色只读，提案可调整步骤、完成条件和阻塞。草稿采用修订冲突检查；用户确认后发布固定 `coding.plan.v1`，通过材料进入原工作区的一轮执行。后续改计划需重新确认，重复执行请求返回已有 Run，状态仍由原 Run 提供，执行结束不代表步骤验收。普通任务不必先规划。SubAgent 分派和 TaskBoard 步骤进度仍未接通。
+  固定计划现行 schema 为 2，只保留计划、任务与原会话/轮次引用，不记录本机目录。目录仍在本机草稿和原规划 Run 中；开始执行前通过当前授权读取本机原规划 Run，核对其完成状态、规划角色和已授权目录。新设备可读取和引用同步的固定版本，但没有原规划执行时须重新规划；不能从云端来源字段取得执行权限。schema 1 不作读取回退，真实 Home 的固定内容维护须另行批准。
 - **声明式落位**：导航、设置、端口全部写在 Manifest 里，宿主代码里不出现 `coding` 这个 id。
 
 ## 它不拥有什么
@@ -73,6 +74,10 @@ Coding 的 `coding.subject.state@1` 只读当前原记录的 active / archived /
 
 Coding 完成后，原 `follow` 作业仅对已成功回执的 completed Run 调用 `memory.learning.enqueue@1`。持久任务再次进入当前安装的 `memory.learning.run@1`，该调用内等待 `memory.learning.form@1`、SDK 形成、晋升与 ledger 完成。Coding 用自己的同步 SessionStore 核全部实际 Coding 来源 Session 的归档、项目与 runtime 映射；不把闭包存入队列。默认 reviewed 留待审候选，未装配来源主人或持久队列时不旁路提炼。补账仍沿原 SDK 合同：已成候选后 App 投影失败，原操作的有界重试可能再次调用提炼模型，再 replay 同一候选/版本；不能宣称模型 exactly-once。来源归档后的拒绝只挡后续派发和写入，先前已确认的 SDK 事实保留。直接回归：`tests/coding-memory-learning.test.ts`。
 
+Coding 通过原项目内容目录声明“编码会话与草稿”集合，元数据、完整计划、未发送文本与待答内容作为同一项目一致性单元；不读取 Runtime 的私有存储。源端目录、执行 Session、状态、命令/步骤缓存和确认权限不传输。新设备仅得到可编辑的未确认草稿；已有设备保留自己的 Runtime 绑定。活动执行、待核对状态或未结束后台命令期间拒绝替换及删除，稍后重试，不运行云端任务。计划与输入的编辑高水位由 Coding 的授权事务维护，删除后保留；恢复只提高目标版本，旧编辑不能覆盖。项目库当前基线 v16（Coding 声明版本 2），旧版拒绝，不就地补表。真实 Host/Rust/WASM/临时 D1/R2 的大正文往返与 owner 负例已有验证；正常输入路由和浏览器防覆盖已接入并有定向验证，SDK 会话正文沿唯一 Agent Host 的公开导出接口保存为派生只读历史，保持每个原 SDK Session 的独立来源；SDK 仍拥有原执行账本，接收不导入执行授权。新的会话可以保留之前设备的历史段。归档校验、展示和双 Home 往返正在定向验证，不能称真实设备或公网验收完成。
+
+`CodingSessionStore.inputs` 是未发送输入的唯一业务 owner。读取会话返回 `input_revision`；写入文本或待答字段使用 `coding.sessions.update@2`，必须携带原 `expected_input_revision`。旧 v1 不再解析，其他字段仍可独立编辑；动作仍仅 LOCAL，不新增 MCP 工具。窗口缓存保存原基线，后台刷新不能为旧编辑补上新版本。冲突在可见的提示中打开标准对比对话框，明确采用已保存内容或按所见版本保存当前输入；服务器在对比后又变化则再次拒绝。请求未返回时输入的新文本继续保留；已接受 Run 仅清除启动时捕获的同版本、同正文，不清除后来的输入与待答内容。验证：`tests/security-invariants-coding-inputs.test.ts`（真实 SDK、本机 HTTP 模型替身），`tests/coding-inputs.e2e.test.ts`（真实浏览器请求/ACK barrier、刷新和浅深色三宽度）。
+
 - 负责：参照 App：编码会话、每轮执行、委派，以及它们产出的变更集、报告与图；自己固定的报告和变更怎样变成可复制的 Markdown 正文（`coding.results.document@1`），以及自己成果的列表。
 - 不负责：模型选择、凭据、批准决定、命令执行本身；别的插件拿到这份正文后怎样加标题、来源和指纹（Shelf 的副本归 Shelf）。
 - 公开入口：`@molis-ai/molis-work-plugin-coding`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
@@ -105,7 +110,7 @@ Coding 完成后，原 `follow` 作业仅对已成功回执的 completed Run 调
 - 改动后必跑：`node scripts/run-tests.mjs tests/coding-action-cards.test.ts tests/coding-action-cards.e2e.test.ts tests/coding-effect-control.test.ts tests/coding-session-effect-control.test.ts tests/coding-store.test.ts tests/coding-session-follow.test.ts tests/coding-surface.test.ts tests/coding-rich-html.test.ts tests/coding-change-html.test.ts tests/coding-interaction-html.test.ts tests/coding-next-steps.test.ts tests/coding-changeset-http.test.ts tests/coding-subagents-http.test.ts tests/coding-runtime-regressions.test.ts tests/coding-material-consumption.test.ts tests/coding-background-wait.test.ts tests/coding-background-tasks.test.ts tests/host-log-catches.test.ts tests/coding-message-wait.test.ts tests/coding-session-messages.test.ts tests/coding-client-lifecycle.e2e.test.ts tests/coding-client-bundle.test.ts tests/coding-actions.test.ts tests/coding-artifacts.test.ts tests/coding-capabilities.test.ts tests/coding-companion-inputs.test.ts tests/coding-delegation-waits.test.ts tests/coding-history-summary-http.test.ts tests/coding-mcp-settings-client.test.ts tests/coding-product-http.test.ts tests/coding-companion-http.test.ts tests/builtin-plugin-agent-texts.test.ts tests/coding-results-document.test.ts tests/shelf-coding-results.test.ts tests/shelf-coding-results-platform.test.ts tests/coding-input-ports.test.ts tests/coding-goal-context-http.test.ts tests/coding-characters-http.test.ts tests/project-plugin-startup.test.ts tests/plugin-model-service.test.ts`
 - 相关手册：[docs/platform/PROLOGUE-AI.md](../../../docs/platform/PROLOGUE-AI.md)、[skills/molis-prologue-ai/SKILL.md](../../../skills/molis-prologue-ai/SKILL.md)、[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)、[specs/coding-plugin/spec.md](../../../specs/coding-plugin/spec.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
-Coding 客户端及子面板共享 Host 注入的 UI 挂载生命周期；隐藏时停止会话/目录/审查轮询和时间显示，返回后刷新，卸载取消本机请求并释放监听、观察器和定时器。草稿仍按原业务规则保存；界面关闭不会停止服务端运行。
+Coding 客户端及子面板共享 Host 注入的 UI 挂载生命周期；隐藏时停止会话/目录/审查轮询和时间显示，返回后刷新，卸载取消本机请求并释放监听、观察器和定时器。草稿仍按原业务规则保存；界面关闭不会停止服务端运行。结果索引在 `src/browser/results-index.ts`，经浏览器类型检查与 esbuild 打包后嵌入既有客户端资源；沿用同一个挂载生命周期，不新增网络资源或宿主接口。
 
 后台 Run follower 是激活的 `follow` 作业，用安装自己的授权和作业的取消信号；停止/待核对状态产生 v1 `run-updated` 刷新提示，携带开始时确认的工作区和原 Run 引用。它不宣称文件已修改，也不将通知失败改为 Run 失败。
 
@@ -132,3 +137,5 @@ subject-state 可向 Kernel 提供当前 owner 的同步 getter：每次读真�
 ### 本会话记忆的绑定读
 
 `coding.sessions.binding.read@1` 为 user-only、artifact:read 的 `GET /sessions/:sessionId/binding`，严格输出业务 session_id/project_id、原 runtime 引用或 null、archived；只读原业务记录，零执行创建。runtime_session_id 在同一原事务中只能 null→实际 ID；同 ID 幂等且不改时间，改绑/清空返回 `coding.session_binding_conflict`。Memory 的受保护入口经此主人、当前唯一安装和 SDK 持久 owner 求交；业务 id 不是 SDK 身份或写许可。
+
+保存的跨设备会话历史以 SDK 官方导出包的完整事件记录为派生快照；源端在选中上传后通过同一 Prologue Runtime 读取，真实运行未结算时保留队列。目标端只读，不导入批准、执行身份或检查点。`coding.runs.list@2` 的 `history_before` 对保存历史单独分页，`before` 对本机执行分页；两者不能混用，页面仍使用原 GET 路径，旧动作版本明确拒绝。

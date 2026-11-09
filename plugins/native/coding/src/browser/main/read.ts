@@ -1,3 +1,4 @@
+import { showSavedHistory, type SavedHistory } from "../saved-history.js";
 import { SESSION_WINDOW } from "../../session-window-sizes.js";
 import { errorMessage } from "../dom.js";
 import { terminal } from "./composer-state.js";
@@ -5,7 +6,7 @@ import { boardUpdate } from "./board.js";
 import { applyConfiguration, canonical, retitle } from "./configuration.js";
 import { controls } from "./controls.js";
 import { renderDirectory } from "./directory.js";
-import { draftKey, showReviews } from "./helpers.js";
+import { showReviews } from "./helpers.js";
 import { followLive, renderEarlier } from "./live.js";
 import type { Page } from "./page.js";
 import { renderPriority, renderQueued } from "./queued.js";
@@ -104,14 +105,7 @@ function adoptSelections(page: Page, id: string, data: SessionData) {
     if (data.character_skill_ids !== undefined) s.characterSkills.set(id, data.character_skill_ids);
   }
   if (!s.methodSelections.has(id)) s.methodSelections.set(id, data.methods || []);
-  if (s.questionDrafts.has(id)) return;
-  let saved: unknown = null;
-  try {
-    saved = JSON.parse(sessionStorage.getItem(draftKey(page, id) + ":questions") || "null");
-  } catch {
-    // Unreadable or no storage: the Host's copy of the answers stands.
-  }
-  s.questionDrafts.set(id, saved && typeof saved === "object" && !Array.isArray(saved) ? saved as Record<string, unknown> : data.question_drafts || {});
+  page.refs.inputEditor.observe(id, data);
 }
 
 /** The composer's draft belongs to the session on show; a fresh read of another session starts its conversation over. */
@@ -130,6 +124,12 @@ function drawSession(page: Page, id: string, data: SessionData, fresh: boolean) 
   s.queuedInputs = data.session.queued_inputs;
   s.planEntries = [...s.olderPlanEntries, ...(data.taskboard_plans || [])];
   s.subagentGroups = [...s.olderSubagents, ...(data.subagents || [])];
+  const loadHistory = async (before: number) => {
+    const found = await api<{ saved_history: SavedHistory }>(page, sessionPath(id) + "/runs?history_before=" + before + "&limit=20");
+    if (id === s.current) showSavedHistory(page.turns, found.saved_history, loadHistory, true);
+  };
+  showSavedHistory(page.turns, data.saved_history, loadHistory);
+  if (data.saved_history?.total && !s.allRuns.length) s.follow.release();
   renderRuns(page, data.runs, s.allRuns);
   renderEarlier(page);
   s.lastData = data;
@@ -138,7 +138,7 @@ function drawSession(page: Page, id: string, data: SessionData, fresh: boolean) 
   if (s.lastRun && !terminal(s.lastRun.phase)) void followLive(page, id, s.lastRun.ref.run_id);
   renderQueued(page, id, data.session.queued);
   renderPriority(page, id, data.session.priority === true);
-  plans.update(id, data.plan ?? null, s.allRuns);
+  plans.update(id, data.plan ?? null, s.allRuns, data.plan_revision);
   subagents.update(id, s.subagentGroups);
   boardUpdate(page, id, data);
   stepReports.sync(id);

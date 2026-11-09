@@ -190,6 +190,9 @@ export interface SessionConfiguration {
 
 /** `GET /sessions/<id>`: the open session, its newest rounds in full, and what the page needs of the rest. */
 export interface SessionData extends UsageData {
+  readonly input_revision: number;
+  readonly plan_revision: number;
+  readonly saved_history?: import("../saved-history.js").SavedHistory;
   readonly session: SessionRecord & {
     readonly runtime_session_id: string;
     readonly queued_inputs?: readonly unknown[];
@@ -306,6 +309,7 @@ export interface ContinuationRead {
 }
 
 export interface StartedRound {
+  readonly cleared_input_revision?: number;
   readonly digest?: { readonly source: string; readonly usage?: { readonly input: number; readonly output: number }; readonly problem?: string };
 }
 

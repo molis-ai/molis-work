@@ -1,0 +1,11 @@
+import { syncSection, syncSectionsDeclaration, syncSectionsTracking } from "@molis-ai/molis-work-plugin-sdk";
+import type { SyncSectionsDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-sync";
+import { sourceContentReplicationDefinition } from "./store/sources-replication.js";
+import { signalContentReplicationDefinition } from "./store/signals-replication.js";
+import { feedContentReplicationDefinition } from "./store/items/replication.js";
+export const sourceSections: SyncSectionsDefinition = {kind:"project_sources",business:[syncSection(sourceContentReplicationDefinition())],platform:[],journal:false};
+export const messageSections: SyncSectionsDefinition = {kind:"project_feed",business:[syncSection(signalContentReplicationDefinition()),syncSection(feedContentReplicationDefinition())],platform:[],journal:false};
+export const sourceSectionsDeclaration = syncSectionsDeclaration(sourceSections);
+export const sourceSectionsTracking = syncSectionsTracking(sourceSectionsDeclaration);
+export const messageSectionsDeclaration = syncSectionsDeclaration(messageSections);
+export const messageSectionsTracking = syncSectionsTracking(messageSectionsDeclaration);

@@ -1,3 +1,5 @@
+import { projectSyncAccess } from './project-sync-access.js';
+import { assertPassiveProjectAvailable } from './passive-sync-execution.js';
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { bindProjectNotifications } from "./plugin-notification-delivery.js";
 import { hostErrors } from "./host-errors.js";
@@ -28,7 +30,7 @@ import { seedSceneRules, type FunctionsHostOptions } from "./judgment-rules-host
 import { admitProviderRules } from "./scene-rule-admission.js";
 import { releaseAgentStudio } from "./plugin-builder/agent-surface.js";
 import { releaseInstalledPlugins } from "./installed-plugin-host.js";
-import { ensureProjectPluginActions, prepareInstalledPlugins } from "./project-plugin-ports.js";
+import { ensureProjectPluginActions, prepareInstalledPlugins, withPreparedProject } from "./project-plugin-ports.js";
 import path from "node:path";
 import { preflightMemoryHome, prepareMemoryHome } from "./memory/memory-initialization.js";
 import { closeConnectorResources } from "./connector-lifecycle.js";
@@ -120,6 +122,7 @@ export function molisWorkHostProjectReference(input: {
  */
 export class MolisWorkLocalHost {
   private readonly host: LocalHost<MolisWorkProjectRuntime>;
+  readonly synchronization: ReturnType<typeof projectSyncAccess>;
   private personalPlanningHome?: string;
   /** Tools of remote MCP connections in 服务连接, as Home actions; absent without a Home. */
   readonly connectorMcp?: ConnectorMcpDirectory;
@@ -135,11 +138,7 @@ export class MolisWorkLocalHost {
   readonly search?: SearchHost;
   readonly placement?: PlacementHost;
   readonly homePlugins?: HomePluginHost;
-  private readonly settleAction: CallSettled = (caller, action, outcome) => {
-    this.callLog?.record(caller, action, outcome);
-    // Only a completed business command invalidates its views; a preparation refusal has no effect to refresh.
-    if (outcome.ok && action.operation === "command" && action.provider_id) { this.search?.changed(action.provider_id, caller.project_id); this.homePlugins?.invalidateView(action.provider_id); }
-  };
+  private readonly settleAction = hostCallSettled(this);
 
   constructor(private readonly options: MolisWorkLocalHostOptions = {}) {
     if (options.homeDirectory !== undefined) {
@@ -149,10 +148,11 @@ export class MolisWorkLocalHost {
     assertFixtureScopes(options.pluginFixtures, Boolean(options.homeDirectory));
     prepareHostMemoryHome(this, options.homeDirectory);
     try {
-    this.personalPlanningHome = options.homeDirectory ? path.resolve(options.homeDirectory) : undefined;
+    this.personalPlanningHome = options.homeDirectory ? resolveConfiguredHome(options.homeDirectory) : undefined;
     if (options.homeDirectory) this.callLog = new ActionCallLog(options.homeDirectory);
     this.host = new LocalHost({
       instanceId: options.instanceId,
+      assertProjectAvailable: projectId => { if (options.homeDirectory) assertPassiveProjectAvailable(options.homeDirectory, projectId); },
       retainSceneAuthority: (scene, project) => capturePluginSceneAuthority(this, scene, project),
       actionSettled: this.settleAction,
       admitActionProvider: (provider, scenes) => admitProviderRules(options.homeDirectory, provider, scenes),
@@ -166,6 +166,8 @@ export class MolisWorkLocalHost {
       sceneAvailability: options.sceneAvailability,
       runtimeFactory: {
         open: async (reference) => {
+          if (options.homeDirectory) assertPassiveProjectAvailable(options.homeDirectory, reference.project_id);
+          if (this.webCatalog) await this.webCatalog.access.withCatalog({homeDirectory:options.homeDirectory}, catalog => { if (catalog.recycle.isRecycled(reference.project_id)) throw hostErrors.project_closing("项目已回收，不能启动运行环境"); });
           options.onRuntimeOpen?.(reference);
           const store = new LocalProjectDatabase(reference.storage_key);
           const clock = options.clock ?? (() => new Date());
@@ -197,6 +199,7 @@ export class MolisWorkLocalHost {
         close: (runtime, reference) => closeProjectRuntime(runtime, () => options.onRuntimeClose?.(reference), () => closeProjectSchedulers(this, runtime, reference), () => this.homePlugins?.stopProjectJobs(runtime.project_id)),
       },
     });
+    this.synchronization = projectSyncAccess(this.host);
     if (options.homeDirectory) this.homePlugins = new HomePluginHost({ home: options.homeDirectory, actorId: LOCAL_PERSON_ACTOR_ID,
       registry: this.host.actionRegistry(), client: homePluginActions(this.host), inspect: caller => this.host.inspectActions(caller), entries: homePluginEntries(), fixtures: options.pluginFixtures?.home, installed: options.pluginFixtures?.installed, projectReach: homeProjectReach(options.homeDirectory, () => this.host.projects()),
       projectActions: (projectId, pluginId) => homePackageProjectActions(projectId, pluginId, options.homeDirectory, this.catalogRunner,
@@ -270,8 +273,7 @@ export class MolisWorkLocalHost {
   /** A borrowed Web transport keeps the shared connection alive until its external Host closes. */
   ensureWebCatalog(home: string, open: Parameters<typeof createWebCatalogAccess>[1]) {
     if (this.closing.started || this.host.lifecycle() !== "running") throw hostErrors.closed("Local Host 已关闭");
-    const canonicalHome = resolveConfiguredHome(home);
-    const storageOwner = ensureHomeStorageOwner(this, canonicalHome, preflightMemoryHome);
+    const {canonicalHome,storageOwner} = hostCatalogOwner(this, home);
     if (!this.webCatalog) prepareMemoryHome(canonicalHome, storageOwner);
     return (this.webCatalog ??= { home: canonicalHome, access: createWebCatalogAccess(canonicalHome, options => open({ ...options, storageOwner })) }).access;
   }
@@ -281,7 +283,7 @@ export class MolisWorkLocalHost {
     if (this.closing.started || this.host.lifecycle() !== "running") throw hostErrors.closed("Local Host 已关闭");
     const canonicalHome = resolveConfiguredHome(home);
     if (this.personalPlanningHome && this.personalPlanningHome !== canonicalHome) throw new ActionError("actions.scope_mismatch", "不能把个人规划服务绑定到其他 Home");
-    const storageOwner = ensureHomeStorageOwner(this, canonicalHome, preflightMemoryHome);
+    const {storageOwner} = hostCatalogOwner(this, canonicalHome);
     this.personalPlanningHome = canonicalHome;
     this.catalogRunner = (options, operation) => withCatalog({ ...options, storageOwner }, operation);
     bindPluginCatalog(this, canonicalHome, this.catalogRunner);
@@ -385,9 +387,9 @@ export class MolisWorkLocalHost {
 
   withProject<Result>(
     reference: LocalHostProjectReference,
-    operation: (runtime: MolisWorkProjectRuntime) => Result | Promise<Result>,
+    operation: (runtime: MolisWorkProjectRuntime) => Result | Promise<Result>, options?: { activatePlugins?: boolean },
   ): Promise<Result> {
-    return this.host.withRuntime(reference, async runtime => { await prepareInstalledPlugins({ host: this.host, options: this.options, agents: () => this.agents?.service, homePlugins: () => this.homePlugins }, reference, runtime); return operation(runtime); });
+    return withPreparedProject({ host: this.host, options: this.options, agents: () => this.agents?.service, homePlugins: () => this.homePlugins }, reference, operation, options?.activatePlugins);
   }
 
   closeProject(referenceOrStorageKey: LocalHostProjectReference | string): Promise<boolean> {
@@ -425,6 +427,23 @@ export class MolisWorkLocalHost {
   status(): LocalHostStatus {
     return this.host.status();
   }
+}
+
+/** Keep the action log and view invalidation coupled to the same settled outcome. */
+function hostCatalogOwner(host: MolisWorkLocalHost, home: string) {
+  const canonicalHome = resolveConfiguredHome(home);
+  return {canonicalHome, storageOwner: ensureHomeStorageOwner(host, canonicalHome, preflightMemoryHome)};
+}
+
+function hostCallSettled(host: Pick<MolisWorkLocalHost, "callLog" | "search" | "homePlugins">): CallSettled {
+  return (caller, action, outcome) => {
+    host.callLog?.record(caller, action, outcome);
+    // Only a completed business command invalidates its views; a preparation refusal has no effect to refresh.
+    if (outcome.ok && action.operation === "command" && action.provider_id) {
+      host.search?.changed(action.provider_id, caller.project_id);
+      host.homePlugins?.invalidateView(action.provider_id);
+    }
+  };
 }
 
 /** The Host's own providers are `system` and belong to no plugin; this is not a way to hand-register a plugin's actions. */

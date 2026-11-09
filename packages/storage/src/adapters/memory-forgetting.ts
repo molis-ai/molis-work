@@ -7,6 +7,7 @@ import { readSnapshotFile, snapshotFileStat } from "../snapshot-files.js";
 import { atomicWriteFileSync } from "./atomic-write.js";
 import { assertStorageOwner, hasOnlyStorageOwnerFiles, type StorageOwner } from "./storage-owner.js";
 import { assertNoPendingHomeRestore } from "./home-restore-guard.js";
+import { readStorageSpace } from "../space.js";
 
 export const MEMORY_FORGETTING_HOME_STORE: HomeStoreDeclaration = { path: "memory-forgetting-v2.json" };
 const filePath = (home: string) => join(home, MEMORY_FORGETTING_HOME_STORE.path);
@@ -112,7 +113,7 @@ function current(input: ForgettingOwner): void {
 /** Only the original fresh-Home owner may explicitly establish the empty decision set. */
 export function initializeMemoryForgetting(input: ForgettingOwner): void {
   current(input);
-  if (readdirSync(input.homeDirectory).some(name => name !== "agent-runtime")
+  if (readdirSync(input.homeDirectory).some(name => name !== "agent-runtime" && (name !== "storage-space.json" || readStorageSpace(input.homeDirectory) === null))
     || !hasOnlyStorageOwnerFiles(join(input.homeDirectory, "agent-runtime"), input.storageOwner)) throw invalid();
   atomicWriteFileSync(filePath(input.homeDirectory), serializeMemoryForgetting({ format_version: 1, decisions: [] }), { mode: 0o600, durable: true });
   current(input);

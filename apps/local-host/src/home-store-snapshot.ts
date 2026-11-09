@@ -3,7 +3,7 @@ import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/action
 import { listPluginProjectDatabases } from "@molis-ai/molis-work-plugin-runtime";
 import { verifyPrologueNodeStorageContents } from "@molis-ai/molis-work-service-agent-host";
 import { inspectSealedSecretsSnapshot, LocalCatalogMetadata, readSnapshotFile, type HomeStore, type HomeStoreRegistry, type SqliteSnapshotOptions } from "@molis-ai/molis-work-storage";
-import { ALCHEMIST_SEARCH_BASELINE, ALCHEMIST_STUDIO_BASELINE } from "./alchemist-search.js";
+import { assertStudioProjectIdentity, ALCHEMIST_SEARCH_BASELINE, ALCHEMIST_STUDIO_BASELINE } from "./alchemist-search.js";
 import { CATALOG_OWNER, CATALOG_SCHEMA_VERSION } from "./project-catalog-contract.js";
 import { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
 import { captureConnectorPrivateState, type ConnectorPrivateStateSnapshot } from "./connector-private-state.js";
@@ -49,12 +49,12 @@ export const excluded = (reason: string, restore: Exclude<HomeRestoreDisposition
 
 export const projectSnapshot: HomeStoreSnapshotPolicy = {
   database: file => {
-    if (file === "catalog.db") return { inspect: db => {
+    if (file === "catalog.db") return { requireSpace: true, inspect: db => {
       const meta = new LocalCatalogMetadata(db), owner = meta.owner(), version = meta.version();
       if (owner !== CATALOG_OWNER || version !== CATALOG_SCHEMA_VERSION) throw homeSnapshotErrors.invalid("目录库不是本版本的现行 owner/schema，未生成快照");
       return { owner, schema_version: version };
     } };
-    if (/^[^/]+\/molis-work\.db$/u.test(file)) return { baseline: PROJECT_DATABASE_BASELINE, additionalTables: true,
+    if (/^[^/]+\/molis-work\.db$/u.test(file)) return { requireSpace: true, baseline: PROJECT_DATABASE_BASELINE, additionalTables: true,
       inspect: db => Object.fromEntries(listPluginProjectDatabases(db).flatMap(entry => [
         ["plugin:" + entry.plugin_id, entry.version], ["store:" + entry.plugin_id, entry.store_name], ["publisher:" + entry.plugin_id, entry.publisher_signature],
       ])) };
@@ -63,7 +63,12 @@ export const projectSnapshot: HomeStoreSnapshotPolicy = {
 };
 
 export const alchemistSnapshot: HomeStoreSnapshotPolicy = {
-  database: file => /^projects\/[^/]+\/studio\.sqlite$/u.test(file) ? { baseline: ALCHEMIST_STUDIO_BASELINE }
+  database: file => /^projects\/[^/]+\/studio\.sqlite$/u.test(file) ? { requireSpace: true, baseline: ALCHEMIST_STUDIO_BASELINE, inspect: db => {
+      const encoded = file.split("/")[1]!, id = decodeURIComponent(encoded);
+      if (!id || encodeURIComponent(id).replaceAll(".", "%2E") !== encoded) throw homeSnapshotErrors.invalid("研究库的项目目录无效");
+      assertStudioProjectIdentity(db, id);
+      return { project_id: id };
+    } }
     : /^projects\/[^/]+\/search\.sqlite$/u.test(file) ? { baseline: ALCHEMIST_SEARCH_BASELINE } : undefined,
 };
 

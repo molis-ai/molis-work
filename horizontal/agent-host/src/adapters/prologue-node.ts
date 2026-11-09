@@ -1,3 +1,4 @@
+import {createPrologueSavedHistory,type PrologueSavedHistoryPort} from './prologue-saved-history.js';
 import { AsyncLocalStorage } from "node:async_hooks";
 import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import { isAbsolute } from "node:path";
@@ -88,7 +89,7 @@ export function prologueAcceptsProtocol(protocol: string): boolean {
  */
 export function createPrologueNodeAdapter(
   options: PrologueNodeAdapterOptions,
-): Promise<PrologueAgentAdapter & { inference: PrologueInferenceClient; createBuilderAgent(options: PluginBuilderAgentOptions): ReturnType<typeof createPluginBuilderAgent>; gitReviews?: PrologueGitReviewPort; writeCheckers: AgentWriteCheckerStore;
+): Promise<PrologueAgentAdapter & { inference: PrologueInferenceClient; savedHistory: PrologueSavedHistoryPort; createBuilderAgent(options: PluginBuilderAgentOptions): ReturnType<typeof createPluginBuilderAgent>; gitReviews?: PrologueGitReviewPort; writeCheckers: AgentWriteCheckerStore;
   surfaces?: { decide(decision: Parameters<PrologueSurfaces["decide"]>[0]): void }; withEffect: NonNullable<AgentRuntimeAdapter["withEffect"]>; assertDirectoriesIdle(paths: readonly string[]): Promise<void> }> & { close(): Promise<void> } {
   let release: (() => void) | undefined, closeAdapter: (() => Promise<void>) | undefined, closing: Promise<void> | undefined;
   let storageCleanup: (() => Promise<void>) | undefined;
@@ -256,7 +257,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     endedOnPromise: (runId, sessionId) => endedOnPromise(state, runId, sessionId),
     approvals,
     answerPending: answerPending({ runtime, host, state, readQuestion, index, options, effects }),
-  }), { inference, createBuilderAgent, gitReviews, writeCheckers: createPrologueWriteCheckers(runtime), diagnostics: () => {
+  }), { inference, savedHistory:createPrologueSavedHistory(runtime,index), createBuilderAgent, gitReviews, writeCheckers: createPrologueWriteCheckers(runtime), diagnostics: () => {
     const seen = runtimeDiagnostics(runtime);
     return { ...seen, ledger_failures: [...seen.ledger_failures, ...workGraphs.failures().map((entry, at) => ({ ...entry, seq: seen.ledger_failures.length + at + 1 }))] };
   },

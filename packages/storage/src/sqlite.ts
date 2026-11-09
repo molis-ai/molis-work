@@ -1,5 +1,5 @@
-import Database from "better-sqlite3";
-export type SqliteDatabase = Database.Database;
+import { openSqliteConnection, type SqliteDatabase } from "./sqlite-connection.js";
+export type { SqliteDatabase } from "./sqlite-connection.js";
 type Row = Record<string, unknown>;
 
 function json(value: unknown): string {
@@ -28,7 +28,7 @@ const OWNED = "substr(type, 1, length(?)) = ? AND substr(object_type, 1, length(
 
 /** The existing local connection and journal primitives; no Module business queries. */
 export class LocalSqliteJournal {
-  constructor(readonly db: Database.Database) {}
+  constructor(readonly db: SqliteDatabase) {}
 
   
 
@@ -180,7 +180,7 @@ export const LOCAL_JOURNAL_SCHEMA_SQL = `
 
 export class LocalSqliteStorage extends LocalSqliteJournal {
   constructor(readonly path: string, options: { readonly?: boolean; fileMustExist?: boolean } = {}) {
-    const db = new Database(path, { timeout: 5000, fileMustExist: options.fileMustExist ?? false, ...(options.readonly ? { readonly: true, fileMustExist: true } : {}) });
+    const db = openSqliteConnection(path, { timeout: 5000, fileMustExist: options.fileMustExist ?? false, ...(options.readonly ? { readonly: true, fileMustExist: true } : {}) });
     if (!options.readonly) {
       db.pragma("journal_mode = WAL");
       db.pragma("synchronous = FULL");

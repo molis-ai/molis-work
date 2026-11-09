@@ -9,10 +9,11 @@ import { codingActions, codingActionControl, type CodingBeforeWrite } from "./ro
 import { codingError, codingText } from "./words.js";
 import { bodyOf, methodSelection, mcpSelection, mcpSources, unlessMissing } from "./route-selections.js";
 import type { CodingExecution } from "./routes.js";
-import { nextConfiguration, runControl, text } from "./run-inputs.js";
+import { nextConfiguration, runControl, text, codingBudgetSelection } from "./run-inputs.js";
 import { projectRuntime, requireProjectRuntime, runtimeDirectory, supports } from "./runtime-choice.js";
 import { DEFAULT_SESSION_TITLE, codingSessionTitleFrom } from "./session-title.js";
 import { roundAfterParkedAnswer, startRound } from "./start-round.js";
+import { codingInputPatch } from "./inputs.js";
 import type { CodingSessionRecord } from "./store.js";
 import { projectsCapabilities, projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { ActionError, defineErrorCodes, parseExactActionReferences, searchEntriesPage } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -187,38 +188,28 @@ const ROUTES: RouteMaker[] = [
       const body = bodyOf(request);
       if (typeof body.archive === "boolean") return { session: await changeCodingSessionLifecycle(a, execution, record, body.archive, beforeWrite) };
       if (record.archived) throw codingError(codingSessionErrors.archived_edit, "coding.server.archived-edit");
+      const inputPatch=codingInputPatch(execution.sessions.inputs.read(projectId,record.session_id),body);
       const materials = body.materials === undefined ? undefined : materialSelection(body.materials);
       if (materials && busy.has(record.session_id)) throw codingError(codingSessionErrors.materials_busy, "coding.server.materials-busy");
       const configuration = body.configuration === undefined ? undefined : nextConfiguration(body.configuration);
       const character = body.character === undefined ? undefined : characterSelection(body.character);
       const characterSkills = body.character_skill_ids === undefined ? undefined : characterSkillSelection(body.character_skill_ids);
       const actionTools = body.action_tools === undefined ? undefined : parseExactActionReferences(body.action_tools);
+      const sources = body.mcp_sources === undefined ? undefined : mcpSources(body.mcp_sources);
+      const tools = body.mcp_tools === undefined ? undefined : mcpSelection(body.mcp_tools);
+      const methods = body.methods === undefined ? undefined : methodSelection(body.methods);
+      const budget = body.budget === undefined ? undefined : codingBudgetSelection(body.budget);
+      const title = body.title === undefined ? undefined : text(body.title, "coding.field.session-title");
+      const savedInputs=inputPatch?await execution.sessions.inputs.write(beforeWrite,projectId,record.session_id,inputPatch.expected,inputPatch.value):null;
       if (actionTools !== undefined) context.services!.storage!.set(`actions:${record.session_id}`, JSON.stringify(actionTools));
-
-      if (body.mcp_sources !== undefined) context.services!.storage!.set(`mcp-sources:${record.session_id}`,JSON.stringify(mcpSources(body.mcp_sources)));
-      if (body.mcp_tools !== undefined) context.services!.storage!.set(`mcp:${record.session_id}`, JSON.stringify(mcpSelection(body.mcp_tools)));
-      if (body.methods !== undefined) context.services!.storage!.set(`methods:${record.session_id}`, JSON.stringify(methodSelection(body.methods)));
+      if (sources !== undefined) context.services!.storage!.set(`mcp-sources:${record.session_id}`,JSON.stringify(sources));
+      if (tools !== undefined) context.services!.storage!.set(`mcp:${record.session_id}`, JSON.stringify(tools));
+      if (methods !== undefined) context.services!.storage!.set(`methods:${record.session_id}`, JSON.stringify(methods));
       if (character !== undefined) context.services!.storage!.set(`character:${record.session_id}`, JSON.stringify(character));
       if (characterSkills !== undefined) context.services!.storage!.set(`character-skills:${record.session_id}`, JSON.stringify(characterSkills));
-      if (body.question_drafts !== undefined) {
-        if (!body.question_drafts || typeof body.question_drafts !== "object" || Array.isArray(body.question_drafts)
-          || Object.keys(body.question_drafts).length > 20) throw codingError(codingSessionErrors.question_drafts_invalid, "coding.server.question-drafts-invalid");
-        const encoded = JSON.stringify(body.question_drafts);
-        if (encoded.length > 100_000) throw codingError(codingSessionErrors.question_drafts_long, "coding.server.question-drafts-long");
-        context.services!.storage!.set(`question-drafts:${record.session_id}`, encoded);
-      }
-      if (body.draft !== undefined) {
-        if (typeof body.draft !== "string" || body.draft.length > 100_000) throw codingError(codingSessionErrors.draft_invalid, "coding.server.draft-invalid");
-        context.services!.storage!.set(`draft:${record.session_id}`, body.draft);
-      }
       // The person's budget for this session: reaching it is reported, never enforced (the person's choice).
-      if (body.budget !== undefined) {
-        const tokens = (body.budget as { tokens?: unknown } | null)?.tokens;
-        if (body.budget === null || tokens === null) context.services!.storage!.delete(`budget:${record.session_id}`);
-        else if (typeof tokens !== "number" || !Number.isSafeInteger(tokens) || tokens < 1_000 || tokens > 10_000_000_000) throw codingError(codingSessionErrors.budget_range, "coding.server.budget-range");
-        else context.services!.storage!.set(`budget:${record.session_id}`, JSON.stringify({ tokens }));
-      }
-      const title = body.title === undefined ? undefined : text(body.title, "coding.field.session-title");
+      if (budget === null) context.services!.storage!.delete(`budget:${record.session_id}`);
+      else if (budget !== undefined) context.services!.storage!.set(`budget:${record.session_id}`, JSON.stringify(budget));
       if (materials) context.services!.storage!.set(`materials:${record.session_id}`, JSON.stringify(materials));
       let current = record;
       if (configuration) {
@@ -235,7 +226,7 @@ const ROUTES: RouteMaker[] = [
           });
         } else storage.set(key, JSON.stringify(configuration));
       }
-      return { session: title === undefined ? current : await execution.sessions.rename(beforeWrite, projectId, record.session_id, title, new Date(Math.max(Date.now(), Date.parse(current.updated_at) + 1)).toISOString()) };
+      return { session: title === undefined ? current : await execution.sessions.rename(beforeWrite, projectId, record.session_id, title, new Date(Math.max(Date.now(), Date.parse(current.updated_at) + 1)).toISOString()), input_revision:savedInputs?.revision??execution.sessions.inputs.read(projectId,record.session_id).revision };
     });
   },
   (a) => {

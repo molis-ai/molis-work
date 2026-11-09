@@ -1,6 +1,6 @@
 # 场景与生成页面公共合同（路线书 20 第 1、2 项）
 
-状态：部分实施，2026-11-04 起草，2026-11-08 补齐第 20 批场景包声明与合同验收边界。P-3a 的 owner、合同、运行恢复及宿主动作／HTTP／现有界面接入已合回本地批分支；P-2a、P-1 独立合同与 SDK、P-3b 正文静态校验、P-2b／P-3c／P-4 独立公共接口已实施，后者在 `9616b26861` 经 15 项新用例与限定评审通过，合回批分支 `8b0a0c4c82`。首页页面主体类型待第 10 批共享文件交接；Manifest／Runtime 准入、内容包与签名入口继续接入，整批验证未完成。保留 11-04 评审修订及用户确定的首页归属。第 20 批全部合同在同一批分支按依赖接力、一个 PR 交付（第 10 节）；第 36 批提前合同 #1995 已合入，P-2b 合同前置解除，角色服务仍归 36。第 37／44 批承担页面与引导的服务、交互和真实路径验收，不能拿本批静态校验代替。P4 分工由用户 2026-11-08（PST）明确选择：「按批次分工（推荐）：20 完成公共合同、SDK 校验和本批必要接入；37 完成页面运行及真实安全验收，未完成项明确保留。」
+状态：部分实施，2026-11-04 起草，2026-11-08 补齐第 20 批场景包声明与合同验收边界。P-3a 的 owner、合同、运行恢复及宿主动作／HTTP／现有界面接入已合回本地批分支；P-2a、P-1 独立合同与 SDK、P-3b 正文静态校验、P-2b／P-3c／P-4 独立公共接口已实施，后者在 `9616b26861` 经 15 项新用例与限定评审通过，合回批分支 `8b0a0c4c82`。首页页面主体类型继续在本批独立实现；Manifest／Runtime 准入、内容包与签名入口继续接入，整批验证未完成。保留 11-04 评审修订及用户确定的首页归属。第 20 批全部合同在同一批分支按依赖接力、一个 PR 交付（第 10 节）；第 36 批提前合同 #1995 已合入，P-2b 合同前置解除，角色服务仍归 36。第 37／44 批承担页面与引导的服务、交互和真实路径验收，不能拿本批静态校验代替。P4 分工由用户 2026-11-08（PST）明确选择：「按批次分工（推荐）：20 完成公共合同、SDK 校验和本批必要接入；37 完成页面运行及真实安全验收，未完成项明确保留。」
 
 ## 0. 这份稿子做什么
 
@@ -271,7 +271,7 @@ owner 身份来自已绑定的安装或系统提供方，actor 与项目取自 `
 
 `changeVersion` 在最后一次异步预检和授权复查之后、保存候选记录之前同步重查设置 key。若保存候选后还需等待启动，`declarationOwnersFor` 在保存前的同一段同步代码里用 Runtime 已持有的旧安装记录登记临时引用。旧定义须与旧记录吻合，否则用原记录从同库发行存档读取。查询仍从当前安装行取 key，只在可信 Home、作用域、`install_id`、安装世代、候选版本和 Manifest 摘要均相符且记录未卸载时，合并旧版独有的 key。另一作用域的同 `install_id` 仍参加比较。候选完成或原记录恢复后在 `finally` 释放引用。取消要等原记录恢复或换版已失去恢复资格才释放。随构建换版同步提交，停用安装换版后仍停用，两者保存候选后都无需等待启动。
 
-独占实现放在 contracts 的 `platform/settings.ts` 和 SDK 的 `settings.ts`、`sandbox-schema.ts`。Manifest 字段、解析接线、SDK 根导出及共享 API 快照等 #1984 交接后串行接入。本片以公开 contracts／SDK 入口和真实 Runtime 准入验证，不登记存量 owner 的设置动作。用户 2026-11-08（PST）已定：本批完成公共合同、SDK 绑定和声明校验，签名沙箱 app 的设置执行留待后续接入，记在 [BL-settings-sandbox-execution](../backlog/BL-settings-sandbox-execution.md)。本批不宣称签名沙箱设置已能执行，也不放开无处理器的声明。当前签包按固定 Manifest 投影，沙箱的数据库事务端口只接受写语句批次。后续接入需要投影固定读写定义，并在安装私有库内提供受授权的同步事务端口供同一 SDK 绑定调用。用户同日确认保留第 36 批先交角色层次合同的分工，P-2b 仍等该前置，P-2a 与本批其他独立部分继续。
+独占实现放在 contracts 的 `platform/settings.ts` 和 SDK 的 `settings.ts`、`sandbox-schema.ts`。Manifest 字段、解析接线、SDK 根导出及共享 API 快照在本批内由同一个写手接入；08 已合入的内容包能力按必要前置使用。本片以公开 contracts／SDK 入口和真实 Runtime 准入验证，不登记存量 owner 的设置动作。用户 2026-11-08（PST）已定：本批完成公共合同、SDK 绑定和声明校验，签名沙箱 app 的设置执行留待后续接入，记在 [BL-settings-sandbox-execution](../backlog/BL-settings-sandbox-execution.md)。本批不宣称签名沙箱设置已能执行，也不放开无处理器的声明。当前签包按固定 Manifest 投影，沙箱的数据库事务端口只接受写语句批次。后续接入需要投影固定读写定义，并在安装私有库内提供受授权的同步事务端口供同一 SDK 绑定调用。用户同日确认保留第 36 批先交角色层次合同的分工，P-2b 仍等该前置，P-2a 与本批其他独立部分继续。
 
 SPC-C01 经公开 Manifest 解析和 `ActionService` 验证错引用／schema、非法文字、越层、继承和不可用。通过临时 Home 的真实 Runtime 验证同项目冲突、不同项目同名、Home 与项目双向冲突、跨作用域同安装编号、启用检查、禁用保留、留数据卸载释放及原成果规则。暂停换版预检，让另一作用域先占新 key，验证提交前重查拒绝且候选未保存。另在候选启动等待中尝试占旧 key，验证当时拒绝、换版成功后可占，以及启动失败或取消恢复旧记录后仍拒绝。SPC-C02 用临时文件 SQLite owner 驱动公开 SDK 绑定。两个独立连接以同一 revision 竞争写入，另验跨层变化导致旧 revision 冲突。测试同请求重放、同键异内容拒绝及关闭重开后返回原回执。用数据库触发器让 receipt 插入失败，核对值与 revision 回滚。暂停调度器的 `beforeEffect` 后撤权，验证新请求和重放都被拒，数据库中值和回执没有变化。
 
@@ -581,7 +581,7 @@ type ContentAdoptionReadResult<Value> =
 | P-3a 项目插件成员 | `projects.plugins.set@1` 按 `expected_revision` 把插件加进或撤出项目，受众为 `user`。`projects.plugins.get@1` 返回版本化成员。两个动作复用 Projects 的常开、随行、隐藏和原子 revision 规则。项目设置 HTTP 的写走 set，全项目 GET 复用 get 的 owner 读法，保持被动读取（第 10.1、10.2 节） | `modules/projects.ts` | api：`contracts/modules/projects`；动作：`host-actions.tsv` | 05② 的 C-1（同一快照） |
 | P-3b 场景定义 | `Blueprint`、`BlueprintSource`、`BlueprintPart`、`BlueprintProposal`、Manifest 的 `blueprint`／`adopts`；SDK 的 `inspectBlueprint`（静态）、`inspectBlueprintLocales`、内容包文件校验与 `validateAdoptsDeclaration`；GLOSSARY 加「场景包（blueprint）」一行（第 3.5 节） | `platform/blueprints.ts`（新）、`platform/plugin-manifest.ts` | api：`contracts/platform/blueprints`（新）、`contracts/platform/plugin`、`plugin-sdk/index` | 形状和检查复用 P-2a，设置与主人声明接 P-1。来源转出复用 36 提前合同，公开接线与包读取等 08 交接。不依赖 P-2b 或 36 的服务实现 |
 | P-3c 采用动作与签名入口 | 第 7.1 节八个动作的公开声明与类型，第 8 节固定内容采用输入，第 6.6 节内容包签名命令合同。08 导入先接真实签名。另存、完整采用与 S-blueprint-consent-context 的真实拒绝由第 44 批接入并实操验收 | `services/blueprints.ts`（新）、`platform/plugin-trust.ts`（签名命令） | api：`contracts/services/blueprints`（新）、`contracts/platform/plugin-trust`。`host-actions.tsv` 随真实动作登记更新 | 合同复用 P-3b 与 36 的采用出处形状。导入接 08 C-2、内容包安装与导入确认。场景采用依赖 P-3a 和主人读写 |
-| P-4 首页与生成页面 | 第 6.5 节八个动作、选择／版本／批准和页面主体公开形状，SDK 静态校验及公共入口接线。已接入的真实边界当批验拒绝。运行、SPC-10／11 与 S-home-page-files／S-home-page-authority／S-home-page-approval 的页面实操归第 37 批 | `services/home.ts`（新）、`platform/actions.ts` | api：`contracts/services/home`（新）、`contracts/platform/actions`、`plugin-sdk/index`。`host-actions.tsv` 只收真实登记 | 05② C-2／C-3 公共形状已在。实际卡片用第 15 批提供方。P-3b／P-3c 共用采用形状，`platform/actions` 排 #1791 K0 后 |
+| P-4 首页与生成页面 | 第 6.5 节八个动作、选择／版本／批准和页面主体公开形状，SDK 静态校验及公共入口接线。已接入的真实边界当批验拒绝。运行、SPC-10／11 与 S-home-page-files／S-home-page-authority／S-home-page-approval 的页面实操归第 37 批 | `services/home.ts`（新）、`platform/actions.ts` | api：`contracts/services/home`（新）、`contracts/platform/actions`、`plugin-sdk/index`。`host-actions.tsv` 只收真实登记 | 05② C-2／C-3 公共形状已在。实际卡片用第 15 批提供方。P-3b／P-3c 共用采用形状，页面主体类型基于现有公开动作合同独立实施 |
 
 **先后**（合同台 2026-11-04 排，[#1806 评论](https://github.com/molis-ai/molis-work/pull/1806#issuecomment-6638722432)；08 C-3 的位置由用户 2026-11-07 改，见[技能包需求第 9 节](../skill-packs/spec.md#9-决策记录)；以下是依赖与接力顺序，不是拆 PR 的清单；第 20 批一个 PR，同一份快照一次一个写手，全部在 02 交接之后）：
 
@@ -605,13 +605,13 @@ type ContentAdoptionReadResult<Value> =
 - 全部在 M1 之前落，按 N35 一个 PR 改完所有消费者，不留兼容期。
 - 错误码用 `defineErrorCodes`：`blueprints.part_unsupported`（主人没声明）、`blueprints.step_conflict`（主人的 revision 变了）、`blueprints.dependency_unmet`、`blueprints.preview_expired`；设置的拒绝由主人给 `<主人>.setting_invalid`、`<主人>.setting_conflict`，SDK 的 bind 帮主人按主人名生成，不新增平台码。P-1 落时按 `tooling/gates/error-owners.json` 核主人名。
 
-**共享文件交接更新。** 第 08 批 #1984 最新交接头 `2703ca8b15` 已释放 SDK 根出口、contracts 导出、Manifest 及 Runtime 共享文件，串行接入保留取消清理与限定项目读取。第 15 批已交回 Runtime 与项目接线；第 20 批项目成员桥接 `3a8a3703ed` 已合回。四个页面渲染文件、`project-host.ts` 及 `host-actions.tsv` 当前交回第 16 批 C 接力，P-1 的 Home 共用临时引用只在构造 hunk 重新交接后接入。首页页面主体类型等第 10 批释放 `platform/actions.ts` 与对应快照。文件交接与提供方可调用分别验证。
+**独立工作树执行（用户 2026-11-08 更正）。** 第 15、16 和第 20 批各在独立 worktree，修改不会互相覆盖。第 20 批不再等待跨批文件释放、不设跨批冻结窗口，也不为文件占用向其他批发协调消息。所需代码在本批工作树直接完成，整批写完后统一同步 main，解决实际合并冲突并验证。保留真实能力和合同依赖，但不能把文件重叠当成阻塞。08 的已合内容包能力 `416ee8cef0` 已按必要前置接入 `0e90dd8ec6`；其他在途批不提前合入。本批内仍只有一个产品写手。
 
 **P-3c 文件与验收。** 实施用 `packages/contracts/src/services/blueprints.ts` 和 `tests/blueprint-adoption-contract.test.ts`，按同批顺序接 `contracts/package.json`、`platform/plugin-trust.ts`、SDK 的声明检查与相关 API 快照。签名静态验收覆盖闭合输入输出。真实首接按第 6.6 节复用 08 的签名、安装预览和导入确认。动作快照只收实际登记。八个场景动作由第 44 批在 `system.blueprints` 下登记，`packs.save` 接平台签名、已有安装预览的只读回取及本人确认。
 
 SPC-C07 经公开 `services/blueprints` 与 Kernel `compileActionSchema` 验八项动作的输入输出，覆盖三方差异、无安装身份的随包候选、采用历史与带请求键的撤销结果并存、跳过及待核对、安装与批准状态及伪造身份拒绝。第 8 节通过公开 Manifest／SDK 验固定 `selection` 缺 CAS、错分支及错动作版本被拒。实际接入须验证 A 创建、B 复用后 A 的旧凭据撤回被拒，同键重放只推进一次，移除 B 后旧凭据仍失效。基点 `pluginInstallHandlers` 只核可信 `user_action`，Kernel 允许嵌套调用原样继承。第 37／44 批按原分工在真实调用链上验证直接批准拒绝与上一层审计，保留 SPC-14、S-blueprint-consent-context 和 S-home-page-approval 的运行验收。SPC-15 按第 6.6 节验证实际签名和安装预览。
 
-**P-4 文件与验收。** 实施用 `packages/contracts/src/services/home.ts`、`packages/plugin-sdk/src/home-page.ts` 和 `tests/home-page-contract.test.ts`。`contracts/package.json`、SDK `index.ts` 及共享 API 快照按同批顺序接入，`platform/actions` 按上表等 #1791 K0。独占文件未接公开出口时只是待接候选。现行 `apps/local-host/src/home-actions.ts` 已用 `system.home`，新八个页面动作尚无处理器，第 37 批接同一提供方。此处必要接入是公开合同、SDK 及共用声明校验，范围不含新运行服务、数据库、iframe、网关或批准流程。
+**P-4 文件与验收。** 实施用 `packages/contracts/src/services/home.ts`、`packages/plugin-sdk/src/home-page.ts` 和 `tests/home-page-contract.test.ts`。`contracts/package.json`、SDK `index.ts` 及共享 API 快照按同批顺序接入，`platform/actions` 在本批工作树独立修改，最终集成时保留其他批已合入的增量。独占文件未接公开出口时只是待接候选。现行 `apps/local-host/src/home-actions.ts` 已用 `system.home`，新八个页面动作尚无处理器，第 37 批接同一提供方。此处必要接入是公开合同、SDK 及共用声明校验，范围不含新运行服务、数据库、iframe、网关或批准流程。
 
 SPC-C06 经公开 `services/home` 和 Kernel `compileActionSchema` 验精确页面与动作版本、摘要形状、批准回读／恢复输入、身份字段拒绝和 user-only 声明。经公开 SDK 验路径穿越／重名、错误入口与类型、单文件和合计 UTF-8 字节超限、引用缺 provider 或重复。可用 `surfaceCompositionActions.compose` 公开 schema 验 `{ slot: { kind: "home" } }`，以 `/presentation` 检查真实 values 形状。没有真实页面执行入口时，以上只记合同和静态证据。
 
@@ -677,6 +677,8 @@ D 轨若要在组件板补「逐步状态」「三方差异」的标本，由 44
 3. **场景服务放在 `horizontal/blueprints`**，草稿与采用记录在它自己的 Home 库（第 7 节）。合同台 2026-11-04 确认，与第 21 批 D2 同一做法。
 4. **界面名统一成「场景包」**（第 3 节）：「场景方案」「方案」不再用；「官方场景套组」改称「官方场景包」：**用户 11-04 已定**（合同台弹窗），Onboarding、路线书与第 20、44、51 批文件已同步改；第 20 批第 2 项随之叫「场景包声明」。英文键 `blueprint`。
 5. **平台签名入口** `plugins.local_packages.sign@1`：合同台 2026-11-04 定，提供方是宿主的 `plugin-install`（和安装预览、启用同一个），在宿主里调发布身份的签名函数；发布身份本身留在原处。创作台是批过的构建期例外（BL-377 重做），不往它身上加动作。只给本人，每次是一次明确发布（第 6.6 节）；生成页面不打包，签名入口只给内容包用。2026-11-08（PST）用户决定取消发布来源的记录、推断与展示，安装预览沿用普通发布者信息。
+
+6. **各批独立开发**：用户 2026-11-08（PST）明确指出 15、16 各有独立 worktree，第 20 批取消此前多余的跨批文件占用协调；按第 10 节在自己的工作树完成，最终统一集成。
 
 ## 14. 验收编号（候选）
 

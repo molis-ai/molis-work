@@ -1,0 +1,9 @@
+{
+  "reason": "第 10 批 K0c（specs/unified-input-voice/implementation-plan.md §5，UIC-13）：D 轨对 #1850 的第 5 条意见，把 ▾ 展开时主按钮的按下底色并进主按钮自己的规则 `.mw-btn--primary:is(:active, [aria-expanded=\"true\"])`，组件板不再另抄一份 color-mix；K2 在产品页画这只分体按钮，所以规则在页面样式表里。源码多 29 个字符，下发的 CSS 压缩后每张样式表 +26 B。已缩过：表里不写注释，用一条选择器列表而不另起一条规则",
+  "review": "第 10 批 K0c 原 PR #1872 的评审台、公共合同台与 D 轨合审台（11-06）都审过这条增长；随第 10 批 PR 再由评审台核对",
+  "assets": {
+    "/assets/molis-work-arrival.css": 26,
+    "/assets/molis-work-settings.css": 26,
+    "/assets/molis-work-workbench.css": 26
+  }
+}

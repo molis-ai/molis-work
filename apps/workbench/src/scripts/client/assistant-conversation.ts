@@ -61,7 +61,10 @@ export const ASSISTANT_CONVERSATION_PART = String.raw`  /* ─── Showing a t
         finally { button.disabled = false; delete button.dataset.loading; button.querySelector(".mw-spinner")?.remove(); }
       },
     }, question.pending_id + question.pending_revision + question.answerable);
-    fills.set(question.pending_id, (field, text) => { const now = client.read()[field]; client.write({ [field]: now ? now + " " + text : text }); clearTimeout(saving); return api(path + "/question-draft", "POST", held()); });
+    fills.set(question.pending_id, (field, text, draft_revision) => { const now = client.read()[field]; client.write({ [field]: now ? now + " " + text : text }); clearTimeout(saving); return api(path + "/question-draft", "POST", { ...held(), draft_revision }).then(saved => {
+      const cached = works.find(one => one.work_id === work.work_id);
+      if (cached?.draft_revision === draft_revision) { cached.draft = saved.draft; cached.draft_revision = saved.draft_revision; }
+    }); });
   };
   const renderReview = (card, work, review) => {
     card.innerHTML = review.html;

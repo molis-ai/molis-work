@@ -1,3 +1,4 @@
+import { assertMaterialRef } from "@molis-ai/molis-work-plugin-sdk/presentation";
 import type { ActionSubject, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AssistantMaterial, AssistantMethodSelection } from "@molis-ai/molis-work-contracts/services/assistant";
 import { KNOWLEDGE_PROVIDER_ID, KNOWLEDGE_READ_MAX_CHARS, knowledgeActions, type KnowledgeReadResponse } from "@molis-ai/molis-work-contracts/services/knowledge";
@@ -11,6 +12,7 @@ const MAX_IMAGES = 6;
 
 /** A search hit, or a piece of project knowledge (its kind and id, as the knowledge picker gives them). */
 function pickedReference(value: unknown): AssistantMaterial["reference"] | null {
+  if (value && typeof value === "object" && "material" in value) { assertMaterialRef(value.material); return { material: value.material }; }
   const given = (value && typeof value === "object" ? value : {}) as { hit_id?: unknown; subject?: { kind?: unknown; id?: unknown } };
   if (typeof given.hit_id === "string" && given.hit_id) return { hit_id: given.hit_id.slice(0, 2000) };
   const { kind, id } = given.subject ?? {};

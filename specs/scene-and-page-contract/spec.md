@@ -267,7 +267,9 @@ owner 身份来自已绑定的安装或系统提供方，actor 与项目取自 `
 
 归属从 `apps/local-host/src/plugin-holders.ts` 的同一次 `heldInstalls` 读取分别得出。作用域选择明确是否读 Home 和要读哪些项目，省略时查全部。项目只查设置时读当前库与 Home，已有当前连接的作用域不再打开磁盘库。08 技能设置的筛选仍只读所选项目。设置筛选在读取发行 Manifest 前略过已卸载记录，成果继续按自己的保留规则读取。先从同库取版本、发布者签名和摘要相符的发行 Manifest。同作用域内没有发行存档的安装可用该监督器中与记录完全相符的定义，相关声明无法核对时拒绝。
 
-`changeVersion` 在最后一次异步预检和授权复查之后、保存候选记录之前同步重查设置 key。候选记录保存后还要等待启动时，`declarationOwnersFor` 用 Runtime 已持有的旧安装记录登记一个只活到本次换版结束的引用。旧定义须与旧记录吻合，否则用原记录从同库发行存档读取。查询仍从当前安装行取 key，只在可信 Home、作用域、`install_id`、安装世代、候选版本和 Manifest 摘要均相符且记录未卸载时，合并旧版独有的 key。另一作用域的同 `install_id` 仍参加比较。候选完成或原记录恢复后在 `finally` 释放引用。取消要等原记录恢复或换版已失去恢复资格才释放。随构建换版同步提交，停用安装换版后仍停用，两者保存候选后都无需等待启动。
+`apps/local-host/src/project-host.ts` 的 `MolisWorkLocalHost` 用 `declaration-owners.ts` 的工厂为这个 Home 建一份活跃换版引用集合。宿主直接交给 `HomePluginHost`，项目经 `apps/local-host/src/home-side.ts` 的 `bindHomeSide` 和 `pluginHomeFor` 取得同一个对象。两侧的 `declarationOwnersFor` 读取这同一份临时集合，宿主关闭时随装配释放。
+
+`changeVersion` 在最后一次异步预检和授权复查之后、保存候选记录之前同步重查设置 key。若保存候选后还需等待启动，`declarationOwnersFor` 在保存前的同一段同步代码里用 Runtime 已持有的旧安装记录登记临时引用。旧定义须与旧记录吻合，否则用原记录从同库发行存档读取。查询仍从当前安装行取 key，只在可信 Home、作用域、`install_id`、安装世代、候选版本和 Manifest 摘要均相符且记录未卸载时，合并旧版独有的 key。另一作用域的同 `install_id` 仍参加比较。候选完成或原记录恢复后在 `finally` 释放引用。取消要等原记录恢复或换版已失去恢复资格才释放。随构建换版同步提交，停用安装换版后仍停用，两者保存候选后都无需等待启动。
 
 独占实现放在 contracts 的 `platform/settings.ts` 和 SDK 的 `settings.ts`、`sandbox-schema.ts`。Manifest 字段、解析接线、SDK 根导出及共享 API 快照等 #1984 交接后串行接入。本片以公开 contracts／SDK 入口和真实 Runtime 准入验证，不登记存量 owner 的设置动作。用户 2026-11-08（PST）已定：本批完成公共合同、SDK 绑定和声明校验，签名沙箱 app 的设置执行留待后续接入，记在 [BL-settings-sandbox-execution](../backlog/BL-settings-sandbox-execution.md)。本批不宣称签名沙箱设置已能执行，也不放开无处理器的声明。当前签包按固定 Manifest 投影，沙箱的数据库事务端口只接受写语句批次。后续接入需要投影固定读写定义，并在安装私有库内提供受授权的同步事务端口供同一 SDK 绑定调用。用户同日确认保留第 36 批先交角色层次合同的分工，P-2b 仍等该前置，P-2a 与本批其他独立部分继续。
 
@@ -448,13 +450,11 @@ SDK 根入口 `inspectHomePageDraft(value: unknown)` 返回带字段路径的声
 
 ### 6.6 平台签名入口（只给内容包）
 
-`plugins.local_packages.sign@1` 只签内容包，统一登记在宿主的 `plugin-install`（合同台 2026-11-04 定）。P-3c 先交公共合同。这是只给 `user` 的命令，收闭合的 `{ manifest, files }`，文件项沿 `{ path, content_base64 }`，返回普通安装预览的 `{ preview_id }`。调用方在本人明确发布的操作里嵌套调用。私钥留在已有宿主签名函数所在的边界内，安装和发布者固定仍走 S-84 的确认入口。
+`plugins.local_packages.sign@1` 只签内容包，统一登记在宿主的 `plugin-install`（合同台 2026-11-04 定）。P-3c 先交公共合同。这是只给 `user` 的命令，收闭合的 `{ manifest, files }`，文件项沿 `{ path, content_base64 }`，返回普通安装预览的 `{ preview_id }`。调用方在本人明确发布的操作里嵌套调用。宿主复用已有 Home 发布身份和内容包签名。私钥由宿主签名函数持有，安装预览展示验签后的发布者信息，安装和发布者固定仍走 S-84 的确认入口。
 
-安装预览的可选来源只收 `ai_generated`、`imported`、`saved`。签名入口拒绝调用方自报来源，按可信上一层和该层核对的主人记录写入内容包 Manifest 的可选字段，`manifest.json` 随之写入同一份声明。两份都已在现行 Ed25519 签名的覆盖内。预览先验签，再核通过验签的发布公钥指纹是否与本 Home 发布身份相符，匹配才在「这个 Home」旁显示来源。包的外层格式仍为第 1 版，既有包缺少来源时留空。
+本批先接 08 的真实导入。`apps/local-host/src/skill-import.ts` 组包后，通过 `skills.import.confirm@1` 的本人发布调用进入签名命令。宿主复用 `apps/local-host/src/plugin-builder/publisher-identity.ts` 的签名函数和普通安装预览。原导入控制器沿「同意并导入」已取得的本人确认，持预览 ID 调同一安装服务完成安装。验收覆盖缺少本人发布确认、撤权及取消后的签名拒绝。
 
-本批先接 08 的真实导入。`apps/local-host/src/skill-import.ts` 组包后，通过 `skills.import.confirm@1` 的本人调用嵌套派发签名。Kernel 在进入子处理器前从仍活跃的调度上下文核实上一层的动作、版本和提供方。签名入口据此标 `imported`，复用 `apps/local-host/src/plugin-builder/publisher-identity.ts` 的 Home 签名函数，再走普通安装预览。原导入控制器沿「同意并导入」已取得的本人确认，持预览 ID 调同一安装服务完成安装。验证同步篡改 Manifest 与镜像里的来源仍验签失败，伪造上一层、撤权和取消后的签名均被拒绝。
-
-`blueprints.packs.save@1` 的两类来源由第 44 批的场景主人核对草稿的确切 revision 或采用快照后提供。AI 生成稿经人工编辑后归 `saved` 还是 `ai_generated`，待用户决定。个人另存须从同一安装服务按本人、原作用域和有效期只读回取预览，沿实际个人空间或 Home 上下文完成本人确认。SPC-15 保留三类来源、预览展示及真实签名和确认的验收。静态合同与 08 导入的实操各自记证据。
+第 44 批的场景主人接入 `blueprints.packs.save@1` 时，按确切草稿 revision 或采用快照组包并调用签名命令。个人另存从同一安装服务按本人、原作用域和有效期只读回取预览，沿实际个人空间或 Home 上下文完成本人确认。SPC-15 按 08 导入和 44 另存的真实路径验收，公共合同的静态验证单独记证据。
 
 ## 7. 保存与恢复
 
@@ -574,7 +574,7 @@ type ContentAdoptionReadResult<Value, AdoptReceipt, RevertReceipt> =
 | P-2b 角色采用接口 | §5.2 的 `characters.from_template@1`、`characters.roles.read@1` 与角色成员、来源／回执合同 | `modules/characters.ts` | api：`contracts/modules/characters`。`host-actions.tsv` 随真实 owner 绑定 | P-2a 与 36 提前公开合同。真实 owner 归 36，场景消费归 44 |
 | P-3a 项目插件成员 | `projects.plugins.set@1` 按 `expected_revision` 把插件加进或撤出项目，受众为 `user`。`projects.plugins.get@1` 返回版本化成员。两个动作复用 Projects 的常开、随行、隐藏和原子 revision 规则。项目设置 HTTP 的写走 set，全项目 GET 复用 get 的 owner 读法，保持被动读取（第 10.1、10.2 节） | `modules/projects.ts` | api：`contracts/modules/projects`；动作：`host-actions.tsv` | 05② 的 C-1（同一快照） |
 | P-3b 场景定义 | `Blueprint`、`BlueprintSource`、`BlueprintPart`、`BlueprintProposal`、Manifest 的 `blueprint`／`adopts`；SDK 的 `inspectBlueprint`（静态）、`inspectBlueprintLocales`、内容包文件校验与 `validateAdoptsDeclaration`；GLOSSARY 加「场景包（blueprint）」一行（第 3.5 节） | `platform/blueprints.ts`（新）、`platform/plugin-manifest.ts` | api：`contracts/platform/blueprints`（新）、`contracts/platform/plugin`、`plugin-sdk/index` | 形状和检查复用 P-2a，设置与主人声明接 P-1。来源转出复用 36 提前合同，公开接线与包读取等 08 交接。不依赖 P-2b 或 36 的服务实现 |
-| P-3c 采用动作与签名入口 | 第 7.1 节八个动作的公开声明与类型，第 8 节固定内容采用输入，第 6.6 节签名命令和安装预览来源合同。08 导入先接真实签名。场景来源、另存、完整采用与 S-blueprint-consent-context 的真实拒绝由第 44 批接入并实操验收 | `services/blueprints.ts`（新）、`platform/plugin-trust.ts`、`platform/plugin-manifest.ts`（签名来源） | api：`contracts/services/blueprints`（新）、`contracts/platform/plugin-trust`、`contracts/platform/plugin`。`host-actions.tsv` 随真实签名登记与预览接线更新 | 合同复用 P-3b 与 36 来源形状。导入接 08 C-2、内容包安装与导入确认。场景采用依赖 P-3a 和主人读写 |
+| P-3c 采用动作与签名入口 | 第 7.1 节八个动作的公开声明与类型，第 8 节固定内容采用输入，第 6.6 节内容包签名命令合同。08 导入先接真实签名。另存、完整采用与 S-blueprint-consent-context 的真实拒绝由第 44 批接入并实操验收 | `services/blueprints.ts`（新）、`platform/plugin-trust.ts`（签名命令） | api：`contracts/services/blueprints`（新）、`contracts/platform/plugin-trust`。`host-actions.tsv` 随真实动作登记更新 | 合同复用 P-3b 与 36 的采用出处形状。导入接 08 C-2、内容包安装与导入确认。场景采用依赖 P-3a 和主人读写 |
 | P-4 首页与生成页面 | 第 6.5 节八个动作、选择／版本／批准和页面主体公开形状，SDK 静态校验及公共入口接线。已接入的真实边界当批验拒绝。运行、SPC-10／11 与 S-home-page-files／S-home-page-authority／S-home-page-approval 的页面实操归第 37 批 | `services/home.ts`（新）、`platform/actions.ts` | api：`contracts/services/home`（新）、`contracts/platform/actions`、`plugin-sdk/index`。`host-actions.tsv` 只收真实登记 | 05② C-2／C-3 公共形状已在。实际卡片用第 15 批提供方。P-3b／P-3c 共用采用形状，`platform/actions` 排 #1791 K0 后 |
 
 **先后**（合同台 2026-11-04 排，[#1806 评论](https://github.com/molis-ai/molis-work/pull/1806#issuecomment-6638722432)；08 C-3 的位置由用户 2026-11-07 改，见[技能包需求第 9 节](../skill-packs/spec.md#9-决策记录)；以下是依赖与接力顺序，不是拆 PR 的清单；第 20 批一个 PR，同一份快照一次一个写手，全部在 02 交接之后）：
@@ -590,19 +590,19 @@ type ContentAdoptionReadResult<Value, AdoptReceipt, RevertReceipt> =
 | 5 | P-3a | `modules/projects`、`host-actions`（与 4′ 的 `host-actions` 错开） |
 | 6 | P-2a 角色模板可独立；P-2b 角色采用接口在 36 层次合同之后 | `modules/characters`；仅 P-2b 动 `host-actions` |
 | 7 | 05② C-3（第 14 批 `TextRef` 之后） | `services/surface-composition`、`host-actions` |
-| 8 | P-3b、P-3c | `plugin-manifest`（`blueprint`、`adopts`、签名来源）、新的 `platform/blueprints`、`services/blueprints`、`platform/plugin-trust`、`host-actions` |
+| 8 | P-3b、P-3c | `plugin-manifest`（`blueprint`、`adopts`）、新的 `platform/blueprints`、`services/blueprints`、`platform/plugin-trust`、`host-actions` |
 | 9 | P-4 | 新的 `services/home`、`platform/actions`（页面主体，排在 #1791 K0 之后）、`host-actions` |
 
 - 快照文件名：`plugin-manifest.ts`、`plugin-package.ts` 没有自己的子路径，经 `platform/plugin` 导出，所以它们的改动都落在 api 快照 `contracts/platform/plugin.txt` 上；表里按源文件写，排序时视为同一份快照。
-- `plugin-manifest` 按 08 C-1 → 05② C-2 → P-1 → P-3b → P-3c 接力。08 C-3 插在 08 C-1 之后、P-3b 之前，和 05② C-2、P-1 先准备好的先落，共用 `platform/plugin.txt`。`modules/projects` 是 05② C-1 → P-3a，`plugin-package` 只有 08 C-3，`platform/actions` 是 #1791 K0 → P-4。`host-actions.tsv` 按上表依次落，同一时间只有一片在途。
+- `plugin-manifest` 按 08 C-1 → 05② C-2 → P-1 → P-3b 接力。08 C-3 插在 08 C-1 之后、P-3b 之前，和 05② C-2、P-1 先准备好的先落，共用 `platform/plugin.txt`。`modules/projects` 是 05② C-1 → P-3a，`plugin-package` 只有 08 C-3，`platform/actions` 是 #1791 K0 → P-4。`host-actions.tsv` 按上表依次落，同一时间只有一片在途。
 - 全部在 M1 之前落，按 N35 一个 PR 改完所有消费者，不留兼容期。
 - 错误码用 `defineErrorCodes`：`blueprints.part_unsupported`（主人没声明）、`blueprints.step_conflict`（主人的 revision 变了）、`blueprints.dependency_unmet`、`blueprints.preview_expired`；设置的拒绝由主人给 `<主人>.setting_invalid`、`<主人>.setting_conflict`，SDK 的 bind 帮主人按主人名生成，不新增平台码。P-1 落时按 `tooling/gates/error-owners.json` 核主人名。
 
 **共享文件交接更新。** 第 08 批 #1984 最新交接头 `8fc71a40e8` 已释放 SDK 根出口、contracts 导出、Manifest 及 `packages/plugin-runtime/src/index.ts` 等共享文件。串行接入须保留该头的取消清理修复。宿主枢纽与动作快照由第 16 批交给第 15 批，组合提供方接好后交第 20 批。文件交接与提供方可调用分别验证。
 
-**P-3c 文件与验收。** 实施用 `packages/contracts/src/services/blueprints.ts` 和 `tests/blueprint-adoption-contract.test.ts`，按同批顺序接 `contracts/package.json`、`platform/plugin-trust.ts`、SDK 的声明检查与相关 API 快照。签名静态验收覆盖闭合输入输出及三值来源类型。真实首接按第 6.6 节复用 08 的签名、安装预览和导入确认。动作快照只收实际登记。八个场景动作由第 44 批在 `system.blueprints` 下登记，`packs.save` 使用场景主人给出的可信来源，再接已有安装预览的只读回取及本人确认。
+**P-3c 文件与验收。** 实施用 `packages/contracts/src/services/blueprints.ts` 和 `tests/blueprint-adoption-contract.test.ts`，按同批顺序接 `contracts/package.json`、`platform/plugin-trust.ts`、SDK 的声明检查与相关 API 快照。签名静态验收覆盖闭合输入输出。真实首接按第 6.6 节复用 08 的签名、安装预览和导入确认。动作快照只收实际登记。八个场景动作由第 44 批在 `system.blueprints` 下登记，`packs.save` 接平台签名、已有安装预览的只读回取及本人确认。
 
-SPC-C07 经公开 `services/blueprints` 与 Kernel `compileActionSchema` 验八项动作的输入输出，覆盖三方差异、无安装身份的随包候选、采用历史与带请求键的撤销结果并存、跳过及待核对、安装与批准状态及伪造身份拒绝。第 8 节通过公开 Manifest／SDK 验固定 `selection` 缺 CAS、错分支及错动作版本被拒。实际接入须验证 A 创建、B 复用后 A 的旧凭据撤回被拒，同键重放只推进一次，移除 B 后旧凭据仍失效。基点 `pluginInstallHandlers` 只核可信 `user_action`，Kernel 允许嵌套调用原样继承，尚无供处理器消费的公开上一层引用。签名来源、直接批准拒绝与上一层审计须接真实可信调用链验证。没有该链和实际处理器时保留 SPC-14／15、S-blueprint-consent-context 及 S-home-page-approval 的对应运行验收。
+SPC-C07 经公开 `services/blueprints` 与 Kernel `compileActionSchema` 验八项动作的输入输出，覆盖三方差异、无安装身份的随包候选、采用历史与带请求键的撤销结果并存、跳过及待核对、安装与批准状态及伪造身份拒绝。第 8 节通过公开 Manifest／SDK 验固定 `selection` 缺 CAS、错分支及错动作版本被拒。实际接入须验证 A 创建、B 复用后 A 的旧凭据撤回被拒，同键重放只推进一次，移除 B 后旧凭据仍失效。基点 `pluginInstallHandlers` 只核可信 `user_action`，Kernel 允许嵌套调用原样继承。第 37／44 批按原分工在真实调用链上验证直接批准拒绝与上一层审计，保留 SPC-14、S-blueprint-consent-context 和 S-home-page-approval 的运行验收。SPC-15 按第 6.6 节验证实际签名和安装预览。
 
 **P-4 文件与验收。** 实施用 `packages/contracts/src/services/home.ts`、`packages/plugin-sdk/src/home-page.ts` 和 `tests/home-page-contract.test.ts`。`contracts/package.json`、SDK `index.ts` 及共享 API 快照按同批顺序接入，`platform/actions` 按上表等 #1791 K0。独占文件未接公开出口时只是待接候选。现行 `apps/local-host/src/home-actions.ts` 已用 `system.home`，新八个页面动作尚无处理器，第 37 批接同一提供方。此处必要接入是公开合同、SDK 及共用声明校验，范围不含新运行服务、数据库、iframe、网关或批准流程。
 
@@ -668,7 +668,7 @@ D 轨若要在组件板补「逐步状态」「三方差异」的标本，由 44
 2. **草稿采用时不必先打包**（第 3 节）：只有要装的新 Skill 才签名打包成内容包；生成页面不打包（第 6 节）。合同台 2026-11-04 核过，符合 #1793 裁定第 3 条的更正（个人场景包、AI 生成的草稿、外部导入都用这个 Home 已有的发布身份）。
 3. **场景服务放在 `horizontal/blueprints`**，草稿与采用记录在它自己的 Home 库（第 7 节）。合同台 2026-11-04 确认，与第 21 批 D2 同一做法。
 4. **界面名统一成「场景包」**（第 3 节）：「场景方案」「方案」不再用；「官方场景套组」改称「官方场景包」：**用户 11-04 已定**（合同台弹窗），Onboarding、路线书与第 20、44、51 批文件已同步改；第 20 批第 2 项随之叫「场景包声明」。英文键 `blueprint`。
-5. **平台签名入口** `plugins.local_packages.sign@1`：合同台 2026-11-04 定，提供方是宿主的 `plugin-install`（和安装预览、启用同一个），在宿主里调发布身份的签名函数；发布身份本身留在原处。创作台是批过的构建期例外（BL-377 重做），不往它身上加动作。只给本人，每次是一次明确发布（第 6.6 节）；生成页面不打包，签名入口只给内容包用。
+5. **平台签名入口** `plugins.local_packages.sign@1`：合同台 2026-11-04 定，提供方是宿主的 `plugin-install`（和安装预览、启用同一个），在宿主里调发布身份的签名函数；发布身份本身留在原处。创作台是批过的构建期例外（BL-377 重做），不往它身上加动作。只给本人，每次是一次明确发布（第 6.6 节）；生成页面不打包，签名入口只给内容包用。2026-11-08（PST）用户决定取消发布来源的记录、推断与展示，安装预览沿用普通发布者信息。
 
 ## 14. 验收编号（候选）
 
@@ -690,7 +690,7 @@ D 轨若要在组件板补「逐步状态」「三方差异」的标本，由 44
 | SPC-12 | 采用进度在页面上实时更新，不轮询；重进只读一次 | 第 9 节 |
 | SPC-13 | 一个官方场景包依赖还没装的插件时照样装得上；预览里那一项标依赖未满足，只挡受影响的步骤 | ONB-54 |
 | SPC-14 | `apply` 碰到要装的部分停在 `needs_install`，从不调 `plugins.install.confirm`；本人装好后同一个 `request_id` 续做；`apply` 用系统身份写主人数据被拒，嵌套调用的调用记录里有上一层；首页那一步停在 `needs_approval`，`apply`／`revert`／`remove` 嵌套调 `home.pages.adopt`／`restore` 被拒 | ONB-53、ONB-34 |
-| SPC-15 | 首页服务、场景服务都拿不到私钥：个人场景包与导入的 Skill 只经 `plugins.local_packages.sign@1` 签名，安装预览写出来源（AI 生成、导入、另存），来源不从输入读 | S-84、S-87 |
+| SPC-15 | 个人场景包与导入的 Skill 只经 `plugins.local_packages.sign@1` 用这个 Home 的发布身份签名。私钥留在宿主，首页与场景服务均无法取得。预览展示验签后的发布者，沿普通安装确认完成安装 | S-84、S-87 |
 | SPC-16 | 删项目后指向它的采用记录被清；主人插件停用或卸载后，那一步标「主人已不在」，撤销跳过并如实写出 | ONB-56、§3.12 |
 
 ### 14.1 本批合同层验收

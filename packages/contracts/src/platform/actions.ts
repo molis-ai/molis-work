@@ -104,6 +104,14 @@ export interface StageSceneMetadataAuthority {
   readonly actions: readonly ExactActionReference[];
 }
 
+/** The identity the Host binds to one adopted homepage or preview in a project. */
+export interface HomePageSubject {
+  readonly kind: "home-page" | "home-page-preview";
+  readonly project_id: string;
+  readonly page_id: string;
+  readonly version: number;
+}
+
 /** Supplied by the authenticated host, never taken from model/tool arguments. */
 export interface ActionCallContext extends ActionCallOrigin {
   readonly actor_id: string;

@@ -2306,6 +2306,13 @@ export interface HomeOpenTarget {
     label: string;
 }
 
+export interface HomePageSubject {
+    readonly kind: "home-page" | "home-page-preview";
+    readonly project_id: string;
+    readonly page_id: string;
+    readonly version: number;
+}
+
 export interface HomePluginDatabaseDeclaration extends PluginDatabaseDeclaration {
     readonly partition?: "project";
     readonly project_rows?: PluginProjectRowsDeclaration;

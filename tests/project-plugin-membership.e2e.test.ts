@@ -66,6 +66,8 @@ test("SPC-C08 picker and market save from their own observations, report committ
   assert.equal(await browser.evaluate(pickerState("schedule")), "added");
   await browser.evaluate("window.__membershipPage = document.body");
 
+  await browser.setViewport(390, 844);
+  const ordinaryToastLayer = await browser.evaluate("getComputedStyle(document.querySelector('[data-toast]')).zIndex");
   const allowStop = failScheduleStop(db);
   try {
     await browser.click("[data-plugin-picker-toggle]");
@@ -79,9 +81,27 @@ test("SPC-C08 picker and market save from their own observations, report committ
     assert.equal((await membership(browser, projectId)).plugins.includes("schedule"), false);
     assert.equal(platform.runtime.get(installation).state, "running", "the real stop still awaits recovery");
     assert.equal(await browser.evaluate("window.__membershipPage === document.body"), true);
+    const toast = await browser.evaluate(`(() => {
+      const toast = document.querySelector('[data-toast]');
+      const hits = node => {
+        const { x, y, width, height } = node.getBoundingClientRect();
+        return node.contains(document.elementFromPoint(x + width / 2, y + height / 2));
+      };
+      return { abovePicker: hits(toast), diagnosticAvailable: hits(toast.querySelector('[data-molis-call-id]')),
+        pickerButtonAvailable: hits(document.querySelector('[data-plugin-toggle=schedule]')),
+        transitionDuration: getComputedStyle(toast).transitionDuration, focusedPlugin: document.activeElement.dataset.pluginToggle };
+    })()`);
+    assert.deepEqual(toast, { abovePicker: true, diagnosticAvailable: true, pickerButtonAvailable: true,
+      transitionDuration: "0s", focusedPlugin: "schedule" });
     await capture(browser, "picker-committed");
+    for (const type of ["rawKeyDown", "keyUp"]) {
+      await browser.command("Input.dispatchKeyEvent", { type, key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, browser.sessionId);
+    }
+    assert.equal(await browser.evaluate("document.querySelector('[data-plugin-picker-popover]').hidden && document.activeElement.matches('[data-plugin-picker-toggle]')"), true);
+    assert.equal(await browser.evaluate("getComputedStyle(document.querySelector('[data-toast]')).zIndex"), ordinaryToastLayer);
   } finally { allowStop(); }
 
+  await browser.setViewport(1440, 1000);
   // Reopen the same project to reconcile the Runtime. A separate browser request changes the Catalog again before the market draws it.
   const currentPath = `/projects/${encodeURIComponent(projectId)}/`;
   const recovered = await fetch(browser.origin + currentPath);

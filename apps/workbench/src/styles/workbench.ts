@@ -360,6 +360,10 @@ export const MORE_STYLES = `
   .form-error { margin: 0; padding: 8px 12px; border-radius: 4px; color: var(--red); background: var(--red-soft); }
   .create-dialog footer { padding: 12px 24px; border-top: 1px solid var(--line); display: flex; justify-content: flex-end; gap: 8px; }
   .toast { position: fixed; inset-inline: 0; margin-inline: auto; bottom: 24px; z-index: 30; }
+  @media (max-width: 600px) {
+    /* Picker save feedback sits above the phone bar's layer while the picker is open. */
+    .toast.is-error[data-plugin-picker-open] { z-index: 46; }
+  }
   .bound-list { display: grid; gap: 8px; }
   .bound-list article { min-width: 0; display: grid; }
   .bound-list small { color: var(--muted); overflow-wrap: anywhere; }

@@ -12,8 +12,9 @@ import {
   defineSubjectContextAction, defineWorkflowContentActions, subjectContext, type ActionCallContext,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import { inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
+import { CONTEXT_RELATION_TYPES } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import { createContextLedger, type ContextLedgerDatabase } from "@molis-ai/molis-work-module-context-ledger";
-import { PlacementService, PLACEMENT_LEDGER_ACCESS } from "@molis-ai/molis-work-service-placement";
+import { PlacementService, PLACEMENT_LEDGER_ACCESS, placementRelationsFor } from "@molis-ai/molis-work-service-placement";
 import { pagesManifest } from "@molis-ai/molis-work-plugin-pages";
 import { pptManifest, buildPptx, slidesFromMarkdown } from "@molis-ai/molis-work-plugin-ppt";
 import { openPagesStore, openPptStore } from "./fixtures/plugin-home-stores.js";
@@ -154,7 +155,7 @@ function fixture(projects = ["personal", "q4", "interview"], hooks?: {
     ...(hooks?.deadLease ? { revert: (projectId: string | null) => open(projectId) } : {}),
     titles: { get: (kind, id) => titles.get(kind + ":" + id) ?? null, set: (kind, id, title) => { titles.set(kind + ":" + id, title); } },
   });
-  return { actions, notes, service, removeProject: (id: string) => removed.add(id), deleteClip: (id: string) => { clips = new Map([...clips].filter(([key]) => key !== id)); } };
+  return { actions, notes, service, ledger, removeProject: (id: string) => removed.add(id), deleteClip: (id: string) => { clips = new Map([...clips].filter(([key]) => key !== id)); } };
 }
 
 test("placement protocol: shipped plugins declare move and copy for the person only", () => {
@@ -296,6 +297,15 @@ test("RAC-129-PLACEMENT: copying makes an independent object that remembers its 
   assert.ok(into.associations.some(link => link.type === "derived_into" && link.label === "已转成《访谈要点》 · 笔记 · 项目「Q4 新版发布」"));
   const made = await f.service.create({ station: "notes", project_id: "personal", title: "空白笔记", request_id: "r" });
   assert.deepEqual([made.object.project_id, made.location.title, made.goal_key], ["personal", "个人空间", null]);
+
+  // SCS-17: the composition read follows the same relation and current placement facts written by these real operations.
+  assert.deepEqual(placementRelationsFor(f.ledger, "q4", [source, copy.object, converted.object]).map(edge =>
+    [edge.source.id, edge.target.id, edge.type]), [[converted.object.id, source.id, CONTEXT_RELATION_TYPES.derived_from]]);
+  await f.service.move(copy.object, "q4");
+  assert.deepEqual(placementRelationsFor(f.ledger, "q4", [source, { ...copy.object, project_id: "q4" }]).map(edge =>
+    [edge.source.id, edge.target.id, edge.type]), [[copy.object.id, source.id, CONTEXT_RELATION_TYPES.copied_from]]);
+  await f.service.move(converted.object, "personal");
+  assert.deepEqual(placementRelationsFor(f.ledger, "q4", [source, converted.object]), [], "the previous location no longer proves a relation in this project");
 });
 
 test("Goals keeps a Goal's materials: bind once, list both ways, release keeps history", () => {

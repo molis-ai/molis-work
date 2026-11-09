@@ -342,6 +342,12 @@
       ],
       "reason": "The sources module (SourcesError; inside Feed's store since FI-5): its source_* codes become sources.*."
     },
+    "surfaces": {
+      "paths": [
+        "horizontal/surfaces/"
+      ],
+      "reason": "The deterministic surface composition service owns its composition and correction errors."
+    },
     "ui_host": {
       "paths": [
         "packages/ui-host/"

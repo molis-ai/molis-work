@@ -56,7 +56,7 @@ B/C 的通知格式、限定范围的内容版本与配套门禁已获批准；�
 
 2026-11-08 在 `9b1f5917aa` 的限定核查确认：`replay-plugins` 两份原始签包、四份当前回放包及 `golden-home-library` 两份包没有 `ui.messages`／`ui.translations`，金样留存的两份包也无这两个字段。原始签包已有保留签名并拒绝旧 Manifest 的断言（`tests/plugin-package.test.ts`），继续保留原字节。金样中的 21 份内置历史 Manifest 有旧词典，但它们是 Runtime 历史归档而非签名安装包，沿 `recordToFollow`／`followHostBuild` 采用当前构建，不改历史归档、不加双读。以上未检查真实 Home。
 
-**2026-11-09 更正核查范围：没有旧语言字段，不等于生成界面已无待转换文字。** 实物中的 `generated-counter/release/interface.json` 有「统计」、空态和列名，`generated-list/release/interface.json` 有「添加」「添加时间」「清单还是空的」；其原签包和回放 v1/v2 都未声明 `ui.locales`。`golden-home-library` 样包也有专属界面字。因此，前一轮「不需要转制」的结论不能覆盖这些 `interface.json` 字符串。它们仍须按 [实现方案 §7.3](implementation-plan.md#73-已安装生成插件与存量文字) 准备离线转换候选，保留操作、业务值、身份及原签包；签名和实际升级待原发布 owner 与明确授权，不能记为本批已验收，也不能借新生成样例替代。两个原始 Studio 插件 ID 的最后一段均以数字开头，现有文字键主人段却只收字母开头；具体合同修订见 [运行接入合同](bc-runtime-contract.md#studio-生成物的文字身份待决定)，批准前不改身份或校验规则。当前其他独立实现继续。
+**2026-11-09 更正核查范围：没有旧语言字段，不等于生成界面已无待转换文字。** 实物中的 `generated-counter/release/interface.json` 有「统计」、空态和列名，`generated-list/release/interface.json` 有「添加」「添加时间」「清单还是空的」；其原签包和回放 v1/v2 都未声明 `ui.locales`。`golden-home-library` 样包也有专属界面字。因此，前一轮「不需要转制」的结论不能覆盖这些 `interface.json` 字符串。它们仍须按 [实现方案 §7.3](implementation-plan.md#73-已安装生成插件与存量文字) 准备离线转换候选，保留操作、业务值、身份及原签包；签名和实际升级待原发布 owner 与明确授权，不能记为本批已验收，也不能借新生成样例替代。两个原始 Studio 插件 ID 的最后一段均以数字开头，现有文字键主人段却只收字母开头；具体合同修订见 [运行接入合同](bc-runtime-contract.md#studio-生成物的文字身份2026-11-09-已批准)，用户 2026-11-09 已批准统一放开词键首段的数字首位，并同步 SDK、翻译门禁和正反例，原身份不变。旧签包转换的具体采用授权仍单列。
 
 2026-11-09 真实浏览器检查发现组件板与共享界面仍有缺词，按原需求先提交用户决定。用户选择「修齐并继续，保留原验收标准」；本批继续修正同类遗漏并重验，不接受真界面残留旧语言、译错或混合语言。独立复核发现的翻译门禁包装调用与动态键缺译文漏检，按已批准的等强替换要求补齐。
 

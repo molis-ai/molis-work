@@ -216,7 +216,8 @@ export const OWNED_TEXT_REF_SCHEMA: SandboxSchema = /* TEXT_REF_SCHEMA 加可选
 
 ### 2.3 键、参数与上限
 
-- **键的规则复用 `STABLE_KEY`**（`packages/plugin-sdk/src/message-declarations.ts:9`）：它和 `messageOwnerOf`（`:16`）都改成模块内 `export`，`ui/text-ref.ts` 从那里取，不另写一份。取键主人的规则另由 `/ui` 公开一份：`textKeyPrefix(owner)`，以及 `t` 按前缀找主人时拒绝第二个同前缀主人的 `refuseSharedTextPrefix`（`ui.text_owner_conflict`）；宿主的 `apps/workbench/src/plugin-text.ts` 和 CLI 的 `create.ts` 都调它们，不再各截一次最后一段、各声明一次错误码（#1976 评审①第 2 条，统筹定「SDK 导出一份」）。门禁脚本 `scripts/gates/translations.mjs` 自己那份不动。
+- **键的规则复用 `STABLE_KEY`**（`packages/plugin-sdk/src/message-declarations.ts:9`）：它和 `messageOwnerOf`（`:16`）都改成模块内 `export`，`ui/text-ref.ts` 从那里取，不另写一份。取键主人的规则另由 `/ui` 公开一份：`textKeyPrefix(owner)`，以及 `t` 按前缀找主人时拒绝第二个同前缀主人的 `refuseSharedTextPrefix`（`ui.text_owner_conflict`）；宿主的 `apps/workbench/src/plugin-text.ts` 和 CLI 的 `create.ts` 都调它们，不再各截一次最后一段、各声明一次错误码（#1976 评审①第 2 条，统筹定「SDK 导出一份」）。A 段未改门禁脚本 `scripts/gates/translations.mjs` 自己那份；C 段按下述 2026-11-09 决定同步首段规则。
+- **2026-11-09 C 段键首段决定（用户已批准）**：主人段允许小写字母或数字开头，统一形状为 `^[a-z0-9][a-z0-9-]*(?:\.[a-z][a-z0-9_-]*){1,4}$`。其余段、长度、参数、`common` 保留名及完整插件身份绑定不变。同步 SDK、翻译门禁和正反例，不为生成插件另建例外，不改已发布 ID。下文 A 段交付记录中的“最后一段以字母开头”是当时规则，自本决定起由此条替代。
 - **键的前缀决定能不能用**：`ownedTextRef(ref, owner)` 里，`common.*` 绑到平台主人 `workbench`（共有词有唯一主人，引用要显式）；否则前缀必须等于主人名（`messageOwnerOf(plugin_id)`，即 `plugin_id` 最后一段；平台主人就是它自己的名字）；别的前缀拒绝。这条是防冒充：插件不能把字显示成别人的。Manifest 只保证最后一段能开头，没管长度：键最短是 `<名字>.x`，所以最后一段长于 118 就写不出 120 以内的键，`ownedTextRef`、`parseLocalePack` 直接说这一句，不逐个键报错。`common` 作插件最后一段继续拒绝：现在由 `messageProblems` 管（`message-declarations.ts:32`），`parseLocalePack` 同样拒绝，C 段删 `messageProblems` 时这条留在 `parseLocalePack` 里。
 - **查词按（完整主人，键）**，不再合成一张平面表（实现方案 §4.1）。`OwnedTextRef.owner` 是完整 `plugin_id`（平台主人是它的名字），`io.molis.work.a.notes`、`io.molis.work.b.notes` 不互相覆盖，也不因同名被拒。`t` 从键算主人，那张索引的范围见第 5.2 节。
 - **参数名**是 `[A-Za-z_]\w*`，和 `message-declarations.ts` 的 `PLACEHOLDER` 一致。`{标题}` 这种中文占位符新语言包不收，旧的 `fillMessage` 到 C 段都还认（第 3.5 节）。
@@ -758,7 +759,7 @@ export interface PluginLocalesDeclaration {
 locales?: PluginLocalesDeclaration;
 ```
 
-`parsePluginManifest` 检查：语言标记形状；`default` 在 `available` 里；语言不重复；`available` 最多 32 种（`PLUGIN_LOCALE_LIMITS`，合同常量）；`ui.locales` 只有 `default`、`available` 两个键，别的键拒绝，不静默忽略；`plugin_id` 最后一段要能当键的第一段（以字母开头，不是 `common`），否则这个插件写不出一个键（第 2.3 节），这条只对写了 `ui.locales` 的 Manifest。
+`parsePluginManifest` 检查：语言标记形状；`default` 在 `available` 里；语言不重复；`available` 最多 32 种（`PLUGIN_LOCALE_LIMITS`，合同常量）；`ui.locales` 只有 `default`、`available` 两个键，别的键拒绝，不静默忽略；`plugin_id` 最后一段要能当键的第一段（以小写字母或数字开头，不是 `common`），否则这个插件写不出一个键（第 2.3 节），这条只对写了 `ui.locales` 的 Manifest。
 
 **同一个 Manifest 不能既写 `ui.locales` 又写 `ui.messages` 或 `ui.translations`，写了就拒绝。** 这是 A 段「不双认」的落法：没有一个翻译器同时读两种格式，也没有一个插件走两条路。现有写法里只有样例写 `ui.locales`（第 08 批的内容包是新东西，也写它，第 12 节第 4 条）；第 16 批 C 段一次改完并删掉旧字段。**测试断言 C 段之前没有内置 Manifest 写 `ui.locales`**（FSS-53）：新内置插件一写，就成了决定 20 不许的逐插件切换。用户 2026-11-07 同意这样并存到第 16 批（第 12 节第 4 条）。
 

@@ -5,7 +5,7 @@ import { isRecord as object } from "@molis-ai/molis-work-plugin-sdk";
  * variants of the same meaning and records what it dropped; it never invents behavior. The expanded result
  * still goes through the strict validators (`validateAgentDesign`, `assertContract`).
  */
-import type { SandboxEffects, SandboxJson, SandboxOperationContract, SandboxPluginContract, SandboxSchema } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import type { SandboxEffects, SandboxJson, SandboxDataOperation, SandboxPluginContract, SandboxSchema } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { PLUGIN_COMPONENT_PROP_KEYS, pluginSchemaAt, type PluginComponentIntent, type PluginComponentPlan, type PluginInputValue, type PluginOperationBinding } from '@molis-ai/molis-work-design-system';
 import type { AgentDesign, AgentProposal, BrowserAcceptance } from './agent-model.js';
 import type { CatalogEntry } from './agent-catalog.js';
@@ -152,7 +152,7 @@ export function normalizeEffects(raw: unknown, kind: 'query' | 'command', where:
   if (kind === 'query' && capabilities.some(item => item.execution?.cost === 'metered' && effects.capabilities?.has(item.id))) fail(where, '查询（query）不能调用收费能力：打开页面就会自动调用、产生费用；请放进 command，由按钮触发，回答存下来再由 query 列出');
   return Object.fromEntries(Object.entries(effects).map(([key, values]) => [key, [...values].sort()])) as SandboxEffects;
 }
-function normalizeErrors(raw: unknown, where: string): SandboxOperationContract['errors'] {
+function normalizeErrors(raw: unknown, where: string): SandboxDataOperation['errors'] {
   if (raw === undefined) return [];
   if (!Array.isArray(raw)) return fail(where, 'errors 写成数组');
   return raw.map((item, index) => {
@@ -189,7 +189,7 @@ function settle(expected: unknown, input: unknown, at: string, dropped: string[]
   }
   return kept;
 }
-function normalizeExamples(raw: unknown, operation: Omit<SandboxOperationContract, 'examples'>, where: string, dropped: string[] = []): SandboxOperationContract['examples'] {
+function normalizeExamples(raw: unknown, operation: Omit<SandboxDataOperation, 'examples'>, where: string, dropped: string[] = []): SandboxDataOperation['examples'] {
   if (!Array.isArray(raw) || !raw.length) return fail(where, '每个操作至少写一个示例 {"input":…, "output":…}');
   return raw.map((item, index) => {
     const at = where + ` 第 ${index + 1} 个示例`;
@@ -236,7 +236,7 @@ function normalizeExamples(raw: unknown, operation: Omit<SandboxOperationContrac
  * An example cannot expect a field its own output never has (additional properties are refused): no code could meet
  * both. The expectation keeps the fields the output declares; an exact one becomes partial.
  */
-function withinOutput(examples: SandboxOperationContract['examples'], output: SandboxSchema, at: string, dropped: string[]): SandboxOperationContract['examples'] {
+function withinOutput(examples: SandboxDataOperation['examples'], output: SandboxSchema, at: string, dropped: string[]): SandboxDataOperation['examples'] {
   const record = output.type === 'object' ? output : output.type === 'array' && output.items?.type === 'object' ? output.items : undefined, known = record?.properties;
   if (!known) return examples;
   const trim = (value: SandboxJson, where: string): SandboxJson => {
@@ -258,10 +258,11 @@ function withinOutput(examples: SandboxOperationContract['examples'], output: Sa
     return JSON.stringify(kept) === JSON.stringify(example.output) ? example : { input: example.input, outputIncludes: kept };
   });
 }
-function normalizeOperation(raw: unknown, index: number, dropped: string[], withExamples: boolean, capabilities: readonly CatalogEntry[] = STUDIO_CAPABILITIES): SandboxOperationContract {
+function normalizeOperation(raw: unknown, index: number, dropped: string[], withExamples: boolean, capabilities: readonly CatalogEntry[] = STUDIO_CAPABILITIES): SandboxDataOperation {
   const where = `第 ${index + 1} 个操作`;
   if (!object(raw)) return fail(where, '操作写成对象');
   const id = slug(pick(raw, 'id', 'name', 'operationId'), where), at = `操作 ${id}`;
+  if (Object.hasOwn(raw, 'read_protocol')) return fail(at, '创作台设计器只编写普通操作，read_protocol 要在插件代码工具中声明');
   const kind = kindOf(raw.kind, at);
   const input = raw.input === undefined || (object(raw.input) && !Object.keys(raw.input).length) ? emptyObject : expandType(raw.input, at + ' 的 input', dropped);
   if (input.type !== 'object') fail(at, 'input 必须是对象（字段表）');
@@ -274,15 +275,14 @@ function normalizeOperation(raw: unknown, index: number, dropped: string[], with
     if (left.length) { input.required = (input.required ?? []).filter(field => !left.includes(field)); dropped.push(`${at} 的 ${left.join('、')} 是筛选条件，示例里没给，改为可选`); }
   }
   const examples = withExamples ? withinOutput(normalizeExamples(raw.examples, base, at, dropped), output, at, dropped) : [];
-  const settled = withExamples ? reachable(examples, base, at, dropped) : [];
-  return { ...base, examples: settled };
+  return { ...base, examples: withExamples ? reachable(examples, base, at, dropped) : [] };
 }
 /**
  * Each operation's examples run on its own empty store. When a design says a missing record is an error (it has an
  * error example for the id) and also expects success for another id, that id cannot exist there either: the success
  * example is unmeetable whatever the code does. It is dropped with a note; the success belongs in acceptance.
  */
-function reachable(examples: SandboxOperationContract['examples'], operation: Omit<SandboxOperationContract, 'examples'>, at: string, dropped: string[]): SandboxOperationContract['examples'] {
+function reachable(examples: SandboxDataOperation['examples'], operation: Omit<SandboxDataOperation, 'examples'>, at: string, dropped: string[]): SandboxDataOperation['examples'] {
   // An operation that only passes a request on to another plugin gets that plugin's stand-in during checks, and the
   // stand-in always succeeds: an error that only the other plugin could raise ("version conflict") never happens there.
   if (operation.effects.capabilities?.length && !operation.effects.storage?.length && !operation.effects.networkDomains?.length) {
@@ -295,7 +295,7 @@ function reachable(examples: SandboxOperationContract['examples'], operation: Om
   }
   if (operation.effects.capabilities?.length || operation.input.type !== 'object') return examples;
   const ids = Object.keys(operation.input.properties ?? {}).filter(field => (operation.input.required ?? []).includes(field) && /^(?:id|[a-z][a-zA-Z]*Id|[a-z][a-z0-9]*_id)$/.test(field) && operation.input.properties![field]!.type === 'string');
-  const looked = (example: SandboxOperationContract['examples'][number]) => ids.some(field => object(example.input) && typeof example.input[field] === 'string');
+  const looked = (example: SandboxDataOperation['examples'][number]) => ids.some(field => object(example.input) && typeof example.input[field] === 'string');
   if (!ids.length || !examples.some(example => example.error !== undefined && looked(example))) return examples;
   const kept = examples.filter(example => example.error !== undefined || !looked(example));
   if (kept.length !== examples.length) dropped.push(`${at} 找不到 ${ids.join('、')} 时报错，但另有示例期望找到它：示例在空存储上运行，找不到任何记录，这个成功示例已去掉，成功的情形由验收检查`);
@@ -343,7 +343,7 @@ function source(raw: unknown, field: string, where: string, partId?: string): Pl
   return fail(where, `字段 ${field} 的来源写成 "form"、"selection:组件.字段" 或 {"value": 常量}`);
 }
 /** `formDefaults`: an input form fills every field it does not bind otherwise; an action binds only what it names. */
-function binding(raw: unknown, mode: 'read' | 'submit', operations: SandboxOperationContract[], where: string, formDefaults = false, partId?: string): PluginOperationBinding | undefined {
+function binding(raw: unknown, mode: 'read' | 'submit', operations: SandboxDataOperation[], where: string, formDefaults = false, partId?: string): PluginOperationBinding | undefined {
   if (raw === undefined || raw === null || raw === false) return undefined;
   const spec = typeof raw === 'string' ? { op: raw } : object(raw) ? raw : fail(where, `${mode} 写成操作标识或 {"op": 操作标识}`);
   const operationId = slug(pick(spec as Json, 'op', 'operation', 'operationId'), where);
@@ -357,7 +357,7 @@ function binding(raw: unknown, mode: 'read' | 'submit', operations: SandboxOpera
   const path = text(pick(spec as Json, 'show', 'path', 'outputPath'));
   return { operationId, input, ...(path ? { outputPath: path } : {}) };
 }
-function normalizePart(raw: unknown, pageId: string, operations: SandboxOperationContract[], dropped: string[], sketch: boolean): PluginComponentPlan {
+function normalizePart(raw: unknown, pageId: string, operations: SandboxDataOperation[], dropped: string[], sketch: boolean): PluginComponentPlan {
   if (!object(raw)) return fail(`页面 ${pageId}`, '组件写成对象');
   const id = slug(pick(raw, 'id', 'componentId'), `页面 ${pageId} 的组件`), where = `组件 ${id}`;
   const intent = intentOf(pick(raw, 'intent', 'kind', 'type'), where);
@@ -395,7 +395,7 @@ function withParts(pages: unknown, parts: unknown): unknown {
  * { componentId, operationId, inputFrom } whose one required input is the chosen record's field. One that names no
  * operation of the plugin is left out, as before.
  */
-function liftAction(item: Json, host: Json, operations: SandboxOperationContract[]): Json | undefined {
+function liftAction(item: Json, host: Json, operations: SandboxDataOperation[]): Json | undefined {
   const submit = item.submit, named = object(submit) ? text(pick(submit as Json, 'op', 'operationId', 'operation')) : typeof submit === 'string' ? submit : text(pick(item, 'operationId', 'op', 'operation', 'uses'));
   const operation = operations.find(op => op.id === named);
   if (!operation || !text(pick(item, 'id', 'componentId'))) return undefined;
@@ -405,7 +405,7 @@ function liftAction(item: Json, host: Json, operations: SandboxOperationContract
   return { id: text(pick(item, 'id', 'componentId')), intent: text(pick(item, 'intent', 'kind', 'type')) || 'action', purpose: text(pick(item, 'purpose', 'label', 'confirm')) || operation.id,
     ...(object(item.props) ? { props: item.props } : {}), submit: object(submit) ? submit : { op: operation.id, ...(input ? { input } : {}) } };
 }
-function normalizePages(raw: unknown, operations: SandboxOperationContract[], dropped: string[], sketch: boolean): { pages: SandboxPluginContract['pages']; parts: PluginComponentPlan[] } {
+function normalizePages(raw: unknown, operations: SandboxDataOperation[], dropped: string[], sketch: boolean): { pages: SandboxPluginContract['pages']; parts: PluginComponentPlan[] } {
   const list = Array.isArray(raw) ? raw : fail('界面', 'pages 写成数组，每页列出它的组件 parts');
   if (!list.length || list.length > 12) fail('界面', '需要 1–12 个页面');
   const pages: SandboxPluginContract['pages'] = [], parts: PluginComponentPlan[] = [];
@@ -552,7 +552,7 @@ export function normalizeProposal(raw: unknown, index: number, pluginId: string,
  * as a plain string where it is filtered or listed; the plugin then cannot offer the choices, and examples disagree.
  * A plain string field takes the choice its namesake has elsewhere, when there is exactly one such choice.
  */
-function unifyChoices(operations: SandboxPluginContract['operations'], dropped: string[]) {
+function unifyChoices(operations: SandboxDataOperation[], dropped: string[]) {
   const fields = (schema: SandboxSchema | undefined, depth = 0): Array<[string, SandboxSchema]> => {
     if (!schema || depth > 2) return [];
     if (schema.type === 'array') return fields(schema.items, depth + 1);
@@ -573,7 +573,7 @@ function unifyChoices(operations: SandboxPluginContract['operations'], dropped: 
  * Parts that name an operation that does not exist, and operations no part uses. Normalization stops at the first of
  * these; a designer told one at a time fixes it and trips over the next, so when there are several they go back together.
  */
-function referenceProblems(pages: unknown, operations: SandboxOperationContract[]): string[] {
+function referenceProblems(pages: unknown, operations: SandboxDataOperation[]): string[] {
   const named = (raw: unknown) => typeof raw === 'string' ? raw : object(raw) ? text(pick(raw, 'op', 'operation', 'operationId')) : '';
   const ids = new Set(operations.map(operation => operation.id)), used = new Set<string>(), problems: string[] = [];
   for (const page of Array.isArray(pages) ? pages : []) for (const part of object(page) ? [page.parts, page.components].find(Array.isArray) ?? [] : []) {

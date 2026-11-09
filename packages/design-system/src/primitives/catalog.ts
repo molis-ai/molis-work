@@ -15,6 +15,8 @@ import { keepEditsSections, KEEP_EDITS_BOARD_STYLES } from "./catalog-keep-edits
 import { buttonGroupSection, CATALOG_PATTERN_STYLES, dataTableSection, dropZoneSection, rowsSection, statSection, tagInputSection } from "./catalog-patterns.js";
 import { lookSections } from "./catalog-appearance.js";
 import { APPEARANCE_BOARD_STYLES } from "./catalog-appearance-styles.js";
+import { PRESENTATION_BOARD_STYLES, presentationSection } from "./catalog-presentation.js";
+import { PRESENTATION_FORM_STYLES } from "../styles/presentation.js";
 
 export const PRIMITIVE_CATALOG_IDS = [
   "accordion", "alert", "alert-dialog", "autocomplete", "avatar", "badge", "breadcrumb", "button",
@@ -212,8 +214,9 @@ function iconSection(): string {
 /**
  * `plugins` fills the icon inventory's plugin rows; the design system keeps no list of plugins (PG-075), so omitted means none.
  * `say` is the page's translator: the sections written through it (the unified input's parts) follow the board's language.
+ * `presentationLocale` is supplied by the board's Host entry, which has the workbench's owned text environment installed.
  */
-export function renderPrimitiveCatalog(options: { readonly plugins?: readonly CatalogPluginIcon[]; readonly say?: Say } = {}): string {
+export function renderPrimitiveCatalog(options: { readonly plugins?: readonly CatalogPluginIcon[]; readonly say?: Say; readonly presentationLocale?: string } = {}): string {
   const say = options.say ?? writeChinese;
   const sections = `
     ${paletteSection()}
@@ -248,11 +251,12 @@ export function renderPrimitiveCatalog(options: { readonly plugins?: readonly Ca
     ${tabsSection()}
     ${directorySection()}
     ${rowsSection()}
+    ${options.presentationLocale ? presentationSection(options.presentationLocale) : ""}
     ${layoutSection()}
     ${dataTableSection()}`;
   return `<div class="mw-catalog">
     ${catalogIndex(sections)}
-    <style>${CATALOG_PATTERN_STYLES}${COMPOSER_BOARD_STYLES}${KEEP_EDITS_BOARD_STYLES}${APPEARANCE_BOARD_STYLES}</style>
+    <style>${CATALOG_PATTERN_STYLES}${COMPOSER_BOARD_STYLES}${KEEP_EDITS_BOARD_STYLES}${APPEARANCE_BOARD_STYLES}${options.presentationLocale ? PRESENTATION_FORM_STYLES + PRESENTATION_BOARD_STYLES : ""}</style>
     ${sections}
   </div>
   <script>${CATALOG_CLIENT_SCRIPT}</script>`;

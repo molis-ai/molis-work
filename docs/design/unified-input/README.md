@@ -1,6 +1,6 @@
 # 统一输入框定样
 
-状态：方案已定（用户 2026-11-04，七块都照推荐；同日按组件板改过后复看，照这版定），记入 [`specs/unified-input-voice/spec.md`](../../../specs/unified-input-voice/spec.md) §10。产品没有实现；整页是模拟，不连 Home、不调模型，回复、回执和状态都是假的。
+状态：方案已定（用户 2026-11-04，七块都照推荐；同日按组件板改过后复看，照这版定），记入 [`specs/unified-input-voice/spec.md`](../../../specs/unified-input-voice/spec.md) §10。K2／K3 已随第 10 批实现（首页／助理已用上组件；组件板三标本已落）；Coding 与其余入口待后续批。本目录整页仍是模拟原型，不连 Home、不调模型，回复、回执和状态都是假的。
 
 需求出处：[统一输入体验](../../../specs/unified-input-voice/spec.md) §3～§5、§8、UIV-01～17；[输入回执 §4.1](../../../specs/ai-input-receipts/spec.md)（三种送达方式）；[视觉体验](../../../specs/visual-ui-experience/spec.md) VUX-16～18；路线书[第 10 批](../../../specs/post-anticorruption-roadmap/reference/batches/10.md)的本批核账与统筹 2026-11-04 定下的五条；H4 用词。现状盘点见[输入框盘点](../../../specs/unified-input-voice/input-inventory.md)。
 
@@ -65,6 +65,12 @@ B 轨的共用组件包 `docs/design/kit/`（`kit.css`、`kit.js`）合入后，
 7. 入口切到「项目讨论」：没有送达菜单和停止，标题栏有关闭；切到「创作台」「Coding」看场景选项的位置。
 8. 换 EN、深色，窗口缩到 1024 和手机宽度。
 
+## 2026-11-08 追加（实现阶段）
+
+K2／K3 落进产品时按用户 2026-11-08 弹窗加了一条窄屏规则，样里没有画：手机（≤ 600 宽）与矮窗口（≤ 560 高）里，没人写字、没有附件也没有状态时，输入框静止收成一行——＋、「发给」缩成框内左侧的小标签、输入、发送；一写字、有附件或有状态就长回多行，长高不跳、焦点与光标不丢。桌面照定样多行。写进[需求 §10.1](../../../specs/unified-input-voice/spec.md) 的「发给谁」一行，经过见 [10.md](../../../specs/post-anticorruption-roadmap/reference/batches/10.md#batch-10-progress) 的「决定与偏离」。
+
+共享资源的最终字节经用户 2026-11-08 弹窗批准：新增 `/assets/molis-work-composer.js` 42466 B，`/assets/molis-work-plugin-frame.js` 相对基线 +2672 B；登记在 `tooling/gates/page-asset-allowances/10-composer.json`，批准经过同样见 [10.md](../../../specs/post-anticorruption-roadmap/reference/batches/10.md#batch-10-progress)。
+
 ## 模拟的部分
 
 - 回复、回执的变化、附件读取都是定时器演的；「停止」只把「AI 正在运行」关掉。
@@ -77,4 +83,4 @@ B 轨的共用组件包 `docs/design/kit/`（`kit.css`、`kit.js`）合入后，
 
 统一输入框：编辑器层、对 AI 的送达菜单、新键位与一次提示、发给谁、六种状态、插件扩展入口和 H4 用词的可点定样（每块三个方案，中英文、深浅色）
 
-方案已定（第 10 批，2026-11-04：七块都照推荐，H4 选方案一；控件用组件板，三处组件板新增已标出），产品未实现；按剧本模拟
+方案已定（第 10 批，2026-11-04：七块都照推荐，H4 选方案一；控件用组件板，三处组件板新增已标出）；K2／K3 已随第 10 批实现（首页／助理已用上组件；组件板三标本已落），Coding 与其余入口待后续批；本目录整页仍是模拟原型

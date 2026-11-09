@@ -17,7 +17,7 @@ function fixtureCleanup(t: TestContext) {
 }
 
 // AC27: typing Chinese through an input method, the Enter that commits a candidate is the IME's, never a Send — not even with
-// the send modifier held (UIC-03: ⌘/Ctrl+Enter sends, a bare Enter is a new line).
+// the send modifier held (UIC-05: ⌘/Ctrl+Enter sends, a bare Enter is a new line).
 test("底栏：输入法组合中按 ⌘↵ 只确认候选、不发送；组合结束后 ⌘↵ 才发送", { timeout: 60_000 }, async t => {
   const cleanup = fixtureCleanup(t);
   let homeDirectory: string | undefined;

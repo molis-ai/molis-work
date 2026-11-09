@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promis
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionExecutionContext, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginInstanceRecord, PluginPackageBundle, PluginPackageSigner } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { SKILL_LIMITS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { CHARACTER_IMPORT_RUNTIMES } from "@molis-ai/molis-work-contracts/modules/characters";
@@ -12,7 +12,7 @@ import { skillImportActions, skillCatalogActions, SKILLS_READ_PERMISSION, type S
 import { MemoryPluginConsentLedger, signPluginPackage, verifyPluginPackageSignature } from "@molis-ai/molis-work-plugin-runtime";
 import { contentPackagePayload, parseContentPackage, skillDeclarationFromFrontmatter, skillFromFolder } from "@molis-ai/molis-work-plugin-sdk";
 import { runPluginCli } from "@molis-ai/molis-work-plugin-cli";
-import { PluginInstallService, SandboxPackageStore, SkillImportService, homeAgentDefinitions, localSkillScan, pluginInstallActions, suggestedAppliesTo } from "@molis-ai/molis-work-app-local-host";
+import { PluginInstallService, SandboxPackageStore, SkillImportService, homeAgentDefinitions, localSkillScan, pluginInstallActions, pluginInstallProvider, suggestedAppliesTo } from "@molis-ai/molis-work-app-local-host";
 import { newPublisher } from "./fixtures/sandbox-package.js";
 import { caller, installedPackageHost, mac } from "./fixtures/signed-package-host.js";
 
@@ -44,13 +44,17 @@ async function writeSkill(skills: string, folder: string, markdown: string, file
 }
 
 /** A person's home with a Claude Code Skills folder, and the install service of a project over a Home of its own. */
-async function harness() {
+async function harness(hooks: { installed?(): Promise<void>; committing?(): Promise<void> } = {}) {
   const root = await mkdtemp(join(tmpdir(), "molis-work-skill-import-")), userHome = join(root, "user"), home = join(root, "home");
   const skills = join(userHome, ".claude", "skills");
   await mkdir(skills, { recursive: true }); await mkdir(home);
   const ledger = new MemoryPluginConsentLedger(), records: PluginInstanceRecord[] = [], packages = new SandboxPackageStore(home);
+  const byProject = new Map([[who.project_id, records]]);
+  const recordsFor = (projectId: string) => { let rows = byProject.get(projectId); if (!rows) { rows = []; byProject.set(projectId, rows); } return rows; };
   const install = new PluginInstallService({ ledger, packages, now: () => AT,
-    installInProject: async (_project, release) => {
+    installInProject: async (project, release, check) => {
+      check?.();
+      const records = recordsFor(project);
       const manifest = release.packaged!.manifest;
       records.splice(0, records.length, { install_id: `install-${manifest.plugin_id}`, installation_generation: "1", plugin_id: manifest.plugin_id, version: manifest.version,
         publisher_id: manifest.publisher.publisher_id, publisher_signature: manifest.publisher.signature, manifest_digest: "digest", deployment: "local", selected_entrypoint: "",
@@ -58,15 +62,19 @@ async function harness() {
         uninstalled_at: null, retain_private_data: false });
     },
     installInHome: async () => { throw new Error("imports here go to the project"); },
-    installed: async () => records.map(record => ({ record, manifest: undefined })), control: async () => "disabled" });
+    installed: async project => { await hooks.committing?.(); return recordsFor(project).map(record => ({ record, manifest: undefined })); }, control: async () => "disabled" });
   const publisher = newPublisher();
   let signed = 0;
   const signer: PluginPackageSigner = { ...publisher.signer, sign: bytes => { signed += 1; return publisher.signer.sign(bytes); } };
-  const service = new SkillImportService({ install, scan: localSkillScan(userHome, {}), signer: async () => signer,
-    installed: async (pluginId, scope) => {
-      const record = scope === "project" ? records.find(item => item.plugin_id === pluginId) : undefined;
+  const importer = new SkillImportService({ install, scan: localSkillScan(userHome, {}), signer: async control => { await control.beforeEffect(); control.assertCurrent(); return signer; },
+    retained: pluginId => packages.releases(pluginId, publisher.identity),
+    installed: async (pluginId, scope, project) => {
+      await hooks.installed?.();
+      const record = scope === "project" ? recordsFor(project).find(item => item.plugin_id === pluginId) : undefined;
       return record && packages.load(pluginId, record.publisher_signature, record.version).packaged;
     } });
+  const control: ActionExecutionContext = { ...who, call_id: "skill-import-test", audience: "user", permissions: [], beforeEffect: async () => undefined };
+  const service = { preview: importer.preview.bind(importer), confirm: (input: Parameters<SkillImportService['confirm']>[0], person: typeof who, caller = control) => importer.confirm(input, person, caller) };
   const kept = () => records.map(record => packages.load(record.plugin_id, record.publisher_signature, record.version).packaged!);
   const nothingWritten = () => {
     assert.deepEqual(ledger.publishers(), [], "no publisher was pinned");
@@ -74,7 +82,7 @@ async function harness() {
     assert.deepEqual(records, [], "nothing was installed");
     assert.equal(signed, 0, "nothing was signed");
   };
-  return { root, userHome, skills, home, ledger, records, service, publisher, kept, nothingWritten, signedCount: () => signed,
+  return { root, userHome, skills, home, ledger, records, recordsFor, packages, install, service, importer, publisher, kept, nothingWritten, signedCount: () => signed,
     done: () => rm(root, { recursive: true, force: true }) };
 }
 
@@ -293,4 +301,65 @@ test("SKC-10 S-skill-import in a real Host the person imports a local Skills fol
     if (was === undefined) delete process.env.HOME; else process.env.HOME = was;
     await rm(userHome, { recursive: true, force: true });
   }
+});
+
+
+test("SKC-10 S-skill-import cancelled or revoked imports cannot sign or commit after asynchronous reads", async () => {
+  for (const stage of ["source", "commit"] as const) for (const reason of ["cancelled", "forbidden"] as const) {
+    let waiting = false, entered!: () => void, resume!: () => void;
+    const reached = new Promise<void>(resolve => { entered = resolve; }), held = new Promise<void>(resolve => { resume = resolve; });
+    const hook = async () => { if (waiting) { entered(); await held; } };
+    const h = await harness(stage === "source" ? { installed: hook } : { committing: hook });
+    try {
+      await writeSkill(h.skills, "notes", good("notes"));
+      const preview = await h.service.preview({ source: { kind: "runtime", runtime_id: "claude-code" } }, who);
+      const controller = new AbortController(); let revoked = false;
+      const context: ActionExecutionContext = { ...who, audience: "user", call_id: "cancel-import", permissions: [SKILLS_MANAGE_PERMISSION],
+        signal: controller.signal, beforeEffect: async () => undefined,
+        assert_authority_current: () => { if (revoked) throw new ActionError("actions.forbidden", "revoked"); },
+        user_action: { source: "web", conversation_ref: "test", message_ref: "confirm" } };
+      const handler = pluginInstallProvider(h.install, h.importer).handlers!.find(row => row.capability_id === skillImportActions.confirm.capability_id)!;
+      waiting = true;
+      const pending = handler.handle(context, { preview_id: preview.preview_id, skill_ids: ["notes"], scope: "project" });
+      const rejected = assert.rejects(pending, refused(`actions.${reason}`));
+      await reached;
+      if (reason === "cancelled") controller.abort(new ActionError("actions.cancelled", "cancelled")); else revoked = true;
+      resume(); await rejected;
+      assert.deepEqual(h.ledger.publishers(), [], "no pin committed after the wait");
+      assert.equal(existsSync(join(h.home, "plugin-packages")), false, "no package committed");
+      assert.deepEqual(h.records, [], "no install committed");
+      if (stage === "source") assert.equal(h.signedCount(), 0, "a cancelled source read never reaches signing");
+    } finally { resume(); await h.done(); }
+  }
+});
+
+test("SKC-10 imported versions span projects, selections and uninstall without overwriting retained releases", async () => {
+  const h = await harness();
+  try {
+    await writeSkill(h.skills, "notes", good("notes"));
+    await writeSkill(h.skills, "plain", skillMd(["name: plain", "description: 整理时用。"]));
+    const source = { kind: "runtime" as const, runtime_id: "claude-code" as const };
+    const importInto = async (project: string, ids: string[], appliesTo: "assistant" | "coding" = "assistant") => {
+      const person = { ...who, project_id: project }, preview = await h.service.preview({ source }, person);
+      return h.service.confirm({ preview_id: preview.preview_id, skill_ids: ids, scope: "project",
+        ...(ids.includes("plain") ? { applies_to: [{ skill_id: "plain", applies_to: appliesTo }] } : {}) }, person);
+    };
+    const first = await importInto(who.project_id, ["notes", "plain"]);
+    await writeSkill(h.skills, "notes", good("notes").replace("按步骤做。", "新的正文。"));
+    const second = await importInto("project-two", ["notes", "plain"], "coding");
+    const third = await importInto("project-three", ["plain"]);
+    h.records.splice(0);
+    const fourth = await importInto(who.project_id, ["notes", "plain"]);
+    assert.deepEqual([first, second, third, fourth].map(row => row.version), ["1.0.0", "2.0.0", "3.0.0", "4.0.0"]);
+    assert.equal(new Set([first, second, third, fourth].map(row => row.plugin_id)).size, 1);
+    const retained = h.packages.releases(first.plugin_id, h.publisher.identity).sort((a, b) => a.manifest.version.localeCompare(b.manifest.version));
+    assert.deepEqual(retained.map(pkg => pkg.manifest.methods!.map(method => [method.skill_id, method.version, method.applies_to])), [
+      [["notes", 1, "both"], ["plain", 1, "assistant"]], [["notes", 2, "both"], ["plain", 2, "coding"]],
+      [["plain", 3, "assistant"]], [["notes", 2, "both"], ["plain", 3, "assistant"]],
+    ]);
+    assert.match(retained[0]!.agentBodies![0]!.body, /按步骤做/u, "the retained first release is unchanged");
+    const upgraded = await importInto("project-two", ["notes", "plain"]);
+    assert.equal(upgraded.version, "5.0.0");
+    assert.deepEqual(h.packages.load(upgraded.plugin_id, h.publisher.identity, upgraded.version).packaged!.manifest.upgrade_compatibility?.compatible_from_versions, ["2.0.0"]);
+  } finally { await h.done(); }
 });

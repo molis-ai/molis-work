@@ -75,6 +75,20 @@ export class SandboxPackageStore {
     return undefined;
   }
 
+  /** All retained releases of this publisher's plugin, verified through the same reader as installations; uninstall keeps these bytes. */
+  releases(pluginId: string, keyId: string): NonNullable<InstalledRelease['packaged']>[] {
+    const root = join(this.home, 'plugin-packages');
+    if (!existsSync(root)) return [];
+    const releases: NonNullable<InstalledRelease['packaged']>[] = [];
+    for (const name of readdirSync(root)) {
+      const path = join(root, name, BUNDLE_FILE);
+      const { payload } = JSON.parse(readSnapshotFile(path, 64 * 1024 * 1024).toString('utf8')) as PluginPackageBundle;
+      if (payload.manifest.plugin_id !== pluginId || payload.manifest.publisher.signature !== keyId) continue;
+      releases.push(this.load(pluginId, keyId, payload.manifest.version).packaged!);
+    }
+    return releases;
+  }
+
   /** Reads an installed package back, checking it again: its signature, its form, and that it is the package the installation names. */
   /** Offline inspection reads only retained signed bytes and never imports the package or follows symlinks. */
   snapshotManifest(pluginId:string, keyId:string, version:string) {

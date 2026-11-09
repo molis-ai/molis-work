@@ -7,7 +7,7 @@
  * its format stops at the preview, and the confirmation takes only a preview the Host itself made.
  */
 import { randomUUID } from 'node:crypto';
-import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
+import { ActionError, type ActionExecutionContext } from '@molis-ai/molis-work-contracts/platform/actions';
 import { pluginErrors, type PluginPackageBundle, type SandboxAgentBody } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SkillInstallPreview } from '@molis-ai/molis-work-contracts/services/skills';
 import type { SandboxEffects } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
@@ -36,9 +36,9 @@ export interface PluginInstallPorts {
   ledger: PluginConsentLedger;
   packages: SandboxPackageStore;
   /** Installs a release in the project the person is in. */
-  installInProject(projectId: string, release: InstalledRelease): Promise<void>;
+  installInProject(projectId: string, release: InstalledRelease, assertCurrent?: () => void): Promise<void>;
   /** Installs a release in the Home: one instance every project shares, which a package asks for in its Manifest (`runtime.scope`, BL-628). */
-  installInHome(release: InstalledRelease): Promise<void>;
+  installInHome(release: InstalledRelease, assertCurrent?: () => void): Promise<void>;
   /**
    * Refuses an integration package (BL-530) whose plugin id, services or integrations the Home's registry already has from another,
    * built-in or installed (`plugin.integration_declaration_conflict`, naming the id and its holder).
@@ -243,7 +243,7 @@ export class PluginInstallService {
    * Installs what a preview showed. The preview is used up by this call, whatever happens. A publisher the person has not pinned is pinned
    * here only when they said so (`pin_label`); the install then runs under that pin.
    */
-  async confirm(input: { preview_id: string; consent: boolean; pin_label?: string }, who: { project_id: string; actor_id: string }): Promise<{ plugin_id: string; version: string; publisher_key_id: string }> {
+  async confirm(input: { preview_id: string; consent: boolean; pin_label?: string }, who: { project_id: string; actor_id: string }, caller?: ActionExecutionContext): Promise<{ plugin_id: string; version: string; publisher_key_id: string }> {
     const held = this.held.get(input.preview_id);
     this.held.delete(input.preview_id);
     if (!held || held.expires <= Date.now() || held.project_id !== who.project_id || held.actor_id !== who.actor_id) throw pluginErrors.preview_unknown('没有这次安装的预览，或它已过期；请重新预览');
@@ -271,7 +271,13 @@ export class PluginInstallService {
       // The installed package may have moved since the preview: its Skills' versions are asked again against the one installed now (SKC-04).
       skillInstallPreviews(held.pkg, this.ports.packages.load(present.record.plugin_id, present.record.publisher_signature, present.record.version).packaged);
     }
-    if (!pin) {
+    await caller?.beforeEffect();
+    const assertCurrent = () => { caller?.signal?.throwIfAborted(); caller?.assert_authority_current?.(); };
+    assertCurrent();
+    // The caller may have waited while the publisher was revoked, so use the live pin at the commit boundary.
+    const currentPin = this.pinOf(held.key_id);
+    if (currentPin?.revoked_at) throw pluginErrors.publisher_revoked('这个发布者的固定已被撤销，它的包不能再安装');
+    if (!currentPin) {
       const label = input.pin_label?.trim();
       if (!label) throw pluginErrors.publisher_untrusted('这个发布者还没有被固定：要装它的包，请先确认信任它');
       if (label.length > 80) throw new ActionError('actions.input_invalid', '发布者的名称不超过 80 个字');
@@ -280,8 +286,8 @@ export class PluginInstallService {
     }
     const directory = this.ports.packages.save(held.bundle, held.pkg);
     const release = packagedRelease(held.pkg, directory, this.now());
-    if (held.runtime_scope === 'home') await this.ports.installInHome(release);
-    else await this.ports.installInProject(held.project_id, release);
+    if (held.runtime_scope === 'home') await this.ports.installInHome(release, assertCurrent);
+    else await this.ports.installInProject(held.project_id, release, assertCurrent);
     return { plugin_id: held.pkg.manifest.plugin_id, version: held.pkg.manifest.version, publisher_key_id: held.key_id };
   }
 

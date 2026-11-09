@@ -11,7 +11,7 @@
  */
 import { createHash, randomUUID } from 'node:crypto';
 import { lstatSync } from 'node:fs';
-import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
+import { ActionError, type ActionExecutionContext } from '@molis-ai/molis-work-contracts/platform/actions';
 import type { CharacterImportRuntimeId, CharacterImportSkill } from '@molis-ai/molis-work-contracts/modules/characters';
 import type { PluginPackageSigner, SandboxAgentBody } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SkillAppliesTo } from '@molis-ai/molis-work-contracts/platform/plugin-agent';
@@ -43,7 +43,9 @@ export interface SkillImportPorts {
   /** The package of `pluginId` installed in the scope, as kept and checked again; the one an import of the same source upgrades. */
   installed(pluginId: string, scope: SkillScope, projectId: string): Promise<NonNullable<InstalledRelease['packaged']> | undefined>;
   /** This Home's publisher identity; asked only when a confirmation signs, so a preview never makes one. */
-  signer(): Promise<PluginPackageSigner>;
+  signer(control: { beforeEffect(): Promise<void>; assertCurrent(): void }): Promise<PluginPackageSigner>;
+  /** Verified releases retained by the Home, including uninstalled and other-project versions of this source. */
+  retained(pluginId: string): NonNullable<InstalledRelease['packaged']>[];
   install: Pick<PluginInstallService, 'preview' | 'confirm'>;
 }
 
@@ -124,7 +126,7 @@ export class SkillImportService {
     }
     const preview_id = randomUUID();
     this.held.set(preview_id, { who, plugin_id, name: `从 ${LABELS[runtime]} 导入的技能`, skills, expires: this.now() + PREVIEW_TTL_MS });
-    return { preview_id, package: { plugin_id, version: nextVersion(installed?.manifest.version), installed_version: installed?.manifest.version ?? null }, applies_to, candidates };
+    return { preview_id, package: { plugin_id, version: nextVersion(this.ports.retained(plugin_id)), installed_version: installed?.manifest.version ?? null }, applies_to, candidates };
   }
 
   /**
@@ -133,7 +135,7 @@ export class SkillImportService {
    * person it was made for, in the project it was made in; a Skill it did not find importable is refused. A chosen Skill whose SKILL.md
    * writes no `applies_to` takes the person's choice and is refused without one; one that writes its own keeps it, and a choice for it is refused.
    */
-  async confirm(input: SkillImportConfirmRequest, who: Who): Promise<SkillImportConfirmResult> {
+  async confirm(input: SkillImportConfirmRequest, who: Who, caller: ActionExecutionContext): Promise<SkillImportConfirmResult> {
     const held = this.held.get(input.preview_id);
     if (!held || held.expires < this.now() || held.who.actor_id !== who.actor_id || held.who.project_id !== who.project_id) {
       throw skillErrors.import_preview_unknown('这次导入预览不存在、已过期或不是你在这个项目里做的，请重新预览');
@@ -157,18 +159,28 @@ export class SkillImportService {
       return selected;
     });
     const installed = await this.ports.installed(held.plugin_id, input.scope, who.project_id);
-    const skills = chosen.map(skill => ({ ...skill, declaration: { ...skill.declaration, version: versionOf(skill, installed) } }));
-    const signer = await this.ports.signer();
-    const payload = contentPackagePayload({ plugin_id: held.plugin_id, version: nextVersion(installed?.manifest.version), name: held.name,
+    const assertCurrent = () => { caller.signal?.throwIfAborted(); caller.assert_authority_current?.(); };
+    const control = { beforeEffect: caller.beforeEffect, assertCurrent };
+    await control.beforeEffect(); assertCurrent();
+    const signer = await this.ports.signer(control);
+    assertCurrent();
+    // Home-scoped imports use the existing serial action line. No version is reserved outside the retained package owner.
+    const retained = this.ports.retained(held.plugin_id);
+    const skills = chosen.map(skill => {
+      const prior = retained.filter(pkg => pkg.manifest.methods?.some(method => method.skill_id === skill.declaration.skill_id))
+        .sort((a, b) => b.manifest.methods!.find(method => method.skill_id === skill.declaration.skill_id)!.version - a.manifest.methods!.find(method => method.skill_id === skill.declaration.skill_id)!.version)[0];
+      return { ...skill, declaration: { ...skill.declaration, version: versionOf(skill, prior) } };
+    });
+    const payload = contentPackagePayload({ plugin_id: held.plugin_id, version: nextVersion(retained), name: held.name,
       publisher: { publisher_id: PUBLISHER_ID, signature: signer.publisher_identity }, scope: input.scope,
       ...(installed ? { compatible_from: [installed.manifest.version] } : {}), skills });
     const bundle = signPluginPackage({ payload, signature: null, publisher_key: null }, signer);
     const preview = await this.ports.install.preview({ bundle }, who);
-    return this.ports.install.confirm({ preview_id: preview.preview_id, consent: true, ...(preview.publisher.pinned_label === null ? { pin_label: PIN_LABEL } : {}) }, who);
+    return this.ports.install.confirm({ preview_id: preview.preview_id, consent: true, ...(preview.publisher.pinned_label === null ? { pin_label: PIN_LABEL } : {}) }, who, caller);
   }
 }
 
 /** The package version an import makes: the first, or the next major after the installed one. */
-function nextVersion(installed: string | undefined): string {
-  return installed ? `${Number(installed.split('.')[0]) + 1}.0.0` : '1.0.0';
+function nextVersion(retained: NonNullable<InstalledRelease['packaged']>[]): string {
+  return `${Math.max(0, ...retained.map(pkg => Number(pkg.manifest.version.split('.')[0]))) + 1}.0.0`;
 }

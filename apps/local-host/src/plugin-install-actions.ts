@@ -172,7 +172,7 @@ export function pluginInstallHandlers(service: PluginInstallService, imports?: S
     bindActionHandler(pluginInstallActions.bundled, () => service.bundled()),
     { capability_id: pluginInstallActions.confirm.capability_id, version: pluginInstallActions.confirm.version, handle: async (caller, input) => {
       const who = person(caller); await caller.beforeEffect();
-      return await service.confirm(input as { preview_id: string; consent: boolean; pin_label?: string }, who);
+      return await service.confirm(input as { preview_id: string; consent: boolean; pin_label?: string }, who, caller);
     } },
     { capability_id: pluginInstallActions.publishers.capability_id, version: pluginInstallActions.publishers.version, handle: () => ({ publishers: service.publishers() }) },
     { capability_id: pluginInstallActions.revokePublisher.capability_id, version: pluginInstallActions.revokePublisher.version, handle: async (caller, input) => {
@@ -217,7 +217,7 @@ export function pluginInstallHandlers(service: PluginInstallService, imports?: S
       }),
       bindActionHandler(skillImportActions.confirm, async (input, caller) => {
         const who = person(caller); await caller.beforeEffect();
-        return imports.confirm(input, who);
+        return imports.confirm(input, who, caller);
       }),
     ] : [],
   ];

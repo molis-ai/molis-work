@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SKILLS_PERMISSIONS, skillCatalogActions, type SkillCatalogEntry, type SkillBodyReadResult, type SkillResourceContent } from "@molis-ai/molis-work-contracts/services/skills";
-import { homeAgentDefinitions, withSkillSelection } from "@molis-ai/molis-work-app-local-host";
+import { homeAgentDefinitions, withSkillSelection, pluginInstallActions } from "@molis-ai/molis-work-app-local-host";
 import { installedPackageHost } from "./fixtures/signed-package-host.js";
 import { newPublisher } from "./fixtures/sandbox-package.js";
 import { CONTENT_PLUGIN_ID, MEETING_NOTES, signedContentPackage } from "./fixtures/content-package.js";
@@ -92,4 +94,32 @@ test("SKC-05 SKC-06 SKC-09: Home Skills have independent project settings and re
     assert.deepEqual(await list("project"), []);
     assert.equal(homeAgentDefinitions(h.home).skills.scopes(homeSkill.ref.install_id).length, 0, "keep data never preserves enablement");
   } finally { await h.close(); }
+});
+
+
+test("SKC-10 cancellation after Runtime committed but before Supervisor returned restores old Skills and settings", { timeout: 90_000 }, async () => {
+  const h = await installedPackageHost(), publisher = newPublisher();
+  const person = { ...h.person, permissions: [...h.person.permissions, ...SKILLS_PERMISSIONS] };
+  const list = async () => ((await h.client.invoke(person, ref(skillCatalogActions.list), {})) as { skills: SkillCatalogEntry[] }).skills.filter(row => row.pack.plugin_id === CONTENT_PLUGIN_ID);
+  const original = PluginRuntime.prototype.upgrade, controller = new AbortController(); let switched = false;
+  try {
+    await h.install(signedContentPackage(publisher));
+    const first = (await list())[0]!;
+    await h.client.invoke(person, ref(skillCatalogActions.setState), { install_id: first.ref.install_id, skill_id: first.ref.skill_id, scope: "project", expected_revision: first.settings_revision, state: "manual" });
+    const old = (await list())[0]!;
+    const bundle = signedContentPackage(publisher, { version: "2.0.0", compatibleFrom: ["1.0.0"], skills: [{ ...MEETING_NOTES, version: 2, body: "new body" }] });
+    const preview = await h.client.invoke(person, ref(pluginInstallActions.preview), { bundle }) as { preview_id: string };
+    PluginRuntime.prototype.upgrade = async function(input) {
+      const result = await original.call(this, input);
+      if (input.definition.manifest.plugin_id === CONTENT_PLUGIN_ID) { switched = true; controller.abort(new ActionError("actions.cancelled", "cancel after Runtime commit")); }
+      return result;
+    };
+    await assert.rejects(h.client.invoke({ ...person, signal: controller.signal }, ref(pluginInstallActions.confirm), { preview_id: preview.preview_id, consent: true }), { code: "actions.cancelled" });
+    assert.equal(switched, true, "the candidate really committed before cancellation");
+    const restored = (await list())[0]!;
+    assert.deepEqual(restored.ref, old.ref); assert.equal(restored.state, "manual"); assert.equal(restored.settings_revision, old.settings_revision);
+    assert.equal(restored.excerpt, MEETING_NOTES.body); assert.equal(restored.availability.available, true);
+    await h.reopen();
+    assert.deepEqual((await list())[0]!.ref, old.ref, "the restored version survives reopening");
+  } finally { PluginRuntime.prototype.upgrade = original; await h.close(); }
 });

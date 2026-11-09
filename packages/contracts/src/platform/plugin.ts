@@ -242,7 +242,7 @@ export interface PluginRuntimeApi {
     retain_private_data?: boolean;
   }): PluginLifecycleReceipt;
   /** Explicit, user-triggered replacement after version, grant and private-data preflight. */
-  upgrade(input: { install_id: string; definition: PluginDefinition; deployment?: PluginDeployment; grants?: string[] }): Promise<PluginLifecycleReceipt>;
+  upgrade(input: { install_id: string; definition: PluginDefinition; deployment?: PluginDeployment; grants?: string[]; assertCurrent?: () => void }): Promise<PluginLifecycleReceipt>;
   /** Generated plugins only: restore earlier code while retaining current private data. */
   rollback(input: { install_id: string; definition: PluginDefinition }): Promise<PluginLifecycleReceipt>;
   grant(installId: string, permissions: string[]): PluginLifecycleReceipt;
@@ -253,7 +253,7 @@ export interface PluginRuntimeApi {
    * `plugin.grant_denied`.
    */
   regrant(installId: string, permission: string, granted: boolean): Promise<PluginLifecycleReceipt>;
-  start(installId: string): Promise<PluginLifecycleReceipt>;
+  start(installId: string, control?: { assertCurrent?: () => void }): Promise<PluginLifecycleReceipt>;
   /**
    * Stop an installation without uninstalling it; restart goes back through `start`. A running one is stopped. A crashed or never-started
    * one is switched off (disabled) without calling its stop hook, and keeps its crash code. An already disabled one answers as it is.

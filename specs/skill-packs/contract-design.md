@@ -194,7 +194,7 @@ interface SkillResourceDeclaration {
 
 ### 4.3 版本
 
-- 包用 SemVer，`version` 写在 Manifest 里；每个 Skill 有自己的整数 `version`。
+- 包用 SemVer，`version` 写在 Manifest 里；每个 Skill 有自己的整数 `version`。本机导入按同一来源在 Home 已留存、验签通过的发行包分配下一包版本，跨项目与卸载重导也不复用旧号；各 Skill 与该来源已留存的最高 Skill 版本比较内容，保持不变或递增。目标安装的升级兼容仍按目标当前版本声明，不另建版本登记。
 - 升级时按 `skill_id` 对比：正文或任一资源的摘要变了，而 `version` 没有增加，就拒绝。`version` 只许增加。
 - 精确引用是 `SkillRef`。它在 `SignedAgentReference` 的基础上加 `version`，再配 `SignedAgentInstallation`（安装、世代、项目）：
 
@@ -268,6 +268,7 @@ interface SkillInstallPreview {
 **规则**：
 
 - 「给谁用」（spec §9，2026-11-08 用户定）：SKILL.md 写了 `applies_to` 的照它的；没写的由本人在确认里选，预览只按来源预选（编程工具的技能目录 `coding`，别的 `both`），预选本身不进包。缺、多、重复或改了作者取值的选择以 `import_applies_to_invalid` 拒绝。
+- 确认全程携带原调用的取消与授权控制；签名身份写入、固定发布者、留包及安装提交前重新检查，异步等待读取后取消或撤权不得继续写。使用同一安装服务的提交边界，不另开导入安装路径。可信控制继续经 project/Home 安装初始化、生命周期和 Supervisor 传到 Runtime 的安装锁内及版本／running 写入前；取消只恢复原安装，不记新的 crashed 或失败业务记录。控制为进程内可选回调，不进动作输入、Manifest 或存储，普通启动调用不受影响。
 - 导入的是确认那一刻的固定拷贝，原目录之后的变化不影响已装的包。「重新导入」就是再走一次预览，按 4.3 自动加版本并列出差异；用户在宿主里改过的设置不被覆盖。
 - `native-only` 的 Skill 可以导入，但在内置引擎里显示「不可用」并写原因；只有本地 Agent 能用它。
 - 来源读取遵守 Character 导入已有的路径和大小限制，不读来源目录之外的文件。
@@ -457,7 +458,7 @@ interface SkillCatalogEntry {
 | SKC-07 | 助理与 Coding 从同一个 `skills.catalog.list@1` 拿到同一份 `SkillRef` 和正文；只有内容的插件，助理也看得见 | SKP-02、SKP-04、G1 |
 | SKC-08 | `skills.body.read@1` 在插件停用、发布者撤销、卸载、世代变化后被拒，不换成别的版本；正在跑的一轮在下一次读时停住 | SKP-06、SKP-07 |
 | SKC-09 | 资源只能按声明的路径读，摘要不符时被拒；目录项不带正文 | SKP-05 |
-| SKC-10 | 从一个真实的本机 Skills 目录导入，得到一个本机签名的只有声明的插件，走同一个安装确认；原目录之后的改动不影响已装的版本；再导入一次就是升级 | G2、SKP-04 |
+| SKC-10 | 从一个真实的本机 Skills 目录导入，得到一个本机签名的只有声明的插件，走同一个安装确认；原目录之后的改动不影响已装的版本；再导入一次就是升级；跨项目不同内容／选择、卸载后重导不冲突；异步读取期间取消或撤权后不签名、不固定、不留包、不安装 | G2、SKP-04 |
 | SKC-11 | 代码里没有只给技能包用的注册表或安装入口；Coding 的 `agent.skills.discover.v1`、`agent.skills.install.v1` 与 `molis-coding-method` 已删 | SKP-04 |
 | SKC-12 | 被拒或取消的轮次不记 `skill_uses`；卸载以后用量历史仍可读，保留当时的名称和版本 | SKP-07 |
 | SKC-13 | 方法的 `tools` 不扩大 Coding 角色的 `host_tools`：选一个声明了角色没有的工具的方法，开轮后那个工具仍不可用 | SKP-06；统筹 2026-11-04 |

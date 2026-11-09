@@ -233,7 +233,7 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
       return record ? packages.load(record.plugin_id, record.publisher_signature, record.version) : undefined;
     },
     /** Installs a release read from a signed package, under the trust it carries; the person's approval of its permissions is `consent`. */
-    installPackage: (release: InstalledRelease, input: { consent: true }) => {
+    installPackage: (release: InstalledRelease, input: { consent: true; assertCurrent?: () => void }) => {
       assertHomePackageAllowed(release.packaged!.manifest);
       return lifecycle(recordFor(release.pluginId) ? 'upgrade' : 'install', release, input);
     },

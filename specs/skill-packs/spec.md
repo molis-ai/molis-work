@@ -225,7 +225,7 @@ argument_hint: "<周期，可选>"
 - 从本机导入复用 Character 导入的扫描（`createCharacterDiscovery`，它的根、链接和大小限制），只取 Skills；每个 Skill 用和 CLI `pack-content` 同一个打包函数（SDK 的 `skillFromFolder`、`contentPackagePayload`）做成内容包里的一项，用这个 Home 的发布身份（创作台的那一个）签名，再走 `plugins.install.preview`／`confirm` 安装；第一次导入确认时把这个 Home 的发布者以「这台电脑」固定。动作登记在插件安装的提供方（`plugin-install`）下：导入就是安装，和安装同一个服务、同一个本人入口；08-7 的 `system.skills` 只登记目录与设置。
 - 一个 Skill 不能导入（frontmatter 读不了：多行值、带连字符的键、没写 `description`、名字不是合法的 id；有 `references/`、`scripts/`、`assets/` 之外的文件；技能目录本身是符号链接），预览照列，`importable: false` 加 `reason`，别的照常能导入（合同里候选项加了 `importable`，原版本改）。
 - 「给谁用」（§9 2026-11-08 用户定 ①）：预览的 `applies_to` 是整次导入按来源的预选（本机 Agent 的技能目录都是编程工具，预选 `coding`）；能导入的候选项给 `applies_to` 和 `applies_to_from`（`file`：SKILL.md 自己写的；`suggested`：预选）。确认的 `applies_to` 是本人的选择，每个选中的 `suggested` 技能正好一项、`file` 技能不许有：缺、多、重复、给没选中的，都以 `skills.import_applies_to_invalid` 拒绝，什么都不写。界面「整次一个选择、可逐项改」，提交时展开成逐项，合同只有一种形状。SDK 的 `skillFromFolder`／`skillDeclarationFromFrontmatter` 收 `applies_to` 选项，只在 SKILL.md 没写时用；CLI `pack-content` 不传它，作者照旧要写。
-- 包的 `plugin_id` 由来源种类与来源根目录算出（`io.molis.work.imported-skills.<runtime>-<12 位摘要>`），再导入就是升级：包版本加一个主版本，正文、附带文件或「给谁用」变了的 Skill 版本加一，没变的不动。
+- 包的 `plugin_id` 由来源种类与来源根目录算出（`io.molis.work.imported-skills.<runtime>-<12 位摘要>`），再导入就是升级：按 Home 留存、验签通过的同来源发行包最高版本加一个主版本，跨项目与卸载重导不复用旧号；各 Skill 对比同来源留存的最高 Skill 版本，正文、附带文件或「给谁用」变了加一，没变的不动。
 - 一个包至多 128 个 Skill：确认的输入至多 128 项；打包函数对更多的明确拒绝（`plugin.declaration_invalid`，「请分成几个包，或少选几个」），不悄悄丢。
 - `project_directory` 来源不在本批（§9 2026-11-08 用户定 ②）：照旧以 `skills.import_source_unavailable` 拒绝，测试断言这一拒绝；后续见 [BL-skill-import-project-directory](../backlog/BL-skill-import-project-directory.md)。
 

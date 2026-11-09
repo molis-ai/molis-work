@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { ChromeHarness } from "@molis-ai/molis-work-test-kit/browser";
-import { homeAgentDefinitions } from "@molis-ai/molis-work-app-local-host";
+import { HomeConsentLedger, homeAgentDefinitions } from "@molis-ai/molis-work-app-local-host";
 import { requiredHeadlessTestBrowser } from "./fixtures/dedicated-headless-browser.js";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { newPublisher } from "./fixtures/sandbox-package.js";
@@ -37,6 +37,11 @@ test("SKP-01 SKP-08 SKP-10: Skill installation and settings work through the act
   await page.click("[data-plugin-trust-preview] .mw-btn--primary");
   await page.wait("!!document.querySelector('.skill-segments')", { describe: "document.querySelector('[data-plugin-trust-error]')?.innerText" });
   assert.equal(homeAgentDefinitions(f.home).skills.settings(project.project_id).length, 0, "installation never enables a Skill");
+  const offCatalogResponse = await f.request(`/projects/${project.project_id}/api/skills/list`, { method: "POST", body: {} });
+  const offCatalog = await offCatalogResponse.json() as { skills: Array<{ ref: { skill_id: string } }> };
+  const offRef = offCatalog.skills.find(row => row.ref.skill_id === "meeting-notes")!.ref;
+  const offBody = await f.request(`/projects/${project.project_id}/api/skills/body`, { method: "POST", body: { refs: [offRef] } });
+  assert.equal((await offBody.json() as { results: Array<{ reason: string }> }).results[0]?.reason, "off", "management full-text route preserves the off refusal");
   await page.click('.skill-segments input[value="manual"]');
   await page.wait("!document.querySelector('.skill-segments').disabled");
   assert.equal(homeAgentDefinitions(f.home).skills.settings(project.project_id)[0]?.state, "manual");
@@ -102,6 +107,12 @@ test("SKP-01 SKP-08 SKP-10: Skill installation and settings work through the act
       await page.evaluate("document.querySelector('[data-sk-catalog]').removeAttribute('data-detail')");
     }
   }
+  new HomeConsentLedger(f.home).revokePublisher(bundle.payload.manifest.publisher.signature, new Date().toISOString());
+  await page.click('[data-sk-refresh]');
+  await page.wait("[...document.querySelectorAll('[data-sk-list] button')].some(n => n.textContent.includes('meeting-notes') && n.textContent.includes('Retracted'))");
+  await page.evaluate("[...document.querySelectorAll('[data-sk-list] button')].find(n => n.textContent.includes('meeting-notes')).click()");
+  assert.equal(await page.evaluate("document.querySelector('[data-sk-detail] fieldset').disabled"), true);
+  assert.match(await page.evaluate<string>("document.querySelector('[data-sk-detail]').innerText"), /Retracted/);
   await go("/settings/skills");
   await page.wait("document.querySelector('[data-skill-settings][data-project=\"\"] [data-sk-count]')?.textContent.length > 0", { describe: "JSON.stringify([...document.querySelectorAll('[data-skill-settings]')].map(n => ({project:n.dataset.project,text:n.innerText})))" });
   assert.equal(await page.evaluate("[...document.querySelectorAll('[data-skill-settings][data-project=\"\"] [data-sk-list] .mw-item__pick')].some(node => node.textContent.includes('meeting-notes'))"), false, "project state and installation never leak into Home catalog");

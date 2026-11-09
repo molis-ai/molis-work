@@ -7,7 +7,7 @@ import { controlHomePackage, controlPackageInProject, installPackageInHome, inst
 import { SandboxPackageStore } from "./sandbox-package-store.js";
 import { PLUGIN_INSTALL_PROVIDER_ID, pluginInstallDefinitions, pluginInstallHandlers } from "./plugin-install-actions.js";
 import { PluginInstallService } from "./plugin-install-service.js";
-import { studioPublisherIdentity } from "./plugin-builder/publisher-identity.js";
+import { studioPublisherIdentity, localPublisherKeyId } from "./plugin-builder/publisher-identity.js";
 import { SkillImportService, localSkillScan } from "./skill-import.js";
 import { bundledPackagesDirectory } from "./bundled-packages.js";
 
@@ -23,7 +23,8 @@ export function pluginInstallProvider(service: PluginInstallService, imports?: S
  */
 export function skillImportFor(home: string, source: ProjectPluginHost, install: PluginInstallService, userHome = homedir()): SkillImportService {
   const packages = new SandboxPackageStore(home);
-  return new SkillImportService({ install, signer: () => studioPublisherIdentity(home, { beforeEffect: async () => undefined, assertCurrent: () => undefined }),
+  return new SkillImportService({ install, signer: control => studioPublisherIdentity(home, control),
+    retained: pluginId => { const keyId = localPublisherKeyId(home); return keyId ? packages.releases(pluginId, keyId) : []; },
     scan: localSkillScan(userHome),
     installed: async (pluginId, scope, projectId) => {
       const rows = scope === "home" ? await installedHomePlugins(source.homePlugins()) : await installedPluginsInProject(source, projectId);
@@ -40,7 +41,7 @@ export function pluginInstallProviderFor(home: string, source: ProjectPluginHost
 
 function pluginInstallServiceFor(home: string, source: ProjectPluginHost): PluginInstallService {
   return new PluginInstallService({ skillStates: (scope, install) => new Map(homeAgentDefinitions(home).skills.settings(scope).filter(row => row.install_id === install).map(row => [row.skill_id, row.state])), ledger: new HomeConsentLedger(home), packages: new SandboxPackageStore(home),
-    installInProject: (projectId, release) => installPackageInProject(source, projectId, release), installInHome: release => installPackageInHome(source, release),
+    installInProject: (projectId, release, check) => installPackageInProject(source, projectId, release, check), installInHome: (release, check) => installPackageInHome(source, release, check),
     assertIntegrationsFree: async manifest => (await homeIntegrationRegistry(home)).assertFree(manifest),
     installed: projectId => installedPluginsInProject(source, projectId),
     offers: (projectId, reference) => {

@@ -25,18 +25,22 @@ const MAX_PACKAGE_BYTES = 24 * 1024 * 1024;
  */
 export async function handlePluginTrustHttp(request: IncomingMessage, response: ServerResponse, url: URL,
   ports: { localHost: MolisWorkLocalHost; projectRef: LocalHostProjectReference }): Promise<boolean> {
-  return dispatchNativePluginJsonHttp(request, response, url, { prefix: "/api/plugin-trust", maxBodyBytes: MAX_PACKAGE_BYTES,
+  if (!url.pathname.startsWith("/api/plugin-trust/")) return false;
+  const controller = new AbortController(), cancel = () => controller.abort(new ActionError("actions.cancelled", "插件管理请求已经结束"));
+  const disconnected = () => { if (!response.writableEnded) cancel(); };
+  request.once("aborted", cancel); response.once("close", disconnected);
+  try { return await dispatchNativePluginJsonHttp(request, response, url, { prefix: "/api/plugin-trust", maxBodyBytes: MAX_PACKAGE_BYTES,
     async handle({ method, pathname, body }) {
       const client = ports.localHost.actionClient(ports.projectRef);
       const route = pathname.slice("/api/plugin-trust/".length);
       if (method === "POST" && route === "permissions/set") {
         if (pluginPageRequest(request)) throw new ActionError("actions.forbidden", "插件页面不能代本人改插件的授权");
-        const caller = await localWebActionContext(ports.localHost, ports.projectRef, PLUGIN_INSTALL_PERMISSIONS);
+        const caller = await localWebActionContext(ports.localHost, ports.projectRef, PLUGIN_INSTALL_PERMISSIONS, controller.signal);
         const { capability_id, version } = pluginInstallActions.setPermission;
         return { status: 200, body: await withPluginPermissionSettingsEntry(caller, entry =>
           client.invoke(entry, { capability_id, version, provider_id: PLUGIN_INSTALL_PROVIDER_ID }, body)) as object };
       }
-      const person: ActionCallContext = { ...await localWebActionContext(ports.localHost, ports.projectRef, LOCAL_OWNER_PERMISSIONS),
+      const person: ActionCallContext = { ...await localWebActionContext(ports.localHost, ports.projectRef, LOCAL_OWNER_PERMISSIONS, controller.signal),
         user_action: { source: "web", conversation_ref: `web:${ports.projectRef.project_id}`, message_ref: `web:request:${randomUUID()}` } };
       const call = (provider_id: string, definition: { capability_id: string; version: number }, input: unknown) =>
         client.invoke(person, { capability_id: definition.capability_id, version: definition.version, provider_id }, input);
@@ -62,4 +66,5 @@ export async function handlePluginTrustHttp(request: IncomingMessage, response: 
       return null;
     },
   });
+  } finally { request.off("aborted", cancel); response.off("close", disconnected); }
 }

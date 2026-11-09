@@ -15,12 +15,13 @@ void bodyLimitsAgree;
  * The Skills frozen for this round, registered with Prologue and filled in as instructions (specs/capability-pack/contract-design.md
  * §3.2, §3.3). What is registered is keyed by its own content, so two installations' Skills with one `skill_id`, or a Skill whose body
  * changed in an upgrade, are never one registration. A Skill's `tools` only describe it: the registration names those of them the role
- * has, so a Skill never asks Prologue for a tool the role does not grant.
+ * has (`roleTools`, in the Host's words), so a Skill never asks Prologue for a tool the role does not grant, nor for one Prologue lacks.
  */
 export function inlineMethods(runtime: Runtime, registered: Map<string, Skill>, skills: readonly AgentRoundSkill[],
-  characterTools: readonly string[], toolName: (name: string) => string): string[] {
+  roleTools: readonly string[], toolName: (name: string) => string): string[] {
+  const characterTools = roleTools.map(toolName);
   return skills.map(definition => {
-    const tools = definition.tools.map(toolName).filter(tool => characterTools.includes(tool));
+    const tools = definition.tools.filter(tool => roleTools.includes(tool)).map(toolName);
     const digest = createHash("sha256").update(JSON.stringify([definition.body, definition.name, tools])).digest("hex");
     let skill = registered.get(digest);
     if (!skill) {

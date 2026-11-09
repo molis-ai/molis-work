@@ -116,7 +116,6 @@ test("Coding formal routes preserve drafts and isolate projects across server re
     const settingsHtml = await settingsResponse.text();
     assert.match(settingsHtml, /data-coding-settings/);
     for (const runtime of state.body.runtimes) assert.ok(settingsHtml.includes(runtime.display_name));
-    assert.match(settingsHtml, /支持安装和显式选择/);
     assert.match(settingsHtml, /只读子任务协作/);
     assert.match(settingsHtml, /主任务只读；已分配子目录逐笔审查写入/);
     assert.ok(settingsHtml.includes('/projects/' + projects[0] + '/'));

@@ -186,9 +186,10 @@ test("PG-054 with no Runtime that can host a session a new session is refused wi
     assert.match(refused.body.error, /宿主还没有可用的运行时/);
     assert.equal(h.sessions.list(DEMO_PROJECT_ID).length, 0, "nothing was created");
     // The project still opens: no MCP servers are asked of a Runtime that cannot be chosen, and none are saved. Skills are the shared
-    // catalog's, which this fixture's Host does not offer.
+    // catalog's, which needs no Runtime: here only Coding's own.
     const state = await h.call("/state");
-    assert.deepEqual([state.status, state.body.sessions, state.body.skills, state.body.mcp], [200, [], [], []]);
+    assert.deepEqual([state.status, state.body.sessions, state.body.mcp], [200, [], []]);
+    assert.ok(state.body.skills.length > 0 && state.body.skills.every((skill: { ref: { source: { plugin_id: string } } }) => skill.ref.source.plugin_id === "io.molis.work.coding"));
     assert.equal(h.made(agent.listMcp).length, 0);
     assert.equal((await h.call("/mcp/s1/control", { action: "connect" })).status, 503);
     assert.equal(h.made(agent.controlMcp).length, 0);

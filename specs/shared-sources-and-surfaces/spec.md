@@ -624,7 +624,7 @@ SDK 只依赖 contracts，不依赖也不转出私有包。改 SDK 算动共享�
 
 **surfaceSlot 实施合同补充（2026-11-09 前置合审）。** 对照 `c07dbad4a8`，现行 `UiPageView` 只有 `embed`；上面的 surfaceSlot 仍需实现，不能把声明当作已有能力。独立设计与只读合审未发现方向性 Blocker/P1，按下列约束进入第 15 批唯一 writer 实施；此结论不是产品、安全验证或最终公共合审通过。
 
-唯一新增公开 API：
+新增页面 API（签包作者入口另见下文补充）：
 
 ```ts
 surfaceSlot(element: Element, options: {
@@ -633,7 +633,7 @@ surfaceSlot(element: Element, options: {
 }): { ready: Promise<void>; dispose(): void };
 ```
 
-沿用现有 `ActionSubject`、slot 标识及对象数校验，允许空数组，超过 50 或含未知字段整次拒绝，再按组合服务原规则去重。同元素再次调用先释放旧挂载；更改引用用新调用，不增加 update API。dispose 幂等，元素离开 DOM 或 page scope 结束自动释放；待定 ready 在本地释放时以 AbortError 拒绝，已完成的 ready 不再变化。Host 拒绝向子端只映射固定 unavailable，不泄漏诊断。`UiSlotDescriptor`、`SurfaceRequest`、`SurfaceItem` 和 Manifest 不加字段；SDK 与 contracts 的实际导出、API 快照和作者文档随实现同步，不升已有版本。
+沿用现有 `ActionSubject`、slot 标识及对象数校验，允许空数组，超过 50 或含未知字段整次拒绝，再按组合服务原规则去重。同元素再次调用先释放旧挂载；更改引用用新调用，不增加 update API。dispose 幂等，元素离开 DOM 或 page scope 结束自动释放；待定 ready 在本地释放时以 AbortError 拒绝，已完成的 ready 不再变化。Host 拒绝向子端只映射固定 unavailable，不泄漏诊断。`UiSlotDescriptor`、`SurfaceRequest`、`SurfaceItem` 和 Manifest 不加字段；SDK 与 contracts 的实际导出、API 快照和作者文档随实现同步，本页面方法不提升现有动作或 API 版本。签包持久化格式的新增面按下文单独核定，不能由此推导全部格式均不升版。
 
 私有 MessagePort 上行只有 `surface-slot-open {id,slot_id,subjects}`、`surface-slot-layout {id,box}`、`surface-slot-close {id}`，下行只有 `surface-slot-ready {id,error?:"unavailable"}` 与 `surface-slot-size {id,height}`。沿现有 FrameBox；id 为端口内不重用的递增正 safe integer。重复 open 拒绝，关闭／替换后的消息与异步返回失效。没有子端 click、prepare、execute 或 peek 消息。ready 在声明预留校验结束后、任何业务查询之前答一次；height 只取声明预定形态档和盒宽，不能按值、数量、结果或错误测量。沿既有宽度分档、已批实件布局取固定高度，内部滚动；不足宽时为零。不回传焦点、存在标志或执行结果。
 
@@ -652,6 +652,18 @@ reserve 只核页面、原贡献声明、输入和容量，零业务读取；父
 现有 `area.redraw` 不会清除 pointerdown，slot 层须额外保存 pointerdown 的 render 并在点击时比对；键盘绑定更换后重新计稳定期。真实父端按钮同时通过 isTrusted、area.gate、可见／无遮挡／非 busy 与当前 control 映射。准备／确认等待后重核当前人、页面、安装、贡献、对象、原读口、动作输入映射与 revision；提交后失权或断线只核实，不自动重做。刷新按逻辑对象／操作保焦，但不恢复旧 render key，也不在用户离开后抢焦点。
 
 调用数：首次 reserve 零业务读，再一次 read／compose 与有界显示合批；几何变化零 Host 调用；打开／速览一次 activate 及必要原读取；写操作沿原 prepare 和一次真实 confirm，不叠加另一套执行。验收除前述 IUI-07／08／10／13，还须实际覆盖同名不同贡献、双 scope、同版本换 digest／activation／registration、普通 fetch 头与未知字段拒绝；对子端比较合法／空／越权／删除／超时的相同 ready／size；证明首次 HTTP 结束后当前按钮仍可合法使用、撤权后不能凭页面寿命继续执行，及 pointerdown 后重绘／旧 preparation／并发确认零额外写。Goals 自身直接复用同形态 renderer，不伪造 slot；Inbox 在真实原件详情声明并使用 slot。最终仍须真实写入、跨位置回执与三宽中英深浅／键盘验收。
+
+**签包作者与真实挂载路径补充（2026-11-09，版本决定待用户确认）。** 实施核查发现现行 `interface.json` 严格字段只有 parts／nodes／presentation／acceptance，组件没有调用 surfaceSlot 的入口，已安装沙箱 Runtime 又把 slots 固定为空。只验证未声明时拒绝，不能交付 IUI-13 的签包正向路径。原稿“仅新增一个公开 API”的结论因此更正；以下最小补充经独立前置窄审，版本事项尚未获得本次许可，新增持久化字段暂不实施，其他已授权接线继续。
+
+签包界面文件与 AgentDesign 增可选 `ui?: Pick<UiContributionDeclaration, "slots">`，只承载现有 slot 类型，不开放作者重复填写 contribution id、kind、label、surface、owner 或安装。当前沙箱仅承载对象形态，`accepts` 必须为空、`accepts_forms` 非空；其余收法沿现行合同。part／node 增 `surfaceSlot?: { slot_id: string }` 及专用 `surface-slot` 组件 kind，引用同一 ui 声明，沿原 reading intent／read binding，禁止 submit，不复制收法。未使用的合法 slot 无须拒绝安装。引用 query 沿原 operationId／input／outputPath，静态核真实 query 与闭合 kind/id 数组类型；不要求 schema 为通过此绑定另写某个长度字面量，运行时仍严格检查最多 50 个非空、闭合引用，接受已有更严约束。
+
+SDK 以唯一校验／派生入口生成完整贡献声明：id 沿 `sandboxUiContribution`，kind 为 primary-page，label 取既有名称，slots 取已校验的 ui，workbench surface 采用平台既有格式与位置。Manifest 继续由原生成器产出，不能再加第二份 slots 表。CLI pack、安装读取、Studio 的原 `builderReleaseInterface`、发布、保存／portable 同步、安装停启及重开必须保留同份 ui 与组件引用；签名继续覆盖原 interface 字节，不改签名格式，不增加 hash 或授权目录。签名包同版本不同内容仍由原包存储拒绝。
+
+保留现有 `/plugins/:id` framed stage 为签包页面的唯一实际装配。项目 `agent-surface` 与 Home 的包文档渲染从同一实际 Runtime owner 捕获 descriptor、producer、render 及原安装／activation；Home 的包渲染分支须把已画的 contribution/workbench 纳入现有去重，不能随后再由 generic stage 画一次空 main。原导航、直接打开和重开都须进入同一实例、只出现一页。PageSource 从这个已验证 descriptor 取得 slots，不回头从 design 或 plugin id 猜；原 `captureRuntimeStageOwner` 与原发行物检查必须保留，Manifest digest 本身不覆盖 interface，不能仅凭该 digest 判定声明不变。
+
+签包客户端在合并 `{...host, ...embedded}` **之前**捕获真实 `UiPageView.surfaceSlot`，以独立窄函数参数交给组件；embedded.view 是组件数据，会覆盖 host.view，不能从它取得页面方法，更不能把函数放进持久化 interface。组件 query 只取得该插件本来有权读的引用；surface-slot 分支不把它渲染为通用表格或正文，调用公共方法后仍只接 ready／固定 size。切选择、重读、重绘、关闭先 dispose 原挂载；父端值、数量、按钮及结果不回流 query、selection 或 onRead。无声明的现有包仍没有挂载权。
+
+版本边界已核实：interface 没有独立版本，但新增的 design／part／node 结构进入 `format.builder.saved-state` 与 `format.builder.portable`，当前均为 1。[合同变更规则第 3 节](../../docs/system/CONTRACT-CHANGES.md#3-阶段一现在不留兼容期)要求统一起点后带版本文件改结构时升版并附连续升级；本批此前 IM 的限定同版本例外只覆盖 server.sqlite，不能扩到这两份文件。具体升级或另一次准确例外须按本批红线取得决定，不能笼统升所有格式或笼统维持全部格式。最终验收包含真实外部 pack→签名→安装→原舞台父组件正向，项目／Home 双路径、同插件双 scope、发布／保存／同步／停启重开往返，以及未知字段、跨贡献、篡改、旧代次和子端回流拒绝；不以测试注入 descriptor 代替实际生产路径。
 
 最小迁移范围是 `renderPreviewCard`、`renderPopover`、`renderSheet` 及形态实际使用的 `renderMenu`／`renderMenuItem`：将原实现移到 SDK 的一个 UI 叶子，design-system 原入口同源重导，普通消费者签名与 HTML 保持；不复制第二套实现。其它 dialog、drawer、菜单组及客户端 tooltip、焦点、浮层工具保留原 owner。形态内容只画一次，位置层选择 popover 或窄屏 Sheet；`mw-tag`／`mw-item` 复用原样式。样式叶子只用语义变量和环境继承，消费第 16 批 font roles 的 size／lineheight，不建第二份字体、皮肤状态或缓存。`UiSpecFile.components` 只登记元数据，实际 kind 渲染与允许操作仍由实现负责。
 

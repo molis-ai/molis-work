@@ -179,6 +179,7 @@ export type MwComposerOptions = {
         resetLabel?: string;
     };
     state?: "sending" | "running" | "failed" | "unknown";
+    idleDelivery?: boolean;
 });
 
 export interface MwComposerStatus {

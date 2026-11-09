@@ -132,7 +132,9 @@ export type MwComposerOptions = {
   attrs?: Record<string, AttrValue>;
 } & (
   | { kind: "plain"; labels: MwComposerLabels; state?: "sending" | "failed" | "unknown" }
-  | { kind: "ai"; labels: MwComposerAiLabels; delivery?: AgentSteerMode; receiver?: { label: string; open?: boolean; resetLabel?: string }; state?: "sending" | "running" | "failed" | "unknown" }
+  | { kind: "ai"; labels: MwComposerAiLabels; delivery?: AgentSteerMode; receiver?: { label: string; open?: boolean; resetLabel?: string }; state?: "sending" | "running" | "failed" | "unknown";
+      /** The target also takes 下一轮再做 while no turn runs (a work that has run before): the split button and its menu are drawn idle too. */
+      idleDelivery?: boolean }
 );
 
 type ShellState = "sending" | "running" | "failed" | "unknown" | "disabled";
@@ -184,16 +186,20 @@ function startGroup(options: MwComposerOptions, disabled: boolean): string {
   return `<div class="mw-composer__start">${add}${controls}</div>`;
 }
 
-/** Send, or while a turn runs the split button: 补充 and the ▾ whose menu the client fills when it opens. */
+/** Send, or the split button: 补充 and the ▾ whose menu the client fills when it opens. While a turn runs, or while the target takes
+ *  next-turn delivery without one (idleDelivery, 2026-11-09 audit fix), the split button stands in the send's place. */
 function sendControl(options: MwComposerOptions, state: ShellState | undefined, empty: boolean): string {
   const busy = state === "sending" || state === "unknown" || state === "disabled";
-  if (options.kind === "ai" && !busy && (state === "running" || options.delivery && options.delivery !== "next-boundary")) {
+  const idle = state !== "running";
+  if (options.kind === "ai" && !busy && (state === "running" || options.idleDelivery || options.delivery && options.delivery !== "next-boundary")) {
     const { labels } = options;
     const toggle = renderButton({
       label: labels.delivery, variant: "primary", size: "icon", icon: "chevron-down", iconOnly: true,
       attrs: { title: labels.delivery, "data-compose-menu-toggle": "", "aria-expanded": "false", "aria-haspopup": "menu" },
     });
-    const supplement = labels.modes[options.delivery ?? "next-boundary"];
+    const choice = options.delivery ?? "next-boundary";
+    // Idle, the ordinary choice is the plain Send (a new turn), not a supplement of one that is not running.
+    const supplement = idle && choice === "next-boundary" ? { name: labels.send, title: labels.sendTitle } : labels.modes[choice];
     return `<div class="mw-btn-group" role="group" aria-label="${escapeHtml(labels.deliveryGroup)}">${
       renderButton({ label: supplement.name, variant: "primary", size: "sm", disabled: empty, attrs: { title: supplement.title, "data-composer-send": "" } })
     }<div class="mw-compose__anchor">${toggle}<div class="mw-compose__menu" data-compose-menu hidden></div></div></div>`;

@@ -180,6 +180,39 @@ test("SPC-C08 a real failure of the explicitly awaited stop remains resumable af
   assert.deepEqual(f.events(), events);
 });
 
+test("SPC-C08 a first enable rechecks membership after an earlier plugin awaits startup", async t => {
+  const entered = deferred(), release = deferred();
+  let scheduleStarts = 0, pauseGit = false;
+  beforeStart(t, schedule, () => { scheduleStarts++; });
+  beforeStart(t, git, async () => {
+    if (pauseGit) { entered.resolve(); await release.promise; }
+  });
+  const f = await projectRefreshFixture(t, "Reverse a first enable");
+  const installId = f.installId(SCHEDULE_PLUGIN_ID);
+  await f.setMember("schedule", false);
+  await f.setMember("git", false);
+  assert.deepEqual(await f.refresh(), []);
+  assert.equal(f.platform.runtime.get(installId).state, "disabled");
+  const startsBefore = scheduleStarts;
+
+  pauseGit = true;
+  await f.setMember("schedule", true);
+  await f.setMember("git", true);
+  const round = f.refresh();
+  await Promise.race([entered.promise, round.then(() => assert.fail("Git never reached its start hook"))]);
+  const { saved, events } = await f.setMember("schedule", false)
+    .then(async () => ({ saved: await f.membership(), events: f.events() }))
+    .finally(release.resolve);
+
+  assert.equal(saved.plugins.includes("schedule"), false);
+  assert.deepEqual(await round, []);
+  assert.equal(f.platform.runtime.get(installId).state, "disabled");
+  assert.equal(scheduleStarts, startsBefore);
+  assert.equal((await f.page()).status, 200);
+  assert.deepEqual(await f.membership(), saved);
+  assert.deepEqual(f.events(), events);
+});
+
 for (const changed of ["membership reversed", "uninstalled", "reinstalled"] as const) {
   test(`SPC-C08 an incomplete enable does not start a plugin after ${changed}`, async t => {
     let starts = 0, failStart = false;

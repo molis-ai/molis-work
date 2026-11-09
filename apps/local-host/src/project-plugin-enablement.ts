@@ -37,8 +37,8 @@ export function projectPluginEnablementRefresh(platform: PluginPlatform, home: s
         const previous = pending.get(plugin_id);
         const desired = enabled.get(plugin_id);
         if (!previous && (desired === undefined || desired === active.has(plugin_id))) continue;
-        // Earlier plugins may have awaited their lifecycle work. Re-read membership immediately before resuming a pending change.
-        const latest = previous ? await projectPluginEnablement(home, projectId) : enabled;
+        // An earlier switch may await plugin code while the Catalog changes.
+        const latest = await projectPluginEnablement(home, projectId);
         if (!latest) return null;
         const wanted = latest.get(plugin_id);
         const state = platform.supervisor.state(plugin_id);

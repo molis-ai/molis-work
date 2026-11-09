@@ -67,6 +67,11 @@ export const CAPABILITY_PACK_BOARD_STYLES = `
   .mw-list-detail__path > li + li::before { content: "/"; margin-right: 6px; color: var(--faint); }
   .mw-list-detail__path > [aria-current] { color: var(--ink-soft); }
 
+  /* 5 · Icon counts: one glyph and one number per kind; the whole name on hover (title) and for a screen reader (its own words). */
+  .mw-counts { display: flex; flex-wrap: wrap; gap: 2px 10px; min-width: 0; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .mw-count { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
+  .mw-count > svg { width: 12px; height: 12px; flex: none; }
+
   @media (prefers-reduced-motion: reduce) { :is(.mw-item-group__head, .mw-cell) { transition: none; } }
 
   .mw-catalog :is([data-primitive="now-block"], [data-primitive="item-group"], [data-primitive="cell-grid"], [data-primitive="detail-trail"], [data-primitive="icon-counts"], [data-primitive="state-rows"], [data-primitive="usage-figure"]) .mw-catalog__specimens { grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); align-items: start; }
@@ -141,6 +146,12 @@ export function renderDetailTrail(options: { up: string; path: readonly string[]
   return `<nav class="mw-list-detail__trail" aria-label="${escapeHtml(options.label)}">${up}<ol class="mw-list-detail__path">${steps}</ol></nav>`;
 }
 
+/** 5 · Icon counts. `name` is the whole name a count stands for ("3 个技能"), given on hover and to a screen reader. */
+export function renderIconCounts(counts: ReadonlyArray<{ glyph: PluginIconName; value: string; name: string }>): string {
+  return `<span class="mw-counts" data-slot="counts">${counts.map((count) => `<span class="mw-count" title="${escapeHtml(count.name)}">${icon(count.glyph)}<span aria-hidden="true">${
+    escapeHtml(count.value)}</span><span class="mw-sr-only">${escapeHtml(count.name)}</span></span>`).join("")}</span>`;
+}
+
 /* ---------- the board's specimens (made up; nothing is read from a Home). Every text is still Chinese: `say` turns it. ---------- */
 
 const hold = (word: string) => renderStatusMark({ label: word, tone: "hold", state: "unavailable" });
@@ -206,6 +217,27 @@ export function detailTrailSection(say: Say): string {
   return section("detail-trail", say("第三层返回与路径 / Third-Level Trail"), `<div class="mw-catalog__specimens">
     ${specimen(say("包 / 角色 / 这一条"), `<div class="mw-list-detail__detail">${renderDetailTrail({ up: say("回到「{p}」", { p: say("写作工具") }), path: [say("写作工具"), say("写作编辑"), say("写作编辑的说明")], label: say("所在位置") })}${head("写作编辑的说明", "写作编辑每次改稿前先读的要求")}</div>`)}
     ${specimen(say("长路径换行，不截断"), `<div class="mw-list-detail__detail">${renderDetailTrail({ up: say("回到「{p}」", { p: say("本机导入 · Claude Code") }), path: [say("本机导入 · Claude Code"), say("把会议录音整理成带行动项的纪要")], label: say("所在位置") })}${head("把会议录音整理成带行动项的纪要", "会后把录音转写整理成纪要")}</div>`)}
+  </div>`);
+}
+
+/** The counts of one pack, in the order the pack's sections come. */
+function packCounts(say: Say, counts: Readonly<Record<"role" | "prompt" | "skill" | "mcp" | "tool", number | "—">>): string {
+  const glyph: Record<string, PluginIconName> = { role: "user", prompt: "text", skill: "book", mcp: "network", tool: "wand" };
+  const whole: Record<string, string> = { role: "{n} 个角色", prompt: "{n} 个提示词", skill: "{n} 个技能", mcp: "{n} 个 MCP", tool: "{n} 个工具" };
+  return renderIconCounts(Object.entries(counts).filter(([, n]) => n !== 0).map(([kind, n]) => ({ glyph: glyph[kind]!, value: String(n),
+    name: n === "—" ? say("MCP：没读到") : say(whole[kind]!, { n }) })));
+}
+
+function packRow(say: Say, name: string, counts: Parameters<typeof packCounts>[1], end: string, current = false, attrs?: Record<string, AttrValue>): string {
+  return `<li class="mw-item mw-item--pick"><button type="button" class="mw-item__pick"${current ? ' aria-current="true"' : ""}${renderAttrs(attrs)}><span class="mw-mark" aria-hidden="true">${icon("package")}</span><span><strong>${
+    escapeHtml(say(name))}</strong>${packCounts(say, counts)}</span><span class="mw-item__end">${end}</span></button></li>`;
+}
+
+export function iconCountsSection(say: Say): string {
+  return section("icon-counts", say("图标计数 / Icon Counts"), `<div class="mw-catalog__specimens">
+    ${specimen(say("列表行里：一个图标一个数"), `<ul class="mw-items">${packRow(say, "写作工具", { role: 2, prompt: 3, skill: 3, mcp: 0, tool: 3 }, hold(say("1 项要处理")))}${
+      packRow(say, "Coding", { role: 2, prompt: 2, skill: 0, mcp: "—", tool: 6 }, hold(say("没读全")))}${packRow(say, "Feed", { role: 0, prompt: 2, skill: 0, mcp: 0, tool: 1 }, inUse(say("在用")))}</ul>`)}
+    ${specimen(say("单独放：没读到的写「—」"), packCounts(say, { role: 2, prompt: 2, skill: 0, mcp: "—", tool: 6 }))}
   </div>`);
 }
 

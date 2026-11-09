@@ -183,6 +183,8 @@ export const SETTINGS_STYLES = `
   .settings-action-section > div > p, .settings-import-row > div > p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
   .inline-settings-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: end; }
   .inline-settings-form > label:first-child { min-width: 0; display: grid; gap: 4px; color: var(--ink-soft); font-size: 12px; font-weight: var(--weight-control, 500); }
+  [data-wc="dialog"] .mw-form__footer { flex-wrap: wrap; }
+  [data-wc="dialog"] [data-wc="error"] { box-sizing: border-box; flex: 0 0 100%; overflow-wrap: anywhere; }
   .inline-settings-form input[type=text] { width: 100%; min-height: var(--control-h); padding: 0 12px; border: 1px solid var(--control-input); border-radius: var(--radius-control); color: var(--ink); background: var(--paper); }
   .inline-settings-form .inline-confirm { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; cursor: pointer; }
   .inline-settings-form .settings-form-error { grid-column: 1 / -1; }

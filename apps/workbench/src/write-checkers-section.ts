@@ -46,9 +46,8 @@ export function renderWriteCheckersSection(L: Say): string {
       field(L("适用的扩展名"), L("用空格或逗号分开。"), { name: "applies_to", required: true, placeholder: ".js .mjs", attrs: text }),
       field(L("运行目录"), L("工作区根下的相对路径，空着就是根。"), { name: "cwd", placeholder: ".", attrs: text }),
       field(L("时限（秒）"), L("1 到 60 秒，空着是 30 秒。"), { name: "timeout_seconds", type: "number", placeholder: "30", attrs: { min: 1, max: 60, step: "0.001" } }),
-      `<p class="form-error" data-wc="error" role="alert" hidden></p>`,
     ].join(""),
-    footer: `${cancel()}${renderButton({ variant: "primary", size: "md", type: "submit", label: L("保存") })}`,
+    footer: `<p class="form-error" data-wc="error" role="alert" hidden></p>${cancel()}${renderButton({ variant: "primary", size: "md", type: "submit", label: L("保存") })}`,
   });
   return `<section class="settings-section" data-say="${say}" data-write-checkers><h2>${L("写后检查")}</h2><p class="mw-field__hint">${L("Agent 写入文件后，按扩展名在这个目录的检查器里取第一个适用的去跑，顺序就是这里的顺序。每次检查都经命令审查，程序在 PATH 上找，不经 shell。")}</p><div data-wc="list"></div><p data-wc="status" role="status" aria-live="polite"></p>${editor}${group}${row}${remove}</section>`;
 }

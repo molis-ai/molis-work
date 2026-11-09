@@ -49,7 +49,13 @@ export function inboxClient(host: InboxHost): void {
   const refresh = async () => {
     const check = guard(), sequence = ++refreshSequence, scroll = q("[data-inbox-list]")?.scrollTop || 0;
     const group = q("[data-inbox-row].is-selected")?.closest<HTMLElement>("[data-inbox-stage-group]")?.dataset.inboxStageGroup;
-    const html = await host.view.readDocument({ signal: reads.signal }); check(); if (sequence !== refreshSequence) return;
+    const html = await host.view.readDocument({ signal: reads.signal }).catch(error => {
+      check();
+      const reason = molisWorkRequest.text(error);
+      if (!reason) throw error;
+      throw new Error(L("列表更新失败，当前输入已保留。") + " " + reason);
+    });
+    check(); if (sequence !== refreshSequence) return;
     const next = new DOMParser().parseFromString(html, "text/html").querySelector<HTMLElement>("[data-ui-client-root]"); if (!next) throw new Error(L("无法更新 Inbox 列表"));
     // Retain the draft form and the latest evaluation message while authoritative rows refresh.
     for (const selector of ["[data-inbox-compose]", "[data-inbox-evaluate-status]"]) {

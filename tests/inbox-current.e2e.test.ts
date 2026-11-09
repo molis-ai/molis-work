@@ -1,10 +1,11 @@
-import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
+import { pluginFrameBrowser, pluginFrameInitScript } from "./fixtures/plugin-frame-browser.js";
 import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
+import { addProjectPlugin } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { definePlugin } from "@molis-ai/molis-work-plugin-sdk";
 import type { ActionDefinition, ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { inboxActions, inboxNextScene, inboxSceneBindingId, INBOX_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-inbox";
@@ -78,4 +79,89 @@ test("Inbox shows and runs an installed plugin judgment, then withdraws advice w
     const dir = reviewEvidenceUrl("inbox-current/"); await mkdir(dir, { recursive: true });
     await writeFile(new URL("unavailable-narrow.png", dir), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
   } finally { await runtime.stop(installed.install_id); }
+});
+
+test("B27-FF05 Inbox keeps its selected item and the compose draft when a list read fails and recovers", { timeout: 90000 }, async t => {
+  const b = await openGoalBrowser(t, "user", undefined, null);
+  if (!b) return;
+  const { projectId, store, origin, sessionId } = b;
+  assert.ok(projectId);
+  await addProjectPlugin(b.web, projectId, "feed");
+  await addProjectPlugin(b.web, projectId, "inbox");
+  const feed = createLocalFeedApplication(store.db);
+  const source = createLocalFeedSourceService(store.db, projectId).register({ kind: "web_query", query: "inbox-feedback", name: "Inbox feedback" }).source;
+  const admit = (title: string) => {
+    const item = feed.ingestItem({ source, externalId: title, title, body: title, summary: title, occurredAt: new Date().toISOString(), attention: false }).item;
+    return feed.ensureInboxEntryForFeedItem(projectId, item.item_id, "manual").entry;
+  };
+  const first = admit("Inbox item to keep");
+  await b.setViewport(1024, 900);
+  await pluginFrameInitScript(t, b, `
+    window.inboxFeedback = { reads: 0, pending: 0, toasts: [] };
+    window.molisWorkbenchPluginFactories = new Proxy({}, { set(target, key, value) {
+      target[key] = key === "inbox" ? host => {
+        const read = host.view.readDocument, toast = host.showToast;
+        inboxFeedback.refresh = () => host.invalidateView();
+        host.view.readDocument = async (...args) => {
+          inboxFeedback.reads++; inboxFeedback.pending++;
+          try { return await read(...args); } finally { inboxFeedback.pending--; }
+        };
+        host.showToast = (...args) => { inboxFeedback.toasts.push(args); return toast(...args); };
+        return value(host);
+      } : value;
+      return true;
+    } });
+  `);
+  const child = await pluginFrameBrowser(t, b, "inbox");
+  await b.navigate(() => b.command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=inbox` }, sessionId));
+  await child.waitFor("inboxFeedback.reads > 0 && inboxFeedback.pending === 0");
+  const row = `[data-inbox-row][data-inbox-entry-id="${first.entry_id}"]`;
+  await child.click(row);
+  await child.click("[data-inbox-detail]:not([hidden]) [data-inbox-compose-open]");
+  const name = "[data-inbox-compose] [name=title]", instructions = "[data-inbox-compose] [name=instructions]";
+  for (const [field, words] of [[name, "Unsaved inbox title"], [instructions, "Keep these instructions"]]) {
+    await child.click(field!);
+    await child.evaluate(`document.querySelector(${JSON.stringify(field)}).select()`);
+    await b.command("Input.insertText", { text: words }, sessionId);
+  }
+  const state = () => child.evaluate(`({
+    selected: document.querySelector("[data-inbox-row].is-selected").dataset.inboxEntryId,
+    title: document.querySelector(${JSON.stringify(name)}).value,
+    instructions: document.querySelector(${JSON.stringify(instructions)}).value,
+    material: document.querySelector("[data-inbox-compose] input:checked").value
+  })`);
+  const original = { selected: first.entry_id, title: "Unsaved inbox title", instructions: "Keep these instructions", material: first.entry_id };
+  assert.deepEqual(await state(), original);
+  await b.evaluate(`(() => {
+    const fetchOriginal = window.fetch;
+    window.inboxListRequests = 0; window.failInboxList = true;
+    window.fetch = (input, init) => {
+      const url = new URL(input instanceof Request ? input.url : input, location.href);
+      if (url.href === location.href && (init?.method ?? "GET") === "GET") {
+        inboxListRequests++;
+        if (failInboxList) return Promise.reject(new TypeError("fixture: read connection lost"));
+      }
+      return fetchOriginal(input, init);
+    };
+  })()`);
+  const count = await child.evaluate<number>("inboxFeedback.toasts.length");
+  await child.evaluate("inboxFeedback.refresh()");
+  await child.waitFor(`inboxFeedback.toasts.length > ${count} && inboxFeedback.pending === 0`);
+  assert.deepEqual(await state(), original);
+  const feedback = await child.evaluate<Array<[string, boolean]>>(`inboxFeedback.toasts.slice(${count})`);
+  const image = await b.command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId);
+  const directory = reviewEvidenceUrl("inbox-current/"); await mkdir(directory, { recursive: true });
+  await writeFile(new URL("list-read-failed.png", directory), Buffer.from(image.data, "base64"));
+  await b.evaluate("window.failInboxList = false");
+  const reads = await child.evaluate<number>("inboxFeedback.reads");
+  const next = admit("Inbox refresh recovered");
+  await child.evaluate("inboxFeedback.refresh()");
+  await child.waitFor(`inboxFeedback.reads > ${reads} && inboxFeedback.pending === 0 && document.querySelector('[data-inbox-row][data-inbox-entry-id="${next.entry_id}"]')`);
+  assert.deepEqual(await state(), original);
+  const requests = await b.evaluate<number>("inboxListRequests");
+  t.diagnostic(JSON.stringify({ requests, feedback }));
+  assert.equal(requests, 2);
+  assert.equal(feedback.length, 1);
+  assert.equal(feedback[0]![1], true);
+  assert.match(feedback[0]![0], /当前输入已保留.*重试/);
 });

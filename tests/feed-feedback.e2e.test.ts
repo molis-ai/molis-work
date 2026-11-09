@@ -251,3 +251,62 @@ test("B27-FF02 B27-FF03 Feed keeps form errors local and retries just the missin
   assert.equal(catalogFirst, "36kr", "choosing a different default does not reorder the catalog");
   assert.match(partial, /来源已添加.*拉取计划未保存/);
 });
+
+test("B27-FF04 Feed preserves a filter, source selection, and source draft after a failed list read", { timeout: 90000 }, async t => {
+  const b = await openGoalBrowser(t, "user", undefined, null);
+  if (!b) return;
+  const { projectId, store } = b;
+  assert.ok(projectId);
+  await addProjectPlugin(b.web, projectId, "feed");
+  const sources = createLocalFeedSourceService(store.db, projectId);
+  const source = sources.register({ kind: "web_query", query: "feedback-list", name: "Feed refresh source" }).source;
+  const child = await openFeed(t, b);
+  await child.click("[data-feed-rail-toggle]");
+  await child.click(`[data-feed-source-rail] [data-feed-task="${source.source_id}"]`);
+  await child.evaluate(`(() => {
+    const search = document.querySelector("[data-feed-search]");
+    search.value = "保留筛选"; search.dispatchEvent(new Event("input", { bubbles: true }));
+  })()`);
+  await child.click(ADD);
+  await child.click('[data-feed-choose-kind="custom_rss"]');
+  await child.click("[data-feed-add-name]");
+  await b.command("Input.insertText", { text: "Feed unsaved source" }, b.sessionId);
+  const state = () => child.evaluate(`({
+    search: document.querySelector("[data-feed-search]").value,
+    selected: document.querySelector("[data-feed-workbench]").dataset.selectedSource,
+    name: document.querySelector("[data-feed-add-name]").value,
+    open: document.querySelector("[data-feed-add-form]").checkVisibility()
+  })`);
+  const original = { search: "保留筛选", selected: source.source_id, name: "Feed unsaved source", open: true };
+  assert.deepEqual(await state(), original);
+  await b.evaluate(`(() => {
+    const fetchOriginal = window.fetch;
+    window.feedListRequests = 0; window.failFeedList = true;
+    window.fetch = (input, init) => {
+      const url = new URL(input instanceof Request ? input.url : input, location.href);
+      if (url.href === location.href && (init?.method ?? "GET") === "GET") {
+        feedListRequests++;
+        if (failFeedList) return Promise.reject(new TypeError("fixture: read connection lost"));
+      }
+      return fetchOriginal(input, init);
+    };
+  })()`);
+  const count = await child.evaluate<number>("feedback.toasts.length");
+  await child.evaluate("feedback.refresh()");
+  await child.waitFor(`feedback.toasts.length > ${count} && feedback.pending === 0`);
+  assert.deepEqual(await state(), original);
+  const feedback = await child.evaluate<Array<[string, boolean]>>(`feedback.toasts.slice(${count})`);
+  await shot(b, "list-read-failed");
+  await b.evaluate("window.failFeedList = false");
+  const reads = await child.evaluate<number>("feedback.reads");
+  sources.register({ kind: "web_query", query: "feedback-list-recovered", name: "Feed refresh recovered" });
+  await child.evaluate("feedback.refresh()");
+  await child.waitFor(`feedback.reads > ${reads} && feedback.pending === 0 && document.querySelector("[data-feed-source-rail]").textContent.includes("Feed refresh recovered")`);
+  assert.deepEqual(await state(), original);
+  const requests = await b.evaluate<number>("feedListRequests");
+  t.diagnostic(JSON.stringify({ requests, feedback }));
+  assert.equal(requests, 2);
+  assert.equal(feedback.length, 1);
+  assert.equal(feedback[0]![1], true);
+  assert.match(feedback[0]![0], /当前输入已保留.*重试/);
+});

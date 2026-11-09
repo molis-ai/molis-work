@@ -48,7 +48,7 @@ test("W2-18-HOME-LOCALE-01: Home and project Issue controls follow locale while 
   assert.deepEqual(await v.read(record.id), record, "locale switches and opening editors do not write the stored record");
 });
 
-test("W2-18-HOME-LOCALE-01: no-model capture opens English settings, retries a failed load and keeps the manual draft", { timeout: 90_000 }, async t => {
+test("W2-18-HOME-LOCALE-01 B27-FF06: no-model capture opens English settings, retries a failed load and keeps the manual draft", { timeout: 90_000 }, async t => {
   const b = await openGoalBrowser(t, "empty", undefined, null); if (!b) return;
   const v = await issueView(t, b, "issue-home-locale");
   await v.viewport(1440); await v.go("/locale?lang=en&next=%2Fplugins%2Fissues");
@@ -76,12 +76,12 @@ test("W2-18-HOME-LOCALE-01: no-model capture opens English settings, retries a f
   await v.ask("globalThis.__settingsDraftMarker = 'original-issue-frame'");
   // W2-18-HOME-LOCALE-01 / S-47: the standalone Home host receives the opaque page's settings request in place.
   // Only fail delivery of this settings document; the retry uses the real Host and its empty model catalog.
-  await b.evaluate(`(() => { const fetch = window.fetch; let failed = false;
+  await b.evaluate(`(() => { const fetch = window.fetch; window.__failModelLoad = true;
     window.__modelSettingsLoads = [];
     window.fetch = function(url, init) {
       if (new URL(url, location.href).pathname === '/settings/models') {
-        if (!failed) {
-          failed = true; window.__modelSettingsLoads.push('interrupted');
+        if (window.__failModelLoad) {
+          window.__failModelLoad = false; window.__modelSettingsLoads.push('interrupted');
           return Promise.reject(new TypeError('settings delivery interrupted'));
         }
         return fetch.call(this, url, init).then(response => { window.__modelSettingsLoads.push(response.status); return response; });
@@ -90,9 +90,11 @@ test("W2-18-HOME-LOCALE-01: no-model capture opens English settings, retries a f
     }; return true; })()`);
   await v.press('[data-issue-flag] a[href="/settings/models"]');
   await b.waitFor("document.querySelector('[data-home-model-settings]').open && !document.querySelector('[data-home-model-retry]').hidden");
-  assert.deepEqual(await b.evaluate("({ lang: document.documentElement.lang, title: document.querySelector('#home-model-title').textContent, close: document.querySelector('[data-home-model-close]').textContent, retry: document.querySelector('[data-home-model-retry]').textContent, status: document.querySelector('[data-home-model-status]').textContent })"),
-    // A dropped connection is said by the shared request helper, in English here (W3-10).
-    { lang: "en", title: "Models", close: "Close", retry: "Retry", status: "Can't reach the Molis Work service. Try again in a moment." });
+  assert.deepEqual(await b.evaluate("({ lang: document.documentElement.lang, title: document.querySelector('#home-model-title').textContent, close: document.querySelector('[data-home-model-close]').textContent, retry: document.querySelector('[data-home-model-retry]').textContent })"),
+    { lang: "en", title: "Models", close: "Close", retry: "Retry" });
+  const settingsNotice = "document.querySelector('[data-home-model-status]').textContent";
+  const firstFailure = await b.evaluate<string>(settingsNotice);
+  await v.shot("models-read-failed");
   assert.deepEqual(await b.evaluate("window.__modelSettingsLoads"), ["interrupted"]);
   await b.click("[data-home-model-retry]");
   await b.waitFor("document.querySelector('[data-home-model-content] [data-model-settings]') && document.querySelector('[data-home-model-status]').hidden", 15_000);
@@ -108,9 +110,26 @@ test("W2-18-HOME-LOCALE-01: no-model capture opens English settings, retries a f
     input.value = 'Unsaved provider'; input.dispatchEvent(new Event('input', { bubbles: true })); })()`);
   await b.click('[data-home-model-content] a[href="/settings/connectors?connector=model-api"]');
   await b.waitFor("document.querySelector('[data-home-model-content] [data-connectors-settings]') && document.querySelector('[data-home-model-status]').hidden");
+  const readModelInput = "document.querySelector('[data-home-model-content] [data-model-name]').value";
+  const priorLoads = (await b.evaluate<unknown[]>("window.__modelSettingsLoads")).length;
+  await b.evaluate("window.__failModelLoad = true");
   await b.click("[data-home-model-back]");
+  await b.waitFor("!document.querySelector('[data-home-model-retry]').hidden");
+  assert.equal(await b.evaluate(readModelInput), "Unsaved provider");
+  const cachedFailure = await b.evaluate<string>(settingsNotice);
+  await v.shot("models-cached-read-failed");
+  const notice = await b.evaluate<{ inView: boolean }>(`(() => {
+    const status = document.querySelector("[data-home-model-status]");
+    const retry = document.querySelector("[data-home-model-retry]");
+    const body = status.parentElement.getBoundingClientRect();
+    const top = status.getBoundingClientRect().top, bottom = retry.getBoundingClientRect().bottom;
+    return { inView: top >= body.top && bottom <= body.bottom, top, bottom, bodyTop: body.top, bodyBottom: body.bottom,
+      scroll: status.parentElement.scrollTop };
+  })()`);
+  await b.click("[data-home-model-retry]");
   await b.waitFor("document.querySelector('[data-home-model-content] [data-model-settings]') && document.querySelector('[data-home-model-status]').hidden");
-  assert.equal(await b.evaluate("document.querySelector('[data-home-model-content] [data-model-name]').value"), "Unsaved provider");
+  assert.equal(await b.evaluate(readModelInput), "Unsaved provider");
+  assert.deepEqual(await b.evaluate(`window.__modelSettingsLoads.slice(${priorLoads})`), ["interrupted", 200]);
   await b.click("[data-home-model-close]"); await b.waitFor("!document.querySelector('[data-home-model-settings]').open");
   assert.equal(await v.ask("globalThis.__settingsDraftMarker"), "original-issue-frame", "the Issue execution context was not reloaded");
   assert.equal(await v.ask(`$('${editor} [name=description]').value`), "问题描述");
@@ -121,6 +140,12 @@ test("W2-18-HOME-LOCALE-01: no-model capture opens English settings, retries a f
   const { items } = await v.list(); assert.equal(items.length, 1);
   const stored = await v.read(items[0]!.id);
   assert.equal(stored.title, "删除"); assert.equal(stored.description, "问题描述"); assert.equal(stored.entered_via, "manual");
+  t.diagnostic(JSON.stringify({ firstFailure, cachedFailure, notice, loads: await b.evaluate("window.__modelSettingsLoads") }));
+  assert.equal(notice.inView, true, "returning to a cached model form brings the existing error and Retry into view");
+  for (const message of [firstFailure, cachedFailure]) {
+    assert.match(message, /Your input is preserved/);
+    assert.match(message, /Can't reach the Molis Work service\. Try again in a moment\./);
+  }
 });
 
 test("W2-18-HOME-LOCALE-01: rejected Home startup renders the requested language through the real HTTP error route", { timeout: 60_000 }, async t => {

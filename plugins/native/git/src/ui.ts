@@ -27,15 +27,23 @@ export function renderGitBrowserDirectory(text: (key: string) => string): string
       </form>
       <label class="mw-sr-only" for="git-commit-message">${text("git.commit.label")}</label>
       <textarea class="mw-textarea git-sc-message" id="git-commit-message" data-git-commit-message rows="3" placeholder="${text("git.commit.placeholder")}" spellcheck="false"></textarea>
-      <div class="git-sc-actions"><button class="mw-btn mw-btn--ghost" type="button" data-git-commit-draft>${text("git.commit.draft")}</button><button class="mw-btn mw-btn--primary" type="button" data-git-commit disabled>${text("git.commit.submit")}</button></div>
-      <div class="git-sc-actions"><button class="mw-btn mw-btn--secondary" type="button" data-git-pull disabled>${text("git.pull.any")}</button><button class="mw-btn mw-btn--secondary" type="button" data-git-push disabled>${text("git.push.button")}</button><button class="mw-btn mw-btn--ghost" type="button" data-git-pr-toggle aria-expanded="false">${text("git.pr.toggle")}</button></div>
+      <div class="git-sc-actions">
+        <p class="git-sc-note" data-git-commit-state hidden>${text("git.commit.nothing")}</p>
+        <button class="mw-btn mw-btn--ghost" type="button" data-git-commit-draft hidden disabled>${text("git.commit.draft")}</button>
+        <button class="mw-btn mw-btn--primary" type="button" data-git-commit hidden disabled></button>
+      </div>
+      <div class="git-sc-actions" data-git-sync-actions hidden>
+        <button class="mw-btn mw-btn--secondary" type="button" data-git-pull hidden disabled></button>
+        <button class="mw-btn mw-btn--secondary" type="button" data-git-push hidden disabled></button>
+        <button class="mw-btn mw-btn--ghost" type="button" data-git-pr-toggle aria-expanded="false" hidden disabled>${text("git.pr.toggle")}</button>
+      </div>
       <form class="git-sc-form" data-git-pr-form hidden>
         <p class="git-sc-note" data-git-pr-support></p>
         <label class="mw-field"><span class="mw-field__label">${text("git.pr.base")}</span><select class="mw-select" data-git-pr-base aria-label="${text("git.pr.base-label")}"></select></label>
         <label class="mw-field"><span class="mw-field__label">${text("git.pr.title")}</span><input class="mw-input" data-git-pr-title maxlength="256"></label>
         <label class="mw-field"><span class="mw-field__label">${text("git.pr.body")}</span><textarea class="mw-textarea" rows="4" data-git-pr-body></textarea></label>
         <label class="mw-check-row"><input class="mw-check" type="checkbox" data-git-pr-draft><span>${text("git.pr.draft")}</span></label>
-        <button class="mw-btn mw-btn--secondary" type="button" data-git-pr-create>${text("git.pr.toggle")}</button>
+        <button class="mw-btn mw-btn--secondary" type="button" data-git-pr-create disabled>${text("git.pr.toggle")}</button>
       </form>
       <section class="git-sc-conflicts" data-git-conflicts aria-label="${text("git.conflict.region")}" hidden>
         <p class="git-sc-note" data-git-conflict-note></p>

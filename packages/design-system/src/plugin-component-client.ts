@@ -44,23 +44,31 @@ export function createPluginComponentClient(options: PluginComponentClientOption
   };
   const openRecord = async (id: string): Promise<boolean> => {
     if (state.disposed) return false;
-    const rows = (part: Part) => [...part.output.querySelectorAll<HTMLElement>("[data-record-id]")].filter(row => row.dataset.recordId === id);
-    const matches = [...state.parts.values()].flatMap(part => {
-      const field = part.node.props.idField;
-      if (!field || !c7.ready(part.node.read?.operationId)) return [];
-      const records = part.rows?.filter(row => c7.text(c7.at(row, field)) === id);
-      return records?.length === 1 && rows(part).length === 1 ? [{ part, value: records[0] }] : [];
-    });
-    if (matches.length !== 1) return false;
-    const { part, value } = matches[0]!, generation = c7.epoch;
+    const locate = () => {
+      let match: { part: Part; row: HTMLElement; value: unknown } | undefined;
+      for (const part of state.parts.values()) {
+        const field = part.node.props.idField;
+        if (!field || !c7.ready(part.node.read?.operationId)) continue;
+        const records = part.rows?.filter(row => c7.text(c7.at(row, field)) === id) ?? [];
+        if (records.length > 1) return undefined;
+        if (!records.length) continue;
+        const rows = [...part.output.querySelectorAll<HTMLElement>("[data-record-id]")].filter(row => row.dataset.recordId === id);
+        if (rows.length > 1 || rows.length && match) return undefined;
+        if (rows[0]) match = { part, row: rows[0], value: records[0] };
+      }
+      return match;
+    };
+    const match = locate();
+    if (!match) return false;
+    const { part, value } = match, generation = c7.epoch;
     c7.selectPage(part.node.pageId);
     c7.select(part.node.id, value);
     const selected = c7.selectionVersions.get(part.node.id);
     if (c7.reading(part.node) || c7.selectable(part.node.id)) await c7.refresh();
     if (!c7.live(part, generation) || c7.currentPage !== part.node.pageId || c7.selectionVersions.get(part.node.id) !== selected) return false;
-    const actual = rows(part);
-    if (actual.length !== 1 || !c7.selection[part.node.id]) return false;
-    const row = actual[0]!;
+    const actual = locate();
+    if (actual?.part !== part || !c7.selection[part.node.id]) return false;
+    const row = actual.row;
     part.output.querySelectorAll("[aria-current]").forEach(node => node.removeAttribute("aria-current"));
     row.setAttribute("aria-current", "true");
     if (row instanceof HTMLDetailsElement) row.open = true;

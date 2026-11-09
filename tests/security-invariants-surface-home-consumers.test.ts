@@ -76,7 +76,11 @@ test("SCS-07 SCS-08 SCS-11 WBR-24: real Goals, Inbox, Coding and Feed supply one
   });
   const before = Object.fromEntries(["goals", "inbox", "coding", "feed"].flatMap(id =>
     ["overview", "values"].map(action => [id + ".presentation." + action, count(id + ".presentation." + action)])));
+  const syncRuns = () => f.host.withProject(project.reference, runtime => createLocalFeedApplication(runtime.store.db).snapshot(project.project_id).runs);
+  const previousRuns = await syncRuns();
   const next = await read();
+  assert.deepEqual(await syncRuns(), previousRuns, "a real Home read neither starts nor records a Feed pull");
+  assert.equal(count("feed.sources.sync"), 0);
   for (const id of ["goals", "inbox", "coding", "feed"]) {
     assert.equal(count(id + ".presentation.overview") - before[id + ".presentation.overview"]!, 1, id);
     assert.equal(count(id + ".presentation.values") - before[id + ".presentation.values"]!, 2, id + " has one rule batch and one display batch");

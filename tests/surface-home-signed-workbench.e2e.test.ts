@@ -17,7 +17,7 @@ test("SCS-11: an ordinary signed plugin opens its original form and exact origin
   const host = b.localHost!, caller = person(project.project_id), client = host.actionClient(reference);
   const go = () => b.navigate(() => b.command("Page.navigate", { url: b.origin + path }, b.sessionId));
   await go();
-  const bundle = presentingPackage("project", [], true);
+  const bundle = presentingPackage("project", [], { editorDialog: true });
   const preview = await client.invoke(caller, ref(pluginInstallActions.preview), { bundle }) as { preview_id: string };
   await client.invoke(caller, ref(pluginInstallActions.confirm), { preview_id: preview.preview_id, consent: true, pin_label: "Homepage dialog" });
   const writes = () => host.withProject(reference, runtime => {

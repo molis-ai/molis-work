@@ -6,9 +6,11 @@ import { signPluginPackage } from "@molis-ai/molis-work-plugin-runtime";
 import { sandboxActionId, sandboxPackageBuildId, sandboxPluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { newPublisher, packageContract, packageFiles, payloadOf } from "./sandbox-package.js";
 
-export function presentingPackage(scope: "project" | "home", delegated: readonly ActionDefinition[], editorDialog = false) {
+export function presentingPackage(scope: "project" | "home", delegated: readonly ActionDefinition[], options: { editorDialog?: boolean; distinctForms?: boolean } = {}) {
+  const { editorDialog, distinctForms } = options;
   const publisher = newPublisher(), contract = packageContract(), build = sandboxPackageBuildId(contract.pluginId, publisher.identity);
   const kind = "sandbox-home-note", subject = { kind, id: "1" };
+  const secondKind = "sandbox-home-appendix";
   const start = (id: string) => ({ capability_id: sandboxActionId(build, id), version: 1 });
   const add = contract.operations.find(item => item.id === "notes.add")!;
   // Both real writers read the old list before appending; both effects are part of their approval.
@@ -24,19 +26,29 @@ export function presentingPackage(scope: "project" | "home", delegated: readonly
     input: overview.action.input_schema, output: overview.action.output_schema!, errors: [], effects: editorDialog ? { storage: ["read"] } : {}, examples: [{ input: {}, output }] });
   if (editorDialog) {
     const context = defineSubjectContextAction(sandboxActionId(build, "notes.context"), 1, kind, "Note context", [], scope);
-    const values = definePresentationValuesAction(sandboxActionId(build, "notes.values"), 1, [kind], "Note fields", [], scope);
+    const kinds = distinctForms ? [kind, secondKind] : [kind];
+    const values = definePresentationValuesAction(sandboxActionId(build, "notes.values"), 1, kinds, "Note fields", [], scope);
     contract.operations.push(
       { id: "notes.context", kind: "query", read_protocol: { kind: "subject_context", subject_kind: kind }, input: context.action.input_schema,
         output: context.action.output_schema!, errors: [], effects: { storage: ["read"] }, examples: [{ input: { subject_id: subject.id },
           output: subjectContext({ subject, revision: "1", title: "A note", content: "A note", open: { surface: "workbench", id: subject.id } }) }] },
-      { id: "notes.values", kind: "query", read_protocol: { kind: "presentation_values", subject_kinds: [kind] }, input: values.action.input_schema,
+      { id: "notes.values", kind: "query", read_protocol: { kind: "presentation_values", subject_kinds: kinds }, input: values.action.input_schema,
         output: values.action.output_schema!, errors: [], effects: { storage: ["read"] }, examples: [{ input: { subjects: [subject], fields: ["title"] },
           output: { items: [{ subject, revision: "1", state: "ok", values: { title: "A note" } }] } }] },
     );
+    if (distinctForms) {
+      const appendix = defineSubjectContextAction(sandboxActionId(build, "notes.appendix"), 1, secondKind, "Appendix context", [], scope);
+      const object = { ...subject, kind: secondKind };
+      contract.operations.push({ id: "notes.appendix", kind: "query", read_protocol: { kind: "subject_context", subject_kind: secondKind }, input: appendix.action.input_schema,
+        output: appendix.action.output_schema!, errors: [], effects: { storage: ["read"] }, examples: [{ input: { subject_id: object.id },
+          output: subjectContext({ subject: object, revision: "1", title: "Appendix", content: "A note" }) }] });
+    }
   }
   contract.presentation = { objects: editorDialog ? [{ kind, fields: [{ key: "title", role: "title" }], forms: { row: { fields: ["title"] } } }] : [], overview: { capability_id: overview.capability_id, version: overview.version,
     start: [{ ...start("notes.add"), open: { view_id: "app", panel: "editor" } },
       ...(alternate ? [{ ...start("notes.alternate"), open: { view_id: "app", panel: "alternate-editor" } }] : [])] } };
+  if (distinctForms) contract.presentation = { ...contract.presentation, objects: [...contract.presentation.objects,
+    { kind: secondKind, fields: [{ key: "title", role: "title" }, { key: "summary", role: "summary" }], forms: { row: { fields: ["title", "summary"] } } }] };
   const { files, manifest } = packageFiles(publisher.identity);
   files[SANDBOX_PACKAGE_FILES.contract] = JSON.stringify(contract);
   files[SANDBOX_PACKAGE_FILES.entrypoint] += `
@@ -45,9 +57,11 @@ const appendNote = operations["notes.add"];
 `;
   if (editorDialog) files[SANDBOX_PACKAGE_FILES.entrypoint] += `
 const noteKind = ${JSON.stringify(kind)};
+const appendixKind = ${JSON.stringify(distinctForms ? secondKind : null)};
 const noteRecords = sdk => operations["notes.list"]({}, sdk);
 operations["notes.overview"] = async (_input, sdk) => ({
-  ...${JSON.stringify(output)}, subjects: (await noteRecords(sdk)).slice(-5).map(note => ({ kind: noteKind, id: note.id })),
+  ...${JSON.stringify(output)}, subjects: (await noteRecords(sdk)).slice(-2).flatMap(note =>
+    [noteKind, appendixKind].filter(Boolean).map(kind => ({ kind, id: note.id }))),
 });
 operations["notes.context"] = async ({ subject_id }, sdk) => {
   const note = (await noteRecords(sdk)).find(note => note.id === subject_id);
@@ -59,9 +73,16 @@ operations["notes.values"] = async ({ subjects, fields }, sdk) => {
   const notes = await noteRecords(sdk);
   return { items: subjects.map(subject => {
     const note = notes.find(note => note.id === subject.id);
-    return note ? { subject, revision: note.id, state: "ok", values: fields.includes("title") ? { title: note.text } : {} }
+    return note ? { subject, revision: note.id, state: "ok", values: {
+      ...(fields.includes("title") ? { title: note.text } : {}),
+      ...(fields.includes("summary") ? { summary: "Only the appendix row requested this field" } : {}),
+    } }
       : { subject, revision: "0", state: "deleted" };
   }) };
+};
+if (appendixKind) operations["notes.appendix"] = async (input, sdk) => {
+  const result = await operations["notes.context"](input, sdk);
+  return { ...result, subject: { ...result.subject, kind: appendixKind } };
 };
 `;
   delegated.forEach((definition, index) => {

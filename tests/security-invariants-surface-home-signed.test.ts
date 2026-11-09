@@ -9,6 +9,7 @@ import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/p
 import type { PluginInstanceRecord, PluginPackageBundle } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { SandboxEffects } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
 import type { SurfaceDescription, SurfaceInstallationRef, SurfacePluginCard } from "@molis-ai/molis-work-contracts/services/surface-composition";
+import type { SurfaceHomeDisplay } from "@molis-ai/molis-work-app-workbench";
 import { SqlitePluginPrivateStorage, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { deferred, serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { APPROVED, person, ref } from "./fixtures/home-sandbox.js";
@@ -27,7 +28,7 @@ async function body<T>(response: Response, status = 200): Promise<T> {
 
 type Navigation = { kind: "stage"; installation: SurfaceInstallationRef; frame_path: string; shell_key: string; selection: { surface: string; id: string; panel?: string; intent: "open" } };
 
-async function fixture(t: TestContext, scope: "project" | "home", delegated: readonly ActionDefinition[] = []) {
+async function fixture(t: TestContext, scope: "project" | "home", delegated: readonly ActionDefinition[] = [], distinctForms = false) {
   const available = { available: true } as const;
   let hold: { action: string; entered: ReturnType<typeof deferred>; release: ReturnType<typeof deferred> } | undefined;
   const f = await serveHomeRuntime(t, { actionAvailability: (_caller, view) => {
@@ -53,7 +54,7 @@ async function fixture(t: TestContext, scope: "project" | "home", delegated: rea
     await f.host.inspectActions({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: project.project_id, audience: "user", permissions: [] }, project.reference);
   };
   const client = f.host.actionClient(project.reference), caller = person(project.project_id);
-  const bundle: PluginPackageBundle = presentingPackage(scope, delegated);
+  const bundle: PluginPackageBundle = presentingPackage(scope, delegated, distinctForms ? { editorDialog: true, distinctForms } : {});
   const install = async () => {
     const preview = await client.invoke(caller, ref(pluginInstallActions.preview), { bundle }) as { preview_id: string; runtime_scope: string };
     assert.equal(preview.runtime_scope, scope);
@@ -85,6 +86,30 @@ async function fixture(t: TestContext, scope: "project" | "home", delegated: rea
   return { ...f, project, prefix, post, description, card, click, open, read, confirm, close, install, delegatedCalls,
     replacePolicy, holdDiscovery(action: string) { return hold = { action, entered: deferred(), release: deferred() }; } };
 }
+
+test("S-surface-composition SCS-08 a signed owner answers a joint field batch, but each row delivers only its own form fields", mac, async t => {
+  const f = await fixture(t, "project", [], true);
+  const form = (await f.card()).start?.[0];
+  assert.ok(form);
+  const page = await f.open(await body<Navigation>(await f.click(form)));
+  assert.equal(await body(await f.confirm(page, "Stored note")), true);
+  await body(await f.close(page));
+  const log = f.host.callLog!, record = log.record;
+  let valuesCalls = 0;
+  log.record = function (caller, action, outcome) {
+    if (caller.project_id === f.project.project_id && outcome.ok && action.capability_id.endsWith(".notes.values")) valuesCalls++;
+    return record.call(this, caller, action, outcome);
+  };
+  try {
+    const display = await body<SurfaceHomeDisplay>(await f.post(endpoint, {}));
+    const rows = display.display.rows.filter(row => row.owner === owner);
+    assert.deepEqual(rows.map(row => [row.subject.kind, "values" in row.read ? row.read.values : null]), [
+      ["sandbox-home-note", { title: "Stored note" }],
+      ["sandbox-home-appendix", { title: "Stored note", summary: "Only the appendix row requested this field" }],
+    ]);
+    assert.equal(valuesCalls, 2, "one rule batch and one display batch across both subjects");
+  } finally { log.record = record; }
+});
 
 async function refuseChanged(response: Response) {
   const answer = await body<{ code: string; page_id?: string }>(response, 409);

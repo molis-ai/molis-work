@@ -6,7 +6,7 @@
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
-import { LocalHostHttpClient } from "@molis-ai/molis-work-test-kit/local-host-http";
+import { LocalHostHttpClient, projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser, pluginFrameInitScript } from "./fixtures/plugin-frame-browser.js";
 
@@ -42,8 +42,9 @@ async function open(t: TestContext) {
   const browser = await openGoalBrowser(t, true, undefined, null); if (!browser) return null;
   await browser.setViewport(1440, 960);
   const { projectId, homeDirectory } = browser;
+  assert.ok(projectId);
   const client = new LocalHostHttpClient({ origin: browser.origin, controlToken: browser.controlToken });
-  await client.post(`/api/settings/projects/${projectId}/plugins`, { plugin_id: "feed" });
+  await client.post(`/api/settings/projects/${projectId}/plugins`, { plugin_id: "feed", expected_revision: await projectPluginRevision(client, projectId) });
   const api = `/projects/${projectId}/api/plugins/io.molis.work.feed`;
   const source = (await client.post<{ source: { source_id: string } }>(api + "/sources/accounts", { service: "github", name: "Card source" })).source.source_id;
   await pluginFrameInitScript(t, browser, `window.molisWorkbenchPluginFactories=new Proxy({}, {set(target,key,value){target[key]=key==='feed'?host=>{window.pageHost=host;return value(host)}:value;return true}});${OBSERVE}`);

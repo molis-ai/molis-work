@@ -1,5 +1,5 @@
-import { ActionError, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionHandlerBinding, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
-import { materialOriginActions, materialRecentActions, PROJECT_WORKSPACE_PROVIDER_ID, projectDirectoryActions as a, type DirectoryChange, type ProjectDirectories } from "@molis-ai/molis-work-contracts/modules/projects";
+import { ActionError, bindActionHandler, requireSynchronous, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionHandlerBinding, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
+import { materialOriginActions, materialRecentActions, PROJECT_WORKSPACE_PROVIDER_ID, projectDirectoryActions as a, projectPluginActions, type DirectoryChange, type ProjectDirectories } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { MaterialOriginQuery, MaterialPin, MaterialRef, RecentMaterial } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import { MaterialRecentUses, type MaterialRecentCaller } from "@molis-ai/molis-work-module-projects";
@@ -9,11 +9,16 @@ import { readMaterialOrigins } from "./material-origins.js";
 import type { MolisWorkProjectCatalog } from "./project-catalog.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { checkWorkspaceFile } from "./workspace-files.js";
+import { changedProjectPluginEnablement, type ProjectPluginRefreshResult } from "./project-plugin-enablement.js";
+import { hostErrors } from "./host-errors.js";
+import { hostLog } from "./host-log.js";
 
 export { PROJECT_WORKSPACE_PROVIDER_ID };
 
 /** The Home catalog owner the platform injected at startup; project folders are kept there. */
 type ProjectCatalogOwner = () => { home: string; run: LocalWebCatalogRunner } | undefined;
+type WithCatalog = <Result>(caller: ActionCallContext, operation: (value: MolisWorkProjectCatalog) => Result | Promise<Result>) => Promise<Result>;
+type RefreshProjectPlugins = () => Promise<ProjectPluginRefreshResult | null>;
 
 /** Tells the project's plugins that its folder settings changed, with the folder it concerns (BL-521); called after the change is committed. */
 export type WorkspaceSettingsAnnouncer = (workspaceId: string) => Promise<void>;
@@ -49,7 +54,8 @@ function touched(before: ProjectDirectories, after: ProjectDirectories): string[
  * is committed from the revision the person read, after the call's authority is checked again (`beforeEffect`, inside the catalog commit).
  */
 export function projectWorkspaceActionProvider(projectId: string, catalogOwner: ProjectCatalogOwner, announce: WorkspaceSettingsAnnouncer,
-  materials: ProjectMaterialPorts, readOnly?: (projectId: string) => ProjectDirectories | Promise<ProjectDirectories>): ActionProviderRegistration {
+  materials: ProjectMaterialPorts, refreshOpenProjectPlugins: RefreshProjectPlugins,
+  readOnly?: (projectId: string) => ProjectDirectories | Promise<ProjectDirectories>): ActionProviderRegistration {
   // A Host bound to no catalog (no Home, or one composed for a single project) may be handed the folders to read; it changes none of them.
   const unbound = { available: false, code: "actions.service_unavailable", reason: "项目目录服务尚未装配" } as const;
   const needsCatalog = () => catalogOwner() ? { available: true } as const : unbound;
@@ -91,11 +97,40 @@ export function projectWorkspaceActionProvider(projectId: string, catalogOwner: 
       return { kind: "map_source", source_workspace_id: String(source), target: target(rest) };
     }),
     change(a.unmapSource as ActionDefinition<unknown, ProjectDirectories>, input => ({ kind: "unmap_source", source_workspace_id: String(input.source_workspace_id) })),
+    ...membershipHandlers(withCatalog, refreshOpenProjectPlugins).map(handler => ({ ...handler, availability: needsCatalog })),
     ...materialHandlers(projectId, materials, withCatalog).map(handler => ({ ...handler, availability: needsCatalog })),
   ];
   return { provider: { provider_id: PROJECT_WORKSPACE_PROVIDER_ID, title: "项目工作目录", kind: "system", project_id: projectId },
-    definitions: [...Object.values(a), ...Object.values(materialRecentActions), ...Object.values(materialOriginActions)], handlers,
+    definitions: [...Object.values(a), ...Object.values(projectPluginActions), ...Object.values(materialRecentActions), ...Object.values(materialOriginActions)], handlers,
     availability: () => catalogOwner() || readOnly ? { available: true } : unbound };
+}
+
+function membershipHandlers(withCatalog: WithCatalog, refreshOpenProjectPlugins: RefreshProjectPlugins): ActionHandlerBinding[] {
+  return [
+    bindActionHandler(projectPluginActions.get, (_input, caller) =>
+      withCatalog(caller, catalog => catalog.projectPluginMembershipWithRevision(caller.project_id!))),
+    bindActionHandler(projectPluginActions.set, async (input, caller) => {
+      const projectId = caller.project_id!;
+      await caller.beforeEffect();
+      const { before, saved } = await withCatalog(caller, catalog => catalog.commit(() => {
+        const before = catalog.projectPluginMembershipWithRevision(projectId);
+        requireSynchronous(caller.assert_authority_current?.());
+        caller.signal?.throwIfAborted();
+        return { before, saved: catalog.setProjectPlugin(projectId, caller.actor_id, input) };
+      }, caller.beforeEffect));
+      const changed = changedProjectPluginEnablement(before, saved);
+      if (changed.size === 0) return saved;
+      try {
+        const unfinished = await refreshOpenProjectPlugins();
+        if (!unfinished?.some(item => changed.get(item.plugin_id) === item.desired_enabled)) return saved;
+      } catch (error) {
+        hostLog.warn("projects", "project_plugins_refresh_failed", error, { project_id: projectId });
+      }
+      const observation = await withCatalog(caller, catalog => catalog.projectPluginMembershipWithRevision(projectId))
+        .then(membership => ({ membership }), () => ({ committed_membership: saved }));
+      throw hostErrors.project_plugins_refresh_failed("插件选择已保存，切换尚未完成。请刷新项目。", { committed: true, ...observation });
+    }),
+  ];
 }
 
 /** Who a 「最近用过」 list belongs to: the person, or the plugin that made the call, both from the call context and never from input. */
@@ -113,7 +148,7 @@ const readable = (origin: RecentMaterial["origin"]) => origin !== null && origin
  * `readMaterialOrigins`: nothing about an origin is stored, and a plugin learns nothing of what it cannot read.
  */
 function materialHandlers(projectId: string, materials: ProjectMaterialPorts,
-  withCatalog: <Result>(caller: ActionCallContext, operation: (value: MolisWorkProjectCatalog) => Result | Promise<Result>) => Promise<Result>): ActionHandlerBinding[] {
+  withCatalog: WithCatalog): ActionHandlerBinding[] {
   const recent = new MaterialRecentUses(materials.db);
   const origins = (caller: ActionCallContext, definition: { capability_id: string; version: number }, queries: readonly MaterialOriginQuery[], compare: boolean) =>
     readMaterialOrigins(caller, queries, { compare }, {

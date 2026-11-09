@@ -1,5 +1,11 @@
 /** English for 插件 in project settings: installed plugins, their permissions and agreements, installing a signed package (ac-trust T7). */
 export const PLUGIN_TRUST_EN: Record<string, string> = {
+  "项目插件成员请求无效": "Invalid project plugin membership request",
+  "项目地址无效": "Invalid project address",
+  "项目插件成员已经变了，请刷新后再改": "This project's plugins have changed. Refresh before making another change.",
+  "插件选择已保存，切换尚未完成。请刷新项目。": "Your plugin selection was saved. Refresh the project to finish applying it.",
+  "请先刷新项目插件，再继续修改。": "Refresh the project's plugins before making another change.",
+  "请核对后再操作：{intent}": "Review the current plugins before trying again ({intent}).",
   "读写当前项目": "Read and write this project",
   "未同意": "Not approved",
   "已同意": "Approved",

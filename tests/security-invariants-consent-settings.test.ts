@@ -1,3 +1,4 @@
+import { projectPluginRevisionAt } from "./fixtures/project-plugin-settings.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { LOCAL_PERSON_ACTOR_ID, type ActionDefinition, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -109,7 +110,7 @@ test("RAC-390-LIVE S-77 a running Host reconciles a revoked default on the next 
   const row = ledger.record({ plugin_id: id, publisher_signature: signature, manifest_digest: "reader-digest", granted_by: "user", at: "2026-10-25T00:00:00.000Z",
     grants: [{ kind: "default_wiring", subject: consentSubject.defaultWiring("text", source, createFilesPlugin().manifest.publisher.signature) }] })[0]!;
   const project = await f.project("Consent live reconciliation"), path = `/projects/${project.project_id}/api/board`;
-  const enabled = await f.request(`/api/settings/projects/${project.project_id}/plugins`, { method: "POST", body: { plugin_id: "files" } });
+  const enabled = await f.request(`/api/settings/projects/${project.project_id}/plugins`, { method: "POST", body: { plugin_id: "files", expected_revision: await projectPluginRevisionAt(f.origin, project.project_id) } });
   assert.equal(enabled.status, 200);
   assert.equal((await f.request(path)).status, 200);
   const state = await f.host.withProject(project.reference, runtime => ensureProjectPlugins({ store: runtime.store, artifacts: runtime.artifacts, processItems: runtime.processItems,

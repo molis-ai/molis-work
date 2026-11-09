@@ -1,3 +1,4 @@
+import { projectPluginRevisionAt } from "./fixtures/project-plugin-settings.js";
 import assert from "node:assert/strict";
 import { IncomingMessage } from "node:http";
 import { Socket } from "node:net";
@@ -10,7 +11,7 @@ test("W2-18-NATIVE-BODY-01 Runtime Schedule accepts Chinese within budget and re
   let modelCalls = 0;
   const edge = await serveHomeRuntime(t, { completeText: async () => { modelCalls++; throw new Error('no model request expected'); } });
   const project = await edge.project('Schedule body test');
-  assert.equal((await edge.request(`/api/settings/projects/${project.project_id}/plugins`, { method: 'POST', body: { plugin_id: 'schedule' } })).status, 200);
+  assert.equal((await edge.request(`/api/settings/projects/${project.project_id}/plugins`, { method: 'POST', body: { plugin_id: 'schedule', expected_revision: await projectPluginRevisionAt(edge.origin, project.project_id) } })).status, 200);
   const path = `/projects/${project.project_id}/api/plugins/io.molis.work.schedule`;
   const input = { title: '中文任务', instructions: '读取中文内容', time: '08:30' };
   const saved = await edge.request(path + '/tasks', { method: 'POST', body: input });

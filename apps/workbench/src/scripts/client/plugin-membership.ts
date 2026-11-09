@@ -18,6 +18,7 @@ export const PLUGIN_MEMBERSHIP_FACTORY_SCRIPT = `(host) => {
   const tiles = (root = document) => [...(rail(root)?.querySelectorAll('.plugin-rail-tile') || [])];
   const tileOf = (id, root = document) => tiles(root).find((tile) => tile.dataset.pluginTile === id) || null;
   const owned = (root = document) => new Set(tiles(root).filter((tile) => !tile.classList.contains('is-available')).map((tile) => tile.dataset.pluginTile));
+  let rendered = owned(), revision = document.body.dataset.projectPluginRevision;
   const nameOf = (id) => tileOf(id)?.querySelector('.plugin-rail-item > span')?.textContent || id;
   const reload = () => { try { saveUiState?.(); } catch {} location.reload(); };
   const keys = (nodes, key) => [...nodes].map(key).join(',');
@@ -129,12 +130,12 @@ export const PLUGIN_MEMBERSHIP_FACTORY_SCRIPT = `(host) => {
     return new DOMParser().parseFromString(html,'text/html');
   };
 
-  const follow = async (pluginId, adding, before) => {
+  const follow = async (pluginId, adding) => {
     let next;
     try { next = await fetchPage(); } catch { reload(); return; }
     const ownerBoundaryChanged = Boolean(document.getElementById('molis-work-data')) !== Boolean(next.getElementById('molis-work-data'));
     const after = owned(next);
-    const came = [...after].filter((id) => !before.has(id)), gone = [...before].filter((id) => !after.has(id));
+    const came = [...after].filter((id) => !rendered.has(id)), gone = [...rendered].filter((id) => !after.has(id));
     const wired = (rail()?.dataset.reloadPlugins || '').split(' ').filter(Boolean);
     if ([...came, ...gone].some((id) => wired.includes(id))) { reload(); return; }
     // What leaves is left first: a pane showing it goes back to where it was.
@@ -152,31 +153,74 @@ export const PLUGIN_MEMBERSHIP_FACTORY_SCRIPT = `(host) => {
     const same = (a, b) => [...a].sort().join() === [...b].sort().join();
     // What the page has must now be what the server renders; if it is not, no half-way: load it again.
     if (!same(owned(), after) || unfollowed(document) !== unfollowed(next) || [...came, ...gone].some((id) => Boolean(stageOf(next, id)) !== (livePage(id).length > 0))) { reload(); return; }
+    rendered = after; revision = next.body.dataset.projectPluginRevision;
     try { saveUiState?.(); } catch {}
     const also = [...came, ...gone].filter((id) => id !== pluginId);
     if (also.length) showToast?.((adding ? L('同时添加了：{list}') : L('同时移除了：{list}')).replace('{list}', also.map(nameOf).join('、')));
   };
 
-  const run = async (pluginId, action, quiet) => {
-    if (!projectId) return { ok: false, error: '' };
+  const save = async (target, pluginId, adding, expectedRevision) => {
+    if (!target || !expectedRevision) return { error: L('请先刷新项目插件，再继续修改。'), readbackRequired: true };
+    try {
+      return { result: await molisWorkRequest('/api/settings/projects/'+encodeURIComponent(target)+'/plugins',{
+        method: adding ? 'POST' : 'DELETE', body: { plugin_id: pluginId, expected_revision: expectedRevision }, fallback: L(adding ? '无法添加插件' : '无法移除插件'),
+      }) };
+    } catch (error) {
+      const details = error.body?.details;
+      if (details?.committed === true) return { error, result: details.membership ?? details.committed_membership, readbackRequired: !details.membership };
+      return { error, readbackRequired: error.code === 'actions.conflict' };
+    }
+  };
+  // Keep the saved selection visible even while the running pages still need a refresh.
+  const showSaved = (snapshot) => {
+    for (const tile of tiles()) {
+      const toggle = tile.querySelector('[data-plugin-toggle]');
+      if (!toggle) continue;
+      const id = tile.dataset.pluginTile;
+      const personal = document.querySelector('[data-market-plugin="'+CSS.escape(id)+'"][data-market-personal]');
+      const added = snapshot.plugins.includes(id) || Boolean(personal && !snapshot.hidden.includes(id));
+      tile.classList.toggle('is-available', !added);
+      const state = added ? 'added' : 'available';
+      if (toggle.dataset.state === state) continue;
+      toggle.dataset.state = state;
+      tile.querySelector('.dock-keep').disabled = !added;
+      toggle.title = L(added ? '在本项目停用；数据保留，加回即恢复' : '添加到本项目');
+      const label = L(added ? '移除：{name}' : '添加：{name}').replace('{name}', nameOf(id));
+      toggle.setAttribute('aria-label', label);
+      const words = toggle.querySelector('.mw-sr-only');
+      if (words) words.textContent = label;
+    }
+  };
+  const run = async (pluginId, action, quiet, expectedRevision) => {
     const adding = action === 'add';
     const tile = tileOf(pluginId);
-    const before = owned();
+    const available = tile?.classList.contains('is-available');
     tile?.classList.add('is-busy');
     // The tile answers at once; the server confirms, or the tile goes back.
     tile?.classList.toggle('is-available', !adding);
     try {
-      const result=await molisWorkRequest('/api/settings/projects/'+encodeURIComponent(projectId)+'/plugins',{method:adding?'POST':'DELETE',body:{plugin_id:pluginId},fallback:L(adding?'无法添加插件':'无法移除插件')});
-      await follow(pluginId, adding, before);
-      return { ok: true, result };
-    } catch (error) {
-      tile?.classList.toggle('is-available', adding);
-      if (!quiet) showToast?.(error,true);
-      return {ok:false,error};
+      const outcome = await save(projectId, pluginId, adding, expectedRevision);
+      if (outcome.result) {
+        revision = outcome.readbackRequired ? undefined : outcome.result.revision;
+        if (outcome.error) showSaved(outcome.result);
+        else {
+          try { await follow(pluginId, adding); }
+          catch { reload(); }
+        }
+      } else {
+        tile?.classList.toggle('is-available', available);
+        if (outcome.readbackRequired && revision === expectedRevision) revision = undefined;
+      }
+      if (outcome.error && !quiet) showToast?.(outcome.error, true);
+      return outcome;
     } finally { tile?.classList.remove('is-busy'); }
   };
-  // One change at a time: the next starts from what the last one left. The market asks to report a failure itself.
+  // A queued click keeps the observation it was drawn from. The market has its own project list observation.
   let chain = Promise.resolve();
-  const change = (pluginId, action, options = {}) => (chain = chain.then(() => run(pluginId, action, options.quiet)));
-  return { change };
+  const change = (pluginId, action, { quiet, expectedRevision = revision } = {}) => {
+    const operation = chain.then(() => run(pluginId, action, quiet, expectedRevision));
+    chain = operation.catch(() => undefined);
+    return operation;
+  };
+  return { change, save };
 }`;

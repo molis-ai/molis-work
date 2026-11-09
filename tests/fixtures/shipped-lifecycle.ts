@@ -15,7 +15,7 @@ import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { sceneConfigurationActions } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { homeSqlitePath } from "@molis-ai/molis-work-storage";
-import { isLocalHostHttpError } from "@molis-ai/molis-work-test-kit/local-host-http";
+import { isLocalHostHttpError, projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { serveTestHost, type TestHostServer, type TestProject } from "./test-home.js";
 
 export type Web = TestHostServer["web"];
@@ -128,16 +128,16 @@ export async function walk(plugin: Shipped, host: Partial<HostOptions> = {}) {
     // Taken out of the project: its routes and actions there are refused; a personal plugin's installation keeps running, a project plugin's stops.
     if (plugin.always_on) {
       // 常开: the project cannot take it out, and nothing of it changes.
-      assert.equal(await answer(served.web.delete(settings, { plugin_id: plugin.key })), "400 catalog.plugin_always_on", `${plugin.key}: not removable`);
+      assert.equal(await answer(served.web.delete(settings, { plugin_id: plugin.key, expected_revision: await projectPluginRevision(served.web, project.project_id) })), "400 catalog.plugin_always_on", `${plugin.key}: not removable`);
       assert.deepEqual(await plugin.titles(served.web, at.routes), kept, `${plugin.key}: still there`);
       assert.deepEqual(await at.callable(), callable);
     } else {
-      assert.equal(await answer(served.web.delete(settings, { plugin_id: plugin.removed_by ?? plugin.key })), 200);
+      assert.equal(await answer(served.web.delete(settings, { plugin_id: plugin.removed_by ?? plugin.key, expected_revision: await projectPluginRevision(served.web, project.project_id) })), 200);
       assert.equal(await answer(plugin.titles(served.web, at.routes)), "403 actions.plugin_disabled", `${plugin.key}: removed from the project`);
       assert.deepEqual(await at.callable(), [], `${plugin.key}: nothing of it to call in the project`);
       assert.equal((await at.installation())?.state, plugin.stops_when_removed ? "disabled" : "running", `${plugin.key}: its installation after removal`);
       // Added back: what was written is there, in the same installation.
-      assert.equal(await answer(served.web.post(settings, { plugin_id: plugin.key })), 200);
+      assert.equal(await answer(served.web.post(settings, { plugin_id: plugin.key, expected_revision: await projectPluginRevision(served.web, project.project_id) })), 200);
       assert.deepEqual(await plugin.titles(served.web, at.routes), kept, `${plugin.key}: added back, with its data`);
       assert.deepEqual(await at.callable(), callable);
       assert.deepEqual(await at.installation(), first, `${plugin.key}: the same installation, running`);

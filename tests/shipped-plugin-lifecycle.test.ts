@@ -1,3 +1,4 @@
+import { projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 // W6-02 (specs/archive/repository-anti-corruption/roadmap-2026-10-07.md §4.10; RAC-1030–RAC-1034): the lifecycle the probe walks
 // (tests/probe-plugin.test.ts, W4-01), walked by the shipped plugins that run on Plugin Runtime: Todo and Jelly on the Home
 // supervisor, Pages and 灵光 on each project's. The walk itself is tests/fixtures/shipped-lifecycle.ts (the other plugins' files
@@ -116,8 +117,8 @@ test("RAC-1034 W6-02 BL-755 a project's supervisor keeps uninstall, restarts a l
     assert.deepEqual(await pagesAt.callable(), pagesCallable);
 
     // Taken out of the project and added back: the list does not install it again either.
-    assert.equal(await answer(served.web.delete(settings, { plugin_id: "schedule" })), 200);
-    assert.equal(await answer(served.web.post(settings, { plugin_id: "schedule" })), 200);
+    assert.equal(await answer(served.web.delete(settings, { plugin_id: "schedule", expected_revision: await projectPluginRevision(served.web, project.project_id) })), 200);
+    assert.equal(await answer(served.web.post(settings, { plugin_id: "schedule", expected_revision: await projectPluginRevision(served.web, project.project_id) })), 200);
     assert.equal(await answer(served.web.get(`${scheduleAt.routes}/list`)), "404 actions.missing", "Schedule: the project's list does not install it again");
     assert.equal((await scheduleAt.installation())?.state, "uninstalled");
   } finally {

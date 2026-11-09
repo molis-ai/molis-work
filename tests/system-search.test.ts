@@ -506,6 +506,78 @@ test("BRC-04 · a late listing cannot restore an unregistered source", async t =
   assert.deepEqual(f.index.documents("a"), []);
 });
 
+test("BRC-04 · an older directory preserves newly registered sources and a re-registered key", async t => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const f = await fixture(t);
+  const note = (id: string, version: number): Note => ({ id, title: "Indexed", body: `revision ${version}`, version });
+  const a = source([note("a", 1)]);
+  register(f.actions, a, { provider_id: "notes-a", project_id: "a" });
+  const cProvider = { provider_id: "notes-c", project_id: "a", plugin_id: "notes-c" };
+  const cActions = { entries: "replaced.search.entries", reader: "replaced.subject.read" };
+  const unregisterC = register(f.actions, source([note("c", 1)]), cProvider, cActions);
+  assert.deepEqual(ids(await ask(f, owner("a"), "Indexed", { scope: "project" })), ["a", "c"]);
+  const cKey = f.index.sources().find(row => row.provider_id === "notes-c")?.source_key;
+  assert.ok(cKey);
+
+  f.tick(60_001);
+  a.notes.set("a", note("a", 2));
+  const held = holdNextProjectListing(t, f.actions, "a");
+  const earlier = ask(f, owner("a"), "Indexed", { scope: "project", plugins: ["notes"] });
+  try {
+    await waitForBackground(() => held.arrived);
+    a.availability = { available: false, code: "actions.plugin_disabled", reason: "disabled" };
+    f.search.markRegistration("notes-a", "a");
+    unregisterC();
+    f.search.markRegistration("notes-c", "a");
+    t.mock.timers.tick(5);
+    await setImmediate();
+
+    register(f.actions, source([note("b", 1)]), { provider_id: "notes-b", project_id: "a", plugin_id: "notes-b" },
+      { entries: "newnotes.search.entries", reader: "newnotes.subject.read" });
+    f.search.markRegistration("notes-b", "a");
+    register(f.actions, source([note("c", 2)]), cProvider, cActions);
+    f.search.markRegistration("notes-c", "a");
+    assert.deepEqual(ids(await ask(f, owner("a"), "Indexed", { scope: "project", plugins: ["notes-b", "notes-c"] })), ["b", "c"]);
+    assert.equal(f.index.document(cKey, "note", "c")?.revision, "2");
+  } finally { held.release.resolve(); }
+  await earlier;
+  await setImmediate();
+  assert.deepEqual(f.index.documents("a").map(row => [row.object_id, row.revision]).sort(), [["b", "1"], ["c", "2"]]);
+  assert.equal(f.index.document(cKey, "note", "c")?.revision, "2");
+});
+
+test("BRC-04 · a background window replaces an older foreground listing before any new query", async t => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const f = await fixture(t);
+  const note = (version: number): Note => ({ id: "note", title: "Indexed", body: `revision ${version}`, version });
+  const a = source([note(1)]), b = source([note(1)]);
+  register(f.actions, a, { provider_id: "notes-a", project_id: "a" });
+  register(f.actions, b, { provider_id: "notes-b", project_id: "b" });
+  for (const project of ["a", "b"]) assert.deepEqual(ids(await ask(f, owner(project), "Indexed", { scope: "project" })), ["note"]);
+  const revision = (project: string) => f.index.documents(project)[0]?.revision;
+
+  f.tick(60_001);
+  a.notes.set("note", note(2));
+  const held = holdNextProjectListing(t, f.actions, "a");
+  const earlier = ask(f, owner("a"), "Indexed", { scope: "project" });
+  try {
+    await waitForBackground(() => held.arrived);
+    b.notes.set("note", note(2));
+    f.search.markChanged("notes-b", "b");
+    t.mock.timers.tick(4);
+    a.notes.set("note", note(3));
+    f.search.markChanged("notes-a", "a");
+    t.mock.timers.tick(1);
+    await waitForBackground(() => revision("b") === "2");
+    assert.equal(revision("a"), "1");
+  } finally { held.release.resolve(); }
+  await earlier;
+  t.mock.timers.tick(4);
+  await setImmediate();
+  assert.equal(revision("a"), "3");
+  assert.equal(a.lists, 3, "the previous foreground listing is followed by one read for the new notice");
+});
+
 test("RAC-129-SEARCH: close during a held listing preserves the old index and clock receiver, while another service remains independent", async t => {
   let first: SearchService | undefined;
   const a = await fixture(t, { clock(this: unknown) { assert.equal(this, first); return 1_000_000; } });

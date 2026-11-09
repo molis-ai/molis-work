@@ -7,6 +7,7 @@ import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/p
 import { bindProjectNotifications } from "./plugin-notification-delivery.js";
 import { hostErrors } from "./host-errors.js";
 import { informationActionProvider } from "./information-actions.js";
+import { createSettingsVersionClaims } from "./declaration-owners.js";
 import { bindHomeSide, bindPluginCatalog, releaseHomeSide, type PluginFixture } from "./home-side.js";
 import { homeActionProvider } from "./home-actions.js";
 import { openProjectSchedulers, closeProjectSchedulers } from "./project-schedulers.js";
@@ -218,9 +219,10 @@ export class MolisWorkLocalHost {
       },
     });
     this.synchronization = projectSyncAccess(this.host);
-    if (options.homeDirectory) this.homePlugins = new HomePluginHost({ home: options.homeDirectory, actorId: LOCAL_PERSON_ACTOR_ID,
-      registry: this.host.actionRegistry(), client: homePluginActions(this.host), inspect: caller => this.host.inspectActions(caller), entries: homePluginEntries(), fixtures: options.pluginFixtures?.home, installed: options.pluginFixtures?.installed, projectReach: homeProjectReach(options.homeDirectory, () => this.host.projects()),
-      projectActions: (projectId, pluginId) => homePackageProjectActions(projectId, pluginId, options.homeDirectory, this.catalogRunner,
+    const home = options.homeDirectory, settingsVersionClaims = createSettingsVersionClaims();
+    if (home) this.homePlugins = new HomePluginHost({ home, actorId: LOCAL_PERSON_ACTOR_ID, settingsVersionClaims,
+      registry: this.host.actionRegistry(), client: homePluginActions(this.host), inspect: caller => this.host.inspectActions(caller), entries: homePluginEntries(), fixtures: options.pluginFixtures?.home, installed: options.pluginFixtures?.installed, projectReach: homeProjectReach(home, () => this.host.projects()),
+      projectActions: (projectId, pluginId) => homePackageProjectActions(projectId, pluginId, home, this.catalogRunner,
         this, this.host, molisWorkHostProjectReference) });
     if (options.homeDirectory) {
       this.alchemist = new AlchemistHostService(options.homeDirectory, options.alchemist);
@@ -252,9 +254,8 @@ export class MolisWorkLocalHost {
       this.host,
       { workspaceFor: options.workspaceFor, workspacesFor: options.workspacesFor, prepareDirectory: options.prepareDirectory },
     );
-    if (options.homeDirectory) bindHomeSide(this, options.homeDirectory, options);
-    if (options.homeDirectory) {
-      const home = options.homeDirectory;
+    if (home) {
+      bindHomeSide(this, home, options, settingsVersionClaims);
       this.search = createSearchHost({ homeDirectory: home, registry: this.host.actionRegistry(),
         project: projectId => this.host.projects().find(row => row.project_id === projectId && row.state !== "closing"),
         projectClient: reference => this.actionClient(reference), homeClient: () => this.homeActionClient(),

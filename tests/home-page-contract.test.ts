@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { actionReachesAudience, type ActionDefinition, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionReachesAudience, type ActionDefinition, type ActionSchema, type HomePageSubject } from "@molis-ai/molis-work-contracts/platform/actions";
 import { CONTENT_ADOPTION_RESULT_SCHEMA, contentAdoptionInputSchema, contentAdoptionReadInputSchema, contentAdoptionReadOutputSchema,
   type ContentAdoptionResult,
 } from "@molis-ai/molis-work-contracts/platform/blueprints";
@@ -141,6 +141,10 @@ test("SPC-C06/SPC-C07: real homepage declarations pass the common adoption valid
 
 test("SPC-C06: approvals and returning to Basic require the original observation and request key", () => {
   const { adopt, restore, select } = homePageActions;
+  const subjects: readonly HomePageSubject[] = [
+    { kind: "home-page", project_id: "another-project", ...page },
+    { kind: "home-page-preview", project_id: "another-project", ...page },
+  ];
   const input = { ...page, approved_actions: [action], request_id: approval.request_id, expected_revision: "home-11" };
   for (const [definition, operation] of [[adopt, "adopt"], [restore, "restore"]] as const) {
     assert.deepEqual(definition.action.audiences, ["user"]);
@@ -150,7 +154,7 @@ test("SPC-C06: approvals and returning to Basic require the original observation
       { ...input, request_id: "" },
       { ...input, approved_actions: [{ capability_id: action.capability_id, version: action.version }] },
       { ...input, actor_id: "someone-else" },
-      { ...input, page_subject: "home-page:other-project/page@2" },
+      ...subjects.map(page_subject => ({ ...input, page_subject })),
     );
     assert.equal(result(definition)({ ...approval, operation }), true);
     assert.equal(result(definition)({ ...approval, operation: operation === "adopt" ? "restore" : "adopt" }), false);

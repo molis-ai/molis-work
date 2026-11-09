@@ -2306,6 +2306,13 @@ export interface HomeOpenTarget {
     label: string;
 }
 
+export interface HomePageSubject {
+    readonly kind: "home-page" | "home-page-preview";
+    readonly project_id: string;
+    readonly page_id: string;
+    readonly version: number;
+}
+
 export interface HomePluginDatabaseDeclaration extends PluginDatabaseDeclaration {
     readonly partition?: "project";
     readonly project_rows?: PluginProjectRowsDeclaration;
@@ -3566,6 +3573,11 @@ export interface PluginManifest {
         wakeups?: readonly import("platform/plugin-scheduler").PluginWakeupDeclaration[];
     };
     notifications?: import("platform/plugin-notifications").PluginNotificationReceiverDeclaration;
+    settings_entries?: import("@molis-ai/molis-work-contracts/platform/settings").SettingsDeclaration;
+    blueprint?: {
+        locales: string[];
+    };
+    adopts?: readonly import("@molis-ai/molis-work-contracts/platform/blueprints").AdoptsDeclaration[];
     actions?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionDefinition[];
     action_scenes?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneDefinition[];
     read_groups?: readonly import("platform/plugin-read-groups").PluginReadGroupDeclaration[];

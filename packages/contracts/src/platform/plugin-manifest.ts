@@ -257,6 +257,12 @@ export interface PluginManifest {
   background?: { jobs: readonly import("./plugin-background.js").PluginJobDeclaration[]; wakeups?: readonly import("./plugin-scheduler.js").PluginWakeupDeclaration[] };
   /** the plugin takes the platform's notifications (`services.notifications` of the plugins that send them), by one of its own actions (D6-2). */
   notifications?: import("./plugin-notifications.js").PluginNotificationReceiverDeclaration;
+  /** Stable setting entries and the declaring owner’s read and write actions. */
+  settings_entries?: import("./settings.js").SettingsDeclaration;
+  /** A content pack's Blueprint files. The default is blueprint.json; this lists the translated editions. */
+  blueprint?: { locales: string[] };
+  /** Content types this owner can adopt, through its declared actions. */
+  adopts?: readonly import("./blueprints.js").AdoptsDeclaration[];
   /** Complete, callable capabilities registered with the system action service. */
   actions?: readonly import("./actions.js").ActionDefinition[];
   /** Actual judgment consumption points, automatically discovered by configuration UIs. */

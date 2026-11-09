@@ -110,6 +110,24 @@ export declare const PLUGIN_ICON_NAMES: readonly ["presentation", "flask", "stat
 
 export type PluginIconName = typeof PLUGIN_ICON_NAMES[number];
 
+export interface PluginLocaleManifest {
+    readonly plugin_id: string;
+    readonly kind: string;
+    readonly ui?: {
+        readonly locales?: PluginLocalesDeclaration;
+    };
+}
+
+export type PluginLocaleRead = (path: string) => string | null;
+
+export interface PluginLocaleReader {
+    readonly owner: string;
+    readonly default: string;
+    readonly available: readonly string[];
+    pack(locale: string): UiLocalePack | null;
+    problems(): readonly LocaleSetProblem[];
+}
+
 export type ReturnBarState = "waiting" | "look" | "ready" | "gone";
 
 export declare const STATE_RING_CORES: Record<string, string>;
@@ -249,6 +267,8 @@ export declare function icon(name: PluginIconName, className?: string): string;
 
 export declare function inspectLocaleSet(packs: readonly UiLocalePack[], options: LocaleSetOptions): readonly LocaleSetProblem[];
 
+export declare function inspectPluginLocales(manifest: PluginLocaleManifest, read: PluginLocaleRead): readonly LocaleSetProblem[];
+
 export declare function installTextForTest(input: TextForTest): () => void;
 
 export declare function installUiText(provider: UiTextProvider): () => void;
@@ -270,6 +290,10 @@ export declare function parseSkinFile(source: string, spec: UiSpecFile, options?
 export declare function parseStrictJson(source: string, options?: StrictJsonOptions): UiFileResult<unknown>;
 
 export declare function parseUiSpecFile(source: string, options?: UiFileOptions): UiFileResult<UiSpecFile>;
+
+export declare function pluginLocaleFilePaths(manifest: Pick<PluginLocaleManifest, "ui">): readonly string[];
+
+export declare function pluginLocaleReader(manifest: PluginLocaleManifest, read: PluginLocaleRead): PluginLocaleReader | null;
 
 export declare const processFold: (scope: string, { group, groupBody, step, stepBody }: {
     group: string;

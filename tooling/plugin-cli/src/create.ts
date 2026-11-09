@@ -44,12 +44,13 @@ export async function createPluginProject(input: CreatePluginProjectInput): Prom
     ...Object.fromEntries(Object.entries(SAMPLE_WORDS).map(([locale, words]) => [`locales/${locale}.json`, JSON.stringify({ format_version: UI_FORMAT_VERSIONS.locale,
       owner: input.plugin_id, locale, messages: Object.fromEntries(Object.entries(words).map(([name, text]) => [`${owner}.main.${name}`, text])) }, null, 2) + "\n"])),
     "package.json": JSON.stringify({ name: input.plugin_id.replaceAll(".", "-"), version: "2.0.0", private: true,
-      type: "module", files: ["index.mjs", "manifest.json", "README.md"],
+      type: "module", files: ["index.mjs", "manifest.json", "locales", "README.md"],
       dependencies: { "@molis-ai/molis-work-plugin-sdk": "0.0.0" } }, null, 2) + "\n",
     "README.md": "# Local Plugin Sample\n\nThis is a local development sample, not a reviewed marketplace release.\n"
       + "The supplied publisher signature is a binding identity, not proof of cryptographic signing.\n\n"
       + "Install the matching local Molis Work SDK distribution, then run through the Molis Work application Host.\n"
       + "The manifest registers health, results.read, results.publish and results.preview with the common action service.\n"
+      + "Interface words use stable keys and the declared locales/en.json and locales/zh.json. Run molis-work plugin validate before packaging.\n"
       + "The saved result type has a display name and a preview action of its own, which every Artifact type a plugin pins must declare.\n"
       + "Each poll invokes the same registered publish action; the UI displays the original private counter.\n"
       + "Health can be explicitly authorized for MCP. Personal results use the local startup owner's identity and are not exposed to other clients.\n"

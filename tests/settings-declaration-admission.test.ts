@@ -95,9 +95,11 @@ async function setup(t: TestContext) {
       const project = projects[index]!;
       const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
       await host.localPersonContext(reference);
-      const platform = await host.withProject(reference, runtime => runningProjectPlatform(runtime.store, runtime.project_id));
-      assert.ok(platform);
-      return scope(platform.runtime, project.database_path);
+      return host.withProject(reference, async runtime => {
+        const platform = await runningProjectPlatform(runtime.store, runtime.project_id);
+        assert.ok(platform);
+        return { ...scope(platform.runtime, project.database_path), db: runtime.store.db };
+      });
     },
   };
 }
@@ -158,6 +160,15 @@ test("SPC-C01: a racing installation wins the new key during async upgrade prefl
   const previous = project.install(first);
   await project.runtime.start(previous.install_id);
   project.archive(upgraded);
+  // A start-time refusal could also restore the old row. Fail if the candidate reaches the actual write at all.
+  project.db.exec(`
+    CREATE TEMP TRIGGER reject_candidate_save BEFORE UPDATE ON plugin_runtime_installs
+    WHEN json_extract(NEW.record_json, '$.plugin_id') = 'io.molis.work.admission.first'
+      AND json_extract(NEW.record_json, '$.version') = '2.0.0'
+    BEGIN
+      SELECT RAISE(ABORT, 'candidate installation was written before settings admission');
+    END
+  `);
   const attempt = project.runtime.upgrade({ install_id: previous.install_id, definition: upgraded });
   const upgrading = assert.rejects(attempt, conflict("sample.contested"));
   try {

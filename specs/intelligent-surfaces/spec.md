@@ -416,6 +416,21 @@ Feed 的归属已有事实来源，不新增个人订阅结构：`SourceRecord.p
 
 验收沿现有编号：1440／1024／390 × 中文/英文 × 浅色/深色的 12 种组合检查四形态、首页、长内容、状态与后果；窄屏不能照搬四形态原型隐藏行状态标签的规则。实走键盘聚焦名字片到速览、精确打开与返回，挂载位内执行后跨位置更新和真实回执，七项以上混排的原处展开及中途撤权，首次读失败和旧值重试，新项目/停用/部分不可读，后台刷新与切项目/分屏恢复，以及 Feed 真实归属与去重。菜单键盘、Esc 关闭当前浮层并归还焦点、展开后的焦点、读屏与减少动效均按 IUI-26 验证。第二片活卡、完整验收卡和后续生成页面不由第一片模拟销账。
 
+### 首批插件的实际读口与操作（2026-11-09）
+
+按 `b7aec677a3` 的真实 owner 核对。四个插件的呈现读取均落在项目 Runtime：Goals、Inbox、Coding 各一支 values，Feed 一支同时覆盖 `feed_item` 和 `source`；各自一支固定协议 overview。Home 实例维持原职责，不能借它跨分区聚合。处理器只返回请求的对象与字段，项目、安装和权限来自可信调用；组合服务仍先核唯一且同主人的原 subject reader，再选同 scope 的 values，不因较窄的元数据读取权限绕过 reader。
+
+| 对象 | 当前事实与显示 | 概况和真实入口 |
+| --- | --- | --- |
+| Goals `goal` | 同一个 Goals 读窗取记录与事件状态；标题、状态、更新时间、真实进展摘要或目标自己的 outcome。只有真实验收待决才标「等你验收」。沿 `updated_at:goal_event_cursor` 表达版本。新只读处理器自行在同步 `window.read` 中读取、等待原 ready；不套会额外加载 Home 个人方法且要求同步返回的通用 wrapper。 | 当前可读前五个 Goal；空与有内容用各自稳定词。`goals.create@1` 打开 `stage/create-dialog`，对象沿现有精确打开／速览。没有现成上次成功投影，首次失败按 unreadable，不造旧值缓存。 |
+| Inbox `inbox_entry` | Attention 事项壳拥有状态、原因、时间和 revision；标题与来源沿原件权限合批读取，等待后复核事项版本及 origin。有效判断沿现有 recommendations 的绑定和正文版本校验，缺理由就省略。原件只作引用，origin 本身不伪装成 Ledger 去重关系。 | 当前可读 open/in_progress 前五项；无真实开始能力时 start 为空。subject reader 补现有 Inbox 本页的精确打开。停用 Inbox 不把仍归 Feed 的 Attention 算为 Inbox 排除数。 |
+| Coding `coding_session` | 本项目 SessionStore 的标题、状态、更新时间，卡与速览可加创建时间；按真实 session 状态映射，沿 reader 的 `artifact:read` 和准确打开。首页不读取 Run 正文、历史和工作区。 | 最新五个未归档会话。现有 `coding.sessions.create@1` 接受空输入，创建空会话而不调模型；当前 Runtime 不可用时不写。创建成功沿返回 session id 打开，不能当作 Run id。 |
+| Feed `feed_item`／`source` | 只声明行；同项目元数据取标题／来源名、真实读态／状态、更新时间和来源标签。归属依 §16 上文按原来源记录；`SourcesModule.query.get` 也会读退休 tombstone，须核 `sourceDeletedAt`，缺源或已退订则不猜归属。业务 `read_at` 不作旧值读取时间。 | 同分区至多五个可读近期条目或真实来源故障；无开始入口，静态说明同步资料不算已接工作。原 reader 补准确打开：条目开条目，来源走现有 source-workbench，不把来源 id 当条目 id。 |
+
+Inbox 的 `inbox.entry.status@1` 要求目标状态与读取时 revision；当前 `input_from` 不能把同 ref 的 done/dismiss 两种目标表示成两个按钮。本片不增加包装动作、不把当前状态当目标输入，公共形态保留打开／速览，原 offer 仍由现有 contextual prepare／确认／网关准备和执行。首片的真实操作验收不因此取消：最终消费者必须在挂载位通过已登记 placement 或既有 offer 完成真实写入、跨位置更新及回执，并验证撤权后零写；只打开页面不能销账 IUI-07／08。
+
+各 owner 的稳定词随真实消费者成套接入；业务状态保持原枚举，共用 renderer 为合法状态环补平台词，关闭已登记的 raw 状态文字缺口。以上是下一实施片的输入，尚未作为产品行为或验证结果交付。
+
 ### 四形态组件片开工检查
 
 本片交付功能可用的 SDK 渲染入口与真实组件板。以 §15 已确认的方案 B 和[公共合同 §7](../shared-sources-and-surfaces/spec.md#7-sdk-里共用的校验)为准。名字片、行、卡片与速览按同一声明和值渲染。板上用示例值实际操作组件，产品入口、安装和跨位置更新随各自的后续片接入。

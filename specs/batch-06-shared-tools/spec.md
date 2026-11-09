@@ -102,7 +102,14 @@ Manifest 借用现行对象形状表达精确系统来源，例如 `default_sour
 
 独立复核确认现有 `PUT /v1/policy` 的 revision CAS 与 D1 写入条件能够拒绝撤选后的旧 namespace 新操作；准确重放原回执须验零新增。上传不推进 policy revision，末次拉取与撤选之间仍有窗口；撤选后的 changes、history、附件读取都验当前选择，保存 head 不延长读权。最小隔离试验先用可控旧端正常结清、停止生产和自动／手动同步、排空在途，再由最后受权旧端拉齐并核正文与相关失败，最后 CAS 撤选或替换。`setDevice(false)` 只关自动工作，不阻止手动运行。新 namespace 还需从干净队列／head 合法播种整个已选集合（含非 Files），不能沿用固定前缀的旧 outbox。
 
-当前未以实际试验证实旧写端排空与末次拉齐，或在旧同步历史存在时把完整历史交给切换后空 Home。暂停旧设备只用于隔离验证。同步关闭且无待处理状态的本地路径可以独立验证，不能作为有云端历史的项目通行证。禁止用“拒绝所有旧事件”顶替可回读的切换方案。
+**2026-11-09 隔离探针。** Node 24.15.0／SQLite 3.51.3 下的单文件探针通过（最终 1/1，20.5 秒）。使用真实 `createStaticPersonalSync`／`PersonalSync.run`、项目目录与过程项 owner；HTTP 在进程内模拟，SQLite 执行现行 D1 schema 及从 Rust 提取的 heads、policy CAS、changes、receipt 和事件插入 SQL。未运行 Rust Worker、Miniflare、R2、真实 Auth 或云端；仅 inline 内容。探针在临时目录，测试 Home 与进程已清理，不算正式 BSH-11 验收。
+
+- 丢失上传响应后，原 outbox 的 operationId、base、payload 保持冻结，之后本地编辑也不改原项；下轮原回执能结清。双旧 Home 拉齐后 pending、conflicts、failures 均空，三版 Files 快照（含归档）与同集合另一 owner 的历史均能读回。
+- `prepare` 确实可能先建项目，后续暂态失败把完整事件留在 `sync_failures`，stream cursor 已前进，重试后才推进 partition cursor 并清失败。本地先改属再收旧尾部时，事件进入项目 `replica_conflicts`，顶层 `error` 仍为 null；总状态和 cursor 到 head 都不足以证明已排空。
+- 旧上传推进 head 而不动 policy revision，现行 policy CAS 仍能撤选，证实末次拉齐与撤选之间存在漏历史窗口。撤选后原 receipt 精确重放保持旧 revision 且零新增，同 id 改 payload/base 或新的旧版操作均被拒。
+- 仅选 v2 时 head 为零，空 Home 没有历史。沿用旧 per-key head 在空 v2 播种被拒且保留 frozen。用干净 seed replica 经 owner read/apply 收齐完整版本图，明确 v2 选择再走正常 run，空 Home 可读回三版快照（新 system owner）及另一 owner 历史，v1 传输历史保留但配额增加。已排空的旧设备先收 v2 heads 后可继续上传，旧 partition cursor 保留。v2 选择为测试注入，尚无产品实现；没有证明撤选后旧传输历史仍可在普通 history 入口展示。
+
+**待定范围。** 当前机制下，只有能证实全部旧写端停止且在途排空的维护窗口，才能安全采用一次性选择切换与播种；本地某台排空不能证明所有设备已停。另一候选是在服务端把预期旧 head 与 policy revision 一同作原子切换条件，再由客户端以已完整核对的版本图播种新集合。涉及服务端、一次性账号／集合切换、选择和云端播种，超出已有本地 2→3 授权；需用户决定实施范围，真实部署和数据切换另约窗口。否则 Files 整块仍不能采用或删除。同步关闭且无待处理状态的本地路径可以独立验证，不能作为有云端历史的项目通行证；禁止用“拒绝所有旧事件”顶替可回读的切换方案。
 
 ### Files 的 M0 裁决依据
 

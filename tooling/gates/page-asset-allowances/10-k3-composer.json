@@ -1,7 +1,0 @@
-{
-  "reason": "第 10 批 K3 首页底栏与个人助理换成统一输入框（UIV-12、UIV-17、UIC-09、VUX-18）。K3 改了 K2 输入框程序里的三处行为，/assets/molis-work-composer.js 比 K2 许可（10-k2-composer.json，34645 B）多 293 B，对照 origin/main 5945c027 的独立构建实测 0 → 34938：送出时只清掉随这次送出的字和文件，之后写下、加进的留着（composer-send）；一次拖进几个文件，每个文件当场有自己的一行、各自读取，一个等宿主不挡别的（composer-send，VUX-18）；菜单不高于输入框上方的空间，矮窗口里滚动而不出屏（composer-menus，PAS-12）。同批删掉助理私有输入实现，其他资源都变小：workbench.js 994585 → 989003（-5582）、workbench.css -9076、settings.css -13730、arrival.css -8502。",
-  "review": "尚未评审：K3 写手登记，随第 10 批 PR 由评审台核对；与 K2 许可合计 34938 B 的新增资源是否要用户重新确认，由统筹判断",
-  "assets": {
-    "/assets/molis-work-composer.js": 293
-  }
-}

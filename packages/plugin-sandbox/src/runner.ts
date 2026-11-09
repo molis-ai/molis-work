@@ -51,6 +51,12 @@ export interface SandboxCallControl {
   connections?: PluginConnectionsClient;
 }
 
+function assertInputMessageSize(input: SandboxJson, messageBytes: number) {
+  if (Buffer.byteLength(JSON.stringify(input)) > messageBytes / 2) {
+    throw new SandboxError('sandbox.request_too_large', 'Operation input exceeds channel limit');
+  }
+}
+
 export async function createSandboxRunner(options: SandboxRunnerOptions): Promise<SandboxRunner> {
   if (process.platform !== 'darwin') throw new SandboxError('sandbox.unsupported_platform', 'Generated plugins require macOS Seatbelt');
   const { contract, validators } = checkSandboxContract(options.contract, false, true);
@@ -190,9 +196,7 @@ export async function createSandboxRunner(options: SandboxRunnerOptions): Promis
       try {
         const operation = contract.operations.find(o => o.id === operationId);
         if (!operation) throw new SandboxError('sandbox.unknown_operation', 'Operation is outside this contract');
-        validators.get(operation.id)!('input', input, () => {
-          if (Buffer.byteLength(JSON.stringify(input)) > limits.messageBytes / 2) throw new SandboxError('sandbox.request_too_large', 'Operation input exceeds channel limit');
-        });
+        validators.get(operation.id)!('input', input, () => assertInputMessageSize(input, limits.messageBytes));
         const { operationTimeoutMs, serviceTimeoutMs } = modelDeadlines(operation.effects, limits, control?.limits);
         for (const value of [operationTimeoutMs, serviceTimeoutMs]) {
           if (!Number.isSafeInteger(value) || value <= 0 || value > 2_147_483_647) throw new SandboxError('sandbox.invalid_limit', 'Call deadlines must be positive timer-safe integers');

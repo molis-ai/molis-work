@@ -12,10 +12,15 @@ import type { SandboxIdentity } from '@molis-ai/molis-work-contracts/platform/pl
 // package supplies this port.
 type ActionRelease = InstalledPluginActions['release'];
 type CapabilityGrants = (identity: Readonly<SandboxIdentity>) => readonly string[];
-type ActionSource = { release: ActionRelease; granted?: CapabilityGrants; submit(componentId: string, payload: unknown): {
-  reference: ReturnType<typeof exposedActionReference>; operationId: string; input: unknown;
-  ownPermissions: readonly string[]; capabilities: readonly string[];
-} };
+type ComponentBinding = {
+  readonly node: ActionRelease['nodes'][number];
+  readonly operationId: string;
+  readonly action: ReturnType<typeof exposedActionReference>;
+  readonly form: boolean;
+  readonly ownPermissions: readonly string[];
+  readonly capabilities: readonly string[];
+};
+type ActionSource = { release: ActionRelease; granted?: CapabilityGrants; bindings: ReadonlyMap<string, ComponentBinding> };
 type ActionScope = Pick<ProjectActions, 'registry' | 'project_id'>;
 
 const sources = new WeakMap<PluginDefinition, ActionSource>();
@@ -32,38 +37,27 @@ export function rememberInstalledActionSource(definition: PluginDefinition, rele
     const operation = contract.operations.find(item => item.id === node.submit?.operationId);
     if (!operation) throw new ActionError('actions.definition_invalid', '原组件绑定的操作不存在');
     const effects = sandboxOperationEffects(contract, operation);
-    return [[node.id, { node: structuredClone(node), ownPermissions: [...new Set(['storage:private', ...sandboxOperationPermissions(effects)])],
-      capabilities: [...(effects.capabilities ?? [])] }] as const];
+    const binding: ComponentBinding = { node: structuredClone(node), operationId: operation.id, action: exposedActionReference(release, operation.id),
+      form: operation.kind === 'command' && Object.values(node.submit.input).some(input => input.source === 'form'),
+      ownPermissions: [...new Set(['storage:private', ...sandboxOperationPermissions(effects)])], capabilities: [...(effects.capabilities ?? [])] };
+    return [[node.id, binding] as const];
   }));
-  const identity = Object.freeze({ buildId: release.buildId, pluginId: release.pluginId, version: release.version });
-  sources.set(definitionOrigin(definition), { release, granted, submit(componentId, payload) {
-    const binding = bindings.get(componentId);
-    if (!binding) throw new ActionError('actions.input_invalid', '原组件没有声明这项提交');
-    try {
-      const call = resolvePluginComponentCall(binding.node, 'submit', payload);
-      return { ...call, reference: exposedActionReference(identity, call.operationId), ownPermissions: binding.ownPermissions,
-        capabilities: binding.capabilities };
-    } catch (error) {
-      throw new ActionError('actions.input_invalid', error instanceof Error ? error.message : '组件提交无效');
-    }
-  } });
+  sources.set(definitionOrigin(definition), { release, granted, bindings });
 }
 
-/** Only the original installation and its actual registration can supply a component's action authority. */
+/** The original exposure and both permission proofs are the same for form navigation and submission. */
 export function installedComponentSubmit(definition: PluginDefinition, scope: ActionScope, readRecord: () => PluginInstanceRecord | null | undefined) {
-  const source = sources.get(definitionOrigin(definition));
-  if (!source) return undefined;
-  const record = readRecord();
-  if (!record) return undefined;
+  const source = sources.get(definitionOrigin(definition)), record = readRecord();
+  if (!source || !record) return undefined;
   const key = registrationKey(scope, record);
   const current = () => registrations.get(scope.registry)?.get(key);
   const identity: Readonly<SandboxIdentity> = Object.freeze({ projectId: scope.project_id, installationId: record.install_id,
     pluginId: record.plugin_id, namespace: 'installed' });
-  return (componentId: string, payload: unknown) => {
-    const binding = source.submit(componentId, payload), exposure = current();
+  const retain = (binding: ComponentBinding) => {
+    const exposure = current();
     if (!exposure) throw replaced();
     const authority = exposure.retainOperation(binding.operationId);
-    return { ...binding, permissions: authority.permissions, assertCurrent() {
+    return { permissions: authority.permissions, assertCurrent() {
       const now = readRecord();
       if (now?.state !== 'running' || registrationKey(scope, now) !== key) throw replaced();
       if (!binding.ownPermissions.every(permission => now.grants.includes(permission)))
@@ -76,6 +70,19 @@ export function installedComponentSubmit(definition: PluginDefinition, scope: Ac
       authority.assertCurrent();
     } };
   };
+  const submit = (componentId: string, payload: unknown) => {
+    const binding = source.bindings.get(componentId);
+    if (!binding) throw new ActionError('actions.input_invalid', '原组件没有声明这项提交');
+    let call: ReturnType<typeof resolvePluginComponentCall>;
+    try { call = resolvePluginComponentCall(binding.node, 'submit', payload); }
+    catch (error) { throw new ActionError('actions.input_invalid', error instanceof Error ? error.message : '组件提交无效'); }
+    return { ...call, reference: binding.action, ownPermissions: binding.ownPermissions, ...retain(binding) };
+  };
+  return Object.assign(submit, { form(componentId: string, target: { capability_id: string; version: number }) {
+    const binding = source.bindings.get(componentId);
+    if (!binding?.form || target.capability_id !== binding.action.capability_id || target.version !== binding.action.version) return undefined;
+    return { action: binding.action, ownPermissions: binding.ownPermissions, retain: () => retain(binding) };
+  } });
 }
 
 /** Both Runtime redemption and packages without Manifest actions publish their actual exposure here. */
@@ -84,22 +91,6 @@ export function rememberInstalledExposure(scope: ActionScope, record: PluginInst
   registrations.set(scope.registry, held); held.set(key, exposed);
   const dispose = exposed.dispose;
   exposed.dispose = () => { if (held.get(key) === exposed) held.delete(key); dispose(); };
-}
-
-/**
- * The actual signed component which renders inputs for this action. Read from the installed exposure, not a panel guessed from the
- * action's title or another installation's package. The eventual submission uses that exposure's existing component gateway.
- */
-export function installedStartForm(scope: ActionScope, record: PluginInstanceRecord, panel: string, target: { capability_id: string; version: number }) {
-  const active = registrations.get(scope.registry)?.get(registrationKey(scope, record));
-  const release = active?.release;
-  if (!release) return undefined;
-  const node = release.nodes.find(item => item.id === panel);
-  if (!node?.submit || !Object.values(node.submit.input).some(source => source.source === 'form')) return undefined;
-  const operation = release.design.contract.operations.find(item => item.id === node.submit?.operationId);
-  if (operation?.kind !== 'command') return undefined;
-  const reference = exposedActionReference(release, operation.id);
-  return target.capability_id === reference.capability_id && target.version === reference.version ? reference : undefined;
 }
 
 /** Permission switches restart an activation without changing its release. Refresh follows that activation; old releases cannot withdraw a new one. */

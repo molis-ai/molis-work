@@ -37,6 +37,8 @@ export interface SurfaceHomePlugin extends Omit<SurfaceInstallationRef, "scope" 
 export interface SurfaceHomePorts {
   overview(action: ActionView, signal: AbortSignal, assertCurrent: () => void): Promise<PresentationOverview>;
   acceptsEmptyInput(action: ActionView): boolean;
+  /** Some signed component actions are discoverable here solely to open their actual input form. */
+  formOnly?(action: ActionView): boolean;
   /** Synchronous recheck of the original visible directory, release identities, routes and member revision. */
   retainCatalog(plugins: readonly SurfacePlugin[]): () => void;
   hiddenAboveLabel(count: number): OwnedTextRef;

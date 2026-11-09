@@ -172,7 +172,7 @@ export class HomePluginExecutor implements PluginExecutor {
       const image_generation = !imageGeneration ? undefined : definition.execution === "sandbox" ? sandboxImageDeclaration(context.install_id) : manifest.image_generation;
       const submit = installedComponentSubmit(definition, { registry: this.options.registry, project_id: null }, () => this.options.record(context.install_id));
       withdrawPages = pluginPagesFor(this.options.home).connect({ manifest, install_id: context.install_id, project_id: null, actor_id: this.options.actorId, image_generation,
-        release: record && submit ? installedPageRelease(record) : undefined,
+        release: record && submit ? installedPageRelease(record) : undefined, componentForm: submit?.form,
         resolveFiles: owned ? pluginPageFiles(this.options.home, owned.declaration, authorize) : undefined,
         invoke: pluginPageActions(manifest, authorized, { client: this.options.client, actions: hosted.services?.actions, caller, provider: this.options.providerFor(definition, context.install_id), submit }),
         assertCurrent: permission => permission ? authorize(permission) : assertActive() });

@@ -59,6 +59,14 @@ async function changeHomePlugin(request: IncomingMessage, response: ServerRespon
   } catch (error) { const refused = actionErrorResponse(error); sendLocalWebJson(response, refused.status, refused.body); }
 }
 
+/** A tagged lazy frame must not fall through to a different scope or an unbound page. */
+function unavailableStage(response: ServerResponse, expected?: SurfaceInstallationRef): boolean {
+  if (!expected) return false;
+  const refused = actionErrorResponse(new ActionError("actions.provider_changed", "原舞台安装已变化，请重新打开"));
+  sendLocalWebJson(response, refused.status, refused.body);
+  return true;
+}
+
 /**
  * Called only after the common local transport Host/Origin/token checks. No business dispatch list lives here. A plugin's own route
  * under a project's path (`/projects/<id>/api/plugins/<plugin>/…`) runs in that project once it exists and shows the plugin; the
@@ -77,28 +85,13 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
   try { expected = page ? requestedStageInstallation(url) : undefined; }
   catch (error) { const refused = actionErrorResponse(error); sendLocalWebJson(response, refused.status, refused.body); return true; }
   if (expected?.scope === "project") return false;
-  const pageAuthority = route ? pluginPageRequest(request) : undefined;
-  // The original signed page owns its component read, even if another installation uses the same plugin id.
-  if (pageAuthority?.installed_scope === "project" && url.pathname.endsWith("/call")) return false;
   const home = host.homePlugins, currentSession = captureWebSessionAuthority();
-  if (!home) {
-    if (!expected) return false;
-    const refused = actionErrorResponse(new ActionError("actions.provider_changed", "原舞台安装已变化，请重新打开"));
-    sendLocalWebJson(response, refused.status, refused.body); return true;
-  }
+  if (!home) return unavailableStage(response, expected);
   // The Home's own registration names its pages and owns its routes, a plugin the build does not ship included (#679, S-31).
-  const entry = page ? await registeredPage(host.homePlugins, page[1]!) : undefined;
-  if (page && !entry) {
-    if (!expected) return false;
-    const refused = actionErrorResponse(new ActionError("actions.provider_changed", "原舞台安装已变化，请重新打开"));
-    sendLocalWebJson(response, refused.status, refused.body); return true;
-  }
+  const entry = page ? await registeredPage(home, page[1]!) : undefined;
+  if (page && !entry) return unavailableStage(response, expected);
   const pluginId = entry?.manifest.plugin_id ?? route![1]!;
-  if (!home.manifest(pluginId) || expected && (sidePage || page?.[1] !== pluginId)) {
-    if (!expected) return false;
-    const refused = actionErrorResponse(new ActionError("actions.provider_changed", "原舞台安装已变化，请重新打开"));
-    sendLocalWebJson(response, refused.status, refused.body); return true;
-  }
+  if (!home.manifest(pluginId) || expected && (sidePage || page?.[1] !== pluginId)) return unavailableStage(response, expected);
   const side = sidePage?.[2] ?? (page ? url.searchParams.get("side") : null);
   const sideView = side ? entry?.manifest.ui?.views?.find(view => view.slot === "side" && view.view_id === side) : undefined;
   if (side !== null && !sideView) { sendLocalWebJson(response, 404, { error: "插件没有这个侧栏入口" }); return true; }
@@ -186,7 +179,7 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
     await changeHomePlugin(request, response, host.homePlugins, platform, pluginId, operation);
     return true;
   }
-  const abort = new AbortController();
+  const abort = new AbortController(), pageAuthority = pluginPageRequest(request);
   const stop = () => abort.abort(new ActionError("actions.cancelled", "调用已取消"));
   const disconnected = () => { if (!response.writableEnded) stop(); };
   request.once("aborted", disconnected); response.once("close", disconnected);
@@ -403,7 +396,7 @@ export async function homeStageHalves(host?: HomePluginHost): Promise<HomeStageH
 }
 
 /** The same projection from the live Home, without opening it or waiting for startup. */
-export function currentHomeStageHalves(host?: HomePluginHost, platform = host?.surfaceReads.platform(), failure?: string): HomeStageHalves | undefined {
+export function currentHomeStageHalves(host?: HomePluginHost, platform = host?.surfacePlatform(), failure?: string): HomeStageHalves | undefined {
   if (!host) return undefined;
   const entries = host.registered().map(entry => ({ project_plugin_id: entry.key, manifest: entry.manifest }));
   const outsideCatalog = entries.filter(entry => host.dualInstance(entry.manifest.plugin_id)

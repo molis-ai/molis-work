@@ -59,10 +59,11 @@ export async function localWebActionContext(host: MolisWorkLocalHost, reference:
 }
 
 /** The homepage may use only registrations and installations that are already here. */
-export function openProjectPersonContext(host: MolisWorkLocalHost, reference: LocalHostProjectReference, store: LocalProjectDatabase, signal: AbortSignal): ActionCallContext {
+export function openProjectPersonContext(host: MolisWorkLocalHost, reference: LocalHostProjectReference, store: LocalProjectDatabase, signal: AbortSignal) {
   const { caller, sessionCurrent } = localWebCaller(reference, LOCAL_OWNER_PERMISSIONS, signal);
-  return localWebAuthority(host, reference, caller, sessionCurrent, host.inspectActionMetadata(caller, reference),
-    new SqlitePluginRuntimeRepository(store.db), currentProjectPlatform(store, reference.project_id));
+  const metadata = host.inspectActionMetadata(caller, reference);
+  return { metadata, caller: localWebAuthority(host, reference, caller, sessionCurrent, metadata,
+    new SqlitePluginRuntimeRepository(store.db), currentProjectPlatform(store, reference.project_id)) };
 }
 
 function localWebAuthority(host: MolisWorkLocalHost, reference: LocalHostProjectReference | undefined, base: ActionCallContext, sessionCurrent: () => void,

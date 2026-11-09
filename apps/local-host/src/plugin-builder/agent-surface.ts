@@ -213,8 +213,6 @@ export async function handleAgentStudioHttp(request: IncomingMessage, response: 
       if (!options.homeDirectory) return false;
       const expected = installedPage ? requestedStageInstallation(url) : undefined;
       if (expected?.scope === "home") throw new ActionError("actions.provider_changed", "原舞台安装已变化，请重新打开");
-      if (installedCall && pageAuthority?.installed_scope === "home")
-        throw new ActionError("actions.forbidden", "组件读取不属于原安装范围");
       const installed = await ensureInstalledPlugins({ ...options, homeDirectory: options.homeDirectory });
       assertCurrent();
       const pluginId = (installedPage ?? installedCall)![1]!;

@@ -12,7 +12,8 @@ import { pluginInstallRecords } from "./plugin-install-records.js";
 import { pluginPageRequest } from "./plugin-page-authority.js";
 import { pluginRouteControl } from "./plugin-route-control.js";
 import type { MolisWorkLocalHost, MolisWorkProjectRuntime } from "./project-host.js";
-import type { HomeDirectoryEntry } from "./surface-home-directory.js";
+import { surfaceHomeDirectory, type HomeDirectoryEntry, type SurfaceHomeCatalogReader } from "./surface-home-directory.js";
+import { homeFormDiscovery } from "./surface-home-form-authority.js";
 import { withHomeSample } from "./surface-home-sample.js";
 import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
 import { projectRoutePrefix, type ProjectRequestContext } from "./web-project-context.js";
@@ -55,6 +56,9 @@ function navigate(entry: HomeDirectoryEntry, target: Extract<Target, { kind: "st
 
 function exactClickClient(client: ActionClient, caller: ActionCallContext, view: ActionView) {
   const target = reference(view);
+  if (!view.action.permissions.every(permission => caller.permissions.includes(permission)) || !caller.allowed_actions?.some(action =>
+    action.capability_id === target.capability_id && action.version === target.version && action.provider_id === target.provider_id))
+    throw new ActionError("actions.forbidden", "这项首页操作没有本人执行权限");
   return bindActionClient(client, () => ({ ...caller, permissions: view.action.permissions, allowed_actions: [target],
     user_action: { source: "web", conversation_ref: `web:${caller.project_id}`, message_ref: `web:request:${randomUUID()}` } }));
 }
@@ -114,23 +118,27 @@ async function clickHomeCard(intent: Extract<Intent, { kind: "click" }>, sample:
   deliver({ kind: "invoked", result });
 }
 
-function composeHome(runtime: MolisWorkProjectRuntime, client: ActionClient, caller: ActionCallContext, transport: ReturnType<typeof pluginRouteControl>, intent: Intent) {
+function composeHome(runtime: MolisWorkProjectRuntime, client: ActionClient, discovery: ReturnType<typeof homeFormDiscovery>, catalog: ReturnType<typeof surfaceHomeDirectory>,
+  transport: ReturnType<typeof pluginRouteControl>, intent: Intent) {
   const home_order = intent.kind === "read" ? intent.home_order : undefined;
-  return withHomeSample(runtime.store, () => bindActionClient(client, () => caller).invoke({ ...surfaceCompositionActions.compose, provider_id: SURFACES_PROVIDER_ID },
+  return withHomeSample(runtime.store, catalog, discovery.formOnly, () => bindActionClient(client, () => discovery.caller).invoke({ ...surfaceCompositionActions.compose, provider_id: SURFACES_PROVIDER_ID },
     { slot: { kind: "home" }, ...(home_order ? { home_order } : {}) }, transport));
 }
 
 /** Use the inner client only while the project is already open; even metadata must not prepare its plugins. */
-export function projectSurfaceHome(host: LocalHost<MolisWorkProjectRuntime>, owner: MolisWorkLocalHost) {
+export function projectSurfaceHome(host: LocalHost<MolisWorkProjectRuntime>, owner: MolisWorkLocalHost, homeDirectory: string | undefined, readCatalog: SurfaceHomeCatalogReader) {
   return (reference: LocalHostProjectReference, intent: Intent, prefix: string, signal: AbortSignal, deliver: (value: unknown) => void) => {
     const transport = pluginRouteControl(signal, () => {
       if (owner.lifecycle() !== "running") throw new ActionError("actions.host_closed", "宿主已关闭");
     });
     return host.withExistingRuntime(reference, async runtime => {
       requireSynchronous(transport.assert_authority_current?.());
-      const caller = openProjectPersonContext(owner, reference, runtime.store, signal);
+      if (!homeDirectory) throw new ActionError("actions.unavailable", "首页需要 Home 目录");
+      const catalog = surfaceHomeDirectory({ store: runtime.store, reference, homeDirectory, home: owner.homePlugins, readCatalog });
+      const { caller, metadata } = openProjectPersonContext(owner, reference, runtime.store, signal);
+      const discovery = homeFormDiscovery(caller, metadata, catalog.entries);
       const client = host.actionClient(reference);
-      const sample = await composeHome(runtime, client, caller, transport, intent);
+      const sample = await composeHome(runtime, client, discovery, catalog, transport, intent);
       requireSynchronous(transport.assert_authority_current?.());
       if (intent.kind === "read") { sample.assertCurrent(); deliver(sample.description); }
       else await clickHomeCard(intent, sample, runtime, caller, client, prefix, transport, deliver);

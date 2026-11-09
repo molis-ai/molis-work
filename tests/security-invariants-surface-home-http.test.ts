@@ -78,6 +78,7 @@ test("S-surface-composition SCS-07 SCS-08 protected HTTP does not start a cold p
   const mount = { contribution_id: f.dual.view, surface: "workbench", target_slot_id: "workbench.main" };
   const page = await json<{ page_id: string }>(await f.post("/api/host/plugin-pages", { plugin_id: f.dual.id, mount, producer: open.producer }));
   assert.ok(page.page_id);
+  await json(await f.post("/api/host/plugin-pages", { plugin_id: f.dual.id, mount, producer: open.producer + "-changed" }), 409);
   await json(await f.post(route, {}, { "x-molis-plugin-page": page.page_id }), 403);
   await json(await f.click(f.dual.id, { ...card.open, installation: { ...card.open.installation, scope: "project" } }), 409);
   await json(await f.click(f.dual.id, { ...card.start![0], input: { call: "arbitrary" } }), 409);
@@ -120,6 +121,13 @@ test("SCS-07 SCS-08 Catalog hiding, actual member removal and an actual failed s
   assert.notEqual(f.host.homePlugins?.installation(f.crashing.id)?.state, "running");
   assert.equal(findCard(read, f.crashing.id)?.state, "unreadable");
   assert.equal(findCard(read, f.crashing.id)?.plugin_card?.enable, undefined);
+
+  await f.host.closeProject(f.project.reference);
+  await f.host.withProject(f.project.reference, () => undefined);
+  const cold = findCard(await f.read(), "io.molis.work.inbox");
+  assert.equal(cold?.state, "unreadable", "a selected native plugin with no current activation is not an explicit disable");
+  assert.deepEqual(cold.plugin_card, {});
+  await f.warm();
 
   await json(await f.request(membership, { method: "DELETE", body: { plugin_id: "inbox" } }));
   await json(await f.request(membership, { method: "DELETE", body: { plugin_id: "todo" } }));

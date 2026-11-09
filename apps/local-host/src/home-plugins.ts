@@ -5,7 +5,6 @@ import { openHomeInstalledPlugins, type HomeInstalledPlugins } from "./home-inst
 import type { InstalledRelease } from "./installed-release.js";
 import { assertStageInstallation, installedStageReleaseMatches } from "./installed-stage-identity.js";
 import type { SurfaceInstallationRef } from "@molis-ai/molis-work-contracts/services/surface-composition";
-import { installedStartForm } from "./installed-action-registration.js";
 import { installedPageSelection } from "./plugin-page-authority.js";
 import { pluginErrors, type PluginDefinition, type PluginInstanceRecord, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { PLUGIN_PRESENTATION_CAPABILITY, type UiSlotDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
@@ -72,12 +71,8 @@ export class HomePluginHost {
         pending: [...this.options.entries.map(entry => entry.manifest), ...pluginFixtureEntries(this.options.fixtures ?? []).map(entry => entry.definition.manifest)] };
     },
   });
-  /** Existing activation and its real registered form, available without awaiting or starting the Home. */
-  readonly surfaceReads = {
-    platform: () => this.closed ? undefined : this.platform,
-    packageForm: (record: PluginInstanceRecord, panel: string, target: Parameters<typeof installedStartForm>[3]) =>
-      installedStartForm({ registry: this.options.registry, project_id: null }, record, panel, target),
-  };
+  /** Stage projection may observe the live platform without awaiting or starting the Home. */
+  readonly surfacePlatform = (): HomePluginPlatform | undefined => this.closed ? undefined : this.platform;
   private readonly releaseRegistration: () => void;
   constructor(private readonly options: { home: string; actorId: string; registry: SurfaceInstallRegistry; client: ActionClient;
     entries: readonly HomePluginEntry[]; fixtures?: readonly PluginFixture[]; installed?: ReadonlySet<PluginDefinition>; projectReach?: PluginProjectReach;

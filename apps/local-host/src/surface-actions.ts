@@ -16,15 +16,14 @@ import type { PlacementHost } from "./placement-actions.js";
 import { installedPluginEntries } from "./plugin-installation-directory.js";
 import type { LocalProjectDatabase } from "./project-database.js";
 import { runningProjectPlatform } from "./project-plugins.js";
-import { surfaceHomeDirectory } from "./surface-home-directory.js";
+import { surfaceHomeDirectory, type SurfaceHomeCatalogReader } from "./surface-home-directory.js";
 import { homeSampleFor, retainHomeDirectory } from "./surface-home-sample.js";
-import type { MolisWorkProjectCatalog } from "./project-catalog.js";
 
 interface SurfaceHostPorts {
   store: LocalProjectDatabase;
   reference: LocalHostProjectReference;
   homeDirectory?: string;
-  readCatalog<Result>(operation: (catalog: MolisWorkProjectCatalog) => Result): Result | undefined;
+  readCatalog: SurfaceHomeCatalogReader;
   client: ActionClient & { discoverRetained(caller: ActionExecutionContext): ReturnType<SurfaceComposePorts["discover"]> };
   home(): HomePluginHost | undefined;
   placement(): PlacementHost | undefined;
@@ -109,20 +108,17 @@ function homePorts(host: SurfaceHostPorts, homeDirectory: string, sample: Return
     overview: (view, signal, assertCurrent) => read(view, {}, signal, assertCurrent),
     acceptsEmptyInput: view => compileActionSchema(view.action.input_schema)({}) === true,
     hiddenAboveLabel: count => ({ owner: "workbench", key: "workbench.home.hidden-above", args: [{ name: "count", kind: "number", number: count }] }),
+    ...(sample ? { formOnly: sample.formOnly } : {}),
     retainCatalog: plugins => {
       const original = catalog;
       if (!original || original.plugins.length !== plugins.length || !plugins.every((plugin, index) => original.plugins[index] === plugin))
         throw new ActionError("actions.provider_changed", "没有本轮首页插件目录");
-      if (sample) sample.catalog = original;
+      if (sample) sample.catalogRetained = true;
       return original.assertCurrent;
     },
   };
   return { ports, catalog() {
-    catalog = surfaceHomeDirectory({ ...host, homeDirectory, home: host.home(), readCatalog(operation) {
-      const result = host.readCatalog(operation);
-      if (result === undefined) throw new ActionError("actions.unavailable", "项目目录尚未打开");
-      return result;
-    } });
+    catalog = sample?.catalog ?? surfaceHomeDirectory({ ...host, homeDirectory, home: host.home() });
     return catalog.plugins;
   } };
 }

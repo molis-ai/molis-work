@@ -9,6 +9,7 @@ import { informationActionProvider } from "./information-actions.js";
 import { bindHomeSide, bindPluginCatalog, releaseHomeSide, type PluginFixture } from "./home-side.js";
 import { homeActionProvider } from "./home-actions.js";
 import { surfaceActionProvider } from "./surface-actions.js";
+import type { SurfaceHomeCatalogReader } from "./surface-home-directory.js";
 import { projectSurfaceHome } from "./surface-home-http.js";
 import type { SurfaceInstallRegistry } from "./surface-installation.js";
 import { openProjectSchedulers, closeProjectSchedulers } from "./project-schedulers.js";
@@ -158,6 +159,7 @@ export class MolisWorkLocalHost {
   constructor(private readonly options: MolisWorkLocalHostOptions = {}) {
     assertFixtureScopes(options.pluginFixtures, Boolean(options.homeDirectory));
     prepareHostMemoryHome(this, options.homeDirectory);
+    const readCatalog: SurfaceHomeCatalogReader = operation => this.webCatalog?.access.read(operation);
     try {
     this.personalPlanningHome = options.homeDirectory ? resolveConfiguredHome(options.homeDirectory) : undefined;
     if (options.homeDirectory) this.callLog = new ActionCallLog(options.homeDirectory);
@@ -185,7 +187,7 @@ export class MolisWorkLocalHost {
           const runtime: MolisWorkProjectRuntime = { store, ...openProjectVersionStores(store, clock), project_id: reference.project_id };
           try {
             const providers: ActionProviderRegistration[] = [], add = (provider: ActionProviderRegistration) => { providers.push(provider); };
-            add(surfaceActionProvider({ store, reference, homeDirectory: options.homeDirectory, readCatalog: operation => this.webCatalog?.access.read(operation),
+            add(surfaceActionProvider({ store, reference, homeDirectory: options.homeDirectory, readCatalog,
               client: this.host.actionClient(reference),
               home: () => this.homePlugins, placement: () => this.placement, now: clock }));
             add(projectWorkspaceActionProvider(reference.project_id, () => this.personalPlanningHome && this.catalogRunner ? { home: this.personalPlanningHome, run: this.catalogRunner } : undefined,
@@ -218,7 +220,7 @@ export class MolisWorkLocalHost {
       },
     });
     this.synchronization = projectSyncAccess(this.host);
-    this.surfaceHome = projectSurfaceHome(this.host, this);
+    this.surfaceHome = projectSurfaceHome(this.host, this, options.homeDirectory, readCatalog);
     if (options.homeDirectory) this.homePlugins = new HomePluginHost({ home: options.homeDirectory, actorId: LOCAL_PERSON_ACTOR_ID,
       registry: this.host.actionRegistry(), client: homePluginActions(this.host), ownerClosing: () => !!this.closing.started, inspect: caller => this.host.inspectActions(caller), entries: homePluginEntries(), fixtures: options.pluginFixtures?.home, installed: options.pluginFixtures?.installed, projectReach: homeProjectReach(options.homeDirectory, () => this.host.projects()),
       projectActions: (projectId, pluginId) => homePackageProjectActions(projectId, pluginId, options.homeDirectory, this.catalogRunner,

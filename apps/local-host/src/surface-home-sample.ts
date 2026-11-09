@@ -7,19 +7,21 @@ import type { surfaceHomeDirectory } from "./surface-home-directory.js";
 type HomeSample = {
   store: LocalProjectDatabase;
   pending: boolean;
-  catalog?: ReturnType<typeof surfaceHomeDirectory>;
+  catalog: ReturnType<typeof surfaceHomeDirectory>;
+  catalogRetained?: true;
+  formOnly: (view: ActionView) => boolean;
   readonly views: Set<ActionView>;
   actionsCurrent?: () => void;
 };
 const reading = new AsyncLocalStorage<HomeSample>();
 
 /** The protected entry receives the original sample, not a later lookup by returned action or installation ids. */
-export async function withHomeSample<Result>(store: LocalProjectDatabase, compose: () => Promise<Result>) {
-  const sample: HomeSample = { store, pending: true, views: new Set() };
+export async function withHomeSample<Result>(store: LocalProjectDatabase, catalog: HomeSample["catalog"], formOnly: HomeSample["formOnly"], compose: () => Promise<Result>) {
+  const sample: HomeSample = { store, catalog, formOnly, pending: true, views: new Set() };
   try {
     const description = await reading.run(sample, compose);
     const { catalog, actionsCurrent, views } = sample;
-    if (!catalog) throw new ActionError("actions.unavailable", "没有当前首页目录");
+    if (!sample.catalogRetained) throw new ActionError("actions.unavailable", "没有当前首页目录");
     const assertCurrent = () => { actionsCurrent?.(); catalog.assertCurrent(); };
     assertCurrent();
     return { description, catalog, assertCurrent, actionsCurrent, views };

@@ -10,6 +10,7 @@ import type { PluginImageGenerationDeclaration, PluginInstanceRecord, PluginMani
 import { PLUGIN_CONNECTIONS_PERMISSION } from "@molis-ai/molis-work-contracts/platform/plugin-connections";
 import { pluginRouteMatcher } from "@molis-ai/molis-work-plugin-runtime";
 import { projectDeletedHooksFor } from "./project-deleted-hooks.js";
+import type { installedComponentSubmit } from "./installed-action-registration.js";
 import type { PageActionRequest } from "./plugin-page-actions.js";
 import { installedPageRelease, sameInstalledRelease } from "./installed-stage-identity.js";
 export { installedPageRelease };
@@ -43,6 +44,7 @@ interface Activation {
   readonly image_generation?: PluginImageGenerationDeclaration;
   assertCurrent(permission?: string): void;
   invoke?(request: PageActionRequest): Promise<unknown>;
+  componentForm?: NonNullable<ReturnType<typeof installedComponentSubmit>>["form"];
   resolveFiles?(paths: readonly string[]): readonly string[];
   requestAllowed?(method: string, pathname: string): boolean;
 }
@@ -86,6 +88,27 @@ export class PluginPageAuthority {
       this.activations.delete(activation);
       for (const [id, page] of this.pages) if (page.activation === activation) this.close(id);
     };
+  }
+
+  /** Prove only a real input form of the original signed activation, without opening a page or parsing a submission. */
+  installedStartForm(pluginId: string, projectId: string | null, actorId: string, release: PageRelease,
+    panel: string, target: { capability_id: string; version: number }) {
+    const matches = [...this.activations].filter(item => item.manifest.plugin_id === pluginId && item.project_id === projectId
+      && item.actor_id === actorId && sameInstalledRelease(release, item.release));
+    const activation = matches.length === 1 ? matches[0] : undefined;
+    const form = activation?.componentForm?.(panel, target);
+    if (!activation || !form) return undefined;
+    return { action: form.action, retain: () => {
+      const authority = form.retain();
+      const assertCurrent = () => {
+        if (!this.activations.has(activation)) throw refused();
+        activation.assertCurrent();
+        for (const permission of form.ownPermissions) activation.assertCurrent(permission);
+        authority.assertCurrent();
+      };
+      assertCurrent();
+      return { permissions: authority.permissions, assertCurrent };
+    } };
   }
 
   open(pluginId: string, projectId: string | null, actorId: string, assertScope?: () => Promise<void>, registered?: Activation,
@@ -235,8 +258,7 @@ export function pluginPageRequest(request: IncomingMessage) {
   const authority = requests.get(request);
   if (!authority) return undefined;
   authority.check();
-  const installed_scope = authority.page.selection?.release ? authority.page.activation.project_id === null ? "home" as const : "project" as const : undefined;
-  return { plugin_id: authority.page.activation.manifest.plugin_id, project_key: authority.page.selection?.project_key, project_id: authority.page.project_id, installed_scope,
+  return { plugin_id: authority.page.activation.manifest.plugin_id, project_key: authority.page.selection?.project_key, project_id: authority.page.project_id,
     signal: authority.signal, assertCurrent: authority.check,
     async beforeEffect() { await authority.page.assertScope?.(); authority.check(); },
     objectPresentation(surface: string) {

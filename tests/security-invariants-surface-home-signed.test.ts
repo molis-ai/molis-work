@@ -4,35 +4,62 @@ import { DatabaseSync } from "node:sqlite";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { pluginInstallActions, type MolisWorkProjectRuntime } from "@molis-ai/molis-work-app-local-host";
+import { LOCAL_PERSON_ACTOR_ID, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { SANDBOX_PACKAGE_FILES, type PluginInstanceRecord, type PluginPackageBundle } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { SandboxEffects } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
 import { definePresentationOverviewAction } from "@molis-ai/molis-work-contracts/platform/presentation";
 import type { SurfaceDescription, SurfaceInstallationRef, SurfacePluginCard } from "@molis-ai/molis-work-contracts/services/surface-composition";
-import { signPluginPackage, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
+import type { PluginComponentNode, PluginComponentPlan } from "@molis-ai/molis-work-design-system";
+import { signPluginPackage, SqlitePluginPrivateStorage, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { sandboxActionId, sandboxPackageBuildId, sandboxPluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { deferred, serveHomeRuntime } from "./fixtures/home-runtime.js";
-import { person, ref } from "./fixtures/home-sandbox.js";
-import { PACKAGE_PLUGIN_ID, newPublisher, packageContract, packageFiles, payloadOf, signedPackage } from "./fixtures/sandbox-package.js";
+import { APPROVED, person, ref } from "./fixtures/home-sandbox.js";
+import { PACKAGE_PLUGIN_ID, newPublisher, packageContract, packageFiles, payloadOf } from "./fixtures/sandbox-package.js";
 
 const mac = { skip: process.platform !== "darwin", timeout: 90_000 };
 const endpoint = "/api/host/surface-home", pageActions = "/api/host/plugin-page-actions";
 const owner = PACKAGE_PLUGIN_ID;
 
-function presentingPackage(scope: "project" | "home") {
-  const publisher = newPublisher(), contract = packageContract();
-  // The writer reads the previous list before appending; both effects are part of its real approval.
-  contract.operations.find(item => item.id === "notes.add")!.effects = { storage: ["read", "write"] };
-  const build = sandboxPackageBuildId(contract.pluginId, publisher.identity);
+function presentingPackage(scope: "project" | "home", delegated: readonly ActionDefinition[]) {
+  const publisher = newPublisher(), contract = packageContract(), build = sandboxPackageBuildId(contract.pluginId, publisher.identity);
+  const start = (id: string) => ({ capability_id: sandboxActionId(build, id), version: 1 });
+  const add = contract.operations.find(item => item.id === "notes.add")!;
+  // Both real writers read the old list before appending; both effects are part of their approval.
+  add.effects = { storage: ["read", "write"], ...(delegated[0] ? { capabilities: [delegated[0].capability_id] } : {}) };
+  const alternate = delegated[1];
+  if (alternate) {
+    contract.operations.push({ ...add, id: "notes.alternate", effects: { storage: ["read", "write"], capabilities: [alternate.capability_id] } });
+    contract.pages[0]!.regions[0]!.operationIds.push("notes.alternate");
+  }
   const overview = definePresentationOverviewAction(sandboxActionId(build, "notes.overview"), 1, "Notes overview", [], scope);
-  const start = { capability_id: sandboxActionId(build, "notes.add"), version: 1 };
-  const output = { summary: { literal: "Add your first note" }, subjects: [], start: [start] };
+  const output = { summary: { literal: "Add your first note" }, subjects: [], start: [start("notes.add")] };
   contract.operations.push({ id: "notes.overview", kind: "query", read_protocol: { kind: "presentation_overview" },
     input: overview.action.input_schema, output: overview.action.output_schema!, errors: [], effects: {}, examples: [{ input: {}, output }] });
   contract.presentation = { objects: [], overview: { capability_id: overview.capability_id, version: overview.version,
-    start: [{ ...start, open: { view_id: "app", panel: "editor" } }] } };
+    start: [{ ...start("notes.add"), open: { view_id: "app", panel: "editor" } },
+      ...(alternate ? [{ ...start("notes.alternate"), open: { view_id: "app", panel: "alternate-editor" } }] : [])] } };
   const { files, manifest } = packageFiles(publisher.identity);
   files[SANDBOX_PACKAGE_FILES.contract] = JSON.stringify(contract);
-  files[SANDBOX_PACKAGE_FILES.entrypoint] += `\noperations["notes.overview"] = async () => (${JSON.stringify(output)});\n`;
+  files[SANDBOX_PACKAGE_FILES.entrypoint] += `
+operations["notes.overview"] = async () => (${JSON.stringify(output)});
+const appendNote = operations["notes.add"];
+`;
+  delegated.forEach((definition, index) => {
+    const operation = index === 0 ? "notes.add" : "notes.alternate";
+    files[SANDBOX_PACKAGE_FILES.entrypoint] += `
+operations[${JSON.stringify(operation)}] = async (input, sdk) => {
+  await sdk.capability.call(${JSON.stringify(definition.capability_id)}, null);
+  return appendNote(input, sdk);
+};`;
+  });
+  if (alternate) {
+    const plans = JSON.parse(files[SANDBOX_PACKAGE_FILES.interface]!) as { parts: PluginComponentPlan[]; nodes: PluginComponentNode[] };
+    const addForm = <T extends PluginComponentPlan>(plan: T): T => ({ ...plan, id: "alternate-editor", submit: { ...plan.submit!, operationId: "notes.alternate" } });
+    plans.parts.push(addForm(plans.parts.find(part => part.id === "editor")!));
+    plans.nodes.push(addForm(plans.nodes.find(node => node.id === "editor")!));
+    files[SANDBOX_PACKAGE_FILES.interface] = JSON.stringify(plans);
+  }
   const derived = sandboxPluginManifest({ contract, pluginId: manifest.plugin_id, name: manifest.name, version: manifest.version, publisher: manifest.publisher,
     ...(scope === "home" ? { runtime: { scope } } : {}) });
   return signPluginPackage({ payload: payloadOf(derived, files), signature: null, publisher_key: null }, publisher.signer);
@@ -46,15 +73,39 @@ async function body<T>(response: Response, status = 200): Promise<T> {
 
 type Navigation = { kind: "stage"; installation: SurfaceInstallationRef; frame_path: string; shell_key: string; selection: { surface: string; id: string; panel?: string; intent: "open" } };
 
-async function fixture(t: TestContext, scope: "project" | "home") {
-  const f = await serveHomeRuntime(t), project = await f.project("Signed homepage"), prefix = "/projects/" + project.project_id;
+async function fixture(t: TestContext, scope: "project" | "home", delegated: readonly ActionDefinition[] = []) {
+  const available = { available: true } as const;
+  let hold: { action: string; entered: ReturnType<typeof deferred>; release: ReturnType<typeof deferred> } | undefined;
+  const f = await serveHomeRuntime(t, { actionAvailability: (_caller, view) => {
+    const waiting = hold;
+    if (!waiting || view.capability_id + "@" + view.version !== waiting.action) return available;
+    hold = undefined;
+    waiting.entered.resolve();
+    return waiting.release.promise.then(() => available);
+  } });
+  const project = await f.project("Signed homepage"), prefix = "/projects/" + project.project_id;
+  const delegatedCalls: string[] = [], releases = new Map<ActionDefinition, () => void>();
+  const register = (definition: ActionDefinition, edition: string) => f.host.actionRegistry(project.reference).registerProvider({
+    provider: { kind: "system", provider_id: "system.homepage-form-fixture-" + edition, title: "Homepage form dependency", project_id: project.project_id },
+    definitions: [definition], handlers: [{ ...definition, handle() { delegatedCalls.push(definition.capability_id); return null; } }],
+  });
+  for (const definition of delegated) releases.set(definition, register(definition, "original"));
+  t.after(() => { for (const release of releases.values()) release(); });
+  const replacePolicy = async (definition: ActionDefinition) => {
+    const release = releases.get(definition);
+    assert.ok(release);
+    release();
+    releases.set(definition, register(definition, "replacement"));
+    await f.host.inspectActions({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: project.project_id, audience: "user", permissions: [] }, project.reference);
+  };
   const client = f.host.actionClient(project.reference), caller = person(project.project_id);
-  const install = async (bundle: PluginPackageBundle, expectedScope: "project" | "home") => {
+  const bundle: PluginPackageBundle = presentingPackage(scope, delegated);
+  const install = async () => {
     const preview = await client.invoke(caller, ref(pluginInstallActions.preview), { bundle }) as { preview_id: string; runtime_scope: string };
-    assert.equal(preview.runtime_scope, expectedScope);
+    assert.equal(preview.runtime_scope, scope);
     await client.invoke(caller, ref(pluginInstallActions.confirm), { preview_id: preview.preview_id, consent: true, pin_label: "Homepage fixture" });
   };
-  await install(presentingPackage(scope), scope);
+  await install();
   const post = (path: string, value: unknown, headers?: Record<string, string>) => f.request(prefix + path, { method: "POST", body: value, headers });
   const description = () => post(endpoint, {}).then(answer => body<SurfaceDescription>(answer));
   const card = async (): Promise<SurfacePluginCard> => {
@@ -77,7 +128,8 @@ async function fixture(t: TestContext, scope: "project" | "home") {
     post(pageActions, { mode: "component_submit", component_id: "editor", payload: { form: { text } } }, headers);
   const close = (headers: Record<string, string>) =>
     f.request(prefix + "/api/host/plugin-pages/" + headers["x-molis-plugin-page"], { method: "DELETE", body: {} });
-  return { ...f, project, prefix, post, description, card, click, open, read, confirm, close, install };
+  return { ...f, project, prefix, post, description, card, click, open, read, confirm, close, install, delegatedCalls,
+    replacePolicy, holdDiscovery(action: string) { return hold = { action, entered: deferred(), release: deferred() }; } };
 }
 
 async function refuseChanged(response: Response) {
@@ -137,6 +189,8 @@ test("S-surface-composition SCS-11 project signed form resolves its actual edito
   assert.deepEqual(navigation.installation, form.installation);
   assert.equal((await body<Navigation>(await f.click(first.open))).frame_path, navigation.frame_path);
   await refuseChanged(await f.click({ ...form, panel: "notes" }));
+  await refuseChanged(await f.click({ ...form, action: { ...form.action, ref: "other.create@1" } }));
+  await refuseChanged(await f.click({ ...form, installation: { ...form.installation, install_id: "other-installation" } }));
   await refuseChanged(await f.request(oppositeScope(navigation.frame_path, "home")));
 
   const records = await f.host.withProject(f.project.reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db));
@@ -153,23 +207,32 @@ test("S-surface-composition SCS-11 project signed form resolves its actual edito
   await body(await f.confirm(cancelled, "closed"), 403);
   const original = await f.open(navigation);
   assert.deepEqual(await f.read(original), [], "cancelling and stale requests wrote nothing");
+  await body(await f.post(pageActions, { mode: "component_submit", component_id: "notes", payload: {} }, original), 400);
+  assert.deepEqual(await f.read(original), [], "a component with only a read binding is not a submit form");
   assert.equal(await body(await f.confirm(original, "one note")), true);
   assert.deepEqual(await f.read(original), [{ id: "1", text: "one note" }]);
   await body(await f.close(original));
 
-  await f.install(signedPackage(newPublisher(), (_files, manifest) => { manifest.runtime = { scope: "home" }; }), "home");
-  const alongside = await f.open(navigation);
-  assert.deepEqual(await f.read(alongside), [{ id: "1", text: "one note" }], "the original project document's read must not switch to a new Home package with the same id");
-  await body(await f.close(alongside));
-  await body(await f.request("/api/plugins/" + owner + "/uninstall", { method: "POST", body: { keep_data: false } }));
-  await body(await f.post("/api/plugin-trust/disable", { plugin_id: owner }));
+  await body(await f.post("/api/plugin-trust/installed/disable", { plugin_id: owner }));
+  await refuseChanged(await f.click(form));
+  await refuseChanged(await f.request(navigation.frame_path));
   const disabled = await f.card();
   assert.equal(disabled.enable?.kind, "project_installation");
   assert.deepEqual(await body(await f.click(disabled.enable)), { kind: "enabled" });
   assert.equal(records.get(record.install_id)?.state, "running");
-  await body(await f.post("/api/plugin-trust/uninstall", { plugin_id: owner, keep_data: false }));
+  await body(await f.post("/api/plugin-trust/installed/uninstall", { plugin_id: owner, keep_data: false }));
   assert.equal((await f.description()).groups.some(group => group.owner_plugin_id === owner), false);
   await refuseChanged(await f.request(navigation.frame_path));
+  await f.install();
+  const reinstalled = (await f.card()).start?.[0];
+  assert.ok(reinstalled?.kind === "form");
+  assert.equal(reinstalled.installation.install_id, form.installation.install_id);
+  assert.equal(reinstalled.installation.version, form.installation.version);
+  assert.equal(reinstalled.installation.manifest_digest, form.installation.manifest_digest);
+  assert.notEqual(reinstalled.installation.installation_generation, form.installation.installation_generation);
+  await refuseChanged(await f.click(form));
+  await refuseChanged(await f.request(navigation.frame_path));
+  await body(await f.click(reinstalled));
 });
 
 test("S-surface-composition SCS-11 Home signed lazy document never changes scope or adopts a reinstall during the GET", mac, async t => {
@@ -194,4 +257,59 @@ test("S-surface-composition SCS-11 Home signed lazy document never changes scope
   assert.equal(disabled.enable?.kind, "home_plugin_settings");
   assert.deepEqual(await body(await f.click(disabled.enable)), { kind: "settings", section: "plugins" });
   assert.equal(f.host.homePlugins?.installation(owner)?.state, "disabled", "Home settings navigation does not enable the plugin");
+});
+
+
+test("S-surface-composition SCS-11 a real delegated form opens with its component approval and never grants ordinary action dispatch", mac, async t => {
+  const permission = "fixture:homepage-form-read";
+  const delegated: ActionDefinition = { capability_id: "surface-fixture.form-dependency", version: 1, operation: "query",
+    action: { title: "Signed editor dependency", description: "Observe the real component submission", kind: "query", scope: "project", effect: "read",
+      execution: { cost: "none" }, audiences: ["plugin"], permissions: [permission], subject_kinds: [], input_schema: { type: "null" }, output_schema: { type: "null" } } };
+  const alternate = { ...delegated, capability_id: "surface-fixture.form-alternate" };
+  const f = await fixture(t, "project", [delegated, alternate]);
+  const ordinary = await f.host.localPersonContext(f.project.reference);
+  const form = (await f.card()).start?.[0];
+  assert.ok(form?.kind === "form");
+  assert.equal(ordinary.permissions.includes(permission), false);
+  assert.equal(ordinary.allowed_actions?.some(action => action.capability_id + "@" + action.version === form.action.ref && action.provider_id === form.action.provider_id), false);
+  const navigation = await body<Navigation>(await f.click(form));
+  assert.equal(navigation.selection.panel, "editor");
+  const page = await f.open(navigation);
+  assert.deepEqual(await f.read(page), []);
+  assert.deepEqual(f.delegatedCalls, [], "discovery and navigation run no delegated action");
+
+  const duringDiscovery = async (target: ActionDefinition) => {
+    const paused = f.holdDiscovery(form.action.ref), pending = f.click(form);
+    try {
+      await Promise.race([paused.entered.promise, pending.then(async answer => assert.fail("The actual directory did not wait: " + await answer.clone().text()))]);
+      await f.replacePolicy(target);
+    } finally { paused.release.resolve(); }
+    return pending;
+  };
+  // Both forms exist and both were eligible when the directory was sampled. Only one was selected by the real overview.
+  assert.equal((await body<Navigation>(await duringDiscovery(alternate))).selection.panel, "editor", "an unreturned form's policy is not retained");
+  const changed = await body<{ code: string }>(await duringDiscovery(delegated), 409);
+  assert.match(changed.code, /^actions\.provider_(?:changed|replaced)$/u, "the sampled form cannot adopt a new operation policy");
+  assert.equal((await f.card()).start?.[0]?.kind, "form", "a new sample may use the new authorized provider");
+
+  const storage = await f.host.withProject(f.project.reference, runtime => new SqlitePluginPrivateStorage(runtime.store.db));
+  const ownerKey = "agent-studio:" + f.project.project_id, approvalKey = APPROVED + owner;
+  const snapshot = storage.snapshotInstallationData(ownerKey);
+  const saved = snapshot.find(row => row.item_key === approvalKey);
+  assert.ok(saved);
+  const approval = JSON.parse(saved.item_value) as SandboxEffects;
+  assert.deepEqual([...approval.capabilities ?? []].sort(), [delegated.capability_id, alternate.capability_id].sort());
+  storage.restoreInstallationData(ownerKey, snapshot.map(row => row === saved
+    ? { ...row, item_value: JSON.stringify({ ...approval, capabilities: [alternate.capability_id] }) } : row));
+  try {
+    assert.equal((await f.card()).start, undefined, "another approved capability with the same permission cannot revive the original form");
+    await refuseChanged(await f.click(form));
+    await body(await f.confirm(page, "revoked"), 403);
+    assert.deepEqual(await f.read(page), []);
+    assert.deepEqual(f.delegatedCalls, []);
+  } finally { storage.restoreInstallationData(ownerKey, snapshot); }
+  assert.equal(await body(await f.confirm(page, "approved once")), true);
+  assert.deepEqual(f.delegatedCalls, [delegated.capability_id]);
+  assert.deepEqual(await f.read(page), [{ id: "1", text: "approved once" }]);
+  await body(await f.close(page));
 });

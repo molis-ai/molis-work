@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -9,6 +9,31 @@ import { requiredHeadlessTestBrowser } from "./fixtures/dedicated-headless-brows
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { newPublisher } from "./fixtures/sandbox-package.js";
 import { signedContentPackage } from "./fixtures/content-package.js";
+
+test("SKC-05 the explicit dedicated browser accepts a CI wrapper and refuses personal Chrome or fallback", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "molis08-browser-selection-")), previous = process.env.MOLIS_WORK_TEST_CHROME;
+  try {
+    const wrapper = join(directory, "chrome-ci");
+    await writeFile(wrapper, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+    process.env.MOLIS_WORK_TEST_CHROME = wrapper;
+    assert.equal(requiredHeadlessTestBrowser(), wrapper, "CI's executable wrapper is a valid explicit test browser");
+    const application = join(directory, "Applications", "Google Chrome.app", "Contents", "MacOS");
+    await mkdir(application, { recursive: true });
+    const daily = join(application, "Google Chrome"); await writeFile(daily, "", { mode: 0o755 });
+    const alias = join(directory, "chrome-headless-shell"); await symlink(daily, alias);
+    for (const forbidden of [daily, alias]) {
+      process.env.MOLIS_WORK_TEST_CHROME = forbidden;
+      assert.throws(requiredHeadlessTestBrowser, /daily Chrome is forbidden/);
+    }
+    process.env.MOLIS_WORK_TEST_CHROME = join(directory, "missing");
+    assert.throws(requiredHeadlessTestBrowser, /no system-browser fallback/);
+    delete process.env.MOLIS_WORK_TEST_CHROME;
+    assert.throws(requiredHeadlessTestBrowser, /absolute dedicated test browser/);
+  } finally {
+    if (previous === undefined) delete process.env.MOLIS_WORK_TEST_CHROME; else process.env.MOLIS_WORK_TEST_CHROME = previous;
+    await rm(directory, { recursive: true, force: true });
+  }
+});
 
 // SKP-01 SKP-08 SKP-10: real signed file -> preview -> install (still off) -> separate enable step -> settings -> reload.
 test("SKP-01 SKP-08 SKP-10: Skill installation and settings work through the actual browser and Host", { timeout: 120_000 }, async t => {

@@ -108,7 +108,7 @@ export const SKILL_PACK_BOARD_EN: Readonly<Record<string, string>> = {
   "：声明了却没有这个文件": ": declared, but the file is not there",
   "重新选文件": "Choose another file",
   "已装好「{name}」{version}": "Installed “{name}” {version}",
-  "{count} 个技能都还没启用。到「技能」里选哪些要用。": "None of its {count} skills is on yet. Choose which to use under Skills.",
+  "{count} 个技能都还没启用。到「技能」里选哪些要用。": "{count} {count|skill|skills} off. Choose which to use under Skills.",
   "去「技能」": "Go to Skills",
   "有 1 个技能只有本地 Agent 能用": "1 skill can be used by local agents only",
   "「整理仓库提交」要执行本机命令，内置助理用不了；导入后在 Coding 里可以点名用它。":

@@ -26,10 +26,10 @@ export const SKILL_PACK_BOARD_STYLES = `
   .mw-item__under > .mw-alert { flex: 1 1 100%; }
   .mw-item__under .mw-toggle { white-space: nowrap; }
 
-  /* 2 · A fold inside an item row: indented to the words (the 32px mark and the row's 12px gap), its summary a quiet 12px line
+  /* 2 · A fold inside an item row: indented to the words (the 32px mark and the row's 12px gap), its summary a quiet 13px action
      instead of the standalone fold's 12px of room above and below. Its readable name carries the item's name. */
   .mw-item > .mw-item__more { flex: 1 0 100%; min-width: 0; padding: 0 0 0 44px; }
-  .mw-item__more > summary { padding: 4px 0; color: var(--muted); font-size: 12px; }
+  .mw-item__more > summary { padding: 4px 0; color: var(--muted); font-size: 13px; }
   .mw-item__more > summary:hover { color: var(--ink-soft); }
   .mw-item__more > summary:focus-visible { outline: var(--focus-stroke); outline-offset: 2px; border-radius: 4px; }
   .mw-item__more .mw-collapsible__body { padding: 4px 0 6px; }
@@ -44,8 +44,6 @@ export const SKILL_PACK_BOARD_STYLES = `
   .mw-facts blockquote { margin: 0; padding-left: 10px; border-left: 2px solid var(--line); color: var(--ink-soft); }
 
   /* 4 · Buttons inside an alert: under its words, so the next step reads as the answer to what the alert says. */
-  .mw-alert__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
-  .mw-alert > p + .mw-alert__actions, .mw-alert > ul + .mw-alert__actions { margin-top: 4px; }
   .mw-alert__problems { display: grid; gap: 2px; margin: 4px 0 0; padding-left: 18px; color: var(--ink-soft); }
   .mw-alert__problems code { overflow-wrap: anywhere; }
 
@@ -53,7 +51,7 @@ export const SKILL_PACK_BOARD_STYLES = `
      while they fit and wrap as words when they do not. The link's padding reaches a finger without taking line room. */
   .mw-status-line { margin: 0; min-width: 0; color: var(--ink-soft); font-size: 12px; line-height: 20px; text-wrap: pretty; }
   .mw-status-line > .mw-status { margin-right: 6px; vertical-align: middle; }
-  .mw-status-line > .mw-btn--link { --reach: 6px; min-height: 0; margin-left: 6px; padding-block: var(--reach); margin-block: calc(-1 * var(--reach)); font-size: 12px; line-height: 20px; vertical-align: middle; }
+  .mw-status-line > .mw-btn--link { --reach: 6px; min-height: 0; margin-left: 6px; padding-block: var(--reach); margin-block: calc(-1 * var(--reach)); font-size: 13px; line-height: 20px; vertical-align: middle; }
 
   /* 3 · List and detail: the list on the left keeps each entry a list item (a screen reader says "3 of 5") and a real button fills
      it; the detail on the right is everything about one entry. Where the room is narrow it is one side at a time. */
@@ -78,7 +76,7 @@ export const SKILL_PACK_BOARD_STYLES = `
   /* Only when another entry is chosen; the first view and a reload show the detail at once. */
   .mw-list-detail__detail.is-entering { animation: craft-rise var(--dur-move) var(--ease-quint); }
   .mw-list-detail__detail > header { display: grid; gap: 6px; }
-  .mw-list-detail__detail h3 { margin: 0; color: var(--ink); font-size: 16px; font-weight: var(--weight-title, 600); line-height: 1.4; overflow-wrap: anywhere; }
+  .mw-list-detail__detail h3 { margin: 0; color: var(--ink); font-size: 20px; font-weight: var(--weight-title, 600); line-height: 1.4; overflow-wrap: anywhere; }
   .mw-list-detail__detail h3:focus-visible { outline: var(--focus-stroke); outline-offset: 2px; border-radius: 4px; }
   .mw-list-detail__detail[data-off] h3 { color: var(--muted); }
   .mw-list-detail__detail > header > p { margin: 0; max-width: 640px; color: var(--ink-soft); font-size: 13px; line-height: 1.55; }

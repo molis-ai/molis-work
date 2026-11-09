@@ -256,7 +256,7 @@ Repository 仅内部可见是目标约束；当前 Goals/Artifacts 等 public en
 | `horizontal/runtime-host` | 横向 | 2 | 436 | `adapters/terminal-pty.ts` 424 | 1 | 1 | 2 | 在用 | 浅 | 已审 |
 | `horizontal/scheduler` | 横向 | 2 | 622 | `index.ts` 541 | 1 | 2 | 1 | 在用 | 中 | 已审 |
 | `horizontal/search` | 横向 | 2 | 659 | `index.ts` 585 | 1 | 1 | 1 | 在用 | 中 | 已审 |
-| `horizontal/surfaces` | 横向 | 4 | 116 | `corrections.ts` 89 | 1 | 2 | 1 | 在用 | 浅 | 待审 |
+| `horizontal/surfaces` | 横向 | 10 | 699 | `composition.ts` 247 | 1 | 2 | 1 | 在用 | 浅 | 待审 |
 | `modules/artifacts` | 模块 | 23 | 2,284 | `service.ts` 341 | 1 | 1 | 1 | 在用 | 中 | 待审 |
 | `modules/attention-resumption` | 模块 | 1 | 449 | `index.ts` 449 | 1 | 1 | 1 | 在用 | 浅 | 待审 |
 | `modules/characters` | 模块 | 15 | 808 | `action-handlers.ts` 129 | 1 | 2 | 1 | 在用 | 浅 | 已审 |

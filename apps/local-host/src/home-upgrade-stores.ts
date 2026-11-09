@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type { SqliteBaseline, SqliteVersionAccess, UpgradeSqliteConnection, VersionedFile } from "@molis-ai/molis-work-storage";
+import { compareCodeUnits } from "@molis-ai/molis-work-plugin-sdk";
 
 /**
  * What the upgrade process looks after. It is declared by the owner and handed over as data, so the process names no store, plugin or driver
@@ -80,6 +81,6 @@ export const homeUpgradeDescriptors = (): readonly HomeUpgradeDescriptor[] => [.
 
 /** What the code expects of a Home (§3.3): every store's path pattern and version, sorted, so the order of registration does not matter. */
 export function upgradeFingerprint(descriptors: readonly HomeUpgradeDescriptor[]): string {
-  const expected = descriptors.map(descriptor => [descriptor.pattern, upgradeTarget(descriptor)] as const).sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0));
+  const expected = descriptors.map(descriptor => [descriptor.pattern, upgradeTarget(descriptor)] as const).sort(([left], [right]) => compareCodeUnits(left, right));
   return createHash("sha256").update(JSON.stringify(expected)).digest("hex");
 }

@@ -207,7 +207,7 @@
 | [术语表](../../../docs/system/GLOSSARY.md) §5～6 的 R-A／R-B／R-C 与文档旧称 | [02](batches/02.md)、[27](batches/27.md)；R-A 按所在包改；R-B1～8 不做，R-B9 存量随真实 Home 重建、不迁移 | 直接做 |
 | 助理对外用词（H4）：工作、工作简报、任务、受托工作、子工作 | [10](batches/10.md)；实施前定并写术语表 | 要决策：用词在 10 开工前定，写进术语表 |
 | 工程流程：W2-16 与新成员从零上手（[并行开发 §12](../../../docs/system/PARALLEL-DEVELOPMENT.md)） | [02](batches/02.md)；统筹负责，不占产品轨道 | 直接做：统筹做 |
-| [对抗式审查台账 R1～R8／N1～N56](../../../docs/reviews/adversarial-review-2026-11-01.md)、版本归一与重复调用整治 | [01](batches/01.md)、[02](batches/02.md)、[05](batches/05.md)、[06](batches/06.md)、[07](batches/07.md)、[27](batches/27.md)、[46](batches/46.md)、[55](batches/55.md)（N22 余片）；N12／N14 先定主人／合同，N3／N16 范围已定，分别在 27／06 实施；#1727 实际采用先核回，N56 与宿主首片同 PR；[PR 对照](requirement-prs.md#recent-requirement-prs) | 要决策：N12 文档记录协议归谁、N14 版本字段的合同、N47 由 Runtime 主人定、BL-880 的门禁改动；N34 复位 0.1.0 前你先删 GitHub 旧 release 与 tag；其余按台账已定的做 |
+| [对抗式审查台账 R1～R8／N1～N56](../../../docs/reviews/adversarial-review-2026-11-01.md)、版本归一与重复调用整治 | [01](batches/01.md)、[02](batches/02.md)、[05](batches/05.md)、[06](batches/06.md)、[07](batches/07.md)、[27](batches/27.md)、[46](batches/46.md)、[55](batches/55.md)（N22 余片）；N12／N14 先定主人／合同，N3／N16 范围已定，分别在 27／06 实施；#1727 实际采用先核回，N56 与宿主首片同 PR；[PR 对照](requirement-prs.md#recent-requirement-prs) | 要决策：N12 文档记录协议归谁、N14 版本字段的合同、N47 由 Runtime 主人定；N34 复位 0.1.0 前你先删 GitHub 旧 release 与 tag；其余按台账已定的做 |
 
 <a id="section-3-8"></a>
 

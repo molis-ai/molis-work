@@ -630,7 +630,6 @@ export const ASSISTANT_EN: Record<string, string> = {
   "选择项目资料…": "Choose project knowledge…",
   "可多选，读原文给助理": "Several at once; their text goes to the Assistant",
   "添加文件、引用或能力": "Add a file, a reference or a capability",
-  "全部插件与 Dock": "All plugins and the Dock",
   "步骤": "Steps",
   "正在做": "In hand",
   "已放弃": "Set aside",

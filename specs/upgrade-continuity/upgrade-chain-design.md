@@ -1,6 +1,6 @@
 # U1 升级链：设计
 
-状态：实现中（2026-11-06 设计，路线书第 05 批第 1 项）；U1-a（[#1908](https://github.com/molis-ai/molis-work/pull/1908)）、U1-b（[#1916](https://github.com/molis-ai/molis-work/pull/1916)）、U1-i（[#1926](https://github.com/molis-ai/molis-work/pull/1926)）已合入；U1-c、U1-d、U1-e、U1-g、U1-j 这一组同一个 PR 做完（同一条用户路径，用户 2026-11-08 定合在一起）；U1-h 和 U1 之后的复查修复在第 05 批分支 `claude/05-u1-too-new-writes` 上做完（F 轨的文件，用户 2026-11-08 同意由第 05 批写手做、F 轨事后审）；U1-f 在第 05 批的分支 `claude/05-u1f-plugin-upgrades` 上写完（授权版，没写按词读，和实现不一样的地方写在 §2.4 末段）；两片随本批的大 PR 合入。真实基线的版本都还是 1。用户 2026-11-06 定：升级链写进「当前保留机制」（§12）、四份门禁按 §11 改；真实 Home 重建不等 05② C-1，第一批真实升级段见 §14。行为与验收以[升级后持续可用](spec.md) §4、§9 和 §10 决策记录为准，本文只写怎么做。依据是 main `242d75d03` 和 #1790 头 `3585974c5`、#1837 头 `6feebb2ae`（只读），另有几条本机实测，都在正文里写明。2026-11-07 按合入 main 的 #1877（`35f808286`）勘误一轮：取锁点、账号子 Home、空间表、同步技术对象和不变量改号。
+状态：已实现（2026-11-06 设计，路线书第 05 批第 1 项）。U1-a（[#1908](https://github.com/molis-ai/molis-work/pull/1908)）、U1-b（[#1916](https://github.com/molis-ai/molis-work/pull/1916)）、U1-i（[#1926](https://github.com/molis-ai/molis-work/pull/1926)）先行合入；U1-c、U1-d、U1-e、U1-g、U1-j（同一条用户路径，用户 2026-11-08 定合在一起）随 #1958 合入 main；U1-h 与复查修复（F 轨的文件，用户 2026-11-08 同意由第 05 批写手做、F 轨事后审）、U1-f（授权版，没写按词读，和实现不一样的地方写在 §2.4 末段）随本批 #1979 于 2026-11-08 合入 main `500d868df3`。真实基线已开始升级：`database.home.catalog`（目录库）与 `database.project_database_baseline`（项目库）都是第 2 版，第一批真实升级段见 §14。用户 2026-11-06 定：升级链写进「当前保留机制」（§12）、四份门禁按 §11 改；真实 Home 重建不等 05② C-1。行为与验收以[升级后持续可用](spec.md) §4、§9 和 §10 决策记录为准，本文只写怎么做。2026-11-07 按合入 main 的 #1877（`35f808286`）勘误一轮：取锁点、账号子 Home、空间表、同步技术对象和不变量改号；2026-11-08 按 #1979 的集成结果改状态句与 §13.2、§14 的时态（机制未变）。
 
 **版本起点。** 各库已回到统一第 1 版：#1837 把它们归一，真实 Home 按检查单重建，统一起点登记在 `docs/releases/CHECKLIST.md` 第 4 节（#1914，2026-11-07）。#1837 把自有版本的维护入口收到 `tooling/versions.json`：代码里还是数字字面量，旁边一条 `/* @version <条目> */` 标记，由 `pnpm versions:generate` 改写，没有生成的常量文件。所以 §2.1 的写法不变；升版本是改表再生成，手改数字会被核对拦下；新基线同时加条目和标记。段的 `from` 不是版本声明，不用标记（`version-declarations.mjs` 的字段名单不含它）。
 
@@ -10,7 +10,7 @@
 
 现在程序一改库的结构，旧 Home 就打不开，只能重建。做完这件事以后，新程序启动时先看一眼每个库的版本：旧的就一步步升上来，升之前留一份原样的备份，升完检查，查出问题就放回备份；只有这一个库暂时不能用，别的照常。比程序还新的库，不读也不写。平时启动几乎没有额外开销，因为只有换了版本才扫一遍。
 
-这一步在界面上只多一行进度（显示归 U3）。U1 合入时不改任何真实库的版本，所以用户感觉不到；它是后面第一次改库结构的前提。用户 2026-11-06 同意了两件事：这算新增迁移逻辑，写进「当前保留机制」（§12）；四份门禁在第一段真实升级之前改（§11）。
+这一步在界面上只多一行进度（显示归 U3）。U1 的机制代码本身不改库的版本；随本批同一次合入，05② 把它第一次真正用上（目录库、项目库升到第 2 版，那几段用户 2026-11-08 已同意），所以开发 Home 从这一版起也是升级，不再重建。它是后面每次改库结构的前提。用户 2026-11-06 同意了两件事：这算新增迁移逻辑，写进「当前保留机制」（§12）；四份门禁在第一段真实升级之前改（§11）。
 
 ## 1. 现状里决定设计的几条
 
@@ -197,7 +197,7 @@ readonly upgrades?: readonly { readonly from: number; readonly sql: string; read
 | `installed-plugin-libraries.ts:121`（已装的库） | 自写 | 留下，这是 U4 的版本；错误码改 §9.1 的码，空文件也报 `storage.schema_version_mismatch`（版本 0，不是低版本） |
 | `catalog-schema.ts:47-52`、`project-catalog-contract.ts:41-46` | `catalogSchemaCompatibilityError`、`catalog.reader_too_old` | 用适配读版本，走同一分类。`reader_too_old` 的提示语是 MCP 用的，码改成 `storage.store_too_new`；文字先说升级 Molis Work，已升级的再重启并新开 Session |
 | `project-catalog-replication.ts:12`（读 `inspectCatalogFile`） | #1877 新增，宿主运行中，只读 | 同目录库走同一分类 |
-| `aggregate-copy-store.ts:28`（`openOwnerCopyStore`，#1877 新增） | 自写，抛 `SqliteSchemaVersionError` | U1-d 核过没有调用方，整个文件删掉，所以不用改（`BL-storage-copy-owner-unused`）。`verify-release-versions.mjs` 的名单里还留着这两个名字，不影响判定，不为此改门禁 |
+| `aggregate-copy-store.ts:28`（`openOwnerCopyStore`，#1877 新增） | 自写，抛 `SqliteSchemaVersionError` | U1-d 核过没有调用方，整个文件删掉，所以不用改。`verify-release-versions.mjs` 的名单里还留着这两个名字，不影响判定，不为此改门禁；这条残留是第 05 批审计的清理项，登记在 [`BL-b05-gate-residues`](../backlog/BL-b05-gate-residues.md) |
 | Alchemist `sync/open.ts:27-29`（#1877 新增） | 自写，抛 `SqliteSchemaVersionError` | **不改**（用户 2026-11-08 定）：这组不动 Alchemist，这一处照旧，保持自己的拒绝 |
 | `home-store-snapshot.ts:54` | 快照按现行版本核，核账漏 | 不改语义（§5.3） |
 | `snapshot-sqlite.ts:94-96`、`catalog-schema.ts:63-77` | 恢复侧检查 | 不改语义（§5.3） |
@@ -625,7 +625,7 @@ U2-d 的 `tooling/gates/schemas/stores.tsv`（基线结构哈希，`scripts/gate
 | UPG1-09 | `kill -9` 留下热 WAL 时、只读开过留旁路文件时，快照前的 checkpoint 把它们清干净；清不掉就 `failed`。没刷盘的 `-journal` 在独占锁之下删掉（§2.2 第 2 步的例外） |
 | UPG1-10 | 项目库：平台段成功、一个插件段失败：这个插件停，这个插件每张表的内容摘要和结构摘要都与升级前相同，其余插件和平台表是新版（§2.4） |
 | UPG1-11 | 维护态：`/health` 503 带 `upgrading`，证明可验；业务路径 503；升级完监听关闭，之后 `/health` 由普通启动答 `ok`（§4.2） |
-| UPG1-12 | 真实基线的登记里 `from` 连续（现在全是空，测试仍然跑，第一次升版本时自动有内容） |
+| UPG1-12 | 真实基线的登记里 `from` 连续。现在登记里有内容：目录库、项目库各一段 `from: 1`（`apps/local-host/src/project-catalog-contract.ts` 的 `CATALOG_UPGRADES`、`apps/local-host/src/project-database-schema.ts` 的 `upgrades`）；内置插件的表都还是第 1 版、没有段。测试逐个核对登记表 |
 | UPG1-13 | 低版本目录库、宿主没起：`bootstrapSpace` 升完才开记忆库；CLI 就地升完并完成命令；`cli-project-maintenance` 升完并完成；MCP 生产路径拉起宿主、等到升完，20 秒没等到报「正在升级」；MCP `:65` 路径升完；purge 照常清除；`home snapshot` 被拒；Home 外的项目库报 `upgrade_pending`。`store_too_new` 的目录库：以上都不取锁升级、不拉宿主、文件不变（§4.3） |
 | UPG1-14 | 插件的段：`ADD COLUMN`、回填、新表加索引、重建表（新表、拷贝、删旧表、改名）、改列名都走通，结构与声明一致；v1 的表 `a` 在 v2 声明里改名 `b`，`ALTER TABLE a RENAME TO b` 走通；跨两版的链上，现行触发器引用中间版本还没有的列，走通（触发器只在最后一段之后建回）；`random()`、`randomblob()`、`datetime('now')`、`CURRENT_TIMESTAMP`（含列默认值）的回填报 `upgrade_nondeterministic`；Todo 的段 `DELETE FROM todo_items` 之后 `todo_deleted_projects` 没有新行；同时升 `schema_version`：这个插件回滚并停用；带同步追踪的表上同样走通（含删掉触发器引用的列、改列名、改表名）：触发器逐字等于现行声明，技术表的行不变，这一轮没有进同步日志；Todo 这种带业务触发器的 Home 库，重建表之后触发器还在；S-147 的每一种写法都在执行前被拒，含文字不变、数据变了的四种；重建 `ON DELETE SET NULL` 和 `CASCADE` 子表的父表，子表原值都在；段真的删了父表的行，`foreign_key_check` 回滚；段真的删一张表，`foreign_key_check` 不报 `no such table`，段新建的表也查得到；段成功和失败之后，这条连接的 `foreign_keys` 都回到 1；Home 库的段走同一个函数，段开连接时这个文件上 `node:sqlite` 的连接都已关闭；只有一处判断区分内置和装上的（用例数这个判断的调用点） |
 | UPG1-15 | 账号 Home：根 Home 和两个账号 Home 都是低版本，维护态把三个都升完，各有各的 `upgrade/` 和戳记，`/health` 的数字合在一起；其中一个账号 Home 的库失败，另外两个照常；启动之后才放进去的低版本账号 Home，第一次打开时升完；`spaces/` 下的符号链接不跟；`spaces` 本身是符号链接：整段跳过，Home 外文件不变；身份文件对不上：跳过并记一行，文件不变，打开时报 `SPACE_OWNERSHIP_MISMATCH` 且没有先升；没有身份文件：跳过，打开时升完；一个账号 Home 取锁 `busy`：跳过，根 Home 和其余照常；账号 Home 磁盘不够：只有它记 `upgrade_no_space`，根 Home 照升（§4.2、§5.2） |
@@ -636,11 +636,11 @@ U2-d 的 `tooling/gates/schemas/stores.tsv`（基线结构哈希，`scripts/gate
 
 ## 14. 第一段真实升级落下来的时候
 
-第一段真实升级要同时满足：U1-a～e、g、h 合入；U1-i（门禁）合入；统一起点已做；第一份金样（U2-c）已在。从那时起，§8.1 的规则生效，段随基线走。
+第一段真实升级（已随 #1979 落地）同时满足了这些条件：U1-a～e、g、h 合入；U1-i（门禁）合入；统一起点已做；第一份金样（U2-c）已在。它们随本批 #1979 一起合入（2026-11-08，main `500d868df3`）。从那时起，§8.1 的规则生效，段随基线走。
 
-**第一批段是资料目录那几张表（用户 2026-11-06 定）。** 真实 Home 不等 05② C-1：#1837 合入就按检查单重建。所以 `workspaces.is_default` 改 `roles`、默认输出目录那一行、删 `project_browsing_settings`、新增 `material_recent_uses` 都不再进第 1 版，走本机制的升级段；这几段用户已同意，写的时候不用再问。它们由 05② 的实现片写，那一片排在 U1 和 U2-c 之后，等上面这些条件都满足。`modules/projects` 现在没有升级段（#1805 第 6 条），这一片先给它登记第一段。指定文件夹的 `workspace_source_links`（用户 2026-11-07 定，05② 第 3 节）也走升级段，排在这几段之后。组合服务的纠正表属第 15 批，到时同样走升级段，同样不再问。
+**第一批段是资料目录那几张表（用户 2026-11-06 定）。** 真实 Home 不等 05② C-1：#1837 合入就按检查单重建。所以 `workspaces.is_default` 改 `roles`、默认输出目录那一行、删 `project_browsing_settings`、新增 `material_recent_uses` 都不进第 1 版，走本机制的升级段；这几段用户已同意，写的时候不用再问。它们随本批落地：`modules/projects/src/catalog-upgrade.ts` 给目录库登记第 1 段（`apps/local-host/src/project-catalog-contract.ts` 的 `CATALOG_UPGRADES`，`from: 1`），`apps/local-host/src/project-database-schema.ts` 给项目库登记第 1 段（删 `project_browsing_settings`、加 `material_recent_uses`）；`modules/projects` 从 `#1805` 第 6 条的「没有升级段」变成有第 1 段。指定文件夹的 `workspace_source_links`（用户 2026-11-07 定，05② 第 3 节）在同一段里建表。组合服务的纠正表属第 15 批，到时同样走升级段，同样不再问。
 
-这也是机制的第一次实战，U1、U2 和四份门禁接不接得上，从这几段就能看出来。
+这也是机制的第一次实战：金样回放把 `0.1.0` 的目录库、项目库从第 1 版升到第 2 版再逐项读、逐项写，因此 U1、U2 和四份门禁接得上一事已由挡合并的 CI 证明。
 
 **裁段**：某段在最早支持的金样都不再需要时可以删，删之后读到更旧的版本报 `upgrade_failed`。M1 之前没有外部用户，规则先写着不执行；M1 后另定最早支持的版本。
 
@@ -661,7 +661,7 @@ U2-d 的 `tooling/gates/schemas/stores.tsv`（基线结构哈希，`scripts/gate
 | U1-i 门禁 | §11 四份 | `scripts/gates/{initial-versions,store-versions}.mjs`、`scripts/verify-release-versions.mjs`、`scripts/check-health-gates.mjs`、`docs/releases/CHECKLIST.md`、`tooling/gates/README.md` | 变异用例 | Opus | U1-a；用户 2026-11-06 同意四份，2026-11-07 同意把 `initial-versions.mjs` 的源码和持久化格式条目这半接进 `pnpm health:check`；在第一段真实升级之前 |
 | U1-j 结构比较记忆 | §3.2 | `packages/storage/src/sqlite-baseline.ts` | 文件变了就重比的拒绝测试；N56 预算 | Sonnet | U1-d |
 
-U1 的机制代码（U1-a～c）不动任何真实基线的版本，合入时用户没有感觉。
+U1 的机制代码（U1-a～c）本身不改库的版本；随本批同一次合入，05② 用上了第一段真实升级（目录库、项目库 1→2），所以开发 Home 从这一版起走升级、不再重建。
 
 ### 15.1 和别的片的先后
 

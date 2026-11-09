@@ -364,6 +364,10 @@ describe("a generated golden Home", { concurrency: false }, () => {
     assert.equal(results[0].steps.home_library, "absent");
     assert.deepEqual(results[0].not_run, []);
     assert.ok(results[0].steps.versioned_files > 0);
+    // UPG2-05: the Host was restarted and the structure check and every read ran again. The result names the restart steps, so a replay that
+    // dropped either one of them (or did not complete it) cannot still say `ok` and pass here. `restart_reads` is the second read count.
+    assert.deepEqual(results[0].steps.restarts, ["restart-structure", "restart-read"]);
+    assert.ok(results[0].steps.restart_reads > 0);
   }, { timeout: 600_000 });
 
   test("where the sandbox cannot run, a golden with an installed plugin is replayed without that step, and the result says it did not run and is not a pass", async () => {

@@ -427,3 +427,49 @@ test("PFG-22 ⌘\\ in a Pages document clears the selection's formatting and lea
   await evaluate("new Promise(resolve => setTimeout(() => requestAnimationFrame(() => requestAnimationFrame(resolve)), 50))");
   assert.equal(await evaluate("document.body.dataset.sideOpen"), side, "the side neither opened nor closed");
 });
+
+// 07-AUDIT (BL-record-gone-from-framed-plugins): a tab moved to the right side shows in the workbench's own pane page, which
+// is another document. A record that page read as missing reports it to the page around it through the one pane-message
+// check (S-30): from a pane frame, from this origin, in its exact shape. Only then is the tab it was opened for marked; the
+// event is dispatched where the plugin page runs, and the report crosses the document boundary as a real pane message.
+test("07-AUDIT a record gone in a pane page marks its tab only after the page takes the report", { timeout: 150_000 }, async t => {
+  const browser = await openGoalBrowser(t, true);
+  if (!browser) return;
+  const { evaluate, waitFor, click, command, sessionId, navigate, origin, projectId } = browser;
+  const LAYOUT = "[data-workspace-layout]";
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
+  await waitFor("document.body.dataset.desktopSurface === 'home' && document.querySelector('[data-layout-open]')", 15_000);
+  // One Goal record, opened from its canvas as a tab.
+  await click('[data-plugin-strip] [data-plugin-id="goals"]');
+  await waitFor("document.body.dataset.desktopSurface === 'goals' && document.querySelector('[data-board-view-tab=canvas]')", 15_000);
+  await evaluate("document.querySelector('[data-board-view-tab=canvas]').click()");
+  await waitFor("document.querySelector('[data-graph-node][data-goal-id=CORE] [data-graph-frame]')", 15_000);
+  await evaluate("document.querySelector('[data-graph-node][data-goal-id=CORE] [data-graph-frame]').click()");
+  await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item[data-plugin=goals][data-item-id=CORE][aria-current]')", 15_000);
+  // Moved to the right side: its content is the workbench's pane page (another document) with no tab drawn there.
+  await click("[data-layout-open]");
+  await waitFor(`document.querySelector('${LAYOUT}')?.matches(':popover-open')`);
+  await click(`${LAYOUT} [data-layout-action=to-side]`);
+  await waitFor("document.querySelector('iframe[data-side-pane-src]')", 15_000);
+  const src = await evaluate<string>("document.querySelector('iframe[data-side-pane-src]')?.getAttribute('src') || ''");
+  assert.match(src, /panePlugin=goals/u, src);
+  assert.match(src, /paneItem=CORE/u, src);
+  // The pane page is another document in this same origin: it sends its report up with a real pane message, and the page takes it
+  // only from that frame. Wait for it to be the workbench's pane page, then let the record it shows go missing (the record-gone it
+  // dispatches is the one a plugin's page sends when its read answers 404).
+  await waitFor(`(() => { const frame = document.querySelector('iframe[data-side-pane-src]'); try {
+    // The pane page starts the same tab workspace after its body says it is embedded: the workspace's public entry is up when
+    // its record-gone listener is, so the report below cannot be sent before there is anyone to send it.
+    return frame.contentDocument?.readyState === 'complete' && frame.contentDocument.body.dataset.paneEmbedded === 'true'
+      && typeof frame.contentWindow.molisWorkOpenPlugin === 'function'; } catch { return false; } })()`, 15_000);
+  const marked = "document.querySelectorAll('[data-side-tabs] .tab-item[data-tab-state=gone]').length";
+  assert.equal(await evaluate(marked), 0, "no tab is marked before the pane reports");
+  await evaluate(`(() => { const frame = document.querySelector('iframe[data-side-pane-src]');
+    frame.contentDocument.dispatchEvent(new CustomEvent('molis-work:record-gone', { detail: { plugin: 'goals', itemId: 'CORE' } })); })()`);
+  await waitFor(`${marked} === 1`, 15_000);
+  const gone = await evaluate<{ title: string; label: string | null }>(`(() => { const item = document.querySelector('[data-side-tabs] .tab-item[data-tab-state=gone]');
+    return { title: item.title, label: item.querySelector('[role=tab]')?.getAttribute('aria-label') ?? null }; })()`);
+  assert.match(gone.title, /这一条已经不在了/u);
+  assert.match(gone.label ?? "", /这一条已经不在了/u);
+  });

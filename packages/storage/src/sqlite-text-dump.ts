@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { compareCodeUnits } from "@molis-ai/molis-work-plugin-sdk";
 import type { SqliteBaselineDatabase } from "./sqlite-baseline.js";
 
 /**
@@ -90,7 +91,7 @@ export function dumpSqliteText(db: SqliteBaselineDatabase, path: string): Sqlite
   // Triggers come after the rows so that loading them records nothing a second time; indexes after, for the same order as `.dump`.
   for (const type of ["index", "view", "trigger"]) for (const object of objects.filter(item => item.type === type)) lines.push(`${object.sql};`);
   lines.push(`PRAGMA user_version=${version};`, "COMMIT;");
-  return { sql: `${lines.join("\n")}\n`, version, tables: Object.fromEntries(Object.entries(tables).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)) };
+  return { sql: `${lines.join("\n")}\n`, version, tables: Object.fromEntries(Object.entries(tables).sort(([a], [b]) => compareCodeUnits(a, b))) };
 }
 
 /** Rows per table now, in the same shape as a dump's `tables`, for comparing a restored library with what was recorded. */

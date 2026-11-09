@@ -13,6 +13,10 @@ test("C3 SQLD-10: only Alchemist may import the old driver: not storage, not the
     }
   }
   assert.equal(usesProjectSqliteDriver("plugins/native/alchemist/src/studio/server/db/open-database.ts", 'import DB from "better-sqlite3";'), false);
+  // The owners are tooling/gates/sqlite-driver-owners.json, not a prefix test next to this one: a lookalike directory is not owned.
+  for (const file of ["packages/storage-tools/src/a.ts", "plugins/native/alchemist-tools/src/a.ts"]) {
+    assert.equal(usesProjectSqliteDriver(file, 'import DB from "better-sqlite3";'), true, file);
+  }
   assert.equal(usesProjectSqliteDriver("tests/db.test.ts", 'import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";'), false);
   assert.equal(usesProjectSqliteDriver("scripts/audit.mjs", '// Docs: require("better-sqlite3")'), false);
 });

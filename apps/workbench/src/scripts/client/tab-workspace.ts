@@ -105,10 +105,22 @@ ${TAB_WORKSPACE_DRAG_PART}
   const goneRecords = new Set();
   const goneKey = (plugin, itemId) => plugin + "|" + itemId;
   const goneRecord = (tab) => tab.kind === "item" && goneRecords.has(goneKey(tab.plugin, tab.itemId));
-  document.addEventListener("molis-work:record-gone", (event) => {
-    const { plugin, itemId } = event.detail || {};
+  /** Marks the tab of one gone record, wherever this document owns it (a main tab, or a main tab moved to the right side). */
+  const noteGone = (plugin, itemId) => {
     if (typeof plugin !== "string" || typeof itemId !== "string" || goneRecords.has(goneKey(plugin, itemId))) return;
     goneRecords.add(goneKey(plugin, itemId)); apply();
+    // A main tab moved to the right side is drawn by the side's own strip: its draw runs off the side's state too, not off this
+    // workspace's apply(), so mark that tab there as well (07-AUDIT: a pane page reports the record it shows is gone).
+    sidePane?.restore();
+  };
+  document.addEventListener("molis-work:record-gone", (event) => {
+    const { plugin, itemId } = event.detail || {};
+    if (typeof plugin !== "string" || typeof itemId !== "string") return;
+    // A split pane is another document (07-AUDIT): its tabs are drawn by the page around it, so the pane page hands the report
+    // up too; the page marks the tab it belongs to (checked with 'paneMessages.recordGone' before it is taken, S-30). The
+    // pane document marks its own view so the reason shows where the record was.
+    if (embedded) notifyParent("workbench-pane-record-gone", { plugin, itemId });
+    noteGone(plugin, itemId);
   });
   /** What a pane shows for a tab whose record is gone: what happened, closing the tab, and the plugin's own list. */
   const showGone = (pane, tab) => {
@@ -303,7 +315,8 @@ ${TAB_WORKSPACE_DRAG_PART}
     if (view !== undefined) url.searchParams.set("paneView", view);
     return url.href;
   };
-  const sidePane = embedded ? null : (${SIDE_PANE_FACTORY})({ ops, getState: () => state, save: persist, remember: pluginGroups.keep, undoChip: pluginGroups.undoChip, menu: (tab, entries) => openSideTabMenu(tab, entries), removed: removedPlugin, L,
+  const sidePane = embedded ? null : (${SIDE_PANE_FACTORY})({ ops, getState: () => state, save: persist, remember: pluginGroups.keep, undoChip: pluginGroups.undoChip, menu: (tab, entries) => openSideTabMenu(tab, entries), removed: removedPlugin,
+    gone: (tab) => tab?.kind === "pane" && typeof tab.item === "string" && goneRecords.has(goneKey(tab.plugin, tab.item)), L,
     paneSrc: (tab) => paneUrl("side", tab.plugin, tab.item, tab.title, tab.view), glyph: iconMarkup, toMain: (id) => moveToMain(id) });
   // A plugin taken out or added back in place: its tabs are drawn again, marked removed or working (removedPlugin).
   document.addEventListener("molis-work:plugins-changed", (event) => { if (event.detail?.next) directory = readDirectory(event.detail.next); apply(); });
@@ -563,6 +576,10 @@ ${TAB_WORKSPACE_DRAG_PART}
       return;
     }
     const frame = panes.from(event);
+    // A pane page says the record it showed is gone (07-AUDIT): mark the tab it was opened for. The shape and the source are
+    // checked in one place ('paneMessages.recordGone', S-30), like every other pane message here.
+    const gone = panes.recordGone(event);
+    if (gone) { noteGone(gone.plugin, gone.itemId); return; }
     if (frame && event.data.type === "workbench-open-settings") {
       // A return trip's source is the pane this frame is (specs/draft-and-return §2.3, returnRelay in return-trips.ts), never the one it names.
       const paneId = frame.dataset.paneOwner || "";

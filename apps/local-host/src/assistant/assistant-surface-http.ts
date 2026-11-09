@@ -15,7 +15,7 @@ const key = (object: ActionSubject) => JSON.stringify([object.kind, object.id]);
 export function handleAssistantSurfaceHttp(request: IncomingMessage, response: ServerResponse, url: URL,
   host: MolisWorkLocalHost, reference: LocalHostProjectReference | undefined, openStore: () => AssistantStore) {
   const match = /^\/api\/assistant\/works\/([A-Za-z0-9_-]{1,200})\/surfaces$/u.exec(url.pathname);
-  if (!match) return false;
+  if (!match) return undefined;
   return withSurfaceResponse(request, response, async signal => {
     const workId = match[1]!, body = await readLocalWebBody(request, 16_000);
     if (Object.keys(body).some(key => key !== "expanded" && key !== "click") || body.expanded !== undefined && body.expanded !== true)

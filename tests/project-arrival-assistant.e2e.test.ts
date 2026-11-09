@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { issueModel } from "./fixtures/issue-model.js";
+import { CURRENT_WORK } from "./fixtures/assistant-current-work.js";
 
 // ISSUE-29: the chooser's next work belongs to the selected project (or to the person),
 // and its HTTP route must give the Host that same trusted context.
@@ -19,6 +20,7 @@ test("PWA-71 D0309 the chooser resumes the original project work after switching
   type Work = { work_id: string; scope: { kind: string; project_id?: string }; state: string };
   const works = () => evaluate<Work[]>("fetch('/api/assistant/works').then(r => r.json()).then(b => b.works)");
   const send = async (text: string, count: number) => {
+    const beforeRequests = model.requests.length;
     await click("[data-assistant-composer] .mw-composer__input");
     await command("Input.insertText", { text }, sessionId);
     await click("[data-assistant-composer] [data-composer-send]");
@@ -26,7 +28,7 @@ test("PWA-71 D0309 the chooser resumes the original project work after switching
     assert.match(await evaluate<string>("document.querySelector('[data-assistant-thread]').textContent"), /已收到本轮查询/);
     for (let attempt = 0; attempt < 100; attempt += 1) {
       const saved = await works();
-      if (saved.length === count && saved.every(work => work.state === "completed")) return;
+      if (model.requests.length === beforeRequests + 1 && saved.length === count && saved.every(work => work.state === "completed")) return;
       await new Promise(resolve => setTimeout(resolve, 100));
     }
     assert.fail("the model answer must have completed persistent work");
@@ -37,22 +39,24 @@ test("PWA-71 D0309 the chooser resumes the original project work after switching
   const original = (await works())[0]!;
   const other = await createProject(browser.web, "另一个项目");
   await navigate(() => command("Page.reload", {}, sessionId));
+  await waitFor("document.querySelector('.chooser')?.dataset.selected && document.querySelector('[data-assistant-composer] .mw-composer__input')");
   if (await evaluate<boolean>("!document.querySelector('[data-assistant-panel]').hidden")) await click("[data-assistant-panel-close]");
   await waitFor("document.querySelector('[data-assistant-panel]').hidden");
   await click("#row-" + other.project_id);
-  await waitFor(`document.querySelector('.chooser')?.dataset.selected === ${JSON.stringify(other.project_id)}`);
-  await click("[data-assistant-input]");
-  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
-  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
+  await waitFor(`document.querySelector('.chooser')?.dataset.selected === ${JSON.stringify(other.project_id)} && ${CURRENT_WORK} === null && !document.querySelector('[data-assistant-composer] .mw-composer__to [data-tag-remove]')`);
+  // K3: an empty shared composer opens the conversation with Mod-Enter.
+  await click("[data-assistant-composer] .mw-composer__input");
+  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
   await waitFor("!document.querySelector('[data-assistant-panel]').hidden");
   assert.doesNotMatch(await evaluate<string>("document.querySelector('[data-assistant-thread]').textContent"), /已收到本轮查询/,
     "the other project cannot display the original project's thread as its own");
   await click("[data-assistant-panel-close]");
   await click("#row-" + projectId);
-  await waitFor(`document.querySelector('.chooser')?.dataset.selected === ${JSON.stringify(projectId)}`);
-  await click("[data-assistant-input]");
-  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
-  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
+  await waitFor(`document.querySelector('.chooser')?.dataset.selected === ${JSON.stringify(projectId)} && ${CURRENT_WORK} === ${JSON.stringify(original.work_id)} && document.querySelector('[data-assistant-composer] .mw-composer__to [data-tag-remove]')`);
+  await click("[data-assistant-composer] .mw-composer__input");
+  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
   await waitFor("document.querySelector('[data-assistant-thread]').textContent.includes('已收到本轮查询')");
   assert.match(await evaluate<string>("document.querySelector('[data-assistant-meta]').textContent"), /目录交互验证/);
   await send("继续原项目查询", 1);
@@ -63,6 +67,7 @@ test("PWA-71 D0309 the chooser resumes the original project work after switching
   await click("[data-assistant-panel-close]");
   await waitFor("document.querySelector('[data-assistant-panel]').hidden");
   await click("#row-personal");
+  await waitFor(`document.querySelector('.chooser')?.dataset.selected === 'personal' && ${CURRENT_WORK} === null && !document.querySelector('[data-assistant-composer] .mw-composer__to [data-tag-remove]')`);
   await send("个人查询，不修改数据", 2);
   assert.deepEqual((await works()).find(w => w.scope.kind === "personal")?.scope, { kind: "personal" });
   assert.equal(model.requests.length, 3, "each click starts exactly one model round");

@@ -174,10 +174,11 @@ test("VUX-33: the Assistant sends a large block as its text and a map of its pie
 });
 
 test("VUX-33: the Assistant's large block streams in place, reopens as text at once and is coloured a slice a frame to the whole colouring", { timeout: 240_000 }, async (t) => {
-  const code = textOf(90_000).replace(/\n$/, "");
+  // A literal CR ends the body. The CRLF after it separates the closing fence.
+  const code = textOf(90_000).replace(/\n$/, "\r");
   let model!: Awaited<ReturnType<typeof assistantTextModel>>;
   const browser = await openGoalBrowser(t, true, undefined, undefined, undefined, undefined, {
-    prepareHome: async homeDirectory => { model = await assistantTextModel(t, homeDirectory, "下面是代码：\n\n```ts\n" + code + "\n```\n\n写完了。", { pieces: 8, pause: 300 }); },
+    prepareHome: async homeDirectory => { model = await assistantTextModel(t, homeDirectory, "下面是代码：\n\n```ts\n" + code + "\r\n```\n\n写完了。", { pieces: 8, pause: 300 }); },
   }); if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
@@ -191,7 +192,7 @@ test("VUX-33: the Assistant's large block streams in place, reopens as text at o
   await waitFor(`${figure}?.querySelector('code .tok-keyword')`, 30_000);
   await evaluate(`window.block = ${figure}; window.piece = window.block.querySelector('code').firstChild`);
   await waitFor("document.querySelector('.assistant-msg--assistant .assistant-rich')?.textContent.includes('写完了')", 60_000);
-  await evaluate(`window.__name = (fn) => fn; window.tokensOf = ${codeTokens.toString()}; window.want = (${WHOLE})(${JSON.stringify(code)})`);
+  await evaluate(`window.__name = (fn) => fn; window.tokensOf = ${codeTokens.toString()}; window.want = (${WHOLE})(${JSON.stringify(code)}) + "<br>"`);
   await waitFor(`${figure}.querySelector('code').innerHTML === want`, 30_000);
   const written = await evaluate<{ same: boolean; piece: boolean; code: string }>(`(() => { const block = ${figure};
     return { same: block === window.block, piece: block.querySelector('code').firstChild === window.piece, code: block.dataset.code }; })()`);
@@ -206,7 +207,7 @@ test("VUX-33: the Assistant's large block streams in place, reopens as text at o
     if (samples.length < 3000) requestAnimationFrame(tick); }; requestAnimationFrame(tick);` }, sessionId);
   await navigate(() => command("Page.reload", {}, sessionId));
   await waitFor(`${figure}?.querySelector('code')`, 30_000);
-  await evaluate(`window.__name = (fn) => fn; window.tokensOf = ${codeTokens.toString()}; window.want = (${WHOLE})(${JSON.stringify(code)})`);
+  await evaluate(`window.__name = (fn) => fn; window.tokensOf = ${codeTokens.toString()}; window.want = (${WHOLE})(${JSON.stringify(code)}) + "<br>"`);
   await waitFor(`${figure}.querySelector('code').innerHTML === want`, 30_000);
   await command("Page.removeScriptToEvaluateOnNewDocument", { identifier }, sessionId);
   const samples = await evaluate<Array<[number, number, number]>>("samples.slice()");

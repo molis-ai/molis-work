@@ -34,14 +34,16 @@ export function assistantCodeHtml(code: string, hint: string, ports: AssistantTe
   const text = String(code || "");
   const guessed = /^\s*[\[{]/.test(text) && /[\]}]\s*$/.test(text) ? "json" : /^\s*\$ /.test(text) ? "sh" : /^(@@|\+\+\+|---) /m.test(text) ? "diff" : "";
   const resolved = ports.language(hint || "");
-  const language = (typeof resolved === "string" ? resolved : "") || guessed, lines = text.split("\n").length;
+  const language = (typeof resolved === "string" ? resolved : "") || guessed, lines = text.split(/\r\n|[\r\n]/).length;
   // A block past a slice goes out as its text and the map of its pieces; the page colours it a slice a frame (assistantPaintMap).
   const pieces = language && text.length <= 400000 ? ports.tokens(text, language) : null, paint = pieces && text.length > 16000 ? assistantPaintMap(pieces) : "";
-  const body = pieces && !paint ? pieces.map(([kind, value]) => kind ? `<span class="tok-${assistantEscape(kind)}">${assistantEscape(value)}</span>` : assistantEscape(value)).join("") : assistantEscape(text);
+  // HTML parsing normalizes literal CRs, including in attributes. Character references keep the source line endings.
+  const source = assistantEscape(text).replace(/\r/g, "&#13;");
+  const body = pieces && !paint ? pieces.map(([kind, value]) => kind ? `<span class="tok-${assistantEscape(kind)}">${assistantEscape(value)}</span>` : assistantEscape(value)).join("").replace(/\r/g, "&#13;") : source;
   const say = (value: string) => assistantEscape(ports.say(value));
   // The count fills the translated words, so an English count agrees with its number ("1 line", "22 lines"), not just the first {n}.
   const count = (value: string) => assistantEscape(fillMessage(ports.say(value), { n: lines }));
-  return `<figure class="assistant-code" data-lines="${lines}"${lines > 18 ? " data-folded" : ""} data-code="${assistantEscape(text)}"${paint ? ` data-paint="${assistantEscape(paint)}"` : ""}><figcaption class="assistant-code-head"><span class="assistant-code-lang">${assistantEscape(LANGUAGE_NAME[language] || hint || ports.say("代码"))}</span><span class="assistant-code-lines">${count("{n} 行")}</span><button class="assistant-code-copy" type="button">${say("复制")}</button></figcaption><pre><code>${body}${text.endsWith("\n") ? "<br>" : ""}</code></pre>${lines > 18 ? `<button class="assistant-code-more" type="button">${count("展开全部 {n} 行")}</button>` : ""}</figure>`;
+  return `<figure class="assistant-code" data-lines="${lines}"${lines > 18 ? " data-folded" : ""} data-code="${source}"${paint ? ` data-paint="${assistantEscape(paint)}"` : ""}><figcaption class="assistant-code-head"><span class="assistant-code-lang">${assistantEscape(LANGUAGE_NAME[language] || hint || ports.say("代码"))}</span><span class="assistant-code-lines">${count("{n} 行")}</span><button class="assistant-code-copy" type="button">${say("复制")}</button></figcaption><pre><code>${body}${/[\r\n]$/.test(text) ? "<br>" : ""}</code></pre>${lines > 18 ? `<button class="assistant-code-more" type="button">${count("展开全部 {n} 行")}</button>` : ""}</figure>`;
 }
 
 const BT = String.fromCharCode(96);
@@ -70,6 +72,19 @@ export function assistantInlineHtml(text: string, ports: AssistantTextPorts): st
 }
 
 export const ASSISTANT_LIST_ITEM = /^(\s*)([-*+•]|\d+[.)])\s+(.*)$/;
+
+/** Accept a missing bullet space next to another list item, only when reading prose. */
+export function assistantListLine(lines: string[], index: number): string {
+  const line = lines[index]!;
+  const loose = /^(\s*)([-•])([^\s\-•].*)$/.exec(line);
+  if (loose) {
+    const neighbor = new RegExp("^\\s*\\" + loose[2] + "\\s+\\S");
+    if ([lines[index - 1], lines[index + 1]].some(value => value !== undefined && neighbor.test(value))) {
+      lines[index] = loose[1]! + loose[2]! + " " + loose[3];
+    }
+  }
+  return lines[index]!;
+}
 interface ListItem { task: string | null; parts: Array<string | List>; }
 interface List { ordered: boolean; start: number; items: ListItem[]; }
 const listHtml = (list: List): string => {
@@ -82,8 +97,8 @@ export function assistantListHtml(lines: string[], start: number, ports: Assista
   const roots: List[] = [], stack: Array<{ indent: number; list: List }> = [];
   let index = start, lastItem: ListItem | null = null;
   while (index < lines.length) {
-    const line = lines[index]!;
-    if (!line.trim()) { if (index + 1 < lines.length && ASSISTANT_LIST_ITEM.test(lines[index + 1]!)) { index += 1; continue; } break; }
+    const line = assistantListLine(lines, index);
+    if (!line.trim()) { if (index + 1 < lines.length && ASSISTANT_LIST_ITEM.test(assistantListLine(lines, index + 1))) { index += 1; continue; } break; }
     const match = ASSISTANT_LIST_ITEM.exec(line);
     if (!match) {
       if (lastItem && /^\s{2,}\S/.test(line)) { lastItem.parts.push("<br>" + assistantInlineHtml(line.trim(), ports)); index += 1; continue; }

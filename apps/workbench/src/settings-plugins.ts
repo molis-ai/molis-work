@@ -178,7 +178,10 @@ box.append(node);
 };
 const name = plugin.name;
 if (plugin.state === "running") step(L("停用"), "mw-btn--secondary", "disable", {}, L("已停用"), L("停用这个插件？"), L("{plugin} 停用后不再运行，也不再提供动作；数据保留，可以随时重新启用。", { plugin: name }));
-else if (plugin.state === "disabled" && !revoked.has(plugin.publisher_signature)) step(L("启用"), "mw-btn--secondary", "enable", {}, L("已启用"));
+else if (plugin.state === "disabled" && !revoked.has(plugin.publisher_signature)) {
+const { install_id, installation_generation, version, manifest_digest } = plugin;
+step(L("启用"), "mw-btn--secondary", "enable", act === homeApi ? {} : { expected_installation: { scope: "project", install_id, installation_generation, version, manifest_digest } }, L("已启用"));
+}
 step(L("卸载并保留数据"), "mw-btn--ghost", "uninstall", { keep_data: true }, L("已卸载"), L("卸载这个插件？"), L("{plugin} 会被卸载，它的数据保留；以后再装同一个插件时会接着用。", { plugin: name }));
 step(L("卸载并删除数据"), "mw-btn--ghost", "uninstall", { keep_data: false }, L("已卸载"), L("卸载这个插件？"), L("{plugin} 会被卸载，它的数据一并删除，不能恢复。", { plugin: name }));
 return box;

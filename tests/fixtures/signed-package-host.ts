@@ -1,9 +1,13 @@
+import assert from "node:assert/strict";
+import type { TestContext } from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SANDBOX_PACKAGE_FILES, type PluginPackageBundle } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
+import type { ProjectPluginInstalledView } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
+import type { SurfaceInstallationRef } from "@molis-ai/molis-work-contracts/services/surface-composition";
+import { PluginRuntime, PluginSupervisor, SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
 import { DEMO_PROJECT_ID, HomeConsentLedger, MolisWorkLocalHost, PLUGIN_INSTALL_PERMISSIONS, PluginInstallService, SandboxPackageStore, molisWorkHostProjectReference,
   pluginControlActions, pluginInstallActions, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { PACKAGE_PLUGIN_ID, type PackageFiles } from "./sandbox-package.js";
@@ -21,6 +25,25 @@ export function readsAndWrites(files: PackageFiles) {
 export const mac = { skip: process.platform !== "darwin", timeout: 90_000 };
 export const caller = { actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user" as const, permissions: [], project_id: DEMO_PROJECT_ID };
 
+export function projectInstallation({ install_id, installation_generation, version, manifest_digest }: Omit<SurfaceInstallationRef, "scope">): SurfaceInstallationRef & { scope: "project" } {
+  return { scope: "project", install_id, installation_generation, version, manifest_digest };
+}
+
+/** The original project owners, observed through their public lifecycle while the real signed package starts. */
+export function observeSignedPackageLifecycle(t: TestContext) {
+  let runtime: PluginRuntime | undefined, supervisor: PluginSupervisor | undefined;
+  const startRuntime = PluginRuntime.prototype.start, startSupervisor = PluginSupervisor.prototype.start;
+  t.mock.method(PluginRuntime.prototype, "start", function(this: PluginRuntime, ...args: Parameters<PluginRuntime["start"]>) {
+    if (this.list().some(record => record.plugin_id === PACKAGE_PLUGIN_ID && record.install_id === args[0])) runtime = this;
+    return startRuntime.apply(this, args);
+  });
+  t.mock.method(PluginSupervisor.prototype, "start", function(this: PluginSupervisor, ...args: Parameters<PluginSupervisor["start"]>) {
+    if (args[0].some(entry => entry.definition.manifest.plugin_id === PACKAGE_PLUGIN_ID)) supervisor = this;
+    return startSupervisor.apply(this, args);
+  });
+  return () => { assert.ok(runtime && supervisor, "the signed project package started under its production owners"); return { runtime, supervisor }; };
+}
+
 export async function installedPackageHost() {
   const home = await mkdtemp(join(tmpdir(), "publisher-revoke-"));
   let host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
@@ -33,10 +56,17 @@ export async function installedPackageHost() {
     return client.invoke(person, { capability_id: pluginInstallActions.confirm.capability_id, version: 1 }, { preview_id: preview.preview_id, consent: true, pin_label: "Example" });
   };
   const plugins = async () => (await host.actionClient(reference).invoke(person, { capability_id: pluginInstallActions.installed.capability_id, version: pluginInstallActions.installed.version }, {}) as
-    { plugins: Array<{ install_id: string; plugin_id: string; version: string; state: string }> }).plugins.filter(item => item.plugin_id === PACKAGE_PLUGIN_ID);
+    { plugins: ProjectPluginInstalledView[] }).plugins.filter(item => item.plugin_id === PACKAGE_PLUGIN_ID);
   /** The person switches a signed-package plugin off or on, or takes it off (BL-623). */
-  const control = (action: "disable" | "enable" | "uninstall", input: { plugin_id: string; keep_data?: boolean }) =>
-    host.actionClient(reference).invoke(person, { capability_id: pluginControlActions[action].capability_id, version: 1 }, action === "uninstall" ? input : { plugin_id: input.plugin_id });
+  const control = async (action: "disable" | "enable" | "uninstall", input: { plugin_id: string; keep_data?: boolean }) => {
+    const definition = pluginControlActions[action], client = host.actionClient(reference);
+    if (action === "enable") {
+      const row = (await plugins()).find(item => item.plugin_id === input.plugin_id);
+      assert.ok(row);
+      return client.invoke(person, definition, { plugin_id: input.plugin_id, expected_installation: projectInstallation(row) });
+    }
+    return client.invoke(person, definition, action === "uninstall" ? input : { plugin_id: input.plugin_id });
+  };
   const operation = async (name: string) => {
     await host.inspectActions(caller, reference);
     const view = (await host.actionClient(reference).discover(caller)).find(item => new RegExp(`^generated\\.[0-9a-f]{8}\\.${name.replace(".", "\\.")}$`).test(item.capability_id));

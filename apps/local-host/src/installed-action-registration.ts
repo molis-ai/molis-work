@@ -97,7 +97,8 @@ export function followInstalledActions(scope: ActionScope, record: PluginInstanc
     return active;
   };
   return { release, refresh: policies => !closed && (current()?.refresh(policies) ?? false),
-    retainOperation: id => requireCurrent().retainOperation(id), assertReady: () => requireCurrent().assertReady(), dispose() { closed = true; } };
+    retainOperation: id => requireCurrent().retainOperation(id), assertReady: () => requireCurrent().assertReady(),
+    publish: () => requireCurrent().publish?.(), dispose() { closed = true; } };
 }
 
 /** Runtime has already checked complete redemption. It owns the returned disposer, including failure and disable cleanup. */
@@ -118,8 +119,14 @@ export function registerInstalledActions(definition: PluginDefinition, contribut
     : { available: false, code: 'actions.plugin_unavailable', reason: '插件的实际依赖尚未完成注册' }, record, (id, caller) => {
     return registration.handlers.find(item => item.capability_id === exposedActionId(release, id))?.availability?.(caller) ?? { available: true };
   });
-  const refresh = exposed.refresh;
-  exposed.refresh = policies => { const changed = refresh(policies); resolved = true; return changed; };
+  const publish = () => { resolved = true; };
+  // A disabled project package is still under its enable request. Ordinary starts, including a regrant's
+  // start from installed, complete when their live catalog policies have been restored as usual.
+  if (record.state === 'disabled' && actions.project_id !== null && record.publisher_trust === 'pinned') exposed.publish = publish;
+  else {
+    const refresh = exposed.refresh;
+    exposed.refresh = policies => { const changed = refresh(policies); publish(); return changed; };
+  }
   rememberInstalledExposure(actions, record, exposed);
   return exposed.dispose;
 }

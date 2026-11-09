@@ -171,7 +171,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
   const expose = installedPluginExposure({ actions, platform, exposed, recoveryErrors, recordFor, closed: () => closed, withdraw,
     changed: () => { exposureRevision++; }, catalog });
   const { definition, manifestOf, forget: forgetDefinitions } = installedDefinitions({ catalog, capabilityFor, network, assertInstalled, grantedCapabilities,
-    holdAgentDefinitions: (definition, installId) => registerPluginAgentDefinitions(pluginHomeFor(homeDirectory), definition, installId),
+    holdAgentDefinitions: (definition, installId) => registerPluginAgentDefinitions(pluginHomeFor(homeDirectory), definition, installId, platform.runtime.get(installId)),
     earlier: release => release.packaged ? [] : releases.versions(release.buildId).map(item => item.version).filter(version => version < release.version) });
   const promptScope = (installationId: string) => JSON.stringify([actions.project_id, projectId, installationId]);
   const registerPrompts = (release: InstalledRelease, state: 'enabled' | 'disabled', restored = false) => {

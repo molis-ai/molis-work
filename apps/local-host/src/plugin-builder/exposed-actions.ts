@@ -92,6 +92,8 @@ export interface InstalledPluginActions {
   retainOperation(operationId: string): { permissions: readonly string[]; assertCurrent(): void };
   refresh(policies: ReadonlyMap<string, ExposedOperationPolicy | Cost>): boolean;
   assertReady(): void;
+  /** Runtime registrations stay unavailable until their actual policy has been checked for this activation. */
+  publish?(): void;
   dispose(): void;
 }
 

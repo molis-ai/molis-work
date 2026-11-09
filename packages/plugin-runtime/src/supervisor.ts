@@ -1,17 +1,18 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { currentPluginInstance } from "./supervisor-instance.js";
 import type {
   PluginContribution,
   PluginDefinition,
   PluginDeployment,
   PluginManifest,
+  PluginInstanceRecord,
   PluginRuntimeApi,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { comparePluginVersions } from "@molis-ai/molis-work-plugin-sdk";
 import { platformDefinition } from "./platform-definitions.js";
 import { buildEventContract, type PluginEventContract } from "./event-contract.js";
 import { pluginManifestDigest } from "./identity.js";
-import { persistReleaseArtifact, startInstallInput } from "./supervisor-releases.js";
-import { directlyUsable } from "./install-rules.js";
+import { persistReleaseArtifact, resolveInstalledEntry, startInstallInput } from "./supervisor-releases.js";
 import { UNSIGNED_TRUST, isHostTrust } from "./trust-rules.js";
 import type { PluginTrust } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import type { PluginActiveInstance, PluginHostLifecycle } from "./lifecycle.js";
@@ -59,6 +60,19 @@ export interface PluginSupervisorEntry {
   };
 }
 
+/** A person's activation of a particular installation, already selected by its Host. */
+interface PluginEnableControl {
+  installation: PluginInstanceRecord;
+  beforeEffect(): Promise<void>;
+  assertCurrent(): void;
+}
+
+const enableReplaced = () => new ActionError("actions.provider_replaced", "原插件安装或启用状态已变化，请重新查看");
+const sameRelease = (record: PluginInstanceRecord, original: PluginInstanceRecord) =>
+  record.install_id === original.install_id && record.installation_generation === original.installation_generation
+    && record.plugin_id === original.plugin_id && record.publisher_signature === original.publisher_signature
+    && record.version === original.version && record.manifest_digest === original.manifest_digest;
+
 export interface PluginUpgradeCandidate {
   plugin_id: string;
   install_id: string;
@@ -99,10 +113,6 @@ function safeMessage(error: unknown): string {
   return error instanceof Error && error.message.trim() !== ""
     ? error.message
     : "Plugin 启动失败";
-}
-
-function codedError(code: string, message: string): Error & { code: string } {
-  return Object.assign(new Error(message), { code });
 }
 
 export class PluginSupervisor implements PluginHostLifecycle {
@@ -148,7 +158,7 @@ export class PluginSupervisor implements PluginHostLifecycle {
       if (entry.enabled === false) this.revoke(pluginId);
       let active: PluginSupervisorEntry;
       try {
-        active = await this.#resolveInstalledEntry(entry, control?.assertCurrent);
+        active = await resolveInstalledEntry(entry, this.#runtime.list(), this.#releaseArtifacts, control?.assertCurrent);
         control?.assertCurrent?.();
       } catch (error) {
         control?.assertCurrent?.();
@@ -303,19 +313,30 @@ export class PluginSupervisor implements PluginHostLifecycle {
    * Enable a Plugin again after `revoke`. Already-enabled Plugins keep their
    * generation and are not restarted. Blocked Plugins stay blocked.
    */
-  async enable(pluginId: string): Promise<PluginSupervisorState> {
+  async enable(pluginId: string, control?: PluginEnableControl): Promise<PluginSupervisorState> {
+    const epoch = this.#epochs.get(pluginId);
     for (;;) {
       const gate = this.#gates.get(pluginId);
-      if (!gate) break;
-      await gate;
+      if (gate) await gate;
+      if (control) await control.beforeEffect();
       if (this.#gates.get(pluginId) === gate) break;
     }
+    control?.assertCurrent();
     const entry = this.#entries.get(pluginId);
     if (!entry) {
       return this.#fail(pluginId, null, "plugin_unknown", `没有登记过插件 ${pluginId}`);
     }
     const state = this.#states.get(pluginId);
     if (state?.status === "blocked") return { ...state };
+    if (control) {
+      const current = this.#runtime.get(control.installation.install_id);
+      if (this.#epochs.get(pluginId) !== epoch || !sameRelease(current, control.installation) || current.state !== "disabled") throw enableReplaced();
+      if (!this.#revoked.has(pluginId)) this.revoke(pluginId);
+      this.#begin(pluginId);
+      const attempt = this.#activate(pluginId, control.assertCurrent, control);
+      this.#finish(pluginId, attempt);
+      return await attempt;
+    }
     this.#revoked.delete(pluginId);
     if (!this.#generations.has(pluginId)) {
       this.#generation += 1;
@@ -492,62 +513,24 @@ export class PluginSupervisor implements PluginHostLifecycle {
     return await this.#activate(pluginId);
   }
 
-  async #resolveInstalledEntry(candidate: PluginSupervisorEntry, assertCurrent?: () => void): Promise<PluginSupervisorEntry> {
-    const manifest = candidate.definition.manifest;
-    const installed = this.#runtime.list().find(record => record.plugin_id === manifest.plugin_id
-      && record.publisher_signature === manifest.publisher.signature
-      && record.state !== "uninstalled");
-    if (!installed || !candidate.releaseArtifact) return candidate;
-
-    if (directlyUsable(manifest, isHostTrust(candidate.trust ?? UNSIGNED_TRUST), installed)) {
-      await persistReleaseArtifact(candidate, this.#releaseArtifacts, assertCurrent);
-      return candidate;
-    }
-
-    const repository = this.#releaseArtifacts;
-    if (!repository) {
-      throw codedError("plugin.release_store_unavailable", "Native 插件需要恢复已安装版本，但 Runtime 发行物存储未装配");
-    }
-    const artifacts = repository.list(manifest.plugin_id, manifest.publisher.signature);
-    const exact = artifacts.filter(artifact => artifact.version === installed.version
-      && artifact.manifest_digest === installed.manifest_digest);
-    const compatible = artifacts.filter(artifact => artifact.version !== installed.version
-      && comparePluginVersions(artifact.version, installed.version) >= 0
-      && (artifact.manifest.upgrade_compatibility?.compatible_from_versions ?? []).includes(installed.version))
-      .sort((left, right) => comparePluginVersions(right.version, left.version));
-
-    for (const artifact of [...exact, ...compatible]) {
-      try {
-        if (artifact.plugin_id !== manifest.plugin_id
-          || artifact.publisher_signature !== manifest.publisher.signature
-          || artifact.manifest.version !== artifact.version
-          || artifact.manifest_digest !== pluginManifestDigest(artifact.manifest)
-          || !artifact.module_source.trim()) continue;
-        const definition = await candidate.releaseArtifact.restore(artifact.module_source);
-        if (definition.manifest.plugin_id !== artifact.plugin_id
-          || definition.manifest.publisher.signature !== artifact.publisher_signature
-          || definition.manifest.version !== artifact.version
-          || pluginManifestDigest(definition.manifest) !== artifact.manifest_digest) continue;
-        const host = { ...candidate, definition: platformDefinition(definition) };
-        delete host.releaseArtifact;
-        return host;
-      } catch {
-        // An unreadable older artifact must not prevent trying another exact
-        // compatible release. If none can be loaded, the installed version stays blocked.
-      }
-    }
-    throw codedError("plugin.release_artifact_missing", `找不到 ${installed.version} 的可运行 Native 发行物；未启动不兼容的新版本`);
-  }
-
-  async #activate(pluginId: string, assertCurrent?: () => void): Promise<PluginSupervisorState> {
+  async #activate(pluginId: string, assertCurrent?: () => void, control?: PluginEnableControl): Promise<PluginSupervisorState> {
+    const enable = control?.installation;
     assertCurrent?.();
-    if (this.#revoked.has(pluginId)) return this.#revokedState(pluginId);
+    if (!enable && this.#revoked.has(pluginId)) return this.#revokedState(pluginId);
     const entry = this.#activeEntries.get(pluginId);
     if (!entry) {
       return this.#fail(pluginId, null, "plugin_unknown", `没有登记过插件 ${pluginId}`);
     }
-    const epoch = this.#epochs.get(pluginId) ?? 0;
-    let installId: string | null = this.#states.get(pluginId)?.install_id ?? null;
+    const epoch = this.#epochs.get(pluginId) ?? 0, sameEpoch = () => (this.#epochs.get(pluginId) ?? 0) === epoch;
+    if (enable && (enable.plugin_id !== pluginId || entry.definition.manifest.version !== enable.version
+      || entry.definition.manifest.publisher.signature !== enable.publisher_signature
+      || pluginManifestDigest(entry.definition.manifest) !== enable.manifest_digest)) throw enableReplaced();
+    let installId = enable?.install_id ?? this.#states.get(pluginId)?.install_id ?? null, enabledCommit = false;
+    const assertStarting = enable ? () => {
+      assertCurrent?.();
+      const now = this.#runtime.get(enable.install_id);
+      if (!sameEpoch() || now.state !== "disabled" || !sameRelease(now, enable)) throw enableReplaced();
+    } : assertCurrent;
     try {
       if (installId === null) {
         if (entry.definition.execution === "sandbox" && entry.grants === undefined) throw new Error("生成插件必须先确认安装权限，不能自动授予全部必需权限");
@@ -559,16 +542,27 @@ export class PluginSupervisor implements PluginHostLifecycle {
           return this.#revokedState(pluginId, installId);
         }
       }
-      const receipt = await this.#runtime.start(installId, { assertCurrent });
-      assertCurrent?.();
-      if (this.#revoked.has(pluginId) || (this.#epochs.get(pluginId) ?? 0) !== epoch) {
+      const receipt = await this.#runtime.start(installId, { assertCurrent: assertStarting, beforeEffect: control?.beforeEffect });
+      let refusal: { error: unknown } | undefined;
+      if (enable) {
+        try { await control?.beforeEffect(); assertCurrent?.(); } catch (error) { refusal = { error }; }
+        const current = this.#runtime.get(installId);
+        if (!sameRelease(receipt.install, enable) || !sameRelease(current, enable) || current.state !== "running") throw enableReplaced();
+      } else assertCurrent?.();
+      if (!sameEpoch() || !enable && this.#revoked.has(pluginId)) {
         await this.#rollback(receipt.install.install_id);
         return this.#revokedState(pluginId, receipt.install.install_id);
       }
-      return this.#running(pluginId, receipt.install.install_id);
+      // Runtime already committed this exact start. Keep it supervised for shutdown even if the person can no longer adopt its result.
+      if (enable) { this.#revoked.delete(pluginId); enabledCommit = true; }
+      const state = this.#running(pluginId, receipt.install.install_id, !refusal);
+      if (refusal) throw refusal.error;
+      return state;
     } catch (error) {
+      if (enabledCommit || enable && error instanceof ActionError && error.code === "actions.provider_replaced") throw error;
       assertCurrent?.();
-      if (this.#revoked.has(pluginId)) return this.#revokedState(pluginId, installId);
+      if (enable && this.#runtime.get(enable.install_id).state === "disabled") throw error;
+      if (!sameEpoch() || !enable && this.#revoked.has(pluginId)) return this.#revokedState(pluginId, installId);
       return this.#fail(pluginId, installId, safeCode(error), safeMessage(error));
     }
   }
@@ -626,7 +620,7 @@ export class PluginSupervisor implements PluginHostLifecycle {
     return { ...state };
   }
 
-  #running(pluginId: string, installId: string): PluginSupervisorState {
+  #running(pluginId: string, installId: string, notify = true): PluginSupervisorState {
     if (this.#revoked.has(pluginId)) return this.#revokedState(pluginId, installId);
     const state: PluginSupervisorState = {
       plugin_id: pluginId,
@@ -636,7 +630,7 @@ export class PluginSupervisor implements PluginHostLifecycle {
       message: null,
     };
     this.#states.set(pluginId, state);
-    for (const listener of this.#activationListeners) listener(pluginId);
+    if (notify) for (const listener of this.#activationListeners) listener(pluginId);
     return { ...state };
   }
 

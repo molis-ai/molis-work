@@ -1,3 +1,4 @@
+import { projectInstallation } from "./fixtures/signed-package-host.js";
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 import type { PluginInstalledView } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
@@ -190,8 +191,9 @@ test("RAC-2604 S-94 the Host settings door's disable, enable and uninstall are g
     const reached = await call(body);
     assert.equal((await reached.json()).code, "plugin.state_invalid", `${step}: a plugin that is not an installed package`);
     // The project's door does not reach the Home's package either.
-    const viaProject = await f.request(`${prefix}/api/plugin-trust/installed/${step}`, { method: "POST", body });
-    assert.equal((await viaProject.json()).code, "plugin.state_invalid", `${step}: the project's door`);
+    const projectBody = step === "enable" ? { ...body, expected_installation: projectInstallation(f.host.homePlugins!.installation(probe.id)!) } : body;
+    const viaProject = await f.request(`${prefix}/api/plugin-trust/installed/${step}`, { method: "POST", body: projectBody });
+    assert.equal((await viaProject.json()).code, step === "enable" ? "actions.provider_replaced" : "plugin.state_invalid", `${step}: the project's door`);
     assert.equal(state(), "running", `${step}: it is still running`);
   }
 });

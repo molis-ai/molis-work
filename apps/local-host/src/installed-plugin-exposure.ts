@@ -1,6 +1,7 @@
 import type { PluginInstanceRecord } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
 import type { PluginPlatform } from './plugin-platform.js';
+import type { InstalledLifecycleContext } from './installed-plugin-lifecycle.js';
 import { exposeInstalledPlugin, type InstalledPluginActions } from './plugin-builder/exposed-actions.js';
 import { installedVersion, type InstalledRelease } from './installed-release.js';
 import { withProjectReachInvocation } from './plugin-project-reach-subject.js';
@@ -15,11 +16,17 @@ interface ExposurePorts {
 
 /** A stale catalog response belongs to its original exposure and enablement, not the plugin id's newest instance. */
 export function installedPluginExposure(c: ExposurePorts) {
-  return async (release: InstalledRelease, onFailure?: 'caller') => {
+  return async (release: InstalledRelease, onFailure?: 'caller', control?: Parameters<InstalledLifecycleContext['expose']>[2]) => {
+    let refused: { error: unknown } | undefined;
+    const check = () => {
+      if (refused) throw refused.error;
+      try { control?.assertCurrent(); } catch (error) { refused = { error }; throw error; }
+    };
+    check();
     const pluginId = release.pluginId, record = c.recordFor(pluginId), epoch = c.platform.supervisor.generation(pluginId);
     if (c.closed() || !record || epoch === undefined || record.state !== 'running' || record.version !== installedVersion(release)) throw new Error('原插件安装或启用状态已变化，不能采用旧曝光结果');
     c.withdraw(pluginId);
-    let exposure: InstalledPluginActions | undefined;
+    let exposure: InstalledPluginActions | undefined, ready = !control;
     const current = () => {
       const now = c.recordFor(pluginId);
       return !c.closed() && c.exposed.get(pluginId) === exposure && c.platform.supervisor.generation(pluginId) === epoch
@@ -35,13 +42,34 @@ export function installedPluginExposure(c: ExposurePorts) {
           await c.platform.router().dispatch({ method: 'POST', pathname: '/api/plugins/' + id + '/call', actor_id: context.actor_id, execution, body: { operation, input } })
           ?? { status: 409, body: { error: '这个插件当前没有运行（可能已停用）' } });
       },
-        () => current() ? { available: true } : { available: false, code: 'actions.plugin_unavailable', reason: '插件已停用或版本已变更' }, { install_id: record.install_id, installation_generation: record.installation_generation });
+        () => ready && current() ? { available: true } : { available: false, code: 'actions.plugin_unavailable', reason: '插件已停用或版本已变更' }, { install_id: record.install_id, installation_generation: record.installation_generation });
+      const refresh = exposure.refresh;
+      if (control) exposure.refresh = policies => {
+        try { check(); } catch {
+          // A shared catalog read must still refresh other installations. Drop only this unadopted exposure and resample.
+          if (!current()) return false;
+          c.withdraw(pluginId);
+          return true;
+        }
+        return refresh(policies);
+      };
       c.exposed.set(pluginId, exposure); c.changed();
-      await c.catalog();
+      try { await c.catalog(); } finally { exposure.refresh = refresh; }
+      check();
+      if (control) {
+        try { await control.beforeEffect(); } catch (error) { refused = { error }; throw error; }
+        check();
+      }
       exposure.assertReady();
       if (!current()) throw new ActionError('actions.provider_replaced', '原插件曝光已失效，不能采用旧目录结果');
       if (!registered) rememberInstalledExposure(c.actions, record, exposure);
+      exposure.publish?.();
+      ready = true;
     } catch (error) {
+      try { check(); } catch (refusal) {
+        if (current()) c.withdraw(pluginId);
+        throw refusal;
+      }
       if (current()) {
         c.recoveryErrors.set(pluginId, error instanceof Error ? error.message : String(error));
         // Install/enable owns their cleanup; a version switch restores its old release and keys instead of revoking itself first.

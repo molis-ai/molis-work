@@ -1,5 +1,5 @@
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { PluginDefinition, PluginExecutor, PluginInstanceRecord, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginDefinition, PluginExecutor, PluginInstanceRecord, PluginRuntimeApi, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { outsidePluginAction, requirePluginPermission } from "./action-scope.js";
 
 /** Every activation owns a fresh grant snapshot and revocation cell, including Home activations. */
@@ -33,6 +33,30 @@ export function createActivationContext(record: PluginInstanceRecord, definition
   }, revoke() { active = false; }, revoked() { return !active; } };
 }
 
+/** An asynchronous refusal keeps its original reason through cleanup and cannot become a crash. */
+export function captureStartControl(control: Parameters<PluginRuntimeApi["start"]>[1]) {
+  const check = control?.beforeEffect;
+  if (!check) return control;
+  let refused: { error: unknown } | undefined;
+  return {
+    async beforeEffect() {
+      if (refused) throw refused.error;
+      try { await check(); } catch (error) { refused = { error }; throw error; }
+    },
+    assertCurrent() {
+      if (refused) throw refused.error;
+      control?.assertCurrent?.();
+    },
+  };
+}
+
+/** The activation's own cleanup cannot replace the refusal that ended it. */
+export async function releaseRejectedActivation(activation: { context: PluginStartContext; definition: PluginDefinition } | undefined,
+  executor: PluginExecutor, refusal: unknown): Promise<never> {
+  if (activation) await Promise.allSettled([(async () => outsidePluginAction(() => executor.stop(activation.definition, activation.context)))()]);
+  throw refusal;
+}
+
 /**
  * A stop that finds no installation record (deleted under the Runtime) still lets go of the instance this process activated: authority
  * withdrawn first, then the executor's stop with the definition and context it started with. Nothing can be recorded, so the missing
@@ -42,6 +66,5 @@ export async function releaseUnrecorded(activation: { context: PluginStartContex
   revoke();
   // A failing stop hook has nothing left to mark crashed: the missing record is the failure reported either way.
   // The contract only says the hook returns a promise; an executor may throw before it does, and that must not escape the letting-go step.
-  if (activation) await Promise.allSettled([(async () => outsidePluginAction(() => executor.stop(activation.definition, activation.context)))()]);
-  throw pluginErrors.definition_missing("Plugin installation 不存在");
+  return await releaseRejectedActivation(activation, executor, pluginErrors.definition_missing("Plugin installation 不存在"));
 }

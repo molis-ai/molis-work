@@ -38,7 +38,7 @@ export interface InstalledLifecycleContext {
   releaseFor(pluginId: string): InstalledRelease | undefined;
   approvedFor(pluginId: string): SandboxEffects | null;
   definition(release: InstalledRelease, approved: SandboxEffects): PluginDefinition;
-  expose(release: InstalledRelease, onFailure?: 'caller'): Promise<void>;
+  expose(release: InstalledRelease, onFailure?: 'caller', control?: Pick<EnableControl, 'beforeEffect' | 'assertCurrent'>): Promise<void>;
   withdraw(pluginId: string): void;
   registerPrompts(release: InstalledRelease, state: 'enabled' | 'disabled', restored?: boolean): void;
   /** Reminders and scheduled operations of one installation stop with it. */
@@ -47,7 +47,8 @@ export interface InstalledLifecycleContext {
 }
 
 type Secret = { name: string; header: string; value: string };
-type Grants = { assertCurrent?: () => void; scopeOpen?: () => boolean; consent?: unknown; keepData?: unknown; discardKeptData?: unknown; secrets?: unknown };
+type EnableControl = NonNullable<Parameters<InstalledPluginPlatform['supervisor']['enable']>[1]>;
+type Grants = { assertCurrent?: () => void; scopeOpen?: () => boolean; consent?: unknown; keepData?: unknown; discardKeptData?: unknown; secrets?: unknown; enable?: EnableControl };
 
 /** The secrets the consent dialog collected, each for a reference the release declared. */
 function secretsOf(value: unknown, release: InstalledRelease): Secret[] {
@@ -59,6 +60,45 @@ function secretsOf(value: unknown, release: InstalledRelease): Secret[] {
     if (!(release.permissions.secretRefs ?? []).includes(name)) throw new Error('这个插件没有声明要用密钥「' + name + '」');
     return { name, header, value: secret };
   });
+}
+
+/** Start the selected installation, then expose it while the original enable still holds. */
+async function enableInstalled(c: InstalledLifecycleContext, release: InstalledRelease, record: PluginInstanceRecord, grants: Grants): Promise<void> {
+  const { platform } = c, { pluginId } = release;
+  const { enable } = grants;
+  const check = () => {
+    if (c.closed()) throw new ActionError('actions.host_closed', '安装运行入口已关闭');
+    enable?.assertCurrent();
+    grants.assertCurrent?.();
+    const current = c.recordFor(pluginId);
+    if (!current) throw new ActionError('actions.provider_replaced', '原插件安装已变化，请重新查看');
+    if (!c.trusted(current)) throw pluginErrors.publisher_revoked('这个插件的发布者已被撤销信任，不能再启用；数据还在，可以卸载');
+    return current;
+  };
+  check();
+  if (enable && record.state !== 'disabled') throw pluginErrors.state_invalid('只能启用已停用的项目签名插件');
+  const approved = c.approvedFor(pluginId);
+  const installed: InstalledRelease = enable ? release : c.releaseFor(pluginId) ?? release;
+  const packaged = enable ? installed.packaged : c.releaseFor(pluginId)?.packaged;
+  if (!approved) throw new Error('找不到此安装的批准记录，请先卸载并重新确认安装');
+  // Restore the verified definition for a cold entry. An exact enable uses the existing record and its current grants.
+  if ((!enable && record.state !== 'running') || !platform.supervisor.manifest(pluginId)) {
+    const definition = c.definition(installed, approved); platform.runtime.register(definition);
+    await platform.start([{ definition, grants: record.grants, enabled: false, ...packaged ? { trust: packaged.trust } : {} }], { assertCurrent: enable ? check : grants.assertCurrent });
+  }
+  grants.assertCurrent?.();
+  const state = await platform.supervisor.enable(pluginId, enable && { ...enable, assertCurrent: check });
+  if (state.status !== 'running') throw new Error('启用没有完成：' + (c.recoveryErrors.get(pluginId) ?? state.message ?? ''));
+  const generation = enable && platform.supervisor.generation(pluginId);
+  const assertRunning = enable && (() => {
+    if (check().state !== 'running' || generation === undefined || generation !== platform.supervisor.generation(pluginId))
+      throw new ActionError('actions.provider_replaced', '原插件已退出运行，请重新查看');
+  });
+  if (enable) await enable.beforeEffect();
+  await c.expose(installed, undefined, enable && assertRunning && { beforeEffect: enable.beforeEffect, assertCurrent: assertRunning });
+  if (enable) await enable.beforeEffect();
+  assertRunning?.();
+  c.registerPrompts(installed, 'enabled'); c.recoveryErrors.delete(pluginId);
 }
 
 export function installedLifecycle(c: InstalledLifecycleContext): AgentBuilderPorts['lifecycle'] {
@@ -173,21 +213,7 @@ export function installedLifecycle(c: InstalledLifecycleContext): AgentBuilderPo
       });
       c.registerPrompts(c.releaseFor(pluginId) ?? release, 'disabled'); return;
     }
-    if (action === 'enable') {
-      if (!c.trusted(record)) throw pluginErrors.publisher_revoked('这个插件的发布者已被撤销信任，不能再启用；数据还在，可以卸载');
-      const approved = c.approvedFor(pluginId), installed = c.releaseFor(pluginId) ?? release, packaged = c.releaseFor(pluginId)?.packaged;
-      if (!approved) throw new Error('找不到此安装的批准记录，请先卸载并重新确认安装');
-      // A stopped package may have had its optional grants changed. Register its verified definition with the Runtime's current grants,
-      // without starting it, before enable: the supervisor's earlier entry is not another owner of those grants.
-      if (record.state !== 'running' || !platform.supervisor.manifest(pluginId)) {
-        const definition = c.definition(installed, approved); platform.runtime.register(definition);
-        await platform.start([{ definition, grants: record.grants, enabled: false, ...packaged ? { trust: packaged.trust } : {} }], { assertCurrent: grants.assertCurrent });
-      }
-      grants.assertCurrent?.();
-      const state = await platform.supervisor.enable(pluginId);
-      if (state.status !== 'running') throw new Error('启用没有完成：' + (c.recoveryErrors.get(pluginId) ?? state.message ?? ''));
-      await c.expose(installed); c.registerPrompts(installed, 'enabled'); c.recoveryErrors.delete(pluginId); return;
-    }
+    if (action === 'enable') return enableInstalled(c, release, record, grants);
     if (action === 'uninstall') await uninstall(release, record, record.state === 'uninstalled' ? record.retain_private_data : grants.keepData === true);
   };
 }

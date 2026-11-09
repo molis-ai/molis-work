@@ -165,7 +165,7 @@ export function createStudioPreview(options: AgentStudioOptions, studio: Studio,
       },
     };
     try {
-      const result = await run({ url: studio.origin + (options.routePrefix ?? '') + '/plugin-builder/studio/preview/' + build.id + '?' + FRAME_QUERY + '&acceptance=' + key, signal, reset, trial: controls, ...(options.browserExecutable ? { executable: options.browserExecutable } : {}) });
+      const result = await run({ url: studio.origin + (options.routePrefix ?? '') + '/plugin-builder/studio/preview/' + build.id + '?' + FRAME_QUERY + '&acceptance=' + key, signal, reset, locale: build.design!.contract.ui?.locales.default, trial: controls, ...(options.browserExecutable ? { executable: options.browserExecutable } : {}) });
       if (state.fault) throw new Error('界面验收留下未消费的读取故障');
       return result;
     }

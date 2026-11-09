@@ -1,4 +1,4 @@
-import type { PluginLocalesDeclaration, UiFormatTool, UiSayTool, UiTextTool } from './ui-text.js';
+import type { PluginLocalesDeclaration, TextRef, UiFormatTool, UiSayTool, UiTextTool } from './ui-text.js';
 
 /** JSON-only contract shared by generated plugins and the trusted host. */
 export type SandboxJson = null | boolean | number | string | SandboxJson[] | { [key: string]: SandboxJson };
@@ -108,6 +108,9 @@ export interface SandboxOperationContract {
   examples: SandboxOperationExample[];
 }
 
+/** A string is the author’s literal. Generated interface words carry a reference to the owner’s language pack. */
+export type SandboxVisibleText = string | TextRef;
+
 export interface SandboxPluginContract {
   version: /* @version format.sandbox.contract */ 1;
   pluginId: string;
@@ -118,8 +121,8 @@ export interface SandboxPluginContract {
   entities: Array<{ id: string; schema: SandboxSchema; description?: string }>;
   pages: Array<{
     id: string;
-    title: string;
-    regions: Array<{ id: string; title: string; description?: string; operationIds: string[] }>;
+    title: SandboxVisibleText;
+    regions: Array<{ id: string; title: SandboxVisibleText; description?: string; operationIds: string[] }>;
   }>;
   acceptance: Array<{
     id: string;

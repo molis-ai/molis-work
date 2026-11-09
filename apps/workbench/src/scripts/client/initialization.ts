@@ -340,7 +340,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     // An address the project does not have opens here (the server sends it with ?missing=): say so, then forget it.
     // A plugin the studio just installed opens once its entry is on the page (?openSurface=app-…), then the address forgets it.
     const askedSurface = new URLSearchParams(location.search).get("openSurface");
-    if (askedSurface && /^app-[a-f0-9-]{36}$/.test(askedSurface)) {
+    if (askedSurface && desktopWorkSurfaces.some(surface => surface.dataset.workSurface === askedSurface)) {
       const cleaned = new URL(location.href); cleaned.searchParams.delete("openSurface"); history.replaceState(history.state, "", cleaned);
       setTimeout(() => { const entry = [...document.querySelectorAll("[data-work-surface-open]")].find((el) => el.dataset.workSurfaceOpen === askedSurface); if (entry) openSurfaceEntry(askedSurface, entry); }, 0);
     }

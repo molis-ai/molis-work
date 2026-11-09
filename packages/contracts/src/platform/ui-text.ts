@@ -1,5 +1,4 @@
 import type { SandboxSchema } from "./plugin-sandbox.js";
-import type { UI_FORMAT_VERSIONS } from "./ui-files.js";
 
 // A piece of interface text as data (specs/font-and-skin-system/a-section-contract.md §2), published through the `platform/ui`
 // subpath. `plugin-manifest.ts` and the other contracts that only name the shape import these types from this file.
@@ -34,26 +33,8 @@ export const TEXT_REF_LIMITS = { key: 120, args: 8, arg_name: 64, arg_text: 2000
 /** A language tag. The Manifest's and the language pack's parsers both take it from here. */
 export const LOCALE_TAG = /^[a-z]{2,3}(-[A-Z][a-z]{3})?(-[A-Z]{2})?$/;
 
-/** Selected language metadata, as validated from the platform's registered resource. */
-export interface UiLanguageDescriptor {
-  readonly tag: string;
-  readonly html_lang: string;
-  readonly direction: "ltr" | "rtl";
-  readonly intl: string;
-  readonly name: string;
-}
-
-export interface UiLanguageCatalog {
-  readonly format_version: typeof UI_FORMAT_VERSIONS.languages;
-  readonly default: string;
-  readonly languages: readonly UiLanguageDescriptor[];
-}
-
 /** A selected platform language is verified against the registered language catalog at its entry point. */
 export type UiLanguageTag = string;
-
-/** The metadata a granted frame needs; the platform's whole language catalog stays in the parent. */
-export type UiFrameLanguage = Pick<UiLanguageDescriptor, "tag" | "html_lang" | "intl" | "direction">;
 
 /** The languages a plugin has words in. Each has the package's `locales/<language>.json`. */
 export interface PluginLocalesDeclaration {

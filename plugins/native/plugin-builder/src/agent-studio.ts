@@ -180,14 +180,15 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
  if(host.mode==='preview'){
   const readings=new Map(),plugin=host.components({root,call:pluginCall(host.build),onRead:(id,result)=>readings.set(id,result)});
   lifetime.own(()=>plugin.destroy());
-  globalThis.__molisPluginRead=async componentId=>{const result=readings.get(componentId);if(!result)throw new Error(globalThis.t.text("plugin-builder.agent-studio.component-has-not-been-read-yet"));if('error'in result)throw new Error(result.error);return structuredClone(result.value)};
+  globalThis.__molisPluginRead=async componentId=>{const result=readings.get(componentId);if(!result)throw new Error(globalThis.t.text("common.generated.preview-no-result"));if('error'in result)throw new Error(result.error);return structuredClone(result.value)};
   if(host.acceptance){const refresh=async componentId=>{lifetime.assertCurrent();await plugin.refresh(componentId)};globalThis.__molisPluginRefresh=refresh;lifetime.own(()=>{if(globalThis.__molisPluginRefresh===refresh)delete globalThis.__molisPluginRefresh});}
-  api('/builds/'+host.build).then(async({build})=>{if(!build.design)throw new Error(globalThis.t.text("plugin-builder.agent-studio.draft-has-no-chosen-proposal-yet"));await plugin.update({contract:build.design.contract,nodes:build.nodes,connected:build.connected,presentation:build.design.presentation});if(lifetime.alive)globalThis.__molisPluginReady=true;}).catch(e=>{if(lifetime.alive)root.textContent=e.message;});
+  if(!host.view){root.textContent=globalThis.t.text("common.generated.preview-no-design");return;}
+  plugin.update(host.view).then(()=>{if(lifetime.alive)globalThis.__molisPluginReady=true;}).catch(e=>{if(lifetime.alive)root.textContent=e.message;});
   return;
  }
  if(host.mode==='installed'){
   if(parent!==window)root.dataset.framed='';
-  const call=async(componentId,binding,payload)=>{pending++;globalThis.__molisPluginPending=pending;try{const r=await lifetime.fetch(host.call,{method:'POST',cache:'no-store',headers:headers('POST'),body:JSON.stringify({componentId,binding,payload})});const v=await r.json().catch(()=>({}));lifetime.assertCurrent();if(!r.ok)throw new Error(v.error||globalThis.t.text("plugin-builder.agent-studio.operation-failed-input-preserved"));return v.value;}finally{pending--;if(lifetime.alive)globalThis.__molisPluginPending=pending}};
+  const call=async(componentId,binding,payload)=>{pending++;globalThis.__molisPluginPending=pending;try{const r=await lifetime.fetch(host.call,{method:'POST',cache:'no-store',headers:headers('POST'),body:JSON.stringify({componentId,binding,payload})});const v=await r.json().catch(()=>({}));lifetime.assertCurrent();if(!r.ok)throw new Error(v.error||globalThis.t.text("common.generated.input-preserved"));return v.value;}finally{pending--;if(lifetime.alive)globalThis.__molisPluginPending=pending}};
   const plugin=host.components({root,call});lifetime.own(()=>plugin.destroy());plugin.update(host.view).then(()=>{if(lifetime.alive)globalThis.__molisPluginReady=true;}).catch(e=>{if(lifetime.alive)root.textContent=e.message;});
   return;
  }
@@ -336,17 +337,18 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
   if(catalogOpen&&panel.dataset.html!==body){panel.innerHTML=body;panel.dataset.html=body;}
  }
  const tip=$('[data-as-tip]');
+ const partTitle=(node)=>pluginRoot.querySelector('[data-component-id="'+CSS.escape(node.id)+'"] [data-pc-title]')?.textContent||node.purpose;
  function showTip(button){
   if(button.dataset.cap){const cap=capabilityOf(button.dataset.cap),use=usedCapabilities(current).find(x=>x.c.id===cap.id);tip.innerHTML='<b>'+esc(cap.title)+' · '+esc(cap.source?.title||globalThis.t.text("plugin-builder.agent-studio.platform"))+'</b><p>'+esc(cap.description||'')+'</p><p>'+esc(globalThis.t.text(cap.effect==='read'?"plugin-builder.agent-studio.read-only":"plugin-builder.agent-studio.writes-authorise-install-time-stand-used-during-trial"))+'</p>'+(use?'<ul>'+use.ops.map(o=>'<li>'+esc(o)+'</li>').join('')+'</ul>':'')+(()=>{const s=[...(current?.steps||[])].reverse().find(x=>x.agent==='design'&&x.action==='place'&&x.selection?.choice===cap.id)?.selection;return s&&s.candidates.length>1?'<p>'+selection(s)+' '+globalThis.t.text("plugin-builder.agent-studio.chosen-names",{names:s.candidates.map(capabilityTitle).map(esc).join(globalThis.t.text("common.list.separator"))})+'</p>':'';})();
    const area=canvas.getBoundingClientRect(),box=button.getBoundingClientRect();tip.style.left=Math.round(Math.max(8,Math.min(area.width-240,box.left-area.left+box.width/2-116)))+'px';tip.hidden=false;return;}
   const c=state.components.find(x=>x.kind===button.dataset.kind);if(!c)return;const used=(current?.nodes||[]).filter(n=>n.kind===c.kind&&revealed.has(n.id));
-  tip.innerHTML='<b>'+esc(componentWord(c.name))+' · '+esc(c.catalog)+'</b><p>'+esc(componentWord(c.description))+'</p><p>'+esc(globalThis.t.text(c.use==='part'?"plugin-builder.agent-studio.can-be-placed-plugin-component":c.use==='inside'?"plugin-builder.agent-studio.used-inside-components-fields-filters-status-hints":"plugin-builder.agent-studio.ui-catalog-generated-plugins-do-not-use-yet"))+'</p>'+(used.length?'<ul>'+used.map(n=>'<li>'+esc(n.props.title||n.purpose)+'</li>').join('')+'</ul>':'')+(button.hasAttribute('data-legal')?'<p class="as-tip-legal">'+globalThis.t.text("plugin-builder.agent-studio.click-use-component")+'</p>':'');
+  tip.innerHTML='<b>'+esc(componentWord(c.name))+' · '+esc(c.catalog)+'</b><p>'+esc(componentWord(c.description))+'</p><p>'+esc(globalThis.t.text(c.use==='part'?"plugin-builder.agent-studio.can-be-placed-plugin-component":c.use==='inside'?"plugin-builder.agent-studio.used-inside-components-fields-filters-status-hints":"plugin-builder.agent-studio.ui-catalog-generated-plugins-do-not-use-yet"))+'</p>'+(used.length?'<ul>'+used.map(n=>'<li>'+esc(partTitle(n))+'</li>').join('')+'</ul>':'')+(button.hasAttribute('data-legal')?'<p class="as-tip-legal">'+globalThis.t.text("plugin-builder.agent-studio.click-use-component")+'</p>':'');
   const area=canvas.getBoundingClientRect(),box=button.getBoundingClientRect();tip.style.left=Math.round(Math.max(8,Math.min(area.width-240,box.left-area.left+box.width/2-116)))+'px';tip.hidden=false;}
  let lastView='',comparePrevious=false;
  const previousVisual=b=>b?.design&&b.history.at(-1)?.design?.contract.revision===b.design.contract.revision?b.history.at(-1):null;
  async function renderCanvas(){
   const b=current;let view=null;
-  if(b?.design)view={contract:b.design.contract,nodes:b.nodes,connected:b.connected,presentation:b.design.presentation};
+  if(b?.design)view={contract:b.design.contract,nodes:b.nodes,connected:b.connected,presentation:b.design.presentation,authoringWords:b.design.localePacks};
   else if(b?.candidates.length&&(b.phase==='choosing'||b.active?.stage==='detail')){const c=b.candidates.find(x=>x.id===(b.chosen||preview||b.candidates[0].id))||b.candidates[0];const kind=p=>(state.components.find(x=>x.use==='part'&&x.intents[0]===p.intent)||state.components.find(x=>x.use==='part'&&x.intents.includes(p.intent))||{}).kind||'card';view={contract:c.preview.contract,nodes:c.preview.parts.map(p=>({...p,kind:kind(p)})),connected:[]};}
   if(comparePrevious&&previousVisual(b)){const before=previousVisual(b);view={contract:before.design.contract,nodes:before.nodes,connected:before.connected,presentation:before.design.presentation};}
   pluginRoot.inert=comparePrevious;pluginRoot.setAttribute('aria-label',globalThis.t.text(comparePrevious?"plugin-builder.agent-studio.previous-interface-read-only-comparison":"plugin-builder.agent-studio.current-interface"));
@@ -393,7 +395,7 @@ const partEl=id=>{const el=id&&pluginRoot.querySelector('[data-component-id="'+C
    if(token!==playToken)break;
    queue.shift();landing=id;decorate();const el=partEl(id);
    if(el){const view=scroll.getBoundingClientRect(),box=el.getBoundingClientRect();if(box.top<view.top+40||box.bottom>view.bottom-90){el.scrollIntoView({block:'center',behavior:'smooth'});await wait(380);}
-    frameAt(el,'landing','UI Agent · '+name);aim(ui,el,globalThis.t.text("plugin-builder.agent-studio.place-name",{name:node.props.title||name}),'corner');await wait(680);click(ui);}
+    frameAt(el,'landing','UI Agent · '+name);aim(ui,el,globalThis.t.text("plugin-builder.agent-studio.place-name",{name:partTitle(node)||name}),'corner');await wait(680);click(ui);}
    landing=null;picking=null;revealed.add(id);renderBoard();decorate();
    const placed=partEl(id);if(placed){const root=placed.closest('[data-component-id]');root?.setAttribute('data-as-arrive','');lifetime.timeout(()=>root?.removeAttribute('data-as-arrive'),700);frameAt(placed,'placed','UI Agent · '+name);}
    await wait(560);frameEl.hidden=true;
@@ -507,7 +509,7 @@ const partEl=id=>{const el=id&&pluginRoot.querySelector('[data-component-id="'+C
  * the host, and the plugin it installed or the model settings opened through the workbench, not a frame's parent.
  * A plugin installed since the page loaded has no entry yet: the workbench is opened again with ?openSurface and opens it.
  * The plugin open in the studio is kept for this browser session (`KEY`), so a reload comes back to it (the address is the workbench's).
- * `translate` is handed on to the studio client.
+ * The browser reads the exact frame provider.
  */
 export const AGENT_STUDIO_WORKBENCH_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
  const client=(` + AGENT_STUDIO_CLIENT_FACTORY_SCRIPT + `),components=` + PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT + `;
@@ -520,7 +522,7 @@ export const AGENT_STUDIO_WORKBENCH_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
  const KEY='molis-work-studio-build:'+(host.projectId?.()||'');
  const page={address:()=>{const here={searchParams:new URLSearchParams()};try{const id=sessionStorage.getItem(KEY);if(id)here.searchParams.set('build',id);}catch{}return here;},
   replace:next=>{try{const id=next.searchParams.get('build');if(id)sessionStorage.setItem(KEY,id);else sessionStorage.removeItem(KEY);}catch{}}};
- client({mountPluginClient:host.mountPluginClient,root:host.root||document.querySelector('[data-work-surface="plugin-builder"]'),mode:'studio',translate:globalThis.t.text,
+ client({mountPluginClient:host.mountPluginClient,root:host.root||document.querySelector('[data-work-surface="plugin-builder"]'),mode:'studio',
   api:p=>host.route('/api/plugin-builder/studio')+p,plugin:id=>host.route('/plugins/')+id,
   components,page,openPlugin,pluginRemoved,loadMedia:host.loadMedia,download:host.download,
   openSettings:href=>globalThis.molisWorkOpenExternalUrl?globalThis.molisWorkOpenExternalUrl(href):document.dispatchEvent(new CustomEvent('molis-work:open-settings-path',{detail:{href}}))});

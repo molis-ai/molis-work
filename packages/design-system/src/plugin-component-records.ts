@@ -1,10 +1,11 @@
 /// <reference lib="dom" />
 /// <reference lib="dom.iterable" />
+import { numberArg, t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { Column, Kit, Part, Rel, State } from './plugin-component-types.js';
 import type { PluginComponentNode } from './plugin-components.js';
 
 export function pcRelations(c: State & Kit) {
-  const { tabList, parts, pages } = c;
+  const { tabList, parts, pages, word } = c;
   /** The schema a binding's output path points at, from the contract in view. */
   const pluginSchemaOf = (operationId?: string, path?: string) => {
     let schema = operation(operationId)?.output;
@@ -12,7 +13,7 @@ export function pcRelations(c: State & Kit) {
     return schema;
   };
   /** A plugin's name: its heading's own title, else the page's title; the designer's note on the part is not a name. */
-  const headingOf = (node: PluginComponentNode) => node.props.title || c.view?.contract.pages.find(page => page.id === node.pageId)?.title || node.purpose;
+  const headingOf = (node: PluginComponentNode) => word(node.props.title ?? c.view?.contract.pages.find(page => page.id === node.pageId)?.title) || node.purpose;
   const operation = (id?: string) => c.view?.contract.operations.find(op => op.id === id), live = (part: Part, generation: number) => !c.disposed && generation === c.epoch && parts.get(part.node.id) === part;
   const detailEnabled = (id: string) => !!c.view?.presentation?.parts[id]?.detail;
   const ready = (id?: string) => !!id && !!c.view?.connected.includes(id);
@@ -24,7 +25,7 @@ export function pcRelations(c: State & Kit) {
     const [host] = hosts;
     return hosts.size === 1 && sources.every(source => source.source !== 'form') && c.view?.nodes.some(other => other.id === host && other.pageId === node.pageId && !!other.read && collections.has(other.kind)) ? host : undefined;
   };
-  const rowLabel = (node: PluginComponentNode) => (node.props.submitLabel || node.props.title || node.purpose).replace(/选中的?/gu, '').trim() || '执行';
+  const rowLabel = (node: PluginComponentNode) => word(node.props.submitLabel ?? node.props.title) || node.purpose || t.text("common.generated.execute");
   const reading = (node: PluginComponentNode) => node.intent === 'reading' || node.kind === 'reader';
   const selectable = (componentId: string) => detailEnabled(componentId) || !!c.view?.nodes.some(other => rowHost(other) !== componentId && [other.read, other.submit].some(binding => Object.values(binding?.input ?? {})
     .some(source => source.source === 'selection' && source.componentId === componentId || source.source === 'form' && source.prefill?.componentId === componentId)));
@@ -42,7 +43,7 @@ export function pcRelations(c: State & Kit) {
 }
 
 export function pcRecords(c: State & Kit & Rel) {
-  const { make, text, statusWord, exactly, shown, prose, at, TONES, MOMENT, DAY, moment, badge, pluginSchemaOf } = c;
+  const { make, raw, word, text, statusWord, exactly, shown, prose, at, TONES, MOMENT, DAY, moment, badge, pluginSchemaOf } = c;
   /** A record's fields, classed by how they read: a status as a badge, a moment as a time, a number as a figure. */
   function describeField(node: PluginComponentNode, column: Column, raw: unknown) {
     const items = pluginSchemaOf(node.read?.operationId, node.read?.outputPath), spec = (items?.type === 'array' ? items.items : undefined)?.properties?.[column.field];
@@ -56,31 +57,31 @@ export function pcRecords(c: State & Kit & Rel) {
     return { kind: 'plain' as const };
   }
   /** One value inside a record: the field's name stays readable to assistive technology even where only a badge shows. */
-  function fieldValue(node: PluginComponentNode, column: Column, raw: unknown, labelled: boolean): HTMLElement {
-    const described = describeField(node, column, raw), value = shown(column, raw);
-    if (described.kind === 'tag') { const tag = badge('', described.tone); tag.textContent = ''; if (labelled) tag.append(make('span', column.label + ' ', 'pc-sr')); tag.append(text(value)); if (statusWord(column.field, raw)) tag.append(exactly(raw)); return tag; }
+  function fieldValue(node: PluginComponentNode, column: Column, rawValue: unknown, labelled: boolean): HTMLElement {
+    const described = describeField(node, column, rawValue), value = shown(column, rawValue);
+    if (described.kind === 'tag') { const tag = badge('', described.tone); tag.textContent = ''; if (labelled) tag.append(make('span', word(column.label), 'pc-sr'), ' '); tag.append(column.values && Object.hasOwn(column.values, text(rawValue)) || statusWord(column.field, rawValue) || typeof rawValue === 'boolean' ? text(value) : raw('span', text(value))); if (statusWord(column.field, rawValue)) tag.append(exactly(rawValue)); return tag; }
     const item = make('span', undefined, described.kind === 'long' ? 'pc-record-note' : 'pc-meta-item');
-    if (labelled) item.append(make('span', column.label, 'pc-meta-label'), ' ');
-    if (described.kind === 'time') item.append(moment(raw as string));
-    else if (described.kind === 'number') item.append(make('span', text(value), 'pc-meta-number'));
-    else item.append(described.kind === 'long' ? prose('span', value) : text(value));
-    if (statusWord(column.field, raw)) item.append(exactly(raw));
+    if (labelled) item.append(make('span', word(column.label), 'pc-meta-label'), ' ');
+    if (described.kind === 'time') item.append(moment(rawValue as string));
+    else if (described.kind === 'number') item.append(make('span', t.text("common.generated.formatted", { value: numberArg(rawValue as number) }), 'pc-meta-number'));
+    else item.append(described.kind === 'long' ? prose('span', value) : raw('span', text(value)));
+    if (statusWord(column.field, rawValue)) item.append(exactly(rawValue));
     return item;
   }
   function exportRows(part: Part) {
     const node = part.node, rows = part.rows ?? [], columns = recordColumns(node, rows[0]);
     const cell = (value: unknown) => { const raw = text(value); return /[",\n]/.test(raw) ? '"' + raw.replace(/"/g, '""') + '"' : raw; };
-    const csv = '﻿' + [columns.map(column => cell(column.label)).join(','), ...rows.map(row => columns.map(column => cell(shown(column, at(row, column.field)))).join(','))].join('\n');
+    const csv = '﻿' + [columns.map(column => cell(word(column.label))).join(','), ...rows.map(row => columns.map(column => cell(shown(column, at(row, column.field)))).join(','))].join('\n');
     const link = make('a'); link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-    link.download = (c.view?.nodes.find(other => other.kind === 'frame' || other.intent === 'heading')?.props.title || node.props.title || '记录') + '.csv'; link.click(); setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    link.download = (word(c.view?.nodes.find(other => other.kind === 'frame' || other.intent === 'heading')?.props.title ?? node.props.title) || t.text("common.generated.records")) + '.csv'; link.click(); setTimeout(() => URL.revokeObjectURL(link.href), 1000);
   }
   /** What a record shows, in order: its title and text first, then the configured columns (or its own fields when none are set). */
   function recordColumns(node: PluginComponentNode, first: unknown): Column[] {
     const items = pluginSchemaOf(node.read?.operationId, node.read?.outputPath), properties = (items?.type === 'array' ? items.items : undefined)?.properties;
     const described = (field: string) => properties?.[field]?.description || field;
     const configured = node.props.columns?.length ? node.props.columns : first && typeof first === 'object' && !Array.isArray(first)
-      ? Object.keys(first as Record<string, unknown>).filter(key => key !== node.props.idField).slice(0, 8).map(field => ({ field, label: described(field) })) : [];
-    const lead = [...new Set([node.props.titleField, node.props.textField])].filter((field): field is string => !!field && !configured.some(column => column.field === field)).map(field => ({ field, label: described(field) }));
+      ? Object.keys(first as Record<string, unknown>).filter(key => key !== node.props.idField).slice(0, 8).map(field => ({ field, label: { literal: described(field) } })) : [];
+    const lead = [...new Set([node.props.titleField, node.props.textField])].filter((field): field is string => !!field && !configured.some(column => column.field === field)).map(field => ({ field, label: { literal: described(field) } }));
     return [...lead, ...configured];
   }
   /** The field the calendar lays a record out by: the first that holds a day or a moment. */
@@ -114,11 +115,11 @@ export function pcRecords(c: State & Kit & Rel) {
       const day = place === 'row' && node.kind === 'calendar' ? dayField(node) : undefined;
       const fields = row && typeof row === 'object' && !Array.isArray(row) ? Object.entries(row as Record<string, unknown>).filter(([key]) => key !== node.props.idField && key !== day).slice(0, 6) : [];
       if (fields.length) { fallback = make('dl', undefined, 'pc-fields'); for (const [key, value] of fields) fallback.append(make('dt', key), prose('dd', shown(undefined, value))); }
-      else fallback = make('p', text(row));
+      else fallback = raw('p', text(row));
     }
-    if (node.props.hintLevelField) { const level = text(at(row, node.props.hintLevelField)); if (level) meta.append(make('span', '提示级别 ' + level, 'pc-meta-item')); }
+    if (node.props.hintLevelField) { const level = text(at(row, node.props.hintLevelField)); if (level) meta.append(make('span', t.text("common.generated.hint-level", { level }), 'pc-meta-item')); }
     const figure = lead ? make('span', undefined, 'pc-record-figure') : undefined;
-    if (lead && figure) figure.append(make('span', lead.label + ' ', 'pc-sr'), text(shown(lead, at(row, lead.field))));
+    if (lead && figure) figure.append(make('span', word(lead.label), 'pc-sr'), ' ', raw('span', text(shown(lead, at(row, lead.field)))));
     return { title, body, notes, meta: meta.childNodes.length ? meta : undefined, fallback, figure };
   }
   return { describeField, fieldValue, exportRows, recordColumns, dayField, dayOf, recordBody };

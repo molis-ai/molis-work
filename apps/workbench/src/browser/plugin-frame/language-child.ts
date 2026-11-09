@@ -42,6 +42,7 @@ export function frameLanguage(initial: FrameLanguage) {
       prepared = { turn: message.turn, use() {
         plan.apply(() => select(message.text), () => select(displayed));
         displayed = message.text;
+        document.dispatchEvent(new CustomEvent("molis-work:language-changed", { detail: { tag: displayed.language.tag } }));
       } };
       reply.postMessage(true);
     } catch { reply.postMessage(false); }

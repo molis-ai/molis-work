@@ -397,4 +397,6 @@ export { verifySyncPluginDistribution } from "./sync-distribution.js";
 
 export {connectResidentAccount,ACCOUNT_CONNECT_PATH,type ResidentAccountConnection} from "./resident-account-connection.js";
 
-export { WebSessions } from "./web-sessions.js";
+export { WebSessions, webPageToken, withWebSessionRequest } from "./web-sessions.js";
+export { handlePageLocales } from "./web-ui-locales.js";
+export { registeredBuiltinText } from "./ui-text-provider.js";

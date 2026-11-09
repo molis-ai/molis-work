@@ -7,18 +7,12 @@ import { pluginPagesFor } from "./plugin-page-authority.js";
 import { isWebLocale } from "./web-locale.js";
 import { refuseLocalWebRequest, requestHost, respondLocalWebRefusal, sendLocalWebJson } from "./web-http.js";
 import type { WebRequestContext } from "./web-route-table.js";
-import { WEB_PAGE_SESSION_HEADER, webPageToken } from "./web-sessions.js";
+import { shellPageRead } from "./web-sessions.js";
 import { projectTextPacks } from "./ui-text-provider.js";
 
 /** The common web guard has already checked the page proof against its bound cookie and transport. */
-export async function handlePageLocales({ request, response, url, serverOptions }: WebRequestContext, projectId: string | null): Promise<void> {
-  const proof = webPageToken(request);
-  if (!proof || request.headers[WEB_PAGE_SESSION_HEADER] !== proof || request.headers["x-molis-plugin-page"] !== undefined
-    || request.headers["x-molis-context-page"] !== undefined
-    || (request.headers.origin !== undefined && request.headers.origin !== `http://${requestHost(request)}`)
-    || (request.headers["sec-fetch-site"] !== undefined && request.headers["sec-fetch-site"] !== "same-origin")) {
-    refuseLocalWebRequest(response); return;
-  }
+export async function handlePageLocales({ request, response, url, serverOptions }: Pick<WebRequestContext, "request" | "response" | "url" | "serverOptions">, projectId: string | null): Promise<void> {
+  if (!shellPageRead(request, `http://${requestHost(request)}`)) { refuseLocalWebRequest(response); return; }
   if (request.method !== "GET") { sendLocalWebJson(response, 405, { error: "此入口只读取界面语言包" }); return; }
   const locale = url.searchParams.get("locale"), ids = [...new Set(url.searchParams.getAll("page"))];
   if (!isWebLocale(locale) || url.searchParams.getAll("locale").length !== 1 || !ids.length || ids.length > 256

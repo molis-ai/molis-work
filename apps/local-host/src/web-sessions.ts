@@ -154,6 +154,16 @@ export function webSocketAuthority(request: IncomingMessage, control: string, pr
 }
 
 export function webPageToken(request: IncomingMessage): string { return requestSessions.get(request)?.owner.pageToken(request) ?? ""; }
+/** A trusted browser document is fetching a page projection, never an opaque child or a CLI credential. */
+export function shellPageRead(request: IncomingMessage, origin: string): boolean {
+  const context = requestSessions.get(request);
+  return !!context && context.owner.accepts(context, request.headers[WEB_PAGE_SESSION_HEADER])
+    && request.headers[UI_LANGUAGE_PREVIEW_HEADER] === undefined
+    && request.headers["x-molis-plugin-page"] === undefined && request.headers["x-molis-context-page"] === undefined
+    && (request.headers.origin === undefined || request.headers.origin === origin)
+    && (request.headers["sec-fetch-site"] === undefined || request.headers["sec-fetch-site"] === "same-origin");
+}
+
 export function revokeWebSession(request: IncomingMessage): void { requestSessions.get(request)?.owner.revoke(request); }
 
 export function withWebSessionRequest<T>(request: IncomingMessage, operation: () => T): T { return currentRequest.run(request, operation); }

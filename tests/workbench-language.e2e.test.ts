@@ -319,3 +319,75 @@ test("FSS-20 FSS-34 FSS-37 the catalog and capsule switch their existing documen
   assert.match(await evaluate<string>("document.cookie"), /molis_work_locale=zh/u);
   assert.deepEqual([...new Set(hostTextProblems().filter(problem => !problemsBefore.has(problem)).map(problem => problem.key ?? problem.code))], [], "the real catalog and capsule rendered their words from the exact packs");
 });
+
+test("FSS-20 FSS-38 FSS-74 a signed Studio installation switches its words in the same frame and keeps draft and record data", { timeout: 120_000, skip: process.platform !== "darwin" }, async t => {
+  const { mkdtemp, rm } = await import("node:fs/promises"), { tmpdir } = await import("node:os"), { join } = await import("node:path");
+  const { readyPublication } = await import("./fixtures/studio-publishing.js"), { studioBilingualNotes } = await import("./fixtures/studio-bilingual.js");
+  const { readStudioDistribution } = await import("@molis-ai/molis-work-app-local-host");
+  const { sandboxPackageBuildId } = await import("@molis-ai/molis-work-plugin-sdk");
+  const author = await mkdtemp(join(tmpdir(), "molis-studio-browser-author-")), h = readyPublication(author, "author", "project", studioBilingualNotes);
+  t.after(async () => { await h.workflow.close(); await rm(author, { recursive: true, force: true }); });
+  const release = await h.publish(), bundle = await readStudioDistribution(h.root, release);
+  const plugin = release.pluginId, surface = "app-" + sandboxPackageBuildId(plugin, bundle.payload.manifest.publisher.signature);
+  const b = await openGoalBrowser(t, "user", undefined, null); if (!b) return;
+  const prefix = "/projects/" + b.projectId, source = prefix + "/plugins/" + plugin + "?frame=workbench", requests: string[] = [];
+  b.server!.on("request", request => { if (request.headers.accept === "application/json" && request.url === source) requests.push(source); });
+  const child = await pluginFrameBrowser(t, b, surface);
+  await b.command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "light" }] }, b.sessionId);
+  const navigate = (path: string) => b.navigate(() => b.command("Page.navigate", { url: b.origin + path }, b.sessionId));
+  await navigate("/locale?lang=zh&next=" + encodeURIComponent(prefix + "/"));
+  await b.waitFor("typeof molisWorkRequest === 'function'");
+  await b.evaluate(`(async()=>{const bundle=${JSON.stringify(bundle)};
+    const pending=await molisWorkRequest(${JSON.stringify(prefix + "/api/plugin-trust/install/preview")},{body:{bundle}});
+    await molisWorkRequest(${JSON.stringify(prefix + "/api/plugin-trust/install/confirm")},{body:{preview_id:pending.preview_id,consent:true,pin_label:"Isolated Studio publisher"}});
+  })()`);
+  const noProof = await b.evaluate<number>(`fetch(${JSON.stringify(source)}, {headers:{accept:"application/json"}}).then(response=>response.status)`);
+  assert.ok(noProof >= 400, "a credentialless projection cannot mint a page grant");
+  requests.length = 0;
+  await navigate(prefix + "/?openSurface=" + encodeURIComponent(surface));
+  const frame = `iframe[data-plugin-frame=${JSON.stringify(surface)}]`;
+  await b.waitFor(`!!document.querySelector(${JSON.stringify(frame)})`, 15000);
+  await child.waitFor("globalThis.__molisPluginReady === true");
+  assert.deepEqual(await child.evaluate(`[document.querySelector("h1").textContent,document.querySelector(".pc-region").getAttribute("aria-label"),
+    document.querySelector('[data-field=text]').placeholder,document.querySelector('[type=submit]').textContent,document.querySelector('[data-pc-value=personal]').textContent]`),
+  ["读书摘记", "摘记工作区", "保留引文", "保存摘记", "个人"]);
+  await child.evaluate(`(() => { const field=document.querySelector('[data-field=text]');field.value='保存摘记';field.dispatchEvent(new Event('input',{bubbles:true}));
+    document.querySelector('[data-pc-value=personal]').click();field.form.requestSubmit(); })()`);
+  await child.waitFor("document.querySelector('[data-record-id]')?.innerText.includes('保存摘记')");
+  await child.evaluate(`(() => {const field=window.savedStudioField=document.querySelector('[data-field=text]');window.savedStudioBody=document.body;
+    field.value='unfinished 摘录';field.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('[data-pc-value=team]').click();
+    field.focus();field.setSelectionRange(1,6,'backward');})()`);
+  const opened = await b.evaluate<string>(`document.querySelector(${JSON.stringify(frame)}).parentElement.dataset.pluginPage`);
+  assert.ok(opened);
+  await chooseEnglishInSettings(t, b);
+  await child.waitFor("document.documentElement.lang === 'en' && document.querySelector('h1').textContent === 'Reading notes'");
+  assert.deepEqual(await child.evaluate(`[savedStudioBody===document.body,savedStudioField===document.querySelector('[data-field=text]'),document.activeElement===savedStudioField,
+    savedStudioField.value,savedStudioField.selectionStart,savedStudioField.selectionEnd,savedStudioField.selectionDirection,document.querySelector('[data-field=access]').value,
+    document.querySelector(".pc-region").getAttribute("aria-label"),savedStudioField.placeholder,document.querySelector('[type=submit]').textContent,
+    document.querySelector('[data-pc-value=personal]').textContent,document.querySelector('[data-record-id]').innerText.includes('保存摘记')]`),
+  [true, true, true, "unfinished 摘录", 1, 6, "backward", "team", "Notes workspace", "Keep the quotation", "Save excerpt", "Personal", true]);
+  assert.equal(await b.evaluate(`document.querySelector(${JSON.stringify(frame)}).parentElement.dataset.pluginPage`), opened);
+  assert.deepEqual(requests, [source], "language preparation did not mint or re-open a release");
+  const beforeLook = await child.evaluate<string[]>("['--page','--font'].map(name=>getComputedStyle(document.documentElement).getPropertyValue(name).trim())");
+  const { randomUUID } = await import("node:crypto");
+  const selectLook = (expected_revision: number, font: { policy: "follow-skin" } | { policy: "pinned"; scheme: { id: string; revision: number } }) => b.evaluate(
+    `molisWorkRequest('/api/ui/appearance',${JSON.stringify({ body: { request_id: randomUUID(), expected_revision,
+      choice: { kind: "selection", selection: { skin: { id: "folio", revision: 1 }, font, mono: null } } } })})`);
+  await selectLook(0, { policy: "follow-skin" });
+  await child.waitFor("document.documentElement.dataset.uiSkin === 'folio@1' && /Nunito Variable/u.test(getComputedStyle(document.documentElement).getPropertyValue('--font'))");
+  const folioLook = await child.evaluate<string[]>("['--page','--font'].map(name=>getComputedStyle(document.documentElement).getPropertyValue(name).trim())");
+  assert.equal(folioLook[0], "#f4ede2"); assert.notDeepEqual(folioLook, beforeLook);
+  await selectLook(1, { policy: "pinned", scheme: { id: "system-sans", revision: 1 } });
+  await child.waitFor("document.documentElement.dataset.uiFont === 'system-sans@1' && /system-ui/u.test(getComputedStyle(document.documentElement).getPropertyValue('--font'))");
+  const finalLook = await child.evaluate<string[]>("['--page','--font'].map(name=>getComputedStyle(document.documentElement).getPropertyValue(name).trim())");
+  assert.equal(finalLook[0], folioLook[0]); assert.notEqual(finalLook[1], folioLook[1]);
+  assert.deepEqual(await child.evaluate("[savedStudioBody===document.body, savedStudioField.value,savedStudioField.selectionStart,savedStudioField.selectionEnd,document.querySelector('[data-record-id]').innerText.includes('保存摘记')]"),
+    [true, "unfinished 摘录", 1, 6, true]);
+  assert.equal(await b.evaluate(`document.querySelector(${JSON.stringify(frame)}).parentElement.dataset.pluginPage`), opened);
+  const wrongProject = `/api/ui/locales?locale=en&page=${encodeURIComponent(opened)}`;
+  const refused = await b.evaluate<number>(`molisWorkRequest(${JSON.stringify(wrongProject)}, {control:true}).then(()=>200,error=>error.status)`);
+  assert.equal(refused, 403, "a project grant cannot be read from the Home route");
+  await b.evaluate(`document.querySelector(${JSON.stringify(frame)}).parentElement.remove()`);
+  const batch = `${prefix}/api/ui/locales?locale=en&page=${encodeURIComponent(opened)}`;
+  await b.waitFor(`window.closedStudioGrant === true || (window.closedStudioGrant === undefined && (window.closedStudioGrant = false,molisWorkRequest(${JSON.stringify(batch)}, {control:true}).then(()=>window.closedStudioGrant=undefined,error=>window.closedStudioGrant=error.status===403),false))`);
+});

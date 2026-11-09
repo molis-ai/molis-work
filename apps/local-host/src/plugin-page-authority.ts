@@ -112,14 +112,15 @@ export class PluginPageAuthority {
     };
   }
 
-  open(pluginId: string, projectId: string | null, actorId: string, assertScope?: () => Promise<void>, registered?: Activation,
+  open(pluginId: string, projectId: string | null, actorId: string, assertScope?: () => Promise<void>, registered?: Activation & { readonly exact?: true },
     selected?: PageSelection): { page_id: string; storage_scope: string } {
     const candidates = [...this.activations].filter(item => item.install_id && item.manifest.plugin_id === pluginId && item.actor_id === actorId);
-    const activation = selected ? candidates.find(item => item.install_id === selected.install_id && item.project_id === selected.project_id
+    const activation = registered?.exact ? registered : selected ? candidates.find(item => item.install_id === selected.install_id && item.project_id === selected.project_id
       && item.instance?.installation_generation === selected.installation_generation)
       : candidates.find(item => item.project_id === null && item.resolveFiles)
         ?? candidates.find(item => item.project_id === projectId) ?? candidates.find(item => item.project_id === null) ?? registered;
-    if (!activation) throw refused();
+    if (!activation || activation.manifest.plugin_id !== pluginId || activation.actor_id !== actorId
+      || activation === registered && (selected || activation.install_id !== null || activation.project_id !== projectId)) throw refused();
     selected?.assertCurrent();
     activation.assertCurrent();
     const embedded = capturedEmbedded(this.activations, activation, selected);

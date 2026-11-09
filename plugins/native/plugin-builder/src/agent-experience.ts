@@ -1,5 +1,5 @@
 import { isRecord as object } from "@molis-ai/molis-work-plugin-sdk";
-import { PLUGIN_COMPONENTS, pluginComponentCatalog, PLUGIN_PRESENTATION_GUIDE, type PluginComponentIntent } from '@molis-ai/molis-work-design-system';
+import { literalPluginWord, PLUGIN_COMPONENTS, pluginComponentCatalog, PLUGIN_PRESENTATION_GUIDE, type PluginComponentIntent } from '@molis-ai/molis-work-design-system';
 import type { AgentProposal, AgentDesign } from './agent-model.js';
 import type { SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { parseModelJson } from './model-json.js';
@@ -11,7 +11,7 @@ export function proposalSketch(proposal: AgentProposal) {
   const { contract, parts } = proposal.preview;
   return { id: proposal.id, title: proposal.title, description: proposal.description, rationale: proposal.rationale, journey: proposal.journey,
     operations: contract.operations.map(({ id, kind, description, input, output, effects }) => ({ id, kind, description, input, output, ...(effects.capabilities?.length ? { effects: { capabilities: effects.capabilities } } : {}) })),
-    pages: contract.pages.map(page => ({ id: page.id, title: page.title, parts: parts.filter(part => part.pageId === page.id).map(part => ({ id: part.id, intent: part.intent, purpose: part.purpose, uses: part.read?.operationId ?? part.submit?.operationId })) })) };
+    pages: contract.pages.map(page => ({ id: page.id, title: literalPluginWord(page.title), parts: parts.filter(part => part.pageId === page.id).map(part => ({ id: part.id, intent: part.intent, purpose: part.purpose, uses: part.read?.operationId ?? part.submit?.operationId })) })) };
 }
 
 export function experienceTask(brief: string, proposal: AgentProposal) {

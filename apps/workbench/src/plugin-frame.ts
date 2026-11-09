@@ -17,11 +17,12 @@ function sheetLinks(bundle: string): string {
 }
 
 /** HTML from a plugin remains inert data until placed in its opaque frame, including closing-script sequences. */
-export function renderPluginFrameSurface(html: string, id: string, title: string, hidden = true, settings = false, bundle = id, mount?: UiClientMount, pluginId?: string, producer?: string, integrated = false): string {
+export function renderPluginFrameSurface(html: string, id: string, title: string, hidden = true, settings = false, bundle = id, mount?: UiClientMount, pluginId?: string, producer?: string, integrated = false, installed?: { readonly owner: string; readonly page: string; readonly icon?: string }): string {
   const directory = mount?.target_slot_id === "workbench.directory";
   const metadata = mount ? ` data-plugin-client="${escapeHtml(bundle)}" data-plugin-owner="${escapeHtml(pluginId ?? "")}" data-plugin-contribution="${escapeHtml(mount.contribution_id)}" data-plugin-surface="${escapeHtml(mount.surface)}" data-plugin-slot="${escapeHtml(mount.target_slot_id)}"${producer ? ` data-plugin-producer="${escapeHtml(producer)}"` : ""}` : "";
+  const installedSource = installed ? ` data-installed-plugin="${escapeHtml(installed.owner)}" data-plugin-page-source="${escapeHtml(installed.page)}"${installed.icon ? ` data-installed-plugin-icon="${escapeHtml(installed.icon)}"` : ""}` : "";
   const content = mount && !integrated ? html.replace(/^(\s*<[a-z][a-z0-9-]*)\b/u, "$1 data-ui-client-root") : html;
-  return `<section class="${directory ? "desktop-directory-panel" : "desktop-work-surface"} plugin-stage-shell" ${directory ? "data-directory-panel" : "data-work-surface"}="${escapeHtml(id)}" data-work-surface-label="${escapeHtml(title)}"${metadata}${integrated ? " data-plugin-integrated" : ""}${directory ? ' style="position:relative;height:100%;overflow:hidden"' : ""}${settings ? ` data-settings-page="${escapeHtml(id)}"` : ""} data-deferred-surface${hidden ? " hidden" : ""}><script type="application/json" data-plugin-document>${JSON.stringify(sheetLinks(bundle) + content).replaceAll("<", "\\u003c")}</script></section>`;
+  return `<section class="${directory ? "desktop-directory-panel" : "desktop-work-surface"} plugin-stage-shell" ${directory ? "data-directory-panel" : "data-work-surface"}="${escapeHtml(id)}" data-work-surface-label="${escapeHtml(title)}"${metadata}${installedSource}${integrated ? " data-plugin-integrated" : ""}${directory ? ' style="position:relative;height:100%;overflow:hidden"' : ""}${settings ? ` data-settings-page="${escapeHtml(id)}"` : ""} data-deferred-surface${hidden ? " hidden" : ""}><script type="application/json" data-plugin-document>${JSON.stringify(sheetLinks(bundle) + content).replaceAll("<", "\\u003c")}</script></section>`;
 }
 
 let client: string | undefined;

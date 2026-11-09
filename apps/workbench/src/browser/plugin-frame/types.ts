@@ -36,6 +36,7 @@ export interface FrameHost {
 export interface FramePack { id: string; plugin_id: string; bundle: string; assets: string[];
   recordRow?: { selector: string; idDataset: string };
   searchRow?: { selector: string; idDataset: string };
+  projection?: string;
   authorization?: { page_id: string; storage_scope: string } }
 export interface FrameConfig {
   mount: UiClientMount | null;

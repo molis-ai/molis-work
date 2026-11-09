@@ -1,5 +1,6 @@
+import { validateFrozenStudioWords } from "./agent-ui-text.js";
 import { isRecord as object } from "@molis-ai/molis-work-plugin-sdk";
-import { pluginSchemaAt, validatePluginComponentPlans, validatePluginPresentation } from '@molis-ai/molis-work-design-system';
+import { literalPluginWord, pluginSchemaAt, validatePluginComponentPlans, validatePluginPresentation } from '@molis-ai/molis-work-design-system';
 import type { AgentDesign } from './agent-model.js';
 import { validateExperience } from './agent-experience.js';
 import type { SandboxSchema } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
@@ -23,7 +24,7 @@ function explainContract(error: unknown, contract: unknown): string {
   return '功能合同不成立：' + message;
 }
 export function validateAgentDesign(input: unknown, capabilities: readonly string[], resources: readonly string[], validateContract: (contract: unknown) => void): AgentDesign {
-  if (!object(input) || Object.keys(input).some(key => !['id', 'title', 'description', 'rationale', 'journey', 'contract', 'parts', 'acceptance', 'presentation', 'experience'].includes(key))) throw new Error('方案包含未知属性');
+  if (!object(input) || Object.keys(input).some(key => !['id', 'title', 'description', 'rationale', 'journey', 'contract', 'parts', 'acceptance', 'presentation', 'experience', 'localePacks'].includes(key))) throw new Error('方案包含未知属性');
   if (input.experience !== undefined) input.experience = validateExperience(input.experience);
   for (const field of ['id', 'title', 'description', 'rationale']) if (typeof input[field] !== 'string' || !input[field] || (input[field] as string).length > 4000) throw new Error('方案缺少有效的' + field);
   if (!Array.isArray(input.journey) || input.journey.length < 1 || input.journey.length > 20 || input.journey.some(item => typeof item !== 'string' || item.length > 1000)) throw new Error('用户旅程不完整');
@@ -43,9 +44,10 @@ export function validateAgentDesign(input: unknown, capabilities: readonly strin
       throw new Error('操作 ' + operation.id + ' 的 effects 里不要写 events 或 artifacts：写文档用能力清单里的 pages.create / pages.update，存成果用 pages.promote，读成果用 artifacts.read，放进 Feed 用 feed.content.receive，到点提醒用 reminders.add');
   }
   design.parts = validatePluginComponentPlans(design.parts, design.contract);
+  validateFrozenStudioWords(design);
   if (design.presentation !== undefined) design.presentation = validatePluginPresentation(design.presentation, design.parts, design.contract);
   // "今天已经喝了 {{count}} 杯": a sentence filled from the part's own query result, so the field must be in it.
-  for (const part of design.parts) for (const text of [part.props.title, part.props.description]) for (const [, field] of (text ?? '').matchAll(/\{\{\s*([\w.]+)\s*\}\}/gu)) {
+  for (const part of design.parts) for (const text of [part.props.title, part.props.description]) for (const [, field] of literalPluginWord(text).matchAll(/\{\{\s*([\w.]+)\s*\}\}/gu)) {
     const query = part.read && design.contract.operations.find(item => item.id === part.read!.operationId), shown = query ? pluginSchemaAt(query.output, part.read!.outputPath) : undefined;
     if (!shown || shown.type !== 'object' || !pluginSchemaAt(shown, field!)) throw new Error('组件 ' + part.id + ' 的文字里用了 {{' + field + '}}，但它没有读取一个返回 ' + field + ' 的查询：给它 "read": 一个 output 含 ' + field + ' 的 query');
   }
@@ -68,11 +70,11 @@ export function validateAgentDesign(input: unknown, capabilities: readonly strin
   const ids = new Set<string>();
   for (const test of design.acceptance) {
     if (!object(test) || Object.keys(test).some(key => !['id', 'description', 'steps'].includes(key)) || !design.contract.acceptance.some(item => item.id === test.id) || ids.has(test.id)) throw new Error('浏览器验收必须引用唯一的合同用例'); ids.add(test.id);
-    if (typeof test.description !== 'string' || !Array.isArray(test.steps) || !test.steps.length || test.steps.length > 100 || !test.steps.some(step => ['expect', 'expectAbsent', 'expectValue', 'expectOrder', 'submitBlocked'].includes(step.action))) throw new Error('浏览器用例需要具体操作与断言');
+    if (typeof test.description !== 'string' || !Array.isArray(test.steps) || !test.steps.length || test.steps.length > 100 || !test.steps.some(step => ['expect', 'expectWord', 'expectAbsent', 'expectValue', 'expectOrder', 'submitBlocked'].includes(step.action))) throw new Error('浏览器用例需要具体操作与断言');
     for (const [position, step] of test.steps.entries()) {
       const where = '验收「' + test.id + '」第 ' + (position + 1) + ' 步：';
-      if (!object(step) || !['page', 'fill', 'submit', 'submitBlocked', 'faultRead', 'retry', 'select', 'expect', 'expectAbsent', 'expectValue', 'expectOrder', 'reload'].includes(step.action)) throw new Error('不支持的浏览器步骤');
-      const permitted = { page: ['action', 'pageId'], fill: ['action', 'componentId', 'field', 'value'], submit: ['action', 'componentId'], submitBlocked: ['action', 'componentId', 'field', 'reason'], faultRead: ['action', 'componentId'], retry: ['action', 'componentId'], select: ['action', 'componentId', 'recordId', 'text'], expect: ['action', 'componentId', 'text'], expectAbsent: ['action', 'componentId', 'text'], expectValue: ['action', 'componentId', 'field', 'value'], expectOrder: ['action', 'componentId', 'texts'], reload: ['action'] }[step.action];
+      if (!object(step) || !['page', 'fill', 'submit', 'submitBlocked', 'faultRead', 'retry', 'select', 'expect', 'expectWord', 'expectAbsent', 'expectValue', 'expectOrder', 'reload'].includes(step.action)) throw new Error('不支持的浏览器步骤');
+      const permitted = { page: ['action', 'pageId'], fill: ['action', 'componentId', 'field', 'value'], submit: ['action', 'componentId'], submitBlocked: ['action', 'componentId', 'field', 'reason'], faultRead: ['action', 'componentId'], retry: ['action', 'componentId'], select: ['action', 'componentId', 'recordId', 'text'], expect: ['action', 'componentId', 'text'], expectWord: ['action', 'componentId', 'word'], expectAbsent: ['action', 'componentId', 'text'], expectValue: ['action', 'componentId', 'field', 'value'], expectOrder: ['action', 'componentId', 'texts'], reload: ['action'] }[step.action];
       if (Object.keys(step).some(key => !permitted.includes(key))) throw new Error('浏览器步骤属性无效');
       if (step.action === 'reload') continue;
       if (step.action === 'page') { if (!design.contract.pages.some(page => page.id === step.pageId)) throw new Error('验收引用不存在的页面'); continue; }
@@ -81,6 +83,7 @@ export function validateAgentDesign(input: unknown, capabilities: readonly strin
       if (step.action === 'faultRead' || step.action === 'retry') {
         if (!part.read || design.contract.operations.find(operation => operation.id === part.read!.operationId)?.kind !== 'query') throw new Error(where + step.action + ' 需要组件绑定的 read query');
       }
+      if (step.action === 'expectWord' && (!part.props[step.word] || typeof part.props[step.word] !== 'object')) throw new Error(where + ' expectWord 要引用组件的显示文字');
       if (step.action === 'submitBlocked') {
         const operation = design.contract.operations.find(operation => operation.id === part.submit?.operationId);
         const field = Object.entries(part.submit?.input ?? {}).find(([name, source]) => source.source === 'form' && source.field === step.field && operation?.input.required?.includes(name) && operation.input.properties?.[name]?.type !== 'boolean');

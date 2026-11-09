@@ -1,4 +1,5 @@
 import { inLanguagePreview, languagePreviewUnavailable } from "./web-locale.js";
+import { installedPluginName } from "./plugin-builder/installed-page.js";
 import { renderHomePackageDocument } from "./plugin-builder/agent-surface.js";
 import { ActionError, type ActionCallContext, type ActionClient, type ActionRegistryPort, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginInstallRecords } from "./plugin-install-records.js";
@@ -149,9 +150,13 @@ export class HomePluginHost {
     return this.installed?.releaseFor(pluginId) && this.installation(pluginId)?.state === "running" && !this.packageError(pluginId) ? pluginId : undefined;
   }
   /** The page that stage frames (`?frame=workbench`), opened for the person under the package's Home activation. Throws when that is not open. */
-  packageDocument(pluginId: string, controlToken: string, projectId: string | null = null, accountRegistration=false): string | undefined {
+  packageLabel(pluginId: string): string | undefined {
+    const release = this.installed?.releaseFor(pluginId);
+    return release && installedPluginName(release);
+  }
+  packageDocument(pluginId: string, controlToken: string, projectId: string | null = null, accountRegistration=false, projection=false) {
     const release = this.packageSurface(pluginId) ? this.installed?.releaseFor(pluginId) : undefined;
-    return release ? renderHomePackageDocument({ home: this.options.home, actorId: this.options.actorId, release, controlToken, projectId, accountRegistration,
+    return release ? renderHomePackageDocument({ home: this.options.home, actorId: this.options.actorId, release, controlToken, projectId, accountRegistration, projection, running: () => this.installation(pluginId) ?? undefined,
       assertProject: projectId ? async () => {
         if (!this.options.projectActions) throw new ActionError("actions.forbidden", "Home 插件没有项目入口");
         await this.options.projectActions(projectId, pluginId);

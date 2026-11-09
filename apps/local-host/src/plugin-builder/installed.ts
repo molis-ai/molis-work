@@ -15,6 +15,7 @@ import { effectsFromContract, sandboxPluginManifest, sandboxUiContribution, sand
 import { releaseInstructions } from './prompts.js';
 import { releaseVersion, type InstalledRelease } from '../installed-release.js';
 import { activeLocale } from '../web-locale.js';
+import { studioWordReader } from './studio-words.js';
 import { sandboxTextPacks } from '../ui-text-provider.js';
 import { capabilityLimits, capabilityPolicyBinding, latestCapability, slowOperations, type Lane, type CapabilityExecution } from './capabilities.js';
 
@@ -43,7 +44,8 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
   declared?: PluginManifest): PluginDefinition {
   if (release.design.presentation !== undefined) validatePluginPresentation(release.design.presentation, release.design.parts, release.design.contract);
   const manifest = declared ?? generatedPluginManifest(release, compatibleFrom), uiId = sandboxUiContribution(release.pluginId);
-  const localePacks = sandboxTextPacks(release.packaged?.localePacks);
+  const words = release.packaged ? release.packaged.localePacks ?? null : studioWordReader(release.design, manifest);
+  const localePacks = sandboxTextPacks(words);
   const instructions = declared?.kind === 'app' ? releaseInstructions(release, [release]) : undefined;
   // A model call runs in its own process, so the plugin's other reads and saves never wait behind it.
   const lanes = new Map<Lane, Promise<SandboxRunner>>();
@@ -170,6 +172,6 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
     async stop() { const current = [...lanes.values()], lane = background; lanes.clear(); background = undefined;
       await Promise.all([lane?.stop(), ...current.map(item => item.then(runner => runner.stop(), () => undefined))]); },
   };
-  rememberInstalledActionSource(definition, release);
+  rememberInstalledActionSource(definition, release, words);
   return definition;
 }

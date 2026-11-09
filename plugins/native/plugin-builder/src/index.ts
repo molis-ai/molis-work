@@ -14,3 +14,7 @@ export * from './agent-capabilities.js';
 export * from './agent-catalog.js';
 export {BUILDER_CONTENT_REPLICA_ID,builderSync,builderPrivateValueReplicationOwner,prepareBuilderLocalEdit} from './sync-owner.js';
 export {builderSyncProjection} from './sync-content.js';
+
+export { freezeStudioUi, studioLocaleFiles } from "./agent-ui-text.js";
+
+export { builderReleaseInterface } from "./agent-model.js";

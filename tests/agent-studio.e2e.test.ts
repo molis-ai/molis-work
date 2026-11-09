@@ -1,11 +1,10 @@
 import { publishCheckedStudioFixture } from './fixtures/checked-studio-release.js';
 import { PluginInstallService, SandboxPackageStore, HomeConsentLedger } from '@molis-ai/molis-work-app-local-host';
-import { framedStudioPage, studioFrameAsset, isolatedStudioHarness } from "./fixtures/studio-framed-page.js";
+import { framedStudioPage, studioHarnessRequests, isolatedStudioHarness } from "./fixtures/studio-framed-page.js";
 import { pluginPagesFor } from "@molis-ai/molis-work-app-local-host";
-import { VISUAL_FOUNDATION_STYLES } from '@molis-ai/molis-work-design-system';
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createServer, type Server } from 'node:http';
+import { createServer, type IncomingMessage } from 'node:http';
 import { mkdtemp, rm, readFile, writeFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import { createServer as createHttpsServer, Agent } from 'node:https';
@@ -30,21 +29,34 @@ import {withMolisWorkProjectCatalog} from '@molis-ai/molis-work-app-desktop';
 import {createSyncJsonContent} from '@molis-ai/molis-work-plugin-sdk';
 import {proveAuthoringSync} from './fixtures/authoring-sync-proof.js';
 
+function studioServer(options: Parameters<typeof handleAgentStudioHttp>[3] & { homeDirectory: string }, token: string, mutations: Map<string, LocalMutationState>, setup?: {
+  observe?(request: IncomingMessage, response: import('node:http').ServerResponse): void; locale?: 'zh' | 'en'; page?: boolean;
+}) {
+  const harness = studioHarnessRequests(options.homeDirectory, options.projectId, token);
+  const server = createServer((request, response) => {
+    setup?.observe?.(request, response);
+    const url = new URL(request.url ?? '/', 'http://localhost');
+    harness.handle(request, response, url, options.routePrefix ?? '', (local, proof) => {
+      if (setup?.page && url.pathname === STUDIO_HARNESS_PATH) {
+        response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+        response.end(isolatedStudioHarness(options.homeDirectory, options.projectId, proof, setup.locale)); return;
+      }
+      if (!authorizeLocalWebRequest(request, response, url, token, mutations)) return;
+      return pluginPagesFor(options.homeDirectory).bind(request, url).then(release => {
+        if (release) response.once('close', release);
+        return handleAgentStudioHttp(request, response, local, options, proof);
+      }).then(handled => { if (!handled) sendLocalWebJson(response, 404, { error: 'not found' }); }).catch(error => sendLocalWebJson(response, 403, { error: String(error.message) }));
+    });
+  });
+  server.once('close', harness.close);
+  return server;
+}
+
 /** Received code remains paused until the user chooses this device's model and explicitly requests all local gates. */
 async function resumeTargetStudio(store:LocalProjectDatabase,homeDirectory:string,projectId:string,itemId:string){
   const token=randomUUID()+randomUUID(),mutations=new Map<string,LocalMutationState>();
   const options={store,homeDirectory,projectId,routePrefix:'/projects/'+projectId,...agentStudioFixture(0)};
-  const server=createServer((request,response)=>{
-    const url=new URL(request.url??'/','http://localhost');
-    if(studioFrameAsset(response,url.pathname))return;
-    if(url.pathname==='/assets/molis-work-settings.css'){response.writeHead(200,{'content-type':'text/css'});response.end(VISUAL_FOUNDATION_STYLES);return;}
-    if(!authorizeLocalWebRequest(request,response,url,token,mutations))return;
-    void pluginPagesFor(homeDirectory).bind(request,url).then(release=>{
-      if(release)response.once('close',release);
-      const local=new URL(url);if(local.pathname.startsWith(options.routePrefix+'/'))local.pathname=local.pathname.slice(options.routePrefix.length);
-      return handleAgentStudioHttp(request,response,local,options,token);
-    }).then(handled=>{if(!handled)sendLocalWebJson(response,404,{error:'not found'});}).catch(error=>sendLocalWebJson(response,403,{error:String(error.message)}));
-  });
+  const server=studioServer(options,token,mutations);
   await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));const origin='http://127.0.0.1:'+(server.address() as {port:number}).port;
   const get=async()=>await(await fetch(origin+'/api/plugin-builder/studio/builds/'+itemId)).json() as {build:{phase:string;revision:number;active:unknown;error:string|null;history:unknown[]}};
   const post=async(route:string,body:unknown)=>{const response=await fetch(origin+'/api/plugin-builder/studio'+route,{method:'POST',headers:{origin,'content-type':'application/json','x-molis-work-control-token':token,'x-molis-work-idempotency-key':randomUUID()},body:JSON.stringify(body)});assert.equal(response.status,200,await response.clone().text());return await response.json();};
@@ -60,11 +72,63 @@ async function resumeTargetStudio(store:LocalProjectDatabase,homeDirectory:strin
   }finally{await releaseAgentStudio(store,projectId);await releaseInstalledPlugins(store,projectId);server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}
 }
 
+test('FSS-74 a frozen English design reaches G7 in its own frame and publishes the same two language files', { timeout: 110_000, skip: process.platform !== 'darwin' }, async t => {
+  const browserExecutable = dedicatedBuilderBrowser();
+  assert.ok(browserExecutable, 'use the separate Studio test browser');
+  const home = await mkdtemp(join(tmpdir(), 'molis-studio-locale-g7-')), databasePath = join(home, 'project.db');
+  seedDemoBoard(databasePath);
+  const store = new LocalProjectDatabase(databasePath), token = randomUUID() + randomUUID();
+  const projectId = DEMO_PROJECT_ID, routePrefix = '/projects/' + projectId;
+  const options = { store, homeDirectory: home, projectId, routePrefix, browserExecutable, ...agentStudioFixture(0) };
+  const previewLanguages = new Set<string>(), childDesignReads: string[] = [];
+  const server = studioServer(options, token, new Map(), { observe(request) {
+    if (request.url?.includes('/studio/preview/') && request.url.includes('acceptance=')) previewLanguages.add(request.headers['accept-language'] ?? '');
+    if (request.method === 'GET' && request.headers['x-molis-plugin-page'] && request.url?.includes('/studio/builds/')) childDesignReads.push(request.url);
+  } });
+  t.after(async () => {
+    await releaseAgentStudio(store, projectId); await releaseInstalledPlugins(store, projectId);
+    server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); store.close();
+    await rm(home, { recursive: true, force: true });
+  });
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+  const origin = 'http://127.0.0.1:' + (server.address() as { port: number }).port;
+  const base = origin + routePrefix + '/api/plugin-builder/studio';
+  const send = async <T>(path: string, body?: unknown): Promise<T> => {
+    const response = await fetch(base + path, { headers: { origin, 'accept-language': 'en', 'x-molis-work-control-token': token,
+      ...(body ? { 'content-type': 'application/json', 'x-molis-work-idempotency-key': randomUUID() } : {}) },
+    ...(body ? { method: 'POST', body: JSON.stringify(body) } : {}) });
+    assert.equal(response.status, path === '/builds' && body ? 201 : 200, await response.clone().text()); return response.json();
+  };
+  type Build = import('@molis-ai/molis-work-plugin-builder').AgentBuild;
+  const model = (await options.models())[0]!;
+  await send('/settings', { provider_id: model.provider_id, model_id: model.model_id });
+  const { build: created } = await send<{ build: Build }>('/builds', { brief: 'Build an excerpt notebook; save notes and find them later.' });
+  const load = () => send<{ build: Build }>('/builds/' + created.id).then(value => value.build);
+  const act = (action: string, build: Build, extra = {}) => send<unknown>('/builds/' + build.id + '/action', { action, revision: build.revision, ...extra });
+  const stopped = async () => {
+    let current = await load();
+    for (let i = 0; i < 450 && current.active; i++) { await new Promise(resolve => setTimeout(resolve, 100)); current = await load(); }
+    assert.equal(current.active, null, current.error ?? 'Studio did not stop'); return current;
+  };
+  const proposals = await stopped(); assert.equal(proposals.phase, 'choosing', proposals.error ?? '');
+  await act('choose', proposals, { candidateId: 'quick' });
+  const ready = await stopped();
+  assert.equal(ready.phase, 'ready', ready.error ?? JSON.stringify(ready.browserResult));
+  assert.equal(ready.design?.contract.ui?.locales.default, 'en');
+  assert.ok(ready.browserResult?.passed); assert.ok(ready.browserResult.cases.some(item => item.id === 'empty' && item.passed));
+  assert.deepEqual([...previewLanguages], ['en']);
+  assert.deepEqual(childDesignReads, [], 'the granted preview receives only its view and current words');
+  await act('publish', ready);
+  const bundle = await send<import('@molis-ai/molis-work-contracts/platform/plugin').PluginPackageBundle>('/builds/' + ready.id + '/download?version=1');
+  assert.deepEqual(bundle.payload.manifest.ui.locales, { default: 'en', available: ['zh', 'en'] });
+  assert.deepEqual(bundle.payload.files.filter(file => file.path.startsWith('locales/')).map(file => file.path).sort(), ['locales/en.json', 'locales/zh.json']);
+});
+
 /**
  * The whole studio journey in a real browser: only the models are labelled stand-ins. Build gates, the Seatbelt
  * sandbox, preview storage, the push channel and the headless acceptance run are the production ones.
  */
-test('studio: a request becomes a working, published plugin that the person can use', { timeout: 180_000, skip: process.platform !== 'darwin' }, async t => {
+test('FSS-74 studio: a request becomes a working, published plugin that the person can use', { timeout: 180_000, skip: process.platform !== 'darwin' }, async t => {
   const root = await mkdtemp(join(tmpdir(), 'molis-studio-e2e-'));
   const home = join(root, 'home');
   const browser = await openStudioChrome(join(root, 'chrome'));
@@ -79,16 +143,9 @@ test('studio: a request becomes a working, published plugin that the person can 
   const options = { store, projectId, homeDirectory: home, browserExecutable: dedicatedBuilderBrowser(), routePrefix: "/projects/" + projectId, ...fixture,
     generate: async (pluginId: string, input: { prompt?: string; instructions?: string; input: string }) => {if(modelHold){modelStarted();await modelHold;} await new Promise(resolve => setTimeout(resolve, modelDelay)); return fixture.generate(pluginId, input); } };
   let liveSubscriptions = 0, subscriptions = 0;
-  const server: Server = createServer((request, response) => {
+  const server = studioServer(options, token, mutations, { page: true, observe(request, response) {
     if (request.url?.endsWith("/events")) { liveSubscriptions++; subscriptions++; response.on("close", () => { liveSubscriptions--; }); }
-    const url = new URL(request.url ?? '/', 'http://localhost') /* as the product server does: no port in the base */;
-    if (studioFrameAsset(response, url.pathname)) return;
-    if (url.pathname === '/assets/molis-work-settings.css') { response.writeHead(200, { 'content-type': 'text/css' }); response.end(VISUAL_FOUNDATION_STYLES); return; }
-    // The studio as the workbench mounts it in its stage (scripts/agent-studio-harness.mts): it has no page of its own.
-    if (url.pathname === STUDIO_HARNESS_PATH) { response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); response.end(isolatedStudioHarness(home, projectId, token)); return; }
-    if (!authorizeLocalWebRequest(request, response, url, token, mutations)) return;
-    void pluginPagesFor(home).bind(request, url).then(release => { if (release) response.once("close", release); const local = new URL(url); if (local.pathname.startsWith(options.routePrefix + "/")) local.pathname = local.pathname.slice(options.routePrefix.length); return handleAgentStudioHttp(request, response, local, options, token); }).then(handled => { if (!handled) sendLocalWebJson(response, 404, { error: 'not found' }); }).catch(error => sendLocalWebJson(response, 403, { error: String(error.message) }));
-  });
+  } });
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   const origin = 'http://127.0.0.1:' + (server.address() as { port: number }).port;
   try {
@@ -218,7 +275,10 @@ test('studio: a request becomes a working, published plugin that the person can 
     // The workbench lists it beside the built-in plugins: one stage framing its installed page.
     const stages = await installedPluginStages(options);
     assert.deepEqual(stages.map(item => [item.label, item.surface.startsWith('app-')]), [['笔记墙', true]]);
-    assert.match(stages[0]!.stage, new RegExp('data-work-surface="' + stages[0]!.surface + '"[^>]*hidden><iframe src="' + pluginHref.replaceAll('.', '\\.') + '\\?frame=workbench"'));
+    assert.ok(stages[0]!.stage.includes('data-work-surface="' + stages[0]!.surface + '"'));
+    assert.ok(stages[0]!.stage.includes('data-plugin-page-source="' + pluginHref + '?frame=workbench"'));
+    assert.match(stages[0]!.stage, /data-deferred-surface hidden><script type="application\/json" data-plugin-document>/u);
+    assert.doesNotMatch(stages[0]!.stage, /<iframe/u, 'the real workbench owns the opaque frame when this stage opens');
     // Its address opened directly (a link in a notice, say) opens the workbench on that plugin's stage, not a page of its own.
     const directPlugin = await fetch(origin + pluginHref, { redirect: 'manual' });
     assert.equal(directPlugin.status, 302); assert.equal(directPlugin.headers.get('location'), options.routePrefix + '/?openSurface=' + encodeURIComponent(stages[0]!.surface)); await directPlugin.text();
@@ -393,17 +453,7 @@ test('studio in English: its controls, labels, phases and boards are English', {
   const store = new LocalProjectDatabase(databasePath), token = randomUUID() + randomUUID(), mutations = new Map<string, LocalMutationState>();
   const fixture = agentStudioFixture(0);
   const options = { store, projectId: DEMO_PROJECT_ID, homeDirectory: home, browserExecutable: dedicatedBuilderBrowser(), routePrefix: '/projects/' + DEMO_PROJECT_ID, ...fixture };
-  const server: Server = createServer((request, response) => {
-    const url = new URL(request.url ?? '/', 'http://localhost');
-    if (studioFrameAsset(response, url.pathname)) return;
-    if (url.pathname === '/assets/molis-work-settings.css') { response.writeHead(200, { 'content-type': 'text/css' }); response.end(VISUAL_FOUNDATION_STYLES); return; }
-    if (url.pathname === STUDIO_HARNESS_PATH) {
-      response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
-      response.end(isolatedStudioHarness(home, DEMO_PROJECT_ID, token, 'en')); return;
-    }
-    if (!authorizeLocalWebRequest(request, response, url, token, mutations)) return;
-    void pluginPagesFor(home).bind(request, url).then(release => { if (release) response.once("close", release); const local = new URL(url); if (local.pathname.startsWith(options.routePrefix + "/")) local.pathname = local.pathname.slice(options.routePrefix.length); return handleAgentStudioHttp(request, response, local, options, token); }).then(handled => { if (!handled) sendLocalWebJson(response, 404, { error: 'not found' }); }).catch(error => sendLocalWebJson(response, 403, { error: String(error.message) }));
-  });
+  const server = studioServer(options, token, mutations, { page: true, locale: 'en' });
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   const origin = 'http://127.0.0.1:' + (server.address() as { port: number }).port;
   // Every visible word of the studio's own controls: the text outside what is data (the brief, the proposals, the capability
@@ -537,14 +587,7 @@ test('upgrade consent saves the new secret and the upgraded plugin uses it on it
   const nextBundle = join(home, 'v2.mjs'); await writeFile(nextBundle, 'export const operations={fetch:async(_,sdk)=>(await sdk.network.request({url:"https://api.weather.example/today",secretRefs:["weather"]})).body};');
   const next: AgentRelease = { ...first, version: 2, bundlePath: nextBundle, permissions, manifest: { version: 1, pluginId, revision: 'two', effects: permissions }, design: { ...first.design, contract: nextContract } };
   publishCheckedStudioFixture(installed.storage, next);
-  const server = createServer((request, response) => {
-    const url = new URL(request.url ?? '/', 'http://localhost');
-    if (studioFrameAsset(response, url.pathname)) return;
-    if (url.pathname === '/assets/molis-work-settings.css') { response.writeHead(200, { 'content-type': 'text/css' }); response.end(VISUAL_FOUNDATION_STYLES); return; }
-    if (url.pathname === STUDIO_HARNESS_PATH) { response.writeHead(200, { 'content-type': 'text/html' }); response.end(isolatedStudioHarness(home, DEMO_PROJECT_ID, token)); return; }
-    if (!authorizeLocalWebRequest(request, response, url, token, mutations)) return;
-    void pluginPagesFor(home).bind(request, url).then(release => { if (release) response.once("close", release); const local = new URL(url); if (local.pathname.startsWith(options.routePrefix + "/")) local.pathname = local.pathname.slice(options.routePrefix.length); return handleAgentStudioHttp(request, response, local, options, token); }).then(handled => { if (!handled) sendLocalWebJson(response, 404, {}); }).catch(error => sendLocalWebJson(response, 403, { error: String(error.message) }));
-  });
+  const server = studioServer(options, token, mutations, { page: true });
   cleanups.push(async () => { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); });
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve)); const address = server.address(); assert.ok(address && typeof address === 'object');
   const page = await framedStudioPage(t, browser, await browser.page()); await page.command('Page.navigate', { url: `http://127.0.0.1:${address.port}` + STUDIO_HARNESS_PATH });

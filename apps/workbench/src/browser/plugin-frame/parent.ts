@@ -110,6 +110,20 @@ function bindFrameDocument(frame: HTMLIFrameElement, root: HTMLElement, scope: F
   frame.srcdoc = documentFor(challenge);
 }
 
+async function openFrameGrant(root: HTMLElement, pack: FramePack, scope: FrameScope, route: (path: string) => string,
+  mount: import("@molis-ai/molis-work-contracts/platform/ui").UiClientMount | null, leaving: () => Extract<FrameUp, {type: "on-closing"}>["action"]) {
+  const projected = pack.projection ? await molisWorkRequest<{ authorization: NonNullable<FramePack["authorization"]>; page: { mode: string; plugin_id: string } }>(
+    pack.projection, { control: true, headers: { accept: "application/json" }, signal: scope.signal }) : null;
+  if (pack.projection && (!projected?.authorization?.page_id || !projected.authorization.storage_scope
+    || projected.page?.mode !== "installed" || projected.page.plugin_id !== pack.plugin_id)) throw new Error("Invalid installed view");
+  const grant = pack.authorization ?? projected?.authorization ?? await molisWorkRequest<{ page_id: string; storage_scope: string }>(route("/api/host/plugin-pages"), { body: { plugin_id: pack.plugin_id, ...(mount ? { mount, ...(root.dataset.pluginProducer ? { producer: root.dataset.pluginProducer } : {}) } : {}) }, scope });
+  scope.own(() => {
+    const closing = leaving();
+    void molisWorkRequest(route("/api/host/plugin-pages/" + encodeURIComponent(grant.page_id)), { method: "DELETE", body: closing ? { closing } : {}, keepalive: true }).catch(() => { /* Host shutdown already revokes the activation. */ });
+  });
+  return { grant, page: projected?.page };
+}
+
 /** The trusted shell binds a real frame, channel and server authorization; child-supplied identity never selects them. */
 export async function mountFrame(root: HTMLElement, host: FrameHost, pack: FramePack) {
   if (accountTransition().preparing) throw new Error("Account is switching");
@@ -123,7 +137,8 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   const clientMount = root.hasAttribute("data-plugin-integrated") ? null : mount;
   if (mount && root.dataset.pluginOwner !== pack.plugin_id) throw new Error("View owner changed");
   directoryLayout(root);
-  const grant = pack.authorization ?? await molisWorkRequest<{ page_id: string; storage_scope: string }>(route("/api/host/plugin-pages"), { body: { plugin_id: pack.plugin_id, ...(mount ? { mount, ...(root.dataset.pluginProducer ? { producer: root.dataset.pluginProducer } : {}) } : {}) }, scope });
+  let closing: Extract<FrameUp, {type: "on-closing"}>["action"] = null;
+  const { grant, page } = await openFrameGrant(root, pack, scope, route, mount, () => closing);
   const surfaces = await subjectSurfaces(route, scope);
   scope.assertCurrent();
   if (accountTransition().preparing) throw new Error("Account is switching");
@@ -165,14 +180,12 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   const embed = pageEmbeds(port, scope, root, frame, grant.page_id, route);
   const workspaces = pageWorkspaces(port, scope, grant.page_id, route, uiText.text, frame.title, host.projectTitle?.() ?? "");
   let childExpanded: string | null = null;
-  let closing: Extract<FrameUp, {type: "on-closing"}>["action"] = null;
   let readyResolve!: () => void, readyReject!: (error: Error) => void;
   const ready = new Promise<void>((resolve, reject) => { readyResolve = resolve; readyReject = reject; });
   const deadline = setTimeout(() => readyReject(new Error(uiText.text("common.parent.could-not-load-view-retry"))), 10000);
   scope.own(() => {
     if (closing) collapsePage(root);
     clearTimeout(deadline); readyReject(new Error("View closed")); port.postMessage({ type: "dispose" }); port.close(); frame.remove();
-    void molisWorkRequest(route("/api/host/plugin-pages/" + encodeURIComponent(grant.page_id)), { method: "DELETE", body: closing ? { closing } : {}, keepalive: true }).catch(() => { /* Host shutdown already revokes the activation. */ });
   });
   let invalidated = false;
   const environment = frameEnvironment(port, scope, root, frame);
@@ -327,7 +340,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
       description: getComputedStyle(root).getPropertyValue("--stage-desc"),
     },
     nativeFiles: Boolean(nativeFileInvoke()), shortcuts: navigation.shortcuts, appearance: environment.initial, text: await openingFrameLanguage(route(""), grant, pack.plugin_id, businessScope).then(text => trackFrameLanguage({ route: route(""), id: grant.page_id, owner: pack.plugin_id, root, port, scope: businessScope }, text)),
-    projectId: host.projectId?.() ?? "", projectTitle: host.projectTitle?.() ?? "", routePrefix: route(""), side: Boolean(host.side), page: host.page?.() ?? null,
+    projectId: host.projectId?.() ?? "", projectTitle: host.projectTitle?.() ?? "", routePrefix: route(""), side: Boolean(host.side), page: page ?? host.page?.() ?? null,
     titles: globalThis.MOLIS_WORK_PLUGIN_TITLES ?? {}, storage,
   }), fail);
   own = root.dataset.uiClientState !== "loading";

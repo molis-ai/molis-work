@@ -1,10 +1,33 @@
 /// <reference lib="dom" />
 /// <reference lib="dom.iterable" />
-import type { SandboxSchema } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import { dateArg, t } from "@molis-ai/molis-work-plugin-sdk/ui";
+import type { SandboxSchema, SandboxVisibleText } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 
-export function pcKit() {
+export function pcKit(word: (ref?: SandboxVisibleText) => string) {
+  const compositeWords = new WeakMap<HTMLElement, Map<string, () => string>>();
+  /** A phrase whose argument is itself a displayed word is redrawn with the selected packs, never with the old argument. */
+  function bindWord(element: HTMLElement, attribute: string, render: () => string) {
+    const uses = compositeWords.get(element) ?? new Map();
+    uses.set(attribute, render); compositeWords.set(element, uses); element.dataset.pcLocalized = '';
+    if (attribute) element.setAttribute(attribute, render()); else element.textContent = render();
+  }
+  function clearBoundWord(element: HTMLElement, attribute: string) {
+    const uses = compositeWords.get(element); uses?.delete(attribute);
+    if (!uses?.size) delete element.dataset.pcLocalized;
+  }
+  function refreshWords(root: HTMLElement) {
+    for (const element of root.querySelectorAll<HTMLElement>('[data-pc-localized]')) {
+      for (const [attribute, render] of compositeWords.get(element) ?? []) {
+        if (attribute) element.setAttribute(attribute, render()); else element.textContent = render();
+      }
+    }
+  }
   const make = <K extends keyof HTMLElementTagNameMap>(tag: K, text?: string, cls?: string) => {
     const el = document.createElement(tag); if (text !== undefined) el.textContent = text; if (cls) el.className = cls; return el;
+  };
+  /** Data may spell the same words as a button. The document's language change must never change it. */
+  const raw = <K extends keyof HTMLElementTagNameMap>(tag: K, words: string, cls?: string) => {
+    const element = make(tag, words, cls); element.translate = false; return element;
   };
   /** An icon from the page's sprite; decorative, the words beside it carry the meaning. */
   const glyph = (name: string) => {
@@ -17,20 +40,34 @@ export function pcKit() {
     if (icon) el.append(glyph(icon)); const words = make('span', label); words.dataset.slot = 'button-label'; el.append(words); return el;
   };
   const text = (value: unknown): string => value == null ? '' : typeof value === 'string' ? value : JSON.stringify(value);
-  /** Common status words a design left in English ("open", "completed") read in Chinese, in a field named like a status. */
-  const STATUS_WORDS: Record<string, string> = { open: '进行中', active: '进行中', in_progress: '进行中', 'in-progress': '进行中', completed: '已完成', complete: '已完成',
-    done: '已完成', closed: '已关闭', cancelled: '已取消', canceled: '已取消', pending: '待处理', todo: '待办', archived: '已归档', draft: '草稿', paused: '已暂停', failed: '失败', succeeded: '成功' };
-  const statusWord = (field: string | undefined, value: unknown): string | undefined => field && /status|state/i.test(field) && typeof value === 'string' ? STATUS_WORDS[value.trim().toLowerCase()] : undefined;
+  /** Machine statuses have shared labels; a record's stored value is still carried separately. */
+  function statusWord(field: string | undefined, value: unknown): string | undefined {
+    if (!field || !/status|state/i.test(field) || typeof value !== 'string') return undefined;
+    switch (value.trim().toLowerCase()) {
+      case 'open': case 'active': case 'in_progress': case 'in-progress': return t.text("common.generated.in-progress");
+      case 'completed': case 'complete': case 'done': return t.text("common.generated.complete");
+      case 'closed': return t.text("common.generated.closed");
+      case 'cancelled': case 'canceled': return t.text("common.generated.cancelled");
+      case 'pending': return t.text("common.generated.pending");
+      case 'todo': return t.text("common.generated.todo");
+      case 'archived': return t.text("common.generated.archived");
+      case 'draft': return t.text("common.generated.draft");
+      case 'paused': return t.text("common.generated.paused");
+      case 'failed': return t.text("common.generated.failed");
+      case 'succeeded': return t.text("common.generated.succeeded");
+      default: return undefined;
+    }
+  }
   /** The exact value beside the words it is shown as, for search and for checks; not read aloud. */
-  const exactly = (value: unknown) => { const exact = make('span', ' ' + text(value), 'pc-sr'); exact.setAttribute('aria-hidden', 'true'); return exact; };
+  const exactly = (value: unknown) => { const exact = raw('span', ' ' + text(value), 'pc-sr'); exact.setAttribute('aria-hidden', 'true'); return exact; };
   /** How a record's field reads: the column's own words for its values, a status in Chinese, 是/否 for a plain boolean. */
-  const shown = (column: { field?: string; values?: Record<string, string> } | undefined, value: unknown): unknown =>
-    column?.values && Object.hasOwn(column.values, text(value)) ? column.values[text(value)] : statusWord(column?.field, value) ?? (typeof value === 'boolean' ? value ? '是' : '否'
+  const shown = (column: { field?: string; values?: Record<string, SandboxVisibleText> } | undefined, value: unknown): unknown =>
+    column?.values && Object.hasOwn(column.values, text(value)) ? word(column.values[text(value)]) : statusWord(column?.field, value) ?? (typeof value === 'boolean' ? value ? t.text("common.generated.yes") : t.text("common.generated.no")
       // A list of words or numbers reads as words ("晨跑、读书"), not as code.
       : Array.isArray(value) && value.every(item => typeof item === 'string' || typeof item === 'number') ? value.join('、') : value);
   /** Model answers often carry light Markdown: show **emphasis**, drop heading marks. Always text nodes, never markup. */
   const prose = <K extends keyof HTMLElementTagNameMap>(tag: K, value: unknown, cls?: string) => {
-    const element = make(tag, undefined, cls), source = text(value).replace(/^#{1,6}\s+/gmu, '');
+    const element = raw(tag, '', cls), source = text(value).replace(/^#{1,6}\s+/gmu, '');
     for (const [index, piece] of source.split(/\*\*([^*\n][^*]*?)\*\*/u).entries()) element.append(index % 2 ? make('strong', piece) : document.createTextNode(piece));
     return element;
   };
@@ -55,11 +92,11 @@ export function pcKit() {
   const moment = (value: string) => {
     const date = new Date(value); if (Number.isNaN(date.getTime())) return make('span', value);
     const now = new Date(), day = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime(), diff = Math.round((day(now) - day(date)) / 86_400_000);
-    const time = String(date.getHours()).padStart(2, '0') + ':' + String(date.getMinutes()).padStart(2, '0');
-    const words = diff === 0 ? '今天 ' + time : diff === 1 ? '昨天 ' + time : diff === -1 ? '明天 ' + time
-      : (date.getFullYear() === now.getFullYear() ? '' : date.getFullYear() + '年') + (date.getMonth() + 1) + '月' + date.getDate() + '日 ' + time;
+    const time = dateArg(value, "time");
+    const words = diff === 0 ? t.text("common.generated.today-time", { time }) : diff === 1 ? t.text("common.generated.yesterday-time", { time })
+      : diff === -1 ? t.text("common.generated.tomorrow-time", { time }) : t.text("common.generated.formatted", { value: dateArg(value, "datetime") });
     const element = make('time', words); element.dateTime = value; element.title = value;
-    const exact = make('span', ' ' + value, 'pc-sr'); exact.setAttribute('aria-hidden', 'true'); element.append(exact); return element;
+    const exact = raw('span', ' ' + value, 'pc-sr'); exact.setAttribute('aria-hidden', 'true'); element.append(exact); return element;
   };
   /** "金额，大于 0" is a name and a hint: the name labels the field, the hint waits inside it. */
   const naming = (description: string | undefined, fallback: string) => { const [name, ...hint] = (description || fallback).split('，'); return { label: name!.trim() || fallback, hint: hint.join('，').trim() }; };
@@ -101,13 +138,13 @@ export function pcKit() {
           for (const row of rows) {
             const bar = make('div', undefined, 'pc-bar'), track = make('div', undefined, 'mw-progress'), fill = make('span'), share = Math.round(Math.abs(row[amount] as number) / top * 100);
             bar.setAttribute('role', 'row'); track.dataset.slot = 'progress'; track.setAttribute('role', 'progressbar'); track.setAttribute('aria-valuemin', '0'); track.setAttribute('aria-valuemax', '100'); track.setAttribute('aria-valuenow', String(share));
-            fill.style.width = share + '%'; track.append(fill); bar.append(make('span', text(shown(undefined, row[label]))), track, make('strong', text(row[amount]))); bars.append(bar);
+            fill.style.width = share + '%'; track.append(fill); bar.append(raw('span', text(shown(undefined, row[label]))), track, raw('strong', text(row[amount]))); bars.append(bar);
           }
           cell.append(bars);
         } else {
           const table = make('table', undefined, 'mw-table pc-table'), head = make('tr'), body = make('tbody');
           for (const field of keys) head.append(make('th', describe(field)));
-          for (const row of rows) { const tr = make('tr'); for (const field of keys) tr.append(make('td', text(shown(undefined, row[field])))); body.append(tr); }
+          for (const row of rows) { const tr = make('tr'); for (const field of keys) tr.append(raw('td', text(shown(undefined, row[field])))); body.append(tr); }
           const thead = make('thead'); thead.append(head); table.append(thead, body); const wrap = make('div', undefined, 'mw-table-wrap pc-table-wrap'); wrap.append(table); cell.append(wrap);
         }
       } else if (value && typeof value === 'object' && !Array.isArray(value) && depth < 2) { tile.classList.add('pc-figures-wide'); cell.append(figures(value as Record<string, unknown>, spec, depth + 1)); }
@@ -118,5 +155,5 @@ export function pcKit() {
     return list;
   }
   const skeleton = (idle: boolean) => { const block = make('div', undefined, 'pc-skeleton'); if (idle) block.dataset.idle = ''; block.setAttribute('aria-hidden', 'true'); for (let index = 0; index < (idle ? 2 : 3); index++) { const bone = make('span', undefined, 'mw-skeleton'); bone.dataset.slot = 'skeleton'; block.append(bone); } return block; };
-  return { make, glyph, button, text, statusWord, exactly, shown, prose, at, TONES, MARKS, MOMENT, TEMPLATE, DAY, moment, naming, picker, chipsFit, badge, typedValue, figures, skeleton };
+  return { make, raw, bindWord, clearBoundWord, refreshWords, glyph, button, text, statusWord, exactly, shown, prose, at, TONES, MARKS, MOMENT, TEMPLATE, DAY, moment, naming, picker, chipsFit, badge, typedValue, figures, skeleton };
 }

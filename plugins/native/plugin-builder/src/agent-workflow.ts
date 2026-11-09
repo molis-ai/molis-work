@@ -1,3 +1,4 @@
+import { freezeStudioUi, studioUiAnswer, type StudioDesignLanguages } from "./agent-ui-text.js";
 import type { AgentPublicationControl, AgentRelease as PublishedAgentRelease } from './agent-model.js';
 import { recheckAgentBuild } from './agent-recheck.js';
 import { publishAgentBuild, buildScope, releaseScope } from './agent-publication.js';
@@ -34,6 +35,7 @@ export interface AgentBuilderPorts {
   resources?: readonly string[];
   models(): Promise<readonly { provider_id: string; model_id: string; label: string }[]>;
   agent(build: AgentBuild, purpose: 'design' | 'code'): Promise<{ run(request: BuilderAgentRequest): Promise<BuilderAgentRecord>; close(): Promise<void>; records(): Promise<BuilderAgentRecord[]> }>;
+  designLanguages?(): StudioDesignLanguages;
   runInLanguage?<T>(run: () => T, recovered: boolean): T;
   /** The ordered standards for this stage, from the same Skill official plugin authors use. */
   skills?(stage: 'design' | 'code' | 'experience' | 'ui' | 'review'): readonly BuilderSkill[];
@@ -261,10 +263,12 @@ export class AgentBuilderWorkflow {
   }
   /** Expands and strictly validates one full design answer (detail or revision). */
   private acceptDesign(id: string, output: string, base: { id: string; title: string; description: string; rationale: string; journey: string[] }, capabilities: CatalogEntry[], resources: string[]) {
-    const value = parseModelJson(output), dropped: string[] = [];
+    const language = this.ports.designLanguages?.();
+    const value = parseModelJson(output, language !== undefined), dropped: string[] = [];
     const design = expandDesign(value, base, 'io.molis.work.generated.' + id, randomUUID(), dropped, capabilities);
     const valid = validateAgentDesign(design, capabilities.map(item => item.id), resources, this.ports.validateContract);
     const source = value && typeof value === 'object' && !Array.isArray(value) && 'design' in value ? (value as { design: unknown }).design : value;
+    if (language) freezeStudioUi(valid, source && typeof source === 'object' && 'uiText' in source ? source.uiText : undefined, language, this.store.require(id).design?.contract.ui?.locales);
     // A change inside an operation that its contract cannot show (e.g. what the model is asked) still reaches the code.
     const rework: Record<string, string> = {};
     const listed = value && typeof value === 'object' && !Array.isArray(value) ? (value as { rework?: unknown }).rework : undefined;
@@ -299,7 +303,8 @@ export class AgentBuilderWorkflow {
     const stepId = 'detail:' + token, { all, catalog, more, resources } = await this.designContext(id, [initial.brief, proposal.title, proposal.description, ...proposal.journey,
       ...proposal.preview.contract.operations.map(operation => operation.description)].join('\n'), picked);
     this.step(id, { id: stepId, agent: 'design', action: 'design', label: '细化「' + proposal.title + '」：功能合同、界面与验收', status: 'active' });
-    const result = await this.designer(id, token, signal, stepId, { mode: 'detail', brief: initial.brief, messages: initial.messages, proposal: sketch, experience, capabilities: catalog, moreCapabilities: more, resources },
+    const result = await this.designer(id, token, signal, stepId, { mode: 'detail', brief: initial.brief, messages: initial.messages, proposal: sketch, experience, capabilities: catalog, moreCapabilities: more, resources,
+      ...(this.ports.designLanguages ? { uiText: studioUiAnswer(this.ports.designLanguages()) } : {}) },
       output => this.acceptDesign(id, output, proposal, all, resources));
     if (experience) result.design.experience = experience;
     await this.adopt(id, token, result, stepId, '主线已确定：' + result.design.contract.operations.length + ' 项功能、' + result.design.parts.length + ' 个界面零件、' + result.design.acceptance.length + ' 条验收');
@@ -349,7 +354,7 @@ export class AgentBuilderWorkflow {
     this.step(id, { id: stepId, agent: 'design', action: 'design', label: hostRequest ? '按验收结果调整界面显示' : '按你的意见修订主线', status: 'active', detail: request.slice(0, 300) });
     const result = await this.designer(id, token, signal, stepId, { mode: 'revise', brief: initial.brief, request, messages: initial.messages, experience: design.experience,
       current: initial.designSource ? JSON.parse(initial.designSource) : { title: design.title, operations: design.contract.operations, parts: design.parts, acceptance: design.acceptance },
-      capabilities: catalog, moreCapabilities: more, resources }, output => this.acceptDesign(id, output, design, all, resources));
+      capabilities: catalog, moreCapabilities: more, resources, ...(this.ports.designLanguages ? { uiText: studioUiAnswer(this.ports.designLanguages(), design.contract.ui?.locales) } : {}) }, output => this.acceptDesign(id, output, design, all, resources));
     const reworked = Object.keys(result.rework);
     await this.adopt(id, token, result, stepId, (hostRequest ? '已按验收调整界面显示；' : '') + describeRevision(design, result.design) + (reworked.length ? '；要改代码：' + reworked.map(item => '「' + operationName(result.design, item) + '」').join('、') : ''));
   }

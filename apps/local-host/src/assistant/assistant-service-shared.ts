@@ -12,7 +12,13 @@ import type { AssistantCharacterChoice, AssistantWorkObject } from "@molis-ai/mo
 import type { WebLocale } from "../web-locale.js";
 import type { AssistantRoundFactPorts } from "./assistant-directory.js";
 import { withinTime } from "./assistant-material-scan.js";
-import type { AgentSkillRegistration, AgentSkillView, SignedAgentReference, SignedAgentInstallation, SignedAgentMaterial } from "@molis-ai/molis-work-contracts/services/agent-definitions";
+import type { SignedAgentReference, SignedAgentInstallation, SignedAgentMaterial, SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
+import type { SkillBodyReadResult, SkillCatalogEntry } from "@molis-ai/molis-work-contracts/services/skills";
+import type { SignedRoleView } from "../agent-definitions/agent-definitions.js";
+import type { SkillUse } from "../agent-definitions/skill-settings.js";
+
+/** A signed installation in a work's scope, and the check that it still is (its record, publisher and pin) before a handoff. */
+export interface SignedBinding { installation: SignedAgentInstallation; assertCurrent(): void }
 import type { StoredWork } from "./assistant-store.js";
 import { assistantErrors } from "./assistant-errors.js";
 import type { MemoryService } from "@molis-ai/molis-work-service-memory";
@@ -48,13 +54,25 @@ export interface AssistantServicePorts extends AssistantLandingPorts, AssistantR
   homeActions?(): Promise<PersonActions>;
   /** The Characters the person published in a project, each saying whether it can run now. */
   characters?(project: LocalHostProjectReference): Promise<AssistantCharacterChoice[]>;
-  /** Methods Plugins offer for business work, as registered with the Host; bodies only by id and version. */
+  /**
+   * What a work may follow (specs/capability-pack/contract-design.md §2.2): the role material running signed packages offer, bound to
+   * the installations in the work's scope, and the shared Skill catalog read as the person for the Assistant.
+   */
   methods?: {
-    list(): AgentSkillView[];
-    read(ownerId: string, skillId: string, version?: number): AgentSkillRegistration;
-    bindSigned?(project: LocalHostProjectReference | undefined, installId: string, ref: SignedAgentReference): Promise<{ installation: SignedAgentInstallation; assertCurrent(): void }>;
-    readSigned?(installId: string, ref: SignedAgentReference): SignedAgentMaterial;
-    recordSignedUse?(material: SignedAgentMaterial, caller: string): void;
+    roles(): SignedRoleView[];
+    /**
+     * The named installations that are in this scope, by install id, bound with one read of the project's and the Home's install
+     * records; `assertCurrent` holds while the installation still runs the signed `source` its roles name.
+     */
+    bindSigned(project: LocalHostProjectReference | undefined, installs: ReadonlyArray<{ install_id: string; source: SignedAgentReference["source"] }>): Promise<ReadonlyMap<string, SignedBinding>>;
+    readSigned(installId: string, ref: SignedAgentReference): SignedAgentMaterial;
+    recordSignedUse(material: SignedAgentMaterial, caller: string): void;
+    /** The Skills the catalog offers the Assistant in this scope and the person turned on (`skills.catalog.list@1`). */
+    skills(project: LocalHostProjectReference | undefined): Promise<SkillCatalogEntry[]>;
+    /** The bodies of the Skills the person named for one round, in one `skills.body.read@1`. */
+    readSkills(project: LocalHostProjectReference | undefined, refs: readonly SkillRef[]): Promise<SkillBodyReadResult[]>;
+    /** A Skill one round accepted, as the catalog's record of uses keeps it. */
+    recordSkillUse(use: SkillUse): void;
   };
   /** The platform memory of this Home (specs/archive/memory-system). Absent: the Assistant keeps and recalls nothing. */
   memory?(...execution: [] | [control: AgentMemoryExecutionControl, bindChangeTarget: NonNullable<MemoryServicePorts["bindChangeTarget"]>]): MemoryService | undefined;

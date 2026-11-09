@@ -195,29 +195,29 @@ test("RAC-2857 Home upgrade retains complete signed registration and current rol
   const h = await fixture(t), publisher = newPublisher();
   await h.install(signedAgentPackage(publisher, { scope: "home" }));
   const before = h.host.homePlugins!.installation(PACKAGE_PLUGIN_ID)!;
-  const entries = () => homeAgentDefinitions(h.home).methods().filter(item => item.owner_id === PACKAGE_PLUGIN_ID);
-  const previous = entries();
-  assert.deepEqual(previous.map(item => item.kind).sort(), ["method", "role"]);
+  // The role is listed once, as role material; the method once, as registered (its reference is the shared catalog's).
+  const roles = () => homeAgentDefinitions(h.home).signedRoles().filter(item => item.owner_id === PACKAGE_PLUGIN_ID);
+  const methods = () => homeAgentDefinitions(h.home).methods().filter(item => item.owner_id === PACKAGE_PLUGIN_ID);
+  const previous = roles();
+  assert.equal(previous.length, 1); assert.equal(methods().length, 1);
   const bodies = { "agent/role.md": "升级后完整的角色正文。", "skills/proofread/SKILL.md": "升级后完整的方法正文。" };
   // The method's body changes, so its Skill version goes up with it (SKC-04: a changed body under the same version is refused).
-  const methods = [packageMethod("proofread", "校对", "逐项核对事实", { version: 2 })];
-  await h.install(signedAgentPackage(publisher, { scope: "home", version: "1.1.0", compatibleFrom: ["1.0.0"], methods, bodies }));
+  await h.install(signedAgentPackage(publisher, { scope: "home", version: "1.1.0", compatibleFrom: ["1.0.0"], methods: [packageMethod("proofread", "校对", "逐项核对事实", { version: 2 })], bodies }));
   const check = () => {
     const installed = h.host.homePlugins!.installation(PACKAGE_PLUGIN_ID)!, registry = homeAgentDefinitions(h.home);
     assert.equal(installed.install_id, before.install_id);
     assert.equal(installed.installation_generation, before.installation_generation);
     assert.equal(installed.version, "1.1.0");
-    const offered = entries();
-    assert.deepEqual(offered.map(item => item.kind).sort(), ["method", "role"]);
+    const [role] = roles(), [method] = methods();
+    assert.equal(roles().length, 1); assert.equal(methods().length, 1);
     assert.ok(registry.prompts().some(item => item.owner_id === PACKAGE_PLUGIN_ID && item.kind === "instruction" && item.prompt_id === "summary"));
     assert.equal(registry.roles().find(item => item.owner_id === PACKAGE_PLUGIN_ID)!.workspace, "none");
-    for (const item of offered) {
-      assert.equal(item.install_id, before.install_id);
-      assert.deepEqual(item.tools, []);
-      assert.deepEqual(item.default_ref!.source, { kind: "plugin", plugin_id: PACKAGE_PLUGIN_ID, plugin_version: "1.1.0", publisher_signature: publisher.identity });
-      assert.equal(registry.signedMaterial(installed.install_id, item.default_ref!).body, bodies[item.kind === "role" ? "agent/role.md" : "skills/proofread/SKILL.md"]);
-    }
-    for (const item of previous) assert.throws(() => registry.signedMaterial(installed.install_id, item.default_ref!), /来源已变化/);
+    assert.equal(role!.install_id, before.install_id); assert.equal(method!.install_id, before.install_id);
+    assert.deepEqual(method!.tools, []);
+    assert.deepEqual(role!.default_ref.source, { kind: "plugin", plugin_id: PACKAGE_PLUGIN_ID, plugin_version: "1.1.0", publisher_signature: publisher.identity });
+    assert.equal(registry.signedMaterial(installed.install_id, role!.default_ref).body, bodies["agent/role.md"]);
+    assert.equal(registry.installation(PACKAGE_PLUGIN_ID, installed.install_id)?.methods?.find(item => item.skill_id === "proofread" && item.version === 2)?.body, bodies["skills/proofread/SKILL.md"]);
+    for (const item of previous) assert.throws(() => registry.signedMaterial(installed.install_id, item.default_ref), /来源已变化/);
   };
   check();
   await h.reopen();

@@ -1,5 +1,6 @@
 import type { MaterialRef } from "../platform/project-materials.js";
-import type { SignedAgentReference, SignedAgentInstallation } from "./agent-definitions.js";
+import type { SignedAgentReference, SignedAgentInstallation, SkillRef } from "./agent-definitions.js";
+import type { SkillCatalogEntry } from "./skills.js";
 import type { AssistantMemoryCandidate, AssistantRoundMemory } from "./assistant-memory.js";
 export type { AssistantMemory, AssistantMemoryCandidate, AssistantMemoryPrefs, AssistantRoundMemory } from "./assistant-memory.js";
 import type { AssistantCard, AssistantPreparedCard } from "./assistant-cards.js";
@@ -221,7 +222,7 @@ export interface AssistantMaterial {
    * owner and reads the text itself before the round (a piece through `knowledge.read`, as the person).
    */
   reference?: { hit_id: string } | { subject: { kind: string; id: string } } | { material: MaterialRef };
-  /** For `method`: the method the person chose with “/” for this round; the Host gives its registered body. */
+  /** For `method`: the Skill or role material the person chose with “/” for this round; the Host reads its body from its owner. */
   method?: AssistantMethodSelection & { name?: string; plugin_title?: string; effective?: "default" | "user"; user_revision?: number | null };
   /** For `image`: the picture the person added, taken in by the runtime (only a reference; the bytes stay there). */
   image?: { resource_id: string; revision: number; media_type: string; byte_length: number };
@@ -598,24 +599,21 @@ export interface AssistantUsage {
   daily_tokens: number | null;
 }
 
-/** A method a Plugin offers for business work that a work in this scope can use (registered with the Host). */
-export interface AssistantMethodSelection {
-  method_id: string;
-  version?: number;
-  default_ref?: SignedAgentReference;
-  installation?: SignedAgentInstallation;
-}
+/**
+ * What the person chose with “/” for one round (specs/capability-pack/contract-design.md §2.2): a Skill of the shared catalog by its exact
+ * reference, or a signed package's role material by its signed default and installation. Nothing else names a method.
+ */
+export type AssistantMethodSelection =
+  | { kind: "skill"; ref: SkillRef }
+  | { kind: "role"; /** `signed/<role_id>`. */ method_id: string; version?: number; default_ref: SignedAgentReference; installation: SignedAgentInstallation };
 
-export interface AssistantMethod extends AssistantMethodSelection {
-  kind?: "role" | "method";
-  /** `<plugin_id>/<skill_id>`. */
-  method_id: string;
-  plugin_id: string;
-  plugin_title: string;
-  version: number;
-  name: string;
-  summary: string;
-}
+/**
+ * What a work in this scope may follow: a Skill the shared catalog (`skills.catalog.list@1`) offers the Assistant here, or a signed
+ * package's role material.
+ */
+export type AssistantMethod =
+  | { kind: "skill"; skill: SkillCatalogEntry }
+  | (Extract<AssistantMethodSelection, { kind: "role" }> & { plugin_id: string; plugin_title: string; version: number; name: string; summary: string });
 
 /**
  * `material`: new items elsewhere (Feed, Inbox…) that share a Goal with the work — a light notice, merged per work.

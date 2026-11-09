@@ -1,6 +1,7 @@
 import { assertMaterialRef } from "@molis-ai/molis-work-plugin-sdk/presentation";
 import type { ActionSubject, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AssistantMaterial, AssistantMethodSelection } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { SignedAgentReference } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { KNOWLEDGE_PROVIDER_ID, KNOWLEDGE_READ_MAX_CHARS, knowledgeActions, type KnowledgeReadResponse } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { assistantErrors } from "./assistant-errors.js";
 
@@ -19,23 +20,31 @@ function pickedReference(value: unknown): AssistantMaterial["reference"] | null 
   return typeof kind === "string" && /^[a-zA-Z0-9_.:-]{1,64}$/u.test(kind) && typeof id === "string" && id && id.length <= 2000 ? { subject: { kind, id } } : null;
 }
 
-/** Keep only bounded locator fields. Their authority is established later against the live installation. */
+const text = (item: unknown, max = 200): item is string => typeof item === "string" && item.length > 0 && item.length <= max;
+const version = (item: unknown): item is number => Number.isSafeInteger(item) && (item as number) >= 1;
+const signedSource = (source: SignedAgentReference["source"] | undefined): SignedAgentReference["source"] | null => source?.kind === "plugin" && text(source.plugin_id)
+  && text(source.plugin_version) && text(source.publisher_signature) ? { kind: "plugin", plugin_id: source.plugin_id, plugin_version: source.plugin_version, publisher_signature: source.publisher_signature } : null;
+
+/**
+ * What the person chose with “/”, kept to bounded locator fields: a Skill's exact `SkillRef`, or a signed role's default and installation.
+ * Their authority is established later against the catalog and the live installation.
+ */
 export function checkedMethodSelection(value: unknown): AssistantMethodSelection {
   const row = value as AssistantMethodSelection | undefined;
-  if (!row || typeof row.method_id !== "string" || !/^[^\/\s]{1,120}\/[^\/\s]{1,80}$/.test(row.method_id)
-    || row.version !== undefined && (!Number.isSafeInteger(row.version) || row.version < 1)) throw assistantErrors.invalid("角色资料或方法引用无效");
-  const base = { method_id: row.method_id, ...(row.version === undefined ? {} : { version: row.version }) };
-  if (!row.method_id.startsWith("signed/")) {
-    if (row.default_ref !== undefined || row.installation !== undefined) throw assistantErrors.invalid("原生方法不能携带签名来源");
-    return base;
-  }
-  const ref = row.default_ref, source = ref?.source, installation = row.installation;
-  const text = (item: unknown, max: number): item is string => typeof item === "string" && item.length > 0 && item.length <= max;
-  if (!ref || !["role", "method"].includes(ref.kind) || !text(ref.entry_id, 71) || row.method_id !== `signed/${ref.entry_id}`
-    || !source || source.kind !== "plugin" || !text(source.plugin_id, 200) || !text(source.plugin_version, 200) || !text(source.publisher_signature, 200)
-    || !installation || !text(installation.install_id, 200) || !text(installation.installation_generation, 200)
-    || installation.project_id !== null && !text(installation.project_id, 200)) throw assistantErrors.invalid("签名正文必须携带完整版本与安装引用");
-  return { ...base, default_ref: { kind: ref.kind, entry_id: ref.entry_id, source: { kind: "plugin", plugin_id: source.plugin_id, plugin_version: source.plugin_version, publisher_signature: source.publisher_signature } },
+  if (row?.kind === "role") return checkedRoleSelection(row);
+  const ref = row?.kind === "skill" ? row.ref : undefined, source = signedSource(ref?.source);
+  if (!ref || !source || !text(ref.skill_id) || !version(ref.version) || !text(ref.install_id) || !text(ref.installation_generation)) throw assistantErrors.invalid("技能引用无效");
+  return { kind: "skill", ref: { source, skill_id: ref.skill_id, version: ref.version, install_id: ref.install_id, installation_generation: ref.installation_generation } };
+}
+
+/** A signed role's material by its exact default and installation; nothing else names one. */
+export function checkedRoleSelection(value: unknown): Extract<AssistantMethodSelection, { kind: "role" }> {
+  const row = value as Partial<Extract<AssistantMethodSelection, { kind: "role" }>> | undefined;
+  const ref = row?.default_ref, source = signedSource(ref?.source), installation = row?.installation;
+  if (!row || !ref || ref.kind !== "role" || !source || !text(ref.entry_id, 71) || row.method_id !== `signed/${ref.entry_id}` || row.version !== undefined && !version(row.version)
+    || !installation || !text(installation.install_id) || !text(installation.installation_generation)
+    || installation.project_id !== null && !text(installation.project_id)) throw assistantErrors.invalid("角色资料必须携带完整版本与安装引用");
+  return { kind: "role", method_id: row.method_id, ...(row.version === undefined ? {} : { version: row.version }), default_ref: { kind: "role", entry_id: ref.entry_id, source },
     installation: { install_id: installation.install_id, installation_generation: installation.installation_generation, project_id: installation.project_id } };
 }
 

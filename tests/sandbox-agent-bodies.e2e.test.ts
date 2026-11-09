@@ -10,6 +10,7 @@ import { issueModel } from "./fixtures/issue-model.js";
 import { newPublisher, packageMethod, signedAgentPackage, PACKAGE_PLUGIN_ID } from "./fixtures/sandbox-package.js";
 import { waitWork } from "./fixtures/assistant-send-journey.js";
 import { CURRENT_WORK } from "./fixtures/assistant-current-work.js";
+import { roleOf } from "./fixtures/assistant-roles.js";
 
 test("RAC-2636/2640/2641/2643 signed File preview and real picker preserve boundary names and source through model handoff", { skip: process.platform !== "darwin", timeout: 150_000 }, async t => {
   let model!: Awaited<ReturnType<typeof issueModel>>;
@@ -72,10 +73,13 @@ test("RAC-2636/2640/2641/2643 signed File preview and real picker preserve bound
   await select(other, "other-plugin"); await confirm();
   await browser.setViewport(1440, 1000); await go("/");
   await browser.waitFor(`document.querySelector('.chooser')?.dataset.selected === ${JSON.stringify(browser.projectId)}`);
+  // The package's method is a Skill of the shared catalog: offered to the Assistant once the person turns it on (09 §2.2).
+  const registry = homeAgentDefinitions(browser.homeDirectory), sameName = registry.methods().find(item => item.owner_id === PACKAGE_PLUGIN_ID && item.skill_id === "same-name")!;
+  assert.equal(registry.skills.set(browser.projectId, sameName.install_id!, sameName.skill_id, "auto", 0, "web-user"), "ok");
   const list = await browser.evaluate<{ methods: AssistantMethod[] }>(`fetch('/projects/${browser.projectId}/api/assistant/methods').then(response=>response.json())`);
-  const own = list.methods.filter(item => item.plugin_id === PACKAGE_PLUGIN_ID);
-  for (const name of names) assert.ok(own.some(item => item.name === name && item.default_ref?.source.plugin_version === "1.2.0"));
-  assert.ok(list.methods.filter(item => item.name === names[0]).length >= 2);
+  const own = list.methods.filter(roleOf(PACKAGE_PLUGIN_ID));
+  for (const name of names) assert.ok(own.some(item => item.name === name && item.default_ref.source.plugin_version === "1.2.0"));
+  assert.ok(list.methods.filter(item => (item.kind === "skill" ? item.skill.name : item.name) === names[0]).length >= 2);
   // K3: "/" on an empty line opens the unified composer's menu, which lists the methods and Character material by name.
   const slash = "(() => {const input=document.querySelector('[data-assistant-composer] .mw-composer__input');input.focus();input.value='/';input.setSelectionRange(1,1);input.dispatchEvent(new InputEvent('input',{bubbles:true,data:'/',inputType:'insertText'}));})()";
   const commands = "[...document.querySelectorAll('[data-assistant-composer] [data-compose-menu] [data-composer-command]')]";

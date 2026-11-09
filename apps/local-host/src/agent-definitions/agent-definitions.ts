@@ -40,6 +40,18 @@ CREATE INDEX prompt_uses_by_key ON prompt_uses(key, at);${SKILL_TABLES_SQL}`,
 
 const agentDefinitionsErrors = defineErrorCodes("agent_definitions", { not_found: "not_found", invalid: "invalid", conflict: "conflict" });
 
+/** A running signed package's role in one installation, with the signed default its material is read by. */
+export interface SignedRoleView {
+  install_id: string;
+  owner_id: string;
+  source: AgentDefinitionSource;
+  role_id: string;
+  version: number;
+  name: string;
+  purpose: string;
+  default_ref: SignedAgentReference;
+}
+
 interface Override { default_ref: string | null; key: string; revision: number; base_version: number; body: string; updated_at: string; actor_id: string }
 
 const keyOf = (ownerId: string, promptId: string) => `${ownerId}/${promptId}`;
@@ -164,39 +176,29 @@ export class AgentDefinitions {
     return this.view(owner, prompt);
   }
 
-  /** Methods owners offer to other Agents for business work; the body is read with `method`. A plugin that is not running offers none. */
+  /**
+   * Methods running owners declare for business work, one per declaring installation for a signed package's. Not a reference: who may
+   * read one, and its exact `SkillRef`, are the shared catalog's (`skills.catalog.list@1`), which reads the bodies with `installation`.
+   */
   methods(): AgentSkillView[] {
-    const native = [...this.owners.values()].filter(owner => offering(owner) && !(owner.source.kind === "plugin" && owner.source.publisher_signature)).flatMap(owner => (owner.methods ?? []).map(method => ({ key: keyOf(owner.owner_id, method.skill_id), owner_id: owner.owner_id,
-      source: structuredClone(owner.source), skill_id: method.skill_id, version: method.version, name: method.name, summary: method.summary, tools: [...method.tools] })));
-    return [...native, ...[...this.scopes.values()].flatMap(scopes => [...scopes].flatMap(([install_id, owner]): AgentSkillView[] => {
-      const source = owner.source;
-      if (!offering(owner) || source.kind !== "plugin" || !source.publisher_signature) return [];
-      const signedSource = { kind: "plugin" as const, plugin_id: source.plugin_id, plugin_version: source.plugin_version, publisher_signature: source.publisher_signature };
-      const entries = [...owner.roles.map(role => ({ skill_id: role.role_id, version: role.version, name: role.name, summary: role.purpose, tools: [] as string[], kind: "role" as const })),
-        ...(owner.methods ?? []).map(method => ({ ...method, kind: "method" as const }))];
-      return entries.map(entry => ({ key: `signed/${entry.skill_id}`, owner_id: owner.owner_id, source: structuredClone(source), skill_id: entry.skill_id,
-        version: entry.version, name: entry.name, summary: entry.summary, tools: [...entry.tools], kind: entry.kind, install_id,
-        default_ref: { source: signedSource, kind: entry.kind, entry_id: entry.skill_id } }));
-    }))];
+    const view = (owner: AgentDefinitionRegistration, method: AgentSkillRegistration, install_id?: string): AgentSkillView => ({ key: keyOf(owner.owner_id, method.skill_id),
+      owner_id: owner.owner_id, source: structuredClone(owner.source), skill_id: method.skill_id, version: method.version, name: method.name, summary: method.summary,
+      tools: [...method.tools], ...(install_id ? { install_id } : {}) });
+    const native = [...this.owners.values()].filter(owner => offering(owner) && !signedSourceOf(owner)).flatMap(owner => (owner.methods ?? []).map(method => view(owner, method)));
+    return [...native, ...signedScopes(this.scopes).flatMap(([install_id, owner]) => (owner.methods ?? []).map(method => view(owner, method, install_id)))];
   }
 
-  /** One registered method with its body, by owner, id and (when given) exact version. */
-  method(ownerId: string, skillId: string, version?: number): AgentSkillRegistration {
-    const owner = this.owners.get(ownerId), method = owner && offering(owner) ? owner.methods?.find(item => item.skill_id === skillId) : undefined;
-    if (!method || (version !== undefined && method.version !== version)) throw agentDefinitionsErrors.not_found("没有登记这个方法版本");
-    return structuredClone(method);
+  /** Each running signed package's roles, per installation: the role material a round may be handed (`signedMaterial`). */
+  signedRoles(): SignedRoleView[] {
+    return signedScopes(this.scopes).flatMap(([install_id, owner]) => owner.roles.map(role => ({ install_id, owner_id: owner.owner_id, source: structuredClone(owner.source),
+      role_id: role.role_id, version: role.version, name: role.name, purpose: role.purpose, default_ref: { source: signedSourceOf(owner)!, kind: "role" as const, entry_id: role.role_id } })));
   }
 
-  /** Read the selected installation, never the settings aggregation or a newer default. No use is recorded here. */
+  /** Read the selected installation's role, never the settings aggregation or a newer default. No use is recorded here. */
   signedMaterial(installId: string, ref: SignedAgentReference): SignedAgentMaterial {
     const owner = this.scopes.get(ref.source.plugin_id)?.get(installId), source = owner?.source;
     if (!owner || !offering(owner) || source?.kind !== "plugin" || source.plugin_version !== ref.source.plugin_version
       || source.publisher_signature !== ref.source.publisher_signature) throw agentDefinitionsErrors.not_found("签名正文来源已变化，请重新选择");
-    if (ref.kind === "method") {
-      const method = owner.methods?.find(item => item.skill_id === ref.entry_id);
-      if (!method) throw agentDefinitionsErrors.not_found("没有登记这个方法版本");
-      return { default_ref: structuredClone(ref), effective: "default", user_revision: null, body: method.body };
-    }
     const role = owner.roles.find(item => item.role_id === ref.entry_id);
     const prompt = role && owner.prompts.find(item => role.prompt_ids.includes(item.prompt_id) && sameRef(item.default_ref, ref));
     if (!prompt) throw agentDefinitionsErrors.not_found("没有登记这个角色资料版本");
@@ -206,7 +208,6 @@ export class AgentDefinitions {
 
   /** Called only after an accepted handoff; a later withdrawal does not erase the accepted historical fact. */
   recordSignedUse(material: SignedAgentMaterial, caller: string): void {
-    if (material.default_ref.kind !== "role") return;
     const ref = material.default_ref;
     this.recordUse({ key: keyOf(ref.source.plugin_id, `prompt-${ref.entry_id.slice("role-".length)}`), source_ref: ref,
       version: /* @version format.sandbox.agent-prompt */ 1, user_revision: material.user_revision, caller, at: this.now().toISOString() });
@@ -368,6 +369,12 @@ const registries = new Map<string, AgentDefinitions>(), declarations = new Map<s
 
 /** Whether an owner's methods are offered: not while its plugin does not run (a remembered declaration, PG-051 RAC-196). */
 const offering = (owner: AgentDefinitionRegistration) => owner.source.kind !== "plugin" || owner.source.state !== "disabled";
+/** A signed package's source, as its role material names it; none for the system and an unsigned Plugin. */
+const signedSourceOf = ({ source }: AgentDefinitionRegistration): SignedAgentReference["source"] | undefined => source.kind === "plugin" && source.publisher_signature
+  ? { kind: "plugin", plugin_id: source.plugin_id, plugin_version: source.plugin_version, publisher_signature: source.publisher_signature } : undefined;
+/** Running signed installations across scopes, each with its install id. */
+const signedScopes = (scopes: ReadonlyMap<string, ReadonlyMap<string, AgentDefinitionRegistration>>): Array<[string, AgentDefinitionRegistration]> =>
+  [...scopes.values()].flatMap(scope => [...scope].filter(([, owner]) => offering(owner) && signedSourceOf(owner)));
 
 /** The Home's remembered installation declarations (PG-051 Q1 b), opened once. */
 export function agentDeclarationsFor(homeDirectory: string): AgentDeclarations {

@@ -30,6 +30,14 @@
 
 B 先用真实工作台、Issues 侧栏的现有插件 frame 与 Builder 候选板走通外观链。B 的文字仍走现有入口。组件元数据从 `PLUGIN_COMPONENTS` 搬到共同规格，由真实实现提供 kind 绑定，标准板和 Builder 用同一个投影。Folio 正式视觉沿 2026-11-08 确认的「杏纸与常青」（grove）。定样指导实现，真实工作台的浅深色和交互仍按 FSS-02/17 验收。Resource Han Rounded v1.910、Nunito 的生产裁法、实际加载与资源增长许可另取证。
 
+### B2 实施接力
+
+- **共同规格与组件绑定（FSS-05、26）。** `UiSpecFile.components` 收现有 `PLUGIN_COMPONENTS` 的 `kind`、`catalog`、`name`、`description`、`group`、`use`、`intents`、`data`、`icon`。名称和说明用 `TextRef`，B 以现有中文原文和 `L` 展示，C 在统一切换窗口迁稳定键。SDK 解析时拒绝重复 kind、未知字段、非法枚举和引用。Design System 以组件板的真实标本及生成页的实现核对 kind，保留代码里的渲染与合法操作绑定。标准板索引和 Builder 候选板消费同一份元数据投影，组件的状态和变体由对应标本展示。按 [A §3.3](a-section-contract.md)，这一阶段规格文件沿用 `format_version: 1`。
+- **可用的文字角色（FSS-01、16–18）。** `UiFontRole` 加 `size_px` 与无量纲 `line_height`，均为有限数值，范围分别为 10–64 和 1–3。规格在 `UiFontRoleSpec.tokens` 声明 `size` 与 `line_height` 的令牌，补 `reading` 与 `note`，与 `body`、`control`、`title`、`display`、`code` 一起由 SDK 解析。基线为各角色给出尺寸、行高、字体、真实字重与字距的有效值，其他方案缺项从同一基线补。Design System `typeface` 和共有控件消费正文、控件、标题与说明角色，Workbench 阅读面和样张消费 `reading`，代码、Diff 和终端消费独立的 `code` 角色。选择 Menlo 只替换等宽角色，系统字族不可用时用声明的后备。原控件最小高度、触控下限和内容显式格式仍由各自规则约束。
+- **同一份已校验外观（FSS-02、07、20、23）。** Owner 在现有有效选择解析里带出准确的 `resolvedSkin`、`font` 和 `mono`，含回退结果，复用 SDK 的 `resolveSkin`、`resolveFontScheme`、`resolveUiEnvironment` 和令牌、face 输出。Host 从本次请求的语言和一次有效投影拿快照与准确样式引用，页面只合并设备状态。用于首屏的选中投影由 owner 在正式选择变化时失效。候选和已提交回执可从同一批已校验内置定义取得对应投影。页面、候选样张和 frame 共用这份资源解析，CSS 从登记定义生成。换用前准备实际需要的 face，启动时先用声明的后备字体等待资源加载。Soft Workbench 默认打开时不请求 Folio 字体。
+- **同一文档和 Home 的失效流（FSS-08、20、28）。** 浏览器以现有页面证明走同源 `molisWorkRequest` 的 `GET` 原始响应，复用 [`plugin-frame/events.ts`](../../apps/workbench/src/browser/plugin-frame/events.ts) 的 SSE 解析。Host 先核会话和页面证明与当前 Home 一致，再订阅已装配的 owner。流只发 `selection_revision`，初连据此补齐首绘与订阅之间的变化。断开、撤权、切 Home、关服或文档离开时解除旧订阅。暂时断线重连和隐藏恢复都用原页面证明，重读合并为一次，旧页面遇到换 Home 或会话失效即停。写回执与流消息交错时，发起者直接使用回执并消化本次修订，其他文档合并重读，晚到准备结果随修订作废。
+- **应急恢复（FSS-32）。** 设置外的工作台入口与 Mac 菜单打开同一个使用固定 Soft Workbench 投影的恢复 Dialog。Mac 沿现有可信主 WebView 桥触发打开，核对目标窗口和本机 Origin，主文档及草稿原地保留。用户在 Dialog 内确认后走同一 `appearance.selection.apply@1` 的 `restore`，仍按回执支持撤销和断开后核对。Dialog 采用独立的基线作用域、常规焦点与 Escape 规则，操作反馈区分正式保存和本窗更新，语言和设备偏好沿原入口读取。
+
 ## C 段　一次更换运行中的文字入口
 
 ### 主人、批量加载和安装

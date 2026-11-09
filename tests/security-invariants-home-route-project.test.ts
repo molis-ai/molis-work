@@ -1,3 +1,4 @@
+import { projectPluginRevisionAt } from "./fixtures/project-plugin-settings.js";
 // RAC-20: streaming preserves the Host-issued project identity.
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
@@ -86,10 +87,10 @@ test("S-31 a Home plugin's route under a project's path runs in that project; wi
 
 test("S-31 a project that does not exist, or that hides the plugin, refuses the route before it runs", { timeout: 60_000 }, async t => {
   const probe = homeProbe("routeprobe");
-  const { home, host, request, project } = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } });
+  const { home, host, origin, request, project } = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } });
   await grantHomeProbe(host, probe);
   const shown = await project("显示 Issue"), hidden = await project("隐藏 Issue");
-  const hide = await request(`/api/settings/projects/${hidden.project_id}/plugins`, { method: "DELETE", body: { plugin_id: "issues" } });
+  const hide = await request(`/api/settings/projects/${hidden.project_id}/plugins`, { method: "DELETE", body: { plugin_id: "issues", expected_revision: await projectPluginRevisionAt(origin, hidden.project_id) } });
   assert.equal(hide.status, 200, await hide.clone().text());
   assert.deepEqual((await hide.json()).hidden, ["issues"]);
   const create = (projectId: string) => request(`/projects/${encodeURIComponent(projectId)}/api/plugins/${ISSUES_PLUGIN_ID}/create`, { method: "POST", body: issue });
@@ -109,7 +110,7 @@ test("S-31 a project that does not exist, or that hides the plugin, refuses the 
   assert.equal((await probeShown.json()).project_id, hidden.project_id);
   assert.deepEqual(probe.routed, [hidden.project_id], "the successful HTTP request reached the route handler");
   assert.deepEqual(probe.seen.map(call => call.project_id), [hidden.project_id], "the successful route reached the action handler");
-  const hideProbe = await request(`/api/settings/projects/${hidden.project_id}/plugins`, { method: "DELETE", body: { plugin_id: probe.id } });
+  const hideProbe = await request(`/api/settings/projects/${hidden.project_id}/plugins`, { method: "DELETE", body: { plugin_id: probe.id, expected_revision: await projectPluginRevisionAt(origin, hidden.project_id) } });
   assert.equal(hideProbe.status, 200, await hideProbe.clone().text());
   assert.ok((await hideProbe.json()).hidden.includes(probe.id));
   const probeHidden = await probeIn(hidden.project_id);
@@ -122,7 +123,7 @@ test("S-31 a project that does not exist, or that hides the plugin, refuses the 
   assert.equal((await probeElsewhere.json()).project_id, shown.project_id);
   assert.deepEqual(probe.routed, [hidden.project_id, shown.project_id]);
   assert.deepEqual(probe.seen.map(call => call.project_id), [hidden.project_id, shown.project_id]);
-  const unhideProbe = await request(`/api/settings/projects/${hidden.project_id}/plugins`, { method: "POST", body: { plugin_id: probe.id } });
+  const unhideProbe = await request(`/api/settings/projects/${hidden.project_id}/plugins`, { method: "POST", body: { plugin_id: probe.id, expected_revision: await projectPluginRevisionAt(origin, hidden.project_id) } });
   assert.equal(unhideProbe.status, 200, await unhideProbe.clone().text());
   const probeRestored = await probeIn(hidden.project_id);
   assert.equal(probeRestored.status, 200, await probeRestored.clone().text());
@@ -130,7 +131,7 @@ test("S-31 a project that does not exist, or that hides the plugin, refuses the 
   assert.deepEqual(probe.routed, [hidden.project_id, shown.project_id, hidden.project_id], "unhiding restores the next route call");
   assert.deepEqual(probe.seen.map(call => call.project_id), [hidden.project_id, shown.project_id, hidden.project_id]);
   // Only the Host's Home registration says which ids are such plugins: an id it does not register cannot be hidden, whatever the request says.
-  const hideUnknown = await request(`/api/settings/projects/${hidden.project_id}/plugins`, { method: "DELETE", body: { plugin_id: "io.molis.work.example.unregistered" } });
+  const hideUnknown = await request(`/api/settings/projects/${hidden.project_id}/plugins`, { method: "DELETE", body: { plugin_id: "io.molis.work.example.unregistered", expected_revision: await projectPluginRevisionAt(origin, hidden.project_id) } });
   assert.equal(hideUnknown.status, 400, await hideUnknown.clone().text());
   assert.equal((await hideUnknown.json()).code, "catalog.plugin_not_found");
   const probeAlone = await request(`/api/plugins/${probe.id}/state?project_id=${encodeURIComponent(shown.project_id)}`);
@@ -183,7 +184,7 @@ test("S-31 a plugin cannot name the project itself: a project on a control the H
 });
 
 test("S-31 a project that hides the plugin while its route waits gets no write", { timeout: 60_000 }, async t => {
-  const { home, host, request, project } = await serveHomeRuntime(t);
+  const { home, host, origin, request, project } = await serveHomeRuntime(t);
   const one = await project("等待中隐藏");
   const route = await issueCreateRoute(host), original = route.handle.bind(route);
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
@@ -191,7 +192,7 @@ test("S-31 a project that hides the plugin while its route waits gets no write",
   route.handle = async routed => { entered.resolve(); await release.promise; return original(routed); };
   const pending = request(`/projects/${one.project_id}/api/plugins/${ISSUES_PLUGIN_ID}/create`, { method: "POST", body: issue });
   await entered.promise;
-  const hide = await request(`/api/settings/projects/${one.project_id}/plugins`, { method: "DELETE", body: { plugin_id: "issues" } });
+  const hide = await request(`/api/settings/projects/${one.project_id}/plugins`, { method: "DELETE", body: { plugin_id: "issues", expected_revision: await projectPluginRevisionAt(origin, one.project_id) } });
   assert.equal(hide.status, 200, await hide.clone().text());
   release.resolve();
   const response = await pending;

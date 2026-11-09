@@ -9,7 +9,7 @@ export function reconcileSkillSettings(home: string, scope: string, installId: s
   if (!scopes.length) return;
   if (scope === "home") {
     const projects = new Set(scopes.filter(value => value !== "home"));
-    const independent = new Set(heldInstalls(home, undefined, projects).filter(row => row.scope.kind === "project" && row.record.install_id === installId && row.record.state !== "uninstalled")
+    const independent = new Set(heldInstalls(home, undefined, { home: false, projects }).filter(row => row.scope.kind === "project" && row.record.install_id === installId && row.record.state !== "uninstalled")
       .map(row => row.scope.kind === "project" ? row.scope.project_id : "home"));
     scopes = scopes.filter(value => !independent.has(value));
   }

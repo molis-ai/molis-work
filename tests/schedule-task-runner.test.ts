@@ -1,3 +1,4 @@
+import { projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 import assert from "node:assert/strict";
 import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
@@ -87,7 +88,7 @@ test("SYS-15-S7/A3: disabling Schedule during the actual model request cancels i
   const f = await scheduledAgent(t, { hold: true }), before = f.task().turns;
   const ticking = f.tick();
   await f.entered;
-  await f.web.delete(`/api/settings/projects/${encodeURIComponent(f.project.project_id)}/plugins`, { plugin_id: "schedule" });
+  await f.web.delete(`/api/settings/projects/${encodeURIComponent(f.project.project_id)}/plugins`, { plugin_id: "schedule", expected_revision: await projectPluginRevision(f.web, f.project.project_id) });
   await f.disconnected; f.release(); await ticking;
   assert.deepEqual(f.task().turns, before);
   assert.equal(createLocalFeedApplication(f.store.db).snapshot(f.project.project_id).feed_items.length, 0);

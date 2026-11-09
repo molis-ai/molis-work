@@ -476,6 +476,78 @@
     "reason": "C-3 合同片只声明，提供方 system.surfaces 由第 15 批 S-1 登记，所以动作快照里还没有行；登记之后这条例外不再需要，门禁会要求删掉。"
   },
   {
+    "entry": "action.characters.from_template",
+    "reason": "P-2b 仅发布角色采用合同；第 36 批 Characters 实际登记后删除本条。"
+  },
+  {
+    "entry": "action.characters.roles.read",
+    "reason": "P-2b 仅发布角色批读合同；第 36 批 Characters 实际登记后删除本条。"
+  },
+  {
+    "entry": "action.blueprints.adoption.apply",
+    "reason": "P-3c 仅发布场景动作合同；第 44 批 system.blueprints 实际登记后删除本条。"
+  },
+  {
+    "entry": "action.blueprints.adoption.preview",
+    "reason": "P-3c 仅发布场景动作合同；第 44 批 system.blueprints 实际登记后删除本条。"
+  },
+  {
+    "entry": "action.blueprints.adoption.read",
+    "reason": "P-3c 仅发布场景动作合同；第 44 批 system.blueprints 实际登记后删除本条。"
+  },
+  {
+    "entry": "action.blueprints.adoption.remove",
+    "reason": "P-3c 仅发布场景动作合同；第 44 批 system.blueprints 实际登记后删除本条。"
+  },
+  {
+    "entry": "action.blueprints.adoption.revert",
+    "reason": "P-3c 仅发布场景动作合同；第 44 批 system.blueprints 实际登记后删除本条。"
+  },
+  {
+    "entry": "action.blueprints.drafts.read",
+    "reason": "P-3c 仅发布场景动作合同；第 44 批 system.blueprints 实际登记后删除本条。"
+  },
+  {
+    "entry": "action.blueprints.drafts.save",
+    "reason": "P-3c 仅发布场景动作合同；第 44 批 system.blueprints 实际登记后删除本条。"
+  },
+  {
+    "entry": "action.blueprints.packs.save",
+    "reason": "P-3c 仅发布场景动作合同；第 44 批 system.blueprints 实际登记后删除本条。"
+  },
+  {
+    "entry": "action.home.pages.adopt",
+    "reason": "P-4 仅发布生成首页动作合同；第 37 批 system.home 实际登记后删除本条。"
+  },
+  {
+    "entry": "action.home.pages.diff",
+    "reason": "P-4 仅发布生成首页动作合同；第 37 批 system.home 实际登记后删除本条。"
+  },
+  {
+    "entry": "action.home.pages.drafts.save",
+    "reason": "P-4 仅发布生成首页动作合同；第 37 批 system.home 实际登记后删除本条。"
+  },
+  {
+    "entry": "action.home.pages.files.read",
+    "reason": "P-4 仅发布生成首页动作合同；第 37 批 system.home 实际登记后删除本条。"
+  },
+  {
+    "entry": "action.home.pages.preview",
+    "reason": "P-4 仅发布生成首页动作合同；第 37 批 system.home 实际登记后删除本条。"
+  },
+  {
+    "entry": "action.home.pages.restore",
+    "reason": "P-4 仅发布生成首页动作合同；第 37 批 system.home 实际登记后删除本条。"
+  },
+  {
+    "entry": "action.home.read",
+    "reason": "P-4 仅发布生成首页动作合同；第 37 批 system.home 实际登记后删除本条。"
+  },
+  {
+    "entry": "action.home.select",
+    "reason": "P-4 仅发布生成首页动作合同；第 37 批 system.home 实际登记后删除本条。"
+  },
+  {
     "row": "functions.published.system_admit_inbox",
     "reason": "内置判断规则发布后的动作，版本是规则记录自身的发布修订号，运行时才有，不是自有版本。"
   },

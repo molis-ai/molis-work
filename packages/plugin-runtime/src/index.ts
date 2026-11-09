@@ -6,7 +6,7 @@ export { definitionOrigin, isFrozenRegisteredManifest, platformDefinition } from
 import { assertContributionMatchesManifest, offeredManifest, redemptionIn, type RedemptionScope } from "./contribution.js";
 import { definitionOrigin, platformDefinition } from "./platform-definitions.js";
 import { pluginManifestDigest } from "./identity.js";
-import { abandonRefusal, assertMutable, followHostBuild, installationGrants, normalizeGrants, prepareInstallationData, recordToFollow, saveInstalled, validateInstalledManifest, assertStartable, type DeclarationOwners } from "./install-rules.js";
+import { abandonRefusal, assertMutable, followHostBuild, installationGrants, normalizeGrants, prepareInstallationData, recordToFollow, saveInstalled, assertDeclarationsFree, assertStartable, holdsInstalledEdition, versionChangeRecord, type DeclarationOwners } from "./install-rules.js";
 import { assertRuleKeysUnreserved, isHostTrust, type InProcessAdmission } from "./trust-rules.js";
 import { actionProviderId, assertInstallIdentity, assertStartIdentity, isIdentityFailure } from "./install-identity.js";
 import { InstallLocks } from "./install-locks.js";
@@ -24,6 +24,7 @@ import { regrantInstall } from "./regrant.js";
 import { assertPluginUpgradeStepsAdmitted } from "./plugin-upgrade-steps.js";
 
 export * from "./public-api.js";
+export { holdsInstalledEdition, type DeclarationOwner, type DeclarationOwners } from "./install-rules.js";
 
 import type { PluginConsentGrant, PluginTrust } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import type {
@@ -122,10 +123,11 @@ export class PluginRuntime implements PluginRuntimeApi {
   private installRecord(input: PluginInstallInput, trust: PluginTrust): PluginLifecycleReceipt {
     const host = isHostTrust(trust);
     const manifest = input.definition.manifest;
-    validateInstalledManifest(manifest, this.options.declarationOwners);
+    validateManifest(manifest);
+    const installId = installIdentity(manifest);
+    assertDeclarationsFree(manifest, installId, this.options.declarationOwners);
     assertPluginUpgradeStepsAdmitted(manifest, trust.level);
     const entrypoint = selectedEntrypoint(manifest, input.deployment);
-    const installId = installIdentity(manifest);
     const current = this.repository.get(installId);
     if (current?.state === "uninstalled" && this.locks.busy(installId)) throw pluginErrors.state_invalid("Plugin 卸载尚未完成，请等待卸载完成后再安装");
     if (input.definition.execution === "sandbox" && input.grants === undefined) throw pluginErrors.grant_denied("生成插件安装需要明确授权清单，且不能当作随宿主发布的插件授予全部权限");
@@ -133,6 +135,9 @@ export class PluginRuntime implements PluginRuntimeApi {
     if (current && current.state !== "uninstalled" && current.publisher_trust !== trust.level) throw pluginErrors.definition_conflict("不能改变已安装插件的安装信任等级");
     const digest = pluginManifestDigest(manifest);
     const follow = recordToFollow(current, manifest, digest, host);
+    if (!follow && current && current.state !== "uninstalled" && manifest.settings_entries?.entries.length && current.manifest_digest !== digest) {
+      throw pluginErrors.upgrade_required("设置声明必须属于已安装的发行版本，请先确认升级");
+    }
     if (!follow && current && current.version === manifest.version && current.manifest_digest !== digest) {
       const compatibleSameVersion = current.state !== "uninstalled"
         && (manifest.upgrade_compatibility?.compatible_from_versions ?? []).includes(current.version);
@@ -233,8 +238,9 @@ export class PluginRuntime implements PluginRuntimeApi {
     const input = { ...given, definition: platformDefinition(given.definition) }; return this.locks.run(input.install_id, async () => {
       input.assertCurrent?.();
       const target = input.definition.manifest;
-      validateInstalledManifest(target, this.options.declarationOwners);
+      validateManifest(target);
       const current = requireInstall(this.repository, input.install_id);
+      assertDeclarationsFree(target, current.install_id, this.options.declarationOwners);
       assertPluginUpgradeStepsAdmitted(target, current.publisher_trust);
       if (current.execution !== (input.definition.execution ?? "host")) throw pluginErrors.definition_conflict("不能在升级时改变执行信任边界");
       if (rollbackCode && current.execution !== "sandbox") throw pluginErrors.state_invalid("代码回滚只适用于隔离的生成插件");
@@ -273,7 +279,8 @@ export class PluginRuntime implements PluginRuntimeApi {
       const stopped = requireInstall(this.repository, input.install_id);
       const oldDefinition = this.definitions.get(definitionKey(stopped));
       let privateDataSnapshot: unknown;
-      let hasPrivateDataSnapshot = false;
+      let hasPrivateDataSnapshot = false, recoverable = stopped;
+      let releaseSettings: (() => void) | undefined;
       try {
         input.assertCurrent?.();
         if (current.execution !== "sandbox" && this.executor.capturePrivateData && this.executor.restorePrivateData) {
@@ -302,28 +309,17 @@ export class PluginRuntime implements PluginRuntimeApi {
         }
 
         input.assertCurrent?.();
+        assertDeclarationsFree(target, current.install_id, this.options.declarationOwners, true);
+        const upgraded = versionChangeRecord(stopped, target, { deployment, entrypoint, grants: targetGrants, disabled: current.state === "disabled", at: this.now() });
+        if (current.state !== "disabled") releaseSettings = this.options.declarationOwners?.retainSettings?.(stopped, upgraded, target, oldDefinition?.manifest);
         this.register(input.definition);
-
-        const upgraded: PluginInstanceRecord = {
-          ...stopped,
-          version: target.version,
-          publisher_id: target.publisher.publisher_id,
-          publisher_signature: target.publisher.signature,
-          manifest_digest: pluginManifestDigest(target),
-          deployment,
-          selected_entrypoint: entrypoint,
-          grants: targetGrants,
-          state: current.state === "disabled" ? "disabled" : "installed", // a new version does not undo the person's disable
-          recovery_count: 0,
-          last_error_code: null,
-          updated_at: this.now(),
-          uninstalled_at: null,
-        };
         this.repository.save(upgraded);
+        recoverable = upgraded;
         const receipt = current.state === "disabled" ? this.receipt("start", upgraded, false) : await this.startOnce(input.install_id, input.assertCurrent);
         return { ...receipt, operation: rollbackCode ? "rollback" : "upgrade", replayed: false };
       } catch (error) {
         const failed = this.repository.get(input.install_id);
+        if (!holdsInstalledEdition(failed, recoverable)) throw error;
         let dataRollbackError: unknown;
         if (hasPrivateDataSnapshot) {
           try { await this.executor.restorePrivateData!(input.install_id, privateDataSnapshot); }
@@ -337,6 +333,7 @@ export class PluginRuntime implements PluginRuntimeApi {
           last_error_code: dataRollbackError ? "plugin.upgrade_rollback_failed" : safeErrorCode(error),
           updated_at: this.now(),
         };
+        if (!holdsInstalledEdition(this.repository.get(input.install_id), recoverable)) throw error;
         this.repository.save(rollback);
         if (oldDefinition && !dataRollbackError && current.state !== "disabled") {
           // Restore the pre-upgrade implementation after a failed candidate start (a switched-off install stays off).
@@ -350,6 +347,8 @@ export class PluginRuntime implements PluginRuntimeApi {
           throw pluginErrors.upgrade_rollback_failed(`升级失败且私有数据回滚失败，旧插件已停止：${safeErrorMessage(dataRollbackError)}`);
         }
         throw error;
+      } finally {
+        releaseSettings?.();
       }
     });
   }
@@ -412,7 +411,7 @@ export class PluginRuntime implements PluginRuntimeApi {
       throw pluginErrors.state_invalid(`Plugin 当前状态 ${current.state} 不能直接启动`);
     }
     const definition = requireDefinition(this.definitions, current);
-    assertStartable(definition.manifest, current.grants, this.options.declarationOwners);
+    assertStartable(definition.manifest, current, this.options.declarationOwners);
     let startedContext: PluginStartContext | null = null;
     try {
       assertStartIdentity(current, definition, this.repository.list(), this.options.hostIds, this.options.scope, this.options.inProcess);
@@ -550,7 +549,7 @@ export class PluginRuntime implements PluginRuntimeApi {
       throw pluginErrors.quarantined("Plugin 多次恢复失败，已隔离");
     }
     const definition = requireDefinition(this.definitions, current);
-    assertRequiredGrants(definition.manifest, current.grants);
+    assertStartable(definition.manifest, current, this.options.declarationOwners, true);
     const recoveryCount = current.recovery_count + 1;
     try {
       assertStartIdentity(current, definition, this.repository.list(), this.options.hostIds, this.options.scope, this.options.inProcess);

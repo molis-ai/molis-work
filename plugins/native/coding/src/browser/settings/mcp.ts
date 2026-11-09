@@ -1,5 +1,7 @@
 import { el } from "../dom.js";
 import { codeOf, codingRequest, errorMessage, translate as L, type Workspace } from "./page.js";
+import type { VersionedProjectPluginMembership } from "@molis-ai/molis-work-contracts/modules/projects";
+import type { UiRequestFailure } from "@molis-ai/molis-work-contracts/platform/ui";
 
 interface McpServer {
   readonly id: string;
@@ -236,31 +238,45 @@ async function submit(state: Mcp, event: Event) {
 }
 
 /** Turns Coding on for the project the section belongs to, then reloads the page. */
-async function enable(state: Mcp, button: HTMLButtonElement) {
+async function enable(state: Mcp, button: HTMLButtonElement, project: string, expectedRevision: string) {
   button.disabled = true;
   try {
-    const project = new URL(state.root.dataset.prefix ?? "", location.origin).pathname.split("/").filter(Boolean)[1];
-    if (!project) throw new Error(L("coding.mcp-config.choose-project"));
-    await molisWorkRequest("/api/settings/projects/" + encodeURIComponent(project) + "/plugins", { method: "POST", body: { plugin_id: "coding" }, fallback: L("coding.mcp-config.enable-failed") });
+    await molisWorkRequest("/api/settings/projects/" + encodeURIComponent(project) + "/plugins", {
+      method: "POST", body: { plugin_id: "coding", expected_revision: expectedRevision }, fallback: L("coding.mcp-config.enable-failed"),
+    });
     location.reload();
   } catch (error) {
-    unavailable(state, error, true);
+    const body = (error as UiRequestFailure).body as { details?: { committed?: boolean } } | undefined;
+    if (body?.details?.committed === true) status(state, errorMessage(error));
+    else await unavailable(state, error, true);
   }
 }
 
 /** Says why the servers cannot be read; when Coding is not enabled in the project, stops polling and offers to enable it. */
-function unavailable(state: Mcp, error: unknown, off = false) {
+async function unavailable(state: Mcp, error: unknown, retry = false) {
   status(state, L("coding.mcp-config.unreadable", { reason: errorMessage(error) }));
-  if (!off && codeOf(error) !== "actions.plugin_disabled") return;
+  if (!retry && codeOf(error) !== "actions.plugin_disabled") return;
   if (state.poll !== null) {
     clearInterval(state.poll);
     state.poll = null;
   }
-  status(state, L("coding.mcp-config.not-enabled"));
-  const button = el("button", L("coding.mcp-config.enable"), "mw-btn mw-btn--secondary");
-  button.type = "button";
-  button.addEventListener("click", () => enable(state, button));
-  state.q("[data-mcp-status]").append(" ", button);
+  const prefix = state.root.dataset.prefix;
+  try {
+    const segment = new URL(prefix ?? "", location.origin).pathname.split("/").filter(Boolean)[1];
+    if (!segment) throw new Error(L("coding.mcp-config.choose-project"));
+    const project = decodeURIComponent(segment);
+    const { projects } = await molisWorkRequest<{ projects: Array<VersionedProjectPluginMembership & { project_id: string }> }>("/api/settings/project-plugins", {
+      fallback: L("coding.mcp-config.enable-failed"),
+    });
+    if (!state.root.isConnected || state.root.dataset.prefix !== prefix) return;
+    const observed = projects.find(row => row.project_id === project);
+    if (!observed?.revision || observed.plugins.includes("coding")) return;
+    status(state, retry ? errorMessage(error) : L("coding.mcp-config.not-enabled"));
+    const button = el("button", L("coding.mcp-config.enable"), "mw-btn mw-btn--secondary");
+    button.type = "button";
+    button.addEventListener("click", () => enable(state, button, project, observed.revision));
+    state.q("[data-mcp-status]").append(" ", button);
+  } catch (failure) { status(state, errorMessage(failure)); }
 }
 
 /** Reads now, and keeps reading every few seconds while the section is on the page. */

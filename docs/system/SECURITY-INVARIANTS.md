@@ -29,6 +29,10 @@
 
 S-15 原章节入口：[调用者](security-invariants/S-15.md#调用者)、[权限交集](security-invariants/S-15.md#权限交集)、[内置与信任](security-invariants/S-15.md#内置与信任)、[沙箱](security-invariants/S-15.md#沙箱)、[代码位置](security-invariants/S-15.md#s-15-代码位置)。
 
+### 内容包签名与安装
+
+本人签名、预览的有效期和确认安装见 [S-84](security-invariants/S-84.md)。发布者撤销对本机签名与已装插件的影响见 [S-87](security-invariants/S-87.md)。
+
 ## 2. 怎么跑
 
 ```bash

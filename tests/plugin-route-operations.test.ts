@@ -1,3 +1,4 @@
+import { projectPluginRevisionAt } from "./fixtures/project-plugin-settings.js";
 import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -44,7 +45,7 @@ async function withCrashedCoding(run: (api: {
     const created = await request("/api/settings/projects", "POST", { display_name: "Route operations", user_confirmed: true });
     assert.equal(created.status, 201);
     const projectId = (await created.json()).project.project_id;
-    assert.equal((await request(`/api/settings/projects/${projectId}/plugins`, "POST", { plugin_id: "coding" })).status, 200);
+    assert.equal((await request(`/api/settings/projects/${projectId}/plugins`, "POST", { plugin_id: "coding", expected_revision: await projectPluginRevisionAt(origin, projectId) })).status, 200);
     db = openTestSqlite(path.join(root, "projects", projectId, "molis-work.db"));
     const repository = new SqlitePluginRuntimeRepository(db);
     const current = createCodingPlugin();

@@ -68,6 +68,7 @@ export const ONBOARDING_EN: Record<string, string> = {
   "等待继续保存": "Waiting to finish saving",
   "继续保存项目": "Finish saving the project",
   "给新项目一个名字": "Name your new project",
+  "请填写项目名称": "Enter a project name",
   "已导入的资料会带入项目，摘要可以稍后整理。": "Imported materials come with the project; the summary can be written later.",
   "先建一个空间，资料和下一步可以慢慢补充。": "Start with a space. Materials and next steps can follow.",
   "新项目": "New project",

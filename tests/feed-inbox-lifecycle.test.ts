@@ -317,7 +317,7 @@ esac
     seedDemoBoard(database);
     const store = new LocalProjectDatabase(database), host = new MolisWorkLocalHost({ homeDirectory: hostHome, completeText: null });
     try {
-      const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, undefined, undefined, hostHome);
+      const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID);
       const source = service.register({ kind: "research_library", repository: "fixture/research", research_source: "obs" }).source;
       const owner: ActionCallContext = { actor_id: "owner", audience: "user", project_id: DEMO_PROJECT_ID, permissions: [...FEED_ACTION_PERMISSIONS] };
       const client = host.actionClient(molisWorkHostProjectReference({ databasePath: database, projectId: DEMO_PROJECT_ID }));
@@ -391,11 +391,11 @@ test("RAC-1214 a scheduled pull that fails judging after it committed spends its
       async shutdown() {},
     });
     const feedOptions = { captureJudgment: async () => { throw new ActionError("actions.execution_failed", "判断失败"); } };
-    const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, runtimeFactory, () => now, undefined, feedOptions);
+    const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, runtimeFactory, () => now, feedOptions);
     const source = service.register({ kind: "rss", definition_id: listTestFeedSourceCatalog()[0]!.id }).source;
     service.configureSchedule(source.source_id, { mode: "interval", enabled: true, interval_minutes: 15 });
     const scheduler = createLocalFeedSourceScheduler(store.db, DEMO_PROJECT_ID, async (candidate, key, authority) =>
-      await createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, runtimeFactory, () => now, undefined, feedOptions)
+      await createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, runtimeFactory, () => now, feedOptions)
         .sync(candidate.source_id, { idempotencyKey: key, beforeEffect: authority.beforeEffect }), () => now);
     const nextPull = () => {
       const schedule = service.feed.sources.get(DEMO_PROJECT_ID, source.source_id).schedule;

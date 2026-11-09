@@ -82,12 +82,12 @@ export function presentationSection(locale: string): string {
 }
 
 export const PRESENTATION_BOARD_STYLES = `
-  .mw-presentation-board { display: grid; gap: .7em; min-inline-size: 0; max-inline-size: 50rem; }
+  .mw-presentation-board { display: grid; grid-template-columns: minmax(0, 1fr); gap: .7em; min-inline-size: 0; max-inline-size: 50rem; }
   .mw-presentation-board__chip { position: relative; justify-self: start; max-inline-size: 100%; }
   .mw-presentation-board__trigger.mw-btn { position: absolute; inset: 0; inline-size: 100%; block-size: 100%; border-radius: var(--sk-r-slot); }
   .mw-presentation-board__trigger.mw-btn:is(:hover, :focus-visible, :active) { background: transparent; }
   @media (max-width: 650px), (pointer: coarse) {
-    .mw-presentation-board__chip { display: grid; align-items: center; min-block-size: var(--control-h, 44px); }
+    .mw-presentation-board__chip { display: grid; grid-template-columns: minmax(0, 1fr); align-items: center; min-block-size: var(--control-h, 44px); }
   }
   .mw-presentation-board__anchor { anchor-name: --catalog-presentation-peek; }
   .mw-catalog .mw-presentation-board__popover:not(:popover-open) { display: none; }
@@ -104,80 +104,4 @@ export const PRESENTATION_BOARD_STYLES = `
   }
   .mw-presentation-board__sheet .mw-form__body { overflow: auto; overscroll-behavior: contain; }
   .mw-presentation-board__sheet .mw-form__footer:empty { display: none; }
-`;
-
-// The board binds only its own controls. The one rendered peek moves to the chosen container.
-export const PRESENTATION_BOARD_CLIENT_SCRIPT = `
-(() => {
-  const board = document.querySelector(".mw-presentation-board");
-  if (!board) return;
-  const trigger = board.querySelector("[data-presentation-peek]");
-  const popover = board.querySelector("#presentation-popover");
-  const sheet = board.querySelector("#presentation-sheet");
-  const card = board.querySelector("[data-presentation-card]");
-  const content = board.querySelector("[data-presentation-peek-template]").content.firstElementChild;
-  const narrow = matchMedia("(max-width: 650px), (pointer: coarse)");
-  const opened = () => popover.matches(":popover-open") || sheet.open;
-  let anchor = null;
-  let returning = false;
-  let hover;
-  const clear = () => {
-    if (opened()) return;
-    anchor?.classList.remove("mw-presentation-board__anchor");
-    anchor = null;
-    trigger.setAttribute("aria-expanded", "false");
-    trigger.removeAttribute("aria-controls");
-  };
-  function close(focus) {
-    clearTimeout(hover);
-    const previous = anchor;
-    returning = true;
-    if (sheet.open) sheet.close();
-    if (popover.matches(":popover-open")) popover.hidePopover();
-    clear();
-    if (focus) previous?.focus({ preventScroll: true });
-    returning = false;
-  }
-  function open(from, focus) {
-    const layer = narrow.matches ? sheet : popover;
-    if (!opened()) {
-      anchor = from;
-      anchor.classList.add("mw-presentation-board__anchor");
-      layer.querySelector("[data-presentation-peek-body]").append(content);
-      trigger.setAttribute("aria-expanded", "true");
-      trigger.setAttribute("aria-controls", layer.id);
-      if (narrow.matches) sheet.showModal();
-      else popover.showPopover();
-    }
-    if (focus) content.querySelector("[data-presentation-action]")?.focus();
-  }
-  trigger.addEventListener("focus", () => { if (!returning && !narrow.matches) open(trigger, false); });
-  trigger.addEventListener("pointerenter", event => {
-    if (event.pointerType === "mouse" && !narrow.matches) hover = setTimeout(() => open(trigger, false), 250);
-  });
-  trigger.addEventListener("pointerleave", () => clearTimeout(hover));
-  trigger.addEventListener("click", () => open(trigger, true));
-  popover.addEventListener("toggle", clear);
-  sheet.addEventListener("cancel", event => { event.preventDefault(); close(true); });
-  narrow.addEventListener("change", () => close(false));
-  board.addEventListener("click", event => {
-    const control = event.target.closest("[data-presentation-action], [data-dialog-close]");
-    if (!control) return;
-    const key = control.dataset.presentationAction;
-    if (key === "review-message" || key === "review-retry") open(control, true);
-    if (key === "close-peek" || control.hasAttribute("data-dialog-close")) {
-      event.preventDefault();
-      close(true);
-    }
-    if (key === "show-card") {
-      close(false);
-      card.focus();
-    }
-  });
-  board.addEventListener("keydown", event => {
-    if (event.key !== "Escape" || event.isComposing || event.defaultPrevented || !opened() || event.target.closest("details[open]")) return;
-    event.preventDefault();
-    close(true);
-  });
-})();
 `;

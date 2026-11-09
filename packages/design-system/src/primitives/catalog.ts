@@ -15,7 +15,7 @@ import { keepEditsSections, KEEP_EDITS_BOARD_STYLES } from "./catalog-keep-edits
 import { buttonGroupSection, CATALOG_PATTERN_STYLES, dataTableSection, dropZoneSection, rowsSection, statSection, tagInputSection } from "./catalog-patterns.js";
 import { lookSections } from "./catalog-appearance.js";
 import { APPEARANCE_BOARD_STYLES } from "./catalog-appearance-styles.js";
-import { PRESENTATION_BOARD_CLIENT_SCRIPT, PRESENTATION_BOARD_STYLES, presentationSection } from "./catalog-presentation.js";
+import { PRESENTATION_BOARD_STYLES, presentationSection } from "./catalog-presentation.js";
 import { PRESENTATION_FORM_STYLES } from "../styles/presentation.js";
 
 export const PRIMITIVE_CATALOG_IDS = [
@@ -259,5 +259,5 @@ export function renderPrimitiveCatalog(options: { readonly plugins?: readonly Ca
     <style>${CATALOG_PATTERN_STYLES}${COMPOSER_BOARD_STYLES}${KEEP_EDITS_BOARD_STYLES}${APPEARANCE_BOARD_STYLES}${options.presentationLocale ? PRESENTATION_FORM_STYLES + PRESENTATION_BOARD_STYLES : ""}</style>
     ${sections}
   </div>
-  <script>${CATALOG_CLIENT_SCRIPT}${options.presentationLocale ? PRESENTATION_BOARD_CLIENT_SCRIPT : ""}</script>`;
+  <script>${CATALOG_CLIENT_SCRIPT}</script>`;
 }

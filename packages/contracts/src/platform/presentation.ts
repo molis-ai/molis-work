@@ -67,6 +67,13 @@ export interface PresentationObjectAction {
   readonly when?: { readonly status?: readonly string[]; readonly slots?: readonly SurfaceSlotKind[] };
   /** Input key → field key the input is prepared from. Prepared only: nothing is written until the person acts. */
   readonly input_from?: Readonly<Record<string, string>>;
+  /** When both conditions are supplied, both must match. This notice takes the place of the original button. */
+  readonly unavailable?: {
+    readonly when: { readonly status?: readonly string[]; readonly codes?: readonly string[] };
+    readonly reason: TextRef;
+    /** The reference of another action of this object. Its own input mapping applies. */
+    readonly next?: string;
+  };
 }
 
 export interface PresentationObject {

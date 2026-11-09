@@ -242,6 +242,8 @@ export interface ActionMetadata {
    * Omitted, it is inferred (see `actionEffect`). Irreversible actions are never offered to plugins.
    */
   readonly effect?: "read" | "write" | "irreversible";
+  /** The provider declares that this action sends content outside the Home. */
+  readonly external?: true;
   /** `false` keeps an agent-facing action away from generated plugins even when it is reversible. */
   readonly plugin?: false;
   /** Provider owns transaction/conflict safety across awaits; Host still tracks lifetime. Default is serial. */

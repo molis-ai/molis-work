@@ -51,6 +51,10 @@ export interface SurfaceGroup {
         count: number;
         label: OwnedTextRef;
     };
+    overflow?: {
+        count: number;
+        label?: OwnedTextRef;
+    };
     title?: OwnedTextRef;
     items: SurfaceItem[];
 }
@@ -60,11 +64,13 @@ export interface SurfaceItem {
     owner_plugin_id: string;
     form: FormKind;
     state: PresentationValueState;
+    read_at?: string;
     fields: Array<{
         key: string;
         role: FieldRole;
     }>;
     actions: SurfaceItemAction[];
+    notices?: SurfaceItemNotice[];
     merged?: Array<{
         subject: ActionSubject;
         owner_plugin_id: string;
@@ -74,14 +80,22 @@ export interface SurfaceItem {
 
 export interface SurfaceItemAction {
     ref: string;
+    provider_id?: string;
     primary: boolean;
     prepared_input?: Record<string, string>;
     consequence?: SurfaceConsequence[];
 }
 
+export interface SurfaceItemNotice {
+    reason: OwnedTextRef;
+    next?: SurfaceItemAction;
+}
+
 export interface SurfaceRequest {
     slot: SurfaceSlot;
     subjects?: ActionSubject[];
+    delivery_subjects?: ActionSubject[];
+    expanded?: true;
     task?: SurfaceTask;
 }
 

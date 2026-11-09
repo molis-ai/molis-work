@@ -20,6 +20,8 @@ export declare function assertMaterialRef(value: unknown): asserts value is Mate
 
 export declare function assertSurfaceDescription(value: unknown, candidates: SurfaceDescription): CheckedSurfaceDescription;
 
+export declare function isPresentationValuesReader(action: unknown): boolean;
+
 export declare function presentationCatalog(actions: unknown, complete?: boolean): PresentationCatalog;
 
 export declare function presentationFormFields(object: PresentationObject, form: FormKind): {

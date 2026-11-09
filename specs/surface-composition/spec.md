@@ -547,7 +547,7 @@ Goals 在自身声明中把 `goals.create@1` 指向 `stage/create-dialog`，自�
 
 项目签名插件仍走 `plugins.installed.enable@1` 与受保护页面入口，但其 `expected_installation` 改为必填，现有设置列表及按钮一并携带当时看到的代次和 digest；没有发现当前 CLI 消费者，实现前再以实际引用核对。比较在 ProjectLine 出队并取得实际记录后进行，沿既有生命周期 control 贯穿 Supervisor 等待和 Runtime 启动；首个写点要求仍为 disabled，本次成功启用后只核同发行物及当前授权，不再要求 disabled。写前继续 `beforeEffect` 和同步当前检查。Home 签名插件去现有设置入口完成 S94，不给首页或插件 frame 伪造设置凭据。服务只给候选，不启用插件；界面回执仅在真实成功后显示。
 
-当前基线的安装启用链尚未完整传递该 control：`plugin-install-actions.ts` 的调用须保留原 caller，经 `plugin-trust-actions.ts`、`project-plugin-ports.ts` 和 `installed-plugin-lifecycle.ts` 传到 `PluginSupervisor.enable`。Supervisor 的 gate 出队及 `restart`／激活路径继续传递原检查，最后交给已有支持 control 的 `runtime.start`；不能只在进入队列前检查一次。此处只补既定授权与安装身份的贯穿，不另建启用服务或状态记录。
+当前基线的安装启用链尚未完整传递该 control：`plugin-install-actions.ts` 的调用须保留原 caller，经 `plugin-trust-actions.ts`、`project-plugin-ports.ts` 和 `installed-plugin-lifecycle.ts` 传到 `PluginSupervisor.enable`。Supervisor 的 gate 出队及 `restart`／激活路径继续传递原检查，最后交给已有支持 control 的 `runtime.start`；不能只在进入队列前检查一次。此处只补既定授权与安装身份的贯穿，不另建启用服务或状态记录。 启用未提交前不能先公开可被 `ensureStarted` 消费的新启用状态；被拒时只收回本次尝试的临时状态，不影响后来的合法启用。已核对的停用安装沿同一启动路径直接交给原 Runtime，不先按旧 entry 重建或替换安装；Runtime 真正提交 running 后再被撤权，只拒绝尚未发生的曝光、提示词登记与成功回执，如实保留已经提交的事实。
 
 **文件与验证。** contracts 的组合／呈现及签名安装动作，SDK 声明和描述校验，`horizontal/surfaces` 的首页编排及共用读取，Host 的 `surface-actions.ts`、主区／安装控制和薄适配，以及各自派生快照。生产页面、Dock 输入、Goals 选择消费、签名组件选择接线和插件声明由本批后续消费者片接入。复用现有 DOM 选择事件。第 20 批的成员能力为依赖，已知固定头 `33cd1028c6`、`37a5eb8b55` 定 owner／合同／常开语义，`5b520337f9`、`295dd67801`、`3a8a3703ed` 定 Runtime 切换、本人入口和已保存回执。生产接线使用实际合入的成员能力，最终只生成一次两批共用的宿主动作快照。
 

@@ -13,4 +13,4 @@
 
 打包：`molis-work-plugin pack-bundled plugins/content/<包> <输出目录> --publisher-key <私钥>`，与 `pack-content`、从本机导入同一个打包函数，同一步签名（见 [plugin-cli](../../tooling/plugin-cli/README.md#随安装包带上的包)）。没有密钥就拒绝、什么都不写。官方发布者密钥和在发版构建里把包放进 `apps/local-host/dist/bundled-plugins/` 归第 26 批（26-1），这里不放任何密钥。
 
-改了正文或资源，就给那个 Skill 的 `version` 加一，并给包的 `version` 升版；改完跑 `node scripts/run-tests.mjs tests/design-accessibility-pack.test.ts tests/security-invariants-bundled-packages.test.ts`。
+改了正文或资源，就给那个 Skill 的版本加一，并给包升版：两者都只改 `tooling/versions.json`（`method.design-accessibility.<skill_id>`、`plugin.content-design-accessibility`），再跑 `pnpm versions:generate` 改写 `SKILL.md` 与 `pack-content.json`；改完跑 `node scripts/run-tests.mjs tests/design-accessibility-pack.test.ts tests/security-invariants-bundled-packages.test.ts`。

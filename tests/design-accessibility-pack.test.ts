@@ -9,7 +9,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SKILL_LIMITS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { verifyPluginPackageSignature } from "@molis-ai/molis-work-plugin-runtime";
 import { parseContentPackage } from "@molis-ai/molis-work-plugin-sdk";
-import { BUNDLED_PACK_OPTIONS_FILE, packBundledContent, runPluginCli } from "@molis-ai/molis-work-plugin-cli";
+import { BUNDLED_PACK_OPTIONS_FILE, packBundledContent } from "@molis-ai/molis-work-plugin-cli";
 import { newPublisher } from "./fixtures/sandbox-package.js";
 
 // The design and accessibility pack (BL-165, batch 08 slice 08-10): five Skills in a plugin with only declarations, shipped with the
@@ -73,19 +73,6 @@ test("08-10 BL-165 every word of the pack the person reads has its English in th
     assert.deepEqual(words.filter(word => !translations[word]), [], "each has its English");
     assert.deepEqual(Object.keys(translations).filter(key => !words.includes(key)), [], "no stale entry");
     for (const [chinese, english] of Object.entries(translations)) assert.doesNotMatch(english, /[一-鿿]/u, `the English of ${chinese.slice(0, 20)} is English`);
-  } finally { await rm(out, { recursive: true, force: true }); }
-});
-
-test("08-10 pack-bundled without a publisher key packs nothing and says the official key is batch 26's", async () => {
-  const out = await temporary();
-  try {
-    const target = join(out, "bundled-plugins");
-    await assert.rejects(packBundledContent(PACK, target, undefined), (error: unknown) => error instanceof ActionError && error.code === "plugin.publisher_key_missing" && /26-1/u.test(error.message));
-    assert.equal(existsSync(target), false, "no folder, no file");
-    const lines: string[] = [], output = { stdout: (text: string) => lines.push(text), stderr: (text: string) => lines.push(text) };
-    assert.equal(await runPluginCli(["pack-bundled", PACK, target], output), 1, lines.join(""));
-    assert.equal(JSON.parse(lines.at(-1)!).code, "plugin.publisher_key_missing");
-    assert.equal(existsSync(target), false, "the command writes nothing either");
   } finally { await rm(out, { recursive: true, force: true }); }
 });
 

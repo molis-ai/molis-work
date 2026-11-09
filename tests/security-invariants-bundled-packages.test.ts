@@ -10,7 +10,7 @@ import ts from "typescript";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginPackageBundle } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { MemoryPluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
-import { packBundledContent } from "@molis-ai/molis-work-plugin-cli";
+import { packBundledContent, runPluginCli } from "@molis-ai/molis-work-plugin-cli";
 import { DEMO_PROJECT_ID, MolisWorkLocalHost, PLUGIN_INSTALL_PERMISSIONS, PluginInstallService, SandboxPackageStore, bundledPackagesDirectory, homeAgentDefinitions,
   molisWorkHostProjectReference, pluginInstallActions, seedDemoBoard, type BundledPluginList } from "@molis-ai/molis-work-app-local-host";
 import { signedContentPackage } from "./fixtures/content-package.js";
@@ -136,6 +136,19 @@ test("08-10 S-bundled-packages a link, a file that is not a package, an unsigned
     assert.deepEqual(await none.install.bundled(), { plugins: [], refused: [] }, "a Host given no folder ships nothing");
     await assert.rejects(none.install.preview({ bundled: { plugin_id: PLUGIN_ID, version: "1.0.0" } }, who), refused("plugin.definition_missing"));
   } finally { await b.done(); }
+});
+
+test("08-10 S-bundled-packages pack-bundled without a publisher key packs nothing and says the official key is batch 26's", async () => {
+  const out = await mkdtemp(join(tmpdir(), "molis-work-bundled-"));
+  try {
+    const target = join(out, "bundled-plugins");
+    await assert.rejects(packBundledContent(PACK, target, undefined), (error: unknown) => error instanceof ActionError && error.code === "plugin.publisher_key_missing" && /26-1/u.test(error.message));
+    assert.equal(existsSync(target), false, "no folder, no file");
+    const lines: string[] = [], output = { stdout: (text: string) => lines.push(text), stderr: (text: string) => lines.push(text) };
+    assert.equal(await runPluginCli(["pack-bundled", PACK, target], output), 1, lines.join(""));
+    assert.equal(JSON.parse(lines.at(-1)!).code, "plugin.publisher_key_missing");
+    assert.equal(existsSync(target), false, "the command writes nothing either");
+  } finally { await rm(out, { recursive: true, force: true }); }
 });
 
 test("08-10 S-bundled-packages the bundled folder is the release's own, beside the Host's code, and no production code hands the Host another", () => {

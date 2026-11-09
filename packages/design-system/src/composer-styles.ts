@@ -95,7 +95,7 @@ export function composerRestRules(scope: string): string {
     ${scope} .mw-composer__foot { display: contents; }
     ${scope} .mw-composer__start { grid-area: 1 / 1; flex: none; }
     ${scope} .mw-composer__text { grid-area: 1 / 3; padding: 0 6px 0 8px; }
-    ${scope} .mw-composer__end { grid-area: 1 / 4; }
+    ${scope} .mw-composer__end { grid-area: 1 / 4; margin-inline-end: 4px; }
     ${scope} .mw-composer__text > .mw-composer__input:not(#mw-composer) { box-sizing: border-box; height: 32px; min-height: 32px; max-height: 32px; padding-block: 6px; overflow: hidden; resize: none; }
     ${scope} .mw-composer__input::placeholder { white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }`;
 }

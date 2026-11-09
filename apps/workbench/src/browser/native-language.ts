@@ -2,12 +2,15 @@ import type { UiFrameLanguage } from "@molis-ai/molis-work-contracts/platform/ui
 import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type {} from "./account-transition.js";
 
+/** Native trays only use the language's tag and display attributes; no locale-dependent formatting goes over IPC. */
+export type NativeDocumentLanguage = Omit<UiFrameLanguage, "intl">;
+
 declare global {
   var molisWorkPublishNativeLanguage: ((document: number) => void) | undefined;
 }
 
 /** The native main document may publish only this finite projection of its committed words. */
-export function nativeLanguagePublisher(language: () => UiFrameLanguage) {
+export function nativeLanguagePublisher(language: () => NativeDocumentLanguage) {
   const invoke = (globalThis as typeof globalThis & {
     __TAURI__?: { core?: { invoke(name: string, input: Record<string, unknown>): Promise<void> } };
   }).__TAURI__?.core?.invoke;

@@ -142,21 +142,52 @@ test("FSS-09 FSS-20 FSS-34 FSS-37 the live Issue frame reuses its own authorized
     issuedDraft.dispatchEvent(new Event('input', {bubbles:true}));
   })()`);
   assert.match(await child.evaluate<string>("issuedDraft.placeholder"), /遇到什么问题/u);
+  // A trusted fixture uses HTML en and German Intl conventions. The current frame grant and the rest of the words are real.
+  const described = Promise.withResolvers<void>();
+  void described.promise.catch(() => undefined);
+  await b.command("Fetch.enable", { patterns: [{ urlPattern: "*/assets/locale/workbench.en.*.js", requestStage: "Response" }] }, b.sessionId);
+  t.after(b.on("Fetch.requestPaused", (event, session) => {
+    if (session !== b.sessionId) return;
+    void (async () => {
+      const requestId = String(event.requestId);
+      const result = await b.command<{ body: string; base64Encoded: boolean }>("Fetch.getResponseBody", { requestId }, session);
+      const source = result.base64Encoded ? Buffer.from(result.body, "base64").toString("utf8") : result.body;
+      const marker = "\nglobalThis.molisWorkLanguageAsset(", start = source.lastIndexOf(marker) + marker.length;
+      assert.ok(start >= marker.length);
+      const asset = JSON.parse(source.slice(start, source.lastIndexOf(");")));
+      asset.catalog.languages.find((row: { tag: string }) => row.tag === "en").intl = "de-DE";
+      const body = source.slice(0, start) + JSON.stringify(asset).replaceAll("<", "\\u003c") + ");";
+      await b.command("Fetch.fulfillRequest", { requestId, responseCode: 200, responseHeaders: [{ name: "content-type", value: "text/javascript; charset=utf-8" }],
+        body: Buffer.from(body).toString("base64") }, session);
+      described.resolve();
+    })().catch(described.reject);
+  }));
   await b.evaluate(`(() => {
     window.liveIssueFrame = document.querySelector('iframe[data-plugin-frame=issues]'); window.wordsRequests = [];
     const transport = window.molisWorkUiTransport;
     window.molisWorkUiTransport = (url, init) => {
       const path = new URL(url);
-      if (path.pathname === '/api/ui/locales') wordsRequests.push([path.searchParams.get('locale'), path.searchParams.getAll('page').length]);
+      if (path.pathname === '/api/ui/locales') {
+        wordsRequests.push([path.searchParams.get('locale'), path.searchParams.getAll('page').length]);
+        if (path.searchParams.get('locale') === 'en') return fetch(url, init).then(async response => {
+          if (!response.ok) return response;
+          const body = await response.json(); body.language.intl = 'de-DE';
+          return new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } });
+        });
+      }
       return transport?.(url, init);
     };
   })()`);
   await chooseEnglishInSettings(t, b);
   await b.waitFor("document.documentElement.lang === 'en'", 25000);
+  await described.promise;
   await child.waitFor("document.documentElement.lang === 'en' && issuedDraft.placeholder.startsWith('What went wrong')", 10000);
   assert.deepEqual(await b.evaluate("[liveIssueFrame === document.querySelector('iframe[data-plugin-frame=issues]'), wordsRequests]"), [true, [["en", 1]]]);
   assert.deepEqual(await child.evaluate("[issuedDraft === document.querySelector('[data-issue-composer] textarea'), document.activeElement === issuedDraft, issuedDraft.value, issuedDraft.selectionStart, issuedDraft.selectionEnd, issuedDraft.selectionDirection]"), [true, true, "Issue draft 原文", 1, 5, "backward"]);
   assert.deepEqual(await child.evaluate("[t.text('issues.when.minutes-ago',{count:1}),t.text('issues.when.minutes-ago',{count:3})]"), ["1 minute ago", "3 minutes ago"]);
+  const numbers = "[format.date('2026-05-09T14:30:00Z','time',{time_zone:'UTC'}),format.number(1234.5)]";
+  assert.deepEqual(await b.evaluate(numbers), ["14:30", "1.234,5"]);
+  assert.deepEqual(await child.evaluate(numbers), ["14:30", "1.234,5"], "FSS-39: the child formats with Intl, not the HTML language");
 });
 
 test("S-ui-text-page FSS-08 stopping the real plugin during the opening locale batch denies frame config", { timeout: 120_000 }, async t => {

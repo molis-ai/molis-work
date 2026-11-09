@@ -8,7 +8,7 @@ export function frameLanguage(initial: FrameLanguage) {
   let displayed = initial, latest = 0;
   let prepared: { turn: number; use(): void } | undefined;
   if (!isFrameUiLanguage(initial.language)) throw new Error("View language is invalid");
-  const intl = (text: FrameLanguage) => (tag: string) => tag === text.language.tag ? text.language.html_lang : undefined;
+  const intl = (text: FrameLanguage) => (tag: string) => tag === text.language.tag ? text.language.intl : undefined;
   const context = installLanguageText(initial.language.tag, initial.packs, intl(initial));
   const select = (next: FrameLanguage) => {
     const { language } = next;

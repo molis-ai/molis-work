@@ -266,7 +266,7 @@ export declare function formatMessage(message: UiMessage, args?: readonly TextAr
 
 export declare function formatNumber(value: number, locale: Locale, style?: TextNumberStyle): string;
 
-export declare function frameUiLanguage({ tag, html_lang, direction }: UiLanguageDescriptor): UiFrameLanguage;
+export declare function frameUiLanguage({ tag, html_lang, intl, direction }: UiLanguageDescriptor): UiFrameLanguage;
 
 export declare function icon(name: PluginIconName, className?: string): string;
 

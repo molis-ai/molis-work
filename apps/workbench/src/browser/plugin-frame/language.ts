@@ -31,7 +31,7 @@ const connected = new Map<string, FrameMount>();
 const displayedTemplates = new WeakMap<HTMLElement, { locale: string; markup: string }>();
 let revision = 0;
 export const pageLanguage = () => document.documentElement.dataset.uiLanguageTag;
-const sameLanguage = (a: UiFrameLanguage, b: UiFrameLanguage) => a.tag === b.tag && a.html_lang === b.html_lang && a.direction === b.direction;
+const sameLanguage = (a: UiFrameLanguage, b: UiFrameLanguage) => a.tag === b.tag && a.html_lang === b.html_lang && a.intl === b.intl && a.direction === b.direction;
 
 function displayedLanguage(): UiFrameLanguage {
   const language = globalThis.molisWorkLanguageCatalog?.().languages.find(row => row.tag === pageLanguage());

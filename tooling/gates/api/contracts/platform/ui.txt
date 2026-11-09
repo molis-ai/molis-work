@@ -750,7 +750,7 @@ export interface UiFrameAssetReference {
     readonly id: string;
 }
 
-export type UiFrameLanguage = Pick<UiLanguageDescriptor, "tag" | "html_lang" | "direction">;
+export type UiFrameLanguage = Pick<UiLanguageDescriptor, "tag" | "html_lang" | "intl" | "direction">;
 
 export interface UiHostApi {
     register<TModel>(contribution: OwnedUiContribution<TModel>): void;

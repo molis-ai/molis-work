@@ -1,19 +1,19 @@
-import type { UiFrameLanguage, UiLanguageCatalog, UiLanguageTag, UiLocalePack, UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
-import { createTextReader, frameUiLanguage, isFrameUiLanguage, preferredUiLanguage, t } from "@molis-ai/molis-work-plugin-sdk/ui";
+import type { UiLanguageCatalog, UiLanguageTag, UiLocalePack, UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
+import { createTextReader, frameUiLanguage, preferredUiLanguage, t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { createLocaleSwitch } from "./locale-switch.js";
 import { installLanguageText } from "./language-text.js";
 import { assetOf, installLanguageAssets } from "./language-asset.js";
-import { nativeLanguagePublisher } from "./native-language.js";
+import { nativeLanguagePublisher, type NativeDocumentLanguage } from "./native-language.js";
 import type {} from "./plugin-frame/types.js";
 
 type Preference = UiLanguageTag | "system";
 interface EntryLanguage { preference: Preference; tag: UiLanguageTag; source: string }
-interface Request { preference: Preference; tag: UiLanguageTag; save: boolean; native?: { readonly revision: number; readonly language: UiFrameLanguage } }
+interface Request { preference: Preference; tag: UiLanguageTag; save: boolean; native?: { readonly revision: number; readonly language: NativeDocumentLanguage } }
 
 declare global {
   var molisWorkRequest: UiRequest;
   var molisWorkSelectLocalLanguage: ((tag: UiLanguageTag) => void) | undefined;
-  var molisWorkSelectCapsuleLanguage: ((language: UiFrameLanguage, revision: number) => void) | undefined;
+  var molisWorkSelectCapsuleLanguage: ((language: NativeDocumentLanguage, revision: number) => void) | undefined;
 }
 
 const localLanguageQuery = () => location.pathname === "/desktop/capsule" ? "locale"
@@ -49,7 +49,10 @@ function documentLanguage(initial: LanguageAsset, load: LoadAsset) {
   };
   showLanguage(initial);
   globalThis.molisWorkLanguageCatalog = () => displayed.catalog;
-  const publishNative = nativeLanguagePublisher(() => frameUiLanguage(displayed.catalog.languages.find(row => row.tag === displayed.pack.locale)!));
+  const publishNative = nativeLanguagePublisher(() => {
+    const { tag, html_lang, direction } = displayed.catalog.languages.find(row => row.tag === displayed.pack.locale)!;
+    return { tag, html_lang, direction };
+  });
   const local = localLanguageQuery();
   const broadcast = !local && typeof BroadcastChannel === "function" ? new BroadcastChannel("molis-work-ui-language") : null;
   let intent: Request | undefined, lastSaved: Request | undefined, failure: HTMLElement | undefined;
@@ -147,7 +150,8 @@ function documentLanguage(initial: LanguageAsset, load: LoadAsset) {
   };
   let nativeWanted = -1;
   if (local === "locale") globalThis.molisWorkSelectCapsuleLanguage = (language, revision) => {
-    if (!isFrameUiLanguage(language) || !matches(language.tag) || !Number.isSafeInteger(revision) || revision < 0 || revision <= nativeWanted) return;
+    if (!language || typeof language !== "object" || Object.keys(language).length !== 3
+      || !matches(language.tag) || !Number.isSafeInteger(revision) || revision < 0 || revision <= nativeWanted) return;
     const known = displayed.catalog.languages.find(row => row.tag === language.tag);
     if (!known || known.html_lang !== language.html_lang || known.direction !== language.direction) return;
     nativeWanted = revision;

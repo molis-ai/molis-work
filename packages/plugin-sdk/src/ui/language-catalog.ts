@@ -49,11 +49,11 @@ export function preferredUiLanguage(catalog: UiLanguageCatalog, requested: reado
 }
 
 /** A projection from a checked catalog, or the exact closed shape expected on the frame channel. */
-export function frameUiLanguage({ tag, html_lang, direction }: UiLanguageDescriptor): UiFrameLanguage {
-  return { tag, html_lang, direction };
+export function frameUiLanguage({ tag, html_lang, intl, direction }: UiLanguageDescriptor): UiFrameLanguage {
+  return { tag, html_lang, intl, direction };
 }
 
 export function isFrameUiLanguage(value: unknown): value is UiFrameLanguage {
-  return isObject(value) && Object.keys(value).length === 3 && language(value.tag) && language(value.html_lang)
+  return isObject(value) && Object.keys(value).length === 4 && language(value.tag) && language(value.html_lang) && supportedIntl(value.intl)
     && (value.direction === "ltr" || value.direction === "rtl");
 }

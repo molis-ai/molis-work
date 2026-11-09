@@ -53,7 +53,7 @@ export interface UiLanguageCatalog {
 export type UiLanguageTag = string;
 
 /** The metadata a granted frame needs; the platform's whole language catalog stays in the parent. */
-export type UiFrameLanguage = Pick<UiLanguageDescriptor, "tag" | "html_lang" | "direction">;
+export type UiFrameLanguage = Pick<UiLanguageDescriptor, "tag" | "html_lang" | "intl" | "direction">;
 
 /** The languages a plugin has words in. Each has the package's `locales/<language>.json`. */
 export interface PluginLocalesDeclaration {

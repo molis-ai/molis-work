@@ -4108,6 +4108,7 @@ export interface PluginRuntimeApi {
     grant(installId: string, permissions: string[]): PluginLifecycleReceipt;
     regrant(installId: string, permission: string, granted: boolean): Promise<PluginLifecycleReceipt>;
     start(installId: string, control?: {
+        beforeEffect?: () => Promise<void>;
         assertCurrent?: () => void;
     }): Promise<PluginLifecycleReceipt>;
     stop(installId: string, options?: {

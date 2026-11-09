@@ -95,6 +95,7 @@ export async function controlPackageInProject(source: ProjectPluginHost, project
       const installation = current(), release = installed.packageOf(pluginId);
       if (!release) throw pluginErrors.state_invalid("这个项目里没有从签名的包装进来的这个插件");
       await installed.lifecycle(action, release, { enable: { installation, beforeEffect: caller.beforeEffect, assertCurrent: current } });
+      await caller.beforeEffect();
       if (current().state !== "running") throw new ActionError("actions.provider_replaced", "原插件已退出运行，请重新查看");
       return "running";
     }

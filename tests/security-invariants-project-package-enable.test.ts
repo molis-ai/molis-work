@@ -4,9 +4,9 @@ import { DatabaseSync } from "node:sqlite";
 import { homeAgentDefinitions, pluginControlActions, pluginInstallActions } from "@molis-ai/molis-work-app-local-host";
 import { ActionError, type ActionCallContext, type ActionDefinition, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { SANDBOX_PACKAGE_FILES, type PluginExecutor } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { PLUGIN_PROJECTS_EXIST_PERMISSION, SANDBOX_PACKAGE_FILES, type PluginExecutor } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { ProjectPluginInstalledView } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
-import { effectsFromContract, sandboxPluginManifest } from "@molis-ai/molis-work-plugin-sdk";
+import { sandboxPluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { homeSqlitePath } from "@molis-ai/molis-work-storage";
 import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { deferred, serveHomeRuntime } from "./fixtures/home-runtime.js";
@@ -156,26 +156,37 @@ test("S-84 SCS-08 a project enable cancelled or replaced during real executor st
   const records = await h.host.withProject(h.reference, project => new SqlitePluginRuntimeRepository(project.store.db));
   const executor = Reflect.get(runtime, "executor") as PluginExecutor, start = executor.start;
   const stop = t.mock.method(executor, "stop");
-  let gate = hold();
+  let gate = hold(), atRedemption = false;
   t.mock.method(executor, "start", async function(this: PluginExecutor, ...args: Parameters<PluginExecutor["start"]>) {
     const started = await start.apply(this, args);
-    gate.entered.resolve(); await gate.release.promise;
+    if (!atRedemption) { gate.entered.resolve(); await gate.release.promise; }
     return started;
   });
-  for (const change of ["cancel", "digest"] as const) {
+  const prototype: { redeem(...args: unknown[]): Promise<void> } = Object.getPrototypeOf(runtime);
+  const redeem = prototype.redeem;
+  t.mock.method(prototype, "redeem", async function(this: object, ...args: unknown[]) {
+    await redeem.apply(this, args);
+    if (this === runtime && atRedemption) { gate.entered.resolve(); await gate.release.promise; }
+  });
+  for (const change of ["cancel", "digest", "authority"] as const) {
     gate = hold();
+    atRedemption = change === "authority";
+    let allowed = true;
     const controller = new AbortController(), replacement = { ...before, manifest_digest: "0".repeat(64) };
-    const pending = h.client.invoke({ ...h.person, signal: controller.signal }, pluginControlActions.enable, { ...target, expected_installation });
+    const pending = h.client.invoke({ ...h.person, signal: controller.signal, validate_authority: async () => { if (!allowed) throw denied(); } },
+      pluginControlActions.enable, { ...target, expected_installation });
     try {
       await enteredBefore(pending, gate.entered.promise);
       assert.equal(supervisor.generation(PACKAGE_PLUGIN_ID), undefined, "the in-flight enable does not admit a lazy start");
       assert.equal(await supervisor.ensureStarted(PACKAGE_PLUGIN_ID), undefined);
-      assert.deepEqual(runtime.get(before.install_id), before, "the real executor returned while the original row was still disabled");
+      assert.deepEqual(runtime.get(before.install_id), before, "the original row is disabled at the real startup or redemption boundary");
       if (change === "cancel") controller.abort(new ActionError("actions.cancelled", "left the settings page"));
-      else records.save(replacement);
+      else if (change === "digest") records.save(replacement);
+      else allowed = false;
       gate.release.resolve();
-      await assert.rejects(pending, { code: change === "cancel" ? "actions.cancelled" : "actions.provider_replaced" });
-      assert.deepEqual(runtime.get(before.install_id), change === "cancel" ? before : replacement);
+      const code = change === "cancel" ? "actions.cancelled" : change === "digest" ? "actions.provider_replaced" : "actions.forbidden";
+      await assert.rejects(pending, { code });
+      assert.deepEqual(runtime.get(before.install_id), change === "digest" ? replacement : before);
       assert.equal(runtime.contribution(before.install_id), null);
       assert.deepEqual(offered(), [], "the stopped candidate leaves no live material");
       assert.deepEqual(editable(), disabled, "the disabled declaration stays editable");
@@ -184,7 +195,7 @@ test("S-84 SCS-08 a project enable cancelled or replaced during real executor st
       assert.equal(await supervisor.ensureStarted(PACKAGE_PLUGIN_ID), undefined);
     } finally { gate.release.resolve(); if (change === "digest") records.save(before); }
   }
-  assert.equal(stop.mock.callCount(), 2, "both successful worker starts were released without a new crash or recovery write");
+  assert.equal(stop.mock.callCount(), 3, "the successful worker starts were released without a new crash or recovery write");
   assert.deepEqual(await h.control("enable", target), { ...target, state: "running" });
   assert.deepEqual(offered().map(({ kind, name, install_id }) => ({ kind, name, install_id })), [
     { kind: "role", name: "审稿", install_id: before.install_id },
@@ -211,7 +222,7 @@ test("S-84 SCS-08 a committed start still closes after caller withdrawal and can
     for (const change of ["disable", "withdraw"] as const) {
       gate = hold();
       let allowed = true;
-      const pending = h.client.invoke({ ...h.person, assert_authority_current() { if (!allowed) throw denied(); } },
+      const pending = h.client.invoke({ ...h.person, validate_authority: async () => { if (!allowed) throw denied(); } },
         pluginControlActions.enable, { ...target, expected_installation });
       try {
         await enteredBefore(pending, gate.entered.promise);
@@ -232,6 +243,18 @@ test("S-84 SCS-08 a committed start still closes after caller withdrawal and can
   } finally { await h.close(); }
 });
 
+function projectedNotes(scope: "project" | "home", optionalGrant = false) {
+  return signedPackage(newPublisher(), (files, manifest) => {
+    const contract = packageContract(manifest.plugin_id);
+    const add = contract.operations[1]!;
+    add.external = true;
+    if (optionalGrant) add.effects.projects = ["exist"];
+    files[SANDBOX_PACKAGE_FILES.contract] = JSON.stringify(contract);
+    Object.assign(manifest, sandboxPluginManifest({ pluginId: manifest.plugin_id, name: manifest.name, version: manifest.version,
+      publisher: manifest.publisher, presentation: false, contract, ...(scope === "home" ? { runtime: { scope } } : {}) }));
+  });
+}
+
 test("S-84 SCS-08 withdrawn project enable does not publish declared actions or fail a shared catalog read", mac, async t => {
   const probe = { capability_id: "fixture.catalog_probe", version: 1 };
   let waiting: ReturnType<typeof hold> | undefined;
@@ -246,20 +269,14 @@ test("S-84 SCS-08 withdrawn project enable does not publish declared actions or 
       kind: "query", effect: "read", audiences: ["user", "plugin", "agent"], permissions: [], subject_kinds: [], input_schema: empty, output_schema: { type: "null" } } }],
     handlers: [{ ...probe, handle: () => null }],
   }));
-  const bundle = signedPackage(newPublisher(), (files, manifest) => {
-    const contract = packageContract(manifest.plugin_id);
-    contract.operations[1]!.external = true;
-    files[SANDBOX_PACKAGE_FILES.contract] = JSON.stringify(contract);
-    Object.assign(manifest, sandboxPluginManifest({ pluginId: manifest.plugin_id, name: manifest.name, version: manifest.version,
-      publisher: manifest.publisher, presentation: false, contract, effects: effectsFromContract(contract) }));
-  });
+  const bundle = projectedNotes("project");
   assert.equal(bundle.payload.manifest.actions?.length, 2);
   await owned.install(bundle); await owned.disable();
   const row = await owned.row(), { runtime, supervisor } = observe(), gate = hold();
   t.after(supervisor.observeActivation(pluginId => { if (pluginId === PACKAGE_PLUGIN_ID) waiting = gate; }));
   let allowed = true;
   const pending = owned.enable({ ...target, expected_installation: projectInstallation(row) },
-    { assert_authority_current() { if (!allowed) throw denied(); } });
+    { validate_authority: async () => { if (!allowed) throw denied(); } });
   try {
     await enteredBefore(pending, gate.entered.promise);
     assert.equal(runtime.get(row.install_id).state, "running", "the real catalog wait is after the Runtime commit");
@@ -274,3 +291,29 @@ test("S-84 SCS-08 withdrawn project enable does not publish declared actions or 
     assert.equal((await owned.row()).recovery_error, null, "caller withdrawal is not a plugin recovery failure");
   } finally { waiting = undefined; gate.release.resolve(); }
 });
+
+for (const scope of ["project", "home"] as const) {
+  test(`S-94 S-84 ${scope} regrant restores a real projected signed action on the same installation`, mac, async t => {
+    const f = await serveHomeRuntime(t), project = await f.project("Signed permission switch"), pkg = projectPackage(f, project);
+    await pkg.install(projectedNotes(scope, true));
+    const row = async () => scope === "project" ? await pkg.row() : f.host.homePlugins!.installation(PACKAGE_PLUGIN_ID)!;
+    const original = await row();
+    const client = scope === "project" ? pkg.client : f.host.homeActionClient(), caller = person(scope === "project" ? project.project_id : null);
+    const invoke = async () => {
+      const view = (await client.discover(caller)).find(item => item.provider.plugin_install_id === original.install_id && item.action.local_id === "notes.list");
+      assert.ok(view?.availability.available, JSON.stringify(view?.availability));
+      return client.invoke(caller, { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }, {});
+    };
+    assert.deepEqual(await invoke(), []);
+    const path = scope === "project" ? "/projects/" + project.project_id + "/api/plugin-trust/permissions/set" : "/api/settings/plugin-permissions/set";
+    const response = await f.request(path, { method: "POST", body: { install_id: original.install_id, permission: PLUGIN_PROJECTS_EXIST_PERMISSION, granted: true } });
+    assert.equal(response.status, 200, await response.clone().text());
+    const permission = (await response.json()).permissions.find((item: { permission: string }) => item.permission === PLUGIN_PROJECTS_EXIST_PERMISSION);
+    assert.equal(permission.granted, true, "the actual permission switch committed a changed grant");
+    const after = await row();
+    assert.deepEqual([after.install_id, after.installation_generation, after.version, after.manifest_digest],
+      [original.install_id, original.installation_generation, original.version, original.manifest_digest], "permission restart retains the release");
+    assert.equal(after.state, "running");
+    assert.deepEqual(await invoke(), [], "the actual sandbox query still runs after regrant");
+  });
+}

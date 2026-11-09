@@ -18,8 +18,8 @@ import { outsidePluginAction } from "./action-scope.js";
 import { OfferedContributions } from "./offered-contributions.js";
 import { MemoryPluginRuntimeRepository } from "./memory-repository.js";
 import { NativePluginExecutor } from "./native-executor.js";
-import { assertRecoverableState, assertRequiredGrants, cloneRecord, definitionKey, installIdentity, normalizeErrorCode, requireDefinition, requireInstall, safeErrorCode, safeErrorMessage, sameStrings, validateManifest } from "./runtime-rules.js";
-import { createActivationContext, releaseUnrecorded } from "./activation-context.js";
+import { assertRecoverableState, assertRequiredGrants, cloneRecord, definitionKey, installIdentity, normalizeErrorCode, requireDefinition, requireInstall, safeErrorCode, safeErrorMessage, sameStrings, startedInstall, validateManifest } from "./runtime-rules.js";
+import { captureStartControl, createActivationContext, releaseRejectedActivation, releaseUnrecorded } from "./activation-context.js";
 import { regrantInstall } from "./regrant.js";
 import { assertPluginUpgradeStepsAdmitted } from "./plugin-upgrade-steps.js";
 
@@ -329,7 +329,7 @@ export class PluginRuntime implements PluginRuntimeApi {
         };
         this.repository.save(upgraded);
         const receipt = current.state === "disabled" ? this.receipt("start", upgraded, false)
-          : await this.startOnce(input.install_id, restoration?.assertRestored ?? input.assertCurrent);
+          : await this.startOnce(input.install_id, { assertCurrent: restoration?.assertRestored ?? input.assertCurrent });
         return { ...receipt, operation: rollbackCode ? "rollback" : "upgrade", replayed: false };
       } catch (error) {
         if (restoration && error instanceof ActionError && error.code === "actions.provider_replaced") throw error;
@@ -385,11 +385,11 @@ export class PluginRuntime implements PluginRuntimeApi {
       receipt: (record, replayed) => this.receipt("grant", record, replayed) }, installId, permission, granted);
   }
 
-  start(installId: string, control?: { assertCurrent?: () => void }): Promise<PluginLifecycleReceipt> {
+  start(installId: string, control?: Parameters<PluginRuntimeApi["start"]>[1]): Promise<PluginLifecycleReceipt> {
     control?.assertCurrent?.();
     const pending = this.starting.get(installId);
-    if (pending) return pending;
-    const attempt = this.locks.run(installId, () => this.startOnce(installId, control?.assertCurrent));
+    if (pending && !control?.beforeEffect) return pending;
+    const attempt = this.locks.run(installId, () => this.startOnce(installId, control));
     this.starting.set(installId, attempt);
     // Drop the shared attempt before callers resume, so a start that follows
     // `await start()` is a new call and can report an honest replay.
@@ -415,7 +415,9 @@ export class PluginRuntime implements PluginRuntimeApi {
   }
 
   /** Recheck identity even for a live replay. Cold running rows activate again; crashed/quarantined rows require recover. */
-  private async startOnce(installId: string, assertCurrent?: () => void): Promise<PluginLifecycleReceipt> {
+  private async startOnce(installId: string, control?: Parameters<PluginRuntimeApi["start"]>[1]): Promise<PluginLifecycleReceipt> {
+    const { assertCurrent, beforeEffect } = captureStartControl(control) ?? {};
+    if (beforeEffect) await beforeEffect();
     assertCurrent?.();
     const current = requireInstall(this.repository, installId);
     if (current.state !== "installed" && current.state !== "disabled" && current.state !== "running") {
@@ -430,18 +432,15 @@ export class PluginRuntime implements PluginRuntimeApi {
       if (current.state === "running" && this.hasLiveInstance(installId)) return this.receipt("start", current, true);
       const handle = await outsidePluginAction(() => this.executor.start(definition, this.activateContext(current, definition)));
       startedContext = this.liveContext(installId);
+      if (beforeEffect) await beforeEffect();
       assertCurrent?.();
       // Redemption owns cleanup if it rejects the contribution.
       startedContext = null;
       await this.redeem(definition, current, handle.contribution);
       startedContext = this.liveContext(installId);
+      if (beforeEffect) await beforeEffect();
       assertCurrent?.();
-      const updated = {
-        ...current,
-        state: "running" as const,
-        last_error_code: null,
-        updated_at: this.now(),
-      };
+      const updated = startedInstall(current, this.now());
       this.repository.save(updated);
       this.contributions.set(installId, handle.contribution, definition.manifest);
       return this.receipt("start", updated, false);
@@ -449,11 +448,11 @@ export class PluginRuntime implements PluginRuntimeApi {
       // A stop revokes the context first and waits for the lock: a start it interrupted is cancelled, not crashed.
       const cancelled = !isIdentityFailure(error) && this.contexts.get(installId)?.revoked() === true;
       this.revokeContext(installId);
-      try { assertCurrent?.(); } catch (interrupted) {
-        // Release a successful start if its caller or the restoring scope expired.
-        try { if (startedContext) await outsidePluginAction(() => this.executor.stop(definition, startedContext!)); }
-        catch { /* Cleanup cannot replace the original cancellation. */ }
-        throw interrupted;
+      try {
+        if (beforeEffect) await beforeEffect();
+        assertCurrent?.();
+      } catch (interrupted) {
+        return await releaseRejectedActivation(startedContext ? { context: startedContext, definition } : undefined, this.executor, interrupted);
       }
       if (cancelled) throw pluginErrors.state_invalid("启动被停用打断，没有记为崩溃");
       const updated = {
@@ -571,13 +570,7 @@ export class PluginRuntime implements PluginRuntimeApi {
       if (releaseQuarantine) this.repository.save({ ...current, state: "crashed", updated_at: this.now() });
       const handle = await outsidePluginAction(() => this.executor.start(definition, this.activateContext(current, definition)));
       await this.redeem(definition, current, handle.contribution);
-      const updated = {
-        ...current,
-        state: "running" as const,
-        recovery_count: releaseQuarantine ? 0 : recoveryCount,
-        last_error_code: null,
-        updated_at: this.now(),
-      };
+      const updated = startedInstall(current, this.now(), releaseQuarantine ? 0 : recoveryCount);
       this.repository.save(updated);
       this.contributions.set(installId, handle.contribution, definition.manifest);
       return this.receipt("recover", updated, false);

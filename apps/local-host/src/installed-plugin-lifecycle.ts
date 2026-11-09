@@ -38,7 +38,7 @@ export interface InstalledLifecycleContext {
   releaseFor(pluginId: string): InstalledRelease | undefined;
   approvedFor(pluginId: string): SandboxEffects | null;
   definition(release: InstalledRelease, approved: SandboxEffects): PluginDefinition;
-  expose(release: InstalledRelease, onFailure?: 'caller', assertCurrent?: () => void): Promise<void>;
+  expose(release: InstalledRelease, onFailure?: 'caller', control?: Pick<EnableControl, 'beforeEffect' | 'assertCurrent'>): Promise<void>;
   withdraw(pluginId: string): void;
   registerPrompts(release: InstalledRelease, state: 'enabled' | 'disabled', restored?: boolean): void;
   /** Reminders and scheduled operations of one installation stop with it. */
@@ -205,7 +205,8 @@ export function installedLifecycle(c: InstalledLifecycleContext): AgentBuilderPo
           throw new ActionError('actions.provider_replaced', '原插件已退出运行，请重新查看');
       });
       if (enable) await enable.beforeEffect();
-      await c.expose(installed, undefined, assertRunning);
+      await c.expose(installed, undefined, enable && assertRunning && { beforeEffect: enable.beforeEffect, assertCurrent: assertRunning });
+      if (enable) await enable.beforeEffect();
       assertRunning?.();
       c.registerPrompts(installed, 'enabled'); c.recoveryErrors.delete(pluginId); return;
     }

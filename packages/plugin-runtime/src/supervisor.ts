@@ -333,7 +333,7 @@ export class PluginSupervisor implements PluginHostLifecycle {
       if (this.#epochs.get(pluginId) !== epoch || !sameRelease(current, control.installation) || current.state !== "disabled") throw enableReplaced();
       if (!this.#revoked.has(pluginId)) this.revoke(pluginId);
       this.#begin(pluginId);
-      const attempt = this.#activate(pluginId, control.assertCurrent, current);
+      const attempt = this.#activate(pluginId, control.assertCurrent, control);
       this.#finish(pluginId, attempt);
       return await attempt;
     }
@@ -513,7 +513,8 @@ export class PluginSupervisor implements PluginHostLifecycle {
     return await this.#activate(pluginId);
   }
 
-  async #activate(pluginId: string, assertCurrent?: () => void, enable?: PluginInstanceRecord): Promise<PluginSupervisorState> {
+  async #activate(pluginId: string, assertCurrent?: () => void, control?: PluginEnableControl): Promise<PluginSupervisorState> {
+    const enable = control?.installation;
     assertCurrent?.();
     if (!enable && this.#revoked.has(pluginId)) return this.#revokedState(pluginId);
     const entry = this.#activeEntries.get(pluginId);
@@ -541,10 +542,10 @@ export class PluginSupervisor implements PluginHostLifecycle {
           return this.#revokedState(pluginId, installId);
         }
       }
-      const receipt = await this.#runtime.start(installId, { assertCurrent: assertStarting });
+      const receipt = await this.#runtime.start(installId, { assertCurrent: assertStarting, beforeEffect: control?.beforeEffect });
       let refusal: { error: unknown } | undefined;
       if (enable) {
-        try { assertCurrent?.(); } catch (error) { refusal = { error }; }
+        try { await control?.beforeEffect(); assertCurrent?.(); } catch (error) { refusal = { error }; }
         const current = this.#runtime.get(installId);
         if (!sameRelease(receipt.install, enable) || !sameRelease(current, enable) || current.state !== "running") throw enableReplaced();
       } else assertCurrent?.();
@@ -560,6 +561,7 @@ export class PluginSupervisor implements PluginHostLifecycle {
     } catch (error) {
       if (enabledCommit || enable && error instanceof ActionError && error.code === "actions.provider_replaced") throw error;
       assertCurrent?.();
+      if (enable && this.#runtime.get(enable.install_id).state === "disabled") throw error;
       if (!sameEpoch() || !enable && this.#revoked.has(pluginId)) return this.#revokedState(pluginId, installId);
       return this.#fail(pluginId, installId, safeCode(error), safeMessage(error));
     }

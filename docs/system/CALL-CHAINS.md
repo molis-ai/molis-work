@@ -137,6 +137,8 @@
 
 **守住它的用例**：`tests/plugin-upgrades.test.ts`、`tests/plugin-platform-composition.test.ts`、`tests/plugin-events.test.ts`、`tests/plugin-release-artifact.test.ts`、`tests/installed-plugin-host.test.ts`、`tests/installed-plugin-policy.test.ts`、`tests/system-search-lifecycle.test.ts`、`tests/side-panel-platform.test.ts`、`tests/plugin-model-service.test.ts`、`tests/home-plugin-platform.test.ts`、`tests/home-plugin-private-store.test.ts`、`tests/home-plugin-model-lifecycle.test.ts`。
 
+本人从项目发起 `skills.import.confirm@1` 后，`apps/local-host/src/plugin-trust-actions.ts` 经当前项目的动作客户端调用确切的 `plugin-install` 提供方和 `plugins.local_packages.sign@1`。签名在预检和授权检查通过后使用 Home 发布身份。返回的预览由 `apps/local-host/src/plugin-install-service.ts` 按原项目和操作者回取，再消费一次完成确认。安装到 Home 的包也保留发起项目。详见 [场景与页面合同 §6.6](../../specs/scene-and-page-contract/spec.md#66-平台签名入口只给内容包)。
+
 **现状与缺口**
 
 - 停用的 Runtime 插件在升级或回滚时会被重新启动（`changeVersion` 把状态写成 `installed` 再启动）。已定「只换版本、保持停用」（#1，修复中）。

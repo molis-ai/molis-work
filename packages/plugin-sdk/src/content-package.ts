@@ -2,7 +2,8 @@ import { Buffer } from "node:buffer";
 import { isDeepStrictEqual } from "node:util";
 import type { Blueprint } from "@molis-ai/molis-work-contracts/platform/blueprints";
 import { SKILL_LIMITS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
-import { CONTENT_PACKAGE_FILES, type PluginDeclarationProblem, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { CONTENT_PACKAGE_FILES, type PluginDeclarationProblem, type PluginManifest, type PluginPackagePayload } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { LocalPackageSignInput } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import { blueprintFilePath, inspectBlueprintLocales } from "./blueprints.js";
 import { refuseDeclarations } from "./declaration-problems.js";
 import { isRecord } from "./json-value.js";
@@ -22,6 +23,18 @@ export interface ContentPackage {
     default: Blueprint;
     others: readonly { locale: string; blueprint: Blueprint }[];
   };
+}
+
+/** Complete a content declaration with the publishing identity and its single manifest mirror, then check the result. */
+export function completeContentPackagePayload(input: LocalPackageSignInput, publisher: PluginManifest["publisher"]): PluginPackagePayload {
+  if (Object.hasOwn(input.manifest, "publisher")) refuseDeclarations([{ path: "publisher", reason: "待签声明的发布者由签名方填写" }]);
+  if (input.files.some(file => file.path === CONTENT_PACKAGE_FILES.manifest)) {
+    refuseDeclarations([{ path: CONTENT_PACKAGE_FILES.manifest, reason: "待签包的 Manifest 文件由签名方生成" }]);
+  }
+  const manifest = { ...input.manifest, publisher };
+  const files = [{ path: CONTENT_PACKAGE_FILES.manifest, content_base64: Buffer.from(JSON.stringify(manifest)).toString("base64") }, ...input.files];
+  const payload = { schema_version: /* @version format.plugin.package */ 1, manifest, files } as const;
+  return { ...payload, manifest: parseContentPackage(payload).manifest };
 }
 
 /**

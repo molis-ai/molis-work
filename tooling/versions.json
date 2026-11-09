@@ -732,6 +732,7 @@
     "action.plugins.installed.enable": 1,
     "action.plugins.installed.list": 1,
     "action.plugins.installed.uninstall": 1,
+    "action.plugins.local_packages.sign": 1,
     "action.plugins.permissions.set": 1,
     "action.plugins.project_reach.grant": 1,
     "action.plugins.project_reach.list": 1,

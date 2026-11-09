@@ -252,6 +252,8 @@ export interface AssistantMaterial {
             kind: string;
             id: string;
         };
+    } | {
+        material: MaterialRef;
     };
     method?: AssistantMethodSelection & {
         name?: string;
@@ -635,10 +637,13 @@ export interface AssistantSendInput extends Pick<AgentInputSend, "about"> {
     target?: "answer" | "steer";
     delivery?: AgentSteerMode;
     reask?: AgentQuestionReask;
+    submission_id?: string;
+    draft_revision?: number;
     request_id: string;
 }
 
 export interface AssistantSendResult {
+    submission_id?: string;
     work: AssistantWork;
     outcome: "started" | "steered" | "queued" | "answered" | "repeated";
     run_id?: string;
@@ -722,6 +727,7 @@ export interface AssistantWork {
     state: AssistantWorkState;
     session_id: string | null;
     draft: string;
+    draft_revision: number;
     created_at: string;
     updated_at: string;
     archived: boolean;

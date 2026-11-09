@@ -59,11 +59,11 @@ test("the panel shows a work going on by itself when the sub-task it handed out 
 
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await waitFor("Boolean(document.querySelector('[data-assistant-input]'))");
-  await click("[data-assistant-input]");
+  await waitFor("Boolean(document.querySelector('[data-assistant-composer] .mw-composer__input'))");
+  await click("[data-assistant-composer] .mw-composer__input");
   await command("Input.insertText", { text: "把今天的会议整理成纪要，分给子任务起草" }, sessionId);
-  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
-  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
   await childAsked.promise;
   const panel = "document.querySelector('[data-assistant-panel]').textContent";
   await waitFor(`${panel}.includes('它做完我再汇总')`, 20_000);

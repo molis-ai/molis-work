@@ -4,4 +4,5 @@
  */
 const remembered = (name: string) => `localStorage.getItem('molis.assistant.${name}' + (id => id && id !== 'personal' ? ':' + id : '')(document.querySelector('.chooser')?.dataset.selected ?? decodeURIComponent(location.pathname.match(/^\\/projects\\/([^/]+)/)?.[1] ?? '')))`;
 export const CURRENT_WORK = remembered("current");
-export const UNSENT_WORDS = remembered("unsent");
+/** The unresolved request belongs to this receiver within the selected project. */
+export const UNSENT_WORDS = `localStorage.getItem('molis.assistant.unsent' + (id => id && id !== 'personal' ? ':' + id : '')(document.querySelector('.chooser')?.dataset.selected ?? decodeURIComponent(location.pathname.match(/^\\/projects\\/([^/]+)/)?.[1] ?? '')) + ':' + encodeURIComponent(${CURRENT_WORK} || 'new'))`;

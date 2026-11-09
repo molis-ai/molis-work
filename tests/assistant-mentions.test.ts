@@ -103,6 +103,20 @@ test("an object picked with “@” is checked with its owner and read by it bef
       (error: unknown) => error instanceof ActionError && /项目资料「供应商准入问卷」读不到/.test(error.message));
     assert.equal(requests.length, afterPiece, "a piece that cannot be read stops the round before any model call");
 
+    // B10-R5: the shared + picker keeps its revision, uses the final work's project, and gives only resolved text to the round.
+    const pinned = { ...piece, reference: { material: { subject: piece.reference.subject, pin: { mode: "current" as const, read_revision: found.revision } } } };
+    await service.send({ text: "再核对选中的版本", request_id: "mention-pinned-1", work_id: sent.work.work_id, materials: [pinned] }, {});
+    await until(async () => requests.length > afterPiece && (await service.read(sent.work.work_id)).work.state === "completed", "pinned round");
+    assert.ok(requests.at(-1)!.includes("逾期不补齐的暂停合作"));
+    const resolved = (await service.read(sent.work.work_id)).rounds.at(-1)!.materials[0]!;
+    assert.equal(resolved.reference, undefined, "input-only MaterialRef does not create another persisted format");
+    assert.equal(String(resolved.object?.version), found.revision);
+    const beforeRefusal = store.get("web-user", sent.work.work_id);
+    await assert.rejects(service.send({ text: "不要保存这次失败输入", request_id: "mention-pinned-2", work_id: sent.work.work_id,
+      materials: [{ ...pinned, reference: { material: { ...pinned.reference.material, pin: { mode: "current", read_revision: "old" } } } }] }, {}),
+      (error: unknown) => error instanceof ActionError && error.code === "assistant.invalid" && Boolean(error.details?.unreadable));
+    assert.deepEqual(store.get("web-user", sent.work.work_id), beforeRefusal, "refusal leaves the existing work, draft and continuation unchanged");
+
     // Which kind an open tab is, from what plugins declare for their searchable objects.
     const kinds = await service.reads.surfaceKinds({ project_ref: reference });
     assert.equal(kinds.lingguang, "lingguang_spark");

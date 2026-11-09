@@ -70,9 +70,9 @@ test("VUX-33: the Assistant's streamed code block grows in place, keeps an opene
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await click("[data-assistant-input]");
+  await click("[data-assistant-composer] .mw-composer__input");
   await command("Input.insertText", { text: "写一段代码" }, sessionId);
-  await click("[data-assistant-send]");
+  await click("[data-assistant-composer] [data-composer-send]");
   await waitFor("document.querySelector('.assistant-msg--assistant .assistant-rich strong')?.textContent === '第一段'", 30_000);
   model.finish();
   const figure = "document.querySelector('.assistant-msg--assistant .assistant-code')";

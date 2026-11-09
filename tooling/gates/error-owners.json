@@ -135,6 +135,12 @@
       ],
       "reason": "The desktop computer helper, its driver and the operation records in the file list. Its codes start with computer."
     },
+    "composer": {
+      "paths": [
+        "packages/contracts/src/platform/composer.ts"
+      ],
+      "reason": "The unified input's public contract (specs/unified-input-voice/implementation-plan.md §6 answer 13): a source that went away, a pick the target cannot read at send time and a mount page's missing required field are the composer's own refusals, declared once here for the mount pages and the client (slice K2) that raise them."
+    },
     "connector": {
       "paths": [
         "horizontal/connector-host/",

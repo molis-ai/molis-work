@@ -11,8 +11,10 @@ import { PLUGIN_CONNECTIONS_PERMISSION } from "@molis-ai/molis-work-contracts/pl
 import { pluginRouteMatcher } from "@molis-ai/molis-work-plugin-runtime";
 import { projectDeletedHooksFor } from "./project-deleted-hooks.js";
 import type { PageActionRequest } from "./plugin-page-actions.js";
+import { installedPageRelease, sameInstalledRelease } from "./installed-stage-identity.js";
+export { installedPageRelease };
 
-type PageRelease = Readonly<Pick<PluginInstanceRecord, "install_id" | "installation_generation" | "version" | "manifest_digest">>;
+type PageRelease = ReturnType<typeof installedPageRelease>;
 
 interface PageSelection {
   install_id: string;
@@ -23,19 +25,11 @@ interface PageSelection {
   assertCurrent(): void;
 }
 
-export function installedPageRelease(record: PluginInstanceRecord): PageRelease {
-  const { install_id, installation_generation, version, manifest_digest } = record;
-  return Object.freeze({ install_id, installation_generation, version, manifest_digest });
-}
-function sameRelease(expected: PageRelease, actual: PageRelease | null | undefined): boolean {
-  return actual?.install_id === expected.install_id && actual.installation_generation === expected.installation_generation
-    && actual.version === expected.version && actual.manifest_digest === expected.manifest_digest;
-}
 export function installedPageSelection(record: PluginInstanceRecord, project_id: string | null, current: () => PluginInstanceRecord | null | undefined): PageSelection {
   const release = installedPageRelease(record);
   return { install_id: release.install_id, project_id, release, assertCurrent() {
     const now = current();
-    if (now?.state !== "running" || !sameRelease(release, now)) throw refused();
+    if (now?.state !== "running" || !sameInstalledRelease(release, now)) throw refused();
   } };
 }
 
@@ -98,7 +92,7 @@ export class PluginPageAuthority {
     selected?: PageSelection): { page_id: string; storage_scope: string } {
     const candidates = [...this.activations].filter(item => item.install_id && item.manifest.plugin_id === pluginId && item.actor_id === actorId);
     const activation = selected ? candidates.find(item => item.install_id === selected.install_id && item.project_id === selected.project_id
-      && (!selected.release || sameRelease(selected.release, item.release)))
+      && (!selected.release || sameInstalledRelease(selected.release, item.release)))
       : candidates.find(item => item.project_id === null && item.resolveFiles)
         ?? candidates.find(item => item.project_id === projectId) ?? candidates.find(item => item.project_id === null) ?? registered;
     if (!activation) throw refused();
@@ -241,7 +235,8 @@ export function pluginPageRequest(request: IncomingMessage) {
   const authority = requests.get(request);
   if (!authority) return undefined;
   authority.check();
-  return { plugin_id: authority.page.activation.manifest.plugin_id, project_key: authority.page.selection?.project_key, project_id: authority.page.project_id,
+  const installed_scope = authority.page.selection?.release ? authority.page.activation.project_id === null ? "home" as const : "project" as const : undefined;
+  return { plugin_id: authority.page.activation.manifest.plugin_id, project_key: authority.page.selection?.project_key, project_id: authority.page.project_id, installed_scope,
     signal: authority.signal, assertCurrent: authority.check,
     async beforeEffect() { await authority.page.assertScope?.(); authority.check(); },
     objectPresentation(surface: string) {

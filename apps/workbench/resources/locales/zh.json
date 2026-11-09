@@ -22,6 +22,7 @@
     "common.presentation.stale": "以下是{at}读到的值",
     "common.presentation.unreadable": "暂时读不到",
     "common.text.unavailable": "这句话暂时显示不了",
+    "workbench.home.hidden-above": "另有 {count} 件在上面",
     "workbench.env.add-row": "加一行",
     "workbench.env.add-user": "替用户加一行“保存”",
     "workbench.env.clear": "清空",

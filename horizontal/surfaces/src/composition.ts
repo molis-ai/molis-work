@@ -55,11 +55,13 @@ export class SurfaceCompositionService {
       checkCurrent(ports);
       if (!catalog) throw surfaceErrors.compose_failed("暂时读不到插件目录");
       const plugins = home ? catalog.filter(plugin => plugin.home && plugin.state !== "uninstalled") : catalog;
-      const guards = new Set(home ? [home.retainCatalog(plugins)] : []);
+      const catalogCurrent = home?.retainCatalog(plugins);
+      const guards = new Set<() => void>();
       const retained = new Set<ActionView>();
       const current = () => {
         checkCurrent(ports);
         for (const guard of guards) requireSynchronous(guard());
+        requireSynchronous(catalogCurrent?.());
       };
       const position = positionFor(request.slot, plugins);
       const delivered = deliveredSubjects(request);

@@ -238,7 +238,7 @@ test('studio: a request becomes a working, published plugin that the person can 
     // The workbench lists it beside the built-in plugins: one stage framing its installed page.
     const stages = await installedPluginStages(options);
     assert.deepEqual(stages.map(item => [item.label, item.surface.startsWith('app-')]), [['笔记墙', true]]);
-    assert.match(stages[0]!.stage, new RegExp('data-work-surface="' + stages[0]!.surface + '"[^>]*hidden><iframe src="' + pluginHref.replaceAll('.', '\\.') + '\\?frame=workbench"'));
+    assert.match(stages[0]!.stage, new RegExp('data-work-surface="' + stages[0]!.surface + '"[^>]*hidden><iframe src="' + pluginHref.replaceAll('.', '\\.') + '\\?frame=workbench&amp;installation='));
     // Its address opened directly (a link in a notice, say) opens the workbench on that plugin's stage, not a page of its own.
     const directPlugin = await fetch(origin + pluginHref, { redirect: 'manual' });
     assert.equal(directPlugin.status, 302); assert.equal(directPlugin.headers.get('location'), options.routePrefix + '/?openSurface=' + encodeURIComponent(stages[0]!.surface)); await directPlugin.text();

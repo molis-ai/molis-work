@@ -77,7 +77,7 @@ test("RAC-2621 a package that has only a stage view has no side tab; its entry o
   // The page a person opens from the arrival page frames the package's own page.
   const opened = await h.page(`/plugins/${PACKAGE_PLUGIN_ID}`);
   assert.equal(opened.status, 200);
-  assert.ok(opened.text.includes(`<iframe src="/plugins/${PACKAGE_PLUGIN_ID}?frame=workbench"`), "the Home page frames the package's page");
+  assert.ok(opened.text.includes(`<iframe src="/plugins/${PACKAGE_PLUGIN_ID}?frame=workbench&amp;installation=`), "the Home page frames the package's page");
   // The framed page is the common installed-plugin renderer, whose every call goes to the package through the Home's route.
   const framed = await h.page(`/plugins/${PACKAGE_PLUGIN_ID}?frame=workbench`);
   assert.equal(framed.status, 200);
@@ -179,7 +179,7 @@ test("RAC-2621.1 the first request after a start can be a package's page: the Ho
     // Nothing has asked the Home to start yet: refreshing the package's page, or opening the window again after a restart, is the first request.
     const opened = await h.page(`/plugins/${PACKAGE_PLUGIN_ID}`, served.origin);
     assert.equal(opened.status, 200);
-    assert.ok(opened.text.includes(`<iframe src="/plugins/${PACKAGE_PLUGIN_ID}?frame=workbench"`), "the page frames the package");
+    assert.ok(opened.text.includes(`<iframe src="/plugins/${PACKAGE_PLUGIN_ID}?frame=workbench&amp;installation=`), "the page frames the package");
   } finally { await served.close(); await host.close(); }
 });
 
@@ -212,7 +212,7 @@ test("RAC-2621.3 the framed page carries the Home page's policy, and neither the
   assert.match(framed.headers.get("content-security-policy") ?? "", /frame-ancestors 'self'/u, "only this origin frames it");
   assert.equal(framed.headers.get("x-frame-options"), "SAMEORIGIN");
   const frameOf = (html: string, from: RegExp) => from.exec(html)?.[0];
-  const outer = frameOf((await h.page(`/plugins/${PACKAGE_PLUGIN_ID}`)).text, /<iframe src="\/plugins\/[^"]*\?frame=workbench"[^>]*>/u);
+  const outer = frameOf((await h.page(`/plugins/${PACKAGE_PLUGIN_ID}`)).text, /<iframe src="\/plugins\/[^"]*\?frame=workbench&amp;installation=[^"]+"[^>]*>/u);
   const stage = frameOf((await h.page(h.projectPath)).text, new RegExp(`data-installed-plugin="${PACKAGE_PLUGIN_ID.replaceAll(".", "\\.")}" hidden><iframe [^>]*>`, "u"));
   for (const [where, tag] of Object.entries({ "the Home's page": outer, "a project's stage": stage })) {
     assert.ok(tag, `${where} has the frame`);

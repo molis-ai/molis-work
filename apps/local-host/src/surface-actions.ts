@@ -1,8 +1,10 @@
 import { ActionError, bindActionClient, bindActionHandler, requireSynchronous, type ActionClient, type ActionExecutionContext, type ActionProviderRegistration, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { compileActionSchema } from "@molis-ai/molis-work-kernel";
 import { CONTEXT_RELATION_TYPES } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import { PLUGIN_ATTENTION_READ_PERMISSION } from "@molis-ai/molis-work-contracts/platform/plugin-attention";
 import type { PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { PresentationValues, PresentationValuesInput } from "@molis-ai/molis-work-contracts/platform/presentation";
+import type { PresentationOverview, PresentationValues, PresentationValuesInput } from "@molis-ai/molis-work-contracts/platform/presentation";
+import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { UiSlotDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
 import { surfaceCompositionActions, SURFACES_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/surface-composition";
 import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
@@ -14,10 +16,15 @@ import type { PlacementHost } from "./placement-actions.js";
 import { installedPluginEntries } from "./plugin-installation-directory.js";
 import type { LocalProjectDatabase } from "./project-database.js";
 import { runningProjectPlatform } from "./project-plugins.js";
+import { surfaceHomeDirectory } from "./surface-home-directory.js";
+import { homeSampleFor, retainHomeDirectory } from "./surface-home-sample.js";
+import type { MolisWorkProjectCatalog } from "./project-catalog.js";
 
 interface SurfaceHostPorts {
   store: LocalProjectDatabase;
-  projectId: string;
+  reference: LocalHostProjectReference;
+  homeDirectory?: string;
+  readCatalog<Result>(operation: (catalog: MolisWorkProjectCatalog) => Result): Result | undefined;
   client: ActionClient & { discoverRetained(caller: ActionExecutionContext): ReturnType<SurfaceComposePorts["discover"]> };
   home(): HomePluginHost | undefined;
   placement(): PlacementHost | undefined;
@@ -34,7 +41,7 @@ function surfacePlugin(record: PluginInstanceRecord, scope: SurfacePlugin["scope
 
 /** Read the installed records and their owners' running contributions; neither lookup opens or starts a platform. */
 async function surfacePlugins(ports: SurfaceHostPorts, current: () => void): Promise<readonly SurfacePlugin[]> {
-  const { store, projectId } = ports;
+  const { store, reference: { project_id: projectId } } = ports;
   const [project, installed] = await Promise.all([runningProjectPlatform(store, projectId), runningInstalledPluginPlatform(store, projectId)]);
   current();
   const projectEntries = installedPluginEntries(store.db).map(({ record, manifest }) => {
@@ -50,11 +57,12 @@ async function surfacePlugins(ports: SurfaceHostPorts, current: () => void): Pro
 }
 
 export function surfaceActionProvider(ports: SurfaceHostPorts): ActionProviderRegistration {
-  const { projectId, store, client } = ports;
+  const { reference: { project_id: projectId }, store, client } = ports;
   const service = new SurfaceCompositionService();
   const attention = new AttentionModule(store.db, { exists: () => true });
-  const forCall = (caller: ActionExecutionContext, readsAttention = false): SurfaceComposePorts & SurfaceCorrectPorts => {
-    const needsAttention = readsAttention && caller.audience === "plugin";
+  const forCall = (caller: ActionExecutionContext, slot?: "attention" | "home"): SurfaceComposePorts & SurfaceCorrectPorts => {
+    const needsAttention = slot === "attention" && caller.audience === "plugin";
+    const sample = slot === "home" && caller.audience === "user" ? homeSampleFor(store) : undefined;
     const current = () => {
       if (caller.project_id !== projectId) throw new ActionError("actions.scope_mismatch", "调用上下文与项目不一致");
       if (!store.db.open) throw new ActionError("actions.host_closed", "项目运行环境已关闭");
@@ -64,13 +72,16 @@ export function surfaceActionProvider(ports: SurfaceHostPorts): ActionProviderRe
       }
       requireSynchronous(caller.assert_authority_current?.(undefined, needsAttention ? [PLUGIN_ATTENTION_READ_PERMISSION] : undefined));
     };
-    const valuesClient = bindActionClient(client, () => ({ ...caller, query_only: true, read_only_effects: true }));
+    const reader = bindActionClient(client, () => ({ ...caller, query_only: true, read_only_effects: true }));
+    const read = <Input, Output>(view: ActionView, input: Input, signal: AbortSignal, assertCurrent: () => void) =>
+      reader.invoke<Input, Output>({ ...view, ...exact(view) }, input, { ...caller, signal, assert_authority_current: assertCurrent });
+    const home = ports.homeDirectory && slot === "home" ? homePorts(ports, ports.homeDirectory, sample, read) : undefined;
     return {
       caller, current, beforeEffect: caller.beforeEffect, signal: caller.signal,
-      catalog: () => surfacePlugins(ports, current),
-      discover: () => client.discoverRetained(caller),
-      values: (view, input, signal, assertCurrent) => valuesClient.invoke<PresentationValuesInput, PresentationValues>(
-        { ...view, ...exact(view) }, input, { ...caller, signal, assert_authority_current: assertCurrent }),
+      catalog: home?.catalog ?? (() => surfacePlugins(ports, current)),
+      ...(home ? { home: home.ports } : {}),
+      discover: async () => retainHomeDirectory(await client.discoverRetained(caller), sample),
+      values: read<PresentationValuesInput, PresentationValues>,
       corrections: createSurfaceCorrections(store.db, caller), now: () => ports.now().toISOString(),
       attention: () => attention.listSurfaceEntries(projectId),
       relations: candidates => (ports.placement()?.relationsFor(projectId, candidates) ?? []).flatMap(edge => {
@@ -85,8 +96,33 @@ export function surfaceActionProvider(ports: SurfaceHostPorts): ActionProviderRe
     provider: { provider_id: SURFACES_PROVIDER_ID, kind: "system", title: "操作面组合", project_id: projectId },
     definitions: Object.values(surfaceCompositionActions),
     handlers: [
-      bindActionHandler(surfaceCompositionActions.compose, (input, caller) => service.compose(input, forCall(caller, input.slot.kind === "attention"))),
+      bindActionHandler(surfaceCompositionActions.compose, (input, caller) => service.compose(input, forCall(caller, input.slot.kind === "attention" || input.slot.kind === "home" ? input.slot.kind : undefined))),
       bindActionHandler(surfaceCompositionActions.correct, (input, caller) => service.correct(input, forCall(caller))),
     ],
   };
+}
+
+function homePorts(host: SurfaceHostPorts, homeDirectory: string, sample: ReturnType<typeof homeSampleFor>,
+  read: (view: ActionView, input: Record<string, never>, signal: AbortSignal, assertCurrent: () => void) => Promise<PresentationOverview>) {
+  let catalog: ReturnType<typeof surfaceHomeDirectory> | undefined;
+  const ports: NonNullable<SurfaceComposePorts["home"]> = {
+    overview: (view, signal, assertCurrent) => read(view, {}, signal, assertCurrent),
+    acceptsEmptyInput: view => compileActionSchema(view.action.input_schema)({}) === true,
+    hiddenAboveLabel: count => ({ owner: "workbench", key: "workbench.home.hidden-above", args: [{ name: "count", kind: "number", number: count }] }),
+    retainCatalog: plugins => {
+      const original = catalog;
+      if (!original || original.plugins.length !== plugins.length || !plugins.every((plugin, index) => original.plugins[index] === plugin))
+        throw new ActionError("actions.provider_changed", "没有本轮首页插件目录");
+      if (sample) sample.catalog = original;
+      return original.assertCurrent;
+    },
+  };
+  return { ports, catalog() {
+    catalog = surfaceHomeDirectory({ ...host, homeDirectory, home: host.home(), readCatalog(operation) {
+      const result = host.readCatalog(operation);
+      if (result === undefined) throw new ActionError("actions.unavailable", "项目目录尚未打开");
+      return result;
+    } });
+    return catalog.plugins;
+  } };
 }

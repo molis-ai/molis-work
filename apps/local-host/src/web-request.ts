@@ -28,6 +28,7 @@ import type { MolisWorkPtyHost } from "@molis-ai/molis-work-service-runtime-host
 import { cachedMolisWorkWebView, type MolisWorkWebViewCache, type GoalsWebView } from "./web-view.js";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import { ensureProjectPlugins } from "./project-plugins.js";
+import { handleSurfaceHomeHttp } from "./surface-home-http.js";
 import { homeStageHalves } from "./home-plugin-http.js";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { readRuntimeStageData, runtimeStageOwner } from "./project-plugin-stages.js";
@@ -138,6 +139,7 @@ const PROJECT_ROUTES: readonly WebRoute<ProjectRequestContext>[] = [
     return true;
   } },
   homePluginsRoute,
+  { id: "surface-home", handle: handleSurfaceHomeHttp },
   pluginPageRoute, directoryGrantRoute,
   { id: "project-plugin-consents", handle: context => handlePluginConsentSettingsHttp(context, context.hostReference) },
   { id: "project-task-grants", handle: context => handleTaskGrantsSettingsHttp(context, context.hostReference) },

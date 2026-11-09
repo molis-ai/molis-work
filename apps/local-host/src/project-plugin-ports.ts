@@ -1,4 +1,4 @@
-import { ActionError, LOCAL_PERSON_ACTOR_ID, requireSynchronous, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, LOCAL_PERSON_ACTOR_ID, requireSynchronous, type ActionCallContext, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { AgentHostComposition } from "./agent-host-composition.js";
@@ -33,6 +33,18 @@ export async function withPreparedProject<Result>(source: ProjectPluginHost, ref
   operation: (runtime: MolisWorkProjectRuntime) => Result | Promise<Result>, activatePlugins = false): Promise<Result> {
   if (activatePlugins) await ensureProjectPluginActions(source, reference);
   return source.host.withRuntime(reference, async runtime => { await prepareInstalledPlugins(source, reference, runtime); return operation(runtime); });
+}
+
+/** The active entry prepares providers; the passive homepage has no reason to enter here. */
+export async function prepareProjectPluginCall(source: ProjectPluginHost, reference: LocalHostProjectReference, caller: ActionCallContext): Promise<void> {
+  caller.signal?.throwIfAborted();
+  if (caller.project_id !== reference.project_id.trim()) throw new ActionError("actions.scope_mismatch", "调用上下文与项目不一致");
+  await ensureProjectPluginActions(source, reference);
+  caller.signal?.throwIfAborted();
+  await source.agents()?.restoreExternalMcp(reference);
+  caller.signal?.throwIfAborted();
+  await source.host.withRuntime(reference, runtime => prepareInstalledPlugins(source, reference, runtime));
+  caller.signal?.throwIfAborted();
 }
 
 /** The plugins installed in this project (generated, installed from the market): their actions join the project's directory. */

@@ -22,6 +22,7 @@
     "common.presentation.stale": "These values were read {at}",
     "common.presentation.unreadable": "Cannot read this right now",
     "common.text.unavailable": "This text cannot be shown right now",
+    "workbench.home.hidden-above": "Also listed above: {count}",
     "workbench.env.add-row": "Add a line",
     "workbench.env.add-user": "Add “保存” as the person",
     "workbench.env.clear": "Clear",

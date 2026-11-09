@@ -22,6 +22,8 @@ export interface SurfacePlugin {
 
 export interface SurfaceHomePlugin extends Omit<SurfaceInstallationRef, "scope" | "install_id"> {
   readonly order: number;
+  /** The installation should be available here but has no current activation (not a deliberate switch-off). */
+  readonly unavailable?: true;
   /** Only the actual stage selected by the Host, including for a dual-instance plugin. */
   readonly stage_view_id?: string;
   /** Only real input forms whose contribution binds this exact action in this installation. */

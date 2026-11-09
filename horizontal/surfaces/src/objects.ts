@@ -63,7 +63,7 @@ function objectRoutes(read: ComposeRead) {
     const reader = findSubjectReader(views, kind);
     const view = reader.found === "one" || reader.found === "unavailable" ? reader.view : undefined;
     const plugin = view ? plugins.find(plugin => ownsView(plugin, view) && (read.request.slot.kind !== "home" || plugin.scope === view.action.scope)) : undefined;
-    const object = reader.found === "one" && plugin?.state === "running" ? plugin.presentation?.objects.find(entry => entry.kind === kind) : undefined;
+    const object = reader.found === "one" && plugin?.state === "running" && !plugin.home?.unavailable ? plugin.presentation?.objects.find(entry => entry.kind === kind) : undefined;
     const ownedValues = object && plugin ? values.filter(action => ownsView(plugin, action) && action.action.scope === view?.action.scope
       && action.action.subject_kinds.includes(kind)) : [];
     const route = { reader, plugin, object, values: ownedValues.length === 1 ? ownedValues[0] : undefined };
@@ -76,8 +76,9 @@ function pickCandidates(read: ComposeRead, sources: readonly ObjectSource[], rou
   const { plugins, views } = read;
   const candidates: Candidate[] = [];
   // Attention records identify their owner plugin, not one of its installations.
-  const disabledOwners = new Set(plugins.filter(plugin => plugin.state === "disabled").map(plugin => plugin.plugin_id));
-  for (const plugin of plugins) if (plugin.state !== "disabled") disabledOwners.delete(plugin.plugin_id);
+  const switchedOff = (plugin: SurfacePlugin) => plugin.state === "disabled" && !plugin.home?.unavailable;
+  const disabledOwners = new Set(plugins.filter(switchedOff).map(plugin => plugin.plugin_id));
+  for (const plugin of plugins) if (!switchedOff(plugin)) disabledOwners.delete(plugin.plugin_id);
   const disabled = new Map<string, number>();
   const countDisabled = (owner: string) => disabled.set(owner, (disabled.get(owner) ?? 0) + 1);
   let unproved = false;

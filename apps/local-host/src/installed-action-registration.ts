@@ -86,6 +86,22 @@ export function rememberInstalledExposure(scope: ActionScope, record: PluginInst
   exposed.dispose = () => { if (held.get(key) === exposed) held.delete(key); dispose(); };
 }
 
+/**
+ * The actual signed component which renders inputs for this action. Read from the installed exposure, not a panel guessed from the
+ * action's title or another installation's package. The eventual submission uses that exposure's existing component gateway.
+ */
+export function installedStartForm(scope: ActionScope, record: PluginInstanceRecord, panel: string, target: { capability_id: string; version: number }) {
+  const active = registrations.get(scope.registry)?.get(registrationKey(scope, record));
+  const release = active?.release;
+  if (!release) return undefined;
+  const node = release.nodes.find(item => item.id === panel);
+  if (!node?.submit || !Object.values(node.submit.input).some(source => source.source === 'form')) return undefined;
+  const operation = release.design.contract.operations.find(item => item.id === node.submit?.operationId);
+  if (operation?.kind !== 'command') return undefined;
+  const reference = exposedActionReference(release, operation.id);
+  return target.capability_id === reference.capability_id && target.version === reference.version ? reference : undefined;
+}
+
 /** Permission switches restart an activation without changing its release. Refresh follows that activation; old releases cannot withdraw a new one. */
 export function followInstalledActions(scope: ActionScope, record: PluginInstanceRecord, release: ActionRelease): InstalledPluginActions | undefined {
   const key = registrationKey(scope, record), current = () => registrations.get(scope.registry)?.get(key);

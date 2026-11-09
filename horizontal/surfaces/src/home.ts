@@ -60,7 +60,7 @@ async function readOverviews(read: ComposeRead, home: SurfaceHomePorts, groups: 
     const matches: OverviewJob[] = [];
     for (const plugin of entries) {
       const declaration = plugin.presentation?.overview;
-      if (plugin.state !== "running" || !declaration) continue;
+      if (plugin.state !== "running" || plugin.home.unavailable || !declaration) continue;
       for (const view of scopedViews(read.views, plugin, refOf(declaration))) {
         considered.add(view);
         if (usable(view) && isPresentationOverviewReader(view)) matches.push({ plugin, declaration, view });
@@ -148,7 +148,7 @@ function cardPlans(read: ComposeRead, home: SurfaceHomePorts, groups: ReadonlyMa
     const overview = overviews.get(owner);
     const open = openFor(entries);
     const card: SurfacePluginCard = open ? { open } : {};
-    if (entries.every(plugin => plugin.state === "disabled")) {
+    if (entries.every(plugin => plugin.state === "disabled" && !plugin.home.unavailable)) {
       const enable = enableFor(entries, read, used, considered);
       return { owner, order, state: "disabled", card: enable ? { enable } : {} };
     }
@@ -156,7 +156,7 @@ function cardPlans(read: ComposeRead, home: SurfaceHomePorts, groups: ReadonlyMa
       const start = startsFor(overview, read, home, considered, used);
       return { owner, order, state: "ok", card: { ...card, summary: overview.summary, ...(overview.note ? { note: overview.note } : {}), ...(start.length ? { start } : {}) } };
     }
-    const undeclared = entries.some(plugin => plugin.state === "running") && entries.every(plugin => !plugin.presentation?.overview);
+    const undeclared = entries.some(plugin => plugin.state === "running" && !plugin.home.unavailable) && entries.every(plugin => !plugin.presentation?.overview);
     return { owner, order, state: undeclared ? "undeclared" : "unreadable", card };
   });
   read.retain(used);

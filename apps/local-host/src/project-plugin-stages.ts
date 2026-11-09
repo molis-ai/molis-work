@@ -13,6 +13,8 @@ import type { LocalProjectDatabase } from "./project-database.js";
 import type { ProjectPluginHttpPorts } from "./project-plugin-http.js";
 import { projectPluginProblem, type ProjectPluginState } from "./project-plugins.js";
 import { L } from "./web-locale.js";
+import { installedStageIdentity } from "./installed-stage-identity.js";
+import type { SurfaceInstallationRef } from "@molis-ai/molis-work-contracts/services/surface-composition";
 
 /** A plugin whose stage the project page draws: a catalog registration, or a Home dual-instance plugin outside the build. */
 export type StageEntry = { readonly project_plugin_id: string; readonly manifest: PluginManifest;
@@ -200,6 +202,7 @@ export interface RuntimeStageOwner {
   readonly producer: string;
 
   readonly installation_generation: string;
+  readonly installation: SurfaceInstallationRef;
   readonly view: UiContribution;
   assertCurrent(): void;
   capturePermission(permission: string): () => void;
@@ -215,7 +218,7 @@ export function captureRuntimeStageOwner(platform: { runtime: PluginRuntime; sup
   if (record.state !== "running" || contribution?.kind !== "app") return undefined;
   const id = stageContributionId(manifest), view = contribution.views?.find(item => item.descriptor.contribution_id === id);
   if (!view) return undefined;
-  const identity = { install_id: record.install_id, installation_generation: record.installation_generation, version: record.version, manifest_digest: record.manifest_digest };
+  const identity = installedStageIdentity(scope, record);
   // The supervisor's Manifest is the platform's deep-frozen copy (`platformDefinition`) unless the declaration was not plain data:
   // that copy cannot serialize differently later, so it is not serialized on every check; any other Manifest is compared as before.
   const frozen = isFrozenRegisteredManifest(manifest);
@@ -231,7 +234,7 @@ export function captureRuntimeStageOwner(platform: { runtime: PluginRuntime; sup
   };
   assertCurrent();
   return { scope, entry: { project_plugin_id: entry.project_plugin_id, manifest }, install_id: record.install_id, installation_generation: record.installation_generation,
-    producer: JSON.stringify([scope, identity.install_id, identity.installation_generation, identity.version, identity.manifest_digest, grants]), view, assertCurrent,
+    installation: identity, producer: JSON.stringify([scope, identity.install_id, identity.installation_generation, identity.version, identity.manifest_digest, grants]), view, assertCurrent,
     capturePermission: permission => platform.runtime.capturePermission(record.install_id, permission) };
 }
 

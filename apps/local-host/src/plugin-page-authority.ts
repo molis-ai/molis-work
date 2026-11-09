@@ -8,13 +8,16 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { ActionError, type ActionReference, isSubjectReader } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginImageGenerationDeclaration, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { PLUGIN_CONNECTIONS_PERMISSION } from "@molis-ai/molis-work-contracts/platform/plugin-connections";
-import { pluginRouteMatcher } from "@molis-ai/molis-work-plugin-runtime";
+import { pluginActivationOpen, pluginRouteMatcher, type PluginInstance } from "@molis-ai/molis-work-plugin-runtime";
+import { pluginTextReader, type PluginTextReader } from "@molis-ai/molis-work-app-workbench";
 import { projectDeletedHooksFor } from "./project-deleted-hooks.js";
 import type { PageActionRequest } from "./plugin-page-actions.js";
 
 interface Activation {
   readonly manifest: PluginManifest;
   readonly install_id: string | null;
+  /** The Runtime's own activation, if this is a running plugin rather than a registered platform page. */
+  readonly instance?: PluginInstance;
   readonly project_id: string | null;
   readonly actor_id: string;
   /** The image connections this instance was given (`services.imageGeneration`): its Manifest's, or the one a sandboxed package's effects derive. */
@@ -30,7 +33,7 @@ interface Page {
   readonly requests: Set<AbortController>;
   readonly match: ReturnType<typeof pluginRouteMatcher>;
   expiresAt: number;
-  sessionCurrent(): void;
+  sessionCurrent(reader?: IncomingMessage): void;
   closing?: boolean;
   assertScope?(): Promise<void>;
   selection?: { project_key?: string; objectPresentation?: { surfaces: readonly string[]; permissions: readonly string[] }; assertCurrent(): void };
@@ -67,9 +70,10 @@ export class PluginPageAuthority {
   }
 
   open(pluginId: string, projectId: string | null, actorId: string, assertScope?: () => Promise<void>, registered?: Activation,
-    selected?: { install_id: string; project_id: string | null; project_key?: string; objectPresentation?: { surfaces: readonly string[]; permissions: readonly string[] }; assertCurrent(): void }): { page_id: string; storage_scope: string } {
+    selected?: { install_id: string; installation_generation: string; project_id: string | null; project_key?: string; objectPresentation?: { surfaces: readonly string[]; permissions: readonly string[] }; assertCurrent(): void }): { page_id: string; storage_scope: string } {
     const candidates = [...this.activations].filter(item => item.install_id && item.manifest.plugin_id === pluginId && item.actor_id === actorId);
-    const activation = selected ? candidates.find(item => item.install_id === selected.install_id && item.project_id === selected.project_id)
+    const activation = selected ? candidates.find(item => item.install_id === selected.install_id && item.project_id === selected.project_id
+      && item.instance?.installation_generation === selected.installation_generation)
       : candidates.find(item => item.project_id === null && item.resolveFiles)
         ?? candidates.find(item => item.project_id === projectId) ?? candidates.find(item => item.project_id === null) ?? registered;
     if (!activation) throw refused();
@@ -138,6 +142,30 @@ export class PluginPageAuthority {
 
   clearProject(projectId: string): void {
     for (const [id, page] of this.pages) if (page.project_id === projectId) this.close(id);
+  }
+
+  /** Capture the same grants already minted for this document, and read their exact owners only after the last asynchronous scope check. */
+  async withPageText(request: IncomingMessage, ids: readonly string[], project: string | null, signal: AbortSignal,
+    read: (sources: ReadonlyArray<{ id: string; manifest: PluginManifest; reader: PluginTextReader | null }>) => void): Promise<void> {
+    const entries = ids.map(id => {
+      const page = this.pages.get(id);
+      if (!page || page.project_id !== project) throw refused();
+      return { id, page };
+    });
+    const check = () => {
+      signal.throwIfAborted();
+      for (const { id, page } of entries) {
+        const activation = page.activation;
+        if (this.pages.get(id) !== page || page.closing || page.expiresAt < Date.now() || !this.activations.has(activation)
+          || (activation.instance && !pluginActivationOpen(activation.instance))) throw refused();
+        page.sessionCurrent(request); activation.assertCurrent(); page.selection?.assertCurrent();
+      }
+    };
+    check();
+    await Promise.all([...new Set(entries.map(({ page }) => page.assertScope))].map(scope => scope?.()));
+    check();
+    read(entries.map(({ id, page }) => ({ id, manifest: page.activation.manifest,
+      reader: page.activation.instance ? pluginTextReader(page.activation.instance) : null })));
   }
 
   /** A terminal transport keeps this closure, never a caller-supplied installation or project. */

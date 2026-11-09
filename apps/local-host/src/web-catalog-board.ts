@@ -38,7 +38,7 @@ export function handleComponentBoardHttp(request: IncomingMessage, response: Ser
  * page switches between them in place; the section itself in the page's language.
  */
 function environmentSection(locale: WebLocale): string {
-  const renders = { zh: runWithLocale("zh", renderEnvironmentSpecimen), en: runWithLocale("en", renderEnvironmentSpecimen) };
+  const renders = { zh: runWithLocale("zh", () => renderEnvironmentSpecimen("zh")), en: runWithLocale("en", () => renderEnvironmentSpecimen("en")) };
   return runWithLocale(locale, () => renderEnvironmentSection(renders, locale));
 }
 

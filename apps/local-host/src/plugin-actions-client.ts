@@ -7,6 +7,7 @@ import { invokePluginQuery } from "./plugin-action-query.js";
 import { pluginActionProvider } from "./plugin-action-provider.js";
 import { routedPluginCaller } from "./plugin-callers.js";
 import { pluginActionDependencies } from "./plugin-action-dependencies.js";
+import { activeLocale } from "./web-locale.js";
 import { entryUserAction, type EntryMessage } from "./entry-user-action.js";
 
 /**
@@ -127,7 +128,7 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
     };
     return {
       actor_id: outer?.caller.actor_id ?? options.actor_id, project_id: projectId,
-      audience: outer?.caller.audience ?? "user", permissions: context.grants, query_only: pluginInvocationReadOnly(outer), signal: outer?.caller.signal,
+      audience: outer?.caller.audience ?? "user", permissions: context.grants, query_only: pluginInvocationReadOnly(outer), signal: outer?.caller.signal, locale: activeLocale() ?? undefined,
       allowed_actions: [...(manifest.actions ?? []).map(action => ({ ...action, provider_id: ownProvider })), ...required],
       validate_authority: assertAuthority, assert_authority_current: assertAuthority,
     };
@@ -149,7 +150,7 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
     };
     return {
       actor_id: options.actor_id, actor_kind: "user", project_id: projectId, audience: "plugin", permissions: context.grants,
-      host_plugin: routedPluginCaller(options.pluginCaller, projectId), plugin_install_id: context.install_id, query_only: pluginInvocationReadOnly(outer), signal: outer?.caller.signal,
+      host_plugin: routedPluginCaller(options.pluginCaller, projectId), plugin_install_id: context.install_id, query_only: pluginInvocationReadOnly(outer), signal: outer?.caller.signal, locale: activeLocale() ?? undefined,
       // Mandatory dependencies remain limited to what this installation explicitly consumes.
       ...(consumed.has(definition.capability_id) ? { allowed_capability_ids: [...consumed] }
         : { allowed_actions: [{ capability_id: definition.capability_id, version: definition.version, ...(providerId ? { provider_id: providerId } : {}) }] }),
@@ -231,14 +232,16 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
       // issued caller, as the installation itself, never as a caller shaped here to look like the person. A control the Host routed is the
       // person's request (a route, or a page action, whose control names no caller); `callScope` has already refused one whose request ended.
       const ownCaller = (control !== undefined && routedControls.has(control)) || ownAudience(outer) !== "plugin";
-      if (own && !job && ownCaller) return passed(outer, own, await routedActions(scope, own, outer).invoke(own, input, control, transport) as Output);
+      // A caller can forward cancellation and checks. Only the live Host scope supplies language.
+      const trustedControl = control && { ...control, locale: activeLocale() ?? undefined };
+      if (own && !job && ownCaller) return passed(outer, own, await routedActions(scope, own, outer).invoke(own, input, trustedControl, transport) as Output);
       if (!own && !consumed.has(definition.capability_id)) throw new ActionError("actions.forbidden", "插件没有声明消费这项动作");
       // A missing grant is said as one before the directory is asked: the directory hides what the plugin may not use, and would
       // otherwise answer that the action is not there.
       // Inside a job the installation's own actions too are reached as the plugin audience, not as the person who kept the job.
       const providerId = own ? ownProvider : await pluginActionProvider(scope.client, { ...dependencyCaller(definition, projectId, outer), ...(control?.signal ? { signal: control.signal } : {}) }, definition);
       options.assertActive();
-      return passed(outer, definition, await bindActionClient(scope.client, () => dependencyCaller(own ?? definition, projectId, outer, providerId)).invoke(definition, input, control, transport));
+      return passed(outer, definition, await bindActionClient(scope.client, () => dependencyCaller(own ?? definition, projectId, outer, providerId)).invoke(definition, input, trustedControl, transport));
     }),
   };
 }

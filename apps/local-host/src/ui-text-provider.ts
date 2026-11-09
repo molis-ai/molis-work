@@ -5,12 +5,12 @@ import type { UiResourceRow, UiTextProvider } from "@molis-ai/molis-work-contrac
 import { BASELINE_REGISTRY } from "@molis-ai/molis-work-design-system";
 import { pluginLocaleReader, type PluginLocaleReader } from "@molis-ai/molis-work-plugin-runtime";
 import { installUiText } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { pluginTextDefault, pluginTextMessage, pluginTextOwnerOfPrefix, registerPluginText, type PluginTextReader } from "@molis-ai/molis-work-app-workbench";
+import { pluginTextForOwner, pluginTextOwnerOfPrefix, registerPlatformText, type PluginTextReader } from "@molis-ai/molis-work-app-workbench";
 import { hostLog } from "./host-log.js";
 import { textScope, WEB_LOCALES } from "./web-locale.js";
 
 // The text context of this process (specs/font-and-skin-system/a-section-contract.md §5.2, §8.3): what `t`, `say` and `format` find on the global. The
-// language is the scope's (`web-locale.ts`), which ends with the request or the run that opened it; the words are the owners' in `plugin-text.ts`. It does
+// language is the scope's (`web-locale.ts`), which ends with the request or the run that opened it; plugin words come only from the exact activation. It does
 // not depend on one Host: a process often opens several, and installing the same provider again changes nothing.
 
 type TextProblem = Parameters<NonNullable<UiTextProvider["problem"]>>[0];
@@ -25,12 +25,17 @@ const problems: TextProblem[] = [];
 const LOGGED_LIMIT = 1000;
 const logged = new Set<string>();
 
+const readerFor = (owner: string) => pluginTextForOwner(owner, textScope().activation);
+
 const provider: UiTextProvider = {
   locale: () => textScope().locale,
   noContext: () => textScope().noContext,
-  ownerOfPrefix: pluginTextOwnerOfPrefix,
-  message: pluginTextMessage,
-  defaultLocale: pluginTextDefault,
+  ownerOfPrefix: prefix => pluginTextOwnerOfPrefix(prefix, textScope().activation),
+  message(owner, key, locale) {
+    const messages = readerFor(owner)?.pack(locale)?.messages;
+    return messages && Object.hasOwn(messages, key) ? messages[key]! : null;
+  },
+  defaultLocale: owner => readerFor(owner)?.default ?? null,
   problem(problem) {
     problems.push(problem);
     if (problems.length > PROBLEM_LIMIT) problems.splice(0, problems.length - PROBLEM_LIMIT);
@@ -90,13 +95,16 @@ function platformLocaleReader(row: UiResourceRow): PluginTextReader {
   };
 }
 
-let platformText: readonly (() => void)[] | null = null;
+let platformText: readonly PluginTextReader[] | null = null;
 
 /**
  * Installs the context, once a process: an application Host as it starts, the developer door before it runs a plugin. The platform's own owners are
  * registered the first time. A process that already has another context (a test's `installTextForTest`) keeps it, and this throws.
  */
 export function installHostUiText(): void {
-  platformText ??= BASELINE_REGISTRY.resources.filter((row) => row.kind === "locale").map((row) => registerPluginText(platformLocaleReader(row), { t: true }));
+  if (platformText === null) {
+    platformText = BASELINE_REGISTRY.resources.filter(row => row.kind === "locale").map(platformLocaleReader);
+    platformText.forEach(registerPlatformText);
+  }
   installUiText(provider);
 }

@@ -14,6 +14,7 @@ import { pageConnectionSlot } from "./plugin-connection-slots-http.js";
 import { pageConnectionNeed } from "./plugin-connection-need-http.js";
 import { pageTaskGrants } from "./plugin-page-task-grants-http.js";
 import { stageObjectAction } from "@molis-ai/molis-work-app-workbench";
+import { handlePageLocales } from "./web-ui-locales.js";
 
 /** Resolve the same running stage half as rendering; the request names a surface, never an installation. */
 async function stagePageSelection(context: WebRequestContext, project: LocalHostProjectReference | undefined, body: Record<string, unknown>) {
@@ -38,7 +39,8 @@ async function stagePageSelection(context: WebRequestContext, project: LocalHost
   if (body.producer !== undefined && body.producer !== owner.producer)
     throw new ActionError("actions.provider_changed", "原舞台实例已变化，请重新读取");
   const reader = stageObjectAction(owner.entry.manifest);
-  return { project_key: owner.entry.project_plugin_id, install_id: owner.install_id, project_id: owner.scope === "home" ? null : project?.project_id ?? null, assertCurrent: owner.assertCurrent,
+  return { project_key: owner.entry.project_plugin_id, install_id: owner.install_id, installation_generation: owner.installation_generation,
+    project_id: owner.scope === "home" ? null : project?.project_id ?? null, assertCurrent: owner.assertCurrent,
     ...(reader ? { objectPresentation: { permissions: [...reader.action.permissions], surfaces: (owner.view.descriptor.surfaces ?? []).filter(item => item.target_slot_id === "workbench.main" && item.format === "declarative-html").map(item => item.surface_id) } } : {}) };
 }
 
@@ -46,6 +48,7 @@ async function stagePageSelection(context: WebRequestContext, project: LocalHost
 export async function handlePluginPageHttp(context: WebRequestContext, project?: LocalHostProjectReference,
   shown?: () => Promise<readonly string[]>): Promise<boolean> {
   const { request, response, url, localHost, serverOptions } = context;
+  if (url.pathname === "/api/ui/locales") { await handlePageLocales(context, project?.project_id ?? null); return true; }
   const close = /^\/api\/host\/plugin-pages\/([^/]+)$/u.exec(url.pathname);
   const action = url.pathname === "/api/host/plugin-page-actions" && request.method === "POST";
   const files = url.pathname === "/api/host/plugin-page-files" && request.method === "POST";

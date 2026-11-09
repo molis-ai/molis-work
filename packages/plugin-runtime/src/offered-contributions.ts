@@ -2,7 +2,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginContribution, PluginManifest, PluginRouteBinding, PluginRouteRequest, PluginRouteResponse, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { actionErrorResponse, isCodedFailure } from "@molis-ai/molis-work-plugin-sdk";
 
-import { endPluginRoute, runInPluginRoute, type PluginRouteCall } from "./action-scope.js";
+import { currentPluginInvocation, endPluginRoute, runInPluginRoute, type PluginRouteCall } from "./action-scope.js";
 
 /**
  * What each running activation offers, keyed by installation. A route an activation offers runs as a call of its own (BL-403,
@@ -53,7 +53,7 @@ function offer(contribution: PluginContribution, manifest: PluginManifest, conte
   let withdrawn = false;
   const answer = (binding: PluginRouteBinding, request: PluginRouteRequest): Promise<PluginRouteResponse> => {
     if (withdrawn) return Promise.resolve(stoppedAnswer());
-    const route: PluginRouteCall = { route_id: binding.route_id, ...(context ? { instance: context } : {}) };
+    const route: PluginRouteCall = { route_id: binding.route_id, instance: context, caller: request.execution, parent: currentPluginInvocation() };
     let answerStopped: (response: PluginRouteResponse) => void = () => undefined;
     const ended = new Promise<PluginRouteResponse>(resolve => { answerStopped = resolve; });
     const end = () => { endPluginRoute(route); answerStopped(stoppedAnswer()); };

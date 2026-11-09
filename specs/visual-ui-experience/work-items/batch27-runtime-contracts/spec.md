@@ -1,6 +1,6 @@
 # 第 27 批插件权限、Goals 委托与停止期限
 
-状态：合同设计稿，待原决策与公共 C 合审（2026-11-09）。基点 `bfccbeb66`。本稿交三项开工检查和实施合同，未实施、未运行验收。
+状态：合同设计稿，用户已定权限接法与停止语义，待公共 C 合审（2026-11-09）。基点 `bfccbeb66`。本稿交三项开工检查和实施合同，未实施、未运行验收。
 
 ## 交付边界
 
@@ -50,7 +50,7 @@
 
 既有普通可选权限初始给法不变。推荐新增行在新装和已安装开发包均缺省关闭，已运行的联网、目录能力、后台及来源拉取会停在相应授权边界，用户可在旧安装中明确打开。升级只带入仍在目标声明和批准里的已持 grant，去掉目标已不请求的项，保留关着的项。新版本扩大精确值时仍须先在既有预览和安装批准路径确认，候选激活在批准尚未落定时不能用新增值。版本切换失败用原版本、批准和原 grant 复原，禁止把回滚当成补授。恢复依旧核销被替换或撤销的安装。已有项目触达同意和 Home 安装授权分别核对，不用一个项目的同意给另一项目补权。 [版本转换合同](../../../../docs/system/CONTRACT-CHANGES.md)、[运行时版本转换](../../../../packages/plugin-runtime/src/index.ts)
 
-**用户待定（原 BL-701 的对应方式）。**
+**用户决定（2026-11-09）：采用 A，保留签包，从已验证发行物派生开关，新增类别默认关闭；已有安装首次使用这些类别需明确开启。** 下表保留选项与取舍，B 未采用。
 
 | 选项 | 代价 |
 | --- | --- |
@@ -136,9 +136,9 @@ Home 级委托仍从同一 Host 的实际调用项目出发，有无项目、项
 
 钩子或残余计时器只能使用已失效的服务。同步死循环、事件循环阻塞及插件私自持有的外部资源无法靠异步期限终止。进程崩溃恢复及 Host 总等待和锁各管其事，多安装串行收尾总时长仍可超过 10 秒。 [已有沙箱辨识](../../../../apps/local-host/src/plugin-sandbox-start.ts)、[SDK 执行生命周期](../../../../packages/plugin-sdk/src/execution-lifetime.ts)、[沙箱退出](../../../../packages/plugin-sandbox/src/runner.ts#L243)、[S-18](../../../../docs/system/security-invariants/S-18.md)
 
-**用户待定（BL-367 的两件事）。**
+**用户决定（2026-11-09）：每个作者异步停止钩子等待 2 秒；超时只记本机诊断，继续收尾，不消耗崩溃恢复额度。宿主进程退出和必需资源释放仍按真实结果等待。** 下表保留已选项与备选取舍，5 秒和持久故障方案未采用。
 
-| 待定 | 推荐 | 备选与代价 |
+| 项目 | 已选 | 未采用的备选与代价 |
 | --- | --- | --- |
 | 每次异步 stop 等多久 | 2 秒。给让出事件循环的本地清理一段时间，单个不返回的钩子只占已有 10 秒 Home 对外等待的一小部分。 | 5 秒。慢的自有清理多 3 秒，但两个同时失灵的安装就可能耗掉整次 Home 对外等待。基点缺少真实钩子时长分布，两个值都是候选，实施时用现行插件代表路径验证。 |
 | 超时怎样记 | 只写本机诊断，按已停止推进，`last_error_code` 和恢复额度保留给真正的故障与恢复。插件列表不会因一次旧钩子拖住而显示崩溃。 | 作为故障记录。显式停用／卸载仍完成并撤权，可留 `last_error_code: "plugin.stop_timeout"`；需要继续运行的路径须进入现有 crashed／recover 策略，下一次实际恢复才计额度。要给 Runtime 区分「钩子超时且资源已收尾」和真正清理失败，增加生命周期传递及状态分支。反复重启会更早达到恢复上限，旧钩子拖住也会影响下一次使用。 |
@@ -181,5 +181,5 @@ Home 级委托仍从同一 Host 的实际调用项目出发，有无项目、项
 
 - [#2000](https://github.com/molis-ai/molis-work/pull/2000) 核对头 `755d369ba`，写手占 `apps/local-host/src/home-plugins.ts`、`plugin-install-service.ts`、`plugin-trust-actions.ts`、`plugin-install-actions.ts`、`plugin-platform.ts`、`project-plugins.ts`、`sandbox-package.ts`、`sandbox-package-store.ts`，以及 `packages/plugin-runtime/src/index.ts`、`install-rules.ts`、SDK Manifest／入口、`platform/actions.ts`、`platform/plugin-trust.ts` 和对应 API 快照。BL-701 与 BL-367 接实际 Home 装配及登记时先交这些主人核差异，BL-803 的公共 actions 合同与该快照串行。
 - [#1999](https://github.com/molis-ai/molis-work/pull/1999) 核对头 `3afeeffdc`，重叠 `apps/local-host/src/plugin-installed-view.ts`、`plugin-terminal-service.ts`、`packages/kernel/src/action-service.ts`、SDK 执行与入口、`platform/plugin-errors.ts`、Goals `actions.ts`／`plugin.ts`、动作和 API 快照及 S-103。BL-910 的终端拒绝由该处维护，BL-701 在其后复验；BL-803 的 Goals 策略和 BL-367 的错误码／SDK 等共享区写手由统筹交接。主会话在最终头核合审，按[轨道规则](../../../post-anticorruption-roadmap/reference/tracks.md#section-5)由文件主人落代码，公共 C 负责合同评审。两张在途 PR 的头只用于判断冲突。
-- 推荐先收 BL-701 的包／授权映射与 BL-367 期限、记法的用户决定，再在本批分别先合同、后生产接入、最后消费者。BL-803 可独立准备，合同时排 C1 共享文件。三项交同一批 PR，按最终合同内容刷新快照，由批次评审台与公共 C 在最终头审。没有新增 CI 门禁。
+- BL-701 的包／授权映射与 BL-367 期限、记法已由用户选定。公共 C 合审后，在本批分别先合同、后生产接入、最后消费者；不重复询问上述决定。BL-803 可独立准备，合同时排 C1 共享文件。三项交同一批 PR，按最终合同内容刷新快照，由批次评审台与公共 C 在最终头审。没有新增 CI 门禁。
 - 写手定向用 `node scripts/run-tests.mjs --jobs 1`，按[机器槽约定](../../../../docs/system/PARALLEL-DEVELOPMENT.md#5-构建与浏览器用例排时段)跑。BL-701 复用 `tests/security-invariants-sandbox-signed-resources.test.ts`、`tests/security-invariants-sandbox-signed-background.test.ts`、`tests/sandbox-integration-home.test.ts`、S-94 的权限 HTTP 用例及 `tests/plugin-permission-switch.e2e.test.ts`。BL-803 复用 `tests/feed-goal-promotion.test.ts`、`tests/feed-promote-reader.test.ts`、`tests/feed-promote-mcp.test.ts`、`tests/security-invariants-plugin-action-delegation.test.ts`。BL-367 复用 `tests/plugin-stopped-services.test.ts`、`tests/home-plugin-model-lifecycle.test.ts`、`tests/plugin-lifecycle-states.test.ts` 和 `tests/security-invariants-home-storage-host.test.ts`。按编号将新边界放进会实际执行的用例。整批合成后由统筹按各包 README、受影响用例及共享核心规则执行构建、真实权限页和安全验证、API／动作快照检查以及最终头全量。用独立测试浏览器和临时 Home，测试签名、模型和外部 HTTPS 使用隔离夹具。

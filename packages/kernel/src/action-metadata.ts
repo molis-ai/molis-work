@@ -8,7 +8,7 @@ export type ObserveActionRegistration = (view: ActionView, assertRegistration: (
 
 export interface RetainedActionDirectory {
   readonly views: readonly ActionView[];
-  /** Accepts only the actual rows of this sample. Checks start when the caller uses the returned guard. */
+  /** Activates only the actual rows of this sample and returns the same guard for all activated rows. */
   retain(views: readonly ActionView[]): () => void;
 }
 
@@ -49,7 +49,9 @@ export function discoveredActionViews(registry: CapabilityRegistry<ActionCallCon
 /** The directory producer invokes the observer synchronously as it constructs its original rows. */
 export function sampleRetainedActionDirectory(discover: (observe: ObserveActionRegistration) => ActionView[],
   retain: NonNullable<ActionExecutionContext["retainAuthority"]>): RetainedActionDirectory {
-  const guards = new Map<ActionView, () => void>();
+  type Check = { assertAuthority(): void; assertRegistration(): void };
+  const guards = new Map<ActionView, Check>();
+  const active = new Set<Check>();
   const views = discover((view, assertRegistration) => {
     if (!view.availability.available) return;
     const exact = { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id };
@@ -57,18 +59,24 @@ export function sampleRetainedActionDirectory(discover: (observe: ObserveActionR
       assertRegistration();
       const authority = retain([exact]);
       assertRegistration();
-      guards.set(view, authority.assertCurrent);
+      guards.set(view, { assertAuthority: authority.assertCurrent, assertRegistration });
     } catch (error) {
       // A synchronous provider change during sampling matters only if this row is used.
-      guards.set(view, () => { throw error; });
+      guards.set(view, { assertAuthority: () => { throw error; }, assertRegistration });
     }
   });
+  const assertCurrent = () => {
+    for (const check of active) check.assertAuthority();
+    // Availability and authority callbacks can replace a row already checked above.
+    for (const check of active) check.assertRegistration();
+  };
   return { views, retain: selected => {
     const checks = selected.map(view => {
       const guard = guards.get(view);
       if (!guard) throw new ActionError("actions.forbidden", "只能保留本次目录可用的能力");
       return guard;
     });
-    return () => { for (const check of checks) check(); };
+    for (const check of checks) active.add(check);
+    return assertCurrent;
   } };
 }

@@ -259,3 +259,52 @@ test("SCS-09 SCS-17 only displayed object operations retain registrations after 
     }
   }
 });
+
+for (const selection of ["one row", "two rows together", "two rows separately"]) {
+  test("SCS-09 SCS-17 the final registration check rejects replacement with " + selection, async () => {
+    const actions = new ActionService();
+    const first = { ...formAction, capability_id: "notes.first" };
+    const last = { ...formAction, capability_id: "notes.last" };
+    const single = selection === "one row";
+    const chosen = single ? [first] : [first, last];
+    const probe = definePresentationOverviewAction("notes.retained.probe", 1, "Retained directory", []);
+    let armed = false, replacements = 0;
+    let stopFirst: () => void;
+    let stopReplacement: (() => void) | undefined;
+    const replaceDuringAvailability = () => {
+      if (armed) {
+        armed = false;
+        stopFirst();
+        stopReplacement = register(first);
+        replacements++;
+      }
+      return { available: true } as const;
+    };
+    const register = (definition: ActionDefinition, availability?: typeof replaceDuringAvailability) => actions.registerProvider({
+      provider: { ...common, provider_id: definition.capability_id }, definitions: [definition], availability,
+      handlers: [{ ...definition, handle: () => assert.fail("checking a directory must not execute its actions") }],
+    });
+    stopFirst = register(first, single ? replaceDuringAvailability : undefined);
+    const stopLast = single ? undefined : register(last, replaceDuringAvailability);
+    const stopProbe = actions.registerProvider({ provider: { ...common, provider_id: "retained-probe" }, definitions: [probe],
+      handlers: [bindActionHandler(probe, (_input, context) => {
+        const snapshot = sampleRetainedActionDirectory(observe => actions.discover(context, observe), context.retainAuthority!);
+        const views = chosen.map(definition => snapshot.views.find(view => view.capability_id === definition.capability_id)!);
+        const prior = selection === "two rows separately" ? snapshot.retain(views.slice(0, 1)) : undefined;
+        const guard = snapshot.retain(prior ? views.slice(1) : views);
+        armed = true;
+        prior?.();
+        guard();
+        return { summary: { key: "notes.home.summary" }, subjects: [], start: [] };
+      })] });
+    try {
+      await assert.rejects(actions.invoke(caller, probe, {}), { code: "actions.provider_changed" });
+      assert.equal(replacements, 1);
+    } finally {
+      stopReplacement?.();
+      stopFirst();
+      stopLast?.();
+      stopProbe();
+    }
+  });
+}

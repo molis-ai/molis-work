@@ -1,9 +1,8 @@
 # 能力包与委派带技能的合同设计（路线书 09）
 
-状态：设计稿第 3 稿，2026-11-09。这一稿做了三件事：
-- 按用户当天的四条决定和主会话按推荐定的几条，把能力包从「五类按类汇总的目录」改成「包 → 条目」；
-- 补齐设计台列出的模型缺口；
-- 保留第 2 稿（`a31bcde634`）按公共合同台合审改过的部分。
+状态：设计稿第 4 稿，2026-11-09。
+- 第 3 稿（`e3ed862d06`）按用户当天的决定把能力包改成「包 → 条目」；公共合同台复审时，B1～B6 与读取次数已过。
+- 本稿改复审退回的三处阻塞（`role_id` 的校验位置、`KitRoleRef` 与第 36 批对齐、插件上报者不能报工具），以及主会话定的六条非阻塞处理。
 
 待复审，没有实现。
 
@@ -243,8 +242,9 @@ Coding 页面的「本轮方法」，与助理看委派过去的一轮，都读�
 落到代码上：
 
 - **Coding**：
-  - `methodSelection()` 只认 `SkillRef[]`，不写认旧形状 `{ skill_id, version }[]` 的分支，也不加专门的错误码（第 2 稿的 `coding.server.method-stale` 删掉）。
-  - 不清除、不改写已存的值。
+  - 会话里的技能选择**换一个新存储键** `skills:<会话>`，值是 `SkillRef[]`；旧键 `methods:<会话>` 从此不读、不写、不删。
+  - 不写认旧形状 `{ skill_id, version }[]` 的分支，不做迁移，不加专门的错误码（第 2 稿的 `coding.server.method-stale` 删掉）。
+  - 换键的作用：页面每轮把会话选择放进信封重发（第 2.3 节）；要是沿用旧键，存着旧形状的会话每轮都会被拒、卡住。换了键，旧会话读出来就是「没有选择」，照常能用，本人再选就存新键。这不是兼容代码：没有任何读旧值的路径。
   - 删掉 `molis-coding-method` 的存储与读取、`agent.skills.discover`／`install`、`routes-setup.ts` 的三个路由和方法页（SKC-11）。
 - **助理历史材料**：已存的轮次材料里 `kind: "method"` 的 `method`（`AssistantMaterial.method`）同理，只认第 2.2 节的新形状，不写旧形状的读取分支。
 - **不动的东西**：`docs/system/CONTRACT-CHANGES.md` 不加保留机制，不动兼容计数、升级段与金样。
@@ -377,7 +377,7 @@ skillCatalog?: {
 | 包 | `pack_id` | 谁说它装了什么 | 装的东西 |
 | --- | --- | --- | --- |
 | **一个插件的安装**（应用插件与 08 的内容包都是） | `plugin:<install_id>` | 插件自己的 Manifest：插件本身就是一个包，不加新的 Manifest 键 | <ul><li>角色：`agent.roles`、`agent.subagents.roles`，沙箱包的签名角色。</li><li>提示词：`agent.prompts`，以及它登记的直接调模型的提示词（`InstructionPrompt`）。</li><li>技能：`agent.skills` 与 `methods`。</li><li>MCP：Agent Host 的 MCP 库里主人是它的那些（今天是 Coding 的项目 MCP），以及它提供连接驱动的连接所带的 MCP。</li><li>工具：它的角色 `host_tools` 里的名字（第 4.3 节）。</li></ul> |
-| **Molis Work 自带** | `system:builtin` | 平台：宿主内置的 Agent 定义与 Agent Host | <ul><li>个人助理角色（`{ kind: "assistant" }`）与它的提示词：宿主内置提示词，以及没有归属角色的提示词。</li><li>全部 Agent 工具：工具的「家」在这里。</li><li>对外的 Molis Work MCP 与 `goal-advance` 技能。</li><li>平台自己注册的连接驱动所带的 MCP。</li></ul> |
+| **Molis Work 自带** | `system:builtin` | 平台：宿主内置的 Agent 定义与 Agent Host | <ul><li>宿主自有主人的角色与提示词：助理、创作台、Alchemist、`system:*`（它们不经插件安装登记，没有 `install_id`）。</li><li>个人助理角色（`{ kind: "assistant" }`）与它的提示词：宿主内置提示词，以及没有归属角色的提示词。</li><li>全部 Agent 工具：工具的「家」在这里。</li><li>对外的 Molis Work MCP 与 `goal-advance` 技能。</li><li>平台自己注册的连接驱动所带的 MCP。</li></ul> |
 | **你的角色** | `system:characters` | `modules/characters` | 你写的 Character（角色），各带自己声明的工具 |
 
 - **用户自己组的包**（定样里的「我的研究」）本批不做（用户 2026-11-09 定）：
@@ -399,8 +399,9 @@ skillCatalog?: {
 | Character 的工作方式 | 第 36 批的 `work_style` 一节。它是角色自己的内容，不是登记的提示词 | 本人 | 不出现在提示词里 |
 
 - 一条提示词可以属于同一个包里的几个角色：几个角色都没写 `prompts`，或都点名了它。它在每个角色下各出现一次，条目只有一个。
-- **校验**：
-  - 宿主登记 Agent 定义时（`withInstructions`），`role_id` 不是同一主人声明的角色，就拒绝这个主人的登记，报 `agent_definitions.instruction_role_unknown`，带 `owner_id`、`prompt_id`、`role_id`。插件装配时就看得到。
+- **校验**：`role_id` 不是同一主人声明的角色，就拒绝这个主人的登记，报 `agent_definitions.instruction_role_unknown`，带 `owner_id`、`prompt_id`、`role_id`。核的位置有两处：
+  - 插件与沙箱包：`apps/local-host/src/plugin-instructions.ts` 的 `registerPluginAgentDefinitions`，对 `definition.manifest.agent.roles` 核，与那里已有的 `owner_id` 核对同一处、同一时机。沙箱包走同一路，插件装配时就看得到。
+  - 宿主自己的：`builtin-agents.ts` 的 `builtinRegistrations` 合完内联提示词与创作台等内联角色（`BUILTIN_INLINE_AGENT_ROLES`）之后，对合并后的角色表核。`withInstructions` 只处理宿主的 `BUILTIN_INSTRUCTIONS`，不是插件的入口，不在那里核。
   - `defineInstructionPrompt` 只核 `role_id` 是合法的 token，因为它看不到角色表。
 - **显示**：在一个插件包里，归个人助理的提示词挂在包里一行「个人助理」下面。
   - 这一行引用自带包里的个人助理角色，不复制条目。
@@ -425,13 +426,15 @@ skillCatalog?: {
 export type KitPackState =
   | { kind: "uninstalled" }   // the installation is kept as uninstalled, its data kept for a reinstall
   | { kind: "disabled" }      // the plugin is disabled: nothing in the pack is used; the way out is enabling the plugin
+  | { kind: "unknown"; issues: number[] }   // a reporter whose entries could be in this pack failed: indexes into the result's `issues`
   | { kind: "attention"; items: Array<{ entry: KitEntryKey; reason: string }> }   // one or more entries cannot be used now
   | { kind: "active" };
 ```
 
 - `uninstalled`、`disabled` 来自插件安装记录（第 4.6 节的包头上报）。
+- `unknown`：某个上报者失败了，而它的条目可能在这个包里（第 4.7 节）。这时说不准包里有没有用不了的东西，不报「在用」，带上对应的 `issues`。
 - `attention` 来自包里条目的 `availability`，逐项写出。工具没有可用与否，不算。
-- 自带包与「你的角色」只有 `attention`／`active`。
+- 自带包与「你的角色」只有 `unknown`／`attention`／`active`。
 - **已卸载的包只给包头**：名称、版本、「重新添加」的去处。
   - 条目不列：主人已经不在，能力包不为已不在的东西造条目（第 4.10 节）；用量历史仍在各主人那里。
   - 定样里「只剩历史」那一屏，09 写成包头加一句说明。
@@ -444,7 +447,7 @@ export type KitPackState =
 
 | 文件 | 内容 |
 | --- | --- |
-| `packages/contracts/src/platform/kit-report.ts`（经 `platform/actions` 转出，像搜索来源协议） | <ul><li>条目与包头类型；</li><li>上报的两个合同类型与 schema；</li><li>`defineKitReportAction`；</li><li>工具来源枚举 `KIT_TOOL_ORIGINS`。</li></ul>插件实现它，SDK 从 contracts 转出（同 `defineActionUsagesAction`） |
+| `packages/contracts/src/platform/kit-report.ts`（经 `platform/actions` 转出，像搜索来源协议） | <ul><li>条目与包头类型；</li><li>上报的两个合同类型与 schema；</li><li>`defineKitReportAction`；</li><li>工具来源枚举 `KIT_TOOL_ORIGINS`。</li></ul>插件实现它，SDK 从 contracts 转出（同 `defineActionUsagesAction`）。角色引用直接引第 36 批 `modules/character-role-scope` 的类型；`platform/` 引 `modules/` 已有先例（`artifact-pins.ts`、`file-sources.ts`） |
 | `packages/contracts/src/services/kit.ts`（新子路径） | <ul><li>描述符；</li><li>`KIT_PROVIDER_ID = "system.kit"`、`KIT_READ_PERMISSION = "kit:read"`；</li><li>`kitCatalogActions.list`、`kitErrors`；</li><li>`KitPack`、`KitPackState`、能力包文件类型。</li></ul> |
 | `packages/contracts/src/platform/model-prompts.ts` | `InstructionPrompt.role_id?` |
 | `packages/contracts/src/services/agent-definitions.ts` | 提示词改写的导出与导回三个动作与文件类型（第 4.9 节） |
@@ -467,7 +470,7 @@ export type KitSource =
   | { kind: "plugin"; plugin_id: string; title: string; version: string; install_id: string; publisher_label: string; trust: SkillPackTrust }
   | { kind: "system"; module: string; title: string }
   | { kind: "runtime"; package: string; version: string }          // the Agent runtime's own tools
-  | { kind: "character"; character_id: string; title: string; revision: number }
+  | { kind: "character"; role: PersonalCharacterRef | ProjectCharacterMemberRef; title: string; revision: number }   // batch 36's refs
   | { kind: "mcp_server"; owner: "project" | "connection"; server_id: string; label: string }
   | { kind: "outbound"; title: string };                            // Molis Work's own MCP server
 
@@ -495,8 +498,15 @@ export type KitAvailability = { available: true } | { available: false; reason: 
 /** Where to change it: a path on the reporter's own surface (checked, §4.6). The kit itself changes only Skills' states. */
 export interface KitManageLink { href: string; label: string }
 
-/** Which role a prompt belongs to, or a role entry is. The personal assistant is batch 36's `{ kind: "assistant" }`. */
-export type KitRoleRef = { owner_id: string; role_id: string } | { character_id: string } | { kind: "assistant" };
+/**
+ * Which role a prompt belongs to, or a role entry is. Characters and the personal assistant use batch 36's own references
+ * (`modules/character-role-scope`), imported, never redefined.
+ */
+export type KitRoleRef =
+  | { kind: "plugin"; owner_id: string; role_id: string }
+  | PersonalCharacterRef            // { kind: "personal"; character_id }
+  | ProjectCharacterMemberRef       // { kind: "project"; member_id }
+  | { kind: "assistant" };
 
 /** What a reporter returns for one entry. `source` and the pack are stamped by the aggregator for a plugin reporter (§4.6). */
 interface KitReportedCommon {
@@ -603,7 +613,8 @@ export interface KitMcpState {
 ```ts
 export const KIT_REPORT_INPUT_TYPE = /* @version type.molis.kit-report.input "molis.kit-report.input.v{version}" */ "molis.kit-report.input.v1";
 export const KIT_REPORT_OUTPUT_TYPE = /* @version type.molis.kit-report.output "molis.kit-report.output.v{version}" */ "molis.kit-report.output.v1";
-export interface KitReportInput { kinds?: KitKind[] }
+/** Closed and empty: a reporter reports everything it owns in the call's scope; filtering by kind is the page's. */
+export interface KitReportInput {}
 /** A pack header a named system reporter gives for a plugin installation (§4.4); never from a plugin reporter. */
 export interface KitReportedPack {
   install_id: string;
@@ -614,7 +625,7 @@ export interface KitReport { entries: KitReportedEntry[]; packs?: KitReportedPac
 
 /**
  * One owner's report of its own kit entries in the call's scope. Read-only, never connects a server, calls a tool or refreshes a
- * credential. A reporter outside a kind asked for answers no entries. Audiences are the owner's rule, `user` at least.
+ * credential. Audiences are the owner's rule, `user` at least.
  */
 export function defineKitReportAction(capabilityId: string, version: number, title: string, permissions: string[],
   options?: { scope?: "project" | "home"; audiences?: ActionAudience[] }): ActionDefinition<KitReportInput, KitReport>;
@@ -627,7 +638,7 @@ export function defineKitReportAction(capabilityId: string, version: number, tit
 
 | 上报者 | 能报的 | `source` 与 `pack` 怎样来 |
 | --- | --- | --- |
-| 插件的提供方（登记里 `kind: "plugin"`） | `prompt`、`role`、`tool`、`mcp` 条目；不能报 `skill`，不能报 `packs` | <ul><li>汇总处按它的登记与安装记录盖：`source = { kind: "plugin", … }`，`pack = plugin:<它的 install_id>`。</li><li>回答里自带的 `source`、`pack` 一律丢掉。</li><li>`prompt.roles` 与 `role.ref` 只能是它自己的角色或 `{ kind: "assistant" }`，别的丢掉这一条，进 `issues`。</li></ul> |
+| 插件的提供方（登记里 `kind: "plugin"`） | `prompt`、`role`、`mcp` 条目；不能报 `skill`、`tool`，不能报 `packs`。工具是系统的（第 4.3 节），插件报一个工具就能冒充系统工具 | <ul><li>汇总处按它的登记与安装记录盖：`source = { kind: "plugin", … }`，`pack = plugin:<它的 install_id>`。</li><li>回答里自带的 `source`、`pack` 一律丢掉。</li><li>`role.ref` 只能是 `{ kind: "plugin" }` 且 `owner_id` 等于它的插件 id；`prompt.roles` 只能是这样的角色或 `{ kind: "assistant" }`。别的丢掉这一条，进 `issues`。</li></ul> |
 | 点名的系统提供方（`horizontal/kit` 里一张小表，键是提供方 id，写手按实际登记核） | 表里给它的类，以及表里给它的 `packs` | 在表里允许的来源种类与包内，用它给的 `source`、`pack`；超出就丢掉这一条，进 `issues` |
 
 系统提供方表（初稿）：
@@ -635,7 +646,7 @@ export function defineKitReportAction(capabilityId: string, version: number, tit
 | 提供方 | 能报的类 | 允许的来源 | 允许的包 |
 | --- | --- | --- | --- |
 | `system.skills` | `skill` | `plugin`（它从安装记录得来，是这件事的主人） | `plugin:*` |
-| `system.agent-definitions` | `prompt`、`role` | `plugin`、`system` | `plugin:*`、`system:builtin` |
+| `system.agent-definitions` | `prompt`、`role` | `plugin`、`system` | <ul><li>插件与沙箱包的主人：`plugin:<install_id>`，取 `registerPluginAgentDefinitions` 注册时的 `installId`。</li><li>宿主自有主人（助理、创作台、Alchemist、`system:*`）：一律 `system:builtin`。</li></ul> |
 | 工具上报者 | `tool` | `runtime`、`system` | `system:builtin` |
 | Characters 的提供方 | `role` | `character` | `system:characters` |
 | Agent Host 的 MCP 库上报者 | `mcp` | `mcp_server` | 主人插件的 `plugin:*` |
@@ -643,7 +654,8 @@ export function defineKitReportAction(capabilityId: string, version: number, tit
 | 对外接入的上报者 | `mcp` | `outbound` | `system:builtin` |
 | 插件安装服务 | 只报 `packs` | — | — |
 
-- `skill` 类只认 `system.skills`，`packs` 只认插件安装服务。
+- `skill` 类只认 `system.skills`，`tool` 类只认工具上报者，`packs` 只认插件安装服务。
+- 系统提供方报到 `plugin:<install_id>` 的条目，汇总处还核两件事：这个 `install_id` 在插件安装服务的包头里；它的插件 id 等于条目 `source.plugin_id`。不合的丢掉这一条，进 `issues`。
 - 这张表是信任边界，不是能力名单：上报者照样按合同类型发现，表只管「谁可以替别人说来源、说属于哪个包」。
 
 **怎样拼成包**：
@@ -668,12 +680,12 @@ export function defineKitReportAction(capabilityId: string, version: number, tit
 | --- | --- |
 | 提供方 | `system.kit`，Home 级登记一次（每个项目看到同一个查询） |
 | 谁能调 | <ul><li>`audiences: ["user"]`，`permissions: ["kit:read"]`，宿主在 `local-owner-permissions.ts` 给本人。</li><li>Agent、插件、MCP 调用被拒（CPK-09）。</li><li>以后第 61、63 批要读时按类开受众，每个上报动作仍按主人的规则过滤（能力包需求 §6）。</li></ul> |
-| 输入 | `{ kinds?: KitKind[] }`，`additionalProperties: false`；范围从调用上下文来 |
-| 输出 | `{ packs: KitPack[]; entries: KitEntry[]; issues: Array<{ provider_id: string; title: string; message: string }> }`<ul><li>包的顺序：要处理的在前，其余按名称排。</li><li>`entries` 每条只出现一次，包用 `KitEntryKey` 引用。</li><li>给了 `kinds` 时，包照样全列，只少了别的类的条目。</li></ul> |
-| 怎样汇总 | <ol><li>用调用方自己的客户端 `discover` 一次，按两个合同类型过滤出上报者。</li><li>对每个可用的上报者 `invoke` 一次（并行），输入原样带 `kinds`。</li><li>按第 4.6 节盖章、拼包、核对。</li></ol>不可用的、拒绝的、超时的写进 `issues`，不拖垮整页：一个上报者失败时，只有它那一类在相关包里显示「没读到」，计数写「—」，其余照常 |
+| 输入 | `{}`，`additionalProperties: false`；范围从调用上下文来。不按类筛：只读一部分类，包的状态会被误报成「在用」，所以按类筛在页面里做 |
+| 输出 | `{ packs: KitPack[]; entries: KitEntry[]; issues: Array<{ provider_id: string; title: string; message: string }> }`<ul><li>包的顺序：要处理的在前，其余按名称排。</li><li>`entries` 每条只出现一次，包用 `KitEntryKey` 引用。</li></ul> |
+| 怎样汇总 | <ol><li>用调用方自己的客户端 `discover` 一次，按两个合同类型过滤出上报者。</li><li>对每个可用的上报者 `invoke` 一次（并行）。</li><li>按第 4.6 节盖章、拼包、核对。</li></ol>不可用的、拒绝的、超时的写进 `issues`，不拖垮整页。一个上报者失败时：<ul><li>它的条目可能在的包，状态给 `unknown` 并带这条 issue；</li><li>页面在那些包里把它那一类显示「没读到」，计数写「—」；</li><li>其余照常。</li></ul>插件上报者只影响它自己的包；系统提供方影响它表里允许的所有包 |
 | 调用次数 | 打开能力包：1 个请求，其中 1 遍目录发现、每个上报者 1 次调用、各自一遍授权核对。打开一个包或一条不另发请求，技能的开头在 `excerpt` 里。只有 MCP 工具与动作的「用在哪」按需另调一次 `actions.usages.read` |
 | 调度 | 照 `actions.usages.read` 声明 `scheduling: "concurrent"`：它在等别的提供方的动作，不提交任何东西，不需要 `beforeEffect` |
-| 搜索 | 页面内搜（照 08），同时找包和包里的东西；系统搜索不收能力包条目 |
+| 筛选与搜索 | 都在页面里做（照 08）：按类筛，同时搜包和包里的东西。系统搜索不收能力包条目 |
 
 ### 4.8 各类条目的取值
 
@@ -681,9 +693,9 @@ export function defineKitReportAction(capabilityId: string, version: number, tit
 | --- | --- | --- | --- | --- | --- | --- |
 | `skill` | 只认 `system.skills` | `SkillRef`（在 `skill` 里） | `pack.version` 与 Skill 的整数版本 | `applies_to`、启用范围 | 三档，就地改；`requires_unmet` 等照 08 给去处 | `skill_uses`：`recent` |
 | `prompt` | Agent 定义登记（新 provider `system.agent-definitions`） | `owner_id`＋`prompt_id` | 默认版本；有改写且默认更新了，给 `default_updated` | `used_by` | 只看；去「提示词」编辑页 | `prompt_uses`：`recent`，`kept.rows_per_key = 200` |
-| `role`（插件角色、子代理、签名角色） | 同上 | `owner_id`＋`role_id` | 角色声明的版本 | 用到它的插件功能；第 36 批之后加作用范围 | 只看；去「角色」 | `prompt_uses`：`recent` |
+| `role`（插件角色、子代理、签名角色） | 同上 | `{ kind: "plugin"; owner_id; role_id }` | 角色声明的版本 | 用到它的插件功能；第 36 批之后加作用范围 | 只看；去「角色」 | `prompt_uses`：`recent` |
 | `role`（个人助理） | 同上 | `{ kind: "assistant" }` | 产品版本 | 助理的每一轮 | 只看；去「助理」设置 | `prompt_uses`：`recent` |
-| `role`（Character） | `modules/characters` | `character_id` | 修订号 | 第 36 批之前只给声明与来源 | 只看；去「角色」 | `character_runs`：`recent` |
+| `role`（Character） | `modules/characters` | 第 36 批的 `PersonalCharacterRef`（个人的）或 `ProjectCharacterMemberRef`（项目成员） | 修订号 | 第 36 批之前只给声明与来源 | 只看；去「角色」 | `character_runs`：`recent` |
 | `tool` | Agent Host 的工具全集（第 5 节）。上报动作 `agent.tools.kit.report@1` 由宿主装配处登记，随 9-10 | 工具名 | 系统工具：SDK 包版本＋形状指纹；平台工具：产品版本 | 开放给哪些角色 | 只看，不能开关 | `last_only` 或 `not_counted` |
 | `mcp`（项目 MCP 服务器与其工具、资源） | Agent Host 的 MCP 库（读已存视图） | `server`／`action_tool`／`tool`／`resource` | 最近一次发现的差异 | 哪个插件的设置 | 「开」分开写；去 Coding 的 MCP 设置 | 已登记成动作的工具：读动作调用记录，`recent`（只留近期）。未登记的：`none` |
 | `mcp`（连接带的 MCP） | 连接器 `horizontal/connector-host` | 同上，`owner: "connection"` | 同上 | 哪个连接 | 去「服务连接」 | 同上 |
@@ -723,7 +735,7 @@ export interface KitPackFile {
 
 | 部分 | 导出 | 导回 |
 | --- | --- | --- |
-| 内容包（技能、签名角色） | `plugins.package.export@1`（下文） | 交给 08 的 `plugins.install.preview`／`confirm`，不另开 |
+| 内容包（技能、签名角色） | `plugins.package.export@1`（下文） | 页面把 `package.content` `JSON.parse` 后，作为 `bundle` 交给 08 的 `plugins.install.preview`，再 `confirm`，不另开 |
 | 这个包的提示词改写（`owner_id` 是这个插件的，或自带包的 `system:*`） | `agent-definitions.prompt-overrides.export@1`，`keys` 只给这个包的 | `import.preview`／`confirm`：逐条看差异、逐条确认 |
 | 引用：角色、工具、MCP、导不出包的技能 | 页面从 `kit.catalog.list@1` 的结果拼 | 页面调一次 `kit.catalog.list@1` 逐条对：在的标「已有」；不在的标「用不了」，并按 `needs` 给去处 |
 
@@ -731,6 +743,7 @@ export interface KitPackFile {
 - 不加新动作：三部分各调各的动作，授权仍在各动作上。
 - 文件里没有服务器配置、端点与凭据，类型上就放不进去。
 - 导回时文件不能当安装包用：`package` 一部分仍要过 08 的签名核对与安装确认。
+- 重新序列化不影响验签：08 的签名对的是 `canonical(payload)` 的字节（`packages/plugin-runtime/src/package-verification.ts` 的 `pluginPackageSigningBytes`），不是文件原文。所以导出原样给留存的 bundle 文本，导回 `JSON.parse` 成对象再交 `bundle`，验的是同一份规范字节。`tests/kit-export.test.ts` 断言这一点：原样导出、解析、导回、验签通过，签名者不变。
 - 「你的角色」包只有引用；自带包有提示词改写与引用。
 
 **技能：`plugins.package.export@1`**。插件安装服务的动作，与 `plugins.install.preview`／`confirm` 同一个提供方，`audiences: ["user"]`。
@@ -821,7 +834,7 @@ export interface PromptOverridesFile {
 
 **新不变量 `S-kit-catalog`**：独立记录，测试在 `tests/security-invariants-kit-catalog.test.ts`。
 
-> 能力包只给本人：`kit.catalog.list@1` 只收 user 受众，用调用方自己的客户端发现并调用上报者，调用方看不到的上报者不调；上报回答按封闭 schema 校验，带正文、凭据、端点或路径的整份作废；来源与所属的包由汇总处按登记与安装记录盖章，插件上报者不能给自己报别的来源或别的包、不能报技能与包头、不能把提示词挂到别人的角色下，只有点名的系统提供方能报 `system`／`runtime`／`outbound` 等来源；`manage.href` 只能指向上报者自己的地方；列能力包不连 MCP 服务器、不调工具、不刷新凭据；包导出与提示词改写的导出导回只给本人，确认要受保护入口；导出不重签。
+> 能力包只给本人：`kit.catalog.list@1` 只收 user 受众，用调用方自己的客户端发现并调用上报者，调用方看不到的上报者不调；上报回答按封闭 schema 校验，带正文、凭据、端点或路径的整份作废；来源与所属的包由汇总处按登记与安装记录盖章，插件上报者不能给自己报别的来源或别的包、不能报技能、工具与包头、不能把提示词挂到别人的角色下，只有点名的系统提供方能报 `system`／`runtime`／`outbound` 等来源；`manage.href` 只能指向上报者自己的地方；列能力包不连 MCP 服务器、不调工具、不刷新凭据；包导出与提示词改写的导出导回只给本人，确认要受保护入口；导出不重签。
 
 拒绝测试：
 
@@ -829,9 +842,9 @@ export interface PromptOverridesFile {
 2. 本人看不到的上报者（只给插件受众）不被调用。
 3. 假上报者回答多带 `body`：整份作废，进 `issues`。
 4. 插件上报者在条目里自称 `source: { kind: "system" }`、别的插件，或 `pack: "system:builtin"`：汇总后的 `source` 与 `pack` 是它自己的安装。
-5. 插件上报者报 `kind: "skill"` 或 `packs`：丢掉，进 `issues`。
+5. 插件上报者报 `kind: "skill"`、`kind: "tool"`（比如自称系统工具 `run-command`）或 `packs`：丢掉，进 `issues`；工具条目仍只有工具上报者的那一份。
 6. 插件上报者把提示词挂到别的插件的角色：这一条丢掉，进 `issues`。
-7. 非点名的系统提供方报 `runtime`／`outbound` 来源，或报不在它表里的包：丢掉，进 `issues`。
+7. 非点名的系统提供方报 `runtime`／`outbound` 来源，或报不在它表里的包：丢掉，进 `issues`。`system.agent-definitions` 报到 `plugin:<install_id>` 的条目，而那个安装的插件 id 与条目来源的插件 id 不同：丢掉，进 `issues`。
 8. 插件上报者的 `manage.href` 指向别的插件页面、宿主设置页或外站：`manage` 被去掉。
 9. 列一份有项目 MCP 与连接 MCP 的能力包：`AgentMcpLibrary.control`／`call` 与连接器刷新的调用次数都是 0。
 10. Agent 调 `plugins.package.export@1` 与三个提示词改写动作被拒。没有 `user_action` 的确认被拒。插件页面请求下载路由被拒。
@@ -840,6 +853,7 @@ export interface PromptOverridesFile {
     - 预览的 `preview_id` 不能用于确认：别人的、别的项目的、用过一次的；
     - `base_mismatch` 的行确认被拒；
     - 超上限的文件预览被拒。
+13. 一个插件上报者超时：它自己的包状态是 `unknown`、带这条 issue，不是 `active`；别的包照常。
 
 `S-content-package` 加一条：装一个内容包前后，所有提示词的有效正文与改写记录不变。
 
@@ -880,6 +894,7 @@ export function isAgentTool(name: string): boolean;
 - **合同里只留** `BUSINESS_HOST_TOOLS`、`SKILL_TOOLS`（作者写声明要用）。`SKILL_TOOLS` 的注释补上为什么没有 `change-reversible`：
   - 它是可撤回的改动不经本人确认、直接执行的通道，由角色的执行方式与本人「每次确认」的设置授予；
   - 一段技能文字不能替本人决定跳过确认，所以技能不能声明它。
+- `AGENT_TOOLS`、`isAgentTool` 从 `horizontal/agent-host` 的包入口导出，在 `b09/tools` 里做完；`b09/kit` 只消费，不改这个文件。
 - **工具上报动作** `agent.tools.kit.report@1` 不在 9-9 做，随 9-10（`b09/kit`）由宿主装配处登记。条目来自 `AGENT_TOOLS`；包内的工具由汇总处从角色算（第 4.6 节）。
 
 ### 5.2 两条检查
@@ -917,11 +932,11 @@ export function isAgentTool(name: string): boolean;
 | 1 | 事实主人 | 不新增事实，包不存、现算（第 4.1 节）。各类的主人：<ul><li>技能：插件声明与 Agent 定义登记（08）。</li><li>提示词、插件角色、提示词属于哪个角色：插件声明与 Agent 定义登记。</li><li>Character：`modules/characters`；作用范围与继承归 36。</li><li>工具全集：Agent Host。</li><li>MCP：项目 MCP 归 Agent Host 的 MCP 库，连接带的归连接器，对外的归对外接入。</li><li>包头（已安装、停用、已卸载、上次升级）：插件安装服务。</li></ul>能力包只汇总，`horizontal/kit` 不存任何东西；来源与所属的包由汇总处按登记盖章，不由上报者自称。用户自组包不做。两份新文件是用户自己的数据 |
 | 2 | 插件同等待遇 | <ul><li>插件本身就是包，内置、第三方、08 内容包一样。</li><li>上报者按合同类型发现，宿主不点名；第三方插件登记 `defineKitReportAction` 就进能力包（CPK-12）。</li><li>系统提供方表只管「谁能替别人说来源、说包」；插件给自己说的规则与内置插件一样。</li></ul> |
 | 3 | 能力注册 | <ul><li>各登记一次：`kit.catalog.list@1`、每个上报动作、`plugins.package.export@1`、三个提示词改写动作。</li><li>可信身份（项目、操作者）取自调用上下文。</li><li>只有汇总声明 `concurrent`：它等别的提供方，不提交。</li><li>「导出这个包」不加动作。</li></ul> |
-| 4 | 合同 | 新增与改动：<ul><li>新增 `platform/kit-report.ts`、`services/kit.ts`；</li><li>`InstructionPrompt.role_id?`；</li><li>`services/agent-definitions.ts` 加动作；</li><li>宿主 `plugins.package.export@1`；</li><li>两种文件格式进 `tooling/versions.json`。</li></ul>刷新快照：`tooling/gates/api/`（新子路径 `services/kit`、`platform/actions`、`platform/model-prompts`）与 `tooling/gates/actions/`（`host-actions.tsv` 新增几行）。阶段一，不留兼容；没人在等这份合同，随本批 PR，不单开 |
+| 4 | 合同 | 新增与改动：<ul><li>新增 `platform/kit-report.ts`、`services/kit.ts`；</li><li>`InstructionPrompt.role_id?`；</li><li>`services/agent-definitions.ts` 加动作；</li><li>宿主 `plugins.package.export@1`；</li><li>两种文件格式进 `tooling/versions.json`。</li></ul>刷新快照：`tooling/gates/api/`（新子路径 `services/kit`、`platform/actions`、`platform/model-prompts`，以及插件 SDK 的公开 API：SDK 在 `packages/plugin-sdk/src/index.ts` 转出 `InstructionPrompt`）与 `tooling/gates/actions/`（`host-actions.tsv` 新增几行）。`role_id` 是插件作者合同的改动，不是 Manifest 改动。阶段一，不留兼容；没人在等这份合同，随本批 PR，不单开 |
 | 5 | 放在哪个包 | <ul><li>汇总 `horizontal/kit`（第 4.1、4.6 节；放法比较见第 1 稿，结论不变）；宿主只在 `kit-actions.ts` 装配。</li><li>工具全集在 `horizontal/agent-host`，用合同的 `KitToolOrigin`。</li><li>新包要登记包清单、归属、README「开发要求」。</li></ul> |
 | 6 | 表与存储 | 不新增表，包不落库。用量读 `skill_uses`、`prompt_uses`、`character_runs`、动作调用记录；提示词改写预览存内存，只用一次 |
 | 7 | 兼容与迁移 | 不加。MCP 流水线合并移出本批 |
-| 8 | 安全边界 | 碰：新不变量 `S-kit-catalog`（第 4.11 节 12 条拒绝），`S-content-package` 加断言 |
+| 8 | 安全边界 | 碰：新不变量 `S-kit-catalog`（第 4.11 节 13 条拒绝），`S-content-package` 加断言 |
 | 9 | 调用次数 | <ul><li>打开能力包 1 个请求、1 遍目录发现、每个上报者 1 次；打开包与条目不另发请求。</li><li>不连 MCP。</li><li>`prompt_uses` 等按键批量读，一个上报者内不逐条开库（写手按 N42～N44 量）。</li></ul> |
 | 10 | 升级与数据 | <ul><li>包头带上次升级；技能照 08。</li><li>提示词显示基于的版本与默认版本，导回时版本对不上不套用。</li><li>MCP 显示发现差异。</li><li>导出不重签，升级后的包照常导。</li></ul> |
 | 11 | 成果与过程项 | 导出的文件是给人留存的文件，不进成果库（与 08 的内容包一样）；Character 定义沿用已有成果类型 |
@@ -939,8 +954,8 @@ export function isAgentTool(name: string): boolean;
 | 3 | 能力注册 | 不新增动作。`run.start` 是工作执行方现有角色，读正文用 08 的动作；都不等模型 |
 | 4 | 合同 | 改：<ul><li>`ActionCallContext` 加 `named_skills`（绑定安装与动作）、`skill_round`，改 `locale` 注释。</li><li>`run.start` 加 `skills`（原版本改）。</li><li>删 `AgentSkillRef`、方法库端口、`AgentSkillsCapability`。</li><li>`SignedAgentReference` 只剩角色。</li><li>`AssistantMethodSelection` 分两种；`assistant.methods.read@2` 只收角色。</li><li>`frozen.skills` 每项改形状，加 `frozen.reply_locale`。</li><li>SDK 拒绝 `agent.skills` 与 `methods` 重名。</li></ul>刷 `api` 与 `actions` 快照。PR 写对 Coding、助理与第三方执行方的影响：第三方执行方要声明 `skills:read`，才能用页面点的目录技能 |
 | 5 | 放在哪个包 | 不新建包：<ul><li>助理：`apps/local-host/src/assistant/`；</li><li>Coding：`plugins/native/coding/`；</li><li>冻结：`horizontal/agent-host/`；</li><li>上下文绑定与信封：宿主派发处。</li></ul> |
-| 6 | 表与存储 | 不新增表；删 Prologue 存储里的 `molis-coding-method`；Coding 会话键只改值的形状 |
-| 7 | 兼容与迁移 | 不加。旧形状一次清掉，不认、不迁、不提示（第 2.7 节，用户 2026-11-09 定） |
+| 6 | 表与存储 | 不新增表；删 Prologue 存储里的 `molis-coding-method`；Coding 会话的技能选择换新键 `skills:<会话>`，旧键 `methods:<会话>` 不再读（第 2.7 节） |
+| 7 | 兼容与迁移 | 不加。旧形状一次清掉，不认、不迁、不提示；会话选择换新键，旧键不读，所以旧会话不会卡住（第 2.7 节，用户 2026-11-09 定） |
 | 8 | 安全边界 | 碰：<ul><li>新不变量 `S-skill-delegation`（第 2.6 节 12 条拒绝）；</li><li>`S-skill-catalog` 改位置；</li><li>9-5b 另加 `S-skill-scripts`。</li></ul> |
 | 9 | 调用次数 | 第 3.4 节读取次数表与计数夹具；助理 `methods()` 改成一次取 |
 | 10 | 升级与数据 | <ul><li>一轮冻结精确版本。</li><li>升级、换安装后，存着的选择不再是当前的，读取被拒，不悄悄换（SKP-07）。</li><li>Prologue 登记键按内容摘要，升级不读旧缓存。</li></ul> |
@@ -962,7 +977,7 @@ export function isAgentTool(name: string): boolean;
 | CPK-06 | 9-10 | `tests/kit-export.test.ts`：<ul><li>「导出这个包」的文件装回另一个临时 Home，内容包可用、版本相同；</li><li>第三方包导出字节与留存一致；</li><li>提示词改写 `base_mismatch` 不套用，逐条确认；</li><li>引用部分不含凭据与端点。</li></ul> |
 | CPK-07 | 9-9 | `tests/agent-host-tool-catalog.test.ts`；`host_tools` 未知名的拒绝用例 |
 | CPK-08 | 9-12 | 收口表逐行 `git grep` 结果写进 PR；BL 与候选每条带主人与去处 |
-| CPK-09 | 9-1、9-10 | `tests/security-invariants-skill-delegation.test.ts`（第 2.6 节 1～12）、`tests/security-invariants-kit-catalog.test.ts`（第 4.11 节 1～12） |
+| CPK-09 | 9-1、9-10 | `tests/security-invariants-skill-delegation.test.ts`（第 2.6 节 1～12）、`tests/security-invariants-kit-catalog.test.ts`（第 4.11 节 1～13） |
 | CPK-10 | 9-7、9-12 | 文档 diff：<ul><li>SSOT、`PACKAGE-BOUNDARIES.md`；</li><li>作者手册「怎么做能力包」：插件就是包、`role_id` 怎么写；</li><li>GLOSSARY：能力包与组件板 kit、Agent 工具与外部工具。</li></ul> |
 | CPK-11 | 9-11 | `[人工]` 本人验收 |
 | CPK-12 | 9-10 | `tests/kit-catalog.test.ts`：样例插件（`examples/plugin-sample` 风格的测试夹具）登记上报动作，不改宿主就出现在它自己的包里；它只拿到调用方的权限，来源与包被盖成它自己 |
@@ -997,7 +1012,7 @@ CPK-13、CPK-14 是第 3 稿新加的，同一提交写进能力包需求 §11�
 建议：
 - `b09/contract`、`b09/assistant`、`b09/delegation` **以 #1991 合入 main 后为基点**。本批分支届时同步一次 main：第 8.4 节第 4 条允许「本批真要用到 main 上新合入的东西」时合一次。
 - `b09/freeze`、`b09/scripts`、`b09/tools` 不碰这几个文件，可以先开。
-- #1991 迟迟不合时由主会话定：`b09/contract` 只有 `actions.ts` 一处小重叠，可先开、合入时手解；`b09/assistant`／`b09/delegation` 不先开。
+- 主会话定：`b09/contract` 等 #1991 合入后再开工，本批分支届时从新 main 重切（现在还没有代码提交）。
 
 | 子分支 | 内容 | 写手 | 前置 | 碰的文件 |
 | --- | --- | --- | --- | --- |
@@ -1006,8 +1021,8 @@ CPK-13、CPK-14 是第 3 稿新加的，同一提交写进能力包需求 §11�
 | `b09/assistant` | 9-2：<ul><li>`SignedAgentReference` 只剩角色；</li><li>`methods()` 读目录，`bindSigned` 一次取；</li><li>签名角色只出现一次；</li><li>助理历史材料只认新形状。</li></ul> | 先 C（`agent-definitions.ts`、`services/agent-definitions.ts`）再 A 接力；Opus 5.5 medium | `b09/contract`；#1991 合入；与 `b09/freeze` 并行，文件不重叠 | `apps/local-host/src/agent-definitions/agent-definitions.ts`、`apps/local-host/src/assistant/*`、`services/assistant.ts`、`assistant-composer.ts` |
 | `b09/delegation` | 9-3：委派时带 `run.start.skills`，宿主写绑定的 `named_skills` 与 `locale`；`S-skill-delegation` 全部拒绝测试 | A，Opus 5.5 high（安全） | `b09/freeze`、`b09/assistant` 合回 | `assistant-dispatch.ts`、`assistant-executor.ts`、`assistant-round-materials.ts`、`docs/system/security-invariants/`、`tests/security-invariants-skill-delegation.test.ts` |
 | `b09/scripts` | 9-5b（SKP-09） | C2，Opus 5.5 high | `b09/freeze` | `horizontal/agent-host/`、沙箱规则 |
-| `b09/tools` | 9-9：<ul><li>工具全集；</li><li>`RUNTIME_TOOLS_NOT_OFFERED` 替掉 `prologue-taskboard.ts` 的排除；</li><li>`host_tools` 检查、对齐测试；</li><li>MCP 收口。</li></ul>接力：`assistant-present.ts` 的键约束由 A 在 `b09/delegation` 之后做；Coding 设置页由 B 做 | C2 起；Opus 5.5 medium | `b09/freeze`（同包串行）；与 `b09/scripts` 不能并行（同包） | `horizontal/agent-host/src/{tool-catalog,…}.ts`、`apps/mcp/`、`docs/mcp.md`、`plugins/native/coding/src/browser/settings/mcp.ts`、`assistant-present.ts` |
-| `b09/kit` | 9-10：<ul><li>`horizontal/kit`：汇总、来源与包盖章、拼包、状态、系统提供方表；</li><li>`kit-actions.ts`；</li><li>各上报者，含插件安装服务的包头与 `agent.tools.kit.report@1`；</li><li>`role_id` 的登记校验；</li><li>`plugins.package.export@1` 与下载路由；</li><li>提示词改写三个动作。</li></ul> | C，Opus 5.5 high；Characters 一侧按规则 7 | `b09/assistant`（`methods()` 去角色）、`b09/tools`（工具全集） | `horizontal/kit/`、`apps/local-host/src/kit-actions.ts`、`plugin-install-actions.ts`、`agent-definitions/`、`modules/characters/`、`services/agent-definitions.ts` |
+| `b09/tools` | 9-9：<ul><li>工具全集；</li><li>`RUNTIME_TOOLS_NOT_OFFERED` 替掉 `prologue-taskboard.ts` 的排除；</li><li>`host_tools` 检查、对齐测试；</li><li>MCP 收口。</li></ul>`AGENT_TOOLS` 与 `isAgentTool` 从 `horizontal/agent-host` 导出，在本片做完。接力：`assistant-present.ts` 的键约束由 A 在 `b09/delegation` 之后做；Coding 设置页由 B 做 | C2 起；Opus 5.5 medium | `b09/freeze`（同包串行）；与 `b09/scripts` 不能并行（同包） | `horizontal/agent-host/src/{tool-catalog,…}.ts`、`apps/mcp/`、`docs/mcp.md`、`plugins/native/coding/src/browser/settings/mcp.ts`、`assistant-present.ts` |
+| `b09/kit` | 9-10：<ul><li>`horizontal/kit`：汇总、来源与包盖章、拼包、状态、系统提供方表；</li><li>`kit-actions.ts`；</li><li>各上报者，含插件安装服务的包头与 `agent.tools.kit.report@1`；</li><li>`role_id` 的登记校验（`plugin-instructions.ts`、`builtin-agents.ts`）；</li><li>只消费 `horizontal/agent-host` 导出的 `AGENT_TOOLS`，不改它。</li><li>`plugins.package.export@1` 与下载路由；</li><li>提示词改写三个动作。</li></ul> | C，Opus 5.5 high；Characters 一侧按规则 7 | `b09/assistant`（`methods()` 去角色）、`b09/tools`（工具全集） | `horizontal/kit/`、`apps/local-host/src/kit-actions.ts`、`plugin-install-actions.ts`、`plugin-instructions.ts`、`agent-definitions/`、`modules/characters/`、`services/agent-definitions.ts` |
 | `b09/kit-page` | 9-11：<ul><li>按定样 A 实现；</li><li>设置页合并（第 9.1 节）；</li><li>「导出这个包」的组装与导回的解析。</li></ul> | D，按定样 | `b09/kit` | 设置页、组件板、`apps/workbench/src/settings-skills.ts` 一带 |
 | `b09/docs` | 9-7、9-12 收口与归属 | 任一写手，Sonnet 5.5 xhigh | 9-1～9-4 写法稳定 | `skills/molis-plugin-dev/`、`docs/` |
 
@@ -1027,6 +1042,7 @@ CPK-13、CPK-14 是第 3 稿新加的，同一提交写进能力包需求 §11�
   - `platform/actions`：`ActionNamedSkills`、`ActionCallContext` 两个字段、`locale` 注释、`kit-report` 转出；
   - `platform/work-executors`；
   - `platform/model-prompts`：`role_id`；
+  - 插件 SDK 的公开 API 快照：SDK 转出 `InstructionPrompt`（`packages/plugin-sdk/src/index.ts`），`role_id` 跟着进快照。这是插件作者合同的改动，不改 Manifest；PR 写对插件作者的影响（可选字段，不写就归个人助理）；
   - `services/agent-host`：删 `AgentSkillRef` 等，改 `frozen.skills`，加 `frozen.reply_locale`；
   - `services/agent-definitions`、`services/assistant`；
   - 新 `services/kit`；
@@ -1093,12 +1109,10 @@ CPK-13、CPK-14 是第 3 稿新加的，同一提交写进能力包需求 §11�
 | D-6 | 没有归属角色的提示词放哪 | 归个人助理 | 用户，2026-11-09 |
 | D-7 | 要不要「整包停用」 | 不要，状态从内容读出 | 主会话，2026-11-09 |
 
-仍开着、不问用户：
+主会话 2026-11-09 定的三件事，本稿已按它写：
 
-1. **排期**：#1991 迟迟不合时，`b09/contract` 是否先开（第 8 节）。主会话定。
-2. **两条 BL 的号**：用户自组包（第 4.1 节）、已卸载包列历史条目（第 4.4 节）。主会话给号。
-3. **交设计台的两处与定样示例不同**：
-   - 对外 MCP 在自带包里，不在示例的「目标推进」包里；
-   - 已卸载的包只有包头，不列历史条目。
+1. **排期**：`b09/contract` 等 #1991 合入后再开工，本批分支届时从新 main 重切（第 8 节）。
+2. **两条 BL 的号**：用户自组包（第 4.1 节）、已卸载包列历史条目（第 4.4 节），由 9-12 写手按 `specs/BACKLOG.md` 取下一个空号。
+3. **定样示例**：设计台已按本稿改了示例数据：对外 MCP 进「Molis Work 自带」，已卸载的包只显示包头。
 
-   要改定样说明的由设计台改；要改合同的回到本稿。
+没有仍开着的待决。

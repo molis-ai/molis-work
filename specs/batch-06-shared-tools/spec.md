@@ -46,6 +46,8 @@ Dataset、Form、Pages、PPT 声明的是 `databases.home.project_rows`。项目
 
 **界面定样（用户 2026-11-09）。** 采用 [A「就地预览」](../../docs/design/batch-06-materials/README.md)：侧栏和 Coding 文件区就地阅读，保留任务上下文；长文有明确主区入口，宽屏选择器并排、窄屏逐页。原来源分组、最近五份、工作目录抬头及临时浏览不改执行位置保持。B「主区阅读」不作默认。后续组件板标本和 D 轨合审、真实资料与授权、迁移回读仍须完成；本次确认是选样，不是产品实操验收。
 
+A 的资料引用、Goal/Coding 消费者、插件选择器、分段阅读与 N52 调用合同见[就地预览接入设计](materials-ui-contract.md)。Agent 加密轮次索引的 1→2 是待裁定的新增载体升级，未获准前不实施该步骤；已批准的界面和 Files 迁移准备继续。
+
 ### 注册、写入和读回
 
 **一个平台登记和一个 Runtime 输出来源解析端口。** `system.materials` 是 `kind: "system"` 的受信任项目级动作提供方。登记是类型、输出、动作绑定及稳定签名的唯一来源。签名跨重启与产品升级稳定，只由构建内受信任声明取得，映射到现行 `producer_plugin_id`／`producer_binding_signature`。owner 比对登记 id、签名和个人归属。调用的权限与个人 owner 来自实际调用上下文，`audit_actor_id` 只用于署名。系统身份仅持有登记的过程项写能力，独立于插件生命周期、场景、订阅和 Home 授权。

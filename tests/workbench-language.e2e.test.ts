@@ -325,7 +325,12 @@ test("FSS-20 FSS-38 FSS-74 a signed Studio installation switches its words in th
   const { readyPublication } = await import("./fixtures/studio-publishing.js"), { studioBilingualNotes } = await import("./fixtures/studio-bilingual.js");
   const { readStudioDistribution } = await import("@molis-ai/molis-work-app-local-host");
   const { sandboxPackageBuildId } = await import("@molis-ai/molis-work-plugin-sdk");
-  const author = await mkdtemp(join(tmpdir(), "molis-studio-browser-author-")), h = readyPublication(author, "author", "project", studioBilingualNotes);
+  const author = await mkdtemp(join(tmpdir(), "molis-studio-browser-author-")), h = readyPublication(author, "author", "project", candidate => {
+    const design = studioBilingualNotes(candidate);
+    design.presentation = { version: 1, pages: [{ pageId: "home", layout: { layout: "stack", children: design.parts.map(part => ({ part: part.id })) } }],
+      parts: { notes: { detail: true } } };
+    return design;
+  });
   t.after(async () => { await h.workflow.close(); await rm(author, { recursive: true, force: true }); });
   const release = await h.publish(), bundle = await readStudioDistribution(h.root, release);
   const plugin = release.pluginId, surface = "app-" + sandboxPackageBuildId(plugin, bundle.payload.manifest.publisher.signature);
@@ -354,7 +359,10 @@ test("FSS-20 FSS-38 FSS-74 a signed Studio installation switches its words in th
   await child.evaluate(`(() => { const field=document.querySelector('[data-field=text]');field.value='保存摘记';field.dispatchEvent(new Event('input',{bubbles:true}));
     document.querySelector('[data-pc-value=personal]').click();field.form.requestSubmit(); })()`);
   await child.waitFor("document.querySelector('[data-record-id]')?.innerText.includes('保存摘记')");
+  await child.click("[data-record-id] [data-pc-select]");
+  await child.waitFor("document.querySelector('[data-detail-open] .pc-detail-meta span')?.textContent === '可见范围 · 个人'");
   await child.evaluate(`(() => {const field=window.savedStudioField=document.querySelector('[data-field=text]');window.savedStudioBody=document.body;
+    window.savedStudioDetail=document.querySelector('[data-detail-open] .pc-detail-pane');window.savedStudioDetailWord=savedStudioDetail.querySelector('.pc-detail-meta span');
     field.value='unfinished 摘录';field.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('[data-pc-value=team]').click();
     field.focus();field.setSelectionRange(1,6,'backward');})()`);
   const opened = await b.evaluate<string>(`document.querySelector(${JSON.stringify(frame)}).parentElement.dataset.pluginPage`);
@@ -366,6 +374,9 @@ test("FSS-20 FSS-38 FSS-74 a signed Studio installation switches its words in th
     document.querySelector(".pc-region").getAttribute("aria-label"),savedStudioField.placeholder,document.querySelector('[type=submit]').textContent,
     document.querySelector('[data-pc-value=personal]').textContent,document.querySelector('[data-record-id]').innerText.includes('保存摘记')]`),
   [true, true, true, "unfinished 摘录", 1, 6, "backward", "team", "Notes workspace", "Keep the quotation", "Save excerpt", "Personal", true]);
+  assert.deepEqual(await child.evaluate(`[savedStudioDetail===document.querySelector('[data-detail-open] .pc-detail-pane'),
+    savedStudioDetailWord===savedStudioDetail.querySelector('.pc-detail-meta span'),savedStudioDetailWord.textContent,savedStudioDetail.querySelector('h2').textContent]`),
+  [true, true, "Visibility · Personal", "保存摘记"]);
   assert.equal(await b.evaluate(`document.querySelector(${JSON.stringify(frame)}).parentElement.dataset.pluginPage`), opened);
   assert.deepEqual(requests, [source], "language preparation did not mint or re-open a release");
   const beforeLook = await child.evaluate<string[]>("['--page','--font'].map(name=>getComputedStyle(document.documentElement).getPropertyValue(name).trim())");

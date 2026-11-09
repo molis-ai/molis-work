@@ -5,7 +5,7 @@ import type { Column, Kit, Part, Rel, State } from './plugin-component-types.js'
 import type { SandboxSchema } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 
 export function pcDetail(c: State & Kit & Rel) {
-  const { selectionVersions, parts, details, make, raw, word, button, text, shown, prose, at, detailEnabled } = c;
+  const { selectionVersions, parts, details, make, words, bindWord, raw, word, button, text, shown, prose, at, detailEnabled } = c;
   function showDetail(part: Part, focus = false) {
     const id = part.node.id;
     part.root.toggleAttribute('data-has-detail', detailEnabled(id));
@@ -16,7 +16,8 @@ export function pcDetail(c: State & Kit & Rel) {
     }
     if (!detail || !detail.layout.isConnected) {
       const layout = make('div', undefined, 'pc-detail-layout'), pane = make('article', undefined, 'pc-detail-pane');
-      const back = button(t.text("common.generated.back"), 'ghost', 'sm', 'chevron-left'); back.classList.add('pc-detail-back'); back.dataset.pcBack = id;
+      const back = button('', 'ghost', 'sm', 'chevron-left'); back.classList.add('pc-detail-back'); back.dataset.pcBack = id;
+      bindWord(back.querySelector<HTMLElement>('[data-slot=button-label]')!, '', () => t.text("common.generated.back"));
       back.addEventListener('click', () => { layout.removeAttribute('data-detail-open'); for (const [element, top] of details.get(id)?.scroll ?? []) element.scrollTop = top; part.output.querySelector<HTMLElement>('[aria-current] [data-pc-select]')?.focus({ preventScroll: true }); });
       part.output.before(layout); part.output.classList.add('pc-detail-source'); layout.append(part.output, pane);
       detail = { layout, pane, back }; details.set(id, detail);
@@ -29,12 +30,12 @@ export function pcDetail(c: State & Kit & Rel) {
     if (detail.content === content) { if (focus && row) { detail.layout.setAttribute('data-detail-open', ''); detail.pane.querySelector<HTMLElement>('h2')?.focus({ preventScroll: true }); } return; }
     detail.content = content;
     detail.pane.replaceChildren(detail.back);
-    if (!row) { detail.layout.removeAttribute('data-detail-open'); detail.pane.append(make('p', t.text("common.generated.choose-record"), 'pc-detail-empty')); return; }
+    if (!row) { detail.layout.removeAttribute('data-detail-open'); detail.pane.append(words('p', () => t.text("common.generated.choose-record"), 'pc-detail-empty')); return; }
     const title = text(at(row, node.props.titleField));
-    const heading = title ? raw('h2', title) : make('h2', word(node.props.title) || t.text("common.generated.detail")); heading.tabIndex = -1;
+    const heading = title ? raw('h2', title) : words('h2', () => word(node.props.title) || t.text("common.generated.detail")); heading.tabIndex = -1;
     const body = prose('p', at(row, node.props.textField), 'pc-detail-copy'), meta = make('div', undefined, 'pc-detail-meta');
     for (const column of node.props.columns ?? []) if (![node.props.titleField, node.props.textField, node.props.idField].includes(column.field)) {
-      const value = at(row, column.field); if (value !== undefined) meta.append(make('span', t.text("common.generated.field-value", { label: word(column.label), value: text(shown(column, value)) })));
+      const value = at(row, column.field); if (value !== undefined) meta.append(words('span', () => t.text("common.generated.field-value", { label: word(column.label), value: text(shown(column, value)) })));
     }
     detail.pane.append(heading, body, meta);
     if (focus) { detail.layout.setAttribute('data-detail-open', ''); heading.focus({ preventScroll: true }); }

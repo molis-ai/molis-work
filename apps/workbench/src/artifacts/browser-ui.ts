@@ -169,7 +169,7 @@ function detail(model: ArtifactBrowserUiModel, embedded: boolean): string {
 /** 「从这一版继续」: one button per plugin that declares it can continue from this type. */
 function continueActions(continuers: NonNullable<ArtifactBrowserUiModel["continuers"]>, artifact: NonNullable<ArtifactBrowserView["selected"]>, p: ArtifactBrowserUiModel["primitives"]): string {
   const reference = p.escape(JSON.stringify({ artifact_id: artifact.artifact_id, version: artifact.version }));
-  return `<p class="artifact-continue-actions">${continuers.map(item => `<button class="mw-btn" type="button" data-artifact-continue="${p.escape(item.plugin_id)}" data-artifact-reference="${reference}">${p.text(`在 ${item.plugin_title} 继续`)}</button>`).join("")}</p>`;
+  return `<p class="artifact-continue-actions">${continuers.map(item => `<button class="mw-btn" type="button" data-artifact-continue="${p.escape(item.plugin_id)}" data-artifact-reference="${reference}">${uiText("workbench.browser-ui.continue-in-plugin", { plugin: item.plugin_title })}</button>`).join("")}</p>`;
 }
 
 /**

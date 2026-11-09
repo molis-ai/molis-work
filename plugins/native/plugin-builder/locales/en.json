@@ -3,9 +3,6 @@
   "owner": "io.molis.work.plugin-builder",
   "locale": "en",
   "messages": {
-    "plugin-builder.directory.summary": "Design, build, and use your own plugins in plain language.",
-    "plugin-builder.directory.name": "Plugin Studio",
-    "plugin-builder.directory.view-directory": "Plugin Studio",
     "plugin-builder.agent-studio.active": "Active",
     "plugin-builder.agent-studio.add-request": "Add to your request",
     "plugin-builder.agent-studio.added": "You added",
@@ -98,6 +95,12 @@
     "plugin-builder.agent-studio.first-release-fixes-scope-create-new-draft-publish": "The first release fixes this scope. Create a new draft to publish to another scope.",
     "plugin-builder.agent-studio.fix-round-n": "Fix round {n}",
     "plugin-builder.agent-studio.go-try": "Go and try it",
+    "plugin-builder.agent-studio.group-action": "Actions",
+    "plugin-builder.agent-studio.group-display": "Display",
+    "plugin-builder.agent-studio.group-feedback": "Feedback",
+    "plugin-builder.agent-studio.group-input": "Input",
+    "plugin-builder.agent-studio.group-layout": "Layout",
+    "plugin-builder.agent-studio.group-overlay": "Overlays",
     "plugin-builder.agent-studio.group-sign-up-sheet": "Group sign-up sheet",
     "plugin-builder.agent-studio.host-check": "Host check",
     "plugin-builder.agent-studio.how-title-used": "How {title} is used",
@@ -220,6 +223,7 @@
     "plugin-builder.agent-studio.there-no-draft-yet": "There is no draft yet",
     "plugin-builder.agent-studio.tidied-host-notes": "Tidied by the host: {notes}",
     "plugin-builder.agent-studio.try": "Try",
+    "plugin-builder.agent-studio.ui-agent": "UI Agent",
     "plugin-builder.agent-studio.ui-agent-code-agent-working-together": "The UI Agent and the Code Agent are working together",
     "plugin-builder.agent-studio.ui-agent-picking-first-component-spec-board": "The UI Agent is picking the first component from the spec board…",
     "plugin-builder.agent-studio.ui-catalog-generated-plugins-do-not-use-yet": "In the UI catalog; generated plugins do not use it yet",
@@ -268,6 +272,9 @@
         "other": "Writing {n} features at once"
       }
     },
+    "plugin-builder.directory.name": "Plugin Studio",
+    "plugin-builder.directory.summary": "Design, build, and use your own plugins in plain language.",
+    "plugin-builder.directory.view-directory": "Plugin Studio",
     "plugin-builder.workbench.plugin-studio": "Plugin Studio"
   }
 }

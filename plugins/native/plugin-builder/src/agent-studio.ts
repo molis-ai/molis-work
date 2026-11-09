@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-design-system";
 /** A CSS string literal for a custom property: whatever could end the string or the attribute is written as a hex escape. */
 const cssString = (value: string) => "'" + value.replace(/[\\'"<>&\n]/g, character => '\\' + character.codePointAt(0)!.toString(16) + ' ') + "'";
@@ -7,11 +8,10 @@ const cssString = (value: string) => "'" + value.replace(/[\\'"<>&\n]/g, charact
  * itself, rendered by the host component renderer from the frozen component tree. Everything shown is derived
  * from the build record the host pushes; nothing here advances a build or fakes progress.
  *
- * Every word the studio itself writes goes through `text` (the host's translator; without one the Chinese text is
- * shown); its English is the workbench catalog's `STUDIO_EN` (apps/workbench/src/i18n/studio-en.ts). The two badges the stylesheet draws on a part ("not connected yet",
- * "connected") are CSS content, which cannot call a translator, so the stage carries them as custom properties.
+ * Studio words come from the exact plugin context. The two CSS badges are projected into custom properties when the
+ * stage opens and when its language changes.
  */
-export function renderAgentStudio(text: (zh: string, values?: Record<string, string | number>) => string = zh => zh): string {
+export function renderAgentStudio(text: (key: string, values?: Record<string, string | number>) => string = uiText): string {
   const mine = text("plugin-builder.agent-studio.my-plugins"), newPlugin = text("plugin-builder.agent-studio.new-plugin"), edit = text("plugin-builder.agent-studio.apply-changes"), send = text("plugin-builder.agent-studio.send"), codeAgent = text("plugin-builder.agent-studio.code-agent");
   return '<section class="as-shell" data-agent-studio style="--as-idle:' + cssString(text("plugin-builder.agent-studio.not-connected-yet")) + ';--as-wired:' + cssString('✓ ' + text("plugin-builder.agent-studio.connected")) + '">'
     + '<header class="as-top"><div class="as-top-actions"><label class="as-select"><span class="as-sr">' + mine + '</span><select data-as-builds aria-label="' + mine + '"></select></label>'
@@ -30,7 +30,7 @@ export function renderAgentStudio(text: (zh: string, values?: Record<string, str
     + '<div class="as-head-actions" data-as-head-actions></div></header>'
     + '<div class="as-canvas" data-as-canvas data-tab="build"><div class="as-canvas-scroll" data-as-scroll><div class="as-empty" data-as-empty></div><div class="as-plugin" data-as-plugin></div>'
     + '<div class="as-frame" data-as-frame hidden aria-hidden="true"><i></i><i></i><i></i><i></i><span></span></div>'
-    + '<div class="as-pointer as-pointer-ui" data-as-pointer="ui" hidden><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M2 1l11 7-5 1-2 5z"/></svg><span>UI Agent</span><em></em></div>'
+    + '<div class="as-pointer as-pointer-ui" data-as-pointer="ui" hidden><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M2 1l11 7-5 1-2 5z"/></svg><span>' + text("plugin-builder.agent-studio.ui-agent") + '</span><em></em></div>'
     + '<div class="as-pointer as-pointer-code" data-as-pointer="code" hidden><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M2 1l11 7-5 1-2 5z"/></svg><span>' + codeAgent + '</span><em></em></div></div>'
     + '<div class="as-catalog" data-as-catalog-panel hidden aria-label="' + text("plugin-builder.agent-studio.all-components-ui-catalog") + '"></div><nav class="as-board" data-as-board aria-label="' + text("plugin-builder.agent-studio.spec-board-components-ui-catalog") + '"></nav><div class="as-part-tip" data-as-tip role="tooltip" hidden></div></div>'
     + '<footer class="as-status" data-as-status role="status"></footer></main></section>';
@@ -128,11 +128,7 @@ html:has(> body > .as-preview-page),body:has(> .as-preview-page){margin:0;backgr
  * - `selector`: In the workbench the studio is drawn in the plugin's stage (host.root); the preview and an installed plugin run in frames.
  * - `globalThis.__molisPluginRead`: Diagnoses the actual rendered query, including selection and filters, without issuing another request.
  * - `host.mode === 'installed'`: An installed plugin: the same renderer; every call goes to the plugin's own sandboxed process through the host.
- * - `readText`: The workbench's translator (`globalThis.t.text`); the frames get none and show the Chinese text. Every sentence the studio itself writes goes through it, with `{name}`
- *   placeholders for the parts that vary (`STUDIO_EN` has the English). What the build record carries is shown as written: the model's answers, the host's step labels,
- *   errors and notes, the capability directory's titles. `GROUPS`, `c.name` and `c.description` are the shared catalog's own words.
- * - `S`: What a failed request shows: a message the studio's routes send as it is (`STUDIO_EN` has the ones a person reaches by asking), or its opening sentence up to "："
- *   followed by the detail as the host wrote it (the publish check's problems); any other message is shown as written.
+ * - The frame reads Studio and shared UI words from its own projection; build messages, diagnostics and external capability text are kept as written.
  * - `queue`, `landing`, `picking`, `play`: The UI Agent's placements, paced so each one can be seen: a part waits in the queue, is taken from the spec board, carried to its
  *   place (the spot opens, framed, before the part shows), lands and the spec board ticks it off. A part being landed has left the queue but is not revealed yet; an update
  *   arriving meanwhile must not queue it again. Opening a build, or trying it, shows everything at once.
@@ -199,16 +195,20 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
  let state={builds:[],models:[],model:null,components:[],selectionAvailable:false},current=null,versions=[],preview=null,tab='build',target=null,source=null,frame=0,busy=false,notice='',openSteps=null,rendered='',seenWired=new Set(),firstPaint=true;
  let revealed=new Set(),queue=[],landing=null,picking=null,playing=false,playToken=0;
  let wiredCaps=new Set(),wires=[],wiring=null,wiringPlay=false;
- const GROUPS=['版面','展示','录入','操作','浮层','反馈'];let catalogOpen='';
- const CAP_ICON={platform:'sparkles',plugin:'package',mcp:'network'},CAP_SOURCES=[['platform',globalThis.t.text("plugin-builder.agent-studio.platform")],['plugin',globalThis.t.text("plugin-builder.agent-studio.installed-plugins")],['mcp',globalThis.t.text("plugin-builder.agent-studio.mcp-connectors")]];
+ const GROUPS=[['版面',"plugin-builder.agent-studio.group-layout"],['展示',"plugin-builder.agent-studio.group-display"],
+  ['录入',"plugin-builder.agent-studio.group-input"],['操作',"plugin-builder.agent-studio.group-action"],
+  ['浮层',"plugin-builder.agent-studio.group-overlay"],['反馈',"plugin-builder.agent-studio.group-feedback"]];let catalogOpen='';
+ const CAP_ICON={platform:'sparkles',plugin:'package',mcp:'network'},CAP_SOURCES=[['platform',"plugin-builder.agent-studio.platform"],['plugin',"plugin-builder.agent-studio.installed-plugins"],['mcp',"plugin-builder.agent-studio.mcp-connectors"]];
  const capabilityOf=id=>(state.capabilities||[]).find(c=>c.id===id&&c.offered!==false)||(state.capabilities||[]).find(c=>c.id===id)||{id,title:id,source:{kind:'platform'}};
  function usedCapabilities(b){const ops=b?.design?.contract.operations||[];return [...new Set(ops.flatMap(o=>o.effects?.capabilities||[]))].map(id=>{const using=ops.filter(o=>(o.effects?.capabilities||[]).includes(id));return {c:capabilityOf(id),done:using.every(o=>b.connected.includes(o.id)),ops:using.map(o=>o.id)};});}
  const plugin=host.components({root:pluginRoot,call:(id,binding,payload)=>current?pluginCall(current.id)(id,binding,payload):Promise.reject(new Error(globalThis.t.text("plugin-builder.agent-studio.there-no-draft-yet"))),inspect:id=>{if(tab!=='build'||!current?.design)return;target=id;schedule();input.focus();},inspectLabel:globalThis.t.text("plugin-builder.agent-studio.inspect-part")});
  lifetime.own(()=>plugin.destroy());
- const PHASE={draft:globalThis.t.text("plugin-builder.agent-studio.draft"),designing:globalThis.t.text("plugin-builder.agent-studio.designing"),clarifying:globalThis.t.text("plugin-builder.agent-studio.needs-answer"),choosing:globalThis.t.text("plugin-builder.agent-studio.comparing-proposals"),building:globalThis.t.text("plugin-builder.agent-studio.building"),paused:globalThis.t.text("plugin-builder.agent-studio.paused"),failed:globalThis.t.text("plugin-builder.agent-studio.needs-attention"),ready:globalThis.t.text("plugin-builder.agent-studio.ready-try")};
- const phaseOf=b=>!b.active&&(b.pendingPlugins?.length||b.pendingPart)?globalThis.t.text("plugin-builder.agent-studio.needs"):PHASE[b.phase]||b.phase;
- const AGENT={design:globalThis.t.text("plugin-builder.agent-studio.lead-designer"),ui:'UI Agent',code:globalThis.t.text("plugin-builder.agent-studio.code-agent"),host:globalThis.t.text("plugin-builder.agent-studio.host-check")};
- const componentWord=ref=>ref?.key?globalThis.t.text(ref.key):ref?.literal||"";
+ const PHASE={draft:"plugin-builder.agent-studio.draft",designing:"plugin-builder.agent-studio.designing",clarifying:"plugin-builder.agent-studio.needs-answer",choosing:"plugin-builder.agent-studio.comparing-proposals",building:"plugin-builder.agent-studio.building",paused:"plugin-builder.agent-studio.paused",failed:"plugin-builder.agent-studio.needs-attention",ready:"plugin-builder.agent-studio.ready-try"};
+ const phaseName=phase=>PHASE[phase]?globalThis.t.text(PHASE[phase]):phase;
+ const phaseOf=b=>!b.active&&(b.pendingPlugins?.length||b.pendingPart)?globalThis.t.text("plugin-builder.agent-studio.needs"):phaseName(b.phase);
+ const AGENT={design:"plugin-builder.agent-studio.lead-designer",ui:"plugin-builder.agent-studio.ui-agent",code:"plugin-builder.agent-studio.code-agent",host:"plugin-builder.agent-studio.host-check"};
+ const agentName=agent=>AGENT[agent]?globalThis.t.text(AGENT[agent]):agent;
+ const componentWord=ref=>typeof ref==="string"?ref:ref?.key?globalThis.t.text(ref.key):ref?.literal||"";
  const componentName=kind=>componentWord(state.components.find(c=>c.kind===kind)?.name)||kind;
  const active=b=>!!b?.active;
  const EXAMPLES=[[globalThis.t.text("plugin-builder.agent-studio.reading-notes"),globalThis.t.text("plugin-builder.agent-studio.keep-track-books-i-have-read-rating-one")],[globalThis.t.text("plugin-builder.agent-studio.daily-review"),globalThis.t.text("plugin-builder.agent-studio.each-day-write-down-what-i-got-done")],[globalThis.t.text("plugin-builder.agent-studio.group-sign-up-sheet"),globalThis.t.text("plugin-builder.agent-studio.collect-each-person-s-name-contact-details-time")]];
@@ -223,12 +223,12 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
   else if(s.agent==='code'&&s.action==='verify')detail=gates(s.detail);
   else if(s.agent==='host'&&s.action==='verify')detail=cases(s.detail);
   else if(s.detail)detail='<small>'+esc(s.detail).slice(0,400)+'</small>';
-  return '<li class="as-step" data-status="'+esc(s.status)+'"><span aria-hidden="true" data-mw-state="'+({done:'done',active:'running',failed:'failed',waiting:'waiting',cancelled:'cancelled'}[s.status]||'idle')+'"></span><div><span class="as-step-agent" data-agent="'+esc(s.agent)+'">'+esc(AGENT[s.agent]||s.agent)+'</span>'+esc(label)+' '+selection(s.selection)+detail+'</div></li>';}
+  return '<li class="as-step" data-status="'+esc(s.status)+'"><span aria-hidden="true" data-mw-state="'+({done:'done',active:'running',failed:'failed',waiting:'waiting',cancelled:'cancelled'}[s.status]||'idle')+'"></span><div><span class="as-step-agent" data-agent="'+esc(s.agent)+'">'+esc(agentName(s.agent))+'</span>'+esc(label)+' '+selection(s.selection)+detail+'</div></li>';}
  const capabilityTitle=id=>(state.capabilities||[]).find(x=>x.id===id)?.title||id;
  function toEnable(c){const ids=new Set(c.preview.contract.operations.flatMap(o=>o.effects?.capabilities||[]));return [...new Set((state.capabilities||[]).filter(x=>ids.has(x.id)&&x.installed===false).map(x=>x.source?.title||''))].filter(Boolean);}
  function mockupHtml(c,large){const m=c.mockup;if(!m||m.status==='failed'||!current)return '';if(m.status==='drawing')return '<div class="as-mockup" data-drawing><span data-mw-state="running">'+globalThis.t.text("plugin-builder.agent-studio.drawing-mockup")+'</span></div>';
   return '<img class="as-mockup'+(large?' as-mockup-large':'')+'" data-mockup-src="'+esc(host.api('/builds/'+current.id+'/mockups/'+c.id))+'" alt="'+esc(globalThis.t.text("plugin-builder.agent-studio.mockup-title",{title:c.title}))+'" loading="lazy">';}
- function candidateHtml(c,selected){const ops=c.preview.contract.operations,caps=[...new Set(ops.flatMap(o=>o.effects?.capabilities||[]))].map(capabilityTitle),enable=toEnable(c);return '<button type="button" class="as-candidate" data-as-candidate="'+esc(c.id)+'" aria-pressed="'+(selected?'true':'false')+'">'+mockupHtml(c,false)+'<b>'+esc(c.title)+'</b><p>'+esc(componentWord(c.description))+'</p><p class="as-small as-muted">'+esc(c.rationale)+'</p><div class="as-meta"><span class="as-chip">'+globalThis.t.text("plugin-builder.agent-studio.features-n",{n:ops.length})+'</span><span class="as-chip">'+globalThis.t.text("plugin-builder.agent-studio.ui-parts-n",{n:c.preview.parts.length})+'</span><span class="as-chip">'+globalThis.t.text("plugin-builder.agent-studio.pages-n",{n:c.preview.contract.pages.length})+'</span>'+caps.map(t=>'<span class="as-chip">'+esc(t)+'</span>').join('')+enable.map(t=>'<span class="as-chip" data-as-enable>'+globalThis.t.text("plugin-builder.agent-studio.enable-name-first",{name:esc(t)})+'</span>').join('')+'</div></button>';}
+ function candidateHtml(c,selected){const ops=c.preview.contract.operations,caps=[...new Set(ops.flatMap(o=>o.effects?.capabilities||[]))].map(capabilityTitle),enable=toEnable(c);return '<button type="button" class="as-candidate" data-as-candidate="'+esc(c.id)+'" aria-pressed="'+(selected?'true':'false')+'">'+mockupHtml(c,false)+'<b translate="no">'+esc(c.title)+'</b><p translate="no">'+esc(c.description)+'</p><p class="as-small as-muted" translate="no">'+esc(c.rationale)+'</p><div class="as-meta"><span class="as-chip">'+globalThis.t.text("plugin-builder.agent-studio.features-n",{n:ops.length})+'</span><span class="as-chip">'+globalThis.t.text("plugin-builder.agent-studio.ui-parts-n",{n:c.preview.parts.length})+'</span><span class="as-chip">'+globalThis.t.text("plugin-builder.agent-studio.pages-n",{n:c.preview.contract.pages.length})+'</span>'+caps.map(t=>'<span class="as-chip">'+esc(t)+'</span>').join('')+enable.map(t=>'<span class="as-chip" data-as-enable>'+globalThis.t.text("plugin-builder.agent-studio.enable-name-first",{name:esc(t)})+'</span>').join('')+'</div></button>';}
  function effects(c){const e=c.effects||{};const words=[];if(e.storage)words.push(globalThis.t.text("plugin-builder.agent-studio.its-own-storage-ops",{ops:e.storage.map(x=>globalThis.t.text(x==='read'?"plugin-builder.agent-studio.read-2":"plugin-builder.agent-studio.write")).join('/')}));if(e.capabilities?.length)words.push(e.capabilities.map(capabilityTitle).join(globalThis.t.text("common.list.separator")));if(e.networkDomains?.length)words.push(globalThis.t.text("plugin-builder.agent-studio.online-sites",{sites:e.networkDomains.join(globalThis.t.text("common.list.separator"))}));return words.join('；')||globalThis.t.text("plugin-builder.agent-studio.uses-no-outside-capabilities");}
  function opState(b,op){if(b.connected.includes(op.id))return '<span class="as-chip ok" data-mw-state="connected">'+globalThis.t.text("plugin-builder.agent-studio.connected")+'</span>';const s=b.steps.find(x=>x.agent==='code'&&x.operationId===op.id&&x.action==='implement'&&x.status==='active');
   if(s&&active(b)){const round=/第 (\d+) 轮/.exec(s.label)?.[1];return '<span class="as-chip jev" data-mw-state="running">'+(round?globalThis.t.text("plugin-builder.agent-studio.fix-round-n",{n:round}):globalThis.t.text("plugin-builder.agent-studio.writing"))+'</span>';}
@@ -271,7 +271,7 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
   const c=writing.length>1&&active(b)?null:last('code',s=>s.action==='implement'&&s.status==='active')||last('code',s=>s.action==='verify');const act=last('code',s=>['file','tool','check'].includes(s.action));
   if(c)rows.push(['code',(c.status==='active'?'<span data-mw-state="running">'+esc(c.label)+'</span>':esc(c.label))+(c.status==='active'&&act?'<small class="as-muted"> · '+esc(act.action==='file'?globalThis.t.text("plugin-builder.agent-studio.write-file",{file:(act.detail||'').slice(0,60)}):act.action==='check'?globalThis.t.text("plugin-builder.agent-studio.self-checking-gates"):act.label)+'</small>':'')]);
   const h=last('host');if(h)rows.push(['host',h.status==='active'?'<span data-mw-state="running">'+esc(h.label)+'</span>':esc(h.label)]);
-  return rows.length?'<div class="as-agents">'+rows.map(([a,t])=>'<div class="as-agent" data-agent="'+a+'"><b>'+AGENT[a]+'</b><span>'+t+'</span></div>').join('')+'</div>':'';}
+  return rows.length?'<div class="as-agents">'+rows.map(([a,t])=>'<div class="as-agent" data-agent="'+a+'"><b>'+agentName(a)+'</b><span>'+t+'</span></div>').join('')+'</div>':'';}
  function renderFeed(){
   const b=current,parts=[];
   if(!b){parts.push('<h2>'+globalThis.t.text("plugin-builder.agent-studio.let-s-build-idea-together")+'</h2><p class="as-muted">'+globalThis.t.text("plugin-builder.agent-studio.tell-me-what-kind-plugin-want-who-uses")+'</p><div class="as-examples">'+EXAMPLES.map(([t,d])=>'<button type="button" class="as-example" data-as-example="'+esc(d)+'"><b>'+esc(t)+'</b><span class="as-muted as-small">'+esc(d)+'</span></button>').join('')+'</div><p class="as-small as-muted">'+globalThis.t.text("plugin-builder.agent-studio.example-only-fills-input-box-nothing-starts-itself")+'</p>');
@@ -328,10 +328,10 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
   if(board.dataset.html!==html){board.innerHTML=html;board.dataset.html=html;}
   panel.hidden=!catalogOpen;
   let body='';
-  if(catalogOpen==='components')body='<p class="as-catalog-note">'+globalThis.t.text("plugin-builder.agent-studio.spec-board-ui-catalog-ui-catalog-components-use")+'</p>'+GROUPS.map(g=>{const list=state.components.filter(c=>c.group===g);return '<section><h4><span>'+g+'</span><span>'+list.filter(used).length+'/'+list.length+'</span></h4><div>'+list.map(item).join('')+'</div></section>';}).join('');
+  if(catalogOpen==='components')body='<p class="as-catalog-note">'+globalThis.t.text("plugin-builder.agent-studio.spec-board-ui-catalog-ui-catalog-components-use")+'</p>'+GROUPS.map(([g,word])=>{const list=state.components.filter(c=>c.group===g);return '<section><h4><span>'+globalThis.t.text(word)+'</span><span>'+list.filter(used).length+'/'+list.length+'</span></h4><div>'+list.map(item).join('')+'</div></section>';}).join('');
   if(catalogOpen==='capabilities'){const usedIds=new Set(caps.map(x=>x.c.id)),row=c=>'<div class="as-cap-row"'+(usedIds.has(c.id)?' data-used':'')+(c.offered===false?' data-off':'')+' title="'+esc(c.description||'')+'"><b>'+esc(c.title)+'</b><span class="as-chip">'+globalThis.t.text(c.effect==='read'?"plugin-builder.agent-studio.read-2":c.effect==='write'?"plugin-builder.agent-studio.write":"plugin-builder.agent-studio.irreversible")+'</span><small>'+esc(c.offered===false?c.reason||'':(c.source?.title||'')+' · '+c.id)+'</small></div>';
    const all=state.capabilities||[],off=all.filter(c=>c.offered===false);
-   body='<p class="as-catalog-note">'+globalThis.t.text("plugin-builder.agent-studio.capability-board-project-s-unified-capability-catalog-read")+'</p>'+CAP_SOURCES.map(([k,name])=>{const list=all.filter(c=>c.offered&&c.installed!==false&&c.source?.kind===k);return '<section><h4><span>'+name+'</span><span>'+list.length+'</span></h4><div class="as-cap-list">'+(list.map(row).join('')||'<small class="as-muted">'+globalThis.t.text("plugin-builder.agent-studio.none")+'</small>')+'</div></section>';}).join('')
+   body='<p class="as-catalog-note">'+globalThis.t.text("plugin-builder.agent-studio.capability-board-project-s-unified-capability-catalog-read")+'</p>'+CAP_SOURCES.map(([k,name])=>{const list=all.filter(c=>c.offered&&c.installed!==false&&c.source?.kind===k);return '<section><h4><span>'+globalThis.t.text(name)+'</span><span>'+list.length+'</span></h4><div class="as-cap-list">'+(list.map(row).join('')||'<small class="as-muted">'+globalThis.t.text("plugin-builder.agent-studio.none")+'</small>')+'</div></section>';}).join('')
     +(()=>{const idle=all.filter(c=>c.offered&&c.installed===false);return idle.length?'<section><h4><span>'+globalThis.t.text("plugin-builder.agent-studio.plugins-not-enabled-asked-before-one-used")+'</span><span>'+idle.length+'</span></h4><div class="as-cap-list">'+idle.map(row).join('')+'</div></section>':'';})()
     +(off.length?'<section><h4><span>'+globalThis.t.text("plugin-builder.agent-studio.not-offered-plugins")+'</span><span>'+off.length+'</span></h4><div class="as-cap-list">'+off.map(row).join('')+'</div></section>':'');}
   if(catalogOpen&&panel.dataset.html!==body){panel.innerHTML=body;panel.dataset.html=body;}
@@ -376,10 +376,10 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
    const node=current?.nodes.find(n=>revealed.has(n.id)&&w.ops.some(o=>n.read?.operationId===o||n.submit?.operationId===o)),host=node&&Object.values(node.submit?.input||{}).find(v=>v.source==='selection')?.componentId;
    const el=node&&(partEl(node.id)||host&&partEl(host));
    if(el){const view=scroll.getBoundingClientRect(),box=el.getBoundingClientRect();if(box.top<view.top+40||box.bottom>view.bottom-90){el.scrollIntoView({block:'center',behavior:'smooth'});await wait(380);}
-    frameAt(el,'landing',AGENT.code+' · '+w.title);aim(code,el,globalThis.t.text("plugin-builder.agent-studio.connect-name",{name:w.title}),'right');await wait(680);click(code);}
+    frameAt(el,'landing',agentName("code")+' · '+w.title);aim(code,el,globalThis.t.text("plugin-builder.agent-studio.connect-name",{name:w.title}),'right');await wait(680);click(code);}
    if(token!==playToken)break;
    wires.shift();wiredCaps.add(w.cap);wiring=null;renderBoard();const done=$('[data-as-board] .as-cap[data-cap="'+CSS.escape(w.cap)+'"]');done?.setAttribute('data-as-arrive','');lifetime.timeout(()=>done?.removeAttribute('data-as-arrive'),700);
-   if(el)frameAt(el,'placed',AGENT.code+' · '+globalThis.t.text("plugin-builder.agent-studio.connected-name",{name:w.title}));await wait(560);frameEl.hidden=true;
+   if(el)frameAt(el,'placed',agentName("code")+' · '+globalThis.t.text("plugin-builder.agent-studio.connected-name",{name:w.title}));await wait(560);frameEl.hidden=true;
   }}finally{wiringPlay=false;wiring=null;code.hidden=true;if(!playing)frameEl.hidden=true;renderBoard();}}
  const wait=ms=>lifetime.delay(ms);
  const withBuild=id=>{const here=page.address();if(id)here.searchParams.set('build',id);else here.searchParams.delete('build');return here;};
@@ -395,9 +395,9 @@ const partEl=id=>{const el=id&&pluginRoot.querySelector('[data-component-id="'+C
    if(token!==playToken)break;
    queue.shift();landing=id;decorate();const el=partEl(id);
    if(el){const view=scroll.getBoundingClientRect(),box=el.getBoundingClientRect();if(box.top<view.top+40||box.bottom>view.bottom-90){el.scrollIntoView({block:'center',behavior:'smooth'});await wait(380);}
-    frameAt(el,'landing','UI Agent · '+name);aim(ui,el,globalThis.t.text("plugin-builder.agent-studio.place-name",{name:partTitle(node)||name}),'corner');await wait(680);click(ui);}
+    frameAt(el,'landing',agentName("ui")+' · '+name);aim(ui,el,globalThis.t.text("plugin-builder.agent-studio.place-name",{name:partTitle(node)||name}),'corner');await wait(680);click(ui);}
    landing=null;picking=null;revealed.add(id);renderBoard();decorate();
-   const placed=partEl(id);if(placed){const root=placed.closest('[data-component-id]');root?.setAttribute('data-as-arrive','');lifetime.timeout(()=>root?.removeAttribute('data-as-arrive'),700);frameAt(placed,'placed','UI Agent · '+name);}
+   const placed=partEl(id);if(placed){const root=placed.closest('[data-component-id]');root?.setAttribute('data-as-arrive','');lifetime.timeout(()=>root?.removeAttribute('data-as-arrive'),700);frameAt(placed,'placed',agentName("ui")+' · '+name);}
    await wait(560);frameEl.hidden=true;
   }}finally{if(token===playToken){playing=false;landing=null;picking=null;frameEl.hidden=true;renderBoard();decorate();if(wires.length&&!wiringPlay)void playWires().catch(backgroundError);}}}
  function frameAt(el,mode,label){if(!lifetime.alive)return;const f=$('[data-as-frame]'),box=el.getBoundingClientRect(),area=scroll.getBoundingClientRect(),was=f.hidden;f.hidden=false;f.dataset.mode=mode;f.querySelector('span').textContent=label;
@@ -429,7 +429,7 @@ const partEl=id=>{const el=id&&pluginRoot.querySelector('[data-component-id="'+C
   if(wiringPlay)return;if(bound)aim(code,partEl(bound.id),globalThis.t.text("plugin-builder.agent-studio.writing-id",{id:writing.operationId}),'right');else code.hidden=true;
  }
  function renderAll(){if(!lifetime.alive)return;renderHead();renderFeed();root.querySelectorAll('[data-mockup-src]').forEach(el=>{const path=el.dataset.mockupSrc;delete el.dataset.mockupSrc;if(host.loadMedia)host.loadMedia(el,path);else el.src=path;});renderBoard();void renderCanvas().catch(backgroundError);
-  const s=$('[data-as-status]'),b=current;s.innerHTML='<span>'+(!b?'':active(b)?globalThis.t.text(b.active.stage==='design'?"plugin-builder.agent-studio.lead-designer-working":"plugin-builder.agent-studio.ui-agent-code-agent-working-together"):b.phase==='ready'?globalThis.t.text("plugin-builder.agent-studio.all-features-connected-can-try-publish"):b.phase==='clarifying'?globalThis.t.text("plugin-builder.agent-studio.waiting-answers"):b.phase==='choosing'?globalThis.t.text("plugin-builder.agent-studio.waiting-choose-proposal"):b.pendingPart?globalThis.t.text("plugin-builder.agent-studio.waiting-choose-component"):b.pendingPlugins?.length?globalThis.t.text("plugin-builder.agent-studio.waiting-decide-whether-enable-plugins"):PHASE[b.phase]||'')+'</span><span>'+(b?.connected.length?globalThis.t.text("plugin-builder.agent-studio.connected-done-total-total-input-kept",{done:b.connected.length,total:b.design?.contract.operations.length||0}):'')+'</span>';}
+  const s=$('[data-as-status]'),b=current;s.innerHTML='<span>'+(!b?'':active(b)?globalThis.t.text(b.active.stage==='design'?"plugin-builder.agent-studio.lead-designer-working":"plugin-builder.agent-studio.ui-agent-code-agent-working-together"):b.phase==='ready'?globalThis.t.text("plugin-builder.agent-studio.all-features-connected-can-try-publish"):b.phase==='clarifying'?globalThis.t.text("plugin-builder.agent-studio.waiting-answers"):b.phase==='choosing'?globalThis.t.text("plugin-builder.agent-studio.waiting-choose-proposal"):b.pendingPart?globalThis.t.text("plugin-builder.agent-studio.waiting-choose-component"):b.pendingPlugins?.length?globalThis.t.text("plugin-builder.agent-studio.waiting-decide-whether-enable-plugins"):phaseName(b.phase))+'</span><span>'+(b?.connected.length?globalThis.t.text("plugin-builder.agent-studio.connected-done-total-total-input-kept",{done:b.connected.length,total:b.design?.contract.operations.length||0}):'')+'</span>';}
  function schedule(){if(frame||!lifetime.visible)return;const paint=()=>{frame=0;renderAll();};frame=lifetime.frame(paint);}
  let viewSignal,opening=0,initialized=false;
  const backgroundError=e=>{if(lifetime.alive&&!viewSignal?.aborted){notice=S(e.message);schedule();}};
@@ -478,6 +478,15 @@ const partEl=id=>{const el=id&&pluginRoot.querySelector('[data-component-id="'+C
  lifetime.listen(feed,'click',e=>{const summary=e.target.closest?.('[data-as-steps] > summary');if(summary)openSteps=!summary.parentElement.open;});
  lifetime.listen($('[data-as-builds]'),'change',e=>run(()=>open(e.target.value||null)));
  lifetime.listen($('[data-as-model]'),'change',e=>{const[provider_id,model_id]=e.target.value.split('\n');if(!provider_id)return;run(async()=>{await api('/settings','POST',{provider_id,model_id});await refreshState();});});
+ lifetime.listen(document,"molis-work:language-changed",()=>{
+  const css=(` + cssString.toString() + String.raw`);
+  root.style.setProperty('--as-idle',css(globalThis.t.text("plugin-builder.agent-studio.not-connected-yet")));
+  root.style.setProperty('--as-wired',css('✓ '+globalThis.t.text("plugin-builder.agent-studio.connected")));
+  for(const button of root.querySelectorAll('.as-part[data-kind]')){
+   const component=state.components.find(c=>c.kind===button.dataset.kind);
+   if(component)button.setAttribute('aria-label',componentWord(component.name)+' '+component.catalog+' · '+componentWord(component.description));
+  }
+ });
  lifetime.listen(document,'molis-work:model-ready',()=>{if(lifetime.visible)void refreshState(viewSignal).then(schedule).catch(backgroundError);});
  lifetime.listen(input,'keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();$('[data-as-composer]').requestSubmit();}});
  lifetime.listen($('[data-as-composer]'),'submit',e=>{e.preventDefault();const text=input.value.trim();if(!text||busy)return;

@@ -16,7 +16,7 @@ import { APPROVED_KEY, installedLifecycle, type InstalledPluginPlatform } from '
 import { installedVersion, type InstalledRelease } from './installed-release.js';
 import { assertHomePackageAllowed } from './home-package-admission.js';
 import { configuredModelChoices } from './configured-models.js';
-import { capabilityCatalog, catalogCapabilities, registerPlatformCapabilities, type CatalogCapability, type ProjectActions } from './plugin-builder/catalog.js';
+import { capabilityCatalog, catalogCapabilities, installedCapabilityCatalog, registerPlatformCapabilities, type CatalogCapability, type ProjectActions } from './plugin-builder/catalog.js';
 import { createPluginModelGeneration } from './plugin-builder/model.js';
 import { exposedOperationPolicies, type InstalledPluginActions } from './plugin-builder/exposed-actions.js';
 import { hostNetwork } from './plugin-builder/network.js';
@@ -69,7 +69,7 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
   const storage = studioStorage(options.db, HOME_INSTALL_SCOPE);
   const packages = new SandboxPackageStore(home), packaged = new Map<string, InstalledRelease>();
   const exposed = new Map<string, InstalledPluginActions>(), recoveryErrors = new Map<string, string>();
-  let closed = false, exposureRevision = 0, catalogPending: Promise<CatalogCapability[]> | undefined;
+  let closed = false, exposureRevision = 0;
   const isClosed = () => closed || options.closed();
   /** Packages from a signed publisher that run in the sandbox: the only installs of the Home that are not of the Host's build. */
   const records = () => platform.runtime.list().filter(item => item.publisher_trust === 'pinned' && item.execution === 'sandbox' && item.state !== 'uninstalled');
@@ -104,25 +104,21 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
     }
   };
   const reach = platform.consents ? projectReachConsents({ ledger: platform.consents, records, releaseFor, assertInstalled }) : undefined;
-  const catalog = (): Promise<CatalogCapability[]> => {
-    if (catalogPending) return catalogPending;
-    catalogPending = (async () => {
-      // Re-read after an install/upgrade/withdraw during asynchronous Host inspection.
-      let snapshot: CatalogCapability[], revision: number;
-      for (;;) {
-        revision = exposureRevision;
-        try { snapshot = await capabilityCatalog(actions, options.actorId); }
-        catch (error) { if (isClosed()) return []; if (revision !== exposureRevision) continue; throw error; }
-        if (isClosed()) return [];
-        if (revision !== exposureRevision) continue;
-        const costs = exposedOperationPolicies([...exposed.values()].map(entry => entry.release), snapshot);
-        let changed = false;
-        for (const [pluginId, entry] of exposed) changed = entry.refresh(costs.get(pluginId)!) || changed;
-        if (!changed) return snapshot;
-      }
-    })().finally(() => { catalogPending = undefined; });
-    return catalogPending;
-  };
+  const catalog = installedCapabilityCatalog(home, async () => {
+    // Re-read after an install/upgrade/withdraw during asynchronous Host inspection.
+    let snapshot: CatalogCapability[], revision: number;
+    for (;;) {
+      revision = exposureRevision;
+      try { snapshot = await capabilityCatalog(actions, options.actorId); }
+      catch (error) { if (isClosed()) return []; if (revision !== exposureRevision) continue; throw error; }
+      if (isClosed()) return [];
+      if (revision !== exposureRevision) continue;
+      const costs = exposedOperationPolicies([...exposed.values()].map(entry => entry.release), snapshot);
+      let changed = false;
+      for (const [pluginId, entry] of exposed) changed = entry.refresh(costs.get(pluginId)!) || changed;
+      if (!changed) return snapshot;
+    }
+  });
   const resolveCall = async (context: SandboxServiceContext) => {
     context.signal.throwIfAborted(); assertInstalled(context.identity);
     if (context.projectReach) reach?.captureCall(context.projectReach, context.identity);

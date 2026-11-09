@@ -1,6 +1,6 @@
 import { CHARACTERS_SETTINGS_ENTRY_STYLES, CHARACTERS_STYLES } from "./styles.js";
-import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { CHARACTER_IMPORT_HTML, CHARACTER_SOURCE_HTML } from "./import-ui.js";
+import { icon, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { renderCharacterImport, renderCharacterSource } from "./import-ui.js";
 
 // 角色 is the Host's own page since CHR-1 (decision #26): Settings › 角色 is a host section, and inside a project the page below
 // is a stage surface the settings cover shows (it marks itself `data-settings-page`). Its browser program is src/browser/characters.
@@ -17,80 +17,80 @@ export interface CharactersSettingsUiModel {
  */
 export function renderCharactersSettingsEntry(model: CharactersSettingsUiModel): string {
   const { projects, primitives: p } = model;
-  const rows = projects.map(project => `<a class="characters-project-link" href="${p.escape(project.href)}">${icon("folder")}<span>${p.escape(project.name)}</span>${icon("chevron-right")}</a>`).join("");
+  const rows = projects.map(project => `<a class="characters-project-link" href="${p.escape(project.href)}">${icon("folder")}<span translate="no">${p.escape(project.name)}</span>${icon("chevron-right")}</a>`).join("");
   return `<section class="settings-document characters-settings-entry" aria-labelledby="settings-title" data-settings-panel="characters">
       <style>${CHARACTERS_SETTINGS_ENTRY_STYLES}</style>
-      <header class="settings-heading"><div class="settings-heading-title"><h1 id="settings-title">角色</h1></div>
-        <p>角色是交给 AI 的做事方式：你自己写的，以及系统和插件带来的。角色属于你，发布时固定到一个项目，所以在项目里管理。</p></header>
-      <section class="settings-section"><h2>在哪个项目里打开</h2>${rows || `<p class="characters-hint">还没有项目。先创建一个项目，再回来写角色。</p>`}</section>
+      <header class="settings-heading"><div class="settings-heading-title"><h1 id="settings-title">${uiText("workbench.characters.title")}</h1></div>
+        <p>${uiText("workbench.characters.entry-about")}</p></header>
+      <section class="settings-section"><h2>${uiText("workbench.characters.open-project")}</h2>${rows || `<p class="characters-hint">${uiText("workbench.characters.need-project")}</p>`}</section>
     </section>`;
 }
 
 const STEPS: readonly [string, string][] = [
-  ["写下做事方式", "像交代给同事一样：先做什么、怎么验证、哪些不能碰。"],
-  ["发布到当前项目", "发布会固定一个版本；之后修改不影响已经在跑的任务。"],
-  ["做事时选用", "在 Coding 或助理里选这个角色；它能做什么仍由系统授权决定。"],
+  ["workbench.characters.step-write", "workbench.characters.step-write-hint"],
+  ["workbench.characters.publish-project", "workbench.characters.step-publish-hint"],
+  ["workbench.characters.step-select", "workbench.characters.step-select-hint"],
 ];
 
 export function renderCharacters(model: CharactersUiModel): string {
-  const steps = STEPS.map(([title, detail], index) => `<li><span class="characters-step-mark" aria-hidden="true">${index + 1}</span><span><strong>${title}</strong><small>${detail}</small></span></li>`).join("");
-  return `<section class="desktop-work-surface characters-page" data-work-surface="characters" data-work-surface-label="角色" data-settings-page="characters" hidden data-characters data-expanded="false" data-character-api="${model.primitives.escape(model.route_prefix)}/api/plugins/io.molis.work.characters">
+  const steps = STEPS.map(([title, detail], index) => `<li><span class="characters-step-mark" aria-hidden="true">${index + 1}</span><span><strong>${uiText(title)}</strong><small>${uiText(detail)}</small></span></li>`).join("");
+  return `<section class="desktop-work-surface characters-page" data-work-surface="characters" data-work-surface-label="${uiText("workbench.characters.title")}" data-settings-page="characters" hidden data-characters data-expanded="false" data-character-api="${model.primitives.escape(model.route_prefix)}/api/plugins/io.molis.work.characters">
     <style>${CHARACTERS_STYLES}</style>
     <div class="characters-list-view" data-character-list-view>
-      <header class="settings-heading characters-heading"><div class="settings-heading-title"><h1>角色</h1></div>
-        <p>角色是交给 AI 的做事方式。写你自己的角色，或调整系统与插件带来的角色；任务开始时再选用哪一个。</p></header>
-      <ol class="characters-steps" aria-label="角色怎么用">${steps}</ol>
+      <header class="settings-heading characters-heading"><div class="settings-heading-title"><h1>${uiText("workbench.characters.title")}</h1></div>
+        <p>${uiText("workbench.characters.about")}</p></header>
+      <ol class="characters-steps" aria-label="${uiText("workbench.characters.how")}">${steps}</ol>
       <section class="settings-section characters-block" aria-labelledby="characters-mine-title">
-        <header class="characters-block-head"><div><h2 id="characters-mine-title">我的角色</h2><p class="characters-hint">只属于你，所有项目都能用；发布到当前项目后，这个项目的任务才能选它。</p></div>
-          <div class="characters-block-actions"><button class="mw-btn mw-btn--secondary" type="button" data-character-import-open disabled>${icon("upload")}<span>从本机导入</span></button><button class="mw-btn mw-btn--primary" type="button" data-character-new disabled>${icon("plus")}<span>新建角色</span></button></div></header>
+        <header class="characters-block-head"><div><h2 id="characters-mine-title">${uiText("workbench.characters.my")}</h2><p class="characters-hint">${uiText("workbench.characters.mine-hint")}</p></div>
+          <div class="characters-block-actions"><button class="mw-btn mw-btn--secondary" type="button" data-character-import-open disabled>${icon("upload")}<span>${uiText("workbench.characters.import-local")}</span></button><button class="mw-btn mw-btn--primary" type="button" data-character-new disabled>${icon("plus")}<span>${uiText("workbench.characters.new")}</span></button></div></header>
         <div class="characters-rows" data-character-list role="list"></div>
-        <div class="characters-empty" data-character-empty hidden><strong>还没有自己的角色</strong><p>新建一个，写下你希望 AI 怎么做事；或从 Codex、Claude Code 等本机 Agent 导入已有的规则与 Skills。</p></div>
+        <div class="characters-empty" data-character-empty hidden><strong>${uiText("workbench.characters.empty")}</strong><p>${uiText("workbench.characters.empty-hint")}</p></div>
       </section>
       <section class="settings-section characters-block characters-builtin" aria-labelledby="characters-builtin-title" data-character-builtin data-character-builtin-api="/api/agent-definitions/roles" data-character-builtin-settings="/settings/prompts">
-        <header class="characters-block-head"><div><h2 id="characters-builtin-title">系统与插件带来的角色</h2>
-          <p class="characters-hint">由系统和插件登记。打开一个，可以改组成它的提示词，从它的下一轮执行开始生效，随时能恢复默认；它能做什么仍由系统决定。</p></div></header>
-        <div class="characters-rows" data-character-builtin-list role="list"><p class="characters-hint mw-loading">正在读取…</p></div>
+        <header class="characters-block-head"><div><h2 id="characters-builtin-title">${uiText("workbench.characters.builtin")}</h2>
+          <p class="characters-hint">${uiText("workbench.characters.builtin-hint")}</p></div></header>
+        <div class="characters-rows" data-character-builtin-list role="list"><p class="characters-hint mw-loading">${uiText("workbench.characters.loading")}</p></div>
       </section>
     </div>
     <div class="characters-editor-view" data-character-workspace hidden>
-      <header class="characters-editor-bar"><button class="mw-btn mw-btn--ghost mw-btn--icon-only plugin-stage-back" type="button" data-character-back aria-label="返回角色列表" title="返回角色列表">${icon("chevron-right")}</button>
-        <div class="characters-editor-title"><h1 data-character-heading tabindex="-1">角色</h1><span class="characters-state" data-character-status></span></div></header>
+      <header class="characters-editor-bar"><button class="mw-btn mw-btn--ghost mw-btn--icon-only plugin-stage-back" type="button" data-character-back aria-label="${uiText("workbench.characters.back")}" title="${uiText("workbench.characters.back")}">${icon("chevron-right")}</button>
+        <div class="characters-editor-title"><h1 data-character-heading tabindex="-1">${uiText("workbench.characters.title")}</h1><span class="characters-state" data-character-status></span></div></header>
       <form class="characters-editor" data-character-editor>
         <section class="settings-section characters-block" aria-labelledby="characters-way-title">
-          <h2 id="characters-way-title">做事方式</h2>
-          <label>名称<input class="mw-input" data-character-title maxlength="120" required autocomplete="off"></label>
-          <label>做事方式<textarea class="mw-input" data-character-instructions maxlength="20000" rows="12" placeholder="例如：先复现问题，修改后运行相关检查；未实际验证的事项明确列出。"></textarea><small>像交代给同事一样写：先做什么、怎么验证、哪些不能碰。</small></label>
+          <h2 id="characters-way-title">${uiText("workbench.characters.instructions")}</h2>
+          <label>${uiText("workbench.characters.name")}<input class="mw-input" data-character-title maxlength="120" required autocomplete="off"></label>
+          <label>${uiText("workbench.characters.instructions")}<textarea class="mw-input" data-character-instructions maxlength="20000" rows="12" placeholder="${uiText("workbench.characters.example")}"></textarea><small>${uiText("workbench.characters.instructions-hint")}</small></label>
         </section>
-        ${CHARACTER_SOURCE_HTML}
+        ${renderCharacterSource()}
         <section class="settings-section characters-block" aria-labelledby="characters-scope-title">
-          <h2 id="characters-scope-title">能用什么</h2>
-          <fieldset><legend>内置工具</legend><label class="characters-check"><input class="mw-check" type="checkbox" data-character-inherit checked>沿用调用方允许的内置工具</label>
-            <label data-character-tools-field hidden>限制为这些工具<input class="mw-input" data-character-tools placeholder="read-file, search" autocomplete="off" spellcheck="false"><small>英文名称以逗号分隔；留空表示不用内置工具。选择超出调用方范围的工具会阻止执行。</small></label>
-            <small>这些限制用于 Molis 内置引擎。外部原生 Agent 使用自己的工具与权限。</small>
+          <h2 id="characters-scope-title">${uiText("workbench.characters.access")}</h2>
+          <fieldset><legend>${uiText("workbench.characters.host-tools")}</legend><label class="characters-check"><input class="mw-check" type="checkbox" data-character-inherit checked>${uiText("workbench.characters.inherit-tools")}</label>
+            <label data-character-tools-field hidden>${uiText("workbench.characters.limit-tools")}<input class="mw-input" data-character-tools placeholder="read-file, search" autocomplete="off" spellcheck="false"><small>${uiText("workbench.characters.limit-tools-hint")}</small></label>
+            <small>${uiText("workbench.characters.internal-tools-hint")}</small>
           </fieldset>
-          <fieldset><legend>动作能力</legend><label class="characters-check"><input class="mw-check" type="checkbox" data-character-actions-inherit checked>沿用任务选择的能力</label>
-            <div data-character-actions-field hidden><p class="characters-hint">只允许使用下列能力；留空表示不使用动作能力。选择角色不会自动选择工具或授予权限。</p><div data-character-actions-list></div></div>
+          <fieldset><legend>${uiText("workbench.characters.actions")}</legend><label class="characters-check"><input class="mw-check" type="checkbox" data-character-actions-inherit checked>${uiText("workbench.characters.inherit-actions")}</label>
+            <div data-character-actions-field hidden><p class="characters-hint">${uiText("workbench.characters.limit-actions-hint")}</p><div data-character-actions-list></div></div>
             <p class="characters-hint" data-character-actions-status role="status"></p>
-            <div class="characters-inline-actions"><button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-character-actions-refresh>${icon("refresh")}<span>刷新能力目录</span></button><a class="characters-link" href="/capabilities/access?client=agent%3Aprologue">管理内置 Agent 授权</a></div>
+            <div class="characters-inline-actions"><button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-character-actions-refresh>${icon("refresh")}<span>${uiText("workbench.characters.refresh-directory")}</span></button><a class="characters-link" href="/capabilities/access?client=agent%3Aprologue">${uiText("workbench.characters.manage-grants")}</a></div>
           </fieldset>
         </section>
         <section class="settings-section characters-block" aria-labelledby="characters-publish-title">
-          <div class="characters-block-head"><div><h2 id="characters-publish-title">发布到当前项目</h2><p class="characters-hint">发布会固定当前内容，成为一个版本；Coding 与助理只能选已发布的版本，已有任务保持原版本。</p></div>
-            <div class="characters-block-actions"><button class="mw-btn mw-btn--secondary" type="button" data-character-preview>预览并发布</button></div></div>
-          <div class="characters-versions" data-character-publications aria-label="当前项目的角色版本"></div>
+          <div class="characters-block-head"><div><h2 id="characters-publish-title">${uiText("workbench.characters.publish-project")}</h2><p class="characters-hint">${uiText("workbench.characters.publish-hint")}</p></div>
+            <div class="characters-block-actions"><button class="mw-btn mw-btn--secondary" type="button" data-character-preview>${uiText("workbench.characters.review-publish")}</button></div></div>
+          <div class="characters-versions" data-character-publications aria-label="${uiText("workbench.characters.project-versions")}"></div>
         </section>
         <section class="settings-section characters-block characters-danger" aria-labelledby="characters-state-title">
-          <h2 id="characters-state-title">停用或删除</h2>
-          <p class="characters-hint">停用后新的任务不能再选它，已完成的记录和版本都保留；删除不能恢复。</p>
-          <div class="characters-inline-actions"><button class="mw-btn mw-btn--secondary" type="button" data-character-toggle>停用</button><button class="mw-btn mw-btn--ghost" type="button" data-character-delete>删除角色</button></div>
+          <h2 id="characters-state-title">${uiText("workbench.characters.disable-delete")}</h2>
+          <p class="characters-hint">${uiText("workbench.characters.disable-delete-hint")}</p>
+          <div class="characters-inline-actions"><button class="mw-btn mw-btn--secondary" type="button" data-character-toggle>${uiText("workbench.characters.disable")}</button><button class="mw-btn mw-btn--ghost" type="button" data-character-delete>${uiText("workbench.characters.delete")}</button></div>
         </section>
         <footer class="characters-savebar"><p class="characters-hint" data-character-draft-note></p>
-          <button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-character-reload>重新读取已保存的草稿</button>
-          <button class="mw-btn mw-btn--primary" type="submit" data-character-save>保存草稿</button></footer>
+          <button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-character-reload>${uiText("workbench.characters.reload-saved")}</button>
+          <button class="mw-btn mw-btn--primary" type="submit" data-character-save>${uiText("workbench.characters.save-draft")}</button></footer>
       </form>
     </div>
     <p class="characters-notice" data-character-notice role="status" aria-live="polite"></p>
-    ${CHARACTER_IMPORT_HTML}
-    <dialog class="mw-dialog mw-dialog--form characters-dialog" data-character-dialog aria-label="确认角色操作"><form class="mw-form mw-dialog__shell" method="dialog"><header class="mw-form__header"><h2 data-character-dialog-title></h2></header><section class="mw-form__body"><p data-character-dialog-description></p><pre data-character-dialog-content></pre></section><footer class="mw-form__footer"><button class="mw-btn mw-btn--secondary" value="cancel">取消</button><button class="mw-btn mw-btn--primary" type="button" data-character-confirm>确认</button></footer></form></dialog>
+    ${renderCharacterImport()}
+    <dialog class="mw-dialog mw-dialog--form characters-dialog" data-character-dialog aria-label="${uiText("workbench.characters.confirm-action")}"><form class="mw-form mw-dialog__shell" method="dialog"><header class="mw-form__header"><h2 data-character-dialog-title></h2></header><section class="mw-form__body"><p data-character-dialog-description></p><pre data-character-dialog-content></pre></section><footer class="mw-form__footer"><button class="mw-btn mw-btn--secondary" value="cancel">${uiText("common.control.cancel")}</button><button class="mw-btn mw-btn--primary" type="button" data-character-confirm>${uiText("common.control.confirm")}</button></footer></form></dialog>
   </section>`;
 }

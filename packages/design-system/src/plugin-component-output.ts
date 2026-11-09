@@ -1,11 +1,26 @@
 /// <reference lib="dom" />
 /// <reference lib="dom.iterable" />
-import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { dateArg, numberArg, t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { isDestructivePluginOperation, pluginMessageNames, pluginTemplateBindings } from './plugin-surface-text.js';
 import type { Column, Ctl, Det, Kit, Out, Part, Rec, Rel, State } from './plugin-component-types.js';
 
 export function pcOutput(c: State & Kit & Rel & Rec & Det) {
   const { parts, make, words: wordElement, word, bindWord, raw: rawText, glyph, button, text, shown, prose, at, TEMPLATE, DAY, badge, figures, pluginSchemaOf, detailEnabled, ready, rowHost, rowLabel, reading, selectable, selectPage, composerFor, describeField, fieldValue, recordColumns, dayOf, recordBody, showDetail, select } = c;
+  function agendaDay(date: string) {
+    const label = make('header', undefined, 'pc-agenda-date'), day = DAY.test(date) ? new Date(date + 'T00:00:00Z') : undefined;
+    if (!day || Number.isNaN(day.getTime())) {
+      label.append(make('strong', '·'), wordElement('span', () => t.text("common.generated.undated")));
+      return label;
+    }
+    const now = new Date(), today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+    const offset = (day.getTime() - today) / 86_400_000, value = dateArg(date, "weekday-month-day");
+    const caption = () => offset === 0 ? t.text("common.generated.today-date", { date: value })
+      : offset === -1 ? t.text("common.generated.yesterday-date", { date: value })
+      : offset === 1 ? t.text("common.generated.tomorrow-date", { date: value })
+      : t.text("common.generated.formatted", { value });
+    label.append(wordElement('strong', () => t.text("common.generated.formatted", { value: numberArg(day.getUTCDate()) })), wordElement('span', caption));
+    return label;
+  }
   function output(part: Part, raw: unknown, binding: 'read' | 'submit') {
     const node = part.node, kind = node.kind, value = at(raw, node[binding]?.outputPath), fragment = document.createDocumentFragment();
     const listing = binding === 'read' && Array.isArray(value);
@@ -33,7 +48,7 @@ export function pcOutput(c: State & Kit & Rel & Rec & Det) {
         if (record.title) article.append(rawText('h2', record.title));
         if (record.body) { record.body.classList.add('pc-detail-copy'); article.append(record.body); }
         article.append(...record.notes); if (record.meta) article.append(record.meta); fragment.append(article);
-      } else fragment.append(figures(value as Record<string, unknown>, pluginSchemaOf(node[binding]?.operationId, node[binding]?.outputPath), 0));
+      } else fragment.append(figures(value as Record<string, unknown>, pluginSchemaOf(node[binding]?.operationId, node[binding]?.outputPath), 0, node.props.columns));
     }
     else if (!Array.isArray(value)) {
       // A single value: an alert, a badge, or a card holding the text, as the part was given.
@@ -130,13 +145,8 @@ export function pcOutput(c: State & Kit & Rel & Rec & Det) {
             // The calendar lays records out by their day, earliest first as they came.
             const date = dayOf(node, row);
             if (!dayList || date !== day) {
-              day = date; const block = make('section', undefined, 'pc-agenda-day'), label = make('header', undefined, 'pc-agenda-date');
-              const parsed = DAY.test(date) ? new Date(date + 'T00:00:00') : undefined;
-              // Today, yesterday and tomorrow are named, as times are (see moment).
-              const today = new Date(), offset = parsed ? Math.round((parsed.getTime() - new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime()) / 86_400_000) : NaN;
-              const near = offset === 0 ? '今天 · ' : offset === -1 ? '昨天 · ' : offset === 1 ? '明天 · ' : '';
-              label.append(make('strong', parsed ? String(parsed.getDate()) : '·'), make('span', parsed ? near + (parsed.getMonth() + 1) + '月 · 周' + '日一二三四五六'[parsed.getDay()] : '未定日期'));
-              dayList = make('div', undefined, 'pc-agenda-items'); block.append(label, dayList); body.append(block);
+              day = date; const block = make('section', undefined, 'pc-agenda-day');
+              dayList = make('div', undefined, 'pc-agenda-items'); block.append(agendaDay(date), dayList); body.append(block);
             }
             dayList.append(item); continue;
           }

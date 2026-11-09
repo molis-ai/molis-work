@@ -51,6 +51,8 @@ export interface SearchServiceOptions {
   budgetMs?: number;
   /** Delay before a changed source is refreshed in the background. */
   refreshDelayMs?: number;
+  /** Scope a scheduled refresh under the same Home as its index, starting at the timer. */
+  background?(refresh: () => Promise<void>): Promise<void>;
   /** Projects that still exist in this Home; index rows of any other project are dropped. Null while unknown. */
   knownProjects?(): Promise<readonly string[] | null>;
   /**
@@ -447,7 +449,7 @@ export class SearchService {
     if (this.refreshTimers.has(key)) return;
     const timer = setTimeout(() => {
       this.refreshTimers.delete(key);
-      void this.refreshKnown(providerId, projectId).catch(error => this.options.onError?.(error, "search.refresh"));
+      void (this.options.background?.(this.refreshKnown.bind(this, providerId, projectId)) ?? this.refreshKnown(providerId, projectId)).catch(error => this.options.onError?.(error, "search.refresh"));
     }, this.refreshDelayMs);
     (timer as { unref?: () => void }).unref?.();
     this.refreshTimers.set(key, timer);

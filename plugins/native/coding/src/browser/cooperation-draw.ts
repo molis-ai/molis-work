@@ -1,11 +1,11 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { format, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { BackgroundTask, Coop, Delegation, Delegations, Delivery, Mail, Side } from "./cooperation-types.js";
 import { el, errorMessage } from "./dom.js";
 import type { Translate } from "./types.js";
 
 type Variant = "secondary" | "ghost" | "";
 
-const time = (value: number | undefined) => value ? new Date(value).toLocaleString(document.documentElement.lang || "zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
+const time = (value: number | undefined) => value ? format.date(new Date(value).toISOString(), "datetime") : "";
 const ENDED = ["completed", "rejected", "cancelled", "failed"];
 
 /** The words and tones of every state the panels name. */

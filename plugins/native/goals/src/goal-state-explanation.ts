@@ -12,10 +12,10 @@ export function createGoalStateExplainer(_readText: GoalStatusTranslate) {
     function explainWorkState(state: GoalPresentationState): WorkStateExplanation {
         const copy = WORK_STATE_COPY[state];
         return {
-            label: copy.label,
-            meaning: copy.meaning,
-            nextAction: copy.nextAction,
-            howToContinue: copy.howToContinue,
+            label: uiText.text(copy.label),
+            meaning: uiText.text(copy.meaning),
+            nextAction: uiText.text(copy.nextAction),
+            howToContinue: uiText.text(copy.howToContinue),
             actionKind: copy.actionKind,
         };
     }

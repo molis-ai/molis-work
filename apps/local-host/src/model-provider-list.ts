@@ -67,9 +67,10 @@ function modelListProblem(error: unknown): string {
     case modelListErrors.rate_limited("").code: return uiText.text("workbench.model-provider-list.service-says-there-too-many-requests-quota-used");
     case modelListErrors.provider_failed("").code: return uiText.text("workbench.model-provider-list.service-did-not-return-model-list-status-try", { status: status(error) });
     case modelListErrors.timeout("").code: return uiText.text("workbench.model-provider-list.no-response-came-back-check-address-network-then");
-    case modelListErrors.response_invalid("").code: return uiText.text(error.message.includes("太大") ? "workbench.model-provider-list.model-list-service-too-large-type-model-name" : "workbench.model-provider-list.service-s-answer-not-model-list-check-base");
-    // The three ways a connection fails carry their own words, already in the catalog.
-    case modelListErrors.unreachable("").code: return error.message;
+    case modelListErrors.response_invalid("").code: return uiText.text(error.details?.reason === "too_large" ? "workbench.model-provider-list.model-list-service-too-large-type-model-name" : "workbench.model-provider-list.service-s-answer-not-model-list-check-base");
+    case modelListErrors.unreachable("").code: return uiText.text(error.details?.reason === "dns"
+      ? "workbench.model-provider-setup.host-address-could-not-be-found-check-base" : error.details?.reason === "refused"
+        ? "workbench.model-provider-setup.could-not-connect-nothing-listening-there-check-base" : "workbench.model-provider-setup.could-not-connect-address-check-base-url-network");
     default: return uiText.text("workbench.model-provider-list.could-not-get-model-list-type-model-name");
   }
 }

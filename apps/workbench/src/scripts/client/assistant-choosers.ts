@@ -5,8 +5,8 @@ export const ASSISTANT_CHOOSERS_PART = String.raw`  const execBtn = island.query
   let executors = [];
   const executorOffer = (id) => executors.find((one) => one.plugin_id === id && !one.problem) || null;
   const executorsHere = () => Boolean(project && executors.some((one) => !one.problem));
-  const executorChoices = () => [{ id: "assistant", label: "助理", hint: "个人工作助理，使用你已授权的能力" }].concat(executors.filter((one) => !one.problem)
-    .map((one) => ({ id: one.plugin_id, label: one.title, hint: "在这个项目里由它自己的 Agent 执行，补充和回答照常在这里发" })));
+  const executorChoices = () => [{ id: "assistant", label: globalThis.t.text("workbench.assistant-choosers.default-assistant"), hint: globalThis.t.text("workbench.assistant-choosers.assistant-hint") }].concat(executors.filter((one) => !one.problem)
+    .map((one) => ({ id: one.plugin_id, label: one.title, hint: globalThis.t.text("workbench.assistant-choosers.plugin-executor-hint") })));
   const modeButton = island.querySelector("[data-assistant-mode]");
   const modeLabel = island.querySelector("[data-assistant-mode-label]");
   const modesPop = island.querySelector("[data-assistant-modes]");

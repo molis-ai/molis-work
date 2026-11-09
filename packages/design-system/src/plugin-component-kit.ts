@@ -2,6 +2,7 @@
 /// <reference lib="dom.iterable" />
 import { dateArg, t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { SandboxSchema, SandboxVisibleText } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import type { Column } from './plugin-component-types.js';
 
 export function pcKit(word: (ref?: SandboxVisibleText) => string) {
   const compositeWords = new WeakMap<HTMLElement, Map<string, () => string>>();
@@ -98,9 +99,9 @@ export function pcKit(word: (ref?: SandboxVisibleText) => string) {
     const date = new Date(value); if (Number.isNaN(date.getTime())) return make('span', value);
     const now = new Date(), day = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime(), diff = Math.round((day(now) - day(date)) / 86_400_000);
     const time = dateArg(value, "time");
-    const words = diff === 0 ? t.text("common.generated.today-time", { time }) : diff === 1 ? t.text("common.generated.yesterday-time", { time })
+    const caption = () => diff === 0 ? t.text("common.generated.today-time", { time }) : diff === 1 ? t.text("common.generated.yesterday-time", { time })
       : diff === -1 ? t.text("common.generated.tomorrow-time", { time }) : t.text("common.generated.formatted", { value: dateArg(value, "datetime") });
-    const element = make('time', words); element.dateTime = value; element.title = value;
+    const element = make('time'); element.append(words('span', caption)); element.dateTime = value; element.title = value;
     const exact = raw('span', ' ' + value, 'pc-sr'); exact.setAttribute('aria-hidden', 'true'); element.append(exact); return element;
   };
   /** "金额，大于 0" is a name and a hint: the name labels the field, the hint waits inside it. */
@@ -123,13 +124,15 @@ export function pcKit(word: (ref?: SandboxVisibleText) => string) {
     return ['number', 'integer'].includes(spec.type) ? Number(input.value) : ['object', 'array', 'null'].includes(spec.type) ? JSON.parse(input.value) : input.value;
   }
   /** An object result (a total, a breakdown) as figure cards; a nested list of records as progress bars or a small table. */
-  function figures(record: Record<string, unknown>, schema: SandboxSchema | undefined, depth: number): HTMLElement {
+  function figures(record: Record<string, unknown>, schema: SandboxSchema | undefined, depth: number, columns?: readonly Column[], parent = ''): HTMLElement {
     const list = make('dl', undefined, 'pc-figures' + (depth ? ' pc-figures-nested' : ''));
     for (const [key, value] of Object.entries(record).slice(0, 24)) {
+      const path = parent ? parent + '.' + key : key, column = columns?.find(item => item.field === path);
       const spec = schema?.type === 'object' ? schema.properties?.[key] : undefined, tile = make('div', undefined, 'mw-card pc-stat'); tile.dataset.slot = 'card';
       const records = Array.isArray(value) && value.length > 0 && value.every(item => item && typeof item === 'object' && !Array.isArray(item));
       // An undescribed list needs no label: its table names its own columns.
-      if (spec?.description || !records) tile.append(make('dt', spec?.description || key));
+      if (column) tile.append(words('dt', () => word(column.label)));
+      else if (spec?.description || !records) tile.append(raw('dt', spec?.description || key));
       const cell = make('dd');
       if (records) {
         tile.classList.add('pc-figures-wide');
@@ -152,8 +155,9 @@ export function pcKit(word: (ref?: SandboxVisibleText) => string) {
           for (const row of rows) { const tr = make('tr'); for (const field of keys) tr.append(raw('td', text(shown(undefined, row[field])))); body.append(tr); }
           const thead = make('thead'); thead.append(head); table.append(thead, body); const wrap = make('div', undefined, 'mw-table-wrap pc-table-wrap'); wrap.append(table); cell.append(wrap);
         }
-      } else if (value && typeof value === 'object' && !Array.isArray(value) && depth < 2) { tile.classList.add('pc-figures-wide'); cell.append(figures(value as Record<string, unknown>, spec, depth + 1)); }
+      } else if (value && typeof value === 'object' && !Array.isArray(value) && depth < 2) { tile.classList.add('pc-figures-wide'); cell.append(figures(value as Record<string, unknown>, spec, depth + 1, columns, path)); }
       else if (typeof value === 'string' && MOMENT.test(value)) { tile.dataset.words = ''; cell.append(moment(value)); }
+      else if (column?.values && Object.hasOwn(column.values, text(value))) cell.append(words('span', () => word(column.values?.[text(value)])));
       else { if (typeof value !== 'number' && text(shown(undefined, value)).length > 12) tile.dataset.words = ''; cell.append(prose('span', shown(undefined, value))); }
       tile.append(cell); list.append(tile);
     }

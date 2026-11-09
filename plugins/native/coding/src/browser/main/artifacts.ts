@@ -1,15 +1,13 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { format, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { el, errorMessage } from "../dom.js";
 import type { Page } from "./page.js";
 import { api } from "./request.js";
 import type { ArtifactRow } from "./shapes.js";
 
-const pad = (n: number) => String(n).padStart(2, "0");
-
 const stamp = (value: string) => {
   const at = new Date(value), now = new Date();
   if (Number.isNaN(at.getTime())) return "";
-  return at.toDateString() === now.toDateString() ? pad(at.getHours()) + ":" + pad(at.getMinutes()) : pad(at.getMonth() + 1) + "-" + pad(at.getDate());
+  return format.date(value, at.toDateString() === now.toDateString() ? "time" : "month-day");
 };
 
 /** One saved result: what it is by its icon, the title, when it was saved, and its version. */
@@ -25,7 +23,7 @@ function artifactRow(page: Page, item: ArtifactRow): HTMLElement {
   const icon = el("span", "", "mw-dir-row__icon");
   icon.innerHTML = '<svg aria-hidden="true"><use href="#icon-' + (item.kind === "changeset" ? "git-compare" : "file") + '"></use></svg>';
   const copy = el("span", "", "mw-dir-row__copy"), headline = el("span", "", "mw-dir-row__headline"), when = el("span", stamp(item.saved_at), "mw-dir-row__count");
-  when.title = new Date(item.saved_at).toLocaleString(document.documentElement.lang || "zh-CN");
+  when.title = format.date(item.saved_at, "datetime");
   const kind = item.kind === "changeset" ? uiText.text("coding.artifacts.changeset", { count: item.file_count ?? 0 }) : uiText.text("coding.report.label");
   headline.append(el("strong", item.title), when);
   copy.append(headline, el("small", kind + " · v" + item.reference.version + (item.archived ? " · " + uiText.text("coding.artifacts.archived") : "")));

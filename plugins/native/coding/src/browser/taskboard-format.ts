@@ -1,3 +1,4 @@
+import { format } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { RowTime } from "./taskboard-types.js";
 
 /** An icon of the page's sprite. */
@@ -19,7 +20,7 @@ export function when(at: string | number | null | undefined): RowTime | null {
   if (!at) return null;
   const date = new Date(at);
   if (Number.isNaN(date.getTime())) return null;
-  const now = new Date(), pad = (n: number) => String(n).padStart(2, "0");
-  const text = date.toDateString() === now.toDateString() ? pad(date.getHours()) + ":" + pad(date.getMinutes()) : new Intl.DateTimeFormat(document.documentElement.lang || "zh-CN", { month: "short", day: "numeric" }).format(date);
-  return { text, title: date.toLocaleString() };
+  const now = new Date(), stamp = date.toISOString();
+  const text = format.date(stamp, date.toDateString() === now.toDateString() ? "time" : "month-day");
+  return { text, title: format.date(stamp, "datetime") };
 }

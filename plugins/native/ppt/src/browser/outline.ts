@@ -81,7 +81,7 @@ export function installOutline(page: PptPage): void {
       }
       if (pageNote) {
         pageNote.hidden = documents.length > 0;
-        pageNote.textContent = documents.length ? "" : (payload.unavailable_reason ? uiText.text(payload.unavailable_reason) : uiText.text("ppt.outline.no-docs"));
+        pageNote.textContent = documents.length ? "" : (payload.unavailable_reason || uiText.text("ppt.outline.no-docs"));
       }
     } catch (error) {
       if (pageNote) { pageNote.hidden = false; pageNote.textContent = messageOf(error) || uiText.text("ppt.outline.docs-failed"); }

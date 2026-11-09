@@ -1,4 +1,4 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { format, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { AgentRunUsage } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { el, errorMessage } from "./dom.js";
 import type { PagePorts } from "./types.js";
@@ -87,7 +87,7 @@ const column = (panel: Panel, child: Child) => {
   const files = edits(child);
   box.append(el("p", files.length ? uiText.text("coding.sub.files", { files: files.join(uiText.text("coding.list.joiner")) }) : uiText.text("coding.sub.no-files")));
   const tokens = child.usage?.tokens;
-  if (tokens) box.append(el("p", uiText.text("coding.sub.usage", { tokens: ((tokens.input || 0) + (tokens.output || 0)).toLocaleString() })));
+  if (tokens) box.append(el("p", uiText.text("coding.sub.usage", { tokens: format.number((tokens.input || 0) + (tokens.output || 0)) })));
   if (child.result) box.append(resultBox(child));
   if (child.error) box.append(el("p", uiText.text("coding.sub.error", { error: child.error })));
   return box;

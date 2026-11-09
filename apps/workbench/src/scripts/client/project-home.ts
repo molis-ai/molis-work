@@ -13,7 +13,7 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
   const home = document.querySelector('[data-work-surface="home"]');
   if (!home) return null;
   const homeFlow = (${createHomeFlow.toString()})();
-  const locale = document.documentElement.lang || "zh-CN";
+  const locale = () => globalThis.molisWorkLanguageCatalog?.().languages.find(row => row.tag === document.documentElement.dataset.uiLanguageTag)?.intl;
   const projectKey = getState().project?.project_id || getState().snapshot.board.project_id;
   let dayId = "";
   let dayPinned = false;
@@ -25,9 +25,11 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
   let days = [];
   const esc = (value) => String(value ?? "")
     .replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
+  let changingLanguage = false;
   const writeHTML = (node, html) => {
     if (!node || node.dataset.html === html) return false;
-    node.innerHTML = html;
+    if (changingLanguage && node.dataset.html !== undefined && globalThis.molisWorkRetitleRegion) globalThis.molisWorkRetitleRegion(node, node.dataset.html, html);
+    else node.innerHTML = html;
     node.dataset.html = html;
     return true;
   };
@@ -36,18 +38,18 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
   const $$ = (sel, root) => [...(root || home).querySelectorAll(sel)];
   const detailNode = $("[data-home-detail]");
   const detailHolder = $("[data-home-detail-holder]");
-  const labels = {
+  const labels = () => ({
     todayEmpty: globalThis.t.text("workbench.project-home.nothing-arrived-today-yet"),
     empty: globalThis.t.text("workbench.project-home.nothing-day"),
     todaySum: (n) => globalThis.t.text("workbench.project-home.n-n-arrived-today", { n }),
     daySum: (n) => globalThis.t.text("workbench.project-home.n-n-day", { n }),
     attentionLead: globalThis.t.text("workbench.project-home.some-items-need-attention"),
     emptyLead: globalThis.t.text("workbench.project-home.new-pending-items-plugins-appear-here"),
-  };
+  });
   const collect = () => {
-    const now = new Date();
-    days = homeFlow.buildHomeDays(now, locale);
-    events = homeFlow.projectHomeEvents({ now, locale, events: eventRows });
+    const now = new Date(), tag = locale();
+    days = homeFlow.buildHomeDays(now, tag);
+    events = homeFlow.projectHomeEvents({ now, locale: tag, events: eventRows });
     if (!dayPinned || !days.some((day) => day.id === dayId)) {
       dayId = homeFlow.civilKey(now);
       dayPinned = false;
@@ -69,7 +71,7 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
     eventId = "";
     home.dataset.event = "off";
   };
-  const shortWeek = (id) => new Intl.DateTimeFormat(locale, { weekday: "short" }).format(new Date(id + "T12:00:00"));
+  const shortWeek = (id) => new Intl.DateTimeFormat(locale(), { weekday: "short" }).format(new Date(id + "T12:00:00"));
   const renderDates = () => {
     writeHTML($("[data-home-dates]"), days.map((day) => {
       const list = homeFlow.eventsOnDay(events, day.id);
@@ -88,7 +90,7 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
   const renderHero = () => {
     const day = days.find((item) => item.id === dayId) || days.find((item) => item.today);
     const list = listOf();
-    const summary = homeFlow.summarizeDay(day, list, labels);
+    const summary = homeFlow.summarizeDay(day, list, labels());
     const stamp = day.id;
     const hero = $("[data-home-hero]");
     const dayChanged = hero.dataset.day !== dayId;
@@ -97,17 +99,17 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
     const hour = new Date().getHours();
     const greeting = hour >= 5 && hour < 11 ? globalThis.t.text("workbench.project-home.good-morning") : hour >= 11 && hour < 13 ? globalThis.t.text("workbench.project-home.good-midday")
       : hour >= 13 && hour < 18 ? globalThis.t.text("workbench.project-home.good-afternoon") : hour >= 18 && hour < 23 ? globalThis.t.text("workbench.project-home.good-evening") : globalThis.t.text("workbench.project-home.working-late");
-    const date = new Intl.DateTimeFormat(locale, { month: "long", day: "numeric" }).format(new Date(stamp + "T12:00:00"));
+    const date = globalThis.format.date(stamp, "month-day");
     const sum = loadingEvents && !eventRows.length ? globalThis.t.text("workbench.project-home.loading-items") : eventIssues.length && !eventRows.length ? globalThis.t.text("workbench.project-home.some-items-could-not-be-fully-loaded") : summary.sum;
     const html =
-      '<div class="home-heading__main"><h1>' + esc(day.today ? globalThis.t.text("workbench.project-home.today-s-work") : globalThis.t.text("workbench.project-home.work-date").replace("{date}", date)) + '</h1>' +
+      '<div class="home-heading__main"><h1>' + esc(day.today ? globalThis.t.text("workbench.project-home.today-s-work") : globalThis.t.text("workbench.project-home.work-date", { date })) + '</h1>' +
       '<p class="home-heading__sub">' + (day.today ? '<span class="craft-greeting">' + esc(greeting) + '</span><i>·</i>' : '') +
-        '<time data-home-date datetime="' + stamp + '">' + esc("{week}，{date}".replace("{week}", day.week).replace("{date}", date)) + '</time><i>·</i>' +
+        '<time data-home-date datetime="' + stamp + '">' + esc(globalThis.t.text("workbench.project-home.week-and-date", { week: day.week, date })) + '</time><i>·</i>' +
         '<span class="home-hero__sum">' + esc(sum) + '</span>' +
         (list.length ? '<i>·</i><span class="home-hero__lead">' + esc(summary.lead) + '</span>' : '') + '</p>' +
       '<div data-home-event-status role="status">' + eventIssues.map(issue => '<p>' + esc(issueText(issue)) + '</p>').join('') +
       (eventIssues.length ? '<button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-home-events-reload>' + globalThis.t.text("workbench.project-home.reload") + '</button>' : '') + '</div></div>' +
-      '<p class="home-month">' + ico("calendar") + esc(new Intl.DateTimeFormat(locale, { year: "numeric", month: "long" }).format(new Date(stamp + "T12:00:00"))) + '</p>';
+      '<p class="home-month">' + ico("calendar") + esc(globalThis.format.date(stamp, "year-month")) + '</p>';
     if (writeHTML(hero, html)) {
       const problems=[...hero.querySelectorAll('[data-home-event-status] p')];eventIssues.forEach((issue,index)=>{if(typeof issue!=='string' && problems[index])molisWorkRequest.show(problems[index],issue);});
     }
@@ -138,7 +140,7 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
     const done = children.filter((child) => child.status === "completed").length;
     const progress = children.length
       ? '<span class="home-focus__progress"><span class="home-focus__bar"><span style="width:' + Math.round(done / children.length * 100) + '%"></span></span>' +
-        esc(globalThis.t.text("workbench.project-home.done-total-sub-goals-done").replace("{done}", String(done)).replace("{total}", String(children.length))) + '</span>'
+        esc(globalThis.t.text("workbench.project-home.done-total-sub-goals-done", { done, total: children.length })) + '</span>'
       : '';
     const moving = pick.status === "in_progress";
     const html = '<div class="home-focus__top"><span>' + ico("target") + esc(moving ? globalThis.t.text("workbench.project-home.progress") : globalThis.t.text("workbench.project-home.needs")) + '</span>' +
@@ -148,7 +150,7 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
       '<div class="home-focus__bottom"><button class="mw-btn mw-btn--primary" type="button" data-home-focus-open>' + esc(moving ? globalThis.t.text("workbench.project-home.continue-goal") : globalThis.t.text("workbench.project-home.make-decision")) + ico("arrow") + '</button>' + progress + '</div>' +
       '<div class="home-focus__art" aria-hidden="true"><span class="home-focus__sheet is-back"></span><span class="home-focus__sheet is-front"><i></i><i></i><i></i>' +
         '<b>' + ico("check") + '<i></i></b><b>' + ico("check") + '<i></i></b><b class="is-open">' + ico("circle") + '<i></i></b></span></div>';
-    if (card.dataset.html !== html) { card.innerHTML = html; card.dataset.html = html; }
+    writeHTML(card, html);
     card.hidden = false;
   };
   let arrivedAs = null, paintedRows = null;
@@ -157,13 +159,6 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
     try { const list = JSON.parse(home.dataset.homeStarts || '[]'); return Array.isArray(list) ? list : []; }
     catch (error) { return []; }
   };
-  document.addEventListener("molis-work:language-changed", () => {
-    for (const { id, title, hint } of readStarts()) {
-      const action = home.querySelector('[data-home-start="' + CSS.escape(id) + '"]'), label = action?.querySelector('span');
-      if (action && hint) action.title = hint;
-      if (label && label.textContent !== title) label.textContent = title;
-    }
-  });
   const renderList = () => {
     const list = listOf();
     const rows = $("[data-home-list]");
@@ -173,14 +168,17 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
     const arrival = dayId + (list.length ? "" : ":empty");
     const paint = (html) => {
       if (html !== paintedRows) {
-        parkDetail();
-        rows.toggleAttribute("data-arrive", arrival !== arrivedAs);
-        rows.innerHTML = html;
+        if (changingLanguage && paintedRows !== null && globalThis.molisWorkRetitleRegion) globalThis.molisWorkRetitleRegion(rows, paintedRows, html);
+        else {
+          parkDetail();
+          rows.toggleAttribute("data-arrive", arrival !== arrivedAs);
+          rows.innerHTML = html;
+        }
         paintedRows = html;
       }
       arrivedAs = arrival;
     };
-    $("[data-home-list-count]").textContent = list.length ? String(list.length) : "";
+    $("[data-home-list-count]").textContent = list.length ? globalThis.format.number(list.length) : "";
     if (!list.length) {
       parkDetail();
       if (loadingEvents || eventIssues.length) {
@@ -227,7 +225,7 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
     if (day?.today && !nowDrawn) html += nowLine;
     paint(html);
     const nowNode = $("[data-home-now] span", rows);
-    if (nowNode) nowNode.textContent = globalThis.t.text("workbench.project-home.now") + " " + homeFlow.clockLabel(new Date(nowAt));
+    if (nowNode) nowNode.textContent = globalThis.t.text("workbench.project-home.now-time", { time: { kind: "date", at: new Date(nowAt).toISOString(), style: "time" } });
     const slot = $("[data-home-slot]", rows);
     if (slot && detailNode.parentElement !== slot) slot.append(detailNode);
     if (!slot) parkDetail();
@@ -254,7 +252,7 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
       "</div>";
     const leftNode = $(".home-detail__act-left", footer);
     const mode = JSON.stringify([event.id, event.open, opening === event.id]);
-    if (leftNode.dataset.mode !== mode) { leftNode.innerHTML = left; leftNode.dataset.mode = mode; }
+    if (changingLanguage || leftNode.dataset.mode !== mode) { writeHTML(leftNode, left); leftNode.dataset.mode = mode; }
     const error = $('[data-home-navigation-error]', footer); error.hidden = !navigationError; error.innerHTML = navigationError ? esc(issueText(navigationError)) + ' <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-home-events-reload>' + globalThis.t.text("workbench.project-home.reload") + '</button>' : '';
     if(navigationError && typeof navigationError!=='string'){const retry=error.querySelector('button');molisWorkRequest.show(error,navigationError);if(retry)error.append(retry);}
     offers.render();
@@ -276,7 +274,7 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
     const html = entries.map((entry) => '<li><button type="button" class="home-quick__item" data-home-quick-open="' + esc(entry.id) + '">' +
       '<span class="home-shortcut-icon">' + ico(entry.glyph) + '</span><span class="home-quick__text">' + esc(entry.name) +
       (QUICK_CAPTIONS[entry.id] ? '<small>' + esc(globalThis.t.text(QUICK_CAPTIONS[entry.id])) + '</small>' : '') + '</span>' + ico("chevron-right") + '</button></li>').join("");
-    if (list.dataset.html !== html) { list.innerHTML = html; list.dataset.html = html; }
+    writeHTML(list, html);
   };
   const render = () => {
     collect();
@@ -287,6 +285,10 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
     if (eventId) renderDetail();
     renderQuick();
   };
+  document.addEventListener("molis-work:language-changed", () => {
+    changingLanguage = true;
+    try { render(); } finally { changingLanguage = false; }
+  });
   const openEvent = (id) => {
     if (!events.some((event) => event.id === id)) return;
     eventId = id;

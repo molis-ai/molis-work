@@ -57,8 +57,9 @@ export async function fetchModelList(request: { url: URL; headers: Readonly<Reco
     if (signal.aborted) throw signal.reason;
     if (timeout.aborted) throw modelListErrors.timeout("一直没有等到回应。检查地址和网络后重试。");
     const cause = error instanceof Error && error.cause instanceof Error ? error.cause.message : "";
-    throw modelListErrors.unreachable(/ENOTFOUND|EAI_AGAIN/u.test(cause) ? "找不到这个地址的主机。检查 Base URL 有没有拼错，再看网络或代理。"
-      : /ECONNREFUSED/u.test(cause) ? "连不上这个地址：对方没有在监听。检查 Base URL 和端口。" : "连不上这个地址。检查 Base URL、网络或代理。");
+    const reason = /ENOTFOUND|EAI_AGAIN/u.test(cause) ? "dns" : /ECONNREFUSED/u.test(cause) ? "refused" : "unreachable";
+    throw modelListErrors.unreachable(reason === "dns" ? "找不到这个地址的主机。检查 Base URL 有没有拼错，再看网络或代理。"
+      : reason === "refused" ? "连不上这个地址：对方没有在监听。检查 Base URL 和端口。" : "连不上这个地址。检查 Base URL、网络或代理。", { reason });
   }
   if (response.status < 200 || response.status >= 300 || !response.body) {
     await response.body?.cancel();
@@ -71,7 +72,7 @@ export async function fetchModelList(request: { url: URL; headers: Readonly<Reco
       const { done, value } = await reader.read();
       if (done) break;
       size += value.byteLength;
-      if (size > MAX_BODY) { await reader.cancel(); throw modelListErrors.response_invalid("服务返回的模型列表太大了，请手填模型名"); }
+      if (size > MAX_BODY) { await reader.cancel(); throw modelListErrors.response_invalid("服务返回的模型列表太大了，请手填模型名", { reason: "too_large" }); }
       chunks.push(value);
     }
   } catch (error) {

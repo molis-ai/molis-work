@@ -1,4 +1,5 @@
-import { messageOf, type ActionRef, type CharacterRequest, type FindPart } from "./common.js";
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { el, messageOf, type ActionRef, type CharacterRequest, type FindPart } from "./common.js";
 
 /** A row of the common Agent action catalog (`GET /actions`): only what this view reads. */
 interface ActionRow {
@@ -22,9 +23,6 @@ export interface ActionClient {
   describe(value: ActionRef[] | null | undefined): string;
 }
 
-const INHERIT_TEXT = "沿用任务选择";
-const NONE_TEXT = "不使用动作能力";
-
 const key = (ref: ActionRef): string => JSON.stringify([ref.capability_id, ref.version, ref.provider_id]);
 const exact = (view: ActionRow): ActionRef => ({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id });
 
@@ -36,7 +34,7 @@ function keepingView(): ActionClient {
     async refresh() {},
     value: () => structuredClone(kept),
     render: value => { kept = value == null ? null : structuredClone(value); },
-    describe: value => value == null ? INHERIT_TEXT : value.length ? value.map(ref => ref.capability_id + " · v" + ref.version).join("、") : NONE_TEXT,
+    describe: value => value == null ? uiText.text("workbench.characters.actions-inherit-task") : value.length ? value.map(ref => ref.capability_id + " · v" + ref.version).join("、") : uiText.text("workbench.characters.actions-none"),
   };
 }
 
@@ -45,14 +43,14 @@ function choicesOf(rows: ActionRow[], refs: ActionRef[]): Choice[] {
   const found: Choice[] = rows.filter(row => row.action.audiences.includes("agent")).map(row => ({ ref: exact(row), title: row.action.title, source: row.provider.title,
     available: row.availability.available, description: row.availability.available ? row.action.description : row.availability.reason }));
   for (const ref of refs) {
-    if (!found.some(row => key(row.ref) === key(ref))) found.push({ ref, title: ref.capability_id, source: ref.provider_id, available: false, description: "原能力、版本或授权不可用；引用保留，可明确移除。" });
+    if (!found.some(row => key(row.ref) === key(ref))) found.push({ ref, title: ref.capability_id, source: ref.provider_id, available: false, description: uiText.text("workbench.characters.actions-kept-unavailable") });
   }
   return found;
 }
 
 function describeRefs(rows: ActionRow[], value: ActionRef[] | null | undefined): string {
-  if (value == null) return INHERIT_TEXT;
-  if (!value.length) return NONE_TEXT;
+  if (value == null) return uiText.text("workbench.characters.actions-inherit-task");
+  if (!value.length) return uiText.text("workbench.characters.actions-none");
   return value.map(ref => {
     const row = rows.find(item => key(exact(item)) === key(ref));
     return (row?.action.title || ref.capability_id) + " · v" + ref.version + " · " + (row?.provider.title || ref.provider_id);
@@ -80,7 +78,8 @@ export function characterActionClient(host: ActionHost): ActionClient {
     const label = document.createElement("label"), input = document.createElement("input"), copy = document.createElement("span");
     label.className = "characters-check"; input.type = "checkbox"; input.className = "mw-check";
     input.checked = refs.some(ref => key(ref) === key(row.ref)); input.dataset.available = String(row.available);
-    copy.textContent = row.title + " · " + row.source + " · v" + row.ref.version + " — " + row.description;
+    const identity = el("span", row.title + " · " + row.source + " · v" + row.ref.version); identity.translate = false;
+    copy.append(identity, " — ", el("span", row.description));
     input.onchange = () => { refs = refs.filter(ref => key(ref) !== key(row.ref)); if (input.checked) refs.push(row.ref); changed(); };
     label.append(input, copy);
     return label;
@@ -90,17 +89,18 @@ export function characterActionClient(host: ActionHost): ActionClient {
     container.replaceChildren(); part("actions-field").hidden = part<HTMLInputElement>("actions-inherit").checked;
     const shown = choicesOf(rows, refs);
     for (const row of shown) container.append(choiceRow(row));
-    if (!shown.length) container.textContent = "还没有可用能力。请先在能力服务中为内置 Agent 授权，再刷新目录。";
+    if (!shown.length) container.textContent = uiText.text("workbench.characters.actions-empty");
     controls(busy);
   };
   const refresh = async (): Promise<void> => {
     if (reading) return;
-    reading = true; controls(busy); part("actions-status").textContent = "正在读取当前项目的能力…";
+    reading = true; controls(busy); part("actions-status").textContent = uiText.text("workbench.characters.actions-reading");
     try {
       const data = await request<{ actions: ActionRow[] }>("GET", "/actions");
-      rows = data.actions; list(); part("actions-status").textContent = "目录已更新；选中能力不会自动授权或执行。";
+      rows = data.actions; list(); part("actions-status").textContent = uiText.text("workbench.characters.actions-updated");
     } catch (error) {
-      part("actions-status").textContent = messageOf(error) + "；已有选择保持。";
+      const original = el("span", messageOf(error)); original.translate = false;
+      part("actions-status").replaceChildren(el("span", uiText.text("workbench.characters.actions-failed")), original);
     } finally {
       reading = false; controls(busy);
     }

@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import {
   el, messageOf, RUNTIME_NAMES,
   type ArtifactVersionRef, type CharacterPublication, type CharacterRecord, type CharacterRequest, type ImportSnapshot, type Part,
@@ -34,13 +35,13 @@ function skillChoice(skill: SnapshotSkill): HTMLLabelElement {
   const label = el("label"), check = el("input");
   label.className = "characters-check"; check.type = "checkbox"; check.className = "mw-check";
   check.value = skill.id; check.disabled = skill.compatibility !== "portable";
-  label.append(check, el("span", skill.name + (check.disabled ? " · 需要原生环境" : "")));
+  label.append(check, el("span", check.disabled ? uiText.text("workbench.characters.skill-needs-native", { name: skill.name }) : skill.name));
   return label;
 }
 
 function warningsOf(warnings: string[]): HTMLDetailsElement {
   const box = el("details");
-  box.append(el("summary", warnings.length + " 项读取说明"));
+  box.append(el("summary", uiText.text("workbench.characters.scan-notes", { count: warnings.length })));
   for (const warning of warnings) box.append(el("p", warning));
   return box;
 }
@@ -87,7 +88,7 @@ class ImportView {
   private count(): void {
     const confirm = this.q<HTMLButtonElement>("import-confirm"), { rule_paths, skill_ids } = this.selection;
     confirm.disabled = this.pending || !this.candidate || !(rule_paths.length + skill_ids.length);
-    confirm.textContent = (this.editing ? "更新快照" : "导入角色") + " · " + rule_paths.length + " 条规则 / " + skill_ids.length + " 个技能";
+    confirm.textContent = uiText.text(this.editing ? "workbench.characters.update-counts" : "workbench.characters.import-counts", { rules: rule_paths.length, skills: skill_ids.length });
   }
 
   private addRow(name: string, path: string, kind: keyof Selection, key: string, description: string, body: HTMLElement): void {
@@ -104,7 +105,7 @@ class ImportView {
 
   private selectionButtons(snapshot: ImportSnapshot): HTMLElement {
     const actions = el("div", undefined, "characters-actions");
-    const choices: Array<[string, boolean]> = [["全选", false], ["只选可供内置引擎使用的内容", true]];
+    const choices: Array<[string, boolean]> = [[uiText.text("workbench.characters.select-all"), false], [uiText.text("workbench.characters.select-portable"), true]];
     for (const [label, onlyPortable] of choices) {
       const button = el("button", label, "mw-btn mw-btn--ghost");
       button.type = "button";
@@ -122,18 +123,18 @@ class ImportView {
     preview.replaceChildren();
     if (!candidate) { this.count(); return; }
     const snapshot = candidate.snapshot;
-    preview.append(el("h3", candidate.label), el("p", (candidate.executable ? "已发现 CLI；登录和执行状态将在启动时确认。" : "可导入配置；未发现可用 CLI。") + " " + snapshot.config_root, "characters-hint"));
+    preview.append(el("h3", candidate.label), el("p", uiText.text(candidate.executable ? "workbench.characters.found-cli" : "workbench.characters.config-no-cli", { path: snapshot.config_root }), "characters-hint"));
     if (candidate.warnings.length) preview.append(warningsOf(candidate.warnings));
     if (this.editing) preview.append(el("p", diff(this.editing.import_snapshot, snapshot), "characters-hint"));
     preview.append(this.selectionButtons(snapshot));
     for (const rule of snapshot.rules) {
-      this.addRow((rule.scope === "project" ? "项目规则 · " : "全局规则 · ") + rule.path.split("/").pop(), rule.path, "rule_paths", rule.path, rule.condition || "始终适用", detail("预览原文", rule.content));
+      this.addRow(uiText.text(rule.scope === "project" ? "workbench.characters.project-rule" : "workbench.characters.global-rule", { name: rule.path.split("/").pop() ?? rule.path }), rule.path, "rule_paths", rule.path, rule.condition || uiText.text("workbench.characters.always-applies"), detail(uiText.text("workbench.characters.full-read"), rule.content));
     }
     for (const skill of snapshot.skills) {
       const body = el("details");
-      body.append(el("summary", "预览 " + skill.files.length + " 个文件"));
+      body.append(el("summary", uiText.text("workbench.characters.preview-files", { count: skill.files.length })));
       for (const file of skill.files) body.append(filePreview(this.host.request, file, skill, { candidate_id: candidate.candidate_id }));
-      this.addRow(skill.name, skill.path, "skill_ids", skill.id, skill.description + " · " + (skill.compatibility === "portable" ? "文本技能，可供内置引擎使用" : skill.reason || "需要原生环境"), body);
+      this.addRow(skill.name, skill.path, "skill_ids", skill.id, skill.description + " · " + (skill.compatibility === "portable" ? uiText.text("workbench.characters.portable-skill") : skill.reason || uiText.text("workbench.characters.needs-native")), body);
     }
     this.count();
   }
@@ -152,7 +153,7 @@ class ImportView {
   }
 
   private sourceButton(item: Candidate): HTMLButtonElement {
-    const button = el("button", item.label + " · " + item.snapshot.rules.length + " 规则 / " + item.snapshot.skills.length + " Skills", "mw-btn mw-btn--secondary");
+    const button = el("button", uiText.text("workbench.characters.candidate-counts", { name: item.label, rules: item.snapshot.rules.length, skills: item.snapshot.skills.length }), "mw-btn mw-btn--secondary");
     button.type = "button"; button.dataset.id = item.candidate_id; button.onclick = () => this.choose(item);
     return button;
   }
@@ -160,7 +161,7 @@ class ImportView {
   private async discover(): Promise<Candidate[]> {
     const { q } = this;
     const runtime = q<HTMLSelectElement>("import-runtime").value, config = q<HTMLInputElement>("import-config").value.trim(), project = q<HTMLInputElement>("import-project").value.trim();
-    if (config && !runtime) throw new Error("指定配置目录时，请先选择 Agent。");
+    if (config && !runtime) throw new Error(uiText.text("workbench.characters.choose-before-config"));
     const result = await this.host.request<{ candidates: Candidate[] }>("POST", "/imports/discover",
       { ...(runtime ? { runtime_id: runtime } : {}), ...(config ? { config_root: config } : {}), ...(project ? { project_root: project } : {}) });
     return result.candidates;
@@ -170,12 +171,12 @@ class ImportView {
     if (this.pending) return;
     const { q } = this;
     this.pending = true; this.candidate = null; this.preview.replaceChildren(); q("sources").replaceChildren();
-    q("import-notice").textContent = "正在读取本机规则和 Skills…"; q<HTMLButtonElement>("scan").disabled = true; this.count();
+    q("import-notice").textContent = uiText.text("workbench.characters.scanning"); q<HTMLButtonElement>("scan").disabled = true; this.count();
     try {
       const candidates = await this.discover();
       for (const item of candidates) q("sources").append(this.sourceButton(item));
       if (candidates.length) this.choose(candidates[0]);
-      q("import-notice").textContent = candidates.length ? "规则和附件保留原文；导入不会执行技能脚本或复制登录信息。" : "未发现可导入内容。可以指定 Agent 配置目录后重试。";
+      q("import-notice").textContent = candidates.length ? uiText.text("workbench.characters.import-originals") : uiText.text("workbench.characters.nothing-importable");
     } catch (error) {
       q("import-notice").textContent = messageOf(error);
     } finally {
@@ -185,7 +186,7 @@ class ImportView {
 
   private open(update: boolean): void {
     const { host, q } = this;
-    if (host.dirty()) { host.note("请先保存当前修改，再检查来源更新。"); return; }
+    if (host.dirty()) { host.note(uiText.text("workbench.characters.save-before-rescan")); return; }
     this.editing = update ? (structuredClone(host.current()) ?? null) : null;
     const source = this.editing?.import_snapshot;
     q<HTMLSelectElement>("import-runtime").value = source?.runtime_id || "";
@@ -202,7 +203,7 @@ class ImportView {
       const existing = this.editing ? { existing: { character_id: this.editing.character_id, expected_revision: this.editing.revision } } : {};
       const result = await host.request<{ draft: CharacterRecord; replayed?: boolean }>("POST", "/imports", { candidate_id: candidate.candidate_id, selection: this.selection, ...existing });
       await host.load(); host.select(result.draft.character_id); this.dialog.close();
-      host.note(result.replayed ? "已导入过这个来源，打开现有角色；你的修改保持。" : "角色已保存，规则与 Skills 可在下方查看。");
+      host.note(result.replayed ? uiText.text("workbench.characters.already-imported") : uiText.text("workbench.characters.character-saved"));
     } catch (error) {
       q("import-notice").textContent = messageOf(error);
     } finally {
@@ -217,8 +218,8 @@ class ImportView {
   }
 
   private runButton(item: RunRecord): HTMLButtonElement {
-    const button = el("button", new Date(item.created_at).toLocaleString() + " · v" + item.reference.version + (item.status === "failed" ? " · 启动失败" : ""), "mw-btn mw-btn--ghost");
-    button.type = "button"; button.title = "在终端里看" + (item.status_message ? "：" + item.status_message : ""); button.onclick = () => this.showRun(item);
+    const button = el("button", uiText.text(item.status === "failed" ? "workbench.characters.native-failed-at" : "workbench.characters.native-run-at", { version: item.reference.version, date: { kind: "date", at: item.created_at, style: "datetime" } }), "mw-btn mw-btn--ghost");
+    button.type = "button"; button.title = uiText.text("workbench.characters.view-terminal") + (item.status_message ? " · " + item.status_message : ""); button.onclick = () => this.showRun(item);
     return button;
   }
 
@@ -244,7 +245,7 @@ class ImportView {
     const snapshot = record?.import_snapshot;
     q("source-detail").hidden = !snapshot;
     if (record && snapshot) {
-      q("source-summary").textContent = RUNTIME_NAMES[snapshot.runtime_id] + " · " + snapshot.rules.length + " 条规则 · " + snapshot.skills.length + " 个 Skills · " + new Date(snapshot.captured_at).toLocaleString();
+      q("source-summary").textContent = uiText.text("workbench.characters.snapshot-summary", { name: RUNTIME_NAMES[snapshot.runtime_id], rules: snapshot.rules.length, skills: snapshot.skills.length, date: { kind: "date", at: snapshot.captured_at, style: "datetime" } });
       q("source-files").replaceChildren();
       files(this.host.request, q("source-files"), snapshot, { character_id: record.character_id });
     }
@@ -254,7 +255,7 @@ class ImportView {
 
   private fillRunDialog(content: PublicationPayload, reference: ArtifactVersionRef, execution: Execution): void {
     const { q } = this;
-    q("run-version").textContent = content.title + " · 固定版本 v" + reference.version;
+    q("run-version").textContent = uiText.text("workbench.characters.fixed-version", { name: content.title, version: reference.version });
     const workspaces = q<HTMLSelectElement>("run-workspace");
     workspaces.replaceChildren();
     for (const item of execution.workspaces) {
@@ -262,21 +263,21 @@ class ImportView {
       option.value = item.workspace_id; workspaces.append(option);
     }
     const snapshot = content.import_snapshot;
-    q("native-name").textContent = snapshot ? "本地 " + RUNTIME_NAMES[snapshot.runtime_id] : "本地 Agent";
-    q("native-notice").textContent = execution.notice + (execution.executable ? "" : " 未发现对应 CLI。");
+    q("native-name").textContent = snapshot ? uiText.text("workbench.characters.local-engine", { name: RUNTIME_NAMES[snapshot.runtime_id] }) : uiText.text("workbench.characters.local-agent");
+    q("native-notice").textContent = execution.notice + (execution.executable ? "" : " " + uiText.text("workbench.characters.no-cli"));
     const incompatible = (snapshot?.skills || []).filter(s => s.compatibility !== "portable");
-    q("internal-status").textContent = "请选择本轮需要的文本 Skills；未选择时只加载规则。" + (incompatible.length ? incompatible.length + " 个技能需要原生环境，不能在此模式选择。" : "");
+    q("internal-status").textContent = uiText.text("workbench.characters.choose-run-skills") + (incompatible.length ? " " + uiText.text("workbench.characters.skills-require-native", { count: incompatible.length }) : "");
     q("run-skills").replaceChildren();
     for (const skill of snapshot?.skills || []) q("run-skills").append(skillChoice(skill));
     q<HTMLButtonElement>("run-internal").disabled = false;
     q<HTMLButtonElement>("run-native").disabled = !execution.executable || !execution.workspaces.length;
-    q("run-notice").textContent = execution.workspaces.length ? "" : "当前项目未绑定工作目录，请在项目设置中添加。";
+    q("run-notice").textContent = execution.workspaces.length ? "" : uiText.text("workbench.characters.no-working-directory");
   }
 
   private async publishAndUse(): Promise<void> {
     const { host } = this;
     const active = host.current();
-    if (active?.state !== "active") throw new Error("请先启用这个角色。");
+    if (active?.state !== "active") throw new Error(uiText.text("workbench.characters.must-enable"));
     const record = host.dirty() ? await host.save() : active;
     const published = await host.request<Published>("POST", "/drafts/" + encodeURIComponent(record.character_id) + "/publish", { expected_revision: record.revision });
     const reference = published.reference, content = published.publication.payload;
@@ -290,7 +291,7 @@ class ImportView {
 
   private runInternal(): void {
     const { q } = this;
-    if (!document.querySelector("[data-coding-workbench]")) { q("run-notice").textContent = "请先启用 Coding 插件。"; return; }
+    if (!document.querySelector("[data-coding-workbench]")) { q("run-notice").textContent = uiText.text("workbench.characters.must-enable-coding"); return; }
     const skillIds = [...q("run-skills").querySelectorAll<HTMLInputElement>("input:checked")].map(input => input.value);
     window.dispatchEvent(new CustomEvent("molis-work:character-coding", { detail: { reference: this.reference, title: this.runContent?.title,
       task: q<HTMLTextAreaElement>("run-task").value, workspace_id: q<HTMLSelectElement>("run-workspace").value, skill_ids: skillIds } }));
@@ -300,7 +301,7 @@ class ImportView {
   private async runNative(): Promise<void> {
     const { host, q } = this;
     if (this.pending || !this.execution?.executable) return;
-    if (!q<HTMLTextAreaElement>("run-task").value.trim()) { q("run-notice").textContent = "请填写这次任务。"; return; }
+    if (!q<HTMLTextAreaElement>("run-task").value.trim()) { q("run-notice").textContent = uiText.text("workbench.characters.must-enter-task"); return; }
     this.pending = true; q<HTMLButtonElement>("run-native").disabled = true; this.requestId = this.requestId || crypto.randomUUID();
     try {
       const result = await host.request<{ spawn: unknown }>("POST", "/execution/native",
@@ -310,7 +311,7 @@ class ImportView {
       this.runDialog.close();
       const record = host.current();
       if (record) await this.loadRuns(record.character_id);
-      host.note("已提供固定角色包读取指令。请在原生终端中查看实际加载、授权和执行结果。");
+      host.note(uiText.text("workbench.characters.run-in-terminal"));
       this.requestId = null;
     } catch (error) {
       q("run-notice").textContent = messageOf(error);

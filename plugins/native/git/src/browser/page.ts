@@ -1,4 +1,4 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { format, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { sayUpstream } from "../say.js";
 import { required } from "./dom.js";
@@ -76,7 +76,7 @@ export function createPage(host: GitHost): GitPage | null {
   return {
     host, lifetime, readText, q, s, directory, result, sc,
     U: (upstream) => sayUpstream(readText, upstream),
-    when: (value) => new Date(value).toLocaleString(document.documentElement.lang || "zh-CN"),
+    when: (value) => format.date(value, "datetime"),
     list: required(directory, "[data-git-list]"), notice: required(directory, "[data-git-status]"),
     reopen: required(directory, "[data-git-reopen]"), history: required(directory, "[data-git-history]"),
     refreshButton: required(directory, "[data-git-refresh]"),

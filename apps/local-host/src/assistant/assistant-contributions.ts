@@ -3,19 +3,25 @@
  * why it matters. A plugin that follows the conventions is used without an Assistant branch of its own; one that does
  * not is named here with the exact gap, so its developer can close it.
  */
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { dateTimeLocale } from "../web-locale.js";
 import { actionEffect, isSubjectReader, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AssistantContribution } from "@molis-ai/molis-work-contracts/services/assistant";
 import { boundReferenceKinds, type ReferenceKindProblem } from "@molis-ai/molis-work-service-agent-host";
 import { projectReferenceKinds } from "../agent-question-surfaces.js";
 
+const joined = (items: readonly string[]) => items.join(uiText.text("common.list.separator"));
+
 type Schema = { properties?: Record<string, { title?: unknown; description?: unknown }> };
 
 // A kind left out of the reference questions' list (BL-152), said to the plugin's author; the model never sees this.
 const REFERENCE_GAPS: Record<ReferenceKindProblem["reason"], (problem: ReferenceKindProblem) => string> = {
-  kind: problem => `对象种类 ${problem.kinds.join("、")} 的写法不是标识（小写字母开头，只用小写字母、数字和 _ . -，最长 ${problem.limit} 个字符）：助理的对象引用题问不到它。`,
-  title: problem => `对象种类 ${problem.kinds.join("、")} 的显示名是空的、不止一行或超过 ${problem.limit} 个字：助理的对象引用题问不到它。`,
-  limit: problem => `对象种类 ${problem.kinds.join("、")} 超出了一个项目最多 ${problem.limit} 种的上限（按插件标识排，每个插件分同样的份额，列得多的用别人剩下的）：助理的对象引用题问不到它。`,
+  kind: problem => uiText.text("workbench.assistant-contributions.reference-kind", { kinds: joined(problem.kinds), limit: problem.limit }),
+  title: problem => uiText.text("workbench.assistant-contributions.reference-title", { kinds: joined(problem.kinds), limit: problem.limit }),
+  limit: problem => uiText.text("workbench.assistant-contributions.reference-limit", { kinds: joined(problem.kinds), limit: problem.limit }),
 };
+
+const examples = (views: readonly ActionView[]) => joined(views.slice(0, 3).map(view => view.action.title));
 
 export function assistantContributions(views: readonly ActionView[]): AssistantContribution[] {
   const referenceGaps = new Map<string, AssistantContribution["gaps"]>();
@@ -42,15 +48,15 @@ export function assistantContributions(views: readonly ActionView[]): AssistantC
     const untitled = rows.filter(view => Object.values((view.action.input_schema as Schema | undefined)?.properties ?? {}).some(field => !field.title && !field.description));
     const gaps: AssistantContribution["gaps"] = [...referenceGaps.get(provider.plugin_id ?? provider.provider_id) ?? []];
     const unread = kinds.filter(kind => !readableAnywhere.has(kind));
-    if (unread.length && !readable.length) gaps.push({ area: "context", text: `它的对象（${unread.join("、")}）没有读取动作：助理不能回到对象读当前内容，也看不出你手动改过什么。按约定声明 subject.read（defineSubjectContextAction）。` });
-    else for (const kind of unread) gaps.push({ area: "context", text: `对象种类 ${kind} 没有读取动作，助理不能读回这种对象。` });
+    if (unread.length && !readable.length) gaps.push({ area: "context", text: uiText.text("workbench.assistant-contributions.without-reader", { kinds: joined(unread) }) });
+    else for (const kind of unread) gaps.push({ area: "context", text: uiText.text("workbench.assistant-contributions.unreadable-kind", { kind }) });
     const unnamed = commands.filter(view => !named.includes(view)), unreadable = named.filter(view => !linked.includes(view));
-    if (unnamed.length) gaps.push({ area: "results", text: `${unnamed.length} 个修改动作没有说明结果是哪个对象（result_subject 或唯一的 subject_kinds）：助理改完后无法把结果关联回工作。例如：${unnamed.slice(0, 3).map(view => view.action.title).join("、")}` });
-    if (unreadable.length) gaps.push({ area: "results", text: `${unreadable.length} 个修改动作的结果对象（${[...new Set(unreadable.map(view => view.action.subject_kinds[0]))].join("、")}）没有读取动作：助理改完后读不回结果，工作里看不到它是什么、后来怎样。让结果指向可读取的对象（result_subject 与对应的 subject.read）。例如：${unreadable.slice(0, 3).map(view => view.action.title).join("、")}` });
-    if (undescribed.length) gaps.push({ area: "capabilities", text: `${undescribed.length} 个动作没有写清用途（描述为空或与标题相同）：助理难以判断何时该用。例如：${undescribed.slice(0, 3).map(view => view.action.title).join("、")}` });
-    if (untitled.length) gaps.push({ area: "capabilities", text: `${untitled.length} 个动作的输入字段没有名称或说明：确认界面只能显示字段标识。例如：${untitled.slice(0, 3).map(view => view.action.title).join("、")}` });
+    if (unnamed.length) gaps.push({ area: "results", text: uiText.text("workbench.assistant-contributions.unnamed-result", { count: unnamed.length, examples: examples(unnamed) }) });
+    if (unreadable.length) gaps.push({ area: "results", text: uiText.text("workbench.assistant-contributions.unreadable-result", { count: unreadable.length, kinds: joined([...new Set(unreadable.flatMap(view => view.action.subject_kinds.slice(0, 1)))]), examples: examples(unreadable) }) });
+    if (undescribed.length) gaps.push({ area: "capabilities", text: uiText.text("workbench.assistant-contributions.no-purpose", { count: undescribed.length, examples: examples(undescribed) }) });
+    if (untitled.length) gaps.push({ area: "capabilities", text: uiText.text("workbench.assistant-contributions.unlabeled-input", { count: untitled.length, examples: examples(untitled) }) });
     return { provider_id: provider.provider_id, title: provider.title, ...(provider.plugin_id ? { plugin_id: provider.plugin_id } : {}),
       actions: rows.length, reads: rows.filter(view => actionEffect(view.action, view.capability_id) === "read").length, changes: commands.length,
       readable_kinds: readable, linked_changes: linked.length, searchable, gaps };
-  }).sort((a, b) => b.gaps.length - a.gaps.length || a.title.localeCompare(b.title, "zh-CN"));
+  }).sort((a, b) => b.gaps.length - a.gaps.length || a.title.localeCompare(b.title, dateTimeLocale()));
 }

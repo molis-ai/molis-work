@@ -4,6 +4,10 @@
   "locale": "zh",
   "messages": {
     "ppt.directory.summary": "写大纲，放映或导出 PowerPoint。",
+    "ppt.actions.model-unavailable-permission": "当前调用方未获 AI 整理大纲的授权",
+    "ppt.actions.configure-model-first": "请先配置可用的文字模型",
+    "ppt.actions.pages-unavailable": "Pages 不可用",
+    "ppt.actions.pages-unreadable": "读不到 Pages 文档",
     "ppt.action.delete": "删除",
     "ppt.action.new": "新建演示稿",
     "ppt.action.reload": "重新读取",

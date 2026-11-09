@@ -1,4 +1,4 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { format, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { CONTINUATION_MARKER } from "../../continuation.js";
 import { errorMessage } from "../dom.js";
 import { ownTask } from "./helpers.js";
@@ -36,7 +36,7 @@ async function modelDraft(page: Page, id: string, run: RunView, fallback: string
   try {
     const [provider_id, model_id] = JSON.parse(q<HTMLSelectElement>("[data-coding-model]").value || "[]") as [string?, string?];
     const result = await api<{ message: string; rounds: readonly string[]; usage?: { input: number; output: number } }>(page, sessionPath(id, run.ref.run_id) + "/commit-draft", "POST", { provider_id, model_id });
-    const rounds = result.rounds.join(uiText.text("coding.list.joiner")), tokens = result.usage ? (result.usage.input + result.usage.output).toLocaleString() : "";
+    const rounds = result.rounds.join(uiText.text("coding.list.joiner")), tokens = result.usage ? format.number(result.usage.input + result.usage.output) : "";
     return { draft: result.message, note: result.usage ? uiText.text("coding.commit.drafted-usage", { rounds, tokens }) : uiText.text("coding.commit.drafted", { rounds, tokens }), failed: false };
   } catch (error) {
     if (!lifetime.alive) return null;

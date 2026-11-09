@@ -1,4 +1,4 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { format, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { el, errorMessage, part } from "./dom.js";
 import type { Child } from "./subagents.js";
 import type { PagePorts, ShowReviews, TimelineApi, Translate } from "./types.js";
@@ -63,7 +63,7 @@ function drawHead(ports: SubagentCardPorts, node: HTMLElement, child: Child) {
   const tokens = child.usage?.tokens;
   part(node, ".coding-child-meta").textContent = [
     child.workspace_path && child.integration_available ? uiText.text("coding.board.own-directory", { path: (child.workspace_path.split("/").pop() ?? "") }) : "",
-    tokens && (tokens.input || tokens.output) ? uiText.text("coding.card.usage", { tokens: ((tokens.input || 0) + (tokens.output || 0)).toLocaleString() }) : "",
+    tokens && (tokens.input || tokens.output) ? uiText.text("coding.card.usage", { tokens: format.number((tokens.input || 0) + (tokens.output || 0)) }) : "",
   ].filter(Boolean).join(" · ");
   const task = part(node, ".coding-child-task");
   task.textContent = (child.task || "").trim().split("\n").find(line => line.trim()) || "";
